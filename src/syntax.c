@@ -178,7 +178,9 @@ static ptrdiff_t find_start_begv;
 static EMACS_INT find_start_modiff;
 
 
-Lisp_Object scan_lists (EMACS_INT, EMACS_INT, EMACS_INT, bool);
+static Lisp_Object skip_chars (bool, Lisp_Object, Lisp_Object, bool);
+static Lisp_Object skip_syntaxes (bool, Lisp_Object, Lisp_Object);
+static Lisp_Object scan_lists (EMACS_INT, EMACS_INT, EMACS_INT, bool);
 static void scan_sexps_forward (struct lisp_parse_state *,
                                 ptrdiff_t, ptrdiff_t, ptrdiff_t, EMACS_INT,
                                 bool, int);
@@ -186,6 +188,13 @@ static void internalize_parse_state (Lisp_Object, struct lisp_parse_state *);
 static bool in_classes (int, Lisp_Object);
 static void parse_sexp_propertize (ptrdiff_t charpos);
 
+/* This setter is used only in this file, so it can be private.  */
+static void
+bset_syntax_table (struct buffer *b, Lisp_Object val)
+{
+  b->syntax_table_ = val;
+}
+
 /* Whether the syntax of the character C has the prefix flag set.  */
 bool
 syntax_prefix_flag_p (int c)
@@ -979,6 +988,82 @@ back_comment (ptrdiff_t from, ptrdiff_t from_byte, ptrdiff_t stop,
 
   return from != comment_end;
 }
+
+DEFUN ("syntax-table-p", Fsyntax_table_p, Ssyntax_table_p, 1, 1, 0,
+       doc: /* Return t if OBJECT is a syntax table.
+Currently, any char-table counts as a syntax table.  */)
+  (Lisp_Object object)
+{
+  if (CHAR_TABLE_P (object)
+      && EQ (XCHAR_TABLE (object)->purpose, Qsyntax_table))
+    return Qt;
+  return Qnil;
+}
+
+static void
+check_syntax_table (Lisp_Object obj)
+{
+  CHECK_TYPE (CHAR_TABLE_P (obj) && EQ (XCHAR_TABLE (obj)->purpose, Qsyntax_table),
+	      Qsyntax_table_p, obj);
+}
+
+DEFUN ("syntax-table", Fsyntax_table, Ssyntax_table, 0, 0, 0,
+       doc: /* Return the current syntax table.
+This is the one specified by the current buffer.  */)
+  (void)
+{
+  return BVAR (current_buffer, syntax_table);
+}
+
+DEFUN ("standard-syntax-table", Fstandard_syntax_table,
+   Sstandard_syntax_table, 0, 0, 0,
+       doc: /* Return the standard syntax table.
+This is the one used for new buffers.  */)
+  (void)
+{
+  return Vstandard_syntax_table;
+}
+
+DEFUN ("copy-syntax-table", Fcopy_syntax_table, Scopy_syntax_table, 0, 1, 0,
+       doc: /* Construct a new syntax table and return it.
+It is a copy of the TABLE, which defaults to the standard syntax table.  */)
+  (Lisp_Object table)
+{
+  Lisp_Object copy;
+
+  if (!NILP (table))
+    check_syntax_table (table);
+  else
+    table = Vstandard_syntax_table;
+
+  copy = Fcopy_sequence (table);
+
+  /* Only the standard syntax table should have a default element.
+     Other syntax tables should inherit from parents instead.  */
+  set_char_table_defalt (copy, Qnil);
+
+  /* Copied syntax tables should all have parents.
+     If we copied one with no parent, such as the standard syntax table,
+     use the standard syntax table as the copy's parent.  */
+  if (NILP (XCHAR_TABLE (copy)->parent))
+    Fset_char_table_parent (copy, Vstandard_syntax_table);
+  return copy;
+}
+
+DEFUN ("set-syntax-table", Fset_syntax_table, Sset_syntax_table, 1, 1, 0,
+       doc: /* Select a new syntax table for the current buffer.
+One argument, a syntax table.  */)
+  (Lisp_Object table)
+{
+  int idx;
+  check_syntax_table (table);
+  bset_syntax_table (current_buffer, table);
+  /* Indicate that this buffer now has a specified syntax table.  */
+  idx = PER_BUFFER_VAR_IDX (syntax_table);
+  SET_PER_BUFFER_VALUE_P (current_buffer, idx, 1);
+  return table;
+}
+
 /* Convert a letter which signifies a syntax code
  into the code it signifies.
  This is used by modify-syntax-entry, and other things.  */
@@ -1479,7 +1564,91 @@ scan_words (ptrdiff_t from, EMACS_INT count)
   return from;
 }
 
-Lisp_Object
+DEFUN ("forward-word", Fforward_word, Sforward_word, 0, 1, "^p",
+       doc: /* Move point forward ARG words (backward if ARG is negative).
+If ARG is omitted or nil, move point forward one word.
+Normally returns t.
+If an edge of the buffer or a field boundary is reached, point is
+left there and the function returns nil.  Field boundaries are not
+noticed if `inhibit-field-text-motion' is non-nil.
+
+The word boundaries are normally determined by the buffer's syntax
+table and character script (according to `char-script-table'), but
+`find-word-boundary-function-table', such as set up by `subword-mode',
+can change that.  If a Lisp program needs to move by words determined
+strictly by the syntax table, it should use `forward-word-strictly'
+instead.  See Info node `(elisp) Word Motion' for details.  */)
+  (Lisp_Object arg)
+{
+  Lisp_Object tmp;
+  ptrdiff_t orig_val, val;
+
+  if (NILP (arg))
+    XSETFASTINT (arg, 1);
+  else
+    CHECK_NUMBER (arg);
+
+  val = orig_val = scan_words (PT, XINT (arg));
+  if (! orig_val)
+    val = XINT (arg) > 0 ? ZV : BEGV;
+
+  /* Avoid jumping out of an input field.  */
+  tmp = Fconstrain_to_field (make_number (val), make_number (PT),
+			     Qnil, Qnil, Qnil);
+  val = XFASTINT (tmp);
+
+  SET_PT (val);
+  return val == orig_val ? Qt : Qnil;
+}
+
+DEFUN ("skip-chars-forward", Fskip_chars_forward, Sskip_chars_forward, 1, 2, 0,
+       doc: /* Move point forward, stopping before a char not in STRING, or at pos LIM.
+STRING is like the inside of a `[...]' in a regular expression
+except that `]' is never special and `\\' quotes `^', `-' or `\\'
+ (but not at the end of a range; quoting is never needed there).
+Thus, with arg "a-zA-Z", this skips letters stopping before first nonletter.
+With arg "^a-zA-Z", skips nonletters stopping before first letter.
+Char classes, e.g. `[:alpha:]', are supported.
+
+Returns the distance traveled, either zero or positive.  */)
+  (Lisp_Object string, Lisp_Object lim)
+{
+  return skip_chars (1, string, lim, 1);
+}
+
+DEFUN ("skip-chars-backward", Fskip_chars_backward, Sskip_chars_backward, 1, 2, 0,
+       doc: /* Move point backward, stopping after a char not in STRING, or at pos LIM.
+See `skip-chars-forward' for details.
+Returns the distance traveled, either zero or negative.  */)
+  (Lisp_Object string, Lisp_Object lim)
+{
+  return skip_chars (0, string, lim, 1);
+}
+
+DEFUN ("skip-syntax-forward", Fskip_syntax_forward, Sskip_syntax_forward, 1, 2, 0,
+       doc: /* Move point forward across chars in specified syntax classes.
+SYNTAX is a string of syntax code characters.
+Stop before a char whose syntax is not in SYNTAX, or at position LIM.
+If SYNTAX starts with ^, skip characters whose syntax is NOT in SYNTAX.
+This function returns the distance traveled, either zero or positive.  */)
+  (Lisp_Object syntax, Lisp_Object lim)
+{
+  return skip_syntaxes (1, syntax, lim);
+}
+
+DEFUN ("skip-syntax-backward", Fskip_syntax_backward, Sskip_syntax_backward, 1, 2, 0,
+       doc: /* Move point backward across chars in specified syntax classes.
+SYNTAX is a string of syntax code characters.
+Stop on reaching a char whose syntax is not in SYNTAX, or at position LIM.
+If SYNTAX starts with ^, skip characters whose syntax is NOT in SYNTAX.
+This function returns either zero or a negative number, and the absolute value
+of this is the distance traveled.  */)
+  (Lisp_Object syntax, Lisp_Object lim)
+{
+  return skip_syntaxes (0, syntax, lim);
+}
+
+static Lisp_Object
 skip_chars (bool forwardp, Lisp_Object string, Lisp_Object lim,
 	    bool handle_iso_classes)
 {
@@ -1930,7 +2099,7 @@ skip_chars (bool forwardp, Lisp_Object string, Lisp_Object lim,
 }
 
 
-Lisp_Object
+static Lisp_Object
 skip_syntaxes (bool forwardp, Lisp_Object string, Lisp_Object lim)
 {
   int c;
@@ -2468,7 +2637,7 @@ syntax_multibyte (int c, bool multibyte_symbol_p)
   return ASCII_CHAR_P (c) || !multibyte_symbol_p ? SYNTAX (c) : Ssymbol;
 }
 
-Lisp_Object
+static Lisp_Object
 scan_lists (EMACS_INT from, EMACS_INT count, EMACS_INT depth, bool sexpflag)
 {
   Lisp_Object val;
@@ -2861,6 +3030,53 @@ scan_lists (EMACS_INT from, EMACS_INT count, EMACS_INT depth, bool sexpflag)
   xsignal3 (Qscan_error,
 	    build_string ("Unbalanced parentheses"),
 	    make_number (last_good), make_number (from));
+}
+
+DEFUN ("scan-lists", Fscan_lists, Sscan_lists, 3, 3, 0,
+       doc: /* Scan from character number FROM by COUNT lists.
+Scan forward if COUNT is positive, backward if COUNT is negative.
+Return the character number of the position thus found.
+
+A \"list", in this context, refers to a balanced parenthetical
+grouping, as determined by the syntax table.
+
+If DEPTH is nonzero, treat that as the nesting depth of the starting
+point (i.e. the starting point is DEPTH parentheses deep).  This
+function scans over parentheses until the depth goes to zero COUNT
+times.  Hence, positive DEPTH moves out that number of levels of
+parentheses, while negative DEPTH moves to a deeper level.
+
+Comments are ignored if `parse-sexp-ignore-comments' is non-nil.
+
+If we reach the beginning or end of the accessible part of the buffer
+before we have scanned over COUNT lists, return nil if the depth at
+that point is zero, and signal an error if the depth is nonzero.  */)
+  (Lisp_Object from, Lisp_Object count, Lisp_Object depth)
+{
+  CHECK_NUMBER (from);
+  CHECK_NUMBER (count);
+  CHECK_NUMBER (depth);
+
+  return scan_lists (XINT (from), XINT (count), XINT (depth), 0);
+}
+
+DEFUN ("scan-sexps", Fscan_sexps, Sscan_sexps, 2, 2, 0,
+       doc: /* Scan from character number FROM by COUNT balanced expressions.
+If COUNT is negative, scan backwards.
+Returns the character number of the position thus found.
+
+Comments are ignored if `parse-sexp-ignore-comments' is non-nil.
+
+If the beginning or end of (the accessible part of) the buffer is reached
+in the middle of a parenthetical grouping, an error is signaled.
+If the beginning or end is reached between groupings
+but before count is used up, nil is returned.  */)
+  (Lisp_Object from, Lisp_Object count)
+{
+  CHECK_NUMBER (from);
+  CHECK_NUMBER (count);
+
+  return scan_lists (XINT (from), XINT (count), 0, 1);
 }
 
 DEFUN ("backward-prefix-chars", Fbackward_prefix_chars, Sbackward_prefix_chars,
@@ -3499,6 +3715,7 @@ init_syntax_once (void)
 void
 syms_of_syntax (void)
 {
+  DEFSYM (Qsyntax_table_p, "syntax-table-p");
   DEFSYM (Qsyntax_ppss, "syntax-ppss");
   DEFVAR_LISP ("comment-use-syntax-ppss",
 	       Vcomment_use_syntax_ppss,
@@ -3574,13 +3791,27 @@ In both cases, LIMIT bounds the search. */);
   DEFSYM (Qcomment_end_can_be_escaped, "comment-end-can-be-escaped");
   Fmake_variable_buffer_local (Qcomment_end_can_be_escaped);
 
+  defsubr (&Ssyntax_table_p);
+  defsubr (&Ssyntax_table);
+  defsubr (&Sstandard_syntax_table);
+  defsubr (&Scopy_syntax_table);
+  defsubr (&Sset_syntax_table);
   defsubr (&Schar_syntax);
   defsubr (&Smatching_paren);
   defsubr (&Sstring_to_syntax);
   defsubr (&Smodify_syntax_entry);
   defsubr (&Sinternal_describe_syntax_value);
 
+  defsubr (&Sforward_word);
+
+  defsubr (&Sskip_chars_forward);
+  defsubr (&Sskip_chars_backward);
+  defsubr (&Sskip_syntax_forward);
+  defsubr (&Sskip_syntax_backward);
+
   defsubr (&Sforward_comment);
+  defsubr (&Sscan_lists);
+  defsubr (&Sscan_sexps);
   defsubr (&Sbackward_prefix_chars);
   defsubr (&Sparse_partial_sexp);
 }

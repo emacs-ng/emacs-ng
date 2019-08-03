@@ -154,15 +154,21 @@ enum font_property_index
        a font (font-driver dependent).  */
     FONT_EXTRA_INDEX,		/* alist		alist */
 
+    /* This value is the length of font-spec vector.  */
+    FONT_SPEC_MAX,
+
     /* The followings are used only for a font-entity and a font-object.  */
 
     /* List of font-objects opened from the font-entity.  */
-    FONT_OBJLIST_INDEX,
+    FONT_OBJLIST_INDEX = FONT_SPEC_MAX,
+
+    /* This value is the length of font-entity vector.  */
+    FONT_ENTITY_MAX,
 
     /* The followings are used only for a font-object.  */
 
     /* XLFD name of the font (string). */
-    FONT_NAME_INDEX,
+    FONT_NAME_INDEX = FONT_ENTITY_MAX,
 
     /* Full name of the font (string).  It is the name extracted from
        the opened font, and may be different from the above.  It may be
@@ -172,16 +178,10 @@ enum font_property_index
     /* File name of the font or nil if a file associated with the font
        is not available.  */
     FONT_FILE_INDEX,
+
+    /* This value is the length of font-object vector.  */
+    FONT_OBJECT_MAX
   };
-
-/* This value is the length of font-spec vector.  */
-#define FONT_SPEC_MAX 13
-
-/* This value is the length of font-entity vector.  */
-#define FONT_ENTITY_MAX 14
-
-/* This value is the length of font-object vector.  */
-#define FONT_OBJECT_MAX 17
 
 /* Return the numeric weight value of FONT.  */
 #define FONT_WEIGHT_NUMERIC(font)		\
@@ -230,7 +230,11 @@ enum font_property_index
 #define FONT_SET_STYLE(font, prop, val)	\
   ASET ((font), prop, make_number (font_style_to_value (prop, val, true)))
 
+#ifndef MSDOS
 #define FONT_WIDTH(f) ((f)->max_width)
+#else
+#define FONT_WIDTH(f) 1
+#endif
 #define FONT_HEIGHT(f) ((f)->height)
 #define FONT_BASE(f) ((f)->ascent)
 #define FONT_DESCENT(f) ((f)->descent)
@@ -804,9 +808,6 @@ extern Lisp_Object font_style_symbolic (Lisp_Object font,
 
 extern bool font_match_p (Lisp_Object spec, Lisp_Object font);
 extern Lisp_Object font_list_entities (struct frame *, Lisp_Object);
-extern Lisp_Object font_sort_entities (Lisp_Object, Lisp_Object, struct frame *, int);
-
-extern Lisp_Object font_vconcat_entity_vectors(Lisp_Object);
 
 extern Lisp_Object font_get_name (Lisp_Object font_object);
 extern Lisp_Object font_spec_from_name (Lisp_Object font_name);
@@ -925,10 +926,12 @@ extern struct font_driver const ftcrfont_driver;
 extern void syms_of_ftcrfont (void);
 #endif
 
+#ifndef FONT_DEBUG
+#define FONT_DEBUG
+#endif
+
 extern void font_add_log (const char *, Lisp_Object, Lisp_Object);
 extern void font_deferred_log (const char *, Lisp_Object, Lisp_Object);
-extern Lisp_Object font_at (int c, ptrdiff_t pos, struct face *face,
-                            struct window *w, Lisp_Object string);
 
 #define FONT_ADD_LOG(ACTION, ARG, RESULT)	\
   do {						\

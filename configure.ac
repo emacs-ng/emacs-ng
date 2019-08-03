@@ -316,16 +316,21 @@ dnl This should be the last --with option, because --with-x is
 dnl added later on when we find the file name of X, and it's best to
 dnl keep them together visually.
 AC_ARG_WITH([x-toolkit],[AS_HELP_STRING([--with-x-toolkit=KIT],
- [use an X toolkit (KIT one of: yes or gtk, gtk2, gtk3, no)])],
+ [use an X toolkit (KIT one of: yes or gtk, gtk2, gtk3, lucid or athena, motif, no)])],
 [	  case "${withval}" in
 	    y | ye | yes )	val=gtk ;;
+	    n | no )		val=no  ;;
+	    l | lu | luc | luci | lucid )	val=lucid ;;
+	    a | at | ath | athe | athen | athena )	val=athena ;;
+	    m | mo | mot | moti | motif )	val=motif ;;
 	    g | gt | gtk  )	val=gtk ;;
 	    gtk2  )	val=gtk2 ;;
 	    gtk3  )	val=gtk3 ;;
 	    * )
 AC_MSG_ERROR(['--with-x-toolkit=$withval' is invalid;
-this option's value should be 'yes', 'gtk',
-'gtk2' or 'gtk3'.  'yes' and 'gtk' are synonyms.])
+this option's value should be 'yes', 'no', 'lucid', 'athena', 'motif', 'gtk',
+'gtk2' or 'gtk3'.  'yes' and 'gtk' are synonyms.
+'athena' and 'lucid' are synonyms.])
 	    ;;
 	  esac
 	  with_x_toolkit=$val
@@ -351,6 +356,7 @@ OPTION_DEFAULT_OFF([cairo],[compile with Cairo drawing (experimental)])
 OPTION_DEFAULT_ON([xml2],[don't compile with XML parsing support])
 OPTION_DEFAULT_ON([imagemagick],[don't compile with ImageMagick image support])
 OPTION_DEFAULT_ON([json], [don't compile with native JSON support])
+OPTION_DEFAULT_ON([libvterm],[don't compile with libvterm support])
 
 OPTION_DEFAULT_ON([xft],[don't use XFT for anti aliased fonts])
 OPTION_DEFAULT_ON([libotf],[don't use libotf for OpenType font support])
@@ -3801,6 +3807,17 @@ fi
 AC_SUBST(LIBXML2_LIBS)
 AC_SUBST(LIBXML2_CFLAGS)
 
+dnl ### Use libvterm (-lvterm) if available
+HAVE_LIBVTERM=no
+if test "${with_libvterm}" != "no"; then
+  EMACS_CHECK_MODULES([LIBVTERM], [vterm])
+  if test "${HAVE_LIBVTERM}" = "yes"; then
+    AC_DEFINE(HAVE_LIBVTERM, 1, [Define to 1 if libvterm library is present.])
+  fi
+fi
+AC_SUBST(LIBVTERM_LIBS)
+AC_SUBST(LIBVTERM_CFLAGS)
+
 BLESSMAIL_TARGET=
 LIBS_MAIL=
 if test ! "$with_mailutils"; then
@@ -4314,6 +4331,9 @@ dnl which breaks in-tree builds.  So we do this manually instead.
 dnl Note that we cannot rely on PATH_SEPARATOR, as that one will always
 dnl be computed as ':' in MSYS Bash.
 AC_SUBST(SEPCHAR)
+
+dnl Everybody supports this, except MS-DOS.
+AC_DEFINE(subprocesses, 1, [Define to enable asynchronous subprocesses.])
 
 AC_DEFINE(USER_FULL_NAME, [pw->pw_gecos], [How to get a user's full name.])
 
@@ -5490,6 +5510,9 @@ case "$window_system" in
         CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-w32\", "
     ;;
 esac
+if test "$HAVE_LIBVTERM" = "yes"; then
+   CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"libvterm\", "
+fi
 AC_SUBST(CARGO_DEFAULT_FEATURES)
 AC_CONFIG_FILES([rust_src/Cargo.toml])
 

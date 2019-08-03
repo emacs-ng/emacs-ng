@@ -72,10 +72,13 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <unlocked-io.h>
 
 #include "syswait.h"
-#include "remacs-lib.h"
 #ifdef MAIL_USE_POP
 #include "pop.h"
 #endif
+
+#ifdef MSDOS
+#undef access
+#endif /* MSDOS */
 
 #ifdef WINDOWSNT
 #include "ntlib.h"
@@ -284,7 +287,7 @@ main (int argc, char **argv)
 
 	  memcpy (tempname, inname, inname_dirlen);
 	  strcpy (tempname + inname_dirlen, "EXXXXXX");
-	  desc = rust_make_temp (tempname, O_BINARY);
+	  desc = mkostemp (tempname, O_BINARY);
 	  if (desc < 0)
 	    {
 	      int mkostemp_errno = errno;

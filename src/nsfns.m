@@ -2039,7 +2039,7 @@ there was no result.  */)
   ns_string_to_pasteboard (pb, send);
 
   if (NSPerformService (svcName, pb) == NO)
-    xsignal1 (Qquit, build_string ("service not available"));
+    Fsignal (Qquit, list1 (build_string ("service not available")));
 
   if ([[pb types] count] == 0)
     return build_string ("");

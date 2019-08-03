@@ -2168,6 +2168,26 @@ font_score (Lisp_Object entity, Lisp_Object *spec_prop)
 }
 
 
+/* Concatenate all elements of LIST into one vector.  LIST is a list
+   of font-entity vectors.  */
+
+static Lisp_Object
+font_vconcat_entity_vectors (Lisp_Object list)
+{
+  EMACS_INT nargs = XFASTINT (Flength (list));
+  Lisp_Object *args;
+  USE_SAFE_ALLOCA;
+  SAFE_ALLOCA_LISP (args, nargs);
+  ptrdiff_t i;
+
+  for (i = 0; i < nargs; i++, list = XCDR (list))
+    args[i] = XCAR (list);
+  Lisp_Object result = Fvconcat (nargs, args);
+  SAFE_FREE ();
+  return result;
+}
+
+
 /* The structure for elements being sorted by qsort.  */
 struct font_sort_data
 {
@@ -2207,7 +2227,7 @@ font_compare (const void *d1, const void *d2)
    number of elements is 1.  The caller should avoid calling this in
    such a case.  */
 
-Lisp_Object
+static Lisp_Object
 font_sort_entities (Lisp_Object list, Lisp_Object prefer,
 		    struct frame *f, int best_only)
 {
@@ -2923,6 +2943,25 @@ font_open_entity (struct frame *f, Lisp_Object entity, int pixel_size)
 #endif
 
   return font_object;
+}
+
+
+/* Close FONT_OBJECT that is opened on frame F.  */
+
+static void
+font_close_object (struct frame *f, Lisp_Object font_object)
+{
+  struct font *font = XFONT_OBJECT (font_object);
+
+  if (NILP (AREF (font_object, FONT_TYPE_INDEX)))
+    /* Already closed.  */
+    return;
+  FONT_ADD_LOG ("close", font_object, Qnil);
+  font->driver->close (font);
+#ifdef HAVE_WINDOW_SYSTEM
+  eassert (FRAME_DISPLAY_INFO (f)->n_fonts);
+  FRAME_DISPLAY_INFO (f)->n_fonts--;
+#endif
 }
 
 
@@ -3664,7 +3703,7 @@ font_filter_properties (Lisp_Object font,
    at index POS.  If C is negative, get C from the current buffer or
    STRING.  */
 
-Lisp_Object
+static Lisp_Object
 font_at (int c, ptrdiff_t pos, struct face *face, struct window *w,
 	 Lisp_Object string)
 {
@@ -3805,6 +3844,25 @@ font_range (ptrdiff_t pos, ptrdiff_t pos_byte, ptrdiff_t *limit,
 
 
 /* Lisp API.  */
+
+DEFUN ("fontp", Ffontp, Sfontp, 1, 2, 0,
+       doc: /* Return t if OBJECT is a font-spec, font-entity, or font-object.
+Return nil otherwise.
+Optional 2nd argument EXTRA-TYPE, if non-nil, specifies to check
+which kind of font it is.  It must be one of `font-spec', `font-entity',
+`font-object'.  */)
+  (Lisp_Object object, Lisp_Object extra_type)
+{
+  if (NILP (extra_type))
+    return (FONTP (object) ? Qt : Qnil);
+  if (EQ (extra_type, Qfont_spec))
+    return (FONT_SPEC_P (object) ? Qt : Qnil);
+  if (EQ (extra_type, Qfont_entity))
+    return (FONT_ENTITY_P (object) ? Qt : Qnil);
+  if (EQ (extra_type, Qfont_object))
+    return (FONT_OBJECT_P (object) ? Qt : Qnil);
+  wrong_type_argument (intern ("font-extra-type"), extra_type);
+}
 
 DEFUN ("font-spec", Ffont_spec, Sfont_spec, 0, MANY, 0,
        doc: /* Return a newly created font-spec with arguments as properties.
@@ -4154,6 +4212,51 @@ accepted by `font-spec'.  */)
   return val;
 }
 
+DEFUN ("list-fonts", Flist_fonts, Slist_fonts, 1, 4, 0,
+       doc: /* List available fonts matching FONT-SPEC on the current frame.
+Optional 2nd argument FRAME specifies the target frame.
+Optional 3rd argument NUM, if non-nil, limits the number of returned fonts.
+Optional 4th argument PREFER, if non-nil, is a font-spec to
+control the order of the returned list.  Fonts are sorted by
+how close they are to PREFER.  */)
+  (Lisp_Object font_spec, Lisp_Object frame, Lisp_Object num, Lisp_Object prefer)
+{
+  struct frame *f = decode_live_frame (frame);
+  Lisp_Object vec, list;
+  EMACS_INT n = 0;
+
+  CHECK_FONT_SPEC (font_spec);
+  if (! NILP (num))
+    {
+      CHECK_NUMBER (num);
+      n = XINT (num);
+      if (n <= 0)
+	return Qnil;
+    }
+  if (! NILP (prefer))
+    CHECK_FONT_SPEC (prefer);
+
+  list = font_list_entities (f, font_spec);
+  if (NILP (list))
+    return Qnil;
+  if (NILP (XCDR (list))
+      && ASIZE (XCAR (list)) == 1)
+    return list1 (AREF (XCAR (list), 0));
+
+  if (! NILP (prefer))
+    vec = font_sort_entities (list, prefer, f, 0);
+  else
+    vec = font_vconcat_entity_vectors (list);
+  if (n == 0 || n >= ASIZE (vec))
+    list = CALLN (Fappend, vec, Qnil);
+  else
+    {
+      for (list = Qnil, n--; n >= 0; n--)
+	list = Fcons (AREF (vec, n), list);
+    }
+  return list;
+}
+
 DEFUN ("font-family-list", Ffont_family_list, Sfont_family_list, 0, 1, 0,
        doc: /* List available font families on the current frame.
 If FRAME is omitted or nil, the selected frame is used.  */)
@@ -4176,6 +4279,18 @@ If FRAME is omitted or nil, the selected frame is used.  */)
 	    list = Fcons (SYMBOL_NAME (XCAR (val)), list);
       }
   return list;
+}
+
+DEFUN ("find-font", Ffind_font, Sfind_font, 1, 2, 0,
+       doc: /* Return a font-entity matching with FONT-SPEC on the current frame.
+Optional 2nd argument FRAME, if non-nil, specifies the target frame.  */)
+  (Lisp_Object font_spec, Lisp_Object frame)
+{
+  Lisp_Object val = Flist_fonts (font_spec, frame, make_number (1), Qnil);
+
+  if (CONSP (val))
+    val = XCAR (val);
+  return val;
 }
 
 DEFUN ("font-xlfd-name", Ffont_xlfd_name, Sfont_xlfd_name, 1, 2, 0,
@@ -4612,6 +4727,8 @@ corresponding character.  */)
 }
 #endif	/* 0 */
 
+#ifdef FONT_DEBUG
+
 DEFUN ("open-font", Fopen_font, Sopen_font, 1, 3, 0,
        doc: /* Open FONT-ENTITY.  */)
   (Lisp_Object font_entity, Lisp_Object size, Lisp_Object frame)
@@ -4636,6 +4753,15 @@ DEFUN ("open-font", Fopen_font, Sopen_font, 1, 3, 0,
 	isize = 120;
     }
   return font_open_entity (f, font_entity, isize);
+}
+
+DEFUN ("close-font", Fclose_font, Sclose_font, 1, 2, 0,
+       doc: /* Close FONT-OBJECT.  */)
+  (Lisp_Object font_object, Lisp_Object frame)
+{
+  CHECK_FONT_OBJECT (font_object);
+  font_close_object (decode_live_frame (frame), font_object);
+  return Qnil;
 }
 
 DEFUN ("query-font", Fquery_font, Squery_font, 1, 1, 0,
@@ -4825,6 +4951,46 @@ the corresponding element is nil.  */)
   return vec;
 }
 
+DEFUN ("font-match-p", Ffont_match_p, Sfont_match_p, 2, 2, 0,
+       doc: /* Return t if and only if font-spec SPEC matches with FONT.
+FONT is a font-spec, font-entity, or font-object. */)
+  (Lisp_Object spec, Lisp_Object font)
+{
+  CHECK_FONT_SPEC (spec);
+  CHECK_FONT (font);
+
+  return (font_match_p (spec, font) ? Qt : Qnil);
+}
+
+DEFUN ("font-at", Ffont_at, Sfont_at, 1, 3, 0,
+       doc: /* Return a font-object for displaying a character at POSITION.
+Optional second arg WINDOW, if non-nil, is a window displaying
+the current buffer.  It defaults to the currently selected window.
+Optional third arg STRING, if non-nil, is a string containing the target
+character at index specified by POSITION.  */)
+  (Lisp_Object position, Lisp_Object window, Lisp_Object string)
+{
+  struct window *w = decode_live_window (window);
+
+  if (NILP (string))
+    {
+      if (XBUFFER (w->contents) != current_buffer)
+	error ("Specified window is not displaying the current buffer");
+      CHECK_NUMBER_COERCE_MARKER (position);
+      if (! (BEGV <= XINT (position) && XINT (position) < ZV))
+	args_out_of_range_3 (position, make_number (BEGV), make_number (ZV));
+    }
+  else
+    {
+      CHECK_NUMBER (position);
+      CHECK_STRING (string);
+      if (! (0 <= XINT (position) && XINT (position) < SCHARS (string)))
+	args_out_of_range (string, position);
+    }
+
+  return font_at (-1, XINT (position), NULL, w, string);
+}
+
 #if 0
 DEFUN ("draw-string", Fdraw_string, Sdraw_string, 2, 2, 0,
        doc: /*  Draw STRING by FONT-OBJECT on the top left corner of the current frame.
@@ -4865,6 +5031,23 @@ Type C-l to recover what previously shown.  */)
   return make_number (len);
 }
 #endif
+
+DEFUN ("frame-font-cache", Fframe_font_cache, Sframe_font_cache, 0, 1, 0,
+       doc: /* Return FRAME's font cache.  Mainly used for debugging.
+If FRAME is omitted or nil, use the selected frame.  */)
+  (Lisp_Object frame)
+{
+#ifdef HAVE_WINDOW_SYSTEM
+  struct frame *f = decode_live_frame (frame);
+
+  if (FRAME_WINDOW_P (f))
+    return FRAME_DISPLAY_INFO (f)->name_list_element;
+  else
+#endif
+    return Qnil;
+}
+
+#endif	/* FONT_DEBUG */
 
 #ifdef HAVE_WINDOW_SYSTEM
 
@@ -5178,13 +5361,16 @@ syms_of_font (void)
 #endif	/* HAVE_LIBOTF */
 #endif	/* 0 */
 
+  defsubr (&Sfontp);
   defsubr (&Sfont_spec);
   defsubr (&Sfont_get);
 #ifdef HAVE_WINDOW_SYSTEM
   defsubr (&Sfont_face_attributes);
 #endif
   defsubr (&Sfont_put);
+  defsubr (&Slist_fonts);
   defsubr (&Sfont_family_list);
+  defsubr (&Sfind_font);
   defsubr (&Sfont_xlfd_name);
   defsubr (&Sclear_font_cache);
   defsubr (&Sfont_shape_gstring);
@@ -5195,12 +5381,18 @@ syms_of_font (void)
   defsubr (&Sfont_otf_alternates);
 #endif	/* 0 */
 
+#ifdef FONT_DEBUG
   defsubr (&Sopen_font);
+  defsubr (&Sclose_font);
   defsubr (&Squery_font);
   defsubr (&Sfont_get_glyphs);
+  defsubr (&Sfont_match_p);
+  defsubr (&Sfont_at);
 #if 0
   defsubr (&Sdraw_string);
 #endif
+  defsubr (&Sframe_font_cache);
+#endif	/* FONT_DEBUG */
 #ifdef HAVE_WINDOW_SYSTEM
   defsubr (&Sfont_info);
 #endif

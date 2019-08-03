@@ -268,8 +268,8 @@ fn run_bindgen(path: &str) {
                 .blacklist_item("wrong_choice")
                 .blacklist_item("wrong_range")
                 // these are defined in data.rs
-                .blacklist_item("Lisp_Fwd")
-                .blacklist_item("Lisp_.*fwd")
+                // .blacklist_item("Lisp_Fwd")
+                // .blacklist_item("Lisp_.*fwd")
                 // these are defined in remacs_lib
                 .blacklist_item("timespec")
                 .blacklist_item("current_timespec")
@@ -289,7 +289,9 @@ fn run_bindgen(path: &str) {
                 .rustified_enum("output_method")
                 .rustified_enum("pvec_type")
                 .rustified_enum("symbol_redirect")
-                .rustified_enum("syntaxcode");
+                .rustified_enum("syntaxcode")
+                .rustified_enum("VTermProp")
+                .rustified_enum("VTermColorType");
 
             if cfg!(target_os = "windows") {
                 builder = builder

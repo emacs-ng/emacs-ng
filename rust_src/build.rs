@@ -356,7 +356,15 @@ fn env_var(name: &str) -> String {
 
 // What to ignore when walking the list of files
 fn ignore(path: &str, additional_ignored_paths: &Vec<&str>) -> bool {
-    path == "" || path.starts_with('.') || additional_ignored_paths.contains(&path)
+    path == ""
+        || path.starts_with('.')
+        || path == "lib.rs"
+        || path == "functions.rs"
+        || if cfg!(feature = "libvterm") {
+            false
+        } else {
+            path == "vterm.rs"
+        }
 }
 
 // What files to ignore depending on chosen features
@@ -471,8 +479,8 @@ fn generate_include_files() -> Result<(), BuildError> {
         }
     }
 
-    // Add this one by hand.
-    write!(out_file, "    floatfns::rust_init_extra_syms();\n")?;
+    // // Add this one by hand.
+    // write!(out_file, "    floatfns::rust_init_extra_syms();\n")?;
     write!(out_file, "}}\n")?;
 
     Ok(())

@@ -72,10 +72,17 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "w32.h"
 #endif /* not WINDOWSNT */
 
+#ifdef MSDOS
+#include "msdos.h"
+#include <sys/param.h>
+#endif
 
 #ifdef DOS_NT
 /* On Windows, drive letters must be alphabetic - on DOS, the Netware
    redirector allows the six letters between 'Z' and 'a' as well.  */
+#ifdef MSDOS
+#define IS_DRIVE(x) ((x) >= 'A' && (x) <= 'z')
+#endif
 #ifdef WINDOWSNT
 #define IS_DRIVE(x) c_isalpha (x)
 #endif
@@ -131,11 +138,10 @@ static bool a_write (int, Lisp_Object, ptrdiff_t, ptrdiff_t,
 static bool e_write (int, Lisp_Object, ptrdiff_t, ptrdiff_t,
 		     struct coding_system *);
 
+
+/* Return true if FILENAME exists, otherwise return false and set errno.  */
 
-
-/* Return true if FILENAME exists.  */
-
-bool
+static bool
 check_existing (const char *filename)
 {
   return faccessat (AT_FDCWD, filename, F_OK, AT_EACCESS) == 0;
@@ -143,7 +149,7 @@ check_existing (const char *filename)
 
 /* Return true if file FILENAME exists and can be executed.  */
 
-bool
+static bool
 check_executable (char *filename)
 {
   return faccessat (AT_FDCWD, filename, X_OK, AT_EACCESS) == 0;
@@ -156,6 +162,15 @@ check_executable (char *filename)
 static bool
 check_writable (const char *filename, int amode)
 {
+#ifdef MSDOS
+  /* FIXME: an faccessat implementation should be added to the
+     DOS/Windows ports and this #ifdef branch should be removed.  */
+  struct stat st;
+  if (stat (filename, &st) < 0)
+    return 0;
+  errno = EPERM;
+  return (st.st_mode & S_IWRITE || S_ISDIR (st.st_mode));
+#else /* not MSDOS */
   bool res = faccessat (AT_FDCWD, filename, amode, AT_EACCESS) == 0;
 #ifdef CYGWIN
   /* faccessat may have returned failure because Cygwin couldn't
@@ -171,9 +186,9 @@ check_writable (const char *filename, int amode)
     }
 #endif /* CYGWIN */
   return res;
+#endif /* not MSDOS */
 }
-
-
+
 /* Signal a file-access failure.  STRING describes the failure,
    NAME the file involved, and ERRORNO the errno value.
 
@@ -198,6 +213,16 @@ report_file_errno (char const *string, Lisp_Object name, int errorno)
 	     Fcons (build_string (string), errdata));
 }
 
+/* Signal a file-access failure that set errno.  STRING describes the
+   failure, NAME the file involved.  When invoking this function, take
+   care to not use arguments such as build_string ("foo") that involve
+   side effects that may set errno.  */
+
+void
+report_file_error (char const *string, Lisp_Object name)
+{
+  report_file_errno (string, name, errno);
+}
 
 /* Like report_file_error, but reports a file-notify-error instead.  */
 
@@ -236,8 +261,7 @@ restore_point_unwind (Lisp_Object location)
   unchain_marker (XMARKER (location));
 }
 
-
-
+
 DEFUN ("find-file-name-handler", Ffind_file_name_handler,
        Sfind_file_name_handler, 2, 2, 0,
        doc: /* Return FILENAME's handler function for OPERATION, if it has one.
@@ -298,8 +322,7 @@ use the standard functions without calling themselves recursively.  */)
     }
   return result;
 }
-
-
+
 DEFUN ("file-name-directory", Ffile_name_directory, Sfile_name_directory,
        1, 1, 0,
        doc: /* Return the directory component in file name FILENAME.
@@ -535,8 +558,7 @@ is already present.  */)
   SAFE_FREE ();
   return val;
 }
-
-
+
 /* Convert from directory name SRC of length SRCLEN to file name in
    DST.  MULTIBYTE non-zero means the file name in SRC is a multibyte
    string.  On UNIX, just make sure there isn't a terminating /.
@@ -562,6 +584,16 @@ directory_file_name (char *dst, char *src, ptrdiff_t srclen, bool multibyte)
   dostounix_filename (dst);
 #endif
   return srclen;
+}
+
+DEFUN ("directory-name-p", Fdirectory_name_p, Sdirectory_name_p, 1, 1, 0,
+       doc: /* Return non-nil if NAME ends with a directory separator character.  */)
+  (Lisp_Object name)
+{
+  CHECK_STRING (name);
+  ptrdiff_t namelen = SBYTES (name);
+  unsigned char c = namelen ? SREF (name, namelen - 1) : 0;
+  return IS_DIRECTORY_SEP (c) ? Qt : Qnil;
 }
 
 /* Return the expansion of NEWNAME, except that if NEWNAME is a
@@ -677,6 +709,22 @@ This function does not grok magic file names.  */)
   return val;
 }
 
+
+DEFUN ("make-temp-name", Fmake_temp_name, Smake_temp_name, 1, 1, 0,
+       doc: /* Generate temporary file name (string) starting with PREFIX (a string).
+
+This function tries to choose a name that has no existing file.
+For this to work, PREFIX should be an absolute file name, and PREFIX
+and the returned string should both be non-magic.
+
+There is a race condition between calling `make-temp-name' and
+later creating the file, which opens all kinds of security holes.
+For that reason, you should normally use `make-temp-file' instead.  */)
+  (Lisp_Object prefix)
+{
+  return Fmake_temp_file_internal (prefix, make_number (0),
+				   empty_unibyte_string, Qnil);
+}
 
 DEFUN ("expand-file-name", Fexpand_file_name, Sexpand_file_name, 1, 2, 0,
        doc: /* Convert filename NAME to absolute, and canonicalize it.
@@ -892,6 +940,9 @@ the root directory.  */)
      allocating a new string if name is already fully expanded.  */
   if (
       IS_DIRECTORY_SEP (nm[0])
+#ifdef MSDOS
+      && drive && !is_escaped
+#endif
 #ifdef WINDOWSNT
       && (drive || IS_DIRECTORY_SEP (nm[1])) && !is_escaped
 #endif
@@ -1533,10 +1584,9 @@ See also the function `substitute-in-file-name'.")
   return make_string (target, o - target);
 }
 #endif
-
-
+
 /* If /~ or // appears, discard everything through first slash.  */
-bool
+static bool
 file_name_absolute_p (const char *filename)
 {
   return
@@ -1699,8 +1749,7 @@ those `/' is discarded.  */)
   SAFE_FREE ();
   return filename;
 }
-
-
+
 /* A slightly faster and more convenient way to get
    (directory-file-name (expand-file-name FOO)).  */
 
@@ -1718,8 +1767,7 @@ expand_and_dir_to_file (Lisp_Object filename)
     absname = Fdirectory_file_name (absname);
   return absname;
 }
-
-
+
 /* Signal an error if the file ABSNAME already exists.
    If KNOWN_TO_EXIST, the file is known to exist.
    QUERYSTRING is a name for the action that is being considered
@@ -1892,7 +1940,11 @@ permissions.  */)
     report_file_errno ("Non-regular file", file,
 		       S_ISDIR (st.st_mode) ? EISDIR : EINVAL);
 
+#ifndef MSDOS
   new_mask = st.st_mode & (!NILP (preserve_uid_gid) ? 0700 : 0777);
+#else
+  new_mask = S_IREAD | S_IWRITE;
+#endif
 
   ofd = emacs_open (SSDATA (encoded_newname), O_WRONLY | O_CREAT | O_EXCL,
 		    new_mask);
@@ -1945,6 +1997,7 @@ permissions.  */)
   if (newsize < oldsize && ftruncate (ofd, newsize) != 0)
     report_file_error ("Truncating output file", newname);
 
+#ifndef MSDOS
   /* Preserve the original file permissions, and if requested, also its
      owner and group.  */
   {
@@ -1988,6 +2041,7 @@ permissions.  */)
       case -1: report_file_error ("Copying permissions to", newname);
       }
   }
+#endif	/* not MSDOS */
 
 #if HAVE_LIBSELINUX
   if (conlength > 0)
@@ -2016,6 +2070,14 @@ permissions.  */)
 
   emacs_close (ifd);
 
+#ifdef MSDOS
+  /* In DJGPP v2.0 and later, fstat usually returns true file mode bits,
+     and if it can't, it tells so.  Otherwise, under MSDOS we usually
+     get only the READ bit, which will make the copied file read-only,
+     so it's better not to chmod at all.  */
+  if ((_djstat_flags & _STFAIL_WRITEBIT) == 0)
+    chmod (SDATA (encoded_newname), st.st_mode & 07777);
+#endif /* MSDOS */
 #endif /* not WINDOWSNT */
 
   /* Discard the unwind protects.  */
@@ -2023,8 +2085,7 @@ permissions.  */)
 
   return Qnil;
 }
-
-
+
 DEFUN ("make-directory-internal", Fmake_directory_internal,
        Smake_directory_internal, 1, 1, 0,
        doc: /* Create a new directory named DIRECTORY.  */)
@@ -2127,8 +2188,7 @@ internal_delete_file (Lisp_Object filename)
 				   Qt, internal_delete_file_1);
   return NILP (tem);
 }
-
-
+
 /* Filesystems are case-sensitive on all supported systems except
    MS-Windows, MS-DOS, Cygwin, and Mac OS X.  They are always
    case-insensitive on the first two, but they may or may not be
@@ -2141,7 +2201,7 @@ internal_delete_file (Lisp_Object filename)
    NFS-mounted Windows volumes, might be case-insensitive.  Can we
    detect this?  */
 
-bool
+static bool
 file_name_case_insensitive_p (const char *filename)
 {
   /* Use pathconf with _PC_CASE_INSENSITIVE or _PC_CASE_SENSITIVE if
@@ -2165,6 +2225,27 @@ file_name_case_insensitive_p (const char *filename)
 #else
   return false;
 #endif
+}
+
+DEFUN ("file-name-case-insensitive-p", Ffile_name_case_insensitive_p,
+       Sfile_name_case_insensitive_p, 1, 1, 0,
+       doc: /* Return t if file FILENAME is on a case-insensitive filesystem.
+The arg must be a string.  */)
+  (Lisp_Object filename)
+{
+  Lisp_Object handler;
+
+  CHECK_STRING (filename);
+  filename = Fexpand_file_name (filename, Qnil);
+
+  /* If the file name has special constructs in it,
+     call the corresponding file handler.  */
+  handler = Ffind_file_name_handler (filename, Qfile_name_case_insensitive_p);
+  if (!NILP (handler))
+    return call2 (handler, Qfile_name_case_insensitive_p, filename);
+
+  filename = ENCODE_FILE (filename);
+  return file_name_case_insensitive_p (SSDATA (filename)) ? Qt : Qnil;
 }
 
 DEFUN ("rename-file", Frename_file, Srename_file, 2, 3,
@@ -2396,6 +2477,69 @@ This happens for interactive use with M-x.  */)
   report_file_error ("Making symbolic link", list2 (target, linkname));
 }
 
+
+DEFUN ("file-name-absolute-p", Ffile_name_absolute_p, Sfile_name_absolute_p,
+       1, 1, 0,
+       doc: /* Return t if FILENAME is an absolute file name or starts with `~'.
+On Unix, absolute file names start with `/'.  */)
+  (Lisp_Object filename)
+{
+  CHECK_STRING (filename);
+  return file_name_absolute_p (SSDATA (filename)) ? Qt : Qnil;
+}
+
+DEFUN ("file-exists-p", Ffile_exists_p, Sfile_exists_p, 1, 1, 0,
+       doc: /* Return t if file FILENAME exists (whether or not you can read it.)
+See also `file-readable-p' and `file-attributes'.
+This returns nil for a symlink to a nonexistent file.
+Use `file-symlink-p' to test for such links.  */)
+  (Lisp_Object filename)
+{
+  Lisp_Object absname;
+  Lisp_Object handler;
+
+  CHECK_STRING (filename);
+  absname = Fexpand_file_name (filename, Qnil);
+
+  /* If the file name has special constructs in it,
+     call the corresponding file handler.  */
+  handler = Ffind_file_name_handler (absname, Qfile_exists_p);
+  if (!NILP (handler))
+    {
+      Lisp_Object result = call2 (handler, Qfile_exists_p, absname);
+      errno = 0;
+      return result;
+    }
+
+  absname = ENCODE_FILE (absname);
+
+  return check_existing (SSDATA (absname)) ? Qt : Qnil;
+}
+
+DEFUN ("file-executable-p", Ffile_executable_p, Sfile_executable_p, 1, 1, 0,
+       doc: /* Return t if FILENAME can be executed by you.
+For a directory, this means you can access files in that directory.
+\(It is generally better to use `file-accessible-directory-p' for that
+purpose, though.)  */)
+  (Lisp_Object filename)
+{
+  Lisp_Object absname;
+  Lisp_Object handler;
+
+  CHECK_STRING (filename);
+  absname = Fexpand_file_name (filename, Qnil);
+
+  /* If the file name has special constructs in it,
+     call the corresponding file handler.  */
+  handler = Ffind_file_name_handler (absname, Qfile_executable_p);
+  if (!NILP (handler))
+    return call2 (handler, Qfile_executable_p, absname);
+
+  absname = ENCODE_FILE (absname);
+
+  return (check_executable (SSDATA (absname)) ? Qt : Qnil);
+}
+
 DEFUN ("file-readable-p", Ffile_readable_p, Sfile_readable_p, 1, 1, 0,
        doc: /* Return t if file FILENAME exists and you can read it.
 See also `file-exists-p' and `file-attributes'.  */)
@@ -2442,6 +2586,9 @@ DEFUN ("file-writable-p", Ffile_writable_p, Sfile_writable_p, 1, 1, 0,
 
   dir = Ffile_name_directory (absname);
   eassert (!NILP (dir));
+#ifdef MSDOS
+  dir = Fdirectory_file_name (dir);
+#endif /* MSDOS */
 
   dir = ENCODE_FILE (dir);
 #ifdef WINDOWSNT
@@ -2453,8 +2600,7 @@ DEFUN ("file-writable-p", Ffile_writable_p, Sfile_writable_p, 1, 1, 0,
   return check_writable (SSDATA (dir), W_OK | X_OK) ? Qt : Qnil;
 #endif
 }
-
-
+
 DEFUN ("access-file", Faccess_file, Saccess_file, 2, 2, 0,
        doc: /* Access file FILENAME, and get an error if that does not work.
 The second argument STRING is prepended to the error message.
@@ -2481,8 +2627,7 @@ If there is no error, returns nil.  */)
 
   return Qnil;
 }
-
-
+
 /* Relative to directory FD, return the symbolic link value of FILENAME.
    On failure, return nil.  */
 Lisp_Object
@@ -2528,6 +2673,24 @@ This function does not check whether the link target exists.  */)
   return emacs_readlinkat (AT_FDCWD, SSDATA (filename));
 }
 
+DEFUN ("file-directory-p", Ffile_directory_p, Sfile_directory_p, 1, 1, 0,
+       doc: /* Return t if FILENAME names an existing directory.
+Symbolic links to directories count as directories.
+See `file-symlink-p' to distinguish symlinks.  */)
+  (Lisp_Object filename)
+{
+  Lisp_Object absname = expand_and_dir_to_file (filename);
+
+  /* If the file name has special constructs in it,
+     call the corresponding file handler.  */
+  Lisp_Object handler = Ffind_file_name_handler (absname, Qfile_directory_p);
+  if (!NILP (handler))
+    return call2 (handler, Qfile_directory_p, absname);
+
+  absname = ENCODE_FILE (absname);
+
+  return file_directory_p (absname) ? Qt : Qnil;
+}
 
 /* Return true if FILE is a directory or a symlink to a directory.
    Otherwise return false and set errno.  */
@@ -2626,7 +2789,9 @@ file_accessible_directory_p (Lisp_Object file)
      hitting the disk.  */
   return (SBYTES (file) == 0
 	  || w32_accessible_directory_p (SSDATA (file), SBYTES (file)));
-# endif	 /* WINDOWSNT */
+# else	/* MSDOS */
+  return file_directory_p (file);
+# endif	 /* MSDOS */
 #else	 /* !DOS_NT */
   /* On POSIXish platforms, use just one system call; this avoids a
      race and is typically faster.  */
@@ -2704,8 +2869,7 @@ See `file-symlink-p' to distinguish symlinks.  */)
   return S_ISREG (st.st_mode) ? Qt : Qnil;
 #endif
 }
-
-
+
 DEFUN ("file-selinux-context", Ffile_selinux_context,
        Sfile_selinux_context, 1, 1, 0,
        doc: /* Return SELinux context of file named FILENAME.
@@ -2753,8 +2917,7 @@ or if SELinux is disabled, or if Emacs lacks SELinux support.  */)
 
   return list4 (user, role, type, range);
 }
-
-
+
 DEFUN ("set-file-selinux-context", Fset_file_selinux_context,
        Sset_file_selinux_context, 2, 2, 0,
        doc: /* Set SELinux context of file named FILENAME to CONTEXT.
@@ -2839,8 +3002,7 @@ or if Emacs was not compiled with SELinux support.  */)
 
   return Qnil;
 }
-
-
+
 DEFUN ("file-acl", Ffile_acl, Sfile_acl, 1, 1, 0,
        doc: /* Return ACL entries of file named FILENAME.
 The entries are returned in a format suitable for use in `set-file-acl'
@@ -2942,8 +3104,7 @@ support.  */)
 
   return Qnil;
 }
-
-
+
 DEFUN ("file-modes", Ffile_modes, Sfile_modes, 1, 1, 0,
        doc: /* Return mode bits of file named FILENAME, as an integer.
 Return nil, if file does not exist or is not accessible.  */)
@@ -3033,8 +3194,7 @@ The value is an integer.  */)
   XSETINT (value, (~ realmask) & 0777);
   return value;
 }
-
-
+
 
 DEFUN ("set-file-times", Fset_file_times, Sset_file_times, 1, 2, 0,
        doc: /* Set times of file FILENAME to TIMESTAMP.
@@ -3061,14 +3221,18 @@ Use the current time if TIMESTAMP is nil.  TIMESTAMP is in the format of
   {
     if (set_file_times (-1, SSDATA (encoded_absname), t, t) != 0)
       {
+#ifdef MSDOS
+        /* Setting times on a directory always fails.  */
+        if (file_directory_p (encoded_absname))
+          return Qnil;
+#endif
         report_file_error ("Setting file times", absname);
       }
   }
 
   return Qt;
 }
-
-
+
 #ifdef HAVE_SYNC
 DEFUN ("unix-sync", Funix_sync, Sunix_sync, 0, 0, "",
        doc: /* Tell Unix to finish all pending disk updates.  */)
@@ -4409,8 +4573,7 @@ by calling `format-decode', which see.  */)
 
   return unbind_to (count, val);
 }
-
-
+
 static Lisp_Object build_annotations (Lisp_Object, Lisp_Object);
 
 static void
@@ -4926,7 +5089,13 @@ write_region (Lisp_Object start, Lisp_Object end, Lisp_Object filename,
 
   return Qnil;
 }
-
+
+DEFUN ("car-less-than-car", Fcar_less_than_car, Scar_less_than_car, 2, 2, 0,
+       doc: /* Return t if (car A) is numerically less than (car B).  */)
+  (Lisp_Object a, Lisp_Object b)
+{
+  return arithcompare (Fcar (a), Fcar (b), ARITH_LESS);
+}
 
 /* Build the complete list of annotations appropriate for writing out
    the text between START and END, by calling all the functions in
@@ -5011,8 +5180,7 @@ build_annotations (Lisp_Object start, Lisp_Object end)
   return annotations;
 }
 
-
-
+
 /* Write to descriptor DESC the NCHARS chars starting at POS of STRING.
    If STRING is nil, POS is the character position in the current buffer.
    Intersperse with them the annotations from *ANNOT
@@ -5169,8 +5337,7 @@ e_write (int desc, Lisp_Object string, ptrdiff_t start, ptrdiff_t end,
 
   return 1;
 }
-
-
+
 DEFUN ("verify-visited-file-modtime", Fverify_visited_file_modtime,
        Sverify_visited_file_modtime, 0, 1, 0,
        doc: /* Return t if last mod time of BUF's visited file matches what BUF records.
@@ -5274,8 +5441,7 @@ An argument specifies the modification time value to use
 
   return Qnil;
 }
-
-
+
 static Lisp_Object
 auto_save_error (Lisp_Object error_val)
 {
@@ -5568,6 +5734,28 @@ No auto-save file will be written until the buffer changes again.  */)
   return Qnil;
 }
 
+DEFUN ("clear-buffer-auto-save-failure", Fclear_buffer_auto_save_failure,
+       Sclear_buffer_auto_save_failure, 0, 0, 0,
+       doc: /* Clear any record of a recent auto-save failure in the current buffer.  */)
+  (void)
+{
+  current_buffer->auto_save_failure_time = 0;
+  return Qnil;
+}
+
+DEFUN ("recent-auto-save-p", Frecent_auto_save_p, Srecent_auto_save_p,
+       0, 0, 0,
+       doc: /* Return t if current buffer has been auto-saved recently.
+More precisely, if it has been auto-saved since last read from or saved
+in the visited file.  If the buffer has no visited file,
+then any auto-save counts as "recent".  */)
+  (void)
+{
+  /* FIXME: maybe we should return nil for indirect buffers since
+     they're never autosaved.  */
+  return (SAVE_MODIFF < BUF_AUTOSAVE_MODIFF (current_buffer) ? Qt : Qnil);
+}
+
 /* Reading and completing file names.  */
 
 DEFUN ("next-read-file-uses-dialog-p", Fnext_read_file_uses_dialog_p,
@@ -5577,7 +5765,8 @@ The return value is only relevant for a call to `read-file-name' that happens
 before any other event (mouse or keypress) is handled.  */)
   (void)
 {
-#if (defined USE_GTK || defined HAVE_NS || defined HAVE_NTGUI)
+#if (defined USE_GTK || defined USE_MOTIF \
+     || defined HAVE_NS || defined HAVE_NTGUI)
   if ((NILP (last_nonmenu_event) || CONSP (last_nonmenu_event))
       && use_dialog_box
       && use_file_dialog
@@ -5587,8 +5776,7 @@ before any other event (mouse or keypress) is handled.  */)
   return Qnil;
 }
 
-
-
+
 DEFUN ("set-binary-mode", Fset_binary_mode, Sset_binary_mode, 2, 2, 0,
        doc: /* Switch STREAM to binary I/O mode or text I/O mode.
 STREAM can be one of the symbols `stdin', `stdout', or `stderr'.
@@ -5731,6 +5919,7 @@ syms_of_fileio (void)
   DEFSYM (Qfile_writable_p, "file-writable-p");
   DEFSYM (Qfile_symlink_p, "file-symlink-p");
   DEFSYM (Qaccess_file, "access-file");
+  DEFSYM (Qfile_directory_p, "file-directory-p");
   DEFSYM (Qfile_regular_p, "file-regular-p");
   DEFSYM (Qfile_accessible_directory_p, "file-accessible-directory-p");
   DEFSYM (Qfile_modes, "file-modes");
@@ -5795,6 +5984,8 @@ behaves as if file names were encoded in `utf-8'.  */);
   /* Lisp function for setting buffer-file-coding-system and the
      multibyteness of the current buffer after inserting a file.  */
   DEFSYM (Qafter_insert_file_set_coding, "after-insert-file-set-coding");
+
+  DEFSYM (Qcar_less_than_car, "car-less-than-car");
 
   Fput (Qfile_error, Qerror_conditions,
 	Fpurecopy (list2 (Qfile_error, Qerror)));
@@ -5975,21 +6166,28 @@ This includes interactive calls to `delete-file' and
   defsubr (&Sfile_name_nondirectory);
   defsubr (&Sunhandled_file_name_directory);
   defsubr (&Sfile_name_as_directory);
+  defsubr (&Sdirectory_name_p);
   defsubr (&Sdirectory_file_name);
   defsubr (&Smake_temp_file_internal);
+  defsubr (&Smake_temp_name);
   defsubr (&Sexpand_file_name);
   defsubr (&Ssubstitute_in_file_name);
   defsubr (&Scopy_file);
   defsubr (&Smake_directory_internal);
   defsubr (&Sdelete_directory_internal);
   defsubr (&Sdelete_file);
+  defsubr (&Sfile_name_case_insensitive_p);
   defsubr (&Srename_file);
   defsubr (&Sadd_name_to_file);
   defsubr (&Smake_symbolic_link);
+  defsubr (&Sfile_name_absolute_p);
+  defsubr (&Sfile_exists_p);
+  defsubr (&Sfile_executable_p);
   defsubr (&Sfile_readable_p);
   defsubr (&Sfile_writable_p);
   defsubr (&Saccess_file);
   defsubr (&Sfile_symlink_p);
+  defsubr (&Sfile_directory_p);
   defsubr (&Sfile_accessible_directory_p);
   defsubr (&Sfile_regular_p);
   defsubr (&Sfile_modes);
@@ -6004,11 +6202,14 @@ This includes interactive calls to `delete-file' and
   defsubr (&Sfile_newer_than_file_p);
   defsubr (&Sinsert_file_contents);
   defsubr (&Swrite_region);
+  defsubr (&Scar_less_than_car);
   defsubr (&Sverify_visited_file_modtime);
   defsubr (&Svisited_file_modtime);
   defsubr (&Sset_visited_file_modtime);
   defsubr (&Sdo_auto_save);
   defsubr (&Sset_buffer_auto_saved);
+  defsubr (&Sclear_buffer_auto_save_failure);
+  defsubr (&Srecent_auto_save_p);
 
   defsubr (&Snext_read_file_uses_dialog_p);
 

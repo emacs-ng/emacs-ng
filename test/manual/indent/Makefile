@@ -1,5 +1,5 @@
 RM=rm
-EMACS=../../../src/remacs
+EMACS=../../../src/emacs
 
 all: clean $(addsuffix .test,$(wildcard *.*))
 

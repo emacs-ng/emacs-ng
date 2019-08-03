@@ -79,6 +79,20 @@ ring_bell (struct frame *f)
     (*FRAME_TERMINAL (f)->ring_bell_hook) (f);
 }
 
+void
+update_begin (struct frame *f)
+{
+  if (FRAME_TERMINAL (f)->update_begin_hook)
+    (*FRAME_TERMINAL (f)->update_begin_hook) (f);
+}
+
+void
+update_end (struct frame *f)
+{
+  if (FRAME_TERMINAL (f)->update_end_hook)
+    (*FRAME_TERMINAL (f)->update_end_hook) (f);
+}
+
 /* Specify how many text lines, from the top of the window,
    should be affected by insert-lines and delete-lines operations.
    This, and those operations, are used only within an update
@@ -108,6 +122,109 @@ raw_cursor_to (struct frame *f, int row, int col)
 {
   if (FRAME_TERMINAL (f)->raw_cursor_to_hook)
     (*FRAME_TERMINAL (f)->raw_cursor_to_hook) (f, row, col);
+}
+
+/* Erase operations.  */
+
+/* Clear from cursor to end of frame.  */
+void
+clear_to_end (struct frame *f)
+{
+  if (FRAME_TERMINAL (f)->clear_to_end_hook)
+    (*FRAME_TERMINAL (f)->clear_to_end_hook) (f);
+}
+
+/* Clear entire frame.  */
+
+void
+clear_frame (struct frame *f)
+{
+  if (FRAME_TERMINAL (f)->clear_frame_hook)
+    (*FRAME_TERMINAL (f)->clear_frame_hook) (f);
+}
+
+/* Clear from cursor to end of line.
+   Assume that the line is already clear starting at column first_unused_hpos.
+
+   Note that the cursor may be moved, on terminals lacking a `ce' string.  */
+
+void
+clear_end_of_line (struct frame *f, int first_unused_hpos)
+{
+  if (FRAME_TERMINAL (f)->clear_end_of_line_hook)
+    (*FRAME_TERMINAL (f)->clear_end_of_line_hook) (f, first_unused_hpos);
+}
+
+/* Output LEN glyphs starting at STRING at the nominal cursor position.
+   Advance the nominal cursor over the text.  */
+
+void
+write_glyphs (struct frame *f, struct glyph *string, int len)
+{
+  if (FRAME_TERMINAL (f)->write_glyphs_hook)
+    (*FRAME_TERMINAL (f)->write_glyphs_hook) (f, string, len);
+}
+
+/* Insert LEN glyphs from START at the nominal cursor position.
+
+   If start is zero, insert blanks instead of a string at start */
+
+void
+insert_glyphs (struct frame *f, struct glyph *start, int len)
+{
+  if (len <= 0)
+    return;
+
+  if (FRAME_TERMINAL (f)->insert_glyphs_hook)
+    (*FRAME_TERMINAL (f)->insert_glyphs_hook) (f, start, len);
+}
+
+/* Delete N glyphs at the nominal cursor position. */
+
+void
+delete_glyphs (struct frame *f, int n)
+{
+  if (FRAME_TERMINAL (f)->delete_glyphs_hook)
+    (*FRAME_TERMINAL (f)->delete_glyphs_hook) (f, n);
+}
+
+/* Insert N lines at vpos VPOS.  If N is negative, delete -N lines.  */
+
+void
+ins_del_lines (struct frame *f, int vpos, int n)
+{
+  if (FRAME_TERMINAL (f)->ins_del_lines_hook)
+    (*FRAME_TERMINAL (f)->ins_del_lines_hook) (f, vpos, n);
+}
+
+/* Return the terminal object specified by TERMINAL.  TERMINAL may
+   be a terminal object, a frame, or nil for the terminal device of
+   the current frame.  If TERMINAL is neither from the above or the
+   resulting terminal object is deleted, return NULL.  */
+
+static struct terminal *
+decode_terminal (Lisp_Object terminal)
+{
+  struct terminal *t;
+
+  if (NILP (terminal))
+    terminal = selected_frame;
+  t = (TERMINALP (terminal)
+       ? XTERMINAL (terminal)
+       : FRAMEP (terminal) ? FRAME_TERMINAL (XFRAME (terminal)) : NULL);
+  return t && t->name ? t : NULL;
+}
+
+/* Like above, but throw an error if TERMINAL is not valid or deleted.  */
+
+struct terminal *
+decode_live_terminal (Lisp_Object terminal)
+{
+  struct terminal *t = decode_terminal (terminal);
+
+  if (!t)
+    wrong_type_argument (Qterminal_live_p, terminal);
+  return t;
 }
 
 /* Like decode_terminal, but ensure that the resulting terminal object refers
@@ -343,6 +460,21 @@ DEFUN ("terminal-list", Fterminal_list, Sterminal_list, 0, 0, 0,
 
   return terminals;
 }
+
+DEFUN ("terminal-name", Fterminal_name, Sterminal_name, 0, 1, 0,
+       doc: /* Return the name of the terminal device TERMINAL.
+It is not guaranteed that the returned value is unique among opened devices.
+
+TERMINAL may be a terminal object, a frame, or nil (meaning the
+selected frame's terminal). */)
+  (Lisp_Object terminal)
+{
+  struct terminal *t = decode_live_terminal (terminal);
+
+  return t->name ? build_string (t->name) : Qnil;
+}
+
+
 
 /* Set the value of terminal parameter PARAMETER in terminal D to VALUE.
    Return the previous value.  */
@@ -363,6 +495,7 @@ store_terminal_param (struct terminal *t, Lisp_Object parameter, Lisp_Object val
       return result;
     }
 }
+
 
 DEFUN ("terminal-parameters", Fterminal_parameters, Sterminal_parameters, 0, 1, 0,
        doc: /* Return the parameter-alist of terminal TERMINAL.
@@ -526,6 +659,7 @@ or some time later.  */);
   defsubr (&Sframe_terminal);
   defsubr (&Sterminal_live_p);
   defsubr (&Sterminal_list);
+  defsubr (&Sterminal_name);
   defsubr (&Sterminal_parameters);
   defsubr (&Sterminal_parameter);
   defsubr (&Sset_terminal_parameter);

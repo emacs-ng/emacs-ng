@@ -27,8 +27,8 @@
 
 (defconst emacsclient-test-emacs
   (if installation-directory
-      (expand-file-name "lib-src/remacsclient" installation-directory)
-    "remacsclient")
+      (expand-file-name "lib-src/emacsclient" installation-directory)
+    "emacsclient")
   "The emacsclient binary to test.")
 
 (defmacro emacsclient-test-call-emacsclient (editor)

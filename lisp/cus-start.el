@@ -410,6 +410,8 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     (read-buffer-function minibuffer
 				   (choice (const nil)
 					   function))
+	     ;; msdos.c
+	     (dos-unsupported-char-glyph display integer)
 	     ;; nsterm.m
              ;;
              ;; FIXME: Why does ⌃ use nil instead of none?  Also the

@@ -776,11 +776,12 @@ to make it write to the debugging output.  */)
   return character;
 }
 
-/* This function is only ever called from gdb. Its primary purpose is
-   to prevent print_output_debug_flag from being optimized away.  */
-extern void set_output_debug_flag (bool) EXTERNALLY_VISIBLE;
+/* This function is never called.  Its purpose is to prevent
+   print_output_debug_flag from being optimized away.  */
+
+extern void debug_output_compilation_hack (bool) EXTERNALLY_VISIBLE;
 void
-set_output_debug_flag (bool x)
+debug_output_compilation_hack (bool x)
 {
   print_output_debug_flag = x;
 }
@@ -852,6 +853,37 @@ safe_debug_print (Lisp_Object arg)
 	       !valid ? "INVALID" : "SOME",
 	       n);
     }
+}
+
+
+DEFUN ("error-message-string", Ferror_message_string, Serror_message_string,
+       1, 1, 0,
+       doc: /* Convert an error value (ERROR-SYMBOL . DATA) to an error message.
+See Info anchor `(elisp)Definition of signal' for some details on how this
+error message is constructed.  */)
+  (Lisp_Object obj)
+{
+  struct buffer *old = current_buffer;
+  Lisp_Object value;
+
+  /* If OBJ is (error STRING), just return STRING.
+     That is not only faster, it also avoids the need to allocate
+     space here when the error is due to memory full.  */
+  if (CONSP (obj) && EQ (XCAR (obj), Qerror)
+      && CONSP (XCDR (obj))
+      && STRINGP (XCAR (XCDR (obj)))
+      && NILP (XCDR (XCDR (obj))))
+    return XCAR (XCDR (obj));
+
+  print_error_message (obj, Vprin1_to_string_buffer, 0, Qnil);
+
+  set_buffer_internal (XBUFFER (Vprin1_to_string_buffer));
+  value = Fbuffer_string ();
+
+  Ferase_buffer ();
+  set_buffer_internal (old);
+
+  return value;
 }
 
 /* Print an error message for the error DATA onto Lisp output stream
@@ -2407,6 +2439,7 @@ priorities.  */);
 
   defsubr (&Sprin1);
   defsubr (&Sprin1_to_string);
+  defsubr (&Serror_message_string);
   defsubr (&Sprinc);
   defsubr (&Sprint);
   defsubr (&Sterpri);

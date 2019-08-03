@@ -67,8 +67,13 @@ timespec_valid_p (struct timespec t)
 }
 
 /* Return current system time.  */
-struct timespec
-current_timespec (void);
+INLINE struct timespec
+current_timespec (void)
+{
+  struct timespec r;
+  gettime (&r);
+  return r;
+}
 
 /* defined in sysdep.c */
 extern int set_file_times (int, const char *, struct timespec, struct timespec);

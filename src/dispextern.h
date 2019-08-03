@@ -27,6 +27,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #ifdef HAVE_X_WINDOWS
 
 #include <X11/Xlib.h>
+#ifdef USE_X_TOOLKIT
+#include <X11/Intrinsic.h>
+#endif /* USE_X_TOOLKIT */
 
 #else /* !HAVE_X_WINDOWS */
 
@@ -40,6 +43,10 @@ typedef struct {
 } XColor;
 
 #endif /* HAVE_X_WINDOWS */
+
+#ifdef MSDOS
+#include "msdos.h"
+#endif
 
 INLINE_HEADER_BEGIN
 
@@ -1401,13 +1408,44 @@ struct glyph_string
       ? MATRIX_HEADER_LINE_ROW (MATRIX)->height	\
       : 0)
 
-extern enum face_id
-CURRENT_MODE_LINE_FACE_ID_3(struct window *, struct window *, struct window *);
-extern enum face_id
-CURRENT_MODE_LINE_FACE_ID(struct window *);
+/* Return the desired face id for the mode line of a window, depending
+   on whether the window is selected or not, or if the window is the
+   scrolling window for the currently active minibuffer window.
 
-extern int
-CURRENT_MODE_LINE_HEIGHT(struct window *);
+   Due to the way display_mode_lines manipulates with the contents of
+   selected_window, this macro needs three arguments: SELW which is
+   compared against the current value of selected_window, MBW which is
+   compared against minibuf_window (if SELW doesn't match), and SCRW
+   which is compared against minibuf_selected_window (if MBW matches).  */
+
+#define CURRENT_MODE_LINE_FACE_ID_3(SELW, MBW, SCRW)		\
+     ((!mode_line_in_non_selected_windows			\
+       || (SELW) == XWINDOW (selected_window)			\
+       || (minibuf_level > 0					\
+           && !NILP (minibuf_selected_window)			\
+           && (MBW) == XWINDOW (minibuf_window)			\
+           && (SCRW) == XWINDOW (minibuf_selected_window)))	\
+      ? MODE_LINE_FACE_ID					\
+      : MODE_LINE_INACTIVE_FACE_ID)
+
+
+/* Return the desired face id for the mode line of window W.  */
+
+#define CURRENT_MODE_LINE_FACE_ID(W)		\
+	(CURRENT_MODE_LINE_FACE_ID_3((W), XWINDOW (selected_window), (W)))
+
+/* Return the current height of the mode line of window W.  If not known
+   from W->mode_line_height, look at W's current glyph matrix, or return
+   a default based on the height of the font of the face `mode-line'.  */
+
+#define CURRENT_MODE_LINE_HEIGHT(W)					\
+  (W->mode_line_height >= 0						\
+   ? W->mode_line_height						\
+   : (W->mode_line_height						\
+      = (MATRIX_MODE_LINE_HEIGHT (W->current_matrix)			\
+	 ? MATRIX_MODE_LINE_HEIGHT (W->current_matrix)			\
+	 : estimate_mode_line_height					\
+	     (XFRAME (W->frame), CURRENT_MODE_LINE_FACE_ID (W)))))
 
 /* Return the current height of the header line of window W.  If not known
    from W->header_line_height, look at W's current glyph matrix, or return
@@ -1811,8 +1849,6 @@ GLYPH_CODE_P (Lisp_Object gc)
    redisplay.  Used in redisplay_internal.  */
 
 extern bool face_change;
-
-void set_face_change(bool value);
 
 /* For reordering of bidirectional text.  */
 
@@ -3330,6 +3366,9 @@ extern void x_reference_bitmap (struct frame *, ptrdiff_t);
 extern ptrdiff_t x_create_bitmap_from_data (struct frame *, char *,
 					    unsigned int, unsigned int);
 extern ptrdiff_t x_create_bitmap_from_file (struct frame *, Lisp_Object);
+#if defined HAVE_XPM && defined HAVE_X_WINDOWS && !defined USE_GTK
+extern ptrdiff_t x_create_bitmap_from_xpm_data (struct frame *, const char **);
+#endif
 #ifndef x_destroy_bitmap
 extern void x_destroy_bitmap (struct frame *, ptrdiff_t);
 #endif
@@ -3471,6 +3510,7 @@ extern Lisp_Object marginal_area_string (struct window *, enum window_part,
 extern void redraw_frame (struct frame *);
 extern bool update_frame (struct frame *, bool, bool);
 extern void update_frame_with_menu (struct frame *, int, int);
+extern void bitch_at_user (void);
 extern void adjust_frame_glyphs (struct frame *);
 void free_glyphs (struct frame *);
 void free_window_matrices (struct window *);

@@ -8496,6 +8496,21 @@ to_unicode (Lisp_Object str, Lisp_Object *buf)
 #ifdef emacs
 /*** 8. Emacs Lisp library functions ***/
 
+DEFUN ("coding-system-p", Fcoding_system_p, Scoding_system_p, 1, 1, 0,
+       doc: /* Return t if OBJECT is nil or a coding-system.
+See the documentation of `define-coding-system' for information
+about coding-system objects.  */)
+  (Lisp_Object object)
+{
+  if (NILP (object)
+      || CODING_SYSTEM_ID (object) >= 0)
+    return Qt;
+  if (! SYMBOLP (object)
+      || NILP (Fget (object, Qcoding_system_define_form)))
+    return Qnil;
+  return Qt;
+}
+
 DEFUN ("read-non-nil-coding-system", Fread_non_nil_coding_system,
        Sread_non_nil_coding_system, 1, 1, 0,
        doc: /* Read a coding system from the minibuffer, prompting with string PROMPT.  */)
@@ -8529,6 +8544,27 @@ are lower-case).  */)
 			  default_coding_system, Qnil);
   unbind_to (count, Qnil);
   return (SCHARS (val) == 0 ? Qnil : Fintern (val, Qnil));
+}
+
+DEFUN ("check-coding-system", Fcheck_coding_system, Scheck_coding_system,
+       1, 1, 0,
+       doc: /* Check validity of CODING-SYSTEM.
+If valid, return CODING-SYSTEM, else signal a `coding-system-error' error.
+It is valid if it is nil or a symbol defined as a coding system by the
+function `define-coding-system'.  */)
+  (Lisp_Object coding_system)
+{
+  Lisp_Object define_form;
+
+  define_form = Fget (coding_system, Qcoding_system_define_form);
+  if (! NILP (define_form))
+    {
+      Fput (coding_system, Qcoding_system_define_form, Qnil);
+      safe_eval (define_form);
+    }
+  if (!NILP (Fcoding_system_p (coding_system)))
+    return coding_system;
+  xsignal1 (Qcoding_system_error, coding_system);
 }
 
 
@@ -9522,6 +9558,47 @@ encode_file_name (Lisp_Object fname)
 #endif
 }
 
+DEFUN ("decode-coding-string", Fdecode_coding_string, Sdecode_coding_string,
+       2, 4, 0,
+       doc: /* Decode STRING which is encoded in CODING-SYSTEM, and return the result.
+
+Optional third arg NOCOPY non-nil means it is OK to return STRING itself
+if the decoding operation is trivial.
+
+Optional fourth arg BUFFER non-nil means that the decoded text is
+inserted in that buffer after point (point does not move).  In this
+case, the return value is the length of the decoded text.
+
+This function sets `last-coding-system-used' to the precise coding system
+used (which may be different from CODING-SYSTEM if CODING-SYSTEM is
+not fully specified.)  */)
+  (Lisp_Object string, Lisp_Object coding_system, Lisp_Object nocopy, Lisp_Object buffer)
+{
+  return code_convert_string (string, coding_system, buffer,
+			      0, ! NILP (nocopy), 0);
+}
+
+DEFUN ("encode-coding-string", Fencode_coding_string, Sencode_coding_string,
+       2, 4, 0,
+       doc: /* Encode STRING to CODING-SYSTEM, and return the result.
+
+Optional third arg NOCOPY non-nil means it is OK to return STRING
+itself if the encoding operation is trivial.
+
+Optional fourth arg BUFFER non-nil means that the encoded text is
+inserted in that buffer after point (point does not move).  In this
+case, the return value is the length of the encoded text.
+
+This function sets `last-coding-system-used' to the precise coding system
+used (which may be different from CODING-SYSTEM if CODING-SYSTEM is
+not fully specified.)  */)
+  (Lisp_Object string, Lisp_Object coding_system, Lisp_Object nocopy, Lisp_Object buffer)
+{
+  return code_convert_string (string, coding_system, buffer,
+			      1, ! NILP (nocopy), 0);
+}
+
+
 DEFUN ("decode-sjis-char", Fdecode_sjis_char, Sdecode_sjis_char, 1, 1, 0,
        doc: /* Decode a Japanese character which has CODE in shift_jis encoding.
 Return the corresponding character.  */)
@@ -10519,9 +10596,9 @@ usage: (define-coding-system-internal ...)  */)
   return Qnil;
 
  short_args:
-  xsignal2(Qwrong_number_of_arguments,
-           intern ("define-coding-system-internal"),
-           make_number (nargs));
+  Fsignal (Qwrong_number_of_arguments,
+	   Fcons (intern ("define-coding-system-internal"),
+		  make_number (nargs)));
 }
 
 
@@ -10647,6 +10724,20 @@ DEFUN ("coding-system-plist", Fcoding_system_plist, Scoding_system_plist,
   CHECK_CODING_SYSTEM_GET_SPEC (coding_system, spec);
   attrs = AREF (spec, 0);
   return CODING_ATTR_PLIST (attrs);
+}
+
+
+DEFUN ("coding-system-aliases", Fcoding_system_aliases, Scoding_system_aliases,
+       1, 1, 0,
+       doc: /* Return the list of aliases of CODING-SYSTEM.  */)
+  (Lisp_Object coding_system)
+{
+  Lisp_Object spec;
+
+  if (NILP (coding_system))
+    coding_system = Qno_conversion;
+  CHECK_CODING_SYSTEM_GET_SPEC (coding_system, spec);
+  return AREF (spec, 1);
 }
 
 DEFUN ("coding-system-eol-type", Fcoding_system_eol_type,
@@ -10879,8 +10970,10 @@ syms_of_coding (void)
      symbol as a coding system.  */
   DEFSYM (Qcoding_system_define_form, "coding-system-define-form");
 
+  defsubr (&Scoding_system_p);
   defsubr (&Sread_coding_system);
   defsubr (&Sread_non_nil_coding_system);
+  defsubr (&Scheck_coding_system);
   defsubr (&Sdetect_coding_region);
   defsubr (&Sdetect_coding_string);
   defsubr (&Sfind_coding_systems_region_internal);
@@ -10888,6 +10981,8 @@ syms_of_coding (void)
   defsubr (&Scheck_coding_systems_region);
   defsubr (&Sdecode_coding_region);
   defsubr (&Sencode_coding_region);
+  defsubr (&Sdecode_coding_string);
+  defsubr (&Sencode_coding_string);
   defsubr (&Sdecode_sjis_char);
   defsubr (&Sencode_sjis_char);
   defsubr (&Sdecode_big5_char);
@@ -10904,6 +10999,7 @@ syms_of_coding (void)
   defsubr (&Scoding_system_put);
   defsubr (&Scoding_system_base);
   defsubr (&Scoding_system_plist);
+  defsubr (&Scoding_system_aliases);
   defsubr (&Scoding_system_eol_type);
   defsubr (&Scoding_system_priority_list);
 

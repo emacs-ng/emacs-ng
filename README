@@ -2,7 +2,7 @@ Copyright (C) 2001-2018 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 
-This directory tree holds version 26.0.60 of GNU Emacs, the extensible,
+This directory tree holds version 27.0.50 of GNU Emacs, the extensible,
 customizable, self-documenting real-time display editor.
 
 The file INSTALL in this directory says how to build and install GNU
@@ -86,6 +86,7 @@ There are several subdirectories:
 'doc/lispref'   holds the source code for the Emacs Lisp reference manual.
 'doc/lispintro' holds the source code for the Introduction to Programming
                 in Emacs Lisp manual.
+'msdos'     holds configuration files for compiling Emacs under MS-DOS.
 'nextstep'  holds instructions and some other files for compiling the
             Nextstep port of Emacs, for GNUstep and macOS Cocoa.
 'nt'        holds code and documentation for building Emacs on MS-Windows.

@@ -184,19 +184,16 @@ KIND should be `var' for a variable or `subr' for a subroutine."
 		      (let ((pnt (search-forward (concat "" name "\n"))))
 			(re-search-backward "S\\(.*\\)")
 			(let ((file (match-string 1)))
-                          (throw 'loop file)
-			    (goto-char pnt)))))))
+			  (if (member file build-files)
+			      (throw 'loop file)
+			    (goto-char pnt))))))))
 	(if (string-match "^ns.*\\(\\.o\\|obj\\)\\'" file)
 	    (setq file (replace-match ".m" t t file 1))
 	  (if (string-match "\\.\\(o\\|obj\\)\\'" file)
 	      (setq file (replace-match ".c" t t file))))
-        (cond
-         ((string-match "\\.\\(c\\|m\\)\\'" file)
-          (concat "src/" file))
-         ((string-match "\\.rs\\'" file)
-          (concat "rust_src/src/" file))
-         (t
-          file))))))
+	(if (string-match "\\.\\(c\\|m\\)\\'" file)
+	    (concat "src/" file)
+	  file)))))
 
 (defcustom help-downcase-arguments nil
   "If non-nil, argument names in *Help* buffers are downcased."
@@ -677,7 +674,7 @@ Returns a list of the form (REAL-FUNCTION DEF ALIASED REAL-DEF)."
 	;; but that's completely wrong when the user used load-file.
 	(princ (format-message " in `%s'"
                                (if (eq file-name 'C-source)
-                                   (concat (subr-lang def) " source code")
+                                   "C source code"
                                  (help-fns-short-filename file-name))))
 	;; Make a hyperlink to the library.
 	(with-current-buffer standard-output

@@ -1,6 +1,6 @@
 /* Localized versions of Info.plist keys */
 
-CFBundleName = "Remacs";
+CFBundleName = "Emacs";
 CFBundleShortVersionString = "Version @version@";
-CFBundleGetInfoString = "Remacs version @version@, NS Windowing";
+CFBundleGetInfoString = "Emacs version @version@, NS Windowing";
 NSHumanReadableCopyright = "@copyright@";

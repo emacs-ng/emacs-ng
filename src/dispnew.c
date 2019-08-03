@@ -94,7 +94,7 @@ static bool scrolling (struct frame *);
 static void set_window_cursor_after_update (struct window *);
 static void adjust_frame_glyphs_for_window_redisplay (struct frame *);
 static void adjust_frame_glyphs_for_frame_redisplay (struct frame *);
-void set_window_update_flags (struct window *w, bool on_p);
+static void set_window_update_flags (struct window *w, bool on_p);
 
 /* True means last display completed.  False means it was preempted.  */
 
@@ -760,6 +760,14 @@ clear_current_matrices (register struct frame *f)
   if (f->current_matrix)
     clear_glyph_matrix (f->current_matrix);
 
+#if defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)
+  /* Clear the matrix of the menu bar window, if such a window exists.
+     The menu bar window is currently used to display menus on X when
+     no toolkit support is compiled in.  */
+  if (WINDOWP (f->menu_bar_window))
+    clear_glyph_matrix (XWINDOW (f->menu_bar_window)->current_matrix);
+#endif
+
 #if defined (HAVE_WINDOW_SYSTEM) && ! defined (USE_GTK) && ! defined (HAVE_NS)
   /* Clear the matrix of the tool-bar window, if any.  */
   if (WINDOWP (f->tool_bar_window))
@@ -779,6 +787,11 @@ clear_desired_matrices (register struct frame *f)
 {
   if (f->desired_matrix)
     clear_glyph_matrix (f->desired_matrix);
+
+#if defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)
+  if (WINDOWP (f->menu_bar_window))
+    clear_glyph_matrix (XWINDOW (f->menu_bar_window)->desired_matrix);
+#endif
 
 #if defined (HAVE_WINDOW_SYSTEM) && ! defined (USE_GTK) && ! defined (HAVE_NS)
   if (WINDOWP (f->tool_bar_window))
@@ -2061,6 +2074,39 @@ adjust_frame_glyphs_for_window_redisplay (struct frame *f)
   /* Allocate/reallocate window matrices.  */
   allocate_matrices_for_window_redisplay (XWINDOW (FRAME_ROOT_WINDOW (f)));
 
+#if defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)
+  /* Allocate/ reallocate matrices of the dummy window used to display
+     the menu bar under X when no X toolkit support is available.  */
+  {
+    /* Allocate a dummy window if not already done.  */
+    struct window *w;
+    if (NILP (f->menu_bar_window))
+      {
+	Lisp_Object frame;
+	fset_menu_bar_window (f, make_window ());
+	w = XWINDOW (f->menu_bar_window);
+	XSETFRAME (frame, f);
+	wset_frame (w, frame);
+	w->pseudo_window_p = 1;
+      }
+    else
+      w = XWINDOW (f->menu_bar_window);
+
+    /* Set window dimensions to frame dimensions and allocate or
+       adjust glyph matrices of W.  */
+    w->pixel_left = 0;
+    w->left_col = 0;
+    w->pixel_top = 0;
+    w->top_line = 0;
+    w->pixel_width = (FRAME_PIXEL_WIDTH (f)
+		      - 2 * FRAME_INTERNAL_BORDER_WIDTH (f));
+    w->total_cols = FRAME_TOTAL_COLS (f);
+    w->pixel_height = FRAME_MENU_BAR_HEIGHT (f);
+    w->total_lines = FRAME_MENU_BAR_LINES (f);
+    allocate_matrices_for_window_redisplay (w);
+  }
+#endif
+
 #if defined (HAVE_WINDOW_SYSTEM) && ! defined (USE_GTK) && ! defined (HAVE_NS)
   {
     /* Allocate/ reallocate matrices of the tool bar window.  If we
@@ -2129,6 +2175,19 @@ free_glyphs (struct frame *f)
       /* Release window sub-matrices.  */
       if (!NILP (f->root_window))
         free_window_matrices (XWINDOW (f->root_window));
+
+#if defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)
+      /* Free the dummy window for menu bars without X toolkit and its
+	 glyph matrices.  */
+      if (!NILP (f->menu_bar_window))
+	{
+	  struct window *w = XWINDOW (f->menu_bar_window);
+	  free_glyph_matrix (w->desired_matrix);
+	  free_glyph_matrix (w->current_matrix);
+	  w->desired_matrix = w->current_matrix = NULL;
+	  fset_menu_bar_window (f, Qnil);
+	}
+#endif
 
 #if defined (HAVE_WINDOW_SYSTEM) && ! defined (USE_GTK) && ! defined (HAVE_NS)
       /* Free the tool bar window and its glyph matrices.  */
@@ -2931,6 +2990,55 @@ window_to_frame_hpos (struct window *w, int hpos)
 
 
 
+/**********************************************************************
+			    Redrawing Frames
+ **********************************************************************/
+
+/* Redraw frame F.  */
+
+void
+redraw_frame (struct frame *f)
+{
+  /* Error if F has no glyphs.  */
+  eassert (f->glyphs_initialized_p);
+  update_begin (f);
+  if (FRAME_MSDOS_P (f))
+    FRAME_TERMINAL (f)->set_terminal_modes_hook (FRAME_TERMINAL (f));
+  clear_frame (f);
+  clear_current_matrices (f);
+  update_end (f);
+  fset_redisplay (f);
+  /* Mark all windows as inaccurate, so that every window will have
+     its redisplay done.  */
+  mark_window_display_accurate (FRAME_ROOT_WINDOW (f), 0);
+  set_window_update_flags (XWINDOW (FRAME_ROOT_WINDOW (f)), true);
+  f->garbaged = false;
+}
+
+DEFUN ("redraw-frame", Fredraw_frame, Sredraw_frame, 0, 1, 0,
+       doc: /* Clear frame FRAME and output again what is supposed to appear on it.
+If FRAME is omitted or nil, the selected frame is used.  */)
+  (Lisp_Object frame)
+{
+  redraw_frame (decode_live_frame (frame));
+  return Qnil;
+}
+
+DEFUN ("redraw-display", Fredraw_display, Sredraw_display, 0, 0, "",
+       doc: /* Clear and redisplay all visible frames.  */)
+  (void)
+{
+  Lisp_Object tail, frame;
+
+  FOR_EACH_FRAME (tail, frame)
+    if (FRAME_VISIBLE_P (XFRAME (frame)))
+      redraw_frame (XFRAME (frame));
+
+  return Qnil;
+}
+
+
+
 /***********************************************************************
 			     Frame Update
  ***********************************************************************/
@@ -2968,6 +3076,13 @@ update_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
       /* Update all windows in the window tree of F, maybe stopping
 	 when pending input is detected.  */
       update_begin (f);
+
+#if defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)
+      /* Update the menu bar on X frames that don't have toolkit
+	 support.  */
+      if (WINDOWP (f->menu_bar_window))
+	update_window (XWINDOW (f->menu_bar_window), true);
+#endif
 
 #if defined (HAVE_WINDOW_SYSTEM) && ! defined (USE_GTK) && ! defined (HAVE_NS)
       /* Update the tool-bar window, if present.  */
@@ -3010,7 +3125,7 @@ update_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
       paused_p = update_frame_1 (f, force_p, inhibit_hairy_id_p, 1, false);
       update_end (f);
 
-      if (FRAME_TERMCAP_P (f))
+      if (FRAME_TERMCAP_P (f) || FRAME_MSDOS_P (f))
         {
           if (FRAME_TTY (f)->termscript)
 	    fflush_unlocked (FRAME_TTY (f)->termscript);
@@ -3843,6 +3958,24 @@ set_window_cursor_after_update (struct window *w)
   hpos = clip_to_bounds (-1, hpos, w->current_matrix->matrix_w - 1);
   vpos = clip_to_bounds (0, vpos, w->current_matrix->nrows - 1);
   output_cursor_to (w, vpos, hpos, cy, cx);
+}
+
+
+/* Set WINDOW->must_be_updated_p to ON_P for all windows in
+   the window tree rooted at W.  */
+
+static void
+set_window_update_flags (struct window *w, bool on_p)
+{
+  while (w)
+    {
+      if (WINDOWP (w->contents))
+	set_window_update_flags (XWINDOW (w->contents), on_p);
+      else
+	w->must_be_updated_p = on_p;
+
+      w = NILP (w->next) ? 0 : XWINDOW (w->next);
+    }
 }
 
 
@@ -5438,8 +5571,21 @@ void
 change_frame_size (struct frame *f, int new_width, int new_height,
 		   bool pretend, bool delay, bool safe, bool pixelwise)
 {
-  change_frame_size_1 (f, new_width, new_height, pretend, delay, safe,
-                       pixelwise);
+  Lisp_Object tail, frame;
+
+  if (FRAME_MSDOS_P (f))
+    {
+      /* On MS-DOS, all frames use the same screen, so a change in
+         size affects all frames.  Termcap now supports multiple
+         ttys. */
+      FOR_EACH_FRAME (tail, frame)
+	if (! FRAME_WINDOW_P (XFRAME (frame)))
+	  change_frame_size_1 (XFRAME (frame), new_width, new_height,
+			       pretend, delay, safe, pixelwise);
+    }
+  else
+    change_frame_size_1 (f, new_width, new_height, pretend, delay, safe,
+			 pixelwise);
 }
 
 /***********************************************************************
@@ -5454,7 +5600,8 @@ FILE = nil means just close any termscript file currently open.  */)
 {
   struct tty_display_info *tty;
 
-  if (! FRAME_TERMCAP_P (SELECTED_FRAME ()))
+  if (! FRAME_TERMCAP_P (SELECTED_FRAME ())
+      && ! FRAME_MSDOS_P (SELECTED_FRAME ()))
     error ("Current frame is not on a tty device");
 
   tty = CURTTY ();
@@ -5519,10 +5666,82 @@ when TERMINAL is nil.  */)
   unblock_input ();
   return Qnil;
 }
+
+
+DEFUN ("ding", Fding, Sding, 0, 1, 0,
+       doc: /* Beep, or flash the screen.
+Also, unless an argument is given,
+terminate any keyboard macro currently executing.  */)
+  (Lisp_Object arg)
+{
+  if (!NILP (arg))
+    {
+      if (noninteractive)
+	putchar_unlocked (07);
+      else
+	ring_bell (XFRAME (selected_frame));
+    }
+  else
+    bitch_at_user ();
+
+  return Qnil;
+}
+
+void
+bitch_at_user (void)
+{
+  if (noninteractive)
+    putchar_unlocked (07);
+  else if (!INTERACTIVE)  /* Stop executing a keyboard macro.  */
+    {
+      const char *msg
+	= "Keyboard macro terminated by a command ringing the bell";
+      Fsignal (Quser_error, list1 (build_string (msg)));
+    }
+  else
+    ring_bell (XFRAME (selected_frame));
+}
+
+
 
 /***********************************************************************
 			  Sleeping, Waiting
  ***********************************************************************/
+
+DEFUN ("sleep-for", Fsleep_for, Ssleep_for, 1, 2, 0,
+       doc: /* Pause, without updating display, for SECONDS seconds.
+SECONDS may be a floating-point value, meaning that you can wait for a
+fraction of a second.  Optional second arg MILLISECONDS specifies an
+additional wait period, in milliseconds; this is for backwards compatibility.
+\(Not all operating systems support waiting for a fraction of a second.)  */)
+  (Lisp_Object seconds, Lisp_Object milliseconds)
+{
+  double duration = extract_float (seconds);
+
+  if (!NILP (milliseconds))
+    {
+      CHECK_NUMBER (milliseconds);
+      duration += XINT (milliseconds) / 1000.0;
+    }
+
+  if (duration > 0)
+    {
+      struct timespec t = dtotimespec (duration);
+      struct timespec tend = timespec_add (current_timespec (), t);
+
+      /* wait_reading_process_output returns as soon as it detects
+	 output from any subprocess, so we wait in a loop until the
+	 time expires.  */
+      do {
+	wait_reading_process_output (min (t.tv_sec, WAIT_READING_MAX),
+				     t.tv_nsec, 0, 0, Qnil, NULL, 0);
+	t = timespec_sub (tend, current_timespec ());
+      } while (timespec_sign (t) > 0);
+    }
+
+  return Qnil;
+}
+
 
 /* This is just like wait_reading_process_output, except that
    it does redisplay.
@@ -5587,6 +5806,35 @@ sit_for (Lisp_Object timeout, bool reading, int display_option)
 
   return detect_input_pending () ? Qnil : Qt;
 }
+
+
+DEFUN ("redisplay", Fredisplay, Sredisplay, 0, 1, 0,
+       doc: /* Perform redisplay.
+Optional arg FORCE, if non-nil, prevents redisplay from being
+preempted by arriving input, even if `redisplay-dont-pause' is nil.
+If `redisplay-dont-pause' is non-nil (the default), redisplay is never
+preempted by arriving input, so FORCE does nothing.
+
+Return t if redisplay was performed, nil if redisplay was preempted
+immediately by pending input.  */)
+  (Lisp_Object force)
+{
+  ptrdiff_t count;
+
+  swallow_events (true);
+  if ((detect_input_pending_run_timers (1)
+       && NILP (force) && !redisplay_dont_pause)
+      || !NILP (Vexecuting_kbd_macro))
+    return Qnil;
+
+  count = SPECPDL_INDEX ();
+  if (!NILP (force) && !redisplay_dont_pause)
+    specbind (Qredisplay_dont_pause, Qt);
+  redisplay_preserve_echo_area (2);
+  unbind_to (count, Qnil);
+  return Qt;
+}
+
 
 
 /***********************************************************************
@@ -5867,8 +6115,12 @@ init_display (void)
     f->terminal = t;
 
     t->reference_count++;
+#ifdef MSDOS
+    f->output_data.tty->display_info = &the_only_display_info;
+#else
     if (f->output_method == output_termcap)
       create_tty_output (f);
+#endif
     t->display_info.tty->top_frame = selected_frame;
     change_frame_size (XFRAME (selected_frame),
                        FrameCols (t->display_info.tty),
@@ -5925,15 +6177,51 @@ init_display (void)
 
 
 /***********************************************************************
+			   Blinking cursor
+ ***********************************************************************/
+
+DEFUN ("internal-show-cursor", Finternal_show_cursor,
+       Sinternal_show_cursor, 2, 2, 0,
+       doc: /* Set the cursor-visibility flag of WINDOW to SHOW.
+WINDOW nil means use the selected window.  SHOW non-nil means
+show a cursor in WINDOW in the next redisplay.  SHOW nil means
+don't show a cursor.  */)
+  (Lisp_Object window, Lisp_Object show)
+{
+  /* Don't change cursor state while redisplaying.  This could confuse
+     output routines.  */
+  if (!redisplaying_p)
+    decode_any_window (window)->cursor_off_p = NILP (show);
+  return Qnil;
+}
+
+
+DEFUN ("internal-show-cursor-p", Finternal_show_cursor_p,
+       Sinternal_show_cursor_p, 0, 1, 0,
+       doc: /* Value is non-nil if next redisplay will display a cursor in WINDOW.
+WINDOW nil or omitted means report on the selected window.  */)
+  (Lisp_Object window)
+{
+  return decode_any_window (window)->cursor_off_p ? Qnil : Qt;
+}
+
+/***********************************************************************
 			    Initialization
  ***********************************************************************/
 
 void
 syms_of_display (void)
 {
+  defsubr (&Sredraw_frame);
+  defsubr (&Sredraw_display);
   defsubr (&Sframe_or_buffer_changed_p);
   defsubr (&Sopen_termscript);
+  defsubr (&Sding);
+  defsubr (&Sredisplay);
+  defsubr (&Ssleep_for);
   defsubr (&Ssend_string_to_terminal);
+  defsubr (&Sinternal_show_cursor);
+  defsubr (&Sinternal_show_cursor_p);
 
 #ifdef GLYPH_DEBUG
   defsubr (&Sdump_redisplay_history);

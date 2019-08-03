@@ -55,14 +55,12 @@ Lisp_Object last_minibuf_string;
 
 /* Prompt to display in front of the mini-buffer contents.  */
 
-Lisp_Object minibuf_prompt;
+static Lisp_Object minibuf_prompt;
 
 /* Width of current mini-buffer prompt.  Only set after display_line
    of the line that contains the prompt.  */
 
 static ptrdiff_t minibuf_prompt_width;
-
-Lisp_Object read_minibuf (Lisp_Object, Lisp_Object, Lisp_Object, bool, Lisp_Object, Lisp_Object, Lisp_Object, bool, bool);
 
 
 /* Put minibuf on currently selected frame's minibuffer.
@@ -108,6 +106,30 @@ choose_minibuf_frame (void)
 	       && minibuf_level > 0))
 	Fset_frame_selected_window (frame, Fframe_first_window (frame), Qnil);
   }
+}
+
+DEFUN ("active-minibuffer-window", Factive_minibuffer_window,
+       Sactive_minibuffer_window, 0, 0, 0,
+       doc: /* Return the currently active minibuffer window, or nil if none.  */)
+     (void)
+{
+  return minibuf_level ? minibuf_window : Qnil;
+}
+
+DEFUN ("set-minibuffer-window", Fset_minibuffer_window,
+       Sset_minibuffer_window, 1, 1, 0,
+       doc: /* Specify which minibuffer window to use for the minibuffer.
+This affects where the minibuffer is displayed if you put text in it
+without invoking the usual minibuffer commands.  */)
+  (Lisp_Object window)
+{
+  CHECK_WINDOW (window);
+  if (! MINI_WINDOW_P (XWINDOW (window)))
+    error ("Window is not a minibuffer window");
+
+  minibuf_window = window;
+
+  return window;
 }
 
 
@@ -241,6 +263,69 @@ read_minibuf_noninteractive (Lisp_Object map, Lisp_Object initial,
   return val;
 }
 
+DEFUN ("minibufferp", Fminibufferp,
+       Sminibufferp, 0, 1, 0,
+       doc: /* Return t if BUFFER is a minibuffer.
+No argument or nil as argument means use current buffer as BUFFER.
+BUFFER can be a buffer or a buffer name.  */)
+  (Lisp_Object buffer)
+{
+  Lisp_Object tem;
+
+  if (NILP (buffer))
+    buffer = Fcurrent_buffer ();
+  else if (STRINGP (buffer))
+    buffer = Fget_buffer (buffer);
+  else
+    CHECK_BUFFER (buffer);
+
+  tem = Fmemq (buffer, Vminibuffer_list);
+  return ! NILP (tem) ? Qt : Qnil;
+}
+
+DEFUN ("minibuffer-prompt-end", Fminibuffer_prompt_end,
+       Sminibuffer_prompt_end, 0, 0, 0,
+       doc: /* Return the buffer position of the end of the minibuffer prompt.
+Return (point-min) if current buffer is not a minibuffer.  */)
+  (void)
+{
+  /* This function is written to be most efficient when there's a prompt.  */
+  Lisp_Object beg, end, tem;
+  beg = make_number (BEGV);
+
+  tem = Fmemq (Fcurrent_buffer (), Vminibuffer_list);
+  if (NILP (tem))
+    return beg;
+
+  end = Ffield_end (beg, Qnil, Qnil);
+
+  if (XINT (end) == ZV && NILP (Fget_char_property (beg, Qfield, Qnil)))
+    return beg;
+  else
+    return end;
+}
+
+DEFUN ("minibuffer-contents", Fminibuffer_contents,
+       Sminibuffer_contents, 0, 0, 0,
+       doc: /* Return the user input in a minibuffer as a string.
+If the current buffer is not a minibuffer, return its entire contents.  */)
+  (void)
+{
+  ptrdiff_t prompt_end = XINT (Fminibuffer_prompt_end ());
+  return make_buffer_string (prompt_end, ZV, 1);
+}
+
+DEFUN ("minibuffer-contents-no-properties", Fminibuffer_contents_no_properties,
+       Sminibuffer_contents_no_properties, 0, 0, 0,
+       doc: /* Return the user input in a minibuffer as a string, without text-properties.
+If the current buffer is not a minibuffer, return its entire contents.  */)
+  (void)
+{
+  ptrdiff_t prompt_end = XINT (Fminibuffer_prompt_end ());
+  return make_buffer_string (prompt_end, ZV, 0);
+}
+
+
 /* Read from the minibuffer using keymap MAP and initial contents INITIAL,
    putting point minus BACKUP_N bytes from the end of INITIAL,
    prompting with PROMPT (a string), using history list HISTVAR
@@ -264,7 +349,7 @@ read_minibuf_noninteractive (Lisp_Object map, Lisp_Object initial,
    if INHERIT_INPUT_METHOD, the minibuffer inherits the
    current input method.  */
 
-Lisp_Object
+static Lisp_Object
 read_minibuf (Lisp_Object map, Lisp_Object initial, Lisp_Object prompt,
 	      bool expflag,
 	      Lisp_Object histvar, Lisp_Object histpos, Lisp_Object defalt,
@@ -813,8 +898,167 @@ read_minibuf_unwind (void)
      made sense during the read_minibuf invocation.  */
   call0 (intern ("minibuffer-inactive-mode"));
 }
+
+
+DEFUN ("read-from-minibuffer", Fread_from_minibuffer,
+       Sread_from_minibuffer, 1, 7, 0,
+       doc: /* Read a string from the minibuffer, prompting with string PROMPT.
+The optional second arg INITIAL-CONTENTS is an obsolete alternative to
+  DEFAULT-VALUE.  It normally should be nil in new code, except when
+  HIST is a cons.  It is discussed in more detail below.
+
+Third arg KEYMAP is a keymap to use whilst reading;
+  if omitted or nil, the default is `minibuffer-local-map'.
+
+If fourth arg READ is non-nil, interpret the result as a Lisp object
+  and return that object:
+  in other words, do `(car (read-from-string INPUT-STRING))'
+
+Fifth arg HIST, if non-nil, specifies a history list and optionally
+  the initial position in the list.  It can be a symbol, which is the
+  history list variable to use, or a cons cell (HISTVAR . HISTPOS).
+  In that case, HISTVAR is the history list variable to use, and
+  HISTPOS is the initial position for use by the minibuffer history
+  commands.  For consistency, you should also specify that element of
+  the history as the value of INITIAL-CONTENTS.  Positions are counted
+  starting from 1 at the beginning of the list.
+
+Sixth arg DEFAULT-VALUE, if non-nil, should be a string, which is used
+  as the default to `read' if READ is non-nil and the user enters
+  empty input.  But if READ is nil, this function does _not_ return
+  DEFAULT-VALUE for empty input!  Instead, it returns the empty string.
+
+  Whatever the value of READ, DEFAULT-VALUE is made available via the
+  minibuffer history commands.  DEFAULT-VALUE can also be a list of
+  strings, in which case all the strings are available in the history,
+  and the first string is the default to `read' if READ is non-nil.
+
+Seventh arg INHERIT-INPUT-METHOD, if non-nil, means the minibuffer inherits
+ the current input method and the setting of `enable-multibyte-characters'.
+
+If the variable `minibuffer-allow-text-properties' is non-nil,
+ then the string which is returned includes whatever text properties
+ were present in the minibuffer.  Otherwise the value has no text properties.
+
+The remainder of this documentation string describes the
+INITIAL-CONTENTS argument in more detail.  It is only relevant when
+studying existing code, or when HIST is a cons.  If non-nil,
+INITIAL-CONTENTS is a string to be inserted into the minibuffer before
+reading input.  Normally, point is put at the end of that string.
+However, if INITIAL-CONTENTS is (STRING . POSITION), the initial
+input is STRING, but point is placed at _one-indexed_ position
+POSITION in the minibuffer.  Any integer value less than or equal to
+one puts point at the beginning of the string.  *Note* that this
+behavior differs from the way such arguments are used in `completing-read'
+and some related functions, which use zero-indexing for POSITION.  */)
+  (Lisp_Object prompt, Lisp_Object initial_contents, Lisp_Object keymap, Lisp_Object read, Lisp_Object hist, Lisp_Object default_value, Lisp_Object inherit_input_method)
+{
+  Lisp_Object histvar, histpos, val;
+
+  CHECK_STRING (prompt);
+  if (NILP (keymap))
+    keymap = Vminibuffer_local_map;
+  else
+    keymap = get_keymap (keymap, 1, 0);
+
+  if (SYMBOLP (hist))
+    {
+      histvar = hist;
+      histpos = Qnil;
+    }
+  else
+    {
+      histvar = Fcar_safe (hist);
+      histpos = Fcdr_safe (hist);
+    }
+  if (NILP (histvar))
+    histvar = Qminibuffer_history;
+  if (NILP (histpos))
+    XSETFASTINT (histpos, 0);
+
+  val = read_minibuf (keymap, initial_contents, prompt,
+		      !NILP (read),
+		      histvar, histpos, default_value,
+		      minibuffer_allow_text_properties,
+		      !NILP (inherit_input_method));
+  return val;
+}
 
 /* Functions that use the minibuffer to read various things.  */
+
+DEFUN ("read-string", Fread_string, Sread_string, 1, 5, 0,
+       doc: /* Read a string from the minibuffer, prompting with string PROMPT.
+If non-nil, second arg INITIAL-INPUT is a string to insert before reading.
+  This argument has been superseded by DEFAULT-VALUE and should normally be nil
+  in new code.  It behaves as INITIAL-CONTENTS in `read-from-minibuffer' (which
+  see).
+The third arg HISTORY, if non-nil, specifies a history list
+  and optionally the initial position in the list.
+See `read-from-minibuffer' for details of HISTORY argument.
+Fourth arg DEFAULT-VALUE is the default value or the list of default values.
+ If non-nil, it is used for history commands, and as the value (or the first
+ element of the list of default values) to return if the user enters the
+ empty string.
+Fifth arg INHERIT-INPUT-METHOD, if non-nil, means the minibuffer inherits
+ the current input method and the setting of `enable-multibyte-characters'.  */)
+  (Lisp_Object prompt, Lisp_Object initial_input, Lisp_Object history, Lisp_Object default_value, Lisp_Object inherit_input_method)
+{
+  Lisp_Object val;
+  ptrdiff_t count = SPECPDL_INDEX ();
+
+  /* Just in case we're in a recursive minibuffer, make it clear that the
+     previous minibuffer's completion table does not apply to the new
+     minibuffer.
+     FIXME: `minibuffer-completion-table' should be buffer-local instead.  */
+  specbind (Qminibuffer_completion_table, Qnil);
+
+  val = Fread_from_minibuffer (prompt, initial_input, Qnil,
+			       Qnil, history, default_value,
+			       inherit_input_method);
+  if (STRINGP (val) && SCHARS (val) == 0 && ! NILP (default_value))
+    val = CONSP (default_value) ? XCAR (default_value) : default_value;
+  return unbind_to (count, val);
+}
+
+DEFUN ("read-no-blanks-input", Fread_no_blanks_input, Sread_no_blanks_input, 1, 3, 0,
+       doc: /* Read a string from the terminal, not allowing blanks.
+Prompt with PROMPT.  Whitespace terminates the input.  If INITIAL is
+non-nil, it should be a string, which is used as initial input, with
+point positioned at the end, so that SPACE will accept the input.
+\(Actually, INITIAL can also be a cons of a string and an integer.
+Such values are treated as in `read-from-minibuffer', but are normally
+not useful in this function.)
+Third arg INHERIT-INPUT-METHOD, if non-nil, means the minibuffer inherits
+the current input method and the setting of`enable-multibyte-characters'.  */)
+  (Lisp_Object prompt, Lisp_Object initial, Lisp_Object inherit_input_method)
+{
+  CHECK_STRING (prompt);
+  return read_minibuf (Vminibuffer_local_ns_map, initial, prompt,
+		       0, Qminibuffer_history, make_number (0), Qnil, 0,
+		       !NILP (inherit_input_method));
+}
+
+DEFUN ("read-command", Fread_command, Sread_command, 1, 2, 0,
+       doc: /* Read the name of a command and return as a symbol.
+Prompt with PROMPT.  By default, return DEFAULT-VALUE or its first element
+if it is a list.  */)
+  (Lisp_Object prompt, Lisp_Object default_value)
+{
+  Lisp_Object name, default_string;
+
+  if (NILP (default_value))
+    default_string = Qnil;
+  else if (SYMBOLP (default_value))
+    default_string = SYMBOL_NAME (default_value);
+  else
+    default_string = default_value;
+
+  name = Fcompleting_read (prompt, Vobarray, Qcommandp, Qt,
+			   Qnil, Qnil, default_string, Qnil);
+  if (NILP (name))
+    return name;
+  return Fintern (name, Qnil);
+}
 
 #ifdef NOTDEF
 DEFUN ("read-function", Fread_function, Sread_function, 1, 1, 0,
@@ -827,7 +1071,102 @@ Prompt with PROMPT.  */)
 }
 #endif /* NOTDEF */
 
+DEFUN ("read-variable", Fread_variable, Sread_variable, 1, 2, 0,
+       doc: /* Read the name of a user option and return it as a symbol.
+Prompt with PROMPT.  By default, return DEFAULT-VALUE or its first element
+if it is a list.
+A user option, or customizable variable, is one for which
+`custom-variable-p' returns non-nil.  */)
+  (Lisp_Object prompt, Lisp_Object default_value)
+{
+  Lisp_Object name, default_string;
 
+  if (NILP (default_value))
+    default_string = Qnil;
+  else if (SYMBOLP (default_value))
+    default_string = SYMBOL_NAME (default_value);
+  else
+    default_string = default_value;
+
+  name = Fcompleting_read (prompt, Vobarray,
+			   Qcustom_variable_p, Qt,
+			   Qnil, Qnil, default_string, Qnil);
+  if (NILP (name))
+    return name;
+  return Fintern (name, Qnil);
+}
+
+DEFUN ("read-buffer", Fread_buffer, Sread_buffer, 1, 4, 0,
+       doc: /* Read the name of a buffer and return as a string.
+Prompt with PROMPT.
+Optional second arg DEF is value to return if user enters an empty line.
+ If DEF is a list of default values, return its first element.
+Optional third arg REQUIRE-MATCH determines whether non-existing
+ buffer names are allowed.  It has the same meaning as the
+ REQUIRE-MATCH argument of `completing-read'.
+The argument PROMPT should be a string ending with a colon and a space.
+If `read-buffer-completion-ignore-case' is non-nil, completion ignores
+case while reading the buffer name.
+If `read-buffer-function' is non-nil, this works by calling it as a
+function, instead of the usual behavior.
+Optional arg PREDICATE if non-nil is a function limiting the buffers that can
+be considered.  */)
+  (Lisp_Object prompt, Lisp_Object def, Lisp_Object require_match,
+   Lisp_Object predicate)
+{
+  Lisp_Object result;
+  char *s;
+  ptrdiff_t len;
+  ptrdiff_t count = SPECPDL_INDEX ();
+
+  if (BUFFERP (def))
+    def = BVAR (XBUFFER (def), name);
+
+  specbind (Qcompletion_ignore_case,
+	    read_buffer_completion_ignore_case ? Qt : Qnil);
+
+  if (NILP (Vread_buffer_function))
+    {
+      if (!NILP (def))
+	{
+	  /* A default value was provided: we must change PROMPT,
+	     editing the default value in before the colon.  To achieve
+	     this, we replace PROMPT with a substring that doesn't
+	     contain the terminal space and colon (if present).  They
+	     are then added back using Fformat.  */
+
+	  if (STRINGP (prompt))
+	    {
+	      s = SSDATA (prompt);
+	      len = SBYTES (prompt);
+	      if (len >= 2 && s[len - 2] == ':' && s[len - 1] == ' ')
+		len = len - 2;
+	      else if (len >= 1 && (s[len - 1] == ':' || s[len - 1] == ' '))
+		len--;
+
+	      prompt = make_specified_string (s, -1, len,
+					      STRING_MULTIBYTE (prompt));
+	    }
+
+	  AUTO_STRING (format, "%s (default %s): ");
+	  prompt = CALLN (Fformat, format, prompt,
+			  CONSP (def) ? XCAR (def) : def);
+	}
+
+      result = Fcompleting_read (prompt, intern ("internal-complete-buffer"),
+				 predicate, require_match, Qnil,
+				 Qbuffer_name_history, def, Qnil);
+    }
+  else
+    result = (NILP (predicate)
+	      /* Partial backward compatibility for older read_buffer_functions
+		 which don't expect a `predicate' argument.  */
+	      ? call3 (Vread_buffer_function, prompt, def, require_match)
+	      : call4 (Vread_buffer_function, prompt, def, require_match,
+		       predicate));
+  return unbind_to (count, result);
+}
+
 static Lisp_Object
 minibuf_conform_representation (Lisp_Object string, Lisp_Object basis)
 {
@@ -1279,6 +1618,74 @@ with a space are ignored unless STRING itself starts with a space.  */)
   return Fnreverse (allmatches);
 }
 
+DEFUN ("completing-read", Fcompleting_read, Scompleting_read, 2, 8, 0,
+       doc: /* Read a string in the minibuffer, with completion.
+PROMPT is a string to prompt with; normally it ends in a colon and a space.
+COLLECTION can be a list of strings, an alist, an obarray or a hash table.
+COLLECTION can also be a function to do the completion itself.
+PREDICATE limits completion to a subset of COLLECTION.
+See `try-completion', `all-completions', `test-completion',
+and `completion-boundaries', for more details on completion,
+COLLECTION, and PREDICATE.  See also Info node `(elisp)Basic Completion'
+for the details about completion, and Info node `(elisp)Programmed
+Completion' for expectations from COLLECTION when it's a function.
+
+REQUIRE-MATCH can take the following values:
+- t means that the user is not allowed to exit unless the input is (or
+  completes to) an element of COLLECTION or is null.
+- nil means that the user can exit with any input.
+- `confirm' means that the user can exit with any input, but she needs
+  to confirm her choice if the input is not an element of COLLECTION.
+- `confirm-after-completion' means that the user can exit with any
+  input, but she needs to confirm her choice if she called
+  `minibuffer-complete' right before `minibuffer-complete-and-exit'
+  and the input is not an element of COLLECTION.
+- anything else behaves like t except that typing RET does not exit if it
+  does non-null completion.
+
+If the input is null, `completing-read' returns DEF, or the first
+element of the list of default values, or an empty string if DEF is
+nil, regardless of the value of REQUIRE-MATCH.
+
+If INITIAL-INPUT is non-nil, insert it in the minibuffer initially,
+  with point positioned at the end.  If it is (STRING . POSITION), the
+  initial input is STRING, but point is placed at _zero-indexed_
+  position POSITION in STRING.  (*Note* that this is different from
+  `read-from-minibuffer' and related functions, which use one-indexing
+  for POSITION.)  This feature is deprecated--it is best to pass nil
+  for INITIAL-INPUT and supply the default value DEF instead.  The
+  user can yank the default value into the minibuffer easily using
+  \\<minibuffer-local-map>\\[next-history-element].
+
+HIST, if non-nil, specifies a history list and optionally the initial
+  position in the list.  It can be a symbol, which is the history list
+  variable to use, or it can be a cons cell (HISTVAR . HISTPOS).  In
+  that case, HISTVAR is the history list variable to use, and HISTPOS
+  is the initial position (the position in the list used by the
+  minibuffer history commands).  For consistency, you should also
+  specify that element of the history as the value of INITIAL-INPUT.
+  (This is the only case in which you should use INITIAL-INPUT instead
+  of DEF.)  Positions are counted starting from 1 at the beginning of
+  the list.  The variable `history-length' controls the maximum length
+  of a history list.
+
+DEF, if non-nil, is the default value or the list of default values.
+
+If INHERIT-INPUT-METHOD is non-nil, the minibuffer inherits the
+  current input method and the setting of `enable-multibyte-characters'.
+
+Completion ignores case if the ambient value of
+  `completion-ignore-case' is non-nil.
+
+See also `completing-read-function'.  */)
+  (Lisp_Object prompt, Lisp_Object collection, Lisp_Object predicate, Lisp_Object require_match, Lisp_Object initial_input, Lisp_Object hist, Lisp_Object def, Lisp_Object inherit_input_method)
+{
+  return CALLN (Ffuncall,
+		Fsymbol_value (intern ("completing-read-function")),
+		prompt, collection, predicate, require_match, initial_input,
+		hist, def, inherit_input_method);
+}
+
 /* Test whether TXT is an exact completion.  */
 DEFUN ("test-completion", Ftest_completion, Stest_completion, 2, 3, 0,
        doc: /* Return non-nil if STRING is a valid completion.
@@ -1482,6 +1889,22 @@ single string, rather than a cons cell whose car is a string.  */)
 }
 
 
+DEFUN ("minibuffer-depth", Fminibuffer_depth, Sminibuffer_depth, 0, 0, 0,
+       doc: /* Return current depth of activations of minibuffer, a nonnegative integer.  */)
+  (void)
+{
+  return make_number (minibuf_level);
+}
+
+DEFUN ("minibuffer-prompt", Fminibuffer_prompt, Sminibuffer_prompt, 0, 0, 0,
+       doc: /* Return the prompt string of the currently-active minibuffer.
+If no minibuffer is active, return nil.  */)
+  (void)
+{
+  return Fcopy_sequence (minibuf_prompt);
+}
+
+
 void
 init_minibuf_once (void)
 {
@@ -1675,10 +2098,26 @@ It must be a character, which will be used to mask the input
 characters.  This variable should never be set globally.  */);
   Vread_hide_char = Qnil;
 
+  defsubr (&Sactive_minibuffer_window);
+  defsubr (&Sset_minibuffer_window);
+  defsubr (&Sread_from_minibuffer);
+  defsubr (&Sread_string);
+  defsubr (&Sread_command);
+  defsubr (&Sread_variable);
   defsubr (&Sinternal_complete_buffer);
+  defsubr (&Sread_buffer);
+  defsubr (&Sread_no_blanks_input);
+  defsubr (&Sminibuffer_depth);
+  defsubr (&Sminibuffer_prompt);
+
+  defsubr (&Sminibufferp);
+  defsubr (&Sminibuffer_prompt_end);
+  defsubr (&Sminibuffer_contents);
+  defsubr (&Sminibuffer_contents_no_properties);
 
   defsubr (&Stry_completion);
   defsubr (&Sall_completions);
   defsubr (&Stest_completion);
   defsubr (&Sassoc_string);
+  defsubr (&Scompleting_read);
 }

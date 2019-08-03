@@ -1287,8 +1287,8 @@ casts and declarations are fontified.  Used on level 2 and higher."
 	   (cons nil nil))
 	  ;; In a C++ member initialization list.
 	  ((and (eq (char-before match-pos) ?,)
-		(c-major-mode-is 'c++-mode)
-		(save-excursion
+	  	(c-major-mode-is 'c++-mode)
+	  	(save-excursion
 		  (goto-char match-pos)
 		  (c-back-over-member-initializers)))
 	   (c-put-char-property (1- match-pos) 'c-type 'c-not-decl)

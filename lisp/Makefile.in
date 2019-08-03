@@ -1,4 +1,4 @@
-### @configure_input@
+### lisp/Makefile.  Generated from Makefile.in by configure.
 
 # Copyright (C) 2000-2018 Free Software Foundation, Inc.
 
@@ -17,38 +17,38 @@
 # You should have received a copy of the GNU General Public License
 # along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
-SHELL = @SHELL@
+SHELL = /bin/sh
 
-srcdir = @srcdir@
-top_srcdir = @top_srcdir@
+srcdir = .
+top_srcdir = ..
 lisp = $(srcdir)
-VPATH = $(srcdir)
-EXEEXT = @EXEEXT@
+
+EXEEXT = 
 
 # Empty for all systems except MinGW, where xargs needs an explicit
 # limitation.
-XARGS_LIMIT = @XARGS_LIMIT@
+XARGS_LIMIT = 
 
 # 'make' verbosity.
-AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
+AM_DEFAULT_VERBOSITY = 0
 
-AM_V_ELC = $(am__v_ELC_@AM_V@)
-am__v_ELC_ = $(am__v_ELC_@AM_DEFAULT_V@)
+AM_V_ELC = $(am__v_ELC_$(V))
+am__v_ELC_ = $(am__v_ELC_$(AM_DEFAULT_VERBOSITY))
 am__v_ELC_0 = @echo "  ELC     " $@;
 am__v_ELC_1 =
 
-AM_V_GEN = $(am__v_GEN_@AM_V@)
-am__v_GEN_ = $(am__v_GEN_@AM_DEFAULT_V@)
+AM_V_GEN = $(am__v_GEN_$(V))
+am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
 am__v_GEN_0 = @echo "  GEN     " $@;
 am__v_GEN_1 =
 
-AM_V_at = $(am__v_at_@AM_V@)
-am__v_at_ = $(am__v_at_@AM_DEFAULT_V@)
+AM_V_at = $(am__v_at_$(V))
+am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
 am__v_at_0 = @
 am__v_at_1 =
 
 
-FIND_DELETE = @FIND_DELETE@
+FIND_DELETE = -delete
 
 # You can specify a different executable on the make command line,
 # e.g. "make EMACS=../src/emacs ...".

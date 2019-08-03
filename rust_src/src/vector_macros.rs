@@ -1,6 +1,6 @@
 macro_rules! offset_of {
     ($ty:ty, $field:ident) => {
-        &(*(ptr::null() as *const $ty)).$field as *const _ as usize
+        &(*(::std::ptr::null() as *const $ty)).$field as *const _ as usize
     };
 }
 
@@ -20,16 +20,16 @@ macro_rules! vecsize {
     };
 }
 
-/// Equivalent to `ALLOCATE_PSEUDOVECTOR` in C
-macro_rules! allocate_pseudovector {
-    ($ty: ty, $field: ident, $vectype: expr) => {
-        unsafe {
-            crate::remacs_sys::allocate_pseudovector(
-                vecsize!($ty) as ::libc::c_int,
-                pseudovecsize!($ty, $field) as ::libc::c_int,
-                pseudovecsize!($ty, $field) as ::libc::c_int,
-                $vectype,
-            ) as *mut $ty
-        }
-    };
-}
+// /// Equivalent to `ALLOCATE_PSEUDOVECTOR` in C
+// macro_rules! allocate_pseudovector {
+//     ($ty: ty, $field: ident, $vectype: expr) => {
+//         unsafe {
+//             crate::remacs_sys::allocate_pseudovector(
+//                 vecsize!($ty) as ::libc::c_int,
+//                 pseudovecsize!($ty, $field) as ::libc::c_int,
+//                 pseudovecsize!($ty, $field) as ::libc::c_int,
+//                 $vectype,
+//             ) as *mut $ty
+//         }
+//     };
+// }

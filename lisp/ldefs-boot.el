@@ -23426,7 +23426,7 @@ Follow a link or time-stamp like Org mode does.
 This command can be called in any mode to follow an external link
 or a time-stamp that has Org mode syntax.  Its behavior is
 undefined when called on internal links (e.g., fuzzy links).
-Raise an error when there is nothing to follow.
+Raise an error when there is nothing to follow.  
 
 \(fn)" t nil)
 
@@ -36060,7 +36060,7 @@ Name of the format file in a .bzr directory.")
 (defun vc-cvs-registered (f)
   "Return non-nil if file F is registered with CVS."
   (when (file-readable-p (expand-file-name
-			  "CVS/Entries" (file-name-directory f)))
+ 			  "CVS/Entries" (file-name-directory f)))
       (load "vc-cvs" nil t)
       (vc-cvs-registered f)))
 

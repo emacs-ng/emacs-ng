@@ -41,7 +41,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    Some things in set last_known_column_point to -1
    to mark the memorized value as invalid.  */
 
-ptrdiff_t last_known_column;
+static ptrdiff_t last_known_column;
 
 /* Value of point when current_column was called.  */
 
@@ -49,9 +49,10 @@ ptrdiff_t last_known_column_point;
 
 /* Value of MODIFF when current_column was called.  */
 
-EMACS_INT last_known_column_modified;
+static EMACS_INT last_known_column_modified;
 
 static ptrdiff_t current_column_1 (void);
+static ptrdiff_t position_indentation (ptrdiff_t);
 
 /* Get the display table to use for the current buffer.  */
 
@@ -299,6 +300,34 @@ skip_invisible (ptrdiff_t pos, ptrdiff_t *next_boundary_p, ptrdiff_t to, Lisp_Ob
       }									\
   } while (0)
 
+
+DEFUN ("current-column", Fcurrent_column, Scurrent_column, 0, 0, 0,
+       doc: /* Return the horizontal position of point.  Beginning of line is column 0.
+This is calculated by adding together the widths of all the displayed
+representations of the character between the start of the previous line
+and point (e.g., control characters will have a width of 2 or 4, tabs
+will have a variable width).
+Ignores finite width of frame, which means that this function may return
+values greater than (frame-width).
+Whether the line is visible (if `selective-display' is t) has no effect;
+however, ^M is treated as end of line when `selective-display' is t.
+Text that has an invisible property is considered as having width 0, unless
+`buffer-invisibility-spec' specifies that it is replaced by an ellipsis.  */)
+  (void)
+{
+  Lisp_Object temp;
+  XSETFASTINT (temp, current_column ());
+  return temp;
+}
+
+/* Cancel any recorded value of the horizontal position.  */
+
+void
+invalidate_current_column (void)
+{
+  last_known_column_point = 0;
+}
+
 ptrdiff_t
 current_column (void)
 {
@@ -499,7 +528,7 @@ check_display_width (ptrdiff_t pos, ptrdiff_t col, ptrdiff_t *endpos)
    Return the resulting buffer position and column in ENDPOS and GOALCOL.
    PREVCOL gets set to the column of the previous position (it's always
    strictly smaller than the goal column).  */
-void
+static void
 scan_for_column (ptrdiff_t *endpos, EMACS_INT *goalcol, ptrdiff_t *prevcol)
 {
   int tab_width = SANE_TAB_WIDTH (current_buffer);
@@ -779,7 +808,68 @@ string_display_width (Lisp_Object string, Lisp_Object beg, Lisp_Object end)
 #endif /* 0 */
 
 
-ptrdiff_t
+DEFUN ("indent-to", Findent_to, Sindent_to, 1, 2, "NIndent to column: ",
+       doc: /* Indent from point with tabs and spaces until COLUMN is reached.
+Optional second argument MINIMUM says always do at least MINIMUM spaces
+even if that goes past COLUMN; by default, MINIMUM is zero.
+
+The return value is the column where the insertion ends.  */)
+  (Lisp_Object column, Lisp_Object minimum)
+{
+  EMACS_INT mincol;
+  register ptrdiff_t fromcol;
+  int tab_width = SANE_TAB_WIDTH (current_buffer);
+
+  CHECK_NUMBER (column);
+  if (NILP (minimum))
+    XSETFASTINT (minimum, 0);
+  CHECK_NUMBER (minimum);
+
+  fromcol = current_column ();
+  mincol = fromcol + XINT (minimum);
+  if (mincol < XINT (column)) mincol = XINT (column);
+
+  if (fromcol == mincol)
+    return make_number (mincol);
+
+  if (indent_tabs_mode)
+    {
+      Lisp_Object n;
+      XSETFASTINT (n, mincol / tab_width - fromcol / tab_width);
+      if (XFASTINT (n) != 0)
+	{
+	  Finsert_char (make_number ('\t'), n, Qt);
+
+	  fromcol = (mincol / tab_width) * tab_width;
+	}
+    }
+
+  XSETFASTINT (column, mincol - fromcol);
+  Finsert_char (make_number (' '), column, Qt);
+
+  last_known_column = mincol;
+  last_known_column_point = PT;
+  last_known_column_modified = MODIFF;
+
+  XSETINT (column, mincol);
+  return column;
+}
+
+
+DEFUN ("current-indentation", Fcurrent_indentation, Scurrent_indentation,
+       0, 0, 0,
+       doc: /* Return the indentation of the current line.
+This is the horizontal position of the character
+following any initial whitespace.  */)
+  (void)
+{
+  ptrdiff_t posbyte;
+
+  find_newline (PT, PT_BYTE, BEGV, BEGV_BYTE, -1, NULL, &posbyte, 1);
+  return make_number (position_indentation (posbyte));
+}
+
+static ptrdiff_t
 position_indentation (ptrdiff_t pos_byte)
 {
   register ptrdiff_t column = 0;
@@ -877,6 +967,82 @@ indented_beyond_p (ptrdiff_t pos, ptrdiff_t pos_byte, EMACS_INT column)
 			  -1, NULL, &pos_byte, 0);
     }
   return position_indentation (pos_byte) >= column;
+}
+
+DEFUN ("move-to-column", Fmove_to_column, Smove_to_column, 1, 2,
+       "NMove to column: ",
+       doc: /* Move point to column COLUMN in the current line.
+Interactively, COLUMN is the value of prefix numeric argument.
+The column of a character is calculated by adding together the widths
+as displayed of the previous characters in the line.
+This function ignores line-continuation;
+there is no upper limit on the column number a character can have
+and horizontal scrolling has no effect.
+
+If specified column is within a character, point goes after that character.
+If it's past end of line, point goes to end of line.
+
+Optional second argument FORCE non-nil means if COLUMN is in the
+middle of a tab character, change it to spaces.
+In addition, if FORCE is t, and the line is too short to reach
+COLUMN, add spaces/tabs to get there.
+
+The return value is the current column.  */)
+  (Lisp_Object column, Lisp_Object force)
+{
+  ptrdiff_t pos, prev_col;
+  EMACS_INT col;
+  EMACS_INT goal;
+
+  CHECK_NATNUM (column);
+  goal = XINT (column);
+
+  col = goal;
+  pos = ZV;
+  scan_for_column (&pos, &col, &prev_col);
+
+  SET_PT (pos);
+
+  /* If a tab char made us overshoot, change it to spaces
+     and scan through it again.  */
+  if (!NILP (force) && col > goal)
+    {
+      int c;
+      ptrdiff_t pos_byte = PT_BYTE;
+
+      DEC_POS (pos_byte);
+      c = FETCH_CHAR (pos_byte);
+      if (c == '\t' && prev_col < goal)
+	{
+	  ptrdiff_t goal_pt, goal_pt_byte;
+
+	  /* Insert spaces in front of the tab to reach GOAL.  Do this
+	     first so that a marker at the end of the tab gets
+	     adjusted.  */
+	  SET_PT_BOTH (PT - 1, PT_BYTE - 1);
+	  Finsert_char (make_number (' '), make_number (goal - prev_col), Qt);
+
+	  /* Now delete the tab, and indent to COL.  */
+	  del_range (PT, PT + 1);
+	  goal_pt = PT;
+	  goal_pt_byte = PT_BYTE;
+	  Findent_to (make_number (col), Qnil);
+	  SET_PT_BOTH (goal_pt, goal_pt_byte);
+
+	  /* Set the last_known... vars consistently.  */
+	  col = goal;
+	}
+    }
+
+  /* If line ends prematurely, add space to the end.  */
+  if (col < goal && EQ (force, Qt))
+    Findent_to (make_number (col = goal), Qnil);
+
+  last_known_column = col;
+  last_known_column_point = PT;
+  last_known_column_modified = MODIFF;
+
+  return make_number (col);
 }
 
 /* compute_motion: compute buffer posn given screen posn and vice versa */
@@ -1537,6 +1703,118 @@ compute_motion (ptrdiff_t from, ptrdiff_t frombyte, EMACS_INT fromvpos,
 }
 
 
+DEFUN ("compute-motion", Fcompute_motion, Scompute_motion, 7, 7, 0,
+       doc: /* Scan through the current buffer, calculating screen position.
+Scan the current buffer forward from offset FROM,
+assuming it is at position FROMPOS--a cons of the form (HPOS . VPOS)--
+to position TO or position TOPOS--another cons of the form (HPOS . VPOS)--
+and return the ending buffer position and screen location.
+
+If TOPOS is nil, the actual width and height of the window's
+text area are used.
+
+There are three additional arguments:
+
+WIDTH is the number of columns available to display text;
+this affects handling of continuation lines.  A value of nil
+corresponds to the actual number of available text columns.
+
+OFFSETS is either nil or a cons cell (HSCROLL . TAB-OFFSET).
+HSCROLL is the number of columns not being displayed at the left
+margin; this is usually taken from a window's hscroll member.
+TAB-OFFSET is the number of columns of the first tab that aren't
+being displayed, perhaps because the line was continued within it.
+If OFFSETS is nil, HSCROLL and TAB-OFFSET are assumed to be zero.
+
+WINDOW is the window to operate on.  It is used to choose the display table;
+if it is showing the current buffer, it is used also for
+deciding which overlay properties apply.
+Note that `compute-motion' always operates on the current buffer.
+
+The value is a list of five elements:
+  (POS HPOS VPOS PREVHPOS CONTIN)
+POS is the buffer position where the scan stopped.
+VPOS is the vertical position where the scan stopped.
+HPOS is the horizontal position where the scan stopped.
+
+PREVHPOS is the horizontal position one character back from POS.
+CONTIN is t if a line was continued after (or within) the previous character.
+
+For example, to find the buffer position of column COL of line LINE
+of a certain window, pass the window's starting location as FROM
+and the window's upper-left coordinates as FROMPOS.
+Pass the buffer's (point-max) as TO, to limit the scan to the end of the
+visible section of the buffer, and pass LINE and COL as TOPOS.  */)
+  (Lisp_Object from, Lisp_Object frompos, Lisp_Object to, Lisp_Object topos,
+   Lisp_Object width, Lisp_Object offsets, Lisp_Object window)
+{
+  struct window *w;
+  Lisp_Object bufpos, hpos, vpos, prevhpos;
+  struct position *pos;
+  ptrdiff_t hscroll;
+  int tab_offset;
+
+  CHECK_NUMBER_COERCE_MARKER (from);
+  CHECK_CONS (frompos);
+  CHECK_NUMBER_CAR (frompos);
+  CHECK_NUMBER_CDR (frompos);
+  CHECK_NUMBER_COERCE_MARKER (to);
+  if (!NILP (topos))
+    {
+      CHECK_CONS (topos);
+      CHECK_NUMBER_CAR (topos);
+      CHECK_NUMBER_CDR (topos);
+    }
+  if (!NILP (width))
+    CHECK_NUMBER (width);
+
+  if (!NILP (offsets))
+    {
+      CHECK_CONS (offsets);
+      CHECK_NUMBER_CAR (offsets);
+      CHECK_NUMBER_CDR (offsets);
+      if (! (0 <= XINT (XCAR (offsets)) && XINT (XCAR (offsets)) <= PTRDIFF_MAX
+	     && 0 <= XINT (XCDR (offsets)) && XINT (XCDR (offsets)) <= INT_MAX))
+	args_out_of_range (XCAR (offsets), XCDR (offsets));
+      hscroll = XINT (XCAR (offsets));
+      tab_offset = XINT (XCDR (offsets));
+    }
+  else
+    hscroll = tab_offset = 0;
+
+  w = decode_live_window (window);
+
+  if (XINT (from) < BEGV || XINT (from) > ZV)
+    args_out_of_range_3 (from, make_number (BEGV), make_number (ZV));
+  if (XINT (to) < BEGV || XINT (to) > ZV)
+    args_out_of_range_3 (to, make_number (BEGV), make_number (ZV));
+
+  pos = compute_motion (XINT (from), CHAR_TO_BYTE (XINT (from)),
+			XINT (XCDR (frompos)),
+			XINT (XCAR (frompos)), 0,
+			XINT (to),
+			(NILP (topos)
+			 ? window_internal_height (w)
+			 : XINT (XCDR (topos))),
+			(NILP (topos)
+			 ? (window_body_width (w, 0)
+			    - (
+#ifdef HAVE_WINDOW_SYSTEM
+			       FRAME_WINDOW_P (XFRAME (w->frame)) ? 0 :
+#endif
+			       1))
+			 : XINT (XCAR (topos))),
+			(NILP (width) ? -1 : XINT (width)),
+			hscroll, tab_offset, w);
+
+  XSETFASTINT (bufpos, pos->bufpos);
+  XSETINT (hpos, pos->hpos);
+  XSETINT (vpos, pos->vpos);
+  XSETINT (prevhpos, pos->prevhpos);
+
+  return list5 (bufpos, hpos, vpos, prevhpos, pos->contin ? Qt : Qnil);
+}
+
 /* Fvertical_motion and vmotion.  */
 
 static struct position val_vmotion;
@@ -2101,6 +2379,11 @@ syms_of_indent (void)
 
   DEFSYM (Qcolumns, "columns");
 
+  defsubr (&Scurrent_indentation);
+  defsubr (&Sindent_to);
+  defsubr (&Scurrent_column);
+  defsubr (&Smove_to_column);
   defsubr (&Sline_number_display_width);
   defsubr (&Svertical_motion);
+  defsubr (&Scompute_motion);
 }

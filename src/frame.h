@@ -171,6 +171,12 @@ struct frame
      most recently buried buffer is first.  For last-buffer.  */
   Lisp_Object buried_buffer_list;
 
+#if defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)
+  /* A dummy window used to display menu bars under X when no X
+     toolkit support is available.  */
+  Lisp_Object menu_bar_window;
+#endif
+
 #if defined (HAVE_WINDOW_SYSTEM) && ! defined (USE_GTK) && ! defined (HAVE_NS)
   /* A window used to display the tool-bar of a frame.  */
   Lisp_Object tool_bar_window;
@@ -207,11 +213,16 @@ struct frame
   /* Number of elements in `menu_bar_vector' that have meaningful data.  */
   int menu_bar_items_used;
 
-#if defined (HAVE_NTGUI)
+#if defined (USE_X_TOOLKIT) || defined (HAVE_NTGUI)
   /* A buffer to hold the frame's name.  Since this is used by the
      window system toolkit, we can't use the Lisp string's pointer
      (`name', above) because it might get relocated.  */
   char *namebuf;
+#endif
+
+#ifdef USE_X_TOOLKIT
+  /* Used to pass geometry parameters to toolkit functions.  */
+  char *shell_position;
 #endif
 
   /* Glyph pool and matrix.  */
@@ -263,7 +274,7 @@ struct frame
   /* True if it needs to be redisplayed.  */
   bool_bf redisplay : 1;
 
-#if defined (HAVE_NTGUI)	\
+#if defined (USE_X_TOOLKIT) || defined (HAVE_NTGUI)	\
     || defined (HAVE_NS) || defined (USE_GTK)
   /* True means using a menu bar that comes from the X toolkit.  */
   bool_bf external_menu_bar : 1;
@@ -571,20 +582,10 @@ struct frame
 
 /* Most code should use these functions to set Lisp fields in struct frame.  */
 
-INLINE Lisp_Object
-fget_buffer_list (struct frame *f)
-{
-  return f->buffer_list;
-}
 INLINE void
 fset_buffer_list (struct frame *f, Lisp_Object val)
 {
   f->buffer_list = val;
-}
-INLINE Lisp_Object
-fget_buried_buffer_list (struct frame *f)
-{
-  return f->buried_buffer_list;
 }
 INLINE void
 fset_buried_buffer_list (struct frame *f, Lisp_Object val)
@@ -628,6 +629,13 @@ fset_menu_bar_vector (struct frame *f, Lisp_Object val)
 {
   f->menu_bar_vector = val;
 }
+#if defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)
+INLINE void
+fset_menu_bar_window (struct frame *f, Lisp_Object val)
+{
+  f->menu_bar_window = val;
+}
+#endif
 INLINE void
 fset_name (struct frame *f, Lisp_Object val)
 {
@@ -732,6 +740,11 @@ default_pixels_per_inch_y (void)
 #define FRAME_W32_P(f) false
 #else
 #define FRAME_W32_P(f) ((f)->output_method == output_w32)
+#endif
+#ifndef MSDOS
+#define FRAME_MSDOS_P(f) false
+#else
+#define FRAME_MSDOS_P(f) ((f)->output_method == output_msdos_raw)
 #endif
 #ifndef HAVE_NS
 #define FRAME_NS_P(f) false
@@ -862,7 +875,7 @@ default_pixels_per_inch_y (void)
 
 /* True if this frame should display a menu bar
    in a way that does not use any text lines.  */
-#if defined (HAVE_NTGUI) \
+#if defined (USE_X_TOOLKIT) || defined (HAVE_NTGUI) \
      || defined (HAVE_NS) || defined (USE_GTK)
 #define FRAME_EXTERNAL_MENU_BAR(f) (f)->external_menu_bar
 #else
@@ -1231,7 +1244,7 @@ INLINE bool
 window_system_available (struct frame *f)
 {
 #ifdef HAVE_WINDOW_SYSTEM
-  return f ? FRAME_WINDOW_P (f) : display_available ();
+  return f ? FRAME_WINDOW_P (f) || FRAME_MSDOS_P (f) : display_available ();
 #else
   return false;
 #endif
@@ -1494,7 +1507,7 @@ FRAME_BOTTOM_DIVIDER_WIDTH (struct frame *f)
 #ifdef HAVE_WINDOW_SYSTEM
 
 /* The class of this X application.  */
-#define EMACS_CLASS "Remacs"
+#define EMACS_CLASS "Emacs"
 
 extern void x_set_scroll_bar_default_width (struct frame *);
 extern void x_set_scroll_bar_default_height (struct frame *);
@@ -1552,14 +1565,11 @@ extern void x_free_frame_resources (struct frame *);
 extern bool frame_ancestor_p (struct frame *af, struct frame *df);
 extern enum internal_border_part frame_internal_border_part (struct frame *f, int x, int y);
 
-int fget_internal_border_width(const struct frame *);
-Lisp_Object fget_minibuffer_window(const struct frame *);
-Lisp_Object fget_root_window(const struct frame *);
-struct terminal * fget_terminal(const struct frame *);
-
 #if defined HAVE_X_WINDOWS
 extern void x_wm_set_icon_position (struct frame *, int, int);
+#if !defined USE_X_TOOLKIT
 extern char *x_get_resource_string (const char *, const char *);
+#endif
 extern void x_sync (struct frame *);
 #endif /* HAVE_X_WINDOWS */
 
@@ -1614,8 +1624,6 @@ extern Lisp_Object make_monitor_attribute_list (struct MonitorInfo *monitors,
 
 #endif /* HAVE_WINDOW_SYSTEM */
 
-extern Lisp_Object
-candidate_frame (Lisp_Object candidate, Lisp_Object frame, Lisp_Object minibuf);
 
 INLINE_HEADER_END
 

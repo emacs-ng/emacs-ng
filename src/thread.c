@@ -90,7 +90,7 @@ post_acquire_global_lock (struct thread_state *self)
 
       current_thread->error_symbol = Qnil;
       current_thread->error_data = Qnil;
-      xsignal (sym, data);
+      Fsignal (sym, data);
     }
 }
 
@@ -825,6 +825,28 @@ If NAME is given, it must be a string; it names the new thread.  */)
   return result;
 }
 
+DEFUN ("current-thread", Fcurrent_thread, Scurrent_thread, 0, 0, 0,
+       doc: /* Return the current thread.  */)
+  (void)
+{
+  Lisp_Object result;
+  XSETTHREAD (result, current_thread);
+  return result;
+}
+
+DEFUN ("thread-name", Fthread_name, Sthread_name, 1, 1, 0,
+       doc: /* Return the name of the THREAD.
+The name is the same object that was passed to `make-thread'.  */)
+     (Lisp_Object thread)
+{
+  struct thread_state *tstate;
+
+  CHECK_THREAD (thread);
+  tstate = XTHREAD (thread);
+
+  return tstate->name;
+}
+
 static void
 thread_signal_callback (void *arg)
 {
@@ -849,7 +871,7 @@ or `thread-join' in the target thread.  */)
   tstate = XTHREAD (thread);
 
   if (tstate == current_thread)
-    xsignal (error_symbol, data);
+    Fsignal (error_symbol, data);
 
   /* What to do if thread is already signaled?  */
   /* What if error_symbol is Qnil?  */
@@ -860,6 +882,35 @@ or `thread-join' in the target thread.  */)
     flush_stack_call_func (thread_signal_callback, tstate);
 
   return Qnil;
+}
+
+DEFUN ("thread-alive-p", Fthread_alive_p, Sthread_alive_p, 1, 1, 0,
+       doc: /* Return t if THREAD is alive, or nil if it has exited.  */)
+  (Lisp_Object thread)
+{
+  struct thread_state *tstate;
+
+  CHECK_THREAD (thread);
+  tstate = XTHREAD (thread);
+
+  return thread_alive_p (tstate) ? Qt : Qnil;
+}
+
+DEFUN ("thread--blocker", Fthread_blocker, Sthread_blocker, 1, 1, 0,
+       doc: /* Return the object that THREAD is blocking on.
+If THREAD is blocked in `thread-join' on a second thread, return that
+thread.
+If THREAD is blocked in `mutex-lock', return the mutex.
+If THREAD is blocked in `condition-wait', return the condition variable.
+Otherwise, if THREAD is not blocked, return nil.  */)
+  (Lisp_Object thread)
+{
+  struct thread_state *tstate;
+
+  CHECK_THREAD (thread);
+  tstate = XTHREAD (thread);
+
+  return tstate->event_object;
 }
 
 static void
@@ -1005,8 +1056,12 @@ syms_of_threads (void)
     {
       defsubr (&Sthread_yield);
       defsubr (&Smake_thread);
+      defsubr (&Scurrent_thread);
+      defsubr (&Sthread_name);
       defsubr (&Sthread_signal);
+      defsubr (&Sthread_alive_p);
       defsubr (&Sthread_join);
+      defsubr (&Sthread_blocker);
       defsubr (&Sall_threads);
       defsubr (&Smake_mutex);
       defsubr (&Smutex_lock);
