@@ -72,6 +72,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #define file_tell ftell
 #endif
 
+#if IEEE_FLOATING_POINT
+# include <ieee754.h>
+#endif
+
 /* The objects or placeholders read with the #n=object form.
 
    A hash table maps a number to either a placeholder (while the
@@ -2715,7 +2719,7 @@ read1 (Lisp_Object readcharfun, int *pch, bool first_in_list)
   int c;
   bool uninterned_symbol = false;
   bool multibyte;
-  char stackbuf[MAX_ALLOCA];
+  char stackbuf[128];  /* Small, as read1 is recursive (Bug#31995).  */
   current_thread->stack_top = stackbuf;
 
   *pch = 0;
@@ -3603,7 +3607,7 @@ substitute_object_recurse (struct subst *subst, Lisp_Object subtree)
     return subtree;
 
   /* If we've been to this node before, don't explore it again.  */
-  if (!EQ (Qnil, Fmemq (subtree, subst->seen)))
+  if (!NILP (Fmemq (subtree, subst->seen)))
     return subtree;
 
   /* If this node can be the entry point to a cycle, remember that
@@ -3752,14 +3756,18 @@ string_to_number (char const *string, int base, int flags)
 	      cp += 3;
 	      value = INFINITY;
 	    }
+#if IEEE_FLOATING_POINT
 	  else if (cp[-1] == '+'
 		   && cp[0] == 'N' && cp[1] == 'a' && cp[2] == 'N')
 	    {
 	      state |= E_EXP;
 	      cp += 3;
-	      /* NAN is a "positive" NaN on all known Emacs hosts.  */
-	      value = NAN;
+	      union ieee754_double u
+		= { .ieee_nan = { .exponent = -1, .quiet_nan = 1,
+				  .mantissa0 = n >> 31 >> 1, .mantissa1 = n }};
+	      value = u.d;
 	    }
+#endif
 	  else
 	    cp = ecp;
 	}
@@ -3798,10 +3806,11 @@ string_to_number (char const *string, int base, int flags)
 
       if (! (state & DOT_CHAR) && ! (flags & S2N_OVERFLOW_TO_FLOAT))
 	{
-	  AUTO_STRING (fmt, ("%s is out of fixnum range; "
+	  AUTO_STRING (fmt, ("%s (base %d) is out of fixnum range; "
 			     "maybe set `read-integer-overflow-as-float'?"));
 	  AUTO_STRING_WITH_LEN (arg, string, cp - string);
-	  xsignal1 (Qoverflow_error, CALLN (Fformat_message, fmt, arg));
+	  xsignal1 (Qoverflow_error,
+		    CALLN (Fformat_message, fmt, arg, make_number (base)));
 	}
     }
 
@@ -4236,7 +4245,7 @@ usage: (unintern NAME OBARRAY)  */)
      session if we unintern them, as well as even more ways to use
      `setq' or `fset' or whatnot to make the Emacs session
      unusable.  Let's not go down this silly road.  --Stef  */
-  /* if (EQ (tem, Qnil) || EQ (tem, Qt))
+  /* if (NILP (tem) || EQ (tem, Qt))
        error ("Attempt to unintern t or nil"); */
 
   XSYMBOL (tem)->u.s.interned = SYMBOL_UNINTERNED;

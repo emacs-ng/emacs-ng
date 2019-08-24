@@ -498,7 +498,7 @@ its argument list allows full Common Lisp conventions."
       ;; `&aux' args aren't arguments, so let's just drop them from the
       ;; usage info.
       (setq arglist (cl-subseq arglist 0 aux))))
-  (if (cdr-safe (last arglist))         ;Not a proper list.
+  (if (not (proper-list-p arglist))
       (let* ((last (last arglist))
              (tail (cdr last)))
         (unwind-protect
@@ -2083,10 +2083,7 @@ This is like `cl-flet', but for macros instead of functions.
 
 \(fn ((NAME ARGLIST BODY...) ...) FORM...)"
   (declare (indent 1)
-           (debug
-            ((&rest (&define name (&rest arg) cl-declarations-or-string
-                             def-body))
-             cl-declarations body)))
+           (debug (cl-macrolet-expr)))
   (if (cdr bindings)
       `(cl-macrolet (,(car bindings)) (cl-macrolet ,(cdr bindings) ,@body))
     (if (null bindings) (macroexp-progn body)

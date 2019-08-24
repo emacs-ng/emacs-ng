@@ -113,6 +113,29 @@ noindent\" 3
       ;; we're indenting ends on the previous line.
       (should (equal (buffer-string) original)))))
 
+(ert-deftest indent-sexp-go ()
+  "Make sure `indent-sexp' doesn't stop after #s."
+  ;; See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=31984.
+  (with-temp-buffer
+    (emacs-lisp-mode)
+    (insert "#s(foo\nbar)\n")
+    (goto-char (point-min))
+    (indent-sexp)
+    (should (equal (buffer-string) "\
+#s(foo
+   bar)\n"))))
+
+(ert-deftest indent-sexp-cant-go ()
+  "`indent-sexp' shouldn't error before a sexp."
+  ;; See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=31984#32.
+  (with-temp-buffer
+    (emacs-lisp-mode)
+    (insert "(())")
+    (goto-char (1+ (point-min)))
+    ;; Paredit calls `indent-sexp' from this position.
+    (indent-sexp)
+    (should (equal (buffer-string) "(())"))))
+
 (ert-deftest lisp-indent-region ()
   "Test basics of `lisp-indent-region'."
   (with-temp-buffer
@@ -226,7 +249,6 @@ Expected initialization file: `%s'\"
 
 (ert-deftest lisp-indent-with-read-only-field ()
   "Test indentation on line with read-only field (Bug#32014)."
-  :expected-result :failed
   (with-temp-buffer
     (insert (propertize "prompt> " 'field 'output 'read-only t
                         'rear-nonsticky t 'front-sticky '(read-only)))
