@@ -1,4 +1,4 @@
-# gnulib-common.m4 serial 38
+# gnulib-common.m4 serial 39
 dnl Copyright (C) 2007-2018 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
@@ -71,6 +71,13 @@ AC_DEFUN([gl_COMMON_BODY], [
 # define _GL_ATTRIBUTE_CONST __attribute__ ((__const__))
 #else
 # define _GL_ATTRIBUTE_CONST /* empty */
+#endif
+
+/* The __malloc__ attribute was added in gcc 3.  */
+#if 3 <= __GNUC__
+# define _GL_ATTRIBUTE_MALLOC __attribute__ ((__malloc__))
+#else
+# define _GL_ATTRIBUTE_MALLOC /* empty */
 #endif
 ])
   dnl Preparation for running test programs:
@@ -347,16 +354,16 @@ AC_DEFUN([AC_C_RESTRICT],
    for ac_kw in __restrict __restrict__ _Restrict restrict; do
      AC_COMPILE_IFELSE(
       [AC_LANG_PROGRAM(
-	 [[typedef int *int_ptr;
-	   int foo (int_ptr $ac_kw ip) { return ip[0]; }
-	   int bar (int [$ac_kw]); /* Catch GCC bug 14050.  */
-	   int bar (int ip[$ac_kw]) { return ip[0]; }
-	 ]],
-	 [[int s[1];
-	   int *$ac_kw t = s;
-	   t[0] = 0;
-	   return foo (t) + bar (t);
-	 ]])],
+         [[typedef int *int_ptr;
+           int foo (int_ptr $ac_kw ip) { return ip[0]; }
+           int bar (int [$ac_kw]); /* Catch GCC bug 14050.  */
+           int bar (int ip[$ac_kw]) { return ip[0]; }
+         ]],
+         [[int s[1];
+           int *$ac_kw t = s;
+           t[0] = 0;
+           return foo (t) + bar (t);
+         ]])],
       [ac_cv_c_restrict=$ac_kw])
      test "$ac_cv_c_restrict" != no && break
    done

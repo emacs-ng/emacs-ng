@@ -229,30 +229,32 @@
 ;;
 ;;  Notice: for directory/host/user tracking you need to have something
 ;; like this in your shell startup script (this is for a POSIXish shell
-;; like Bash but should be quite easy to port to other shells)
+;; like Bash but should be quite easy to port to other shells).
+;;
+;; For troubleshooting in Bash, you can check the definition of the
+;; custom functions with the "type" command.  e.g. "type cd".  If you
+;; do not see the expected definition from the config below, then the
+;; directory tracking will not work.
 ;;
 ;;             ----------------------------------------
 ;;
-;;  # Set HOSTNAME if not already set.
+;;	# Set HOSTNAME if not already set.
 ;;	: ${HOSTNAME=$(uname -n)}
 ;;
-;;  # su does not change this but I'd like it to
-;;
+;;	# su does not change this but I'd like it to
 ;;	USER=$(whoami)
 ;;
-;;  # ...
+;;	# ...
 ;;
 ;;	case $TERM in
 ;;	    eterm*)
 ;;
 ;;		printf '%s\n' \
 ;;		 -------------------------------------------------------------- \
-;;		 "Hello $user" \
+;;		 "Hello $USER" \
 ;;		 "Today is $(date)" \
 ;;		 "We are on $HOSTNAME running $(uname) under Emacs term mode" \
 ;;		 --------------------------------------------------------------
-;;
-;;		export EDITOR=emacsclient
 ;;
 ;;		# The \033 stands for ESC.
 ;;		# There is a space between "AnSiT?" and $whatever.
@@ -265,10 +267,11 @@
 ;;		printf '\033AnSiTh %s\n' "$HOSTNAME"
 ;;		printf '\033AnSiTu %s\n' "$USER"
 ;;
-;;		eval $(dircolors $HOME/.emacs_dircolors)
+;;		# Use custom dircolors in term buffers.
+;;		# eval $(dircolors $HOME/.emacs_dircolors)
 ;;	esac
 ;;
-;;  # ...
+;;	# ...
 ;;
 ;;
 
@@ -1456,6 +1459,9 @@ The main purpose is to get rid of the local keymap."
   (let ((buffer-read-only nil)
 	(omax (point-max))
 	(opoint (point)))
+    ;; Remove hooks to avoid errors due to dead process.
+    (remove-hook 'pre-command-hook #'term-set-goto-process-mark t)
+    (remove-hook 'post-command-hook #'term-goto-process-mark-maybe t)
     ;; Record where we put the message, so we can ignore it
     ;; later on.
     (goto-char omax)
@@ -1486,6 +1492,31 @@ Using \"emacs\" loses, because bash disables editing if $TERM == emacs.")
   ;; don't define :te=\\E[2J\\E[?47l\\E8:ti=\\E7\\E[?47h\
   "Termcap capabilities supported.")
 
+;; This private hack is for backwards compatibility with Bash 4.3 and earlier.
+;; It can be useful even when running a program other than Bash, as the
+;; program might invoke Bash as an interactive subshell.  See this thread:
+;; https://lists.gnu.org/r/emacs-devel/2018-05/msg00670.html
+;; Remove this hack and its uses once Bash 4.4-or-later is reasonably
+;; universal, because it slows down execution slightly when
+;; term--bash-needs-EMACSp is first called.
+(defvar term--bash-needs-EMACS-status nil
+  "43 if Bash is so old that it needs EMACS set.
+Some other integer if Bash is new or not in use.
+Nil if unknown.")
+(defun term--bash-needs-EMACSp ()
+  "t if Bash is old, nil if it is new or not in use."
+  (eq 43
+      (or term--bash-needs-EMACS-status
+          (setf
+           term--bash-needs-EMACS-status
+           (let ((process-environment
+                  (cons "BASH_ENV" process-environment)))
+             (condition-case nil
+                 (call-process
+                  "bash" nil nil nil "-c"
+                  "case $BASH_VERSION in [0123].*|4.[0123].*) exit 43;; esac")
+               (error 0)))))))
+
 ;; This auxiliary function cranks up the process for term-exec in
 ;; the appropriate environment.
 
@@ -1503,12 +1534,6 @@ Using \"emacs\" loses, because bash disables editing if $TERM == emacs.")
 	   (format term-termcap-format "TERMCAP="
 		   term-term-name term-height term-width)
 
-	   ;; This is for backwards compatibility with Bash 4.3 and earlier.
-	   ;; Remove this hack once Bash 4.4-or-later is common, because
-	   ;; it breaks './configure' of some packages that expect it to
-	   ;; say where to find EMACS.
-	   (format "EMACS=%s (term:%s)" emacs-version term-protocol-version)
-
 	   (format "INSIDE_EMACS=%s,term:%s" emacs-version term-protocol-version)
 	   (format "LINES=%d" term-height)
 	   (format "COLUMNS=%d" term-width))
@@ -1520,6 +1545,9 @@ Using \"emacs\" loses, because bash disables editing if $TERM == emacs.")
 	;; escape codes, so we need to see the raw output.  We will have to
 	;; do the decoding by hand on the parts that are made of chars.
 	(coding-system-for-read 'binary))
+    (when (term--bash-needs-EMACSp)
+      (push (format "EMACS=%s (term:%s)" emacs-version term-protocol-version)
+            process-environment))
     (apply 'start-process name buffer
 	   "/bin/sh" "-c"
 	   (format "stty -nl echo rows %d columns %d sane 2>/dev/null;\
@@ -2717,12 +2745,10 @@ See `term-prompt-regexp'."
 	(setq default-directory
 	      (file-name-as-directory
 	       (if (and (string= term-ansi-at-host (system-name))
-					(string= term-ansi-at-user (user-real-login-name)))
+                        (string= term-ansi-at-user (user-real-login-name)))
 		   (expand-file-name term-ansi-at-dir)
-		 (if (string= term-ansi-at-user (user-real-login-name))
-		     (concat "/" term-ansi-at-host ":" term-ansi-at-dir)
-		   (concat "/" term-ansi-at-user "@" term-ansi-at-host ":"
-			   term-ansi-at-dir)))))
+                 (concat "/-:" term-ansi-at-user "@" term-ansi-at-host ":"
+                         term-ansi-at-dir))))
 
 	;; I'm not sure this is necessary,
 	;; but it's best to be on the safe side.
@@ -2879,7 +2905,8 @@ See `term-prompt-regexp'."
                   (when (not (or (eobp) term-insert-mode))
                     (let ((pos (point)))
                       (term-move-columns columns)
-                      (delete-region pos (point))))
+                      (delete-region pos (point))
+                      (setq term-current-column nil)))
                   ;; In insert mode if the current line
                   ;; has become too long it needs to be
                   ;; chopped off.
@@ -3279,11 +3306,9 @@ option is enabled.  See `term-set-goto-process-mark'."
    ((eq char ?B)
     (let ((tcr (term-current-row))
           (scroll-amount (car params)))
-      (unless (= tcr (1- term-scroll-end))
+      (unless (>= tcr term-scroll-end)
 	(term-down
-         (if (> (+ tcr scroll-amount) term-scroll-end)
-	     (- term-scroll-end 1 tcr)
-           (max 1 scroll-amount))
+         (min (- term-scroll-end tcr) (max 1 scroll-amount))
          t))))
    ;; \E[C - cursor right (terminfo: cuf, cuf1)
    ((eq char ?C)
@@ -3653,7 +3678,7 @@ all pending output has been dealt with."))
   (let ((start-column (term-horizontal-column)))
     (when (and check-for-scroll (or term-scroll-with-delete term-pager-count))
       (setq down (term-handle-scroll down)))
-    (unless (and (= term-current-row 0) (< down 0))
+    (unless (and (= (term-current-row) 0) (< down 0))
       (term-adjust-current-row-cache down)
       (when (or (/= (point) (point-max)) (< down 0))
 	(setq down (- down (term-vertical-motion down)))))
@@ -3663,7 +3688,7 @@ all pending output has been dealt with."))
 	   (setq term-current-column 0)
 	   (setq term-start-line-column 0))
 	  (t
-	   (when (= term-current-row 0)
+	   (when (= (term-current-row) 0)
 	     ;; Insert lines if at the beginning.
 	     (save-excursion (term-insert-char ?\n (- down)))
 	     (save-excursion

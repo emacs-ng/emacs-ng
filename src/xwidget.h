@@ -47,6 +47,9 @@ struct xwidget
   /* A title used for button labels, for instance.  */
   Lisp_Object title;
 
+  /* Vector of currently executing scripts with callbacks.  */
+  Lisp_Object script_callbacks;
+
   /* Here ends the Lisp part.  "height" is the marker field.  */
 
   int height;
@@ -91,7 +94,7 @@ struct xwidget_view
 /* Test for xwidget pseudovector.  */
 #define XWIDGETP(x) PSEUDOVECTORP (x, PVEC_XWIDGET)
 #define XXWIDGET(a) (eassert (XWIDGETP (a)), \
-                     (struct xwidget *) XUNTAG (a, Lisp_Vectorlike))
+		     XUNTAG (a, Lisp_Vectorlike, struct xwidget))
 
 #define CHECK_XWIDGET(x) \
   CHECK_TYPE (XWIDGETP (x), Qxwidgetp, x)
@@ -99,7 +102,7 @@ struct xwidget_view
 /* Test for xwidget_view pseudovector.  */
 #define XWIDGET_VIEW_P(x) PSEUDOVECTORP (x, PVEC_XWIDGET_VIEW)
 #define XXWIDGET_VIEW(a) (eassert (XWIDGET_VIEW_P (a)), \
-                          (struct xwidget_view *) XUNTAG (a, Lisp_Vectorlike))
+			  XUNTAG (a, Lisp_Vectorlike, struct xwidget_view))
 
 #define CHECK_XWIDGET_VIEW(x) \
   CHECK_TYPE (XWIDGET_VIEW_P (x), Qxwidget_view_p, x)

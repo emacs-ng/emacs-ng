@@ -625,11 +625,12 @@ This may also be a list of regexps."
 			      (widget-editable-list-match widget value)))
 		 regexp))
 
-(defcustom message-forward-included-headers nil
+(defcustom message-forward-included-headers
+  '("^From:" "^Subject:" "^Date:")
   "If non-nil, delete non-matching headers when forwarding a message.
 Only headers that match this regexp will be included.  This
 variable should be a regexp or a list of regexps."
-  :version "25.1"
+  :version "27.1"
   :group 'message-forwarding
   :type '(repeat :value-to-internal (lambda (widget value)
 				      (custom-split-regexp-maybe value))
@@ -1251,13 +1252,13 @@ called and its result is inserted."
   ;; Ease the transition from mail-mode to message-mode.  See bugs#4431, 5555.
   (concat (if (and (boundp 'mail-default-reply-to)
 		   (stringp mail-default-reply-to))
-	      (format "Reply-to: %s\n" mail-default-reply-to))
+	      (format "Reply-To: %s\n" mail-default-reply-to))
 	  (if (and (boundp 'mail-self-blind)
 		   mail-self-blind)
-	      (format "BCC: %s\n" user-mail-address))
+	      (format "Bcc: %s\n" user-mail-address))
 	  (if (and (boundp 'mail-archive-file-name)
 		   (stringp mail-archive-file-name))
-	      (format "FCC: %s\n" mail-archive-file-name))
+	      (format "Fcc: %s\n" mail-archive-file-name))
 	  mail-default-headers)
   "A string of header lines to be inserted in outgoing mails."
   :version "23.2"
@@ -1351,7 +1352,8 @@ If nil, Message won't auto-save."
   :link '(custom-manual "(message)Various Message Variables")
   :type '(choice directory (const :tag "Don't auto-save" nil)))
 
-(defcustom message-default-charset (and (not (mm-multibyte-p)) 'iso-8859-1)
+(defcustom message-default-charset (and (not enable-multibyte-characters)
+					'iso-8859-1)
   "Default charset used in non-MULE Emacsen.
 If nil, you might be asked to input the charset."
   :version "21.1"
@@ -2420,7 +2422,9 @@ Return the number of headers removed."
     (while (and (not (eobp))
 		(not last))
       (if (if reverse
-	      (not (looking-at regexp))
+	      (and (not (looking-at regexp))
+		   ;; Don't remove things not looking like header.
+		   (looking-at "[!-9;-~]+:"))
 	    (looking-at regexp))
 	  (progn
 	    (cl-incf number)
@@ -2595,7 +2599,7 @@ PGG manual, depending on the value of `mml2015-use'."
 		       'message)))))
 
 (defun message-all-recipients ()
-  "Return a list of all recipients in the message, looking at TO, CC and BCC.
+  "Return a list of all recipients in the message, looking at TO, Cc and Bcc.
 
 Each recipient is in the format of `mail-extract-address-components'."
   (mapcan (lambda (header)
@@ -3561,7 +3565,7 @@ Note that this should not be used in newsgroups."
       (message-remove-header "Disposition-Notification-To"))
     (message-goto-eoh)
     (insert (format "Disposition-Notification-To: %s\n"
-		    (or (message-field-value "Reply-to")
+		    (or (message-field-value "Reply-To")
 			(message-field-value "From")
 			(message-make-from))))))
 
@@ -4294,7 +4298,7 @@ conformance."
 				(point-max))))
 	       (setq char (char-after)))
 	(when (or (< char 128)
-		  (and (mm-multibyte-p)
+		  (and enable-multibyte-characters
 		       (memq (char-charset char)
 			     '(eight-bit-control eight-bit-graphic
 						 ;; Emacs 23, Bug#1770:
@@ -4326,7 +4330,7 @@ conformance."
 	(while (not (eobp))
 	  (when (let ((char (char-after)))
 		  (or (< char 128)
-		      (and (mm-multibyte-p)
+		      (and enable-multibyte-characters
 			   ;; FIXME: Wrong for Emacs 23 (unicode) and for
 			   ;; things like undecodable utf-8 (in Emacs 21?).
 			   ;; Should at least use find-coding-systems-region.
@@ -5437,7 +5441,7 @@ Otherwise, generate and save a value for `canlock-password' first."
 	       (concat "^" (regexp-quote mail-header-separator) "$")
 	       nil t)
 	  (replace-match "" t t ))
-	;; Process FCC operations.
+	;; Process Fcc operations.
 	(while list
 	  (setq file (pop list))
 	  (if (string-match "^[ \t]*|[ \t]*\\(.*\\)[ \t]*$" file)
@@ -7435,7 +7439,8 @@ Optional DIGEST will use digest to forward."
       (when message-forward-included-headers
 	(message-remove-header
 	 (if (listp message-forward-included-headers)
-	     (regexp-opt message-forward-included-headers)
+	     (mapconcat #'identity (cons "^$" message-forward-included-headers)
+			"\\|")
 	   message-forward-included-headers)
 	 t nil t)))))
 

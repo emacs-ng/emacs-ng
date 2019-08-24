@@ -412,10 +412,14 @@ variables that tell you whether an argument was explicitly passed.
 binds @code{a} and @code{b} to the first two actual arguments, which are
 required.  If one or two more arguments are provided, @code{c} and
 @code{d} are bound to them respectively; any arguments after the first
-four are collected into a list and @code{e} is bound to that list.  If
-there are only two arguments, @code{c} is @code{nil}; if two or three
-arguments, @code{d} is @code{nil}; if four arguments or fewer, @code{e}
-is @code{nil}.
+four are collected into a list and @code{e} is bound to that list.
+Thus, if there are only two arguments, @code{c}, @code{d} and @code{e}
+are @code{nil}; if two or three arguments, @code{d} and @code{e} are
+@code{nil}; if four arguments or fewer, @code{e} is @code{nil}.  Note
+that exactly five arguments with an explicit @code{nil} argument
+provided for @code{e} will cause that @code{nil} argument to be passed
+as a list with one element, @code{(nil)}, as with any other single
+value for @code{e}.
 
   There is no way to have required arguments following optional
 ones---it would not make sense.  To see why this must be so, suppose
@@ -497,6 +501,14 @@ derived from the actual arguments of the function.
   This feature is particularly useful for macro definitions, since the
 arguments written in a macro definition often do not correspond to the
 way users think of the parts of the macro call.
+
+  Do not use this feature if you want to deprecate the calling
+convention and favor the one you advertise by the above specification.
+Instead, use the @code{advertised-calling-convention} declaration
+(@pxref{Declare Form}) or @code{set-advertised-calling-convention}
+(@pxref{Obsolete Functions}), because these two will cause the byte
+compiler emit a warning message when it compiles Lisp programs which
+use the deprecated calling convention.
 
 @node Function Names
 @section Naming a Function

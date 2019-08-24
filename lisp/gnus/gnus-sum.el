@@ -2629,6 +2629,7 @@ gnus-summary-show-article-from-menu-as-charset-%s" cs))))
 	["Resend message edit" gnus-summary-resend-message-edit t]
 	["Send bounced mail" gnus-summary-resend-bounced-mail t]
 	["Send a mail" gnus-summary-mail-other-window t]
+	["Attach article to outgoing message" gnus-summary-attach-article t]
 	["Create a local message" gnus-summary-news-other-window t]
 	["Uuencode and post" gnus-uu-post-news
 	 :help "Post a uuencoded article"]
@@ -6309,6 +6310,7 @@ The resulting hash table is returned, or nil if no Xrefs were found."
 	     (when ,set-marks
 	       (gnus-request-set-mark
 		,group (list (list ',range 'del '(read)))))
+	     (gnus-group-jump-to-group ,group)
 	     (gnus-group-update-group ,group t))))
       ;; Add the read articles to the range.
       (gnus-info-set-read info range)
@@ -7062,17 +7064,20 @@ buffer."
     (or (get-buffer-window gnus-article-buffer)
 	(eq gnus-current-article (gnus-summary-article-number))
 	(gnus-summary-show-article))
-    (gnus-configure-windows
-     (if gnus-widen-article-window
-	 'only-article
-       'article)
-     t)
-    (select-window (get-buffer-window gnus-article-buffer))
-    ;; If we've just selected the message, place point at the start of
-    ;; the body because that's probably where we want to be.
-    (when (bobp)
-      (article-goto-body)
-      (forward-char -1))))
+    (let ((point (with-current-buffer gnus-article-buffer
+		   (point))))
+      (gnus-configure-windows
+       (if gnus-widen-article-window
+	   'only-article
+	 'article)
+       t)
+      (select-window (get-buffer-window gnus-article-buffer))
+      ;; If we've just selected the message, place point at the start of
+      ;; the body because that's probably where we want to be.
+      (if (not (= point (point-min)))
+	  (goto-char point)
+	(article-goto-body)
+	(forward-char -1)))))
 
 (defun gnus-summary-universal-argument (arg)
   "Perform any operation on all articles that are process/prefixed."
@@ -7285,12 +7290,13 @@ If FORCE (the prefix), also save the .newsrc file(s)."
       (if quit-config
 	  (gnus-handle-ephemeral-exit quit-config)
 	(goto-char group-point)
+	(unless leave-hidden
+	  (gnus-configure-windows 'group 'force))
 	;; If gnus-group-buffer is already displayed, make sure we also move
 	;; the cursor in the window that displays it.
 	(let ((win (get-buffer-window (current-buffer) 0)))
-	  (if win (set-window-point win (point))))
-	(unless leave-hidden
-	  (gnus-configure-windows 'group 'force)))
+	  (goto-char group-point)
+	  (if win (set-window-point win (point)))))
 
       ;; If we have several article buffers, we kill them at exit.
       (unless single-article-buffer
@@ -12721,6 +12727,7 @@ UNREAD is a sorted list."
 	      `(progn
 		 (gnus-info-set-marks ',info ',(gnus-info-marks info) t)
 		 (gnus-info-set-read ',info ',(gnus-info-read info))
+		 (gnus-group-jump-to-group ,group)
 		 (gnus-get-unread-articles-in-group ',info
 						    (gnus-active ,group))
 		 (gnus-group-update-group ,group t)

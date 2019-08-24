@@ -1225,7 +1225,10 @@ detect_coding_utf_8 (struct coding_system *coding,
       ONE_MORE_BYTE (c4);
       if (c4 < 0 || ! UTF_8_EXTRA_OCTET_P (c4))
 	break;
-      if (UTF_8_5_OCTET_LEADING_P (c))
+      if (UTF_8_5_OCTET_LEADING_P (c)
+	  /* If we ever need to increase MAX_CHAR, the below may need
+	     to be reviewed.  */
+	  && c < MAX_MULTIBYTE_LEADING_CODE)
 	{
 	  nchars++;
 	  continue;
@@ -8002,7 +8005,6 @@ decode_coding_gap (struct coding_system *coding,
       ptrdiff_t prev_Z = Z, prev_Z_BYTE = Z_BYTE;
       Lisp_Object val;
       Lisp_Object undo_list = BVAR (current_buffer, undo_list);
-      ptrdiff_t count1 = SPECPDL_INDEX ();
 
       record_unwind_protect (coding_restore_undo_list,
 			     Fcons (undo_list, Fcurrent_buffer ()));
@@ -8013,7 +8015,6 @@ decode_coding_gap (struct coding_system *coding,
       CHECK_NATNUM (val);
       coding->produced_char += Z - prev_Z;
       coding->produced += Z_BYTE - prev_Z_BYTE;
-      unbind_to (count1, Qnil);
     }
 
   unbind_to (count, Qnil);
@@ -8542,7 +8543,7 @@ are lower-case).  */)
   val = Fcompleting_read (prompt, Vcoding_system_alist, Qnil,
 			  Qt, Qnil, Qcoding_system_history,
 			  default_coding_system, Qnil);
-  unbind_to (count, Qnil);
+  val = unbind_to (count, val);
   return (SCHARS (val) == 0 ? Qnil : Fintern (val, Qnil));
 }
 

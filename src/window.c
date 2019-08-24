@@ -5634,35 +5634,59 @@ window_scroll_line_based (Lisp_Object window, int n, bool whole, bool noerror)
 }
 
 
-/* Scroll selected_window up or down.  If N is nil, scroll a
+/* Scroll WINDOW up or down.  If N is nil, scroll upward by a
    screen-full which is defined as the height of the window minus
-   next_screen_context_lines.  If N is the symbol `-', scroll.
-   DIRECTION may be 1 meaning to scroll down, or -1 meaning to scroll
-   up.  This is the guts of Fscroll_up and Fscroll_down.  */
+   next_screen_context_lines.  If N is the symbol `-', scroll downward
+   by a screen-full.  DIRECTION may be 1 meaning to scroll down, or -1
+   meaning to scroll up.  */
 
 static void
-scroll_command (Lisp_Object n, int direction)
+scroll_command (Lisp_Object window, Lisp_Object n, int direction)
 {
+  struct window *w;
+  bool other_window;
   ptrdiff_t count = SPECPDL_INDEX ();
 
   eassert (eabs (direction) == 1);
 
-  /* If selected window's buffer isn't current, make it current for
-     the moment.  But don't screw up if window_scroll gets an error.  */
-  if (XBUFFER (XWINDOW (selected_window)->contents) != current_buffer)
+  w = XWINDOW (window);
+  other_window = ! EQ (window, selected_window);
+
+  /* If given window's buffer isn't current, make it current for the
+     moment.  If the window's buffer is the same, but it is not the
+     selected window, we need to save-excursion to avoid affecting
+     point in the selected window (which would cause the selected
+     window to scroll).  Don't screw up if window_scroll gets an
+     error.  */
+  if (other_window || XBUFFER (w->contents) != current_buffer)
     {
-      record_unwind_protect (save_excursion_restore, save_excursion_save ());
-      Fset_buffer (XWINDOW (selected_window)->contents);
+      record_unwind_protect_excursion ();
+      if (XBUFFER (w->contents) != current_buffer)
+	Fset_buffer (w->contents);
+    }
+
+  if (other_window)
+    {
+      SET_PT_BOTH (marker_position (w->pointm),
+                   marker_byte_position (w->pointm));
+      SET_PT_BOTH (marker_position (w->old_pointm),
+                   marker_byte_position (w->old_pointm));
     }
 
   if (NILP (n))
-    window_scroll (selected_window, direction, true, false);
+    window_scroll (window, direction, true, false);
   else if (EQ (n, Qminus))
-    window_scroll (selected_window, -direction, true, false);
+    window_scroll (window, -direction, true, false);
   else
     {
       n = Fprefix_numeric_value (n);
-      window_scroll (selected_window, XINT (n) * direction, false, false);
+      window_scroll (window, XINT (n) * direction, false, false);
+    }
+
+  if (other_window)
+    {
+      set_marker_both (w->pointm, Qnil, PT, PT_BYTE);
+      set_marker_both (w->old_pointm, Qnil, PT, PT_BYTE);
     }
 
   unbind_to (count, Qnil);
@@ -5677,7 +5701,7 @@ If ARG is the atom `-', scroll downward by nearly full screen.
 When calling from a program, supply as argument a number, nil, or `-'.  */)
   (Lisp_Object arg)
 {
-  scroll_command (arg, 1);
+  scroll_command (selected_window, arg, 1);
   return Qnil;
 }
 
@@ -5690,17 +5714,18 @@ If ARG is the atom `-', scroll upward by nearly full screen.
 When calling from a program, supply as argument a number, nil, or `-'.  */)
   (Lisp_Object arg)
 {
-  scroll_command (arg, -1);
+  scroll_command (selected_window, arg, -1);
   return Qnil;
 }
 
 DEFUN ("other-window-for-scrolling", Fother_window_for_scrolling, Sother_window_for_scrolling, 0, 0, 0,
        doc: /* Return the other window for \"other window scroll\" commands.
-If `other-window-scroll-buffer' is non-nil, a window
-showing that buffer is used.
 If in the minibuffer, `minibuffer-scroll-window' if non-nil
-specifies the window.  This takes precedence over
-`other-window-scroll-buffer'.  */)
+specifies the window.
+Otherwise, if `other-window-scroll-buffer' is non-nil, a window
+showing that buffer is used, popping the buffer up if necessary.
+Finally, look for a neighboring window on the selected frame,
+followed by all visible frames on the current terminal.  */)
   (void)
 {
   Lisp_Object window;
@@ -5709,8 +5734,7 @@ specifies the window.  This takes precedence over
       && !NILP (Vminibuf_scroll_window))
     window = Vminibuf_scroll_window;
   /* If buffer is specified and live, scroll that buffer.  */
-  else if (!NILP (Vother_window_scroll_buffer)
-	   && BUFFERP (Vother_window_scroll_buffer)
+  else if (BUFFERP (Vother_window_scroll_buffer)
 	   && BUFFER_LIVE_P (XBUFFER (Vother_window_scroll_buffer)))
     {
       window = Fget_buffer_window (Vother_window_scroll_buffer, Qnil);
@@ -5725,11 +5749,8 @@ specifies the window.  This takes precedence over
 
       if (EQ (window, selected_window))
 	/* That didn't get us anywhere; look for a window on another
-           visible frame.  */
-	do
-	  window = Fnext_window (window, Qnil, Qt);
-	while (! FRAME_VISIBLE_P (XFRAME (WINDOW_FRAME (XWINDOW (window))))
-	       && ! EQ (window, selected_window));
+           visible frame on the current terminal.  */
+        window = Fnext_window (window, Qnil, Qvisible);
     }
 
   CHECK_LIVE_WINDOW (window);
@@ -5743,49 +5764,30 @@ specifies the window.  This takes precedence over
 DEFUN ("scroll-other-window", Fscroll_other_window, Sscroll_other_window, 0, 1, "P",
        doc: /* Scroll next window upward ARG lines; or near full screen if no ARG.
 A near full screen is `next-screen-context-lines' less than a full screen.
-The next window is the one below the current one; or the one at the top
-if the current one is at the bottom.  Negative ARG means scroll downward.
-If ARG is the atom `-', scroll downward by nearly full screen.
-When calling from a program, supply as argument a number, nil, or `-'.
+Negative ARG means scroll downward.  If ARG is the atom `-', scroll
+downward by nearly full screen.  When calling from a program, supply
+as argument a number, nil, or `-'.
 
-If `other-window-scroll-buffer' is non-nil, scroll the window
-showing that buffer, popping the buffer up if necessary.
-If in the minibuffer, `minibuffer-scroll-window' if non-nil
-specifies the window to scroll.  This takes precedence over
-`other-window-scroll-buffer'.  */)
+The next window is usually the one below the current one;
+or the one at the top if the current one is at the bottom.
+It is determined by the function `other-window-for-scrolling',
+which see.  */)
   (Lisp_Object arg)
 {
-  Lisp_Object window;
-  struct window *w;
   ptrdiff_t count = SPECPDL_INDEX ();
+  scroll_command (Fother_window_for_scrolling (), arg, 1);
+  return unbind_to (count, Qnil);
+}
 
-  window = Fother_window_for_scrolling ();
-  w = XWINDOW (window);
-
-  /* Don't screw up if window_scroll gets an error.  */
-  record_unwind_protect (save_excursion_restore, save_excursion_save ());
-
-  Fset_buffer (w->contents);
-  SET_PT_BOTH (marker_position (w->pointm), marker_byte_position (w->pointm));
-  SET_PT_BOTH (marker_position (w->old_pointm), marker_byte_position (w->old_pointm));
-
-  if (NILP (arg))
-    window_scroll (window, 1, true, true);
-  else if (EQ (arg, Qminus))
-    window_scroll (window, -1, true, true);
-  else
-    {
-      if (CONSP (arg))
-	arg = XCAR (arg);
-      CHECK_NUMBER (arg);
-      window_scroll (window, XINT (arg), false, true);
-    }
-
-  set_marker_both (w->pointm, Qnil, PT, PT_BYTE);
-  set_marker_both (w->old_pointm, Qnil, PT, PT_BYTE);
-  unbind_to (count, Qnil);
-
-  return Qnil;
+DEFUN ("scroll-other-window-down", Fscroll_other_window_down,
+       Sscroll_other_window_down, 0, 1, "P",
+       doc: /* Scroll next window downward ARG lines; or near full screen if no ARG.
+For more details, see the documentation for `scroll-other-window'.  */)
+  (Lisp_Object arg)
+{
+  ptrdiff_t count = SPECPDL_INDEX ();
+  scroll_command (Fother_window_for_scrolling (), arg, -1);
+  return unbind_to (count, Qnil);
 }
 
 DEFUN ("scroll-left", Fscroll_left, Sscroll_left, 0, 2, "^P\np",
@@ -5899,22 +5901,23 @@ displayed_window_lines (struct window *w)
 }
 
 
-DEFUN ("recenter", Frecenter, Srecenter, 0, 1, "P",
+DEFUN ("recenter", Frecenter, Srecenter, 0, 2, "P\np",
        doc: /* Center point in selected window and maybe redisplay frame.
 With a numeric prefix argument ARG, recenter putting point on screen line ARG
 relative to the selected window.  If ARG is negative, it counts up from the
 bottom of the window.  (ARG should be less than the height of the window.)
 
-If ARG is omitted or nil, then recenter with point on the middle line of
-the selected window; if the variable `recenter-redisplay' is non-nil,
-also erase the entire frame and redraw it (when `auto-resize-tool-bars'
-is set to `grow-only', this resets the tool-bar's height to the minimum
-height needed); if `recenter-redisplay' has the special value `tty',
-then only tty frames are redrawn.
+If ARG is omitted or nil, then recenter with point on the middle line
+of the selected window; if REDISPLAY & `recenter-redisplay' are
+non-nil, also erase the entire frame and redraw it (when
+`auto-resize-tool-bars' is set to `grow-only', this resets the
+tool-bar's height to the minimum height needed); if
+`recenter-redisplay' has the special value `tty', then only tty frames
+are redrawn.  Interactively, REDISPLAY is always non-nil.
 
 Just C-u as prefix means put point in the center of the window
 and redisplay normally--don't erase and redraw the frame.  */)
-  (register Lisp_Object arg)
+  (Lisp_Object arg, Lisp_Object redisplay)
 {
   struct window *w = XWINDOW (selected_window);
   struct buffer *buf = XBUFFER (w->contents);
@@ -5934,7 +5937,8 @@ and redisplay normally--don't erase and redraw the frame.  */)
 
   if (NILP (arg))
     {
-      if (!NILP (Vrecenter_redisplay)
+      if (!NILP (redisplay)
+	  && !NILP (Vrecenter_redisplay)
 	  && (!EQ (Vrecenter_redisplay, Qtty)
 	      || !NILP (Ftty_type (selected_frame))))
 	{
@@ -6610,10 +6614,10 @@ the return value is nil.  Otherwise the value is t.  */)
 			       make_number (old_point),
 			       XWINDOW (data->current_window)->contents);
 
-      /* In the following call to `select-window', prevent "swapping out
+      /* In the following call to select_window, prevent "swapping out
 	 point" in the old selected window using the buffer that has
-	 been restored into it.  We already swapped out that point from
-	 that window's old buffer.
+	 been restored into it.  We already swapped out that point
+	 from that window's old buffer.
 
 	 Do not record the buffer here.  We do that in a separate call
 	 to select_window below.  See also Bug#16207.  */
@@ -6656,10 +6660,10 @@ the return value is nil.  Otherwise the value is t.  */)
       if (WINDOW_LIVE_P (data->current_window))
 	select_window (data->current_window, Qnil, false);
 
-      /* Fselect_window will have made f the selected frame, so we
-	 reselect the proper frame here.  Fhandle_switch_frame will change the
-	 selected window too, but that doesn't make the call to
-	 Fselect_window above totally superfluous; it still sets f's
+      /* select_window will have made f the selected frame, so we
+	 reselect the proper frame here.  do_switch_frame will change
+	 the selected window too, but that doesn't make the call to
+	 select_window above totally superfluous; it still sets f's
 	 selected window.  */
       if (FRAME_LIVE_P (XFRAME (data->selected_frame)))
 	do_switch_frame (data->selected_frame, 0, 0, Qnil);
@@ -6696,8 +6700,21 @@ the return value is nil.  Otherwise the value is t.  */)
     {
       Fset_buffer (new_current_buffer);
       /* If the new current buffer doesn't appear in the selected
-	 window, go to its old point (see bug#12208).  */
-      if (!EQ (XWINDOW (data->current_window)->contents, new_current_buffer))
+	 window, go to its old point (Bug#12208).
+
+	 The original fix used data->current_window below which caused
+	 false positives (compare Bug#31695) when data->current_window
+	 is not on data->selected_frame.  This happens, for example,
+	 when read_minibuf restores the configuration of a stand-alone
+	 minibuffer frame: After switching to the previously selected
+	 "normal" frame, point of that frame's selected window jumped
+	 unexpectedly because new_current_buffer is usually *not*
+	 shown in data->current_window - the minibuffer frame's
+	 selected window.  Using selected_window instead fixes this
+	 because do_switch_frame has set up selected_window already to
+	 the "normal" frame's selected window and that window *does*
+	 show new_current_buffer.  */
+      if (!EQ (XWINDOW (selected_window)->contents, new_current_buffer))
 	Fgoto_char (make_number (old_point));
     }
 
@@ -7836,6 +7853,7 @@ displayed after a scrolling operation to be somewhat inaccurate.  */);
   defsubr (&Sscroll_right);
   defsubr (&Sother_window_for_scrolling);
   defsubr (&Sscroll_other_window);
+  defsubr (&Sscroll_other_window_down);
   defsubr (&Sminibuffer_selected_window);
   defsubr (&Srecenter);
   defsubr (&Swindow_text_width);

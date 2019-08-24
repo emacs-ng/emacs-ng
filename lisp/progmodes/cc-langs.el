@@ -392,27 +392,6 @@ The syntax tables aren't stored directly since they're quite large."
   ;; the constants in this file are evaluated.
   t (funcall (c-lang-const c-make-mode-syntax-table)))
 
-(c-lang-defconst c++-make-template-syntax-table
-  ;; A variant of `c++-mode-syntax-table' that defines `<' and `>' as
-  ;; parenthesis characters.  Used temporarily when template argument
-  ;; lists are parsed.  Note that this encourages incorrect parsing of
-  ;; templates since they might contain normal operators that uses the
-  ;; '<' and '>' characters.  Therefore this syntax table might go
-  ;; away when CC Mode handles templates correctly everywhere.  WHILE
-  ;; THIS SYNTAX TABLE IS CURRENT, `c-parse-state' MUST _NOT_ BE
-  ;; CALLED!!!
-  t   nil
-  (java c++) `(lambda ()
-	 (let ((table (funcall ,(c-lang-const c-make-mode-syntax-table))))
-	   (modify-syntax-entry ?< "(>" table)
-	   (modify-syntax-entry ?> ")<" table)
-	   table)))
-(c-lang-defvar c++-template-syntax-table
-  (and (c-lang-const c++-make-template-syntax-table)
-       ;; The next eval remove a superfluous ' from '(lambda.  This
-       ;; gets rid of compilation warnings.
-       (funcall (eval (c-lang-const c++-make-template-syntax-table)))))
-
 (c-lang-defconst c-make-no-parens-syntax-table
   ;; A variant of the standard syntax table which is used to find matching
   ;; "<"s and ">"s which have been marked as parens using syntax table
@@ -472,21 +451,24 @@ so that all identifiers are recognized as words.")
 (c-lang-defconst c-get-state-before-change-functions
   ;; For documentation see the following c-lang-defvar of the same name.
   ;; The value here may be a list of functions or a single function.
-  t nil
+  t 'c-before-change-check-unbalanced-strings
   c++ '(c-extend-region-for-CPP
 	c-before-change-check-raw-strings
 	c-before-change-check-<>-operators
 	c-depropertize-CPP
 	c-invalidate-macro-cache
 	c-truncate-bs-cache
+	c-before-change-check-unbalanced-strings
 	c-parse-quotes-before-change)
   (c objc) '(c-extend-region-for-CPP
 	     c-depropertize-CPP
 	     c-invalidate-macro-cache
 	     c-truncate-bs-cache
+	     c-before-change-check-unbalanced-strings
 	     c-parse-quotes-before-change)
-  java 'c-parse-quotes-before-change
-       ;; 'c-before-change-check-<>-operators
+  java '(c-parse-quotes-before-change
+	 c-before-change-check-unbalanced-strings
+	 c-before-change-check-<>-operators)
   awk 'c-awk-record-region-clear-NL)
 (c-lang-defvar c-get-state-before-change-functions
 	       (let ((fs (c-lang-const c-get-state-before-change-functions)))
@@ -514,14 +496,17 @@ parameters \(point-min) and \(point-max).")
   ;; For documentation see the following c-lang-defvar of the same name.
   ;; The value here may be a list of functions or a single function.
   t '(c-depropertize-new-text
+      c-after-change-re-mark-unbalanced-strings
       c-change-expand-fl-region)
   (c objc) '(c-depropertize-new-text
 	     c-parse-quotes-after-change
+	     c-after-change-re-mark-unbalanced-strings
 	     c-extend-font-lock-region-for-macros
 	     c-neutralize-syntax-in-CPP
 	     c-change-expand-fl-region)
   c++ '(c-depropertize-new-text
 	c-parse-quotes-after-change
+	c-after-change-re-mark-unbalanced-strings
 	c-extend-font-lock-region-for-macros
 	c-after-change-re-mark-raw-strings
 	c-neutralize-syntax-in-CPP
@@ -529,6 +514,7 @@ parameters \(point-min) and \(point-max).")
 	c-change-expand-fl-region)
   java '(c-depropertize-new-text
 	 c-parse-quotes-after-change
+	 c-after-change-re-mark-unbalanced-strings
 	 c-restore-<>-properties
 	 c-change-expand-fl-region)
   awk '(c-depropertize-new-text
@@ -610,6 +596,19 @@ EOL terminated statements."
   t nil
   (c c++ objc) t)
 (c-lang-defvar c-has-bitfields (c-lang-const c-has-bitfields))
+
+(c-lang-defconst c-single-quotes-quote-strings
+  "Whether the language uses single quotes for multi-char strings."
+  t nil)
+(c-lang-defvar c-single-quotes-quote-strings
+	       (c-lang-const c-single-quotes-quote-strings))
+
+(c-lang-defconst c-string-delims
+  "A list of characters which can delimit arbitrary length strings"
+  t (if (c-lang-const c-single-quotes-quote-strings)
+	'(?\" ?\')
+      '(?\")))
+(c-lang-defvar c-string-delims (c-lang-const c-string-delims))
 
 (c-lang-defconst c-has-quoted-numbers
   "Whether the language has numbers quoted like 4'294'967'295."
@@ -855,6 +854,28 @@ literal are multiline."
   pike ?#)
 (c-lang-defvar c-multiline-string-start-char
   (c-lang-const c-multiline-string-start-char))
+
+(c-lang-defconst c-string-innards-re-alist
+  ;; An alist of regexps matching the innards of a string, the key being the
+  ;; string's delimiter.
+  ;;
+  ;; The regexps' matches extend up to, but not including, the closing string
+  ;; delimiter or an unescaped NL.  An EOL is part of the string only if it is
+  ;; escaped.
+  t (mapcar (lambda (delim)
+	      (cons
+	       delim
+	       (concat "\\(\\\\\\(.\\|\n\\|\r\\)\\|[^\\\n\r"
+		       (string delim)
+		       "]\\)*")))
+	    (and
+	     (or (null (c-lang-const c-multiline-string-start-char))
+		 (c-characterp (c-lang-const c-multiline-string-start-char)))
+	     (if (c-lang-const c-single-quotes-quote-strings)
+		 '(?\" ?\')
+	       '(?\")))))
+(c-lang-defvar c-string-innards-re-alist
+  (c-lang-const c-string-innards-re-alist))
 
 (c-lang-defconst c-opt-cpp-symbol
   "The symbol which starts preprocessor constructs when in the margin."
@@ -2168,6 +2189,18 @@ will be handled."
   pike (append (c-lang-const c-class-decl-kwds)
 	       '("constant")))
 
+(c-lang-defconst c-equals-type-clause-kwds
+  "Keywords which are followed by an identifier then an \"=\"
+  sign, which declares the identifier to be a type."
+  t nil
+  c++ '("using"))
+
+(c-lang-defconst c-equals-type-clause-key
+  ;; A regular expression which matches any member of
+  ;; `c-equals-type-clause-kwds'.
+  t (c-make-keywords-re t (c-lang-const c-equals-type-clause-kwds)))
+(c-lang-defvar c-equals-type-clause-key (c-lang-const c-equals-type-clause-key))
+
 (c-lang-defconst c-modifier-kwds
   "Keywords that can prefix normal declarations of identifiers
 \(and typically act as flags).  Things like argument declarations
@@ -2461,7 +2494,11 @@ regexp if `c-colon-type-list-kwds' isn't nil."
 	;; before the ":" that starts the inherit list after "class"
 	;; or "struct" in C++.  (Also used as default for other
 	;; languages.)
-	"[^][{}();,/#=:]*:"))
+	(if (c-lang-const c-opt-identifier-concat-key)
+	    (concat "\\([^][{}();,/#=:]\\|"
+		    (c-lang-const c-opt-identifier-concat-key)
+		    "\\)*:")
+	  "[^][{}();,/#=:]*:")))
 (c-lang-defvar c-colon-type-list-re (c-lang-const c-colon-type-list-re))
 
 (c-lang-defconst c-paren-nontype-kwds

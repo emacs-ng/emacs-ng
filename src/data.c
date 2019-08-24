@@ -1049,7 +1049,10 @@ wrong_choice (Lisp_Object choice, Lisp_Object wrong)
     }
 
   obj = Fconcat (i, args);
-  SAFE_FREE ();
+
+  /* No need to call SAFE_FREE, since signaling does that for us.  */
+  (void) sa_count;
+
   xsignal2 (Qerror, obj, wrong);
 }
 
@@ -1710,11 +1713,21 @@ set_default_internal (Lisp_Object symbol, Lisp_Object value,
 	       set it in the buffers that don't nominally have a local value.  */
 	    if (idx > 0)
 	      {
-		struct buffer *b;
+		Lisp_Object buf, tail;
 
-		FOR_EACH_BUFFER (b)
-		  if (!PER_BUFFER_VALUE_P (b, idx))
-		    set_per_buffer_value (b, offset, value);
+		/* Do this only in live buffers, so that if there are
+		   a lot of buffers which are dead, that doesn't slow
+		   down let-binding of variables that are
+		   automatically local when set, like
+		   case-fold-search.  This is for Lisp programs that
+		   let-bind such variables in their inner loops.  */
+		FOR_EACH_LIVE_BUFFER (tail, buf)
+		  {
+		    struct buffer *b = XBUFFER (buf);
+
+		    if (!PER_BUFFER_VALUE_P (b, idx))
+		      set_per_buffer_value (b, offset, value);
+		  }
 	      }
 	  }
 	else
@@ -2153,47 +2166,6 @@ If the current binding is global (the default), the value is nil.  */)
     }
 }
 
-/* This code is disabled now that we use the selected frame to return
-   keyboard-local-values.  */
-#if 0
-extern struct terminal *get_terminal (Lisp_Object display, int);
-
-DEFUN ("terminal-local-value", Fterminal_local_value,
-       Sterminal_local_value, 2, 2, 0,
-       doc: /* Return the terminal-local value of SYMBOL on TERMINAL.
-If SYMBOL is not a terminal-local variable, then return its normal
-value, like `symbol-value'.
-
-TERMINAL may be a terminal object, a frame, or nil (meaning the
-selected frame's terminal device).  */)
-  (Lisp_Object symbol, Lisp_Object terminal)
-{
-  Lisp_Object result;
-  struct terminal *t = get_terminal (terminal, 1);
-  push_kboard (t->kboard);
-  result = Fsymbol_value (symbol);
-  pop_kboard ();
-  return result;
-}
-
-DEFUN ("set-terminal-local-value", Fset_terminal_local_value,
-       Sset_terminal_local_value, 3, 3, 0,
-       doc: /* Set the terminal-local binding of SYMBOL on TERMINAL to VALUE.
-If VARIABLE is not a terminal-local variable, then set its normal
-binding, like `set'.
-
-TERMINAL may be a terminal object, a frame, or nil (meaning the
-selected frame's terminal device).  */)
-  (Lisp_Object symbol, Lisp_Object terminal, Lisp_Object value)
-{
-  Lisp_Object result;
-  struct terminal *t = get_terminal (terminal, 1);
-  push_kboard (d->kboard);
-  result = Fset (symbol, value);
-  pop_kboard ();
-  return result;
-}
-#endif
 
 /* Find the function at the end of a chain of symbol function indirections.  */
 
@@ -3830,10 +3802,6 @@ syms_of_data (void)
   defsubr (&Slocal_variable_p);
   defsubr (&Slocal_variable_if_set_p);
   defsubr (&Svariable_binding_locus);
-#if 0                           /* XXX Remove this. --lorentey */
-  defsubr (&Sterminal_local_value);
-  defsubr (&Sset_terminal_local_value);
-#endif
   defsubr (&Saref);
   defsubr (&Saset);
   defsubr (&Snumber_to_string);

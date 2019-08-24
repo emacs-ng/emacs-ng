@@ -242,7 +242,7 @@ for details.
 It's best to customize this with `\\[customize-variable]' because the choices
 can get pretty complex."
   :group 'auth-source
-  :version "26.1" ;; No Gnus
+  :version "26.1" ; neither new nor changed default
   :type `(repeat :tag "Authentication Sources"
                  (choice
                   (string :tag "Just a file")
@@ -1000,12 +1000,13 @@ Note that the MAX parameter is used so we can exit the parse early."
 
 (defun auth-source-netrc-parse-next-interesting ()
   "Advance to the next interesting position in the current buffer."
+  (skip-chars-forward "\t ")
   ;; If we're looking at a comment or are at the end of the line, move forward
-  (while (or (looking-at "#")
+  (while (or (eq (char-after) ?#)
              (and (eolp)
                   (not (eobp))))
-    (forward-line 1))
-  (skip-chars-forward "\t "))
+    (forward-line 1)
+    (skip-chars-forward "\t ")))
 
 (defun auth-source-netrc-parse-one ()
   "Read one thing from the current buffer."
@@ -1015,8 +1016,9 @@ Note that the MAX parameter is used so we can exit the parse early."
             (looking-at "\"\\([^\"]*\\)\"")
             (looking-at "\\([^ \t\n]+\\)"))
     (forward-char (length (match-string 0)))
-    (auth-source-netrc-parse-next-interesting)
-    (match-string-no-properties 1)))
+    (prog1
+        (match-string-no-properties 1)
+      (auth-source-netrc-parse-next-interesting))))
 
 ;; with thanks to org-mode
 (defsubst auth-source-current-line (&optional pos)
@@ -1732,9 +1734,45 @@ authentication tokens:
             (item (plist-get artificial :label))
             (secret (plist-get artificial :secret))
             (secret (if (functionp secret) (funcall secret) secret)))
-       (lambda () (apply 'secrets-create-item collection item secret args))))
+       (lambda ()
+	 (auth-source-secrets-saver collection item secret args))))
 
     (list artificial)))
+
+(defun auth-source-secrets-saver (collection item secret args)
+  "Wrapper around `secrets-create-item', prompting along the way.
+Respects `auth-source-save-behavior'."
+  (let ((prompt (format "Save auth info to secrets collection %s? " collection))
+        (done (not (eq auth-source-save-behavior 'ask)))
+        (doit (eq auth-source-save-behavior t))
+        (bufname "*auth-source Help*")
+        k)
+    (while (not done)
+      (setq k (auth-source-read-char-choice prompt '(?y ?n ?N ??)))
+      (cl-case k
+        (?y (setq done t doit t))
+        (?? (save-excursion
+              (with-output-to-temp-buffer bufname
+                (princ
+                 (concat "(y)es, save\n"
+                         "(n)o but use the info\n"
+                         "(N)o and don't ask to save again\n"
+                         "(?) for help as you can see.\n"))
+                ;; Why?  Doesn't with-output-to-temp-buffer already do
+                ;; the exact same thing anyway?  --Stef
+                (set-buffer standard-output)
+                (help-mode))))
+        (?n (setq done t doit nil))
+        (?N (setq done t doit nil)
+            (customize-save-variable 'auth-source-save-behavior nil))
+        (t nil)))
+
+    (when doit
+      (progn
+        (auth-source-do-debug
+         "secrets-create-item: wrote 1 new item to %s" collection)
+        (message "Saved new authentication information to %s" collection)
+	(apply 'secrets-create-item collection item secret args)))))
 
 ;;; Backend specific parsing: Mac OS Keychain (using /usr/bin/security) backend
 

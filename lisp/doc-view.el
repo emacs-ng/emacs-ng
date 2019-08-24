@@ -39,7 +39,7 @@
 ;;
 ;;     C-x C-f ~/path/to/document RET
 ;;
-;; and the document will be converted and displayed, if your emacs supports png
+;; and the document will be converted and displayed, if your emacs supports PNG
 ;; images.  With `C-c C-c' you can toggle between the rendered images
 ;; representation and the source text representation of the document.
 ;;
@@ -50,7 +50,7 @@
 ;; `doc-view-clear-cache'.  To open the cache with dired, so that you can tidy
 ;; it out use `doc-view-dired-cache'.
 ;;
-;; When conversion in underway the first page will be displayed as soon as it
+;; When conversion is underway the first page will be displayed as soon as it
 ;; is available and the available pages are refreshed every
 ;; `doc-view-conversion-refresh-interval' seconds.  If that variable is nil the
 ;; pages won't be displayed before conversion of the document finished
@@ -352,9 +352,6 @@ of the page moves to the previous page."
   "Only used internally.")
 
 (defvar doc-view--pending-cache-flush nil
-  "Only used internally.")
-
-(defvar doc-view--previous-major-mode nil
   "Only used internally.")
 
 (defvar doc-view--buffer-file-name nil
@@ -1752,12 +1749,7 @@ toggle between displaying the document or editing it as text.
       ;; returns nil for tar members.
       (doc-view-fallback-mode)
 
-    (let* ((prev-major-mode (if (derived-mode-p 'doc-view-mode)
-				doc-view--previous-major-mode
-			      (unless (eq major-mode 'fundamental-mode)
-				major-mode))))
-      (kill-all-local-variables)
-      (setq-local doc-view--previous-major-mode prev-major-mode))
+    (major-mode-suspend)
 
     (dolist (var doc-view-saved-settings)
       (set (make-local-variable (car var)) (cdr var)))
@@ -1848,14 +1840,7 @@ toggle between displaying the document or editing it as text.
                           '(doc-view-resolution
                             image-mode-winprops-alist)))))
     (remove-overlays (point-min) (point-max) 'doc-view t)
-    (if doc-view--previous-major-mode
-        (funcall doc-view--previous-major-mode)
-      (let ((auto-mode-alist
-             (rassq-delete-all
-              'doc-view-mode-maybe
-              (rassq-delete-all 'doc-view-mode
-                                (copy-alist auto-mode-alist)))))
-        (normal-mode)))
+    (major-mode-restore '(doc-view-mode-maybe doc-view-mode))
     (when vars
       (setq-local doc-view-saved-settings vars))))
 
@@ -1874,9 +1859,6 @@ to the next best mode."
 ;;;###autoload
 (define-minor-mode doc-view-minor-mode
   "Toggle displaying buffer via Doc View (Doc View minor mode).
-With a prefix argument ARG, enable Doc View minor mode if ARG is
-positive, and disable it otherwise.  If called from Lisp, enable
-the mode if ARG is omitted or nil.
 
 See the command `doc-view-mode' for more information on this mode."
   nil " DocView" doc-view-minor-mode-map

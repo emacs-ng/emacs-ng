@@ -518,6 +518,9 @@ Used to decide whether to save completions.")
 	(modify-syntax-entry char "w" table)))
     table))
 
+;; Old name, non-namespace-clean.
+(defvaralias 'cmpl-syntax-table 'completion-syntax-table)
+
 (defvar completion-syntax-table completion-standard-syntax-table
   "This variable holds the current completion syntax table.")
 (make-variable-buffer-local 'completion-syntax-table)
@@ -2272,10 +2275,7 @@ TYPE is the type of the wrapper to be added.  Can be :before or :under."
 
 ;;;###autoload
 (define-minor-mode dynamic-completion-mode
-  "Toggle dynamic word-completion on or off.
-With a prefix argument ARG, enable the mode if ARG is positive,
-and disable it otherwise.  If called from Lisp, enable the mode
-if ARG is omitted or nil."
+  "Toggle dynamic word-completion on or off."
   :global t
   :group 'completion
   ;; This is always good, not specific to dynamic-completion-mode.
@@ -2360,8 +2360,7 @@ if ARG is omitted or nil."
 (completion-def-wrapper 'delete-backward-char :backward)
 (completion-def-wrapper 'delete-backward-char-untabify :backward)
 
-;; Old names, non-namespace-clean.
-(defvaralias 'cmpl-syntax-table 'completion-syntax-table)
+;; Old name, non-namespace-clean.
 (defalias 'initialize-completions 'completion-initialize)
 
 (provide 'completion)

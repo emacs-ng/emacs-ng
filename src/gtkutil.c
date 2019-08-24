@@ -258,8 +258,8 @@ xg_display_close (Display *dpy)
     }
 
 #if GTK_CHECK_VERSION (2, 0, 0) && ! GTK_CHECK_VERSION (2, 10, 0)
-  /* GTK 2.2-2.8 has a bug that makes gdk_display_close crash (bug
-     http://bugzilla.gnome.org/show_bug.cgi?id=85715).  This way we
+  /* GTK 2.2-2.8 has a bug that makes gdk_display_close crash
+     <https://gitlab.gnome.org/GNOME/gtk/issues/221>.  This way we
      can continue running, but there will be memory leaks.  */
   g_object_run_dispose (G_OBJECT (gdpy));
 #else
@@ -764,7 +764,7 @@ xg_show_tooltip (struct frame *f, int root_x, int root_y)
       block_input ();
       gtk_window_move (x->ttip_window, root_x / xg_get_scale (f),
 		       root_y / xg_get_scale (f));
-      gtk_widget_show_all (GTK_WIDGET (x->ttip_window));
+      gtk_widget_show (GTK_WIDGET (x->ttip_window));
       unblock_input ();
     }
 #endif

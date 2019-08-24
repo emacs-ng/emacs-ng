@@ -186,17 +186,17 @@ See also `eww-form-checkbox-selected-symbol'."
   :group 'eww)
 
 (defface eww-form-text
-  '((t (:background "#505050"
-		    :foreground "white"
-		    :box (:line-width 1))))
+  '((t :background "#505050"
+       :foreground "white"
+       :box (:line-width 1)))
   "Face for eww text inputs."
   :version "24.4"
   :group 'eww)
 
 (defface eww-form-textarea
-  '((t (:background "#C0C0C0"
-		    :foreground "black"
-		    :box (:line-width 1))))
+  '((t :background "#C0C0C0"
+       :foreground "black"
+       :box (:line-width 1)))
   "Face for eww textarea inputs."
   :version "24.4"
   :group 'eww)
@@ -269,8 +269,13 @@ word(s) will be searched for via `eww-search-prefix'."
   (let ((parsed (url-generic-parse-url url)))
     (when (url-host parsed)
       (unless (puny-highly-restrictive-domain-p (url-host parsed))
-        (setf (url-host parsed) (puny-encode-domain (url-host parsed)))
-        (setq url (url-recreate-url parsed)))))
+        (setf (url-host parsed) (puny-encode-domain (url-host parsed)))))
+    ;; When the URL is on the form "http://a/../../../g", chop off all
+    ;; the leading "/.."s.
+    (when (url-filename parsed)
+      (while (string-match "\\`/[.][.]/" (url-filename parsed))
+        (setf (url-filename parsed) (substring (url-filename parsed) 3))))
+    (setq url (url-recreate-url parsed)))
   (plist-put eww-data :url url)
   (plist-put eww-data :title "")
   (eww-update-header-line-format)
@@ -1808,13 +1813,9 @@ If CHARSET is nil then use UTF-8."
 (defun eww-save-history ()
   (plist-put eww-data :point (point))
   (plist-put eww-data :text (buffer-string))
-  (push eww-data eww-history)
-  (setq eww-data (list :title ""))
-  ;; Don't let the history grow infinitely.  We store quite a lot of
-  ;; data per page.
-  (when-let* ((tail (and eww-history-limit
-		         (nthcdr eww-history-limit eww-history))))
-    (setcdr tail nil)))
+  (let ((history-delete-duplicates nil))
+    (add-to-history 'eww-history eww-data eww-history-limit t))
+  (setq eww-data (list :title "")))
 
 (defvar eww-current-buffer)
 

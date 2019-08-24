@@ -30,6 +30,15 @@
 ;; This distinction is to support indexing of computer programming
 ;; language terms that may contain ":" but not ": ".
 
+;; The commands in this file should start either with "Info-" or with
+;; "info-".  The capitalized version is for commands that are bound to
+;; keys, and therefore are unlikely to be invoked by name via "M-x";
+;; the lower-case version is for commands invoked by name.  This
+;; arrangement makes completion of "info-" commands work better,
+;; because the "Info-" commands (of which there are a lot) don't get
+;; in the way.  Please adhere to this convention when you add commands
+;; here.
+
 ;;; Code:
 
 (eval-when-compile (require 'cl-lib))
@@ -868,10 +877,13 @@ In standalone mode, \\<Info-mode-map>\\[Info-exit] exits Emacs itself."
 	 (forward-line 1)		; does the line after delimiter match REGEXP?
 	 (re-search-backward regexp beg t))))
 
-(defun Info-find-file (filename &optional noerror)
+(defun Info-find-file (filename &optional noerror no-pop-to-dir)
   "Return expanded FILENAME, or t if FILENAME is \"dir\".
 Optional second argument NOERROR, if t, means if file is not found
-just return nil (no error)."
+just return nil (no error).
+
+If NO-POP-TO-DIR, don't try to pop to the info buffer if we can't
+find a node."
   ;; Convert filename to lower case if not found as specified.
   ;; Expand it.
   (cond
@@ -930,7 +942,8 @@ just return nil (no error)."
 	(if noerror
 	    (setq filename nil)
 	  ;; If there is no previous Info file, go to the directory.
-	  (unless Info-current-file
+	  (when (and (not no-pop-to-dir)
+                     (not Info-current-file))
 	    (Info-directory))
 	  (user-error "Info file %s does not exist" filename)))
       filename))))
@@ -1868,7 +1881,7 @@ See `completing-read' for a description of arguments and usage."
          (lambda (string pred action)
            (complete-with-action
             action
-            (Info-build-node-completions (Info-find-file file1))
+            (Info-build-node-completions (Info-find-file file1 nil t))
             string pred))
 	 nodename predicate code))))
    ;; Otherwise use Info-read-node-completion-table.
@@ -2013,7 +2026,7 @@ If DIRECTION is `backward', search in the reverse direction."
                   Info-isearch-initial-node
                   bound
                   (and found (> found opoint-min) (< found opoint-max)))
-	(signal 'user-search-failed (list regexp "(end of node)")))
+	(signal 'user-search-failed (list regexp "end of node")))
 
       ;; If no subfiles, give error now.
       (unless (or found Info-current-subfile)
@@ -3925,8 +3938,8 @@ If FORK is a string, it is the name to use for the new buffer."
 If FORK is non-nil, it is passed to `Info-goto-node'."
   (let (node)
     (cond
-     ((setq node (Info-get-token (point) "[hf]t?tps?://"
-				 "\\([hf]t?tps?://[^ \t\n\"`‘({<>})’']+\\)"))
+     ((setq node (Info-get-token (point) "\\(?:f\\(?:ile\\|tp\\)\\|https?\\)://"
+				 "\\(\\(?:f\\(?:ile\\|tp\\)\\|https?\\)://[^ \t\n\"`‘({<>})’']+\\)"))
       (browse-url node)
       (setq node t))
      ((setq node (Info-get-token (point) "\\*note[ \n\t]+"

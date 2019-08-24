@@ -1,4 +1,4 @@
-# manywarnings.m4 serial 13
+# manywarnings.m4 serial 16
 dnl Copyright (C) 2008-2018 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
@@ -106,18 +106,17 @@ m4_defun([gl_MANYWARN_ALL_GCC(C)],
   # To compare this list to your installed GCC's, run this Bash command:
   #
   # comm -3 \
-  #  <(sed -n 's/^  *\(-[^ 0-9][^ ]*\) .*/\1/p' manywarnings.m4 | sort) \
-  #  <(gcc --help=warnings | sed -n 's/^  \(-[^ ]*\) .*/\1/p' | sort |
-  #      grep -v -x -F -f <(
-  #         awk '/^[^#]/ {print $1}' ../build-aux/gcc-warning.spec))
+  #  <((sed -n 's/^  *\(-[^ 0-9][^ ]*\) .*/\1/p' manywarnings.m4; \
+  #     awk '/^[^#]/ {print $1}' ../build-aux/gcc-warning.spec) | sort) \
+  #  <(LC_ALL=C gcc --help=warnings | sed -n 's/^  \(-[^ ]*\) .*/\1/p' | sort)
 
   gl_manywarn_set=
   for gl_manywarn_item in -fno-common \
     -W \
-    -Wabi \
     -Waddress \
     -Waggressive-loop-optimizations \
     -Wall \
+    -Wattribute-alias \
     -Wattributes \
     -Wbad-function-cast \
     -Wbool-compare \
@@ -125,8 +124,9 @@ m4_defun([gl_MANYWARN_ALL_GCC(C)],
     -Wbuiltin-declaration-mismatch \
     -Wbuiltin-macro-redefined \
     -Wcast-align \
+    -Wcast-align=strict \
+    -Wcast-function-type \
     -Wchar-subscripts \
-    -Wchkp \
     -Wclobbered \
     -Wcomment \
     -Wcomments \
@@ -160,6 +160,7 @@ m4_defun([gl_MANYWARN_ALL_GCC(C)],
     -Wframe-address \
     -Wfree-nonheap-object \
     -Whsa \
+    -Wif-not-aligned \
     -Wignored-attributes \
     -Wignored-qualifiers \
     -Wimplicit \
@@ -173,7 +174,6 @@ m4_defun([gl_MANYWARN_ALL_GCC(C)],
     -Wint-to-pointer-cast \
     -Winvalid-memory-model \
     -Winvalid-pch \
-    -Wjump-misses-init \
     -Wlogical-not-parentheses \
     -Wlogical-op \
     -Wmain \
@@ -181,6 +181,7 @@ m4_defun([gl_MANYWARN_ALL_GCC(C)],
     -Wmemset-elt-size \
     -Wmemset-transposed-args \
     -Wmisleading-indentation \
+    -Wmissing-attributes \
     -Wmissing-braces \
     -Wmissing-declarations \
     -Wmissing-field-initializers \
@@ -188,6 +189,7 @@ m4_defun([gl_MANYWARN_ALL_GCC(C)],
     -Wmissing-parameter-type \
     -Wmissing-prototypes \
     -Wmultichar \
+    -Wmultistatement-macros \
     -Wnarrowing \
     -Wnested-externs \
     -Wnonnull \
@@ -202,6 +204,7 @@ m4_defun([gl_MANYWARN_ALL_GCC(C)],
     -Woverride-init \
     -Wpacked \
     -Wpacked-bitfield-compat \
+    -Wpacked-not-aligned \
     -Wparentheses \
     -Wpointer-arith \
     -Wpointer-compare \
@@ -219,20 +222,23 @@ m4_defun([gl_MANYWARN_ALL_GCC(C)],
     -Wshift-count-overflow \
     -Wshift-negative-value \
     -Wsizeof-array-argument \
+    -Wsizeof-pointer-div \
     -Wsizeof-pointer-memaccess \
     -Wstack-protector \
     -Wstrict-aliasing \
     -Wstrict-overflow \
     -Wstrict-prototypes \
+    -Wstringop-truncation \
+    -Wsuggest-attribute=cold \
     -Wsuggest-attribute=const \
     -Wsuggest-attribute=format \
+    -Wsuggest-attribute=malloc \
     -Wsuggest-attribute=noreturn \
     -Wsuggest-attribute=pure \
     -Wsuggest-final-methods \
     -Wsuggest-final-types \
     -Wswitch \
     -Wswitch-bool \
-    -Wswitch-default \
     -Wswitch-unreachable \
     -Wsync-nand \
     -Wsystem-headers \

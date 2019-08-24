@@ -5592,7 +5592,7 @@ command uses the process/prefix convention.
 Mail a wide reply to the author of the current article
 (@code{gnus-summary-wide-reply}).  A @dfn{wide reply} is a reply that
 goes out to all people listed in the @code{To}, @code{From} (or
-@code{Reply-to}) and @code{Cc} headers.  If @code{Mail-Followup-To} is
+@code{Reply-To}) and @code{Cc} headers.  If @code{Mail-Followup-To} is
 present, that's used instead.
 
 @item S W
@@ -5616,7 +5616,7 @@ message to the mailing list, and include the original message
 Mail a very wide reply to the author of the current article
 (@code{gnus-summary-wide-reply}).  A @dfn{very wide reply} is a reply
 that goes out to all people listed in the @code{To}, @code{From} (or
-@code{Reply-to}) and @code{Cc} headers in all the process/prefixed
+@code{Reply-To}) and @code{Cc} headers in all the process/prefixed
 articles.  This command uses the process/prefix convention.
 
 @item S V
@@ -5848,6 +5848,15 @@ Manual}, for more information.
 Yank the current article into an already existing Message composition
 buffer (@code{gnus-summary-yank-message}).  This command prompts for
 what message buffer you want to yank into, and understands the
+process/prefix convention (@pxref{Process/Prefix}).
+
+@item S A
+@kindex S A @r{(Summary)}
+@findex gnus-summary-attach-article
+Attach the current article into an already existing Message
+composition buffer (@code{gnus-summary-attach-message}).  If no such
+buffer exists, a new one is created.  This command prompts for what
+message buffer you want to yank into, and understands the
 process/prefix convention (@pxref{Process/Prefix}).
 
 @end table
@@ -24568,7 +24577,7 @@ determined by either the @code{ham-process-destination} group
 parameter or a match in the @code{gnus-ham-process-destinations}
 variable, which is a list of regular expressions matched with group
 names (it's easiest to customize this variable with @kbd{M-x
-customize-variable @key{@key{RET}} gnus-ham-process-destinations}).  Each
+customize-variable @key{RET} gnus-ham-process-destinations}).  Each
 group name list is a standard Lisp list, if you prefer to customize
 the variable manually.  If the @code{ham-process-destination}
 parameter is not set, ham articles are left in place.  If the
@@ -24604,7 +24613,7 @@ When you leave a @emph{ham} or @emph{unclassified} group, all
 the @code{spam-process-destination} group parameter or a match in the
 @code{gnus-spam-process-destinations} variable, which is a list of
 regular expressions matched with group names (it's easiest to
-customize this variable with @kbd{M-x customize-variable @key{@key{RET}}
+customize this variable with @kbd{M-x customize-variable @key{RET}
 gnus-spam-process-destinations}).  Each group name list is a standard
 Lisp list, if you prefer to customize the variable manually.  If the
 @code{spam-process-destination} parameter is not set, the spam
@@ -28723,7 +28732,7 @@ commonly fetched via the protocol @acronym{NNTP}, whereas mail
 messages could be read from a file on the local disk.  The internal
 architecture of Gnus thus comprises a ``front end'' and a number of
 ``back ends''.  Internally, when you enter a group (by hitting
-@key{@key{RET}}, say), you thereby invoke a function in the front end in
+@key{RET}, say), you thereby invoke a function in the front end in
 Gnus.  The front end then ``talks'' to a back end and says things like
 ``Give me the list of articles in the foo group'' or ``Show me article
 number 4711''.

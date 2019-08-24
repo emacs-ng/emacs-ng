@@ -198,9 +198,9 @@ Possible values in this list are:
   `newsgroups'  Newsgroup identical to Gnus group.
   `to-address'  To identical to To-address.
   `to-list'     To identical to To-list.
-  `cc-list'     CC identical to To-list.
-  `followup-to' Followup-to identical to Newsgroups.
-  `reply-to'    Reply-to identical to From.
+  `cc-list'     Cc identical to To-list.
+  `followup-to' Followup-To identical to Newsgroups.
+  `reply-to'    Reply-To identical to From.
   `date'        Date less than four days old.
   `long-to'     To and/or Cc longer than 1024 characters.
   `many-to'     Multiple To and/or Cc."
@@ -208,9 +208,9 @@ Possible values in this list are:
 	      (const :tag "Newsgroups identical to Gnus group." newsgroups)
 	      (const :tag "To identical to To-address." to-address)
 	      (const :tag "To identical to To-list." to-list)
-	      (const :tag "CC identical to To-list." cc-list)
-	      (const :tag "Followup-to identical to Newsgroups." followup-to)
-	      (const :tag "Reply-to identical to From." reply-to)
+	      (const :tag "Cc identical to To-list." cc-list)
+	      (const :tag "Followup-To identical to Newsgroups." followup-to)
+	      (const :tag "Reply-To identical to From." reply-to)
 	      (const :tag "Date less than four days old." date)
 	      (const :tag "To and/or Cc longer than 1024 characters." long-to)
 	      (const :tag "Multiple To and/or Cc headers." many-to))
@@ -1616,6 +1616,16 @@ It is a string, such as \"PGP\". If nil, ask user."
 
 (defcustom gnus-blocked-images 'gnus-block-private-groups
   "Images that have URLs matching this regexp will be blocked.
+Note that the main reason external images are included in HTML
+emails (these days) is to allow tracking whether you've read the
+email message or not.  If you allow loading images in HTML
+emails, you give up privacy.
+
+The default value of this variable blocks loading external
+resources when reading email groups (and therefore stops
+tracking), but allows loading external resources when reading
+from NNTP newsgroups and the like.
+
 This can also be a function to be evaluated.  If so, it will be
 called with the group name as the parameter, and should return a
 regexp."
@@ -1937,7 +1947,7 @@ always hide."
 		(when (and cc to-list
 			   (ignore-errors
 			     (gnus-string-equal
-			      ;; only one address in CC
+			      ;; only one address in Cc
 			      (nth 1 (mail-extract-address-components cc))
 			      to-list)))
 		  (gnus-article-hide-header "cc"))))
@@ -2921,7 +2931,8 @@ message header will be added to the bodies of the \"text/html\" parts."
 					 (encode-coding-string
 					  title coding))
 				 body content))
-		       (setq eheader (string-as-unibyte (buffer-string))
+		       (setq eheader (encode-coding-string
+				      (buffer-string) 'utf-8)
 			     body content)))
 		   (erase-buffer)
 		   (mm-disable-multibyte)
@@ -6672,7 +6683,7 @@ not have a face in `gnus-article-boring-faces'."
   (interactive "P")
   (gnus-article-check-buffer)
   (let ((nosaves
-	 '("q" "Q"  "c" "r" "\C-c\C-f" "m"  "a" "f" "WDD" "WDW"
+	 '("q" "Q" "r" "\C-c\C-f" "m"  "a" "f" "WDD" "WDW"
 	   "Zc" "ZC" "ZE" "ZQ" "ZZ" "Zn" "ZR" "ZG" "ZN" "ZP"
 	   "=" "^" "\M-^" "|"))
 	(nosave-but-article
@@ -6738,7 +6749,8 @@ not have a face in `gnus-article-boring-faces'."
 	;; We disable the pick minor mode commands.
 	(setq func (let (gnus-pick-mode)
 		     (key-binding keys t)))
-	(when (get func 'disabled)
+	(when (and (symbolp func)
+		   (get func 'disabled))
 	  (error "Function %s disabled" func))
 	(if (and func
 		 (functionp func)
@@ -7036,9 +7048,8 @@ If given a prefix, show the hidden text instead."
             ;; equivalent of string-make-multibyte which amount to decoding
             ;; with locale-coding-system, causing failure of
             ;; subsequent decoding.
-            (insert (string-to-multibyte
-                     (with-current-buffer gnus-original-article-buffer
-                       (buffer-substring (point-min) (point-max)))))
+            (insert (with-current-buffer gnus-original-article-buffer
+                      (buffer-substring (point-min) (point-max))))
 	    'article)
 	   ;; Check the backlog.
 	   ((and gnus-keep-backlog

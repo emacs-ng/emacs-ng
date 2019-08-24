@@ -141,6 +141,10 @@ The properties returned may include `top', `left', `height', and `width'."
 (define-key global-map [?\s-x] 'kill-region)
 (define-key global-map [?\s-y] 'ns-paste-secondary)
 (define-key global-map [?\s-z] 'undo)
+(define-key global-map [?\s-+] 'text-scale-adjust)
+(define-key global-map [?\s-=] 'text-scale-adjust)
+(define-key global-map [?\s--] 'text-scale-adjust)
+(define-key global-map [?\s-0] 'text-scale-adjust)
 (define-key global-map [?\s-|] 'shell-command-on-region)
 (define-key global-map [s-kp-bar] 'shell-command-on-region)
 (define-key global-map [?\C-\s- ] 'ns-do-show-character-palette)
@@ -549,8 +553,9 @@ the last file dropped is selected."
 (defvar ns-right-control-modifier)
 
 ;; You say tomAYto, I say tomAHto..
-(defvaralias 'ns-option-modifier 'ns-alternate-modifier)
-(defvaralias 'ns-right-option-modifier 'ns-right-alternate-modifier)
+(with-no-warnings
+  (defvaralias 'ns-option-modifier 'ns-alternate-modifier)
+  (defvaralias 'ns-right-option-modifier 'ns-right-alternate-modifier))
 
 (defun ns-do-hide-emacs ()
   (interactive)

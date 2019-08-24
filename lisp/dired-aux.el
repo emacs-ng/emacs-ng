@@ -614,14 +614,16 @@ with a prefix argument."
 
 (declare-function mailcap-file-default-commands "mailcap" (files))
 
+(defvar dired-aux-files)
+
 (defun minibuffer-default-add-dired-shell-commands ()
   "Return a list of all commands associated with current dired files.
 This function is used to add all related commands retrieved by `mailcap'
 to the end of the list of defaults just after the default value."
   (interactive)
-  (let* ((files minibuffer-completion-table)
-         (commands (and (require 'mailcap nil t)
-                        (mailcap-file-default-commands files))))
+  (let ((commands (and (boundp 'dired-aux-files)
+		       (require 'mailcap nil t)
+		       (mailcap-file-default-commands dired-aux-files))))
     (if (listp minibuffer-default)
 	(append minibuffer-default commands)
       (cons minibuffer-default commands))))
@@ -639,9 +641,9 @@ This normally reads using `read-shell-command', but if the
 offer a smarter default choice of shell command."
   (minibuffer-with-setup-hook
       (lambda ()
-        (set (make-local-variable 'minibuffer-completion-table) files)
-	(set (make-local-variable 'minibuffer-default-add-function)
-	     'minibuffer-default-add-dired-shell-commands))
+	(setq-local dired-aux-files files)
+	(setq-local minibuffer-default-add-function
+		    #'minibuffer-default-add-dired-shell-commands))
     (setq prompt (format prompt (dired-mark-prompt arg files)))
     (if (functionp 'dired-guess-shell-command)
 	(dired-mark-pop-up nil 'shell files
@@ -2854,11 +2856,11 @@ REGEXP should use constructs supported by your local `grep' command."
   (interactive "sSearch marked files (regexp): ")
   (require 'grep)
   (defvar grep-find-ignored-files)
-  (defvar grep-find-ignored-directories)
+  (declare-function rgrep-find-ignored-directories "grep" (dir))
   (let* ((files (dired-get-marked-files nil nil nil nil t))
          (ignores (nconc (mapcar
                           (lambda (s) (concat s "/"))
-                          grep-find-ignored-directories)
+                          (rgrep-find-ignored-directories default-directory))
                          grep-find-ignored-files))
          (xrefs (mapcan
                  (lambda (file)

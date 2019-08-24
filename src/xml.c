@@ -271,7 +271,9 @@ DEFUN ("libxml-parse-html-region", Flibxml_parse_html_region,
        2, 4, 0,
        doc: /* Parse the region as an HTML document and return the parse tree.
 If BASE-URL is non-nil, it is used to expand relative URLs.
-If DISCARD-COMMENTS is non-nil, all HTML comments are discarded. */)
+
+If you want comments to be stripped, use the `xml-remove-comments'
+function to strip comments before calling this function.  */)
   (Lisp_Object start, Lisp_Object end, Lisp_Object base_url, Lisp_Object discard_comments)
 {
   if (init_libxml2_functions ())
@@ -284,7 +286,9 @@ DEFUN ("libxml-parse-xml-region", Flibxml_parse_xml_region,
        2, 4, 0,
        doc: /* Parse the region as an XML document and return the parse tree.
 If BASE-URL is non-nil, it is used to expand relative URLs.
-If DISCARD-COMMENTS is non-nil, all HTML comments are discarded. */)
+
+If you want comments to be stripped, use the `xml-remove-comments'
+function to strip comments before calling this function.  */)
   (Lisp_Object start, Lisp_Object end, Lisp_Object base_url, Lisp_Object discard_comments)
 {
   if (init_libxml2_functions ())

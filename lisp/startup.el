@@ -63,6 +63,9 @@ string or function value that this variable has."
   :version "23.1"
   :group 'initialization)
 
+(defvaralias 'inhibit-splash-screen 'inhibit-startup-screen)
+(defvaralias 'inhibit-startup-message 'inhibit-startup-screen)
+
 (defcustom inhibit-startup-screen nil
   "Non-nil inhibits the startup screen.
 
@@ -70,9 +73,6 @@ This is for use in your personal init file (but NOT site-start.el),
 once you are familiar with the contents of the startup screen."
   :type 'boolean
   :group 'initialization)
-
-(defvaralias 'inhibit-splash-screen 'inhibit-startup-screen)
-(defvaralias 'inhibit-startup-message 'inhibit-startup-screen)
 
 (defvar startup-screen-inhibit-startup-screen nil)
 
@@ -120,9 +120,6 @@ Elements look like (SWITCH-STRING . HANDLER-FUNCTION).
 HANDLER-FUNCTION receives the switch string as its sole argument;
 the remaining command-line args are in the variable `command-line-args-left'.")
 
-(defvar command-line-args-left nil
-  "List of command-line args not yet processed.")
-
 (with-no-warnings
   (defvaralias 'argv 'command-line-args-left
     "List of command-line args not yet processed.
@@ -130,6 +127,9 @@ This is a convenience alias, so that one can write (pop argv)
 inside of --eval command line arguments in order to access
 following arguments."))
 (internal-make-var-non-special 'argv)
+
+(defvar command-line-args-left nil
+  "List of command-line args not yet processed.")
 
 (with-no-warnings
   (defvar argi nil
@@ -560,9 +560,17 @@ It is the default value of the variable `top-level'."
 	    (if default-directory
 		(setq default-directory
                       (if (eq system-type 'windows-nt)
-                          ;; Convert backslashes to forward slashes.
-                          (expand-file-name
-                           (decode-coding-string default-directory coding t))
+                          ;; We pass the decoded default-directory as
+                          ;; the 2nd arg to expand-file-name to make
+                          ;; sure it sees a multibyte string as the
+                          ;; default directory; this avoids the side
+                          ;; effect of returning a unibyte string from
+                          ;; expand-file-name because it still sees
+                          ;; the undecoded value of default-directory.
+                          (let ((defdir (decode-coding-string default-directory
+                                                              coding t)))
+                            ;; Convert backslashes to forward slashes.
+                            (expand-file-name defdir defdir))
                         (decode-coding-string default-directory coding t))))))
 
 	;; Decode all the important variables and directory lists, now
@@ -1118,11 +1126,11 @@ please check its value")
   ;; Re-evaluate predefined variables whose initial value depends on
   ;; the runtime context.
   (let (current-load-list) ; c-r-s may call defvar, and hence LOADHIST_ATTACH
-    (mapc 'custom-reevaluate-setting
+    (setq custom-delayed-init-variables
           ;; Initialize them in the same order they were loaded, in case there
           ;; are dependencies between them.
-          (prog1 (nreverse custom-delayed-init-variables)
-            (setq custom-delayed-init-variables nil))))
+          (nreverse custom-delayed-init-variables))
+    (mapc 'custom-reevaluate-setting custom-delayed-init-variables))
 
   ;; Warn for invalid user name.
   (when init-file-user
@@ -1254,6 +1262,13 @@ please check its value")
     (startup--setup-quote-display)
     (setq internal--text-quoting-flag t))
 
+  ;; Re-evaluate again the predefined variables whose initial value
+  ;; depends on the runtime context, in case some of them depend on
+  ;; the window-system features.  Example: blink-cursor-mode.
+  (let (current-load-list) ; c-r-s may call defvar, and hence LOADHIST_ATTACH
+    (mapc 'custom-reevaluate-setting custom-delayed-init-variables)
+    (setq custom-delayed-init-variables nil))
+
   (normal-erase-is-backspace-setup-frame)
 
   ;; Register default TTY colors for the case the terminal hasn't a
@@ -1279,11 +1294,10 @@ please check its value")
     ;; should check init-file-user instead, since that is already set.
     ;; See cus-edit.el for an example.
     (if site-run-file
-	(load site-run-file t t))
-
-    ;; Sites should not disable this.  Only individuals should disable
-    ;; the startup screen.
-    (setq inhibit-startup-screen nil)
+        ;; Sites should not disable the startup screen.
+        ;; Only individuals should disable the startup screen.
+        (let ((inhibit-startup-screen inhibit-startup-screen))
+	  (load site-run-file t t)))
 
     ;; Load that user's init file, or the default one, or none.
     (load-user-init-file
@@ -1889,7 +1903,8 @@ we put it on this frame."
       (if (and (frame-visible-p frame)
 	       (not (window-minibuffer-p (frame-selected-window frame))))
 	  (setq chosen-frame frame)))
-    chosen-frame))
+    ;; If there are no visible frames yet, try the selected one.
+    (or chosen-frame (selected-frame))))
 
 (defun use-fancy-splash-screens-p ()
   "Return t if fancy splash screens should be used."
@@ -2504,7 +2519,12 @@ nil default-directory" name)
 	     (insert (substitute-command-keys initial-scratch-message))
 	     (set-buffer-modified-p nil))))
 
-    ;; Prepend `initial-buffer-choice' to `displayable-buffers'.
+    ;; Prepend `initial-buffer-choice' to `displayable-buffers'. If
+    ;; the buffer is already a member of that list then shift the
+    ;; buffer to the head of the list. The shift behavior is intended
+    ;; to prevent the same buffer being displayed in two windows when
+    ;; an `initial-buffer-choice' function happens to return the head
+    ;; of `displayable-buffers'.
     (when initial-buffer-choice
       (let ((buf
              (cond ((stringp initial-buffer-choice)
@@ -2517,7 +2537,7 @@ nil default-directory" name)
                     (error "initial-buffer-choice must be a string, a function, or t.")))))
         (unless (buffer-live-p buf)
           (error "initial-buffer-choice is not a live buffer."))
-        (setq displayable-buffers (cons buf displayable-buffers))))
+        (setq displayable-buffers (cons buf (delq buf displayable-buffers)))))
 
     ;; Display the first two buffers in `displayable-buffers'.  If
     ;; `initial-buffer-choice' is non-nil, its buffer will be the

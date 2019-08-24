@@ -321,14 +321,16 @@ If this variable is nil, all regions are treated as small."
 ;;*    	     (lambda () (setq flyspell-generic-check-word-predicate     */
 ;;*    			       'mail-mode-flyspell-verify)))            */
 ;;*---------------------------------------------------------------------*/
+
+(define-obsolete-variable-alias 'flyspell-generic-check-word-p
+  'flyspell-generic-check-word-predicate "25.1")
+
 (defvar flyspell-generic-check-word-predicate nil
   "Function providing per-mode customization over which words are flyspelled.
 Returns t to continue checking, nil otherwise.
 Flyspell mode sets this variable to whatever is the `flyspell-mode-predicate'
 property of the major mode name.")
 (make-variable-buffer-local 'flyspell-generic-check-word-predicate)
-(define-obsolete-variable-alias 'flyspell-generic-check-word-p
-  'flyspell-generic-check-word-predicate "25.1")
 
 ;;*--- mail mode -------------------------------------------------------*/
 (put 'mail-mode 'flyspell-mode-predicate 'mail-mode-flyspell-verify)
@@ -503,9 +505,6 @@ See also `flyspell-duplicate-distance'."
 ;;;###autoload
 (define-minor-mode flyspell-mode
   "Toggle on-the-fly spell checking (Flyspell mode).
-With a prefix argument ARG, enable Flyspell mode if ARG is
-positive, and disable it otherwise.  If called from Lisp, enable
-the mode if ARG is omitted or nil.
 
 Flyspell mode is a buffer-local minor mode.  When enabled, it
 spawns a single Ispell process and checks each word.  The default
@@ -1950,8 +1949,9 @@ spell-check."
     (let ((pos     (point))
           (old-max (point-max)))
       ;; Flush a possibly stale cache from previous invocations of
-      ;; flyspell-auto-correct-word.
-      (if (not (eq last-command 'flyspell-auto-correct-word))
+      ;; flyspell-auto-correct-word/flyspell-auto-correct-previous-word.
+      (if (not (memq last-command '(flyspell-auto-correct-word
+                                    flyspell-auto-correct-previous-word)))
           (setq flyspell-auto-correct-region nil))
       ;; Use the correct dictionary.
       (flyspell-accept-buffer-local-defs)

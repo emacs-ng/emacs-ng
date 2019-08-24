@@ -59,7 +59,7 @@
 
 ;;; Code:
 
-(eval-when-compile (require 'cl-lib))
+(require 'cl-lib)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -179,7 +179,9 @@ with name concatenation."
 
 (defcustom imenu-generic-skip-comments-and-strings t
   "When non-nil, ignore text inside comments and strings.
-Only affects `imenu--generic-function'."
+Only affects `imenu-default-create-index-function' (and any
+alternative implementation of `imenu-create-index-function' that
+uses `imenu--generic-function')."
   :type 'boolean
   :group 'imenu
   :version "24.4")
@@ -197,9 +199,9 @@ string (which specifies the title of a submenu into which the
 matches are put).
 REGEXP is a regular expression matching a definition construct
 which is to be displayed in the menu.  REGEXP may also be a
-function, called without arguments.  It is expected to search
-backwards.  It must return true and set `match-data' if it finds
-another element.
+function of no arguments.  If REGEXP is a function, it is
+expected to search backwards, return non-nil if it finds a
+definition construct, and set `match-data' for that construct.
 INDEX is an integer specifying which subexpression of REGEXP
 matches the definition's name; this subexpression is displayed as
 the menu item.
@@ -730,7 +732,7 @@ for modes which use `imenu--generic-function'.  If it is not set, but
 ;; so it needs to be careful never to loop!
 (defun imenu--generic-function (patterns)
   "Return an index alist of the current buffer based on PATTERNS.
-PATTERNS should be an alist with the same form as `imenu-generic-expression'.
+PATTERNS should be an alist of the same form as `imenu-generic-expression'.
 
 If `imenu-generic-skip-comments-and-strings' is non-nil, this ignores
 text inside comments and strings.
@@ -817,7 +819,8 @@ depending on PATTERNS."
 		  ;; Insert the item unless it is already present.
 		  (unless (or (member item (cdr menu))
                               (and imenu-generic-skip-comments-and-strings
-                                   (nth 8 (syntax-ppss))))
+                                   (save-excursion
+                                     (goto-char start) (nth 8 (syntax-ppss)))))
 		    (setcdr menu
 			    (cons item (cdr menu)))))
 		;; Go to the start of the match, to make sure we
@@ -831,7 +834,13 @@ depending on PATTERNS."
 	(setcdr item (sort (cdr item) 'imenu--sort-by-position))))
     (let ((main-element (assq nil index-alist)))
       (nconc (delq main-element (delq 'dummy index-alist))
-	     (cdr main-element)))))
+             (cdr main-element)))
+    ;; Remove any empty menus.  That can happen because of skipping
+    ;; things inside comments or strings.
+    (when (consp (car index-alist))
+      (setq index-alist  (cl-delete-if-not
+                          (lambda (it) (cdr it))
+                          index-alist)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;

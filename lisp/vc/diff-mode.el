@@ -216,9 +216,6 @@ when editing big diffs)."
 
 (define-minor-mode diff-auto-refine-mode
   "Toggle automatic diff hunk highlighting (Diff Auto Refine mode).
-With a prefix argument ARG, enable Diff Auto Refine mode if ARG
-is positive, and disable it otherwise.  If called from Lisp,
-enable the mode if ARG is omitted or nil.
 
 Diff Auto Refine mode is a buffer-local minor mode used with
 `diff-mode'.  When enabled, Emacs automatically highlights
@@ -1424,9 +1421,6 @@ a diff with \\[diff-reverse-direction].
 ;;;###autoload
 (define-minor-mode diff-minor-mode
   "Toggle Diff minor mode.
-With a prefix argument ARG, enable Diff minor mode if ARG is
-positive, and disable it otherwise.  If called from Lisp, enable
-the mode if ARG is omitted or nil.
 
 \\{diff-minor-mode-map}"
   :group 'diff-mode :lighter " Diff"
@@ -1874,11 +1868,13 @@ then `diff-jump-to-old-file' is also set, for the next invocations."
   ;; the old location, and else to the new (i.e. as if reverting).
   ;; This is a convenient detail when using smerge-diff.
   (if event (posn-set-point (event-end event)))
-  (let ((rev (not (save-excursion (beginning-of-line) (looking-at "[-<]")))))
+  (let ((buffer (when event (current-buffer)))
+        (rev (not (save-excursion (beginning-of-line) (looking-at "[-<]")))))
     (pcase-let ((`(,buf ,line-offset ,pos ,src ,_dst ,switched)
                  (diff-find-source-location other-file rev)))
       (pop-to-buffer buf)
       (goto-char (+ (car pos) (cdr src)))
+      (when buffer (next-error-found buffer (current-buffer)))
       (diff-hunk-status-msg line-offset (diff-xor rev switched) t))))
 
 

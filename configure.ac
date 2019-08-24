@@ -947,13 +947,13 @@ AS_IF([test $gl_gcc_warnings = no],
   AS_IF([test $gl_gcc_warnings = yes],
     [WERROR_CFLAGS=-Werror])
 
+  nw="$nw -Wcast-align -Wcast-align=strict" # Emacs is tricky with pointers.
   nw="$nw -Wduplicated-branches"    # Too many false alarms
   nw="$nw -Wformat-overflow=2"      # False alarms due to GCC bug 80776
   nw="$nw -Wsystem-headers"         # Don't let system headers trigger warnings
   nw="$nw -Woverlength-strings"     # Not a problem these days
   nw="$nw -Wformat-nonliteral"      # we do this a lot
   nw="$nw -Wvla"                    # Emacs uses <vla.h>.
-  nw="$nw -Wswitch-default"         # Too many warnings for now
   nw="$nw -Wunused-const-variable=2" # lisp.h declares const objects.
   nw="$nw -Winline"                 # OK to ignore 'inline'
   nw="$nw -Wstrict-overflow"        # OK to optimize assuming that
@@ -1220,50 +1220,52 @@ AC_SUBST([FIND_DELETE])
 
 PAXCTL_dumped=
 PAXCTL_notdumped=
-if test $opsys = gnu-linux; then
-  if test "${SETFATTR+set}" != set; then
-    AC_CACHE_CHECK([for setfattr],
-      [emacs_cv_prog_setfattr],
-      [touch conftest.tmp
-       if (setfattr -n user.pax.flags conftest.tmp) >/dev/null 2>&1; then
-	 emacs_cv_prog_setfattr=yes
-       else
-	 emacs_cv_prog_setfattr=no
-       fi])
-    if test "$emacs_cv_prog_setfattr" = yes; then
-      PAXCTL_notdumped='$(SETFATTR) -n user.pax.flags -v er'
-      SETFATTR=setfattr
-    else
-      SETFATTR=
-    fi
-    rm -f conftest.tmp
-    AC_SUBST([SETFATTR])
-  fi
-fi
-case $opsys,$PAXCTL_notdumped,$emacs_uname_r in
-  gnu-linux,,* | netbsd,,[0-7].*)
-    AC_PATH_PROG([PAXCTL], [paxctl], [],
-      [$PATH$PATH_SEPARATOR/sbin$PATH_SEPARATOR/usr/sbin])
-    if test -n "$PAXCTL"; then
-      if test "$opsys" = netbsd; then
-	PAXCTL_dumped='$(PAXCTL) +a'
-	PAXCTL_notdumped=$PAXCTL_dumped
+if test "$CANNOT_DUMP" != yes; then
+  if test $opsys = gnu-linux; then
+    if test "${SETFATTR+set}" != set; then
+      AC_CACHE_CHECK([for setfattr],
+	[emacs_cv_prog_setfattr],
+	[touch conftest.tmp
+	 if (setfattr -n user.pax.flags conftest.tmp) >/dev/null 2>&1; then
+	   emacs_cv_prog_setfattr=yes
+	 else
+	   emacs_cv_prog_setfattr=no
+	 fi])
+      if test "$emacs_cv_prog_setfattr" = yes; then
+	PAXCTL_notdumped='$(SETFATTR) -n user.pax.flags -v er'
+	SETFATTR=setfattr
       else
-	AC_MSG_CHECKING([whether binaries have a PT_PAX_FLAGS header])
-	AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])],
-	  [if $PAXCTL -v conftest$EXEEXT >/dev/null 2>&1; then
-	     AC_MSG_RESULT([yes])
-	   else
-	     AC_MSG_RESULT([no])
-	     PAXCTL=
-	   fi])
-	if test -n "$PAXCTL"; then
-	  PAXCTL_dumped='$(PAXCTL) -zex'
-	  PAXCTL_notdumped='$(PAXCTL) -r'
-	fi
+	SETFATTR=
       fi
-    fi;;
-esac
+      rm -f conftest.tmp
+      AC_SUBST([SETFATTR])
+    fi
+  fi
+  case $opsys,$PAXCTL_notdumped,$emacs_uname_r in
+    gnu-linux,,* | netbsd,,[0-7].*)
+      AC_PATH_PROG([PAXCTL], [paxctl], [],
+	[$PATH$PATH_SEPARATOR/sbin$PATH_SEPARATOR/usr/sbin])
+      if test -n "$PAXCTL"; then
+	if test "$opsys" = netbsd; then
+	  PAXCTL_dumped='$(PAXCTL) +a'
+	  PAXCTL_notdumped=$PAXCTL_dumped
+	else
+	  AC_MSG_CHECKING([whether binaries have a PT_PAX_FLAGS header])
+	  AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])],
+	    [if $PAXCTL -v conftest$EXEEXT >/dev/null 2>&1; then
+	       AC_MSG_RESULT([yes])
+	     else
+	       AC_MSG_RESULT([no])
+	       PAXCTL=
+	     fi])
+	  if test -n "$PAXCTL"; then
+	    PAXCTL_dumped='$(PAXCTL) -zex'
+	    PAXCTL_notdumped='$(PAXCTL) -r'
+	  fi
+	fi
+      fi;;
+  esac
+fi
 AC_SUBST([PAXCTL_dumped])
 AC_SUBST([PAXCTL_notdumped])
 
@@ -1326,39 +1328,6 @@ else
   test "x$NON_GCC_LINK_TEST_OPTIONS" != x && \
     ac_link="$ac_link $NON_GCC_LINK_TEST_OPTIONS"
 fi
-
-dnl We need -znocombreloc if we're using a relatively recent GNU ld.
-dnl If we can link with the flag, it shouldn't do any harm anyhow.
-dnl Treat GCC specially since it just gives a non-fatal 'unrecognized option'
-dnl if not built to support GNU ld.
-
-dnl For a long time, -znocombreloc was added to LDFLAGS rather than
-dnl LD_SWITCH_SYSTEM_TEMACS.  That is:
-dnl * inappropriate, as LDFLAGS is a user option but this is essential.
-dnl   Eg "make LDFLAGS=... all" could run into problems,
-dnl   https://bugs.debian.org/684788
-dnl * unnecessary, since temacs is the only thing that actually needs it.
-dnl   Indeed this is where it was originally, prior to:
-dnl   https://lists.gnu.org/r/emacs-pretest-bug/2004-03/msg00170.html
-if test x$GCC = xyes; then
-  LDFLAGS_NOCOMBRELOC="-Wl,-znocombreloc"
-else
-  LDFLAGS_NOCOMBRELOC="-znocombreloc"
-fi
-
-AC_CACHE_CHECK([for -znocombreloc], [emacs_cv_znocombreloc],
-[late_LDFLAGS="$LDFLAGS"
-LDFLAGS="$LDFLAGS $LDFLAGS_NOCOMBRELOC"
-
-AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])],
-  [emacs_cv_znocombreloc=yes], [emacs_cv_znocombreloc=no])
-
-LDFLAGS="$late_LDFLAGS"])
-
-if test x$emacs_cv_znocombreloc = xno; then
-  LDFLAGS_NOCOMBRELOC=
-fi
-
 
 AC_CACHE_CHECK([whether addresses are sanitized],
   [emacs_cv_sanitize_address],
@@ -2669,7 +2638,7 @@ if test x"$pkg_check_gtk" = xyes; then
        closing open displays.  This is no problem if you just use
        one display, but if you use more than one and close one of them
        Emacs may crash.
-       See https://bugzilla.gnome.org/show_bug.cgi?id=85715]])
+       See https://gitlab.gnome.org/GNOME/gtk/issues/221]])
   fi
 
 fi
@@ -3120,8 +3089,8 @@ if test "${HAVE_X11}" = "yes"; then
     if test "x${with_xft}" != "xno"; then
 
       EMACS_CHECK_MODULES([XFT], [xft >= 0.13.0], [], [HAVE_XFT=no])
-      ## Because xftfont.c uses XRenderQueryExtension, we also
-      ## need to link to -lXrender.
+      ## Because xterm.c uses XRenderQueryExtension when XFT is
+      ## enabled, we also need to link to -lXrender.
       HAVE_XRENDER=no
       AC_CHECK_LIB(Xrender, XRenderQueryExtension, HAVE_XRENDER=yes)
       if test "$HAVE_XFT" != no && test "$HAVE_XRENDER" != no; then
@@ -3144,6 +3113,9 @@ if test "${HAVE_X11}" = "yes"; then
 	CPPFLAGS=$OLD_CPPFLAGS
 	CFLAGS=$OLD_CFLAGS
 	LIBS=$OLD_LIBS
+      else
+      # Make sure XFT is disabled if we found XFT but not XRender
+	HAVE_XFT=no
       fi                          # "$HAVE_XFT" != no
     fi                            # "x${with_xft}" != "xno"
 
@@ -5220,19 +5192,25 @@ esac
 AC_CACHE_CHECK(
   [for $CC option to disable position independent executables],
   [emacs_cv_prog_cc_no_pie],
-  [emacs_save_c_werror_flag=$ac_c_werror_flag
-   emacs_save_LDFLAGS=$LDFLAGS
-   ac_c_werror_flag=yes
-   for emacs_cv_prog_cc_no_pie in -no-pie -nopie no; do
-     test $emacs_cv_prog_cc_no_pie = no && break
-     LDFLAGS="$emacs_save_LDFLAGS $emacs_cv_prog_cc_no_pie"
-     AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])], [break])
-   done
-   ac_c_werror_flag=$emacs_save_c_werror_flag
-   LDFLAGS=$emacs_save_LDFLAGS])
-if test "$emacs_cv_prog_cc_no_pie" != no; then
-  LD_SWITCH_SYSTEM_TEMACS="$LD_SWITCH_SYSTEM_TEMACS $emacs_cv_prog_cc_no_pie"
-fi
+  [if test "$CANNOT_DUMP" = yes; then
+     emacs_cv_prog_cc_no_pie='not needed'
+   else
+     emacs_save_c_werror_flag=$ac_c_werror_flag
+     emacs_save_LDFLAGS=$LDFLAGS
+     ac_c_werror_flag=yes
+     for emacs_cv_prog_cc_no_pie in -no-pie -nopie no; do
+       test $emacs_cv_prog_cc_no_pie = no && break
+       LDFLAGS="$emacs_save_LDFLAGS $emacs_cv_prog_cc_no_pie"
+       AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])], [break])
+     done
+     ac_c_werror_flag=$emacs_save_c_werror_flag
+     LDFLAGS=$emacs_save_LDFLAGS
+   fi])
+case $emacs_cv_prog_cc_no_pie in
+  -*)
+    LD_SWITCH_SYSTEM_TEMACS="$LD_SWITCH_SYSTEM_TEMACS $emacs_cv_prog_cc_no_pie"
+    ;;
+esac
 
 if test x$ac_enable_profiling != x ; then
   case $opsys in
@@ -5240,8 +5218,6 @@ if test x$ac_enable_profiling != x ; then
     *) LD_SWITCH_SYSTEM_TEMACS="$LD_SWITCH_SYSTEM_TEMACS -pg" ;;
   esac
 fi
-
-LD_SWITCH_SYSTEM_TEMACS="$LDFLAGS_NOCOMBRELOC $LD_SWITCH_SYSTEM_TEMACS"
 
 AC_SUBST(LD_SWITCH_SYSTEM_TEMACS)
 

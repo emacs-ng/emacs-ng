@@ -1038,6 +1038,9 @@ See `bibtex-generate-autokey' for details."
   :type '(repeat (cons (regexp :tag "Old")
                        (string :tag "New"))))
 
+(defvaralias 'bibtex-autokey-name-case-convert
+  'bibtex-autokey-name-case-convert-function)
+
 (defcustom bibtex-autokey-name-case-convert-function 'downcase
   "Function called for each name to perform case conversion.
 See `bibtex-generate-autokey' for details."
@@ -1049,8 +1052,6 @@ See `bibtex-generate-autokey' for details."
                  (function :tag "Conversion function")))
 (put 'bibtex-autokey-name-case-convert-function 'safe-local-variable
      (lambda (x) (memq x '(upcase downcase capitalize identity))))
-(defvaralias 'bibtex-autokey-name-case-convert
-  'bibtex-autokey-name-case-convert-function)
 
 (defcustom bibtex-autokey-name-length 'infty
   "Number of characters from name to incorporate into key.
@@ -1113,6 +1114,9 @@ Case is significant.  See `bibtex-generate-autokey' for details."
   :group 'bibtex-autokey
   :type '(repeat regexp))
 
+(defvaralias 'bibtex-autokey-titleword-case-convert
+  'bibtex-autokey-titleword-case-convert-function)
+
 (defcustom bibtex-autokey-titleword-case-convert-function 'downcase
   "Function called for each titleword to perform case conversion.
 See `bibtex-generate-autokey' for details."
@@ -1122,8 +1126,6 @@ See `bibtex-generate-autokey' for details."
                  (const :tag "Capitalize" capitalize)
                  (const :tag "Upcase" upcase)
                  (function :tag "Conversion function")))
-(defvaralias 'bibtex-autokey-titleword-case-convert
-  'bibtex-autokey-titleword-case-convert-function)
 
 (defcustom bibtex-autokey-titleword-abbrevs nil
   "Determines exceptions to the usual abbreviation mechanism.
@@ -2343,7 +2345,8 @@ Formats current entry according to variable `bibtex-entry-format'."
                 (when (memq 'sort-fields format)
                   (goto-char (point-min))
                   (let ((beg-fields (save-excursion (bibtex-beginning-first-field)))
-                        (fields-alist (bibtex-parse-entry))
+                        (fields-alist (bibtex-parse-entry
+                                       nil (not (memq 'opts-or-alts format))))
                         bibtex-help-message elt)
                     (delete-region beg-fields (point))
                     (dolist (field default-field-list)
@@ -2365,7 +2368,8 @@ Formats current entry according to variable `bibtex-entry-format'."
                        (end-text  (copy-marker (bibtex-end-of-text-in-field bounds) t))
                        (empty-field (equal "" (bibtex-text-in-field-bounds bounds t)))
                        (field-name (buffer-substring-no-properties beg-name end-name))
-                       (opt-alt   (and (string-match "\\`\\(OPT\\|ALT\\)" field-name)
+                       (opt-alt   (and (memq 'opts-or-alts format)
+                                       (string-match "\\`\\(OPT\\|ALT\\)" field-name)
                                        (not (and bibtex-no-opt-remove-re
                                                  (string-match bibtex-no-opt-remove-re
                                                                field-name)))))
@@ -3639,20 +3643,20 @@ When called interactively with a prefix arg, query for a value of ENTRY-TYPE."
         (mapc 'bibtex-make-field required)
         (mapc 'bibtex-make-optional-field optional)))))
 
-(defun bibtex-parse-entry (&optional content)
+(defun bibtex-parse-entry (&optional content keep-opt-alt)
   "Parse entry at point, return an alist.
 The alist elements have the form (FIELD . TEXT), where FIELD can also be
 the special strings \"=type=\" and \"=key=\".  For the FIELD \"=key=\"
-TEXT may be nil.  Remove \"OPT\" and \"ALT\" from FIELD.
-Move point to the end of the last field.
-If optional arg CONTENT is non-nil extract content of text fields."
+TEXT may be nil.  Move point to the end of the last field.
+If optional arg CONTENT is non-nil extract content of text fields.
+Remove \"OPT\" and \"ALT\" from FIELD unless KEEP-OPT-ALT is non-nil."
   (let (alist bounds)
     (when (looking-at bibtex-entry-maybe-empty-head)
       (push (cons "=type=" (bibtex-type-in-head)) alist)
       (push (cons "=key=" (bibtex-key-in-head)) alist)
       (goto-char (match-end 0))
       (while (setq bounds (bibtex-parse-field))
-	(push (cons (bibtex-name-in-field bounds t)
+	(push (cons (bibtex-name-in-field bounds (not keep-opt-alt))
 		    (bibtex-text-in-field-bounds bounds content))
 	      alist)
 	(goto-char (bibtex-end-of-field bounds))))
@@ -3846,11 +3850,13 @@ Return the new location of point."
       (re-search-forward "[\n\C-m]" nil 'end (1- arg))
     (forward-line (1- arg))))
 
-(defun bibtex-reposition-window ()
+(defun bibtex-reposition-window (&optional pos)
   "Make the current BibTeX entry visible.
 If entry is smaller than `window-body-height', entry is centered in window.
-Otherwise display the beginning of entry."
+Otherwise display the beginning of entry.
+Optional arg POS is the position of the BibTeX entry to use."
   (interactive)
+  (if pos (goto-char pos))
   (let ((pnt (point))
         (beg (line-number-at-pos (bibtex-beginning-of-entry)))
         (end (line-number-at-pos (bibtex-end-of-entry))))
@@ -3869,9 +3875,10 @@ Otherwise display the beginning of entry."
         (goto-char pnt)))))
 
 (defun bibtex-mark-entry ()
-  "Put mark at beginning, point at end of current BibTeX entry."
+  "Put mark at beginning, point at end of current BibTeX entry.
+Activate mark in Transient Mark mode."
   (interactive)
-  (push-mark (bibtex-beginning-of-entry) :activate t)
+  (push-mark (bibtex-beginning-of-entry) t t)
   (bibtex-end-of-entry))
 
 (defun bibtex-count-entries (&optional count-string-entries)
@@ -4058,8 +4065,7 @@ for a crossref key, t otherwise."
                (message "Key `%s' is current entry" crossref-key)
              (if eqb (select-window (split-window))
                (pop-to-buffer buffer))
-             (goto-char pos)
-             (bibtex-reposition-window)
+             (bibtex-reposition-window pos)
              (beginning-of-line)
              (if (and eqb (> pnt pos) (not noerror))
                  (error "The referencing entry must precede the crossrefed entry!"))))
@@ -4105,11 +4111,16 @@ A prefix arg negates the value of `bibtex-search-entry-globally'."
                     (setq buffer (pop buffer-list)))
           (with-current-buffer buffer
             (if (cdr (assoc-string key bibtex-reference-keys))
-                ;; `bibtex-search-entry' moves point if key found
                 (setq found (bibtex-search-entry key)))))
         (cond ((and found display)
-	       (switch-to-buffer buffer)
-	       (bibtex-reposition-window))
+               ;; If possible, reuse the window displaying BUFFER.
+               (let ((window (get-buffer-window buffer t)))
+                 (if window
+                     (progn
+                       (select-frame-set-input-focus (window-frame window))
+                       (select-window window))
+	           (switch-to-buffer buffer)))
+	       (bibtex-reposition-window found))
               (found (set-buffer buffer))
               (display (message "Key `%s' not found" key)))
         found)

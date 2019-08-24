@@ -2192,6 +2192,11 @@ x_set_no_accept_focus (struct frame *f, Lisp_Object new_value, Lisp_Object old_v
  *
  * Some window managers may not honor this parameter.  The value `below'
  * is not supported on Windows.
+ *
+ * Internally, this function also handles a value 'above-suspended'.
+ * That value is used to temporarily remove F from the 'above' group
+ * to make sure that it does not obscure the window of a dialog in
+ * progress.
  */
 static void
 x_set_z_group (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
@@ -4545,13 +4550,13 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	  set_ime_composition_window_fn (context, &form);
 	  release_ime_context_fn (hwnd, context);
 	}
-      /* We should "goto dflt" here to pass WM_IME_STARTCOMPOSITION to
-	 DefWindowProc, so that the composition window will actually
-	 be displayed.  But doing so causes trouble with displaying
-	 dialog boxes, such as the file selection dialog or font
-	 selection dialog.  So something else is needed to fix the
-	 former without breaking the latter.  See bug#11732.  */
-      break;
+      /* FIXME: somehow "goto dflt" here instead of "break" causes
+	 popup dialogs, such as the ones shown by File->Open File and
+	 w32-select-font, to become hidden behind their parent frame,
+	 when focus-follows-mouse is in effect.  See bug#11732.  But
+	 if we don't "goto dflt", users of IME cannot type text
+	 supported by the input method...  */
+      goto dflt;
 
     case WM_IME_ENDCOMPOSITION:
       ignore_ime_char = 0;
@@ -6296,7 +6301,7 @@ w32_monitor_enum (HMONITOR monitor, HDC hdc, RECT *rcMonitor, LPARAM dwData)
 {
   Lisp_Object *monitor_list = (Lisp_Object *) dwData;
 
-  *monitor_list = Fcons (make_save_ptr (monitor), *monitor_list);
+  *monitor_list = Fcons (make_mint_ptr (monitor), *monitor_list);
 
   return TRUE;
 }
@@ -6325,7 +6330,7 @@ w32_display_monitor_attributes_list (void)
   monitors = xmalloc (n_monitors * sizeof (*monitors));
   for (i = 0; i < n_monitors; i++)
     {
-      monitors[i] = XSAVE_POINTER (XCAR (monitor_list), 0);
+      monitors[i] = xmint_pointer (XCAR (monitor_list));
       monitor_list = XCDR (monitor_list);
     }
 
@@ -7583,12 +7588,27 @@ file_dialog_callback (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
   return 0;
 }
 
+/**
+ * w32_dialog_in_progress:
+ *
+ * This function is called by Fx_file_dialog and Fx_select_font and
+ * serves to temporarily remove any Emacs frame currently in the
+ * 'above' z-group from that group to assure that such a frame does
+ * not hide the dialog window.  Frames that are temporarily removed
+ * from the 'above' group have their z_group bit-field set to
+ * z_group_above_suspended.  Any such frame is moved back to the
+ * 'above' group as soon as the dialog finishes and has its z_group
+ * bit-field reset to z_group_above.
+ *
+ * This function does not affect the z-order or the z-group state of
+ * the dialog window itself.
+ */
 void
 w32_dialog_in_progress (Lisp_Object in_progress)
 {
   Lisp_Object frames, frame;
 
-  /* Don't let frames in `above' z-group obscure popups.  */
+  /* Don't let frames in `above' z-group obscure dialog windows.  */
   FOR_EACH_FRAME (frames, frame)
     {
       struct frame *f = XFRAME (frame);
@@ -8542,7 +8562,7 @@ DEFUN ("w32-unregister-hot-key", Fw32_unregister_hot_key,
       eassert (CONSP (item));
       /* Pass the tail of the list as a pointer to a Lisp_Cons cell,
 	 so that it works in a --with-wide-int build as well.  */
-      lparam = (LPARAM) XUNTAG (item, Lisp_Cons);
+      lparam = (LPARAM) XUNTAG (item, Lisp_Cons, struct Lisp_Cons);
 
       /* Notify input thread about hot-key definition being removed, so
 	 that it takes effect without needing focus switch.  */
@@ -10059,6 +10079,78 @@ DEFUN ("w32-notification-close",
 #endif	/* WINDOWSNT && !HAVE_DBUS */
 
 
+#ifdef WINDOWSNT
+/***********************************************************************
+			  Reading Registry
+ ***********************************************************************/
+DEFUN ("w32-read-registry",
+       Fw32_read_registry, Sw32_read_registry,
+       3, 3, 0,
+       doc: /* Return the value stored in MS-Windows Registry under ROOT/KEY/NAME.
+
+ROOT is a symbol, one of `HKCR', `HKCU', `HKLM', `HKU', or `HKCC'.
+It can also be nil, which means try `HKCU', and if that fails, try `HKLM'.
+
+KEY and NAME must be strings, and NAME must not include slashes.
+KEY can use either forward- or back-slashes.
+
+If the the named KEY or its subkey called NAME don't exist, or cannot
+be accessed by the current user, the function returns nil.  Otherwise,
+the return value depends on the type of the data stored in Registry:
+
+  If the data type is REG_NONE, the function returns t.
+  If the data type is REG_DWORD or REG_QWORD, the function returns
+    its integer value.  If the value is too large for a Lisp integer,
+    the function returns a cons (HIGH . LOW) of 2 integers, with LOW
+    the low 16 bits and HIGH the high bits.  If HIGH is too large for
+    a Lisp integer, the function returns (HIGH MIDDLE . LOW), first
+    the high bits, then the middle 24 bits, and finally the low 16 bits.
+  If the data type is REG_BINARY, the function returns a vector whose
+    elements are individual bytes of the value.
+  If the data type is REG_SZ, the function returns a string.
+  If the data type REG_EXPAND_SZ, the function returns a string with
+    all the %..% references to environment variables replaced by the
+    values of those variables.  If the expansion fails, or some
+    variables are not defined in the environment, some or all of
+    the environment variables will remain unexpanded.
+  If the data type is REG_MULTI_SZ, the function returns a list whose
+    elements are the individual strings.
+
+Note that this function doesn't know whether a string value is a file
+name, so file names will be returned with backslashes, which may need
+to be converted to forward slashes by the caller.  */)
+  (Lisp_Object root, Lisp_Object key, Lisp_Object name)
+{
+  CHECK_SYMBOL (root);
+  CHECK_STRING (key);
+  CHECK_STRING (name);
+
+  HKEY rootkey;
+  if (EQ (root, QHKCR))
+    rootkey = HKEY_CLASSES_ROOT;
+  else if (EQ (root, QHKCU))
+    rootkey = HKEY_CURRENT_USER;
+  else if (EQ (root, QHKLM))
+    rootkey = HKEY_LOCAL_MACHINE;
+  else if (EQ (root, QHKU))
+    rootkey = HKEY_USERS;
+  else if (EQ (root, QHKCC))
+    rootkey = HKEY_CURRENT_CONFIG;
+  else if (!NILP (root))
+    error ("unknown root key: %s", SDATA (SYMBOL_NAME (root)));
+
+  Lisp_Object val = w32_read_registry (NILP (root)
+				       ? HKEY_CURRENT_USER
+				       : rootkey,
+				       key, name);
+  if (NILP (val) && NILP (root))
+    val = w32_read_registry (HKEY_LOCAL_MACHINE, key, name);
+
+  return val;
+}
+
+#endif	/* WINDOWSNT */
+
 /***********************************************************************
 			    Initialization
  ***********************************************************************/
@@ -10149,6 +10241,14 @@ syms_of_w32fns (void)
   DEFSYM (Qwarning, "warning");
   DEFSYM (QCtitle, ":title");
   DEFSYM (QCbody, ":body");
+#endif
+
+#ifdef WINDOWSNT
+  DEFSYM (QHKCR, "HKCR");
+  DEFSYM (QHKCU, "HKCU");
+  DEFSYM (QHKLM, "HKLM");
+  DEFSYM (QHKU,  "HKU");
+  DEFSYM (QHKCC, "HKCC");
 #endif
 
   /* Symbols used elsewhere, but only in MS-Windows-specific code.  */
@@ -10508,6 +10608,7 @@ tip frame.  */);
 #endif
 
 #ifdef WINDOWSNT
+  defsubr (&Sw32_read_registry);
   defsubr (&Sfile_system_info);
   defsubr (&Sdefault_printer_name);
 #endif

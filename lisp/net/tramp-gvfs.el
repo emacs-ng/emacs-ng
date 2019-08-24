@@ -49,10 +49,7 @@
 
 ;; The user option `tramp-gvfs-methods' contains the list of supported
 ;; connection methods.  Per default, these are "afp", "dav", "davs",
-;; "gdrive", "obex", "owncloud", "sftp" and "synce".  Note that with
-;; "obex" it might be necessary to pair with the other bluetooth
-;; device, if it hasn't been done already.  There might be also some
-;; few seconds delay in discovering available bluetooth devices.
+;; "gdrive", "owncloud" and "sftp".
 
 ;; "gdrive" and "owncloud" connection methods require a respective
 ;; account in GNOME Online Accounts, with enabled "Files" service.
@@ -83,18 +80,14 @@
 ;; request an additional connection method to be supported, please
 ;; drop me a note.
 
-;; For hostname completion, information is retrieved either from the
-;; bluez daemon (for the "obex" method), the hal daemon (for the
-;; "synce" method), or from the zeroconf daemon (for the "afp", "dav",
-;; "davs", and "sftp" methods).  The zeroconf daemon is pre-configured
-;; to discover services in the "local" domain.  If another domain
-;; shall be used for discovering services, the user option
-;; `tramp-gvfs-zeroconf-domain' can be set accordingly.
+;; For hostname completion, information is retrieved from the zeroconf
+;; daemon (for the "afp", "dav", "davs", and "sftp" methods).  The
+;; zeroconf daemon is pre-configured to discover services in the
+;; "local" domain.  If another domain shall be used for discovering
+;; services, the user option `tramp-gvfs-zeroconf-domain' can be set
+;; accordingly.
 
 ;; Restrictions:
-
-;; * The current GVFS implementation does not allow writing on the
-;;   remote bluetooth device via OBEX.
 ;;
 ;; * Two shares of the same SMB server cannot be mounted in parallel.
 
@@ -128,10 +121,10 @@
 
 ;;;###tramp-autoload
 (defcustom tramp-gvfs-methods
-  '("afp" "dav" "davs" "gdrive" "obex" "owncloud" "sftp" "synce")
+  '("afp" "dav" "davs" "gdrive" "owncloud" "sftp")
   "List of methods for remote files, accessed with GVFS."
   :group 'tramp
-  :version "26.1"
+  :version "27.1"
   :type '(repeat (choice (const "afp")
 			 (const "dav")
 			 (const "davs")
@@ -139,12 +132,9 @@
 			 (const "gdrive")
 			 (const "http")
 			 (const "https")
-			 (const "obex")
 			 (const "owncloud")
 			 (const "sftp")
-			 (const "smb")
-			 (const "synce")))
-  :require 'tramp)
+			 (const "smb"))))
 
 (defconst tramp-goa-methods '("gdrive" "owncloud")
   "List of methods which require registration at GNOME Online Accounts.")
@@ -163,16 +153,13 @@
 	       `("\\`gdrive\\'" nil ,(match-string 1 user-mail-address)))
   (add-to-list 'tramp-default-host-alist
 	       '("\\`gdrive\\'" nil ,(match-string 2 user-mail-address))))
-;;;###tramp-autoload
-(add-to-list 'tramp-default-user-alist '("\\`synce\\'" nil nil))
 
 ;;;###tramp-autoload
 (defcustom tramp-gvfs-zeroconf-domain "local"
   "Zeroconf domain to be used for discovering services, like host names."
   :group 'tramp
   :version "23.2"
-  :type 'string
-  :require 'tramp)
+  :type 'string)
 
 ;; Add the methods to `tramp-methods', in order to allow minibuffer
 ;; completion.
@@ -465,133 +452,6 @@ It has been changed in GVFS 1.14.")
 ;; in order to be compatible with Emacs 24 and 25.
 (cl-defstruct (tramp-goa-name (:type list) :named) method user host port)
 
-(defconst tramp-bluez-service "org.bluez"
-  "The well known name of the BLUEZ service.")
-
-(defconst tramp-bluez-interface-manager "org.bluez.Manager"
-  "The manager interface of the BLUEZ daemon.")
-
-;; <interface name='org.bluez.Manager'>
-;;   <method name='DefaultAdapter'>
-;;     <arg type='o' direction='out'/>
-;;   </method>
-;;   <method name='FindAdapter'>
-;;     <arg type='s' direction='in'/>
-;;     <arg type='o' direction='out'/>
-;;   </method>
-;;   <method name='ListAdapters'>
-;;     <arg type='ao' direction='out'/>
-;;   </method>
-;;   <signal name='AdapterAdded'>
-;;     <arg type='o'/>
-;;   </signal>
-;;   <signal name='AdapterRemoved'>
-;;     <arg type='o'/>
-;;   </signal>
-;;   <signal name='DefaultAdapterChanged'>
-;;     <arg type='o'/>
-;;   </signal>
-;; </interface>
-
-(defconst tramp-bluez-interface-adapter "org.bluez.Adapter"
-  "The adapter interface of the BLUEZ daemon.")
-
-;; <interface name='org.bluez.Adapter'>
-;;   <method name='GetProperties'>
-;;     <arg type='a{sv}' direction='out'/>
-;;   </method>
-;;   <method name='SetProperty'>
-;;     <arg type='s' direction='in'/>
-;;     <arg type='v' direction='in'/>
-;;   </method>
-;;   <method name='RequestMode'>
-;;     <arg type='s' direction='in'/>
-;;   </method>
-;;   <method name='ReleaseMode'/>
-;;   <method name='RequestSession'/>
-;;   <method name='ReleaseSession'/>
-;;   <method name='StartDiscovery'/>
-;;   <method name='StopDiscovery'/>
-;;   <method name='ListDevices'>
-;;     <arg type='ao' direction='out'/>
-;;   </method>
-;;   <method name='CreateDevice'>
-;;     <arg type='s' direction='in'/>
-;;     <arg type='o' direction='out'/>
-;;   </method>
-;;   <method name='CreatePairedDevice'>
-;;     <arg type='s' direction='in'/>
-;;     <arg type='o' direction='in'/>
-;;     <arg type='s' direction='in'/>
-;;     <arg type='o' direction='out'/>
-;;   </method>
-;;   <method name='CancelDeviceCreation'>
-;;     <arg type='s' direction='in'/>
-;;   </method>
-;;   <method name='RemoveDevice'>
-;;     <arg type='o' direction='in'/>
-;;   </method>
-;;   <method name='FindDevice'>
-;;     <arg type='s' direction='in'/>
-;;     <arg type='o' direction='out'/>
-;;   </method>
-;;   <method name='RegisterAgent'>
-;;     <arg type='o' direction='in'/>
-;;     <arg type='s' direction='in'/>
-;;   </method>
-;;   <method name='UnregisterAgent'>
-;;     <arg type='o' direction='in'/>
-;;   </method>
-;;   <signal name='DeviceCreated'>
-;;     <arg type='o'/>
-;;   </signal>
-;;   <signal name='DeviceRemoved'>
-;;     <arg type='o'/>
-;;   </signal>
-;;   <signal name='DeviceFound'>
-;;     <arg type='s'/>
-;;     <arg type='a{sv}'/>
-;;   </signal>
-;;   <signal name='PropertyChanged'>
-;;     <arg type='s'/>
-;;     <arg type='v'/>
-;;   </signal>
-;;   <signal name='DeviceDisappeared'>
-;;     <arg type='s'/>
-;;   </signal>
-;; </interface>
-
-;;;###tramp-autoload
-(defcustom tramp-bluez-discover-devices-timeout 60
-  "Defines seconds since last bluetooth device discovery before rescanning.
-A value of 0 would require an immediate discovery during hostname
-completion, nil means to use always cached values for discovered
-devices."
-  :group 'tramp
-  :version "23.2"
-  :type '(choice (const nil) integer)
-  :require 'tramp)
-
-(defvar tramp-bluez-discovery nil
-  "Indicator for a running bluetooth device discovery.
-It keeps the timestamp of last discovery.")
-
-(defvar tramp-bluez-devices nil
-  "Alist of detected bluetooth devices.
-Every entry is a list (NAME ADDRESS).")
-
-(defconst tramp-hal-service "org.freedesktop.Hal"
-  "The well known name of the HAL service.")
-
-(defconst tramp-hal-path-manager "/org/freedesktop/Hal/Manager"
-  "The object path of the HAL daemon manager.")
-
-(defconst tramp-hal-interface-manager "org.freedesktop.Hal.Manager"
-  "The manager interface of the HAL daemon.")
-
-(defconst tramp-hal-interface-device "org.freedesktop.Hal.Device"
-  "The device interface of the HAL daemon.")
-
 ;; "gvfs-<command>" utilities have been deprecated in GVFS 1.31.1.  We
 ;; must use "gio <command>" tool instead.
 (defconst tramp-gvfs-gio-mapping
@@ -676,6 +536,7 @@ Every entry is a list (NAME ADDRESS).")
      . tramp-handle-directory-files-and-attributes)
     (dired-compress-file . ignore)
     (dired-uncache . tramp-handle-dired-uncache)
+    (exec-path . ignore)
     (expand-file-name . tramp-gvfs-handle-expand-file-name)
     (file-accessible-directory-p . tramp-handle-file-accessible-directory-p)
     (file-acl . ignore)
@@ -1057,8 +918,7 @@ file names."
       ;; No tilde characters in file name, do normal
       ;; `expand-file-name' (this does "/./" and "/../").
       (tramp-make-tramp-file-name
-       method user domain host port
-       (tramp-run-real-handler 'expand-file-name (list localname))))))
+       v (tramp-run-real-handler 'expand-file-name (list localname))))))
 
 (defun tramp-gvfs-get-directory-attributes (directory)
   "Return GVFS attributes association list of all files in DIRECTORY."
@@ -1158,6 +1018,18 @@ If FILE-SYSTEM is non-nil, return file system attributes."
 	(setq dirp (if (equal "directory" (cdr (assoc "type" attributes))) t))
 	(setq res-symlink-target
 	      (cdr (assoc "standard::symlink-target" attributes)))
+	(when (stringp res-symlink-target)
+	  (setq res-symlink-target
+		;; Parse unibyte codes "\xNN".  We assume they are
+		;; non-ASCII codepoints in the range #x80 through #xff.
+		;; Convert them to multibyte.
+		(decode-coding-string
+		 (replace-regexp-in-string
+		  "\\\\x\\([[:xdigit:]]\\{2\\}\\)"
+		  (lambda (x)
+		    (unibyte-string (string-to-number (match-string 1 x) 16)))
+		  res-symlink-target)
+		 'utf-8)))
 	;; ... number links
 	(setq res-numlinks
 	      (string-to-number
@@ -1667,8 +1539,6 @@ file-notify events."
 		   (cadr (assoc "uri" (cadr mount-spec))))))
 	(when (string-match "^\\(afp\\|smb\\)" method)
 	  (setq method (match-string 1 method)))
-	(when (string-equal "obex" method)
-	  (setq host (tramp-bluez-device host)))
 	(when (and (string-equal "dav" method) (string-equal "true" ssl))
 	  (setq method "davs"))
 	(when (and (string-equal "davs" method)
@@ -1683,18 +1553,19 @@ file-notify events."
 		user (url-user uri)
 		host (url-host uri)
 		port (url-portspec uri)))
-	(with-parsed-tramp-file-name
-	    (tramp-make-tramp-file-name method user domain host port "") nil
-	  (tramp-message
-	   v 6 "%s %s"
-	   signal-name (tramp-gvfs-stringify-dbus-message mount-info))
-	  (tramp-flush-file-property v "/" "list-mounts")
-	  (if (string-equal (downcase signal-name) "unmounted")
-	      (tramp-flush-file-properties v "/")
-	    ;; Set mountpoint and location.
-	    (tramp-set-file-property v "/" "fuse-mountpoint" fuse-mountpoint)
-	    (tramp-set-connection-property
-	     v "default-location" default-location)))))))
+	(when (member method tramp-gvfs-methods)
+	  (with-parsed-tramp-file-name
+	      (tramp-make-tramp-file-name method user domain host port "") nil
+	    (tramp-message
+	     v 6 "%s %s"
+	     signal-name (tramp-gvfs-stringify-dbus-message mount-info))
+	    (tramp-flush-file-property v "/" "list-mounts")
+	    (if (string-equal (downcase signal-name) "unmounted")
+		(tramp-flush-file-properties v "/")
+	      ;; Set mountpoint and location.
+	      (tramp-set-file-property v "/" "fuse-mountpoint" fuse-mountpoint)
+	      (tramp-set-connection-property
+	       v "default-location" default-location))))))))
 
 (when tramp-gvfs-enabled
   (dbus-register-signal
@@ -1758,8 +1629,6 @@ file-notify events."
 		       (cadr (assoc "volume" (cadr mount-spec)))))))
 	 (when (string-match "^\\(afp\\|smb\\)" method)
 	   (setq method (match-string 1 method)))
-	 (when (string-equal "obex" method)
-	   (setq host (tramp-bluez-device host)))
 	 (when (and (string-equal "dav" method) (string-equal "true" ssl))
 	   (setq method "davs"))
 	 (when (and (string-equal "davs" method)
@@ -1768,8 +1637,6 @@ file-notify events."
 	   (setq method "owncloud"))
 	 (when (string-equal "google-drive" method)
 	   (setq method "gdrive"))
-	 (when (and (string-equal "synce" method) (zerop (length user)))
-	   (setq user (or (tramp-file-name-user vec) "")))
 	 (when (and (string-equal "http" method) (stringp uri))
 	   (setq uri (url-generic-parse-url uri)
 		 method (url-type uri)
@@ -1829,10 +1696,6 @@ It was \"a(say)\", but has changed to \"a{sv})\"."
                 (list (tramp-gvfs-mount-spec-entry "type" "smb-share")
                       (tramp-gvfs-mount-spec-entry "server" host)
                       (tramp-gvfs-mount-spec-entry "share" share)))
-               ((string-equal "obex" method)
-                (list (tramp-gvfs-mount-spec-entry "type" method)
-                      (tramp-gvfs-mount-spec-entry
-                       "host" (concat "[" (tramp-bluez-address host) "]"))))
                ((string-match "^dav\\|^owncloud" method)
                 (list (tramp-gvfs-mount-spec-entry "type" "dav")
                       (tramp-gvfs-mount-spec-entry "host" host)
@@ -1876,20 +1739,15 @@ It was \"a(say)\", but has changed to \"a{sv})\"."
   "The uid of the remote connection VEC, in ID-FORMAT.
 ID-FORMAT valid values are `string' and `integer'."
   (with-tramp-connection-property vec (format "uid-%s" id-format)
-    (let ((method (tramp-file-name-method vec))
-	  (user (tramp-file-name-user vec))
-	  (domain (tramp-file-name-domain vec))
-	  (host (tramp-file-name-host vec))
-	  (port (tramp-file-name-port vec))
+    (let ((user (tramp-file-name-user vec))
 	  (localname
 	   (tramp-get-connection-property vec "default-location" nil)))
       (cond
-       ((and user (equal id-format 'string)) user)
+       ((and (equal id-format 'string) user))
        (localname
 	(tramp-compat-file-attribute-user-id
 	 (file-attributes
-	  (tramp-make-tramp-file-name method user domain host port localname)
-	  id-format)))
+	  (tramp-make-tramp-file-name vec localname) id-format)))
        ((equal id-format 'integer) tramp-unknown-id-integer)
        ((equal id-format 'string) tramp-unknown-id-string)))))
 
@@ -1897,19 +1755,13 @@ ID-FORMAT valid values are `string' and `integer'."
   "The gid of the remote connection VEC, in ID-FORMAT.
 ID-FORMAT valid values are `string' and `integer'."
   (with-tramp-connection-property vec (format "gid-%s" id-format)
-    (let ((method (tramp-file-name-method vec))
-	  (user (tramp-file-name-user vec))
-	  (domain (tramp-file-name-domain vec))
-	  (host (tramp-file-name-host vec))
-	  (port (tramp-file-name-port vec))
-	  (localname
+    (let ((localname
 	   (tramp-get-connection-property vec "default-location" nil)))
       (cond
        (localname
 	(tramp-compat-file-attribute-group-id
 	 (file-attributes
-	  (tramp-make-tramp-file-name method user domain host port localname)
-	  id-format)))
+	  (tramp-make-tramp-file-name vec localname) id-format)))
        ((equal id-format 'integer) tramp-unknown-id-integer)
        ((equal id-format 'string) tramp-unknown-id-string)))))
 
@@ -1951,15 +1803,12 @@ connection if a previous connection has died for some reason."
       (set-process-query-on-exit-flag p nil)))
 
   (unless (tramp-gvfs-connection-mounted-p vec)
-    (let* ((method (tramp-file-name-method vec))
-	   (user (tramp-file-name-user vec))
-	   (domain (tramp-file-name-domain vec))
-	   (host (tramp-file-name-host vec))
-	   (port (tramp-file-name-port vec))
-	   (localname (tramp-file-name-unquote-localname vec))
-	   (object-path
-	    (tramp-gvfs-object-path
-	     (tramp-make-tramp-file-name method user domain host port ""))))
+    (let ((method (tramp-file-name-method vec))
+	  (user (tramp-file-name-user vec))
+	  (host (tramp-file-name-host vec))
+	  (localname (tramp-file-name-unquote-localname vec))
+	  (object-path
+	   (tramp-gvfs-object-path (tramp-make-tramp-file-name vec 'noloc))))
 
       (when (and (string-equal method "afp")
 		 (string-equal localname "/"))
@@ -2040,6 +1889,9 @@ connection if a previous connection has died for some reason."
 	(when (string-equal
 	       (tramp-get-file-property vec "/" "fuse-mountpoint" "") "/")
 	  (tramp-error vec 'file-error "FUSE mount denied"))
+
+	;; Save the password.
+	(ignore-errors (funcall tramp-password-save-function))
 
 	;; Set connection-local variables.
 	(tramp-set-connection-local-variables vec)
@@ -2142,103 +1994,6 @@ VEC is used only for traces."
 	     (tramp-get-connection-property key "Uri" "file:///"))))))))))
 
 
-;; D-Bus BLUEZ functions.
-
-(defun tramp-bluez-address (device)
-  "Return bluetooth device address from a given bluetooth DEVICE name."
-  (when (stringp device)
-    (if (string-match tramp-ipv6-regexp device)
-	(match-string 0 device)
-      (cadr (assoc device (tramp-bluez-list-devices))))))
-
-(defun tramp-bluez-device (address)
-  "Return bluetooth device name from a given bluetooth device ADDRESS.
-ADDRESS can have the form \"xx:xx:xx:xx:xx:xx\" or \"[xx:xx:xx:xx:xx:xx]\"."
-  (when (stringp address)
-    (while (string-match "[][]" address)
-      (setq address (replace-match "" t t address)))
-    (let (result)
-      (dolist (item (tramp-bluez-list-devices) result)
-	(when (string-match address (cadr item))
-	  (setq result (car item)))))))
-
-(defun tramp-bluez-list-devices ()
-  "Return all discovered bluetooth devices as list.
-Every entry is a list (NAME ADDRESS).
-
-If `tramp-bluez-discover-devices-timeout' is an integer, and the last
-discovery happened more time before indicated there, a rescan will be
-started, which lasts some ten seconds.  Otherwise, cached results will
-be used."
-  ;; Reset the scanned devices list if time has passed.
-  (and (integerp tramp-bluez-discover-devices-timeout)
-       (integerp tramp-bluez-discovery)
-       (> (tramp-time-diff (current-time) tramp-bluez-discovery)
-	  tramp-bluez-discover-devices-timeout)
-       (setq tramp-bluez-devices nil))
-
-  ;; Rescan if needed.
-  (unless tramp-bluez-devices
-    (let ((object-path
-	   (with-tramp-dbus-call-method tramp-gvfs-dbus-event-vector t
-	     :system tramp-bluez-service "/"
-	     tramp-bluez-interface-manager "DefaultAdapter")))
-      (setq tramp-bluez-devices nil
-	    tramp-bluez-discovery t)
-      (with-tramp-dbus-call-method tramp-gvfs-dbus-event-vector nil
-	:system tramp-bluez-service object-path
-	tramp-bluez-interface-adapter "StartDiscovery")
-      (while tramp-bluez-discovery
-	(read-event nil nil 0.1))))
-  (setq tramp-bluez-discovery (current-time))
-  (tramp-message tramp-gvfs-dbus-event-vector 10 "%s" tramp-bluez-devices)
-  tramp-bluez-devices)
-
-(defun tramp-bluez-property-changed (property value)
-  "Signal handler for the \"org.bluez.Adapter.PropertyChanged\" signal."
-  (tramp-message tramp-gvfs-dbus-event-vector 6 "%s %s" property value)
-  (cond
-   ((string-equal property "Discovering")
-    (unless (car value)
-      ;; "Discovering" FALSE means discovery run has been completed.
-      ;; We stop it, because we don't need another run.
-      (setq tramp-bluez-discovery nil)
-      (with-tramp-dbus-call-method tramp-gvfs-dbus-event-vector t
-	:system tramp-bluez-service (dbus-event-path-name last-input-event)
-	tramp-bluez-interface-adapter "StopDiscovery")))))
-
-(when tramp-gvfs-enabled
-  (dbus-register-signal
-   :system nil nil tramp-bluez-interface-adapter "PropertyChanged"
-   'tramp-bluez-property-changed))
-
-(defun tramp-bluez-device-found (device args)
-  "Signal handler for the \"org.bluez.Adapter.DeviceFound\" signal."
-  (tramp-message tramp-gvfs-dbus-event-vector 6 "%s %s" device args)
-  (let ((alias (car (cadr (assoc "Alias" args))))
-	(address (car (cadr (assoc "Address" args)))))
-    ;; Maybe we shall check the device class for being a proper
-    ;; device, and call also SDP in order to find the obex service.
-    (add-to-list 'tramp-bluez-devices (list alias address))))
-
-(when tramp-gvfs-enabled
-  (dbus-register-signal
-   :system nil nil tramp-bluez-interface-adapter "DeviceFound"
-   'tramp-bluez-device-found))
-
-(defun tramp-bluez-parse-device-names (_ignore)
-  "Return a list of (nil host) tuples allowed to access."
-  (mapcar
-   (lambda (x) (list nil (car x)))
-   (tramp-bluez-list-devices)))
-
-;; Add completion function for OBEX method.
-(when (and tramp-gvfs-enabled
-	   (member tramp-bluez-service (dbus-list-known-names :system)))
-  (tramp-set-completion-function
-   "obex" '((tramp-bluez-parse-device-names ""))))
-
-
 ;; D-Bus zeroconf functions.
 
 (defun tramp-zeroconf-parse-device-names (service)
@@ -2320,41 +2075,6 @@ This uses \"avahi-browse\" in case D-Bus is not enabled in Avahi."
 	  (tramp-set-completion-function
 	   "smb" '((tramp-gvfs-parse-device-names "_smb._tcp"))))))))
 
-
-;; D-Bus SYNCE functions.
-
-(defun tramp-synce-list-devices ()
-  "Return all discovered synce devices as list.
-They are retrieved from the hal daemon."
-  (let (tramp-synce-devices)
-    (dolist (device
-	     (with-tramp-dbus-call-method tramp-gvfs-dbus-event-vector t
-	       :system tramp-hal-service tramp-hal-path-manager
-	       tramp-hal-interface-manager "GetAllDevices"))
-      (when (with-tramp-dbus-call-method tramp-gvfs-dbus-event-vector t
-	      :system tramp-hal-service device tramp-hal-interface-device
-	      "PropertyExists" "sync.plugin")
-	(let ((prop
-	       (with-tramp-dbus-call-method
-		tramp-gvfs-dbus-event-vector t
-		:system tramp-hal-service device tramp-hal-interface-device
-		"GetPropertyString" "pda.pocketpc.name")))
-	  (unless (member prop tramp-synce-devices)
-	    (push prop tramp-synce-devices)))))
-    (tramp-message tramp-gvfs-dbus-event-vector 10 "%s" tramp-synce-devices)
-    tramp-synce-devices))
-
-(defun tramp-synce-parse-device-names (_ignore)
-  "Return a list of (nil host) tuples allowed to access."
-  (mapcar
-   (lambda (x) (list nil x))
-   (tramp-synce-list-devices)))
-
-;; Add completion function for SYNCE method.
-(when tramp-gvfs-enabled
-  (tramp-set-completion-function
-   "synce" '((tramp-synce-parse-device-names ""))))
-
 (add-hook 'tramp-unload-hook
 	  (lambda ()
 	    (unload-feature 'tramp-gvfs 'force)))
@@ -2370,11 +2090,6 @@ They are retrieved from the hal daemon."
 ;;
 ;; * Check, how two shares of the same SMB server can be mounted in
 ;;   parallel.
-;;
-;; * Apply SDP on bluetooth devices, in order to filter out obex
-;;   capability.
-;;
-;; * Implement obex for other serial communication but bluetooth.
 ;;
 ;; * What's up with ftps dns-sd afc admin computer?
 

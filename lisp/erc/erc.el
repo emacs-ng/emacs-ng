@@ -75,6 +75,7 @@
 (require 'thingatpt)
 (require 'auth-source)
 (require 'erc-compat)
+(require 'subr-x)
 
 (defvar erc-official-location
   "https://www.emacswiki.org/emacs/ERC (mailing list: erc-discuss@gnu.org)"
@@ -1608,18 +1609,18 @@ symbol, it may have these values:
     (dolist (candidate (list buf-name (concat buf-name "/" server)))
       (if (and (not buffer-name)
                erc-reuse-buffers
-               (get-buffer candidate)
-               (or target
+               (or (not (get-buffer candidate))
+                   (or target
+                       (with-current-buffer (get-buffer candidate)
+                         (and (erc-server-buffer-p)
+                              (not (erc-server-process-alive)))))
                    (with-current-buffer (get-buffer candidate)
-                     (and (erc-server-buffer-p)
-                          (not (erc-server-process-alive)))))
-               (with-current-buffer (get-buffer candidate)
-                 (and (string= erc-session-server server)
-                      (erc-port-equal erc-session-port port))))
+                     (and (string= erc-session-server server)
+                          (erc-port-equal erc-session-port port)))))
           (setq buffer-name candidate)))
     ;; if buffer-name is unset, neither candidate worked out for us,
     ;; fallback to the old <N> uniquification method:
-    (or buffer-name (generate-new-buffer-name buf-name)) ))
+    (or buffer-name (generate-new-buffer-name (concat buf-name "/" server)))))
 
 (defun erc-get-buffer-create (server port target)
   "Create a new buffer based on the arguments."
@@ -3693,8 +3694,10 @@ be displayed."
    ((string-match "^\\s-*\\([&#+!]\\S-+\\)\\s-\\(.*\\)$" topic)
     (let ((ch (match-string 1 topic))
           (topic (match-string 2 topic)))
-      (erc-log (format "cmd: TOPIC [%s]: %s" ch topic))
-      (erc-server-send (format "TOPIC %s :%s" ch topic) nil ch))
+      ;; Ignore all-whitespace topics.
+      (unless (equal (string-trim topic) "")
+	(erc-log (format "cmd: TOPIC [%s]: %s" ch topic))
+	(erc-server-send (format "TOPIC %s :%s" ch topic) nil ch)))
     t)
    ;; /topic #channel
    ((string-match "^\\s-*\\([&#+!]\\S-+\\)" topic)

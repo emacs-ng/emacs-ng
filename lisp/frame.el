@@ -129,22 +129,107 @@ appended when the minibuffer frame is created."
       ;; Gildea@x.org says it is ok to ask questions before terminating.
       (save-buffers-kill-emacs))))
 
-(defun handle-focus-in (_event)
-  "Handle a focus-in event.
-Focus-in events are usually bound to this function.
-Focus-in events occur when a frame has focus, but a switch-frame event
-is not generated.
-This function runs the hook `focus-in-hook'."
-  (interactive "e")
-  (run-hooks 'focus-in-hook))
+(defun frame-focus-state (&optional frame)
+  "Return FRAME's last known focus state.
+If nil or omitted, FRAME defaults to the selected frame.
 
-(defun handle-focus-out (_event)
-  "Handle a focus-out event.
-Focus-out events are usually bound to this function.
-Focus-out events occur when no frame has focus.
-This function runs the hook `focus-out-hook'."
+Return nil if the frame is definitely known not be focused, t if
+the frame is known to be focused, and `unknown' if we don't know."
+  (let* ((frame (or frame (selected-frame)))
+         (tty-top-frame (tty-top-frame frame)))
+    (if (not tty-top-frame)
+        (frame-parameter frame 'last-focus-update)
+      ;; All tty frames are frame-visible-p if the terminal is
+      ;; visible, so check whether the frame is the top tty frame
+      ;; before checking visibility.
+      (cond ((not (eq tty-top-frame frame)) nil)
+            ((not (frame-visible-p frame)) nil)
+            (t (let ((tty-focus-state
+                      (terminal-parameter frame 'tty-focus-state)))
+                 (cond ((eq tty-focus-state 'focused) t)
+                       ((eq tty-focus-state 'defocused) nil)
+                       (t 'unknown))))))))
+
+(defvar after-focus-change-function #'ignore
+  "Function called after frame focus may have changed.
+
+This function is called with no arguments when Emacs notices that
+the set of focused frames may have changed.  Code wanting to do
+something when frame focus changes should use `add-function' to
+add a function to this one, and in this added function, re-scan
+the set of focused frames, calling `frame-focus-state' to
+retrieve the last known focus state of each frame.  Focus events
+are delivered asynchronously, and frame input focus according to
+an external system may not correspond to the notion of the Emacs
+selected frame.  Multiple frames may appear to have input focus
+simultaneously due to focus event delivery differences, the
+presence of multiple Emacs terminals, and other factors, and code
+should be robust in the face of this situation.
+
+Depending on window system, focus events may also be delivered
+repeatedly and with different focus states before settling to the
+expected values.  Code relying on focus notifications should
+\"debounce\" any user-visible updates arising from focus changes,
+perhaps by deferring work until redisplay.
+
+This function may be called in arbitrary contexts, including from
+inside `read-event', so take the same care as you might when
+writing a process filter.")
+
+(defvar focus-in-hook nil
+  "Normal hook run when a frame gains focus.
+The frame gaining focus is selected at the time this hook is run.
+
+This hook is obsolete.  Despite its name, this hook may be run in
+situations other than when a frame obtains input focus: for
+example, we also run this hook when switching the selected frame
+internally to handle certain input events (like mouse wheel
+scrolling) even when the user's notion of input focus
+hasn't changed.
+
+Prefer using `after-focus-change-function'.")
+(make-obsolete-variable
+ 'focus-in-hook "after-focus-change-function" "27.1" 'set)
+
+(defvar focus-out-hook nil
+  "Normal hook run when all frames lost input focus.
+
+This hook is obsolete; see `focus-in-hook'.  Depending on timing,
+this hook may be delivered when a frame does in fact have focus.
+Prefer `after-focus-change-function'.")
+(make-obsolete-variable
+ 'focus-out-hook "after-focus-change-function" "27.1" 'set)
+
+(defun handle-focus-in (event)
+  "Handle a focus-in event.
+Focus-in events are bound to this function; do not change this
+binding.  Focus-in events occur when a frame receives focus from
+the window system."
+  ;; N.B. tty focus goes down a different path; see xterm.el.
   (interactive "e")
-  (run-hooks 'focus-out-hook))
+  (unless (eq (car-safe event) 'focus-in)
+    (error "handle-focus-in should handle focus-in events"))
+  (let ((frame (nth 1 event)))
+    (when (frame-live-p frame)
+      (internal-handle-focus-in event)
+      (setf (frame-parameter frame 'last-focus-update) t)
+      (run-hooks 'focus-in-hook)))
+  (funcall after-focus-change-function))
+
+(defun handle-focus-out (event)
+  "Handle a focus-out event.
+Focus-out events are bound to this function; do not change this
+binding.  Focus-out events occur when a frame loses focus, but
+that's not the whole story: see `after-focus-change-function'."
+  ;; N.B. tty focus goes down a different path; see xterm.el.
+  (interactive "e")
+  (unless (eq (car event) 'focus-out)
+    (error "handle-focus-out should handle focus-out events"))
+  (let ((frame (nth 1 event)))
+    (when (frame-live-p frame)
+      (setf (frame-parameter frame 'last-focus-update) nil)
+      (run-hooks 'focus-out-hook)))
+  (funcall after-focus-change-function))
 
 (defun handle-move-frame (event)
   "Handle a move-frame event.
@@ -1297,9 +1382,6 @@ To get the frame's current border color, use `frame-parameters'."
 
 (define-minor-mode auto-raise-mode
   "Toggle whether or not selected frames should auto-raise.
-With a prefix argument ARG, enable Auto Raise mode if ARG is
-positive, and disable it otherwise.  If called from Lisp, enable
-the mode if ARG is omitted or nil.
 
 Auto Raise mode does nothing under most window managers, which
 switch focus on mouse clicks.  It only has an effect if your
@@ -1317,9 +1399,6 @@ often have their own auto-raise feature."
 
 (define-minor-mode auto-lower-mode
   "Toggle whether or not the selected frame should auto-lower.
-With a prefix argument ARG, enable Auto Lower mode if ARG is
-positive, and disable it otherwise.  If called from Lisp, enable
-the mode if ARG is omitted or nil.
 
 Auto Lower mode does nothing under most window managers, which
 switch focus on mouse clicks.  It only has an effect if your
@@ -2212,9 +2291,6 @@ all divider widths to zero."
 
 (define-minor-mode window-divider-mode
   "Display dividers between windows (Window Divider mode).
-With a prefix argument ARG, enable Window Divider mode if ARG is
-positive, and disable it otherwise.  If called from Lisp, enable
-the mode if ARG is omitted or nil.
 
 The option `window-divider-default-places' specifies on which
 side of a window dividers are displayed.  The options
@@ -2334,20 +2410,37 @@ frame receives focus."
     (cancel-timer blink-cursor-idle-timer)
     (setq blink-cursor-idle-timer nil)))
 
+(defun blink-cursor--should-blink ()
+  "Determine whether we should be blinking.
+Returns whether we have any focused non-TTY frame."
+  (and blink-cursor-mode
+       (let ((frame-list (frame-list))
+             (any-graphical-focused nil))
+         (while frame-list
+           (let ((frame (pop frame-list)))
+             (when (and (display-graphic-p frame) (frame-focus-state frame))
+               (setf any-graphical-focused t)
+               (setf frame-list nil))))
+         any-graphical-focused)))
+
 (defun blink-cursor-check ()
   "Check if cursor blinking shall be restarted.
-This is done when a frame gets focus.  Blink timers may be stopped by
-`blink-cursor-suspend'."
-  (when (and blink-cursor-mode
-	     (not blink-cursor-idle-timer))
-    (remove-hook 'post-command-hook 'blink-cursor-check)
-    (blink-cursor--start-idle-timer)))
+This is done when a frame gets focus.  Blink timers may be
+stopped by `blink-cursor-suspend'.  Internally calls
+`blink-cursor--should-blink' and returns its result."
+  (let ((should-blink (blink-cursor--should-blink)))
+    (when (and should-blink (not blink-cursor-idle-timer))
+      (remove-hook 'post-command-hook 'blink-cursor-check)
+      (blink-cursor--start-idle-timer))
+    should-blink))
+
+(defun blink-cursor--rescan-frames (&optional _ign)
+  "Called when the set of focused frames changes or when we delete a frame."
+  (unless (blink-cursor-check)
+    (blink-cursor-suspend)))
 
 (define-minor-mode blink-cursor-mode
   "Toggle cursor blinking (Blink Cursor mode).
-With a prefix argument ARG, enable Blink Cursor mode if ARG is
-positive, and disable it otherwise.  If called from Lisp, enable
-the mode if ARG is omitted or nil.
 
 If the value of `blink-cursor-blinks' is positive (10 by default),
 the cursor stops blinking after that number of blinks, if Emacs
@@ -2365,11 +2458,11 @@ terminals, cursor blinking is controlled by the terminal."
   :group 'cursor
   :global t
   (blink-cursor-suspend)
-  (remove-hook 'focus-in-hook #'blink-cursor-check)
-  (remove-hook 'focus-out-hook #'blink-cursor-suspend)
+  (remove-hook 'after-delete-frame-functions #'blink-cursor--rescan-frames)
+  (remove-function after-focus-change-function #'blink-cursor--rescan-frames)
   (when blink-cursor-mode
-    (add-hook 'focus-in-hook #'blink-cursor-check)
-    (add-hook 'focus-out-hook #'blink-cursor-suspend)
+    (add-function :after after-focus-change-function #'blink-cursor--rescan-frames)
+    (add-hook 'after-delete-frame-functions #'blink-cursor--rescan-frames)
     (blink-cursor--start-idle-timer)))
 
 
@@ -2463,6 +2556,9 @@ See also `toggle-frame-maximized'."
 ;; F5 then produces the correct effect, the variable doesn't need
 ;; to be in this list; otherwise, it does.
 (mapc (lambda (var)
+        ;; Using symbol-function here tells the watcher machinery to
+        ;; call the C function set-buffer-redisplay directly, thus
+        ;; avoiding a potential GC.
         (add-variable-watcher var (symbol-function 'set-buffer-redisplay)))
       '(line-spacing
         overline-margin

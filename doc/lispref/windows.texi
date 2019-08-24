@@ -3730,6 +3730,7 @@ argument @var{window}, then returns its result.
 @end defun
 
 @cindex window end position
+@cindex last visible position in a window
 @defun window-end &optional window update
 This function returns the position where display of its buffer ends in
 @var{window}.  The default for @var{window} is the selected window.
@@ -3752,7 +3753,8 @@ Even if @var{update} is non-@code{nil}, @code{window-end} does not
 attempt to scroll the display if point has moved off the screen, the
 way real redisplay would do.  It does not alter the
 @code{window-start} value.  In effect, it reports where the displayed
-text will end if scrolling is not required.
+text will end if scrolling is not required.  Note that the position it
+returns might be only partially visible.
 @end defun
 
 @vindex window-group-end-function
@@ -4028,6 +4030,13 @@ line reappears after the echo area momentarily displays the message
 @samp{End of buffer}.
 @end deffn
 
+@deffn Command scroll-other-window-down &optional count
+This function scrolls the text in another window downward @var{count}
+lines.  Negative values of @var{count}, or @code{nil}, are handled as
+in @code{scroll-down}.  In other respects, it behaves the same way as
+@code{scroll-other-window} does.
+@end deffn
+
 @defvar other-window-scroll-buffer
 If this variable is non-@code{nil}, it tells @code{scroll-other-window}
 which buffer's window to scroll.
@@ -4129,7 +4138,7 @@ beginning or end of the buffer (depending on scrolling direction);
 only if point is already on that position do they signal an error.
 @end defopt
 
-@deffn Command recenter &optional count
+@deffn Command recenter &optional count redisplay
 @cindex centering point
 This function scrolls the text in the selected window so that point is
 displayed at a specified vertical position within the window.  It does
@@ -4143,8 +4152,12 @@ line in the window.
 
 If @var{count} is @code{nil} (or a non-@code{nil} list),
 @code{recenter} puts the line containing point in the middle of the
-window.  If @var{count} is @code{nil}, this function may redraw the
-frame, according to the value of @code{recenter-redisplay}.
+window.  If @var{count} is @code{nil} and @var{redisplay} is
+non-@code{nil}, this function may redraw the frame, according to the
+value of @code{recenter-redisplay}.  Thus, omitting the second
+argument can be used to countermand the effect of
+@code{recenter-redisplay} being non-@code{nil}.  Interactive calls
+pass non-‘nil’ for @var{redisplay}.
 
 When @code{recenter} is called interactively, @var{count} is the raw
 prefix argument.  Thus, typing @kbd{C-u} as the prefix sets the
@@ -4172,8 +4185,9 @@ respect to the entire window group.
 
 @defopt recenter-redisplay
 If this variable is non-@code{nil}, calling @code{recenter} with a
-@code{nil} argument redraws the frame.  The default value is
-@code{tty}, which means only redraw the frame if it is a tty frame.
+@code{nil} @var{count} argument and non-@code{nil} @var{redisplay}
+argument redraws the frame.  The default value is @code{tty}, which
+means only redraw the frame if it is a tty frame.
 @end defopt
 
 @deffn Command recenter-top-bottom &optional count

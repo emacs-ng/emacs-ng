@@ -2868,7 +2868,6 @@ NO-ERROR, if a listing for DIRECTORY cannot be obtained."
 ;; 2. The syntax of FILE and DIR make it impossible that FILE could be a valid
 ;;     subdirectory. This is of course an OS dependent judgment.
 
-(defvar dired-local-variables-file)
 (defmacro ange-ftp-allow-child-lookup (dir file)
   `(not
     (let* ((efile ,file)		; expand once.
@@ -2877,10 +2876,6 @@ NO-ERROR, if a listing for DIRECTORY cannot be obtained."
            (host-type (ange-ftp-host-type
                        (car parsed))))
       (or
-       ;; Deal with dired
-       (and (boundp 'dired-local-variables-file) ; in the dired-x package
-	    (stringp dired-local-variables-file)
-	    (string-equal dired-local-variables-file efile))
        ;; No dots in dir names in vms.
        (and (eq host-type 'vms)
 	    (string-match "\\." efile))
@@ -4444,6 +4439,7 @@ NEWNAME should be the name to give the new compressed or uncompressed file.")
 (put 'process-file 'ange-ftp 'ange-ftp-process-file)
 (put 'start-file-process 'ange-ftp 'ignore)
 (put 'shell-command 'ange-ftp 'ange-ftp-shell-command)
+(put 'exec-path 'ange-ftp 'ignore)
 
 ;;; Define ways of getting at unmodified Emacs primitives,
 ;;; turning off our handler.

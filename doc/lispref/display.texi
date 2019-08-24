@@ -469,19 +469,54 @@ never print it, there are many good reasons for this not to happen.
 Secondly, @samp{done} is more explicit.
 @end defun
 
-@defmac dotimes-with-progress-reporter (var count [result]) message body@dots{}
+@defmac dotimes-with-progress-reporter (var count [result]) reporter-or-message body@dots{}
 This is a convenience macro that works the same way as @code{dotimes}
 does, but also reports loop progress using the functions described
-above.  It allows you to save some typing.
+above.  It allows you to save some typing.  The argument
+@var{reporter-or-message} can be either a string or a progress
+reporter object.
 
-You can rewrite the example in the beginning of this node using
-this macro this way:
+You can rewrite the example in the beginning of this subsection using
+this macro as follows:
 
 @example
+@group
 (dotimes-with-progress-reporter
     (k 500)
     "Collecting some mana for Emacs..."
   (sit-for 0.01))
+@end group
+@end example
+
+Using a reporter object as the @var{reporter-or-message} argument is
+useful if you want to specify the optional arguments in
+@var{make-progress-reporter}.  For instance, you can write the
+previous example as follows:
+
+@example
+@group
+(dotimes-with-progress-reporter
+    (k 500)
+    (make-progress-reporter "Collecting some mana for Emacs..." 0 500 0 1 1.5)
+  (sit-for 0.01))
+@end group
+@end example
+@end defmac
+
+@defmac dolist-with-progress-reporter (var count [result]) reporter-or-message body@dots{}
+This is another convenience macro that works the same way as @code{dolist}
+does, but also reports loop progress using the functions described
+above.  As in @code{dotimes-with-progress-reporter},
+@code{reporter-or-message} can be a progress reporter or a string.
+You can rewrite the previous example with this macro as follows:
+
+@example
+@group
+(dolist-with-progress-reporter
+    (k (number-sequence 0 500))
+    "Collecting some mana for Emacs..."
+  (sit-for 0.01))
+@end group
 @end example
 @end defmac
 
@@ -1048,7 +1083,7 @@ commands operate as if that portion did not exist, allowing a single
 @code{next-line} command to skip any number of hidden lines.
 However, character movement commands (such as @code{forward-char}) do
 not skip the hidden portion, and it is possible (if tricky) to insert
-or delete text in an hidden portion.
+or delete text in a hidden portion.
 
 In the examples below, we show the @emph{display appearance} of the
 buffer @code{foo}, which changes with the value of
@@ -2496,6 +2531,7 @@ However, if the customizations are subsequently removed, the
 appearance of @var{face} will again be determined by its default face
 spec.
 
+@cindex @code{eval-defun}, and @code{defface} forms
 As an exception, if you evaluate a @code{defface} form with
 @kbd{C-M-x} in Emacs Lisp mode (@code{eval-defun}), a special feature
 of @code{eval-defun} overrides any custom face specs on the face,
@@ -2938,7 +2974,13 @@ the remapped face---it replaces the normal definition of @var{face},
 instead of modifying it.
 
 If @code{face-remapping-alist} is buffer-local, its local value takes
-effect only within that buffer.
+effect only within that buffer.  If @code{face-remapping-alist}
+includes faces applicable only to certain windows, by using the
+@w{@code{(:filtered (:window @var{param} @var{val}) @var{spec})}},
+that face takes effect only in windows that match the filter
+conditions (@pxref{Special Properties}).  To turn off face filtering
+temporarily, bind @code{face-filters-always-match} to a non-@code{nil}
+value, then all face filters will match any window.
 
 Note: face remapping is non-recursive.  If @var{remapping} references
 the same face name @var{face}, either directly or via the
@@ -7235,8 +7277,8 @@ Characters of Unicode General Category [Cf], such as @samp{U+200E}
 images, such as @samp{U+00AD} (Soft Hyphen).
 
 @item no-font
-Characters for there is no suitable font, or which cannot be encoded
-by the terminal's coding system.
+Characters for which there is no suitable font, or which cannot be
+encoded by the terminal's coding system.
 @end table
 
 @c FIXME: this can also be 'acronym', but that's not currently

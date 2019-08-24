@@ -471,6 +471,11 @@ A change log tag is a symbol within a parenthesized,
 comma-separated list.  If no suitable tag can be found nearby,
 try to visit the file for the change under `point' instead."
   (interactive)
+  (let ((buffer (current-buffer)))
+    (change-log-goto-source-internal)
+    (next-error-found buffer (current-buffer))))
+
+(defun change-log-goto-source-internal ()
   (if (and (eq last-command 'change-log-goto-source)
 	   change-log-find-tail)
       (setq change-log-find-tail
@@ -539,7 +544,7 @@ Compatibility function for \\[next-error] invocations."
   ;; if we found a place to visit...
   (when (looking-at change-log-file-names-re)
     (let (change-log-find-window)
-      (change-log-goto-source)
+      (change-log-goto-source-internal)
       (when change-log-find-window
 	;; Select window displaying source file.
 	(select-window change-log-find-window)))))
@@ -1019,6 +1024,13 @@ the change log file in another window."
 (defvar smerge-resolve-function)
 (defvar copyright-at-end-flag)
 
+(defvar change-log-mode-syntax-table
+  (let ((table (make-syntax-table)))
+    (modify-syntax-entry ?` "'   " table)
+    (modify-syntax-entry ?' "'   " table)
+    table)
+  "Syntax table used while in `change-log-mode'.")
+
 ;;;###autoload
 (define-derived-mode change-log-mode text-mode "Change Log"
   "Major mode for editing change logs; like Indented Text mode.
@@ -1067,8 +1079,7 @@ Runs `change-log-mode-hook'.
   (set (make-local-variable 'end-of-defun-function)
        'change-log-end-of-defun)
   ;; next-error function glue
-  (setq next-error-function 'change-log-next-error)
-  (setq next-error-last-buffer (current-buffer)))
+  (setq next-error-function 'change-log-next-error))
 
 (defun change-log-next-buffer (&optional buffer wrap)
   "Return the next buffer in the series of ChangeLog file buffers.
@@ -1095,9 +1106,17 @@ file were isearch was started."
     ;; If there are no files that match the default pattern ChangeLog.[0-9],
     ;; return the current buffer to force isearch wrapping to its beginning.
     ;; If file is nil, multi-isearch-search-fun will signal "end of multi".
-    (if (and file (file-exists-p file))
-	(find-file-noselect file)
-      (current-buffer))))
+    (cond
+     ;; Wrapping doesn't catch errors from the nil arg of file-exists-p,
+     ;; so handle it explicitly.
+     ((and wrap (null file))
+      (current-buffer))
+     ;; When there is no next file, file-exists-p raises the error to be
+     ;; catched by the search function that displays the error message.
+     ((file-exists-p file)
+      (find-file-noselect file))
+     (t
+      (current-buffer)))))
 
 (defun change-log-fill-forward-paragraph (n)
   "Cut paragraphs so filling preserves open parentheses at beginning of lines."

@@ -2016,12 +2016,34 @@ x_set_parent_frame (struct frame *f, Lisp_Object new_value, Lisp_Object old_valu
 
   if (p != FRAME_PARENT_FRAME (f))
     {
-      parent = [FRAME_NS_VIEW (p) window];
+      block_input ();
       child = [FRAME_NS_VIEW (f) window];
 
-      block_input ();
-      [parent addChildWindow: child
-                     ordered: NSWindowAbove];
+      if ([child parentWindow] != nil)
+        {
+          [[child parentWindow] removeChildWindow:child];
+#if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MAX_ALLOWED >= 101000
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+          if ([child respondsToSelector:@selector(setAccessibilitySubrole:)]
+#endif
+              [child setAccessibilitySubrole:NSAccessibilityStandardWindowSubrole];
+#endif
+        }
+
+      if (!NILP (new_value))
+        {
+          parent = [FRAME_NS_VIEW (p) window];
+
+          [parent addChildWindow: child
+                         ordered: NSWindowAbove];
+#if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MAX_ALLOWED >= 101000
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+          if ([child respondsToSelector:@selector(setAccessibilitySubrole:)]
+#endif
+              [child setAccessibilitySubrole:NSAccessibilityFloatingWindowSubrole];
+#endif
+        }
+
       unblock_input ();
 
       fset_parent_frame (f, new_value);
@@ -2581,7 +2603,7 @@ ns_mouse_position (struct frame **fp, int insist, Lisp_Object *bar_window,
 
   if (f && FRAME_NS_P (f))
     {
-      view = FRAME_NS_VIEW (*fp);
+      view = FRAME_NS_VIEW (f);
 
       position = [[view window] mouseLocationOutsideOfEventStream];
       position = [view convertPoint: position fromView: nil];
@@ -4797,7 +4819,7 @@ ns_set_vertical_scroll_bar (struct window *window,
 	ns_clear_frame_area (f, left, top, width, height);
 
       bar = [[EmacsScroller alloc] initFrame: r window: win];
-      wset_vertical_scroll_bar (window, make_save_ptr (bar));
+      wset_vertical_scroll_bar (window, make_mint_ptr (bar));
       update_p = YES;
     }
   else
@@ -4876,7 +4898,7 @@ ns_set_horizontal_scroll_bar (struct window *window,
 	ns_clear_frame_area (f, left, top, width, height);
 
       bar = [[EmacsScroller alloc] initFrame: r window: win];
-      wset_horizontal_scroll_bar (window, make_save_ptr (bar));
+      wset_horizontal_scroll_bar (window, make_mint_ptr (bar));
       update_p = YES;
     }
   else

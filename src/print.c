@@ -855,6 +855,17 @@ safe_debug_print (Lisp_Object arg)
     }
 }
 
+/* This function formats the given object and returns the result as a
+   string. Use this in contexts where you can inspect strings, but
+   where stderr output won't work --- e.g., while replaying rr
+   recordings.  */
+const char * debug_format (const char *, Lisp_Object) EXTERNALLY_VISIBLE;
+const char *
+debug_format (const char *fmt, Lisp_Object arg)
+{
+  return SSDATA (CALLN (Fformat, build_string (fmt), arg));
+}
+
 
 DEFUN ("error-message-string", Ferror_message_string, Serror_message_string,
        1, 1, 0,
@@ -1317,8 +1328,7 @@ print_check_string_charset_prop (INTERVAL interval, Lisp_Object string)
 	  || CONSP (XCDR (XCDR (val))))
 	print_check_string_result |= PRINT_STRING_NON_CHARSET_FOUND;
     }
-  if (NILP (Vprint_charset_text_property)
-      || ! (print_check_string_result & PRINT_STRING_UNSAFE_CHARSET_FOUND))
+  if (! (print_check_string_result & PRINT_STRING_UNSAFE_CHARSET_FOUND))
     {
       int i, c;
       ptrdiff_t charpos = interval->position;
@@ -1348,7 +1358,8 @@ print_prune_string_charset (Lisp_Object string)
   print_check_string_result = 0;
   traverse_intervals (string_intervals (string), 0,
 		      print_check_string_charset_prop, string);
-  if (! (print_check_string_result & PRINT_STRING_UNSAFE_CHARSET_FOUND))
+  if (NILP (Vprint_charset_text_property)
+      || ! (print_check_string_result & PRINT_STRING_UNSAFE_CHARSET_FOUND))
     {
       string = Fcopy_sequence (string);
       if (print_check_string_result & PRINT_STRING_NON_CHARSET_FOUND)
@@ -2167,86 +2178,10 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 	  print_c_string ("#<misc free cell>", printcharfun);
 	  break;
 
-	case Lisp_Misc_Save_Value:
+	case Lisp_Misc_Ptr:
 	  {
-	    int i;
-	    struct Lisp_Save_Value *v = XSAVE_VALUE (obj);
-
-	    print_c_string ("#<save-value ", printcharfun);
-
-	    if (v->save_type == SAVE_TYPE_MEMORY)
-	      {
-		ptrdiff_t amount = v->data[1].integer;
-
-		/* valid_lisp_object_p is reliable, so try to print up
-		   to 8 saved objects.  This code is rarely used, so
-		   it's OK that valid_lisp_object_p is slow.  */
-
-		int limit = min (amount, 8);
-		Lisp_Object *area = v->data[0].pointer;
-
-		i = sprintf (buf, "with %"pD"d objects", amount);
-		strout (buf, i, i, printcharfun);
-
-		for (i = 0; i < limit; i++)
-		  {
-		    Lisp_Object maybe = area[i];
-		    int valid = valid_lisp_object_p (maybe);
-
-		    printchar (' ', printcharfun);
-		    if (0 < valid)
-		      print_object (maybe, printcharfun, escapeflag);
-		    else
-		      print_c_string (valid < 0 ? "<some>" : "<invalid>",
-				      printcharfun);
-		  }
-		if (i == limit && i < amount)
-		  print_c_string (" ...", printcharfun);
-	      }
-	    else
-	      {
-		/* Print each slot according to its type.  */
-		int index;
-		for (index = 0; index < SAVE_VALUE_SLOTS; index++)
-		  {
-		    if (index)
-		      printchar (' ', printcharfun);
-
-		    switch (save_type (v, index))
-		      {
-		      case SAVE_UNUSED:
-			i = sprintf (buf, "<unused>");
-			break;
-
-		      case SAVE_POINTER:
-			i = sprintf (buf, "<pointer %p>",
-				     v->data[index].pointer);
-			break;
-
-		      case SAVE_FUNCPOINTER:
-			i = sprintf (buf, "<funcpointer %p>",
-				     ((void *) (intptr_t)
-				      v->data[index].funcpointer));
-			break;
-
-		      case SAVE_INTEGER:
-			i = sprintf (buf, "<integer %"pD"d>",
-				     v->data[index].integer);
-			break;
-
-		      case SAVE_OBJECT:
-			print_object (v->data[index].object, printcharfun,
-				      escapeflag);
-			continue;
-
-		      default:
-			emacs_abort ();
-		      }
-
-		    strout (buf, i, i, printcharfun);
-		  }
-	      }
-	    printchar ('>', printcharfun);
+	    int i = sprintf (buf, "#<ptr %p>", xmint_pointer (obj));
+	    strout (buf, i, i, printcharfun);
 	  }
 	  break;
 
@@ -2423,7 +2358,7 @@ that need to be recorded in the table.  */);
 
   DEFVAR_LISP ("print-charset-text-property", Vprint_charset_text_property,
 	       doc: /* A flag to control printing of `charset' text property on printing a string.
-The value must be nil, t, or `default'.
+The value should be nil, t, or `default'.
 
 If the value is nil, don't print the text property `charset'.
 
@@ -2431,7 +2366,8 @@ If the value is t, always print the text property `charset'.
 
 If the value is `default', print the text property `charset' only when
 the value is different from what is guessed in the current charset
-priorities.  */);
+priorities.  Values other than nil or t are also treated as
+`default'.  */);
   Vprint_charset_text_property = Qdefault;
 
   /* prin1_to_string_buffer initialized in init_buffer_once in buffer.c */
@@ -2447,10 +2383,8 @@ priorities.  */);
   defsubr (&Sredirect_debugging_output);
   defsubr (&Sprint_preprocess);
 
-  DEFSYM (Qprint_escape_newlines, "print-escape-newlines");
   DEFSYM (Qprint_escape_multibyte, "print-escape-multibyte");
   DEFSYM (Qprint_escape_nonascii, "print-escape-nonascii");
-  DEFSYM (Qprint_escape_control_characters, "print-escape-control-characters");
 
   print_prune_charset_plist = Qnil;
   staticpro (&print_prune_charset_plist);

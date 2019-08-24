@@ -161,9 +161,6 @@ Used at desktop read to provide backward compatibility.")
 ;;;###autoload
 (define-minor-mode desktop-save-mode
   "Toggle desktop saving (Desktop Save mode).
-With a prefix argument ARG, enable Desktop Save mode if ARG is positive,
-and disable it otherwise.  If called from Lisp, enable the mode if ARG
-is omitted or nil.
 
 When Desktop Save mode is enabled, the state of Emacs is saved from
 one session to another.  In particular, Emacs will save the desktop when
@@ -841,10 +838,12 @@ QUOTE may be `may' (value may be quoted),
     ((or (numberp value) (null value) (eq t value) (keywordp value))
      (cons 'may value))
     ((stringp value)
-     (let ((copy (copy-sequence value)))
-       (set-text-properties 0 (length copy) nil copy)
-       ;; Get rid of text properties because we cannot read them.
-       (cons 'may copy)))
+     ;; Get rid of unreadable text properties.
+     (if (condition-case nil (read (format "%S" value)) (error nil))
+         (cons 'may value)
+       (let ((copy (copy-sequence value)))
+         (set-text-properties 0 (length copy) nil copy)
+         (cons 'may copy))))
     ((symbolp value)
      (cons 'must value))
     ((vectorp value)

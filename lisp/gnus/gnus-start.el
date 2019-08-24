@@ -1989,15 +1989,10 @@ backend check whether the group actually exists."
 
 ;; Enter all dead groups into the hashtb.
 (defun gnus-update-active-hashtb-from-killed ()
-  (let ((hashtb (setq gnus-active-hashtb (gnus-make-hashtable 4096)))
-	(lists (list gnus-killed-list gnus-zombie-list))
-	killed)
-    (while lists
-      (setq killed (car lists))
-      (while killed
-	(gnus-sethash (string-as-unibyte (car killed)) nil hashtb)
-	(setq killed (cdr killed)))
-      (setq lists (cdr lists)))))
+  (let ((hashtb (setq gnus-active-hashtb (gnus-make-hashtable 4096))))
+    (dolist (list (list gnus-killed-list gnus-zombie-list))
+      (dolist (group list)
+	(gnus-sethash group nil hashtb)))))
 
 (defun gnus-get-killed-groups ()
   "Go through the active hashtb and mark all unknown groups as killed."
@@ -2455,10 +2450,6 @@ If FORCE is non-nil, the .newsrc file is read."
 	    (setq gnus-format-specs gnus-default-format-specs)))
 	(when gnus-newsrc-assoc
 	  (setq gnus-newsrc-alist gnus-newsrc-assoc))))
-    (dolist (elem gnus-newsrc-alist)
-      ;; Protect against broken .newsrc.el files.
-      (when (car elem)
-	(setcar elem (string-as-unibyte (car elem)))))
     (gnus-make-hashtable-from-newsrc-alist)
     (when (file-newer-than-file-p file ding-file)
       ;; Old format quick file

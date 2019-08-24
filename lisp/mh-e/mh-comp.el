@@ -324,7 +324,7 @@ message and scan line."
       ;; message in your +outbox, and best of all doesn't break threading for
       ;; the recipient if you reply to a message in your +outbox.
       (setq mh-send-args (concat "-msgid " mh-send-args))
-      ;; The default BCC encapsulation will make a MIME message unreadable.
+      ;; The default Bcc encapsulation will make a MIME message unreadable.
       ;; With nmh use the -mime arg to prevent this.
       (if (and (mh-variant-p 'nmh)
                (mh-goto-header-field "Bcc:")
@@ -927,8 +927,10 @@ CONFIG is the window configuration before sending mail."
                      (list "-form" mh-comp-formfile)))
     (setq new (make-temp-file "comp."))
     (rename-file (concat temp-folder "/" "1") new t)
-    (delete-file (concat temp-folder "/" ".mh_sequences"))
-    (delete-directory temp-folder)
+    ;; The temp folder could contain various metadata files.  Rather
+    ;; than trying to enumerate all the known files, just do a
+    ;; recursive delete on the directory.
+    (delete-directory temp-folder t)
     new))
 
 (defun mh-read-draft (use initial-contents delete-contents-file)

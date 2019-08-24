@@ -194,4 +194,21 @@ literals (Bug#20852)."
     (lread--substitute-object-in-subtree x 1 t)
     (should (eq x (cdr x)))))
 
+(ert-deftest lread-long-hex-integer ()
+  (should-error
+   (read "#xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+   :type 'overflow-error))
+
+(ert-deftest lread-test-bug-31186 ()
+  (with-temp-buffer
+    (insert ";; -*- -:*-")
+    (should-not
+     ;; This used to crash in lisp_file_lexically_bound_p before the
+     ;; bug was fixed.
+     (eval-buffer))))
+
+(ert-deftest lread-invalid-bytecodes ()
+  (should-error
+   (let ((load-force-doc-strings t)) (read "#[0 \"\"]"))))
+
 ;;; lread-tests.el ends here

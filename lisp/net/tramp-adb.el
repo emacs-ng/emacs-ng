@@ -40,8 +40,7 @@
   "Name of the Android Debug Bridge program."
   :group 'tramp
   :version "24.4"
-  :type 'string
-  :require 'tramp)
+  :type 'string)
 
 ;;;###tramp-autoload
 (defcustom tramp-adb-connect-if-not-connected nil
@@ -49,8 +48,7 @@
 It is used for TCP/IP devices."
   :group 'tramp
   :version "25.1"
-  :type 'boolean
-  :require 'tramp)
+  :type 'boolean)
 
 ;;;###tramp-autoload
 (defconst tramp-adb-method "adb"
@@ -62,8 +60,7 @@ It is used for TCP/IP devices."
   "Regexp used as prompt in almquist shell."
   :type 'string
   :version "24.4"
-  :group 'tramp
-  :require 'tramp)
+  :group 'tramp)
 
 (defconst tramp-adb-ls-date-regexp
   "[[:space:]][0-9]\\{4\\}-[0-9][0-9]-[0-9][0-9][[:space:]][0-9][0-9]:[0-9][0-9][[:space:]]"
@@ -110,6 +107,7 @@ It is used for TCP/IP devices."
      . tramp-adb-handle-directory-files-and-attributes)
     (dired-compress-file . ignore)
     (dired-uncache . tramp-handle-dired-uncache)
+    (exec-path . tramp-adb-handle-exec-path)
     (expand-file-name . tramp-adb-handle-expand-file-name)
     (file-accessible-directory-p . tramp-handle-file-accessible-directory-p)
     (file-acl . ignore)
@@ -1119,6 +1117,21 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 	  (tramp-flush-connection-property v "process-name")
 	  (tramp-flush-connection-property v "process-buffer"))))))
 
+(defun tramp-adb-handle-exec-path ()
+  "Like `exec-path' for Tramp files."
+  (append
+   (with-parsed-tramp-file-name default-directory nil
+     (with-tramp-connection-property v "remote-path"
+       (tramp-adb-send-command v "echo \\\"$PATH\\\"")
+       (split-string
+	(with-current-buffer (tramp-get-connection-buffer v)
+	  ;; Read the expression.
+	  (goto-char (point-min))
+	  (read (current-buffer)))
+	":" 'omit)))
+   ;; The equivalent to `exec-directory'.
+   `(,(file-remote-p default-directory 'localname))))
+
 (defun tramp-adb-get-device (vec)
   "Return full host name from VEC to be used in shell execution.
 E.g. a host name \"192.168.1.1#5555\" returns \"192.168.1.1:5555\"
@@ -1342,18 +1355,6 @@ connection if a previous connection has died for some reason."
 		(tramp-flush-file-property vec "" "su-command-p")
 		(tramp-error
 		 vec 'file-error "Cannot switch to user `%s'" user)))
-
-	    ;; Set "remote-path" connection property.  This is needed
-	    ;; for eshell.
-	    (tramp-adb-send-command vec "echo \\\"$PATH\\\"")
-	    (tramp-set-connection-property
-	     vec "remote-path"
-	     (split-string
-	      (with-current-buffer (tramp-get-connection-buffer vec)
-		;; Read the expression.
-		(goto-char (point-min))
-		(read (current-buffer)))
-	      ":" 'omit))
 
 	    ;; Set connection-local variables.
 	    (tramp-set-connection-local-variables vec)

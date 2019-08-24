@@ -1144,15 +1144,16 @@ explicitly provided via a `window-parameters' entry in ALIST."
 		    buffer best-window 'reuse alist dedicated)))))))))
 
 (defun window-toggle-side-windows (&optional frame)
-  "Toggle side windows on specified FRAME.
+  "Toggle display of side windows on specified FRAME.
 FRAME must be a live frame and defaults to the selected one.
 
-If FRAME has at least one side window, save FRAME's state in the
-FRAME's `window-state' frame parameter and delete all side
-windows on FRAME afterwards.  Otherwise, if FRAME has a
-`window-state' parameter, use that to restore any side windows on
-FRAME leaving FRAME's main window alone.  Signal an error if
-FRAME has no side window and no saved state is found."
+If FRAME has at least one side window, delete all side
+windows on FRAME after saving FRAME's state in the
+FRAME's `window-state' frame parameter.  Otherwise,
+restore any side windows recorded in FRAME's `window-state'
+parameter, leaving FRAME's main window alone.  Signal an
+error if FRAME has no side windows and no saved state for
+it is found."
   (interactive)
   (let* ((frame (window-normalize-frame frame))
          (window--sides-inhibit-check t)
@@ -6641,6 +6642,7 @@ represents a live window, nil otherwise."
                        ))
 	frame))))
 
+(defvaralias 'even-window-heights 'even-window-sizes)
 (defcustom even-window-sizes t
   "If non-nil `display-buffer' will try to even window sizes.
 Otherwise `display-buffer' will leave the window configuration
@@ -6654,7 +6656,6 @@ any of them."
 	  (const :tag "Always" t))
   :version "25.1"
   :group 'windows)
-(defvaralias 'even-window-heights 'even-window-sizes)
 
 (defun window--even-window-sizes (window)
   "Even sizes of WINDOW and selected window.
@@ -8766,7 +8767,7 @@ A prefix argument is handled like `recenter':
  With plain `C-u', move current line to window center."
   (interactive "P")
   (cond
-   (arg (recenter arg))			; Always respect ARG.
+   (arg (recenter arg t))                 ; Always respect ARG.
    (t
     (setq recenter-last-op
 	  (if (eq this-command last-command)
@@ -8777,15 +8778,15 @@ A prefix argument is handled like `recenter':
 	   (min (max 0 scroll-margin)
 		(truncate (/ (window-body-height) 4.0)))))
       (cond ((eq recenter-last-op 'middle)
-	     (recenter))
+	     (recenter nil t))
 	    ((eq recenter-last-op 'top)
-	     (recenter this-scroll-margin))
+	     (recenter this-scroll-margin t))
 	    ((eq recenter-last-op 'bottom)
-	     (recenter (- -1 this-scroll-margin)))
+	     (recenter (- -1 this-scroll-margin) t))
 	    ((integerp recenter-last-op)
-	     (recenter recenter-last-op))
+	     (recenter recenter-last-op t))
 	    ((floatp recenter-last-op)
-	     (recenter (round (* recenter-last-op (window-height))))))))))
+	     (recenter (round (* recenter-last-op (window-height))) t)))))))
 
 (define-key global-map [?\C-l] 'recenter-top-bottom)
 
@@ -8923,35 +8924,17 @@ This is different from `scroll-down-command' that scrolls a full screen."
 (put 'scroll-down-line 'scroll-command t)
 
 
-(defun scroll-other-window-down (&optional lines)
-  "Scroll the \"other window\" down.
-For more details, see the documentation for `scroll-other-window'."
-  (interactive "P")
-  (scroll-other-window
-   ;; Just invert the argument's meaning.
-   ;; We can do that without knowing which window it will be.
-   (if (eq lines '-) nil
-     (if (null lines) '-
-       (- (prefix-numeric-value lines))))))
-
 (defun beginning-of-buffer-other-window (arg)
   "Move point to the beginning of the buffer in the other window.
 Leave mark at previous position.
 With arg N, put point N/10 of the way from the true beginning."
   (interactive "P")
-  (let ((orig-window (selected-window))
-	(window (other-window-for-scrolling)))
-    ;; We use unwind-protect rather than save-window-excursion
-    ;; because the latter would preserve the things we want to change.
-    (unwind-protect
-	(progn
-	  (select-window window)
-	  ;; Set point and mark in that window's buffer.
-	  (with-no-warnings
-	   (beginning-of-buffer arg))
-	  ;; Set point accordingly.
-	  (recenter '(t)))
-      (select-window orig-window))))
+  (with-selected-window (other-window-for-scrolling)
+    ;; Set point and mark in that window's buffer.
+    (with-no-warnings
+      (beginning-of-buffer arg))
+    ;; Set point accordingly.
+    (recenter '(t))))
 
 (defun end-of-buffer-other-window (arg)
   "Move point to the end of the buffer in the other window.
@@ -8959,15 +8942,10 @@ Leave mark at previous position.
 With arg N, put point N/10 of the way from the true end."
   (interactive "P")
   ;; See beginning-of-buffer-other-window for comments.
-  (let ((orig-window (selected-window))
-	(window (other-window-for-scrolling)))
-    (unwind-protect
-	(progn
-	  (select-window window)
-	  (with-no-warnings
-	   (end-of-buffer arg))
-	  (recenter '(t)))
-      (select-window orig-window))))
+  (with-selected-window (other-window-for-scrolling)
+    (with-no-warnings
+      (end-of-buffer arg))
+    (recenter '(t))))
 
 (defvar mouse-autoselect-window-timer nil
   "Timer used by delayed window autoselection.")

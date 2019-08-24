@@ -126,7 +126,7 @@ This version of GCC is buggy: see
 You can work around this error in gcc-4.5 by omitting sibling call
 optimization.  To do this, configure Emacs with
 
- CFLAGS="-g -O2 -fno-optimize-sibling-calls" ./configure
+ ./configure CFLAGS="-g -O2 -fno-optimize-sibling-calls"
 
 ** Emacs compiled with GCC 4.6.1 crashes on MS-Windows when C-g is pressed
 
@@ -192,22 +192,10 @@ Upgrading to a newer version of Exceed has been reported to prevent
 these crashes.  You should consider switching to a free X server, such
 as Xming or Cygwin/X.
 
-** Emacs crashes with SIGSEGV in XtInitializeWidgetClass.
-
-It crashes on X, but runs fine when called with option "-nw".
-
-This has been observed when Emacs is linked with GNU ld but without passing
-the -z nocombreloc flag.  Emacs normally knows to pass the -z nocombreloc
-flag when needed, so if you come across a situation where the flag is
-necessary but missing, please report it via M-x report-emacs-bug.
-
-On platforms such as Solaris, you can also work around this problem by
-configuring your compiler to use the native linker instead of GNU ld.
-
 ** When Emacs is compiled with Gtk+, closing a display kills Emacs.
 
 There is a long-standing bug in GTK that prevents it from recovering
-from disconnects: http://bugzilla.gnome.org/show_bug.cgi?id=85715.
+from disconnects: https://gitlab.gnome.org/GNOME/gtk/issues/221
 
 Thus, for instance, when Emacs is run as a server on a text terminal,
 and an X frame is created, and the X server for that frame crashes or
@@ -225,7 +213,7 @@ The error message is:
 
   X protocol error: BadMatch (invalid parameter attributes) on protocol request 140
   When compiled with GTK, Emacs cannot recover from X disconnects.
-  This is a GTK bug: https://bugzilla.gnome.org/show_bug.cgi?id=85715
+  This is a GTK bug: https://gitlab.gnome.org/GNOME/gtk/issues/221
   For details, see etc/PROBLEMS.
   Fatal error 6: Aborted
 
@@ -554,17 +542,6 @@ And then rename the system's readline so that it won't be loaded:
 
 See <https://pypi.python.org/pypi/gnureadline> for more details on
 installation.
-
-*** Emacs startup on GNU/Linux systems (and possibly other systems) is slow.
-
-This can happen if the system is misconfigured and Emacs can't get the
-full qualified domain name, FQDN.  You should have your FQDN in the
-/etc/hosts file, something like this:
-
-127.0.0.1	localhost
-129.187.137.82	nuc04.t30.physik.tu-muenchen.de	nuc04
-
-The way to set this up may vary on non-GNU systems.
 
 *** Visiting files in some auto-mounted directories causes Emacs to print
 'Error reading dir-locals: (file-error "Read error" "is a directory" ...'
@@ -1281,6 +1258,14 @@ That the resource has this effect indicates a bug in something, but we
 do not know what.  If it is an Emacs bug, we hope someone can
 explain what the bug is so we can fix it.  In the mean time, removing
 the resource prevents the problem.
+
+*** FVWM: Some versions of FVWM incorrectly set the 'sticky' frame parameter.
+
+Version 2.6.4 of the FVWM can make a frame sticky (appear on all user
+desktops) when setting the 'sticky' frame parameter to nil.  This may
+happen without any special user interaction, for example, when Emacs
+restores a saved desktop.  A fix is to install version 2.6.8 of FVWM,
+see https://debbugs.gnu.org/cgi/bugreport.cgi?bug=31650.
 
 ** General X problems
 
@@ -3206,6 +3191,15 @@ unzip program that preserved the long file names instead of truncating
 them to DOS 8+3 limits.  To be useful on NT, the MSDOS port of Emacs
 must be unzipped by a DOS utility, so that long file names are
 properly truncated.
+
+** Apple Macintosh operating systems
+
+*** OS X 10.9 and earlier: symlinks autocomplete as directories
+
+Autocompleting the name of a symbolic link incorrectly appends "/".
+Building and running Emacs on OS X 10.10 (or later) fixes the problem.
+Older operating systems are no longer supported by Apple.
+https://bugs.gnu.org/31305
 
 ** Archaic window managers and toolkits
 

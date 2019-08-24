@@ -360,9 +360,7 @@ static Lisp_Object modify_event_symbol (ptrdiff_t, int, Lisp_Object,
                                         Lisp_Object *, ptrdiff_t);
 static Lisp_Object make_lispy_switch_frame (Lisp_Object);
 static Lisp_Object make_lispy_focus_in (Lisp_Object);
-#ifdef HAVE_WINDOW_SYSTEM
 static Lisp_Object make_lispy_focus_out (Lisp_Object);
-#endif /* HAVE_WINDOW_SYSTEM */
 static bool help_char_p (Lisp_Object);
 static void save_getcjmp (sys_jmp_buf);
 static void restore_getcjmp (sys_jmp_buf);
@@ -376,6 +374,15 @@ static void timer_resume_idle (void);
 static void deliver_user_signal (int);
 static char *find_user_signal_name (int);
 static void store_user_signal_events (void);
+
+/* Like EVENT_START, but assume EVENT is an event.
+   This pacifies gcc -Wnull-dereference, which might otherwise
+   complain about earlier checks that EVENT is indeed an event.  */
+static Lisp_Object
+xevent_start (Lisp_Object event)
+{
+  return XCAR (XCDR (event));
+}
 
 /* These setters are used only in this file, so they can be private.  */
 static void
@@ -779,35 +786,6 @@ recursive_edit_unwind (Lisp_Object buffer)
 }
 
 
-#if 0  /* These two functions are now replaced with
-          temporarily_switch_to_single_kboard.  */
-static void
-any_kboard_state ()
-{
-#if 0 /* Theory: if there's anything in Vunread_command_events,
-	 it will right away be read by read_key_sequence,
-	 and then if we do switch KBOARDS, it will go into the side
-	 queue then.  So we don't need to do anything special here -- rms.  */
-  if (CONSP (Vunread_command_events))
-    {
-      current_kboard->kbd_queue
-	= nconc2 (Vunread_command_events, current_kboard->kbd_queue);
-      current_kboard->kbd_queue_has_data = true;
-    }
-  Vunread_command_events = Qnil;
-#endif
-  single_kboard = false;
-}
-
-/* Switch to the single-kboard state, making current_kboard
-   the only KBOARD from which further input is accepted.  */
-
-void
-single_kboard_state ()
-{
-  single_kboard = true;
-}
-#endif
 
 /* If we're in single_kboard state for kboard KBOARD,
    get out of it.  */
@@ -905,16 +883,6 @@ temporarily_switch_to_single_kboard (struct frame *f)
   single_kboard = true;
   record_unwind_protect_int (restore_kboard_configuration, was_locked);
 }
-
-#if 0 /* This function is not needed anymore.  */
-void
-record_single_kboard_state ()
-{
-  if (single_kboard)
-    push_kboard (current_kboard);
-  record_unwind_protect_int (restore_kboard_configuration, single_kboard);
-}
-#endif
 
 static void
 restore_kboard_configuration (int was_locked)
@@ -1251,7 +1219,8 @@ some_mouse_moved (void)
 /* This is the actual command reading loop,
    sans error-handling encapsulation.  */
 
-static int read_key_sequence (Lisp_Object *, int, Lisp_Object,
+enum { READ_KEY_ELTS = 30 };
+static int read_key_sequence (Lisp_Object *, Lisp_Object,
                               bool, bool, bool, bool);
 static void adjust_point_for_property (ptrdiff_t, bool);
 
@@ -1299,11 +1268,9 @@ command_loop_1 (void)
   if (!CONSP (last_command_event))
     kset_last_repeatable_command (current_kboard, Vreal_this_command);
 
-  while (1)
+  while (true)
     {
       Lisp_Object cmd;
-      Lisp_Object keybuf[30];
-      int i;
 
       if (! FRAME_LIVE_P (XFRAME (selected_frame)))
 	Fkill_emacs (Qnil);
@@ -1367,8 +1334,8 @@ command_loop_1 (void)
 
       /* Read next key sequence; i gets its length.  */
       raw_keybuf_count = 0;
-      i = read_key_sequence (keybuf, ARRAYELTS (keybuf),
-			     Qnil, 0, 1, 1, 0);
+      Lisp_Object keybuf[READ_KEY_ELTS];
+      int i = read_key_sequence (keybuf, Qnil, false, true, true, false);
 
       /* A filter may have run while we were reading the input.  */
       if (! FRAME_LIVE_P (XFRAME (selected_frame)))
@@ -1604,16 +1571,14 @@ command_loop_1 (void)
 Lisp_Object
 read_menu_command (void)
 {
-  Lisp_Object keybuf[30];
   ptrdiff_t count = SPECPDL_INDEX ();
-  int i;
 
   /* We don't want to echo the keystrokes while navigating the
      menus.  */
   specbind (Qecho_keystrokes, make_number (0));
 
-  i = read_key_sequence (keybuf, ARRAYELTS (keybuf),
-			 Qnil, 0, 1, 1, 1);
+  Lisp_Object keybuf[READ_KEY_ELTS];
+  int i = read_key_sequence (keybuf, Qnil, false, true, true, true);
 
   unbind_to (count, Qnil);
 
@@ -2856,6 +2821,7 @@ read_char (int commandflag, Lisp_Object map,
 
       if (CONSP (c)
           && (EQ (XCAR (c), Qselect_window)
+              || EQ (XCAR (c), Qfocus_out)
 #ifdef HAVE_DBUS
 	      || EQ (XCAR (c), Qdbus_event)
 #endif
@@ -2913,18 +2879,18 @@ read_char (int commandflag, Lisp_Object map,
      so we won't do this twice, then queue it up.  */
   if (EVENT_HAS_PARAMETERS (c)
       && CONSP (XCDR (c))
-      && CONSP (EVENT_START (c))
-      && CONSP (XCDR (EVENT_START (c))))
+      && CONSP (xevent_start (c))
+      && CONSP (XCDR (xevent_start (c))))
     {
       Lisp_Object posn;
 
-      posn = POSN_POSN (EVENT_START (c));
+      posn = POSN_POSN (xevent_start (c));
       /* Handle menu-bar events:
 	 insert the dummy prefix event `menu-bar'.  */
       if (EQ (posn, Qmenu_bar) || EQ (posn, Qtool_bar))
 	{
 	  /* Change menu-bar to (menu-bar) as the event "position".  */
-	  POSN_SET_POSN (EVENT_START (c), list1 (posn));
+	  POSN_SET_POSN (xevent_start (c), list1 (posn));
 
 	  also_record = c;
 	  Vunread_command_events = Fcons (c, Vunread_command_events);
@@ -5364,45 +5330,10 @@ make_lispy_event (struct input_event *event)
       }
 
     case FOCUS_IN_EVENT:
-      {
-	/* Notification of a FocusIn event.  The frame receiving the
-	   focus is in event->frame_or_window.  Generate a
-	   switch-frame event if necessary.  */
-
-        Lisp_Object frame = event->frame_or_window;
-        Lisp_Object focus = FRAME_FOCUS_FRAME (XFRAME (frame));
-        if (FRAMEP (focus))
-          frame = focus;
-        bool switching
-          = (
-#ifdef HAVE_X11
-            ! NILP (event->arg)
-            &&
-#endif
-            !EQ (frame, internal_last_event_frame)
-            && !EQ (frame, selected_frame));
-        internal_last_event_frame = frame;
-
-        return (switching ? make_lispy_switch_frame (frame)
-                : make_lispy_focus_in (frame));
-      }
+        return make_lispy_focus_in (event->frame_or_window);
 
     case FOCUS_OUT_EVENT:
-      {
-#ifdef HAVE_WINDOW_SYSTEM
-
-        Display_Info *di;
-        Lisp_Object frame = event->frame_or_window;
-        bool focused = false;
-
-        for (di = x_display_list; di && ! focused; di = di->next)
-          focused = di->x_highlight_frame != 0;
-
-        return focused ? Qnil
-               : make_lispy_focus_out (frame);
-
-#endif /* HAVE_WINDOW_SYSTEM */
-      }
+        return make_lispy_focus_out (event->frame_or_window);
 
     /* A simple keystroke.  */
     case ASCII_KEYSTROKE_EVENT:
@@ -6114,15 +6045,11 @@ make_lispy_focus_in (Lisp_Object frame)
   return list2 (Qfocus_in, frame);
 }
 
-#ifdef HAVE_WINDOW_SYSTEM
-
 static Lisp_Object
 make_lispy_focus_out (Lisp_Object frame)
 {
   return list2 (Qfocus_out, frame);
 }
-
-#endif /* HAVE_WINDOW_SYSTEM */
 
 /* Manipulating modifiers.  */
 
@@ -6668,6 +6595,31 @@ has the same base event type and all the specified modifiers.  */)
     return apply_modifiers (modifiers, base);
   else
     error ("Invalid base event");
+}
+
+DEFUN ("internal-handle-focus-in", Finternal_handle_focus_in,
+       Sinternal_handle_focus_in, 1, 1, 0,
+       doc: /* Internally handle focus-in events.
+This function potentially generates an artifical switch-frame event.  */)
+     (Lisp_Object event)
+{
+  Lisp_Object frame;
+  if (!EQ (CAR_SAFE (event), Qfocus_in) ||
+      !CONSP (XCDR (event)) ||
+      !FRAMEP ((frame = XCAR (XCDR (event)))))
+    error ("invalid focus-in event");
+
+  /* Conceptually, the concept of window manager focus on a particular
+     frame and the Emacs selected frame shouldn't be related, but for
+     a long time, we automatically switched the selected frame in
+     response to focus events, so let's keep doing that.  */
+  bool switching = (!EQ (frame, internal_last_event_frame)
+                    && !EQ (frame, selected_frame));
+  internal_last_event_frame = frame;
+  if (switching || !NILP (unread_switch_frame))
+    unread_switch_frame = make_lispy_switch_frame (frame);
+
+  return Qnil;
 }
 
 /* Try to recognize SYMBOL as a modifier name.
@@ -8778,8 +8730,7 @@ access_keymap_keyremap (Lisp_Object map, Lisp_Object key, Lisp_Object prompt,
 
 /* Do one step of the key remapping used for function-key-map and
    key-translation-map:
-   KEYBUF is the buffer holding the input events.
-   BUFSIZE is its maximum size.
+   KEYBUF is the READ_KEY_ELTS-size buffer holding the input events.
    FKEY is a pointer to the keyremap structure to use.
    INPUT is the index of the last element in KEYBUF.
    DOIT if true says that the remapping can actually take place.
@@ -8789,7 +8740,7 @@ access_keymap_keyremap (Lisp_Object map, Lisp_Object key, Lisp_Object prompt,
    Return true if the remapping actually took place.  */
 
 static bool
-keyremap_step (Lisp_Object *keybuf, int bufsize, volatile keyremap *fkey,
+keyremap_step (Lisp_Object *keybuf, volatile keyremap *fkey,
 	       int input, bool doit, int *diff, Lisp_Object prompt)
 {
   Lisp_Object next, key;
@@ -8811,7 +8762,7 @@ keyremap_step (Lisp_Object *keybuf, int bufsize, volatile keyremap *fkey,
 
       *diff = len - (fkey->end - fkey->start);
 
-      if (bufsize - input <= *diff)
+      if (READ_KEY_ELTS - input <= *diff)
 	error ("Key sequence too long");
 
       /* Shift the keys that follow fkey->end.  */
@@ -8859,7 +8810,7 @@ void init_raw_keybuf_count (void)
 }
 
 /* Read a sequence of keys that ends with a non prefix character,
-   storing it in KEYBUF, a buffer of size BUFSIZE.
+   storing it in KEYBUF, a buffer of size READ_KEY_ELTS.
    Prompt with PROMPT.
    Return the length of the key sequence stored.
    Return -1 if the user rejected a command menu.
@@ -8899,7 +8850,7 @@ void init_raw_keybuf_count (void)
    from the selected window's buffer.  */
 
 static int
-read_key_sequence (Lisp_Object *keybuf, int bufsize, Lisp_Object prompt,
+read_key_sequence (Lisp_Object *keybuf, Lisp_Object prompt,
 		   bool dont_downcase_last, bool can_return_switch_frame,
 		   bool fix_current_buffer, bool prevent_redisplay)
 {
@@ -8933,6 +8884,9 @@ read_key_sequence (Lisp_Object *keybuf, int bufsize, Lisp_Object prompt,
      mock_input, thus rebuilding the state; and then it will resume
      reading characters from the keyboard.  */
   int mock_input = 0;
+
+  /* Whether each event in the mocked input came from a mouse menu.  */
+  bool used_mouse_menu_history[READ_KEY_ELTS] = {0};
 
   /* If the sequence is unbound in submaps[], then
      keybuf[fkey.start..fkey.end-1] is a prefix in Vfunction_key_map,
@@ -8973,8 +8927,6 @@ read_key_sequence (Lisp_Object *keybuf, int bufsize, Lisp_Object prompt,
      mouse menus) a spurious initialization doesn't erase the contents
      of raw_keybuf created by the outer call.  */
   /* raw_keybuf_count = 0; */
-
-  last_nonmenu_event = Qnil;
 
   delayed_switch_frame = Qnil;
 
@@ -9026,7 +8978,7 @@ read_key_sequence (Lisp_Object *keybuf, int bufsize, Lisp_Object prompt,
  replay_sequence:
 
   starting_buffer = current_buffer;
-  first_unbound = bufsize + 1;
+  first_unbound = READ_KEY_ELTS + 1;
   Lisp_Object first_event = mock_input > 0 ? keybuf[0] : Qnil;
   Lisp_Object second_event = mock_input > 1 ? keybuf[1] : Qnil;
 
@@ -9039,6 +8991,7 @@ read_key_sequence (Lisp_Object *keybuf, int bufsize, Lisp_Object prompt,
 
   /* Start from the beginning in keybuf.  */
   t = 0;
+  last_nonmenu_event = Qnil;
 
   /* These are no-ops the first time through, but if we restart, they
      revert the echo area and this_command_keys to their original state.  */
@@ -9106,7 +9059,7 @@ read_key_sequence (Lisp_Object *keybuf, int bufsize, Lisp_Object prompt,
 	  goto replay_sequence;
 	}
 
-      if (t >= bufsize)
+      if (t >= READ_KEY_ELTS)
 	error ("Key sequence too long");
 
       if (INTERACTIVE)
@@ -9137,6 +9090,7 @@ read_key_sequence (Lisp_Object *keybuf, int bufsize, Lisp_Object prompt,
 	      current_kboard->immediate_echo = false;
 	      echo_now ();
 	    }
+	  used_mouse_menu = used_mouse_menu_history[t];
 	}
 
       /* If not, we should actually read a character.  */
@@ -9150,6 +9104,7 @@ read_key_sequence (Lisp_Object *keybuf, int bufsize, Lisp_Object prompt,
 	    key = read_char (prevent_redisplay ? -2 : NILP (prompt),
 		             current_binding, last_nonmenu_event,
                              &used_mouse_menu, NULL);
+	    used_mouse_menu_history[t] = used_mouse_menu;
 	    if ((INTEGERP (key) && XINT (key) == -2) /* wrong_kboard_jmpbuf */
 		/* When switching to a new tty (with a new keyboard),
 		   read_char returns the new buffer, rather than -2
@@ -9377,7 +9332,7 @@ read_key_sequence (Lisp_Object *keybuf, int bufsize, Lisp_Object prompt,
 		  && (NILP (fake_prefixed_keys)
 		      || NILP (Fmemq (key, fake_prefixed_keys))))
 		{
-		  if (bufsize - t <= 1)
+		  if (READ_KEY_ELTS - t <= 1)
 		    error ("Key sequence too long");
 
 		  keybuf[t]     = posn;
@@ -9393,24 +9348,24 @@ read_key_sequence (Lisp_Object *keybuf, int bufsize, Lisp_Object prompt,
 		}
 	    }
 	  else if (CONSP (XCDR (key))
-		   && CONSP (EVENT_START (key))
-		   && CONSP (XCDR (EVENT_START (key))))
+		   && CONSP (xevent_start (key))
+		   && CONSP (XCDR (xevent_start (key))))
 	    {
 	      Lisp_Object posn;
 
-	      posn = POSN_POSN (EVENT_START (key));
+	      posn = POSN_POSN (xevent_start (key));
 	      /* Handle menu-bar events:
 		 insert the dummy prefix event `menu-bar'.  */
 	      if (EQ (posn, Qmenu_bar) || EQ (posn, Qtool_bar))
 		{
-		  if (bufsize - t <= 1)
+		  if (READ_KEY_ELTS - t <= 1)
 		    error ("Key sequence too long");
 		  keybuf[t] = posn;
 		  keybuf[t + 1] = key;
 
 		  /* Zap the position in key, so we know that we've
 		     expanded it, and don't try to do so again.  */
-		  POSN_SET_POSN (EVENT_START (key), list1 (posn));
+		  POSN_SET_POSN (xevent_start (key), list1 (posn));
 
 		  mock_input = t + 2;
 		  goto replay_sequence;
@@ -9606,8 +9561,8 @@ read_key_sequence (Lisp_Object *keybuf, int bufsize, Lisp_Object prompt,
 	  bool done;
 	  int diff;
 
-	  done = keyremap_step (keybuf, bufsize, &indec, max (t, mock_input),
-				1, &diff, prompt);
+	  done = keyremap_step (keybuf, &indec, max (t, mock_input),
+				true, &diff, prompt);
 	  if (done)
 	    {
 	      mock_input = diff + max (t, mock_input);
@@ -9637,13 +9592,13 @@ read_key_sequence (Lisp_Object *keybuf, int bufsize, Lisp_Object prompt,
 	    bool done;
 	    int diff;
 
-	    done = keyremap_step (keybuf, bufsize, &fkey,
+	    done = keyremap_step (keybuf, &fkey,
 				  max (t, mock_input),
 				  /* If there's a binding (i.e.
 				     first_binding >= nmaps) we don't want
 				     to apply this function-key-mapping.  */
-				  fkey.end + 1 == t
-				  && (test_undefined (current_binding)),
+				  (fkey.end + 1 == t
+				   && test_undefined (current_binding)),
 				  &diff, prompt);
 	    if (done)
 	      {
@@ -9663,8 +9618,8 @@ read_key_sequence (Lisp_Object *keybuf, int bufsize, Lisp_Object prompt,
 	  bool done;
 	  int diff;
 
-	  done = keyremap_step (keybuf, bufsize, &keytran, max (t, mock_input),
-				1, &diff, prompt);
+	  done = keyremap_step (keybuf, &keytran, max (t, mock_input),
+				true, &diff, prompt);
 	  if (done)
 	    {
 	      mock_input = diff + max (t, mock_input);
@@ -9817,8 +9772,6 @@ read_key_sequence_vs (Lisp_Object prompt, Lisp_Object continue_echo,
 		      Lisp_Object can_return_switch_frame,
 		      Lisp_Object cmd_loop, bool allow_string)
 {
-  Lisp_Object keybuf[30];
-  int i;
   ptrdiff_t count = SPECPDL_INDEX ();
 
   if (!NILP (prompt))
@@ -9842,9 +9795,9 @@ read_key_sequence_vs (Lisp_Object prompt, Lisp_Object continue_echo,
 #endif
 
   raw_keybuf_count = 0;
-  i = read_key_sequence (keybuf, ARRAYELTS (keybuf),
-			 prompt, ! NILP (dont_downcase_last),
-			 ! NILP (can_return_switch_frame), 0, 0);
+  Lisp_Object keybuf[READ_KEY_ELTS];
+  int i = read_key_sequence (keybuf, prompt, ! NILP (dont_downcase_last),
+			     ! NILP (can_return_switch_frame), false, false);
 
 #if 0  /* The following is fine for code reading a key sequence and
 	  then proceeding with a lengthy computation, but it's not good
@@ -11305,6 +11258,7 @@ syms_of_keyboard (void)
   defsubr (&Scurrent_idle_time);
   defsubr (&Sevent_symbol_parse_modifiers);
   defsubr (&Sevent_convert_list);
+  defsubr (&Sinternal_handle_focus_in);
   defsubr (&Sread_key_sequence);
   defsubr (&Sread_key_sequence_vector);
   defsubr (&Srecursive_edit);

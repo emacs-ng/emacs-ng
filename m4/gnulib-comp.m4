@@ -58,10 +58,10 @@ AC_DEFUN([gl_EARLY],
   # Code from module count-leading-zeros:
   # Code from module count-one-bits:
   # Code from module count-trailing-zeros:
-  # Code from module crypto/md5:
-  # Code from module crypto/sha1:
-  # Code from module crypto/sha256:
-  # Code from module crypto/sha512:
+  # Code from module crypto/md5-buffer:
+  # Code from module crypto/sha1-buffer:
+  # Code from module crypto/sha256-buffer:
+  # Code from module crypto/sha512-buffer:
   # Code from module d-type:
   # Code from module diffseq:
   # Code from module dirent:
@@ -86,6 +86,8 @@ AC_DEFUN([gl_EARLY],
   # Code from module filevercmp:
   # Code from module flexmember:
   # Code from module fpending:
+  # Code from module fpieee:
+  AC_REQUIRE([gl_FP_IEEE])
   # Code from module fstatat:
   # Code from module fsusage:
   # Code from module fsync:
@@ -1002,6 +1004,7 @@ AC_DEFUN([gl_FILE_LIST], [
   m4/filemode.m4
   m4/flexmember.m4
   m4/fpending.m4
+  m4/fpieee.m4
   m4/fstatat.m4
   m4/fsusage.m4
   m4/fsync.m4

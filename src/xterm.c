@@ -360,17 +360,12 @@ x_begin_cr_clip (struct frame *f, GC gc)
 
       if (! FRAME_CR_SURFACE (f))
         {
-          cairo_surface_t *surface;
-          surface = cairo_xlib_surface_create (FRAME_X_DISPLAY (f),
-                                               FRAME_X_DRAWABLE (f),
-                                               FRAME_DISPLAY_INFO (f)->visual,
-                                               FRAME_PIXEL_WIDTH (f),
-                                               FRAME_PIXEL_HEIGHT (f));
-          cr = cairo_create (surface);
-          cairo_surface_destroy (surface);
-        }
-      else
-        cr = cairo_create (FRAME_CR_SURFACE (f));
+	  FRAME_CR_SURFACE (f) =
+	    cairo_image_surface_create (CAIRO_FORMAT_ARGB32,
+					FRAME_PIXEL_WIDTH (f),
+					FRAME_PIXEL_HEIGHT (f));
+	}
+      cr = cairo_create (FRAME_CR_SURFACE (f));
       FRAME_CR_CONTEXT (f) = cr;
     }
   cairo_save (cr);
@@ -549,10 +544,8 @@ x_cr_accumulate_data (void *closure, const unsigned char *data,
 }
 
 static void
-x_cr_destroy (Lisp_Object arg)
+x_cr_destroy (void *cr)
 {
-  cairo_t *cr = (cairo_t *) XSAVE_POINTER (arg, 0);
-
   block_input ();
   cairo_destroy (cr);
   unblock_input ();
@@ -611,7 +604,7 @@ x_cr_export_frames (Lisp_Object frames, cairo_surface_type_t surface_type)
 
   cr = cairo_create (surface);
   cairo_surface_destroy (surface);
-  record_unwind_protect (x_cr_destroy, make_save_ptr (cr));
+  record_unwind_protect_ptr (x_cr_destroy, cr);
 
   while (1)
     {
@@ -1234,32 +1227,24 @@ x_update_end (struct frame *f)
 #ifdef USE_CAIRO
   if (FRAME_CR_SURFACE (f))
     {
-      cairo_t *cr = 0;
-      block_input();
-#if defined (USE_GTK) && defined (HAVE_GTK3)
-      if (FRAME_GTK_WIDGET (f))
-        {
-          GdkWindow *w = gtk_widget_get_window (FRAME_GTK_WIDGET (f));
-          cr = gdk_cairo_create (w);
-        }
-      else
-#endif
-        {
-          cairo_surface_t *surface;
-          int width = FRAME_PIXEL_WIDTH (f);
-          int height = FRAME_PIXEL_HEIGHT (f);
-          if (! FRAME_EXTERNAL_TOOL_BAR (f))
-            height += FRAME_TOOL_BAR_HEIGHT (f);
-          if (! FRAME_EXTERNAL_MENU_BAR (f))
-            height += FRAME_MENU_BAR_HEIGHT (f);
-          surface = cairo_xlib_surface_create (FRAME_X_DISPLAY (f),
-                                               FRAME_X_DRAWABLE (f),
-                                               FRAME_DISPLAY_INFO (f)->visual,
-                                               width,
-                                               height);
-          cr = cairo_create (surface);
-          cairo_surface_destroy (surface);
-        }
+      cairo_t *cr;
+      cairo_surface_t *surface;
+      int width, height;
+
+      block_input ();
+      width = FRAME_PIXEL_WIDTH (f);
+      height = FRAME_PIXEL_HEIGHT (f);
+      if (! FRAME_EXTERNAL_TOOL_BAR (f))
+	height += FRAME_TOOL_BAR_HEIGHT (f);
+      if (! FRAME_EXTERNAL_MENU_BAR (f))
+	height += FRAME_MENU_BAR_HEIGHT (f);
+      surface = cairo_xlib_surface_create (FRAME_X_DISPLAY (f),
+					   FRAME_X_DRAWABLE (f),
+					   FRAME_DISPLAY_INFO (f)->visual,
+					   width,
+					   height);
+      cr = cairo_create (surface);
+      cairo_surface_destroy (surface);
 
       cairo_set_source_surface (cr, FRAME_CR_SURFACE (f), 0, 0);
       cairo_paint (cr);
@@ -1986,7 +1971,13 @@ x_draw_glyphless_glyph_string_foreground (struct glyph_string *s)
 
   for (i = 0; i < s->nchars; i++, glyph++)
     {
-      char buf[7], *str = NULL;
+#ifdef GCC_LINT
+      enum { PACIFY_GCC_BUG_81401 = 1 };
+#else
+      enum { PACIFY_GCC_BUG_81401 = 0 };
+#endif
+      char buf[7 + PACIFY_GCC_BUG_81401];
+      char *str = NULL;
       int len = glyph->u.glyphless.len;
 
       if (glyph->u.glyphless.method == GLYPHLESS_DISPLAY_ACRONYM)
@@ -4271,7 +4262,29 @@ x_scroll_run (struct window *w, struct run *run)
   x_clear_cursor (w);
 
 #ifdef USE_CAIRO
-  SET_FRAME_GARBAGED (f);
+  if (FRAME_CR_CONTEXT (f))
+    {
+      int wx = WINDOW_LEFT_EDGE_X (w);
+      cairo_surface_t *s = cairo_image_surface_create (CAIRO_FORMAT_ARGB32,
+						       width, height);
+      cairo_t *cr = cairo_create (s);
+      cairo_set_source_surface (cr, cairo_get_target (FRAME_CR_CONTEXT (f)),
+				-x, -from_y);
+      cairo_paint (cr);
+      cairo_destroy (cr);
+
+      cr = FRAME_CR_CONTEXT (f);
+      cairo_save (cr);
+      cairo_set_source_surface (cr, s, wx, to_y);
+      cairo_rectangle (cr, wx, to_y, width, height);
+      cairo_fill (cr);
+      cairo_restore (cr);
+      cairo_surface_destroy (s);
+    }
+  else
+    {
+      SET_FRAME_GARBAGED (f);
+    }
 #else
   XCopyArea (FRAME_X_DISPLAY (f),
              FRAME_X_DRAWABLE (f), FRAME_X_DRAWABLE (f),
@@ -4372,16 +4385,6 @@ x_focus_changed (int type, int state, struct x_display_info *dpyinfo, struct fra
         {
           x_new_focus_frame (dpyinfo, frame);
           dpyinfo->x_focus_event_frame = frame;
-
-          /* Don't stop displaying the initial startup message
-             for a switch-frame event we don't need.  */
-          /* When run as a daemon, Vterminal_frame is always NIL.  */
-          bufp->arg = (((NILP (Vterminal_frame)
-                         || ! FRAME_X_P (XFRAME (Vterminal_frame))
-                         || EQ (Fdaemonp (), Qt))
-			&& CONSP (Vframe_list)
-			&& !NILP (XCDR (Vframe_list)))
-		       ? Qt : Qnil);
           bufp->kind = FOCUS_IN_EVENT;
           XSETFRAME (bufp->frame_or_window, frame);
         }
@@ -9819,13 +9822,13 @@ x_connection_closed (Display *dpy, const char *error_message, bool ioerror)
          current Xt versions, this isn't needed either.  */
 #ifdef USE_GTK
       /* A long-standing GTK bug prevents proper disconnect handling
-	 (https://bugzilla.gnome.org/show_bug.cgi?id=85715).  Once,
+	 <https://gitlab.gnome.org/GNOME/gtk/issues/221>.  Once,
 	 the resulting Glib error message loop filled a user's disk.
 	 To avoid this, kill Emacs unconditionally on disconnect.  */
       shut_down_emacs (0, Qnil);
       fprintf (stderr, "%s\n\
 When compiled with GTK, Emacs cannot recover from X disconnects.\n\
-This is a GTK bug: https://bugzilla.gnome.org/show_bug.cgi?id=85715\n\
+This is a GTK bug: https://gitlab.gnome.org/GNOME/gtk/issues/221\n\
 For details, see etc/PROBLEMS.\n",
 	       error_msg);
       emacs_abort ();
@@ -10563,6 +10566,10 @@ x_set_skip_taskbar (struct frame *f, Lisp_Object new_value, Lisp_Object old_valu
  * windows that do not have the `below' property set.
  *
  * Some window managers may not honor this parameter.
+ *
+ * Internally, this function also handles a value 'above-suspended'.
+ * That value is used to temporarily remove F from the 'above' group
+ * to make sure that it does not obscure a menu currently popped up.
  */
 void
 x_set_z_group (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)

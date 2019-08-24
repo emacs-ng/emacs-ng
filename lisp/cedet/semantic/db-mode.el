@@ -50,10 +50,12 @@
   (member (car (car semanticdb-hooks))
 	  (symbol-value (car (cdr (car semanticdb-hooks))))))
 
+(defvaralias 'semanticdb-mode-hook 'global-semanticdb-minor-mode-hook)
+(defvaralias 'semanticdb-global-mode 'global-semanticdb-minor-mode)
+
 ;;;###autoload
 (define-minor-mode global-semanticdb-minor-mode
   "Toggle Semantic DB mode.
-With ARG, turn Semantic DB mode on if ARG is positive, off otherwise.
 
 In Semantic DB mode, Semantic parsers store results in a
 database, which can be saved for future Emacs sessions."
@@ -67,8 +69,6 @@ database, which can be saved for future Emacs sessions."
     (dolist (elt semanticdb-hooks)
       (remove-hook (cadr elt) (car elt)))))
 
-(defvaralias 'semanticdb-mode-hook 'global-semanticdb-minor-mode-hook)
-(defvaralias 'semanticdb-global-mode 'global-semanticdb-minor-mode)
 (semantic-varalias-obsolete 'semanticdb-mode-hooks
 			    'global-semanticdb-minor-mode-hook "23.2")
 

@@ -2147,8 +2147,7 @@ whether or not it is currently displayed in some window.  */)
 	 will sometimes err by one column.  */
       int lnum_width = 0;
       int lnum_pixel_width = 0;
-      if (!NILP (Vdisplay_line_numbers)
-	  && !EQ (Vdisplay_line_numbers, Qvisual))
+      if (!NILP (Vdisplay_line_numbers))
 	line_number_display_width (w, &lnum_width, &lnum_pixel_width);
       SET_TEXT_POS (pt, PT, PT_BYTE);
       itdata = bidi_shelve_cache ();
@@ -2278,7 +2277,9 @@ whether or not it is currently displayed in some window.  */)
 	  overshoot_handled = 1;
 	}
       if (lcols_given)
-	to_x = window_column_x (w, window, extract_float (lcols), lcols);
+	to_x =
+	  window_column_x (w, window, extract_float (lcols), lcols)
+	  + lnum_pixel_width;
       if (nlines <= 0)
 	{
 	  it.vpos = vpos_init;
@@ -2330,12 +2331,6 @@ whether or not it is currently displayed in some window.  */)
 	 an addition to the hscroll amount.  */
       if (lcols_given)
 	{
-	  /* If we are displaying line numbers, we could cross the
-	     line where the width of the line-number display changes,
-	     in which case we need to fix up the pixel coordinate
-	     accordingly.  */
-	  if (lnum_pixel_width > 0)
-	    to_x += it.lnum_pixel_width - lnum_pixel_width;
 	  move_it_in_display_line (&it, ZV, first_x + to_x, MOVE_TO_X);
 	  /* If we find ourselves in the middle of an overlay string
 	     which includes a newline after current string position,
@@ -2361,9 +2356,7 @@ whether or not it is currently displayed in some window.  */)
       bidi_unshelve_cache (itdata, 0);
     }
 
-  unbind_to (count, Qnil);
-
-  return make_number (it.vpos);
+  return unbind_to (count, make_number (it.vpos));
 }
 
 

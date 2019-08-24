@@ -1071,6 +1071,8 @@ has been set."
   :group 'org-startup
   :type 'boolean)
 
+(defvaralias 'org-CUA-compatible 'org-replace-disputed-keys)
+
 (defcustom org-replace-disputed-keys nil
   "Non-nil means use alternative key bindings for some keys.
 Org mode uses S-<cursor> keys for changing timestamps and priorities.
@@ -1094,8 +1096,6 @@ variable lets you do the same manually.  You must set it before
 loading Org."
   :group 'org-startup
   :type 'boolean)
-
-(defvaralias 'org-CUA-compatible 'org-replace-disputed-keys)
 
 (defcustom org-disputed-keys
   '(([(shift up)]		. [(meta p)])
@@ -1490,6 +1490,8 @@ time in Emacs."
   :group 'org-edit-structure
   :type 'boolean)
 
+(defvaralias 'org-special-ctrl-a 'org-special-ctrl-a/e)
+
 (defcustom org-special-ctrl-a/e nil
   "Non-nil means `C-a' and `C-e' behave specially in headlines and items.
 
@@ -1527,7 +1529,6 @@ This may also be a cons cell where the behavior for `C-a' and
 			(const :tag "off" nil)
 			(const :tag "on: before tags first" t)
 			(const :tag "reversed: after tags first" reversed)))))
-(defvaralias 'org-special-ctrl-a 'org-special-ctrl-a/e)
 
 (defcustom org-special-ctrl-k nil
   "Non-nil means `C-k' will behave specially in headlines.
@@ -3005,6 +3006,8 @@ because Agenda Log mode depends on the format of these entries."
 (unless (assq 'note org-log-note-headings)
   (push '(note . "%t") org-log-note-headings))
 
+(defvaralias 'org-log-state-notes-into-drawer 'org-log-into-drawer)
+
 (defcustom org-log-into-drawer nil
   "Non-nil means insert state change notes and time stamps into a drawer.
 When nil, state changes notes will be inserted after the headline and
@@ -3035,8 +3038,6 @@ function `org-log-into-drawer' instead."
 	  (const :tag "Not into a drawer" nil)
 	  (const :tag "LOGBOOK" t)
 	  (string :tag "Other")))
-
-(defvaralias 'org-log-state-notes-into-drawer 'org-log-into-drawer)
 
 (defun org-log-into-drawer ()
   "Name of the log drawer, as a string, or nil.
@@ -3342,6 +3343,9 @@ This display will be in an overlay, in the minibuffer."
   :group 'org-time
   :type 'boolean)
 
+(defvaralias 'org-popup-calendar-for-date-prompt
+  'org-read-date-popup-calendar)
+
 (defcustom org-read-date-popup-calendar t
   "Non-nil means pop up a calendar when prompting for a date.
 In the calendar, the date can be selected with mouse-1.  However, the
@@ -3349,8 +3353,6 @@ minibuffer will also be active, and you can simply enter the date as well.
 When nil, only the minibuffer will be available."
   :group 'org-time
   :type 'boolean)
-(defvaralias 'org-popup-calendar-for-date-prompt
-  'org-read-date-popup-calendar)
 
 (defcustom org-extend-today-until 0
   "The hour when your day really ends.  Must be an integer.
@@ -3798,6 +3800,9 @@ regular expression will be included."
   :group 'org-agenda
   :type 'regexp)
 
+(defvaralias 'org-agenda-multi-occur-extra-files
+  'org-agenda-text-search-extra-files)
+
 (defcustom org-agenda-text-search-extra-files nil
   "List of extra files to be searched by text search commands.
 These files will be searched in addition to the agenda files by the
@@ -3814,9 +3819,6 @@ scope."
   :type '(set :greedy t
 	      (const :tag "Agenda Archives" agenda-archives)
 	      (repeat :inline t (file))))
-
-(defvaralias 'org-agenda-multi-occur-extra-files
-  'org-agenda-text-search-extra-files)
 
 (defcustom org-agenda-skip-unavailable-files nil
   "Non-nil means to just skip non-reachable files in `org-agenda-files'.

@@ -119,10 +119,9 @@
 
   ;; In POSIX or C locales, collation order is lexicographic.
   (should (string-collate-lessp "XYZZY" "xyzzy" "POSIX"))
-  ;; In a language specific locale, collation order is different.
-  (should (string-collate-lessp
-	   "xyzzy" "XYZZY"
-	   (if (eq system-type 'windows-nt) "enu_USA" "en_US.UTF-8")))
+  ;; In a language specific locale on MS-Windows, collation order is different.
+  (when (eq system-type 'windows-nt)
+    (should (string-collate-lessp "xyzzy" "XYZZY" "enu_USA")))
 
   ;; Ignore case.
   (should (string-collate-equalp "xyzzy" "XYZZY" nil t))
@@ -154,8 +153,6 @@
 	    (9 . "aaa") (9 . "zzz") (9 . "ppp") (9 . "fff")])))
 
 (ert-deftest fns-tests-collate-sort ()
-  ;; See https://lists.gnu.org/r/emacs-devel/2015-10/msg02505.html.
-  :expected-result (if (eq system-type 'cygwin) :failed :passed)
   (skip-unless (fns-tests--collate-enabled-p))
 
   ;; Punctuation and whitespace characters are relevant for POSIX.
@@ -165,15 +162,16 @@
 	  (lambda (a b) (string-collate-lessp a b "POSIX")))
     '("1 1" "1 2" "1.1" "1.2" "11" "12")))
   ;; Punctuation and whitespace characters are not taken into account
-  ;; for collation in other locales.
-  (should
-   (equal
-    (sort '("11" "12" "1 1" "1 2" "1.1" "1.2")
-	  (lambda (a b)
-	    (let ((w32-collate-ignore-punctuation t))
-	      (string-collate-lessp
-	       a b (if (eq system-type 'windows-nt) "enu_USA" "en_US.UTF-8")))))
-    '("11" "1 1" "1.1" "12" "1 2" "1.2")))
+  ;; for collation in other locales, on MS-Windows systems.
+  (when (eq system-type 'windows-nt)
+    (should
+     (equal
+      (sort '("11" "12" "1 1" "1 2" "1.1" "1.2")
+            (lambda (a b)
+              (let ((w32-collate-ignore-punctuation t))
+                (string-collate-lessp
+                 a b "enu_USA"))))
+      '("11" "1 1" "1.1" "12" "1 2" "1.2"))))
 
   ;; Diacritics are different letters for POSIX, they sort lexicographical.
   (should
@@ -181,15 +179,17 @@
     (sort '("Ævar" "Agustín" "Adrian" "Eli")
 	  (lambda (a b) (string-collate-lessp a b "POSIX")))
     '("Adrian" "Agustín" "Eli" "Ævar")))
-  ;; Diacritics are sorted between similar letters for other locales.
-  (should
-   (equal
-    (sort '("Ævar" "Agustín" "Adrian" "Eli")
-	  (lambda (a b)
-	    (let ((w32-collate-ignore-punctuation t))
-	      (string-collate-lessp
-	       a b (if (eq system-type 'windows-nt) "enu_USA" "en_US.UTF-8")))))
-    '("Adrian" "Ævar" "Agustín" "Eli"))))
+  ;; Diacritics are sorted between similar letters for other locales,
+  ;; on MS-Windows systems.
+  (when (eq system-type 'windows-nt)
+    (should
+     (equal
+      (sort '("Ævar" "Agustín" "Adrian" "Eli")
+            (lambda (a b)
+              (let ((w32-collate-ignore-punctuation t))
+                (string-collate-lessp
+                 a b "enu_USA"))))
+      '("Adrian" "Ævar" "Agustín" "Eli")))))
 
 (ert-deftest fns-tests-string-version-lessp ()
   (should (string-version-lessp "foo2.png" "foo12.png"))
@@ -574,5 +574,23 @@
   (should (equal (should-error (plist-member '(:foo 1 . :bar) :qux)
                                :type 'wrong-type-argument)
                  '(wrong-type-argument plistp (:foo 1 . :bar)))))
+
+(ert-deftest test-string-distance ()
+  "Test `string-distance' behavior."
+  ;; ASCII characters are always fine
+  (should (equal 1 (string-distance "heelo" "hello")))
+  (should (equal 2 (string-distance "aeelo" "hello")))
+  (should (equal 0 (string-distance "ab" "ab" t)))
+  (should (equal 1 (string-distance "ab" "abc" t)))
+
+  ;; string containing hanzi character, compare by byte
+  (should (equal 6 (string-distance "ab" "ab我她" t)))
+  (should (equal 3 (string-distance "ab" "a我b" t)))
+  (should (equal 3 (string-distance "我" "她" t)))
+
+  ;; string containing hanzi character, compare by character
+  (should (equal 2 (string-distance "ab" "ab我她")))
+  (should (equal 1 (string-distance "ab" "a我b")))
+  (should (equal 1 (string-distance "我" "她"))))
 
 (provide 'fns-tests)

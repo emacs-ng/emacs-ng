@@ -263,6 +263,8 @@ See `comint-preinput-scroll-to-bottom'.  This variable is buffer-local."
 		 (const this))
   :group 'comint)
 
+(defvaralias 'comint-scroll-to-bottom-on-output 'comint-move-point-for-output)
+
 (defcustom comint-move-point-for-output nil
   "Controls whether interpreter output moves point to the end of the output.
 If nil, then output never moves point to the output.
@@ -294,8 +296,6 @@ end of the current logical (not visual) line after insertion."
   :type '(radio (const :tag "Stay after input" after-input)
                 (const :tag "Move to end of line" end-of-line))
   :group 'comint)
-
-(defvaralias 'comint-scroll-to-bottom-on-output 'comint-move-point-for-output)
 
 (defcustom comint-scroll-show-maximum-output t
   "Controls how to scroll due to interpreter output.
@@ -1683,11 +1683,13 @@ characters), and are not considered to be delimiters."
 (defun comint-arguments (string nth mth)
   "Return from STRING the NTH to MTH arguments.
 NTH and/or MTH can be nil, which means the last argument.
-Returned arguments are separated by single spaces.
-We assume whitespace separates arguments, except within quotes
-and except for a space or tab that immediately follows a backslash.
-Also, a run of one or more of a single character
-in `comint-delimiter-argument-list' is a separate argument.
+NTH and MTH can be negative to count from the end; -1 means
+the last argument.
+Returned arguments are separated by single spaces.  We assume
+whitespace separates arguments, except within quotes and except
+for a space or tab that immediately follows a backslash.  Also, a
+run of one or more of a single character in
+`comint-delimiter-argument-list' is a separate argument.
 Argument 0 is the command name."
   ;; The first line handles ordinary characters and backslash-sequences
   ;; (except with w32 msdos-like shells, where backslashes are valid).
@@ -1709,7 +1711,7 @@ Argument 0 is the command name."
 	 (count 0)
 	 beg str quotes)
     ;; Build a list of all the args until we have as many as we want.
-    (while (and (or (null mth) (<= count mth))
+    (while (and (or (null mth) (< mth 0) (<= count mth))
 		(string-match argpart string pos))
       ;; Apply the `literal' text property to backslash-escaped
       ;; characters, so that `comint-delim-arg' won't break them up.
@@ -1736,8 +1738,14 @@ Argument 0 is the command name."
 	      args (if quotes (cons str args)
 		     (nconc (comint-delim-arg str) args))))
     (setq count (length args))
-    (let ((n (or nth (1- count)))
-	  (m (if mth (1- (- count mth)) 0)))
+    (let ((n (cond
+              ((null nth) (1- count))
+              ((>= nth 0) nth)
+              (t          (+ count nth))))
+          (m (cond
+              ((null mth) 0)
+              ((>= mth 0) (1- (- count mth)))
+              (t          (1- (- mth))))))
       (mapconcat
        (function (lambda (a) a)) (nthcdr n (nreverse (nthcdr m args))) " "))))
 
@@ -2255,14 +2263,16 @@ current line, if point is on an output field.
 If `comint-use-prompt-regexp' is non-nil, then return
 the current line with any initial string matching the regexp
 `comint-prompt-regexp' removed."
-  (let (bof)
+  (let (field-prop bof)
     (if (and (not comint-use-prompt-regexp)
              ;; Make sure we're in an input rather than output field.
-             (null (get-char-property (setq bof (field-beginning)) 'field)))
+             (not (setq field-prop (get-char-property
+                                    (setq bof (field-beginning)) 'field))))
 	(field-string-no-properties bof)
       (comint-bol)
       (buffer-substring-no-properties (point)
-				      (if comint-use-prompt-regexp
+                                      (if (or comint-use-prompt-regexp
+                                              (eq field-prop 'output))
 					  (line-end-position)
 					(field-end))))))
 
@@ -2650,8 +2660,17 @@ text matching `comint-prompt-regexp'."
 (defvar-local comint-insert-previous-argument-last-start-pos nil)
 (defvar-local comint-insert-previous-argument-last-index nil)
 
-;; Needs fixing:
-;;  make comint-arguments understand negative indices as bash does
+(defcustom comint-insert-previous-argument-from-end nil
+  "If non-nil, `comint-insert-previous-argument' counts args from the end.
+If this variable is nil, the default, `comint-insert-previous-argument'
+counts the arguments from the beginning; if non-nil, it counts from
+the end instead.  This allows to emulate the behavior of `ESC-NUM ESC-.'
+in both Bash and zsh: in Bash, `number' counts from the
+beginning (variable is nil), while in zsh, it counts from the end."
+  :type 'boolean
+  :group 'comint
+  :version "27.1")
+
 (defun comint-insert-previous-argument (index)
   "Insert the INDEXth argument from the previous Comint command-line at point.
 Spaces are added at beginning and/or end of the inserted string if
@@ -2659,8 +2678,9 @@ necessary to ensure that it's separated from adjacent arguments.
 Interactively, if no prefix argument is given, the last argument is inserted.
 Repeated interactive invocations will cycle through the same argument
 from progressively earlier commands (using the value of INDEX specified
-with the first command).
-This command is like `M-.' in bash."
+with the first command).  Values of INDEX < 0 count from the end, so
+INDEX = -1 is the last argument.  This command is like `M-.' in
+Bash and zsh."
   (interactive "P")
   (unless (null index)
     (setq index (prefix-numeric-value index)))
@@ -2670,6 +2690,9 @@ This command is like `M-.' in bash."
 	 (setq index comint-insert-previous-argument-last-index))
 	(t
 	 ;; This is a non-repeat invocation, so initialize state.
+         (when (and index
+                    comint-insert-previous-argument-from-end)
+           (setq index (- index)))
 	 (setq comint-input-ring-index nil)
 	 (setq comint-insert-previous-argument-last-index index)
 	 (when (null comint-insert-previous-argument-last-start-pos)
@@ -2685,9 +2708,6 @@ This command is like `M-.' in bash."
   (set-marker comint-insert-previous-argument-last-start-pos (point))
   ;; Insert the argument.
   (let ((input-string (comint-previous-input-string 0)))
-    (when (string-match "[ \t\n]*&" input-string)
-      ;; strip terminating '&'
-      (setq input-string (substring input-string 0 (match-beginning 0))))
     (insert (comint-arguments input-string index index)))
   ;; Make next invocation return arg from previous input
   (setq comint-input-ring-index (1+ (or comint-input-ring-index 0)))

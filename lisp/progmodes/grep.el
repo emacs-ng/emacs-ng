@@ -354,17 +354,6 @@ See `compilation-error-screen-columns'"
 
 (defalias 'kill-grep 'kill-compilation)
 
-;;;; TODO --- refine this!!
-
-;; (defcustom grep-use-compilation-buffer t
-;;   "When non-nil, grep specific commands update `compilation-last-buffer'.
-;; This means that standard compile commands like \\[next-error] and \\[compile-goto-error]
-;; can be used to navigate between grep matches (the default).
-;; Otherwise, the grep specific commands like \\[grep-next-match] must
-;; be used to navigate between grep matches."
-;;   :type 'boolean
-;;   :group 'grep)
-
 ;; override compilation-last-buffer
 (defvar grep-last-buffer nil
   "The most recent grep buffer.
@@ -643,22 +632,22 @@ This function is called from `compilation-filter-hook'."
 			  ;; `grep-command' is already set, so
 			  ;; use that for testing.
 			  (grep-probe grep-command
-				      `(nil t nil "^English" ,hello-file)
+				      `(nil t nil "^Copyright" ,hello-file)
 				      #'call-process-shell-command)
 			;; otherwise use `grep-program'
 			(grep-probe grep-program
-				    `(nil t nil "-nH" "^English" ,hello-file)))
+				    `(nil t nil "-nH" "^Copyright" ,hello-file)))
 		      (progn
 			(goto-char (point-min))
 			(looking-at
 			 (concat (regexp-quote hello-file)
-				 ":[0-9]+:English")))))))))
+				 ":[0-9]+:Copyright")))))))))
 
     (when (eq grep-use-null-filename-separator 'auto-detect)
       (setq grep-use-null-filename-separator
             (with-temp-buffer
               (let* ((hello-file (expand-file-name "HELLO" data-directory))
-                     (args `("--null" "-ne" "^English" ,hello-file)))
+                     (args `("--null" "-ne" "^Copyright" ,hello-file)))
                 (if grep-use-null-device
                     (setq args (append args (list null-device)))
                   (push "-H" args))
@@ -667,7 +656,7 @@ This function is called from `compilation-filter-hook'."
                        (goto-char (point-min))
                        (looking-at
                         (concat (regexp-quote hello-file)
-                                "\0[0-9]+:English"))))))))
+                                "\0[0-9]+:Copyright"))))))))
 
     (when (eq grep-highlight-matches 'auto-detect)
       (setq grep-highlight-matches
@@ -1083,6 +1072,7 @@ This command shares argument histories with \\[rgrep] and \\[grep]."
 				 (concat command " " null-device)
 			       command)
 			     'grep-mode))
+	;; Set default-directory if we started lgrep in the *grep* buffer.
 	(if (eq next-error-last-buffer (current-buffer))
 	    (setq default-directory dir))))))
 

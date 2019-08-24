@@ -540,9 +540,11 @@ SELECT is `quit', also quit the *xref* window."
 Non-interactively, non-nil QUIT means to first quit the *xref*
 buffer."
   (interactive)
-  (let ((xref (or (xref--item-at-point)
+  (let ((buffer (current-buffer))
+        (xref (or (xref--item-at-point)
                   (user-error "No reference at point"))))
-    (xref--show-location (xref-item-location xref) (if quit 'quit t))))
+    (xref--show-location (xref-item-location xref) (if quit 'quit t))
+    (next-error-found buffer (current-buffer))))
 
 (defun xref-quit-and-goto-xref ()
   "Quit *xref* buffer, then jump to xref on current line."
@@ -870,6 +872,19 @@ buffer where the user can select from the list."
 With prefix argument, prompt for the identifier."
   (interactive (list (xref--read-identifier "Find references of: ")))
   (xref--find-xrefs identifier 'references identifier nil))
+
+;;;###autoload
+(defun xref-find-definitions-at-mouse (event)
+  "Find the definition of identifier at or around mouse click.
+This command is intended to be bound to a mouse event."
+  (interactive "e")
+  (let ((identifier
+         (save-excursion
+           (mouse-set-point event)
+           (xref-backend-identifier-at-point (xref-find-backend)))))
+    (if identifier
+        (xref-find-definitions identifier)
+      (user-error "No identifier here"))))
 
 (declare-function apropos-parse-pattern "apropos" (pattern))
 

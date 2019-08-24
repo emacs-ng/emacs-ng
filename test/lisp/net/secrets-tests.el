@@ -31,8 +31,9 @@
   :expected-result (if secrets-enabled :passed :failed)
   (should secrets-enabled)
   (should (dbus-ping :session secrets-service))
-  ;; We do not test when there's an open session.
-  (should (secrets-empty-path secrets-session-path)))
+
+  ;; Exit.
+  (secrets--test-close-all-sessions))
 
 (defun secrets--test-get-all-sessions ()
   "Return all object paths for existing secrets sessions."
@@ -88,6 +89,8 @@
 
   (unwind-protect
       (progn
+	(should (secrets-open-session))
+
 	;; There must be at least the collections "Login" and "session".
 	(should (member "Login" (secrets-list-collections)))
 	(should (member "session" (secrets-list-collections)))
@@ -148,30 +151,53 @@
   (skip-unless (secrets-empty-path secrets-session-path))
 
   (unwind-protect
-      (progn
+      (let (item-path)
+	(should (secrets-open-session))
+
+        ;; Cleanup.  There could be items in the "session" collection.
+        (secrets--test-delete-all-session-items)
+
 	;; There shall be no items in the "session" collection.
 	(should-not (secrets-list-items "session"))
 	;; There shall be items in the "Login" collection.
 	(should (secrets-list-items "Login"))
 
 	;; Create a new item.
-	(secrets-create-item "session" "foo" "secret")
-	(should (string-equal (secrets-get-secret "session" "foo") "secret"))
+	(should (setq item-path (secrets-create-item "session" "foo" "secret")))
+        (dolist (item `("foo" ,item-path))
+	  (should (string-equal (secrets-get-secret "session" item) "secret")))
+
+	;; Create another item with same label.
+	(should (secrets-create-item "session" "foo" "geheim"))
+	(should (equal (secrets-list-items "session") '("foo" "foo")))
 
 	;; Create an item with attributes.
-	(secrets-create-item
-	 "session" "bar" "secret"
-	 :method "sudo" :user "joe" :host "remote-host")
 	(should
-	 (string-equal (secrets-get-attribute "session" "bar" :method) "sudo"))
-	;; The attributes are collected in reverse order.  :xdg:schema
-	;; is added silently.
+         (setq item-path
+               (secrets-create-item
+	        "session" "bar" "secret"
+	        :method "sudo" :user "joe" :host "remote-host")))
+        (dolist (item `("bar" ,item-path))
+	  (should
+	   (string-equal (secrets-get-attribute "session" item :method) "sudo"))
+	  ;; The attributes are collected in reverse order.
+	  ;; :xdg:schema is added silently.
+	  (should
+	   (equal
+	    (secrets-get-attributes "session" item)
+	    '((:xdg:schema . "org.freedesktop.Secret.Generic")
+              (:host . "remote-host") (:user . "joe") (:method . "sudo")))))
+
+	;; Create an item with another schema.
 	(should
-	 (equal
-	  (secrets-get-attributes "session" "bar")
-	  '((:host . "remote-host") (:user . "joe")
-	    (:method . "sudo")
-	    (:xdg:schema . "org.freedesktop.Secret.Generic"))))
+         (setq item-path
+               (secrets-create-item
+                "session" "baz" "secret" :xdg:schema "org.gnu.Emacs.foo")))
+        (dolist (item `("baz" ,item-path))
+	  (should
+	   (equal
+	    (secrets-get-attributes "session" item)
+	    '((:xdg:schema . "org.gnu.Emacs.foo")))))
 
 	;; Delete them.
 	(dolist (item (secrets-list-items "session"))
@@ -190,22 +216,35 @@
 
   (unwind-protect
       (progn
+	(should (secrets-open-session))
+
+        ;; Cleanup.  There could be items in the "session" collection.
+        (secrets--test-delete-all-session-items)
+
 	;; There shall be no items in the "session" collection.
 	(should-not (secrets-list-items "session"))
 
 	;; Create some items.
-	(secrets-create-item
-	 "session" "foo" "secret"
-	 :method "sudo" :user "joe" :host "remote-host")
-	(secrets-create-item
-	 "session" "bar" "secret"
-	 :method "sudo" :user "smith" :host "remote-host")
-	(secrets-create-item
-	 "session" "baz" "secret"
-	 :method "ssh" :user "joe" :host "other-host")
+	(should
+         (secrets-create-item
+	  "session" "foo" "secret"
+	  :method "sudo" :user "joe" :host "remote-host"))
+	(should
+         (secrets-create-item
+	  "session" "bar" "secret"
+	  :method "sudo" :user "smith" :host "remote-host"))
+	(should
+         (secrets-create-item
+	  "session" "baz" "secret"
+	  :method "ssh" :user "joe" :host "other-host"))
 
-	;; Search the items.
+	;; Search the items.  `secrets-search-items' uses
+	;; `secrets-search-item-paths' internally, it is sufficient to
+	;; test only one of them.
+	(should-not (secrets-search-item-paths "session" :user "john"))
 	(should-not (secrets-search-items "session" :user "john"))
+	(should-not
+         (secrets-search-items "session" :xdg:schema "org.gnu.Emacs.foo"))
 	(should
 	 (equal
 	  (sort (secrets-search-items "session" :user "joe") 'string-lessp)

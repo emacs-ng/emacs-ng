@@ -260,32 +260,43 @@ or comment."
                 (or (memq act '(nil no-indent))
                     ;; In a string or comment.
                     (unless (eq act 'do-indent) (nth 8 (syntax-ppss))))))))
-      ;; For newline, we want to reindent both lines and basically behave like
-      ;; reindent-then-newline-and-indent (whose code we hence copied).
-      (let ((at-newline (<= pos (line-beginning-position))))
-        (when at-newline
-          (let ((before (copy-marker (1- pos) t)))
-            (save-excursion
-              (unless (or (memq indent-line-function
-                                electric-indent-functions-without-reindent)
-                          electric-indent-inhibit)
-                ;; Don't reindent the previous line if the indentation function
-                ;; is not a real one.
+      ;; If we error during indent, silently give up since this is an
+      ;; automatic action that the user didn't explicitly request.
+      ;; But we don't want to suppress errors from elsewhere in *this*
+      ;; function, hence the `condition-case' and `throw' (Bug#18764).
+      (catch 'indent-error
+        ;; For newline, we want to reindent both lines and basically
+        ;; behave like reindent-then-newline-and-indent (whose code we
+        ;; hence copied).
+        (let ((at-newline (<= pos (line-beginning-position))))
+          (when at-newline
+            (let ((before (copy-marker (1- pos) t)))
+              (save-excursion
+                (unless (or (memq indent-line-function
+                                  electric-indent-functions-without-reindent)
+                            electric-indent-inhibit)
+                  ;; Don't reindent the previous line if the
+                  ;; indentation function is not a real one.
+                  (goto-char before)
+                  (condition-case-unless-debug ()
+                      (indent-according-to-mode)
+                    (error (throw 'indent-error nil))))
+                ;; We are at EOL before the call to
+                ;; `indent-according-to-mode', and after it we usually
+                ;; are as well, but not always.  We tried to address
+                ;; it with `save-excursion' but that uses a normal
+                ;; marker whereas we need `move after insertion', so
+                ;; we do the save/restore by hand.
                 (goto-char before)
-                (indent-according-to-mode))
-              ;; We are at EOL before the call to indent-according-to-mode, and
-              ;; after it we usually are as well, but not always.  We tried to
-              ;; address it with `save-excursion' but that uses a normal marker
-              ;; whereas we need `move after insertion', so we do the
-              ;; save/restore by hand.
-              (goto-char before)
-              (when (eolp)
-                ;; Remove the trailing whitespace after indentation because
-                ;; indentation may (re)introduce the whitespace.
-                (delete-horizontal-space t)))))
-        (unless (and electric-indent-inhibit
-                     (not at-newline))
-          (indent-according-to-mode))))))
+                (when (eolp)
+                  ;; Remove the trailing whitespace after indentation because
+                  ;; indentation may (re)introduce the whitespace.
+                  (delete-horizontal-space t)))))
+          (unless (and electric-indent-inhibit
+                       (not at-newline))
+            (condition-case-unless-debug ()
+                (indent-according-to-mode)
+              (error (throw 'indent-error nil)))))))))
 
 (put 'electric-indent-post-self-insert-function 'priority  60)
 
@@ -314,9 +325,6 @@ column specified by the function `current-left-margin'."
 ;;;###autoload
 (define-minor-mode electric-indent-mode
   "Toggle on-the-fly reindentation (Electric Indent mode).
-With a prefix argument ARG, enable Electric Indent mode if ARG is
-positive, and disable it otherwise.  If called from Lisp, enable
-the mode if ARG is omitted or nil.
 
 When enabled, this reindents whenever the hook `electric-indent-functions'
 returns non-nil, or if you insert a character from `electric-indent-chars'.
@@ -400,9 +408,7 @@ newline after CHAR but stay in the same place.")
 ;;;###autoload
 (define-minor-mode electric-layout-mode
   "Automatically insert newlines around some chars.
-With a prefix argument ARG, enable Electric Layout mode if ARG is
-positive, and disable it otherwise.  If called from Lisp, enable
-the mode if ARG is omitted or nil.
+
 The variable `electric-layout-rules' says when and how to insert newlines."
   :global t :group 'electricity
   (cond (electric-layout-mode
@@ -540,9 +546,6 @@ This requotes when a quoting key is typed."
 ;;;###autoload
 (define-minor-mode electric-quote-mode
   "Toggle on-the-fly requoting (Electric Quote mode).
-With a prefix argument ARG, enable Electric Quote mode if
-ARG is positive, and disable it otherwise.  If called from Lisp,
-enable the mode if ARG is omitted or nil.
 
 When enabled, as you type this replaces \\=` with ‘, \\=' with ’,
 \\=`\\=` with “, and \\='\\=' with ”.  This occurs only in comments, strings,

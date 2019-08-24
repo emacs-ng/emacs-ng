@@ -1518,7 +1518,7 @@ of the statement."
                        ;; are somehow out of whack.  This has been
                        ;; observed when using `syntax-ppss' during
                        ;; narrowing.
-                       (cl-assert (> string-start last-string-end)
+                       (cl-assert (>= string-start last-string-end)
                                   :show-args
                                   "\
 Overlapping strings detected (start=%d, last-end=%d)")
@@ -2842,10 +2842,12 @@ process buffer for a list of commands.)"
         (y-or-n-p "Make dedicated process? ")
         (= (prefix-numeric-value current-prefix-arg) 4))
      (list (python-shell-calculate-command) nil t)))
-  (get-buffer-process
-   (python-shell-make-comint
-    (or cmd (python-shell-calculate-command))
-    (python-shell-get-process-name dedicated) show)))
+  (let ((buffer
+         (python-shell-make-comint
+          (or cmd (python-shell-calculate-command))
+          (python-shell-get-process-name dedicated) show)))
+    (pop-to-buffer buffer)
+    (get-buffer-process buffer)))
 
 (defun run-python-internal ()
   "Run an inferior Internal Python process.
@@ -2923,10 +2925,16 @@ be asked for their values."
  "Instead call `python-shell-get-process' and create one if returns nil."
  "25.1")
 
+(define-obsolete-variable-alias
+  'python-buffer 'python-shell-internal-buffer "24.3")
+
 (defvar python-shell-internal-buffer nil
   "Current internal shell buffer for the current buffer.
 This is really not necessary at all for the code to work but it's
 there for compatibility with CEDET.")
+
+(define-obsolete-variable-alias
+  'python-preoutput-result 'python-shell-internal-last-output "24.3")
 
 (defvar python-shell-internal-last-output nil
   "Last output captured by the internal shell.
@@ -2942,12 +2950,6 @@ there for compatibility with CEDET.")
 
 (define-obsolete-function-alias
   'python-proc 'python-shell-internal-get-or-create-process "24.3")
-
-(define-obsolete-variable-alias
-  'python-buffer 'python-shell-internal-buffer "24.3")
-
-(define-obsolete-variable-alias
-  'python-preoutput-result 'python-shell-internal-last-output "24.3")
 
 (defun python-shell--save-temp-file (string)
   (let* ((temporary-file-directory
@@ -5207,9 +5209,10 @@ be used."
 (defcustom python-flymake-msg-alist
   '(("\\(^redefinition\\|.*unused.*\\|used$\\)" . :warning))
   "Alist used to associate messages to their types.
-Each element should be a cons-cell (REGEXP . TYPE), where TYPE must be
-one defined in the variable `flymake-diagnostic-types-alist'.
-For example, when using `flake8' a possible configuration could be:
+Each element should be a cons-cell (REGEXP . TYPE), where TYPE
+should be a diagnostic type symbol like `:error', `:warning' or
+`:note'.  For example, when using `flake8' a possible
+configuration could be:
 
   ((\"\\(^redefinition\\|.*unused.*\\|used$\\)\" . :warning)
    (\"^E999\" . :error)

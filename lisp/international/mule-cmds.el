@@ -281,9 +281,7 @@ wrong, use this command again to toggle back to the right mode."
 (defun view-hello-file ()
   "Display the HELLO file, which lists many languages and characters."
   (interactive)
-  ;; We have to decode the file in any environment.
-  (let ((coding-system-for-read 'iso-2022-7bit))
-    (view-file (expand-file-name "HELLO" data-directory))))
+  (view-file (expand-file-name "HELLO" data-directory)))
 
 (defun universal-coding-system-argument (coding-system)
   "Execute an I/O command using the specified coding system."
@@ -990,6 +988,11 @@ It is highly recommended to fix it before writing to a file."
 
       ;; If all the defaults failed, ask a user.
       (when (not coding-system)
+        ;; If UTF-8 is in CODINGS, but is not its first member, make
+        ;; it the first one, so it is offered as the default.
+        (and (memq 'utf-8 codings) (not (eq 'utf-8 (car codings)))
+             (setq codings (append '(utf-8) (delq 'utf-8 codings))))
+
 	(setq coding-system (select-safe-coding-system-interactively
 			     from to codings unsafe rejected (car codings))))
 
@@ -1466,12 +1469,7 @@ If INPUT-METHOD is nil, deactivate any current input method."
 (defun deactivate-input-method ()
   "Turn off the current input method."
   (when current-input-method
-    (if input-method-history
-	(unless (string= current-input-method (car input-method-history))
-	  (setq input-method-history
-		(cons current-input-method
-		      (delete current-input-method input-method-history))))
-      (setq input-method-history (list current-input-method)))
+    (add-to-history 'input-method-history current-input-method)
     (unwind-protect
 	(progn
 	  (setq input-method-function nil
@@ -2024,10 +2022,8 @@ See `set-language-info-alist' for use in programs."
   (let ((input-method (get-language-info language-name 'input-method)))
     (when input-method
       (setq default-input-method input-method)
-      (if input-method-history
-	  (setq input-method-history
-		(cons input-method
-		      (delete input-method input-method-history)))))))
+      (when input-method-history
+        (add-to-history 'input-method-history input-method)))))
 
 (defun set-language-environment-nonascii-translation (language-name)
   "Do unibyte/multibyte translation setup for language environment LANGUAGE-NAME."
@@ -2919,7 +2915,7 @@ on encoding."
 	       (#x4DC0 . #x4DFF)
 	       ;; (#x4E00 . #x9FFF) CJK Unified Ideographs
 	       (#xA000 . #xD7FF)
-	       ;; (#xD800 . #xFAFF) Surrogate/Private
+	       ;; (#xD800 . #xF8FF) Surrogate/Private
 	       (#xFB00 . #x134FF)
 	       ;; (#x13500 . #x143FF) unused
                (#x14400 . #x14646)

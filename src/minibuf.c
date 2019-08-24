@@ -595,9 +595,6 @@ read_minibuf (Lisp_Object map, Lisp_Object initial, Lisp_Object prompt,
   XWINDOW (minibuf_window)->hscroll = 0;
   XWINDOW (minibuf_window)->suspend_auto_hscroll = 0;
 
-  Fmake_local_variable (Qprint_escape_newlines);
-  print_escape_newlines = 1;
-
   /* Erase the buffer.  */
   {
     ptrdiff_t count1 = SPECPDL_INDEX ();
@@ -705,44 +702,8 @@ read_minibuf (Lisp_Object map, Lisp_Object initial, Lisp_Object prompt,
     histstring = Qnil;
 
   /* Add the value to the appropriate history list, if any.  */
-  if (!NILP (Vhistory_add_new_input)
-      && SYMBOLP (Vminibuffer_history_variable)
-      && !NILP (histstring))
-    {
-      /* If the caller wanted to save the value read on a history list,
-	 then do so if the value is not already the front of the list.  */
-
-      /* The value of the history variable must be a cons or nil.  Other
-	 values are unacceptable.  We silently ignore these values.  */
-
-      if (NILP (histval)
-	  || (CONSP (histval)
-	      /* Don't duplicate the most recent entry in the history.  */
-	      && (NILP (Fequal (histstring, Fcar (histval))))))
-	{
-	  Lisp_Object length;
-
-	  if (history_delete_duplicates) Fdelete (histstring, histval);
-	  histval = Fcons (histstring, histval);
-	  Fset (Vminibuffer_history_variable, histval);
-
-	  /* Truncate if requested.  */
-	  length = Fget (Vminibuffer_history_variable, Qhistory_length);
-	  if (NILP (length)) length = Vhistory_length;
-	  if (INTEGERP (length))
-	    {
-	      if (XINT (length) <= 0)
-		Fset (Vminibuffer_history_variable, Qnil);
-	      else
-		{
-		  Lisp_Object temp;
-
-		  temp = Fnthcdr (Fsub1 (length), histval);
-		  if (CONSP (temp)) Fsetcdr (temp, Qnil);
-		}
-	    }
-	}
-    }
+  if (! (NILP (Vhistory_add_new_input) || NILP (histstring)))
+    call2 (intern ("add-to-history"), Vminibuffer_history_variable, histstring);
 
   /* If Lisp form desired instead of string, parse it.  */
   if (expflag)
@@ -794,7 +755,7 @@ get_minibuffer (EMACS_INT depth)
 	call0 (intern ("minibuffer-inactive-mode"));
       else
         Fkill_all_local_variables ();
-      unbind_to (count, Qnil);
+      buf = unbind_to (count, buf);
     }
 
   return buf;
@@ -1313,11 +1274,12 @@ is used to further constrain the set of candidates.  */)
 	    for (regexps = Vcompletion_regexp_list; CONSP (regexps);
 		 regexps = XCDR (regexps))
 	      {
-		if (bindcount < 0) {
-		  bindcount = SPECPDL_INDEX ();
-		  specbind (Qcase_fold_search,
-			    completion_ignore_case ? Qt : Qnil);
-		}
+		if (bindcount < 0)
+		  {
+		    bindcount = SPECPDL_INDEX ();
+		    specbind (Qcase_fold_search,
+			      completion_ignore_case ? Qt : Qnil);
+		  }
 		tem = Fstring_match (XCAR (regexps), eltstring, zero);
 		if (NILP (tem))
 		  break;
@@ -1416,10 +1378,8 @@ is used to further constrain the set of candidates.  */)
 	}
     }
 
-  if (bindcount >= 0) {
+  if (bindcount >= 0)
     unbind_to (bindcount, Qnil);
-    bindcount = -1;
-  }
 
   if (NILP (bestmatch))
     return Qnil;		/* No completions found.  */
@@ -1573,11 +1533,12 @@ with a space are ignored unless STRING itself starts with a space.  */)
 	    for (regexps = Vcompletion_regexp_list; CONSP (regexps);
 		 regexps = XCDR (regexps))
 	      {
-		if (bindcount < 0) {
-		  bindcount = SPECPDL_INDEX ();
-		  specbind (Qcase_fold_search,
-			    completion_ignore_case ? Qt : Qnil);
-		}
+		if (bindcount < 0)
+		  {
+		    bindcount = SPECPDL_INDEX ();
+		    specbind (Qcase_fold_search,
+			      completion_ignore_case ? Qt : Qnil);
+		  }
 		tem = Fstring_match (XCAR (regexps), eltstring, zero);
 		if (NILP (tem))
 		  break;
@@ -1595,10 +1556,11 @@ with a space are ignored unless STRING itself starts with a space.  */)
 		tem = Fcommandp (elt, Qnil);
 	      else
 		{
-		  if (bindcount >= 0) {
-		    unbind_to (bindcount, Qnil);
-		    bindcount = -1;
-		  }
+		  if (bindcount >= 0)
+		    {
+		      unbind_to (bindcount, Qnil);
+		      bindcount = -1;
+		    }
 		  tem = type == 3
 		    ? call2 (predicate, elt,
 			     HASH_VALUE (XHASH_TABLE (collection), idx - 1))
@@ -1611,10 +1573,8 @@ with a space are ignored unless STRING itself starts with a space.  */)
 	}
     }
 
-  if (bindcount >= 0) {
+  if (bindcount >= 0)
     unbind_to (bindcount, Qnil);
-    bindcount = -1;
-  }
 
   return Fnreverse (allmatches);
 }

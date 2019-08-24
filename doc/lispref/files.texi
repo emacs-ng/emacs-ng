@@ -712,6 +712,7 @@ with-temp-buffer,, The Current Buffer}.
 @section File Locks
 @cindex file locks
 @cindex lock file
+@cindex .#, lock file names
 
   When two users edit the same file at the same time, they are likely
 to interfere with each other.  Emacs tries to prevent this situation
@@ -720,8 +721,17 @@ modified.
 Emacs can then detect the first attempt to modify a buffer visiting a
 file that is locked by another Emacs job, and ask the user what to do.
 The file lock is really a file, a symbolic link with a special name,
-stored in the same directory as the file you are editing.  (On file
-systems that do not support symbolic links, a regular file is used.)
+stored in the same directory as the file you are editing.  The name is
+constructed by prepending @file{.#} to the filename of the buffer.
+The target of the symbolic link will be of the form
+@code{@var{user}@@@var{host}.@var{pid}:@var{boot}}, where @var{user}
+is replaced with the current username (from @code{user-login-name}),
+@var{host} with the name of the host where Emacs is running (from
+@code{system-name}), @var{pid} with Emacs's process id, and @var{boot}
+with the time since the last reboot.  @code{:@var{boot}} is omitted if
+the boot time is unavailable.  (On file systems that do not support
+symbolic links, a regular file is used instead, with contents of the
+form @code{@var{user}@@@var{host}.@var{pid}:@var{boot}}.)
 
   When you access files using NFS, there may be a small probability that
 you and another user will both lock the same file simultaneously.
@@ -1557,13 +1567,16 @@ For compatibility, @var{predicate} can also be one of the symbols
 a list of one or more of these symbols.
 @end defun
 
-@defun executable-find program
+@defun executable-find program &optional remote
 This function searches for the executable file of the named
 @var{program} and returns the absolute file name of the executable,
 including its file-name extensions, if any.  It returns @code{nil} if
-the file is not found.  The functions searches in all the directories
+the file is not found.  The function searches in all the directories
 in @code{exec-path}, and tries all the file-name extensions in
 @code{exec-suffixes} (@pxref{Subprocess Creation}).
+
+If @var{remote} is non-@code{nil}, and @code{default-directory} is a
+remote directory, @var{program} is searched on the respective remote host.
 @end defun
 
 @node Changing Files
@@ -2561,10 +2574,10 @@ This function creates a temporary file and returns its name.  Emacs
 creates the temporary file's name by adding to @var{prefix} some
 random characters that are different in each Emacs job.  The result is
 guaranteed to be a newly created file, containing @var{text} if that's
-given as a string and empty otherwise. On MS-DOS, this function
-can truncate the @var{string} prefix to fit into the 8+3 file-name
-limits.  If @var{prefix} is a relative file name, it is expanded
-against @code{temporary-file-directory}.
+given as a string and empty otherwise. On MS-DOS, this function can
+truncate @var{prefix} to fit into the 8+3 file-name limits.  If
+@var{prefix} is a relative file name, it is expanded against
+@code{temporary-file-directory}.
 
 @example
 @group
@@ -2915,8 +2928,8 @@ are included.
 This is similar to @code{directory-files} in deciding which files
 to report on and how to report their names.  However, instead
 of returning a list of file names, it returns for each file a
-list @code{(@var{filename} . @var{attributes})}, where @var{attributes}
-is what @code{file-attributes} would return for that file.
+list @code{(@var{filename} @var{attributes})}, where @var{attributes}
+is what @code{file-attributes} returns for that file.
 The optional argument @var{id-format} has the same meaning as the
 corresponding argument to @code{file-attributes} (@pxref{Definition
 of file-attributes}).
@@ -3127,8 +3140,8 @@ first, before handlers for jobs such as remote file access.
 @code{directory-file-name},
 @code{directory-files},
 @code{directory-files-and-attributes},
-@code{dired-compress-file}, @code{dired-uncache},@*
-@code{expand-file-name},
+@code{dired-compress-file}, @code{dired-uncache},
+@code{exec-path}, @code{expand-file-name},@*
 @code{file-accessible-directory-p},
 @code{file-acl},
 @code{file-attributes},
@@ -3185,7 +3198,7 @@ first, before handlers for jobs such as remote file access.
 @code{directory-files},
 @code{directory-files-and-at@discretionary{}{}{}tributes},
 @code{dired-compress-file}, @code{dired-uncache},
-@code{expand-file-name},
+@code{exec-path}, @code{expand-file-name},
 @code{file-accessible-direc@discretionary{}{}{}tory-p},
 @code{file-acl},
 @code{file-attributes},

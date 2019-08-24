@@ -2004,6 +2004,12 @@ string
                 (python-util-forward-comment -1)
                 (point))))))
 
+(ert-deftest python-nav-end-of-statement-2 ()
+  "Test the string overlap assertion (Bug#30964)."
+  (python-tests-with-temp-buffer
+   "'\n''\n"
+   (python-nav-end-of-statement)))
+
 (ert-deftest python-nav-forward-statement-1 ()
   (python-tests-with-temp-buffer
    "
@@ -5352,6 +5358,15 @@ buffer with overlapping strings."
                     (python-nav-end-of-statement)))
     (should (eolp))))
 
+;; After call `run-python' the buffer running the python process is current.
+(ert-deftest python-tests--bug31398 ()
+  "Test for https://debbugs.gnu.org/31398 ."
+  (skip-unless (executable-find python-tests-shell-interpreter))
+  (let ((buffer (process-buffer (run-python nil nil 'show))))
+    (should (eq buffer (current-buffer)))
+    (pop-to-buffer (other-buffer))
+    (run-python nil nil 'show)
+    (should (eq buffer (current-buffer)))))
 
 (provide 'python-tests)
 

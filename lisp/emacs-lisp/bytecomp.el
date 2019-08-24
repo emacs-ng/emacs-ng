@@ -2426,6 +2426,16 @@ list that represents a doc string reference.
 (defun byte-compile-file-form-defvar-function (form)
   (pcase-let (((or `',name (let name nil)) (nth 1 form)))
     (if name (byte-compile--declare-var name)))
+  ;; Variable aliases are better declared before the corresponding variable,
+  ;; since it makes it more likely that only one of the two vars has a value
+  ;; before the `defvaralias' gets executed, which avoids the need to
+  ;; merge values.
+  (pcase form
+    (`(defvaralias ,_ ',newname . ,_)
+     (when (memq newname byte-compile-bound-variables)
+       (if (byte-compile-warning-enabled-p 'suspicious)
+           (byte-compile-warn
+            "Alias for `%S' should be declared before its referent" newname)))))
   (byte-compile-keep-pending form))
 
 (put 'custom-declare-variable 'byte-hunk-handler
@@ -4082,6 +4092,8 @@ that suppresses all warnings during execution of BODY."
    (and (symbolp obj1) (macroexp-const-p obj2) (cons obj1 obj2))
    (and (symbolp obj2) (macroexp-const-p obj1) (cons obj2 obj1))))
 
+(defconst byte-compile--default-val (cons nil nil) "A unique object.")
+
 (defun byte-compile-cond-jump-table-info (clauses)
   "If CLAUSES is a `cond' form where:
 The condition for each clause is of the form (TEST VAR VALUE).
@@ -4114,7 +4126,9 @@ Return a list of the form ((TEST . VAR)  ((VALUE BODY) ...))"
                         (not (assq obj2 cases)))
                    (push (list (if (consp obj2) (eval obj2) obj2) body) cases)
                  (if (and (macroexp-const-p condition) condition)
-                     (progn (push (list 'default (or body `(,condition))) cases)
+		     (progn (push (list byte-compile--default-val
+					(or body `(,condition)))
+				  cases)
                             (throw 'break t))
                    (setq ok nil)
                    (throw 'break nil))))))
@@ -4129,11 +4143,12 @@ Return a list of the form ((TEST . VAR)  ((VALUE BODY) ...))"
     (when (and cases (not (= (length cases) 1)))
       ;; TODO: Once :linear-search is implemented for `make-hash-table'
       ;; set it to `t' for cond forms with a small number of cases.
-      (setq jump-table (make-hash-table :test test
-                                        :purecopy t
-                                        :size (if (assq 'default cases)
-                                                  (1- (length cases))
-                                                (length cases)))
+      (setq jump-table (make-hash-table
+			:test test
+			:purecopy t
+			:size (if (assq byte-compile--default-val cases)
+				  (1- (length cases))
+				(length cases)))
             default-tag (byte-compile-make-tag)
             donetag (byte-compile-make-tag))
       ;; The structure of byte-switch code:
@@ -4165,9 +4180,10 @@ Return a list of the form ((TEST . VAR)  ((VALUE BODY) ...))"
       (let ((byte-compile-depth byte-compile-depth))
         (byte-compile-goto 'byte-goto default-tag))
 
-      (when (assq 'default cases)
-        (setq default-case (cadr (assq 'default cases))
-              cases (butlast cases 1)))
+      (let ((default-match (assq byte-compile--default-val cases)))
+        (when default-match
+	  (setq default-case (cadr default-match)
+                cases (butlast cases))))
 
       (dolist (case cases)
         (setq tag (byte-compile-make-tag)

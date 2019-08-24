@@ -1640,11 +1640,15 @@ entry is considered a page.  This facilitates editing the entries.
 @kbd{C-j} and auto-fill indent each new line like the previous line;
 this is convenient for entering the contents of an entry.
 
-You can use the @code{next-error} command (by default bound to
-@kbd{C-x `}) to move between entries in the Change Log, when Change
-Log mode is on.  You will jump to the actual site in the file that was
-changed, not just to the next Change Log entry.  You can also use
-@code{previous-error} to move back in the same list.
+@findex change-log-goto-source
+  You can use the command @code{change-log-goto-source} (by default
+bound to @kbd{C-c C-c}) to go to the source location of the change log
+entry near point, when Change Log mode is on.  Then subsequent
+invocations of the @code{next-error} command (by default bound to
+@kbd{M-g M-n} and @kbd{C-x `}) will move between entries in the change
+log.  You will jump to the actual site in the file that was changed,
+not just to the next change log entry.  You can also use
+@code{previous-error} to move back through the change log entries.
 
 @findex change-log-merge
   You can use the command @kbd{M-x change-log-merge} to merge other
@@ -1654,7 +1658,7 @@ ordering of entries.
   Version control systems are another way to keep track of changes in
 your program and keep a change log.  In the VC log buffer, typing
 @kbd{C-c C-a} (@code{log-edit-insert-changelog}) inserts the relevant
-Change Log entry, if one exists.  @xref{Log Buffer}.
+change log entry, if one exists.  @xref{Log Buffer}.
 
 @node Format of ChangeLog
 @subsection Format of ChangeLog
@@ -1809,6 +1813,8 @@ Find definitions of identifier, but display it in another window
 @item C-x 5 .@: @key{RET}
 Find definition of identifier, and display it in a new frame
 (@code{xref-find-definitions-other-frame}).
+@item M-x xref-find-definitions-at-mouse
+Find definition of identifier at mouse click.
 @item M-,
 Go back to where you previously invoked @kbd{M-.} and friends
 (@code{xref-pop-marker-stack}).
@@ -1848,6 +1854,11 @@ buffer in another window, and one that makes a new frame for it.  The
 former is @w{@kbd{C-x 4 .}}
 (@code{xref-find-definitions-other-window}), and the latter is
 @w{@kbd{C-x 5 .}}  (@code{xref-find-definitions-other-frame}).
+
+  The command @code{xref-find-definitions-at-mouse} works like
+@code{xref-find-definitions}, but it looks for the identifier name at
+or around the place of a mouse event.  This command is intended to be
+bound to a mouse event, such as @kbd{C-M-mouse-1}, for example.
 
 @findex xref-find-apropos
 @kindex C-M-.
