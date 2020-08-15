@@ -195,17 +195,17 @@ extern "C" fn open_font(_f: *mut frame, font_entity: LispObject, pixel_size: i32
         (*font).height = 1;
     }
 
+    unsafe {
+        (*font).driver = &FONT_DRIVER.0;
+    }
+
     font_object.as_lisp_object()
 }
 
-#[allow(unused_variables)]
-extern "C" fn close_font(font: *mut font) {
-    unimplemented!();
-}
+extern "C" fn close_font(_font: *mut font) {}
 
-#[allow(unused_variables)]
-extern "C" fn encode_char(font: *mut font, c: i32) -> u32 {
-    unimplemented!();
+extern "C" fn encode_char(_font: *mut font, c: i32) -> u32 {
+    c as u32
 }
 
 #[allow(unused_variables)]
@@ -215,5 +215,4 @@ extern "C" fn text_extents(
     nglyphs: i32,
     metrics: *mut font_metrics,
 ) {
-    unimplemented!();
 }
