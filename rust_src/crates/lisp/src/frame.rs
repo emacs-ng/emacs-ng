@@ -1,7 +1,9 @@
 //! Generic frame functions.
 use crate::{
     lisp::{ExternalPtr, LispObject},
-    remacs_sys::{frame_dimension, Lisp_Frame, Lisp_Type},
+    remacs_sys::{
+        frame_dimension, pvec_type, Fselected_frame, Lisp_Frame, Lisp_Type, Qframe_live_p, Qframep,
+    },
     vector::LispVectorlikeRef,
 };
 
@@ -18,6 +20,10 @@ use {
 pub type LispFrameRef = ExternalPtr<Lisp_Frame>;
 
 impl LispFrameRef {
+    pub fn is_live(self) -> bool {
+        !self.terminal.is_null()
+    }
+
     // Pixel-width of internal border lines.
     pub fn internal_border_width(self) -> i32 {
         unsafe { frame_dimension(self.internal_border_width) }
@@ -120,6 +126,12 @@ impl LispFrameRef {
     }
 }
 
+impl From<LispObject> for LispFrameRef {
+    fn from(o: LispObject) -> Self {
+        o.as_frame().unwrap_or_else(|| wrong_type!(Qframep, o))
+    }
+}
+
 impl From<LispFrameRef> for LispObject {
     fn from(f: LispFrameRef) -> Self {
         Self::tag_ptr(f, Lisp_Type::Lisp_Vectorlike)
@@ -129,5 +141,40 @@ impl From<LispFrameRef> for LispObject {
 impl From<LispObject> for Option<LispFrameRef> {
     fn from(o: LispObject) -> Self {
         o.as_vectorlike().and_then(LispVectorlikeRef::as_frame)
+    }
+}
+
+impl LispObject {
+    pub fn is_frame(self) -> bool {
+        self.as_vectorlike()
+            .map_or(false, |v| v.is_pseudovector(pvec_type::PVEC_FRAME))
+    }
+
+    pub fn as_frame(self) -> Option<LispFrameRef> {
+        self.into()
+    }
+
+    pub fn as_live_frame(self) -> Option<LispFrameRef> {
+        self.as_frame()
+            .and_then(|f| if f.is_live() { Some(f) } else { None })
+    }
+
+    // Same as CHECK_LIVE_FRAME
+    pub fn as_live_frame_or_error(self) -> LispFrameRef {
+        self.as_live_frame()
+            .unwrap_or_else(|| wrong_type!(Qframe_live_p, self))
+    }
+}
+
+pub fn window_frame_live_or_selected(object: LispObject) -> LispFrameRef {
+    // Cannot use LispFrameOrSelected because the selected frame is not
+    // checked for live.
+    if object.is_nil() {
+        unsafe { Fselected_frame() }.into()
+    } else if let Some(win) = object.as_valid_window() {
+        // the window's frame does not need a live check
+        win.frame.into()
+    } else {
+        object.as_live_frame_or_error()
     }
 }
