@@ -17,15 +17,16 @@ use lisp::{
     lisp::{ExternalPtr, LispObject},
     remacs_sys::{
         block_input, face_id, gui_clear_end_of_line, gui_clear_window_mouse_face,
-        gui_draw_vertical_border, gui_fix_overlapping_area, gui_get_glyph_overhangs,
-        gui_produce_glyphs, gui_set_font, gui_set_font_backend, gui_set_left_fringe,
+        gui_draw_right_divider, gui_draw_vertical_border, gui_fix_overlapping_area,
+        gui_get_glyph_overhangs, gui_produce_glyphs, gui_set_bottom_divider_width, gui_set_font,
+        gui_set_font_backend, gui_set_left_fringe, gui_set_right_divider_width,
         gui_set_right_fringe, gui_write_glyphs, unblock_input,
     },
     remacs_sys::{
-        create_terminal, current_kboard, draw_fringe_bitmap_params, draw_window_fringes,
-        fontset_from_font, frame_parm_handler, glyph_row, glyph_string, initial_kboard,
-        output_method, redisplay_interface, terminal, text_cursor_kinds, xlispstrdup, Emacs_Color,
-        Fcons, Lisp_Frame, Lisp_Window, Qnil, Qwr, KBOARD,
+        create_terminal, current_kboard, draw_fringe_bitmap_params, fontset_from_font,
+        frame_parm_handler, glyph_row, glyph_string, initial_kboard, output_method,
+        redisplay_interface, terminal, text_cursor_kinds, xlispstrdup, Emacs_Color, Fcons,
+        Lisp_Frame, Lisp_Window, Qnil, Qwr,
     },
     window::LispWindowRef,
 };
@@ -48,8 +49,8 @@ fn get_frame_parm_handlers() -> [frame_parm_handler; 47] {
         None,
         None,
         None,
-        None,
-        None,
+        Some(gui_set_right_divider_width),
+        Some(gui_set_bottom_divider_width),
         None,
         None,
         None,
@@ -120,7 +121,7 @@ lazy_static! {
             clear_frame_area: Some(clear_frame_area),
             draw_window_cursor: Some(draw_window_cursor),
             draw_vertical_window_border: Some(draw_vertical_window_border),
-            draw_window_divider: None,
+            draw_window_divider: Some(draw_window_divider),
             shift_glyphs_for_insert: None,
             show_hourglass: None,
             hide_hourglass: None,
@@ -145,9 +146,11 @@ extern "C" fn update_window_end(
     }
 
     unsafe { block_input() };
-    if unsafe { draw_window_fringes(window.as_mut(), true) } {
+    if window.right_divider_width() > 0 {
+        unsafe { gui_draw_right_divider(window.as_mut()) }
+    } else {
         unsafe { gui_draw_vertical_border(window.as_mut()) }
-    };
+    }
     unsafe { unblock_input() };
 }
 
@@ -184,6 +187,36 @@ extern "C" fn draw_fringe_bitmap(
     let output: OutputRef = unsafe { frame.output_data.wr.into() };
 
     output.canvas().draw_fringe_bitmap(row, p);
+}
+
+extern "C" fn draw_window_divider(window: *mut Lisp_Window, x0: i32, x1: i32, y0: i32, y1: i32) {
+    let window: LispWindowRef = window.into();
+    let frame: LispFrameRef = window.get_frame();
+
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    let face = frame.face_from_id(face_id::WINDOW_DIVIDER_FACE_ID);
+    let face_first = frame.face_from_id(face_id::WINDOW_DIVIDER_FIRST_PIXEL_FACE_ID);
+    let face_last = frame.face_from_id(face_id::WINDOW_DIVIDER_LAST_PIXEL_FACE_ID);
+
+    let color = match face {
+        Some(f) => unsafe { (*f).foreground },
+        None => frame.foreground_pixel,
+    };
+
+    let color_first = match face_first {
+        Some(f) => unsafe { (*f).foreground },
+        None => frame.foreground_pixel,
+    };
+
+    let color_last = match face_last {
+        Some(f) => unsafe { (*f).foreground },
+        None => frame.foreground_pixel,
+    };
+
+    output
+        .canvas()
+        .draw_window_divider(color, color_first, color_last, x0, x1, y0, y1);
 }
 
 extern "C" fn draw_vertical_window_border(window: *mut Lisp_Window, x: i32, y0: i32, y1: i32) {
