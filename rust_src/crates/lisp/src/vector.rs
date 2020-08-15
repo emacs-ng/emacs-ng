@@ -12,6 +12,7 @@ use crate::{
     remacs_sys::{
         pvec_type, Lisp_Type, Lisp_Vector, Lisp_Vectorlike, More_Lisp_Bits, PSEUDOVECTOR_FLAG,
     },
+    window::LispWindowRef,
 };
 
 pub type LispVectorlikeRef = ExternalPtr<Lisp_Vectorlike>;
@@ -82,6 +83,14 @@ impl LispVectorlikeRef {
 
     pub fn as_process(self) -> Option<LispProcessRef> {
         if self.is_pseudovector(pvec_type::PVEC_PROCESS) {
+            Some(self.cast())
+        } else {
+            None
+        }
+    }
+
+    pub fn as_window(self) -> Option<LispWindowRef> {
+        if self.is_pseudovector(pvec_type::PVEC_WINDOW) {
             Some(self.cast())
         } else {
             None
