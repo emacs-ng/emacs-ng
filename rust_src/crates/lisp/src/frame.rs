@@ -2,7 +2,8 @@
 use crate::{
     lisp::{ExternalPtr, LispObject},
     remacs_sys::{
-        frame_dimension, pvec_type, Fselected_frame, Lisp_Frame, Lisp_Type, Qframe_live_p, Qframep,
+        face, face_id, frame_dimension, pvec_type, Fassq, Fselected_frame, Lisp_Frame, Lisp_Type,
+        Qframe_live_p, Qframep, Qnil,
     },
     vector::LispVectorlikeRef,
 };
@@ -105,6 +106,22 @@ impl LispFrameRef {
             - self.top_margin_height()
             - self.horizontal_scroll_bar_height()
             - 2 * self.internal_border_width()
+    }
+
+    pub fn face_from_id(self, id: face_id) -> Option<*mut face> {
+        let cache = self.face_cache;
+
+        let faces_map: &[*mut face] =
+            unsafe { std::slice::from_raw_parts_mut((*cache).faces_by_id, (*cache).used as usize) };
+
+        faces_map.get(id as usize).copied()
+    }
+
+    pub fn get_param(self, prop: LispObject) -> LispObject {
+        match unsafe { Fassq(prop, self.param_alist) }.as_cons() {
+            Some(cons) => cons.cdr(),
+            None => Qnil,
+        }
     }
 
     #[cfg(feature = "window-system")]
