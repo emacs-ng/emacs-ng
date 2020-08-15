@@ -200,3 +200,13 @@ pub fn window_frame_live_or_selected(object: LispObject) -> LispFrameRef {
         object.as_live_frame_or_error()
     }
 }
+
+#[macro_export]
+macro_rules! for_each_frame {
+    ($name:ident => $action:block) => {
+        let frame_it = unsafe { Vframe_list.iter_cars($crate::list::LispConsEndChecks::off,
+                                                      $crate::list::LispConsCircularChecks::off) };
+        for $name in frame_it.map(LispFrameRef::from)
+            $action
+    };
+}

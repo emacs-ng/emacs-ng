@@ -4,8 +4,9 @@ use font_kit::handle::Handle as FontHandle;
 use gleam::gl::{self, Gl};
 use glutin::{
     self,
-    dpi::LogicalSize,
+    dpi::{LogicalSize, PhysicalPosition},
     event_loop::{EventLoop, EventLoopProxy},
+    monitor::MonitorHandle,
     window::Window,
     ContextWrapper, PossiblyCurrent,
 };
@@ -261,6 +262,18 @@ impl Output {
 
     pub fn get_color_bits(&self) -> u8 {
         self.window_context.get_pixel_format().color_bits
+    }
+
+    pub fn get_available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        self.window_context.window().available_monitors()
+    }
+
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
+        self.window_context.window().primary_monitor()
+    }
+
+    pub fn get_position(&self) -> Option<PhysicalPosition<i32>> {
+        self.window_context.window().outer_position().ok()
     }
 }
 
