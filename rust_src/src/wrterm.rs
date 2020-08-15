@@ -18,11 +18,11 @@ use lisp::{
     remacs_sys::globals,
     remacs_sys::resource_types::{RES_TYPE_NUMBER, RES_TYPE_STRING, RES_TYPE_SYMBOL},
     remacs_sys::{
-        block_input, gui_default_parameter, gui_display_get_arg, hashtest_eql, image,
-        make_hash_table, register_font_driver, unblock_input, Display, Emacs_Pixmap, Fcopy_alist,
-        Fprovide, Pixmap, Qfont, Qfont_backend, Qminibuffer, Qname, Qnil, Qparent_id, Qterminal,
-        Qunbound, Qwr, Qx, WRImage, Window, XrmDatabase, DEFAULT_REHASH_SIZE,
-        DEFAULT_REHASH_THRESHOLD,
+        block_input, gui_display_get_arg, hashtest_eql, image, init_frame_faces, make_hash_table,
+        register_font_driver, unblock_input, Display, Emacs_Pixmap, Fcopy_alist, Fprovide, Pixmap,
+        Qbackground_color, Qfont, Qfont_backend, Qforeground_color, Qminibuffer, Qname, Qnil,
+        Qparent_id, Qterminal, Qunbound, Qwr, Qx, WRImage, Window, XrmDatabase,
+        DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
     },
 };
 
@@ -338,29 +338,42 @@ pub fn x_create_frame(parms: LispObject) -> LispFrameRef {
         register_font_driver(&FONT_DRIVER.0 as *const _, frame.as_mut());
     };
 
-    unsafe {
-        gui_default_parameter(
-            frame.as_mut(),
-            parms,
-            Qfont_backend,
-            Qnil,
-            CString::new("fontBackend").unwrap().as_ptr(),
-            CString::new("FontBackend").unwrap().as_ptr(),
-            RES_TYPE_STRING,
-        );
-    };
+    frame.gui_default_parameter(
+        parms,
+        Qfont_backend,
+        Qnil,
+        "fontBackend",
+        "FontBackend",
+        RES_TYPE_STRING,
+    );
 
-    unsafe {
-        gui_default_parameter(
-            frame.as_mut(),
-            parms,
-            Qfont,
-            "Monospace".into(),
-            CString::new("font").unwrap().as_ptr(),
-            CString::new("Font").unwrap().as_ptr(),
-            RES_TYPE_STRING,
-        );
-    };
+    frame.gui_default_parameter(
+        parms,
+        Qfont,
+        "Monospace".into(),
+        "font",
+        "Font",
+        RES_TYPE_STRING,
+    );
+
+    frame.gui_default_parameter(
+        parms,
+        Qforeground_color,
+        "black".into(),
+        "foreground",
+        "Foreground",
+        RES_TYPE_STRING,
+    );
+    frame.gui_default_parameter(
+        parms,
+        Qbackground_color,
+        "white".into(),
+        "background",
+        "Background",
+        RES_TYPE_STRING,
+    );
+
+    unsafe { init_frame_faces(frame.as_mut()) };
 
     frame
 }
