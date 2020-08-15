@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use webrender::api::*;
 
 use super::{
-    color::{color_to_pixel, color_to_xcolor, lookup_color_by_name_or_hex},
+    color::{color_to_pixel, color_to_xcolor, lookup_color_by_name_or_hex, pixel_to_color},
     display_info::{DisplayInfo, DisplayInfoRef},
     output::OutputRef,
 };
@@ -233,7 +233,14 @@ extern "C" fn draw_vertical_window_border(window: *mut Lisp_Window, x: i32, y0: 
 }
 
 #[allow(unused_variables)]
-extern "C" fn clear_frame_area(s: *mut Lisp_Frame, x: i32, y: i32, width: i32, height: i32) {}
+extern "C" fn clear_frame_area(f: *mut Lisp_Frame, x: i32, y: i32, width: i32, height: i32) {
+    let frame: LispFrameRef = f.into();
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    let color = pixel_to_color(frame.background_pixel);
+
+    output.canvas().clear_area(color, x, y, width, height);
+}
 
 extern "C" fn draw_window_cursor(
     _window: *mut Lisp_Window,
@@ -344,6 +351,18 @@ extern "C" fn set_background_color(f: *mut Lisp_Frame, arg: LispObject, _old_val
     }
 }
 
+extern "C" fn clear_frame(f: *mut Lisp_Frame) {
+    let frame: LispFrameRef = f.into();
+    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    output.clear_display_list_builder();
+
+    let width = frame.pixel_width;
+    let height = frame.pixel_height;
+
+    clear_frame_area(f, 0, 0, width, height);
+}
+
 fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     let terminal_ptr = unsafe {
         create_terminal(
@@ -359,11 +378,13 @@ fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     dpyinfo.get_inner().terminal = terminal;
     dpyinfo.get_raw().terminal = terminal.as_mut();
 
+    // Terminal hooks
     // Other hooks are NULL by default.
     terminal.get_string_resource_hook = Some(get_string_resource);
     terminal.set_new_font_hook = Some(new_font);
     terminal.defined_color_hook = Some(defined_color);
     terminal.frame_visible_invisible_hook = Some(frame_visible_invisible);
+    terminal.clear_frame_hook = Some(clear_frame);
 
     terminal
 }
