@@ -1,11 +1,15 @@
-use std::{rc::Rc, sync::mpsc::sync_channel, thread::JoinHandle};
+use std::{
+    rc::Rc,
+    sync::mpsc::{channel, sync_channel, Receiver},
+    thread::JoinHandle,
+};
 
 use font_kit::handle::Handle as FontHandle;
 use gleam::gl::{self, Gl};
 use glutin::{
     self,
     dpi::{LogicalSize, PhysicalPosition},
-    event::Event,
+    event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoopProxy},
     monitor::MonitorHandle,
     window::Window,
@@ -46,11 +50,14 @@ pub struct Output {
     window: Window,
 
     color_bits: u8,
+
+    event_rx: Receiver<Event<'static, ()>>,
 }
 
 impl Output {
     pub fn new() -> Self {
-        let (api, document_id, window, loop_thread, color_bits) = Self::create_webrender_window();
+        let (api, window, document_id, loop_thread, color_bits, event_rx) =
+            Self::create_webrender_window();
 
         Self {
             output: wr_output::default(),
@@ -63,11 +70,21 @@ impl Output {
             background_color: ColorF::WHITE,
             window,
             color_bits,
+            event_rx,
         }
     }
 
-    fn create_webrender_window() -> (RenderApi, DocumentId, Window, JoinHandle<()>, u8) {
+    fn create_webrender_window() -> (
+        RenderApi,
+        Window,
+        DocumentId,
+        JoinHandle<()>,
+        u8,
+        std::sync::mpsc::Receiver<Event<'static, ()>>,
+    ) {
         let (webrender_tx, webrender_rx) = sync_channel(1);
+
+        let (event_tx, event_rx) = channel::<Event<()>>();
 
         let window_loop_thread = std::thread::spawn(move || {
             let events_loop = glutin::event_loop::EventLoop::new_any_thread();
@@ -122,6 +139,21 @@ impl Output {
                 *control_flow = ControlFlow::Wait;
 
                 match e {
+                    Event::WindowEvent {
+                        event: WindowEvent::KeyboardInput { .. },
+                        ..
+                    }
+                    | Event::WindowEvent {
+                        event: WindowEvent::ReceivedCharacter(_),
+                        ..
+                    }
+                    | Event::WindowEvent {
+                        event: WindowEvent::ModifiersChanged(_),
+                        ..
+                    } => {
+                        event_tx.send(e.to_static().unwrap()).unwrap();
+                        unsafe { libc::raise(libc::SIGIO) };
+                    }
                     Event::UserEvent(_) => {
                         renderer.update();
                         renderer.render(device_size).unwrap();
@@ -141,7 +173,14 @@ impl Output {
         txn.set_root_pipeline(pipeline_id);
         api.send_transaction(document_id, txn);
 
-        (api, document_id, window, window_loop_thread, color_bits)
+        (
+            api,
+            window,
+            document_id,
+            window_loop_thread,
+            color_bits,
+            event_rx,
+        )
     }
 
     fn get_gl_api(window_context: &ContextWrapper<PossiblyCurrent, ()>) -> Rc<dyn Gl> {
@@ -286,8 +325,17 @@ impl Output {
     pub fn get_position(&self) -> Option<PhysicalPosition<i32>> {
         self.window.outer_position().ok()
     }
+    pub fn poll_events<F>(&mut self, mut f: F)
+    where
+        F: FnMut(Event<()>),
+    {
+        for e in self.event_rx.try_iter() {
+            f(e);
+        }
+    }
 }
 
+#[derive(PartialEq)]
 #[repr(transparent)]
 pub struct OutputRef(*mut Output);
 

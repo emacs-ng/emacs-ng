@@ -1,6 +1,7 @@
 use std::ffi::CString;
 use std::ptr;
 
+use glutin::event::{ElementState, Event, KeyboardInput, WindowEvent};
 use lazy_static::lazy_static;
 
 use webrender::api::*;
@@ -22,7 +23,8 @@ use lisp::{
         gui_draw_right_divider, gui_draw_vertical_border, gui_fix_overlapping_area,
         gui_get_glyph_overhangs, gui_produce_glyphs, gui_set_bottom_divider_width, gui_set_font,
         gui_set_font_backend, gui_set_left_fringe, gui_set_right_divider_width,
-        gui_set_right_fringe, gui_write_glyphs, unblock_input, update_face_from_frame_parameter,
+        gui_set_right_fringe, gui_write_glyphs, input_event, kbd_buffer_store_event_hold,
+        unblock_input, update_face_from_frame_parameter, Vframe_list,
     },
     remacs_sys::{
         create_terminal, current_kboard, draw_fringe_bitmap_params, fontset_from_font,
@@ -363,6 +365,72 @@ extern "C" fn clear_frame(f: *mut Lisp_Frame) {
     clear_frame_area(f, 0, 0, width, height);
 }
 
+extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_event) -> i32 {
+    let terminal: TerminalRef = terminal.into();
+    let dpyinfo = DisplayInfoRef::new(unsafe { terminal.display_info.wr } as *mut _);
+
+    let mut dpyinfo = dpyinfo.get_inner();
+    let mut output = dpyinfo.output;
+
+    let mut top_frame: LispObject = Qnil;
+
+    for_each_frame!(frame => {
+        let frame_output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+        if frame_output == output {
+            top_frame = frame.into();
+            break;
+        }
+    });
+
+    let mut count = 0;
+
+    output.poll_events(|e: Event<()>| match e {
+        Event::WindowEvent {
+            event: WindowEvent::ReceivedCharacter(key_code),
+            ..
+        } => {
+            if let Some(mut iev) = dpyinfo.keyboard_processor.receive_char(key_code, top_frame) {
+                unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
+                count += 1;
+            }
+        }
+
+        Event::WindowEvent {
+            event: WindowEvent::ModifiersChanged(state),
+            ..
+        } => {
+            dpyinfo.keyboard_processor.change_modifiers(state);
+        }
+
+        Event::WindowEvent {
+            event:
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            state,
+                            virtual_keycode: Some(key_code),
+                            ..
+                        },
+                    ..
+                },
+            ..
+        } => match state {
+            ElementState::Pressed => {
+                if let Some(mut iev) = dpyinfo.keyboard_processor.key_pressed(key_code, top_frame) {
+                    unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
+                    count += 1;
+                }
+            }
+            ElementState::Released => dpyinfo.keyboard_processor.key_released(),
+        },
+
+        _ => {}
+    });
+
+    count
+}
+
 fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     let terminal_ptr = unsafe {
         create_terminal(
@@ -385,6 +453,7 @@ fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     terminal.defined_color_hook = Some(defined_color);
     terminal.frame_visible_invisible_hook = Some(frame_visible_invisible);
     terminal.clear_frame_hook = Some(clear_frame);
+    terminal.read_socket_hook = Some(read_input_event);
 
     terminal
 }
