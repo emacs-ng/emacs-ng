@@ -6,6 +6,7 @@ use crate::{
         Qframe_live_p, Qframep, Qnil,
     },
     vector::LispVectorlikeRef,
+    window::LispWindowRef,
 };
 
 #[cfg(feature = "window-system")]
@@ -21,6 +22,10 @@ use {
 pub type LispFrameRef = ExternalPtr<Lisp_Frame>;
 
 impl LispFrameRef {
+    pub fn root_window(self) -> LispWindowRef {
+        self.root_window.into()
+    }
+
     pub fn is_live(self) -> bool {
         !self.terminal.is_null()
     }

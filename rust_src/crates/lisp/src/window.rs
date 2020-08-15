@@ -14,8 +14,34 @@ impl LispWindowRef {
         self.contents.is_not_nil()
     }
 
+    // Equivalent to WINDOW_RIGHTMOST_P
+    /// True if window W has no other windows to its right on its frame.
+    pub fn is_rightmost(self) -> bool {
+        self.right_pixel_edge() == self.get_frame().root_window().right_pixel_edge()
+    }
+
     pub fn get_frame(self) -> LispFrameRef {
         self.frame.into()
+    }
+
+    /// The pixel value where the text (or left fringe) in window starts.
+    pub fn left_pixel_edge(self) -> i32 {
+        self.pixel_left
+    }
+
+    /// Return the right pixel edge before which window W ends.
+    /// This includes a right-hand scroll bar, if any.
+    pub fn right_pixel_edge(self) -> i32 {
+        self.left_pixel_edge() + self.pixel_width
+    }
+
+    /// Width of the bottom divider of the window
+    pub fn right_divider_width(self) -> i32 {
+        if self.is_rightmost() {
+            0
+        } else {
+            self.get_frame().right_divider_width
+        }
     }
 }
 
