@@ -1,7 +1,9 @@
 use crate::{
     frame::LispFrameRef,
     lisp::{ExternalPtr, LispObject},
-    remacs_sys::{pvec_type, Lisp_Type, Lisp_Window, Qwindowp},
+    remacs_sys::{
+        glyph_row_area::TEXT_AREA, pvec_type, window_box_left, Lisp_Type, Lisp_Window, Qwindowp,
+    },
     vector::LispVectorlikeRef,
 };
 
@@ -76,6 +78,16 @@ impl LispWindowRef {
         } else {
             self.get_frame().right_divider_width
         }
+    }
+
+    /// Convert window relative pixel Y to frame pixel coordinates.
+    pub fn frame_pixel_y(self, y: i32) -> i32 {
+        y + self.top_edge_y()
+    }
+
+    /// Convert window text relative pixel X to frame pixel coordinates.
+    pub fn text_to_frame_pixel_x(mut self, x: i32) -> i32 {
+        x + unsafe { window_box_left(self.as_mut(), TEXT_AREA) }
     }
 }
 
