@@ -37,16 +37,14 @@ pub static tip_frame: LispObject = Qnil;
 #[no_mangle]
 pub static mut wr_display_list: DisplayInfoRef = DisplayInfoRef::new(ptr::null_mut());
 
-#[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn wr_get_fontset(output: OutputRef) -> i32 {
-    output.get_inner().fontset
+    output.fontset
 }
 
-#[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn wr_get_font(output: OutputRef) -> FontRef {
-    output.get_inner().font
+    output.font
 }
 
 #[allow(unused_variables)]
@@ -55,10 +53,9 @@ pub extern "C" fn wr_get_window_desc(output: OutputRef) -> Window {
     0
 }
 
-#[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn wr_get_display_info(output: OutputRef) -> DisplayInfoRef {
-    output.get_inner().display_info
+    output.display_info()
 }
 
 #[allow(unused_variables)]
@@ -161,7 +158,7 @@ pub extern "C" fn x_focus_frame(frame: LispFrameRef, noactivate: bool) {
 #[no_mangle]
 pub extern "C" fn x_get_focus_frame(frame: LispFrameRef) -> LispObject {
     let output: OutputRef = unsafe { frame.output_data.wr.into() };
-    let dpyinfo = output.get_inner().display_info;
+    let dpyinfo = output.display_info();
 
     let focus_frame = dpyinfo.get_inner().focus_frame;
 
@@ -184,22 +181,28 @@ pub extern "C" fn x_set_offset(frame: LispFrameRef, xoff: i32, yoff: i32, change
 // The frame will not actually be visible at that time,
 // but it will become visible later when the window manager
 // finishes with it.
-#[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn x_make_frame_visible(mut f: LispFrameRef) {
     f.set_visible(true as u32);
+
+    let output: OutputRef = unsafe { f.output_data.wr.into() };
+    output.show_window()
 }
 
-#[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn x_make_frame_invisible(mut f: LispFrameRef) {
     f.set_visible(false as u32);
+
+    let output: OutputRef = unsafe { f.output_data.wr.into() };
+    output.hide_window()
 }
 
-#[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn x_iconify_frame(mut f: LispFrameRef) {
     f.set_iconified(true);
+
+    let output: OutputRef = unsafe { f.output_data.wr.into() };
+    output.hide_window()
 }
 
 // Set the pixel height of the tool bar of frame F to HEIGHT.
