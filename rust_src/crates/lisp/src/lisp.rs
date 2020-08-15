@@ -92,6 +92,18 @@ impl From<bool> for LispObject {
     }
 }
 
+impl From<usize> for LispObject {
+    fn from(v: usize) -> Self {
+        Self::from_natnum(v as EmacsUint)
+    }
+}
+
+impl From<i32> for LispObject {
+    fn from(o: i32) -> Self {
+        LispObject::from_C(o as EmacsInt)
+    }
+}
+
 impl LispObject {
     pub fn is_nil(self) -> bool {
         self == Qnil
@@ -197,6 +209,18 @@ impl<T> DerefMut for ExternalPtr<T> {
 impl<T> From<*mut T> for ExternalPtr<T> {
     fn from(o: *mut T) -> Self {
         Self::new(o)
+    }
+}
+
+impl<T> PartialEq for ExternalPtr<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ptr() == other.as_ptr()
+    }
+}
+
+impl<T> PartialOrd for ExternalPtr<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.as_ptr().cmp(&other.as_ptr()))
     }
 }
 
