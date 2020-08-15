@@ -1,5 +1,6 @@
 //! wrterm.rs
 
+use std::ffi::CString;
 use std::ptr;
 
 use remacs_macros::lisp_fn;
@@ -7,29 +8,18 @@ use remacs_macros::lisp_fn;
 use crate::{
     frame::LispFrameRef,
     lisp::{ExternalPtr, LispObject},
+    remacs_sys::globals,
+    remacs_sys::resource_types::{RES_TYPE_NUMBER, RES_TYPE_STRING, RES_TYPE_SYMBOL},
     remacs_sys::{
-        block_input, font, hashtest_eql, image, make_hash_table, unblock_input, wr_display_info,
-        wr_output, Display, Emacs_Pixmap, Fprovide, Pixmap, Qnil, Qt, Qwr, WRImage, Window,
+        block_input, font, gui_display_get_arg, hashtest_eql, image, make_hash_table,
+        unblock_input, wr_output, Display, Emacs_Pixmap, Fcopy_alist, Fprovide, Pixmap,
+        Qminibuffer, Qname, Qnil, Qparent_id, Qterminal, Qunbound, Qwr, Qx, WRImage, Window,
         XrmDatabase, DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
     },
+    webrender_backend::{frame::create_frame, term::wr_term_init},
 };
 
-type DisplayInfo = wr_display_info;
-
-impl DisplayInfo {
-    fn get_ref(&mut self) -> DisplayInfoRef {
-        DisplayInfoRef::new(self as *mut DisplayInfo)
-    }
-}
-
-pub type DisplayInfoRef = ExternalPtr<DisplayInfo>;
-unsafe impl Sync for DisplayInfoRef {}
-
-impl From<DisplayInfo> for DisplayInfoRef {
-    fn from(mut df: DisplayInfo) -> DisplayInfoRef {
-        df.get_ref()
-    }
-}
+pub use crate::webrender_backend::display_info::{DisplayInfo, DisplayInfoRef};
 
 pub type OutputRef = ExternalPtr<wr_output>;
 pub type DisplayRef = ExternalPtr<Display>;
@@ -122,17 +112,20 @@ pub extern "C" fn x_set_scroll_bar_default_height(frame: LispFrameRef) {
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn x_get_string_resource(
-    rdb: XrmDatabase,
-    name: *const libc::c_char,
-    class: *const libc::c_char,
+    _rdb: XrmDatabase,
+    _name: *const libc::c_char,
+    _class: *const libc::c_char,
 ) -> *mut libc::c_char {
-    unimplemented!();
+    ptr::null_mut()
 }
 
-#[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn check_x_display_info(obj: LispObject) -> DisplayInfoRef {
-    unimplemented!();
+    if obj.is_nil() {
+        unsafe { wr_display_list }
+    } else {
+        unimplemented!();
+    }
 }
 
 #[allow(unused_variables)]
@@ -246,8 +239,88 @@ pub fn x_hide_tip() -> bool {
 ///
 /// This function is an internal primitive--use `make-frame' instead.
 #[lisp_fn]
-pub fn x_create_frame(_parms: LispObject) {
-    unimplemented!();
+pub fn x_create_frame(parms: LispObject) -> LispFrameRef {
+    // x_get_arg modifies parms.
+    let parms = unsafe { Fcopy_alist(parms) };
+
+    // Use this general default value to start with
+    // until we know if this frame has a specified name.
+    unsafe {
+        globals.Vx_resource_name = globals.Vinvocation_name;
+    }
+
+    let mut display = unsafe {
+        gui_display_get_arg(
+            ptr::null_mut(),
+            parms,
+            Qterminal,
+            ptr::null(),
+            ptr::null(),
+            RES_TYPE_STRING,
+        )
+    };
+
+    if display.eq(Qunbound) {
+        display = Qnil;
+    }
+
+    let mut dpyinfo = check_x_display_info(display);
+
+    if dpyinfo.get_inner().terminal.name == ptr::null_mut() {
+        error!("Terminal is not live, can't create new frames on it");
+    }
+
+    let kb = dpyinfo.get_inner().terminal.kboard;
+    let name = unsafe {
+        gui_display_get_arg(
+            dpyinfo.as_mut(),
+            parms,
+            Qname,
+            ptr::null(),
+            ptr::null(),
+            RES_TYPE_STRING,
+        )
+    };
+
+    if !name.is_string() && !name.eq(Qunbound) && !name.is_nil() {
+        error!("Invalid frame name--not a string or nil");
+    }
+
+    if name.is_string() {
+        unsafe {
+            globals.Vx_resource_name = name;
+        }
+    }
+
+    let mut parent = unsafe {
+        gui_display_get_arg(
+            dpyinfo.as_mut(),
+            parms,
+            Qparent_id,
+            ptr::null(),
+            ptr::null(),
+            RES_TYPE_NUMBER,
+        )
+    };
+
+    if parent.eq(Qunbound) {
+        parent = Qnil;
+    }
+
+    if parent.is_not_nil() {}
+    let tem = unsafe {
+        gui_display_get_arg(
+            dpyinfo.as_mut(),
+            parms,
+            Qminibuffer,
+            CString::new("minibuffer").unwrap().as_ptr(),
+            CString::new("Minibuffer").unwrap().as_ptr(),
+            RES_TYPE_SYMBOL,
+        )
+    };
+
+    let frame = create_frame(display, dpyinfo, tem, kb.into());
+    frame
 }
 
 /// Open a connection to a display server.
@@ -258,16 +331,16 @@ pub fn x_create_frame(_parms: LispObject) {
 /// \(In the Nextstep version, the last two arguments are currently ignored.)
 #[lisp_fn(min = "1")]
 pub fn x_open_connection(
-    _display: LispObject,
+    display: LispObject,
     _xrm_string: LispObject,
     _must_succeed: LispObject,
 ) -> LispObject {
-    let mut display_info = Box::new(DisplayInfo::default());
+    let mut display_info = wr_term_init(display);
 
-    display_info.next = unsafe { wr_display_list.as_mut() };
-
+    // Put this display on the chain.
     unsafe {
-        wr_display_list = DisplayInfoRef::new(Box::into_raw(display_info));
+        display_info.next = wr_display_list.as_mut();
+        wr_display_list = display_info;
     }
     Qnil
 }
