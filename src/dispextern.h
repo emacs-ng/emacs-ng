@@ -134,6 +134,15 @@ typedef Emacs_Pixmap Emacs_Pix_Context;
 #define FACE_COLOR_TO_PIXEL(face_color, frame) face_color
 #endif
 
+#ifdef USE_WEBRENDER
+#include "wrgui.h"
+typedef struct wr_display_info Display_Info;
+typedef Pixmap XImagePtr;
+typedef XImagePtr XImagePtr_or_DC;
+typedef Emacs_Pixmap Emacs_Pix_Container;
+typedef Emacs_Pixmap Emacs_Pix_Context;
+#endif
+
 #ifdef HAVE_WINDOW_SYSTEM
 # include <time.h>
 # include "fontset.h"

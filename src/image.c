@@ -129,6 +129,18 @@ typedef struct ns_bitmap_record Bitmap_Record;
 
 #endif /* HAVE_NS */
 
+#ifdef USE_WEBRENDER
+typedef struct wr_bitmap_record Bitmap_Record;
+
+#define GET_PIXEL(ximg, x, y) XGetPixel (ximg, x, y)
+#define NO_PIXMAP 0
+
+#define PIX_MASK_RETAIN	0
+#define PIX_MASK_DRAW	1
+
+#endif /* WITH_WEBRENDER */
+
+
 #if (defined HAVE_X_WINDOWS \
      && ! (defined HAVE_NTGUI || defined USE_CAIRO || defined HAVE_NS))
 /* W32_TODO : Color tables on W32.  */

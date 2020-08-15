@@ -78,6 +78,8 @@ window-system-nextstep = []
 window-system-w32 = []
 # Build with libvterm support.
 libvterm = []
+# Use the webrender window system
+window-system-webrender = []
 # Treat warnings as a build error on Travis.
 strict = []
 
