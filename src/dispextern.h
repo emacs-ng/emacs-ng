@@ -1402,6 +1402,9 @@ struct glyph_string
   Emacs_GC *gc;
   HDC hdc;
 #endif
+#if defined (USE_WEBRENDER)
+  Emacs_GC *gc;
+#endif
 
   /* A pointer to the first glyph in the string.  This glyph
      corresponds to char2b[0].  Needed to draw rectangles if
