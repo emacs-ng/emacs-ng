@@ -617,6 +617,25 @@ extern "C" fn fullscreen(f: *mut Lisp_Frame) {
     }
 }
 
+// This function should be called by Emacs redisplay code to set the
+// name; names set this way will never override names set by the user's
+// lisp code.
+extern "C" fn implicitly_set_name(frame: *mut Lisp_Frame, arg: LispObject, _oldval: LispObject) {
+    let mut frame: LispFrameRef = frame.into();
+
+    if frame.name.eq(arg) {
+        return;
+    }
+
+    frame.name = arg;
+
+    let title = format!("{}", arg.force_string());
+
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    output.set_title(&title);
+}
+
 fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     let terminal_ptr = unsafe {
         create_terminal(
@@ -641,6 +660,7 @@ fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     terminal.clear_frame_hook = Some(clear_frame);
     terminal.read_socket_hook = Some(read_input_event);
     terminal.fullscreen_hook = Some(fullscreen);
+    terminal.implicit_set_name_hook = Some(implicitly_set_name);
 
     terminal
 }
