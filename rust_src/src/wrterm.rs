@@ -40,7 +40,7 @@ pub static mut wr_display_list: DisplayInfoRef = DisplayInfoRef::new(ptr::null_m
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn wr_get_fontset(output: OutputRef) -> i32 {
-    unimplemented!();
+    output.get_inner().fontset
 }
 
 #[allow(unused_variables)]
@@ -355,7 +355,7 @@ pub fn x_create_frame(parms: LispObject) -> LispFrameRef {
             frame.as_mut(),
             parms,
             Qfont,
-            "Mono".into(),
+            "Monospace".into(),
             CString::new("font").unwrap().as_ptr(),
             CString::new("Font").unwrap().as_ptr(),
             RES_TYPE_STRING,
@@ -401,6 +401,12 @@ pub fn xw_display_color_p(_terminal: LispObject) -> bool {
 #[lisp_fn(min = "0")]
 pub fn x_display_grayscale_p(_terminal: LispObject) -> bool {
     unimplemented!();
+}
+
+fn syms_of_wrfont() {
+    unsafe {
+        register_font_driver(&FONT_DRIVER.0, ptr::null_mut());
+    }
 }
 
 #[no_mangle]
@@ -453,6 +459,8 @@ pub extern "C" fn syms_of_wrterm() {
     // baseline level.  The default value is nil.
     #[rustfmt::skip]
     defvar_bool!(Vx_underline_at_descent_line, "x-underline-at-descent-line", false);
+
+    syms_of_wrfont();
 }
 
 include!(concat!(env!("OUT_DIR"), "/wrterm_exports.rs"));

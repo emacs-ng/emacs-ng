@@ -12,6 +12,7 @@ use super::font::FontRef;
 pub struct OutputInner {
     pub display_info: DisplayInfoRef,
     pub font: FontRef,
+    pub fontset: i32,
 }
 
 pub type OutputInnerRef = ExternalPtr<OutputInner>;
@@ -27,6 +28,7 @@ impl Output {
         let inner = Box::new(OutputInner {
             display_info: DisplayInfoRef::new(ptr::null_mut()),
             font: FontRef::new(ptr::null_mut()),
+            fontset: 0,
         });
         output.0.inner = Box::into_raw(inner) as *mut libc::c_void;
 

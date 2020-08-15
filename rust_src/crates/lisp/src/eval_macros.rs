@@ -138,3 +138,7 @@ macro_rules! defvar_bool {
         }
     }};
 }
+
+macro_rules! args_out_of_range {
+    ($($tt:tt)+) => { xsignal!(crate::remacs_sys::Qargs_out_of_range, $($tt)+); };
+}

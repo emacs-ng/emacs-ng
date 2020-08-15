@@ -42,7 +42,6 @@ extern crate deno_runtime;
 extern crate rusty_v8;
 extern crate tokio;
 
-
 #[macro_use]
 macro_rules! export_lisp_fns {
     ($($(#[$($meta:meta),*])* $f:ident),+) => {
@@ -59,9 +58,9 @@ macro_rules! export_lisp_fns {
     }
 }
 
+mod javascript;
 mod ng_async;
 mod parsing;
-mod javascript;
 
 #[cfg(feature = "window-system-webrender")]
 mod webrender_backend;
