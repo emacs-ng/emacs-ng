@@ -1,8 +1,11 @@
 use std::mem::ManuallyDrop;
 
 use font_kit::{
-    family_name::FamilyName, loaders::default::Font, metrics::Metrics, properties::Properties,
-    source::SystemSource,
+    family_name::FamilyName,
+    loaders::default::Font,
+    metrics::Metrics,
+    properties::{Style, Weight},
+    source::{Source, SystemSource},
 };
 use lazy_static::lazy_static;
 
@@ -16,7 +19,9 @@ use lisp::{
     multibyte::LispStringRef,
     remacs_sys::{
         font, font_driver, font_make_entity, font_make_object, font_metrics, font_property_index,
-        frame, glyph_string, Fassoc, Fcdr, Fcons, Fmake_symbol, Qnil, Qwr, FONT_INVALID_CODE,
+        font_style_to_value, frame, glyph_string, Fassoc, Fcdr, Fcons, Fmake_symbol, Fnreverse,
+        Qbold, Qextra_bold, Qextra_light, Qitalic, Qlight, Qnil, Qnormal, Qoblique, Qsemi_bold,
+        Qultra_bold, Qwr, FONT_INVALID_CODE,
     },
     symbol::LispSymbolRef,
 };
@@ -82,6 +87,12 @@ impl LispFontLike {
         unsafe { v.set_unchecked(index as usize, val) };
     }
 
+    fn set_style(&self, index: font_property_index::Type, val: LispObject) {
+        let value = unsafe { font_style_to_value(index, val, true) };
+
+        self.aset(index, LispObject::from(value));
+    }
+
     fn as_lisp_object(self) -> LispObject {
         self.0
     }
@@ -122,50 +133,86 @@ extern "C" fn match_(_f: *mut frame, spec: LispObject) -> LispObject {
     let font_spec = LispFontLike(spec);
     let family = font_spec.get_family();
 
-    let font = family
-        .and_then(|f| {
-            SystemSource::new()
-                .select_best_match(&[f], &Properties::new())
-                .ok()
-        })
-        .and_then(|h| h.load().ok());
+    let fonts = family
+        .and_then(|f| SystemSource::new().select_family_by_generic_name(&f).ok())
+        .map(|f| {
+            f.fonts()
+                .iter()
+                .filter_map(|f| f.load().ok())
+                .collect::<Vec<Font>>()
+        });
 
-    match font {
-        Some(f) => {
-            let entity: LispFontLike = unsafe { font_make_entity() }.into();
+    match fonts {
+        Some(fonts) => {
+            let mut list = Qnil;
 
-            // set type
-            entity.aset(font_property_index::FONT_TYPE_INDEX, Qwr);
+            for f in fonts {
+                let entity: LispFontLike = unsafe { font_make_entity() }.into();
 
-            // set size
-            entity.aset(font_property_index::FONT_SIZE_INDEX, (0 as usize).into());
+                // set type
+                entity.aset(font_property_index::FONT_TYPE_INDEX, Qwr);
 
-            let family_name: &str = &f.family_name();
-            // set family
-            entity.aset(font_property_index::FONT_FAMILY_INDEX, unsafe {
-                Fmake_symbol(LispObject::from(family_name))
-            });
+                let family_name: &str = &f.family_name();
+                // set family
+                entity.aset(font_property_index::FONT_FAMILY_INDEX, unsafe {
+                    Fmake_symbol(LispObject::from(family_name))
+                });
 
-            let full_name: &str = &f.full_name();
-            // set name
-            entity.aset(
-                font_property_index::FONT_NAME_INDEX,
-                LispObject::from(full_name),
-            );
+                let weight = f.properties().weight;
 
-            let postscript_name: &str = &f
-                .postscript_name()
-                .expect("Font must have a postcript_name!");
+                let weight = if weight <= Weight::EXTRA_LIGHT {
+                    Qextra_light
+                } else if weight <= Weight::LIGHT {
+                    Qlight
+                } else if weight <= Weight::NORMAL {
+                    Qnormal
+                } else if weight <= Weight::MEDIUM {
+                    Qsemi_bold
+                } else if weight <= Weight::SEMIBOLD {
+                    Qsemi_bold
+                } else if weight <= Weight::BOLD {
+                    Qbold
+                } else if weight <= Weight::EXTRA_BOLD {
+                    Qextra_bold
+                } else if weight <= Weight::BLACK {
+                    Qultra_bold
+                } else {
+                    Qultra_bold
+                };
 
-            // set name
-            entity.aset(font_property_index::FONT_EXTRA_INDEX, unsafe {
-                Fcons(
-                    Fcons(":postscript-name".into(), LispObject::from(postscript_name)),
-                    Qnil,
-                )
-            });
+                // set weight
+                entity.set_style(font_property_index::FONT_WEIGHT_INDEX, weight);
 
-            unsafe { Fcons(entity.as_lisp_object(), Qnil) }
+                let slant = match f.properties().style {
+                    Style::Normal => Qnormal,
+                    Style::Italic => Qitalic,
+                    Style::Oblique => Qoblique,
+                };
+
+                // set slant
+                entity.set_style(font_property_index::FONT_SLANT_INDEX, slant);
+
+                // set width
+                entity.set_style(font_property_index::FONT_WIDTH_INDEX, (0 as usize).into());
+
+                // set size
+                entity.aset(font_property_index::FONT_SIZE_INDEX, (0 as usize).into());
+
+                let postscript_name: &str = &f
+                    .postscript_name()
+                    .expect("Font must have a postcript_name!");
+
+                // set name
+                entity.aset(font_property_index::FONT_EXTRA_INDEX, unsafe {
+                    Fcons(
+                        Fcons(":postscript-name".into(), LispObject::from(postscript_name)),
+                        Qnil,
+                    )
+                });
+                list = unsafe { Fcons(entity.as_lisp_object(), list) }
+            }
+
+            unsafe { Fnreverse(list) }
         }
         None => Qnil,
     }
