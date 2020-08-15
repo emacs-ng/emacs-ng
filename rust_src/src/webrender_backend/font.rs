@@ -227,17 +227,38 @@ extern "C" fn list_family(f: *mut frame) -> LispObject {
 pub struct WRFont {
     // extend basic font
     pub font: font,
-    // webrender font key
-    pub font_key: FontKey,
+
     // font-kit font
     pub metrics: Metrics,
 
     pub font_backend: ManuallyDrop<Font>,
+
+    pub font_instance_key: FontInstanceKey,
+
+    pub output: OutputRef,
 }
 
 impl WRFont {
     pub fn glyph_for_char(&self, character: char) -> Option<u32> {
         self.font_backend.glyph_for_char(character)
+    }
+
+    pub fn get_glyph_advance_width(&self, glyph_indices: Vec<GlyphIndex>) -> Vec<Option<i32>> {
+        let font_metrics = self.font_backend.metrics();
+
+        let pixel_size = self.font.pixel_size;
+
+        let scale = pixel_size as f32 / font_metrics.units_per_em as f32;
+
+        glyph_indices
+            .into_iter()
+            .map(|i| {
+                self.font_backend
+                    .advance(i)
+                    .map(|a| (a.x * scale).round() as i32)
+                    .ok()
+            })
+            .collect()
     }
 }
 
@@ -294,9 +315,6 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
         .select_by_postscript_name(&postscript_name)
         .unwrap();
 
-    // Create font key in webrender.
-    let font_key = output.add_font(&font);
-
     let mut wr_font = WRFontRef::new(
         font_object
             .as_lisp_object()
@@ -305,12 +323,15 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
             .as_font_mut() as *mut WRFont,
     );
 
+    wr_font.output = output;
     wr_font.font_backend = ManuallyDrop::new(font.load().unwrap());
 
-    let (font_metrics, font_advance) = {
-        let font = font.load().unwrap();
-        (font.metrics(), font.advance(33).unwrap())
-    };
+    // Create font key in webrender.
+    let font_key = output.add_font(&font);
+    wr_font.font_instance_key = output.add_font_instance(font_key, pixel_size as i32);
+
+    let font_metrics = wr_font.font_backend.metrics();
+    let font_advance = wr_font.font_backend.advance(33).unwrap();
 
     let scale = pixel_size as f32 / font_metrics.units_per_em as f32;
 
@@ -328,8 +349,6 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     wr_font.font.baseline_offset = 0;
 
     wr_font.font.driver = &FONT_DRIVER.0;
-
-    wr_font.font_key = font_key;
 
     font_object.as_lisp_object()
 }
@@ -353,10 +372,21 @@ extern "C" fn text_extents(
 ) {
     let font = WRFontRef::new(font as *mut WRFont);
 
+    let glyph_indices: Vec<u32> = unsafe { std::slice::from_raw_parts(code, nglyphs as usize) }
+        .iter()
+        .copied()
+        .collect();
+
+    let width: i32 = font
+        .get_glyph_advance_width(glyph_indices.clone())
+        .into_iter()
+        .filter_map(|w| w)
+        .sum();
+
     unsafe {
-        (*metrics).lbearing = 10;
-        (*metrics).rbearing = 10;
-        (*metrics).width = font.font.average_width as i16;
+        (*metrics).lbearing = 0;
+        (*metrics).rbearing = width as i16;
+        (*metrics).width = width as i16;
         (*metrics).ascent = font.font.ascent as i16;
         (*metrics).descent = font.font.descent as i16;
     }
