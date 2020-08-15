@@ -12,6 +12,11 @@ use lisp::{
         initial_kboard, output_method, redisplay_interface, terminal, xlispstrdup, Fcons, Qnil,
         Qwr,
     },
+    remacs_sys::{
+        gui_clear_end_of_line, gui_clear_window_mouse_face, gui_fix_overlapping_area,
+        gui_get_glyph_overhangs, gui_produce_glyphs, gui_set_font, gui_set_font_backend,
+        gui_write_glyphs,
+    },
 };
 
 pub type TerminalRef = ExternalPtr<terminal>;
@@ -81,19 +86,19 @@ lazy_static! {
 
         let interface = redisplay_interface {
             frame_parm_handlers: (Box::into_raw(frame_parm_handlers)) as *mut Option<_>,
-            produce_glyphs: None,
-            write_glyphs: None,
+            produce_glyphs: Some(gui_produce_glyphs),
+            write_glyphs: Some(gui_write_glyphs),
             insert_glyphs: None,
-            clear_end_of_line: None,
+            clear_end_of_line: Some(gui_clear_end_of_line),
             clear_under_internal_border: None,
             scroll_run_hook: None,
             after_update_window_line_hook: None,
             update_window_begin_hook: None,
             update_window_end_hook: None,
             flush_display: None,
-            clear_window_mouse_face: None,
-            get_glyph_overhangs: None,
-            fix_overlapping_area: None,
+            clear_window_mouse_face: Some(gui_clear_window_mouse_face),
+            get_glyph_overhangs: Some(gui_get_glyph_overhangs),
+            fix_overlapping_area: Some(gui_fix_overlapping_area),
             draw_fringe_bitmap: None,
             define_fringe_bitmap: None,
             destroy_fringe_bitmap: None,
