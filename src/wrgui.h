@@ -45,7 +45,7 @@ typedef int RGB_PIXEL_COLOR;
 
 typedef void *Emacs_Pixmap;
 
-#define XChar2b wchar_t
+#define XChar2b uint32_t
 
 /* Windows equivalent of XImage.  */
 typedef struct _WRImage

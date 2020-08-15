@@ -10,6 +10,7 @@ use super::{
 use lisp::{
     font::LispFontRef,
     frame::LispFrameRef,
+    glyph::GlyphStringRef,
     keyboard::allocate_keyboard,
     lisp::{ExternalPtr, LispObject},
     remacs_sys::{
@@ -100,7 +101,7 @@ lazy_static! {
             after_update_window_line_hook: Some(after_update_window_line),
             update_window_begin_hook: Some(update_window_begin),
             update_window_end_hook: Some(update_window_end),
-            flush_display: None,
+            flush_display: Some(flush_display),
             clear_window_mouse_face: Some(gui_clear_window_mouse_face),
             get_glyph_overhangs: Some(gui_get_glyph_overhangs),
             fix_overlapping_area: Some(gui_fix_overlapping_area),
@@ -135,11 +136,27 @@ extern "C" fn update_window_end(
 ) {
 }
 
+extern "C" fn flush_display(f: *mut Lisp_Frame) {
+    let frame: LispFrameRef = f.into();
+    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    output.flush();
+}
+
 #[allow(unused_variables)]
 extern "C" fn after_update_window_line(w: *mut Lisp_Window, desired_row: *mut glyph_row) {}
 
 #[allow(unused_variables)]
-extern "C" fn draw_glyph_string(s: *mut glyph_string) {}
+extern "C" fn draw_glyph_string(s: *mut glyph_string) {
+    let s: GlyphStringRef = s.into();
+
+    let output: OutputRef = {
+        let frame: LispFrameRef = s.f.into();
+        unsafe { frame.output_data.wr.into() }
+    };
+
+    output.canvas().draw_glyph_string(s);
+}
 
 #[allow(unused_variables)]
 extern "C" fn clear_frame_area(s: *mut Lisp_Frame, x: i32, y: i32, width: i32, height: i32) {}
@@ -225,6 +242,7 @@ fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
             &REDISPLAY_INTERFACE.0 as *const _ as *mut _,
         )
     };
+
     let mut terminal = TerminalRef::new(terminal_ptr);
 
     // Link terminal and dpyinfo together
@@ -232,7 +250,6 @@ fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     dpyinfo.get_inner().terminal = terminal;
     dpyinfo.get_raw().terminal = terminal.as_mut();
 
-    //TODO: add terminal hook
     // Other hooks are NULL by default.
     terminal.get_string_resource_hook = Some(get_string_resource);
     terminal.set_new_font_hook = Some(new_font);
@@ -270,6 +287,9 @@ pub fn wr_term_init(display_name: LispObject) -> DisplayInfoRef {
         // https://lists.gnu.org/archive/html/emacs-devel/2015-11/msg00194.html
         dpyinfo_ref.smallest_font_height = 1;
         dpyinfo_ref.smallest_char_width = 1;
+
+        dpyinfo_ref.resx = 1.0;
+        dpyinfo_ref.resy = 1.0;
     }
 
     // Set the name of the terminal.
