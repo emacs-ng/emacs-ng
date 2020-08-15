@@ -132,7 +132,7 @@ typedef struct ns_bitmap_record Bitmap_Record;
 #ifdef USE_WEBRENDER
 typedef struct wr_bitmap_record Bitmap_Record;
 
-#define GET_PIXEL(ximg, x, y) XGetPixel (ximg, x, y)
+#define GET_PIXEL(ximg, x, y) wr_get_pixel(ximg, x, y)
 #define NO_PIXMAP 0
 
 #define PIX_MASK_RETAIN	0

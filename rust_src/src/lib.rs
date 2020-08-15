@@ -38,10 +38,14 @@ mod eval_macros;
 mod ng_async;
 
 mod eval;
+mod frame;
 mod lists;
 mod multibyte;
 mod process;
 mod vectors;
+mod wrterm;
+
+pub use crate::wrterm::{tip_frame, wr_display_list};
 
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));

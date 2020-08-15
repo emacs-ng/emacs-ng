@@ -48,12 +48,12 @@ typedef void *Emacs_Pixmap;
 #define XChar2b wchar_t
 
 /* Windows equivalent of XImage.  */
-typedef struct _XImage
+typedef struct _WRImage
 {
   unsigned char *data;
   int info;
   /* Optional RGBQUAD array for palette follows (see BITMAPINFO docs).  */
-} XImage;
+} WRImage;
 
 typedef struct
 {
@@ -80,6 +80,15 @@ typedef struct
    (nr).y = (y_v),				\
    (nr).width = (width_v),	\
    (nr).height = (height_v))
+
+#define STORE_XCHAR2B(chp, b1, b2) \
+  (*(chp) = ((XChar2b)((((b1) & 0x00ff) << 8) | ((b2) & 0x00ff))))
+
+#define XCHAR2B_BYTE1(chp) \
+  ((*(chp) & 0xff00) >> 8)
+
+#define XCHAR2B_BYTE2(chp) \
+  (*(chp) & 0x00ff)
 
 /* Bit Gravity */
 

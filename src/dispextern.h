@@ -137,7 +137,7 @@ typedef Emacs_Pixmap Emacs_Pix_Context;
 #ifdef USE_WEBRENDER
 #include "wrgui.h"
 typedef struct wr_display_info Display_Info;
-typedef Pixmap XImagePtr;
+typedef WRImage *XImagePtr;
 typedef XImagePtr XImagePtr_or_DC;
 typedef Emacs_Pixmap Emacs_Pix_Container;
 typedef Emacs_Pixmap Emacs_Pix_Context;

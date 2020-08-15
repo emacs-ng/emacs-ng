@@ -4702,6 +4702,10 @@ extern void init_xterm (void);
 extern void syms_of_xterm (void);
 #endif /* HAVE_X_WINDOWS */
 
+#ifdef USE_WEBRENDER
+extern void syms_of_wrterm(void);
+#endif /* USE_WEBRENDER */
+
 #ifdef HAVE_WINDOW_SYSTEM
 /* Defined in xterm.c, nsterm.m, w32term.c.  */
 extern char *get_keysym_name (int);

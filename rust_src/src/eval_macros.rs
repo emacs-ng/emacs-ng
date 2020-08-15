@@ -40,3 +40,10 @@ macro_rules! list {
     ($arg:expr) => { $crate::lisp::LispObject::cons($arg, list!()) };
     () => { crate::remacs_sys::Qnil };
 }
+
+/// Macro that expands to nothing, but is used at build time to
+/// generate the starting symbol table. Equivalent to the DEFSYM
+/// macro. See also lib-src/make-docfile.c
+macro_rules! def_lisp_sym {
+    ($name:expr, $value:expr) => {};
+}
