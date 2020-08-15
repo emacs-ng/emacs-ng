@@ -577,7 +577,7 @@ x_free_gc (struct frame *f, Emacs_GC *gc)
 static GC
 x_create_gc (struct frame *f,
 	     unsigned long mask,
-	     XGCValues *xgcv)
+	     Emacs_GC *xgcv)
 {
   GC gc = malloc (sizeof *gc);
   *gc = *xgcv;

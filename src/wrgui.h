@@ -36,7 +36,7 @@ typedef void *Pixmap;
 
 typedef char *XrmDatabase;
 
-typedef XGCValues *GC;
+typedef Emacs_GC *GC;
 typedef int Color;
 typedef int Window;
 typedef int Display; /* HDC so it doesn't conflict with xpm lib.  */
