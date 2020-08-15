@@ -842,6 +842,11 @@ default_pixels_per_inch_y (void)
 #else
 #define FRAME_NS_P(f) ((f)->output_method == output_ns)
 #endif
+#ifndef USE_WEBRENDER
+#define FRAME_WR_P(f) false
+#else
+#define FRAME_WR_P(f) ((f)->output_method == output_wr)
+#endif
 
 /* FRAME_WINDOW_P tests whether the frame is a graphical window system
    frame.  */
@@ -854,6 +859,9 @@ default_pixels_per_inch_y (void)
 #endif
 #ifdef HAVE_NS
 #define FRAME_WINDOW_P(f) FRAME_NS_P(f)
+#endif
+#ifdef USE_WEBRENDER
+#define FRAME_WINDOW_P(f) FRAME_WR_P(f)
 #endif
 #ifndef FRAME_WINDOW_P
 #define FRAME_WINDOW_P(f) ((void) (f), false)
