@@ -3,8 +3,10 @@ use std::ptr;
 
 use lazy_static::lazy_static;
 
+use webrender::api::*;
+
 use super::{
-    color::{color_to_xcolor, lookup_color_by_name_or_hex},
+    color::{color_to_pixel, color_to_xcolor, lookup_color_by_name_or_hex},
     display_info::{DisplayInfo, DisplayInfoRef},
     output::OutputRef,
 };
@@ -20,13 +22,13 @@ use lisp::{
         gui_draw_right_divider, gui_draw_vertical_border, gui_fix_overlapping_area,
         gui_get_glyph_overhangs, gui_produce_glyphs, gui_set_bottom_divider_width, gui_set_font,
         gui_set_font_backend, gui_set_left_fringe, gui_set_right_divider_width,
-        gui_set_right_fringe, gui_write_glyphs, unblock_input,
+        gui_set_right_fringe, gui_write_glyphs, unblock_input, update_face_from_frame_parameter,
     },
     remacs_sys::{
         create_terminal, current_kboard, draw_fringe_bitmap_params, fontset_from_font,
         frame_parm_handler, glyph_row, glyph_string, initial_kboard, output_method,
         redisplay_interface, terminal, text_cursor_kinds, xlispstrdup, Emacs_Color, Fcons,
-        Lisp_Frame, Lisp_Window, Qnil, Qwr,
+        Fredraw_frame, Lisp_Frame, Lisp_Window, Qbackground_color, Qnil, Qwr,
     },
     window::LispWindowRef,
 };
@@ -39,7 +41,7 @@ fn get_frame_parm_handlers() -> [frame_parm_handler; 47] {
     let handlers: [frame_parm_handler; 47] = [
         None,
         None,
-        None,
+        Some(set_background_color),
         None,
         None,
         None,
@@ -320,6 +322,25 @@ extern "C" fn frame_visible_invisible(frame: *mut Lisp_Frame, is_visible: bool) 
         output.show_window();
     } else {
         output.hide_window();
+    }
+}
+
+extern "C" fn set_background_color(f: *mut Lisp_Frame, arg: LispObject, _old_val: LispObject) {
+    let mut frame: LispFrameRef = f.into();
+    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    let color = lookup_color_by_name_or_hex(&format!("{}", arg.as_string().unwrap()))
+        .unwrap_or_else(|| ColorF::WHITE);
+
+    let pixel = color_to_pixel(color);
+
+    frame.background_pixel = pixel;
+    output.background_color = color;
+
+    unsafe { update_face_from_frame_parameter(frame.as_mut(), Qbackground_color, arg) };
+
+    if frame.is_visible() {
+        unsafe { Fredraw_frame(frame.into()) };
     }
 }
 
