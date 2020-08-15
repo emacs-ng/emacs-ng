@@ -12,3 +12,4 @@ lazy_static = "1.4.0"
 
 [features]
 window-system = []
+window-system-webrender = []

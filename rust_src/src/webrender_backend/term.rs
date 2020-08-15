@@ -107,7 +107,7 @@ lazy_static! {
             insert_glyphs: None,
             clear_end_of_line: Some(gui_clear_end_of_line),
             clear_under_internal_border: None,
-            scroll_run_hook: None,
+            scroll_run_hook: Some(scroll_run),
             after_update_window_line_hook: Some(after_update_window_line),
             update_window_begin_hook: Some(update_window_begin),
             update_window_end_hook: Some(update_window_end),
@@ -370,6 +370,31 @@ extern "C" fn clear_frame(f: *mut Lisp_Frame) {
     clear_frame_area(f, 0, 0, width, height);
 }
 
+extern "C" fn scroll_run(w: *mut Lisp_Window, run: *mut run) {
+    let window: LispWindowRef = w.into();
+    let frame = window.get_frame();
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    let (x, y, width, height) = unsafe {
+        let mut x: i32 = 0;
+        let mut y: i32 = 0;
+        let mut width: i32 = 0;
+        let mut height: i32 = 0;
+
+        window_box(w, ANY_AREA, &mut x, &mut y, &mut width, &mut height);
+        (x, y, width, height)
+    };
+
+    let from_y = unsafe { (*run).current_y + window.top_edge_y() };
+    let to_y = unsafe { (*run).desired_y + window.top_edge_y() };
+
+    let scroll_height = unsafe { (*run).height };
+
+    output
+        .canvas()
+        .scroll(x, y, width, height, from_y, to_y, scroll_height);
+}
+
 extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_event) -> i32 {
     let terminal: TerminalRef = terminal.into();
     let dpyinfo = DisplayInfoRef::new(unsafe { terminal.display_info.wr } as *mut _);
@@ -390,7 +415,7 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
 
     let mut count = 0;
 
-    output.poll_events(|e: Event<()>| match e {
+    output.poll_events(|e| match e {
         Event::WindowEvent {
             event: WindowEvent::ReceivedCharacter(key_code),
             ..

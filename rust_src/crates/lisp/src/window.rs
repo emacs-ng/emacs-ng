@@ -24,9 +24,43 @@ impl LispWindowRef {
         self.frame.into()
     }
 
+    #[cfg(not(feature = "window-system-webrender"))]
+    pub fn is_menu_bar(self) -> bool {
+        unimplemented!();
+    }
+
+    #[cfg(feature = "window-system-webrender")]
+    pub fn is_menu_bar(self) -> bool {
+        false
+    }
+
+    #[cfg(not(feature = "window-system-webrender"))]
+    pub fn is_tool_bar(self) -> bool {
+        unimplemented!();
+    }
+
+    #[cfg(feature = "window-system-webrender")]
+    pub fn is_tool_bar(self) -> bool {
+        false
+    }
+
+    pub fn top_edge_y(self) -> i32 {
+        let mut y = self.top_pixel_edge();
+        if !(self.is_menu_bar() || self.is_tool_bar()) {
+            y += self.get_frame().internal_border_width();
+        }
+        y
+    }
+
     /// The pixel value where the text (or left fringe) in window starts.
     pub fn left_pixel_edge(self) -> i32 {
         self.pixel_left
+    }
+
+    /// The top pixel edge at which the window starts.
+    /// This includes a header line, if any.
+    pub fn top_pixel_edge(self) -> i32 {
+        self.pixel_top
     }
 
     /// Return the right pixel edge before which window W ends.

@@ -7,4 +7,5 @@ pub mod output;
 pub mod term;
 
 mod draw_canvas;
+mod texture;
 mod util;
