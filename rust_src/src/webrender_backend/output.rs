@@ -9,7 +9,7 @@ use font_kit::handle::Handle as FontHandle;
 use gleam::gl::{self, Gl};
 use glutin::{
     self,
-    dpi::{LogicalSize, PhysicalPosition},
+    dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoopProxy},
     monitor::MonitorHandle,
@@ -104,7 +104,9 @@ impl Output {
 
         let window_loop_thread = std::thread::spawn(move || {
             let events_loop = glutin::event_loop::EventLoop::new_any_thread();
-            let window_builder = glutin::window::WindowBuilder::new().with_maximized(true);
+            let window_builder = glutin::window::WindowBuilder::new()
+                .with_visible(true)
+                .with_maximized(true);
 
             let window_context = glutin::ContextBuilder::new()
                 .build_windowed(window_builder, &events_loop)
@@ -115,16 +117,11 @@ impl Output {
 
             let gl = Self::get_gl_api(&current_context);
 
-            gl.clear_color(1.0, 1.0, 1.0, 1.0);
-            gl.clear(self::gl::COLOR_BUFFER_BIT);
-            gl.flush();
-            current_context.swap_buffers().ok();
-
             let events_loop_proxy = events_loop.create_proxy();
 
             let device_pixel_ratio = window.scale_factor() as f32;
 
-            let device_size = {
+            let mut device_size = {
                 let size = window.inner_size();
                 DeviceIntSize::new(size.width as i32, size.height as i32)
             };
@@ -161,10 +158,35 @@ impl Output {
                 .send((api, window, document_id, color_bits, events_loop_proxy))
                 .unwrap();
 
+            let api = sender.create_api();
+
             events_loop.run(move |e, _, control_flow| {
                 *control_flow = ControlFlow::Wait;
 
                 match e {
+                    Event::WindowEvent {
+                        event: WindowEvent::Resized(size),
+                        ..
+                    } => {
+                        device_size = DeviceIntSize::new(size.width as i32, size.height as i32);
+                        api.set_document_view(
+                            document_id,
+                            DeviceIntRect::from_size(device_size),
+                            device_pixel_ratio,
+                        );
+
+                        current_context.resize(size);
+
+                        gl.clear_color(1.0, 1.0, 1.0, 1.0);
+                        gl.clear(self::gl::COLOR_BUFFER_BIT);
+                        gl.flush();
+                        current_context.swap_buffers().ok();
+
+                        event_tx.send(e.to_static().unwrap()).unwrap();
+
+                        unsafe { libc::raise(libc::SIGIO) };
+                    }
+
                     Event::WindowEvent {
                         event: WindowEvent::KeyboardInput { .. },
                         ..
@@ -285,6 +307,10 @@ impl Output {
         self.window.set_visible(false);
     }
 
+    pub fn maximize(&self) {
+        self.window.set_maximized(true);
+    }
+
     pub fn set_display_info(&mut self, mut dpyinfo: DisplayInfoRef) {
         self.output.display_info = dpyinfo.get_raw().as_mut();
     }
@@ -297,6 +323,10 @@ impl Output {
         let scale_factor = self.window.scale_factor();
 
         self.window.inner_size().to_logical(scale_factor)
+    }
+
+    pub fn get_physical_size(&self) -> PhysicalSize<u32> {
+        self.window.inner_size()
     }
 
     pub fn display<F>(&mut self, f: F)

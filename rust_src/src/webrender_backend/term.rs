@@ -21,19 +21,21 @@ use lisp::{
     keyboard::allocate_keyboard,
     lisp::{ExternalPtr, LispObject},
     remacs_sys::{
-        block_input, display_and_set_cursor, draw_window_fringes, face_id, glyph_row_area,
-        gui_clear_end_of_line, gui_clear_window_mouse_face, gui_draw_right_divider,
-        gui_draw_vertical_border, gui_fix_overlapping_area, gui_get_glyph_overhangs,
-        gui_produce_glyphs, gui_set_bottom_divider_width, gui_set_font, gui_set_font_backend,
-        gui_set_left_fringe, gui_set_right_divider_width, gui_set_right_fringe, gui_update_cursor,
-        gui_write_glyphs, input_event, kbd_buffer_store_event_hold, run, unblock_input,
+        block_input, change_frame_size, display_and_set_cursor, do_pending_window_change,
+        draw_window_fringes, face_id, glyph_row_area, gui_clear_end_of_line,
+        gui_clear_window_mouse_face, gui_draw_right_divider, gui_draw_vertical_border,
+        gui_fix_overlapping_area, gui_get_glyph_overhangs, gui_produce_glyphs,
+        gui_set_bottom_divider_width, gui_set_font, gui_set_font_backend, gui_set_left_fringe,
+        gui_set_right_divider_width, gui_set_right_fringe, gui_update_cursor, gui_write_glyphs,
+        input_event, kbd_buffer_store_event_hold, run, store_frame_param, unblock_input,
         update_face_from_frame_parameter, window_box, Vframe_list,
     },
     remacs_sys::{
         create_terminal, current_kboard, draw_fringe_bitmap_params, fontset_from_font,
-        frame_parm_handler, glyph_row, glyph_string, initial_kboard, output_method,
-        redisplay_interface, terminal, text_cursor_kinds, xlispstrdup, Emacs_Color, Fcons,
-        Fredraw_frame, Lisp_Frame, Lisp_Window, Qbackground_color, Qnil, Qwr,
+        frame_parm_handler, fullscreen_type, glyph_row, glyph_string, initial_kboard,
+        output_method, redisplay_interface, terminal, text_cursor_kinds, xlispstrdup, Emacs_Color,
+        Fcons, Fredraw_frame, Lisp_Frame, Lisp_Window, Qbackground_color, Qfullscreen, Qmaximized,
+        Qnil, Qwr,
     },
     window::LispWindowRef,
 };
@@ -570,10 +572,49 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
             count += 1;
         }
 
+        Event::WindowEvent {
+            event: WindowEvent::Resized(size),
+            ..
+        } => {
+            if top_frame.as_frame().is_none() {
+                return;
+            }
+
+            let mut frame: LispFrameRef = top_frame.into();
+            unsafe {
+                change_frame_size(
+                    frame.as_mut(),
+                    size.width as i32,
+                    size.height as i32 - frame.menu_bar_height,
+                    false,
+                    true,
+                    false,
+                    true,
+                );
+
+                do_pending_window_change(false);
+            }
+        }
+
         _ => {}
     });
 
     count
+}
+
+extern "C" fn fullscreen(f: *mut Lisp_Frame) {
+    let frame: LispFrameRef = f.into();
+
+    if !frame.is_visible() {
+        return;
+    }
+
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    if frame.want_fullscreen() == fullscreen_type::FULLSCREEN_MAXIMIZED {
+        output.maximize();
+
+        unsafe { store_frame_param(f, Qfullscreen, Qmaximized) };
+    }
 }
 
 fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
@@ -599,6 +640,7 @@ fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     terminal.frame_visible_invisible_hook = Some(frame_visible_invisible);
     terminal.clear_frame_hook = Some(clear_frame);
     terminal.read_socket_hook = Some(read_input_event);
+    terminal.fullscreen_hook = Some(fullscreen);
 
     terminal
 }
