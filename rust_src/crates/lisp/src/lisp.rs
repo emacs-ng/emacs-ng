@@ -99,8 +99,8 @@ impl From<usize> for LispObject {
 }
 
 impl From<i32> for LispObject {
-    fn from(o: i32) -> Self {
-        LispObject::from_C(o as EmacsInt)
+    fn from(v: i32) -> Self {
+        Self::from_fixnum(EmacsInt::from(v))
     }
 }
 
