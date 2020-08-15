@@ -1,12 +1,14 @@
 // //! This module contains Rust definitions whose C equivalents live in
 // //! lisp.h.
 
+use std::ffi::CString;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 
 use libc::{c_void, intptr_t, uintptr_t};
 
 use crate::{
+    remacs_sys::build_string,
     remacs_sys::Aligned_Lisp_Subr,
     remacs_sys::EmacsInt,
     remacs_sys::{EmacsUint, Lisp_Bits, Lisp_Type, Qnil, Qt, USE_LSB_TAG, VALMASK},
@@ -192,6 +194,14 @@ impl<T> DerefMut for ExternalPtr<T> {
 impl<T> From<*mut T> for ExternalPtr<T> {
     fn from(o: *mut T) -> Self {
         Self::new(o)
+    }
+}
+
+/// Copies a Rust str into a new Lisp string
+impl<'a> From<&'a str> for LispObject {
+    fn from(s: &str) -> Self {
+        let cs = CString::new(s).unwrap();
+        unsafe { build_string(cs.as_ptr()) }
     }
 }
 
