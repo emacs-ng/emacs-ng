@@ -3,15 +3,12 @@ use lisp::{
     keyboard::KeyboardRef,
     lisp::LispObject,
     remacs_sys::{
-        make_frame, make_frame_without_minibuffer, make_minibuffer_frame, output_method, Qnil,
-        Qnone, Qonly,
+        make_frame, make_frame_without_minibuffer, make_minibuffer_frame, output_method, wr_output,
+        Qnil, Qnone, Qonly,
     },
 };
 
-use super::{
-    display_info::DisplayInfoRef,
-    output::{Output, OutputRef},
-};
+use super::{display_info::DisplayInfoRef, output::Output};
 
 pub fn create_frame(
     display: LispObject,
@@ -34,12 +31,12 @@ pub fn create_frame(
     frame.terminal = dpyinfo.get_inner().terminal.as_mut();
     frame.set_output_method(output_method::output_wr);
 
-    // Remeber to destory the Output object when frame destoried.
-    let output = Box::new(Output::new());
-    let mut output = OutputRef::new(Box::into_raw(output));
-    frame.output_data.wr = output.as_mut();
+    let mut output = Box::new(Output::new());
+    output.set_display_info(dpyinfo);
 
-    output.get_inner().display_info = dpyinfo;
+    // Remeber to destory the Output object when frame destoried.
+    let output = Box::into_raw(output);
+    frame.output_data.wr = output as *mut wr_output;
 
     frame
 }

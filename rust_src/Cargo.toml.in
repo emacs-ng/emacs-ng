@@ -38,6 +38,9 @@ serde_json = { version = "1.0", features = ["preserve_order"] }
 systemstat = "0.1"
 tokio = { version = "0.2.22", features = ["full"] }
 tokio-rustls = "0.14.1"
+glutin = { version = "0.24", optional = true }
+gleam = { version = "0.6", optional = true }
+webrender = { version = "0.61", optional = true }
 
 [build-dependencies]
 clippy = { version = "*", optional = true }
@@ -84,7 +87,7 @@ window-system-w32 = []
 # Build with libvterm support.
 libvterm = []
 # Use the webrender window system
-window-system-webrender = ["font-kit"]
+window-system-webrender = ["font-kit", "webrender", "glutin", "gleam"]
 # Treat warnings as a build error on Travis.
 strict = []
 

@@ -2,15 +2,20 @@ use std::ptr;
 
 use lazy_static::lazy_static;
 
-use super::display_info::{DisplayInfo, DisplayInfoRef};
+use super::{
+    display_info::{DisplayInfo, DisplayInfoRef},
+    output::OutputRef,
+};
 
 use lisp::{
+    font::LispFontRef,
+    frame::LispFrameRef,
     keyboard::allocate_keyboard,
     lisp::{ExternalPtr, LispObject},
     remacs_sys::{
-        create_terminal, current_kboard, frame_parm_handler, glyph_row, glyph_string,
-        initial_kboard, output_method, redisplay_interface, terminal, text_cursor_kinds,
-        xlispstrdup, Fcons, Lisp_Frame, Lisp_Window, Qnil, Qwr,
+        create_terminal, current_kboard, fontset_from_font, frame_parm_handler, glyph_row,
+        glyph_string, initial_kboard, output_method, redisplay_interface, terminal,
+        text_cursor_kinds, xlispstrdup, Emacs_Color, Fcons, Lisp_Frame, Lisp_Window, Qnil, Qwr,
     },
     remacs_sys::{
         gui_clear_end_of_line, gui_clear_window_mouse_face, gui_fix_overlapping_area,
@@ -159,6 +164,60 @@ extern "C" fn get_string_resource(
     ptr::null()
 }
 
+extern "C" fn new_font(
+    frame: *mut Lisp_Frame,
+    font_object: LispObject,
+    fontset: i32,
+) -> LispObject {
+    let mut frame: LispFrameRef = frame.into();
+
+    let font = LispFontRef::from_vectorlike(font_object.as_vectorlike().unwrap()).as_font_mut();
+    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    let fontset = if fontset < 0 {
+        unsafe { fontset_from_font(font_object) }
+    } else {
+        fontset
+    };
+
+    output.fontset = fontset;
+
+    if output.font == font.into() {
+        return font_object;
+    }
+
+    output.font = font.into();
+
+    frame.line_height = unsafe { (*font).height };
+    frame.column_width = unsafe { (*font).average_width };
+
+    font_object
+}
+
+extern "C" fn defined_color(
+    _frame: *mut Lisp_Frame,
+    _color_name: *const libc::c_char,
+    _color_def: *mut Emacs_Color,
+    _alloc_p: bool,
+    _make_indext: bool,
+) -> bool {
+    false
+}
+
+extern "C" fn frame_visible_invisible(frame: *mut Lisp_Frame, is_visible: bool) {
+    let mut f: LispFrameRef = frame.into();
+
+    f.set_visible(is_visible as u32);
+
+    let output: OutputRef = unsafe { f.output_data.wr.into() };
+
+    if is_visible {
+        output.show_window();
+    } else {
+        output.hide_window();
+    }
+}
+
 fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     let terminal_ptr = unsafe {
         create_terminal(
@@ -176,6 +235,9 @@ fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     //TODO: add terminal hook
     // Other hooks are NULL by default.
     terminal.get_string_resource_hook = Some(get_string_resource);
+    terminal.set_new_font_hook = Some(new_font);
+    terminal.defined_color_hook = Some(defined_color);
+    terminal.frame_visible_invisible_hook = Some(frame_visible_invisible);
 
     terminal
 }
