@@ -320,6 +320,8 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     wr_font.font.descent = (-scale * font_metrics.descent).round() as i32;
     wr_font.font.space_width = wr_font.font.average_width;
     wr_font.font.max_width = wr_font.font.average_width;
+    wr_font.font.underline_thickness = (scale * font_metrics.underline_thickness) as i32;
+    wr_font.font.underline_position = (scale * font_metrics.underline_position) as i32;
 
     wr_font.font.height = (scale * (font_metrics.ascent - font_metrics.descent)).round() as i32;
 
