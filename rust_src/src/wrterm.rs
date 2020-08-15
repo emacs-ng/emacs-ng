@@ -3,13 +3,14 @@
 use std::ffi::CString;
 use std::ptr;
 
-use glutin::monitor::MonitorHandle;
+use glutin::{event::VirtualKeyCode, monitor::MonitorHandle};
 
 use lisp_macros::lisp_fn;
 
 use crate::webrender_backend::{
     font::{FontRef, FONT_DRIVER},
     frame::create_frame,
+    keyboard::winit_keycode_emacs_key_name,
     output::OutputRef,
     term::wr_term_init,
 };
@@ -86,10 +87,12 @@ pub extern "C" fn wr_free_pixmap(display: DisplayRef, pixmap: Pixmap) -> i32 {
     unimplemented!();
 }
 
-#[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn get_keysym_name(keysym: i32) -> *mut libc::c_char {
-    unimplemented!();
+    let name =
+        winit_keycode_emacs_key_name(unsafe { std::mem::transmute::<i32, VirtualKeyCode>(keysym) });
+
+    name as *mut libc::c_char
 }
 
 #[allow(unused_variables)]
