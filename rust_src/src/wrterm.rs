@@ -12,16 +12,15 @@ use crate::{
     remacs_sys::resource_types::{RES_TYPE_NUMBER, RES_TYPE_STRING, RES_TYPE_SYMBOL},
     remacs_sys::{
         block_input, font, gui_display_get_arg, hashtest_eql, image, make_hash_table,
-        unblock_input, wr_output, Display, Emacs_Pixmap, Fcopy_alist, Fprovide, Pixmap,
-        Qminibuffer, Qname, Qnil, Qparent_id, Qterminal, Qunbound, Qwr, Qx, WRImage, Window,
-        XrmDatabase, DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
+        unblock_input, Display, Emacs_Pixmap, Fcopy_alist, Fprovide, Pixmap, Qminibuffer, Qname,
+        Qnil, Qparent_id, Qterminal, Qunbound, Qwr, Qx, WRImage, Window, XrmDatabase,
+        DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
     },
-    webrender_backend::{frame::create_frame, term::wr_term_init},
+    webrender_backend::{frame::create_frame, output::OutputRef, term::wr_term_init},
 };
 
 pub use crate::webrender_backend::display_info::{DisplayInfo, DisplayInfoRef};
 
-pub type OutputRef = ExternalPtr<wr_output>;
 pub type DisplayRef = ExternalPtr<Display>;
 pub type ImageRef = ExternalPtr<WRImage>;
 
