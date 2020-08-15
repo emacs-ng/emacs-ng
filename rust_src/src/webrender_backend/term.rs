@@ -16,9 +16,10 @@ use lisp::{
     keyboard::allocate_keyboard,
     lisp::{ExternalPtr, LispObject},
     remacs_sys::{
-        block_input, gui_clear_end_of_line, gui_clear_window_mouse_face, gui_fix_overlapping_area,
-        gui_get_glyph_overhangs, gui_produce_glyphs, gui_set_font, gui_set_font_backend,
-        gui_set_left_fringe, gui_set_right_fringe, gui_write_glyphs, unblock_input,
+        block_input, face_id, gui_clear_end_of_line, gui_clear_window_mouse_face,
+        gui_draw_vertical_border, gui_fix_overlapping_area, gui_get_glyph_overhangs,
+        gui_produce_glyphs, gui_set_font, gui_set_font_backend, gui_set_left_fringe,
+        gui_set_right_fringe, gui_write_glyphs, unblock_input,
     },
     remacs_sys::{
         create_terminal, current_kboard, draw_fringe_bitmap_params, draw_window_fringes,
@@ -118,7 +119,7 @@ lazy_static! {
             default_font_parameter: None,
             clear_frame_area: Some(clear_frame_area),
             draw_window_cursor: Some(draw_window_cursor),
-            draw_vertical_window_border: None,
+            draw_vertical_window_border: Some(draw_vertical_window_border),
             draw_window_divider: None,
             shift_glyphs_for_insert: None,
             show_hourglass: None,
@@ -144,7 +145,9 @@ extern "C" fn update_window_end(
     }
 
     unsafe { block_input() };
-    unsafe { draw_window_fringes(window.as_mut(), true) };
+    if unsafe { draw_window_fringes(window.as_mut(), true) } {
+        unsafe { gui_draw_vertical_border(window.as_mut()) }
+    };
     unsafe { unblock_input() };
 }
 
@@ -181,6 +184,17 @@ extern "C" fn draw_fringe_bitmap(
     let output: OutputRef = unsafe { frame.output_data.wr.into() };
 
     output.canvas().draw_fringe_bitmap(row, p);
+}
+
+extern "C" fn draw_vertical_window_border(window: *mut Lisp_Window, x: i32, y0: i32, y1: i32) {
+    let window: LispWindowRef = window.into();
+    let frame: LispFrameRef = window.get_frame();
+
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    let face = frame.face_from_id(face_id::VERTICAL_BORDER_FACE_ID);
+
+    output.canvas().draw_vertical_window_border(face, x, y0, y1);
 }
 
 #[allow(unused_variables)]
