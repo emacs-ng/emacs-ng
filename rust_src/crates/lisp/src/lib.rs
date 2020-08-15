@@ -39,6 +39,7 @@ pub mod multibyte;
 pub mod number;
 pub mod obarray;
 pub mod process;
+pub mod string;
 pub mod symbol;
 pub mod vector;
 pub mod window;
