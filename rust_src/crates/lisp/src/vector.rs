@@ -6,6 +6,7 @@ use std::mem;
 use lazy_static::lazy_static;
 
 use crate::{
+    frame::LispFrameRef,
     lisp::{ExternalPtr, LispObject, LispSubrRef},
     process::LispProcessRef,
     remacs_sys::{
@@ -89,6 +90,14 @@ impl LispVectorlikeRef {
 
     pub unsafe fn as_vector_unchecked(self) -> LispVectorRef {
         self.cast()
+    }
+
+    pub fn as_frame(self) -> Option<LispFrameRef> {
+        if self.is_pseudovector(pvec_type::PVEC_FRAME) {
+            Some(self.cast())
+        } else {
+            None
+        }
     }
 }
 

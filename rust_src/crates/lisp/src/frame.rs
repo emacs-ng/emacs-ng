@@ -5,6 +5,7 @@ use std::ffi::CString;
 use crate::{
     lisp::{ExternalPtr, LispObject},
     remacs_sys::{gui_default_parameter, resource_types, Lisp_Frame, Lisp_Type},
+    vector::LispVectorlikeRef,
 };
 
 /// LispFrameRef is a reference to the LispFrame
@@ -35,5 +36,11 @@ impl LispFrameRef {
 impl From<LispFrameRef> for LispObject {
     fn from(f: LispFrameRef) -> Self {
         Self::tag_ptr(f, Lisp_Type::Lisp_Vectorlike)
+    }
+}
+
+impl From<LispObject> for Option<LispFrameRef> {
+    fn from(o: LispObject) -> Self {
+        o.as_vectorlike().and_then(LispVectorlikeRef::as_frame)
     }
 }
