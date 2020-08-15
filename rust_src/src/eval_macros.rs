@@ -113,3 +113,23 @@ macro_rules! defvar_lisp {
         }
     }};
 }
+
+#[macro_export]
+macro_rules! defvar_bool {
+    ($field_name:ident, $lisp_name:expr, $value:expr) => {{
+        unsafe {
+            use crate::remacs_sys::Lisp_Boolfwd;
+
+            static mut o_fwd: Lisp_Boolfwd = Lisp_Boolfwd {
+                type_: crate::remacs_sys::Lisp_Fwd_Type::Lisp_Fwd_Bool,
+                boolvar: unsafe { &crate::remacs_sys::globals.$field_name as *const _ as *mut _ },
+            };
+
+            crate::remacs_sys::defvar_bool(
+                &o_fwd,
+                concat!($lisp_name, "\0").as_ptr() as *const libc::c_char,
+            );
+            crate::remacs_sys::globals.$field_name = $value;
+        }
+    }};
+}
