@@ -291,6 +291,8 @@ See also `frame-live-p'.  */)
       return Qpc;
     case output_ns:
       return Qns;
+    case output_wr:
+      return Qwr;
     default:
       emacs_abort ();
     }
