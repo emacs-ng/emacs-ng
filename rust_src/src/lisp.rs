@@ -189,6 +189,12 @@ impl<T> DerefMut for ExternalPtr<T> {
     }
 }
 
+impl<T> From<*mut T> for ExternalPtr<T> {
+    fn from(o: *mut T) -> Self {
+        Self::new(o)
+    }
+}
+
 // Lisp_Subr support
 
 pub type LispSubrRef = ExternalPtr<Aligned_Lisp_Subr>;

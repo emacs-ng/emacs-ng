@@ -57,6 +57,9 @@ mod multibyte;
 mod process;
 mod vectors;
 #[cfg(feature = "window-system-webrender")]
+mod webrender_backend;
+mod windows;
+#[cfg(feature = "window-system-webrender")]
 mod wrterm;
 
 #[cfg(feature = "window-system-webrender")]
