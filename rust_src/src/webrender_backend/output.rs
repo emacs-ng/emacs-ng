@@ -1,5 +1,7 @@
+use std::rc::Rc;
+
 use font_kit::handle::Handle as FontHandle;
-use gleam::gl;
+use gleam::gl::{self, Gl};
 use glutin::{
     self,
     dpi::LogicalSize,
@@ -32,6 +34,8 @@ pub struct Output {
     pub document_id: DocumentId,
 
     pub display_list_builder: Option<DisplayListBuilder>,
+
+    pub background_color: ColorF,
 }
 
 impl Output {
@@ -49,6 +53,7 @@ impl Output {
             events_loop,
             document_id,
             display_list_builder: None,
+            background_color: ColorF::WHITE,
         }
     }
 
@@ -68,15 +73,7 @@ impl Output {
 
         let window_context = unsafe { window_context.make_current() }.unwrap();
 
-        let gl = match window_context.get_api() {
-            glutin::Api::OpenGl => unsafe {
-                gl::GlFns::load_with(|symbol| window_context.get_proc_address(symbol) as *const _)
-            },
-            glutin::Api::OpenGlEs => unsafe {
-                gl::GlesFns::load_with(|symbol| window_context.get_proc_address(symbol) as *const _)
-            },
-            glutin::Api::WebGl => unimplemented!(),
-        };
+        let gl = Self::get_gl_api(&window_context);
 
         gl.clear_color(1.0, 1.0, 1.0, 1.0);
         gl.clear(self::gl::COLOR_BUFFER_BIT);
@@ -94,7 +91,7 @@ impl Output {
 
         let webrender_opts = webrender::RendererOptions {
             device_pixel_ratio,
-            clear_color: Some(ColorF::WHITE),
+            clear_color: None,
             ..webrender::RendererOptions::default()
         };
 
@@ -116,6 +113,18 @@ impl Output {
         api.send_transaction(document_id, txn);
 
         (api, renderer, window_context, events_loop, document_id)
+    }
+
+    fn get_gl_api(window_context: &ContextWrapper<PossiblyCurrent, Window>) -> Rc<dyn Gl> {
+        match window_context.get_api() {
+            glutin::Api::OpenGl => unsafe {
+                gl::GlFns::load_with(|symbol| window_context.get_proc_address(symbol) as *const _)
+            },
+            glutin::Api::OpenGlEs => unsafe {
+                gl::GlesFns::load_with(|symbol| window_context.get_proc_address(symbol) as *const _)
+            },
+            glutin::Api::WebGl => unimplemented!(),
+        }
     }
 
     fn get_size(window: &Window) -> (DeviceIntSize, LayoutSize) {
@@ -193,6 +202,17 @@ impl Output {
             self.render_api.flush_scene_builder();
 
             self.renderer.update();
+
+            let gl = Self::get_gl_api(&self.window_context);
+
+            gl.clear_color(
+                self.background_color.r,
+                self.background_color.g,
+                self.background_color.b,
+                1.0,
+            );
+            gl.clear(self::gl::COLOR_BUFFER_BIT);
+
             self.renderer.render(device_size).unwrap();
             let _ = self.renderer.flush_pipeline_info();
             self.window_context.swap_buffers().ok();
