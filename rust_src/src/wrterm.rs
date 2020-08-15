@@ -403,7 +403,8 @@ pub fn x_open_connection(
 /// Internal function called by `display-color-p', which see.
 #[lisp_fn(min = "0")]
 pub fn xw_display_color_p(_terminal: LispObject) -> bool {
-    unimplemented!();
+    // webrender support color display
+    true
 }
 
 /// Return t if the X display supports shades of gray.
@@ -413,7 +414,8 @@ pub fn xw_display_color_p(_terminal: LispObject) -> bool {
 /// If omitted or nil, that stands for the selected frame's display.
 #[lisp_fn(min = "0")]
 pub fn x_display_grayscale_p(_terminal: LispObject) -> bool {
-    unimplemented!();
+    // webrender support shades of gray
+    true
 }
 
 /// Internal function called by `color-values', which see.
