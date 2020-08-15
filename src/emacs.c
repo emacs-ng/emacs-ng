@@ -1952,6 +1952,7 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 
 #ifdef USE_WEBRENDER
       syms_of_wrterm ();
+      syms_of_fontset ();
 #endif /* USE_WEBRENDER */
 
       syms_of_gnutls ();
