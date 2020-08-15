@@ -1,5 +1,14 @@
-use font_kit::{family_name::FamilyName, properties::Properties, source::SystemSource};
+use std::mem::ManuallyDrop;
+
+use font_kit::{
+    family_name::FamilyName, loaders::default::Font, metrics::Metrics, properties::Properties,
+    source::SystemSource,
+};
 use lazy_static::lazy_static;
+
+use webrender::api::*;
+
+use super::output::OutputRef;
 
 use lisp::{
     frame::LispFrameRef,
@@ -7,12 +16,10 @@ use lisp::{
     multibyte::LispStringRef,
     remacs_sys::{
         font, font_driver, font_make_entity, font_make_object, font_metrics, font_property_index,
-        frame, glyph_string, Fcons, Fmake_symbol, Qnil, Qwr,
+        frame, glyph_string, Fassoc, Fcdr, Fcons, Fmake_symbol, Qnil, Qwr, FONT_INVALID_CODE,
     },
     symbol::LispSymbolRef,
 };
-
-use super::output::OutputRef;
 
 pub type FontRef = ExternalPtr<font>;
 
@@ -64,7 +71,7 @@ impl LispFontLike {
                 "Monospace" => Some(FamilyName::Monospace),
                 "Cursive" => Some(FamilyName::Cursive),
                 "Fantasy" => Some(FamilyName::Fantasy),
-                f => Some(FamilyName::Title(f.to_string())),
+                f => Some(FamilyName::Title(f.to_string().replace("-", "\\-"))),
             }
         }
     }
@@ -95,16 +102,15 @@ extern "C" fn get_cache(f: *mut frame) -> LispObject {
     dpyinfo.get_raw().name_list_element
 }
 
-#[allow(unused_variables)]
 extern "C" fn draw(
-    s: *mut glyph_string,
-    from: i32,
-    to: i32,
-    x: i32,
-    y: i32,
-    with_backgroud: bool,
+    _s: *mut glyph_string,
+    _from: i32,
+    _to: i32,
+    _x: i32,
+    _y: i32,
+    _with_background: bool,
 ) -> i32 {
-    unimplemented!();
+    0
 }
 
 extern "C" fn list(frame: *mut frame, font_spec: LispObject) -> LispObject {
@@ -147,6 +153,18 @@ extern "C" fn match_(_f: *mut frame, spec: LispObject) -> LispObject {
                 LispObject::from(full_name),
             );
 
+            let postscript_name: &str = &f
+                .postscript_name()
+                .expect("Font must have a postcript_name!");
+
+            // set name
+            entity.aset(font_property_index::FONT_EXTRA_INDEX, unsafe {
+                Fcons(
+                    Fcons(":postscript-name".into(), LispObject::from(postscript_name)),
+                    Qnil,
+                )
+            });
+
             unsafe { Fcons(entity.as_lisp_object(), Qnil) }
         }
         None => Qnil,
@@ -158,19 +176,47 @@ extern "C" fn list_family(f: *mut frame) -> LispObject {
     unimplemented!();
 }
 
-struct WRFont {
-    _font: font,
-    _i: i32,
+#[repr(C)]
+pub struct WRFont {
+    // extend basic font
+    pub font: font,
+    // webrender font key
+    pub font_key: FontKey,
+    // font-kit font
+    pub metrics: Metrics,
+
+    pub font_backend: ManuallyDrop<Font>,
 }
 
-extern "C" fn open_font(_f: *mut frame, font_entity: LispObject, pixel_size: i32) -> LispObject {
+impl WRFont {
+    pub fn glyph_for_char(&self, character: char) -> Option<u32> {
+        self.font_backend.glyph_for_char(character)
+    }
+}
+
+pub type WRFontRef = ExternalPtr<WRFont>;
+
+extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: i32) -> LispObject {
     let font_entity: LispFontLike = font_entity.into();
+
+    let frame: LispFrameRef = frame.into();
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    let mut pixel_size = pixel_size as i64;
+
+    if pixel_size == 0 {
+        pixel_size = if !output.font.is_null() {
+            output.font.pixel_size as i64
+        } else {
+            15
+        };
+    }
 
     let font_object: LispFontLike = unsafe {
         font_make_object(
             vecsize!(WRFont) as i32,
             font_entity.as_lisp_object(),
-            pixel_size,
+            pixel_size as i32,
         )
     }
     .into();
@@ -184,30 +230,69 @@ extern "C" fn open_font(_f: *mut frame, font_entity: LispObject, pixel_size: i32
         LispSymbolRef::from(font_entity.aref(font_property_index::FONT_FAMILY_INDEX)).symbol_name(),
     );
 
-    let font = font_object
-        .as_lisp_object()
-        .as_font()
-        .unwrap()
-        .as_font_mut();
+    // Get postscript name form font_entity.
+    let font_extra = font_entity.aref(font_property_index::FONT_EXTRA_INDEX);
 
-    unsafe {
-        (*font).average_width = 10;
-        (*font).height = 10;
-        (*font).ascent = 10;
-        (*font).descent = 10;
+    let val = unsafe { Fassoc(":postscript-name".into(), font_extra, Qnil) };
+
+    if val.is_nil() {
+        error!("postscript-name can not be found!");
     }
 
-    unsafe {
-        (*font).driver = &FONT_DRIVER.0;
-    }
+    let postscript_name = unsafe { Fcdr(val) }.as_string().unwrap().to_string();
+
+    // load font by postscript_name.
+    // The existing of font has been checked in `match` function.
+    let font = SystemSource::new()
+        .select_by_postscript_name(&postscript_name)
+        .unwrap();
+
+    // Create font key in webrender.
+    let font_key = output.add_font(&font);
+
+    let mut wr_font = WRFontRef::new(
+        font_object
+            .as_lisp_object()
+            .as_font()
+            .unwrap()
+            .as_font_mut() as *mut WRFont,
+    );
+
+    wr_font.font_backend = ManuallyDrop::new(font.load().unwrap());
+
+    let (font_metrics, font_advance) = {
+        let font = font.load().unwrap();
+        (font.metrics(), font.advance(33).unwrap())
+    };
+
+    let scale = pixel_size as f32 / font_metrics.units_per_em as f32;
+
+    wr_font.font.pixel_size = pixel_size as i32;
+    wr_font.font.average_width = (font_advance.x * scale) as i32;
+    wr_font.font.ascent = (scale * font_metrics.ascent).round() as i32;
+    wr_font.font.descent = (-scale * font_metrics.descent).round() as i32;
+    wr_font.font.space_width = wr_font.font.average_width;
+    wr_font.font.max_width = wr_font.font.average_width;
+
+    wr_font.font.height = (scale * (font_metrics.ascent - font_metrics.descent)).round() as i32;
+
+    wr_font.font.baseline_offset = 0;
+
+    wr_font.font.driver = &FONT_DRIVER.0;
+
+    wr_font.font_key = font_key;
 
     font_object.as_lisp_object()
 }
 
 extern "C" fn close_font(_font: *mut font) {}
 
-extern "C" fn encode_char(_font: *mut font, c: i32) -> u32 {
-    c as u32
+extern "C" fn encode_char(font: *mut font, c: i32) -> u32 {
+    let font = WRFontRef::new(font as *mut WRFont);
+
+    std::char::from_u32(c as u32)
+        .and_then(|c| font.glyph_for_char(c))
+        .unwrap_or(FONT_INVALID_CODE)
 }
 
 #[allow(unused_variables)]
@@ -217,11 +302,13 @@ extern "C" fn text_extents(
     nglyphs: i32,
     metrics: *mut font_metrics,
 ) {
+    let font = WRFontRef::new(font as *mut WRFont);
+
     unsafe {
         (*metrics).lbearing = 10;
         (*metrics).rbearing = 10;
-        (*metrics).width = 10;
-        (*metrics).ascent = 10;
-        (*metrics).descent = 10;
+        (*metrics).width = font.font.average_width as i16;
+        (*metrics).ascent = font.font.ascent as i16;
+        (*metrics).descent = font.font.descent as i16;
     }
 }

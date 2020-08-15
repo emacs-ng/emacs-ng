@@ -31,6 +31,7 @@ pub mod lisp;
 pub mod eval;
 pub mod font;
 pub mod frame;
+pub mod glyph;
 pub mod keyboard;
 pub mod list;
 pub mod multibyte;
