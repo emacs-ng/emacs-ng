@@ -16,15 +16,17 @@ use lisp::{
     keyboard::allocate_keyboard,
     lisp::{ExternalPtr, LispObject},
     remacs_sys::{
-        create_terminal, current_kboard, fontset_from_font, frame_parm_handler, glyph_row,
-        glyph_string, initial_kboard, output_method, redisplay_interface, terminal,
-        text_cursor_kinds, xlispstrdup, Emacs_Color, Fcons, Lisp_Frame, Lisp_Window, Qnil, Qwr,
+        block_input, gui_clear_end_of_line, gui_clear_window_mouse_face, gui_fix_overlapping_area,
+        gui_get_glyph_overhangs, gui_produce_glyphs, gui_set_font, gui_set_font_backend,
+        gui_set_left_fringe, gui_set_right_fringe, gui_write_glyphs, unblock_input,
     },
     remacs_sys::{
-        gui_clear_end_of_line, gui_clear_window_mouse_face, gui_fix_overlapping_area,
-        gui_get_glyph_overhangs, gui_produce_glyphs, gui_set_font, gui_set_font_backend,
-        gui_write_glyphs,
+        create_terminal, current_kboard, draw_fringe_bitmap_params, draw_window_fringes,
+        fontset_from_font, frame_parm_handler, glyph_row, glyph_string, initial_kboard,
+        output_method, redisplay_interface, terminal, text_cursor_kinds, xlispstrdup, Emacs_Color,
+        Fcons, Lisp_Frame, Lisp_Window, Qnil, Qwr, KBOARD,
     },
+    window::LispWindowRef,
 };
 
 pub type TerminalRef = ExternalPtr<terminal>;
@@ -63,8 +65,8 @@ fn get_frame_parm_handlers() -> [frame_parm_handler; 47] {
         None,
         None,
         None,
-        None,
-        None,
+        Some(gui_set_left_fringe),
+        Some(gui_set_right_fringe),
         None,
         None,
         Some(gui_set_font_backend),
@@ -107,7 +109,7 @@ lazy_static! {
             clear_window_mouse_face: Some(gui_clear_window_mouse_face),
             get_glyph_overhangs: Some(gui_get_glyph_overhangs),
             fix_overlapping_area: Some(gui_fix_overlapping_area),
-            draw_fringe_bitmap: None,
+            draw_fringe_bitmap: Some(draw_fringe_bitmap),
             define_fringe_bitmap: None,
             destroy_fringe_bitmap: None,
             compute_glyph_string_overhangs: None,
@@ -130,12 +132,20 @@ lazy_static! {
 #[allow(unused_variables)]
 extern "C" fn update_window_begin(w: *mut Lisp_Window) {}
 
-#[allow(unused_variables)]
 extern "C" fn update_window_end(
-    w: *mut Lisp_Window,
-    cursor_no_p: bool,
-    mouse_face_overwritten_p: bool,
+    window: *mut Lisp_Window,
+    _cursor_no_p: bool,
+    _mouse_face_overwritten_p: bool,
 ) {
+    let mut window: LispWindowRef = window.into();
+
+    if window.pseudo_window_p() {
+        return;
+    }
+
+    unsafe { block_input() };
+    unsafe { draw_window_fringes(window.as_mut(), true) };
+    unsafe { unblock_input() };
 }
 
 extern "C" fn flush_display(f: *mut Lisp_Frame) {
@@ -158,6 +168,19 @@ extern "C" fn draw_glyph_string(s: *mut glyph_string) {
     };
 
     output.canvas().draw_glyph_string(s);
+}
+
+extern "C" fn draw_fringe_bitmap(
+    window: *mut Lisp_Window,
+    row: *mut glyph_row,
+    p: *mut draw_fringe_bitmap_params,
+) {
+    let window: LispWindowRef = window.into();
+    let frame: LispFrameRef = window.get_frame();
+
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    output.canvas().draw_fringe_bitmap(row, p);
 }
 
 #[allow(unused_variables)]

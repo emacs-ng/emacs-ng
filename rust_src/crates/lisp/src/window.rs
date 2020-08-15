@@ -1,4 +1,5 @@
 use crate::{
+    frame::LispFrameRef,
     lisp::{ExternalPtr, LispObject},
     remacs_sys::{pvec_type, Lisp_Type, Lisp_Window, Qwindowp},
     vector::LispVectorlikeRef,
@@ -11,6 +12,10 @@ impl LispWindowRef {
     /// contents slot is non-nil.
     pub fn is_valid(self) -> bool {
         self.contents.is_not_nil()
+    }
+
+    pub fn get_frame(self) -> LispFrameRef {
+        self.frame.into()
     }
 }
 

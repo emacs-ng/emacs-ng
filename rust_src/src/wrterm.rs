@@ -21,9 +21,9 @@ use lisp::{
         adjust_frame_size, block_input, gui_display_get_arg, hashtest_eql, image, init_frame_faces,
         make_fixnum, make_hash_table, register_font_driver, unblock_input, Display, EmacsInt,
         Emacs_Pixmap, Fcons, Fcopy_alist, Fprovide, Pixmap, Qbackground_color, Qfont,
-        Qfont_backend, Qforeground_color, Qminibuffer, Qname, Qnil, Qparent_id, Qterminal,
-        Qunbound, Qwr, Qx, Qx_create_frame_1, Qx_create_frame_2, Vframe_list, WRImage, Window,
-        XrmDatabase, DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
+        Qfont_backend, Qforeground_color, Qleft_fringe, Qminibuffer, Qname, Qnil, Qparent_id,
+        Qright_fringe, Qterminal, Qunbound, Qwr, Qx, Qx_create_frame_1, Qx_create_frame_2,
+        Vframe_list, WRImage, Window, XrmDatabase, DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
     },
 };
 
@@ -390,6 +390,24 @@ pub fn x_create_frame(parms: LispObject) -> LispFrameRef {
         "background",
         "Background",
         RES_TYPE_STRING,
+    );
+
+    frame.gui_default_parameter(
+        parms,
+        Qleft_fringe,
+        Qnil,
+        "leftFringe",
+        "LeftFringe",
+        RES_TYPE_NUMBER,
+    );
+
+    frame.gui_default_parameter(
+        parms,
+        Qright_fringe,
+        Qnil,
+        "rightFringe",
+        "RightFringe",
+        RES_TYPE_NUMBER,
     );
 
     let output: OutputRef = unsafe { frame.output_data.wr.into() };
