@@ -211,13 +211,13 @@ impl LispVectorlikeRef {
     //         }
     //     }
 
-        pub fn as_subr(self) -> Option<LispSubrRef> {
-            if self.is_pseudovector(pvec_type::PVEC_SUBR) {
-                Some(unsafe { mem::transmute(self) })
-            } else {
-                None
-            }
+    pub fn as_subr(self) -> Option<LispSubrRef> {
+        if self.is_pseudovector(pvec_type::PVEC_SUBR) {
+            Some(unsafe { mem::transmute(self) })
+        } else {
+            None
         }
+    }
 
     //     pub fn as_window(self) -> Option<LispWindowRef> {
     //         if self.is_pseudovector(pvec_type::PVEC_WINDOW) {

@@ -37,9 +37,9 @@ impl ThreadState {
     //         }
     //     }
 
-        pub fn current_thread() -> ThreadStateRef {
-            unsafe { mem::transmute(current_thread_pointer) }
-        }
+    pub fn current_thread() -> ThreadStateRef {
+        unsafe { mem::transmute(current_thread_pointer) }
+    }
 }
 
 // impl ThreadStateRef {

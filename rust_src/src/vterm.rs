@@ -2,7 +2,7 @@
 
 use remacs_macros::lisp_fn;
 
-use libc::{c_char, c_uchar, c_void, size_t};
+use libc::{c_char, c_uchar, c_void, size_t, strlen};
 
 use std::{cmp, mem};
 
@@ -13,41 +13,36 @@ use crate::{
     lisp::LispObject,
     obarray::intern,
     remacs_sys::{
-        code_convert_string_norecord, del_range, looking_at_1, make_string, pvec_type,
-        send_process, vterminal, EmacsInt, Fforward_char, Fget_buffer_window, Flength,
-        Fline_end_position, Fput_text_property, Frecenter, Fselected_window, Fset, Lisp_Type,
-        Qbold, Qcursor_type, Qface, Qitalic, Qnil, Qnormal, Qt, Qutf_8, STRING_BYTES, Finsert
-            // ,Qvtermp
+        call0, call1, call2, call3, code_convert_string_norecord, del_range, looking_at_1,
+        make_string, pvec_type, send_process, vterminal, EmacsInt, Fforward_char,
+        Fget_buffer_window, Finsert, Flength, Fline_end_position, Fpoint, Fput_text_property,
+        Fselected_window, Fset, Fset_window_point, Lisp_Type, Qbold, Qcursor_type, Qface, Qitalic,
+        Qnil, Qnormal, Qt, Qterminal_live_p, Qutf_8, STRING_BYTES,
     },
 
     remacs_sys::{
-        codepoint_to_utf8, fetch_cell, is_eol, row_to_linenr, search_command, set_point,
-        utf8_to_codepoint, vterm_output_read, vterm_screen_callbacks, vterm_screen_set_callbacks,
-        VtermScrollbackLine,
+        fetch_cell, is_eol, parser_callbacks, row_to_linenr, search_command, set_point,
+        term_redraw_cursor, utf8_to_codepoint, vterm_output_read, vterm_screen_callbacks,
+        vterm_screen_set_callbacks, VtermScrollbackLine,
     },
 
     // libvterm
     remacs_sys::{
-        vterm_color_is_equal,  vterm_input_write, vterm_keyboard_key,
-        vterm_keyboard_unichar, vterm_new, vterm_obtain_screen, vterm_obtain_state,
-        vterm_output_get_buffer_current, vterm_screen_enable_altscreen, vterm_screen_flush_damage,
-        vterm_screen_reset, vterm_screen_set_damage_merge, vterm_set_size, vterm_set_utf8,
-        vterm_state_get_cursorpos, VTermDamageSize, VTermKey, VTermModifier, VTermPos, VTermProp,
-        VTermRect, VTermScreenCell, VTermState, VTermValue,
+        vterm_color_is_equal, vterm_input_write, vterm_keyboard_end_paste, vterm_keyboard_key,
+        vterm_keyboard_start_paste, vterm_keyboard_unichar, vterm_new, vterm_obtain_screen,
+        vterm_obtain_state, vterm_output_get_buffer_current, vterm_screen_enable_altscreen,
+        vterm_screen_flush_damage, vterm_screen_get_cell, vterm_screen_is_eol, vterm_screen_reset,
+        vterm_screen_set_damage_merge, vterm_set_size, vterm_set_utf8, vterm_state_get_cursorpos,
+        vterm_state_get_default_colors, vterm_state_set_unrecognised_fallbacks, VTermColor,
+        VTermDamageSize, VTermKey, VTermModifier, VTermPos, VTermProp, VTermRect, VTermScreenCell,
+        VTermState, VTermValue,
     },
 
     threads::ThreadState,
 };
 
 pub type LispVterminalRef = ExternalPtr<vterminal>;
-
-impl LispVterminalRef {
-    pub fn set_size(self, rows: i32, cols: i32) {
-        unsafe {
-            vterm_set_size((*self).vt, rows, cols);
-        }
-    }
-}
+pub type VTermScreenCellRef = ExternalPtr<VTermScreenCell>;
 
 impl LispObject {
     pub fn is_vterminal(self) -> bool {
@@ -61,7 +56,7 @@ impl LispObject {
 
     pub fn as_vterminal_or_error(self) -> LispVterminalRef {
         self.as_vterminal()
-            .unwrap_or_else(|| wrong_type!(Qt, self))
+            .unwrap_or_else(|| wrong_type!(Qterminal_live_p, self))
     }
 }
 
@@ -83,6 +78,319 @@ impl From<LispObject> for Option<LispVterminalRef> {
     }
 }
 
+impl LispVterminalRef {
+    pub unsafe fn set_callbacks(mut self) {
+        vterm_screen_set_callbacks(
+            (*self).vts,
+            &vterm_screen_callbacks,
+            self.as_mut() as *mut libc::c_void,
+        );
+
+        let state: *mut VTermState = vterm_obtain_state((*self).vt);
+        vterm_state_set_unrecognised_fallbacks(
+            state,
+            &parser_callbacks,
+            self.as_mut() as *mut libc::c_void,
+        );
+    }
+
+    pub fn set_size(self, rows: i32, cols: i32) {
+        unsafe {
+            vterm_set_size((*self).vt, rows, cols);
+        }
+    }
+
+    /// Return cursor position as VTermPos
+    pub unsafe fn get_cursorpos(self) -> VTermPos {
+        let state: *mut VTermState = vterm_obtain_state((*self).vt);
+        let mut pos: VTermPos = std::mem::zeroed();
+        vterm_state_get_cursorpos(state, &mut pos);
+        pos
+    }
+
+    /// Get cell at given offset
+    pub unsafe fn fetch_cell(mut self, row: i32, col: i32) -> VTermScreenCell {
+        let mut cell: VTermScreenCell = std::mem::zeroed();
+        fetch_cell(self.as_mut(), row, col, &mut cell);
+        cell
+    }
+
+    // TODO: this function shouldn't exist on vterminal type
+    //
+    pub unsafe fn is_eol(mut self, end_col: i32, row: i32, col: i32) -> bool {
+        is_eol(self.as_mut(), end_col, row, col)
+        // myis_eol(self, end_col, row, col)
+    }
+
+    // TODO: cell and vterm don't need mut
+    /// Make lisp string from c string and add properties
+    pub unsafe fn make_propertized_string(
+        mut self,
+        buffer: *mut c_char,
+        len: i32,
+        cell: *mut VTermScreenCell,
+    ) -> LispObject {
+        let mut text = make_string(buffer, len as isize);
+
+        let start = LispObject::from(0);
+        let end = Flength(text);
+        let properties = list!(
+            LispObject::from(intern(":foreground")),
+            color_to_rgb_string(self.as_mut(), &mut (*cell).fg),
+            LispObject::from(intern(":background")),
+            color_to_rgb_string(self.as_mut(), &mut (*cell).bg),
+            LispObject::from(intern(":weight")),
+            if (*cell).attrs.bold() > 0 {
+                Qbold
+            } else {
+                Qnormal
+            },
+            LispObject::from(intern(":underline")),
+            if (*cell).attrs.underline() > 0 {
+                Qt
+            } else {
+                Qnil
+            },
+            LispObject::from(intern(":slant")),
+            if (*cell).attrs.italic() > 0 {
+                Qitalic
+            } else {
+                Qnormal
+            },
+            LispObject::from(intern(":inverse-video")),
+            if (*cell).attrs.reverse() > 0 {
+                Qt
+            } else {
+                Qnil
+            },
+            LispObject::from(intern(":strike-through")),
+            if (*cell).attrs.strike() > 0 { Qt } else { Qnil }
+        );
+
+        Fput_text_property(start, end, Qface, properties, text);
+        text
+    }
+
+    // TODO: remove end_col and get value inside of this method
+    /// Refresh lines from START_ROW to END_ROW.
+    pub unsafe fn refresh_lines(mut self, start_row: i32, end_row: i32, end_col: i32) {
+        let mut size = ((end_row - start_row + 1) * end_col) * 4;
+        let mut v: Vec<c_char> = Vec::with_capacity(size as usize);
+
+        let mut lastcell: VTermScreenCell = self.fetch_cell(start_row, 0);
+
+        let mut length = 0;
+
+        let mut i = start_row;
+        while i < end_row {
+            let mut j = 0;
+
+            while j < end_col {
+                let cell = self.fetch_cell(i, j);
+
+                // if cell attributes are not equal to last cell, insert contents of vector v
+                if !cell.compare(lastcell) {
+                    if length > 0 {
+                        let mut t =
+                            self.make_propertized_string(v.as_mut_ptr(), length, &mut lastcell);
+                        Finsert(1, &mut t);
+                    }
+
+                    size -= length;
+                    // TODO: don't reset vector size
+                    v = Vec::with_capacity(size as usize);
+
+                    length = 0;
+                }
+
+                lastcell = cell;
+                if cell.chars[0] == 0 {
+                    if self.is_eol(end_col, i, j) {
+                        /* This cell is EOL if this and every cell to the right is black */
+                        break;
+                    }
+
+                    v.push(' ' as c_char);
+                    length += 1;
+                } else {
+                    let size = vterminal_push_cell(&mut v, cell);
+                    length += size;
+                }
+
+                // TODO: this will only be changed for else from last conditional -> put it there
+                if cell.width > 1 {
+                    let w = cell.width - 1;
+                    j = j + w as i32;
+                }
+                j += 1;
+            }
+
+            v.push('\n' as c_char);
+            length += 1;
+            i += 1;
+        }
+
+        if length > 0 {
+            let mut t = self.make_propertized_string(v.as_mut_ptr(), length, &mut lastcell);
+            Finsert(1, &mut t);
+        }
+    }
+
+    /// Refresh the screen (visible part of the buffer when the terminal is focused)
+    /// of a invalidated terminal
+    pub unsafe fn refresh_screen(mut self) {
+        // Term height may have decreased before `invalid_end` reflects it.
+        (*self).invalid_end = cmp::min((*self).invalid_end, (*self).height);
+
+        if (*self).invalid_end >= (*self).invalid_start {
+            let startrow = -((*self).height - (*self).invalid_start - (*self).linenum_added as i32);
+            // startrow is negative,so we backward  -startrow lines from end of buffer
+            // then delete lines there.
+            // vterminal_goto_line(startrow as EmacsInt);
+            call1(
+                LispObject::from(intern("vterm--goto-line")),
+                LispObject::from(startrow),
+            );
+            // vterminal_delete_lines(
+            //     startrow as EmacsInt,
+            //     LispObject::from((*self).invalid_end - (*self).invalid_start),
+            // );
+            call3(
+                LispObject::from(intern("vterm--delete-lines")),
+                LispObject::from(startrow as EmacsInt),
+                LispObject::from(
+                    (*self).invalid_end as EmacsInt - (*self).invalid_start as EmacsInt,
+                ),
+                LispObject::from(Qt),
+            );
+
+            self.refresh_lines((*self).invalid_start, (*self).invalid_end, (*self).width);
+
+            // term->linenum_added is lines added by window height increased
+            (*self).linenum += (*self).linenum_added;
+            (*self).linenum_added = 0;
+        }
+        (*self).invalid_start = std::i32::MAX;
+        (*self).invalid_end = -1;
+    }
+
+    /// Refresh cursor, scrollback and screen.
+    /// Also adjust the top line.
+    pub unsafe fn redraw(mut self) {
+        term_redraw_cursor(self.as_mut());
+
+        if self.is_invalidated {
+            let oldlinenum = (*self).linenum;
+
+            vterminal_refresh_scrollback(self);
+            self.refresh_screen();
+            (*self).linenum_added = (*self).linenum - oldlinenum;
+            vterminal_adjust_topline(self);
+            (*self).linenum_added = 0;
+        }
+
+        self.is_invalidated = false;
+    }
+
+    /// Send current contents of VTERM to the running shell process
+    pub unsafe fn flush_output(self) {
+        let len = vterm_output_get_buffer_current((*self).vt);
+        if len > 0 {
+            let mut buffer: Vec<c_char> = Vec::with_capacity(len);
+            let len = vterm_output_read((*self).vt, buffer.as_mut_ptr() as *mut c_char, len);
+
+            let lisp_string = make_string(buffer.as_mut_ptr() as *mut c_char, len as isize);
+
+            send_process(
+                (*self).process,
+                buffer.as_mut_ptr() as *mut c_char,
+                len as isize,
+                lisp_string,
+            );
+        }
+    }
+}
+
+pub unsafe fn vterminal_push_cell(v: &mut Vec<c_char>, cell: VTermScreenCell) -> i32 {
+    let mut bytes: [c_uchar; 4] = std::mem::zeroed();
+    let size = cell.to_utf8(&mut bytes);
+    for n in 0..size {
+        v.push(bytes[n] as c_char);
+    }
+    size as i32
+}
+
+impl VTermScreenCell {
+    /// Convert contents of cell to utf8 and write result in TO
+    pub unsafe fn to_utf8(self, to: &mut [u8]) -> usize {
+        let cp = self.chars[0];
+
+        if cp <= 0x7F {
+            to[0] = cp as u8;
+            1
+        } else if cp >= 0x80 && cp <= 0x07FF {
+            // note: setting later bytes first to avoid multiple bound checks
+            to[1] = 0x80 | (cp & 0x3F) as u8;
+            to[0] = 0xC0 | (cp >> 6) as u8;
+            2
+        } else if cp >= 0x0800 && cp <= 0xFFFF {
+            to[2] = 0x80 | (cp & 0x3F) as u8;
+            to[1] = 0x80 | ((cp >> 6) & 0x3F) as u8;
+            to[0] = 0xE0 | (cp >> 12) as u8;
+            3
+        } else if cp >= 0x10000 && cp <= 0x10FFFF {
+            to[3] = 0x80 | (cp & 0x3F) as u8;
+            to[2] = 0x80 | ((cp >> 6) & 0x3F) as u8;
+            to[1] = 0x80 | ((cp >> 12) & 0x3F) as u8;
+            to[0] = 0xF0 | (cp >> 18) as u8;
+            4
+        } else {
+            0
+        }
+    }
+
+    /// Compare cell attributes
+    pub unsafe fn compare(self, other: VTermScreenCell) -> bool {
+        let self_attr = self.attrs;
+        let other_attr = other.attrs;
+
+        vterm_color_is_equal(&self.fg, &other.fg) > 0
+            && vterm_color_is_equal(&self.bg, &other.bg) > 0
+            && (self_attr.bold() == other_attr.bold())
+            && (self_attr.underline() == other_attr.underline())
+            && (self_attr.italic() == other_attr.italic())
+            && (self_attr.reverse() == other_attr.reverse())
+            && (self_attr.strike() == other_attr.strike())
+    }
+}
+
+impl VTermPos {
+    pub unsafe fn is_eol(self, vterm: LispVterminalRef) -> bool {
+        vterm_screen_is_eol((*vterm).vts, self) > 0
+    }
+
+    /// Return offset in vterm
+    pub unsafe fn offset(self, vterm: LispVterminalRef) -> i32 {
+        let mut offset: size_t = 0;
+        let pos_col = self.col;
+
+        let mut col: i32 = 0;
+        while col < pos_col {
+            let cell = vterm.fetch_cell(self.row, col);
+
+            if cell.chars[0] > 0 {
+                if cell.width > 0 {
+                    offset += cell.width as size_t - 1;
+                }
+            } else if vterm.is_eol((*vterm).width, self.row, col) {
+                offset += cell.width as size_t;
+            }
+            col += cell.width as i32;
+        }
+        offset as i32
+    }
+}
+
 macro_rules! allocate_zeroed_pseudovector {
     ($ty: ty, $field: ident, $vectype: expr) => {
         unsafe {
@@ -101,6 +409,117 @@ fn allocate_vterm() -> LispVterminalRef {
     LispVterminalRef::from_ptr(v as *mut c_void).unwrap()
 }
 
+unsafe fn vterminal_adjust_topline(mut term: LispVterminalRef) {
+    let state: *mut VTermState = vterm_obtain_state((*term).vt);
+
+    let pos: VTermPos = term.get_cursorpos();
+
+    /* pos.row-term->height is negative,so we backward term->height-pos.row
+     * lines from end of buffer
+     */
+    // vterminal_goto_line(EmacsInt::from(pos.row - (*term).height));
+    call1(
+        LispObject::from(intern("vterm--goto-line")),
+        LispObject::from(pos.row - (*term).height),
+    );
+
+    let offset = pos.offset(term);
+
+    Fforward_char(LispObject::from(pos.col - offset as i32));
+
+    let following = (*term).height == 1 + pos.row + (*term).linenum_added as i32; // cursor at end?
+
+    let window = Fget_buffer_window(term.buffer, Qt);
+    let swindow = Fselected_window();
+
+    if window.eq(swindow) {
+        if following {
+            // "Follow" the terminal output
+            call1(LispObject::from(intern("recenter")), LispObject::from(-1));
+        } else {
+            call1(
+                LispObject::from(intern("recenter")),
+                LispObject::from(pos.row),
+            );
+        }
+    } else {
+        if !window.is_nil() {
+            Fset_window_point(window, Fpoint());
+        }
+    }
+}
+
+/// Refresh the scrollback of an invalidated terminal.
+unsafe fn vterminal_refresh_scrollback(mut term: LispVterminalRef) {
+    let max_line_count = (*term).sb_current as i32 + (*term).height;
+    let mut del_cnt = 0;
+
+    if (*term).sb_pending > 0 {
+        // This means that either the window height has decreased or the screen
+        // became full and libvterm had to push all rows up. Convert the first
+        // pending scrollback row into a string and append it just above the visible
+        // section of the buffer
+
+        del_cnt = (*term).linenum - (*term).height - (*term).sb_size as i32 + (*term).sb_pending
+            - (*term).sb_pending_by_height_decr;
+
+        if del_cnt > 0 {
+            // vterminal_delete_lines(1, LispObject::from(del_cnt as EmacsInt));
+            call3(
+                LispObject::from(intern("vterm--delete-lines")),
+                LispObject::from(1),
+                LispObject::from(del_cnt),
+                LispObject::from(Qt),
+            );
+            (*term).linenum -= del_cnt;
+        }
+
+        (*term).linenum += (*term).sb_pending;
+        del_cnt = (*term).linenum - max_line_count; /* extra lines at the bottom */
+        /* buf_index is negative,so we move to end of buffer,then backward
+        -buf_index lines. goto lines backward is effectively when
+        vterm-max-scrollback is a large number.
+         */
+
+        let buf_index = -((*term).height + del_cnt);
+        // vterminal_goto_line(buf_index as EmacsInt);
+        call1(
+            LispObject::from(intern("vterm--goto-line")),
+            LispObject::from(buf_index),
+        );
+
+        term.refresh_lines(-(*term).sb_pending, 0, (*term).width);
+        (*term).sb_pending = 0;
+    }
+
+    // Remove extra lines at the bottom
+
+    del_cnt = (*term).linenum - max_line_count;
+    if del_cnt > 0 {
+        (*term).linenum -= del_cnt;
+        /* -del_cnt is negative,so we delete_lines from end of buffer.
+          this line means: delete del_cnt count of lines at end of buffer.
+        */
+        // vterminal_delete_lines(-del_cnt as EmacsInt, LispObject::from(del_cnt as EmacsInt));
+        call3(
+            LispObject::from(intern("vterm--delete-lines")),
+            LispObject::from(-del_cnt),
+            LispObject::from(del_cnt),
+            LispObject::from(Qt),
+        );
+    }
+
+    (*term).sb_pending_by_height_decr = 0;
+    (*term).height_resize = 0;
+}
+
+#[lisp_fn(name = "vterminal-redraw")]
+pub fn vterminal_redraw_lisp(mut vterm: LispVterminalRef) {
+    unsafe {
+        vterm.redraw();
+    }
+}
+
 /// Start a libvterm terminal-emulator in a new buffer.
 /// The maximum scrollback is set by the argument SCROLLBACK.
 /// You can customize the value with `vterm-max-scrollback`.
@@ -109,244 +528,53 @@ fn allocate_vterm() -> LispVterminalRef {
 /// in VTermScreenCallbacks.
 #[lisp_fn(name = "vterm-new")]
 pub fn vterminal_new_lisp(
-    rows: EmacsInt,
-    cols: EmacsInt,
+    rows: i32,
+    cols: i32,
     process: LispObject,
     scrollback: EmacsInt,
 ) -> LispVterminalRef {
     unsafe {
         let mut term = allocate_vterm();
 
-        (*term).vt = vterm_new(rows as i32, cols as i32);
+        (*term).vt = vterm_new(rows, cols);
         vterm_set_utf8((*term).vt, 1);
         (*term).vts = vterm_obtain_screen((*term).vt);
+
+        term.set_callbacks();
         vterm_screen_reset((*term).vts, 1);
-
-        vterm_screen_set_callbacks(
-            (*term).vts,
-            &vterm_screen_callbacks,
-            term.as_mut() as *mut libc::c_void,
-        );
-
         vterm_screen_set_damage_merge((*term).vts, VTermDamageSize::VTERM_DAMAGE_SCROLL);
 
         vterm_screen_enable_altscreen((*term).vts, 1);
 
         (*term).sb_size = scrollback as usize;
-        (*term).sb_current = 0;
-        (*term).sb_pending = 0;
-
         let s = mem::size_of::<VtermScrollbackLine>() * scrollback as usize;
         (*term).sb_buffer = libc::malloc(s as libc::size_t) as *mut *mut VtermScrollbackLine;
 
+        (*term).sb_current = 0;
+        (*term).sb_pending = 0;
+        (*term).sb_pending_by_height_decr = 0;
         (*term).invalid_start = 0;
-        (*term).invalid_end = rows as i32;
+        (*term).invalid_end = rows;
+        (*term).width = cols;
+        (*term).height = rows;
+        (*term).height_resize = 0;
 
-        (*term).cursor.visible = true;
+        let mut newline = make_string("\n".as_ptr() as *mut c_char, 1);
+        let mut i = 0;
+        while i < (*term).height {
+            Finsert(1, &mut newline);
+            i += 1;
+        }
 
-        (*term).width = cols as i32;
-        (*term).height = rows as i32;
+        (*term).linenum = (*term).height;
+        (*term).linenum_added = 0;
+
+        // (*term).directory = std::mem::zeroed();
+        // (*term).directory_changed = false;
 
         (*term).buffer = LispObject::from(ThreadState::current_buffer_unchecked());
         (*term).process = process;
-
         term
-    }
-}
-
-unsafe fn compare_cells(a: *mut VTermScreenCell, b: *mut VTermScreenCell) -> bool {
-    let a_attr = (*a).attrs;
-    let b_attr = (*b).attrs;
-
-    vterm_color_is_equal(&mut (*a).fg, &mut (*b).fg) > 0
-        && vterm_color_is_equal(&mut (*a).bg, &mut (*b).bg) > 0
-        && (a_attr.bold() == b_attr.bold())
-        && (a_attr.underline() == b_attr.underline())
-        && (a_attr.italic() == b_attr.italic())
-        && (a_attr.reverse() == b_attr.reverse())
-        && (a_attr.strike() == b_attr.strike())
-}
-
-/// Return process of terminal VTERM
-#[lisp_fn(name = "vterm-process")]
-pub fn vterminal_process(vterm: LispVterminalRef) -> LispObject {
-    (*vterm).process
-}
-
-unsafe fn refresh_lines(mut vterm: LispVterminalRef, start_row: i32, end_row: i32, end_col: i32) {
-    let mut size = ((end_row - start_row + 1) * end_col) * 4;
-    let mut v: Vec<c_char> = Vec::with_capacity(size as usize);
-
-    let mut cell: VTermScreenCell = std::mem::zeroed();
-    let mut lastcell: VTermScreenCell = std::mem::zeroed();
-    fetch_cell(vterm.as_mut(), start_row, 0, &mut lastcell);
-
-    let mut length = 0;
-    let mut offset = 0;
-
-    let mut i = start_row;
-    while i < end_row {
-        let mut j = 0;
-        while j < end_col {
-            fetch_cell(vterm.as_mut(), i, j, &mut cell);
-
-            if !compare_cells(&mut cell, &mut lastcell) {
-                let mut text = vterminal_render_text(vterm, v.as_mut_ptr(), length, &mut lastcell);
-                Finsert (1, &mut text);
-
-                size -= length;
-                v = Vec::with_capacity(size as usize);
-                length = 0;
-            }
-
-            lastcell = cell;
-            if cell.chars[0] == 0 {
-                if is_eol(vterm.as_mut(), end_col, i, j) {
-                    /* This cell is EOL if this and every cell to the right is black */
-                    break;
-                }
-
-                v.push(' ' as c_char);
-                length += 1;
-            } else {
-                let mut bytes: [c_uchar; 4] = std::mem::zeroed();
-                let count = codepoint_to_utf8(cell.chars[0], bytes.as_mut_ptr());
-
-                let mut k = 0;
-                while k < count {
-                    v.push(bytes[k] as c_char);
-                    length += 1;
-                    k += 1;
-                }
-            }
-
-            if cell.width > 1 {
-                let w = cell.width - 1;
-                offset += w;
-                j = j + w as i32;
-            }
-            j += 1;
-        }
-
-        v.push('\n' as c_char);
-        length += 1;
-        i += 1;
-    }
-
-    let mut text = vterminal_render_text(vterm, v.as_mut_ptr(), length, &mut lastcell);
-    Finsert (1, &mut text);
-}
-
-/// Refresh the screen (visible part of the buffer when the terminal is focused)
-/// of a invalidated terminal
-unsafe fn vterminal_refresh_screen(mut term: LispVterminalRef) {
-    // Term height may have decreased before `invalid_end` reflects it.
-    (*term).invalid_end = cmp::min((*term).invalid_end, (*term).height);
-
-    if (*term).invalid_end >= (*term).invalid_start {
-        let line_start = row_to_linenr(term.as_mut() as *mut vterminal, (*term).invalid_start);
-
-        vterminal_goto_line(line_start as EmacsInt);
-
-        let line_count = (*term).invalid_end - (*term).invalid_start;
-        vterminal_delete_lines(
-            line_start as EmacsInt,
-            LispObject::from(line_count as EmacsInt),
-        );
-
-        refresh_lines(
-            term,
-            (*term).invalid_start,
-            (*term).invalid_end,
-            (*term).width,
-        );
-    }
-    (*term).invalid_start = std::i32::MAX;
-    (*term).invalid_end = -1;
-}
-
-unsafe fn get_col_offset(mut vterm: LispVterminalRef, row: i32, end_col: i32) -> i32 {
-    let mut offset: size_t = 0;
-
-    let mut col: i32 = 0;
-    while col < end_col {
-        let mut cell: VTermScreenCell = std::mem::zeroed();
-        fetch_cell(vterm.as_mut(), row, col, &mut cell);
-
-        if cell.chars[0] > 0 {
-            if cell.width > 0 {
-                offset += cell.width as size_t - 1;
-            }
-        } else if is_eol(vterm.as_mut(), (*vterm).width, row, col) {
-            offset += cell.width as size_t;
-        }
-        col += cell.width as i32;
-    }
-    offset as i32
-}
-
-unsafe fn vterminal_adjust_topline(mut term: LispVterminalRef, added: i32) {
-    let buffer_lnum = vterminal_count_lines();
-
-    let state: *mut VTermState = vterm_obtain_state((*term).vt);
-    let mut pos: VTermPos = std::mem::zeroed();
-    vterm_state_get_cursorpos(state, &mut pos);
-
-    let cursor_lnum = row_to_linenr(term.as_mut() as *mut vterminal, pos.row);
-
-    vterminal_goto_line(cmp::min(cursor_lnum, buffer_lnum) as EmacsInt);
-
-    let offset = get_col_offset(term, pos.row, pos.col);
-
-    Fforward_char(LispObject::from((pos.col - offset as i32) as EmacsInt));
-
-    let following = buffer_lnum == cursor_lnum + added; // cursor at end?
-
-    let window = Fget_buffer_window(term.buffer, Qt);
-    let swindow = Fselected_window();
-
-    if window.eq(swindow) {
-        if following {
-            // "Follow" the terminal output
-            Frecenter(LispObject::from(-1));
-        } else {
-            Frecenter(LispObject::from(pos.row));
-        }
-    }
-}
-
-/// Refresh the scrollback of an invalidated terminal.
-unsafe fn vterminal_refresh_scrollback(mut term: LispVterminalRef) {
-    let mut buffer_lnum: i32;
-
-    if (*term).sb_pending > 0 {
-        buffer_lnum = vterminal_count_lines();
-
-        let del_cnt =
-            buffer_lnum as i32 - (*term).height - (*term).sb_size as i32 + (*term).sb_pending;
-
-        if del_cnt > 0 {
-            vterminal_delete_lines(1, LispObject::from(del_cnt as EmacsInt));
-            buffer_lnum = vterminal_count_lines();
-        }
-
-        let buf_index = buffer_lnum as i32 - (*term).height + 1;
-        vterminal_goto_line(buf_index as EmacsInt);
-
-        refresh_lines(term, -(*term).sb_pending, 0, (*term).width);
-        (*term).sb_pending = 0;
-    }
-
-    let max_line_count = (*term).sb_current as i32 + (*term).height;
-    buffer_lnum = vterminal_count_lines();
-
-    // Remove extra lines at the bottom
-    if buffer_lnum as i32 > max_line_count {
-        let line_count = buffer_lnum as i32 - max_line_count + 1;
-        vterminal_delete_lines(
-            max_line_count as EmacsInt + 1,
-            LispObject::from(line_count as EmacsInt),
-        );
     }
 }
 
@@ -394,6 +622,10 @@ pub fn vterminal_update(
             if len > 1 && *(key.offset(0)) == 60 {
                 if is_key(key, "<return>".as_ptr() as *const c_char, len) {
                     vterm_keyboard_key((*vterm).vt, VTermKey::VTERM_KEY_ENTER, modifier);
+                } else if is_key(key, "<start_paste>".as_ptr() as *const c_char, len) {
+                    vterm_keyboard_start_paste((*vterm).vt);
+                } else if is_key(key, "<end_paste>".as_ptr() as *const c_char, len) {
+                    vterm_keyboard_end_paste((*vterm).vt);
                 } else if is_key(key, "<up>".as_ptr() as *const c_char, len) {
                     vterm_keyboard_key((*vterm).vt, VTermKey::VTERM_KEY_UP, modifier);
                 } else if is_key(key, "<down>".as_ptr() as *const c_char, len) {
@@ -441,78 +673,10 @@ pub fn vterminal_update(
             }
         }
 
-        vterminal_flush_output(vterm);
-        vterminal_redraw(vterm);
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn vterminal_render_text(
-    mut vterm: LispVterminalRef,
-    buffer: *mut c_char,
-    len: i32,
-    cell: *mut VTermScreenCell,
-) -> LispObject {
-    if len == 0 {
-        make_string("".as_ptr() as *mut c_char, 0)
-    } else {
-        let text = make_string(buffer, len as isize);
-
-        let start = LispObject::from(0);
-        let end = LispObject::from(EmacsInt::from(Flength(text)));
-        let properties = list!(
-            LispObject::from(intern(":foreground")),
-            color_to_rgb_string(vterm.as_mut(), &mut (*cell).fg),
-            LispObject::from(intern(":background")),
-            color_to_rgb_string(vterm.as_mut(), &mut (*cell).bg),
-            LispObject::from(intern(":weight")),
-            if (*cell).attrs.bold() > 0 {
-                Qbold
-            } else {
-                Qnormal
-            },
-            LispObject::from(intern(":underline")),
-            if (*cell).attrs.underline() > 0 {
-                Qt
-            } else {
-                Qnil
-            },
-            LispObject::from(intern(":slant")),
-            if (*cell).attrs.italic() > 0 {
-                Qitalic
-            } else {
-                Qnormal
-            },
-            LispObject::from(intern(":inverse-video")),
-            if (*cell).attrs.reverse() > 0 {
-                Qt
-            } else {
-                Qnil
-            },
-            LispObject::from(intern(":strike-through")),
-            if (*cell).attrs.strike() > 0 { Qt } else { Qnil }
-        );
-
-        Fput_text_property(start, end, Qface, properties, text);
-        text
-    }
-}
-
-/// Send current contents of VTERM to the running shell process
-unsafe fn vterminal_flush_output(vterm: LispVterminalRef) {
-    let len = vterm_output_get_buffer_current((*vterm).vt);
-    if len > 0 {
-        let mut buffer: Vec<c_char> = Vec::with_capacity(len);
-        let len = vterm_output_read((*vterm).vt, buffer.as_mut_ptr() as *mut c_char, len);
-
-        let lisp_string = make_string(buffer.as_mut_ptr() as *mut c_char, len as isize);
-
-        send_process(
-            (*vterm).process,
-            buffer.as_mut_ptr() as *mut c_char,
-            len as isize,
-            lisp_string,
-        );
+        vterm.flush_output();
+        if (*vterm).is_invalidated {
+            call0(LispObject::from(intern("vterm--invalidate")));
+        }
     }
 }
 
@@ -533,114 +697,64 @@ pub fn vterminal_write_input(vterm: LispVterminalRef, string: LispObject) {
 
 /// Change size of VTERM according to ROWS and COLS.
 #[lisp_fn(name = "vterm-set-size")]
-pub fn vterminal_set_size_lisp(vterm: LispVterminalRef, rows: EmacsInt, cols: EmacsInt) {
+pub fn vterminal_set_size_lisp(mut vterm: LispVterminalRef, rows: i32, cols: i32) {
     unsafe {
-        if cols as i32 != (*vterm).width || rows as i32 != (*vterm).height {
-            vterm.set_size(rows as i32, cols as i32);
+        if cols != (*vterm).width || rows != (*vterm).height {
+            (*vterm).height_resize = rows - (*vterm).height;
+            if rows > (*vterm).height {
+                if rows - (*vterm).height > (*vterm).sb_current as i32 {
+                    (*vterm).linenum_added = rows - (*vterm).height - (*vterm).sb_current as i32;
+                }
+            }
+            vterm.set_size(rows, cols);
             vterm_screen_flush_damage((*vterm).vts);
-            vterminal_redraw(vterm);
+            vterm.redraw();
         }
     }
 }
 
-/// Refresh cursor, scrollback and screen.
-/// Also adjust the top line.
-unsafe fn vterminal_redraw(mut vterm: LispVterminalRef) {
-    if vterm.is_invalidated {
-        if (*vterm).cursor.visible {
-            Fset(Qcursor_type, Qt);
-        } else {
-            Fset(Qcursor_type, Qnil);
-        }
+// // TODO: try to avoid goto-line and just del_range
+// /// Delete COUNT lines starting from LINENUM.
+// #[lisp_fn]
+// pub fn vterminal_delete_lines(linenum: EmacsInt, count: LispObject) {
+//     unsafe {
+//         // let cur_buf = ThreadState::current_buffer_unchecked();
+//         // let orig_pt = cur_buf.pt;
+//         // // vterminal_goto_line(linenum);
+//         // call1(
+//         //     LispObject::from(intern("vterm--goto-line")),
+//         //     LispObject::from(linenum),
+//         // );
 
-        let bufline_before = vterminal_count_lines();
+//         // let start = cur_buf.pt;
+//         // let end = EmacsInt::from(Fline_end_position(count)) as isize;
+//         // del_range(start, end);
+//         // let pos = cur_buf.pt;
+//         // if !looking_at_1(make_string("\n".as_ptr() as *mut c_char, 1), false).is_nil() {
+//         //     del_range(pos, pos + 1);
+//         // }
+//         // // set_point(cmp::min(orig_pt, cur_buf.zv))
+//         // set_point(orig_pt)
+//         del_range(start, end);
+//     };
+// }
 
-        vterminal_refresh_scrollback(vterm);
-        vterminal_refresh_screen(vterm);
-
-        let line_added = vterminal_count_lines() - bufline_before;
-
-        vterminal_adjust_topline(vterm, line_added);
-    }
-    vterm.is_invalidated = false;
-}
-
-/// Delete COUNT lines starting from LINENUM.
-#[lisp_fn]
-pub fn vterminal_delete_lines(linenum: EmacsInt, count: LispObject) {
-    let mut cur_buf = ThreadState::current_buffer_unchecked();
-    let orig_pt = cur_buf.pt;
-
-    vterminal_goto_line(linenum);
-
-    let start = cur_buf.pt;
-    unsafe {let end = EmacsInt::from(Fline_end_position(count)) as isize;
-    
-    del_range(start, end) };
-
-    let pos = cur_buf.pt;
-    unsafe {
-        if !looking_at_1(make_string("\n".as_ptr() as *mut c_char, 1), false).is_nil() {
-            del_range(pos, pos + 1);
-        }
-    }
-
-    unsafe { set_point(cmp::min(orig_pt, cur_buf.zv)) };
-}
-
-/// Count lines in current buffer.
-#[lisp_fn]
-pub fn vterminal_count_lines() -> i32 {
-    let cur_buf = ThreadState::current_buffer_unchecked();
-    let orig_pt = cur_buf.pt;
-
-    unsafe { set_point(cur_buf.beg()) };
-
-    let mut count: i32 = 0; // same as count-lines
-    let regexp = unsafe { make_string("\n".as_ptr() as *mut c_char, 1) };
-    while unsafe { !search_command(regexp, Qnil, Qt, LispObject::from(1), 1, 0, false).is_nil() } {
-        count += 1;
-    }
-
-    if !(cur_buf.pt == cur_buf.begv || cur_buf.fetch_byte(cur_buf.pt_byte - 1) == b'\n') {
-        count += 1;
-    }
-
-    unsafe { set_point(orig_pt) };
-
-    count
+/// Return process of terminal VTERM
+#[lisp_fn(name = "vterm-process")]
+pub fn vterminal_process(vterm: LispVterminalRef) -> LispObject {
+    (*vterm).process
 }
 
 #[lisp_fn]
 pub fn vterminal_goto_line(line: EmacsInt) {
-    unsafe { set_point(1) };
-
-    let regexp = unsafe { make_string("\n".as_ptr() as *mut c_char, 1) };
-
-    unsafe { search_command(regexp, Qnil, Qt, LispObject::from(line - 1), 1, 0, false) };
+    unsafe {
+        set_point(1);
+        let regexp = make_string("\n".as_ptr() as *mut c_char, 1);
+        search_command(regexp, Qnil, Qt, LispObject::from(line - 1), 1, 0, false)
+    };
 }
 
 // vterm_screen_callbacks
-
-#[no_mangle]
-pub unsafe extern "C" fn vterminal_settermprop(
-    prop: VTermProp,
-    val: *mut VTermValue,
-    user_data: *mut c_void,
-) -> i32 {
-    let term = user_data as *mut vterminal;
-
-    match prop {
-        VTermProp::VTERM_PROP_ALTSCREEN => vterminal_invalidate_terminal(term, 0, (*term).height),
-        VTermProp::VTERM_PROP_CURSORVISIBLE => {
-            vterminal_invalidate_terminal(term, (*term).cursor.row, (*term).cursor.row + 1);
-            (*term).cursor.visible = (*val).boolean != 0;
-        }
-        _ => return 0,
-    }
-
-    1
-}
 
 #[no_mangle]
 pub unsafe extern "C" fn vterminal_invalidate_terminal(
@@ -707,9 +821,134 @@ pub unsafe extern "C" fn vterminal_resize(
     1
 }
 
-#[no_mangle]
-pub extern "C" fn rust_syms_of_vterm() {
-    def_lisp_sym!(Qvtermp, "vtermp");
+// TODO: Make this work again
+// #[no_mangle]
+// pub extern "C" fn rust_syms_of_vterm() {
+//     def_lisp_sym!(Qvtermp, "vtermp");
+// }
+
+#[lisp_fn]
+pub fn vterminal_linenum(vterm: LispVterminalRef) -> LispObject {
+    LispObject::from((*vterm).linenum)
 }
+
+#[lisp_fn]
+pub fn vterminal_linenum_added(vterm: LispVterminalRef) -> LispObject {
+    LispObject::from((*vterm).linenum_added)
+}
+
+#[lisp_fn]
+pub fn vterminal_height(vterm: LispVterminalRef) -> LispObject {
+    LispObject::from((*vterm).height)
+}
+
+#[lisp_fn]
+pub fn vterminal_width(vterm: LispVterminalRef) -> LispObject {
+    LispObject::from((*vterm).width)
+}
+
+#[lisp_fn]
+pub fn vterminal_sb_current(vterm: LispVterminalRef) -> LispObject {
+    LispObject::from((*vterm).sb_current as i32)
+}
+
+#[lisp_fn]
+pub fn vterminal_sb_size(vterm: LispVterminalRef) -> LispObject {
+    LispObject::from((*vterm).sb_size as i32)
+}
+
+#[lisp_fn]
+pub fn vterminal_sb_pending(vterm: LispVterminalRef) -> LispObject {
+    LispObject::from((*vterm).sb_pending)
+}
+
+#[lisp_fn]
+pub fn vterminal_sb_pending_by_height_decr(vterm: LispVterminalRef) -> LispObject {
+    LispObject::from((*vterm).sb_pending_by_height_decr)
+}
+
+#[lisp_fn]
+pub fn vterminal_cursor_row(vterm: LispVterminalRef) -> LispObject {
+    LispObject::from((*vterm).cursor.row)
+}
+
+#[lisp_fn]
+pub fn vterminal_cursor_col(vterm: LispVterminalRef) -> LispObject {
+    LispObject::from((*vterm).cursor.col)
+}
+
+#[lisp_fn]
+pub fn vterminal_get_cursor_pos(vterm: LispVterminalRef) -> LispObject {
+    unsafe {
+        let pos = vterm.get_cursorpos();
+        LispObject::cons(pos.row, pos.col)
+    }
+}
+
+#[lisp_fn]
+pub fn vterminal_is_eol(vterm: LispVterminalRef) -> LispObject {
+    unsafe {
+        let pos = vterm.get_cursorpos();
+        LispObject::from(vterm.is_eol((*vterm).width, pos.row, pos.col))
+    }
+}
+
+#[lisp_fn]
+pub fn vterminal_line_contents(
+    vterm: LispVterminalRef,
+    start_row: i32,
+    end_row: i32,
+    end_col: i32,
+) -> LispObject {
+    unsafe {
+        let mut size = ((end_row - start_row + 1) * end_col) * 4;
+        let mut v: Vec<c_char> = Vec::with_capacity(size as usize);
+        let mut lastcell: VTermScreenCell = vterm.fetch_cell(start_row, 0);
+
+        let mut length = 0;
+
+        let mut i = start_row;
+        while i < end_row {
+            let mut j = 0;
+
+            while j < end_col {
+                let cell = vterm.fetch_cell(i, j);
+                lastcell = cell;
+                if cell.chars[0] == 0 {
+                    if vterm.is_eol(end_col, i, j) {
+                        /* This cell is EOL if this and every cell to the right is black */
+                        break;
+                    }
+
+                    // v.insert(length as usize, ' ' as c_char);
+                    v.push(' ' as c_char);
+                    length += 1;
+                } else {
+                    // make this a function
+                    let mut bytes: [c_uchar; 4] = std::mem::zeroed();
+                    let size = cell.to_utf8(&mut bytes);
+                    for n in 0..size {
+                        // v.insert(length as usize + n, bytes[n] as c_char);
+                        v.push(' ' as c_char);
+                    }
+                    length += size as i32;
+                }
+
+                if cell.width > 1 {
+                    let w = cell.width - 1;
+                    j = j + w as i32;
+                }
+                j += 1;
+            }
+            v.push('\n' as c_char);
+            length += 1;
+            i += 1;
+        }
+        make_string(v.as_mut_ptr(), length as isize)
+    }
+}
+
+// insert 10 lines
+// grab lines with fetch_cell line by line
 
 include!(concat!(env!("OUT_DIR"), "/vterm_exports.rs"));

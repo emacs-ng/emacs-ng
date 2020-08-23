@@ -361,6 +361,12 @@ impl From<LispObject> for u32 {
     }
 }
 
+impl From<LispObject> for i32 {
+    fn from(o: LispObject) -> Self {
+        o.as_fixnum_or_error() as Self
+    }
+}
+
 impl From<LispObject> for Option<u32> {
     fn from(o: LispObject) -> Self {
         match o.as_fixnum() {

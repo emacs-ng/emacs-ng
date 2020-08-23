@@ -51,13 +51,13 @@ mod functions;
 mod eval_macros;
 #[macro_use]
 mod lisp;
-#[macro_use]
-mod frames;
-#[macro_use]
-mod strings;
+// #[macro_use]
+// mod frames;
+// #[macro_use]
+// mod strings;
 #[macro_use]
 mod vector_macros;
-mod str2sig;
+// mod str2sig;
 
 // mod alloc;
 // mod base64;
@@ -88,10 +88,10 @@ mod eval;
 // mod ffi;
 // mod fileio;
 // mod filelock;
-mod floatfns;
+// mod floatfns;
 // mod fns;
 // mod fonts;
-mod hashtable;
+// mod hashtable;
 // mod indent;
 // mod interactive;
 // mod keyboard;

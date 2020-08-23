@@ -24,7 +24,8 @@
 use crate::{
     lisp::LispObject,
     remacs_sys::{
-        EmacsInt, EmacsUint, Lisp_Bits, Lisp_Type, Qintegerp, EMACS_INT_MAX, INTMASK, USE_LSB_TAG,
+        EmacsInt, EmacsUint, Lisp_Bits, Lisp_Type, Qintegerp, Qwholenump, EMACS_INT_MAX, INTMASK,
+        USE_LSB_TAG,
     },
 };
 
@@ -85,36 +86,36 @@ impl LispObject {
     }
 }
 
-// impl LispObject {
-//     /// Convert a positive integer into its LispObject representation.
-//     ///
-//     /// This is also the function to use when translating `XSETFASTINT`
-//     /// from Emacs C.
-//     // TODO: the C claims that make_natnum is faster, but it does the same
-//     // thing as make_number when USE_LSB_TAG is 1, which it is for us. We
-//     // should remove this in favour of make_number.
-//     pub fn from_natnum(n: EmacsUint) -> Self {
-//         debug_assert!(n <= (MOST_POSITIVE_FIXNUM as EmacsUint));
-//         Self::from_fixnum_truncated(n as EmacsInt)
-//     }
+impl LispObject {
+    //     /// Convert a positive integer into its LispObject representation.
+    //     ///
+    //     /// This is also the function to use when translating `XSETFASTINT`
+    //     /// from Emacs C.
+    //     // TODO: the C claims that make_natnum is faster, but it does the same
+    //     // thing as make_number when USE_LSB_TAG is 1, which it is for us. We
+    //     // should remove this in favour of make_number.
+    //     pub fn from_natnum(n: EmacsUint) -> Self {
+    //         debug_assert!(n <= (MOST_POSITIVE_FIXNUM as EmacsUint));
+    //         Self::from_fixnum_truncated(n as EmacsInt)
+    //     }
 
-//     pub fn is_natnum(self) -> bool {
-//         self.as_fixnum().map_or(false, |i| i >= 0)
-//     }
+    pub fn is_natnum(self) -> bool {
+        self.as_fixnum().map_or(false, |i| i >= 0)
+    }
 
-//     pub fn as_natnum(self) -> Option<EmacsUint> {
-//         if self.is_natnum() {
-//             Some(unsafe { self.to_fixnum_unchecked() as EmacsUint })
-//         } else {
-//             None
-//         }
-//     }
+    pub fn as_natnum(self) -> Option<EmacsUint> {
+        if self.is_natnum() {
+            Some(unsafe { self.to_fixnum_unchecked() as EmacsUint })
+        } else {
+            None
+        }
+    }
 
-//     pub fn as_natnum_or_error(self) -> EmacsUint {
-//         self.as_natnum()
-//             .unwrap_or_else(|| wrong_type!(Qwholenump, self))
-//     }
-// }
+    pub fn as_natnum_or_error(self) -> EmacsUint {
+        self.as_natnum()
+            .unwrap_or_else(|| wrong_type!(Qwholenump, self))
+    }
+}
 
 impl LispObject {
     //     pub fn int_or_float_from_fixnum(n: EmacsInt) -> Self {

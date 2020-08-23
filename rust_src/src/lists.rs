@@ -24,7 +24,7 @@ use crate::{
     //     lisp::{LispObject, LispStructuralEqual},
     //     numbers::MOST_POSITIVE_FIXNUM,
     remacs_sys::{Lisp_Cons, Lisp_Type},
-    remacs_sys::{Qcircular_list, Qlistp, Qnil, Qconsp},
+    remacs_sys::{Qcircular_list, Qconsp, Qlistp, Qnil},
     //     symbols::LispSymbolRef,
 };
 
@@ -91,9 +91,9 @@ impl LispObject {
         unsafe { Fcons(car.into(), cdr.into()) }
     }
 
-        pub fn is_list(self) -> bool {
-            self.is_cons() || self.is_nil()
-        }
+    pub fn is_list(self) -> bool {
+        self.is_cons() || self.is_nil()
+    }
 
     //     pub fn iter_tails_v2(
     //         self,

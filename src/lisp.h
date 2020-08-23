@@ -4811,9 +4811,17 @@ typedef struct VtermScrollbackLine {
 
 typedef struct VtermCursor {
   int row, col;
-  bool blinking;
-  bool visible;
+  int cursor_type;
+  bool cursor_type_changed;
 } VtermCursor;
+
+enum VTERM_PROP_CURSOR {
+  VTERM_PROP_CURSOR_BLOCK = VTERM_PROP_CURSORSHAPE_BLOCK,
+  VTERM_PROP_CURSOR_UNDERLINE = VTERM_PROP_CURSORSHAPE_UNDERLINE,
+  VTERM_PROP_CURSOR_BAR_LEFT = VTERM_PROP_CURSORSHAPE_BAR_LEFT,
+  VTERM_PROP_CURSOR_VISIBLE = 4,
+  VTERM_PROP_CURSOR_NOT_VISIBLE = 5,
+};
 
 typedef struct vterminal {
   /* This is for Lisp; the terminal code does not refer to it.  */
@@ -4835,6 +4843,9 @@ typedef struct vterminal {
   // it actually points to entries that are no longer in sb_buffer (because the
   // window height has increased) and must be deleted from the terminal buffer
   int sb_pending;
+  int sb_pending_by_height_decr;
+  int linenum;
+  int linenum_added;
 
   int invalid_start, invalid_end; // invalid rows in libvterm screen
   bool is_invalidated;
@@ -4843,43 +4854,31 @@ typedef struct vterminal {
   char *title;
   bool is_title_changed;
 
-  bool pending_resize;
+  char *directory;
+  bool directory_changed;
 
   int width, height;
+  int height_resize;
+  
 } vterminal;
 
+extern VTermParserCallbacks parser_callbacks;
 extern VTermScreenCallbacks vterm_screen_callbacks;
-
 extern int row_to_linenr(vterminal *term, int row);
-
 extern int vterminal_movecursor(VTermPos new, VTermPos old, int visible,
                            void *data);
-
 extern int vterminal_damage(VTermRect rect, void *data);
-
 extern int vterminal_moverect(VTermRect dest, VTermRect src, void *data);
-
 extern Lisp_Object color_to_rgb_string(vterminal *term, VTermColor *color);
-
 extern int vterminal_settermprop(VTermProp prop, VTermValue *val, void *user_data);
 
 extern bool utf8_to_codepoint(const unsigned char buffer[4], const size_t len,
                               uint32_t *codepoint);
-
 extern int vterminal_resize (int rows, int cols, void *user_data);
-
 extern void fetch_cell(vterminal *, int , int , VTermScreenCell *);
-
 extern bool is_eol(vterminal *term, int end_col, int row, int col);
-
-extern size_t codepoint_to_utf8(const uint32_t codepoint, unsigned char buffer[4]);
-
-extern Lisp_Object mytest_color (VTermColor *color);
-
-extern bool mybitand (VTermColor *col, int s);
-
-extern bool mybitand2 (VTermColor *col);
-
+extern void term_redraw_cursor(vterminal *term);
+extern int term_settermprop(VTermProp prop, VTermValue *val, void *user_data);
 #endif
 
 INLINE_HEADER_END

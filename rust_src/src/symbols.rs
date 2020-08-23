@@ -34,240 +34,241 @@
 pub type LispSymbolRef = ExternalPtr<Lisp_Symbol>;
 use crate::lisp::{ExternalPtr, LispObject};
 use crate::remacs_sys::{
-    lispsym, make_lisp_symbol, EmacsInt, Lisp_Symbol, Lisp_Type, Qsymbolp, USE_LSB_TAG,indirect_function
+    indirect_function, lispsym, make_lisp_symbol, EmacsInt, Lisp_Symbol, Lisp_Type, Qsymbolp,
+    USE_LSB_TAG,
 };
 
 impl LispSymbolRef {
-//     pub fn symbol_name(self) -> LispObject {
-//         let s = unsafe { self.u.s.as_ref() };
-//         s.name
-//     }
+    //     pub fn symbol_name(self) -> LispObject {
+    //         let s = unsafe { self.u.s.as_ref() };
+    //         s.name
+    //     }
 
     pub fn get_function(self) -> LispObject {
         let s = unsafe { self.u.s.as_ref() };
         s.function
     }
 
-//     pub fn get_plist(self) -> LispObject {
-//         let s = unsafe { self.u.s.as_ref() };
-//         s.plist
-//     }
+    //     pub fn get_plist(self) -> LispObject {
+    //         let s = unsafe { self.u.s.as_ref() };
+    //         s.plist
+    //     }
 
-//     pub fn set_plist(&mut self, plist: LispObject) {
-//         let s = unsafe { self.u.s.as_mut() };
-//         s.plist = plist;
-//     }
+    //     pub fn set_plist(&mut self, plist: LispObject) {
+    //         let s = unsafe { self.u.s.as_mut() };
+    //         s.plist = plist;
+    //     }
 
-//     pub fn set_function(&mut self, function: LispObject) {
-//         let s = unsafe { self.u.s.as_mut() };
-//         s.function = function;
-//     }
+    //     pub fn set_function(&mut self, function: LispObject) {
+    //         let s = unsafe { self.u.s.as_mut() };
+    //         s.function = function;
+    //     }
 
-//     pub fn is_interned_in_initial_obarray(self) -> bool {
-//         let s = unsafe { self.u.s.as_ref() };
-//         s.interned() == symbol_interned::SYMBOL_INTERNED_IN_INITIAL_OBARRAY as u32
-//     }
+    //     pub fn is_interned_in_initial_obarray(self) -> bool {
+    //         let s = unsafe { self.u.s.as_ref() };
+    //         s.interned() == symbol_interned::SYMBOL_INTERNED_IN_INITIAL_OBARRAY as u32
+    //     }
 
-//     pub fn set_uninterned(&mut self) {
-//         let s = unsafe { self.u.s.as_mut() };
-//         s.set_interned(symbol_interned::SYMBOL_UNINTERNED);
-//     }
+    //     pub fn set_uninterned(&mut self) {
+    //         let s = unsafe { self.u.s.as_mut() };
+    //         s.set_interned(symbol_interned::SYMBOL_UNINTERNED);
+    //     }
 
-//     pub fn is_alias(self) -> bool {
-//         let s = unsafe { self.u.s.as_ref() };
-//         s.redirect() == symbol_redirect::SYMBOL_VARALIAS
-//     }
+    //     pub fn is_alias(self) -> bool {
+    //         let s = unsafe { self.u.s.as_ref() };
+    //         s.redirect() == symbol_redirect::SYMBOL_VARALIAS
+    //     }
 
-//     pub fn get_trapped_write(self) -> symbol_trapped_write::Type {
-//         let s = unsafe { self.u.s.as_ref() };
-//         s.trapped_write()
-//     }
+    //     pub fn get_trapped_write(self) -> symbol_trapped_write::Type {
+    //         let s = unsafe { self.u.s.as_ref() };
+    //         s.trapped_write()
+    //     }
 
-//     pub fn set_trapped_write(mut self, trap: symbol_trapped_write::Type) {
-//         let s = unsafe { self.u.s.as_mut() };
-//         s.set_trapped_write(trap);
-//     }
+    //     pub fn set_trapped_write(mut self, trap: symbol_trapped_write::Type) {
+    //         let s = unsafe { self.u.s.as_mut() };
+    //         s.set_trapped_write(trap);
+    //     }
 
-//     pub fn is_constant(self) -> bool {
-//         self.get_trapped_write() == symbol_trapped_write::SYMBOL_NOWRITE
-//     }
+    //     pub fn is_constant(self) -> bool {
+    //         self.get_trapped_write() == symbol_trapped_write::SYMBOL_NOWRITE
+    //     }
 
-//     pub unsafe fn get_alias(self) -> Self {
-//         debug_assert!(self.is_alias());
-//         let s = self.u.s.as_ref();
-//         Self::new(s.val.alias)
-//     }
+    //     pub unsafe fn get_alias(self) -> Self {
+    //         debug_assert!(self.is_alias());
+    //         let s = self.u.s.as_ref();
+    //         Self::new(s.val.alias)
+    //     }
 
-//     pub fn get_declared_special(self) -> bool {
-//         unsafe { get_symbol_declared_special(self.as_ptr()) }
-//     }
+    //     pub fn get_declared_special(self) -> bool {
+    //         unsafe { get_symbol_declared_special(self.as_ptr()) }
+    //     }
 
-//     pub fn set_declared_special(mut self, value: bool) {
-//         unsafe { set_symbol_declared_special(self.as_mut(), value) };
-//     }
+    //     pub fn set_declared_special(mut self, value: bool) {
+    //         unsafe { set_symbol_declared_special(self.as_mut(), value) };
+    //     }
 
-//     /// Return the symbol holding SYMBOL's value.  Signal
-//     /// `cyclic-variable-indirection' if SYMBOL's chain of variable
-//     /// indirections contains a loop.
-//     pub fn get_indirect_variable(self) -> Self {
-//         let mut tortoise = self;
-//         let mut hare = self;
+    //     /// Return the symbol holding SYMBOL's value.  Signal
+    //     /// `cyclic-variable-indirection' if SYMBOL's chain of variable
+    //     /// indirections contains a loop.
+    //     pub fn get_indirect_variable(self) -> Self {
+    //         let mut tortoise = self;
+    //         let mut hare = self;
 
-//         while hare.is_alias() {
-//             hare = unsafe { hare.get_alias() };
+    //         while hare.is_alias() {
+    //             hare = unsafe { hare.get_alias() };
 
-//             if !hare.is_alias() {
-//                 break;
-//             }
-//             hare = unsafe { hare.get_alias() };
-//             tortoise = unsafe { tortoise.get_alias() };
+    //             if !hare.is_alias() {
+    //                 break;
+    //             }
+    //             hare = unsafe { hare.get_alias() };
+    //             tortoise = unsafe { tortoise.get_alias() };
 
-//             if hare == tortoise {
-//                 xsignal!(Qcyclic_variable_indirection, hare)
-//             }
-//         }
+    //             if hare == tortoise {
+    //                 xsignal!(Qcyclic_variable_indirection, hare)
+    //             }
+    //         }
 
-//         hare
-//     }
+    //         hare
+    //     }
 
     pub fn get_indirect_function(self) -> LispObject {
         let obj = self.get_function();
 
         match obj.as_symbol() {
             None => obj,
-            Some(_) => unsafe {indirect_function(obj)} ,
+            Some(_) => unsafe { indirect_function(obj) },
         }
     }
 
-//     pub fn get_redirect(self) -> symbol_redirect {
-//         unsafe { get_symbol_redirect(self.as_ptr()) }
-//     }
+    //     pub fn get_redirect(self) -> symbol_redirect {
+    //         unsafe { get_symbol_redirect(self.as_ptr()) }
+    //     }
 
-//     pub fn set_redirect(mut self, v: symbol_redirect) {
-//         unsafe { set_symbol_redirect(self.as_mut(), v) }
-//     }
+    //     pub fn set_redirect(mut self, v: symbol_redirect) {
+    //         unsafe { set_symbol_redirect(self.as_mut(), v) }
+    //     }
 
-//     pub unsafe fn get_value(self) -> LispObject {
-//         let s = self.u.s.as_ref();
-//         s.val.value
-//     }
+    //     pub unsafe fn get_value(self) -> LispObject {
+    //         let s = self.u.s.as_ref();
+    //         s.val.value
+    //     }
 
-//     // Find the value of a symbol, returning Qunbound if it's not bound.
-//     // This is helpful for code which just wants to get a variable's value
-//     // if it has one, without signaling an error.
-//     // Note that it must not be possible to quit
-//     // within this function.  Great care is required for this.
-//     pub unsafe fn find_value(self) -> LispObject {
-//         let mut symbol = self.get_indirect_variable();
+    //     // Find the value of a symbol, returning Qunbound if it's not bound.
+    //     // This is helpful for code which just wants to get a variable's value
+    //     // if it has one, without signaling an error.
+    //     // Note that it must not be possible to quit
+    //     // within this function.  Great care is required for this.
+    //     pub unsafe fn find_value(self) -> LispObject {
+    //         let mut symbol = self.get_indirect_variable();
 
-//         match symbol.get_redirect() {
-//             symbol_redirect::SYMBOL_PLAINVAL => symbol.get_value(),
-//             symbol_redirect::SYMBOL_LOCALIZED => {
-//                 let mut blv = symbol.get_blv();
-//                 swap_in_symval_forwarding(symbol.as_mut(), blv.as_mut());
+    //         match symbol.get_redirect() {
+    //             symbol_redirect::SYMBOL_PLAINVAL => symbol.get_value(),
+    //             symbol_redirect::SYMBOL_LOCALIZED => {
+    //                 let mut blv = symbol.get_blv();
+    //                 swap_in_symval_forwarding(symbol.as_mut(), blv.as_mut());
 
-//                 let fwd = blv.get_fwd();
-//                 if fwd.is_null() {
-//                     blv.get_value()
-//                 } else {
-//                     do_symval_forwarding(fwd)
-//                 }
-//             }
-//             symbol_redirect::SYMBOL_FORWARDED => do_symval_forwarding(symbol.get_fwd()),
-//             _ => unreachable!(),
-//         }
-//     }
+    //                 let fwd = blv.get_fwd();
+    //                 if fwd.is_null() {
+    //                     blv.get_value()
+    //                 } else {
+    //                     do_symval_forwarding(fwd)
+    //                 }
+    //             }
+    //             symbol_redirect::SYMBOL_FORWARDED => do_symval_forwarding(symbol.get_fwd()),
+    //             _ => unreachable!(),
+    //         }
+    //     }
 
-//     pub unsafe fn get_blv(self) -> LispBufferLocalValueRef {
-//         let s = self.u.s.as_ref();
-//         LispBufferLocalValueRef::new(s.val.blv)
-//     }
+    //     pub unsafe fn get_blv(self) -> LispBufferLocalValueRef {
+    //         let s = self.u.s.as_ref();
+    //         LispBufferLocalValueRef::new(s.val.blv)
+    //     }
 
-//     pub unsafe fn get_fwd(self) -> *mut Lisp_Fwd {
-//         let s = self.u.s.as_ref();
-//         s.val.fwd
-//     }
+    //     pub unsafe fn get_fwd(self) -> *mut Lisp_Fwd {
+    //         let s = self.u.s.as_ref();
+    //         s.val.fwd
+    //     }
 
-//     pub fn set_fwd(mut self, fwd: *mut Lisp_Fwd) {
-//         assert!(self.get_redirect() == symbol_redirect::SYMBOL_FORWARDED && !fwd.is_null());
-//         let s = unsafe { self.u.s.as_mut() };
-//         s.val.fwd = fwd;
-//     }
+    //     pub fn set_fwd(mut self, fwd: *mut Lisp_Fwd) {
+    //         assert!(self.get_redirect() == symbol_redirect::SYMBOL_FORWARDED && !fwd.is_null());
+    //         let s = unsafe { self.u.s.as_mut() };
+    //         s.val.fwd = fwd;
+    //     }
 
-//     pub const fn iter(self) -> LispSymbolIter {
-//         LispSymbolIter { current: self }
-//     }
+    //     pub const fn iter(self) -> LispSymbolIter {
+    //         LispSymbolIter { current: self }
+    //     }
 
-//     pub fn get_next(self) -> Option<Self> {
-//         // `iter().next()` returns the _current_ symbol: we want
-//         // another `next()` on the iterator to really get the next
-//         // symbol. we use `nth(1)` as a shortcut here.
-//         self.iter().nth(1)
-//     }
+    //     pub fn get_next(self) -> Option<Self> {
+    //         // `iter().next()` returns the _current_ symbol: we want
+    //         // another `next()` on the iterator to really get the next
+    //         // symbol. we use `nth(1)` as a shortcut here.
+    //         self.iter().nth(1)
+    //     }
 
-//     pub fn set_next(mut self, next: Option<Self>) {
-//         let mut s = unsafe { self.u.s.as_mut() };
-//         s.next = match next {
-//             Some(sym) => sym.as_ptr() as *mut Lisp_Symbol,
-//             None => ptr::null_mut(),
-//         };
-//     }
+    //     pub fn set_next(mut self, next: Option<Self>) {
+    //         let mut s = unsafe { self.u.s.as_mut() };
+    //         s.next = match next {
+    //             Some(sym) => sym.as_ptr() as *mut Lisp_Symbol,
+    //             None => ptr::null_mut(),
+    //         };
+    //     }
 
-//     /// Set up SYMBOL to refer to its global binding.  This makes it safe
-//     /// to alter the status of other bindings.  BEWARE: this may be called
-//     /// during the mark phase of GC, where we assume that Lisp_Object slots
-//     /// of BLV are marked after this function has changed them.
-//     pub unsafe fn swap_in_global_binding(self) {
-//         let mut blv = self.get_blv();
-//         let fwd = blv.get_fwd();
+    //     /// Set up SYMBOL to refer to its global binding.  This makes it safe
+    //     /// to alter the status of other bindings.  BEWARE: this may be called
+    //     /// during the mark phase of GC, where we assume that Lisp_Object slots
+    //     /// of BLV are marked after this function has changed them.
+    //     pub unsafe fn swap_in_global_binding(self) {
+    //         let mut blv = self.get_blv();
+    //         let fwd = blv.get_fwd();
 
-//         // Unload the previously loaded binding.
-//         if !fwd.is_null() {
-//             blv.set_value(do_symval_forwarding(fwd));
-//         }
+    //         // Unload the previously loaded binding.
+    //         if !fwd.is_null() {
+    //             blv.set_value(do_symval_forwarding(fwd));
+    //         }
 
-//         // Select the global binding in the symbol.
-//         blv.valcell = blv.defcell;
+    //         // Select the global binding in the symbol.
+    //         blv.valcell = blv.defcell;
 
-//         if !fwd.is_null() {
-//             let defcell: LispCons = blv.defcell.into();
-//             store_symval_forwarding(fwd as *mut Lisp_Fwd, defcell.cdr(), ptr::null_mut());
-//         }
+    //         if !fwd.is_null() {
+    //             let defcell: LispCons = blv.defcell.into();
+    //             store_symval_forwarding(fwd as *mut Lisp_Fwd, defcell.cdr(), ptr::null_mut());
+    //         }
 
-//         // Indicate that the global binding is set up now.
-//         blv.where_ = Qnil;
-//         blv.set_found(false);
-//     }
+    //         // Indicate that the global binding is set up now.
+    //         blv.where_ = Qnil;
+    //         blv.set_found(false);
+    //     }
 
-//     pub fn default_toplevel_binding_rust(self) -> SpecbindingRef {
-//         let current_thread = ThreadState::current_thread();
-//         let specpdl = SpecbindingRef::new(current_thread.m_specpdl);
+    //     pub fn default_toplevel_binding_rust(self) -> SpecbindingRef {
+    //         let current_thread = ThreadState::current_thread();
+    //         let specpdl = SpecbindingRef::new(current_thread.m_specpdl);
 
-//         let mut binding = SpecbindingRef::new(std::ptr::null_mut());
-//         let mut pdl = SpecbindingRef::new(current_thread.m_specpdl_ptr);
+    //         let mut binding = SpecbindingRef::new(std::ptr::null_mut());
+    //         let mut pdl = SpecbindingRef::new(current_thread.m_specpdl_ptr);
 
-//         while pdl > specpdl {
-//             unsafe {
-//                 pdl.ptr_sub(1);
-//             }
-//             match pdl.kind() {
-//                 specbind_tag::SPECPDL_LET_DEFAULT | specbind_tag::SPECPDL_LET => {
-//                     if pdl.symbol() == self {
-//                         binding = pdl
-//                     }
-//                 }
-//                 specbind_tag::SPECPDL_UNWIND
-//                 | specbind_tag::SPECPDL_UNWIND_PTR
-//                 | specbind_tag::SPECPDL_UNWIND_INT
-//                 | specbind_tag::SPECPDL_UNWIND_VOID
-//                 | specbind_tag::SPECPDL_BACKTRACE
-//                 | specbind_tag::SPECPDL_LET_LOCAL => {}
-//                 _ => panic!("Incorrect specpdl kind"),
-//             }
-//         }
+    //         while pdl > specpdl {
+    //             unsafe {
+    //                 pdl.ptr_sub(1);
+    //             }
+    //             match pdl.kind() {
+    //                 specbind_tag::SPECPDL_LET_DEFAULT | specbind_tag::SPECPDL_LET => {
+    //                     if pdl.symbol() == self {
+    //                         binding = pdl
+    //                     }
+    //                 }
+    //                 specbind_tag::SPECPDL_UNWIND
+    //                 | specbind_tag::SPECPDL_UNWIND_PTR
+    //                 | specbind_tag::SPECPDL_UNWIND_INT
+    //                 | specbind_tag::SPECPDL_UNWIND_VOID
+    //                 | specbind_tag::SPECPDL_BACKTRACE
+    //                 | specbind_tag::SPECPDL_LET_LOCAL => {}
+    //                 _ => panic!("Incorrect specpdl kind"),
+    //             }
+    //         }
 
-//         binding
-//     }
+    //         binding
+    //     }
 }
 
 // impl LispStructuralEqual for LispSymbolRef {
