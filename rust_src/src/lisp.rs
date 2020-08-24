@@ -746,39 +746,6 @@ impl LispObject {
 /// of arguments.
 pub const MANY: i16 = -2;
 
-// impl Display for LispObject {
-//     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-//         write!(f, "{}", LispStringRef::from(*self))
-//     }
-// }
-
-// impl Debug for LispObject {
-//     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-//         let ty = self.get_type();
-//         let self_ptr = &self as *const _;
-//         if ty as u8 >= 8 {
-//             return write!(
-//                 f,
-//                 "#<INVALID-OBJECT @ {:p}: VAL({:#X})>",
-//                 self_ptr,
-//                 self.to_C()
-//             );
-//         }
-//         if self.is_nil() {
-//             return write!(f, "nil");
-//         }
-//         match ty {
-//             Lisp_Type::Lisp_Symbol => write!(f, "{:?}", self.force_symbol()),
-//             Lisp_Type::Lisp_Cons => write!(f, "{:?}", self.force_cons()),
-//             Lisp_Type::Lisp_Float => write!(f, "{}", self.force_float()),
-//             Lisp_Type::Lisp_Vectorlike => write!(f, "{:?}", self.force_vectorlike()),
-//             Lisp_Type::Lisp_Int0 | Lisp_Type::Lisp_Int1 => write!(f, "{}", self.force_fixnum()),
-//             Lisp_Type::Lisp_Misc => write!(f, "{:?}", self.force_misc()),
-//             Lisp_Type::Lisp_String => write!(f, "{:?}", self.force_string()),
-//         }
-//     }
-// }
-
 extern "C" {
     pub fn defsubr(sname: *const Lisp_Subr);
 }
@@ -795,22 +762,3 @@ macro_rules! export_lisp_fns {
         }
     }
 }
-
-// #[allow(unused_macros)]
-// macro_rules! protect_statics_from_GC {
-//     ($($f:ident),+) => {
-//         pub fn rust_static_syms() {
-//             unsafe {
-//                 $(
-//                     crate::remacs_sys::staticpro(&$f as *const LispObject as *mut LispObject);
-//                 )+
-//             }
-//         }
-//     }
-// }
-
-// #[test]
-// fn test_lisp_misc_any_size() {
-//     // Should be 32 bits, which is 4 bytes.
-//     assert!(mem::size_of::<Lisp_Misc_Any>() == 4);
-// }

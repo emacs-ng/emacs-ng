@@ -19,17 +19,3 @@ macro_rules! vecsize {
             / *crate::vectors::WORD_SIZE)
     };
 }
-
-// /// Equivalent to `ALLOCATE_PSEUDOVECTOR` in C
-// macro_rules! allocate_pseudovector {
-//     ($ty: ty, $field: ident, $vectype: expr) => {
-//         unsafe {
-//             crate::remacs_sys::allocate_pseudovector(
-//                 vecsize!($ty) as ::libc::c_int,
-//                 pseudovecsize!($ty, $field) as ::libc::c_int,
-//                 pseudovecsize!($ty, $field) as ::libc::c_int,
-//                 $vectype,
-//             ) as *mut $ty
-//         }
-//     };
-// }

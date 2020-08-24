@@ -43,9 +43,9 @@ extern crate alloc_unexecmacosx;
 extern crate remacs_lib;
 extern crate remacs_macros;
 
-#[cfg(test)]
-#[macro_use]
-mod functions;
+// #[cfg(test)]
+// #[macro_use]
+// mod functions;
 
 #[macro_use]
 mod eval_macros;
@@ -140,25 +140,26 @@ static ALLOCATOR: OsxUnexecAlloc = OsxUnexecAlloc;
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));
 
-#[cfg(test)]
-pub use crate::functions::{lispsym, make_string, make_unibyte_string, Fcons};
+// #[cfg(test)]
+// pub use crate::functions::{lispsym, make_string, make_unibyte_string, Fcons};
 
-mod hacks {
-    use core::mem::ManuallyDrop;
+// mod hacks {
+//     use core::mem::ManuallyDrop;
 
-    #[allow(unions_with_drop_fields)]
-    pub union Hack<T> {
-        t: ManuallyDrop<T>,
-        u: (),
-    }
+//     #[allow(unions_with_drop_fields)]
+//     pub union Hack<T> {
+//         t: ManuallyDrop<T>,
+//         u: (),
+//     }
 
-    impl<T> Hack<T> {
-        pub const unsafe fn uninitialized() -> Self {
-            Self { u: () }
-        }
+//     impl<T> Hack<T> {
+//         pub const unsafe fn uninitialized() -> Self {
+//             Self { u: () }
+//         }
 
-        pub unsafe fn get_mut(&mut self) -> &mut T {
-            &mut *self.t
-        }
-    }
-}
+//         pub unsafe fn get_mut(&mut self) -> &mut T {
+//             &mut *self.t
+//         }
+//     }
+// }
+

@@ -355,7 +355,7 @@ fn env_var(name: &str) -> String {
 }
 
 // What to ignore when walking the list of files
-fn ignore(path: &str, additional_ignored_paths: &Vec<&str>) -> bool {
+fn ignore(path: &str, _additional_ignored_paths: &Vec<&str>) -> bool {
     path == ""
         || path.starts_with('.')
         || path == "lib.rs"
