@@ -85,7 +85,9 @@ char pot_etags_version[] = "@(#) pot revision number is 17.38.1.4";
 #  define DEBUG true
 #else
 #  define DEBUG  false
-#  define NDEBUG		/* disable assert */
+#  ifndef NDEBUG
+#   define NDEBUG		/* disable assert */
+#  endif
 #endif
 
 #include <config.h>
@@ -6401,7 +6403,7 @@ add_regex (char *regexp_pattern, language *lang)
   *patbuf = zeropattern;
   if (ignore_case)
     {
-      static char lc_trans[UCHAR_MAX + 1];
+      static unsigned char lc_trans[UCHAR_MAX + 1];
       int i;
       for (i = 0; i < UCHAR_MAX + 1; i++)
 	lc_trans[i] = c_tolower (i);

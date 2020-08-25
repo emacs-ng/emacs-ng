@@ -263,8 +263,8 @@ init_eval (void)
 static void
 restore_stack_limits (Lisp_Object data)
 {
-  max_specpdl_size = XINT (XCAR (data));
-  max_lisp_eval_depth = XINT (XCDR (data));
+  max_specpdl_size = XFIXNUM (XCAR (data));
+  max_lisp_eval_depth = XFIXNUM (XCDR (data));
 }
 
 static void grow_specpdl (void);
@@ -302,8 +302,8 @@ call_debugger (Lisp_Object arg)
 
   /* Restore limits after leaving the debugger.  */
   record_unwind_protect (restore_stack_limits,
-			 Fcons (make_number (old_max),
-				make_number (old_depth)));
+			 Fcons (make_fixnum (old_max),
+				make_fixnum (old_depth)));
 
 #ifdef HAVE_WINDOW_SYSTEM
   if (display_hourglass_p)
@@ -510,7 +510,7 @@ usage: (setq [SYM VAL]...)  */)
       Lisp_Object sym = XCAR (tail), lex_binding;
       tail = XCDR (tail);
       if (!CONSP (tail))
-	xsignal2 (Qwrong_number_of_arguments, Qsetq, make_number (nargs + 1));
+	xsignal2 (Qwrong_number_of_arguments, Qsetq, make_fixnum (nargs + 1));
       Lisp_Object arg = XCAR (tail);
       tail = XCDR (tail);
       val = eval_sub (arg);
@@ -937,7 +937,7 @@ usage: (let VARLIST BODY...)  */)
   CHECK_LIST (varlist);
 
   /* Make space to hold the values to give the bound variables.  */
-  EMACS_INT varlist_len = XFASTINT (Flength (varlist));
+  EMACS_INT varlist_len = XFIXNAT (Flength (varlist));
   SAFE_ALLOCA_LISP (temps, varlist_len);
   ptrdiff_t nvars = varlist_len;
 
@@ -1990,12 +1990,12 @@ this does nothing and returns nil.  */)
       && !AUTOLOADP (XSYMBOL (function)->u.s.function))
     return Qnil;
 
-  if (!NILP (Vpurify_flag) && EQ (docstring, make_number (0)))
+  if (!NILP (Vpurify_flag) && EQ (docstring, make_fixnum (0)))
     /* `read1' in lread.c has found the docstring starting with "\
        and assumed the docstring will be provided by Snarf-documentation, so it
        passed us 0 instead.  But that leads to accidental sharing in purecopy's
        hash-consing, so we use a (hopefully) unique integer instead.  */
-    docstring = make_number (XHASH (function));
+    docstring = make_fixnum (XHASH (function));
   return Fdefalias (function,
 		    list5 (Qautoload, file, docstring, interactive, type),
 		    Qnil);
@@ -2015,7 +2015,7 @@ un_autoload (Lisp_Object oldqueue)
       first = XCAR (queue);
       second = Fcdr (first);
       first = Fcar (first);
-      if (EQ (first, make_number (0)))
+      if (EQ (first, make_fixnum (0)))
 	Vfeatures = second;
       else
 	Ffset (first, second);
@@ -2040,7 +2040,7 @@ it defines a macro.  */)
   if (!CONSP (fundef) || !EQ (Qautoload, XCAR (fundef)))
     return fundef;
 
-  Lisp_Object kind = Fnth (make_number (4), fundef);
+  Lisp_Object kind = Fnth (make_fixnum (4), fundef);
   if (EQ (macro_only, Qmacro)
       && !(EQ (kind, Qt) || EQ (kind, Qmacro)))
     return fundef;
@@ -2229,9 +2229,9 @@ eval_sub (Lisp_Object form)
 
       check_cons_list ();
 
-      if (XINT (numargs) < XSUBR (fun)->min_args
+      if (XFIXNUM (numargs) < XSUBR (fun)->min_args
 	  || (XSUBR (fun)->max_args >= 0
-	      && XSUBR (fun)->max_args < XINT (numargs)))
+	      && XSUBR (fun)->max_args < XFIXNUM (numargs)))
 	xsignal2 (Qwrong_number_of_arguments, original_fun, numargs);
 
       else if (XSUBR (fun)->max_args == UNEVALLED)
@@ -2243,9 +2243,9 @@ eval_sub (Lisp_Object form)
 	  ptrdiff_t argnum = 0;
 	  USE_SAFE_ALLOCA;
 
-	  SAFE_ALLOCA_LISP (vals, XINT (numargs));
+	  SAFE_ALLOCA_LISP (vals, XFIXNUM (numargs));
 
-	  while (CONSP (args_left) && argnum < XINT (numargs))
+	  while (CONSP (args_left) && argnum < XFIXNUM (numargs))
 	    {
 	      Lisp_Object arg = XCAR (args_left);
 	      args_left = XCDR (args_left);
@@ -2275,7 +2275,7 @@ eval_sub (Lisp_Object form)
 	      args_left = Fcdr (args_left);
 	    }
 
-	  set_backtrace_args (specpdl + count, argvals, XINT (numargs));
+	  set_backtrace_args (specpdl + count, argvals, XFIXNUM (numargs));
 
 	  switch (i)
 	    {
@@ -2388,7 +2388,7 @@ usage: (apply FUNCTION &rest ARGUMENTS)  */)
 
   CHECK_LIST (spread_arg);
 
-  numargs = XINT (Flength (spread_arg));
+  numargs = XFIXNUM (Flength (spread_arg));
 
   if (numargs == 0)
     return Ffuncall (nargs - 1, args);
@@ -2862,7 +2862,7 @@ funcall_subr (struct Lisp_Subr *subr, ptrdiff_t numargs, Lisp_Object *args)
     {
       Lisp_Object fun;
       XSETSUBR (fun, subr);
-      xsignal2 (Qwrong_number_of_arguments, fun, make_number (numargs));
+      xsignal2 (Qwrong_number_of_arguments, fun, make_fixnum (numargs));
     }
 
   else if (subr->max_args == UNEVALLED)
@@ -2943,7 +2943,7 @@ apply_lambda (Lisp_Object fun, Lisp_Object args, ptrdiff_t count)
   Lisp_Object tem;
   USE_SAFE_ALLOCA;
 
-  numargs = XFASTINT (Flength (args));
+  numargs = XFIXNAT (Flength (args));
   SAFE_ALLOCA_LISP (arg_vector, numargs);
   args_left = args;
 
@@ -3005,7 +3005,7 @@ funcall_lambda (Lisp_Object fun, ptrdiff_t nargs,
       if (size <= COMPILED_STACK_DEPTH)
 	xsignal1 (Qinvalid_function, fun);
       syms_left = AREF (fun, COMPILED_ARGLIST);
-      if (INTEGERP (syms_left))
+      if (FIXNUMP (syms_left))
 	/* A byte-code object with an integer args template means we
 	   shouldn't bind any arguments, instead just call the byte-code
 	   interpreter directly; it will push arguments as necessary.
@@ -3066,7 +3066,7 @@ funcall_lambda (Lisp_Object fun, ptrdiff_t nargs,
 	  else if (i < nargs)
 	    arg = arg_vector[i++];
 	  else if (!optional)
-	    xsignal2 (Qwrong_number_of_arguments, fun, make_number (nargs));
+	    xsignal2 (Qwrong_number_of_arguments, fun, make_fixnum (nargs));
 	  else
 	    arg = Qnil;
 
@@ -3083,7 +3083,7 @@ funcall_lambda (Lisp_Object fun, ptrdiff_t nargs,
   if (!NILP (syms_left))
     xsignal1 (Qinvalid_function, fun);
   else if (i < nargs)
-    xsignal2 (Qwrong_number_of_arguments, fun, make_number (nargs));
+    xsignal2 (Qwrong_number_of_arguments, fun, make_fixnum (nargs));
 
   if (!EQ (lexenv, Vinternal_interpreter_environment))
     /* Instantiate a new lexical environment.  */
@@ -3190,7 +3190,7 @@ lambda_arity (Lisp_Object fun)
       if (size <= COMPILED_STACK_DEPTH)
 	xsignal1 (Qinvalid_function, fun);
       syms_left = AREF (fun, COMPILED_ARGLIST);
-      if (INTEGERP (syms_left))
+      if (FIXNUMP (syms_left))
         return get_byte_code_arity (syms_left);
     }
   else
@@ -3205,7 +3205,7 @@ lambda_arity (Lisp_Object fun)
 	xsignal1 (Qinvalid_function, fun);
 
       if (EQ (next, Qand_rest))
-	return Fcons (make_number (minargs), Qmany);
+	return Fcons (make_fixnum (minargs), Qmany);
       else if (EQ (next, Qand_optional))
 	optional = true;
       else
@@ -3219,7 +3219,7 @@ lambda_arity (Lisp_Object fun)
   if (!NILP (syms_left))
     xsignal1 (Qinvalid_function, fun);
 
-  return Fcons (make_number (minargs), make_number (maxargs));
+  return Fcons (make_fixnum (minargs), make_fixnum (maxargs));
 }
 
 DEFUN ("fetch-bytecode", Ffetch_bytecode, Sfetch_bytecode,
@@ -3646,11 +3646,11 @@ get_backtrace_frame (Lisp_Object nframes, Lisp_Object base)
 {
   register EMACS_INT i;
 
-  CHECK_NATNUM (nframes);
+  CHECK_FIXNAT (nframes);
   union specbinding *pdl = get_backtrace_starting_at (base);
 
   /* Find the frame requested.  */
-  for (i = XFASTINT (nframes); i > 0 && backtrace_p (pdl); i--)
+  for (i = XFIXNAT (nframes); i > 0 && backtrace_p (pdl); i--)
     pdl = backtrace_next (pdl);
 
   return pdl;
@@ -3680,7 +3680,7 @@ DEFUN ("backtrace-debug", Fbacktrace_debug, Sbacktrace_debug, 2, 2, 0,
 The debugger is entered when that frame exits, if the flag is non-nil.  */)
   (Lisp_Object level, Lisp_Object flag)
 {
-  CHECK_NUMBER (level);
+  CHECK_FIXNUM (level);
   union specbinding *pdl = get_backtrace_frame(level, Qnil);
 
   if (backtrace_p (pdl))
@@ -3851,7 +3851,7 @@ NFRAMES and BASE specify the activation frame to use, as in `backtrace-frame'.  
 {
   union specbinding *frame = get_backtrace_frame (nframes, base);
   union specbinding *prevframe
-    = get_backtrace_frame (make_number (XFASTINT (nframes) - 1), base);
+    = get_backtrace_frame (make_fixnum (XFIXNAT (nframes) - 1), base);
   ptrdiff_t distance = specpdl_ptr - frame;
   Lisp_Object result = Qnil;
   eassert (distance >= 0);
