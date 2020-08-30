@@ -961,6 +961,7 @@ AS_IF([test $gl_gcc_warnings = no],
   nw="$nw -Wsync-nand"              # irrelevant here, and provokes ObjC warning
   nw="$nw -Wunsafe-loop-optimizations" # OK to suppress unsafe optimizations
   nw="$nw -Wbad-function-cast"      # These casts are no worse than others.
+  nw="$nw -Wabi"                    # Not useful, perceived as noise
 
   # Emacs doesn't care about shadowing; see
   # <https://lists.gnu.org/r/emacs-diffs/2011-11/msg00265.html>.
@@ -4176,6 +4177,33 @@ AC_SUBST(KRB5LIB)
 AC_SUBST(DESLIB)
 AC_SUBST(KRB4LIB)
 
+AC_ARG_WITH([mini-gmp],
+  [AS_HELP_STRING([--without-mini-gmp],
+		  [don't compile and use mini-gmp, a substitute for the
+		   GNU Multiple Precision (GMP) library; this is the
+		   default on systems with recent-enough GMP.])])
+GMP_LIB=
+GMP_OBJ=mini-gmp-emacs.o
+HAVE_GMP=no
+case $with_mini_gmp in
+  yes) ;;
+  no) HAVE_GMP=yes GMP_LIB=-lgmp;;
+  *) AC_CHECK_HEADERS([gmp.h],
+       [OLIBS=$LIBS
+	AC_SEARCH_LIBS([__gmpz_roinit_n], [gmp])
+	LIBS=$OLIBS
+	case $ac_cv_search___gmpz_roinit_n in
+	  'none needed') HAVE_GMP=yes;;
+	  -*) HAVE_GMP=yes GMP_LIB=$ac_cv_search___gmpz_roinit_n;;
+	esac]);;
+esac
+if test "$HAVE_GMP" = yes; then
+  GMP_OBJ=
+  AC_DEFINE([HAVE_GMP], 1, [Define to 1 if you have recent-enough GMP.])
+fi
+AC_SUBST([GMP_LIB])
+AC_SUBST([GMP_OBJ])
+
 AC_CHECK_HEADERS(valgrind/valgrind.h)
 
 AC_CHECK_MEMBERS([struct unipair.unicode], [], [], [[#include <linux/kd.h>]])
@@ -5301,8 +5329,8 @@ optsep=
 emacs_config_features=
 for opt in XPM JPEG TIFF GIF PNG RSVG CAIRO IMAGEMAGICK SOUND GPM DBUS \
   GCONF GSETTINGS NOTIFY ACL LIBSELINUX GNUTLS LIBXML2 FREETYPE M17N_FLT \
-  LIBOTF XFT ZLIB X_TOOLKIT X11 NS MODULES \
-  THREADS XWIDGETS LIBSYSTEMD JSON CANNOT_DUMP LCMS2; do
+  LIBOTF XFT ZLIB TOOLKIT_SCROLL_BARS X_TOOLKIT OLDXMENU X11 NS MODULES \
+  THREADS XWIDGETS LIBSYSTEMD JSON CANNOT_DUMP LCMS2 GMP; do
 
     case $opt in
       CANNOT_DUMP) eval val=\${$opt} ;;
@@ -5353,6 +5381,8 @@ AS_ECHO(["  Does Emacs use -lXpm?                                   ${HAVE_XPM}
   Does Emacs use -lxft?                                   ${HAVE_XFT}
   Does Emacs use -lsystemd?                               ${HAVE_LIBSYSTEMD}
   Does Emacs use -ljansson?                               ${HAVE_JSON}
+  Does Emacs use -lgmp?                                   ${HAVE_GMP}
+  Does Emacs directly use zlib?                           ${HAVE_ZLIB}
   Does Emacs have dynamic modules support?                ${HAVE_MODULES}
   Does Emacs support Xwidgets (requires gtk3)?            ${HAVE_XWIDGETS}
   Does Emacs have threading support in lisp?              ${threads_enabled}

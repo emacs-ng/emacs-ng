@@ -36,7 +36,7 @@
 #include "nsterm.h"
 #include "process.h"
 #include "puresize.h"
-#include "regex.h"
+/* #include "regex.h" */
 #include "region-cache.h"
 #include "remacs-lib.h"
 #include "sheap.h"

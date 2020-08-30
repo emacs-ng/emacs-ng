@@ -97,7 +97,6 @@ extern "C" {
     ) -> Lisp_Object;
     pub static minibuf_prompt: LispObject;
     pub fn add_process_read_fd(fd: libc::c_int);
-    pub fn allocate_misc(t: Lisp_Misc_Type) -> LispObject;
     #[cfg(windows)]
     pub fn file_attributes_c(filename: LispObject, id_format: LispObject) -> LispObject;
     pub fn getloadaverage(loadavg: *mut libc::c_double, nelem: libc::c_int) -> libc::c_int;
