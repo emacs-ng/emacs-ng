@@ -253,6 +253,16 @@
            (format-time-string "%Y-%m-%d %H:%M:%S.%3N %z" nil
                                (concat (make-string 2048 ?X) "0")))))
 
+(defun editfns-tests--have-leap-seconds ()
+  (string-equal (format-time-string "%Y-%m-%d %H:%M:%S" 78796800 t)
+                "1972-06-30 23:59:60"))
+
+(ert-deftest format-time-string-with-bignum-on-32-bit ()
+  (should (or (string-equal
+               (format-time-string "%Y-%m-%d %H:%M:%S" (- (ash 1 31) 3600) t)
+               "2038-01-19 02:14:08")
+              (editfns-tests--have-leap-seconds))))
+
 (ert-deftest format-with-field ()
   (should (equal (format "First argument %2$s, then %3$s, then %1$s" 1 2 3)
                  "First argument 2, then 3, then 1"))
@@ -381,10 +391,23 @@
   (let* ((s1 "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
          (v1 (read (concat "#x" s1)))
          (s2 "99999999999999999999999999999999")
-         (v2 (read s2)))
+         (v2 (read s2))
+         (v3 #x-3ffffffffffffffe000000000000000))
     (should (> v1 most-positive-fixnum))
     (should (equal (format "%X" v1) s1))
     (should (> v2 most-positive-fixnum))
-    (should (equal (format "%d" v2) s2))))
+    (should (equal (format "%d" v2) s2))
+    (should (equal (format "%d" v3) "-5316911983139663489309385231907684352"))
+    (should (equal (format "%+d" v3) "-5316911983139663489309385231907684352"))
+    (should (equal (format "%+d" (- v3))
+                   "+5316911983139663489309385231907684352"))
+    (should (equal (format "% d" (- v3))
+                   " 5316911983139663489309385231907684352"))
+    (should (equal (format "%o" v3)
+                   "-37777777777777777777600000000000000000000"))
+    (should (equal (format "%#50.40x" v3)
+                   "        -0x000000003ffffffffffffffe000000000000000"))
+    (should (equal (format "%-#50.40x" v3)
+                   "-0x000000003ffffffffffffffe000000000000000        "))))
 
 ;;; editfns-tests.el ends here

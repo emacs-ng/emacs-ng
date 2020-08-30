@@ -929,8 +929,8 @@ usage: (define-charset-internal ...)  */)
 
       if (code < charset.min_code
 	  || code > charset.max_code)
-	args_out_of_range_3 (make_fixnum_or_float (charset.min_code),
-			     make_fixnum_or_float (charset.max_code), val);
+	args_out_of_range_3 (INT_TO_INTEGER (charset.min_code),
+			     INT_TO_INTEGER (charset.max_code), val);
       charset.char_index_offset = CODE_POINT_TO_INDEX (&charset, code);
       charset.min_code = code;
     }
@@ -942,8 +942,8 @@ usage: (define-charset-internal ...)  */)
 
       if (code < charset.min_code
 	  || code > charset.max_code)
-	args_out_of_range_3 (make_fixnum_or_float (charset.min_code),
-			     make_fixnum_or_float (charset.max_code), val);
+	args_out_of_range_3 (INT_TO_INTEGER (charset.min_code),
+			     INT_TO_INTEGER (charset.max_code), val);
       charset.max_code = code;
     }
 
@@ -1852,7 +1852,8 @@ DEFUN ("decode-char", Fdecode_char, Sdecode_char, 2, 2, 0,
        doc: /* Decode the pair of CHARSET and CODE-POINT into a character.
 Return nil if CODE-POINT is not valid in CHARSET.
 
-CODE-POINT may be a cons (HIGHER-16-BIT-VALUE . LOWER-16-BIT-VALUE).  */)
+CODE-POINT may be a cons (HIGHER-16-BIT-VALUE . LOWER-16-BIT-VALUE),
+although this usage is obsolescent.  */)
   (Lisp_Object charset, Lisp_Object code_point)
 {
   int c, id;
@@ -1869,7 +1870,9 @@ CODE-POINT may be a cons (HIGHER-16-BIT-VALUE . LOWER-16-BIT-VALUE).  */)
 
 DEFUN ("encode-char", Fencode_char, Sencode_char, 2, 2, 0,
        doc: /* Encode the character CH into a code-point of CHARSET.
-Return nil if CHARSET doesn't include CH.  */)
+Return the encoded code-point, a fixnum if its value is small enough,
+otherwise a bignum.
+Return nil if CHARSET doesn't support CH.  */)
   (Lisp_Object ch, Lisp_Object charset)
 {
   int c, id;
@@ -1883,7 +1886,14 @@ Return nil if CHARSET doesn't include CH.  */)
   code = ENCODE_CHAR (charsetp, c);
   if (code == CHARSET_INVALID_CODE (charsetp))
     return Qnil;
-  return INTEGER_TO_CONS (code);
+  /* There are much fewer codepoints in the world than we have positive
+     fixnums, so it could be argued that we never really need a bignum,
+     e.g. Unicode codepoints only need 21bit, and China's GB-10830
+     can fit in 22bit.  Yet we encode GB-10830's chars in a sparse way
+     (we just take the 4byte sequences as a 32bit int), so some
+     GB-10830 chars (such as 0x81308130 in etc/charsets/gb108304.map) end
+     up represented as bignums if EMACS_INT is 32 bits.  */
+  return INT_TO_INTEGER (code);
 }
 
 

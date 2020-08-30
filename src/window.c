@@ -1383,8 +1383,8 @@ If they are in the windows's left or right marginal areas, `left-margin'\n\
   CHECK_CONS (coordinates);
   lx = Fcar (coordinates);
   ly = Fcdr (coordinates);
-  CHECK_FIXNUM_OR_FLOAT (lx);
-  CHECK_FIXNUM_OR_FLOAT (ly);
+  CHECK_NUMBER (lx);
+  CHECK_NUMBER (ly);
   x = FRAME_PIXEL_X_FROM_CANON_X (f, lx) + FRAME_INTERNAL_BORDER_WIDTH (f);
   y = FRAME_PIXEL_Y_FROM_CANON_Y (f, ly) + FRAME_INTERNAL_BORDER_WIDTH (f);
 
@@ -1533,9 +1533,8 @@ column 0.  */)
 {
   struct frame *f = decode_live_frame (frame);
 
-  /* Check that arguments are integers or floats.  */
-  CHECK_FIXNUM_OR_FLOAT (x);
-  CHECK_FIXNUM_OR_FLOAT (y);
+  CHECK_NUMBER (x);
+  CHECK_NUMBER (y);
 
   return window_from_coordinates (f,
 				  (FRAME_PIXEL_X_FROM_CANON_X (f, x)
@@ -1972,7 +1971,7 @@ though when run from an idle timer with a delay of zero seconds.  */)
     row = (NILP (body)
 	   ? MATRIX_ROW (w->current_matrix, 0)
 	   : MATRIX_FIRST_TEXT_ROW (w->current_matrix));
-  else if (FIXED_OR_FLOATP (first))
+  else if (FIXNUMP (first))
     {
       CHECK_RANGED_INTEGER (first, 0, w->current_matrix->nrows);
       row = MATRIX_ROW (w->current_matrix, XFIXNUM (first));
@@ -1985,7 +1984,7 @@ though when run from an idle timer with a delay of zero seconds.  */)
     end_row = (NILP (body)
 	       ? MATRIX_ROW (w->current_matrix, w->current_matrix->nrows)
 	       : MATRIX_BOTTOM_TEXT_ROW (w->current_matrix, w));
-  else if (FIXED_OR_FLOATP (last))
+  else if (FIXNUMP (last))
     {
       CHECK_RANGED_INTEGER (last, 0, w->current_matrix->nrows);
       end_row = MATRIX_ROW (w->current_matrix, XFIXNUM (last));
@@ -3443,7 +3442,11 @@ run_window_size_change_functions (Lisp_Object frame)
 {
   struct frame *f = XFRAME (frame);
   struct window *r = XWINDOW (FRAME_ROOT_WINDOW (f));
-  Lisp_Object functions = Vwindow_size_change_functions;
+
+  if (NILP (Vrun_hooks)
+      || !(f->can_x_set_window_size)
+      || !(f->after_make_frame))
+    return;
 
   if (FRAME_WINDOW_CONFIGURATION_CHANGED (f)
       /* Here we implicitly exclude the possibility that the height of
@@ -3451,11 +3454,44 @@ run_window_size_change_functions (Lisp_Object frame)
 	 of FRAME's root window alone.  */
       || window_size_changed (r))
     {
-      while (CONSP (functions))
+      Lisp_Object globals = Fdefault_value (Qwindow_size_change_functions);
+      Lisp_Object windows = Fwindow_list (frame, Qlambda, Qnil);
+      /* The buffers for which the local hook was already run.  */
+      Lisp_Object buffers = Qnil;
+
+      for (; CONSP (windows); windows = XCDR (windows))
 	{
-	  if (!EQ (XCAR (functions), Qt))
-	    safe_call1 (XCAR (functions), frame);
-	  functions = XCDR (functions);
+	  Lisp_Object window = XCAR (windows);
+	  Lisp_Object buffer = Fwindow_buffer (window);
+
+	  /* Run a buffer-local value only once for that buffer and
+	     only if at least one window showing that buffer on FRAME
+	     actually changed its size.  Note that the function is run
+	     with FRAME as its argument and as such oblivious to the
+	     window checked below.  */
+	  if (window_size_changed (XWINDOW (window))
+	      && !NILP (Flocal_variable_p (Qwindow_size_change_functions, buffer))
+	      && NILP (Fmemq (buffer, buffers)))
+	    {
+	      Lisp_Object locals
+		= Fbuffer_local_value (Qwindow_size_change_functions, buffer);
+
+	      while (CONSP (locals))
+		{
+		  if (!EQ (XCAR (locals), Qt))
+		    safe_call1 (XCAR (locals), frame);
+		  locals = XCDR (locals);
+		}
+
+	      buffers = Fcons (buffer, buffers);
+	    }
+	}
+
+      while (CONSP (globals))
+	{
+	  if (!EQ (XCAR (globals), Qt))
+	    safe_call1 (XCAR (globals), frame);
+	  globals = XCDR (globals);
 	}
 
       window_set_before_size_change_sizes (r);
@@ -3994,7 +4030,7 @@ window_resize_apply (struct window *w, bool horflag)
     {
       w->pixel_width = XFIXNAT (w->new_pixel);
       w->total_cols = w->pixel_width / unit;
-      if (FIXED_OR_FLOATP (w->new_normal))
+      if (NUMBERP (w->new_normal))
 	wset_normal_cols (w, w->new_normal);
 
       edge = w->pixel_left;
@@ -4003,7 +4039,7 @@ window_resize_apply (struct window *w, bool horflag)
     {
       w->pixel_height = XFIXNAT (w->new_pixel);
       w->total_lines = w->pixel_height / unit;
-      if (FIXED_OR_FLOATP (w->new_normal))
+      if (NUMBERP (w->new_normal))
 	wset_normal_lines (w, w->new_normal);
 
       edge = w->pixel_top;
@@ -6269,7 +6305,7 @@ struct save_window_data
     /* These are currently unused.  We need them as soon as we convert
        to pixels.  */
     int frame_menu_bar_height, frame_tool_bar_height;
-  };
+  } GCALIGNED_STRUCT;
 
 /* This is saved as a Lisp_Vector.  */
 struct saved_window
@@ -7360,7 +7396,7 @@ If PIXELS-P is non-nil, the return value is VSCROLL.  */)
   struct window *w = decode_live_window (window);
   struct frame *f = XFRAME (w->frame);
 
-  CHECK_FIXNUM_OR_FLOAT (vscroll);
+  CHECK_NUMBER (vscroll);
 
   if (FRAME_WINDOW_P (f))
     {
@@ -7557,6 +7593,7 @@ syms_of_window (void)
   Fput (Qscroll_down, Qscroll_command, Qt);
 
   DEFSYM (Qwindow_configuration_change_hook, "window-configuration-change-hook");
+  DEFSYM (Qwindow_size_change_functions, "window-size-change-functions");
   DEFSYM (Qwindowp, "windowp");
   DEFSYM (Qwindow_configuration_p, "window-configuration-p");
   DEFSYM (Qwindow_live_p, "window-live-p");

@@ -31,12 +31,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <inttypes.h>
 #include <limits.h>
 
-#ifdef HAVE_GMP
-# include <gmp.h>
-#else
-# include "mini-gmp.h"
-#endif
-
 #include <intprops.h>
 #include <verify.h>
 
@@ -226,7 +220,7 @@ extern bool suppress_checking EXTERNALLY_VISIBLE;
    USE_LSB_TAG not only requires the least 3 bits of pointers returned by
    malloc to be 0 but also needs to be able to impose a mult-of-8 alignment
    on some non-GC Lisp_Objects, all of which are aligned via
-   GCALIGNED_UNION at the end of a union.  */
+   GCALIGNED_UNION_MEMBER, GCALIGNED_STRUCT_MEMBER, and GCALIGNED_STRUCT.  */
 
 enum Lisp_Bits
   {
@@ -279,7 +273,35 @@ error !;
 # define GCALIGNMENT 1
 #endif
 
-#define GCALIGNED_UNION char alignas (GCALIGNMENT) gcaligned;
+/* If a struct is always allocated by the GC and is therefore always
+   GC-aligned, put GCALIGNED_STRUCT after its closing '}'; this can
+   help the compiler generate better code.
+
+   To cause a union to have alignment of at least GCALIGNMENT, put
+   GCALIGNED_UNION_MEMBER in its member list.  Similarly for a struct
+   and GCALIGNED_STRUCT_MEMBER, although this may make the struct a
+   bit bigger on non-GCC platforms.  Any struct using
+   GCALIGNED_STRUCT_MEMBER should also use GCALIGNED_STRUCT.
+
+   Although these macros are reasonably portable, they are not
+   guaranteed on non-GCC platforms, as C11 does not require support
+   for alignment to GCALIGNMENT and older compilers may ignore
+   alignment requests.  For any type T where garbage collection
+   requires alignment, use verify (GCALIGNED (T)) to verify the
+   requirement on the current platform.  Types need this check if
+   their objects can be allocated outside the garbage collector.  For
+   example, struct Lisp_Symbol needs the check because of lispsym and
+   struct Lisp_Cons needs it because of STACK_CONS.  */
+
+#define GCALIGNED_UNION_MEMBER char alignas (GCALIGNMENT) gcaligned;
+#if HAVE_STRUCT_ATTRIBUTE_ALIGNED
+# define GCALIGNED_STRUCT_MEMBER
+# define GCALIGNED_STRUCT __attribute__ ((aligned (GCALIGNMENT)))
+#else
+# define GCALIGNED_STRUCT_MEMBER GCALIGNED_UNION_MEMBER
+# define GCALIGNED_STRUCT
+#endif
+#define GCALIGNED(type) (alignof (type) % GCALIGNMENT == 0)
 
 /* Lisp_Word is a scalar word suitable for holding a tagged pointer or
    integer.  Usually it is a pointer to a deliberately-incomplete type
@@ -579,6 +601,11 @@ enum CHECK_LISP_OBJECT_TYPE { CHECK_LISP_OBJECT_TYPE = false };
 INLINE void set_sub_char_table_contents (Lisp_Object, ptrdiff_t,
 					      Lisp_Object);
 
+/* Defined in bignum.c.  */
+extern double bignum_to_double (Lisp_Object);
+extern Lisp_Object make_bigint (intmax_t);
+extern Lisp_Object make_biguint (uintmax_t);
+
 /* Defined in chartab.c.  */
 extern Lisp_Object char_table_ref (Lisp_Object, int);
 extern void char_table_set (Lisp_Object, int, Lisp_Object);
@@ -741,10 +768,10 @@ struct Lisp_Symbol
       /* Next symbol in obarray bucket, if the symbol is interned.  */
       struct Lisp_Symbol *next;
     } s;
-    GCALIGNED_UNION
+    GCALIGNED_UNION_MEMBER
   } u;
 };
-verify (alignof (struct Lisp_Symbol) % GCALIGNMENT == 0);
+verify (GCALIGNED (struct Lisp_Symbol));
 
 /* Declare a Lisp-callable function.  The MAXARGS parameter has the same
    meaning as in the DEFUN macro, and is used to construct a prototype.  */
@@ -833,7 +860,9 @@ typedef EMACS_UINT Lisp_Word_tag;
    and PSEUDOVECTORP cast their pointers to union vectorlike_header *,
    because when two such pointers potentially alias, a compiler won't
    incorrectly reorder loads and stores to their size fields.  See
-   Bug#8546.  */
+   Bug#8546.  This union formerly contained more members, and there's
+   no compelling reason to change it to a struct merely because the
+   number of members has been reduced to one.  */
 union vectorlike_header
   {
     /* The main member contains various pieces of information:
@@ -856,11 +885,7 @@ union vectorlike_header
 	 Current layout limits the pseudovectors to 63 PVEC_xxx subtypes,
 	 4095 Lisp_Objects in GC-ed area and 4095 word-sized other slots.  */
     ptrdiff_t size;
-    /* Align the union so that there is no padding after it.  */
-    Lisp_Object align;
-    GCALIGNED_UNION
   };
-verify (alignof (union vectorlike_header) % GCALIGNMENT == 0);
 
 INLINE bool
 (SYMBOLP) (Lisp_Object x)
@@ -1002,14 +1027,6 @@ enum More_Lisp_Bits
    values.  They are macros for use in static initializers.  */
 #define MOST_POSITIVE_FIXNUM (EMACS_INT_MAX >> INTTYPEBITS)
 #define MOST_NEGATIVE_FIXNUM (-1 - MOST_POSITIVE_FIXNUM)
-
-
-/* GMP-related limits.  */
-
-/* Number of data bits in a limb.  */
-#ifndef GMP_NUMB_BITS
-enum { GMP_NUMB_BITS = TYPE_WIDTH (mp_limb_t) };
-#endif
 
 #if USE_LSB_TAG
 
@@ -1242,10 +1259,10 @@ struct Lisp_Cons
 	struct Lisp_Cons *chain;
       } u;
     } s;
-    GCALIGNED_UNION
+    GCALIGNED_UNION_MEMBER
   } u;
 };
-verify (alignof (struct Lisp_Cons) % GCALIGNMENT == 0);
+verify (GCALIGNED (struct Lisp_Cons));
 
 INLINE bool
 (NILP) (Lisp_Object x)
@@ -1364,10 +1381,10 @@ struct Lisp_String
       unsigned char *data;
     } s;
     struct Lisp_String *next;
-    GCALIGNED_UNION
+    GCALIGNED_UNION_MEMBER
   } u;
 };
-verify (alignof (struct Lisp_String) % GCALIGNMENT == 0);
+verify (GCALIGNED (struct Lisp_String));
 
 INLINE bool
 STRINGP (Lisp_Object x)
@@ -1498,7 +1515,7 @@ struct Lisp_Vector
   {
     union vectorlike_header header;
     Lisp_Object contents[FLEXIBLE_ARRAY_MEMBER];
-  };
+  } GCALIGNED_STRUCT;
 
 INLINE bool
 (VECTORLIKEP) (Lisp_Object x)
@@ -1590,10 +1607,19 @@ struct Lisp_Bool_Vector
        The bits are in little-endian order in the bytes, and
        the bytes are in little-endian order in the words.  */
     bits_word data[FLEXIBLE_ARRAY_MEMBER];
-  };
+  } GCALIGNED_STRUCT;
 
 /* Some handy constants for calculating sizes
-   and offsets, mostly of vectorlike objects.   */
+   and offsets, mostly of vectorlike objects.
+
+   The garbage collector assumes that the initial part of any struct
+   that starts with a union vectorlike_header followed by N
+   Lisp_Objects (some possibly in arrays and/or a trailing flexible
+   array) will be laid out like a struct Lisp_Vector with N
+   Lisp_Objects.  This assumption is true in practice on known Emacs
+   targets even though the C standard does not guarantee it.  This
+   header contains a few sanity checks that should suffice to detect
+   violations of this assumption on plausible practical hosts.  */
 
 enum
   {
@@ -1601,7 +1627,6 @@ enum
     bool_header_size = offsetof (struct Lisp_Bool_Vector, data),
     word_size = sizeof (Lisp_Object)
   };
-verify (header_size == sizeof (union vectorlike_header));
 
 /* The number of data words and bytes in a bool vector with SIZE bits.  */
 
@@ -1756,7 +1781,8 @@ memclear (void *p, ptrdiff_t nbytes)
    ones that the GC needs to trace).  */
 
 #define PSEUDOVECSIZE(type, nonlispfield)			\
-  ((offsetof (type, nonlispfield) - header_size) / word_size)
+   (offsetof (type, nonlispfield) < header_size			\
+    ? 0 : (offsetof (type, nonlispfield) - header_size) / word_size)
 
 /* Compute A OP B, using the unsigned comparison operator OP.  A and B
    should be integer expressions.  This is not the same as
@@ -1821,7 +1847,7 @@ struct Lisp_Char_Table
 
     /* These hold additional data.  It is a vector.  */
     Lisp_Object extras[FLEXIBLE_ARRAY_MEMBER];
-  };
+  } GCALIGNED_STRUCT;
 
 INLINE bool
 CHAR_TABLE_P (Lisp_Object a)
@@ -1855,7 +1881,7 @@ struct Lisp_Sub_Char_Table
 
     /* Use set_sub_char_table_contents to set this.  */
     Lisp_Object contents[FLEXIBLE_ARRAY_MEMBER];
-  };
+  } GCALIGNED_STRUCT;
 
 INLINE bool
 SUB_CHAR_TABLE_P (Lisp_Object a)
@@ -1939,8 +1965,9 @@ struct Lisp_Subr
     const char *symbol_name;
     const char *intspec;
     EMACS_INT doc;
-    enum Lisp_Subr_Lang lang;
-  };
+    GCALIGNED_STRUCT_MEMBER
+  } GCALIGNED_STRUCT;
+verify (GCALIGNED (struct Lisp_Subr));
 
 INLINE bool
 SUBRP (Lisp_Object a)
@@ -1967,6 +1994,13 @@ enum char_table_specials
     SUB_CHAR_TABLE_OFFSET = PSEUDOVECSIZE (struct Lisp_Sub_Char_Table, contents)
   };
 
+/* Sanity-check pseudovector layout.  */
+verify (offsetof (struct Lisp_Char_Table, defalt) == header_size);
+verify (offsetof (struct Lisp_Char_Table, extras)
+	== header_size + CHAR_TABLE_STANDARD_SLOTS * sizeof (Lisp_Object));
+verify (offsetof (struct Lisp_Sub_Char_Table, contents)
+	== header_size + SUB_CHAR_TABLE_OFFSET * sizeof (Lisp_Object));
+
 /* Return the number of "extra" slots in the char table CT.  */
 
 INLINE int
@@ -1975,11 +2009,6 @@ CHAR_TABLE_EXTRA_SLOTS (struct Lisp_Char_Table *ct)
   return ((ct->header.size & PSEUDOVECTOR_SIZE_MASK)
 	  - CHAR_TABLE_STANDARD_SLOTS);
 }
-
-/* Make sure that sub char-table contents slot is where we think it is.  */
-verify (offsetof (struct Lisp_Sub_Char_Table, contents)
-	== (offsetof (struct Lisp_Vector, contents)
-	    + SUB_CHAR_TABLE_OFFSET * sizeof (Lisp_Object)));
 
 
 /* Save and restore the instruction and environment pointers,
@@ -2192,8 +2221,10 @@ struct Lisp_Hash_Table
   /* Next weak hash table if this is a weak hash table.  The head
      of the list is in weak_hash_tables.  */
   struct Lisp_Hash_Table *next_weak;
-};
+} GCALIGNED_STRUCT;
 
+/* Sanity-check pseudovector layout.  */
+verify (offsetof (struct Lisp_Hash_Table, weak) == header_size);
 
 INLINE bool
 HASH_TABLE_P (Lisp_Object a)
@@ -2311,7 +2342,7 @@ struct Lisp_Marker
      used to implement the functionality of markers, but rather to (ab)use
      markers as a cache for char<->byte mappings).  */
   ptrdiff_t bytepos;
-};
+} GCALIGNED_STRUCT;
 
 /* START and END are markers in the overlay's buffer, and
    PLIST is the overlay's property list.  */
@@ -2333,13 +2364,13 @@ struct Lisp_Overlay
     Lisp_Object end;
     Lisp_Object plist;
     struct Lisp_Overlay *next;
-  };
+  } GCALIGNED_STRUCT;
 
 struct Lisp_Misc_Ptr
   {
     union vectorlike_header header;
     void *pointer;
-  };
+  } GCALIGNED_STRUCT;
 
 extern Lisp_Object make_misc_ptr (void *);
 
@@ -2386,7 +2417,7 @@ struct Lisp_User_Ptr
   union vectorlike_header header;
   void (*finalizer) (void *);
   void *p;
-};
+} GCALIGNED_STRUCT;
 #endif
 
 /* A finalizer sentinel.  */
@@ -2402,7 +2433,7 @@ struct Lisp_Finalizer
     /* Circular list of all active weak references.  */
     struct Lisp_Finalizer *prev;
     struct Lisp_Finalizer *next;
-  };
+  } GCALIGNED_STRUCT;
 
 INLINE bool
 FINALIZERP (Lisp_Object x)
@@ -2458,23 +2489,10 @@ XUSER_PTR (Lisp_Object a)
 }
 #endif
 
-struct Lisp_Bignum
-{
-  union vectorlike_header header;
-  mpz_t value;
-};
-
 INLINE bool
 BIGNUMP (Lisp_Object x)
 {
   return PSEUDOVECTORP (x, PVEC_BIGNUM);
-}
-
-INLINE struct Lisp_Bignum *
-XBIGNUM (Lisp_Object a)
-{
-  eassert (BIGNUMP (a));
-  return XUNTAG (a, Lisp_Vectorlike, struct Lisp_Bignum);
 }
 
 INLINE bool
@@ -2482,6 +2500,22 @@ INTEGERP (Lisp_Object x)
 {
   return FIXNUMP (x) || BIGNUMP (x);
 }
+
+/* Return a Lisp integer with value taken from n.  */
+INLINE Lisp_Object
+make_int (intmax_t n)
+{
+  return FIXNUM_OVERFLOW_P (n) ? make_bigint (n) : make_fixnum (n);
+}
+INLINE Lisp_Object
+make_uint (uintmax_t n)
+{
+  return FIXNUM_OVERFLOW_P (n) ? make_biguint (n) : make_fixnum (n);
+}
+
+/* Return a Lisp integer equal to the value of the C integer EXPR.  */
+#define INT_TO_INTEGER(expr) \
+  (EXPR_SIGNED (expr) ? make_int (expr) : make_uint (expr))
 
 
 /* Forwarding pointer to an int variable.
@@ -2611,7 +2645,7 @@ struct Lisp_Float
       double data;
       struct Lisp_Float *chain;
     } u;
-  };
+  } GCALIGNED_STRUCT;
 
 INLINE bool
 (FLOATP) (Lisp_Object x)
@@ -2686,20 +2720,8 @@ enum char_bits
 /* Data type checking.  */
 
 INLINE bool
-FIXED_OR_FLOATP (Lisp_Object x)
-{
-  return FIXNUMP (x) || FLOATP (x);
-}
-INLINE bool
 FIXNATP (Lisp_Object x)
 {
-  return FIXNUMP (x) && 0 <= XFIXNUM (x);
-}
-INLINE bool
-NATNUMP (Lisp_Object x)
-{
-  if (BIGNUMP (x))
-    return mpz_sgn (XBIGNUM (x)->value) >= 0;
   return FIXNUMP (x) && 0 <= XFIXNUM (x);
 }
 INLINE bool
@@ -2846,15 +2868,9 @@ CHECK_FIXNAT (Lisp_Object x)
 INLINE double
 XFLOATINT (Lisp_Object n)
 {
-  if (BIGNUMP (n))
-    return mpz_get_d (XBIGNUM (n)->value);
-  return FLOATP (n) ? XFLOAT_DATA (n) : XFIXNUM (n);
-}
-
-INLINE void
-CHECK_FIXNUM_OR_FLOAT (Lisp_Object x)
-{
-  CHECK_TYPE (FIXED_OR_FLOATP (x), Qnumberp, x);
+  return (FIXNUMP (n) ? XFIXNUM (n)
+	  : FLOATP (n) ? XFLOAT_DATA (n)
+	  : bignum_to_double (n));
 }
 
 INLINE void
@@ -2868,14 +2884,6 @@ CHECK_INTEGER (Lisp_Object x)
 {
   CHECK_TYPE (INTEGERP (x), Qnumberp, x);
 }
-
-#define CHECK_FIXNUM_OR_FLOAT_COERCE_MARKER(x)				\
-  do {									\
-    if (MARKERP (x))							\
-      XSETFASTINT (x, marker_position (x));				\
-    else								\
-      CHECK_TYPE (FIXED_OR_FLOATP (x), Qnumber_or_marker_p, x);		\
-  } while (false)
 
 #define CHECK_NUMBER_COERCE_MARKER(x)					\
   do {									\
@@ -3344,6 +3352,49 @@ set_sub_char_table_contents (Lisp_Object table, ptrdiff_t idx, Lisp_Object val)
   XSUB_CHAR_TABLE (table)->contents[idx] = val;
 }
 
+/* Defined in bignum.c.  This part of bignum.c's API does not require
+   the caller to access bignum internals; see bignum.h for that.  */
+extern intmax_t bignum_to_intmax (Lisp_Object);
+extern uintmax_t bignum_to_uintmax (Lisp_Object);
+extern ptrdiff_t bignum_bufsize (Lisp_Object, int);
+extern ptrdiff_t bignum_to_c_string (char *, ptrdiff_t, Lisp_Object, int);
+extern Lisp_Object bignum_to_string (Lisp_Object, int);
+extern Lisp_Object make_bignum_str (char const *, int);
+extern Lisp_Object double_to_integer (double);
+
+/* Converthe integer NUM to *N.  Return true if successful, false
+   (possibly setting *N) otherwise.  */
+INLINE bool
+integer_to_intmax (Lisp_Object num, intmax_t *n)
+{
+  if (FIXNUMP (num))
+    {
+      *n = XFIXNUM (num);
+      return true;
+    }
+  else
+    {
+      intmax_t i = bignum_to_intmax (num);
+      *n = i;
+      return i != 0;
+    }
+}
+INLINE bool
+integer_to_uintmax (Lisp_Object num, uintmax_t *n)
+{
+  if (FIXNUMP (num))
+    {
+      *n = XFIXNUM (num);
+      return 0 <= XFIXNUM (num);
+    }
+  else
+    {
+      uintmax_t i = bignum_to_uintmax (num);
+      *n = i;
+      return i != 0;
+    }
+}
+
 /* Defined in data.c.  */
 extern _Noreturn void wrong_choice (Lisp_Object, Lisp_Object);
 extern void notify_variable_watchers (Lisp_Object, Lisp_Object,
@@ -3360,16 +3411,6 @@ enum Arith_Comparison {
 };
 extern Lisp_Object arithcompare (Lisp_Object num1, Lisp_Object num2,
                                  enum Arith_Comparison comparison);
-
-/* Convert the integer I to an Emacs representation, either the integer
-   itself, or a cons of two or three integers, or if all else fails a float.
-   I should not have side effects.  */
-#define INTEGER_TO_CONS(i)					    \
-  (! FIXNUM_OVERFLOW_P (i)					    \
-   ? make_fixnum (i)						    \
-   : EXPR_SIGNED (i) ? intbig_to_lisp (i) : uintbig_to_lisp (i))
-extern Lisp_Object intbig_to_lisp (intmax_t);
-extern Lisp_Object uintbig_to_lisp (uintmax_t);
 
 /* Convert the Emacs representation CONS back to an integer of type
    TYPE, storing the result the variable VAR.  Signal an error if CONS
@@ -3616,22 +3657,6 @@ extern Lisp_Object list5 (Lisp_Object, Lisp_Object, Lisp_Object, Lisp_Object,
 			  Lisp_Object);
 enum constype {CONSTYPE_HEAP, CONSTYPE_PURE};
 extern Lisp_Object listn (enum constype, ptrdiff_t, Lisp_Object, ...);
-
-extern Lisp_Object make_bignum_str (const char *num, int base);
-extern Lisp_Object make_number (mpz_t value);
-extern void mpz_set_intmax_slow (mpz_t result, intmax_t v);
-
-INLINE void
-mpz_set_intmax (mpz_t result, intmax_t v)
-{
-  /* mpz_set_si works in terms of long, but Emacs may use a wider
-     integer type, and so sometimes will have to construct the mpz_t
-     by hand.  */
-  if (LONG_MIN <= v && v <= LONG_MAX)
-    mpz_set_si (result, v);
-  else
-    mpz_set_intmax_slow (result, v);
-}
 
 /* Build a frequently used 2/3/4-integer lists.  */
 
@@ -3987,7 +4012,7 @@ struct Lisp_Module_Function
   ptrdiff_t min_arity, max_arity;
   emacs_subr subr;
   void *data;
-};
+} GCALIGNED_STRUCT;
 
 INLINE bool
 MODULE_FUNCTIONP (Lisp_Object o)
@@ -4540,12 +4565,6 @@ extern void init_system_name (void);
    exceed the maximum for its promoted type.  This is called 'eabs'
    because 'abs' is reserved by the C standard.  */
 #define eabs(x)         ((x) < 0 ? -(x) : (x))
-
-/* Return a fixnum or float, depending on whether the integer VAL fits
-   in a Lisp fixnum.  */
-
-#define make_fixnum_or_float(val) \
-   (FIXNUM_OVERFLOW_P (val) ? make_float (val) : make_fixnum (val))
 
 /* SAFE_ALLOCA normally allocates memory on the stack, but if size is
    larger than MAX_ALLOCA, use xmalloc to avoid overflowing the stack.  */

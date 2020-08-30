@@ -665,7 +665,7 @@ read_filtered_event (bool no_switch_frame, bool ascii_required,
   delayed_switch_frame = Qnil;
 
   /* Compute timeout.  */
-  if (FIXED_OR_FLOATP (seconds))
+  if (NUMBERP (seconds))
     {
       double duration = XFLOATINT (seconds);
       struct timespec wait_time = dtotimespec (duration);
@@ -676,7 +676,7 @@ read_filtered_event (bool no_switch_frame, bool ascii_required,
  retry:
   do
     val = read_char (0, Qnil, (input_method ? Qnil : Qt), 0,
-		     FIXED_OR_FLOATP (seconds) ? &end_time : NULL);
+		     NUMBERP (seconds) ? &end_time : NULL);
   while (FIXNUMP (val) && XFIXNUM (val) == -2); /* wrong_kboard_jmpbuf */
 
   if (BUFFERP (val))
@@ -695,7 +695,7 @@ read_filtered_event (bool no_switch_frame, bool ascii_required,
       goto retry;
     }
 
-  if (ascii_required && !(FIXED_OR_FLOATP (seconds) && NILP (val)))
+  if (ascii_required && !(NUMBERP (seconds) && NILP (val)))
     {
       /* Convert certain symbols to their ASCII equivalents.  */
       if (SYMBOLP (val))
@@ -741,10 +741,14 @@ read_filtered_event (bool no_switch_frame, bool ascii_required,
 }
 
 DEFUN ("read-char", Fread_char, Sread_char, 0, 3, 0,
-       doc: /* Read a character from the command input (keyboard or macro).
+       doc: /* Read a character event from the command input (keyboard or macro).
 It is returned as a number.
-If the character has modifiers, they are resolved and reflected to the
-character code if possible (e.g. C-SPC -> 0).
+If the event has modifiers, they are resolved and reflected in the
+returned character code if possible (e.g. C-SPC yields 0 and C-a yields 97).
+If some of the modifiers cannot be reflected in the character code, the
+returned value will include those modifiers, and will not be a valid
+character code: it will fail the `characterp' test.  Use `event-basic-type'
+to recover the character code with the modifiers removed.
 
 If the user generates an event which is not a character (i.e. a mouse
 click or function key event), `read-char' signals an error.  As an
@@ -791,10 +795,14 @@ floating-point value.  */)
 }
 
 DEFUN ("read-char-exclusive", Fread_char_exclusive, Sread_char_exclusive, 0, 3, 0,
-       doc: /* Read a character from the command input (keyboard or macro).
+       doc: /* Read a character event from the command input (keyboard or macro).
 It is returned as a number.  Non-character events are ignored.
-If the character has modifiers, they are resolved and reflected to the
-character code if possible (e.g. C-SPC -> 0).
+If the event has modifiers, they are resolved and reflected in the
+returned character code if possible (e.g. C-SPC yields 0 and C-a yields 97).
+If some of the modifiers cannot be reflected in the character code, the
+returned value will include those modifiers, and will not be a valid
+character code: it will fail the `characterp' test.  Use `event-basic-type'
+to recover the character code with the modifiers removed.
 
 If the optional argument PROMPT is non-nil, display that as a prompt.
 If the optional argument INHERIT-INPUT-METHOD is non-nil and some
@@ -3161,7 +3169,7 @@ read1 (Lisp_Object readcharfun, int *pch, bool first_in_list)
 		      /* If it can be recursive, remember it for
 			 future substitutions.  */
 		      if (! SYMBOLP (tem)
-			  && ! FIXED_OR_FLOATP (tem)
+			  && ! NUMBERP (tem)
 			  && ! (STRINGP (tem) && !string_intervals (tem)))
 			{
 			  struct Lisp_Hash_Table *h2
@@ -3616,7 +3624,7 @@ substitute_object_recurse (struct subst *subst, Lisp_Object subtree)
      bother looking them up; we're done.  */
   if (SYMBOLP (subtree)
       || (STRINGP (subtree) && !string_intervals (subtree))
-      || FIXED_OR_FLOATP (subtree))
+      || NUMBERP (subtree))
     return subtree;
 
   /* If we've been to this node before, don't explore it again.  */
@@ -3762,6 +3770,7 @@ string_to_number (char const *string, int base, int flags)
 		cp++;
 	      while ('0' <= *cp && *cp <= '9');
 	    }
+#if IEEE_FLOATING_POINT
 	  else if (cp[-1] == '+'
 		   && cp[0] == 'I' && cp[1] == 'N' && cp[2] == 'F')
 	    {
@@ -3769,7 +3778,6 @@ string_to_number (char const *string, int base, int flags)
 	      cp += 3;
 	      value = INFINITY;
 	    }
-#if IEEE_FLOATING_POINT
 	  else if (cp[-1] == '+'
 		   && cp[0] == 'N' && cp[1] == 'a' && cp[2] == 'N')
 	    {

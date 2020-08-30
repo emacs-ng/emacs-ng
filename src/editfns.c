@@ -329,7 +329,7 @@ init_editfns (bool dumping)
   else
     {
       uid_t euid = geteuid ();
-      tem = make_fixnum_or_float (euid);
+      tem = INT_TO_INTEGER (euid);
     }
   Vuser_full_name = Fuser_full_name (tem);
 
@@ -1338,7 +1338,7 @@ This is based on the effective uid, not the real uid.
 Also, if the environment variables LOGNAME or USER are set,
 that determines the value of this function.
 
-If optional argument UID is an integer or a float, return the login name
+If optional argument UID is an integer, return the login name
 of the user with that uid, or nil if there is no such user.  */)
   (Lisp_Object uid)
 {
@@ -1378,38 +1378,38 @@ This ignores the environment variables LOGNAME and USER, so it differs from
 
 DEFUN ("user-uid", Fuser_uid, Suser_uid, 0, 0, 0,
        doc: /* Return the effective uid of Emacs.
-Value is an integer or a float, depending on the value.  */)
+Value is a fixnum, if it's small enough, otherwise a bignum.  */)
   (void)
 {
   uid_t euid = geteuid ();
-  return make_fixnum_or_float (euid);
+  return INT_TO_INTEGER (euid);
 }
 
 DEFUN ("user-real-uid", Fuser_real_uid, Suser_real_uid, 0, 0, 0,
        doc: /* Return the real uid of Emacs.
-Value is an integer or a float, depending on the value.  */)
+Value is a fixnum, if it's small enough, otherwise a bignum.  */)
   (void)
 {
   uid_t uid = getuid ();
-  return make_fixnum_or_float (uid);
+  return INT_TO_INTEGER (uid);
 }
 
 DEFUN ("group-gid", Fgroup_gid, Sgroup_gid, 0, 0, 0,
        doc: /* Return the effective gid of Emacs.
-Value is an integer or a float, depending on the value.  */)
+Value is a fixnum, if it's small enough, otherwise a bignum.  */)
   (void)
 {
   gid_t egid = getegid ();
-  return make_fixnum_or_float (egid);
+  return INT_TO_INTEGER (egid);
 }
 
 DEFUN ("group-real-gid", Fgroup_real_gid, Sgroup_real_gid, 0, 0, 0,
        doc: /* Return the real gid of Emacs.
-Value is an integer or a float, depending on the value.  */)
+Value is a fixnum, if it's small enough, otherwise a bignum.  */)
   (void)
 {
   gid_t gid = getgid ();
-  return make_fixnum_or_float (gid);
+  return INT_TO_INTEGER (gid);
 }
 
 DEFUN ("user-full-name", Fuser_full_name, Suser_full_name, 0, 1, 0,
@@ -1417,7 +1417,7 @@ DEFUN ("user-full-name", Fuser_full_name, Suser_full_name, 0, 1, 0,
 If the full name corresponding to Emacs's userid is not known,
 return "unknown".
 
-If optional argument UID is an integer or float, return the full name
+If optional argument UID is an integer, return the full name
 of the user with that uid, or nil if there is no such user.
 If UID is a string, return the full name of the user with that login
 name, or nil if there is no such user.  */)
@@ -1429,7 +1429,7 @@ name, or nil if there is no such user.  */)
 
   if (NILP (uid))
     return Vuser_full_name;
-  else if (FIXED_OR_FLOATP (uid))
+  else if (NUMBERP (uid))
     {
       uid_t u;
       CONS_TO_INTEGER (uid, uid_t, u);
@@ -1485,11 +1485,12 @@ DEFUN ("system-name", Fsystem_name, Ssystem_name, 0, 0, 0,
 }
 
 DEFUN ("emacs-pid", Femacs_pid, Semacs_pid, 0, 0, 0,
-       doc: /* Return the process ID of Emacs, as a number.  */)
+       doc: /* Return the process ID of Emacs, as a number.
+Value is a fixnum, if it's small enough, otherwise a bignum.  */)
   (void)
 {
   pid_t pid = getpid ();
-  return make_fixnum_or_float (pid);
+  return INT_TO_INTEGER (pid);
 }
 
 
@@ -1747,10 +1748,10 @@ disassemble_lisp_time (Lisp_Object specified_time, Lisp_Object *phigh,
 
       /* When combining components, require LOW to be an integer,
 	 as otherwise it would be a pain to add up times.  */
-      if (! FIXNUMP (low))
+      if (! INTEGERP (low))
 	return 0;
     }
-  else if (FIXNUMP (specified_time))
+  else if (INTEGERP (specified_time))
     len = 2;
 
   *phigh = high;
@@ -1811,11 +1812,12 @@ decode_time_components (Lisp_Object high, Lisp_Object low, Lisp_Object usec,
 			Lisp_Object psec,
 			struct lisp_time *result, double *dresult)
 {
-  EMACS_INT hi, lo, us, ps;
+  EMACS_INT hi, us, ps;
+  intmax_t lo;
   if (! (FIXNUMP (high)
 	 && FIXNUMP (usec) && FIXNUMP (psec)))
     return 0;
-  if (! FIXNUMP (low))
+  if (! INTEGERP (low))
     {
       if (FLOATP (low))
 	{
@@ -1845,7 +1847,8 @@ decode_time_components (Lisp_Object high, Lisp_Object low, Lisp_Object usec,
     }
 
   hi = XFIXNUM (high);
-  lo = XFIXNUM (low);
+  if (! integer_to_intmax (low, &lo))
+    return -1;
   us = XFIXNUM (usec);
   ps = XFIXNUM (psec);
 
@@ -1853,7 +1856,8 @@ decode_time_components (Lisp_Object high, Lisp_Object low, Lisp_Object usec,
      each overflow into the next higher-order component.  */
   us += ps / 1000000 - (ps % 1000000 < 0);
   lo += us / 1000000 - (us % 1000000 < 0);
-  hi += lo >> LO_TIME_BITS;
+  if (INT_ADD_WRAPV (lo >> LO_TIME_BITS, hi, &hi))
+    return -1;
   ps = ps % 1000000 + 1000000 * (ps % 1000000 < 0);
   us = us % 1000000 + 1000000 * (us % 1000000 < 0);
   lo &= (1 << LO_TIME_BITS) - 1;
@@ -4236,8 +4240,26 @@ usage: (format-message STRING &rest OBJECTS)  */)
 static Lisp_Object
 styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 {
+  enum
+  {
+   /* Maximum precision for a %f conversion such that the trailing
+      output digit might be nonzero.  Any precision larger than this
+      will not yield useful information.  */
+   USEFUL_PRECISION_MAX = ((1 - LDBL_MIN_EXP)
+			   * (FLT_RADIX == 2 || FLT_RADIX == 10 ? 1
+			      : FLT_RADIX == 16 ? 4
+			      : -1)),
+
+   /* Maximum number of bytes (including terminating null) generated
+      by any format, if precision is no more than USEFUL_PRECISION_MAX.
+      On all practical hosts, %Lf is the worst case.  */
+   SPRINTF_BUFSIZE = (sizeof "-." + (LDBL_MAX_10_EXP + 1)
+		      + USEFUL_PRECISION_MAX)
+  };
+  verify (USEFUL_PRECISION_MAX > 0);
+
   ptrdiff_t n;		/* The number of the next arg to substitute.  */
-  char initial_buffer[4000];
+  char initial_buffer[1000 + SPRINTF_BUFSIZE];
   char *buf = initial_buffer;
   ptrdiff_t bufsize = sizeof initial_buffer;
   ptrdiff_t max_bufsize = STRING_BYTES_BOUND + 1;
@@ -4342,8 +4364,14 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
       char const *convsrc = format;
       unsigned char format_char = *format++;
 
-      /* Bytes needed to represent the output of this conversion.  */
+      /* Number of bytes to be preallocated for the next directive's
+	 output.  At the end of each iteration this is at least
+	 CONVBYTES_ROOM, and is greater if the current directive
+	 output was so large that it will be retried after buffer
+	 reallocation.  */
       ptrdiff_t convbytes = 1;
+      enum { CONVBYTES_ROOM = SPRINTF_BUFSIZE - 1 };
+      eassert (p <= buf + bufsize - SPRINTF_BUFSIZE);
 
       if (format_char == '%')
 	{
@@ -4477,25 +4505,6 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 		conversion = 's';
 	      zero_flag = false;
 	    }
-	  else if ((conversion == 'd' || conversion == 'i'
-		    || conversion == 'o' || conversion == 'x'
-		    || conversion == 'X')
-		   && BIGNUMP (arg))
-	    {
-	      int base = 10;
-
-	      if (conversion == 'o')
-		base = 8;
-	      else if (conversion == 'x')
-		base = 16;
-	      else if (conversion == 'X')
-		base = -16;
-
-	      char *str = mpz_get_str (NULL, base, XBIGNUM (arg)->value);
-	      arg = make_unibyte_string (str, strlen (str));
-	      xfree (str);
-	      conversion = 's';
-	    }
 
 	  if (SYMBOLP (arg))
 	    {
@@ -4598,7 +4607,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 		    spec->intervals = arg_intervals = true;
 
 		  new_result = true;
-		  continue;
+		  convbytes = CONVBYTES_ROOM;
 		}
 	    }
 	  else if (! (conversion == 'c' || conversion == 'd'
@@ -4612,39 +4621,8 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 	    error ("Format specifier doesn't match argument type");
 	  else
 	    {
-	      enum
-	      {
-		/* Lower bound on the number of bits per
-		   base-FLT_RADIX digit.  */
-		DIG_BITS_LBOUND = FLT_RADIX < 16 ? 1 : 4,
-
-		/* 1 if integers should be formatted as long doubles,
-		   because they may be so large that there is a rounding
-		   error when converting them to double, and long doubles
-		   are wider than doubles.  */
-		INT_AS_LDBL = (DIG_BITS_LBOUND * DBL_MANT_DIG < FIXNUM_BITS - 1
-			       && DBL_MANT_DIG < LDBL_MANT_DIG),
-
-		/* Maximum precision for a %f conversion such that the
-		   trailing output digit might be nonzero.  Any precision
-		   larger than this will not yield useful information.  */
-		USEFUL_PRECISION_MAX =
-		  ((1 - LDBL_MIN_EXP)
-		   * (FLT_RADIX == 2 || FLT_RADIX == 10 ? 1
-		      : FLT_RADIX == 16 ? 4
-		      : -1)),
-
-		/* Maximum number of bytes generated by any format, if
-		   precision is no more than USEFUL_PRECISION_MAX.
-		   On all practical hosts, %f is the worst case.  */
-		SPRINTF_BUFSIZE =
-		  sizeof "-." + (LDBL_MAX_10_EXP + 1) + USEFUL_PRECISION_MAX,
-
-		/* Length of pM (that is, of pMd without the
-		   trailing "d").  */
-		pMlen = sizeof pMd - 2
-	      };
-	      verify (USEFUL_PRECISION_MAX > 0);
+	      /* Length of pM (that is, of pMd without the trailing "d").  */
+	      enum { pMlen = sizeof pMd - 2 };
 
 	      /* Avoid undefined behavior in underlying sprintf.  */
 	      if (conversion == 'd' || conversion == 'i')
@@ -4655,7 +4633,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 		 with "L" possibly inserted for floating-point formats,
 		 and with pM inserted for integer formats.
 		 At most two flags F can be specified at once.  */
-	      char convspec[sizeof "%FF.*d" + max (INT_AS_LDBL, pMlen)];
+	      char convspec[sizeof "%FF.*d" + max (sizeof "L" - 1, pMlen)];
 	      char *f = convspec;
 	      *f++ = '%';
 	      /* MINUS_FLAG and ZERO_FLAG are dealt with later.  */
@@ -4664,15 +4642,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 	      *f = '#'; f += sharp_flag;
 	      *f++ = '.';
 	      *f++ = '*';
-	      if (float_conversion)
-		{
-		  if (INT_AS_LDBL)
-		    {
-		      *f = 'L';
-		      f += FIXNUMP (arg);
-		    }
-		}
-	      else if (conversion != 'c')
+	      if (! (float_conversion || conversion == 'c'))
 		{
 		  memcpy (f, pMd, pMlen);
 		  f += pMlen;
@@ -4685,46 +4655,113 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 	      if (precision_given)
 		prec = min (precision, USEFUL_PRECISION_MAX);
 
-	      /* Use sprintf to format this number into sprintf_buf.  Omit
-		 padding and excess precision, though, because sprintf limits
-		 output length to INT_MAX.
+	      /* Characters to be inserted after spaces and before
+		 leading zeros.  This can occur with bignums, since
+		 bignum_to_string does only leading '-'.  */
+	      char prefix[sizeof "-0x" - 1];
+	      int prefixlen = 0;
 
-		 There are four types of conversion: double, unsigned
+	      /* Use sprintf or bignum_to_string to format this number.  Omit
+		 padding and excess precision, though, because sprintf limits
+		 output length to INT_MAX and bignum_to_string doesn't
+		 do padding or precision.
+
+		 Use five sprintf conversions: double, long double, unsigned
 		 char (passed as int), wide signed int, and wide
 		 unsigned int.  Treat them separately because the
 		 sprintf ABI is sensitive to which type is passed.  Be
 		 careful about integer overflow, NaNs, infinities, and
 		 conversions; for example, the min and max macros are
 		 not suitable here.  */
-	      char sprintf_buf[SPRINTF_BUFSIZE];
 	      ptrdiff_t sprintf_bytes;
 	      if (float_conversion)
 		{
-		  if (INT_AS_LDBL && FIXNUMP (arg))
+		  /* Format as a long double if the arg is an integer
+		     that would lose less information than when formatting
+		     it as a double.  Otherwise, format as a double;
+		     this is likely to be faster and better-tested.  */
+
+		  bool format_as_long_double = false;
+		  double darg;
+		  long double ldarg;
+
+		  if (FLOATP (arg))
+		    darg = XFLOAT_DATA (arg);
+		  else
 		    {
-		      /* Although long double may have a rounding error if
-			 DIG_BITS_LBOUND * LDBL_MANT_DIG < FIXNUM_BITS - 1,
-			 it is more accurate than plain 'double'.  */
-		      long double x = XFIXNUM (arg);
-		      sprintf_bytes = sprintf (sprintf_buf, convspec, prec, x);
+		      bool format_bignum_as_double = false;
+		      if (LDBL_MANT_DIG <= DBL_MANT_DIG)
+			{
+			  if (FIXNUMP (arg))
+			    darg = XFIXNUM (arg);
+			  else
+			    format_bignum_as_double = true;
+			}
+		      else
+			{
+			  if (INTEGERP (arg))
+			    {
+			      intmax_t iarg;
+			      uintmax_t uarg;
+			      if (integer_to_intmax (arg, &iarg))
+				ldarg = iarg;
+			      else if (integer_to_uintmax (arg, &uarg))
+				ldarg = uarg;
+			      else
+				format_bignum_as_double = true;
+			    }
+			  if (!format_bignum_as_double)
+			    {
+			      darg = ldarg;
+			      format_as_long_double = darg != ldarg;
+			    }
+			}
+		      if (format_bignum_as_double)
+			darg = bignum_to_double (arg);
+		    }
+
+		  if (format_as_long_double)
+		    {
+		      f[-1] = 'L';
+		      *f++ = conversion;
+		      *f = '\0';
+		      sprintf_bytes = sprintf (p, convspec, prec, ldarg);
 		    }
 		  else
-		    sprintf_bytes = sprintf (sprintf_buf, convspec, prec,
-					     XFLOATINT (arg));
+		    sprintf_bytes = sprintf (p, convspec, prec, darg);
 		}
 	      else if (conversion == 'c')
 		{
 		  /* Don't use sprintf here, as it might mishandle prec.  */
-		  sprintf_buf[0] = XFIXNUM (arg);
+		  p[0] = XFIXNUM (arg);
+		  p[1] = '\0';
 		  sprintf_bytes = prec != 0;
-		  sprintf_buf[sprintf_bytes] = '\0';
+		}
+	      else if (BIGNUMP (arg))
+		{
+		  int base = ((conversion == 'd' || conversion == 'i') ? 10
+			      : conversion == 'o' ? 8 : 16);
+		  sprintf_bytes = bignum_bufsize (arg, base);
+		  if (sprintf_bytes <= buf + bufsize - p)
+		    {
+		      int signedbase = conversion == 'X' ? -base : base;
+		      sprintf_bytes = bignum_to_c_string (p, sprintf_bytes,
+							  arg, signedbase);
+		      bool negative = p[0] == '-';
+		      prec = min (precision, sprintf_bytes - prefixlen);
+		      prefix[prefixlen] = plus_flag ? '+' : ' ';
+		      prefixlen += (plus_flag | space_flag) & !negative;
+		      prefix[prefixlen] = '0';
+		      prefix[prefixlen + 1] = conversion;
+		      prefixlen += sharp_flag && base == 16 ? 2 : 0;
+		    }
 		}
 	      else if (conversion == 'd' || conversion == 'i')
 		{
 		  if (FIXNUMP (arg))
 		    {
 		      printmax_t x = XFIXNUM (arg);
-		      sprintf_bytes = sprintf (sprintf_buf, convspec, prec, x);
+		      sprintf_bytes = sprintf (p, convspec, prec, x);
 		    }
 		  else
 		    {
@@ -4736,9 +4773,8 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 		      x = trunc (x);
 		      x = x ? x : 0;
 
-		      sprintf_bytes = sprintf (sprintf_buf, convspec, 0, x);
-		      char c0 = sprintf_buf[0];
-		      bool signedp = ! ('0' <= c0 && c0 <= '9');
+		      sprintf_bytes = sprintf (p, convspec, 0, x);
+		      bool signedp = ! c_isdigit (p[0]);
 		      prec = min (precision, sprintf_bytes - signedp);
 		    }
 		}
@@ -4746,7 +4782,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 		{
 		  uprintmax_t x;
 		  bool negative;
-		  if (INTEGERP (arg))
+		  if (FIXNUMP (arg))
 		    {
 		      if (binary_as_unsigned)
 			{
@@ -4769,10 +4805,9 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 		      x = d;
 		      negative = false;
 		    }
-		  sprintf_buf[0] = negative ? '-' : plus_flag ? '+' : ' ';
+		  p[0] = negative ? '-' : plus_flag ? '+' : ' ';
 		  bool signedp = negative | plus_flag | space_flag;
-		  sprintf_bytes = sprintf (sprintf_buf + signedp,
-					   convspec, prec, x);
+		  sprintf_bytes = sprintf (p + signedp, convspec, prec, x);
 		  sprintf_bytes += signedp;
 		}
 
@@ -4780,112 +4815,126 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 		 padding and excess precision.  Deal with excess precision
 		 first.  This happens when the format specifies ridiculously
 		 large precision, or when %d or %i formats a float that would
-		 ordinarily need fewer digits than a specified precision.  */
+		 ordinarily need fewer digits than a specified precision,
+		 or when a bignum is formatted using an integer format
+		 with enough precision.  */
 	      ptrdiff_t excess_precision
 		= precision_given ? precision - prec : 0;
-	      ptrdiff_t leading_zeros = 0, trailing_zeros = 0;
-	      if (excess_precision)
+	      ptrdiff_t trailing_zeros = 0;
+	      if (excess_precision != 0 && float_conversion)
 		{
-		  if (float_conversion)
-		    {
-		      if ((conversion == 'g' && ! sharp_flag)
-			  || ! ('0' <= sprintf_buf[sprintf_bytes - 1]
-				&& sprintf_buf[sprintf_bytes - 1] <= '9'))
-			excess_precision = 0;
-		      else
-			{
-			  if (conversion == 'g')
-			    {
-			      char *dot = strchr (sprintf_buf, '.');
-			      if (!dot)
-				excess_precision = 0;
-			    }
-			}
-		      trailing_zeros = excess_precision;
-		    }
-		  else
-		    leading_zeros = excess_precision;
+		  if (! c_isdigit (p[sprintf_bytes - 1])
+		      || (conversion == 'g'
+			  && ! (sharp_flag && strchr (p, '.'))))
+		    excess_precision = 0;
+		  trailing_zeros = excess_precision;
 		}
+	      ptrdiff_t leading_zeros = excess_precision - trailing_zeros;
 
 	      /* Compute the total bytes needed for this item, including
 		 excess precision and padding.  */
 	      ptrdiff_t numwidth;
-	      if (INT_ADD_WRAPV (sprintf_bytes, excess_precision, &numwidth))
+	      if (INT_ADD_WRAPV (prefixlen + sprintf_bytes, excess_precision,
+				 &numwidth))
 		numwidth = PTRDIFF_MAX;
 	      ptrdiff_t padding
 		= numwidth < field_width ? field_width - numwidth : 0;
-	      if (max_bufsize - sprintf_bytes <= excess_precision
+	      if (max_bufsize - (prefixlen + sprintf_bytes) <= excess_precision
 		  || max_bufsize - padding <= numwidth)
 		string_overflow ();
 	      convbytes = numwidth + padding;
 
 	      if (convbytes <= buf + bufsize - p)
 		{
-		  /* Copy the formatted item from sprintf_buf into buf,
-		     inserting padding and excess-precision zeros.  */
-
-                  char *src = sprintf_buf;
-		  char src0 = src[0];
-		  int exponent_bytes = 0;
-		  bool signedp = src0 == '-' || src0 == '+' || src0 == ' ';
-		  int prefix_bytes = (signedp
-				      + ((src[signedp] == '0'
-					  && (src[signedp + 1] == 'x'
-					      || src[signedp + 1] == 'X'))
-					 ? 2 : 0));
-		  if (zero_flag)
+		  bool signedp = p[0] == '-' || p[0] == '+' || p[0] == ' ';
+		  int beglen = (signedp
+				   + ((p[signedp] == '0'
+				       && (p[signedp + 1] == 'x'
+					   || p[signedp + 1] == 'X'))
+				      ? 2 : 0));
+		  eassert (prefixlen == 0 || beglen == 0
+			   || (beglen == 1 && p[0] == '-'
+			       && ! (prefix[0] == '-' || prefix[0] == '+'
+				     || prefix[0] == ' ')));
+		  if (zero_flag && 0 <= char_hexdigit (p[beglen]))
 		    {
-		      unsigned char after_prefix = src[prefix_bytes];
-		      if (0 <= char_hexdigit (after_prefix))
-			{
-			  leading_zeros += padding;
-			  padding = 0;
-			}
+		      leading_zeros += padding;
+		      padding = 0;
+		    }
+		  if (leading_zeros == 0 && sharp_flag && conversion == 'o'
+		      && p[beglen] != '0')
+		    {
+		      leading_zeros++;
+		      padding -= padding != 0;
 		    }
 
-		  if (excess_precision
+		  int endlen = 0;
+		  if (trailing_zeros
 		      && (conversion == 'e' || conversion == 'g'))
 		    {
-		      char *e = strchr (src, 'e');
+		      char *e = strchr (p, 'e');
 		      if (e)
-			exponent_bytes = src + sprintf_bytes - e;
+			endlen = p + sprintf_bytes - e;
 		    }
 
+		  ptrdiff_t midlen = sprintf_bytes - beglen - endlen;
+		  ptrdiff_t leading_padding = minus_flag ? 0 : padding;
+		  ptrdiff_t trailing_padding = padding - leading_padding;
+
+		  /* Insert padding and excess-precision zeros.  The output
+		     contains the following components, in left-to-right order:
+
+		     LEADING_PADDING spaces.
+		     BEGLEN bytes taken from the start of sprintf output.
+		     PREFIXLEN bytes taken from the start of the prefix array.
+		     LEADING_ZEROS zeros.
+		     MIDLEN bytes taken from the middle of sprintf output.
+		     TRAILING_ZEROS zeros.
+		     ENDLEN bytes taken from the end of sprintf output.
+		     TRAILING_PADDING spaces.
+
+		     The sprintf output is taken from the buffer starting at
+		     P and continuing for SPRINTF_BYTES bytes.  */
+
+		  ptrdiff_t incr
+		    = (padding + leading_zeros + prefixlen
+		       + sprintf_bytes + trailing_zeros);
+
+		  /* Optimize for the typical case with padding or zeros.  */
+		  if (incr != sprintf_bytes)
+		    {
+		      /* Move data to make room to insert spaces and '0's.
+		         As this may entail overlapping moves, process
+			 the output right-to-left and use memmove.
+			 With any luck this code is rarely executed.  */
+		      char *src = p + sprintf_bytes;
+		      char *dst = p + incr;
+		      dst -= trailing_padding;
+		      memset (dst, ' ', trailing_padding);
+		      src -= endlen;
+		      dst -= endlen;
+		      memmove (dst, src, endlen);
+		      dst -= trailing_zeros;
+		      memset (dst, '0', trailing_zeros);
+		      src -= midlen;
+		      dst -= midlen;
+		      memmove (dst, src, midlen);
+		      dst -= leading_zeros;
+		      memset (dst, '0', leading_zeros);
+		      dst -= prefixlen;
+		      memcpy (dst, prefix, prefixlen);
+		      src -= beglen;
+		      dst -= beglen;
+		      memmove (dst, src, beglen);
+		      dst -= leading_padding;
+		      memset (dst, ' ', leading_padding);
+		    }
+
+		  p += incr;
 		  spec->start = nchars;
-		  if (! minus_flag)
-		    {
-		      memset (p, ' ', padding);
-		      p += padding;
-		      nchars += padding;
-		    }
-
-		  memcpy (p, src, prefix_bytes);
-		  p += prefix_bytes;
-		  src += prefix_bytes;
-		  memset (p, '0', leading_zeros);
-		  p += leading_zeros;
-		  int significand_bytes
-		    = sprintf_bytes - prefix_bytes - exponent_bytes;
-		  memcpy (p, src, significand_bytes);
-                  p += significand_bytes;
-		  src += significand_bytes;
-		  memset (p, '0', trailing_zeros);
-		  p += trailing_zeros;
-		  memcpy (p, src, exponent_bytes);
-		  p += exponent_bytes;
-
-		  nchars += leading_zeros + sprintf_bytes + trailing_zeros;
-
-		  if (minus_flag)
-		    {
-		      memset (p, ' ', padding);
-		      p += padding;
-		      nchars += padding;
-		    }
-		  spec->end = nchars;
-
+		  spec->end = nchars += incr;
 		  new_result = true;
-		  continue;
+		  convbytes = CONVBYTES_ROOM;
 		}
 	    }
 	}
@@ -4938,42 +4987,51 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 	    }
 
 	copy_char:
-	  if (convbytes <= buf + bufsize - p)
-	    {
-	      memcpy (p, convsrc, convbytes);
-	      p += convbytes;
-	      nchars++;
-	      continue;
-	    }
+	  memcpy (p, convsrc, convbytes);
+	  p += convbytes;
+	  nchars++;
+	  convbytes = CONVBYTES_ROOM;
 	}
-
-      /* There wasn't enough room to store this conversion or single
-	 character.  CONVBYTES says how much room is needed.  Allocate
-	 enough room (and then some) and do it again.  */
 
       ptrdiff_t used = p - buf;
-      if (max_bufsize - used < convbytes)
+      ptrdiff_t buflen_needed;
+      if (INT_ADD_WRAPV (used, convbytes, &buflen_needed))
 	string_overflow ();
-      bufsize = used + convbytes;
-      bufsize = bufsize < max_bufsize / 2 ? bufsize * 2 : max_bufsize;
-
-      if (buf == initial_buffer)
+      if (bufsize <= buflen_needed)
 	{
-	  buf = xmalloc (bufsize);
-	  buf_save_value_index = SPECPDL_INDEX ();
-	  record_unwind_protect_ptr (xfree, buf);
-	  memcpy (buf, initial_buffer, used);
-	}
-      else
-	{
-	  buf = xrealloc (buf, bufsize);
-	  set_unwind_protect_ptr (buf_save_value_index, xfree, buf);
-	}
+	  if (max_bufsize <= buflen_needed)
+	    string_overflow ();
 
-      p = buf + used;
-      format = format0;
-      n = n0;
-      ispec = ispec0;
+	  /* Either there wasn't enough room to store this conversion,
+	     or there won't be enough room to do a sprintf the next
+	     time through the loop.  Allocate enough room (and then some).  */
+
+	  bufsize = (buflen_needed <= max_bufsize / 2
+		     ? buflen_needed * 2 : max_bufsize);
+
+	  if (buf == initial_buffer)
+	    {
+	      buf = xmalloc (bufsize);
+	      buf_save_value_index = SPECPDL_INDEX ();
+	      record_unwind_protect_ptr (xfree, buf);
+	      memcpy (buf, initial_buffer, used);
+	    }
+	  else
+	    {
+	      buf = xrealloc (buf, bufsize);
+	      set_unwind_protect_ptr (buf_save_value_index, xfree, buf);
+	    }
+
+	  p = buf + used;
+	  if (convbytes != CONVBYTES_ROOM)
+	    {
+	      /* There wasn't enough room for this conversion; do it over.  */
+	      eassert (CONVBYTES_ROOM < convbytes);
+	      format = format0;
+	      n = n0;
+	      ispec = ispec0;
+	    }
+	}
     }
 
   if (bufsize < p - buf)

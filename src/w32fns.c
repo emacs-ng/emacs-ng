@@ -2027,7 +2027,7 @@ x_set_undecorated (struct frame *f, Lisp_Object new_value, Lisp_Object old_value
   if (!NILP (new_value) && !FRAME_UNDECORATED (f))
     {
       dwStyle = ((dwStyle & ~WS_THICKFRAME & ~WS_CAPTION)
-		 | ((FIXED_OR_FLOATP (border_width) && (XFIXNUM (border_width) > 0))
+		 | ((FIXNUMP (border_width) && (XFIXNUM (border_width) > 0))
 		    ? WS_BORDER : false));
       SetWindowLong (hwnd, GWL_STYLE, dwStyle);
       SetWindowPos (hwnd, HWND_TOP, 0, 0, 0, 0,
@@ -2334,7 +2334,7 @@ w32_createwindow (struct frame *f, int *coords)
       if (FRAME_UNDECORATED (f))
 	{
 	  /* If we want a thin border, specify it here.  */
-	  if (FIXED_OR_FLOATP (border_width) && (XFIXNUM (border_width) > 0))
+	  if (FIXNUMP (border_width) && (XFIXNUM (border_width) > 0))
 	    f->output_data.w32->dwStyle |= WS_BORDER;
 	}
       else
@@ -2350,7 +2350,7 @@ w32_createwindow (struct frame *f, int *coords)
       f->output_data.w32->dwStyle = WS_POPUP;
 
       /* If we want a thin border, specify it here.  */
-      if (FIXED_OR_FLOATP (border_width) && (XFIXNUM (border_width) > 0))
+      if (FIXNUMP (border_width) && (XFIXNUM (border_width) > 0))
 	f->output_data.w32->dwStyle |= WS_BORDER;
     }
   else
@@ -4199,7 +4199,7 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		 press of Space which we will ignore.  */
 	      if (GetAsyncKeyState (wParam) & 1)
 		{
-		  if (FIXED_OR_FLOATP (Vw32_phantom_key_code))
+		  if (FIXNUMP (Vw32_phantom_key_code))
 		    key = XUFIXNUM (Vw32_phantom_key_code) & 255;
 		  else
 		    key = VK_SPACE;
@@ -4215,7 +4215,7 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	    {
 	      if (GetAsyncKeyState (wParam) & 1)
 		{
-		  if (FIXED_OR_FLOATP (Vw32_phantom_key_code))
+		  if (FIXNUMP (Vw32_phantom_key_code))
 		    key = XUFIXNUM (Vw32_phantom_key_code) & 255;
 		  else
 		    key = VK_SPACE;
@@ -5921,11 +5921,11 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
      because `frame-windows-min-size' needs them.  */
   tem = x_get_arg (dpyinfo, parameters, Qmin_width, NULL, NULL,
 		   RES_TYPE_NUMBER);
-  if (FIXED_OR_FLOATP (tem))
+  if (FIXNUMP (tem))
     store_frame_param (f, Qmin_width, tem);
   tem = x_get_arg (dpyinfo, parameters, Qmin_height, NULL, NULL,
 		   RES_TYPE_NUMBER);
-  if (FIXED_OR_FLOATP (tem))
+  if (FIXNUMP (tem))
     store_frame_param (f, Qmin_height, tem);
   adjust_frame_size (f, FRAME_COLS (f) * FRAME_COLUMN_WIDTH (f),
 		     FRAME_LINES (f) * FRAME_LINE_HEIGHT (f), 5, true,
@@ -7430,7 +7430,7 @@ DEFUN ("x-show-tip", Fx_show_tip, Sx_show_tip, 1, 6, 0,
   /* Show tooltip frame.  */
   {
     RECT rect;
-    int pad = (FIXED_OR_FLOATP (Vw32_tooltip_extra_pixels)
+    int pad = (FIXNUMP (Vw32_tooltip_extra_pixels)
 	       ? max (0, XFIXNUM (Vw32_tooltip_extra_pixels))
 	       : FRAME_COLUMN_WIDTH (tip_f));
 
@@ -9431,7 +9431,7 @@ w32_console_toggle_lock_key (int vk_code, Lisp_Object new_state)
   int cur_state = (GetKeyState (vk_code) & 1);
 
   if (NILP (new_state)
-      || (FIXED_OR_FLOATP (new_state)
+      || (FIXNUMP (new_state)
 	  && ((XUFIXNUM (new_state)) & 1) != cur_state))
     {
 #ifdef WINDOWSNT
@@ -10100,19 +10100,16 @@ the return value depends on the type of the data stored in Registry:
 
   If the data type is REG_NONE, the function returns t.
   If the data type is REG_DWORD or REG_QWORD, the function returns
-    its integer value.  If the value is too large for a Lisp integer,
-    the function returns a cons (HIGH . LOW) of 2 integers, with LOW
-    the low 16 bits and HIGH the high bits.  If HIGH is too large for
-    a Lisp integer, the function returns (HIGH MIDDLE . LOW), first
-    the high bits, then the middle 24 bits, and finally the low 16 bits.
+    its integer value.  If the value is too large for a fixnum,
+    the function returns a bignum.
   If the data type is REG_BINARY, the function returns a vector whose
     elements are individual bytes of the value.
   If the data type is REG_SZ, the function returns a string.
-  If the data type REG_EXPAND_SZ, the function returns a string with
-    all the %..% references to environment variables replaced by the
-    values of those variables.  If the expansion fails, or some
-    variables are not defined in the environment, some or all of
-    the environment variables will remain unexpanded.
+  If the data type is REG_EXPAND_SZ, the function returns a string
+    with all the %..% references to environment variables replaced
+    by the values of those variables.  If the expansion fails, or
+    some variables are not defined in the environment, some or all
+    of the environment variables will remain unexpanded.
   If the data type is REG_MULTI_SZ, the function returns a list whose
     elements are the individual strings.
 

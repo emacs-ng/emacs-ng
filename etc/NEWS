@@ -232,6 +232,13 @@ typographic quotes, “like this”, in text modes, and in comments in
 non-text modes.
 
 ---
+** New user option 'flyspell-case-fold-duplications'.
+This option controls whether Flyspell mode considers consecutive words
+to be duplicates if they are not in the same case.  If non-nil, the
+default, words are considered to be duplicates even if their letters'
+case does not match.
+
+---
 ** 'write-abbrev-file' now includes special properties.
 'write-abbrev-file' now writes special properties like ':case-fixed'
 for abbrevs that have them.
@@ -255,6 +262,12 @@ navigation and editing of large files.
 
 * Changes in Specialized Modes and Packages in Emacs 27.1
 
+---
+** bibtex
+*** New commands 'bibtex-next-entry' and 'bibtex-previous-entry'.
+In bibtex-mode-map, forward-paragraph and backward-paragraph are
+remapped to these, respectively.
+
 +++
 ** Dired
 
@@ -270,6 +283,10 @@ suitable named temporary buffer.  (An existing ChangeLog file will
 still be used if it exists.)  Set the variable to nil to get the
 previous behavior of always creating a buffer that visits a ChangeLog
 file.
+
+*** New customizable variable 'vc-git-grep-template'.
+This new variable allows customizing the default arguments passed to
+git-grep when 'vc-git-grep' is used.
 
 ** diff-mode
 *** Hunks are now automatically refined by default.
@@ -404,6 +421,11 @@ and its value has been changed to Duck Duck Go.
 'C-u RET' keystroke on a link), the link will be flashed with the new
 'shr-selected-link' face to give the user feedback that the command
 has been executed.
+
++++
+*** New option 'shr-discard-aria-hidden'.
+If set, shr will not render tags with attribute 'aria-hidden="true"'.
+This attribute is meant to tell screen readers to ignore a tag.
 
 ** Htmlfontify
 
@@ -715,6 +737,20 @@ to signal the main thread, e.g., when they encounter an error.
 +++
 *** 'thread-join' returns the result of the finished thread now.
 
++++
+*** 'thread-signal' does not propagate errors to the main thread.
+Instead, error messages are just printed in the main thread.
+
+---
+*** 'thread-alive-p' is now obsolete, use 'thread-live-p' instead.
+
++++
+*** New command 'list-threads' shows Lisp threads.
+See the current list of live threads in a tabulated-list buffer which
+automatically updates.  In the buffer, you can use 's q' or 's e' to
+signal a thread with quit or error respectively, or get a snapshot
+backtrace with 'b'.
+
 ---
 ** thingatpt.el supports a new "thing" called 'uuid'.
 A symbol 'uuid' can be passed to thing-at-point and it returns the
@@ -854,6 +890,11 @@ removed.
 
 * Lisp Changes in Emacs 27.1
 
+** lookup-key can take a list of keymaps as argument.
+
++++
+** 'condition-case' now accepts 't' to match any error symbol.
+
 +++
 ** New function 'proper-list-p'.
 Given a proper list as argument, this predicate returns its length;
@@ -879,6 +920,14 @@ the largest bignum a Lisp program is allowed to create.  The
 nonnegative value of the new variable 'integer-width' specifies the
 maximum number of bits allowed in a bignum.  Emacs signals an integer
 overflow error if this limit is exceeded.
+
+Several primitive functions formerly returned floats or lists of
+integers to represent integers that did not fit into fixnums.  These
+functions now simply return integers instead.  Affected functions
+include functions like encode-char that compute code-points, functions
+like file-attributes that compute file sizes and other attributes,
+functions like process-id that compute process IDs, and functions like
+user-uid and group-gid that compute user and group IDs.
 
 ** define-minor-mode automatically documents the meaning of ARG.
 
@@ -920,6 +969,11 @@ Face specifications (of the kind used in 'face-remapping-alist')
 now support filters, allowing faces to vary between different windows
 displaying the same buffer.  See the Info node "Face Remapping" of the
 Emacs Lisp Reference manual for more detail.
+
++++
+** Special handling of buffer-local 'window-size-change-functions'.
+A buffer-local value of this hook is now run only if at least one
+window showing the buffer has changed its size.
 
 +++
 ** New function assoc-delete-all.

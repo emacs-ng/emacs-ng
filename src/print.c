@@ -1369,10 +1369,12 @@ print_vectorlike (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag,
     {
     case PVEC_BIGNUM:
       {
-	struct Lisp_Bignum *b = XBIGNUM (obj);
-	char *str = mpz_get_str (NULL, 10, b->value);
-	record_unwind_protect_ptr (xfree, str);
-	print_c_string (str, printcharfun);
+	ptrdiff_t size = bignum_bufsize (obj, 10);
+	USE_SAFE_ALLOCA;
+	char *str = SAFE_ALLOCA (size);
+	ptrdiff_t len = bignum_to_c_string (str, size, obj, 10);
+	strout (str, len, len, printcharfun);
+	SAFE_FREE ();
       }
       break;
 

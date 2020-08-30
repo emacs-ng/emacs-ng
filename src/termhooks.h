@@ -222,6 +222,10 @@ enum event_kind
   , DBUS_EVENT
 #endif
 
+#ifdef THREADS_ENABLED
+  , THREAD_EVENT
+#endif
+
   , CONFIG_CHANGED_EVENT
 
 #ifdef HAVE_NTGUI
@@ -657,7 +661,7 @@ struct terminal
      frames on the terminal when it calls this hook, so infinite
      recursion is prevented.  */
   void (*delete_terminal_hook) (struct terminal *);
-};
+} GCALIGNED_STRUCT;
 
 INLINE bool
 TERMINALP (Lisp_Object a)

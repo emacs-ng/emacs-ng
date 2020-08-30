@@ -66,6 +66,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include TERM_HEADER
 #endif /* HAVE_WINDOW_SYSTEM */
 
+#include "bignum.h"
 #include "intervals.h"
 #include "character.h"
 #include "buffer.h"
@@ -1255,6 +1256,7 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
     }
 
   init_alloc ();
+  init_bignum ();
   init_threads ();
 
   if (do_initial_setlocale)

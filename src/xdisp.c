@@ -4978,10 +4978,10 @@ handle_single_display_spec (struct it *it, Lisp_Object spec, Lisp_Object object,
 		  Lisp_Object height;
 		  height = safe_call1 (it->font_height,
 				       face->lface[LFACE_HEIGHT_INDEX]);
-		  if (FIXED_OR_FLOATP (height))
+		  if (NUMBERP (height))
 		    new_height = XFLOATINT (height);
 		}
-	      else if (FIXED_OR_FLOATP (it->font_height))
+	      else if (NUMBERP (it->font_height))
 		{
 		  /* Value is a multiple of the canonical char height.  */
 		  struct face *f;
@@ -5002,7 +5002,7 @@ handle_single_display_spec (struct it *it, Lisp_Object spec, Lisp_Object object,
 		  value = safe_eval (it->font_height);
 		  value = unbind_to (count, value);
 
-		  if (FIXED_OR_FLOATP (value))
+		  if (NUMBERP (value))
 		    new_height = XFLOATINT (value);
 		}
 
@@ -5025,7 +5025,7 @@ handle_single_display_spec (struct it *it, Lisp_Object spec, Lisp_Object object,
 	    return 0;
 
 	  value = XCAR (XCDR (spec));
-	  if (FIXED_OR_FLOATP (value) && XFLOATINT (value) > 0)
+	  if (NUMBERP (value) && XFLOATINT (value) > 0)
 	    it->space_width = value;
 	}
 
@@ -5074,7 +5074,7 @@ handle_single_display_spec (struct it *it, Lisp_Object spec, Lisp_Object object,
 
 #ifdef HAVE_WINDOW_SYSTEM
 	  value = XCAR (XCDR (spec));
-	  if (FIXED_OR_FLOATP (value))
+	  if (NUMBERP (value))
 	    {
 	      struct face *face = FACE_FROM_ID (it->f, it->face_id);
 	      it->voffset = - (XFLOATINT (value)
@@ -15729,8 +15729,8 @@ try_scrolling (Lisp_Object window, bool just_this_one_p,
     scroll_max = (max (scroll_step,
 		       max (arg_scroll_conservatively, temp_scroll_step))
 		  * frame_line_height);
-  else if (FIXED_OR_FLOATP (BVAR (current_buffer, scroll_down_aggressively))
-	   || FIXED_OR_FLOATP (BVAR (current_buffer, scroll_up_aggressively)))
+  else if (NUMBERP (BVAR (current_buffer, scroll_down_aggressively))
+	   || NUMBERP (BVAR (current_buffer, scroll_up_aggressively)))
     /* We're trying to scroll because of aggressive scrolling but no
        scroll_step is set.  Choose an arbitrary one.  */
     scroll_max = 10 * frame_line_height;
@@ -15830,7 +15830,7 @@ try_scrolling (Lisp_Object window, bool just_this_one_p,
 	{
 	  aggressive = BVAR (current_buffer, scroll_up_aggressively);
 	  height = WINDOW_BOX_TEXT_HEIGHT (w);
-	  if (FIXED_OR_FLOATP (aggressive))
+	  if (NUMBERP (aggressive))
 	    {
 	      double float_amount = XFLOATINT (aggressive) * height;
 	      int aggressive_scroll = float_amount;
@@ -15946,7 +15946,7 @@ try_scrolling (Lisp_Object window, bool just_this_one_p,
 	    {
 	      aggressive = BVAR (current_buffer, scroll_down_aggressively);
 	      height = WINDOW_BOX_TEXT_HEIGHT (w);
-	      if (FIXED_OR_FLOATP (aggressive))
+	      if (NUMBERP (aggressive))
 		{
 		  double float_amount = XFLOATINT (aggressive) * height;
 		  int aggressive_scroll = float_amount;
@@ -17223,8 +17223,8 @@ redisplay_window (Lisp_Object window, bool just_this_one_p)
   if ((scroll_conservatively
        || emacs_scroll_step
        || temp_scroll_step
-       || FIXED_OR_FLOATP (BVAR (current_buffer, scroll_up_aggressively))
-       || FIXED_OR_FLOATP (BVAR (current_buffer, scroll_down_aggressively)))
+       || NUMBERP (BVAR (current_buffer, scroll_up_aggressively))
+       || NUMBERP (BVAR (current_buffer, scroll_down_aggressively)))
       && CHARPOS (startp) >= BEGV
       && CHARPOS (startp) <= ZV)
     {
@@ -17299,13 +17299,13 @@ redisplay_window (Lisp_Object window, bool just_this_one_p)
 	: BVAR (current_buffer, scroll_down_aggressively);
 
       if (!MINI_WINDOW_P (w)
-	  && (scroll_conservatively > SCROLL_LIMIT || FIXED_OR_FLOATP (aggressive)))
+	  && (scroll_conservatively > SCROLL_LIMIT || NUMBERP (aggressive)))
 	{
 	  int pt_offset = 0;
 
 	  /* Setting scroll-conservatively overrides
 	     scroll-*-aggressively.  */
-	  if (!scroll_conservatively && FIXED_OR_FLOATP (aggressive))
+	  if (!scroll_conservatively && NUMBERP (aggressive))
 	    {
 	      double float_amount = XFLOATINT (aggressive);
 
@@ -21185,8 +21185,12 @@ maybe_produce_line_number (struct it *it)
      an L2R paragraph.  */
   tem_it.bidi_it.resolved_level = 2;
 
+  /* We must leave space for 2 glyphs for continuation and truncation,
+     and at least one glyph for buffer text.  */
+  int width_limit =
+    tem_it.last_visible_x - tem_it.first_visible_x
+    - 3 * FRAME_COLUMN_WIDTH (it->f);
   /* Produce glyphs for the line number in a scratch glyph_row.  */
-  int n_glyphs_before;
   for (const char *p = lnum_buf; *p; p++)
     {
       /* For continuation lines and lines after ZV, instead of a line
@@ -21210,18 +21214,18 @@ maybe_produce_line_number (struct it *it)
       else
 	tem_it.c = tem_it.char_to_display = *p;
       tem_it.len = 1;
-      n_glyphs_before = scratch_glyph_row.used[TEXT_AREA];
       /* Make sure these glyphs will have a "position" of -1.  */
       SET_TEXT_POS (tem_it.position, -1, -1);
       PRODUCE_GLYPHS (&tem_it);
 
-      /* Stop producing glyphs if we don't have enough space on
-	 this line.  FIXME: should we refrain from producing the
-	 line number at all in that case?  */
-      if (tem_it.current_x > tem_it.last_visible_x)
+      /* Stop producing glyphs, and refrain from producing the line
+	 number, if we don't have enough space on this line.  */
+      if (tem_it.current_x >= width_limit)
 	{
-	  scratch_glyph_row.used[TEXT_AREA] = n_glyphs_before;
-	  break;
+	  it->lnum_width = 0;
+	  it->lnum_pixel_width = 0;
+	  bidi_unshelve_cache (itdata, false);
+	  return;
 	}
     }
 
@@ -25520,7 +25524,7 @@ calc_pixel_width_or_height (double *res, struct it *it, Lisp_Object prop,
 	prop = Qnil;
     }
 
-  if (FIXED_OR_FLOATP (prop))
+  if (NUMBERP (prop))
     {
       int base_unit = (width_p
 		       ? FRAME_COLUMN_WIDTH (it->f)
@@ -25584,8 +25588,8 @@ calc_pixel_width_or_height (double *res, struct it *it, Lisp_Object prop,
 	}
 
       /* '(NUM)': absolute number of pixels.  */
-      if (FIXED_OR_FLOATP (car))
-	{
+      if (NUMBERP (car))
+{
 	  double fact;
 	  int offset =
 	    width_p && align_to && *align_to < 0 ? it->lnum_pixel_width : 0;
@@ -27852,14 +27856,14 @@ calc_line_height_property (struct it *it, Lisp_Object val, struct font *font,
   Lisp_Object face_name = Qnil;
   int ascent, descent, height;
 
-  if (NILP (val) || FIXNUMP (val) || (override && EQ (val, Qt)))
+  if (NILP (val) || INTEGERP (val) || (override && EQ (val, Qt)))
     return val;
 
   if (CONSP (val))
     {
       face_name = XCAR (val);
       val = XCDR (val);
-      if (!FIXED_OR_FLOATP (val))
+      if (!NUMBERP (val))
 	val = make_fixnum (1);
       if (NILP (face_name))
 	{
@@ -27903,10 +27907,15 @@ calc_line_height_property (struct it *it, Lisp_Object val, struct font *font,
   height = ascent + descent;
 
  scale:
+  /* FIXME: Check for overflow in multiplication or conversion.  */
   if (FLOATP (val))
     height = (int)(XFLOAT_DATA (val) * height);
-  else if (FIXNUMP (val))
-    height *= XFIXNUM (val);
+  else
+    {
+      intmax_t v;
+      if (integer_to_intmax (val, &v))
+	height *= v;
+    }
 
   return make_fixnum (height);
 }
@@ -30770,7 +30779,7 @@ on_hot_spot_p (Lisp_Object hot_spot, int x, int y)
       Lisp_Object lr, lx0, ly0;
       if (CONSP (circ)
 	  && CONSP (XCAR (circ))
-	  && (lr = XCDR (circ), FIXED_OR_FLOATP (lr))
+	  && (lr = XCDR (circ), NUMBERP (lr))
 	  && (lx0 = XCAR (XCAR (circ)), FIXNUMP (lx0))
 	  && (ly0 = XCDR (XCAR (circ)), FIXNUMP (ly0)))
 	{

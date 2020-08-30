@@ -519,31 +519,17 @@ module_extract_integer (emacs_env *env, emacs_value n)
   MODULE_FUNCTION_BEGIN (0);
   Lisp_Object l = value_to_lisp (n);
   CHECK_INTEGER (l);
-  if (BIGNUMP (l))
-    {
-      if (!mpz_fits_slong_p (XBIGNUM (l)->value))
-	xsignal1 (Qoverflow_error, l);
-      return mpz_get_si (XBIGNUM (l)->value);
-    }
-  return XFIXNUM (l);
+  intmax_t i;
+  if (! integer_to_intmax (l, &i))
+    xsignal1 (Qoverflow_error, l);
+  return i;
 }
 
 static emacs_value
 module_make_integer (emacs_env *env, intmax_t n)
 {
-  Lisp_Object obj;
   MODULE_FUNCTION_BEGIN (module_nil);
-  if (FIXNUM_OVERFLOW_P (n))
-    {
-      mpz_t val;
-      mpz_init (val);
-      mpz_set_intmax (val, n);
-      obj = make_number (val);
-      mpz_clear (val);
-    }
-  else
-    obj = make_fixnum (n);
-  return lisp_to_value (env, obj);
+  return lisp_to_value (env, make_int (n));
 }
 
 static double
@@ -654,7 +640,7 @@ check_vec_index (Lisp_Object lvec, ptrdiff_t i)
 {
   CHECK_VECTOR (lvec);
   if (! (0 <= i && i < ASIZE (lvec)))
-    args_out_of_range_3 (make_fixnum_or_float (i),
+    args_out_of_range_3 (INT_TO_INTEGER (i),
 			 make_fixnum (0), make_fixnum (ASIZE (lvec) - 1));
 }
 

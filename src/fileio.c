@@ -3394,9 +3394,9 @@ union read_non_regular
     int fd;
     ptrdiff_t inserted, trytry;
   } s;
-  GCALIGNED_UNION
+  GCALIGNED_UNION_MEMBER
 };
-verify (alignof (union read_non_regular) % GCALIGNMENT == 0);
+verify (GCALIGNED (union read_non_regular));
 
 static Lisp_Object
 read_non_regular (Lisp_Object state)
@@ -3424,10 +3424,13 @@ read_non_regular_quit (Lisp_Object ignore)
 static off_t
 file_offset (Lisp_Object val)
 {
-  if (RANGED_FIXNUMP (0, val, TYPE_MAXIMUM (off_t)))
-    return XFIXNUM (val);
-
-  if (FLOATP (val))
+  if (INTEGERP (val))
+    {
+      intmax_t v;
+      if (integer_to_intmax (val, &v) && 0 <= v && v <= TYPE_MAXIMUM (off_t))
+	return v;
+    }
+  else if (FLOATP (val))
     {
       double v = XFLOAT_DATA (val);
       if (0 <= v && v < 1.0 + TYPE_MAXIMUM (off_t))
@@ -4946,7 +4949,7 @@ write_region (Lisp_Object start, Lisp_Object end, Lisp_Object filename,
   fn = SSDATA (encoded_filename);
   open_flags = O_WRONLY | O_CREAT;
   open_flags |= EQ (mustbenew, Qexcl) ? O_EXCL : !NILP (append) ? 0 : O_TRUNC;
-  if (FIXED_OR_FLOATP (append))
+  if (NUMBERP (append))
     offset = file_offset (append);
   else if (!NILP (append))
     open_flags |= O_APPEND;
@@ -4971,7 +4974,7 @@ write_region (Lisp_Object start, Lisp_Object end, Lisp_Object filename,
       record_unwind_protect_int (close_file_unwind, desc);
     }
 
-  if (FIXED_OR_FLOATP (append))
+  if (NUMBERP (append))
     {
       off_t ret = lseek (desc, offset, SEEK_SET);
       if (ret < 0)
@@ -5154,7 +5157,7 @@ write_region (Lisp_Object start, Lisp_Object end, Lisp_Object filename,
     }
 
   if (!auto_saving && !noninteractive)
-    message_with_string ((FIXED_OR_FLOATP (append)
+    message_with_string ((NUMBERP (append)
 			  ? "Updated %s"
 			  : ! NILP (append)
 			  ? "Added to %s"

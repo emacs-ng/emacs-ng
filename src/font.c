@@ -1283,19 +1283,21 @@ font_unparse_xlfd (Lisp_Object font, int pixel_size, char *name, int nbytes)
     }
 
   val = AREF (font, FONT_SIZE_INDEX);
-  eassert (FIXED_OR_FLOATP (val) || NILP (val));
+  eassert (NUMBERP (val) || NILP (val));
   char font_size_index_buf[sizeof "-*"
 			   + max (INT_STRLEN_BOUND (EMACS_INT),
 				  1 + DBL_MAX_10_EXP + 1)];
-  if (FIXNUMP (val))
+  if (INTEGERP (val))
     {
-      EMACS_INT v = XFIXNUM (val);
-      if (v <= 0)
+      intmax_t v;
+      if (! (integer_to_intmax (val, &v)
+	     && 0 < v && v <= TYPE_MAXIMUM (uprintmax_t)))
 	v = pixel_size;
       if (v > 0)
 	{
+	  uprintmax_t u = v;
 	  f[XLFD_PIXEL_INDEX] = p = font_size_index_buf;
-	  sprintf (p, "%"pI"d-*", v);
+	  sprintf (p, "%"pMu"-*", u);
 	}
       else
 	f[XLFD_PIXEL_INDEX] = "*-*";
@@ -3324,8 +3326,9 @@ font_open_for_lface (struct frame *f, Lisp_Object entity, Lisp_Object *attrs, Li
 	  if (size == 0)
 	    {
 	      Lisp_Object ffsize = get_frame_param (f, Qfontsize);
-	      size = (FIXED_OR_FLOATP (ffsize)
-		      ? POINT_TO_PIXEL (XFIXNUM (ffsize), FRAME_RES_Y (f)) : 0);
+	      size = (NUMBERP (ffsize)
+		      ? POINT_TO_PIXEL (XFLOATINT (ffsize), FRAME_RES_Y (f))
+		      : 0);
 	    }
 #endif
 	}
@@ -4482,7 +4485,8 @@ Each element of the value is a cons (VARIATION-SELECTOR . GLYPH-ID),
 where
   VARIATION-SELECTOR is a character code of variation selection
     (#xFE00..#xFE0F or #xE0100..#xE01EF)
-  GLYPH-ID is a glyph code of the corresponding variation glyph.  */)
+  GLYPH-ID is a glyph code of the corresponding variation glyph,
+a fixnum, if it's small enough, otherwise a bignum.  */)
   (Lisp_Object font_object, Lisp_Object character)
 {
   unsigned variations[256];
@@ -4503,7 +4507,7 @@ where
     if (variations[i])
       {
 	int vs = (i < 16 ? 0xFE00 + i : 0xE0100 + (i - 16));
-	Lisp_Object code = INTEGER_TO_CONS (variations[i]);
+	Lisp_Object code = INT_TO_INTEGER (variations[i]);
 	val = Fcons (Fcons (make_fixnum (vs), code), val);
       }
   return val;
@@ -4519,7 +4523,8 @@ where
    that apply to POSITION.  POSITION may be nil, in which case,
    FONT-SPEC is the font for displaying the character CH with the
    default face.  GLYPH-CODE is the glyph code in the font to use for
-   the character.
+   the character, it is a fixnum, if it is small enough, otherwise a
+   bignum.
 
    For a text terminal, return a nonnegative integer glyph code for
    the character, or a negative integer if the character is not
@@ -4606,7 +4611,7 @@ DEFUN ("internal-char-font", Finternal_char_font, Sinternal_char_font, 1, 2, 0,
     return Qnil;
   Lisp_Object font_object;
   XSETFONT (font_object, face->font);
-  return Fcons (font_object, INTEGER_TO_CONS (code));
+  return Fcons (font_object, INT_TO_INTEGER (code));
 }
 
 #if 0
@@ -4735,7 +4740,7 @@ DEFUN ("open-font", Fopen_font, Sopen_font, 1, 3, 0,
        doc: /* Open FONT-ENTITY.  */)
   (Lisp_Object font_entity, Lisp_Object size, Lisp_Object frame)
 {
-  EMACS_INT isize;
+  intmax_t isize;
   struct frame *f = decode_live_frame (frame);
 
   CHECK_FONT_ENTITY (font_entity);
@@ -4744,11 +4749,11 @@ DEFUN ("open-font", Fopen_font, Sopen_font, 1, 3, 0,
     isize = XFIXNUM (AREF (font_entity, FONT_SIZE_INDEX));
   else
     {
-      CHECK_FIXNUM_OR_FLOAT (size);
+      CHECK_NUMBER (size);
       if (FLOATP (size))
 	isize = POINT_TO_PIXEL (XFLOAT_DATA (size), FRAME_RES_Y (f));
-      else
-	isize = XFIXNUM (size);
+      else if (! integer_to_intmax (size, &isize))
+	args_out_of_range (font_entity, size);
       if (! (INT_MIN <= isize && isize <= INT_MAX))
 	args_out_of_range (font_entity, size);
       if (isize == 0)

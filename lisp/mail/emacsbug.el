@@ -116,6 +116,9 @@ This requires either the macOS \"open\" command, or the freedesktop
 			   (concat "mailto:" to)))
 	(error "Subject, To or body not found")))))
 
+(defvar report-emacs-bug--os-description nil
+  "Cached value of operating system description.")
+
 (defun report-emacs-bug--os-description ()
   "Return a string describing the operating system, or nil."
   (cond ((eq system-type 'darwin)
@@ -129,9 +132,23 @@ This requires either the macOS \"open\" command, or the freedesktop
                                         nil t)
                      (setq os (concat os " " (match-string 1)))))))
            os))
-        ;; TODO include other branches here.
-        ;; MS Windows: systeminfo ?
-        ;; Cygwin, *BSD, etc: ?
+        ((eq system-type 'windows-nt)
+         (or report-emacs-bug--os-description
+             (setq report-emacs-bug--os-description (w32--os-description))))
+        ((eq system-type 'berkeley-unix)
+         (with-temp-buffer
+           (when
+               (or (eq 0 (ignore-errors (call-process "freebsd-version" nil
+                                                      '(t nil) nil "-u")))
+                   (progn (erase-buffer)
+                          (eq 0 (ignore-errors
+                                  (call-process "uname" nil
+                                                '(t nil) nil "-a")))))
+             (unless (zerop (buffer-size))
+               (goto-char (point-min))
+               (buffer-substring (line-beginning-position)
+                                 (line-end-position))))))
+        ;; TODO Cygwin, Solaris (usg-unix-v).
         (t
          (or (let ((file "/etc/os-release"))
                (and (file-readable-p file)
