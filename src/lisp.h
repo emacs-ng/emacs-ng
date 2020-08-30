@@ -30,10 +30,11 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <float.h>
 #include <inttypes.h>
 #include <limits.h>
+
 #ifdef HAVE_GMP
-#include <gmp.h>
+# include <gmp.h>
 #else
-#include "mini-gmp.h"
+# include "mini-gmp.h"
 #endif
 
 #include <intprops.h>
@@ -352,10 +353,13 @@ typedef EMACS_INT Lisp_Word;
 #define lisp_h_CHECK_SYMBOL(x) CHECK_TYPE (SYMBOLP (x), Qsymbolp, x)
 #define lisp_h_CHECK_TYPE(ok, predicate, x) \
    ((ok) ? (void) 0 : wrong_type_argument (predicate, x))
-#define lisp_h_CONSP(x) (XTYPE (x) == Lisp_Cons)
+#define lisp_h_CONSP(x) TAGGEDP (x, Lisp_Cons)
 #define lisp_h_EQ(x, y) (XLI (x) == XLI (y))
-#define lisp_h_FLOATP(x) (XTYPE (x) == Lisp_Float)
-#define lisp_h_FIXNUMP(x) ((XTYPE (x) & (Lisp_Int0 | ~Lisp_Int1)) == Lisp_Int0)
+#define lisp_h_FIXNUMP(x) \
+   (! (((unsigned) (XLI (x) >> (USE_LSB_TAG ? 0 : FIXNUM_BITS)) \
+	- (unsigned) (Lisp_Int0 >> !USE_LSB_TAG)) \
+       & ((1 << INTTYPEBITS) - 1)))
+#define lisp_h_FLOATP(x) TAGGEDP (x, Lisp_Float)
 #define lisp_h_NILP(x) EQ (x, Qnil)
 #define lisp_h_SET_SYMBOL_VAL(sym, v) \
    (eassert ((sym)->u.s.redirect == SYMBOL_PLAINVAL), \
@@ -365,8 +369,12 @@ typedef EMACS_INT Lisp_Word;
 #define lisp_h_SYMBOL_TRAPPED_WRITE_P(sym) (XSYMBOL (sym)->u.s.trapped_write)
 #define lisp_h_SYMBOL_VAL(sym) \
    (eassert ((sym)->u.s.redirect == SYMBOL_PLAINVAL), (sym)->u.s.val.value)
-#define lisp_h_SYMBOLP(x) (XTYPE (x) == Lisp_Symbol)
-#define lisp_h_VECTORLIKEP(x) (XTYPE (x) == Lisp_Vectorlike)
+#define lisp_h_SYMBOLP(x) TAGGEDP (x, Lisp_Symbol)
+#define lisp_h_TAGGEDP(a, tag) \
+   (! (((unsigned) (XLI (a) >> (USE_LSB_TAG ? 0 : VALBITS)) \
+	- (unsigned) (tag)) \
+       & ((1 << GCTYPEBITS) - 1)))
+#define lisp_h_VECTORLIKEP(x) TAGGEDP (x, Lisp_Vectorlike)
 #define lisp_h_XCAR(c) XCONS (c)->u.s.car
 #define lisp_h_XCDR(c) XCONS (c)->u.s.u.cdr
 #define lisp_h_XCONS(a) \
@@ -425,6 +433,7 @@ typedef EMACS_INT Lisp_Word;
 # define SYMBOL_TRAPPED_WRITE_P(sym) lisp_h_SYMBOL_TRAPPED_WRITE_P (sym)
 # define SYMBOL_VAL(sym) lisp_h_SYMBOL_VAL (sym)
 # define SYMBOLP(x) lisp_h_SYMBOLP (x)
+# define TAGGEDP(a, tag) lisp_h_TAGGEDP (a, tag)
 # define VECTORLIKEP(x) lisp_h_VECTORLIKEP (x)
 # define XCAR(c) lisp_h_XCAR (c)
 # define XCDR(c) lisp_h_XCDR (c)
@@ -633,6 +642,15 @@ INLINE enum Lisp_Type
   EMACS_UINT i = XLI (a);
   return USE_LSB_TAG ? i & ~VALMASK : i >> VALBITS;
 #endif
+}
+
+/* True if A has type tag TAG.
+   Equivalent to XTYPE (a) == TAG, but often faster.  */
+
+INLINE bool
+(TAGGEDP) (Lisp_Object a, enum Lisp_Type tag)
+{
+  return lisp_h_TAGGEDP (a, tag);
 }
 
 INLINE void
@@ -985,6 +1003,14 @@ enum More_Lisp_Bits
 #define MOST_POSITIVE_FIXNUM (EMACS_INT_MAX >> INTTYPEBITS)
 #define MOST_NEGATIVE_FIXNUM (-1 - MOST_POSITIVE_FIXNUM)
 
+
+/* GMP-related limits.  */
+
+/* Number of data bits in a limb.  */
+#ifndef GMP_NUMB_BITS
+enum { GMP_NUMB_BITS = TYPE_WIDTH (mp_limb_t) };
+#endif
+
 #if USE_LSB_TAG
 
 INLINE Lisp_Object
@@ -1113,7 +1139,7 @@ INLINE Lisp_Object
 make_lisp_ptr (void *ptr, enum Lisp_Type type)
 {
   Lisp_Object a = TAG_PTR (type, ptr);
-  eassert (XTYPE (a) == type && XUNTAG (a, type, char) == ptr);
+  eassert (TAGGEDP (a, type) && XUNTAG (a, type, char) == ptr);
   return a;
 }
 
@@ -1346,7 +1372,7 @@ verify (alignof (struct Lisp_String) % GCALIGNMENT == 0);
 INLINE bool
 STRINGP (Lisp_Object x)
 {
-  return XTYPE (x) == Lisp_String;
+  return TAGGEDP (x, Lisp_String);
 }
 
 INLINE void
@@ -3372,7 +3398,7 @@ extern void set_internal (Lisp_Object, Lisp_Object, Lisp_Object,
                           enum Set_Internal_Bind);
 extern void set_default_internal (Lisp_Object, Lisp_Object,
                                   enum Set_Internal_Bind bindflag);
-
+extern Lisp_Object expt_integer (Lisp_Object, Lisp_Object);
 extern void syms_of_data (void);
 extern void swap_in_global_binding (struct Lisp_Symbol *);
 
@@ -3594,7 +3620,6 @@ extern Lisp_Object listn (enum constype, ptrdiff_t, Lisp_Object, ...);
 extern Lisp_Object make_bignum_str (const char *num, int base);
 extern Lisp_Object make_number (mpz_t value);
 extern void mpz_set_intmax_slow (mpz_t result, intmax_t v);
-extern void mpz_set_uintmax_slow (mpz_t result, uintmax_t v);
 
 INLINE void
 mpz_set_intmax (mpz_t result, intmax_t v)
@@ -3602,22 +3627,10 @@ mpz_set_intmax (mpz_t result, intmax_t v)
   /* mpz_set_si works in terms of long, but Emacs may use a wider
      integer type, and so sometimes will have to construct the mpz_t
      by hand.  */
-  if (sizeof (intmax_t) > sizeof (long) && (long) v != v)
-    mpz_set_intmax_slow (result, v);
-  else
+  if (LONG_MIN <= v && v <= LONG_MAX)
     mpz_set_si (result, v);
-}
-
-INLINE void
-mpz_set_uintmax (mpz_t result, uintmax_t v)
-{
-  /* mpz_set_ui works in terms of unsigned long, but Emacs may use a
-     wider integer type, and so sometimes will have to construct the
-     mpz_t by hand.  */
-  if (sizeof (uintmax_t) > sizeof (unsigned long) && (unsigned long) v != v)
-    mpz_set_uintmax_slow (result, v);
   else
-    mpz_set_ui (result, v);
+    mpz_set_intmax_slow (result, v);
 }
 
 /* Build a frequently used 2/3/4-integer lists.  */
@@ -3747,6 +3760,7 @@ extern void display_malloc_warning (void);
 extern ptrdiff_t inhibit_garbage_collection (void);
 extern Lisp_Object build_overlay (Lisp_Object, Lisp_Object, Lisp_Object);
 extern void free_cons (struct Lisp_Cons *);
+extern _Noreturn void range_error (void);
 extern void init_alloc_once (void);
 extern void init_alloc (void);
 extern void syms_of_alloc (void);
@@ -4730,6 +4744,11 @@ enum
 	((&(struct Lisp_String) {{{len, -1, 0, (unsigned char *) (str)}}}), \
 	 Lisp_String))							\
      : make_unibyte_string (str, len))
+
+/* The maximum length of "small" lists, as a heuristic.  These lists
+   are so short that code need not check for cycles or quits while
+   traversing.  */
+enum { SMALL_LIST_LEN_MAX = 127 };
 
 /* Loop over conses of the list TAIL, signaling if a cycle is found,
    and possibly quitting after each loop iteration.  In the loop body,

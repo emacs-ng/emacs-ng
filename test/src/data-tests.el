@@ -23,13 +23,21 @@
 
 (require 'cl-lib)
 
+(defconst data-tests--float-greater-than-fixnums (+ 1.0 most-positive-fixnum)
+  "A floating-point value that is greater than all fixnums.
+It is also as small as conveniently possible, to make the tests sharper.
+Adding 1.0 to most-positive-fixnum should suffice on all
+practical Emacs platforms, since the result is a power of 2 and
+this is exactly representable and is greater than
+most-positive-fixnum, which is just less than a power of 2.")
+
 (ert-deftest data-tests-= ()
   (should-error (=))
   (should (= 1))
   (should (= 2 2))
   (should (= 9 9 9 9 9 9 9 9 9))
   (should (= most-negative-fixnum (float most-negative-fixnum)))
-  (should-not (= most-positive-fixnum (+ 1.0 most-positive-fixnum)))
+  (should-not (= most-positive-fixnum data-tests--float-greater-than-fixnums))
   (should-not (apply #'= '(3 8 3)))
   (should-error (= 9 9 'foo))
   ;; Short circuits before getting to bad arg
@@ -40,7 +48,7 @@
   (should (< 1))
   (should (< 2 3))
   (should (< -6 -1 0 2 3 4 8 9 999))
-  (should (< 0.5 most-positive-fixnum (+ 1.0 most-positive-fixnum)))
+  (should (< 0.5 most-positive-fixnum data-tests--float-greater-than-fixnums))
   (should-not (apply #'< '(3 8 3)))
   (should-error (< 9 10 'foo))
   ;; Short circuits before getting to bad arg
@@ -51,7 +59,7 @@
   (should (> 1))
   (should (> 3 2))
   (should (> 6 1 0 -2 -3 -4 -8 -9 -999))
-  (should (> (+ 1.0 most-positive-fixnum) most-positive-fixnum 0.5))
+  (should (> data-tests--float-greater-than-fixnums most-positive-fixnum 0.5))
   (should-not (apply #'> '(3 8 3)))
   (should-error (> 9 8 'foo))
   ;; Short circuits before getting to bad arg
@@ -62,7 +70,7 @@
   (should (<= 1))
   (should (<= 2 3))
   (should (<= -6 -1 -1 0 0 0 2 3 4 8 999))
-  (should (<= 0.5 most-positive-fixnum (+ 1.0 most-positive-fixnum)))
+  (should (<= 0.5 most-positive-fixnum data-tests--float-greater-than-fixnums))
   (should-not (apply #'<= '(3 8 3 3)))
   (should-error (<= 9 10 'foo))
   ;; Short circuits before getting to bad arg
@@ -73,7 +81,7 @@
   (should (>= 1))
   (should (>= 3 2))
   (should (>= 666 1 0 0 -2 -3 -3 -3 -4 -8 -8 -9 -999))
-  (should (>= (+ 1.0 most-positive-fixnum) most-positive-fixnum))
+  (should (>= data-tests--float-greater-than-fixnums most-positive-fixnum))
   (should-not (apply #'>= '(3 8 3)))
   (should-error (>= 9 8 'foo))
   ;; Short circuits before getting to bad arg
@@ -97,7 +105,7 @@
   (should (= 2 (min 3 2)))
   (should (= -999 (min 666 1 0 0 -2 -3 -3 -3 -4 -8 -8 -9 -999)))
   (should (= most-positive-fixnum
-             (min (+ 1.0 most-positive-fixnum) most-positive-fixnum)))
+             (min data-tests--float-greater-than-fixnums most-positive-fixnum)))
   (should (= 3 (apply #'min '(3 8 3))))
   (should-error (min 9 8 'foo))
   (should-error (min (make-marker)))
@@ -115,7 +123,7 @@
       (setq byte (lognot byte)))
   (if (zerop byte)
       0
-    (+ (logand byte 1) (data-tests-popcnt (lsh byte -1)))))
+    (+ (logand byte 1) (data-tests-popcnt (ash byte -1)))))
 
 (ert-deftest data-tests-logcount ()
   (should (cl-loop for n in (number-sequence -255 255)
@@ -178,17 +186,17 @@
         (dotimes (_ 4)
           (aset bv i (> (logand 1 n) 0))
           (cl-incf i)
-          (setf n (lsh n -1)))))
+          (setf n (ash n -1)))))
     bv))
 
 (defun test-bool-vector-to-hex-string (bv)
   (let (nibbles (v (cl-coerce bv 'list)))
     (while v
       (push (logior
-             (lsh (if (nth 0 v) 1 0) 0)
-             (lsh (if (nth 1 v) 1 0) 1)
-             (lsh (if (nth 2 v) 1 0) 2)
-             (lsh (if (nth 3 v) 1 0) 3))
+             (ash (if (nth 0 v) 1 0) 0)
+             (ash (if (nth 1 v) 1 0) 1)
+             (ash (if (nth 2 v) 1 0) 2)
+             (ash (if (nth 3 v) 1 0) 3))
             nibbles)
       (setf v (nthcdr 4 v)))
     (mapconcat (lambda (n) (format "%X" n))
@@ -543,7 +551,10 @@ comparing the subr with a much slower lisp implementation."
     (should (= b0 b0))
 
     (should (/= b0 f-1))
-    (should (/= b0 b-1))))
+    (should (/= b0 b-1))
+
+    (should (/= b0 0.0e+NaN))
+    (should (/= b-1 0.0e+NaN))))
 
 (ert-deftest data-tests-+ ()
   (should-not (fixnump (+ most-positive-fixnum most-positive-fixnum)))
@@ -589,8 +600,24 @@ comparing the subr with a much slower lisp implementation."
   (should (< (1- most-negative-fixnum) most-negative-fixnum))
   (should (fixnump (1- (1+ most-positive-fixnum)))))
 
+(ert-deftest data-tests-logand ()
+  (should (= -1 (logand) (logand -1) (logand -1 -1)))
+  (let ((n (1+ most-positive-fixnum)))
+    (should (= (logand -1 n) n)))
+  (let ((n (* 2 most-negative-fixnum)))
+    (should (= (logand -1 n) n))))
+
 (ert-deftest data-tests-logcount ()
   (should (= (logcount (read "#xffffffffffffffffffffffffffffffff")) 128)))
+
+(ert-deftest data-tests-logior ()
+  (should (= -1 (logior -1) (logior -1 -1)))
+  (should (= -1 (logior most-positive-fixnum most-negative-fixnum))))
+
+(ert-deftest data-tests-logxor ()
+  (should (= -1 (logxor -1) (logxor -1 -1 -1)))
+  (let ((n (1+ most-positive-fixnum)))
+    (should (= (logxor -1 n) (lognot n)))))
 
 (ert-deftest data-tests-minmax ()
   (let ((a (- most-negative-fixnum 1))
@@ -620,6 +647,12 @@ comparing the subr with a much slower lisp implementation."
   (should (= (ash most-negative-fixnum 1)
              (* most-negative-fixnum 2)))
   (should (= (lsh most-negative-fixnum 1)
-             (* most-negative-fixnum 2))))
+             (* most-negative-fixnum 2)))
+  (should (= (ash (* 2 most-negative-fixnum) -1)
+	     most-negative-fixnum))
+  (should (= (lsh most-positive-fixnum -1) (/ most-positive-fixnum 2)))
+  (should (= (lsh most-negative-fixnum -1) (lsh (- most-negative-fixnum) -1)))
+  (should (= (lsh -1 -1) most-positive-fixnum))
+  (should-error (lsh (1- most-negative-fixnum) -1)))
 
 ;;; data-tests.el ends here

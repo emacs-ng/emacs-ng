@@ -379,7 +379,6 @@ enum mem_type
   MEM_TYPE_BUFFER,
   MEM_TYPE_CONS,
   MEM_TYPE_STRING,
-  MEM_TYPE_MISC,
   MEM_TYPE_SYMBOL,
   MEM_TYPE_FLOAT,
   /* Since all non-bool pseudovectors are small enough to be
@@ -3747,37 +3746,32 @@ make_bignum_str (const char *num, int base)
 Lisp_Object
 make_number (mpz_t value)
 {
-  if (mpz_fits_slong_p (value))
+  size_t bits = mpz_sizeinbase (value, 2);
+
+  if (bits <= FIXNUM_BITS)
     {
-      long l = mpz_get_si (value);
-      if (!FIXNUM_OVERFLOW_P (l))
-	return make_fixnum (l);
+      EMACS_INT v = 0;
+      int i = 0, shift = 0;
+
+      do
+	{
+	  EMACS_INT limb = mpz_getlimbn (value, i++);
+	  v += limb << shift;
+	  shift += GMP_NUMB_BITS;
+	}
+      while (shift < bits);
+
+      if (mpz_sgn (value) < 0)
+	v = -v;
+
+      if (!FIXNUM_OVERFLOW_P (v))
+	return make_fixnum (v);
     }
 
-  /* Check if fixnum can be larger than long.  */
-  if (sizeof (EMACS_INT) > sizeof (long))
-    {
-      size_t bits = mpz_sizeinbase (value, 2);
-      int sign = mpz_sgn (value);
-
-      if (bits < FIXNUM_BITS + (sign < 0))
-        {
-          EMACS_INT v = 0;
-          size_t limbs = mpz_size (value);
-          mp_size_t i;
-
-          for (i = 0; i < limbs; i++)
-            {
-              mp_limb_t limb = mpz_getlimbn (value, i);
-              v |= (EMACS_INT) ((EMACS_UINT) limb << (i * mp_bits_per_limb));
-            }
-          if (sign < 0)
-            v = -v;
-
-          if (!FIXNUM_OVERFLOW_P (v))
-	    return make_fixnum (v);
-        }
-    }
+  /* The documentation says integer-width should be nonnegative, so
+     a single comparison suffices even though 'bits' is unsigned.  */
+  if (integer_width < bits)
+    range_error ();
 
   struct Lisp_Bignum *b = ALLOCATE_PSEUDOVECTOR (struct Lisp_Bignum, value,
 						 PVEC_BIGNUM);
@@ -3791,31 +3785,23 @@ make_number (mpz_t value)
 void
 mpz_set_intmax_slow (mpz_t result, intmax_t v)
 {
-  /* If long is larger then a faster path is taken.  */
-  eassert (sizeof (intmax_t) > sizeof (long));
+  /* If V fits in long, a faster path is taken.  */
+  eassert (! (LONG_MIN <= v && v <= LONG_MAX));
 
-  bool negate = false;
-  if (v < 0)
-    {
-      v = -v;
-      negate = true;
-    }
-  mpz_set_uintmax_slow (result, (uintmax_t) v);
-  if (negate)
-    mpz_neg (result, result);
-}
+  bool complement = v < 0;
+  if (complement)
+    v = -1 - v;
 
-void
-mpz_set_uintmax_slow (mpz_t result, uintmax_t v)
-{
-  /* If long is larger then a faster path is taken.  */
-  eassert (sizeof (uintmax_t) > sizeof (unsigned long));
+  enum { nails = sizeof v * CHAR_BIT - INTMAX_WIDTH };
+# ifndef HAVE_GMP
+  /* mini-gmp requires NAILS to be zero, which is true for all
+     likely Emacs platforms.  Sanity-check this.  */
+  verify (nails == 0);
+# endif
 
-  /* COUNT = 1 means just a single word of the given size.  ORDER = -1
-     is arbitrary since there's only a single word.  ENDIAN = 0 means
-     use the native endian-ness.  NAILS = 0 means use the whole
-     word.  */
-  mpz_import (result, 1, -1, sizeof (uintmax_t), 0, 0, &v);
+  mpz_import (result, 1, -1, sizeof v, 0, nails, &v);
+  if (complement)
+    mpz_com (result, result);
 }
 
 
@@ -7023,22 +7009,20 @@ Each of these counters increments for a certain kind of object.
 The counters wrap around from the largest positive integer to zero.
 Garbage collection does not decrease them.
 The elements of the value are as follows:
-  (CONSES FLOATS VECTOR-CELLS SYMBOLS STRING-CHARS MISCS INTERVALS STRINGS)
+  (CONSES FLOATS VECTOR-CELLS SYMBOLS STRING-CHARS INTERVALS STRINGS)
 All are in units of 1 = one object consed
 except for VECTOR-CELLS and STRING-CHARS, which count the total length of
 objects consed.
-MISCS include overlays, markers, and some internal types.
 Frames, windows, buffers, and subprocesses count as vectors
   (but the contents of a buffer's text do not count here).  */)
   (void)
 {
-  return listn (CONSTYPE_HEAP, 8,
+  return listn (CONSTYPE_HEAP, 7,
 		bounded_number (cons_cells_consed),
 		bounded_number (floats_consed),
 		bounded_number (vector_cells_consed),
 		bounded_number (symbols_consed),
 		bounded_number (string_chars_consed),
-		bounded_number (misc_objects_consed),
 		bounded_number (intervals_consed),
 		bounded_number (strings_consed));
 }
@@ -7216,6 +7200,26 @@ verify_alloca (void)
 
 #endif /* ENABLE_CHECKING && USE_STACK_LISP_OBJECTS */
 
+/* Memory allocation for GMP.  */
+
+void
+range_error (void)
+{
+  xsignal0 (Qrange_error);
+}
+
+static void *
+xrealloc_for_gmp (void *ptr, size_t ignore, size_t size)
+{
+  return xrealloc (ptr, size);
+}
+
+static void
+xfree_for_gmp (void *ptr, size_t ignore)
+{
+  xfree (ptr);
+}
+
 /* Initialization.  */
 
 void
@@ -7249,6 +7253,10 @@ init_alloc_once (void)
 void
 init_alloc (void)
 {
+  eassert (mp_bits_per_limb == GMP_NUMB_BITS);
+  integer_width = 1 << 16;
+  mp_set_memory_functions (xmalloc, xrealloc_for_gmp, xfree_for_gmp);
+
   Vgc_elapsed = make_float (0.0);
   gcs_done = 0;
 
@@ -7296,11 +7304,6 @@ If this portion is smaller than `gc-cons-threshold', this is ignored.  */);
 
   DEFVAR_INT ("string-chars-consed", string_chars_consed,
 	      doc: /* Number of string characters that have been consed so far.  */);
-
-  DEFVAR_INT ("misc-objects-consed", misc_objects_consed,
-	      doc: /* Number of miscellaneous objects that have been consed so far.
-These include markers and overlays, plus certain objects not visible
-to users.  */);
 
   DEFVAR_INT ("intervals-consed", intervals_consed,
 	      doc: /* Number of intervals that have been consed so far.  */);
@@ -7355,6 +7358,11 @@ do hash-consing of the objects allocated to pure space.  */);
 The time is in seconds as a floating point value.  */);
   DEFVAR_INT ("gcs-done", gcs_done,
               doc: /* Accumulated number of garbage collections done.  */);
+
+  DEFVAR_INT ("integer-width", integer_width,
+	      doc: /* Maximum number of bits in bignums.
+Integers outside the fixnum range are limited to absolute values less
+than 2**N, where N is this variable's value.  N should be nonnegative.  */);
 
   defsubr (&Scons);
   defsubr (&Slist);
