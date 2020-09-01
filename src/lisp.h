@@ -3027,7 +3027,7 @@ CHECK_INTEGER (Lisp_Object x)
   static union Aligned_Lisp_Subr sname =                                \
      {{{ PVEC_SUBR << PSEUDOVECTOR_AREA_BITS },				\
        { .a ## maxargs = fnname },					\
-       minargs, maxargs, lname, intspec, 0, Lisp_Subr_Lang_C };		\
+       minargs, maxargs, lname, intspec, 0, Lisp_Subr_Lang_C }};		\
    Lisp_Object fnname
 
 /* defsubr (Sname);
@@ -3409,17 +3409,17 @@ make_symbol_constant (Lisp_Object sym)
 
 /* Buffer-local variable access functions.  */
 
-INLINE union Lisp_Fwd*
-get_blv_fwd (struct Lisp_Buffer_Local_Value *blv)
-{
-  return blv->fwd;
-}
+/* INLINE union Lisp_Fwd* */
+/* get_blv_fwd (struct Lisp_Buffer_Local_Value *blv) */
+/* { */
+/*   return blv->fwd; */
+/* } */
 
-INLINE Lisp_Object
-get_blv_value (struct Lisp_Buffer_Local_Value *blv)
-{
-  return XCDR (blv->valcell);
-}
+/* INLINE Lisp_Object */
+/* get_blv_value (struct Lisp_Buffer_Local_Value *blv) */
+/* { */
+/*   return XCDR (blv->valcell); */
+/* } */
 
 INLINE int
 blv_found (struct Lisp_Buffer_Local_Value *blv)
