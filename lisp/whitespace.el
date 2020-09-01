@@ -1,9 +1,8 @@
 ;;; whitespace.el --- minor mode to visualize TAB, (HARD) SPACE, NEWLINE -*- lexical-binding: t -*-
 
-;; Copyright (C) 2000-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2020 Free Software Foundation, Inc.
 
 ;; Author: Vinicius Jose Latorre <viniciusjl.gnu@gmail.com>
-;; Maintainer: Vinicius Jose Latorre <viniciusjl.gnu@gmail.com>
 ;; Keywords: data, wp
 ;; Version: 13.2.2
 ;; X-URL: http://www.emacswiki.org/cgi-bin/wiki/ViniciusJoseLatorre
@@ -263,7 +262,7 @@
 ;;
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;; code:
+;;; Code:
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -284,7 +283,8 @@
   '(face
     tabs spaces trailing lines space-before-tab newline
     indentation empty space-after-tab
-    space-mark tab-mark newline-mark)
+    space-mark tab-mark newline-mark
+    missing-newline-at-eof)
   "Specify which kind of blank is visualized.
 
 It's a list containing some or all of the following values:
@@ -324,6 +324,11 @@ It's a list containing some or all of the following values:
 			`whitespace-style'.
 
    newline		NEWLINEs are visualized via faces.
+			It has effect only if `face' (see above)
+			is present in `whitespace-style'.
+
+   missing-newline-at-eof Missing newline at the end of the file is
+                        visualized via faces.
 			It has effect only if `face' (see above)
 			is present in `whitespace-style'.
 
@@ -587,6 +592,10 @@ line.  Used when `whitespace-style' includes the value `indentation'.")
   "Face used to visualize big indentation."
   :group 'whitespace)
 
+(defface whitespace-missing-newline-at-eof
+  '((((class mono)) :inverse-video t :weight bold :underline t)
+    (t :background "#d0d040" :foreground "black"))
+  "Face used to visualize missing newline at the end of the file.")
 
 (defvar whitespace-empty 'whitespace-empty
   "Symbol face used to visualize empty lines at beginning and/or end of buffer.
@@ -717,8 +726,8 @@ and the cons cdr is used for TABs visualization.
 
 Used when `whitespace-style' includes `indentation',
 `indentation::tab' or  `indentation::space'."
-  :type '(cons (string :tag "Indentation SPACEs")
-	       (string :tag "Indentation TABs"))
+  :type '(cons (regexp :tag "Indentation SPACEs")
+	       (regexp :tag "Indentation TABs"))
   :group 'whitespace)
 
 
@@ -748,8 +757,8 @@ and the cons cdr is used for TABs visualization.
 
 Used when `whitespace-style' includes `space-after-tab',
 `space-after-tab::tab' or `space-after-tab::space'."
-  :type '(cons (string :tag "SPACEs After TAB")
-	       string)
+  :type '(cons (regexp :tag "SPACEs After TAB")
+	       regexp)
   :group 'whitespace)
 
 (defcustom whitespace-big-indent-regexp
@@ -1685,7 +1694,7 @@ cleaning up these problems."
             (mapcar
              #'(lambda (option)
                  (when force
-                   (add-to-list 'style (car option)))
+                   (push (car option) style))
                  (goto-char rstart)
                  (let ((regexp
                         (cond
@@ -1701,6 +1710,8 @@ cleaning up these problems."
                           (whitespace-space-after-tab-regexp 'tab))
                          ((eq (car option) 'space-after-tab::space)
                           (whitespace-space-after-tab-regexp 'space))
+                         ((eq (car option) 'missing-newline-at-eof)
+                          "[^\n]\\'")
                          (t
                           (cdr option)))))
                    (when (re-search-forward regexp rend t)
@@ -1708,7 +1719,7 @@ cleaning up these problems."
                        (setq has-bogus (memq (car option) style)))
                      t)))
              whitespace-report-list)))
-      (when (pcase report-if-bogus (`nil t) (`never nil) (_ has-bogus))
+      (when (pcase report-if-bogus ('nil t) ('never nil) (_ has-bogus))
         (whitespace-kill-buffer whitespace-report-buffer-name)
         ;; `indent-tabs-mode' may be local to current buffer
         ;; `tab-width' may be local to current buffer
@@ -2026,7 +2037,8 @@ resultant list will be returned."
 	   (memq 'space-after-tab::space  whitespace-active-style)
 	   (memq 'space-before-tab        whitespace-active-style)
 	   (memq 'space-before-tab::tab   whitespace-active-style)
-	   (memq 'space-before-tab::space whitespace-active-style))))
+	   (memq 'space-before-tab::space whitespace-active-style))
+       t))
 
 
 (defun whitespace-color-on ()
@@ -2067,16 +2079,7 @@ resultant list will be returned."
        ,@(when (or (memq 'lines      whitespace-active-style)
                    (memq 'lines-tail whitespace-active-style))
            ;; Show "long" lines.
-           `((,(let ((line-column (or whitespace-line-column fill-column)))
-                 (format
-                  "^\\([^\t\n]\\{%s\\}\\|[^\t\n]\\{0,%s\\}\t\\)\\{%d\\}%s\\(.+\\)$"
-                  tab-width
-                  (1- tab-width)
-                  (/ line-column tab-width)
-                  (let ((rem (% line-column tab-width)))
-                    (if (zerop rem)
-                        ""
-                      (format ".\\{%d\\}" rem)))))
+           `((,#'whitespace-lines-regexp
               ,(if (memq 'lines whitespace-active-style)
                    0                    ; whole line
                  2)                     ; line tail
@@ -2131,7 +2134,16 @@ resultant list will be returned."
                 ((memq 'space-after-tab::space whitespace-active-style)
                  ;; Show SPACEs after TAB (TABs).
                  (whitespace-space-after-tab-regexp 'space)))
-              1 whitespace-space-after-tab t)))))
+              1 whitespace-space-after-tab t)))
+       ,@(when (memq 'missing-newline-at-eof whitespace-active-style)
+           ;; Show missing newline.
+           `(("[^\n]\\'" 0
+              ;; Don't mark the end of the buffer is point is there --
+              ;; it probably means that the user is typing something
+              ;; at the end of the buffer.
+              (and (/= whitespace-point (point-max))
+                   'whitespace-missing-newline-at-eof)
+              t)))))
     (font-lock-add-keywords nil whitespace-font-lock-keywords t)
     (font-lock-flush)))
 
@@ -2177,6 +2189,19 @@ resultant list will be returned."
 	     (setq status nil)))		  ;; end of buffer
     status))
 
+(defun whitespace-lines-regexp (limit)
+  (re-search-forward
+   (let ((line-column (or whitespace-line-column fill-column)))
+     (format
+      "^\\([^\t\n]\\{%s\\}\\|[^\t\n]\\{0,%s\\}\t\\)\\{%d\\}%s\\(.+\\)$"
+      tab-width
+      (1- tab-width)
+      (/ line-column tab-width)
+      (let ((rem (% line-column tab-width)))
+        (if (zerop rem)
+            ""
+          (format ".\\{%d\\}" rem)))))
+   limit t))
 
 (defun whitespace-empty-at-bob-regexp (limit)
   "Match spaces at beginning of buffer which do not contain the point at \
@@ -2327,9 +2352,10 @@ Also refontify when necessary."
 
 (defun whitespace-style-mark-p ()
   "Return t if there is some visualization via display table."
-  (or (memq 'tab-mark     whitespace-active-style)
-      (memq 'space-mark   whitespace-active-style)
-      (memq 'newline-mark whitespace-active-style)))
+  (and (or (memq 'tab-mark     whitespace-active-style)
+           (memq 'space-mark   whitespace-active-style)
+           (memq 'newline-mark whitespace-active-style))
+       t))
 
 
 (defsubst whitespace-char-valid-p (char)

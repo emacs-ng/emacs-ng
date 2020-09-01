@@ -1,6 +1,6 @@
 ;;; json-tests.el --- unit tests for json.c          -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2017-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2020 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -76,7 +76,8 @@
   (should (equal (json-serialize '(abc [1 2 t] :def :null))
                  "{\"abc\":[1,2,true],\"def\":null}"))
   (should-error (json-serialize '#1=(:a 1 . #1#)) :type 'circular-list)
-  (should-error (json-serialize '#1=(:a 1 :b . #1#)) :type 'circular-list)
+  (should-error (json-serialize '#1=(:a 1 :b . #1#))
+                :type '(circular-list wrong-type-argument))
   (should-error (json-serialize '(:foo "bar" (unexpected-alist-key . 1)))
                 :type 'wrong-type-argument)
   (should-error (json-serialize '((abc . "abc") :unexpected-plist-key "key"))
@@ -86,8 +87,8 @@
   (should (equal
            (json-serialize
             (list :detect-hash-table #s(hash-table test equal data ("bla" "ble"))
-                  :detect-alist `((bla . "ble"))
-                  :detect-plist `(:bla "ble")))
+                  :detect-alist '((bla . "ble"))
+                  :detect-plist '(:bla "ble")))
            "\
 {\
 \"detect-hash-table\":{\"bla\":\"ble\"},\
@@ -116,6 +117,14 @@
                    '((abc . [9 :false]) (def . :null))))
     (should (equal (json-parse-string input :object-type 'plist)
                    '(:abc [9 :false] :def :null)))))
+
+(ert-deftest json-parse-string/array ()
+  (skip-unless (fboundp 'json-parse-string))
+  (let ((input "[\"a\", 1, [\"b\", 2]]"))
+    (should (equal (json-parse-string input)
+                   ["a" 1 ["b" 2]]))
+    (should (equal (json-parse-string input :array-type 'list)
+                   '("a" 1 ("b" 2))))))
 
 (ert-deftest json-parse-string/string ()
   (skip-unless (fboundp 'json-parse-string))
@@ -151,7 +160,7 @@
   (skip-unless (fboundp 'json-parse-string))
   (should-error (json-parse-string "\x00") :type 'wrong-type-argument)
   ;; FIXME: Reconsider whether this is the right behavior.
-  (should-error (json-parse-string "[a\\u0000b]") :type 'json-parse-error))
+  (should-error (json-parse-string "[\"a\\u0000b\"]") :type 'json-parse-error))
 
 (ert-deftest json-parse-string/invalid-unicode ()
   "Some examples from
@@ -272,11 +281,32 @@ Test with both unibyte and multibyte strings."
                   (cl-incf calls)
                   (throw 'test-tag 'throw-value))
                 :local)
-      (should-error
-       (catch 'test-tag
-         (json-insert '((a . "b") (c . 123) (d . [1 2 t :false]))))
-       :type 'no-catch)
+      (should
+       (equal
+        (catch 'test-tag
+          (json-insert '((a . "b") (c . 123) (d . [1 2 t :false]))))
+        'throw-value))
       (should (equal calls 1)))))
+
+(ert-deftest json-serialize/bignum ()
+  (skip-unless (fboundp 'json-serialize))
+  (should (equal (json-serialize (vector (1+ most-positive-fixnum)
+                                         (1- most-negative-fixnum)))
+                 (format "[%d,%d]"
+                         (1+ most-positive-fixnum)
+                         (1- most-negative-fixnum)))))
+
+(ert-deftest json-parse-string/wrong-type ()
+  "Check that Bug#42113 is fixed."
+  (skip-unless (fboundp 'json-parse-string))
+  (should-error (json-parse-string 1) :type 'wrong-type-argument))
+
+(ert-deftest json-serialize/wrong-hash-key-type ()
+  "Check that Bug#42113 is fixed."
+  (skip-unless (fboundp 'json-serialize))
+  (let ((table (make-hash-table :test #'eq)))
+    (puthash 1 2 table)
+    (should-error (json-serialize table) :type 'wrong-type-argument)))
 
 (provide 'json-tests)
 ;;; json-tests.el ends here

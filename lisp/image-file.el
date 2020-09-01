@@ -1,6 +1,6 @@
 ;;; image-file.el --- support for visiting image files
 ;;
-;; Copyright (C) 2000-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2020 Free Software Foundation, Inc.
 ;;
 ;; Author: Miles Bader <miles@gnu.org>
 ;; Keywords: multimedia
@@ -32,6 +32,7 @@
 ;;; Code:
 
 (require 'image)
+(require 'image-converter)
 
 
 ;;;###autoload
@@ -80,25 +81,28 @@ the variable is set using \\[customize]."
   (let ((exts-regexp
 	 (and image-file-name-extensions
 	      (concat "\\."
-		      (regexp-opt (nconc (mapcar #'upcase
-						 image-file-name-extensions)
-					 image-file-name-extensions)
-				  t)
+		      (regexp-opt
+                       (append (mapcar #'upcase image-file-name-extensions)
+			       image-file-name-extensions
+                               (mapcar #'upcase
+				       image-converter-file-name-extensions)
+                               image-converter-file-name-extensions)
+		       t)
 		      "\\'"))))
-    (if image-file-name-regexps
-	(mapconcat 'identity
-		   (if exts-regexp
-		       (cons exts-regexp image-file-name-regexps)
-		     image-file-name-regexps)
-		   "\\|")
-      exts-regexp)))
+    (mapconcat
+     'identity
+     (delq nil (list exts-regexp
+		     image-file-name-regexps
+		     (car (rassq 'imagemagick image-type-file-name-regexps))))
+     "\\|")))
 
 
 ;;;###autoload
 (defun insert-image-file (file &optional visit beg end replace)
   "Insert the image file FILE into the current buffer.
-Optional arguments VISIT, BEG, END, and REPLACE are interpreted as for
-the command `insert-file-contents'."
+Optional arguments VISIT, BEG, END, and REPLACE are interpreted
+as for the command `insert-file-contents'.  Return list of
+absolute file name and number of characters inserted."
   (let ((rval
 	 (image-file-call-underlying #'insert-file-contents-literally
 				     'insert-file-contents
@@ -109,11 +113,8 @@ the command `insert-file-contents'."
       (let* ((ibeg (point))
 	     (iend (+ (point) (cadr rval)))
 	     (visitingp (and visit (= ibeg (point-min)) (= iend (point-max))))
-	     (data
-	      (string-make-unibyte
-	       (buffer-substring-no-properties ibeg iend)))
-	     (image
-	      (create-image data nil t))
+             (image (create-image (encode-coding-region ibeg iend 'binary t)
+                                  nil t))
 	     (props
 	      `(display ,image
 			yank-handler
@@ -142,7 +143,9 @@ the command `insert-file-contents'."
   "Yank handler for inserting an image into a buffer."
   (let ((len (length string))
 	(image (get-text-property 0 'display string)))
-    (remove-text-properties 0 len yank-excluded-properties string)
+    (if (eq yank-excluded-properties t)
+        (set-text-properties 0 len () string)
+      (remove-list-of-text-properties 0 len yank-excluded-properties string))
     (if (consp image)
 	(add-text-properties 0
 			     (or (next-single-property-change 0 'image-counter string)

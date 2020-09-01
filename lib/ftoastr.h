@@ -1,6 +1,6 @@
 /* floating point to accurate string
 
-   Copyright (C) 2010-2018 Free Software Foundation, Inc.
+   Copyright (C) 2010-2020 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 /* Written by Paul Eggert.  */
 
 #ifndef _GL_FTOASTR_H
+#define _GL_FTOASTR_H
 
 #include "intprops.h"
 #include <float.h>
@@ -47,6 +48,12 @@
 int  ftoastr (char *buf, size_t bufsize, int flags, int width,       float x);
 int  dtoastr (char *buf, size_t bufsize, int flags, int width,      double x);
 int ldtoastr (char *buf, size_t bufsize, int flags, int width, long double x);
+
+/* The last two functions except that the formatting takes place in
+   the C locale.  */
+int  c_dtoastr (char *buf, size_t bufsize, int flags, int width,      double x);
+int c_ldtoastr (char *buf, size_t bufsize, int flags, int width, long double x);
+
 
 /* Flag values for ftoastr etc.  These can be ORed together.  */
 enum

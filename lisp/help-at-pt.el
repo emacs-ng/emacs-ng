@@ -1,6 +1,6 @@
 ;;; help-at-pt.el --- local help through the keyboard
 
-;; Copyright (C) 2003-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2020 Free Software Foundation, Inc.
 
 ;; Author: Luc Teirlinck <teirllm@auburn.edu>
 ;; Keywords: help
@@ -161,6 +161,10 @@ printed if there is a text or overlay property at point that is
 included in this list.  Suggested properties are `keymap',
 `local-map', `button' and `kbd-help'.  Any value other than t or
 a non-empty list disables the feature.
+
+The text printed from the `help-echo' property is often only
+relevant when using the mouse.  The presence of a `kbd-help'
+property guarantees that non mouse specific help is available.
 
 This variable only takes effect after a call to
 `help-at-pt-set-timer'.  The help gets printed after Emacs has

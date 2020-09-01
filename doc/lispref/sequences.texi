@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990-1995, 1998-1999, 2001-2018 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2020 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Sequences Arrays Vectors
@@ -183,7 +183,7 @@ for other ways to copy sequences.
 
 @example
 @group
-(setq bar '(1 2))
+(setq bar (list 1 2))
      @result{} (1 2)
 @end group
 @group
@@ -278,7 +278,7 @@ Unlike @code{reverse} the original @var{sequence} may be modified.
 
 @example
 @group
-(setq x '(a b c))
+(setq x (list 'a 'b 'c))
      @result{} (a b c)
 @end group
 @group
@@ -320,7 +320,7 @@ presented graphically:
   For the vector, it is even simpler because you don't need setq:
 
 @example
-(setq x [1 2 3 4])
+(setq x (copy-sequence [1 2 3 4]))
      @result{} [1 2 3 4]
 (nreverse x)
      @result{} [4 3 2 1]
@@ -330,7 +330,8 @@ x
 
 Note that unlike @code{reverse}, this function doesn't work with strings.
 Although you can alter string data by using @code{aset}, it is strongly
-encouraged to treat strings as immutable.
+encouraged to treat strings as immutable even when they are mutable.
+@xref{Mutability}.
 
 @end defun
 
@@ -374,11 +375,11 @@ appears in a different position in the list due to the change of
 
 @example
 @group
-(setq nums '(1 3 2 6 5 4 0))
+(setq nums (list 1 3 2 6 5 4 0))
      @result{} (1 3 2 6 5 4 0)
 @end group
 @group
-(sort nums '<)
+(sort nums #'<)
      @result{} (0 1 2 3 4 5 6)
 @end group
 @group
@@ -396,7 +397,7 @@ of @code{sort} and use that.  Most often we store the result back into
 the variable that held the original list:
 
 @example
-(setq nums (sort nums '<))
+(setq nums (sort nums #'<))
 @end example
 
 For the better understanding of what stable sort is, consider the following
@@ -601,7 +602,7 @@ returned value is a list.
 @defun seq-mapn function &rest sequences
   This function returns the result of applying @var{function} to each
 element of @var{sequences}.  The arity (@pxref{What Is a Function,
-sub-arity}) of @var{function} must match the number of sequences.
+subr-arity}) of @var{function} must match the number of sequences.
 Mapping stops at the end of the shortest sequence, and the returned
 value is a list.
 
@@ -782,18 +783,19 @@ before being sorted.  @var{function} is a function of one argument.
 @end defun
 
 
-@defun seq-contains sequence elt &optional function
-  This function returns the first element in @var{sequence} that is equal to
-@var{elt}.  If the optional argument @var{function} is non-@code{nil},
-it is a function of two arguments to use instead of the default @code{equal}.
+@defun seq-contains-p sequence elt &optional function
+  This function returns non-@code{nil} if at least one element in
+@var{sequence} is equal to @var{elt}.  If the optional argument
+@var{function} is non-@code{nil}, it is a function of two arguments to
+use instead of the default @code{equal}.
 
 @example
 @group
-(seq-contains '(symbol1 symbol2) 'symbol1)
-@result{} symbol1
+(seq-contains-p '(symbol1 symbol2) 'symbol1)
+@result{} t
 @end group
 @group
-(seq-contains '(symbol1 symbol2) 'symbol3)
+(seq-contains-p '(symbol1 symbol2) 'symbol3)
 @result{} nil
 @end group
 @end example
@@ -1049,15 +1051,18 @@ that @var{sequence} can be a list, vector or string.  This is
 primarily useful for side-effects.
 @end defmac
 
-@defmac seq-let arguments sequence body@dots{}
+@anchor{seq-let}
+@defmac seq-let var-sequence val-sequence body@dots{}
 @cindex sequence destructuring
-  This macro binds the variables defined in @var{arguments} to the
-elements of @var{sequence}.  @var{arguments} can themselves include
-sequences, allowing for nested destructuring.
+  This macro binds the variables defined in @var{var-sequence} to the
+values that are the corresponding elements of @var{val-sequence}.
+This is known as @dfn{destructuring binding}.  The elements of
+@var{var-sequence} can themselves include sequences, allowing for
+nested destructuring.
 
-The @var{arguments} sequence can also include the @code{&rest} marker
-followed by a variable name to be bound to the rest of
-@code{sequence}.
+The @var{var-sequence} sequence can also include the @code{&rest}
+marker followed by a variable name to be bound to the rest of
+@var{val-sequence}.
 
 @example
 @group
@@ -1081,6 +1086,9 @@ followed by a variable name to be bound to the rest of
 @end group
 @result{} [3 4]
 @end example
+
+The @code{pcase} patterns provide an alternative facility for
+destructuring binding, see @ref{Destructuring with pcase Patterns}.
 @end defmac
 
 @defun seq-random-elt sequence
@@ -1221,7 +1229,7 @@ This function sets the @var{index}th element of @var{array} to be
 
 @example
 @group
-(setq w [foo bar baz])
+(setq w (vector 'foo 'bar 'baz))
      @result{} [foo bar baz]
 (aset w 0 'fu)
      @result{} fu
@@ -1230,7 +1238,8 @@ w
 @end group
 
 @group
-(setq x "asdfasfd")
+;; @r{@code{copy-sequence} copies the string to be modified later.}
+(setq x (copy-sequence "asdfasfd"))
      @result{} "asdfasfd"
 (aset x 3 ?Z)
      @result{} 90
@@ -1238,6 +1247,8 @@ x
      @result{} "asdZasfd"
 @end group
 @end example
+
+The @var{array} should be mutable.  @xref{Mutability}.
 
 If @var{array} is a string and @var{object} is not a character, a
 @code{wrong-type-argument} error results.  The function converts a
@@ -1250,7 +1261,7 @@ each element of @var{array} is @var{object}.  It returns @var{array}.
 
 @example
 @group
-(setq a [a b c d e f g])
+(setq a (copy-sequence [a b c d e f g]))
      @result{} [a b c d e f g]
 (fillarray a 0)
      @result{} [0 0 0 0 0 0 0]
@@ -1258,7 +1269,7 @@ a
      @result{} [0 0 0 0 0 0 0]
 @end group
 @group
-(setq s "When in the course")
+(setq s (copy-sequence "When in the course"))
      @result{} "When in the course"
 (fillarray s ?-)
      @result{} "------------------"
@@ -1295,7 +1306,9 @@ same way in Lisp input.
   A vector, like a string or a number, is considered a constant for
 evaluation: the result of evaluating it is the same vector.  This does
 not evaluate or even examine the elements of the vector.
-@xref{Self-Evaluating Forms}.
+@xref{Self-Evaluating Forms}.  Vectors written with square brackets
+should not be modified via @code{aset} or other destructive
+operations.  @xref{Mutability}.
 
   Here are examples illustrating these principles:
 
@@ -1558,14 +1571,14 @@ For example, here is how to examine the elements of the syntax table:
 @example
 (let (accumulator)
    (map-char-table
-    #'(lambda (key value)
-        (setq accumulator
-              (cons (list
-                     (if (consp key)
-                         (list (car key) (cdr key))
-                       key)
-                     value)
-                    accumulator)))
+    (lambda (key value)
+      (setq accumulator
+            (cons (list
+                   (if (consp key)
+                       (list (car key) (cdr key))
+                     key)
+                   value)
+                  accumulator)))
     (syntax-table))
    accumulator)
 @result{}
@@ -1769,6 +1782,11 @@ element.  The return value is not significant.
 
 If the ring is full, this function removes the newest element to make
 room for the inserted element.
+@end defun
+
+@defun ring-resize ring size
+Set the size of @var{ring} to @var{size}.  If the new size is smaller,
+then the oldest items in the ring are discarded.
 @end defun
 
 @cindex fifo data structure

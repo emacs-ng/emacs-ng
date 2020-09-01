@@ -1,6 +1,6 @@
-;;; seq-tests.el --- Tests for sequences.el
+;;; seq-tests.el --- Tests for seq.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2014-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2020 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Petton <nicolas@petton.fr>
 ;; Maintainer: emacs-devel@gnu.org
@@ -126,7 +126,7 @@ Evaluate BODY for each created sequence.
   (with-test-sequences (seq '(6 7 8 9 10))
     (should (equal (seq-filter #'test-sequences-evenp seq) '(6 8 10)))
     (should (equal (seq-filter #'test-sequences-oddp seq) '(7 9)))
-    (should (equal (seq-filter (lambda (elt) nil) seq) '())))
+    (should (equal (seq-filter (lambda (_) nil) seq) '())))
   (with-test-sequences (seq '())
     (should (equal (seq-filter #'test-sequences-evenp seq) '()))))
 
@@ -134,7 +134,7 @@ Evaluate BODY for each created sequence.
   (with-test-sequences (seq '(6 7 8 9 10))
     (should (equal (seq-remove #'test-sequences-evenp seq) '(7 9)))
     (should (equal (seq-remove #'test-sequences-oddp seq) '(6 8 10)))
-    (should (same-contents-p (seq-remove (lambda (elt) nil) seq) seq)))
+    (should (same-contents-p (seq-remove (lambda (_) nil) seq) seq)))
   (with-test-sequences (seq '())
     (should (equal (seq-remove #'test-sequences-evenp seq) '()))))
 
@@ -142,7 +142,7 @@ Evaluate BODY for each created sequence.
   (with-test-sequences (seq '(6 7 8 9 10))
     (should (equal (seq-count #'test-sequences-evenp seq) 3))
     (should (equal (seq-count #'test-sequences-oddp seq) 2))
-    (should (equal (seq-count (lambda (elt) nil) seq) 0)))
+    (should (equal (seq-count (lambda (_) nil) seq) 0)))
   (with-test-sequences (seq '())
     (should (equal (seq-count #'test-sequences-evenp seq) 0))))
 
@@ -185,9 +185,21 @@ Evaluate BODY for each created sequence.
   (with-test-sequences (seq '(3 4 5 6))
     (should (= 5 (seq-contains seq 5)))))
 
+(ert-deftest test-seq-contains-p ()
+  (with-test-sequences (seq '(3 4 5 6))
+    (should (eq (seq-contains-p seq 3) t))
+    (should-not (seq-contains-p seq 7)))
+  (with-test-sequences (seq '())
+    (should-not (seq-contains-p seq 3))
+    (should-not (seq-contains-p seq nil))))
+
+(ert-deftest test-seq-contains-p-with-nil ()
+  (should (seq-contains-p  [nil] nil))
+  (should (seq-contains-p '(nil) nil)))
+
 (ert-deftest test-seq-every-p ()
   (with-test-sequences (seq '(43 54 22 1))
-    (should (seq-every-p (lambda (elt) t) seq))
+    (should (seq-every-p (lambda (_) t) seq))
     (should-not (seq-every-p #'test-sequences-oddp seq))
     (should-not (seq-every-p #'test-sequences-evenp seq)))
   (with-test-sequences (seq '(42 54 22 2))
@@ -423,6 +435,31 @@ Evaluate BODY for each created sequence.
     (should (eq (seq-into lst 'list) lst))
     (should (eq (seq-into vec 'vector) vec))
     (should (eq (seq-into str 'string) str))))
+
+(ert-deftest test-seq-first ()
+  (let ((lst '(1 2 3))
+        (vec [1 2 3]))
+    (should (eq (seq-first lst) 1))
+    (should (eq (seq-first vec) 1))))
+
+(ert-deftest test-seq-rest ()
+  (let ((lst '(1 2 3))
+        (vec [1 2 3]))
+    (should (equal (seq-rest lst) '(2 3)))
+    (should (equal (seq-rest vec) [2 3]))))
+
+;; Regression tests for bug#34852
+(progn
+  (ert-deftest test-seq-intersection-with-nil ()
+    (should (equal (seq-intersection '(1 2 nil) '(1 nil)) '(1 nil))))
+
+  (ert-deftest test-seq-set-equal-p-with-nil ()
+    (should (seq-set-equal-p '("a" "b" nil)
+                             '(nil "b" "a"))))
+
+  (ert-deftest test-difference-with-nil ()
+    (should (equal (seq-difference '(1 nil) '(2 nil))
+                   '(1)))))
 
 (provide 'seq-tests)
 ;;; seq-tests.el ends here

@@ -1,6 +1,6 @@
 # Files that Git should ignore in the Emacs source directory.
 
-# Copyright 2009-2018 Free Software Foundation, Inc.
+# Copyright 2009-2020 Free Software Foundation, Inc.
 
 # This file is part of GNU Emacs.
 
@@ -22,6 +22,9 @@
 # file does not rely on "**" in patterns.  The "**" feature was added
 # in Git 1.8.2 (March 2013).
 
+
+# Personal customization.
+.dir-locals-2.el
 
 # Built by 'autogen.sh'.
 /aclocal.m4
@@ -58,6 +61,7 @@ lib/execinfo.h
 lib/fcntl.h
 lib/getopt.h
 lib/getopt-cdefs.h
+lib/gmp.h
 lib/ieee754.h
 lib/inttypes.h
 lib/libgnu.a
@@ -133,6 +137,7 @@ src/gl-stamp
 *.o
 *.res
 *.so
+*.dylib
 core
 core.*[0-9]
 gmon.out
@@ -148,6 +153,7 @@ test/manual/etags/regexfile
 test/manual/etags/ETAGS
 test/manual/etags/CTAGS
 test/manual/indent/*.new
+test/data/mml-sec/random_seed
 
 # ctags, etags.
 TAGS
@@ -172,6 +178,7 @@ lib-src/remacsclient
 lib-src/etags
 lib-src/hexl
 lib-src/make-docfile
+lib-src/make-fingerprint
 lib-src/movemail
 lib-src/profile
 lib-src/test-distrib
@@ -185,6 +192,9 @@ src/bootstrap-emacs
 src/remacs
 src/remacs-[0-9]*
 src/temacs
+src/fingerprint.c
+src/dmpstruct.h
+src/*.pdmp
 
 # Character-set info.
 admin/charsets/jisx2131-filter
@@ -195,6 +205,7 @@ lisp/international/charscript.el
 lisp/international/cp51932.el
 lisp/international/eucjp-ms.el
 lisp/international/uni-*.el
+lisp/language/pinyin.el
 
 # Documentation.
 *.aux
@@ -244,7 +255,6 @@ gnustmp*
 
 # Version control and locks.
 *.orig
-*.rej
 *.swp
 *~
 .#*
@@ -252,11 +262,13 @@ gnustmp*
 ChangeLog
 [0-9]*.patch
 [0-9]*.txt
-.dir-locals?.el
 /vc-dwim-log-*
 
 # Built by 'make install'.
 etc/emacs.tmpdesktop
+
+# Built by 'make-dist'.
+/MANIFEST
 
 # Distribution directories.
 /emacs-[1-9]*/
@@ -265,6 +277,7 @@ etc/emacs.tmpdesktop
 *.in-h
 _*
 !lib/_Noreturn.h
+!m4/_*.m4
 /bin/
 /BIN/
 /data/

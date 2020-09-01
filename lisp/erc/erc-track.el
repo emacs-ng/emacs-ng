@@ -1,11 +1,11 @@
 ;;; erc-track.el --- Track modified channel buffers  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2020 Free Software Foundation, Inc.
 
 ;; Author: Mario Lang <mlang@delysid.org>
-;; Maintainer: emacs-devel@gnu.org
+;; Maintainer: Amin Bandali <bandali@gnu.org>
 ;; Keywords: comm, faces
-;; URL: http://www.emacswiki.org/cgi-bin/wiki.pl?ErcChannelTracking
+;; URL: https://www.emacswiki.org/emacs/ErcChannelTracking
 
 ;; This file is part of GNU Emacs.
 
@@ -36,7 +36,6 @@
 
 (eval-when-compile (require 'cl-lib))
 (require 'erc)
-(require 'erc-compat)
 (require 'erc-match)
 
 ;;; Code:
@@ -245,7 +244,7 @@ The effect may be disabled by setting this variable to nil."
 (defcustom erc-track-position-in-mode-line 'before-modes
   "Where to show modified channel information in the mode-line.
 
-Setting this variable only has effects in GNU Emacs versions above 21.3.
+Setting this variable only has effect in GNU Emacs versions above 21.3.
 
 Choices are:
 `before-modes' - add to the beginning of `mode-line-modes',
@@ -267,22 +266,12 @@ nil            - don't add to mode line."
 (defun erc-modified-channels-object (strings)
   "Generate a new `erc-modified-channels-object' based on STRINGS."
   (if strings
-      (if (featurep 'xemacs)
-	  (let ((e-m-c-s '("[")))
-	    (push (cons (extent-at 0 (car strings)) (car strings))
-		  e-m-c-s)
-	    (dolist (string (cdr strings))
-	      (push "," e-m-c-s)
-	      (push (cons (extent-at 0 string) string)
-		    e-m-c-s))
-	    (push "] " e-m-c-s)
-	    (reverse e-m-c-s))
-	(concat (if (eq erc-track-position-in-mode-line 'after-modes)
-		    "[" " [")
-		(mapconcat 'identity (nreverse strings) ",")
-		(if (eq erc-track-position-in-mode-line 'before-modes)
-		    "] " "]")))
-    (if (featurep 'xemacs) '() "")))
+      (concat (if (eq erc-track-position-in-mode-line 'after-modes)
+		  "[" " [")
+	      (mapconcat 'identity (nreverse strings) ",")
+	      (if (eq erc-track-position-in-mode-line 'before-modes)
+		  "] " "]"))
+    ""))
 
 (defvar erc-modified-channels-object (erc-modified-channels-object nil)
   "Internal object used for displaying modified channels in the mode line.")
@@ -338,10 +327,9 @@ important."
 
 
 (defun erc-track-remove-from-mode-line ()
-  "Remove `erc-track-modified-channels' from the mode-line"
-  (when (boundp 'mode-line-modes)
-    (setq mode-line-modes
-	  (remove '(t erc-modified-channels-object) mode-line-modes)))
+  "Remove `erc-track-modified-channels' from the mode-line."
+  (setq mode-line-modes
+	(remove '(t erc-modified-channels-object) mode-line-modes))
   (when (consp global-mode-string)
     (setq global-mode-string
 	  (delq 'erc-modified-channels-object global-mode-string))))
@@ -351,12 +339,10 @@ important."
 See `erc-track-position-in-mode-line' for possible values."
   ;; CVS Emacs has a new format string, and global-mode-string
   ;; is very far to the right.
-  (cond ((and (eq position 'before-modes)
-	      (boundp 'mode-line-modes))
+  (cond ((eq position 'before-modes)
 	 (add-to-list 'mode-line-modes
 		      '(t erc-modified-channels-object)))
-	((and (eq position 'after-modes)
-	      (boundp 'mode-line-modes))
+	((eq position 'after-modes)
 	 (add-to-list 'mode-line-modes
 		      '(t erc-modified-channels-object) t))
 	((eq position t)
@@ -546,20 +532,13 @@ keybindings will not do anything useful."
   ((when (boundp 'erc-track-when-inactive)
      (if erc-track-when-inactive
 	 (progn
-	   (if (featurep 'xemacs)
-	       (defadvice switch-to-buffer (after erc-update-when-inactive
-						  (&rest args) activate)
-		 (erc-user-is-active))
-	     (add-hook 'window-configuration-change-hook 'erc-user-is-active))
+	   (add-hook 'window-configuration-change-hook 'erc-user-is-active)
 	   (add-hook 'erc-send-completed-hook 'erc-user-is-active)
 	   (add-hook 'erc-server-001-functions 'erc-user-is-active))
        (erc-track-add-to-mode-line erc-track-position-in-mode-line)
        (erc-update-mode-line)
-       (if (featurep 'xemacs)
-	   (defadvice switch-to-buffer (after erc-update (&rest args) activate)
-	     (erc-modified-channels-update))
-	 (add-hook 'window-configuration-change-hook
-		   'erc-window-configuration-change))
+       (add-hook 'window-configuration-change-hook
+		 'erc-window-configuration-change)
        (add-hook 'erc-insert-post-hook 'erc-track-modified-channels)
        (add-hook 'erc-disconnected-hook 'erc-modified-channels-update))
      ;; enable the tracking keybindings
@@ -570,18 +549,13 @@ keybindings will not do anything useful."
      (erc-track-remove-from-mode-line)
      (if erc-track-when-inactive
 	 (progn
-	   (if (featurep 'xemacs)
-	       (ad-disable-advice 'switch-to-buffer 'after
-				  'erc-update-when-inactive)
-	     (remove-hook 'window-configuration-change-hook
-			  'erc-user-is-active))
+	   (remove-hook 'window-configuration-change-hook
+			'erc-user-is-active)
 	   (remove-hook 'erc-send-completed-hook 'erc-user-is-active)
 	   (remove-hook 'erc-server-001-functions 'erc-user-is-active)
 	   (remove-hook 'erc-timer-hook 'erc-user-is-active))
-       (if (featurep 'xemacs)
-	   (ad-disable-advice 'switch-to-buffer 'after 'erc-update)
-	 (remove-hook 'window-configuration-change-hook
-		      'erc-window-configuration-change))
+       (remove-hook 'window-configuration-change-hook
+		    'erc-window-configuration-change)
        (remove-hook 'erc-disconnected-hook 'erc-modified-channels-update)
        (remove-hook 'erc-insert-post-hook 'erc-track-modified-channels))
      ;; disable the tracking keybindings
@@ -630,8 +604,8 @@ only consider active buffers visible.")
   (if erc-track-when-inactive
       (when erc-buffer-activity; could be nil
 	(and (erc-track-get-buffer-window buffer erc-track-visibility)
-	     (<= (erc-time-diff erc-buffer-activity (erc-current-time))
-		 erc-buffer-activity-timeout)))
+	     (not (time-less-p erc-buffer-activity-timeout
+			       (erc-time-diff erc-buffer-activity nil)))))
     (erc-track-get-buffer-window buffer erc-track-visibility)))
 
 ;;; Tracking the channel modifications
@@ -640,7 +614,7 @@ only consider active buffers visible.")
   (unless (minibuffer-window-active-p (minibuffer-window))
     ;; delay this until command has finished to make sure window is
     ;; actually visible before clearing activity
-    (add-hook 'post-command-hook 'erc-modified-channels-update)))
+    (erc-modified-channels-update)))
 
 (defvar erc-modified-channels-update-inside nil
   "Variable to prevent running `erc-modified-channels-update' multiple
@@ -650,7 +624,7 @@ because the debugger also causes changes to the window-configuration.")
 (defun erc-modified-channels-update (&rest _args)
   "This function updates the information in `erc-modified-channels-alist'
 according to buffer visibility.  It calls
-`erc-modified-channels-display' at the end. This should usually be
+`erc-modified-channels-display' at the end.  This should usually be
 called via `window-configuration-change-hook'.
 ARGS are ignored."
   (interactive)
@@ -669,12 +643,9 @@ ARGS are ignored."
 		  (erc-modified-channels-remove-buffer buffer))))
 	    erc-modified-channels-alist)
       (when removed-channel
-	(erc-modified-channels-display)))
-    (remove-hook 'post-command-hook 'erc-modified-channels-update)))
+	(erc-modified-channels-display)))))
 
-(defvar erc-track-mouse-face (if (featurep 'xemacs)
-				 'modeline-mousable
-			       'mode-line-highlight)
+(defvar erc-track-mouse-face 'mode-line-highlight
   "The face to use when mouse is over channel names in the mode line.")
 
 (defun erc-make-mode-line-buffer-name (string buffer &optional faces count)
@@ -889,7 +860,7 @@ is in `erc-mode'."
 
 (defvar erc-track-last-non-erc-buffer nil
   "Stores the name of the last buffer you were in before activating
-`erc-track-switch-buffers'")
+`erc-track-switch-buffers'.")
 
 (defun erc-track-sort-by-activest ()
   "Sort erc-modified-channels-alist by activity.
@@ -914,7 +885,7 @@ higher number than any other face in that list."
     count))
 
 (defun erc-track-sort-by-importance ()
-  "Sort erc-modified-channels-alist by importance.
+  "Sort `erc-modified-channels-alist' by importance.
 That means the position of the face in `erc-track-faces-priority-list'."
   (setq erc-modified-channels-alist
 	(sort erc-modified-channels-alist
@@ -923,20 +894,20 @@ That means the position of the face in `erc-track-faces-priority-list'."
 
 (defun erc-track-get-active-buffer (arg)
   "Return the buffer name of ARG in `erc-modified-channels-alist'.
-Negative arguments index in the opposite direction.  This direction is
-relative to `erc-track-switch-direction'"
+Negative arguments index in the opposite direction.  This direction
+is relative to `erc-track-switch-direction'."
   (let ((dir erc-track-switch-direction)
 	offset)
     (when (< arg 0)
       (setq dir (pcase dir
-		  (`oldest      'newest)
-		  (`newest      'oldest)
-		  (`mostactive  'leastactive)
-		  (`leastactive 'mostactive)
-		  (`importance  'oldest)))
+		  ('oldest      'newest)
+		  ('newest      'oldest)
+		  ('mostactive  'leastactive)
+		  ('leastactive 'mostactive)
+		  ('importance  'oldest)))
       (setq arg (- arg)))
     (setq offset (pcase dir
-		   ((or `oldest `leastactive)
+		   ((or 'oldest 'leastactive)
 		    (- (length erc-modified-channels-alist) arg))
 		   (_ (1- arg))))
     ;; normalize out of range user input
@@ -946,11 +917,7 @@ relative to `erc-track-switch-direction'"
 	   (setq offset 0)))
     (car (nth offset erc-modified-channels-alist))))
 
-(defun erc-track-switch-buffer (arg)
-  "Switch to the next active ERC buffer, or if there are no active buffers,
-switch back to the last non-ERC buffer visited.  Next is defined by
-`erc-track-switch-direction', a negative argument will reverse this."
-  (interactive "p")
+(defun erc-track--switch-buffer (fun arg)
   (if (not erc-track-mode)
       (message (concat "Enable the ERC track module if you want to use the"
 		       " tracking minor mode"))
@@ -959,12 +926,30 @@ switch back to the last non-ERC buffer visited.  Next is defined by
 	   (unless (eq major-mode 'erc-mode)
 	     (setq erc-track-last-non-erc-buffer (current-buffer)))
 	   ;; and jump to the next active channel
-	   (switch-to-buffer (erc-track-get-active-buffer arg)))
+	   (funcall fun (erc-track-get-active-buffer arg)))
 	  ;; if no active channels, switch back to what we were doing before
 	  ((and erc-track-last-non-erc-buffer
-		erc-track-switch-from-erc
-		(buffer-live-p erc-track-last-non-erc-buffer))
-	   (switch-to-buffer erc-track-last-non-erc-buffer)))))
+	        erc-track-switch-from-erc
+	        (buffer-live-p erc-track-last-non-erc-buffer))
+	   (funcall fun erc-track-last-non-erc-buffer)))))
+
+(defun erc-track-switch-buffer (arg)
+  "Switch to the next active ERC buffer.
+If there are no active ERC buffers, switch back to the last
+non-ERC buffer visited.  The order of buffers is defined by
+`erc-track-switch-direction', and a negative argument will
+reverse it."
+  (interactive "p")
+  (erc-track--switch-buffer 'switch-to-buffer arg))
+
+(defun erc-track-switch-buffer-other-window (arg)
+  "Switch to the next active ERC buffer in another window.
+If there are no active ERC buffers, switch back to the last
+non-ERC buffer visited.  The order of buffers is defined by
+`erc-track-switch-direction', and a negative argument will
+reverse it."
+  (interactive "p")
+  (erc-track--switch-buffer 'switch-to-buffer-other-window arg))
 
 (provide 'erc-track)
 
@@ -972,6 +957,4 @@ switch back to the last non-ERC buffer visited.  Next is defined by
 ;;
 ;; Local Variables:
 ;; generated-autoload-file: "erc-loaddefs.el"
-;; indent-tabs-mode: t
-;; tab-width: 8
 ;; End:

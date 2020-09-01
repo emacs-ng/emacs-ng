@@ -1,6 +1,6 @@
 ;;; xscheme.el --- run MIT Scheme under Emacs        -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1986-1987, 1989-1990, 2001-2018 Free Software
+;; Copyright (C) 1986-1987, 1989-1990, 2001-2020 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -446,8 +446,6 @@ Entry to this mode runs `scheme-mode-hook' and then
 	    (scheme-interaction-mode-initialize)
 	    (scheme-interaction-mode t)))))
 
-(define-obsolete-function-alias 'advertised-xscheme-send-previous-expression
-  'xscheme-send-previous-expression "23.2")
 
 ;;;; Debugger Mode
 

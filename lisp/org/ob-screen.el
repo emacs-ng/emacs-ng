@@ -1,6 +1,6 @@
 ;;; ob-screen.el --- Babel Support for Interactive Terminal -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2020 Free Software Foundation, Inc.
 
 ;; Author: Benjamin Andresen
 ;; Keywords: literate programming, interactive shell
@@ -126,7 +126,7 @@ The terminal should shortly flicker."
     ;; XXX: need to find a better way to do the following
     (while (not (file-readable-p tmpfile))
       ;; do something, otherwise this will be optimized away
-      (format "org-babel-screen: File not readable yet."))
+      (sit-for 0.1))
     (setq tmp-string (with-temp-buffer
                        (insert-file-contents-literally tmpfile)
                        (buffer-substring (point-min) (point-max))))

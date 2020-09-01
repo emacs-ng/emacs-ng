@@ -1,6 +1,6 @@
 /* Header for xg_select.
 
-Copyright (C) 2009-2018 Free Software Foundation, Inc.
+Copyright (C) 2009-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -28,5 +28,7 @@ struct timespec;
 extern int xg_select (int max_fds,
 		      fd_set *rfds, fd_set *wfds, fd_set *efds,
 		      struct timespec *timeout, sigset_t *sigmask);
+
+extern void release_select_lock (void);
 
 #endif /* XGSELECT_H */

@@ -1,6 +1,6 @@
-;;; manoj-dark.el --- A dark theme from Manoj
+;;; manoj-dark.el --- A dark theme from Manoj  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2011-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2020 Free Software Foundation, Inc.
 
 ;; Author: Manoj Srivastava <srivasta@ieee.org>
 ;; Keywords: lisp, faces
@@ -83,12 +83,11 @@ jarring angry fruit salad look to reduce eye fatigue.")
  '(font-lock-regexp-grouping-construct ((t (:bold t :weight bold))))
  '(font-lock-variable-name-face ((t (:foreground "Aquamarine"))))
  '(font-lock-function-name-face ((t (:foreground "mediumspringgreen"
-				     :weight bold :height 1.1))))
+				     :weight bold))))
  '(font-lock-string-face        ((t (:foreground "RosyBrown1"))))
  '(font-lock-comment-face       ((t (:italic t :slant oblique :foreground "chocolate1"))))
  '(font-lock-comment-delimiter-face ((t (:foreground "Salmon"))))
  '(font-lock-doc-face           ((t (:italic t :slant oblique :foreground "LightCoral"))))
- '(font-lock-doc-string-face    ((t (:foreground "Plum"))))
  '(font-lock-warning-face ((t (:bold t :foreground "Pink" :weight bold))))
 
  '(cperl-array-face ((t (:foreground "LawnGreen" :background "Black" :bold t))))

@@ -1,9 +1,10 @@
 ;;; erc-log.el --- Logging facilities for ERC.
 
-;; Copyright (C) 2003-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2020 Free Software Foundation, Inc.
 
 ;; Author: Lawrence Mitchell <wence@gmx.li>
-;; Maintainer: emacs-devel@gnu.org
+;; Maintainer: Amin Bandali <bandali@gnu.org>
+;; URL: https://www.emacswiki.org/emacs/ErcLogging
 ;; Keywords: IRC, chat, client, Internet, logging
 
 ;; Created 2003-04-26
@@ -195,9 +196,7 @@ If you set this to nil, you may want to enable both
   :group 'erc-log
   :type 'boolean)
 
-(defcustom erc-log-file-coding-system (if (featurep 'xemacs)
-					  'binary
-					'emacs-mule)
+(defcustom erc-log-file-coding-system 'emacs-mule
   "The coding system ERC should use for writing log files.
 
 This should ideally, be a \"catch-all\" coding system, like
@@ -268,7 +267,7 @@ The current buffer is given by BUFFER."
     (with-current-buffer buffer
       (auto-save-mode -1)
       (setq buffer-file-name nil)
-      (erc-set-write-file-functions '(erc-save-buffer-in-logs))
+      (set (make-local-variable 'write-file-functions) '(erc-save-buffer-in-logs))
       (when erc-log-insert-log-on-open
 	(ignore-errors
 	  (save-excursion
@@ -285,7 +284,7 @@ The current buffer is given by BUFFER."
 	    erc-enable-logging nil))))
 
 (defun erc-log-all-but-server-buffers (buffer)
-  "Returns t if logging should be enabled in BUFFER.
+  "Return t if logging should be enabled in BUFFER.
 Returns nil if `erc-server-buffer-p' returns t."
   (save-excursion
     (save-window-excursion
@@ -335,14 +334,14 @@ This will not work with full paths, only names.
 
 Any unsafe characters in the name are replaced with \"!\".  The
 filename is downcased."
-  (downcase (erc-replace-regexp-in-string
+  (downcase (replace-regexp-in-string
 	     "[/\\]" "!" (convert-standard-filename filename))))
 
 (defun erc-current-logfile (&optional buffer)
   "Return the logfile to use for BUFFER.
 If BUFFER is nil, the value of `current-buffer' is used.
 This is determined by `erc-generate-log-file-name-function'.
-The result is converted to lowercase, as IRC is case-insensitive"
+The result is converted to lowercase, as IRC is case-insensitive."
   (unless buffer (setq buffer (current-buffer)))
   (with-current-buffer buffer
     (let ((target (or (buffer-name buffer) (erc-default-target)))
@@ -458,6 +457,4 @@ You can save every individual message by putting this function on
 ;;
 ;; Local Variables:
 ;; generated-autoload-file: "erc-loaddefs.el"
-;; indent-tabs-mode: t
-;; tab-width: 8
 ;; End:

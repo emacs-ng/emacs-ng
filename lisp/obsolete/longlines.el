@@ -1,11 +1,11 @@
 ;;; longlines.el --- automatically wrap long lines   -*- coding:utf-8 -*-
 
-;; Copyright (C) 2000-2001, 2004-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2001, 2004-2020 Free Software Foundation, Inc.
 
 ;; Authors:    Kai Grossjohann <Kai.Grossjohann@CS.Uni-Dortmund.DE>
 ;;             Alex Schroeder <alex@gnu.org>
 ;;             Chong Yidong <cyd@stupidchicken.com>
-;; Maintainer: Chong Yidong <cyd@stupidchicken.com>
+;; Maintainer: emacs-devel@gnu.org
 ;; Obsolete-since: 24.4
 ;; Keywords: convenience, wp
 
@@ -37,6 +37,7 @@
 ;; Special thanks to Rod Smith for many useful bug reports.
 
 ;;; Code:
+;;; Options
 
 (defgroup longlines nil
   "Automatic wrapping of long lines when loading files."
@@ -76,7 +77,7 @@ This is used when `longlines-show-hard-newlines' is on."
   :group 'longlines
   :type 'string)
 
-;; Internal variables
+;;; Internal variables
 
 (defvar longlines-wrap-beg nil)
 (defvar longlines-wrap-end nil)
@@ -90,7 +91,7 @@ This is used when `longlines-show-hard-newlines' is on."
 (make-variable-buffer-local 'longlines-showing)
 (make-variable-buffer-local 'longlines-decoded)
 
-;; Mode
+;;; Mode
 
 (defvar message-indent-citation-function)
 
@@ -210,7 +211,7 @@ This function exists to be called by `change-major-mode-hook' when the
 major mode changes."
   (longlines-mode 0))
 
-;; Showing the effect of hard newlines in the buffer
+;;; Showing the effect of hard newlines in the buffer
 
 (defun longlines-show-hard-newlines (&optional arg)
   "Make hard newlines visible by adding a face.
@@ -248,11 +249,11 @@ With optional argument ARG, make the hard newlines invisible again."
 	(inhibit-modification-hooks t)
 	buffer-file-name buffer-file-truename)
     (while pos
-      (remove-text-properties pos (1+ pos) '(display))
+      (remove-text-properties pos (1+ pos) '(display nil))
       (setq pos (text-property-not-all (1+ pos) (point-max) 'hard nil)))
     (restore-buffer-modified-p mod)))
 
-;; Wrapping the paragraphs.
+;;; Wrapping the paragraphs
 
 (defun longlines-wrap-region (beg end)
   "Wrap each successive line, starting with the line before BEG.
@@ -387,7 +388,7 @@ compatibility with `format-alist', and is ignored."
 	    (goto-char (1+ pos))
 	    (insert-and-inherit " ")
 	    (delete-region pos (1+ pos))
-	    (remove-text-properties pos (1+ pos) 'hard))))
+            (remove-text-properties pos (1+ pos) '(hard nil)))))
       (set-buffer-modified-p mod)
       end)))
 
@@ -402,7 +403,7 @@ Hard newlines are left intact."
       (setq pos (string-match "\n" str (1+ pos))))
     str))
 
-;; Auto wrap
+;;; Auto wrap
 
 (defun longlines-auto-wrap (&optional arg)
   "Toggle automatic line wrapping.
@@ -457,7 +458,7 @@ This is called by `window-configuration-change-hook'."
       (setq fill-column (- (window-width) dw))
       (longlines-wrap-region (point-min) (point-max)))))
 
-;; Isearch
+;;; Isearch
 
 (defun longlines-search-function ()
   (cond
@@ -477,7 +478,7 @@ This is called by `window-configuration-change-hook'."
   (let ((search-spaces-regexp " *[ \n]"))
     (re-search-forward string bound noerror count)))
 
-;; Loading and saving
+;;; Loading and saving
 
 (defun longlines-before-revert-hook ()
   (add-hook 'after-revert-hook 'longlines-after-revert-hook nil t)
@@ -492,7 +493,7 @@ This is called by `window-configuration-change-hook'."
  (list 'longlines "Automatically wrap long lines." nil nil
        'longlines-encode-region t nil))
 
-;; Unloading
+;;; Unloading
 
 (defun longlines-unload-function ()
   "Unload the longlines library."

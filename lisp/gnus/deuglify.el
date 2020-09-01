@@ -1,6 +1,6 @@
 ;;; deuglify.el --- deuglify broken Outlook (Express) articles
 
-;; Copyright (C) 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: Raymond Scholz <rscholz@zonix.de>
 ;;         Thomas Steffen
@@ -266,21 +266,21 @@
   "\\(On \\|Am \\)?\\(Mon\\|Tue\\|Wed\\|Thu\\|Fri\\|Sat\\|Sun\\),[^,]+, "
   "Regular expression matching the beginning of an attribution line that should be cut off."
   :version "22.1"
-  :type 'string
+  :type 'regexp
   :group 'gnus-outlook-deuglify)
 
 (defcustom gnus-outlook-deuglify-attrib-verb-regexp
   "wrote\\|writes\\|says\\|schrieb\\|schreibt\\|meinte\\|skrev\\|a écrit\\|schreef\\|escribió"
   "Regular expression matching the verb used in an attribution line."
   :version "22.1"
-  :type 'string
+  :type 'regexp
   :group 'gnus-outlook-deuglify)
 
 (defcustom  gnus-outlook-deuglify-attrib-end-regexp
   ": *\\|\\.\\.\\."
   "Regular expression matching the end of an attribution line."
   :version "22.1"
-  :type 'string
+  :type 'regexp
   :group 'gnus-outlook-deuglify)
 
 (defcustom gnus-outlook-display-hook nil
@@ -299,8 +299,12 @@ It is run after `gnus-article-prepare-hook'."
     ;; it. Calling `gnus-article-prepare-display' on an already
     ;; prepared article removes all MIME parts.  I'm unsure whether
     ;; this is a bug or not.
-    (gnus-article-highlight t)
-    (gnus-treat-article nil)
+    (save-excursion
+      (save-restriction
+	(widen)
+	(article-goto-body)
+	(narrow-to-region (point) (point-max))
+	(gnus-treat-article nil)))
     (gnus-run-hooks 'gnus-article-prepare-hook
 		    'gnus-outlook-display-hook)))
 
@@ -399,9 +403,9 @@ NODISPLAY is non-nil, don't redisplay the article buffer."
     (gnus-with-article-buffer
       (article-goto-body)
       (when (re-search-forward
-	     (concat "^[" cite-marks " \t]*--* ?[^-]+ [^-]+ ?--*\\s *\n"
+	     (concat "^[" cite-marks " \t]*--*[^-]+ [^-]+--*\\s *\n"
 		     "[^\n:]+:[ \t]*\\([^\n]+\\)\n"
-		     "\\([^\n:]+:[ \t]*[^\n]+\n\\)+")
+		     "\\([^\n:]+:[^\n]+\n\\)+")
 	     nil t)
 	(gnus-kill-all-overlays)
 	(replace-match "\\1 wrote:\n")
@@ -452,11 +456,12 @@ If NODISPLAY is non-nil, don't redisplay the article buffer."
 ;;;###autoload
 (defun gnus-outlook-deuglify-article (&optional nodisplay)
   "Full deuglify of broken Outlook (Express) articles.
-Treat dumbquotes, unwrap lines, repair attribution and rearrange citation.  If
-NODISPLAY is non-nil, don't redisplay the article buffer."
+Treat \"smartquotes\", unwrap lines, repair attribution and
+rearrange citation.  If NODISPLAY is non-nil, don't redisplay the
+article buffer."
   (interactive "P")
   ;; apply treatment of dumb quotes
-  (gnus-article-treat-dumbquotes)
+  (gnus-article-treat-smartquotes)
   ;; repair wrapped cited lines
   (gnus-article-outlook-unwrap-lines 'nodisplay)
   ;; repair attribution line and rearrange citation.

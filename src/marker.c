@@ -1,5 +1,5 @@
 /* Markers: examining, setting and deleting.
-   Copyright (C) 1985, 1997-1998, 2001-2018 Free Software Foundation,
+   Copyright (C) 1985, 1997-1998, 2001-2020 Free Software Foundation,
    Inc.
 
 This file is part of GNU Emacs.
@@ -30,7 +30,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 static ptrdiff_t cached_charpos;
 static ptrdiff_t cached_bytepos;
 static struct buffer *cached_buffer;
-static EMACS_INT cached_modiff;
+static modiff_count cached_modiff;
 
 /* Juanma Barranquero <lekktu@gmail.com> reported ~3x increased
    bootstrap time when byte_char_debug_check is enabled; so this
@@ -221,7 +221,7 @@ buf_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
       while (best_below != charpos)
 	{
 	  best_below++;
-	  BUF_INC_POS (b, best_below_byte);
+	  best_below_byte += buf_next_char_len (b, best_below_byte);
 	}
 
       /* If this position is quite far from the nearest known position,
@@ -246,7 +246,7 @@ buf_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
       while (best_above != charpos)
 	{
 	  best_above--;
-	  BUF_DEC_POS (b, best_above_byte);
+	  best_above_byte -= buf_prev_char_len (b, best_above_byte);
 	}
 
       /* If this position is quite far from the nearest known position,
@@ -332,6 +332,10 @@ buf_bytepos_to_charpos (struct buffer *b, ptrdiff_t bytepos)
   if (best_above == best_above_byte)
     return bytepos;
 
+  /* Check bytepos is not in the middle of a character. */
+  eassert (bytepos >= BUF_Z_BYTE (b)
+           || CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)));
+
   best_below = BEG;
   best_below_byte = BEG_BYTE;
 
@@ -368,7 +372,7 @@ buf_bytepos_to_charpos (struct buffer *b, ptrdiff_t bytepos)
       while (best_below_byte < bytepos)
 	{
 	  best_below++;
-	  BUF_INC_POS (b, best_below_byte);
+	  best_below_byte += buf_next_char_len (b, best_below_byte);
 	}
 
       /* If this position is quite far from the nearest known position,
@@ -395,7 +399,7 @@ buf_bytepos_to_charpos (struct buffer *b, ptrdiff_t bytepos)
       while (best_above_byte > bytepos)
 	{
 	  best_above--;
-	  BUF_DEC_POS (b, best_above_byte);
+	  best_above_byte -= buf_prev_char_len (b, best_above_byte);
 	}
 
       /* If this position is quite far from the nearest known position,
@@ -525,7 +529,18 @@ set_marker_internal (Lisp_Object marker, Lisp_Object position,
 	 don't want to call buf_charpos_to_bytepos if POSITION
 	 is a marker and so we know the bytepos already.  */
       if (FIXNUMP (position))
-	charpos = XFIXNUM (position), bytepos = -1;
+	{
+#if EMACS_INT_MAX > PTRDIFF_MAX
+	  /* A --with-wide-int build.  */
+	  EMACS_INT cpos = XFIXNUM (position);
+	  if (cpos > PTRDIFF_MAX)
+	    cpos = PTRDIFF_MAX;
+	  charpos = cpos;
+	  bytepos = -1;
+#else
+	  charpos = XFIXNUM (position), bytepos = -1;
+#endif
+	}
       else if (MARKERP (position))
 	{
 	  charpos = XMARKER (position)->charpos;
@@ -789,7 +804,7 @@ verify_bytepos (ptrdiff_t charpos)
   while (below != charpos)
     {
       below++;
-      BUF_INC_POS (current_buffer, below_byte);
+      below_byte += buf_next_char_len (current_buffer, below_byte);
     }
 
   return below_byte;

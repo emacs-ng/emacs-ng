@@ -1,6 +1,6 @@
 /* Primitive operations on floating point for GNU Emacs Lisp interpreter.
 
-Copyright (C) 1988, 1993-1994, 1999, 2001-2018 Free Software Foundation,
+Copyright (C) 1988, 1993-1994, 1999, 2001-2020 Free Software Foundation,
 Inc.
 
 Author: Wolfgang Rupprecht (according to ack.texi)
@@ -42,10 +42,19 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <config.h>
 
 #include "lisp.h"
+#include "bignum.h"
 
 #include <math.h>
 
 #include <count-leading-zeros.h>
+
+/* Emacs needs proper handling of +/-inf; correct printing as well as
+   important packages depend on it.  Make sure the user didn't specify
+   -ffinite-math-only, either directly or implicitly with -Ofast or
+   -ffast-math.  */
+#if defined __FINITE_MATH_ONLY__ && __FINITE_MATH_ONLY__
+ #error Emacs cannot be built with -ffinite-math-only
+#endif
 
 /* Check that X is a floating point number.  */
 
@@ -132,7 +141,7 @@ DEFUN ("tan", Ftan, Stan, 1, 1, 0,
 }
 
 DEFUN ("isnan", Fisnan, Sisnan, 1, 1, 0,
-       doc: /* Return non nil if argument X is a NaN.  */)
+       doc: /* Return non-nil if argument X is a NaN.  */)
   (Lisp_Object x)
 {
   CHECK_FLOAT (x);
@@ -209,7 +218,7 @@ DEFUN ("expt", Fexpt, Sexpt, 2, 2, 0,
 
   /* Common Lisp spec: don't promote if both are integers, and if the
      result is not fractional.  */
-  if (INTEGERP (arg1) && NATNUMP (arg2))
+  if (INTEGERP (arg1) && !NILP (Fnatnump (arg2)))
     return expt_integer (arg1, arg2);
 
   return make_float (pow (XFLOATINT (arg1), XFLOATINT (arg2)));
@@ -258,19 +267,7 @@ DEFUN ("abs", Fabs, Sabs, 1, 1, 0,
   if (FIXNUMP (arg))
     {
       if (XFIXNUM (arg) < 0)
-	{
-	  EMACS_INT absarg = -XFIXNUM (arg);
-	  if (absarg <= MOST_POSITIVE_FIXNUM)
-	    arg = make_fixnum (absarg);
-	  else
-	    {
-	      mpz_t val;
-	      mpz_init (val);
-	      mpz_set_intmax (val, absarg);
-	      arg = make_number (val);
-	      mpz_clear (val);
-	    }
-	}
+	arg = make_int (-XFIXNUM (arg));
     }
   else if (FLOATP (arg))
     {
@@ -279,13 +276,10 @@ DEFUN ("abs", Fabs, Sabs, 1, 1, 0,
     }
   else
     {
-      if (mpz_sgn (XBIGNUM (arg)->value) < 0)
+      if (mpz_sgn (*xbignum_val (arg)) < 0)
 	{
-	  mpz_t val;
-	  mpz_init (val);
-	  mpz_neg (val, XBIGNUM (arg)->value);
-	  arg = make_number (val);
-	  mpz_clear (val);
+	  mpz_neg (mpz[0], *xbignum_val (arg));
+	  arg = make_integer_mpz ();
 	}
     }
 
@@ -297,13 +291,8 @@ DEFUN ("float", Ffloat, Sfloat, 1, 1, 0,
   (register Lisp_Object arg)
 {
   CHECK_NUMBER (arg);
-
-  if (BIGNUMP (arg))
-    return make_float (mpz_get_d (XBIGNUM (arg)->value));
-  if (FIXNUMP (arg))
-    return make_float ((double) XFIXNUM (arg));
-  else				/* give 'em the same float back */
-    return arg;
+  /* If ARG is a float, give 'em the same float back.  */
+  return FLOATP (arg) ? arg : make_float (XFLOATINT (arg));
 }
 
 static int
@@ -325,132 +314,172 @@ This is the same as the exponent of a float.  */)
   if (FLOATP (arg))
     {
       double f = XFLOAT_DATA (arg);
-
       if (f == 0)
-	value = MOST_NEGATIVE_FIXNUM;
-      else if (isfinite (f))
-	{
-	  int ivalue;
-	  frexp (f, &ivalue);
-	  value = ivalue - 1;
-	}
-      else
-	value = MOST_POSITIVE_FIXNUM;
+	return make_float (-HUGE_VAL);
+      if (!isfinite (f))
+	return f < 0 ? make_float (-f) : arg;
+      int ivalue;
+      frexp (f, &ivalue);
+      value = ivalue - 1;
     }
-  else if (BIGNUMP (arg))
-    value = mpz_sizeinbase (XBIGNUM (arg)->value, 2) - 1;
+  else if (!FIXNUMP (arg))
+    value = mpz_sizeinbase (*xbignum_val (arg), 2) - 1;
   else
     {
-      eassert (FIXNUMP (arg));
-      EMACS_INT i = eabs (XFIXNUM (arg));
-      value = (i == 0
-	       ? MOST_NEGATIVE_FIXNUM
-	       : EMACS_UINT_WIDTH - 1 - ecount_leading_zeros (i));
+      EMACS_INT i = XFIXNUM (arg);
+      if (i == 0)
+	return make_float (-HUGE_VAL);
+      value = EMACS_UINT_WIDTH - 1 - ecount_leading_zeros (eabs (i));
     }
 
   return make_fixnum (value);
 }
 
+/* Return the integer exponent E such that D * FLT_RADIX**E (i.e.,
+   scalbn (D, E)) is an integer that has precision equal to D and is
+   representable as a double.
+
+   Return DBL_MANT_DIG - DBL_MIN_EXP (the maximum possible valid
+   scale) if D is zero or tiny.  Return one greater than that if
+   D is infinite, and two greater than that if D is a NaN.  */
+
+int
+double_integer_scale (double d)
+{
+  int exponent = ilogb (d);
+  return (DBL_MIN_EXP - 1 <= exponent && exponent < INT_MAX
+	  ? DBL_MANT_DIG - 1 - exponent
+	  : (DBL_MANT_DIG - DBL_MIN_EXP
+	     + (isnan (d) ? 2 : exponent == INT_MAX)));
+}
+
+/* Convert the Lisp number N to an integer and return a pointer to the
+   converted integer, represented as an mpz_t *.  Use *T as a
+   temporary; the returned value might be T.  Scale N by the maximum
+   of NSCALE and DSCALE while converting.  If NSCALE is nonzero, N
+   must be a float; signal an overflow if NSCALE is greater than
+   DBL_MANT_DIG - DBL_MIN_EXP, otherwise scalbn (XFLOAT_DATA (N), NSCALE)
+   must return an integer value, without rounding or overflow.  */
+
+static mpz_t const *
+rescale_for_division (Lisp_Object n, mpz_t *t, int nscale, int dscale)
+{
+  mpz_t const *pn;
+
+  if (FLOATP (n))
+    {
+      if (DBL_MANT_DIG - DBL_MIN_EXP < nscale)
+	overflow_error ();
+      mpz_set_d (*t, scalbn (XFLOAT_DATA (n), nscale));
+      pn = t;
+    }
+  else
+    pn = bignum_integer (t, n);
+
+  if (nscale < dscale)
+    {
+      emacs_mpz_mul_2exp (*t, *pn, (dscale - nscale) * LOG2_FLT_RADIX);
+      pn = t;
+    }
+  return pn;
+}
 
 /* the rounding functions  */
 
 static Lisp_Object
-rounding_driver (Lisp_Object arg, Lisp_Object divisor,
+rounding_driver (Lisp_Object n, Lisp_Object d,
 		 double (*double_round) (double),
 		 void (*int_divide) (mpz_t, mpz_t const, mpz_t const),
-		 const char *name)
+		 EMACS_INT (*fixnum_divide) (EMACS_INT, EMACS_INT))
 {
-  CHECK_NUMBER (arg);
+  CHECK_NUMBER (n);
 
-  double d;
-  if (NILP (divisor))
-    {
-      if (! FLOATP (arg))
-	return arg;
-      d = XFLOAT_DATA (arg);
-    }
-  else
-    {
-      CHECK_NUMBER (divisor);
-      if (!FLOATP (arg) && !FLOATP (divisor))
-	{
-	  if (EQ (divisor, make_fixnum (0)))
-	    xsignal0 (Qarith_error);
-	  mpz_t d, q;
-	  mpz_init (d);
-	  mpz_init (q);
-	  int_divide (q,
-		      (FIXNUMP (arg)
-		       ? (mpz_set_intmax (q, XFIXNUM (arg)), q)
-		       : XBIGNUM (arg)->value),
-		      (FIXNUMP (divisor)
-		       ? (mpz_set_intmax (d, XFIXNUM (divisor)), d)
-		       : XBIGNUM (divisor)->value));
-	  Lisp_Object result = make_number (q);
-	  mpz_clear (d);
-	  mpz_clear (q);
-	  return result;
-	}
+  if (NILP (d))
+    return FLOATP (n) ? double_to_integer (double_round (XFLOAT_DATA (n))) : n;
 
-      double f1 = FLOATP (arg) ? XFLOAT_DATA (arg) : XFIXNUM (arg);
-      double f2 = FLOATP (divisor) ? XFLOAT_DATA (divisor) : XFIXNUM (divisor);
-      if (! IEEE_FLOATING_POINT && f2 == 0)
+  CHECK_NUMBER (d);
+
+  int dscale = 0;
+  if (FIXNUMP (d))
+    {
+      if (XFIXNUM (d) == 0)
 	xsignal0 (Qarith_error);
-      d = f1 / f2;
+
+      /* Divide fixnum by fixnum specially, for speed.  */
+      if (FIXNUMP (n))
+	return make_int (fixnum_divide (XFIXNUM (n), XFIXNUM (d)));
+    }
+  else if (FLOATP (d))
+    {
+      if (XFLOAT_DATA (d) == 0)
+	xsignal0 (Qarith_error);
+      dscale = double_integer_scale (XFLOAT_DATA (d));
     }
 
-  /* Round, coarsely test for fixnum overflow before converting to
-     EMACS_INT (to avoid undefined C behavior), and then exactly test
-     for overflow after converting (as FIXNUM_OVERFLOW_P is inaccurate
-     on floats).  */
-  double dr = double_round (d);
-  if (fabs (dr) < 2 * (MOST_POSITIVE_FIXNUM + 1))
-    {
-      EMACS_INT ir = dr;
-      if (! FIXNUM_OVERFLOW_P (ir))
-	return make_fixnum (ir);
-    }
-  mpz_t drz;
-  mpz_init (drz);
-  mpz_set_d (drz, dr);
-  Lisp_Object rounded = make_number (drz);
-  mpz_clear (drz);
-  return rounded;
+  int nscale = FLOATP (n) ? double_integer_scale (XFLOAT_DATA (n)) : 0;
+
+  /* If the numerator is finite and the denominator infinite, the
+     quotient is zero and there is no need to try the impossible task
+     of rescaling the denominator.  */
+  if (dscale == DBL_MANT_DIG - DBL_MIN_EXP + 1 && nscale < dscale)
+    return make_fixnum (0);
+
+  int_divide (mpz[0],
+	      *rescale_for_division (n, &mpz[0], nscale, dscale),
+	      *rescale_for_division (d, &mpz[1], dscale, nscale));
+  return make_integer_mpz ();
+}
+
+static EMACS_INT
+ceiling2 (EMACS_INT n, EMACS_INT d)
+{
+  return n / d + ((n % d != 0) & ((n < 0) == (d < 0)));
+}
+
+static EMACS_INT
+floor2 (EMACS_INT n, EMACS_INT d)
+{
+  return n / d - ((n % d != 0) & ((n < 0) != (d < 0)));
+}
+
+static EMACS_INT
+truncate2 (EMACS_INT n, EMACS_INT d)
+{
+  return n / d;
+}
+
+static EMACS_INT
+round2 (EMACS_INT n, EMACS_INT d)
+{
+  /* The C language's division operator gives us the remainder R
+     corresponding to truncated division, but we want the remainder R1
+     on the other side of 0 if R1 is closer to 0 than R is; because we
+     want to round to even, we also want R1 if R and R1 are the same
+     distance from 0 and if the truncated quotient is odd.  */
+  EMACS_INT q = n / d;
+  EMACS_INT r = n % d;
+  bool neg_d = d < 0;
+  bool neg_r = r < 0;
+  EMACS_INT abs_r = eabs (r);
+  EMACS_INT abs_r1 = eabs (d) - abs_r;
+  if (abs_r1 < abs_r + (q & 1))
+    q += neg_d == neg_r ? 1 : -1;
+  return q;
 }
 
 static void
 rounddiv_q (mpz_t q, mpz_t const n, mpz_t const d)
 {
-  /* mpz_tdiv_qr gives us one remainder R, but we want the remainder
-     R1 on the other side of 0 if R1 is closer to 0 than R is; because
-     we want to round to even, we also want R1 if R and R1 are the
-     same distance from 0 and if the quotient is odd.
-
-     If we were using EMACS_INT arithmetic instead of bignums,
-     the following code could look something like this:
-
-     q = n / d;
-     r = n % d;
-     neg_d = d < 0;
-     neg_r = r < 0;
-     r = eabs (r);
-     abs_r1 = eabs (d) - r;
-     if (abs_r1 < r + (q & 1))
-       q += neg_d == neg_r ? 1 : -1;  */
-
-  mpz_t r, abs_r1;
-  mpz_init (r);
-  mpz_init (abs_r1);
-  mpz_tdiv_qr (q, r, n, d);
+  /* Mimic the source code of round2, using mpz_t instead of EMACS_INT.  */
+  mpz_t *r = &mpz[2], *abs_r = r, *abs_r1 = &mpz[3];
+  mpz_tdiv_qr (q, *r, n, d);
   bool neg_d = mpz_sgn (d) < 0;
-  bool neg_r = mpz_sgn (r) < 0;
-  mpz_abs (r, r);
-  mpz_abs (abs_r1, d);
-  mpz_sub (abs_r1, abs_r1, r);
-  if (mpz_cmp (abs_r1, r) < (mpz_odd_p (q) != 0))
+  bool neg_r = mpz_sgn (*r) < 0;
+  mpz_abs (*abs_r, *r);
+  mpz_abs (*abs_r1, d);
+  mpz_sub (*abs_r1, *abs_r1, *abs_r);
+  if (mpz_cmp (*abs_r1, *abs_r) < (mpz_odd_p (q) != 0))
     (neg_d == neg_r ? mpz_add_ui : mpz_sub_ui) (q, q, 1);
-  mpz_clear (r);
-  mpz_clear (abs_r1);
 }
 
 /* The code uses emacs_rint, so that it works to undefine HAVE_RINT
@@ -481,7 +510,7 @@ This rounds the value towards +inf.
 With optional DIVISOR, return the smallest integer no less than ARG/DIVISOR.  */)
   (Lisp_Object arg, Lisp_Object divisor)
 {
-  return rounding_driver (arg, divisor, ceil, mpz_cdiv_q, "ceiling");
+  return rounding_driver (arg, divisor, ceil, mpz_cdiv_q, ceiling2);
 }
 
 DEFUN ("floor", Ffloor, Sfloor, 1, 2, 0,
@@ -490,7 +519,7 @@ This rounds the value towards -inf.
 With optional DIVISOR, return the largest integer no greater than ARG/DIVISOR.  */)
   (Lisp_Object arg, Lisp_Object divisor)
 {
-  return rounding_driver (arg, divisor, floor, mpz_fdiv_q, "floor");
+  return rounding_driver (arg, divisor, floor, mpz_fdiv_q, floor2);
 }
 
 DEFUN ("round", Fround, Sround, 1, 2, 0,
@@ -503,7 +532,7 @@ your machine.  For example, (round 2.5) can return 3 on some
 systems, but 2 on others.  */)
   (Lisp_Object arg, Lisp_Object divisor)
 {
-  return rounding_driver (arg, divisor, emacs_rint, rounddiv_q, "round");
+  return rounding_driver (arg, divisor, emacs_rint, rounddiv_q, round2);
 }
 
 /* Since rounding_driver truncates anyway, no need to call 'trunc'.  */
@@ -519,7 +548,7 @@ Rounds ARG toward zero.
 With optional DIVISOR, truncate ARG/DIVISOR.  */)
   (Lisp_Object arg, Lisp_Object divisor)
 {
-  return rounding_driver (arg, divisor, identity, mpz_tdiv_q, "truncate");
+  return rounding_driver (arg, divisor, identity, mpz_tdiv_q, truncate2);
 }
 
 

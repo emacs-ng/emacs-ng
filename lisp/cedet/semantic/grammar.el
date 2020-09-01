@@ -1,9 +1,8 @@
 ;;; semantic/grammar.el --- Major mode framework for Semantic grammars
 
-;; Copyright (C) 2002-2005, 2007-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2005, 2007-2020 Free Software Foundation, Inc.
 
 ;; Author: David Ponce <david@dponce.com>
-;; Maintainer: David Ponce <david@dponce.com>
 
 ;; This file is part of GNU Emacs.
 
@@ -38,9 +37,9 @@
 (require 'semantic/grammar-wy)
 (require 'semantic/idle)
 (require 'help-fns)
+(require 'semantic/analyze)
 
 (declare-function semantic-momentary-highlight-tag "semantic/decorate")
-(declare-function semantic-analyze-context "semantic/analyze")
 (declare-function semantic-analyze-tags-of-class-list
 		  "semantic/analyze/complete")
 
@@ -210,11 +209,7 @@ That is tag names plus names defined in tag attribute `:rest'."
 (defsubst semantic-grammar-item-value (item)
   "Return symbol or character value of ITEM string."
   (if (string-match semantic-grammar-lex-c-char-re item)
-      (let ((c (read (concat "?" (substring item 1 -1)))))
-        (if (featurep 'xemacs)
-            ;; Handle characters as integers in XEmacs like in GNU Emacs.
-            (char-int c)
-          c))
+      (read (concat "?" (substring item 1 -1)))
     (intern item)))
 
 (defun semantic-grammar-prologue ()
@@ -277,6 +272,10 @@ foo.by it is foo-by."
              (ext  (file-name-extension file))
              (i    (string-match (format "\\([.]\\)%s\\'" ext) file)))
         (concat (substring file 0 i) "-" ext))))
+
+(defun semantic-grammar-expected-conflicts ()
+  "Return the number of expected shift/reduce conflicts in the package."
+  (semantic-grammar-tag-symbols 'expectedconflicts))
 
 (defsubst semantic-grammar-languagemode ()
   "Return the %languagemode value as a list of symbols or nil."
@@ -530,6 +529,14 @@ Also load the specified macro libraries."
   "Insert declaration of constant NAME with VALUE and DOCSTRING."
   (let ((start (point)))
     (insert (format "(defconst %s\n%s%S)\n\n" name value docstring))
+    (save-excursion
+      (goto-char start)
+      (indent-sexp))))
+
+(defun semantic-grammar-insert-defconst-with-eval (name value docstring)
+  "Insert declaration of constant NAME with VALUE and DOCSTRING."
+  (let ((start (point)))
+    (insert (format "(eval-and-compile (defconst %s\n%s%S))\n\n" name value docstring))
     (save-excursion
       (goto-char start)
       (indent-sexp))))
@@ -822,12 +829,6 @@ Block definitions are read from the current table of lexical types."
   :group 'semantic
   :type 'regexp)
 
-(defsubst semantic-grammar-noninteractive ()
-  "Return non-nil if running without interactive terminal."
-  (if (featurep 'xemacs)
-      (noninteractive)
-    noninteractive))
-
 (defun semantic-grammar-create-package (&optional force uptodate)
   "Create package Lisp code from grammar in current buffer.
 If the Lisp code seems up to date, do nothing (if UPTODATE
@@ -891,6 +892,12 @@ Lisp code."
 
         (insert "\n;;; Declarations\n;;\n")
 
+        (semantic-grammar-insert-defconst-with-eval
+         (concat semantic--grammar-package "--expected-conflicts")
+         (with-current-buffer semantic--grammar-input-buffer
+           (format "%s\n" (car (semantic-grammar-expected-conflicts))))
+         "The number of expected shift/reduce conflicts in this grammar.")
+
         ;; `eval-defun' is not necessary to reset `defconst' values.
         (semantic-grammar-insert-defconst
          (semantic-grammar-keywordtable)
@@ -934,7 +941,7 @@ Lisp code."
 
       ;; If running in batch mode, there is nothing more to do.
       ;; Save the generated file and quit.
-      (if (semantic-grammar-noninteractive)
+      (if noninteractive
           (let ((version-control t)
                 (delete-old-versions t)
                 (make-backup-files t)
@@ -988,7 +995,7 @@ Return non-nil if there were no errors, nil if errors."
 		       (vc-handled-backends nil))
 		   (setq semanticdb-new-database-class 'semanticdb-project-database)
 		   (semantic-mode 1)
-		   (semantic-grammar-create-package)))
+		   (semantic-grammar-create-package t)))
              (error
               (message "%s" (error-message-string err))
               nil))))
@@ -1015,7 +1022,7 @@ For example, to process grammar files in current directory, invoke:
   \"emacs -batch -f semantic-grammar-batch-build-packages .\".
 
 See also the variable `semantic-grammar-file-regexp'."
-  (or (semantic-grammar-noninteractive)
+  (or noninteractive
       (error "\
 `semantic-grammar-batch-build-packages' must be used with -batch"
              ))
@@ -1244,6 +1251,7 @@ common grammar menu."
   "Setup an XEmacs grammar menu in variable SYMBOL.
 MODE-MENU is an optional specific menu whose items are appended to the
 common grammar menu."
+  (declare (obsolete nil "28.1"))
   (let ((items (make-symbol "items"))
         (path (make-symbol "path")))
     `(progn
@@ -1264,10 +1272,8 @@ common grammar menu."
   "Setup a mode local grammar menu.
 MODE-MENU is an optional specific menu whose items are appended to the
 common grammar menu."
-  (let ((menu (intern (format "%s-menu" major-mode))))
-    (if (featurep 'xemacs)
-        (semantic-grammar-setup-menu-xemacs menu mode-menu)
-      (semantic-grammar-setup-menu-emacs menu mode-menu))))
+  (semantic-grammar-setup-menu-emacs
+   (intern (format "%s-menu" major-mode)) mode-menu))
 
 (defsubst semantic-grammar-in-lisp-p ()
   "Return non-nil if point is in Lisp code."
@@ -1287,9 +1293,9 @@ the change bounds to encompass the whole nonterminal tag."
                      (semantic-edits-os overlay)
                      (semantic-edits-oe overlay)))))
     (if (semantic-tag-of-class-p outer 'nonterminal)
-        (semantic-overlay-move overlay
-                               (semantic-tag-start outer)
-                               (semantic-tag-end outer)))))
+        (move-overlay overlay
+                      (semantic-tag-start outer)
+                      (semantic-tag-end outer)))))
 
 (define-derived-mode semantic-grammar-mode
   fundamental-mode "Semantic Grammar Framework"
@@ -1301,7 +1307,7 @@ the change bounds to encompass the whole nonterminal tag."
   ;; Look within the line for a ; following an even number of backslashes
   ;; after either a non-backslash or the line beginning.
   (set (make-local-variable 'comment-start-skip)
-       "\\(\\(^\\|[^\\\\\n]\\)\\(\\\\\\\\\\)*\\);+ *")
+       "\\(\\(^\\|[^\\\n]\\)\\(\\\\\\\\\\)*\\);+ *")
   (set (make-local-variable 'indent-line-function)
        'semantic-grammar-indent)
   (set (make-local-variable 'fill-paragraph-function)
@@ -1343,11 +1349,9 @@ the change bounds to encompass the whole nonterminal tag."
        '(nonterminal))
   ;; Before each change, clear the cached regexp used to highlight
   ;; macros local in this grammar.
-  (semantic-make-local-hook 'before-change-functions)
   (add-hook 'before-change-functions
             'semantic--grammar-clear-macros-regexp-2 nil t)
   ;; Handle safe re-parse of grammar rules.
-  (semantic-make-local-hook 'semantic-edits-new-change-functions)
   (add-hook 'semantic-edits-new-change-functions
             'semantic-grammar-edits-new-change-hook-fcn
             nil t))
@@ -1611,7 +1615,7 @@ Select the buffer containing the tag's definition, and move point there."
 ;;
 
 (defvar semantic-grammar-syntax-help
-  `(
+  '(
     ;; Lexical Symbols
     ("symbol" . "Syntax: A symbol of alpha numeric and symbol characters")
     ("number" . "Syntax: Numeric characters.")
@@ -1660,6 +1664,42 @@ Select the buffer containing the tag's definition, and move point there."
 
 (defvar semantic-grammar-eldoc-last-data (cons nil nil))
 
+(defun semantic--docstring-format-sym-doc (prefix doc &optional face)
+  "Combine PREFIX and DOC, and shorten the result to fit in the echo area.
+
+When PREFIX is a symbol, propertize its symbol name with FACE
+before combining it with DOC.  If FACE is not provided, just
+apply the nil face.
+
+See also: `eldoc-echo-area-use-multiline-p'."
+  ;; Hoisted from old `eldoc-docstring-format-sym-doc'.
+  ;; If the entire line cannot fit in the echo area, the symbol name may be
+  ;; truncated or eliminated entirely from the output to make room for the
+  ;; description.
+  (when (symbolp prefix)
+    (setq prefix (concat (propertize (symbol-name prefix) 'face face) ": ")))
+  (let* ((ea-multi eldoc-echo-area-use-multiline-p)
+         ;; Subtract 1 from window width since emacs will not write
+         ;; any chars to the last column, or in later versions, will
+         ;; cause a wraparound and resize of the echo area.
+         (ea-width (1- (window-width (minibuffer-window))))
+         (strip (- (+ (length prefix)
+                      (length doc))
+                   ea-width)))
+    (cond ((or (<= strip 0)
+               (eq ea-multi t)
+               (and ea-multi (> (length doc) ea-width)))
+           (concat prefix doc))
+          ((> (length doc) ea-width)
+           (substring (format "%s" doc) 0 ea-width))
+          ((>= strip (string-match-p ":? *\\'" prefix))
+           doc)
+          (t
+           ;; Show the end of the partial symbol name, rather
+           ;; than the beginning, since the former is more likely
+           ;; to be unique given package namespace conventions.
+           (concat (substring prefix strip) doc)))))
+
 (defun semantic-grammar-eldoc-get-macro-docstring (macro expander)
   "Return a one-line docstring for the given grammar MACRO.
 EXPANDER is the name of the function that expands MACRO."
@@ -1678,19 +1718,18 @@ EXPANDER is the name of the function that expands MACRO."
         (setq doc (eldoc-function-argstring expander))))
       (when doc
         (setq doc
-	      (eldoc-docstring-format-sym-doc
+	      (semantic--docstring-format-sym-doc
 	       macro (format "==> %s %s" expander doc) 'default))
         (setq semantic-grammar-eldoc-last-data (cons expander doc)))
       doc))
    ((fboundp 'elisp-get-fnsym-args-string) ;; Emacs≥25
-    (elisp-get-fnsym-args-string
-     expander nil
-     (concat (propertize (symbol-name macro)
+    (concat (propertize (symbol-name macro)
                          'face 'font-lock-keyword-face)
              " ==> "
              (propertize (symbol-name macro)
                          'face 'font-lock-function-name-face)
-             ": ")))))
+             ": "
+             (elisp-get-fnsym-args-string expander nil )))))
 
 (define-mode-local-override semantic-idle-summary-current-symbol-info
   semantic-grammar-mode ()
@@ -1735,7 +1774,7 @@ Otherwise return nil."
 (define-mode-local-override semantic-tag-boundary-p
   semantic-grammar-mode (tag)
   "Return non-nil for tags that should have a boundary drawn.
-Only tags of type 'nonterminal will be so marked."
+Only tags of type `nonterminal' will be so marked."
   (let ((c (semantic-tag-class tag)))
     (eq c 'nonterminal)))
 
@@ -1774,7 +1813,7 @@ Only tags of type 'nonterminal will be so marked."
     (if (semantic-grammar-in-lisp-p)
         (with-mode-local emacs-lisp-mode
           (semantic-ctxt-current-class-list))
-      '(nonterminal keyword))))
+      '(nonterminal token keyword))))
 
 (define-mode-local-override semantic-ctxt-current-mode
   semantic-grammar-mode (&optional point)
@@ -1879,7 +1918,6 @@ Optional argument COLOR determines if color is added to the text."
 (define-mode-local-override semantic-analyze-current-context
   semantic-grammar-mode (point)
   "Provide a semantic analysis object describing a context in a grammar."
-  (require 'semantic/analyze)
   (if (semantic-grammar-in-lisp-p)
       (with-mode-local emacs-lisp-mode
 	(semantic-analyze-current-context point))
@@ -1900,7 +1938,6 @@ Optional argument COLOR determines if color is added to the text."
 
       (setq context-return
 	    (semantic-analyze-context
-	     "context-for-semantic-grammar"
 	     :buffer (current-buffer)
 	     :scope nil
 	     :bounds bounds
@@ -1914,14 +1951,14 @@ Optional argument COLOR determines if color is added to the text."
       context-return)))
 
 (define-mode-local-override semantic-analyze-possible-completions
-  semantic-grammar-mode (context)
+  semantic-grammar-mode (context &rest flags)
   "Return a list of possible completions based on CONTEXT."
   (require 'semantic/analyze/complete)
   (if (semantic-grammar-in-lisp-p)
       (with-mode-local emacs-lisp-mode
 	(semantic-analyze-possible-completions context))
     (with-current-buffer (oref context buffer)
-      (let* ((prefix (car (oref context :prefix)))
+      (let* ((prefix (car (reverse (oref context prefix))))
 	     (completetext (cond ((semantic-tag-p prefix)
 				  (semantic-tag-name prefix))
 				 ((stringp prefix)

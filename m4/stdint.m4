@@ -1,11 +1,13 @@
-# stdint.m4 serial 51
-dnl Copyright (C) 2001-2018 Free Software Foundation, Inc.
+# stdint.m4 serial 55
+dnl Copyright (C) 2001-2020 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
 dnl with or without modifications, as long as this notice is preserved.
 
 dnl From Paul Eggert and Bruno Haible.
 dnl Test whether <stdint.h> is supported or must be substituted.
+
+AC_PREREQ([2.61])
 
 AC_DEFUN_ONCE([gl_STDINT_H],
 [
@@ -15,21 +17,12 @@ AC_DEFUN_ONCE([gl_STDINT_H],
   AC_REQUIRE([gl_LIMITS_H])
   AC_REQUIRE([gt_TYPE_WINT_T])
 
-  dnl Check for long long int and unsigned long long int.
-  AC_REQUIRE([AC_TYPE_LONG_LONG_INT])
-  if test $ac_cv_type_long_long_int = yes; then
-    HAVE_LONG_LONG_INT=1
-  else
-    HAVE_LONG_LONG_INT=0
-  fi
-  AC_SUBST([HAVE_LONG_LONG_INT])
-  AC_REQUIRE([AC_TYPE_UNSIGNED_LONG_LONG_INT])
-  if test $ac_cv_type_unsigned_long_long_int = yes; then
-    HAVE_UNSIGNED_LONG_LONG_INT=1
-  else
-    HAVE_UNSIGNED_LONG_LONG_INT=0
-  fi
-  AC_SUBST([HAVE_UNSIGNED_LONG_LONG_INT])
+  dnl For backward compatibility. Some packages may still be testing these
+  dnl macros.
+  AC_DEFINE([HAVE_LONG_LONG_INT], [1],
+    [Define to 1 if the system has the type 'long long int'.])
+  AC_DEFINE([HAVE_UNSIGNED_LONG_LONG_INT], [1],
+    [Define to 1 if the system has the type 'unsigned long long int'.])
 
   dnl Check for <wchar.h>, in the same way as gl_WCHAR_H does.
   AC_CHECK_HEADERS_ONCE([wchar.h])
@@ -159,7 +152,7 @@ uintmax_t j = UINTMAX_MAX;
 /* Check that SIZE_MAX has the correct type, if possible.  */
 #if 201112 <= __STDC_VERSION__
 int k = _Generic (SIZE_MAX, size_t: 0);
-#elif (2 <= __GNUC__ || defined __IBM__TYPEOF__ \
+#elif (2 <= __GNUC__ || 4 <= __clang_major__ || defined __IBM__TYPEOF__ \
        || (0x5110 <= __SUNPRO_C && !__STDC__))
 extern size_t k;
 extern __typeof__ (SIZE_MAX) k;
@@ -364,8 +357,7 @@ int32_t i32 = INT32_C (0x7fffffff);
   esac
 
   dnl The substitute stdint.h needs the substitute limit.h's _GL_INTEGER_WIDTH.
-  LIMITS_H=limits.h
-  AM_CONDITIONAL([GL_GENERATE_LIMITS_H], [test -n "$LIMITS_H"])
+  gl_REPLACE_LIMITS_H
 
   AC_SUBST([HAVE_C99_STDINT_H])
   AC_SUBST([HAVE_SYS_BITYPES_H])
@@ -540,10 +532,4 @@ AC_DEFUN([gl_STDINT_TYPE_PROPERTIES],
   if test $GNULIB_OVERRIDES_WINT_T = 1; then
     BITSIZEOF_WINT_T=32
   fi
-])
-
-dnl Autoconf >= 2.61 has AC_COMPUTE_INT built-in.
-dnl Remove this when we can assume autoconf >= 2.61.
-m4_ifdef([AC_COMPUTE_INT], [], [
-  AC_DEFUN([AC_COMPUTE_INT], [_AC_COMPUTE_INT([$2],[$1],[$3],[$4])])
 ])

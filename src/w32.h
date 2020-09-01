@@ -2,7 +2,7 @@
 #define EMACS_W32_H
 
 /* Support routines for the NT version of Emacs.
-   Copyright (C) 1994, 2001-2018 Free Software Foundation, Inc.
+   Copyright (C) 1994, 2001-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -185,21 +185,27 @@ extern MultiByteToWideChar_Proc pMultiByteToWideChar;
 extern WideCharToMultiByte_Proc pWideCharToMultiByte;
 extern DWORD multiByteToWideCharFlags;
 
+extern char *w32_my_exename (void);
+extern const char *w32_relocate (const char *);
+
 extern void init_environment (char **);
 extern void check_windows_init_file (void);
 extern void syms_of_ntproc (void);
 extern void syms_of_ntterm (void);
 extern void dostounix_filename (register char *);
 extern void unixtodos_filename (register char *);
+extern const char *map_w32_filename (const char *, const char **);
 extern int  filename_from_ansi (const char *, char *);
 extern int  filename_to_ansi (const char *, char *);
 extern int  filename_from_utf16 (const wchar_t *, char *);
 extern int  filename_to_utf16 (const char *, wchar_t *);
+extern Lisp_Object w32_get_internal_run_time (void);
 extern void w32_init_file_name_codepage (void);
 extern int  codepage_for_filenames (CPINFO *);
 extern Lisp_Object ansi_encode_filename (Lisp_Object);
 extern int  w32_copy_file (const char *, const char *, int, int, int);
 extern int  w32_accessible_directory_p (const char *, ptrdiff_t);
+extern void w32_init_current_directory (void);
 
 extern BOOL init_winsock (int load_now);
 extern void srandom (int);
@@ -216,6 +222,9 @@ extern void register_child (pid_t, int);
 
 extern void sys_sleep (int);
 extern int sys_link (const char *, const char *);
+extern int openat (int, const char *, int, int);
+extern int fchmodat (int, char const *, mode_t, int);
+extern int lchmod (char const *, mode_t);
 
 /* Return total and free memory info.  */
 extern int w32_memory_info (unsigned long long *, unsigned long long *,

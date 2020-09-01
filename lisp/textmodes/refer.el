@@ -1,6 +1,6 @@
 ;;; refer.el --- look up references in bibliography files
 
-;; Copyright (C) 1992, 1996, 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1992, 1996, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: Ashwin Ram <ashwin@cc.gatech.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -377,7 +377,7 @@ found on the last `refer-find-entry' or `refer-find-next-entry'."
                    dir files)
                (while (setq dir (car dirs))
                  (setq files
-                       (append (directory-files dir t "\\.bib$")
+                       (append (directory-files dir t "\\.bib\\'")
                                files))
                  (setq dirs (cdr dirs)))
                files))

@@ -1,9 +1,8 @@
 ;;; tpu-edt.el --- Emacs emulating TPU emulating EDT
 
-;; Copyright (C) 1993-1995, 2000-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1995, 2000-2020 Free Software Foundation, Inc.
 
 ;; Author: Rob Riepel <riepel@networking.stanford.edu>
-;; Maintainer: Rob Riepel <riepel@networking.stanford.edu>
 ;; Version: 4.5
 ;; Keywords: emulations
 ;; Obsolete-since: 24.5
@@ -288,14 +287,6 @@
 ;;;
 ;;;  User Configurable Variables
 ;;;
-(defcustom tpu-have-ispell t
-  "Non-nil means `tpu-spell-check' uses `ispell-region' for spell checking.
-Otherwise, use `spell-region'."
-  :type 'boolean
-  :group 'tpu)
-(make-obsolete-variable 'tpu-have-ispell "the `spell' package is obsolete."
-                        "23.1")
-
 (defcustom tpu-kill-buffers-silently nil
   "If non-nil, TPU-edt kills modified buffers without asking."
   :type 'boolean
@@ -316,7 +307,6 @@ Otherwise, use `spell-region'."
 ;;;  Global Keymaps
 ;;;
 
-(define-obsolete-variable-alias 'GOLD-map 'tpu-gold-map "23.1")
 (defvar tpu-gold-map
   (let ((map (make-keymap)))
     ;; Previously we used escape sequences here.  We now instead presume
@@ -893,8 +883,7 @@ With argument, fill and justify."
 if no region is selected."
   (interactive)
   (let ((m (tpu-mark)))
-    (apply (if tpu-have-ispell 'ispell-region
-             'spell-region)
+    (apply 'ispell-region
            (if m
                (if (> m (point)) (list (point) m)
                  (list m (point)))

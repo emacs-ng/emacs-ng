@@ -1,6 +1,6 @@
 ;;; cl-lib-tests.el --- tests for emacs-lisp/cl-lib.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2020 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -220,7 +220,7 @@
     (should-error (cl-struct-slot-offset 'mystruct 'marypoppins))
     (should (pcase (cl-struct-slot-info 'mystruct)
               (`((cl-tag-slot) (abc 5 :readonly t)
-                 (def . ,(or `nil `(nil))))
+                 (def . ,(or 'nil '(nil))))
                t)))))
 (ert-deftest cl-lib-struct-constructors ()
   (should (string-match "\\`Constructor docstring."
@@ -241,6 +241,22 @@
   (let ((side-effect 0))
     (should (= (cl-the integer (cl-incf side-effect)) 1))
     (should (= side-effect 1))))
+
+(ert-deftest cl-lib-test-incf ()
+  (let ((var 0))
+    (should (= (cl-incf var) 1))
+    (should (= var 1)))
+  (let ((alist))
+    (should (= (cl-incf (alist-get 'a alist 0)) 1))
+    (should (= (alist-get 'a alist 0) 1))))
+
+(ert-deftest cl-lib-test-decf ()
+  (let ((var 1))
+    (should (= (cl-decf var) 0))
+    (should (= var 0)))
+  (let ((alist))
+    (should (= (cl-decf (alist-get 'a alist 0)) -1))
+    (should (= (alist-get 'a alist 0) -1))))
 
 (ert-deftest cl-lib-test-plusp ()
   (should-not (cl-plusp -1.0e+INF))

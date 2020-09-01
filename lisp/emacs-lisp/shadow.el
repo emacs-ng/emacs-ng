@@ -1,6 +1,6 @@
 ;;; shadow.el --- locate Emacs Lisp file shadowings
 
-;; Copyright (C) 1995, 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1995, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: Terry Jones <terry@santafe.edu>
 ;; Keywords: lisp
@@ -55,9 +55,6 @@
   :prefix "load-path-shadows-"
   :group 'lisp)
 
-(define-obsolete-variable-alias 'shadows-compare-text-p
-  'load-path-shadows-compare-text "23.3")
-
 (defcustom load-path-shadows-compare-text nil
   "If non-nil, then shadowing files are reported only if their text differs.
 This is slower, but filters out some innocuous shadowing."
@@ -99,7 +96,8 @@ See the documentation for `list-load-path-shadows' for further information."
 	(setq true-names (append true-names (list dir)))
 	(setq dir (directory-file-name (or pp ".")))
 	(setq curr-files (if (file-accessible-directory-p dir)
-			     (directory-files dir nil ".\\.elc?\\(\\.gz\\)?$" t)))
+			     (directory-files dir nil
+                                              "\\.elc?\\(?:\\.gz\\)?\\'" t)))
 	(and curr-files
 	     (not noninteractive)
 	     (message "Checking %d files in %s..." (length curr-files) dir))
@@ -161,8 +159,8 @@ See the documentation for `list-load-path-shadows' for further information."
 	     (or (equal (file-truename f1) (file-truename f2))
 		 ;; As a quick test, avoiding spawning a process, compare file
 		 ;; sizes.
-		 (and (= (nth 7 (file-attributes f1))
-			 (nth 7 (file-attributes f2)))
+		 (and (= (file-attribute-size (file-attributes f1))
+			 (file-attribute-size (file-attributes f2)))
 		      (eq 0 (call-process "cmp" nil nil nil "-s" f1 f2))))))))
 
 (defvar load-path-shadows-font-lock-keywords

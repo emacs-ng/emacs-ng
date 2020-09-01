@@ -1,6 +1,6 @@
 ;;; shell.el --- specialized comint.el for running the shell -*- lexical-binding: t -*-
 
-;; Copyright (C) 1988, 1993-1997, 2000-2018 Free Software Foundation,
+;; Copyright (C) 1988, 1993-1997, 2000-2020 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Olin Shivers <shivers@cs.cmu.edu>
@@ -99,6 +99,7 @@
 
 (require 'comint)
 (require 'pcomplete)
+(eval-when-compile (require 'files-x)) ;with-connection-local-variables
 
 ;;; Customization and Buffer Variables
 
@@ -248,7 +249,7 @@ This mirrors the optional behavior of tcsh."
 (defcustom shell-chdrive-regexp
   (if (memq system-type '(ms-dos windows-nt))
       ; NetWare allows the five chars between upper and lower alphabetics.
-      "[]a-zA-Z^_`\\[\\\\]:"
+      "[]a-zA-Z^_`[\\]:"
     nil)
   "If non-nil, is regexp used to track drive changes."
   :type '(choice regexp
@@ -327,7 +328,7 @@ Thus, this does not include the shell's current directory.")
   "Command used by `shell-resync-dirs' to query the shell.")
 
 (defvar shell-mode-map
-  (let ((map (nconc (make-sparse-keymap) comint-mode-map)))
+  (let ((map (make-sparse-keymap)))
     (define-key map "\C-c\C-f" 'shell-forward-command)
     (define-key map "\C-c\C-b" 'shell-backward-command)
     (define-key map "\t" 'completion-at-point)
@@ -357,6 +358,10 @@ Thus, this does not include the shell's current directory.")
     ("^\\[[1-9][0-9]*\\]" . font-lock-string-face))
   "Additional expressions to highlight in Shell mode.")
 
+(defvar-local shell--start-prog nil
+  "Shell file name started in `shell'.")
+(put 'shell--start-prog 'permanent-local t)
+
 ;;; Basic Procedures
 
 (defun shell--unquote&requote-argument (qstr &optional upos)
@@ -369,7 +374,7 @@ Thus, this does not include the shell's current directory.")
               "\\|\\$\\(?:\\([[:alpha:]][[:alnum:]]*\\)"
               "\\|{\\(?1:[^{}]+\\)}\\)"
               (when (memq system-type '(ms-dos windows-nt))
-                "\\|%\\(?1:[^\\\\/]*\\)%")
+                "\\|%\\(?1:[^\\/]*\\)%")
               (when comint-file-name-quote-list
                 "\\|\\\\\\(.\\)")))
          (qupos nil)
@@ -420,13 +425,13 @@ Thus, this does not include the shell's current directory.")
     (save-excursion
       (goto-char begin)
       (while (< (point) end)
-	(skip-chars-forward " \t\n")
+	(skip-chars-forward " \t\n;")
 	(push (point) begins)
         (let ((arg ()))
           (while (looking-at
                   (eval-when-compile
                     (concat
-                     "\\(?:[^\s\t\n\\\"']+"
+                     "\\(?:[^\s\t\n\\\"';]+"
                      "\\|'\\([^']*\\)'?"
                      "\\|\"\\(\\(?:[^\"\\]\\|\\\\.\\)*\\)\"?"
                      "\\|\\\\\\(\\(?:.\\|\n\\)?\\)\\)")))
@@ -487,10 +492,10 @@ Shell buffers.  It implements `shell-completion-execonly' for
   ;; Don't use pcomplete's defaulting mechanism, rely on
   ;; shell-dynamic-complete-functions instead.
   (set (make-local-variable 'pcomplete-default-completion-function) #'ignore)
-  (setq comint-input-autoexpand shell-input-autoexpand)
+  (setq-local comint-input-autoexpand shell-input-autoexpand)
   ;; Not needed in shell-mode because it's inherited from comint-mode, but
   ;; placed here for read-shell-command.
-  (add-hook 'completion-at-point-functions 'comint-completion-at-point nil t))
+  (add-hook 'completion-at-point-functions #'comint-completion-at-point nil t))
 
 (put 'shell-mode 'mode-class 'special)
 
@@ -548,6 +553,8 @@ Variables `comint-output-filter-functions', a hook, and
 `comint-scroll-to-bottom-on-input' and `comint-scroll-to-bottom-on-output'
 control whether input and output cause the window to scroll to the end of the
 buffer."
+  (when (called-interactively-p 'any)
+    (error "Can't be called interactively; did you mean `shell-script-mode' instead?"))
   (setq comint-prompt-regexp shell-prompt-pattern)
   (shell-completion-vars)
   (setq-local paragraph-separate "\\'")
@@ -572,20 +579,26 @@ buffer."
   (setq list-buffers-directory (expand-file-name default-directory))
   ;; shell-dependent assignments.
   (when (ring-empty-p comint-input-ring)
-    (let ((shell (if (get-buffer-process (current-buffer))
-                     (file-name-nondirectory
-                      (car (process-command (get-buffer-process (current-buffer)))))
-                   ""))
-	  (hsize (getenv "HISTSIZE")))
+    (let ((remote (file-remote-p default-directory))
+          (shell (or shell--start-prog ""))
+          (hsize (getenv "HISTSIZE"))
+          (hfile (getenv "HISTFILE")))
+      (when remote
+        ;; `shell-snarf-envar' does not work trustworthy.
+        (setq hsize (shell-command-to-string "echo -n $HISTSIZE")
+              hfile (shell-command-to-string "echo -n $HISTFILE")))
+      (and (string-equal hfile "") (setq hfile nil))
       (and (stringp hsize)
 	   (integerp (setq hsize (string-to-number hsize)))
 	   (> hsize 0)
 	   (set (make-local-variable 'comint-input-ring-size) hsize))
       (setq comint-input-ring-file-name
-	    (or (getenv "HISTFILE")
-		(cond ((string-equal shell "bash") "~/.bash_history")
-		      ((string-equal shell "ksh") "~/.sh_history")
-		      (t "~/.history"))))
+            (concat
+             remote
+	     (or hfile
+		 (cond ((string-equal shell "bash") "~/.bash_history")
+		       ((string-equal shell "ksh") "~/.sh_history")
+		       (t "~/.history")))))
       (if (or (equal comint-input-ring-file-name "")
 	      (equal (file-truename comint-input-ring-file-name)
 		     (file-truename "/dev/null")))
@@ -606,7 +619,12 @@ buffer."
       ;; Bypass a bug in certain versions of bash.
       (when (string-equal shell "bash")
         (add-hook 'comint-preoutput-filter-functions
-                  'shell-filter-ctrl-a-ctrl-b nil t)))
+                  #'shell-filter-ctrl-a-ctrl-b nil t))
+
+      ;; Skip extended history for zsh.
+      (when (string-equal shell "zsh")
+        (setq-local comint-input-ring-file-prefix
+                    ": [[:digit:]]+:[[:digit:]]+;")))
     (comint-read-input-ring t)))
 
 (defun shell-apply-ansi-color (beg end face)
@@ -680,7 +698,7 @@ The buffer is put in Shell mode, giving commands for sending input
 and controlling the subjobs of the shell.  See `shell-mode'.
 See also the variable `shell-prompt-pattern'.
 
-To specify a coding system for converting non-ASCII characters
+\\<shell-mode-map>To specify a coding system for converting non-ASCII characters
 in the input and output to the shell, use \\[universal-coding-system-argument]
 before \\[shell].  You can also specify this with \\[set-buffer-process-coding-system]
 in the shell buffer, after you start the shell.
@@ -691,6 +709,8 @@ The shell file name (sans directories) is used to make a symbol name
 such as `explicit-csh-args'.  If that symbol is a variable,
 its value is used as a list of arguments when invoking the shell.
 Otherwise, one argument `-i' is passed to the shell.
+
+Make the shell buffer the current buffer, and return it.
 
 \(Type \\[describe-mode] in the shell buffer for a list of commands.)"
   (interactive
@@ -718,45 +738,39 @@ Otherwise, one argument `-i' is passed to the shell.
                    (get-buffer-create (or buffer "*shell*"))
                  ;; If the current buffer is a dead shell buffer, use it.
                  (current-buffer)))
-
-  (with-current-buffer buffer
-    (when (file-remote-p default-directory)
-      ;; Apply connection-local variables.
-      (hack-connection-local-variables-apply
-       `(:application tramp
-         :protocol ,(file-remote-p default-directory 'method)
-         :user ,(file-remote-p default-directory 'user)
-         :machine ,(file-remote-p default-directory 'host)))
-
-      ;; On remote hosts, the local `shell-file-name' might be useless.
-      (if (and (called-interactively-p 'any)
-               (null explicit-shell-file-name)
-               (null (getenv "ESHELL")))
-          (set (make-local-variable 'explicit-shell-file-name)
-               (file-local-name
-		(expand-file-name
-                 (read-file-name
-                  "Remote shell path: " default-directory shell-file-name
-                  t shell-file-name)))))))
-
   ;; The buffer's window must be correctly set when we call comint
   ;; (so that comint sets the COLUMNS env var properly).
   (pop-to-buffer buffer)
-  ;; Rain or shine, BUFFER must be current by now.
-  (unless (comint-check-proc buffer)
-    (let* ((prog (or explicit-shell-file-name
-                     (getenv "ESHELL") shell-file-name))
-           (name (file-name-nondirectory prog))
-           (startfile (concat "~/.emacs_" name))
-           (xargs-name (intern-soft (concat "explicit-" name "-args"))))
-      (unless (file-exists-p startfile)
-        (setq startfile (concat user-emacs-directory "init_" name ".sh")))
-      (apply 'make-comint-in-buffer "shell" buffer prog
-             (if (file-exists-p startfile) startfile)
-             (if (and xargs-name (boundp xargs-name))
-                 (symbol-value xargs-name)
-               '("-i")))
-      (shell-mode)))
+
+  (with-connection-local-variables
+   ;; On remote hosts, the local `shell-file-name' might be useless.
+   (when (file-remote-p default-directory)
+     (if (and (called-interactively-p 'any)
+              (null explicit-shell-file-name)
+              (null (getenv "ESHELL")))
+         (set (make-local-variable 'explicit-shell-file-name)
+              (file-local-name
+	       (expand-file-name
+                (read-file-name
+                 "Remote shell path: " default-directory shell-file-name
+                 t shell-file-name))))))
+
+   ;; Rain or shine, BUFFER must be current by now.
+   (unless (comint-check-proc buffer)
+     (let* ((prog (or explicit-shell-file-name
+                      (getenv "ESHELL") shell-file-name))
+            (name (file-name-nondirectory prog))
+            (startfile (concat "~/.emacs_" name))
+            (xargs-name (intern-soft (concat "explicit-" name "-args"))))
+       (unless (file-exists-p startfile)
+         (setq startfile (concat user-emacs-directory "init_" name ".sh")))
+       (setq-local shell--start-prog (file-name-nondirectory prog))
+       (apply #'make-comint-in-buffer "shell" buffer prog
+              (if (file-exists-p startfile) startfile)
+              (if (and xargs-name (boundp xargs-name))
+                  (symbol-value xargs-name)
+                '("-i")))
+       (shell-mode))))
   buffer)
 
 ;;; Directory tracking
@@ -973,11 +987,8 @@ this feature; see the function `dirtrack-mode'."
   nil nil nil
   (setq list-buffers-directory (if shell-dirtrack-mode default-directory))
   (if shell-dirtrack-mode
-      (add-hook 'comint-input-filter-functions 'shell-directory-tracker nil t)
-    (remove-hook 'comint-input-filter-functions 'shell-directory-tracker t)))
-
-(define-obsolete-function-alias 'shell-dirtrack-toggle 'shell-dirtrack-mode
-  "23.1")
+      (add-hook 'comint-input-filter-functions #'shell-directory-tracker nil t)
+    (remove-hook 'comint-input-filter-functions #'shell-directory-tracker t)))
 
 (defun shell-cd (dir)
   "Do normal `cd' to DIR, and set `list-buffers-directory'."
@@ -1024,25 +1035,41 @@ command again."
 	  (accept-process-output proc)
 	  (goto-char pt)))
       (goto-char pmark) (delete-char 1) ; remove the extra newline
-      ;; That's the dirlist. grab it & parse it.
-      (let* ((dl (buffer-substring (match-beginning 2) (1- (match-end 2))))
-	     (dl-len (length dl))
-	     (ds '())			; new dir stack
-	     (i 0))
-	(while (< i dl-len)
-	  ;; regexp = optional whitespace, (non-whitespace), optional whitespace
-	  (string-match "\\s *\\(\\S +\\)\\s *" dl i) ; pick off next dir
-	  (setq ds (cons (concat comint-file-name-prefix
-				 (substring dl (match-beginning 1)
-					    (match-end 1)))
-			 ds))
-	  (setq i (match-end 0)))
-	(let ((ds (nreverse ds)))
-	  (with-demoted-errors "Couldn't cd: %s"
-	    (shell-cd (car ds))
-	    (setq shell-dirstack (cdr ds)
-		  shell-last-dir (car shell-dirstack))
-	    (shell-dirstack-message)))))
+      ;; That's the dirlist.  Grab it & parse it.
+      (let* ((dls (buffer-substring-no-properties
+                   (match-beginning 0) (1- (match-end 0))))
+             (dlsl nil)
+             (pos 0)
+             (ds nil))
+        ;; Split the dirlist into whitespace and non-whitespace chunks.
+        ;; dlsl will be a reversed list of tokens.
+        (while (string-match "\\(\\S-+\\|\\s-+\\)" dls pos)
+          (push (match-string 1 dls) dlsl)
+          (setq pos (match-end 1)))
+
+        ;; Prepend trailing entries until they form an existing directory,
+        ;; whitespace and all.  Discard the next whitespace and repeat.
+        (while dlsl
+          (let ((newelt "")
+                tem1 tem2)
+            (while newelt
+              ;; We need tem1 because we don't want to prepend
+              ;; `comint-file-name-prefix' repeatedly into newelt via tem2.
+              (setq tem1 (pop dlsl)
+                    tem2 (concat comint-file-name-prefix tem1 newelt))
+              (cond ((file-directory-p tem2)
+                     (push tem2 ds)
+                     (when (string= " " (car dlsl))
+                       (pop dlsl))
+                     (setq newelt nil))
+                    (t
+                     (setq newelt (concat tem1 newelt)))))))
+
+        (with-demoted-errors "Couldn't cd: %s"
+          (shell-cd (car ds))
+          (setq shell-dirstack (cdr ds)
+                shell-last-dir (car shell-dirstack))
+          (shell-dirstack-message))))
     (if started-at-pmark (goto-char (marker-position pmark)))))
 
 ;; For your typing convenience:

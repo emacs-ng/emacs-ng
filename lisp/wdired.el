@@ -1,10 +1,10 @@
 ;;; wdired.el --- Rename files editing their names in dired buffers -*- coding: utf-8; -*-
 
-;; Copyright (C) 2004-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2020 Free Software Foundation, Inc.
 
 ;; Filename: wdired.el
 ;; Author: Juan León Lahoz García <juanleon1@gmail.com>
-;; Version: 2.0
+;; Old-Version: 2.0
 ;; Keywords: dired, environment, files, renaming
 
 ;; This file is part of GNU Emacs.
@@ -240,7 +240,7 @@ directories to reflect your edits.
 
 See `wdired-mode'."
   (interactive)
-  (unless (eq major-mode 'dired-mode)
+  (unless (derived-mode-p 'dired-mode)
     (error "Not a Dired buffer"))
   (set (make-local-variable 'wdired-old-content)
        (buffer-substring (point-min) (point-max)))
@@ -357,6 +357,8 @@ non-nil means return old filename."
     (remove-text-properties
      (point-min) (point-max)
      '(front-sticky nil rear-nonsticky nil read-only nil keymap nil)))
+  (remove-function (local 'isearch-filter-predicate)
+                   #'wdired-isearch-filter-read-only)
   (use-local-map dired-mode-map)
   (force-mode-line-update)
   (setq buffer-read-only t)
@@ -607,21 +609,45 @@ Optional arguments are ignored."
 (defun wdired--restore-dired-filename-prop (beg end _len)
   (save-match-data
     (save-excursion
-      (beginning-of-line)
-      (when (re-search-forward directory-listing-before-filename-regexp
-                               (line-end-position) t)
-        (setq beg (point)
-              end (if (and (file-symlink-p (dired-get-filename))
-                           (search-forward " -> " (line-end-position) t))
-                      (goto-char (match-beginning 0))
-                    (line-end-position)))
-        (put-text-property beg end 'dired-filename t)))))
+      (let ((lep (line-end-position))
+            (used-F (dired-check-switches
+                     dired-actual-switches
+                     "F" "classify")))
+        (beginning-of-line)
+        (when (re-search-forward
+               directory-listing-before-filename-regexp lep t)
+          (setq beg (point)
+                end (if (or
+                         ;; If the file is a symlink, put the
+                         ;; dired-filename property only on the link
+                         ;; name.  (Using (file-symlink-p
+                         ;; (dired-get-filename)) fails in
+                         ;; wdired-mode, bug#32673.)
+                         (and (re-search-backward
+                               dired-permission-flags-regexp nil t)
+                              (looking-at "l")
+                              ;; macOS and Ultrix adds "@" to the end
+                              ;; of symlinks when using -F.
+                              (if (and used-F
+                                       dired-ls-F-marks-symlinks)
+                                  (re-search-forward "@? -> " lep t)
+                                (search-forward " -> " lep t)))
+                         ;; When dired-listing-switches includes "F"
+                         ;; or "classify", don't treat appended
+                         ;; indicator characters as part of the file
+                         ;; name (bug#34915).
+                         (and used-F
+                              (re-search-forward "[*/@|=>]$" lep t)))
+                        (goto-char (match-beginning 0))
+                      lep))
+          (put-text-property beg end 'dired-filename t))))))
 
 (defun wdired-next-line (arg)
   "Move down lines then position at filename or the current column.
 See `wdired-use-dired-vertical-movement'.  Optional prefix ARG
 says how many lines to move; default is one line."
   (interactive "^p")
+  (setq this-command 'next-line)       ;Let `line-move' preserve the column.
   (with-no-warnings (next-line arg))
   (if (or (eq wdired-use-dired-vertical-movement t)
 	  (and wdired-use-dired-vertical-movement
@@ -635,6 +661,7 @@ says how many lines to move; default is one line."
 See `wdired-use-dired-vertical-movement'.  Optional prefix ARG
 says how many lines to move; default is one line."
   (interactive "^p")
+  (setq this-command 'previous-line)       ;Let `line-move' preserve the column.
   (with-no-warnings (previous-line arg))
   (if (or (eq wdired-use-dired-vertical-movement t)
 	  (and wdired-use-dired-vertical-movement
@@ -661,8 +688,7 @@ says how many lines to move; default is one line."
 				 'rear-nonsticky '(read-only))
 	      (put-text-property (match-beginning 1)
 				 (match-end 1) 'read-only nil)))
-        (forward-line)
-	(beginning-of-line)))))
+        (forward-line)))))
 
 
 (defun wdired-get-previous-link (&optional old move)
@@ -897,9 +923,4 @@ Like original function but it skips read-only words."
     (cons changes errors)))
 
 (provide 'wdired)
-
-;; Local Variables:
-;; byte-compile-dynamic: t
-;; End:
-
 ;;; wdired.el ends here

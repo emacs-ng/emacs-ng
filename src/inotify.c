@@ -1,6 +1,6 @@
 /* Inotify support for Emacs
 
-Copyright (C) 2012-2018 Free Software Foundation, Inc.
+Copyright (C) 2012-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -18,8 +18,6 @@ You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
-
-#ifdef HAVE_INOTIFY
 
 #include "lisp.h"
 #include "coding.h"
@@ -183,17 +181,16 @@ inotifyevent_to_event (Lisp_Object watch, struct inotify_event const *ev)
 
   if (ev->len > 0)
     {
-      size_t const len = strlen (ev->name);
-      name = make_unibyte_string (ev->name, min (len, ev->len));
+      name = make_unibyte_string (ev->name, strnlen (ev->name, ev->len));
       name = DECODE_FILE (name);
     }
   else
     name = XCAR (XCDR (watch));
 
-  return list2 (list4 (Fcons (INTEGER_TO_CONS (ev->wd), XCAR (watch)),
+  return list2 (list4 (Fcons (INT_TO_INTEGER (ev->wd), XCAR (watch)),
                        mask_to_aspects (ev->mask),
                        name,
-		       INTEGER_TO_CONS (ev->cookie)),
+		       INT_TO_INTEGER (ev->cookie)),
 		Fnth (make_fixnum (2), watch));
 }
 
@@ -204,10 +201,10 @@ static Lisp_Object
 add_watch (int wd, Lisp_Object filename,
 	   uint32_t imask, Lisp_Object callback)
 {
-  Lisp_Object descriptor = INTEGER_TO_CONS (wd);
+  Lisp_Object descriptor = INT_TO_INTEGER (wd);
   Lisp_Object tail = assoc_no_quit (descriptor, watch_list);
   Lisp_Object watch, watch_id;
-  Lisp_Object mask = INTEGER_TO_CONS (imask);
+  Lisp_Object mask = INT_TO_INTEGER (imask);
 
   EMACS_INT id = 0;
   if (NILP (tail))
@@ -332,7 +329,7 @@ inotify_callback (int fd, void *_)
   for (ssize_t i = 0; i < n; )
     {
       struct inotify_event *ev = (struct inotify_event *) &buffer[i];
-      Lisp_Object descriptor = INTEGER_TO_CONS (ev->wd);
+      Lisp_Object descriptor = INT_TO_INTEGER (ev->wd);
       Lisp_Object prevtail = find_descriptor (descriptor);
 
       if (! NILP (prevtail))
@@ -533,7 +530,10 @@ syms_of_inotify (void)
   DEFSYM (Qdont_follow, "dont-follow");	/* IN_DONT_FOLLOW */
   DEFSYM (Qonlydir, "onlydir");		/* IN_ONLYDIR */
 
+#if 0
+  /* Defined in coding.c, which uses it on all platforms.  */
   DEFSYM (Qignored, "ignored");		/* IN_IGNORED */
+#endif
   DEFSYM (Qisdir, "isdir");		/* IN_ISDIR */
   DEFSYM (Qq_overflow, "q-overflow");	/* IN_Q_OVERFLOW */
   DEFSYM (Qunmount, "unmount");		/* IN_UNMOUNT */
@@ -550,5 +550,3 @@ syms_of_inotify (void)
 
   Fprovide (intern_c_string ("inotify"), Qnil);
 }
-
-#endif /* HAVE_INOTIFY */

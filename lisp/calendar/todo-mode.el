@@ -1,6 +1,6 @@
 ;;; todo-mode.el --- facilities for making and maintaining todo lists  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 1999, 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 1999, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: Oliver Seidel <privat@os10000.net>
 ;;	Stephen Berman <stephen.berman@gmx.net>
@@ -707,7 +707,7 @@ and done items are always shown on visiting a category."
 				    shortf todo-show-first)))
 		     (when (eq todo-show-first 'regexp)
 		       (let ((rxfiles (directory-files todo-directory t
-						       ".*\\.todr$" t)))
+						       "\\.todr\\'" t)))
 			 (when (and rxfiles (> (length rxfiles) 1))
 			   (let ((rxf (mapcar #'todo-short-file-name rxfiles)))
 			     (setq fi-file (todo-absolute-file-name
@@ -874,6 +874,7 @@ category."
   (todo-forward-category t))
 
 (defvar todo-categories-buffer)
+(declare-function hl-line-highlight "hl-line" ())
 
 (defun todo-jump-to-category (&optional file where)
   "Prompt for a category in a todo file and jump to it.
@@ -1106,7 +1107,9 @@ Noninteractively, return the name of the new file."
 	(progn
 	  (set-window-buffer (selected-window)
 			     (set-buffer (find-file-noselect file)))
-	  (setq todo-current-todo-file file)
+	  ;; Since buffer is not yet in todo-mode, we need to
+	  ;; explicitly make todo-current-todo-file buffer local.
+          (setq-local todo-current-todo-file file)
 	  (todo-show))
       file)))
 
@@ -1929,16 +1932,18 @@ their associated keys and their effects."
 			     (calendar-current-date) t t))))
 	     (time-string (or (and time (todo-read-time))
 			      (and todo-always-add-time-string
-				   (substring (current-time-string) 11 16)))))
+				   (format-time-string "%H:%M")))))
 	(setq todo-date-from-calendar nil)
 	(find-file-noselect file 'nowarn)
 	(set-window-buffer (selected-window)
 			   (set-buffer (find-buffer-visiting file)))
-	;; If this command was invoked outside of a Todo mode buffer,
-	;; the call to todo-current-category above returned nil.  If
-	;; we just entered Todo mode now, then cat was set to the
-	;; file's first category, but if todo-mode was already
-	;; enabled, cat did not get set, so we have to do that.
+        ;; If FILE is not in Todo mode, set it now, which also sets
+	;; CAT to the file's first category.
+	(unless (derived-mode-p 'todo-mode) (todo-mode))
+        ;; But if FILE was already in todo-mode and the item insertion
+	;; command was invoked outside of a Todo mode buffer, the
+	;; above calls to todo-current-category returned nil, so we
+	;; have to explicitly set CAT to the current category.
 	(unless cat
 	  (setq cat (todo-current-category)))
 	(setq todo-current-todo-file file)
@@ -2166,7 +2171,9 @@ the item at point."
 		  (if comment-delete
 		      (when (todo-y-or-n-p "Delete comment? ")
 			(delete-region (match-beginning 0) (match-end 0)))
-		    (replace-match (read-string prompt (cons (match-string 1) 1))
+		    (replace-match (save-match-data
+                                     (read-string prompt
+                                                  (cons (match-string 1) 1)))
 				   nil nil nil 1))
 		(if comment-delete
 		    (user-error "There is no comment to delete")
@@ -2345,25 +2352,35 @@ made in the number or names of categories."
 			    ((or (string= omonth "*") (= mm 13))
 			     (user-error "Cannot increment *"))
 			    (t
-			     (let ((mminc (+ mm inc (if (< inc 0) 12 0))))
-			       ;; Increment or decrement month by INC
-			       ;; modulo 12.
-			       (setq mm (% mminc 12))
-			       ;; If result is 0, make month December.
-			       (setq mm (if (= mm 0) 12 (abs mm)))
+			     (let* ((mmo mm)
+                                    ;; Change by 12 or more months?
+                                    (bigincp (>= (abs inc) 12))
+                                    ;; Month number is in range 1..12.
+                                    (mminc (+ mm (% inc 12)))
+			            (mm (% (+ mminc 12) 12))
+			            ;; 12n mod 12 = 0, so 0 is December.
+			            (mm (if (= mm 0) 12 mm))
+                                    ;; Does change in month cross year?
+                                    (mmcmp (cond ((< inc 0) (> mm mmo))
+                                                 ((> inc 0) (< mm mmo))))
+                                    (yyadjust (if bigincp
+                                                  (+ (abs (/ inc 12))
+                                                     (if mmcmp 1 0))
+                                                1)))
 			       ;; Adjust year if necessary.
-			       (setq year (or (and (cond ((> mminc 12)
-							  (+ yy (/ mminc 12)))
-							 ((< mminc 1)
-							  (- yy (/ mminc 12) 1))
-							 (t yy))
-						   (number-to-string yy))
-					      oyear)))
-			     ;; Return the changed numerical month as
-			     ;; a string or the corresponding month name.
-			     (if omonth
-				 (number-to-string mm)
-			       (aref tma-array (1- mm))))))
+                               (setq yy (cond ((and (< inc 0)
+                                                    (or mmcmp bigincp))
+                                               (- yy yyadjust))
+                                              ((and (> inc 0)
+                                                    (or mmcmp bigincp))
+                                               (+ yy yyadjust))
+                                              (t yy)))
+                               (setq year (number-to-string yy))
+			       ;; Return the changed numerical month as
+			       ;; a string or the corresponding month name.
+			       (if omonth
+				   (number-to-string mm)
+			         (aref tma-array (1- mm)))))))
                 ;; Since the number corresponding to the arbitrary
                 ;; month name "*" is out of the range of
                 ;; calendar-last-day-of-month, set it to 1
@@ -2879,8 +2896,7 @@ visible."
              (not marked))
       (let* ((date-string (calendar-date-string (calendar-current-date) t t))
 	     (time-string (if todo-always-add-time-string
-			      (concat " " (substring (current-time-string)
-						     11 16))
+			      (format-time-string " %H:%M")
 			    ""))
 	     (done-prefix (concat "[" todo-done-string date-string time-string
 				  "] "))
@@ -4052,7 +4068,7 @@ regexp items."
 (defun todo-find-filtered-items-file ()
   "Choose a filtered items file and visit it."
   (interactive)
-  (let ((files (directory-files todo-directory t "\\.tod[rty]$" t))
+  (let ((files (directory-files todo-directory t "\\.tod[rty]\\'" t))
 	falist file)
     (dolist (f files)
       (let ((sf-name (todo-short-file-name f))
@@ -4185,7 +4201,7 @@ multifile commands for further details."
 				(regexp ".todr")))))
 	 (multi (> (length flist) 1))
 	 (rxfiles (when regexp
-		    (directory-files todo-directory t ".*\\.todr$" t)))
+		    (directory-files todo-directory t "\\.todr\\'" t)))
 	 (file-exists (or (file-exists-p fname) rxfiles))
 	 bufname)
     (cond ((and top new (natnump new))
@@ -5921,8 +5937,15 @@ categories from `todo-category-completions-files'."
 		       (todo-absolute-file-name
 			(let ((files (mapcar #'todo-short-file-name catfil)))
 			  (completing-read (format str cat) files)))))))
-      ;; Default to the current file.
-      (unless file0 (setq file0 todo-current-todo-file))
+      ;; When called without arg FILE, use fallback todo file.
+      (unless file0 (setq file0 (or todo-current-todo-file
+                                    ;; If we're outside of todo-mode
+                                    ;; but there is a current todo
+                                    ;; file, use it.
+                                    todo-global-current-todo-file
+                                    ;; Else, use the default todo file.
+                                    (todo-absolute-file-name
+				     todo-default-todo-file))))
       ;; First validate only a name passed interactively from
       ;; todo-add-category, which must be of a nonexistent category.
       (unless (and (assoc cat categories) (not add))
@@ -6089,7 +6112,7 @@ the empty string (i.e., no time string)."
     (while (not valid)
       (setq answer (read-string "Enter a clock time: " nil nil
 				(when todo-always-add-time-string
-				  (substring (current-time-string) 11 16))))
+				  (format-time-string "%H:%M"))))
       (when (or (string= "" answer)
 		(string-match diary-time-regexp answer))
 	(setq valid t)))
@@ -6152,7 +6175,7 @@ the empty string (i.e., no time string)."
   "The :set function for user option `todo-nondiary-marker'."
   (let* ((oldvalue (symbol-value symbol))
 	 (files (append todo-files todo-archives
-			(directory-files todo-directory t "\\.tod[rty]$" t))))
+			(directory-files todo-directory t "\\.tod[rty]\\'" t))))
     (custom-set-default symbol value)
     ;; Need to reset these to get font-locking right.
     (setq todo-nondiary-start (nth 0 todo-nondiary-marker)
@@ -6205,7 +6228,7 @@ the empty string (i.e., no time string)."
   "The :set function for user option `todo-done-string'."
   (let ((oldvalue (symbol-value symbol))
 	(files (append todo-files todo-archives
-		       (directory-files todo-directory t "\\.todr$" t))))
+		       (directory-files todo-directory t "\\.todr\\'" t))))
     (custom-set-default symbol value)
     ;; Need to reset this to get font-locking right.
     (setq todo-done-string-start
@@ -6234,7 +6257,7 @@ the empty string (i.e., no time string)."
   "The :set function for user option `todo-comment-string'."
   (let ((oldvalue (symbol-value symbol))
   	(files (append todo-files todo-archives
-		       (directory-files todo-directory t "\\.todr$" t))))
+		       (directory-files todo-directory t "\\.todr\\'" t))))
     (custom-set-default symbol value)
     (when (not (equal value oldvalue))
       (dolist (f files)
@@ -6260,7 +6283,7 @@ the empty string (i.e., no time string)."
   "The :set function for user option `todo-highlight-item'."
   (let ((oldvalue (symbol-value symbol))
 	(files (append todo-files todo-archives
-		       (directory-files todo-directory t "\\.tod[rty]$" t))))
+		       (directory-files todo-directory t "\\.tod[rty]\\'" t))))
     (custom-set-default symbol value)
     (when (not (equal value oldvalue))
       (dolist (f files)
@@ -6387,8 +6410,7 @@ Filtered Items mode following todo (not done) items."
 ;; -----------------------------------------------------------------------------
 
 (defvar todo-key-bindings-t
-  `(
-    ("Af"	     todo-find-archive)
+  '(("Af"	     todo-find-archive)
     ("Ac"	     todo-choose-archive)
     ("Ad"	     todo-archive-done-item)
     ("Cv"	     todo-toggle-view-done-items)
@@ -6419,13 +6441,11 @@ Filtered Items mode following todo (not done) items."
     ("k"	     todo-delete-item)
     ("m"	     todo-move-item)
     ("u"	     todo-item-undone)
-    ([remap newline] newline-and-indent)
-   )
+    ([remap newline] newline-and-indent))
   "List of key bindings for Todo mode only.")
 
 (defvar todo-key-bindings-t+a+f
-  `(
-    ("C*" todo-mark-category)
+  '(("C*" todo-mark-category)
     ("Cu" todo-unmark-category)
     ("Fh" todo-toggle-item-header)
     ("h"  todo-toggle-item-header)
@@ -6442,27 +6462,22 @@ Filtered Items mode following todo (not done) items."
     ("p"  todo-previous-item)
     ("q"  todo-quit)
     ("s"  todo-save)
-    ("t"  todo-show)
-   )
+    ("t"  todo-show))
   "List of key bindings for Todo, Archive, and Filtered Items modes.")
 
 (defvar todo-key-bindings-t+a
-  `(
-    ("Fc" todo-show-categories-table)
+  '(("Fc" todo-show-categories-table)
     ("S"  todo-search)
     ("X"  todo-clear-matches)
     ("b"  todo-backward-category)
     ("f"  todo-forward-category)
-    ("*"  todo-toggle-mark-item)
-   )
+    ("*"  todo-toggle-mark-item))
   "List of key bindings for Todo and Todo Archive modes.")
 
 (defvar todo-key-bindings-t+f
-  `(
-    ("l" todo-lower-item-priority)
+  '(("l" todo-lower-item-priority)
     ("r" todo-raise-item-priority)
-    ("#" todo-set-item-priority)
-   )
+    ("#" todo-set-item-priority))
   "List of key bindings for Todo and Todo Filtered Items modes.")
 
 (defvar todo-mode-map

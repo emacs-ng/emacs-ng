@@ -1,5 +1,5 @@
-# stdio_h.m4 serial 49
-dnl Copyright (C) 2007-2018 Free Software Foundation, Inc.
+# stdio_h.m4 serial 50
+dnl Copyright (C) 2007-2020 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
 dnl with or without modifications, as long as this notice is preserved.
@@ -107,6 +107,8 @@ AC_DEFUN([gl_STDIO_H],
   gl_WARN_ON_USE_PREPARE([[#include <stdio.h>
     ]], [dprintf fpurge fseeko ftello getdelim getline gets pclose popen
     renameat snprintf tmpfile vdprintf vsnprintf])
+
+  AC_REQUIRE([AC_C_RESTRICT])
 ])
 
 AC_DEFUN([gl_STDIO_MODULE_INDICATOR],

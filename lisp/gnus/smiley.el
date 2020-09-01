@@ -1,6 +1,6 @@
 ;;; smiley.el --- displaying smiley faces
 
-;; Copyright (C) 2000-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2020 Free Software Foundation, Inc.
 
 ;; Author: Dave Love <fx@gnu.org>
 ;; Keywords: news mail multimedia
@@ -56,14 +56,11 @@
 
 (defvar smiley-data-directory)
 
-(defcustom smiley-style
-  (if (and (fboundp 'face-attribute)
-	   ;; In batch mode, attributes can be unspecified.
-	   (condition-case nil
-	       (>= (face-attribute 'default :height) 160)
-	     (error nil)))
-      'medium
-    'low-color)
+;; In batch mode, attributes can be unspecified.
+(defcustom smiley-style (if (ignore-errors
+			      (>= (face-attribute 'default :height) 160))
+			    'medium
+			  'low-color)
   "Smiley style."
   :type '(choice (const :tag "small, 3 colors" low-color)  ;; 13x14
 		 (const :tag "medium, ~10 colors" medium)  ;; 16x16

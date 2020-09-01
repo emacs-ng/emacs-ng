@@ -1,5 +1,5 @@
 /* Composite sequence support.
-   Copyright (C) 2001-2018 Free Software Foundation, Inc.
+   Copyright (C) 2001-2020 Free Software Foundation, Inc.
    Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
      Registration Number H14PRO021
@@ -77,7 +77,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 	composition, the elements are characters or encoded
 	composition rules.
 
-   MODIFICATION-FUNC -- If non nil, it is a function to call when the
+   MODIFICATION-FUNC -- If non-nil, it is a function to call when the
 	composition gets invalid after a modification in a buffer.  If
 	it is nil, a function in `composition-function-table' of the
 	first character in the sequence is called.
@@ -164,19 +164,17 @@ ptrdiff_t
 get_composition_id (ptrdiff_t charpos, ptrdiff_t bytepos, ptrdiff_t nchars,
 		    Lisp_Object prop, Lisp_Object string)
 {
-  Lisp_Object id, length, components, key, *key_contents;
+  Lisp_Object id, length, components, key, *key_contents, hash_code;
   ptrdiff_t glyph_len;
   struct Lisp_Hash_Table *hash_table = XHASH_TABLE (composition_hash_table);
   ptrdiff_t hash_index;
-  EMACS_UINT hash_code;
   enum composition_method method;
   struct composition *cmp;
-  ptrdiff_t i;
   int ch;
 
   /* Maximum length of a string of glyphs.  XftGlyphExtents limits
      this to INT_MAX, and Emacs limits it further.  Divide INT_MAX - 1
-     by 2 because x_produce_glyphs computes glyph_len * 2 + 1.  Divide
+     by 2 because gui_produce_glyphs computes glyph_len * 2 + 1.  Divide
      the size by MAX_MULTIBYTE_LENGTH because encode_terminal_code
      multiplies glyph_len by MAX_MULTIBYTE_LENGTH.  */
   enum {
@@ -216,7 +214,7 @@ get_composition_id (ptrdiff_t charpos, ptrdiff_t bytepos, ptrdiff_t nchars,
      COMPONENTS (converted to a vector COMPONENTS-VEC) or, if it is
      nil, vector of characters in the composition range.  */
   if (FIXNUMP (components))
-    key = Fmake_vector (make_fixnum (1), components);
+    key = make_vector (1, components);
   else if (STRINGP (components) || CONSP (components))
     key = Fvconcat (1, &components);
   else if (VECTORP (components))
@@ -225,15 +223,15 @@ get_composition_id (ptrdiff_t charpos, ptrdiff_t bytepos, ptrdiff_t nchars,
     {
       key = make_uninit_vector (nchars);
       if (STRINGP (string))
-	for (i = 0; i < nchars; i++)
+	for (ptrdiff_t i = 0; i < nchars; i++)
 	  {
-	    FETCH_STRING_CHAR_ADVANCE (ch, string, charpos, bytepos);
+	    ch = fetch_string_char_advance (string, &charpos, &bytepos);
 	    ASET (key, i, make_fixnum (ch));
 	  }
       else
-	for (i = 0; i < nchars; i++)
+	for (ptrdiff_t i = 0; i < nchars; i++)
 	  {
-	    FETCH_CHAR_ADVANCE (ch, charpos, bytepos);
+	    ch = fetch_char_advance (&charpos, &bytepos);
 	    ASET (key, i, make_fixnum (ch));
 	  }
     }
@@ -274,7 +272,7 @@ get_composition_id (ptrdiff_t charpos, ptrdiff_t bytepos, ptrdiff_t nchars,
       /* COMPONENTS is a glyph-string.  */
       ptrdiff_t len = ASIZE (key);
 
-      for (i = 1; i < len; i++)
+      for (ptrdiff_t i = 1; i < len; i++)
 	if (! VECTORP (AREF (key, i)))
 	  goto invalid_composition;
     }
@@ -287,7 +285,7 @@ get_composition_id (ptrdiff_t charpos, ptrdiff_t bytepos, ptrdiff_t nchars,
 	goto invalid_composition;
       /* All elements should be integers (character or encoded
          composition rule).  */
-      for (i = 0; i < len; i++)
+      for (ptrdiff_t i = 0; i < len; i++)
 	{
 	  if (!FIXNUMP (key_contents[i]))
 	    goto invalid_composition;
@@ -329,7 +327,7 @@ get_composition_id (ptrdiff_t charpos, ptrdiff_t bytepos, ptrdiff_t nchars,
     {
       /* Relative composition.  */
       cmp->width = 0;
-      for (i = 0; i < glyph_len; i++)
+      for (ptrdiff_t i = 0; i < glyph_len; i++)
 	{
 	  int this_width;
 	  ch = XFIXNUM (key_contents[i]);
@@ -348,7 +346,7 @@ get_composition_id (ptrdiff_t charpos, ptrdiff_t bytepos, ptrdiff_t nchars,
       ch = XFIXNUM (key_contents[0]);
       rightmost = ch != '\t' ? CHARACTER_WIDTH (ch) : 1;
 
-      for (i = 1; i < glyph_len; i += 2)
+      for (ptrdiff_t i = 1; i < glyph_len; i += 2)
 	{
 	  int rule, gref, nref;
 	  int this_width;
@@ -654,27 +652,22 @@ Lisp_Object
 composition_gstring_put_cache (Lisp_Object gstring, ptrdiff_t len)
 {
   struct Lisp_Hash_Table *h = XHASH_TABLE (gstring_hash_table);
-  EMACS_UINT hash;
-  Lisp_Object header, copy;
-  ptrdiff_t i;
-
-  header = LGSTRING_HEADER (gstring);
-  hash = h->test.hashfn (&h->test, header);
+  Lisp_Object header = LGSTRING_HEADER (gstring);
+  Lisp_Object hash = h->test.hashfn (header, h);
   if (len < 0)
     {
-      ptrdiff_t j, glyph_len = LGSTRING_GLYPH_LEN (gstring);
-      for (j = 0; j < glyph_len; j++)
-	if (NILP (LGSTRING_GLYPH (gstring, j)))
+      ptrdiff_t glyph_len = LGSTRING_GLYPH_LEN (gstring);
+      for (len = 0; len < glyph_len; len++)
+	if (NILP (LGSTRING_GLYPH (gstring, len)))
 	  break;
-      len = j;
     }
 
-  copy = Fmake_vector (make_fixnum (len + 2), Qnil);
+  Lisp_Object copy = make_nil_vector (len + 2);
   LGSTRING_SET_HEADER (copy, Fcopy_sequence (header));
-  for (i = 0; i < len; i++)
+  for (ptrdiff_t i = 0; i < len; i++)
     LGSTRING_SET_GLYPH (copy, i, Fcopy_sequence (LGSTRING_GLYPH (gstring, i)));
-  i = hash_put (h, LGSTRING_HEADER (copy), copy, hash);
-  LGSTRING_SET_ID (copy, make_fixnum (i));
+  ptrdiff_t id = hash_put (h, LGSTRING_HEADER (copy), copy, hash);
+  LGSTRING_SET_ID (copy, make_fixnum (id));
   return copy;
 }
 
@@ -791,35 +784,24 @@ static Lisp_Object gstring_work;
 static Lisp_Object gstring_work_headers;
 
 static Lisp_Object
-fill_gstring_header (Lisp_Object header, ptrdiff_t from, ptrdiff_t from_byte,
+fill_gstring_header (ptrdiff_t from, ptrdiff_t from_byte,
 		     ptrdiff_t to, Lisp_Object font_object, Lisp_Object string)
 {
-  ptrdiff_t len = to - from, i;
-
+  ptrdiff_t len = to - from;
   if (len == 0)
     error ("Attempt to shape zero-length text");
-  if (VECTORP (header))
-    {
-      if (ASIZE (header) != len + 1)
-	args_out_of_range (header, make_fixnum (len + 1));
-    }
-  else
-    {
-      if (len <= 8)
-	header = AREF (gstring_work_headers, len - 1);
-      else
-	header = make_uninit_vector (len + 1);
-    }
+  eassume (0 < len);
+  Lisp_Object header = (len <= 8
+			? AREF (gstring_work_headers, len - 1)
+			: make_uninit_vector (len + 1));
 
   ASET (header, 0, font_object);
-  for (i = 0; i < len; i++)
+  for (ptrdiff_t i = 0; i < len; i++)
     {
-      int c;
-
-      if (NILP (string))
-	FETCH_CHAR_ADVANCE_NO_CHECK (c, from, from_byte);
-      else
-	FETCH_STRING_CHAR_ADVANCE_NO_CHECK (c, string, from, from_byte);
+      int c
+	= (NILP (string)
+	   ? fetch_char_advance_no_check (&from, &from_byte)
+	   : fetch_string_char_advance_no_check (string, &from, &from_byte));
       ASET (header, i + 1, make_fixnum (c));
     }
   return header;
@@ -832,6 +814,11 @@ fill_gstring_body (Lisp_Object gstring)
   Lisp_Object header = AREF (gstring, 0);
   ptrdiff_t len = LGSTRING_CHAR_LEN (gstring);
   ptrdiff_t i;
+  struct font *font = NULL;
+  unsigned int code;
+
+  if (FONT_OBJECT_P (font_object))
+    font = XFONT_OBJECT (font_object);
 
   for (i = 0; i < len; i++)
     {
@@ -846,10 +833,15 @@ fill_gstring_body (Lisp_Object gstring)
       LGLYPH_SET_FROM (g, i);
       LGLYPH_SET_TO (g, i);
       LGLYPH_SET_CHAR (g, c);
-      if (FONT_OBJECT_P (font_object))
-	{
-	  font_fill_lglyph_metrics (g, font_object);
-	}
+
+      if (font != NULL)
+        code = font->driver->encode_char (font, LGLYPH_CHAR (g));
+      else
+        code = FONT_INVALID_CODE;
+      if (code != FONT_INVALID_CODE)
+        {
+	  font_fill_lglyph_metrics (g, font, code);
+        }
       else
 	{
 	  int width = XFIXNAT (CHAR_TABLE_REF (Vchar_width_table, c));
@@ -878,7 +870,7 @@ fill_gstring_body (Lisp_Object gstring)
 static Lisp_Object
 autocmp_chars (Lisp_Object rule, ptrdiff_t charpos, ptrdiff_t bytepos,
 	       ptrdiff_t limit, struct window *win, struct face *face,
-	       Lisp_Object string)
+	       Lisp_Object string, Lisp_Object direction)
 {
   ptrdiff_t count = SPECPDL_INDEX ();
   Lisp_Object pos = make_fixnum (charpos);
@@ -925,23 +917,25 @@ autocmp_chars (Lisp_Object rule, ptrdiff_t charpos, ptrdiff_t bytepos,
       if (NILP (string))
 	record_unwind_protect (restore_point_unwind,
 			       build_marker (current_buffer, pt, pt_byte));
-      lgstring = safe_call (6, Vauto_composition_function, AREF (rule, 2),
-			    pos, make_fixnum (to), font_object, string);
+      lgstring = safe_call (7, Vauto_composition_function, AREF (rule, 2),
+			    pos, make_fixnum (to), font_object, string,
+			    direction);
     }
   return unbind_to (count, lgstring);
 }
 
 /* 1 iff the character C is composable.  Characters of general
-   category Z? or C? are not composable except for ZWNJ and ZWJ. */
+   category Z? or C? are not composable except for ZWNJ and ZWJ,
+   and characters of category Zs. */
 
 static bool
 char_composable_p (int c)
 {
   Lisp_Object val;
-  return (c > ' '
+  return (c >= ' '
 	  && (c == ZERO_WIDTH_NON_JOINER || c == ZERO_WIDTH_JOINER
 	      || (val = CHAR_TABLE_REF (Vunicode_category_table, c),
-		  (FIXNUMP (val) && (XFIXNUM (val) <= UNICODE_CATEGORY_So)))));
+		  (FIXNUMP (val) && (XFIXNUM (val) <= UNICODE_CATEGORY_Zs)))));
 }
 
 /* Update cmp_it->stop_pos to the next position after CHARPOS (and
@@ -1014,10 +1008,9 @@ composition_compute_stop_pos (struct composition_it *cmp_it, ptrdiff_t charpos, 
       /* Forward search.  */
       while (charpos < endpos)
 	{
-	  if (STRINGP (string))
-	    FETCH_STRING_CHAR_ADVANCE (c, string, charpos, bytepos);
-	  else
-	    FETCH_CHAR_ADVANCE (c, charpos, bytepos);
+	  c = (STRINGP (string)
+	       ? fetch_string_char_advance (string, &charpos, &bytepos)
+	       : fetch_char_advance (&charpos, &bytepos));
 	  if (c == '\n')
 	    {
 	      cmp_it->ch = -2;
@@ -1072,7 +1065,7 @@ composition_compute_stop_pos (struct composition_it *cmp_it, ptrdiff_t charpos, 
 	p = BYTE_POS_ADDR (bytepos);
       else
 	p = SDATA (string) + bytepos;
-      c = STRING_CHAR_AND_LENGTH (p, len);
+      c = string_char_and_length (p, &len);
       limit = bytepos + len;
       while (char_composable_p (c))
 	{
@@ -1134,7 +1127,7 @@ composition_compute_stop_pos (struct composition_it *cmp_it, ptrdiff_t charpos, 
 	    }
 	  else
 	    {
-	      DEC_BOTH (charpos, bytepos);
+	      dec_both (&charpos, &bytepos);
 	      p = BYTE_POS_ADDR (bytepos);
 	    }
 	  c = STRING_CHAR (p);
@@ -1147,7 +1140,7 @@ composition_compute_stop_pos (struct composition_it *cmp_it, ptrdiff_t charpos, 
 	{
 	  while (charpos - 1 > endpos && ! char_composable_p (c))
 	    {
-	      DEC_BOTH (charpos, bytepos);
+	      dec_both (&charpos, &bytepos);
 	      c = FETCH_MULTIBYTE_CHAR (bytepos);
 	    }
 	}
@@ -1171,7 +1164,11 @@ composition_compute_stop_pos (struct composition_it *cmp_it, ptrdiff_t charpos, 
    characters to be composed.  FACE, if non-NULL, is a base face of
    the character.  If STRING is not nil, it is a string containing the
    character to check, and CHARPOS and BYTEPOS are indices in the
-   string.  In that case, FACE must not be NULL.
+   string.  In that case, FACE must not be NULL.  BIDI_LEVEL is the bidi
+   embedding level of the current paragraph, and is used to calculate the
+   direction argument to pass to the font shaper; value of -1 means the
+   caller doesn't know the embedding level (used by callers which didn't
+   invoke the display routines that perform bidi-display-reordering).
 
    If the character is composed, setup members of CMP_IT (id, nglyphs,
    from, to, reversed_p), and return true.  Otherwise, update
@@ -1180,7 +1177,7 @@ composition_compute_stop_pos (struct composition_it *cmp_it, ptrdiff_t charpos, 
 bool
 composition_reseat_it (struct composition_it *cmp_it, ptrdiff_t charpos,
 		       ptrdiff_t bytepos, ptrdiff_t endpos, struct window *w,
-		       struct face *face, Lisp_Object string)
+		       signed char bidi_level, struct face *face, Lisp_Object string)
 {
   if (cmp_it->ch == -2)
     {
@@ -1210,13 +1207,19 @@ composition_reseat_it (struct composition_it *cmp_it, ptrdiff_t charpos,
   else if (w)
     {
       Lisp_Object lgstring = Qnil;
-      Lisp_Object val, elt;
+      Lisp_Object val, elt, direction = Qnil;
 
       val = CHAR_TABLE_REF (Vcomposition_function_table, cmp_it->ch);
       for (EMACS_INT i = 0; i < cmp_it->rule_idx; i++, val = XCDR (val))
 	continue;
       if (charpos < endpos)
 	{
+	  if (bidi_level < 0)
+	    direction = Qnil;
+	  else if ((bidi_level & 1) == 0)
+	    direction = QL2R;
+	  else
+	    direction = QR2L;
 	  for (; CONSP (val); val = XCDR (val))
 	    {
 	      elt = XCAR (val);
@@ -1226,7 +1229,7 @@ composition_reseat_it (struct composition_it *cmp_it, ptrdiff_t charpos,
 	      if (XFIXNAT (AREF (elt, 1)) != cmp_it->lookback)
 		goto no_composition;
 	      lgstring = autocmp_chars (elt, charpos, bytepos, endpos,
-					w, face, string);
+					w, face, string, direction);
 	      if (composition_gstring_p (lgstring))
 		break;
 	      lgstring = Qnil;
@@ -1250,8 +1253,21 @@ composition_reseat_it (struct composition_it *cmp_it, ptrdiff_t charpos,
 	      else
 		bpos = CHAR_TO_BYTE (cpos);
 	    }
+	  /* The bidi_level < 0 case below strictly speaking should
+	     never happen, since we get here when bidi scan direction
+	     is backward in the buffer, which can only happen if the
+	     display routines were called to perform the bidi
+	     reordering.  But it doesn't harm to test for that, and
+	     avoid someone raising their brows and thinking it's a
+	     subtle bug...  */
+	  if (bidi_level < 0)
+	    direction = Qnil;
+	  else if ((bidi_level & 1) == 0)
+	    direction = QL2R;
+	  else
+	    direction = QR2L;
 	  lgstring = autocmp_chars (elt, cpos, bpos, charpos + 1, w, face,
-				    string);
+				    string, direction);
 	  if (! composition_gstring_p (lgstring)
 	      || cpos + LGSTRING_CHAR_LEN (lgstring) - 1 != charpos)
 	    /* Composition failed or didn't cover the current
@@ -1282,7 +1298,7 @@ composition_reseat_it (struct composition_it *cmp_it, ptrdiff_t charpos,
     {
       charpos++;
       if (NILP (string))
-	INC_POS (bytepos);
+	bytepos += next_char_len (bytepos);
       else
 	bytepos += BYTES_BY_CHAR_HEAD (*(SDATA (string) + bytepos));
     }
@@ -1571,7 +1587,7 @@ find_automatic_composition (ptrdiff_t pos, ptrdiff_t limit,
 		  for (check = cur; check_pos < check.pos; )
 		    BACKWARD_CHAR (check, stop);
 		  *gstring = autocmp_chars (elt, check.pos, check.pos_byte,
-					    tail, w, NULL, string);
+					    tail, w, NULL, string, Qnil);
 		  need_adjustment = 1;
 		  if (NILP (*gstring))
 		    {
@@ -1748,18 +1764,29 @@ should be ignored.  */)
       CHECK_STRING (string);
       validate_subarray (string, from, to, SCHARS (string), &frompos, &topos);
       if (! STRING_MULTIBYTE (string))
-	error ("Attempt to shape unibyte text");
+	{
+	  ptrdiff_t i;
+
+	  for (i = SBYTES (string) - 1; i >= 0; i--)
+	    if (!ASCII_CHAR_P (SREF (string, i)))
+	      error ("Attempt to shape unibyte text");
+	  /* STRING is a pure-ASCII string, so we can convert it (or,
+	     rather, its copy) to multibyte and use that thereafter.  */
+	  Lisp_Object string_copy = Fconcat (1, &string);
+	  STRING_SET_MULTIBYTE (string_copy);
+	  string = string_copy;
+	}
       frombyte = string_char_to_byte (string, frompos);
     }
 
-  header = fill_gstring_header (Qnil, frompos, frombyte,
+  header = fill_gstring_header (frompos, frombyte,
 				topos, font_object, string);
   gstring = gstring_lookup_cache (header);
   if (! NILP (gstring))
     return gstring;
 
   if (LGSTRING_GLYPH_LEN (gstring_work) < topos - frompos)
-    gstring_work = Fmake_vector (make_fixnum (topos - frompos + 2), Qnil);
+    gstring_work = make_nil_vector (topos - frompos + 2);
   LGSTRING_SET_HEADER (gstring_work, header);
   LGSTRING_SET_ID (gstring_work, Qnil);
   fill_gstring_body (gstring_work);
@@ -1820,27 +1847,24 @@ See `find-composition' for more details.  */)
   ptrdiff_t start, end, from, to;
   int id;
 
-  CHECK_FIXNUM_COERCE_MARKER (pos);
+  EMACS_INT fixed_pos = fix_position (pos);
   if (!NILP (limit))
-    {
-      CHECK_FIXNUM_COERCE_MARKER (limit);
-      to = min (XFIXNUM (limit), ZV);
-    }
+    to = clip_to_bounds (PTRDIFF_MIN, fix_position (limit), ZV);
   else
     to = -1;
 
   if (!NILP (string))
     {
       CHECK_STRING (string);
-      if (XFIXNUM (pos) < 0 || XFIXNUM (pos) > SCHARS (string))
+      if (! (0 <= fixed_pos && fixed_pos <= SCHARS (string)))
 	args_out_of_range (string, pos);
     }
   else
     {
-      if (XFIXNUM (pos) < BEGV || XFIXNUM (pos) > ZV)
+      if (! (BEGV <= fixed_pos && fixed_pos <= ZV))
 	args_out_of_range (Fcurrent_buffer (), pos);
     }
-  from = XFIXNUM (pos);
+  from = fixed_pos;
 
   if (!find_composition (from, to, &start, &end, &prop, string))
     {
@@ -1851,12 +1875,12 @@ See `find-composition' for more details.  */)
 	return list3 (make_fixnum (start), make_fixnum (end), gstring);
       return Qnil;
     }
-  if ((end <= XFIXNUM (pos) || start > XFIXNUM (pos)))
+  if (! (start <= fixed_pos && fixed_pos < end))
     {
       ptrdiff_t s, e;
 
       if (find_automatic_composition (from, to, &s, &e, &gstring, string)
-	  && (e <= XFIXNUM (pos) ? e > end : s < start))
+	  && (e <= fixed_pos ? e > end : s < start))
 	return list3 (make_fixnum (s), make_fixnum (e), gstring);
     }
   if (!composition_valid_p (start, end, prop))
@@ -1915,11 +1939,11 @@ syms_of_composite (void)
   staticpro (&gstring_hash_table);
 
   staticpro (&gstring_work_headers);
-  gstring_work_headers = make_uninit_vector (8);
+  gstring_work_headers = make_nil_vector (8);
   for (i = 0; i < 8; i++)
-    ASET (gstring_work_headers, i, Fmake_vector (make_fixnum (i + 2), Qnil));
+    ASET (gstring_work_headers, i, make_nil_vector (i + 2));
   staticpro (&gstring_work);
-  gstring_work = Fmake_vector (make_fixnum (10), Qnil);
+  gstring_work = make_nil_vector (10);
 
   /* Text property `composition' should be nonsticky by default.  */
   Vtext_property_default_nonsticky
@@ -1948,15 +1972,24 @@ Use the command `auto-composition-mode' to change this variable. */);
 
   DEFVAR_LISP ("auto-composition-function", Vauto_composition_function,
 	       doc: /* Function to call to compose characters automatically.
-This function is called from the display routine with four arguments:
-FROM, TO, WINDOW, and STRING.
+This function is called from the display engine with 6 arguments:
+FUNC, FROM, TO, FONT-OBJECT, STRING, and DIRECTION.
+
+FUNC is the function to compose characters.  On text-mode display,
+FUNC is ignored and `compose-gstring-for-terminal' is used instead.
 
 If STRING is nil, the function must compose characters in the region
 between FROM and TO in the current buffer.
 
 Otherwise, STRING is a string, and FROM and TO are indices into the
 string.  In this case, the function must compose characters in the
-string.  */);
+string.
+
+FONT-OBJECT is the font to use, or nil if characters are to be
+composed on a text-mode display.
+
+DIRECTION is the bidi directionality of the text to shape.  It could
+be L2R or R2L, or nil if unknown.  */);
   Vauto_composition_function = Qnil;
 
   DEFVAR_LISP ("composition-function-table", Vcomposition_function_table,
@@ -1966,7 +1999,9 @@ preceding and/or following characters, this char-table contains
 a function to call to compose that character.
 
 The element at index C in the table, if non-nil, is a list of
-composition rules of this form: ([PATTERN PREV-CHARS FUNC] ...)
+composition rules of the form ([PATTERN PREV-CHARS FUNC] ...);
+the rules must be specified in the descending order of PREV-CHARS
+values.
 
 PATTERN is a regular expression which C and the surrounding
 characters must match.

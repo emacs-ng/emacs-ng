@@ -1,6 +1,6 @@
 @c -*- mode: texinfo; coding: utf-8 -*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990-1995, 1998-1999, 2001-2018 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2020 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Documentation
@@ -175,54 +175,53 @@ All symbols that have PATTERN in their name are described
 in the *Help* buffer."
   (interactive "sDescribe symbols matching: ")
   (let ((describe-func
-         (function
-          (lambda (s)
+         (lambda (s)
 @end group
 @group
-            ;; @r{Print description of symbol.}
-            (if (fboundp s)             ; @r{It is a function.}
-                (princ
-                 (format "%s\t%s\n%s\n\n" s
-                   (if (commandp s)
-                       (let ((keys (where-is-internal s)))
-                         (if keys
-                             (concat
-                              "Keys: "
-                              (mapconcat 'key-description
-                                         keys " "))
-                           "Keys: none"))
-                     "Function")
+           ;; @r{Print description of symbol.}
+           (if (fboundp s)             ; @r{It is a function.}
+               (princ
+                (format "%s\t%s\n%s\n\n" s
+                  (if (commandp s)
+                      (let ((keys (where-is-internal s)))
+                        (if keys
+                            (concat
+                             "Keys: "
+                             (mapconcat 'key-description
+                                        keys " "))
+                          "Keys: none"))
+                    "Function")
 @end group
 @group
-                   (or (documentation s)
-                       "not documented"))))
+                  (or (documentation s)
+                      "not documented"))))
 
-            (if (boundp s)              ; @r{It is a variable.}
+           (if (boundp s)              ; @r{It is a variable.}
 @end group
 @group
-                (princ
-                 (format "%s\t%s\n%s\n\n" s
-                   (if (custom-variable-p s)
-                       "Option " "Variable")
+               (princ
+                (format "%s\t%s\n%s\n\n" s
+                  (if (custom-variable-p s)
+                      "Option " "Variable")
 @end group
 @group
-                   (or (documentation-property
-                         s 'variable-documentation)
-                       "not documented")))))))
+                  (or (documentation-property
+                        s 'variable-documentation)
+                      "not documented"))))))
         sym-list)
 @end group
 
 @group
     ;; @r{Build a list of symbols that match pattern.}
-    (mapatoms (function
-               (lambda (sym)
-                 (if (string-match pattern (symbol-name sym))
-                     (setq sym-list (cons sym sym-list))))))
+    (mapatoms (lambda (sym)
+                (if (string-match pattern (symbol-name sym))
+                    (setq sym-list (cons sym sym-list)))))
 @end group
 
 @group
     ;; @r{Display the data.}
-    (help-setup-xref (list 'describe-symbols pattern) (interactive-p))
+    (help-setup-xref (list 'describe-symbols pattern)
+                 (called-interactively-p 'interactive))
     (with-help-window (help-buffer)
       (mapcar describe-func (sort sym-list 'string<)))))
 @end group
@@ -556,13 +555,15 @@ brackets.
 
 @defun text-char-description character
 This function returns a string describing @var{character} in the
-standard Emacs notation for characters that appear in text---like
-@code{single-key-description}, except that control characters are
-represented with a leading caret (which is how control characters in
-Emacs buffers are usually displayed).  Another difference is that
-@code{text-char-description} recognizes the 2**7 bit as the Meta
-character, whereas @code{single-key-description} uses the 2**27 bit
-for Meta.
+standard Emacs notation for characters that can appear in
+text---similar to @code{single-key-description}, except that the
+argument must be a valid character code that passes a
+@code{characterp} test (@pxref{Character Codes}).  The function
+produces descriptions of control characters with a leading caret
+(which is how Emacs usually displays control characters in buffers).
+Characters with modifier bits will cause this function to signal an
+error (@acronym{ASCII} characters with the Control modifier are an
+exception, they are represented as control characters).
 
 @smallexample
 @group
@@ -571,19 +572,7 @@ for Meta.
 @end group
 @group
 (text-char-description ?\M-m)
-     @result{} "\xed"
-@end group
-@group
-(text-char-description ?\C-\M-m)
-     @result{} "\x8d"
-@end group
-@group
-(text-char-description (+ 128 ?m))
-     @result{} "M-m"
-@end group
-@group
-(text-char-description (+ 128 ?\C-m))
-     @result{} "M-^M"
+     @error{} Wrong type argument: characterp, 134217837
 @end group
 @end smallexample
 @end defun

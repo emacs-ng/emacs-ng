@@ -1,5 +1,5 @@
 /* CCL (Code Conversion Language) interpreter.
-   Copyright (C) 2001-2018 Free Software Foundation, Inc.
+   Copyright (C) 2001-2020 Free Software Foundation, Inc.
    Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
      2005, 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
@@ -855,6 +855,13 @@ struct ccl_prog_stack
 /* For the moment, we only support depth 256 of stack.  */
 static struct ccl_prog_stack ccl_prog_stack_struct[256];
 
+/* Return a translation table of id number ID.  */
+static inline Lisp_Object
+GET_TRANSLATION_TABLE (int id)
+{
+  return XCDR (XVECTOR (Vtranslation_table_vector)->contents[id]);
+}
+
 void
 ccl_driver (struct ccl_program *ccl, int *source, int *destination, int src_size, int dst_size, Lisp_Object charset_list)
 {
@@ -1135,19 +1142,52 @@ ccl_driver (struct ccl_program *ccl, int *source, int *destination, int src_size
 	ccl_expr_self:
 	  switch (op)
 	    {
-	    case CCL_PLUS: reg[rrr] += i; break;
-	    case CCL_MINUS: reg[rrr] -= i; break;
-	    case CCL_MUL: reg[rrr] *= i; break;
-	    case CCL_DIV: reg[rrr] /= i; break;
+	    case CCL_PLUS: INT_ADD_WRAPV (reg[rrr], i, &reg[rrr]); break;
+	    case CCL_MINUS: INT_SUBTRACT_WRAPV (reg[rrr], i, &reg[rrr]); break;
+	    case CCL_MUL: INT_MULTIPLY_WRAPV (reg[rrr], i, &reg[rrr]); break;
+	    case CCL_DIV:
+	      if (!i)
+		CCL_INVALID_CMD;
+	      if (!INT_DIVIDE_OVERFLOW (reg[rrr], i))
+		reg[rrr] /= i;
+	      break;
 	    case CCL_MOD: reg[rrr] %= i; break;
+	      if (!i)
+		CCL_INVALID_CMD;
+	      reg[rrr] = i == -1 ? 0 : reg[rrr] % i;
+	      break;
 	    case CCL_AND: reg[rrr] &= i; break;
 	    case CCL_OR: reg[rrr] |= i; break;
 	    case CCL_XOR: reg[rrr] ^= i; break;
-	    case CCL_LSH: reg[rrr] <<= i; break;
-	    case CCL_RSH: reg[rrr] >>= i; break;
-	    case CCL_LSH8: reg[rrr] <<= 8; reg[rrr] |= i; break;
+	    case CCL_LSH:
+	      if (i < 0)
+		CCL_INVALID_CMD;
+	      reg[rrr] = i < UINT_WIDTH ? (unsigned) reg[rrr] << i : 0;
+	      break;
+	    case CCL_RSH:
+	      if (i < 0)
+		CCL_INVALID_CMD;
+	      reg[rrr] = reg[rrr] >> min (i, INT_WIDTH - 1);
+	      break;
+	    case CCL_LSH8:
+	      reg[rrr] = (unsigned) reg[rrr] << 8;
+	      reg[rrr] |= i;
+	      break;
 	    case CCL_RSH8: reg[7] = reg[rrr] & 0xFF; reg[rrr] >>= 8; break;
-	    case CCL_DIVMOD: reg[7] = reg[rrr] % i; reg[rrr] /= i; break;
+	    case CCL_DIVMOD:
+	      if (!i)
+		CCL_INVALID_CMD;
+	      if (i == -1)
+		{
+		  reg[7] = 0;
+		  INT_SUBTRACT_WRAPV (0, reg[rrr], &reg[rrr]);
+		}
+	      else
+		{
+		  reg[7] = reg[rrr] % i;
+		  reg[rrr] /= i;
+		}
+	      break;
 	    case CCL_LS: reg[rrr] = reg[rrr] < i; break;
 	    case CCL_GT: reg[rrr] = reg[rrr] > i; break;
 	    case CCL_EQ: reg[rrr] = reg[rrr] == i; break;
@@ -1197,19 +1237,52 @@ ccl_driver (struct ccl_program *ccl, int *source, int *destination, int src_size
 	ccl_set_expr:
 	  switch (op)
 	    {
-	    case CCL_PLUS: reg[rrr] = i + j; break;
-	    case CCL_MINUS: reg[rrr] = i - j; break;
-	    case CCL_MUL: reg[rrr] = i * j; break;
-	    case CCL_DIV: reg[rrr] = i / j; break;
-	    case CCL_MOD: reg[rrr] = i % j; break;
+	    case CCL_PLUS: INT_ADD_WRAPV (i, j, &reg[rrr]); break;
+	    case CCL_MINUS: INT_SUBTRACT_WRAPV (i, j, &reg[rrr]); break;
+	    case CCL_MUL: INT_MULTIPLY_WRAPV (i, j, &reg[rrr]); break;
+	    case CCL_DIV:
+	      if (!j)
+		CCL_INVALID_CMD;
+	      if (!INT_DIVIDE_OVERFLOW (i, j))
+		i /= j;
+	      reg[rrr] = i;
+	      break;
+	    case CCL_MOD:
+	      if (!j)
+		CCL_INVALID_CMD;
+	      reg[rrr] = j == -1 ? 0 : i % j;
+	      break;
 	    case CCL_AND: reg[rrr] = i & j; break;
 	    case CCL_OR: reg[rrr] = i | j; break;
 	    case CCL_XOR: reg[rrr] = i ^ j; break;
-	    case CCL_LSH: reg[rrr] = i << j; break;
-	    case CCL_RSH: reg[rrr] = i >> j; break;
-	    case CCL_LSH8: reg[rrr] = (i << 8) | j; break;
+	    case CCL_LSH:
+	      if (j < 0)
+		CCL_INVALID_CMD;
+	      reg[rrr] = j < UINT_WIDTH ? (unsigned) i << j : 0;
+	      break;
+	    case CCL_RSH:
+	      if (j < 0)
+		CCL_INVALID_CMD;
+	      reg[rrr] = i >> min (j, INT_WIDTH - 1);
+	      break;
+	    case CCL_LSH8:
+	      reg[rrr] = ((unsigned) i << 8) | j;
+	      break;
 	    case CCL_RSH8: reg[rrr] = i >> 8; reg[7] = i & 0xFF; break;
-	    case CCL_DIVMOD: reg[rrr] = i / j; reg[7] = i % j; break;
+	    case CCL_DIVMOD:
+	      if (!j)
+		CCL_INVALID_CMD;
+	      if (j == -1)
+		{
+		  INT_SUBTRACT_WRAPV (0, reg[rrr], &reg[rrr]);
+		  reg[7] = 0;
+		}
+	      else
+		{
+		  reg[rrr] = i / j;
+		  reg[7] = i % j;
+		}
+	      break;
 	    case CCL_LS: reg[rrr] = i < j; break;
 	    case CCL_GT: reg[rrr] = i > j; break;
 	    case CCL_EQ: reg[rrr] = i == j; break;
@@ -1218,7 +1291,7 @@ ccl_driver (struct ccl_program *ccl, int *source, int *destination, int src_size
 	    case CCL_NE: reg[rrr] = i != j; break;
 	    case CCL_DECODE_SJIS:
 	      {
-		i = (i << 8) | j;
+		i = ((unsigned) i << 8) | j;
 		SJIS_TO_JIS (i);
 		reg[rrr] = i >> 8;
 		reg[7] = i & 0xFF;
@@ -1226,7 +1299,7 @@ ccl_driver (struct ccl_program *ccl, int *source, int *destination, int src_size
 	      }
 	    case CCL_ENCODE_SJIS:
 	      {
-		i = (i << 8) | j;
+		i = ((unsigned) i << 8) | j;
 		JIS_TO_SJIS (i);
 		reg[rrr] = i >> 8;
 		reg[7] = i & 0xFF;
@@ -1291,7 +1364,9 @@ ccl_driver (struct ccl_program *ccl, int *source, int *destination, int src_size
 				: -1));
 		h = GET_HASH_TABLE (eop);
 
-		eop = hash_lookup (h, make_fixnum (reg[RRR]), NULL);
+		eop = (FIXNUM_OVERFLOW_P (reg[RRR])
+		       ? -1
+		       : hash_lookup (h, make_fixnum (reg[RRR]), NULL));
 		if (eop >= 0)
 		  {
 		    Lisp_Object opl;
@@ -1299,7 +1374,7 @@ ccl_driver (struct ccl_program *ccl, int *source, int *destination, int src_size
 		    if (! (IN_INT_RANGE (eop) && CHARACTERP (opl)))
 		      CCL_INVALID_CMD;
 		    reg[RRR] = charset_unicode;
-		    reg[rrr] = eop;
+		    reg[rrr] = XFIXNUM (opl);
 		    reg[7] = 1; /* r7 true for success */
 		  }
 		else
@@ -1318,7 +1393,9 @@ ccl_driver (struct ccl_program *ccl, int *source, int *destination, int src_size
 		i = CCL_DECODE_CHAR (reg[RRR], reg[rrr]);
 		h = GET_HASH_TABLE (eop);
 
-		eop = hash_lookup (h, make_fixnum (i), NULL);
+		eop = (FIXNUM_OVERFLOW_P (i)
+		       ? -1
+		       : hash_lookup (h, make_fixnum (i), NULL));
 		if (eop >= 0)
 		  {
 		    Lisp_Object opl;
@@ -1990,9 +2067,13 @@ programs.  */)
     error ("Length of vector REGISTERS is not 8");
 
   for (i = 0; i < 8; i++)
-    ccl.reg[i] = (TYPE_RANGED_FIXNUMP (int, AREF (reg, i))
-		  ? XFIXNUM (AREF (reg, i))
-		  : 0);
+    {
+      intmax_t n;
+      ccl.reg[i] = ((INTEGERP (AREF (reg, i))
+		     && integer_to_intmax (AREF (reg, i), &n)
+		     && INT_MIN <= n && n <= INT_MAX)
+		    ? n : 0);
+    }
 
   ccl_driver (&ccl, NULL, NULL, 0, 0, Qnil);
   maybe_quit ();
@@ -2000,7 +2081,7 @@ programs.  */)
     error ("Error in CCL program at %dth code", ccl.ic);
 
   for (i = 0; i < 8; i++)
-    ASET (reg, i, make_fixnum (ccl.reg[i]));
+    ASET (reg, i, make_int (ccl.reg[i]));
   return Qnil;
 }
 
@@ -2059,14 +2140,17 @@ usage: (ccl-execute-on-string CCL-PROGRAM STATUS STRING &optional CONTINUE UNIBY
     {
       if (NILP (AREF (status, i)))
 	ASET (status, i, make_fixnum (0));
-      if (TYPE_RANGED_FIXNUMP (int, AREF (status, i)))
-	ccl.reg[i] = XFIXNUM (AREF (status, i));
+      intmax_t n;
+      if (INTEGERP (AREF (status, i))
+	  && integer_to_intmax (AREF (status, i), &n)
+	  && INT_MIN <= n && n <= INT_MAX)
+	ccl.reg[i] = n;
     }
-  if (FIXNUMP (AREF (status, i)))
+  intmax_t ic;
+  if (INTEGERP (AREF (status, 8)) && integer_to_intmax (AREF (status, 8), &ic))
     {
-      i = XFIXNAT (AREF (status, 8));
-      if (ccl.ic < i && i < ccl.size)
-	ccl.ic = i;
+      if (ccl.ic < ic && ic < ccl.size)
+	ccl.ic = ic;
     }
 
   buf_magnification = ccl.buf_magnification ? ccl.buf_magnification : 1;
@@ -2090,7 +2174,7 @@ usage: (ccl-execute-on-string CCL-PROGRAM STATUS STRING &optional CONTINUE UNIBY
 	  source[j++] = *p++;
       else
 	while (j < CCL_EXECUTE_BUF_SIZE && p < endp)
-	  source[j++] = STRING_CHAR_ADVANCE (p);
+	  source[j++] = string_char_advance (&p);
       consumed_chars += j;
       consumed_bytes = p - SDATA (str);
 
@@ -2115,7 +2199,7 @@ usage: (ccl-execute-on-string CCL-PROGRAM STATUS STRING &optional CONTINUE UNIBY
 	  if (NILP (unibyte_p))
 	    {
 	      for (j = 0; j < ccl.produced; j++)
-		CHAR_STRING_ADVANCE (destination[j], outp);
+		outp += CHAR_STRING (destination[j], outp);
 	    }
 	  else
 	    {
@@ -2139,8 +2223,8 @@ usage: (ccl-execute-on-string CCL-PROGRAM STATUS STRING &optional CONTINUE UNIBY
     error ("CCL program interrupted at %dth code", ccl.ic);
 
   for (i = 0; i < 8; i++)
-    ASET (status, i, make_fixnum (ccl.reg[i]));
-  ASET (status, 8, make_fixnum (ccl.ic));
+    ASET (status, i, make_int (ccl.reg[i]));
+  ASET (status, 8, make_int (ccl.ic));
 
   val = make_specified_string ((const char *) outbuf, produced_chars,
 			       outp - outbuf, NILP (unibyte_p));
@@ -2201,15 +2285,8 @@ Return index number of the registered CCL program.  */)
     /* Extend the table.  */
     Vccl_program_table = larger_vector (Vccl_program_table, 1, -1);
 
-  {
-    Lisp_Object elt = make_uninit_vector (4);
-
-    ASET (elt, 0, name);
-    ASET (elt, 1, ccl_prog);
-    ASET (elt, 2, resolved);
-    ASET (elt, 3, Qt);
-    ASET (Vccl_program_table, idx, elt);
-  }
+  ASET (Vccl_program_table, idx,
+	CALLN (Fvector, name, ccl_prog, resolved, Qt));
 
   Fput (name, Qccl_program_idx, make_fixnum (idx));
   return make_fixnum (idx);
@@ -2275,7 +2352,7 @@ void
 syms_of_ccl (void)
 {
   staticpro (&Vccl_program_table);
-  Vccl_program_table = Fmake_vector (make_fixnum (32), Qnil);
+  Vccl_program_table = make_nil_vector (32);
 
   DEFSYM (Qccl, "ccl");
   DEFSYM (Qcclp, "cclp");
@@ -2291,7 +2368,7 @@ syms_of_ccl (void)
 
   DEFVAR_LISP ("code-conversion-map-vector", Vcode_conversion_map_vector,
 	       doc: /* Vector of code conversion maps.  */);
-  Vcode_conversion_map_vector = Fmake_vector (make_fixnum (16), Qnil);
+  Vcode_conversion_map_vector = make_nil_vector (16);
 
   DEFVAR_LISP ("font-ccl-encoder-alist", Vfont_ccl_encoder_alist,
 	       doc: /* Alist of fontname patterns vs corresponding CCL program.

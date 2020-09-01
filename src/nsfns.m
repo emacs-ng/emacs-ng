@@ -1,6 +1,6 @@
 /* Functions for the NeXT/Open/GNUstep and macOS window system.
 
-Copyright (C) 1989, 1992-1994, 2005-2006, 2008-2018 Free Software
+Copyright (C) 1989, 1992-1994, 2005-2006, 2008-2020 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -48,7 +48,6 @@ GNUstep port and post-20 update by Adrian Robert (arobert@cogsci.ucsd.edu)
 #include <IOKit/graphics/IOGraphicsLib.h>
 #include "macfont.h"
 #endif
-
 
 #ifdef HAVE_NS
 
@@ -234,7 +233,7 @@ interpret_services_menu (NSMenu *menu, Lisp_Object prefix, Lisp_Object old)
 
 
 static void
-x_set_foreground_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
+ns_set_foreground_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
   NSColor *col;
   EmacsCGFloat r, g, b, alpha;
@@ -256,7 +255,10 @@ x_set_foreground_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 
   [col getRed: &r green: &g blue: &b alpha: &alpha];
   FRAME_FOREGROUND_PIXEL (f) =
-    ARGB_TO_ULONG ((int)(alpha*0xff), (int)(r*0xff), (int)(g*0xff), (int)(b*0xff));
+    ARGB_TO_ULONG ((unsigned long) (alpha * 0xff),
+                   (unsigned long) (r * 0xff),
+                   (unsigned long) (g * 0xff),
+                   (unsigned long) (b * 0xff));
 
   if (FRAME_NS_VIEW (f))
     {
@@ -270,7 +272,7 @@ x_set_foreground_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 
 
 static void
-x_set_background_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
+ns_set_background_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
   struct face *face;
   NSColor *col;
@@ -285,19 +287,16 @@ x_set_background_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
       error ("Unknown color");
     }
 
-  /* Clear the frame; in some instances the NS-internal GC appears not
-     to update, or it does update and cannot clear old text
-     properly.  */
-  if (FRAME_VISIBLE_P (f))
-    ns_clear_frame (f);
-
   [col retain];
   [f->output_data.ns->background_color release];
   f->output_data.ns->background_color = col;
 
   [col getRed: &r green: &g blue: &b alpha: &alpha];
   FRAME_BACKGROUND_PIXEL (f) =
-    ARGB_TO_ULONG ((int)(alpha*0xff), (int)(r*0xff), (int)(g*0xff), (int)(b*0xff));
+    ARGB_TO_ULONG ((unsigned long) (alpha * 0xff),
+                   (unsigned long) (r * 0xff),
+                   (unsigned long) (g * 0xff),
+                   (unsigned long) (b * 0xff));
 
   if (view != nil)
     {
@@ -319,14 +318,17 @@ x_set_background_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
         }
 
       if (FRAME_VISIBLE_P (f))
-        SET_FRAME_GARBAGED (f);
+        {
+          SET_FRAME_GARBAGED (f);
+          ns_clear_frame (f);
+        }
     }
   unblock_input ();
 }
 
 
 static void
-x_set_cursor_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
+ns_set_cursor_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
   NSColor *col;
 
@@ -343,8 +345,8 @@ x_set_cursor_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 
   if (FRAME_VISIBLE_P (f))
     {
-      x_update_cursor (f, 0);
-      x_update_cursor (f, 1);
+      gui_update_cursor (f, 0);
+      gui_update_cursor (f, 1);
     }
   update_face_from_frame_parameter (f, Qcursor_color, arg);
   unblock_input ();
@@ -352,10 +354,10 @@ x_set_cursor_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 
 
 static void
-x_set_icon_name (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
+ns_set_icon_name (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
   NSView *view = FRAME_NS_VIEW (f);
-  NSTRACE ("x_set_icon_name");
+  NSTRACE ("ns_set_icon_name");
 
   /* See if it's changed.  */
   if (STRINGP (arg))
@@ -388,37 +390,25 @@ x_set_icon_name (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
   /* Don't change the name if it's already NAME.  */
   if ([[view window] miniwindowTitle]
       && ([[[view window] miniwindowTitle]
-             isEqualToString: [NSString stringWithUTF8String:
-					  SSDATA (arg)]]))
+             isEqualToString: [NSString stringWithLispString:arg]]))
     return;
 
   [[view window] setMiniwindowTitle:
-        [NSString stringWithUTF8String: SSDATA (arg)]];
+        [NSString stringWithLispString:arg]];
 }
 
 static void
 ns_set_name_internal (struct frame *f, Lisp_Object name)
 {
-  Lisp_Object encoded_name, encoded_icon_name;
-  NSString *str;
   NSView *view = FRAME_NS_VIEW (f);
-
-
-  encoded_name = ENCODE_UTF_8 (name);
-
-  str = [NSString stringWithUTF8String: SSDATA (encoded_name)];
-
+  NSString *str = [NSString stringWithLispString: name];
 
   /* Don't change the name if it's already NAME.  */
   if (! [[[view window] title] isEqualToString: str])
     [[view window] setTitle: str];
 
-  if (!STRINGP (f->icon_name))
-    encoded_icon_name = encoded_name;
-  else
-    encoded_icon_name = ENCODE_UTF_8 (f->icon_name);
-
-  str = [NSString stringWithUTF8String: SSDATA (encoded_icon_name)];
+  if (STRINGP (f->icon_name))
+    str = [NSString stringWithLispString: f->icon_name];
 
   if ([[view window] miniwindowTitle]
       && ! [[[view window] miniwindowTitle] isEqualToString: str])
@@ -446,7 +436,7 @@ ns_set_name (struct frame *f, Lisp_Object name, int explicit)
     return;
 
   if (NILP (name))
-    name = build_string ([ns_app_name UTF8String]);
+    name = [ns_app_name lispString];
   else
     CHECK_STRING (name);
 
@@ -485,11 +475,22 @@ ns_set_represented_filename (struct frame *f)
     {
       encoded_filename = ENCODE_UTF_8 (filename);
 
-      fstr = [NSString stringWithUTF8String: SSDATA (encoded_filename)];
+      fstr = [NSString stringWithLispString:encoded_filename];
       if (fstr == nil) fstr = @"";
     }
   else
     fstr = @"";
+
+#if defined (NS_IMPL_COCOA) && defined (MAC_OS_X_VERSION_10_7)
+  /* Work around for Mach port leaks on macOS 10.15 (bug#38618).  */
+  NSURL *fileURL = [NSURL fileURLWithPath:fstr isDirectory:NO];
+  NSNumber *isUbiquitousItem = @YES;
+  [fileURL getResourceValue:(id *)&isUbiquitousItem
+                     forKey:NSURLIsUbiquitousItemKey
+                      error:nil];
+  if ([isUbiquitousItem boolValue])
+    fstr = @"";
+#endif
 
 #ifdef NS_IMPL_COCOA
   /* Work around a bug observed on 10.3 and later where
@@ -509,9 +510,9 @@ ns_set_represented_filename (struct frame *f)
    specified a name for the frame; the name will override any set by the
    redisplay code.  */
 static void
-x_explicitly_set_name (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
+ns_explicitly_set_name (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
-  NSTRACE ("x_explicitly_set_name");
+  NSTRACE ("ns_explicitly_set_name");
   ns_set_name (f, arg, 1);
 }
 
@@ -520,9 +521,9 @@ x_explicitly_set_name (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
    name; names set this way will never override names set by the user's
    lisp code.  */
 void
-x_implicitly_set_name (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
+ns_implicitly_set_name (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
-  NSTRACE ("x_implicitly_set_name");
+  NSTRACE ("ns_implicitly_set_name");
 
   if (ns_use_proxy_icon)
     ns_set_represented_filename (f);
@@ -535,9 +536,9 @@ x_implicitly_set_name (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
    If NAME is nil, use the frame name as the title.  */
 
 static void
-x_set_title (struct frame *f, Lisp_Object name, Lisp_Object old_name)
+ns_set_title (struct frame *f, Lisp_Object name, Lisp_Object old_name)
 {
-  NSTRACE ("x_set_title");
+  NSTRACE ("ns_set_title");
   /* Don't change the title if it's already NAME.  */
   if (EQ (name, f->title))
     return;
@@ -583,7 +584,7 @@ ns_set_doc_edited (void)
 
 
 static void
-x_set_menu_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
+ns_set_menu_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
 {
   int nlines;
   if (FRAME_MINIBUF_ONLY_P (f))
@@ -611,9 +612,18 @@ x_set_menu_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
 }
 
 
+/* tabbar support */
+static void
+ns_set_tab_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
+{
+  /* Currently unimplemented.  */
+  NSTRACE ("ns_set_tab_bar_lines");
+}
+
+
 /* toolbar support */
 static void
-x_set_tool_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
+ns_set_tool_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
 {
   /* Currently, when the tool bar changes state, the frame is resized.
 
@@ -622,7 +632,7 @@ x_set_tool_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
      `frame-inhibit-implied-resize'.  */
   int nlines;
 
-  NSTRACE ("x_set_tool_bar_lines");
+  NSTRACE ("ns_set_tool_bar_lines");
 
   if (FRAME_MINIBUF_ONLY_P (f))
     return;
@@ -681,19 +691,16 @@ x_set_tool_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
 
 
 static void
-x_set_internal_border_width (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
+ns_set_internal_border_width (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
   int old_width = FRAME_INTERNAL_BORDER_WIDTH (f);
+  int new_width = check_int_nonnegative (arg);
 
-  CHECK_TYPE_RANGED_INTEGER (int, arg);
-  f->internal_border_width = XFIXNUM (arg);
-  if (FRAME_INTERNAL_BORDER_WIDTH (f) < 0)
-    f->internal_border_width = 0;
-
-  if (FRAME_INTERNAL_BORDER_WIDTH (f) == old_width)
+  if (new_width == old_width)
     return;
+  f->internal_border_width = new_width;
 
-  if (FRAME_X_WINDOW (f) != 0)
+  if (FRAME_NATIVE_WINDOW (f) != 0)
     adjust_frame_size (f, -1, -1, 3, 0, Qinternal_border_width);
 
   SET_FRAME_GARBAGED (f);
@@ -715,7 +722,7 @@ ns_implicitly_set_icon_type (struct frame *f)
   block_input ();
   pool = [[NSAutoreleasePool alloc] init];
   if (f->output_data.ns->miniimage
-      && [[NSString stringWithUTF8String: SSDATA (f->name)]
+      && [[NSString stringWithLispString:f->name]
                isEqualToString: [(NSImage *)f->output_data.ns->miniimage name]])
     {
       [pool release];
@@ -740,7 +747,7 @@ ns_implicitly_set_icon_type (struct frame *f)
       if (SYMBOLP (elt) && EQ (elt, Qt) && SSDATA (f->name)[0] == '/')
         {
           NSString *str
-	     = [NSString stringWithUTF8String: SSDATA (f->name)];
+	     = [NSString stringWithLispString:f->name];
           if ([[NSFileManager defaultManager] fileExistsAtPath: str])
             image = [[[NSWorkspace sharedWorkspace] iconForFile: str] retain];
         }
@@ -752,8 +759,7 @@ ns_implicitly_set_icon_type (struct frame *f)
           image = [EmacsImage allocInitFromFile: XCDR (elt)];
           if (image == nil)
             image = [[NSImage imageNamed:
-                               [NSString stringWithUTF8String:
-					    SSDATA (XCDR (elt))]] retain];
+                               [NSString stringWithLispString:XCDR (elt)]] retain];
         }
     }
 
@@ -772,13 +778,13 @@ ns_implicitly_set_icon_type (struct frame *f)
 
 
 static void
-x_set_icon_type (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
+ns_set_icon_type (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
   EmacsView *view = FRAME_NS_VIEW (f);
   id image = nil;
   BOOL setMini = YES;
 
-  NSTRACE ("x_set_icon_type");
+  NSTRACE ("ns_set_icon_type");
 
   if (!NILP (arg) && SYMBOLP (arg))
     {
@@ -797,8 +803,7 @@ x_set_icon_type (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 
   image = [EmacsImage allocInitFromFile: arg];
   if (image == nil)
-    image =[NSImage imageNamed: [NSString stringWithUTF8String:
-                                            SSDATA (arg)]];
+    image =[NSImage imageNamed: [NSString stringWithLispString:arg]];
 
   if (image == nil)
     {
@@ -812,7 +817,7 @@ x_set_icon_type (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 
 /* This is the same as the xfns.c definition.  */
 static void
-x_set_cursor_type (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
+ns_set_cursor_type (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
   set_frame_cursor_types (f, arg);
 }
@@ -820,7 +825,7 @@ x_set_cursor_type (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 /* called to set mouse pointer color, but all other terms use it to
    initialize pointer types (and don't set the color ;) */
 static void
-x_set_mouse_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
+ns_set_mouse_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
   /* Don't think we can do this on Nextstep.  */
 }
@@ -832,20 +837,18 @@ x_set_mouse_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 static Lisp_Object
 ns_appkit_version_str (void)
 {
-  char tmp[256];
+  NSString *tmp;
 
 #ifdef NS_IMPL_GNUSTEP
-  sprintf(tmp, "gnustep-gui-%s", Xstr(GNUSTEP_GUI_VERSION));
+  tmp = [NSString stringWithFormat:@"gnustep-gui-%s", Xstr(GNUSTEP_GUI_VERSION)];
 #elif defined (NS_IMPL_COCOA)
-  NSString *osversion
-    = [[NSProcessInfo processInfo] operatingSystemVersionString];
-  sprintf(tmp, "appkit-%.2f %s",
-          NSAppKitVersionNumber,
-          [osversion UTF8String]);
+  tmp = [NSString stringWithFormat:@"appkit-%.2f %@",
+                  NSAppKitVersionNumber,
+                  [[NSProcessInfo processInfo] operatingSystemVersionString]];
 #else
-  tmp = "ns-unknown";
+  tmp = [NSString initWithUTF8String:@"ns-unknown"];
 #endif
-  return build_string (tmp);
+  return [tmp lispString];
 }
 
 
@@ -865,7 +868,7 @@ ns_appkit_version_int (void)
 
 
 static void
-x_icon (struct frame *f, Lisp_Object parms)
+ns_icon (struct frame *f, Lisp_Object parms)
 /* --------------------------------------------------------------------------
    Strangely-named function to set icon position parameters in frame.
    This is irrelevant under macOS, but might be needed under GNUstep,
@@ -880,8 +883,10 @@ x_icon (struct frame *f, Lisp_Object parms)
   f->output_data.ns->icon_left = -1;
 
   /* Set the position of the icon.  */
-  icon_x = x_get_arg (dpyinfo, parms, Qicon_left, 0, 0, RES_TYPE_NUMBER);
-  icon_y = x_get_arg (dpyinfo, parms, Qicon_top, 0, 0,  RES_TYPE_NUMBER);
+  icon_x = gui_display_get_arg (dpyinfo, parms, Qicon_left, 0, 0,
+                                RES_TYPE_NUMBER);
+  icon_y = gui_display_get_arg (dpyinfo, parms, Qicon_top, 0, 0,
+                                RES_TYPE_NUMBER);
   if (!EQ (icon_x, Qunbound) && !EQ (icon_y, Qunbound))
     {
       CHECK_FIXNUM (icon_x);
@@ -898,56 +903,57 @@ x_icon (struct frame *f, Lisp_Object parms)
    implemented.  */
 frame_parm_handler ns_frame_parm_handlers[] =
 {
-  x_set_autoraise, /* generic OK */
-  x_set_autolower, /* generic OK */
-  x_set_background_color,
+  gui_set_autoraise, /* generic OK */
+  gui_set_autolower, /* generic OK */
+  ns_set_background_color,
   0, /* x_set_border_color,  may be impossible under Nextstep */
   0, /* x_set_border_width,  may be impossible under Nextstep */
-  x_set_cursor_color,
-  x_set_cursor_type,
-  x_set_font, /* generic OK */
-  x_set_foreground_color,
-  x_set_icon_name,
-  x_set_icon_type,
-  x_set_internal_border_width, /* generic OK */
-  x_set_right_divider_width,
-  x_set_bottom_divider_width,
-  x_set_menu_bar_lines,
-  x_set_mouse_color,
-  x_explicitly_set_name,
-  x_set_scroll_bar_width, /* generic OK */
-  x_set_scroll_bar_height, /* generic OK */
-  x_set_title,
-  x_set_unsplittable, /* generic OK */
-  x_set_vertical_scroll_bars, /* generic OK */
-  x_set_horizontal_scroll_bars, /* generic OK */
-  x_set_visibility, /* generic OK */
-  x_set_tool_bar_lines,
+  ns_set_cursor_color,
+  ns_set_cursor_type,
+  gui_set_font, /* generic OK */
+  ns_set_foreground_color,
+  ns_set_icon_name,
+  ns_set_icon_type,
+  ns_set_internal_border_width,
+  gui_set_right_divider_width, /* generic OK */
+  gui_set_bottom_divider_width, /* generic OK */
+  ns_set_menu_bar_lines,
+  ns_set_mouse_color,
+  ns_explicitly_set_name,
+  gui_set_scroll_bar_width, /* generic OK */
+  gui_set_scroll_bar_height, /* generic OK */
+  ns_set_title,
+  gui_set_unsplittable, /* generic OK */
+  gui_set_vertical_scroll_bars, /* generic OK */
+  gui_set_horizontal_scroll_bars, /* generic OK */
+  gui_set_visibility, /* generic OK */
+  ns_set_tab_bar_lines,
+  ns_set_tool_bar_lines,
   0, /* x_set_scroll_bar_foreground, will ignore (not possible on NS) */
   0, /* x_set_scroll_bar_background,  will ignore (not possible on NS) */
-  x_set_screen_gamma, /* generic OK */
-  x_set_line_spacing, /* generic OK, sets f->extra_line_spacing to int */
-  x_set_left_fringe, /* generic OK */
-  x_set_right_fringe, /* generic OK */
+  gui_set_screen_gamma, /* generic OK */
+  gui_set_line_spacing, /* generic OK, sets f->extra_line_spacing to int */
+  gui_set_left_fringe, /* generic OK */
+  gui_set_right_fringe, /* generic OK */
   0, /* x_set_wait_for_wm, will ignore */
-  x_set_fullscreen, /* generic OK */
-  x_set_font_backend, /* generic OK */
-  x_set_alpha,
+  gui_set_fullscreen, /* generic OK */
+  gui_set_font_backend, /* generic OK */
+  gui_set_alpha,
   0, /* x_set_sticky */
   0, /* x_set_tool_bar_position */
   0, /* x_set_inhibit_double_buffering */
 #ifdef NS_IMPL_COCOA
-  x_set_undecorated,
+  ns_set_undecorated,
 #else
-  0, /* x_set_undecorated */
+  0, /* ns_set_undecorated */
 #endif
-  x_set_parent_frame,
+  ns_set_parent_frame,
   0, /* x_set_skip_taskbar */
-  x_set_no_focus_on_map,
-  x_set_no_accept_focus,
-  x_set_z_group, /* x_set_z_group */
+  ns_set_no_focus_on_map,
+  ns_set_no_accept_focus,
+  ns_set_z_group,
   0, /* x_set_override_redirect */
-  x_set_no_special_glyphs,
+  gui_set_no_special_glyphs,
 #ifdef NS_IMPL_COCOA
   ns_set_appearance,
   ns_set_transparent_titlebar,
@@ -980,14 +986,14 @@ unwind_create_frame (Lisp_Object frame)
 	 private shadow variable, it means we are unwinding a frame
 	 for which we didn't yet call init_frame_faces, where the
 	 refcount is incremented.  Therefore, we increment it here, so
-	 that free_frame_faces, called in x_free_frame_resources
+	 that free_frame_faces, called in ns_free_frame_resources
 	 below, will not mistakenly decrement the counter that was not
 	 incremented yet to account for this new frame.  */
       if (FRAME_IMAGE_CACHE (f) != NULL
 	  && FRAME_IMAGE_CACHE (f)->refcount == image_cache_refcount)
 	FRAME_IMAGE_CACHE (f)->refcount++;
 
-      x_free_frame_resources (f);
+      ns_free_frame_resources (f);
       free_glyphs (f);
 
 #if defined GLYPH_DEBUG && defined ENABLE_CHECKING
@@ -1023,8 +1029,8 @@ get_geometry_from_preferences (struct ns_display_info *dpyinfo,
       if (NILP (Fassq (r[i].tem, parms)))
         {
           Lisp_Object value
-            = x_get_arg (dpyinfo, parms, r[i].tem, r[i].val, r[i].cls,
-                         RES_TYPE_NUMBER);
+            = gui_display_get_arg (dpyinfo, parms, r[i].tem, r[i].val, r[i].cls,
+                                   RES_TYPE_NUMBER);
           if (! EQ (value, Qunbound))
             parms = Fcons (Fcons (r[i].tem, value), parms);
         }
@@ -1057,14 +1063,15 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
   static int desc_ctr = 1;
   int x_width = 0, x_height = 0;
 
-  /* x_get_arg modifies parms.  */
+  /* gui_display_get_arg modifies parms.  */
   parms = Fcopy_alist (parms);
 
   /* Use this general default value to start with
      until we know if this frame has a specified name.  */
   Vx_resource_name = Vinvocation_name;
 
-  display = x_get_arg (dpyinfo, parms, Qterminal, 0, 0, RES_TYPE_STRING);
+  display = gui_display_get_arg (dpyinfo, parms, Qterminal, 0, 0,
+                                 RES_TYPE_STRING);
   if (EQ (display, Qunbound))
     display = Qnil;
   dpyinfo = check_ns_display_info (display);
@@ -1073,7 +1080,8 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
   if (!dpyinfo->terminal->name)
     error ("Terminal is not live, can't create new frames on it");
 
-  name = x_get_arg (dpyinfo, parms, Qname, 0, 0, RES_TYPE_STRING);
+  name = gui_display_get_arg (dpyinfo, parms, Qname, 0, 0,
+                              RES_TYPE_STRING);
   if (!STRINGP (name)
       && ! EQ (name, Qunbound)
       && ! NILP (name))
@@ -1082,7 +1090,8 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
   if (STRINGP (name))
     Vx_resource_name = name;
 
-  parent = x_get_arg (dpyinfo, parms, Qparent_id, 0, 0, RES_TYPE_NUMBER);
+  parent = gui_display_get_arg (dpyinfo, parms, Qparent_id, 0, 0,
+                                RES_TYPE_NUMBER);
   if (EQ (parent, Qunbound))
     parent = Qnil;
   if (! NILP (parent))
@@ -1092,8 +1101,9 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
   /* No need to protect DISPLAY because that's not used after passing
      it to make_frame_without_minibuffer.  */
   frame = Qnil;
-  tem = x_get_arg (dpyinfo, parms, Qminibuffer, "minibuffer", "Minibuffer",
-                  RES_TYPE_SYMBOL);
+  tem = gui_display_get_arg (dpyinfo, parms, Qminibuffer,
+                             "minibuffer", "Minibuffer",
+                             RES_TYPE_SYMBOL);
   if (EQ (tem, Qnone) || NILP (tem))
       f = make_frame_without_minibuffer (Qnil, kb, display);
   else if (EQ (tem, Qonly))
@@ -1115,9 +1125,9 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
 
   FRAME_FONTSET (f) = -1;
 
-  fset_icon_name (f, x_get_arg (dpyinfo, parms, Qicon_name,
-				"iconName", "Title",
-				RES_TYPE_STRING));
+  fset_icon_name (f, gui_display_get_arg (dpyinfo, parms, Qicon_name,
+                                          "iconName", "Title",
+                                          RES_TYPE_STRING));
   if (! STRINGP (f->icon_name))
     fset_icon_name (f, Qnil);
 
@@ -1142,7 +1152,7 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
      be set.  */
   if (EQ (name, Qunbound) || NILP (name) || ! STRINGP (name))
     {
-      fset_name (f, build_string ([ns_app_name UTF8String]));
+      fset_name (f, [ns_app_name lispString]);
       f->explicit_name = 0;
     }
   else
@@ -1163,35 +1173,35 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
   image_cache_refcount =
     FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
 
-  x_default_parameter (f, parms, Qfont_backend, Qnil,
-			"fontBackend", "FontBackend", RES_TYPE_STRING);
+  gui_default_parameter (f, parms, Qfont_backend, Qnil,
+                         "fontBackend", "FontBackend", RES_TYPE_STRING);
 
   {
     /* use for default font name */
     id font = [NSFont userFixedPitchFontOfSize: -1.0]; /* default */
-    x_default_parameter (f, parms, Qfontsize,
-                                    make_fixnum (0 /* (int)[font pointSize] */),
-                                    "fontSize", "FontSize", RES_TYPE_NUMBER);
+    gui_default_parameter (f, parms, Qfontsize,
+                           make_fixnum (0 /* (int)[font pointSize] */),
+                           "fontSize", "FontSize", RES_TYPE_NUMBER);
     // Remove ' Regular', not handled by backends.
     char *fontname = xstrdup ([[font displayName] UTF8String]);
     int len = strlen (fontname);
     if (len > 8 && strcmp (fontname + len - 8, " Regular") == 0)
       fontname[len-8] = '\0';
-    x_default_parameter (f, parms, Qfont,
-                                 build_string (fontname),
-                                 "font", "Font", RES_TYPE_STRING);
+    gui_default_parameter (f, parms, Qfont,
+                           build_string (fontname),
+                           "font", "Font", RES_TYPE_STRING);
     xfree (fontname);
   }
   unblock_input ();
 
-  x_default_parameter (f, parms, Qborder_width, make_fixnum (0),
-		       "borderwidth", "BorderWidth", RES_TYPE_NUMBER);
-  x_default_parameter (f, parms, Qinternal_border_width, make_fixnum (2),
-                      "internalBorderWidth", "InternalBorderWidth",
-                      RES_TYPE_NUMBER);
-  x_default_parameter (f, parms, Qright_divider_width, make_fixnum (0),
+  gui_default_parameter (f, parms, Qborder_width, make_fixnum (0),
+                         "borderwidth", "BorderWidth", RES_TYPE_NUMBER);
+  gui_default_parameter (f, parms, Qinternal_border_width, make_fixnum (2),
+                         "internalBorderWidth", "InternalBorderWidth",
+                         RES_TYPE_NUMBER);
+  gui_default_parameter (f, parms, Qright_divider_width, make_fixnum (0),
 		       NULL, NULL, RES_TYPE_NUMBER);
-  x_default_parameter (f, parms, Qbottom_divider_width, make_fixnum (0),
+  gui_default_parameter (f, parms, Qbottom_divider_width, make_fixnum (0),
 		       NULL, NULL, RES_TYPE_NUMBER);
 
   /* default vertical scrollbars on right on Mac */
@@ -1202,57 +1212,67 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
 #else
           = Qright;
 #endif
-      x_default_parameter (f, parms, Qvertical_scroll_bars, spos,
-			   "verticalScrollBars", "VerticalScrollBars",
-			   RES_TYPE_SYMBOL);
+      gui_default_parameter (f, parms, Qvertical_scroll_bars, spos,
+                             "verticalScrollBars", "VerticalScrollBars",
+                             RES_TYPE_SYMBOL);
   }
-  x_default_parameter (f, parms, Qhorizontal_scroll_bars, Qnil,
-		       "horizontalScrollBars", "HorizontalScrollBars",
-		       RES_TYPE_SYMBOL);
-  x_default_parameter (f, parms, Qforeground_color, build_string ("Black"),
-                      "foreground", "Foreground", RES_TYPE_STRING);
-  x_default_parameter (f, parms, Qbackground_color, build_string ("White"),
-                      "background", "Background", RES_TYPE_STRING);
-  x_default_parameter (f, parms, Qline_spacing, Qnil,
-		       "lineSpacing", "LineSpacing", RES_TYPE_NUMBER);
-  x_default_parameter (f, parms, Qleft_fringe, Qnil,
-		       "leftFringe", "LeftFringe", RES_TYPE_NUMBER);
-  x_default_parameter (f, parms, Qright_fringe, Qnil,
-		       "rightFringe", "RightFringe", RES_TYPE_NUMBER);
-  x_default_parameter (f, parms, Qno_special_glyphs, Qnil,
-		       NULL, NULL, RES_TYPE_BOOLEAN);
+  gui_default_parameter (f, parms, Qhorizontal_scroll_bars, Qnil,
+                         "horizontalScrollBars", "HorizontalScrollBars",
+                         RES_TYPE_SYMBOL);
+  gui_default_parameter (f, parms, Qforeground_color, build_string ("Black"),
+                         "foreground", "Foreground", RES_TYPE_STRING);
+  gui_default_parameter (f, parms, Qbackground_color, build_string ("White"),
+                         "background", "Background", RES_TYPE_STRING);
+  gui_default_parameter (f, parms, Qline_spacing, Qnil,
+                         "lineSpacing", "LineSpacing", RES_TYPE_NUMBER);
+  gui_default_parameter (f, parms, Qleft_fringe, Qnil,
+                         "leftFringe", "LeftFringe", RES_TYPE_NUMBER);
+  gui_default_parameter (f, parms, Qright_fringe, Qnil,
+                         "rightFringe", "RightFringe", RES_TYPE_NUMBER);
+  gui_default_parameter (f, parms, Qno_special_glyphs, Qnil,
+                         NULL, NULL, RES_TYPE_BOOLEAN);
 
   init_frame_faces (f);
 
   /* Read comment about this code in corresponding place in xfns.c.  */
-  tem = x_get_arg (dpyinfo, parms, Qmin_width, NULL, NULL, RES_TYPE_NUMBER);
-  if (FIXED_OR_FLOATP (tem))
+  tem = gui_display_get_arg (dpyinfo, parms, Qmin_width, NULL, NULL,
+                             RES_TYPE_NUMBER);
+  if (FIXNUMP (tem))
     store_frame_param (f, Qmin_width, tem);
-  tem = x_get_arg (dpyinfo, parms, Qmin_height, NULL, NULL, RES_TYPE_NUMBER);
-  if (FIXED_OR_FLOATP (tem))
+  tem = gui_display_get_arg (dpyinfo, parms, Qmin_height, NULL, NULL,
+                             RES_TYPE_NUMBER);
+  if (FIXNUMP (tem))
     store_frame_param (f, Qmin_height, tem);
   adjust_frame_size (f, FRAME_COLS (f) * FRAME_COLUMN_WIDTH (f),
 		     FRAME_LINES (f) * FRAME_LINE_HEIGHT (f), 5, 1,
 		     Qx_create_frame_1);
 
-  tem = x_get_arg (dpyinfo, parms, Qundecorated, NULL, NULL, RES_TYPE_BOOLEAN);
+  tem = gui_display_get_arg (dpyinfo, parms, Qundecorated, NULL, NULL,
+                             RES_TYPE_BOOLEAN);
   FRAME_UNDECORATED (f) = !NILP (tem) && !EQ (tem, Qunbound);
   store_frame_param (f, Qundecorated, FRAME_UNDECORATED (f) ? Qt : Qnil);
 
 #ifdef NS_IMPL_COCOA
-  tem = x_get_arg (dpyinfo, parms, Qns_appearance, NULL, NULL, RES_TYPE_SYMBOL);
-  FRAME_NS_APPEARANCE (f) = EQ (tem, Qdark)
-    ? ns_appearance_vibrant_dark : ns_appearance_aqua;
-  store_frame_param (f, Qns_appearance, tem);
+  tem = gui_display_get_arg (dpyinfo, parms, Qns_appearance, NULL, NULL,
+                             RES_TYPE_SYMBOL);
+  if (EQ (tem, Qdark))
+    FRAME_NS_APPEARANCE (f) = ns_appearance_vibrant_dark;
+  else if (EQ (tem, Qlight))
+    FRAME_NS_APPEARANCE (f) = ns_appearance_aqua;
+  else
+    FRAME_NS_APPEARANCE (f) = ns_appearance_system_default;
+  store_frame_param (f, Qns_appearance,
+                     (!NILP (tem) && !EQ (tem, Qunbound)) ? tem : Qnil);
 
-  tem = x_get_arg (dpyinfo, parms, Qns_transparent_titlebar,
-                   NULL, NULL, RES_TYPE_BOOLEAN);
+  tem = gui_display_get_arg (dpyinfo, parms, Qns_transparent_titlebar,
+                             NULL, NULL, RES_TYPE_BOOLEAN);
   FRAME_NS_TRANSPARENT_TITLEBAR (f) = !NILP (tem) && !EQ (tem, Qunbound);
-  store_frame_param (f, Qns_transparent_titlebar, tem);
+  store_frame_param (f, Qns_transparent_titlebar,
+                     FRAME_NS_TRANSPARENT_TITLEBAR (f) ? Qt : Qnil);
 #endif
 
-  parent_frame = x_get_arg (dpyinfo, parms, Qparent_frame, NULL, NULL,
-			    RES_TYPE_SYMBOL);
+  parent_frame = gui_display_get_arg (dpyinfo, parms, Qparent_frame, NULL, NULL,
+                                      RES_TYPE_SYMBOL);
   /* Accept parent-frame iff parent-id was not specified.  */
   if (!NILP (parent)
       || EQ (parent_frame, Qunbound)
@@ -1264,33 +1284,35 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
   fset_parent_frame (f, parent_frame);
   store_frame_param (f, Qparent_frame, parent_frame);
 
-  x_default_parameter (f, parms, Qz_group, Qnil, NULL, NULL, RES_TYPE_SYMBOL);
-  x_default_parameter (f, parms, Qno_focus_on_map, Qnil,
-		       NULL, NULL, RES_TYPE_BOOLEAN);
-  x_default_parameter (f, parms, Qno_accept_focus, Qnil,
-                       NULL, NULL, RES_TYPE_BOOLEAN);
+  gui_default_parameter (f, parms, Qz_group, Qnil, NULL, NULL, RES_TYPE_SYMBOL);
+  gui_default_parameter (f, parms, Qno_focus_on_map, Qnil,
+                         NULL, NULL, RES_TYPE_BOOLEAN);
+  gui_default_parameter (f, parms, Qno_accept_focus, Qnil,
+                         NULL, NULL, RES_TYPE_BOOLEAN);
 
   /* The resources controlling the menu-bar and tool-bar are
      processed specially at startup, and reflected in the mode
      variables; ignore them here.  */
-  x_default_parameter (f, parms, Qmenu_bar_lines,
-		       NILP (Vmenu_bar_mode)
-		       ? make_fixnum (0) : make_fixnum (1),
-		       NULL, NULL, RES_TYPE_NUMBER);
-  x_default_parameter (f, parms, Qtool_bar_lines,
-		       NILP (Vtool_bar_mode)
-		       ? make_fixnum (0) : make_fixnum (1),
-		       NULL, NULL, RES_TYPE_NUMBER);
+  gui_default_parameter (f, parms, Qmenu_bar_lines,
+                         NILP (Vmenu_bar_mode)
+                         ? make_fixnum (0) : make_fixnum (1),
+                         NULL, NULL, RES_TYPE_NUMBER);
+  gui_default_parameter (f, parms, Qtool_bar_lines,
+                         NILP (Vtool_bar_mode)
+                         ? make_fixnum (0) : make_fixnum (1),
+                         NULL, NULL, RES_TYPE_NUMBER);
 
-  x_default_parameter (f, parms, Qbuffer_predicate, Qnil, "bufferPredicate",
-                       "BufferPredicate", RES_TYPE_SYMBOL);
-  x_default_parameter (f, parms, Qtitle, Qnil, "title", "Title",
-                       RES_TYPE_STRING);
+  gui_default_parameter (f, parms, Qbuffer_predicate, Qnil, "bufferPredicate",
+                         "BufferPredicate", RES_TYPE_SYMBOL);
+  gui_default_parameter (f, parms, Qtitle, Qnil, "title", "Title",
+                         RES_TYPE_STRING);
 
   parms = get_geometry_from_preferences (dpyinfo, parms);
-  window_prompting = x_figure_window_size (f, parms, true, &x_width, &x_height);
+  window_prompting = gui_figure_window_size (f, parms, false, true,
+                                             &x_width, &x_height);
 
-  tem = x_get_arg (dpyinfo, parms, Qunsplittable, 0, 0, RES_TYPE_BOOLEAN);
+  tem = gui_display_get_arg (dpyinfo, parms, Qunsplittable, 0, 0,
+                             RES_TYPE_BOOLEAN);
   f->no_split = minibuffer_only || (!EQ (tem, Qunbound) && !NILP (tem));
 
   /* NOTE: on other terms, this is done in set_mouse_color, however this
@@ -1321,7 +1343,7 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
 
   [[EmacsView alloc] initFrameFromEmacs: f];
 
-  x_icon (f, parms);
+  ns_icon (f, parms);
 
   /* ns_display_info does not have a reference_count.  */
   f->terminal->reference_count++;
@@ -1331,28 +1353,28 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
      won't work.  */
   Vframe_list = Fcons (frame, Vframe_list);
 
-  x_default_parameter (f, parms, Qicon_type, Qnil,
-                       "bitmapIcon", "BitmapIcon", RES_TYPE_SYMBOL);
+  gui_default_parameter (f, parms, Qicon_type, Qnil,
+                         "bitmapIcon", "BitmapIcon", RES_TYPE_SYMBOL);
 
-  x_default_parameter (f, parms, Qauto_raise, Qnil,
-                       "autoRaise", "AutoRaiseLower", RES_TYPE_BOOLEAN);
-  x_default_parameter (f, parms, Qauto_lower, Qnil,
-                       "autoLower", "AutoLower", RES_TYPE_BOOLEAN);
-  x_default_parameter (f, parms, Qcursor_type, Qbox,
-                       "cursorType", "CursorType", RES_TYPE_SYMBOL);
-  x_default_parameter (f, parms, Qscroll_bar_width, Qnil,
-                       "scrollBarWidth", "ScrollBarWidth",
-                       RES_TYPE_NUMBER);
-  x_default_parameter (f, parms, Qscroll_bar_height, Qnil,
-                       "scrollBarHeight", "ScrollBarHeight",
-                       RES_TYPE_NUMBER);
-  x_default_parameter (f, parms, Qalpha, Qnil,
-                       "alpha", "Alpha", RES_TYPE_NUMBER);
-  x_default_parameter (f, parms, Qfullscreen, Qnil,
-                       "fullscreen", "Fullscreen", RES_TYPE_SYMBOL);
+  gui_default_parameter (f, parms, Qauto_raise, Qnil,
+                         "autoRaise", "AutoRaiseLower", RES_TYPE_BOOLEAN);
+  gui_default_parameter (f, parms, Qauto_lower, Qnil,
+                         "autoLower", "AutoLower", RES_TYPE_BOOLEAN);
+  gui_default_parameter (f, parms, Qcursor_type, Qbox,
+                         "cursorType", "CursorType", RES_TYPE_SYMBOL);
+  gui_default_parameter (f, parms, Qscroll_bar_width, Qnil,
+                         "scrollBarWidth", "ScrollBarWidth",
+                         RES_TYPE_NUMBER);
+  gui_default_parameter (f, parms, Qscroll_bar_height, Qnil,
+                         "scrollBarHeight", "ScrollBarHeight",
+                         RES_TYPE_NUMBER);
+  gui_default_parameter (f, parms, Qalpha, Qnil,
+                         "alpha", "Alpha", RES_TYPE_NUMBER);
+  gui_default_parameter (f, parms, Qfullscreen, Qnil,
+                         "fullscreen", "Fullscreen", RES_TYPE_SYMBOL);
 
-  /* Allow x_set_window_size, now.  */
-  f->can_x_set_window_size = true;
+  /* Allow set_window_size_hook, now.  */
+  f->can_set_window_size = true;
 
   if (x_width > 0)
     SET_FRAME_WIDTH (f, x_width);
@@ -1366,16 +1388,16 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
     {
       Lisp_Object visibility;
 
-      visibility = x_get_arg (dpyinfo, parms, Qvisibility, 0, 0,
-                              RES_TYPE_SYMBOL);
+      visibility = gui_display_get_arg (dpyinfo, parms, Qvisibility, 0, 0,
+                                        RES_TYPE_SYMBOL);
       if (EQ (visibility, Qunbound))
 	visibility = Qt;
 
       if (EQ (visibility, Qicon))
-	x_iconify_frame (f);
+	ns_iconify_frame (f);
       else if (! NILP (visibility))
 	{
-	  x_make_frame_visible (f);
+	  ns_make_frame_visible (f);
 	  [[FRAME_NS_VIEW (f) window] makeKeyWindow];
 	}
       else
@@ -1389,35 +1411,21 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
           || !FRAME_LIVE_P (XFRAME (KVAR (kb, Vdefault_minibuffer_frame)))))
     kset_default_minibuffer_frame (kb, frame);
 
-  /* All remaining specified parameters, which have not been "used"
-     by x_get_arg and friends, now go in the misc. alist of the frame.  */
+  /* All remaining specified parameters, which have not been "used" by
+     gui_display_get_arg and friends, now go in the misc. alist of the
+     frame.  */
   for (tem = parms; CONSP (tem); tem = XCDR (tem))
     if (CONSP (XCAR (tem)) && !NILP (XCAR (XCAR (tem))))
       fset_param_alist (f, Fcons (XCAR (tem), f->param_alist));
 
   if (window_prompting & USPosition)
-    x_set_offset (f, f->left_pos, f->top_pos, 1);
+    ns_set_offset (f, f->left_pos, f->top_pos, 1);
 
   /* Make sure windows on this frame appear in calls to next-window
      and similar functions.  */
   Vwindow_list = Qnil;
 
   return unbind_to (count, frame);
-}
-
-void
-x_focus_frame (struct frame *f, bool noactivate)
-{
-  struct ns_display_info *dpyinfo = FRAME_DISPLAY_INFO (f);
-
-  if (dpyinfo->x_focus_frame != f)
-    {
-      EmacsView *view = FRAME_NS_VIEW (f);
-      block_input ();
-      [NSApp activateIgnoringOtherApps: YES];
-      [[view window] makeKeyAndOrderFront: view];
-      unblock_input ();
-    }
 }
 
 static BOOL
@@ -1585,12 +1593,12 @@ Optional arg DIR_ONLY_P, if non-nil, means choose only directories.  */)
   Lisp_Object fname = Qnil;
 
   NSString *promptS = NILP (prompt) || !STRINGP (prompt) ? nil :
-    [NSString stringWithUTF8String: SSDATA (prompt)];
+    [NSString stringWithLispString:prompt];
   NSString *dirS = NILP (dir) || !STRINGP (dir) ?
-    [NSString stringWithUTF8String: SSDATA (BVAR (current_buffer, directory))] :
-    [NSString stringWithUTF8String: SSDATA (dir)];
+    [NSString stringWithLispString:BVAR (current_buffer, directory)] :
+    [NSString stringWithLispString:dir];
   NSString *initS = NILP (init) || !STRINGP (init) ? nil :
-    [NSString stringWithUTF8String: SSDATA (init)];
+    [NSString stringWithLispString:init];
   NSEvent *nxev;
 
   check_window_system (NULL);
@@ -1604,7 +1612,7 @@ Optional arg DIR_ONLY_P, if non-nil, means choose only directories.  */)
     dirS = [dirS stringByExpandingTildeInPath];
 
   panel = isSave ?
-    (id)[EmacsSavePanel savePanel] : (id)[EmacsOpenPanel openPanel];
+    (id)[NSSavePanel savePanel] : (id)[NSOpenPanel openPanel];
 
   [panel setTitle: promptS];
 
@@ -1666,7 +1674,7 @@ Optional arg DIR_ONLY_P, if non-nil, means choose only directories.  */)
     {
       NSString *str = ns_filename_from_panel (panel);
       if (! str) str = ns_directory_from_panel (panel);
-      if (str) fname = build_string ([str UTF8String]);
+      if (str) fname = [str lispString];
     }
 
   [[FRAME_NS_VIEW (SELECTED_FRAME ()) window] makeKeyWindow];
@@ -1696,7 +1704,7 @@ If OWNER is nil, Emacs is assumed.  */)
 
   check_window_system (NULL);
   if (NILP (owner))
-    owner = build_string([ns_app_name UTF8String]);
+    owner = [ns_app_name lispString];
   CHECK_STRING (name);
 
   value = ns_get_defaults_value (SSDATA (name));
@@ -1715,20 +1723,19 @@ If VALUE is nil, the default is removed.  */)
 {
   check_window_system (NULL);
   if (NILP (owner))
-    owner = build_string ([ns_app_name UTF8String]);
+    owner = [ns_app_name lispString];
   CHECK_STRING (name);
   if (NILP (value))
     {
       [[NSUserDefaults standardUserDefaults] removeObjectForKey:
-                         [NSString stringWithUTF8String: SSDATA (name)]];
+                         [NSString stringWithLispString:name]];
     }
   else
     {
       CHECK_STRING (value);
       [[NSUserDefaults standardUserDefaults] setObject:
-                [NSString stringWithUTF8String: SSDATA (value)]
-                                        forKey: [NSString stringWithUTF8String:
-                                                         SSDATA (name)]];
+                [NSString stringWithLispString:value]
+                                        forKey: [NSString stringWithLispString:name]];
     }
 
   return Qnil;
@@ -1791,7 +1798,7 @@ DEFUN ("x-display-mm-height", Fx_display_mm_height, Sx_display_mm_height, 0, 1, 
 {
   struct ns_display_info *dpyinfo = check_ns_display_info (terminal);
 
-  return make_fixnum (x_display_pixel_height (dpyinfo) / (92.0/25.4));
+  return make_fixnum (ns_display_pixel_height (dpyinfo) / (92.0/25.4));
 }
 
 
@@ -1801,7 +1808,7 @@ DEFUN ("x-display-mm-width", Fx_display_mm_width, Sx_display_mm_width, 0, 1, 0,
 {
   struct ns_display_info *dpyinfo = check_ns_display_info (terminal);
 
-  return make_fixnum (x_display_pixel_width (dpyinfo) / (92.0/25.4));
+  return make_fixnum (ns_display_pixel_width (dpyinfo) / (92.0/25.4));
 }
 
 
@@ -1964,7 +1971,7 @@ the active application.  */)
 
 DEFUN ("ns-emacs-info-panel", Fns_emacs_info_panel, Sns_emacs_info_panel,
        0, 0, 0,
-       doc: /* Shows the 'Info' or 'About' panel for Emacs.  */)
+       doc: /* Shows the `Info' or `About' panel for Emacs.  */)
      (void)
 {
   check_window_system (NULL);
@@ -2020,7 +2027,7 @@ The optional argument FRAME is currently ignored.  */)
           NSEnumerator *cnames = [[clist allKeys] reverseObjectEnumerator];
           NSString *cname;
           while ((cname = [cnames nextObject]))
-            list = Fcons (build_string ([cname UTF8String]), list);
+            list = Fcons ([cname lispString], list);
 /*           for (i = [[clist allKeys] count] - 1; i >= 0; i--)
                list = Fcons (build_string ([[[clist allKeys] objectAtIndex: i]
                                              UTF8String]), list); */
@@ -2068,13 +2075,11 @@ there was no result.  */)
 {
   id pb;
   NSString *svcName;
-  char *utfStr;
 
   CHECK_STRING (service);
   check_window_system (NULL);
 
-  utfStr = SSDATA (service);
-  svcName = [NSString stringWithUTF8String: utfStr];
+  svcName = [NSString stringWithLispString:service];
 
   pb =[NSPasteboard pasteboardWithUniqueName];
   ns_string_to_pasteboard (pb, send);
@@ -2104,7 +2109,7 @@ ns_do_applescript (Lisp_Object script, Lisp_Object *result)
 
   NSAppleScript *scriptObject =
     [[NSAppleScript alloc] initWithSource:
-			     [NSString stringWithUTF8String: SSDATA (script)]];
+			     [NSString stringWithLispString:script]];
 
   returnDescriptor = [scriptObject executeAndReturnError: &errorDict];
   [scriptObject release];
@@ -2127,7 +2132,7 @@ ns_do_applescript (Lisp_Object script, Lisp_Object *result)
 	    {
 	      desc = [returnDescriptor coerceToDescriptorType: typeUTF8Text];
 	      if (desc)
-		*result = build_string([[desc stringValue] UTF8String]);
+		*result = [[desc stringValue] lispString];
 	    }
 	  else
             {
@@ -2231,7 +2236,7 @@ check_x_display_info (Lisp_Object frame)
 
 
 void
-x_set_scroll_bar_default_width (struct frame *f)
+ns_set_scroll_bar_default_width (struct frame *f)
 {
   int wid = FRAME_COLUMN_WIDTH (f);
   FRAME_CONFIG_SCROLL_BAR_WIDTH (f) = NS_SCROLL_BAR_WIDTH_DEFAULT;
@@ -2240,7 +2245,7 @@ x_set_scroll_bar_default_width (struct frame *f)
 }
 
 void
-x_set_scroll_bar_default_height (struct frame *f)
+ns_set_scroll_bar_default_height (struct frame *f)
 {
   int height = FRAME_LINE_HEIGHT (f);
   FRAME_CONFIG_SCROLL_BAR_HEIGHT (f) = NS_SCROLL_BAR_WIDTH_DEFAULT;
@@ -2249,8 +2254,8 @@ x_set_scroll_bar_default_height (struct frame *f)
 }
 
 /* Terms implement this instead of x-get-resource directly.  */
-char *
-x_get_string_resource (XrmDatabase rdb, const char *name, const char *class)
+const char *
+ns_get_string_resource (void *_rdb, const char *name, const char *class)
 {
   /* remove appname prefix; TODO: allow for !="Emacs" */
   const char *res, *toCheck = class + (!strncmp (class, "Emacs.", 6) ? 6 : 0);
@@ -2262,24 +2267,10 @@ x_get_string_resource (XrmDatabase rdb, const char *name, const char *class)
     return NULL;
 
   res = ns_get_defaults_value (toCheck);
-  return (char *) (!res ? NULL
-		   : !c_strncasecmp (res, "YES", 3) ? "true"
-		   : !c_strncasecmp (res, "NO", 2) ? "false"
-		   : res);
-}
-
-
-Lisp_Object
-x_get_focus_frame (struct frame *frame)
-{
-  struct ns_display_info *dpyinfo = FRAME_DISPLAY_INFO (frame);
-  Lisp_Object nsfocus;
-
-  if (!dpyinfo->x_focus_frame)
-    return Qnil;
-
-  XSETFRAME (nsfocus, dpyinfo->x_focus_frame);
-  return nsfocus;
+  return (const char *) (!res ? NULL
+                         : !c_strncasecmp (res, "YES", 3) ? "true"
+                         : !c_strncasecmp (res, "NO", 2) ? "false"
+                         : res);
 }
 
 /* ==========================================================================
@@ -2319,8 +2310,8 @@ DEFUN ("xw-color-values", Fxw_color_values, Sxw_color_values, 1, 2, 0,
   [[col colorUsingDefaultColorSpace]
         getRed: &red green: &green blue: &blue alpha: &alpha];
   unblock_input ();
-  return list3i (lrint (red * 65280), lrint (green * 65280),
-		 lrint (blue * 65280));
+  return list3i (lrint (red * 65535), lrint (green * 65535),
+		 lrint (blue * 65535));
 }
 
 
@@ -2362,7 +2353,7 @@ DEFUN ("x-display-pixel-width", Fx_display_pixel_width, Sx_display_pixel_width,
 {
   struct ns_display_info *dpyinfo = check_ns_display_info (terminal);
 
-  return make_fixnum (x_display_pixel_width (dpyinfo));
+  return make_fixnum (ns_display_pixel_width (dpyinfo));
 }
 
 
@@ -2373,7 +2364,7 @@ DEFUN ("x-display-pixel-height", Fx_display_pixel_height,
 {
   struct ns_display_info *dpyinfo = check_ns_display_info (terminal);
 
-  return make_fixnum (x_display_pixel_height (dpyinfo));
+  return make_fixnum (ns_display_pixel_height (dpyinfo));
 }
 
 #ifdef NS_IMPL_COCOA
@@ -2476,7 +2467,7 @@ ns_make_monitor_attribute_list (struct MonitorInfo *monitors,
                                 int primary_monitor,
                                 const char *source)
 {
-  Lisp_Object monitor_frames = Fmake_vector (make_fixnum (n_monitors), Qnil);
+  Lisp_Object monitor_frames = make_nil_vector (n_monitors);
   Lisp_Object frame, rest;
   NSArray *screens = [NSScreen screens];
   int i;
@@ -2660,7 +2651,7 @@ compute_tip_xy (struct frame *f,
     {
       /* Absolute coordinates.  */
       pt.x = FIXNUMP (left) ? XFIXNUM (left) : XFIXNUM (right);
-      pt.y = (x_display_pixel_height (FRAME_DISPLAY_INFO (f))
+      pt.y = (ns_display_pixel_height (FRAME_DISPLAY_INFO (f))
 	      - (FIXNUMP (top) ? XFIXNUM (top) : XFIXNUM (bottom))
 	      - height);
     }
@@ -2749,11 +2740,13 @@ DEFUN ("x-show-tip", Fx_show_tip, Sx_show_tip, 1, 6, 0,
   else
     Fx_hide_tip ();
 
-  t = x_get_arg (NULL, parms, Qbackground_color, NULL, NULL, RES_TYPE_STRING);
+  t = gui_display_get_arg (NULL, parms, Qbackground_color, NULL, NULL,
+                           RES_TYPE_STRING);
   if (ns_lisp_to_color (t, &color) == 0)
     [ns_tooltip setBackgroundColor: color];
 
-  t = x_get_arg (NULL, parms, Qforeground_color, NULL, NULL, RES_TYPE_STRING);
+  t = gui_display_get_arg (NULL, parms, Qforeground_color, NULL, NULL,
+                           RES_TYPE_STRING);
   if (ns_lisp_to_color (t, &color) == 0)
     [ns_tooltip setForegroundColor: color];
 
@@ -2812,23 +2805,20 @@ frame_geometry (Lisp_Object frame, Lisp_Object attribute)
 
   /* Construct list.  */
   if (EQ (attribute, Qouter_edges))
-    return list4 (make_fixnum (f->left_pos), make_fixnum (f->top_pos),
-		  make_fixnum (f->left_pos + outer_width),
-		  make_fixnum (f->top_pos + outer_height));
+    return list4i (f->left_pos, f->top_pos,
+		   f->left_pos + outer_width,
+		   f->top_pos + outer_height);
   else if (EQ (attribute, Qnative_edges))
-    return list4 (make_fixnum (native_left), make_fixnum (native_top),
-		  make_fixnum (native_right), make_fixnum (native_bottom));
+    return list4i (native_left, native_top,
+		   native_right, native_bottom);
   else if (EQ (attribute, Qinner_edges))
-    return list4 (make_fixnum (native_left + internal_border_width),
-		  make_fixnum (native_top
-			       + tool_bar_height
-			       + internal_border_width),
-		  make_fixnum (native_right - internal_border_width),
-		  make_fixnum (native_bottom - internal_border_width));
+    return list4i (native_left + internal_border_width,
+		   native_top + tool_bar_height + internal_border_width,
+		   native_right - internal_border_width,
+		   native_bottom - internal_border_width);
   else
     return
-      listn (CONSTYPE_HEAP, 10,
-	     Fcons (Qouter_position,
+       list (Fcons (Qouter_position,
 		    Fcons (make_fixnum (f->left_pos),
 			   make_fixnum (f->top_pos))),
 	     Fcons (Qouter_size,
@@ -2944,16 +2934,16 @@ The coordinates X and Y are interpreted in pixels relative to a position
   if (FRAME_INITIAL_P (f) || !FRAME_NS_P (f))
     return Qnil;
 
-  CHECK_TYPE_RANGED_INTEGER (int, x);
-  CHECK_TYPE_RANGED_INTEGER (int, y);
+  int xval = check_integer_range (x, INT_MIN, INT_MAX);
+  int yval = check_integer_range (y, INT_MIN, INT_MAX);
 
-  mouse_x = screen_frame.origin.x + XFIXNUM (x);
+  mouse_x = screen_frame.origin.x + xval;
 
   if (screen == primary_screen)
-    mouse_y = screen_frame.origin.y + XFIXNUM (y);
+    mouse_y = screen_frame.origin.y + yval;
   else
     mouse_y = (primary_screen_height - screen_frame.size.height
-               - screen_frame.origin.y) + XFIXNUM (y);
+               - screen_frame.origin.y) + yval;
 
   CGPoint mouse_pos = CGPointMake(mouse_x, mouse_y);
   CGWarpMouseCursorPosition (mouse_pos);
@@ -3000,103 +2990,6 @@ DEFUN ("ns-show-character-palette",
 
    ========================================================================== */
 
-/*
-  Handle arrow/function/control keys and copy/paste/cut in file dialogs.
-  Return YES if handled, NO if not.
- */
-static BOOL
-handlePanelKeys (NSSavePanel *panel, NSEvent *theEvent)
-{
-  NSString *s;
-  int i;
-  BOOL ret = NO;
-
-  if ([theEvent type] != NSEventTypeKeyDown) return NO;
-  s = [theEvent characters];
-
-  for (i = 0; i < [s length]; ++i)
-    {
-      int ch = (int) [s characterAtIndex: i];
-      switch (ch)
-        {
-        case NSHomeFunctionKey:
-        case NSDownArrowFunctionKey:
-        case NSUpArrowFunctionKey:
-        case NSLeftArrowFunctionKey:
-        case NSRightArrowFunctionKey:
-        case NSPageUpFunctionKey:
-        case NSPageDownFunctionKey:
-        case NSEndFunctionKey:
-          /* Don't send command modified keys, as those are handled in the
-             performKeyEquivalent method of the super class.  */
-          if (! ([theEvent modifierFlags] & NSEventModifierFlagCommand))
-            {
-              [panel sendEvent: theEvent];
-              ret = YES;
-            }
-          break;
-          /* As we don't have the standard key commands for
-             copy/paste/cut/select-all in our edit menu, we must handle
-             them here.  TODO: handle Emacs key bindings for copy/cut/select-all
-             here, paste works, because we have that in our Edit menu.
-             I.e. refactor out code in nsterm.m, keyDown: to figure out the
-             correct modifier.  */
-        case 'x': // Cut
-        case 'c': // Copy
-        case 'v': // Paste
-        case 'a': // Select all
-          if ([theEvent modifierFlags] & NSEventModifierFlagCommand)
-            {
-              [NSApp sendAction:
-                       (ch == 'x'
-                        ? @selector(cut:)
-                        : (ch == 'c'
-                           ? @selector(copy:)
-                           : (ch == 'v'
-                              ? @selector(paste:)
-                              : @selector(selectAll:))))
-                             to:nil from:panel];
-              ret = YES;
-            }
-        default:
-          // Send all control keys, as the text field supports C-a, C-f, C-e
-          // C-b and more.
-          if ([theEvent modifierFlags] & NSEventModifierFlagControl)
-            {
-              [panel sendEvent: theEvent];
-              ret = YES;
-            }
-          break;
-        }
-    }
-
-
-  return ret;
-}
-
-@implementation EmacsSavePanel
-- (BOOL)performKeyEquivalent:(NSEvent *)theEvent
-{
-  BOOL ret = handlePanelKeys (self, theEvent);
-  if (! ret)
-    ret = [super performKeyEquivalent:theEvent];
-  return ret;
-}
-@end
-
-
-@implementation EmacsOpenPanel
-- (BOOL)performKeyEquivalent:(NSEvent *)theEvent
-{
-  // NSOpenPanel inherits NSSavePanel, so passing self is OK.
-  BOOL ret = handlePanelKeys (self, theEvent);
-  if (! ret)
-    ret = [super performKeyEquivalent:theEvent];
-  return ret;
-}
-@end
-
-
 @implementation EmacsFileDelegate
 /* --------------------------------------------------------------------------
    Delegate methods for Open/Save panels
@@ -3119,12 +3012,65 @@ handlePanelKeys (NSSavePanel *panel, NSEvent *theEvent)
 #endif
 
 
+/* Whether N bytes at STR are in the [0,127] range.  */
+static bool
+all_nonzero_ascii (unsigned char *str, ptrdiff_t n)
+{
+  for (ptrdiff_t i = 0; i < n; i++)
+    if (str[i] < 1 || str[i] > 127)
+      return false;
+  return true;
+}
+
+@implementation NSString (EmacsString)
+/* Make an NSString from a Lisp string.  */
++ (NSString *)stringWithLispString:(Lisp_Object)string
+{
+  /* Shortcut for the common case.  */
+  if (all_nonzero_ascii (SDATA (string), SBYTES (string)))
+    return [NSString stringWithCString: SSDATA (string)
+                              encoding: NSASCIIStringEncoding];
+  string = string_to_multibyte (string);
+
+  /* Now the string is multibyte; convert to UTF-16.  */
+  unichar *chars = xmalloc (4 * SCHARS (string));
+  unichar *d = chars;
+  const unsigned char *s = SDATA (string);
+  const unsigned char *end = s + SBYTES (string);
+  while (s < end)
+    {
+      int c = string_char_advance (&s);
+      /* We pass unpaired surrogates through, because they are typically
+         handled fairly well by the NS libraries (displayed with distinct
+         glyphs etc).  */
+      if (c <= 0xffff)
+        *d++ = c;
+      else if (c <= 0x10ffff)
+        {
+          *d++ = 0xd800 + ((c - 0x10000) >> 10);
+          *d++ = 0xdc00 + (c & 0x3ff);
+        }
+      else
+        *d++ = 0xfffd;          /* Not valid for UTF-16.  */
+    }
+  NSString *str = [NSString stringWithCharacters: chars
+                                          length: d - chars];
+  xfree (chars);
+  return str;
+}
+
+/* Make a Lisp string from an NSString.  */
+- (Lisp_Object)lispString
+{
+  return build_string ([self UTF8String]);
+}
+@end
+
 /* ==========================================================================
 
     Lisp interface declaration
 
    ========================================================================== */
-
 
 void
 syms_of_nsfns (void)
@@ -3133,6 +3079,7 @@ syms_of_nsfns (void)
   DEFSYM (Qframe_title_format, "frame-title-format");
   DEFSYM (Qicon_title_format, "icon-title-format");
   DEFSYM (Qdark, "dark");
+  DEFSYM (Qlight, "light");
 
   DEFVAR_LISP ("ns-icon-type-alist", Vns_icon_type_alist,
                doc: /* Alist of elements (REGEXP . IMAGE) for images of icons associated to frames.
@@ -3215,5 +3162,6 @@ Default is t.  */);
 
   as_status = 0;
   as_script = Qnil;
+  staticpro (&as_script);
   as_result = 0;
 }

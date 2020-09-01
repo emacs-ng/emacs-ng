@@ -1,6 +1,6 @@
 /* Buffer manipulation primitives for GNU Emacs.
 
-Copyright (C) 1985-1989, 1993-1995, 1997-2018 Free Software Foundation,
+Copyright (C) 1985-1989, 1993-1995, 1997-2020 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -37,6 +37,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "window.h"
 #include "commands.h"
 #include "character.h"
+#include "coding.h"
 #include "buffer.h"
 #include "region-cache.h"
 #include "indent.h"
@@ -44,15 +45,11 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "keymap.h"
 #include "frame.h"
 #include "xwidget.h"
+#include "pdumper.h"
 
 #ifdef WINDOWSNT
 #include "w32heap.h"		/* for mmap_* */
 #endif
-
-/* First buffer in chain of all buffers (in reverse order of creation).
-   Threaded through ->header.next.buffer.  */
-
-struct buffer *all_buffers;
 
 /* This structure holds the default values of the buffer-local variables
    defined with DEFVAR_PER_BUFFER, that have special slots in each buffer.
@@ -103,7 +100,7 @@ static char buffer_permanent_local_flags[MAX_PER_BUFFER_VARS];
 
 /* Number of per-buffer variables used.  */
 
-int last_per_buffer_idx;
+static int last_per_buffer_idx;
 
 static void call_overlay_mod_hooks (Lisp_Object list, Lisp_Object overlay,
                                     bool after, Lisp_Object arg1,
@@ -122,11 +119,29 @@ static void free_buffer_text (struct buffer *b);
 static struct Lisp_Overlay * copy_overlays (struct buffer *, struct Lisp_Overlay *);
 static void modify_overlay (struct buffer *, ptrdiff_t, ptrdiff_t);
 static Lisp_Object buffer_lisp_local_variables (struct buffer *, bool);
+static Lisp_Object buffer_local_variables_1 (struct buffer *buf, int offset, Lisp_Object sym);
 
 static void
 CHECK_OVERLAY (Lisp_Object x)
 {
   CHECK_TYPE (OVERLAYP (x), Qoverlayp, x);
+}
+
+/* Convert the position POS to an EMACS_INT that fits in a fixnum.
+   Yield POS's value if POS is already a fixnum, POS's marker position
+   if POS is a marker, and MOST_NEGATIVE_FIXNUM or
+   MOST_POSITIVE_FIXNUM if POS is a negative or positive bignum.
+   Signal an error if POS is not of the proper form.  */
+
+EMACS_INT
+fix_position (Lisp_Object pos)
+{
+  if (FIXNUMP (pos))
+    return XFIXNUM (pos);
+  if (MARKERP (pos))
+    return marker_position (pos);
+  CHECK_TYPE (BIGNUMP (pos), Qinteger_or_marker_p, pos);
+  return !NILP (Fnatnump (pos)) ? MOST_POSITIVE_FIXNUM : MOST_NEGATIVE_FIXNUM;
 }
 
 /* These setters are used only in this file, so they can be private.
@@ -245,6 +260,11 @@ static void
 bset_header_line_format (struct buffer *b, Lisp_Object val)
 {
   b->header_line_format_ = val;
+}
+static void
+bset_tab_line_format (struct buffer *b, Lisp_Object val)
+{
+  b->tab_line_format_ = val;
 }
 static void
 bset_indicate_buffer_boundaries (struct buffer *b, Lisp_Object val)
@@ -376,7 +396,7 @@ nsberror (Lisp_Object spec)
 }
 
 DEFUN ("buffer-live-p", Fbuffer_live_p, Sbuffer_live_p, 1, 1, 0,
-       doc: /* Return non-nil if OBJECT is a buffer which has not been killed.
+       doc: /* Return t if OBJECT is a buffer which has not been killed.
 Value is nil if OBJECT is not a buffer or if it has been killed.  */)
   (Lisp_Object object)
 {
@@ -466,7 +486,7 @@ See also `find-buffer-visiting'.  */)
   filename = Fexpand_file_name (filename, Qnil);
 
   /* If the file name has special constructs in it,
-     call the corresponding file handler.  */
+     call the corresponding file name handler.  */
   handler = Ffind_file_name_handler (filename, Qget_file_buffer);
   if (!NILP (handler))
     {
@@ -529,6 +549,8 @@ even if it is dead.  The return value is never nil.  */)
   /* No one shows us now.  */
   b->window_count = 0;
 
+  memset (&b->local_flags, 0, sizeof (b->local_flags));
+
   BUF_GAP_SIZE (b) = 20;
   block_input ();
   /* We allocate extra 1-byte at the tail and keep it always '\0' for
@@ -580,6 +602,11 @@ even if it is dead.  The return value is never nil.  */)
   set_string_intervals (name, NULL);
   bset_name (b, name);
 
+  b->inhibit_buffer_hooks
+    = (STRINGP (Vcode_conversion_workbuf_name)
+       && strncmp (SSDATA (name), SSDATA (Vcode_conversion_workbuf_name),
+		   SBYTES (Vcode_conversion_workbuf_name)) == 0);
+
   bset_undo_list (b, SREF (name, 0) != ' ' ? Qnil : Qt);
 
   reset_buffer (b);
@@ -592,7 +619,7 @@ even if it is dead.  The return value is never nil.  */)
   XSETBUFFER (buffer, b);
   Vbuffer_alist = nconc2 (Vbuffer_alist, list1 (Fcons (name, buffer)));
   /* And run buffer-list-update-hook.  */
-  if (!NILP (Vrun_hooks))
+  if (!NILP (Vrun_hooks) && !b->inhibit_buffer_hooks)
     call1 (Vrun_hooks, Qbuffer_list_update_hook);
 
   return buffer;
@@ -644,6 +671,12 @@ static void
 set_buffer_overlays_after (struct buffer *b, struct Lisp_Overlay *o)
 {
   b->overlays_after = o;
+}
+
+bool
+valid_per_buffer_idx (int idx)
+{
+  return 0 <= idx && idx < last_per_buffer_idx;
 }
 
 /* Clone per-buffer values of buffer FROM.
@@ -780,6 +813,8 @@ CLONE nil means the indirect buffer's state is reset to default values.  */)
   b->base_buffer->indirections++;
   /* Always -1 for an indirect buffer.  */
   b->window_count = -1;
+
+  memset (&b->local_flags, 0, sizeof (b->local_flags));
 
   b->pt = b->base_buffer->pt;
   b->begv = b->base_buffer->begv;
@@ -1196,7 +1231,7 @@ buffer_local_value (Lisp_Object variable, Lisp_Object buffer)
 	result = Fassoc (variable, BVAR (buf, local_var_alist), Qnil);
 	if (!NILP (result))
 	  {
-	    if (blv->fwd)
+	    if (blv->fwd.fwdptr)
 	      { /* What binding is loaded right now?  */
 		Lisp_Object current_alist_element = blv->valcell;
 
@@ -1217,7 +1252,7 @@ buffer_local_value (Lisp_Object variable, Lisp_Object buffer)
       }
     case SYMBOL_FORWARDED:
       {
-	union Lisp_Fwd *fwd = SYMBOL_FWD (sym);
+	lispfwd fwd = SYMBOL_FWD (sym);
 	if (BUFFER_OBJFWDP (fwd))
 	  result = per_buffer_value (buf, XBUFFER_OBJFWD (fwd)->offset);
 	else
@@ -1266,6 +1301,25 @@ buffer_lisp_local_variables (struct buffer *buf, bool clone)
   return result;
 }
 
+
+/* If the variable at position index OFFSET in buffer BUF has a
+   buffer-local value, return (name . value).  If SYM is non-nil,
+   it replaces name.  */
+
+static Lisp_Object
+buffer_local_variables_1 (struct buffer *buf, int offset, Lisp_Object sym)
+{
+  int idx = PER_BUFFER_IDX (offset);
+  if ((idx == -1 || PER_BUFFER_VALUE_P (buf, idx))
+      && SYMBOLP (PER_BUFFER_SYMBOL (offset)))
+    {
+      sym = NILP (sym) ? PER_BUFFER_SYMBOL (offset) : sym;
+      Lisp_Object val = per_buffer_value (buf, offset);
+      return EQ (val, Qunbound) ? sym : Fcons (sym, val);
+    }
+  return Qnil;
+}
+
 DEFUN ("buffer-local-variables", Fbuffer_local_variables,
        Sbuffer_local_variables, 0, 1, 0,
        doc: /* Return an alist of variables that are buffer-local in BUFFER.
@@ -1277,24 +1331,24 @@ No argument or nil as argument means use current buffer as BUFFER.  */)
 {
   struct buffer *buf = decode_buffer (buffer);
   Lisp_Object result = buffer_lisp_local_variables (buf, 0);
+  Lisp_Object tem;
 
   /* Add on all the variables stored in special slots.  */
   {
-    int offset, idx;
+    int offset;
 
     FOR_EACH_PER_BUFFER_OBJECT_AT (offset)
       {
-	idx = PER_BUFFER_IDX (offset);
-	if ((idx == -1 || PER_BUFFER_VALUE_P (buf, idx))
-	    && SYMBOLP (PER_BUFFER_SYMBOL (offset)))
-	  {
-	    Lisp_Object sym = PER_BUFFER_SYMBOL (offset);
-	    Lisp_Object val = per_buffer_value (buf, offset);
-	    result = Fcons (EQ (val, Qunbound) ? sym : Fcons (sym, val),
-			    result);
-	  }
+        tem = buffer_local_variables_1 (buf, offset, Qnil);
+        if (!NILP (tem))
+          result = Fcons (tem, result);
       }
   }
+
+  tem = buffer_local_variables_1 (buf, PER_BUFFER_VAR_OFFSET (undo_list),
+				  intern ("buffer-undo-list"));
+  if (!NILP (tem))
+    result = Fcons (tem, result);
 
   return result;
 }
@@ -1312,7 +1366,7 @@ No argument or nil as argument means use current buffer as BUFFER.  */)
 DEFUN ("force-mode-line-update", Fforce_mode_line_update,
        Sforce_mode_line_update, 0, 1, 0,
        doc: /* Force redisplay of the current buffer's mode line and header line.
-With optional non-nil ALL, force redisplay of all mode lines and
+With optional non-nil ALL, force redisplay of all mode lines, tab lines and
 header lines.  This function also forces recomputation of the
 menu bar menus and the frame title.  */)
      (Lisp_Object all)
@@ -1408,7 +1462,7 @@ state of the current buffer.  Use with care.  */)
 		 /* If SAVE_MODIFF == auto_save_modified == MODIFF,
 		    we can either decrease SAVE_MODIFF and auto_save_modified
 		    or increase MODIFF.  */
-		 : MODIFF++);
+		 : modiff_incr (&MODIFF));
 
   return flag;
 }
@@ -1417,11 +1471,11 @@ DEFUN ("buffer-modified-tick", Fbuffer_modified_tick, Sbuffer_modified_tick,
        0, 1, 0,
        doc: /* Return BUFFER's tick counter, incremented for each change in text.
 Each buffer has a tick counter which is incremented each time the
-text in that buffer is changed.  It wraps around occasionally.
-No argument or nil as argument means use current buffer as BUFFER.  */)
-  (register Lisp_Object buffer)
+text in that buffer is changed.  No argument or nil as argument means
+use current buffer as BUFFER.  */)
+  (Lisp_Object buffer)
 {
-  return make_fixnum (BUF_MODIFF (decode_buffer (buffer)));
+  return modiff_to_integer (BUF_MODIFF (decode_buffer (buffer)));
 }
 
 DEFUN ("buffer-chars-modified-tick", Fbuffer_chars_modified_tick,
@@ -1434,9 +1488,9 @@ values returned by two individual calls of `buffer-chars-modified-tick',
 you can tell whether a character change occurred in that buffer in
 between these calls.  No argument or nil as argument means use current
 buffer as BUFFER.  */)
-  (register Lisp_Object buffer)
+  (Lisp_Object buffer)
 {
-  return make_fixnum (BUF_CHARS_MODIFF (decode_buffer (buffer)));
+  return modiff_to_integer (BUF_CHARS_MODIFF (decode_buffer (buffer)));
 }
 
 DEFUN ("rename-buffer", Frename_buffer, Srename_buffer, 1, 2,
@@ -1488,7 +1542,7 @@ This does not change the name of the visited file (if any).  */)
     call0 (intern ("rename-auto-save-file"));
 
   /* Run buffer-list-update-hook.  */
-  if (!NILP (Vrun_hooks))
+  if (!NILP (Vrun_hooks) && !current_buffer->inhibit_buffer_hooks)
     call1 (Vrun_hooks, Qbuffer_list_update_hook);
 
   /* Refetch since that last call may have done GC.  */
@@ -1701,10 +1755,13 @@ cleaning up all windows currently displaying the buffer to be killed. */)
 
     /* First run the query functions; if any query is answered no,
        don't kill the buffer.  */
-    tem = CALLN (Frun_hook_with_args_until_failure,
-		 Qkill_buffer_query_functions);
-    if (NILP (tem))
-      return unbind_to (count, Qnil);
+    if (!b->inhibit_buffer_hooks)
+      {
+	tem = CALLN (Frun_hook_with_args_until_failure,
+		     Qkill_buffer_query_functions);
+	if (NILP (tem))
+	  return unbind_to (count, Qnil);
+      }
 
     /* Query if the buffer is still modified.  */
     if (INTERACTIVE && !NILP (BVAR (b, filename))
@@ -1721,7 +1778,8 @@ cleaning up all windows currently displaying the buffer to be killed. */)
       return unbind_to (count, Qt);
 
     /* Then run the hooks.  */
-    run_hook (Qkill_buffer_hook);
+    if (!b->inhibit_buffer_hooks)
+      run_hook (Qkill_buffer_hook);
     unbind_to (count, Qnil);
   }
 
@@ -1743,15 +1801,11 @@ cleaning up all windows currently displaying the buffer to be killed. */)
      ask questions or their hooks get errors.  */
   if (!b->base_buffer && b->indirections > 0)
     {
-      struct buffer *other;
+      Lisp_Object tail, other;
 
-      FOR_EACH_BUFFER (other)
-	if (other->base_buffer == b)
-	  {
-	    Lisp_Object buf;
-	    XSETBUFFER (buf, other);
-	    Fkill_buffer (buf);
-	  }
+      FOR_EACH_LIVE_BUFFER (tail, other)
+	if (XBUFFER (other)->base_buffer == b)
+	  Fkill_buffer (other);
 
       /* Exit if we now have killed the base buffer (Bug#11665).  */
       if (!BUFFER_LIVE_P (b))
@@ -1806,6 +1860,9 @@ cleaning up all windows currently displaying the buffer to be killed. */)
 
   tem = Vinhibit_quit;
   Vinhibit_quit = Qt;
+  /* Once the buffer is removed from Vbuffer_alist, its undo_list field is
+     not traced by the GC in the same way.  So set it to nil early.  */
+  bset_undo_list (b, Qnil);
   /* Remove the buffer from the list of all buffers.  */
   Vbuffer_alist = Fdelq (Frassq (buffer, Vbuffer_alist), Vbuffer_alist);
   /* If replace_buffer_in_windows didn't do its job fix that now.  */
@@ -1920,10 +1977,9 @@ cleaning up all windows currently displaying the buffer to be killed. */)
     }
   bset_width_table (b, Qnil);
   unblock_input ();
-  bset_undo_list (b, Qnil);
 
   /* Run buffer-list-update-hook.  */
-  if (!NILP (Vrun_hooks))
+  if (!NILP (Vrun_hooks) && !b->inhibit_buffer_hooks)
     call1 (Vrun_hooks, Qbuffer_list_update_hook);
 
   return Qt;
@@ -1965,7 +2021,7 @@ record_buffer (Lisp_Object buffer)
   fset_buried_buffer_list (f, Fdelq (buffer, f->buried_buffer_list));
 
   /* Run buffer-list-update-hook.  */
-  if (!NILP (Vrun_hooks))
+  if (!NILP (Vrun_hooks) && !XBUFFER (buffer)->inhibit_buffer_hooks)
     call1 (Vrun_hooks, Qbuffer_list_update_hook);
 }
 
@@ -2004,7 +2060,7 @@ DEFUN ("bury-buffer-internal", Fbury_buffer_internal, Sbury_buffer_internal,
     (f, Fcons (buffer, Fdelq (buffer, f->buried_buffer_list)));
 
   /* Run buffer-list-update-hook.  */
-  if (!NILP (Vrun_hooks))
+  if (!NILP (Vrun_hooks) && !XBUFFER (buffer)->inhibit_buffer_hooks)
     call1 (Vrun_hooks, Qbuffer_list_update_hook);
 
   return Qnil;
@@ -2125,7 +2181,7 @@ void set_buffer_internal_2 (register struct buffer *b)
 	  Lisp_Object var = XCAR (XCAR (tail));
 	  struct Lisp_Symbol *sym = XSYMBOL (var);
 	  if (sym->u.s.redirect == SYMBOL_LOCALIZED /* Just to be sure.  */
-	      && SYMBOL_BLV (sym)->fwd)
+	      && SYMBOL_BLV (sym)->fwd.fwdptr)
 	    /* Just reference the variable
 	       to cause it to become set for this buffer.  */
 	    Fsymbol_value (var);
@@ -2231,25 +2287,26 @@ so the buffer is truly empty after this.  */)
 }
 
 void
-validate_region (register Lisp_Object *b, register Lisp_Object *e)
+validate_region (Lisp_Object *b, Lisp_Object *e)
 {
-  CHECK_FIXNUM_COERCE_MARKER (*b);
-  CHECK_FIXNUM_COERCE_MARKER (*e);
+  EMACS_INT beg = fix_position (*b), end = fix_position (*e);
 
-  if (XFIXNUM (*b) > XFIXNUM (*e))
+  if (end < beg)
     {
-      Lisp_Object tem;
-      tem = *b;  *b = *e;  *e = tem;
+      EMACS_INT tem = beg;  beg = end;  end = tem;
     }
 
-  if (! (BEGV <= XFIXNUM (*b) && XFIXNUM (*e) <= ZV))
+  if (! (BEGV <= beg && end <= ZV))
     args_out_of_range_3 (Fcurrent_buffer (), *b, *e);
+
+  *b = make_fixnum (beg);
+  *e = make_fixnum (end);
 }
 
 /* Advance BYTE_POS up to a character boundary
    and return the adjusted position.  */
 
-static ptrdiff_t
+ptrdiff_t
 advance_to_char_boundary (ptrdiff_t byte_pos)
 {
   int c;
@@ -2271,7 +2328,7 @@ advance_to_char_boundary (ptrdiff_t byte_pos)
 	  c = FETCH_BYTE (byte_pos);
 	}
       while (! CHAR_HEAD_P (c) && byte_pos > BEG);
-      INC_POS (byte_pos);
+      byte_pos += next_char_len (byte_pos);
       if (byte_pos < orig_byte_pos)
 	byte_pos = orig_byte_pos;
       /* If C is a constituent of a multibyte sequence, BYTE_POS was
@@ -2307,10 +2364,10 @@ results, see Info node `(elisp)Swapping Text'.  */)
     error ("Cannot swap indirect buffers's text");
 
   { /* This is probably harder to make work.  */
-    struct buffer *other;
-    FOR_EACH_BUFFER (other)
-      if (other->base_buffer == other_buffer
-	  || other->base_buffer == current_buffer)
+    Lisp_Object tail, other;
+    FOR_EACH_LIVE_BUFFER (tail, other)
+      if (XBUFFER (other)->base_buffer == other_buffer
+	  || XBUFFER (other)->base_buffer == current_buffer)
 	error ("One of the buffers to swap has indirect buffers");
   }
 
@@ -2370,9 +2427,12 @@ results, see Info node `(elisp)Swapping Text'.  */)
   bset_point_before_scroll (current_buffer, Qnil);
   bset_point_before_scroll (other_buffer, Qnil);
 
-  current_buffer->text->modiff++;	  other_buffer->text->modiff++;
-  current_buffer->text->chars_modiff++;	  other_buffer->text->chars_modiff++;
-  current_buffer->text->overlay_modiff++; other_buffer->text->overlay_modiff++;
+  modiff_incr (&current_buffer->text->modiff);
+  modiff_incr (&other_buffer->text->modiff);
+  modiff_incr (&current_buffer->text->chars_modiff);
+  modiff_incr (&other_buffer->text->chars_modiff);
+  modiff_incr (&current_buffer->text->overlay_modiff);
+  modiff_incr (&other_buffer->text->overlay_modiff);
   current_buffer->text->beg_unchanged = current_buffer->text->gpt;
   current_buffer->text->end_unchanged = current_buffer->text->gpt;
   other_buffer->text->beg_unchanged = other_buffer->text->gpt;
@@ -2455,7 +2515,7 @@ current buffer is cleared.  */)
   (Lisp_Object flag)
 {
   struct Lisp_Marker *tail, *markers;
-  struct buffer *other;
+  Lisp_Object btail, other;
   ptrdiff_t begv, zv;
   bool narrowed = (BEG != BEGV || Z != ZV);
   bool modified_p = !NILP (Fbuffer_modified_p (Qnil));
@@ -2512,8 +2572,6 @@ current buffer is cleared.  */)
       p = BEG_ADDR;
       while (1)
 	{
-	  int c, bytes;
-
 	  if (pos == stop)
 	    {
 	      if (pos == Z)
@@ -2525,7 +2583,7 @@ current buffer is cleared.  */)
 	    p++, pos++;
 	  else if (CHAR_BYTE8_HEAD_P (*p))
 	    {
-	      c = STRING_CHAR_AND_LENGTH (p, bytes);
+	      int bytes, c = string_char_and_length (p, &bytes);
 	      /* Delete all bytes for this 8-bit character but the
 		 last one, and change the last one to the character
 		 code.  */
@@ -2542,7 +2600,7 @@ current buffer is cleared.  */)
 	    }
 	  else
 	    {
-	      bytes = BYTES_BY_CHAR_HEAD (*p);
+	      int bytes = BYTES_BY_CHAR_HEAD (*p);
 	      p += bytes, pos += bytes;
 	    }
 	}
@@ -2596,8 +2654,7 @@ current buffer is cleared.  */)
 	  if (ASCII_CHAR_P (*p))
 	    p++, pos++;
 	  else if (EQ (flag, Qt)
-		   && ! CHAR_BYTE8_HEAD_P (*p)
-		   && (bytes = MULTIBYTE_LENGTH (p, pend)) > 0)
+		   && 0 < (bytes = multibyte_length (p, pend, true, false)))
 	    p += bytes, pos += bytes;
 	  else
 	    {
@@ -2684,6 +2741,9 @@ current buffer is cleared.  */)
 
       /* Do this last, so it can calculate the new correspondences
 	 between chars and bytes.  */
+      /* FIXME: Is it worth the trouble, really?  Couldn't we just throw
+         away all the text-properties instead of trying to guess how
+         to adjust them?  AFAICT the result is not reliable anyway.  */
       set_intervals_multibyte (1);
     }
 
@@ -2705,13 +2765,16 @@ current buffer is cleared.  */)
 
   /* Copy this buffer's new multibyte status
      into all of its indirect buffers.  */
-  FOR_EACH_BUFFER (other)
-    if (other->base_buffer == current_buffer && BUFFER_LIVE_P (other))
-      {
-	BVAR (other, enable_multibyte_characters)
-	  = BVAR (current_buffer, enable_multibyte_characters);
-	other->prevent_redisplay_optimizations_p = 1;
-      }
+  FOR_EACH_LIVE_BUFFER (btail, other)
+    {
+      struct buffer *o = XBUFFER (other);
+      if (o->base_buffer == current_buffer && BUFFER_LIVE_P (o))
+	{
+	  BVAR (o, enable_multibyte_characters)
+	    = BVAR (current_buffer, enable_multibyte_characters);
+	  o->prevent_redisplay_optimizations_p = true;
+	}
+    }
 
   /* Restore the modifiedness of the buffer.  */
   if (!modified_p && !NILP (Fbuffer_modified_p (Qnil)))
@@ -3908,7 +3971,7 @@ modify_overlay (struct buffer *buf, ptrdiff_t start, ptrdiff_t end)
 
   bset_redisplay (buf);
 
-  ++BUF_OVERLAY_MODIFF (buf);
+  modiff_incr (&BUF_OVERLAY_MODIFF (buf));
 }
 
 /* Remove OVERLAY from LIST.  */
@@ -3991,6 +4054,16 @@ buffer.  */)
 
       unchain_both (ob, overlay);
     }
+  else
+    /* An overlay not associated with any buffer will normally have its
+       `next' field set to NULL, but not always: when killing a buffer,
+       we just set its overlays_after and overlays_before to NULL without
+       manually setting each overlay's `next' field to NULL.
+       Let's correct it here, to simplify subsequent assertions.
+       FIXME: Maybe the better fix is to change `kill-buffer'!?  */
+    XOVERLAY (overlay)->next = NULL;
+
+  eassert (XOVERLAY (overlay)->next == NULL);
 
   /* Set the overlay boundaries, which may clip them.  */
   Fset_marker (OVERLAY_START (overlay), beg, buffer);
@@ -4020,10 +4093,20 @@ buffer.  */)
 	modify_overlay (b, min (o_beg, n_beg), max (o_end, n_end));
     }
 
+  eassert (XOVERLAY (overlay)->next == NULL);
+
   /* Delete the overlay if it is empty after clipping and has the
      evaporate property.  */
   if (n_beg == n_end && !NILP (Foverlay_get (overlay, Qevaporate)))
-    return unbind_to (count, Fdelete_overlay (overlay));
+    { /* We used to call `Fdelete_overlay' here, but it causes problems:
+         - At this stage, `overlay' is not included in its buffer's lists
+           of overlays (the data-structure is in an inconsistent state),
+           contrary to `Fdelete_overlay's assumptions.
+         - Most of the work done by Fdelete_overlay has already been done
+           here for other reasons.  */
+      drop_overlay (XBUFFER (buffer), XOVERLAY (overlay));
+      return unbind_to (count, overlay);
+    }
 
   /* Put the overlay into the new buffer's overlay lists, first on the
      wrong list.  */
@@ -4516,23 +4599,6 @@ report_overlay_modification (Lisp_Object start, Lisp_Object end, bool after,
     Lisp_Object *copy;
     ptrdiff_t i;
 
-    if (size)
-      {
-	Lisp_Object ovl
-	  = XVECTOR (last_overlay_modification_hooks)->contents[1];
-
-	/* If the buffer of the first overlay in the array doesn't
-	   match the current buffer, then these modification hooks
-	   should not be run in this buffer.  This could happen when
-	   some code calls some insdel functions, such as del_range_1,
-	   with the PREPARE argument false -- in that case this
-	   function is never called to record the overlay modification
-	   hook functions in the last_overlay_modification_hooks
-	   array, so anything we find there is not ours.  */
-	if (XMARKER (OVERLAY_START (ovl))->buffer != current_buffer)
-	  return;
-      }
-
     USE_SAFE_ALLOCA;
     SAFE_ALLOCA_LISP (copy, size);
     memcpy (copy, XVECTOR (last_overlay_modification_hooks)->contents,
@@ -4543,7 +4609,12 @@ report_overlay_modification (Lisp_Object start, Lisp_Object end, bool after,
 	Lisp_Object prop_i, overlay_i;
 	prop_i = copy[i++];
 	overlay_i = copy[i++];
-	call_overlay_mod_hooks (prop_i, overlay_i, after, arg1, arg2, arg3);
+	/* It is possible that the recorded overlay has been deleted
+	   (which makes its markers' buffers be nil), or that (due to
+	   some bug) it belongs to a different buffer.  Only run this
+	   hook if the overlay belongs to the current buffer.  */
+	if (XMARKER (OVERLAY_START (overlay_i))->buffer == current_buffer)
+	  call_overlay_mod_hooks (prop_i, overlay_i, after, arg1, arg2, arg3);
       }
 
     SAFE_FREE ();
@@ -4993,23 +5064,37 @@ alloc_buffer_text (struct buffer *b, ptrdiff_t nbytes)
 void
 enlarge_buffer_text (struct buffer *b, ptrdiff_t delta)
 {
-  void *p;
-  ptrdiff_t nbytes = (BUF_Z_BYTE (b) - BUF_BEG_BYTE (b) + BUF_GAP_SIZE (b) + 1
-		      + delta);
   block_input ();
+  void *p;
+  unsigned char *old_beg = b->text->beg;
+  ptrdiff_t old_nbytes =
+    BUF_Z_BYTE (b) - BUF_BEG_BYTE (b) + BUF_GAP_SIZE (b) + 1;
+  ptrdiff_t new_nbytes = old_nbytes + delta;
+
+  if (pdumper_object_p (old_beg))
+    b->text->beg = NULL;
+  else
+    old_beg = NULL;
+
 #if defined USE_MMAP_FOR_BUFFERS
-  p = mmap_realloc ((void **) &b->text->beg, nbytes);
+  p = mmap_realloc ((void **) &b->text->beg, new_nbytes);
 #elif defined REL_ALLOC
-  p = r_re_alloc ((void **) &b->text->beg, nbytes);
+  p = r_re_alloc ((void **) &b->text->beg, new_nbytes);
 #else
-  p = xrealloc (b->text->beg, nbytes);
+  p = xrealloc (b->text->beg, new_nbytes);
 #endif
+  __lsan_ignore_object (p);
 
   if (p == NULL)
     {
+      if (old_beg)
+        b->text->beg = old_beg;
       unblock_input ();
-      memory_full (nbytes);
+      memory_full (new_nbytes);
     }
+
+  if (old_beg)
+    memcpy (p, old_beg, min (old_nbytes, new_nbytes));
 
   BUF_BEG_ADDR (b) = p;
   unblock_input ();
@@ -5023,13 +5108,16 @@ free_buffer_text (struct buffer *b)
 {
   block_input ();
 
+  if (!pdumper_object_p (b->text->beg))
+    {
 #if defined USE_MMAP_FOR_BUFFERS
-  mmap_free ((void **) &b->text->beg);
+      mmap_free ((void **) &b->text->beg);
 #elif defined REL_ALLOC
-  r_alloc_free ((void **) &b->text->beg);
+      r_alloc_free ((void **) &b->text->beg);
 #else
-  xfree (b->text->beg);
+      xfree (b->text->beg);
 #endif
+    }
 
   BUF_BEG_ADDR (b) = NULL;
   unblock_input ();
@@ -5040,14 +5128,25 @@ free_buffer_text (struct buffer *b)
 /***********************************************************************
 			    Initialization
  ***********************************************************************/
-
 void
 init_buffer_once (void)
 {
+  /* TODO: clean up the buffer-local machinery.  Right now,
+     we have:
+
+     buffer_defaults: default values of buffer-locals
+     buffer_local_flags: metadata
+     buffer_permanent_local_flags: metadata
+     buffer_local_symbols: metadata
+
+     There must be a simpler way to store the metadata.
+  */
+
   int idx;
 
   /* Items flagged permanent get an explicit permanent-local property
      added in bindings.el, for clarity.  */
+  PDUMPER_REMEMBER_SCALAR (buffer_permanent_local_flags);
   memset (buffer_permanent_local_flags, 0, sizeof buffer_permanent_local_flags);
 
   /* 0 means not a lisp var, -1 means always local, else mask.  */
@@ -5132,14 +5231,20 @@ init_buffer_once (void)
   XSETFASTINT (BVAR (&buffer_local_flags, scroll_up_aggressively), idx); ++idx;
   XSETFASTINT (BVAR (&buffer_local_flags, scroll_down_aggressively), idx); ++idx;
   XSETFASTINT (BVAR (&buffer_local_flags, header_line_format), idx); ++idx;
+  XSETFASTINT (BVAR (&buffer_local_flags, tab_line_format), idx); ++idx;
   XSETFASTINT (BVAR (&buffer_local_flags, cursor_type), idx); ++idx;
   XSETFASTINT (BVAR (&buffer_local_flags, extra_line_spacing), idx); ++idx;
   XSETFASTINT (BVAR (&buffer_local_flags, cursor_in_non_selected_windows), idx); ++idx;
+
+  /* buffer_local_flags contains no pointers, so it's safe to treat it
+     as a blob for pdumper.  */
+  PDUMPER_REMEMBER_SCALAR (buffer_local_flags);
 
   /* Need more room? */
   if (idx >= MAX_PER_BUFFER_VARS)
     emacs_abort ();
   last_per_buffer_idx = idx;
+  PDUMPER_REMEMBER_SCALAR (last_per_buffer_idx);
 
   /* Make sure all markable slots in buffer_defaults
      are initialized reasonably, so mark_buffer won't choke.  */
@@ -5172,6 +5277,7 @@ init_buffer_once (void)
   /* real setup is done in bindings.el */
   bset_mode_line_format (&buffer_defaults, build_pure_c_string ("%-"));
   bset_header_line_format (&buffer_defaults, Qnil);
+  bset_tab_line_format (&buffer_defaults, Qnil);
   bset_abbrev_mode (&buffer_defaults, Qnil);
   bset_overwrite_mode (&buffer_defaults, Qnil);
   bset_case_fold_search (&buffer_defaults, Qt);
@@ -5234,7 +5340,7 @@ init_buffer_once (void)
 
   Vbuffer_alist = Qnil;
   current_buffer = 0;
-  all_buffers = 0;
+  pdumper_remember_lv_ptr_raw (&current_buffer, Lisp_Vectorlike);
 
   QSFundamental = build_pure_c_string ("Fundamental");
 
@@ -5258,16 +5364,14 @@ init_buffer_once (void)
 }
 
 void
-init_buffer (int initialized)
+init_buffer (void)
 {
-  char *pwd;
   Lisp_Object temp;
-  ptrdiff_t len;
 
 #ifdef USE_MMAP_FOR_BUFFERS
-  if (initialized)
+  if (dumped_with_unexec_p ())
     {
-      struct buffer *b;
+      Lisp_Object tail, buffer;
 
 #ifndef WINDOWSNT
       /* These must be reset in the dumped Emacs, to avoid stale
@@ -5289,26 +5393,13 @@ init_buffer (int initialized)
 	 " *code-conversion-work*".  They are created by
 	 init_buffer_once and init_window_once (which are not called
 	 in the dumped Emacs), and by the first call to coding.c routines.  */
-      FOR_EACH_BUFFER (b)
+      FOR_EACH_LIVE_BUFFER (tail, buffer)
         {
+	  struct buffer *b = XBUFFER (buffer);
 	  b->text->beg = NULL;
 	  enlarge_buffer_text (b, 0);
 	}
     }
-  else
-    {
-      struct buffer *b;
-
-      /* Only buffers with allocated buffer text should be present at
-	 this point in temacs.  */
-      FOR_EACH_BUFFER (b)
-        {
-	  eassert (b->text->beg != NULL);
-	}
-    }
-#else  /* not USE_MMAP_FOR_BUFFERS */
-  /* Avoid compiler warnings.  */
-  (void) initialized;
 #endif /* USE_MMAP_FOR_BUFFERS */
 
   AUTO_STRING (scratch, "*scratch*");
@@ -5316,7 +5407,7 @@ init_buffer (int initialized)
   if (NILP (BVAR (&buffer_defaults, enable_multibyte_characters)))
     Fset_buffer_multibyte (Qnil);
 
-  pwd = emacs_get_current_dir_name ();
+  char const *pwd = emacs_wd;
 
   if (!pwd)
     {
@@ -5328,22 +5419,16 @@ init_buffer (int initialized)
     {
       /* Maybe this should really use some standard subroutine
          whose definition is filename syntax dependent.  */
-      len = strlen (pwd);
-      if (!(IS_DIRECTORY_SEP (pwd[len - 1])))
-        {
-          /* Grow buffer to add directory separator and '\0'.  */
-          pwd = realloc (pwd, len + 2);
-          if (!pwd)
-            fatal ("get_current_dir_name: %s\n", strerror (errno));
-          pwd[len] = DIRECTORY_SEP;
-          pwd[len + 1] = '\0';
-          len++;
-        }
+      ptrdiff_t len = strlen (pwd);
+      bool add_slash = ! IS_DIRECTORY_SEP (pwd[len - 1]);
 
       /* At this moment, we still don't know how to decode the directory
          name.  So, we keep the bytes in unibyte form so that file I/O
          routines correctly get the original bytes.  */
-      bset_directory (current_buffer, make_unibyte_string (pwd, len));
+      Lisp_Object dirname = make_unibyte_string (pwd, len + add_slash);
+      if (add_slash)
+	SSET (dirname, len, DIRECTORY_SEP);
+      bset_directory (current_buffer, dirname);
 
       /* Add /: to the front of the name
          if it would otherwise be treated as magic.  */
@@ -5364,8 +5449,6 @@ init_buffer (int initialized)
 
   temp = get_minibuffer (0);
   bset_directory (XBUFFER (temp), BVAR (current_buffer, directory));
-
-  free (pwd);
 }
 
 /* Similar to defvar_lisp but define a variable whose value is the
@@ -5397,7 +5480,7 @@ defvar_per_buffer (struct Lisp_Buffer_Objfwd *bo_fwd, const char *namestring,
   bo_fwd->predicate = predicate;
   sym->u.s.declared_special = true;
   sym->u.s.redirect = SYMBOL_FORWARDED;
-  SET_SYMBOL_FWD (sym, (union Lisp_Fwd *) bo_fwd);
+  SET_SYMBOL_FWD (sym, bo_fwd);
   XSETSYMBOL (PER_BUFFER_SYMBOL (offset), sym);
 
   if (PER_BUFFER_IDX (offset) == 0)
@@ -5412,8 +5495,7 @@ void
 syms_of_buffer (void)
 {
   staticpro (&last_overlay_modification_hooks);
-  last_overlay_modification_hooks
-    = Fmake_vector (make_fixnum (10), Qnil);
+  last_overlay_modification_hooks = make_nil_vector (10);
 
   staticpro (&QSFundamental);
   staticpro (&Vbuffer_alist);
@@ -5451,9 +5533,16 @@ syms_of_buffer (void)
 	       Qoverwrite_mode_binary));
 
   Fput (Qprotected_field, Qerror_conditions,
-	listn (CONSTYPE_PURE, 2, Qprotected_field, Qerror));
+	pure_list (Qprotected_field, Qerror));
   Fput (Qprotected_field, Qerror_message,
 	build_pure_c_string ("Attempt to modify a protected field"));
+
+  DEFVAR_PER_BUFFER ("tab-line-format",
+		     &BVAR (current_buffer, tab_line_format),
+		     Qnil,
+		     doc: /* Analogous to `mode-line-format', but controls the tab line.
+The tab line appears, optionally, at the top of a window;
+the mode line appears at the bottom.  */);
 
   DEFVAR_PER_BUFFER ("header-line-format",
 		     &BVAR (current_buffer, header_line_format),
@@ -5554,17 +5643,17 @@ Use the command `abbrev-mode' to change this variable.  */);
 		     doc: /* Non-nil if searches and matches should ignore case.  */);
 
   DEFVAR_PER_BUFFER ("fill-column", &BVAR (current_buffer, fill_column),
-		     Qfixnump,
+		     Qintegerp,
 		     doc: /* Column beyond which automatic line-wrapping should happen.
 Interactively, you can set the buffer local value using \\[set-fill-column].  */);
 
   DEFVAR_PER_BUFFER ("left-margin", &BVAR (current_buffer, left_margin),
-		     Qfixnump,
+		     Qintegerp,
 		     doc: /* Column for the default `indent-line-function' to indent to.
 Linefeed indents to this column in Fundamental mode.  */);
 
   DEFVAR_PER_BUFFER ("tab-width", &BVAR (current_buffer, tab_width),
-		     Qfixnump,
+		     Qintegerp,
 		     doc: /* Distance between tab stops (for display of tab characters), in columns.
 NOTE: This controls the display width of a TAB character, and not
 the size of an indentation step.
@@ -5610,7 +5699,11 @@ This variable is never applied to a way of decoding a file while reading it.  */
 
   DEFVAR_PER_BUFFER ("bidi-display-reordering",
 		     &BVAR (current_buffer, bidi_display_reordering), Qnil,
-		     doc: /* Non-nil means reorder bidirectional text for display in the visual order.  */);
+		     doc: /* Non-nil means reorder bidirectional text for display in the visual order.
+Setting this to nil is intended for use in debugging the display code.
+Don't set to nil in normal sessions, as that is not supported.
+See also `bidi-paragraph-direction'; setting that non-nil might
+speed up redisplay.  */);
 
   DEFVAR_PER_BUFFER ("bidi-paragraph-start-re",
 		     &BVAR (current_buffer, bidi_paragraph_start_re), Qnil,
@@ -5698,8 +5791,8 @@ visual lines rather than logical lines.  See the documentation of
   DEFVAR_PER_BUFFER ("default-directory", &BVAR (current_buffer, directory),
 		     Qstringp,
 		     doc: /* Name of default directory of current buffer.
-It should be a directory name (as opposed to a directory file-name).
-On GNU and Unix systems, directory names end in a slash `/'.
+It should be an absolute directory name; on GNU and Unix systems,
+these names start with `/' or `~' and end with `/'.
 To interactively change the default directory, use command `cd'. */);
 
   DEFVAR_PER_BUFFER ("auto-fill-function", &BVAR (current_buffer, auto_fill_function),
@@ -5735,7 +5828,7 @@ If it is nil, that means don't auto-save this buffer.  */);
 Backing up is done before the first time the file is saved.  */);
 
   DEFVAR_PER_BUFFER ("buffer-saved-size", &BVAR (current_buffer, save_length),
-		     Qfixnump,
+		     Qintegerp,
 		     doc: /* Length of current buffer when last read in, saved or auto-saved.
 0 initially.
 -1 means auto-saving turned off until next real save.
@@ -5809,7 +5902,7 @@ In addition, a char-table has six extra slots to control the display of:
 See also the functions `display-table-slot' and `set-display-table-slot'.  */);
 
   DEFVAR_PER_BUFFER ("left-margin-width", &BVAR (current_buffer, left_margin_cols),
-		     Qfixnump,
+		     Qintegerp,
 		     doc: /* Width in columns of left marginal area for display of a buffer.
 A value of nil means no marginal area.
 
@@ -5817,7 +5910,7 @@ Setting this variable does not take effect until a new buffer is displayed
 in a window.  To make the change take effect, call `set-window-buffer'.  */);
 
   DEFVAR_PER_BUFFER ("right-margin-width", &BVAR (current_buffer, right_margin_cols),
-		     Qfixnump,
+		     Qintegerp,
 		     doc: /* Width in columns of right marginal area for display of a buffer.
 A value of nil means no marginal area.
 
@@ -5825,7 +5918,7 @@ Setting this variable does not take effect until a new buffer is displayed
 in a window.  To make the change take effect, call `set-window-buffer'.  */);
 
   DEFVAR_PER_BUFFER ("left-fringe-width", &BVAR (current_buffer, left_fringe_width),
-		     Qfixnump,
+		     Qintegerp,
 		     doc: /* Width of this buffer's left fringe (in pixels).
 A value of 0 means no left fringe is shown in this buffer's window.
 A value of nil means to use the left fringe width from the window's frame.
@@ -5834,7 +5927,7 @@ Setting this variable does not take effect until a new buffer is displayed
 in a window.  To make the change take effect, call `set-window-buffer'.  */);
 
   DEFVAR_PER_BUFFER ("right-fringe-width", &BVAR (current_buffer, right_fringe_width),
-		     Qfixnump,
+		     Qintegerp,
 		     doc: /* Width of this buffer's right fringe (in pixels).
 A value of 0 means no right fringe is shown in this buffer's window.
 A value of nil means to use the right fringe width from the window's frame.
@@ -5851,12 +5944,12 @@ Setting this variable does not take effect until a new buffer is displayed
 in a window.  To make the change take effect, call `set-window-buffer'.  */);
 
   DEFVAR_PER_BUFFER ("scroll-bar-width", &BVAR (current_buffer, scroll_bar_width),
-		     Qfixnump,
+		     Qintegerp,
 		     doc: /* Width of this buffer's vertical scroll bars in pixels.
 A value of nil means to use the scroll bar width from the window's frame.  */);
 
   DEFVAR_PER_BUFFER ("scroll-bar-height", &BVAR (current_buffer, scroll_bar_height),
-		     Qfixnump,
+		     Qintegerp,
 		     doc: /* Height of this buffer's horizontal scroll bars in pixels.
 A value of nil means to use the scroll bar height from the window's frame.  */);
 
@@ -6022,11 +6115,11 @@ An entry (TEXT . POSITION) represents the deletion of the string TEXT
 from (abs POSITION).  If POSITION is positive, point was at the front
 of the text being deleted; if negative, point was at the end.
 
-An entry (t HIGH LOW USEC PSEC) indicates that the buffer was previously
-unmodified; (HIGH LOW USEC PSEC) is in the same style as (current-time)
-and is the visited file's modification time, as of that time.  If the
-modification time of the most recent save is different, this entry is
-obsolete.
+An entry (t . TIMESTAMP), where TIMESTAMP is in the style of
+`current-time', indicates that the buffer was previously unmodified;
+TIMESTAMP is the visited file's modification time, as of that time.
+If the modification time of the most recent save is different, this
+entry is obsolete.
 
 An entry (t . 0) means the buffer was previously unmodified but
 its time stamp was unknown because it was not associated with a file.
@@ -6126,7 +6219,7 @@ Setting this variable is very fast, much faster than scanning all the text in
 the buffer looking for properties to change.  */);
 
   DEFVAR_PER_BUFFER ("buffer-display-count",
-		     &BVAR (current_buffer, display_count), Qfixnump,
+		     &BVAR (current_buffer, display_count), Qintegerp,
 		     doc: /* A number incremented each time this buffer is displayed in a window.
 The function `set-window-buffer' increments it.  */);
 
@@ -6161,10 +6254,10 @@ Lisp programs may give this variable certain special values:
 
   DEFVAR_LISP ("inhibit-read-only", Vinhibit_read_only,
 	       doc: /* Non-nil means disregard read-only status of buffers or characters.
-If the value is t, disregard `buffer-read-only' and all `read-only'
-text properties.  If the value is a list, disregard `buffer-read-only'
-and disregard a `read-only' text property if the property value
-is a member of the list.  */);
+A non-nil value that is a list means disregard `buffer-read-only' status,
+and disregard a `read-only' text property if the property value is a
+member of the list.  Any other non-nil value means disregard `buffer-read-only'
+and all `read-only' text properties.  */);
   Vinhibit_read_only = Qnil;
 
   DEFVAR_PER_BUFFER ("cursor-type", &BVAR (current_buffer, cursor_type), Qnil,
@@ -6174,6 +6267,9 @@ Values are interpreted as follows:
   t               use the cursor specified for the frame
   nil             don't display a cursor
   box             display a filled box cursor
+  (box . SIZE)    display a filled box cursor, but make it
+                  hollow if cursor is under masked image larger than
+                  SIZE pixels in either dimension.
   hollow          display a hollow box cursor
   bar             display a vertical bar cursor with default width
   (bar . WIDTH)   display a vertical bar cursor with width WIDTH
@@ -6220,9 +6316,11 @@ The function `kill-all-local-variables' runs this before doing anything else.  *
 
   DEFVAR_LISP ("buffer-list-update-hook", Vbuffer_list_update_hook,
 	       doc: /* Hook run when the buffer list changes.
-Functions running this hook are, `get-buffer-create',
-`make-indirect-buffer', `rename-buffer', `kill-buffer',
-`bury-buffer-internal' and `select-window'.  */);
+Functions (implicitly) running this hook are `get-buffer-create',
+`make-indirect-buffer', `rename-buffer', `kill-buffer', `bury-buffer'
+and `select-window'.  Functions run by this hook should avoid calling
+`select-window' with a nil NORECORD argument or `with-temp-buffer'
+since either may lead to infinite recursion.  */);
   Vbuffer_list_update_hook = Qnil;
   DEFSYM (Qbuffer_list_update_hook, "buffer-list-update-hook");
 

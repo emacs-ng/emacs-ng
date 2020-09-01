@@ -1,6 +1,6 @@
 ;;; backtrace.el --- generic major mode for Elisp backtraces -*- lexical-binding: t -*-
 
-;; Copyright (C) 2018 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2020 Free Software Foundation, Inc.
 
 ;; Author: Gemini Lasswell
 ;; Keywords: lisp, tools, maint
@@ -34,6 +34,7 @@
 (eval-when-compile (require 'cl-lib))
 (eval-when-compile (require 'pcase))
 (eval-when-compile (require 'subr-x))        ; if-let
+(require 'find-func)
 (require 'help-mode)     ; Define `help-function-def' button type.
 (require 'lisp-mode)
 
@@ -174,7 +175,8 @@ This should be a list of `backtrace-frame' objects.")
 
 (defvar-local backtrace-view nil
   "A plist describing how to render backtrace frames.
-Possible entries are :show-flags, :show-locals and :print-circle.")
+Possible entries are :show-flags, :show-locals, :print-circle
+and :print-gensym.")
 
 (defvar-local backtrace-insert-header-function nil
   "Function for inserting a header for the current Backtrace buffer.
@@ -204,6 +206,7 @@ frames where the source code location is known.")
     (define-key map "p" 'backtrace-backward-frame)
     (define-key map "v" 'backtrace-toggle-locals)
     (define-key map "#" 'backtrace-toggle-print-circle)
+    (define-key map ":" 'backtrace-toggle-print-gensym)
     (define-key map "s" 'backtrace-goto-source)
     (define-key map "\C-m" 'backtrace-help-follow-symbol)
     (define-key map "+" 'backtrace-multi-line)
@@ -223,6 +226,18 @@ frames where the source code location is known.")
          :active (backtrace-get-index)
          :selected (plist-get (backtrace-get-view) :show-locals)
          :help "Show or hide the local variables for the frame at point"]
+        ["Show Circular Structures" backtrace-toggle-print-circle
+         :style toggle
+         :active (backtrace-get-index)
+         :selected (plist-get (backtrace-get-view) :print-circle)
+         :help
+         "Condense or expand shared or circular structures in the frame at point"]
+        ["Show Uninterned Symbols" backtrace-toggle-print-gensym
+         :style toggle
+         :active (backtrace-get-index)
+         :selected (plist-get (backtrace-get-view) :print-gensym)
+         :help
+         "Toggle unique printing of uninterned symbols in the frame at point"]
         ["Expand \"...\"s" backtrace-expand-ellipses
          :help "Expand all the abbreviated forms in the current frame"]
         ["Show on Multiple Lines" backtrace-multi-line
@@ -338,6 +353,7 @@ It runs `backtrace-revert-hook', then calls `backtrace-print'."
   `(let ((print-escape-control-characters t)
          (print-escape-newlines t)
          (print-circle (plist-get ,view :print-circle))
+         (print-gensym (plist-get ,view :print-gensym))
          (standard-output (current-buffer)))
      ,@body))
 
@@ -419,11 +435,17 @@ Set it to VALUE unless the button is a `backtrace-ellipsis' button."
 
 (defun backtrace-toggle-print-circle (&optional all)
   "Toggle `print-circle' for the backtrace frame at point.
-With prefix argument ALL, toggle the value of :print-circle in
-`backtrace-view', which affects all of the backtrace frames in
-the buffer."
+With prefix argument ALL, toggle the default value bound to
+`print-circle' for all the frames in the buffer."
   (interactive "P")
   (backtrace--toggle-feature :print-circle all))
+
+(defun backtrace-toggle-print-gensym (&optional all)
+  "Toggle `print-gensym' for the backtrace frame at point.
+With prefix argument ALL, toggle the default value bound to
+`print-gensym' for all the frames in the buffer."
+  (interactive "P")
+  (backtrace--toggle-feature :print-gensym all))
 
 (defun backtrace--toggle-feature (feature all)
   "Toggle FEATURE for the current backtrace frame or for the buffer.
@@ -449,12 +471,15 @@ position point at the start of the frame it was in before."
           (goto-char (point-min))
           (while (and (not (eql index (backtrace-get-index)))
                       (< (point) (point-max)))
-            (goto-char (backtrace-get-frame-end)))))
-    (let ((index (backtrace-get-index)))
-      (unless index
-        (user-error "Not in a stack frame"))
-      (backtrace--set-feature feature
-                              (not (plist-get (backtrace-get-view) feature))))))
+            (goto-char (backtrace-get-frame-end))))
+        (message "%s is now %s for all frames"
+                 (substring (symbol-name feature) 1) value))
+    (unless (backtrace-get-index)
+      (user-error "Not in a stack frame"))
+    (let ((value (not (plist-get (backtrace-get-view) feature))))
+      (backtrace--set-feature feature value)
+      (message "%s is now %s for this frame"
+               (substring (symbol-name feature) 1) value))))
 
 (defun backtrace--set-feature (feature value)
   "Set FEATURE in the view plist of the frame at point to VALUE.
@@ -684,7 +709,7 @@ line and recenter window line accordingly."
 (defun backtrace-print-to-string (obj &optional limit)
   "Return a printed representation of OBJ formatted for backtraces.
 Attempt to get the length of the returned string under LIMIT
-charcters with appropriate settings of `print-level' and
+characters with appropriate settings of `print-level' and
 `print-length.'  LIMIT defaults to `backtrace-line-length'."
   (backtrace--with-output-variables backtrace-view
     (backtrace--print-to-string obj limit)))
@@ -735,11 +760,11 @@ Format it according to VIEW."
          (evald (backtrace-frame-evald frame))
          (fun   (backtrace-frame-fun frame))
          (args  (backtrace-frame-args frame))
-         (def   (and (symbolp fun) (fboundp fun) (symbol-function fun)))
+         (def   (find-function-advised-original fun))
          (fun-file (or (symbol-file fun 'defun)
-                            (and (subrp def)
-                                 (not (eq 'unevalled (cdr (subr-arity def))))
-                                 (find-lisp-object-file-name fun def))))
+                       (and (subrp def)
+                            (not (eq 'unevalled (cdr (subr-arity def))))
+                            (find-lisp-object-file-name fun def))))
          (fun-pt (point)))
     (cond
      ((and evald (not debugger-stack-frame-as-list))
@@ -762,7 +787,8 @@ Format it according to VIEW."
         (insert (backtrace--print-to-string fun-and-args)))
       (cl-incf fun-pt)))
     (when fun-file
-      (make-text-button fun-pt (+ fun-pt (length (symbol-name fun)))
+      (make-text-button fun-pt (+ fun-pt
+                                  (length (backtrace--print-to-string fun)))
                         :type 'help-function-def
                         'help-args (list fun fun-file)))
     ;; After any frame that uses eval-buffer, insert a comment that

@@ -1,6 +1,6 @@
 ;;; subword.el --- Handling capitalized subwords in a nomenclature -*- lexical-binding: t -*-
 
-;; Copyright (C) 2004-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2020 Free Software Foundation, Inc.
 
 ;; Author: Masatake YAMATO
 
@@ -115,6 +115,8 @@ treat nomenclature boundaries as word boundaries."
     (when subword-mode (superword-mode -1))
     (subword-setup-buffer))
 
+;; This is defined also in cc-cmds.el, but as obsolete since 24.3.
+;; Let's keep this until the other one can also be removed.
 (define-obsolete-function-alias 'c-subword-mode 'subword-mode "23.2")
 
 ;;;###autoload
@@ -144,8 +146,6 @@ Optional argument ARG is the same as for `forward-word'."
       (funcall subword-backward-function)))
    (t
     (point))))
-
-(put 'subword-forward 'CUA 'move)
 
 (defun subword-backward (&optional arg)
   "Do the same as `backward-word' but on subwords.
@@ -186,8 +186,6 @@ Optional argument ARG is the same as for `mark-word'."
 	    (subword-forward arg)
 	    (point))
 	  nil t))))
-
-(put 'subword-backward 'CUA 'move)
 
 (defun subword-kill (arg)
   "Do the same as `kill-word' but on subwords.

@@ -1,5 +1,5 @@
 /* NeXT/Open/GNUstep and macOS Cocoa menu and toolbar module.
-   Copyright (C) 2007-2018 Free Software Foundation, Inc.
+   Copyright (C) 2007-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -37,6 +37,7 @@ Carbon version by Yamamoto Mitsuharu. */
 #include "termhooks.h"
 #include "keyboard.h"
 #include "menu.h"
+#include "pdumper.h"
 
 #define NSMENUPROFILE 0
 
@@ -469,7 +470,7 @@ set_frame_menubar (struct frame *f, bool first_time, bool deep_p)
 }
 
 void
-x_activate_menubar (struct frame *f)
+ns_activate_menubar (struct frame *f)
 {
 #ifdef NS_IMPL_COCOA
   ns_update_menubar (f, true, nil);
@@ -610,7 +611,7 @@ x_activate_menubar (struct frame *f)
   const char *tpos = key;
   keyEquivModMask = NSEventModifierFlagCommand;
 
-  if (!key || !strlen (key))
+  if (!key || !*key)
     return @"";
 
   while (*tpos == ' ' || *tpos == '(')
@@ -667,9 +668,9 @@ x_activate_menubar (struct frame *f)
       /* Draw radio buttons and tickboxes.  */
       if (wv->selected && (wv->button_type == BUTTON_TYPE_TOGGLE ||
                            wv->button_type == BUTTON_TYPE_RADIO))
-        [item setState: NSOnState];
+        [item setState: NSControlStateValueOn];
       else
-        [item setState: NSOffState];
+        [item setState: NSControlStateValueOff];
 
       [item setTag: (NSInteger)wv->call_data];
     }
@@ -1091,7 +1092,7 @@ update_frame_tool_bar (struct frame *f)
           continue;
         }
 
-      img_id = lookup_image (f, image);
+      img_id = lookup_image (f, image, -1);
       img = IMAGE_FROM_ID (f, img_id);
       prepare_image_for_display (f, img);
 
@@ -1140,8 +1141,6 @@ update_frame_tool_bar (struct frame *f)
     }
 #endif
 
-  if (oldh != FRAME_TOOLBAR_HEIGHT (f))
-    [view updateFrameSize:YES];
   if (view->wait_for_tool_bar && FRAME_TOOLBAR_HEIGHT (f) > 0)
     {
       view->wait_for_tool_bar = NO;
@@ -1593,7 +1592,7 @@ ns_popup_dialog (struct frame *f, Lisp_Object header, Lisp_Object contents)
   [cell setBordered: NO];
   [cell setEnabled: NO];
   [cell setCellAttribute: NSCellIsInsetButton to: 8];
-  [cell setBezelStyle: NSRoundedBezelStyle];
+  [cell setBezelStyle: NSBezelStyleRounded];
 
   matrix = [[NSMatrix alloc] initWithFrame: contentRect
                                       mode: NSHighlightModeMatrix
@@ -1606,7 +1605,6 @@ ns_popup_dialog (struct frame *f, Lisp_Object header, Lisp_Object contents)
   [matrix autorelease];
 
   [[self contentView] addSubview: matrix];
-  [self setOneShot: YES];
   [self setReleasedWhenClosed: YES];
   [self setHidesOnDeactivate: YES];
   return self;
@@ -1893,6 +1891,7 @@ syms_of_nsmenu (void)
   /* Don't know how to keep track of this in Next/Open/GNUstep.  Always
      update menus there.  */
   trackingMenu = 1;
+  PDUMPER_REMEMBER_SCALAR (trackingMenu);
 #endif
   defsubr (&Sns_reset_menu);
   defsubr (&Smenu_or_popup_active_p);

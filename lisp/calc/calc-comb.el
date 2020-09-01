@@ -1,6 +1,6 @@
 ;;; calc-comb.el --- combinatoric functions for Calc
 
-;; Copyright (C) 1990-1993, 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -211,8 +211,8 @@
   (calc-invert-func)
   (calc-next-prime iters))
 
-(defun calc-prime-factors (iters)
-  (interactive "p")
+(defun calc-prime-factors (&optional _iters)
+  (interactive)
   (calc-slow-wrapper
    (let ((res (calcFunc-prfac (calc-top-n 1))))
      (if (not math-prime-factors-finished)
@@ -241,8 +241,8 @@
 	 (calcFunc-gcd (math-neg a) b))
 	((Math-looks-negp b)
 	 (calcFunc-gcd a (math-neg b)))
-	((Math-zerop a) b)
-	((Math-zerop b) a)
+	((Math-zerop a) (math-abs b))
+	((Math-zerop b) (math-abs a))
 	((and (Math-ratp a)
 	      (Math-ratp b))
 	 (math-make-frac (math-gcd (if (eq (car-safe a) 'frac) (nth 1 a) a)
@@ -806,7 +806,6 @@
 		  ((Math-integer-negp n)
 		   '(nil))
 		  ((Math-natnum-lessp n 8000000)
-		   (setq n (math-fixnum n))
 		   (let ((i -1) v)
 		     (while (and (> (% n (setq v (aref math-primes-table
 						       (setq i (1+ i)))))

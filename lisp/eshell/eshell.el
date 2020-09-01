@@ -1,6 +1,6 @@
 ;;; eshell.el --- the Emacs command shell  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2020 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 ;; Version: 2.4.2
@@ -175,7 +175,10 @@
 (eval-when-compile
   (require 'cl-lib))
 (require 'esh-util)
-(require 'esh-mode)
+(require 'esh-module)                   ;For eshell-using-module
+(require 'esh-proc)                     ;For eshell-wait-for-process
+(require 'esh-io)                       ;For eshell-last-command-status
+(require 'esh-cmd)
 
 (defgroup eshell nil
   "Command shell implemented entirely in Emacs Lisp.
@@ -213,14 +216,14 @@ shells such as bash, zsh, rc, 4dos."
   :group 'eshell)
 
 (defcustom eshell-buffer-name "*eshell*"
-  "The basename used for Eshell buffers."
-  :type 'string
-  :group 'eshell)
+  "The basename used for Eshell buffers.
+This is the default name used when running `eshell'.
 
-(defcustom eshell-directory-name
-  (locate-user-emacs-file "eshell/" ".eshell/")
-  "The directory where Eshell control files should be kept."
-  :type 'directory
+With a numeric prefix argument to `eshell', the buffer name will
+be the value of this variable followed by the number.  For
+example, with the numeric prefix argument 2, the buffer would be
+named \"*eshell*<2>\"."
+  :type 'string
   :group 'eshell)
 
 ;;;_* Running Eshell
@@ -232,13 +235,20 @@ shells such as bash, zsh, rc, 4dos."
 ;;;###autoload
 (defun eshell (&optional arg)
   "Create an interactive Eshell buffer.
-The buffer used for Eshell sessions is determined by the value of
-`eshell-buffer-name'.  If there is already an Eshell session active in
-that buffer, Emacs will simply switch to it.  Otherwise, a new session
-will begin.  A numeric prefix arg (as in `C-u 42 M-x eshell RET')
-switches to the session with that number, creating it if necessary.  A
-nonnumeric prefix arg means to create a new session.  Returns the
-buffer selected (or created)."
+Start a new Eshell session, or switch to an already active
+session.  Return the buffer selected (or created).
+
+With a nonnumeric prefix arg, create a new session.
+
+With a numeric prefix arg (as in `C-u 42 M-x eshell RET'), switch
+to the session with that number, or create it if it doesn't
+already exist.
+
+The buffer name used for Eshell sessions is determined by the
+value of `eshell-buffer-name', which see.
+
+Eshell is a shell-like command interpreter.  For more
+information on Eshell, see Info node `(eshell)Top'."
   (interactive "P")
   (cl-assert eshell-buffer-name)
   (let ((buf (cond ((numberp arg)
@@ -255,13 +265,18 @@ buffer selected (or created)."
       (eshell-mode))
     buf))
 
-(defun eshell-return-exits-minibuffer ()
-  (define-key eshell-mode-map [(control ?g)] 'abort-recursive-edit)
-  (define-key eshell-mode-map [return] 'exit-minibuffer)
-  (define-key eshell-mode-map [(control ?m)] 'exit-minibuffer)
-  (define-key eshell-mode-map [(control ?j)] 'exit-minibuffer)
-  (define-key eshell-mode-map [(meta return)] 'exit-minibuffer)
-  (define-key eshell-mode-map [(meta control ?m)] 'exit-minibuffer))
+(define-minor-mode eshell-command-mode
+  "Minor mode for `eshell-command' input.
+\\{eshell-command-mode-map}"
+  :keymap (let ((map (make-sparse-keymap)))
+            (define-key map [(control ?g)] 'abort-recursive-edit)
+            (define-key map [(control ?m)] 'exit-minibuffer)
+            (define-key map [(control ?j)] 'exit-minibuffer)
+            (define-key map [(meta control ?m)] 'exit-minibuffer)
+            map))
+
+(define-obsolete-function-alias 'eshell-return-exits-minibuffer
+  #'eshell-command-mode "28.1")
 
 (defvar eshell-non-interactive-p nil
   "A variable which is non-nil when Eshell is not running interactively.
@@ -275,14 +290,13 @@ non-interactive sessions, such as when using `eshell-command'.")
   "Execute the Eshell command string COMMAND.
 With prefix ARG, insert output into the current buffer at point."
   (interactive)
-  (require 'esh-cmd)
   (unless arg
     (setq arg current-prefix-arg))
   (let ((eshell-non-interactive-p t))
     ;; Enable `eshell-mode' only in this minibuffer.
     (minibuffer-with-setup-hook #'(lambda ()
                                     (eshell-mode)
-                                    (eshell-return-exits-minibuffer))
+                                    (eshell-command-mode +1))
       (unless command
         (setq command (read-from-minibuffer "Emacs shell command: "))
 	(if (eshell-using-module 'eshell-hist)
@@ -363,20 +377,12 @@ corresponding to a successful execution."
 	(let ((result (eshell-do-eval
 		       (list 'eshell-commands
 			     (list 'eshell-command-to-value
-				   (eshell-parse-command command))) t)))
+				   (eshell-parse-command command)))
+                       t)))
 	  (cl-assert (eq (car result) 'quote))
 	  (if (and status-var (symbolp status-var))
 	      (set status-var eshell-last-command-status))
 	  (cadr result))))))
-
-;;;_* Reporting bugs
-;;
-;; If you do encounter a bug, on any system, please report
-;; it -- in addition to any particular oddities in your configuration
-;; -- so that the problem may be corrected for the benefit of others.
-
-;;;###autoload
-(define-obsolete-function-alias 'eshell-report-bug 'report-emacs-bug "23.1")
 
 ;;; Code:
 
@@ -404,5 +410,4 @@ Emacs."
 (run-hooks 'eshell-load-hook)
 
 (provide 'eshell)
-
 ;;; eshell.el ends here

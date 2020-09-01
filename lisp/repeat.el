@@ -1,10 +1,10 @@
 ;;; repeat.el --- convenient way to repeat the previous command  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1998, 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1998, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: Will Mengarini <seldon@eskimo.com>
 ;; Created: Mo 02 Mar 98
-;; Version: 0.51
+;; Old-Version: 0.51
 ;; Keywords: convenience, vi, repeat
 
 ;; This file is part of GNU Emacs.

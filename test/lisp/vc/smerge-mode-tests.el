@@ -1,4 +1,6 @@
-;; Copyright (C) 2017-2018 Free Software Foundation, Inc.
+;;; smerge-mode-tests.el --- Tests for smerge-mode.el  -*- lexical-binding:t -*-
+
+;; Copyright (C) 2017-2020 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 

@@ -1,5 +1,5 @@
-;;; konsole.el --- terminal initialization for konsole
-;; Copyright (C) 2017-2018 Free Software Foundation, Inc.
+;;; konsole.el --- terminal initialization for konsole  -*- lexical-binding:t -*-
+;; Copyright (C) 2017-2020 Free Software Foundation, Inc.
 
 (require 'term/xterm)
 

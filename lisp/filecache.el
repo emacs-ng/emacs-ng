@@ -1,8 +1,8 @@
 ;;; filecache.el --- find files using a pre-loaded cache  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1996, 2000-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1996, 2000-2020 Free Software Foundation, Inc.
 
-;; Author:  Peter Breton <pbreton@cs.umb.edu>
+;; Author: Peter Breton <pbreton@cs.umb.edu>
 ;; Created: Sun Nov 10 1996
 ;; Keywords: convenience
 
@@ -613,9 +613,6 @@ the name is considered already unique; only the second substitution
     (choose-completion event)
     (select-window (active-minibuffer-window))
     (file-cache-minibuffer-complete nil)))
-
-(define-obsolete-function-alias 'file-cache-mouse-choose-completion
-  #'file-cache-choose-completion "23.2")
 
 (defun file-cache-complete  ()
   "Complete the word at point, using the filecache."

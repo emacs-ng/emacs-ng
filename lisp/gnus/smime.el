@@ -1,6 +1,6 @@
 ;;; smime.el --- S/MIME support library  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2000-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2020 Free Software Foundation, Inc.
 
 ;; Author: Simon Josefsson <simon@josefsson.org>
 ;; Keywords: SMIME X.509 PEM OpenSSL
@@ -130,7 +130,7 @@
 
 (defcustom smime-keys nil
   "Map mail addresses to a file containing Certificate (and private key).
-The file is assumed to be in PEM format. You can also associate additional
+The file is assumed to be in PEM format.  You can also associate additional
 certificates to be sent with every message to each address."
   :type '(repeat (list (string :tag "Mail address")
 		       (file :tag "File name")
@@ -185,6 +185,9 @@ and the files themselves should be in PEM format."
   :version "22.1"
   :type '(choice (const :tag "Triple DES" "-des3")
 		 (const :tag "DES"  "-des")
+		 (const :tag "AES 256 bits" "-aes256")
+		 (const :tag "AES 192 bits" "-aes192")
+		 (const :tag "AES 128 bits" "-aes128")
 		 (const :tag "RC2 40 bits" "-rc2-40")
 		 (const :tag "RC2 64 bits" "-rc2-64")
 		 (const :tag "RC2 128 bits" "-rc2-128"))
@@ -197,7 +200,7 @@ against a certificate revocation list (CRL).
 
 For this to work the CRL must be up-to-date and since they are
 normally updated quite often (i.e., several times a day) you
-probably need some tool to keep them up-to-date. Unfortunately
+probably need some tool to keep them up-to-date.  Unfortunately
 Gnus cannot do this for you.
 
 The CRL should either be appended (in PEM format) to your
@@ -371,16 +374,21 @@ Any details (stdout and stderr) are left in the buffer specified by
 			       (expand-file-name smime-CA-file)))
 		     (if smime-CA-directory
 			 (list "-CApath"
-			       (expand-file-name smime-CA-directory))))))
+			       (expand-file-name smime-CA-directory)))))
+	(input-buffer (current-buffer)))
     (unless CAs
       (error "No CA configured"))
     (if smime-crl-check
 	(cl-pushnew smime-crl-check CAs :test #'equal))
-    (if (apply 'smime-call-openssl-region b e (list smime-details-buffer t)
-	       "smime" "-verify" "-out" "/dev/null" CAs)
-	t
-      (insert-buffer-substring smime-details-buffer)
-      nil)))
+    (with-temp-buffer
+      (let ((result-buffer (current-buffer)))
+	(with-current-buffer input-buffer
+	  (if (apply 'smime-call-openssl-region b e (list result-buffer
+							  smime-details-buffer)
+		     "smime" "-verify" "-out" "-" CAs)
+	      (with-current-buffer result-buffer
+		(buffer-string))
+	    nil))))))
 
 (defun smime-noverify-region (b e)
   "Verify integrity of S/MIME message in region between B and E.
@@ -435,7 +443,7 @@ in the buffer specified by `smime-details-buffer'."
 
 (defun smime-verify-buffer (&optional buffer)
   "Verify integrity of S/MIME message in BUFFER.
-Uses current buffer if BUFFER is nil. Returns non-nil on success.
+Uses current buffer if BUFFER is nil.  Returns non-nil on success.
 Any details (stdout and stderr) are left in the buffer specified by
 `smime-details-buffer'."
   (interactive)
@@ -445,7 +453,7 @@ Any details (stdout and stderr) are left in the buffer specified by
 (defun smime-noverify-buffer (&optional buffer)
   "Verify integrity of S/MIME message in BUFFER.
 Does NOT verify validity of certificate (only message integrity).
-Uses current buffer if BUFFER is nil. Returns non-nil on success.
+Uses current buffer if BUFFER is nil.  Returns non-nil on success.
 Any details (stdout and stderr) are left in the buffer specified by
 `smime-details-buffer'."
   (interactive)

@@ -14,7 +14,7 @@ This file documents EUDC version 1.40.0.
 EUDC is the Emacs Unified Directory Client, a common interface to
 directory servers and contact information.
 
-Copyright @copyright{} 1998, 2000--2018 Free Software Foundation, Inc.
+Copyright @copyright{} 1998, 2000--2020 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -83,6 +83,8 @@ Currently supported back-ends are:
 LDAP, Lightweight Directory Access Protocol
 @item
 BBDB, Big Brother's Insidious Database
+@item
+macOS Contacts
 @end itemize
 
 The main features of the EUDC interface are:
@@ -107,6 +109,7 @@ Interface to BBDB to let you insert server records into your own BBDB database
 @menu
 * LDAP::                        What is LDAP ?
 * BBDB::                        What is BBDB ?
+* macOS Contacts::              What is macOS Contacts ?
 @end menu
 
 
@@ -131,7 +134,7 @@ complement to the DAP itself.
 LDAP servers usually store (but are not limited to) information about
 people such as their name, phone number, email address, office
 location, etc@enddots{} More information about LDAP can be found at
-@url{http://www.openldap.org/}.
+@url{https://www.openldap.org/}.
 
 EUDC requires external support to access LDAP directory servers
 (@pxref{LDAP Configuration})
@@ -159,6 +162,21 @@ queries on multiple servers.
 EUDC also offers a means to insert results from directory queries into
 your own local BBDB (@pxref{Creating BBDB Records})
 
+
+@node macOS Contacts
+@section macOS Contacts
+
+macOS Contacts is the rolodex-like application that ships with the
+macOS operating system@footnote{Apple have changed the names of their
+operating system and some applications over time.  macOS used to be
+called Mac OS X in the past, and the Contacts application was
+previously called Address Book.}.
+
+EUDC considers macOS Contacts as a directory server back end just like
+LDAP, though the macOS Contacts application always resides locally on
+your machine.
+
+
 @node Installation
 @chapter Installation
 
@@ -185,6 +203,7 @@ email composition buffers (@pxref{Inline Query Expansion})
 
 @menu
 * LDAP Configuration::           EUDC needs external support for LDAP
+* macOS Contacts Configuration:: Enable the macOS Contacts backend
 @end menu
 
 @node LDAP Configuration
@@ -193,7 +212,7 @@ email composition buffers (@pxref{Inline Query Expansion})
 LDAP support is added by means of @file{ldap.el}, which is part of
 Emacs.  @file{ldap.el} needs an external program called
 @command{ldapsearch}, available as part of OpenLDAP
-(@url{http://www.openldap.org/}).  The configurations in this section
+(@url{https://www.openldap.org/}).  The configurations in this section
 were tested with OpenLDAP 2.4.23.
 
 Most servers use LDAP-over-SSL these days; the examples here reflect
@@ -378,6 +397,39 @@ ldap-search-internal: Failed ldapsearch invocation:
 The @command{ldapsearch} command is formatted such that it can be
 copied and pasted into a terminal.  Set the @command{ldapsearch} debug
 level to 5 by appending @code{-d 5} to the command line.
+
+
+@node macOS Contacts Configuration
+@section macOS Contacts Configuration
+
+macOS Contacts support is added by means of @file{eudcb-mab.el}, or
+@file{eudcb-macos-contacts.el} which are part of Emacs.
+
+To enable a macOS Contacts backend, first `require' the respective
+library to load it, and then set the `eudc-server' to localhost in
+your init file:
+@lisp
+(require 'eudcb-macos-contacts)
+(eudc-macos-contacts-set-server "localhost")
+@end lisp
+
+@file{eudcb-macos-contacts.el} uses the public scripting interfaces
+offered by the Contacts app via the macOS Open Scripting Architecture
+(OSA).  To accomplish this, @file{eudcb-macos-contacts.el} uses an
+external command line utility named osascript, which is included with
+all macOS versions since 10.0 (which was released 2001).
+@file{eudcb-macos-contacts.el} is hence recommended for all new
+configurations.
+
+@file{eudcb-mab.el} reverse engineers the format of the database file
+used by the macOS Contacts app, and accesses its contents directly.
+While this may promise some performance advantages, it comes at the
+cost of using an undocumented interface.  Hence, users of
+@file{eudcb-mab.el} are recommended to double check the compatibility
+of @file{eudcb-mab.el} before upgrading to a new version of macOS.
+@file{eudcb-mab.el} is retained for backwards compatibility with
+existing configurations, and may be removed in a future release.
+
 
 @node Usage
 @chapter Usage
@@ -606,7 +658,7 @@ function that will be passed the corresponding attribute values for
 display.
 @end defvar
 
-This variable has protocol-local definitions (see @pxref{Server/Protocol
+This variable has protocol-local definitions (@pxref{Server/Protocol
 Locals}).  For instance, it is defined as follows for LDAP:
 
 @lisp
@@ -714,7 +766,7 @@ name and the remaining words are all considered as surname constituents.
 @var{format}s are in fact not limited to EUDC attribute names, you can
 use server or protocol specific names in them.  It may be safer if you
 do so, to set the variable @code{eudc-inline-query-format} in a protocol
-or server local fashion (see @pxref{Server/Protocol Locals}).
+or server local fashion (@pxref{Server/Protocol Locals}).
 
 For instance you could use the following to match up to three words
 against the @code{cn} attribute of LDAP servers:

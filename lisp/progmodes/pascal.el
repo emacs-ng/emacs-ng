@@ -1,6 +1,6 @@
 ;;; pascal.el --- major mode for editing pascal source in Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1993-2020 Free Software Foundation, Inc.
 
 ;; Author: Espen Skoglund <esk@gnu.org>
 ;; Keywords: languages
@@ -117,7 +117,7 @@
 (defconst pascal-beg-block-re   "\\<\\(begin\\|case\\|record\\|repeat\\)\\>")
 (defconst pascal-end-block-re   "\\<\\(end\\|until\\)\\>")
 (defconst pascal-declaration-re "\\<\\(const\\|label\\|type\\|var\\)\\>")
-(defconst pascal-progbeg-re     "\\<\\program\\>")
+(defconst pascal-progbeg-re     "\\<program\\>")
 (defconst pascal-defun-re       "\\<\\(function\\|procedure\\|program\\)\\>")
 (defconst pascal-sub-block-re   "\\<\\(if\\|else\\|for\\|while\\|with\\)\\>")
 (defconst pascal-noindent-re    "\\<\\(begin\\|end\\|until\\|else\\)\\>")
@@ -187,7 +187,7 @@
    ;; as comment starters.  Fix it here by removing the "2" from the syntax
    ;; of the second char of such sequences.
    ("/\\(\\*\\)" (1 ". 3b"))
-   ("(\\(\\/\\)" (1 (prog1 ". 1c" (forward-char -1) nil)))
+   ("(\\(/\\)" (1 (prog1 ". 1c" (forward-char -1) nil)))
    ;; Pascal uses '' and "" rather than \' and \" to escape quotes.
    ("''\\|\"\"" (0 (if (save-excursion
                          (nth 3 (syntax-ppss (match-beginning 0))))
@@ -510,9 +510,7 @@ This puts the mark at the end, and point at the beginning."
   (push-mark)
   (pascal-end-of-defun)
   (push-mark)
-  (pascal-beg-of-defun)
-  (when (featurep 'xemacs)
-    (zmacs-activate-region)))
+  (pascal-beg-of-defun))
 
 (defun pascal-comment-area (start end)
   "Put the region into a Pascal comment.\\<pascal-mode-map>
@@ -591,7 +589,7 @@ See also `pascal-comment-area'."
   (interactive)
   (catch 'found
     (if (not (looking-at (concat "\\s \\|\\s)\\|" pascal-defun-re)))
-	(forward-sexp 1))
+	(ignore-errors (forward-sexp 1)))
     (let ((nest 0) (max -1) (func 0)
 	  (reg (concat pascal-beg-block-re "\\|"
 		       pascal-end-block-re "\\|"
@@ -1172,26 +1170,27 @@ indent of the current line in parameterlist."
 
 (defun pascal-type-completion (pascal-str)
   "Calculate all possible completions for types."
-  (let ((start (point))
-        (pascal-all ())
-	goon)
-    ;; Search for all reachable type declarations
-    (while (or (pascal-beg-of-defun)
-	       (setq goon (not goon)))
-      (save-excursion
-	(if (and (< start (prog1 (save-excursion (pascal-end-of-defun)
-						 (point))
-			    (forward-char 1)))
-		 (re-search-forward
-		  "\\<type\\>\\|\\<\\(begin\\|function\\|procedure\\)\\>"
-		  start t)
-		 (not (match-end 1)))
-	    ;; Check current type declaration
-            (setq pascal-all
-                  (nconc (pascal-get-completion-decl pascal-str)
-                         pascal-all)))))
+  (save-excursion
+    (let ((start (point))
+          (pascal-all ())
+	  goon)
+      ;; Search for all reachable type declarations
+      (while (or (pascal-beg-of-defun)
+	         (setq goon (not goon)))
+        (save-excursion
+	  (if (and (< start (prog1 (save-excursion (pascal-end-of-defun)
+						   (point))
+			      (forward-char 1)))
+		   (re-search-forward
+		    "\\<type\\>\\|\\<\\(begin\\|function\\|procedure\\)\\>"
+		    start t)
+		   (not (match-end 1)))
+	      ;; Check current type declaration
+              (setq pascal-all
+                    (nconc (pascal-get-completion-decl pascal-str)
+                           pascal-all)))))
 
-    pascal-all))
+      pascal-all)))
 
 (defun pascal-var-completion (prefix)
   "Calculate all possible completions for variables (or constants)."
@@ -1265,11 +1264,13 @@ indent of the current line in parameterlist."
                     (and (eq state 'defun)
                          (save-excursion
                            (re-search-backward ")[ \t]*:" (point-at-bol) t))))
-                (if (or (eq state 'paramlist) (eq state 'defun))
-                    (pascal-beg-of-defun))
-                (nconc
-                 (pascal-type-completion pascal-str)
-                 (pascal-keyword-completion pascal-type-keywords pascal-str)))
+                (save-excursion
+                  (if (or (eq state 'paramlist) (eq state 'defun))
+                      (pascal-beg-of-defun))
+                  (nconc
+                   (pascal-type-completion pascal-str)
+                   (pascal-keyword-completion pascal-type-keywords
+                                              pascal-str))))
                (                        ;--Starting a new statement
                 (and (not (eq state 'contexp))
                      (save-excursion
@@ -1394,7 +1395,7 @@ The default is a name found in the buffer around point."
 (defvar pascal-outline-map
   (let ((map (make-sparse-keymap)))
     (if (fboundp 'set-keymap-name)
-        (set-keymap-name pascal-outline-map 'pascal-outline-map))
+        (set-keymap-name map 'pascal-outline-map))
     (define-key map "\M-\C-a"  'pascal-outline-prev-defun)
     (define-key map "\M-\C-e"  'pascal-outline-next-defun)
     (define-key map "\C-c\C-d" 'pascal-outline-goto-defun)

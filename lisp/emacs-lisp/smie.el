@@ -1,6 +1,6 @@
 ;;; smie.el --- Simple Minded Indentation Engine -*- lexical-binding: t -*-
 
-;; Copyright (C) 2010-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2020 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: languages, lisp, internal, parsing, indentation
@@ -52,6 +52,13 @@
 ;;   error because the parser just automatically does something.  Better yet,
 ;;   we can afford to use a sloppy grammar.
 
+;; The benefits of this approach were presented in the following article,
+;; which includes a kind of tutorial to get started with SMIE:
+;;
+;;     SMIE: Weakness is Power!  Auto-indentation with incomplete information
+;;     Stefan Monnier, <Programming> Journal 2020, volumn 5, issue 1.
+;;     doi: 10.22152/programming-journal.org/2020/5/1
+
 ;; A good background to understand the development (especially the parts
 ;; building the 2D precedence tables and then computing the precedence levels
 ;; from it) can be found in pages 187-194 of "Parsing techniques" by Dick Grune
@@ -62,6 +69,7 @@
 ;; untold numbers of black magic spells, to come up with the indentation code.
 ;; Since then, some of that code has been beaten into submission, but the
 ;; smie-indent-keyword is still pretty obscure.
+
 
 ;; Conflict resolution:
 ;;
@@ -533,9 +541,9 @@ PREC2 is a table as returned by `smie-precs->prec2' or
                      (setq y (cons nil (cons nil nil)))
                      (push (cons (cdr k) y) table))
                    (pcase v
-                     (`= (push (cons x y) eqs))
-                     (`< (push (cons x y) csts))
-                     (`> (push (cons y x) csts))
+                     ('= (push (cons x y) eqs))
+                     ('< (push (cons x y) csts))
+                     ('> (push (cons y x) csts))
                      (_ (error "SMIE error: prec2 has %S↦%S which ∉ {<,+,>}"
                                k v))))))
              prec2)
@@ -612,8 +620,8 @@ PREC2 is a table as returned by `smie-precs->prec2' or
     (dolist (x (gethash :smie-open/close-alist prec2))
       (let* ((token (car x))
              (cons (pcase (cdr x)
-                     (`closer (cddr (assoc token table)))
-                     (`opener (cdr (assoc token table))))))
+                     ('closer (cddr (assoc token table)))
+                     ('opener (cdr (assoc token table))))))
         ;; `cons' can be nil for openers/closers which only contain
         ;; "atomic" elements.
         (when cons
@@ -702,7 +710,11 @@ Possible return values:
   (catch 'return
     (let ((levels
            (if (stringp halfsexp)
-               (prog1 (list (cdr (assoc halfsexp smie-grammar)))
+               (prog1 (list (or (cdr (assoc halfsexp smie-grammar))
+                                (when (string-match "\\`\\s(\\|\\s)\\(\\)\\'"
+                                                    halfsexp)
+                                  (if (match-end 1) '(0 nil) '(nil 0)))
+                                (error "Unknown token: %S" halfsexp)))
                  (setq halfsexp nil)))))
       (while
           (let* ((pos (point))
@@ -1352,9 +1364,9 @@ Only meaningful when called from within `smie-rules-function'."
           (funcall smie-rules-function :elem 'basic))
       smie-indent-basic))
 
-(defun smie-indent--rule (method token
-                          ;; FIXME: Too many parameters.
-                          &optional after parent base-pos)
+(defun smie-indent--rule ( method token
+                           ;; FIXME: Too many parameters.
+                           &optional after parent base-pos)
   "Compute indentation column according to `smie-rules-function'.
 METHOD and TOKEN are passed to `smie-rules-function'.
 AFTER is the position after TOKEN, if known.
@@ -1446,9 +1458,9 @@ in order to figure out the indentation of some other (further down) point."
   (and (smie-indent--bolp)
        (save-excursion
          (comment-normalize-vars)
-         (re-search-forward (concat comment-start-skip
+         (re-search-forward (concat "\\(?:" comment-start-skip "\\)"
                                     "fixindent"
-                                    comment-end-skip)
+                                    "\\(?:" comment-end-skip "\\)")
                             ;; 1+ to account for the \n comment termination.
                             (1+ (line-end-position)) t))
        (current-column)))
@@ -1648,11 +1660,33 @@ should not be computed on the basis of the following token."
          (let ((ppss (syntax-ppss)))
            (save-excursion
              (forward-line -1)
-             (if (<= (point) (nth 8 ppss))
-                 (progn (goto-char (1+ (nth 8 ppss))) (current-column))
-               (skip-chars-forward " \t")
-               (if (looking-at (regexp-quote continue))
-                   (current-column))))))))
+             (let ((start (nth 8 ppss)))
+               (if (<= (point) start)
+                   (progn
+                     (goto-char start)
+                     (if (not (and comment-start-skip
+                                   (looking-at comment-start-skip)))
+                         (forward-char 1)
+                       (goto-char (match-end 0))
+                       (skip-chars-backward " \t")
+                       ;; Try to align the first char of the comment-continue
+                       ;; with the second char of the comment-start or the
+                       ;; first char if the comment-start is made of
+                       ;; a single char.  E.g.
+                       ;;
+                       ;;     /* foo
+                       ;;      * bar */
+                       ;;
+                       ;; but
+                       ;;
+                       ;;     { foo
+                       ;;     | bar }
+                       (goto-char (if (eq (point) (1+ start))
+                                      start (1+ start))))
+                     (current-column))
+                 (skip-chars-forward " \t")
+                 (if (looking-at (regexp-quote continue))
+                     (current-column)))))))))
 
 (defun smie-indent-comment-close ()
   (and (boundp 'comment-end-skip)
@@ -1856,9 +1890,9 @@ KEYWORDS are additional arguments, which can use the following keywords:
     (let ((k (pop keywords))
           (v (pop keywords)))
       (pcase k
-        (`:forward-token
+        (:forward-token
          (set (make-local-variable 'smie-forward-token-function) v))
-        (`:backward-token
+        (:backward-token
          (set (make-local-variable 'smie-backward-token-function) v))
         (_ (message "smie-setup: ignoring unknown keyword %s" k)))))
   (let ((ca (cdr (assq :smie-closer-alist grammar))))

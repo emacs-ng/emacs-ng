@@ -1,6 +1,6 @@
-;;; animate.el --- make text dance
+;;; animate.el --- make text dance  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2020 Free Software Foundation, Inc.
 
 ;; Maintainer: Richard Stallman <rms@gnu.org>
 ;; Keywords: games
@@ -84,7 +84,7 @@
 (defun animate-place-char (char vpos hpos)
   (goto-char (window-start))
   (let (abbrev-mode)
-    (dotimes (i vpos)
+    (dotimes (_ vpos)
       (end-of-line)
       (if (= (forward-line 1) 1)
 	  (insert "\n"))))

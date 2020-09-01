@@ -1,8 +1,10 @@
-# gnulib-common.m4 serial 39
-dnl Copyright (C) 2007-2018 Free Software Foundation, Inc.
+# gnulib-common.m4 serial 57
+dnl Copyright (C) 2007-2020 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
 dnl with or without modifications, as long as this notice is preserved.
+
+AC_PREREQ([2.62])
 
 # gl_COMMON
 # is expanded unconditionally through gnulib-tool magic.
@@ -10,16 +12,42 @@ AC_DEFUN([gl_COMMON], [
   dnl Use AC_REQUIRE here, so that the code is expanded once only.
   AC_REQUIRE([gl_00GNULIB])
   AC_REQUIRE([gl_COMMON_BODY])
+  AC_REQUIRE([gl_ZZGNULIB])
 ])
 AC_DEFUN([gl_COMMON_BODY], [
+  AH_VERBATIM([_GL_GNUC_PREREQ],
+[/* True if the compiler says it groks GNU C version MAJOR.MINOR.  */
+#if defined __GNUC__ && defined __GNUC_MINOR__
+# define _GL_GNUC_PREREQ(major, minor) \
+    ((major) < __GNUC__ + ((minor) <= __GNUC_MINOR__))
+#else
+# define _GL_GNUC_PREREQ(major, minor) 0
+#endif
+])
   AH_VERBATIM([_Noreturn],
 [/* The _Noreturn keyword of C11.  */
-#if ! (defined _Noreturn \
-       || (defined __STDC_VERSION__ && 201112 <= __STDC_VERSION__))
-# if (3 <= __GNUC__ || (__GNUC__ == 2 && 8 <= __GNUC_MINOR__) \
-      || 0x5110 <= __SUNPRO_C)
+#ifndef _Noreturn
+# if (defined __cplusplus \
+      && ((201103 <= __cplusplus && !(__GNUC__ == 4 && __GNUC_MINOR__ == 7)) \
+          || (defined _MSC_VER && 1900 <= _MSC_VER)) \
+      && 0)
+    /* [[noreturn]] is not practically usable, because with it the syntax
+         extern _Noreturn void func (...);
+       would not be valid; such a declaration would only be valid with 'extern'
+       and '_Noreturn' swapped, or without the 'extern' keyword.  However, some
+       AIX system header files and several gnulib header files use precisely
+       this syntax with 'extern'.  */
+#  define _Noreturn [[noreturn]]
+# elif ((!defined __cplusplus || defined __clang__) \
+        && (201112 <= (defined __STDC_VERSION__ ? __STDC_VERSION__ : 0)  \
+            || _GL_GNUC_PREREQ (4, 7) \
+            || (defined __apple_build_version__ \
+                ? 6000000 <= __apple_build_version__ \
+                : 3 < __clang_major__ + (5 <= __clang_minor__))))
+   /* _Noreturn works as-is.  */
+# elif _GL_GNUC_PREREQ (2, 8) || defined __clang__ || 0x5110 <= __SUNPRO_C
 #  define _Noreturn __attribute__ ((__noreturn__))
-# elif defined _MSC_VER && 1200 <= _MSC_VER
+# elif 1200 <= (defined _MSC_VER ? _MSC_VER : 0)
 #  define _Noreturn __declspec (noreturn)
 # else
 #  define _Noreturn
@@ -36,50 +64,288 @@ AC_DEFUN([gl_COMMON_BODY], [
 #if defined __APPLE__ && defined __MACH__ && __APPLE_CC__ >= 5465 && !defined __cplusplus && __STDC_VERSION__ >= 199901L && !defined __GNUC_STDC_INLINE__
 # define __GNUC_STDC_INLINE__ 1
 #endif])
-  AH_VERBATIM([unused_parameter],
-[/* Define as a marker that can be attached to declarations that might not
-    be used.  This helps to reduce warnings, such as from
-    GCC -Wunused-parameter.  */
-#if __GNUC__ >= 3 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 7)
-# define _GL_UNUSED __attribute__ ((__unused__))
+  AH_VERBATIM([attribute],
+[/* Attributes.  */
+#ifdef __has_attribute
+# define _GL_HAS_ATTRIBUTE(attr) __has_attribute (__##attr##__)
 #else
-# define _GL_UNUSED
+# define _GL_HAS_ATTRIBUTE(attr) _GL_ATTR_##attr
+# define _GL_ATTR_alloc_size _GL_GNUC_PREREQ (4, 3)
+# define _GL_ATTR_always_inline _GL_GNUC_PREREQ (3, 2)
+# define _GL_ATTR_artificial _GL_GNUC_PREREQ (4, 3)
+# define _GL_ATTR_cold _GL_GNUC_PREREQ (4, 3)
+# define _GL_ATTR_const _GL_GNUC_PREREQ (2, 95)
+# define _GL_ATTR_deprecated _GL_GNUC_PREREQ (3, 1)
+# define _GL_ATTR_diagnose_if 0
+# define _GL_ATTR_error _GL_GNUC_PREREQ (4, 3)
+# define _GL_ATTR_externally_visible _GL_GNUC_PREREQ (4, 1)
+# define _GL_ATTR_fallthrough _GL_GNUC_PREREQ (7, 0)
+# define _GL_ATTR_format _GL_GNUC_PREREQ (2, 7)
+# define _GL_ATTR_leaf _GL_GNUC_PREREQ (4, 6)
+# ifdef _ICC
+#  define _GL_ATTR_may_alias 0
+# else
+#  define _GL_ATTR_may_alias _GL_GNUC_PREREQ (3, 3)
+# endif
+# define _GL_ATTR_malloc _GL_GNUC_PREREQ (3, 0)
+# define _GL_ATTR_noinline _GL_GNUC_PREREQ (3, 1)
+# define _GL_ATTR_nonnull _GL_GNUC_PREREQ (3, 3)
+# define _GL_ATTR_nonstring _GL_GNUC_PREREQ (8, 0)
+# define _GL_ATTR_nothrow _GL_GNUC_PREREQ (3, 3)
+# define _GL_ATTR_packed _GL_GNUC_PREREQ (2, 7)
+# define _GL_ATTR_pure _GL_GNUC_PREREQ (2, 96)
+# define _GL_ATTR_returns_nonnull _GL_GNUC_PREREQ (4, 9)
+# define _GL_ATTR_sentinel _GL_GNUC_PREREQ (4, 0)
+# define _GL_ATTR_unused _GL_GNUC_PREREQ (2, 7)
+# define _GL_ATTR_warn_unused_result _GL_GNUC_PREREQ (3, 4)
 #endif
-/* The name _UNUSED_PARAMETER_ is an earlier spelling, although the name
-   is a misnomer outside of parameter lists.  */
-#define _UNUSED_PARAMETER_ _GL_UNUSED
 
-/* gcc supports the "unused" attribute on possibly unused labels, and
-   g++ has since version 4.5.  Note to support C++ as well as C,
-   _GL_UNUSED_LABEL should be used with a trailing ;  */
-#if !defined __cplusplus || __GNUC__ > 4 \
-    || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)
-# define _GL_UNUSED_LABEL _GL_UNUSED
+]dnl There is no _GL_ATTRIBUTE_ALIGNED; use stdalign's _Alignas instead.
+[
+#if _GL_HAS_ATTRIBUTE (alloc_size)
+# define _GL_ATTRIBUTE_ALLOC_SIZE(args) __attribute__ ((__alloc_size__ args))
+#else
+# define _GL_ATTRIBUTE_ALLOC_SIZE(args)
+#endif
+
+#if _GL_HAS_ATTRIBUTE (always_inline)
+# define _GL_ATTRIBUTE_ALWAYS_INLINE __attribute__ ((__always_inline__))
+#else
+# define _GL_ATTRIBUTE_ALWAYS_INLINE
+#endif
+
+#if _GL_HAS_ATTRIBUTE (artificial)
+# define _GL_ATTRIBUTE_ARTIFICIAL __attribute__ ((__artificial__))
+#else
+# define _GL_ATTRIBUTE_ARTIFICIAL
+#endif
+
+/* Avoid __attribute__ ((cold)) on MinGW; see thread starting at
+   <https://lists.gnu.org/r/emacs-devel/2019-04/msg01152.html>.
+   Also, Oracle Studio 12.6 requires 'cold' not '__cold__'.  */
+#if _GL_HAS_ATTRIBUTE (cold) && !defined __MINGW32__
+# ifndef __SUNPRO_C
+#  define _GL_ATTRIBUTE_COLD __attribute__ ((__cold__))
+# else
+#  define _GL_ATTRIBUTE_COLD __attribute__ ((cold))
+# endif
+#else
+# define _GL_ATTRIBUTE_COLD
+#endif
+
+#if _GL_HAS_ATTRIBUTE (const)
+# define _GL_ATTRIBUTE_CONST __attribute__ ((__const__))
+#else
+# define _GL_ATTRIBUTE_CONST
+#endif
+
+#if 201710L < __STDC_VERSION__
+# define _GL_ATTRIBUTE_DEPRECATED [[__deprecated__]]
+#elif _GL_HAS_ATTRIBUTE (deprecated)
+# define _GL_ATTRIBUTE_DEPRECATED __attribute__ ((__deprecated__))
+#else
+# define _GL_ATTRIBUTE_DEPRECATED
+#endif
+
+#if _GL_HAS_ATTRIBUTE (error)
+# define _GL_ATTRIBUTE_ERROR(msg) __attribute__ ((__error__ (msg)))
+# define _GL_ATTRIBUTE_WARNING(msg) __attribute__ ((__warning__ (msg)))
+#elif _GL_HAS_ATTRIBUTE (diagnose_if)
+# define _GL_ATTRIBUTE_ERROR(msg) __attribute__ ((__diagnose_if__ (1, msg, "error")))
+# define _GL_ATTRIBUTE_WARNING(msg) __attribute__ ((__diagnose_if__ (1, msg, "warning")))
+#else
+# define _GL_ATTRIBUTE_ERROR(msg)
+# define _GL_ATTRIBUTE_WARNING(msg)
+#endif
+
+#if _GL_HAS_ATTRIBUTE (externally_visible)
+# define _GL_ATTRIBUTE_EXTERNALLY_VISIBLE __attribute__ ((externally_visible))
+#else
+# define _GL_ATTRIBUTE_EXTERNALLY_VISIBLE
+#endif
+
+/* FALLTHROUGH is special, because it always expands to something.  */
+#if 201710L < __STDC_VERSION__
+# define _GL_ATTRIBUTE_FALLTHROUGH [[__fallthrough__]]
+#elif _GL_HAS_ATTRIBUTE (fallthrough)
+# define _GL_ATTRIBUTE_FALLTHROUGH __attribute__ ((__fallthrough__))
+#else
+# define _GL_ATTRIBUTE_FALLTHROUGH ((void) 0)
+#endif
+
+#if _GL_HAS_ATTRIBUTE (format)
+# define _GL_ATTRIBUTE_FORMAT(spec) __attribute__ ((__format__ spec))
+#else
+# define _GL_ATTRIBUTE_FORMAT(spec)
+#endif
+
+#if _GL_HAS_ATTRIBUTE (leaf)
+# define _GL_ATTRIBUTE_LEAF __attribute__ ((__leaf__))
+#else
+# define _GL_ATTRIBUTE_LEAF
+#endif
+
+/* Oracle Studio 12.6 mishandles may_alias despite __has_attribute OK.  */
+#if _GL_HAS_ATTRIBUTE (may_alias) && !defined __SUNPRO_C
+# define _GL_ATTRIBUTE_MAY_ALIAS __attribute__ ((__may_alias__))
+#else
+# define _GL_ATTRIBUTE_MAY_ALIAS
+#endif
+
+#if 201710L < __STDC_VERSION__
+# define _GL_ATTRIBUTE_MAYBE_UNUSED [[__maybe_unused__]]
+#elif _GL_HAS_ATTRIBUTE (unused)
+# define _GL_ATTRIBUTE_MAYBE_UNUSED __attribute__ ((__unused__))
+#else
+# define _GL_ATTRIBUTE_MAYBE_UNUSED
+#endif
+/* Earlier spellings of this macro.  */
+#define _GL_UNUSED _GL_ATTRIBUTE_MAYBE_UNUSED
+#define _UNUSED_PARAMETER_ _GL_ATTRIBUTE_MAYBE_UNUSED
+
+#if _GL_HAS_ATTRIBUTE (malloc)
+# define _GL_ATTRIBUTE_MALLOC __attribute__ ((__malloc__))
+#else
+# define _GL_ATTRIBUTE_MALLOC
+#endif
+
+#if 201710L < __STDC_VERSION__
+# define _GL_ATTRIBUTE_NODISCARD [[__nodiscard__]]
+#elif _GL_HAS_ATTRIBUTE (warn_unused_result)
+# define _GL_ATTRIBUTE_NODISCARD __attribute__ ((__warn_unused_result__))
+#else
+# define _GL_ATTRIBUTE_NODISCARD
+#endif
+
+#if _GL_HAS_ATTRIBUTE (noinline)
+# define _GL_ATTRIBUTE_NOINLINE __attribute__ ((__noinline__))
+#else
+# define _GL_ATTRIBUTE_NOINLINE
+#endif
+
+#if _GL_HAS_ATTRIBUTE (nonnull)
+# define _GL_ATTRIBUTE_NONNULL(args) __attribute__ ((__nonnull__ args))
+#else
+# define _GL_ATTRIBUTE_NONNULL(args)
+#endif
+
+#if _GL_HAS_ATTRIBUTE (nonstring)
+# define _GL_ATTRIBUTE_NONSTRING __attribute__ ((__nonstring__))
+#else
+# define _GL_ATTRIBUTE_NONSTRING
+#endif
+
+/* There is no _GL_ATTRIBUTE_NORETURN; use _Noreturn instead.  */
+
+#if _GL_HAS_ATTRIBUTE (nothrow) && !defined __cplusplus
+# define _GL_ATTRIBUTE_NOTHROW __attribute__ ((__nothrow__))
+#else
+# define _GL_ATTRIBUTE_NOTHROW
+#endif
+
+#if _GL_HAS_ATTRIBUTE (packed)
+# define _GL_ATTRIBUTE_PACKED __attribute__ ((__packed__))
+#else
+# define _GL_ATTRIBUTE_PACKED
+#endif
+
+#if _GL_HAS_ATTRIBUTE (pure)
+# define _GL_ATTRIBUTE_PURE __attribute__ ((__pure__))
+#else
+# define _GL_ATTRIBUTE_PURE
+#endif
+
+#if _GL_HAS_ATTRIBUTE (returns_nonnull)
+# define _GL_ATTRIBUTE_RETURNS_NONNULL __attribute__ ((__returns_nonnull__))
+#else
+# define _GL_ATTRIBUTE_RETURNS_NONNULL
+#endif
+
+#if _GL_HAS_ATTRIBUTE (sentinel)
+# define _GL_ATTRIBUTE_SENTINEL(pos) __attribute__ ((__sentinel__ pos))
+#else
+# define _GL_ATTRIBUTE_SENTINEL(pos)
+#endif
+
+]dnl There is no _GL_ATTRIBUTE_VISIBILITY; see m4/visibility.m4 instead.
+[
+/* To support C++ as well as C, use _GL_UNUSED_LABEL with trailing ';'.  */
+#if !defined __cplusplus || _GL_GNUC_PREREQ (4, 5)
+# define _GL_UNUSED_LABEL _GL_ATTRIBUTE_MAYBE_UNUSED
 #else
 # define _GL_UNUSED_LABEL
 #endif
-
-/* The __pure__ attribute was added in gcc 2.96.  */
-#if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 96)
-# define _GL_ATTRIBUTE_PURE __attribute__ ((__pure__))
-#else
-# define _GL_ATTRIBUTE_PURE /* empty */
-#endif
-
-/* The __const__ attribute was added in gcc 2.95.  */
-#if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 95)
-# define _GL_ATTRIBUTE_CONST __attribute__ ((__const__))
-#else
-# define _GL_ATTRIBUTE_CONST /* empty */
-#endif
-
-/* The __malloc__ attribute was added in gcc 3.  */
-#if 3 <= __GNUC__
-# define _GL_ATTRIBUTE_MALLOC __attribute__ ((__malloc__))
-#else
-# define _GL_ATTRIBUTE_MALLOC /* empty */
-#endif
 ])
+  AH_VERBATIM([async_safe],
+[/* The _GL_ASYNC_SAFE marker should be attached to functions that are
+   signal handlers (for signals other than SIGABRT, SIGPIPE) or can be
+   invoked from such signal handlers.  Such functions have some restrictions:
+     * All functions that it calls should be marked _GL_ASYNC_SAFE as well,
+       or should be listed as async-signal-safe in POSIX
+       <https://pubs.opengroup.org/onlinepubs/9699919799/functions/V2_chap02.html#tag_15_04>
+       section 2.4.3.  Note that malloc(), sprintf(), and fwrite(), in
+       particular, are NOT async-signal-safe.
+     * All memory locations (variables and struct fields) that these functions
+       access must be marked 'volatile'.  This holds for both read and write
+       accesses.  Otherwise the compiler might optimize away stores to and
+       reads from such locations that occur in the program, depending on its
+       data flow analysis.  For example, when the program contains a loop
+       that is intended to inspect a variable set from within a signal handler
+           while (!signal_occurred)
+             ;
+       the compiler is allowed to transform this into an endless loop if the
+       variable 'signal_occurred' is not declared 'volatile'.
+   Additionally, recall that:
+     * A signal handler should not modify errno (except if it is a handler
+       for a fatal signal and ends by raising the same signal again, thus
+       provoking the termination of the process).  If it invokes a function
+       that may clobber errno, it needs to save and restore the value of
+       errno.  */
+#define _GL_ASYNC_SAFE
+])
+  AH_VERBATIM([micro_optimizations],
+[/* _GL_CMP (n1, n2) performs a three-valued comparison on n1 vs. n2, where
+   n1 and n2 are expressions without side effects, that evaluate to real
+   numbers (excluding NaN).
+   It returns
+     1  if n1 > n2
+     0  if n1 == n2
+     -1 if n1 < n2
+   The naïve code   (n1 > n2 ? 1 : n1 < n2 ? -1 : 0)  produces a conditional
+   jump with nearly all GCC versions up to GCC 10.
+   This variant     (n1 < n2 ? -1 : n1 > n2)  produces a conditional with many
+   GCC versions up to GCC 9.
+   The better code  (n1 > n2) - (n1 < n2)  from Hacker's Delight § 2-9
+   avoids conditional jumps in all GCC versions >= 3.4.  */
+#define _GL_CMP(n1, n2) (((n1) > (n2)) - ((n1) < (n2)))
+])
+  dnl Hint which direction to take regarding cross-compilation guesses:
+  dnl When a user installs a program on a platform they are not intimately
+  dnl familiar with, --enable-cross-guesses=conservative is the appropriate
+  dnl choice.  It implements the "If we don't know, assume the worst" principle.
+  dnl However, when an operating system developer (on a platform which is not
+  dnl yet known to gnulib) builds packages for their platform, they want to
+  dnl expose, not hide, possible platform bugs; in this case,
+  dnl --enable-cross-guesses=risky is the appropriate choice.
+  dnl Sets the variables
+  dnl gl_cross_guess_normal    (to be used when 'yes' is good and 'no' is bad),
+  dnl gl_cross_guess_inverted  (to be used when 'no' is good and 'yes' is bad).
+  AC_ARG_ENABLE([cross-guesses],
+    [AS_HELP_STRING([--enable-cross-guesses={conservative|risky}],
+       [specify policy for cross-compilation guesses])],
+    [if test "x$enableval" != xconservative && test "x$enableval" != xrisky; then
+       AC_MSG_WARN([invalid argument supplied to --enable-cross-guesses])
+       enableval=conservative
+     fi
+     gl_cross_guesses="$enableval"],
+    [gl_cross_guesses=conservative])
+  if test $gl_cross_guesses = risky; then
+    gl_cross_guess_normal="guessing yes"
+    gl_cross_guess_inverted="guessing no"
+  else
+    gl_cross_guess_normal="guessing no"
+    gl_cross_guess_inverted="guessing yes"
+  fi
   dnl Preparation for running test programs:
   dnl Tell glibc to write diagnostics from -D_FORTIFY_SOURCE=2 to stderr, not
   dnl to /dev/tty, so they can be redirected to log files.  Such diagnostics
@@ -214,26 +480,10 @@ AC_DEFUN([gl_FEATURES_H],
   AC_SUBST([HAVE_FEATURES_H])
 ])
 
-# m4_foreach_w
-# is a backport of autoconf-2.59c's m4_foreach_w.
-# Remove this macro when we can assume autoconf >= 2.60.
-m4_ifndef([m4_foreach_w],
-  [m4_define([m4_foreach_w],
-    [m4_foreach([$1], m4_split(m4_normalize([$2]), [ ]), [$3])])])
-
-# AS_VAR_IF(VAR, VALUE, [IF-MATCH], [IF-NOT-MATCH])
-# ----------------------------------------------------
-# Backport of autoconf-2.63b's macro.
-# Remove this macro when we can assume autoconf >= 2.64.
-m4_ifndef([AS_VAR_IF],
-[m4_define([AS_VAR_IF],
-[AS_IF([test x"AS_VAR_GET([$1])" = x""$2], [$3], [$4])])])
-
 # gl_PROG_CC_C99
 # Modifies the value of the shell variable CC in an attempt to make $CC
 # understand ISO C99 source code.
 # This is like AC_PROG_CC_C99, except that
-# - AC_PROG_CC_C99 did not exist in Autoconf versions < 2.60,
 # - AC_PROG_CC_C99 does not mix well with AC_PROG_CC_STDC
 #   <https://lists.gnu.org/r/bug-gnulib/2011-09/msg00367.html>,
 #   but many more packages use AC_PROG_CC_STDC than AC_PROG_CC_C99
@@ -322,25 +572,6 @@ Amsterdam
   AC_SUBST([RANLIB])
 ])
 
-# AC_PROG_MKDIR_P
-# is a backport of autoconf-2.60's AC_PROG_MKDIR_P, with a fix
-# for interoperability with automake-1.9.6 from autoconf-2.62.
-# Remove this macro when we can assume autoconf >= 2.62 or
-# autoconf >= 2.60 && automake >= 1.10.
-# AC_AUTOCONF_VERSION was introduced in 2.62, so use that as the witness.
-m4_ifndef([AC_AUTOCONF_VERSION],[
-m4_ifdef([AC_PROG_MKDIR_P], [
-  dnl For automake-1.9.6 && autoconf < 2.62: Ensure MKDIR_P is AC_SUBSTed.
-  m4_define([AC_PROG_MKDIR_P],
-    m4_defn([AC_PROG_MKDIR_P])[
-    AC_SUBST([MKDIR_P])])], [
-  dnl For autoconf < 2.60: Backport of AC_PROG_MKDIR_P.
-  AC_DEFUN_ONCE([AC_PROG_MKDIR_P],
-    [AC_REQUIRE([AM_PROG_MKDIR_P])dnl defined by automake
-     MKDIR_P='$(mkdir_p)'
-     AC_SUBST([MKDIR_P])])])
-])
-
 # AC_C_RESTRICT
 # This definition is copied from post-2.69 Autoconf and overrides the
 # AC_C_RESTRICT macro from autoconf 2.60..2.69.  It can be removed
@@ -373,12 +604,13 @@ AC_DEFUN([AC_C_RESTRICT],
    nothing if this is not supported.  Do not define if restrict is
    supported directly.  */
 #undef restrict
-/* Work around a bug in Sun C++: it does not support _Restrict or
-   __restrict__, even though the corresponding Sun C compiler ends up with
-   "#define restrict _Restrict" or "#define restrict __restrict__" in the
-   previous line.  Perhaps some future version of Sun C++ will work with
-   restrict; if so, hopefully it defines __RESTRICT like Sun C does.  */
-#if defined __SUNPRO_CC && !defined __RESTRICT
+/* Work around a bug in older versions of Sun C++, which did not
+   #define __restrict__ or support _Restrict or __restrict__
+   even though the corresponding Sun C compiler ended up with
+   "#define restrict _Restrict" or "#define restrict __restrict__"
+   in the previous line.  This workaround can be removed once
+   we assume Oracle Developer Studio 12.5 (2016) or later.  */
+#if defined __SUNPRO_CC && !defined __RESTRICT && !defined __restrict__
 # define _Restrict
 # define __restrict__
 #endif])
@@ -398,6 +630,15 @@ AC_DEFUN([gl_BIGENDIAN],
   AC_C_BIGENDIAN
 ])
 
+# gl_SILENT(command)
+# executes command, but without the normal configure output.
+AC_DEFUN([gl_SILENT],
+[
+  {
+    $1
+  } AS_MESSAGE_FD>/dev/null
+])
+
 # gl_CACHE_VAL_SILENT(cache-id, command-to-set-it)
 # is like AC_CACHE_VAL(cache-id, command-to-set-it), except that it does not
 # output a spurious "(cached)" mark in the midst of other configure output.
@@ -411,64 +652,72 @@ AC_DEFUN([gl_CACHE_VAL_SILENT],
   as_echo_n="$saved_as_echo_n"
 ])
 
-# AS_VAR_COPY was added in autoconf 2.63b
-m4_define_default([AS_VAR_COPY],
-[AS_LITERAL_IF([$1[]$2], [$1=$$2], [eval $1=\$$2])])
-
-# AC_PROG_SED was added in autoconf 2.59b
-m4_ifndef([AC_PROG_SED],
-[AC_DEFUN([AC_PROG_SED],
-[AC_CACHE_CHECK([for a sed that does not truncate output], ac_cv_path_SED,
-    [dnl ac_script should not contain more than 99 commands (for HP-UX sed),
-     dnl but more than about 7000 bytes, to catch a limit in Solaris 8 /usr/ucb/sed.
-     ac_script=s/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/
-     for ac_i in 1 2 3 4 5 6 7; do
-       ac_script="$ac_script$as_nl$ac_script"
-     done
-     echo "$ac_script" 2>/dev/null | sed 99q >conftest.sed
-     AS_UNSET([ac_script])
-     if test -z "$SED"; then
-       ac_path_SED_found=false
-       _AS_PATH_WALK([], [
-         for ac_prog in sed gsed; do
-           for ac_exec_ext in '' $ac_executable_extensions; do
-             ac_path_SED="$as_dir/$ac_prog$ac_exec_ext"
-             AS_EXECUTABLE_P(["$ac_path_SED"]) || continue
-             case `"$ac_path_SED" --version 2>&1` in
-               *GNU*) ac_cv_path_SED=$ac_path_SED ac_path_SED_found=:;;
-               *)
-                 ac_count=0
-                 _AS_ECHO_N([0123456789]) >conftest.in
-                 while :
-                 do
-                   cat conftest.in conftest.in >conftest.tmp
-                   mv conftest.tmp conftest.in
-                   cp conftest.in conftest.nl
-                   echo >> conftest.nl
-                   "$ac_path_SED" -f conftest.sed <conftest.nl >conftest.out 2>/dev/null || break
-                   diff conftest.out conftest.nl >/dev/null 2>&1 || break
-                   ac_count=`expr $ac_count + 1`
-                   if test $ac_count -gt ${ac_path_SED_max-0}; then
-                     # Best so far, but keep looking for better
-                     ac_cv_path_SED=$ac_path_SED
-                     ac_path_SED_max=$ac_count
-                   fi
-                   test $ac_count -gt 10 && break
-                 done
-                 rm -f conftest.in conftest.tmp conftest.nl conftest.out;;
-             esac
-             $ac_path_SED_found && break 3
-           done
-         done])
-       if test -z "$ac_cv_path_SED"; then
-         AC_ERROR([no acceptable sed could be found in \$PATH])
-       fi
-     else
-       ac_cv_path_SED=$SED
-     fi
-    ])
- SED="$ac_cv_path_SED"
- AC_SUBST([SED])dnl
- rm -f conftest.sed
+dnl Expands to some code for use in .c programs that, on native Windows, defines
+dnl the Microsoft deprecated alias function names to the underscore-prefixed
+dnl actual function names. With this macro, these function names are available
+dnl without linking with '-loldnames' and without generating warnings.
+dnl Usage: Use it after all system header files are included.
+dnl          #include <...>
+dnl          #include <...>
+dnl          ]GL_MDA_DEFINES[
+dnl          ...
+AC_DEFUN([GL_MDA_DEFINES],[
+AC_REQUIRE([_GL_MDA_DEFINES])
+[$gl_mda_defines]
 ])
+AC_DEFUN([_GL_MDA_DEFINES],
+[gl_mda_defines='
+#if defined _WIN32 && !defined __CYGWIN__
+#define access    _access
+#define chdir     _chdir
+#define chmod     _chmod
+#define close     _close
+#define creat     _creat
+#define dup       _dup
+#define dup2      _dup2
+#define ecvt      _ecvt
+#define execl     _execl
+#define execle    _execle
+#define execlp    _execlp
+#define execv     _execv
+#define execve    _execve
+#define execvp    _execvp
+#define execvpe   _execvpe
+#define fcloseall _fcloseall
+#define fcvt      _fcvt
+#define fdopen    _fdopen
+#define fileno    _fileno
+#define gcvt      _gcvt
+#define getcwd    _getcwd
+#define getpid    _getpid
+#define getw      _getw
+#define isatty    _isatty
+#define j0        _j0
+#define j1        _j1
+#define jn        _jn
+#define lfind     _lfind
+#define lsearch   _lsearch
+#define lseek     _lseek
+#define memccpy   _memccpy
+#define mkdir     _mkdir
+#define mktemp    _mktemp
+#define open      _open
+#define putenv    _putenv
+#define putw      _putw
+#define read      _read
+#define rmdir     _rmdir
+#define strdup    _strdup
+#define swab      _swab
+#define tempnam   _tempnam
+#define tzset     _tzset
+#define umask     _umask
+#define unlink    _unlink
+#define utime     _utime
+#define wcsdup    _wcsdup
+#define write     _write
+#define y0        _y0
+#define y1        _y1
+#define yn        _yn
+#endif
+'
 ])

@@ -1,6 +1,6 @@
 ;;; dnd.el --- drag and drop support
 
-;; Copyright (C) 2005-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2020 Free Software Foundation, Inc.
 
 ;; Author: Jan Djärv <jan.h.d@swipnet.se>
 ;; Maintainer: emacs-devel@gnu.org
@@ -63,12 +63,12 @@ if some action was made, or nil if the URL is ignored."
       'dnd-open-local-file
     'dnd-open-remote-url)
   "The function to call when opening a file on a remote machine.
-The function will be called with two arguments; URI and ACTION. See
-`dnd-open-file' for details.
+The function will be called with two arguments, URI and ACTION.
+See `dnd-open-file' for details.
 If nil, then dragging remote files into Emacs will result in an error.
 Predefined functions are `dnd-open-local-file' and `dnd-open-remote-url'.
 `dnd-open-local-file' attempts to open a remote file using its UNC name and
-is the  default on MS-Windows.  `dnd-open-remote-url' uses `url-handler-mode'
+is the default on MS-Windows.  `dnd-open-remote-url' uses `url-handler-mode'
 and is the default except for MS-Windows."
   :version "22.1"
   :type 'function
@@ -87,13 +87,11 @@ and is the default except for MS-Windows."
 (defun dnd-handle-one-url (window action url)
   "Handle one dropped url by calling the appropriate handler.
 The handler is first located by looking at `dnd-protocol-alist'.
-If no match is found here, and the value of `browse-url-browser-function'
-is a pair of (REGEXP . FUNCTION), those regexps are tried for a match.
-If no match is found, just call `dnd-insert-text'.
-WINDOW is where the drop happened, ACTION is the action for the drop,
-URL is what has been dropped.
-Returns ACTION."
-  (require 'browse-url)
+If no match is found here, `browse-url-handlers' and
+`browse-url-default-handlers' are searched for a match.
+If no match is found, just call `dnd-insert-text'.  WINDOW is
+where the drop happened, ACTION is the action for the drop, URL
+is what has been dropped.  Returns ACTION."
   (let (ret)
     (or
      (catch 'done
@@ -102,14 +100,13 @@ Returns ACTION."
 	   (setq ret (funcall (cdr bf) url action))
 	   (throw 'done t)))
        nil)
-     (when (not (functionp browse-url-browser-function))
-       (catch 'done
-	 (dolist (bf browse-url-browser-function)
-	   (when (string-match (car bf) url)
-	     (setq ret 'private)
-	     (funcall (cdr bf) url action)
-	     (throw 'done t)))
-	 nil))
+     (catch 'done
+       (let ((browser (browse-url-select-handler url 'internal)))
+         (when browser
+           (setq ret 'private)
+           (funcall browser url action)
+           (throw 'done t)))
+       nil)
      (progn
        (dnd-insert-text window action url)
        (setq ret 'private)))
@@ -130,6 +127,7 @@ Return nil if URI is not a local file."
 			 (match-string 0 sysname)
 		       sysname))))
       (when (and hostname
+                 (not (eq system-type 'windows-nt))
 		 (or (string-equal "localhost" hostname)
 		     (string-equal (downcase sysname) hostname)
 		     (string-equal sysname-no-dot hostname)))
@@ -137,7 +135,7 @@ Return nil if URI is not a local file."
 
 (defsubst dnd-unescape-uri (uri)
   (replace-regexp-in-string
-   "%[A-Fa-f0-9][A-Fa-f0-9]"
+   "%[[:xdigit:]][[:xdigit:]]"
    (lambda (arg)
      (let ((str (make-string 1 0)))
        (aset str 0 (string-to-number (substring arg 1) 16))
@@ -173,7 +171,7 @@ The last / in file:/// is part of the file name.  If the system
 natively supports unc file names, then remote urls of the form
 file://server-name/file-name will also be handled by this function.
 An alternative for systems that do not support unc file names is
-`dnd-open-remote-url'. ACTION is ignored."
+`dnd-open-remote-url'.  ACTION is ignored."
 
   (let* ((f (dnd-get-local-file-name uri t)))
     (if (and f (file-readable-p f))

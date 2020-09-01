@@ -1,6 +1,6 @@
 GNU Emacs NEWS -- history of user-visible changes.
 
-Copyright (C) 2014-2018 Free Software Foundation, Inc.
+Copyright (C) 2014-2020 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 Please send Emacs bug reports to bug-gnu-emacs@gnu.org.
@@ -284,6 +284,8 @@ affected by the command.
 
 ** New command 'comment-line' bound to 'C-x C-;'.
 
+** New commands 'upcase-dwim' and 'downcase-dwim'.
+
 ** New and improved facilities for inserting Unicode characters
 
 *** Unicode names entered via 'C-x 8 RET' now use substring completion
@@ -451,6 +453,11 @@ specified message types for the respective specified targets.
 
 *** Nick completion is now case-insensitive again after inadvertently
 being made case-sensitive in Emacs 24.2.
+
+** Rcirc
+
+*** Rcirc now supports automatic reconnection.
+Set new user option 'rcirc-reconnect-delay' to non-zero to enable it.
 
 ** MPC
 

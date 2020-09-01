@@ -1,9 +1,9 @@
 ;;; vcursor.el --- manipulate an alternative ("virtual") cursor
 
-;; Copyright (C) 1994, 1996, 1998, 2001-2018 Free Software Foundation,
+;; Copyright (C) 1994, 1996, 1998, 2001-2020 Free Software Foundation,
 ;; Inc.
 
-;; Author:   Peter Stephenson <pws@ibmth.df.unipi.it>
+;; Author: Peter Stephenson <pws@ibmth.df.unipi.it>
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: virtual cursor, convenience
 
@@ -1131,9 +1131,6 @@ line is treated like ordinary characters."
 	 (count (vcursor-get-char-count 'end-of-line num)))
     (vcursor-copy (if (or (= count 0) arg) (1+ count) count)))
   )
-
-(define-obsolete-function-alias
-  'vcursor-toggle-vcursor-map 'vcursor-use-vcursor-map "23.1")
 
 (defun vcursor-post-command ()
   (and vcursor-auto-disable (not vcursor-last-command)

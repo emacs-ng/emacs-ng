@@ -1,8 +1,7 @@
 ;;; ind-util.el --- Transliteration and Misc. Tools for Indian Languages -*- coding: utf-8-emacs; -*-
 
-;; Copyright (C) 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2020 Free Software Foundation, Inc.
 
-;; Maintainer:  KAWABATA, Taichi <kawabata@m17n.org>
 ;; Keywords: multilingual, Indian, Devanagari
 
 ;; This file is part of GNU Emacs.
@@ -233,8 +232,8 @@
   '(
     (;; VOWELS
      (?അ nil) (?ആ ?ാ) (?ഇ ?ി) (?ഈ ?ീ) (?ഉ ?ു) (?ഊ ?ൂ)
-     (?ഋ ?ൃ) (?ഌ nil) nil (?ഏ ?േ) (?എ ?െ) (?ഐ ?ൈ)
-     nil (?ഓ ?ോ) (?ഒ ?ൊ) (?ഔ ?ൌ) nil nil)
+     (?ഋ ?ൃ) (?ഌ ?ൢ) (?ൡ ?ൣ) (?ഏ ?േ) (?എ ?െ) (?ഐ ?ൈ)
+     nil (?ഒ ?ൊ) (?ഓ ?ോ) (?ഔ ?ൗ) (?് ?്) (?ൠ ?ൄ))
     (;; CONSONANTS
      ?ക ?ഖ ?ഗ ?ഘ ?ങ                  ;; GUTTRULS
      ?ച ?ഛ ?ജ ?ഝ ?ഞ                  ;; PALATALS
@@ -244,13 +243,16 @@
      ?യ ?ര ?റ ?ല ?ള ?ഴ ?വ          ;; SEMIVOWELS
      ?ശ ?ഷ ?സ ?ഹ                    ;; SIBILANTS
      nil nil nil nil nil nil nil nil      ;; NUKTAS
-     "ജ്ഞ" "ക്ഷ")
+     "ജ്ഞ" "ക്ഷ"
+     "റ്റ" "ന്റ" "ത്ത" "ത്ഥ" "ഞ്ഞ" "ങ്ങ" "ന്ന"
+     "ഞ്ച" "ന്ക" "ങ്ക" "ച്ച" "ച്ഛ" "ക്ക"
+     "ബ്ബ" "ക്ക" "ഗ്ഗ" "ജ്ജ" "മ്മ" "പ്പ" "വ്വ" "ക്സ" "ശ്ശ")
     (;; Misc Symbols
      nil ?ം ?ഃ nil ?് nil nil)
     (;; Digits
      ?൦ ?൧ ?൨ ?൩ ?൪ ?൫ ?൬ ?൭ ?൮ ?൯)
-    (;; Inscript-extra (4)  (#, $, ^, *, ])
-     "്ര" "ര്" "ത്ര" "ശ്ര" nil)))
+    (;; Chillus
+     "ണ്" ?ൺ "ന്" ?ൻ "ര്" ?ർ "ല്" ?ൽ "ള്" ?ൾ)))
 
 (defvar indian-tml-base-table
   '(
@@ -323,6 +325,29 @@
      ("GY" "dny") "x")
     (;; misc -- 7
      ".N" (".n" "M") "H" ".a" ".h" ("AUM" "OM") "..")))
+
+(defvar indian-mlm-mozhi-table
+  '(;; for encode/decode
+    (;; vowels -- 18
+     "a" ("aa" "A") "i" ("ii" "I") "u" ("uu" "U")
+     "R" "Ll" "Lll" ("E" "ae") "e" "ai"
+     nil  "o"   "O"   "au"  "~" "RR")
+    (;; consonants -- 40
+     ("k" "c")   "kh"  "g"   "gh"  "ng"
+     "ch" ("Ch" "chh") "j" "jh" "nj"
+     "T"   "Th"  "D"   "Dh"  "N"
+     "th"  "thh" "d"   "dh"  "n"   nil
+     "p"   ("ph" "f")  "b"   "bh"  "m"
+     "y"   "r"   "rr"  "l"  "L" "zh" ("v" "w")
+     ("S" "z") "sh" "s" "h"
+     nil nil nil nil nil nil nil nil
+     nil "X"
+     ;; some of these are extra to Mozhi
+     ("t" "tt") "nt" "tth" "tthh" "nnj" "nng" "nn"
+     "nch" "nc" "nk" "cch" "cchh" "cc"
+     "B" ("C" "K" "q") "G" "J" "M" "P" "V" "x" "Z")
+    (;; misc -- 7
+     nil nil "H")))
 
 (defvar indian-kyoto-harvard-table
   '(;; for encode/decode
@@ -524,6 +549,10 @@
 (defvar indian-mlm-itrans-v5-hash
   (indian-make-hash indian-mlm-base-table
 			  indian-itrans-v5-table))
+
+(defvar indian-mlm-mozhi-hash
+  (indian-make-hash indian-mlm-base-table
+			  indian-mlm-mozhi-table))
 
 (defvar indian-tml-itrans-v5-hash
   (indian-make-hash indian-tml-base-table
@@ -776,13 +805,13 @@
 (defvar is13194-to-ucs-kannada-hashtbl nil)
 (defvar is13194-to-ucs-kannada-regexp nil)
 
-(defvar ucs-to-is13194-regexp
+(defvar indian-ucs-to-is13194-regexp
   ;; only Devanagari is supported now.
   (concat "[" (char-to-string #x0900)
           "-" (char-to-string #x097f) "]")
   "Regexp that matches to conversion")
 
-(defun ucs-to-iscii-region (from to)
+(defun indian-ucs-to-iscii-region (from to)
   "Converts the indian UCS characters in the region to ISCII.
 Returns new end position."
   (interactive "r")
@@ -792,13 +821,13 @@ Returns new end position."
       (narrow-to-region from to)
       (goto-char (point-min))
       (let* ((current-repertory is13194-default-repertory))
-	(while (re-search-forward ucs-to-is13194-regexp nil t)
+	(while (re-search-forward indian-ucs-to-is13194-regexp nil t)
 	  (replace-match
 	   (get-char-code-property (string-to-char (match-string 0))
 				   'iscii))))
       (point-max))))
 
-(defun iscii-to-ucs-region (from to)
+(defun indian-iscii-to-ucs-region (from to)
   "Converts the ISCII characters in the region to UCS.
 Returns new end position."
   (interactive "r")
@@ -829,6 +858,9 @@ Returns new end position."
       (let ((pos from) newpos func (max to))
 	(narrow-to-region from to)
 	(while (< pos max)
+          ;; FIXME: The below seems to assume
+          ;; composition-function-table holds functions?  That is no
+          ;; longer true, since long ago.
 	  (setq func (aref composition-function-table (char-after pos)))
 	  (if (fboundp func)
 	      (setq newpos (funcall func pos nil)
@@ -846,7 +878,7 @@ Returns new end position."
 ;;;###autoload
 (defun in-is13194-post-read-conversion (len)
   (let ((pos (point)) endpos)
-    (setq endpos (iscii-to-ucs-region pos (+ pos len)))
+    (setq endpos (indian-iscii-to-ucs-region pos (+ pos len)))
     (- endpos pos)))
 
 ;;;###autoload
@@ -856,7 +888,7 @@ Returns new end position."
     (if (stringp from)
 	(insert from)
       (insert-buffer-substring buf from to))
-    (ucs-to-iscii-region (point-min) (point-max))
+    (indian-ucs-to-iscii-region (point-min) (point-max))
     nil))
 
 

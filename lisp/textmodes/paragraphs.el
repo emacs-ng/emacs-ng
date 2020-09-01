@@ -1,6 +1,6 @@
-;;; paragraphs.el --- paragraph and sentence parsing
+;;; paragraphs.el --- paragraph and sentence parsing  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1991, 1994-1997, 1999-2018 Free Software
+;; Copyright (C) 1985-1987, 1991, 1994-1997, 1999-2020 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -35,7 +35,7 @@
 
 (put 'use-hard-newlines 'permanent-local t)
 (define-minor-mode use-hard-newlines
-  "Toggle distinguishing between hard and soft newlines.
+  "Toggle between hard and soft newlines in the current buffer.
 
 When enabled, the functions `newline' and `open-line' add the
 text-property `hard' to newlines that they insert, and a line is
@@ -165,10 +165,10 @@ to obtain the value of this variable."
   :type '(choice regexp (const :tag "Use default value" nil)))
 (put 'sentence-end 'safe-local-variable 'string-or-null-p)
 
-(defcustom sentence-end-base "[.?!…‽][]\"'”’)}]*"
+(defcustom sentence-end-base "[.?!…‽][]\"'”’)}»›]*"
   "Regexp matching the basic end of a sentence, not including following space."
   :group 'paragraphs
-  :type 'string
+  :type 'regexp
   :version "25.1")
 (put 'sentence-end-base 'safe-local-variable 'stringp)
 
@@ -207,6 +207,9 @@ This is desirable in modes where blank lines are the paragraph delimiters."
   :group 'paragraphs
   :type 'boolean)
 (put 'paragraph-ignore-fill-prefix 'safe-local-variable 'booleanp)
+
+;; Silence the compiler.
+(defvar multiple-lines)
 
 (defun forward-paragraph (&optional arg)
   "Move forward to end of paragraph.
@@ -368,45 +371,62 @@ See `forward-paragraph' for more information."
 
 (defun mark-paragraph (&optional arg allow-extend)
   "Put point at beginning of this paragraph, mark at end.
-The paragraph marked is the one that contains point or follows point.
+The paragraph marked is the one that contains point or follows
+point.
 
-With argument ARG, puts mark at end of a following paragraph, so that
-the number of paragraphs marked equals ARG.
+With argument ARG, puts mark at the end of this or a following
+paragraph, so that the number of paragraphs marked equals ARG.
 
-If ARG is negative, point is put at end of this paragraph, mark is put
-at beginning of this or a previous paragraph.
+If ARG is negative, point is put at the end of this paragraph,
+mark is put at the beginning of this or a previous paragraph.
 
 Interactively (or if ALLOW-EXTEND is non-nil), if this command is
-repeated or (in Transient Mark mode) if the mark is active,
-it marks the next ARG paragraphs after the ones already marked."
-  (interactive "p\np")
-  (unless arg (setq arg 1))
-  (when (zerop arg)
-    (error "Cannot mark zero paragraphs"))
-  (cond ((and allow-extend
-	      (or (and (eq last-command this-command) (mark t))
-		  (and transient-mark-mode mark-active)))
-	 (set-mark
-	  (save-excursion
-	    (goto-char (mark))
-	    (forward-paragraph arg)
-	    (point))))
-	(t
-	 (forward-paragraph arg)
-	 (push-mark nil t t)
-	 (backward-paragraph arg))))
+repeated or (in Transient Mark mode) if the mark is active, it
+marks the next ARG paragraphs after the region already marked.
+This also means when activating the mark immediately before using
+this command, the current paragraph is only marked from point."
+  (interactive "P\np")
+  (let ((numeric-arg (prefix-numeric-value arg)))
+    (cond ((zerop numeric-arg))
+	  ((and allow-extend
+		(or (and (eq last-command this-command) mark-active)
+		    (region-active-p)))
+	   (if arg
+	       (setq arg numeric-arg)
+	     (if (< (mark) (point))
+		 (setq arg -1)
+	       (setq arg 1)))
+	   (set-mark
+	    (save-excursion
+	      (goto-char (mark))
+	      (forward-paragraph arg)
+	      (point))))
+	  ;; don't activate the mark when at eob
+	  ((and (eobp) (> numeric-arg 0)))
+	  (t
+	   (unless (save-excursion
+		     (forward-line 0)
+		     (looking-at  paragraph-start))
+	     (backward-paragraph (cond ((> numeric-arg 0) 1)
+                                       ((< numeric-arg 0) -1)
+                                       (t 0))))
+	   (push-mark
+	    (save-excursion
+	      (forward-paragraph numeric-arg)
+	      (point))
+            t t)))))
 
 (defun kill-paragraph (arg)
   "Kill forward to end of paragraph.
-With arg N, kill forward to Nth end of paragraph;
-negative arg -N means kill backward to Nth start of paragraph."
+With ARG N, kill forward to Nth end of paragraph;
+negative ARG -N means kill backward to Nth start of paragraph."
   (interactive "p")
   (kill-region (point) (progn (forward-paragraph arg) (point))))
 
 (defun backward-kill-paragraph (arg)
   "Kill back to start of paragraph.
-With arg N, kill back to Nth start of paragraph;
-negative arg -N means kill forward to Nth end of paragraph."
+With ARG N, kill back to Nth start of paragraph;
+negative ARG -N means kill forward to Nth end of paragraph."
   (interactive "p")
   (kill-region (point) (progn (backward-paragraph arg) (point))))
 
@@ -421,6 +441,7 @@ the current paragraph with the one containing the mark."
   (transpose-subr 'forward-paragraph arg))
 
 (defun start-of-paragraph-text ()
+  "Move to the start of the current paragraph."
   (let ((opoint (point)) npoint)
     (forward-paragraph -1)
     (setq npoint (point))
@@ -436,6 +457,7 @@ the current paragraph with the one containing the mark."
 	      (start-of-paragraph-text))))))
 
 (defun end-of-paragraph-text ()
+  "Move to the end of the current paragraph."
   (let ((opoint (point)))
     (forward-paragraph 1)
     (if (eq (preceding-char) ?\n) (forward-char -1))
@@ -447,7 +469,7 @@ the current paragraph with the one containing the mark."
 
 (defun forward-sentence (&optional arg)
   "Move forward to next end of sentence.  With argument, repeat.
-With negative argument, move backward repeatedly to start of sentence.
+When ARG is negative, move backward repeatedly to start of sentence.
 
 The variable `sentence-end' is a regular expression that matches ends of
 sentences.  Also, every paragraph boundary terminates sentences as well."
@@ -483,37 +505,46 @@ sentences.  Also, every paragraph boundary terminates sentences as well."
       (setq arg (1- arg)))
     (constrain-to-field nil opoint t)))
 
-(defun repunctuate-sentences ()
+(defun repunctuate-sentences (&optional no-query)
   "Put two spaces at the end of sentences from point to the end of buffer.
-It works using `query-replace-regexp'."
+It works using `query-replace-regexp'.
+If optional argument NO-QUERY is non-nil, make changes without
+asking for confirmation."
   (interactive)
-  (query-replace-regexp "\\([]\"')]?\\)\\([.?!]\\)\\([]\"')]?\\) +"
-			"\\1\\2\\3  "))
+  (let ((regexp "\\([]\"')]?\\)\\([.?!]\\)\\([]\"')]?\\) +")
+        (to-string "\\1\\2\\3  "))
+    (if no-query
+        (while (re-search-forward regexp nil t)
+          (replace-match to-string))
+      (query-replace-regexp regexp to-string))))
 
 
 (defun backward-sentence (&optional arg)
-  "Move backward to start of sentence.  With arg, do it arg times.
-See `forward-sentence' for more information."
+  "Move backward to start of sentence.
+With ARG, do it ARG times.  See `forward-sentence' for more
+information."
   (interactive "^p")
   (or arg (setq arg 1))
   (forward-sentence (- arg)))
 
 (defun kill-sentence (&optional arg)
   "Kill from point to end of sentence.
-With arg, repeat; negative arg -N means kill back to Nth start of sentence."
+With ARG, repeat; negative ARG -N means kill back to Nth start of
+sentence."
   (interactive "p")
   (kill-region (point) (progn (forward-sentence arg) (point))))
 
 (defun backward-kill-sentence (&optional arg)
   "Kill back from point to start of sentence.
-With arg, repeat, or kill forward to Nth end of sentence if negative arg -N."
+With ARG, repeat, or kill forward to Nth end of sentence if
+negative ARG -N."
   (interactive "p")
   (kill-region (point) (progn (backward-sentence arg) (point))))
 
 (defun mark-end-of-sentence (arg)
-  "Put mark at end of sentence.  Arg works as in `forward-sentence'.
-If this command is repeated, it marks the next ARG sentences after the
-ones already marked."
+  "Put mark at end of sentence.
+ARG works as in `forward-sentence'.  If this command is repeated,
+it marks the next ARG sentences after the ones already marked."
   (interactive "p")
   (push-mark
    (save-excursion

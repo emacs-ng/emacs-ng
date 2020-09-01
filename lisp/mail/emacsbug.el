@@ -1,6 +1,6 @@
 ;;; emacsbug.el --- command to report Emacs bugs to appropriate mailing list
 
-;; Copyright (C) 1985, 1994, 1997-1998, 2000-2018 Free Software
+;; Copyright (C) 1985, 1994, 1997-1998, 2000-2020 Free Software
 ;; Foundation, Inc.
 
 ;; Author: K. Shane Hartman
@@ -69,6 +69,7 @@
 (declare-function x-server-vendor "xfns.c" (&optional terminal))
 (declare-function x-server-version "xfns.c" (&optional terminal))
 (declare-function message-sort-headers "message" ())
+(declare-function w32--os-description "w32-fns" ())
 (defvar message-strip-special-text-properties)
 
 (defun report-emacs-bug-can-use-osx-open ()
@@ -116,6 +117,9 @@ This requires either the macOS \"open\" command, or the freedesktop
 			   (concat "mailto:" to)))
 	(error "Subject, To or body not found")))))
 
+(defvar report-emacs-bug--os-description nil
+  "Cached value of operating system description.")
+
 (defun report-emacs-bug--os-description ()
   "Return a string describing the operating system, or nil."
   (cond ((eq system-type 'darwin)
@@ -129,9 +133,23 @@ This requires either the macOS \"open\" command, or the freedesktop
                                         nil t)
                      (setq os (concat os " " (match-string 1)))))))
            os))
-        ;; TODO include other branches here.
-        ;; MS Windows: systeminfo ?
-        ;; Cygwin, *BSD, etc: ?
+        ((eq system-type 'windows-nt)
+         (or report-emacs-bug--os-description
+             (setq report-emacs-bug--os-description (w32--os-description))))
+        ((eq system-type 'berkeley-unix)
+         (with-temp-buffer
+           (when
+               (or (eq 0 (ignore-errors (call-process "freebsd-version" nil
+                                                      '(t nil) nil "-u")))
+                   (progn (erase-buffer)
+                          (eq 0 (ignore-errors
+                                  (call-process "uname" nil
+                                                '(t nil) nil "-a")))))
+             (unless (zerop (buffer-size))
+               (goto-char (point-min))
+               (buffer-substring (line-beginning-position)
+                                 (line-end-position))))))
+        ;; TODO Cygwin, Solaris (usg-unix-v).
         (t
          (or (let ((file "/etc/os-release"))
                (and (file-readable-p file)
@@ -190,7 +208,11 @@ This requires either the macOS \"open\" command, or the freedesktop
 ;;;###autoload
 (defun report-emacs-bug (topic &optional unused)
   "Report a bug in GNU Emacs.
-Prompts for bug subject.  Leaves you in a mail buffer."
+Prompts for bug subject.  Leaves you in a mail buffer.
+
+Already submitted bugs can be found in the Emacs bug tracker:
+
+  https://debbugs.gnu.org/cgi/pkgreport.cgi?package=emacs;max-bugs=100;base-order=1;bug-rev=1"
   (declare (advertised-calling-convention (topic) "24.5"))
   (interactive "sBug Subject: ")
   ;; The syntax `version;' is preferred to `[version]' because the
@@ -221,8 +243,8 @@ Prompts for bug subject.  Leaves you in a mail buffer."
       ;; Stop message-mode stealing the properties we will add.
       (set (make-local-variable 'message-strip-special-text-properties) nil)
       ;; Make sure we default to the From: address as envelope when sending
-      ;; through sendmail.
-      (when (and (not message-sendmail-envelope-from)
+      ;; through sendmail.  FIXME: Why?
+      (when (and (not (message--sendmail-envelope-from))
 		 (message-bogus-recipient-p (message-make-address)))
 	(set (make-local-variable 'message-sendmail-envelope-from) 'header)))
     (rfc822-goto-eoh)
@@ -252,7 +274,7 @@ Prompts for bug subject.  Leaves you in a mail buffer."
 	 'face 'link
 	 'help-echo (concat "mouse-2, RET: Follow this link")
 	 'action (lambda (button)
-		   (browse-url "https://debbugs.gnu.org/"))
+		   (browse-url "https://debbugs.gnu.org/cgi/pkgreport.cgi?package=emacs;max-bugs=100;base-order=1;bug-rev=1"))
 	 'follow-link t)
 
 	(insert ".  Please check that
@@ -290,6 +312,8 @@ usually do not have translators for other languages.\n\n")))
 
     (if (stringp emacs-repository-version)
 	(insert "Repository revision: " emacs-repository-version "\n"))
+    (if (stringp emacs-repository-branch)
+	(insert "Repository branch: " emacs-repository-branch "\n"))
     (if (fboundp 'x-server-vendor)
 	(condition-case nil
             ;; This is used not only for X11 but also W32 and others.
@@ -300,18 +324,6 @@ usually do not have translators for other languages.\n\n")))
     (let ((os (ignore-errors (report-emacs-bug--os-description))))
       (if (stringp os)
           (insert "System Description: " os "\n\n")))
-    (let ((message-buf (get-buffer "*Messages*")))
-      (if message-buf
-	  (let (beg-pos
-		(end-pos message-end-point))
-	    (with-current-buffer message-buf
-	      (goto-char end-pos)
-	      (forward-line -10)
-	      (setq beg-pos (point)))
-            (terpri (current-buffer) t)
-	    (insert "Recent messages:\n")
-	    (insert-buffer-substring message-buf beg-pos end-pos))))
-    (insert "\n")
     (when (and system-configuration-options
 	       (not (equal system-configuration-options "")))
       (insert "Configured using:\n 'configure "
@@ -410,14 +422,10 @@ usually do not have translators for other languages.\n\n")))
                        report-emacs-bug-orig-text)
          (error "No text entered in bug report"))
     ;; Warning for novice users.
-    (unless (or report-emacs-bug-no-confirmation
-		(yes-or-no-p
-		 "Send this bug report to the Emacs maintainers? "))
-      (goto-char (point-min))
-      (if (search-forward "To: ")
-          (delete-region (point) (line-end-position)))
-      (if report-emacs-bug-send-hook
-          (kill-local-variable report-emacs-bug-send-hook))
+    (when (and (string-match "bug-gnu-emacs@gnu\\.org" (mail-fetch-field "to"))
+               (not report-emacs-bug-no-confirmation)
+	       (not (yes-or-no-p
+		     "Send this bug report to the Emacs maintainers? ")))
       (with-output-to-temp-buffer "*Bug Help*"
 	(princ (substitute-command-keys
                 (format "\
@@ -461,7 +469,11 @@ and send the mail again%s."
 	       (not (yes-or-no-p
 		     (format-message "Is `%s' really your email address? "
                                      from)))
-	       (error "Please edit the From address and try again"))))))
+	       (error "Please edit the From address and try again"))))
+    ;; Bury the help buffer (if it's shown).
+    (when-let ((help (get-buffer "*Bug Help*")))
+      (when (get-buffer-window help)
+        (quit-window nil (get-buffer-window help))))))
 
 
 (provide 'emacsbug)

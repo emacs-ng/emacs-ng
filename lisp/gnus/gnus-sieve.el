@@ -1,6 +1,6 @@
 ;;; gnus-sieve.el --- Utilities to manage sieve scripts for Gnus
 
-;; Copyright (C) 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: NAGY Andras <nagya@inf.elte.hu>,
 ;;	Simon Josefsson <simon@josefsson.org>
@@ -29,8 +29,6 @@
 
 (require 'gnus)
 (require 'gnus-sum)
-(require 'format-spec)
-(autoload 'sieve-mode "sieve-mode")
 (eval-when-compile
   (require 'sieve))
 
@@ -88,10 +86,10 @@ See the documentation for these variables and functions for details."
   (save-buffer)
   (shell-command
    (format-spec gnus-sieve-update-shell-command
-		(format-spec-make ?f gnus-sieve-file
-				  ?s (or (cadr (gnus-server-get-method
-						nil gnus-sieve-select-method))
-					 "")))))
+                `((?f . ,gnus-sieve-file)
+                  (?s . ,(or (cadr (gnus-server-get-method
+                                    nil gnus-sieve-select-method))
+                             ""))))))
 
 ;;;###autoload
 (defun gnus-sieve-generate ()
@@ -128,7 +126,7 @@ Return nil if no rule could be guessed."
 	  (info (gnus-get-info gnus-newsgroup-name)))
       (if (null rule)
 	  (error "Could not guess rule for article")
-	(gnus-info-set-params info (cons rule (gnus-info-params info)))
+	(push rule (gnus-info-params info))
 	(message "Added rule in group %s for article: %s" gnus-newsgroup-name
 		 rule)))))
 

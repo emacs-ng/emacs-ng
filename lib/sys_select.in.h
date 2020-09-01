@@ -1,5 +1,5 @@
 /* Substitute for <sys/select.h>.
-   Copyright (C) 2007-2018 Free Software Foundation, Inc.
+   Copyright (C) 2007-2020 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -177,14 +177,14 @@ rpl_fd_isset (SOCKET fd, fd_set * set)
 #  if !(defined __cplusplus && defined GNULIB_NAMESPACE)
 #   undef close
 #   define close close_used_without_including_unistd_h
-#  else
+#  elif !defined __clang__
     _GL_WARN_ON_USE (close,
                      "close() used without including <unistd.h>");
 #  endif
 #  if !(defined __cplusplus && defined GNULIB_NAMESPACE)
 #   undef gethostname
 #   define gethostname gethostname_used_without_including_unistd_h
-#  else
+#  elif !defined __clang__
     _GL_WARN_ON_USE (gethostname,
                      "gethostname() used without including <unistd.h>");
 #  endif
@@ -219,7 +219,7 @@ rpl_fd_isset (SOCKET fd, fd_set * set)
 #   define setsockopt          setsockopt_used_without_including_sys_socket_h
 #   undef shutdown
 #   define shutdown            shutdown_used_without_including_sys_socket_h
-#  else
+#  elif !defined __clang__
     _GL_WARN_ON_USE (socket,
                      "socket() used without including <sys/socket.h>");
     _GL_WARN_ON_USE (connect,
@@ -295,11 +295,11 @@ _GL_FUNCDECL_RPL (select, int,
                    struct timeval *restrict));
 _GL_CXXALIAS_RPL (select, int,
                   (int, fd_set *restrict, fd_set *restrict, fd_set *restrict,
-                   struct timeval *restrict));
+                   timeval *restrict));
 # else
 _GL_CXXALIAS_SYS (select, int,
                   (int, fd_set *restrict, fd_set *restrict, fd_set *restrict,
-                   struct timeval *restrict));
+                   timeval *restrict));
 # endif
 _GL_CXXALIASWARN (select);
 #elif @HAVE_WINSOCK2_H@

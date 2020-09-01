@@ -1,6 +1,6 @@
 ;;; nnmh.el --- mhspool access for Gnus
 
-;; Copyright (C) 1995-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2020 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;;	Masanobu UMEDA <umerin@flab.flab.fujitsu.junet>
@@ -172,7 +172,7 @@ as unread by Gnus.")
 	(setq dir
 	      (sort
 	       (mapcar 'string-to-number
-		       (directory-files pathname nil "^[0-9]+$" t))
+		       (directory-files pathname nil "\\`[0-9]+\\'" t))
 	       '<))
 	(cond
 	 (dir
@@ -210,8 +210,10 @@ as unread by Gnus.")
 	min rdir num subdirectoriesp file)
     ;; Recurse down directories.
     (setq subdirectoriesp
-	  ;; nth 1 of file-attributes always 1 on MS Windows :(
-	  (/= (nth 1 (file-attributes (file-truename dir))) 2))
+	  ;; link number always 1 on MS Windows :(
+	  (/= (file-attribute-link-number
+	       (file-attributes (file-truename dir)))
+	      2))
     (dolist (rdir files)
       (if (or (not subdirectoriesp)
 	      (file-regular-p rdir))
@@ -263,7 +265,8 @@ as unread by Gnus.")
 
     (while (and articles is-old)
       (setq article (concat dir (int-to-string (car articles))))
-      (when (setq mod-time (nth 5 (file-attributes article)))
+      (when (setq mod-time (file-attribute-modification-time
+			    (file-attributes article)))
 	(if (and (nnmh-deletable-article-p newsgroup (car articles))
 		 (setq is-old
 		       (nnmail-expired-article-p newsgroup mod-time force)))
@@ -293,7 +296,7 @@ as unread by Gnus.")
 
 (deffoo nnmh-request-move-article (article group server accept-form
 					   &optional last move-is-internal)
-  (let ((buf (get-buffer-create " *nnmh move*"))
+  (let ((buf (gnus-get-buffer-create " *nnmh move*"))
 	result)
     (and
      (nnmh-deletable-article-p group article)
@@ -357,7 +360,7 @@ as unread by Gnus.")
       (nnmh-possibly-change-directory group server)
       (let ((articles (mapcar 'string-to-number
 			      (directory-files
-			       nnmh-current-directory nil "^[0-9]+$"))))
+			       nnmh-current-directory nil "\\`[0-9]+\\'"))))
 	(when articles
 	  (setcar active (apply 'min articles))
 	  (setcdr active (apply 'max articles))))))
@@ -368,7 +371,7 @@ as unread by Gnus.")
   ;; Delete all articles in GROUP.
   (if (not force)
       ()				; Don't delete the articles.
-    (let ((articles (directory-files nnmh-current-directory t "^[0-9]+$")))
+    (let ((articles (directory-files nnmh-current-directory t "\\`[0-9]+\\'")))
       (while articles
 	(when (file-writable-p (car articles))
 	  (nnheader-message 5 "Deleting article %s in %s..."
@@ -482,7 +485,7 @@ as unread by Gnus.")
       ;; Find the highest number in the group.
       (let ((files (sort
 		    (mapcar 'string-to-number
-			    (directory-files dir nil "^[0-9]+$"))
+			    (directory-files dir nil "\\`[0-9]+\\'"))
 		    '>)))
 	(when files
 	  (setcdr active (car files)))))
@@ -506,7 +509,7 @@ as unread by Gnus.")
   (let* ((dir nnmh-current-directory)
 	 (files (sort (mapcar 'string-to-number
 			      (directory-files nnmh-current-directory
-					       nil "^[0-9]+$" t))
+					       nil "\\`[0-9]+\\'" t))
 		      '<))
 	 (nnmh-file (concat dir ".nnmh-articles"))
 	 new articles)
@@ -534,8 +537,8 @@ as unread by Gnus.")
 	  art)
       (while (setq art (pop arts))
 	(when (not (equal
-		    (nth 5 (file-attributes
-			    (concat dir (int-to-string (car art)))))
+		    (file-attribute-modification-time
+		     (file-attributes (concat dir (int-to-string (car art)))))
 		    (cdr art)))
 	  (setq articles (delq art articles))
 	  (push (car art) new))))
@@ -546,8 +549,9 @@ as unread by Gnus.")
 		 (mapcar
 		  (lambda (art)
 		    (cons art
-			  (nth 5 (file-attributes
-				  (concat dir (int-to-string art))))))
+			  (file-attribute-modification-time
+			   (file-attributes
+			    (concat dir (int-to-string art))))))
 		  new)))
     ;; Make Gnus mark all new articles as unread.
     (when new

@@ -1,6 +1,6 @@
-;;; japanese.el --- support for Japanese -*- coding: iso-2022-7bit -*-
+;;; japanese.el --- support for Japanese
 
-;; Copyright (C) 1997, 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2001-2020 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -82,9 +82,7 @@
 	 (#x00A6 . #xFFE4)	; BROKEN LINE		FULLWIDTH BROKEN LINE
 	 )))
   (define-translation-table 'japanese-ucs-jis-to-cp932-map map)
-  (mapc #'(lambda (x) (let ((tmp (car x)))
-			(setcar x (cdr x)) (setcdr x tmp)))
-	map)
+  (setq map (mapcar (lambda (x) (cons (cdr x) (car x))) map))
   (define-translation-table 'japanese-ucs-cp932-to-jis-map map))
 
 ;; U+2014 (EM DASH) vs U+2015 (HORIZONTAL BAR)
@@ -210,7 +208,7 @@ eucJP-ms is defined in <http://www.opengroup.or.jp/jvc/cde/appendix.html>."
                                iso-2022-jp-2)
 	      (input-method . "japanese")
 	      (features japan-util)
-	      (sample-text . "Japanese ($BF|K\8l(B)	$B$3$s$K$A$O(B, (I:]FAJ(B")
+	      (sample-text . "Japanese (日本語)	こんにちは, ｺﾝﾆﾁﾊ")
 	      (documentation . t)))
 
 (let ((map
@@ -241,14 +239,16 @@ eucJP-ms is defined in <http://www.opengroup.or.jp/jvc/cde/appendix.html>."
 	 (#x2b65 . [#x02E9 #x02E5])
 	 (#x2b66 . [#x02E5 #x02E9])))
       table)
-  (dolist (elt map)
-    (setcar elt (decode-char 'japanese-jisx0213-1 (car elt))))
+  (setq map
+        (mapcar (lambda (x) (cons (decode-char 'japanese-jisx0213-1 (car x))
+                                  (cdr x)))
+                map))
   (setq table (make-translation-table-from-alist map))
   (define-translation-table 'jisx0213-to-unicode table)
   (define-translation-table 'unicode-to-jisx0213
     (char-table-extra-slot table 0)))
 
-(defun compose-gstring-for-variation-glyph (gstring)
+(defun compose-gstring-for-variation-glyph (gstring _direction)
   "Compose glyph-string GSTRING for graphic display.
 GSTRING must have two glyphs; the first is a glyph for a han character,
 and the second is a glyph for a variation selector."

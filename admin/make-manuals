@@ -1,9 +1,10 @@
 #!/bin/bash
 ### make-manuals - create the Emacs manuals to upload to the gnu.org website
 
-## Copyright 2018 Free Software Foundation, Inc.
+## Copyright 2018-2020 Free Software Foundation, Inc.
 
 ## Author: Glenn Morris <rgm@gnu.org>
+## Maintainer: emacs-devel@gnu.org
 
 ## This file is part of GNU Emacs.
 

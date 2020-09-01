@@ -1,6 +1,6 @@
 ;;; crm.el --- read multiple strings with completion
 
-;; Copyright (C) 1985-1986, 1993-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 1993-2020 Free Software Foundation, Inc.
 
 ;; Author: Sen Nagata <sen@eccosys.com>
 ;; Keywords: completion, minibuffer, multiple elements
@@ -154,7 +154,7 @@ Return the element's boundaries as (START . END)."
 
 (defmacro crm--completion-command (beg end &rest body)
   "Run BODY with BEG and END bound to the current element's boundaries."
-  (declare (indent 2) (debug (sexp sexp &rest body)))
+  (declare (indent 2) (debug (sexp sexp body)))
   `(let* ((crm--boundaries (crm--current-element))
           (,beg (car crm--boundaries))
           (,end (cdr crm--boundaries)))
@@ -222,7 +222,7 @@ exiting the minibuffer."
     t))
 
 ;; superemulates behavior of completing_read in src/minibuf.c
-;; Use \\<crm-local-completion-map> so that help-enable-auto-load can
+;; Use \\<crm-local-completion-map> so that help-enable-autoload can
 ;; do its thing.  Any keymap that is defined will do.
 ;;;###autoload
 (defun completing-read-multiple
@@ -269,12 +269,6 @@ with empty strings removed."
 	  (split-string input crm-separator t)))
     (remove-hook 'choose-completion-string-functions
 		 'crm--choose-completion-string)))
-
-(define-obsolete-function-alias 'crm-minibuffer-complete 'crm-complete "23.1")
-(define-obsolete-function-alias
-  'crm-minibuffer-completion-help 'crm-completion-help "23.1")
-(define-obsolete-function-alias
-  'crm-minibuffer-complete-and-exit 'crm-complete-and-exit "23.1")
 
 ;; testing and debugging
 ;; (defun crm-init-test-environ ()

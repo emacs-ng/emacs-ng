@@ -1,5 +1,5 @@
 /* X Selection processing for Emacs.
-   Copyright (C) 1993-1997, 2000-2018 Free Software Foundation, Inc.
+   Copyright (C) 1993-1997, 2000-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -21,7 +21,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 #include <limits.h>
-#include <stdio.h>      /* termhooks.h needs this */
 
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
@@ -33,8 +32,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "xterm.h"	/* for all of the X includes */
 #include "frame.h"	/* Need this to get the X window of selected_frame */
 #include "blockinput.h"
+#include "sysstdio.h"	/* TRACE_SELECTION needs this.  */
 #include "termhooks.h"
 #include "keyboard.h"
+#include "pdumper.h"
 
 #include <X11/Xproto.h>
 
@@ -62,13 +63,13 @@ static void lisp_data_to_selection_data (struct x_display_info *, Lisp_Object,
 
 #ifdef TRACE_SELECTION
 #define TRACE0(fmt) \
-  fprintf (stderr, "%"pMd": " fmt "\n", (printmax_t) getpid ())
+  fprintf (stderr, "%"PRIdMAX": " fmt "\n", (intmax_t) getpid ())
 #define TRACE1(fmt, a0) \
-  fprintf (stderr, "%"pMd": " fmt "\n", (printmax_t) getpid (), a0)
+  fprintf (stderr, "%"PRIdMAX": " fmt "\n", (intmax_t) getpid (), a0)
 #define TRACE2(fmt, a0, a1) \
-  fprintf (stderr, "%"pMd": " fmt "\n", (printmax_t) getpid (), a0, a1)
+  fprintf (stderr, "%"PRIdMAX": " fmt "\n", (intmax_t) getpid (), a0, a1)
 #define TRACE3(fmt, a0, a1, a2) \
-  fprintf (stderr, "%"pMd": " fmt "\n", (printmax_t) getpid (), a0, a1, a2)
+  fprintf (stderr, "%"PRIdMAX": " fmt "\n", (intmax_t) getpid (), a0, a1, a2)
 #else
 #define TRACE0(fmt)		(void) 0
 #define TRACE1(fmt, a0)		(void) 0
@@ -321,7 +322,7 @@ x_own_selection (Lisp_Object selection_name, Lisp_Object selection_value,
     Lisp_Object prev_value;
 
     selection_data = list4 (selection_name, selection_value,
-			    INTEGER_TO_CONS (timestamp), frame);
+			    INT_TO_INTEGER (timestamp), frame);
     prev_value = LOCAL_SELECTION (selection_name, dpyinfo);
 
     tset_selection_alist
@@ -401,16 +402,16 @@ x_get_local_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
   if (STRINGP (check)
       || VECTORP (check)
       || SYMBOLP (check)
-      || FIXNUMP (check)
+      || INTEGERP (check)
       || NILP (value))
     return value;
   /* Check for a value that CONS_TO_INTEGER could handle.  */
   else if (CONSP (check)
-	   && FIXNUMP (XCAR (check))
-	   && (FIXNUMP (XCDR (check))
+	   && INTEGERP (XCAR (check))
+	   && (INTEGERP (XCDR (check))
 	       ||
 	       (CONSP (XCDR (check))
-		&& FIXNUMP (XCAR (XCDR (check)))
+		&& INTEGERP (XCAR (XCDR (check)))
 		&& NILP (XCDR (XCDR (check))))))
     return value;
 
@@ -1084,10 +1085,10 @@ wait_for_property_change (struct prop_location *location)
      property_change_reply, because property_change_reply_object says so.  */
   if (! location->arrived)
     {
-      EMACS_INT timeout = max (0, x_selection_timeout);
-      EMACS_INT secs = timeout / 1000;
+      intmax_t timeout = max (0, x_selection_timeout);
+      intmax_t secs = timeout / 1000;
       int nsecs = (timeout % 1000) * 1000000;
-      TRACE2 ("  Waiting %"pI"d secs, %d nsecs", secs, nsecs);
+      TRACE2 ("  Waiting %"PRIdMAX" secs, %d nsecs", secs, nsecs);
       wait_reading_process_output (secs, nsecs, 0, false,
 				   property_change_reply, NULL, 0);
 
@@ -1157,8 +1158,6 @@ x_get_foreign_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
   Atom type_atom = (CONSP (target_type)
 		    ? symbol_to_x_atom (dpyinfo, XCAR (target_type))
 		    : symbol_to_x_atom (dpyinfo, target_type));
-  EMACS_INT timeout, secs;
-  int nsecs;
 
   if (!FRAME_LIVE_P (f))
     return Qnil;
@@ -1194,10 +1193,10 @@ x_get_foreign_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
   unblock_input ();
 
   /* This allows quits.  Also, don't wait forever.  */
-  timeout = max (0, x_selection_timeout);
-  secs = timeout / 1000;
-  nsecs = (timeout % 1000) * 1000000;
-  TRACE1 ("  Start waiting %"pI"d secs for SelectionNotify", secs);
+  intmax_t timeout = max (0, x_selection_timeout);
+  intmax_t secs = timeout / 1000;
+  int nsecs = (timeout % 1000) * 1000000;
+  TRACE1 ("  Start waiting %"PRIdMAX" secs for SelectionNotify", secs);
   wait_reading_process_output (secs, nsecs, 0, false,
 			       reading_selection_reply, NULL, 0);
   TRACE1 ("  Got event = %d", !NILP (XCAR (reading_selection_reply)));
@@ -1536,16 +1535,9 @@ x_get_window_property_as_lisp_data (struct x_display_info *dpyinfo,
 	ATOM	32	> 1		Vector of Symbols
 	*	16	1		Integer
 	*	16	> 1		Vector of Integers
-	*	32	1		if <=16 bits: Integer
-					if > 16 bits: Cons of top16, bot16
+	*	32	1		if small enough: fixnum
+					otherwise: bignum
 	*	32	> 1		Vector of the above
-
-   When converting a Lisp number to C, it is assumed to be of format 16 if
-   it is an integer, and of format 32 if it is a cons of two integers.
-
-   When converting a vector of numbers from Lisp to C, it is assumed to be
-   of format 16 if every element in the vector is an integer, and is assumed
-   to be of format 32 if any element is a cons of two integers.
 
    When converting an object to C, it may be of the form (SYMBOL . <data>)
    where SYMBOL is what we should claim that the type is.  Format and
@@ -1602,7 +1594,7 @@ selection_data_to_lisp_data (struct x_display_info *dpyinfo,
 	return x_atom_to_symbol (dpyinfo, (Atom) idata[0]);
       else
 	{
-	  Lisp_Object v = make_uninit_vector (size / sizeof (int));
+	  Lisp_Object v = make_nil_vector (size / sizeof (int));
 
 	  for (i = 0; i < size / sizeof (int); i++)
 	    ASET (v, i, x_atom_to_symbol (dpyinfo, (Atom) idata[i]));
@@ -1611,8 +1603,8 @@ selection_data_to_lisp_data (struct x_display_info *dpyinfo,
     }
 
   /* Convert a single 16-bit number or a small 32-bit number to a Lisp_Int.
-     If the number is 32 bits and won't fit in a Lisp_Int,
-     convert it to a cons of integers, 16 bits in each half.
+     If the number is 32 bits and won't fit in a Lisp_Int, convert it
+     to a bignum.
 
      INTEGER is a signed type, CARDINAL is unsigned.
      Assume any other types are unsigned as well.
@@ -1620,9 +1612,9 @@ selection_data_to_lisp_data (struct x_display_info *dpyinfo,
   else if (format == 32 && size == sizeof (int))
     {
       if (type == XA_INTEGER)
-        return INTEGER_TO_CONS (((int *) data) [0]);
+        return INT_TO_INTEGER (((int *) data) [0]);
       else
-        return INTEGER_TO_CONS (((unsigned int *) data) [0]);
+        return INT_TO_INTEGER (((unsigned int *) data) [0]);
     }
   else if (format == 16 && size == sizeof (short))
     {
@@ -1661,14 +1653,14 @@ selection_data_to_lisp_data (struct x_display_info *dpyinfo,
   else
     {
       ptrdiff_t i;
-      Lisp_Object v = make_uninit_vector (size / X_LONG_SIZE);
+      Lisp_Object v = make_nil_vector (size / X_LONG_SIZE);
 
       if (type == XA_INTEGER)
         {
           for (i = 0; i < size / X_LONG_SIZE; i++)
             {
               int j = ((int *) data) [i];
-              ASET (v, i, INTEGER_TO_CONS (j));
+              ASET (v, i, INT_TO_INTEGER (j));
             }
         }
       else
@@ -1676,7 +1668,7 @@ selection_data_to_lisp_data (struct x_display_info *dpyinfo,
           for (i = 0; i < size / X_LONG_SIZE; i++)
             {
               unsigned int j = ((unsigned int *) data) [i];
-              ASET (v, i, INTEGER_TO_CONS (j));
+              ASET (v, i, INT_TO_INTEGER (j));
             }
         }
       return v;
@@ -1693,7 +1685,7 @@ static unsigned long
 cons_to_x_long (Lisp_Object obj)
 {
   if (X_ULONG_MAX <= INTMAX_MAX
-      || XFIXNUM (FIXNUMP (obj) ? obj : XCAR (obj)) < 0)
+      || NILP (Fnatnump (CONSP (obj) ? XCAR (obj) : obj)))
     return cons_to_signed (obj, X_LONG_MIN, min (X_ULONG_MAX, INTMAX_MAX));
   else
     return cons_to_unsigned (obj, X_ULONG_MAX);
@@ -1759,8 +1751,8 @@ lisp_data_to_selection_data (struct x_display_info *dpyinfo,
       *short_ptr = XFIXNUM (obj);
       if (NILP (type)) type = QINTEGER;
     }
-  else if (FIXNUMP (obj)
-	   || (CONSP (obj) && FIXNUMP (XCAR (obj))
+  else if (INTEGERP (obj)
+	   || (CONSP (obj) && INTEGERP (XCAR (obj))
 	       && (FIXNUMP (XCDR (obj))
 		   || (CONSP (XCDR (obj))
 		       && FIXNUMP (XCAR (XCDR (obj)))))))
@@ -1846,19 +1838,19 @@ static Lisp_Object
 clean_local_selection_data (Lisp_Object obj)
 {
   if (CONSP (obj)
-      && FIXNUMP (XCAR (obj))
+      && INTEGERP (XCAR (obj))
       && CONSP (XCDR (obj))
       && FIXNUMP (XCAR (XCDR (obj)))
       && NILP (XCDR (XCDR (obj))))
     obj = Fcons (XCAR (obj), XCDR (obj));
 
   if (CONSP (obj)
-      && FIXNUMP (XCAR (obj))
+      && INTEGERP (XCAR (obj))
       && FIXNUMP (XCDR (obj)))
     {
-      if (XFIXNUM (XCAR (obj)) == 0)
+      if (EQ (XCAR (obj), make_fixnum (0)))
 	return XCDR (obj);
-      if (XFIXNUM (XCAR (obj)) == -1)
+      if (EQ (XCAR (obj), make_fixnum (-1)))
 	return make_fixnum (- XFIXNUM (XCDR (obj)));
     }
   if (VECTORP (obj))
@@ -1868,7 +1860,7 @@ clean_local_selection_data (Lisp_Object obj)
       Lisp_Object copy;
       if (size == 1)
 	return clean_local_selection_data (AREF (obj, 0));
-      copy = make_uninit_vector (size);
+      copy = make_nil_vector (size);
       for (i = 0; i < size; i++)
 	ASET (copy, i, clean_local_selection_data (AREF (obj, i)));
       return copy;
@@ -2145,7 +2137,7 @@ On Nextstep, TERMINAL is unused.  */)
 
 
 /* Send clipboard manager a SAVE_TARGETS request with a UTF8_STRING
-   property (http://www.freedesktop.org/wiki/ClipboardManager).  */
+   property (https://www.freedesktop.org/wiki/ClipboardManager/).  */
 
 static Lisp_Object
 x_clipboard_manager_save (Lisp_Object frame)
@@ -2180,9 +2172,10 @@ If the problem persists, set `%s' to nil.");
 static Lisp_Object
 x_clipboard_manager_error_2 (Lisp_Object err)
 {
-  fprintf (stderr, "Error saving to X clipboard manager.\n\
-If the problem persists, set '%s' \
-to nil.\n", "x-select-enable-clipboard-manager");
+  fputs (("Error saving to X clipboard manager.\n"
+	  "If the problem persists,"
+	  " set 'x-select-enable-clipboard-manager' to nil.\n"),
+	 stderr);
   return Qnil;
 }
 
@@ -2264,10 +2257,10 @@ x_check_property_data (Lisp_Object data)
     {
       Lisp_Object o = XCAR (iter);
 
-      if (! FIXED_OR_FLOATP (o) && ! STRINGP (o) && ! CONSP (o))
+      if (! NUMBERP (o) && ! STRINGP (o) && ! CONSP (o))
         return -1;
       else if (CONSP (o) &&
-               (! FIXED_OR_FLOATP (XCAR (o)) || ! FIXED_OR_FLOATP (XCDR (o))))
+               (! NUMBERP (XCAR (o)) || ! NUMBERP (XCDR (o))))
         return -1;
       if (size == INT_MAX)
 	return -1;
@@ -2283,27 +2276,32 @@ x_check_property_data (Lisp_Object data)
 
    DPY is the display use to look up X atoms.
    DATA is a Lisp list of values to be converted.
-   RET is the C array that contains the converted values.  It is assumed
-   it is big enough to hold all values.
+   RET is the C array that contains the converted values.
+   NELEMENTS_MAX is the number of values that will fit in RET.
+   Any excess values in DATA are ignored.
    FORMAT is 8, 16 or 32 and denotes char/short/long for each C value to
    be stored in RET.  Note that long is used for 32 even if long is more
    than 32 bits (see man pages for XChangeProperty, XGetWindowProperty and
    XClientMessageEvent).  */
 
 void
-x_fill_property_data (Display *dpy, Lisp_Object data, void *ret, int format)
+x_fill_property_data (Display *dpy, Lisp_Object data, void *ret,
+		      int nelements_max, int format)
 {
   unsigned long val;
   unsigned long  *d32 = (unsigned long  *) ret;
   unsigned short *d16 = (unsigned short *) ret;
   unsigned char  *d08 = (unsigned char  *) ret;
+  int nelements;
   Lisp_Object iter;
 
-  for (iter = data; CONSP (iter); iter = XCDR (iter))
+  for (iter = data, nelements = 0;
+       CONSP (iter) && nelements < nelements_max;
+       iter = XCDR (iter), nelements++)
     {
       Lisp_Object o = XCAR (iter);
 
-      if (FIXED_OR_FLOATP (o) || CONSP (o))
+      if (NUMBERP (o) || CONSP (o))
         {
           if (CONSP (o)
 	      && RANGED_FIXNUMP (X_LONG_MIN >> 16, XCAR (o), X_LONG_MAX >> 16)
@@ -2481,7 +2479,7 @@ x_handle_dnd_message (struct frame *f, const XClientMessageEvent *event,
       data = (unsigned char *) idata;
     }
 
-  vec = Fmake_vector (make_fixnum (4), Qnil);
+  vec = make_nil_vector (4);
   ASET (vec, 0, SYMBOL_NAME (x_atom_to_symbol (FRAME_DISPLAY_INFO (f),
 					       event->message_type)));
   ASET (vec, 1, frame);
@@ -2580,7 +2578,7 @@ x_send_client_event (Lisp_Object display, Lisp_Object dest, Lisp_Object from,
       else
         error ("DEST as a string must be one of PointerWindow or InputFocus");
     }
-  else if (FIXED_OR_FLOATP (dest) || CONSP (dest))
+  else if (NUMBERP (dest) || CONSP (dest))
     CONS_TO_INTEGER (dest, Window, wdest);
   else
     error ("DEST must be a frame, nil, string, number or cons");
@@ -2600,7 +2598,9 @@ x_send_client_event (Lisp_Object display, Lisp_Object dest, Lisp_Object from,
   event.xclient.window = to_root ? FRAME_OUTER_WINDOW (f) : wdest;
 
   memset (event.xclient.data.l, 0, sizeof (event.xclient.data.l));
+  /* event.xclient.data can hold 20 chars, 10 shorts, or 5 longs.  */
   x_fill_property_data (dpyinfo->display, values, event.xclient.data.b,
+                        5 * 32 / event.xclient.format,
                         event.xclient.format);
 
   /* If event mask is 0 the event is sent to the client that created
@@ -2620,6 +2620,9 @@ x_send_client_event (Lisp_Object display, Lisp_Object dest, Lisp_Object from,
 }
 
 
+
+static void syms_of_xselect_for_pdumper (void);
+
 void
 syms_of_xselect (void)
 {
@@ -2635,16 +2638,8 @@ syms_of_xselect (void)
 
   reading_selection_reply = Fcons (Qnil, Qnil);
   staticpro (&reading_selection_reply);
-  reading_selection_window = 0;
-  reading_which_selection = 0;
 
-  property_change_wait_list = 0;
-  prop_location_identifier = 0;
-  property_change_reply = Fcons (Qnil, Qnil);
   staticpro (&property_change_reply);
-
-  converted_selections = NULL;
-  conversion_fail_tag = None;
 
   /* FIXME: Duplicate definition in nsselect.c.  */
   DEFVAR_LISP ("selection-converter-alist", Vselection_converter_alist,
@@ -2724,4 +2719,18 @@ A value of 0 means wait as long as necessary.  This is initialized from the
   DEFSYM (Qforeign_selection, "foreign-selection");
   DEFSYM (Qx_lost_selection_functions, "x-lost-selection-functions");
   DEFSYM (Qx_sent_selection_functions, "x-sent-selection-functions");
+
+  pdumper_do_now_and_after_load (syms_of_xselect_for_pdumper);
+}
+
+static void
+syms_of_xselect_for_pdumper (void)
+{
+  reading_selection_window = 0;
+  reading_which_selection = 0;
+  property_change_wait_list = 0;
+  prop_location_identifier = 0;
+  property_change_reply = Fcons (Qnil, Qnil);
+  converted_selections = NULL;
+  conversion_fail_tag = None;
 }

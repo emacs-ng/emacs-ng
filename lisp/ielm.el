@@ -1,6 +1,6 @@
 ;;; ielm.el --- interaction mode for Emacs Lisp  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994, 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1994, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: David Smith <maa036@lancaster.ac.uk>
 ;; Maintainer: emacs-devel@gnu.org
@@ -44,8 +44,7 @@
 
 (defcustom ielm-noisy t
   "If non-nil, IELM will beep on error."
-  :type 'boolean
-  :group 'ielm)
+  :type 'boolean)
 
 (defcustom ielm-prompt-read-only t
   "If non-nil, the IELM prompt is read only.
@@ -74,7 +73,6 @@ buffers, including IELM buffers.  If you sometimes use IELM on
 text-only terminals or with `emacs -nw', you might wish to use
 another binding for `comint-kill-whole-line'."
   :type 'boolean
-  :group 'ielm
   :version "22.1")
 
 (defcustom ielm-prompt "ELISP> "
@@ -90,8 +88,7 @@ does not update the prompt of an *ielm* buffer with a running process.
 For IELM buffers that are not called `*ielm*', you can execute
 \\[inferior-emacs-lisp-mode] in that IELM buffer to update the value,
 for new prompts.  This works even if the buffer has a running process."
-  :type 'string
-  :group 'ielm)
+  :type 'string)
 
 (defvar ielm-prompt-internal "ELISP> "
   "Stored value of `ielm-prompt' in the current IELM buffer.
@@ -103,8 +100,7 @@ customizes `ielm-prompt'.")
   "Controls whether \\<ielm-map>\\[ielm-return] has intelligent behavior in IELM.
 If non-nil, \\[ielm-return] evaluates input for complete sexps, or inserts a newline
 and indents for incomplete sexps.  If nil, always inserts newlines."
-  :type 'boolean
-  :group 'ielm)
+  :type 'boolean)
 
 (defcustom ielm-dynamic-multiline-inputs t
   "Force multiline inputs to start from column zero?
@@ -112,48 +108,38 @@ If non-nil, after entering the first line of an incomplete sexp, a newline
 will be inserted after the prompt, moving the input to the next line.
 This gives more frame width for large indented sexps, and allows functions
 such as `edebug-defun' to work with such inputs."
-  :type 'boolean
-  :group 'ielm)
+  :type 'boolean)
 
 (defvaralias 'inferior-emacs-lisp-mode-hook 'ielm-mode-hook)
 (defcustom ielm-mode-hook nil
   "Hooks to be run when IELM (`inferior-emacs-lisp-mode') is started."
   :options '(eldoc-mode)
-  :type 'hook
-  :group 'ielm)
+  :type 'hook)
 
-(defvar * nil
-  "Most recent value evaluated in IELM.")
+;; We define these symbols (that are only used buffer-locally in ielm
+;; buffers) this way to avoid having them be defined in the global
+;; Emacs namespace.
+(defvar *)
+(put '* 'variable-documentation "Most recent value evaluated in IELM.")
 
-(defvar ** nil
-  "Second-most-recent value evaluated in IELM.")
+(defvar **)
+(put '** 'variable-documentation "Second-most-recent value evaluated in IELM.")
 
-(defvar *** nil
-  "Third-most-recent value evaluated in IELM.")
+(defvar ***)
+(put '*** 'variable-documentation "Third-most-recent value evaluated in IELM.")
 
 (defvar ielm-match-data nil
   "Match data saved at the end of last command.")
 
-(defvar *1 nil
-  "During IELM evaluation, most recent value evaluated in IELM.
-Normally identical to `*'.  However, if the working buffer is an IELM
-buffer, distinct from the process buffer, then `*' gives the value in
-the working buffer, `*1' the value in the process buffer.
-The intended value is only accessible during IELM evaluation.")
-
-(defvar *2 nil
-  "During IELM evaluation, second-most-recent value evaluated in IELM.
-Normally identical to `**'.  However, if the working buffer is an IELM
-buffer, distinct from the process buffer, then `**' gives the value in
-the working buffer, `*2' the value in the process buffer.
-The intended value is only accessible during IELM evaluation.")
-
-(defvar *3 nil
-  "During IELM evaluation, third-most-recent value evaluated in IELM.
-Normally identical to `***'.  However, if the working buffer is an IELM
-buffer, distinct from the process buffer, then `***' gives the value in
-the working buffer, `*3' the value in the process buffer.
-The intended value is only accessible during IELM evaluation.")
+;; During IELM evaluation, *1 is the most recent value evaluated in
+;; IELM.  Normally identical to `*'.  However, if the working buffer
+;; is an IELM buffer, distinct from the process buffer, then `*' gives
+;; the value in the working buffer, `*1' the value in the process
+;; buffer.  The intended value is only accessible during IELM
+;; evaluation.  *2 and *3 are the same for ** and ***.
+(defvar *1)
+(defvar *2)
+(defvar *3)
 
 ;;; System variables
 
@@ -374,9 +360,9 @@ nonempty, then flushes the buffer."
               ;; that same let.  To avoid problems, neither of
               ;; these buffers should be alive during the
               ;; evaluation of form.
-              (let* ((*1 *)
-                     (*2 **)
-                     (*3 ***)
+              (let* ((*1 (bound-and-true-p *))
+                     (*2 (bound-and-true-p **))
+                     (*3 (bound-and-true-p ***))
                      (active-process (ielm-process))
                      (old-standard-output standard-output)
                      new-standard-output
@@ -461,11 +447,12 @@ nonempty, then flushes the buffer."
       (if error-type
           (progn
             (when ielm-noisy (ding))
-            (setq output (concat output "*** " error-type " ***  "))
-            (setq output (concat output result)))
+            (setq output (concat output
+                                 "*** " error-type " ***  "
+                                 result)))
         ;; There was no error, so shift the *** values
-        (setq *** **)
-        (setq ** *)
+        (setq *** (bound-and-true-p **))
+        (setq ** (bound-and-true-p *))
         (setq * result))
       (when (or (not for-effect) (not (equal output "")))
         (setq output (concat output "\n"))))
@@ -549,8 +536,10 @@ Customized bindings may be defined in `ielm-map', which currently contains:
   (set (make-local-variable 'completion-at-point-functions)
        '(comint-replace-by-expanded-history
          ielm-complete-filename elisp-completion-at-point))
-  (add-function :before-until (local 'eldoc-documentation-function)
-                #'elisp-eldoc-documentation-function)
+  (add-hook 'eldoc-documentation-functions
+            #'elisp-eldoc-var-docstring nil t)
+  (add-hook 'eldoc-documentation-functions
+            #'elisp-eldoc-funcall nil t)
   (set (make-local-variable 'ielm-prompt-internal) ielm-prompt)
   (set (make-local-variable 'comint-prompt-read-only) ielm-prompt-read-only)
   (setq comint-get-old-input 'ielm-get-old-input)
@@ -559,10 +548,11 @@ Customized bindings may be defined in `ielm-map', which currently contains:
   ;; Useful for `hs-minor-mode'.
   (setq-local comment-start ";")
   (setq-local comment-use-syntax t)
+  (setq-local lexical-binding t)
 
-  (set (make-local-variable 'indent-line-function) 'ielm-indent-line)
+  (set (make-local-variable 'indent-line-function) #'ielm-indent-line)
   (set (make-local-variable 'ielm-working-buffer) (current-buffer))
-  (set (make-local-variable 'fill-paragraph-function) 'lisp-fill-paragraph)
+  (set (make-local-variable 'fill-paragraph-function) #'lisp-fill-paragraph)
 
   ;; Value holders
   (set (make-local-variable '*) nil)

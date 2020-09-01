@@ -1,6 +1,6 @@
 ;;; gametree.el --- manage game analysis trees in Emacs
 
-;; Copyright (C) 1997, 1999, 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 1999, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: Ian T Zimmerman <itz@rahul.net>
 ;; Created: Wed Dec 10 07:41:46 PST 1997
@@ -324,7 +324,7 @@ This value is simply the outline heading level of the current line."
 (defun gametree-hack-file-layout ()
   (save-excursion
     (goto-char (point-min))
-    (if (looking-at "[^\n]*-*-[^\n]*gametree-local-layout: \\([^;\n]*\\);")
+    (if (looking-at "[^\n]*-[^\n]*gametree-local-layout: \\([^;\n]*\\);")
         (progn
           (goto-char (match-beginning 1))
           (delete-region (point) (match-end 1))

@@ -1,5 +1,5 @@
 /* Code for doing intervals.
-   Copyright (C) 1993-1995, 1997-1998, 2001-2018 Free Software
+   Copyright (C) 1993-1995, 1997-1998, 2001-2020 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -117,10 +117,11 @@ create_root_interval (Lisp_Object parent)
 /* Make the interval TARGET have exactly the properties of SOURCE.  */
 
 void
-copy_properties (register INTERVAL source, register INTERVAL target)
+copy_properties (INTERVAL source, INTERVAL target)
 {
   if (DEFAULT_INTERVAL_P (source) && DEFAULT_INTERVAL_P (target))
     return;
+  eassume (source && target);
 
   COPY_INTERVAL_CACHE (source, target);
   set_interval_plist (target, Fcopy_sequence (source->plist));
@@ -298,7 +299,7 @@ rotate_right (INTERVAL A)
     set_interval_parent (c, A);
 
   /* A's total length is decreased by the length of B and its left child.  */
-  A->total_length -= B->total_length - TOTAL_LENGTH (c);
+  A->total_length -= TOTAL_LENGTH (B) - TOTAL_LENGTH0 (c);
   eassert (TOTAL_LENGTH (A) > 0);
   eassert (LENGTH (A) > 0);
 
@@ -349,7 +350,7 @@ rotate_left (INTERVAL A)
     set_interval_parent (c, A);
 
   /* A's total length is decreased by the length of B and its right child.  */
-  A->total_length -= B->total_length - TOTAL_LENGTH (c);
+  A->total_length -= TOTAL_LENGTH (B) - TOTAL_LENGTH0 (c);
   eassert (TOTAL_LENGTH (A) > 0);
   eassert (LENGTH (A) > 0);
 
@@ -713,13 +714,23 @@ previous_interval (register INTERVAL interval)
   return NULL;
 }
 
-/* Find the interval containing POS given some non-NULL INTERVAL
-   in the same tree.  Note that we need to update interval->position
-   if we go down the tree.
-   To speed up the process, we assume that the ->position of
-   I and all its parents is already uptodate.  */
+/* Set the ->position field of I's parent, based on I->position. */
+#define SET_PARENT_POSITION(i)                                  \
+  if (AM_LEFT_CHILD (i))                                        \
+    INTERVAL_PARENT (i)->position =                             \
+      i->position + TOTAL_LENGTH (i) - LEFT_TOTAL_LENGTH (i);   \
+  else                                                          \
+    INTERVAL_PARENT (i)->position =                             \
+      i->position - LEFT_TOTAL_LENGTH (i)                       \
+      - LENGTH (INTERVAL_PARENT (i))
+
+/* Find the interval containing POS, given some interval I in
+   the same tree.  Note that we update interval->position in each
+   interval we traverse, assuming it is already correctly set for the
+   argument I.  We don't assume that any other interval already has a
+   correctly set ->position.  */
 INTERVAL
-update_interval (register INTERVAL i, ptrdiff_t pos)
+update_interval (INTERVAL i, ptrdiff_t pos)
 {
   if (!i)
     return NULL;
@@ -729,7 +740,7 @@ update_interval (register INTERVAL i, ptrdiff_t pos)
       if (pos < i->position)
 	{
 	  /* Move left.  */
-	  if (pos >= i->position - TOTAL_LENGTH (i->left))
+	  if (pos >= i->position - LEFT_TOTAL_LENGTH (i))
 	    {
 	      i->left->position = i->position - TOTAL_LENGTH (i->left)
 		+ LEFT_TOTAL_LENGTH (i->left);
@@ -738,13 +749,16 @@ update_interval (register INTERVAL i, ptrdiff_t pos)
 	  else if (NULL_PARENT (i))
 	    error ("Point before start of properties");
 	  else
-	      i = INTERVAL_PARENT (i);
+            {
+              SET_PARENT_POSITION (i);
+              i = INTERVAL_PARENT (i);
+            }
 	  continue;
 	}
       else if (pos >= INTERVAL_LAST_POS (i))
 	{
 	  /* Move right.  */
-	  if (pos < INTERVAL_LAST_POS (i) + TOTAL_LENGTH (i->right))
+	  if (pos < INTERVAL_LAST_POS (i) + RIGHT_TOTAL_LENGTH (i))
 	    {
 	      i->right->position = INTERVAL_LAST_POS (i)
 	        + LEFT_TOTAL_LENGTH (i->right);
@@ -753,7 +767,10 @@ update_interval (register INTERVAL i, ptrdiff_t pos)
 	  else if (NULL_PARENT (i))
 	    error ("Point %"pD"d after end of properties", pos);
 	  else
-            i = INTERVAL_PARENT (i);
+            {
+              SET_PARENT_POSITION (i);
+              i = INTERVAL_PARENT (i);
+            }
 	  continue;
 	}
       else
@@ -1171,7 +1188,7 @@ delete_interval (register INTERVAL i)
   register INTERVAL parent;
   ptrdiff_t amt = LENGTH (i);
 
-  eassert (amt == 0);		/* Only used on zero-length intervals now.  */
+  eassert (amt <= 0);	/* Only used on zero total-length intervals now.  */
 
   if (ROOT_INTERVAL_P (i))
     {
@@ -2318,23 +2335,10 @@ set_intervals_multibyte_1 (INTERVAL i, bool multi_flag,
 
       if (multi_flag)
 	{
-	  ptrdiff_t temp;
-	  left_end_byte = start_byte + LEFT_TOTAL_LENGTH (i);
+	  left_end_byte
+            = advance_to_char_boundary (start_byte + LEFT_TOTAL_LENGTH (i));
 	  left_end = BYTE_TO_CHAR (left_end_byte);
-
-	  temp = CHAR_TO_BYTE (left_end);
-
-	  /* If LEFT_END_BYTE is in the middle of a character,
-	     adjust it and LEFT_END to a char boundary.  */
-	  if (left_end_byte > temp)
-	    {
-	      left_end_byte = temp;
-	    }
-	  if (left_end_byte < temp)
-	    {
-	      left_end--;
-	      left_end_byte = CHAR_TO_BYTE (left_end);
-	    }
+	  eassert (CHAR_TO_BYTE (left_end) == left_end_byte);
 	}
       else
 	{
@@ -2351,24 +2355,10 @@ set_intervals_multibyte_1 (INTERVAL i, bool multi_flag,
 
       if (multi_flag)
 	{
-	  ptrdiff_t temp;
-
-	  right_start_byte = end_byte - RIGHT_TOTAL_LENGTH (i);
+	  right_start_byte
+            = advance_to_char_boundary (end_byte - RIGHT_TOTAL_LENGTH (i));
 	  right_start = BYTE_TO_CHAR (right_start_byte);
-
-	  /* If RIGHT_START_BYTE is in the middle of a character,
-	     adjust it and RIGHT_START to a char boundary.  */
-	  temp = CHAR_TO_BYTE (right_start);
-
-	  if (right_start_byte < temp)
-	    {
-	      right_start_byte = temp;
-	    }
-	  if (right_start_byte > temp)
-	    {
-	      right_start++;
-	      right_start_byte = CHAR_TO_BYTE (right_start);
-	    }
+	  eassert (CHAR_TO_BYTE (right_start) == right_start_byte);
 	}
       else
 	{

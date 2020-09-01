@@ -1,6 +1,6 @@
 ;;; gomoku.el --- Gomoku game between you and Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1988, 1994, 1996, 2001-2018 Free Software Foundation,
+;; Copyright (C) 1988, 1994, 1996, 2001-2020 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Philippe Schnoebelen <phs@lsv.ens-cachan.fr>
@@ -36,7 +36,7 @@
 ;; about the squares where one may play, or else there is a known forced win
 ;; for the first player. This program has no such restriction, but it does not
 ;; know about the forced win, nor do I.
-;; See http://renju.nu/r1rulhis.htm for more information.
+;; See http://renju.se/rif/r1rulhis.htm for more information.
 
 
 ;; There are two main places where you may want to customize the program: key
@@ -110,8 +110,8 @@ One useful value to include is `turn-on-font-lock' to highlight the pieces."
     (define-key map "u" 'gomoku-move-ne)		    ; u
     (define-key map "b" 'gomoku-move-sw)		    ; b
     (define-key map "n" 'gomoku-move-se)		    ; n
-    (define-key map "h" 'backward-char)			    ; h
-    (define-key map "l" 'forward-char)			    ; l
+    (define-key map "h" 'gomoku-move-left)		    ; h
+    (define-key map "l" 'gomoku-move-right)		    ; l
     (define-key map "j" 'gomoku-move-down)		    ; j
     (define-key map "k" 'gomoku-move-up)		    ; k
 
@@ -119,11 +119,13 @@ One useful value to include is `turn-on-font-lock' to highlight the pieces."
     (define-key map [kp-9] 'gomoku-move-ne)
     (define-key map [kp-1] 'gomoku-move-sw)
     (define-key map [kp-3] 'gomoku-move-se)
-    (define-key map [kp-4] 'backward-char)
-    (define-key map [kp-6] 'forward-char)
+    (define-key map [kp-4] 'gomoku-move-left)
+    (define-key map [kp-6] 'gomoku-move-right)
     (define-key map [kp-2] 'gomoku-move-down)
     (define-key map [kp-8] 'gomoku-move-up)
 
+    (define-key map "\C-b" 'gomoku-move-left)		    ; C-b
+    (define-key map "\C-f" 'gomoku-move-right)		    ; C-f
     (define-key map "\C-n" 'gomoku-move-down)		    ; C-n
     (define-key map "\C-p" 'gomoku-move-up)		    ; C-p
 
@@ -146,6 +148,10 @@ One useful value to include is `turn-on-font-lock' to highlight the pieces."
     (define-key map [mouse-2] 'gomoku-mouse-play)
     (define-key map [drag-mouse-2] 'gomoku-mouse-play)
 
+    (define-key map [remap backward-char] 'gomoku-move-left)
+    (define-key map [remap left-char] 'gomoku-move-left)
+    (define-key map [remap forward-char] 'gomoku-move-right)
+    (define-key map [remap right-char] 'gomoku-move-right)
     (define-key map [remap previous-line] 'gomoku-move-up)
     (define-key map [remap next-line] 'gomoku-move-down)
     (define-key map [remap move-beginning-of-line] 'gomoku-beginning-of-line)
@@ -656,48 +662,48 @@ that DVAL has been added on SQUARE."
     ((eq result 'emacs-won)
      (setq gomoku-number-of-emacs-wins (1+ gomoku-number-of-emacs-wins))
      (cond ((< gomoku-number-of-moves 20)
-	    "This was a REALLY QUICK win.")
+	    "I won...  I hope you like the game as you get better.")
 	   (gomoku-human-refused-draw
 	    "I won...  Too bad you refused my offer of a draw!")
 	   (gomoku-human-took-back
-	    "I won...  Taking moves back will not help you!")
+	    "I won...  It's OK to take back more moves next time.")
 	   ((not gomoku-emacs-played-first)
-	    "I won...  Playing first did not help you much!")
+	    "I won...  Use C-c C-b to take back a move on second thought.")
 	   ((and (zerop gomoku-number-of-human-wins)
 		 (zerop gomoku-number-of-draws)
 		 (> gomoku-number-of-emacs-wins 1))
-	    "I'm becoming tired of winning...")
+	    "I won...  It might be time take a break before trying again.")
 	   ("I won.")))
     ((eq result 'human-won)
      (setq gomoku-number-of-human-wins (1+ gomoku-number-of-human-wins))
      (concat "OK, you won this one."
 	     (cond
 	      (gomoku-human-took-back
-	       "  I, for one, never take my moves back...")
+	       "  For a bigger challenge, play without taking moves back.")
 	      (gomoku-emacs-played-first
-	       ".. so what?")
-	      ("  Now, let me play first just once."))))
+	       "  Congratulations!")
+	      ("  For a bigger challenge, let me play first."))))
     ((eq result 'human-resigned)
      (setq gomoku-number-of-emacs-wins (1+ gomoku-number-of-emacs-wins))
-     "So you resign.  That's just one more win for me.")
+     "I see that you resigned.  Better luck next time.")
     ((eq result 'nobody-won)
      (setq gomoku-number-of-draws (1+ gomoku-number-of-draws))
      (concat "This is a draw.  "
 	     (cond
 	      (gomoku-human-took-back
-	       "I, for one, never take my moves back...")
+	       "  For a bigger challenge, try without taking moves back.")
 	      (gomoku-emacs-played-first
-	       "Just chance, I guess.")
-	      ("Now, let me play first just once."))))
+	       "Wow, that was a long game.  We both played well.")
+	      ("  For a bigger challenge, let me play first."))))
     ((eq result 'draw-agreed)
      (setq gomoku-number-of-draws (1+ gomoku-number-of-draws))
      (concat "Draw agreed.  "
 	     (cond
 	      (gomoku-human-took-back
-	       "I, for one, never take my moves back...")
+	       "  For a bigger challenge, try without taking moves back.")
 	      (gomoku-emacs-played-first
-	       "You were lucky.")
-	      ("Now, let me play first just once."))))
+	       "Good game.")
+	      ("  For a bigger challenge, let me play first."))))
     ((eq result 'crash-game)
      "Sorry, I have been interrupted and cannot resume that game...")))
   (gomoku-display-statistics)
@@ -954,6 +960,11 @@ If the game is finished, this command requests for another game."
 	 ;; 2 instead of 1 because WINDOW-HEIGHT includes the mode line !
 	 gomoku-square-height)))
 
+(defun gomoku-point-x ()
+  "Return the board column where point is."
+  (1+ (/ (- (current-column) gomoku-x-offset)
+	 gomoku-square-width)))
+
 (defun gomoku-point-y ()
   "Return the board row where point is."
   (1+ (/ (- (count-lines (point-min) (point))
@@ -1143,12 +1154,27 @@ If the game is finished, this command requests for another game."
           (skip-chars-forward gomoku--intangible-chars)
           (when (eobp)
             (skip-chars-backward gomoku--intangible-chars)
-            (forward-char -1)))
+            (gomoku-move-left)))
       (skip-chars-backward gomoku--intangible-chars)
       (if (bobp)
           (skip-chars-forward gomoku--intangible-chars)
-        (forward-char -1))))
+        (gomoku-move-left))))
   (setq gomoku--last-pos (point)))
+
+;; forward-char and backward-char don't always move the right number
+;; of characters. Also, these functions check if you're on the edge of
+;; the screen.
+(defun gomoku-move-right ()
+  "Move point right one column on the Gomoku board."
+  (interactive)
+  (when (< (gomoku-point-x) gomoku-board-width)
+    (forward-char gomoku-square-width)))
+
+(defun gomoku-move-left ()
+  "Move point left one column on the Gomoku board."
+  (interactive)
+  (when (> (gomoku-point-x) 1)
+    (backward-char gomoku-square-width)))
 
 ;; previous-line and next-line don't work right with intangible newlines
 (defun gomoku-move-down ()
@@ -1171,25 +1197,25 @@ If the game is finished, this command requests for another game."
   "Move point North East on the Gomoku board."
   (interactive)
   (gomoku-move-up)
-  (forward-char))
+  (gomoku-move-right))
 
 (defun gomoku-move-se ()
   "Move point South East on the Gomoku board."
   (interactive)
   (gomoku-move-down)
-  (forward-char))
+  (gomoku-move-right))
 
 (defun gomoku-move-nw ()
   "Move point North West on the Gomoku board."
   (interactive)
   (gomoku-move-up)
-  (backward-char))
+  (gomoku-move-left))
 
 (defun gomoku-move-sw ()
   "Move point South West on the Gomoku board."
   (interactive)
   (gomoku-move-down)
-  (backward-char))
+  (gomoku-move-left))
 
 (defun gomoku-beginning-of-line ()
   "Move point to first square on the Gomoku board row."

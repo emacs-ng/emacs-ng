@@ -1,12 +1,12 @@
 ;;; woman.el --- browse UN*X manual pages `wo (without) man'
 
-;; Copyright (C) 2000-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2020 Free Software Foundation, Inc.
 
 ;; Author: Francis J. Wright <F.J.Wright@qmul.ac.uk>
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: help, unix
 ;; Adapted-By: Eli Zaretskii <eliz@gnu.org>
-;; Version: 0.551
+;; Old-Version: 0.551
 ;; URL: http://centaur.maths.qmul.ac.uk/Emacs/WoMan/
 
 ;; This file is part of GNU Emacs.
@@ -138,7 +138,7 @@
 ;; Customization, Hooks and Imenu
 ;; ==============================
 
-;; WoMan supports the GNU Emacs 20+ customization facility, and puts
+;; WoMan supports the GNU Emacs customization facility, and puts
 ;; a customization group called `WoMan' in the `Help' group under the
 ;; top-level `Emacs' group.  In order to be able to customize WoMan
 ;; without first loading it, add the following sexp to your .emacs:
@@ -401,6 +401,7 @@
 ;;; Code:
 
 (defvar woman-version "0.551 (beta)" "WoMan version information.")
+(make-obsolete-variable 'woman-version nil "28.1")
 
 (require 'man)
 (require 'button)
@@ -674,7 +675,7 @@ These normally have names of the form `man?'.  Its default value is
 \"[Mm][Aa][Nn]\", which is case-insensitive mainly for the benefit of
 Microsoft platforms.  Its purpose is to avoid `cat?', `.', `..', etc."
   ;; Based on a suggestion by Wei-Xue Shi.
-  :type 'string
+  :type 'regexp
   :group 'woman-interface)
 
 (defcustom woman-path
@@ -753,7 +754,7 @@ Default is t."
 An alist with elements of the form (MENU-TITLE REGEXP INDEX) --
 see the documentation for `imenu-generic-expression'."
   :type '(alist :key-type (choice :tag "Title" (const nil) string)
-                :value-type (group (choice (string :tag "Regexp")
+                :value-type (group (choice (regexp :tag "Regexp")
                                            function)
                                    integer))
   :group 'woman-interface)
@@ -913,8 +914,8 @@ Troff emulation is experimental and largely untested.
   :group 'faces)
 
 (defcustom woman-fontify
-  (or (and (fboundp 'display-color-p) (display-color-p))
-      (and (fboundp 'display-graphic-p) (display-graphic-p))
+  (or (display-color-p)
+      (display-graphic-p)
       (x-display-color-p))
   "If non-nil then WoMan assumes that face support is available.
 It defaults to a non-nil value if the display supports either colors
@@ -1830,7 +1831,6 @@ Argument EVENT is the invoking mouse event."
    ["Mini Help" woman-mini-help t]
    ,@(if (fboundp 'customize-group)
 	 '(["Customize..." (customize-group 'woman) t]))
-   ["Show Version" (message "WoMan %s" woman-version) t]
    "--"
    ("Advanced"
     ["View Source" (view-file woman-last-file-name) woman-last-file-name]
@@ -1878,7 +1878,6 @@ Argument EVENT is the invoking mouse event."
 WoMan is an ELisp emulation of much of the functionality of the Emacs
 `man' command running the standard UN*X man and ?roff programs.
 WoMan author: F.J.Wright@Maths.QMW.ac.uk
-WoMan version: see `woman-version'.
 See `Man-mode' for additional details.
 \\{woman-mode-map}"
   (let ((Man-build-page-list (symbol-function 'Man-build-page-list))
@@ -2010,10 +2009,8 @@ Optional argument REDRAW, if non-nil, forces mode line to be updated."
 ;;   (after Man-bgproc-sentinel-advice activate)
 ;;   ;; Terminates man processing
 ;;   "Report formatting time."
-;;   (let* ((time (current-time))
-;; 	 (time (+ (* (- (car time) (car WoMan-Man-start-time)) 65536)
-;; 		  (- (cadr time) (cadr WoMan-Man-start-time)))))
-;;     (message "Man formatting done in %d seconds" time)))
+;;   (message "Man formatting done in %s seconds"
+;;            (float-time (time-since WoMan-Man-start-time))))
 
 
 ;;; Buffer handling:
@@ -2078,7 +2075,7 @@ alist in `woman-buffer-alist' and return nil."
   (char-to-string woman-escaped-escape-char)
   "Internal string representation of escaped escape characters.")
 
-(defconst woman-unpadded-space-char ?\^]
+(defconst woman-unpadded-space-char ?\^\]
   ;; An arbitrary unused control character
   "Internal character representation of unpadded space characters.")
 (defconst woman-unpadded-space-string
@@ -2626,7 +2623,7 @@ If DELETE is non-nil then delete from point."
 	(t				; Ignore -- leave in buffer
 	 ;; This does not work too well, but it's only for debugging!
 	 (skip-chars-forward "^ \t")
-	 (if (looking-at "[ \t]*\\{") (search-forward "\\}"))
+	 (if (looking-at "[ \t]*{") (search-forward "}"))
 	 (forward-line 1))))
 
 ;; request is not used dynamically by any callees.
@@ -2638,7 +2635,7 @@ If DELETE is non-nil then delete from point."
     ;; Ignore -- leave in buffer
     ;; This does not work too well, but it's only for debugging!
     (skip-chars-forward "^ \t")
-    (if (looking-at "[ \t]*\\{") (search-forward "\\}"))
+    (if (looking-at "[ \t]*{") (search-forward "}"))
     (forward-line 1)))
 
 (defun woman0-so ()
@@ -3270,7 +3267,7 @@ If optional arg CONCAT is non-nil then join arguments."
     (while
 	;; Find font requests, paragraph macros and font escapes:
 	(re-search-forward
-	 "^[.'][ \t]*\\(\\(\\ft\\)\\|\\(.P\\)\\)\\|\\(\\\\f\\)" nil 1)
+	 "^[.'][ \t]*\\(\\(ft\\)\\|\\(.P\\)\\)\\|\\(\\\\f\\)" nil 1)
       (let (font beg notfont fescape)
 	;; Match font indicator and leave point at end of sequence:
 	(cond ((match-beginning 2)
@@ -3513,7 +3510,7 @@ The expression may be an argument in quotes."
   (let ((value (if (looking-at "[+-]") 0 (woman-parse-numeric-value)))
 	op)
     (while (cond
-	    ((looking-at "[+-/*%]")	; arithmetic operators
+	    ((looking-at "[+/*%-]")	; arithmetic operators
 	     (forward-char)
 	     (setq op (intern-soft (match-string 0)))
 	     (setq value (funcall op value (woman-parse-numeric-value))))

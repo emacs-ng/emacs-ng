@@ -1,7 +1,7 @@
 ;;; eieio.el --- Enhanced Implementation of Emacs Interpreted Objects  -*- lexical-binding:t -*-
 ;;;              or maybe Eric's Implementation of Emacs Interpreted Objects
 
-;; Copyright (C) 1995-1996, 1998-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1995-1996, 1998-2020 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Version: 1.4
@@ -351,24 +351,20 @@ Elements of FIELDS can be of the form (NAME PAT) in which case the
 contents of field NAME is matched against PAT, or they can be of
  the form NAME which is a shorthand for (NAME NAME)."
   (declare (debug (&rest [&or (sexp pcase-PAT) sexp])))
-  (let ((is (make-symbol "table")))
-    ;; FIXME: This generates a horrendous mess of redundant let bindings.
-    ;; `pcase' needs to be improved somehow to introduce let-bindings more
-    ;; sparingly, or the byte-compiler needs to be taught to optimize
-    ;; them away.
-    ;; FIXME: `pcase' does not do a good job here of sharing tests&code among
-    ;; various branches.
-    `(and (pred eieio-object-p)
-          (app eieio-pcase-slot-index-table ,is)
-          ,@(mapcar (lambda (field)
-                      (let* ((name (if (consp field) (car field) field))
-                             (pat (if (consp field) (cadr field) field))
-                             (i (make-symbol "index")))
-                        `(and (let (and ,i (pred natnump))
-                                (eieio-pcase-slot-index-from-index-table
-                                 ,is ',name))
-                              (app (pcase--flip aref ,i) ,pat))))
-                    fields))))
+  ;; FIXME: This generates a horrendous mess of redundant let bindings.
+  ;; `pcase' needs to be improved somehow to introduce let-bindings more
+  ;; sparingly, or the byte-compiler needs to be taught to optimize
+  ;; them away.
+  ;; FIXME: `pcase' does not do a good job here of sharing tests&code among
+  ;; various branches.
+  `(and (pred eieio-object-p)
+        ,@(mapcar (lambda (field)
+                    (pcase-exhaustive field
+                      (`(,name ,pat)
+                       `(app (pcase--flip eieio-oref ',name) ,pat))
+                      ((pred symbolp)
+                       `(app (pcase--flip eieio-oref ',field) ,field))))
+                  fields)))
 
 ;;; Simple generators, and query functions.  None of these would do
 ;;  well embedded into an object.
@@ -398,16 +394,15 @@ contents of field NAME is matched against PAT, or they can be of
 If EXTRA, include that in the string returned to represent the symbol."
   (cl-check-type obj eieio-object)
   (format "#<%s %s%s>" (eieio-object-class obj)
-	  (eieio-object-name-string obj) (or extra "")))
+	  (eieio-object-name-string obj)
+          (cond
+           ((null extra)
+            "")
+           ((listp extra)
+            (concat " " (mapconcat #'identity extra " ")))
+           (t
+            extra))))
 (define-obsolete-function-alias 'object-name #'eieio-object-name "24.4")
-
-(cl-defgeneric eieio-object-set-name-string (obj name)
-  "Set the string which is OBJ's NAME."
-  (declare (obsolete "inherit from `eieio-named' and use (setf (slot-value OBJ \\='object-name) NAME) instead" "25.1"))
-  (cl-check-type name string)
-  (setf (gethash obj eieio--object-names) name))
-(define-obsolete-function-alias
-  'object-set-name-string 'eieio-object-set-name-string "24.4")
 
 (defun eieio-object-class (obj)
   "Return the class struct defining OBJ."
@@ -426,10 +421,11 @@ If EXTRA, include that in the string returned to represent the symbol."
   'object-class-name 'eieio-object-class-name "24.4")
 
 (defun eieio-class-parents (class)
+  ;; FIXME: What does "(overload of variable)" mean here?
   "Return parent classes to CLASS.  (overload of variable).
 
 The CLOS function `class-direct-superclasses' is aliased to this function."
-  (eieio--class-parents (eieio--class-object class)))
+  (eieio--class-parents (eieio--full-class-object class)))
 
 (define-obsolete-function-alias 'class-parents #'eieio-class-parents "24.4")
 
@@ -469,7 +465,7 @@ The CLOS function `class-direct-subclasses' is aliased to this function."
 
 (defun child-of-class-p (child class)
   "Return non-nil if CHILD class is a subclass of CLASS."
-  (setq child (eieio--class-object child))
+  (setq child (eieio--full-class-object child))
   (cl-check-type child eieio--class)
   ;; `eieio-default-superclass' is never mentioned in eieio--class-parents,
   ;; so we have to special case it here.
@@ -649,14 +645,6 @@ If SLOT is unbound, do nothing."
       nil
     (eieio-oset object slot (delete item (eieio-oref object slot)))))
 
-;;; Here are some CLOS items that need the CL package
-;;
-
-;; FIXME: Shouldn't this be a more complex gv-expander which extracts the
-;; common code between oref and oset, so as to reduce the redundant work done
-;; in (push foo (oref bar baz)), like we do for the `nth' expander?
-(gv-define-simple-setter eieio-oref eieio-oset)
-
 
 ;;;
 ;; We want all objects created by EIEIO to have some default set of
@@ -710,6 +698,9 @@ calls `initialize-instance' on that object."
     ;; Call the initialize method on the new object with the slots
     ;; that were passed down to us.
     (initialize-instance new-object slots)
+    (when eieio-backward-compatibility
+      ;; Use symbol as type descriptor, for backwards compatibility.
+      (aset new-object 0 class))
     ;; Return the created object.
     new-object))
 
@@ -826,8 +817,9 @@ Implement this method to customize the summary."
   (declare (obsolete cl-print-object "26.1"))
   (format "%S" this))
 
-(cl-defmethod object-print ((this eieio-default-superclass) &rest strings)
-  "Pretty printer for object THIS.  Call function `object-name' with STRINGS.
+(with-suppressed-warnings ((obsolete object-print))
+  (cl-defmethod object-print ((this eieio-default-superclass) &rest strings)
+    "Pretty printer for object THIS.  Call function `object-name' with STRINGS.
 The default method for printing object THIS is to use the
 function `object-name'.
 
@@ -838,13 +830,16 @@ Implement this function and specify STRINGS in a call to
 `call-next-method' to provide additional summary information.
 When passing in extra strings from child classes, always remember
 to prepend a space."
-  (eieio-object-name this (apply #'concat strings)))
+    (eieio-object-name this (apply #'concat strings))))
 
+(with-suppressed-warnings ((obsolete object-print))
+  (cl-defmethod cl-print-object ((object eieio-default-superclass) stream)
+    "Default printer for EIEIO objects."
+    ;; Fallback to the old `object-print'.  There should be no
+    ;; `object-print' methods in the Emacs tree, but there may be some
+    ;; out-of-tree.
+    (princ (object-print object) stream)))
 
-(cl-defmethod cl-print-object ((object eieio-default-superclass) stream)
-  "Default printer for EIEIO objects."
-  ;; Fallback to the old `object-print'.
-  (princ (object-print object) stream))
 
 (defvar eieio-print-depth 0
   "The current indentation depth while printing.

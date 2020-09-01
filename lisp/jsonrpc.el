@@ -1,15 +1,14 @@
 ;;; jsonrpc.el --- JSON-RPC library                  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2018 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2020 Free Software Foundation, Inc.
 
 ;; Author: João Távora <joaotavora@gmail.com>
-;; Maintainer: João Távora <joaotavora@gmail.com>
 ;; Keywords: processes, languages, extensions
+;; Version: 1.0.12
 ;; Package-Requires: ((emacs "25.2"))
-;; Version: 1.0.6
 
-;; This is an Elpa :core package.  Don't use functionality that is not
-;; compatible with Emacs 25.2.
+;; This is a GNU ELPA :core package.  Avoid functionality that is not
+;; compatible with the version of Emacs recorded above.
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -38,13 +37,11 @@
 ;;; Code:
 
 (require 'cl-lib)
-(require 'json)
 (require 'eieio)
 (eval-when-compile (require 'subr-x))
 (require 'warnings)
 (require 'pcase)
 (require 'ert) ; to escape a `condition-case-unless-debug'
-(require 'array) ; xor
 
 
 ;;; Public API
@@ -109,7 +106,7 @@ notifications.  CONN, METHOD and PARAMS are the same as in
 ;;; API mandatory
 (cl-defgeneric jsonrpc-connection-send (conn &key id method params result error)
   "Send a JSONRPC message to connection CONN.
-ID, METHOD, PARAMS, RESULT and ERROR. ")
+ID, METHOD, PARAMS, RESULT and ERROR.")
 
 ;;; API optional
 (cl-defgeneric jsonrpc-shutdown (conn)
@@ -184,7 +181,7 @@ dispatcher in CONNECTION."
                                                    (cdr oops))
                                         "Internal error")))))
                   (error
-                   `(:error (:code -32603 :message "Internal error"))))))
+                   '(:error (:code -32603 :message "Internal error"))))))
           (apply #'jsonrpc--reply connection id reply)))
        (;; A remote notification
         method
@@ -345,7 +342,7 @@ ignored."
     :documentation "Process object wrapped by the this connection.")
    (-expected-bytes
     :accessor jsonrpc--expected-bytes
-    :documentation "How many bytes declared by server")
+    :documentation "How many bytes declared by server.")
    (-on-shutdown
     :accessor jsonrpc--on-shutdown
     :initform #'ignore
@@ -366,18 +363,53 @@ connection object, called when the process dies .")
 
 (cl-defmethod initialize-instance ((conn jsonrpc-process-connection) slots)
   (cl-call-next-method)
-  (let* ((proc (plist-get slots :process))
-         (proc (if (functionp proc) (funcall proc) proc))
-         (buffer (get-buffer-create (format "*%s output*" (process-name proc))))
-         (stderr (get-buffer-create (format "*%s stderr*" (process-name proc)))))
+  (cl-destructuring-bind (&key ((:process proc)) name &allow-other-keys) slots
+    ;; FIXME: notice the undocumented bad coupling in the stderr
+    ;; buffer name, it must be named exactly like this we expect when
+    ;; calling `make-process'.  If there were a `set-process-stderr'
+    ;; like there is `set-process-buffer' we wouldn't need this and
+    ;; could use a pipe with a process filter instead of
+    ;; `after-change-functions'.  Alternatively, we need a new initarg
+    ;; (but maybe not a slot).
+    (let ((calling-buffer (current-buffer)))
+      (with-current-buffer (get-buffer-create (format "*%s stderr*" name))
+        (let ((inhibit-read-only t)
+              (hidden-name (concat " " (buffer-name))))
+          (erase-buffer)
+          (buffer-disable-undo)
+          (add-hook
+           'after-change-functions
+           (lambda (beg _end _pre-change-len)
+             (cl-loop initially (goto-char beg)
+                      do (forward-line)
+                      when (bolp)
+                      for line = (buffer-substring
+                                  (line-beginning-position 0)
+                                  (line-end-position 0))
+                      do (with-current-buffer (jsonrpc-events-buffer conn)
+                           (goto-char (point-max))
+                           (let ((inhibit-read-only t))
+                             (insert (format "[stderr] %s\n" line))))
+                      until (eobp)))
+           nil t)
+          ;; If we are correctly coupled to the client, the process
+          ;; now created should pick up the current stderr buffer,
+          ;; which we immediately rename
+          (setq proc (if (functionp proc)
+                         (with-current-buffer calling-buffer (funcall proc))
+                       proc))
+          (ignore-errors (kill-buffer hidden-name))
+          (rename-buffer hidden-name)
+          (process-put proc 'jsonrpc-stderr (current-buffer))
+          (read-only-mode t))))
     (setf (jsonrpc--process conn) proc)
-    (set-process-buffer proc buffer)
-    (process-put proc 'jsonrpc-stderr stderr)
+    (set-process-buffer proc (get-buffer-create (format " *%s output*" name)))
     (set-process-filter proc #'jsonrpc--process-filter)
     (set-process-sentinel proc #'jsonrpc--process-sentinel)
     (with-current-buffer (process-buffer proc)
+      (buffer-disable-undo)
       (set-marker (process-mark proc) (point-min))
-      (let ((inhibit-read-only t)) (erase-buffer) (read-only-mode t) proc))
+      (let ((inhibit-read-only t)) (erase-buffer) (read-only-mode t)))
     (process-put proc 'jsonrpc-connection conn)))
 
 (cl-defmethod jsonrpc-connection-send ((connection jsonrpc-process-connection)
@@ -418,16 +450,16 @@ connection object, called when the process dies .")
 (cl-defmethod jsonrpc-shutdown ((conn jsonrpc-process-connection)
                                 &optional cleanup)
   "Wait for JSONRPC connection CONN to shutdown.
-With optional CLEANUP, kill any associated buffers. "
+With optional CLEANUP, kill any associated buffers."
   (unwind-protect
       (cl-loop
-       with proc = (jsonrpc--process conn)
+       with proc = (jsonrpc--process conn) for i from 0
+       while (not (process-get proc 'jsonrpc-sentinel-cleanup-started))
+       unless (zerop i) do
+       (jsonrpc--warn "Sentinel for %s still hasn't run, deleting it!" proc)
        do
        (delete-process proc)
-       (accept-process-output nil 0.1)
-       while (not (process-get proc 'jsonrpc-sentinel-done))
-       do (jsonrpc--warn
-           "Sentinel for %s still hasn't run,  deleting it!" proc))
+       (accept-process-output nil 0.1))
     (when cleanup
       (kill-buffer (process-buffer (jsonrpc--process conn)))
       (kill-buffer (jsonrpc-stderr-buffer conn)))))
@@ -441,30 +473,43 @@ With optional CLEANUP, kill any associated buffers. "
 ;;;
 (define-error 'jsonrpc-error "jsonrpc-error")
 
-(defun jsonrpc--json-read ()
-  "Read JSON object in buffer, move point to end of buffer."
-  ;; TODO: I guess we can make these macros if/when jsonrpc.el
-  ;; goes into Emacs core.
-  (cond ((fboundp 'json-parse-buffer) (json-parse-buffer
-                                       :object-type 'plist
-                                       :null-object nil
-                                       :false-object :json-false))
-        (t                            (let ((json-object-type 'plist))
-                                        (json-read)))))
+(defalias 'jsonrpc--json-read
+  (if (fboundp 'json-parse-buffer)
+      (lambda ()
+        (json-parse-buffer :object-type 'plist
+                           :null-object nil
+                           :false-object :json-false))
+    (require 'json)
+    (defvar json-object-type)
+    (declare-function json-read "json" ())
+    (lambda ()
+      (let ((json-object-type 'plist))
+        (json-read))))
+  "Read JSON object in buffer, move point to end of buffer.")
 
-(defun jsonrpc--json-encode (object)
-  "Encode OBJECT into a JSON string."
-  (cond ((fboundp 'json-serialize) (json-serialize
-                                    object
-                                    :false-object :json-false
-                                    :null-object nil))
-        (t                         (let ((json-false :json-false)
-                                         (json-null nil))
-                                     (json-encode object)))))
+(defalias 'jsonrpc--json-encode
+  (if (fboundp 'json-serialize)
+      (lambda (object)
+        (json-serialize object
+                        :false-object :json-false
+                        :null-object nil))
+    (require 'json)
+    (defvar json-false)
+    (defvar json-null)
+    (declare-function json-encode "json" (object))
+    (lambda (object)
+      (let ((json-false :json-false)
+            (json-null nil))
+        (json-encode object))))
+  "Encode OBJECT into a JSON string.")
 
-(cl-defun jsonrpc--reply (connection id &key (result nil result-supplied-p) error)
+(cl-defun jsonrpc--reply
+    (connection id &key (result nil result-supplied-p) (error nil error-supplied-p))
   "Reply to CONNECTION's request ID with RESULT or ERROR."
-  (jsonrpc-connection-send connection :id id :result result :error error))
+  (apply #'jsonrpc-connection-send connection
+         `(:id ,id
+               ,@(and result-supplied-p `(:result ,result))
+               ,@(and error-supplied-p `(:error ,error)))))
 
 (defun jsonrpc--call-deferred (connection)
   "Call CONNECTION's deferred actions, who may again defer themselves."
@@ -486,14 +531,14 @@ With optional CLEANUP, kill any associated buffers. "
                  (pcase-let ((`(,_success ,_error ,timeout) triplet))
                    (when timeout (cancel-timer timeout))))
                (jsonrpc--request-continuations connection))
+      (process-put proc 'jsonrpc-sentinel-cleanup-started t)
       (unwind-protect
           ;; Call all outstanding error handlers
           (maphash (lambda (_id triplet)
                      (pcase-let ((`(,_success ,error ,_timeout) triplet))
-                       (funcall error `(:code -1 :message "Server died"))))
+                       (funcall error '(:code -1 :message "Server died"))))
                    (jsonrpc--request-continuations connection))
         (jsonrpc--message "Server exited with status %s" (process-exit-status proc))
-        (process-put proc 'jsonrpc-sentinel-done t)
         (delete-process proc)
         (funcall (jsonrpc--on-shutdown connection) connection)))))
 
@@ -576,8 +621,8 @@ With optional CLEANUP, kill any associated buffers. "
                                     (deferred nil))
   "Does actual work for `jsonrpc-async-request'.
 
-Return a list (ID TIMER). ID is the new request's ID, or nil if
-the request was deferred. TIMER is a timer object set (or nil, if
+Return a list (ID TIMER).  ID is the new request's ID, or nil if
+the request was deferred.  TIMER is a timer object set (or nil, if
 TIMEOUT is nil)."
   (pcase-let* ((buf (current-buffer)) (point (point))
                (`(,_ ,timer ,old-id)
@@ -677,7 +722,7 @@ originated."
                               (format "-%s" subtype)))))
             (goto-char (point-max))
             (prog1
-                (let ((msg (format "%s%s%s %s:\n%s\n"
+                (let ((msg (format "[%s]%s%s %s:\n%s"
                                    type
                                    (if id (format " (id:%s)" id) "")
                                    (if error " ERROR" "")

@@ -1,6 +1,6 @@
 ;;; sort.el --- commands to sort text in an Emacs buffer -*- lexical-binding: t -*-
 
-;; Copyright (C) 1986-1987, 1994-1995, 2001-2018 Free Software
+;; Copyright (C) 1986-1987, 1994-1995, 2001-2020 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Howie Kaye
@@ -198,7 +198,8 @@ as start and end positions), and with `string<' otherwise."
 
 ;;;###autoload
 (defun sort-lines (reverse beg end)
-  "Sort lines in region alphabetically; argument means descending order.
+  "Sort lines in region alphabetically; REVERSE non-nil means descending order.
+Interactively, REVERSE is the prefix argument, and BEG and END are the region.
 Called from a program, there are three arguments:
 REVERSE (non-nil means reverse order), BEG and END (region to sort).
 The variable `sort-fold-case' determines whether alphabetic case affects
@@ -225,11 +226,17 @@ the sort order."
       (narrow-to-region beg end)
       (goto-char (point-min))
       (sort-subr reverse
-		 (function
-		  (lambda ()
-		    (while (and (not (eobp)) (looking-at paragraph-separate))
-		      (forward-line 1))))
-		 'forward-paragraph))))
+		 (lambda ()
+		   (while (and (not (eobp)) (looking-at paragraph-separate))
+		     (forward-line 1)))
+		 (lambda ()
+                   (forward-paragraph)
+                   ;; If the buffer doesn't end with a newline, add a
+                   ;; newline to avoid having paragraphs being
+                   ;; concatenated after sorting.
+                   (when (and (eobp)
+                              (not (bolp)))
+                     (insert "\n")))))))
 
 ;;;###autoload
 (defun sort-pages (reverse beg end)
@@ -538,23 +545,29 @@ Use \\[untabify] to convert tabs to spaces before sorting."
 ;;;###autoload
 (defun reverse-region (beg end)
   "Reverse the order of lines in a region.
-From a program takes two point or marker arguments, BEG and END."
+When called from Lisp, takes two point or marker arguments, BEG and END.
+If BEG is not at the beginning of a line, the first line of those
+to be reversed is the line starting after BEG.
+If END is not at the end of a line, the last line to be reversed
+is the one that ends before END."
   (interactive "r")
   (if (> beg end)
       (let (mid) (setq mid end end beg beg mid)))
   (save-excursion
-    ;; put beg at the start of a line and end and the end of one --
-    ;; the largest possible region which fits this criteria
+    ;; Put beg at the start of a line and end and the end of one --
+    ;; the largest possible region which fits this criteria.
     (goto-char beg)
     (or (bolp) (forward-line 1))
     (setq beg (point))
     (goto-char end)
-    ;; the test for bolp is for those times when end is on an empty line;
+    ;; The test for bolp is for those times when end is on an empty line;
     ;; it is probably not the case that the line should be included in the
     ;; reversal; it isn't difficult to add it afterward.
     (or (and (eolp) (not (bolp))) (progn (forward-line -1) (end-of-line)))
     (setq end (point-marker))
-    ;; the real work.  this thing cranks through memory on large regions.
+    (when (<= end beg)
+      (user-error "There are no full lines in the region"))
+    ;; The real work.  This thing cranks through memory on large regions.
     (let (ll (do t))
       (while do
 	(goto-char beg)

@@ -1,6 +1,6 @@
 ;;; mml1991.el --- Old PGP message format (RFC 1991) support for MML
 
-;; Copyright (C) 1998-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2020 Free Software Foundation, Inc.
 
 ;; Author: Sascha Lüdecke <sascha@meta-x.de>,
 ;;	Simon Josefsson <simon@josefsson.org> (Mailcrypt interface, Gnus glue)
@@ -242,7 +242,6 @@ Whether the passphrase is cached at all is controlled by
 (defvar epg-user-id-alist)
 
 (autoload 'epg-make-context "epg")
-(autoload 'epg-passphrase-callback-function "epg")
 (autoload 'epa-select-keys "epa")
 (autoload 'epg-list-keys "epg")
 (autoload 'epg-context-set-armor "epg")

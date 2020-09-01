@@ -612,11 +612,11 @@ but it also means that you need a convenient way to save the first
 file's buffer.  Having to switch back to that buffer, in order to save
 it with C-x C-s, would be a nuisance.  So we have
 
-	C-x s     Save some buffers
+	C-x s     Save some buffers to their files
 
-C-x s asks you about each buffer which contains changes that you have
-not saved.  It asks you, for each such buffer, whether to save the
-buffer.
+C-x s asks you about each file-visiting buffer which contains changes
+that you have not saved.  It asks you, for each such buffer, whether
+to save the buffer to its file.
 
 >> Insert a line of text, then type C-x s.
    It should ask you whether to save the buffer named TUTORIAL.
@@ -660,8 +660,8 @@ as by a mail handling utility.
 There are many C-x commands.  Here is a list of the ones you have learned:
 
 	C-x C-f		Find file
-	C-x C-s		Save file
-	C-x s		Save some buffers
+	C-x C-s		Save buffer to file
+	C-x s		Save some buffers to their files
 	C-x C-b		List buffers
 	C-x b		Switch buffer
 	C-x C-c		Quit Emacs
@@ -704,7 +704,7 @@ Emacs deletes its auto save file.
 If the computer crashes, you can recover your auto-saved editing by
 finding the file normally (the file you were editing, not the auto
 save file) and then typing M-x recover-this-file <Return>.  When it
-asks fo confirmation, type yes<Return> to go ahead and recover the
+asks for confirmation, type yes<Return> to go ahead and recover the
 auto-save data.
 
 
@@ -1081,7 +1081,7 @@ corresponding command names (such as C-x C-f beside find-file).
 You can learn more about Emacs by reading its manual, either as a
 printed book, or inside Emacs (use the Help menu or type C-h r).
 Two features that you may like especially are completion, which saves
-typing, and dired, which simplifies file handling.
+typing, and Dired, which simplifies file handling.
 
 Completion is a way to avoid unnecessary typing.  For instance, if you
 want to switch to the *Messages* buffer, you can type C-x b *M<Tab>
@@ -1116,7 +1116,7 @@ starting with the one written by Stuart Cracraft for the original Emacs.
 This version of the tutorial is a part of GNU Emacs.  It is copyrighted
 and comes with permission to distribute copies on certain conditions:
 
-  Copyright (C) 1985, 1996, 1998, 2001-2018 Free Software Foundation,
+  Copyright (C) 1985, 1996, 1998, 2001-2020 Free Software Foundation,
   Inc.
 
   This file is part of GNU Emacs.

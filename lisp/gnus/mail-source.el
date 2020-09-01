@@ -1,6 +1,6 @@
 ;;; mail-source.el --- functions for fetching mail
 
-;; Copyright (C) 1999-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2020 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news, mail
@@ -24,14 +24,12 @@
 
 ;;; Code:
 
-(require 'format-spec)
 (eval-when-compile
   (require 'cl-lib)
   (require 'imap))
 (autoload 'auth-source-search "auth-source")
 (autoload 'pop3-movemail "pop3")
 (autoload 'pop3-get-message-count "pop3")
-(autoload 'nnheader-cancel-timer "nnheader")
 (require 'mm-util)
 (require 'message) ;; for `message-directory'
 
@@ -287,7 +285,7 @@ number."
   :type 'boolean)
 
 (defcustom mail-source-incoming-file-prefix "Incoming"
-  "Prefix for file name for storing incoming mail"
+  "Prefix for file name for storing incoming mail."
   :group 'mail-source
   :type 'string)
 
@@ -602,7 +600,8 @@ If CONFIRM is non-nil, ask for confirmation before removing a file."
       (let* ((ffile (car files))
 	     (bfile (replace-regexp-in-string "\\`.*/\\([^/]+\\)\\'" "\\1"
 					      ffile))
-	     (filetime (nth 5 (file-attributes ffile))))
+	     (filetime (file-attribute-modification-time
+			(file-attributes ffile))))
 	(setq files (cdr files))
 	(when (and (> (time-to-number-of-days (time-subtract now filetime))
 		      diff)
@@ -618,7 +617,8 @@ Deleting old (> %s day(s)) incoming mail file `%s'." diff bfile)
 (defun mail-source-callback (callback info)
   "Call CALLBACK on the mail file.  Pass INFO on to CALLBACK."
   (if (or (not (file-exists-p mail-source-crash-box))
-	  (zerop (nth 7 (file-attributes mail-source-crash-box))))
+	  (zerop (file-attribute-size
+		  (file-attributes mail-source-crash-box))))
       (progn
 	(when (file-exists-p mail-source-crash-box)
 	  (delete-file mail-source-crash-box))
@@ -645,9 +645,9 @@ Deleting old (> %s day(s)) incoming mail file `%s'." diff bfile)
 	  ;; Don't check for old incoming files more than once per day to
 	  ;; save a lot of file accesses.
 	  (when (or (null mail-source-incoming-last-checked-time)
-		    (> (float-time
-			(time-since mail-source-incoming-last-checked-time))
-		       (* 24 60 60)))
+		    (time-less-p
+		     (* 24 60 60)
+		     (time-since mail-source-incoming-last-checked-time)))
 	    (setq mail-source-incoming-last-checked-time (current-time))
 	    (mail-source-delete-old-incoming
 	     mail-source-delete-incoming
@@ -670,7 +670,7 @@ Deleting old (> %s day(s)) incoming mail file `%s'." diff bfile)
        ((not (file-exists-p from))
 	;; There is no inbox.
 	(setq to nil))
-       ((zerop (nth 7 (file-attributes from)))
+       ((zerop (file-attribute-size (file-attributes from)))
 	;; Empty file.
 	(setq to nil))
        (t
@@ -694,7 +694,7 @@ Deleting old (> %s day(s)) incoming mail file `%s'." diff bfile)
 			 mail-source-movemail-program
 			 nil errors nil from to)))))
 	      (when (file-exists-p to)
-		(set-file-modes to mail-source-default-file-modes))
+		(set-file-modes to mail-source-default-file-modes 'nofollow))
 	      (if (and (or (not (buffer-modified-p errors))
 			   (zerop (buffer-size errors)))
 		       (and (numberp result)
@@ -721,8 +721,7 @@ Deleting old (> %s day(s)) incoming mail file `%s'." diff bfile)
 				   (buffer-string) result))
 		    (error "%s" (buffer-string)))
 		  (setq to nil)))))))
-      (when (and errors
-		 (buffer-name errors))
+      (when (buffer-live-p errors)
 	(kill-buffer errors))
       ;; Return whether we moved successfully or not.
       to)))
@@ -740,9 +739,11 @@ Deleting old (> %s day(s)) incoming mail file `%s'." diff bfile)
   (when delay
     (sleep-for delay)))
 
+(declare-function gnus-get-buffer-create "gnus" (name))
 (defun mail-source-call-script (script)
+  (require 'gnus)
   (let ((background nil)
-	(stderr (get-buffer-create " *mail-source-stderr*"))
+	(stderr (gnus-get-buffer-create " *mail-source-stderr*"))
 	result)
     (when (string-match "& *$" script)
       (setq script (substring script 0 (match-beginning 0))
@@ -767,14 +768,14 @@ Deleting old (> %s day(s)) incoming mail file `%s'." diff bfile)
   "Fetcher for single-file sources."
   (mail-source-bind (file source)
     (mail-source-run-script
-     prescript (format-spec-make ?t mail-source-crash-box)
+     prescript `((?t . ,mail-source-crash-box))
      prescript-delay)
     (let ((mail-source-string (format "file:%s" path)))
       (if (mail-source-movemail path mail-source-crash-box)
 	  (prog1
 	      (mail-source-callback callback path)
 	    (mail-source-run-script
-	     postscript (format-spec-make ?t mail-source-crash-box))
+             postscript `((?t . ,mail-source-crash-box)))
 	    (mail-source-delete-crash-box))
 	0))))
 
@@ -782,7 +783,7 @@ Deleting old (> %s day(s)) incoming mail file `%s'." diff bfile)
   "Fetcher for directory sources."
   (mail-source-bind (directory source)
     (mail-source-run-script
-     prescript (format-spec-make ?t path) prescript-delay)
+     prescript `((?t . ,path)) prescript-delay)
     (let ((found 0)
 	  (mail-source-string (format "directory:%s" path)))
       (dolist (file (directory-files
@@ -791,7 +792,7 @@ Deleting old (> %s day(s)) incoming mail file `%s'." diff bfile)
 		   (funcall predicate file)
 		   (mail-source-movemail file mail-source-crash-box))
 	  (cl-incf found (mail-source-callback callback file))
-	  (mail-source-run-script postscript (format-spec-make ?t path))
+          (mail-source-run-script postscript `((?t . ,path)))
 	  (mail-source-delete-crash-box)))
       found)))
 
@@ -801,8 +802,8 @@ Deleting old (> %s day(s)) incoming mail file `%s'." diff bfile)
     ;; fixme: deal with stream type in format specs
     (mail-source-run-script
      prescript
-     (format-spec-make ?p password ?t mail-source-crash-box
-		       ?s server ?P port ?u user)
+     `((?p . ,password) (?t . ,mail-source-crash-box)
+       (?s . ,server) (?P . ,port) (?u . ,user))
      prescript-delay)
     (let ((from (format "%s:%s:%s" server user port))
 	  (mail-source-string (format "pop:%s@%s" user server))
@@ -823,8 +824,8 @@ Deleting old (> %s day(s)) incoming mail file `%s'." diff bfile)
 	      (mail-source-fetch-with-program
 	       (format-spec
 		program
-		(format-spec-make ?p password ?t mail-source-crash-box
-				  ?s server ?P port ?u user))))
+                `((?p . ,password) (?t . ,mail-source-crash-box)
+                  (?s . ,server) (?P . ,port) (?u . ,user)))))
 	     (function
 	      (funcall function mail-source-crash-box))
 	     ;; The default is to use pop3.el.
@@ -861,8 +862,8 @@ Deleting old (> %s day(s)) incoming mail file `%s'." diff bfile)
 		  (setq mail-source-new-mail-available nil))
 	      (mail-source-run-script
 	       postscript
-	       (format-spec-make ?p password ?t mail-source-crash-box
-				 ?s server ?P port ?u user))
+               `((?p . ,password) (?t . ,mail-source-crash-box)
+                 (?s . ,server) (?P . ,port) (?u . ,user)))
 	      (mail-source-delete-crash-box)))
 	;; We nix out the password in case the error
 	;; was because of a wrong password being given.
@@ -987,9 +988,9 @@ This only works when `display-time' is enabled."
 	      (> (prefix-numeric-value arg) 0))))
     (setq mail-source-report-new-mail on)
     (and mail-source-report-new-mail-timer
-	 (nnheader-cancel-timer mail-source-report-new-mail-timer))
+	 (cancel-timer mail-source-report-new-mail-timer))
     (and mail-source-report-new-mail-idle-timer
-	 (nnheader-cancel-timer mail-source-report-new-mail-idle-timer))
+	 (cancel-timer mail-source-report-new-mail-idle-timer))
     (setq mail-source-report-new-mail-timer nil)
     (setq mail-source-report-new-mail-idle-timer nil)
     (if on
@@ -1075,8 +1076,9 @@ This only works when `display-time' is enabled."
   "Fetcher for imap sources."
   (mail-source-bind (imap source)
     (mail-source-run-script
-     prescript (format-spec-make ?p password ?t mail-source-crash-box
-				 ?s server ?P port ?u user)
+     prescript
+     `((?p . ,password) (?t . ,mail-source-crash-box)
+       (?s . ,server) (?P . ,port) (?u . ,user))
      prescript-delay)
     (let ((from (format "%s:%s:%s" server user port))
 	  (found 0)
@@ -1141,8 +1143,8 @@ This only works when `display-time' is enabled."
       (kill-buffer buf)
       (mail-source-run-script
        postscript
-       (format-spec-make ?p password ?t mail-source-crash-box
-			 ?s server ?P port ?u user))
+       `((?p . ,password) (?t . ,mail-source-crash-box)
+         (?s . ,server) (?P . ,port) (?u . ,user)))
       found)))
 
 (provide 'mail-source)

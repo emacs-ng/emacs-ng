@@ -1,6 +1,6 @@
 ;;; tex-mode.el --- TeX, LaTeX, and SliTeX mode commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1989, 1992, 1994-1999, 2001-2018 Free
+;; Copyright (C) 1985-1986, 1989, 1992, 1994-1999, 2001-2020 Free
 ;; Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -224,7 +224,7 @@ Should show the queue(s) that \\[tex-print] puts jobs on."
   :group 'tex-view)
 
 ;;;###autoload
-(defcustom tex-default-mode 'latex-mode
+(defcustom tex-default-mode #'latex-mode
   "Mode to enter for a new file that might be either TeX or LaTeX.
 This variable is used when it can't be determined whether the file
 is plain TeX or LaTeX or what because the file contains no commands.
@@ -251,7 +251,7 @@ Normally set to either `plain-tex-mode' or `latex-mode'."
   :type 'boolean
   :group 'tex
   :version "23.1")
-(put 'tex-fontify-script 'safe-local-variable 'booleanp)
+(put 'tex-fontify-script 'safe-local-variable #'booleanp)
 
 (defcustom tex-font-script-display '(-0.2 0.2)
   "How much to lower and raise subscript and superscript content.
@@ -465,7 +465,7 @@ An alternative value is \" . \", if you use a font with a narrow period."
 ;    ("{\\\\bf\\([^}]+\\)}" 1 'bold keep)
 ;    ("{\\\\\\(em\\|it\\|sl\\)\\([^}]+\\)}" 2 'italic keep)
 ;    ("\\\\\\([a-zA-Z@]+\\|.\\)" . font-lock-keyword-face)
-;    ("^[ \t\n]*\\\\def[\\\\@]\\(\\w+\\)" 1 font-lock-function-name-face keep))
+;    ("^[ \t\n]*\\\\def[\\@]\\(\\w+\\)" 1 font-lock-function-name-face keep))
 ;  ;; Rewritten and extended for LaTeX2e by Ulrik Dickow <dickow@nbi.dk>.
 ;  '(("\\\\\\(begin\\|end\\|newcommand\\){\\([a-zA-Z0-9\\*]+\\)}"
 ;     2 font-lock-function-name-face)
@@ -546,7 +546,7 @@ An alternative value is \" . \", if you use a font with a narrow period."
         ;; Include args.
         (,(concat slash includes opt arg) 3 font-lock-builtin-face)
         ;; Verbatim-like args.
-        (,(concat slash verbish opt arg) 3 'tex-verbatim)
+        (,(concat slash verbish opt arg) 3 'tex-verbatim t)
         ;; Definitions.  I think.
         ("^[ \t]*\\\\def *\\\\\\(\\(\\w\\|@\\)+\\)"
 	 1 font-lock-function-name-face))))
@@ -593,7 +593,7 @@ An alternative value is \" . \", if you use a font with a narrow period."
 	    ;; Miscellany.
 	    (slash "\\\\")
 	    (opt " *\\(\\[[^]]*\\] *\\)*")
-	    (args "\\(\\(?:[^{}&\\]+\\|\\\\.\\|{[^}]*}\\)+\\)")
+	    (args "\\(\\(?:[^${}&\\]+\\|\\\\.\\|{[^}]*}\\)+\\)")
 	    (arg "{\\(\\(?:[^{}\\]+\\|\\\\.\\|{[^}]*}\\)+\\)"))
        (list
 	;;
@@ -601,9 +601,9 @@ An alternative value is \" . \", if you use a font with a narrow period."
 	(list (concat slash citations opt arg) 3 'font-lock-constant-face)
 	;;
 	;; Text between `` quotes ''.
-	(cons (concat (regexp-opt `("``" "\"<" "\"`" "<<" "«") t)
+	(cons (concat (regexp-opt '("``" "\"<" "\"`" "<<" "«") t)
 		      "[^'\">{]+"	;a bit pessimistic
-		      (regexp-opt `("''" "\">" "\"'" ">>" "»") t))
+		      (regexp-opt '("''" "\">" "\"'" ">>" "»") t))
 	      'font-lock-string-face)
 	;;
 	;; Command names, special and general.
@@ -668,9 +668,11 @@ An alternative value is \" . \", if you use a font with a narrow period."
   "Default expressions to highlight in TeX modes.")
 
 (defvar tex-verbatim-environments
-  '("verbatim" "verbatim*"))
+  '("verbatim" "verbatim*"
+    "Verbatim" ;; From "fancyvrb"
+    ))
 (put 'tex-verbatim-environments 'safe-local-variable
-     (lambda (x) (null (delq t (mapcar #'stringp x)))))
+     (lambda (x) (not (memq nil (mapcar #'stringp x)))))
 
 (eval-when-compile
   (defconst tex-syntax-propertize-rules
@@ -729,7 +731,7 @@ automatically inserts its partner."
     (condition-case err
         (with-silent-modifications
           ;; Remove properties even if don't find a pair.
-          (remove-text-properties
+          (remove-list-of-text-properties
            (previous-single-property-change (1+ start) 'latex-env-pair)
            (next-single-property-change start 'latex-env-pair)
            '(latex-env-pair))
@@ -966,7 +968,7 @@ Inherits `shell-mode-map' with a few additions.")
 
 ;; This would be a lot simpler if we just used a regexp search,
 ;; but then it would be too slow.
-(defun tex-guess-mode ()
+(defun tex--guess-mode ()
   (let ((mode tex-default-mode) slash comment)
     (save-excursion
       (goto-char (point-min))
@@ -983,52 +985,40 @@ Inherits `shell-mode-map' with a few additions.")
 		      (regexp-opt '("documentstyle" "documentclass"
 				    "begin" "subsection" "section"
 				    "part" "chapter" "newcommand"
-				    "renewcommand" "RequirePackage") 'words)
+				    "renewcommand" "RequirePackage")
+				  'words)
 		      "\\|NeedsTeXFormat{LaTeX")))
 		  (if (and (looking-at
 			    "document\\(style\\|class\\)\\(\\[.*\\]\\)?{slides}")
 			   ;; SliTeX is almost never used any more nowadays.
 			   (tex-executable-exists-p slitex-run-command))
-		      'slitex-mode
-		    'latex-mode)
-		'plain-tex-mode))))
-    (funcall mode)))
+		      #'slitex-mode
+		    #'latex-mode)
+		#'plain-tex-mode))))
+    mode))
 
 ;; `tex-mode' plays two roles: it's the parent of several sub-modes
 ;; but it's also the function that chooses between those submodes.
 ;; To tell the difference between those two cases where the function
 ;; might be called, we check `delay-mode-hooks'.
-(define-derived-mode tex-mode text-mode "generic-TeX"
-  (tex-common-initialization))
-;; We now move the function and define it again.  This gives a warning
-;; in the byte-compiler :-( but it's difficult to avoid because
-;; `define-derived-mode' will necessarily define the function once
-;; and we need to define it a second time for `autoload' to get the
-;; proper docstring.
-(defalias 'tex-mode-internal (symbol-function 'tex-mode))
-
-;; Suppress the byte-compiler warning about multiple definitions.
-;; This is a) ugly, and b) cheating, but this was the last
-;; remaining warning from byte-compiling all of Emacs...
-(eval-when-compile
-  (if (boundp 'byte-compile-function-environment)
-      (setq byte-compile-function-environment
-            (delq (assq 'tex-mode byte-compile-function-environment)
-                  byte-compile-function-environment))))
-
 ;;;###autoload
-(defun tex-mode ()
+(define-derived-mode tex-mode text-mode "generic-TeX"
   "Major mode for editing files of input for TeX, LaTeX, or SliTeX.
+This is the shared parent mode of several submodes.
 Tries to determine (by looking at the beginning of the file) whether
 this file is for plain TeX, LaTeX, or SliTeX and calls `plain-tex-mode',
-`latex-mode', or `slitex-mode', respectively.  If it cannot be determined,
+`latex-mode', or `slitex-mode', accordingly.  If it cannot be determined,
 such as if there are no commands in the file, the value of `tex-default-mode'
 says which mode to use."
-  (interactive)
-  (if delay-mode-hooks
-      ;; We're called from one of the children already.
-      (tex-mode-internal)
-    (tex-guess-mode)))
+  (tex-common-initialization))
+
+(advice-add 'tex-mode :around #'tex--redirect-to-submode)
+(defun tex--redirect-to-submode (orig-fun)
+  "Redirect to one of the submodes when called directly."
+  (funcall (if delay-mode-hooks
+               ;; We're called from one of the children already.
+               orig-fun
+             (tex--guess-mode))))
 
 ;; The following three autoloaded aliases appear to conflict with
 ;; AUCTeX.  However, even though AUCTeX uses the mixed case variants
@@ -1037,6 +1027,10 @@ says which mode to use."
 ;; AUCTeX to provide a fully functional user-level replacement.  So
 ;; these aliases should remain as they are, in particular since AUCTeX
 ;; users are likely to use them.
+;; Note from Stef: I don't understand the above explanation, the only
+;; justification I can find to keep those confusing aliases is for those
+;; users who may have files annotated with -*- LaTeX -*- (e.g. because they
+;; received them from someone using AUCTeX).
 
 ;;;###autoload
 (defalias 'TeX-mode 'tex-mode)
@@ -1139,6 +1133,7 @@ subshell is initiated, `tex-shell-hook' is run."
   ;; A line containing just $$ is treated as a paragraph separator.
   ;; A line starting with $$ starts a paragraph,
   ;; but does not separate paragraphs if it has more stuff on it.
+  ;; For \pagebreak allow latex optional arg like \pagebreak[2]
   (setq paragraph-start
 	(concat "[ \t]*\\(\\$\\$\\|"
 		"\\\\[][]\\|"
@@ -1152,7 +1147,7 @@ subshell is initiated, `tex-shell-hook' is run."
 		"\\>\\|\\\\[a-z]*" (regexp-opt '("space" "skip" "page") t)
 		"\\>\\)"))
   (setq paragraph-separate
-	(concat "[\f%]\\|[ \t]*\\($\\|"
+	(concat "\\([ \t]*%\\)\\|[\f]\\|[ \t]*\\($\\|"
 		"\\\\[][]\\|"
 		"\\\\" (regexp-opt (append
 				    (mapcar #'car latex-section-alist)
@@ -1162,7 +1157,7 @@ subshell is initiated, `tex-shell-hook' is run."
 					      "noindent" "newpage" "footnote"
 					      "marginpar" "parbox" "caption"))
 		"\\|\\$\\$\\|[a-z]*\\(space\\|skip\\|page[a-z]*\\)"
-		"\\>\\)[ \t]*\\($\\|%\\)\\)"))
+		"\\>\\)[][0-9 \t]*\\($\\|%\\)\\)"))
   (setq-local imenu-create-index-function #'latex-imenu-create-index)
   (setq-local tex-face-alist tex-latex-face-alist)
   (add-hook 'fill-nobreak-predicate #'latex-fill-nobreak-predicate nil t)
@@ -1170,7 +1165,7 @@ subshell is initiated, `tex-shell-hook' is run."
   (setq-local fill-indent-according-to-mode t)
   (add-hook 'completion-at-point-functions
             #'latex-complete-data nil 'local)
-  (add-hook 'flymake-diagnostic-functions 'tex-chktex nil t)
+  (add-hook 'flymake-diagnostic-functions #'tex-chktex nil t)
   (setq-local outline-regexp latex-outline-regexp)
   (setq-local outline-level #'latex-outline-level)
   (setq-local forward-sexp-function #'latex-forward-sexp)
@@ -1251,18 +1246,18 @@ Entering SliTeX mode runs the hook `text-mode-hook', then the hook
                  ("\\\\[a-zA-Z]+\\( +\\|{}\\)[a-zA-Z]*" . "")
                  ("%" . "$"))))
   ;; A line containing just $$ is treated as a paragraph separator.
-  (setq-local paragraph-start "[ \t]*$\\|[\f\\\\%]\\|[ \t]*\\$\\$")
+  (setq-local paragraph-start "[ \t]*$\\|[\f\\%]\\|[ \t]*\\$\\$")
   ;; A line starting with $$ starts a paragraph,
   ;; but does not separate paragraphs if it has more stuff on it.
-  (setq-local paragraph-separate "[ \t]*$\\|[\f\\\\%]\\|[ \t]*\\$\\$[ \t]*$")
+  (setq-local paragraph-separate "[ \t]*$\\|[\f\\%]\\|[ \t]*\\$\\$[ \t]*$")
   (setq-local add-log-current-defun-function #'tex-current-defun-name)
   (setq-local comment-start "%")
   (setq-local comment-add 1)
   (setq-local comment-start-skip
 	      "\\(\\(^\\|[^\\\n]\\)\\(\\\\\\\\\\)*\\)\\(%+ *\\)")
   (setq-local parse-sexp-ignore-comments t)
-  (setq-local compare-windows-whitespace 'tex-categorize-whitespace)
-  (setq-local facemenu-add-face-function 'tex-facemenu-add-face-function)
+  (setq-local compare-windows-whitespace #'tex-categorize-whitespace)
+  (setq-local facemenu-add-face-function #'tex-facemenu-add-face-function)
   (setq-local facemenu-end-add-face "}")
   (setq-local facemenu-remove-face-function t)
   (setq-local font-lock-defaults
@@ -1591,7 +1586,7 @@ Puts point on a blank line between them."
 (defvar latex-complete-bibtex-cache nil)
 
 (define-obsolete-function-alias 'latex-string-prefix-p
-  'string-prefix-p "24.3")
+  #'string-prefix-p "24.3")
 
 (defvar bibtex-reference-key)
 (declare-function reftex-get-bibfile-list "reftex-cite.el" ())
@@ -1656,7 +1651,7 @@ Puts point on a blank line between them."
     (let ((pt (point)))
       (skip-chars-backward "^ {}\n\t\\\\")
       (pcase (char-before)
-        ((or `nil ?\s ?\n ?\t ?\}) nil)
+        ((or 'nil ?\s ?\n ?\t ?\}) nil)
         (?\\
          ;; TODO: Complete commands.
          nil)
@@ -2109,7 +2104,7 @@ If NOT-ALL is non-nil, save the `.dvi' file."
 	    (delete-file (concat dir (car list))))
           (setq list (cdr list))))))
 
-(add-hook 'kill-emacs-hook 'tex-delete-last-temp-files)
+(add-hook 'kill-emacs-hook #'tex-delete-last-temp-files)
 
 ;;
 ;; Machinery to guess the command that the user wants to execute.
@@ -2168,7 +2163,7 @@ IN can be either a string (with the same % escapes in it) indicating
 OUT describes the output file and is either a %-escaped string
   or nil to indicate that there is no output file.")
 
-(define-obsolete-function-alias 'tex-string-prefix-p 'string-prefix-p "24.3")
+(define-obsolete-function-alias 'tex-string-prefix-p #'string-prefix-p "24.3")
 
 (defun tex-guess-main-file (&optional all)
   "Find a likely `tex-main-file'.
@@ -2263,9 +2258,11 @@ FILE is typically the output DVI or PDF file."
 		(> (save-excursion
                      ;; Usually page numbers are output as [N], but
                      ;; I've already seen things like
-                     ;; [1{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}]
-                     (or (re-search-backward "\\[[0-9]+\\({[^}]*}\\)?\\]"
-                                             nil t)
+                     ;; [N{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}]
+                     ;; as well as [N.N] (e.g. with 'acmart' style).
+                     (or (re-search-backward
+                          "\\[[0-9]+\\({[^}]*}\\|\\.[0-9]+\\)?\\]"
+                          nil t)
 			 (point-min)))
 		   (save-excursion
 		     (or (re-search-backward "Rerun" nil t)
@@ -2297,9 +2294,6 @@ FILE is typically the output DVI or PDF file."
 	   (when (file-newer-than-file-p f file)
 	     (setq uptodate nil)))))
      uptodate)))
-
-
-(autoload 'format-spec "format-spec")
 
 (defvar tex-executable-cache nil)
 (defun tex-executable-exists-p (name)
@@ -2801,9 +2795,19 @@ Runs the shell command defined by `tex-show-queue-command'."
 (defvar tex-indent-basic 2)
 (defvar tex-indent-item tex-indent-basic)
 (defvar tex-indent-item-re "\\\\\\(bib\\)?item\\>")
-(defvar latex-noindent-environments '("document"))
-(put 'latex-noindent-environments 'safe-local-variable
-     (lambda (x) (null (delq t (mapcar #'stringp x)))))
+(defcustom latex-noindent-environments '("document")
+  "Environments whose content is not indented by `tex-indent-basic'."
+  :type '(repeat string)
+  :safe (lambda (x) (not (memq nil (mapcar #'stringp x))))
+  :group 'tex-file
+  :version "27.1")
+
+(defcustom latex-noindent-commands '("emph" "footnote")
+  "Commands for which `tex-indent-basic' should not be used."
+  :type '(repeat string)
+  :safe (lambda (x) (not (memq nil (mapcar #'stringp x))))
+  :group 'tex-file
+  :version "27.1")
 
 (defvar tex-latex-indent-syntax-table
   (let ((st (make-syntax-table tex-mode-syntax-table)))
@@ -2910,9 +2914,17 @@ There might be text before point."
 	       (current-column)
 	     ;; We're the first element after a hanging brace.
 	     (goto-char up-list-pos)
-	     (+ (if (and (looking-at "\\\\begin *{\\([^\n}]+\\)")
+	     (+ (if (if (eq (char-after) ?\{)
+                        (save-excursion
+                          (skip-chars-backward " \t")
+                          (let ((end (point)))
+                            (skip-chars-backward "a-zA-Z")
+                            (and (eq (char-before) ?\\)
+                                 (member (buffer-substring (point) end)
+                                         latex-noindent-commands))))
+                      (and (looking-at "\\\\begin *{\\([^\n}]+\\)")
 			 (member (match-string 1)
-				 latex-noindent-environments))
+				 latex-noindent-environments)))
 		    0 tex-indent-basic)
 		indent (latex-find-indent 'virtual))))
 	  ;; We're now at the "beginning" of a line.
@@ -2992,8 +3004,8 @@ There might be text before point."
 	      (mapcar
 	       (lambda (x)
 		 (pcase (car-safe x)
-		   (`font-lock-syntactic-face-function
-		    (cons (car x) 'doctex-font-lock-syntactic-face-function))
+		   ('font-lock-syntactic-face-function
+		    (cons (car x) #'doctex-font-lock-syntactic-face-function))
 		   (_ x)))
 	       (cdr font-lock-defaults))))
   (setq-local syntax-propertize-function

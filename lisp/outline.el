@@ -1,6 +1,6 @@
 ;;; outline.el --- outline mode commands for Emacs
 
-;; Copyright (C) 1986, 1993-1995, 1997, 2000-2018 Free Software
+;; Copyright (C) 1986, 1993-1995, 1997, 2000-2020 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -289,12 +289,19 @@ Turning on outline mode calls the value of `text-mode-hook' and then of
 	(list (list nil (concat "^\\(?:" outline-regexp "\\).*$") 0)))
   (add-hook 'change-major-mode-hook 'outline-show-all nil t))
 
+(defvar outline-minor-mode-map)
+
 (defcustom outline-minor-mode-prefix "\C-c@"
   "Prefix key to use for Outline commands in Outline minor mode.
 The value of this variable is checked as part of loading Outline mode.
 After that, changing the prefix key requires manipulating keymaps."
-  :type 'string
-  :group 'outlines)
+  :type 'key-sequence
+  :group 'outlines
+  :initialize 'custom-initialize-default
+  :set (lambda (sym val)
+         (define-key outline-minor-mode-map outline-minor-mode-prefix nil)
+         (define-key outline-minor-mode-map val outline-mode-prefix-map)
+         (set-default sym val)))
 
 ;;;###autoload
 (define-minor-mode outline-minor-mode
@@ -537,10 +544,10 @@ nil for WHICH, or do not pass any argument)."
 If there are no such entries, return nil.
 ALIST defaults to `outline-heading-alist'.
 Similar to (car (rassoc LEVEL ALIST)).
-If there are several different entries with same new level, choose
-the one with the smallest distance to the association of HEAD in the alist.
+If there are several different entries with same new level, choose the
+one with the smallest distance to the association of HEAD in the alist.
 This makes it possible for promotion to work in modes with several
-independent sets of headings (numbered, unnumbered, appendix...)"
+independent sets of headings (numbered, unnumbered, appendix...)."
   (unless alist (setq alist outline-heading-alist))
   (let ((l (rassoc level alist))
 	ll h hl l2 l2l)

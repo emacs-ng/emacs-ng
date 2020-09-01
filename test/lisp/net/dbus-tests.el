@@ -1,6 +1,6 @@
-;;; dbus-tests.el --- Tests of D-Bus integration into Emacs
+;;; dbus-tests.el --- Tests of D-Bus integration into Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2020 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 
@@ -176,8 +176,8 @@ This includes initialization and closing the bus."
 (defun dbus-test-all (&optional interactive)
   "Run all tests for \\[dbus]."
   (interactive "p")
-  (funcall
-   (if interactive 'ert-run-tests-interactively 'ert-run-tests-batch) "^dbus"))
+  (funcall (if interactive #'ert-run-tests-interactively #'ert-run-tests-batch)
+           "^dbus"))
 
 (provide 'dbus-tests)
 ;;; dbus-tests.el ends here

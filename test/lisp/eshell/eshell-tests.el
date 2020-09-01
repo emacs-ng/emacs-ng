@@ -1,6 +1,6 @@
 ;;; tests/eshell-tests.el --- Eshell test suite
 
-;; Copyright (C) 1999-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2020 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -26,11 +26,15 @@
 ;;; Code:
 
 (require 'ert)
+(require 'esh-mode)
 (require 'eshell)
 
 (defmacro with-temp-eshell (&rest body)
   "Evaluate BODY in a temporary Eshell buffer."
   `(let* ((eshell-directory-name (make-temp-file "eshell" t))
+          ;; We want no history file, so prevent Eshell from falling
+          ;; back on $HISTFILE.
+          (process-environment (cons "HISTFILE" process-environment))
           (eshell-history-file-name nil)
           (eshell-buffer (eshell t)))
      (unwind-protect
@@ -165,6 +169,13 @@ e.g. \"{(+ 1 2)} 3\" => 3"
   (with-temp-eshell
    (eshell-command-result-p "+ 1 2; + $_ 4"
                              "3\n6\n")))
+
+(ert-deftest eshell-test/inside-emacs-var ()
+  "Test presence of \"INSIDE_EMACS\" in subprocesses"
+  (with-temp-eshell
+   (eshell-command-result-p "env"
+                            (format "INSIDE_EMACS=%s,eshell"
+                                    emacs-version))))
 
 (ert-deftest eshell-test/escape-nonspecial ()
   "Test that \"\\c\" and \"c\" are equivalent when \"c\" is not a

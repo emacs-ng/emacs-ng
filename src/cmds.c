@@ -1,6 +1,6 @@
 /* Simple built-in editing commands.
 
-Copyright (C) 1985, 1993-1998, 2001-2018 Free Software Foundation, Inc.
+Copyright (C) 1985, 1993-1998, 2001-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -31,15 +31,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 static int internal_self_insert (int, EMACS_INT);
 
-DEFUN ("forward-point", Fforward_point, Sforward_point, 1, 1, 0,
-       doc: /* Return buffer position N characters after (before if N negative) point.  */)
-  (Lisp_Object n)
-{
-  CHECK_FIXNUM (n);
-
-  return make_fixnum (PT + XFIXNUM (n));
-}
-
 /* Add N to point; or subtract N if FORWARD is false.  N defaults to 1.
    Validate the new location.  Return nil.  */
 static Lisp_Object
@@ -121,28 +112,36 @@ it as a line moved across, even though there is no next line to
 go to its beginning.  */)
   (Lisp_Object n)
 {
-  ptrdiff_t opoint = PT, pos, pos_byte, shortage, count;
+  ptrdiff_t opoint = PT, pos, pos_byte, count;
+  bool excessive = false;
 
   if (NILP (n))
     count = 1;
   else
     {
-      CHECK_FIXNUM (n);
-      count = XFIXNUM (n);
+      CHECK_INTEGER (n);
+      if (FIXNUMP (n)
+	  && -BUF_BYTES_MAX <= XFIXNUM (n) && XFIXNUM (n) <= BUF_BYTES_MAX)
+	count = XFIXNUM (n);
+      else
+	{
+	  count = !NILP (Fnatnump (n)) ? BUF_BYTES_MAX : -BUF_BYTES_MAX;
+	  excessive = true;
+	}
     }
 
-  shortage = scan_newline_from_point (count, &pos, &pos_byte);
+  ptrdiff_t counted = scan_newline_from_point (count, &pos, &pos_byte);
 
   SET_PT_BOTH (pos, pos_byte);
 
-  if (shortage > 0
-      && (count <= 0
-	  || (ZV > BEGV
-	      && PT != opoint
-	      && (FETCH_BYTE (PT_BYTE - 1) != '\n'))))
-    shortage--;
-
-  return make_fixnum (count <= 0 ? - shortage : shortage);
+  ptrdiff_t shortage = count - (count <= 0) - counted;
+  if (shortage != 0)
+    shortage -= (count <= 0 ? -1
+		  : (BEGV < ZV && PT != opoint
+		     && FETCH_BYTE (PT_BYTE - 1) != '\n'));
+  return (excessive
+	  ? CALLN (Fplus, make_fixnum (shortage - count), n)
+	  : make_fixnum (shortage));
 }
 
 DEFUN ("beginning-of-line", Fbeginning_of_line, Sbeginning_of_line, 0, 1, "^p",
@@ -151,7 +150,7 @@ With argument N not nil or 1, move forward N - 1 lines first.
 If point reaches the beginning or end of buffer, it stops there.
 
 This function constrains point to the current field unless this moves
-point to a different line than the original, unconstrained result.
+point to a different line from the original, unconstrained result.
 If N is nil or 1, and a front-sticky field starts at point, the point
 does not move.  To ignore field boundaries bind
 `inhibit-field-text-motion' to t, or use the `forward-line' function
@@ -176,7 +175,7 @@ If point reaches the beginning or end of buffer, it stops there.
 To ignore intangibility, bind `inhibit-point-motion-hooks' to t.
 
 This function constrains point to the current field unless this moves
-point to a different line than the original, unconstrained result.  If
+point to a different line from the original, unconstrained result.  If
 N is nil or 1, and a rear-sticky field ends at point, the point does
 not move.  To ignore field boundaries bind `inhibit-field-text-motion'
 to t.  */)
@@ -195,7 +194,7 @@ to t.  */)
       SET_PT (newpos);
 
       if (PT > newpos
-	  && FETCH_CHAR (PT - 1) == '\n')
+	  && FETCH_BYTE (PT_BYTE - 1) == '\n')
 	{
 	  /* If we skipped over a newline that follows
 	     an invisible intangible run,
@@ -206,7 +205,7 @@ to t.  */)
 	  break;
 	}
       else if (PT > newpos && PT < ZV
-	       && FETCH_CHAR (PT) != '\n')
+	       && FETCH_BYTE (PT_BYTE) != '\n')
 	/* If we skipped something intangible
 	   and now we're not really at eol,
 	   keep going.  */
@@ -260,11 +259,10 @@ because it respects values of `delete-active-region' and `overwrite-mode'.  */)
   return Qnil;
 }
 
-/* Note that there's code in command_loop_1 which typically avoids
-   calling this.  */
-DEFUN ("self-insert-command", Fself_insert_command, Sself_insert_command, 1, 1, "p",
+DEFUN ("self-insert-command", Fself_insert_command, Sself_insert_command, 1, 2,
+       "(list (prefix-numeric-value current-prefix-arg) last-command-event)",
        doc: /* Insert the character you type.
-Whichever character you type to run this command is inserted.
+Whichever character C you type to run this command is inserted.
 The numeric prefix argument N says how many times to repeat the insertion.
 Before insertion, `expand-abbrev' is executed if the inserted character does
 not have word syntax and the previous character in the buffer does.
@@ -272,9 +270,13 @@ After insertion, `internal-auto-fill' is called if
 `auto-fill-function' is non-nil and if the `auto-fill-chars' table has
 a non-nil value for the inserted character.  At the end, it runs
 `post-self-insert-hook'.  */)
-  (Lisp_Object n)
+  (Lisp_Object n, Lisp_Object c)
 {
   CHECK_FIXNUM (n);
+
+  /* Backward compatibility.  */
+  if (NILP (c))
+    c = last_command_event;
 
   if (XFIXNUM (n) < 0)
     error ("Negative repetition argument %"pI"d", XFIXNUM (n));
@@ -283,11 +285,11 @@ a non-nil value for the inserted character.  At the end, it runs
     call0 (Qundo_auto_amalgamate);
 
   /* Barf if the key that invoked this was not a character.  */
-  if (!CHARACTERP (last_command_event))
+  if (!CHARACTERP (c))
     bitch_at_user ();
   else {
     int character = translate_char (Vtranslation_table_for_input,
-				    XFIXNUM (last_command_event));
+				    XFIXNUM (c));
     int val = internal_self_insert (character, XFIXNAT (n));
     if (val == 2)
       Fset (Qundo_auto__this_command_amalgamating, Qnil);
@@ -387,7 +389,7 @@ internal_self_insert (int c, EMACS_INT n)
 		  /* We will delete too many columns.  Let's fill columns
 		     by spaces so that the remaining text won't move.  */
 		  ptrdiff_t actual = PT_BYTE;
-		  DEC_POS (actual);
+		  actual -= prev_char_len (actual);
 		  if (FETCH_CHAR (actual) == '\t')
 		    /* Rather than add spaces, let's just keep the tab. */
 		    chars_to_delete--;
@@ -412,7 +414,7 @@ internal_self_insert (int c, EMACS_INT n)
 		  : UNIBYTE_TO_CHAR (XFIXNAT (Fprevious_char ())))
 	  == Sword))
     {
-      EMACS_INT modiff = MODIFF;
+      modiff_count modiff = MODIFF;
       Lisp_Object sym;
 
       sym = call0 (Qexpand_abbrev);
@@ -449,7 +451,10 @@ internal_self_insert (int c, EMACS_INT n)
 	  string = concat2 (string, tem);
 	}
 
-      replace_range (PT, PT + chars_to_delete, string, 1, 1, 1, 0);
+      ptrdiff_t to;
+      if (INT_ADD_WRAPV (PT, chars_to_delete, &to))
+	to = PTRDIFF_MAX;
+      replace_range (PT, to, string, 1, 1, 1, 0);
       Fforward_char (make_fixnum (n));
     }
   else if (n > 1)
@@ -515,7 +520,6 @@ syms_of_cmds (void)
 This is run after inserting the character.  */);
   Vpost_self_insert_hook = Qnil;
 
-  defsubr (&Sforward_point);
   defsubr (&Sforward_char);
   defsubr (&Sbackward_char);
   defsubr (&Sforward_line);

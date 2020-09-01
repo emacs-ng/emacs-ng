@@ -1,6 +1,6 @@
 @c -*- coding: utf-8 -*-
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985-1987, 1993-1995, 1997, 1999-2018 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 1999--2020 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Programs
@@ -273,6 +273,10 @@ new contents by invoking the @samp{*Rescan*} item in the menu.
 Rescanning happens automatically if you set @code{imenu-auto-rescan} to
 a non-@code{nil} value.  There is no need to rescan because of small
 changes in the text.
+
+@vindex imenu-auto-rescan-maxout
+  @code{imenu-auto-rescan} will be disabled in buffers that are larger
+than @code{imenu-auto-rescan-maxout} in bytes.
 
 @vindex imenu-sort-function
   You can customize the way the menus are sorted by setting the
@@ -965,7 +969,7 @@ delimiters to enclose the text in the region.
   If you supply a prefix argument to @kbd{M-;} when a region is
 active, that specifies the number of comment delimiters to add or
 delete.  A positive argument @var{n} adds @var{n} delimiters, while a
-negative argument @var{-n} removes @var{n} delimiters.
+negative argument @minus{}@var{n} removes @var{n} delimiters.
 
   If the region is not active, and there is no existing comment on the
 current line, @kbd{M-;} adds a new comment to the current line.  If
@@ -996,10 +1000,11 @@ lines.  When a region is active (@pxref{Mark}), @kbd{C-x C-;} either
 comments or uncomments the lines in the region.  If the region is not
 active, this command comments or uncomments the line point is on.
 With a positive prefix argument @var{n}, it operates on @var{n} lines
-starting with the current one; with a negative @var{n}, it affects
-@var{n} preceding lines.  After invoking this command with a negative
-argument, successive invocations with a positive argument will operate
-on preceding lines as if the argument were negated.
+starting with the current one; with a negative argument
+@minus{}@var{n}, it affects @var{n} preceding lines.  After invoking
+this command with a negative argument, successive invocations with a
+positive argument will operate on preceding lines as if the argument
+were negated.
 
 @findex comment-kill
 @kindex C-u M-;
@@ -1255,18 +1260,38 @@ the WoMan Info manual, which is distributed with Emacs.
 to view the built-in documentation for the Lisp functions and
 variables that you want to use.  @xref{Name Help}.
 
-@cindex Eldoc mode
+@cindex ElDoc mode
 @findex eldoc-mode
 @findex global-eldoc-mode
-  Eldoc is a buffer-local minor mode that helps with looking up Lisp
+  ElDoc is a buffer-local minor mode that helps with looking up Lisp
 documentation.  When it is enabled, the echo area displays some useful
 information whenever there is a Lisp function or variable at point;
 for a function, it shows the argument list, and for a variable it
 shows the first line of the variable's documentation string.  To
-toggle Eldoc mode, type @kbd{M-x eldoc-mode}.  There's also a Global
-Eldoc mode, which is turned on by default, and affects buffers, such
-as @samp{*scratch*}, whose major mode is Emacs Lisp or Lisp
-Interaction (@w{@kbd{M-x global-eldoc-mode}} to turn it off globally).
+toggle ElDoc mode, type @kbd{M-x eldoc-mode}.  There's also a Global
+ElDoc mode, which is turned on by default, and affects buffers whose
+major mode sets the variables described below.  Use @w{@kbd{M-x
+global-eldoc-mode}} to turn it off globally.
+
+@vindex eldoc-documentation-strategy
+@vindex eldoc-documentation-functions
+  These variables can be used to configure ElDoc mode:
+
+@table @code
+@item eldoc-documentation-strategy
+This variable holds the function which is used to retrieve
+documentation for the item at point from the functions in the hook
+@code{eldoc-documentation-functions}.  By default,
+@code{eldoc-documentation-strategy} returns the first documentation
+string produced by the @code{eldoc-documentation-functions} hook, but
+it may be customized to compose those functions' results in other
+ways.
+
+@item eldoc-documentation-functions
+This abnormal hook holds documentation functions.  It acts as a
+collection of backends for ElDoc.  This is what modes should use to
+register their documentation functions with ElDoc.
+@end table
 
 @node Hideshow
 @section Hideshow minor mode
@@ -1294,8 +1319,11 @@ count as blocks.
 @findex hs-show-block
 @findex hs-show-region
 @findex hs-hide-level
+@findex hs-toggle-hiding
+@findex hs-mouse-toggle-hiding
 @kindex C-c @@ C-h
 @kindex C-c @@ C-s
+@kindex C-c @@ C-c
 @kindex C-c @@ C-M-h
 @kindex C-c @@ C-M-s
 @kindex C-c @@ C-r
@@ -1308,7 +1336,7 @@ Hide the current block (@code{hs-hide-block}).
 @item C-c @@ C-s
 Show the current block (@code{hs-show-block}).
 @item C-c @@ C-c
-@itemx C-x @@ C-e
+@itemx C-c @@ C-e
 Either hide or show the current block (@code{hs-toggle-hiding}).
 @item S-mouse-2
 Toggle hiding for the block you click on (@code{hs-mouse-toggle-hiding}).

@@ -1,5 +1,5 @@
 /* Manipulation of keymaps
-   Copyright (C) 1985-1988, 1993-1995, 1998-2018 Free Software
+   Copyright (C) 1985-1988, 1993-1995, 1998-2020 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -120,11 +120,7 @@ The optional arg STRING supplies a menu name for the keymap
 in case you use it as a menu with `x-popup-menu'.  */)
   (Lisp_Object string)
 {
-  Lisp_Object tail;
-  if (!NILP (string))
-    tail = list1 (string);
-  else
-    tail = Qnil;
+  Lisp_Object tail = !NILP (string) ? list1 (string) : Qnil;
   return Fcons (Qkeymap,
 		Fcons (Fmake_char_table (Qkeymap, Qnil), tail));
 }
@@ -554,9 +550,9 @@ union map_keymap
     Lisp_Object args;
     void *data;
   } s;
-  GCALIGNED_UNION
+  GCALIGNED_UNION_MEMBER
 };
-verify (alignof (union map_keymap) % GCALIGNMENT == 0);
+verify (GCALIGNED (union map_keymap));
 
 static void
 map_keymap_char_table_item (Lisp_Object args, Lisp_Object key, Lisp_Object val)
@@ -916,8 +912,10 @@ store_in_keymap (Lisp_Object keymap, register Lisp_Object idx, Lisp_Object def)
   return def;
 }
 
+static Lisp_Object copy_keymap_1 (Lisp_Object keymap, int depth);
+
 static Lisp_Object
-copy_keymap_item (Lisp_Object elt)
+copy_keymap_item (Lisp_Object elt, int depth)
 {
   Lisp_Object res, tem;
 
@@ -947,7 +945,7 @@ copy_keymap_item (Lisp_Object elt)
 	  elt = XCDR (elt);
 	  tem = XCAR (elt);
 	  if (CONSP (tem) && EQ (XCAR (tem), Qkeymap))
-	    XSETCAR (elt, Fcopy_keymap (tem));
+	    XSETCAR (elt, copy_keymap_1 (tem, depth));
 	  tem = XCDR (elt);
 	}
     }
@@ -968,18 +966,65 @@ copy_keymap_item (Lisp_Object elt)
 	      tem = XCDR (elt);
 	    }
 	  if (CONSP (tem) && EQ (XCAR (tem), Qkeymap))
-	    XSETCDR (elt, Fcopy_keymap (tem));
+	    XSETCDR (elt, copy_keymap_1 (tem, depth));
 	}
       else if (EQ (XCAR (tem), Qkeymap))
-	res = Fcopy_keymap (elt);
+	res = copy_keymap_1 (elt, depth);
     }
   return res;
 }
 
 static void
-copy_keymap_1 (Lisp_Object chartable, Lisp_Object idx, Lisp_Object elt)
+copy_keymap_set_char_table (Lisp_Object chartable_and_depth, Lisp_Object idx,
+			    Lisp_Object elt)
 {
-  Fset_char_table_range (chartable, idx, copy_keymap_item (elt));
+  Fset_char_table_range
+    (XCAR (chartable_and_depth), idx,
+     copy_keymap_item (elt, XFIXNUM (XCDR (chartable_and_depth))));
+}
+
+static Lisp_Object
+copy_keymap_1 (Lisp_Object keymap, int depth)
+{
+  Lisp_Object copy, tail;
+
+  if (depth > 100)
+    error ("Possible infinite recursion when copying keymap");
+
+  keymap = get_keymap (keymap, 1, 0);
+  copy = tail = list1 (Qkeymap);
+  keymap = XCDR (keymap);		/* Skip the `keymap' symbol.  */
+
+  while (CONSP (keymap) && !EQ (XCAR (keymap), Qkeymap))
+    {
+      Lisp_Object elt = XCAR (keymap);
+      if (CHAR_TABLE_P (elt))
+	{
+	  elt = Fcopy_sequence (elt);
+	  map_char_table (copy_keymap_set_char_table, Qnil, elt,
+			  Fcons (elt, make_fixnum (depth + 1)));
+	}
+      else if (VECTORP (elt))
+	{
+	  int i;
+	  elt = Fcopy_sequence (elt);
+	  for (i = 0; i < ASIZE (elt); i++)
+	    ASET (elt, i, copy_keymap_item (AREF (elt, i), depth + 1));
+	}
+      else if (CONSP (elt))
+	{
+	  if (EQ (XCAR (elt), Qkeymap))
+	    /* This is a sub keymap.  */
+	    elt = copy_keymap_1 (elt, depth + 1);
+	  else
+	    elt = Fcons (XCAR (elt), copy_keymap_item (XCDR (elt), depth + 1));
+	}
+      XSETCDR (tail, list1 (elt));
+      tail = XCDR (tail);
+      keymap = XCDR (keymap);
+    }
+  XSETCDR (tail, keymap);
+  return copy;
 }
 
 DEFUN ("copy-keymap", Fcopy_keymap, Scopy_keymap, 1, 1, 0,
@@ -1001,41 +1046,9 @@ However, a key definition which is a symbol whose definition is a keymap
 is not copied.  */)
   (Lisp_Object keymap)
 {
-  Lisp_Object copy, tail;
-  keymap = get_keymap (keymap, 1, 0);
-  copy = tail = list1 (Qkeymap);
-  keymap = XCDR (keymap);		/* Skip the `keymap' symbol.  */
-
-  while (CONSP (keymap) && !EQ (XCAR (keymap), Qkeymap))
-    {
-      Lisp_Object elt = XCAR (keymap);
-      if (CHAR_TABLE_P (elt))
-	{
-	  elt = Fcopy_sequence (elt);
-	  map_char_table (copy_keymap_1, Qnil, elt, elt);
-	}
-      else if (VECTORP (elt))
-	{
-	  int i;
-	  elt = Fcopy_sequence (elt);
-	  for (i = 0; i < ASIZE (elt); i++)
-	    ASET (elt, i, copy_keymap_item (AREF (elt, i)));
-	}
-      else if (CONSP (elt))
-	{
-	  if (EQ (XCAR (elt), Qkeymap))
-	    /* This is a sub keymap.  */
-	    elt = Fcopy_keymap (elt);
-	  else
-	    elt = Fcons (XCAR (elt), copy_keymap_item (XCDR (elt)));
-	}
-      XSETCDR (tail, list1 (elt));
-      tail = XCDR (tail);
-      keymap = XCDR (keymap);
-    }
-  XSETCDR (tail, keymap);
-  return copy;
+  return copy_keymap_1 (keymap, 0);
 }
+
 
 /* Simple Keymap mutators and accessors.				*/
 
@@ -1093,7 +1106,7 @@ binding KEY to DEF is added at the front of KEYMAP.  */)
 
   if (VECTORP (def) && ASIZE (def) > 0 && CONSP (AREF (def, 0)))
     { /* DEF is apparently an XEmacs-style keyboard macro.  */
-      Lisp_Object tmp = Fmake_vector (make_fixnum (ASIZE (def)), Qnil);
+      Lisp_Object tmp = make_nil_vector (ASIZE (def));
       ptrdiff_t i = ASIZE (def);
       while (--i >= 0)
 	{
@@ -1186,7 +1199,7 @@ number or marker, in which case the keymap properties at the specified
 buffer position instead of point are used.  The KEYMAPS argument is
 ignored if POSITION is non-nil.
 
-If the optional argument KEYMAPS is non-nil, it should be a list of
+If the optional argument KEYMAPS is non-nil, it should be a keymap or list of
 keymaps to search for command remapping.  Otherwise, search for the
 remapping in all currently active keymaps.  */)
   (Lisp_Object command, Lisp_Object position, Lisp_Object keymaps)
@@ -1199,8 +1212,7 @@ remapping in all currently active keymaps.  */)
   if (NILP (keymaps))
     command = Fkey_binding (command_remapping_vector, Qnil, Qt, position);
   else
-    command = Flookup_key (Fcons (Qkeymap, keymaps),
-			   command_remapping_vector, Qnil);
+    command = Flookup_key (keymaps, command_remapping_vector, Qnil);
   return FIXNUMP (command) ? Qnil : command;
 }
 
@@ -1208,7 +1220,7 @@ remapping in all currently active keymaps.  */)
 /* GC is possible in this function.  */
 
 DEFUN ("lookup-key", Flookup_key, Slookup_key, 2, 3, 0,
-       doc: /* In keymap KEYMAP, look up key sequence KEY.  Return the definition.
+       doc: /* Look up key sequence KEY in KEYMAP.  Return the definition.
 A value of nil means undefined.  See doc of `define-key'
 for kinds of definitions.
 
@@ -1217,6 +1229,7 @@ that is, characters or symbols in it except for the last one
 fail to be a valid sequence of prefix characters in KEYMAP.
 The number is how many characters at the front of KEY
 it takes to reach a non-prefix key.
+KEYMAP can also be a list of keymaps.
 
 Normally, `lookup-key' ignores bindings for t, which act as default
 bindings, used when nothing else in the keymap applies; this makes it
@@ -1231,7 +1244,8 @@ recognize the default bindings, just as `read-key-sequence' does.  */)
   ptrdiff_t length;
   bool t_ok = !NILP (accept_default);
 
-  keymap = get_keymap (keymap, 1, 1);
+  if (!CONSP (keymap) && !NILP (keymap))
+    keymap = get_keymap (keymap, true, true);
 
   length = CHECK_VECTOR_OR_STRING (key);
   if (length == 0)
@@ -1664,7 +1678,7 @@ specified buffer position instead of point are used.
 	}
     }
 
-  value = Flookup_key (Fcons (Qkeymap, Fcurrent_active_maps (Qt, position)),
+  value = Flookup_key (Fcurrent_active_maps (Qt, position),
 		       key, accept_default);
 
   if (NILP (value) || FIXNUMP (value))
@@ -1930,15 +1944,12 @@ then the value includes only maps for prefixes that start with PREFIX.  */)
 	     we don't have to deal with the possibility of a string.  */
 	  if (STRINGP (prefix))
 	    {
-	      int i, i_byte, c;
-	      Lisp_Object copy;
-
-	      copy = Fmake_vector (make_fixnum (SCHARS (prefix)), Qnil);
-	      for (i = 0, i_byte = 0; i < SCHARS (prefix);)
+	      ptrdiff_t i_byte = 0;
+	      Lisp_Object copy = make_nil_vector (SCHARS (prefix));
+	      for (ptrdiff_t i = 0; i < SCHARS (prefix); )
 		{
-		  int i_before = i;
-
-		  FETCH_STRING_CHAR_ADVANCE (c, prefix, i, i_byte);
+		  ptrdiff_t i_before = i;
+		  int c = fetch_string_char_advance (prefix, &i, &i_byte);
 		  if (SINGLE_BYTE_CHAR_P (c) && (c & 0200))
 		    c ^= 0200 | meta_modifier;
 		  ASET (copy, i_before, make_fixnum (c));
@@ -1994,23 +2005,16 @@ For an approximate inverse of this, see `kbd'.  */)
   (Lisp_Object keys, Lisp_Object prefix)
 {
   ptrdiff_t len = 0;
-  EMACS_INT i;
-  ptrdiff_t i_byte;
   Lisp_Object *args;
-  EMACS_INT size = XFIXNUM (Flength (keys));
-  Lisp_Object list;
+  EMACS_INT nkeys = XFIXNUM (Flength (keys));
+  EMACS_INT nprefix = XFIXNUM (Flength (prefix));
   Lisp_Object sep = build_string (" ");
-  Lisp_Object key;
-  Lisp_Object result;
-  bool add_meta = 0;
+  bool add_meta = false;
   USE_SAFE_ALLOCA;
 
-  if (!NILP (prefix))
-    size += XFIXNUM (Flength (prefix));
-
   /* This has one extra element at the end that we don't pass to Fconcat.  */
-  EMACS_INT size4;
-  if (INT_MULTIPLY_WRAPV (size, 4, &size4))
+  ptrdiff_t size4;
+  if (INT_MULTIPLY_WRAPV (nkeys + nprefix, 4, &size4))
     memory_full (SIZE_MAX);
   SAFE_ALLOCA_LISP (args, size4);
 
@@ -2018,82 +2022,76 @@ For an approximate inverse of this, see `kbd'.  */)
      (mapconcat 'single-key-description keys " ")
      but we shouldn't use mapconcat because it can do GC.  */
 
- next_list:
-  if (!NILP (prefix))
-    list = prefix, prefix = Qnil;
-  else if (!NILP (keys))
-    list = keys, keys = Qnil;
-  else
+  Lisp_Object lists[2] = { prefix, keys };
+  ptrdiff_t listlens[2] = { nprefix, nkeys };
+  for (int li = 0; li < ARRAYELTS (lists); li++)
     {
-      if (add_meta)
-	{
-	  args[len] = Fsingle_key_description (meta_prefix_char, Qnil);
-	  result = Fconcat (len + 1, args);
-	}
-      else if (len == 0)
-	result = empty_unibyte_string;
-      else
-	result = Fconcat (len - 1, args);
-      SAFE_FREE ();
-      return result;
-    }
+      Lisp_Object list = lists[li];
+      ptrdiff_t listlen = listlens[li], i_byte = 0;
 
-  if (STRINGP (list))
-    size = SCHARS (list);
-  else if (VECTORP (list))
-    size = ASIZE (list);
-  else if (CONSP (list))
-    size = XFIXNUM (Flength (list));
-  else
-    wrong_type_argument (Qarrayp, list);
+      if (! (NILP (list) || STRINGP (list) || VECTORP (list) || CONSP (list)))
+	wrong_type_argument (Qarrayp, list);
 
-  i = i_byte = 0;
-
-  while (i < size)
-    {
-      if (STRINGP (list))
+      for (ptrdiff_t i = 0; i < listlen; )
 	{
-	  int c;
-	  FETCH_STRING_CHAR_ADVANCE (c, list, i, i_byte);
-	  if (SINGLE_BYTE_CHAR_P (c) && (c & 0200))
-	    c ^= 0200 | meta_modifier;
-	  XSETFASTINT (key, c);
-	}
-      else if (VECTORP (list))
-	{
-	  key = AREF (list, i); i++;
-	}
-      else
-	{
-	  key = XCAR (list);
-	  list = XCDR (list);
-	  i++;
-	}
-
-      if (add_meta)
-	{
-	  if (!FIXNUMP (key)
-	      || EQ (key, meta_prefix_char)
-	      || (XFIXNUM (key) & meta_modifier))
+	  Lisp_Object key;
+	  if (STRINGP (list))
 	    {
-	      args[len++] = Fsingle_key_description (meta_prefix_char, Qnil);
-	      args[len++] = sep;
-	      if (EQ (key, meta_prefix_char))
-		continue;
+	      int c = fetch_string_char_advance (list, &i, &i_byte);
+	      if (SINGLE_BYTE_CHAR_P (c) && (c & 0200))
+		c ^= 0200 | meta_modifier;
+	      key = make_fixnum (c);
+	    }
+	  else if (VECTORP (list))
+	    {
+	      key = AREF (list, i);
+	      i++;
 	    }
 	  else
-	    XSETINT (key, XFIXNUM (key) | meta_modifier);
-	  add_meta = 0;
+	    {
+	      key = XCAR (list);
+	      list = XCDR (list);
+	      i++;
+	    }
+
+	  if (add_meta)
+	    {
+	      if (!FIXNUMP (key)
+		  || EQ (key, meta_prefix_char)
+		  || (XFIXNUM (key) & meta_modifier))
+		{
+		  args[len++] = Fsingle_key_description (meta_prefix_char,
+							 Qnil);
+		  args[len++] = sep;
+		  if (EQ (key, meta_prefix_char))
+		    continue;
+		}
+	      else
+		key = make_fixnum (XFIXNUM (key) | meta_modifier);
+	      add_meta = false;
+	    }
+	  else if (EQ (key, meta_prefix_char))
+	    {
+	      add_meta = true;
+	      continue;
+	    }
+	  args[len++] = Fsingle_key_description (key, Qnil);
+	  args[len++] = sep;
 	}
-      else if (EQ (key, meta_prefix_char))
-	{
-	  add_meta = 1;
-	  continue;
-	}
-      args[len++] = Fsingle_key_description (key, Qnil);
-      args[len++] = sep;
     }
-  goto next_list;
+
+  Lisp_Object result;
+  if (add_meta)
+    {
+      args[len] = Fsingle_key_description (meta_prefix_char, Qnil);
+      result = Fconcat (len + 1, args);
+    }
+  else if (len == 0)
+    result = empty_unibyte_string;
+  else
+    result = Fconcat (len - 1, args);
+  SAFE_FREE ();
+  return result;
 }
 
 
@@ -2215,10 +2213,12 @@ push_key_description (EMACS_INT ch, char *p)
 
 DEFUN ("single-key-description", Fsingle_key_description,
        Ssingle_key_description, 1, 2, 0,
-       doc: /* Return a pretty description of command character KEY.
+       doc: /* Return a pretty description of a character event KEY.
 Control characters turn into C-whatever, etc.
 Optional argument NO-ANGLES non-nil means don't put angle brackets
-around function keys and event symbols.  */)
+around function keys and event symbols.
+
+See `text-char-description' for describing character codes.  */)
   (Lisp_Object key, Lisp_Object no_angles)
 {
   USE_SAFE_ALLOCA;
@@ -2268,12 +2268,6 @@ around function keys and event symbols.  */)
 static char *
 push_text_char_description (register unsigned int c, register char *p)
 {
-  if (c >= 0200)
-    {
-      *p++ = 'M';
-      *p++ = '-';
-      c -= 0200;
-    }
   if (c < 040)
     {
       *p++ = '^';
@@ -2292,31 +2286,32 @@ push_text_char_description (register unsigned int c, register char *p)
 /* This function cannot GC.  */
 
 DEFUN ("text-char-description", Ftext_char_description, Stext_char_description, 1, 1, 0,
-       doc: /* Return a pretty description of file-character CHARACTER.
-Control characters turn into "^char", etc.  This differs from
-`single-key-description' which turns them into "C-char".
-Also, this function recognizes the 2**7 bit as the Meta character,
-whereas `single-key-description' uses the 2**27 bit for Meta.
+       doc: /* Return the description of CHARACTER in standard Emacs notation.
+CHARACTER must be a valid character code that passes the `characterp' test.
+Control characters turn into "^char", and characters with Meta and other
+modifiers signal an error, as they are not valid character codes.
+This differs from `single-key-description' which accepts character events,
+and thus doesn't enforce the `characterp' condition, turns control
+characters into "C-char", and uses the 2**27 bit for Meta.
 See Info node `(elisp)Describing Characters' for examples.  */)
   (Lisp_Object character)
 {
-  /* Currently MAX_MULTIBYTE_LENGTH is 4 (< 6).  */
-  char str[6];
-  int c;
-
   CHECK_CHARACTER (character);
 
-  c = XFIXNUM (character);
+  int c = XFIXNUM (character);
   if (!ASCII_CHAR_P (c))
     {
+      char str[MAX_MULTIBYTE_LENGTH];
       int len = CHAR_STRING (c, (unsigned char *) str);
 
       return make_multibyte_string (str, 1, len);
     }
-
-  *push_text_char_description (c & 0377, str) = 0;
-
-  return build_string (str);
+  else
+    {
+      char desc[4];
+      int len = push_text_char_description (c, desc) - desc;
+      return make_string (desc, len);
+    }
 }
 
 static int where_is_preferred_modifier;
@@ -2359,39 +2354,24 @@ preferred_sequence_p (Lisp_Object seq)
 static void where_is_internal_1 (Lisp_Object key, Lisp_Object binding,
                                  Lisp_Object args, void *data);
 
-/* Like Flookup_key, but uses a list of keymaps SHADOW instead of a single map.
-   Returns the first non-nil binding found in any of those maps.
-   If REMAP is true, pass the result of the lookup through command
-   remapping before returning it.  */
+/* Like Flookup_key, but with command remapping; just returns nil
+   if the key sequence is too long.  */
 
 static Lisp_Object
-shadow_lookup (Lisp_Object shadow, Lisp_Object key, Lisp_Object flag,
+shadow_lookup (Lisp_Object keymap, Lisp_Object key, Lisp_Object accept_default,
 	       bool remap)
 {
-  Lisp_Object tail, value;
+  Lisp_Object value = Flookup_key (keymap, key, accept_default);
 
-  for (tail = shadow; CONSP (tail); tail = XCDR (tail))
+  if (FIXNATP (value))          /* `key' is too long!  */
+    return Qnil;
+  else if (!NILP (value) && remap && SYMBOLP (value))
     {
-      value = Flookup_key (XCAR (tail), key, flag);
-      if (FIXNATP (value))
-	{
-	  value = Flookup_key (XCAR (tail),
-			       Fsubstring (key, make_fixnum (0), value), flag);
-	  if (!NILP (value))
-	    return Qnil;
-	}
-      else if (!NILP (value))
-	{
-	  Lisp_Object remapping;
-	  if (remap && SYMBOLP (value)
-	      && (remapping = Fcommand_remapping (value, Qnil, shadow),
-		  !NILP (remapping)))
-	    return remapping;
-	  else
-	    return value;
-	}
+      Lisp_Object remapping = Fcommand_remapping (value, Qnil, keymap);
+      return (!NILP (remapping) ? remapping : value);
     }
-  return Qnil;
+  else
+    return value;
 }
 
 static Lisp_Object Vmouse_events;
@@ -2565,7 +2545,7 @@ The optional 5th arg NO-REMAP alters how command remapping is handled:
     keymaps = Fcurrent_active_maps (Qnil, Qnil);
 
   tem = Fcommand_remapping (definition, Qnil, keymaps);
-  /* If `definition' is remapped to tem', then OT1H no key will run
+  /* If `definition' is remapped to `tem', then OT1H no key will run
      that command (since they will run `tem' instead), so we should
      return nil; but OTOH all keys bound to `definition' (or to `tem')
      will run the same command.
@@ -2587,6 +2567,8 @@ The optional 5th arg NO-REMAP alters how command remapping is handled:
       && !NILP (tem = Fget (definition, QCadvertised_binding)))
     {
       /* We have a list of advertised bindings.  */
+      /* FIXME: Not sure why we use false for shadow_lookup's remapping,
+         nor why we use `EQ' here but `Fequal' in the call further down.  */
       while (CONSP (tem))
 	if (EQ (shadow_lookup (keymaps, XCAR (tem), Qnil, 0), definition))
 	  return XCAR (tem);
@@ -2992,38 +2974,17 @@ key             binding\n\
       elt = XCAR (maps);
       elt_prefix = Fcar (elt);
 
-      sub_shadows = Qnil;
-
-      for (tail = shadow; CONSP (tail); tail = XCDR (tail))
-	{
-	  Lisp_Object shmap;
-
-	  shmap = XCAR (tail);
-
-	  /* If the sequence by which we reach this keymap is zero-length,
-	     then the shadow map for this keymap is just SHADOW.  */
-	  if ((STRINGP (elt_prefix) && SCHARS (elt_prefix) == 0)
-	      || (VECTORP (elt_prefix) && ASIZE (elt_prefix) == 0))
-	    ;
-	  /* If the sequence by which we reach this keymap actually has
-	     some elements, then the sequence's definition in SHADOW is
-	     what we should use.  */
-	  else
-	    {
-	      shmap = Flookup_key (shmap, Fcar (elt), Qt);
-	      if (FIXNUMP (shmap))
-		shmap = Qnil;
-	    }
-
-	  /* If shmap is not nil and not a keymap,
+      sub_shadows = Flookup_key (shadow, elt_prefix, Qt);
+      if (FIXNATP (sub_shadows))
+        sub_shadows = Qnil;
+      else if (!KEYMAPP (sub_shadows)
+               && !NILP (sub_shadows)
+               && !(CONSP (sub_shadows)
+                    && KEYMAPP (XCAR (sub_shadows))))
+	  /* If elt_prefix is bound to something that's not a keymap,
 	     it completely shadows this map, so don't
 	     describe this map at all.  */
-	  if (!NILP (shmap) && !KEYMAPP (shmap))
-	    goto skip;
-
-	  if (!NILP (shmap))
-	    sub_shadows = Fcons (shmap, sub_shadows);
-	}
+        goto skip;
 
       /* Maps we have already listed in this loop shadow this map.  */
       for (tail = orig_maps; !EQ (tail, maps); tail = XCDR (tail))
@@ -3133,9 +3094,9 @@ describe_map_compare (const void *aa, const void *bb)
   if (FIXNUMP (a->event) && !FIXNUMP (b->event))
     return -1;
   if (SYMBOLP (a->event) && SYMBOLP (b->event))
-    return (!NILP (Fstring_lessp (a->event, b->event)) ? -1
-	    : !NILP (Fstring_lessp (b->event, a->event)) ? 1
-	    : 0);
+    /* Sort the keystroke names in the "natural" way, with (for
+       instance) "<f2>" coming between "<f1>" and "<f11>".  */
+    return string_version_cmp (SYMBOL_NAME (a->event), SYMBOL_NAME (b->event));
   return 0;
 }
 
@@ -3170,7 +3131,7 @@ describe_map (Lisp_Object map, Lisp_Object prefix,
   /* This vector gets used to present single keys to Flookup_key.  Since
      that is done once per keymap element, we don't want to cons up a
      fresh vector every time.  */
-  kludge = Fmake_vector (make_fixnum (1), Qnil);
+  kludge = make_nil_vector (1);
   definition = Qnil;
 
   map = call1 (Qkeymap_canonicalize, map);
@@ -3406,12 +3367,10 @@ describe_vector (Lisp_Object vector, Lisp_Object prefix, Lisp_Object args,
 
   if (!keymap_p)
     {
-      /* Call Fkey_description first, to avoid GC bug for the other string.  */
       if (!NILP (prefix) && XFIXNAT (Flength (prefix)) > 0)
 	{
-	  Lisp_Object tem = Fkey_description (prefix, Qnil);
 	  AUTO_STRING (space, " ");
-	  elt_prefix = concat2 (tem, space);
+	  elt_prefix = concat2 (Fkey_description (prefix, Qnil), space);
 	}
       prefix = Qnil;
     }
@@ -3419,7 +3378,7 @@ describe_vector (Lisp_Object vector, Lisp_Object prefix, Lisp_Object args,
   /* This vector gets used to present single keys to Flookup_key.  Since
      that is done once per vector element, we don't want to cons up a
      fresh vector every time.  */
-  kludge = Fmake_vector (make_fixnum (1), Qnil);
+  kludge = make_nil_vector (1);
 
   if (partial)
     suppress = intern ("suppress-keymap");
@@ -3639,12 +3598,12 @@ syms_of_keymap (void)
   Fset (intern_c_string ("ctl-x-map"), control_x_map);
   Ffset (intern_c_string ("Control-X-prefix"), control_x_map);
 
-  exclude_keys = listn (CONSTYPE_PURE, 5,
-			pure_cons (build_pure_c_string ("DEL"), build_pure_c_string ("\\d")),
-			pure_cons (build_pure_c_string ("TAB"), build_pure_c_string ("\\t")),
-			pure_cons (build_pure_c_string ("RET"), build_pure_c_string ("\\r")),
-			pure_cons (build_pure_c_string ("ESC"), build_pure_c_string ("\\e")),
-			pure_cons (build_pure_c_string ("SPC"), build_pure_c_string (" ")));
+  exclude_keys = pure_list
+    (pure_cons (build_pure_c_string ("DEL"), build_pure_c_string ("\\d")),
+     pure_cons (build_pure_c_string ("TAB"), build_pure_c_string ("\\t")),
+     pure_cons (build_pure_c_string ("RET"), build_pure_c_string ("\\r")),
+     pure_cons (build_pure_c_string ("ESC"), build_pure_c_string ("\\e")),
+     pure_cons (build_pure_c_string ("SPC"), build_pure_c_string (" ")));
   staticpro (&exclude_keys);
 
   DEFVAR_LISP ("define-key-rebound-commands", Vdefine_key_rebound_commands,
@@ -3700,16 +3659,13 @@ be preferred.  */);
   DEFSYM (Qmode_line, "mode-line");
 
   staticpro (&Vmouse_events);
-  Vmouse_events = listn (CONSTYPE_PURE, 9,
-			 Qmenu_bar,
-			 Qtool_bar,
-			 Qheader_line,
-			 Qmode_line,
-			 intern_c_string ("mouse-1"),
-			 intern_c_string ("mouse-2"),
-			 intern_c_string ("mouse-3"),
-			 intern_c_string ("mouse-4"),
-			 intern_c_string ("mouse-5"));
+  Vmouse_events = pure_list (Qmenu_bar, Qtab_bar, Qtool_bar,
+			     Qtab_line, Qheader_line, Qmode_line,
+			     intern_c_string ("mouse-1"),
+			     intern_c_string ("mouse-2"),
+			     intern_c_string ("mouse-3"),
+			     intern_c_string ("mouse-4"),
+			     intern_c_string ("mouse-5"));
 
   /* Keymap used for minibuffers when doing completion.  */
   /* Keymap used for minibuffers when doing completion and require a match.  */
@@ -3719,7 +3675,7 @@ be preferred.  */);
   DEFSYM (Qremap, "remap");
   DEFSYM (QCadvertised_binding, ":advertised-binding");
 
-  command_remapping_vector = Fmake_vector (make_fixnum (2), Qremap);
+  command_remapping_vector = make_vector (2, Qremap);
   staticpro (&command_remapping_vector);
 
   where_is_cache_keymaps = Qt;

@@ -1,9 +1,8 @@
 ;;; mspools.el --- show mail spools waiting to be read
 
-;; Copyright (C) 1997, 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: Stephen Eglen <stephen@gnu.org>
-;; Maintainer: Stephen Eglen <stephen@gnu.org>
 ;; Created: 22 Jan 1997
 ;; Keywords: mail
 ;; location: http://www.anc.ed.ac.uk/~stephen/emacs/
@@ -224,7 +223,7 @@ your primary spool is.  If this fails, set it to something like
 	    ;; So I create a vm-spool-files entry for each of those mail drops
 	    (mapcar 'file-name-sans-extension
 		    (directory-files mspools-folder-directory nil
-				     (format "^[^.]+\\.%s" mspools-suffix)))
+				     (format "\\`[^.]+\\.%s" mspools-suffix)))
 	    ))
    ))
 
@@ -358,7 +357,7 @@ nil."
     (if (null mspools-folder-directory)
 	(error "Set `mspools-folder-directory' to where the spool files are"))
     (setq folders (directory-files mspools-folder-directory nil
-				   (format "^[^.]+\\.%s$" mspools-suffix)))
+				   (format "\\`[^.]+\\.%s\\'" mspools-suffix)))
     (setq folders (mapcar 'mspools-size-folder folders))
     (setq folders (delq nil folders))
     (setq mspools-files folders)
@@ -387,7 +386,7 @@ nil."
   (let ((file (concat mspools-folder-directory spool))
 	size)
     (setq file (or (file-symlink-p file) file))
-    (setq size (nth 7 (file-attributes file)))
+    (setq size (file-attribute-size (file-attributes file)))
     ;; size could be nil if the sym-link points to a non-existent file
     ;; so check this first.
     (if (and size  (> size 0))

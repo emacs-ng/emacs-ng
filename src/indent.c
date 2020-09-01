@@ -1,5 +1,5 @@
 /* Indentation functions.
-   Copyright (C) 1985-1988, 1993-1995, 1998, 2000-2018 Free Software
+   Copyright (C) 1985-1988, 1993-1995, 1998, 2000-2020 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -18,7 +18,6 @@ You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
-#include <stdio.h>
 
 #include "lisp.h"
 #include "character.h"
@@ -49,7 +48,7 @@ ptrdiff_t last_known_column_point;
 
 /* Value of MODIFF when current_column was called.  */
 
-static EMACS_INT last_known_column_modified;
+static modiff_count last_known_column_modified;
 
 static ptrdiff_t current_column_1 (void);
 static ptrdiff_t position_indentation (ptrdiff_t);
@@ -286,9 +285,7 @@ skip_invisible (ptrdiff_t pos, ptrdiff_t *next_boundary_p, ptrdiff_t to, Lisp_Ob
 
 #define MULTIBYTE_BYTES_WIDTH(p, dp, bytes, width)			\
   do {									\
-    int ch;								\
-    									\
-    ch = STRING_CHAR_AND_LENGTH (p, bytes);				\
+    int ch = string_char_and_length (p, &(bytes));			\
     if (BYTES_BY_CHAR_HEAD (*p) != bytes)				\
       width = bytes * 4;						\
     else								\
@@ -599,7 +596,7 @@ scan_for_column (ptrdiff_t *endpos, EMACS_INT *goalcol, ptrdiff_t *prevcol)
       if (cmp_it.id >= 0
 	  || (scan == cmp_it.stop_pos
 	      && composition_reseat_it (&cmp_it, scan, scan_byte, end,
-					w, NULL, Qnil)))
+					w, -1, NULL, Qnil)))
 	composition_update_it (&cmp_it, scan, scan_byte, Qnil);
       if (cmp_it.id >= 0)
 	{
@@ -943,7 +940,7 @@ position_indentation (ptrdiff_t pos_byte)
 	    if (CHAR_HAS_CATEGORY (c, ' '))
 	      {
 		column++;
-		INC_POS (pos_byte);
+		pos_byte += next_char_len (pos_byte);
 		p = BYTE_POS_ADDR (pos_byte);
 	      }
 	    else
@@ -962,7 +959,7 @@ indented_beyond_p (ptrdiff_t pos, ptrdiff_t pos_byte, EMACS_INT column)
 {
   while (pos > BEGV && FETCH_BYTE (pos_byte) == '\n')
     {
-      DEC_BOTH (pos, pos_byte);
+      dec_both (&pos, &pos_byte);
       pos = find_newline (pos, pos_byte, BEGV, BEGV_BYTE,
 			  -1, NULL, &pos_byte, 0);
     }
@@ -983,9 +980,10 @@ If specified column is within a character, point goes after that character.
 If it's past end of line, point goes to end of line.
 
 Optional second argument FORCE non-nil means if COLUMN is in the
-middle of a tab character, change it to spaces.
-In addition, if FORCE is t, and the line is too short to reach
-COLUMN, add spaces/tabs to get there.
+middle of a tab character, either change it to spaces (when
+`indent-tabs-mode' is nil), or insert enough spaces before it to reach
+COLUMN (otherwise).  In addition, if FORCE is t, and the line is too short
+to reach COLUMN, add spaces/tabs to get there.
 
 The return value is the current column.  */)
   (Lisp_Object column, Lisp_Object force)
@@ -1010,7 +1008,7 @@ The return value is the current column.  */)
       int c;
       ptrdiff_t pos_byte = PT_BYTE;
 
-      DEC_POS (pos_byte);
+      pos_byte -= prev_char_len (pos_byte);
       c = FETCH_CHAR (pos_byte);
       if (c == '\t' && prev_col < goal)
 	{
@@ -1506,7 +1504,7 @@ compute_motion (ptrdiff_t from, ptrdiff_t frombyte, EMACS_INT fromvpos,
 	  if (cmp_it.id >= 0
 	      || (pos == cmp_it.stop_pos
 		  && composition_reseat_it (&cmp_it, pos, pos_byte, to, win,
-					    NULL, Qnil)))
+					    -1, NULL, Qnil)))
 	    composition_update_it (&cmp_it, pos, pos_byte, Qnil);
 	  if (cmp_it.id >= 0)
 	    {
@@ -1605,7 +1603,7 @@ compute_motion (ptrdiff_t from, ptrdiff_t frombyte, EMACS_INT fromvpos,
 			    {
 			      pos = find_before_next_newline (pos, to, 1, &pos_byte);
 			      if (pos < to)
-				INC_BOTH (pos, pos_byte);
+				inc_both (&pos, &pos_byte);
 			      rarely_quit (++quit_count);
 			    }
 			  while (pos < to
@@ -1618,7 +1616,7 @@ compute_motion (ptrdiff_t from, ptrdiff_t frombyte, EMACS_INT fromvpos,
 			      if (hpos >= width)
 				hpos = width;
 			    }
-			  DEC_BOTH (pos, pos_byte);
+			  dec_both (&pos, &pos_byte);
 			  /* We have skipped the invis text, but not the
 			     newline after.  */
 			}
@@ -1756,14 +1754,14 @@ visible section of the buffer, and pass LINE and COL as TOPOS.  */)
 
   CHECK_FIXNUM_COERCE_MARKER (from);
   CHECK_CONS (frompos);
-  CHECK_FIXNUM_CAR (frompos);
-  CHECK_FIXNUM_CDR (frompos);
+  CHECK_FIXNUM (XCAR (frompos));
+  CHECK_FIXNUM (XCDR (frompos));
   CHECK_FIXNUM_COERCE_MARKER (to);
   if (!NILP (topos))
     {
       CHECK_CONS (topos);
-      CHECK_FIXNUM_CAR (topos);
-      CHECK_FIXNUM_CDR (topos);
+      CHECK_FIXNUM (XCAR (topos));
+      CHECK_FIXNUM (XCDR (topos));
     }
   if (!NILP (width))
     CHECK_FIXNUM (width);
@@ -1771,8 +1769,8 @@ visible section of the buffer, and pass LINE and COL as TOPOS.  */)
   if (!NILP (offsets))
     {
       CHECK_CONS (offsets);
-      CHECK_FIXNUM_CAR (offsets);
-      CHECK_FIXNUM_CDR (offsets);
+      CHECK_FIXNUM (XCAR (offsets));
+      CHECK_FIXNUM (XCDR (offsets));
       if (! (0 <= XFIXNUM (XCAR (offsets)) && XFIXNUM (XCAR (offsets)) <= PTRDIFF_MAX
 	     && 0 <= XFIXNUM (XCDR (offsets)) && XFIXNUM (XCDR (offsets)) <= INT_MAX))
 	args_out_of_range (XCAR (offsets), XCDR (offsets));
@@ -1820,8 +1818,8 @@ visible section of the buffer, and pass LINE and COL as TOPOS.  */)
 static struct position val_vmotion;
 
 struct position *
-vmotion (register ptrdiff_t from, register ptrdiff_t from_byte,
-	 register EMACS_INT vtarget, struct window *w)
+vmotion (ptrdiff_t from, ptrdiff_t from_byte,
+	 EMACS_INT vtarget, struct window *w)
 {
   ptrdiff_t hscroll = w->hscroll;
   struct position pos;
@@ -1862,7 +1860,7 @@ vmotion (register ptrdiff_t from, register ptrdiff_t from_byte,
 	  Lisp_Object propval;
 
 	  prevline = from;
-	  DEC_BOTH (prevline, bytepos);
+	  dec_both (&prevline, &bytepos);
 	  prevline = find_newline_no_quit (prevline, bytepos, -1, &bytepos);
 
 	  while (prevline > BEGV
@@ -1875,7 +1873,7 @@ vmotion (register ptrdiff_t from, register ptrdiff_t from_byte,
 						       text_prop_object),
 			 TEXT_PROP_MEANS_INVISIBLE (propval))))
 	    {
-	      DEC_BOTH (prevline, bytepos);
+	      dec_both (&prevline, &bytepos);
 	      prevline = find_newline_no_quit (prevline, bytepos, -1, &bytepos);
 	    }
 	  pos = *compute_motion (prevline, bytepos, 0, lmargin, 0, from,
@@ -1925,7 +1923,7 @@ vmotion (register ptrdiff_t from, register ptrdiff_t from_byte,
 						   text_prop_object),
 		     TEXT_PROP_MEANS_INVISIBLE (propval))))
 	{
-	  DEC_BOTH (prevline, bytepos);
+	  dec_both (&prevline, &bytepos);
 	  prevline = find_newline_no_quit (prevline, bytepos, -1, &bytepos);
 	}
       pos = *compute_motion (prevline, bytepos, 0, lmargin, 0, from,
@@ -1968,8 +1966,11 @@ line_number_display_width (struct window *w, int *width, int *pixel_width)
 	 outside the accessible region, in which case we widen the
 	 buffer temporarily.  It could even be beyond the buffer's end
 	 (Org mode's display of source code snippets is known to cause
-	 that), in which case we just punt and start from point instead.  */
-      if (startpos.charpos > Z)
+	 that) or belong to the wrong buffer, in which cases we just
+	 punt and start from point instead.  */
+      if (startpos.charpos > Z
+	  || !(BUFFERP (w->contents)
+	       && XBUFFER (w->contents) == XMARKER (w->start)->buffer))
 	SET_TEXT_POS (startpos, PT, PT_BYTE);
       if (startpos.charpos < BEGV || startpos.charpos > ZV)
 	{
@@ -2088,15 +2089,15 @@ whether or not it is currently displayed in some window.  */)
   struct it it;
   struct text_pos pt;
   struct window *w;
-  Lisp_Object lcols;
+  Lisp_Object lcols = Qnil;
   void *itdata = NULL;
   ptrdiff_t count = SPECPDL_INDEX ();
 
   /* Allow LINES to be of the form (HPOS . VPOS) aka (COLUMNS . LINES).  */
-  bool lcols_given = CONSP (lines);
-  if (lcols_given)
+  if (CONSP (lines))
     {
       lcols = XCAR (lines);
+      CHECK_NUMBER (lcols);
       lines = XCDR (lines);
     }
 
@@ -2276,9 +2277,9 @@ whether or not it is currently displayed in some window.  */)
 
 	  overshoot_handled = 1;
 	}
-      if (lcols_given)
+      if (!NILP (lcols))
 	to_x =
-	  window_column_x (w, window, extract_float (lcols), lcols)
+	  window_column_x (w, window, XFLOATINT (lcols), lcols)
 	  + lnum_pixel_width;
       if (nlines <= 0)
 	{
@@ -2286,7 +2287,7 @@ whether or not it is currently displayed in some window.  */)
 	  it.current_y = 0;
 	  /* Do this even if LINES is 0, so that we move back to the
 	     beginning of the current line as we ought.  */
-	  if ((nlines < 0 && IT_CHARPOS (it) > 0)
+	  if ((nlines < 0 && IT_CHARPOS (it) > BEGV)
 	      || (nlines == 0 && !(start_x_given && start_x <= to_x)))
 	    move_it_by_lines (&it, max (PTRDIFF_MIN, nlines));
 	}
@@ -2329,7 +2330,7 @@ whether or not it is currently displayed in some window.  */)
       /* Move to the goal column, if one was specified.  If the window
 	 was originally hscrolled, the goal column is interpreted as
 	 an addition to the hscroll amount.  */
-      if (lcols_given)
+      if (!NILP (lcols))
 	{
 	  move_it_in_display_line (&it, ZV, first_x + to_x, MOVE_TO_X);
 	  /* If we find ourselves in the middle of an overlay string
@@ -2338,7 +2339,7 @@ whether or not it is currently displayed in some window.  */)
 	     and then reposition point at the requested X coordinate;
 	     if we don't, the cursor will be placed just after the
 	     string, which might not be the requested column.  */
-	  if (nlines > 0 && it.area == TEXT_AREA)
+	  if (nlines >= 0 && it.area == TEXT_AREA)
 	    {
 	      while (it.method == GET_FROM_STRING
 		     && !it.string_from_display_prop_p

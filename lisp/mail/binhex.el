@@ -1,6 +1,6 @@
 ;;; binhex.el --- decode BinHex-encoded text  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2020 Free Software Foundation, Inc.
 
 ;; Author: Shenghuo Zhu <zsh@cs.rochester.edu>
 ;; Keywords: binhex news
@@ -83,21 +83,15 @@ input and write the converted data to its standard output."
   "^[^:]...............................................................$")
 (defconst binhex-end-line ":$")		; unused
 
-(defvar binhex-temporary-file-directory
-  (cond ((fboundp 'temp-directory) (temp-directory))
-	((boundp 'temporary-file-directory) temporary-file-directory)
-	("/tmp/")))
+(make-obsolete-variable 'binhex-temporary-file-directory
+                        'temporary-file-directory "28.1")
 
-(eval-and-compile
-  (defalias 'binhex-insert-char
-    (if (featurep 'xemacs)
-	'insert-char
-      (lambda (char &optional count ignored buffer)
-	"Insert COUNT copies of CHARACTER into BUFFER."
-	(if (or (null buffer) (eq buffer (current-buffer)))
-	    (insert-char char count)
-	  (with-current-buffer buffer
-	    (insert-char char count)))))))
+(defun binhex-insert-char (char &optional count ignored buffer)
+  "Insert COUNT copies of CHARACTER into BUFFER."
+  (if (or (null buffer) (eq buffer (current-buffer)))
+      (insert-char char count)
+    (with-current-buffer buffer
+      (insert-char char count))))
 
 (defvar binhex-crc-table
   [0  4129  8258  12387  16516  20645  24774  28903
@@ -224,8 +218,8 @@ If HEADER-ONLY is non-nil only decode header and return filename."
 	  (goto-char start)
 	  (when (re-search-forward binhex-begin-line end t)
             (setq work-buffer (generate-new-buffer " *binhex-work*"))
-	    (unless (featurep 'xemacs)
-	      (with-current-buffer work-buffer (set-buffer-multibyte nil)))
+	    (with-current-buffer work-buffer
+              (set-buffer-multibyte nil))
 	    (beginning-of-line)
 	    (setq bits 0 counter 0)
 	    (while tmp
@@ -289,7 +283,7 @@ If HEADER-ONLY is non-nil only decode header and return filename."
 	(file-name (expand-file-name
 		    (concat (binhex-decode-region-internal start end t)
 			    ".data")
-		    binhex-temporary-file-directory)))
+		    temporary-file-directory)))
     (save-excursion
       (goto-char start)
       (when (re-search-forward binhex-begin-line nil t)
@@ -300,7 +294,7 @@ If HEADER-ONLY is non-nil only decode header and return filename."
 				  (generate-new-buffer " *binhex-work*")))
 		(buffer-disable-undo work-buffer)
 		(insert-buffer-substring cbuf firstline end)
-		(cd binhex-temporary-file-directory)
+		(cd temporary-file-directory)
 		(apply 'call-process-region
 		       (point-min)
 		       (point-max)

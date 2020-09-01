@@ -101,8 +101,8 @@ thin (i.e. 1-dot width) space."
 ;; Record error in arabic-change-gstring.
 (defvar arabic-shape-log nil)
 
-(defun arabic-shape-gstring (gstring)
-  (setq gstring (font-shape-gstring gstring))
+(defun arabic-shape-gstring (gstring direction)
+  (setq gstring (font-shape-gstring gstring direction))
   (condition-case err
       (when arabic-shaper-ZWNJ-handling
         (let ((font (lgstring-font gstring))
@@ -136,10 +136,10 @@ thin (i.e. 1-dot width) space."
 (set-char-table-range
  composition-function-table
  '(#x600 . #x74F)
- (list (vector "[\u0600-\u074F\u200C\u200D]+" 0
-               'arabic-shape-gstring)
-       (vector "[\u200C\u200D][\u0600-\u074F\u200C\u200D]+" 1
-               'arabic-shape-gstring)))
+ (list (vector "[\u200C\u200D][\u0600-\u074F\u200C\u200D]+"
+               1 'arabic-shape-gstring)
+       (vector "[\u0600-\u074F\u200C\u200D]+"
+               0 'arabic-shape-gstring)))
 
 (provide 'misc-lang)
 

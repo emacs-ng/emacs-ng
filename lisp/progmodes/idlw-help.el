@@ -1,10 +1,10 @@
 ;;; idlw-help.el --- HTML Help code for IDLWAVE
 
-;; Copyright (C) 2000-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2020 Free Software Foundation, Inc.
 ;;
-;; Authors: J.D. Smith <jdsmith@as.arizona.edu>
+;; Authors: JD Smith <jd.smith@utoledo.edu>
 ;;          Carsten Dominik <dominik@science.uva.nl>
-;; Maintainer: J.D. Smith <jdsmith@as.arizona.edu>
+;; Maintainer: emacs-devel@gnu.org
 ;; Package: idlwave
 
 ;; This file is part of GNU Emacs.
@@ -182,14 +182,14 @@ definition is displayed instead."
 which specifies the `name' section.  Can be used for localization
 support."
   :group 'idlwave-online-help
-  :type 'string)
+  :type 'regexp)
 
 (defcustom idlwave-help-doclib-keyword "KEYWORD"
   "A regexp for the heading word to search for in doclib headers
 which specifies the `keywords' section.  Can be used for localization
 support."
   :group 'idlwave-online-help
-  :type 'string)
+  :type 'regexp)
 
 (defface idlwave-help-link
   '((t :inherit link))
@@ -267,7 +267,6 @@ support."
 (declare-function idlwave-find-class-definition "idlwave")
 (declare-function idlwave-find-inherited-class "idlwave")
 (declare-function idlwave-find-struct-tag "idlwave")
-(declare-function idlwave-get-buffer-visiting "idlwave")
 (declare-function idlwave-in-quote "idlwave")
 (declare-function idlwave-make-full-name "idlwave")
 (declare-function idlwave-members-only "idlwave")
@@ -880,7 +879,7 @@ This function can be used as `idlwave-extra-help-function'."
 	  (setq in-buf ; structure-tag completion is always in current buffer
 		(if struct-tag
 		    idlwave-current-tags-buffer
-		  (idlwave-get-buffer-visiting file)))
+                  (find-buffer-visiting file)))
 	  ;; see if file is in a visited buffer, insert those contents
 	  (if in-buf
 	      (progn

@@ -1,5 +1,5 @@
 /* Interface to Little CMS
-   Copyright (C) 2017-2018 Free Software Foundation, Inc.
+   Copyright (C) 2017-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -93,7 +93,7 @@ static bool
 parse_lab_list (Lisp_Object lab_list, cmsCIELab *color)
 {
 #define PARSE_LAB_LIST_FIELD(field)					\
-  if (CONSP (lab_list) && FIXED_OR_FLOATP (XCAR (lab_list)))			\
+  if (CONSP (lab_list) && NUMBERP (XCAR (lab_list)))			\
     {									\
       color->field = XFLOATINT (XCAR (lab_list));			\
       lab_list = XCDR (lab_list);					\
@@ -108,7 +108,7 @@ parse_lab_list (Lisp_Object lab_list, cmsCIELab *color)
   return true;
 }
 
-/* http://www.ece.rochester.edu/~gsharma/ciede2000/ciede2000noteCRNA.pdf> */
+/* http://www.ece.rochester.edu/~gsharma/ciede2000/ciede2000noteCRNA.pdf */
 
 DEFUN ("lcms-cie-de2000", Flcms_cie_de2000, Slcms_cie_de2000, 2, 5, 0,
        doc: /* Compute CIEDE2000 metric distance between COLOR1 and COLOR2.
@@ -138,15 +138,15 @@ chroma, and hue, respectively. The parameters each default to 1.  */)
     signal_error ("Invalid color", color1);
   if (NILP (kL))
     Kl = 1.0f;
-  else if (!(FIXED_OR_FLOATP (kL) && (Kl = XFLOATINT(kL))))
+  else if (!(NUMBERP (kL) && (Kl = XFLOATINT(kL))))
     wrong_type_argument(Qnumberp, kL);
   if (NILP (kC))
     Kc = 1.0f;
-  else if (!(FIXED_OR_FLOATP (kC) && (Kc = XFLOATINT(kC))))
+  else if (!(NUMBERP (kC) && (Kc = XFLOATINT(kC))))
     wrong_type_argument(Qnumberp, kC);
   if (NILP (kL))
     Kh = 1.0f;
-  else if (!(FIXED_OR_FLOATP (kH) && (Kh = XFLOATINT(kH))))
+  else if (!(NUMBERP (kH) && (Kh = XFLOATINT(kH))))
     wrong_type_argument(Qnumberp, kH);
 
   return make_float (cmsCIE2000DeltaE (&Lab1, &Lab2, Kl, Kc, Kh));
@@ -184,7 +184,7 @@ static bool
 parse_xyz_list (Lisp_Object xyz_list, cmsCIEXYZ *color)
 {
 #define PARSE_XYZ_LIST_FIELD(field)					\
-  if (CONSP (xyz_list) && FIXED_OR_FLOATP (XCAR (xyz_list)))			\
+  if (CONSP (xyz_list) && NUMBERP (XCAR (xyz_list)))			\
     {									\
       color->field = 100.0 * XFLOATINT (XCAR (xyz_list));		\
       xyz_list = XCDR (xyz_list);					\
@@ -203,7 +203,7 @@ static bool
 parse_jch_list (Lisp_Object jch_list, cmsJCh *color)
 {
 #define PARSE_JCH_LIST_FIELD(field)					\
-  if (CONSP (jch_list) && FIXED_OR_FLOATP (XCAR (jch_list)))			\
+  if (CONSP (jch_list) && NUMBERP (XCAR (jch_list)))			\
     {									\
       color->field = XFLOATINT (XCAR (jch_list));			\
       jch_list = XCDR (jch_list);					\
@@ -224,7 +224,7 @@ static bool
 parse_jab_list (Lisp_Object jab_list, lcmsJab_t *color)
 {
 #define PARSE_JAB_LIST_FIELD(field)					\
-  if (CONSP (jab_list) && FIXED_OR_FLOATP (XCAR (jab_list)))			\
+  if (CONSP (jab_list) && NUMBERP (XCAR (jab_list)))			\
     {									\
       color->field = XFLOATINT (XCAR (jab_list));			\
       jab_list = XCDR (jab_list);					\
@@ -244,7 +244,7 @@ parse_viewing_conditions (Lisp_Object view, const cmsCIEXYZ *wp,
                           cmsViewingConditions *vc)
 {
 #define PARSE_VIEW_CONDITION_FLOAT(field)				\
-  if (CONSP (view) && FIXED_OR_FLOATP (XCAR (view)))				\
+  if (CONSP (view) && NUMBERP (XCAR (view)))				\
     {									\
       vc->field = XFLOATINT (XCAR (view));				\
       view = XCDR (view);						\
@@ -254,8 +254,7 @@ parse_viewing_conditions (Lisp_Object view, const cmsCIEXYZ *wp,
 #define PARSE_VIEW_CONDITION_INT(field)					\
   if (CONSP (view) && FIXNATP (XCAR (view)))				\
     {									\
-      CHECK_RANGED_INTEGER (XCAR (view), 1, 4);				\
-      vc->field = XFIXNUM (XCAR (view));					\
+      vc->field = check_integer_range (XCAR (view), 1, 4);		\
       view = XCDR (view);						\
     }									\
   else									\
@@ -317,7 +316,7 @@ jab_to_jch (const lcmsJab_t *jab, cmsJCh *jch, double FL, double c1, double c2)
 }
 
 DEFUN ("lcms-xyz->jch", Flcms_xyz_to_jch, Slcms_xyz_to_jch, 1, 3, 0,
-       doc: /* Convert CIE CAM02 JCh to CIE XYZ.
+       doc: /* Convert CIE XYZ to CIE CAM02 JCh.
 COLOR is a list (X Y Z), with Y scaled about unity.
 Optional arguments WHITEPOINT and VIEW are the same as in `lcms-cam02-ucs',
 which see.  */)
@@ -353,7 +352,7 @@ which see.  */)
 }
 
 DEFUN ("lcms-jch->xyz", Flcms_jch_to_xyz, Slcms_jch_to_xyz, 1, 3, 0,
-       doc: /* Convert CIE XYZ to CIE CAM02 JCh.
+       doc: /* Convert CIE CAM02 JCh to CIE XYZ.
 COLOR is a list (J C h), where lightness of white is equal to 100, and hue
 is given in degrees.
 Optional arguments WHITEPOINT and VIEW are the same as in `lcms-cam02-ucs',
@@ -555,7 +554,7 @@ Valid range of TEMPERATURE is from 4000K to 25000K.  */)
     }
 #endif
 
-  CHECK_FIXNUM_OR_FLOAT (temperature);
+  CHECK_NUMBER (temperature);
 
   tempK = XFLOATINT (temperature);
   if (!(cmsWhitePointFromTemp (&whitepoint, tempK)))

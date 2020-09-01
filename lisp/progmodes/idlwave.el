@@ -1,11 +1,11 @@
 ;; idlwave.el --- IDL editing mode for GNU Emacs
 
-;; Copyright (C) 1999-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2020 Free Software Foundation, Inc.
 
-;; Authors: J.D. Smith <jdsmith@as.arizona.edu>
+;; Authors: JD Smith <jd.smith@utoledo.edu>
 ;;          Carsten Dominik <dominik@science.uva.nl>
 ;;          Chris Chase <chase@att.com>
-;; Maintainer: J.D. Smith <jdsmith@as.arizona.edu>
+;; Maintainer: emacs-devel@gnu.org
 ;; Version: 6.1.22
 ;; Keywords: languages
 
@@ -154,21 +154,6 @@
 (eval-when-compile (require 'cl-lib))
 (require 'idlw-help)
 
-;; For XEmacs
-(unless (fboundp 'line-beginning-position)
-  (defalias 'line-beginning-position 'point-at-bol))
-(unless (fboundp 'line-end-position)
-  (defalias 'line-end-position 'point-at-eol))
-(unless (fboundp 'char-valid-p)
-  (defalias 'char-valid-p 'characterp))
-(unless (fboundp 'match-string-no-properties)
-  (defalias 'match-string-no-properties 'match-string))
-
-(if (not (fboundp 'cancel-timer))
-    (condition-case nil
-	(require 'timer)
-      (error nil)))
-
 (declare-function idlwave-shell-get-path-info "idlw-shell")
 (declare-function idlwave-shell-temp-file "idlw-shell")
 (declare-function idlwave-shell-is-running "idlw-shell")
@@ -314,7 +299,7 @@ split then a terminal beep and warning are issued."
 expression will not be changed.  Note that the indentation of a comment
 at the beginning of a line is never changed."
   :group 'idlwave-code-formatting
-  :type 'string)
+  :type 'regexp)
 
 (defcustom idlwave-begin-line-comment nil
   "A comment anchored at the beginning of line.
@@ -596,12 +581,7 @@ like this:
 MyMethod <Class1,Class2,Class3>
 
 The value of this variable may be nil to inhibit display, or an integer to
-indicate the maximum number of classes to display.
-
-On XEmacs, a full list of classes will also be placed into a `help-echo'
-property on the completion items, so that the list of classes for the current
-item is displayed in the echo area.  If the value of this variable is a
-negative integer, the `help-echo' property will be suppressed."
+indicate the maximum number of classes to display."
   :group 'idlwave-completion
   :type '(choice (const :tag "Don't show" nil)
 		 (integer :tag "Number of classes shown" 1)))
@@ -1069,7 +1049,6 @@ goto                 Goto Statements
 common-blocks        Common Blocks
 keyword-parameters   Keyword Parameters in routine definitions and calls
 system-variables     System Variables
-fixme                FIXME: Warning in comments (on XEmacs only v. 21.0 and up)
 class-arrows         Object Arrows with class property"
   :group 'idlwave-misc
   :type '(set
@@ -1084,7 +1063,6 @@ class-arrows         Object Arrows with class property"
 	  (const :tag "Common Blocks"                     common-blocks)
 	  (const :tag "Keyword Parameters"                keyword-parameters)
 	  (const :tag "System Variables"                  system-variables)
-	  (const :tag "FIXME: Warning"                    fixme)
 	  (const :tag "Object Arrows with class property " class-arrows)))
 
 (defcustom idlwave-mode-hook nil
@@ -1096,6 +1074,8 @@ class-arrows         Object Arrows with class property"
   "Normal hook.  Executed when idlwave.el is loaded."
   :group 'idlwave-misc
   :type 'hook)
+(make-obsolete-variable 'idlwave-load-hook
+                        "use `with-eval-after-load' instead." "28.1")
 
 (defvar idlwave-experimental nil
   "Non-nil means turn on a few experimental features.
@@ -1151,22 +1131,15 @@ As a user, you should not set this to t.")
        ;; Common blocks
        (common-blocks
 	'("\\<\\(common\\)\\>[ \t]*\\(\\sw+\\)?[ \t]*,?"
-	  (1 font-lock-keyword-face)	          ; "common"
-	  (2 font-lock-constant-face nil t)      ; block name
+	  (1 font-lock-keyword-face)        ; "common"
+	  (2 font-lock-constant-face nil t) ; block name
 	  ("[ \t]*\\(\\sw+\\)[ ,]*"
 	   ;; Start with point after block name and comma
-	   (goto-char (match-end 0))  ; needed for XEmacs, could be nil
-	   nil
-	   (1 font-lock-variable-name-face)       ; variable names
-	   )))
+	   nil nil (1 font-lock-variable-name-face))))       ; variable names
 
        ;; Batch files
        (batch-files
 	'("^[ \t]*\\(@[^ \t\n]+\\)" (1 font-lock-string-face)))
-
-       ;; FIXME warning.
-       (fixme
-	'("\\<FIXME:" (0 font-lock-warning-face t)))
 
        ;; Labels
        (label
@@ -1253,9 +1226,6 @@ As a user, you should not set this to t.")
     nil t
     ((?$ . "w") (?_ . "w") (?. . "w") (?| . "w") (?& . "w"))
     beginning-of-line))
-
-(put 'idlwave-mode 'font-lock-defaults
-     idlwave-font-lock-defaults) ; XEmacs
 
 (defconst idlwave-comment-line-start-skip "^[ \t]*;"
   "Regexp to match the start of a full-line comment.
@@ -1492,9 +1462,7 @@ Otherwise ARGS forms a list that is evaluated."
     (define-key map "\M-\C-i" 'idlwave-complete)
     (define-key map "\C-c\C-i" 'idlwave-update-routine-info)
     (define-key map "\C-c="    'idlwave-resolve)
-    (define-key map
-      (if (featurep 'xemacs) [(shift button3)] [(shift mouse-3)])
-      'idlwave-mouse-context-help)
+    (define-key map [(shift mouse-3)] 'idlwave-mouse-context-help)
     map)
   "Keymap used in IDL mode.")
 
@@ -1870,7 +1838,6 @@ The main features of this mode are
 
 8. Hooks
    -----
-   Loading idlwave.el runs `idlwave-load-hook'.
    Turning on `idlwave-mode' runs `idlwave-mode-hook'.
 
 9. Documentation and Customization
@@ -1930,8 +1897,6 @@ The main features of this mode are
       (add-to-list 'tag-table-alist '("\\.pro$" . "IDLTAGS")))
 
   ;; Font-lock additions
-  ;; Following line is for Emacs - XEmacs uses the corresponding property
-  ;; on the `idlwave-mode' symbol.
   (set (make-local-variable 'font-lock-defaults) idlwave-font-lock-defaults)
   (set (make-local-variable 'font-lock-mark-block-function)
        'idlwave-mark-subprogram)
@@ -2091,11 +2056,7 @@ Returns point if comment found and nil otherwise."
            (backward-char 1)
            (point)))))
 
-(defun idlwave-region-active-p ()
-  "Should we operate on an active region?"
-  (if (fboundp 'use-region-p)
-      (use-region-p)
-    (region-active-p)))
+(define-obsolete-function-alias 'idlwave-region-active-p 'use-region-p "28.1")
 
 (defun idlwave-show-matching-quote ()
   "Insert quote and show matching quote if this is end of a string."
@@ -3629,7 +3590,7 @@ Calling from a program, arguments are START END."
 (defun idlwave-quoted ()
   "Return t if point is in a comment or quoted string.
 Returns nil otherwise."
-  (or (idlwave-in-comment) (idlwave-in-quote)))
+  (and (or (idlwave-in-comment) (idlwave-in-quote)) t))
 
 (defun idlwave-in-quote ()
   "Return location of the opening quote
@@ -3690,7 +3651,7 @@ constants - a double quote followed by an octal digit."
    (save-excursion
      (forward-char)
      (re-search-backward (concat "\\(" idlwave-idl-keywords
-                                 "\\|[[(*+-/=,^><]\\)\\s-*\\*") limit t))))
+                                 "\\|[-[(*+/=,^><]\\)\\s-*\\*") limit t))))
 
 
 ;; Statement templates
@@ -3832,15 +3793,8 @@ If PATTERN is omitted, it defaults to \"[ \\f\\t\\n\\r\\v]+\"."
       (setq start (match-end 0)))
     (setq ret_string (concat ret_string (substring string start last)))))
 
-(defun idlwave-get-buffer-visiting (file)
-  ;; Return the buffer currently visiting FILE
-  (cond
-   ((boundp 'find-file-compare-truenames) ; XEmacs
-    (let ((find-file-compare-truenames t))
-      (get-file-buffer file)))
-   ((fboundp 'find-buffer-visiting)       ; Emacs
-    (find-buffer-visiting file))
-   (t (error "This should not happen (idlwave-get-buffer-visiting)"))))
+(define-obsolete-function-alias 'idlwave-get-buffer-visiting
+  #'find-buffer-visiting "28.1")
 
 (defvar idlwave-outlawed-buffers nil
   "List of buffers pulled up by IDLWAVE for special reasons.
@@ -3848,7 +3802,7 @@ Buffers in this list may be killed by `idlwave-kill-autoloaded-buffers'.")
 
 (defun idlwave-find-file-noselect (file &optional why)
   ;; Return a buffer visiting file.
-  (or (idlwave-get-buffer-visiting file)
+  (or (find-buffer-visiting file)
       (let ((buf (find-file-noselect file)))
 	(if why (add-to-list 'idlwave-outlawed-buffers (cons buf why)))
 	buf)))
@@ -5588,7 +5542,7 @@ be set to nil to disable library catalog scanning."
 	     (mapcar 'car idlwave-path-alist)))
 	  (old-libname "")
 	  dir-entry dir catalog all-routines)
-      (if message-base (message message-base))
+      (if message-base (message "%s" message-base))
       (while (setq dir (pop dirs))
 	(catch 'continue
 	  (when (file-readable-p
@@ -5603,8 +5557,7 @@ be set to nil to disable library catalog scanning."
 		     message-base
 		     (not (string= idlwave-library-catalog-libname
 				   old-libname)))
-		(message "%s" (concat message-base
-				      idlwave-library-catalog-libname))
+		(message "%s%s" message-base idlwave-library-catalog-libname)
 		(setq old-libname idlwave-library-catalog-libname))
 	      (when idlwave-library-catalog-routines
 		(setq all-routines
@@ -5618,7 +5571,7 @@ be set to nil to disable library catalog scanning."
 		       (setq dir-entry (assoc dir idlwave-path-alist)))
 	      (idlwave-path-alist-add-flag dir-entry 'lib)))))
       (unless no-load (setq idlwave-library-catalog-routines all-routines))
-      (if message-base (message (concat message-base "done"))))))
+      (if message-base (message "%sdone" message-base)))))
 
 ;;----- Communicating with the Shell -------------------
 
@@ -6455,10 +6408,10 @@ ARROW:  Location of the arrow"
      ((string-match "\\`[ \t]*\\(pro\\|function\\)\\>"
 		    match-string)
       nil)
-     ((string-match "OBJ_NEW([ \t]*['\"]\\([a-zA-Z0-9$_]*\\)?\\'"
+     ((string-match "OBJ_NEW([ \t]*['\"][a-zA-Z0-9$_]*\\'"
 		    match-string)
       (setq cw 'class))
-     ((string-match "\\<inherits\\s-+\\([a-zA-Z0-9$_]*\\)?\\'"
+     ((string-match "\\<inherits\\s-+[a-zA-Z0-9$_]*\\'"
 		    match-string)
       (setq cw 'class))
      ((and func
@@ -6637,7 +6590,6 @@ This function is not general, can only be used for completion stuff."
   "A form to evaluate after completion selection in *Completions* buffer.")
 (defconst idlwave-completion-mark (make-marker)
   "A mark pointing to the beginning of the completion string.")
-(defvar completion-highlight-first-word-only) ;XEmacs.
 
 (defun idlwave-complete-in-buffer (type stype list selector prompt isa
 					&optional prepare-display-function
@@ -6716,12 +6668,7 @@ accumulate information on matching completions."
 	      list))
       (let* ((list all-completions)
 	     ;; "complete" means, this is already a valid completion
-	     (complete (memq spart all-completions))
-	     (completion-highlight-first-word-only t)) ; XEmacs
-	     ;; (completion-fixup-function             ; Emacs
-	     ;;  (lambda () (and (eq (preceding-char) ?>)
-	     ;;    	      (re-search-backward " <" beg t)))))
-
+	     (complete (memq spart all-completions)))
 	(setq list (sort list (lambda (a b)
 				(string< (downcase a) (downcase b)))))
 	(if prepare-display-function
@@ -6783,7 +6730,6 @@ accumulate information on matching completions."
     (let* ((do-prop (and (>= show-classes 0)
 			 (>= emacs-major-version 21)))
 	   (do-buf (not (= show-classes 0)))
-	   ;; (do-dots (featurep 'xemacs))
 	   (do-dots t)
 	   (inherit (if (and (not (eq type 'class-tag)) super-classes)
 			(cons class-selector super-classes)))
@@ -6849,10 +6795,6 @@ accumulate information on matching completions."
 ;;----------------------------------------------------------------------
 ;;----------------------------------------------------------------------
 ;;----------------------------------------------------------------------
-(when (featurep 'xemacs)
-  (defvar rtn)
-  (defun idlwave-pset (item)
-    (set 'rtn item)))
 
 (defun idlwave-popup-select (ev list title &optional sort)
   "Select an item in LIST with a popup menu.
@@ -6863,17 +6805,6 @@ sort the list before displaying."
     (cond ((null list))
 	  ((= 1 (length list))
 	   (setq rtn (car list)))
-	  ((featurep 'xemacs)
-	   (if sort (setq list (sort list (lambda (a b)
-					    (string< (upcase a) (upcase b))))))
-	   (setq menu
-		 (append (list title)
-			 (mapcar (lambda (x) (vector x (list 'idlwave-pset
-							     x)))
-				 list)))
-	   (setq menu (idlwave-split-menu-xemacs menu maxpopup))
-	   (let ((resp (get-popup-menu-response menu)))
-             (funcall (event-function resp) (event-object resp))))
 	  (t
 	   (if sort (setq list (sort list (lambda (a b)
 					    (string< (upcase a) (upcase b))))))
@@ -6881,36 +6812,14 @@ sort the list before displaying."
 			    (list
 			     (append (list "")
 				     (mapcar (lambda(x) (cons x x)) list)))))
-	   (setq menu (idlwave-split-menu-emacs menu maxpopup))
+	   (setq menu (idlwave-split-menu menu maxpopup))
 	   (setq rtn (x-popup-menu ev menu))))
     rtn))
 
-(defun idlwave-split-menu-xemacs (menu N)
-  "Split the MENU into submenus of maximum length N."
-  (if (<= (length menu) (1+ N))
-      ;; No splitting needed
-      menu
-    (let* ((title (car menu))
-	   (entries (cdr menu))
-	   (menu (list title))
-	   (cnt 0)
-	   (nextmenu nil))
-      (while entries
-	(while (and entries (< cnt N))
-	  (setq cnt (1+ cnt)
-		nextmenu (cons (car entries) nextmenu)
-		entries (cdr entries)))
-	(setq nextmenu (nreverse nextmenu))
-	(setq nextmenu (cons (format "%s...%s"
-				     (aref (car nextmenu) 0)
-				     (aref (nth (1- cnt) nextmenu) 0))
-			     nextmenu))
-	(setq menu (cons nextmenu menu)
-	      nextmenu nil
-	      cnt 0))
-      (nreverse menu))))
+(define-obsolete-function-alias 'idlwave-split-menu-emacs
+  #'idlwave-split-menu "28.1")
 
-(defun idlwave-split-menu-emacs (menu N)
+(defun idlwave-split-menu (menu N)
   "Split the MENU into submenus of maximum length N."
   (if (<= (length (nth 1 menu)) (1+ N))
       ;; No splitting needed
@@ -6965,10 +6874,7 @@ sort the list before displaying."
     (move-marker idlwave-completion-mark beg)
     (setq idlwave-before-completion-wconf (current-window-configuration)))
 
-  (if (featurep 'xemacs)
-      (idlwave-display-completion-list-xemacs
-       list)
-    (idlwave-display-completion-list-emacs list))
+  (idlwave-display-completion-list-1 list)
 
   ;; Store a special value in `this-command'.  When `idlwave-complete'
   ;; finds this in `last-command', it will scroll the *Completions* buffer.
@@ -7026,8 +6932,7 @@ The key which is associated with each option is generated automatically.
 First, the strings are checked for preselected keys, like in \"[P]rint\".
 If these don't exist, a letter in the string is automatically selected."
   (let* ((alist (symbol-value sym))
-         (temp-buffer-show-hook (if (fboundp 'fit-window-to-buffer)
-				    '(fit-window-to-buffer)))
+         (temp-buffer-show-hook '(fit-window-to-buffer))
          keys-alist char)
     ;; First check the cache
     (if (and (eq (symbol-value sym) (get sym :one-key-alist-last)))
@@ -7113,42 +7018,17 @@ If these don't exist, a letter in the string is automatically selected."
     (and (local-variable-p var (current-buffer))
 	 (symbol-value var))))
 
-;; In XEmacs, we can use :activate-callback directly to advice the
-;; choose functions.  We use the private keymap only for the online
-;; help feature.
-
 (defvar idlwave-completion-map nil
   "Keymap for `completion-list-mode' with `idlwave-complete'.")
-
-(defun idlwave-display-completion-list-xemacs (list &rest cl-args)
-  (with-output-to-temp-buffer "*Completions*"
-    (apply 'display-completion-list list
-	   ':activate-callback 'idlwave-default-choose-completion
-	   cl-args))
-  (with-current-buffer "*Completions*"
-    (use-local-map
-     (or idlwave-completion-map
-	 (setq idlwave-completion-map
-	       (idlwave-make-modified-completion-map-xemacs
-		(current-local-map)))))))
 
 (defun idlwave-default-choose-completion (&rest args)
   "Execute `default-choose-completion' and then restore the win-conf."
   (apply 'idlwave-choose 'default-choose-completion args))
 
-(defun idlwave-make-modified-completion-map-xemacs (old-map)
-  "Replace `choose-completion' and `mouse-choose-completion' in OLD-MAP."
-  (let ((new-map (copy-keymap old-map)))
-    (define-key new-map [button3up] 'idlwave-mouse-completion-help)
-    (define-key new-map [button3] (lambda ()
-				    (interactive)
-				    (setq this-command last-command)))
-    new-map))
+(define-obsolete-function-alias 'idlwave-display-completion-list-emacs
+  #'idlwave-display-completion-list-1 "28.1")
 
-;; In Emacs we also replace keybindings in the completion
-;; map in order to install our wrappers.
-
-(defun idlwave-display-completion-list-emacs (list)
+(defun idlwave-display-completion-list-1 (list)
   "Display completion list and install the choose wrappers."
   (with-output-to-temp-buffer "*Completions*"
     (display-completion-list list))
@@ -7156,16 +7036,16 @@ If these don't exist, a letter in the string is automatically selected."
     (use-local-map
      (or idlwave-completion-map
 	 (setq idlwave-completion-map
-	       (idlwave-make-modified-completion-map-emacs
-		(current-local-map)))))))
+	       (idlwave-make-modified-completion-map (current-local-map)))))))
 
-(defun idlwave-make-modified-completion-map-emacs (old-map)
-  "Replace `choose-completion' and `mouse-choose-completion' in OLD-MAP."
+(define-obsolete-function-alias 'idlwave-make-modified-completion-map-emacs
+  #'idlwave-make-modified-completion-map "28.1")
+
+(defun idlwave-make-modified-completion-map (old-map)
+  "Replace `choose-completion' in OLD-MAP."
   (let ((new-map (copy-keymap old-map)))
     (substitute-key-definition
      'choose-completion 'idlwave-choose-completion new-map)
-    (substitute-key-definition
-     'mouse-choose-completion 'idlwave-mouse-choose-completion new-map)
     (define-key new-map [mouse-3] 'idlwave-mouse-completion-help)
     new-map))
 
@@ -7174,10 +7054,8 @@ If these don't exist, a letter in the string is automatically selected."
   (interactive (list last-nonmenu-event))
   (apply 'idlwave-choose 'choose-completion args))
 
-(defun idlwave-mouse-choose-completion (&rest args)
-  "Click on an alternative in the `*Completions*' buffer to choose it."
-  (interactive "e")
-  (apply 'idlwave-choose 'mouse-choose-completion args))
+(define-obsolete-function-alias 'idlwave-mouse-choose-completion
+  #'idlwave-choose-completion "28.1")
 
 ;;----------------------------------------------------------------------
 ;;----------------------------------------------------------------------
@@ -7371,7 +7249,7 @@ class/struct definition."
 	 (file (idlwave-routine-source-file
 		(nth 3 (idlwave-rinfo-assoc pro 'pro nil
 					    (idlwave-routines))))))
-    (cons file (if file (idlwave-get-buffer-visiting file)))))
+    (cons file (if file (find-buffer-visiting file)))))
 
 
 (defun idlwave-scan-class-info (class)
@@ -7591,7 +7469,7 @@ property indicating the link is added."
 	(case-fold-search t))
     (cond ((save-excursion
 	     ;; Check if the context is right for system variable
-	     (skip-chars-backward "[a-zA-Z0-9_$]")
+	     (skip-chars-backward "a-zA-Z0-9_$")
 	     (equal (char-before) ?!))
 	   (setq idlwave-completion-help-info '(idlwave-complete-sysvar-help))
 	   (idlwave-complete-in-buffer 'sysvar 'sysvar
@@ -8242,15 +8120,9 @@ If we do not know about MODULE, just return KEYWORD literally."
 
 (defvar idlwave-rinfo-mouse-map
   (let ((map (make-sparse-keymap)))
-    (define-key map
-      (if (featurep 'xemacs) [button2] [mouse-2])
-      'idlwave-mouse-active-rinfo)
-    (define-key map
-      (if (featurep 'xemacs) [(shift button2)] [(shift mouse-2)])
-      'idlwave-mouse-active-rinfo-shift)
-    (define-key map
-      (if (featurep 'xemacs) [button3] [mouse-3])
-      'idlwave-mouse-active-rinfo-right)
+    (define-key map [mouse-2] 'idlwave-mouse-active-rinfo)
+    (define-key map [(shift mouse-2)] 'idlwave-mouse-active-rinfo-shift)
+    (define-key map [mouse-3] 'idlwave-mouse-active-rinfo-right)
     (define-key map " " 'idlwave-active-rinfo-space)
     (define-key map "q" 'idlwave-quit-help)
     map))
@@ -8272,7 +8144,7 @@ If we do not know about MODULE, just return KEYWORD literally."
       (select-window olh-window)
       (idlwave-help-quit))
     (when (window-live-p ri-window)
-      (delete-window ri-window))))
+      (quit-window nil ri-window))))
 
 (defun idlwave-display-calling-sequence (name type class
 					      &optional initial-class)
@@ -8302,7 +8174,6 @@ If we do not know about MODULE, just return KEYWORD literally."
 	  "Button2: Display info about same method in superclass")
 	 (col 0)
 	 (data (list name type class (current-buffer) nil initial-class))
-	 (km-prop (if (featurep 'xemacs) 'keymap 'local-map))
 	 (face 'idlwave-help-link)
 	 beg props win cnt total)
     ;; Fix keywords, but don't add chained super-classes, since these
@@ -8327,7 +8198,7 @@ If we do not know about MODULE, just return KEYWORD literally."
 				  idlwave-current-obj_new-class)
 	(when superclasses
 	  (setq props (list 'mouse-face 'highlight
-			    km-prop idlwave-rinfo-mouse-map
+			    'local-map idlwave-rinfo-mouse-map
 			    'help-echo help-echo-class
 			    'data (cons 'class data)))
 	  (let ((classes (cons initial-class superclasses)) c)
@@ -8343,7 +8214,7 @@ If we do not know about MODULE, just return KEYWORD literally."
 		    (add-text-properties beg (point) props))))
 	    (insert "\n")))
 	(setq props (list 'mouse-face 'highlight
-			  km-prop idlwave-rinfo-mouse-map
+			  'local-map idlwave-rinfo-mouse-map
 			  'help-echo help-echo-use
 			  'data (cons 'usage data)))
 	(if html-file (setq props (append (list 'face face 'link html-file)
@@ -8371,7 +8242,7 @@ If we do not know about MODULE, just return KEYWORD literally."
 	     (setq beg (point)
 		   ;; Relevant keywords already have link property attached
 		   props (list 'mouse-face 'highlight
-			       km-prop idlwave-rinfo-mouse-map
+			       'local-map idlwave-rinfo-mouse-map
 			       'data (cons 'keyword data)
 			       'help-echo help-echo-kwd
 			       'keyword (car x)))
@@ -8385,7 +8256,7 @@ If we do not know about MODULE, just return KEYWORD literally."
 	;; Here entry is (key file (list of type-conses))
 	(while (setq entry (pop all))
 	  (setq props (list 'mouse-face 'highlight
-			    km-prop idlwave-rinfo-mouse-map
+			    'local-map idlwave-rinfo-mouse-map
 			    'help-echo help-echo-src
 			    'source (list (car (car (nth 2 entry))) ;type
 					  (nth 1 entry)
@@ -8490,8 +8361,7 @@ to it."
       (add-text-properties beg (point) (list 'face 'bold)))
     (when (and file (not (equal file "")))
       (setq beg (point))
-      (insert (apply 'abbreviate-file-name
-		     (if (featurep 'xemacs) (list file t) (list file))))
+      (insert (apply 'abbreviate-file-name (list file)))
       (if file-props
 	  (add-text-properties beg (point) file-props)))))
 
@@ -8651,10 +8521,9 @@ can be used to detect possible name clashes during this process."
 			   idlwave-user-catalog-routines
 			   idlwave-buffer-routines
 			   nil))
-	 (km-prop (if (featurep 'xemacs) 'keymap 'local-map))
 	 (keymap (make-sparse-keymap))
 	 (props (list 'mouse-face 'highlight
-		      km-prop keymap
+		      'local-map keymap
 		      'help-echo "Mouse2: Find source"))
 	 (nroutines (length (or special-routines routines)))
 	 (step (/ nroutines 100))
@@ -8677,7 +8546,7 @@ can be used to detect possible name clashes during this process."
 					       (nth 2 b) (car b)))))))
     (message "Sorting routines...done")
 
-    (define-key keymap (if (featurep 'xemacs) [(button2)] [(mouse-2)])
+    (define-key keymap [(mouse-2)]
       (lambda (ev)
 	(interactive "e")
 	(mouse-set-point ev)
@@ -8814,9 +8683,8 @@ routines, and may have been scanned."
 
 ;; FIXME: Dynamically scoped vars need to use the `idlwave-' prefix.
 ;; (defvar type)
-(defmacro idlwave-xor (a b)
-  `(and (or ,a ,b)
-	(not (and ,a ,b))))
+
+(define-obsolete-function-alias 'idlwave-xor 'xor "27.1")
 
 (defun idlwave-routine-entry-compare (a b)
   "Compare two routine info entries for sorting.
@@ -8920,17 +8788,17 @@ This expects NAME TYPE IDLWAVE-TWIN-CLASS to be bound to the right values."
     ;; Now: follow JD's ideas about sorting.  Looks really simple now,
     ;; doesn't it?  The difficult stuff is hidden above...
     (cond
-     ((idlwave-xor asysp  bsysp)       asysp)	; System entries first
-     ((idlwave-xor aunresp bunresp)    bunresp) ; Unresolved last
+     ((xor asysp   bsysp)     asysp)        ; System entries first
+     ((xor aunresp bunresp)   bunresp)      ; Unresolved last
      ((and idlwave-sort-prefer-buffer-info
-	   (idlwave-xor abufp bbufp))  abufp)	; Buffers before non-buffers
-     ((idlwave-xor acompp bcompp)      acompp)	; Compiled entries
-     ((idlwave-xor apathp bpathp)      apathp)	; Library before non-library
-     ((idlwave-xor anamep bnamep)      anamep)	; Correct file names first
-     ((and idlwave-twin-class anamep bnamep     ; both file names match ->
-	   (idlwave-xor adefp bdefp))  bdefp)	; __define after __method
-     ((> anpath bnpath)                t)	; Who is first on path?
-     (t                                nil))))	; Default
+           (xor abufp bbufp)) abufp)        ; Buffers before non-buffers
+     ((xor acompp bcompp)     acompp)       ; Compiled entries
+     ((xor apathp bpathp)     apathp)       ; Library before non-library
+     ((xor anamep bnamep)     anamep)       ; Correct file names first
+     ((and idlwave-twin-class anamep bnamep ; both file names match ->
+           (xor adefp bdefp)) bdefp)        ; __define after __method
+     ((> anpath bnpath)       t)            ; Who is first on path?
+     (t                       nil))))       ; Default
 
 (defun idlwave-routine-source-file (source)
   (if (nth 2 source)
@@ -9040,23 +8908,6 @@ Assumes that point is at the beginning of the unit as found by
 		 'imenu)
 	     (error nil)))))
 
-;; Here we hack func-menu.el in order to support this new mode.
-;; The latest versions of func-menu.el already have this stuff in, so
-;; we hack only if it is not already there.
-(when (featurep 'xemacs)
-  (eval-after-load "func-menu"
-    '(progn
-       (or (assq 'idlwave-mode fume-function-name-regexp-alist)
-	   (not (boundp 'fume-function-name-regexp-idl))      ; avoid problems
-	   (setq fume-function-name-regexp-alist
-		 (cons '(idlwave-mode . fume-function-name-regexp-idl)
-		       fume-function-name-regexp-alist)))
-       (or (assq 'idlwave-mode fume-find-function-name-method-alist)
-	   (not (fboundp 'fume-find-next-idl-function-name))  ; avoid problems
-	   (setq fume-find-function-name-method-alist
-		 (cons '(idlwave-mode . fume-find-next-idl-function-name)
-		       fume-find-function-name-method-alist))))))
-
 (defun idlwave-edit-in-idlde ()
   "Edit the current file in IDL Development environment."
   (interactive)
@@ -9074,7 +8925,7 @@ Assumes that point is at the beginning of the unit as found by
 
 ;; Menus - using easymenu.el
 (defvar idlwave-mode-menu-def
-  `("IDLWAVE"
+  '("IDLWAVE"
     ["PRO/FUNC menu" idlwave-function-menu t]
     ("Motion"
      ["Subprogram Start" idlwave-beginning-of-subprogram t]
@@ -9151,7 +9002,7 @@ Assumes that point is at the beginning of the unit as found by
      ["Kill auto-created buffers" idlwave-kill-autoloaded-buffers t]
      "--"
      ["Insert TAB character" idlwave-hard-tab t])
-     "--"
+    "--"
     ("External"
      ["Start IDL shell" idlwave-shell t]
      ["Edit file in IDLDE" idlwave-edit-in-idlde t]

@@ -1,6 +1,6 @@
 ;;; gulp.el --- ask for updates for Lisp packages
 
-;; Copyright (C) 1996, 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1996, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: Sam Shteingold <shteingd@math.ucla.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -94,7 +94,7 @@ is left in the `*gulp*' buffer at the end."
   (interactive "DRequest updates for Lisp directory: \nP")
   (with-current-buffer (get-buffer-create gulp-tmp-buffer)
     (let ((m-p-alist (gulp-create-m-p-alist
-		      (directory-files dir nil "^[^=].*\\.el$" t)
+		      (directory-files dir nil "\\`[^=].*\\.el\\'" t)
 		      dir))
 	  ;; Temporarily inhibit undo in the *gulp* buffer.
 	  (buffer-undo-list t)

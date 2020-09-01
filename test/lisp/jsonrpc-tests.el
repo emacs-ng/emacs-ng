@@ -1,9 +1,8 @@
 ;;; jsonrpc-tests.el --- tests for jsonrpc.el        -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2018 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2020 Free Software Foundation, Inc.
 
 ;; Author: João Távora <joaotavora@gmail.com>
-;; Maintainer: João Távora <joaotavora@gmail.com>
 ;; Keywords: tests
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -64,7 +63,7 @@
                             (unless (memq method '(+ - * / vconcat append
                                                      sit-for ignore))
                               (signal 'jsonrpc-error
-                                      `((jsonrpc-error-message
+                                      '((jsonrpc-error-message
                                          . "Sorry, this isn't allowed")
                                         (jsonrpc-error-code . -32601))))
                             (apply method (append params nil)))
@@ -115,7 +114,7 @@
     (condition-case err
         (progn
           (jsonrpc-request conn 'delete-directory "~/tmp")
-          (ert-fail "A `jsonrpc-error' should have been signalled!"))
+          (ert-fail "A `jsonrpc-error' should have been signaled!"))
       (jsonrpc-error
        (should (= -32601 (cdr (assoc 'jsonrpc-error-code (cdr err)))))))))
 
@@ -125,7 +124,7 @@
     (condition-case err
         (progn
           (jsonrpc-request conn '+ ["a" 2])
-          (ert-fail "A `jsonrpc-error' should have been signalled!"))
+          (ert-fail "A `jsonrpc-error' should have been signaled!"))
       (jsonrpc-error
        (should (= -32603 (cdr (assoc 'jsonrpc-error-code (cdr err)))))))))
 

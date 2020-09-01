@@ -1,6 +1,6 @@
 ;;; uudecode.el -- elisp native uudecode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2020 Free Software Foundation, Inc.
 
 ;; Author: Shenghuo Zhu <zsh@cs.rochester.edu>
 ;; Keywords: uudecode news
@@ -38,19 +38,16 @@
   "Non-nil value should be a string that names a uu decoder.
 The program should expect to read uu data on its standard
 input and write the converted data to its standard output."
-  :type 'string
-  :group 'uudecode)
+  :type 'string)
 
 (defcustom uudecode-decoder-switches nil
   "List of command line flags passed to `uudecode-decoder-program'."
-  :group 'uudecode
   :type '(repeat string))
 
 (defcustom uudecode-use-external
   (executable-find uudecode-decoder-program)
   "Use external uudecode program."
   :version "22.1"
-  :group 'uudecode
   :type 'boolean)
 
 (defconst uudecode-alphabet "\040-\140")
@@ -64,10 +61,8 @@ input and write the converted data to its standard output."
       (setq str (concat str "[^a-z]")))
     (concat str ".?$")))
 
-(defvar uudecode-temporary-file-directory
-  (cond ((fboundp 'temp-directory) (temp-directory))
-	((boundp 'temporary-file-directory) temporary-file-directory)
-	("/tmp")))
+(make-obsolete-variable 'uudecode-temporary-file-directory
+                        'temporary-file-directory "28.1")
 
 ;;;###autoload
 (defun uudecode-decode-region-external (start end &optional file-name)
@@ -89,19 +84,9 @@ used is specified by `uudecode-decoder-program'."
 					       (match-string 1)))))
 	(setq tempfile (if file-name
 			   (expand-file-name file-name)
-			   (if (fboundp 'make-temp-file)
-			       (let ((temporary-file-directory
-				      uudecode-temporary-file-directory))
-				 (make-temp-file "uu"))
-			     (expand-file-name
-			      (make-temp-name "uu")
-			      uudecode-temporary-file-directory))))
+			 (make-temp-file "uu")))
 	(let ((cdir default-directory)
-	      (default-process-coding-system
-		(if (featurep 'xemacs)
-		    ;; In XEmacs, nil is not a valid coding system.
-		    '(binary . binary)
-		  nil)))
+	      (default-process-coding-system nil))
 	  (unwind-protect
 	      (with-temp-buffer
 		(insert "begin 600 " (file-name-nondirectory tempfile) "\n")
@@ -198,7 +183,7 @@ If FILE-NAME is non-nil, save the result to FILE-NAME."
 	  (skip-chars-forward non-data-chars end))
 	(if file-name
             (with-temp-file file-name
-              (unless (featurep 'xemacs) (set-buffer-multibyte nil))
+              (set-buffer-multibyte nil)
               (insert (apply #'concat (nreverse result))))
 	  (or (markerp end) (setq end (set-marker (make-marker) end)))
 	  (goto-char start)

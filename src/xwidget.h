@@ -1,6 +1,6 @@
 /* Support for embedding graphical components in a buffer.
 
-Copyright (C) 2011-2018 Free Software Foundation, Inc.
+Copyright (C) 2011-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -29,7 +29,13 @@ struct xwidget_view;
 struct window;
 
 #ifdef HAVE_XWIDGETS
-# include <gtk/gtk.h>
+
+#if defined (USE_GTK)
+#include <gtk/gtk.h>
+#elif defined (NS_IMPL_COCOA) && defined (__OBJC__)
+#import <AppKit/NSView.h>
+#import "nsxwidget.h"
+#endif
 
 struct xwidget
 {
@@ -49,27 +55,41 @@ struct xwidget
 
   /* Vector of currently executing scripts with callbacks.  */
   Lisp_Object script_callbacks;
-
-  /* Here ends the Lisp part.  "height" is the marker field.  */
+  /* Here ends the Lisp part.  script_callbacks is the marker field.  */
 
   int height;
   int width;
 
+#if defined (USE_GTK)
   /* For offscreen widgets, unused if not osr.  */
   GtkWidget *widget_osr;
   GtkWidget *widgetwindow_osr;
+#elif defined (NS_IMPL_COCOA)
+# ifdef __OBJC__
+  /* For offscreen widgets, unused if not osr.  */
+  NSView *xwWidget;
+  XwWindow *xwWindow;
+
+  /* Used only for xwidget types (such as webkit2) enforcing 1 to 1
+     relationship between model and view.  */
+  struct xwidget_view *xv;
+# else
+  void *xwWidget;
+  void *xwWindow;
+  struct xwidget_view *xv;
+# endif
+#endif
 
   /* Kill silently if Emacs is exited.  */
   bool_bf kill_without_query : 1;
-};
+} GCALIGNED_STRUCT;
 
 struct xwidget_view
 {
   union vectorlike_header header;
   Lisp_Object model;
   Lisp_Object w;
-
-  /* Here ends the lisp part.  "redisplayed" is the marker field.  */
+  /* Here ends the lisp part.  "w" is the marker field.  */
 
   /* If touched by redisplay.  */
   bool redisplayed;
@@ -77,9 +97,20 @@ struct xwidget_view
   /* The "live" instance isn't drawn.  */
   bool hidden;
 
+#if defined (USE_GTK)
   GtkWidget *widget;
   GtkWidget *widgetwindow;
   GtkWidget *emacswindow;
+#elif defined (NS_IMPL_COCOA)
+# ifdef __OBJC__
+  XvWindow *xvWindow;
+  NSView *emacswindow;
+# else
+  void *xvWindow;
+  void *emacswindow;
+# endif
+#endif
+
   int x;
   int y;
   int clip_right;
@@ -88,7 +119,7 @@ struct xwidget_view
   int clip_left;
 
   long handler_id;
-};
+} GCALIGNED_STRUCT;
 #endif
 
 /* Test for xwidget pseudovector.  */
@@ -118,6 +149,19 @@ void x_draw_xwidget_glyph_string (struct glyph_string *);
 struct xwidget *lookup_xwidget (Lisp_Object spec);
 void xwidget_end_redisplay (struct window *, struct glyph_matrix *);
 void kill_buffer_xwidgets (Lisp_Object);
+/* Defined in 'xwidget.c'.  */
+void store_xwidget_event_string (struct xwidget *xw,
+                                 const char *eventname,
+                                 const char *eventstr);
+
+void store_xwidget_download_callback_event (struct xwidget *xw,
+                                            const char *url,
+                                            const char *mimetype,
+                                            const char *filename);
+
+void store_xwidget_js_callback_event (struct xwidget *xw,
+                                      Lisp_Object proc,
+                                      Lisp_Object argument);
 #else
 INLINE_HEADER_BEGIN
 INLINE void syms_of_xwidget (void) {}

@@ -1,6 +1,6 @@
 ;;; pcvs-parse.el --- the CVS output parser
 
-;; Copyright (C) 1991-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1991-2020 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: pcl-cvs
@@ -472,7 +472,7 @@ The remaining KEYS are passed directly to `cvs-create-fileinfo'."
       ;; Let's not get all worked up if the format changes a bit
       (cvs-match " *Working revision:.*$"))
      (cvs-or
-      (cvs-match " *RCS Version:[ \t]*\\([0-9.]+\\)[ \t]*.*$" (head-rev 1))
+      (cvs-match " *RCS Version:[ \t]*\\([0-9.]+\\).*$" (head-rev 1))
       (cvs-match " *Repository revision:[ \t]*\\([0-9.]+\\)[ \t]*\\(.*\\)$"
 		 (head-rev 1))
       (cvs-match " *Repository revision:.*"))

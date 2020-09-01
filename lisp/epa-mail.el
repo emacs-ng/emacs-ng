@@ -1,5 +1,6 @@
 ;;; epa-mail.el --- the EasyPG Assistant, minor-mode for mail composer -*- lexical-binding: t -*-
-;; Copyright (C) 2006-2018 Free Software Foundation, Inc.
+
+;; Copyright (C) 2006-2020 Free Software Foundation, Inc.
 
 ;; Author: Daiki Ueno <ueno@unixuser.org>
 ;; Keywords: PGP, GnuPG, mail, message
@@ -21,9 +22,12 @@
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Code:
+;;; Dependencies
 
 (require 'epa)
 (require 'mail-utils)
+
+;;; Local Mode
 
 (defvar epa-mail-mode-map
   (let ((keymap (make-sparse-keymap)))
@@ -50,6 +54,8 @@
   "A minor-mode for composing encrypted/clearsigned mails."
   nil " epa-mail" epa-mail-mode-map)
 
+;;; Utilities
+
 (defun epa-mail--find-usable-key (keys usage)
   "Find a usable key from KEYS for USAGE.
 USAGE would be `sign' or `encrypt'."
@@ -64,13 +70,16 @@ USAGE would be `sign' or `encrypt'."
 	  (setq pointer (cdr pointer))))
       (setq keys (cdr keys)))))
 
+;;; Commands
+
 ;;;###autoload
 (defun epa-mail-decrypt ()
   "Decrypt OpenPGP armors in the current buffer.
 The buffer is expected to contain a mail message."
   (declare (interactive-only t))
   (interactive)
-  (epa-decrypt-armor-in-region (point-min) (point-max)))
+  (with-suppressed-warnings ((interactive-only epa-decrypt-armor-in-region))
+    (epa-decrypt-armor-in-region (point-min) (point-max))))
 
 ;;;###autoload
 (defun epa-mail-verify ()
@@ -78,12 +87,16 @@ The buffer is expected to contain a mail message."
 The buffer is expected to contain a mail message."
   (declare (interactive-only t))
   (interactive)
-  (epa-verify-cleartext-in-region (point-min) (point-max)))
+  (with-suppressed-warnings ((interactive-only epa-verify-cleartext-in-region))
+    (epa-verify-cleartext-in-region (point-min) (point-max))))
 
 ;;;###autoload
 (defun epa-mail-sign (start end signers mode)
   "Sign the current buffer.
-The buffer is expected to contain a mail message."
+The buffer is expected to contain a mail message, and signing is
+performed with your default key.
+With prefix argument, asks you to select interactively the key to
+use from your key ring."
   (declare (interactive-only t))
   (interactive
    (save-excursion
@@ -104,7 +117,8 @@ If no one is selected, default secret key is used.  "
 		 (epa--read-signature-type)
 	       'clear)))))
   (let ((inhibit-read-only t))
-    (epa-sign-region start end signers mode)))
+    (with-suppressed-warnings ((interactive-only epa-sign-region))
+      (epa-sign-region start end signers mode))))
 
 (defun epa-mail-default-recipients ()
   "Return the default list of encryption recipients for a mail buffer."
@@ -150,7 +164,7 @@ If no one is selected, default secret key is used.  "
 		   (mapcar
 		    (lambda (recipient)
 		      (let ((tem (assoc recipient epa-mail-aliases)))
-			(if tem (cdr tem)
+			(if tem (copy-sequence (cdr tem))
 			  (list recipient))))
 		    real-recipients)))
       )))
@@ -223,7 +237,9 @@ If no one is selected, symmetric encryption will be performed.  "
 
     ;; Don't let some read-only text stop us from encrypting.
     (let ((inhibit-read-only t))
-      (epa-encrypt-region start (point-max) recipient-keys signers signers))))
+      (with-suppressed-warnings ((interactive-only epa-encrypt-region))
+        (epa-encrypt-region start (point-max)
+                            recipient-keys signers signers)))))
 
 ;;;###autoload
 (defun epa-mail-import-keys ()
@@ -232,6 +248,8 @@ The buffer is expected to contain a mail message."
   (declare (interactive-only t))
   (interactive)
   (epa-import-armor-in-region (point-min) (point-max)))
+
+;;; Global Mode
 
 ;;;###autoload
 (define-minor-mode epa-global-mail-mode

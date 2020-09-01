@@ -1,9 +1,8 @@
 ;;; ebnf-dtd.el --- parser for DTD (Data Type Description for XML)
 
-;; Copyright (C) 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: Vinicius Jose Latorre <viniciusjl.gnu@gmail.com>
-;; Maintainer: Vinicius Jose Latorre <viniciusjl.gnu@gmail.com>
 ;; Keywords: wp, ebnf, PostScript
 ;; Old-Version: 1.1
 ;; Package: ebnf2ps
@@ -325,7 +324,7 @@
 ;; /* Character Reference */
 ;;
 ;; CharRef ::= '&#' [0-9]+ ';'
-;;           | '&#x' [0-9a-fA-F]+ ';'
+;;           | '&#x' [[:xdigit:]]+ ';'
 ;;           [WFC: Legal Character]
 ;;
 ;;
@@ -916,9 +915,9 @@
 ;;; EntityRef ::= '&' Name ';'
 ;;;
 ;;; CharRef ::= '&#' [0-9]+ ';'
-;;;           | '&#x' [0-9a-fA-F]+ ';'
+;;;           | '&#x' [[:xdigit:]]+ ';'
 
-;;; "^\\(&\\([A-Za-z_:][-A-Za-z0-9._:]*\\|#\\(x[0-9a-fA-F]+\\|[0-9]+\\)\\);\\|[^<&]\\)*$"
+;;; "^\\(&\\([A-Za-z_:][-A-Za-z0-9._:]*\\|#\\(x[[:xdigit:]]+\\|[0-9]+\\)\\);\\|[^<&]\\)*$"
 
 
 (defun ebnf-dtd-attlistdecl ()
@@ -946,7 +945,7 @@
 	     (setq token (ebnf-dtd-lex)))
 	(or (and (eq token 'string)
 		 (string-match
-		  "^\\(&\\([A-Za-z_:][-A-Za-z0-9._:]*\\|#\\(x[0-9a-fA-F]+\\|[0-9]+\\)\\);\\|[^<&]\\)*$"
+		  "^\\(&\\([A-Za-z_:][-A-Za-z0-9._:]*\\|#\\(x[[:xdigit:]]+\\|[0-9]+\\)\\);\\|[^<&]\\)*$"
 		  ebnf-dtd-lex))
 	    (error "Invalid default value in ATTLIST declaration"))))
     (or (eq token 'end-decl)
@@ -987,9 +986,9 @@
 ;;; EntityRef ::= '&' Name ';'
 ;;;
 ;;; CharRef ::= '&#' [0-9]+ ';'
-;;;           | '&#x' [0-9a-fA-F]+ ';'
+;;;           | '&#x' [[:xdigit:]]+ ';'
 
-;;; "^\\(%[A-Za-z_:][-A-Za-z0-9._:]*;\\|&\\([A-Za-z_:][-A-Za-z0-9._:]*\\|#\\(x[0-9a-fA-F]+\\|[0-9]+\\)\\);\\|[^%&]\\)*$"
+;;; "^\\(%[A-Za-z_:][-A-Za-z0-9._:]*;\\|&\\([A-Za-z_:][-A-Za-z0-9._:]*\\|#\\(x[[:xdigit:]]+\\|[0-9]+\\)\\);\\|[^%&]\\)*$"
 
 
 (defun ebnf-dtd-entitydecl ()
@@ -1002,7 +1001,7 @@
     (setq token (ebnf-dtd-lex))
     (if (eq token 'string)
 	(if (string-match
-	     "^\\(%[A-Za-z_:][-A-Za-z0-9._:]*;\\|&\\([A-Za-z_:][-A-Za-z0-9._:]*\\|#\\(x[0-9a-fA-F]+\\|[0-9]+\\)\\);\\|[^%&]\\)*$"
+	     "^\\(%[A-Za-z_:][-A-Za-z0-9._:]*;\\|&\\([A-Za-z_:][-A-Za-z0-9._:]*\\|#\\(x[[:xdigit:]]+\\|[0-9]+\\)\\);\\|[^%&]\\)*$"
 	     ebnf-dtd-lex)
 	    (setq token (ebnf-dtd-lex))
 	  (error "Invalid ENTITY definition"))
@@ -1109,9 +1108,8 @@
     (aset ebnf-dtd-token-table ?\] 'end-subset)))
 
 
-;; replace the range "\240-\377" (see `ebnf-range-regexp').
 (defconst ebnf-dtd-name-chars
-  (ebnf-range-regexp "-._:0-9A-Za-z" ?\240 ?\377))
+  "-._:0-9A-Za-z\u00a0-\u00ff")
 
 
 (defconst ebnf-dtd-decl-alist
@@ -1243,7 +1241,7 @@ See documentation for variable `ebnf-dtd-lex'."
 	  (setq ebnf-dtd-lex (if (/= (following-char) ?x)
 				 (ebnf-dtd-char-ref "&#" "0-9")
 			       (forward-char)
-			       (ebnf-dtd-char-ref "&#x" "0-9a-fA-F")))
+			       (ebnf-dtd-char-ref "&#x" "[:xdigit:]")))
 	  'char-ref))
        ;; miscellaneous: (, ), [, ], =, |, *, +, >, `,'
        (t
@@ -1264,11 +1262,10 @@ See documentation for variable `ebnf-dtd-lex'."
     (format "%s%s;" start char)))
 
 
-;; replace the range "\240-\377" (see `ebnf-range-regexp').
 (defconst ebnf-dtd-double-string-chars
-  (ebnf-range-regexp "\t -!#-~" ?\240 ?\377))
+  "\t -!#-~\u00a0-\u00ff")
 (defconst ebnf-dtd-single-string-chars
-  (ebnf-range-regexp "\t -&(-~" ?\240 ?\377))
+  "\t -&(-~\u00a0-\u00ff")
 
 
 (defun ebnf-dtd-string (delim)
@@ -1288,11 +1285,10 @@ See documentation for variable `ebnf-dtd-lex'."
        (forward-char)))))
 
 
-;; replace the range "\177-\237" (see `ebnf-range-regexp').
 (defconst ebnf-dtd-comment-chars
-  (ebnf-range-regexp "^-\000-\010\013\014\016-\037" ?\177 ?\237))
+  "^-\000-\010\013\014\016-\037\177\u0080-\u009f")
 (defconst ebnf-dtd-filename-chars
-  (ebnf-range-regexp "^-\000-\037" ?\177 ?\237))
+  "^-\000-\037\177\u0080-\u009f")
 
 
 (defun ebnf-dtd-skip-comment ()

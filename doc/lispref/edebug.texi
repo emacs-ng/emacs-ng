@@ -1,6 +1,6 @@
 @comment -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1992-1994, 1998-1999, 2001-2018 Free Software
+@c Copyright (C) 1992--1994, 1998--1999, 2001--2020 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 
@@ -230,6 +230,12 @@ evaluating forms that never instrument them: from a file with
 @code{load}, and from the minibuffer with @code{eval-expression}
 (@kbd{M-:}).
 
+@findex edebug-remove-instrumentation
+  A different way to remove the instrumentation from a definition is
+to use the @code{edebug-remove-instrumentation} command.  It also
+allows removing the instrumentation from everything that has been
+instrumented.
+
   @xref{Edebug Eval}, for other evaluation functions available
 inside of Edebug.
 
@@ -445,6 +451,8 @@ Display a backtrace, excluding Edebug's own functions for clarity
 @xref{Backtraces}, for a description of backtraces
 and the commands which work on them.
 
+@findex edebug-backtrace-show-instrumentation
+@findex edebug-backtrace-hide-instrumentation
 If you would like to see Edebug's functions in the backtrace,
 use @kbd{M-x edebug-backtrace-show-instrumentation}.  To hide them
 again use @kbd{M-x edebug-backtrace-hide-instrumentation}.
@@ -491,11 +499,22 @@ Edebug commands for breakpoints:
 Set a breakpoint at the stop point at or after point
 (@code{edebug-set-breakpoint}).  If you use a prefix argument, the
 breakpoint is temporary---it turns off the first time it stops the
-program.
+program.  An overlay with the @code{edebug-enabled-breakpoint} or
+@code{edebug-disabled-breakpoint} faces is put at the breakpoint.
 
 @item u
 Unset the breakpoint (if any) at the stop point at or after
 point (@code{edebug-unset-breakpoint}).
+
+@item U
+Unset any breakpoints in the current form
+(@code{edebug-unset-breakpoints}).
+
+@item D
+Toggle whether to disable the breakpoint near point
+(@code{edebug-toggle-disable-breakpoint}).  This command is mostly
+useful if the breakpoint is conditional and it would take some work to
+recreate the condition.
 
 @item x @var{condition} @key{RET}
 Set a conditional breakpoint which stops the program only if
@@ -644,7 +663,7 @@ definition in the future.
 Toggle whether Edebug saves and restores the outside window
 configuration (@code{edebug-toggle-save-windows}).
 
-With a prefix argument, @code{W} only toggles saving and restoring of
+With a prefix argument, @kbd{W} only toggles saving and restoring of
 the selected window.  To specify a window that is not displaying the
 source code buffer, you must use @kbd{C-x X W} from the global keymap.
 @end table
@@ -688,7 +707,9 @@ Evaluate expression @var{exp} in the context of Edebug itself
 
 @item C-x C-e
 Evaluate the expression before point, in the context outside of Edebug
-(@code{edebug-eval-last-sexp}).
+(@code{edebug-eval-last-sexp}).  With the prefix argument of zero
+(@kbd{C-u 0 C-x C-e}), don't shorten long items (like strings and
+lists).
 @end table
 
 @cindex lexical binding (Edebug)
@@ -718,8 +739,10 @@ Manual}) as well as these special commands:
 
 @table @kbd
 @item C-j
-Evaluate the expression before point, in the outside context, and insert
-the value in the buffer (@code{edebug-eval-print-last-sexp}).
+Evaluate the expression before point, in the outside context, and
+insert the value in the buffer (@code{edebug-eval-print-last-sexp}).
+With prefix argument of zero (@kbd{C-u 0 C-j}), don't shorten long
+items (like strings and lists).
 
 @item C-x C-e
 Evaluate the expression before point, in the context outside of Edebug
@@ -835,7 +858,7 @@ to a non-@code{nil} value.
   Here is an example of code that creates a circular structure:
 
 @example
-(setq a '(x y))
+(setq a (list 'x 'y))
 (setcar a a)
 @end example
 
@@ -1317,7 +1340,6 @@ succeeds.
 
 @item &define
 @c @kindex &define @r{(Edebug)}
-
 Indicates that the specification is for a defining form.  Edebug's
 definition of a defining form is a form containing one or more code
 forms which are saved and executed later, after the execution of the
@@ -1339,6 +1361,11 @@ No argument is matched but backtracking through the gate is disabled
 while matching the remainder of the specifications at this level.  This
 is primarily used to generate more specific syntax error messages.  See
 @ref{Backtracking}, for more details.  Also see the @code{let} example.
+
+@item &error
+@code{&error} should be followed by a string, an error message, in the
+edebug-spec; it aborts the instrumentation, displaying the message in
+the minibuffer.
 
 @item @var{other-symbol}
 @cindex indirect specifications
@@ -1410,6 +1437,16 @@ following @code{:name} should be a symbol; it is used as an additional
 name component for the definition.  You can use this to add a unique,
 static component to the name of the definition.  It may be used more
 than once.
+
+@item :unique
+This construct is like @code{:name}, but generates unique names.  It
+does not match an argument.  The element following @code{:unique}
+should be a string; it is used as the prefix for an additional name
+component for the definition.  You can use this to add a unique,
+dynamic component to the name of the definition.  This is useful for
+macros that can define the same symbol multiple times in different
+scopes, such as @code{cl-flet}; @ref{Function Bindings,,,cl}.  It may
+be used more than once.
 
 @item arg
 The argument, a symbol, is the name of an argument of the defining form.

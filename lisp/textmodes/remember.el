@@ -1,11 +1,11 @@
 ;;; remember --- a mode for quickly jotting down things to remember
 
-;; Copyright (C) 1999-2001, 2003-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2001, 2003-2020 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
 ;; Created: 29 Mar 1999
-;; Version: 2.0
+;; Old-Version: 2.0
 ;; Keywords: data memory todo pim
 ;; URL: http://gna.org/projects/remember-el/
 
@@ -148,7 +148,7 @@
 ;; out, in the long run?  Perhaps its because the time we save
 ;; electronically in one way, we're losing electronically in another;
 ;; the tool should never dominate one's focus.  As the mystic
-;; Faridu'd-Din `Attar wrote: "Be occupied as little as possible with
+;; Farīd ud-Dīn ʿAṭṭār wrote: "Be occupied as little as possible with
 ;; things of the outer world but much with things of the inner world;
 ;; then right action will overcome inaction."
 ;;
@@ -181,6 +181,7 @@
 
 (defconst remember-version "2.0"
   "This version of remember.")
+(make-obsolete-variable 'remember-version nil "28.1")
 
 (defgroup remember nil
   "A mode to remember information."
@@ -485,9 +486,6 @@ Most useful for remembering things from other applications."
   "Remember the contents of the current buffer."
   (interactive)
   (remember-region (point-min) (point-max)))
-
-;; Org needs this
-(define-obsolete-function-alias 'remember-buffer 'remember-finalize "23.1")
 
 (defun remember-destroy ()
   "Destroy the current *Remember* buffer."

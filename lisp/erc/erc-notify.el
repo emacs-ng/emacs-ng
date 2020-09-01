@@ -1,9 +1,10 @@
 ;;; erc-notify.el --- Online status change notification  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2004, 2006-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2004, 2006-2020 Free Software Foundation, Inc.
 
 ;; Author: Mario Lang <mlang@lexx.delysid.org>
-;; Maintainer: emacs-devel@gnu.org
+;; Maintainer: Amin Bandali <bandali@gnu.org>
+;; URL: https://www.emacswiki.org/emacs/ErcNotify
 ;; Keywords: comm
 
 ;; This file is part of GNU Emacs.
@@ -180,7 +181,7 @@ nick from `erc-last-ison' to prevent any further notifications."
   (let ((nick (erc-extract-nick (erc-response.sender parsed))))
     (when (and (erc-member-ignore-case nick erc-notify-list)
 	       (erc-member-ignore-case nick erc-last-ison))
-      (setq erc-last-ison (erc-delete-if
+      (setq erc-last-ison (cl-delete-if
 			   (let ((nick-down (erc-downcase nick)))
 			     (lambda (el)
 			       (string= nick-down (erc-downcase el))))
@@ -254,6 +255,4 @@ with args, toggle notify status of people."
 ;;
 ;; Local Variables:
 ;; generated-autoload-file: "erc-loaddefs.el"
-;; indent-tabs-mode: t
-;; tab-width: 8
 ;; End:

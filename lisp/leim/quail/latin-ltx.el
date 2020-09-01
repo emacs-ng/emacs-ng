@@ -1,6 +1,6 @@
 ;;; latin-ltx.el --- Quail package for TeX-style input -*-coding: utf-8;-*-
 
-;; Copyright (C) 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2020 Free Software Foundation, Inc.
 ;; Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
 ;;   2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -67,7 +67,7 @@ system, including many technical ones.  Examples:
     (and (characterp char) (< char 128)))
 
   (defmacro latin-ltx--define-rules (&rest rules)
-    (load "uni-name")
+    (load "uni-name" nil t)
     (let ((newrules ()))
       (dolist (rule rules)
         (pcase rule
@@ -105,10 +105,11 @@ system, including many technical ones.  Examples:
                   (setq rules (delq c rules)))
                 (message "Conflict for %S: %S"
                          (car rule) (apply #'string conflicts)))))))
-      (let ((inputs (mapcar #'car newrules)))
-        (setq inputs (delete-dups inputs))
-        (message "latin-ltx: %d rules (+ %d conflicts)!"
-                 (length inputs) (- (length newrules) (length inputs))))
+      (let* ((inputs (delete-dups (mapcar #'car newrules)))
+             (conflicts (- (length newrules) (length inputs))))
+        (unless (zerop conflicts)
+          (message "latin-ltx: %d rules (+ %d conflicts)!"
+                   (length inputs) conflicts)))
       `(quail-define-rules ,@(nreverse newrules)))))
 
 (latin-ltx--define-rules
@@ -241,12 +242,14 @@ system, including many technical ones.  Examples:
  ((lambda (name char)
     ;; "GREEK SMALL LETTER PHI" (which is \phi) and "GREEK PHI SYMBOL"
     ;; (which is \varphi) are reversed in `ucs-names', so we define
-    ;; them manually.
-    (unless (string-match-p "\\<PHI\\>" name)
+    ;; them manually.  Also ignore "GREEK SMALL LETTER EPSILON" and
+    ;; add the correct value for \epsilon manually.
+    (unless (string-match-p "\\<\\(?:PHI\\|GREEK SMALL LETTER EPSILON\\)\\>" name)
       (concat "\\" (funcall (if (match-end 1) #' capitalize #'downcase)
                             (match-string 2 name)))))
   "\\`GREEK \\(?:SMALL\\|CAPITA\\(L\\)\\) LETTER \\([^- ]+\\)\\'")
 
+ ("\\epsilon" ?ϵ)
  ("\\phi" ?ϕ)
  ("\\Box" ?□)
  ("\\Bumpeq" ?≎)
@@ -453,10 +456,10 @@ system, including many technical ones.  Examples:
  ("\\lneq" ?≨)
  ("\\lneqq" ?≨)
  ("\\lnsim" ?⋦)
- ("\\longleftarrow" ?←)
- ("\\longleftrightarrow" ?↔)
- ("\\longmapsto" ?↦)
- ("\\longrightarrow" ?→)
+ ("\\longleftarrow" ?⟵)
+ ("\\longleftrightarrow" ?⟷)
+ ("\\longmapsto" ?⟼)
+ ("\\longrightarrow" ?⟶)
  ("\\looparrowleft" ?↫)
  ("\\looparrowright" ?↬)
  ("\\lozenge" ?✧)
@@ -640,6 +643,7 @@ system, including many technical ones.  Examples:
       (concat "\\var" (downcase (match-string 1 name)))))
   "\\`GREEK \\([^- ]+\\) SYMBOL\\'")
 
+ ("\\varepsilon" ?ε)
  ("\\varphi" ?φ)
  ("\\varprime" ?′)
  ("\\varpropto" ?∝)
@@ -655,10 +659,34 @@ system, including many technical ones.  Examples:
  ("\\wp" ?℘)
  ("\\wr" ?≀)
 
- ("\\Bbb{N}" ?ℕ)			; AMS commands for blackboard bold
- ("\\Bbb{P}" ?ℙ)			; Also sometimes \mathbb.
+ ("\\Bbb{A}" ?𝔸)			; AMS commands for blackboard bold
+ ("\\Bbb{B}" ?𝔹)			; Also sometimes \mathbb.
+ ("\\Bbb{C}" ?ℂ)
+ ("\\Bbb{D}" ?𝔻)
+ ("\\Bbb{E}" ?𝔼)
+ ("\\Bbb{F}" ?𝔽)
+ ("\\Bbb{G}" ?𝔾)
+ ("\\Bbb{H}" ?ℍ)
+ ("\\Bbb{I}" ?𝕀)
+ ("\\Bbb{J}" ?𝕁)
+ ("\\Bbb{K}" ?𝕂)
+ ("\\Bbb{L}" ?𝕃)
+ ("\\Bbb{M}" ?𝕄)
+ ("\\Bbb{N}" ?ℕ)
+ ("\\Bbb{O}" ?𝕆)
+ ("\\Bbb{P}" ?ℙ)
+ ("\\Bbb{Q}" ?ℚ)
  ("\\Bbb{R}" ?ℝ)
+ ("\\Bbb{S}" ?𝕊)
+ ("\\Bbb{T}" ?𝕋)
+ ("\\Bbb{U}" ?𝕌)
+ ("\\Bbb{V}" ?𝕍)
+ ("\\Bbb{W}" ?𝕎)
+ ("\\Bbb{X}" ?𝕏)
+ ("\\Bbb{Y}" ?𝕐)
  ("\\Bbb{Z}" ?ℤ)
+ ("\\Bbb{1}" ?𝟙)
+ ("\\Bbb{2}" ?𝟚)
  ("--" ?–)
  ("---" ?—)
  ;; We used to use ~ for NBSP but that's inconvenient and may even look like
@@ -702,7 +730,9 @@ system, including many technical ones.  Examples:
  ("\\ldq" ?\“)
  ("\\rdq" ?\”)
  ("\\defs" ?≙)				; per fuzz/zed
- ;; ("\\sqrt[3]" ?∛)
+ ("\\sqrt" ?√)
+ ("\\sqrt[3]" ?∛)
+ ("\\sqrt[4]" ?∜)
  ("\\llbracket" ?\〚) 			; stmaryrd
  ("\\rrbracket" ?\〛)
  ;; ("\\lbag" ?\〚) 			; fuzz

@@ -1,9 +1,8 @@
 ;;; ebnf-bnf.el --- parser for EBNF
 
-;; Copyright (C) 1999-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2020 Free Software Foundation, Inc.
 
 ;; Author: Vinicius Jose Latorre <viniciusjl.gnu@gmail.com>
-;; Maintainer: Vinicius Jose Latorre <viniciusjl.gnu@gmail.com>
 ;; Keywords: wp, ebnf, PostScript
 ;; Old-Version: 1.10
 ;; Package: ebnf2ps
@@ -420,9 +419,8 @@
     (aset ebnf-bnf-token-table ebnf-lex-eop-char     'period)))
 
 
-;; replace the range "\240-\377" (see `ebnf-range-regexp').
 (defconst ebnf-bnf-non-terminal-chars
-  (ebnf-range-regexp "!#%&'*-,0-:<>@-Z\\\\^-z~" ?\240 ?\377))
+  "!#%&'*-,0-:<>@-Z\\\\^-z~\u00a0-\u00ff")
 
 
 (defun ebnf-bnf-lex ()
@@ -521,9 +519,8 @@ See documentation for variable `ebnf-bnf-lex'."
        ))))
 
 
-;; replace the range "\177-\237" (see `ebnf-range-regexp').
 (defconst ebnf-bnf-comment-chars
-  (ebnf-range-regexp "^\n\000-\010\016-\037" ?\177 ?\237))
+  "^\n\000-\010\016-\037\177\u0080-\u009f")
 
 
 (defun ebnf-bnf-skip-comment ()

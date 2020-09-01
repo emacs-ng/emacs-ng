@@ -1,6 +1,6 @@
 ;;; mm-archive.el --- Functions for parsing archive files as MIME
 
-;; Copyright (C) 2012-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2020 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; This file is part of GNU Emacs.
@@ -24,6 +24,7 @@
 
 (require 'mm-decode)
 (autoload 'gnus-recursive-directory-files "gnus-util")
+(autoload 'gnus-get-buffer-create "gnus")
 (autoload 'mailcap-extension-to-mime "mailcap")
 
 (defvar mm-archive-decoders
@@ -41,8 +42,9 @@
 	 dir)
     (unless decoder
       (error "No decoder found for %s" type))
-    (setq dir (make-temp-file (expand-file-name "emm." mm-tmp-directory) 'dir))
-    (set-file-modes dir #o700)
+    (with-file-modes #o700
+      (setq dir (make-temp-file (expand-file-name "emm." mm-tmp-directory)
+				'dir)))
     (unwind-protect
 	(progn
 	  (mm-with-unibyte-buffer
@@ -56,7 +58,7 @@
 			 (append (cdr decoder) (list dir)))
 		  (delete-file file))
 	      (apply 'call-process-region (point-min) (point-max) (car decoder)
-		     nil (get-buffer-create "*tnef*")
+		     nil (gnus-get-buffer-create "*tnef*")
 		     nil (append (cdr decoder) (list dir)))))
 	  `("multipart/mixed"
 	    ,handle

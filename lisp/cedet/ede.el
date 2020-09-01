@@ -1,6 +1,6 @@
 ;;; ede.el --- Emacs Development Environment gloss
 
-;; Copyright (C) 1998-2005, 2007-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2005, 2007-2020 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: project, make
@@ -162,12 +162,12 @@ This object's class determines how to compile and debug from a buffer.")
 If `ede-object' is nil, then commands will operate on this object.")
 
 (defvar ede-constructing nil
-  "Non nil when constructing a project hierarchy.
+  "Non-nil when constructing a project hierarchy.
 If the project is being constructed from an autoload, then the
 value is the autoload object being used.")
 
 (defvar ede-deep-rescan nil
-  "Non nil means scan down a tree, otherwise rescans are top level only.
+  "Non-nil means scan down a tree, otherwise rescans are top level only.
 Do not set this to non-nil globally.  It is used internally.")
 
 
@@ -470,7 +470,7 @@ To be used in hook functions."
 	  ;; Emacs 21 has no buffer file name for directory edits.
 	  ;; so we need to add these hacks in.
 	  (eq major-mode 'dired-mode)
-	  (eq major-mode 'vc-dired-mode))
+	  (eq major-mode 'vc-dir-mode))
       (ede-minor-mode 1)))
 
 (define-minor-mode ede-minor-mode
@@ -481,7 +481,7 @@ controlled project, then this mode is activated automatically
 provided `global-ede-mode' is enabled."
   :group 'ede
   (cond ((or (eq major-mode 'dired-mode)
-	     (eq major-mode 'vc-dired-mode))
+	     (eq major-mode 'vc-dir-mode))
 	 (ede-dired-minor-mode (if ede-minor-mode 1 -1)))
 	(ede-minor-mode
 	 (if (not ede-constructing)
@@ -791,7 +791,7 @@ Optional argument NAME is the name to give this project."
 		 ))
 	 (inits (oref obj initializers)))
     ;; Force the name to match for new objects.
-    (eieio-object-set-name-string nobj (oref nobj name))
+    (setf (slot-value nobj 'object-name) (oref nobj name))
     ;; Handle init args.
     (while inits
       (eieio-oset nobj (car inits) (car (cdr inits)))
@@ -1515,8 +1515,11 @@ It does not apply the value to buffers."
     (when project-dir
       (ede-directory-get-open-project project-dir 'ROOT))))
 
-(cl-defmethod project-roots ((project ede-project))
-  (list (ede-project-root-directory project)))
+(cl-defmethod project-root ((project ede-project))
+  (ede-project-root-directory project))
+
+;;; FIXME: Could someone look into implementing `project-ignores' for
+;;; EDE and/or a faster `project-files'?
 
 (add-hook 'project-find-functions #'project-try-ede)
 
@@ -1527,8 +1530,7 @@ It does not apply the value to buffers."
 
 ;; If this does not occur after the provide, we can get a recursive
 ;; load.  Yuck!
-(if (featurep 'speedbar)
-    (ede-speedbar-file-setup)
-  (add-hook 'speedbar-load-hook 'ede-speedbar-file-setup))
+(with-eval-after-load 'speedbar
+  (ede-speedbar-file-setup))
 
 ;;; ede.el ends here

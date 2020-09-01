@@ -1,6 +1,6 @@
 ;;; em-glob.el --- extended file name globbing  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2020 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -125,7 +125,7 @@ This option slows down recursive glob processing by quite a bit."
 
 ;;; Functions:
 
-(defun eshell-glob-initialize ()
+(defun eshell-glob-initialize ()    ;Called from `eshell-mode' via intern-soft!
   "Initialize the extended globbing code."
   ;; it's important that `eshell-glob-chars-list' come first
   (when (boundp 'eshell-special-chars-outside-quoting)
@@ -232,8 +232,6 @@ resulting regular expression."
 	    (regexp-quote (substring pattern matched-in-pattern))
 	    "\\'")))
 
-(defvar ange-cache)			; XEmacs?  See esh-util
-
 (defun eshell-extended-glob (glob)
   "Return a list of files generated from GLOB, perhaps looking for DIRS-ONLY.
 This function almost fully supports zsh style filename generation
@@ -252,7 +250,7 @@ the form:
 
    (INCLUDE-REGEXP EXCLUDE-REGEXP (PRED-FUNC-LIST) (MOD-FUNC-LIST))"
   (let ((paths (eshell-split-path glob))
-	eshell-glob-matches message-shown ange-cache)
+        eshell-glob-matches message-shown)
     (unwind-protect
 	(if (and (cdr paths)
 		 (file-name-absolute-p (car paths)))

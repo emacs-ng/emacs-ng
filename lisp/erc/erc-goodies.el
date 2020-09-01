@@ -1,9 +1,9 @@
 ;; erc-goodies.el --- Collection of ERC modules
 
-;; Copyright (C) 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: Jorgen Schaefer <forcer@forcix.cx>
-;; Maintainer: emacs-devel@gnu.org
+;; Maintainer: Amin Bandali <bandali@gnu.org>
 
 ;; Most code is taken verbatim from erc.el, see there for the original
 ;; authors.
@@ -55,13 +55,20 @@ argument to `recenter'."
 (define-erc-module scrolltobottom nil
   "This mode causes the prompt to stay at the end of the window."
   ((add-hook 'erc-mode-hook 'erc-add-scroll-to-bottom)
+   (add-hook 'erc-insert-done-hook 'erc-possibly-scroll-to-bottom)
    (dolist (buffer (erc-buffer-list))
      (with-current-buffer buffer
        (erc-add-scroll-to-bottom))))
   ((remove-hook 'erc-mode-hook 'erc-add-scroll-to-bottom)
+   (remove-hook 'erc-insert-done-hook 'erc-possibly-scroll-to-bottom)
    (dolist (buffer (erc-buffer-list))
      (with-current-buffer buffer
        (remove-hook 'post-command-hook 'erc-scroll-to-bottom t)))))
+
+(defun erc-possibly-scroll-to-bottom ()
+  "Like `erc-add-scroll-to-bottom', but only if window is selected."
+  (when (eq (selected-window) (get-buffer-window))
+    (erc-scroll-to-bottom)))
 
 (defun erc-add-scroll-to-bottom ()
   "A hook function for `erc-mode-hook' to recenter output at bottom of window.
@@ -177,18 +184,20 @@ does not appear in the ERC buffer after the user presses ENTER.")
   "This mode distinguishes non-commands.
 Commands listed in `erc-insert-this' know how to display
 themselves."
-  ((add-hook 'erc-send-pre-hook 'erc-send-distinguish-noncommands))
-  ((remove-hook 'erc-send-pre-hook 'erc-send-distinguish-noncommands)))
+  ((add-hook 'erc-pre-send-functions 'erc-send-distinguish-noncommands))
+  ((remove-hook 'erc-pre-send-functions 'erc-send-distinguish-noncommands)))
 
-(defun erc-send-distinguish-noncommands (str)
-  "If STR is an ERC non-command, set `erc-insert-this' to nil."
-  (let* ((command (erc-extract-command-from-line str))
+(defun erc-send-distinguish-noncommands (state)
+  "If STR is an ERC non-command, set `insertp' in STATE to nil."
+  (let* ((string (erc-input-string state))
+         (command (erc-extract-command-from-line string))
          (cmd-fun (and command
                        (car command))))
     (when (and cmd-fun
-               (not (string-match "\n.+$" str))
+               (not (string-match "\n.+$" string))
                (memq cmd-fun erc-noncommands-list))
-      (setq erc-insert-this nil))))
+      ;; Inhibit sending this string.
+      (setf (erc-input-insertp state) nil))))
 
 ;;; IRC control character processing.
 (defgroup erc-control-characters nil
@@ -221,6 +230,10 @@ The value `erc-interpret-controls-p' must also be t for this to work."
 
 (defface erc-bold-face '((t :weight bold))
   "ERC bold face."
+  :group 'erc-faces)
+
+(defface erc-italic-face '((t :slant italic))
+  "ERC italic face."
   :group 'erc-faces)
 
 (defface erc-inverse-face
@@ -374,6 +387,7 @@ See `erc-interpret-controls-p' and `erc-interpret-mirc-color' for options."
               (erc-controls-strip s))
              (erc-interpret-controls-p
               (let ((boldp nil)
+                    (italicp nil)
                     (inversep nil)
                     (underlinep nil)
                     (fg nil)
@@ -385,13 +399,14 @@ See `erc-interpret-controls-p' and `erc-interpret-mirc-color' for options."
                         (start (match-beginning 0))
                         (end (+ (match-beginning 0)
                                 (length (match-string 5 s)))))
-                    (setq s (erc-replace-match-subexpression-in-string
-                             "" s control 1 start))
+                    (setq s (replace-match "" nil nil s 1))
                     (cond ((and erc-interpret-mirc-color (or fg-color bg-color))
                            (setq fg fg-color)
                            (setq bg bg-color))
                           ((string= control "\C-b")
                            (setq boldp (not boldp)))
+                          ((string= control "\C-]")
+                           (setq italicp (not italicp)))
                           ((string= control "\C-v")
                            (setq inversep (not inversep)))
                           ((string= control "\C-_")
@@ -404,13 +419,14 @@ See `erc-interpret-controls-p' and `erc-interpret-mirc-color' for options."
                              (ding)))
                           ((string= control "\C-o")
                            (setq boldp nil
+                                 italicp nil
                                  inversep nil
                                  underlinep nil
                                  fg nil
                                  bg nil))
                           (t nil))
                     (erc-controls-propertize
-                     start end boldp inversep underlinep fg bg s)))
+                     start end boldp italicp inversep underlinep fg bg s)))
                 s))
              (t s)))))
 
@@ -423,13 +439,13 @@ See `erc-interpret-controls-p' and `erc-interpret-mirc-color' for options."
       s)))
 
 (defvar erc-controls-remove-regexp
-  "\C-b\\|\C-_\\|\C-v\\|\C-g\\|\C-o\\|\C-c[0-9]?[0-9]?\\(,[0-9][0-9]?\\)?"
+  "\C-b\\|\C-]\\|\C-_\\|\C-v\\|\C-g\\|\C-o\\|\C-c[0-9]?[0-9]?\\(,[0-9][0-9]?\\)?"
   "Regular expression which matches control characters to remove.")
 
 (defvar erc-controls-highlight-regexp
-  (concat "\\(\C-b\\|\C-v\\|\C-_\\|\C-g\\|\C-o\\|"
+  (concat "\\(\C-b\\|\C-]\\|\C-v\\|\C-_\\|\C-g\\|\C-o\\|"
           "\C-c\\([0-9][0-9]?\\)?\\(,\\([0-9][0-9]?\\)\\)?\\)"
-          "\\([^\C-b\C-v\C-_\C-c\C-g\C-o\n]*\\)")
+          "\\([^\C-b\C-]\C-v\C-_\C-c\C-g\C-o\n]*\\)")
   "Regular expression which matches control chars and the text to highlight.")
 
 (defun erc-controls-highlight ()
@@ -442,6 +458,7 @@ Also see `erc-interpret-controls-p' and `erc-interpret-mirc-color'."
            (replace-match "")))
         (erc-interpret-controls-p
          (let ((boldp nil)
+               (italicp nil)
                (inversep nil)
                (underlinep nil)
                (fg nil)
@@ -458,6 +475,8 @@ Also see `erc-interpret-controls-p' and `erc-interpret-mirc-color'."
                       (setq bg bg-color))
                      ((string= control "\C-b")
                       (setq boldp (not boldp)))
+                     ((string= control "\C-]")
+                      (setq italicp (not italicp)))
                      ((string= control "\C-v")
                       (setq inversep (not inversep)))
                      ((string= control "\C-_")
@@ -470,16 +489,17 @@ Also see `erc-interpret-controls-p' and `erc-interpret-mirc-color'."
                         (ding)))
                      ((string= control "\C-o")
                       (setq boldp nil
+                            italicp nil
                             inversep nil
                             underlinep nil
                             fg nil
                             bg nil))
                      (t nil))
                (erc-controls-propertize start end
-                                        boldp inversep underlinep fg bg)))))
+                                        boldp italicp inversep underlinep fg bg)))))
         (t nil)))
 
-(defun erc-controls-propertize (from to boldp inversep underlinep fg bg
+(defun erc-controls-propertize (from to boldp italicp inversep underlinep fg bg
                                      &optional str)
   "Prepend properties from IRC control characters between FROM and TO.
 If optional argument STR is provided, apply to STR, otherwise prepend properties
@@ -490,6 +510,9 @@ to a region in the current buffer."
    'font-lock-face
    (append (if boldp
                '(erc-bold-face)
+             nil)
+           (if italicp
+               '(erc-italic-face)
              nil)
            (if inversep
                '(erc-inverse-face)
@@ -548,7 +571,7 @@ channel that has weird people talking in morse to each other.
 
 See also `unmorse-region'."
   (goto-char (point-min))
-  (when (re-search-forward "[.-]+\\([.-]*/? *\\)+[.-]+/?" nil t)
+  (when (re-search-forward "[.-]+[./ -]*[.-]/?" nil t)
     (save-restriction
       (narrow-to-region (match-beginning 0) (match-end 0))
       ;; Turn " / " into "  "

@@ -1,6 +1,6 @@
-;;; autoarg.el --- make digit keys supply prefix args
+;;; autoarg.el --- make digit keys supply prefix args -*- lexical-binding: t -*-
 
-;; Copyright (C) 1998, 2000-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1998, 2000-2020 Free Software Foundation, Inc.
 
 ;; Author:  Dave Love <fx@gnu.org>
 ;; Created: 1998-09-04
@@ -59,9 +59,8 @@
 ;; (define-key autoarg-mode-map [?\r] 'autoarg-terminate)
 
 (defvar autoarg-kp-digits
-  (let (alist)
-    (dotimes (i 10 alist)
-      (push (cons (intern (format "kp-%d" i)) i) alist))))
+  (mapcar (lambda (i) (cons (intern (format "kp-%d" i)) i))
+          (reverse (number-sequence 0 9))))
 
 (defun autoarg-kp-digit-argument (arg)
   "Part of the numeric argument for the next command, like `digit-argument'."

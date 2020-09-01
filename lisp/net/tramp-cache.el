@@ -1,6 +1,6 @@
 ;;; tramp-cache.el --- file information caching for Tramp  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2000, 2005-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2000, 2005-2020 Free Software Foundation, Inc.
 
 ;; Author: Daniel Pittman <daniel@inanna.danann.net>
 ;;         Michael Albinus <michael.albinus@gmx.de>
@@ -28,16 +28,16 @@
 ;; An implementation of information caching for remote files.
 
 ;; Each connection, identified by a `tramp-file-name' structure or by
-;; a process, has a unique cache. We distinguish 3 kind of caches,
+;; a process, has a unique cache.  We distinguish 4 kind of caches,
 ;; depending on the key:
 ;;
-;; - localname is NIL.  This are reusable properties.  Examples:
+;; - localname is nil.  These are reusable properties.  Examples:
 ;;   "remote-shell" identifies the POSIX shell to be called on the
 ;;   remote host, or "perl" is the command to be called on the remote
 ;;   host when starting a Perl script.  These properties are saved in
 ;;   the file `tramp-persistency-file-name'.
 ;;
-;; - localname is a string.  This are temporary properties, which are
+;; - localname is a string.  These are temporary properties, which are
 ;;   related to the file localname is referring to.  Examples:
 ;;   "file-exists-p" is t or nil, depending on the file existence, or
 ;;   "file-attributes" caches the result of the function
@@ -45,10 +45,32 @@
 ;;   expire after `remote-file-name-inhibit-cache' seconds if this
 ;;   variable is set.
 ;;
-;; - The key is a process.  This are temporary properties related to
+;; - The key is a process.  These are temporary properties related to
 ;;   an open connection.  Examples: "scripts" keeps shell script
 ;;   definitions already sent to the remote shell, "last-cmd-time" is
 ;;   the time stamp a command has been sent to the remote process.
+;;
+;; - The key is nil.  These are temporary properties related to the
+;;   local machine.  Examples: "parse-passwd" and "parse-group" keep
+;;   the results of parsing "/etc/passwd" and "/etc/group",
+;;   "{uid,gid}-{integer,string}" are the local uid and gid, and
+;;   "locale" is the used shell locale.
+;;
+;; - The key is `tramp-cache-undefined'.  All functions return the
+;;   expected values, but nothing is cached.
+
+;; Some properties are handled special:
+;;
+;; - "process-name", "process-buffer" and "first-password-request" are
+;;   not saved in the file `tramp-persistency-file-name', although
+;;   being connection properties related to a `tramp-file-name'
+;;   structure.
+;;
+;; - Reusable properties, which should not be saved, are kept in the
+;;   process key retrieved by `tramp-get-process' (the main connection
+;;   process).  Other processes could reuse these properties, avoiding
+;;   recomputation when a new asynchronous process is created by
+;;   `make-process'.  Examples are "remote-path" or "device" (tramp-adb.el).
 
 ;;; Code:
 
@@ -58,7 +80,7 @@
 ;;; -- Cache --
 
 ;;;###tramp-autoload
-(defvar tramp-cache-data (make-hash-table :test 'equal)
+(defvar tramp-cache-data (make-hash-table :test #'equal)
   "Hash table for remote files properties.")
 
 ;;;###tramp-autoload
@@ -85,52 +107,64 @@ details see the info pages."
 (defvar tramp-cache-data-changed nil
   "Whether persistent cache data have been changed.")
 
+;;;###tramp-autoload
+(defconst tramp-cache-undefined 'undef
+  "The symbol marking undefined hash keys and values.")
+
 (defun tramp-get-hash-table (key)
-  "Returns the hash table for KEY.
+  "Return the hash table for KEY.
 If it doesn't exist yet, it is created and initialized with
-matching entries of `tramp-connection-properties'."
-  (or (gethash key tramp-cache-data)
-      (let ((hash
-	     (puthash key (make-hash-table :test 'equal) tramp-cache-data)))
-	(when (tramp-file-name-p key)
-	  (dolist (elt tramp-connection-properties)
-	    (when (string-match
-		   (or (nth 0 elt) "")
-		   (tramp-make-tramp-file-name key 'noloc 'nohop))
-	      (tramp-set-connection-property key (nth 1 elt) (nth 2 elt)))))
-	hash)))
+matching entries of `tramp-connection-properties'.
+If KEY is `tramp-cache-undefined', don't create anything, and return nil."
+  (unless (eq key tramp-cache-undefined)
+    (or (gethash key tramp-cache-data)
+	(let ((hash
+	       (puthash key (make-hash-table :test #'equal) tramp-cache-data)))
+	  (when (tramp-file-name-p key)
+	    (dolist (elt tramp-connection-properties)
+	      (when (string-match-p
+		     (or (nth 0 elt) "")
+		     (tramp-make-tramp-file-name key 'noloc 'nohop))
+		(tramp-set-connection-property key (nth 1 elt) (nth 2 elt)))))
+	  hash))))
 
 ;;;###tramp-autoload
 (defun tramp-get-file-property (key file property default)
   "Get the PROPERTY of FILE from the cache context of KEY.
-Returns DEFAULT if not set."
+Return DEFAULT if not set."
   ;; Unify localname.  Remove hop from `tramp-file-name' structure.
   (setq file (tramp-compat-file-name-unquote file)
 	key (copy-tramp-file-name key))
   (setf (tramp-file-name-localname key)
-	(tramp-run-real-handler 'directory-file-name (list file))
+	(tramp-run-real-handler #'directory-file-name (list file))
 	(tramp-file-name-hop key) nil)
   (let* ((hash (tramp-get-hash-table key))
-	 (value (when (hash-table-p hash) (gethash property hash))))
-    (if ;; We take the value only if there is any, and
-	;; `remote-file-name-inhibit-cache' indicates that it is still
-	;; valid.  Otherwise, DEFAULT is set.
-	(and (consp value)
+	 (cached (and (hash-table-p hash) (gethash property hash)))
+	 (cached-at (and (consp cached) (format-time-string "%T" (car cached))))
+	 (value default)
+	 cache-used)
+
+    (when ;; We take the value only if there is any, and
+	  ;; `remote-file-name-inhibit-cache' indicates that it is
+	  ;; still valid.  Otherwise, DEFAULT is set.
+	(and (consp cached)
 	     (or (null remote-file-name-inhibit-cache)
 		 (and (integerp remote-file-name-inhibit-cache)
-		      (<=
-		       (tramp-time-diff (current-time) (car value))
-		       remote-file-name-inhibit-cache))
+		      (time-less-p
+		       nil
+		       (time-add (car cached) remote-file-name-inhibit-cache)))
 		 (and (consp remote-file-name-inhibit-cache)
 		      (time-less-p
-		       remote-file-name-inhibit-cache (car value)))))
-	(setq value (cdr value))
-      (setq value default))
+		       remote-file-name-inhibit-cache (car cached)))))
+      (setq value (cdr cached)
+	    cache-used t))
 
-    (tramp-message key 8 "%s %s %s" file property value)
+    (tramp-message
+     key 8 "%s %s %s; inhibit: %s; cache used: %s; cached at: %s"
+     file property value remote-file-name-inhibit-cache cache-used cached-at)
     (when (>= tramp-verbose 10)
       (let* ((var (intern (concat "tramp-cache-get-count-" property)))
-	     (val (or (bound-and-true-p var)
+	     (val (or (numberp (bound-and-true-p var))
 		      (progn
 			(add-hook 'tramp-cache-unload-hook
 				  (lambda () (makunbound var)))
@@ -141,12 +175,12 @@ Returns DEFAULT if not set."
 ;;;###tramp-autoload
 (defun tramp-set-file-property (key file property value)
   "Set the PROPERTY of FILE to VALUE, in the cache context of KEY.
-Returns VALUE."
+Return VALUE."
   ;; Unify localname.  Remove hop from `tramp-file-name' structure.
   (setq file (tramp-compat-file-name-unquote file)
 	key (copy-tramp-file-name key))
   (setf (tramp-file-name-localname key)
-	(tramp-run-real-handler 'directory-file-name (list file))
+	(tramp-run-real-handler #'directory-file-name (list file))
 	(tramp-file-name-hop key) nil)
   (let ((hash (tramp-get-hash-table key)))
     ;; We put the timestamp there.
@@ -154,7 +188,7 @@ Returns VALUE."
     (tramp-message key 8 "%s %s %s" file property value)
     (when (>= tramp-verbose 10)
       (let* ((var (intern (concat "tramp-cache-set-count-" property)))
-	     (val (or (bound-and-true-p var)
+	     (val (or (numberp (bound-and-true-p var))
 		      (progn
 			(add-hook 'tramp-cache-unload-hook
 				  (lambda () (makunbound var)))
@@ -169,7 +203,7 @@ Returns VALUE."
   (setq file (tramp-compat-file-name-unquote file)
 	key (copy-tramp-file-name key))
   (setf (tramp-file-name-localname key)
-	(tramp-run-real-handler 'directory-file-name (list file))
+	(tramp-run-real-handler #'directory-file-name (list file))
 	(tramp-file-name-hop key) nil)
   (remhash property (tramp-get-hash-table key))
   (tramp-message key 8 "%s %s" file property)
@@ -177,11 +211,26 @@ Returns VALUE."
     (let ((var (intern (concat "tramp-cache-set-count-" property))))
       (makunbound var))))
 
+(defun tramp-flush-file-upper-properties (key file)
+  "Remove some properties of FILE's upper directory."
+  (when (file-name-absolute-p file)
+    (let ((file (directory-file-name (file-name-directory file))))
+      ;; Unify localname.  Remove hop from `tramp-file-name' structure.
+      (setq file (tramp-compat-file-name-unquote file)
+	    key (copy-tramp-file-name key))
+      (setf (tramp-file-name-localname key) file
+	    (tramp-file-name-hop key) nil)
+      (dolist (property (hash-table-keys (tramp-get-hash-table key)))
+	(when (string-match-p
+	       "^\\(directory-\\|file-name-all-completions\\|file-entries\\)"
+	       property)
+	  (tramp-flush-file-property key file property))))))
+
 ;;;###tramp-autoload
 (defun tramp-flush-file-properties (key file)
   "Remove all properties of FILE in the cache context of KEY."
   (let* ((file (tramp-run-real-handler
-		'directory-file-name (list file)))
+		#'directory-file-name (list file)))
 	 (truename (tramp-get-file-property key file "file-truename" nil)))
     ;; Unify localname.  Remove hop from `tramp-file-name' structure.
     (setq file (tramp-compat-file-name-unquote file)
@@ -193,7 +242,9 @@ Returns VALUE."
     ;; Remove file properties of symlinks.
     (when (and (stringp truename)
 	       (not (string-equal file (directory-file-name truename))))
-      (tramp-flush-file-properties key truename))))
+      (tramp-flush-file-properties key truename))
+    ;; Remove selected properties of upper directory.
+    (tramp-flush-file-upper-properties key file)))
 
 ;;;###tramp-autoload
 (defun tramp-flush-directory-properties (key directory)
@@ -201,21 +252,21 @@ Returns VALUE."
 Remove also properties of all files in subdirectories."
   (setq directory (tramp-compat-file-name-unquote directory))
   (let* ((directory (tramp-run-real-handler
-		    'directory-file-name (list directory)))
+		    #'directory-file-name (list directory)))
 	 (truename (tramp-get-file-property key directory "file-truename" nil)))
     (tramp-message key 8 "%s" directory)
-    (maphash
-     (lambda (key _value)
-       (when (and (tramp-file-name-p key)
-		  (stringp (tramp-file-name-localname key))
-		  (string-match (regexp-quote directory)
-				(tramp-file-name-localname key)))
-	 (remhash key tramp-cache-data)))
-     tramp-cache-data)
+    (dolist (key (hash-table-keys tramp-cache-data))
+      (when (and (tramp-file-name-p key)
+		 (stringp (tramp-file-name-localname key))
+		 (string-match-p (regexp-quote directory)
+				 (tramp-file-name-localname key)))
+	(remhash key tramp-cache-data)))
     ;; Remove file properties of symlinks.
     (when (and (stringp truename)
 	       (not (string-equal directory (directory-file-name truename))))
-      (tramp-flush-directory-properties key truename))))
+      (tramp-flush-directory-properties key truename))
+    ;; Remove selected properties of upper directory.
+    (tramp-flush-file-upper-properties key directory)))
 
 ;; Reverting or killing a buffer should also flush file properties.
 ;; They could have been changed outside Tramp.  In eshell, "ls" would
@@ -227,7 +278,7 @@ Remove also properties of all files in subdirectories."
 This is suppressed for temporary buffers."
   (save-match-data
     (unless (or (null (buffer-name))
-		(string-match "^\\( \\|\\*\\)" (buffer-name)))
+		(string-match-p "^\\( \\|\\*\\)" (buffer-name)))
       (let ((bfn (if (stringp (buffer-file-name))
 		     (buffer-file-name)
 		   default-directory))
@@ -236,17 +287,17 @@ This is suppressed for temporary buffers."
 	  (with-parsed-tramp-file-name bfn nil
 	    (tramp-flush-file-properties v localname)))))))
 
-(add-hook 'before-revert-hook 'tramp-flush-file-function)
-(add-hook 'eshell-pre-command-hook 'tramp-flush-file-function)
-(add-hook 'kill-buffer-hook 'tramp-flush-file-function)
+(add-hook 'before-revert-hook #'tramp-flush-file-function)
+(add-hook 'eshell-pre-command-hook #'tramp-flush-file-function)
+(add-hook 'kill-buffer-hook #'tramp-flush-file-function)
 (add-hook 'tramp-cache-unload-hook
 	  (lambda ()
 	    (remove-hook 'before-revert-hook
-			 'tramp-flush-file-function)
+			 #'tramp-flush-file-function)
 	    (remove-hook 'eshell-pre-command-hook
-			 'tramp-flush-file-function)
+			 #'tramp-flush-file-function)
 	    (remove-hook 'kill-buffer-hook
-			 'tramp-flush-file-function)))
+			 #'tramp-flush-file-function)))
 
 ;;; -- Properties --
 
@@ -255,8 +306,9 @@ This is suppressed for temporary buffers."
   "Get the named PROPERTY for the connection.
 KEY identifies the connection, it is either a process or a
 `tramp-file-name' structure.  A special case is nil, which is
-used to cache connection properties of the local machine.  If the
-value is not set for the connection, returns DEFAULT."
+used to cache connection properties of the local machine.
+If KEY is `tramp-cache-undefined', or if the value is not set for
+the connection, return DEFAULT."
   ;; Unify key by removing localname and hop from `tramp-file-name'
   ;; structure.  Work with a copy in order to avoid side effects.
   (when (tramp-file-name-p key)
@@ -264,15 +316,19 @@ value is not set for the connection, returns DEFAULT."
     (setf (tramp-file-name-localname key) nil
 	  (tramp-file-name-hop key) nil))
   (let* ((hash (tramp-get-hash-table key))
-	 (value
-	  ;; If the key is an auxiliary process object, check whether
-	  ;; the process is still alive.
-	  (if (and (processp key) (not (process-live-p key)))
-	      default
-	    (if (hash-table-p hash)
-		(gethash property hash default)
-	      default))))
-    (tramp-message key 7 "%s %s" property value)
+	 (cached (if (hash-table-p hash)
+		     (gethash property hash tramp-cache-undefined)
+		   tramp-cache-undefined))
+	 (value default)
+	 cache-used)
+
+    (when (and (not (eq cached tramp-cache-undefined))
+	       ;; If the key is an auxiliary process object, check
+	       ;; whether the process is still alive.
+	       (not (and (processp key) (not (process-live-p key)))))
+      (setq value cached
+	    cache-used t))
+    (tramp-message key 7 "%s %s; cache used: %s" property value cache-used)
     value))
 
 ;;;###tramp-autoload
@@ -280,19 +336,22 @@ value is not set for the connection, returns DEFAULT."
   "Set the named PROPERTY of a connection to VALUE.
 KEY identifies the connection, it is either a process or a
 `tramp-file-name' structure.  A special case is nil, which is
-used to cache connection properties of the local machine.
-PROPERTY is set persistent when KEY is a `tramp-file-name' structure."
+used to cache connection properties of the local machine.  If KEY
+is `tramp-cache-undefined', nothing is set.
+PROPERTY is set persistent when KEY is a `tramp-file-name' structure.
+Return VALUE."
   ;; Unify key by removing localname and hop from `tramp-file-name'
   ;; structure.  Work with a copy in order to avoid side effects.
   (when (tramp-file-name-p key)
     (setq key (copy-tramp-file-name key))
     (setf (tramp-file-name-localname key) nil
 	  (tramp-file-name-hop key) nil))
-  (let ((hash (tramp-get-hash-table key)))
-    (puthash property value hash)
-    (setq tramp-cache-data-changed t)
-    (tramp-message key 7 "%s %s" property value)
-    value))
+  (when-let ((hash (tramp-get-hash-table key)))
+    (puthash property value hash))
+  (setq tramp-cache-data-changed
+	(or tramp-cache-data-changed (tramp-file-name-p key)))
+  (tramp-message key 7 "%s %s" property value)
+  value)
 
 ;;;###tramp-autoload
 (defun tramp-connection-property-p (key property)
@@ -300,7 +359,8 @@ PROPERTY is set persistent when KEY is a `tramp-file-name' structure."
 KEY identifies the connection, it is either a process or a
 `tramp-file-name' structure.  A special case is nil, which is
 used to cache connection properties of the local machine."
-  (not (eq (tramp-get-connection-property key property 'undef) 'undef)))
+  (not (eq (tramp-get-connection-property key property tramp-cache-undefined)
+	   tramp-cache-undefined)))
 
 ;;;###tramp-autoload
 (defun tramp-flush-connection-property (key property)
@@ -315,8 +375,10 @@ PROPERTY is set persistent when KEY is a `tramp-file-name' structure."
     (setq key (copy-tramp-file-name key))
     (setf (tramp-file-name-localname key) nil
 	  (tramp-file-name-hop key) nil))
-  (remhash property (tramp-get-hash-table key))
-  (setq tramp-cache-data-changed t)
+  (when-let ((hash (tramp-get-hash-table key)))
+    (remhash property hash))
+  (setq tramp-cache-data-changed
+	(or tramp-cache-data-changed (tramp-file-name-p key)))
   (tramp-message key 7 "%s" property))
 
 ;;;###tramp-autoload
@@ -333,12 +395,10 @@ used to cache connection properties of the local machine."
 	  (tramp-file-name-hop key) nil))
   (tramp-message
    key 7 "%s %s" key
-   (let ((hash (gethash key tramp-cache-data))
-	 properties)
-     (when (hash-table-p hash)
-       (maphash (lambda (x _y) (add-to-list 'properties x 'append)) hash))
-     properties))
-  (setq tramp-cache-data-changed t)
+   (when-let ((hash (gethash key tramp-cache-data)))
+     (hash-table-keys hash)))
+  (setq tramp-cache-data-changed
+	(or tramp-cache-data-changed (tramp-file-name-p key)))
   (remhash key tramp-cache-data))
 
 ;;;###tramp-autoload
@@ -349,20 +409,15 @@ used to cache connection properties of the local machine."
       (maphash
        (lambda (key value)
 	 ;; Remove text properties from KEY and VALUE.
-	 ;; `cl-struct-slot-*' functions exist since Emacs 25 only; we
-	 ;; ignore errors.
 	 (when (tramp-file-name-p key)
-	   ;; (dolist
-	   ;;     (slot
-	   ;; 	(mapcar 'car (cdr (cl-struct-slot-info 'tramp-file-name))))
-	   ;;   (when (stringp (cl-struct-slot-value 'tramp-file-name slot key))
-	   ;;     (setf (cl-struct-slot-value 'tramp-file-name slot key)
-	   ;; 	     (substring-no-properties
-	   ;; 	      (cl-struct-slot-value 'tramp-file-name slot key))))))
-	   (dotimes (i (length key))
-	     (when (stringp (elt key i))
-	       (setf (elt key i) (substring-no-properties (elt key i))))))
-	 (when (stringp key)
+           (dolist
+               (slot
+                (mapcar #'car (cdr (cl-struct-slot-info 'tramp-file-name))))
+             (when (stringp (cl-struct-slot-value 'tramp-file-name slot key))
+               (setf (cl-struct-slot-value 'tramp-file-name slot key)
+                     (substring-no-properties
+                      (cl-struct-slot-value 'tramp-file-name slot key))))))
+         (when (stringp key)
 	   (setq key (substring-no-properties key)))
 	 (when (stringp value)
 	   (setq value (substring-no-properties value)))
@@ -384,18 +439,18 @@ used to cache connection properties of the local machine."
 ;;;###tramp-autoload
 (defun tramp-list-connections ()
   "Return all known `tramp-file-name' structs according to `tramp-cache'."
-    (let (result tramp-verbose)
-      (maphash
-       (lambda (key _value)
-	 (when (and (tramp-file-name-p key)
-		    (null (tramp-file-name-localname key))
-		    (tramp-connection-property-p key "process-buffer"))
-	   (add-to-list 'result key)))
-       tramp-cache-data)
-      result))
+  (let ((tramp-verbose 0))
+    (delq nil (mapcar
+	       (lambda (key)
+		 (and (tramp-file-name-p key)
+		      (null (tramp-file-name-localname key))
+		      (tramp-connection-property-p key "process-buffer")
+		      key))
+	       (hash-table-keys tramp-cache-data)))))
 
 (defun tramp-dump-connection-properties ()
-  "Write persistent connection properties into file `tramp-persistency-file-name'."
+  "Write persistent connection properties into file \
+`tramp-persistency-file-name'."
   ;; We shouldn't fail, otherwise Emacs might not be able to be closed.
   (ignore-errors
     (when (and (hash-table-p tramp-cache-data)
@@ -427,43 +482,35 @@ used to cache connection properties of the local machine."
 	;; Dump it.
 	(with-temp-file tramp-persistency-file-name
 	  (insert
-	   ";; -*- emacs-lisp -*-"
-	   ;; `time-stamp-string' might not exist in all Emacs flavors.
-	   (condition-case nil
-	       (progn
-		 (format
-		  " <%s %s>\n"
-		  (time-stamp-string "%02y/%02m/%02d %02H:%02M:%02S")
-		  tramp-persistency-file-name))
-	     (error "\n"))
+	   ;; Starting with Emacs 28, we could use `lisp-data'.
+	   (format ";; -*- emacs-lisp -*- <%s %s>\n"
+		   (time-stamp-string "%02y/%02m/%02d %02H:%02M:%02S")
+		   tramp-persistency-file-name)
 	   ";; Tramp connection history.  Don't change this file.\n"
-	   ";; You can delete it, forcing Tramp to reapply the checks.\n\n"
+	   ";; Run `M-x tramp-cleanup-all-connections' instead.\n\n"
 	   (with-output-to-string
 	     (pp (read (format "(%s)" (tramp-cache-print cache)))))))))))
 
 (unless noninteractive
-  (add-hook 'kill-emacs-hook 'tramp-dump-connection-properties))
+  (add-hook 'kill-emacs-hook #'tramp-dump-connection-properties))
 (add-hook 'tramp-cache-unload-hook
 	  (lambda ()
 	    (remove-hook 'kill-emacs-hook
-			 'tramp-dump-connection-properties)))
+			 #'tramp-dump-connection-properties)))
 
 ;;;###tramp-autoload
 (defun tramp-parse-connection-properties (method)
   "Return a list of (user host) tuples allowed to access for METHOD.
 This function is added always in `tramp-get-completion-function'
 for all methods.  Resulting data are derived from connection history."
-  (let (res)
-    (maphash
-     (lambda (key _value)
-       (if (and (tramp-file-name-p key)
-		(string-equal method (tramp-file-name-method key))
-		(not (tramp-file-name-localname key)))
-	   (push (list (tramp-file-name-user key)
-		       (tramp-file-name-host key))
-		 res)))
-     tramp-cache-data)
-    res))
+  (mapcar
+   (lambda (key)
+     (and (tramp-file-name-p key)
+	  (string-equal method (tramp-file-name-method key))
+	  (not (tramp-file-name-localname key))
+	  (list (tramp-file-name-user key)
+		(tramp-file-name-host key))))
+   (hash-table-keys tramp-cache-data)))
 
 ;; When "emacs -Q" has been called, both variables are nil.  We do not
 ;; load the persistency file then, in order to have a clean test environment.
@@ -477,7 +524,7 @@ for all methods.  Resulting data are derived from connection history."
 	   tramp-cache-read-persistent-data)
   (condition-case err
       (with-temp-buffer
-	(insert-file-contents tramp-persistency-file-name)
+	(insert-file-contents-literally tramp-persistency-file-name)
 	(let ((list (read (current-buffer)))
 	      (tramp-verbose 0)
 	      element key item)

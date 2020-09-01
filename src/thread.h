@@ -1,5 +1,5 @@
 /* Thread definitions
-Copyright (C) 2012-2018 Free Software Foundation, Inc.
+Copyright (C) 2012-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -30,7 +30,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #endif
 
 #include "sysselect.h"		/* FIXME */
-#include "systime.h"		/* FIXME */
 #include "systhread.h"
 
 struct thread_state
@@ -62,11 +61,11 @@ struct thread_state
   /* If we are waiting for some event, this holds the object we are
      waiting on.  */
   Lisp_Object event_object;
+  /* event_object must be the last Lisp field.  */
 
-  /* m_stack_bottom must be the first non-Lisp field.  */
   /* An address near the bottom of the stack.
      Tells GC how to save a copy of the stack.  */
-  char *m_stack_bottom;
+  char const *m_stack_bottom;
 #define stack_bottom (current_thread->m_stack_bottom)
 
   /* The address of an object near the C stack top, used to determine
@@ -76,7 +75,7 @@ struct thread_state
      error in Emacs.  If the C function F calls G which calls H which
      calls ... F, then at least one of the functions in the chain
      should set this to the address of a local variable.  */
-  void *stack_top;
+  void const *stack_top;
 
   struct catchtag *m_catchlist;
 #define catchlist (current_thread->m_catchlist)
@@ -105,15 +104,15 @@ struct thread_state
 #define specpdl_ptr (current_thread->m_specpdl_ptr)
 
   /* Depth in Lisp evaluations and function calls.  */
-  EMACS_INT m_lisp_eval_depth;
+  intmax_t m_lisp_eval_depth;
 #define lisp_eval_depth (current_thread->m_lisp_eval_depth)
 
   /* This points to the current buffer.  */
   struct buffer *m_current_buffer;
 #define current_buffer (current_thread->m_current_buffer)
 
-  /* Every call to re_match_2, etc., must pass &search_regs as the regs
-     argument unless you can show it is unnecessary (i.e., if re_match_2
+  /* Every call to re_search, etc., must pass &search_regs as the regs
+     argument unless you can show it is unnecessary (i.e., if re_search
      is certainly going to be called again before region-around-match
      can be called).
 
@@ -131,11 +130,6 @@ struct thread_state
      able to free or re-allocate it properly.  */
   struct re_registers m_search_regs;
 #define search_regs (current_thread->m_search_regs)
-
-  /* If non-zero the match data have been saved in saved_search_regs
-     during the execution of a sentinel or filter. */
-  bool m_search_regs_saved;
-#define search_regs_saved (current_thread->m_search_regs_saved)
 
   struct re_registers m_saved_search_regs;
 #define saved_search_regs (current_thread->m_saved_search_regs)
@@ -175,6 +169,9 @@ struct thread_state
      interrupter should broadcast to this condition.  */
   sys_cond_t *wait_condvar;
 
+  /* Thread's name in the locale encoding.  */
+  char *thread_name;
+
   /* This thread might have released the global lock.  If so, this is
      non-zero.  When a thread runs outside thread_select with this
      flag non-zero, it means it has been interrupted by SIGINT while
@@ -184,7 +181,7 @@ struct thread_state
 
   /* Threads are kept on a linked list.  */
   struct thread_state *next_thread;
-};
+} GCALIGNED_STRUCT;
 
 INLINE bool
 THREADP (Lisp_Object a)
@@ -231,7 +228,7 @@ struct Lisp_Mutex
 
   /* The lower-level mutex object.  */
   lisp_mutex_t mutex;
-};
+} GCALIGNED_STRUCT;
 
 INLINE bool
 MUTEXP (Lisp_Object a)
@@ -265,7 +262,7 @@ struct Lisp_CondVar
 
   /* The lower-level condition variable object.  */
   sys_cond_t cond;
-};
+} GCALIGNED_STRUCT;
 
 INLINE bool
 CONDVARP (Lisp_Object a)
@@ -293,10 +290,9 @@ extern void finalize_one_mutex (struct Lisp_Mutex *);
 extern void finalize_one_condvar (struct Lisp_CondVar *);
 extern void maybe_reacquire_global_lock (void);
 
-extern void init_threads_once (void);
 extern void init_threads (void);
 extern void syms_of_threads (void);
-extern bool main_thread_p (void *);
+extern bool main_thread_p (const void *);
 extern bool in_current_thread (void);
 
 typedef int select_func (int, fd_set *, fd_set *, fd_set *,

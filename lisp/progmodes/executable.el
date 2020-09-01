@@ -1,6 +1,6 @@
-;;; executable.el --- base functionality for executable interpreter scripts -*- byte-compile-dynamic: t -*-
+;;; executable.el --- base functionality for executable interpreter scripts
 
-;; Copyright (C) 1994-1996, 2000-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1994-1996, 2000-2020 Free Software Foundation, Inc.
 
 ;; Author: Daniel Pfeiffer <occitan@esperanto.org>
 ;; Keywords: languages, unix
@@ -155,7 +155,7 @@ See `compilation-error-regexp-alist'.")
 If PROGRAM is non-nil, use that instead of \"find\"."
   ;;  Pick file to search from location we know
   (let* ((dir (file-truename data-directory))
-         (file (car (directory-files dir nil "^[^.]"))))
+         (file (car (directory-files dir nil "\\`[^.]"))))
     (with-temp-buffer
       (call-process (or program "find")
                     nil

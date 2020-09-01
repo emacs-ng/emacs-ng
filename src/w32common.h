@@ -1,5 +1,5 @@
 /* Common functions for Microsoft Windows builds of Emacs
-   Copyright (C) 2012-2018 Free Software Foundation, Inc.
+   Copyright (C) 2012-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -55,6 +55,7 @@ typedef void (* VOIDFNPTR) (void);
 /* Load a function address from a DLL.  Cast the result via VOIDFNPTR
    to pacify -Wcast-function-type in GCC 8.1.  The return value must
    be cast to the correct function pointer type.  */
+INLINE VOIDFNPTR get_proc_addr (HINSTANCE, LPCSTR);
 INLINE VOIDFNPTR
 get_proc_addr (HINSTANCE handle, LPCSTR fname)
 {
@@ -79,5 +80,9 @@ get_proc_addr (HINSTANCE handle, LPCSTR fname)
 	return false;							\
     }									\
   while (false)
+
+#ifdef HAVE_HARFBUZZ
+extern bool hbfont_init_w32_funcs (HMODULE);
+#endif
 
 #endif /* W32COMMON_H */

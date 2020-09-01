@@ -1,6 +1,6 @@
 ;;; jit-lock.el --- just-in-time fontification  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1998, 2000-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1998, 2000-2020 Free Software Foundation, Inc.
 
 ;; Author: Gerd Moellmann <gerd@gnu.org>
 ;; Keywords: faces files
@@ -48,8 +48,7 @@ Preserves the `buffer-modified-p' state of the current buffer."
   "Jit-lock fontifies chunks of at most this many characters at a time.
 
 This variable controls both display-time and stealth fontification."
-  :type 'integer
-  :group 'jit-lock)
+  :type 'integer)
 
 
 (defcustom jit-lock-stealth-time nil
@@ -59,8 +58,7 @@ If nil, stealth fontification is never performed.
 
 The value of this variable is used when JIT Lock mode is turned on."
   :type '(choice (const :tag "never" nil)
-		 (number :tag "seconds" :value 16))
-  :group 'jit-lock)
+		 (number :tag "seconds" :value 16)))
 
 
 (defcustom jit-lock-stealth-nice 0.5
@@ -72,8 +70,7 @@ To reduce machine load during stealth fontification, at the cost of stealth
 taking longer to fontify, you could increase the value of this variable.
 See also `jit-lock-stealth-load'."
   :type '(choice (const :tag "never" nil)
-		 (number :tag "seconds"))
-  :group 'jit-lock)
+		 (number :tag "seconds")))
 
 
 (defcustom jit-lock-stealth-load
@@ -89,45 +86,59 @@ See also `jit-lock-stealth-nice'."
   :type (if (condition-case nil (load-average) (error))
 	    '(choice (const :tag "never" nil)
 		     (integer :tag "load"))
-	  '(const :format "%t: unsupported\n" nil))
-  :group 'jit-lock)
+	  '(const :format "%t: unsupported\n" nil)))
 
 
 (defcustom jit-lock-stealth-verbose nil
   "If non-nil, means stealth fontification should show status messages."
-  :type 'boolean
-  :group 'jit-lock)
+  :type 'boolean)
 
 
 (defvaralias 'jit-lock-defer-contextually 'jit-lock-contextually)
 (defcustom jit-lock-contextually 'syntax-driven
-  "If non-nil, means fontification should be syntactically true.
-If nil, means fontification occurs only on those lines modified.  This
+  "If non-nil, fontification should be syntactically true.
+If nil, refontification occurs only on lines that were modified.  This
 means where modification on a line causes syntactic change on subsequent lines,
 those subsequent lines are not refontified to reflect their new context.
-If t, means fontification occurs on those lines modified and all
-subsequent lines.  This means those subsequent lines are refontified to reflect
-their new syntactic context, after `jit-lock-context-time' seconds.
-If any other value, e.g., `syntax-driven', means syntactically true
-fontification occurs only if syntactic fontification is performed using the
-buffer mode's syntax table, i.e., only if `font-lock-keywords-only' is nil.
+If t, fontification occurs on those lines modified and all subsequent lines.
+This means those subsequent lines are refontified to reflect their new
+syntactic context, after `jit-lock-context-time' seconds.
+If any other value, e.g., `syntax-driven', it means refontification of
+subsequent lines to reflect their new syntactic context may or may not
+occur after `jit-lock-context-time', depending on the the font-lock
+definitions of the buffer.  Specifically, if `font-lock-keywords-only'
+is nil in a buffer, which generally means the syntactic fontification
+is done using the buffer mode's syntax table, the syntactic
+refontification will be triggered (because in that case font-lock
+calls `jit-lock-register' to set up for syntactic refontification,
+and sets the buffer-local value of `jit-lock-contextually' to t).
 
 The value of this variable is used when JIT Lock mode is turned on."
   :type '(choice (const :tag "never" nil)
 		 (const :tag "always" t)
-		 (other :tag "syntax-driven" syntax-driven))
-  :group 'jit-lock)
+		 (other :tag "syntax-driven" syntax-driven)))
 
 (defcustom jit-lock-context-time 0.5
   "Idle time after which text is contextually refontified, if applicable."
-  :type '(number :tag "seconds")
-  :group 'jit-lock)
+  :type '(number :tag "seconds"))
+
+(defcustom jit-lock-antiblink-grace 2
+  "Delay after which to refontify unterminated strings and comments.
+If nil, no grace period is given; unterminated strings and comments
+are refontified immediately.  If a number, a newly created
+unterminated string or comment is fontified only to the end of the
+current line, after which fontification waits that many seconds of idle
+time before refontifying the remaining lines.  When typing strings
+and comments, the delay helps avoid unpleasant \"blinking\", between
+string/comment and non-string/non-comment fontification."
+  :type '(choice (const :tag "never" nil)
+	         (number :tag "seconds"))
+  :version "27.1")
 
 (defcustom jit-lock-defer-time nil ;; 0.25
   "Idle time after which deferred fontification should take place.
 If nil, fontification is not deferred.
 If 0, then fontification is only deferred while there is input pending."
-  :group 'jit-lock
   :type '(choice (const :tag "never" nil)
 	         (number :tag "seconds")))
 
@@ -136,9 +147,10 @@ If 0, then fontification is only deferred while there is input pending."
 (defvar-local jit-lock-mode nil
   "Non-nil means Just-in-time Lock mode is active.")
 
-(defvar-local jit-lock-functions nil
-  "Functions to do the actual fontification.
-They are called with two arguments: the START and END of the region to fontify.")
+(defvar jit-lock-functions nil
+  "Special hook run to do the actual fontification.
+The functions are called with two arguments:
+the START and END of the region to fontify.")
 
 (defvar-local jit-lock-context-unfontify-pos nil
   "Consider text after this position as contextually unfontified.
@@ -157,6 +169,13 @@ If nil, contextual fontification is disabled.")
   "List of buffers with pending deferred fontification.")
 (defvar jit-lock-stealth-buffers nil
   "List of buffers that are being fontified stealthily.")
+
+(defvar jit-lock--antiblink-grace-timer nil
+  "Idle timer for fontifying unterminated string or comment, or nil.")
+(defvar jit-lock--antiblink-line-beginning-position (make-marker)
+  "Last line beginning position after last command (a marker).")
+(defvar jit-lock--antiblink-string-or-comment nil
+  "Non-nil if in string or comment after last command (a boolean).")
 
 ;;; JIT lock mode
 
@@ -232,13 +251,16 @@ If you need to debug code run from jit-lock, see `jit-lock-debug-mode'."
       (unless jit-lock-context-timer
         (setq jit-lock-context-timer
               (run-with-idle-timer jit-lock-context-time t
-                                   'jit-lock-context-fontify)))
+                                   (lambda ()
+                                     (unless jit-lock--antiblink-grace-timer
+                                       (jit-lock-context-fontify))))))
+      (add-hook 'post-command-hook 'jit-lock--antiblink-post-command nil t)
       (setq jit-lock-context-unfontify-pos
             (or jit-lock-context-unfontify-pos (point-max))))
 
     ;; Setup our hooks.
     (add-hook 'after-change-functions 'jit-lock-after-change nil t)
-    (add-hook 'fontification-functions 'jit-lock-function))
+    (add-hook 'fontification-functions 'jit-lock-function nil t))
 
    ;; Turn Just-in-time Lock mode off.
    (t
@@ -270,7 +292,7 @@ If you need to debug code run from jit-lock, see `jit-lock-debug-mode'."
 When this minor mode is enabled, jit-lock runs as little code as possible
 during redisplay and moves the rest to a timer, where things
 like `debug-on-error' and Edebug can be used."
-  :global t :group 'jit-lock
+  :global t
   (when jit-lock-defer-timer
     (cancel-timer jit-lock-defer-timer)
     (setq jit-lock-defer-timer nil))
@@ -320,7 +342,8 @@ If non-nil, CONTEXTUAL means that a contextual fontification would be useful."
   "Unregister FUN as a fontification function.
 Only applies to the current buffer."
   (remove-hook 'jit-lock-functions fun t)
-  (unless jit-lock-functions (jit-lock-mode nil)))
+  (when (member jit-lock-functions '(nil '(t)))
+    (jit-lock-mode nil)))
 
 (defun jit-lock-refontify (&optional beg end)
   "Force refontification of the region BEG..END (default whole buffer)."
@@ -414,8 +437,8 @@ Defaults to the whole buffer.  END can be out of bounds."
                      (quit (put-text-property start next 'fontified nil)
                            (signal (car err) (cdr err))))))
 
-               ;; In case we fontified more than requested, take advantage of the
-               ;; good news.
+               ;; In case we fontified more than requested, take
+               ;; advantage of the good news.
                (when (or (< tight-beg start) (> tight-end next))
                  (put-text-property tight-beg tight-end 'fontified t))
 
@@ -668,6 +691,55 @@ will take place when text is fontified stealthily."
               ;; displayed, but if it's outside of any displayed area in the
               ;; buffer, only jit-lock-context-* will re-fontify it.
               (min jit-lock-context-unfontify-pos jit-lock-start))))))
+
+(defun jit-lock--antiblink-post-command ()
+  (let* ((new-l-b-p (copy-marker (line-beginning-position)))
+         (l-b-p-2 (line-beginning-position 2))
+         (same-line
+          (and jit-lock-antiblink-grace
+               (not (= new-l-b-p l-b-p-2))
+               (eq (marker-buffer jit-lock--antiblink-line-beginning-position)
+                   (current-buffer))
+               (= new-l-b-p jit-lock--antiblink-line-beginning-position)))
+         (new-s-o-c
+          (and same-line
+               (nth 8 (save-excursion (syntax-ppss l-b-p-2))))))
+    (cond (;; Opened a new multiline string...
+           (and same-line
+                (null jit-lock--antiblink-string-or-comment) new-s-o-c)
+           (setq jit-lock--antiblink-grace-timer
+                 (run-with-idle-timer jit-lock-antiblink-grace nil
+                                      (lambda ()
+                                        (jit-lock-context-fontify)
+                                        (setq jit-lock--antiblink-grace-timer
+                                              nil)))))
+          (;; Closed an unterminated multiline string.
+           (and same-line
+                (null new-s-o-c) jit-lock--antiblink-string-or-comment)
+           ;; Kill the grace timer, might already have run and died.
+           ;; Don't refontify immediately: it adds an unreasonable
+           ;; delay to a well-behaved operation.  Leave it for the
+           ;; `jit-lock-context-timer' as usual.
+           (when jit-lock--antiblink-grace-timer
+             (cancel-timer jit-lock--antiblink-grace-timer)
+             (setq jit-lock--antiblink-grace-timer nil)))
+          (same-line
+           ;; In same line, but no state change, leave everything as it was.
+           )
+          (t
+           ;; Left the line somehow or customized feature away, etc.;
+           ;; kill timer if running, resume normal operation.
+           (when jit-lock--antiblink-grace-timer
+             ;; Do refontify immediately, adding a small delay.  This
+             ;; makes sense because it signals somehow that we are
+             ;; leaving the unstable state.
+             (jit-lock-context-fontify)
+             (cancel-timer jit-lock--antiblink-grace-timer)
+             (setq jit-lock--antiblink-grace-timer nil))))
+    ;; Update variables (and release the marker).
+    (set-marker jit-lock--antiblink-line-beginning-position nil)
+    (setq jit-lock--antiblink-line-beginning-position new-l-b-p
+          jit-lock--antiblink-string-or-comment new-s-o-c)))
 
 (provide 'jit-lock)
 

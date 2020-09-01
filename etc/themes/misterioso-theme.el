@@ -1,6 +1,6 @@
-;;; misterioso-theme.el --- Custom face theme for Emacs
+;;; misterioso-theme.el --- Custom face theme for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2011-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2020 Free Software Foundation, Inc.
 
 ;; Author: Sebastian Hermida
 
@@ -45,7 +45,7 @@
    `(mode-line ((,class (:background "#212931" :foreground "#eeeeec"))))
    `(mode-line-inactive
      ((,class (:background "#878787" :foreground "#eeeeec"))))
-   `(header-line ((,class (:background "#e5e5e5" :foreground "#333333"))))
+   `(header-line ((,class (:background "#808080" :foreground "#333333"))))
    ;; Escape and prompt faces
    `(minibuffer-prompt ((,class (:foreground "#729fcf" :weight bold))))
    ;; Font lock faces
@@ -63,6 +63,13 @@
    `(button ((,class (:underline t))))
    `(link ((,class (:foreground "#59e9ff" :underline t))))
    `(link-visited ((,class (:foreground "#ed74cd" :underline t))))
+   ;; Ediff
+   `(ediff-even-diff-A ((,class (:background "#1d2430"))))
+   `(ediff-even-diff-B ((,class (:background "#1d2430"))))
+   `(ediff-even-diff-C ((,class (:background "#1d2430"))))
+   `(ediff-odd-diff-A ((,class (:background "#415160"))))
+   `(ediff-odd-diff-B ((,class (:background "#415160"))))
+   `(ediff-odd-diff-C ((,class (:background "#415160"))))
    ;; Gnus faces
    `(gnus-group-news-1 ((,class (:foreground "#ff4242" :weight bold))))
    `(gnus-group-news-1-low ((,class (:foreground "#ff4242"))))

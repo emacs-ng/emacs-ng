@@ -1,6 +1,6 @@
-;;; vc-tests.el --- Tests of different backends of vc.el
+;;; vc-tests.el --- Tests of different backends of vc.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2014-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2020 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 
@@ -224,11 +224,10 @@ For backends which don't support it, `vc-not-supported' is signaled."
 (defmacro vc-test--run-maybe-unsupported-function (func &rest args)
   "Run FUNC with ARGS as arguments.
 Catch the `vc-not-supported' error."
-  `(let (err)
-    (condition-case err
-        (funcall ,func ,@args)
-      (vc-not-supported 'vc-not-supported)
-      (t (signal (car err) (cdr err))))))
+  `(condition-case err
+       (funcall ,func ,@args)
+     (vc-not-supported 'vc-not-supported)
+     (t (signal (car err) (cdr err)))))
 
 (defun vc-test--register (backend)
   "Register and unregister a file.
@@ -555,7 +554,8 @@ This checks also `vc-backend' and `vc-responsible-backend'."
 
 (defvar vc-svn-program)
 (defun vc-test--svn-enabled ()
-  (executable-find vc-svn-program))
+  (and (executable-find "svnadmin")
+       (executable-find vc-svn-program)))
 
 (defun vc-test--sccs-enabled ()
   (executable-find "sccs"))

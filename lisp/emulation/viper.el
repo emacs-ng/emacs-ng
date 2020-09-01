@@ -1,9 +1,9 @@
-;;; viper.el --- A full-featured Vi emulator for Emacs and XEmacs,  -*-lexical-binding:t -*-
+;;; viper.el --- A full-featured Vi emulator for Emacs  -*- lexical-binding:t -*-
 ;;		 a VI Plan for Emacs Rescue,
 ;;		 and a venomous VI PERil.
 ;;		 Viper Is also a Package for Emacs Rebels.
 
-;; Copyright (C) 1994-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1994-2020 Free Software Foundation, Inc.
 
 ;; Author: Michael Kifer <kifer@cs.stonybrook.edu>
 ;; Keywords: emulations
@@ -34,7 +34,7 @@
 
 ;;; Commentary:
 
-;; Viper is a full-featured Vi emulator for Emacs and XEmacs.  It emulates and
+;; Viper is a full-featured Vi emulator for Emacs.  It emulates and
 ;; improves upon the standard features of Vi and, at the same time, allows
 ;; full access to all Emacs facilities.  Viper supports multiple undo,
 ;; file name completion, command, file, and search history and it extends
@@ -541,7 +541,7 @@ If Viper is enabled, turn it off.  Otherwise, turn it on."
 		      "Viper Is a Package for Emacs Rebels,
 a VI Plan for Emacs Rescue, and a venomous VI PERil.
 
-Incidentally, Viper emulates Vi under Emacs/XEmacs 20.
+Incidentally, Viper emulates Vi under Emacs.
 It supports all of what is good in Vi and Ex, while extending
 and improving upon much of it.
 
@@ -689,30 +689,22 @@ It also can't undo some Viper settings."
                 (viper-standard-value 'major-mode
                                       viper-saved-non-viper-variables))
 
-  (if (featurep 'emacs)
-      (setq-default
-       mark-even-if-inactive
-       (viper-standard-value
-	'mark-even-if-inactive viper-saved-non-viper-variables)))
+  (setq-default
+   mark-even-if-inactive
+   (viper-standard-value
+    'mark-even-if-inactive viper-saved-non-viper-variables))
 
   ;; Ideally, we would like to be able to de-localize local variables
-  (unless
-      (and (fboundp 'add-to-ordered-list) (boundp 'emulation-mode-map-alists))
-    (viper-delocalize-var 'minor-mode-map-alist))
   (viper-delocalize-var 'require-final-newline)
-  (if (featurep 'xemacs) (viper-delocalize-var 'bar-cursor))
-
 
   ;; deactivate all advices done by Viper.
   (viper--deactivate-advice-list)
 
   (setq viper-mode nil)
 
-  (when (and (fboundp 'add-to-ordered-list) (boundp 'emulation-mode-map-alists))
-    (setq emulation-mode-map-alists
-	  (delq 'viper--intercept-key-maps
-		(delq 'viper--key-maps emulation-mode-map-alists))
-	  ))
+  (setq emulation-mode-map-alists
+	(delq 'viper--intercept-key-maps
+	      (delq 'viper--key-maps emulation-mode-map-alists)))
 
   (viper-delocalize-var 'viper-vi-minibuffer-minor-mode)
   (viper-delocalize-var 'viper-insert-minibuffer-minor-mode)
@@ -787,8 +779,6 @@ It also can't undo some Viper settings."
   ;; In emacs, we have to advice handle-switch-frame
   ;; This advice is undone earlier, when all advices matching "viper-" are
   ;; deactivated.
-  (if (featurep 'xemacs)
-      (remove-hook 'mouse-leave-frame-hook #'viper-remember-current-frame))
   ) ; end viper-go-away
 
 
@@ -935,15 +925,7 @@ Two differences:
    (lambda (orig-fun &rest args)
     ;; FIXME: Use remapping?
     (if (and (eq viper-current-state 'vi-state)
-	     ;; Do not use called-interactively-p here. XEmacs does not have it
-	     ;; and interactive-p is just fine.
-             (if (featurep 'xemacs)
-                 (interactive-p)
-               ;; Respect the spirit of the above comment, though it
-               ;; seems pointless, since XE doesn't have advice-add or
-               ;; lexical binding or any other of the newer features
-               ;; this file uses.
-               (called-interactively-p 'interactive)))
+             (called-interactively-p 'interactive))
 	(beep 1)
       (apply orig-fun args))))
 
@@ -956,13 +938,11 @@ Two differences:
     (setq viper-vi-state-cursor-color color-name)))
 
 
-  (when (and (fboundp 'add-to-ordered-list) (boundp 'emulation-mode-map-alists))
-    ;; needs to be as early as possible
-    (add-to-ordered-list
-     'emulation-mode-map-alists 'viper--intercept-key-maps 100)
-    ;; needs to be after cua-mode
-    (add-to-ordered-list 'emulation-mode-map-alists 'viper--key-maps 500)
-    )
+  ;; needs to be as early as possible
+  (add-to-ordered-list
+   'emulation-mode-map-alists 'viper--intercept-key-maps 100)
+  ;; needs to be after cua-mode
+  (add-to-ordered-list 'emulation-mode-map-alists 'viper--key-maps 500)
 
   ;; Emacs shell, ange-ftp, and comint-based modes
   (add-hook 'comint-mode-hook #'viper-comint-mode-hook) ; comint
@@ -1030,7 +1010,7 @@ Two differences:
      (lambda (orig-fun &rest args)
        "Adjust input-method toggling in vi-state."
        (if (and viper-special-input-method (eq viper-current-state 'vi-state))
-           (viper-deactivate-input-method)
+           (deactivate-input-method)
          (apply orig-fun args))))
 
   ) ; viper-set-hooks
@@ -1047,8 +1027,7 @@ Two differences:
 	require-final-newline t)
 
   ;; don't bark when mark is inactive
-  (if (featurep 'emacs)
-      (setq mark-even-if-inactive t))
+  (setq mark-even-if-inactive t)
 
   (setq scroll-step 1)
 
@@ -1056,108 +1035,6 @@ Two differences:
   (or (memq 'viper-mode-string global-mode-string)
       (setq global-mode-string
 	    (append '("" viper-mode-string) (cdr global-mode-string))))
-
-  (if (featurep 'xemacs)
-      ;; XEmacs
-      (defadvice describe-key (before viper-describe-key-ad protect activate)
-	"Force to read key via `viper-read-key-sequence'."
-	(interactive (list (viper-read-key-sequence "Describe key: "))))
-    ;; Emacs
-    (viper--advice-add 'describe-key :before
-     (lambda (&rest _)
-      "Force to read key via `viper-read-key-sequence'."
-      (interactive (let ((key (viper-read-key-sequence
-			       "Describe key (or click or menu item): ")))
-		     (list key
-			   (prefix-numeric-value current-prefix-arg)
-			   ;; If KEY is a down-event, read also the
-			   ;; corresponding up-event.
-			   (and (vectorp key)
-				(let ((last-idx (1- (length key))))
-				  (and (eventp (aref key last-idx))
-				       (memq 'down (event-modifiers
-						    (aref key last-idx)))))
-				(or (and (eventp (aref key 0))
-					 (memq 'down (event-modifiers
-						      (aref key 0)))
-					 ;; For the C-down-mouse-2 popup menu,
-					 ;; there is no subsequent up-event
-					 (= (length key) 1))
-				    (and (> (length key) 1)
-					 (eventp (aref key 1))
-					 (memq 'down (event-modifiers (aref key 1)))))
-				(read-event)))))
-      nil))
-
-    ) ; (if (featurep 'xemacs)
-
-  (if (featurep 'xemacs)
-      ;; XEmacs
-      (defadvice describe-key-briefly
-	(before viper-describe-key-briefly-ad protect activate)
-	"Force to read key via `viper-read-key-sequence'."
-	(interactive (list (viper-read-key-sequence "Describe key briefly: "))))
-    ;; Emacs
-    (viper--advice-add 'describe-key-briefly :before
-     (lambda (&rest _)
-      "Force to read key via `viper-read-key-sequence'."
-      (interactive (let ((key (viper-read-key-sequence
-			       "Describe key (or click or menu item): ")))
-		     ;; If KEY is a down-event, read and discard the
-		     ;; corresponding up-event.
-		     (and (vectorp key)
-			  (let ((last-idx (1- (length key))))
-			    (and (eventp (aref key last-idx))
-				 (memq 'down (event-modifiers (aref key last-idx)))))
-			  (read-event))
-		     (list key
-			   (if current-prefix-arg
-			       (prefix-numeric-value current-prefix-arg))
-			   1)))
-      nil))
-    ) ; (if (featurep 'xemacs)
-
-  ;; FIXME: The default already uses read-file-name, so it looks like this
-  ;; advice is not needed any more.
-  ;; (defadvice find-file (before viper-add-suffix-advice activate)
-  ;;   "Use `read-file-name' for reading arguments."
-  ;;   (interactive (cons (read-file-name "Find file: " nil default-directory)
-  ;;       	       ;; XEmacs: if Mule & prefix arg, ask for coding system
-  ;;       	       (cond ((and (featurep 'xemacs) (featurep 'mule))
-  ;;       		      (list
-  ;;       		       (and current-prefix-arg
-  ;;       			    (read-coding-system "Coding-system: "))))
-  ;;       		     ;; Emacs: do wildcards
-  ;;       		     ((and (featurep 'emacs) (boundp 'find-file-wildcards))
-  ;;       			   (list find-file-wildcards))))
-  ;;       	 ))
-  ;; (defadvice find-file-other-window (before viper-add-suffix-advice activate)
-  ;;   "Use `read-file-name' for reading arguments."
-  ;;   (interactive (cons (read-file-name "Find file in other window: "
-  ;;       			       nil default-directory)
-  ;;       	       ;; XEmacs: if Mule & prefix arg, ask for coding system
-  ;;       	       (cond ((and (featurep 'xemacs) (featurep 'mule))
-  ;;       		      (list
-  ;;       		       (and current-prefix-arg
-  ;;       			    (read-coding-system "Coding-system: "))))
-  ;;       		     ;; Emacs: do wildcards
-  ;;       		     ((and (featurep 'emacs) (boundp 'find-file-wildcards))
-  ;;       		      (list find-file-wildcards))))
-  ;;       	 ))
-  ;; (defadvice find-file-other-frame (before viper-add-suffix-advice activate)
-  ;;   "Use `read-file-name' for reading arguments."
-  ;;   (interactive (cons (read-file-name "Find file in other frame: "
-  ;;       			       nil default-directory)
-  ;;       	       ;; XEmacs: if Mule & prefix arg, ask for coding system
-  ;;       	       (cond ((and (featurep 'xemacs) (featurep 'mule))
-  ;;       		      (list
-  ;;       		       (and current-prefix-arg
-  ;;       			    (read-coding-system "Coding-system: "))))
-  ;;       		     ;; Emacs: do wildcards
-  ;;       		     ((and (featurep 'emacs) (boundp 'find-file-wildcards))
-  ;;       		      (list find-file-wildcards))))
-  ;;       	 ))
-
 
   (viper--advice-add 'read-file-name :around
    (lambda (orig-fun &rest args)
@@ -1178,20 +1055,15 @@ This may be needed if the previous `:map' command terminated abnormally."
   (viper--advice-add 'add-minor-mode :after
    (lambda (&rest _)
     "Run viper-normalize-minor-mode-map-alist after adding a minor mode."
-    (viper-normalize-minor-mode-map-alist)
-    (unless
-	(and (fboundp 'add-to-ordered-list) (boundp 'emulation-mode-map-alists))
-      (setq-default minor-mode-map-alist minor-mode-map-alist))))
+    (viper-normalize-minor-mode-map-alist)))
 
   ;; catch frame switching event
   (if (viper-window-display-p)
-      (if (featurep 'xemacs)
-	  (add-hook 'mouse-leave-frame-hook
-		    #'viper-remember-current-frame)
-	(viper--advice-add 'handle-switch-frame :before
-	 (lambda (&rest _)
-	  "Remember the selected frame before the switch-frame event."
-	  (viper-remember-current-frame (selected-frame))))))
+      (viper--advice-add
+       'handle-switch-frame :before
+       (lambda (&rest _)
+	 "Remember the selected frame before the switch-frame event."
+	 (viper-remember-current-frame (selected-frame)))))
 
   ) ; end viper-non-hook-settings
 
@@ -1250,9 +1122,7 @@ These two lines must come in the order given."))
 	   (cons 'mode-line-buffer-identification
 		 (list (default-value 'mode-line-buffer-identification)))
 	   (cons 'global-mode-string (list global-mode-string))
-	   (if (featurep 'emacs)
-	       (cons 'mark-even-if-inactive (list mark-even-if-inactive)))
-	   )))
+	   (cons 'mark-even-if-inactive (list mark-even-if-inactive)))))
 
 
 ;; Set some useful macros, advices
@@ -1341,7 +1211,6 @@ These two lines must come in the order given."))
   (viper-harness-minor-mode "outline")
   (viper-harness-minor-mode "allout")
   (viper-harness-minor-mode "xref")
-  (viper-harness-minor-mode "lmenu")
   (viper-harness-minor-mode "vc")
   (viper-harness-minor-mode "ltx-math") ; LaTeX-math-mode in AUC-TeX, which
   (viper-harness-minor-mode "latex")    ; sits in one of these two files
@@ -1374,12 +1243,7 @@ These two lines must come in the order given."))
   ;; Without setting the default, new buffers that come up in emacs mode have
   ;; minor-mode-map-alist = nil, unless we call viper-change-state-*
   (when (eq viper-current-state 'emacs-state)
-    (viper-change-state-to-emacs)
-    (unless
-        (and (fboundp 'add-to-ordered-list)
-             (boundp 'emulation-mode-map-alists))
-      (setq-default minor-mode-map-alist minor-mode-map-alist))
-    )
+    (viper-change-state-to-emacs))
 
   (if (this-major-mode-requires-vi-state major-mode)
       (viper-mode))

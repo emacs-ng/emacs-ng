@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual., Abbrevs, This is part of the Emacs manual., Top
-@c Copyright (C) 1985-1987, 1993-1995, 1997, 1999-2018 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 1999--2020 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Maintaining
@@ -12,6 +12,9 @@ large-size programs and packages.  These features include:
 @item
 Unified interface to Support for Version Control Systems
 (@acronym{VCS}) that record the history of changes to source files.
+
+@item
+Commands for handling programming projects.
 
 @item
 A specialized mode for maintaining @file{ChangeLog} files that provide
@@ -38,6 +41,7 @@ Lisp Regression Testing}).
 
 @menu
 * Version Control::     Using version control systems.
+* Projects::            Commands for handling source files in a project.
 * Change Log::          Maintaining a change history for your program.
 * Xref::                Find definitions and references of any function,
                           method, struct, macro, @dots{} in your program.
@@ -396,8 +400,9 @@ policy, which you should follow.
 for each change just once, then put it into both logs.  You can write
 the entry in @file{ChangeLog}, then copy it to the log buffer with
 @kbd{C-c C-a} when committing the change (@pxref{Log Buffer}).  Or you
-can write the entry in the log buffer while committing the change, and
-later use the @kbd{C-x v a} command to copy it to @file{ChangeLog}
+can write the entry in the log buffer while committing the change
+(with the help of @kbd{C-c C-w}), and later use the @kbd{C-x v a}
+command to copy it to @file{ChangeLog}
 @iftex
 (@pxref{Change Logs and VC,,,emacs-xtra, Specialized Emacs Features}).
 @end iftex
@@ -677,6 +682,14 @@ of changes between the VC fileset and the version from which you
 started editing (@pxref{Old Revisions}), type @kbd{C-c C-d}
 (@code{log-edit-show-diff}).
 
+@kindex C-c C-w @r{(Log Edit mode)}
+@findex log-edit-generate-changelog-from-diff
+  To help generate ChangeLog entries, type @kbd{C-c C-w}
+(@code{log-edit-generate-changelog-from-diff}), to generate skeleton
+ChangeLog entries, listing all changed file and function names based
+on the diff of the VC fileset.  Consecutive entries left empty will be
+combined by @kbd{C-q} (@code{fill-paragraph}).
+
 @kindex C-c C-a @r{(Log Edit mode)}
 @findex log-edit-insert-changelog
   If the VC fileset includes one or more @file{ChangeLog} files
@@ -831,6 +844,14 @@ working tree containing the current VC fileset).  If you invoke this
 command from a Dired buffer, it applies to the working tree containing
 the directory.
 
+@findex vc-root-version-diff
+@kindex C-u C-x v D
+  To compare two arbitrary revisions of the whole trees, call
+@code{vc-root-diff} with a prefix argument: @kbd{C-u C-x v D}.  This
+prompts for two revision IDs (@pxref{VCS Concepts}), and displays a
+diff between those versions of the entire version-controlled directory
+trees (RCS, SCCS, CVS, and SRC do not support this feature).
+
 @vindex vc-diff-switches
   You can customize the @command{diff} options that @kbd{C-x v =} and
 @kbd{C-x v D} use for generating diffs.  The options used are taken
@@ -929,6 +950,7 @@ the file contents without distraction from the annotations.
 
 @node VC Change Log
 @subsection VC Change Log
+@cindex VC change log
 
 @table @kbd
 @item C-x v l
@@ -946,6 +968,13 @@ Display the changes that a ``pull'' operation will retrieve
 @item C-x v O
 Display the changes that will be sent by the next ``push'' operation
 (@code{vc-log-outgoing}).
+
+@item C-x v h
+Display the history of changes made in the region of file visited by
+the current buffer (@code{vc-region-history}).
+
+@item M-x vc-log-search @key{RET}
+Search the change history for a specified pattern.
 @end table
 
 @kindex C-x v l
@@ -963,13 +992,23 @@ and the maximum number of revisions to display.
 Directory Mode}) or a Dired buffer (@pxref{Dired}), it applies to the
 file listed on the current line.
 
+@kindex C-x v L
 @findex vc-print-root-log
 @findex log-view-toggle-entry-display
   @kbd{C-x v L} (@code{vc-print-root-log}) displays a
 @file{*vc-change-log*} buffer showing the history of the entire
 version-controlled directory tree (RCS, SCCS, CVS, and SRC do not
 support this feature).  With a prefix argument, the command prompts
-for the maximum number of revisions to display.
+for the maximum number of revisions to display.  A numeric prefix
+argument specifies the maximum number of revisions without prompting.
+When the numeric prefix argument is 1, as in @w{@kbd{C-1 C-x v L}} or
+@w{@kbd{C-u 1 C-x v L}}, the command prompts for the revision ID, and
+displays the log entry of that revision together with the changes
+(diffs) it introduced.  (Some less capable version control systems,
+such as RCS and CVS, don't have commands to show a revision log with
+its diffs; for them the command displays only the log entry, and you
+can request to show the diffs by typing @kbd{d} or @kbd{D}, see
+below.)
 
   The @kbd{C-x v L} history is shown in a compact form, usually
 showing only the first line of each log entry.  However, you can type
@@ -977,6 +1016,10 @@ showing only the first line of each log entry.  However, you can type
 @file{*vc-change-log*} buffer to reveal the entire log entry for the
 revision at point.  A second @key{RET} hides it again.
 
+@kindex C-x v I
+@kindex C-x v O
+@findex vc-log-incoming
+@findex vc-log-outgoing
   On a decentralized version control system, the @kbd{C-x v I}
 (@code{vc-log-incoming}) command displays a log buffer showing the
 changes that will be applied, the next time you run the version
@@ -989,6 +1032,8 @@ specific repository.  Similarly, @kbd{C-x v O}
 another repository, the next time you run the push command; with a
 prefix argument, it prompts for a specific destination repository.
 
+@cindex VC log buffer, commands in
+@cindex vc-log buffer
   In the @file{*vc-change-log*} buffer, you can use the following keys
 to move between the logs of revisions and of files, and to examine and
 compare past revisions (@pxref{Old Revisions}):
@@ -1050,20 +1095,27 @@ buffer.  However, RCS, SCCS, CVS, and SRC do not support this feature.
 
 @kindex C-x v h
 @findex vc-region-history
-A useful variant of examining changes is provided by the command
+A useful variant of examining history of changes is provided by the command
 @kbd{vc-region-history} (by default bound to @kbd{C-x v h}), which shows
-a @file{*VC-history*} buffer with the history of changes to the region
-of the current file between point and the mark (@pxref{Mark}).  The
+a @file{*VC-history*} buffer with the history of changes made in the region
+of the current buffer's file between point and the mark (@pxref{Mark}).  The
 history of changes includes the commit log messages and also the
 changes themselves in the Diff format.
 
-Invoke this command after marking the region of the current file in
+Invoke this command after marking in the current buffer the region in
 whose changes you are interested.  In the @file{*VC-history*} buffer
 it pops up, you can use all of the commands available in the
 @file{*vc-change-log*} buffer described above, and also the commands
 defined by Diff mode (@pxref{Diff Mode}).
 
-This command is currently available only with Git.
+This command is currently available only with Git and Mercurial (hg).
+
+@findex vc-log-search
+The command @code{vc-log-search} allows searching for a pattern in the
+log of changes.  It prompts for a pattern (a regular expression), and
+displays all entries in the change history whose log messages match
+the pattern.  When invoked with a prefix argument, the command will
+also prompt for a specific VCS shell command to run for this purpose.
 
 @node VC Undo
 @subsection Undoing Version Control Actions
@@ -1084,8 +1136,7 @@ started editing, and asks for confirmation for discarding the changes.
 If you agree, the fileset is reverted.  If you don't want @kbd{C-x v
 u} to show a diff, set the variable @code{vc-revert-show-diff} to
 @code{nil} (you can still view the diff directly with @kbd{C-x v =};
-@pxref{Old Revisions}).  Note that @kbd{C-x v u} cannot be reversed
-with the usual undo commands (@pxref{Undo}), so use it with care.
+@pxref{Old Revisions}).
 
   On locking-based version control systems, @kbd{C-x v u} leaves files
 unlocked; you must lock again to resume editing.  You can also use
@@ -1264,6 +1315,12 @@ point is on a directory entry, mark all files in that directory tree
 (@code{vc-dir-mark-all-files}).  With a prefix argument, mark all
 listed files and directories.
 
+@item G
+Add the file under point to the list of files that the VC should
+ignore (@code{vc-dir-ignore}).  For instance, if the VC is Git, it
+will append this file to the @file{.gitignore} file.  If given a
+prefix, do this with all the marked files.
+
 @item q
 Quit the VC Directory buffer, and bury it (@code{quit-window}).
 
@@ -1341,7 +1398,14 @@ Prompt for the name of a branch and display the change history of that
 branch (@code{vc-print-branch-log}).
 
 @item B s
-Switch to a branch (@code{vc-retrieve-tag}).  @xref{Switching Branches}.
+Switch to a branch (@code{vc-retrieve-tag}).  @xref{Switching
+Branches}.
+
+@item d
+Delete the marked files, or the current file if no marks
+(@code{vc-dir-clean-delete)}.  The files will not be marked as
+deleted in the version control system, so this function is mostly
+useful for unregistered files.
 @end table
 
 @cindex stashes in version control
@@ -1389,11 +1453,13 @@ Mercurial in its normal mode of operation, each branch has its own
 working directory tree, so switching between branches just involves
 switching directories.  On Git, branches are normally @dfn{co-located}
 in the same directory, and switching between branches is done using
-the @command{git checkout} command, which changes the contents of the
+the @kbd{git checkout} command, which changes the contents of the
 working tree to match the branch you switch to.  Bazaar also supports
-co-located branches, in which case the @command{bzr switch} command
+co-located branches, in which case the @kbd{bzr switch} command
 will switch branches in the current directory.  With Subversion, you
-switch to another branch using the @command{svn switch} command.
+switch to another branch using the @kbd{svn switch} command.  With
+Mercurial, command @kbd{hg update} is used to swith to another
+branch.
 
   The VC command to switch to another branch in the current directory
 is @kbd{C-x v r @var{branch-name} @key{RET}} (@code{vc-retrieve-tag}).
@@ -1440,8 +1506,8 @@ On a decentralized version control system, the command @kbd{C-x v P}
 (@code{vc-push}) updates another location with changes from the
 current branch.  With a prefix argument, it prompts for the exact
 version control command to run, which lets you specify where to push
-changes; the default is @command{bzr push} with Bazaar, @command{git
-push} with Git, and @command{hg push} with Mercurial.  The default
+changes; the default is @kbd{bzr push} with Bazaar, @kbd{git
+push} with Git, and @kbd{hg push} with Mercurial.  The default
 commands always push to a default location determined by the version
 control system from your branch configuration.
 
@@ -1470,11 +1536,11 @@ control system.
 
   Amongst decentralized version control systems, @kbd{C-x v +} is
 currently supported only by Bazaar, Git, and Mercurial.  With Bazaar,
-it calls @command{bzr pull} for ordinary branches (to pull from a
-master branch into a mirroring branch), and @command{bzr update} for a
+it calls @kbd{bzr pull} for ordinary branches (to pull from a
+master branch into a mirroring branch), and @kbd{bzr update} for a
 bound branch (to pull from a central repository).  With Git, it calls
-@command{git pull} to fetch changes from a remote repository and merge
-it into the current branch.  With Mercurial, it calls @command{hg pull
+@kbd{git pull} to fetch changes from a remote repository and merge
+it into the current branch.  With Mercurial, it calls @kbd{hg pull
 -u} to fetch changesets from the default remote repository and update
 the working directory.
 
@@ -1505,11 +1571,12 @@ two branches.
 
   On a decentralized version control system, merging is done with the
 command @kbd{C-x v m} (@code{vc-merge}).  On Bazaar, this prompts for
-the exact arguments to pass to @command{bzr merge}, offering a
+the exact arguments to pass to @kbd{bzr merge}, offering a
 sensible default if possible.  On Git, this prompts for the name of a
 branch to merge from, with completion (based on the branch names known
-to the current repository).  The output from running the merge command
-is shown in a separate buffer.
+to the current repository).  With Mercurial, this prompts for argument
+to pass to @kbd{hg merge}.  The output from running the merge
+command is shown in a separate buffer.
 
   On a centralized version control system like CVS, @kbd{C-x v m}
 prompts for a branch ID, or a pair of revision IDs (@pxref{Switching
@@ -1566,6 +1633,197 @@ different revision with @kbd{C-u C-x v v}.
 @ifnottex
 @include vc1-xtra.texi
 @end ifnottex
+
+@node Projects
+@section Working with Projects
+@cindex projects
+
+@cindex project root
+  A @dfn{project} is a collection of files used for producing one or
+more programs.  Files that belong to a project are typically stored in
+a hierarchy of directories; the top-level directory of the hierarchy
+is known as the @dfn{project root}.
+
+@cindex project back-end
+  Whether a given directory is a root of some project is determined by
+the project-specific infrastructure, known as @dfn{project back-end}.
+Emacs currently supports two such back-ends: VC (@pxref{Version
+Control}), whereby a VCS repository is considered a project; and EDE
+(@pxref{EDE}).  This is expected to be extended in the future to
+support additional types of projects.
+
+  Which files do or don't belong to a project is also determined by
+the project back-end.  For example, the VC back-end doesn't consider
+``ignored'' files (@pxref{VC Ignore}) to be part of the project.
+
+@menu
+* Project File Commands::   Commands for handling project files.
+* Project Buffer Commands:: Commands for handling project buffers.
+* Switching Projects::      Switching between projects.
+@end menu
+
+@node Project File Commands
+@subsection Project Commands That Operate on Files
+
+@table @kbd
+@item C-x p f
+Visit a file that belongs to the current project
+(@code{project-find-file}).
+@item C-x p g
+Find matches for a regexp in all files that belong to the current
+project (@code{project-find-regexp}).
+@item M-x project-search
+Interactively search for regexp matches in all files that belong to
+the current project.
+@item C-x p r
+Perform query-replace for a regexp in all files that belong to the
+current project (@code{project-query-replace-regexp}).
+@item C-x p d
+Run Dired in the current project's root directory
+(@code{project-dired}).
+@item C-x p v
+Run @code{vc-dir} in the current project's root directory
+(@code{project-vc-dir}).
+@item C-x p s
+Start an inferior shell in the current project's root directory
+(@code{project-shell}).
+@item C-x p e
+Start Eshell in the current project's root directory
+(@code{project-eshell}).
+@item C-x p c
+Run compilation in the current project's root directory
+(@code{project-compile}).
+@end table
+
+  Emacs provides commands for handling project files conveniently.
+This subsection describes these commands.
+
+@cindex current project
+  All of the commands described here share the notion of the
+@dfn{current project}.  The current project is determined by the
+@code{default-directory} (@pxref{File Names}) of the buffer that is
+the current buffer when the command is invoked.  If that directory
+doesn't seem to belong to a recognizable project, these commands
+prompt you for the project directory.
+
+@findex project-find-file
+  The command @kbd{C-x p f} (@code{project-find-file}) is a convenient
+way of visiting files (@pxref{Visiting}) that belong to the current
+project.  Unlike @kbd{C-x C-f}, this command doesn't require to type
+the full file name of the file to visit, you can type only the file's
+base name (i.e., omit the leading directories).  In addition, the
+completion candidates considered by the command include only the files
+belonging to the current project, and nothing else.  If there's a file
+name at point, this command offers that file as the default to visit.
+
+@findex project-find-regexp
+  The command @kbd{C-x p g} (@code{project-find-regexp}) is similar to
+@code{rgrep} (@pxref{Grep Searching}), but it searches only the files
+that belong to the current project.  The command prompts for the
+regular expression to search, and pops up an Xref mode buffer with the
+search results, where you can select a match using the Xref mode
+commands (@pxref{Xref Commands}).  When invoked with a prefix
+argument, this command additionally prompts for the base directory
+from which to start the search; this allows, for example, to limit the
+search only to project files under a certain subdirectory of the
+project root.
+
+@findex project-search
+  @kbd{M-x project-search} is an interactive variant of
+@code{project-find-regexp}.  It prompts for a regular expression to
+search in the current project's files, but instead of finding all the
+matches and displaying them, it stops when it finds a match and visits
+the matched file at the locus of the match, allowing you to edit the
+matched file.  To find the rest of the matches, type @w{@kbd{M-x
+fileloop-continue @key{RET}}}.
+
+@findex project-query-replace-regexp
+  @kbd{C-x p r} (@code{project-query-replace-regexp}) is similar to
+@code{project-search}, but it prompts you for whether to replace each
+match it finds, like @code{query-replace} does (@pxref{Query
+Replace}), and continues to the next match after you respond.  If your
+response causes Emacs to exit the query-replace loop, you can later
+continue with @w{@kbd{M-x fileloop-continue @key{RET}}}.
+
+@findex project-dired
+  The command @kbd{C-x p d} (@code{project-dired}) opens a Dired
+buffer (@pxref{Dired}) listing the files in the current project's root
+directory.
+
+@findex project-vc-dir
+  The command @kbd{C-x p v} (@code{project-vc-dir}) opens a VC
+Directory buffer (@pxref{VC Directory Mode}) listing the version
+control statuses of the files in a directory tree under the current
+project's root directory.
+
+@findex project-shell
+  The command @kbd{C-x p s} (@code{project-shell}) starts a shell
+session (@pxref{Shell}) in a new buffer with the current project's
+root as the working directory.
+
+@findex project-eshell
+  The command @kbd{C-x p e} (@code{project-eshell}) starts an Eshell
+session in a new buffer with the current project's root as the working
+directory.  @xref{Top,Eshell,Eshell, eshell, Eshell: The Emacs Shell}.
+
+@findex project-compile
+  The command @kbd{C-x p c} (@code{project-compile}) runs compilation
+(@pxref{Compilation}) in the current project's root directory.
+
+@node Project Buffer Commands
+@subsection Project Commands That Operate on Buffers
+
+@table @kbd
+@item C-x p b
+Switch to another buffer belonging to the current project
+(@code{project-switch-to-buffer}).
+@item C-x p k
+Kill all live buffers that belong to the current project
+(@code{project-kill-buffers}).
+@end table
+
+@findex project-switch-to-buffer
+  Working on a project could potentially involve having many buffers
+visiting files that belong to the project, and also buffers that
+belong to the project, but don't visit any files (like the
+@file{*compilation*} buffer created by @code{project-compile}).  The
+command @kbd{C-x p b} (@code{project-switch-to-buffer}) helps you
+switch between buffers that belong to the current project by prompting
+for a buffer to switch and considering only the current project's
+buffers as candidates for completion.
+
+@findex project-kill-buffers
+@vindex project-kill-buffer-conditions
+  When you finish working on the project, you may wish to kill all the
+buffers that belong to the project, to keep your Emacs session
+smaller.  The command @kbd{C-x p k} (@code{project-kill-buffers})
+accomplishes that: it kills all the buffers that belong to the current
+project that satisfy any of @code{project-kill-buffer-conditions}.
+
+@node Switching Projects
+@subsection Switching Projects
+
+@table @kbd
+@item C-x p p
+Run an Emacs command for another project (@code{project-switch-project}).
+@end table
+
+@findex project-switch-project
+@vindex project-switch-commands
+  Commands that operate on project files (@pxref{Project File
+Commands}) will conveniently prompt you for a project directory when
+no project is current.  When you are inside some project, but you want
+to operate on a different project, use the @kbd{C-x p p} command
+(@code{project-switch-project}).  This command prompts you to choose a
+directory among known project roots, and then displays the menu of
+available commands to operate on the project you choose.  The variable
+@code{project-switch-commands} controls which commands are available
+in the menu, and which key invokes each command.
+
+@vindex project-list-file
+  The variable @code{project-list-file} names the file in which Emacs
+records the list of known projects.  It defaults to the file
+@file{projects} in @code{user-emacs-directory} (@pxref{Find Init}).
 
 @node Change Log
 @section Change Logs
@@ -1948,6 +2206,11 @@ Perform interactive query-replace on references that match
 @var{pattern} (@code{xref-query-replace-in-results}), replacing
 the match with @var{replacement}.  @xref{Identifier Search}.
 
+@item g
+@findex xref-revert-buffer
+Refresh the contents of the @file{*xref*} buffer
+(@code{xref-revert-buffer}.
+
 @findex xref-quit
 @item q
 Quit the window showing the @file{*xref*} buffer (@code{xref-quit}).
@@ -1981,7 +2244,7 @@ table.
 @item M-x tags-query-replace @key{RET} @var{regexp} @key{RET} @var{replacement} @key{RET}
 Perform a @code{query-replace-regexp} on each file in the selected tags table.
 
-@item M-x tags-loop-continue
+@item M-x fileloop-continue
 Restart one of the last 2 commands above, from the current location of point.
 @end table
 
@@ -2017,9 +2280,9 @@ you can follow its progress.  As soon as it finds an occurrence,
 @code{tags-search} returns.  This command requires tags tables to be
 available (@pxref{Tags Tables}).
 
-@findex tags-loop-continue
+@findex fileloop-continue
   Having found one match with @code{tags-search}, you probably want to
-find all the rest.  @kbd{M-x tags-loop-continue} resumes the
+find all the rest.  @kbd{M-x fileloop-continue} resumes the
 @code{tags-search}, finding one more match.  This searches the rest of
 the current buffer, followed by the remaining files of the tags table.
 
@@ -2042,10 +2305,10 @@ default is to use the same setting as the value of
 single invocation of @kbd{M-x tags-query-replace}.  But often it is
 useful to exit temporarily, which you can do with any input event that
 has no special query replace meaning.  You can resume the query
-replace subsequently by typing @kbd{M-x tags-loop-continue}; this
+replace subsequently by typing @kbd{M-x fileloop-continue}; this
 command resumes the last tags search or replace command that you did.
 For instance, to skip the rest of the current file, you can type
-@w{@kbd{M-> M-x tags-loop-continue}}.
+@w{@kbd{M-> M-x fileloop-continue}}.
 
   Note that the commands described above carry out much broader
 searches than the @code{xref-find-definitions} family.  The
@@ -2077,7 +2340,7 @@ Display a list of all known identifiers matching @var{regexp}.
 Display a list of the identifiers defined in the program file
 @var{file}.
 
-@item M-x next-file
+@item M-x tags-next-file
 Visit files recorded in the selected tags table.
 @end table
 
@@ -2094,7 +2357,9 @@ the selected tags table, and displays a list of tags defined in that
 file.  Do not include a directory as part of the file name unless the
 file name recorded in the tags table includes a directory.  This
 command works only with the etags backend, and requires a tags table
-for the project to be available.  @xref{Tags Tables}.
+for the project to be available.  @xref{Tags Tables}.  If used
+interactively, the default tag is file name of the current buffer if
+used interactively.
 
 @c Sadly, the new-and-improved Xref feature doesn't provide anything
 @c close to the described below features of the now-obsoleted
@@ -2116,8 +2381,8 @@ variable @code{tags-apropos-additional-actions}; see its documentation
 for details.
 @end ignore
 
-@findex next-file
-  @kbd{M-x next-file} visits files covered by the selected tags table.
+@findex tags-next-file
+  @kbd{M-x tags-next-file} visits files covered by the selected tags table.
 The first time it is called, it visits the first file covered by the
 table.  Each subsequent call visits the next covered file, unless a
 prefix argument is supplied, in which case it returns to the first
@@ -2634,11 +2899,12 @@ etags --language=none \
 @subsection Selecting a Tags Table
 
 @findex visit-tags-table
-  Emacs has at any time at most one @dfn{selected} tags table.  All the
-commands for working with tags tables use the selected one.  To select
-a tags table, type @kbd{M-x visit-tags-table}, which reads the tags
-table file name as an argument, with @file{TAGS} in the default
-directory as the default.
+  Emacs has at any time at most one @dfn{selected} tags table.  All
+the commands for working with tags tables use the selected one.  To
+select a tags table, type @kbd{M-x visit-tags-table}, which reads the
+tags table file name as an argument, with @file{TAGS} defaulting to
+the first directory that contains a file named @file{TAGS} encountered
+when recursively searching upward from the default directory.
 
 @vindex tags-file-name
   Emacs does not actually read in the tags table contents until you

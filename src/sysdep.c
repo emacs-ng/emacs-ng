@@ -1,5 +1,5 @@
 /* Interfaces to system-dependent kernel and library entries.
-   Copyright (C) 1985-1988, 1993-1995, 1999-2018 Free Software
+   Copyright (C) 1985-1988, 1993-1995, 1999-2020 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -27,9 +27,12 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #endif /* HAVE_PWD_H */
 #include <limits.h>
 #include <stdlib.h>
+#include <sys/random.h>
 #include <unistd.h>
 
 #include <c-ctype.h>
+#include <close-stream.h>
+#include <pathmax.h>
 #include <utimens.h>
 
 #include "lisp.h"
@@ -46,8 +49,12 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 # include <cygwin/fs.h>
 #endif
 
-#if defined DARWIN_OS || defined __FreeBSD__
+#if defined DARWIN_OS || defined __FreeBSD__ || defined __OpenBSD__
 # include <sys/sysctl.h>
+#endif
+
+#ifdef DARWIN_OS
+# include <libproc.h>
 #endif
 
 #ifdef __FreeBSD__
@@ -91,13 +98,19 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <sys/file.h>
 #include <fcntl.h>
 
+#include "syssignal.h"
+#include "systime.h"
 #include "systty.h"
 #include "syswait.h"
 
+#ifdef HAVE_SYS_RESOURCE_H
+# include <sys/resource.h>
+#endif
+
 #ifdef HAVE_SYS_UTSNAME_H
-#include <sys/utsname.h>
-#include <memory.h>
-#endif /* HAVE_SYS_UTSNAME_H */
+# include <sys/utsname.h>
+# include <memory.h>
+#endif
 
 #include "keyboard.h"
 #include "frame.h"
@@ -107,32 +120,14 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "process.h"
 #include "cm.h"
 
-#include "gnutls.h"
-/* MS-Windows loads GnuTLS at run time, if available; we don't want to
-   do that during startup just to call gnutls_rnd.  */
-#if defined HAVE_GNUTLS && !defined WINDOWSNT
-# include <gnutls/crypto.h>
-#else
-# define emacs_gnutls_global_init() Qnil
-# define gnutls_rnd(level, data, len) (-1)
-#endif
-
 #ifdef WINDOWSNT
-#include <direct.h>
+# include <direct.h>
 /* In process.h which conflicts with the local copy.  */
-#define _P_WAIT 0
+# define _P_WAIT 0
 int _cdecl _spawnlp (int, const char *, const char *, ...);
 /* The following is needed for O_CLOEXEC, F_SETFD, FD_CLOEXEC, and
    several prototypes of functions called below.  */
-#include <sys/socket.h>
-#endif
-
-#include "syssignal.h"
-#include "systime.h"
-
-/* ULLONG_MAX is missing on Red Hat Linux 7.3; see Bug#11781.  */
-#ifndef ULLONG_MAX
-#define ULLONG_MAX TYPE_MAXIMUM (unsigned long long int)
+# include <sys/socket.h>
 #endif
 
 /* Declare here, including term.h is problematic on some systems.  */
@@ -147,25 +142,59 @@ static const int baud_convert[] =
 #ifdef HAVE_PERSONALITY_ADDR_NO_RANDOMIZE
 # include <sys/personality.h>
 
-/* Disable address randomization in the current process.  Return true
-   if addresses were randomized but this has been disabled, false
-   otherwise. */
-bool
-disable_address_randomization (void)
-{
-  int pers = personality (0xffffffff);
-  if (pers < 0)
-    return false;
-  int desired_pers = pers | ADDR_NO_RANDOMIZE;
+/* If not -1, the personality that should be restored before exec.  */
+static int exec_personality;
 
-  /* Call 'personality' twice, to detect buggy platforms like WSL
-     where 'personality' always returns 0.  */
-  return (pers != desired_pers
-	  && personality (desired_pers) == pers
-	  && personality (0xffffffff) == desired_pers);
+/* Try to disable randomization if the current process needs it and
+   does not appear to have it already.  */
+int
+maybe_disable_address_randomization (int argc, char **argv)
+{
+  /* Undocumented Emacs option used only by this function.  */
+  static char const aslr_disabled_option[] = "--__aslr-disabled";
+
+  if (argc < 2 || strcmp (argv[1], aslr_disabled_option) != 0)
+    {
+      /* If dumping via unexec, ASLR must be disabled, as otherwise
+	 data may be scattered and undumpable as a simple executable.
+	 If pdumping, disabling ASLR lessens differences in the .pdmp file.  */
+      bool disable_aslr = will_dump_p ();
+# ifdef __PPC64__
+      disable_aslr = true;
+# endif
+      exec_personality = disable_aslr ? personality (0xffffffff) : -1;
+      if (exec_personality & ADDR_NO_RANDOMIZE)
+	exec_personality = -1;
+      if (exec_personality != -1
+	  && personality (exec_personality | ADDR_NO_RANDOMIZE) != -1)
+	{
+	  char **newargv = malloc ((argc + 2) * sizeof *newargv);
+	  if (newargv)
+	    {
+	      /* Invoke self with undocumented option.  */
+	      newargv[0] = argv[0];
+	      newargv[1] = (char *) aslr_disabled_option;
+	      memcpy (&newargv[2], &argv[1], argc * sizeof *newargv);
+	      execvp (newargv[0], newargv);
+	    }
+
+	  /* If malloc or execvp fails, warn and then try anyway.  */
+	  perror (argv[0]);
+	  free (newargv);
+	}
+    }
+  else
+    {
+      /* Our earlier incarnation already disabled ASLR.  */
+      argc--;
+      memmove (&argv[1], &argv[2], argc * sizeof *argv);
+    }
+
+  return argc;
 }
 #endif
 
+#ifndef WINDOWSNT
 /* Execute the program in FILE, with argument vector ARGV and environ
    ENVP.  Return an error number if unsuccessful.  This is like execve
    except it reenables ASLR in the executed program if necessary, and
@@ -174,22 +203,15 @@ int
 emacs_exec_file (char const *file, char *const *argv, char *const *envp)
 {
 #ifdef HAVE_PERSONALITY_ADDR_NO_RANDOMIZE
-  int pers = getenv ("EMACS_HEAP_EXEC") ? personality (0xffffffff) : -1;
-  bool change_personality = 0 <= pers && pers & ADDR_NO_RANDOMIZE;
-  if (change_personality)
-    personality (pers & ~ADDR_NO_RANDOMIZE);
+  if (exec_personality != -1)
+    personality (exec_personality);
 #endif
 
   execve (file, argv, envp);
-  int err = errno;
-
-#ifdef HAVE_PERSONALITY_ADDR_NO_RANDOMIZE
-  if (change_personality)
-    personality (pers);
-#endif
-
-  return err;
+  return errno;
 }
+
+#endif	/* !WINDOWSNT */
 
 /* If FD is not already open, arrange for it to be open with FLAGS.  */
 static void
@@ -206,6 +228,10 @@ force_open (int fd, int flags)
     }
 }
 
+/* A stream that is like stderr, except line buffered.  It is NULL
+   during startup, or if line buffering is not in use.  */
+static FILE *buferr;
+
 /* Make sure stdin, stdout, and stderr are open to something, so that
    their file descriptors are not hijacked by later system calls.  */
 void
@@ -218,6 +244,14 @@ init_standard_fds (void)
   force_open (STDIN_FILENO, O_WRONLY);
   force_open (STDOUT_FILENO, O_RDONLY);
   force_open (STDERR_FILENO, O_RDONLY);
+
+  /* Set buferr if possible on platforms defining _PC_PIPE_BUF, as
+     they support the notion of atomic writes to pipes.  */
+  #ifdef _PC_PIPE_BUF
+    buferr = fdopen (STDERR_FILENO, "w");
+    if (buferr)
+      setvbuf (buferr, NULL, _IOLBF, 0);
+  #endif
 }
 
 /* Return the current working directory.  The result should be freed
@@ -233,20 +267,20 @@ get_current_dir_name_or_unreachable (void)
 
   char *pwd;
 
-  /* The maximum size of a directory name, including the terminating null.
+  /* The maximum size of a directory name, including the terminating NUL.
      Leave room so that the caller can append a trailing slash.  */
   ptrdiff_t dirsize_max = min (PTRDIFF_MAX, SIZE_MAX) - 1;
 
   /* The maximum size of a buffer for a file name, including the
-     terminating null.  This is bounded by MAXPATHLEN, if available.  */
+     terminating NUL.  This is bounded by PATH_MAX, if available.  */
   ptrdiff_t bufsize_max = dirsize_max;
-#ifdef MAXPATHLEN
-  bufsize_max = min (bufsize_max, MAXPATHLEN);
+#ifdef PATH_MAX
+  bufsize_max = min (bufsize_max, PATH_MAX);
 #endif
 
 # if HAVE_GET_CURRENT_DIR_NAME && !BROKEN_GET_CURRENT_DIR_NAME
 #  ifdef HYBRID_MALLOC
-  bool use_libc = bss_sbrk_did_unexec;
+  bool use_libc = will_dump_with_unexec_p ();
 #  else
   bool use_libc = true;
 #  endif
@@ -257,7 +291,7 @@ get_current_dir_name_or_unreachable (void)
       pwd = get_current_dir_name ();
       if (pwd)
 	{
-	  if (strlen (pwd) < dirsize_max)
+	  if (strnlen (pwd, dirsize_max) < dirsize_max)
 	    return pwd;
 	  free (pwd);
 	  errno = ERANGE;
@@ -274,10 +308,10 @@ get_current_dir_name_or_unreachable (void)
      sometimes a nicer name, and using it may avoid a fatal error if a
      parent directory is searchable but not readable.  */
   if (pwd
-      && (pwdlen = strlen (pwd)) < bufsize_max
+      && (pwdlen = strnlen (pwd, bufsize_max)) < bufsize_max
       && IS_DIRECTORY_SEP (pwd[pwdlen && IS_DEVICE_SEP (pwd[1]) ? 2 : 0])
-      && stat (pwd, &pwdstat) == 0
-      && stat (".", &dotstat) == 0
+      && emacs_fstatat (AT_FDCWD, pwd, &pwdstat, 0) == 0
+      && emacs_fstatat (AT_FDCWD, ".", &dotstat, 0) == 0
       && dotstat.st_ino == pwdstat.st_ino
       && dotstat.st_dev == pwdstat.st_dev)
     {
@@ -1043,16 +1077,6 @@ emacs_set_tty (int fd, struct emacs_tty *settings, bool flushp)
 static int old_fcntl_owner[FD_SETSIZE];
 #endif /* F_SETOWN */
 
-/* This may also be defined in stdio,
-   but if so, this does no harm,
-   and using the same name avoids wasting the other one's space.  */
-
-#if defined (USG)
-unsigned char _sobuf[BUFSIZ+8];
-#else
-char _sobuf[BUFSIZ];
-#endif
-
 /* Initialize the terminal mode on all tty devices that are currently
    open. */
 
@@ -1272,14 +1296,7 @@ init_sys_modes (struct tty_display_info *tty_out)
     }
 #endif /* F_GETOWN */
 
-#ifdef _IOFBF
-  /* This symbol is defined on recent USG systems.
-     Someone says without this call USG won't really buffer the file
-     even with a call to setbuf. */
-  setvbuf (tty_out->output, (char *) _sobuf, _IOFBF, sizeof _sobuf);
-#else
-  setbuf (tty_out->output, (char *) _sobuf);
-#endif
+  setvbuf (tty_out->output, NULL, _IOFBF, BUFSIZ);
 
   if (tty_out->terminal->set_terminal_modes_hook)
     tty_out->terminal->set_terminal_modes_hook (tty_out->terminal);
@@ -1463,7 +1480,7 @@ reset_sys_modes (struct tty_display_info *tty_out)
 {
   if (noninteractive)
     {
-      fflush_unlocked (stdout);
+      fflush (stdout);
       return;
     }
   if (!tty_out->term_initted)
@@ -1486,28 +1503,28 @@ reset_sys_modes (struct tty_display_info *tty_out)
       tty_turn_off_insert (tty_out);
 
       for (int i = cursorX (tty_out); i < FrameCols (tty_out) - 1; i++)
-	fputc_unlocked (' ', tty_out->output);
+	putc (' ', tty_out->output);
     }
 
   cmgoto (tty_out, FrameRows (tty_out) - 1, 0);
-  fflush_unlocked (tty_out->output);
+  fflush (tty_out->output);
 
   if (tty_out->terminal->reset_terminal_modes_hook)
     tty_out->terminal->reset_terminal_modes_hook (tty_out->terminal);
 
   /* Avoid possible loss of output when changing terminal modes.  */
-  while (fdatasync (fileno (tty_out->output)) != 0 && errno == EINTR)
+  while (tcdrain (fileno (tty_out->output)) != 0 && errno == EINTR)
     continue;
 
 #ifndef DOS_NT
-#ifdef F_SETOWN
+# ifdef F_SETOWN
   if (interrupt_input)
     {
       reset_sigio (fileno (tty_out->input));
       fcntl (fileno (tty_out->input), F_SETOWN,
              old_fcntl_owner[fileno (tty_out->input)]);
     }
-#endif /* F_SETOWN */
+# endif /* F_SETOWN */
   fcntl (fileno (tty_out->input), F_SETFL,
          fcntl (fileno (tty_out->input), F_GETFL, 0) & ~O_NONBLOCK);
 #endif
@@ -1744,24 +1761,6 @@ deliver_thread_signal (int sig, signal_handler_t handler)
   errno = old_errno;
 }
 
-#if !HAVE_DECL_SYS_SIGLIST
-# undef sys_siglist
-# ifdef _sys_siglist
-#  define sys_siglist _sys_siglist
-# elif HAVE_DECL___SYS_SIGLIST
-#  define sys_siglist __sys_siglist
-# else
-#  define sys_siglist my_sys_siglist
-static char const *sys_siglist[NSIG];
-# endif
-#endif
-
-#ifdef _sys_nsig
-# define sys_siglist_entries _sys_nsig
-#else
-# define sys_siglist_entries NSIG
-#endif
-
 /* Handle bus errors, invalid instruction, etc.  */
 static void
 handle_fatal_signal (int sig)
@@ -1781,7 +1780,7 @@ deliver_fatal_thread_signal (int sig)
   deliver_thread_signal (sig, handle_fatal_signal);
 }
 
-static _Noreturn void
+static AVOID
 handle_arith_signal (int sig)
 {
   pthread_sigmask (SIG_SETMASK, &empty_mask, 0);
@@ -1826,8 +1825,8 @@ stack_overflow (siginfo_t *siginfo)
 
   /* The known top and bottom of the stack.  The actual stack may
      extend a bit beyond these boundaries.  */
-  char *bot = stack_bottom;
-  char *top = current_thread->stack_top;
+  char const *bot = stack_bottom;
+  char const *top = current_thread->stack_top;
 
   /* Log base 2 of the stack heuristic ratio.  This ratio is the size
      of the known stack divided by the size of the guard area past the
@@ -1884,7 +1883,10 @@ init_sigsegv (void)
   sigfillset (&sa.sa_mask);
   sa.sa_sigaction = handle_sigsegv;
   sa.sa_flags = SA_SIGINFO | SA_ONSTACK | emacs_sigaction_flags ();
-  return sigaction (SIGSEGV, &sa, NULL) < 0 ? 0 : 1;
+  if (sigaction (SIGSEGV, &sa, NULL) < 0)
+    return 0;
+
+  return 1;
 }
 
 #else /* not HAVE_STACK_OVERFLOW_HANDLING or WINDOWSNT */
@@ -1939,7 +1941,7 @@ maybe_fatal_sig (int sig)
 }
 
 void
-init_signals (bool dumping)
+init_signals (void)
 {
   struct sigaction thread_fatal_action;
   struct sigaction action;
@@ -1950,147 +1952,10 @@ init_signals (bool dumping)
   main_thread_id = pthread_self ();
 #endif
 
-#if !HAVE_DECL_SYS_SIGLIST && !defined _sys_siglist
-  if (! initialized)
-    {
-      sys_siglist[SIGABRT] = "Aborted";
-# ifdef SIGAIO
-      sys_siglist[SIGAIO] = "LAN I/O interrupt";
-# endif
-      sys_siglist[SIGALRM] = "Alarm clock";
-# ifdef SIGBUS
-      sys_siglist[SIGBUS] = "Bus error";
-# endif
-# ifdef SIGCHLD
-      sys_siglist[SIGCHLD] = "Child status changed";
-# endif
-# ifdef SIGCONT
-      sys_siglist[SIGCONT] = "Continued";
-# endif
-# ifdef SIGDANGER
-      sys_siglist[SIGDANGER] = "Swap space dangerously low";
-# endif
-# ifdef SIGDGNOTIFY
-      sys_siglist[SIGDGNOTIFY] = "Notification message in queue";
-# endif
-# ifdef SIGEMT
-      sys_siglist[SIGEMT] = "Emulation trap";
-# endif
-      sys_siglist[SIGFPE] = "Arithmetic exception";
-# ifdef SIGFREEZE
-      sys_siglist[SIGFREEZE] = "SIGFREEZE";
-# endif
-# ifdef SIGGRANT
-      sys_siglist[SIGGRANT] = "Monitor mode granted";
-# endif
-      sys_siglist[SIGHUP] = "Hangup";
-      sys_siglist[SIGILL] = "Illegal instruction";
-      sys_siglist[SIGINT] = "Interrupt";
-# ifdef SIGIO
-      sys_siglist[SIGIO] = "I/O possible";
-# endif
-# ifdef SIGIOINT
-      sys_siglist[SIGIOINT] = "I/O intervention required";
-# endif
-# ifdef SIGIOT
-      sys_siglist[SIGIOT] = "IOT trap";
-# endif
-      sys_siglist[SIGKILL] = "Killed";
-# ifdef SIGLOST
-      sys_siglist[SIGLOST] = "Resource lost";
-# endif
-# ifdef SIGLWP
-      sys_siglist[SIGLWP] = "SIGLWP";
-# endif
-# ifdef SIGMSG
-      sys_siglist[SIGMSG] = "Monitor mode data available";
-# endif
-# ifdef SIGPHONE
-      sys_siglist[SIGWIND] = "SIGPHONE";
-# endif
-      sys_siglist[SIGPIPE] = "Broken pipe";
-# ifdef SIGPOLL
-      sys_siglist[SIGPOLL] = "Pollable event occurred";
-# endif
-# ifdef SIGPROF
-      sys_siglist[SIGPROF] = "Profiling timer expired";
-# endif
-# ifdef SIGPTY
-      sys_siglist[SIGPTY] = "PTY I/O interrupt";
-# endif
-# ifdef SIGPWR
-      sys_siglist[SIGPWR] = "Power-fail restart";
-# endif
-      sys_siglist[SIGQUIT] = "Quit";
-# ifdef SIGRETRACT
-      sys_siglist[SIGRETRACT] = "Need to relinquish monitor mode";
-# endif
-# ifdef SIGSAK
-      sys_siglist[SIGSAK] = "Secure attention";
-# endif
-      sys_siglist[SIGSEGV] = "Segmentation violation";
-# ifdef SIGSOUND
-      sys_siglist[SIGSOUND] = "Sound completed";
-# endif
-# ifdef SIGSTOP
-      sys_siglist[SIGSTOP] = "Stopped (signal)";
-# endif
-# ifdef SIGSTP
-      sys_siglist[SIGSTP] = "Stopped (user)";
-# endif
-# ifdef SIGSYS
-      sys_siglist[SIGSYS] = "Bad argument to system call";
-# endif
-      sys_siglist[SIGTERM] = "Terminated";
-# ifdef SIGTHAW
-      sys_siglist[SIGTHAW] = "SIGTHAW";
-# endif
-# ifdef SIGTRAP
-      sys_siglist[SIGTRAP] = "Trace/breakpoint trap";
-# endif
-# ifdef SIGTSTP
-      sys_siglist[SIGTSTP] = "Stopped (user)";
-# endif
-# ifdef SIGTTIN
-      sys_siglist[SIGTTIN] = "Stopped (tty input)";
-# endif
-# ifdef SIGTTOU
-      sys_siglist[SIGTTOU] = "Stopped (tty output)";
-# endif
-# ifdef SIGURG
-      sys_siglist[SIGURG] = "Urgent I/O condition";
-# endif
-# ifdef SIGUSR1
-      sys_siglist[SIGUSR1] = "User defined signal 1";
-# endif
-# ifdef SIGUSR2
-      sys_siglist[SIGUSR2] = "User defined signal 2";
-# endif
-# ifdef SIGVTALRM
-      sys_siglist[SIGVTALRM] = "Virtual timer expired";
-# endif
-# ifdef SIGWAITING
-      sys_siglist[SIGWAITING] = "Process's LWPs are blocked";
-# endif
-# ifdef SIGWINCH
-      sys_siglist[SIGWINCH] = "Window size changed";
-# endif
-# ifdef SIGWIND
-      sys_siglist[SIGWIND] = "SIGWIND";
-# endif
-# ifdef SIGXCPU
-      sys_siglist[SIGXCPU] = "CPU time limit exceeded";
-# endif
-# ifdef SIGXFSZ
-      sys_siglist[SIGXFSZ] = "File size limit exceeded";
-# endif
-    }
-#endif /* !HAVE_DECL_SYS_SIGLIST && !_sys_siglist */
-
   /* Don't alter signal handlers if dumping.  On some machines,
      changing signal handlers sets static data that would make signals
      fail to work right when the dumped Emacs is run.  */
-  if (dumping)
+  if (will_dump_p ())
     return;
 
   sigfillset (&process_fatal_action.sa_mask);
@@ -2253,9 +2118,7 @@ init_signals (bool dumping)
 typedef unsigned int random_seed;
 static void set_random_seed (random_seed arg) { srandom (arg); }
 #elif defined HAVE_LRAND48
-/* Although srand48 uses a long seed, this is unsigned long to avoid
-   undefined behavior on signed integer overflow in init_random.  */
-typedef unsigned long int random_seed;
+typedef long int random_seed;
 static void set_random_seed (random_seed arg) { srand48 (arg); }
 #else
 typedef unsigned int random_seed;
@@ -2282,23 +2145,14 @@ init_random (void)
   /* First, try seeding the PRNG from the operating system's entropy
      source.  This approach is both fast and secure.  */
 #ifdef WINDOWSNT
+  /* FIXME: Perhaps getrandom can be used here too?  */
   success = w32_init_random (&v, sizeof v) == 0;
 #else
-  int fd = emacs_open ("/dev/urandom", O_RDONLY, 0);
-  if (0 <= fd)
-    {
-      success = emacs_read (fd, &v, sizeof v) == sizeof v;
-      close (fd);
-    }
+  verify (sizeof v <= 256);
+  success = getrandom (&v, sizeof v, 0) == sizeof v;
 #endif
 
-  /* If that didn't work, try using GnuTLS, which is secure, but on
-     some systems, can be somewhat slow.  */
-  if (!success)
-    success = EQ (emacs_gnutls_global_init (), Qt)
-      && gnutls_rnd (GNUTLS_RND_NONCE, &v, sizeof v) == 0;
-
-  /* If _that_ didn't work, just use the current time value and PID.
+  /* If that didn't work, just use the current time value and PID.
      It's at least better than XKCD 221.  */
   if (!success)
     {
@@ -2412,7 +2266,7 @@ emacs_backtrace (int backtrace_limit)
 
   if (npointers)
     {
-      emacs_write (STDERR_FILENO, "\nBacktrace:\n", 12);
+      emacs_write (STDERR_FILENO, "Backtrace:\n", 11);
       backtrace_symbols_fd (buffer, npointers, STDERR_FILENO);
       if (bounded_limit < npointers)
 	emacs_write (STDERR_FILENO, "...\n", 4);
@@ -2427,7 +2281,27 @@ emacs_abort (void)
 }
 #endif
 
-/* Open FILE for Emacs use, using open flags OFLAG and mode MODE.
+/* Assuming the directory DIRFD, store information about FILENAME into *ST,
+   using FLAGS to control how the status is obtained.
+   Do not fail merely because fetching info was interrupted by a signal.
+   Allow the user to quit.
+
+   The type of ST is void * instead of struct stat * because the
+   latter type would be problematic in lisp.h.  Some platforms may
+   play tricks like "#define stat stat64" in <sys/stat.h>, and lisp.h
+   does not include <sys/stat.h>.  */
+
+int
+emacs_fstatat (int dirfd, char const *filename, void *st, int flags)
+{
+  int r;
+  while ((r = fstatat (dirfd, filename, st, flags)) != 0 && errno == EINTR)
+    maybe_quit ();
+  return r;
+}
+
+/* Assuming the directory DIRFD, open FILE for Emacs use,
+   using open flags OFLAGS and mode MODE.
    Use binary I/O on systems that care about text vs binary I/O.
    Arrange for subprograms to not inherit the file descriptor.
    Prefer a method that is multithread-safe, if available.
@@ -2435,15 +2309,21 @@ emacs_abort (void)
    Allow the user to quit.  */
 
 int
-emacs_open (const char *file, int oflags, int mode)
+emacs_openat (int dirfd, char const *file, int oflags, int mode)
 {
   int fd;
   if (! (oflags & O_TEXT))
     oflags |= O_BINARY;
   oflags |= O_CLOEXEC;
-  while ((fd = open (file, oflags, mode)) < 0 && errno == EINTR)
+  while ((fd = openat (dirfd, file, oflags, mode)) < 0 && errno == EINTR)
     maybe_quit ();
   return fd;
+}
+
+int
+emacs_open (char const *file, int oflags, int mode)
+{
+  return emacs_openat (AT_FDCWD, file, oflags, mode);
 }
 
 /* Open FILE as a stream for Emacs use, with mode MODE.
@@ -2687,10 +2567,10 @@ emacs_perror (char const *message)
 			 ? initial_argv[0] : "emacs");
   /* Write it out all at once, if it's short; this is less likely to
      be interleaved with other output.  */
-  char buf[BUFSIZ];
+  char buf[min (PIPE_BUF, MAX_ALLOCA)];
   int nbytes = snprintf (buf, sizeof buf, "%s: %s: %s\n",
 			 command, message, error_string);
-  if (0 <= nbytes && nbytes < BUFSIZ)
+  if (0 <= nbytes && nbytes < sizeof buf)
     emacs_write (STDERR_FILENO, buf, nbytes);
   else
     {
@@ -2704,45 +2584,6 @@ emacs_perror (char const *message)
   errno = err;
 }
 
-/* Return a struct timeval that is roughly equivalent to T.
-   Use the least timeval not less than T.
-   Return an extremal value if the result would overflow.  */
-struct timeval
-make_timeval (struct timespec t)
-{
-  struct timeval tv;
-  tv.tv_sec = t.tv_sec;
-  tv.tv_usec = t.tv_nsec / 1000;
-
-  if (t.tv_nsec % 1000 != 0)
-    {
-      if (tv.tv_usec < 999999)
-	tv.tv_usec++;
-      else if (tv.tv_sec < TYPE_MAXIMUM (time_t))
-	{
-	  tv.tv_sec++;
-	  tv.tv_usec = 0;
-	}
-    }
-
-  return tv;
-}
-
-/* Set the access and modification time stamps of FD (a.k.a. FILE) to be
-   ATIME and MTIME, respectively.
-   FD must be either negative -- in which case it is ignored --
-   or a file descriptor that is open on FILE.
-   If FD is nonnegative, then FILE can be NULL.  */
-int
-set_file_times (int fd, const char *filename,
-		struct timespec atime, struct timespec mtime)
-{
-  struct timespec timespec[2];
-  timespec[0] = atime;
-  timespec[1] = mtime;
-  return fdutimens (fd, filename, timespec);
-}
-
 /* Rename directory SRCFD's entry SRC to directory DSTFD's entry DST.
    This is like renameat except that it fails if DST already exists,
    or if this operation is not supported atomically.  Return 0 if
@@ -2766,19 +2607,71 @@ renameat_noreplace (int srcfd, char const *src, int dstfd, char const *dst)
 #endif
 }
 
-/* Like strsignal, except async-signal-safe, and this function typically
+/* Like strsignal, except async-signal-safe, and this function
    returns a string in the C locale rather than the current locale.  */
 char const *
 safe_strsignal (int code)
 {
-  char const *signame = 0;
+  char const *signame = sigdescr_np (code);
 
-  if (0 <= code && code < sys_siglist_entries)
-    signame = sys_siglist[code];
   if (! signame)
     signame = "Unknown signal";
 
   return signame;
+}
+
+/* Output to stderr.  */
+
+/* Return the error output stream.  */
+static FILE *
+errstream (void)
+{
+  FILE *err = buferr;
+  if (!err)
+    return stderr;
+  fflush_unlocked (stderr);
+  return err;
+}
+
+/* These functions are like fputc, vfprintf, and fwrite,
+   except that they output to stderr and buffer better on
+   platforms that support line buffering.  This avoids interleaving
+   output when Emacs and other processes write to stderr
+   simultaneously, so long as the lines are short enough.  When a
+   single diagnostic is emitted via a sequence of calls of one or more
+   of these functions, the caller should arrange for the last called
+   function to output a newline at the end.  */
+
+void
+errputc (int c)
+{
+  fputc_unlocked (c, errstream ());
+}
+
+void
+errwrite (void const *buf, ptrdiff_t nbuf)
+{
+  fwrite_unlocked (buf, 1, nbuf, errstream ());
+}
+
+/* Close standard output and standard error, reporting any write
+   errors as best we can.  This is intended for use with atexit.  */
+void
+close_output_streams (void)
+{
+  if (close_stream (stdout) != 0)
+    {
+      emacs_perror ("Write error to standard output");
+      _exit (EXIT_FAILURE);
+    }
+
+  /* Do not close stderr if addresses are being sanitized, as the
+     sanitizer might report to stderr after this function is invoked.  */
+  bool err = buferr && (fflush (buferr) != 0 || ferror (buferr));
+  if (err | (ADDRESS_SANITIZER
+	     ? fflush (stderr) != 0 || ferror (stderr)
+	     : close_stream (stderr) != 0))
+    _exit (EXIT_FAILURE);
 }
 
 #ifndef DOS_NT
@@ -3015,39 +2908,45 @@ list_system_processes (void)
   return proclist;
 }
 
-#elif defined DARWIN_OS || defined __FreeBSD__
+#elif defined DARWIN_OS || defined __FreeBSD__ || defined __OpenBSD__
 
 Lisp_Object
 list_system_processes (void)
 {
 #ifdef DARWIN_OS
   int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL};
+#elif defined __OpenBSD__
+  int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0,
+    sizeof (struct kinfo_proc), 4096};
 #else
   int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_PROC};
 #endif
   size_t len;
+  size_t mibsize = sizeof mib / sizeof mib[0];
   struct kinfo_proc *procs;
   size_t i;
 
   Lisp_Object proclist = Qnil;
 
-  if (sysctl (mib, 3, NULL, &len, NULL, 0) != 0)
+  if (sysctl (mib, mibsize, NULL, &len, NULL, 0) != 0 || len == 0)
     return proclist;
 
   procs = xmalloc (len);
-  if (sysctl (mib, 3, procs, &len, NULL, 0) != 0)
+  if (sysctl (mib, mibsize, procs, &len, NULL, 0) != 0 || len == 0)
     {
       xfree (procs);
       return proclist;
     }
 
-  len /= sizeof (struct kinfo_proc);
+  len /= sizeof procs[0];
   for (i = 0; i < len; i++)
     {
 #ifdef DARWIN_OS
-      proclist = Fcons (make_fixnum_or_float (procs[i].kp_proc.p_pid), proclist);
+      proclist = Fcons (INT_TO_INTEGER (procs[i].kp_proc.p_pid), proclist);
+#elif defined __OpenBSD__
+      proclist = Fcons (INT_TO_INTEGER (procs[i].p_pid), proclist);
 #else
-      proclist = Fcons (make_fixnum_or_float (procs[i].ki_pid), proclist);
+      proclist = Fcons (INT_TO_INTEGER (procs[i].ki_pid), proclist);
 #endif
     }
 
@@ -3068,7 +2967,23 @@ list_system_processes (void)
 
 #endif /* !defined (WINDOWSNT) */
 
-#if defined GNU_LINUX && defined HAVE_LONG_LONG_INT
+
+#if defined __FreeBSD__ || defined DARWIN_OS
+
+static struct timespec
+timeval_to_timespec (struct timeval t)
+{
+  return make_timespec (t.tv_sec, t.tv_usec * 1000);
+}
+static Lisp_Object
+make_lisp_timeval (struct timeval t)
+{
+  return make_lisp_time (timeval_to_timespec (t));
+}
+
+#endif
+
+#ifdef GNU_LINUX
 static struct timespec
 time_from_jiffies (unsigned long long tval, long hz)
 {
@@ -3078,16 +2993,15 @@ time_from_jiffies (unsigned long long tval, long hz)
 
   if (TYPE_MAXIMUM (time_t) < s)
     time_overflow ();
-  if (LONG_MAX - 1 <= ULLONG_MAX / TIMESPEC_RESOLUTION
-      || frac <= ULLONG_MAX / TIMESPEC_RESOLUTION)
-    ns = frac * TIMESPEC_RESOLUTION / hz;
+  if (LONG_MAX - 1 <= ULLONG_MAX / TIMESPEC_HZ
+      || frac <= ULLONG_MAX / TIMESPEC_HZ)
+    ns = frac * TIMESPEC_HZ / hz;
   else
     {
       /* This is reachable only in the unlikely case that HZ * HZ
 	 exceeds ULLONG_MAX.  It calculates an approximation that is
 	 guaranteed to be in range.  */
-      long hz_per_ns = (hz / TIMESPEC_RESOLUTION
-			+ (hz % TIMESPEC_RESOLUTION != 0));
+      long hz_per_ns = hz / TIMESPEC_HZ + (hz % TIMESPEC_HZ != 0);
       ns = frac / hz_per_ns;
     }
 
@@ -3112,27 +3026,26 @@ get_up_time (void)
 
   if (fup)
     {
-      unsigned long long upsec, upfrac, idlesec, idlefrac;
-      int upfrac_start, upfrac_end, idlefrac_start, idlefrac_end;
+      unsigned long long upsec, upfrac;
+      int upfrac_start, upfrac_end;
 
-      if (fscanf (fup, "%llu.%n%llu%n %llu.%n%llu%n",
-		  &upsec, &upfrac_start, &upfrac, &upfrac_end,
-		  &idlesec, &idlefrac_start, &idlefrac, &idlefrac_end)
-	  == 4)
+      if (fscanf (fup, "%llu.%n%llu%n",
+		  &upsec, &upfrac_start, &upfrac, &upfrac_end)
+	  == 2)
 	{
 	  if (TYPE_MAXIMUM (time_t) < upsec)
 	    {
 	      upsec = TYPE_MAXIMUM (time_t);
-	      upfrac = TIMESPEC_RESOLUTION - 1;
+	      upfrac = TIMESPEC_HZ - 1;
 	    }
 	  else
 	    {
 	      int upfraclen = upfrac_end - upfrac_start;
-	      for (; upfraclen < LOG10_TIMESPEC_RESOLUTION; upfraclen++)
+	      for (; upfraclen < LOG10_TIMESPEC_HZ; upfraclen++)
 		upfrac *= 10;
-	      for (; LOG10_TIMESPEC_RESOLUTION < upfraclen; upfraclen--)
+	      for (; LOG10_TIMESPEC_HZ < upfraclen; upfraclen--)
 		upfrac /= 10;
-	      upfrac = min (upfrac, TIMESPEC_RESOLUTION - 1);
+	      upfrac = min (upfrac, TIMESPEC_HZ - 1);
 	    }
 	  up = make_timespec (upsec, upfrac);
 	}
@@ -3163,7 +3076,7 @@ procfs_ttyname (int rdev)
       char minor[25];	/* 2 32-bit numbers + dash */
       char *endp;
 
-      for (; !feof_unlocked (fdev) && !ferror_unlocked (fdev); name[0] = 0)
+      for (; !feof (fdev) && !ferror (fdev); name[0] = 0)
 	{
 	  if (fscanf (fdev, "%*s %s %u %s %*s\n", name, &major, minor) >= 3
 	      && major == MAJOR (rdev))
@@ -3213,7 +3126,7 @@ procfs_get_total_memory (void)
 	    break;
 
 	  case 0:
-	    while ((c = getc_unlocked (fmem)) != EOF && c != '\n')
+	    while ((c = getc (fmem)) != EOF && c != '\n')
 	      continue;
 	    done = c == EOF;
 	    break;
@@ -3248,7 +3161,7 @@ system_process_attributes (Lisp_Object pid)
   char *cmdline = NULL;
   ptrdiff_t cmdline_size;
   char c;
-  printmax_t proc_id;
+  intmax_t proc_id;
   int ppid, pgrp, sess, tty, tpgid, thcount;
   uid_t uid;
   gid_t gid;
@@ -3261,15 +3174,15 @@ system_process_attributes (Lisp_Object pid)
   Lisp_Object decoded_cmd;
   ptrdiff_t count;
 
-  CHECK_FIXNUM_OR_FLOAT (pid);
+  CHECK_NUMBER (pid);
   CONS_TO_INTEGER (pid, pid_t, proc_id);
-  sprintf (procfn, "/proc/%"pMd, proc_id);
+  sprintf (procfn, "/proc/%"PRIdMAX, proc_id);
   if (stat (procfn, &st) < 0)
     return attrs;
 
   /* euid egid */
   uid = st.st_uid;
-  attrs = Fcons (Fcons (Qeuid, make_fixnum_or_float (uid)), attrs);
+  attrs = Fcons (Fcons (Qeuid, INT_TO_INTEGER (uid)), attrs);
   block_input ();
   pw = getpwuid (uid);
   unblock_input ();
@@ -3277,7 +3190,7 @@ system_process_attributes (Lisp_Object pid)
     attrs = Fcons (Fcons (Quser, build_string (pw->pw_name)), attrs);
 
   gid = st.st_gid;
-  attrs = Fcons (Fcons (Qegid, make_fixnum_or_float (gid)), attrs);
+  attrs = Fcons (Fcons (Qegid, INT_TO_INTEGER (gid)), attrs);
   block_input ();
   gr = getgrgid (gid);
   unblock_input ();
@@ -3335,17 +3248,15 @@ system_process_attributes (Lisp_Object pid)
 	  state_str[0] = c;
 	  state_str[1] = '\0';
 	  attrs = Fcons (Fcons (Qstate, build_string (state_str)), attrs);
-	  attrs = Fcons (Fcons (Qppid, make_fixnum_or_float (ppid)), attrs);
-	  attrs = Fcons (Fcons (Qpgrp, make_fixnum_or_float (pgrp)), attrs);
-	  attrs = Fcons (Fcons (Qsess, make_fixnum_or_float (sess)), attrs);
+	  attrs = Fcons (Fcons (Qppid, INT_TO_INTEGER (ppid)), attrs);
+	  attrs = Fcons (Fcons (Qpgrp, INT_TO_INTEGER (pgrp)), attrs);
+	  attrs = Fcons (Fcons (Qsess, INT_TO_INTEGER (sess)), attrs);
 	  attrs = Fcons (Fcons (Qttname, procfs_ttyname (tty)), attrs);
-	  attrs = Fcons (Fcons (Qtpgid, make_fixnum_or_float (tpgid)), attrs);
-	  attrs = Fcons (Fcons (Qminflt, make_fixnum_or_float (minflt)), attrs);
-	  attrs = Fcons (Fcons (Qmajflt, make_fixnum_or_float (majflt)), attrs);
-	  attrs = Fcons (Fcons (Qcminflt, make_fixnum_or_float (cminflt)),
-			 attrs);
-	  attrs = Fcons (Fcons (Qcmajflt, make_fixnum_or_float (cmajflt)),
-			 attrs);
+	  attrs = Fcons (Fcons (Qtpgid, INT_TO_INTEGER (tpgid)), attrs);
+	  attrs = Fcons (Fcons (Qminflt, INT_TO_INTEGER (minflt)), attrs);
+	  attrs = Fcons (Fcons (Qmajflt, INT_TO_INTEGER (majflt)), attrs);
+	  attrs = Fcons (Fcons (Qcminflt, INT_TO_INTEGER (cminflt)), attrs);
+	  attrs = Fcons (Fcons (Qcmajflt, INT_TO_INTEGER (cmajflt)), attrs);
 	  clocks_per_sec = sysconf (_SC_CLK_TCK);
 	  if (clocks_per_sec < 0)
 	    clocks_per_sec = 100;
@@ -3371,17 +3282,15 @@ system_process_attributes (Lisp_Object pid)
 			 attrs);
 	  attrs = Fcons (Fcons (Qpri, make_fixnum (priority)), attrs);
 	  attrs = Fcons (Fcons (Qnice, make_fixnum (niceness)), attrs);
-	  attrs = Fcons (Fcons (Qthcount, make_fixnum_or_float (thcount)),
-			 attrs);
+	  attrs = Fcons (Fcons (Qthcount, INT_TO_INTEGER (thcount)), attrs);
 	  tnow = current_timespec ();
 	  telapsed = get_up_time ();
 	  tboot = timespec_sub (tnow, telapsed);
 	  tstart = time_from_jiffies (start, clocks_per_sec);
 	  tstart = timespec_add (tboot, tstart);
 	  attrs = Fcons (Fcons (Qstart, make_lisp_time (tstart)), attrs);
-	  attrs = Fcons (Fcons (Qvsize, make_fixnum_or_float (vsize / 1024)),
-			 attrs);
-	  attrs = Fcons (Fcons (Qrss, make_fixnum_or_float (4 * rss)), attrs);
+	  attrs = Fcons (Fcons (Qvsize, INT_TO_INTEGER (vsize / 1024)), attrs);
+	  attrs = Fcons (Fcons (Qrss, INT_TO_INTEGER (4 * rss)), attrs);
 	  telapsed = timespec_sub (tnow, tstart);
 	  attrs = Fcons (Fcons (Qetime, make_lisp_time (telapsed)), attrs);
 	  us_time = time_from_jiffies (u_time + s_time, clocks_per_sec);
@@ -3422,7 +3331,7 @@ system_process_attributes (Lisp_Object pid)
 
       if (nread)
 	{
-	  /* We don't want trailing null characters.  */
+	  /* We don't want trailing NUL characters.  */
 	  for (p = cmdline + nread; cmdline < p && !p[-1]; p--)
 	    continue;
 
@@ -3488,22 +3397,22 @@ system_process_attributes (Lisp_Object pid)
   struct psinfo pinfo;
   int fd;
   ssize_t nread;
-  printmax_t proc_id;
+  intmax_t proc_id;
   uid_t uid;
   gid_t gid;
   Lisp_Object attrs = Qnil;
   Lisp_Object decoded_cmd;
   ptrdiff_t count;
 
-  CHECK_FIXNUM_OR_FLOAT (pid);
+  CHECK_NUMBER (pid);
   CONS_TO_INTEGER (pid, pid_t, proc_id);
-  sprintf (procfn, "/proc/%"pMd, proc_id);
+  sprintf (procfn, "/proc/%"PRIdMAX, proc_id);
   if (stat (procfn, &st) < 0)
     return attrs;
 
   /* euid egid */
   uid = st.st_uid;
-  attrs = Fcons (Fcons (Qeuid, make_fixnum_or_float (uid)), attrs);
+  attrs = Fcons (Fcons (Qeuid, INT_TO_INTEGER (uid)), attrs);
   block_input ();
   pw = getpwuid (uid);
   unblock_input ();
@@ -3511,7 +3420,7 @@ system_process_attributes (Lisp_Object pid)
     attrs = Fcons (Fcons (Quser, build_string (pw->pw_name)), attrs);
 
   gid = st.st_gid;
-  attrs = Fcons (Fcons (Qegid, make_fixnum_or_float (gid)), attrs);
+  attrs = Fcons (Fcons (Qegid, INT_TO_INTEGER (gid)), attrs);
   block_input ();
   gr = getgrgid (gid);
   unblock_input ();
@@ -3533,9 +3442,9 @@ system_process_attributes (Lisp_Object pid)
 
   if (nread == sizeof pinfo)
     {
-      attrs = Fcons (Fcons (Qppid, make_fixnum_or_float (pinfo.pr_ppid)), attrs);
-      attrs = Fcons (Fcons (Qpgrp, make_fixnum_or_float (pinfo.pr_pgid)), attrs);
-      attrs = Fcons (Fcons (Qsess, make_fixnum_or_float (pinfo.pr_sid)), attrs);
+      attrs = Fcons (Fcons (Qppid, INT_TO_INTEGER (pinfo.pr_ppid)), attrs);
+      attrs = Fcons (Fcons (Qpgrp, INT_TO_INTEGER (pinfo.pr_pgid)), attrs);
+      attrs = Fcons (Fcons (Qsess, INT_TO_INTEGER (pinfo.pr_sid)), attrs);
 
       {
 	char state_str[2];
@@ -3565,14 +3474,11 @@ system_process_attributes (Lisp_Object pid)
       attrs = Fcons (Fcons (Qctime, make_lisp_time (pinfo.pr_ctime)), attrs);
       attrs = Fcons (Fcons (Qpri, make_fixnum (pinfo.pr_lwp.pr_pri)), attrs);
       attrs = Fcons (Fcons (Qnice, make_fixnum (pinfo.pr_lwp.pr_nice)), attrs);
-      attrs = Fcons (Fcons (Qthcount, make_fixnum_or_float (pinfo.pr_nlwp)),
-		     attrs);
+      attrs = Fcons (Fcons (Qthcount, INT_TO_INTEGER (pinfo.pr_nlwp)), attrs);
 
       attrs = Fcons (Fcons (Qstart, make_lisp_time (pinfo.pr_start)), attrs);
-      attrs = Fcons (Fcons (Qvsize, make_fixnum_or_float (pinfo.pr_size)),
-		     attrs);
-      attrs = Fcons (Fcons (Qrss, make_fixnum_or_float (pinfo.pr_rssize)),
-		     attrs);
+      attrs = Fcons (Fcons (Qvsize, INT_TO_INTEGER (pinfo.pr_size)), attrs);
+      attrs = Fcons (Fcons (Qrss, INT_TO_INTEGER (pinfo.pr_rssize)), attrs);
 
       /* pr_pctcpu and pr_pctmem are unsigned integers in the
 	 range 0 .. 2**15, representing 0.0 .. 1.0.  */
@@ -3597,18 +3503,6 @@ system_process_attributes (Lisp_Object pid)
 
 #elif defined __FreeBSD__
 
-static struct timespec
-timeval_to_timespec (struct timeval t)
-{
-  return make_timespec (t.tv_sec, t.tv_usec * 1000);
-}
-
-static Lisp_Object
-make_lisp_timeval (struct timeval t)
-{
-  return make_lisp_time (timeval_to_timespec (t));
-}
-
 Lisp_Object
 system_process_attributes (Lisp_Object pid)
 {
@@ -3630,14 +3524,14 @@ system_process_attributes (Lisp_Object pid)
   Lisp_Object attrs = Qnil;
   Lisp_Object decoded_comm;
 
-  CHECK_FIXNUM_OR_FLOAT (pid);
+  CHECK_NUMBER (pid);
   CONS_TO_INTEGER (pid, int, proc_id);
   mib[3] = proc_id;
 
-  if (sysctl (mib, 4, &proc, &proclen, NULL, 0) != 0)
+  if (sysctl (mib, 4, &proc, &proclen, NULL, 0) != 0 || proclen == 0)
     return attrs;
 
-  attrs = Fcons (Fcons (Qeuid, make_fixnum_or_float (proc.ki_uid)), attrs);
+  attrs = Fcons (Fcons (Qeuid, INT_TO_INTEGER (proc.ki_uid)), attrs);
 
   block_input ();
   pw = getpwuid (proc.ki_uid);
@@ -3645,7 +3539,7 @@ system_process_attributes (Lisp_Object pid)
   if (pw)
     attrs = Fcons (Fcons (Quser, build_string (pw->pw_name)), attrs);
 
-  attrs = Fcons (Fcons (Qegid, make_fixnum_or_float (proc.ki_svgid)), attrs);
+  attrs = Fcons (Fcons (Qegid, INT_TO_INTEGER (proc.ki_svgid)), attrs);
 
   block_input ();
   gr = getgrgid (proc.ki_svgid);
@@ -3684,9 +3578,9 @@ system_process_attributes (Lisp_Object pid)
     attrs = Fcons (Fcons (Qstate, build_string (state)), attrs);
   }
 
-  attrs = Fcons (Fcons (Qppid, make_fixnum_or_float (proc.ki_ppid)), attrs);
-  attrs = Fcons (Fcons (Qpgrp, make_fixnum_or_float (proc.ki_pgid)), attrs);
-  attrs = Fcons (Fcons (Qsess, make_fixnum_or_float (proc.ki_sid)),  attrs);
+  attrs = Fcons (Fcons (Qppid, INT_TO_INTEGER (proc.ki_ppid)), attrs);
+  attrs = Fcons (Fcons (Qpgrp, INT_TO_INTEGER (proc.ki_pgid)), attrs);
+  attrs = Fcons (Fcons (Qsess, INT_TO_INTEGER (proc.ki_sid)),  attrs);
 
   block_input ();
   ttyname = proc.ki_tdev == NODEV ? NULL : devname (proc.ki_tdev, S_IFCHR);
@@ -3694,9 +3588,11 @@ system_process_attributes (Lisp_Object pid)
   if (ttyname)
     attrs = Fcons (Fcons (Qtty, build_string (ttyname)), attrs);
 
-  attrs = Fcons (Fcons (Qtpgid,   make_fixnum_or_float (proc.ki_tpgid)), attrs);
-  attrs = Fcons (Fcons (Qminflt,  make_fixnum_or_float (proc.ki_rusage.ru_minflt)), attrs);
-  attrs = Fcons (Fcons (Qmajflt,  make_fixnum_or_float (proc.ki_rusage.ru_majflt)), attrs);
+  attrs = Fcons (Fcons (Qtpgid,   INT_TO_INTEGER (proc.ki_tpgid)), attrs);
+  attrs = Fcons (Fcons (Qminflt,  INT_TO_INTEGER (proc.ki_rusage.ru_minflt)),
+		 attrs);
+  attrs = Fcons (Fcons (Qmajflt,  INT_TO_INTEGER (proc.ki_rusage.ru_majflt)),
+		 attrs);
   attrs = Fcons (Fcons (Qcminflt, make_fixnum (proc.ki_rusage_ch.ru_minflt)), attrs);
   attrs = Fcons (Fcons (Qcmajflt, make_fixnum (proc.ki_rusage_ch.ru_majflt)), attrs);
 
@@ -3718,8 +3614,7 @@ system_process_attributes (Lisp_Object pid)
 		    timeval_to_timespec (proc.ki_rusage_ch.ru_stime));
   attrs = Fcons (Fcons (Qctime, make_lisp_time (t)), attrs);
 
-  attrs = Fcons (Fcons (Qthcount, make_fixnum_or_float (proc.ki_numthreads)),
-		 attrs);
+  attrs = Fcons (Fcons (Qthcount, INT_TO_INTEGER (proc.ki_numthreads)), attrs);
   attrs = Fcons (Fcons (Qpri,   make_fixnum (proc.ki_pri.pri_native)), attrs);
   attrs = Fcons (Fcons (Qnice,  make_fixnum (proc.ki_nice)), attrs);
   attrs = Fcons (Fcons (Qstart, make_lisp_timeval (proc.ki_start)), attrs);
@@ -3741,7 +3636,7 @@ system_process_attributes (Lisp_Object pid)
       	{
       	  pcpu = (100.0 * proc.ki_pctcpu / fscale
 		  / (1 - exp (proc.ki_swtime * log ((double) ccpu / fscale))));
-  	  attrs = Fcons (Fcons (Qpcpu, make_fixnum_or_float (pcpu)), attrs);
+	  attrs = Fcons (Fcons (Qpcpu, INT_TO_INTEGER (pcpu)), attrs);
       	}
     }
 
@@ -3751,12 +3646,12 @@ system_process_attributes (Lisp_Object pid)
       double pmem = (proc.ki_flag & P_INMEM
 		     ? 100.0 * proc.ki_rssize / npages
 		     : 0);
-      attrs = Fcons (Fcons (Qpmem, make_fixnum_or_float (pmem)), attrs);
+      attrs = Fcons (Fcons (Qpmem, INT_TO_INTEGER (pmem)), attrs);
     }
 
   mib[2] = KERN_PROC_ARGS;
   len = MAXPATHLEN;
-  if (sysctl (mib, 4, args, &len, NULL, 0) == 0)
+  if (sysctl (mib, 4, args, &len, NULL, 0) == 0 && len != 0)
     {
       int i;
       for (i = 0; i < len; i++)
@@ -3776,18 +3671,6 @@ system_process_attributes (Lisp_Object pid)
 }
 
 #elif defined DARWIN_OS
-
-static struct timespec
-timeval_to_timespec (struct timeval t)
-{
-  return make_timespec (t.tv_sec, t.tv_usec * 1000);
-}
-
-static Lisp_Object
-make_lisp_timeval (struct timeval t)
-{
-  return make_lisp_time (timeval_to_timespec (t));
-}
 
 Lisp_Object
 system_process_attributes (Lisp_Object pid)
@@ -3810,15 +3693,15 @@ system_process_attributes (Lisp_Object pid)
   Lisp_Object attrs = Qnil;
   Lisp_Object decoded_comm;
 
-  CHECK_FIXNUM_OR_FLOAT (pid);
+  CHECK_NUMBER (pid);
   CONS_TO_INTEGER (pid, int, proc_id);
   mib[3] = proc_id;
 
-  if (sysctl (mib, 4, &proc, &proclen, NULL, 0) != 0)
+  if (sysctl (mib, 4, &proc, &proclen, NULL, 0) != 0 || proclen == 0)
     return attrs;
 
   uid = proc.kp_eproc.e_ucred.cr_uid;
-  attrs = Fcons (Fcons (Qeuid, make_fixnum_or_float (uid)), attrs);
+  attrs = Fcons (Fcons (Qeuid, INT_TO_INTEGER (uid)), attrs);
 
   block_input ();
   pw = getpwuid (uid);
@@ -3827,7 +3710,7 @@ system_process_attributes (Lisp_Object pid)
     attrs = Fcons (Fcons (Quser, build_string (pw->pw_name)), attrs);
 
   gid = proc.kp_eproc.e_pcred.p_svgid;
-  attrs = Fcons (Fcons (Qegid, make_fixnum_or_float (gid)), attrs);
+  attrs = Fcons (Fcons (Qegid, INT_TO_INTEGER (gid)), attrs);
 
   block_input ();
   gr = getgrgid (gid);
@@ -3835,8 +3718,21 @@ system_process_attributes (Lisp_Object pid)
   if (gr)
     attrs = Fcons (Fcons (Qgroup, build_string (gr->gr_name)), attrs);
 
+  char pathbuf[PROC_PIDPATHINFO_MAXSIZE];
+  char *comm;
+
+  if (proc_pidpath (proc_id, pathbuf, sizeof(pathbuf)) > 0)
+    {
+      if ((comm = strrchr (pathbuf, '/')))
+        comm++;
+      else
+        comm = pathbuf;
+    }
+  else
+    comm = proc.kp_proc.p_comm;
+
   decoded_comm = (code_convert_string_norecord
-		  (build_unibyte_string (proc.kp_proc.p_comm),
+		  (build_unibyte_string (comm),
 		   Vlocale_coding_system, 0));
 
   attrs = Fcons (Fcons (Qcomm, decoded_comm), attrs);
@@ -3867,10 +3763,8 @@ system_process_attributes (Lisp_Object pid)
     attrs = Fcons (Fcons (Qstate, build_string (state)), attrs);
   }
 
-  attrs = Fcons (Fcons (Qppid, make_fixnum_or_float (proc.kp_eproc.e_ppid)),
-		 attrs);
-  attrs = Fcons (Fcons (Qpgrp, make_fixnum_or_float (proc.kp_eproc.e_pgid)),
-		 attrs);
+  attrs = Fcons (Fcons (Qppid, INT_TO_INTEGER (proc.kp_eproc.e_ppid)), attrs);
+  attrs = Fcons (Fcons (Qpgrp, INT_TO_INTEGER (proc.kp_eproc.e_pgid)), attrs);
 
   tdev = proc.kp_eproc.e_tdev;
   block_input ();
@@ -3879,15 +3773,15 @@ system_process_attributes (Lisp_Object pid)
   if (ttyname)
     attrs = Fcons (Fcons (Qtty, build_string (ttyname)), attrs);
 
-  attrs = Fcons (Fcons (Qtpgid,   make_fixnum_or_float (proc.kp_eproc.e_tpgid)),
+  attrs = Fcons (Fcons (Qtpgid, INT_TO_INTEGER (proc.kp_eproc.e_tpgid)),
 		 attrs);
 
   rusage = proc.kp_proc.p_ru;
   if (rusage)
     {
-      attrs = Fcons (Fcons (Qminflt,  make_fixnum_or_float (rusage->ru_minflt)),
+      attrs = Fcons (Fcons (Qminflt, INT_TO_INTEGER (rusage->ru_minflt)),
 		     attrs);
-      attrs = Fcons (Fcons (Qmajflt,  make_fixnum_or_float (rusage->ru_majflt)),
+      attrs = Fcons (Fcons (Qmajflt, INT_TO_INTEGER (rusage->ru_majflt)),
 		     attrs);
 
       attrs = Fcons (Fcons (Qutime, make_lisp_timeval (rusage->ru_utime)),
@@ -3921,6 +3815,42 @@ system_process_attributes (Lisp_Object pid)
 }
 
 #endif	/* !defined (WINDOWSNT) */
+
+DEFUN ("get-internal-run-time", Fget_internal_run_time, Sget_internal_run_time,
+       0, 0, 0,
+       doc: /* Return the current run time used by Emacs.
+The time is returned as in the style of `current-time'.
+
+On systems that can't determine the run time, `get-internal-run-time'
+does the same thing as `current-time'.  */)
+  (void)
+{
+#ifdef HAVE_GETRUSAGE
+  struct rusage usage;
+  time_t secs;
+  int usecs;
+
+  if (getrusage (RUSAGE_SELF, &usage) < 0)
+    /* This shouldn't happen.  What action is appropriate?  */
+    xsignal0 (Qerror);
+
+  /* Sum up user time and system time.  */
+  secs = usage.ru_utime.tv_sec + usage.ru_stime.tv_sec;
+  usecs = usage.ru_utime.tv_usec + usage.ru_stime.tv_usec;
+  if (usecs >= 1000000)
+    {
+      usecs -= 1000000;
+      secs++;
+    }
+  return make_lisp_time (make_timespec (secs, usecs * 1000));
+#else /* ! HAVE_GETRUSAGE  */
+#ifdef WINDOWSNT
+  return w32_get_internal_run_time ();
+#else /* ! WINDOWSNT  */
+  return Fcurrent_time ();
+#endif /* WINDOWSNT  */
+#endif /* HAVE_GETRUSAGE  */
+}
 
 /* Wide character string collation.  */
 
@@ -4052,14 +3982,20 @@ str_collate (Lisp_Object s1, Lisp_Object s2,
   len = SCHARS (s1); i = i_byte = 0;
   SAFE_NALLOCA (p1, 1, len + 1);
   while (i < len)
-    FETCH_STRING_CHAR_ADVANCE (*(p1+i-1), s1, i, i_byte);
-  *(p1+len) = 0;
+    {
+      wchar_t *p = &p1[i];
+      *p = fetch_string_char_advance (s1, &i, &i_byte);
+    }
+  p1[len] = 0;
 
   len = SCHARS (s2); i = i_byte = 0;
   SAFE_NALLOCA (p2, 1, len + 1);
   while (i < len)
-    FETCH_STRING_CHAR_ADVANCE (*(p2+i-1), s2, i, i_byte);
-  *(p2+len) = 0;
+    {
+      wchar_t *p = &p2[i];
+      *p = fetch_string_char_advance (s2, &i, &i_byte);
+    }
+  p2[len] = 0;
 
   if (STRINGP (locale))
     {
@@ -4126,3 +4062,9 @@ str_collate (Lisp_Object s1, Lisp_Object s2,
   return res;
 }
 #endif	/* WINDOWSNT */
+
+void
+syms_of_sysdep (void)
+{
+  defsubr (&Sget_internal_run_time);
+}

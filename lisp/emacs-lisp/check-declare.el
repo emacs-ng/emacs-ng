@@ -1,8 +1,9 @@
-;;; check-declare.el --- Check declare-function statements
+;;; check-declare.el --- Check declare-function statements  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2007-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2020 Free Software Foundation, Inc.
 
 ;; Author: Glenn Morris <rgm@gnu.org>
+;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: lisp, tools, maint
 
 ;; This file is part of GNU Emacs.
@@ -33,7 +34,7 @@
 ;;; TODO:
 
 ;; 1. Warn about functions marked as obsolete, eg
-;; password-read-and-add in smime.el.
+;; password-read-and-add in password-cache.el.
 ;; 2. defmethod, defclass argument checking.
 ;; 3. defclass also defines -p and -child-p.
 
@@ -148,7 +149,7 @@ is a string giving details of the error."
           (setq re (format (if cflag
                                "^[ \t]*\\(DEFUN\\)[ \t]*([ \t]*\"%s\""
                              "^[ \t]*(\\(fset[ \t]+'\\|\
-cl-def\\(?:generic\\|method\\)\\|\
+cl-def\\(?:generic\\|method\\|un\\)\\|\
 def\\(?:un\\|subst\\|foo\\|method\\|class\\|\
 ine-\\(?:derived\\|generic\\|\\(?:global\\(?:ized\\)?-\\)?minor\\)-mode\\|\
 \\(?:ine-obsolete-function-\\)?alias[ \t]+'\\|\
@@ -248,7 +249,7 @@ TYPE is a string giving the nature of the error.
 Optional LINE is the claim's line number; otherwise, search for the claim.
 Display warning in `check-declare-warning-buffer'."
   (let ((warning-prefix-function
-         (lambda (level entry)
+         (lambda (_level entry)
 	   (insert (format "%s:%d:" (file-relative-name file) (or line 0)))
            entry))
         (warning-fill-prefix "    "))
