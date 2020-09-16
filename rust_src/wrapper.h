@@ -52,7 +52,7 @@
 #include "termhooks.h"
 #include "termopts.h"
 #include "thread.h"
-#include "tparam.h"
+/* #include "tparam.h" */
 #include "unexec.h"
 #ifdef HAVE_X_WINDOWS
 # include "widget.h"

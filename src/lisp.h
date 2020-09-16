@@ -3027,7 +3027,7 @@ CHECK_INTEGER (Lisp_Object x)
   static union Aligned_Lisp_Subr sname =                                \
      {{{ PVEC_SUBR << PSEUDOVECTOR_AREA_BITS },				\
        { .a ## maxargs = fnname },					\
-       minargs, maxargs, lname, intspec, 0, Lisp_Subr_Lang_C }};		\
+       minargs, maxargs, lname, intspec, 0 }};		\
    Lisp_Object fnname
 
 /* defsubr (Sname);

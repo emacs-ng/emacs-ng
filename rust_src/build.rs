@@ -487,19 +487,19 @@ fn generate_include_files() -> Result<(), BuildError> {
 }
 
 fn main() {
-    for varname in ["EMACS_CFLAGS", "SRC_HASH"].iter() {
-        println!("cargo:rerun-if-env-changed={}", varname);
-    }
+    // for varname in ["EMACS_CFLAGS", "SRC_HASH"].iter() {
+    //     println!("cargo:rerun-if-env-changed={}", varname);
+    // }
 
-    if let Err(e) = generate_include_files() {
-        match e {
-            BuildError::IOError(msg) => {
-                eprintln!("{}", msg);
-                process::exit(3);
-            }
-            BuildError::Lint(msg) => {
-                msg.fail(1);
-            }
-        }
-    }
+    // if let Err(e) = generate_include_files() {
+    //     match e {
+    //         BuildError::IOError(msg) => {
+    //             eprintln!("{}", msg);
+    //             process::exit(3);
+    //         }
+    //         BuildError::Lint(msg) => {
+    //             msg.fail(1);
+    //         }
+    //     }
+    // }
 }

@@ -1553,9 +1553,9 @@ If this is nil, no message will be displayed."
 (defconst fancy-startup-text
   `((:face (variable-pitch font-lock-comment-face)
      "Welcome to "
-     :link ("Remacs"
-	    ,(lambda (_button) (browse-url "https://github.com/Wilfred/remacs/"))
-	    "Browse https://github.com/Wilfred/remacs/")
+     :link ("GNU Emacs"
+	    ,(lambda (_button) (browse-url "https://www.gnu.org/software/emacs/"))
+	    "Browse https://www.gnu.org/software/emacs/")
      ", one component of the "
      :link
      ,(lambda ()
@@ -2013,7 +2013,7 @@ splash screen in another window."
       ;; The convention for this piece of code is that
       ;; each piece of output starts with one or two newlines
       ;; and does not end with any newlines.
-      (insert (if startup "Welcome to Remacs" "This is Remacs"))
+      (insert (if startup "Welcome to GNU Emacs" "This is GNU Emacs"))
       (insert
        (if (eq system-type 'gnu/linux)
 	   ", one component of the GNU/Linux operating system.\n"

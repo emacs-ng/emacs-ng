@@ -317,9 +317,9 @@ GZIP_PROG = @GZIP_PROG@
 TRANSFORM = @program_transform_name@
 
 # What emacs should be called when installed.
-EMACS_NAME = `echo remacs | sed '$(TRANSFORM)'`
+EMACS_NAME = `echo emacs | sed '$(TRANSFORM)'`
 EMACS = ${EMACS_NAME}${EXEEXT}
-EMACSFULL = `echo remacs-${version} | sed '$(TRANSFORM)'`${EXEEXT}
+EMACSFULL = `echo emacs-${version} | sed '$(TRANSFORM)'`${EXEEXT}
 
 # Subdirectories to make recursively.
 SUBDIR = $(NTDIR) lib lib-src src lisp
@@ -504,7 +504,7 @@ install-arch-dep: src install-arch-indep install-etcdoc install-$(NTDIR)
 	umask 022; ${MKDIR_P} "$(DESTDIR)${bindir}"
 	$(MAKE) -C lib-src install
 ifeq (${ns_self_contained},no)
-	${INSTALL_PROGRAM} $(INSTALL_STRIP) src/remacs${EXEEXT} "$(DESTDIR)${bindir}/$(EMACSFULL)"
+	${INSTALL_PROGRAM} $(INSTALL_STRIP) src/emacs${EXEEXT} "$(DESTDIR)${bindir}/$(EMACSFULL)"
 ifeq (${DUMPING},pdumper)
 	${INSTALL_DATA} src/emacs.pdmp "$(DESTDIR)${libexecdir}/emacs/${version}/${configuration}"/emacs.pdmp
 endif
@@ -623,9 +623,9 @@ install-arch-indep: lisp install-info install-man ${INSTALL_ARCH_INDEP_EXTRA}
 	done
 	-rm -f "$(DESTDIR)${lispdir}/subdirs.el"
 	umask 022; $(srcdir)/build-aux/update-subdirs "$(DESTDIR)${lispdir}"
-	subdir="$(DESTDIR)${datadir}/remacs/${version}/site-lisp" ; \
+	subdir="$(DESTDIR)${datadir}/emacs/${version}/site-lisp" ; \
 	  ${write_subdir}
-	subdir="$(DESTDIR)${datadir}/remacs/site-lisp" ; \
+	subdir="$(DESTDIR)${datadir}/emacs/site-lisp" ; \
 	  ${write_subdir} || true
 	[ -z "${GZIP_PROG}" ] || { \
 	  echo "Compressing *.el etc. ..." && \
@@ -635,7 +635,7 @@ install-arch-indep: lisp install-info install-man ${INSTALL_ARCH_INDEP_EXTRA}
 	  done; \
 	  ${GZIP_PROG} -9n "../etc/publicsuffix.txt"; \
 	}
-	-chmod -R a+r "$(DESTDIR)${datadir}/remacs/${version}" ${COPYDESTS}
+	-chmod -R a+r "$(DESTDIR)${datadir}/emacs/${version}" ${COPYDESTS}
 
 ## The above chmods are needed because "umask 022; tar ..." is not
 ## guaranteed to do the right thing; eg if we are root and tar is
@@ -722,7 +722,7 @@ install-etc:
 	tmp=etc/emacs.tmpdesktop; rm -f $${tmp}; \
 	sed -e "/^Exec=emacs/ s/emacs/${EMACS_NAME}/" \
 	  -e "/^Icon=emacs/ s/emacs/${EMACS_NAME}/" \
-	  ${srcdir}/etc/remacs.desktop > $${tmp}; \
+	  ${srcdir}/etc/emacs.desktop > $${tmp}; \
 	${INSTALL_DATA} $${tmp} "$(DESTDIR)${desktopdir}/${EMACS_NAME}.desktop"; \
 	rm -f $${tmp}
 	tmp=etc/emacsclient.tmpdesktop; rm -f $${tmp}; \
@@ -733,19 +733,19 @@ install-etc:
 	${INSTALL_DATA} $${tmp} "$(DESTDIR)${desktopdir}/$${client_name}.desktop"; \
 	rm -f $${tmp}
 	umask 022; ${MKDIR_P} "$(DESTDIR)${appdatadir}"
-	tmp=etc/remacs.tmpappdata; rm -f $${tmp}; \
-	sed -e "s/remacs\.desktop/${EMACS_NAME}.desktop/" \
-	  ${srcdir}/etc/remacs.appdata.xml > $${tmp}; \
+	tmp=etc/emacs.tmpappdata; rm -f $${tmp}; \
+	sed -e "s/emacs\.desktop/${EMACS_NAME}.desktop/" \
+	  ${srcdir}/etc/emacs.appdata.xml > $${tmp}; \
 	${INSTALL_DATA} $${tmp} "$(DESTDIR)${appdatadir}/${EMACS_NAME}.appdata.xml"; \
 	rm -f $${tmp}
 	umask 022; $(MKDIR_P) "$(DESTDIR)$(systemdunitdir)"
 	tmp=etc/emacs.tmpservice; rm -f $${tmp}; \
-	client_name=`echo remacsclient | sed '$(TRANSFORM)'`${EXEEXT}; \
+	client_name=`echo emacsclient | sed '$(TRANSFORM)'`${EXEEXT}; \
 	sed -e '/^##/d' \
 	  -e "/^Documentation/ s/emacs(1)/${EMACS_NAME}(1)/" \
-	  -e "/^ExecStart/ s|remacs|${bindir}/${EMACS}|" \
-	  -e "/^ExecStop/ s|remacsclient|${bindir}/$${client_name}|" \
-	  ${srcdir}/etc/remacs.service > $${tmp}; \
+	  -e "/^ExecStart/ s|emacs|${bindir}/${EMACS}|" \
+	  -e "/^ExecStop/ s|emacsclient|${bindir}/$${client_name}|" \
+	  ${srcdir}/etc/emacs.service > $${tmp}; \
 	$(INSTALL_DATA) $${tmp} "$(DESTDIR)$(systemdunitdir)/${EMACS_NAME}.service"; \
 	rm -f $${tmp}
 	thisdir=`/bin/pwd`; \
@@ -756,7 +756,7 @@ install-etc:
 	  for icon in $${dir}/${EMACS_ICON}[.-]*; do \
 	    [ -r $${icon} ] || continue ; \
 	    ext=`echo "$${icon}" | sed -e 's|.*\.||'`; \
-	    dest=`echo "$${icon}" | sed -e 's|.*/||' -e "s|\\.$${ext}\$$||" -e 's/$(EMACS_ICON)/remacs/' -e '$(TRANSFORM)'`.$${ext} ; \
+	    dest=`echo "$${icon}" | sed -e 's|.*/||' -e "s|\\.$${ext}\$$||" -e 's/$(EMACS_ICON)/emacs/' -e '$(TRANSFORM)'`.$${ext} ; \
 	    ( cd "$${thisdir}"; \
 	      ${INSTALL_DATA} ${iconsrcdir}/$${icon} "$(DESTDIR)${icondir}/$${dir}/$${dest}" ) \
 	    || exit 1; \
@@ -782,13 +782,13 @@ uninstall: uninstall-$(NTDIR) uninstall-doc
 	      * ) rm -rf "$${dir}" ;;			\
 	    esac ;					\
 	    case "$${dir}" in				\
-	      "$(DESTDIR)${datadir}/remacs/${version}"/* )		\
-	        rm -rf "$(DESTDIR)${datadir}/remacs/${version}"	\
+	      "$(DESTDIR)${datadir}/emacs/${version}"/* )		\
+	        rm -rf "$(DESTDIR)${datadir}/emacs/${version}"	\
 	      ;;					\
 	    esac ;					\
 	  fi ;						\
 	done
-	-rm -rf "$(DESTDIR)${libexecdir}/remacs/${version}"
+	-rm -rf "$(DESTDIR)${libexecdir}/emacs/${version}"
 	thisdir=`/bin/pwd`; \
 	(info_misc=`$(MAKE) --no-print-directory -s -C doc/misc echo-info`; \
 	 if cd "$(DESTDIR)${infodir}"; then \
@@ -848,7 +848,7 @@ endef
 ###      normally don't want to recompile.  For example, the 'mostlyclean'
 ###      target for GCC does not delete 'libgcc.a', because recompiling it
 ###      is rarely necessary and takes a lot of time.
-mostlyclean_dirs = src lib lib-src nt doc/emacs doc/misc \
+mostlyclean_dirs = src oldXMenu lwlib lib lib-src nt doc/emacs doc/misc \
   doc/lispref doc/lispintro
 
 $(foreach dir,$(mostlyclean_dirs),$(eval $(call submake_template,$(dir),mostlyclean)))
@@ -864,7 +864,7 @@ mostlyclean: $(mostlyclean_dirs:=_mostlyclean)
 ###      with them.
 ###
 ###      Delete '.dvi' files here if they are not part of the distribution.
-clean_dirs = $(mostlyclean_dirs) nextstep lisp admin/unidata
+clean_dirs = $(mostlyclean_dirs) nextstep
 
 $(foreach dir,$(clean_dirs),$(eval $(call submake_template,$(dir),clean)))
 
@@ -892,7 +892,7 @@ top_distclean=\
 	rm -f config.status config.log~ \
 	  Makefile makefile lib/gnulib.mk ${SUBDIR_MAKEFILES}
 
-distclean_dirs = $(clean_dirs) leim
+distclean_dirs = $(clean_dirs) leim lisp
 
 $(foreach dir,$(distclean_dirs),$(eval $(call submake_template,$(dir),distclean)))
 
@@ -1199,7 +1199,7 @@ change-history-commit:
 .PHONY: check-declare
 
 check-declare:
-	@if [ ! -f $(srcdir)/src/remacs ]; then \
+	@if [ ! -f $(srcdir)/src/emacs ]; then \
 	  echo "You must build Emacs to use this command"; \
 	  exit 1; \
 	fi

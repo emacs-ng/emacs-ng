@@ -74,7 +74,7 @@ am__v_at_1 =
 # We never change directory before running Emacs, so a relative file
 # name is fine, and makes life easier.  If we need to change
 # directory, we can use emacs --chdir.
-EMACS = ../src/remacs
+EMACS = ../src/emacs
 
 EMACS_EXTRAOPT=
 

@@ -155,17 +155,17 @@ command -v rustup >/dev/null 2>&1 || { echo >&2 "Remacs requires the rustup comm
 ## Return 3 for unexpected error
 check_rust_version ()
 {
-    remacs_version=$1
+    emacs_version=$1
 
     rustup_active_version=$(rustup show | awk '/active toolchain/ {getline; getline; getline; print}')
-    echo $rustup_active_version | grep $remacs_version >/dev/null && return 0
+    echo $rustup_active_version | grep $emacs_version >/dev/null && return 0
 
     if rustup show | grep -e "active\|installed toolchain" >/dev/null; then
         rustup_installed=$(rustup show | awk '/installed/{flag=1; next} /active/{flag=0} flag')
-        echo $rustup_installed | grep $remacs_version >/dev/null || return 1
+        echo $rustup_installed | grep $emacs_version >/dev/null || return 1
     else
         rustup_installed=$(rustup show | grep "overridden by")
-        if echo $rustup_installed | grep $remacs_version >/dev/null; then
+        if echo $rustup_installed | grep $emacs_version >/dev/null; then
             return 0
         else
             return 1
