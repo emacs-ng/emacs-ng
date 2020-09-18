@@ -49,7 +49,6 @@
 (require 'vc-bzr)
 (require 'vc-git)
 (require 'vc-hg)
-(require 'subr-x)
 
 (declare-function tramp-find-executable "tramp-sh")
 (declare-function tramp-get-remote-chmod-h "tramp-sh")
@@ -3494,8 +3493,6 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
   ;; The semantics have changed heavily in Emacs 26.1.  We cannot test
   ;; older Emacsen, therefore.
   (skip-unless (tramp--test-emacs26-p))
-  ;; Remacs: skipped on OSX until fixed upstream.
-  (skip-unless (not (eq system-type 'darwin)))
 
   (dolist (quoted (if (tramp--test-expensive-test) '(nil t) '(nil)))
     ;; We must use `file-truename' for the temporary directory,
@@ -5047,7 +5044,7 @@ INPUT, if non-nil, is a string sent to the process."
 	  (should
 	   (string-match
 	    (number-to-string port)
-	    (string-trim (shell-command-to-string (format "echo $%s" envvar)))))))
+	    (shell-command-to-string (format "echo $%s" envvar))))))
 
     ;; Cleanup.
     (dolist (dir '("/mock:localhost#11111:" "/mock:localhost#22222:"))

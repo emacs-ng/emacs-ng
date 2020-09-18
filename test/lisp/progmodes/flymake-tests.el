@@ -91,8 +91,7 @@ SEVERITY-PREDICATE is used to setup
 
 (ert-deftest warning-predicate-rx-gcc ()
   "Test GCC warning via regexp predicate."
-  (skip-unless (and (executable-find "gcc") (executable-find "make")
-                    (not (eq system-type 'darwin))))
+  (skip-unless (and (executable-find "gcc") (executable-find "make")))
   (flymake-tests--with-flymake
       ("test.c" :severity-predicate "^[Ww]arning")
     (flymake-goto-next-error)
@@ -101,8 +100,7 @@ SEVERITY-PREDICATE is used to setup
 
 (ert-deftest warning-predicate-function-gcc ()
   "Test GCC warning via function predicate."
-  (skip-unless (and (executable-find "gcc") (executable-find "make")
-                    (not (eq system-type 'darwin))))
+  (skip-unless (and (executable-find "gcc") (executable-find "make")))
   (flymake-tests--with-flymake
       ("test.c" :severity-predicate
        (lambda (msg) (string-match "^[Ww]arning" msg)))
@@ -151,20 +149,20 @@ SEVERITY-PREDICATE is used to setup
                     (executable-find "make")))
   (let ((flymake-wrap-around nil))
     (flymake-tests--with-flymake
-     ("errors-and-warnings.c")
-     (flymake-goto-next-error)
-     (should (eq 'flymake-error (face-at-point)))
-     (flymake-goto-next-error)
-     (should (eq 'flymake-note (face-at-point)))
-     (flymake-goto-next-error)
-     (should (eq 'flymake-warning (face-at-point)))
-     (flymake-goto-next-error)
-     (should (eq 'flymake-error (face-at-point)))
-     (flymake-goto-next-error)
-     (should (eq 'flymake-warning (face-at-point)))
-     (flymake-goto-next-error)
-     (should (eq 'flymake-warning (face-at-point)))
-     (should-error (flymake-goto-next-error nil nil t)))))
+        ("errors-and-warnings.c")
+      (flymake-goto-next-error)
+      (should (eq 'flymake-error (face-at-point)))
+      (flymake-goto-next-error)
+      (should (eq 'flymake-note (face-at-point)))
+      (flymake-goto-next-error)
+      (should (eq 'flymake-warning (face-at-point)))
+      (flymake-goto-next-error)
+      (should (eq 'flymake-error (face-at-point)))
+      (flymake-goto-next-error)
+      (should (eq 'flymake-warning (face-at-point)))
+      (flymake-goto-next-error)
+      (should (eq 'flymake-warning (face-at-point)))
+      (should-error (flymake-goto-next-error nil nil t)))))
 
 (ert-deftest included-c-header-files ()
   "Test inclusion of .h header files."

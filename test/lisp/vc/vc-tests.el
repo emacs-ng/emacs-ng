@@ -232,7 +232,7 @@ Catch the `vc-not-supported' error."
 (defun vc-test--register (backend)
   "Register and unregister a file.
 This checks also `vc-backend' and `vc-responsible-backend'."
-  
+
   (let ((vc-handled-backends `(,backend))
 	(default-directory
 	  (file-name-as-directory
@@ -610,16 +610,11 @@ This checks also `vc-backend' and `vc-responsible-backend'."
 	     (ert-get-test
 	      ',(intern
 		 (format "vc-test-%s00-create-repo" backend-string))))))
-          ;; Skip for the time being on Remacs.
-          (skip-unless (not (eq system-type 'windows-nt)))
 	  (vc-test--register ',backend))
 
 	(ert-deftest
 	    ,(intern (format "vc-test-%s02-state" backend-string)) ()
 	  ,(format "Check `vc-state' for the %s backend." backend-string)
-          ;; Skipping on remacs until we figure out what's wrong.
-          ;; https://github.com/Wilfred/remacs/issues/99
-          (skip-unless (equal invocation-name "emacs"))
 	  (skip-unless
 	   (ert-test-passed-p
 	    (ert-test-most-recent-result
@@ -632,9 +627,6 @@ This checks also `vc-backend' and `vc-responsible-backend'."
 	    ,(intern (format "vc-test-%s03-working-revision" backend-string)) ()
 	  ,(format "Check `vc-working-revision' for the %s backend."
 		   backend-string)
-          ;; Skipping on remacs until we figure out what's wrong.
-          ;; https://github.com/Wilfred/remacs/issues/99
-          (skip-unless (equal invocation-name "emacs"))
 	  (skip-unless
 	   (ert-test-passed-p
 	    (ert-test-most-recent-result

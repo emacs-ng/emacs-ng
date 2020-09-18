@@ -32,7 +32,6 @@
 
 (ert-deftest dired-test-bug22694 ()
   "Test for https://debbugs.gnu.org/22694 ."
-  (skip-unless (not (eq system-type 'darwin)))
   (let* ((dir       (expand-file-name "bug22694" default-directory))
          (file      "test")
          (full-name (expand-file-name file dir))

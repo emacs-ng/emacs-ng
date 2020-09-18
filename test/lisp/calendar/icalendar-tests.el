@@ -465,10 +465,7 @@ END:VEVENT
 
 (ert-deftest icalendar--decode-isodatetime ()
   "Test `icalendar--decode-isodatetime'."
-  ;; Skip for the time being on Remacs.
-  (skip-unless (not (eq system-type 'windows-nt)))
-  (let ((tz (getenv "TZ"))
-	result)
+  (let ((tz (getenv "TZ")))
     (unwind-protect
 	(progn
 	  ;; Use Eastern European Time (UTC+2, UTC+3 daylight saving)

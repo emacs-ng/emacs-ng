@@ -174,7 +174,7 @@ a.out
 lib-src/blessmail
 lib-src/ctags
 lib-src/ebrowse
-lib-src/remacsclient
+lib-src/emacsclient
 lib-src/etags
 lib-src/hexl
 lib-src/make-docfile
@@ -183,14 +183,14 @@ lib-src/movemail
 lib-src/profile
 lib-src/test-distrib
 lib-src/update-game-score
-nextstep/Cocoa/Remacs.base/Contents/Info.plist
-nextstep/Cocoa/Remacs.base/Contents/Resources/English.lproj
-nextstep/Remacs.app/
-nextstep/GNUstep/Remacs.base/Resources/Emacs.desktop
-nextstep/GNUstep/Remacs.base/Resources/Info-gnustep.plist
+nextstep/Cocoa/Emacs.base/Contents/Info.plist
+nextstep/Cocoa/Emacs.base/Contents/Resources/English.lproj
+nextstep/Emacs.app/
+nextstep/GNUstep/Emacs.base/Resources/Emacs.desktop
+nextstep/GNUstep/Emacs.base/Resources/Info-gnustep.plist
 src/bootstrap-emacs
-src/remacs
-src/remacs-[0-9]*
+src/emacs
+src/emacs-[0-9]*
 src/temacs
 src/fingerprint.c
 src/dmpstruct.h
@@ -293,6 +293,3 @@ nt/emacs.rc
 nt/emacsclient.rc
 src/gdb.ini
 /var/
-
-# GDB
-.gdb_history

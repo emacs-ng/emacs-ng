@@ -74,7 +74,7 @@ XKBOARD_OBJFWD (lispfwd a)
   eassert (KBOARD_OBJFWDP (a));
   return a.fwdptr;
 }
-struct Lisp_Intfwd const *
+static struct Lisp_Intfwd const *
 XFIXNUMFWD (lispfwd a)
 {
   eassert (INTFWDP (a));
@@ -3710,14 +3710,14 @@ A is a bool vector, B is t or nil, and I is an index into A.  */)
   return make_fixnum (count);
 }
 
-/* void rust_init_syms(void); */
+void rust_init_syms(void);
 
 
 void
 syms_of_data (void)
 {
   Lisp_Object error_tail, arith_tail;
-  /* rust_init_syms(); */
+  rust_init_syms();
 
   DEFSYM (Qquote, "quote");
   DEFSYM (Qlambda, "lambda");

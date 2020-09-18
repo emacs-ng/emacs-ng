@@ -852,13 +852,13 @@ This tests also `file-executable-p', `file-writable-p' and `set-file-modes'."
 	 "(progn \
 	    (message \"tramp-archive loaded: %%s %%s\" \
               (featurep 'tramp) (featurep 'tramp-archive)) \
-            (file-attributes %S \"/\") \
+	    (file-attributes %S \"/\") \
 	    (message \"tramp-archive loaded: %%s %%s\" \
               (featurep 'tramp) (featurep 'tramp-archive)))"))
     (dolist (file `("/mock::foo" ,(concat tramp-archive-test-archive "foo")))
       (should
        (string-match
-        (format
+	(format
 	 "tramp-archive loaded: nil nil[[:ascii:]]+tramp-archive loaded: t %s"
 	 (tramp-archive-file-name-p file))
 	(shell-command-to-string

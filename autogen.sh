@@ -1,30 +1,30 @@
 #!/bin/sh
-### autogen.sh - tool to help build Remacs from a repository checkout
+### autogen.sh - tool to help build Emacs from a repository checkout
 
 ## Copyright (C) 2011-2020 Free Software Foundation, Inc.
 
 ## Author: Glenn Morris <rgm@gnu.org>
 ## Maintainer: emacs-devel@gnu.org
 
-## This file is part of Remacs.
+## This file is part of GNU Emacs.
 
-## Remacs is free software: you can redistribute it and/or modify
+## GNU Emacs is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 
-## Remacs is distributed in the hope that it will be useful,
+## GNU Emacs is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 
 ## You should have received a copy of the GNU General Public License
-## along with Remacs.  If not, see <https://www.gnu.org/licenses/>.
+## along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ### Commentary:
 
-## The Remacs repository does not include the configure script (and
-## associated helpers).  The first time you fetch Remacs from the repo,
+## The Emacs repository does not include the configure script (and
+## associated helpers).  The first time you fetch Emacs from the repo,
 ## run this script to generate the necessary files.
 ## For more details, see the file INSTALL.REPO.
 
@@ -211,7 +211,7 @@ if $do_autoconf; then
   if $do_check; then
 
     echo 'Checking whether you have the necessary tools...
-(Read INSTALL.REPO for more details on building Remacs)'
+(Read INSTALL.REPO for more details on building Emacs)'
 
     missing=
 
@@ -248,7 +248,7 @@ if $do_autoconf; then
     if [ x"$missing" != x ]; then
 
       echo '
-Building Remacs from the repository requires the following specialized programs:'
+Building Emacs from the repository requires the following specialized programs:'
 
       for prog in $progs; do
           sprog=`echo "$prog" | sed 's/-/_/g'`

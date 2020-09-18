@@ -612,9 +612,7 @@ delivered."
 (ert-deftest file-notify-test03-events ()
   "Check file creation/change/removal notifications."
   (skip-unless (file-notify--test-local-enabled))
-  ;; Skip for the time being on Remacs.
-  (skip-unless (not (eq system-type 'windows-nt)))
-  
+
   (unwind-protect
       ;; Check file creation, change and deletion.  It doesn't work
       ;; for kqueue, because we don't use an implicit directory

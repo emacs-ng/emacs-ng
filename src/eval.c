@@ -63,6 +63,7 @@ Lisp_Object backtrace_function (union specbinding *) EXTERNALLY_VISIBLE;
 union specbinding *backtrace_next (union specbinding *) EXTERNALLY_VISIBLE;
 union specbinding *backtrace_top (void) EXTERNALLY_VISIBLE;
 
+static Lisp_Object funcall_lambda (Lisp_Object, ptrdiff_t, Lisp_Object *);
 static Lisp_Object apply_lambda (Lisp_Object, Lisp_Object, ptrdiff_t);
 static Lisp_Object lambda_arity (Lisp_Object);
 
@@ -136,7 +137,7 @@ backtrace_args (union specbinding *pdl)
   return pdl->bt.args;
 }
 
-bool
+static bool
 backtrace_debug_on_exit (union specbinding *pdl)
 {
   eassert (pdl->kind == SPECPDL_BACKTRACE);
@@ -346,7 +347,7 @@ call_debugger (Lisp_Object arg)
   return unbind_to (count, val);
 }
 
-void
+static void
 do_debug_on_call (Lisp_Object code, ptrdiff_t count)
 {
   debug_on_next_call = 0;
@@ -1506,7 +1507,7 @@ push_handler_nosignal (Lisp_Object tag_ch_val, enum handlertype handlertype)
 }
 
 
-
+static Lisp_Object signal_or_quit (Lisp_Object, Lisp_Object, bool);
 static Lisp_Object find_handler_clause (Lisp_Object, Lisp_Object);
 static bool maybe_call_debugger (Lisp_Object conditions, Lisp_Object sig,
 				 Lisp_Object data);
@@ -1581,7 +1582,7 @@ quit (void)
    Qquit and DATA should be Qnil, and this function may return.
    Otherwise this function is like Fsignal and does not return.  */
 
-Lisp_Object
+static Lisp_Object
 signal_or_quit (Lisp_Object error_symbol, Lisp_Object data, bool keyboard_quit)
 {
   /* When memory is full, ERROR-SYMBOL is nil,
@@ -2954,7 +2955,7 @@ apply_lambda (Lisp_Object fun, Lisp_Object args, ptrdiff_t count)
    FUN must be either a lambda-expression, a compiled-code object,
    or a module function.  */
 
-Lisp_Object
+static Lisp_Object
 funcall_lambda (Lisp_Object fun, ptrdiff_t nargs,
 		register Lisp_Object *arg_vector)
 {

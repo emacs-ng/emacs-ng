@@ -697,12 +697,11 @@ to (xref-elisp-test-descr-to-target xref)."
   (elisp--xref-find-definitions (eval '(defun stephe-leake-defun ())))
   nil)
 
-;; This needs to refer to a function defined in C.
 (xref-elisp-deftest find-defs-defun-c
-  (elisp--xref-find-definitions 'event-convert-list)
+  (elisp--xref-find-definitions 'buffer-live-p)
   (list
-    (xref-make "(defun event-convert-list)"
-      (xref-make-elisp-location 'event-convert-list nil "src/keyboard.c"))))
+   (xref-make "(defun buffer-live-p)"
+	      (xref-make-elisp-location 'buffer-live-p nil "src/buffer.c"))))
 
 ;; FIXME: deftype
 
