@@ -258,7 +258,7 @@ compile_pattern (Lisp_Object pattern, struct re_registers *regp,
 }
 
 
-Lisp_Object
+static Lisp_Object
 looking_at_1 (Lisp_Object string, bool posix)
 {
   Lisp_Object val;
@@ -1006,7 +1006,7 @@ find_before_next_newline (ptrdiff_t from, ptrdiff_t to,
 
 /* Subroutines of Lisp buffer search functions. */
 
-Lisp_Object
+static Lisp_Object
 search_command (Lisp_Object string, Lisp_Object bound, Lisp_Object noerror,
 		Lisp_Object count, int direction, int RE, bool posix)
 {

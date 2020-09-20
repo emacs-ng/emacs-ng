@@ -37,6 +37,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "process.h"
 #include "frame.h"
 #include "keymap.h"
+#include "remacs-lib.h"
 
 static void swap_in_symval_forwarding (struct Lisp_Symbol *,
 				       struct Lisp_Buffer_Local_Value *);
@@ -74,7 +75,7 @@ XKBOARD_OBJFWD (lispfwd a)
   eassert (KBOARD_OBJFWDP (a));
   return a.fwdptr;
 }
-struct Lisp_Intfwd const *
+static struct Lisp_Intfwd const *
 XFIXNUMFWD (lispfwd a)
 {
   eassert (INTFWDP (a));
@@ -3710,6 +3711,19 @@ A is a bool vector, B is t or nil, and I is an index into A.  */)
   return make_fixnum (count);
 }
 
+
+/* void rust_hello(); */
+
+DEFUN ("rust-hello", Frust_hello, Srust_hello, 0, 0, 0,
+       doc: /* Call rust_hello via FFI. */
+       attributes: const)
+    ()
+{
+  rust_hello();
+  return Qnil;
+}
+
+
 void rust_init_syms(void);
 
 
@@ -3890,6 +3904,7 @@ syms_of_data (void)
   DEFSYM (Qinteractive_form, "interactive-form");
   DEFSYM (Qdefalias_fset_function, "defalias-fset-function");
 
+  defsubr (&Srust_hello);
   defsubr (&Sindirect_variable);
   defsubr (&Sinteractive_form);
   defsubr (&Seq);

@@ -194,11 +194,11 @@
   ;; ((:STATIC C) (:STATIC C-base1) (:STATIC C-base2)) != ((:STATIC C))")
   :tags '(:unstable)
   (let ((eieio-test-method-order-list nil)
-	    (ans '(
-	           (:STATIC C)
-	           (:STATIC C-base1)
-	           (:STATIC C-base2)
-	           )))
+	(ans '(
+	       (:STATIC C)
+	       (:STATIC C-base1)
+	       (:STATIC C-base2)
+	       )))
     (C nil)
     (setq eieio-test-method-order-list (nreverse eieio-test-method-order-list))
     (eieio-test-match ans)))

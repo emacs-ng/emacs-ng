@@ -187,15 +187,15 @@ dnl It is important that variables on the RHS not be expanded here,
 dnl hence the single quotes.  This is per the GNU coding standards, see
 dnl (autoconf) Installation Directory Variables
 dnl See also epaths.h below.
-lispdir='${datadir}/remacs/${version}/lisp'
+lispdir='${datadir}/emacs/${version}/lisp'
 standardlisppath='${lispdir}'
-locallisppath='${datadir}/remacs/${version}/site-lisp:'\
-'${datadir}/remacs/site-lisp'
+locallisppath='${datadir}/emacs/${version}/site-lisp:'\
+'${datadir}/emacs/site-lisp'
 lisppath='${locallisppath}:${standardlisppath}'
-etcdir='${datadir}/remacs/${version}/etc'
-archlibdir='${libexecdir}/remacs/${version}/${configuration}'
-etcdocdir='${datadir}/remacs/${version}/etc'
-gamedir='${localstatedir}/games/remacs'
+etcdir='${datadir}/emacs/${version}/etc'
+archlibdir='${libexecdir}/emacs/${version}/${configuration}'
+etcdocdir='${datadir}/emacs/${version}/etc'
+gamedir='${localstatedir}/games/emacs'
 
 dnl Special option to disable the most of other options.
 AC_ARG_WITH(all,
@@ -1019,6 +1019,12 @@ AS_IF([test $gl_gcc_warnings = no],
   # This, $nw, is the list of warnings we disable.
   nw=
 
+  case $with_x_toolkit in
+    lucid | athena | motif)
+       # Old toolkits mishandle 'const'.
+       nw="$nw -Wwrite-strings"
+       ;;
+  esac
   AS_IF([test $gl_gcc_warnings = yes],
     [WERROR_CFLAGS=-Werror],
     [# Use -fanalyzer and related options only if --enable-gcc-warnings,
@@ -1453,6 +1459,7 @@ fi
 UNEXEC_OBJ=
 test $with_unexec = yes &&
 case "$opsys" in
+  # MSDOS uses unexcoff.o
   aix4-2)
    UNEXEC_OBJ=unexaix.o
    ;;
@@ -1577,7 +1584,8 @@ case "$opsys" in
 
   solaris) LIBS_SYSTEM="-lsocket -lnsl" ;;
 
-  unixware) LIBS_SYSTEM="-lsocket -lnsl -lelf" ;;
+  ## Motif needs -lgen.
+  unixware) LIBS_SYSTEM="-lsocket -lnsl -lelf -lgen" ;;
 esac
 
 AC_SUBST(LIBS_SYSTEM)
@@ -1651,9 +1659,6 @@ pre_PKG_CONFIG_CFLAGS=$CFLAGS
 pre_PKG_CONFIG_LIBS=$LIBS
 
 PKG_PROG_PKG_CONFIG(0.9.0)
-if test x$PKG_CONFIG = x ; then
-  AC_MSG_ERROR([pkg-config not found.])
-fi
 
 dnl EMACS_CHECK_MODULES(GSTUFF, gtk+-2.0 >= 1.3 glib = 1.3.4)
 dnl acts like PKG_CHECK_MODULES(GSTUFF, gtk+-2.0 >= 1.3 glib = 1.3.4,
@@ -1906,10 +1911,10 @@ if test "${with_ns}" != no; then
   # Even a headless Emacs can build macuvs.h, so this should let you bootstrap.
   if test "${opsys}" = darwin && test -f "$srcdir/src/macuvs.h"; then
      NS_IMPL_COCOA=yes
-     ns_appdir=`pwd`/nextstep/Remacs.app
+     ns_appdir=`pwd`/nextstep/Emacs.app
      ns_appbindir=${ns_appdir}/Contents/MacOS
      ns_appresdir=${ns_appdir}/Contents/Resources
-     ns_appsrc=Cocoa/Remacs.base
+     ns_appsrc=Cocoa/Emacs.base
      ns_fontfile=macfont.o
   elif flags=$( (gnustep-config --objc-flags) 2>/dev/null); then
      NS_IMPL_GNUSTEP=yes
@@ -1963,10 +1968,10 @@ fail;
      fi
   fi
   if test $NS_IMPL_GNUSTEP = yes; then
-     ns_appdir=`pwd`/nextstep/Remacs.app
+     ns_appdir=`pwd`/nextstep/Emacs.app
      ns_appbindir=${ns_appdir}
      ns_appresdir=${ns_appdir}/Resources
-     ns_appsrc=GNUstep/Remacs.base
+     ns_appsrc=GNUstep/Emacs.base
      ns_fontfile=nsfont.o
   fi
 
@@ -2113,6 +2118,9 @@ CM_OBJ="cm.o"
 XARGS_LIMIT=
 if test "${HAVE_W32}" = "yes"; then
   AC_DEFINE(HAVE_NTGUI, 1, [Define to use native MS Windows GUI.])
+  if test "$with_toolkit_scroll_bars" = "no"; then
+    AC_MSG_ERROR([Non-toolkit scroll bars are not implemented for w32 build.])
+  fi
   AC_CHECK_TOOL(WINDRES, [windres],
                 [AC_MSG_ERROR([No resource compiler found.])])
   W32_OBJ="w32fns.o w32menu.o w32reg.o w32font.o w32term.o"
@@ -2198,6 +2206,8 @@ case "${window_system}" in
     HAVE_X11=yes
     term_header=xterm.h
     case "${with_x_toolkit}" in
+      athena | lucid ) USE_X_TOOLKIT=LUCID ;;
+      motif ) USE_X_TOOLKIT=MOTIF ;;
       gtk ) with_gtk=yes
             term_header=gtkutil.h
 dnl Don't set this for GTK.  A lot of tests below assumes Xt when
@@ -2209,6 +2219,7 @@ dnl USE_X_TOOLKIT is set.
       gtk3 ) with_gtk3=yes
              term_header=gtkutil.h
              USE_X_TOOLKIT=none ;;
+      no ) USE_X_TOOLKIT=none ;;
 dnl If user did not say whether to use a toolkit, make this decision later:
 dnl use the toolkit if we have gtk, or X11R5 or newer.
       * ) USE_X_TOOLKIT=maybe ;;
@@ -2233,7 +2244,7 @@ if test "$window_system" = none && test "X$with_x" != "Xno"; then
    then
         AC_MSG_ERROR([You seem to be running X, but no X development libraries
 were found.  You should install the relevant development files for X
-and for the toolkit you want, such as Gtk+.  Also make
+and for the toolkit you want, such as Gtk+ or Motif.  Also make
 sure you have development files for image handling, i.e.
 tiff, gif, jpeg, png and xpm.
 If you are sure you want Emacs compiled without X window support, pass
@@ -3038,8 +3049,28 @@ dnl Do not put whitespace before the #include statements below.
 dnl Older compilers (eg sunos4 cc) choke on it.
 HAVE_XAW3D=no
 LUCID_LIBW=
-if test x"${USE_X_TOOLKIT}" = xmaybe; then
+if test x"${USE_X_TOOLKIT}" = xmaybe || test x"${USE_X_TOOLKIT}" = xLUCID; then
+  if test "$with_xaw3d" != no; then
+    AC_CACHE_VAL(emacs_cv_xaw3d,
+    [AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+#include <X11/Intrinsic.h>
+#include <X11/Xaw3d/Simple.h>]],
+      [[]])],
+      [AC_CHECK_LIB(Xaw3d, XawScrollbarSetThumb,
+                    emacs_cv_xaw3d=yes, emacs_cv_xaw3d=no)],
+      emacs_cv_xaw3d=no)])
+  else
     emacs_cv_xaw3d=no
+  fi
+  if test $emacs_cv_xaw3d = yes; then
+    AC_MSG_CHECKING(for xaw3d)
+    AC_MSG_RESULT([yes; using Lucid toolkit])
+    USE_X_TOOLKIT=LUCID
+    HAVE_XAW3D=yes
+    LUCID_LIBW=-lXaw3d
+    AC_DEFINE(HAVE_XAW3D, 1,
+              [Define to 1 if you have the Xaw3d library (-lXaw3d).])
+  else
     AC_MSG_CHECKING(for xaw3d)
     AC_MSG_RESULT(no)
     AC_MSG_CHECKING(for libXaw)
@@ -3050,11 +3081,20 @@ if test x"${USE_X_TOOLKIT}" = xmaybe; then
       [[]])],
       emacs_cv_xaw=yes,
       emacs_cv_xaw=no)])
+    if test $emacs_cv_xaw = yes; then
+      AC_MSG_RESULT([yes; using Lucid toolkit])
+      USE_X_TOOLKIT=LUCID
+      LUCID_LIBW=-lXaw
+    elif test x"${USE_X_TOOLKIT}" = xLUCID; then
+      AC_MSG_ERROR([Lucid toolkit requires X11/Xaw include files])
+    else
       AC_MSG_ERROR([No X toolkit could be found.
 If you are sure you want Emacs compiled without an X toolkit, pass
   --with-x-toolkit=no
 to configure.  Otherwise, install the development libraries for the toolkit
 that you want to use (e.g. Gtk+) and re-run configure.])
+    fi
+  fi
 fi
 
 X_TOOLKIT_TYPE=$USE_X_TOOLKIT
@@ -3100,6 +3140,93 @@ dnl tranle@intellicorp.com says libXmu.a can need XtMalloc in libXt.a to link.
 fi
 AC_SUBST(LIBXTR6)
 AC_SUBST(LIBXMU)
+
+LIBXP=
+if test "${USE_X_TOOLKIT}" = "MOTIF"; then
+  # OpenMotif may be installed in such a way on some GNU/Linux systems.
+  if test -d /usr/include/openmotif; then
+    CPPFLAGS="-I/usr/include/openmotif $CPPFLAGS"
+    emacs_cv_openmotif=yes
+    case "$canonical" in
+      x86_64-*-linux-gnu* | powerpc64-*-linux-gnu* | sparc64-*-linux-gnu*)
+      test -d /usr/lib64/openmotif && LDFLAGS="-L/usr/lib64/openmotif $LDFLAGS"
+      ;;
+      *)
+      test -d /usr/lib/openmotif && LDFLAGS="-L/usr/lib/openmotif $LDFLAGS"
+    esac
+  else
+    emacs_cv_openmotif=no
+  fi
+  AC_CACHE_CHECK(for (Open)Motif version 2.1, emacs_cv_motif_version_2_1,
+  [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <Xm/Xm.h>]],
+    [[#if XmVERSION > 2 || (XmVERSION == 2 && XmREVISION >= 1)
+int x = 5;
+#else
+Motif version prior to 2.1.
+#endif]])],
+    emacs_cv_motif_version_2_1=yes, emacs_cv_motif_version_2_1=no)])
+  if test $emacs_cv_motif_version_2_1 = yes; then
+    AC_CHECK_LIB(Xp, XpCreateContext, LIBXP=-lXp)
+    if test x$emacs_cv_openmotif = xyes; then
+      REAL_CPPFLAGS="-I/usr/include/openmotif $REAL_CPPFLAGS"
+    fi
+  else
+    AC_CACHE_CHECK(for LessTif where some systems put it, emacs_cv_lesstif,
+    # We put this in CFLAGS temporarily to precede other -I options
+    # that might be in CFLAGS temporarily.
+    # We put this in CPPFLAGS where it precedes the other -I options.
+    OLD_CPPFLAGS=$CPPFLAGS
+    OLD_CFLAGS=$CFLAGS
+    CPPFLAGS="-I/usr/X11R6/LessTif/Motif1.2/include $CPPFLAGS"
+    CFLAGS="-I/usr/X11R6/LessTif/Motif1.2/include $CFLAGS"
+    [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include </usr/X11R6/LessTif/Motif1.2/include/Xm/Xm.h>]],
+      [[int x = 5;]])],
+      emacs_cv_lesstif=yes, emacs_cv_lesstif=no)])
+    if test $emacs_cv_lesstif = yes; then
+      # Make sure this -I option remains in CPPFLAGS after it is set
+      # back to REAL_CPPFLAGS.
+      # There is no need to change REAL_CFLAGS, because REAL_CFLAGS does not
+      # have those other -I options anyway.  Ultimately, having this
+      # directory ultimately in CPPFLAGS will be enough.
+      REAL_CPPFLAGS="-I/usr/X11R6/LessTif/Motif1.2/include $REAL_CPPFLAGS"
+      LDFLAGS="-L/usr/X11R6/LessTif/Motif1.2/lib $LDFLAGS"
+    else
+      CFLAGS=$OLD_CFLAGS
+      CPPFLAGS=$OLD_CPPFLAGS
+    fi
+  fi
+  AC_CHECK_HEADER([Xm/BulletinB.h], [],
+    [AC_MSG_ERROR([Motif toolkit requested but requirements not found.])])
+fi
+
+dnl Use toolkit scroll bars if configured for GTK or X toolkit and either
+dnl using Motif or Xaw3d is available, and unless
+dnl --with-toolkit-scroll-bars=no was specified.
+
+AH_TEMPLATE(USE_TOOLKIT_SCROLL_BARS,
+	    [Define to 1 if we should use toolkit scroll bars.])dnl
+USE_TOOLKIT_SCROLL_BARS=no
+if test "${with_toolkit_scroll_bars}" != "no"; then
+  if test "${USE_X_TOOLKIT}" != "none"; then
+    if test "${USE_X_TOOLKIT}" = "MOTIF"; then
+      AC_DEFINE(USE_TOOLKIT_SCROLL_BARS)
+      HAVE_XAW3D=no
+      USE_TOOLKIT_SCROLL_BARS=yes
+    elif test "${HAVE_XAW3D}" = "yes" || test "${USE_X_TOOLKIT}" = "LUCID"; then
+      AC_DEFINE(USE_TOOLKIT_SCROLL_BARS)
+      USE_TOOLKIT_SCROLL_BARS=yes
+    fi
+  elif test "${HAVE_GTK}" = "yes"; then
+    AC_DEFINE(USE_TOOLKIT_SCROLL_BARS)
+    USE_TOOLKIT_SCROLL_BARS=yes
+  elif test "${HAVE_NS}" = "yes"; then
+    AC_DEFINE(USE_TOOLKIT_SCROLL_BARS)
+    USE_TOOLKIT_SCROLL_BARS=yes
+  elif test "${HAVE_W32}" = "yes"; then
+    AC_DEFINE(USE_TOOLKIT_SCROLL_BARS)
+    USE_TOOLKIT_SCROLL_BARS=yes
+  fi
+fi
 
 dnl See if XIM is available.
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
@@ -3528,6 +3655,7 @@ if test "${HAVE_ZLIB}" = "yes"; then
      LIBZ=
   fi
 fi
+AC_SUBST(LIBZ)
 
 ### Dynamic modules support
 LIBMODULES=
@@ -4199,7 +4327,7 @@ For example, a libncurses-dev(el) or similar package.])],
   [*], [LIBS_TERMCAP=])
 
 ## Use termcap instead of terminfo?
-## Only true for: freebsd < 40000, ms-w32, netbsd < 599002500.
+## Only true for: freebsd < 40000, ms-w32, msdos, netbsd < 599002500.
 TERMINFO=yes
 ## FIXME?  In the cases below where we unconditionally set
 ## LIBS_TERMCAP="-lncurses", this overrides LIBS_TERMCAP = -ltinfo,
@@ -4955,6 +5083,7 @@ esac
 dnl Define symbols to identify the version of Unix this is.
 dnl Define all the symbols that apply correctly.
 AH_TEMPLATE(DOS_NT, [Define if the system is MS DOS or MS Windows.])
+AH_TEMPLATE(MSDOS, [Define if the system is MS DOS.])
 AH_TEMPLATE(USG, [Define if the system is compatible with System III.])
 AH_TEMPLATE(USG5_4, [Define if the system is compatible with System V Release 4.])
 
@@ -5125,6 +5254,8 @@ AC_SUBST(LD_SWITCH_X_SITE)
 AC_SUBST(C_SWITCH_X_SITE)
 AC_SUBST(GNUSTEP_CFLAGS)
 AC_SUBST(CFLAGS)
+## Used in lwlib/Makefile.in.
+AC_SUBST(X_TOOLKIT_TYPE)
 AC_SUBST(ns_appdir)
 AC_SUBST(ns_appbindir)
 AC_SUBST(ns_appresdir)
@@ -5172,11 +5303,37 @@ MOTIF_LIBW=
 if test "${USE_X_TOOLKIT}" != "none" ; then
   WIDGET_OBJ=widget.o
   AC_DEFINE(USE_X_TOOLKIT, 1, [Define to 1 if using an X toolkit.])
+  if test "${USE_X_TOOLKIT}" = "LUCID"; then
+    AC_DEFINE(USE_LUCID, 1, [Define to 1 if using the Lucid X toolkit.])
+  elif test "${USE_X_TOOLKIT}" = "MOTIF"; then
+    AC_DEFINE(USE_MOTIF, 1, [Define to 1 if using the Motif X toolkit.])
+    MOTIF_LIBW=-lXm
+    case "$opsys" in
+      gnu-linux)
+        ## Paul Abrahams <abrahams at equinox.shaysnet.com> says this is needed.
+        MOTIF_LIBW="$MOTIF_LIBW -lXpm"
+        ;;
+
+      unixware)
+        ## Richard Anthony Ryan <ryanr at ellingtn.ftc.nrcs.usda.gov>
+        ## says -lXimp is needed in UNIX_SV ... 4.2 1.1.2.
+        MOTIF_LIBW="MOTIF_LIBW -lXimp"
+        ;;
+
+      aix4-2)
+        ## olson@mcs.anl.gov says -li18n is needed by -lXm.
+        MOTIF_LIBW="$MOTIF_LIBW -li18n"
+        ;;
+    esac
+    MOTIF_LIBW="$MOTIF_LIBW $LIBXP"
+  fi
 fi
 AC_SUBST(WIDGET_OBJ)
 
 TOOLKIT_LIBW=
 case "$USE_X_TOOLKIT" in
+  MOTIF) TOOLKIT_LIBW="$MOTIF_LIBW" ;;
+  LUCID) TOOLKIT_LIBW="$LUCID_LIBW" ;;
   none) test "x$HAVE_GTK" = "xyes" && TOOLKIT_LIBW="$GTK_LIBS" ;;
 esac
 if test "$HAVE_XWIDGETS" = "yes"; then
@@ -5202,8 +5359,16 @@ else
 fi
 AC_SUBST(LIBX_OTHER)
 
+HAVE_OLDXMENU=no
 if test "$HAVE_GTK" = yes || test "$HAVE_X11" != yes; then
   LIBXMENU=
+elif test "$USE_X_TOOLKIT" = none; then
+  HAVE_OLDXMENU=yes
+  LIBXMENU='$(oldXMenudir)/libXMenu11.a'
+  AUTODEPEND_PARENTS="$AUTODEPEND_PARENTS oldXMenu"
+else
+  LIBXMENU='$(lwlibdir)/liblw.a'
+  AUTODEPEND_PARENTS="$AUTODEPEND_PARENTS lwlib"
 fi
 AC_SUBST(LIBXMENU)
 
@@ -5530,7 +5695,8 @@ End:
 
 #### Report on what we decided to do.
 #### Report GTK as a toolkit, even if it doesn't use Xt.
-#### It makes printing result more understandable.
+#### It makes printing result more understandable as using GTK sets
+#### toolkit_scroll_bars to yes by default.
 if test "${HAVE_GTK}" = "yes"; then
   USE_X_TOOLKIT="$USE_GTK_TOOLKIT"
 fi
@@ -5568,7 +5734,7 @@ for opt in XAW3D XPM JPEG TIFF GIF PNG RSVG CAIRO IMAGEMAGICK SOUND GPM DBUS \
       UNEXEC) val=${with_unexec} ;;
       GLIB) val=${emacs_cv_links_glib} ;;
       NOTIFY|ACL) eval val=\${${opt}_SUMMARY} ;;
-      X_TOOLKIT) eval val=\${USE_$opt} ;;
+      TOOLKIT_SCROLL_BARS|X_TOOLKIT) eval val=\${USE_$opt} ;;
       THREADS) val=${threads_enabled} ;;
       *) eval val=\${HAVE_$opt} ;;
     esac
@@ -5578,7 +5744,7 @@ for opt in XAW3D XPM JPEG TIFF GIF PNG RSVG CAIRO IMAGEMAGICK SOUND GPM DBUS \
     case $opt in
       X_TOOLKIT)
         case $val in
-          GTK*) opt=$val ;;
+          GTK*|LUCID|MOTIF) opt=$val ;;
           *) continue ;;
         esac
       ;;
@@ -5687,12 +5853,12 @@ esac
 
 if test "$HAVE_NS" = "yes"; then
   if test "$NS_IMPL_GNUSTEP" = yes; then
-    AC_CONFIG_FILES([nextstep/GNUstep/Remacs.base/Resources/Info-gnustep.plist:nextstep/templates/Info-gnustep.plist.in \
-      nextstep/GNUstep/Remacs.base/Resources/Remacs.desktop:nextstep/templates/Remacs.desktop.in])
+    AC_CONFIG_FILES([nextstep/GNUstep/Emacs.base/Resources/Info-gnustep.plist:nextstep/templates/Info-gnustep.plist.in \
+      nextstep/GNUstep/Emacs.base/Resources/Emacs.desktop:nextstep/templates/Emacs.desktop.in])
     ns_check_file=Resources/Info-gnustep.plist
   else
-    AC_CONFIG_FILES([nextstep/Cocoa/Remacs.base/Contents/Info.plist:nextstep/templates/Info.plist.in \
-      nextstep/Cocoa/Remacs.base/Contents/Resources/English.lproj/InfoPlist.strings:nextstep/templates/InfoPlist.strings.in])
+    AC_CONFIG_FILES([nextstep/Cocoa/Emacs.base/Contents/Info.plist:nextstep/templates/Info.plist.in \
+      nextstep/Cocoa/Emacs.base/Contents/Resources/English.lproj/InfoPlist.strings:nextstep/templates/InfoPlist.strings.in])
     ns_check_file=Contents/Info.plist
   fi
   AC_SUBST(ns_check_file)
@@ -5704,7 +5870,7 @@ dnl config.status treats $srcdir specially, so I think this is ok...
 AC_CONFIG_FILES([$srcdir/doc/man/emacs.1])
 
 m4_define([subdir_makefiles],
-  [lib/Makefile lib-src/Makefile doc/emacs/Makefile doc/misc/Makefile doc/lispintro/Makefile doc/lispref/Makefile src/Makefile lisp/Makefile leim/Makefile nextstep/Makefile nt/Makefile])
+  [lib/Makefile lib-src/Makefile oldXMenu/Makefile doc/emacs/Makefile doc/misc/Makefile doc/lispintro/Makefile doc/lispref/Makefile src/Makefile lwlib/Makefile lisp/Makefile leim/Makefile nextstep/Makefile nt/Makefile])
 SUBDIR_MAKEFILES="subdir_makefiles"
 AC_CONFIG_FILES(subdir_makefiles)
 

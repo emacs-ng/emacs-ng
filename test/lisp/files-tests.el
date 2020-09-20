@@ -1141,11 +1141,7 @@ works as expected if the default directory is quoted."
         (cdr path-res)
         (insert-directory-wildcard-in-dir-p (car path-res)))))))
 
-(ert-deftest files-tests--make-directory ()
-  ;; Remacs: skipped on OSX until fixed upstream.
-  (skip-unless (not (eq system-type 'darwin)))
-  ;; Skip for the time being on Remacs.
-  (skip-unless (not (eq system-type 'windows-nt)))
+(ert-deftest files-tests-make-directory ()
   (let* ((dir (make-temp-file "files-mkdir-test" t))
 	 (dirname (file-name-as-directory dir))
 	 (file (concat dirname "file"))

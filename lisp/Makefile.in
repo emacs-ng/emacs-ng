@@ -1,4 +1,4 @@
-### lisp/Makefile.  Generated from Makefile.in by configure.
+### @configure_input@
 
 # Copyright (C) 2000-2020 Free Software Foundation, Inc.
 
@@ -17,38 +17,38 @@
 # You should have received a copy of the GNU General Public License
 # along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
-SHELL = /bin/sh
+SHELL = @SHELL@
 
-srcdir = .
-top_srcdir = ..
+srcdir = @srcdir@
+top_srcdir = @top_srcdir@
 lisp = $(srcdir)
-
-EXEEXT = 
+VPATH = $(srcdir)
+EXEEXT = @EXEEXT@
 
 # Empty for all systems except MinGW, where xargs needs an explicit
 # limitation.
-XARGS_LIMIT = 
+XARGS_LIMIT = @XARGS_LIMIT@
 
 # 'make' verbosity.
-AM_DEFAULT_VERBOSITY = 0
+AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 
-AM_V_ELC = $(am__v_ELC_$(V))
-am__v_ELC_ = $(am__v_ELC_$(AM_DEFAULT_VERBOSITY))
+AM_V_ELC = $(am__v_ELC_@AM_V@)
+am__v_ELC_ = $(am__v_ELC_@AM_DEFAULT_V@)
 am__v_ELC_0 = @echo "  ELC     " $@;
 am__v_ELC_1 =
 
-AM_V_GEN = $(am__v_GEN_$(V))
-am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
+AM_V_GEN = $(am__v_GEN_@AM_V@)
+am__v_GEN_ = $(am__v_GEN_@AM_DEFAULT_V@)
 am__v_GEN_0 = @echo "  GEN     " $@;
 am__v_GEN_1 =
 
-AM_V_at = $(am__v_at_$(V))
-am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
+AM_V_at = $(am__v_at_@AM_V@)
+am__v_at_ = $(am__v_at_@AM_DEFAULT_V@)
 am__v_at_0 = @
 am__v_at_1 =
 
 
-FIND_DELETE = -delete
+FIND_DELETE = @FIND_DELETE@
 
 # You can specify a different executable on the make command line,
 # e.g. "make EMACS=../src/emacs ...".
@@ -56,7 +56,7 @@ FIND_DELETE = -delete
 # We never change directory before running Emacs, so a relative file
 # name is fine, and makes life easier.  If we need to change
 # directory, we can use emacs --chdir.
-EMACS = ../src/remacs${EXEEXT}
+EMACS = ../src/emacs${EXEEXT}
 
 # Command line flags for Emacs.
 
@@ -131,11 +131,6 @@ all: compile-main $(lisp)/cus-load.el $(lisp)/finder-inf.el
 
 PHONY_EXTRAS =
 .PHONY: all custom-deps finder-data autoloads update-subdirs $(PHONY_EXTRAS)
-
-# Clean out the compiled .elc files
-clean:
-	find . -type f -name "*.elc" -print | xargs -I {} -- rm {}
-
 
 # custom-deps and finder-data both used to scan _all_ the *.el files.
 # This could lead to problems in parallel builds if automatically

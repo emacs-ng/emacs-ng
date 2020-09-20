@@ -6406,7 +6406,7 @@ write_queue_pop (struct Lisp_Process *p, Lisp_Object *obj,
 
    This function can evaluate Lisp code and can garbage collect.  */
 
-void
+static void
 send_process (Lisp_Object proc, const char *buf, ptrdiff_t len,
 	      Lisp_Object object)
 {

@@ -166,7 +166,7 @@ if [ $update = yes ];
 then
   if [ -f src/emacs ];
   then
-    EMACS=`pwd`/src/remacs
+    EMACS=`pwd`/src/emacs
   else
     case $EMACS in
       /*) ;;

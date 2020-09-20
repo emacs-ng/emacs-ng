@@ -47,14 +47,9 @@ B is considered the exact value."
   "Like `lcms-approx-p' except for color triples."
   (pcase-let ((`(,a1 ,a2 ,a3) a)
               (`(,b1 ,b2 ,b3) b))
-    (and (lcms-approx-p a1 b1 delta)
-         (lcms-approx-p a2 b2 delta)
-         (lcms-approx-p a3 b3 delta))))
-
-(defun lcms-rgb255->xyz (rgb)
-  "Return XYZ tristimulus values corresponding to RGB."
-  (let ((rgb1 (mapcar (lambda (x) (/ x 255.0)) rgb)))
-    (apply #'color-srgb-to-xyz rgb1)))
+   (and (lcms-approx-p a1 b1 delta)
+        (lcms-approx-p a2 b2 delta)
+        (lcms-approx-p a3 b3 delta))))
 
 (defun lcms-rgb255->xyz (rgb)
   "Return XYZ tristimulus values corresponding to RGB."

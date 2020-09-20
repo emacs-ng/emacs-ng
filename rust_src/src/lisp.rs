@@ -1,14 +1,14 @@
-//! This module contains Rust definitions whose C equivalents live in
-//! lisp.h.
+// //! This module contains Rust definitions whose C equivalents live in
+// //! lisp.h.
 
-use std::convert::{From, Into};
-// use std::ffi::CString;
-// use std::fmt;
-// use std::fmt::{Debug, Display, Error, Formatter};
-use std::mem;
-use std::ops::{Deref, DerefMut};
+// use std::convert::{From, Into};
+// // use std::ffi::CString;
+// // use std::fmt;
+// // use std::fmt::{Debug, Display, Error, Formatter};
+// use std::mem;
+// use std::ops::{Deref, DerefMut};
 
-use libc::{c_void, intptr_t, uintptr_t};
+// use libc::{c_void, intptr_t, uintptr_t};
 
 // use crate::{
 //     buffers::LispBufferRef,
@@ -32,9 +32,8 @@ use libc::{c_void, intptr_t, uintptr_t};
 // };
 
 use crate::{
-    lists::list_rust,
     remacs_sys::make_float,
-    remacs_sys::{EmacsDouble, EmacsInt, EmacsUint, Lisp_Bits, USE_LSB_TAG, VALMASK},
+    remacs_sys::{EmacsDouble, EmacsInt, EmacsUint, Lisp_Bits, USE_LSB_TAG},
     remacs_sys::{Lisp_Subr, Lisp_Type},
     remacs_sys::{Qnil, Qsubrp, Qt},
 };
@@ -62,119 +61,119 @@ use crate::{
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct LispObject(pub EmacsInt);
 
-impl LispObject {
-    pub const fn from_C(n: EmacsInt) -> Self {
-        Self(n)
-    }
+// impl LispObject {
+//     pub const fn from_C(n: EmacsInt) -> Self {
+//         Self(n)
+//     }
 
-    pub fn from_C_unsigned(n: EmacsUint) -> Self {
-        Self::from_C(n as EmacsInt)
-    }
+//     pub fn from_C_unsigned(n: EmacsUint) -> Self {
+//         Self::from_C(n as EmacsInt)
+//     }
 
-    pub const fn to_C(self) -> EmacsInt {
-        self.0
-    }
+//     pub const fn to_C(self) -> EmacsInt {
+//         self.0
+//     }
 
-    pub const fn to_C_unsigned(self) -> EmacsUint {
-        self.0 as EmacsUint
-    }
+//     pub const fn to_C_unsigned(self) -> EmacsUint {
+//         self.0 as EmacsUint
+//     }
 
-    pub fn from_float(v: EmacsDouble) -> Self {
-        unsafe { make_float(v) }
-    }
-}
+//     pub fn from_float(v: EmacsDouble) -> Self {
+//         unsafe { make_float(v) }
+//     }
+// }
 
-impl<T> From<Option<T>> for LispObject
-where
-    LispObject: From<T>,
-{
-    fn from(v: Option<T>) -> Self {
-        match v {
-            None => Qnil,
-            Some(v) => v.into(),
-        }
-    }
-}
+// impl<T> From<Option<T>> for LispObject
+// where
+//     LispObject: From<T>,
+// {
+//     fn from(v: Option<T>) -> Self {
+//         match v {
+//             None => Qnil,
+//             Some(v) => v.into(),
+//         }
+//     }
+// }
 
-// ExternalPtr
+// // ExternalPtr
 
-#[repr(transparent)]
-pub struct ExternalPtr<T>(*mut T);
+// #[repr(transparent)]
+// pub struct ExternalPtr<T>(*mut T);
 
-impl<T> Copy for ExternalPtr<T> {}
+// impl<T> Copy for ExternalPtr<T> {}
 
-// Derive fails for this type so do it manually
-impl<T> Clone for ExternalPtr<T> {
-    fn clone(&self) -> Self {
-        Self::new(self.0)
-    }
-}
+// // Derive fails for this type so do it manually
+// impl<T> Clone for ExternalPtr<T> {
+//     fn clone(&self) -> Self {
+//         Self::new(self.0)
+//     }
+// }
 
-impl<T> ExternalPtr<T> {
-    pub const fn new(p: *mut T) -> Self {
-        Self(p)
-    }
+// impl<T> ExternalPtr<T> {
+//     pub const fn new(p: *mut T) -> Self {
+//         Self(p)
+//     }
 
-    pub fn is_null(self) -> bool {
-        self.0.is_null()
-    }
+//     pub fn is_null(self) -> bool {
+//         self.0.is_null()
+//     }
 
-    pub const fn as_ptr(self) -> *const T {
-        self.0
-    }
+//     pub const fn as_ptr(self) -> *const T {
+//         self.0
+//     }
 
-    pub fn as_mut(&mut self) -> *mut T {
-        self.0
-    }
+//     pub fn as_mut(&mut self) -> *mut T {
+//         self.0
+//     }
 
-    pub fn from_ptr(ptr: *mut c_void) -> Option<Self> {
-        unsafe { ptr.as_ref().map(|p| mem::transmute(p)) }
-    }
+//     pub fn from_ptr(ptr: *mut c_void) -> Option<Self> {
+//         unsafe { ptr.as_ref().map(|p| mem::transmute(p)) }
+//     }
 
-    pub fn replace_ptr(&mut self, ptr: *mut T) {
-        self.0 = ptr;
-    }
+//     pub fn replace_ptr(&mut self, ptr: *mut T) {
+//         self.0 = ptr;
+//     }
 
-    pub unsafe fn ptr_offset(&mut self, size: isize) {
-        let ptr = self.0.offset(size);
-        self.replace_ptr(ptr);
-    }
+//     pub unsafe fn ptr_offset(&mut self, size: isize) {
+//         let ptr = self.0.offset(size);
+//         self.replace_ptr(ptr);
+//     }
 
-    pub unsafe fn ptr_add(&mut self, size: usize) {
-        let ptr = self.0.add(size);
-        self.replace_ptr(ptr);
-    }
+//     pub unsafe fn ptr_add(&mut self, size: usize) {
+//         let ptr = self.0.add(size);
+//         self.replace_ptr(ptr);
+//     }
 
-    pub unsafe fn ptr_sub(&mut self, size: usize) {
-        let ptr = self.0.sub(size);
-        self.replace_ptr(ptr);
-    }
-}
+//     pub unsafe fn ptr_sub(&mut self, size: usize) {
+//         let ptr = self.0.sub(size);
+//         self.replace_ptr(ptr);
+//     }
+// }
 
-impl<T> Deref for ExternalPtr<T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        unsafe { &*self.0 }
-    }
-}
+// impl<T> Deref for ExternalPtr<T> {
+//     type Target = T;
+//     fn deref(&self) -> &Self::Target {
+//         unsafe { &*self.0 }
+//     }
+// }
 
-impl<T> DerefMut for ExternalPtr<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { &mut *self.0 }
-    }
-}
+// impl<T> DerefMut for ExternalPtr<T> {
+//     fn deref_mut(&mut self) -> &mut Self::Target {
+//         unsafe { &mut *self.0 }
+//     }
+// }
 
-impl<T> PartialEq for ExternalPtr<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.as_ptr() == other.as_ptr()
-    }
-}
+// impl<T> PartialEq for ExternalPtr<T> {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.as_ptr() == other.as_ptr()
+//     }
+// }
 
-impl<T> PartialOrd for ExternalPtr<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.as_ptr().cmp(&other.as_ptr()))
-    }
-}
+// impl<T> PartialOrd for ExternalPtr<T> {
+//     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+//         Some(self.as_ptr().cmp(&other.as_ptr()))
+//     }
+// }
 
 // // Misc support (LispType == Lisp_Misc == 1)
 
@@ -247,8 +246,8 @@ impl<T> PartialOrd for ExternalPtr<T> {
 
 // // Lisp_Subr support
 
-pub type LispSubrRef = ExternalPtr<Lisp_Subr>;
-unsafe impl Sync for LispSubrRef {}
+// pub type LispSubrRef = ExternalPtr<Lisp_Subr>;
+// unsafe impl Sync for LispSubrRef {}
 
 // impl LispSubrRef {
 //     pub fn is_many(self) -> bool {
@@ -272,28 +271,28 @@ unsafe impl Sync for LispSubrRef {}
 //     }
 // }
 
-impl LispObject {
-    //     pub fn is_subr(self) -> bool {
-    //         self.as_vectorlike()
-    //             .map_or(false, |v| v.is_pseudovector(pvec_type::PVEC_SUBR))
-    //     }
+// impl LispObject {
+//         pub fn is_subr(self) -> bool {
+//             self.as_vectorlike()
+//                 .map_or(false, |v| v.is_pseudovector(pvec_type::PVEC_SUBR))
+//         }
 
-    pub fn as_subr(self) -> Option<LispSubrRef> {
-        self.into()
-    }
-}
+//     pub fn as_subr(self) -> Option<LispSubrRef> {
+//         self.into()
+//     }
+// }
 
-impl From<LispObject> for LispSubrRef {
-    fn from(o: LispObject) -> Self {
-        o.as_subr().unwrap_or_else(|| wrong_type!(Qsubrp, o))
-    }
-}
+// impl From<LispObject> for LispSubrRef {
+//     fn from(o: LispObject) -> Self {
+//         o.as_subr().unwrap_or_else(|| wrong_type!(Qsubrp, o))
+//     }
+// }
 
-impl From<LispObject> for Option<LispSubrRef> {
-    fn from(o: LispObject) -> Self {
-        o.as_vectorlike().and_then(ExternalPtr::as_subr)
-    }
-}
+// impl From<LispObject> for Option<LispSubrRef> {
+//     fn from(o: LispObject) -> Self {
+//         o.as_vectorlike().and_then(ExternalPtr::as_subr)
+//     }
+// }
 
 // pub type SpecbindingRef = ExternalPtr<specbinding>;
 
@@ -324,20 +323,20 @@ impl From<()> for LispObject {
     }
 }
 
-impl From<Vec<LispObject>> for LispObject {
-    fn from(v: Vec<Self>) -> Self {
-        list_rust(&v)
-    }
-}
+// impl From<Vec<LispObject>> for LispObject {
+//     fn from(v: Vec<Self>) -> Self {
+//         list_rust(&v)
+//     }
+// }
 
-impl<T> From<Vec<T>> for LispObject
-where
-    LispObject: From<T>,
-{
-    default fn from(v: Vec<T>) -> Self {
-        list_rust(&v.into_iter().map(Self::from).collect::<Vec<Self>>())
-    }
-}
+// impl<T> From<Vec<T>> for LispObject
+// where
+//     LispObject: From<T>,
+// {
+//     default fn from(v: Vec<T>) -> Self {
+//         list_rust(&v.into_iter().map(Self::from).collect::<Vec<Self>>())
+//     }
+// }
 
 impl From<LispObject> for bool {
     fn from(o: LispObject) -> Self {
@@ -355,33 +354,33 @@ impl From<bool> for LispObject {
     }
 }
 
-impl From<LispObject> for u32 {
-    fn from(o: LispObject) -> Self {
-        o.as_fixnum_or_error() as Self
-    }
-}
+// impl From<LispObject> for u32 {
+//     fn from(o: LispObject) -> Self {
+//         o.as_fixnum_or_error() as Self
+//     }
+// }
 
-impl From<LispObject> for i32 {
-    fn from(o: LispObject) -> Self {
-        o.as_fixnum_or_error() as Self
-    }
-}
+// impl From<LispObject> for i32 {
+//     fn from(o: LispObject) -> Self {
+//         o.as_fixnum_or_error() as Self
+//     }
+// }
 
-impl From<LispObject> for Option<u32> {
-    fn from(o: LispObject) -> Self {
-        match o.as_fixnum() {
-            None => None,
-            Some(n) => Some(n as u32),
-        }
-    }
-}
+// impl From<LispObject> for Option<u32> {
+//     fn from(o: LispObject) -> Self {
+//         match o.as_fixnum() {
+//             None => None,
+//             Some(n) => Some(n as u32),
+//         }
+//     }
+// }
 
-impl From<!> for LispObject {
-    fn from(_v: !) -> Self {
-        // I'm surprized that this works
-        Qnil
-    }
-}
+// impl From<!> for LispObject {
+//     fn from(_v: !) -> Self {
+//         // I'm surprized that this works
+//         Qnil
+//     }
+// }
 
 // /// Copies a Rust str into a new Lisp string
 // impl<'a> From<&'a str> for LispObject {
@@ -391,52 +390,52 @@ impl From<!> for LispObject {
 //     }
 // }
 
-impl LispObject {
-    pub fn get_type(self) -> Lisp_Type {
-        let raw = self.to_C_unsigned();
-        let res = (if USE_LSB_TAG {
-            raw & (!VALMASK as EmacsUint)
-        } else {
-            raw >> Lisp_Bits::VALBITS
-        }) as u32;
-        unsafe { mem::transmute(res) }
-    }
+// impl LispObject {
+//     pub fn get_type(self) -> Lisp_Type {
+//         let raw = self.to_C_unsigned();
+//         let res = (if USE_LSB_TAG {
+//             raw & (!VALMASK as EmacsUint)
+//         } else {
+//             raw >> Lisp_Bits::VALBITS
+//         }) as u32;
+//         unsafe { mem::transmute(res) }
+//     }
 
-    pub fn tag_ptr<T>(external: ExternalPtr<T>, ty: Lisp_Type) -> Self {
-        let raw = external.as_ptr() as intptr_t;
-        let res = if USE_LSB_TAG {
-            let ptr = raw as intptr_t;
-            let tag = ty as intptr_t;
-            (ptr + tag) as EmacsInt
-        } else {
-            let ptr = raw as EmacsUint as uintptr_t;
-            let tag = ty as EmacsUint as uintptr_t;
-            ((tag << Lisp_Bits::VALBITS) + ptr) as EmacsInt
-        };
+//     pub fn tag_ptr<T>(external: ExternalPtr<T>, ty: Lisp_Type) -> Self {
+//         let raw = external.as_ptr() as intptr_t;
+//         let res = if USE_LSB_TAG {
+//             let ptr = raw as intptr_t;
+//             let tag = ty as intptr_t;
+//             (ptr + tag) as EmacsInt
+//         } else {
+//             let ptr = raw as EmacsUint as uintptr_t;
+//             let tag = ty as EmacsUint as uintptr_t;
+//             ((tag << Lisp_Bits::VALBITS) + ptr) as EmacsInt
+//         };
 
-        Self::from_C(res)
-    }
+//         Self::from_C(res)
+//     }
 
-    pub fn get_untaggedptr(self) -> *mut c_void {
-        (self.to_C() & VALMASK) as intptr_t as *mut c_void
-    }
-}
+//     pub fn get_untaggedptr(self) -> *mut c_void {
+//         (self.to_C() & VALMASK) as intptr_t as *mut c_void
+//     }
+// }
 
-impl From<LispObject> for EmacsInt {
-    fn from(o: LispObject) -> Self {
-        o.as_fixnum_or_error()
-    }
-}
+// impl From<LispObject> for EmacsInt {
+//     fn from(o: LispObject) -> Self {
+//         o.as_fixnum_or_error()
+//     }
+// }
 
-impl From<LispObject> for Option<EmacsInt> {
-    fn from(o: LispObject) -> Self {
-        if o.is_nil() {
-            None
-        } else {
-            Some(o.as_fixnum_or_error())
-        }
-    }
-}
+// impl From<LispObject> for Option<EmacsInt> {
+//     fn from(o: LispObject) -> Self {
+//         if o.is_nil() {
+//             None
+//         } else {
+//             Some(o.as_fixnum_or_error())
+//         }
+//     }
+// }
 
 // impl From<LispObject> for EmacsUint {
 //     fn from(o: LispObject) -> Self {
@@ -454,35 +453,35 @@ impl From<LispObject> for Option<EmacsInt> {
 //     }
 // }
 
-impl From<EmacsInt> for LispObject {
-    fn from(v: EmacsInt) -> Self {
-        Self::from_fixnum(v)
-    }
-}
+// impl From<EmacsInt> for LispObject {
+//     fn from(v: EmacsInt) -> Self {
+//         Self::from_fixnum(v)
+//     }
+// }
 
-impl From<isize> for LispObject {
-    fn from(v: isize) -> Self {
-        Self::from_fixnum(v as EmacsInt)
-    }
-}
+// impl From<isize> for LispObject {
+//     fn from(v: isize) -> Self {
+//         Self::from_fixnum(v as EmacsInt)
+//     }
+// }
 
-impl From<i32> for LispObject {
-    fn from(v: i32) -> Self {
-        Self::from_fixnum(EmacsInt::from(v))
-    }
-}
+// impl From<i32> for LispObject {
+//     fn from(v: i32) -> Self {
+//         Self::from_fixnum(EmacsInt::from(v))
+//     }
+// }
 
-impl From<i16> for LispObject {
-    fn from(v: i16) -> Self {
-        Self::from_fixnum(EmacsInt::from(v))
-    }
-}
+// impl From<i16> for LispObject {
+//     fn from(v: i16) -> Self {
+//         Self::from_fixnum(EmacsInt::from(v))
+//     }
+// }
 
-impl From<i8> for LispObject {
-    fn from(v: i8) -> Self {
-        Self::from_fixnum(EmacsInt::from(v))
-    }
-}
+// impl From<i8> for LispObject {
+//     fn from(v: i8) -> Self {
+//         Self::from_fixnum(EmacsInt::from(v))
+//     }
+// }
 
 // impl From<EmacsUint> for LispObject {
 //     fn from(v: EmacsUint) -> Self {
@@ -742,23 +741,23 @@ impl LispObject {
     //     }
 }
 
-/// Used to denote functions that have no limit on the maximum number
-/// of arguments.
-pub const MANY: i16 = -2;
+// /// Used to denote functions that have no limit on the maximum number
+// /// of arguments.
+// pub const MANY: i16 = -2;
 
-extern "C" {
-    pub fn defsubr(sname: *const Lisp_Subr);
-}
+// extern "C" {
+//     pub fn defsubr(sname: *const Lisp_Subr);
+// }
 
-macro_rules! export_lisp_fns {
-    ($($(#[$($meta:meta),*])* $f:ident),+) => {
-        pub fn rust_init_syms() {
-            #[allow(unused_unsafe)] // just in case the block is empty
-            unsafe {
-                $(
-                    $(#[$($meta),*])* crate::lisp::defsubr(concat_idents!(S, $f).as_ptr());
-                )+
-            }
-        }
-    }
-}
+// macro_rules! export_lisp_fns {
+//     ($($(#[$($meta:meta),*])* $f:ident),+) => {
+//         pub fn rust_init_syms() {
+//             #[allow(unused_unsafe)] // just in case the block is empty
+//             unsafe {
+//                 $(
+//                     $(#[$($meta),*])* crate::lisp::defsubr(concat_idents!(S, $f).as_ptr());
+//                 )+
+//             }
+//         }
+//     }
+// }
