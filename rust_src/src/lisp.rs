@@ -5,10 +5,10 @@
 // // use std::ffi::CString;
 // // use std::fmt;
 // // use std::fmt::{Debug, Display, Error, Formatter};
-// use std::mem;
+use std::mem;
 // use std::ops::{Deref, DerefMut};
 
-// use libc::{c_void, intptr_t, uintptr_t};
+use libc::{c_void, intptr_t, uintptr_t};
 
 // use crate::{
 //     buffers::LispBufferRef,
@@ -95,60 +95,60 @@ pub struct LispObject(pub EmacsInt);
 //     }
 // }
 
-// // ExternalPtr
+// ExternalPtr
 
-// #[repr(transparent)]
-// pub struct ExternalPtr<T>(*mut T);
+#[repr(transparent)]
+pub struct ExternalPtr<T>(*mut T);
 
-// impl<T> Copy for ExternalPtr<T> {}
+impl<T> Copy for ExternalPtr<T> {}
 
-// // Derive fails for this type so do it manually
-// impl<T> Clone for ExternalPtr<T> {
-//     fn clone(&self) -> Self {
-//         Self::new(self.0)
-//     }
-// }
+// Derive fails for this type so do it manually
+impl<T> Clone for ExternalPtr<T> {
+    fn clone(&self) -> Self {
+        Self::new(self.0)
+    }
+}
 
-// impl<T> ExternalPtr<T> {
-//     pub const fn new(p: *mut T) -> Self {
-//         Self(p)
-//     }
+impl<T> ExternalPtr<T> {
+    pub const fn new(p: *mut T) -> Self {
+        Self(p)
+    }
 
-//     pub fn is_null(self) -> bool {
-//         self.0.is_null()
-//     }
+    pub fn is_null(self) -> bool {
+        self.0.is_null()
+    }
 
-//     pub const fn as_ptr(self) -> *const T {
-//         self.0
-//     }
+    pub const fn as_ptr(self) -> *const T {
+        self.0
+    }
 
-//     pub fn as_mut(&mut self) -> *mut T {
-//         self.0
-//     }
+    pub fn as_mut(&mut self) -> *mut T {
+        self.0
+    }
 
-//     pub fn from_ptr(ptr: *mut c_void) -> Option<Self> {
-//         unsafe { ptr.as_ref().map(|p| mem::transmute(p)) }
-//     }
+    pub fn from_ptr(ptr: *mut c_void) -> Option<Self> {
+        unsafe { ptr.as_ref().map(|p| mem::transmute(p)) }
+    }
 
-//     pub fn replace_ptr(&mut self, ptr: *mut T) {
-//         self.0 = ptr;
-//     }
+    pub fn replace_ptr(&mut self, ptr: *mut T) {
+        self.0 = ptr;
+    }
 
-//     pub unsafe fn ptr_offset(&mut self, size: isize) {
-//         let ptr = self.0.offset(size);
-//         self.replace_ptr(ptr);
-//     }
+    pub unsafe fn ptr_offset(&mut self, size: isize) {
+        let ptr = self.0.offset(size);
+        self.replace_ptr(ptr);
+    }
 
-//     pub unsafe fn ptr_add(&mut self, size: usize) {
-//         let ptr = self.0.add(size);
-//         self.replace_ptr(ptr);
-//     }
+    pub unsafe fn ptr_add(&mut self, size: usize) {
+        let ptr = self.0.add(size);
+        self.replace_ptr(ptr);
+    }
 
-//     pub unsafe fn ptr_sub(&mut self, size: usize) {
-//         let ptr = self.0.sub(size);
-//         self.replace_ptr(ptr);
-//     }
-// }
+    pub unsafe fn ptr_sub(&mut self, size: usize) {
+        let ptr = self.0.sub(size);
+        self.replace_ptr(ptr);
+    }
+}
 
 // impl<T> Deref for ExternalPtr<T> {
 //     type Target = T;
@@ -244,10 +244,10 @@ pub struct LispObject(pub EmacsInt);
 //     }
 // }
 
-// // Lisp_Subr support
+// Lisp_Subr support
 
-// pub type LispSubrRef = ExternalPtr<Lisp_Subr>;
-// unsafe impl Sync for LispSubrRef {}
+pub type LispSubrRef = ExternalPtr<Lisp_Subr>;
+unsafe impl Sync for LispSubrRef {}
 
 // impl LispSubrRef {
 //     pub fn is_many(self) -> bool {
@@ -745,19 +745,19 @@ impl LispObject {
 // /// of arguments.
 // pub const MANY: i16 = -2;
 
-// extern "C" {
-//     pub fn defsubr(sname: *const Lisp_Subr);
-// }
+extern "C" {
+    pub fn defsubr(sname: *const Lisp_Subr);
+}
 
-// macro_rules! export_lisp_fns {
-//     ($($(#[$($meta:meta),*])* $f:ident),+) => {
-//         pub fn rust_init_syms() {
-//             #[allow(unused_unsafe)] // just in case the block is empty
-//             unsafe {
-//                 $(
-//                     $(#[$($meta),*])* crate::lisp::defsubr(concat_idents!(S, $f).as_ptr());
-//                 )+
-//             }
-//         }
-//     }
-// }
+macro_rules! export_lisp_fns {
+    ($($(#[$($meta:meta),*])* $f:ident),+) => {
+        pub fn rust_init_syms() {
+            #[allow(unused_unsafe)] // just in case the block is empty
+            unsafe {
+                $(
+                    $(#[$($meta),*])* crate::lisp::defsubr(concat_idents!(S, $f).as_ptr());
+                )+
+            }
+        }
+    }
+}

@@ -41,6 +41,7 @@ mod remacs_sys;
 #[macro_use]
 mod lisp;
 mod lists;
+// mod numbers;
 // #[cfg(all(not(test), target_os = "macos", feature = "unexecmacosx"))]
 // use alloc_unexecmacosx::OsxUnexecAlloc;
 

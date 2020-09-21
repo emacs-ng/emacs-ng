@@ -25,8 +25,6 @@ use crate::lisp::LispObject;
 
 include!("../generated/definitions.rs");
 
-// EMACS_INT is defined as 'long int' in lisp.h.
-// type EmacsInt = libc::c_longlong;
 type Lisp_Object = LispObject;
 
 include!("../generated/bindings.rs");

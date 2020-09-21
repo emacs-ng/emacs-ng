@@ -237,4 +237,9 @@ use crate::{
 //     xsignal!(Qcircular_list, obj);
 // }
 
-// include!(concat!(env!("OUT_DIR"), "/lists_exports.rs"));
+#[lisp_fn]
+pub fn foo_numberp(object: LispObject) -> LispObject {
+    Qnil
+}
+
+include!(concat!(env!("OUT_DIR"), "/lists_exports.rs"));
