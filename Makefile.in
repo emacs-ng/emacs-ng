@@ -81,6 +81,13 @@ AWK = @AWK@
 
 EXEEXT=@EXEEXT@
 
+RUSTFLAGS=@RUSTFLAGS@
+CARGO_BUILD=@CARGO_BUILD@
+CARGO_CLEAN=@CARGO_CLEAN@
+CARGO_CLIPPY=@CARGO_CLIPPY@
+CARGO_TEST=@CARGO_TEST@
+CARGO_FLAGS=@CARGO_FLAGS@
+
 ### These help us choose version- and architecture-specific directories
 ### to install files in.
 
@@ -215,6 +222,10 @@ icondir=$(datarootdir)/icons
 
 # The source directory for the icon files.
 iconsrcdir=$(srcdir)/etc/images/icons
+
+# Root of rust src tree (where Cargo.toml is located).
+rust_srcdir=$(srcdir)/rust_src
+cargo_manifest=$(rust_srcdir)/Cargo.toml
 
 # ==================== Emacs-specific directories ====================
 
@@ -862,6 +873,8 @@ clean: $(clean_dirs:=_clean)
 	[ ! -d test ] || $(MAKE) -C test $@
 	-rm -f ./*.tmp etc/*.tmp*
 	-rm -rf info-dir.*
+	-rm -rf *.elc
+	-$(CARGO_CLEAN) --manifest-path ${cargo_manifest}
 
 ### 'bootclean'
 ###      Delete all files that need to be remade for a clean bootstrap.
@@ -968,6 +981,14 @@ else
 	@echo "You do not seem to have the test/ directory."
 	@echo "Maybe you used a release tarfile that lacks tests."
 endif
+
+clippy:
+	$(MAKE) -C src $@
+
+rustdoc:
+	$(MAKE) -C src $@
+
+.PHONY: clippy
 
 dist:
 	cd ${srcdir}; ./make-dist
@@ -1184,6 +1205,15 @@ check-declare:
 	fi
 	$(MAKE) -C lisp $@
 	$(MAKE) -C test $@
+
+.PHONY: rustfmt
+
+rustfmt:
+	(cd rust_src && cargo fmt)
+	(cd rust_src/remacs-lib && cargo fmt)
+	(cd rust_src/remacs-util && cargo fmt)
+	(cd rust_src/remacs-macros && cargo fmt)
+	(cd rust_src/alloc_unexecmacosx && cargo fmt)
 
 .PHONY: gitmerge
 

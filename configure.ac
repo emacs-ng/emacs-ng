@@ -451,6 +451,7 @@ OPTION_DEFAULT_ON([lcms2],[don't compile with Little CMS support])
 OPTION_DEFAULT_ON([libsystemd],[don't compile with libsystemd support])
 OPTION_DEFAULT_ON([cairo],[don't compile with Cairo drawing])
 OPTION_DEFAULT_ON([xml2],[don't compile with XML parsing support])
+OPTION_DEFAULT_ON([libvterm],[don't compile with libvterm support])
 OPTION_DEFAULT_OFF([imagemagick],[compile with ImageMagick image support])
 OPTION_DEFAULT_ON([native-image-api], [don't use native image APIs (GDI+ on Windows)])
 OPTION_DEFAULT_IFAVAILABLE([json], [don't compile with native JSON support])
@@ -598,6 +599,7 @@ do
 done
 IFS="$ac_save_IFS"
 
+CARGO_CHECKING_FEATURES=""
 if test x$ac_enable_checking != x ; then
   AC_DEFINE(ENABLE_CHECKING, 1,
 [Define to 1 if expensive run-time data type and consistency checks are enabled.])
@@ -628,7 +630,9 @@ fi
 if test x$ac_glyphs_debug != x ; then
   AC_DEFINE(GLYPH_DEBUG, 1,
 [Define this to enable glyphs debugging code.])
+  CARGO_CHECKING_FEATURES="${CARGO_CHECKING_FEATURES}\"glyph-debug\", "
 fi
+AC_SUBST(CARGO_CHECKING_FEATURES)
 
 dnl The name of this option is unfortunate.  It predates, and has no
 dnl relation to, the "sampling-based elisp profiler" added in 24.3.
@@ -995,7 +999,7 @@ AC_CACHE_CHECK([whether the compiler is clang], [emacs_cv_clang],
      [emacs_cv_clang=yes],
      [emacs_cv_clang=no])])
 
-WERROR_CFLAGS=
+WERROR_CFLAGS=$WERROR_CFLAGS
 # When compiling with GCC, prefer -isystem to -I when including system
 # include files, to avoid generating useless diagnostics for the files.
 AS_IF([test $gl_gcc_warnings = no],
@@ -4083,6 +4087,17 @@ fi
 AC_SUBST(LIBXML2_LIBS)
 AC_SUBST(LIBXML2_CFLAGS)
 
+dnl ### Use libvterm (-lvterm) if available
+HAVE_LIBVTERM=no
+if test "${with_libvterm}" != "no"; then
+  EMACS_CHECK_MODULES([LIBVTERM], [vterm])
+  if test "${HAVE_LIBVTERM}" = "yes"; then
+    AC_DEFINE(HAVE_LIBVTERM, 1, [Define to 1 if libvterm library is present.])
+  fi
+fi
+AC_SUBST(LIBVTERM_LIBS)
+AC_SUBST(LIBVTERM_CFLAGS)
+
 BLESSMAIL_TARGET=
 LIBS_MAIL=
 if test ! "$with_mailutils"; then
@@ -5461,6 +5476,73 @@ gl_INIT
 CFLAGS=$SAVE_CFLAGS
 LIBS=$SAVE_LIBS
 
+# Add Rust variables, libs and utilities
+
+RUSTFLAGS=$RUSTFLAGS
+
+AC_SUBST(RUSTFLAGS)
+
+CARGO="cargo"
+CARGO_BUILD="$CARGO build"
+CARGO_CLEAN="$CARGO clean"
+CARGO_TEST="$CARGO test"
+CARGO_CLIPPY="$CARGO clippy"
+CARGO_RUN="$CARGO run"
+CARGO_DOC="$CARGO doc --all --open --document-private-items"
+
+AC_SUBST(CARGO_BUILD)
+AC_SUBST(CARGO_CLEAN)
+AC_SUBST(CARGO_CLIPPY)
+AC_SUBST(CARGO_RUN)
+AC_SUBST(CARGO_DOC)
+
+AC_ARG_ENABLE(rust-debug,
+[AS_HELP_STRING([--enable-rust-debug],
+[build rust-src in debug mode
+Useful for debugging rust component of Remacs.])],
+[ac_enable_rust_debug="${enableval}"],[])
+if test x$ac_enable_rust_debug != x ; then
+CARGO_FLAGS="$CARGO_FLAGS"
+else
+CARGO_FLAGS="$CARGO_FLAGS --release"
+fi
+
+AC_SUBST(CARGO_FLAGS)
+
+case "${opsys}" in
+  darwin) RUST_DEPS="-ldl -lm -lresolv"
+  	REMACSLIB_NAME="libremacs_lib.a"
+        REMACSLIB_CFLAGS="-pthread" ;;
+  gnu*) RUST_DEPS="-ldl -lm -lrt"
+    	REMACSLIB_NAME="libremacs_lib.a"
+        REMACSLIB_CFLAGS="-pthread" ;;
+esac
+
+if test "${HAVE_W32}" = "yes"; then
+    REMACSLIB_NAME="remacs_lib.lib"
+    RUST_DEPS="$RUST_DEPS -lws2_32 -luserenv"
+
+    # Windows fails linking in the 'cargo test' stage, skip for now.
+    CARGO_TEST="true"
+fi
+
+LIB_REMACS="$RUST_DEPS"
+
+LDFLAGS_REMACS="-L../$srcdir/rust_src/target/\${CARGO_BUILD_DIR}"
+
+# On macOS, rand crate needs '_SecRandomCopyBytes' symbol in Security framework.
+if test "${opsys}" = "darwin"; then
+LDFLAGS_REMACS="$LDFLAGS_REMACS -framework Security"
+fi
+
+LDFLAGS="$LDFLAGS $LDFLAGS_REMACS"
+
+AC_SUBST(LIB_REMACS)
+AC_SUBST(RUST_DEPS)
+AC_SUBST(REMACSLIB_CFLAGS)
+AC_SUBST(REMACSLIB_NAME)
+AC_SUBST(CARGO_TEST)
+
 if test "${opsys}" = "mingw32"; then
   CPPFLAGS="$CPPFLAGS -DUSE_CRT_DLL=1 -I \${abs_top_srcdir}/nt/inc"
   # Remove unneeded switches from the value of CC that goes to Makefiles
@@ -5636,6 +5718,7 @@ Configured for '${canonical}'.
   Should Emacs use mmap(2) for buffer allocation?         $use_mmap_for_buffers
   What window system should Emacs use?                    ${window_system}
   What toolkit should Emacs use?                          ${USE_X_TOOLKIT}
+  What libraries will lib-remacs link against?            ${RUST_DEPS}
   Where do we find X Windows header files?                ${x_includes:-$emacs_standard_dirs}
   Where do we find X Windows libraries?                   ${x_libraries:-$emacs_standard_dirs}"])
 
@@ -5829,6 +5912,38 @@ else
   ${MAKE-make} MAKEFILE_NAME=do-not-make-Makefile epaths-force
 fi || AC_MSG_ERROR(['src/epaths.h' could not be made.])
 ], [GCC="$GCC" CPPFLAGS="$CPPFLAGS" opsys="$opsys"])
+
+
+CARGO_DEFAULT_FEATURES=""
+if test "$HAVE_LIBXML2" = "yes"; then
+    CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"use-xml2\", "
+fi
+if test "$CANNOT_DUMP" != "yes"; then
+    if test "$opsys" = "darwin"; then
+        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"unexecmacosx\", "
+    else
+        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"unexec\", "
+    fi
+fi
+if test "$window_system" != "none"; then
+    CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system\", "
+fi
+case "$window_system" in
+    x11)
+        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-x11\", "
+    ;;
+    nextstep)
+	CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-nextstep\", "
+    ;;
+    w32)
+        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-w32\", "
+    ;;
+esac
+if test "$HAVE_LIBVTERM" = "yes"; then
+   CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"libvterm\", "
+fi
+AC_SUBST(CARGO_DEFAULT_FEATURES)
+AC_CONFIG_FILES([rust_src/Cargo.toml])
 
 dnl NB we have to cheat and use the ac_... version because abs_top_srcdir
 dnl is not yet set, sigh.  Or we could use ../$srcdir/src/.gdbinit,

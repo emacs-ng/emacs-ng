@@ -1,0 +1,20 @@
+(ert-deftest base64-tests-decode-german ()
+  (let ((clear (encode-coding-string "Fußgängerübergänge" 'utf-8))
+        (encoded "RnXDn2fDpG5nZXLDvGJlcmfDpG5nZQ=="))
+    (should (string= clear (base64-decode-string encoded)))
+    (should (string= encoded (base64-encode-string clear)))))
+
+(ert-deftest base64-tests-decode-czech ()
+  ;; In this test, the input is not explicitly coded in utf8
+  (let ((clear "Dobrý den")
+        (raw   "Dobr\375 den")
+        (encoded "RG9icv0gZGVu"))
+    (should (string= raw (base64-decode-string encoded)))
+    (should (string= encoded (base64-encode-string clear)))))
+
+(ert-deftest base64-tests-no-linebreak ()
+  (let ((clear (make-string 60 ?x))
+        (encoded-with-break (concat (apply 'concat (make-list 19 "eHh4")) "\n" "eHh4"))
+        (encoded-without-break (apply 'concat (make-list 20 "eHh4"))))
+    (should (string= encoded-with-break (base64-encode-string clear)))
+    (should (string= encoded-without-break (base64-encode-string clear t)))))

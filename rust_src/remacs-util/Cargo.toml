@@ -1,0 +1,18 @@
+[package]
+name = "remacs-util"
+version = "0.1.0"
+description = "Common utility code linked by other remacs crates."
+edition = "2018"
+
+[dependencies]
+libc = "0.2"
+errno = "0.2"
+darling = "0.2"
+syn = { version = "0.11.11", features = ["full"] }
+
+[lib]
+path = "lib.rs"
+
+[features]
+# Treat warnings as a build error on Travis.
+strict = []

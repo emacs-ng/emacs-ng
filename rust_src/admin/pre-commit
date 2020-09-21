@@ -1,0 +1,80 @@
+#!/bin/bash
+
+##
+## To install:
+## $ cd .git/hooks
+## $ ln -s ../../rust_src/admin/pre-commit pre-commit
+##
+
+STASH_NAME="pre-commit-$(date +%s)"
+
+finish() {
+    [ "$(git stash list --format='%s' | cut -d' ' -f3)" == "$STASH_NAME" ] && git stash pop -q
+}
+
+trap finish EXIT
+
+set -u
+
+git stash save -q --keep-index $STASH_NAME
+
+errors=0
+
+GIT_TOPLEVEL=$(git rev-parse --show-toplevel)
+
+EXPECTED_RUSTFMT_VERSION=$(grep 'rustfmt --version' .travis.yml | awk -F'=~' '{print $2}' | cut -f2 -d' ' | sed -e 's/"//g')
+INSTALLED_RUSTFMT_VERSION=$(cd $GIT_TOPLEVEL/rust_src && rustfmt --version | cut -f1 -d-)
+
+if [ ! -z "$EXPECTED_RUSTFMT_VERSION" ]; then
+    if [ -z "$INSTALLED_RUSTFMT_VERSION" ]; then
+        echo "WARNING: No rustfmt-nightly installed, cannot perform check."
+        exit 1
+    elif [ "$EXPECTED_RUSTFMT_VERSION" != "$INSTALLED_RUSTFMT_VERSION" ]; then
+        echo "Error: rustfmt version does not match"
+        exit 1
+    fi
+fi
+
+echo -n "Checking formatting... "
+diff=$(cd $GIT_TOPLEVEL/rust_src && cargo fmt -- --write-mode diff)
+stripped_diff=$(echo "$diff" | sed -e '/^Diff of/d' -e '/^$/d')
+
+if [ -z "$stripped_diff" ]; then
+	echo -e "success."
+else
+	echo -e "FAIL!"
+	echo -e "Following code is not formatted with rustfmt. Make sure to run 'make rustfmt' from git root.\n"
+	echo -e "$diff\n"
+	errors=1
+fi
+
+
+# Check if emacs_abort is used
+EMACS_ABORT_PATTERN='\+.*emacs_abort'
+if [ "$(git diff --cached --diff-filter=ACM | grep $EMACS_ABORT_PATTERN)" != "" ]; then
+    cat <<EOF
+Some files use emacs_abort. Use panic! with a string explaining cause instead. See $GIT_TOPLEVEL/rust_src/src/buffers.rs for examples.
+
+EOF
+    errors=1
+fi
+
+# Check if eassert is used
+EASSERT_PATTERN='\+.*eassert'
+# Check for eassert
+if [ "$(git diff --cached --diff-filter=ACM | grep $EASSERT_PATTERN)" != "" ]; then
+    cat <<EOF
+Some files use eassert. Use debug_assert! instead. See $GIT_TOPLEVEL/rust_src/lisp.rs for examples.
+
+EOF
+    errors=1
+fi
+
+
+if [ "$errors" != 0 ]; then
+    echo "pre-commit checks failed"
+    echo "To commit anyway, pass --no-verify to git commit."
+    exit 1
+else
+	echo "OK"
+fi
