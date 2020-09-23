@@ -1,9 +1,11 @@
 // //! This module contains Rust definitions whose C equivalents live in
 // //! lisp.h.
 
+use libc::{c_void, intptr_t};
+
 use crate::{
-    remacs_sys::{EmacsInt},
-    remacs_sys::{Qnil, Qt},
+    remacs_sys::EmacsInt,
+    remacs_sys::{Qnil, Qt, VALMASK},
 };
 
 // TODO: tweak Makefile to rebuild C files if this changes.
@@ -28,6 +30,16 @@ use crate::{
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct LispObject(pub EmacsInt);
+
+impl LispObject {
+    pub const fn from_C(n: EmacsInt) -> Self {
+        Self(n)
+    }
+
+    pub const fn to_C(self) -> EmacsInt {
+        self.0
+    }
+}
 
 impl From<()> for LispObject {
     fn from(_v: ()) -> Self {
@@ -66,6 +78,12 @@ impl LispObject {
 
     pub fn eq(self, other: impl Into<Self>) -> bool {
         self == other.into()
+    }
+}
+
+impl LispObject {
+    pub fn get_untaggedptr(self) -> *mut c_void {
+        (self.to_C() & VALMASK) as intptr_t as *mut c_void
     }
 }
 
