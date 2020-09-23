@@ -61,7 +61,7 @@
    "^\\s-*(\\(def\\(ine-skeleton\\|ine-generic-mode\\|ine-derived-mode\\|\
 ine\\(?:-global\\)?-minor-mode\\|ine-compilation-mode\\|un-cvs-mode\\|\
 foo\\|\\(?:[^icfgv]\\|g[^r]\\)\\(\\w\\|\\s_\\)+\\*?\\)\\|easy-mmode-define-[a-z-]+\\|easy-menu-define\\|\
-menu-bar-make-toggle\\)"
+menu-bar-make-toggle\\|menu-bar-make-toggle-command\\)"
    find-function-space-re
    "\\('\\|(quote \\)?%s\\(\\s-\\|$\\|[()]\\)")
   "The regexp used by `find-function' to search for a function definition.
@@ -167,7 +167,8 @@ See the functions `find-function' and `find-variable'."
 (defun find-library-suffixes ()
   (let ((suffixes nil))
     (dolist (suffix (get-load-suffixes) (nreverse suffixes))
-      (unless (string-match "elc" suffix) (push suffix suffixes)))))
+      (unless (string-match "el[cn]" suffix)
+        (push suffix suffixes)))))
 
 (defun find-library--load-name (library)
   (let ((name library))
@@ -183,8 +184,11 @@ See the functions `find-function' and `find-variable'."
 LIBRARY should be a string (the name of the library)."
   ;; If the library is byte-compiled, try to find a source library by
   ;; the same name.
-  (when (string-match "\\.el\\(c\\(\\..*\\)?\\)\\'" library)
+  (cond
+   ((string-match "\\.el\\(c\\(\\..*\\)?\\)\\'" library)
     (setq library (replace-match "" t t library)))
+   ((string-match "\\.eln\\'" library)
+    (setq library (gethash (file-name-nondirectory library) comp-eln-to-el-h))))
   (or
    (locate-file library
                 (or find-function-source-path load-path)
@@ -286,20 +290,10 @@ Interactively, prompt for LIBRARY using the one at or near point."
 A library name is the filename of an Emacs Lisp library located
 in a directory under `load-path' (or `find-function-source-path',
 if non-nil)."
-  (let* ((suffix-regexp (mapconcat
-                         (lambda (suffix)
-                           (concat (regexp-quote suffix) "\\'"))
-                         (find-library-suffixes)
-                         "\\|"))
-         (table (cl-loop for dir in (or find-function-source-path load-path)
-                         for dir-or-default = (or dir default-directory)
-                         when (file-readable-p dir-or-default)
-                         append (mapcar
-                                 (lambda (file)
-                                   (replace-regexp-in-string suffix-regexp
-                                                             "" file))
-                                 (directory-files dir-or-default nil
-                                                  suffix-regexp))))
+  (let* ((dirs (or find-function-source-path load-path))
+         (suffixes (find-library-suffixes))
+         (table (apply-partially 'locate-file-completion-table
+                                 dirs suffixes))
          (def (if (eq (function-called-at-point) 'require)
                   ;; `function-called-at-point' may return 'require
                   ;; with `point' anywhere on this line.  So wrap the
@@ -315,9 +309,7 @@ if non-nil)."
                 (thing-at-point 'symbol))))
     (when (and def (not (test-completion def table)))
       (setq def nil))
-    (completing-read (if def
-                         (format "Library name (default %s): " def)
-                       "Library name: ")
+    (completing-read (format-prompt "Library name" def)
                      table nil nil nil nil def)))
 
 ;;;###autoload
@@ -440,7 +432,7 @@ message about the whole chain of aliases."
     (cons function
           (cond
            ((autoloadp def) (nth 1 def))
-           ((subrp def)
+           ((subr-primitive-p def)
             (if lisp-only
                 (error "%s is a built-in function" function))
             (help-C-file-name def 'subr))
@@ -485,12 +477,10 @@ otherwise uses `variable-at-point'."
          (prompt-type (cdr (assq type '((nil . "function")
                                         (defvar . "variable")
                                         (defface . "face")))))
-         (prompt (concat "Find " prompt-type
-                         (and symb (format " (default %s)" symb))
-                         ": "))
          (enable-recursive-minibuffers t))
     (list (intern (completing-read
-                   prompt obarray predicate
+                   (format-prompt "Find %s" symb prompt-type)
+                   obarray predicate
                    t nil nil (and symb (symbol-name symb)))))))
 
 (defun find-function-do-it (symbol type switch-fn)

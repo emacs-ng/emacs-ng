@@ -46,7 +46,8 @@
 
 (defcustom sgml-basic-offset 2
   "Specifies the basic indentation level for `sgml-indent-line'."
-  :type 'integer)
+  :type 'integer
+  :safe #'integerp)
 
 (defcustom sgml-attribute-offset 0
   "Specifies a delta for attribute indentation in `sgml-indent-line'.
@@ -778,7 +779,7 @@ If you like tags and attributes in uppercase, customize
            (setq sgml-tag-last
 		 (completing-read
 		  (if (> (length sgml-tag-last) 0)
-		      (format "Tag (default %s): " sgml-tag-last)
+		      (format-prompt "Tag" sgml-tag-last)
 		    "Tag: ")
 		  sgml-tag-alist nil nil nil 'sgml-tag-history sgml-tag-last)))
   ?< str |
@@ -877,9 +878,7 @@ With prefix argument, only self insert."
    (list (let ((def (save-excursion
 		      (if (eq (following-char) ?<) (forward-char))
 		      (sgml-beginning-of-tag))))
-	   (completing-read (if def
-				(format "Tag (default %s): " def)
-			      "Tag: ")
+	   (completing-read (format-prompt "Tag" def)
 			    sgml-tag-alist nil nil nil
 			    'sgml-tag-history def))))
   (or (and tag (> (length tag) 0))
@@ -1189,10 +1188,9 @@ and move to the line in the SGML document that caused it."
 		      (or sgml-saved-validate-command
 			  (concat sgml-validate-command
 				  " "
-				  (shell-quote-argument
-				   (let ((name (buffer-file-name)))
-				     (and name
-					  (file-name-nondirectory name)))))))))
+                                  (when-let ((name (buffer-file-name)))
+				    (shell-quote-argument
+				     (file-name-nondirectory name))))))))
   (setq sgml-saved-validate-command command)
   (save-some-buffers (not compilation-ask-about-save) nil)
   (compilation-start command))

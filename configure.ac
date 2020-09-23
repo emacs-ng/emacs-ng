@@ -464,6 +464,7 @@ OPTION_DEFAULT_ON([m17n-flt],[don't use m17n-flt for text shaping])
 OPTION_DEFAULT_ON([toolkit-scroll-bars],[don't use Motif/Xaw3d/GTK toolkit scroll bars])
 OPTION_DEFAULT_ON([xaw3d],[don't use Xaw3d])
 OPTION_DEFAULT_ON([xim],[at runtime, default X11 XIM to off])
+OPTION_DEFAULT_ON([xdbe],[don't use X11 double buffering support])
 AC_ARG_WITH([ns],[AS_HELP_STRING([--with-ns],
 [use Nextstep (macOS Cocoa or GNUstep) windowing system.
 On by default on macOS.])],[],[with_ns=maybe])
@@ -484,6 +485,7 @@ OPTION_DEFAULT_ON([gnutls],[don't use -lgnutls for SSL/TLS support])
 OPTION_DEFAULT_ON([zlib],[don't compile with zlib decompression support])
 OPTION_DEFAULT_ON([modules],[don't compile with dynamic modules support])
 OPTION_DEFAULT_ON([threads],[don't compile with elisp threading support])
+OPTION_DEFAULT_OFF([nativecomp],[compile with Emacs Lisp native compiler support])
 
 AC_ARG_WITH([file-notification],[AS_HELP_STRING([--with-file-notification=LIB],
  [use a file notification library (LIB one of: yes, inotify, kqueue, gfile, w32, no)])],
@@ -727,7 +729,7 @@ case "${canonical}" in
   *-apple-darwin* )
     case "${canonical}" in
       *-apple-darwin[0-9].*) unported=yes ;;
-      i[3456]86-* | x86_64-* | arm-* )  ;;
+      i[3456]86-* | x86_64-* | arm-* | aarch64-* )  ;;
       * )            unported=yes ;;
     esac
     opsys=darwin
@@ -788,10 +790,7 @@ case "${canonical}" in
   *-nto-qnx* )
     opsys=qnxnto
     test -z "$CC" && CC=qcc
-    CFLAGS="$CFLAGS -D__NO_EXT_QNX"
-    if test "$with_unexec" = yes; then
-      LDFLAGS="-N2MB $LDFLAGS"
-    fi
+    LDFLAGS="-N2M $LDFLAGS"
   ;;
 
   ## Intel 386 machines where we don't care about the manufacturer.
@@ -1903,7 +1902,7 @@ tmp_CPPFLAGS="$CPPFLAGS"
 tmp_CFLAGS="$CFLAGS"
 CPPFLAGS="$CPPFLAGS -x objective-c"
 CFLAGS="$CFLAGS -x objective-c"
-GNU_OBJC_CFLAGS=
+GNU_OBJC_CFLAGS=""
 LIBS_GNUSTEP=
 if test "${with_ns}" != no; then
   # macfont.o requires macuvs.h which is absent after 'make extraclean',
@@ -1919,7 +1918,7 @@ if test "${with_ns}" != no; then
   elif flags=$( (gnustep-config --objc-flags) 2>/dev/null); then
      NS_IMPL_GNUSTEP=yes
      NS_GNUSTEP_CONFIG=yes
-     GNU_OBJC_CFLAGS=$flags
+     GNU_OBJC_CFLAGS="$flags"
      LIBS_GNUSTEP=$(gnustep-config --gui-libs) || exit
   elif test -f $GNUSTEP_CONFIG_FILE; then
      NS_IMPL_GNUSTEP=yes
@@ -1964,7 +1963,7 @@ fail;
        dnl _NATIVE_OBJC_EXCEPTIONS is used by the GNUstep headers.
        AC_DEFINE(_NATIVE_OBJC_EXCEPTIONS, 1,
          [Define if GNUstep uses ObjC exceptions.])
-       GNU_OBJC_CFLAGS="-fobjc-exceptions"
+       GNU_OBJC_CFLAGS="$GNU_OBJC_CFLAGS -fobjc-exceptions"
      fi
   fi
   if test $NS_IMPL_GNUSTEP = yes; then
@@ -2069,6 +2068,20 @@ if test "${HAVE_NS}" = yes; then
     AC_DEFINE(NATIVE_OBJC_INSTANCETYPE, 1,
               [Define if ObjC compiler supports instancetype natively.])
   fi
+
+  AC_CACHE_CHECK(
+    [if the Objective C compiler defaults to C99],
+    [emacs_cv_objc_c99],
+    [AC_LANG_PUSH([Objective C])
+     AC_COMPILE_IFELSE(
+       [AC_LANG_PROGRAM([], [[for (int i = 0;;);]])],
+       emacs_cv_objc_c99=yes,
+       emacs_cv_objc_c99=no)
+     AC_LANG_POP([Objective C])])
+
+   if test x$emacs_cv_objc_c99 = xno ; then
+     GNU_OBJC_CFLAGS="$GNU_OBJC_CFLAGS -std=c99"
+   fi
 fi
 
 HAVE_W32=no
@@ -3661,6 +3674,7 @@ AC_SUBST(LIBZ)
 LIBMODULES=
 HAVE_MODULES=no
 MODULES_OBJ=
+NEED_DYNLIB=no
 case $opsys in
   cygwin|mingw32) MODULES_SUFFIX=".dll" ;;
   darwin) MODULES_SUFFIX=".dylib" ;;
@@ -3696,7 +3710,8 @@ if test "${with_modules}" != "no"; then
 fi
 
 if test "${HAVE_MODULES}" = yes; then
-   MODULES_OBJ="dynlib.o emacs-module.o"
+   MODULES_OBJ="emacs-module.o"
+   NEED_DYNLIB=yes
    AC_DEFINE(HAVE_MODULES, 1, [Define to 1 if dynamic modules are enabled])
    AC_DEFINE_UNQUOTED(MODULES_SUFFIX, "$MODULES_SUFFIX",
      [System extension for dynamic libraries])
@@ -3722,6 +3737,94 @@ module_env_snippet_27="$srcdir/src/module-env-27.h"
 module_env_snippet_28="$srcdir/src/module-env-28.h"
 emacs_major_version="${PACKAGE_VERSION%%.*}"
 AC_SUBST(emacs_major_version)
+
+### Emacs Lisp native compiler support
+
+AC_DEFUN([libgccjit_smoke_test], [
+  AC_LANG_SOURCE(
+    [[#include <libgccjit.h>
+      #include <stdlib.h>
+      #include <stdio.h>
+      int
+      main (int argc, char **argv)
+      {
+        gcc_jit_context *ctxt;
+        gcc_jit_result *result;
+        ctxt = gcc_jit_context_acquire ();
+        if (!ctxt)
+          exit (1);
+        gcc_jit_type *int_type =
+          gcc_jit_context_get_type (ctxt, GCC_JIT_TYPE_INT);
+        gcc_jit_function *func =
+          gcc_jit_context_new_function (ctxt, NULL,
+                                        GCC_JIT_FUNCTION_EXPORTED,
+                                        int_type, "foo", 0, NULL, 0);
+        gcc_jit_block *block = gcc_jit_function_new_block (func, "foo");
+        gcc_jit_block_end_with_return (
+          block,
+          NULL,
+          gcc_jit_context_new_rvalue_from_int (ctxt, int_type, 1));
+        result = gcc_jit_context_compile (ctxt);
+        if (!result)
+          exit (1);
+        typedef int (*fn_type) (void);
+        fn_type foo =
+          (fn_type)gcc_jit_result_get_code (result, "foo");
+        if (!foo)
+          exit (1);
+        if (foo () != 1)
+          exit (1);
+        gcc_jit_context_release (ctxt);
+        gcc_jit_result_release (result);
+        return 0;
+      }]])])
+
+AC_DEFUN([libgccjit_not_found], [
+  AC_MSG_ERROR([elisp native compiler requested but libgccjit not found.
+If you are sure you want Emacs compiled without elisp native compiler, pass
+  --without-nativecomp
+to configure.])])
+
+AC_DEFUN([libgccjit_broken], [
+  AC_MSG_ERROR([Installed libgccjit has failed passing the smoke test.
+You can verify it yourself compiling:
+<https://gcc.gnu.org/onlinedocs/jit/intro/tutorial01.html>.
+Please report the issue to your distribution.
+Here instructions on how to compile and install libgccjit from source:
+<https://gcc.gnu.org/wiki/JIT>.])])
+
+HAVE_NATIVE_COMP=no
+LIBGCCJIT_LIB=
+if test "${with_nativecomp}" != "no"; then
+    if test "${HAVE_PDUMPER}" = no; then
+       AC_MSG_ERROR(['--with-nativecomp' requires '--with-dumping=pdumper'])
+    fi
+    if test "${HAVE_ZLIB}" = no; then
+       AC_MSG_ERROR(['--with-nativecomp' requires zlib])
+    fi
+    emacs_save_LIBS=$LIBS
+    LIBS="-lgccjit"
+    AC_RUN_IFELSE([libgccjit_smoke_test], [], [libgccjit_broken],
+      [AC_LINK_IFELSE([libgccjit_smoke_test], [], [libgccjit_not_found])])
+    LIBS=$emacs_save_LIBS
+    HAVE_NATIVE_COMP=yes
+    # mingw32 loads the library dynamically.
+    if test "${opsys}" != "mingw32"; then
+      LIBGCCJIT_LIB="-lgccjit -ldl"
+    fi
+    NEED_DYNLIB=yes
+    AC_DEFINE(HAVE_NATIVE_COMP, 1, [Define to 1 if you have the libgccjit library (-lgccjit).])
+fi
+AC_DEFINE_UNQUOTED(NATIVE_ELISP_SUFFIX, ".eln",
+  [System extension for native compiled elisp])
+AC_SUBST(HAVE_NATIVE_COMP)
+AC_SUBST(LIBGCCJIT_LIB)
+
+DYNLIB_OBJ=
+if test "${NEED_DYNLIB}" = yes; then
+  DYNLIB_OBJ="dynlib.o"
+fi
+AC_SUBST(DYNLIB_OBJ)
 
 ### Use -lpng if available, unless '--with-png=no'.
 HAVE_PNG=no
@@ -4027,11 +4130,13 @@ AC_SUBST(XFIXES_LIBS)
 ### Use Xdbe (-lXdbe) if available
 HAVE_XDBE=no
 if test "${HAVE_X11}" = "yes"; then
-  AC_CHECK_HEADER(X11/extensions/Xdbe.h,
-    [AC_CHECK_LIB(Xext, XdbeAllocateBackBufferName, HAVE_XDBE=yes)],
-    [],
-    [#include <X11/Xlib.h>
-    ])
+  if test "${with_xdbe}" != "no"; then
+    AC_CHECK_HEADER(X11/extensions/Xdbe.h,
+      [AC_CHECK_LIB(Xext, XdbeAllocateBackBufferName, HAVE_XDBE=yes)],
+      [],
+      [#include <X11/Xlib.h>
+      ])
+  fi
   if test $HAVE_XDBE = yes; then
     XDBE_LIBS=-lXext
   fi
@@ -5511,10 +5616,10 @@ AC_SUBST(CARGO_FLAGS)
 
 case "${opsys}" in
   darwin) RUST_DEPS="-ldl -lm -lresolv"
-  	REMACSLIB_NAME="libremacs_lib.a"
+        REMACSLIB_NAME="libremacs_lib.a"
         REMACSLIB_CFLAGS="-pthread" ;;
   gnu*) RUST_DEPS="-ldl -lm -lrt"
-    	REMACSLIB_NAME="libremacs_lib.a"
+        REMACSLIB_NAME="libremacs_lib.a"
         REMACSLIB_CFLAGS="-pthread" ;;
 esac
 
@@ -5727,7 +5832,7 @@ emacs_config_features=
 for opt in XAW3D XPM JPEG TIFF GIF PNG RSVG CAIRO IMAGEMAGICK SOUND GPM DBUS \
   GCONF GSETTINGS GLIB NOTIFY ACL LIBSELINUX GNUTLS LIBXML2 FREETYPE HARFBUZZ M17N_FLT \
   LIBOTF XFT ZLIB TOOLKIT_SCROLL_BARS X_TOOLKIT OLDXMENU X11 XDBE XIM \
-  NS MODULES THREADS XWIDGETS LIBSYSTEMD JSON PDUMPER UNEXEC LCMS2 GMP; do
+  NS MODULES NATIVE_COMP THREADS XWIDGETS LIBSYSTEMD JSON PDUMPER UNEXEC LCMS2 GMP; do
 
     case $opt in
       PDUMPER) val=${with_pdumper} ;;
@@ -5806,6 +5911,7 @@ AS_ECHO(["  Does Emacs use -lXaw3d?                                 ${HAVE_XAW3D
   Does Emacs support the portable dumper?                 ${with_pdumper}
   Does Emacs support legacy unexec dumping?               ${with_unexec}
   Which dumping strategy does Emacs use?                  ${with_dumping}
+  Does Emacs have native lisp compiler?                   ${HAVE_NATIVE_COMP}
 "])
 
 if test -n "${EMACSDATA}"; then

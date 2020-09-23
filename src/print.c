@@ -1590,27 +1590,34 @@ print_vectorlike (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag,
 
 	/* Print the data here as a plist. */
 	ptrdiff_t real_size = HASH_TABLE_SIZE (h);
-	ptrdiff_t size = real_size;
+	ptrdiff_t size = h->count;
 
 	/* Don't print more elements than the specified maximum.  */
 	if (FIXNATP (Vprint_length) && XFIXNAT (Vprint_length) < size)
 	  size = XFIXNAT (Vprint_length);
 
 	printchar ('(', printcharfun);
-	for (ptrdiff_t i = 0; i < size; i++)
+	ptrdiff_t j = 0;
+	for (ptrdiff_t i = 0; i < real_size; i++)
           {
             Lisp_Object key = HASH_KEY (h, i);
 	    if (!EQ (key, Qunbound))
 	      {
-	        if (i) printchar (' ', printcharfun);
+	        if (j++) printchar (' ', printcharfun);
 	        print_object (key, printcharfun, escapeflag);
 	        printchar (' ', printcharfun);
 	        print_object (HASH_VALUE (h, i), printcharfun, escapeflag);
+		if (j == size)
+		  break;
 	      }
           }
 
-	if (size < real_size)
-	  print_c_string (" ...", printcharfun);
+	if (j < h->count)
+	  {
+	    if (j)
+	      printchar (' ', printcharfun);
+	    print_c_string ("...", printcharfun);
+	  }
 
 	print_c_string ("))", printcharfun);
       }
@@ -1833,7 +1840,18 @@ print_vectorlike (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag,
       }
       break;
 #endif
-
+#ifdef HAVE_NATIVE_COMP
+    case PVEC_NATIVE_COMP_UNIT:
+      {
+	struct Lisp_Native_Comp_Unit *cu = XNATIVE_COMP_UNIT (obj);
+	print_c_string ("#<native compilation unit: ", printcharfun);
+	print_string (cu->file, printcharfun);
+	printchar (' ', printcharfun);
+	print_object (cu->optimize_qualities, printcharfun, escapeflag);
+	printchar ('>', printcharfun);
+      }
+      break;
+#endif
     default:
       emacs_abort ();
     }

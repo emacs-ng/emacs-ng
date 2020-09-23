@@ -2039,7 +2039,7 @@ be useful for Shell mode (in reality, Shell mode does not set
    "%n"
    ")%]--"
 @group
-   '(which-func-mode ("" which-func-format "--"))
+   '(which-function-mode ("" which-func-format "--"))
    '(line-number-mode "L%l--")
    '(column-number-mode "C%c--")
    '(-3 "%p")))
@@ -2047,8 +2047,8 @@ be useful for Shell mode (in reality, Shell mode does not set
 @end example
 
 @noindent
-(The variables @code{line-number-mode}, @code{column-number-mode}
-and @code{which-func-mode} enable particular minor modes; as usual,
+(The variables @code{line-number-mode}, @code{column-number-mode} and
+@code{which-function-mode} enable particular minor modes; as usual,
 these variable names are also the minor mode command names.)
 
 @node Mode Line Variables
@@ -2166,6 +2166,29 @@ Mode line construct for miscellaneous information.  By default, this
 shows the information specified by @code{global-mode-string}.
 @end defvar
 
+@defvar mode-line-position-line-format
+The format used to display line numbers when @code{line-number-mode}
+(@pxref{Optional Mode Line,,, emacs, The GNU Emacs Manual}) is
+switched on.  @samp{%l} in the format will be replaced with the line
+number.
+@end defvar
+
+@defvar mode-line-position-column-format
+The format used to display column numbers when
+@code{column-number-mode} (@pxref{Optional Mode Line,,, emacs, The GNU
+Emacs Manual}) is switched on.  @samp{%c} in the format will be
+replaced with the column number, and this is zero-based if
+@code{column-number-indicator-zero-based} is non-@code{nil}, and
+one-based if @code{column-number-indicator-zero-based} is @code{nil}.
+@end defvar
+
+@defvar mode-line-position-column-line-format
+The format used to display column numbers when both
+@code{line-number-mode} and @code{column-number-mode} are switched on.
+See the previous two variables for the meaning of the @samp{%l} and
+@samp{%c} format specs.
+@end defvar
+
 @defvar minor-mode-alist
 @anchor{Definition of minor-mode-alist}
 This variable holds an association list whose elements specify how the
@@ -2190,7 +2213,7 @@ enabled separately in each buffer.
 
 @defvar global-mode-string
 This variable holds a mode line construct that, by default, appears in
-the mode line just after the @code{which-func-mode} minor mode if set,
+the mode line just after the @code{which-function-mode} minor mode if set,
 else after @code{mode-line-modes}.  The command @code{display-time} sets
 @code{global-mode-string} to refer to the variable
 @code{display-time-string}, which holds a string containing the time and
@@ -2219,7 +2242,7 @@ specifies addition of text properties.
  "   "
 @group
  mode-line-modes
- (which-func-mode ("" which-func-format "--"))
+ (which-function-mode ("" which-func-format "--"))
  (global-mode-string ("--" global-mode-string))
  "-%-")
 @end group
@@ -2327,6 +2350,10 @@ read-only buffer.  @xref{Buffer Modification}.
 @item %&
 @samp{*} if the buffer is modified, and @samp{-} otherwise.
 
+@item %@@
+@samp{@@} if the buffer's @code{default-directory} (@pxref{File Name
+Expansion}) is on a remote machine, and @samp{-} otherwise.
+
 @item %[
 An indication of the depth of recursive editing levels (not counting
 minibuffer levels): one @samp{[} for each editing level.
@@ -2344,16 +2371,13 @@ The character @samp{%}---this is how to include a literal @samp{%} in a
 string in which @code{%}-constructs are allowed.
 @end table
 
-The following two @code{%}-constructs are still supported, but they are
-obsolete, since you can get the same results with the variables
-@code{mode-name} and @code{global-mode-string}.
+The following @code{%}-construct is still supported, but it is
+obsolete, since you can get the same result using the variable
+@code{mode-name}.
 
 @table @code
 @item %m
 The value of @code{mode-name}.
-
-@item %M
-The value of @code{global-mode-string}.
 @end table
 
 @node Properties in Mode

@@ -1,4 +1,4 @@
-;;; easy-mmode.el --- easy definition for major and minor modes
+;;; easy-mmode.el --- easy definition for major and minor modes  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1997, 2000-2020 Free Software Foundation, Inc.
 
@@ -157,9 +157,6 @@ BODY contains code to execute each time the mode is enabled or disabled.
   the minor mode is global):
 
 :group GROUP	Custom group name to use in all generated `defcustom' forms.
-		Defaults to MODE without the possible trailing \"-mode\".
-		Don't use this default group name unless you have written a
-		`defgroup' to define that group properly.
 :global GLOBAL	If non-nil specifies that the minor mode is not meant to be
 		buffer-local, so don't make the variable MODE buffer-local.
 		By default, the mode is buffer-local.
@@ -262,12 +259,6 @@ For example, you could write
     (unless initialize
       (setq initialize '(:initialize 'custom-initialize-default)))
 
-    (unless group
-      ;; We might as well provide a best-guess default group.
-      (setq group
-	    `(:group ',(intern (replace-regexp-in-string
-				"-mode\\'" "" mode-name)))))
-
     ;; TODO? Mark booleans as safe if booleanp?  Eg abbrev-mode.
     (unless type (setq type '(:type 'boolean)))
 
@@ -344,6 +335,9 @@ or call the function `%s'."))))
 No problems result if this variable is not bound.
 `add-hook' automatically binds it.  (This is true for all hook variables.)"
                        modefun)))
+       ;; Allow using using `M-x customize-variable' on the hook.
+       (put ',hook 'custom-type 'hook)
+       (put ',hook 'standard-value (list nil))
 
        ;; Define the minor-mode keymap.
        ,(unless (symbolp keymap)	;nil is also a symbol.

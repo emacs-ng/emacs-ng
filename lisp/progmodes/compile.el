@@ -221,9 +221,9 @@ of[ \t]+\"?\\([a-zA-Z]?:?[^\":\n]+\\)\"?:" 3 2 nil (1))
      ;; considered before EDG.
      ;; The message may be a "warning", "error", or "fatal error" with
      ;; an error code, or "see declaration of" without an error code.
-     "^ *\\([0-9]+>\\)?\\(\\(?:[a-zA-Z]:\\)?[^ :(\t\n][^:(\t\n]*\\)(\\([0-9]+\\)) ?\
+     "^ *\\([0-9]+>\\)?\\(\\(?:[a-zA-Z]:\\)?[^ :(\t\n][^:(\t\n]*\\)(\\([0-9]+\\)\\(?:,\\([0-9]+\\)\\)?) ?\
 : \\(?:see declaration\\|\\(?:warnin\\(g\\)\\|[a-z ]+\\) C[0-9]+:\\)"
-     2 3 nil (4))
+     2 3 4 (5))
 
     (edg-1
      "^\\([^ \n]+\\)(\\([0-9]+\\)): \\(?:error\\|warnin\\(g\\)\\|remar\\(k\\)\\)"
@@ -1148,12 +1148,13 @@ POS and RES.")
 	    (setcdr l1 (cons (list ,key) l2)))))))
 
 (defun compilation-auto-jump (buffer pos)
-  (with-current-buffer buffer
-    (goto-char pos)
-    (let ((win (get-buffer-window buffer 0)))
-      (if win (set-window-point win pos)))
-    (if compilation-auto-jump-to-first-error
-	(compile-goto-error))))
+  (when (buffer-live-p buffer)
+    (with-current-buffer buffer
+      (goto-char pos)
+      (let ((win (get-buffer-window buffer 0)))
+        (if win (set-window-point win pos)))
+      (if compilation-auto-jump-to-first-error
+	  (compile-goto-error)))))
 
 ;; This function is the central driver, called when font-locking to gather
 ;; all information needed to later jump to corresponding source code.
@@ -2064,6 +2065,8 @@ Returns the compilation buffer created."
     (define-key map "\M-p" 'compilation-previous-error)
     (define-key map "\M-{" 'compilation-previous-file)
     (define-key map "\M-}" 'compilation-next-file)
+    (define-key map "n" 'next-error-no-select)
+    (define-key map "p" 'previous-error-no-select)
     (define-key map "\t" 'compilation-next-error)
     (define-key map [backtab] 'compilation-previous-error)
     (define-key map "g" 'recompile) ; revert
@@ -2087,8 +2090,7 @@ Returns the compilation buffer created."
       '(menu-item "Compile..." compile
 		  :help "Compile the program including the current buffer.  Default: run `make'"))
     map)
-  "Keymap for compilation log buffers.
-`compilation-minor-mode-map' is a parent of this.")
+  "Keymap for compilation log buffers.")
 
 (defvar compilation-mode-tool-bar-map
   ;; When bootstrapping, tool-bar-map is not properly initialized yet,
@@ -2910,11 +2912,8 @@ attempts to find a file whose name is produced by (format FMT FILENAME)."
 	    (and w (progn (compilation-set-window w marker)
                           (compilation-set-overlay-arrow w))))
           (let* ((name (read-file-name
-                        (format "Find this %s in%s: "
-                                compilation-error
-                                (if filename
-                                    (format " (default %s)" filename)
-                                  ""))
+                        (format-prompt "Find this %s in"
+                                       filename compilation-error)
                         spec-dir filename t nil
                         ;; The predicate below is fine when called from
                         ;; minibuffer-complete-and-exit, but it's too

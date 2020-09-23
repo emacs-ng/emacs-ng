@@ -1304,7 +1304,7 @@ downloaded into the agent."
           ;; gnus doesn't waste resources trying to fetch them.
 
           ;; NOTE: I don't do this for smaller gaps (< 100) as I don't
-          ;; want to modify the local file everytime someone restarts
+          ;; want to modify the local file every time someone restarts
           ;; gnus.  The small gap will cause a tiny performance hit
           ;; when gnus tries, and fails, to retrieve the articles.
           ;; Still that should be smaller than opening a buffer,
@@ -3812,6 +3812,7 @@ has been fetched."
         t))))
 
 (defun gnus-agent-store-article (article group)
+  (declare (obsolete nil "28.1"))
   (let* ((gnus-command-method (gnus-find-method-for-group group))
 	 (file (gnus-agent-article-name (number-to-string article) group))
 	 (file-name-coding-system nnmail-pathname-coding-system)
@@ -3934,7 +3935,7 @@ If REREAD is not nil, downloaded articles are marked as unread."
 		   (mm-with-unibyte-buffer
 		     (nnheader-insert-file-contents file)
 		     (nnheader-remove-body)
-		     (setq header (nnheader-parse-naked-head)))
+		     (setq header (nnheader-parse-head t)))
 		   (setf (mail-header-number header) (car downloaded))
 		   (if nov-arts
 		       (let ((key (concat "^" (int-to-string (car nov-arts))

@@ -2182,21 +2182,24 @@ actual line height can never be less than the default.
 @kindex line-height @r{(text property)}
   A newline can have a @code{line-height} text or overlay property
 that controls the total height of the display line ending in that
-newline.
+newline.  The property value can be one of several forms:
 
-  If the property value is @code{t}, the newline character has no
+@table @code
+@item t
+If the property value is @code{t}, the newline character has no
 effect on the displayed height of the line---the visible contents
 alone determine the height.  The @code{line-spacing} property,
 described below, is also ignored in this case.  This is useful for
 tiling small images (or image slices) without adding blank areas
 between the images.
-
-  If the property value is a list of the form @code{(@var{height}
-@var{total})}, that adds extra space @emph{below} the display line.
-First Emacs uses @var{height} as a height spec to control extra space
-@emph{above} the line; then it adds enough space @emph{below} the line
-to bring the total line height up to @var{total}.  In this case, any
-value of @code{line-spacing} property for the newline is ignored.
+@item (@var{height} @var{total})
+If the property value is a list of the form shown, that adds extra
+space @emph{below} the display line.  First Emacs uses @var{height} as
+a height spec to control extra space @emph{above} the line; then it
+adds enough space @emph{below} the line to bring the total line height
+up to @var{total}.  In this case, any value of @code{line-spacing}
+property for the newline is ignored.
+@end table
 
 @cindex height spec
   Any other kind of property value is a height spec, which translates
@@ -6926,6 +6929,9 @@ such as @code{forward-button} and @code{backward-button} are
 additionally available in the keymap stored in
 @code{button-buffer-map}; a mode which uses buttons may want to use
 @code{button-buffer-map} as a parent keymap for its keymap.
+Alternatively, the @code{button-mode} can be switched on for much the
+same effect: It's a minor mode that does nothing else than install
+@code{button-buffer-map} as a minor mode keymap.
 
 If the button has a non-@code{nil} @code{follow-link} property, and
 @code{mouse-1-click-follows-link} is set, a quick @key{mouse-1} click

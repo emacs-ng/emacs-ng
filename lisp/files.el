@@ -926,7 +926,10 @@ one or more of those symbols."
 	  (logior (if (memq 'executable predicate) 1 0)
 		  (if (memq 'writable predicate) 2 0)
 		  (if (memq 'readable predicate) 4 0))))
-  (locate-file-internal filename path suffixes predicate))
+  (let ((file (locate-file-internal filename path suffixes predicate)))
+    (if (and file (string-match "\\.eln\\'" file))
+        (gethash (file-name-nondirectory file) comp-eln-to-el-h)
+      file)))
 
 (defun locate-file-completion-table (dirs suffixes string pred action)
   "Do completion for file names passed to `locate-file'."
@@ -1563,8 +1566,8 @@ use with M-x."
 		(and (not (memq 'eight-bit-control charsets))
 		     (not (memq 'eight-bit-graphic charsets)))))
 	 (setq from-coding (read-coding-system
-			    (format "Recode filename %s from (default %s): "
-				    filename default-coding)
+			    (format-prompt "Recode filename %s from"
+				           filename default-coding)
 			    default-coding))
        (setq from-coding (read-coding-system
 			  (format "Recode filename %s from: " filename))))
@@ -1576,8 +1579,8 @@ use with M-x."
 			  (format "Recode filename %s from %s to: "
 				  filename from-coding)))
        (setq to-coding (read-coding-system
-			(format "Recode filename %s from %s to (default %s): "
-				filename from-coding default-coding)
+			(format-prompt "Recode filename %s from %s to"
+				       default-coding filename from-coding)
 			default-coding)))
      (list filename from-coding to-coding)))
 
@@ -3067,7 +3070,7 @@ If FUNCTION is nil, then it is not called.  (That is a way of saying
 		"\\(?:!DOCTYPE[ \t\r\n]+[^>]*>[ \t\r\n]*<[ \t\r\n]*" comment-re "*\\)?"
 		"[Hh][Tt][Mm][Ll]"))
      . mhtml-mode)
-    ("<!DOCTYPE[ \t\r\n]+[Hh][Tt][Mm][Ll]" . mhtml-mode)
+    ("<![Dd][Oo][Cc][Tt][Yy][Pp][Ee][ \t\r\n]+[Hh][Tt][Mm][Ll]" . mhtml-mode)
     ;; These two must come after html, because they are more general:
     ("<\\?xml " . xml-mode)
     (,(let* ((incomment-re "\\(?:[^-]\\|-[^-]\\)")
@@ -5566,10 +5569,28 @@ change the additional actions you can take on files."
                             t
                           (setq queried t)
                           (if (buffer-file-name buffer)
-                              (format "Save file %s? "
-                                      (buffer-file-name buffer))
-                            (format "Save buffer %s? "
-                                    (buffer-name buffer))))))
+                              (if (or
+                                   (equal (buffer-name buffer)
+                                          (file-name-nondirectory
+                                           (buffer-file-name buffer)))
+                                   (string-match
+                                    (concat "\\<"
+                                            (regexp-quote
+                                             (file-name-nondirectory
+                                              (buffer-file-name buffer)))
+                                            "<[^>]*>\\'")
+                                    (buffer-name buffer)))
+                                  ;; The buffer name is similar to the
+                                  ;; file name.
+                                  (format "Save file %s? "
+                                          (buffer-file-name buffer))
+                                ;; The buffer and file names are
+                                ;; dissimilar; display both.
+                                (format "Save file %s (buffer %s)? "
+                                        (buffer-file-name buffer)
+                                        (buffer-name buffer)))
+                            ;; No file name
+                            (format "Save buffer %s? " (buffer-name buffer))))))
                  (lambda (buffer)
                    (with-current-buffer buffer
                      (save-buffer)))
@@ -5897,9 +5918,9 @@ last-modified time as the old ones.  (This works on only some systems.)
 
 A prefix arg makes KEEP-TIME non-nil.
 
-Noninteractively, the last argument PARENTS says whether to
-create parent directories if they don't exist.  Interactively,
-this happens by default.
+Noninteractively, the PARENTS argument says whether to create
+parent directories if they don't exist.  Interactively, this
+happens by default.
 
 If NEWNAME is a directory name, copy DIRECTORY as a subdirectory
 there.  However, if called from Lisp with a non-nil optional
@@ -6236,6 +6257,82 @@ an auto-save file."
         (insert-file-contents file-name (not auto-save-p)
                               nil nil t))))))
 
+(defvar revert-buffer-with-fine-grain-max-seconds 2.0
+  "Maximum time that `revert-buffer-with-fine-grain' should use.
+The command tries to preserve markers, properties and overlays.
+If the operation takes more than this time, a single
+delete+insert is performed.  Actually, this value is passed as
+the MAX-SECS argument to the function `replace-buffer-contents',
+so it is not ensured that the whole execution won't take longer.
+See `replace-buffer-contents' for more details.")
+
+(defun revert-buffer-insert-file-contents-delicately (file-name _auto-save-p)
+  "Optional function for `revert-buffer-insert-file-contents-function'.
+The function `revert-buffer-with-fine-grain' uses this function by binding
+`revert-buffer-insert-file-contents-function' to it.
+
+As with `revert-buffer-insert-file-contents--default-function', FILE-NAME is
+the name of the file and AUTO-SAVE-P is non-nil if this is an auto-save file.
+Since calling `replace-buffer-contents' can take a long time, depending of
+the number of changes made to the buffer, it uses the value of the variable
+`revert-buffer-with-fine-grain-max-seconds' as a maximum time to try delicately
+reverting the buffer.  If it fails, it does a delete+insert.  For more details,
+see `replace-buffer-contents'."
+  (cond
+   ((not (file-exists-p file-name))
+    (error (if buffer-file-number
+               "File %s no longer exists"
+             "Cannot revert nonexistent file %s")
+           file-name))
+   ((not (file-readable-p file-name))
+    (error (if buffer-file-number
+               "File %s no longer readable"
+             "Cannot revert unreadable file %s")
+           file-name))
+   (t
+    (let* ((buf (current-buffer)) ; current-buffer is the buffer to revert.
+           (success
+            (save-excursion
+              (save-restriction
+                (widen)
+                (with-temp-buffer
+                  (insert-file-contents file-name)
+                  (let ((temp-buf (current-buffer)))
+                    (set-buffer buf)
+                    (let ((buffer-file-name nil))
+                      (replace-buffer-contents
+                       temp-buf
+                       revert-buffer-with-fine-grain-max-seconds))))))))
+      ;; See comments in revert-buffer-with-fine-grain for an explanation.
+      (defun revert-buffer-with-fine-grain-success-p ()
+        success))
+    (set-buffer-modified-p nil))))
+
+(defun revert-buffer-with-fine-grain (&optional ignore-auto noconfirm)
+  "Revert buffer preserving markers, overlays, etc.
+This command is an alternative to `revert-buffer' because it tries to be as
+non-destructive as possible, preserving markers, properties and overlays.
+Binds `revert-buffer-insert-file-contents-function' to the function
+`revert-buffer-insert-file-contents-delicately'.
+
+With a prefix argument, offer to revert from latest auto-save file.  For more
+details on the arguments, see `revert-buffer'."
+  ;; See revert-buffer for an explanation of this.
+  (interactive (list (not current-prefix-arg)))
+  ;; Simply bind revert-buffer-insert-file-contents-function to the specialized
+  ;; function, and call revert-buffer.
+  (let ((revert-buffer-insert-file-contents-function
+         #'revert-buffer-insert-file-contents-delicately))
+    (revert-buffer ignore-auto noconfirm t)
+    ;; This closure is defined in revert-buffer-insert-file-contents-function.
+    ;; It is needed because revert-buffer--default always returns t after
+    ;; reverting, and it might be needed to report the success/failure of
+    ;; reverting delicately.
+    (when (fboundp 'revert-buffer-with-fine-grain-success-p)
+      (prog1
+          (revert-buffer-with-fine-grain-success-p)
+        (fmakunbound 'revert-buffer-with-fine-grain-success-p)))))
+
 (defun recover-this-file ()
   "Recover the visited file--get contents from its last auto-save file."
   (interactive)
@@ -6465,7 +6562,7 @@ Also rename any existing auto save file, if it was made in this session."
 (defun make-auto-save-file-name ()
   "Return file name to use for auto-saves of current buffer.
 Does not consider `auto-save-visited-file-name' as that variable is checked
-before calling this function.  You can redefine this for customization.
+before calling this function.
 See also `auto-save-file-name-p'."
   (if buffer-file-name
       (let ((handler (find-file-name-handler buffer-file-name
@@ -6572,7 +6669,8 @@ See also `auto-save-file-name-p'."
 
 (defun auto-save-file-name-p (filename)
   "Return non-nil if FILENAME can be yielded by `make-auto-save-file-name'.
-FILENAME should lack slashes.  You can redefine this for customization."
+FILENAME should lack slashes.
+See also `make-auto-save-file-name'."
   (string-match "\\`#.*#\\'" filename))
 
 (defun wildcard-to-regexp (wildcard)
@@ -6795,9 +6893,7 @@ We assume the output has the format of `df'.
 The value of this variable must be just a command name or file name;
 if you want to specify options, use `directory-free-space-args'.
 
-A value of nil disables this feature.
-
-This variable is obsolete; Emacs no longer uses it."
+A value of nil disables this feature."
   :type '(choice (string :tag "Program") (const :tag "None" nil))
   :group 'dired)
 (make-obsolete-variable 'directory-free-space-program
@@ -7051,6 +7147,8 @@ normally equivalent short `-D' option is just passed on to
                              ((stringp switches) (concat switches " -d"))
                              ((member "-d" switches) switches)
                              (t (append switches '("-d"))))))
+		    (if (string-match "\\`~" file)
+			(setq file (expand-file-name file)))
 		    (apply 'call-process
 			   insert-directory-program nil t nil
 			   (append
@@ -7061,14 +7159,7 @@ normally equivalent short `-D' option is just passed on to
 				(split-string-and-unquote switches)))
 			    ;; Avoid lossage if FILE starts with `-'.
 			    '("--")
-			    (progn
-			      (if (string-match "\\`~" file)
-				  (setq file (expand-file-name file)))
-			      (list
-			       (if full-directory-p
-				   ;; (concat (file-name-as-directory file) ".")
-                                   file
-				 file))))))))
+			    (list file))))))
 
 	  ;; If we got "//DIRED//" in the output, it means we got a real
 	  ;; directory listing, even if `ls' returned nonzero.

@@ -814,7 +814,7 @@ capable syntax engines).
 
 (defvar cperl-speed 'please-ignore-this-line
   "This is an incomplete compendium of what is available in other parts
-of CPerl documentation.  (Please inform me if I skept anything.)
+of CPerl documentation.  (Please inform me if I skipped anything.)
 
 There is a perception that CPerl is slower than alternatives.  This part
 of documentation is designed to overcome this misconception.
@@ -1234,6 +1234,7 @@ versions of Emacs."
 	  ["Auto fill" auto-fill-mode t])
 	 ("Indent styles..."
 	  ["CPerl" (cperl-set-style "CPerl") t]
+	  ["PBP" (cperl-set-style  "PBP") t]
 	  ["PerlStyle" (cperl-set-style "PerlStyle") t]
 	  ["GNU" (cperl-set-style "GNU") t]
 	  ["C++" (cperl-set-style "C++") t]
@@ -1553,12 +1554,12 @@ Variables controlling indentation style:
  `cperl-min-label-indent'
     Minimal indentation for line that is a label.
 
-Settings for classic indent-styles: K&R BSD=C++ GNU PerlStyle=Whitesmith
-  `cperl-indent-level'                5   4       2   4
-  `cperl-brace-offset'                0   0       0   0
-  `cperl-continued-brace-offset'     -5  -4       0   0
-  `cperl-label-offset'               -5  -4      -2  -4
-  `cperl-continued-statement-offset'  5   4       2   4
+Settings for classic indent-styles: K&R BSD=C++ GNU PBP PerlStyle=Whitesmith
+  `cperl-indent-level'                5   4       2   4   4
+  `cperl-brace-offset'                0   0       0   0   0
+  `cperl-continued-brace-offset'     -5  -4       0   0   0
+  `cperl-label-offset'               -5  -4      -2  -2  -4
+  `cperl-continued-statement-offset'  5   4       2   4   4
 
 CPerl knows several indentation styles, and may bulk set the
 corresponding variables.  Use \\[cperl-set-style] to do this.  Use
@@ -3241,8 +3242,8 @@ Return the error message (if any).  Does not work if delimiter is `)'.
 Works before syntax recognition is done."
   ;; Works *before* syntax recognition is done
   (or st-l (setq st-l (list nil)))	; Avoid overwriting '()
-  (let (st b reset-st)
-    (condition-case b
+  (let (st result reset-st)
+    (condition-case err
 	(progn
 	  (setq st (cperl-cached-syntax-table st-l))
 	  (modify-syntax-entry ?\( "()" st)
@@ -3250,8 +3251,7 @@ Works before syntax recognition is done."
 	  (setq reset-st (syntax-table))
 	  (set-syntax-table st)
 	  (forward-sexp 1))
-      (error (message
-	      "cperl-forward-group-in-re: error %s" b)))
+      (error (setq result err)))
     ;; now restore the initial state
     (if st
 	(progn
@@ -3259,7 +3259,7 @@ Works before syntax recognition is done."
 	  (modify-syntax-entry ?\) "." st)))
     (if reset-st
 	(set-syntax-table reset-st))
-    b))
+    result))
 
 
 (defvar font-lock-string-face)
@@ -4486,7 +4486,7 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
 				       'syntax-table cperl-st-cfence))))
 			      (setq was-subgr nil))
 			     (t		; (?#)-comment
-			      ;; Inside "(" and "\" arn't special in any way
+			      ;; Inside "(" and "\" aren't special in any way
 			      ;; Works also if the outside delimiters are ().
 			      (or;;(if (eq (char-after b) ?\) )
 			       ;;(re-search-forward
@@ -4820,9 +4820,10 @@ conditional/loop constructs."
 	  (while (< (point) tmp-end)
 	    (parse-partial-sexp (point) tmp-end nil t) ; To start-sexp or eol
 	    (or (eolp) (forward-sexp 1)))
-	  (if (> (point) tmp-end)	; Yes, there an unfinished block
+	  (if (> (point) tmp-end)	; Check for an unfinished block
 	      nil
 	    (if (eq ?\) (preceding-char))
+		;; closing parens can be preceded by up to three sexps
 		(progn ;; Plan B: find by REGEXP block followup this line
 		  (setq top (point))
 		  (condition-case nil
@@ -4843,7 +4844,9 @@ conditional/loop constructs."
 			    (progn
 			      (goto-char top)
 			      (forward-sexp 1)
-			      (setq top (point)))))
+			      (setq top (point)))
+			  ;; no block to be processed: expression ends here
+			  (setq done t)))
 		    (error (setq done t)))
 		  (goto-char top))
 	      (if (looking-at		; Try Plan C: continuation block
@@ -4876,7 +4879,7 @@ Returns some position at the last line."
       ;;  }? continue
       ;;  blah; }
       (if (not
-	   (or (looking-at "[ \t]*\\(els\\(e\\|if\\)\\|continue\\|if\\|while\\|for\\(each\\)?\\|until\\)")
+	   (or (looking-at "[ \t]*\\(els\\(e\\|if\\)\\|continue\\|if\\|while\\|for\\(each\\)?\\|unless\\|until\\)\\_>")
 	       (setq have-brace (save-excursion (search-forward "}" ee t)))))
 	  nil				; Do not need to do anything
 	;; Looking at:
@@ -4884,7 +4887,7 @@ Returns some position at the last line."
 	;; else
 	(if cperl-merge-trailing-else
 	    (if (looking-at
-		 "[ \t]*}[ \t]*\n[ \t\n]*\\(els\\(e\\|if\\)\\|continue\\)\\>")
+		 "[ \t]*}[ \t]*\n[ \t\n]*\\(els\\(e\\|if\\)\\|continue\\)\\_>")
 		(progn
 		  (search-forward "}")
 		  (setq p (point))
@@ -4892,7 +4895,7 @@ Returns some position at the last line."
 		  (delete-region p (point))
 	      (insert (make-string cperl-indent-region-fix-constructs ?\s))
 		  (beginning-of-line)))
-	  (if (looking-at "[ \t]*}[ \t]*\\(els\\(e\\|if\\)\\|continue\\)\\>")
+	  (if (looking-at "[ \t]*}[ \t]*\\(els\\(e\\|if\\)\\|continue\\)\\_>")
 	      (save-excursion
 		  (search-forward "}")
 		  (delete-horizontal-space)
@@ -4904,7 +4907,7 @@ Returns some position at the last line."
 			(setq ret (point)))))))
 	;; Looking at:
 	;; }     else
-	(if (looking-at "[ \t]*}\\(\t*\\|[ \t][ \t]+\\)\\<\\(els\\(e\\|if\\)\\|continue\\)\\>")
+	(if (looking-at "[ \t]*}\\(\t*\\|[ \t][ \t]+\\)\\<\\(els\\(e\\|if\\)\\|continue\\)\\_>")
 	    (progn
 	      (search-forward "}")
 	      (delete-horizontal-space)
@@ -5774,8 +5777,8 @@ indentation and initial hashes.  Behaves usually outside of comment."
 		  t-font-lock-keywords)
 		cperl-font-lock-keywords cperl-font-lock-keywords-1
 		cperl-font-lock-keywords-2 (append
-					   cperl-font-lock-keywords-1
-					   t-font-lock-keywords-1)))
+					   t-font-lock-keywords-1
+					   cperl-font-lock-keywords-1)))
 	(if (fboundp 'ps-print-buffer) (cperl-ps-print-init))
 	(if (or (featurep 'choose-color) (featurep 'font-lock-extra))
 	    (eval			; Avoid a warning
@@ -6044,7 +6047,19 @@ if (foo) {
   stop;
 }
 
-### PerlStyle	(=CPerl with 4 as indent)		4/0/0/-4/4/t/nil
+### PBP (=Perl Best Practices)				4/0/0/-4/4/nil/nil
+if (foo) {
+    bar
+	baz;
+  label:
+    {
+	boon;
+    }
+}
+else {
+    stop;
+}
+### PerlStyle	(=CPerl with 4 as indent)		4/0/0/-2/4/t/nil
 if (foo) {
     bar
 	baz;
@@ -6147,6 +6162,18 @@ else
      (cperl-extra-newline-before-brace-multiline .  nil)
      (cperl-merge-trailing-else	       .  t))
 
+    ("PBP"  ;; Perl Best Practices by Damian Conway
+     (cperl-indent-level               .  4)
+     (cperl-brace-offset               .  0)
+     (cperl-continued-brace-offset     .  0)
+     (cperl-label-offset               . -2)
+     (cperl-continued-statement-offset .  4)
+     (cperl-extra-newline-before-brace .  nil)
+     (cperl-extra-newline-before-brace-multiline .  nil)
+     (cperl-merge-trailing-else        .  nil)
+     (cperl-indent-parens-as-block     .  t)
+     (cperl-tab-always-indent          .  t))
+
     ("PerlStyle"			; CPerl with 4 as indent
      (cperl-indent-level               .  4)
      (cperl-brace-offset               .  0)
@@ -6218,7 +6245,8 @@ See examples in `cperl-style-examples'.")
   "Set CPerl mode variables to use one of several different indentation styles.
 The arguments are a string representing the desired style.
 The list of styles is in `cperl-style-alist', available styles
-are CPerl, PerlStyle, GNU, K&R, BSD, C++ and Whitesmith.
+are \"CPerl\", \"PBP\", \"PerlStyle\", \"GNU\", \"K&R\", \"BSD\", \"C++\"
+and \"Whitesmith\".
 
 The current value of style is memorized (unless there is a memorized
 data already), may be restored by `cperl-set-style-back'.
@@ -6304,8 +6332,7 @@ Customized by setting variables `cperl-shrink-wrap-info-frame',
   (interactive
    (let* ((default (cperl-word-at-point))
 	  (read (read-string
-		 (format "Find doc for Perl function (default %s): "
-			 default))))
+		 (format-prompt "Find doc for Perl function" default))))
      (list (if (equal read "")
 	       default
 	     read))))
@@ -8264,10 +8291,7 @@ the appropriate statement modifier."
   (interactive
    (list (let* ((default-entry (cperl-word-at-point))
                 (input (read-string
-                        (format "perldoc entry%s: "
-                                (if (string= default-entry "")
-                                    ""
-                                  (format " (default %s)" default-entry))))))
+                        (format-prompt "perldoc entry" default-entry))))
            (if (string= input "")
                (if (string= default-entry "")
                    (error "No perldoc args given")

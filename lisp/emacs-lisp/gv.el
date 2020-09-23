@@ -417,6 +417,17 @@ The return value is the last VAL in the list.
                                               `(delq ,p ,getter))))))
                             ,v))))))))))
 
+(gv-define-expander plist-get
+  (lambda (do plist prop)
+    (macroexp-let2 macroexp-copyable-p key prop
+      (gv-letplace (getter setter) plist
+        (macroexp-let2 nil p `(cdr (plist-member ,getter ,key))
+          (funcall do
+                   `(car ,p)
+                   (lambda (val)
+                     `(if ,p
+                          (setcar ,p ,val)
+                        ,(funcall setter `(cons ,key (cons ,val ,getter)))))))))))
 
 ;;; Some occasionally handy extensions.
 
@@ -527,9 +538,12 @@ This macro only makes sense when used in a place."
          (gv-letplace (dgetter dsetter) d
            (funcall do
                     `(cons ,agetter ,dgetter)
-                    (lambda (v) `(progn
-                              ,(funcall asetter `(car ,v))
-                              ,(funcall dsetter `(cdr ,v)))))))))
+                    (lambda (v)
+                      (macroexp-let2 nil v v
+                        `(progn
+                           ,(funcall asetter `(car ,v))
+                           ,(funcall dsetter `(cdr ,v))
+                           ,v))))))))
 
 (put 'logand 'gv-expander
      (lambda (do place &rest masks)
@@ -539,9 +553,12 @@ This macro only makes sense when used in a place."
            (funcall
             do `(logand ,getter ,mask)
             (lambda (v)
-              (funcall setter
-                       `(logior (logand ,v ,mask)
-                                (logand ,getter (lognot ,mask))))))))))
+              (macroexp-let2 nil v v
+                `(progn
+                   ,(funcall setter
+                             `(logior (logand ,v ,mask)
+                                      (logand ,getter (lognot ,mask))))
+                   ,v))))))))
 
 ;;; References
 

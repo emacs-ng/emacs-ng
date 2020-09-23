@@ -391,6 +391,8 @@ When FULL is t, upload everything, not just a difference from the last full."
             (gnus-group-refresh-group group))
         (gnus-error 2 "Failed to upload Gnus Cloud data to %s" group)))))
 
+(defvar gnus-alter-header-function)
+
 (defun gnus-cloud-add-timestamps (elems)
   (dolist (elem elems)
     (let* ((file-name (plist-get elem :file-name))
@@ -409,8 +411,9 @@ When FULL is t, upload everything, not just a difference from the last full."
     (when (gnus-retrieve-headers (gnus-uncompress-range active) group)
       (with-current-buffer nntp-server-buffer
         (goto-char (point-min))
-        (while (and (not (eobp))
-                    (setq head (nnheader-parse-head)))
+	(while (setq head (nnheader-parse-head))
+          (when gnus-alter-header-function
+            (funcall gnus-alter-header-function head))
           (push head headers))))
     (sort (nreverse headers)
           (lambda (h1 h2)

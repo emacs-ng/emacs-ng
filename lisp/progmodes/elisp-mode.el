@@ -683,7 +683,7 @@ otherwise build the summary from TYPE and SYMBOL."
   "List of functions to be run from `elisp--xref-find-definitions' to add additional xrefs.
 Called with one arg; the symbol whose definition is desired.
 Each function should return a list of xrefs, or nil; the first
-non-nil result supercedes the xrefs produced by
+non-nil result supersedes the xrefs produced by
 `elisp--xref-find-definitions'.")
 
 (cl-defmethod xref-backend-definitions ((_backend (eql elisp)) identifier)
@@ -1421,7 +1421,7 @@ Intended for `eldoc-documentation-functions' (which see)."
   "Document variable at point.
 Intended for `eldoc-documentation-functions' (which see)."
   (let* ((sym (elisp--current-symbol))
-        (docstring (and sym (elisp-get-var-docstring sym))))
+         (docstring (and sym (elisp-get-var-docstring sym))))
     (when docstring
       (funcall callback docstring
                :thing sym

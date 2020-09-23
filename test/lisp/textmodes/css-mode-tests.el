@@ -7,18 +7,20 @@
 
 ;; This file is part of GNU Emacs.
 
-;; This program is free software; you can redistribute it and/or modify
+;; This file is part of GNU Emacs.
+
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; This program is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -27,6 +29,12 @@
 (require 'css-mode)
 (require 'ert)
 (require 'seq)
+
+(defvar css-mode-tests-data-dir
+  (file-truename
+   (expand-file-name "css-mode-resources/"
+                     (file-name-directory (or load-file-name
+                                              buffer-file-name)))))
 
 (ert-deftest css-test-property-values ()
   ;; The `float' property has a flat value list.
@@ -408,6 +416,16 @@
                                       (backward-word)
                                       (point))
                                     "black")))))
+
+;; TODO: Convert these into unit proper tests instead of using an
+;;       external file.
+(ert-deftest css-mode-test-indent ()
+  (with-current-buffer
+      (find-file-noselect (expand-file-name "test-indent.css"
+                                            css-mode-tests-data-dir))
+    (let ((orig (buffer-string)))
+      (indent-region (point-min) (point-max))
+      (should (equal (buffer-string) orig)))))
 
 (provide 'css-mode-tests)
 ;;; css-mode-tests.el ends here

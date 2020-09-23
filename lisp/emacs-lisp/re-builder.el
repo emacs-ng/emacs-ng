@@ -96,7 +96,7 @@
 ;;    out.
 
 ;; Q: But how can I then make out the sub-expressions?
-;; A: Thats where the `sub-expression mode' comes in.  In it only the
+;; A: That's where the `sub-expression mode' comes in.  In it only the
 ;;    digit keys are assigned to perform an update that will flash the
 ;;    corresponding subexp only.
 
@@ -489,7 +489,7 @@ Optional argument SYNTAX must be specified if called non-interactively."
   (interactive
    (list (intern
 	  (completing-read
-	   (format "Select syntax (default %s): " reb-re-syntax)
+	   (format-prompt "Select syntax" reb-re-syntax)
 	   '(read string sregex rx)
 	   nil t nil nil (symbol-name reb-re-syntax)
            'reb-change-syntax-hist))))

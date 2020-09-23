@@ -410,34 +410,35 @@ terminate_due_to_signal (int sig, int backtrace_limit)
   /* This shouldn't be executed, but it prevents a warning.  */
   exit (1);
 }
-
-/* Code for dealing with Lisp access to the Unix command line.  */
 
-static void
-init_cmdargs (int argc, char **argv, int skip_args, char const *original_pwd)
+/* Set `invocation-name' `invocation-directory'.  */
+
+void
+set_invocation_vars (char *argv0, char const *original_pwd)
 {
-  int i;
-  Lisp_Object name, dir, handler;
-  ptrdiff_t count = SPECPDL_INDEX ();
-  Lisp_Object raw_name;
+  /* This function can be called from within pdumper or later during
+     boot.  No need to run it twice.  */
+  static bool double_run_guard;
+  if (double_run_guard)
+    return;
+  double_run_guard = true;
+
+  Lisp_Object raw_name, handler;
   AUTO_STRING (slash_colon, "/:");
 
-  initial_argv = argv;
-  initial_argc = argc;
-
 #ifdef WINDOWSNT
-  /* Must use argv[0] converted to UTF-8, as it begets many standard
+  /* Must use argv0 converted to UTF-8, as it begets many standard
      file and directory names.  */
   {
-    char argv0[MAX_UTF8_PATH];
+    char argv0_1[MAX_UTF8_PATH];
 
-    if (filename_from_ansi (argv[0], argv0) == 0)
-      raw_name = build_unibyte_string (argv0);
+    if (filename_from_ansi (argv0, argv0_1) == 0)
+      raw_name = build_unibyte_string (argv0_1);
     else
-      raw_name = build_unibyte_string (argv[0]);
+      raw_name = build_unibyte_string (argv0);
   }
 #else
-  raw_name = build_unibyte_string (argv[0]);
+  raw_name = build_unibyte_string (argv0);
 #endif
 
   /* Add /: to the front of the name
@@ -449,7 +450,7 @@ init_cmdargs (int argc, char **argv, int skip_args, char const *original_pwd)
   Vinvocation_name = Ffile_name_nondirectory (raw_name);
   Vinvocation_directory = Ffile_name_directory (raw_name);
 
-  /* If we got no directory in argv[0], search PATH to find where
+  /* If we got no directory in argv0, search PATH to find where
      Emacs actually came from.  */
   if (NILP (Vinvocation_directory))
     {
@@ -477,6 +478,21 @@ init_cmdargs (int argc, char **argv, int skip_args, char const *original_pwd)
 
       Vinvocation_directory = Fexpand_file_name (Vinvocation_directory, odir);
     }
+}
+
+
+/* Code for dealing with Lisp access to the Unix command line.  */
+static void
+init_cmdargs (int argc, char **argv, int skip_args, char const *original_pwd)
+{
+  int i;
+  Lisp_Object name, dir;
+  ptrdiff_t count = SPECPDL_INDEX ();
+
+  initial_argv = argv;
+  initial_argc = argc;
+
+  set_invocation_vars (argv[0], original_pwd);
 
   Vinstallation_directory = Qnil;
 
@@ -765,7 +781,7 @@ load_pdump_find_executable (char const *argv0, ptrdiff_t *candidate_size)
 }
 
 static void
-load_pdump (int argc, char **argv)
+load_pdump (int argc, char **argv, char const *original_pwd)
 {
   const char *const suffix = ".pdmp";
   int result;
@@ -800,7 +816,7 @@ load_pdump (int argc, char **argv)
 
   if (dump_file)
     {
-      result = pdumper_load (dump_file);
+      result = pdumper_load (dump_file, argv[0], original_pwd);
 
       if (result != PDUMPER_LOAD_SUCCESS)
         fatal ("could not load dump file \"%s\": %s",
@@ -849,7 +865,7 @@ load_pdump (int argc, char **argv)
       if (bufsize < needed)
 	dump_file = xpalloc (dump_file, &bufsize, needed - bufsize, -1, 1);
       strcpy (dump_file + exenamelen, suffix);
-      result = pdumper_load (dump_file);
+      result = pdumper_load (dump_file, argv[0], original_pwd);
       if (result == PDUMPER_LOAD_SUCCESS)
         goto out;
 
@@ -880,7 +896,7 @@ load_pdump (int argc, char **argv)
     }
   sprintf (dump_file, "%s%c%s%s",
            path_exec, DIRECTORY_SEP, argv0_base, suffix);
-  result = pdumper_load (dump_file);
+  result = pdumper_load (dump_file, argv[0], original_pwd);
 
   if (result == PDUMPER_LOAD_FILE_NOT_FOUND)
     {
@@ -915,7 +931,7 @@ load_pdump (int argc, char **argv)
 #endif
       sprintf (dump_file, "%s%c%s%s",
 	       path_exec, DIRECTORY_SEP, argv0_base, suffix);
-      result = pdumper_load (dump_file);
+      result = pdumper_load (dump_file, argv[0], original_pwd);
     }
 
   if (result != PDUMPER_LOAD_SUCCESS)
@@ -936,7 +952,6 @@ main (int argc, char **argv)
   /* Variable near the bottom of the stack, and aligned appropriately
      for pointers.  */
   void *stack_bottom_variable;
-
   bool no_loadup = false;
   char *junk = 0;
   char *dname_arg = 0;
@@ -1055,9 +1070,10 @@ main (int argc, char **argv)
   w32_init_main_thread ();
 #endif
 
+  emacs_wd = emacs_get_current_dir_name ();
 #ifdef HAVE_PDUMPER
   if (attempt_load_pdump)
-    load_pdump (argc, argv);
+    load_pdump (argc, argv, emacs_wd);
 #endif
 
   argc = maybe_disable_address_randomization (argc, argv);
@@ -1129,7 +1145,6 @@ main (int argc, char **argv)
       exit (0);
     }
 
-  emacs_wd = emacs_get_current_dir_name ();
 #ifdef HAVE_PDUMPER
   if (dumped_with_pdumper_p ())
     pdumper_record_wd (emacs_wd);
@@ -1599,6 +1614,9 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
   init_json ();
 #endif
 
+  if (!initialized)
+    syms_of_comp ();
+
   no_loadup
     = argmatch (argv, argc, "-nl", "--no-loadup", 6, NULL, &skip_args);
 
@@ -1955,6 +1973,11 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
       keys_of_keyboard ();
       keys_of_keymap ();
       keys_of_window ();
+
+#ifdef HAVE_NATIVE_COMP
+      /* Must be after the last defsubr has run.  */
+      hash_native_abi ();
+#endif
     }
   else
     {
@@ -2383,6 +2406,10 @@ all of which are called before Emacs is actually killed.  */
       listfile = Fexpand_file_name (Vauto_save_list_file_name, Qnil);
       unlink (SSDATA (listfile));
     }
+
+#ifdef HAVE_NATIVE_COMP
+  eln_load_path_final_clean_up ();
+#endif
 
   if (FIXNUMP (arg))
     exit_code = (XFIXNUM (arg) < 0
@@ -3032,7 +3059,18 @@ because they do not depend on external libraries and are always available.
 
 Also note that this is not a generic facility for accessing external
 libraries; only those already known by Emacs will be loaded.  */);
+#ifdef WINDOWSNT
+  /* We may need to load libgccjit when dumping before term/w32-win.el
+     defines `dynamic-library-alist`. This will fail if that variable
+     is empty, so add libgccjit.dll to it.  */
+  if (will_dump_p ())
+    Vdynamic_library_alist = list1 (list2 (Qgccjit,
+                                           build_string ("libgccjit.dll")));
+  else
+    Vdynamic_library_alist = Qnil;
+#else
   Vdynamic_library_alist = Qnil;
+#endif
   Fput (intern_c_string ("dynamic-library-alist"), Qrisky_local_variable, Qt);
 
 #ifdef WINDOWSNT

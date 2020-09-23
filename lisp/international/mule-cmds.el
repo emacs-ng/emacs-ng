@@ -325,9 +325,7 @@ wrong, use this command again to toggle back to the right mode."
 				'undecided))
 		       buffer-file-coding-system)))
      (list (read-coding-system
-	    (if default
-		(format "Coding system for following command (default %s): " default)
-	      "Coding system for following command: ")
+            (format-prompt "Coding system for following command" default)
 	    default))))
   (prefix-command-preserve-state)
   (setq mule-cmds--prefixed-command-next-coding-system coding-system)
@@ -613,9 +611,8 @@ When called from a program, the value is the position of the unencodable
 character found, or nil if all characters are encodable."
   (interactive
    (list (let ((default (or buffer-file-coding-system 'us-ascii)))
-	   (read-coding-system
-	    (format "Coding-system (default %s): " default)
-	    default))))
+	   (read-coding-system (format-prompt "Coding-system" default)
+	                       default))))
   (let ((pos (unencodable-char-position (point) (point-max) coding-system)))
     (if pos
 	(goto-char (1+ pos))
@@ -804,9 +801,8 @@ or specify any other coding system (and risk losing\n\
 
       ;; Read a coding system.
       (setq coding-system
-	    (read-coding-system
-	     (format "Select coding system (default %s): " default)
-	     default))
+	    (read-coding-system (format-prompt "Select coding system" default)
+	                        default))
       (setq last-coding-system-specified coding-system))
 
     (kill-buffer "*Warning*")
@@ -1803,13 +1799,11 @@ The default status is as follows:
    'raw-text)
 
   (set-default-coding-systems nil)
-  (setq default-sendmail-coding-system 'iso-latin-1)
-  ;; On Darwin systems, this should be utf-8-unix, but when this file is loaded
-  ;; that is not yet defined, so we set it in set-locale-environment instead.
-  ;; [Actually, it seems to work fine to use utf-8-unix here, and not just
-  ;; on Darwin.  The previous comment seems to be outdated?
-  ;; See patch at https://debbugs.gnu.org/15803 ]
-  (setq default-file-name-coding-system 'iso-latin-1-unix)
+  (setq default-sendmail-coding-system 'utf-8)
+  (setq default-file-name-coding-system (if (memq system-type
+                                                  '(window-nt ms-dos))
+                                            'iso-latin-1-unix
+                                          'utf-8-unix))
   ;; Preserve eol-type from existing default-process-coding-systems.
   ;; On non-unix-like systems in particular, these may have been set
   ;; carefully by the user, or by the startup code, to deal with the
@@ -1825,8 +1819,10 @@ The default status is as follows:
 	(input-coding
 	 (condition-case nil
 	     (coding-system-change-text-conversion
-	      (cdr default-process-coding-system) 'iso-latin-1)
-	   (coding-system-error 'iso-latin-1))))
+	      (cdr default-process-coding-system)
+	      (if (memq system-type '(window-nt ms-dos)) 'iso-latin-1 'utf-8))
+	   (coding-system-error
+	    (if (memq system-type '(window-nt ms-dos)) 'iso-latin-1 'utf-8)))))
     (setq default-process-coding-system
 	  (cons output-coding input-coding)))
 
@@ -3010,6 +3006,15 @@ on encoding."
 	        ;; higher code, so it gets pushed later!
 	        (if new-name (puthash new-name c names))
 	        (if old-name (puthash old-name c names))
+                ;; Unicode uses the spelling "lamda" in character
+                ;; names, instead of "lambda", due to "preferences
+                ;; expressed by the Greek National Body" (Bug#30513).
+                ;; Some characters have an old-name with the "lambda"
+                ;; spelling, but others don't.  Add the traditional
+                ;; spelling for more convenient completion.
+                (when (and (not old-name) new-name
+                           (string-match "\\<LAMDA\\>" new-name))
+                  (puthash (replace-match "LAMBDA" t t new-name) c names))
 	        (setq c (1+ c))))))
         ;; Special case for "BELL" which is apparently the only char which
         ;; doesn't have a new name and whose old-name is shadowed by a newer

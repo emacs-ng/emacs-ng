@@ -233,6 +233,11 @@ value of last one, or nil if there are none.
   (declare (indent 1) (debug t))
   (cons 'if (cons cond (cons nil body))))
 
+(defsubst subr-primitive-p (object)
+  "Return t if OBJECT is a built-in primitive function."
+  (and (subrp object)
+       (not (subr-native-elisp-p object))))
+
 (defsubst xor (cond1 cond2)
   "Return the boolean exclusive-or of COND1 and COND2.
 If only one of the arguments is non-nil, return it; otherwise
@@ -766,7 +771,6 @@ If that is non-nil, the element matches; then `assoc-default'
 
 If no element matches, the value is nil.
 If TEST is omitted or nil, `equal' is used."
-  (declare (side-effect-free t))
   (let (found (tail alist) value)
     (while (and tail (not found))
       (let ((elt (car tail)))
@@ -1824,6 +1828,7 @@ FUN is then called once."
 
 (defmacro subr--with-wrapper-hook-no-warnings (hook args &rest body)
   "Like (with-wrapper-hook HOOK ARGS BODY), but without warnings."
+  (declare (debug (form sexp body)))
   ;; We need those two gensyms because CL's lexical scoping is not available
   ;; for function arguments :-(
   (let ((funs (make-symbol "funs"))
@@ -2344,13 +2349,19 @@ use `start-file-process'."
 		 (if program
 		     (list :command (cons program program-args))))))
 
-(defun process-lines (program &rest args)
+(defun process-lines-handling-status (program status-handler &rest args)
   "Execute PROGRAM with ARGS, returning its output as a list of lines.
-Signal an error if the program returns with a non-zero exit status."
+If STATUS-HANDLER is non-NIL, it must be a function with one
+argument, which will be called with the exit status of the
+program before the output is collected.  If STATUS-HANDLER is
+NIL, an error is signalled if the program returns with a non-zero
+exit status."
   (with-temp-buffer
     (let ((status (apply 'call-process program nil (current-buffer) nil args)))
-      (unless (eq status 0)
-	(error "%s exited with status %s" program status))
+      (if status-handler
+	  (funcall status-handler status)
+	(unless (eq status 0)
+	  (error "%s exited with status %s" program status)))
       (goto-char (point-min))
       (let (lines)
 	(while (not (eobp))
@@ -2360,6 +2371,18 @@ Signal an error if the program returns with a non-zero exit status."
 			    lines))
 	  (forward-line 1))
 	(nreverse lines)))))
+
+(defun process-lines (program &rest args)
+  "Execute PROGRAM with ARGS, returning its output as a list of lines.
+Signal an error if the program returns with a non-zero exit status.
+Also see `process-lines-ignore-status'."
+  (apply #'process-lines-handling-status program nil args))
+
+(defun process-lines-ignore-status (program &rest args)
+  "Execute PROGRAM with ARGS, returning its output as a list of lines.
+The exit status of the program is ignored.
+Also see `process-lines'."
+  (apply #'process-lines-handling-status program #'identity args))
 
 (defun process-live-p (process)
   "Return non-nil if PROCESS is alive.
@@ -3071,9 +3094,17 @@ If MESSAGE is nil, instructions to type EXIT-CHAR are displayed there."
     o1))
 
 (defun remove-overlays (&optional beg end name val)
-  "Clear BEG and END of overlays whose property NAME has value VAL.
-Overlays might be moved and/or split.
-BEG and END default respectively to the beginning and end of buffer."
+  "Remove overlays between BEG and END that have property NAME with value VAL.
+Overlays might be moved and/or split.  If any targeted overlays
+start before BEG, the overlays will be altered so that they end
+at BEG.  Likewise, if the targeted overlays end after END, they
+will be altered so that they start at END.  Overlays that start
+at or after BEG and end before END will be removed completely.
+
+BEG and END default respectively to the beginning and end of the
+buffer.
+Values are compared with `eq'.
+If either NAME or VAL are specified, both should be specified."
   ;; This speeds up the loops over overlays.
   (unless beg (setq beg (point-min)))
   (unless end (setq end (point-max)))
@@ -4403,6 +4434,40 @@ Unless optional argument INPLACE is non-nil, return a new string."
 	  (aset newstr i tochar)))
     newstr))
 
+(defun replace-in-string (fromstring tostring instring)
+  "Replace FROMSTRING with TOSTRING in INSTRING each time it occurs.
+This function returns a freshly created string."
+  (declare (side-effect-free t))
+  (let ((i 0)
+        (start 0)
+        (result nil))
+    (while (< i (length instring))
+      (if (eq (aref instring i)
+              (aref fromstring 0))
+          ;; See if we're in a match.
+          (let ((ii i)
+                (if 0))
+            (while (and (< ii (length instring))
+                        (< if (length fromstring))
+                        (eq (aref instring ii)
+                            (aref fromstring if)))
+              (setq ii (1+ ii)
+                    if (1+ if)))
+            (if (not (= if (length fromstring)))
+                ;; We didn't have a match after all.
+                (setq i (1+ i))
+              ;; We had one, so gather the previous part and the
+              ;; substitution.
+              (when (not (= start i))
+                (push (substring instring start i) result))
+              (push tostring result)
+              (setq i ii
+                    start ii)))
+        (setq i (1+ i))))
+    (when (not (= start i))
+      (push (substring instring start i) result))
+    (apply #'concat (nreverse result))))
+
 (defun replace-regexp-in-string (regexp rep string &optional
 					fixedcase literal subexp start)
   "Replace all matches for REGEXP with REP in STRING.
@@ -5120,7 +5185,7 @@ command is called from a keyboard macro?"
       ;; Now `frame' should be "the function from which we were called".
       (pcase (cons frame nextframe)
         ;; No subr calls `interactive-p', so we can rule that out.
-        (`((,_ ,(pred (lambda (f) (subrp (indirect-function f)))) . ,_) . ,_) nil)
+        (`((,_ ,(pred (lambda (f) (subr-primitive-p (indirect-function f)))) . ,_) . ,_) nil)
         ;; In case #<subr funcall-interactively> without going through the
         ;; `funcall-interactively' symbol (bug#3984).
         (`(,_ . (t ,(pred (lambda (f)

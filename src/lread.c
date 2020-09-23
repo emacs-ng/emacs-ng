@@ -1056,14 +1056,31 @@ This uses the variables `load-suffixes' and `load-file-rep-suffixes'.  */)
     {
       Lisp_Object exts = Vload_file_rep_suffixes;
       Lisp_Object suffix = XCAR (suffixes);
-      FOR_EACH_TAIL (exts)
-	lst = Fcons (concat2 (suffix, XCAR (exts)), lst);
+      bool native_code_suffix =
+	NATIVE_COMP_FLAG
+        && strcmp (NATIVE_ELISP_SUFFIX, SSDATA (suffix)) == 0;
+
+#ifdef HAVE_MODULES
+      native_code_suffix =
+	native_code_suffix || strcmp (MODULES_SUFFIX, SSDATA (suffix)) == 0;
+#ifdef MODULES_SECONDARY_SUFFIX
+      native_code_suffix =
+	native_code_suffix
+	|| strcmp (MODULES_SECONDARY_SUFFIX, SSDATA (suffix)) == 0;
+#endif
+#endif
+
+      if (native_code_suffix)
+	lst = Fcons (suffix, lst);
+      else
+        FOR_EACH_TAIL (exts)
+          lst = Fcons (concat2 (suffix, XCAR (exts)), lst);
     }
   return Fnreverse (lst);
 }
 
 /* Return true if STRING ends with SUFFIX.  */
-static bool
+bool
 suffix_p (Lisp_Object string, const char *suffix)
 {
   ptrdiff_t suffix_len = strlen (suffix);
@@ -1080,6 +1097,24 @@ close_infile_unwind (void *arg)
   eassert (infile && infile != prev_infile);
   fclose (infile->stream);
   infile = prev_infile;
+}
+
+/* Compute the filename we want in `load-history' and `load-file-name'.  */
+
+static Lisp_Object
+compute_found_effective (Lisp_Object found)
+{
+  /* Reconstruct the .elc filename.  */
+  Lisp_Object src_name =
+    Fgethash (Ffile_name_nondirectory (found), Vcomp_eln_to_el_h, Qnil);
+
+  if (NILP (src_name))
+    /* Manual eln load.  */
+    return found;
+
+  if (suffix_p (src_name, "el.gz"))
+    src_name = Fsubstring (src_name, make_fixnum (0), make_fixnum (-3));
+  return concat2 (src_name, build_string ("c"));
 }
 
 DEFUN ("load", Fload, Sload, 1, 5, 0,
@@ -1189,7 +1224,7 @@ Return t if the file exists and loads successfully.  */)
               || suffix_p (file, MODULES_SECONDARY_SUFFIX)
 #endif
 #endif
-	      )
+              || (NATIVE_COMP_FLAG && suffix_p (file, NATIVE_ELISP_SUFFIX)))
 	    must_suffix = Qnil;
 	  /* Don't insist on adding a suffix
 	     if the argument includes a directory name.  */
@@ -1267,6 +1302,9 @@ Return t if the file exists and loads successfully.  */)
   bool is_module = false;
 #endif
 
+  bool is_native_elisp =
+    NATIVE_COMP_FLAG && suffix_p (found, NATIVE_ELISP_SUFFIX) ? true : false;
+
   /* Check if we're stuck in a recursive load cycle.
 
      2000-09-21: It's not possible to just check for the file loaded
@@ -1293,11 +1331,15 @@ Return t if the file exists and loads successfully.  */)
      Vload_source_file_function.  */
   specbind (Qlexical_binding, Qnil);
 
-  /* Get the name for load-history.  */
+  Lisp_Object found_eff =
+    is_native_elisp
+    ? compute_found_effective (found)
+    : found;
+
   hist_file_name = (! NILP (Vpurify_flag)
                     ? concat2 (Ffile_name_directory (file),
-                               Ffile_name_nondirectory (found))
-                    : found) ;
+                               Ffile_name_nondirectory (found_eff))
+                    : found_eff);
 
   version = -1;
 
@@ -1361,7 +1403,7 @@ Return t if the file exists and loads successfully.  */)
             } /* !load_prefer_newer */
 	}
     }
-  else if (!is_module)
+  else if (!is_module && !is_native_elisp)
     {
       /* We are loading a source file (*.el).  */
       if (!NILP (Vload_source_file_function))
@@ -1388,7 +1430,7 @@ Return t if the file exists and loads successfully.  */)
       stream = NULL;
       errno = EINVAL;
     }
-  else if (!is_module)
+  else if (!is_module && !is_native_elisp)
     {
 #ifdef WINDOWSNT
       emacs_close (fd);
@@ -1404,7 +1446,7 @@ Return t if the file exists and loads successfully.  */)
      might be accessed by the unbind_to call below.  */
   struct infile input;
 
-  if (is_module)
+  if (is_module || is_native_elisp)
     {
       /* `module-load' uses the file name, so we can close the stream
          now.  */
@@ -1431,6 +1473,8 @@ Return t if the file exists and loads successfully.  */)
     {
       if (is_module)
         message_with_string ("Loading %s (module)...", file, 1);
+      else if (is_native_elisp)
+        message_with_string ("Loading %s (native compiled elisp)...", file, 1);
       else if (!compiled)
 	message_with_string ("Loading %s (source)...", file, 1);
       else if (newer)
@@ -1440,7 +1484,8 @@ Return t if the file exists and loads successfully.  */)
 	message_with_string ("Loading %s...", file, 1);
     }
 
-  specbind (Qload_file_name, found);
+  specbind (Qload_file_name, found_eff);
+  specbind (Qload_true_file_name, found);
   specbind (Qinhibit_file_name_operation, Qnil);
   specbind (Qload_in_progress, Qt);
 
@@ -1455,6 +1500,19 @@ Return t if the file exists and loads successfully.  */)
       /* This cannot happen.  */
       emacs_abort ();
 #endif
+    }
+  else if (is_native_elisp)
+    {
+#ifdef HAVE_NATIVE_COMP
+      specbind (Qcurrent_load_list, Qnil);
+      LOADHIST_ATTACH (hist_file_name);
+      Fnative_elisp_load (found, Qnil);
+      build_load_history (hist_file_name, true);
+#else
+      /* This cannot happen.  */
+      emacs_abort ();
+#endif
+
     }
   else
     {
@@ -1491,6 +1549,8 @@ Return t if the file exists and loads successfully.  */)
     {
       if (is_module)
         message_with_string ("Loading %s (module)...done", file, 1);
+      else if (is_native_elisp)
+	message_with_string ("Loading %s (native compiled elisp)...done", file, 1);
       else if (!compiled)
 	message_with_string ("Loading %s (source)...done", file, 1);
       else if (newer)
@@ -1542,6 +1602,61 @@ directories, make sure the PREDICATE function returns `dir-ok' for them.  */)
   return file;
 }
 
+/* Look for a suitable .eln file to be loaded in place of FILENAME.
+   If found replace the content of FILENAME and FD. */
+
+static void
+maybe_swap_for_eln (Lisp_Object *filename, int *fd, struct timespec mtime)
+{
+#ifdef HAVE_NATIVE_COMP
+  struct stat eln_st;
+
+  if (load_no_native
+      || !suffix_p (*filename, ".elc"))
+    return;
+
+  /* Search eln in the eln-cache directories.  */
+  Lisp_Object eln_path_tail = Vcomp_eln_load_path;
+  FOR_EACH_TAIL_SAFE (eln_path_tail)
+    {
+      Lisp_Object src_name =
+	Fsubstring (*filename, Qnil, make_fixnum (-1));
+      if (NILP (Ffile_exists_p (src_name)))
+	{
+	  src_name = concat2 (src_name, build_string (".gz"));
+	  if (NILP (Ffile_exists_p (src_name)))
+	    /* Can't find the corresponding source file.  */
+	    return;
+	}
+      Lisp_Object eln_name =
+	Fcomp_el_to_eln_filename (src_name, XCAR (eln_path_tail));
+      int eln_fd = emacs_open (SSDATA (ENCODE_FILE (eln_name)), O_RDONLY, 0);
+
+      if (eln_fd > 0)
+	{
+	  if (fstat (eln_fd, &eln_st) || S_ISDIR (eln_st.st_mode))
+	    emacs_close (eln_fd);
+	  else
+	    {
+	      struct timespec eln_mtime = get_stat_mtime (&eln_st);
+	      if (timespec_cmp (eln_mtime, mtime) > 0)
+		{
+		  *filename = eln_name;
+		  emacs_close (*fd);
+		  *fd = eln_fd;
+		  /* Store the eln -> el relation.  */
+		  Fputhash (Ffile_name_nondirectory (eln_name),
+			    src_name, Vcomp_eln_to_el_h);
+		  return;
+		}
+	      else
+		emacs_close (eln_fd);
+	    }
+	}
+    }
+#endif
+}
+
 /* Search for a file whose name is STR, looking in directories
    in the Lisp list PATH, and trying suffixes from SUFFIX.
    On success, return a file descriptor (or 1 or -2 as described below).
@@ -1583,7 +1698,6 @@ openp (Lisp_Object path, Lisp_Object str, Lisp_Object suffixes,
   int last_errno = ENOENT;
   int save_fd = -1;
   USE_SAFE_ALLOCA;
-
   /* The last-modified time of the newest matching file found.
      Initialize it to something less than all valid timestamps.  */
   struct timespec save_mtime = make_timespec (TYPE_MINIMUM (time_t), -1);
@@ -1780,9 +1894,11 @@ openp (Lisp_Object path, Lisp_Object str, Lisp_Object suffixes,
 		  }
 		else
 		  {
+		    maybe_swap_for_eln (&string, &fd, get_stat_mtime (&st));
 		    /* We succeeded; return this descriptor and filename.  */
 		    if (storeptr)
 		      *storeptr = string;
+
 		    SAFE_FREE ();
 		    return fd;
 		  }
@@ -1791,6 +1907,7 @@ openp (Lisp_Object path, Lisp_Object str, Lisp_Object suffixes,
 	    /* No more suffixes.  Return the newest.  */
 	    if (0 <= save_fd && ! CONSP (XCDR (tail)))
 	      {
+		maybe_swap_for_eln (&save_string, &save_fd, save_mtime);
 		if (storeptr)
 		  *storeptr = save_string;
 		SAFE_FREE ();
@@ -1886,8 +2003,8 @@ readevalloop_1 (int old)
 static AVOID
 end_of_file_error (void)
 {
-  if (STRINGP (Vload_file_name))
-    xsignal1 (Qend_of_file, Vload_file_name);
+  if (STRINGP (Vload_true_file_name))
+    xsignal1 (Qend_of_file, Vload_true_file_name);
 
   xsignal0 (Qend_of_file);
 }
@@ -4104,6 +4221,9 @@ intern_sym (Lisp_Object sym, Lisp_Object obarray, Lisp_Object index)
     {
       make_symbol_constant (sym);
       XSYMBOL (sym)->u.s.redirect = SYMBOL_PLAINVAL;
+      /* Mark keywords as special.  This makes (let ((:key 'foo)) ...)
+	 in lexically bound elisp signal an error, as documented.  */
+      XSYMBOL (sym)->u.s.declared_special = true;
       SET_SYMBOL_VAL (XSYMBOL (sym), sym);
     }
 
@@ -4145,10 +4265,14 @@ intern_c_string_1 (const char *str, ptrdiff_t len)
 
   if (!SYMBOLP (tem))
     {
-      /* Creating a non-pure string from a string literal not implemented yet.
-	 We could just use make_string here and live with the extra copy.  */
-      eassert (!NILP (Vpurify_flag));
-      tem = intern_driver (make_pure_c_string (str, len), obarray, tem);
+      Lisp_Object string;
+
+      if (NILP (Vpurify_flag))
+	string = make_string (str, len);
+      else
+	string = make_pure_c_string (str, len);
+
+      tem = intern_driver (string, obarray, tem);
     }
   return tem;
 }
@@ -4408,6 +4532,10 @@ defsubr (union Aligned_Lisp_Subr *aname)
   XSETPVECTYPE (sname, PVEC_SUBR);
   XSETSUBR (tem, sname);
   set_symbol_function (sym, tem);
+#ifdef HAVE_NATIVE_COMP
+  eassert (NILP (Vcomp_abi_hash));
+  Vcomp_subr_list = Fpurecopy (Fcons (tem, Vcomp_subr_list));
+#endif
 }
 
 #ifdef NOTDEF /* Use fset in subr.el now!  */
@@ -4708,6 +4836,7 @@ init_lread (void)
 
   load_in_progress = 0;
   Vload_file_name = Qnil;
+  Vload_true_file_name = Qnil;
   Vstandard_input = Qt;
   Vloads_in_progress = Qnil;
 }
@@ -4831,20 +4960,15 @@ This list includes suffixes for both compiled and source Emacs Lisp files.
 This list should not include the empty string.
 `load' and related functions try to append these suffixes, in order,
 to the specified file name if a suffix is allowed or required.  */);
-#ifdef HAVE_MODULES
-#ifdef MODULES_SECONDARY_SUFFIX
-  Vload_suffixes = list4 (build_pure_c_string (".elc"),
-			  build_pure_c_string (".el"),
-			  build_pure_c_string (MODULES_SUFFIX),
-                          build_pure_c_string (MODULES_SECONDARY_SUFFIX));
-#else
-  Vload_suffixes = list3 (build_pure_c_string (".elc"),
-			  build_pure_c_string (".el"),
-			  build_pure_c_string (MODULES_SUFFIX));
-#endif
-#else
   Vload_suffixes = list2 (build_pure_c_string (".elc"),
 			  build_pure_c_string (".el"));
+#ifdef HAVE_MODULES
+  Vload_suffixes = Fcons (build_pure_c_string (MODULES_SUFFIX), Vload_suffixes);
+#ifdef MODULES_SECONDARY_SUFFIX
+  Vload_suffixes =
+    Fcons (build_pure_c_string (MODULES_SECONDARY_SUFFIX), Vload_suffixes);
+#endif
+
 #endif
   DEFVAR_LISP ("module-file-suffix", Vmodule_file_suffix,
 	       doc: /* Suffix of loadable module file, or nil if modules are not supported.  */);
@@ -4911,8 +5035,16 @@ directory.  These file names are converted to absolute at startup.  */);
   Vload_history = Qnil;
 
   DEFVAR_LISP ("load-file-name", Vload_file_name,
-	       doc: /* Full name of file being loaded by `load'.  */);
+	       doc: /* Full name of file being loaded by `load'.
+
+In case of native code being loaded this is indicating the
+corresponding bytecode filename.  Use `load-true-file-name' to obtain
+the .eln filename.  */);
   Vload_file_name = Qnil;
+
+  DEFVAR_LISP ("load-true-file-name", Vload_true_file_name,
+	       doc: /* Full name of file being loaded by `load'.  */);
+  Vload_true_file_name = Qnil;
 
   DEFVAR_LISP ("user-init-file", Vuser_init_file,
 	       doc: /* File name, including directory, of user's initialization file.
@@ -5033,6 +5165,11 @@ Note that if you customize this, obviously it will not affect files
 that are loaded before your customizations are read!  */);
   load_prefer_newer = 0;
 
+  DEFVAR_BOOL ("load-no-native", load_no_native,
+               doc: /* Do not try to load the a .eln file in place of
+		       a .elc one.  */);
+  load_no_native = false;
+
   /* Vsource_directory was initialized in init_lread.  */
 
   DEFSYM (Qcurrent_load_list, "current-load-list");
@@ -5055,6 +5192,7 @@ that are loaded before your customizations are read!  */);
   DEFSYM (Qfunction, "function");
   DEFSYM (Qload, "load");
   DEFSYM (Qload_file_name, "load-file-name");
+  DEFSYM (Qload_true_file_name, "load-true-file-name");
   DEFSYM (Qeval_buffer_list, "eval-buffer-list");
   DEFSYM (Qdir_ok, "dir-ok");
   DEFSYM (Qdo_after_load_evaluation, "do-after-load-evaluation");

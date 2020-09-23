@@ -63,22 +63,16 @@ An existing calc stack is reused, otherwise a new one is created."
 	(calc-top-n 1))
     (calc-pop 0)))
 
-;; (ert-deftest test-math-bignum ()
-;;   ;; bug#17556
-;;   (let ((n (math-bignum most-negative-fixnum)))
-;;     (should (math-negp n))
-;;     (should (cl-notany #'cl-minusp (cdr n)))))
-
-(ert-deftest test-calc-remove-units ()
+(ert-deftest calc-remove-units ()
   (should (calc-tests-equal (calc-tests-simple #'calc-remove-units "-1 m") -1)))
 
-(ert-deftest test-calc-extract-units ()
+(ert-deftest calc-extract-units ()
   (should (calc-tests-equal (calc-tests-simple #'calc-extract-units "-1 m")
 			    '(var m var-m)))
   (should (calc-tests-equal (calc-tests-simple #'calc-extract-units "-1 m*cm")
 			    '(* (float 1 -2) (^ (var m var-m) 2)))))
 
-(ert-deftest test-calc-convert-units ()
+(ert-deftest calc-convert-units ()
   ;; Used to ask for `(The expression is unitless when simplified) Old Units: '.
   (should (calc-tests-equal (calc-tests-simple #'calc-convert-units "-1 m" nil "cm")
 			    '(* -100 (var cm var-cm))))
@@ -94,7 +88,7 @@ An existing calc stack is reused, otherwise a new one is created."
   (let ((var-i (calcFunc-sqrt -1)))
     (should (math-imaginary-i))))
 
-(ert-deftest test-calc-23889 ()
+(ert-deftest calc-bug-23889 ()
   "Test for https://debbugs.gnu.org/23889 and 25652."
   (skip-unless t) ;; (>= math-bignum-digit-length 9))
   (dolist (mode '(deg rad))
@@ -139,7 +133,7 @@ An existing calc stack is reused, otherwise a new one is created."
                          (nth 1 (calcFunc-cos 1)))
                         0 4))))))
 
-(ert-deftest calc-test-trig ()
+(ert-deftest calc-trig ()
   "Trigonometric simplification; bug#33052."
   (let ((calc-angle-mode 'rad))
     (let ((calc-symbolic-mode t))
@@ -169,7 +163,7 @@ An existing calc stack is reused, otherwise a new one is created."
       (should (equal (math-simplify '(calcFunc-cot (/ (var pi var-pi) 3)))
                      '(calcFunc-cot (/ (var pi var-pi) 3)))))))
 
-(ert-deftest calc-test-format-radix ()
+(ert-deftest calc-format-radix ()
   "Test integer formatting (bug#36689)."
   (let ((calc-group-digits nil))
     (let ((calc-number-radix 10))
@@ -194,7 +188,7 @@ An existing calc stack is reused, otherwise a new one is created."
     (let ((calc-number-radix 36))
       (should (equal (math-format-number 12345678901) "36#5,O6A,QT1")))))
 
-(ert-deftest calc-test-calendar ()
+(ert-deftest calc-calendar ()
   "Test calendar conversions (bug#36822)."
   (should (equal (calcFunc-julian (math-parse-date "2019-07-27")) 2458692))
   (should (equal (math-parse-date "2019-07-27") '(date 737267)))
@@ -216,7 +210,7 @@ An existing calc stack is reused, otherwise a new one is created."
   (should (equal (math-absolute-from-julian-dt -101 3 1) -36832))
   (should (equal (math-absolute-from-julian-dt -4713 1 1) -1721425)))
 
-(ert-deftest calc-test-solve-linear-system ()
+(ert-deftest calc-solve-linear-system ()
   "Test linear system solving (bug#35374)."
   ;;   x + y =   3
   ;;  2x - 3y = -4
@@ -396,6 +390,73 @@ An existing calc stack is reused, otherwise a new one is created."
                                   (var k var-k) -1 1)
                     (var n var-n) -1 1))
                  8)))
+
+(defun calc-tests--fac (n)
+  (apply #'* (number-sequence 1 n)))
+
+(defun calc-tests--choose (n k)
+  "N choose K, reference implementation."
+  (cond
+   ((and (integerp n) (integerp k))
+    (if (<= 0 n)
+        (if (<= 0 k n)
+            (/ (calc-tests--fac n)
+               (* (calc-tests--fac k) (calc-tests--fac (- n k))))
+          0)    ; 0≤n<k
+      ;; n<0, n and k integers: use extension from M. J. Kronenburg
+      (cond
+       ((<= 0 k)
+        (* (expt -1 k)
+           (calc-tests--choose (+ (- n) k -1) k)))
+       ((<= k n)
+        (* (expt -1 (- n k))
+           (calc-tests--choose (+ (- k) -1) (- n k))))
+       (t  ; n<k<0
+        0))))
+   ((natnump k)
+    ;; Generalisation for any n, integral k≥0: use falling product
+    (/ (apply '* (number-sequence n (- n (1- k)) -1))
+       (calc-tests--fac k)))
+   (t (error "case not covered"))))
+
+(defun calc-tests--check-choose (n k)
+  (equal (calcFunc-choose n k)
+         (calc-tests--choose n k)))
+
+(defun calc-tests--explain-choose (n k)
+  (let ((got (calcFunc-choose n k))
+        (expected (calc-tests--choose n k)))
+    (format "(calcFunc-choose %d %d) => %S, expected %S" n k got expected)))
+
+(put 'calc-tests--check-choose 'ert-explainer 'calc-tests--explain-choose)
+
+(defun calc-tests--calc-to-number (x)
+  "Convert a Calc object to a Lisp number."
+  (pcase x
+    ((pred numberp) x)
+    (`(frac ,p ,q) (/ (float p) q))
+    (`(float ,m ,e) (* m (expt 10 e)))
+    (_ (error "calc object not converted: %S" x))))
+
+(ert-deftest calc-choose ()
+  "Test computation of binomial coefficients (bug#16999)."
+  ;; Integral arguments
+  (dolist (n (number-sequence -6 6))
+    (dolist (k (number-sequence -6 6))
+      (should (calc-tests--check-choose n k))))
+
+  ;; Fractional n, natural k
+  (should (equal (calc-tests--calc-to-number
+                  (calcFunc-choose '(frac 15 2) 3))
+                 (calc-tests--choose 7.5 3)))
+
+  (should (equal (calc-tests--calc-to-number
+                  (calcFunc-choose '(frac 1 2) 2))
+                 (calc-tests--choose 0.5 2)))
+
+  (should (equal (calc-tests--calc-to-number
+                  (calcFunc-choose '(frac -15 2) 3))
+                 (calc-tests--choose -7.5 3))))
 
 (provide 'calc-tests)
 ;;; calc-tests.el ends here

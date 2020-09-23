@@ -172,27 +172,28 @@
   (should (equal (version-to-list "6.9.30Beta") '(6 9 30 -2)))
   (should (equal (version-to-list "6.9.30_Beta") '(6 9 30 -2)))
 
-  (should (equal
-            (error-message-string (should-error (version-to-list "OTP-18.1.5")))
-            "Invalid version syntax: `OTP-18.1.5' (must start with a number)"))
-  (should (equal
-            (error-message-string (should-error (version-to-list "")))
-            "Invalid version syntax: `' (must start with a number)"))
-  (should (equal
-            (error-message-string (should-error (version-to-list "1.0..7.5")))
-            "Invalid version syntax: `1.0..7.5'"))
-  (should (equal
-            (error-message-string (should-error (version-to-list "1.0prepre2")))
-            "Invalid version syntax: `1.0prepre2'"))
-  (should (equal
-            (error-message-string (should-error (version-to-list "22.8X3")))
-            "Invalid version syntax: `22.8X3'"))
-  (should (equal
-            (error-message-string (should-error (version-to-list "beta22.8alpha3")))
-            "Invalid version syntax: `beta22.8alpha3' (must start with a number)"))
-  (should (equal
-            (error-message-string (should-error (version-to-list "honk")))
-            "Invalid version syntax: `honk' (must start with a number)"))
+  (let ((text-quoting-style 'grave))
+    (should (equal
+             (error-message-string (should-error (version-to-list "OTP-18.1.5")))
+             "Invalid version syntax: `OTP-18.1.5' (must start with a number)"))
+    (should (equal
+             (error-message-string (should-error (version-to-list "")))
+             "Invalid version syntax: `' (must start with a number)"))
+    (should (equal
+             (error-message-string (should-error (version-to-list "1.0..7.5")))
+             "Invalid version syntax: `1.0..7.5'"))
+    (should (equal
+             (error-message-string (should-error (version-to-list "1.0prepre2")))
+             "Invalid version syntax: `1.0prepre2'"))
+    (should (equal
+             (error-message-string (should-error (version-to-list "22.8X3")))
+             "Invalid version syntax: `22.8X3'"))
+    (should (equal
+             (error-message-string (should-error (version-to-list "beta22.8alpha3")))
+             "Invalid version syntax: `beta22.8alpha3' (must start with a number)"))
+    (should (equal
+             (error-message-string (should-error (version-to-list "honk")))
+             "Invalid version syntax: `honk' (must start with a number)")))
   (should (equal
             (error-message-string (should-error (version-to-list 9)))
             "Version must be a string"))
@@ -231,18 +232,19 @@
     (should (equal (version-to-list "6_9_30.Beta") '(6 9 30 -2)))
     (should (equal (version-to-list "6_9_30Beta") '(6 9 30 -2)))
 
-    (should (equal
-              (error-message-string (should-error (version-to-list "1_0__7_5")))
-              "Invalid version syntax: `1_0__7_5'"))
-    (should (equal
-              (error-message-string (should-error (version-to-list "1_0prepre2")))
-              "Invalid version syntax: `1_0prepre2'"))
-    (should (equal
-              (error-message-string (should-error (version-to-list "22.8X3")))
-              "Invalid version syntax: `22.8X3'"))
-    (should (equal
-              (error-message-string (should-error (version-to-list "beta22_8alpha3")))
-              "Invalid version syntax: `beta22_8alpha3' (must start with a number)"))))
+    (let ((text-quoting-style 'grave))
+      (should (equal
+               (error-message-string (should-error (version-to-list "1_0__7_5")))
+               "Invalid version syntax: `1_0__7_5'"))
+      (should (equal
+               (error-message-string (should-error (version-to-list "1_0prepre2")))
+               "Invalid version syntax: `1_0prepre2'"))
+      (should (equal
+               (error-message-string (should-error (version-to-list "22.8X3")))
+               "Invalid version syntax: `22.8X3'"))
+      (should (equal
+               (error-message-string (should-error (version-to-list "beta22_8alpha3")))
+               "Invalid version syntax: `beta22_8alpha3' (must start with a number)")))))
 
 (ert-deftest subr-test-version-list-< ()
   (should (version-list-< '(0) '(1)))
@@ -437,6 +439,24 @@ See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=19350."
                  nil))
   (should-error (ignore-error foo
                   (read ""))))
+
+(ert-deftest replace-in-string ()
+  (should (equal (replace-in-string "foo" "bar" "zot")
+                 "zot"))
+  (should (equal (replace-in-string "foo" "bar" "foozot")
+                 "barzot"))
+  (should (equal (replace-in-string "foo" "bar" "barfoozot")
+                 "barbarzot"))
+  (should (equal (replace-in-string "zot" "bar" "barfoozot")
+                 "barfoobar"))
+  (should (equal (replace-in-string "z" "bar" "barfoozot")
+                 "barfoobarot"))
+  (should (equal (replace-in-string "zot" "bar" "zat")
+                 "zat"))
+  (should (equal (replace-in-string "azot" "bar" "zat")
+                 "zat"))
+  (should (equal (replace-in-string "azot" "bar" "azot")
+                 "bar")))
 
 (provide 'subr-tests)
 ;;; subr-tests.el ends here

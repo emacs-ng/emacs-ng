@@ -134,6 +134,15 @@ The string will be passed through `substitute-command-keys'."
   :type '(choice (const :tag "Unlimited" nil)
                  integer))
 
+(defcustom eww-retrieve-command nil
+  "Command to retrieve an URL via an external program.
+If nil, `url-retrieve' is used to download the data.  If non-nil,
+this should be a list where the first item is the program, and
+the rest are the arguments."
+  :version "28.1"
+  :type '(choice (const :tag "Use `url-retrieve'" nil)
+                 (repeat string)))
+
 (defcustom eww-use-external-browser-for-content-type
   "\\`\\(video/\\|audio/\\|application/ogg\\)"
   "Always use external browser for specified content-type."
@@ -307,11 +316,10 @@ If BUFFER, the data to be rendered is in that buffer.  In that
 case, this function doesn't actually fetch URL.  BUFFER will be
 killed after rendering."
   (interactive
-   (let* ((uris (eww-suggested-uris))
-	  (prompt (concat "Enter URL or keywords"
-			  (if uris (format " (default %s)" (car uris)) "")
-			  ": ")))
-     (list (read-string prompt nil 'eww-prompt-history uris)
+   (let ((uris (eww-suggested-uris)))
+     (list (read-string (format-prompt "Enter URL or keywords"
+                                       (and uris (car uris)))
+                        nil 'eww-prompt-history uris)
            (prefix-numeric-value current-prefix-arg))))
   (setq url (eww--dwim-expand-url url))
   (pop-to-buffer-same-window
@@ -347,8 +355,33 @@ killed after rendering."
         (let ((eww-buffer (current-buffer)))
           (with-current-buffer buffer
             (eww-render nil url nil eww-buffer)))
-      (url-retrieve url #'eww-render
+      (eww-retrieve url #'eww-render
                     (list url nil (current-buffer))))))
+
+(defun eww-retrieve (url callback cbargs)
+  (if (null eww-retrieve-command)
+      (url-retrieve url #'eww-render
+                    (list url nil (current-buffer)))
+    (let ((buffer (generate-new-buffer " *eww retrieve*"))
+          (error-buffer (generate-new-buffer " *eww error*")))
+      (with-current-buffer buffer
+        (set-buffer-multibyte nil)
+        (make-process
+         :name "*eww fetch*"
+         :buffer (current-buffer)
+         :stderr error-buffer
+         :command (append eww-retrieve-command (list url))
+         :sentinel (lambda (process _)
+                     (unless (process-live-p process)
+                       (when (buffer-live-p error-buffer)
+                         (when (get-buffer-process error-buffer)
+                           (delete-process (get-buffer-process error-buffer) ))
+                         (kill-buffer error-buffer))
+                       (when (buffer-live-p buffer)
+                         (with-current-buffer buffer
+                           (goto-char (point-min))
+                           (insert "Content-type: text/html; charset=utf-8\n\n")
+                           (apply #'funcall callback nil cbargs))))))))))
 
 (function-put 'eww 'browse-url-browser-kind 'internal)
 
@@ -668,41 +701,76 @@ Currently this means either text/html or application/xhtml+xml."
                            eww-image-link-keymap
                          eww-link-keymap))))
 
+(defun eww--limit-string-pixelwise (string pixels)
+  (if (not pixels)
+      string
+    (with-temp-buffer
+      (insert string)
+      (if (< (eww--pixel-column) pixels)
+	  string
+	;; Iterate to find appropriate length.
+	(while (and (> (eww--pixel-column) pixels)
+		    (not (bobp)))
+	  (forward-char -1))
+	;; Return at least one character.
+	(buffer-substring (point-min) (max (point)
+					   (1+ (point-min))))))))
+
+(defun eww--pixel-column ()
+  (if (not (get-buffer-window (current-buffer)))
+      (save-window-excursion
+        ;; Avoid errors if the selected window is a dedicated one,
+        ;; and they just want to insert a document into it.
+        (set-window-dedicated-p nil nil)
+	(set-window-buffer nil (current-buffer))
+	(car (window-text-pixel-size nil (line-beginning-position) (point))))
+    (car (window-text-pixel-size nil (line-beginning-position) (point)))))
+
 (defun eww-update-header-line-format ()
   (setq header-line-format
 	(and eww-header-line-format
-	     (let ((title (plist-get eww-data :title))
-		   (peer (plist-get eww-data :peer))
-                   (url (plist-get eww-data :url)))
-	       (when (zerop (length title))
-		 (setq title "[untitled]"))
+	     (let ((peer (plist-get eww-data :peer))
+                   (url (plist-get eww-data :url))
+                   (title (propertize
+                           (if (zerop (length (plist-get eww-data :title)))
+		               "[untitled]"
+                             (plist-get eww-data :title))
+                           'face 'variable-pitch)))
+	       ;; This connection is https.
+	       (when peer
+                 (add-face-text-property 0 (length title)
+				         (if (plist-get peer :warnings)
+				             'eww-invalid-certificate
+				           'eww-valid-certificate)
+                                         t title))
                ;; Limit the length of the title so that the host name
                ;; of the URL is always visible.
                (when url
+                 (setq url (propertize url 'face 'variable-pitch))
                  (let* ((parsed (url-generic-parse-url url))
-                        (host-length (length (format "%s://%s"
-                                                     (url-type parsed)
-                                                     (url-host parsed))))
-                        (width (window-width)))
+                        (host-length (shr-string-pixel-width
+                                      (propertize
+                                       (format "%s://%s" (url-type parsed)
+                                               (url-host parsed))
+                                       'face 'variable-pitch)))
+                        (width (window-width nil t)))
                    (cond
                     ;; The host bit is wider than the window, so nix
                     ;; the title.
-                    ((> (+ host-length 5) width)
+                    ((> (+ host-length (shr-string-pixel-width "xxxxx")) width)
                      (setq title ""))
                     ;; Trim the title.
-                    ((> (+ (length title) host-length 2) width)
-                     (setq title (concat
-                                  (substring title 0 (- width
-                                                        host-length
-                                                        5))
-                                  "..."))))))
-	       ;; This connection has is https.
-	       (when peer
-		 (setq title
-		       (propertize title 'face
-				   (if (plist-get peer :warnings)
-				       'eww-invalid-certificate
-				     'eww-valid-certificate))))
+                    ((> (+ (shr-string-pixel-width (concat title "xx"))
+                           host-length)
+                        width)
+                     (setq title
+                           (concat
+                            (eww--limit-string-pixelwise
+                             title (- width host-length
+                                      (shr-string-pixel-width
+                                       (propertize "...: " 'face
+                                                   'variable-pitch))))
+                            (propertize "..." 'face 'variable-pitch)))))))
 	       (replace-regexp-in-string
 		"%" "%%"
 		(format-spec
@@ -1086,7 +1154,7 @@ just re-display the HTML already fetched."
 	  (eww-display-html 'utf-8 url (plist-get eww-data :dom)
 			    (point) (current-buffer)))
       (let ((url-mime-accept-string eww-accept-content-types))
-        (url-retrieve url #'eww-render
+        (eww-retrieve url #'eww-render
 		      (list url (point) (current-buffer) encode))))))
 
 ;; Form support.
@@ -1135,6 +1203,8 @@ just re-display the HTML already fetched."
 (defvar eww-select-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\r" 'eww-change-select)
+    (define-key map [follow-link] 'mouse-face)
+    (define-key map [mouse-2] 'eww-change-select)
     (define-key map [(control c) (control c)] 'eww-submit)
     map))
 
@@ -1402,16 +1472,15 @@ See URL `https://developer.mozilla.org/en-US/docs/Web/HTML/Element/Input'.")
 	(options nil)
 	(start (point))
 	(max 0))
-    (dolist (elem (dom-non-text-children dom))
-      (when (eq (dom-tag elem) 'option)
-	(when (dom-attr elem 'selected)
-	  (nconc menu (list :value (dom-attr elem 'value))))
-	(let ((display (dom-text elem)))
-	  (setq max (max max (length display)))
-	  (push (list 'item
-		      :value (dom-attr elem 'value)
-		      :display display)
-		options))))
+    (dolist (elem (dom-by-tag dom 'option))
+      (when (dom-attr elem 'selected)
+	(nconc menu (list :value (dom-attr elem 'value))))
+      (let ((display (dom-text elem)))
+	(setq max (max max (length display)))
+	(push (list 'item
+		    :value (dom-attr elem 'value)
+		    :display display)
+	      options)))
     (when options
       (setq options (nreverse options))
       ;; If we have no selected values, default to the first value.
@@ -1438,25 +1507,30 @@ See URL `https://developer.mozilla.org/en-US/docs/Web/HTML/Element/Input'.")
 	(setq display (plist-get (cdr elem) :display))))
     display))
 
-(defun eww-change-select ()
+(defun eww--form-items (form)
+  (cl-loop for elem in form
+           when (and (consp elem)
+                     (eq (car elem) 'item))
+           collect (cdr elem)))
+
+(defun eww-change-select (event)
   "Change the value of the select drop-down menu under point."
-  (interactive)
-  (let* ((input (get-text-property (point) 'eww-form))
-	 (completion-ignore-case t)
-	 (options
-	  (delq nil
-		(mapcar (lambda (elem)
-			  (and (consp elem)
-			       (eq (car elem) 'item)
-			       (cons (plist-get (cdr elem) :display)
-				     (plist-get (cdr elem) :value))))
-			input)))
-	 (display
-	  (completing-read "Change value: " options nil 'require-match))
-	 (inhibit-read-only t))
-    (plist-put input :value (cdr (assoc-string display options t)))
-    (goto-char
-     (eww-update-field display))))
+  (interactive (list last-nonmenu-event))
+  (mouse-set-point event)
+  (let ((input (get-text-property (point) 'eww-form)))
+    (popup-menu
+     (cons
+      "Change Value"
+      (mapcar
+       (lambda (elem)
+         (vector (plist-get elem :display)
+                 (lambda ()
+                   (interactive)
+                   (plist-put input :value (plist-get elem :value))
+                   (goto-char (eww-update-field (plist-get elem :display))))
+                 t))
+       (eww--form-items input)))
+     event)))
 
 (defun eww-update-field (string &optional offset)
   (unless offset
@@ -1560,7 +1634,7 @@ See URL `https://developer.mozilla.org/en-US/docs/Web/HTML/Element/Input'.")
 	  (cond
 	   ((member (plist-get input :type) '("checkbox" "radio"))
 	    (when (plist-get input :checked)
-	      (push (cons name (plist-get input :value))
+              (push (cons name (or (plist-get input :value) "on"))
 		    values)))
 	   ((equal (plist-get input :type) "file")
             (when-let ((file (plist-get input :filename)))
