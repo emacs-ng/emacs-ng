@@ -31,6 +31,7 @@
 (require 'gnus-range)
 (require 'gnus-util)
 (require 'gnus-cloud)
+(require 'gnus-dbus)
 (autoload 'message-make-date "message")
 (autoload 'gnus-agent-read-servers-validate "gnus-agent")
 (autoload 'gnus-agent-save-local "gnus-agent")
@@ -71,7 +72,7 @@ uses considerably less memory."
                  (const :tag "Write directly to file" nil)))
 
 (defcustom gnus-init-file (nnheader-concat gnus-home-directory ".gnus")
-  "Your Gnus Emacs-Lisp startup file name.
+  "Your Gnus Emacs Lisp startup file name.
 If a file with the `.el' or `.elc' suffixes exists, it will be read instead."
   :group 'gnus-start
   :type 'file)
@@ -82,7 +83,7 @@ If a file with the `.el' or `.elc' suffixes exists, it will be read instead."
 	       (directory-file-name installation-directory))
 	      "site-lisp/gnus-init")
     (error nil))
-  "The site-wide Gnus Emacs-Lisp startup file name, or nil if none.
+  "The site-wide Gnus Emacs Lisp startup file name, or nil if none.
 If a file with the `.el' or `.elc' suffixes exists, it will be read instead."
   :group 'gnus-start
   :type '(choice file (const nil)))
@@ -798,6 +799,8 @@ prompt the user for the name of an NNTP server to use."
 	  (gnus-run-hooks 'gnus-setup-news-hook)
 	  (when gnus-agent
 	    (gnus-request-create-group "queue" '(nndraft "")))
+	  (when gnus-dbus-close-on-sleep
+	    (gnus-dbus-register-sleep-signal))
 	  (gnus-start-draft-setup)
 	  ;; Generate the group buffer.
 	  (gnus-group-list-groups level)
@@ -1799,7 +1802,7 @@ backend check whether the group actually exists."
      ;; by one.
      (t
       (dolist (info infos)
-	(gnus-activate-group (gnus-info-group info) nil nil method t))))))
+	(gnus-activate-group (gnus-info-group info) t nil method t))))))
 
 (defun gnus-make-hashtable-from-newsrc-alist ()
   "Create a hash table from `gnus-newsrc-alist'.

@@ -80,6 +80,7 @@
 (eval-and-compile ;; So it's also available in tramp-loaddefs.el!
   (defvar tramp--startup-hook nil
     "Forms to be executed at the end of tramp.el.")
+  (put 'tramp--startup-hook 'tramp-suppress-trace t)
 
   (defmacro tramp--with-startup (&rest body)
     "Schedule BODY to be executed at the end of tramp.el."
@@ -582,6 +583,11 @@ This regexp must match both `tramp-initial-end-of-output' and
   (format "^.*\\(%s\\).*:\^@? *" (regexp-opt password-word-equivalents))
   "Regexp matching password-like prompts.
 The regexp should match at end of buffer.
+
+This variable is, by default, initialised from
+`password-word-equivalents' when Tramp is loaded, and it is
+usually more convenient to add new passphrases to that variable
+instead of altering this variable.
 
 The `sudo' program appears to insert a `^@' character into the prompt."
   :version "24.4"
@@ -1241,6 +1247,7 @@ the (optional) timestamp of last activity on this connection.")
   "Password save function.
 Will be called once the password has been verified by successful
 authentication.")
+(put 'tramp-password-save-function 'tramp-suppress-trace t)
 
 (defconst tramp-completion-file-name-handler-alist
   '((file-name-all-completions
@@ -1290,7 +1297,7 @@ If nil, return `tramp-default-port'."
   (or (tramp-file-name-port vec)
       (tramp-get-method-parameter vec 'tramp-default-port)))
 
-;; Comparision of file names is performed by `tramp-equal-remote'.
+;; Comparison of file names is performed by `tramp-equal-remote'.
 (defun tramp-file-name-equal-p (vec1 vec2)
   "Check, whether VEC1 and VEC2 denote the same `tramp-file-name'."
   (and (tramp-file-name-p vec1) (tramp-file-name-p vec2)
@@ -4632,7 +4639,7 @@ If it doesn't exist, generate a new one."
   (with-tramp-connection-property (tramp-get-connection-process vec) "device"
     (cons -1 (setq tramp-devices (1+ tramp-devices)))))
 
-;; Comparision of vectors is performed by `tramp-file-name-equal-p'.
+;; Comparison of vectors is performed by `tramp-file-name-equal-p'.
 (defun tramp-equal-remote (file1 file2)
   "Check, whether the remote parts of FILE1 and FILE2 are identical.
 The check depends on method, user and host name of the files.  If

@@ -292,6 +292,10 @@ is restarted, and sometimes reloaded."
   :link '(custom-manual "(gnus)Exiting Gnus")
   :group 'gnus)
 
+(defgroup gnus-dbus nil
+  "D-Bus integration for Gnus."
+  :group 'gnus)
+
 (defconst gnus-version-number "5.13"
   "Version number for this version of Gnus.")
 
@@ -848,12 +852,6 @@ be used directly.")
                 color-symbols)
           (cons (car list) (list :type type :data data)))
        list)))
-
-(let ((command (format "%s" this-command)))
-  (when (string-match "gnus" command)
-    (if (eq 'gnus-other-frame this-command)
-	(gnus-get-buffer-create gnus-group-buffer)
-      (gnus-splash))))
 
 ;;; Do the rest.
 
@@ -1609,7 +1607,7 @@ total number of articles in the group.")
  :variable-default (mapcar
                     (lambda (g) (list g t))
                     '("delayed$" "drafts$" "queue$" "INBOX$"
-                      "^nnmairix:" "^nnir:" "archive"))
+                      "^nnmairix:" "^nnselect:" "archive"))
  :variable-document
  "Groups in which the registry should be turned off."
  :variable-group gnus-registry
@@ -2707,6 +2705,11 @@ with some simple extensions.
 %k          Pretty-printed version of the above (string)
             For example, \"1.2k\" or \"0.4M\".
 %L          Number of lines in the article (integer)
+%Z          RSV of the article; nil if not in an nnselect group (integer)
+%G          Originating group name for the article; nil if not
+            in an nnselect group (string)
+%g          Short from  of the originating group name for the article;
+            nil if not in an nnselect group (string)
 %I          Indentation based on thread level (a string of
             spaces)
 %B          A complex trn-style thread tree (string)
@@ -3155,7 +3158,10 @@ that that variable is buffer-local to the summary buffers."
 
 (defun gnus-kill-ephemeral-group (group)
   "Remove ephemeral GROUP from relevant structures."
-  (remhash group gnus-newsrc-hashtb))
+  (remhash group gnus-newsrc-hashtb)
+  (setq gnus-newsrc-alist
+	(delq (assoc group gnus-newsrc-alist)
+              gnus-newsrc-alist)))
 
 (defun gnus-simplify-mode-line ()
   "Make mode lines a bit simpler."
@@ -3622,11 +3628,12 @@ If you call this function inside a loop, consider using the faster
 
 (defun gnus-group-get-parameter (group &optional symbol allow-list)
   "Return the group parameters for GROUP.
-If SYMBOL, return the value of that symbol in the group parameters.
-If ALLOW-LIST, also allow list as a result.
-Most functions should use `gnus-group-find-parameter', which
-also examines the topic parameters."
-  (let ((params (gnus-info-params (gnus-get-info group))))
+If SYMBOL, return the value of that symbol in the group
+parameters.  If ALLOW-LIST, also allow list as a result.  Most
+functions should use `gnus-group-find-parameter', which also
+examines the topic parameters.  GROUP can also be an info structure."
+  (let ((params (gnus-info-params (if (listp group) group
+				    (gnus-get-info group)))))
     (if symbol
 	(gnus-group-parameter-value params symbol allow-list)
       params)))
@@ -4139,8 +4146,9 @@ prompt the user for the name of an NNTP server to use."
   ;; file.
   (unless (string-match "^Gnus" gnus-version)
     (load "gnus-load" nil t))
-  (unless (byte-code-function-p (symbol-function 'gnus))
-    (message "You should byte-compile Gnus")
+  (unless (or (byte-code-function-p (symbol-function 'gnus))
+	      (subr-native-elisp-p (symbol-function 'gnus)))
+    (message "You should compile Gnus")
     (sit-for 2))
   (let ((gnus-action-message-log (list nil)))
     (gnus-1 arg dont-connect child)

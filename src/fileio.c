@@ -947,6 +947,22 @@ the root directory.  */)
 	)
       {
 	default_directory = Fexpand_file_name (default_directory, Qnil);
+
+	/* The above expansion might have produced a remote file name,
+	   so give the handlers one last chance to DTRT.  This can
+	   happen when both NAME and DEFAULT-DIRECTORY arguments are
+	   relative file names, and the buffer's default-directory is
+	   remote.  */
+	handler = Ffind_file_name_handler (default_directory,
+					   Qexpand_file_name);
+	if (!NILP (handler))
+	  {
+	    handled_name = call3 (handler, Qexpand_file_name,
+				  name, default_directory);
+	    if (STRINGP (handled_name))
+	      return handled_name;
+	    error ("Invalid handler in `file-name-handler-alist'");
+	  }
       }
   }
   multibyte = STRING_MULTIBYTE (name);
@@ -2903,6 +2919,11 @@ DEFUN ("file-directory-p", Ffile_directory_p, Sfile_directory_p, 1, 1, 0,
        doc: /* Return t if FILENAME names an existing directory.
 Return nil if FILENAME does not name a directory, or if there
 was trouble determining whether FILENAME is a directory.
+
+As a special case, this function will also return t if FILENAME is the
+empty string (\"\").  This quirk is due to Emacs interpreting the
+empty string (in some cases) as the current directory.
+
 Symbolic links to directories count as directories.
 See `file-symlink-p' to distinguish symlinks.  */)
   (Lisp_Object filename)

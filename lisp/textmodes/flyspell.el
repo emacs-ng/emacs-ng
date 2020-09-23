@@ -387,9 +387,13 @@ like <img alt=\"Some thing.\">."
 ;;*---------------------------------------------------------------------*/
 ;;*    Programming mode                                                 */
 ;;*---------------------------------------------------------------------*/
-(defvar flyspell-prog-text-faces
+(defcustom flyspell-prog-text-faces
   '(font-lock-string-face font-lock-comment-face font-lock-doc-face)
-  "Faces corresponding to text in programming-mode buffers.")
+  "Faces corresponding to text in programming-mode buffers."
+  :type '(set (const font-lock-string-face)
+              (const font-lock-comment-face)
+              (const font-lock-doc-face))
+  :version "28.1")
 
 (defun flyspell-generic-progmode-verify ()
   "Used for `flyspell-generic-check-word-predicate' in programming modes."
@@ -398,8 +402,8 @@ like <img alt=\"Some thing.\">."
     (let ((f (get-text-property (1- (point)) 'face)))
       (memq f flyspell-prog-text-faces))))
 
-;; Records the binding of M-TAB in effect before flyspell was activated.
-(defvar flyspell--prev-meta-tab-binding)
+(defvar flyspell--prev-meta-tab-binding nil
+  "Records the binding of M-TAB in effect before flyspell was activated.")
 
 ;;;###autoload
 (defun flyspell-prog-mode ()
@@ -525,7 +529,21 @@ in your init file.
 
 \\[flyspell-region] checks all words inside a region.
 \\[flyspell-buffer] checks the whole buffer."
-  :lighter flyspell-mode-line-string
+  :lighter (flyspell-mode-line-string
+            ;; If `flyspell-mode-line-string' is nil, then nothing of
+            ;; the following is displayed in the mode line.
+            ((:propertize flyspell-mode-line-string)
+             (:propertize
+              (:eval
+	       (concat "/" (substring (or ispell-local-dictionary
+			                  ispell-dictionary
+                                          "--")
+                                      0 2)))
+              face bold
+              help-echo "mouse-1: Change dictionary"
+              local-map (keymap
+                         (mode-line keymap
+                                    (mouse-1 . ispell-change-dictionary))))))
   :keymap flyspell-mode-map
   :group 'flyspell
   (if flyspell-mode
@@ -533,7 +551,7 @@ in your init file.
           (progn
             (when flyspell-use-mouse-3-for-menu
               (flyspell--set-use-mouse-3-for-menu 'flyspell-use-mouse-3-for-menu t))
-	    (flyspell-mode-on))
+            (flyspell-mode-on (called-interactively-p 'interactive)))
 	(error (message "Error enabling Flyspell mode:\n%s" (cdr err))
 	       (flyspell-mode -1)))
     (flyspell-mode-off)))
@@ -550,12 +568,9 @@ in your init file.
 
 (custom-add-option 'text-mode-hook 'turn-on-flyspell)
 
-;;*---------------------------------------------------------------------*/
-;;*    flyspell-buffers ...                                             */
-;;*    -------------------------------------------------------------    */
-;;*    For remembering buffers running flyspell                         */
-;;*---------------------------------------------------------------------*/
-(defvar flyspell-buffers nil)
+(defvar flyspell-buffers nil
+  "For remembering buffers running flyspell")
+(make-obsolete-variable 'flyspell-buffers "not used." "28.1")
 
 ;;*---------------------------------------------------------------------*/
 ;;*    flyspell-minibuffer-p ...                                        */
@@ -611,8 +626,12 @@ in your init file.
 ;;*---------------------------------------------------------------------*/
 ;;*    flyspell-mode-on ...                                             */
 ;;*---------------------------------------------------------------------*/
-(defun flyspell-mode-on ()
-  "Turn Flyspell mode on.  Do not use this; use `flyspell-mode' instead."
+(defun flyspell-mode-on (&optional show-msg)
+  "Turn Flyspell mode on.  Do not use this; use `flyspell-mode' instead.
+
+If optional argument SHOW-MSG is non-nil, show a welcome message
+if `flyspell-issue-message-flag' and `flyspell-issue-welcome-flag'
+are both non-nil."
   (ispell-set-spellchecker-params) ; Initialize variables and dicts alists
   (setq ispell-highlight-face 'flyspell-incorrect)
   ;; local dictionaries setup
@@ -644,15 +663,17 @@ in your init file.
 	(setq flyspell-generic-check-word-predicate mode-predicate)))
   ;; the welcome message
   (if (and flyspell-issue-message-flag
-	   flyspell-issue-welcome-flag
-	   (called-interactively-p 'interactive))
-      (let ((binding (where-is-internal 'flyspell-auto-correct-word
-					nil 'non-ascii)))
-	(message "%s"
-	 (if binding
-	     (format "Welcome to flyspell. Use %s or Mouse-2 to correct words."
-		     (key-description binding))
-	   "Welcome to flyspell. Use Mouse-2 to correct words.")))))
+           flyspell-issue-welcome-flag
+           show-msg)
+      (let* ((binding (where-is-internal 'flyspell-auto-correct-word
+                                         nil 'non-ascii))
+             (mouse-button (if flyspell-use-mouse-3-for-menu
+                               "Mouse-3" "Mouse-2")))
+        (message (format-message
+                  "Welcome to Flyspell. Use %s to correct words."
+                  (if binding
+                      (format "`%s' or `%s'" (key-description binding) mouse-button)
+                    (format "`%s'" mouse-button)))))))
 
 ;;*---------------------------------------------------------------------*/
 ;;*    flyspell-delay-commands ...                                      */
@@ -1802,7 +1823,9 @@ for the overlay."
     (overlay-put overlay 'mouse-face mouse-face)
     (overlay-put overlay 'flyspell-overlay t)
     (overlay-put overlay 'evaporate t)
-    (overlay-put overlay 'help-echo "mouse-2: correct word at point")
+    (overlay-put overlay 'help-echo (concat (if flyspell-use-mouse-3-for-menu
+                                                "mouse-3"
+                                              "mouse-2") ": correct word at point"))
     ;; If misspelled text has a 'keymap' property, let that remain in
     ;; effect for the bindings that flyspell-mouse-map doesn't override.
     (set-keymap-parent flyspell-mouse-map (get-char-property beg 'keymap))
@@ -1899,7 +1922,7 @@ before point that's highlighted as misspelled."
 	  (while (and (setq pos (previous-overlay-change pos))
 		      (not (= pos pos1)))
 	    (setq pos1 pos)
-	    (if (> pos (point-min))
+	    (if (>= pos (point-min))
 		(progn
 		  (setq ovs (overlays-at pos))
 		  (while (consp ovs)

@@ -49,8 +49,6 @@
 (autoload 'gnus-agent-total-fetched-for "gnus-agent")
 (autoload 'gnus-cache-total-fetched-for "gnus-cache")
 
-(autoload 'gnus-group-make-nnir-group "nnir")
-
 (autoload 'gnus-cloud-upload-all-data "gnus-cloud")
 (autoload 'gnus-cloud-download-all-data "gnus-cloud")
 
@@ -663,7 +661,8 @@ simple manner."
   "D" gnus-group-enter-directory
   "f" gnus-group-make-doc-group
   "w" gnus-group-make-web-group
-  "G" gnus-group-make-nnir-group
+  "G" gnus-group-read-ephemeral-search-group
+  "g" gnus-group-make-search-group
   "M" gnus-group-read-ephemeral-group
   "r" gnus-group-rename-group
   "R" gnus-group-make-rss-group
@@ -909,7 +908,8 @@ simple manner."
 	["Add the help group" gnus-group-make-help-group t]
 	["Make a doc group..." gnus-group-make-doc-group t]
 	["Make a web group..." gnus-group-make-web-group t]
-	["Make a search group..." gnus-group-make-nnir-group t]
+	["Read a search group..." gnus-group-read-ephemeral-search-group t]
+	["Make a search group..." gnus-group-make-search-group t]
 	["Make a virtual group..." gnus-group-make-empty-virtual t]
 	["Add a group to a virtual..." gnus-group-add-to-virtual t]
 	["Make an ephemeral group..." gnus-group-read-ephemeral-group t]
@@ -2411,13 +2411,13 @@ the bug number, and browsing the URL must return mbox output."
   (require 'bug-reference)
   (let ((def (cond ((thing-at-point-looking-at bug-reference-bug-regexp 500)
                     (match-string 2))
-                   ((number-at-point)))))
+                   ((and (number-at-point)
+                         (abs (number-at-point)))))))
     ;; Pass DEF as the value of COLLECTION instead of DEF because:
     ;; a) null input should not cause DEF to be returned and
     ;; b) TAB and M-n still work this way.
-    (or (completing-read-multiple
-	 (format "Bug IDs%s: " (if def (format " (default %s)" def) ""))
-	 (and def (list (format "%s" def))))
+    (or (completing-read-multiple (format-prompt "Bug IDs" def)
+				  (and def (list (format "%s" def))))
 	def)))
 
 (defun gnus-read-ephemeral-bug-group (ids mbox-url &optional window-conf)
@@ -3165,6 +3165,115 @@ mail messages or news articles in files that have numeric names."
      (gnus-group-real-name group)
      (list 'nndir (gnus-group-real-name group) (list 'nndir-directory dir)))))
 
+
+(autoload 'nnir-read-parms "nnir")
+(autoload 'nnir-server-to-search-engine "nnir")
+(autoload 'gnus-group-topic-name "gnus-topic")
+
+;; Temporary to make group creation easier
+(defun gnus-group-make-search-group (nnir-extra-parms &optional specs)
+  "Make a group based on a search.
+Prompt for a search query and determine the groups to search as
+follows: if called from the *Server* buffer search all groups
+belonging to the server on the current line; if called from the
+*Group* buffer search any marked groups, or the group on the
+current line, or all the groups under the current topic.  Calling
+with a prefix arg prompts for additional search-engine specific
+constraints.  A non-nil SPECS arg must be an alist with
+`nnir-query-spec' and `nnir-group-spec' keys, and skips all
+prompting."
+  (interactive "P")
+  (let ((name (gnus-read-group "Group name: ")))
+    (with-current-buffer gnus-group-buffer
+      (let* ((group-spec
+	      (or
+	       (cdr (assq 'nnir-group-spec specs))
+	       (if (gnus-server-server-name)
+		   (list (list (gnus-server-server-name)))
+		 (seq-group-by
+		  (lambda (elt) (gnus-group-server elt))
+		  (or gnus-group-marked
+		      (if (gnus-group-group-name)
+			  (list (gnus-group-group-name))
+			(cdr
+			 (assoc (gnus-group-topic-name) gnus-topic-alist))))))))
+	     (query-spec
+	      (or
+	       (cdr (assq 'nnir-query-spec specs))
+	       (apply
+		'append
+		(list (cons 'query
+			    (read-string "Query: " nil 'nnir-search-history)))
+		(when nnir-extra-parms
+		  (mapcar
+		   (lambda (x)
+		     (nnir-read-parms (nnir-server-to-search-engine (car x))))
+		   group-spec))))))
+	(gnus-group-make-group
+	 name
+	 (list 'nnselect "nnselect")
+	 nil
+	 (list
+	  (cons 'nnselect-specs
+		(list
+		 (cons 'nnselect-function 'nnir-run-query)
+		 (cons 'nnselect-args
+		       (list (cons 'nnir-query-spec query-spec)
+			     (cons 'nnir-group-spec group-spec)))))
+	  (cons 'nnselect-artlist nil)))))))
+
+(define-obsolete-function-alias 'gnus-group-make-nnir-group
+  'gnus-group-read-ephemeral-search-group "28.1")
+
+(defun gnus-group-read-ephemeral-search-group (nnir-extra-parms &optional specs)
+  "Read an nnselect group based on a search.
+Prompt for a search query and determine the groups to search as
+follows: if called from the *Server* buffer search all groups
+belonging to the server on the current line; if called from the
+*Group* buffer search any marked groups, or the group on the
+current line, or all the groups under the current topic.  Calling
+with a prefix arg prompts for additional search-engine specific
+constraints.  A non-nil SPECS arg must be an alist with
+`nnir-query-spec' and `nnir-group-spec' keys, and skips all
+prompting."
+  (interactive "P")
+  (let* ((group-spec
+	  (or (cdr (assq 'nnir-group-spec specs))
+	      (if (gnus-server-server-name)
+		  (list (list (gnus-server-server-name)))
+		(seq-group-by
+		 (lambda (elt) (gnus-group-server elt))
+		 (or gnus-group-marked
+		     (if (gnus-group-group-name)
+			 (list (gnus-group-group-name))
+		       (cdr
+			(assoc (gnus-group-topic-name) gnus-topic-alist))))))))
+	 (query-spec
+	  (or (cdr (assq 'nnir-query-spec specs))
+	      (apply
+	       'append
+	       (list (cons 'query
+			   (read-string "Query: " nil 'nnir-search-history)))
+	       (when nnir-extra-parms
+		 (mapcar
+		  (lambda (x)
+		    (nnir-read-parms (nnir-server-to-search-engine (car x))))
+		  group-spec))))))
+    (gnus-group-read-ephemeral-group
+     (concat "nnselect-" (message-unique-id))
+     (list 'nnselect "nnselect")
+     nil
+     (cons (current-buffer) gnus-current-window-configuration)
+     nil nil
+     (list
+      (cons 'nnselect-specs
+	    (list
+	     (cons 'nnselect-function 'nnir-run-query)
+	     (cons 'nnselect-args
+		   (list (cons 'nnir-query-spec query-spec)
+			 (cons 'nnir-group-spec group-spec)))))
+      (cons 'nnselect-artlist nil)))))
+
 (defun gnus-group-add-to-virtual (n vgroup)
   "Add the current group to a virtual group."
   (interactive
@@ -3697,9 +3806,8 @@ Uses the process/prefix convention."
 	(error "No group on the current line"))
       (string-to-number
        (let ((s (read-string
-		 (format "Level (default %s): "
-			 (or (gnus-group-group-level)
-			     gnus-level-default-subscribed)))))
+		 (format-prompt "Level" (or (gnus-group-group-level)
+					    gnus-level-default-subscribed)))))
 	 (if (string-match "^\\s-*$" s)
 	     (int-to-string (or (gnus-group-group-level)
 				gnus-level-default-subscribed))
@@ -4300,8 +4408,7 @@ The hook `gnus-suspend-gnus-hook' is called before actually suspending."
     ;; Closing all the backends is useful (for instance) when when the
     ;; IP addresses have changed and you need to reconnect.
     (dolist (elem gnus-opened-servers)
-      (gnus-close-server (car elem))
-      (setcar (cdr elem) 'closed))
+      (gnus-close-server (car elem)))
     (when group-buf
       (bury-buffer group-buf)
       (delete-windows-on group-buf t))))

@@ -562,6 +562,48 @@ Each element is (INDEX . VALUE)")
 (defvar byte-compile-depth 0 "Current depth of execution stack.")
 (defvar byte-compile-maxdepth 0 "Maximum depth of execution stack.")
 
+;; The following is used by comp.el to spill data out of here.
+;;
+;; Spilling is done in 3 places:
+;;
+;; - `byte-compile-lapcode' to obtain the map bytecode -> LAP for any
+;;   code assembled.
+;;
+;; - `byte-compile-lambda' to obtain arglist doc and interactive spec
+;;   af any lambda compiled (including anonymous).
+;;
+;; - `byte-compile-file-form-defmumble' to obtain the list of
+;;   top-level forms as they would be outputted in the .elc file.
+;;
+
+(cl-defstruct byte-to-native-lambda
+  byte-func lap)
+
+;; Top level forms:
+(cl-defstruct byte-to-native-func-def
+  "Named function defined at top-level."
+  name c-name byte-func)
+(cl-defstruct byte-to-native-top-level
+  "All other top-level forms."
+  form lexical)
+
+(defvar byte-native-compiling nil
+  "Non nil while native compiling.")
+(defvar byte-native-for-bootstrap nil
+  "Non nil while compiling for bootstrap."
+  ;; During boostrap we produce both the .eln and the .elc together.
+  ;; Because the make target is the later this has to be produced as
+  ;; last to be resilient against build interruptions.
+)
+(defvar byte-to-native-lambdas-h nil
+  "Hash byte-code -> byte-to-native-lambda.")
+(defvar byte-to-native-top-level-forms nil
+  "List of top level forms.")
+(defvar byte-to-native-output-file nil
+  "Temporary file containing the byte-compilation output.")
+(defvar byte-to-native-plist-environment nil
+  "To spill `overriding-plist-environment'.")
+
 
 ;;; The byte codes; this information is duplicated in bytecomp.c
 
@@ -954,7 +996,12 @@ CONST2 may be evaluated multiple times."
                    ;; it within 2 bytes in the byte string).
                    (puthash value pc hash-table))
                hash-table))
-    (apply 'unibyte-string (nreverse bytes))))
+    (let ((bytecode (apply 'unibyte-string (nreverse bytes))))
+      (when byte-native-compiling
+        ;; Spill LAP for the native compiler here.
+        (puthash bytecode (make-byte-to-native-lambda :lap lap)
+                 byte-to-native-lambdas-h))
+      bytecode)))
 
 
 ;;; compile-time evaluation
@@ -1695,7 +1742,11 @@ extra args."
          ;; 		 byte-compile-generate-emacs19-bytecodes)
          (byte-compile-warnings byte-compile-warnings)
          )
-     ,@body))
+     (prog1
+         (progn ,@body)
+       (when byte-native-compiling
+         (setq byte-to-native-plist-environment
+               overriding-plist-environment)))))
 
 (defmacro displaying-byte-compile-warnings (&rest body)
   (declare (debug t))
@@ -1990,7 +2041,8 @@ The value is non-nil if there were no errors, nil if errors."
 	(with-current-buffer output-buffer
 	  (goto-char (point-max))
 	  (insert "\n")			; aaah, unix.
-	  (if (file-writable-p target-file)
+	  (if (or (file-writable-p target-file)
+                  byte-native-compiling)
 	      ;; We must disable any code conversion here.
 	      (progn
 		(let* ((coding-system-for-write 'no-conversion)
@@ -1999,7 +2051,8 @@ The value is non-nil if there were no errors, nil if errors."
 		       ;; parallel bootstrap), it does not risk getting a
 		       ;; half-finished file.  (Bug#4196)
 		       (tempfile
-			(make-temp-file (expand-file-name target-file)))
+			(make-temp-file (when (file-writable-p target-file)
+                                          (expand-file-name target-file))))
 		       (default-modes (default-file-modes))
 		       (temp-modes (logand default-modes #o600))
 		       (desired-modes (logand default-modes #o666))
@@ -2018,8 +2071,16 @@ The value is non-nil if there were no errors, nil if errors."
 		  ;; emacs-lisp files in the build tree are
 		  ;; recompiled).  Previously this was accomplished by
 		  ;; deleting target-file before writing it.
-		  (rename-file tempfile target-file t))
-		(or noninteractive (message "Wrote %s" target-file)))
+                  (if byte-native-compiling
+                      (if byte-native-for-bootstrap
+                          ;; Defer elc final renaming.
+                          (setf byte-to-native-output-file
+                                (cons tempfile target-file))
+                        (delete-file tempfile))
+                    (rename-file tempfile target-file t)))
+		(or noninteractive
+                    byte-native-compiling
+                    (message "Wrote %s" target-file)))
 	    ;; This is just to give a better error message than write-region
 	    (let ((exists (file-exists-p target-file)))
 	      (signal (if exists 'file-error 'file-missing)
@@ -2193,6 +2254,10 @@ Call from the source buffer."
   ;; defalias calls are output directly by byte-compile-file-form-defmumble;
   ;; it does not pay to first build the defalias in defmumble and then parse
   ;; it here.
+  (when byte-native-compiling
+    ;; Spill output for the native compiler here
+    (push (make-byte-to-native-top-level :form form :lexical lexical-binding)
+          byte-to-native-top-level-forms))
   (let ((print-escape-newlines t)
         (print-length nil)
         (print-level nil)
@@ -2646,6 +2711,15 @@ not to take responsibility for the actual compilation of the code."
                  ;; If there's no doc string, provide -1 as the "doc string
                  ;; index" so that no element will be treated as a doc string.
                  (if (not (stringp (documentation code t))) -1 4)))
+            (when byte-native-compiling
+              ;; Spill output for the native compiler here.
+              (push (if macro
+                        (make-byte-to-native-top-level
+                         :form `(defalias ',name '(macro . ,code) nil)
+                         :lexical lexical-binding)
+                      (make-byte-to-native-func-def :name name
+                                                    :byte-func code))
+                    byte-to-native-top-level-forms))
             ;; Output the form by hand, that's much simpler than having
             ;; b-c-output-file-form analyze the defalias.
             (byte-compile-output-docform
@@ -2903,23 +2977,30 @@ for symbols generated by the byte compiler itself."
                                    reserved-csts)))
       ;; Build the actual byte-coded function.
       (cl-assert (eq 'byte-code (car-safe compiled)))
-      (apply #'make-byte-code
-             (if lexical-binding
-                 (byte-compile-make-args-desc arglist)
-               arglist)
-             (append
-              ;; byte-string, constants-vector, stack depth
-              (cdr compiled)
-              ;; optionally, the doc string.
-              (cond ((and lexical-binding arglist)
-                     ;; byte-compile-make-args-desc lost the args's names,
-                     ;; so preserve them in the docstring.
-                     (list (help-add-fundoc-usage doc arglist)))
-                    ((or doc int)
-                     (list doc)))
-              ;; optionally, the interactive spec.
-              (if int
-                  (list (nth 1 int))))))))
+      (let ((out
+             (apply #'make-byte-code
+                    (if lexical-binding
+                        (byte-compile-make-args-desc arglist)
+                      arglist)
+                    (append
+                     ;; byte-string, constants-vector, stack depth
+                     (cdr compiled)
+                     ;; optionally, the doc string.
+                     (cond ((and lexical-binding arglist)
+                            ;; byte-compile-make-args-desc lost the args's names,
+                            ;; so preserve them in the docstring.
+                            (list (help-add-fundoc-usage doc arglist)))
+                           ((or doc int)
+                            (list doc)))
+                     ;; optionally, the interactive spec.
+                     (if int
+                         (list (nth 1 int)))))))
+        (when byte-native-compiling
+          (setf (byte-to-native-lambda-byte-func
+                 (gethash (cadr compiled)
+                          byte-to-native-lambdas-h))
+                out))
+        out))))
 
 (defvar byte-compile-reserved-constants 0)
 
@@ -4132,40 +4213,44 @@ Return (TAIL VAR TEST CASES), where:
         (switch-var nil)
         (switch-test 'eq))
     (while (pcase (car clauses)
-             (`((,fn ,expr1 ,expr2) . ,body)
+             (`((,(and fn (or 'eq 'eql 'equal)) ,expr1 ,expr2) . ,body)
               (let* ((vars (byte-compile--cond-vars expr1 expr2))
                      (var (car vars))
                      (value (cdr vars)))
                 (and var (or (eq var switch-var) (not switch-var))
-                     (cond
-                      ((memq fn '(eq eql equal))
+                     (progn
                        (setq switch-var var)
                        (setq switch-test
                              (byte-compile--common-test switch-test fn))
                        (unless (member value keys)
                          (push value keys)
                          (push (cons (list value) (or body '(t))) cases))
-                       t)
-                      ((and (memq fn '(memq memql member))
-                            (listp value)
-                            ;; Require a non-empty body, since the member
-                            ;; function value depends on the switch
-                            ;; argument.
-                            body)
-                       (setq switch-var var)
-                       (setq switch-test
-                             (byte-compile--common-test
-                              switch-test (cdr (assq fn '((memq   . eq)
-                                                          (memql  . eql)
-                                                          (member . equal))))))
-                       (let ((vals nil))
-                         (dolist (elem value)
-                           (unless (funcall fn elem keys)
-                             (push elem vals)))
-                         (when vals
-                           (setq keys (append vals keys))
-                           (push (cons (nreverse vals) body) cases)))
-                       t))))))
+                       t))))
+             (`((,(and fn (or 'memq 'memql 'member)) ,var ,expr) . ,body)
+              (and (symbolp var)
+                   (or (eq var switch-var) (not switch-var))
+                   (macroexp-const-p expr)
+                   ;; Require a non-empty body, since the member
+                   ;; function value depends on the switch argument.
+                   body
+                   (let ((value (eval expr)))
+                     (and (proper-list-p value)
+                          (progn
+                            (setq switch-var var)
+                            (setq switch-test
+                                  (byte-compile--common-test
+                                   switch-test
+                                   (cdr (assq fn '((memq   . eq)
+                                                   (memql  . eql)
+                                                   (member . equal))))))
+                            (let ((vals nil))
+                              (dolist (elem value)
+                                (unless (funcall fn elem keys)
+                                  (push elem vals)))
+                              (when vals
+                                (setq keys (append vals keys))
+                                (push (cons (nreverse vals) body) cases)))
+                            t))))))
       (setq clauses (cdr clauses)))
     ;; Assume that a single switch is cheaper than two or more discrete
     ;; compare clauses.  This could be tuned, possibly taking into
@@ -5095,7 +5180,8 @@ Use with caution."
         (message "Can't find %s to refresh preloaded Lisp files" argv0)
       (dolist (f (reverse load-history))
         (setq f (car f))
-        (if (string-match "elc\\'" f) (setq f (substring f 0 -1)))
+        (when (string-match "el[cn]\\'" f)
+          (setq f (substring f 0 -1)))
         (when (and (file-readable-p f)
                    (file-newer-than-file-p f emacs-file)
                    ;; Don't reload the source version of the files below
@@ -5104,7 +5190,7 @@ Use with caution."
                    ;; so it can cause recompilation to fail.
                    (not (member (file-name-nondirectory f)
                                 '("pcase.el" "bytecomp.el" "macroexp.el"
-                                  "cconv.el" "byte-opt.el"))))
+                                  "cconv.el" "byte-opt.el" "comp.el"))))
           (message "Reloading stale %s" (file-name-nondirectory f))
           (condition-case nil
               (load f 'noerror nil 'nosuffix)
@@ -5189,9 +5275,10 @@ and corresponding effects."
       (let ((byte-optimize nil)		; do it fast
 	    (byte-compile-warnings nil))
 	(mapc (lambda (x)
-		(or noninteractive (message "compiling %s..." x))
-		(byte-compile x)
-		(or noninteractive (message "compiling %s...done" x)))
+                (unless (subr-native-elisp-p x)
+		  (or noninteractive (message "compiling %s..." x))
+		  (byte-compile x)
+		  (or noninteractive (message "compiling %s...done" x))))
 	      '(byte-compile-normal-call
 		byte-compile-form
 		byte-compile-body

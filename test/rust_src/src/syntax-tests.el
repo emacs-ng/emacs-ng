@@ -16,7 +16,7 @@
 (ert-deftest test-forward-word ()
   (let ((str "test forward-word"))
     (with-temp-buffer
-      (should (eq (forward-word -1) nil))           
+      (should (eq (forward-word -1) nil))
       (insert str)
       (goto-char (point-min))
       (forward-word)

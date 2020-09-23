@@ -274,7 +274,7 @@ error of type `jsonrpc-error'.
 DEFERRED is passed to `jsonrpc-async-request', which see.
 
 If CANCEL-ON-INPUT is non-nil and the user inputs something while
-the functino is waiting, then it exits immediately, returning
+the function is waiting, then it exits immediately, returning
 CANCEL-ON-INPUT-RETVAL.  Any future replies (normal or error) are
 ignored."
   (let* ((tag (cl-gensym "jsonrpc-request-catch-tag")) id-and-timer
@@ -329,11 +329,14 @@ ignored."
                            :method method
                            :params params))
 
-(defconst jrpc-default-request-timeout 10
+(define-obsolete-variable-alias 'jrpc-default-request-timeout
+  'jsonrpc-default-request-timeout "28.1")
+
+(defconst jsonrpc-default-request-timeout 10
   "Time in seconds before timing out a JSONRPC request.")
 
 
-;;; Specfic to `jsonrpc-process-connection'
+;;; Specific to `jsonrpc-process-connection'
 ;;;
 
 (defclass jsonrpc-process-connection (jsonrpc-connection)
@@ -617,7 +620,7 @@ With optional CLEANUP, kill any associated buffers."
                                     params
                                     &rest args
                                     &key success-fn error-fn timeout-fn
-                                    (timeout jrpc-default-request-timeout)
+                                    (timeout jsonrpc-default-request-timeout)
                                     (deferred nil))
   "Does actual work for `jsonrpc-async-request'.
 

@@ -97,6 +97,8 @@
   ;; compilation can trigger loading (various `require' type forms)
   ;; and loading can trigger compilation (the package manager does
   ;; this).  We walk the lisp stack if necessary.
+  ;; Never native compile to allow cc-defs.el:2345 hack.
+  (declare (speed -1))
   (cond
    ((and load-in-progress
 	 (boundp 'byte-compile-dest-file)
@@ -284,7 +286,9 @@ perhaps a `cc-bytecomp-restore-environment' is forgotten somewhere"))
 		    (cons cc-file cc-bytecomp-loaded-files))
 	      (cc-bytecomp-debug-msg
 	       "cc-bytecomp-load: Loading %S" cc-file)
-	      (load cc-file nil t t)
+	      ;; native-comp may async compile also intalled el.gz
+	      ;; files therefore we may have to load here other el.gz.
+	      (load cc-part nil t)
 	      (cc-bytecomp-debug-msg
 	       "cc-bytecomp-load: Loaded %S" cc-file)))
 	  (cc-bytecomp-setup-environment)

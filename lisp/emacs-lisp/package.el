@@ -2204,6 +2204,16 @@ If some packages are not installed propose to install them."
   (equal (cadr (assq (package-desc-name pkg) package-alist))
          pkg))
 
+(defun package--delete-directory (dir)
+  "Delete DIR recursively.
+Clean-up the corresponding .eln files if Emacs is native
+compiled."
+  (when (boundp 'comp-ctxt)
+    (cl-loop
+     for file in (directory-files-recursively dir ".el\\'")
+     do (comp-clean-up-stale-eln (comp-el-to-eln-filename file))))
+  (delete-directory dir t))
+
 (defun package-delete (pkg-desc &optional force nosave)
   "Delete package PKG-DESC.
 
@@ -2256,7 +2266,7 @@ If NOSAVE is non-nil, the package is not removed from
                   (package-desc-name pkg-used-elsewhere-by)))
           (t
            (add-hook 'post-command-hook #'package-menu--post-refresh)
-           (delete-directory dir t)
+           (package--delete-directory dir)
            ;; Remove NAME-VERSION.signed and NAME-readme.txt files.
            ;;
            ;; NAME-readme.txt files are no longer created, but they
@@ -2338,10 +2348,7 @@ will be deleted."
          (setq guess nil))
        (setq packages (mapcar #'symbol-name packages))
        (let ((val
-              (completing-read (if guess
-                                   (format "Describe package (default %s): "
-                                           guess)
-                                 "Describe package: ")
+              (completing-read (format-prompt "Describe package" guess)
                                packages nil t nil nil (when guess
                                                         (symbol-name guess)))))
          (list (and (> (length val) 0) (intern val)))))))
@@ -4019,7 +4026,8 @@ activations need to be changed, such as when `package-load-list' is modified."
                 (let ((load-suffixes '(".el" ".elc")))
                   (locate-library (package--autoloads-file-name pkg))))
                (pfile (prin1-to-string file)))
-          (insert "(let ((load-file-name " pfile "))\n")
+          (insert "(let ((load-true-file-name " pfile ")\
+(load-file-name " pfile "))\n")
           (insert-file-contents file)
           ;; Fixup the special #$ reader form and throw away comments.
           (while (re-search-forward "#\\$\\|^;\\(.*\n\\)" nil 'move)

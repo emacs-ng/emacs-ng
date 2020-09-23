@@ -2238,7 +2238,7 @@ comment at the start of cc-engine.el for more info."
 
 	     ((and c-opt-cpp-prefix
 		   (looking-at c-noise-macro-name-re))
-	      ;; Skip over a noise macro.
+	      ;; Skip over a noise macro without parens.
 	      (goto-char (match-end 1))
 	      (not (eobp)))
 
@@ -2697,7 +2697,7 @@ comment at the start of cc-engine.el for more info."
   ;; or the car of the list is the "position element" of ELT, the position
   ;; where ELT is valid.
   ;;
-  ;; POINT is left at the postition for which the returned state is valid.  It
+  ;; POINT is left at the position for which the returned state is valid.  It
   ;; will be either the position element of ELT, or one character before
   ;; that.  (The latter happens in Emacs <= 25 and XEmacs, when ELT indicates
   ;; its position element directly follows a potential first character of a
@@ -2767,7 +2767,7 @@ comment at the start of cc-engine.el for more info."
 	      ((nth 3 state)		; A string
 	       (list (point) (nth 3 state) (nth 8 state)))
 	      ((and (nth 4 state)		 ; A comment
-		    (not (eq (nth 7 state) 'syntax-table))) ; but not a psuedo comment.
+		    (not (eq (nth 7 state) 'syntax-table))) ; but not a pseudo comment.
 	       (list (point)
 		     (if (eq (nth 7 state) 1) 'c++ 'c)
 		     (nth 8 state)))
@@ -2894,7 +2894,7 @@ comment at the start of cc-engine.el for more info."
 	(setq nc-list (cdr nc-list))))))
 
 (defun c-semi-get-near-cache-entry (here)
-  ;; Return the near cache entry at the highest postion before HERE, if any,
+  ;; Return the near cache entry at the highest position before HERE, if any,
   ;; or nil.  The near cache entry is of the form (POSITION . STATE), where
   ;; STATE has the form of a result of `parse-partial-sexp'.
   (let ((nc-pos-state
@@ -7170,7 +7170,7 @@ comment at the start of cc-engine.el for more info."
   ;; characters.)  If the raw string is not terminated, E\) and E\" are set to
   ;; nil.
   ;;
-  ;; Note: this function is dependant upon the correct syntax-table text
+  ;; Note: this function is dependent upon the correct syntax-table text
   ;; properties being set.
   (let ((state (c-semi-pp-to-literal (point)))
 	open-quote-pos open-paren-pos close-paren-pos close-quote-pos id)
@@ -9102,7 +9102,7 @@ This function might do hidden buffer changes."
   (let
       ((cdd-pos (point)) cdd-next-pos cdd-id-start cdd-id-end
        cdd-decl-res cdd-got-func cdd-got-type cdd-got-init
-       c-last-identifier-range cdd-exhausted)
+       c-last-identifier-range cdd-exhausted cdd-after-block)
 
     ;; The following `while' applies `cdd-function' to a single declarator id
     ;; each time round.  It loops only when CDD-LIST is non-nil.
@@ -9130,6 +9130,12 @@ This function might do hidden buffer changes."
 				  (catch 'is-function
 				    (while
 					(progn
+					  (while
+					      (cond
+					       ((looking-at c-decl-hangon-key)
+						(c-forward-keyword-clause 1))
+					       ((looking-at c-noise-macro-with-parens-name-re)
+						(c-forward-noise-clause))))
 					  (if (eq (char-after) ?\))
 					      (throw 'is-function t))
 					  (setq cdd-got-type (c-forward-type))
@@ -9155,23 +9161,25 @@ This function might do hidden buffer changes."
 		 (c-forward-syntactic-ws cdd-limit)
 	       (setq cdd-exhausted t)))	; unbalanced parens
 
-	    (cdd-got-init	; "=" sign OR opening "(", "[", or "{"
-	     ;; Skip an initializer expression.  If we're at a '='
-	     ;; then accept a brace list directly after it to cope
-	     ;; with array initializers.  Otherwise stop at braces
-	     ;; to avoid going past full function and class blocks.
-	     (if (and (if (and (eq cdd-got-init ?=)
-			       (= (c-forward-token-2 1 nil cdd-limit) 0)
-			       (looking-at "{"))
-			  (c-go-list-forward (point) cdd-limit)
-			t)
-		      ;; FIXME: Should look for c-decl-end markers here;
-		      ;; we might go far into the following declarations
-		      ;; in e.g. ObjC mode (see e.g. methods-4.m).
-		      (c-syntactic-re-search-forward "[;,{]" cdd-limit 'move t))
+	    (cdd-got-init		; "=" sign OR opening "(", "[", or "("
+	     ;; Skip an initializer expression in braces, whether or not (in
+	     ;; C++ Mode) preceded by an "=".  Be careful that the brace list
+	     ;; isn't a code block or a struct (etc.) block.
+	     (cond
+	      ((and (eq cdd-got-init ?=)
+		    (zerop (c-forward-token-2 1 nil  cdd-limit))
+		    (eq (char-after) ?{)
+		    (c-go-list-forward (point) cdd-limit)))
+	      ((and (eq cdd-got-init ?{)
+		    c-recognize-bare-brace-inits
+		    (setq cdd-after-block
+			  (save-excursion
+			    (c-go-list-forward (point) cdd-limit)))
+		    (not (c-looking-at-statement-block)))
+	       (goto-char cdd-after-block)))
+	     (if (c-syntactic-re-search-forward "[;,{]" cdd-limit 'move t)
 		 (backward-char)
-	       (setq cdd-exhausted t)
-	       ))
+	       (setq cdd-exhausted t)))
 
 	    (t (c-forward-syntactic-ws cdd-limit)))
 
@@ -9780,6 +9788,16 @@ This function might do hidden buffer changes."
 				  (save-excursion
 				    (goto-char after-paren-pos)
 				    (c-forward-syntactic-ws)
+				    (progn
+				      (while
+					  (cond
+					   ((and
+					     c-opt-cpp-prefix
+					     (looking-at c-noise-macro-with-parens-name-re))
+					    (c-forward-noise-clause))
+					   ((looking-at c-decl-hangon-key)
+					    (c-forward-keyword-clause 1))))
+				      t)
 				    (or (c-forward-type)
 					;; Recognize a top-level typeless
 					;; function declaration in C.
@@ -11749,7 +11767,22 @@ comment at the start of cc-engine.el for more info."
 			   (save-excursion (c-backward-syntactic-ws) (point))
 			   nil nil))
 		    (and (consp res)
-			 (eq (car res) after-type-id-pos))))))
+			 (cond
+			  ((eq (car res) after-type-id-pos))
+			  ((> (car res) after-type-id-pos) nil)
+			  (t
+			   (catch 'find-decl
+			     (save-excursion
+			       (goto-char (car res))
+			       (c-do-declarators
+				(point-max) t nil nil
+				(lambda (id-start id-end tok not-top func init)
+				  (cond
+				   ((> id-start after-type-id-pos)
+				    (throw 'find-decl nil))
+				   ((eq id-start after-type-id-pos)
+				    (throw 'find-decl t)))))
+			       nil)))))))))
 	  (cons bufpos (or in-paren inexpr-brace-list)))
 	 ((or (eq (char-after) ?\;)
 	      ;; Brace lists can't contain a semicolon, so we're done.

@@ -43,6 +43,8 @@
 ;; Since we don't use byte-decompile-lapcode, let's try not loading byte-opt.
 (require 'byte-compile "bytecomp")
 
+(declare-function comp-c-func-name "comp.el")
+
 (defvar disassemble-column-1-indent 8 "*")
 (defvar disassemble-column-2-indent 10 "*")
 
@@ -57,10 +59,9 @@ If OBJECT is not already compiled, we compile it, but do not
 redefine OBJECT if it is a symbol."
   (interactive
    (let* ((fn (function-called-at-point))
-          (prompt (if fn (format "Disassemble function (default %s): " fn)
-                    "Disassemble function: "))
           (def (and fn (symbol-name fn))))
-     (list (intern (completing-read prompt obarray 'fboundp t nil nil def))
+     (list (intern (completing-read (format-prompt "Disassemble function" fn)
+                                    obarray 'fboundp t nil nil def))
            nil 0 t)))
   (if (and (consp object) (not (functionp object)))
       (setq object `(lambda () ,object)))
@@ -75,7 +76,7 @@ redefine OBJECT if it is a symbol."
   nil)
 
 
-(defun disassemble-internal (obj indent interactive-p)
+(cl-defun disassemble-internal (obj indent interactive-p)
   (let ((macro 'nil)
 	(name (when (symbolp obj)
                 (prog1 obj
@@ -83,7 +84,27 @@ redefine OBJECT if it is a symbol."
 	args)
     (setq obj (autoload-do-load obj name))
     (if (subrp obj)
-	(error "Can't disassemble #<subr %s>" name))
+        (if (and (fboundp 'subr-native-elisp-p)
+                 (subr-native-elisp-p obj))
+            (progn
+              (require 'comp)
+              (call-process "objdump" nil (current-buffer) t "-S"
+                            (native-comp-unit-file (subr-native-comp-unit obj)))
+              (goto-char (point-min))
+              (re-search-forward (concat "^.*"
+                                         (regexp-quote
+                                          (concat "<"
+                                                  (comp-c-func-name
+                                                   (subr-name obj) "F" t)
+                                                  ">:"))))
+              (beginning-of-line)
+              (delete-region (point-min) (point))
+              (when (re-search-forward "^.*<.*>:" nil t 2)
+                (delete-region (match-beginning 0) (point-max)))
+              (asm-mode)
+              (setq buffer-read-only t)
+              (cl-return-from disassemble-internal))
+	  (error "Can't disassemble #<subr %s>" name)))
     (if (eq (car-safe obj) 'macro)	;Handle macros.
 	(setq macro t
 	      obj (cdr obj)))

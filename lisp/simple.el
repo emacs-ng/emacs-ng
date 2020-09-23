@@ -516,7 +516,7 @@ This hook is run by `delete-selection-uses-region-p', which see.")
   "Propertized string representing a hard newline character.")
 
 (defun newline (&optional arg interactive)
-  "Insert a newline, and move to left margin of the new line if it's blank.
+   "Insert a newline, and move to left margin of the new line.
 With prefix argument ARG, insert that many newlines.
 
 If `electric-indent-mode' is enabled, this indents the final new line
@@ -553,7 +553,7 @@ A non-nil INTERACTIVE argument means to run the `post-self-insert-hook'."
             (save-excursion
               (goto-char beforepos)
               (beginning-of-line)
-              (and (looking-at "[ \t]$")
+              (and (looking-at "[ \t]+$")
                    (> (current-left-margin) 0)
                    (delete-region (point)
                                   (line-end-position))))
@@ -1881,22 +1881,20 @@ to get different commands to edit and resubmit."
 	   '(metadata
 	     (annotation-function . read-extended-command--annotation)
 	     (category . command))
-         (let ((pred
-                (if (memq action '(nil t))
-                    ;; Exclude obsolete commands from completions.
-                    (lambda (sym)
-                      (and (funcall pred sym)
-                           (or (equal string (symbol-name sym))
-                               (not (get sym 'byte-obsolete-info)))))
-                  pred)))
-           (complete-with-action action obarray string pred))))
+         (complete-with-action action obarray string pred)))
      #'commandp t nil 'extended-command-history)))
 
 (defun read-extended-command--annotation (command-name)
-  (let* ((function (and (stringp command-name) (intern-soft command-name)))
-         (binding (where-is-internal function overriding-local-map t)))
-    (when (and binding (not (stringp binding)))
-      (format " (%s)" (key-description binding)))))
+  (let* ((fun (and (stringp command-name) (intern-soft command-name)))
+         (binding (where-is-internal fun overriding-local-map t))
+         (obsolete (get fun 'byte-obsolete-info))
+         (alias (symbol-function fun)))
+    (cond ((symbolp alias)
+           (format " (%s)" alias))
+          (obsolete
+           (format " (%s)" (car obsolete)))
+          ((and binding (not (stringp binding)))
+           (format " (%s)" (key-description binding))))))
 
 (defcustom suggest-key-bindings t
   "Non-nil means show the equivalent key-binding when M-x command has one.
@@ -2129,11 +2127,9 @@ See also `minibuffer-history-case-insensitive-variables'."
   (interactive
    (let* ((enable-recursive-minibuffers t)
 	  (regexp (read-from-minibuffer
-                   (format "Previous element matching regexp%s: "
-                           (if minibuffer-history-search-history
-                               (format " (default %s)"
-                                       (car minibuffer-history-search-history))
-                             ""))
+                   (format-prompt "Previous element matching regexp"
+                                  (and minibuffer-history-search-history
+                                       (car minibuffer-history-search-history)))
 		   nil minibuffer-local-map nil
 		   'minibuffer-history-search-history
 		   (car minibuffer-history-search-history))))
@@ -2754,11 +2750,12 @@ Contrary to `undo', this will not redo a previous undo."
   (let ((undo-no-redo t)) (undo arg)))
 
 (defun undo-redo (&optional arg)
-  "Undo the last ARG undos."
+  "Undo the last ARG undos, i.e., redo the last ARG changes.
+Interactively, ARG is the prefix numeric argument and defaults to 1."
   (interactive "*p")
   (cond
    ((not (undo--last-change-was-undo-p buffer-undo-list))
-    (user-error "No undo to undo"))
+    (user-error "No undone changes to redo"))
    (t
     (let* ((ul buffer-undo-list)
            (new-ul
@@ -4374,7 +4371,7 @@ Also, delete any process that is exited or signaled."
 		    ((thread-name (process-thread p)))
 		    (t "--")))
 		  (cmd
-		   (if (memq type '(network serial))
+		   (if (memq type '(network serial pipe))
 		       (let ((contact (process-contact p t t)))
 			 (if (eq type 'network)
 			     (format "(%s %s)"
@@ -7808,11 +7805,17 @@ a specialization of overwrite mode, entered by setting the
 
 Line numbers do not appear for very large buffers and buffers
 with very long lines; see variables `line-number-display-limit'
-and `line-number-display-limit-width'."
+and `line-number-display-limit-width'.
+
+See `mode-line-position-line-format' for how this number is
+presented."
   :init-value t :global t :group 'mode-line)
 
 (define-minor-mode column-number-mode
-  "Toggle column number display in the mode line (Column Number mode)."
+  "Toggle column number display in the mode line (Column Number mode).
+
+See `mode-line-position-column-format' for how this number is
+presented."
   :global t :group 'mode-line)
 
 (define-minor-mode size-indication-mode
@@ -8312,7 +8315,7 @@ makes it easier to edit it."
   (interactive
    (let* ((default-var (variable-at-point))
           (var (if (custom-variable-p default-var)
-		   (read-variable (format "Set variable (default %s): " default-var)
+		   (read-variable (format-prompt "Set variable" default-var)
 				  default-var)
 		 (read-variable "Set variable: ")))
 	  (minibuffer-help-form `(describe-variable ',var))

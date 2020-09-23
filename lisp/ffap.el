@@ -1751,7 +1751,7 @@ Function CONT is applied to the entry chosen by the user."
 	;; Bug: prompting may assume unique strings, no "".
 	(setq choice
 	      (completing-read
-	       (format "%s (default %s): " title (car (car alist)))
+	       (format-prompt title (car (car alist)))
 	       alist nil t
 	       ;; (cons (car (car alist)) 0)
 	       nil)))
@@ -1923,6 +1923,14 @@ Only intended for interactive use."
 Only intended for interactive use."
   (interactive (list (ffap-prompter nil " read only other frame")))
   (let ((value (ffap-other-frame filename)))
+    (ffap--toggle-read-only value)
+    value))
+
+(defun ffap-read-only-other-tab (filename)
+  "Like `ffap', but put buffer in another tab and mark as read-only.
+Only intended for interactive use."
+  (interactive (list (ffap-prompter nil " read only other tab")))
+  (let ((value (window-buffer (ffap-other-tab filename))))
     (ffap--toggle-read-only value)
     value))
 

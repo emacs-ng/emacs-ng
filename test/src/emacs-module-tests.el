@@ -309,7 +309,8 @@ local reference."
 (ert-deftest module/describe-function-1 ()
   "Check that Bug#30163 is fixed."
   (with-temp-buffer
-    (let ((standard-output (current-buffer)))
+    (let ((standard-output (current-buffer))
+          (text-quoting-style 'grave))
       (describe-function-1 #'mod-test-sum)
       (goto-char (point-min))
       (while (re-search-forward "`[^']*/data/emacs-module/" nil t)
@@ -466,5 +467,37 @@ See Bug#36226."
             ;; mod-test.c:write_to_pipe produces.
             (should (equal (buffer-string) "data from thread")))
         (delete-process process)))))
+
+(ert-deftest module/interactive/return-t ()
+  (should (functionp (symbol-function #'mod-test-return-t)))
+  (should (module-function-p (symbol-function #'mod-test-return-t)))
+  (should-not (commandp #'mod-test-return-t))
+  (should-not (commandp (symbol-function #'mod-test-return-t)))
+  (should-not (interactive-form #'mod-test-return-t))
+  (should-not (interactive-form (symbol-function #'mod-test-return-t)))
+  (should-error (call-interactively #'mod-test-return-t)
+                :type 'wrong-type-argument))
+
+(ert-deftest module/interactive/return-t-int ()
+  (should (functionp (symbol-function #'mod-test-return-t-int)))
+  (should (module-function-p (symbol-function #'mod-test-return-t-int)))
+  (should (commandp #'mod-test-return-t-int))
+  (should (commandp (symbol-function #'mod-test-return-t-int)))
+  (should (equal (interactive-form #'mod-test-return-t-int) '(interactive)))
+  (should (equal (interactive-form (symbol-function #'mod-test-return-t-int))
+                 '(interactive)))
+  (should (eq (mod-test-return-t-int) t))
+  (should (eq (call-interactively #'mod-test-return-t-int) t)))
+
+(ert-deftest module/interactive/identity ()
+  (should (functionp (symbol-function #'mod-test-identity)))
+  (should (module-function-p (symbol-function #'mod-test-identity)))
+  (should (commandp #'mod-test-identity))
+  (should (commandp (symbol-function #'mod-test-identity)))
+  (should (equal (interactive-form #'mod-test-identity) '(interactive "i")))
+  (should (equal (interactive-form (symbol-function #'mod-test-identity))
+                 '(interactive "i")))
+  (should (eq (mod-test-identity 123) 123))
+  (should-not (call-interactively #'mod-test-identity)))
 
 ;;; emacs-module-tests.el ends here

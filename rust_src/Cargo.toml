@@ -58,8 +58,8 @@ panic = "abort"
 
 [features]
 default = [
-  "use-xml2", "unexec", "window-system", "window-system-x11", "libvterm", 
-  
+  "use-xml2", "unexec", "window-system", "window-system-x11", "libvterm",
+
 ]
 # Use unexec crate on Mac
 unexecmacosx = ["alloc_unexecmacosx"]

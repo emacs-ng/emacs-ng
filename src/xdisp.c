@@ -510,7 +510,7 @@ static Lisp_Object list_of_error;
 	       || *BYTE_POS_ADDR (IT_BYTEPOS (*it)) == '\t'))))
 
 /* These are the category sets we use.  They are defined by
-   kinsoku.el and chracters.el.  */
+   kinsoku.el and characters.el.  */
 #define NOT_AT_EOL '<'
 #define NOT_AT_BOL '>'
 #define LINE_BREAKABLE '|'
@@ -538,7 +538,7 @@ it_char_has_category(struct it *it, int cat)
 static bool
 char_can_wrap_before (struct it *it)
 {
-  if (!Vword_wrap_by_category)
+  if (!word_wrap_by_category)
     return !IT_DISPLAYING_WHITESPACE (it);
 
   /* For CJK (LTR) text in RTL paragraph, EOL and BOL are flipped.
@@ -560,7 +560,7 @@ char_can_wrap_before (struct it *it)
 static bool
 char_can_wrap_after (struct it *it)
 {
-  if (!Vword_wrap_by_category)
+  if (!word_wrap_by_category)
     return IT_DISPLAYING_WHITESPACE (it);
 
   /* For CJK (LTR) text in RTL paragraph, EOL and BOL are flipped.
@@ -589,7 +589,7 @@ char_can_wrap_after (struct it *it)
 static int
 fill_column_indicator_column (struct it *it, int char_width)
 {
-  if (Vdisplay_fill_column_indicator
+  if (display_fill_column_indicator
       && !it->w->pseudo_window_p
       && it->continuation_lines_width == 0
       && CHARACTERP (Vdisplay_fill_column_indicator_character))
@@ -2230,7 +2230,7 @@ estimate_mode_line_height (struct frame *f, enum face_id face_id)
 }
 
 /* Given a pixel position (PIX_X, PIX_Y) on frame F, return glyph
-   co-ordinates in (*X, *Y).  Set *BOUNDS to the rectangle that the
+   coordinates in (*X, *Y).  Set *BOUNDS to the rectangle that the
    glyph at X, Y occupies, if BOUNDS != 0.  If NOCLIP, do
    not force the value into range.  */
 
@@ -3744,7 +3744,7 @@ init_to_row_end (struct it *it, struct window *w, struct glyph_row *row)
 	it->continuation_lines_width
 	  = row->continuation_lines_width + row->pixel_width;
       CHECK_IT (it);
-      /* Initializing IT in the presense of compositions in reordered
+      /* Initializing IT in the presence of compositions in reordered
 	 rows is tricky: row->end above will generally cause us to
 	 start at position that is not the first one in the logical
 	 order, and we might therefore miss the composition earlier in
@@ -9532,7 +9532,7 @@ move_it_in_display_line_to (struct it *it,
 			 we can't wrap here.  Therefore, wrap_it
 			 (previously found wrap-point) _is_ relevant
 			 in that case.  */
-		      && !(moved_forward && char_can_wrap_before (it)))
+		      && (!moved_forward || char_can_wrap_before (it)))
 		    {
 		      /* If we've found TO_X, go back there, as we now
 			 know the last word fits on this screen line.  */
@@ -19308,20 +19308,21 @@ try_window (Lisp_Object window, struct text_pos pos, int flags)
   if ((flags & TRY_WINDOW_CHECK_MARGINS)
       && !MINI_WINDOW_P (w))
     {
-      int this_scroll_margin = window_scroll_margin (w, MARGIN_IN_PIXELS);
+      int top_scroll_margin = window_scroll_margin (w, MARGIN_IN_PIXELS);
+      int bot_scroll_margin = top_scroll_margin;
       if (window_wants_header_line (w))
-	this_scroll_margin += CURRENT_HEADER_LINE_HEIGHT (w);
+	top_scroll_margin += CURRENT_HEADER_LINE_HEIGHT (w);
       start_display (&it, w, pos);
 
       if ((w->cursor.y >= 0	/* not vscrolled */
-	   && w->cursor.y < this_scroll_margin
+	   && w->cursor.y < top_scroll_margin
 	   && CHARPOS (pos) > BEGV)
 	  /* rms: considering make_cursor_line_fully_visible_p here
 	     seems to give wrong results.  We don't want to recenter
 	     when the last line is partly visible, we want to allow
 	     that case to be handled in the usual way.  */
 	  || w->cursor.y > (it.last_visible_y - partial_line_height (&it)
-			    - this_scroll_margin - 1))
+			    - bot_scroll_margin - 1))
 	{
 	  w->cursor.vpos = -1;
 	  clear_glyph_matrix (w->desired_matrix);
@@ -21929,7 +21930,7 @@ extend_face_to_end_of_line (struct it *it)
       && !face->stipple
 #endif
       && !it->glyph_row->reversed_p
-      && !Vdisplay_fill_column_indicator)
+      && !display_fill_column_indicator)
     return;
 
   /* Set the glyph row flag indicating that the face of the last glyph
@@ -25640,8 +25641,10 @@ display_mode_element (struct it *it, int depth, int field_width, int precision,
 		    /* Non-ASCII characters in SPEC should cause mode-line
 		       element be displayed as a multibyte string.  */
 		    ptrdiff_t nbytes = strlen (spec);
-		    if (multibyte_chars_in_text ((const unsigned char *)spec,
-						 nbytes) != nbytes)
+		    ptrdiff_t nchars, mb_nbytes;
+		    parse_str_as_multibyte ((const unsigned char *)spec, nbytes,
+					    &nchars, &mb_nbytes);
+		    if (!(nbytes == nchars || nbytes != mb_nbytes))
 		      multibyte = true;
 
 		    switch (mode_line_target)
@@ -34772,7 +34775,7 @@ A value of nil means to respect the value of `truncate-lines'.
 If `word-wrap' is enabled, you might want to reduce this.  */);
   Vtruncate_partial_width_windows = make_fixnum (50);
 
-  DEFVAR_BOOL("word-wrap-by-category", Vword_wrap_by_category, doc: /*
+  DEFVAR_BOOL("word-wrap-by-category", word_wrap_by_category, doc: /*
     Non-nil means also wrap after characters of a certain category.
 Normally when `word-wrap' is on, Emacs only breaks lines after
 whitespace characters.  When this option is turned on, Emacs also
@@ -34787,7 +34790,7 @@ when breaking lines.  That means characters with the ">" category
 don't appear at the beginning of a line (e.g., FULLWIDTH COMMA), and
 characters with the "<" category don't appear at the end of a line
 (e.g., LEFT DOUBLE ANGLE BRACKET).  */);
-  Vword_wrap_by_category = false;
+  word_wrap_by_category = false;
 
   DEFVAR_LISP ("line-number-display-limit", Vline_number_display_limit,
     doc: /* Maximum buffer size for which line number should be displayed.
@@ -34830,8 +34833,7 @@ and is used only on frames for which no explicit name has been set
      Oracle Developer Studio 12.6.  */
   Lisp_Object icon_title_name_format
     = pure_list (empty_unibyte_string,
-		 intern_c_string ("invocation-name"),
-		 build_pure_c_string ("@"),
+		 build_pure_c_string ("%b - GNU Emacs at "),
 		 intern_c_string ("system-name"));
   Vicon_title_format
     = Vframe_title_format
@@ -35007,8 +35009,10 @@ but does not change the fact they are interpreted as raw bytes.  */);
 
   DEFVAR_LISP ("max-mini-window-height", Vmax_mini_window_height,
     doc: /* Maximum height for resizing mini-windows (the minibuffer and the echo area).
-If a float, it specifies a fraction of the mini-window frame's height.
-If an integer, it specifies a number of lines.  */);
+If a float, it specifies the maximum height in units of the
+mini-window frame's height.
+If an integer, it specifies the maximum height in units of the
+mini-window frame's default font's height.  */);
   Vmax_mini_window_height = make_float (0.25);
 
   DEFVAR_LISP ("resize-mini-windows", Vresize_mini_windows,
@@ -35184,10 +35188,10 @@ It has no effect when set to 0, or when line numbers are not absolute.  */);
   DEFSYM (Qdisplay_line_numbers_offset, "display-line-numbers-offset");
   Fmake_variable_buffer_local (Qdisplay_line_numbers_offset);
 
-  DEFVAR_BOOL ("display-fill-column-indicator", Vdisplay_fill_column_indicator,
+  DEFVAR_BOOL ("display-fill-column-indicator", display_fill_column_indicator,
     doc: /* Non-nil means display the fill column indicator.
 See Info node `Displaying Boundaries' for details.  */);
-  Vdisplay_fill_column_indicator = false;
+  display_fill_column_indicator = false;
   DEFSYM (Qdisplay_fill_column_indicator, "display-fill-column-indicator");
   Fmake_variable_buffer_local (Qdisplay_fill_column_indicator);
 

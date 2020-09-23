@@ -1,5 +1,5 @@
-;;; gnustest-mml-sec.el --- Tests mml-sec.el, see README-mml-secure.txt.
-;; Copyright (C) 2015 Free Software Foundation, Inc.
+;;; mml-sec-tests.el --- Tests mml-sec.el, see README-mml-secure.txt.  -*- lexical-binding:t -*-
+;; Copyright (C) 2015, 2020 Free Software Foundation, Inc.
 
 ;; Author: Jens Lechtenbörger <jens.lechtenboerger@fsfe.org>
 
@@ -37,7 +37,7 @@ Mostly, the empty passphrase is used.  However, the keys for
  as S/MIME).")
 
 (defun test-conf ()
-  (ignore-errors (epg-configuration)))
+  (ignore-errors (epg-find-configuration 'OpenPGP)))
 
 (defun enc-standards ()
   (if with-smime '(enc-pgp enc-pgp-mime enc-smime)
@@ -50,6 +50,8 @@ Mostly, the empty passphrase is used.  However, the keys for
   (if with-smime
       '(sign-pgp sign-pgp-mime sign-smime)
     '(sign-pgp sign-pgp-mime)))
+
+(defvar mml-smime-use)
 
 (defun mml-secure-test-fixture (body &optional interactive)
   "Setup GnuPG home containing test keys and prepare environment for BODY.
@@ -80,7 +82,9 @@ instead of gpg-agent."
 	      ;; not look in the proper places otherwise, see:
 	      ;; https://bugs.gnupg.org/gnupg/issue2126
 	      (setenv "GNUPGHOME" epg-gpg-home-directory)
-	      (funcall body))
+              (unwind-protect
+	          (funcall body)
+                (mml-sec-test--kill-gpg-agent)))
 	  (error
 	   (setenv "GPG_AGENT_INFO" agent-info)
 	   (setenv "GNUPGHOME" gpghome)
@@ -120,9 +124,9 @@ Subject: Test
 Pass optional INTERACTIVE to mml-secure-test-fixture."
   (mml-secure-test-fixture
    (lambda ()
-     (let ((context (if (memq method '(enc-smime enc-sign-smime sign-smime))
-			(epg-make-context 'CMS)
-		      (epg-make-context 'OpenPGP)))
+     (let ((_context (if (memq method '(enc-smime enc-sign-smime sign-smime))
+                         (epg-make-context 'CMS)
+                       (epg-make-context 'OpenPGP)))
 	   ;; Verify and decrypt by default.
 	   (mm-verify-option 'known)
 	   (mm-decrypt-option 'known)
@@ -546,6 +550,10 @@ Pass optional INTERACTIVE to mml-secure-test-mail-fixture."
 	       ))))))
    interactive))
 
+(defvar mml-smime-cache-passphrase)
+(defvar mml2015-cache-passphrase)
+(defvar mml1991-cache-passphrase)
+
 (defun mml-secure-test-en-decrypt-with-passphrase
     (method to from checksig jl-passphrase do-cache
 	    &optional enc-keys expectfail)
@@ -562,7 +570,7 @@ If optional EXPECTFAIL is non-nil, a decryption failure is expected."
 	(mml-smime-cache-passphrase do-cache)
 	)
     (cl-letf (((symbol-function 'read-passwd)
-	       (lambda (prompt &optional confirm default) jl-passphrase)))
+               (lambda (_prompt &optional _confirm _default) jl-passphrase)))
       (mml-secure-test-en-decrypt method to from checksig t enc-keys expectfail)
       )))
 
@@ -647,6 +655,7 @@ In this test, just multiple encryption and signing keys may be available."
 (ert-deftest mml-secure-en-decrypt-sign-1-2-double ()
   "Sign and encrypt message; then decrypt and test for expected result.
 In this test, just multiple encryption and signing keys may be available."
+  :tags '(:unstable)
   (skip-unless (test-conf))
   (mml-secure-test-key-fixture
    (lambda ()
@@ -819,7 +828,7 @@ In the first decryption this passphrase is hardcoded, in the second one it
 	method "uid1@example.org" "sub@example.org" nil
 	;; Beware!  For passphrases copy-sequence is necessary, as they may
 	;; be erased, which actually changes the function's code and causes
-	;; multiple invokations to fail.  I was surprised...
+	;; multiple invocations to fail.  I was surprised...
 	(copy-sequence "Passphrase") t)
        (mml-secure-test-en-decrypt-with-passphrase
 	method "uid1@example.org" "sub@example.org" nil
@@ -842,7 +851,8 @@ So the second decryption fails."
 (ert-deftest mml-secure-en-decrypt-passphrase-no-cache-openpgp-todo ()
   "Passphrase caching with OpenPGP only for GnuPG 1.x."
   (skip-unless (test-conf))
-  (skip-unless (string< (cdr (assq 'version (epg-configuration))) "2"))
+  (skip-unless (string< (cdr (assq 'version (epg-find-configuration 'OpenPGP)))
+			"2"))
   (mml-secure-en-decrypt-passphrase-no-cache 'enc-pgp)
   (mml-secure-en-decrypt-passphrase-no-cache 'enc-pgp-mime))
 
@@ -884,7 +894,7 @@ So the second decryption fails."
 (defun mml-secure-run-tests-with-gpg2 ()
   "Run all tests with gpg2 instead of gpg."
   (let* ((epg-gpg-program "gpg2"); ~/local/gnupg-2.1.9/PLAY/inst/bin/gpg2
-	 (gpg-version (cdr (assq 'version (epg-configuration))))
+	 (gpg-version (cdr (assq 'version (epg-find-configuration 'OpenPGP))))
 	 ;; Empty passphrases do not seem to work with gpgsm in 2.1.x:
 	 ;; https://lists.gnupg.org/pipermail/gnupg-users/2015-October/054575.html
 	 (with-smime (string< gpg-version "2.1")))
@@ -895,4 +905,16 @@ So the second decryption fails."
   (let ((with-smime nil))
     (ert-run-tests-batch)))
 
-;;; gnustest-mml-sec.el ends here
+(defun mml-sec-test--kill-gpg-agent ()
+  (dolist (pid (list-system-processes))
+    (let ((atts (process-attributes pid)))
+      (when (and (equal (cdr (assq 'user atts)) (user-login-name))
+                 (equal (cdr (assq 'comm atts)) "gpg-agent")
+                 (string-match
+                  (concat "homedir.*"
+                          (regexp-quote (expand-file-name "test/data/mml-sec"
+                                                          source-directory)))
+                  (cdr (assq 'args atts))))
+        (call-process "kill" nil nil nil (format "%d" pid))))))
+
+;;; mml-sec-tests.el ends here

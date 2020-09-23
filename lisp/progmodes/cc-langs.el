@@ -337,7 +337,8 @@ the evaluated constant value at compile time."
 This includes setting \\=' and \" as string delimiters, and setting up
 the comment syntax to handle both line style \"//\" and block style
 \"/*\" \"*/\" comments."
-
+  ;; Never native compile to allow cc-mode.el:467 hack.
+  (declare (speed -1))
   (modify-syntax-entry ?_  "_"     table)
   (modify-syntax-entry ?\\ "\\"    table)
   (modify-syntax-entry ?+  "."     table)
@@ -2338,6 +2339,16 @@ will be handled."
   t  (c-make-keywords-re t (c-lang-const c-typedef-decl-kwds)))
 (c-lang-defvar c-typedef-decl-key (c-lang-const c-typedef-decl-key))
 
+(c-lang-defconst c-using-kwds
+  "Keywords which behave like `using' in C++"
+  t nil
+  c++ '("using"))
+
+(c-lang-defconst c-using-key
+  ;; Regexp matching C++'s `using'.
+  t (c-make-keywords-re t (c-lang-const c-using-kwds)))
+(c-lang-defvar c-using-key (c-lang-const c-using-key))
+
 (c-lang-defconst c-typeless-decl-kwds
   "Keywords introducing declarations where the (first) identifier
 \(declarator) follows directly after the keyword, without any type.
@@ -2388,7 +2399,8 @@ will be handled."
   t    nil
   (c c++) '("auto" "extern" "inline" "register" "static")
   c++  (append '("constexpr" "explicit" "friend" "mutable" "template"
-		 "thread_local" "using" "virtual")
+		 "thread_local" "virtual")
+	       ;; "using" is now handled specially (2020-09-14).
 	       (c-lang-const c-modifier-kwds))
   objc '("auto" "bycopy" "byref" "extern" "in" "inout" "oneway" "out" "static")
   ;; FIXME: Some of those below ought to be on `c-other-decl-kwds' instead.
@@ -3700,6 +3712,20 @@ Foo bar = gnu;"
   t nil
   c++ t)
 (c-lang-defvar c-recognize-paren-inits (c-lang-const c-recognize-paren-inits))
+
+(c-lang-defconst c-recognize-bare-brace-inits
+  "Non-nil means that brace initializers without \"=\" exist,
+i.e. constructs like
+
+int foo[] {1, 2, 3};
+
+in addition to the more classic
+
+int foo[] = {1, 2, 3};"
+  t nil
+  c++ t)
+(c-lang-defvar c-recognize-bare-brace-inits
+	       (c-lang-const c-recognize-bare-brace-inits))
 
 (c-lang-defconst c-recognize-paren-inexpr-blocks
   "Non-nil to recognize gcc style in-expression blocks,

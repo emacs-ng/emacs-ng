@@ -28,7 +28,7 @@ You should write something like:
 
 ```
 pub fn good_name_for_foo(x: i32, y: &str) -> Result<File> {
-    // ... 
+    // ...
 }
 
 pub extern "C" fn rust_foo(x: libc::c_int, y: *const libc::c_char) {

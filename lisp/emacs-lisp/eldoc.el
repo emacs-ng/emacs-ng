@@ -5,7 +5,7 @@
 ;; Author: Noah Friedman <friedman@splode.com>
 ;; Keywords: extensions
 ;; Created: 1995-10-06
-;; Version: 1.8.0
+;; Version: 1.10.0
 ;; Package-Requires: ((emacs "26.3"))
 
 ;; This is a GNU ELPA :core package.  Avoid functionality that is not
@@ -66,6 +66,12 @@ If this variable is set to 0, no idle time is required."
   "If non-nil eldoc info is only shown when editing.
 Changing the value requires toggling `eldoc-mode'."
   :type 'boolean)
+
+(defcustom eldoc-display-truncation-message t
+  "If non-nil, provide verbose help when a message has been truncated.
+If nil, truncated messages will just have \"...\" appended."
+  :type 'boolean
+  :version "28.1")
 
 ;;;###autoload
 (defcustom eldoc-minor-mode-string (purecopy " ElDoc")
@@ -415,7 +421,7 @@ pairs of the form (:KEY VALUE :KEY2 VALUE2...).  KEY can be:
 
 * `:thing', VALUE is a short string or symbol designating what is
   being reported on.  The documentation display engine can elect
-  to remove this information depending on space contraints;
+  to remove this information depending on space constraints;
 
 * `:face', VALUE is a symbol designating a face to use when
   displaying `:thing''s value.
@@ -524,10 +530,13 @@ Honor most of `eldoc-echo-area-use-multiline-p'."
                     (cl-return
                      (concat
                       (buffer-substring (point-min) (point))
-                      (and truncated
+                      (and
+                       truncated
+                       (if eldoc-display-truncation-message
                            (format
                             "\n(Documentation truncated. Use `%s' to see rest)"
-                            (substitute-command-keys "\\[eldoc-doc-buffer]")))))))))
+                            (substitute-command-keys "\\[eldoc-doc-buffer]"))
+                         "..."))))))))
               ((= available 1)
                ;; Truncate "brutally." ; FIXME: use `eldoc-prefer-doc-buffer' too?
                (with-current-buffer (eldoc-doc-buffer)
@@ -573,7 +582,8 @@ Meant as a value for `eldoc-documentation-strategy'."
                       (let* ((callback (eldoc--make-callback :enthusiast))
                              (str (funcall f callback)))
                         (if (stringp str) (funcall callback str))
-                        nil))))
+                        nil)))
+  t)
 
 ;; JT@2020-07-10: ElDoc is pre-loaded, so in Emacs < 28 we can't
 ;; make the "old" `eldoc-documentation-function' point to the new
@@ -709,7 +719,7 @@ Other third-party strategy functions do not use
 produce callbacks to feed to `eldoc-documentation-function' and
 should endeavour to display the docstrings eventually produced."
   (let* (;; How many callbacks have been created by the strategy
-         ;; fucntion and passed to elements of
+         ;; function and passed to elements of
          ;; `eldoc-documentation-functions'.
          (howmany 0)
          ;; How many calls to callbacks we're still waiting on.  Used
@@ -739,14 +749,14 @@ should endeavour to display the docstrings eventually produced."
                  (when (and string (cl-loop for (p) in docs-registered
                                             never (< p pos)))
                    (setq docs-registered '())
-                   (register-doc pos string plist)
-                   (when (and (timerp eldoc--enthusiasm-curbing-timer)
-                              (memq eldoc--enthusiasm-curbing-timer
-                                    timer-list))
-                     (cancel-timer eldoc--enthusiasm-curbing-timer))
-                   (setq eldoc--enthusiasm-curbing-timer
-                         (run-at-time (unless (zerop pos) 0.3)
-                                      nil #'display-doc)))
+                   (register-doc pos string plist))
+                 (when (and (timerp eldoc--enthusiasm-curbing-timer)
+                            (memq eldoc--enthusiasm-curbing-timer
+                                  timer-list))
+                   (cancel-timer eldoc--enthusiasm-curbing-timer))
+                 (setq eldoc--enthusiasm-curbing-timer
+                       (run-at-time (unless (zerop pos) 0.3)
+                                    nil #'display-doc))
                  t))
               (:patient
                (cl-incf want)

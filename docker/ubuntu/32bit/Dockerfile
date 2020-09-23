@@ -46,4 +46,3 @@ RUN curl https://sh.rustup.rs -o rustup.sh && \
         --default-host i686-unknown-linux-gnu \
         --default-toolchain nightly-2019-02-27 -y && \
     rustup default nightly-2019-02-27
-

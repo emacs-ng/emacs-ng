@@ -5478,15 +5478,15 @@ w32_read_socket (struct terminal *terminal,
 		  /* Windows can send us a SIZE_MAXIMIZED message even
 		     when fullscreen is fullboth.  The following is a
 		     simple hack to check that based on the fact that
-		     only a maximized fullscreen frame should have both
-		     top/left outside the screen.  */
+		     only a maximized fullscreen frame should have top
+		     or left outside the screen.  */
 		  if (EQ (fullscreen, Qfullwidth) || EQ (fullscreen, Qfullheight)
 		      || NILP (fullscreen))
 		      {
 			int x, y;
 
 			w32_real_positions (f, &x, &y);
-			if (x < 0 && y < 0)
+			if (x < 0 || y < 0)
 			  store_frame_param (f, Qfullscreen, Qmaximized);
 		      }
 		  }
@@ -6877,7 +6877,7 @@ w32_make_frame_visible (struct frame *f)
       /* According to a report in emacs-devel 2008-06-03, SW_SHOWNORMAL
 	 causes unexpected behavior when unminimizing frames that were
 	 previously maximized.  But only SW_SHOWNORMAL works properly for
-	 frames that were truely hidden (using make-frame-invisible), so
+	 frames that were truly hidden (using make-frame-invisible), so
 	 we need it to avoid Bug#5482.  It seems that iconified is only
 	 set for minimized windows that are still visible, so use that to
 	 determine the appropriate flag to pass ShowWindow.  */

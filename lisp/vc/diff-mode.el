@@ -930,8 +930,12 @@ If the OLD prefix arg is passed, tell the file NAME of the old file."
 		       (progn (diff-hunk-prev) (point))
 		     (error (point-min)))))
 	  (header-files
-           ;; handle filenames with spaces;
+           ;; handle file names with spaces;
            ;; cf. diff-font-lock-keywords / diff-file-header
+           ;; FIXME if there are nonascii characters in the file names,
+           ;; GNU diff displays them as octal escapes.
+           ;; This function should undo that, so as to return file names
+           ;; that are usable in Emacs.
 	   (if (looking-at "[-*][-*][-*] \\([^\t\n]+\\).*\n[-+][-+][-+] \\([^\t\n]+\\)")
 	       (list (if old (match-string 1) (match-string 2))
 		     (if old (match-string 2) (match-string 1)))
@@ -2169,9 +2173,10 @@ Return new point, if it was moved."
              (smerge-refine-regions beg-del beg-add beg-add end-add
                                     nil #'diff-refine-preproc props-r props-a)))))
       ('context
-       (let* ((middle (save-excursion (re-search-forward "^---" end)))
+       (let* ((middle (save-excursion (re-search-forward "^---" end t)))
               (other middle))
-         (while (re-search-forward "^\\(?:!.*\n\\)+" middle t)
+         (while (and middle
+		     (re-search-forward "^\\(?:!.*\n\\)+" middle t))
            (smerge-refine-regions (match-beginning 0) (match-end 0)
                                   (save-excursion
                                     (goto-char other)

@@ -534,6 +534,14 @@ Subexpression 2 must end right before the \\n.")
 (defvar dired-symlink-face 'dired-symlink
   "Face name used for symbolic links.")
 
+(defface dired-broken-symlink
+  '((((class color))
+     :foreground "yellow1" :background "red1" :weight bold)
+    (t :weight bold :slant italic :underline t))
+  "Face used for broken symbolic links."
+  :group 'dired-faces
+  :version "28.1")
+
 (defface dired-special
   '((t (:inherit font-lock-variable-name-face)))
   "Face used for sockets, pipes, block devices and char devices."
@@ -596,6 +604,20 @@ Subexpression 2 must end right before the \\n.")
    ;; Subdirectories.
    (list dired-re-dir
 	 '(".+" (dired-move-to-filename) nil (0 dired-directory-face)))
+   ;;
+   ;; Broken Symbolic link.
+   (list dired-re-sym
+         (list (lambda (end)
+                 (let* ((file (dired-file-name-at-point))
+                        (truename (ignore-errors (file-truename file))))
+                   ;; either not existent target or circular link
+                   (and (not (and truename (file-exists-p truename)))
+                        (search-forward-regexp "\\(.+\\) \\(->\\) ?\\(.+\\)" end t))))
+               '(dired-move-to-filename)
+               nil
+               '(1 'dired-broken-symlink)
+               '(2 dired-symlink-face)
+               '(3 'dired-broken-symlink)))
    ;;
    ;; Symbolic link to a directory.
    (list dired-re-sym
@@ -2244,8 +2266,15 @@ Do so according to the former subdir alist OLD-SUBDIR-ALIST."
       '(menu-item "Shell Command..." dired-do-shell-command
 		  :help "Run a shell command on current or marked files"))
     (define-key map [menu-bar operate delete]
-      '(menu-item "Delete" dired-do-delete
-		  :help "Delete current file or all marked files"))
+      `(menu-item "Delete"
+                  ,(let ((menu (make-sparse-keymap "Delete")))
+                     (define-key menu [delete-flagged]
+                       '(menu-item "Delete Flagged Files" dired-do-flagged-delete
+                                   :help "Delete all files flagged for deletion (D)"))
+                     (define-key menu [delete-marked]
+                       '(menu-item "Delete Marked (Not Flagged) Files" dired-do-delete
+                                   :help "Delete current file or all marked files (excluding flagged files)"))
+                     menu)))
     (define-key map [menu-bar operate rename]
       '(menu-item "Rename to..." dired-do-rename
 		  :help "Rename current file or move marked files"))
@@ -2556,6 +2585,21 @@ Otherwise, display it in another buffer."
 
 ;;; Functions for extracting and manipulating file names in Dired buffers.
 
+(defun dired-unhide-subdir ()
+  (with-silent-modifications
+    (dired--unhide (dired-subdir-min) (dired-subdir-max))))
+
+(defun dired-subdir-hidden-p (dir)
+  (save-excursion
+    (dired-goto-subdir dir)
+    (dired--hidden-p)))
+
+(defun dired-subdir-min ()
+  (save-excursion
+    (if (not (dired-prev-subdir 0 t t))
+	(error "Not in a subdir!")
+      (point))))
+
 (defun dired-get-filename (&optional localp no-error-if-not-filep)
   "In Dired, return name of file mentioned on this line.
 Value returned normally includes the directory name.
@@ -2566,10 +2610,17 @@ it occurs in the buffer, and a value of t means construct name relative to
 Optional arg NO-ERROR-IF-NOT-FILEP means treat `.' and `..' as
 regular filenames and return nil if no filename on this line.
 Otherwise, an error occurs in these cases."
-  (let (case-fold-search file p1 p2 already-absolute)
+  (let ((hidden (and dired-subdir-alist
+                     (dired-subdir-hidden-p
+                      (dired-current-directory))))
+	case-fold-search file p1 p2 already-absolute)
+    (when hidden
+      (dired-unhide-subdir))
     (save-excursion
       (if (setq p1 (dired-move-to-filename (not no-error-if-not-filep)))
 	  (setq p2 (dired-move-to-end-of-filename no-error-if-not-filep))))
+    (when hidden
+      (dired-hide-subdir 1))
     ;; nil if no file on this line, but no-error-if-not-filep is t:
     (if (setq file (and p1 p2 (buffer-substring p1 p2)))
 	(progn
@@ -2879,12 +2930,12 @@ You can then feed the file name(s) to other commands with \\[yank]."
 ;; Keeping Dired buffers in sync with the filesystem and with each other
 
 (defun dired-buffers-for-dir (dir &optional file)
-;; Return a list of buffers for DIR (top level or in-situ subdir).
-;; If FILE is non-nil, include only those whose wildcard pattern (if any)
-;; matches FILE.
-;; The list is in reverse order of buffer creation, most recent last.
-;; As a side effect, killed dired buffers for DIR are removed from
-;; dired-buffers.
+  "Return a list of buffers for DIR (top level or in-situ subdir).
+If FILE is non-nil, include only those whose wildcard pattern (if any)
+matches FILE.
+The list is in reverse order of buffer creation, most recent last.
+As a side effect, killed dired buffers for DIR are removed from
+dired-buffers."
   (setq dir (file-name-as-directory dir))
   (let (result buf)
     (dolist (elt dired-buffers)
@@ -3433,18 +3484,28 @@ Return list of buffers where FUN succeeded (i.e., returned non-nil)."
   (let (success-list)
     (dolist (buf (dired-buffers-for-dir (expand-file-name directory) file))
       (with-current-buffer buf
-	(if (apply fun args)
-	    (push buf success-list))))
+	(when (apply fun args)
+	  (push (buffer-name buf) success-list))))
     ;; FIXME: AFAICT, this return value is not used by any of the callers!
     success-list))
 
 ;; Delete the entry for FILE from
-(defun dired-delete-entry (file)
+(defun dired-remove-entry (file)
+  "Remove entry FILE in the current dired buffer.
+Note this doesn't delete FILE in the file system.
+See `dired-delete-file' in case you wish that."
   (save-excursion
     (and (dired-goto-file file)
 	 (let ((inhibit-read-only t))
 	   (delete-region (progn (beginning-of-line) (point))
-			  (save-excursion (forward-line 1) (point))))))
+			  (line-beginning-position 2))))))
+
+(defun dired-delete-entry (file)
+  "Remove entry FILE in the current dired buffer.
+Like `dired-remove-entry' followed by `dired-clean-up-after-deletion'.
+Note this doesn't delete FILE in the file system.
+See `dired-delete-file' in case you wish that."
+  (dired-remove-entry file)
   (dired-clean-up-after-deletion file))
 
 (defvar dired-clean-up-buffers-too)
@@ -4435,6 +4496,70 @@ Ask means pop up a menu for the user to select one of copy, move or link."
 
 (add-to-list 'desktop-buffer-mode-handlers
 	     '(dired-mode . dired-restore-desktop-buffer))
+
+
+;;;; Jump to Dired
+
+(defvar archive-superior-buffer)
+(defvar tar-superior-buffer)
+
+;;;###autoload
+(defun dired-jump (&optional other-window file-name)
+  "Jump to Dired buffer corresponding to current buffer.
+If in a file, Dired the current directory and move to file's line.
+If in Dired already, pop up a level and goto old directory's line.
+In case the proper Dired file line cannot be found, refresh the dired
+buffer and try again.
+When OTHER-WINDOW is non-nil, jump to Dired buffer in other window.
+When FILE-NAME is non-nil, jump to its line in Dired.
+Interactively with prefix argument, read FILE-NAME."
+  (interactive
+   (list nil (and current-prefix-arg
+                  (read-file-name "Jump to Dired file: "))))
+  (cond
+   ((and (bound-and-true-p archive-subfile-mode)
+         (buffer-live-p archive-superior-buffer))
+    (switch-to-buffer archive-superior-buffer))
+   ((and (bound-and-true-p tar-subfile-mode)
+         (buffer-live-p tar-superior-buffer))
+    (switch-to-buffer tar-superior-buffer))
+   (t
+    ;; Expand file-name before `dired-goto-file' call:
+    ;; `dired-goto-file' requires its argument to be an absolute
+    ;; file name; the result of `read-file-name' could be
+    ;; an abbreviated file name (Bug#24409).
+    (let* ((file (or (and file-name (expand-file-name file-name))
+                     buffer-file-name))
+           (dir (if file (file-name-directory file) default-directory)))
+      (if (and (eq major-mode 'dired-mode) (null file-name))
+          (progn
+            (setq dir (dired-current-directory))
+            (dired-up-directory other-window)
+            (unless (dired-goto-file dir)
+              ;; refresh and try again
+              (dired-insert-subdir (file-name-directory dir))
+              (dired-goto-file dir)))
+        (if other-window
+            (dired-other-window dir)
+          (dired dir))
+        (if file
+            (or (dired-goto-file file)
+                ;; refresh and try again
+                (progn
+                  (dired-insert-subdir (file-name-directory file))
+                  (dired-goto-file file))
+                ;; Toggle omitting, if it is on, and try again.
+                (when (bound-and-true-p dired-omit-mode)
+                  (dired-omit-mode)
+                  (dired-goto-file file)))))))))
+
+;;;###autoload
+(defun dired-jump-other-window (&optional file-name)
+  "Like \\[dired-jump] (`dired-jump') but in other window."
+  (interactive
+   (list (and current-prefix-arg
+	      (read-file-name "Jump to Dired file: "))))
+  (dired-jump t file-name))
 
 (provide 'dired)
 

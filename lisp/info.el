@@ -956,6 +956,7 @@ This function first looks for a case-sensitive match for NODENAME;
 if none is found it then tries a case-insensitive match (unless
 STRICT-CASE is non-nil)."
   (info-initialize)
+  (setq nodename (info--node-canonicalize-whitespace nodename))
   (setq filename (Info-find-file filename))
   ;; Go into Info buffer.
   (or (derived-mode-p 'Info-mode) (switch-to-buffer "*info*"))
@@ -1995,12 +1996,9 @@ the Top node in FILENAME."
   "Search for REGEXP, starting from point, and select node it's found in.
 If DIRECTION is `backward', search in the reverse direction."
   (interactive (list (read-string
-		      (if Info-search-history
-			  (format "Regexp search%s (default %s): "
-				  (if case-fold-search "" " case-sensitively")
-				  (car Info-search-history))
-			(format "Regexp search%s: "
-				(if case-fold-search "" " case-sensitively")))
+                      (format-prompt
+                       "Regexp search%s" (car Info-search-history)
+		       (if case-fold-search "" " case-sensitively"))
 		      nil 'Info-search-history)))
   (deactivate-mark)
   (when (equal regexp "")
@@ -2124,12 +2122,9 @@ If DIRECTION is `backward', search in the reverse direction."
 (defun Info-search-backward (regexp &optional bound noerror count)
   "Search for REGEXP in the reverse direction."
   (interactive (list (read-string
-		      (if Info-search-history
-			  (format "Regexp search%s backward (default %s): "
-				  (if case-fold-search "" " case-sensitively")
-				  (car Info-search-history))
-			(format "Regexp search%s backward: "
-				(if case-fold-search "" " case-sensitively")))
+                      (format-prompt
+                       "Regexp search%s backward" (car Info-search-history)
+		       (if case-fold-search "" " case-sensitively"))
 		      nil 'Info-search-history)))
   (Info-search regexp bound noerror count 'backward))
 
@@ -2308,7 +2303,11 @@ If SAME-FILE is non-nil, do not move to a different Info file."
 		nil t))
 	  (progn (beginning-of-line) (if (looking-at "^\\* ") (forward-char 2)))
 	(goto-char p)
-	(Info-restore-point Info-history)))))
+	(Info-restore-point Info-history))))
+  ;; If scroll-conservatively is non-zero and less than 101, display
+  ;; as much of the superior node above the target line as possible.
+  (when (< 0 scroll-conservatively 101)
+    (recenter)))
 
 (defun Info-history-back ()
   "Go back in the history to the last node visited."
@@ -2686,13 +2685,15 @@ Because of ambiguities, this should be concatenated with something like
 ;;;       (setq Info-point-loc
 ;;;             (buffer-substring (match-beginning 0) (1- (match-beginning 1))))
       )
-    (replace-regexp-in-string
-     "[ \n]+" " "
+    (info--node-canonicalize-whitespace
      (or (and (not (equal (match-string-no-properties 2) ""))
 	      (match-string-no-properties 2))
 	 ;; If the node name is the menu entry name (using `entry::').
 	 (buffer-substring-no-properties
 	  (match-beginning 0) (1- (match-beginning 1)))))))
+
+(defun info--node-canonicalize-whitespace (string)
+  (replace-regexp-in-string "[ \t\n]+" " " string))
 
 ;; No one calls this.
 ;;(defun Info-menu-item-sequence (list)
@@ -2771,6 +2772,8 @@ Because of ambiguities, this should be concatenated with something like
               ;; Go back to the start node (for the next completion).
               (unless (equal Info-current-node orignode)
                 (Info-goto-node orignode))
+              ;; Arrange list to be in order found in node.
+              (setq completions (nreverse completions))
               ;; Update the cache.
               (setq Info-complete-cache
 		   (list Info-current-file Info-current-node
@@ -2810,10 +2813,7 @@ new buffer."
        (while (null item)
 	 (setq item (let ((completion-ignore-case t)
 			  (Info-complete-menu-buffer (current-buffer)))
-		      (completing-read (if default
-					   (format "Menu item (default %s): "
-						   default)
-					 "Menu item: ")
+		      (completing-read (format-prompt "Menu item" default)
 				       #'Info-complete-menu-item nil t nil nil
                                        default))))
        (list item current-prefix-arg))))

@@ -529,7 +529,7 @@ This also saves the value of `send-mail-function' via Customize."
 	    (display-buffer (current-buffer))
 	    (let ((completion-ignore-case t))
               (completing-read
-               (format "Send mail via (default %s): " (caar options))
+               (format-prompt "Send mail via" (caar options))
                options nil 'require-match nil nil (car options))))))
     ;; Return the choice.
     (cdr (assoc-string choice options t))))
@@ -975,7 +975,7 @@ but lower priority than the local value of `buffer-file-coding-system'.
 See also the function `select-message-coding-system'.")
 
 ;;;###autoload
-(defvar default-sendmail-coding-system 'iso-latin-1
+(defvar default-sendmail-coding-system 'utf-8
   "Default coding system for encoding the outgoing mail.
 This variable is used only when `sendmail-coding-system' is nil.
 
