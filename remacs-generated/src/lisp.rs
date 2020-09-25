@@ -7,7 +7,7 @@ use crate::{
     remacs_sys::EmacsInt,
     remacs_sys::{Qnil, Qt, VALMASK},
 };
-
+pub use crate::remacs_sys::*;
 // TODO: tweak Makefile to rebuild C files if this changes.
 
 /// Emacs values are represented as tagged pointers. A few bits are
@@ -106,3 +106,5 @@ impl<T> ExternalPtr<T> {
         Self(p)
     }
 }
+// pub import remacs_sys::*;
+// export remacs_sys::*;

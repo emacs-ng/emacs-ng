@@ -1,3 +1,4 @@
+
 #![allow(clippy::cognitive_complexity)]
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -16,22 +17,6 @@
 #![feature(stmt_expr_attributes)]
 #![feature(untagged_unions)]
 
-extern crate errno;
-extern crate lazy_static;
-
-extern crate libc;
-extern crate field_offset;
-extern crate core;
-
-// Needed for linking.
-extern crate remacs_lib;
-extern crate remacs_macros;
-extern crate remacs_generated;
-
-// mod remacs_sys;
-// #[macro_use]
-// mod lisp;
-mod fastjsonrpc;
-
-#[cfg(not(test))]
-include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));
+pub mod remacs_sys;
+#[macro_use]
+pub mod lisp;

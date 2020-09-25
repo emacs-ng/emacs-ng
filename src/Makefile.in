@@ -670,22 +670,22 @@ $(RUSTFLAGS_FILE) : FORCE
 
 HEADERS=$(wildcard $(srcdir)/*.h)
 
-DEFINITIONS_FILE=$(rust_srcdir)/generated/definitions.rs
-BINDINGS_FILE=$(rust_srcdir)/generated/bindings.rs
-GLOBALS_FILE=$(rust_srcdir)/generated/globals.rs
+DEFINITIONS_FILE=$(rust_srcdir)/../remacs-generated/src/remacs_sys.rs
+# BINDINGS_FILE=$(rust_srcdir)/generated/bindings.rs
+# GLOBALS_FILE=$(rust_srcdir)/generated/globals.rs
 # macuvs.h has a rule to regenerate it which depends on emacs being
 # built. That creates a circular dependency which we can break by not
 # depending on it as this is not a file that changes under normal
 # operation.
-$(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE): $(filter-out ./macuvs.h,$(HEADERS)) $(rust_srcdir)/wrapper.h \
+$(DEFINITIONS_FILE) : $(filter-out ./macuvs.h,$(HEADERS)) $(rust_srcdir)/wrapper.h \
 							$(rust_srcdir)/remacs-bindings/Cargo.toml \
 							$(rust_srcdir)/remacs-bindings/src/main.rs
 	$(MKDIR_P) $(dir $@)
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
-	$(CARGO_RUN) --release --manifest-path=$(rust_srcdir)/remacs-bindings/Cargo.toml -- $(basename $(notdir $@)) $@
+	$(CARGO_RUN) --release --manifest-path=$(rust_srcdir)/remacs-bindings/Cargo.toml -- $@
 
-generated-bindings: $(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE)
+generated-bindings: $(DEFINITIONS_FILE)
 
 macosx_alloc_dir=$(rust_srcdir)/alloc_unexecmacosx
 MACOSX_ALLOC_INPUTS=$(macosx_alloc_dir)/src/** $(macosx_alloc_dir)/Cargo.*
