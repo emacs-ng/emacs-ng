@@ -300,3 +300,4 @@ nt/emacsclient.rc
 src/gdb.ini
 /var/
 remacs-generated/src/remacs_sys.rs
+target

@@ -1109,7 +1109,7 @@ DEFUN ("jsonrpc-serialize", Fjsonrpc_serialize, Sjsonrpc_serialize, 1, MANY,
        : /*   */)
 (ptrdiff_t nargs, Lisp_Object *args)
 {
-  /* fastjsonrcp_get_message (args[0]); */
+  fastjsonrcp_get_message (args[0]);
 }
 
 void

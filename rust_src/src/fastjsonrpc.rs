@@ -1,8 +1,11 @@
 extern crate remacs_generated;
 use remacs_generated::lisp::LispObject;
 use remacs_generated::lisp::make_user_ptr;
+// use remacs_generated::lisp::*;
 use remacs_generated::remacs_sys::EmacsInt;
+use remacs_generated::multibyte::LispStringRef;
 use remacs_generated::{remacs_sys::Lisp_Buffer};
+use core::slice;
 use std::{
     cell::RefCell,
     io::{self, BufReader, BufWriter},
@@ -24,9 +27,9 @@ use lsp_server::Message;
 use std::{os::raw::c_void, thread};
 // /// Creates an LSP connection via stdio.
 
-fn stdio_client() -> JsonRpcStdio {
-    let process: process::Child = Command::new("/bin/cat")
-        .arg("/home/kyoncho/file.txt")
+fn stdio_client(program: &str, args: Vec<&str>) -> JsonRpcStdio {
+    let process: process::Child = Command::new(program)
+        .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -81,9 +84,19 @@ thread_local! {
     static STORAGE: RefCell<Option<JsonRpcStdio>> = RefCell::new(None);
 }
 
-pub fn fastjsonrcp_connection(_input: LispObject) -> LispObject {
-    let connection = Box::into_raw(Box::new(stdio_client())) as *mut c_void;
-    unsafe { make_user_ptr(Some(finalize), connection) }
+
+fn  user_pointer<T>(v: T) -> LispObject {
+    let connection = Box::into_raw(Box::new(v)) as *mut c_void;
+    unsafe { make_user_ptr(Some(finalize), connection)
+    }
+}
+
+
+pub fn fastjsonrcp_connection(input: LispObject) -> LispObject {
+    // let foo: LispStringRef = input.into();
+    input
+    // let slice = unsafe { slice::from_raw_parts(input.const_data_ptr(), input.len_bytes() as usize) };
+    // user_pointer(stdio_client("cat", vec!["/home/kyoncho/file.txt"]))
 }
 
 #[no_mangle]
@@ -91,18 +104,23 @@ pub extern "C" fn finalize(_data: *mut c_void) {
 
 }
 
-// pub fn from_pointer<T> (object: LispObject) -> T {
+// pub fn from_pointer<T: Copy + 'static> (object: LispObject) -> T {
 //     unsafe {
 //         let up = object.get_untaggedptr() as *mut Lisp_User_Ptr;
 //         (*up).p as *mut _ as T
-//     };
+//     }
 // }
 
-pub fn fastjsonrcp_get_message(input: LispObject) -> LispObject {
-    // unsafe  {
-    //     message1(format!("{}", "xx").as_ptr() as *const ::libc::c_char);
-    //     input
-    // }
+#[no_mangle]
+pub extern "C" fn fastjsonrcp_get_message(input: LispObject) -> LispObject {
+    unsafe  {
+        // message1(format!("{}", "xx").as_ptr() as *const ::libc::c_char);
+        // LispObject::from("sdf");
+        // LispObject::from(true)
+        LispObject::from_C(10);
+
+        // input
+    }
 
     let connection: *mut JsonRpcStdio = unsafe {
         let d = (*(input.get_untaggedptr() as *mut Lisp_User_Ptr)).p;
@@ -118,7 +136,7 @@ pub fn fastjsonrcp_get_message(input: LispObject) -> LispObject {
             Err(msg) => {
                 println!("[main-thread rust] received from bkg thread: {:?}", msg);
                 message1(format!("{}", msg).as_ptr() as *const ::libc::c_char);
-           }
+            }
         }
     }
     input

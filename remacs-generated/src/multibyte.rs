@@ -34,9 +34,12 @@
 
 use std::ffi::CString;
 
+use libc::ptrdiff_t;
+
+
 use crate::{
     lisp::{ExternalPtr, LispObject},
-    remacs_sys::{build_string, Lisp_String} ,
+    remacs_sys::{Lisp_String, make_string} ,
 };
 
 pub type LispStringRef = ExternalPtr<Lisp_String>;
@@ -91,7 +94,7 @@ impl From<Codepoint> for u64 {
 /// Copies a Rust str into a new Lisp string
 impl<'a> From<&'a str> for LispObject {
     fn from(s: &str) -> Self {
-        let cs = CString::new(s).unwrap();
-        unsafe { build_string(cs.as_ptr()) }
+        let s = s.as_ptr() as *mut libc::c_char;
+        unsafe { make_string(s, libc::strlen(s) as ptrdiff_t) }
     }
 }
