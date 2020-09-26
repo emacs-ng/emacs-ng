@@ -1,7 +1,7 @@
-
 extern crate remacs_generated;
 use remacs_generated::lisp::LispObject;
 use remacs_generated::lisp::make_user_ptr;
+use remacs_generated::remacs_sys::EmacsInt;
 use remacs_generated::{remacs_sys::Lisp_Buffer};
 use std::{
     cell::RefCell,
@@ -12,7 +12,7 @@ use std::{
 // use remacs_generated::remacs_sys::E
 // use remacs_sys::make_user_ptr;
 // use remacs_sys::Lisp_User_Ptr;
-use remacs_generated::remacs_sys::message1;
+use remacs_generated::lisp::message1;
 use remacs_generated::lisp::Lisp_User_Ptr;
 // use remacs_generated::remacs_sys::
 
@@ -34,7 +34,6 @@ fn stdio_client() -> JsonRpcStdio {
 
 
     let (writer, writer_receiver) = bounded::<Message>(0);
-    // let a:EmacsInt = 0;
     let mut inn = process.stdin;
     let writer_thread = thread::spawn(move || {
         let mut stdout_writer = BufWriter::new(inn.as_mut().unwrap());
@@ -52,9 +51,7 @@ fn stdio_client() -> JsonRpcStdio {
             println!("[bkg thread] >>> {:?}", msg);
             match reader_sender.send(msg) {
                 Ok(a) => a,
-                Err(msg1) => unsafe {
-                    println!("error when sending >>> {:?}", msg1);
-                },
+                Err(msg1) => println!("error when sending >>> {:?}", msg1)
             };
         }
         println!("XXX >>> exiting...");
@@ -86,33 +83,42 @@ thread_local! {
 
 pub fn fastjsonrcp_connection(_input: LispObject) -> LispObject {
     let connection = Box::into_raw(Box::new(stdio_client())) as *mut c_void;
-    // update_buffer_defaults();
     unsafe { make_user_ptr(Some(finalize), connection) }
 }
 
 #[no_mangle]
-pub extern "C" fn finalize(_data: *mut c_void) {}
+pub extern "C" fn finalize(_data: *mut c_void) {
+
+}
+
+// pub fn from_pointer<T> (object: LispObject) -> T {
+//     unsafe {
+//         let up = object.get_untaggedptr() as *mut Lisp_User_Ptr;
+//         (*up).p as *mut _ as T
+//     };
+// }
 
 pub fn fastjsonrcp_get_message(input: LispObject) -> LispObject {
-    let connection = unsafe {
-        let up = input.get_untaggedptr() as *mut Lisp_User_Ptr;
-        (*up).p as *mut _ as *mut JsonRpcStdio
+    // unsafe  {
+    //     message1(format!("{}", "xx").as_ptr() as *const ::libc::c_char);
+    //     input
+    // }
+
+    let connection: *mut JsonRpcStdio = unsafe {
+        let d = (*(input.get_untaggedptr() as *mut Lisp_User_Ptr)).p;
+        d as *mut JsonRpcStdio
     };
 
     unsafe {
         match (*connection).reader.try_recv() {
             Ok(a) => {
                 println!("[main-thread rust] received from bkg thread: {:?}", a);
-                // input
             }
 
             Err(msg) => {
                 println!("[main-thread rust] received from bkg thread: {:?}", msg);
-                unsafe {
-                    message1(format!("{}", msg).as_ptr() as *const ::libc::c_char);
-                }
-                // input
-            }
+                message1(format!("{}", msg).as_ptr() as *const ::libc::c_char);
+           }
         }
     }
     input

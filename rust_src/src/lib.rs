@@ -32,6 +32,6 @@ extern crate remacs_generated;
 // #[macro_use]
 // mod lisp;
 mod fastjsonrpc;
-
+pub use fastjsonrpc::*;
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));

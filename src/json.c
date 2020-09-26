@@ -33,29 +33,29 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #define JSON_HAS_ERROR_CODE (JANSSON_VERSION_HEX >= 0x020B00)
 
 #ifdef WINDOWSNT
-# include <windows.h>
-# include "w32common.h"
-# include "w32.h"
+#include <windows.h>
+#include "w32.h"
+#include "w32common.h"
 
 DEF_DLL_FN (void, json_set_alloc_funcs,
-	    (json_malloc_t malloc_fn, json_free_t free_fn));
-DEF_DLL_FN (void, json_delete, (json_t *json));
-DEF_DLL_FN (json_t *, json_array, (void));
-DEF_DLL_FN (int, json_array_append_new, (json_t *array, json_t *value));
+            (json_malloc_t malloc_fn, json_free_t free_fn));
+DEF_DLL_FN (void, json_delete, (json_t * json));
+DEF_DLL_FN (json_t *, json_array, (void) );
+DEF_DLL_FN (int, json_array_append_new, (json_t * array, json_t *value));
 DEF_DLL_FN (size_t, json_array_size, (const json_t *array));
-DEF_DLL_FN (json_t *, json_object, (void));
+DEF_DLL_FN (json_t *, json_object, (void) );
 DEF_DLL_FN (int, json_object_set_new,
-	    (json_t *object, const char *key, json_t *value));
-DEF_DLL_FN (json_t *, json_null, (void));
-DEF_DLL_FN (json_t *, json_true, (void));
-DEF_DLL_FN (json_t *, json_false, (void));
+            (json_t * object, const char *key, json_t *value));
+DEF_DLL_FN (json_t *, json_null, (void) );
+DEF_DLL_FN (json_t *, json_true, (void) );
+DEF_DLL_FN (json_t *, json_false, (void) );
 DEF_DLL_FN (json_t *, json_integer, (json_int_t value));
 DEF_DLL_FN (json_t *, json_real, (double value));
 DEF_DLL_FN (json_t *, json_stringn, (const char *value, size_t len));
 DEF_DLL_FN (char *, json_dumps, (const json_t *json, size_t flags));
 DEF_DLL_FN (int, json_dump_callback,
-	    (const json_t *json, json_dump_callback_t callback, void *data,
-	     size_t flags));
+            (const json_t *json, json_dump_callback_t callback, void *data,
+             size_t flags));
 DEF_DLL_FN (json_int_t, json_integer_value, (const json_t *integer));
 DEF_DLL_FN (double, json_real_value, (const json_t *real));
 DEF_DLL_FN (const char *, json_string_value, (const json_t *string));
@@ -64,18 +64,19 @@ DEF_DLL_FN (json_t *, json_array_get, (const json_t *array, size_t index));
 DEF_DLL_FN (json_t *, json_object_get, (const json_t *object, const char *key));
 DEF_DLL_FN (size_t, json_object_size, (const json_t *object));
 DEF_DLL_FN (const char *, json_object_iter_key, (void *iter));
-DEF_DLL_FN (void *, json_object_iter, (json_t *object));
+DEF_DLL_FN (void *, json_object_iter, (json_t * object));
 DEF_DLL_FN (json_t *, json_object_iter_value, (void *iter));
 DEF_DLL_FN (void *, json_object_key_to_iter, (const char *key));
-DEF_DLL_FN (void *, json_object_iter_next, (json_t *object, void *iter));
+DEF_DLL_FN (void *, json_object_iter_next, (json_t * object, void *iter));
 DEF_DLL_FN (json_t *, json_loads,
-	    (const char *input, size_t flags, json_error_t *error));
+            (const char *input, size_t flags, json_error_t *error));
 DEF_DLL_FN (json_t *, json_load_callback,
-	    (json_load_callback_t callback, void *data, size_t flags,
-	     json_error_t *error));
+            (json_load_callback_t callback, void *data, size_t flags,
+             json_error_t *error));
 
 /* This is called by json_decref, which is an inline function.  */
-void json_delete(json_t *json)
+void
+json_delete (json_t *json)
 {
   fn_json_delete (json);
 }
@@ -154,7 +155,7 @@ init_json_functions (void)
 #define json_loads fn_json_loads
 #define json_load_callback fn_json_load_callback
 
-#endif	/* WINDOWSNT */
+#endif /* WINDOWSNT */
 
 /* We install a custom allocator so that we can avoid objects larger
    than PTRDIFF_MAX.  Such objects wouldn't play well with the rest of
@@ -208,7 +209,7 @@ json_has_suffix (const char *string, const char *suffix)
   size_t string_len = strlen (string);
   size_t suffix_len = strlen (suffix);
   return string_len >= suffix_len
-    && memcmp (string + string_len - suffix_len, suffix, suffix_len) == 0;
+         && memcmp (string + string_len - suffix_len, suffix, suffix_len) == 0;
 }
 
 #endif
@@ -267,9 +268,8 @@ json_parse_error (const json_error_t *error)
   xsignal (symbol,
            list5 (build_string_from_utf8 (error->text),
                   build_string_from_utf8 (error->source),
-		  INT_TO_INTEGER (error->line),
-                  INT_TO_INTEGER (error->column),
-		  INT_TO_INTEGER (error->position)));
+                  INT_TO_INTEGER (error->line), INT_TO_INTEGER (error->column),
+                  INT_TO_INTEGER (error->position)));
 }
 
 static void
@@ -309,18 +309,21 @@ json_check_utf8 (Lisp_Object string)
   CHECK_TYPE (utf8_string_p (string), Qutf_8_string_p, string);
 }
 
-enum json_object_type {
+enum json_object_type
+{
   json_object_hashtable,
   json_object_alist,
   json_object_plist
 };
 
-enum json_array_type {
+enum json_array_type
+{
   json_array_array,
   json_array_list
 };
 
-struct json_configuration {
+struct json_configuration
+{
   enum json_object_type object_type;
   enum json_array_type array_type;
   Lisp_Object null_object;
@@ -332,8 +335,7 @@ static json_t *lisp_to_json (Lisp_Object, struct json_configuration *conf);
 /* Convert a Lisp object to a toplevel JSON object (array or object).  */
 
 static json_t *
-lisp_to_json_toplevel_1 (Lisp_Object lisp,
-                         struct json_configuration *conf)
+lisp_to_json_toplevel_1 (Lisp_Object lisp, struct json_configuration *conf)
 {
   json_t *json;
   ptrdiff_t count;
@@ -347,8 +349,7 @@ lisp_to_json_toplevel_1 (Lisp_Object lisp,
       for (ptrdiff_t i = 0; i < size; ++i)
         {
           int status
-            = json_array_append_new (json, lisp_to_json (AREF (lisp, i),
-                                                         conf));
+            = json_array_append_new (json, lisp_to_json (AREF (lisp, i), conf));
           if (status == -1)
             json_out_of_memory ();
         }
@@ -431,9 +432,8 @@ lisp_to_json_toplevel_1 (Lisp_Object lisp,
           /* Only add element if key is not already present.  */
           if (json_object_get (json, key_str) == NULL)
             {
-              int status
-                = json_object_set_new (json, key_str, lisp_to_json (value,
-                                                                    conf));
+              int status = json_object_set_new (json, key_str,
+                                                lisp_to_json (value, conf));
               if (status == -1)
                 json_out_of_memory ();
             }
@@ -503,54 +503,49 @@ lisp_to_json (Lisp_Object lisp, struct json_configuration *conf)
 }
 
 static void
-json_parse_args (ptrdiff_t nargs,
-                 Lisp_Object *args,
-                 struct json_configuration *conf,
-                 bool parse_object_types)
+json_parse_args (ptrdiff_t nargs, Lisp_Object *args,
+                 struct json_configuration *conf, bool parse_object_types)
 {
   if ((nargs % 2) != 0)
     wrong_type_argument (Qplistp, Flist (nargs, args));
 
   /* Start from the back so keyword values appearing
      first take precedence. */
-  for (ptrdiff_t i = nargs; i > 0; i -= 2) {
-    Lisp_Object key = args[i - 2];
-    Lisp_Object value = args[i - 1];
-    if (parse_object_types && EQ (key, QCobject_type))
-      {
-        if (EQ (value, Qhash_table))
-          conf->object_type = json_object_hashtable;
-        else if (EQ (value, Qalist))
-          conf->object_type = json_object_alist;
-        else if (EQ (value, Qplist))
-          conf->object_type = json_object_plist;
-        else
-          wrong_choice (list3 (Qhash_table, Qalist, Qplist), value);
-      }
-    else if (parse_object_types && EQ (key, QCarray_type))
-      {
-        if (EQ (value, Qarray))
-          conf->array_type = json_array_array;
-        else if (EQ (value, Qlist))
-          conf->array_type = json_array_list;
-        else
-          wrong_choice (list2 (Qarray, Qlist), value);
-      }
-    else if (EQ (key, QCnull_object))
-      conf->null_object = value;
-    else if (EQ (key, QCfalse_object))
-      conf->false_object = value;
-    else if (parse_object_types)
-      wrong_choice (list4 (QCobject_type,
-                           QCarray_type,
-                           QCnull_object,
-                           QCfalse_object),
-                    value);
-    else
-      wrong_choice (list2 (QCnull_object,
-                           QCfalse_object),
-                    value);
-  }
+  for (ptrdiff_t i = nargs; i > 0; i -= 2)
+    {
+      Lisp_Object key = args[i - 2];
+      Lisp_Object value = args[i - 1];
+      if (parse_object_types && EQ (key, QCobject_type))
+        {
+          if (EQ (value, Qhash_table))
+            conf->object_type = json_object_hashtable;
+          else if (EQ (value, Qalist))
+            conf->object_type = json_object_alist;
+          else if (EQ (value, Qplist))
+            conf->object_type = json_object_plist;
+          else
+            wrong_choice (list3 (Qhash_table, Qalist, Qplist), value);
+        }
+      else if (parse_object_types && EQ (key, QCarray_type))
+        {
+          if (EQ (value, Qarray))
+            conf->array_type = json_array_array;
+          else if (EQ (value, Qlist))
+            conf->array_type = json_array_list;
+          else
+            wrong_choice (list2 (Qarray, Qlist), value);
+        }
+      else if (EQ (key, QCnull_object))
+        conf->null_object = value;
+      else if (EQ (key, QCfalse_object))
+        conf->false_object = value;
+      else if (parse_object_types)
+        wrong_choice (list4 (QCobject_type, QCarray_type, QCnull_object,
+                             QCfalse_object),
+                      value);
+      else
+        wrong_choice (list2 (QCnull_object, QCfalse_object), value);
+    }
 }
 
 DEFUN ("json-serialize", Fjson_serialize, Sjson_serialize, 1, MANY,
@@ -580,7 +575,7 @@ In you specify the same value for `:null-object' and `:false-object',
 a potentially ambiguous situation, the JSON output will not contain
 any JSON false values.
 usage: (json-serialize OBJECT &rest ARGS)  */)
-     (ptrdiff_t nargs, Lisp_Object *args)
+(ptrdiff_t nargs, Lisp_Object *args)
 {
   ptrdiff_t count = SPECPDL_INDEX ();
 
@@ -599,8 +594,8 @@ usage: (json-serialize OBJECT &rest ARGS)  */)
     }
 #endif
 
-  struct json_configuration conf =
-    {json_object_hashtable, json_array_array, QCnull, QCfalse};
+  struct json_configuration conf
+    = {json_object_hashtable, json_array_array, QCnull, QCfalse};
   json_parse_args (nargs - 1, args + 1, &conf, false);
 
   json_t *json = lisp_to_json_toplevel (args[0], &conf);
@@ -639,7 +634,7 @@ json_insert (void *data)
 
   /* Copy this chunk of data into the gap.  */
   memcpy ((char *) BEG_ADDR + PT_BYTE - BEG_BYTE + inserted_bytes,
-	  buffer_and_size->buffer, len);
+          buffer_and_size->buffer, len);
   buffer_and_size->inserted_bytes += len;
   return Qnil;
 }
@@ -693,7 +688,7 @@ This is the same as (insert (json-serialize OBJECT)), but potentially
 faster.  See the function `json-serialize' for allowed values of
 OBJECT.
 usage: (json-insert OBJECT &rest ARGS)  */)
-     (ptrdiff_t nargs, Lisp_Object *args)
+(ptrdiff_t nargs, Lisp_Object *args)
 {
   ptrdiff_t count = SPECPDL_INDEX ();
 
@@ -712,8 +707,8 @@ usage: (json-insert OBJECT &rest ARGS)  */)
     }
 #endif
 
-  struct json_configuration conf =
-    {json_object_hashtable, json_array_array, QCnull, QCfalse};
+  struct json_configuration conf
+    = {json_object_hashtable, json_array_array, QCnull, QCfalse};
   json_parse_args (nargs - 1, args + 1, &conf, false);
 
   json_t *json = lisp_to_json (args[0], &conf);
@@ -744,36 +739,33 @@ usage: (json-insert OBJECT &rest ARGS)  */)
       /* If required, decode the stuff we've read into the gap.  */
       struct coding_system coding;
       /* JSON strings are UTF-8 encoded strings.  If for some reason
-	 the text returned by the Jansson library includes invalid
-	 byte sequences, they will be represented by raw bytes in the
-	 buffer text.  */
+         the text returned by the Jansson library includes invalid
+         byte sequences, they will be represented by raw bytes in the
+         buffer text.  */
       setup_coding_system (Qutf_8_unix, &coding);
-      coding.dst_multibyte =
-	!NILP (BVAR (current_buffer, enable_multibyte_characters));
+      coding.dst_multibyte
+        = !NILP (BVAR (current_buffer, enable_multibyte_characters));
       if (CODING_MAY_REQUIRE_DECODING (&coding))
-	{
+        {
           /* Now we have all the new bytes at the beginning of the gap,
              but `decode_coding_gap` needs them at the end of the gap, so
              we need to move them.  */
           memmove (GAP_END_ADDR - inserted_bytes, GPT_ADDR, inserted_bytes);
-	  decode_coding_gap (&coding, inserted_bytes);
-	  inserted = coding.produced_char;
-	}
+          decode_coding_gap (&coding, inserted_bytes);
+          inserted = coding.produced_char;
+        }
       else
-	{
+        {
           /* Make the inserted text part of the buffer, as unibyte text.  */
           eassert (NILP (BVAR (current_buffer, enable_multibyte_characters)));
           insert_from_gap_1 (inserted_bytes, inserted_bytes, false);
 
-	  /* The target buffer is unibyte, so we don't need to decode.  */
-	  invalidate_buffer_caches (current_buffer,
-				    PT, PT + inserted_bytes);
-	  adjust_after_insert (PT, PT_BYTE,
-			       PT + inserted_bytes,
-			       PT_BYTE + inserted_bytes,
-			       inserted_bytes);
-	  inserted = inserted_bytes;
-	}
+          /* The target buffer is unibyte, so we don't need to decode.  */
+          invalidate_buffer_caches (current_buffer, PT, PT + inserted_bytes);
+          adjust_after_insert (PT, PT_BYTE, PT + inserted_bytes,
+                               PT_BYTE + inserted_bytes, inserted_bytes);
+          inserted = inserted_bytes;
+        }
     }
 
   /* Call after-change hooks.  */
@@ -791,7 +783,7 @@ usage: (json-insert OBJECT &rest ARGS)  */)
 /* Convert a JSON object to a Lisp object.  */
 
 static Lisp_Object ARG_NONNULL ((1))
-json_to_lisp (json_t *json, struct json_configuration *conf)
+  json_to_lisp (json_t *json, struct json_configuration *conf)
 {
   switch (json_typeof (json))
     {
@@ -803,14 +795,14 @@ json_to_lisp (json_t *json, struct json_configuration *conf)
       return Qt;
     case JSON_INTEGER:
       {
-	json_int_t i = json_integer_value (json);
-	return INT_TO_INTEGER (i);
+        json_int_t i = json_integer_value (json);
+        return INT_TO_INTEGER (i);
       }
     case JSON_REAL:
       return make_float (json_real_value (json));
     case JSON_STRING:
       return make_string_from_utf8 (json_string_value (json),
-				    json_string_length (json));
+                                    json_string_length (json));
     case JSON_ARRAY:
       {
         if (++lisp_eval_depth > max_lisp_eval_depth)
@@ -868,14 +860,14 @@ json_to_lisp (json_t *json, struct json_configuration *conf)
               const char *key_str;
               json_t *value;
               json_object_foreach (json, key_str, value)
-                {
-		  Lisp_Object key = build_string_from_utf8 (key_str), hash;
-                  ptrdiff_t i = hash_lookup (h, key, &hash);
-                  /* Keys in JSON objects are unique, so the key can't
-                     be present yet.  */
-                  eassert (i < 0);
-                  hash_put (h, key, json_to_lisp (value, conf), hash);
-                }
+              {
+                Lisp_Object key = build_string_from_utf8 (key_str), hash;
+                ptrdiff_t i = hash_lookup (h, key, &hash);
+                /* Keys in JSON objects are unique, so the key can't
+                   be present yet.  */
+                eassert (i < 0);
+                hash_put (h, key, json_to_lisp (value, conf), hash);
+              }
               break;
             }
           case json_object_alist:
@@ -884,13 +876,12 @@ json_to_lisp (json_t *json, struct json_configuration *conf)
               const char *key_str;
               json_t *value;
               json_object_foreach (json, key_str, value)
-                {
-                  Lisp_Object key
-		    = Fintern (build_string_from_utf8 (key_str), Qnil);
-                  result
-                    = Fcons (Fcons (key, json_to_lisp (value, conf)),
-                             result);
-                }
+              {
+                Lisp_Object key
+                  = Fintern (build_string_from_utf8 (key_str), Qnil);
+                result
+                  = Fcons (Fcons (key, json_to_lisp (value, conf)), result);
+              }
               result = Fnreverse (result);
               break;
             }
@@ -900,19 +891,19 @@ json_to_lisp (json_t *json, struct json_configuration *conf)
               const char *key_str;
               json_t *value;
               json_object_foreach (json, key_str, value)
-                {
-                  USE_SAFE_ALLOCA;
-                  ptrdiff_t key_str_len = strlen (key_str);
-                  char *keyword_key_str = SAFE_ALLOCA (1 + key_str_len + 1);
-                  keyword_key_str[0] = ':';
-                  strcpy (&keyword_key_str[1], key_str);
-                  Lisp_Object key = intern_1 (keyword_key_str, key_str_len + 1);
-                  /* Build the plist as value-key since we're going to
-                     reverse it in the end.*/
-                  result = Fcons (key, result);
-                  result = Fcons (json_to_lisp (value, conf), result);
-                  SAFE_FREE ();
-                }
+              {
+                USE_SAFE_ALLOCA;
+                ptrdiff_t key_str_len = strlen (key_str);
+                char *keyword_key_str = SAFE_ALLOCA (1 + key_str_len + 1);
+                keyword_key_str[0] = ':';
+                strcpy (&keyword_key_str[1], key_str);
+                Lisp_Object key = intern_1 (keyword_key_str, key_str_len + 1);
+                /* Build the plist as value-key since we're going to
+                   reverse it in the end.*/
+                result = Fcons (key, result);
+                result = Fcons (json_to_lisp (value, conf), result);
+                SAFE_FREE ();
+              }
               result = Fnreverse (result);
               break;
             }
@@ -954,7 +945,7 @@ to represent a JSON null value.  It defaults to `:null'.
 The keyword argument `:false-object' specifies which object to use to
 represent a JSON false value.  It defaults to `:false'.
 usage: (json-parse-string STRING &rest ARGS) */)
-  (ptrdiff_t nargs, Lisp_Object *args)
+(ptrdiff_t nargs, Lisp_Object *args)
 {
   ptrdiff_t count = SPECPDL_INDEX ();
 
@@ -977,8 +968,8 @@ usage: (json-parse-string STRING &rest ARGS) */)
   CHECK_STRING (string);
   Lisp_Object encoded = json_encode (string);
   check_string_without_embedded_nuls (encoded);
-  struct json_configuration conf =
-    {json_object_hashtable, json_array_array, QCnull, QCfalse};
+  struct json_configuration conf
+    = {json_object_hashtable, json_array_array, QCnull, QCfalse};
   json_parse_args (nargs - 1, args + 1, &conf, true);
 
   json_error_t error;
@@ -1052,7 +1043,7 @@ to represent a JSON null value.  It defaults to `:null'.
 The keyword argument `:false-object' specifies which object to use to
 represent a JSON false value.  It defaults to `:false'.
 usage: (json-parse-buffer &rest args) */)
-     (ptrdiff_t nargs, Lisp_Object *args)
+(ptrdiff_t nargs, Lisp_Object *args)
 {
   ptrdiff_t count = SPECPDL_INDEX ();
 
@@ -1071,8 +1062,8 @@ usage: (json-parse-buffer &rest args) */)
     }
 #endif
 
-  struct json_configuration conf =
-    {json_object_hashtable, json_array_array, QCnull, QCfalse};
+  struct json_configuration conf
+    = {json_object_hashtable, json_array_array, QCnull, QCfalse};
   json_parse_args (nargs, args, &conf, true);
 
   ptrdiff_t point = PT_BYTE;
@@ -1113,6 +1104,14 @@ define_error (Lisp_Object name, const char *message, Lisp_Object parent)
   Fput (name, Qerror_message, build_pure_c_string (message));
 }
 
+DEFUN ("jsonrpc-serialize", Fjsonrpc_serialize, Sjsonrpc_serialize, 1, MANY,
+       NULL, doc
+       : /*   */)
+(ptrdiff_t nargs, Lisp_Object *args)
+{
+  /* fastjsonrcp_get_message (args[0]); */
+}
+
 void
 syms_of_json (void)
 {
@@ -1131,8 +1130,7 @@ syms_of_json (void)
   define_error (Qjson_error, "generic JSON error", Qerror);
   define_error (Qjson_out_of_memory,
                 "not enough memory for creating JSON object", Qjson_error);
-  define_error (Qjson_parse_error, "could not parse JSON stream",
-                Qjson_error);
+  define_error (Qjson_parse_error, "could not parse JSON stream", Qjson_error);
   define_error (Qjson_end_of_file, "end of JSON stream", Qjson_parse_error);
   define_error (Qjson_trailing_content, "trailing content after JSON stream",
                 Qjson_parse_error);
@@ -1158,6 +1156,7 @@ syms_of_json (void)
   DEFSYM (Qarray, "array");
 
   defsubr (&Sjson_serialize);
+  defsubr (&Sjsonrpc_serialize);
   defsubr (&Sjson_insert);
   defsubr (&Sjson_parse_string);
   defsubr (&Sjson_parse_buffer);
