@@ -20,3 +20,5 @@
 pub mod remacs_sys;
 #[macro_use]
 pub mod lisp;
+pub mod multibyte;
+pub mod numbers;

@@ -10,6 +10,11 @@ use crate::{
 pub use crate::remacs_sys::*;
 // TODO: tweak Makefile to rebuild C files if this changes.
 
+
+pub const INTMASK: EmacsInt = EMACS_INT_MAX >> (INTTYPEBITS - 1);
+pub const PSEUDOVECTOR_FLAG: usize = 0x4000_0000_0000_0000;
+
+
 /// Emacs values are represented as tagged pointers. A few bits are
 /// used to represent the type, and the remaining bits are either used
 /// to store the value directly (e.g. integers) or the address of a
