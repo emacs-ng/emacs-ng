@@ -5099,6 +5099,9 @@ maybe_gc (void)
     maybe_garbage_collect ();
 }
 
+
+extern Lisp_Object myrustfunc (Lisp_Object obj);
+
 INLINE_HEADER_END
 
 #endif /* EMACS_LISP_H */

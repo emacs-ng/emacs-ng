@@ -1,19 +1,17 @@
 // //! This module contains Rust definitions whose C equivalents live in
 // //! lisp.h.
 
-use libc::{c_void, intptr_t};
+use libc::{c_void, intptr_t, ptrdiff_t};
 
+pub use crate::remacs_sys::*;
 use crate::{
     remacs_sys::EmacsInt,
-    remacs_sys::{Qnil, Qt, VALMASK},
+    remacs_sys::{make_string, Qnil, Qt, VALMASK},
 };
-pub use crate::remacs_sys::*;
 // TODO: tweak Makefile to rebuild C files if this changes.
-
 
 pub const INTMASK: EmacsInt = EMACS_INT_MAX >> (INTTYPEBITS - 1);
 pub const PSEUDOVECTOR_FLAG: usize = 0x4000_0000_0000_0000;
-
 
 /// Emacs values are represented as tagged pointers. A few bits are
 /// used to represent the type, and the remaining bits are either used
@@ -110,6 +108,24 @@ impl<T> ExternalPtr<T> {
     pub const fn new(p: *mut T) -> Self {
         Self(p)
     }
+
+    pub fn is_null(self) -> bool {
+        self.0.is_null()
+    }
+
+    pub const fn as_ptr(self) -> *const T {
+        self.0
+    }
+
+    pub fn as_mut(&mut self) -> *mut T {
+        self.0
+    }
 }
 // pub import remacs_sys::*;
 // export remacs_sys::*;
+
+#[no_mangle]
+pub extern "C" fn myrustfunc(obj: LispObject) -> LispObject {
+    let s = "foo".as_ptr() as *mut libc::c_char;
+    unsafe { make_string(s, libc::strlen(s) as ptrdiff_t) }
+}

@@ -3780,6 +3780,14 @@ A is a bool vector, B is t or nil, and I is an index into A.  */)
   return make_fixnum (count);
 }
 
+DEFUN ("myfunc", Fmyfunc, Smyfunc, 1, 1, 0,
+       doc: /* empty */)
+  (Lisp_Object obj)
+{
+   return myrustfunc (obj);
+}
+
+
 void rust_init_syms(void);
 
 
@@ -3961,6 +3969,7 @@ syms_of_data (void)
   DEFSYM (Qinteractive_form, "interactive-form");
   DEFSYM (Qdefalias_fset_function, "defalias-fset-function");
 
+  defsubr (&Smyfunc);
   defsubr (&Sindirect_variable);
   defsubr (&Sinteractive_form);
   defsubr (&Seq);
