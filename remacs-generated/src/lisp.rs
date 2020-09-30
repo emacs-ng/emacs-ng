@@ -1,6 +1,8 @@
 // //! This module contains Rust definitions whose C equivalents live in
 // //! lisp.h.
 
+use std::ops::{Deref, DerefMut};
+
 use libc::{c_void, intptr_t, ptrdiff_t};
 
 pub use crate::remacs_sys::*;
@@ -121,6 +123,20 @@ impl<T> ExternalPtr<T> {
         self.0
     }
 }
+
+impl<T> Deref for ExternalPtr<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*self.0 }
+    }
+}
+
+impl<T> DerefMut for ExternalPtr<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut *self.0 }
+    }
+}
+
 // pub import remacs_sys::*;
 // export remacs_sys::*;
 
