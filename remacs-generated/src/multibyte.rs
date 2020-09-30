@@ -32,7 +32,12 @@
 //! `&str`, and this module regrettably contains adapted copies of
 //! stretches of `std::str` functions.
 
-use crate::{lisp::{ExternalPtr, LispObject} , remacs_sys::Lisp_String};
+use std::ffi::CString;
+
+use crate::{
+    lisp::{ExternalPtr, LispObject},
+    remacs_sys::{build_string, Lisp_String} ,
+};
 
 pub type LispStringRef = ExternalPtr<Lisp_String>;
 
@@ -80,5 +85,13 @@ impl From<Codepoint> for i64 {
 impl From<Codepoint> for u64 {
     fn from(c: Codepoint) -> Self {
         c.0.into()
+    }
+}
+
+/// Copies a Rust str into a new Lisp string
+impl<'a> From<&'a str> for LispObject {
+    fn from(s: &str) -> Self {
+        let cs = CString::new(s).unwrap();
+        unsafe { build_string(cs.as_ptr()) }
     }
 }
