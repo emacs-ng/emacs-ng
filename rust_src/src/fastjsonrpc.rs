@@ -73,6 +73,7 @@ fn stdio_client(program: &str, args: Vec<&str>) -> JsonRpcStdio {
 }
 
 
+#[derive(Debug)]
 struct JsonRpcStdio {
     reader: Receiver<Message>,
     writer: Sender<Message>,
@@ -94,27 +95,42 @@ fn user_pointer<T>(v: T) -> LispObject {
     }
 }
 
-
+#[test]
+fn test_name() {
+    stdio_client("cat", vec!["/dev/stdin"]);
+}
 #[no_mangle]
 pub extern "C" fn fastjsonrcp_connection(input: LispObject) -> LispObject {
-    user_pointer(stdio_client("cat", vec!["/dev/stdin"]))
+    println!("Creating connection...");
+    let connection = stdio_client("cat", vec!["/dev/stdin"]);
+    user_pointer(connection)
 }
 
 impl<'a> From< &'a LispObject> for &'a JsonRpcStdio  {
     fn from(lisp_object:  &'a LispObject) -> &'a JsonRpcStdio {
+        println!("1");
+        let up = lisp_object.get_untaggedptr() as *mut Lisp_User_Ptr;
+        println!("2");
         unsafe {
-            let up = lisp_object.get_untaggedptr() as *mut Lisp_User_Ptr;
             let connection = (*up).p as *mut _ as *mut JsonRpcStdio;
+            println!("3");
             &(*connection)
         }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn fastjsonrcp_send_message(connection: &LispObject) {
+pub extern "C" fn fastjsonrcp_send_message(connection: LispObject) {
+    println!("Begin sending message...");
+
     let resp = Response { id: RequestId::from(10), result: Some(Value::from(10)), error: None };
-    let connection: &JsonRpcStdio = connection.into();
-    connection.writer.send(Message::Response(resp)).unwrap();
+    println!("Resp {:?}", resp);
+
+    let connection: &JsonRpcStdio = (&connection).into();
+    println!("Connection read... {:?}", connection);
+
+    connection.writer.send(Message::Response(resp));
+    println!("Sent message...")
 }
 
 

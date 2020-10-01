@@ -1104,13 +1104,24 @@ define_error (Lisp_Object name, const char *message, Lisp_Object parent)
   Fput (name, Qerror_message, build_pure_c_string (message));
 }
 
-DEFUN ("jsonrpc-serialize", Fjsonrpc_serialize, Sjsonrpc_serialize, 1, MANY,
+DEFUN ("jsonrpc-connection", Fjsonrpc_connection, Sjsonrpc_connection, 1, MANY,
        NULL, doc
        : /*   */)
 (ptrdiff_t nargs, Lisp_Object *args)
 {
-  fastjsonrcp_get_message (args[0]);
+   fastjsonrcp_connection (args[0]);
 }
+
+DEFUN ("jsonrpc-send", Fjsonrpc_send, Sjsonrpc_send, 1, MANY,
+       NULL, doc
+       : /*   */)
+(ptrdiff_t nargs, Lisp_Object *args) {
+  fastjsonrcp_send_message (args[0]);
+}
+
+DEFUN ("jsonrpc-receive", Fjsonrpc_receive, Sjsonrpc_receive, 1, MANY, NULL, doc
+       : /*   */)
+(ptrdiff_t nargs, Lisp_Object *args) { fastjsonrcp_get_message (args[0]); }
 
 void
 syms_of_json (void)
@@ -1156,7 +1167,9 @@ syms_of_json (void)
   DEFSYM (Qarray, "array");
 
   defsubr (&Sjson_serialize);
-  defsubr (&Sjsonrpc_serialize);
+  defsubr (&Sjsonrpc_connection);
+  defsubr (&Sjsonrpc_send);
+  defsubr (&Sjsonrpc_receive);
   defsubr (&Sjson_insert);
   defsubr (&Sjson_parse_string);
   defsubr (&Sjson_parse_buffer);
