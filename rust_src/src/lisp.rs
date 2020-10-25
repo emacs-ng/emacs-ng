@@ -6,6 +6,7 @@ use libc::{c_void, intptr_t};
 use crate::{
     remacs_sys::EmacsInt,
     remacs_sys::{Qnil, Qt, VALMASK},
+    remacs_sys::Aligned_Lisp_Subr,
 };
 
 // TODO: tweak Makefile to rebuild C files if this changes.
@@ -104,5 +105,12 @@ impl<T> Clone for ExternalPtr<T> {
 impl<T> ExternalPtr<T> {
     pub const fn new(p: *mut T) -> Self {
         Self(p)
+    }
+}
+
+pub type LispSubrRef = ExternalPtr<Aligned_Lisp_Subr>;
+impl LispSubrRef {
+    pub fn as_mut(self) -> *mut Aligned_Lisp_Subr {
+	self.0
     }
 }
