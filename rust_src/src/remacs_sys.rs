@@ -131,6 +131,21 @@ pub const WAIT_READING_MAX: i64 = i64::max_value();
 //
 // Based on http://stackoverflow.com/a/28116557/509706
 unsafe impl Sync for Lisp_Subr {}
+unsafe impl Sync for Aligned_Lisp_Subr {}
+unsafe impl Sync for crate::lisp::LispSubrRef {}
+
+macro_rules! export_lisp_fns {
+    ($($(#[$($meta:meta),*])* $f:ident),+) => {
+	pub fn rust_init_syms() {
+	    #[allow(unused_unsafe)] // just in case the block is empty
+	    unsafe {
+		$(
+		    $(#[$($meta),*])* crate::remacs_sys::defsubr(concat_idents!(S, $f).as_mut());
+		)+
+	    }
+	}
+    }
+}
 
 pub type Lisp_Buffer = buffer;
 pub type Lisp_Font_Object = font;

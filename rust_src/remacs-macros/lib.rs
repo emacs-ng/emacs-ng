@@ -1,4 +1,4 @@
-#![recursion_limit = "128"]
+#![recursion_limit = "256"]
 
 extern crate lazy_static;
 extern crate proc_macro;
@@ -72,6 +72,7 @@ pub fn lisp_fn(attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
     let cname = lisp_fn_args.c_name;
     let sname = concat_idents("S", &cname);
     let fname = concat_idents("F", &cname);
+    let srname = concat_idents("SR", &cname);
     let rname = function.name;
     let min_args = lisp_fn_args.min;
     let mut windows_header = quote! {};
@@ -126,32 +127,31 @@ pub fn lisp_fn(attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
             crate::lisp::LispObject::from(ret)
         }
 
+	#[no_mangle]
+	pub static mut #srname: std::mem::MaybeUninit<crate::remacs_sys::Aligned_Lisp_Subr>
+	    = std::mem::MaybeUninit::<crate::remacs_sys::Aligned_Lisp_Subr>::uninit();
+
         lazy_static! {
             pub static ref #sname: crate::lisp::LispSubrRef = {
-                let subr = crate::remacs_sys::Lisp_Subr {
-                    header: crate::remacs_sys::vectorlike_header {
-                        size: ((crate::remacs_sys::pvec_type::PVEC_SUBR as libc::ptrdiff_t)
-                               << crate::remacs_sys::More_Lisp_Bits::PSEUDOVECTOR_AREA_BITS)
-                            #windows_header,
-                    },
-                    function: crate::remacs_sys::Lisp_Subr__bindgen_ty_1 {
+                let mut subr = crate::remacs_sys::Aligned_Lisp_Subr::default();
+		unsafe {
+		    let mut subr_ref = subr.s.as_mut();
+		    subr_ref.header = crate::remacs_sys::vectorlike_header {
+			size: ((crate::remacs_sys::pvec_type::PVEC_SUBR as libc::ptrdiff_t)
+			       << crate::remacs_sys::More_Lisp_Bits::PSEUDOVECTOR_AREA_BITS)
+			    #windows_header,
+		    };
+		    subr_ref.function = crate::remacs_sys::Lisp_Subr__bindgen_ty_1 {
                         #functype: (Some(self::#fname))
-                    },
-                    min_args: #min_args,
-                    max_args: #max_args,
-                    symbol_name: (#symbol_name).as_ptr() as *const libc::c_char,
-                    intspec: #intspec,
-                    doc: 0,
-                    lang: crate::remacs_sys::Lisp_Subr_Lang::Lisp_Subr_Lang_Rust,
-                };
+		    };
+		    subr_ref.min_args = #min_args;
+		    subr_ref.max_args = #max_args;
+		    subr_ref.symbol_name = (#symbol_name).as_ptr() as *const libc::c_char;
+		    subr_ref.__bindgen_anon_1.intspec = #intspec;
+		    subr_ref.doc = 0;
 
-                unsafe {
-                    let ptr =
-                        crate::remacs_sys::xmalloc(
-                            std::mem::size_of::<crate::remacs_sys::Lisp_Subr>()
-                        ) as *mut crate::remacs_sys::Lisp_Subr;
-                    std::ptr::copy_nonoverlapping(&subr, ptr, 1);
-                    crate::lisp::ExternalPtr::new(ptr)
+                    std::ptr::copy_nonoverlapping(&subr, #srname.as_mut_ptr(), 1);
+                    crate::lisp::ExternalPtr::new(#srname.as_mut_ptr())
                 }
             };
         }
