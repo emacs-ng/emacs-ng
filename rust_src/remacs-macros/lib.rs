@@ -73,6 +73,7 @@ pub fn lisp_fn(attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
     let sname = concat_idents("S", &cname);
     let fname = concat_idents("F", &cname);
     let srname = concat_idents("SR", &cname);
+    let lazy_include = concat_idents("_LS_", &cname);
     let rname = function.name;
     let min_args = lisp_fn_args.min;
     let mut windows_header = quote! {};
@@ -127,11 +128,13 @@ pub fn lisp_fn(attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
             crate::lisp::LispObject::from(ret)
         }
 
+	use lazy_static::lazy_static as #lazy_include;
+
 	#[no_mangle]
 	pub static mut #srname: std::mem::MaybeUninit<crate::remacs_sys::Aligned_Lisp_Subr>
 	    = std::mem::MaybeUninit::<crate::remacs_sys::Aligned_Lisp_Subr>::uninit();
 
-        lazy_static! {
+        #lazy_include! {
             pub static ref #sname: crate::lisp::LispSubrRef = {
                 let mut subr = crate::remacs_sys::Aligned_Lisp_Subr::default();
 		unsafe {
