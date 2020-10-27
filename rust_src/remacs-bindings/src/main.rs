@@ -236,6 +236,7 @@ fn run_bindgen(path: &str) {
 
             builder = builder
                 .clang_arg("-Demacs")
+                .clang_arg("-DEMACS_EXTERN_INLINE")
                 .header("../rust_src/wrapper.h")
                 .generate_inline_functions(true)
                 .derive_default(true)
