@@ -31,6 +31,7 @@ extern crate remacs_macros;
 mod remacs_sys;
 #[macro_use]
 mod lisp;
+mod json_rpc;
 
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));
