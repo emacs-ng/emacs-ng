@@ -1,12 +1,15 @@
 // //! This module contains Rust definitions whose C equivalents live in
 // //! lisp.h.
 
-use libc::{c_void, intptr_t};
+use std::mem;
+use std::ops::{Deref, DerefMut};
+
+use libc::{c_void, intptr_t, uintptr_t};
 
 use crate::{
-    remacs_sys::EmacsInt,
-    remacs_sys::{Qnil, Qt, VALMASK},
     remacs_sys::Aligned_Lisp_Subr,
+    remacs_sys::EmacsInt,
+    remacs_sys::{EmacsUint, Lisp_Bits, Lisp_Type, Qnil, Qt, USE_LSB_TAG, VALMASK},
 };
 
 // TODO: tweak Makefile to rebuild C files if this changes.
@@ -37,8 +40,16 @@ impl LispObject {
         Self(n)
     }
 
+    pub fn from_C_unsigned(n: EmacsUint) -> Self {
+        Self::from_C(n as EmacsInt)
+    }
+
     pub const fn to_C(self) -> EmacsInt {
         self.0
+    }
+
+    pub const fn to_C_unsigned(self) -> EmacsUint {
+        self.0 as EmacsUint
     }
 }
 
@@ -83,6 +94,31 @@ impl LispObject {
 }
 
 impl LispObject {
+    pub fn get_type(self) -> Lisp_Type {
+        let raw = self.to_C_unsigned();
+        let res = (if USE_LSB_TAG {
+            raw & (!VALMASK as EmacsUint)
+        } else {
+            raw >> Lisp_Bits::VALBITS
+        }) as u32;
+        unsafe { mem::transmute(res) }
+    }
+
+    pub fn tag_ptr<T>(external: ExternalPtr<T>, ty: Lisp_Type) -> Self {
+        let raw = external.as_ptr() as intptr_t;
+        let res = if USE_LSB_TAG {
+            let ptr = raw as intptr_t;
+            let tag = ty as intptr_t;
+            (ptr + tag) as EmacsInt
+        } else {
+            let ptr = raw as EmacsUint as uintptr_t;
+            let tag = ty as EmacsUint as uintptr_t;
+            ((tag << Lisp_Bits::VALBITS) + ptr) as EmacsInt
+        };
+
+        Self::from_C(res)
+    }
+
     pub fn get_untaggedptr(self) -> *mut c_void {
         (self.to_C() & VALMASK) as intptr_t as *mut c_void
     }
@@ -106,11 +142,33 @@ impl<T> ExternalPtr<T> {
     pub const fn new(p: *mut T) -> Self {
         Self(p)
     }
+
+    pub fn is_null(self) -> bool {
+        self.0.is_null()
+    }
+
+    pub const fn as_ptr(self) -> *const T {
+        self.0
+    }
+
+    pub fn as_mut(&mut self) -> *mut T {
+        self.0
+    }
+
+    pub fn from_ptr(ptr: *mut c_void) -> Option<Self> {
+        unsafe { ptr.as_ref().map(|p| mem::transmute(p)) }
+    }
 }
 
-pub type LispSubrRef = ExternalPtr<Aligned_Lisp_Subr>;
-impl LispSubrRef {
-    pub fn as_mut(self) -> *mut Aligned_Lisp_Subr {
-	self.0
+impl<T> Deref for ExternalPtr<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*self.0 }
+    }
+}
+
+impl<T> DerefMut for ExternalPtr<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut *self.0 }
     }
 }

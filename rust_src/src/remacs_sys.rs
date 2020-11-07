@@ -32,6 +32,7 @@ include!("../generated/globals.rs");
 
 pub const VAL_MAX: EmacsInt = (EMACS_INT_MAX >> (GCTYPEBITS - 1));
 pub const VALMASK: EmacsInt = [VAL_MAX, -(1 << GCTYPEBITS)][USE_LSB_TAG as usize];
+pub const PSEUDOVECTOR_FLAG: usize = 0x4000_0000_0000_0000;
 
 // These signal an error, therefore are marked as non-returning.
 extern "C" {
@@ -156,20 +157,20 @@ pub type Lisp_Terminal = terminal;
 pub type Lisp_Window = window;
 pub type Lisp_Interval = interval;
 
-// #[repr(C)]
-// pub struct Lisp_Vectorlike {
-//     pub header: vectorlike_header,
-//     // shouldn't look at the contents without knowing the structure...
-// }
+#[repr(C)]
+pub struct Lisp_Vectorlike {
+    pub header: vectorlike_header,
+    // shouldn't look at the contents without knowing the structure...
+}
 
-// // No C equivalent.  Generic type for a vectorlike with one or more
-// // LispObject slots after the header.
-// #[repr(C)]
-// pub struct Lisp_Vectorlike_With_Slots {
-//     pub header: vectorlike_header,
-//     // actually any number of items... not sure how to express this
-//     pub contents: __IncompleteArrayField<Lisp_Object>,
-// }
+// No C equivalent.  Generic type for a vectorlike with one or more
+// LispObject slots after the header.
+#[repr(C)]
+pub struct Lisp_Vectorlike_With_Slots {
+    pub header: vectorlike_header,
+    // actually any number of items... not sure how to express this
+    pub contents: __IncompleteArrayField<Lisp_Object>,
+}
 
 //// declare this ourselves so that the arg isn't mutable
 //extern "C" {
