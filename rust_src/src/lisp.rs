@@ -172,3 +172,7 @@ impl<T> DerefMut for ExternalPtr<T> {
         unsafe { &mut *self.0 }
     }
 }
+
+// Lisp_Subr support
+
+pub type LispSubrRef = ExternalPtr<Aligned_Lisp_Subr>;
