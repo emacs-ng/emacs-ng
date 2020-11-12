@@ -4,6 +4,4 @@
 
 ## Motivation
 
-Don't replace existing C code for now and instead add additional features with
-rust on top of the existing code base. This will reduce the effort when merging
-emacs master into this repository.
+The goal of this fork is to explore new development approaches.
