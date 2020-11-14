@@ -4,6 +4,7 @@ use std::mem;
 
 use crate::{
     lisp::{ExternalPtr, LispObject, LispSubrRef},
+    process::LispProcessRef,
     remacs_sys::{
         pvec_type, Lisp_Type, Lisp_Vector, Lisp_Vectorlike, More_Lisp_Bits, PSEUDOVECTOR_FLAG,
     },
@@ -49,4 +50,13 @@ impl LispVectorlikeRef {
             None
         }
     }
+
+    pub fn as_process(self) -> Option<LispProcessRef> {
+        if self.is_pseudovector(pvec_type::PVEC_PROCESS) {
+            Some(self.cast())
+        } else {
+            None
+        }
+    }
+
 }
