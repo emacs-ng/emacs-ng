@@ -34,7 +34,13 @@ mod remacs_sys;
 #[macro_use]
 mod lisp;
 mod ng_async;
+#[macro_use]
+mod eval_macros;
+
 mod vectors;
+mod process;
+mod lists;
+mod eval;
 
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));

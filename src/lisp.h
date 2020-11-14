@@ -4100,6 +4100,7 @@ extern Lisp_Object Vautoload_queue;
 extern Lisp_Object Vrun_hooks;
 extern Lisp_Object Vsignaling_function;
 extern Lisp_Object inhibit_lisp_code;
+extern Lisp_Object signal_or_quit (Lisp_Object, Lisp_Object, bool);
 
 /* To run a normal hook, use the appropriate function from the list below.
    The calling convention:
