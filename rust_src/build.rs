@@ -158,7 +158,8 @@ impl<'a> ModuleParser<'a> {
                 }
             } else if line.starts_with("#[cfg") {
                 preceding_cfg = Some(line);
-            } else if line.starts_with("#[lisp_fn") {
+            } else if line.starts_with("#[lisp_fn")
+		|| line.starts_with("#[async_stream") {
                 let line = if line.ends_with("]") {
                     line.clone()
                 } else {

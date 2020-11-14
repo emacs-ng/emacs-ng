@@ -165,6 +165,12 @@ pub fn lisp_fn(attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
     tokens.into_iter().chain(fn_ts.into_iter()).collect()
 }
 
+#[proc_macro_attribute]
+pub fn async_stream(attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
+
+    fn_ts.into()
+}
+
 struct CByteLiteral<'a>(&'a str);
 
 impl<'a> quote::ToTokens for CByteLiteral<'a> {
