@@ -1,8 +1,19 @@
 use remacs_macros::{lisp_fn, async_stream};
 use lazy_static::lazy_static;
-use std::thread;
+use std::{
+    thread,
+    slice,
+};
 use crate::lisp::LispObject;
-use crate::remacs_sys::{QCname, QCfilter, build_string, Fmake_pipe_process, XPROCESS};
+use crate::remacs_sys::{
+    QCname,
+    QCfilter,
+    build_string,
+    Fmake_pipe_process,
+    XPROCESS,
+    SDATA,
+    SBYTES,
+};
 
 use std::{
     fs::File,
@@ -160,21 +171,19 @@ pub fn rust_worker<T: 'static + Fn(String) -> String + Send>(handler: LispObject
     proc
 }
 
+#[async_stream]
+pub async fn my_async_fn(s: String) -> String {
+    s
+}
 
 #[lisp_fn]
 pub fn async_send_message(proc: LispObject, message: LispObject) -> bool {
     let mut pipe = unsafe { EmacsPipe::with_process(proc) };
-    let contents = String::from("my message"); // @TODO don't hardcode
-    pipe.message_rust_worker(contents);
-
-    /* Result of macro.....
-    rust_worker(crate::remacs_sys::Qnil, |s| {
-	let f = async move {
-	    my_function(s).await
-	};
-	futures::executor::block_on(f)
-    });
-     */
+    let sdata = unsafe { SDATA(message) };
+    let ssize = unsafe { SBYTES(message) };
+    let sslice = unsafe { slice::from_raw_parts(sdata as *const u8, ssize as usize) };
+    let contents = String::from_utf8_lossy(sslice);
+    pipe.message_rust_worker(contents.into_owned());
 
     true
 }

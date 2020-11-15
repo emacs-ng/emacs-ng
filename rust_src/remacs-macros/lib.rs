@@ -166,9 +166,25 @@ pub fn lisp_fn(attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn async_stream(attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
+pub fn async_stream(_attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
+    let fn_item = syn::parse(fn_ts.clone()).unwrap();
+    let function = function::parse(&fn_item).unwrap();
+    let name = &function.name;
+    let async_name = concat_idents("call_", &name.to_string());
 
-    fn_ts.into()
+    let tokens = quote! {
+
+	#[lisp_fn(min = "1")]
+	pub fn #async_name (handler: crate::lisp::LispObject) -> crate::lisp::LispObject {
+	    crate::ng_async::rust_worker(handler, |s| {
+		futures::executor::block_on(#name(s))
+	    })
+	}
+
+    };
+
+    let result_tokens: TokenStream = tokens.into();
+    result_tokens.into_iter().chain(fn_ts.into_iter()).collect()
 }
 
 struct CByteLiteral<'a>(&'a str);
