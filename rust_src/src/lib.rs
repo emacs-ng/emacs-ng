@@ -32,6 +32,7 @@ mod remacs_sys;
 #[macro_use]
 mod lisp;
 mod ng_async;
+mod vectors;
 
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));
