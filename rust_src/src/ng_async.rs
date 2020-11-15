@@ -131,9 +131,10 @@ impl EmacsPipe {
 	let mut buffer = [0; ptr_size()];
 	f.read(&mut buffer)?;
 	let raw_value = usize::from_be_bytes(buffer);
+	f.into_raw_fd();
 
 	if raw_value == nullptr() {
-	    Err(std::io::Error::new(std::io::ErrorKind::Other, "nullptr"))
+	    Err(std::io::Error::new(std::io::ErrorKind::ConnectionAborted, "nullptr"))
 	} else {
 	    Ok(raw_value)
 	}
@@ -150,22 +151,31 @@ impl EmacsPipe {
     }
 }
 
+fn eprint_if_unexpected_error(err: std::io::Error) {
+    // If we explicity set "ConnectionAborted" to close the stream
+    // we don't want to log, as that was expected.
+    if err.kind() != std::io::ErrorKind::ConnectionAborted {
+	eprintln!("Async stream closed; Reason {:?}", err);
+    }
+}
+
 pub fn rust_worker<T: 'static + Fn(String) -> String + Send>(handler: LispObject, fnc: T)
 							     -> LispObject {
     let (mut pipe, proc) = EmacsPipe::with_handler(handler);
     thread::spawn(move || {
 	loop {
-	    if let Ok(message) = pipe.read_pend_message() {
-		let result = fnc(message);
-		if let Err(_) = pipe.message_lisp(result) {
+	    match pipe.read_pend_message() {
+		Ok(message) => {
+		    let result = fnc(message);
+		    if let Err(err) = pipe.message_lisp(result) {
+			eprint_if_unexpected_error(err);
+			break;
+		    }
+		},
+		Err(err) => {
+		    eprint_if_unexpected_error(err);
 		    break;
 		}
-	    } else {
-		// While I think this is all we want to do
-		// it is likely a good idea to note the error
-		// if its not "nullptr", which is expected in the
-		// case we want to close the stream.
-		break;
 	    }
 	}
     });
