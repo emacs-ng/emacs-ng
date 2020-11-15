@@ -1,5 +1,4 @@
 use remacs_macros::{lisp_fn, async_stream};
-use lazy_static::lazy_static;
 use std::{
     thread,
     slice,
