@@ -141,7 +141,9 @@ macro_rules! export_lisp_fns {
 	    #[allow(unused_unsafe)] // just in case the block is empty
 	    unsafe {
 		$(
-		    $(#[$($meta),*])* crate::remacs_sys::defsubr(concat_idents!(S, $f).as_mut());
+		    $(#[$($meta),*])* crate::remacs_sys::defsubr(
+			concat_idents!(S, $f).as_ptr() as *mut crate::remacs_sys::Aligned_Lisp_Subr
+		    );
 		)+
 	    }
 	}
