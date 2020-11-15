@@ -52,13 +52,7 @@ fn nullptr() -> usize {
 }
 
 impl EmacsPipe {
-    unsafe fn assert_main_thread() {
-	// TODO
-    }
-
     pub unsafe fn with_process(process: LispObject) -> EmacsPipe {
-	EmacsPipe::assert_main_thread();
-
 	let raw_proc = XPROCESS(process);
 	let out = (*raw_proc).open_fd[PIPE_PROCESS::SUBPROCESS_STDOUT as usize];
 	let inf = (*raw_proc).open_fd[PIPE_PROCESS::SUBPROCESS_STDIN as usize];
@@ -180,7 +174,7 @@ pub fn rust_worker<T: 'static + Fn(String) -> String + Send>(handler: LispObject
 }
 
 #[async_stream]
-pub async fn my_async_fn(s: String) -> String {
+pub async fn async_echo(s: String) -> String {
     s
 }
 
