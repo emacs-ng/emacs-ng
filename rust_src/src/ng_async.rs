@@ -29,8 +29,8 @@ enum PIPE_PROCESS {
     WRITE_TO_SUBPROCESS = 1,
     READ_FROM_SUBPROCESS = 2,
     SUBPROCESS_STDOUT = 3,
-    READ_FROM_EXEC_MONITOR = 4,
-    EXEC_MONITOR_OUTPUT = 5,
+    _READ_FROM_EXEC_MONITOR = 4,
+    _EXEC_MONITOR_OUTPUT = 5,
 }
 
 pub struct EmacsPipe {
@@ -39,7 +39,7 @@ pub struct EmacsPipe {
     out_fd: i32,
     // Represents SUBPROCESS_STDIN, used to read from lisp messages
     in_fd: i32,
-    in_subp: i32,
+    _in_subp: i32,
     out_subp: i32,
 }
 
@@ -50,7 +50,6 @@ const fn ptr_size() -> usize {
 fn nullptr() -> usize {
     std::ptr::null() as *const i32 as usize
 }
-
 
 impl EmacsPipe {
     unsafe fn assert_main_thread() {
@@ -69,7 +68,7 @@ impl EmacsPipe {
 	EmacsPipe {
 	    out_fd: out,
 	    in_fd: inf,
-	    in_subp: pi,
+	    _in_subp: pi,
 	    out_subp: po,
 	}
     }
@@ -78,7 +77,7 @@ impl EmacsPipe {
 	EmacsPipe::create(handler)
     }
 
-    pub fn new() -> (EmacsPipe, LispObject) {
+    pub fn _new() -> (EmacsPipe, LispObject) {
 	EmacsPipe::create(false.into())
     }
 
@@ -122,27 +121,34 @@ impl EmacsPipe {
 	result
     }
 
-    // Called from the lisp thread, used to enqueue a message for the
-    // rust worker to execute.
-    pub fn message_rust_worker(&mut self, content: String) -> std::io::Result<()> {
-	let raw_ptr = Box::into_raw(Box::new(content));
-	let bin = raw_ptr as *mut _ as usize;
+    pub fn write_ptr<T>(&mut self, ptr: *mut T) -> std::io::Result<()> {
+	let bin = ptr as *mut _ as usize;
 	self.internal_write(&bin.to_be_bytes())
     }
 
-    // Used by the rust worker to receive incoming data. Messages sent from
-    // calls to 'message_rust_worker' are recieved by read_pend_message
-    pub fn read_pend_message(&self) -> std::io::Result<String> {
+    // Called from the lisp thread, used to enqueue a message for the
+    // rust worker to execute.
+    pub fn message_rust_worker(&mut self, content: String) -> std::io::Result<()> {
+	self.write_ptr(Box::into_raw(Box::new(content)))
+    }
+
+    pub fn read_next_ptr(&self) -> std::io::Result<usize> {
 	let mut f = unsafe { File::from_raw_fd(self.in_fd) };
 	let mut buffer = [0; ptr_size()];
-	let size = f.read(&mut buffer)?;
+	f.read(&mut buffer)?;
 	let raw_value = usize::from_be_bytes(buffer);
 
 	if raw_value == nullptr() {
 	    Err(std::io::Error::new(std::io::ErrorKind::Other, "nullptr"))
 	} else {
-	    Ok(unsafe { *Box::from_raw(raw_value as *mut String) })
+	    Ok(raw_value)
 	}
+    }
+
+    // Used by the rust worker to receive incoming data. Messages sent from
+    // calls to 'message_rust_worker' are recieved by read_pend_message
+    pub fn read_pend_message(&self) -> std::io::Result<String> {
+	self.read_next_ptr().map(|v| unsafe { *Box::from_raw(v as *mut String) })
     }
 
     pub fn close_stream(&mut self) -> std::io::Result<()> {
@@ -157,7 +163,9 @@ pub fn rust_worker<T: 'static + Fn(String) -> String + Send>(handler: LispObject
 	loop {
 	    if let Ok(message) = pipe.read_pend_message() {
 		let result = fnc(message);
-		pipe.message_lisp(result);
+		if let Err(_) = pipe.message_lisp(result) {
+		    break;
+		}
 	    } else {
 		// While I think this is all we want to do
 		// it is likely a good idea to note the error
@@ -183,16 +191,13 @@ pub fn async_send_message(proc: LispObject, message: LispObject) -> bool {
     let ssize = unsafe { SBYTES(message) };
     let sslice = unsafe { slice::from_raw_parts(sdata as *const u8, ssize as usize) };
     let contents = String::from_utf8_lossy(sslice);
-    pipe.message_rust_worker(contents.into_owned());
-
-    true
+    pipe.message_rust_worker(contents.into_owned()).is_ok()
 }
 
 #[lisp_fn]
 pub fn async_close_stream(proc: LispObject) -> bool {
     let mut pipe = unsafe { EmacsPipe::with_process(proc) };
-    pipe.close_stream();
-    true
+    pipe.close_stream().is_ok()
 }
 
 include!(concat!(env!("OUT_DIR"), "/ng_async_exports.rs"));
