@@ -299,3 +299,6 @@ nt/emacs.rc
 nt/emacsclient.rc
 src/gdb.ini
 /var/
+rust_src/Cargo.lock
+remacs-generated/src/remacs_sys.rs
+target

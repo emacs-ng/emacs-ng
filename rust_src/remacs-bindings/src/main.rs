@@ -38,9 +38,9 @@ enum ParseState {
     Complete,
 }
 
-fn generate_definitions(path: &str) {
-    let out_path = PathBuf::from(path);
-    let mut file = File::create(out_path).expect("Failed to create definition file");
+fn generate_definitions(mut file: &File) {
+    // let out_path = PathBuf::from(path);
+
 
     // signed and unsigned size shall be the same.
     let integer_types = [
@@ -117,15 +117,15 @@ fn generate_definitions(path: &str) {
     .expect("Write error!");
 }
 
-fn generate_globals(path: &str) {
+fn generate_globals(mut out_file: &File) {
     let in_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
         .join("..")
         .join("..")
         .join("src")
         .join("globals.h");
     let in_file = BufReader::new(File::open(in_path).expect("Failed to open globals file"));
-    let out_path = PathBuf::from(path);
-    let mut out_file = File::create(out_path).expect("Failed to create definition file");
+    // let out_path = PathBuf::from(path);
+    // let mut out_file = File::create(out_path).expect("Failed to create definition file");
     let mut parse_state = ParseState::ReadingGlobals;
 
     write!(out_file, "#[allow(unused)]\n").expect("Write error!");
@@ -187,18 +187,9 @@ fn generate_globals(path: &str) {
     }
 }
 
-fn run_bindgen(path: &str) {
+fn run_bindgen(mut file: &File, path: &str) {
     let out_path = PathBuf::from(path);
     let skip = std::env::var_os("SKIP_BINDINGS");
-    if skip.is_some() {
-        // create bindings.rs if it doesn't already exist, leaving it empty.
-        OpenOptions::new()
-            .write(true)
-            .create(true)
-            .open(out_path)
-            .expect("Could not create bindings.rs");
-        return;
-    }
     let cflags = std::env::var_os("EMACS_CFLAGS");
     match cflags {
         None => {
@@ -313,25 +304,196 @@ fn run_bindgen(path: &str) {
                 r"pub use self\s*::\s*gnutls_cipher_algorithm_t as gnutls_cipher_algorithm\s*;",
             );
             let munged = re.unwrap().replace_all(&source, "");
-            let file = File::create(out_path);
-            file.unwrap()
-                .write_all(munged.into_owned().as_bytes())
+            // let file = File::create(out_path);
+            file.write_all(munged.into_owned().as_bytes())
                 .unwrap();
         }
     }
 }
 
-fn usage() {
-    println!("usage: remacs-bindings <definitions|bindings|globals> <path>");
-    process::exit(1);
-}
-
 fn main() {
     let args = env::args().collect::<Vec<String>>();
-    match args[1].as_str() {
-        "definitions" => generate_definitions(&args[2]),
-        "bindings" => run_bindgen(&args[2]),
-        "globals" => generate_globals(&args[2]),
-        _ => usage(),
-    };
+    let file = File::create(&args[1]).expect("Failed to create definition file");
+
+    write!(&file, r#"#![allow(unused)]
+
+//! This module contains all FFI declarations.
+//!
+//! These types and constants are generated at build time to mimic how they are
+//! in C:
+//!
+//! - `EmacsInt`
+//! - `EmacsUint`
+//! - `EmacsDouble`
+//! - `EMACS_INT_MAX`
+//! - `EMACS_INT_SIZE`
+//! - `EMACS_FLOAT_SIZE`
+//! - `GCTYPEBITS`
+//! - `USE_LSB_TAG`
+//! - `BoolBF`
+
+use libc::{{self, c_char, c_void, ptrdiff_t, c_int}};
+use std::mem;
+
+use libc::timespec;
+use remacs_lib::current_timespec;
+
+use crate::lisp::LispObject;
+"#).expect("Write error!");
+
+    generate_definitions(&file);
+    write!(&file, r#"
+type Lisp_Object = LispObject;
+"#).expect("Write error!");
+    run_bindgen(&file, &args[1]);
+    generate_globals(&file);
+
+writeln!(&file, r#"
+pub const VAL_MAX: EmacsInt = (EMACS_INT_MAX >> (GCTYPEBITS - 1));
+pub const VALMASK: EmacsInt = [VAL_MAX, -(1 << GCTYPEBITS)][USE_LSB_TAG as usize];
+pub const PSEUDOVECTOR_FLAG: usize = 0x4000_0000_0000_0000;
+
+// These signal an error, therefore are marked as non-returning.
+extern "C" {{
+    pub fn circular_list(tail: Lisp_Object) -> !;
+    pub fn wrong_type_argument(predicate: Lisp_Object, value: Lisp_Object) -> !;
+    // defined in eval.c, where it can actually take an arbitrary
+    // number of arguments.
+    // TODO: define a Rust version of this that uses Rust strings.
+    pub fn error(m: *const u8, ...) -> !;
+    pub fn memory_full(nbytes: libc::size_t) -> !;
+    pub fn wrong_choice(choice: LispObject, wrong: LispObject) -> !;
+    pub fn wrong_range(min: LispObject, max: LispObject, wrong: LispObject) -> !;
+}}
+
+#[repr(C)]
+pub enum BoolVectorOp {{
+    BoolVectorExclusiveOr,
+    BoolVectorUnion,
+    BoolVectorIntersection,
+    BoolVectorSetDifference,
+    BoolVectorSubsetp,
+}}
+
+// bindgen apparently misses these, for various reasons
+extern "C" {{
+    // these weren't declared in a header, for example
+    pub static Vprocess_alist: Lisp_Object;
+    pub fn update_buffer_defaults(objvar: *mut LispObject, newval: LispObject);
+    pub fn concat(
+        nargs: ptrdiff_t,
+        args: *mut LispObject,
+        target_type: Lisp_Type,
+        last_special: bool,
+    ) -> LispObject;
+    pub fn map_keymap_item(
+        fun: map_keymap_function_t,
+        args: LispObject,
+        key: LispObject,
+        val: LispObject,
+        data: *const c_void,
+    );
+    pub fn map_keymap_char_table_item(args: LispObject, key: LispObject, val: LispObject);
+    pub static initial_obarray: LispObject;
+    pub static oblookup_last_bucket_number: libc::size_t;
+    pub fn scan_lists(
+        from: EmacsInt,
+        count: EmacsInt,
+        depth: EmacsInt,
+        sexpflag: bool,
+    ) -> LispObject;
+    pub fn read_minibuf(
+        map: Lisp_Object,
+        initial: Lisp_Object,
+        prompt: Lisp_Object,
+        expflag: bool,
+        histvar: Lisp_Object,
+        histpos: Lisp_Object,
+        defalt: Lisp_Object,
+        allow_props: bool,
+        inherit_input_method: bool,
+    ) -> Lisp_Object;
+    pub static minibuf_prompt: LispObject;
+    pub fn add_process_read_fd(fd: libc::c_int);
+    #[cfg(windows)]
+    pub fn file_attributes_c(filename: LispObject, id_format: LispObject) -> LispObject;
+    pub fn getloadaverage(loadavg: *mut libc::c_double, nelem: libc::c_int) -> libc::c_int;
+    #[cfg(unix)]
+    pub fn file_attributes_c_internal(
+        name: *const c_char,
+        directory: LispObject,
+        filename: LispObject,
+        id_format: LispObject,
+    ) -> LispObject;
+    #[cfg(unix)]
+    pub fn filemode_string(f: LispObject) -> LispObject;
+
+    pub fn unchain_both(b: *mut Lisp_Buffer, ov: LispObject);
+    pub fn emacs_get_tty_pgrp(p: *mut Lisp_Process) -> libc::pid_t;
+    pub fn update_buffer_properties(start: ptrdiff_t, end: ptrdiff_t);
+    pub fn set_window_hscroll(w: *mut Lisp_Window, hscroll: EMACS_INT) -> Lisp_Object;
+    pub fn scroll_command(n: Lisp_Object, direction: libc::c_int);
+    pub fn bool_vector_binop_driver(
+        a: Lisp_Object,
+        b: Lisp_Object,
+        dest: Lisp_Object,
+        op: BoolVectorOp,
+    ) -> Lisp_Object;
+}}
+
+// Max value for the first argument of wait_reading_process_output.
+pub const WAIT_READING_MAX: i64 = i64::max_value();
+
+// In order to use `lazy_static!` with LispSubr, it must be Sync. Raw
+// pointers are not Sync, but it isn't a problem to define Sync if we
+// never mutate LispSubr values. If we do, we will need to create
+// these objects at runtime, perhaps using forget().
+//
+// Based on http://stackoverflow.com/a/28116557/509706
+unsafe impl Sync for Lisp_Subr {{}}
+unsafe impl Sync for Aligned_Lisp_Subr {{}}
+unsafe impl Sync for crate::lisp::LispSubrRef {{}}
+
+macro_rules! export_lisp_fns {{
+    ($($(#[$($meta:meta),*])* $f:ident),+) => {{
+	pub fn rust_init_syms() {{
+	    #[allow(unused_unsafe)] // just in case the block is empty
+	    unsafe {{
+		$(
+		    $(#[$($meta),*])* crate::remacs_sys::defsubr(concat_idents!(S, $f).as_mut());
+		)+
+	    }}
+	}}
+    }}
+}}
+
+pub type Lisp_Buffer = buffer;
+pub type Lisp_Font_Object = font;
+pub type Lisp_Font_Spec = font_spec;
+pub type Lisp_Frame = frame;
+pub type Lisp_Glyph = glyph;
+pub type Lisp_Terminal = terminal;
+pub type Lisp_Window = window;
+pub type Lisp_Interval = interval;
+
+#[repr(C)]
+pub struct Lisp_Vectorlike {{
+    pub header: vectorlike_header,
+    // shouldn't look at the contents without knowing the structure...
+}}
+
+// No C equivalent.  Generic type for a vectorlike with one or more
+// LispObject slots after the header.
+#[repr(C)]
+pub struct Lisp_Vectorlike_With_Slots {{
+    pub header: vectorlike_header,
+    // actually any number of items... not sure how to express this
+    pub contents: __IncompleteArrayField<Lisp_Object>,
+}}
+
+//// declare this ourselves so that the arg isn't mutable
+//extern "C" {{
+//    pub fn staticpro(arg1: *const Lisp_Object);
+//}}
+"#).expect("Write error!");
 }
