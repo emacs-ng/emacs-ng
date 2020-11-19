@@ -205,7 +205,21 @@ impl<'a> ModuleParser<'a> {
                 }
 
                 preceding_cfg = None;
-            } else if line.starts_with("include!(concat!(env!(\"OUT_DIR\"),") {
+            } else if line.starts_with("#[async_stream") {
+		if let Some(next) = reader.next() {
+		    let line = next?;
+
+		    if let Some(func) = self.parse_c_export(&line, None)? {
+			let mut prefix = String::from("call_");
+			prefix.push_str(&func);
+			mod_data.lisp_fns.push((preceding_cfg, prefix));
+		    }
+		} else {
+		    self.fail(1, "Unexpected end of file");
+		}
+
+		preceding_cfg = None;
+	    } else if line.starts_with("include!(concat!(env!(\"OUT_DIR\"),") {
                 has_include = true;
             } else if line.starts_with("/*") && !line.ends_with("*/") {
                 while let Some(next) = reader.next() {

@@ -27,10 +27,13 @@ extern crate core;
 extern crate remacs_lib;
 extern crate remacs_macros;
 
+extern crate futures;
+
 #[macro_use]
 mod remacs_sys;
 #[macro_use]
 mod lisp;
+mod ng_async;
 mod vectors;
 
 #[cfg(not(test))]
