@@ -27,6 +27,8 @@ extern crate core;
 extern crate remacs_lib;
 extern crate remacs_macros;
 
+extern crate futures;
+
 #[macro_use]
 mod remacs_sys;
 #[macro_use]

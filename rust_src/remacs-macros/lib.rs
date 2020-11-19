@@ -180,7 +180,7 @@ pub fn async_stream(_attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
 	#[lisp_fn(min = "1")]
 	pub fn #async_name (handler: crate::lisp::LispObject) -> crate::lisp::LispObject {
 	    crate::ng_async::rust_worker(handler, |s| {
-		futures::executor::block_on(#name(s))
+		::futures::executor::block_on(#name(s))
 	    })
 	}
 
