@@ -7,11 +7,24 @@ use crate::lisp::LispObject;
 use crate::remacs_sys::{
     QCname,
     QCfilter,
+    QCplist,
+    QCtype,
+    Qstring,
+    Qcall,
+    Qnil,
     build_string,
+    make_multibyte_string,
+    intern_c_string,
     Fmake_pipe_process,
+    Fset_process_plist,
+    Fplist_put,
+    Fplist_get,
+    Fprocess_plist,
+    Ffuncall,
     XPROCESS,
     SDATA,
     SBYTES,
+    Lisp_Type,
 };
 
 use std::{
@@ -50,6 +63,11 @@ fn nullptr() -> usize {
     std::ptr::null() as *const i32 as usize
 }
 
+pub enum PipeOptions {
+    STRING,
+    USER_DATA,
+}
+
 impl EmacsPipe {
     pub unsafe fn with_process(process: LispObject) -> EmacsPipe {
 	let raw_proc = XPROCESS(process);
@@ -67,23 +85,26 @@ impl EmacsPipe {
     }
 
     pub fn with_handler(handler: LispObject) -> (EmacsPipe, LispObject) {
-	EmacsPipe::create(handler)
+	EmacsPipe::create(handler, PipeOptions::STRING) // @TODO don't hardcode
     }
 
     pub fn _new() -> (EmacsPipe, LispObject) {
-	EmacsPipe::create(false.into())
+	EmacsPipe::create(false.into(), PipeOptions::STRING) // @TODO don't hardcode
     }
 
-    fn create(handler: LispObject) -> (EmacsPipe, LispObject) {
+    fn create(handler: LispObject, options: PipeOptions) -> (EmacsPipe, LispObject) {
 	let proc = unsafe {
 	    // @TODO revisit this buffer name. I have not found a way to avoid
 	    // creating a buffer for this pipe. Sharing a buffer amoung pipes is fine
 	    // as long as we create different fds for exchanging information.
 	    let cstr = CString::new("async-msg-buffer")
 		.expect("Failed to create pipe for async function");
+	    let async_str = CString::new("async-handler")
+		.expect("Failed to crate string for intern function call");
 	    let mut proc_args = vec![
 		QCname, build_string(cstr.as_ptr()),
-		QCfilter, handler,
+		QCfilter, intern_c_string(async_str.as_ptr()),
+		QCplist, Qnil,
 	    ];
 
 	    // This unwrap will never panic because proc_args size is small
@@ -91,6 +112,14 @@ impl EmacsPipe {
 	    Fmake_pipe_process(proc_args.len().try_into().unwrap(),
 			       proc_args.as_mut_ptr())
 	};
+
+	let plist = unsafe { Fprocess_plist(proc) };
+	unsafe { Fset_process_plist(proc, Fplist_put(plist, Qcall, handler)) };
+	match options {
+	    PipeOptions::STRING => unsafe { Fplist_put(plist, QCtype, Qstring) },
+	    PipeOptions::USER_DATA => panic!("Not Yet Supported"),
+	};
+
 
 	// This should be safe due to the fact that we have created the process
 	// ourselves
@@ -101,7 +130,9 @@ impl EmacsPipe {
     // thread, to be processed by the users filter function
     pub fn message_lisp(&mut self, content: String) -> std::io::Result<()> {
 	let mut f = unsafe { File::from_raw_fd(self.out_fd) };
-	let result = write!(&mut f, "{}", content);
+	let ptr = Box::into_raw(Box::new(content));
+	let bin = ptr as *mut _ as usize;
+	let result = f.write(bin.to_string().as_bytes()).map(|_| ());
 	f.into_raw_fd();
 	result
     }
@@ -180,6 +211,39 @@ pub fn rust_worker<T: 'static + Fn(String) -> String + Send>(handler: LispObject
     });
 
     proc
+}
+
+#[lisp_fn]
+pub fn async_handler(proc: LispObject, data: LispObject) -> bool {
+    let orig_handler = unsafe {
+	let plist = Fprocess_plist(proc);
+	Fplist_get(plist, Qcall)
+    };
+
+    // This code may seem odd. Since we are in the same process space as
+    // the lisp thread, our data transfer is not the string itself, but
+    // a pointer to the string. We translate the pointer to a usize, and
+    // write the string representation of that pointer over the pipe.
+    // This code extracts that data, and gets us the acutal Rust String
+    // object, that we then translate to a lisp object.
+    let sdata = unsafe { SDATA(data) };
+    let ssize = unsafe { SBYTES(data) };
+    let sslice = unsafe { slice::from_raw_parts(sdata as *const u8, ssize as usize) };
+    let bin = String::from_utf8_lossy(sslice).parse::<usize>().unwrap();
+    let content = unsafe { *Box::from_raw(bin as *mut String) };
+
+    let nchars = content.chars().count();
+    let nbytes = content.len();
+
+    let c_content = CString::new(content).unwrap();
+    // These unwraps should be 'safe', as we want to panic if we overflow
+    let calculated_string = unsafe { make_multibyte_string(c_content.as_ptr(),
+						nchars.try_into().unwrap(),
+						nbytes.try_into().unwrap()) };
+
+    let mut buffer = vec![orig_handler, proc, calculated_string];
+    unsafe { Ffuncall(3, buffer.as_mut_ptr()) };
+    true
 }
 
 #[async_stream]
