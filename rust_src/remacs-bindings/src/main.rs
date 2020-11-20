@@ -273,7 +273,6 @@ fn run_bindgen(path: &str) {
                 // .blacklist_item("Lisp_.*fwd")
                 // these are defined in remacs_lib
                 .blacklist_item("timespec")
-                .blacklist_item("current_timespec")
                 .blacklist_item("timex")
                 .blacklist_item("clock_adjtime")
                 // by default we want C enums to be converted into a Rust module with constants in it
