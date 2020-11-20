@@ -14,7 +14,6 @@ extern crate time as time_crate;
 mod docfile;
 mod files;
 mod math;
-mod time;
 
 pub use crate::{
     // Used by make-docfile
@@ -24,7 +23,6 @@ pub use crate::{
 
     math::{rust_count_one_bits, rust_count_trailing_zero_bits},
 
-    time::current_timespec,
 };
 
 #[cfg(all(not(test), target_os = "windows"))]
