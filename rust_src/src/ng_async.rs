@@ -116,7 +116,8 @@ impl EmacsPipe {
 	let plist = unsafe { Fprocess_plist(proc) };
 	unsafe { Fset_process_plist(proc, Fplist_put(plist, Qcall, handler)) };
 	match options {
-	    PipeOptions::STRING => unsafe { Fplist_put(plist, QCtype, Qstring) },
+	    PipeOptions::STRING => unsafe { Fset_process_plist(proc,
+							       Fplist_put(plist, QCtype, Qstring)) },
 	    PipeOptions::USER_DATA => panic!("Not Yet Supported"),
 	};
 
@@ -215,6 +216,8 @@ pub fn rust_worker<T: 'static + Fn(String) -> String + Send>(handler: LispObject
 
 #[lisp_fn]
 pub fn async_handler(proc: LispObject, data: LispObject) -> bool {
+    // @TODO In the case that orig_handler is NIL, we should
+    // fall back to the defaul process handler
     let orig_handler = unsafe {
 	let plist = Fprocess_plist(proc);
 	Fplist_get(plist, Qcall)
