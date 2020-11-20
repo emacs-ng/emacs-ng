@@ -10,10 +10,12 @@ use crate::remacs_sys::{
     QCplist,
     QCtype,
     Qstring,
+    Quser_ptr,
     Qcall,
     Qnil,
     build_string,
     make_multibyte_string,
+    make_user_ptr,
     intern_c_string,
     Fmake_pipe_process,
     Fset_process_plist,
@@ -22,6 +24,7 @@ use crate::remacs_sys::{
     Fprocess_plist,
     Ffuncall,
     XPROCESS,
+    XUSER_PTR,
     SDATA,
     SBYTES,
     Lisp_Type,
@@ -63,9 +66,57 @@ fn nullptr() -> usize {
     std::ptr::null() as *const i32 as usize
 }
 
+fn object_to_option(object: LispObject) -> PipeOptions {
+    match object {
+	Qstring => String::option(),
+	Quser_ptr => UserData::option(),
+	_ => panic!("None supported type for data transfer to async worker."),
+    }
+}
+
+fn option_to_object(option: PipeOptions) -> LispObject {
+    match option {
+	PipeOptions::STRING => Qstring,
+	PipeOptions::USER_DATA => Quser_ptr,
+    }
+}
+
 pub enum PipeOptions {
     STRING,
     USER_DATA,
+}
+
+pub struct UserData {
+    finalizer: Option<unsafe extern "C" fn(arg1: *mut libc::c_void)>,
+    data: *mut libc::c_void,
+}
+
+unsafe impl Send for UserData { }
+
+impl UserData {
+    fn with_data(finalizer: Option<unsafe extern "C" fn(arg1: *mut libc::c_void)>,
+		 data: *mut libc::c_void) -> UserData {
+	UserData {
+	    finalizer: finalizer,
+	    data: data
+	}
+    }
+}
+
+pub trait PipeOption {
+    fn option() -> PipeOptions;
+}
+
+impl PipeOption for String {
+    fn option() -> PipeOptions {
+	PipeOptions::STRING
+    }
+}
+
+impl PipeOption for UserData {
+    fn option() -> PipeOptions {
+	PipeOptions::USER_DATA
+    }
 }
 
 impl EmacsPipe {
@@ -84,15 +135,11 @@ impl EmacsPipe {
 	}
     }
 
-    pub fn with_handler(handler: LispObject) -> (EmacsPipe, LispObject) {
-	EmacsPipe::create(handler, PipeOptions::STRING) // @TODO don't hardcode
+    pub fn with_handler(handler: LispObject, option: PipeOptions) -> (EmacsPipe, LispObject) {
+	EmacsPipe::create(handler, option)
     }
 
-    pub fn _new() -> (EmacsPipe, LispObject) {
-	EmacsPipe::create(false.into(), PipeOptions::STRING) // @TODO don't hardcode
-    }
-
-    fn create(handler: LispObject, options: PipeOptions) -> (EmacsPipe, LispObject) {
+    fn create(handler: LispObject, option: PipeOptions) -> (EmacsPipe, LispObject) {
 	let proc = unsafe {
 	    // @TODO revisit this buffer name. I have not found a way to avoid
 	    // creating a buffer for this pipe. Sharing a buffer amoung pipes is fine
@@ -113,15 +160,11 @@ impl EmacsPipe {
 			       proc_args.as_mut_ptr())
 	};
 
-	let plist = unsafe { Fprocess_plist(proc) };
-	unsafe { Fset_process_plist(proc, Fplist_put(plist, Qcall, handler)) };
-	match options {
-	    PipeOptions::STRING => unsafe { Fset_process_plist(proc,
-							       Fplist_put(plist, QCtype, Qstring)) },
-	    PipeOptions::USER_DATA => panic!("Not Yet Supported"),
-	};
-
-
+	let qtype = option_to_object(option);
+	let mut plist = unsafe { Fprocess_plist(proc) };
+	plist = unsafe { Fplist_put(plist, Qcall, handler) };
+	plist = unsafe { Fplist_put(plist, QCtype, qtype) };
+	unsafe { Fset_process_plist(proc, plist) };
 	// This should be safe due to the fact that we have created the process
 	// ourselves
 	(unsafe { EmacsPipe::with_process(proc) }, proc)
@@ -129,7 +172,7 @@ impl EmacsPipe {
 
     // Called from the rust worker thread to send 'content' to the lisp
     // thread, to be processed by the users filter function
-    pub fn message_lisp(&mut self, content: String) -> std::io::Result<()> {
+    pub fn message_lisp<T>(&mut self, content: T) -> std::io::Result<()> {
 	let mut f = unsafe { File::from_raw_fd(self.out_fd) };
 	let ptr = Box::into_raw(Box::new(content));
 	let bin = ptr as *mut _ as usize;
@@ -146,14 +189,14 @@ impl EmacsPipe {
 	result
     }
 
-    pub fn write_ptr<T>(&mut self, ptr: *mut T) -> std::io::Result<()> {
+    pub fn write_ptr<T: PipeOption>(&mut self, ptr: *mut T) -> std::io::Result<()> {
 	let bin = ptr as *mut _ as usize;
 	self.internal_write(&bin.to_be_bytes())
     }
 
     // Called from the lisp thread, used to enqueue a message for the
     // rust worker to execute.
-    pub fn message_rust_worker(&mut self, content: String) -> std::io::Result<()> {
+    pub fn message_rust_worker<T: PipeOption>(&mut self, content: T) -> std::io::Result<()> {
 	self.write_ptr(Box::into_raw(Box::new(content)))
     }
 
@@ -173,9 +216,10 @@ impl EmacsPipe {
 
     // Used by the rust worker to receive incoming data. Messages sent from
     // calls to 'message_rust_worker' are recieved by read_pend_message
-    pub fn read_pend_message(&self) -> std::io::Result<String> {
-	self.read_next_ptr().map(|v| unsafe { *Box::from_raw(v as *mut String) })
+    pub fn read_pend_message<T: PipeOption>(&self) -> std::io::Result<T> {
+	self.read_next_ptr().map(|v| unsafe { *Box::from_raw(v as *mut T) })
     }
+
 
     pub fn close_stream(&mut self) -> std::io::Result<()> {
 	self.internal_write(&nullptr().to_be_bytes())
@@ -190,9 +234,11 @@ fn eprint_if_unexpected_error(err: std::io::Error) {
     }
 }
 
-pub fn rust_worker<T: 'static + Fn(String) -> String + Send>(handler: LispObject, fnc: T)
-							     -> LispObject {
-    let (mut pipe, proc) = EmacsPipe::with_handler(handler);
+pub fn rust_worker<S: Send + PipeOption,
+		   T: 'static + Fn(S) -> S + Send>
+    (handler: LispObject, fnc: T)
+     -> LispObject {
+    let (mut pipe, proc) = EmacsPipe::with_handler(handler, S::option());
     thread::spawn(move || {
 	loop {
 	    match pipe.read_pend_message() {
@@ -214,14 +260,30 @@ pub fn rust_worker<T: 'static + Fn(String) -> String + Send>(handler: LispObject
     proc
 }
 
+fn make_return_value(ptrval: usize, option: PipeOptions) -> LispObject {
+    match option {
+	PipeOptions::STRING => {
+	    let content = unsafe { *Box::from_raw(ptrval as *mut String) };
+	    let nchars = content.chars().count();
+	    let nbytes = content.len();
+	    let c_content = CString::new(content).unwrap();
+	    // These unwraps should be 'safe', as we want to panic if we overflow
+	    unsafe { make_multibyte_string(c_content.as_ptr(),
+					   nchars.try_into().unwrap(),
+					   nbytes.try_into().unwrap()) }
+	},
+
+	PipeOptions::USER_DATA => {
+	    let content = unsafe { *Box::from_raw(ptrval as *mut UserData) };
+	    unsafe { make_user_ptr(content.finalizer, content.data) }
+	}
+    }
+}
+
 #[lisp_fn]
 pub fn async_handler(proc: LispObject, data: LispObject) -> bool {
-    // @TODO In the case that orig_handler is NIL, we should
-    // fall back to the defaul process handler
-    let orig_handler = unsafe {
-	let plist = Fprocess_plist(proc);
-	Fplist_get(plist, Qcall)
-    };
+    let plist = unsafe { Fprocess_plist(proc) };
+    let orig_handler = unsafe { Fplist_get(plist, Qcall) };
 
     // This code may seem odd. Since we are in the same process space as
     // the lisp thread, our data transfer is not the string itself, but
@@ -233,18 +295,10 @@ pub fn async_handler(proc: LispObject, data: LispObject) -> bool {
     let ssize = unsafe { SBYTES(data) };
     let sslice = unsafe { slice::from_raw_parts(sdata as *const u8, ssize as usize) };
     let bin = String::from_utf8_lossy(sslice).parse::<usize>().unwrap();
-    let content = unsafe { *Box::from_raw(bin as *mut String) };
 
-    let nchars = content.chars().count();
-    let nbytes = content.len();
-
-    let c_content = CString::new(content).unwrap();
-    // These unwraps should be 'safe', as we want to panic if we overflow
-    let calculated_string = unsafe { make_multibyte_string(c_content.as_ptr(),
-						nchars.try_into().unwrap(),
-						nbytes.try_into().unwrap()) };
-
-    let mut buffer = vec![orig_handler, proc, calculated_string];
+    let qtype = unsafe { Fplist_get(plist, QCtype) };
+    let retval = make_return_value(bin, object_to_option(qtype));
+    let mut buffer = vec![orig_handler, proc, retval];
     unsafe { Ffuncall(3, buffer.as_mut_ptr()) };
     true
 }
@@ -254,14 +308,45 @@ pub async fn async_echo(s: String) -> String {
     s
 }
 
+#[async_stream]
+pub async fn async_data_echo(e: UserData) -> UserData {
+    e
+}
+
+fn internal_send_message(pipe: &mut EmacsPipe, message: LispObject, option: PipeOptions) -> bool {
+    match option {
+	PipeOptions::STRING => {
+	    let sdata = unsafe { SDATA(message) };
+	    let ssize = unsafe { SBYTES(message) };
+	    let sslice = unsafe { slice::from_raw_parts(sdata as *const u8, ssize as usize) };
+	    let contents = String::from_utf8_lossy(sslice);
+	    pipe.message_rust_worker(contents.into_owned()).is_ok()
+	},
+	PipeOptions::USER_DATA => {
+	    let data_ptr = unsafe { XUSER_PTR(message) };
+	    let data = unsafe { *data_ptr };
+	    let ud = UserData::with_data(data.finalizer, data.p);
+	    unsafe {
+		(*data_ptr).p = std::ptr::null_mut();
+		(*data_ptr).finalizer = None;
+	    };
+
+	    pipe.message_rust_worker(ud).is_ok()
+	},
+
+    }
+}
+
 #[lisp_fn]
 pub fn async_send_message(proc: LispObject, message: LispObject) -> bool {
     let mut pipe = unsafe { EmacsPipe::with_process(proc) };
-    let sdata = unsafe { SDATA(message) };
-    let ssize = unsafe { SBYTES(message) };
-    let sslice = unsafe { slice::from_raw_parts(sdata as *const u8, ssize as usize) };
-    let contents = String::from_utf8_lossy(sslice);
-    pipe.message_rust_worker(contents.into_owned()).is_ok()
+    let plist = unsafe { Fprocess_plist(proc) };
+    let qtype = unsafe { Fplist_get(plist, QCtype) };
+    match qtype {
+	Qstring => internal_send_message(&mut pipe, message, String::option()),
+	Quser_ptr => internal_send_message(&mut pipe, message, UserData::option()),
+	_ => panic!("Non-supported type for data transfer to async worker."),
+    }
 }
 
 #[lisp_fn]
