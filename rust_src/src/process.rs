@@ -26,12 +26,4 @@ impl From<LispObject> for Option<LispProcessRef> {
     }
 }
 
-// use remacs_macros::lisp_fn;
-
-// /// Return t if OBJECT is a process.
-// #[lisp_fn]
-// pub fn my_foo(object: LispProcessRef) {
-//     let _foo = 1;
-// }
-
-// include!(concat!(env!("OUT_DIR"), "/process_exports.rs"));
+include!(concat!(env!("OUT_DIR"), "/process_exports.rs"));

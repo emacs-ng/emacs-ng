@@ -128,30 +128,30 @@ pub fn lisp_fn(attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
             crate::lisp::LispObject::from(ret)
         }
 
-	use lazy_static::lazy_static as #lazy_include;
+    use lazy_static::lazy_static as #lazy_include;
 
-	#[no_mangle]
-	pub static mut #srname: std::mem::MaybeUninit<crate::remacs_sys::Aligned_Lisp_Subr>
-	    = std::mem::MaybeUninit::<crate::remacs_sys::Aligned_Lisp_Subr>::uninit();
+    #[no_mangle]
+    pub static mut #srname: std::mem::MaybeUninit<crate::remacs_sys::Aligned_Lisp_Subr>
+        = std::mem::MaybeUninit::<crate::remacs_sys::Aligned_Lisp_Subr>::uninit();
 
         #lazy_include! {
             pub static ref #sname: crate::lisp::LispSubrRef = {
                 let mut subr = crate::remacs_sys::Aligned_Lisp_Subr::default();
-		unsafe {
-		    let mut subr_ref = subr.s.as_mut();
-		    subr_ref.header = crate::remacs_sys::vectorlike_header {
-			size: ((crate::remacs_sys::pvec_type::PVEC_SUBR as libc::ptrdiff_t)
-			       << crate::remacs_sys::More_Lisp_Bits::PSEUDOVECTOR_AREA_BITS)
-			    #windows_header,
-		    };
-		    subr_ref.function = crate::remacs_sys::Lisp_Subr__bindgen_ty_1 {
+        unsafe {
+            let mut subr_ref = subr.s.as_mut();
+            subr_ref.header = crate::remacs_sys::vectorlike_header {
+            size: ((crate::remacs_sys::pvec_type::PVEC_SUBR as libc::ptrdiff_t)
+                   << crate::remacs_sys::More_Lisp_Bits::PSEUDOVECTOR_AREA_BITS)
+                #windows_header,
+            };
+            subr_ref.function = crate::remacs_sys::Lisp_Subr__bindgen_ty_1 {
                         #functype: (Some(self::#fname))
-		    };
-		    subr_ref.min_args = #min_args;
-		    subr_ref.max_args = #max_args;
-		    subr_ref.symbol_name = (#symbol_name).as_ptr() as *const libc::c_char;
-		    subr_ref.__bindgen_anon_1.intspec = #intspec;
-		    subr_ref.doc = 0;
+            };
+            subr_ref.min_args = #min_args;
+            subr_ref.max_args = #max_args;
+            subr_ref.symbol_name = (#symbol_name).as_ptr() as *const libc::c_char;
+            subr_ref.__bindgen_anon_1.intspec = #intspec;
+            subr_ref.doc = 0;
 
                     std::ptr::copy_nonoverlapping(&subr, #srname.as_mut_ptr(), 1);
                     crate::lisp::ExternalPtr::new(#srname.as_mut_ptr())
@@ -177,12 +177,12 @@ pub fn async_stream(_attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
 
     let tokens = quote! {
 
-	#[lisp_fn(min = "1")]
-	pub fn #async_name (handler: crate::lisp::LispObject) -> crate::lisp::LispObject {
-	    crate::ng_async::rust_worker(handler, |s| {
-		::futures::executor::block_on(#name(s))
-	    })
-	}
+    #[lisp_fn(min = "1")]
+    pub fn #async_name (handler: crate::lisp::LispObject) -> crate::lisp::LispObject {
+        crate::ng_async::rust_worker(handler, |s| {
+        ::futures::executor::block_on(#name(s))
+        })
+    }
 
     };
 
