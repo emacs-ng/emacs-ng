@@ -58,5 +58,4 @@ impl LispVectorlikeRef {
             None
         }
     }
-
 }

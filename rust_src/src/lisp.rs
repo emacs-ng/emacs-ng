@@ -55,16 +55,14 @@ impl LispObject {
 
 impl From<EmacsInt> for LispObject {
     fn from(o: EmacsInt) -> Self {
-	LispObject::from_C(o)
+        LispObject::from_C(o)
     }
-
 }
 
 impl From<LispObject> for EmacsInt {
     fn from(o: LispObject) -> Self {
-	LispObject::to_C(o)
+        LispObject::to_C(o)
     }
-
 }
 
 impl From<()> for LispObject {
