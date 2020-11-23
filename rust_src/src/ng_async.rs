@@ -91,6 +91,8 @@ pub struct UserData {
     data: *mut libc::c_void,
 }
 
+// UserData will be safe to send because we will take ownership of
+// the underlying data from Lisp.
 unsafe impl Send for UserData { }
 
 impl UserData {
@@ -172,7 +174,7 @@ impl EmacsPipe {
 
     // Called from the rust worker thread to send 'content' to the lisp
     // thread, to be processed by the users filter function
-    pub fn message_lisp<T>(&mut self, content: T) -> std::io::Result<()> {
+    pub fn message_lisp<T: PipeOption>(&mut self, content: T) -> std::io::Result<()> {
 	let mut f = unsafe { File::from_raw_fd(self.out_fd) };
 	let ptr = Box::into_raw(Box::new(content));
 	let bin = ptr as *mut _ as usize;
@@ -342,11 +344,8 @@ pub fn async_send_message(proc: LispObject, message: LispObject) -> bool {
     let mut pipe = unsafe { EmacsPipe::with_process(proc) };
     let plist = unsafe { Fprocess_plist(proc) };
     let qtype = unsafe { Fplist_get(plist, QCtype) };
-    match qtype {
-	Qstring => internal_send_message(&mut pipe, message, String::option()),
-	Quser_ptr => internal_send_message(&mut pipe, message, UserData::option()),
-	_ => panic!("Non-supported type for data transfer to async worker."),
-    }
+    let option = object_to_option(qtype);
+    internal_send_message(&mut pipe, message, option)
 }
 
 #[lisp_fn]
