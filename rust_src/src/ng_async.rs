@@ -3,8 +3,8 @@ use crate::process::LispProcessRef;
 use crate::remacs_sys::{
     build_string, intern_c_string, make_multibyte_string, make_user_ptr, Ffuncall,
     Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, Fstringp,
-    Fuser_ptrp, QCcoding, QCfilter, QCname, QCplist, QCtype, Qcall, Qnil, Qraw_text, Qreturn,
-    Qstring, Qstringp, Quser_ptr, Quser_ptrp, SBYTES, SDATA, XUSER_PTR,
+    Fuser_ptrp, QCcoding, QCfilter, QCname, QCplist, QCtype, Qcall, Qdata, Qnil, Qraw_text,
+    Qreturn, Qstring, Qstringp, Quser_ptr, Quser_ptrp, SBYTES, SDATA, XUSER_PTR,
 };
 use remacs_macros::{async_stream, lisp_fn};
 use std::{slice, thread};
@@ -356,7 +356,10 @@ pub fn async_handler(proc: LispObject, data: LispObject) -> bool {
         let mut buffer = vec![orig_handler, proc, retval];
         unsafe { Ffuncall(3, buffer.as_mut_ptr()) };
     } else {
-        // @TODO signal an error here, don't panic.
+        // This means that someone has mishandled the
+        // process plist and removed :type. Without this,
+        // we cannot safely execute data transfer.
+        wrong_type!(Qdata, qtype);
     }
 
     true
@@ -415,8 +418,10 @@ pub fn async_send_message(proc: LispObject, message: LispObject) -> bool {
     if let Some(option) = qtype.to_data_option() {
         internal_send_message(&mut pipe, message, option)
     } else {
-        // @TODO signal error
-        false
+        // This means that someone has mishandled the
+        // process plist and removed :type. Without this,
+        // we cannot safely execute data transfer.
+        wrong_type!(Qdata, qtype);
     }
 }
 
