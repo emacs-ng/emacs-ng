@@ -32,7 +32,7 @@
 //! `&str`, and this module regrettably contains adapted copies of
 //! stretches of `std::str` functions.
 
-use libc::{c_char, ptrdiff_t};
+use libc::ptrdiff_t;
 
 use std::slice;
 

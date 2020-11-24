@@ -4,14 +4,14 @@ use crate::{
     multibyte::LispStringRef,
     remacs_sys::{
         build_string, intern_c_string, make_multibyte_string, make_user_ptr, Ffuncall,
-        Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, Fstringp,
-        Fuser_ptrp, QCcoding, QCfilter, QCname, QCplist, QCtype, Qcall, Qdata, Qnil, Qraw_text,
-        Qreturn, Qstring, Qstringp, Quser_ptr, Quser_ptrp, SBYTES, SDATA, XUSER_PTR,
+        Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, Fuser_ptrp,
+        QCcoding, QCfilter, QCname, QCplist, QCtype, Qcall, Qdata, Qnil, Qraw_text, Qreturn,
+        Qstring, Quser_ptr, Quser_ptrp, XUSER_PTR,
     },
 };
 
 use remacs_macros::{async_stream, lisp_fn};
-use std::{slice, thread};
+use std::thread;
 
 use std::{
     convert::TryInto,
@@ -51,10 +51,6 @@ fn nullptr() -> usize {
 
 fn is_user_ptr(o: LispObject) -> bool {
     unsafe { Fuser_ptrp(o).into() }
-}
-
-fn is_string(o: LispObject) -> bool {
-    unsafe { Fstringp(o).into() }
 }
 
 impl LispObject {
@@ -380,14 +376,9 @@ fn internal_send_message(
 ) -> bool {
     match option {
         PipeDataOption::STRING => {
-            if !is_string(message) {
-                wrong_type!(Qstringp, message);
-            }
-
-            let sdata = unsafe { SDATA(message) };
-            let ssize = unsafe { SBYTES(message) };
-            let sslice = unsafe { slice::from_raw_parts(sdata as *const u8, ssize as usize) };
-            let contents = String::from_utf8_lossy(sslice);
+            let string: LispStringRef = message.into();
+            let str_slice = string.as_slice();
+            let contents = String::from_utf8_lossy(str_slice);
             pipe.message_rust_worker(contents.into_owned()).is_ok()
         }
         PipeDataOption::USER_DATA => {
