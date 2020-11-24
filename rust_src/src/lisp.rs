@@ -55,16 +55,14 @@ impl LispObject {
 
 impl From<EmacsInt> for LispObject {
     fn from(o: EmacsInt) -> Self {
-	LispObject::from_C(o)
+        LispObject::from_C(o)
     }
-
 }
 
 impl From<LispObject> for EmacsInt {
     fn from(o: LispObject) -> Self {
-	LispObject::to_C(o)
+        LispObject::to_C(o)
     }
-
 }
 
 impl From<()> for LispObject {
@@ -171,6 +169,10 @@ impl<T> ExternalPtr<T> {
 
     pub fn from_ptr(ptr: *mut c_void) -> Option<Self> {
         unsafe { ptr.as_ref().map(|p| mem::transmute(p)) }
+    }
+
+    pub fn cast<U>(mut self) -> ExternalPtr<U> {
+        ExternalPtr::<U>(self.as_mut().cast())
     }
 }
 

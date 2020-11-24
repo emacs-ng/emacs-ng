@@ -15,11 +15,10 @@
 //! - `USE_LSB_TAG`
 //! - `BoolBF`
 
-use libc::{self, c_char, c_void, ptrdiff_t, c_int};
+use libc::{self, c_char, c_int, c_void, ptrdiff_t};
 use std::mem;
 
 use libc::timespec;
-use remacs_lib::current_timespec;
 
 use crate::lisp::LispObject;
 

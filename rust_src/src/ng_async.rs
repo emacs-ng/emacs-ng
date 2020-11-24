@@ -1,8 +1,3 @@
-use remacs_macros::{lisp_fn, async_stream};
-use std::{
-    thread,
-    slice,
-};
 use crate::lisp::LispObject;
 use crate::remacs_sys::{
     QCname,
@@ -32,13 +27,15 @@ use crate::remacs_sys::{
     SBYTES,
     Lisp_Type,
 };
+use remacs_macros::{async_stream, lisp_fn};
+use std::{slice, thread};
 
 use std::{
-    fs::File,
-    io::{Write, Read},
-    os::unix::io::{FromRawFd, IntoRawFd},
     convert::TryInto,
     ffi::CString,
+    fs::File,
+    io::{Read, Write},
+    os::unix::io::{FromRawFd, IntoRawFd},
 };
 
 #[repr(u32)]
@@ -152,18 +149,18 @@ impl PipeData for UserData {
 
 impl EmacsPipe {
     pub unsafe fn with_process(process: LispObject) -> EmacsPipe {
-	let raw_proc = XPROCESS(process);
-	let out = (*raw_proc).open_fd[PIPE_PROCESS::SUBPROCESS_STDOUT as usize];
-	let inf = (*raw_proc).open_fd[PIPE_PROCESS::SUBPROCESS_STDIN as usize];
-	let pi = (*raw_proc).open_fd[PIPE_PROCESS::READ_FROM_SUBPROCESS as usize];
-	let po = (*raw_proc).open_fd[PIPE_PROCESS::WRITE_TO_SUBPROCESS as usize];
+        let raw_proc = XPROCESS(process);
+        let out = (*raw_proc).open_fd[PIPE_PROCESS::SUBPROCESS_STDOUT as usize];
+        let inf = (*raw_proc).open_fd[PIPE_PROCESS::SUBPROCESS_STDIN as usize];
+        let pi = (*raw_proc).open_fd[PIPE_PROCESS::READ_FROM_SUBPROCESS as usize];
+        let po = (*raw_proc).open_fd[PIPE_PROCESS::WRITE_TO_SUBPROCESS as usize];
 
-	EmacsPipe {
-	    out_fd: out,
-	    in_fd: inf,
-	    _in_subp: pi,
-	    out_subp: po,
-	}
+        EmacsPipe {
+            out_fd: out,
+            in_fd: inf,
+            _in_subp: pi,
+            out_subp: po,
+        }
     }
 
     pub fn with_handler(handler: LispObject, input: PipeDataOption, output: PipeDataOption) -> (EmacsPipe, LispObject) {
@@ -222,11 +219,10 @@ impl EmacsPipe {
     }
 
     fn internal_write(&mut self, bytes: &[u8]) -> std::io::Result<()> {
-	let mut f = unsafe { File::from_raw_fd(self.out_subp) };
-	let result = f.write(bytes)
-	    .map(|_| ());
-	f.into_raw_fd();
-	result
+        let mut f = unsafe { File::from_raw_fd(self.out_subp) };
+        let result = f.write(bytes).map(|_| ());
+        f.into_raw_fd();
+        result
     }
 
     pub fn write_ptr<T: PipeData>(&mut self, ptr: *mut T) -> std::io::Result<()> {
@@ -241,17 +237,20 @@ impl EmacsPipe {
     }
 
     pub fn read_next_ptr(&self) -> std::io::Result<usize> {
-	let mut f = unsafe { File::from_raw_fd(self.in_fd) };
-	let mut buffer = [0; ptr_size()];
-	f.read(&mut buffer)?;
-	let raw_value = usize::from_be_bytes(buffer);
-	f.into_raw_fd();
+        let mut f = unsafe { File::from_raw_fd(self.in_fd) };
+        let mut buffer = [0; ptr_size()];
+        f.read(&mut buffer)?;
+        let raw_value = usize::from_be_bytes(buffer);
+        f.into_raw_fd();
 
-	if raw_value == nullptr() {
-	    Err(std::io::Error::new(std::io::ErrorKind::ConnectionAborted, "nullptr"))
-	} else {
-	    Ok(raw_value)
-	}
+        if raw_value == nullptr() {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::ConnectionAborted,
+                "nullptr",
+            ))
+        } else {
+            Ok(raw_value)
+        }
     }
 
     // Used by the rust worker to receive incoming data. Messages sent from
@@ -262,7 +261,7 @@ impl EmacsPipe {
 
 
     pub fn close_stream(&mut self) -> std::io::Result<()> {
-	self.internal_write(&nullptr().to_be_bytes())
+        self.internal_write(&nullptr().to_be_bytes())
     }
 }
 
@@ -270,7 +269,7 @@ fn eprint_if_unexpected_error(err: std::io::Error) {
     // If we explicity set "ConnectionAborted" to close the stream
     // we don't want to log, as that was expected.
     if err.kind() != std::io::ErrorKind::ConnectionAborted {
-	eprintln!("Async stream closed; Reason {:?}", err);
+        eprintln!("Async stream closed; Reason {:?}", err);
     }
 }
 
