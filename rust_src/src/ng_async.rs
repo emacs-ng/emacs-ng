@@ -95,12 +95,30 @@ pub struct UserData {
 // the underlying data from Lisp.
 unsafe impl Send for UserData { }
 
+extern "C" fn rust_finalize<T> (raw: *mut libc::c_void) {
+    unsafe { Box::from_raw(raw as *mut T) };
+}
+
 impl UserData {
-    fn with_data(finalizer: Option<unsafe extern "C" fn(arg1: *mut libc::c_void)>,
-		 data: *mut libc::c_void) -> UserData {
+    pub fn with_data_and_finalizer(data: *mut libc::c_void, finalizer: Option<unsafe extern "C" fn(arg1: *mut libc::c_void)>) -> Self {
 	UserData {
 	    finalizer: finalizer,
 	    data: data
+	}
+    }
+
+    pub fn new<T: Sized>(t: T) -> UserData {
+	let boxed = Box::into_raw(Box::new(t));
+	let finalizer = rust_finalize::<T>;
+	UserData::with_data_and_finalizer(boxed as *mut libc::c_void, Some(finalizer))
+    }
+}
+
+impl Default for UserData {
+    fn default() -> Self {
+	UserData {
+	    finalizer: None,
+	    data: std::ptr::null_mut(),
 	}
     }
 }
@@ -341,17 +359,6 @@ pub async fn async_data_echo(e: UserData) -> UserData {
     e
 }
 
-
-// This is a test function to demo functionality.
-#[async_stream]
-pub async fn async_parse_rust(s: String) -> UserData {
-    UserData {
-	finalizer: None,
-	data: std::ptr::null_mut()
-    }
-
-}
-
 fn internal_send_message(pipe: &mut EmacsPipe, message: LispObject, option: PipeDataOption) -> bool {
     match option {
 	PipeDataOption::STRING => {
@@ -366,7 +373,7 @@ fn internal_send_message(pipe: &mut EmacsPipe, message: LispObject, option: Pipe
 	    // @TODO add type checking for being user data
 	    let data_ptr = unsafe { XUSER_PTR(message) };
 	    let data = unsafe { *data_ptr };
-	    let ud = UserData::with_data(data.finalizer, data.p);
+	    let ud = UserData::with_data_and_finalizer(data.p, data.finalizer);
 	    unsafe {
 		(*data_ptr).p = std::ptr::null_mut();
 		(*data_ptr).finalizer = None;
