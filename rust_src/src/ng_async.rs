@@ -1,35 +1,11 @@
 use crate::lisp::LispObject;
-use crate::remacs_sys::{
-    QCname,
-    QCfilter,
-    QCplist,
-    QCtype,
-    QCcoding,
-    Qstring,
-    Quser_ptr,
-    Qcall,
-    Qnil,
-    Quser_ptrp,
-    Qstringp,
-    Qraw_text,
-    Qreturn,
-    build_string,
-    make_multibyte_string,
-    make_user_ptr,
-    intern_c_string,
-    Fmake_pipe_process,
-    Fset_process_plist,
-    Fuser_ptrp,
-    Fstringp,
-    Fplist_put,
-    Fplist_get,
-    Fprocess_plist,
-    Ffuncall,
-    XUSER_PTR,
-    SDATA,
-    SBYTES,
-};
 use crate::process::LispProcessRef;
+use crate::remacs_sys::{
+    build_string, intern_c_string, make_multibyte_string, make_user_ptr, Ffuncall,
+    Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, Fstringp,
+    Fuser_ptrp, QCcoding, QCfilter, QCname, QCplist, QCtype, Qcall, Qnil, Qraw_text, Qreturn,
+    Qstring, Qstringp, Quser_ptr, Quser_ptrp, SBYTES, SDATA, XUSER_PTR,
+};
 use remacs_macros::{async_stream, lisp_fn};
 use std::{slice, thread};
 
@@ -79,18 +55,18 @@ fn is_string(o: LispObject) -> bool {
 
 impl LispObject {
     fn to_data_option(self) -> Option<PipeDataOption> {
-	match self {
-	    Qstring => Some(String::marker()),
-	    Quser_ptr => Some(UserData::marker()),
-	    _ => None
-	}
+        match self {
+            Qstring => Some(String::marker()),
+            Quser_ptr => Some(UserData::marker()),
+            _ => None,
+        }
     }
 
     fn from_data_option(option: PipeDataOption) -> LispObject {
-	match option {
-	    PipeDataOption::STRING => Qstring,
-	    PipeDataOption::USER_DATA => Quser_ptr,
-	}
+        match option {
+            PipeDataOption::STRING => Qstring,
+            PipeDataOption::USER_DATA => Quser_ptr,
+        }
     }
 }
 
@@ -101,33 +77,36 @@ pub struct UserData {
 
 // UserData will be safe to send because we will take ownership of
 // the underlying data from Lisp.
-unsafe impl Send for UserData { }
+unsafe impl Send for UserData {}
 
-extern "C" fn rust_finalize<T> (raw: *mut libc::c_void) {
+extern "C" fn rust_finalize<T>(raw: *mut libc::c_void) {
     unsafe { Box::from_raw(raw as *mut T) };
 }
 
 impl UserData {
-    pub fn with_data_and_finalizer(data: *mut libc::c_void, finalizer: Option<unsafe extern "C" fn(arg1: *mut libc::c_void)>) -> Self {
-	UserData {
-	    finalizer: finalizer,
-	    data: data
-	}
+    pub fn with_data_and_finalizer(
+        data: *mut libc::c_void,
+        finalizer: Option<unsafe extern "C" fn(arg1: *mut libc::c_void)>,
+    ) -> Self {
+        UserData {
+            finalizer: finalizer,
+            data: data,
+        }
     }
 
     pub fn new<T: Sized>(t: T) -> UserData {
-	let boxed = Box::into_raw(Box::new(t));
-	let finalizer = rust_finalize::<T>;
-	UserData::with_data_and_finalizer(boxed as *mut libc::c_void, Some(finalizer))
+        let boxed = Box::into_raw(Box::new(t));
+        let finalizer = rust_finalize::<T>;
+        UserData::with_data_and_finalizer(boxed as *mut libc::c_void, Some(finalizer))
     }
 }
 
 impl Default for UserData {
     fn default() -> Self {
-	UserData {
-	    finalizer: None,
-	    data: std::ptr::null_mut(),
-	}
+        UserData {
+            finalizer: None,
+            data: std::ptr::null_mut(),
+        }
     }
 }
 
@@ -148,13 +127,13 @@ pub trait PipeData {
 
 impl PipeData for String {
     fn marker() -> PipeDataOption {
-	PipeDataOption::STRING
+        PipeDataOption::STRING
     }
 }
 
 impl PipeData for UserData {
     fn marker() -> PipeDataOption {
-	PipeDataOption::USER_DATA
+        PipeDataOption::USER_DATA
     }
 }
 
@@ -174,41 +153,52 @@ impl EmacsPipe {
         }
     }
 
-    pub fn with_handler(handler: LispObject, input: PipeDataOption, output: PipeDataOption) -> (EmacsPipe, LispObject) {
-	EmacsPipe::create(handler, input, output)
+    pub fn with_handler(
+        handler: LispObject,
+        input: PipeDataOption,
+        output: PipeDataOption,
+    ) -> (EmacsPipe, LispObject) {
+        EmacsPipe::create(handler, input, output)
     }
 
-    fn create(handler: LispObject, input: PipeDataOption, output: PipeDataOption) -> (EmacsPipe, LispObject) {
-	let proc = unsafe {
-	    // We panic here only because it will be a fairly exceptional
-	    // situation in which I cannot alloc these small strings on the heap
-	    let cstr = CString::new("async-msg-buffer")
-		.expect("Failed to create pipe for async function");
-	    let async_str = CString::new("async-handler")
-		.expect("Failed to crate string for intern function call");
-	    let mut proc_args = vec![
-		QCname, build_string(cstr.as_ptr()),
-		QCfilter, intern_c_string(async_str.as_ptr()),
-		QCplist, Qnil,
-		QCcoding, Qraw_text,
-	    ];
+    fn create(
+        handler: LispObject,
+        input: PipeDataOption,
+        output: PipeDataOption,
+    ) -> (EmacsPipe, LispObject) {
+        let proc = unsafe {
+            // We panic here only because it will be a fairly exceptional
+            // situation in which I cannot alloc these small strings on the heap
+            let cstr =
+                CString::new("async-msg-buffer").expect("Failed to create pipe for async function");
+            let async_str = CString::new("async-handler")
+                .expect("Failed to crate string for intern function call");
+            let mut proc_args = vec![
+                QCname,
+                build_string(cstr.as_ptr()),
+                QCfilter,
+                intern_c_string(async_str.as_ptr()),
+                QCplist,
+                Qnil,
+                QCcoding,
+                Qraw_text,
+            ];
 
-	    // This unwrap will never panic because proc_args size is small
-	    // and will never overflow.
-	    Fmake_pipe_process(proc_args.len().try_into().unwrap(),
-			       proc_args.as_mut_ptr())
-	};
+            // This unwrap will never panic because proc_args size is small
+            // and will never overflow.
+            Fmake_pipe_process(proc_args.len().try_into().unwrap(), proc_args.as_mut_ptr())
+        };
 
-	let input_type = LispObject::from_data_option(input);
-	let output_type = LispObject::from_data_option(output);
-	let mut plist = unsafe { Fprocess_plist(proc) };
-	plist = unsafe { Fplist_put(plist, Qcall, handler) };
-	plist = unsafe { Fplist_put(plist, QCtype, input_type) };
-	plist = unsafe { Fplist_put(plist, Qreturn, output_type) };
-	unsafe { Fset_process_plist(proc, plist) };
-	// This should be safe due to the fact that we have created the process
-	// ourselves
-	(unsafe { EmacsPipe::with_process(proc) }, proc)
+        let input_type = LispObject::from_data_option(input);
+        let output_type = LispObject::from_data_option(output);
+        let mut plist = unsafe { Fprocess_plist(proc) };
+        plist = unsafe { Fplist_put(plist, Qcall, handler) };
+        plist = unsafe { Fplist_put(plist, QCtype, input_type) };
+        plist = unsafe { Fplist_put(plist, Qreturn, output_type) };
+        unsafe { Fset_process_plist(proc, plist) };
+        // This should be safe due to the fact that we have created the process
+        // ourselves
+        (unsafe { EmacsPipe::with_process(proc) }, proc)
     }
 
     // Called from the rust worker thread to send 'content' to the lisp
@@ -221,12 +211,12 @@ impl EmacsPipe {
     // An example pointer of 0xffff00ff as raw bytes will contain
     // a NULL TERMINATOR segment prior to pointer completion.
     pub fn message_lisp<T: PipeData>(&mut self, content: T) -> std::io::Result<()> {
-	let mut f = unsafe { File::from_raw_fd(self.out_fd) };
-	let ptr = Box::into_raw(Box::new(content));
-	let bin = ptr as *mut _ as usize;
-	let result = f.write(bin.to_string().as_bytes()).map(|_| ());
-	f.into_raw_fd();
-	result
+        let mut f = unsafe { File::from_raw_fd(self.out_fd) };
+        let ptr = Box::into_raw(Box::new(content));
+        let bin = ptr as *mut _ as usize;
+        let result = f.write(bin.to_string().as_bytes()).map(|_| ());
+        f.into_raw_fd();
+        result
     }
 
     fn internal_write(&mut self, bytes: &[u8]) -> std::io::Result<()> {
@@ -237,14 +227,14 @@ impl EmacsPipe {
     }
 
     pub fn write_ptr<T: PipeData>(&mut self, ptr: *mut T) -> std::io::Result<()> {
-	let bin = ptr as *mut _ as usize;
-	self.internal_write(&bin.to_be_bytes())
+        let bin = ptr as *mut _ as usize;
+        self.internal_write(&bin.to_be_bytes())
     }
 
     // Called from the lisp thread, used to enqueue a message for the
     // rust worker to execute.
     pub fn message_rust_worker<T: PipeData>(&mut self, content: T) -> std::io::Result<()> {
-	self.write_ptr(Box::into_raw(Box::new(content)))
+        self.write_ptr(Box::into_raw(Box::new(content)))
     }
 
     pub fn read_next_ptr(&self) -> std::io::Result<usize> {
@@ -267,9 +257,9 @@ impl EmacsPipe {
     // Used by the rust worker to receive incoming data. Messages sent from
     // calls to 'message_rust_worker' are recieved by read_pend_message
     pub fn read_pend_message<T: PipeData>(&self) -> std::io::Result<T> {
-	self.read_next_ptr().map(|v| unsafe { *Box::from_raw(v as *mut T) })
+        self.read_next_ptr()
+            .map(|v| unsafe { *Box::from_raw(v as *mut T) })
     }
-
 
     pub fn close_stream(&mut self) -> std::io::Result<()> {
         self.internal_write(&nullptr().to_be_bytes())
@@ -284,28 +274,29 @@ fn eprint_if_unexpected_error(err: std::io::Error) {
     }
 }
 
-pub fn rust_worker<INPUT: Send + PipeData,
-		   OUTPUT: Send + PipeData,
-		   T: 'static + Fn(INPUT) -> OUTPUT + Send>
-    (handler: LispObject, fnc: T)
-     -> LispObject {
+pub fn rust_worker<
+    INPUT: Send + PipeData,
+    OUTPUT: Send + PipeData,
+    T: 'static + Fn(INPUT) -> OUTPUT + Send,
+>(
+    handler: LispObject,
+    fnc: T,
+) -> LispObject {
     let (mut pipe, proc) = EmacsPipe::with_handler(handler, INPUT::marker(), OUTPUT::marker());
-    thread::spawn(move || {
-	loop {
-	    match pipe.read_pend_message() {
-		Ok(message) => {
-		    let result = fnc(message);
-		    if let Err(err) = pipe.message_lisp(result) {
-			eprint_if_unexpected_error(err);
-			break;
-		    }
-		},
-		Err(err) => {
-		    eprint_if_unexpected_error(err);
-		    break;
-		}
-	    }
-	}
+    thread::spawn(move || loop {
+        match pipe.read_pend_message() {
+            Ok(message) => {
+                let result = fnc(message);
+                if let Err(err) = pipe.message_lisp(result) {
+                    eprint_if_unexpected_error(err);
+                    break;
+                }
+            }
+            Err(err) => {
+                eprint_if_unexpected_error(err);
+                break;
+            }
+        }
     });
 
     proc
@@ -313,21 +304,25 @@ pub fn rust_worker<INPUT: Send + PipeData,
 
 fn make_return_value(ptrval: usize, option: PipeDataOption) -> LispObject {
     match option {
-	PipeDataOption::STRING => {
-	    let content = unsafe { *Box::from_raw(ptrval as *mut String) };
-	    let nchars = content.chars().count();
-	    let nbytes = content.len();
-	    let c_content = CString::new(content).unwrap();
-	    // These unwraps should be 'safe', as we want to panic if we overflow
-	    unsafe { make_multibyte_string(c_content.as_ptr(),
-					   nchars.try_into().unwrap(),
-					   nbytes.try_into().unwrap()) }
-	},
+        PipeDataOption::STRING => {
+            let content = unsafe { *Box::from_raw(ptrval as *mut String) };
+            let nchars = content.chars().count();
+            let nbytes = content.len();
+            let c_content = CString::new(content).unwrap();
+            // These unwraps should be 'safe', as we want to panic if we overflow
+            unsafe {
+                make_multibyte_string(
+                    c_content.as_ptr(),
+                    nchars.try_into().unwrap(),
+                    nbytes.try_into().unwrap(),
+                )
+            }
+        }
 
-	PipeDataOption::USER_DATA => {
-	    let content = unsafe { *Box::from_raw(ptrval as *mut UserData) };
-	    unsafe { make_user_ptr(content.finalizer, content.data) }
-	}
+        PipeDataOption::USER_DATA => {
+            let content = unsafe { *Box::from_raw(ptrval as *mut UserData) };
+            unsafe { make_user_ptr(content.finalizer, content.data) }
+        }
     }
 }
 
@@ -341,7 +336,7 @@ pub fn async_handler(proc: LispObject, data: LispObject) -> bool {
     // how the data transfer functionality works. See below
     // comment.
     if !is_string(data) {
-	wrong_type!(Qstringp, data);
+        wrong_type!(Qstringp, data);
     }
 
     // This code may seem odd. Since we are in the same process space as
@@ -357,11 +352,11 @@ pub fn async_handler(proc: LispObject, data: LispObject) -> bool {
 
     let qtype = unsafe { Fplist_get(plist, Qreturn) };
     if let Some(quoted_type) = qtype.to_data_option() {
-	let retval = make_return_value(bin, quoted_type);
-	let mut buffer = vec![orig_handler, proc, retval];
-	unsafe { Ffuncall(3, buffer.as_mut_ptr()) };
+        let retval = make_return_value(bin, quoted_type);
+        let mut buffer = vec![orig_handler, proc, retval];
+        unsafe { Ffuncall(3, buffer.as_mut_ptr()) };
     } else {
-	// @TODO signal an error here, don't panic.
+        // @TODO signal an error here, don't panic.
     }
 
     true
@@ -377,35 +372,38 @@ pub async fn async_data_echo(e: UserData) -> UserData {
     e
 }
 
-fn internal_send_message(pipe: &mut EmacsPipe, message: LispObject, option: PipeDataOption) -> bool {
+fn internal_send_message(
+    pipe: &mut EmacsPipe,
+    message: LispObject,
+    option: PipeDataOption,
+) -> bool {
     match option {
-	PipeDataOption::STRING => {
-	    if !is_string(message) {
-		wrong_type!(Qstringp, message);
-	    }
+        PipeDataOption::STRING => {
+            if !is_string(message) {
+                wrong_type!(Qstringp, message);
+            }
 
-	    let sdata = unsafe { SDATA(message) };
-	    let ssize = unsafe { SBYTES(message) };
-	    let sslice = unsafe { slice::from_raw_parts(sdata as *const u8, ssize as usize) };
-	    let contents = String::from_utf8_lossy(sslice);
-	    pipe.message_rust_worker(contents.into_owned()).is_ok()
-	},
-	PipeDataOption::USER_DATA => {
-	    if  !is_user_ptr(message) {
-		wrong_type!(Quser_ptrp, message);
-	    }
+            let sdata = unsafe { SDATA(message) };
+            let ssize = unsafe { SBYTES(message) };
+            let sslice = unsafe { slice::from_raw_parts(sdata as *const u8, ssize as usize) };
+            let contents = String::from_utf8_lossy(sslice);
+            pipe.message_rust_worker(contents.into_owned()).is_ok()
+        }
+        PipeDataOption::USER_DATA => {
+            if !is_user_ptr(message) {
+                wrong_type!(Quser_ptrp, message);
+            }
 
-	    let data_ptr = unsafe { XUSER_PTR(message) };
-	    let data = unsafe { *data_ptr };
-	    let ud = UserData::with_data_and_finalizer(data.p, data.finalizer);
-	    unsafe {
-		(*data_ptr).p = std::ptr::null_mut();
-		(*data_ptr).finalizer = None;
-	    };
+            let data_ptr = unsafe { XUSER_PTR(message) };
+            let data = unsafe { *data_ptr };
+            let ud = UserData::with_data_and_finalizer(data.p, data.finalizer);
+            unsafe {
+                (*data_ptr).p = std::ptr::null_mut();
+                (*data_ptr).finalizer = None;
+            };
 
-	    pipe.message_rust_worker(ud).is_ok()
-	},
-
+            pipe.message_rust_worker(ud).is_ok()
+        }
     }
 }
 
@@ -415,10 +413,10 @@ pub fn async_send_message(proc: LispObject, message: LispObject) -> bool {
     let plist = unsafe { Fprocess_plist(proc) };
     let qtype = unsafe { Fplist_get(plist, QCtype) };
     if let Some(option) = qtype.to_data_option() {
-	internal_send_message(&mut pipe, message, option)
+        internal_send_message(&mut pipe, message, option)
     } else {
-	// @TODO signal error
-	false
+        // @TODO signal error
+        false
     }
 }
 

@@ -177,12 +177,12 @@ pub fn async_stream(_attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
 
     let tokens = quote! {
 
-	#[lisp_fn]
-	pub fn #async_name (handler: crate::lisp::LispObject) -> crate::lisp::LispObject {
-	    crate::ng_async::rust_worker(handler, |s| {
-		::futures::executor::block_on(#name(s))
-	    })
-	}
+    #[lisp_fn]
+    pub fn #async_name (handler: crate::lisp::LispObject) -> crate::lisp::LispObject {
+        crate::ng_async::rust_worker(handler, |s| {
+        ::futures::executor::block_on(#name(s))
+        })
+    }
 
     };
 
