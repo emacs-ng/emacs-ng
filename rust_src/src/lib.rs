@@ -39,6 +39,7 @@ mod ng_async;
 
 mod eval;
 mod lists;
+mod multibyte;
 mod process;
 mod vectors;
 

@@ -1,11 +1,15 @@
 use crate::lisp::LispObject;
 use crate::process::LispProcessRef;
-use crate::remacs_sys::{
-    build_string, intern_c_string, make_multibyte_string, make_user_ptr, Ffuncall,
-    Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, Fstringp,
-    Fuser_ptrp, QCcoding, QCfilter, QCname, QCplist, QCtype, Qcall, Qdata, Qnil, Qraw_text,
-    Qreturn, Qstring, Qstringp, Quser_ptr, Quser_ptrp, SBYTES, SDATA, XUSER_PTR,
+use crate::{
+    multibyte::LispStringRef,
+    remacs_sys::{
+        build_string, intern_c_string, make_multibyte_string, make_user_ptr, Ffuncall,
+        Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, Fstringp,
+        Fuser_ptrp, QCcoding, QCfilter, QCname, QCplist, QCtype, Qcall, Qdata, Qnil, Qraw_text,
+        Qreturn, Qstring, Qstringp, Quser_ptr, Quser_ptrp, SBYTES, SDATA, XUSER_PTR,
+    },
 };
+
 use remacs_macros::{async_stream, lisp_fn};
 use std::{slice, thread};
 
@@ -326,18 +330,14 @@ fn make_return_value(ptrval: usize, option: PipeDataOption) -> LispObject {
     }
 }
 
+/// If 'data' is not a string, we have serious problems
+/// as someone is writing to this pipe without knowing
+/// how the data transfer functionality works. See below
+/// comment.
 #[lisp_fn]
-pub fn async_handler(proc: LispObject, data: LispObject) -> bool {
+pub fn async_handler(proc: LispObject, data: LispStringRef) -> bool {
     let plist = unsafe { Fprocess_plist(proc) };
     let orig_handler = unsafe { Fplist_get(plist, Qcall) };
-
-    // If 'data' is not a string, we have serious problems
-    // as someone is writing to this pipe without knowing
-    // how the data transfer functionality works. See below
-    // comment.
-    if !is_string(data) {
-        wrong_type!(Qstringp, data);
-    }
 
     // This code may seem odd. Since we are in the same process space as
     // the lisp thread, our data transfer is not the string itself, but
@@ -345,9 +345,7 @@ pub fn async_handler(proc: LispObject, data: LispObject) -> bool {
     // write the string representation of that pointer over the pipe.
     // This code extracts that data, and gets us the acutal Rust String
     // object, that we then translate to a lisp object.
-    let sdata = unsafe { SDATA(data) };
-    let ssize = unsafe { SBYTES(data) };
-    let sslice = unsafe { slice::from_raw_parts(sdata as *const u8, ssize as usize) };
+    let sslice = data.as_slice();
     let bin = String::from_utf8_lossy(sslice).parse::<usize>().unwrap();
 
     let qtype = unsafe { Fplist_get(plist, Qreturn) };
