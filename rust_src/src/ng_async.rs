@@ -9,6 +9,8 @@ use crate::remacs_sys::{
     Quser_ptr,
     Qcall,
     Qnil,
+    Quser_ptrp,
+    Qstringp,
     Qraw_text,
     Qreturn,
     build_string,
@@ -17,16 +19,17 @@ use crate::remacs_sys::{
     intern_c_string,
     Fmake_pipe_process,
     Fset_process_plist,
+    Fuser_ptrp,
+    Fstringp,
     Fplist_put,
     Fplist_get,
     Fprocess_plist,
     Ffuncall,
-    XPROCESS,
     XUSER_PTR,
     SDATA,
     SBYTES,
-    Lisp_Type,
 };
+use crate::process::LispProcessRef;
 use remacs_macros::{async_stream, lisp_fn};
 use std::{slice, thread};
 
@@ -64,6 +67,14 @@ const fn ptr_size() -> usize {
 
 fn nullptr() -> usize {
     std::ptr::null() as *const i32 as usize
+}
+
+fn is_user_ptr(o: LispObject) -> bool {
+    unsafe { Fuser_ptrp(o).into() }
+}
+
+fn is_string(o: LispObject) -> bool {
+    unsafe { Fstringp(o).into() }
 }
 
 impl LispObject {
@@ -149,11 +160,11 @@ impl PipeData for UserData {
 
 impl EmacsPipe {
     pub unsafe fn with_process(process: LispObject) -> EmacsPipe {
-        let raw_proc = XPROCESS(process);
-        let out = (*raw_proc).open_fd[PIPE_PROCESS::SUBPROCESS_STDOUT as usize];
-        let inf = (*raw_proc).open_fd[PIPE_PROCESS::SUBPROCESS_STDIN as usize];
-        let pi = (*raw_proc).open_fd[PIPE_PROCESS::READ_FROM_SUBPROCESS as usize];
-        let po = (*raw_proc).open_fd[PIPE_PROCESS::WRITE_TO_SUBPROCESS as usize];
+        let raw_proc: LispProcessRef = process.into();
+        let out = raw_proc.open_fd[PIPE_PROCESS::SUBPROCESS_STDOUT as usize];
+        let inf = raw_proc.open_fd[PIPE_PROCESS::SUBPROCESS_STDIN as usize];
+        let pi = raw_proc.open_fd[PIPE_PROCESS::READ_FROM_SUBPROCESS as usize];
+        let po = raw_proc.open_fd[PIPE_PROCESS::WRITE_TO_SUBPROCESS as usize];
 
         EmacsPipe {
             out_fd: out,
@@ -325,6 +336,14 @@ pub fn async_handler(proc: LispObject, data: LispObject) -> bool {
     let plist = unsafe { Fprocess_plist(proc) };
     let orig_handler = unsafe { Fplist_get(plist, Qcall) };
 
+    // If 'data' is not a string, we have serious problems
+    // as someone is writing to this pipe without knowing
+    // how the data transfer functionality works. See below
+    // comment.
+    if !is_string(data) {
+	wrong_type!(Qstringp, data);
+    }
+
     // This code may seem odd. Since we are in the same process space as
     // the lisp thread, our data transfer is not the string itself, but
     // a pointer to the string. We translate the pointer to a usize, and
@@ -361,7 +380,10 @@ pub async fn async_data_echo(e: UserData) -> UserData {
 fn internal_send_message(pipe: &mut EmacsPipe, message: LispObject, option: PipeDataOption) -> bool {
     match option {
 	PipeDataOption::STRING => {
-	    // @TODO add type checking for being a string
+	    if !is_string(message) {
+		wrong_type!(Qstringp, message);
+	    }
+
 	    let sdata = unsafe { SDATA(message) };
 	    let ssize = unsafe { SBYTES(message) };
 	    let sslice = unsafe { slice::from_raw_parts(sdata as *const u8, ssize as usize) };
@@ -369,7 +391,10 @@ fn internal_send_message(pipe: &mut EmacsPipe, message: LispObject, option: Pipe
 	    pipe.message_rust_worker(contents.into_owned()).is_ok()
 	},
 	PipeDataOption::USER_DATA => {
-	    // @TODO add type checking for being user data
+	    if  !is_user_ptr(message) {
+		wrong_type!(Quser_ptrp, message);
+	    }
+
 	    let data_ptr = unsafe { XUSER_PTR(message) };
 	    let data = unsafe { *data_ptr };
 	    let ud = UserData::with_data_and_finalizer(data.p, data.finalizer);
