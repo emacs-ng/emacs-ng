@@ -33,12 +33,13 @@ extern crate futures;
 mod remacs_sys;
 #[macro_use]
 mod lisp;
-mod ng_async;
 #[macro_use]
 mod eval_macros;
+mod ng_async;
 
 mod eval;
 mod lists;
+mod multibyte;
 mod process;
 mod vectors;
 

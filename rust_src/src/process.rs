@@ -25,5 +25,3 @@ impl From<LispObject> for Option<LispProcessRef> {
         o.as_vectorlike().and_then(LispVectorlikeRef::as_process)
     }
 }
-
-include!(concat!(env!("OUT_DIR"), "/process_exports.rs"));

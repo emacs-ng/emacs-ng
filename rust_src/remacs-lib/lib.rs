@@ -22,7 +22,6 @@ pub use crate::{
     files::rust_make_temp,
 
     math::{rust_count_one_bits, rust_count_trailing_zero_bits},
-
 };
 
 #[cfg(all(not(test), target_os = "windows"))]
