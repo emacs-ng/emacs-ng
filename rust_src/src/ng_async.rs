@@ -3,10 +3,10 @@ use crate::process::LispProcessRef;
 use crate::{
     multibyte::LispStringRef,
     remacs_sys::{
-        build_string, intern_c_string, make_multibyte_string, make_user_ptr, Ffuncall,
-        Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, Fuser_ptrp,
-        QCcoding, QCfilter, QCname, QCplist, QCtype, Qcall, Qdata, Qnil, Qraw_text, Qreturn,
-        Qstring, Quser_ptr, Quser_ptrp, XUSER_PTR,
+        build_string, encode_string_utf_8, intern_c_string, make_string_from_utf8, make_user_ptr,
+        Ffuncall, Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist,
+        Fuser_ptrp, QCcoding, QCfilter, QCname, QCplist, QCtype, Qcall, Qdata, Qnil, Qraw_text,
+        Qreturn, Qstring, Qstringp, Qt, Quser_ptr, Quser_ptrp, XUSER_PTR,
     },
 };
 
@@ -306,17 +306,10 @@ fn make_return_value(ptrval: usize, option: PipeDataOption) -> LispObject {
     match option {
         PipeDataOption::STRING => {
             let content = unsafe { *Box::from_raw(ptrval as *mut String) };
-            let nchars = content.chars().count();
             let nbytes = content.len();
             let c_content = CString::new(content).unwrap();
             // These unwraps should be 'safe', as we want to panic if we overflow
-            unsafe {
-                make_multibyte_string(
-                    c_content.as_ptr(),
-                    nchars.try_into().unwrap(),
-                    nbytes.try_into().unwrap(),
-                )
-            }
+            unsafe { make_string_from_utf8(c_content.as_ptr(), nbytes.try_into().unwrap()) }
         }
 
         PipeDataOption::USER_DATA => {
@@ -376,9 +369,13 @@ fn internal_send_message(
 ) -> bool {
     match option {
         PipeDataOption::STRING => {
-            let string: LispStringRef = message.into();
-            let str_slice = string.as_slice();
-            let contents = String::from_utf8_lossy(str_slice);
+            if !message.is_string() {
+                wrong_type!(Qstringp, message);
+            }
+
+            let encoded_message = unsafe { encode_string_utf_8(message, Qnil, false, Qt, Qt) };
+            let encoded_string: LispStringRef = encoded_message.into();
+            let contents = String::from_utf8_lossy(encoded_string.as_slice());
             pipe.message_rust_worker(contents.into_owned()).is_ok()
         }
         PipeDataOption::USER_DATA => {
