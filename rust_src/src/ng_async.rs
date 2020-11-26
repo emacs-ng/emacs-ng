@@ -99,6 +99,16 @@ impl UserData {
         let finalizer = rust_finalize::<T>;
         UserData::with_data_and_finalizer(boxed as *mut libc::c_void, Some(finalizer))
     }
+
+    pub unsafe fn unpack<T: Sized>(self) -> T {
+        *Box::from_raw(self.data as *mut T)
+    }
+}
+
+impl From<UserData> for LispObject {
+    fn from(ud: UserData) -> Self {
+        unsafe { make_user_ptr(ud.finalizer, ud.data) }
+    }
 }
 
 impl Default for UserData {
@@ -217,6 +227,10 @@ impl EmacsPipe {
         let result = f.write(bin.to_string().as_bytes()).map(|_| ());
         f.into_raw_fd();
         result
+    }
+
+    pub fn write_external_process(&mut self, string: &str) -> std::io::Result<()> {
+        self.internal_write(string.as_bytes())
     }
 
     fn internal_write(&mut self, bytes: &[u8]) -> std::io::Result<()> {

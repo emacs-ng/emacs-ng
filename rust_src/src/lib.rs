@@ -28,6 +28,8 @@ extern crate remacs_lib;
 extern crate remacs_macros;
 
 extern crate futures;
+#[macro_use]
+extern crate serde_json;
 
 #[macro_use]
 mod remacs_sys;
@@ -36,6 +38,7 @@ mod lisp;
 #[macro_use]
 mod eval_macros;
 mod ng_async;
+mod parsing;
 
 mod eval;
 mod lists;
