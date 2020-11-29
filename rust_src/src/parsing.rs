@@ -1,82 +1,91 @@
 use crate::lisp::LispObject;
-use crate::ng_async::{EmacsPipe, UserData};
-use remacs_macros::{async_stream, lisp_fn};
-use serde_json::{Result, Value};
+use crate::multibyte::LispStringRef;
+use crate::ng_async::{EmacsPipe, PipeDataOption, UserData};
+use lsp_server::Message;
+use lsp_server::{RequestId, Response};
+use remacs_macros::lisp_fn;
+use serde_json::Value;
+use std::io::{BufReader, BufWriter};
+use std::process::{Command, Stdio};
+use std::thread;
 
-pub struct JsonMessage {
-    pipe: EmacsPipe,
-    json: Value,
-}
-
-#[async_stream]
-pub async fn async_parse_json(s: UserData) -> UserData {
-    let mut unpacked: JsonMessage = unsafe { s.unpack() };
-    // The key for some added performance to do perform the
-    // object -> json string encoding offthread. This allows
-    // us to gain back cycles.
-    unpacked
-        .pipe
-        .write_external_process(&unpacked.json.to_string());
-    UserData::default()
-}
-
-// proc is our LSP server process lisp object
-// pipe is our async thread pipe lisp object
-// message is a lisp object that will be json-encoded
 #[lisp_fn]
-pub fn async_message_json(pipe: LispObject, proc: LispObject, _message: LispObject) -> LispObject {
-    let transfer_pipe = unsafe { EmacsPipe::with_process(proc) };
-    let jsonm = JsonMessage {
-        pipe: transfer_pipe,
-        json: json!(null), // lisp_to_json(message)
-    };
-
-    let data = UserData::new(jsonm);
-    crate::ng_async::Fasync_send_message(pipe, data.into())
+pub fn make_lsp_connection(
+    command: LispObject,
+    _args: LispObject,
+    handler: LispObject,
+) -> LispObject {
+    let _command_str: LispStringRef = command.into();
+    let (emacs_pipe, proc) = EmacsPipe::with_handler(
+        handler,
+        PipeDataOption::USER_DATA,
+        PipeDataOption::USER_DATA,
+    );
+    // @TODO don't hardcode, use from inputs
+    async_create_process("cat", vec!["/dev/stdin"], emacs_pipe);
+    proc
 }
 
-// Option 1: Write functions that look something like whats defined below
-// Option 2: Compile emacs-ng with json enabled, and use the
-// emacs functions defined in json.c, pass json_t* around instead of
-// serde_json::Value objects
+#[lisp_fn]
+pub fn lsp_handler(_proc: LispObject, data: LispObject) -> bool {
+    let user_data: UserData = data.into();
+    let message: Message = unsafe { user_data.unpack() };
+    println!("Handled message is {:?}", message);
 
-// fn lisp_to_json_non_primative(o: LispObject) -> serde_json::Value {
-//     if VECTORP(o) {
-// 	let size = ASIZE(o);
-// 	for i in 0..size {
-// 	    let json = lisp_to_json(AREF(o, i));
-// 	    // append json
-// 	}
+    // Proc is our pipe process
+    // any additional data (like further handlers, maps etc.
+    // can be stored on proc and referenced here for dispatch
+    // or further execution
 
-// 	json!(null)
-//     } else if HASH_TABLE_P(o) {
-// 	json!(null)
-//     } else if NILP (o) {
-// 	json!(null)
-//     } else if CONSP(o) {
-// 	json!(null)
-//     } else {
-// 	wrong_type!(Qjson_value_p, o);
-//     }
-// }
+    true
+}
 
-// fn lisp_to_json(o: LispObject) -> serde_json::Value {
-//     match o {
-// 	QCnull => { json!(null) },
-// 	QCfalse => { json!(false) },
-// 	Qt => { json!(true) },
-// 	_ => {
-// 	    if INTEGERP(o) {
-// 		json!(XINT(o))
-// 	    } else if FLOATP(o) {
-// 		json!(XFLOAT_DATA(o))
-// 	    } else if STRINGP(o) {
-// 		json!("TODO")
-// 	    } else {
-// 		lisp_to_json_non_primative(o)
-// 	    }
-// 	}
-//     }
-// }
+#[lisp_fn]
+pub fn lsp_send_message(proc: LispObject, _msg: LispObject) -> bool {
+    let mut emacs_pipe = unsafe { EmacsPipe::with_process(proc) };
+    // Hardcoding message as an example
+    let resp = Response {
+        id: RequestId::from(10),
+        result: Some(Value::from(10)),
+        error: None,
+    };
+    let message = UserData::new(Message::Response(resp));
+    // Instead of having a writer thread, we can just do the write here sync
+    // OR use an async API to have a threadpool handle is behind the scenes
+    emacs_pipe.message_rust_worker(message).unwrap();
+    true
+}
+
+pub fn async_create_process(program: &str, args: Vec<&str>, pipe: EmacsPipe) {
+    let process: std::process::Child = Command::new(program)
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("failed to spawn child process");
+
+    // @TODO better error handling......
+    let mut inn = process.stdin;
+    let in_pipe = pipe.clone();
+    thread::spawn(move || {
+        let mut stdout_writer = BufWriter::new(inn.as_mut().unwrap());
+        while let Ok(msg) = in_pipe.read_pend_message::<UserData>() {
+            let message: Message = unsafe { msg.unpack() };
+            println!("I am writing {:?}", message);
+            message.write(&mut stdout_writer);
+        }
+    });
+
+    let mut out = process.stdout;
+    let mut out_pipe = pipe.clone();
+    thread::spawn(move || {
+        let mut stdout_reader = BufReader::new(out.as_mut().unwrap());
+        // @TODO better error handling
+        while let Some(msg) = Message::read(&mut stdout_reader).unwrap() {
+            println!("I received {:?}", msg);
+            out_pipe.message_lisp(UserData::new(msg));
+        }
+    });
+}
 
 include!(concat!(env!("OUT_DIR"), "/parsing_exports.rs"));

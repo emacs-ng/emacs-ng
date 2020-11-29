@@ -6,7 +6,7 @@ use crate::{
         build_string, encode_string_utf_8, intern_c_string, make_string_from_utf8, make_user_ptr,
         Ffuncall, Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist,
         Fuser_ptrp, QCcoding, QCfilter, QCname, QCplist, QCtype, Qcall, Qdata, Qnil, Qraw_text,
-        Qreturn, Qstring, Qstringp, Qt, Quser_ptr, Quser_ptrp, XUSER_PTR,
+        Qreturn, Qstring, Qstringp, Qt, Quser_ptr, Quser_ptrp, USER_PTRP, XUSER_PTR,
     },
 };
 
@@ -31,6 +31,7 @@ enum PIPE_PROCESS {
     _EXEC_MONITOR_OUTPUT = 5,
 }
 
+#[derive(Clone)]
 pub struct EmacsPipe {
     // Represents SUBPROCESS_STDOUT, used to write from a thread or
     // subprocess to the lisp thread.
@@ -108,6 +109,32 @@ impl UserData {
 impl From<UserData> for LispObject {
     fn from(ud: UserData) -> Self {
         unsafe { make_user_ptr(ud.finalizer, ud.data) }
+    }
+}
+
+impl LispObject {
+    pub fn is_user_ptr(self) -> bool {
+        unsafe { USER_PTRP(self) }
+    }
+
+    pub unsafe fn to_user_ptr_unchecked(self) -> UserData {
+        let p = XUSER_PTR(self);
+        UserData::with_data_and_finalizer((*p).p, (*p).finalizer)
+    }
+
+    pub fn as_user_ptr(self) -> Option<UserData> {
+        if self.is_user_ptr() {
+            Some(unsafe { self.to_user_ptr_unchecked() })
+        } else {
+            None
+        }
+    }
+}
+
+impl From<LispObject> for UserData {
+    fn from(o: LispObject) -> Self {
+        o.as_user_ptr()
+            .unwrap_or_else(|| wrong_type!(Quser_ptrp, o))
     }
 }
 
@@ -227,10 +254,6 @@ impl EmacsPipe {
         let result = f.write(bin.to_string().as_bytes()).map(|_| ());
         f.into_raw_fd();
         result
-    }
-
-    pub fn write_external_process(&mut self, string: &str) -> std::io::Result<()> {
-        self.internal_write(string.as_bytes())
     }
 
     fn internal_write(&mut self, bytes: &[u8]) -> std::io::Result<()> {

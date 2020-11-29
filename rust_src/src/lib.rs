@@ -28,7 +28,7 @@ extern crate remacs_lib;
 extern crate remacs_macros;
 
 extern crate futures;
-#[macro_use]
+extern crate lsp_server;
 extern crate serde_json;
 
 #[macro_use]
