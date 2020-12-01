@@ -40,3 +40,23 @@ macro_rules! list {
     ($arg:expr) => { $crate::lisp::LispObject::cons($arg, list!()) };
     () => { crate::remacs_sys::Qnil };
 }
+
+macro_rules! error {
+    ($str:expr) => {{
+        #[allow(unused_unsafe)]
+        let strobj = unsafe {
+            crate::remacs_sys::make_string($str.as_ptr() as *const ::libc::c_char,
+                                      $str.len() as ::libc::ptrdiff_t)
+        };
+        xsignal!(crate::remacs_sys::Qerror, strobj);
+    }};
+    ($fmtstr:expr, $($arg:expr),*) => {{
+        let formatted = format!($fmtstr, $($arg),*);
+        #[allow(unused_unsafe)]
+        let strobj = unsafe {
+            crate::remacs_sys::make_string(formatted.as_ptr() as *const ::libc::c_char,
+                                      formatted.len() as ::libc::ptrdiff_t)
+        };
+        xsignal!(crate::remacs_sys::Qerror, strobj);
+    }};
+}
