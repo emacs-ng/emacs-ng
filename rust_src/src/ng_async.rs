@@ -406,14 +406,8 @@ fn internal_send_message(
 ) -> bool {
     match option {
         PipeDataOption::STRING => {
-            if !message.is_string() {
-                wrong_type!(Qstringp, message);
-            }
-
-            let encoded_message = unsafe { encode_string_utf_8(message, Qnil, false, Qt, Qt) };
-            let encoded_string: LispStringRef = encoded_message.into();
-            let contents = String::from_utf8_lossy(encoded_string.as_slice());
-            pipe.message_rust_worker(contents.into_owned()).is_ok()
+            let string: LispStringRef = message.into();
+            pipe.message_rust_worker(string.to_utf8()).is_ok()
         }
         PipeDataOption::USER_DATA => {
             if !is_user_ptr(message) {
