@@ -1,6 +1,7 @@
 use crate::lisp::LispObject;
 use crate::multibyte::LispStringRef;
 use crate::ng_async::{EmacsPipe, PipeDataOption, UserData};
+use crate::lists::{LispCons, LispConsEndChecks, LispConsCircularChecks};
 use lsp_server::Message;
 use lsp_server::{RequestId, Response};
 use remacs_macros::lisp_fn;
@@ -12,17 +13,34 @@ use std::thread;
 #[lisp_fn]
 pub fn make_lsp_connection(
     command: LispObject,
-    _args: LispObject,
+    args: LispObject,
     handler: LispObject,
 ) -> LispObject {
-    let _command_str: LispStringRef = command.into();
+    let command_ref: LispStringRef = command.into();
+    let command_string = command_ref.to_utf8();
     let (emacs_pipe, proc) = EmacsPipe::with_handler(
         handler,
         PipeDataOption::USER_DATA,
         PipeDataOption::USER_DATA,
     );
-    // @TODO don't hardcode, use from inputs
-    async_create_process("cat", vec!["/dev/stdin"], emacs_pipe);
+
+    let mut args_vec: Vec<String> = vec![];
+    if args.is_not_nil() {
+	let list_args: LispCons = args.into();
+
+	list_args.iter_cars(LispConsEndChecks::on, LispConsCircularChecks::on)
+	.for_each(|x| {
+	    if let Some(string_ref) = x.as_string() {
+		args_vec.push(string_ref.to_utf8());
+	    } else {
+		error!("make-lsp-command takes a list of string arguments");
+	    }
+	});
+    }
+
+
+    println!("Showing {:?}", args_vec);
+    async_create_process(command_string, args_vec, emacs_pipe);
     proc
 }
 
@@ -56,7 +74,7 @@ pub fn lsp_send_message(proc: LispObject, _msg: LispObject) -> bool {
     true
 }
 
-pub fn async_create_process(program: &str, args: Vec<&str>, pipe: EmacsPipe) {
+pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe) {
     let process: std::process::Child = Command::new(program)
         .args(args)
         .stdin(Stdio::piped())
