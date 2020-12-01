@@ -1,0 +1,6 @@
+[package]
+name = "bindings"
+version = "0.1.0"
+
+[lib]
+path = "lib.rs"

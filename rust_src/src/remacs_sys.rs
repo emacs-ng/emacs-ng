@@ -22,12 +22,12 @@ use libc::timespec;
 
 use crate::lisp::LispObject;
 
-include!("../generated/definitions.rs");
+include!("../crates/bindings/src/definitions.rs");
 
 type Lisp_Object = LispObject;
 
-include!("../generated/bindings.rs");
-include!("../generated/globals.rs");
+include!("../crates/bindings/src/bindings.rs");
+include!("../crates/bindings/src/globals.rs");
 
 pub const VAL_MAX: EmacsInt = (EMACS_INT_MAX >> (GCTYPEBITS - 1));
 pub const VALMASK: EmacsInt = [VAL_MAX, -(1 << GCTYPEBITS)][USE_LSB_TAG as usize];

@@ -10,7 +10,7 @@ build = "build.rs"
 edition = "2018"
 
 [workspace]
-members = ["remacs-lib", "remacs-macros", "remacs-util"]
+members = ["remacs-lib", "remacs-macros", "remacs-util", "crates/*"]
 exclude = ["remacs-bindings", "alloc_unexecmacosx"]
 
 [dependencies]
