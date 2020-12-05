@@ -3,10 +3,10 @@
 use libc::c_void;
 
 use crate::{
-    lisp::{LispObject},
-    remacs_sys::{circular_list, globals, EmacsInt, EmacsUint, Lisp_Cons, Lisp_Type},
+    lisp::LispObject,
+    remacs_sys::{circular_list, Lisp_Cons, Lisp_Type},
     remacs_sys::{Fcons, CHECK_IMPURE, MOST_POSITIVE_FIXNUM},
-    remacs_sys::{Qcircular_list, Qconsp, Qlistp, Qnil, Qplistp},
+    remacs_sys::{Qconsp, Qlistp},
 };
 
 // Cons support (LispType == 6 | 3)
