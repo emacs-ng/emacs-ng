@@ -38,7 +38,7 @@ use std::slice;
 
 use crate::{
     lisp::{ExternalPtr, LispObject},
-    remacs_sys::{Lisp_String, Lisp_Type, Qstringp, encode_string_utf_8, Qnil, Qt},
+    remacs_sys::{encode_string_utf_8, Lisp_String, Lisp_Type, Qnil, Qstringp, Qt},
 };
 
 pub type LispStringRef = ExternalPtr<Lisp_String>;
@@ -61,10 +61,10 @@ impl LispStringRef {
     }
 
     pub fn to_utf8(self) -> String {
-	let tagged = LispObject::tag_ptr(self, Lisp_Type::Lisp_String);
-	let encoded = unsafe { encode_string_utf_8(tagged, Qnil, false, Qt, Qt) };
-	let encoded_string: LispStringRef = encoded.into();
-	String::from_utf8_lossy(encoded_string.as_slice()).into_owned()
+        let tagged = LispObject::tag_ptr(self, Lisp_Type::Lisp_String);
+        let encoded = unsafe { encode_string_utf_8(tagged, Qnil, false, Qt, Qt) };
+        let encoded_string: LispStringRef = encoded.into();
+        String::from_utf8_lossy(encoded_string.as_slice()).into_owned()
     }
 }
 

@@ -3,10 +3,10 @@ use crate::process::LispProcessRef;
 use crate::{
     multibyte::LispStringRef,
     remacs_sys::{
-        build_string, encode_string_utf_8, intern_c_string, make_string_from_utf8, make_user_ptr,
-        Ffuncall, Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist,
-        Fuser_ptrp, QCcoding, QCfilter, QCname, QCplist, QCtype, Qcall, Qdata, Qnil, Qraw_text,
-        Qreturn, Qstring, Qstringp, Qt, Quser_ptr, Quser_ptrp, USER_PTRP, XUSER_PTR,
+        build_string, intern_c_string, make_string_from_utf8, make_user_ptr, Ffuncall,
+        Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, Fuser_ptrp,
+        QCcoding, QCfilter, QCname, QCplist, QCtype, Qcall, Qdata, Qnil, Qraw_text, Qreturn,
+        Qstring, Quser_ptr, Quser_ptrp, USER_PTRP, XUSER_PTR,
     },
 };
 
