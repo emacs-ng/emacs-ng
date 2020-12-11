@@ -40,8 +40,8 @@
 (defvar help-fns-describe-function-functions nil
   "List of functions to run in help buffer in `describe-function'.
 Those functions will be run after the header line and argument
-list was inserted, and before the documentation will be inserted.
-The functions will receive the function name as argument.
+list was inserted, and before the documentation is inserted.
+The functions will be called with one argument: the function's symbol.
 They can assume that a newline was output just before they were called,
 and they should terminate any of their own output with a newline.
 By convention they should indent their output by 2 spaces.")
@@ -126,17 +126,48 @@ with the current prefix.  The files are chosen according to
   :group 'help
   :version "26.3")
 
+(defun help--symbol-completion-table-affixation (completions)
+  (mapcar (lambda (c)
+            (let* ((s (intern c))
+                   (doc (condition-case nil (documentation s) (error nil)))
+                   (doc (and doc (substring doc 0 (string-match "\n" doc)))))
+              (list c (propertize
+                       (concat (cond ((commandp s)
+                                      "c") ; command
+                                     ((eq (car-safe (symbol-function s)) 'macro)
+                                      "m") ; macro
+                                     ((fboundp s)
+                                      "f") ; function
+                                     ((custom-variable-p s)
+                                      "u") ; user option
+                                     ((boundp s)
+                                      "v") ; variable
+                                     ((facep s)
+                                      "a") ; fAce
+                                     ((and (fboundp 'cl-find-class)
+                                           (cl-find-class s))
+                                      "t")  ; CL type
+                                     (" ")) ; something else
+                               " ")         ; prefix separator
+                       'face 'completions-annotations)
+                    (if doc (propertize (format " -- %s" doc)
+                                        'face 'completions-annotations)
+                      ""))))
+          completions))
+
 (defun help--symbol-completion-table (string pred action)
-  (when help-enable-completion-autoload
-    (let ((prefixes (radix-tree-prefixes (help-definition-prefixes) string)))
-      (help--load-prefixes prefixes)))
-  (let ((prefix-completions
-         (and help-enable-completion-autoload
-              (mapcar #'intern (all-completions string definition-prefixes)))))
-    (complete-with-action action obarray string
-                          (if pred (lambda (sym)
-                                     (or (funcall pred sym)
-                                         (memq sym prefix-completions)))))))
+  (if (and completions-detailed (eq action 'metadata))
+      '(metadata (affixation-function . help--symbol-completion-table-affixation))
+    (when help-enable-completion-autoload
+      (let ((prefixes (radix-tree-prefixes (help-definition-prefixes) string)))
+        (help--load-prefixes prefixes)))
+    (let ((prefix-completions
+           (and help-enable-completion-autoload
+                (mapcar #'intern (all-completions string definition-prefixes)))))
+      (complete-with-action action obarray string
+                            (if pred (lambda (sym)
+                                       (or (funcall pred sym)
+                                           (memq sym prefix-completions))))))))
 
 (defvar describe-function-orig-buffer nil
   "Buffer that was current when `describe-function' was invoked.
@@ -323,17 +354,12 @@ found via `load-path'.  The return value can also be `C-source', which
 means that OBJECT is a function or variable defined in C.  If no
 suitable file is found, return nil."
   (let* ((autoloaded (autoloadp type))
-	 (true-name (or (and autoloaded (nth 1 type))
+	 (file-name (or (and autoloaded (nth 1 type))
 			(symbol-file
                          ;; FIXME: Why do we have this weird "If TYPE is the
                          ;; value returned by `symbol-function' for a function
                          ;; symbol" exception?
-			 object (or (if (symbolp type) type) 'defun))))
-         (file-name (if (and true-name
-                             (string-match "[.]eln\\'" true-name))
-                        (gethash (file-name-nondirectory true-name)
-                                 comp-eln-to-el-h)
-	              true-name)))
+			 object (or (if (symbolp type) type) 'defun)))))
     (cond
      (autoloaded
       ;; An autoloaded function: Locate the file since `symbol-function'
@@ -392,7 +418,7 @@ suitable file is found, return nil."
      ((let ((lib-name
 	     (if (string-match "[.]elc\\'" file-name)
 		 (substring-no-properties file-name 0 -1)
-               file-name)))
+	       file-name)))
 	(or (and (file-readable-p lib-name) lib-name)
 	    ;; The library might be compressed.
 	    (and (file-readable-p (concat lib-name ".gz")) lib-name))))
@@ -627,7 +653,7 @@ FILE is the file where FUNCTION was probably defined."
   ;; of the *packages* in which the function is defined.
   (let* ((name (symbol-name symbol))
          (re (concat "\\_<" (regexp-quote name) "\\_>"))
-         (news (directory-files data-directory t "\\`NEWS\\.[1-9]"))
+         (news (directory-files data-directory t "\\`NEWS\\($\\|\\.\\)"))
          (place nil)
          (first nil))
     (with-temp-buffer
@@ -663,6 +689,39 @@ FILE is the file where FUNCTION was probably defined."
       (with-current-buffer standard-output
         (insert (format "  Probably introduced at or before Emacs version %s.\n"
                         first))))))
+
+(declare-function shortdoc-display-group "shortdoc")
+(declare-function shortdoc-function-groups "shortdoc")
+
+(add-hook 'help-fns-describe-function-functions
+          #'help-fns--mention-shortdoc-groups)
+(defun help-fns--mention-shortdoc-groups (object)
+  (require 'shortdoc)
+  (when-let ((groups (and (symbolp object)
+                          (shortdoc-function-groups object))))
+    (let ((start (point))
+          (times 0))
+      (with-current-buffer standard-output
+        (insert "  Other relevant functions are documented in the ")
+        (mapc
+         (lambda (group)
+           (when (> times 0)
+             (insert (if (= times (1- (length groups)))
+                         " and "
+                       ", ")))
+           (setq times (1+ times))
+           (insert-text-button
+            (symbol-name group)
+            'action (lambda (_)
+                      (shortdoc-display-group group))))
+         groups)
+        (insert (if (= (length groups) 1)
+                    " group.\n"
+                  " groups.\n")))
+      (save-restriction
+        (narrow-to-region start (point))
+        (fill-region-as-paragraph (point-min) (point-max))
+        (goto-char (point-max))))))
 
 (defun help-fns-short-filename (filename)
   (let* ((abbrev (abbreviate-file-name filename))
@@ -742,7 +801,7 @@ Returns a list of the form (REAL-FUNCTION DEF ALIASED REAL-DEF)."
 		 (aliased
 		  (format-message "an alias for `%s'" real-def))
                  ((subr-native-elisp-p def)
-                  "native compiled Lisp function")
+                  (concat beg "native compiled Lisp function"))
 		 ((subrp def)
 		  (concat beg (if (eq 'unevalled (cdr (subr-arity def)))
 		                  "special form"

@@ -219,8 +219,7 @@ Sets the current buffer to the show buffer."
              (erase-buffer)
              ;; Changing contents, so this hook needs to be reinitialized.
              ;; pgp.el uses this.
-             (if (boundp 'write-contents-hooks) ;Emacs 19
-                 (kill-local-variable 'write-contents-hooks))
+             (kill-local-variable 'write-contents-functions)
              (font-lock-mode -1)
              (mh-show-mode)
              (if formfile
@@ -864,9 +863,10 @@ See also `mh-folder-mode'.
   (when mh-decode-mime-flag
     (mh-make-local-hook 'kill-buffer-hook)
     (add-hook 'kill-buffer-hook 'mh-mime-cleanup nil t))
-  (easy-menu-add mh-show-sequence-menu)
-  (easy-menu-add mh-show-message-menu)
-  (easy-menu-add mh-show-folder-menu)
+  (mh-do-in-xemacs
+    (easy-menu-add mh-show-sequence-menu)
+    (easy-menu-add mh-show-message-menu)
+    (easy-menu-add mh-show-folder-menu))
   (make-local-variable 'mh-show-folder-buffer)
   (buffer-disable-undo)
   (use-local-map mh-show-mode-map))

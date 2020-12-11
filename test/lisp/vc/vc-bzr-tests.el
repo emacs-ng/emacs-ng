@@ -1,4 +1,4 @@
-;;; vc-bzr.el --- tests for vc/vc-bzr.el
+;;; vc-bzr.el --- tests for vc/vc-bzr.el  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2011-2020 Free Software Foundation, Inc.
 
@@ -37,7 +37,7 @@
   ;; commands (eg `bzr status') want to access ~/.bazaar, and will
   ;; abort if they cannot.  I could not figure out how to stop bzr
   ;; doing that, so just give it a temporary homedir for the duration.
-  ;; http://bugs.launchpad.net/bzr/+bug/137407 ?
+  ;; https://bugs.launchpad.net/bzr/+bug/137407 ?
   ;;
   ;; Note that with bzr 2.x, this works:
   ;; mkdir /tmp/bzr
@@ -131,7 +131,6 @@
                  (make-directory bzrdir)
                  (expand-file-name "foo.el" bzrdir)))
          (default-directory (file-name-as-directory bzrdir))
-         (generated-autoload-file (expand-file-name "loaddefs.el" bzrdir))
          (process-environment (cons (format "HOME=%s" homedir)
                                     process-environment)))
     (unwind-protect
@@ -148,7 +147,9 @@
           ;; causes bzr status to fail.  This simulates a broken bzr
           ;; installation.
           (delete-file ".bzr/checkout/dirstate")
-          (should (progn (update-directory-autoloads default-directory)
+          (should (progn (make-directory-autoloads
+                          default-directory
+                          (expand-file-name "loaddefs.el" bzrdir))
                          t)))
       (delete-directory homedir t))))
 

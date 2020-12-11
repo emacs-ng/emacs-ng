@@ -42,7 +42,7 @@ struct Lisp_Native_Comp_Unit
   Lisp_Object lambda_gc_guard_h;
   /* Hash c_name -> d_reloc_imp index.  */
   Lisp_Object lambda_c_name_idx_h;
-  /* Hash doc-idx -> function documentaiton.  */
+  /* Hash doc-idx -> function documentation.  */
   Lisp_Object data_fdoc_v;
   /* Analogous to the constant vector but per compilation unit.  */
   Lisp_Object data_vec;
@@ -75,8 +75,8 @@ XNATIVE_COMP_UNIT (Lisp_Object a)
 
 extern void hash_native_abi (void);
 
-extern void load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u,
-			    bool loading_dump, bool late_load);
+extern Lisp_Object load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u,
+				   bool loading_dump, bool late_load);
 
 extern Lisp_Object native_function_doc (Lisp_Object function);
 

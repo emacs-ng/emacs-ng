@@ -28,13 +28,8 @@
 
 (require 'css-mode)
 (require 'ert)
+(require 'ert-x)
 (require 'seq)
-
-(defvar css-mode-tests-data-dir
-  (file-truename
-   (expand-file-name "css-mode-resources/"
-                     (file-name-directory (or load-file-name
-                                              buffer-file-name)))))
 
 (ert-deftest css-test-property-values ()
   ;; The `float' property has a flat value list.
@@ -417,12 +412,9 @@
                                       (point))
                                     "black")))))
 
-;; TODO: Convert these into unit proper tests instead of using an
-;;       external file.
 (ert-deftest css-mode-test-indent ()
   (with-current-buffer
-      (find-file-noselect (expand-file-name "test-indent.css"
-                                            css-mode-tests-data-dir))
+      (find-file-noselect (ert-resource-file "test-indent.css"))
     (let ((orig (buffer-string)))
       (indent-region (point-min) (point-max))
       (should (equal (buffer-string) orig)))))

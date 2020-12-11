@@ -188,6 +188,9 @@ font_make_object (int size, Lisp_Object entity, int pixelsize)
 					     FONT_OBJECT_MAX, PVEC_FONT);
   int i;
 
+  /* Poison the max_width, so we can detect when it hasn't been set.  */
+  eassert (font->max_width = 1024 * 1024 * 1024);
+
   /* GC can happen before the driver is set up,
      so avoid dangling pointer here (Bug#17771).  */
   font->driver = NULL;
@@ -1011,7 +1014,7 @@ font_expand_wildcards (Lisp_Object *field, int n)
 }
 
 
-/* Parse NAME (NUL terminated) as XLFD and store information in FONT
+/* Parse NAME (null terminated) as XLFD and store information in FONT
    (font-spec or font-entity).  Size property of FONT is set as
    follows:
 	specified XLFD fields		FONT property
@@ -1355,7 +1358,7 @@ font_unparse_xlfd (Lisp_Object font, int pixel_size, char *name, int nbytes)
   return len < nbytes ? len : -1;
 }
 
-/* Parse NAME (NUL terminated) and store information in FONT
+/* Parse NAME (null terminated) and store information in FONT
    (font-spec or font-entity).  NAME is supplied in either the
    Fontconfig or GTK font name format.  If NAME is successfully
    parsed, return 0.  Otherwise return -1.
@@ -1727,7 +1730,7 @@ font_unparse_fcname (Lisp_Object font, int pixel_size, char *name, int nbytes)
 
 #endif
 
-/* Parse NAME (NUL terminated) and store information in FONT
+/* Parse NAME (null terminated) and store information in FONT
    (font-spec or font-entity).  If NAME is successfully parsed, return
    0.  Otherwise return -1.  */
 
@@ -2642,6 +2645,11 @@ font_clear_cache (struct frame *f, Lisp_Object cache,
 		      if (! NILP (AREF (val, FONT_TYPE_INDEX)))
 			{
 			  eassert (font && driver == font->driver);
+			  /* We are going to close the font, so make
+			     sure we don't have any lgstrings lying
+			     around in lgstring cache that reference
+			     the font.  */
+			  composition_gstring_cache_clear_font (val);
 			  driver->close_font (font);
 			}
 		    }
@@ -3937,6 +3945,23 @@ VALUE must be a non-negative integer or a floating point number
 specifying the font size.  It specifies the font size in pixels (if
 VALUE is an integer), or in points (if VALUE is a float).
 
+`:dpi'
+
+VALUE must be a non-negative number that specifies the resolution
+(dot per inch) for which the font is designed.
+
+`:spacing'
+
+VALUE specifies the spacing of the font: mono, proportional, charcell,
+or dual.  It can be either a number (0 for proportional, 90 for dual,
+100 for mono, 110 for charcell) or a 1-letter symbol: `P', `D', `M',
+or `C' (lower-case variants are also accepted).
+
+`:avgwidth'
+
+VALUE must be a non-negative integer specifying the average width of
+the font in 1/10 pixel units.
+
 `:name'
 
 VALUE must be a string of XLFD-style or fontconfig-style font name.
@@ -4458,6 +4483,10 @@ GSTRING.  */)
     signal_error ("Invalid glyph-string: ", gstring);
   if (! NILP (LGSTRING_ID (gstring)))
     return gstring;
+  Lisp_Object cached_gstring =
+    composition_gstring_lookup_cache (LGSTRING_HEADER (gstring));
+  if (! NILP (cached_gstring))
+    return cached_gstring;
   font_object = LGSTRING_FONT (gstring);
   CHECK_FONT_OBJECT (font_object);
   font = XFONT_OBJECT (font_object);
@@ -5170,6 +5199,9 @@ If the named font cannot be opened and loaded, return nil.  */)
   if (NILP (font_object))
     return Qnil;
   font = XFONT_OBJECT (font_object);
+
+  /* Sanity check to make sure we have initialized max_width.  */
+  eassert (XFONT_OBJECT (font_object)->max_width < 1024 * 1024 * 1024);
 
   info = CALLN (Fvector,
 		AREF (font_object, FONT_NAME_INDEX),

@@ -271,7 +271,7 @@ Except for Lisp syntax this is the same as `reb-regexp'.")
 
 (define-derived-mode reb-mode nil "RE Builder"
   "Major mode for interactively building Regular Expressions."
-  (set (make-local-variable 'blink-matching-paren) nil)
+  (setq-local blink-matching-paren nil)
   (reb-mode-common))
 
 (defvar reb-lisp-mode-map
@@ -301,7 +301,7 @@ Except for Lisp syntax this is the same as `reb-regexp'.")
   "Keymap used by the RE Builder for the subexpression mode.")
 
 (defun reb-mode-common ()
-  "Setup functions common to functions `reb-mode' and `reb-mode-lisp'."
+  "Setup functions common to functions `reb-mode' and `reb-lisp-mode'."
 
   (setq	reb-mode-string  ""
 	reb-valid-string ""
@@ -513,7 +513,7 @@ If SUBEXP is non-nil mark only the corresponding sub-expressions."
   (reb-update-overlays subexp))
 
 (defun reb-auto-update (_beg _end _lenold &optional force)
-  "Called from `after-update-functions' to update the display.
+  "Called from `after-change-functions' to update the display.
 BEG, END and LENOLD are passed in from the hook.
 An actual update is only done if the regexp has changed or if the
 optional fourth argument FORCE is non-nil."
@@ -832,8 +832,8 @@ If SUBEXP is non-nil mark only the corresponding sub-expressions."
     (let ((font-lock-is-on font-lock-mode))
       (font-lock-mode -1)
       (kill-local-variable 'font-lock-set-defaults)
-      ;;(set (make-local-variable 'reb-re-syntax) 'string)
-      ;;(set (make-local-variable 'reb-re-syntax) 'rx)
+      ;;(setq-local reb-re-syntax 'string)
+      ;;(setq-local reb-re-syntax 'rx)
       (setq font-lock-defaults
             (cond
              ((memq reb-re-syntax '(read string))

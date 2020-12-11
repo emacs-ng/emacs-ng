@@ -1,4 +1,4 @@
-;;; eudc-vars.el --- Emacs Unified Directory Client
+;;; eudc-vars.el --- Emacs Unified Directory Client  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1998-2020 Free Software Foundation, Inc.
 
@@ -26,8 +26,6 @@
 ;;; Commentary:
 
 ;;; Code:
-
-(require 'custom)
 
 ;;{{{      EUDC Main Custom Group
 

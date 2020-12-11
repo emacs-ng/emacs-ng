@@ -1770,7 +1770,7 @@ If FRAME is nil, that stands for the selected frame."
 (defun defined-colors-with-face-attributes (&optional frame)
   "Return a list of colors supported for a particular frame.
 See `defined-colors' for arguments and return value. In contrast
-to `define-colors' the elements of the returned list are color
+to `defined-colors' the elements of the returned list are color
 strings with text properties, that make the color names render
 with the color they represent as background color."
   (mapcar
@@ -2578,7 +2578,7 @@ non-nil."
   :group 'basic-faces)
 
 (defface mode-line-highlight
-  '((((class color) (min-colors 88))
+  '((((supports :box t) (class color) (min-colors 88))
      :box (:line-width 2 :color "grey40" :style released-button))
     (t
      :inherit highlight))
@@ -2637,9 +2637,9 @@ Use the face `mode-line-highlight' for features that can be selected."
   :version "21.1"
   :group 'basic-faces)
 
-(defface header-line-highlight '((t :inherit highlight))
+(defface header-line-highlight '((t :inherit mode-line-highlight))
   "Basic header line face for highlighting."
-  :version "26.1"
+  :version "28.1"
   :group 'basic-faces)
 
 (defface vertical-border
@@ -2716,9 +2716,11 @@ used to display the prompt text."
   :group 'frames
   :group 'basic-faces)
 
-(defface scroll-bar '((t nil))
+(defface scroll-bar
+  '((((background light)) :foreground "black")
+    (((background dark))  :foreground "white"))
   "Basic face for the scroll bar colors under X."
-  :version "21.1"
+  :version "28.1"
   :group 'frames
   :group 'basic-faces)
 

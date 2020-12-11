@@ -389,7 +389,7 @@ The possible settings for `align-region-separate' are:
      (regexp   . "\\(^\\s-+[^( \t\n]\\|(\\(\\S-+\\)\\s-+\\)\\S-+\\(\\s-+\\)")
      (group    . 3)
      (modes    . align-lisp-modes)
-     (run-if   . ,(function (lambda () current-prefix-arg))))
+     (run-if   . ,(lambda () current-prefix-arg)))
 
     (lisp-alist-dot
      (regexp   . "\\(\\s-*\\)\\.\\(\\s-*\\)")
@@ -412,7 +412,7 @@ The possible settings for `align-region-separate' are:
 
     (c-variable-declaration
      (regexp   . ,(concat "[*&0-9A-Za-z_]>?[&*]*\\(\\s-+[*&]*\\)"
-			  "[A-Za-z_][0-9A-Za-z:_]*\\s-*\\(\\()\\|"
+			  "[A-Za-z_][][0-9A-Za-z:_]*\\s-*\\(\\()\\|"
 			  "=[^=\n].*\\|(.*)\\|\\(\\[.*\\]\\)*\\)"
 			  "\\s-*[;,]\\|)\\s-*$\\)"))
      (group    . 1)
@@ -463,7 +463,7 @@ The possible settings for `align-region-separate' are:
      (regexp   . ",\\(\\s-*\\)[^/ \t\n]")
      (repeat   . t)
      (modes    . align-c++-modes)
-     (run-if   . ,(function (lambda () current-prefix-arg))))
+     (run-if   . ,(lambda () current-prefix-arg)))
 					;      (valid
 					;       . ,(function
 					;	  (lambda ()
@@ -480,7 +480,7 @@ The possible settings for `align-region-separate' are:
      (regexp   . ",\\(\\s-*\\)[^# \t\n]")
      (repeat   . t)
      (modes    . (append align-perl-modes '(python-mode)))
-     (run-if   . ,(function (lambda () current-prefix-arg))))
+     (run-if   . ,(lambda () current-prefix-arg)))
 
     (c++-comment
      (regexp   . "\\(\\s-*\\)\\(//.*\\|/\\*.*\\*/\\s-*\\)$")
@@ -1004,9 +1004,8 @@ to be colored."
 	 (completing-read
 	  "Title of rule to highlight: "
 	  (mapcar
-	   (function
-	    (lambda (rule)
-	      (list (symbol-name (car rule)))))
+           (lambda (rule)
+             (list (symbol-name (car rule))))
 	   (append (or align-mode-rules-list align-rules-list)
 		   (or align-mode-exclude-rules-list
 		       align-exclude-rules-list))) nil t)))

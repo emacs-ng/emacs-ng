@@ -178,13 +178,16 @@
 
 (defun lisp--match-hidden-arg (limit)
   (let ((res nil))
+    (forward-line 0)
     (while
-        (let ((ppss (parse-partial-sexp (line-beginning-position)
+        (let ((ppss (parse-partial-sexp (point)
                                         (line-end-position)
                                         -1)))
           (skip-syntax-forward " )")
           (if (or (>= (car ppss) 0)
-                  (looking-at ";\\|$"))
+                  (eolp)
+                  (looking-at ";")
+                  (nth 8 (syntax-ppss))) ;Within a string or comment.
               (progn
                 (forward-line 1)
                 (< (point) limit))
@@ -478,7 +481,8 @@ This will generate compile-time constants from BINDINGS."
            (3 'font-lock-regexp-grouping-construct prepend))
          (lisp--match-hidden-arg
           (0 '(face font-lock-warning-face
-                    help-echo "Hidden behind deeper element; move to another line?")))
+               help-echo "Easy to misread; consider moving the element to the next line")
+             prepend))
          (lisp--match-confusable-symbol-character
           0 '(face font-lock-warning-face
                     help-echo "Confusable character"))
@@ -522,7 +526,8 @@ This will generate compile-time constants from BINDINGS."
            (1 font-lock-keyword-face))
          (lisp--match-hidden-arg
           (0 '(face font-lock-warning-face
-               help-echo "Hidden behind deeper element; move to another line?")))
+               help-echo "Easy to misread; consider moving the element to the next line")
+             prepend))
          ))
       "Gaudy level highlighting for Lisp modes.")))
 
@@ -629,7 +634,7 @@ font-lock keywords will not be case sensitive."
   ;; and should make no difference for explicit fill
   ;; because lisp-fill-paragraph should do the job.
   ;;  I believe that newcomment's auto-fill code properly deals with it  -stef
-  ;;(set (make-local-variable 'adaptive-fill-mode) nil)
+  ;;(setq-local adaptive-fill-mode nil)
   (setq-local indent-line-function 'lisp-indent-line)
   (setq-local indent-region-function 'lisp-indent-region)
   (setq-local comment-indent-function #'lisp-comment-indent)

@@ -28,14 +28,7 @@
 ;; possible in as few moves as possible.
 
 ;; Bubbles is an implementation of the "Same Game", similar to "Same
-;; GNOME" and many others, see <http://en.wikipedia.org/wiki/SameGame>.
-
-;; Installation
-;; ------------
-
-;; Add the following lines to your init file:
-;; (add-to-list 'load-path "/path/to/bubbles/")
-;; (autoload 'bubbles "bubbles" "Play Bubbles" t)
+;; GNOME" and many others, see <https://en.wikipedia.org/wiki/SameGame>.
 
 ;; ======================================================================
 

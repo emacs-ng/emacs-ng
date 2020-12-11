@@ -164,7 +164,7 @@ echo area, but if @var{arg} is non-@code{nil}, it inserts the result
 in the current buffer after the form it has compiled.
 @end deffn
 
-@deffn Command byte-compile-file filename &optional load
+@deffn Command byte-compile-file filename
 This function compiles a file of Lisp code named @var{filename} into a
 file of byte-code.  The output file's name is made by changing the
 @samp{.el} suffix into @samp{.elc}; if @var{filename} does not end in
@@ -179,9 +179,6 @@ input file is read.
 
 This command returns @code{t} if there were no errors and @code{nil}
 otherwise.  When called interactively, it prompts for the file name.
-
-If @var{load} is non-@code{nil}, this command loads the compiled file
-after compiling it.  Interactively, @var{load} is the prefix argument.
 
 @example
 @group
@@ -202,7 +199,7 @@ $ ls -l push*
 @end example
 @end deffn
 
-@deffn Command byte-recompile-directory directory &optional flag force
+@deffn Command byte-recompile-directory directory &optional flag force follow-symlinks
 @cindex library compilation
 This command recompiles every @samp{.el} file in @var{directory} (or
 its subdirectories) that needs recompilation.  A file needs
@@ -220,6 +217,10 @@ Interactively, @code{byte-recompile-directory} prompts for
 
 If @var{force} is non-@code{nil}, this command recompiles every
 @samp{.el} file that has a @samp{.elc} file.
+
+This command will normally not compile @samp{.el} files that are
+symlinked.  If the optional @var{follow-symlink} parameter is
+non-@code{nil}, symlinked @samp{.el} will also be compiled.
 
 The returned value is unpredictable.
 @end deffn

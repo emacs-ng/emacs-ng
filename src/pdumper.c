@@ -326,7 +326,7 @@ dump_fingerprint (char const *label,
 /* To be used if some order in the relocation process has to be enforced. */
 enum reloc_phase
   {
-    /* First to run.  Place here every relocation with no dependecy.  */
+    /* First to run.  Place every relocation with no dependency here.  */
     EARLY_RELOCS,
     /* Late and very late relocs are relocated at the very last after
        all hooks has been run.  All lisp machinery is at disposal
@@ -2709,7 +2709,7 @@ dump_hash_table (struct dump_context *ctx,
 static dump_off
 dump_buffer (struct dump_context *ctx, const struct buffer *in_buffer)
 {
-#if CHECK_STRUCTS && !defined HASH_buffer_5DC36DBD42
+#if CHECK_STRUCTS && !defined HASH_buffer_EE36B4292E
 # error "buffer changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct buffer munged_buffer = *in_buffer;
@@ -3405,6 +3405,7 @@ dump_cold_bignum (struct dump_context *ctx, Lisp_Object object)
     }
 }
 
+#ifdef HAVE_NATIVE_COMP
 static void
 dump_cold_native_subr (struct dump_context *ctx, Lisp_Object subr)
 {
@@ -3425,6 +3426,7 @@ dump_cold_native_subr (struct dump_context *ctx, Lisp_Object subr)
   const char *c_name = XSUBR (subr)->native_c_name[0];
   dump_write (ctx, c_name, 1 + strlen (c_name));
 }
+#endif
 
 static void
 dump_drain_cold_data (struct dump_context *ctx)
@@ -3469,9 +3471,11 @@ dump_drain_cold_data (struct dump_context *ctx)
         case COLD_OP_BIGNUM:
           dump_cold_bignum (ctx, data);
           break;
+#ifdef HAVE_NATIVE_COMP
 	case COLD_OP_NATIVE_SUBR:
 	  dump_cold_native_subr (ctx, data);
 	  break;
+#endif
         default:
           emacs_abort ();
         }
@@ -4123,7 +4127,7 @@ types.  */)
     ctx->header.fingerprint[i] = fingerprint[i];
 
   const dump_off header_start = ctx->offset;
-  dump_fingerprint ("dumping fingerprint", ctx->header.fingerprint);
+  dump_fingerprint ("Dumping fingerprint", ctx->header.fingerprint);
   dump_write (ctx, &ctx->header, sizeof (ctx->header));
   const dump_off header_end = ctx->offset;
 
@@ -5250,7 +5254,8 @@ dump_do_dump_relocation (const uintptr_t dump_base,
 	  dump_ptr (dump_base, reloc_offset);
 	comp_u->lambda_gc_guard_h = CALLN (Fmake_hash_table, QCtest, Qeq);
 	if (!CONSP (comp_u->file))
-	  error ("Trying to load incoherent dumped .eln");
+	  error ("Trying to load incoherent dumped eln file %s",
+		 SSDATA (comp_u->file));
 
 	/* Check just once if this is a local build or Emacs was installed.  */
 	if (installation_state == UNKNOWN)
@@ -5587,7 +5592,8 @@ pdumper_load (const char *dump_filename, char *argv0, char const *original_pwd)
 
   /* Once we can allocate and before loading .eln files we must set
      Vinvocation_directory (.eln paths are relative to it). */
-  set_invocation_vars (argv0, original_pwd);
+  init_vars_for_load (argv0, original_pwd);
+
   dump_do_all_dump_reloc_for_phase (header, dump_base, LATE_RELOCS);
   dump_do_all_dump_reloc_for_phase (header, dump_base, VERY_LATE_RELOCS);
   initialized = true;

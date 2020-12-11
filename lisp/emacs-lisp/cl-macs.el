@@ -819,16 +819,15 @@ final clause, and matches if no other keys match.
       (cons
        'cond
        (mapcar
-        (function
-         (lambda (c)
-           (cons (cond ((eq (car c) 'otherwise) t)
-                       ((eq (car c) 'cl--ecase-error-flag)
-                        `(error "cl-etypecase failed: %s, %s"
-                                ,temp ',(reverse type-list)))
-                       (t
-                        (push (car c) type-list)
-                        `(cl-typep ,temp ',(car c))))
-                 (or (cdr c) '(nil)))))
+        (lambda (c)
+          (cons (cond ((eq (car c) 'otherwise) t)
+                      ((eq (car c) 'cl--ecase-error-flag)
+                       `(error "cl-etypecase failed: %s, %s"
+                               ,temp ',(reverse type-list)))
+                      (t
+                       (push (car c) type-list)
+                       `(cl-typep ,temp ',(car c))))
+                (or (cdr c) '(nil))))
         clauses)))))
 
 ;;;###autoload
@@ -2359,6 +2358,8 @@ Example:
 (defun foo (x)
   (declare (cl-optimize (speed 3) (safety 0)))
   x)"
+  ;; FIXME this should make use of `cl--declare-stack' but I suspect
+  ;; this mechanism should be reviewed first.
   (cl-loop for (qly val) in qualities
            do (cl-ecase qly
                 (speed
@@ -2791,7 +2792,7 @@ Supported keywords for slots are:
     (unless (cl--struct-name-p name)
       (signal 'wrong-type-argument (list 'cl-struct-name-p name 'name)))
     (setq descs (cons '(cl-tag-slot)
-		      (mapcar (function (lambda (x) (if (consp x) x (list x))))
+                      (mapcar (lambda (x) (if (consp x) x (list x)))
 			      descs)))
     (while opts
       (let ((opt (if (consp (car opts)) (caar opts) (car opts)))
@@ -2818,9 +2819,8 @@ Supported keywords for slots are:
                ;; we include EIEIO classes rather than cl-structs!
                (when include-name (error "Can't :include more than once"))
                (setq include-name (car args))
-               (setq include-descs (mapcar (function
-                                            (lambda (x)
-                                              (if (consp x) x (list x))))
+               (setq include-descs (mapcar (lambda (x)
+                                             (if (consp x) x (list x)))
                                            (cdr args))))
 	      ((eq opt :print-function)
 	       (setq print-func (car args)))
@@ -2997,7 +2997,7 @@ Supported keywords for slots are:
               constrs))
     (pcase-dolist (`(,cname ,args ,doc) constrs)
       (let* ((anames (cl--arglist-args args))
-	     (make (cl-mapcar (function (lambda (s d) (if (memq s anames) s d)))
+             (make (cl-mapcar (lambda (s d) (if (memq s anames) s d))
 			      slots defaults))
 	     ;; `cl-defsubst' is fundamentally broken: it substitutes
              ;; its arguments into the body's `sexp' much too naively
@@ -3180,6 +3180,7 @@ Of course, we really can't know that for sure, so it's just a heuristic."
                  (buffer	. bufferp)
                  (character	. natnump)
                  (char-table	. char-table-p)
+                 (hash-table	. hash-table-p)
                  (cons		. consp)
                  (fixnum	. integerp)
                  (float		. floatp)
@@ -3461,6 +3462,8 @@ STRUCT and SLOT-NAME are symbols.  INST is a structure instance."
            (nth (cl-struct-slot-offset ,struct-type ,slot-name) ,inst)
          (aref ,inst (cl-struct-slot-offset ,struct-type ,slot-name)))))))
 
+(make-obsolete-variable 'cl-macs-load-hook
+                        "use `with-eval-after-load' instead." "28.1")
 (run-hooks 'cl-macs-load-hook)
 
 ;; Local variables:

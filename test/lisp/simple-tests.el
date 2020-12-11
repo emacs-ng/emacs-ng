@@ -44,7 +44,7 @@
 ;;; `count-words'
 (ert-deftest simple-test-count-words-bug-41761 ()
   (with-temp-buffer
-    (dotimes (i 10) (insert (propertize "test " 'field (cons nil nil))))
+    (dotimes (_i 10) (insert (propertize "test " 'field (cons nil nil))))
     (should (= (count-words (point-min) (point-max)) 10))))
 
 
@@ -811,11 +811,12 @@ See Bug#21722."
   (let* ((str "foo\\n")
          (expected-point `((beg-last-out . ,(1+ (length str)))
                            (end-last-out . ,(1+ (* 2 (length str))))
-                           (save-point . 1))))
+                           (save-point . 1)
+                           (erase . ,(1+ (length str)))
+                           (nil . ,(1+ (length str))))))
     (dolist (output-buffer-is-current '(nil))
       (with-shell-command-dont-erase-buffer str output-buffer-is-current
-        (when (memq shell-command-dont-erase-buffer '(beg-last-out end-last-out save-point))
-          (should (= (point) (alist-get shell-command-dont-erase-buffer expected-point))))))))
+        (should (= (point) (alist-get shell-command-dont-erase-buffer expected-point)))))))
 
 
 (provide 'simple-test)

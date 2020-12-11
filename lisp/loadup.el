@@ -57,7 +57,7 @@
 ;; bidi.c needs for its job.
 (setq redisplay--inhibit-bidi t)
 
-(message "dump mode: %s" dump-mode)
+(message "Dump mode: %s" dump-mode)
 
 ;; Add subdirectories to the load-path for files that might get
 ;; autoloaded when bootstrapping or running Emacs normally.
@@ -351,6 +351,7 @@
 (load "cus-start") ;Late to reduce customize-rogue (needs loaddefs.el anyway)
 (if (not (eq system-type 'ms-dos))
     (load "tooltip"))
+(load "international/iso-transl") ; Binds Alt-[ and friends.
 
 ;; This file doesn't exist when building a development version of Emacs
 ;; from the repository.  It is generated just after temacs is built.
@@ -449,7 +450,7 @@ lost after dumping")))
 ;; At this point, we're ready to resume undo recording for scratch.
 (buffer-enable-undo "*scratch*")
 
-(when (boundp 'comp-ctxt)
+(when (featurep 'nativecomp)
   ;; Fix the compilation unit filename to have it working when
   ;; when installed or if the source directory got moved.  This is set to be
   ;; a pair in the form: (rel-path-from-install-bin . rel-path-from-local-bin).
@@ -510,6 +511,11 @@ lost after dumping")))
                         ((equal dump-mode "bootstrap") "emacs")
                         ((equal dump-mode "pbootstrap") "bootstrap-emacs.pdmp")
                         (t (error "unrecognized dump mode %s" dump-mode)))))
+      (when (and (featurep 'nativecomp)
+                 (equal dump-mode "pdump"))
+        ;; Don't enable this before bootstrap is completed the as the
+        ;; compiler infrastructure may not be usable.
+        (setq comp-enable-subr-trampolines t))
       (message "Dumping under the name %s" output)
       (condition-case ()
           (delete-file output)

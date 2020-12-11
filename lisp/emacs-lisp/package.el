@@ -389,6 +389,12 @@ a sane initial value."
   :version "25.1"
   :type '(repeat symbol))
 
+(defcustom package-native-compile nil
+  "Non-nil means to native compile packages on installation."
+  :type '(boolean)
+  :risky t
+  :version "28.1")
+
 (defcustom package-menu-async t
   "If non-nil, package-menu will use async operations when possible.
 Currently, only the refreshing of archive contents supports
@@ -968,6 +974,8 @@ untar into a directory named DIR; otherwise, signal an error."
         ;; E.g. for multi-package installs, we should first install all packages
         ;; and then compile them.
         (package--compile new-desc)
+        (when package-native-compile
+          (package--native-compile-async new-desc))
         ;; After compilation, load again any files loaded by
         ;; `activate-1', so that we use the byte-compiled definitions.
         (package--load-files-for-activation new-desc :reload)))
@@ -982,7 +990,8 @@ untar into a directory named DIR; otherwise, signal an error."
       (write-region
        (concat
         ";;; Generated package description from "
-        (replace-regexp-in-string "-pkg\\.el\\'" ".el" pkg-file)
+        (replace-regexp-in-string "-pkg\\.el\\'" ".el"
+                                  (file-name-nondirectory pkg-file))
         "  -*- no-byte-compile: t -*-\n"
         (prin1-to-string
          (nconc
@@ -1013,7 +1022,6 @@ untar into a directory named DIR; otherwise, signal an error."
     (write-region (autoload-rubric file "package" nil) nil file nil 'silent))
   file)
 
-(defvar generated-autoload-file)
 (defvar autoload-timestamps)
 (defvar version-control)
 
@@ -1021,14 +1029,14 @@ untar into a directory named DIR; otherwise, signal an error."
   "Generate autoloads in PKG-DIR for package named NAME."
   (let* ((auto-name (format "%s-autoloads.el" name))
          ;;(ignore-name (concat name "-pkg.el"))
-         (generated-autoload-file (expand-file-name auto-name pkg-dir))
+         (output-file (expand-file-name auto-name pkg-dir))
          ;; We don't need 'em, and this makes the output reproducible.
          (autoload-timestamps nil)
          (backup-inhibited t)
          (version-control 'never))
-    (package-autoload-ensure-default-file generated-autoload-file)
-    (update-directory-autoloads pkg-dir)
-    (let ((buf (find-buffer-visiting generated-autoload-file)))
+    (package-autoload-ensure-default-file output-file)
+    (make-directory-autoloads pkg-dir output-file)
+    (let ((buf (find-buffer-visiting output-file)))
       (when buf (kill-buffer buf)))
     auto-name))
 
@@ -1051,6 +1059,15 @@ This assumes that `pkg-desc' has already been activated with
   (let ((warning-minimum-level :error)
         (load-path load-path))
     (byte-recompile-directory (package-desc-dir pkg-desc) 0 t)))
+
+(defun package--native-compile-async (pkg-desc)
+  "Native compile installed package PKG-DESC asynchronously.
+This assumes that `pkg-desc' has already been activated with
+`package-activate-1'."
+  (when (and (featurep 'nativecomp)
+             (native-comp-available-p))
+    (let ((warning-minimum-level :error))
+      (native-compile-async (package-desc-dir pkg-desc) t))))
 
 ;;;; Inferring package from current buffer
 (defun package-read-from-string (str)
@@ -2112,8 +2129,7 @@ Otherwise return nil."
   (when str
     (when (string-match "\\`[ \t]*[$]Revision:[ \t]+" str)
       (setq str (substring str (match-end 0))))
-    (ignore-errors
-      (if (version-to-list str) str))))
+    (if (version-to-list str) str)))
 
 (declare-function lm-homepage "lisp-mnt" (&optional file))
 
@@ -2153,6 +2169,7 @@ Downloads and installs required packages as needed."
     (unless (package--user-selected-p name)
       (package--save-selected-packages
        (cons name package-selected-packages)))
+    (package--quickstart-maybe-refresh)
     pkg-desc))
 
 ;;;###autoload
@@ -2204,11 +2221,12 @@ If some packages are not installed propose to install them."
   (equal (cadr (assq (package-desc-name pkg) package-alist))
          pkg))
 
+(declare-function comp-el-to-eln-filename "comp.c")
 (defun package--delete-directory (dir)
   "Delete DIR recursively.
 Clean-up the corresponding .eln files if Emacs is native
 compiled."
-  (when (boundp 'comp-ctxt)
+  (when (featurep 'nativecomp)
     (cl-loop
      for file in (directory-files-recursively dir ".el\\'")
      do (comp-clean-up-stale-eln (comp-el-to-eln-filename file))))
@@ -2641,8 +2659,7 @@ Used for the `action' property of buttons in the buffer created by
     (when (y-or-n-p (format-message "Install package `%s'? "
                                     (package-desc-full-name pkg-desc)))
       (package-install pkg-desc nil)
-      (revert-buffer nil t)
-      (goto-char (point-min)))))
+      (describe-package (package-desc-name pkg-desc)))))
 
 (defun package-delete-button-action (button)
   "Run `package-delete' on the package BUTTON points to.
@@ -2652,8 +2669,7 @@ Used for the `action' property of buttons in the buffer created by
     (when (y-or-n-p (format-message "Delete package `%s'? "
                                     (package-desc-full-name pkg-desc)))
       (package-delete pkg-desc)
-      (revert-buffer nil t)
-      (goto-char (point-min)))))
+      (describe-package (package-desc-name pkg-desc)))))
 
 (defun package-keyword-button-action (button)
   "Show filtered \"*Packages*\" buffer for BUTTON.
@@ -2715,11 +2731,14 @@ either a full name or nil, and EMAIL is a valid email address."
     (define-key map "(" #'package-menu-toggle-hiding)
     (define-key map (kbd "/ /") 'package-menu-clear-filter)
     (define-key map (kbd "/ a") 'package-menu-filter-by-archive)
+    (define-key map (kbd "/ d") 'package-menu-filter-by-description)
     (define-key map (kbd "/ k") 'package-menu-filter-by-keyword)
+    (define-key map (kbd "/ N") 'package-menu-filter-by-name-or-description)
     (define-key map (kbd "/ n") 'package-menu-filter-by-name)
     (define-key map (kbd "/ s") 'package-menu-filter-by-status)
     (define-key map (kbd "/ v") 'package-menu-filter-by-version)
     (define-key map (kbd "/ m") 'package-menu-filter-marked)
+    (define-key map (kbd "/ u") 'package-menu-filter-upgradable)
     map)
   "Local keymap for `package-menu-mode' buffers.")
 
@@ -2746,8 +2765,11 @@ either a full name or nil, and EMAIL is a valid email address."
     "--"
     ("Filter Packages"
      ["Filter by Archive" package-menu-filter-by-archive :help "Filter packages by archive"]
+     ["Filter by Description" package-menu-filter-by-description :help "Filter packages by description"]
      ["Filter by Keyword" package-menu-filter-by-keyword :help "Filter packages by keyword"]
      ["Filter by Name" package-menu-filter-by-name :help "Filter packages by name"]
+     ["Filter by Name or Description" package-menu-filter-by-name-or-description
+      :help "Filter packages by name or description"]
      ["Filter by Status" package-menu-filter-by-status :help "Filter packages by status"]
      ["Filter by Version" package-menu-filter-by-version :help "Filter packages by version"]
      ["Filter Marked" package-menu-filter-marked :help "Filter packages marked for upgrade"]
@@ -3623,7 +3645,7 @@ This is used for `tabulated-list-format' in `package-menu-mode'."
       (string< a b))))
 
 (defun package-menu--populate-new-package-list ()
-  "Decide which packages are new in `package-archives-contents'.
+  "Decide which packages are new in `package-archive-contents'.
 Store this list in `package-menu--new-package-list'."
   ;; Find which packages are new.
   (when package-menu--old-archive-contents
@@ -3775,6 +3797,23 @@ packages."
                                              (string-join archive ",")
                                            archive)))))
 
+(defun package-menu-filter-by-description (description)
+  "Filter the \"*Packages*\" buffer by DESCRIPTION regexp.
+Display only packages with a description that matches regexp
+DESCRIPTION.
+
+When called interactively, prompt for DESCRIPTION.
+
+If DESCRIPTION is nil or the empty string, show all packages."
+  (interactive (list (read-regexp "Filter by description (regexp)")))
+  (package--ensure-package-menu-mode)
+  (if (or (not description) (string-empty-p description))
+      (package-menu--generate t t)
+    (package-menu--filter-by (lambda (pkg-desc)
+                        (string-match description
+                                      (package-desc-summary pkg-desc)))
+                      (format "desc:%s" description))))
+
 (defun package-menu-filter-by-keyword (keyword)
   "Filter the \"*Packages*\" buffer by KEYWORD.
 Display only packages with specified KEYWORD.
@@ -3799,6 +3838,27 @@ packages."
 
 (define-obsolete-function-alias
   'package-menu-filter #'package-menu-filter-by-keyword "27.1")
+
+(defun package-menu-filter-by-name-or-description (name-or-description)
+  "Filter the \"*Packages*\" buffer by NAME-OR-DESCRIPTION regexp.
+Display only packages with a name-or-description that matches regexp
+NAME-OR-DESCRIPTION.
+
+When called interactively, prompt for NAME-OR-DESCRIPTION.
+
+If NAME-OR-DESCRIPTION is nil or the empty string, show all
+packages."
+  (interactive (list (read-regexp "Filter by name or description (regexp)")))
+  (package--ensure-package-menu-mode)
+  (if (or (not name-or-description) (string-empty-p name-or-description))
+      (package-menu--generate t t)
+    (package-menu--filter-by (lambda (pkg-desc)
+                        (or (string-match name-or-description
+                                          (package-desc-summary pkg-desc))
+                            (string-match name-or-description
+                                          (symbol-name
+                                           (package-desc-name pkg-desc)))))
+                      (format "name-or-desc:%s" name-or-description))))
 
 (defun package-menu-filter-by-name (name)
   "Filter the \"*Packages*\" buffer by NAME regexp.
@@ -3915,6 +3975,15 @@ Unlike other filters, this leaves the marks intact."
 	      (setq mark (cdr (assq (tabulated-list-get-id) marks)))
 	      (tabulated-list-put-tag (char-to-string mark) t)))
 	(user-error "No packages found")))))
+
+(defun package-menu-filter-upgradable ()
+  "Filter \"*Packages*\" buffer to show only upgradable packages."
+  (interactive)
+  (let ((pkgs (mapcar #'car (package-menu--find-upgrades))))
+    (package-menu--filter-by
+     (lambda (pkg)
+       (memql (package-desc-name pkg) pkgs))
+     "upgradable")))
 
 (defun package-menu-clear-filter ()
   "Clear any filter currently applied to the \"*Packages*\" buffer."

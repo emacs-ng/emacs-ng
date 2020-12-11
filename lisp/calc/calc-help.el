@@ -1,4 +1,4 @@
-;;; calc-help.el --- help display functions for Calc,
+;;; calc-help.el --- help display functions for Calc  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1990-1993, 2001-2020 Free Software Foundation, Inc.
 
@@ -33,8 +33,8 @@
 (declare-function Info-last "info" ())
 
 
-(defun calc-help-prefix (arg)
-  "This key is the prefix for Calc help functions.  See calc-help-for-help."
+(defun calc-help-prefix (&optional _arg)
+  "This key is the prefix for Calc help functions.  See `calc-help-for-help'."
   (interactive "P")
   (or calc-dispatch-help (sit-for echo-keystrokes))
   (let ((key (calc-read-key-sequence
@@ -79,7 +79,7 @@ C-w  Describe how there is no warranty for Calc."
 		   (message "Calc Help options: Help, Info, ...  press SPC, DEL to scroll, C-g to cancel")
 		   (memq (setq key (read-event))
 			 '(?  ?\C-h ?\C-? ?\C-v ?\M-v)))
-	    (condition-case err
+	    (condition-case nil
 		(if (memq key '(? ?\C-v))
 		    (scroll-up)
 		  (scroll-down))
@@ -302,21 +302,19 @@ C-w  Describe how there is no warranty for Calc."
   (let ((entrylist '())
         entry)
     (require 'info nil t)
-    (while indices
-      (condition-case nil
-          (with-temp-buffer
-            (Info-mode)
-            (Info-goto-node (concat "(Calc)" (car indices) " Index"))
-            (goto-char (point-min))
-            (while (re-search-forward "\n\\* \\(.*\\): " nil t)
-              (setq entry (match-string 1))
-              (if (and (not (string-match "<[1-9]+>" entry))
-                       (not (string-match "(.*)" entry))
-                       (not (string= entry "Menu")))
-                  (unless (assoc entry entrylist)
-                    (setq entrylist (cons entry entrylist))))))
-        (error nil))
-      (setq indices (cdr indices)))
+    (dolist (indice indices)
+      (ignore-errors
+        (with-temp-buffer
+          (Info-mode)
+          (Info-goto-node (concat "(Calc)" indice " Index"))
+          (goto-char (point-min))
+          (while (re-search-forward "\n\\* \\(.*\\): " nil t)
+            (setq entry (match-string 1))
+            (if (and (not (string-match "<[1-9]+>" entry))
+                     (not (string-match "(.*)" entry))
+                     (not (string= entry "Menu")))
+                (unless (assoc entry entrylist)
+                  (setq entrylist (cons entry entrylist))))))))
     entrylist))
 
 (defun calc-describe-function (&optional func)
@@ -404,34 +402,32 @@ C-w  Describe how there is no warranty for Calc."
             "Or type `h i' to read the full Calc manual on-line.\n\n"))
     (princ "Basic keys:\n")
     (let* ((calc-full-help-flag t))
-      (mapc (function (lambda (x) (princ (format
-                                          "  %s\n"
-                                          (substitute-command-keys x)))))
+      (mapc (lambda (x)
+              (princ (format
+                      "  %s\n"
+                      (substitute-command-keys x))))
 	    (nreverse (cdr (reverse (cdr (calc-help))))))
-      (mapc (function (lambda (prefix)
-			(let ((msgs (condition-case err
-					(funcall prefix)
-				      (error nil))))
-			  (if (car msgs)
-			      (princ
-			       (if (eq (nth 2 msgs) ?v)
-                                   (format-message
-                                    "\n`v' or `V' prefix (vector/matrix) keys: \n")
-				 (if (nth 2 msgs)
-				     (format-message
-				      "\n`%c' prefix (%s) keys:\n"
-				      (nth 2 msgs)
-				      (or (cdr (assq (nth 2 msgs)
-						     calc-help-long-names))
-					  (nth 1 msgs)))
-				   (format "\n%s-modified keys:\n"
-					   (capitalize (nth 1 msgs)))))))
-			  (mapcar (function
-                                   (lambda (x)
-                                     (princ (format
-                                             "  %s\n"
-                                             (substitute-command-keys x)))))
-				  (car msgs)))))
+      (mapc (lambda (prefix)
+              (let ((msgs (ignore-errors (funcall prefix))))
+                (if (car msgs)
+                    (princ
+                     (if (eq (nth 2 msgs) ?v)
+                         (format-message
+                          "\n`v' or `V' prefix (vector/matrix) keys: \n")
+                       (if (nth 2 msgs)
+                           (format-message
+                            "\n`%c' prefix (%s) keys:\n"
+                            (nth 2 msgs)
+                            (or (cdr (assq (nth 2 msgs)
+                                           calc-help-long-names))
+                                (nth 1 msgs)))
+                         (format "\n%s-modified keys:\n"
+                                 (capitalize (nth 1 msgs)))))))
+                (mapcar (lambda (x)
+                          (princ (format
+                                  "  %s\n"
+                                  (substitute-command-keys x))))
+                        (car msgs))))
 	    '(calc-inverse-prefix-help
 	      calc-hyperbolic-prefix-help
 	      calc-inv-hyp-prefix-help

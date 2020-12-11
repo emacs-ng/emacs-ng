@@ -241,12 +241,12 @@ Already submitted bugs can be found in the Emacs bug tracker:
       ;; that report-emacs-bug-orig-text remains valid.  (Bug#5178)
       (message-sort-headers)
       ;; Stop message-mode stealing the properties we will add.
-      (set (make-local-variable 'message-strip-special-text-properties) nil)
+      (setq-local message-strip-special-text-properties nil)
       ;; Make sure we default to the From: address as envelope when sending
       ;; through sendmail.  FIXME: Why?
       (when (and (not (message--sendmail-envelope-from))
 		 (message-bogus-recipient-p (message-make-address)))
-	(set (make-local-variable 'message-sendmail-envelope-from) 'header)))
+        (setq-local message-sendmail-envelope-from 'header)))
     (rfc822-goto-eoh)
     (forward-line 1)
     ;; Move the mail signature to the proper place.
@@ -313,7 +313,7 @@ usually do not have translators for other languages.\n\n")))
      (lambda (var)
        (let ((val (getenv var)))
 	 (if val (insert (format "  value of $%s: %s\n" var val)))))
-     '("EMACSDATA" "EMACSDOC" "EMACSLOADPATH" "EMACSPATH"
+     '("EMACSDATA" "EMACSDOC" "EMACSLOADPATH" "EMACSNATIVELOADPATH" "EMACSPATH"
        "LC_ALL" "LC_COLLATE" "LC_CTYPE" "LC_MESSAGES"
        "LC_MONETARY" "LC_NUMERIC" "LC_TIME" "LANG" "XMODIFIERS"))
     (insert (format "  locale-coding-system: %s\n" locale-coding-system))
@@ -381,9 +381,8 @@ usually do not have translators for other languages.\n\n")))
         (add-hook report-emacs-bug-send-hook 'report-emacs-bug-hook nil t))
     (goto-char (point-max))
     (skip-chars-backward " \t\n")
-    (make-local-variable 'report-emacs-bug-orig-text)
-    (setq report-emacs-bug-orig-text
-          (buffer-substring-no-properties (point-min) (point)))
+    (setq-local report-emacs-bug-orig-text
+                (buffer-substring-no-properties (point-min) (point)))
     (goto-char user-point)))
 
 (defun emacs-bug--system-description ()
@@ -514,9 +513,13 @@ Message buffer where you can explain more about the patch."
   (insert "\n\n\n")
   (emacs-bug--system-description)
   (mml-attach-file file "text/patch" nil "attachment")
-  (message-add-header "X-Debbugs-Tags: patch")
   (message-goto-body)
   (message "Write a description of the patch and use `C-c C-c' to send it")
+  (add-hook 'message-send-hook
+            (lambda ()
+              (message-goto-body)
+              (insert "Tags: patch\n\n"))
+            nil t)
   (message-add-action
    (lambda ()
      ;; Bury the help buffer (if it's shown).

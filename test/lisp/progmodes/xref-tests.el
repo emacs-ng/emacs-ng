@@ -23,13 +23,14 @@
 
 ;;; Code:
 
+(require 'ert)
 (require 'xref)
 (require 'cl-lib)
 
 (defvar xref-tests-data-dir
-  (expand-file-name "../../../data/xref/"
-                    (or load-file-name
-                        buffer-file-name)))
+  (expand-file-name "xref-resources/"
+                    (file-name-directory
+                     (or load-file-name buffer-file-name))))
 
 (ert-deftest xref-matches-in-directory-finds-none-for-some-regexp ()
   (should (null (xref-matches-in-directory "zzz" "*" xref-tests-data-dir nil))))

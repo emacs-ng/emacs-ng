@@ -309,9 +309,8 @@ A lambda list keyword is a symbol that starts with `&'."
 (defun edebug-sort-alist (alist function)
   ;; Return the ALIST sorted with comparison function FUNCTION.
   ;; This uses 'sort so the sorting is destructive.
-  (sort alist (function
-	       (lambda (e1 e2)
-		 (funcall function (car e1) (car e2))))))
+  (sort alist (lambda (e1 e2)
+                (funcall function (car e1) (car e2)))))
 
 ;; Not used.
 '(defmacro edebug-save-restriction (&rest body)
@@ -407,14 +406,13 @@ Return the result of the last expression in BODY."
   (if (listp window-info)
       (mapcar (lambda (one-window-info)
                 (if one-window-info
-                    (apply (function
-                            (lambda (window buffer point start hscroll)
-                              (if (edebug-window-live-p window)
-                                  (progn
-                                    (set-window-buffer window buffer)
-                                    (set-window-point window point)
-                                    (set-window-start window start)
-                                    (set-window-hscroll window hscroll)))))
+                    (apply (lambda (window buffer point start hscroll)
+                             (if (edebug-window-live-p window)
+                                 (progn
+                                   (set-window-buffer window buffer)
+                                   (set-window-point window point)
+                                   (set-window-start window start)
+                                   (set-window-hscroll window hscroll))))
                            one-window-info)))
 	      window-info)
     (set-window-configuration window-info)))
@@ -2665,9 +2663,6 @@ See `edebug-behavior-alist' for implementations.")
 
 (defvar edebug-previous-result nil) ;; Last result returned.
 
-;; Emacs 19 adds an arg to mark and mark-marker.
-(defalias 'edebug-mark-marker 'mark-marker)
-
 (defun edebug--display (value offset-index arg-mode)
   ;; edebug--display-1 is too big, we should split it.  This function
   ;; here was just introduced to avoid making edebug--display-1
@@ -2895,8 +2890,8 @@ See `edebug-behavior-alist' for implementations.")
               ;; But don't restore point if edebug-buffer is current buffer.
               (if (not (eq edebug-buffer edebug-outside-buffer))
                   (goto-char edebug-outside-point))
-              (if (marker-buffer (edebug-mark-marker))
-                  (set-marker (edebug-mark-marker) edebug-outside-mark))
+              (if (marker-buffer (mark-marker))
+                  (set-marker (mark-marker) edebug-outside-mark))
               ))     ; unwind-protect
 	  ;; None of the following is done if quit or signal occurs.
 
@@ -3153,8 +3148,8 @@ before returning.  The default is one second."
       (goto-char edebug-outside-point)
       (message "Current buffer: %s Point: %s Mark: %s"
 	       (current-buffer) (point)
-	       (if (marker-buffer (edebug-mark-marker))
-		   (marker-position (edebug-mark-marker)) "<not set>"))
+               (if (marker-buffer (mark-marker))
+                   (marker-position (mark-marker)) "<not set>"))
       (sit-for arg)
       (edebug-pop-to-buffer edebug-buffer (car edebug-window-data)))))
 
@@ -3725,8 +3720,8 @@ Return the result of the last expression."
          ;; for us.
          (with-current-buffer edebug-outside-buffer ; of edebug-buffer
            (goto-char edebug-outside-point)
-           (if (marker-buffer (edebug-mark-marker))
-               (set-marker (edebug-mark-marker) edebug-outside-mark))
+           (if (marker-buffer (mark-marker))
+               (set-marker (mark-marker) edebug-outside-mark))
            ,@body)
 
        ;; Back to edebug-buffer.  Restore rest of inside context.
@@ -4021,7 +4016,6 @@ Options:
 `edebug-print-circle'
 `edebug-on-error'
 `edebug-on-quit'
-`edebug-on-signal'
 `edebug-unwrap-results'
 `edebug-global-break-condition'"
   :lighter " *Debugging*"
@@ -4461,7 +4455,6 @@ reinstrument it."
 (defun edebug-temp-display-freq-count ()
   "Temporarily display the frequency count data for the current definition.
 It is removed when you hit any char."
-  ;; This seems not to work with Emacs 18.59. It undoes too far.
   (interactive)
   (let ((inhibit-read-only t))
     (undo-boundary)
@@ -4667,6 +4660,8 @@ instrumentation for, defaulting to all functions."
       (defalias symbol unwrapped)))
   (message "Removed edebug instrumentation from %s"
            (mapconcat #'symbol-name functions ", ")))
+
+(define-obsolete-function-alias 'edebug-mark-marker #'mark-marker "28.1")
 
 (provide 'edebug)
 ;;; edebug.el ends here

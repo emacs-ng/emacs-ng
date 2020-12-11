@@ -220,10 +220,6 @@ enum event_kind
      save yourself before shutdown. */
   SAVE_SESSION_EVENT
 
-#ifdef HAVE_GPM
-  , GPM_CLICK_EVENT
-#endif
-
 #ifdef HAVE_DBUS
   , DBUS_EVENT
 #endif
@@ -370,7 +366,7 @@ enum {
 
 #ifdef HAVE_GPM
 #include <gpm.h>
-extern int handle_one_term_event (struct tty_display_info *, Gpm_Event *, struct input_event *);
+extern int handle_one_term_event (struct tty_display_info *, Gpm_Event *);
 #ifndef HAVE_WINDOW_SYSTEM
 extern void term_mouse_moveto (int, int);
 #endif

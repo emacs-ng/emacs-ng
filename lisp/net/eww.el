@@ -56,6 +56,13 @@
   :group 'eww
   :type 'string)
 
+(defcustom eww-use-browse-url "\\`mailto:"
+  "eww will use `browse-url' when following links that match this regexp.
+The action to be taken can be further customized via
+`browse-url-handlers'."
+  :version "28.1"
+  :type 'regexp)
+
 (defun erc--download-directory ()
   "Return the name of the download directory.
 If ~/Downloads/ exists, that will be used, and if not, the
@@ -420,7 +427,7 @@ killed after rendering."
       (narrow-to-region start end)
       (goto-char start)
       (let ((case-fold-search t))
-        (while (re-search-forward "<[^0-9a-z!/]" nil t)
+        (while (re-search-forward "<[^0-9a-z!?/]" nil t)
           (goto-char (match-beginning 0))
           (delete-region (point) (1+ (point)))
           (insert "&lt;"))))))
@@ -450,11 +457,11 @@ killed after rendering."
 
 ;;;###autoload
 (defun eww-search-words ()
-  "Search the web for the text between BEG and END.
+  "Search the web for the text in the region.
 If region is active (and not whitespace), search the web for
-the text between BEG and END.  Else, prompt the user for a search
-string.  See the `eww-search-prefix' variable for the search
-engine used."
+the text between region beginning and end.  Else, prompt the
+user for a search string.  See the variable `eww-search-prefix'
+for the search engine used."
   (interactive)
   (if (use-region-p)
       (let ((region-string (buffer-substring (region-beginning) (region-end))))
@@ -695,11 +702,12 @@ Currently this means either text/html or application/xhtml+xml."
   (eww-handle-link dom)
   (let ((start (point)))
     (shr-tag-a dom)
-    (put-text-property start (point)
-                       'keymap
-                       (if (mm-images-in-region-p start (point))
-                           eww-image-link-keymap
-                         eww-link-keymap))))
+    (if (dom-attr dom 'href)
+        (put-text-property start (point)
+                           'keymap
+                           (if (mm-images-in-region-p start (point))
+                               eww-image-link-keymap
+                             eww-link-keymap)))))
 
 (defun eww--limit-string-pixelwise (string pixels)
   (if (not pixels)
@@ -810,14 +818,19 @@ Currently this means either text/html or application/xhtml+xml."
 
 (declare-function mailcap-view-mime "mailcap" (type))
 (defun eww-display-pdf ()
-  (let ((data (buffer-substring (point) (point-max))))
-    (pop-to-buffer-same-window (get-buffer-create "*eww pdf*"))
-    (let ((coding-system-for-write 'raw-text)
-	  (inhibit-read-only t))
-      (erase-buffer)
-      (insert data)
-      (mailcap-view-mime "application/pdf")))
-  (goto-char (point-min)))
+  (let ((buf (current-buffer))
+        (pos (point)))
+    (with-current-buffer (get-buffer-create "*eww pdf*")
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (set-buffer-multibyte nil)
+        (insert-buffer-substring buf pos)
+        (mailcap-view-mime "application/pdf"))
+      (if (zerop (buffer-size))
+          ;; Buffer contents passed to shell command via temporary file.
+          (kill-buffer)
+        (goto-char (point-min))
+        (pop-to-buffer-same-window (current-buffer))))))
 
 (defun eww-setup-buffer ()
   (when (or (plist-get eww-data :url)
@@ -1189,6 +1202,7 @@ just re-display the HTML already fetched."
     (define-key map [(control e)] 'eww-end-of-text)
     (define-key map [?\t] 'shr-next-link)
     (define-key map [?\M-\t] 'shr-previous-link)
+    (define-key map [backtab] 'shr-previous-link)
     map))
 
 (defvar eww-textarea-map
@@ -1198,6 +1212,7 @@ just re-display the HTML already fetched."
     (define-key map [(control c) (control c)] 'eww-submit)
     (define-key map [?\t] 'shr-next-link)
     (define-key map [?\M-\t] 'shr-previous-link)
+    (define-key map [backtab] 'shr-previous-link)
     map))
 
 (defvar eww-select-map
@@ -1723,7 +1738,7 @@ If EXTERNAL is double prefix, browse in new buffer."
     (cond
      ((not url)
       (message "No link under point"))
-     ((string-match-p "\\`mailto:" url)
+     ((string-match-p eww-use-browse-url url)
       ;; This respects the user options `browse-url-handlers'
       ;; and `browse-url-mailto-function'.
       (browse-url url))
@@ -1817,7 +1832,7 @@ Use link at point if there is one, else the current page's URL."
         (suffix ""))
     (when (string-match "\\`\\(.*\\)\\([.][^.]+\\)" file)
       (setq stem (match-string 1 file)
-            suffix (match-string 2)))
+            suffix (match-string 2 file)))
     (while (file-exists-p (expand-file-name file directory))
       (setq file (format "%s(%d)%s" stem count suffix))
       (setq count (1+ count)))

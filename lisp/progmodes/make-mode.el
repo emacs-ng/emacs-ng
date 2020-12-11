@@ -1370,13 +1370,11 @@ Fill comments, backslashed lines, and variable definitions specially."
     (goto-char (point-min))
     (erase-buffer)
     (mapconcat
-     (function
-      (lambda (item) (insert (makefile-browser-format-target-line (car item) nil) "\n")))
+     (lambda (item) (insert (makefile-browser-format-target-line (car item) nil) "\n"))
      targets
      "")
     (mapconcat
-     (function
-      (lambda (item) (insert (makefile-browser-format-macro-line (car item) nil) "\n")))
+     (lambda (item) (insert (makefile-browser-format-macro-line (car item) nil) "\n"))
      macros
      "")
     (sort-lines nil (point-min) (point-max))
@@ -1600,20 +1598,19 @@ Checks each target in TARGET-TABLE using
 and generates the overview, one line per target name."
   (insert
    (mapconcat
-    (function (lambda (item)
-		(let* ((target-name (car item))
-		       (no-prereqs (not (member target-name prereq-list)))
-		       (needs-rebuild (or no-prereqs
-					  (funcall
-					   makefile-query-one-target-method-function
-					   target-name
-					   filename))))
-		  (format "\t%s%s"
-			  target-name
-			  (cond (no-prereqs "  .. has no prerequisites")
-				(needs-rebuild "  .. NEEDS REBUILD")
-				(t "  .. is up to date"))))
-		))
+    (lambda (item)
+      (let* ((target-name (car item))
+             (no-prereqs (not (member target-name prereq-list)))
+             (needs-rebuild (or no-prereqs
+                                (funcall
+                                 makefile-query-one-target-method-function
+                                 target-name
+                                 filename))))
+        (format "\t%s%s"
+                target-name
+                (cond (no-prereqs "  .. has no prerequisites")
+                      (needs-rebuild "  .. NEEDS REBUILD")
+                      (t "  .. is up to date")))))
     target-table "\n"))
   (goto-char (point-min))
   (delete-file filename))		; remove the tmpfile
@@ -1687,9 +1684,9 @@ Then prompts for all required parameters."
 
 (defun makefile-prompt-for-gmake-funargs (function-name prompt-list)
   (mapconcat
-   (function (lambda (one-prompt)
-	       (read-string (format "[%s] %s: " function-name one-prompt)
-			    nil)))
+   (lambda (one-prompt)
+     (read-string (format "[%s] %s: " function-name one-prompt)
+                  nil))
    prompt-list
    ","))
 
@@ -1721,7 +1718,9 @@ matched in a rule action."
       (while (progn (skip-chars-forward makefile-dependency-skip bound)
 		    (< (point) (or bound (point-max))))
 	(forward-char)
-	(or (eq (char-after) ?=)
+        ;; The GNU immediate assignment operator is ":=", while the
+        ;; POSIX operator is "::=".
+	(or (looking-at ":?=")
 	    (get-text-property (1- (point)) 'face)
 	    (if (> (line-beginning-position) (+ (point-min) 2))
 		(eq (char-before (line-end-position 0)) ?\\))

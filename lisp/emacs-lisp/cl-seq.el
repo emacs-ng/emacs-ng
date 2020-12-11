@@ -69,10 +69,9 @@
                           (list 'or (list 'memq '(car cl-keys-temp)
                                           (list 'quote
                                                 (mapcar
-                                                 (function
-                                                  (lambda (x)
-                                                    (if (consp x)
-                                                        (car x) x)))
+                                                 (lambda (x)
+                                                   (if (consp x)
+                                                       (car x) x))
                                                  (append kwords
                                                          other-keys))))
                                 '(car (cdr (memq (quote :allow-other-keys)
@@ -668,9 +667,9 @@ This is a destructive function; it reuses the storage of SEQ if possible.
     (cl--parsing-keywords (:key) ()
       (if (memq cl-key '(nil identity))
 	  (sort cl-seq cl-pred)
-	(sort cl-seq (function (lambda (cl-x cl-y)
-				 (funcall cl-pred (funcall cl-key cl-x)
-					  (funcall cl-key cl-y)))))))))
+        (sort cl-seq (lambda (cl-x cl-y)
+                       (funcall cl-pred (funcall cl-key cl-x)
+                                (funcall cl-key cl-y))))))))
 
 ;;;###autoload
 (defun cl-stable-sort (cl-seq cl-pred &rest cl-keys)
@@ -1042,6 +1041,8 @@ Atoms are compared by `eql'; cons cells are compared recursively.
   (and (not (consp cl-x)) (not (consp cl-y)) (cl--check-match cl-x cl-y)))
 
 
+(make-obsolete-variable 'cl-seq-load-hook
+                        "use `with-eval-after-load' instead." "28.1")
 (run-hooks 'cl-seq-load-hook)
 
 ;; Local variables:

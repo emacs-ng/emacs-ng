@@ -2430,22 +2430,6 @@ tty_draw_row_with_mouse_face (struct window *w, struct glyph_row *row,
   cursor_to (f, save_y, save_x);
 }
 
-static bool
-term_mouse_movement (struct frame *frame, Gpm_Event *event)
-{
-  /* Has the mouse moved off the glyph it was on at the last sighting?  */
-  if (event->x != last_mouse_x || event->y != last_mouse_y)
-    {
-      frame->mouse_moved = 1;
-      note_mouse_highlight (frame, event->x, event->y);
-      /* Remember which glyph we're now on.  */
-      last_mouse_x = event->x;
-      last_mouse_y = event->y;
-      return 1;
-    }
-  return 0;
-}
-
 /* Return the current time, as a Time value.  Wrap around on overflow.  */
 static Time
 current_Time (void)
@@ -2497,7 +2481,7 @@ term_mouse_click (struct input_event *result, Gpm_Event *event,
 {
   int i, j;
 
-  result->kind = GPM_CLICK_EVENT;
+  result->kind = MOUSE_CLICK_EVENT;
   for (i = 0, j = GPM_B_LEFT; i < 3; i++, j >>= 1 )
     {
       if (event->buttons & j) {
@@ -2550,67 +2534,55 @@ term_mouse_click (struct input_event *result, Gpm_Event *event,
 }
 
 int
-handle_one_term_event (struct tty_display_info *tty, Gpm_Event *event,
-		       struct input_event *hold_quit)
+handle_one_term_event (struct tty_display_info *tty, Gpm_Event *event)
 {
   struct frame *f = XFRAME (tty->top_frame);
   struct input_event ie;
-  bool do_help = 0;
   int count = 0;
 
   EVENT_INIT (ie);
   ie.kind = NO_EVENT;
   ie.arg = Qnil;
 
-  if (event->type & (GPM_MOVE | GPM_DRAG)) {
-    previous_help_echo_string = help_echo_string;
-    help_echo_string = Qnil;
-
-    Gpm_DrawPointer (event->x, event->y, fileno (tty->output));
-
-    if (!term_mouse_movement (f, event))
-      help_echo_string = previous_help_echo_string;
-
-    /* If the contents of the global variable help_echo_string
-       has changed, generate a HELP_EVENT.  */
-    if (!NILP (help_echo_string)
-	|| !NILP (previous_help_echo_string))
-      do_help = 1;
-
-    goto done;
-  }
-  else {
-    f->mouse_moved = 0;
-    term_mouse_click (&ie, event, f);
-    if (tty_handle_tab_bar_click (f, event->x, event->y,
-                                 (ie.modifiers & down_modifier) != 0, &ie))
-      {
-       /* tty_handle_tab_bar_click stores 2 events in the event
-          queue, so we are done here.  */
-       count += 2;
-       return count;
-      }
-  }
-
- done:
-  if (ie.kind != NO_EVENT)
+  if (event->type & (GPM_MOVE | GPM_DRAG))
     {
-      kbd_buffer_store_event_hold (&ie, hold_quit);
-      count++;
+      Gpm_DrawPointer (event->x, event->y, fileno (tty->output));
+
+      /* Has the mouse moved off the glyph it was on at the last
+         sighting?  */
+      if (event->x != last_mouse_x || event->y != last_mouse_y)
+        {
+          /* FIXME: These three lines can not be moved into
+             update_mouse_position unless xterm-mouse gets updated to
+             generate mouse events via C code.  See
+             https://lists.gnu.org/archive/html/emacs-devel/2020-11/msg00163.html */
+          last_mouse_x = event->x;
+          last_mouse_y = event->y;
+          f->mouse_moved = 1;
+
+          count += update_mouse_position (f, event->x, event->y);
+        }
     }
-
-  if (do_help
-      && !(hold_quit && hold_quit->kind != NO_EVENT))
+  else
     {
-      Lisp_Object frame;
-
-      if (f)
-	XSETFRAME (frame, f);
-      else
-	frame = Qnil;
-
-      gen_help_event (help_echo_string, frame, help_echo_window,
-		      help_echo_object, help_echo_pos);
+      f->mouse_moved = 0;
+      term_mouse_click (&ie, event, f);
+      /* eassert (ie.kind == MOUSE_CLICK_EVENT); */
+      if (tty_handle_tab_bar_click (f, event->x, event->y,
+                                    (ie.modifiers & down_modifier) != 0, &ie))
+        {
+          /* eassert (ie.kind == MOUSE_CLICK_EVENT
+           *          || ie.kind == TAB_BAR_EVENT); */
+          /* tty_handle_tab_bar_click stores 2 events in the event
+             queue, so we are done here.  */
+          /* FIXME: Actually, `tty_handle_tab_bar_click` returns true
+             without storing any events, when
+             (ie.modifiers & down_modifier) != 0  */
+          count += 2;
+          return count;
+        }
+      /* eassert (ie.kind == MOUSE_CLICK_EVENT); */
+      kbd_buffer_store_event (&ie);
       count++;
     }
 
@@ -2804,16 +2776,15 @@ tty_menu_calc_size (tty_menu *menu, int *width, int *height)
 static void
 mouse_get_xy (int *x, int *y)
 {
-  struct frame *sf = SELECTED_FRAME ();
-  Lisp_Object lmx = Qnil, lmy = Qnil, lisp_dummy;
-  enum scroll_bar_part part_dummy;
-  Time time_dummy;
+  Lisp_Object lmx = Qnil, lmy = Qnil;
+  Lisp_Object mouse = mouse_position (tty_menu_calls_mouse_position_function);
 
-  if (FRAME_TERMINAL (sf)->mouse_position_hook)
-    (*FRAME_TERMINAL (sf)->mouse_position_hook) (&sf, -1,
-                                                 &lisp_dummy, &part_dummy,
-						 &lmx, &lmy,
-						 &time_dummy);
+  if (EQ (selected_frame, XCAR (mouse)))
+    {
+      lmx = XCAR (XCDR (mouse));
+      lmy = XCDR (XCDR (mouse));
+    }
+
   if (!NILP (lmx))
     {
       *x = XFIXNUM (lmx);
@@ -3856,7 +3827,9 @@ clear_tty_hooks (struct terminal *terminal)
   terminal->update_begin_hook = 0;
   terminal->update_end_hook = 0;
   terminal->set_terminal_window_hook = 0;
-  terminal->defined_color_hook = 0;
+  /* Don't clear the defined_color_hook, as that makes it impossible
+     to unload or load a theme when some TTY frame is suspended.  */
+  /* terminal->defined_color_hook = 0; */
   terminal->mouse_position_hook = 0;
   terminal->frame_rehighlight_hook = 0;
   terminal->frame_raise_lower_hook = 0;
@@ -4551,6 +4524,13 @@ This only has an effect when running in a text terminal.
 What means \"very visible\" is up to your terminal.  It may make the cursor
 bigger, or it may make it blink, or it may do nothing at all.  */);
   visible_cursor = 1;
+
+  DEFVAR_BOOL ("tty-menu-calls-mouse-position-function",
+               tty_menu_calls_mouse_position_function,
+    doc: /* Non-nil means TTY menu code will call `mouse-position-function'.
+This should be set if the function in `mouse-position-function' does not
+trigger redisplay.  */);
+  tty_menu_calls_mouse_position_function = 0;
 
   defsubr (&Stty_display_color_p);
   defsubr (&Stty_display_color_cells);

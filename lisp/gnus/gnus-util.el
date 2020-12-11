@@ -1013,6 +1013,12 @@ FILENAME exists and is Babyl format."
                 (rmail-swap-buffers-maybe)
                 (rmail-maybe-set-message-counters))
               (widen)
+              (unless babyl
+		(goto-char (point-max))
+		;; Ensure we have a blank line before the next message.
+		(unless (bolp)
+		  (insert "\n"))
+		(insert "\n"))
               (narrow-to-region (point-max) (point-max)))
 	    (insert-buffer-substring tmpbuf)
 	    (when msg
@@ -1177,7 +1183,7 @@ ARG is passed to the first function."
       (maphash
        (lambda (group active)
 	 (when active
-	   (insert (format "%s %d %d y\n"
+	   (insert (format "%S %d %d y\n"
 			   (if full-names
 			       group
 			     (gnus-group-real-name group))
@@ -1343,6 +1349,61 @@ forbidden in URL encoding."
     (setq tmp (concat tmp str))
     tmp))
 
+(defun gnus-base64-repad (str &optional reject-newlines line-length no-check)
+  "Take a base 64-encoded string and return it padded correctly.
+Existing padding is ignored.
+
+If any combination of CR and LF characters are present and
+REJECT-NEWLINES is nil, remove them; otherwise raise an error.
+If LINE-LENGTH is set and the string (or any line in the string
+if REJECT-NEWLINES is nil) is longer than that number, raise an
+error.  Common line length for input characters are 76 plus CRLF
+(RFC 2045 MIME), 64 plus CRLF (RFC 1421 PEM), and 1000 including
+CRLF (RFC 5321 SMTP).
+
+If NOCHECK, don't check anything, but just repad."
+  ;; RFC 4648 specifies that:
+  ;; - three 8-bit inputs make up a 24-bit group
+  ;; - the 24-bit group is broken up into four 6-bit values
+  ;; - each 6-bit value is mapped to one character of the base 64 alphabet
+  ;; - if the final 24-bit quantum is filled with only 8 bits the output
+  ;;   will be two base 64 characters followed by two "=" padding characters
+  ;; - if the final 24-bit quantum is filled with only 16 bits the output
+  ;;   will be three base 64 character followed by one "=" padding character
+  ;;
+  ;; RFC 4648 section 3 considerations:
+  ;; - if reject-newlines is nil (default), concatenate multi-line
+  ;;   input (3.1, 3.3)
+  ;; - if line-length is set, error on input exceeding the limit (3.1)
+  ;; - reject characters outside base encoding (3.3, also section 12)
+  ;;
+  ;; RFC 5322 section 2.2.3 consideration:
+  ;; Because base 64-encoded strings can appear in long header fields, remove
+  ;; folding whitespace while still observing the RFC 4648 decisions above.
+  (when no-check
+    (setq str (replace-regexp-in-string "[\n\r \t]+" "" str)));
+  (let ((splitstr (split-string str "[ \t]*[\r\n]+[ \t]?" t)))
+    (when (and reject-newlines (> (length splitstr) 1))
+      (error "Invalid Base64 string"))
+    (dolist (substr splitstr)
+      (when (and line-length (> (length substr) line-length))
+	(error "Base64 string exceeds line-length"))
+      (when (string-match "[^A-Za-z0-9+/=]" substr)
+	(error "Invalid Base64 string")))
+    (let* ((str (string-join splitstr))
+	   (len (length str)))
+      (when (string-match "=" str)
+	(setq len (match-beginning 0)))
+      (concat
+       (substring str 0 len)
+       (make-string (/
+		     (- 24
+			(pcase (mod (* len 6) 24)
+			  (`0 24)
+			  (n n)))
+		     6)
+		    ?=)))))
+
 (defun gnus-make-predicate (spec)
   "Transform SPEC into a function that can be called.
 SPEC is a predicate specifier that contains stuff like `or', `and',
@@ -1377,7 +1438,7 @@ SPEC is a predicate specifier that contains stuff like `or', `and',
 (autoload 'ido-completing-read "ido")
 (defun gnus-ido-completing-read (prompt collection &optional require-match
                                         initial-input history def)
-  "Call `ido-completing-read-function'."
+  "Call `ido-completing-read'."
   (ido-completing-read prompt collection nil require-match
 		       initial-input history def))
 

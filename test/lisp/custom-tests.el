@@ -20,6 +20,7 @@
 ;;; Code:
 
 (require 'ert)
+(require 'ert-x)
 
 (require 'wid-edit)
 (require 'cus-edit)
@@ -100,10 +101,7 @@
 (ert-deftest custom--test-theme-variables ()
   "Test variables setting with enabling / disabling a custom theme."
   ;; We load custom-resources/custom--test-theme.el.
-  (let ((custom-theme-load-path
-         `(,(expand-file-name
-	     "custom-resources"
-	     (expand-file-name "lisp" (getenv "EMACS_TEST_DIRECTORY"))))))
+  (let ((custom-theme-load-path `(,(ert-resource-directory))))
     (load-theme 'custom--test 'no-confirm 'no-enable)
     ;; The variables have still their initial values.
     (should (equal custom--test-user-option 'foo))
@@ -146,5 +144,63 @@
                               (concat
                                (widget-apply field :value-to-internal origvalue)
                                "bar"))))))
+
+(defconst custom-test-admin-cus-test
+  (expand-file-name "admin/cus-test.el" source-directory))
+
+(declare-function cus-test-opts custom-test-admin-cus-test)
+
+(ert-deftest check-for-wrong-custom-types ()
+  :tags '(:expensive-test)
+  (skip-unless (file-readable-p custom-test-admin-cus-test))
+  (load custom-test-admin-cus-test)
+  (should (null (cus-test-opts t))))
+
+(ert-deftest custom-test-enable-theme-keeps-settings ()
+  "Test that enabling a theme doesn't change its settings."
+  (let* ((custom-theme-load-path `(,(ert-resource-directory)))
+         settings)
+    (load-theme 'custom--test 'no-confirm 'no-enable)
+    (setq settings (get 'custom--test 'theme-settings))
+    (enable-theme 'custom--test)
+    (should (equal settings (get 'custom--test 'theme-settings)))))
+
+(defcustom custom--test-local-option 'initial
+  "Buffer-local user option for testing."
+  :group 'emacs
+  :type '(choice (const initial) (const changed))
+  :local t)
+
+(defcustom custom--test-permanent-option 'initial
+  "Permanently local user option for testing."
+  :group 'emacs
+  :type '(choice (const initial) (const changed))
+  :local 'permanent)
+
+(ert-deftest custom-test-local-option ()
+  "Test :local user options."
+  ;; Initial default values.
+  (should (eq custom--test-local-option 'initial))
+  (should (eq custom--test-permanent-option 'initial))
+  (should (eq (default-value 'custom--test-local-option) 'initial))
+  (should (eq (default-value 'custom--test-permanent-option) 'initial))
+  (let ((obuf (current-buffer)))
+    (with-temp-buffer
+      ;; Changed buffer-local values.
+      (setq custom--test-local-option 'changed)
+      (setq custom--test-permanent-option 'changed)
+      (should (eq custom--test-local-option 'changed))
+      (should (eq custom--test-permanent-option 'changed))
+      (should (eq (default-value 'custom--test-local-option) 'initial))
+      (should (eq (default-value 'custom--test-permanent-option) 'initial))
+      (with-current-buffer obuf
+        (should (eq custom--test-local-option 'initial))
+        (should (eq custom--test-permanent-option 'initial)))
+      ;; Permanent variable remains unchanged.
+      (kill-all-local-variables)
+      (should (eq custom--test-local-option 'initial))
+      (should (eq custom--test-permanent-option 'changed))
+      (should (eq (default-value 'custom--test-local-option) 'initial))
+      (should (eq (default-value 'custom--test-permanent-option) 'initial)))))
 
 ;;; custom-tests.el ends here

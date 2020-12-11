@@ -1,4 +1,4 @@
-;;; calc-funcs.el --- well-known functions for Calc
+;;; calc-funcs.el --- well-known functions for Calc  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1990-1993, 2001-2020 Free Software Foundation, Inc.
 
@@ -797,12 +797,11 @@
 	   (math-reduce-vec
 	    'math-add
 	    (cons 'vec
-		  (mapcar (function
-			   (lambda (c)
-			     (setq k (1+ k))
-			     (math-mul (math-mul fac c)
-				       (math-sub (math-pow x1 k)
-						 (math-pow x2 k)))))
+                  (mapcar (lambda (c)
+                            (setq k (1+ k))
+                            (math-mul (math-mul fac c)
+                                      (math-sub (math-pow x1 k)
+                                                (math-pow x2 k))))
 			  coefs)))
 	   x)))
     (math-mul (math-pow 2 n)

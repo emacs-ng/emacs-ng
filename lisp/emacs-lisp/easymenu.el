@@ -488,17 +488,14 @@ To implement dynamic menus, either call this from
 `menu-bar-update-hook' or use a menu filter."
   (easy-menu-add-item map path (easy-menu-create-menu name items) before))
 
-;; XEmacs needs the following two functions to add and remove menus.
-;; In Emacs this is done automatically when switching keymaps, so
-;; here easy-menu-remove and easy-menu-add are a noops.
-(defalias 'easy-menu-remove 'ignore
+(define-obsolete-function-alias 'easy-menu-remove #'ignore "28.1"
   "Remove MENU from the current menu bar.
 Contrary to XEmacs, this is a nop on Emacs since menus are automatically
 \(de)activated when the corresponding keymap is (de)activated.
 
 \(fn MENU)")
 
-(defalias 'easy-menu-add #'ignore
+(define-obsolete-function-alias 'easy-menu-add #'ignore "28.1"
   "Add the menu to the menubar.
 On Emacs this is a nop, because menus are already automatically
 activated when the corresponding keymap is activated.  On XEmacs
@@ -514,6 +511,7 @@ completely and menu filter functions can be expected to work.
 If BEFORE is non-nil, add before the item named BEFORE.
 If IN-MENU is non-nil, follow MENU-PATH in IN-MENU.
 This is a compatibility function; use `easy-menu-add-item'."
+  (declare (obsolete easy-menu-add-item "28.1"))
   (easy-menu-add-item (or in-menu (current-global-map))
 		      (cons "menu-bar" menu-path)
 		      submenu before))

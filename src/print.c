@@ -941,7 +941,7 @@ print_error_message (Lisp_Object data, Lisp_Object stream, const char *context,
   else
     {
       Lisp_Object error_conditions = Fget (errname, Qerror_conditions);
-      errmsg = Fsubstitute_command_keys (Fget (errname, Qerror_message));
+      errmsg = call1 (Qsubstitute_command_keys, Fget (errname, Qerror_message));
       file_error = Fmemq (Qfile_error, error_conditions);
     }
 
@@ -1859,6 +1859,24 @@ print_vectorlike (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag,
   return true;
 }
 
+static char
+named_escape (int i)
+{
+  switch (i)
+    {
+    case '\b': return 'b';
+    case '\t': return 't';
+    case '\n': return 'n';
+    case '\f': return 'f';
+    case '\r': return 'r';
+    case ' ':  return 's';
+      /* \a, \v, \e and \d are excluded from printing as escapes since
+         they are somewhat rare as characters and more likely to be
+         plain integers. */
+    }
+  return 0;
+}
+
 static void
 print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 {
@@ -1919,8 +1937,32 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
     {
     case_Lisp_Int:
       {
-	int len = sprintf (buf, "%"pI"d", XFIXNUM (obj));
-	strout (buf, len, len, printcharfun);
+        EMACS_INT i = XFIXNUM (obj);
+        char escaped_name;
+
+	if (print_integers_as_characters && i >= 0 && i <= MAX_UNICODE_CHAR
+            && ((escaped_name = named_escape (i))
+                || graphic_base_p (i)))
+	  {
+	    printchar ('?', printcharfun);
+            if (escaped_name)
+              {
+                printchar ('\\', printcharfun);
+                i = escaped_name;
+              }
+            else if (escapeflag
+                     && (i == ';' || i == '\"' || i == '\'' || i == '\\'
+                         || i == '(' || i == ')'
+                         || i == '{' || i == '}'
+                         || i == '[' || i == ']'))
+	      printchar ('\\', printcharfun);
+	    printchar (i, printcharfun);
+	  }
+	else
+	  {
+	    int len = sprintf (buf, "%"pI"d", i);
+	    strout (buf, len, len, printcharfun);
+	  }
       }
       break;
 
@@ -1940,7 +1982,7 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 	  ptrdiff_t i, i_byte;
 	  ptrdiff_t size_byte;
 	  /* True means we must ensure that the next character we output
-	     cannot be taken as part of a hex character escape.  */
+	     cannot be taken as part of a hex character escape.	 */
 	  bool need_nonhex = false;
 	  bool multibyte = STRING_MULTIBYTE (obj);
 
@@ -1987,25 +2029,29 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 		  /* If we just had a hex escape, and this character
 		     could be taken as part of it,
 		     output `\ ' to prevent that.  */
-                  if (c_isxdigit (c))
-                    {
-                      if (need_nonhex)
-                        print_c_string ("\\ ", printcharfun);
-                      printchar (c, printcharfun);
-                    }
-                  else if (c == '\n' && print_escape_newlines
-                           ? (c = 'n', true)
-                           : c == '\f' && print_escape_newlines
-                           ? (c = 'f', true)
-                           : c == '\"' || c == '\\')
-                    {
-                      printchar ('\\', printcharfun);
-                      printchar (c, printcharfun);
-                    }
-                  else if (print_escape_control_characters && c_iscntrl (c))
+		  if (c_isxdigit (c))
+		    {
+		      if (need_nonhex)
+			print_c_string ("\\ ", printcharfun);
+		      printchar (c, printcharfun);
+		    }
+		  else if (c == '\n' && print_escape_newlines
+			   ? (c = 'n', true)
+			   : c == '\f' && print_escape_newlines
+			   ? (c = 'f', true)
+			   : c == '\"' || c == '\\')
+		    {
+		      printchar ('\\', printcharfun);
+		      printchar (c, printcharfun);
+		    }
+		  else if (print_escape_control_characters && c_iscntrl (c))
 		    octalout (c, SDATA (obj), i_byte, size_byte, printcharfun);
-                  else
-                    printchar (c, printcharfun);
+		  else if (!multibyte
+			   && SINGLE_BYTE_CHAR_P (c)
+			   && !ASCII_CHAR_P (c))
+		    printchar (BYTE8_TO_CHAR (c), printcharfun);
+		  else
+		    printchar (c, printcharfun);
 		  need_nonhex = false;
 		}
 	    }
@@ -2035,7 +2081,7 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 			  && len == size_byte);
 
 	if (! NILP (Vprint_gensym)
-            && !SYMBOL_INTERNED_IN_INITIAL_OBARRAY_P (obj))
+	    && !SYMBOL_INTERNED_IN_INITIAL_OBARRAY_P (obj))
 	  print_c_string ("#:", printcharfun);
 	else if (size_byte == 0)
 	  {
@@ -2058,7 +2104,7 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 		    || c == ',' || c == '.' || c == '`'
 		    || c == '[' || c == ']' || c == '?' || c <= 040
 		    || c == NO_BREAK_SPACE
-                    || confusing)
+		    || confusing)
 		  {
 		    printchar ('\\', printcharfun);
 		    confusing = false;
@@ -2123,7 +2169,7 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 
 		  if (!NILP (Vprint_circle))
 		    {
-		      /* With the print-circle feature.  */
+		      /* With the print-circle feature.	 */
 		      Lisp_Object num = Fgethash (obj, Vprint_number_table,
 						  Qnil);
 		      if (FIXNUMP (num))
@@ -2175,7 +2221,7 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
       {
 	int len;
 	/* We're in trouble if this happens!
-	   Probably should just emacs_abort ().  */
+	   Probably should just emacs_abort ().	 */
 	print_c_string ("#<EMACS BUG: INVALID DATATYPE ", printcharfun);
 	if (VECTORLIKEP (obj))
 	  len = sprintf (buf, "(PVEC 0x%08zx)", (size_t) ASIZE (obj));
@@ -2253,6 +2299,14 @@ decimal point.  0 is not allowed with `e' or `g'.
 A value of nil means to use the shortest notation
 that represents the number without losing information.  */);
   Vfloat_output_format = Qnil;
+
+  DEFVAR_BOOL ("print-integers-as-characters", print_integers_as_characters,
+	       doc: /* Non-nil means integers are printed using characters syntax.
+Only independent graphic characters, and control characters with named
+escape sequences such as newline, are printed this way.  Other
+integers, including those corresponding to raw bytes, are printed
+as numbers the usual way.  */);
+  print_integers_as_characters = false;
 
   DEFVAR_LISP ("print-length", Vprint_length,
 	       doc: /* Maximum length of list to print before abbreviating.

@@ -146,6 +146,14 @@ same domain as the main data."
   :version "24.4"
   :type 'boolean)
 
+(defcustom shr-offer-extend-specpdl t
+  "Non-nil means offer to extend the specpdl if the HTML nests deeply.
+Complicated HTML can require more nesting than the current specpdl
+size permits.  If this variable is t, ask the user whether to increase
+the specpdl size.  If nil, just give up."
+  :version "28.1"
+  :type 'boolean)
+
 (defvar shr-content-function nil
   "If bound, this should be a function that will return the content.
 This is used for cid: URLs, and the function is called with the
@@ -527,7 +535,8 @@ size, and full-buffer size."
 	(start (point)))
     ;; shr uses many frames per nested node.
     (if (and (> shr-depth (/ max-specpdl-size 15))
-             (not (and (y-or-n-p "Too deeply nested to render properly; increase `max-specpdl-size'?")
+             (not (and shr-offer-extend-specpdl
+                       (y-or-n-p "Too deeply nested to render properly; increase `max-specpdl-size'?")
                        (setq max-specpdl-size (* max-specpdl-size 2)))))
         (setq shr-warning
               "Not rendering the complete page because of too-deep nesting")
@@ -555,7 +564,10 @@ size, and full-buffer size."
 	  ;; If the element was empty, we don't have anything to put the
 	  ;; anchor on.  So just insert a dummy character.
 	  (when (= start (point))
-            (insert ? )
+            (if (not (bolp))
+                (insert ? )
+              (insert ? )
+              (shr-mark-fill start))
             (put-text-property (1- (point)) (point) 'display ""))
           (put-text-property start (1+ start) 'shr-target-id id))
 	;; If style is set, then this node has set the color.
@@ -675,8 +687,11 @@ size, and full-buffer size."
 	  (goto-char start)
 	  (when (looking-at "[ \t\n\r]+")
 	    (replace-match "" t t))
-	  (while (re-search-forward "[ \t\n\r]+" nil t)
+	  (while (re-search-forward "[\t\n\r]+" nil t)
 	    (replace-match " " t t))
+	  (goto-char start)
+          (while (re-search-forward "  +" nil t)
+            (replace-match " " t t))
           (shr--translate-insertion-chars)
 	  (goto-char (point-max)))
 	;; We may have removed everything we inserted if it was just

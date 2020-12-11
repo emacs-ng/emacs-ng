@@ -84,7 +84,12 @@ ftcrfont_glyph_extents (struct font *font,
       cache->lbearing = floor (extents.x_bearing);
       cache->rbearing = ceil (extents.width + extents.x_bearing);
       cache->width = lround (extents.x_advance);
-      cache->ascent = ceil (- extents.y_bearing);
+      /* The subtraction of a small number is to avoid rounding up due
+	 to floating-point inaccuracies with some fonts, which then
+	 could cause unpleasant effects while scrolling (see bug
+	 #44284), since we then think that a glyph row's ascent is too
+	 small to accommodate a glyph with a higher phys_ascent.  */
+      cache->ascent = ceil (- extents.y_bearing - 1.0 / 256);
       cache->descent = ceil (extents.height + extents.y_bearing);
     }
 
@@ -139,7 +144,8 @@ ftcrfont_open (struct frame *f, Lisp_Object entity, int pixel_size)
 
   FcPatternDestroy (pat);
   font_face = cairo_ft_font_face_create_for_pattern (match);
-  if (!font_face)
+  if (!font_face
+      || cairo_font_face_status (font_face) != CAIRO_STATUS_SUCCESS)
     {
       unblock_input ();
       FcPatternDestroy (match);
@@ -154,6 +160,18 @@ ftcrfont_open (struct frame *f, Lisp_Object entity, int pixel_size)
   cairo_font_face_destroy (font_face);
   cairo_font_options_destroy (options);
   unblock_input ();
+  if (!scaled_font
+      || cairo_scaled_font_status (scaled_font) != CAIRO_STATUS_SUCCESS)
+    {
+      FcPatternDestroy (match);
+      return Qnil;
+    }
+  ft_face = cairo_ft_scaled_font_lock_face (scaled_font);
+  if (!ft_face)
+    {
+      FcPatternDestroy (match);
+      return Qnil;
+    }
 
   font_object = font_build_object (VECSIZE (struct font_info),
 				   AREF (entity, FONT_TYPE_INDEX),
@@ -187,7 +205,8 @@ ftcrfont_open (struct frame *f, Lisp_Object entity, int pixel_size)
 
   block_input ();
   cairo_glyph_t stack_glyph;
-  font->min_width = font->average_width = font->space_width = 0;
+  font->min_width = font->max_width = 0;
+  font->average_width = font->space_width = 0;
   for (char c = 32; c < 127; c++)
     {
       cairo_glyph_t *glyphs = &stack_glyph;
@@ -211,6 +230,8 @@ ftcrfont_open (struct frame *f, Lisp_Object entity, int pixel_size)
 	  && (! font->min_width
 	      || font->min_width > this_width))
 	font->min_width = this_width;
+      if (this_width > font->max_width)
+	font->max_width = this_width;
       if (c == 32)
 	font->space_width = this_width;
       font->average_width += this_width;
@@ -231,7 +252,6 @@ ftcrfont_open (struct frame *f, Lisp_Object entity, int pixel_size)
       font->descent = font->height - font->ascent;
     }
 
-  ft_face = cairo_ft_scaled_font_lock_face (scaled_font);
   if (XFIXNUM (AREF (entity, FONT_SIZE_INDEX)) == 0)
     {
       int upEM = ft_face->units_per_EM;
@@ -266,6 +286,7 @@ ftcrfont_open (struct frame *f, Lisp_Object entity, int pixel_size)
   font->relative_compose = 0;
   font->default_ascent = 0;
   font->vertical_centering = false;
+  eassert (font->max_width < 512 * 1024 * 1024);
 
   return font_object;
 }

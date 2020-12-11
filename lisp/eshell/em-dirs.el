@@ -175,8 +175,7 @@ Thus, this does not include the current directory.")
 
 (defun eshell-dirs-initialize ()    ;Called from `eshell-mode' via intern-soft!
   "Initialize the builtin functions for Eshell."
-  (make-local-variable 'eshell-variable-aliases-list)
-  (setq eshell-variable-aliases-list
+  (setq-local eshell-variable-aliases-list
 	(append
 	 eshell-variable-aliases-list
          `(("-" ,(lambda (indices)
@@ -199,8 +198,7 @@ Thus, this does not include the current directory.")
             t))))
 
   (when eshell-cd-on-directory
-    (make-local-variable 'eshell-interpreter-alist)
-    (setq eshell-interpreter-alist
+    (setq-local eshell-interpreter-alist
 	  (cons (cons #'(lambda (file _args)
                           (eshell-lone-directory-p file))
 		      'eshell-dirs-substitute-cd)
@@ -289,9 +287,8 @@ Thus, this does not include the current directory.")
 	       (eshell-read-user-names)
 	       (pcomplete-uniquify-list
 		(mapcar
-		 (function
-		  (lambda (user)
-		    (file-name-as-directory (cdr user))))
+                 (lambda (user)
+                   (file-name-as-directory (cdr user)))
 		 eshell-user-names)))))))
 
 (defun eshell/pwd (&rest _args)

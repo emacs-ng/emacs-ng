@@ -1,4 +1,4 @@
-;;; calc-store.el --- value storage functions for Calc
+;;; calc-store.el --- value storage functions for Calc  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1990-1993, 2001-2020 Free Software Foundation, Inc.
 
@@ -168,15 +168,13 @@
     ()
   (setq calc-var-name-map (copy-keymap minibuffer-local-completion-map))
   (define-key calc-var-name-map " " 'self-insert-command)
-  (mapc (function
-	 (lambda (x)
+  (mapc (lambda (x)
 	  (define-key calc-var-name-map (char-to-string x)
-	    'calcVar-digit)))
+            'calcVar-digit))
 	"0123456789")
-  (mapc (function
-	 (lambda (x)
+  (mapc (lambda (x)
 	  (define-key calc-var-name-map (char-to-string x)
-	    'calcVar-oper)))
+            'calcVar-oper))
 	"+-*/^|"))
 
 (defvar calc-store-opers)
@@ -184,10 +182,11 @@
 (defvar calc-read-var-name-history nil
   "History for reading variable names.")
 
-(defun calc-read-var-name (prompt &optional calc-store-opers)
+(defun calc-read-var-name (prompt &optional store-opers)
   (setq calc-given-value nil
 	calc-aborted-prefix nil)
-  (let ((var (concat
+  (let* ((calc-store-opers store-opers)
+         (var (concat
               "var-"
               (let ((minibuffer-completion-table
                      (mapcar (lambda (x) (substring x 4))
@@ -323,10 +322,9 @@
 	 (calc-pop-push-record
 	  (1+ calc-given-value-flag)
 	  (concat "=" (calc-var-name (car (car var))))
-	  (let ((saved-val (mapcar (function
-				    (lambda (v)
-				      (and (boundp (car v))
-					   (symbol-value (car v)))))
+          (let ((saved-val (mapcar (lambda (v)
+                                     (and (boundp (car v))
+                                          (symbol-value (car v))))
 				   var)))
 	    (unwind-protect
 		(let ((vv var))
@@ -504,7 +502,7 @@
   (calc-wrapper
    (or var (setq var (calc-read-var-name "Declare: " 0)))
    (or var (setq var 'var-All))
-   (let* (dp decl def row rp)
+   (let* (dp decl row rp) ;; def
      (or (and (calc-var-value 'var-Decls)
 	      (eq (car-safe var-Decls) 'vec))
 	 (setq var-Decls (list 'vec)))
@@ -596,13 +594,12 @@
 				      calc-settings-file)))
      (if var
 	 (calc-insert-permanent-variable var)
-       (mapatoms (function
-		  (lambda (x)
-		    (and (string-match "\\`var-" (symbol-name x))
-			 (not (memq x calc-dont-insert-variables))
-			 (calc-var-value x)
-			 (not (eq (car-safe (symbol-value x)) 'special-const))
-			 (calc-insert-permanent-variable x))))))
+       (mapatoms (lambda (x)
+                   (and (string-match "\\`var-" (symbol-name x))
+                        (not (memq x calc-dont-insert-variables))
+                        (calc-var-value x)
+                        (not (eq (car-safe (symbol-value x)) 'special-const))
+                        (calc-insert-permanent-variable x)))))
      (save-buffer))))
 
 
@@ -637,27 +634,26 @@
 (defun calc-insert-variables (buf)
   (interactive "bBuffer in which to save variable values: ")
   (with-current-buffer buf
-    (mapatoms (function
-	       (lambda (x)
-		 (and (string-match "\\`var-" (symbol-name x))
-		      (not (memq x calc-dont-insert-variables))
-		      (calc-var-value x)
-		      (not (eq (car-safe (symbol-value x)) 'special-const))
-		      (or (not (eq x 'var-Decls))
-			  (not (equal var-Decls '(vec))))
-		      (or (not (eq x 'var-Holidays))
-			  (not (equal var-Holidays '(vec (var sat var-sat)
-							 (var sun var-sun)))))
-		      (insert "(setq "
-			      (symbol-name x)
-			      " "
-			      (prin1-to-string
-			       (let ((calc-language
-				      (if (memq calc-language '(nil big))
-					  'flat
-					calc-language)))
-				 (math-format-value (symbol-value x) 100000)))
-			      ")\n")))))))
+    (mapatoms (lambda (x)
+                (and (string-match "\\`var-" (symbol-name x))
+                     (not (memq x calc-dont-insert-variables))
+                     (calc-var-value x)
+                     (not (eq (car-safe (symbol-value x)) 'special-const))
+                     (or (not (eq x 'var-Decls))
+                         (not (equal var-Decls '(vec))))
+                     (or (not (eq x 'var-Holidays))
+                         (not (equal var-Holidays '(vec (var sat var-sat)
+                                                        (var sun var-sun)))))
+                     (insert "(setq "
+                             (symbol-name x)
+                             " "
+                             (prin1-to-string
+                              (let ((calc-language
+                                     (if (memq calc-language '(nil big))
+                                         'flat
+                                       calc-language)))
+                                (math-format-value (symbol-value x) 100000)))
+                             ")\n"))))))
 
 (defun calc-assign (arg)
   (interactive "P")

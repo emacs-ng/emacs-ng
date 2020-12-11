@@ -4,7 +4,7 @@
 
 ;; Author: 1993 Barry A. Warsaw, Century Computing, Inc. <bwarsaw@cen.com>
 ;; Created:       24-Feb-1993
-;; Version:       1.8
+;; Old-Version:   1.8
 ;; Last Modified: 1993/06/01 21:33:00
 ;; Keywords:      extensions, matching
 
@@ -163,18 +163,15 @@ useful information:
 	;; let's find the special tags and remove them from the working
 	;; frame. note that only the last special tag is used.
 	(mapc
-	 (function
-	  (lambda (entry)
-	    (let ((pred (car entry))
-		  (func (car (cdr entry))))
-	      (cond
-	       ((eq pred 'begin) (setq begin-tag func))
-	       ((eq pred 'end)   (setq end-tag func))
-	       ((eq pred 'every) (setq every-tag func))
-	       (t
-		(setq working-frame (append working-frame (list entry))))
-	       ) ; end-cond
-	      )))
+         (lambda (entry)
+           (let ((pred (car entry))
+                 (func (car (cdr entry))))
+             (cond
+              ((eq pred 'begin) (setq begin-tag func))
+              ((eq pred 'end)   (setq end-tag func))
+              ((eq pred 'every) (setq every-tag func))
+              (t
+               (setq working-frame (append working-frame (list entry)))))))
 	 frame) ; end-mapcar
 
 	;; execute the begin entry

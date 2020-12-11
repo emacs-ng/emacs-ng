@@ -2862,7 +2862,7 @@ file-write hook to always make it up-to-date automatically."
 ;; FIXME: Updating the toc on saving would be nice. However, this doesn't work
 ;;        correctly:
 ;;
-;;	  (add-hook 'write-contents-hooks 'rst-toc-update-fun)
+;;	  (add-hook 'write-contents-functions 'rst-toc-update-fun)
 ;;	  (defun rst-toc-update-fun ()
 ;;	    ;; Disable undo for the write file hook.
 ;;	    (let ((buffer-undo-list t)) (rst-toc-update) ))
@@ -3577,8 +3577,6 @@ Region is from BEG to END.  With WITH-EMPTY prefix empty lines too."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Font lock
-
-(require 'font-lock)
 
 ;; FIXME: The obsolete variables need to disappear.
 
