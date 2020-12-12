@@ -1830,7 +1830,7 @@ adjust_frame_glyphs (struct frame *f)
   /* Don't forget the buffer for decode_mode_spec.  */
   adjust_decode_mode_spec_buffer (f);
 
-  f->glyphs_initialized_p = 1;
+  f->glyphs_initialized_p = true;
 
   unblock_input ();
 }
@@ -2251,7 +2251,7 @@ free_glyphs (struct frame *f)
       /* Block interrupt input so that we don't get surprised by an X
          event while we're in an inconsistent state.  */
       block_input ();
-      f->glyphs_initialized_p = 0;
+      f->glyphs_initialized_p = false;
 
       /* Release window sub-matrices.  */
       if (!NILP (f->root_window))
@@ -2558,11 +2558,15 @@ build_frame_matrix_from_leaf_window (struct glyph_matrix *frame_matrix, struct w
 	     the corresponding frame row to be updated.  */
 	  frame_row->enabled_p = true;
 
-          /* Maybe insert a vertical border between horizontally adjacent
+	  /* Maybe insert a vertical border between horizontally adjacent
 	     windows.  */
-          if (GLYPH_CHAR (right_border_glyph) != 0)
+	  if (GLYPH_CHAR (right_border_glyph) != 0)
 	    {
-              struct glyph *border = window_row->glyphs[LAST_AREA] - 1;
+	      struct glyph *border = window_row->glyphs[LAST_AREA] - 1;
+	      /* It's a subtle bug if we are overwriting some non-char
+		 glyph with the vertical border glyph.  */
+	      eassert (border->type == CHAR_GLYPH);
+	      border->type = CHAR_GLYPH;
 	      SET_CHAR_GLYPH_FROM_GLYPH (*border, right_border_glyph);
 	    }
 
@@ -3236,9 +3240,16 @@ update_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
       build_frame_matrix (f);
 
       /* Update the display.  */
-      update_begin (f);
-      paused_p = update_frame_1 (f, force_p, inhibit_hairy_id_p, 1, false);
-      update_end (f);
+      if (FRAME_INITIAL_P (f))
+        /* No actual display to update so the "update" is a nop and
+           obviously isn't interrupted by pending input.  */
+        paused_p = false;
+      else
+        {
+          update_begin (f);
+          paused_p = update_frame_1 (f, force_p, inhibit_hairy_id_p, 1, false);
+          update_end (f);
+        }
 
       if (FRAME_TERMCAP_P (f) || FRAME_MSDOS_P (f))
         {
@@ -3314,6 +3325,53 @@ update_frame_with_menu (struct frame *f, int row, int col)
   /* Reset flags indicating that a window should be updated.  */
   set_window_update_flags (root_window, false);
   display_completed = !paused_p;
+}
+
+/* Update the mouse position for a frame F.  This handles both
+   updating the display for mouse-face propreties and updating the
+   help echo text.
+
+   Returns the number of events generated.  */
+int
+update_mouse_position (struct frame *f, int x, int y)
+{
+  previous_help_echo_string = help_echo_string;
+  help_echo_string = Qnil;
+
+  note_mouse_highlight (f, x, y);
+
+  /* If the contents of the global variable help_echo_string
+     has changed, generate a HELP_EVENT.  */
+  if (!NILP (help_echo_string)
+      || !NILP (previous_help_echo_string))
+    {
+      Lisp_Object frame;
+      XSETFRAME (frame, f);
+
+      gen_help_event (help_echo_string, frame, help_echo_window,
+                      help_echo_object, help_echo_pos);
+      return 1;
+    }
+
+  return 0;
+}
+
+DEFUN ("display--update-for-mouse-movement", Fdisplay__update_for_mouse_movement,
+       Sdisplay__update_for_mouse_movement, 2, 2, 0,
+       doc: /* Handle mouse movement detected by Lisp code.
+
+This function should be called when Lisp code detects the mouse has
+moved, even if `track-mouse' is nil.  This handles updates that do not
+rely on input events such as updating display for mouse-face
+properties or updating the help echo text.  */)
+  (Lisp_Object mouse_x, Lisp_Object mouse_y)
+{
+  CHECK_FIXNUM (mouse_x);
+  CHECK_FIXNUM (mouse_y);
+
+  update_mouse_position (SELECTED_FRAME (), XFIXNUM (mouse_x),
+                         XFIXNUM (mouse_y));
+  return Qnil;
 }
 
 
@@ -5897,8 +5955,12 @@ when TERMINAL is nil.  */)
 	}
       out = tty->output;
     }
+  /* STRING might be very long, in which case fwrite could be
+     interrupted by SIGIO.  So we temporarily block SIGIO.  */
+  unrequest_sigio ();
   fwrite (SDATA (string), 1, SBYTES (string), out);
   fflush (out);
+  request_sigio ();
   unblock_input ();
   return Qnil;
 }
@@ -6483,6 +6545,7 @@ syms_of_display (void)
 {
   defsubr (&Sredraw_frame);
   defsubr (&Sredraw_display);
+  defsubr (&Sdisplay__update_for_mouse_movement);
   defsubr (&Sframe_or_buffer_changed_p);
   defsubr (&Sopen_termscript);
   defsubr (&Sding);

@@ -47,7 +47,6 @@
 ;; Documentation-purposes only: actually loaded in loadup.el.
 (require 'frame)
 (require 'mouse)
-(require 'faces)
 (require 'menu-bar)
 (require 'fontset)
 (require 'dnd)
@@ -148,9 +147,8 @@ The properties returned may include `top', `left', `height', and `width'."
 (define-key global-map [?\s-|] 'shell-command-on-region)
 (define-key global-map [s-kp-bar] 'shell-command-on-region)
 (define-key global-map [?\C-\s- ] 'ns-do-show-character-palette)
-;; (as in Terminal.app)
-(define-key global-map [s-right] 'ns-next-frame)
-(define-key global-map [s-left] 'ns-prev-frame)
+(define-key global-map [s-right] 'move-end-of-line)
+(define-key global-map [s-left] 'move-beginning-of-line)
 
 (define-key global-map [home] 'beginning-of-buffer)
 (define-key global-map [end] 'end-of-buffer)
@@ -511,15 +509,9 @@ string dropped into the current buffer."
     (set-frame-selected-window nil window)
     (raise-frame)
     (setq window (selected-window))
-    (cond ((memq 'ns-drag-operation-generic operations)
-           ;; Perform the default action for the type.
-           (if (eq type 'file)
-               (dolist (data objects)
-                 (dnd-handle-one-url window 'private (concat "file:" data)))
-             (dnd-insert-text window 'private string)))
-          ((memq 'ns-drag-operation-copy operations)
-           ;; Try to open the file/URL.  If type is nil, try to open
-           ;; it as a URL anyway.
+    (cond ((or (memq 'ns-drag-operation-generic operations)
+               (memq 'ns-drag-operation-copy operations))
+           ;; Perform the default/copy action.
            (dolist (data objects)
              (dnd-handle-one-url window 'private (if (eq type 'file)
                                                      (concat "file:" data)
@@ -632,15 +624,21 @@ This function has been overloaded in Nextstep.")
 (defvar ns-input-fontsize)
 
 (defun ns-respond-to-change-font ()
-  "Respond to changeFont: event, expecting `ns-input-font' and\n\
-`ns-input-fontsize' of new font."
+  "Set the font chosen in the font-picker panel.
+Respond to changeFont: event, expecting ns-input-font and
+ns-input-fontsize of new font."
   (interactive)
-  (modify-frame-parameters (selected-frame)
-                           (list (cons 'fontsize ns-input-fontsize)))
-  (modify-frame-parameters (selected-frame)
-                           (list (cons 'font ns-input-font)))
-  (set-frame-font ns-input-font))
-
+  (let ((face 'default))
+    (set-face-attribute face t
+                        :family ns-input-font
+                        :height (* 10 ns-input-fontsize))
+    (set-face-attribute face (selected-frame)
+                        :family ns-input-font
+                        :height (* 10 ns-input-fontsize))
+    (let ((spec (list (list t (face-attr-construct 'default)))))
+      (put face 'customized-face spec)
+      (custom-push-theme 'theme-face face 'user 'set spec)
+      (put face 'face-modified nil))))
 
 ;; Default fontset for macOS.  This is mainly here to show how a fontset
 ;; can be set up manually.  Ordinarily, fontsets are auto-created whenever

@@ -2643,8 +2643,10 @@ candidate_window_p (Lisp_Object window, Lisp_Object owindow,
     /* 	To qualify as candidate, it's not sufficient for WINDOW's frame
 	to just share the minibuffer window - it must be active as well
 	(see Bug#24500).  */
-    candidate_p = (EQ (XWINDOW (all_frames)->frame, w->frame)
-		   || EQ (XWINDOW (all_frames)->frame, FRAME_FOCUS_FRAME (f)));
+    candidate_p = ((EQ (XWINDOW (all_frames)->frame, w->frame)
+                    || (EQ (f->minibuffer_window, all_frames)
+                        && EQ (XWINDOW (all_frames)->frame, FRAME_FOCUS_FRAME (f))))
+                   && !is_minibuffer (0, XWINDOW (all_frames)->contents));
   else if (FRAMEP (all_frames))
     candidate_p = EQ (all_frames, w->frame);
 
@@ -6822,19 +6824,25 @@ DEFUN ("window-configuration-frame", Fwindow_configuration_frame, Swindow_config
 }
 
 DEFUN ("set-window-configuration", Fset_window_configuration,
-       Sset_window_configuration, 1, 1, 0,
+       Sset_window_configuration, 1, 2, 0,
        doc: /* Set the configuration of windows and buffers as specified by CONFIGURATION.
 CONFIGURATION must be a value previously returned
 by `current-window-configuration' (which see).
+
+Normally, this function selects the frame of the CONFIGURATION, but if
+DONT-SET-FRAME is non-nil, it leaves selected the frame which was
+current at the start of the function.
+
 If CONFIGURATION was made from a frame that is now deleted,
 only frame-independent values can be restored.  In this case,
 the return value is nil.  Otherwise the value is t.  */)
-  (Lisp_Object configuration)
+  (Lisp_Object configuration, Lisp_Object dont_set_frame)
 {
   register struct save_window_data *data;
   struct Lisp_Vector *saved_windows;
   Lisp_Object new_current_buffer;
   Lisp_Object frame;
+  Lisp_Object old_frame = selected_frame;
   struct frame *f;
   ptrdiff_t old_point = -1;
   USE_SAFE_ALLOCA;
@@ -7151,7 +7159,10 @@ the return value is nil.  Otherwise the value is t.  */)
 	 select_window above totally superfluous; it still sets f's
 	 selected window.  */
       if (FRAME_LIVE_P (XFRAME (data->selected_frame)))
-	do_switch_frame (data->selected_frame, 0, 0, Qnil);
+	do_switch_frame (NILP (dont_set_frame)
+                         ? data->selected_frame
+                         : old_frame
+                         , 0, 0, Qnil);
     }
 
   FRAME_WINDOW_CHANGE (f) = true;
@@ -7185,11 +7196,13 @@ the return value is nil.  Otherwise the value is t.  */)
   return FRAME_LIVE_P (f) ? Qt : Qnil;
 }
 
-
 void
 restore_window_configuration (Lisp_Object configuration)
 {
-  Fset_window_configuration (configuration);
+  if (CONSP (configuration))
+    Fset_window_configuration (XCDR (configuration), XCAR (configuration));
+  else
+    Fset_window_configuration (configuration, Qnil);
 }
 
 

@@ -339,8 +339,8 @@
 ;; When using `table-cell-map-hook' do not use `local-set-key'.
 ;;
 ;;   (add-hook 'table-cell-map-hook
-;;     (function (lambda ()
-;;       (local-set-key [<key sequence>] '<function>))))
+;;     (lambda ()
+;;       (local-set-key [<key sequence>] '<function>)))
 ;;
 ;; Adding the above to your init file is a common way to customize a
 ;; mode specific keymap.  However it does not work for this package.
@@ -349,8 +349,8 @@
 ;; explicitly.  The correct way of achieving above task is:
 ;;
 ;;   (add-hook 'table-cell-map-hook
-;;     (function (lambda ()
-;;       (define-key table-cell-map [<key sequence>] '<function>))))
+;;     (lambda ()
+;;       (define-key table-cell-map [<key sequence>] '<function>)))
 ;;
 ;; -----
 ;; Menu:
@@ -620,13 +620,6 @@
 (defvar flyspell-mode)
 (defvar real-last-command)
 (defvar delete-selection-mode)
-;; This is evil!!
-;; (eval-when-compile
-;;   (unless (fboundp 'set-face-property)
-;;     (defun set-face-property (face prop value)))
-;;   (unless (fboundp 'unibyte-char-to-multibyte)
-;;     (defun unibyte-char-to-multibyte (char)))
-;;   (defun table--point-in-cell-p (&optional location)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -810,13 +803,6 @@ simply by any key input."
   "Yank handler for tables.")
 
 (setplist 'table-disable-incompatibility-warning nil)
-
-(defvar table-disable-menu (null (and (locate-library "easymenu")
-				      (require 'easymenu)
-				      (fboundp 'easy-menu-add-item)))
-  "When non-nil, use of menu by table package is disabled.
-It must be set before loading this package `table.el' for the first
-time.")
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1202,12 +1188,11 @@ This is always set to nil at the entry to `table-with-cache-buffer' before execu
     ))
 
 ;; register table menu under global tools menu
-(unless table-disable-menu
-  (easy-menu-define table-global-menu-map nil
-    "Table global menu" table-global-menu)
-  (easy-menu-add-item (current-global-map) '("menu-bar" "tools") "--")
-  (easy-menu-add-item (current-global-map)
-                      '("menu-bar" "tools") table-global-menu-map))
+(easy-menu-define table-global-menu-map nil
+  "Table global menu" table-global-menu)
+(easy-menu-add-item (current-global-map) '("menu-bar" "tools") "--")
+(easy-menu-add-item (current-global-map)
+                    '("menu-bar" "tools") table-global-menu-map)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -1287,12 +1272,8 @@ the last cache point coordinate."
        ;; set up the update timer unless it is explicitly inhibited.
        (unless table-inhibit-update
 	 (table--update-cell)))))
-(if (null (fboundp 'font-lock-add-keywords))
-    nil
-  ;; Color it as a keyword.
-  (font-lock-add-keywords
-   'emacs-lisp-mode
-   '("\\<table-with-cache-buffer\\>")))
+;; Color it as a keyword.
+(font-lock-add-keywords 'emacs-lisp-mode '("\\<table-with-cache-buffer\\>"))
 
 (defmacro table-put-source-info (prop value)
   "Register source generation information."
@@ -1975,7 +1956,7 @@ is negative the cell becomes inactive, meaning that the cell becomes
 plain text and loses all the table specific features."
   (interactive "i\ni\np")
   (table--make-cell-map)
-  (if (or force (not (memq (table--get-last-command) table-command-list)))
+  (if (or force (not (memq real-last-command table-command-list)))
       (let* ((cell (table--probe-cell (called-interactively-p 'interactive)))
 	     (cache-buffer (get-buffer-create table-cache-buffer-name))
 	     (modified-flag (buffer-modified-p))
@@ -2929,7 +2910,7 @@ buffer, and leaves the previous contents of the buffer untouched.
 References used for this implementation:
 
 HTML:
-        URL `http://www.w3.org'
+        URL `https://www.w3.org'
 
 LaTeX:
         URL `http://www.maths.tcd.ie/~dwilkins/LaTeXPrimer/Tables.html'
@@ -3270,34 +3251,33 @@ Currently this method is for LaTeX only."
 	  (let* ((span 1) ;; spanning length
 		 (first-p t) ;; first in a row
 		 (insert-column ;; a function that processes one column/multicolumn
-		  (function
-		   (lambda (from to)
-		     (let ((line (table--buffer-substring-and-trim
-				  (table--goto-coordinate (cons from y))
-				  (table--goto-coordinate (cons to y)))))
-		       ;; escape special characters
-		       (with-temp-buffer
-			 (insert line)
-			 (goto-char (point-min))
-			 (while (re-search-forward "\\([#$~_^%{}&]\\)\\|\\(\\\\\\)\\|\\([<>|]\\)" nil t)
-			   (if (match-beginning 1)
-			       (save-excursion
-				 (goto-char (match-beginning 1))
-				 (insert  "\\"))
-			     (if (match-beginning 2)
-				 (replace-match "$\\backslash$" t t)
-			       (replace-match (concat "$" (match-string 3) "$")) t t)))
-			 (setq line (buffer-substring (point-min) (point-max))))
-		       ;; insert a column separator and column/multicolumn contents
-		       (with-current-buffer dest-buffer
-			 (unless first-p
-			   (insert (if (eq (char-before) ?\s) "" " ") "& "))
-			 (if (> span 1)
-			     (insert (format "\\multicolumn{%d}{%sl|}{%s}" span (if first-p "|" "") line))
-			   (insert line)))
-		       (setq first-p nil)
-		       (setq span 1)
-		       (setq start (nth i col-list)))))))
+                  (lambda (from to)
+                    (let ((line (table--buffer-substring-and-trim
+                                 (table--goto-coordinate (cons from y))
+                                 (table--goto-coordinate (cons to y)))))
+                      ;; escape special characters
+                      (with-temp-buffer
+                        (insert line)
+                        (goto-char (point-min))
+                        (while (re-search-forward "\\([#$~_^%{}&]\\)\\|\\(\\\\\\)\\|\\([<>|]\\)" nil t)
+                          (if (match-beginning 1)
+                              (save-excursion
+                                (goto-char (match-beginning 1))
+                                (insert  "\\"))
+                            (if (match-beginning 2)
+                                (replace-match "$\\backslash$" t t)
+                              (replace-match (concat "$" (match-string 3) "$")) t t)))
+                        (setq line (buffer-substring (point-min) (point-max))))
+                      ;; insert a column separator and column/multicolumn contents
+                      (with-current-buffer dest-buffer
+                        (unless first-p
+                          (insert (if (eq (char-before) ?\s) "" " ") "& "))
+                        (if (> span 1)
+                            (insert (format "\\multicolumn{%d}{%sl|}{%s}" span (if first-p "|" "") line))
+                          (insert line)))
+                      (setq first-p nil)
+                      (setq span 1)
+                      (setq start (nth i col-list))))))
 	    (setq start x0)
 	    (setq i 1)
 	    (while (setq c (nth i border-char-list))
@@ -3503,9 +3483,9 @@ column must consists from cells of same width."
       (let ((cell-list (table--vertical-cell-list 'top-to-bottom)))
 	(unless
 	    (and (table--uniform-list-p
-		  (mapcar (function (lambda (cell) (car (table--get-coordinate (car cell))))) cell-list))
+                  (mapcar (lambda (cell) (car (table--get-coordinate (car cell)))) cell-list))
 		 (table--uniform-list-p
-		  (mapcar (function (lambda (cell) (car (table--get-coordinate (cdr cell))))) cell-list)))
+                  (mapcar (lambda (cell) (car (table--get-coordinate (cdr cell)))) cell-list)))
 	  (error "Cells in this column are not in uniform width"))
 	(unless lu-coord
 	  (setq lu-coord (table--get-coordinate (caar cell-list))))
@@ -3864,9 +3844,8 @@ converts a table into plain text without frames.  It is a companion to
       (setq table-cell-map map)
       (fset 'table-cell-map map)))
   ;; Add menu for table cells.
-  (unless table-disable-menu
-    (easy-menu-define table-cell-menu-map table-cell-map
-      "Table cell menu" table-cell-menu))
+  (easy-menu-define table-cell-menu-map table-cell-map
+    "Table cell menu" table-cell-menu)
   (run-hooks 'table-cell-map-hook))
 
 ;; Create the keymap after running the user init file so that the user
@@ -4057,16 +4036,15 @@ key             binding
 (defun *table--present-cell-popup-menu (event)
   "Present and handle cell popup menu."
   (interactive "e")
-  (unless table-disable-menu
-    (select-window (posn-window (event-start event)))
-    (goto-char (posn-point (event-start event)))
-    (let ((item-list (x-popup-menu event table-cell-menu-map))
-	  (func table-cell-menu-map))
-      (while item-list
-	(setq func (nth 3 (assoc (car item-list) func)))
-	(setq item-list (cdr item-list)))
-      (if (and (symbolp func) (fboundp func))
-	  (call-interactively func)))))
+  (select-window (posn-window (event-start event)))
+  (goto-char (posn-point (event-start event)))
+  (let ((item-list (x-popup-menu event table-cell-menu-map))
+        (func table-cell-menu-map))
+    (while item-list
+      (setq func (nth 3 (assoc (car item-list) func)))
+      (setq item-list (cdr item-list)))
+    (if (and (symbolp func) (fboundp func))
+        (call-interactively func))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -4087,9 +4065,10 @@ cache buffer into the designated cell in the table buffer."
 	  (and (boundp 'quail-translating)
 	       quail-translating))
       (setq table-update-timer
-	    (table--set-timer table-time-before-update
-			      (function table--update-cell)
-			      'now))
+            (run-with-idle-timer table-time-before-update
+                                 nil
+                                 (function table--update-cell)
+                                 'now))
     (save-current-buffer
       (set-buffer table-cell-buffer)
       (let ((cache-buffer (get-buffer-create table-cache-buffer-name))
@@ -4126,9 +4105,10 @@ cache buffer into the designated cell in the table buffer."
     (setq table-widen-timer nil))
   (if (not now)
       (setq table-widen-timer
-	    (table--set-timer (+ table-time-before-update table-time-before-reformat)
-			      (function table--update-cell-widened)
-			      'now))
+            (run-with-idle-timer (+ table-time-before-update table-time-before-reformat)
+                                 nil
+                                 (function table--update-cell-widened)
+                                 'now))
     (save-current-buffer
       (if table-update-timer
 	  (table--update-cell 'now))
@@ -4165,9 +4145,10 @@ cache buffer into the designated cell in the table buffer."
     (setq table-heighten-timer nil))
   (if (not now)
       (setq table-heighten-timer
-	    (table--set-timer (+ table-time-before-update table-time-before-reformat)
-			      (function table--update-cell-heightened)
-			      'now))
+            (run-with-idle-timer (+ table-time-before-update table-time-before-reformat)
+                                 nil
+                                 (function table--update-cell-heightened)
+                                 'now))
     (save-current-buffer
       (if table-update-timer
 	  (table--update-cell 'now))
@@ -4711,8 +4692,7 @@ in the list."
 
 (defun table--cell-insert-char (char &optional overwrite)
   "Insert CHAR inside a table cell."
-  (let ((delete-selection-p (and (boundp 'delete-selection-mode)
-				 delete-selection-mode
+  (let ((delete-selection-p (and delete-selection-mode
 				 transient-mark-mode mark-active
 				 (not buffer-read-only)))
 	(mark-coordinate (table--transcoord-table-to-cache (table--get-coordinate (mark t)))))
@@ -5240,8 +5220,7 @@ This feature is disabled when `table-disable-incompatibility-warning'
 is non-nil.  The warning is done only once per session for each item."
   (unless (and table-disable-incompatibility-warning
 	       (not (called-interactively-p 'interactive)))
-    (when (and (boundp 'flyspell-mode)
-	       flyspell-mode
+    (when (and flyspell-mode
 	       (not (get 'table-disable-incompatibility-warning 'flyspell)))
       (put 'table-disable-incompatibility-warning 'flyspell t)
       (display-warning 'table
@@ -5444,15 +5423,24 @@ It returns COLUMN unless STR contains some wide characters."
 	idx
       nil)))
 
+
+;;;; Obsolete.
+
+(defvar table-disable-menu nil
+  "When non-nil, use of menu by table package is disabled.
+It must be set before loading this package `table.el' for the first
+time.")
+(make-obsolete-variable 'table-disable-menu "no longer used." "28.1")
+
 (defun table--set-timer (seconds func args)
   "Generic wrapper for setting up a timer."
+  (declare (obsolete run-with-idle-timer "28.1"))
   (run-with-idle-timer seconds nil func args))
 
 (defun table--get-last-command ()
   "Generic wrapper for getting the real last command."
-  (if (boundp 'real-last-command)
-      real-last-command
-    last-command))
+  (declare (obsolete real-last-command "28.1"))
+  real-last-command)
 
 (run-hooks 'table-load-hook)
 

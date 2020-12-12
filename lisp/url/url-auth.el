@@ -23,7 +23,6 @@
 
 (require 'url-vars)
 (require 'url-parse)
-(autoload 'url-warn "url")
 (autoload 'auth-source-search "auth-source")
 
 (defsubst url-auth-user-prompt (url realm)
@@ -39,7 +38,7 @@
 ;;; ------------------------
 ;;; This implements the BASIC authorization type.  See the online
 ;;; documentation at
-;;; http://www.w3.org/hypertext/WWW/AccessAuthorization/Basic.html
+;;; https://www.w3.org/hypertext/WWW/AccessAuthorization/Basic.html
 ;;; for the complete documentation on this type.
 ;;;
 ;;; This is very insecure, but it works as a proof-of-concept
@@ -494,21 +493,19 @@ PROMPT is boolean - specifies whether to ask the user for a username/password
        (car-safe
 	(sort
 	 (mapcar
-	  (function
-	   (lambda (scheme)
-	     (if (fboundp (car (cdr scheme)))
-		 (cons (cdr (cdr scheme))
-		       (funcall (car (cdr scheme)) url nil nil realm))
-	       (cons 0 nil))))
+          (lambda (scheme)
+            (if (fboundp (car (cdr scheme)))
+                (cons (cdr (cdr scheme))
+                      (funcall (car (cdr scheme)) url nil nil realm))
+              (cons 0 nil)))
 	  url-registered-auth-schemes)
-	 (function
-	  (lambda (x y)
-	    (cond
-	     ((null (cdr x)) nil)
-	     ((and (cdr x) (null (cdr y))) t)
-	     ((and (cdr x) (cdr y))
-	      (>= (car x) (car y)))
-	     (t nil)))))))
+         (lambda (x y)
+           (cond
+            ((null (cdr x)) nil)
+            ((and (cdr x) (null (cdr y))) t)
+            ((and (cdr x) (cdr y))
+             (>= (car x) (car y)))
+            (t nil))))))
     (if (symbolp type) (setq type (symbol-name type)))
     (let* ((scheme (car-safe
 		    (cdr-safe (assoc (downcase type)
@@ -542,7 +539,7 @@ RATING   a rating between 1 and 10 of the strength of the authentication.
 		  (t rating)))
 	 (node (assoc type url-registered-auth-schemes)))
     (if (not (fboundp function))
-	(url-warn
+        (display-warning
 	 'security
 	 (format-message
 	  "Tried to register `%s' as an auth scheme, but it is not a function!"

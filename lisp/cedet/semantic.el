@@ -495,8 +495,7 @@ is requested."
   (setq semantic--buffer-cache tagtable
         semantic-unmatched-syntax-cache-check nil)
   ;; This is specific to the bovine parser.
-  (set (make-local-variable 'semantic-bovinate-nonterminal-check-obarray)
-       nil)
+  (setq-local semantic-bovinate-nonterminal-check-obarray nil)
   (semantic-parse-tree-set-up-to-date)
   (add-hook 'after-change-functions 'semantic-change-function nil t)
   (run-hook-with-args 'semantic-after-toplevel-cache-change-hook
@@ -978,7 +977,6 @@ Prevent this load system from loading files in twice.")
     global-semanticdb-minor-mode
     global-semantic-idle-summary-mode
     global-semantic-mru-bookmark-mode
-    global-cedet-m3-minor-mode
     global-semantic-idle-local-symbol-highlight-mode
     global-semantic-highlight-edits-mode
     global-semantic-show-unmatched-syntax-mode
@@ -1000,7 +998,6 @@ The possible elements of this list include the following:
  `global-semantic-stickyfunc-mode'     - Show current fun in header line.
  `global-semantic-mru-bookmark-mode'   - Provide `switch-to-buffer'-like
                                          keybinding for tag names.
- `global-cedet-m3-minor-mode'          - A mouse 3 context menu.
  `global-semantic-idle-local-symbol-highlight-mode' - Highlight references
                                          of the symbol under point.
 The following modes are more targeted at people who want to see

@@ -108,8 +108,6 @@
 (require 'url-util)
 
 ;; Pacify byte-compiler.
-(eval-when-compile (require 'custom))
-
 (declare-function zeroconf-init "zeroconf")
 (declare-function zeroconf-list-service-types "zeroconf")
 (declare-function zeroconf-list-services "zeroconf")
@@ -689,10 +687,8 @@ It has been changed in GVFS 1.14.")
     ("gvfs-monitor-file" . "monitor")
     ("gvfs-mount" . "mount")
     ("gvfs-move" . "move")
-    ("gvfs-rename" . "rename")
     ("gvfs-rm" . "remove")
-    ("gvfs-set-attribute" . "set")
-    ("gvfs-trash" . "trash"))
+    ("gvfs-set-attribute" . "set"))
   "List of cons cells, mapping \"gvfs-<command>\" to \"gio <command>\".")
 
 ;; <http://www.pygtk.org/docs/pygobject/gio-constants.html>
@@ -986,15 +982,12 @@ file names."
 	(copy-directory filename newname keep-date t)
 	(when (eq op 'rename) (delete-directory filename 'recursive)))
 
-    (let* ((t1 (tramp-tramp-file-p filename))
-	   (t2 (tramp-tramp-file-p newname))
-	   (equal-remote (tramp-equal-remote filename newname))
-	   (gvfs-operation
-	    (cond
-	     ((eq op 'copy) "gvfs-copy")
-	     (equal-remote "gvfs-rename")
-	     (t "gvfs-move")))
-	   (msg-operation (if (eq op 'copy) "Copying" "Renaming")))
+    (let ((t1 (tramp-tramp-file-p filename))
+	  (t2 (tramp-tramp-file-p newname))
+	  (equal-remote (tramp-equal-remote filename newname))
+	  ;; "gvfs-rename" is not trustworthy.
+	  (gvfs-operation (if (eq op 'copy) "gvfs-copy" "gvfs-move"))
+	  (msg-operation (if (eq op 'copy) "Copying" "Renaming")))
 
       (with-parsed-tramp-file-name (if t1 filename newname) nil
 	(unless (file-exists-p filename)
@@ -1025,14 +1018,23 @@ file names."
 	  (with-tramp-progress-reporter
 	      v 0 (format "%s %s to %s" msg-operation filename newname)
 	    (unless
-		(apply
-		 #'tramp-gvfs-send-command v gvfs-operation
-		 (append
-		  (and (eq op 'copy) (or keep-date preserve-uid-gid)
-		       '("--preserve"))
-		  (list
-		   (tramp-gvfs-url-file-name filename)
-		   (tramp-gvfs-url-file-name newname))))
+		(and (apply
+		      #'tramp-gvfs-send-command v gvfs-operation
+		      (append
+		       (and (eq op 'copy) (or keep-date preserve-uid-gid)
+			    '("--preserve"))
+		       (list
+			(tramp-gvfs-url-file-name filename)
+			(tramp-gvfs-url-file-name newname))))
+		     ;; Some backends do not return a proper error
+		     ;; code in case of direct copy/move.  Apply sanity checks.
+		     (or (not equal-remote)
+			 (tramp-gvfs-send-command
+			  v "gvfs-info" (tramp-gvfs-url-file-name newname))
+			 (eq op 'copy)
+			 (not (tramp-gvfs-send-command
+			       v "gvfs-info"
+			       (tramp-gvfs-url-file-name filename)))))
 
 	      (if (or (not equal-remote)
 		      (and equal-remote
@@ -1080,24 +1082,21 @@ file names."
 
 (defun tramp-gvfs-handle-delete-directory (directory &optional recursive trash)
   "Like `delete-directory' for Tramp files."
-  (with-parsed-tramp-file-name directory nil
+  (tramp-skeleton-delete-directory directory recursive trash
     (if (and recursive (not (file-symlink-p directory)))
 	(mapc (lambda (file)
 		(if (eq t (tramp-compat-file-attribute-type
 			   (file-attributes file)))
-		    (delete-directory file recursive trash)
-		  (delete-file file trash)))
+		    (delete-directory file recursive)
+		  (delete-file file)))
 	      (directory-files
 	       directory 'full directory-files-no-dot-files-regexp))
-      (when (directory-files directory nil directory-files-no-dot-files-regexp)
+      (unless (tramp-compat-directory-empty-p directory)
 	(tramp-error
 	 v 'file-error "Couldn't delete non-empty %s" directory)))
 
-    (tramp-flush-directory-properties v localname)
-    (unless
-	(tramp-gvfs-send-command
-	 v (if (and trash delete-by-moving-to-trash) "gvfs-trash" "gvfs-rm")
-	 (tramp-gvfs-url-file-name directory))
+    (unless (tramp-gvfs-send-command
+	     v "gvfs-rm" (tramp-gvfs-url-file-name directory))
       ;; Propagate the error.
       (with-current-buffer (tramp-get-connection-buffer v)
 	(goto-char (point-min))
@@ -1108,15 +1107,15 @@ file names."
   "Like `delete-file' for Tramp files."
   (with-parsed-tramp-file-name filename nil
     (tramp-flush-file-properties v localname)
-    (unless
-	(tramp-gvfs-send-command
-	 v (if (and trash delete-by-moving-to-trash) "gvfs-trash" "gvfs-rm")
-	 (tramp-gvfs-url-file-name filename))
-      ;; Propagate the error.
-      (with-current-buffer (tramp-get-connection-buffer v)
-	(goto-char (point-min))
-	(tramp-error-with-buffer
-	 nil v 'file-error "Couldn't delete %s" filename)))))
+    (if (and delete-by-moving-to-trash trash)
+	(move-file-to-trash filename)
+      (unless (tramp-gvfs-send-command
+	       v "gvfs-rm" (tramp-gvfs-url-file-name filename))
+	;; Propagate the error.
+	(with-current-buffer (tramp-get-connection-buffer v)
+	  (goto-char (point-min))
+	  (tramp-error-with-buffer
+	   nil v 'file-error "Couldn't delete %s" filename))))))
 
 (defun tramp-gvfs-handle-expand-file-name (name &optional dir)
   "Like `expand-file-name' for Tramp files."
@@ -1449,11 +1448,11 @@ If FILE-SYSTEM is non-nil, return file system attributes."
     (tramp-message proc 6 "%S\n%s" proc string)
     (setq string (concat rest-string string)
           ;; Fix action names.
-          string (replace-regexp-in-string
+          string (tramp-compat-string-replace
 	          "attributes changed" "attribute-changed" string)
-          string (replace-regexp-in-string
+          string (tramp-compat-string-replace
 	          "changes done" "changes-done-hint" string)
-          string (replace-regexp-in-string
+          string (tramp-compat-string-replace
 	          "renamed to" "moved" string))
     ;; https://bugs.launchpad.net/bugs/1742946
     (when
@@ -2058,7 +2057,7 @@ and \"org.gtk.Private.RemoteVolumeMonitor.VolumeRemoved\" signals."
 	   (vec (make-tramp-file-name
 		 :method "media"
 		 ;; A host name cannot contain spaces.
-		 :host (replace-regexp-in-string " " "_" (nth 1 volume))))
+		 :host (tramp-compat-string-replace " " "_" (nth 1 volume))))
 	   (media (make-tramp-media-device
 		   :method method
 		   :host (tramp-gvfs-url-host (nth 5 volume))
@@ -2363,7 +2362,7 @@ VEC is used only for traces."
 	       (vec (make-tramp-file-name
 		     :method "media"
 		     ;; A host name cannot contain spaces.
-		     :host (replace-regexp-in-string " " "_" (nth 1 volume))))
+		     :host (tramp-compat-string-replace " " "_" (nth 1 volume))))
 	       (media (make-tramp-media-device
 		       :method method
 		       :host (tramp-gvfs-url-host (nth 5 volume))
@@ -2443,7 +2442,10 @@ This uses \"avahi-browse\" in case D-Bus is not enabled in Avahi."
 
 (when tramp-gvfs-enabled
   ;; Suppress D-Bus error messages and Tramp traces.
-  (let ((tramp-verbose 0)
+  (let (;; Sometimes, it fails with "Variable binding depth exceeds
+	;; max-specpdl-size".  Shall be fixed in Emacs 27.
+	(max-specpdl-size (* 2 max-specpdl-size))
+	(tramp-verbose 0)
 	tramp-gvfs-dbus-event-vector fun)
     ;; Add completion functions for services announced by DNS-SD.
     ;; See <http://www.dns-sd.org/ServiceTypes.html> for valid service types.

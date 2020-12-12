@@ -442,6 +442,16 @@ will go to the next group without confirmation."
 		 (const slightly-quietly)
 		 (sexp :menu-tag "on" t)))
 
+(defcustom gnus-paging-select-next t
+  "Control whether to select the next/prev article when paging.
+If non-nil, select the next article when reaching the end of the
+article (or the previous article when paging backwards).
+
+If nil, don't do anything at the end/start of the articles."
+  :version "28.1"
+  :group 'gnus-summary-maneuvering
+  :type 'boolean)
+
 (defcustom gnus-auto-select-same nil
   "If non-nil, select the next article with the same subject.
 If there are no more articles with the same subject, go to
@@ -6240,8 +6250,8 @@ If WHERE is `summary', the summary mode line format will be used."
 	  ;; We might have to chop a bit of the string off...
 	  (when (> (length mode-string) max-len)
 	    (setq mode-string
-		  (concat (truncate-string-to-width mode-string (- max-len 3))
-			  "...")))))
+		  (truncate-string-to-width
+		   mode-string (- max-len 3) nil nil t)))))
       ;; Update the mode line.
       (setq mode-line-buffer-identification
 	    (gnus-mode-line-buffer-identification (list mode-string)))
@@ -7898,7 +7908,8 @@ Also see the variable `gnus-article-skip-boring'."
 		   (gnus-message 3 "End of message"))
 		  (circular
 		   (gnus-summary-beginning-of-article))
-		  (lines
+		  ((or lines
+		       (not gnus-paging-select-next))
 		   (gnus-message 3 "End of message"))
 		  ((null lines)
 		   (if (and (eq gnus-summary-goto-unread 'never)
@@ -7929,7 +7940,8 @@ the beginning of the buffer."
 	(gnus-eval-in-buffer-window gnus-article-buffer
 	  (setq endp (gnus-article-prev-page lines)))
 	(when (and move endp)
-	  (cond (lines
+	  (cond ((or lines
+		     (not gnus-paging-select-next))
 		 (gnus-message 3 "Beginning of message"))
 		((null lines)
 		 (if (and (eq gnus-summary-goto-unread 'never)

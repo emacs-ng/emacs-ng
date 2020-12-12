@@ -23,6 +23,7 @@
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
+
 ;; This code is an attempt to make the pig fly.
 ;; Or, to put it another way to make a 911 out of a turbocharged VW Bug.
 
@@ -37,6 +38,7 @@
 (require 'rx)
 (require 'subr-x)
 (require 'warnings)
+(require 'comp-cstr)
 
 (defgroup comp nil
   "Emacs Lisp native compiler."
@@ -51,6 +53,7 @@
 - 3 max optimization level, to be used only when necessary.
     Warning: the compiler is free to perform dangerous optimizations."
   :type 'number
+  :safe #'numberp
   :group 'comp)
 
 (defcustom comp-debug 0
@@ -62,6 +65,7 @@ This intended for debugging the compiler itself.
 - 2 dump gcc passes and libgccjit log file.
 - 3 dump libgccjit reproducers."
   :type 'number
+  :safe #'numberp
   :group 'comp)
 
 (defcustom comp-verbose 0
@@ -71,68 +75,57 @@ This intended for debugging the compiler itself.
 - 1 final limple is logged.
 - 2 LAP and final limple and some pass info are logged.
 - 3 max verbosity."
-  :type 'number
-  :group 'comp)
+  :type 'number)
 
 (defcustom comp-always-compile nil
   "Unconditionally (re-)compile all files."
-  :type 'boolean
-  :group 'comp)
+  :type 'boolean)
 
-(defcustom comp-deferred-compilation-black-list
+(defcustom comp-deferred-compilation-deny-list
   '()
   "List of regexps to exclude files from deferred native compilation.
 Skip if any is matching."
-  :type 'list
-  :group 'comp)
+  :type 'list)
 
-(defcustom comp-bootstrap-black-list
+(defcustom comp-bootstrap-deny-list
   '()
   "List of regexps to exclude files from native compilation during bootstrap.
 Skip if any is matching."
-  :type 'list
-  :group 'comp)
+  :type 'list)
 
 (defcustom comp-never-optimize-functions
-  '(;; Mandatory for Emacs to be working correctly
-    macroexpand scroll-down scroll-up narrow-to-region widen rename-buffer
-    make-indirect-buffer delete-file top-level abort-recursive-edit
-    ;; For user convenience
-    yes-or-no-p
-    ;; Make the Evil happy :/
-    read-key-sequence select-window set-window-buffer split-window-internal
-    use-global-map use-local-map)
-  "Primitive functions for which we do not perform trampoline optimization.
-This is especially useful for primitives known to be advised or
-redefined when compilation is performed at `comp-speed' > 0."
-  :type 'list
-  :group 'comp)
+  '(;; The following two are mandatory for Emacs to be working
+    ;; correctly (see comment in `advice--add-function'). DO NOT
+    ;; REMOVE.
+    macroexpand rename-buffer)
+  "Primitive functions for which we do not perform trampoline optimization."
+  :type 'list)
 
 (defcustom comp-async-jobs-number 0
   "Default number of processes used for async compilation.
 When zero use half of the CPUs or at least one."
-  :type 'number
-  :group 'comp)
+  :type 'number)
 
+;; FIXME: This an abnormal hook, and should be renamed to something
+;; like `comp-async-cu-done-function'.
 (defcustom comp-async-cu-done-hook nil
-  "This hook is run whenever an asyncronous native compilation
-finishes compiling a single compilation unit.
+  "Hook run after asynchronously compiling a single compilation unit.
 The argument FILE passed to the function is the filename used as
 compilation input."
-  :type 'hook
-  :group 'comp)
+  :type 'hook)
 
 (defcustom comp-async-all-done-hook nil
-  "This hook is run whenever the asyncronous native compilation
-finishes compiling all input files."
-  :type 'hook
-  :group 'comp)
+  "Hook run after asynchronously compiling all input files."
+  :type 'hook)
 
 (defcustom comp-async-env-modifier-form nil
-  "Form to be evaluated by each asyncronous compilation worker
-before compilation.  Usable to modify the compiler environment."
-  :type 'list
-  :group 'comp)
+  "Form evaluated before compilation by each asynchronous compilation worker.
+Usable to modify the compiler environment."
+  :type 'list)
+
+(defcustom comp-async-report-warnings-errors t
+  "Report warnings and errors from native asynchronous compilation."
+  :type 'boolean)
 
 (defcustom comp-native-driver-options nil
   "Options passed verbatim to the native compiler's backend driver.
@@ -141,11 +134,10 @@ affecting the assembler and linker are likely to be useful.
 
 Passing these options is only available in libgccjit version 9
 and above."
-  :type 'list
-  :group 'comp)
+  :type 'list)
 
 (defvar comp-dry-run nil
-  "When non nil run everything but the C back-end.")
+  "If non-nil, run everything but the C back-end.")
 
 (defconst comp-valid-source-re (rx ".el" (? ".gz") eos)
   "Regexp to match filename of valid input source files.")
@@ -172,6 +164,7 @@ Can be one of: 'd-default', 'd-impure' or 'd-ephemeral'.  See `comp-ctxt'.")
                         comp-fwprop
                         comp-call-optim
                         comp-ipa-pure
+                        comp-cond-rw
                         comp-fwprop
                         comp-dead-code
                         comp-tco
@@ -184,23 +177,106 @@ Can be one of: 'd-default', 'd-impure' or 'd-ephemeral'.  See `comp-ctxt'.")
   "List of disabled passes.
 For internal use only by the testsuite.")
 
-(defvar comp-post-pass-hooks ()
+(defvar comp-post-pass-hooks '()
   "Alist PASS FUNCTIONS.
 Each function in FUNCTIONS is run after PASS.
 Useful to hook into pass checkers.")
 
-(defconst comp-known-ret-types '((cons . cons)
-                                 (1+ . number)
-                                 (1- . number)
-                                 (+ . number)
-                                 (- . number)
-                                 (* . number)
-                                 (/ . number)
-                                 (% . number)
-                                 ;; Type hints
-                                 (comp-hint-fixnum . fixnum)
-                                 (comp-hint-cons . cons))
+;; FIXME this probably should not be here but... good for now.
+(defconst comp-known-type-specifiers
+  `((cons (function (t t) cons))
+    (1+ (function ((or number marker)) number))
+    (1- (function ((or number marker)) number))
+    (+ (function (&rest (or number marker)) number))
+    (- (function (&rest (or number marker)) number))
+    (* (function (&rest (or number marker)) number))
+    (/ (function ((or number marker) &rest (or number marker)) number))
+    (% (function ((or number marker) (or number marker)) number))
+    (concat (function (&rest sequence) string))
+    (regexp-opt (function (list) string))
+    (string-to-char (function (string) integer))
+    (symbol-name (function (symbol) string))
+    (eq (function (t t) boolean))
+    (eql (function (t t) boolean))
+    (= (function ((or number marker) (or number marker)) boolean))
+    (/= (function ((or number marker) (or number marker)) boolean))
+    (< (function ((or number marker) &rest (or number marker)) boolean))
+    (<= (function ((or number marker) &rest (or number marker)) boolean))
+    (>= (function ((or number marker) &rest (or number marker)) boolean))
+    (> (function ((or number marker) &rest (or number marker)) boolean))
+    (min (function ((or number marker) &rest (or number marker)) number))
+    (max (function ((or number marker) &rest (or number marker)) number))
+    (mod (function ((or number marker) (or number marker))
+                   (or (integer 0 *) (float 0 *))))
+    (abs (function (number) number))
+    (ash (function (integer integer) integer))
+    (sqrt (function (number) float))
+    (logand (function (&rest (or integer marker)) integer))
+    (logior (function (&rest (or integer marker)) integer))
+    (lognot (function (integer) integer))
+    (logxor (function (&rest (or integer marker)) integer))
+    (logcount (function (integer) integer))
+    (copysign (function (float float) float))
+    (isnan (function (float) boolean))
+    (ldexp (function (number integer) float))
+    (float (function (number) float))
+    (logb (function (number) integer))
+    (floor (function (number &optional number) integer))
+    (ceiling (function (number &optional number) integer))
+    (round (function (number &optional number) integer))
+    (truncate (function (number &optional number) integer))
+    (ffloor (function (float) float))
+    (fceiling (function (float) float))
+    (fround (function (float) float))
+    (ftruncate (function (float) float))
+    (string= (function ((or string symbol) (or string symbol)) boolean))
+    (string-equal (function ((or string symbol) (or string symbol)) boolean))
+    (string< (function ((or string symbol) (or string symbol)) boolean))
+    (string-lessp (function ((or string symbol) (or string symbol)) boolean))
+    (string-search (function (string string) (or integer null)))
+    (string-to-char (function (string) integer))
+    (string-to-number (function (string &optional integer) number))
+    (string-to-syntax (function (string) cons))
+    (substring (function (string &optional integer integer) string))
+    (sxhash (function (t) integer))
+    (sxhash-equal (function (t) integer))
+    (sxhash-eq (function (t) integer))
+    (sxhash-eql (function (t) integer))
+    (symbol-function (function (symbol) t))
+    (symbol-name (function (symbol) string))
+    (symbol-plist (function (symbol) list))
+    (symbol-value (function (symbol) t))
+    (string-make-unibyte (function (string) string))
+    (string-make-multibyte (function (string) string))
+    (string-as-multibyte (function (string) string))
+    (string-as-unibyte (function (string) string))
+    (string-to-multibyte (function (string) string))
+    (tan (function (number) float))
+    (time-convert (function (t &optional (or boolean integer)) cons))
+    (truncate (function (number) integer))
+    (unibyte-char-to-multibyte (function (fixnum) fixnum)) ;; byte is fixnum
+    (upcase (function ((or fixnum string)) (or fixnum string)))
+    (user-full-name (function (&optional integer) string))
+    (user-login-name (function (&optional integer) (or string null)))
+    (user-original-login-name (function (&optional integer) (or string null)))
+    (custom-variable-p (function (symbol) boolean))
+    (vconcat (function (&rest sequence) vector))
+    ;; TODO all window-* :x
+    (zerop (function (number) boolean))
+    ;; Type hints
+    (comp-hint-fixnum (function (t) fixnum))
+    (comp-hint-cons (function (t) cons)))
   "Alist used for type propagation.")
+
+(defconst comp-known-func-cstr-h
+  (cl-loop
+   with comp-ctxt = (make-comp-cstr-ctxt)
+   with h = (make-hash-table :test #'eq)
+   for (f type-spec) in comp-known-type-specifiers
+   for cstr = (comp-type-spec-to-cstr type-spec)
+   do (puthash f cstr h)
+   finally (cl-return h))
+  "Hash table function -> `comp-constraint'")
 
 (defconst comp-symbol-values-optimizable '(most-positive-fixnum
                                            most-negative-fixnum)
@@ -217,7 +293,8 @@ Useful to hook into pass checkers.")
                              set-rest-args-to-local)
   "Limple set operators.")
 
-(defconst comp-limple-assignments `(fetch-handler
+(defconst comp-limple-assignments `(assume
+                                    fetch-handler
                                     ,@comp-limple-sets)
   "Limple operators that clobbers the first m-var argument.")
 
@@ -227,8 +304,17 @@ Useful to hook into pass checkers.")
                               direct-callref)
   "Limple operators use to call subrs.")
 
+(defconst comp-limple-branches '(jump cond-jump)
+  "Limple operators use for conditional and unconditional branches.")
+
+(defconst comp-limple-ops `(,@comp-limple-calls
+                            ,@comp-limple-assignments
+                            ,@comp-limple-branches
+                            return)
+  "All limple operators.")
+
 (define-error 'native-compiler-error-dyn-func
-  "can't native compile a non lexical scoped function"
+  "can't native compile a non-lexically-scoped function"
   'native-compiler-error)
 (define-error 'native-compiler-error-empty-byte
   "empty byte compiler output"
@@ -251,10 +337,14 @@ Useful to hook into pass checkers.")
   (idx (make-hash-table :test #'equal) :type hash-table
        :documentation "Obj -> position into the previous field."))
 
-(cl-defstruct comp-ctxt
+(cl-defstruct (comp-ctxt (:include comp-cstr-ctxt))
   "Lisp side of the compiler context."
   (output nil :type string
           :documentation "Target output file-name for the compilation.")
+  (speed comp-speed :type number
+         :documentation "Default speed for this compilation unit.")
+  (debug comp-debug :type number
+         :documentation "Default debug level for this compilation unit.")
   (top-level-forms () :type list
                    :documentation "List of spilled top level forms.")
   (funcs-h (make-hash-table :test #'equal) :type hash-table
@@ -273,11 +363,11 @@ Needed to replace immediate byte-compiled lambdas with the compiled reference.")
              :documentation "Standard data relocated in use by functions.")
   (d-impure (make-comp-data-container) :type comp-data-container
             :documentation "Relocated data that cannot be moved into pure space.
-This is tipically for top-level forms other than defun.")
+This is typically for top-level forms other than defun.")
   (d-ephemeral (make-comp-data-container) :type comp-data-container
                :documentation "Relocated data not necessary after load.")
   (with-late-load nil :type boolean
-                  :documentation "When non nil support late load."))
+                  :documentation "When non-nil support late load."))
 
 (cl-defstruct comp-args-base
   (min nil :type number
@@ -304,7 +394,7 @@ To be used when ncall-conv is nil."))
          :documentation "List of instructions.")
   (closed nil :type boolean
           :documentation "t if closed.")
-  ;; All the followings are for SSA and CGF analysis.
+  ;; All the following are for SSA and CGF analysis.
   ;; Keep in sync with `comp-clean-ssa'!!
   (in-edges () :type list
             :documentation "List of incoming edges.")
@@ -327,7 +417,7 @@ Is in use to help the SSA rename pass."))
   "A basic block created from lap."
   ;; These two slots are used during limplification.
   (sp nil :type number
-      :documentation "When non nil indicates the sp value while entering
+      :documentation "When non-nil indicates the sp value while entering
 into it.")
   (addr nil :type number
         :documentation "Start block LAP address."))
@@ -342,7 +432,7 @@ into it.")
   (dst nil :type comp-block)
   (number nil :type number
           :documentation "The index number corresponding to this edge in the
- edge vector."))
+ edge hash."))
 
 (defun comp-block-preds (basic-block)
   "Given BASIC-BLOCK return the list of its predecessors."
@@ -361,7 +451,7 @@ into it.")
   (c-name nil :type string
           :documentation "The function name in the native world.")
   (byte-func nil
-             :documentation "Byte compiled version.")
+             :documentation "Byte-compiled version.")
   (doc nil :type string
        :documentation "Doc string.")
   (int-spec nil :type list
@@ -374,12 +464,11 @@ Once in SSA form this *must* be set to 'dirty' every time the topology of the
 CFG is mutated by a pass.")
   (frame-size nil :type number)
   (blocks (make-hash-table) :type hash-table
-          :documentation "Key is the basic block symbol value is a comp-block
-structure.")
+          :documentation "Basic block name -> basic block.")
   (lap-block (make-hash-table :test #'equal) :type hash-table
-             :documentation "LAP lable -> LIMPLE basic block name.")
-  (edges () :type list
-         :documentation "List of edges connecting basic blocks.")
+             :documentation "LAP label -> LIMPLE basic block name.")
+  (edges-h (make-hash-table) :type hash-table
+         :documentation "Hash edge-num -> edge connecting basic two blocks.")
   (block-cnt-gen (funcall #'comp-gen-counter) :type function
                  :documentation "Generates block numbers.")
   (edge-cnt-gen (funcall #'comp-gen-counter) :type function
@@ -391,33 +480,95 @@ structure.")
   (speed nil :type number
          :documentation "Optimization level (see `comp-speed').")
   (pure nil :type boolean
-        :documentation "t if pure nil otherwise."))
+        :documentation "t if pure nil otherwise.")
+  (ret-type-specifier '(t) :type list
+                      :documentation "Derived return type specifier."))
 
 (cl-defstruct (comp-func-l (:include comp-func))
-  "Lexical scoped function."
+  "Lexically-scoped function."
   (args nil :type comp-args-base
         :documentation "Argument specification of the function"))
 
 (cl-defstruct (comp-func-d (:include comp-func))
-  "Dynamic scoped function."
+  "Dynamically-scoped function."
   (lambda-list nil :type list
         :documentation "Original lambda-list."))
 
-(cl-defstruct (comp-mvar (:constructor make--comp-mvar))
+(cl-defstruct (comp-mvar (:constructor make--comp-mvar)
+                         (:include comp-cstr))
   "A meta-variable being a slot in the meta-stack."
   (id nil :type (or null number)
       :documentation "Unique id when in SSA form.")
   (slot nil :type (or fixnum symbol)
         :documentation "Slot number in the array if a number or
-        'scratch' for scratch slot.")
-  (const-vld nil :type boolean
-             :documentation "Valid signal for the following slot.")
-  (constant nil
-            :documentation "When const-vld non nil this is used for holding
- a value known at compile time.")
-  (type nil :type symbol
-        :documentation "When non nil indicates the type when known at compile
- time."))
+        'scratch' for scratch slot."))
+
+(defun comp-mvar-value-vld-p (mvar)
+  "Return t if one single value can be extracted by the MVAR constrains."
+  (when (null (comp-mvar-typeset mvar))
+    (let* ((v (comp-mvar-valset mvar))
+           (r (comp-mvar-range mvar))
+           (valset-len (length v))
+           (range-len (length r)))
+      (if (and (= valset-len 1)
+               (= range-len 0))
+          t
+        (when (and (= valset-len 0)
+                   (= range-len 1))
+          (let* ((low (caar r))
+                 (high (cdar r)))
+            (and (integerp low)
+                 (integerp high)
+                 (= low high))))))))
+
+(defun comp-mvar-value (mvar)
+  "Return the constant value of MVAR.
+`comp-mvar-value-vld-p' *must* be satisfied before calling
+`comp-mvar-const'."
+  (declare (gv-setter
+            (lambda (val)
+              `(if (integerp ,val)
+                   (setf (comp-mvar-typeset ,mvar) nil
+                         (comp-mvar-range ,mvar) (list (cons ,val ,val)))
+                 (setf (comp-mvar-typeset ,mvar) nil
+                       (comp-mvar-valset ,mvar) (list ,val))))))
+  (let ((v (comp-mvar-valset mvar)))
+    (if (= (length v) 1)
+        (car v)
+      (caar (comp-mvar-range mvar)))))
+
+(defun comp-mvar-fixnum-p (mvar)
+  "Return t if MVAR is certainly a fixnum."
+  (when-let (range (comp-mvar-range mvar))
+    (let* ((low (caar range))
+           (high (cdar (last range))))
+      (unless (or (eq low '-)
+                  (< low most-negative-fixnum)
+                  (eq high '+)
+                  (> high most-positive-fixnum))
+        t))))
+
+(defun comp-mvar-symbol-p (mvar)
+  "Return t if MVAR is certainly a symbol."
+  (and (null (comp-mvar-range mvar))
+       (or (and (null (comp-mvar-valset mvar))
+                (equal (comp-mvar-typeset mvar) '(symbol)))
+           (and (or (null (comp-mvar-typeset mvar))
+                    (equal (comp-mvar-typeset mvar) '(symbol)))
+                (cl-every #'symbolp (comp-mvar-valset mvar))))))
+
+(defsubst comp-mvar-cons-p (mvar)
+  "Return t if MVAR is certainly a cons."
+  (and (null (comp-mvar-valset mvar))
+       (null (comp-mvar-range mvar))
+       (equal (comp-mvar-typeset mvar) '(cons))))
+
+(defun comp-mvar-type-hint-match-p (mvar type-hint)
+  "Match MVAR against TYPE-HINT.
+In use by the backend."
+  (cl-ecase type-hint
+    (cons (comp-mvar-cons-p mvar))
+    (fixnum (comp-mvar-fixnum-p mvar))))
 
 ;; Special vars used by some passes
 (defvar comp-func)
@@ -425,24 +576,24 @@ structure.")
 
 
 (defun comp-ensure-native-compiler ()
-  "Make sure Emacs has native compiler support and libgccjit is laodable.
-Raise and error otherwise.
+  "Make sure Emacs has native compiler support and libgccjit is loadable.
+Signal an error otherwise.
 To be used by all entry points."
   (cond
-   ((null (boundp 'comp-ctxt))
+   ((null (featurep 'nativecomp))
     (error "Emacs not compiled with native compiler support (--with-nativecomp)"))
    ((null (native-comp-available-p))
     (error "Cannot find libgccjit"))))
 
-(defsubst comp-set-op-p (op)
+(defun comp-set-op-p (op)
   "Assignment predicate for OP."
   (when (memq op comp-limple-sets) t))
 
-(defsubst comp-assign-op-p (op)
+(defun comp-assign-op-p (op)
   "Assignment predicate for OP."
   (when (memq op comp-limple-assignments) t))
 
-(defsubst comp-call-op-p (op)
+(defun comp-call-op-p (op)
   "Call predicate for OP."
   (when (memq op comp-limple-calls) t))
 
@@ -450,12 +601,12 @@ To be used by all entry points."
   "Limple INSN call predicate."
   (comp-call-op-p (car-safe insn)))
 
-(defsubst comp-type-hint-p (func)
-  "Type hint predicate for function name FUNC."
+(defun comp-type-hint-p (func)
+  "Type-hint predicate for function name FUNC."
   (when (memq func comp-type-hints) t))
 
 (defun comp-func-unique-in-cu-p (func)
-  "Return t if FUNC is know to be unique in the current compilation unit."
+  "Return t if FUNC is known to be unique in the current compilation unit."
   (if (symbolp func)
       (cl-loop with h = (make-hash-table :test #'eq)
                for f being the hash-value in (comp-ctxt-funcs-h comp-ctxt)
@@ -472,15 +623,15 @@ To be used by all entry points."
                                     comp-ctxt))
            (comp-ctxt-funcs-h comp-ctxt)))
 
-(defsubst comp-function-pure-p (f)
+(defun comp-function-pure-p (f)
   "Return t if F is pure."
   (or (get f 'pure)
       (when-let ((func (comp-symbol-func-to-fun f)))
         (comp-func-pure func))))
 
-(defsubst comp-alloc-class-to-container (alloc-class)
-  "Given ALLOC-CLASS return the data container for the current context.
-Assume allocaiton class 'd-default as default."
+(defun comp-alloc-class-to-container (alloc-class)
+  "Given ALLOC-CLASS, return the data container for the current context.
+Assume allocation class 'd-default as default."
   (cl-struct-slot-value 'comp-ctxt (or alloc-class 'd-default) comp-ctxt))
 
 (defsubst comp-add-const-to-relocs (obj)
@@ -489,7 +640,7 @@ Assume allocaiton class 'd-default as default."
                                            comp-curr-allocation-class))))
 
 
-;;; Log rountines.
+;;; Log routines.
 
 (defconst comp-limple-lock-keywords
   `((,(rx bol "(comment" (1+ not-newline)) . font-lock-comment-face)
@@ -499,17 +650,18 @@ Assume allocaiton class 'd-default as default."
      (1 font-lock-variable-name-face))
     (,(rx (group-n 1 (or "entry"
                          (seq (or "entry_" "entry_fallback_" "bb_")
-                              (1+ num)))))
+                              (1+ num) (? "_latch")))))
      (1 font-lock-constant-face))
-    (,(rx "(" (group-n 1 (1+ (or word "-"))))
+    (,(rx-to-string
+       `(seq "(" (group-n 1 (or ,@(mapcar #'symbol-name comp-limple-ops)))))
      (1 font-lock-keyword-face)))
-  "Highlights used by comp-limple-mode.")
+  "Highlights used by `comp-limple-mode'.")
 
 (define-derived-mode comp-limple-mode fundamental-mode "LIMPLE"
-  "Syntax highlight LIMPLE IR."
+  "Syntax-highlight LIMPLE IR."
   (setf font-lock-defaults '(comp-limple-lock-keywords)))
 
-(cl-defun comp-log (data &optional (level 1))
+(cl-defun comp-log (data &optional (level 1) quoted)
   "Log DATA at LEVEL.
 LEVEL is a number from 1-3; if it is less than `comp-verbose', do
 nothing.  If `noninteractive', log with `message'.  Otherwise,
@@ -520,15 +672,16 @@ log with `comp-log-to-buffer'."
           (atom (message "%s" data))
           (t (dolist (elem data)
                (message "%s" elem))))
-      (comp-log-to-buffer data))))
+      (comp-log-to-buffer data quoted))))
 
-(cl-defun comp-log-to-buffer (data)
+(cl-defun comp-log-to-buffer (data &optional quoted)
   "Log DATA to `comp-log-buffer-name'."
-  (let* ((log-buffer
-          (or (get-buffer comp-log-buffer-name)
-              (with-current-buffer (get-buffer-create comp-log-buffer-name)
-                (setf buffer-read-only t)
-                (current-buffer))))
+  (let* ((print-f (if quoted #'prin1 #'princ))
+         (log-buffer
+             (or (get-buffer comp-log-buffer-name)
+                 (with-current-buffer (get-buffer-create comp-log-buffer-name)
+                   (setf buffer-read-only t)
+                   (current-buffer))))
          (log-window (get-buffer-window log-buffer))
          (inhibit-read-only t)
          at-end-p)
@@ -540,9 +693,9 @@ log with `comp-log-to-buffer'."
       (save-excursion
         (goto-char (point-max))
         (cl-typecase data
-          (atom (princ data log-buffer))
+          (atom (funcall print-f data log-buffer))
           (t (dolist (elem data)
-               (princ elem log-buffer)
+               (funcall print-f elem log-buffer)
                (insert "\n"))))
         (insert "\n"))
       (when (and at-end-p log-window)
@@ -558,26 +711,26 @@ VERBOSITY is a number between 0 and 3."
     (cl-loop for block-name being each hash-keys of (comp-func-blocks func)
              using (hash-value bb)
              do (comp-log (concat "<" (symbol-name block-name) ">") verbosity)
-                (comp-log (comp-block-insns bb) verbosity))))
+                (comp-log (comp-block-insns bb) verbosity t))))
 
 (defun comp-log-edges (func)
   "Log edges in FUNC."
-  (let ((edges (comp-func-edges func)))
+  (let ((edges (comp-func-edges-h func)))
     (comp-log (format "\nEdges in function: %s\n"
                       (comp-func-name func))
               2)
-    (mapc (lambda (e)
-            (comp-log (format "n: %d src: %s dst: %s\n"
-                              (comp-edge-number e)
-                              (comp-block-name (comp-edge-src e))
-                              (comp-block-name (comp-edge-dst e)))
-                      2))
+    (maphash (lambda (_ e)
+               (comp-log (format "n: %d src: %s dst: %s\n"
+                                 (comp-edge-number e)
+                                 (comp-block-name (comp-edge-src e))
+                                 (comp-block-name (comp-edge-dst e)))
+                         2))
           edges)))
 
 
 
 (defmacro comp-loop-insn-in-block (basic-block &rest body)
-  "Loop over all insns in BASIC-BLOCK executning BODY.
+  "Loop over all insns in BASIC-BLOCK executing BODY.
 Inside BODY `insn' can be used to read or set the current
 instruction."
   (declare (debug (form body))
@@ -589,8 +742,8 @@ instruction."
 
 ;;; spill-lap pass specific code.
 
-(defsubst comp-lex-byte-func-p (f)
-  "Return t if F is a lexical scoped byte compiled function."
+(defun comp-lex-byte-func-p (f)
+  "Return t if F is a lexically-scoped byte compiled function."
   (and (byte-code-function-p f)
        (fixnump (aref f 0))))
 
@@ -602,14 +755,16 @@ instruction."
 (defun comp-spill-speed (function-name)
   "Return the speed for FUNCTION-NAME."
   (or (comp-spill-decl-spec function-name 'speed)
-      comp-speed))
+      (comp-ctxt-speed comp-ctxt)))
 
+;; Autoloaded as might be used by `disassemble-internal'.
+;;;###autoload
 (defun comp-c-func-name (name prefix &optional first)
-  "Given NAME return a name suitable for the native code.
-Add PREFIX in front of it.  If FIRST is not nil pick the first
+  "Given NAME, return a name suitable for the native code.
+Add PREFIX in front of it.  If FIRST is not nil, pick the first
 available name ignoring compilation context and potential name
 clashes."
-  ;; Unfortunatelly not all symbol names are valid as C function names...
+  ;; Unfortunately not all symbol names are valid as C function names...
   ;; Nassi's algorithm here:
   (let* ((orig-name (if (symbolp name) (symbol-name name) name))
          (crypted (cl-loop with str = (make-string (* 2 (length orig-name)) 0)
@@ -637,7 +792,7 @@ clashes."
       (concat prefix crypted "_" human-readable "_0"))))
 
 (defun comp-decrypt-arg-list (x function-name)
-  "Decript argument list X for FUNCTION-NAME."
+  "Decrypt argument list X for FUNCTION-NAME."
   (unless (fixnump x)
     (signal 'native-compiler-error-dyn-func function-name))
   (let ((rest (not (= (logand x 128) 0)))
@@ -663,10 +818,14 @@ clashes."
     (puthash c-name func (comp-ctxt-funcs-h comp-ctxt))))
 
 (cl-defgeneric comp-spill-lap-function (input)
-  "Byte compile INPUT and spill lap for further stages.")
+  "Byte-compile INPUT and spill lap for further stages.")
 
-(cl-defgeneric comp-spill-lap-function ((function-name symbol))
-  "Byte compile FUNCTION-NAME spilling data from the byte compiler."
+(cl-defmethod comp-spill-lap-function ((function-name symbol))
+  "Byte-compile FUNCTION-NAME spilling data from the byte compiler."
+  (unless (comp-ctxt-output comp-ctxt)
+    (setf (comp-ctxt-output comp-ctxt)
+          (make-temp-file (comp-c-func-name function-name "freefn-")
+                          nil ".eln")))
   (let* ((f (symbol-function function-name))
          (c-name (comp-c-func-name function-name "F"))
          (func (make-comp-func-l :name function-name
@@ -685,7 +844,7 @@ clashes."
                   (gethash (aref (comp-func-byte-func func) 1)
                            byte-to-native-lambdas-h))))
         (cl-assert lap)
-        (comp-log lap 2)
+        (comp-log lap 2 t)
         (let ((arg-list (aref (comp-func-byte-func func) 0)))
           (setf (comp-func-l-args func)
                 (comp-decrypt-arg-list arg-list function-name)
@@ -700,8 +859,47 @@ clashes."
         (puthash 0 (comp-func-frame-size func) (comp-func-array-h func))
         (comp-add-func-to-ctxt func))))
 
+(cl-defmethod comp-spill-lap-function ((form list))
+  "Byte-compile FORM spilling data from the byte compiler."
+  (unless (eq (car-safe form) 'lambda)
+    (signal 'native-compiler-error
+            "Cannot native compile, form is not a lambda"))
+  (unless (comp-ctxt-output comp-ctxt)
+    (setf (comp-ctxt-output comp-ctxt)
+          (make-temp-file "comp-lambda-" nil ".eln")))
+  (let* ((byte-code (byte-compile form))
+         (c-name (comp-c-func-name "anonymous-lambda" "F"))
+         (func (if (comp-lex-byte-func-p byte-code)
+                   (make-comp-func-l :c-name c-name
+                                     :doc (documentation form t)
+                                     :int-spec (interactive-form form)
+                                     :speed (comp-ctxt-speed comp-ctxt))
+                 (make-comp-func-d :c-name c-name
+                                   :doc (documentation form t)
+                                   :int-spec (interactive-form form)
+                                   :speed (comp-ctxt-speed comp-ctxt)))))
+    (let ((lap (byte-to-native-lambda-lap
+                (gethash (aref byte-code 1)
+                         byte-to-native-lambdas-h))))
+      (cl-assert lap)
+      (comp-log lap 2 t)
+      (if (comp-func-l-p func)
+          (setf (comp-func-l-args func)
+                (comp-decrypt-arg-list (aref byte-code 0) byte-code))
+        (setf (comp-func-d-lambda-list func) (cadr form)))
+      (setf (comp-func-lap func) lap
+            (comp-func-frame-size func) (comp-byte-frame-size
+                                         byte-code))
+      (setf (comp-func-byte-func func) byte-code
+            (comp-ctxt-top-level-forms comp-ctxt)
+            (list (make-byte-to-native-func-def :name '--anonymous-lambda
+                                                :c-name c-name)))
+      ;; Create the default array.
+      (puthash 0 (comp-func-frame-size func) (comp-func-array-h func))
+      (comp-add-func-to-ctxt func))))
+
 (defun comp-intern-func-in-ctxt (_ obj)
-  "Given OBJ of type `byte-to-native-lambda' create a function in `comp-ctxt'."
+  "Given OBJ of type `byte-to-native-lambda', create a function in `comp-ctxt'."
   (when-let ((byte-func (byte-to-native-lambda-byte-func obj)))
     (let* ((lap (byte-to-native-lambda-lap obj))
            (top-l-form (cl-loop
@@ -738,14 +936,23 @@ clashes."
       (puthash 0 (comp-func-frame-size func) (comp-func-array-h func))
       (comp-add-func-to-ctxt func)
       (comp-log (format "Function %s:\n" name) 1)
-      (comp-log lap 1))))
+      (comp-log lap 1 t))))
 
-(cl-defgeneric comp-spill-lap-function ((filename string))
-  "Byte compile FILENAME spilling data from the byte compiler."
+(cl-defmethod comp-spill-lap-function ((filename string))
+  "Byte-compile FILENAME spilling data from the byte compiler."
   (byte-compile-file filename)
   (unless byte-to-native-top-level-forms
     (signal 'native-compiler-error-empty-byte filename))
-  (setf (comp-ctxt-top-level-forms comp-ctxt)
+  (unless (comp-ctxt-output comp-ctxt)
+    (setf (comp-ctxt-output comp-ctxt) (comp-el-to-eln-filename
+                                        filename
+                                        (when byte-native-for-bootstrap
+                                          (car (last comp-eln-load-path))))))
+  (setf (comp-ctxt-speed comp-ctxt) (alist-get 'comp-speed
+                                               byte-native-qualities)
+        (comp-ctxt-debug comp-ctxt) (alist-get 'comp-debug
+                                               byte-native-qualities)
+        (comp-ctxt-top-level-forms comp-ctxt)
         (cl-loop
          for form in (reverse byte-to-native-top-level-forms)
          collect
@@ -764,7 +971,7 @@ clashes."
   (maphash #'comp-intern-func-in-ctxt byte-to-native-lambdas-h))
 
 (defun comp-spill-lap (input)
-  "Byte compile and spill the LAP representation for INPUT.
+  "Byte-compile and spill the LAP representation for INPUT.
 If INPUT is a symbol this is the function-name to be compiled.
 If INPUT is a string this is the file path to be compiled."
   (let ((byte-native-compiling t)
@@ -798,12 +1005,12 @@ Points to the next slot to be filled.")
               byte-switch byte-pushconditioncase)
   "LAP end of basic blocks op codes.")
 
-(defsubst comp-lap-eob-p (inst)
+(defun comp-lap-eob-p (inst)
   "Return t if INST closes the current basic blocks, nil otherwise."
   (when (memq (car inst) comp-lap-eob-ops)
     t))
 
-(defsubst comp-lap-fall-through-p (inst)
+(defun comp-lap-fall-through-p (inst)
   "Return t if INST fall through, nil otherwise."
   (when (not (memq (car inst) '(byte-goto byte-return)))
     t))
@@ -880,14 +1087,18 @@ STACK-OFF is the index of the first slot frame involved."
                              collect (comp-slot-n sp))))
 
 (cl-defun make-comp-mvar (&key slot (constant nil const-vld) type)
-  (when const-vld
-    (comp-add-const-to-relocs constant))
-  (make--comp-mvar :slot slot :const-vld const-vld :constant constant
-                   :type type))
+  "`comp-mvar' intitializer."
+  (let ((mvar (make--comp-mvar :slot slot)))
+    (when const-vld
+      (comp-add-const-to-relocs constant)
+      (setf (comp-mvar-value mvar) constant))
+    (when type
+      (setf (comp-mvar-typeset mvar) (list type)))
+    mvar))
 
 (defun comp-new-frame (size &optional ssa)
   "Return a clean frame of meta variables of size SIZE.
-If SSA non nil populate it of m-var in ssa form."
+If SSA non-nil populate it of m-var in ssa form."
   (cl-loop with v = (make-vector size nil)
            for i below size
            for mvar = (if ssa
@@ -896,13 +1107,13 @@ If SSA non nil populate it of m-var in ssa form."
            do (aset v i mvar)
            finally return v))
 
-(defsubst comp-emit (insn)
+(defun comp-emit (insn)
   "Emit INSN into basic block BB."
   (let ((bb (comp-limplify-curr-block comp-pass)))
     (cl-assert (not (comp-block-closed bb)))
     (push insn (comp-block-insns bb))))
 
-(defsubst comp-emit-set-call (call)
+(defun comp-emit-set-call (call)
   "Emit CALL assigning the result the the current slot frame.
 If the callee function is known to have a return type propagate it."
   (cl-assert call)
@@ -930,8 +1141,7 @@ If DST-N is specified use it otherwise assume it to be the current slot."
 (defun comp-make-curr-block (block-name entry-sp &optional addr)
   "Create a basic block with BLOCK-NAME and set it as current block.
 ENTRY-SP is the sp value when entering.
-The block is added to the current function.
-The block is returned."
+Add block to the current function and return it."
   (let ((bb (make--comp-block-lap addr entry-sp block-name)))
     (setf (comp-limplify-curr-block comp-pass) bb
           (comp-limplify-pc comp-pass) addr
@@ -979,8 +1189,9 @@ block.
 If NEGATED non null negate the tested condition.
 Return value is the fall through block name."
   (cl-destructuring-bind (label-num . label-sp) lap-label
-    (let* ((bb (comp-block-name (comp-bb-maybe-add (1+ (comp-limplify-pc comp-pass))
-                                                   (comp-sp)))) ; Fall through block.
+    (let* ((bb (comp-block-name (comp-bb-maybe-add
+                                 (1+ (comp-limplify-pc comp-pass))
+                                 (comp-sp)))) ; Fall through block.
            (target-sp (+ target-offset (comp-sp)))
            (target-addr (comp-label-to-addr label-num))
            (target (comp-bb-maybe-add target-addr target-sp))
@@ -996,7 +1207,7 @@ Return value is the fall through block name."
       bb)))
 
 (defun comp-emit-handler (lap-label handler-type)
-  "Emit a non local exit handler to LAP-LABEL of type HANDLER-TYPE."
+  "Emit a nonlocal-exit handler to LAP-LABEL of type HANDLER-TYPE."
   (cl-destructuring-bind (label-num . label-sp) lap-label
     (cl-assert (= (- label-sp 2) (comp-sp)))
     (setf (comp-func-has-non-local comp-func) t)
@@ -1071,8 +1282,9 @@ Return value is the fall through block name."
         for n from 1
         for last = (= n len)
         for m-test = (make-comp-mvar :constant test)
-        for target-name = (comp-block-name (comp-bb-maybe-add (comp-label-to-addr target-label)
-                                                              (comp-sp)))
+        for target-name = (comp-block-name (comp-bb-maybe-add
+                                            (comp-label-to-addr target-label)
+                                            (comp-sp)))
         for ff-bb = (if last
                         (comp-bb-maybe-add (1+ (comp-limplify-pc comp-pass))
                                            (comp-sp))
@@ -1103,9 +1315,7 @@ Return value is the fall through block name."
 SP-DELTA is the stack adjustment."
     (let ((subr (symbol-function subr-name))
           (nargs (1+ (- sp-delta))))
-      (unless (subrp subr)
-        (signal 'native-ice (list "not a subr" subr)))
-      (let* ((arity (subr-arity subr))
+      (let* ((arity (func-arity subr))
              (minarg (car arity))
              (maxarg (cdr arity)))
         (when (eq maxarg 'unevalled)
@@ -1133,13 +1343,9 @@ When BODY is auto guess function name form the LAP byte-code
 name.  Otherwise expect lname fnname."
     (pcase (car body)
       ('auto
-       (list `(comp-emit-set-call-subr
-               ',(comp-op-to-fun op-name)
-               ,sp-delta)))
+       `((comp-emit-set-call-subr ',(comp-op-to-fun op-name) ,sp-delta)))
       ((pred symbolp)
-       (list `(comp-emit-set-call-subr
-               ',(car body)
-               ,sp-delta)))
+       `((comp-emit-set-call-subr ',(car body) ,sp-delta)))
       (_ body))))
 
 (defmacro comp-op-case (&rest cases)
@@ -1411,10 +1617,10 @@ the annotation emission."
   func)
 
 (cl-defgeneric comp-prepare-args-for-top-level (function)
-  "Given FUNCTION return the two args arguments for comp--register-...")
+  "Given FUNCTION, return the two args arguments for comp--register-...")
 
 (cl-defmethod comp-prepare-args-for-top-level ((function comp-func-l))
-  "Lexical scoped FUNCTION."
+  "Lexically-scoped FUNCTION."
   (let ((args (comp-func-l-args function)))
     (cons (make-comp-mvar :constant (comp-args-base-min args))
           (make-comp-mvar :constant (if (comp-args-p args)
@@ -1440,24 +1646,26 @@ the annotation emission."
          (f (gethash c-name (comp-ctxt-funcs-h comp-ctxt)))
          (args (comp-prepare-args-for-top-level f)))
     (cl-assert (and name f))
-    (comp-emit (comp-call (if for-late-load
-                              'comp--late-register-subr
-                            'comp--register-subr)
-                          (make-comp-mvar :constant name)
-                          (car args)
-                          (cdr args)
-                          (make-comp-mvar :constant c-name)
-                          (make-comp-mvar
-                           :constant
-                           (let* ((h (comp-ctxt-function-docs comp-ctxt))
-                                  (i (hash-table-count h)))
-                             (puthash i (comp-func-doc f) h)
-                             i))
-                          (make-comp-mvar :constant
-                                          (comp-func-int-spec f))
-                          ;; This is the compilation unit it-self passed as
-                          ;; parameter.
-                          (make-comp-mvar :slot 0)))))
+    (comp-emit
+     `(set ,(make-comp-mvar :slot 1)
+           ,(comp-call (if for-late-load
+                           'comp--late-register-subr
+                         'comp--register-subr)
+                       (make-comp-mvar :constant name)
+                       (car args)
+                       (cdr args)
+                       (make-comp-mvar :constant c-name)
+                       (make-comp-mvar
+                        :constant
+                        (let* ((h (comp-ctxt-function-docs comp-ctxt))
+                               (i (hash-table-count h)))
+                          (puthash i (comp-func-doc f) h)
+                          i))
+                       (make-comp-mvar :constant
+                                       (comp-func-int-spec f))
+                       ;; This is the compilation unit it-self passed as
+                       ;; parameter.
+                       (make-comp-mvar :slot 0))))))
 
 (cl-defmethod comp-emit-for-top-level ((form byte-to-native-top-level)
                                        for-late-load)
@@ -1500,7 +1708,7 @@ These are stored in the reloc data array."
 
 (defun comp-limplify-top-level (for-late-load)
   "Create a limple function to modify the global environment at load.
-When FOR-LATE-LOAD is non nil the emitted function modifies only
+When FOR-LATE-LOAD is non-nil the emitted function modifies only
 function definition.
 
 Synthesize a function called 'top_level_run' that gets one single
@@ -1518,8 +1726,13 @@ into the C code forwarding the compilation unit."
                                              "late_top_level_run"
                                            "top_level_run")
                                  :args (make-comp-args :min 1 :max 1)
-                                 :frame-size 1
-                                 :speed comp-speed))
+                                 ;; Frame is 2 wide: Slot 0 is the
+                                 ;; compilation unit being loaded
+                                 ;; (incoming parameter).  Slot 1 is
+                                 ;; the last function being
+                                 ;; registered.
+                                 :frame-size 2
+                                 :speed (comp-ctxt-speed comp-ctxt)))
          (comp-func func)
          (comp-pass (make-comp-limplify
                      :curr-block (make--comp-block-lap -1 0 'top-level)
@@ -1535,7 +1748,7 @@ into the C code forwarding the compilation unit."
              (comp-ctxt-byte-func-to-func-h comp-ctxt))
     (mapc (lambda (x) (comp-emit-for-top-level x for-late-load))
           (comp-ctxt-top-level-forms comp-ctxt))
-    (comp-emit `(return ,(make-comp-mvar :constant t)))
+    (comp-emit `(return ,(make-comp-mvar :slot 1)))
     (puthash 0 (comp-func-frame-size func) (comp-func-array-h func))
     (comp-limplify-finalize-function func)))
 
@@ -1572,7 +1785,9 @@ into the C code forwarding the compilation unit."
          (let* ((stack-depth (if label-sp
                                  (1- label-sp)
                                (comp-sp)))
-                (next-bb (comp-block-name (comp-bb-maybe-add (comp-limplify-pc comp-pass) stack-depth))))
+                (next-bb (comp-block-name (comp-bb-maybe-add
+                                           (comp-limplify-pc comp-pass)
+                                           stack-depth))))
            (unless (comp-block-closed bb)
              (comp-emit `(jump ,next-bb))))
          (cl-return)))
@@ -1624,6 +1839,81 @@ into the C code forwarding the compilation unit."
     (comp-add-func-to-ctxt (comp-limplify-top-level t))))
 
 
+;;; conditional branches rewrite pass specific code.
+
+(defun comp-emit-assume (target-slot rhs bb-name kind)
+  "Emit an assume of kind KIND for TARGET-SLOT being RHS.
+The assume is emitted at the beginning of the block named
+BB-NAME."
+  (push `(assume ,(make-comp-mvar :slot target-slot) ,rhs ,kind)
+	(comp-block-insns (gethash bb-name (comp-func-blocks comp-func))))
+  (setf (comp-func-ssa-status comp-func) 'dirty))
+
+(defun comp-cond-rw-target-slot (slot-num exit-insn bb)
+  "Search for the last assignment of SLOT-NUM in BB.
+Keep on searching till EXIT-INSN is encountered.
+Return the corresponding rhs slot number."
+  (cl-flet ((targetp (x)
+              ;; Ret t if x is an mvar and target the correct slot number.
+              (and (comp-mvar-p x)
+                   (eql slot-num (comp-mvar-slot x)))))
+    (cl-loop
+     with res = nil
+     for insn in (comp-block-insns bb)
+     when (eq insn exit-insn)
+     do (cl-return (and (comp-mvar-p res) (comp-mvar-slot res)))
+     do (pcase insn
+          (`(,(pred comp-assign-op-p) ,(pred targetp) ,rhs)
+           (setf res rhs)))
+     finally (cl-assert nil))))
+
+(defun comp-cond-rw-func ()
+  "`comp-cond-rw' worker function for each selected function."
+  (cl-loop
+   for b being each hash-value of (comp-func-blocks comp-func)
+   do (cl-loop
+       named in-the-basic-block
+       for insns-seq on (comp-block-insns b)
+       do (pcase insns-seq
+            (`((set ,(and (pred comp-mvar-p) cond)
+                    (,(pred comp-call-op-p)
+                     ,(and (or 'eq 'eql '= 'equal) test-fn) ,op1 ,op2))
+	       (comment ,_comment-str)
+	       (cond-jump ,cond ,(pred comp-mvar-p) ,bb-1 ,_bb-2))
+             ;; FIXME We guard the target block against having more
+             ;; then one predecessor.  The right fix will be to add a
+             ;; new dedicated basic block for the assumptions so we
+             ;; can proceed always.
+             (when (= (length (comp-block-in-edges
+                                 (gethash bb-1
+                                          (comp-func-blocks comp-func))))
+                      1)
+               (when-let ((target-slot1 (comp-cond-rw-target-slot
+                                         (comp-mvar-slot op1) (car insns-seq) b)))
+                 (comp-emit-assume target-slot1 op2 bb-1 test-fn))
+               (when-let ((target-slot2 (comp-cond-rw-target-slot
+                                         (comp-mvar-slot op2) (car insns-seq) b)))
+                 (comp-emit-assume target-slot2 op1 bb-1 test-fn)))
+	     (cl-return-from in-the-basic-block))))))
+
+(defun comp-cond-rw (_)
+  "Rewrite conditional branches adding appropriate 'assume' insns.
+This is introducing and placing 'assume' insns in use by fwprop
+to propagate conditional branch test information on target basic
+blocks."
+  (maphash (lambda (_ f)
+             (when (and (>= (comp-func-speed f) 1)
+                        ;; No point to run this on dynamic scope as
+                        ;; this pass is effecive only on local
+                        ;; variables.
+			(comp-func-l-p f)
+                        (not (comp-func-has-non-local f)))
+               (let ((comp-func f))
+                 (comp-cond-rw-func)
+                 (comp-log-func comp-func 3))))
+           (comp-ctxt-funcs-h comp-ctxt)))
+
+
 ;;; pure-func pass specific code.
 
 ;; Simple IPA pass to infer function purity of functions not
@@ -1652,7 +1942,7 @@ into the C code forwarding the compilation unit."
                              f))))
 
 (defun comp-pure-infer-func (f)
-  "If all funtions called by F are pure then F is pure too."
+  "If all functions called by F are pure then F is pure too."
   (when (and (cl-every (lambda (x)
                          (or (comp-function-pure-p x)
                              (eq x (comp-func-name f))))
@@ -1688,17 +1978,15 @@ into the C code forwarding the compilation unit."
 ;; this form is called 'minimal SSA form'.
 ;; This pass should be run every time basic blocks or m-var are shuffled.
 
-(cl-defun make-comp-ssa-mvar (&key slot (constant nil const-vld) type)
-  (let ((mvar (make--comp-mvar :slot slot
-                               :const-vld const-vld
-                               :constant constant
-                               :type type)))
+(cl-defun make-comp-ssa-mvar (&rest rest &key _slot _constant _type)
+  "Same as `make-comp-mvar' but set the `id' slot."
+  (let ((mvar (apply #'make-comp-mvar rest)))
     (setf (comp-mvar-id mvar) (sxhash-eq mvar))
     mvar))
 
 (defun comp-clean-ssa (f)
-  "Clean-up SSA for funtion F."
-  (setf (comp-func-edges f) ())
+  "Clean-up SSA for function F."
+  (setf (comp-func-edges-h f) (make-hash-table))
   (cl-loop
    for b being each hash-value of (comp-func-blocks f)
    do (setf (comp-block-in-edges b) ()
@@ -1714,12 +2002,12 @@ into the C code forwarding the compilation unit."
 
 (defun comp-compute-edges ()
   "Compute the basic block edges for the current function."
-  (cl-flet ((edge-add (&rest args)
-              (push
-               (apply #'make--comp-edge
-                      :number (funcall (comp-func-edge-cnt-gen comp-func))
-                      args)
-               (comp-func-edges comp-func))))
+  (cl-flet ((edge-add (&rest args &aux (n (funcall
+                                           (comp-func-edge-cnt-gen comp-func))))
+                      (puthash
+                       n
+                       (apply #'make--comp-edge :number n args)
+                       (comp-func-edges-h comp-func))))
 
     (cl-loop with blocks = (comp-func-blocks comp-func)
              for bb being each hash-value of blocks
@@ -1743,15 +2031,16 @@ into the C code forwarding the compilation unit."
                            (list "block does not end with a branch"
                                  bb
                                  (comp-func-name comp-func)))))
-             finally (setf (comp-func-edges comp-func)
-                           (nreverse (comp-func-edges comp-func)))
-                     ;; Update edge refs into blocks.
-                     (cl-loop for edge in (comp-func-edges comp-func)
-                              do (push edge
-                                       (comp-block-out-edges (comp-edge-src edge)))
-                              (push edge
-                                    (comp-block-in-edges (comp-edge-dst edge))))
-                     (comp-log-edges comp-func))))
+             ;; Update edge refs into blocks.
+             finally
+             (cl-loop
+              for edge being the hash-value in (comp-func-edges-h comp-func)
+              do
+              (push edge
+                    (comp-block-out-edges (comp-edge-src edge)))
+              (push edge
+                    (comp-block-in-edges (comp-edge-dst edge))))
+             (comp-log-edges comp-func))))
 
 (defun comp-collect-rev-post-order (basic-block)
   "Walk BASIC-BLOCK children and return their name in reversed post-order."
@@ -1886,7 +2175,7 @@ into the C code forwarding the compilation unit."
 
 (defun comp-dom-tree-walker (bb pre-lambda post-lambda)
   "Dominator tree walker function starting from basic block BB.
-PRE-LAMBDA and POST-LAMBDA are called in pre or post-order if non nil."
+PRE-LAMBDA and POST-LAMBDA are called in pre or post-order if non-nil."
   (when pre-lambda
     (funcall pre-lambda bb))
   (when-let ((out-edges (comp-block-out-edges bb)))
@@ -1922,7 +2211,7 @@ PRE-LAMBDA and POST-LAMBDA are called in pre or post-order if non nil."
         (`(fetch-handler . ,_)
          ;; Clobber all no matter what!
          (setf (aref frame slot-n) (make-comp-ssa-mvar :slot slot-n)))
-        (`(phi  ,n)
+        (`(phi ,n)
          (when (equal n slot-n)
            (new-lvalue)))
         (_
@@ -1942,10 +2231,11 @@ PRE-LAMBDA and POST-LAMBDA are called in pre or post-order if non nil."
                     (setf (comp-block-final-frame bb)
                           (copy-sequence in-frame))
                     (when-let ((out-edges (comp-block-out-edges bb)))
-                      (cl-loop for ed in out-edges
-                               for child = (comp-edge-dst ed)
-                               ;; Provide a copy of the same frame to all childs.
-                               do (ssa-rename-rec child (copy-sequence in-frame)))))))
+                      (cl-loop
+                       for ed in out-edges
+                       for child = (comp-edge-dst ed)
+                       ;; Provide a copy of the same frame to all children.
+                       do (ssa-rename-rec child (copy-sequence in-frame)))))))
 
       (ssa-rename-rec (gethash 'entry (comp-func-blocks comp-func))
                       (comp-new-frame frame-size t)))))
@@ -1959,7 +2249,8 @@ PRE-LAMBDA and POST-LAMBDA are called in pre or post-order if non nil."
                                for e in (comp-block-in-edges b)
                                for b = (comp-edge-src e)
                                for in-frame = (comp-block-final-frame b)
-                               collect (aref in-frame slot-n)))))
+                               collect (cons (aref in-frame slot-n)
+                                             (comp-block-name b))))))
 
     (cl-loop for b being each hash-value of (comp-func-blocks comp-func)
              do (cl-loop for (op . args) in (comp-block-insns b)
@@ -1967,7 +2258,7 @@ PRE-LAMBDA and POST-LAMBDA are called in pre or post-order if non nil."
                            do (finalize-phi args b)))))
 
 (defun comp-ssa ()
-  "Port all functions into mininal SSA form."
+  "Port all functions into minimal SSA form."
   (maphash (lambda (_ f)
              (let* ((comp-func f)
                     (ssa-status (comp-func-ssa-status f)))
@@ -1991,13 +2282,6 @@ PRE-LAMBDA and POST-LAMBDA are called in pre or post-order if non nil."
 ;; This propagates values and types plus ref property in the control flow graph.
 ;; This is also responsible for removing function calls to pure functions if
 ;; possible.
-
-(defsubst comp-strict-type-of (obj)
-  "Given OBJ return its type understanding fixnums."
-  ;; Should be certainly smarter but now we take advantages just from fixnums.
-  (if (fixnump obj)
-      'fixnum
-    (type-of obj)))
 
 (defun comp-copy-insn (insn)
   "Deep copy INSN."
@@ -2042,23 +2326,22 @@ Forward propagate immediate involed in assignments."
        for insn in (comp-block-insns b)
        do (pcase insn
             (`(setimm ,lval ,v)
-             (setf (comp-mvar-const-vld lval) t
-                   (comp-mvar-constant lval) v
-                   (comp-mvar-type lval) (comp-strict-type-of v)))))))
+             (setf (comp-mvar-value lval) v))))))
 
-(defsubst comp-mvar-propagate (lval rval)
+(defun comp-mvar-propagate (lval rval)
   "Propagate into LVAL properties of RVAL."
-  (setf (comp-mvar-const-vld lval) (comp-mvar-const-vld rval)
-        (comp-mvar-constant lval) (comp-mvar-constant rval)
-        (comp-mvar-type lval) (comp-mvar-type rval)))
+  (setf (comp-mvar-typeset lval) (comp-mvar-typeset rval)
+        (comp-mvar-valset lval) (comp-mvar-valset rval)
+        (comp-mvar-range lval) (comp-mvar-range rval)))
 
-(defsubst comp-function-optimizable-p (f args)
-  "Given function F called with ARGS return non nil when optimizable."
-  (and (cl-every #'comp-mvar-const-vld args)
-       (comp-function-pure-p f)))
+(defun comp-function-foldable-p (f args)
+  "Given function F called with ARGS return non-nil when optimizable."
+  (and (comp-function-pure-p f)
+       (cl-every #'comp-mvar-value-vld-p args)))
 
-(defsubst comp-function-call-maybe-remove (insn f args)
-  "Given INSN when F is pure if all ARGS are known remove the function call."
+(defun comp-function-call-maybe-fold (insn f args)
+  "Given INSN when F is pure if all ARGS are known remove the function call.
+Return non-nil if the function is folded successfully."
   (cl-flet ((rewrite-insn-as-setimm (insn value)
                ;; See `comp-emit-setimm'.
                (comp-add-const-to-relocs value)
@@ -2067,12 +2350,12 @@ Forward propagate immediate involed in assignments."
     (cond
      ((eq f 'symbol-value)
       (when-let* ((arg0 (car args))
-                  (const (comp-mvar-const-vld arg0))
-                  (ok-to-optim (member (comp-mvar-constant arg0)
+                  (const (comp-mvar-value-vld-p arg0))
+                  (ok-to-optim (member (comp-mvar-value arg0)
                                        comp-symbol-values-optimizable)))
-        (rewrite-insn-as-setimm insn (symbol-value (comp-mvar-constant
+        (rewrite-insn-as-setimm insn (symbol-value (comp-mvar-value
                                                     (car args))))))
-     ((comp-function-optimizable-p f args)
+     ((comp-function-foldable-p f args)
       (ignore-errors
         ;; No point to complain here in case of error because we
         ;; should do basic block pruning in order to be sure that this
@@ -2083,8 +2366,19 @@ Forward propagate immediate involed in assignments."
                       ;; and know to be pure.
                       (comp-func-byte-func f-in-ctxt)
                     f))
-               (value (comp-apply-in-env f (mapcar #'comp-mvar-constant args))))
+               (value (comp-apply-in-env f (mapcar #'comp-mvar-value args))))
           (rewrite-insn-as-setimm insn value)))))))
+
+(defun comp-fwprop-call (insn lval f args)
+  "Propagate on a call INSN into LVAL.
+F is the function being called with arguments ARGS.
+Fold the call in case."
+  (unless (comp-function-call-maybe-fold insn f args)
+    (when-let ((cstr-f (gethash f comp-known-func-cstr-h)))
+      (let ((cstr (comp-cstr-f-ret cstr-f)))
+        (setf (comp-mvar-range lval) (comp-cstr-range cstr)
+              (comp-mvar-valset lval) (comp-cstr-valset cstr)
+              (comp-mvar-typeset lval) (comp-cstr-typeset cstr))))))
 
 (defun comp-fwprop-insn (insn)
   "Propagate within INSN."
@@ -2092,35 +2386,41 @@ Forward propagate immediate involed in assignments."
     (`(set ,lval ,rval)
      (pcase rval
        (`(,(or 'call 'callref) ,f . ,args)
-        (setf (comp-mvar-type lval)
-              (alist-get f comp-known-ret-types))
-        (comp-function-call-maybe-remove insn f args))
+        (comp-fwprop-call insn lval f args))
        (`(,(or 'direct-call 'direct-callref) ,f . ,args)
         (let ((f (comp-func-name (gethash f (comp-ctxt-funcs-h comp-ctxt)))))
-          (setf (comp-mvar-type lval)
-                (alist-get f comp-known-ret-types))
-          (comp-function-call-maybe-remove insn f args)))
+          (comp-fwprop-call insn lval f args)))
        (_
         (comp-mvar-propagate lval rval))))
+    (`(assume ,lval ,rval ,kind)
+     (pcase kind
+       ('eq
+        (comp-mvar-propagate lval rval))
+       ((or 'eql 'equal)
+        (if (or (comp-mvar-symbol-p rval)
+                (comp-mvar-fixnum-p rval))
+            (comp-mvar-propagate lval rval)
+          (setf (comp-mvar-typeset lval) (comp-mvar-typeset rval))))
+       ('=
+        (if (comp-mvar-fixnum-p rval)
+            (comp-mvar-propagate lval rval)
+          (setf (comp-mvar-typeset lval)
+                (unless (comp-mvar-range rval)
+                  '(number)))))))
     (`(setimm ,lval ,v)
-     (setf (comp-mvar-const-vld lval) t
-           (comp-mvar-constant lval) v
-           (comp-mvar-type lval) (comp-strict-type-of v)))
+     (setf (comp-mvar-value lval) v))
     (`(phi ,lval . ,rest)
-     ;; Forward const prop here.
-     (when-let* ((vld (cl-every #'comp-mvar-const-vld rest))
-                 (consts (mapcar #'comp-mvar-constant rest))
-                 (x (car consts))
-                 (equals (cl-every (lambda (y) (equal x y)) consts)))
-       (setf (comp-mvar-constant lval) x))
-     ;; Forward type propagation.
-     ;; FIXME: checking for type equality is not sufficient cause does not
-     ;; account type hierarchy!
-     (when-let* ((types (mapcar #'comp-mvar-type rest))
-                 (non-empty (cl-notany #'null types))
-                 (x (car types))
-                 (eqs (cl-every (lambda (y) (eq x y)) types)))
-       (setf (comp-mvar-type lval) x)))))
+     (let* ((from-latch (cl-some
+                         (lambda (x)
+                           (comp-latch-p
+                            (gethash (cdr x)
+                                     (comp-func-blocks comp-func))))
+                         rest))
+            (prop-fn (if from-latch
+                         #'comp-cstr-union-no-range
+                       #'comp-cstr-union))
+            (rvals (mapcar #'car rest)))
+       (apply prop-fn lval rvals)))))
 
 (defun comp-fwprop* ()
   "Propagate for set* and phi operands.
@@ -2128,7 +2428,8 @@ Return t if something was changed."
   (cl-loop with modified = nil
            for b being each hash-value of (comp-func-blocks comp-func)
            do (cl-loop for insn in (comp-block-insns b)
-                       for orig-insn = (unless modified ; Save consing after 1th change.
+                       for orig-insn = (unless modified
+                                         ;; Save consing after 1th change.
                                          (comp-copy-insn insn))
                        do (comp-fwprop-insn insn)
                        when (and (null modified) (not (equal insn orig-insn)))
@@ -2208,6 +2509,7 @@ FUNCTION can be a function-name or byte compiled function."
          ;; Intra compilation unit procedure call optimization.
          ;; Attention speed 3 triggers this for non self calls too!!
          ((and comp-func-callee
+               (comp-func-c-name comp-func-callee)
                (or (and (>= (comp-func-speed comp-func) 3)
                         (comp-func-unique-in-cu-p callee))
                    (and (>= (comp-func-speed comp-func) 2)
@@ -2227,18 +2529,16 @@ FUNCTION can be a function-name or byte compiled function."
 (defun comp-call-optim-func ()
   "Perform the trampoline call optimization for the current function."
   (cl-loop
-   with self = (comp-func-name comp-func)
    for b being each hash-value of (comp-func-blocks comp-func)
-   when self ;; FIXME add proper anonymous lambda support.
    do (comp-loop-insn-in-block b
         (pcase insn
           (`(set ,lval (callref funcall ,f . ,rest))
            (when-let ((new-form (comp-call-optim-form-call
-                                 (comp-mvar-constant f) rest)))
+                                 (comp-mvar-value f) rest)))
              (setf insn `(set ,lval ,new-form))))
           (`(callref funcall ,f . ,rest)
            (when-let ((new-form (comp-call-optim-form-call
-                                 (comp-mvar-constant f) rest)))
+                                 (comp-mvar-value f) rest)))
              (setf insn new-form)))))))
 
 (defun comp-call-optim (_)
@@ -2387,6 +2687,27 @@ These are substituted with a normal 'set' op."
 
 ;;; Final pass specific code.
 
+(defun comp-ret-type-spec (_ func)
+  "Compute type specifier for `comp-func' FUNC.
+Set it into the `ret-type-specifier' slot."
+  (let* ((comp-func (make-comp-func))
+         (res-mvar (apply #'comp-cstr-union
+                          (make-comp-cstr)
+                          (cl-loop
+                           with res = nil
+                           for bb being the hash-value in (comp-func-blocks
+                                                           func)
+                           do (cl-loop
+                               for insn in (comp-block-insns bb)
+                               ;; Collect over every exit point the returned
+                               ;; mvars and union results.
+                               do (pcase insn
+                                    (`(return ,mvar)
+                                     (push mvar res))))
+                           finally (cl-return res)))))
+    (setf (comp-func-ret-type-specifier func)
+          (comp-cstr-to-type-spec res-mvar))))
+
 (defun comp-finalize-container (cont)
   "Finalize data container CONT."
   (setf (comp-data-container-l cont)
@@ -2457,7 +2778,8 @@ Update all insn accordingly."
              do
              (cl-assert (null (gethash idx reverse-h)))
              (cl-assert (fixnump idx))
-             (setf (comp-mvar-constant mvar) idx)
+             (setf (comp-mvar-valset mvar) ()
+                   (comp-mvar-range mvar) (list (cons idx idx)))
              (puthash idx t reverse-h))))
 
 (defun comp-compile-ctxt-to-file (name)
@@ -2472,8 +2794,7 @@ Prepare every function for final compilation and drive the C back-end."
       ;; In case it's created in the meanwhile.
       (ignore-error 'file-already-exists
         (make-directory dir t)))
-    (unless comp-dry-run
-      (comp--compile-ctxt-to-file name))))
+    (comp--compile-ctxt-to-file name)))
 
 (defun comp-final1 ()
   (let (compile-result)
@@ -2484,44 +2805,53 @@ Prepare every function for final compilation and drive the C back-end."
       (and (comp--release-ctxt)
            compile-result))))
 
+(defvar comp-async-compilation nil
+  "Non-nil while executing an asyncronous native compilation.")
+
 (defun comp-final (_)
   "Final pass driving the C back-end for code emission."
-  (if noninteractive
-      (comp-final1)
-    ;; Call comp-final1 in a child process.
-    (let* ((output (comp-ctxt-output comp-ctxt))
-           (print-escape-newlines t)
-           (print-length nil)
-           (print-level nil)
-           (print-quoted t)
-           (print-gensym t)
-           (print-circle t)
-           (expr `(progn
-                    (require 'comp)
-                    (setf comp-speed ,comp-speed
-                          comp-debug ,comp-debug
-                          comp-verbose ,comp-verbose
-                          comp-ctxt ,comp-ctxt
-                          comp-eln-load-path ',comp-eln-load-path
-                          comp-native-driver-options
-                          ',comp-native-driver-options
-                          load-path ',load-path)
-                    ,comp-async-env-modifier-form
-                    (message "Compiling %s..." ',output)
-                    (comp-final1)))
-           (temp-file (make-temp-file
-                       (concat "emacs-int-comp-"
-                               (file-name-base output) "-")
-                       nil ".el")))
-      (with-temp-file temp-file
-        (insert (prin1-to-string expr)))
-      (with-temp-buffer
-        (if (zerop
-               (call-process (expand-file-name invocation-name
-                                               invocation-directory)
-                             nil t t "--batch" "-l" temp-file))
-            output
-          (signal 'native-compiler-error (buffer-string)))))))
+  (maphash #'comp-ret-type-spec (comp-ctxt-funcs-h comp-ctxt))
+  (unless comp-dry-run
+    ;; Always run the C side of the compilation as a sub-process
+    ;; unless during bootstrap or async compilation (bug#45056).  GCC
+    ;; leaks memory but also interfere with the ability of Emacs to
+    ;; detect when a sub-process completes (TODO understand why).
+    (if (or byte-native-for-bootstrap comp-async-compilation)
+	(comp-final1)
+      ;; Call comp-final1 in a child process.
+      (let* ((output (comp-ctxt-output comp-ctxt))
+             (print-escape-newlines t)
+             (print-length nil)
+             (print-level nil)
+             (print-quoted t)
+             (print-gensym t)
+             (print-circle t)
+             (expr `(progn
+                      (require 'comp)
+                      (setf comp-verbose ,comp-verbose
+                            comp-ctxt ,comp-ctxt
+                            comp-eln-load-path ',comp-eln-load-path
+                            comp-native-driver-options
+                            ',comp-native-driver-options
+                            load-path ',load-path)
+                      ,comp-async-env-modifier-form
+                      (message "Compiling %s..." ',output)
+                      (comp-final1)))
+             (temp-file (make-temp-file
+			 (concat "emacs-int-comp-"
+				 (file-name-base output) "-")
+			 nil ".el")))
+	(with-temp-file temp-file
+          (insert (prin1-to-string expr)))
+	(with-temp-buffer
+          (unwind-protect
+              (if (zerop
+                   (call-process (expand-file-name invocation-name
+                                                   invocation-directory)
+				 nil t t "--batch" "-l" temp-file))
+                  output
+		(signal 'native-compiler-error (buffer-string)))
+            (comp-log-to-buffer (buffer-string))))))))
 
 
 ;;; Compiler type hints.
@@ -2539,6 +2869,88 @@ Prepare every function for final compilation and drive the C back-end."
 (defun comp-hint-cons (x)
   (declare (gv-setter (lambda (val) `(setf ,x ,val))))
   x)
+
+
+;; Primitive function advice machinery
+
+(defun comp-trampoline-filename (subr-name)
+  "Given SUBR-NAME return the filename containing the trampoline."
+  (concat (comp-c-func-name subr-name "subr--trampoline-" t) ".eln"))
+
+(defun comp-make-lambda-list-from-subr (subr)
+  "Given SUBR return the equivalent lambda-list."
+  (pcase-let ((`(,min . ,max) (subr-arity subr))
+              (lambda-list '()))
+    (cl-loop repeat min
+             do (push (gensym "arg") lambda-list))
+    (if (numberp max)
+        (cl-loop
+         initially (push '&optional lambda-list)
+         repeat (- max min)
+         do (push (gensym "arg") lambda-list))
+      (push '&rest lambda-list)
+      (push (gensym "arg") lambda-list))
+    (reverse lambda-list)))
+
+(defun comp-trampoline-search (subr-name)
+  "Search a trampoline file for SUBR-NAME.
+Return the trampoline if found or nil otherwise."
+  (cl-loop
+   with rel-filename = (comp-trampoline-filename subr-name)
+   for dir in comp-eln-load-path
+   for filename = (expand-file-name rel-filename
+                                    (concat dir comp-native-version-dir))
+   when (file-exists-p filename)
+     do (cl-return (native-elisp-load filename))))
+
+(defun comp-trampoline-compile (subr-name)
+  "Synthesize compile and return a trampoline for SUBR-NAME."
+  (let* ((lambda-list (comp-make-lambda-list-from-subr
+                       (symbol-function subr-name)))
+         ;; The synthesized trampoline must expose the exact same ABI of
+         ;; the primitive we are replacing in the function reloc table.
+         (form `(lambda ,lambda-list
+                  (let ((f #',subr-name))
+                    (,(if (memq '&rest lambda-list) #'apply 'funcall)
+                     f
+                     ,@(cl-loop
+                        for arg in lambda-list
+                        unless (memq arg '(&optional &rest))
+                        collect arg)))))
+         ;; Use speed 0 to maximize compilation speed and not to
+         ;; optimize away funcall calls!
+         (byte-optimize nil)
+         (comp-speed 0)
+         (lexical-binding t))
+    (comp--native-compile
+     form nil
+     (cl-loop
+      for load-dir in comp-eln-load-path
+      for dir = (concat load-dir comp-native-version-dir)
+      for f = (expand-file-name
+               (comp-trampoline-filename subr-name)
+               dir)
+      unless (file-exists-p dir)
+        do (ignore-errors
+             (make-directory dir t)
+             (cl-return f))
+      when (file-writable-p f)
+        do (cl-return f)
+      finally (error "Cannot find suitable directory for output in \
+`comp-eln-load-path'")))))
+
+;;;###autoload
+(defun comp-subr-trampoline-install (subr-name)
+  "Make SUBR-NAME effectively advice-able when called from native code."
+  (unless (or (memq subr-name comp-never-optimize-functions)
+              (gethash subr-name comp-installed-trampolines-h))
+    (cl-assert (subr-primitive-p (symbol-function subr-name)))
+    (comp--install-trampoline
+     subr-name
+     (or (comp-trampoline-search subr-name)
+         (comp-trampoline-compile subr-name)
+         ;; Should never happen.
+         (cl-assert nil)))))
 
 
 ;; Some entry point support code.
@@ -2621,12 +3033,29 @@ processes from `comp-async-compilations'"
                 ;; the number of processors, see get_native_system_info in w32.c.
                 ;; The result needs to be exported to Lisp.
                 (max 1 (/ (cond ((eq 'windows-nt system-type)
-                                 (string-to-number (getenv "NUMBER_OF_PROCESSORS")))
+                                 (string-to-number (getenv
+                                                    "NUMBER_OF_PROCESSORS")))
                                 ((executable-find "nproc")
-                                 (string-to-number (shell-command-to-string "nproc")))
+                                 (string-to-number
+                                  (shell-command-to-string "nproc")))
                                 (t 1))
                           2))))
     comp-async-jobs-number))
+
+(defvar comp-last-scanned-async-output nil)
+(make-variable-buffer-local 'comp-last-scanned-async-output)
+(defun comp-accept-and-process-async-output (process)
+  "Accept PROCESS output and check for diagnostic messages."
+  (if comp-async-report-warnings-errors
+      (with-current-buffer (process-buffer process)
+        (save-excursion
+          (accept-process-output process)
+          (goto-char (or comp-last-scanned-async-output (point-min)))
+          (while (re-search-forward "^.*+?\\(?:Error\\|Warning\\): .*$"
+                                    nil t)
+            (display-warning 'comp (match-string 0)))
+          (setq comp-last-scanned-async-output (point-max))))
+    (accept-process-output process)))
 
 (defun comp-run-async-workers ()
   "Start compiling files from `comp-files-queue' asynchronously.
@@ -2644,20 +3073,21 @@ display a message."
          when (or comp-always-compile
                   load ; Always compile when the compilation is
                        ; commanded for late load.
-                  (file-newer-than-file-p source-file
-                                          (comp-el-to-eln-filename source-file)))
+                  (file-newer-than-file-p
+                   source-file (comp-el-to-eln-filename source-file)))
          do (let* ((expr `(progn
                             (require 'comp)
                             (setf comp-speed ,comp-speed
                                   comp-debug ,comp-debug
                                   comp-verbose ,comp-verbose
+                                  comp-async-compilation t
                                   comp-eln-load-path ',comp-eln-load-path
                                   comp-native-driver-options
                                   ',comp-native-driver-options
                                   load-path ',load-path)
                             ,comp-async-env-modifier-form
                             (message "Compiling %s..." ,source-file)
-                            (native-compile ,source-file ,(and load t))))
+                            (comp--native-compile ,source-file ,(and load t))))
                    (source-file1 source-file) ;; Make the closure works :/
                    (temp-file (make-temp-file
                                (concat "emacs-async-comp-"
@@ -2682,7 +3112,7 @@ display a message."
                                (run-hook-with-args
                                 'comp-async-cu-done-hook
                                 source-file)
-                               (accept-process-output process)
+                               (comp-accept-and-process-async-output process)
                                (ignore-errors (delete-file temp-file))
                                (when (and load1
                                           (zerop (process-exit-status process)))
@@ -2694,28 +3124,20 @@ display a message."
          when (>= (comp-async-runnings) (comp-effective-async-max-jobs))
            do (cl-return)))
     ;; No files left to compile and all processes finished.
-    (let ((msg "Compilation finished."))
-      (run-hooks 'comp-async-all-done-hook)
-      (with-current-buffer (get-buffer-create comp-async-buffer-name)
-        (save-excursion
-          (goto-char (point-max))
-          (insert msg "\n")))
-      ;; `comp-deferred-pending-h' should be empty at this stage.
-      ;; Reset it anyway.
-      (clrhash comp-deferred-pending-h)
-      (message msg))))
+    (run-hooks 'comp-async-all-done-hook)
+    (with-current-buffer (get-buffer-create comp-async-buffer-name)
+      (save-excursion
+        (goto-char (point-max))
+        (insert "Compilation finished.\n")))
+    ;; `comp-deferred-pending-h' should be empty at this stage.
+    ;; Reset it anyway.
+    (clrhash comp-deferred-pending-h)))
 
-
-;;; Compiler entry points.
-
-;;;###autoload
-(defun native-compile (function-or-file &optional with-late-load)
+(defun comp--native-compile (function-or-file &optional with-late-load output)
   "Compile FUNCTION-OR-FILE into native code.
-This is the entry-point for the Emacs Lisp native compiler.
-FUNCTION-OR-FILE is a function symbol or a path to an Elisp file.
-When WITH-LATE-LOAD non Nil mark the compilation unit for late load
-once finished compiling (internal use only).
-Return the compilation unit file name."
+This serves as internal implementation of `native-compile'.
+When WITH-LATE-LOAD non-nil mark the compilation unit for late
+load once finished compiling."
   (comp-ensure-native-compiler)
   (unless (or (functionp function-or-file)
               (stringp function-or-file))
@@ -2723,16 +3145,11 @@ Return the compilation unit file name."
             (list "Not a function symbol or file" function-or-file)))
   (let* ((data function-or-file)
          (comp-native-compiling t)
+         (byte-native-qualities nil)
          ;; Have byte compiler signal an error when compilation fails.
          (byte-compile-debug t)
-         (comp-ctxt
-          (make-comp-ctxt
-           :output (if (symbolp function-or-file)
-                       (make-temp-file (symbol-name function-or-file) nil ".eln")
-                     (comp-el-to-eln-filename function-or-file
-                                              (when byte-native-for-bootstrap
-                                                (car (last comp-eln-load-path)))))
-           :with-late-load with-late-load)))
+         (comp-ctxt (make-comp-ctxt :output output
+                                    :with-late-load with-late-load)))
     (comp-log "\n\n" 1)
     (condition-case err
         (mapc (lambda (pass)
@@ -2750,58 +3167,69 @@ Return the compilation unit file name."
 	 (signal (car err) (if (consp err-val)
 			       (cons function-or-file err-val)
 			     (list function-or-file err-val))))))
-    data))
+    (if (stringp function-or-file)
+        data
+      ;; So we return the compiled function.
+      (native-elisp-load data))))
 
-;;;###autoload
-(defun batch-native-compile ()
-  "Run `native-compile' on remaining command-line arguments.
-Ultra cheap impersonation of `batch-byte-compile'."
-  (comp-ensure-native-compiler)
-  (cl-loop for file in command-line-args-left
-           if (or (null byte-native-for-bootstrap)
-                  (cl-notany (lambda (re) (string-match re file))
-                             comp-bootstrap-black-list))
-           do (native-compile file)
-           else
-           do (byte-compile-file file)))
+(defun native-compile-async-skip-p (file load selector)
+  "Return non-nil when FILE compilation should be skipped.
 
-;;;###autoload
-(defun batch-byte-native-compile-for-bootstrap ()
-  "As `batch-byte-compile' but used for booststrap.
-Always generate elc files too and handle native compiler expected errors."
-  (comp-ensure-native-compiler)
-  (if (equal (getenv "NATIVE_DISABLED") "1")
-      (batch-byte-compile)
-    (cl-assert (= 1 (length command-line-args-left)))
-    (let ((byte-native-for-bootstrap t)
-          (byte-to-native-output-file nil))
-      (unwind-protect
-          (condition-case _
-              (batch-native-compile)
-            (native-compiler-error-dyn-func)
-            (native-compiler-error-empty-byte))
-        (pcase byte-to-native-output-file
-          (`(,tempfile . ,target-file)
-           (rename-file tempfile target-file t)))))))
+LOAD and SELECTOR work as described in `native--compile-async'."
+  ;; Make sure we are not already compiling `file' (bug#40838).
+  (or (gethash file comp-async-compilations)
+      (cond
+       ((null selector) nil)
+       ((functionp selector) (not (funcall selector file)))
+       ((stringp selector) (not (string-match-p selector file)))
+       (t (error "SELECTOR must be a function a regexp or nil")))
+      ;; Also exclude files from deferred compilation if
+      ;; any of the regexps in
+      ;; `comp-deferred-compilation-deny-list' matches.
+      (and (eq load 'late)
+           (cl-some (lambda (re)
+                      (string-match-p re file))
+                    comp-deferred-compilation-deny-list))))
 
-;;;###autoload
-(defun native-compile-async (paths &optional recursively load)
+(defun native--compile-async (paths &optional recursively load selector)
   "Compile PATHS asynchronously.
 PATHS is one path or a list of paths to files or directories.
-`comp-async-jobs-number' specifies the number of (commands) to
-run simultaneously.  If RECURSIVELY, recurse into subdirectories
-of given directories.
-LOAD can be nil t or 'late."
+
+If optional argument RECURSIVELY is non-nil, recurse into
+subdirectories of given directories.
+
+If optional argument LOAD is non-nil, request to load the file
+after compiling.
+
+The optional argument SELECTOR has the following valid values:
+
+nil -- Select all files.
+a string -- A regular expression selecting files with matching names.
+a function -- A function selecting files with matching names.
+
+The variable `comp-async-jobs-number' specifies the number
+of (commands) to run simultaneously.
+
+LOAD can also be the symbol `late'.  This is used internally if
+the byte code has already been loaded when this function is
+called.  It means that we requests the special kind of load,
+necessary in that situation, called \"late\" loading.
+
+During a \"late\" load instead of executing all top level forms
+of the original files, only function definitions are
+loaded (paying attention to have these effective only if the
+bytecode definition was not changed in the meanwhile)."
   (comp-ensure-native-compiler)
   (unless (member load '(nil t late))
-    (error "LOAD must be nil t or 'late"))
+    (error "LOAD must be nil, t or 'late"))
   (unless (listp paths)
     (setf paths (list paths)))
   (let (files)
     (dolist (path paths)
       (cond ((file-directory-p path)
              (dolist (file (if recursively
-                               (directory-files-recursively path comp-valid-source-re)
+                               (directory-files-recursively
+                                path comp-valid-source-re)
                              (directory-files path t comp-valid-source-re)))
                (push file files)))
             ((file-exists-p path) (push path files))
@@ -2809,22 +3237,14 @@ LOAD can be nil t or 'late."
                        (list "Path not a file nor directory" path)))))
     (dolist (file files)
       (if-let ((entry (cl-find file comp-files-queue :key #'car :test #'string=)))
-          ;; When no load is specified (plain async compilation) we
-          ;; consider valid the one previously queued, otherwise we
-          ;; check for coherence (bug#40602).
-          (cl-assert (or (null load)
-                         (eq load (cdr entry)))
-                     nil "Trying to queue %s with LOAD %s but this is already \
-queued with LOAD %"
-                     file load (cdr entry))
-        ;; Make sure we are not already compiling `file' (bug#40838).
-        (unless (or (gethash file comp-async-compilations)
-                    ;; Also exclude files from deferred compilation if
-                    ;; any of the regexps in
-                    ;; `comp-deferred-compilation-black-list' matches.
-                    (and (eq load 'late)
-                         (cl-some (lambda (re) (string-match re file))
-                                  comp-deferred-compilation-black-list)))
+          ;; Most likely the byte-compiler has requested a deferred
+          ;; compilation, so update `comp-files-queue' to reflect that.
+          (unless (or (null load)
+                      (eq load (cdr entry)))
+            (cl-substitute (cons file load) (car entry) comp-files-queue
+                           :key #'car :test #'string=))
+
+        (unless (native-compile-async-skip-p file load selector)
           (let* ((out-filename (comp-el-to-eln-filename file))
                  (out-dir (file-name-directory out-filename)))
             (unless (file-exists-p out-dir)
@@ -2836,8 +3256,76 @@ queued with LOAD %"
                                (format "No write access for %s skipping."
                                        out-filename)))))))
     (when (zerop (comp-async-runnings))
-      (comp-run-async-workers)
-      (message "Compilation started."))))
+      (comp-run-async-workers))))
+
+
+;;; Compiler entry points.
+
+;;;###autoload
+(defun native-compile (function-or-file &optional output)
+  "Compile FUNCTION-OR-FILE into native code.
+This is the synchronous entry-point for the Emacs Lisp native
+compiler.
+FUNCTION-OR-FILE is a function symbol, a form or the filename of
+an Emacs Lisp source file.
+When OUTPUT is non-nil use it as filename for the compiled
+object.
+If FUNCTION-OR-FILE is a filename return the filename of the
+compiled object.  If FUNCTION-OR-FILE is a function symbol or a
+form return the compiled function."
+  (comp--native-compile function-or-file nil output))
+
+;;;###autoload
+(defun batch-native-compile ()
+  "Run `native-compile' on remaining command-line arguments.
+Ultra cheap impersonation of `batch-byte-compile'."
+  (comp-ensure-native-compiler)
+  (cl-loop for file in command-line-args-left
+           if (or (null byte-native-for-bootstrap)
+                  (cl-notany (lambda (re) (string-match re file))
+                             comp-bootstrap-deny-list))
+           do (comp--native-compile file)
+           else
+           do (byte-compile-file file)))
+
+;;;###autoload
+(defun batch-byte-native-compile-for-bootstrap ()
+  "As `batch-byte-compile' but used for booststrap.
+Generate .elc files in addition to the .eln one.  If the
+environment variable 'NATIVE_DISABLED' is set byte compile only."
+  (comp-ensure-native-compiler)
+  (if (equal (getenv "NATIVE_DISABLED") "1")
+      (batch-byte-compile)
+    (cl-assert (= 1 (length command-line-args-left)))
+    (let ((byte-native-for-bootstrap t)
+          (byte-to-native-output-file nil))
+      (batch-native-compile)
+      (pcase byte-to-native-output-file
+        (`(,tempfile . ,target-file)
+         (rename-file tempfile target-file t))))))
+
+;;;###autoload
+(defun native-compile-async (paths &optional recursively load selector)
+  "Compile PATHS asynchronously.
+PATHS is one path or a list of paths to files or directories.
+
+If optional argument RECURSIVELY is non-nil, recurse into
+subdirectories of given directories.
+
+If optional argument LOAD is non-nil, request to load the file
+after compiling.
+
+The optional argument SELECTOR has the following valid values:
+
+nil -- Select all files.
+a string -- A regular expression selecting files with matching names.
+a function -- A function selecting files with matching names.
+
+The variable `comp-async-jobs-number' specifies the number
+of (commands) to run simultaneously."
+  ;; Normalize: we only want to pass t or nil, never e.g. `late'.
+  (let ((load (not (not load))))
+    (native--compile-async paths recursively load selector)))
 
 (provide 'comp)
 

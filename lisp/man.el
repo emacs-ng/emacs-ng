@@ -90,7 +90,6 @@
 
 (require 'ansi-color)
 (require 'cl-lib)
-(require 'button)
 
 (defgroup man nil
   "Browse UNIX manual pages."
@@ -927,15 +926,18 @@ foo(sec)[, bar(sec) [, ...]] [other stuff] - description"
             ;; run differently in Man-getpage-in-background, an error
             ;; here may not necessarily mean that we'll also get an
             ;; error later.
-	    (ignore-errors
-	      (call-process manual-program nil '(t nil) nil
-			    "-k" (concat (when (or Man-man-k-use-anchor
-						   (string-equal prefix ""))
-					   "^")
-					 prefix))))
-	  (setq table (Man-parse-man-k)))
+            (when (eq 0
+                      (ignore-errors
+                        (call-process
+                         manual-program nil '(t nil) nil
+                         "-k" (concat (when (or Man-man-k-use-anchor
+                                                (string-equal prefix ""))
+                                        "^")
+                                      prefix))))
+              (setq table (Man-parse-man-k)))))
 	;; Cache the table for later reuse.
-	(setq Man-completion-cache (cons prefix table)))
+        (when table
+          (setq Man-completion-cache (cons prefix table))))
       ;; The table may contain false positives since the match is made
       ;; by "man -k" not just on the manpage's name.
       (if section
@@ -1106,7 +1108,6 @@ Return the buffer in which the manpage will appear."
 	 (buffer  (get-buffer bufname)))
     (if buffer
 	(Man-notify-when-ready buffer)
-      (require 'env)
       (message "Invoking %s %s in the background" manual-program man-args)
       (setq buffer (generate-new-buffer bufname))
       (with-current-buffer buffer

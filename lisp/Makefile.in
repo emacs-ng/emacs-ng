@@ -37,7 +37,11 @@ HAVE_NATIVE_COMP = @HAVE_NATIVE_COMP@
 AM_V_ELC = $(am__v_ELC_@AM_V@)
 am__v_ELC_ = $(am__v_ELC_@AM_DEFAULT_V@)
 ifeq ($(HAVE_NATIVE_COMP),yes)
+ifeq ($(NATIVE_DISABLED),1)
+am__v_ELC_0 = @echo "  ELC     " $@;
+else
 am__v_ELC_0 = @echo " ELC+ELN  " $@;
+endif
 ifndef NATIVE_FULL_AOT
 NATIVE_SKIP_NONDUMP = 1
 endif
@@ -110,6 +114,7 @@ COMPILE_FIRST = \
 	$(lisp)/emacs-lisp/bytecomp.elc
 ifeq ($(HAVE_NATIVE_COMP),yes)
 COMPILE_FIRST += $(lisp)/emacs-lisp/comp.elc
+COMPILE_FIRST += $(lisp)/emacs-lisp/comp-cstr.elc
 endif
 COMPILE_FIRST += $(lisp)/emacs-lisp/autoload.elc
 
@@ -337,7 +342,7 @@ compile-first: $(COMPILE_FIRST)
 # Do not build comp.el unless necessary not to exceed max-specpdl-size and
 # max-lisp-eval-depth in normal builds.
 ifneq ($(HAVE_NATIVE_COMP),yes)
-compile-targets: $(filter-out ./emacs-lisp/comp.elc,$(TARGETS))
+compile-targets: $(filter-out ./emacs-lisp/comp-cstr.elc,$(filter-out ./emacs-lisp/comp.elc,$(TARGETS)))
 else
 compile-targets: $(TARGETS)
 endif
@@ -555,5 +560,11 @@ $(lisp)/progmodes/cc-mode.elc: $(lisp)/progmodes/cc-langs.elc \
 
 $(lisp)/progmodes/cc-styles.elc: $(lisp)/progmodes/cc-vars.elc \
    $(lisp)/progmodes/cc-align.elc
+
+# https://debbugs.gnu.org/43037
+# js.elc (like all modes using CC Mode's compile time macros) needs to
+# be compiled under the same version of CC Mode it will run with.
+$(lisp)/progmodes/js.elc: $(lisp)/progmodes/cc-defs.elc \
+   $(lisp)/progmodes/cc-engine.elc $(lisp)/progmodes/cc-mode.elc
 
 # Makefile ends here.

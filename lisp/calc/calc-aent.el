@@ -1,4 +1,4 @@
-;;; calc-aent.el --- algebraic entry functions for Calc
+;;; calc-aent.el --- algebraic entry functions for Calc  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1990-1993, 2001-2020 Free Software Foundation, Inc.
 
@@ -76,8 +76,8 @@
 	    (calc-refresh-evaltos (nth 2 (nth 1 (car alg-exp))))
 	    (setq alg-exp (list (nth 2 (car alg-exp)))))
 	  (setq calc-quick-prev-results alg-exp
-		buf (mapconcat (function (lambda (x)
-					   (math-format-value x 1000)))
+                buf (mapconcat (lambda (x)
+                                 (math-format-value x 1000))
 			       alg-exp
 			       " ")
 		shortbuf buf)
@@ -158,7 +158,7 @@
 	    (setq strp (cdr (cdr strp))))
 	  (calc-do-calc-eval (car str) separator args)))
        ((eq separator 'eval)
-	(eval str))
+	(eval str t))
        ((eq separator 'macro)
 	(require 'calc-ext)
 	(let* ((calc-buffer (current-buffer))
@@ -197,18 +197,17 @@
 	       (calc-language (if (memq calc-language '(nil big))
 				  'flat calc-language))
 	       (calc-dollar-values (mapcar
-				    (function
-				     (lambda (x)
-				       (if (stringp x)
-					   (progn
-					     (setq x (math-read-exprs x))
-					     (if (eq (car-safe x)
-						     'error)
-						 (throw 'calc-error
-							(calc-eval-error
-							 (cdr x)))
-					       (car x)))
-					 x)))
+                                    (lambda (x)
+                                      (if (stringp x)
+                                          (progn
+                                            (setq x (math-read-exprs x))
+                                            (if (eq (car-safe x)
+                                                    'error)
+                                                (throw 'calc-error
+                                                       (calc-eval-error
+                                                        (cdr x)))
+                                              (car x)))
+                                        x))
 				    args))
 	       (calc-dollar-used 0)
 	       (res (if (stringp str)
@@ -284,6 +283,8 @@ The value t means abort and give an error message.")
 
 (defvar calc-alg-entry-history nil
   "History for algebraic entry.")
+
+(defvar calc-plain-entry nil)
 
 ;;;###autoload
 (defun calc-alg-entry (&optional initial prompt)
@@ -401,7 +402,6 @@ The value t means abort and give an error message.")
     (use-local-map calc-mode-map))
   (calcAlg-enter))
 
-(defvar calc-plain-entry nil)
 (defun calcAlg-edit ()
   (interactive)
   (if (or (not calc-plain-entry)
@@ -576,8 +576,9 @@ in Calc algebraic input.")
 (defvar math-expr-data)
 
 ;;;###autoload
-(defun math-read-exprs (math-exp-str)
-  (let ((math-exp-pos 0)
+(defun math-read-exprs (str)
+  (let ((math-exp-str str)
+	(math-exp-pos 0)
 	(math-exp-old-pos 0)
 	(math-exp-keep-spaces nil)
 	math-exp-token math-expr-data)
@@ -638,10 +639,10 @@ in Calc algebraic input.")
 	    (math-find-user-tokens (car (car p)))
 	    (setq p (cdr p)))
 	  (setq calc-user-tokens (mapconcat 'identity
-					    (sort (mapcar 'car math-toks)
-						  (function (lambda (x y)
-							      (> (length x)
-								 (length y)))))
+                                            (sort (mapcar #'car math-toks)
+                                                  (lambda (x y)
+                                                    (> (length x)
+                                                       (length y))))
 					    "\\|")
 		calc-last-main-parse-table mtab
 		calc-last-user-lang-parse-table ltab
@@ -738,8 +739,8 @@ in Calc algebraic input.")
 		   math-exp-pos (match-end 0)))
             ((and (setq adfn
                         (assq ch (get calc-language 'math-lang-read-symbol)))
-                  (eval (nth 1 adfn)))
-             (eval (nth 2 adfn)))
+                  (eval (nth 1 adfn) t))
+             (eval (nth 2 adfn) t))
 	    ((eq ch ?\$)
              (if (eq (string-match "\\$\\([1-9][0-9]*\\)" math-exp-str math-exp-pos)
                      math-exp-pos)
@@ -771,8 +772,8 @@ in Calc algebraic input.")
                    math-expr-data (math-match-substring math-exp-str 1)
                    math-exp-pos (match-end 0)))
             ((and (setq adfn (get calc-language 'math-lang-read))
-                  (eval (nth 0 adfn))
-                  (eval (nth 1 adfn))))
+                  (eval (nth 0 adfn) t)
+                  (eval (nth 1 adfn) t)))
 	    ((eq (string-match "%%.*$" math-exp-str math-exp-pos) math-exp-pos)
 	     (setq math-exp-pos (match-end 0))
 	     (math-read-token))

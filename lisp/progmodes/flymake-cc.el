@@ -50,7 +50,7 @@ SOURCE."
   ;; TODO: if you can understand it, use `compilation-mode's regexps
   ;; or even some of its machinery here.
   ;;
-  ;;    (set (make-local-variable 'compilation-locs)
+  ;;    (setq-local compilation-locs
   ;;         (make-hash-table :test 'equal :weakness 'value))
   ;;    (compilation-parse-errors (point-min) (point-max)
   ;;                              'gnu 'gcc-include)
@@ -88,7 +88,7 @@ SOURCE."
              (cond ((derived-mode-p 'c++-mode) "c++")
                    (t "c")))))
 
-(defvar-local flymake-cc--proc nil "Internal variable for `flymake-gcc'")
+(defvar-local flymake-cc--proc nil "Internal variable for `flymake-cc'")
 
 ;; forward declare this to shoosh compiler (instead of requiring
 ;; flymake-proc)

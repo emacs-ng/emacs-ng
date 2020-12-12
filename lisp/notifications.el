@@ -23,7 +23,7 @@
 ;;; Commentary:
 
 ;; This package provides an implementation of the Desktop Notifications
-;; <http://developer.gnome.org/notification-spec/>.
+;; <https://developer.gnome.org/notification-spec/>.
 
 ;; In order to activate this package, you must add the following code
 ;; into your .emacs:
@@ -108,7 +108,7 @@
 	(setq notifications-on-action-object nil)))))
 
 (defun notifications-on-closed-signal (id &optional reason)
-  "Dispatch signals to callback functions from `notifications-on-closed-map'."
+  "Dispatch signals to callback functions from `notifications-on-close-map'."
   ;; notification-daemon prior 0.4.0 does not send a reason.  So we
   ;; make it optional, and assume `undefined' as default.
   (let* ((bus (dbus-event-bus-name last-input-event))

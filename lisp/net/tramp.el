@@ -112,6 +112,13 @@ Any level x includes messages for all levels 1 .. x-1.  The levels are
 10  traces (huge)."
   :type 'integer)
 
+(defcustom tramp-debug-to-file nil
+  "Whether Tramp debug messages shall be saved to file.
+The debug file has the same name as the debug buffer, written to
+`temporary-file-directory'."
+  :version "28.1"
+  :type 'boolean)
+
 (defcustom tramp-backup-directory-alist nil
   "Alist of filename patterns and backup directory names.
 Each element looks like (REGEXP . DIRECTORY), with the same meaning like
@@ -174,6 +181,12 @@ See the variable `tramp-encoding-shell' for more information."
 See the variable `tramp-encoding-shell' for more information."
   :version "24.1"
   :type '(choice (const nil) string))
+
+;; Since Emacs 26.1, `system-name' can return `nil' at build time if
+;; Emacs is compiled with "--no-build-details".  We do expect it to be
+;; a string.  (Bug#44481)
+(defconst tramp-system-name (or (system-name) "")
+  "The system name Tramp is running locally.")
 
 (defvar tramp-methods nil
   "Alist of methods for remote files.
@@ -238,6 +251,7 @@ pair of the form (KEY VALUE).  The following KEYs are defined:
     - \"%k\" indicates the keep-date parameter of a program, if exists.
     - \"%c\" adds additional `tramp-ssh-controlmaster-options'
       options for the first hop.
+    - \"%n\" expands to \"2>/dev/null\".
 
     The existence of `tramp-login-args', combined with the
     absence of `tramp-copy-args', is an indication that the
@@ -416,7 +430,7 @@ empty string for the method name."
 		       (choice :tag "  Host regexp" regexp sexp)
 		       (choice :tag "    User name" string (const nil)))))
 
-(defcustom tramp-default-host (system-name)
+(defcustom tramp-default-host tramp-system-name
   "Default host to use for transferring files.
 Useful for su and sudo methods mostly."
   :type 'string)
@@ -471,8 +485,8 @@ interpreted as a regular expression which always matches."
 (defcustom tramp-restricted-shell-hosts-alist
   (when (memq system-type '(windows-nt))
     (list (format "\\`\\(%s\\|%s\\)\\'"
-		  (regexp-quote (downcase (system-name)))
-		  (regexp-quote (upcase (system-name))))))
+		  (regexp-quote (downcase tramp-system-name))
+		  (regexp-quote (upcase tramp-system-name)))))
   "List of hosts, which run a restricted shell.
 This is a list of regular expressions, which denote hosts running
 a restricted shell like \"rbash\".  Those hosts can be used as
@@ -485,7 +499,7 @@ host runs a restricted shell, it shall be added to this list, too."
   (concat
    "\\`"
    (regexp-opt
-    (list "localhost" "localhost6" (system-name) "127.0.0.1" "::1") t)
+    (list "localhost" "localhost6" tramp-system-name "127.0.0.1" "::1") t)
    "\\'")
   "Host names which are regarded as local host.
 If the local host runs a chrooted environment, set this to nil."
@@ -1235,6 +1249,8 @@ have been gone since last remote command execution.  A value of t
 would require an immediate reread during filename completion, nil
 means to use always cached values for the directory contents."
   :type '(choice (const nil) (const t) integer))
+(make-obsolete-variable
+ 'tramp-completion-reread-directory-timeout 'remote-file-name-inhibit-cache "27.2")
 
 ;;; Internal Variables:
 
@@ -1713,8 +1729,7 @@ The outline level is equal to the verbosity of the Tramp message."
 
 (defun tramp-get-debug-buffer (vec)
   "Get the debug buffer for VEC."
-  (with-current-buffer
-      (get-buffer-create (tramp-debug-buffer-name vec))
+  (with-current-buffer (get-buffer-create (tramp-debug-buffer-name vec))
     (when (bobp)
       (setq buffer-undo-list t)
       ;; Activate `outline-mode'.  This runs `text-mode-hook' and
@@ -1723,67 +1738,83 @@ The outline level is equal to the verbosity of the Tramp message."
       ;; `(custom-declare-variable outline-minor-mode-prefix ...)'
       ;; raises on error in `(outline-mode)', we don't want to see it
       ;; in the traces.
-      (let ((default-directory (tramp-compat-temporary-file-directory))
-	    signal-hook-function)
+      (let ((default-directory (tramp-compat-temporary-file-directory)))
 	(outline-mode))
-      (set (make-local-variable 'outline-level) 'tramp-debug-outline-level)
-      (set (make-local-variable 'font-lock-keywords)
-	   `(t (eval ,tramp-debug-font-lock-keywords)
-	       ,(eval tramp-debug-font-lock-keywords)))
+      (setq-local outline-level 'tramp-debug-outline-level)
+      (setq-local font-lock-keywords
+                  `(t (eval ,tramp-debug-font-lock-keywords)
+                      ,(eval tramp-debug-font-lock-keywords)))
       ;; Do not edit the debug buffer.
       (use-local-map special-mode-map))
     (current-buffer)))
+
+(defun tramp-get-debug-file-name (vec)
+  "Get the debug buffer for VEC."
+  (expand-file-name
+   (tramp-compat-string-replace "/" " " (tramp-debug-buffer-name vec))
+   (tramp-compat-temporary-file-directory)))
 
 (defsubst tramp-debug-message (vec fmt-string &rest arguments)
   "Append message to debug buffer of VEC.
 Message is formatted with FMT-STRING as control string and the remaining
 ARGUMENTS to actually emit the message (if applicable)."
-  (with-current-buffer (tramp-get-debug-buffer vec)
-    (goto-char (point-max))
-    ;; Headline.
-    (when (bobp)
-      (insert
-       (format
-	";; Emacs: %s Tramp: %s -*- mode: outline; -*-"
-	emacs-version tramp-version))
-      (when (>= tramp-verbose 10)
-	(let ((tramp-verbose 0))
+  (let ((inhibit-message t)
+	file-name-handler-alist message-log-max signal-hook-function)
+    (with-current-buffer (tramp-get-debug-buffer vec)
+      (goto-char (point-max))
+      (let ((point (point)))
+	;; Headline.
+	(when (bobp)
 	  (insert
 	   (format
-	    "\n;; Location: %s Git: %s/%s"
-	    (locate-library "tramp")
-	    (or tramp-repository-branch "")
-	    (or tramp-repository-version ""))))))
-    (unless (bolp)
-      (insert "\n"))
-    ;; Timestamp.
-    (let ((now (current-time)))
-      (insert (format-time-string "%T." now))
-      (insert (format "%06d " (nth 2 now))))
-    ;; Calling Tramp function.  We suppress compat and trace functions
-    ;; from being displayed.
-    (let ((btn 1) btf fn)
-      (while (not fn)
-	(setq btf (nth 1 (backtrace-frame btn)))
-	(if (not btf)
-	    (setq fn "")
-	  (and (symbolp btf) (setq fn (symbol-name btf))
-	       (or (not (string-match-p "^tramp" fn))
-		   (get btf 'tramp-suppress-trace))
-	       (setq fn nil))
-	  (setq btn (1+ btn))))
-      ;; The following code inserts filename and line number.  Should
-      ;; be inactive by default, because it is time consuming.
-;      (let ((ffn (find-function-noselect (intern fn))))
-;	(insert
-;	 (format
-;	  "%s:%d: "
-;	  (file-name-nondirectory (buffer-file-name (car ffn)))
-;	  (with-current-buffer (car ffn)
-;	    (1+ (count-lines (point-min) (cdr ffn)))))))
-      (insert (format "%s " fn)))
-    ;; The message.
-    (insert (apply #'format-message fmt-string arguments))))
+	    ";; Emacs: %s Tramp: %s -*- mode: outline; -*-"
+	    emacs-version tramp-version))
+	  (when (>= tramp-verbose 10)
+	    (let ((tramp-verbose 0))
+	      (insert
+	       (format
+		"\n;; Location: %s Git: %s/%s"
+		(locate-library "tramp")
+		(or tramp-repository-branch "")
+		(or tramp-repository-version "")))))
+	  ;; Delete debug file.
+	  (when (and tramp-debug-to-file (tramp-get-debug-file-name vec))
+	    (ignore-errors (delete-file (tramp-get-debug-file-name vec)))))
+	(unless (bolp)
+	  (insert "\n"))
+	;; Timestamp.
+	(let ((now (current-time)))
+	  (insert (format-time-string "%T." now))
+	  (insert (format "%06d " (nth 2 now))))
+	;; Calling Tramp function.  We suppress compat and trace
+	;; functions from being displayed.
+	(let ((btn 1) btf fn)
+	  (while (not fn)
+	    (setq btf (nth 1 (backtrace-frame btn)))
+	    (if (not btf)
+		(setq fn "")
+	      (and (symbolp btf) (setq fn (symbol-name btf))
+		   (or (not (string-match-p "^tramp" fn))
+		       (get btf 'tramp-suppress-trace))
+		   (setq fn nil))
+	      (setq btn (1+ btn))))
+	  ;; The following code inserts filename and line number.
+	  ;; Should be inactive by default, because it is time consuming.
+	  ;; (let ((ffn (find-function-noselect (intern fn))))
+	  ;;   (insert
+	  ;;    (format
+	  ;;     "%s:%d: "
+	  ;;     (file-name-nondirectory (buffer-file-name (car ffn)))
+	  ;;     (with-current-buffer (car ffn)
+	  ;;       (1+ (count-lines (point-min) (cdr ffn)))))))
+	  (insert (format "%s " fn)))
+	;; The message.
+	(insert (apply #'format-message fmt-string arguments))
+	;; Write message to debug file.
+	(when tramp-debug-to-file
+	  (ignore-errors
+	    (write-region
+	     point (point-max) (tramp-get-debug-file-name vec) 'append)))))))
 
 (put #'tramp-debug-message 'tramp-suppress-trace t)
 
@@ -3114,7 +3145,7 @@ User is always nil."
     (setq directory (substring directory 0 -1)))
   directory)
 
-(defun tramp-handle-directory-files (directory &optional full match nosort)
+(defun tramp-handle-directory-files (directory &optional full match nosort count)
   "Like `directory-files' for Tramp files."
   (unless (file-exists-p directory)
     (tramp-error
@@ -3130,16 +3161,20 @@ User is always nil."
 	(when (or (null match) (string-match-p match item))
 	  (push (if full (concat directory item) item)
 		result)))
-      (if nosort result (sort result #'string<)))))
+      (unless nosort
+        (setq result (sort result #'string<)))
+      (when (and (natnump count) (> count 0))
+	(setq result (nbutlast result (- (length result) count))))
+      result)))
 
 (defun tramp-handle-directory-files-and-attributes
-  (directory &optional full match nosort id-format)
+  (directory &optional full match nosort id-format count)
   "Like `directory-files-and-attributes' for Tramp files."
   (mapcar
    (lambda (x)
      (cons x (file-attributes
 	      (if full x (expand-file-name x directory)) id-format)))
-   (directory-files directory full match nosort)))
+   (tramp-compat-directory-files directory full match nosort count)))
 
 (defun tramp-handle-dired-uncache (dir)
   "Like `dired-uncache' for Tramp files."
@@ -3862,7 +3897,7 @@ It does not support `:stderr'."
 	    p))))))
 
 (defun tramp-handle-make-symbolic-link
-  (target linkname &optional ok-if-already-exists)
+    (target linkname &optional ok-if-already-exists)
   "Like `make-symbolic-link' for Tramp files.
 This is the fallback implementation for backends which do not
 support symbolic links."
@@ -3875,8 +3910,7 @@ support symbolic links."
     (tramp-run-real-handler
      #'make-symbolic-link (list target linkname ok-if-already-exists))))
 
-(defun tramp-handle-shell-command
-  (command &optional output-buffer error-buffer)
+(defun tramp-handle-shell-command (command &optional output-buffer error-buffer)
   "Like `shell-command' for Tramp files."
   (let* ((asynchronous (string-match-p "[ \t]*&[ \t]*\\'" command))
 	 (command (substring command 0 asynchronous))
@@ -4176,8 +4210,9 @@ of."
       ;; Set file modification time.
       (when (or (eq visit t) (stringp visit))
 	(set-visited-file-modtime
-	 (tramp-compat-file-attribute-modification-time
-	  (file-attributes filename))))
+	 (or (tramp-compat-file-attribute-modification-time
+	      (file-attributes filename))
+	     (current-time))))
 
       ;; Set the ownership.
       (tramp-set-file-uid-gid filename uid gid))
@@ -4660,6 +4695,7 @@ If both files are local, the function returns t."
       (and (tramp-tramp-file-p file1) (tramp-tramp-file-p file2)
 	   (string-equal (file-remote-p file1) (file-remote-p file2)))))
 
+;; See also `file-modes-symbolic-to-number'.
 (defun tramp-mode-string-to-int (mode-string)
   "Convert a ten-letter \"drwxrwxrwx\"-style MODE-STRING into mode bits."
   (let* (case-fold-search
@@ -4739,6 +4775,7 @@ If both files are local, the function returns t."
   "A list of file types returned from the `stat' system call.
 This is used to map a mode number to a permission string.")
 
+;; See also `file-modes-number-to-symbolic'.
 (defun tramp-file-mode-from-int (mode)
   "Turn an integer representing a file MODE into an ls(1)-like string."
   (let ((type	(cdr
@@ -5317,7 +5354,9 @@ name of a process or buffer, or nil to default to the current buffer."
 	(tramp-compat-funcall
 	 'tramp-send-command
 	 (process-get proc 'vector)
-	 (format "(\\kill -2 -%d || \\kill -2 %d) 2>/dev/null" pid pid))
+	 (format "(\\kill -2 -%d || \\kill -2 %d) 2>%s"
+                 pid pid
+                 (tramp-get-remote-null-device (process-get proc 'vector))))
 	;; Wait, until the process has disappeared.  If it doesn't,
 	;; fall back to the default implementation.
         (while (tramp-accept-process-output proc 0))
@@ -5330,6 +5369,32 @@ name of a process or buffer, or nil to default to the current buffer."
    'tramp-unload-hook
    (lambda ()
      (remove-hook 'interrupt-process-functions #'tramp-interrupt-process))))
+
+(defun tramp-get-remote-null-device (vec)
+  "Return null device on the remote host identified by VEC.
+If VEC is nil, return local null device."
+  (if (null vec)
+      null-device
+    (with-tramp-connection-property vec "null-device"
+      (let ((default-directory (tramp-make-tramp-file-name vec)))
+        (tramp-compat-null-device)))))
+
+(defmacro tramp-skeleton-delete-directory (directory recursive trash &rest body)
+  "Skeleton for `tramp-*-handle-delete-directory'.
+BODY is the backend specific code."
+  (declare (indent 3) (debug t))
+  `(with-parsed-tramp-file-name (expand-file-name ,directory) nil
+    (if (and delete-by-moving-to-trash ,trash)
+	;; Move non-empty dir to trash only if recursive deletion was
+	;; requested.
+	(if (not (or ,recursive (tramp-compat-directory-empty-p ,directory)))
+	    (tramp-error
+	     v 'file-error "Directory is not empty, not moving to trash")
+	  (move-file-to-trash ,directory))
+      ,@body)
+    (tramp-flush-directory-properties v localname)))
+
+(put #'tramp-skeleton-delete-directory 'tramp-suppress-trace t)
 
 ;; Checklist for `tramp-unload-hook'
 ;; - Unload all `tramp-*' packages

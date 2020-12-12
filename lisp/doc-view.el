@@ -1,4 +1,4 @@
-;;; doc-view.el --- View PDF/PostScript/DVI files in Emacs -*- lexical-binding: t -*-
+;;; doc-view.el --- Document viewer for Emacs -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2007-2020 Free Software Foundation, Inc.
 ;;
@@ -22,17 +22,20 @@
 
 ;;; Requirements:
 
-;; doc-view.el requires GNU Emacs 22.1 or newer.  You also need Ghostscript,
-;; `dvipdf' (comes with Ghostscript) or `dvipdfm' (comes with teTeX or TeXLive)
-;; and `pdftotext', which comes with xpdf (http://www.foolabs.com/xpdf/) or
-;; poppler (http://poppler.freedesktop.org/).
+;; Viewing PS/PDF/DVI files requires Ghostscript, `dvipdf' (comes with
+;; Ghostscript) or `dvipdfm' (comes with teTeX or TeXLive) and
+;; `pdftotext', which comes with xpdf (https://www.foolabs.com/xpdf/)
+;; or poppler (https://poppler.freedesktop.org/).
+;; Djvu documents require `ddjvu' (from DjVuLibre).
+;; ODF files require `soffice' (from LibreOffice).
 
 ;;; Commentary:
 
-;; DocView is a document viewer for Emacs.  It converts PDF, PS and DVI files
-;; to a set of PNG files, one PNG for each page, and displays the PNG images
-;; inside an Emacs buffer.  This buffer uses `doc-view-mode' which provides
-;; convenient key bindings for browsing the document.
+;; DocView is a document viewer for Emacs.  It converts a number of
+;; document formats (including PDF, PS, DVI, Djvu and ODF files) to a
+;; set of PNG files, one PNG for each page, and displays the PNG
+;; images inside an Emacs buffer.  This buffer uses `doc-view-mode'
+;; which provides convenient key bindings for browsing the document.
 ;;
 ;; To use it simply open a document file with
 ;;
@@ -514,7 +517,7 @@ Typically \"page-%s.png\".")
     ;; Toggle between text and image display or editing
     (define-key map (kbd "C-c C-c") 'doc-view-toggle-display)
     map)
-  "Keymap used by `doc-minor-view-mode'.")
+  "Keymap used by `doc-view-minor-mode'.")
 
 ;;;; Navigation Commands
 
@@ -910,17 +913,27 @@ Resize the containing frame if needed."
          (width-diff  (- img-width  win-width))
          (height-diff (- img-height win-height))
          (new-frame-params
+          ;; If we can't resize the window, try and resize the frame.
+          ;; We used to compare the `window-width/height` and the
+          ;; `frame-width/height` instead of catching the errors, but
+          ;; it's too fiddly (e.g. in the presence of the miniwindow,
+          ;; the height the frame should be equal to the height of the
+          ;; root window +1).
           (append
-           (if (= (window-width) (frame-width))
-               `((width  . (text-pixels
-                            . ,(+ (frame-text-width) width-diff))))
-             (enlarge-window (/ width-diff (frame-char-width)) 'horiz)
-             nil)
-           (if (= (window-height) (frame-height))
-               `((height  . (text-pixels
-                             . ,(+ (frame-text-height) height-diff))))
-             (enlarge-window (/ height-diff (frame-char-height)) nil)
-             nil))))
+           (condition-case nil
+               (progn
+                 (enlarge-window (/ width-diff (frame-char-width)) 'horiz)
+                 nil)
+             (error
+              `((width  . (text-pixels
+                           . ,(+ (frame-text-width) width-diff))))))
+           (condition-case nil
+               (progn
+                 (enlarge-window (/ height-diff (frame-char-height)) nil)
+                 nil)
+             (error
+              `((height  . (text-pixels
+                            . ,(+ (frame-text-height) height-diff)))))))))
     (when new-frame-params
       (modify-frame-parameters (selected-frame) new-frame-params))))
 

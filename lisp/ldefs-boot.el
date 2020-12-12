@@ -511,10 +511,13 @@ Return t if `allout-mode' is active in current buffer." nil t)
 (autoload 'allout-mode "allout" "\
 Toggle Allout outline mode.
 
-If called interactively, enable Allout mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Allout mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -829,10 +832,13 @@ See `allout-widgets-mode' for allout widgets mode features.")
 (autoload 'allout-widgets-mode "allout-widgets" "\
 Toggle Allout Widgets mode.
 
-If called interactively, enable Allout-Widgets mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Allout-Widgets mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -1246,15 +1252,17 @@ Entering array mode calls the function `array-mode-hook'.
 
 ;;;### (autoloads nil "artist" "textmodes/artist.el" (0 0 0 0))
 ;;; Generated autoloads from textmodes/artist.el
-(push (purecopy '(artist 1 2 6)) package--builtin-versions)
 
 (autoload 'artist-mode "artist" "\
 Toggle Artist mode.
 
-If called interactively, enable Artist mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Artist mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -1586,10 +1594,13 @@ or call the function `autoarg-kp-mode'.")
 (autoload 'autoarg-kp-mode "autoarg" "\
 Toggle Autoarg-KP mode, a global minor mode.
 
-If called interactively, enable Autoarg-Kp mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Autoarg-Kp mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -1645,10 +1656,13 @@ or call the function `auto-insert-mode'.")
 (autoload 'auto-insert-mode "autoinsert" "\
 Toggle Auto-insert mode, a global minor mode.
 
-If called interactively, enable Auto-Insert mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Auto-Insert mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -1696,13 +1710,28 @@ The function does NOT recursively descend into subdirectories of the
 directory or directories specified.
 
 In an interactive call, prompt for a default output file for the
-autoload definitions, and temporarily bind the variable
-`generated-autoload-file' to this value.  When called from Lisp,
-use the existing value of `generated-autoload-file'.  If any Lisp
-file binds `generated-autoload-file' as a file-local variable,
-write its autoloads into the specified file instead.
+autoload definitions.  When called from Lisp, use the existing
+value of `generated-autoload-file'.  If any Lisp file binds
+`generated-autoload-file' as a file-local variable, write its
+autoloads into the specified file instead.
 
 \(fn &rest DIRS)" t nil)
+
+(make-obsolete 'update-directory-autoloads 'make-directory-autoloads '"28.1")
+
+(autoload 'make-directory-autoloads "autoload" "\
+Update autoload definitions for Lisp files in the directories DIRS.
+DIR can be either a single directory or a list of
+directories.  (The latter usage is discouraged.)
+
+The autoloads will be written to OUTPUT-FILE.  If any Lisp file
+binds `generated-autoload-file' as a file-local variable, write
+its autoloads into the specified file instead.
+
+The function does NOT recursively descend into subdirectories of the
+directory or directories specified.
+
+\(fn DIR OUTPUT-FILE)" t nil)
 
 (autoload 'batch-update-autoloads "autoload" "\
 Update loaddefs.el autoloads in batch mode.
@@ -1720,10 +1749,13 @@ should be non-nil)." nil nil)
 (autoload 'auto-revert-mode "autorevert" "\
 Toggle reverting buffer when the file changes (Auto-Revert Mode).
 
-If called interactively, enable Auto-Revert mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Auto-Revert mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -1750,10 +1782,13 @@ This function is designed to be added to hooks, for example:
 (autoload 'auto-revert-tail-mode "autorevert" "\
 Toggle reverting tail of buffer when the file grows.
 
-If called interactively, enable Auto-Revert-Tail mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Auto-Revert-Tail mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -1794,10 +1829,13 @@ or call the function `global-auto-revert-mode'.")
 (autoload 'global-auto-revert-mode "autorevert" "\
 Toggle Global Auto-Revert Mode.
 
-If called interactively, enable Global Auto-Revert mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Global Auto-Revert mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -1928,10 +1966,13 @@ or call the function `display-battery-mode'.")
 (autoload 'display-battery-mode "battery" "\
 Toggle battery status display in mode line (Display Battery mode).
 
-If called interactively, enable Display-Battery mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Display-Battery mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -1953,7 +1994,7 @@ seconds.
 
 (autoload 'benchmark-run "benchmark" "\
 Time execution of FORMS.
-If REPETITIONS is supplied as a number, run forms that many times,
+If REPETITIONS is supplied as a number, run FORMS that many times,
 accounting for the overhead of the resulting loop.  Otherwise run
 FORMS once.
 Return a list of the total elapsed time for execution, the number of
@@ -2907,10 +2948,13 @@ columns on its right towards the left.
 (autoload 'bug-reference-mode "bug-reference" "\
 Toggle hyperlinking bug references in the buffer (Bug Reference mode).
 
-If called interactively, enable Bug-Reference mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Bug-Reference mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -2920,10 +2964,13 @@ disabled.
 (autoload 'bug-reference-prog-mode "bug-reference" "\
 Like `bug-reference-mode', but only buttonize in comments and strings.
 
-If called interactively, enable Bug-Reference-Prog mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Bug-Reference-Prog mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -2991,17 +3038,24 @@ before scanning it.
 If the third argument FORCE is non-nil, recompile every `.el' file
 that already has a `.elc' file.
 
-\(fn DIRECTORY &optional ARG FORCE)" t nil)
+This command will normally not follow symlinks when compiling
+files.  If FOLLOW-SYMLINKS is non-nil, symlinked `.el' files will
+also be compiled.
+
+\(fn DIRECTORY &optional ARG FORCE FOLLOW-SYMLINKS)" t nil)
 (put 'no-byte-compile 'safe-local-variable 'booleanp)
 
 (autoload 'byte-compile-file "bytecomp" "\
 Compile a file of Lisp code named FILENAME into a file of byte code.
 The output file's name is generated by passing FILENAME to the
 function `byte-compile-dest-file' (which see).
-With prefix arg (noninteractively: 2nd arg), LOAD the file after compiling.
 The value is non-nil if there were no errors, nil if errors.
 
+See also `emacs-lisp-byte-compile-and-load'.
+
 \(fn FILENAME &optional LOAD)" t nil)
+
+(set-advertised-calling-convention 'byte-compile-file '(filename) '"28.1")
 
 (autoload 'compile-defun "bytecomp" "\
 Compile and evaluate the current top-level form.
@@ -3295,14 +3349,6 @@ See Info node `(calc)Defining Functions'.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "calc-aent" "calc/calc-aent.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from calc/calc-aent.el
-
-(register-definition-prefixes "calc-aent" '("calc" "math-"))
-
-;;;***
-
 ;;;### (autoloads nil "calc-alg" "calc/calc-alg.el" (0 0 0 0))
 ;;; Generated autoloads from calc/calc-alg.el
 
@@ -3335,14 +3381,6 @@ See Info node `(calc)Defining Functions'.
 ;;; Generated autoloads from calc/calc-cplx.el
 
 (register-definition-prefixes "calc-cplx" '("calc" "math-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "calc-embed" "calc/calc-embed.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from calc/calc-embed.el
-
-(register-definition-prefixes "calc-embed" '("calc-"))
 
 ;;;***
 
@@ -3441,14 +3479,6 @@ See Info node `(calc)Defining Functions'.
 ;;; Generated autoloads from calc/calc-menu.el
 
 (register-definition-prefixes "calc-menu" '("calc-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "calc-misc" "calc/calc-misc.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from calc/calc-misc.el
-
-(register-definition-prefixes "calc-misc" '("math-iipow"))
 
 ;;;***
 
@@ -3559,14 +3589,6 @@ See Info node `(calc)Defining Functions'.
 ;;; Generated autoloads from calc/calc-vec.el
 
 (register-definition-prefixes "calc-vec" '("calc" "math-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "calc-yank" "calc/calc-yank.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from calc/calc-yank.el
-
-(register-definition-prefixes "calc-yank" '("calc-" "math-number-regexp"))
 
 ;;;***
 
@@ -4499,7 +4521,6 @@ from which to start.
 
 ;;;### (autoloads nil "chart" "emacs-lisp/chart.el" (0 0 0 0))
 ;;; Generated autoloads from emacs-lisp/chart.el
-(push (purecopy '(chart 0 2)) package--builtin-versions)
 
 (register-definition-prefixes "chart" '("chart"))
 
@@ -4692,10 +4713,13 @@ Prefix argument is the same as for `checkdoc-defun'." t nil)
 (autoload 'checkdoc-minor-mode "checkdoc" "\
 Toggle automatic docstring checking (Checkdoc minor mode).
 
-If called interactively, enable Checkdoc minor mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Checkdoc minor mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -4788,14 +4812,6 @@ and runs the normal hook `command-history-hook'." t nil)
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "cl-extra" "emacs-lisp/cl-extra.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from emacs-lisp/cl-extra.el
-
-(register-definition-prefixes "cl-extra" '("cl-"))
-
-;;;***
-
 ;;;### (autoloads nil "cl-font-lock" "progmodes/cl-font-lock.el"
 ;;;;;;  (0 0 0 0))
 ;;; Generated autoloads from progmodes/cl-font-lock.el
@@ -4813,10 +4829,13 @@ or call the function `cl-font-lock-built-in-mode'.")
 (autoload 'cl-font-lock-built-in-mode "cl-font-lock" "\
 Highlight built-in functions, variables, and types in `lisp-mode'.
 
-If called interactively, enable Cl-Font-Lock-Built-In mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Cl-Font-Lock-Built-In mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -5028,10 +5047,13 @@ This can be needed when using code byte-compiled using the old
 macro-expansion of `cl-defstruct' that used vectors objects instead
 of record objects.
 
-If called interactively, enable Cl-Old-Struct-Compat mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Cl-Old-Struct-Compat mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -5039,14 +5061,6 @@ disabled.
 \(fn &optional ARG)" t nil)
 
 (register-definition-prefixes "cl-lib" '("cl-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "cl-macs" "emacs-lisp/cl-macs.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from emacs-lisp/cl-macs.el
-
-(register-definition-prefixes "cl-macs" '("cl-"))
 
 ;;;***
 
@@ -5103,14 +5117,6 @@ limit.
 \(fn PRINT-FUNCTION VALUE LIMIT)" nil nil)
 
 (register-definition-prefixes "cl-print" '("cl-print-" "help-byte-code"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "cl-seq" "emacs-lisp/cl-seq.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from emacs-lisp/cl-seq.el
-
-(register-definition-prefixes "cl-seq" '("cl--"))
 
 ;;;***
 
@@ -5480,10 +5486,13 @@ Runs `compilation-mode-hook' with `run-mode-hooks' (which see).
 (autoload 'compilation-shell-minor-mode "compile" "\
 Toggle Compilation Shell minor mode.
 
-If called interactively, enable Compilation-Shell minor mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Compilation-Shell minor mode'.  If
+the prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -5498,10 +5507,13 @@ See `compilation-mode'.
 (autoload 'compilation-minor-mode "compile" "\
 Toggle Compilation minor mode.
 
-If called interactively, enable Compilation minor mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Compilation minor mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -5538,10 +5550,13 @@ or call the function `dynamic-completion-mode'.")
 (autoload 'dynamic-completion-mode "completion" "\
 Toggle dynamic word-completion on or off.
 
-If called interactively, enable Dynamic-Completion mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Dynamic-Completion mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -5950,12 +5965,12 @@ Variables controlling indentation style:
  `cperl-min-label-indent'
     Minimal indentation for line that is a label.
 
-Settings for classic indent-styles: K&R BSD=C++ GNU PerlStyle=Whitesmith
-  `cperl-indent-level'                5   4       2   4
-  `cperl-brace-offset'                0   0       0   0
-  `cperl-continued-brace-offset'     -5  -4       0   0
-  `cperl-label-offset'               -5  -4      -2  -4
-  `cperl-continued-statement-offset'  5   4       2   4
+Settings for classic indent-styles: K&R BSD=C++ GNU PBP PerlStyle=Whitesmith
+  `cperl-indent-level'                5   4       2   4   4
+  `cperl-brace-offset'                0   0       0   0   0
+  `cperl-continued-brace-offset'     -5  -4       0   0   0
+  `cperl-label-offset'               -5  -4      -2  -2  -4
+  `cperl-continued-statement-offset'  5   4       2   4   4
 
 CPerl knows several indentation styles, and may bulk set the
 corresponding variables.  Use \\[cperl-set-style] to do this.  Use
@@ -6102,10 +6117,13 @@ or call the function `cua-mode'.")
 (autoload 'cua-mode "cua-base" "\
 Toggle Common User Access style editing (CUA mode).
 
-If called interactively, enable Cua mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Cua mode'.  If the prefix argument is
+positive, enable the mode, and if it is zero or negative, disable the
+mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -6153,10 +6171,13 @@ Enable CUA selection mode without the C-z/C-x/C-c/C-v bindings.
 Toggle the region as rectangular.
 Activates the region if needed.  Only lasts until the region is deactivated.
 
-If called interactively, enable Cua-Rectangle-Mark mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Cua-Rectangle-Mark mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -6179,10 +6200,13 @@ By convention, this is a list of symbols where each symbol stands for the
 (autoload 'cursor-intangible-mode "cursor-sensor" "\
 Keep cursor outside of any `cursor-intangible' text property.
 
-If called interactively, enable Cursor-Intangible mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Cursor-Intangible mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -6197,10 +6221,13 @@ where WINDOW is the affected window, OLDPOS is the last known position of
 the cursor and DIR can be `entered' or `left' depending on whether the cursor
 is entering the area covered by the text-property property or leaving it.
 
-If called interactively, enable Cursor-Sensor mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Cursor-Sensor mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -6523,7 +6550,7 @@ The format is suitable for use with `easy-menu-define'.
 
 \(fn SYMBOL &optional NAME)" nil nil)
 
-(register-definition-prefixes "cus-edit" '("Custom-" "custom" "widget-"))
+(register-definition-prefixes "cus-edit" '("Custom-" "cus" "widget-"))
 
 ;;;***
 
@@ -6580,10 +6607,13 @@ Mode used for cvs status output.
 (autoload 'cwarn-mode "cwarn" "\
 Minor mode that highlights suspicious C and C++ constructions.
 
-If called interactively, enable Cwarn mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Cwarn mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -6618,7 +6648,9 @@ ARG is omitted or nil.
 
 Cwarn mode is enabled in all buffers where
 `turn-on-cwarn-mode-if-enabled' would do it.
-See `cwarn-mode' for more information on Cwarn mode.
+
+See `cwarn-mode' for more information on
+Cwarn mode.
 
 \(fn &optional ARG)" t nil)
 
@@ -6726,7 +6758,7 @@ Create a new data-debug buffer with NAME.
 (autoload 'dbus-handle-event "dbus" "\
 Handle events from the D-Bus.
 EVENT is a D-Bus event, see `dbus-check-event'.  HANDLER, being
-part of the event, is called with arguments ARGS.
+part of the event, is called with arguments ARGS (without type information).
 If the HANDLER returns a `dbus-error', it is propagated as return message.
 
 \(fn EVENT)" t nil)
@@ -6824,8 +6856,7 @@ Variables controlling indentation style and extra features:
  dcl-imenu-label-call
     Change the text that is used as sub-listing labels in imenu.
 
-Loading this package calls the value of the variable
-`dcl-mode-load-hook' with no args, if that value is non-nil.
+To run code after DCL mode has loaded, use `with-eval-after-load'.
 Turning on DCL mode calls the value of the variable `dcl-mode-hook'
 with no args, if that value is non-nil.
 
@@ -6971,7 +7002,6 @@ The most useful commands are:
 
 ;;;### (autoloads nil "delim-col" "delim-col.el" (0 0 0 0))
 ;;; Generated autoloads from delim-col.el
-(push (purecopy '(delim-col 2 1)) package--builtin-versions)
 
 (autoload 'delimit-columns-customize "delim-col" "\
 Customize the `columns' group." t nil)
@@ -7032,10 +7062,13 @@ or call the function `delete-selection-mode'.")
 (autoload 'delete-selection-mode "delsel" "\
 Toggle Delete Selection mode.
 
-If called interactively, enable Delete-Selection mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Delete-Selection mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -7204,10 +7237,13 @@ or call the function `desktop-save-mode'.")
 (autoload 'desktop-save-mode "desktop" "\
 Toggle desktop saving (Desktop Save mode).
 
-If called interactively, enable Desktop-Save mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Desktop-Save mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -7600,10 +7636,13 @@ a diff with \\[diff-reverse-direction].
 (autoload 'diff-minor-mode "diff-mode" "\
 Toggle Diff minor mode.
 
-If called interactively, enable Diff minor mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Diff minor mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -7762,23 +7801,24 @@ Keybindings:
 \(fn &optional DIRNAME SWITCHES)" nil nil)
  (put 'dired-find-alternate-file 'disabled t)
 
+(autoload 'dired-jump "dired" "\
+Jump to Dired buffer corresponding to current buffer.
+If in a file, Dired the current directory and move to file's line.
+If in Dired already, pop up a level and goto old directory's line.
+In case the proper Dired file line cannot be found, refresh the dired
+buffer and try again.
+When OTHER-WINDOW is non-nil, jump to Dired buffer in other window.
+When FILE-NAME is non-nil, jump to its line in Dired.
+Interactively with prefix argument, read FILE-NAME.
+
+\(fn &optional OTHER-WINDOW FILE-NAME)" t nil)
+
+(autoload 'dired-jump-other-window "dired" "\
+Like \\[dired-jump] (`dired-jump') but in other window.
+
+\(fn &optional FILE-NAME)" t nil)
+
 (register-definition-prefixes "dired" '("dired-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "dired-aux" "dired-aux.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from dired-aux.el
-
-(register-definition-prefixes "dired-aux" '("dired-" "minibuffer-default-add-dired-shell-commands"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "dired-x" "dired-x.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from dired-x.el
-
-(register-definition-prefixes "dired-x" '("dired-" "virtual-dired"))
 
 ;;;***
 
@@ -7788,10 +7828,13 @@ Keybindings:
 (autoload 'dirtrack-mode "dirtrack" "\
 Toggle directory tracking in shell buffers (Dirtrack mode).
 
-If called interactively, enable Dirtrack mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Dirtrack mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -7962,10 +8005,13 @@ in `.emacs'.
 Toggle display of fill-column indicator.
 This uses `display-fill-column-indicator' internally.
 
-If called interactively, enable Display-Fill-Column-Indicator mode if
-ARG is positive, and disable it if ARG is zero or negative.  If called
-from Lisp, also enable the mode if ARG is omitted or nil, and toggle
-it if ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Display-Fill-Column-Indicator mode'.
+If the prefix argument is positive, enable the mode, and if it is zero
+or negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -7973,6 +8019,8 @@ disabled.
 To change the position of the column displayed by default
 customize `display-fill-column-indicator-column'.  You can change the
 character for the indicator setting `display-fill-column-indicator-character'.
+The globalized version is `global-display-fill-column-indicator-mode',
+which see.
 See Info node `Displaying Boundaries' for details.
 
 \(fn &optional ARG)" t nil)
@@ -7997,9 +8045,30 @@ ARG is omitted or nil.
 
 Display-Fill-Column-Indicator mode is enabled in all buffers where
 `display-fill-column-indicator--turn-on' would do it.
-See `display-fill-column-indicator-mode' for more information on Display-Fill-Column-Indicator mode.
+
+See `display-fill-column-indicator-mode' for more information on
+Display-Fill-Column-Indicator mode.
+
+`global-display-fill-column-indicator-modes' is used to control which modes
+this minor mode is used in.
 
 \(fn &optional ARG)" t nil)
+
+(defvar global-display-fill-column-indicator-modes '((not special-mode) t) "\
+Which major modes `display-fill-column-indicator-mode' is switched on in.
+This variable can be either t (all major modes), nil (no major modes),
+or a list of modes and (not modes) to switch use this minor mode or
+not.  For instance
+
+  (c-mode (not message-mode mail-mode) text-mode)
+
+means \"use this mode in all modes derived from `c-mode', don't use in
+modes derived from `message-mode' or `mail-mode', but do use in other
+modes derived from `text-mode'\".  An element with value t means \"use\"
+and nil means \"don't use\".  There's an implicit nil at the end of the
+list.")
+
+(custom-autoload 'global-display-fill-column-indicator-modes "display-fill-column-indicator" t)
 
 (register-definition-prefixes "display-fill-column-indicator" '("display-fill-column-indicator--turn-on"))
 
@@ -8013,10 +8082,13 @@ See `display-fill-column-indicator-mode' for more information on Display-Fill-Co
 Toggle display of line numbers in the buffer.
 This uses `display-line-numbers' internally.
 
-If called interactively, enable Display-Line-Numbers mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Display-Line-Numbers mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -8047,7 +8119,9 @@ ARG is omitted or nil.
 
 Display-Line-Numbers mode is enabled in all buffers where
 `display-line-numbers--turn-on' would do it.
-See `display-line-numbers-mode' for more information on Display-Line-Numbers mode.
+
+See `display-line-numbers-mode' for more information on
+Display-Line-Numbers mode.
 
 \(fn &optional ARG)" t nil)
 
@@ -8151,10 +8225,13 @@ to the next best mode." nil nil)
 (autoload 'doc-view-minor-mode "doc-view" "\
 Toggle displaying buffer via Doc View (Doc View minor mode).
 
-If called interactively, enable Doc-View minor mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Doc-View minor mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -8216,10 +8293,13 @@ Switch to *doctor* buffer and start giving psychotherapy." t nil)
 (autoload 'double-mode "double" "\
 Toggle special insertion on double keypresses (Double mode).
 
-If called interactively, enable Double mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Double mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -8235,7 +8315,6 @@ strings when pressed twice.  See `double-map' for details.
 
 ;;;### (autoloads nil "dunnet" "play/dunnet.el" (0 0 0 0))
 ;;; Generated autoloads from play/dunnet.el
-(push (purecopy '(dunnet 2 2)) package--builtin-versions)
 
 (autoload 'dunnet "dunnet" "\
 Switch to *dungeon* buffer and start game." t nil)
@@ -8280,6 +8359,10 @@ appear in DOC, a paragraph is added to DOC explaining
 usage of the mode argument.
 
 Optional INIT-VALUE is the initial value of the mode's variable.
+  Note that the minor mode function won't be called by setting
+  this option, so the value *reflects* the minor mode's natural
+  initial state, rather than *setting* it.
+  In the vast majority of cases it should be nil.
 Optional LIGHTER is displayed in the mode line when the mode is on.
 Optional KEYMAP is the default keymap bound to the mode keymap.
   If non-nil, it should be a variable name (whose value is a keymap),
@@ -8300,9 +8383,6 @@ BODY contains code to execute each time the mode is enabled or disabled.
   the minor mode is global):
 
 :group GROUP	Custom group name to use in all generated `defcustom' forms.
-		Defaults to MODE without the possible trailing \"-mode\".
-		Don't use this default group name unless you have written a
-		`defgroup' to define that group properly.
 :global GLOBAL	If non-nil specifies that the minor mode is not meant to be
 		buffer-local, so don't make the variable MODE buffer-local.
 		By default, the mode is buffer-local.
@@ -8340,18 +8420,21 @@ For example, you could write
 (autoload 'define-globalized-minor-mode "easy-mmode" "\
 Make a global mode GLOBAL-MODE corresponding to buffer-local minor MODE.
 TURN-ON is a function that will be called with no args in every buffer
-  and that should try to turn MODE on if applicable for that buffer.
-Each of KEY VALUE is a pair of CL-style keyword arguments.  As
-  the minor mode defined by this function is always global, any
-  :global keyword is ignored.  Other keywords have the same
-  meaning as in `define-minor-mode', which see.  In particular,
-  :group specifies the custom group.  The most useful keywords
-  are those that are passed on to the `defcustom'.  It normally
-  makes no sense to pass the :lighter or :keymap keywords to
-  `define-globalized-minor-mode', since these are usually passed
-  to the buffer-local version of the minor mode.
+and that should try to turn MODE on if applicable for that buffer.
+
+Each of KEY VALUE is a pair of CL-style keyword arguments.  :predicate
+specifies which major modes the globalized minor mode should be switched on
+in.  As the minor mode defined by this function is always global, any
+:global keyword is ignored.  Other keywords have the same meaning as in
+`define-minor-mode', which see.  In particular, :group specifies the custom
+group.  The most useful keywords are those that are passed on to the
+`defcustom'.  It normally makes no sense to pass the :lighter or :keymap
+keywords to `define-globalized-minor-mode', since these are usually passed
+to the buffer-local version of the minor mode.
+
 BODY contains code to execute each time the mode is enabled or disabled.
-  It is executed after toggling the mode, and before running GLOBAL-MODE-hook.
+It is executed after toggling the mode, and before running
+GLOBAL-MODE-hook.
 
 If MODE's set-up depends on the major mode in effect when it was
 enabled, then disabling and reenabling MODE should make MODE work
@@ -9060,10 +9143,13 @@ or call the function `global-ede-mode'.")
 (autoload 'global-ede-mode "ede" "\
 Toggle global EDE (Emacs Development Environment) mode.
 
-If called interactively, enable Global Ede mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Global Ede mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -9092,98 +9178,10 @@ an EDE controlled project.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "ede/base" "cedet/ede/base.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from cedet/ede/base.el
-
-(register-definition-prefixes "ede/base" '("ede-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ede/config" "cedet/ede/config.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from cedet/ede/config.el
-
-(register-definition-prefixes "ede/config" '("ede-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ede/cpp-root"
-;;;;;;  "cedet/ede/cpp-root.el" (0 0 0 0))
-;;; Generated autoloads from cedet/ede/cpp-root.el
-
-(register-definition-prefixes "ede/cpp-root" '("ede-cpp-root-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ede/custom" "cedet/ede/custom.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from cedet/ede/custom.el
-
-(register-definition-prefixes "ede/custom" '("ede-" "eieio-ede-old-variables"))
-
-;;;***
-
 ;;;### (autoloads nil "ede/detect" "cedet/ede/detect.el" (0 0 0 0))
 ;;; Generated autoloads from cedet/ede/detect.el
 
 (register-definition-prefixes "ede/detect" '("ede-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ede/dired" "cedet/ede/dired.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from cedet/ede/dired.el
-
-(register-definition-prefixes "ede/dired" '("ede-dired-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ede/emacs" "cedet/ede/emacs.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from cedet/ede/emacs.el
-
-(register-definition-prefixes "ede/emacs" '("ede-emacs-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ede/files" "cedet/ede/files.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from cedet/ede/files.el
-
-(register-definition-prefixes "ede/files" '("ede-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ede/generic"
-;;;;;;  "cedet/ede/generic.el" (0 0 0 0))
-;;; Generated autoloads from cedet/ede/generic.el
-
-(register-definition-prefixes "ede/generic" '("ede-generic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ede/linux" "cedet/ede/linux.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from cedet/ede/linux.el
-
-(register-definition-prefixes "ede/linux" '("ede-linux-" "project-linux-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ede/locate" "cedet/ede/locate.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from cedet/ede/locate.el
-
-(register-definition-prefixes "ede/locate" '("ede-locate-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ede/make" "cedet/ede/make.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from cedet/ede/make.el
-
-(register-definition-prefixes "ede/make" '("ede-"))
 
 ;;;***
 
@@ -9304,14 +9302,6 @@ an EDE controlled project.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "ede/shell" "cedet/ede/shell.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from cedet/ede/shell.el
-
-(register-definition-prefixes "ede/shell" '("ede-shell-run-command"))
-
-;;;***
-
 ;;;### (autoloads nil "ede/simple" "cedet/ede/simple.el" (0 0 0 0))
 ;;; Generated autoloads from cedet/ede/simple.el
 
@@ -9326,27 +9316,11 @@ an EDE controlled project.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "ede/speedbar"
-;;;;;;  "cedet/ede/speedbar.el" (0 0 0 0))
-;;; Generated autoloads from cedet/ede/speedbar.el
-
-(register-definition-prefixes "ede/speedbar" '("ede-"))
-
-;;;***
-
 ;;;### (autoloads nil "ede/srecode" "cedet/ede/srecode.el" (0 0 0
 ;;;;;;  0))
 ;;; Generated autoloads from cedet/ede/srecode.el
 
 (register-definition-prefixes "ede/srecode" '("ede-srecode-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ede/util" "cedet/ede/util.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from cedet/ede/util.el
-
-(register-definition-prefixes "ede/util" '("ede-make-buffer-writable"))
 
 ;;;***
 
@@ -9815,7 +9789,6 @@ To change the default, set the variable `ediff-use-toolbar-p', which see." t nil
 
 ;;;### (autoloads nil "edmacro" "edmacro.el" (0 0 0 0))
 ;;; Generated autoloads from edmacro.el
-(push (purecopy '(edmacro 2 1)) package--builtin-versions)
 
 (autoload 'edit-kbd-macro "edmacro" "\
 Edit a keyboard macro.
@@ -9967,14 +9940,6 @@ BUFFER is put back into its original major mode.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "eieio-compat"
-;;;;;;  "emacs-lisp/eieio-compat.el" (0 0 0 0))
-;;; Generated autoloads from emacs-lisp/eieio-compat.el
-
-(register-definition-prefixes "eieio-compat" '("eieio--generic-static-symbol-specializers" "generic-p" "next-method-p" "no-"))
-
-;;;***
-
 ;;;### (autoloads nil "eieio-core" "emacs-lisp/eieio-core.el" (0
 ;;;;;;  0 0 0))
 ;;; Generated autoloads from emacs-lisp/eieio-core.el
@@ -9994,27 +9959,11 @@ It creates an autoload function for CNAME's constructor.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "eieio-custom"
-;;;;;;  "emacs-lisp/eieio-custom.el" (0 0 0 0))
-;;; Generated autoloads from emacs-lisp/eieio-custom.el
-
-(register-definition-prefixes "eieio-custom" '("eieio-"))
-
-;;;***
-
 ;;;### (autoloads nil "eieio-datadebug" "emacs-lisp/eieio-datadebug.el"
 ;;;;;;  (0 0 0 0))
 ;;; Generated autoloads from emacs-lisp/eieio-datadebug.el
 
 (register-definition-prefixes "eieio-datadebug" '("data-debug-insert-object-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "eieio-opt" "emacs-lisp/eieio-opt.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from emacs-lisp/eieio-opt.el
-
-(register-definition-prefixes "eieio-opt" '("eieio-"))
 
 ;;;***
 
@@ -10028,7 +9977,7 @@ It creates an autoload function for CNAME's constructor.
 
 ;;;### (autoloads nil "eldoc" "emacs-lisp/eldoc.el" (0 0 0 0))
 ;;; Generated autoloads from emacs-lisp/eldoc.el
-(push (purecopy '(eldoc 1 9 0)) package--builtin-versions)
+(push (purecopy '(eldoc 1 11 0)) package--builtin-versions)
 
 ;;;***
 
@@ -10048,10 +9997,13 @@ or call the function `electric-pair-mode'.")
 (autoload 'electric-pair-mode "elec-pair" "\
 Toggle automatic parens pairing (Electric Pair mode).
 
-If called interactively, enable Electric-Pair mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Electric-Pair mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -10069,10 +10021,13 @@ To toggle the mode in a single buffer, use `electric-pair-local-mode'.
 (autoload 'electric-pair-local-mode "elec-pair" "\
 Toggle `electric-pair-mode' only in this buffer.
 
-If called interactively, enable Electric-Pair-Local mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Electric-Pair-Local mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -10168,142 +10123,6 @@ displayed." t nil)
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "em-alias" "eshell/em-alias.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-alias.el
-
-(register-definition-prefixes "em-alias" '("eshell" "pcomplete/eshell-mode/alias"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-banner" "eshell/em-banner.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-banner.el
-
-(register-definition-prefixes "em-banner" '("eshell-banner-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-basic" "eshell/em-basic.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-basic.el
-
-(register-definition-prefixes "em-basic" '("eshell"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-cmpl" "eshell/em-cmpl.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-cmpl.el
-
-(register-definition-prefixes "em-cmpl" '("eshell-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-dirs" "eshell/em-dirs.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-dirs.el
-
-(register-definition-prefixes "em-dirs" '("eshell"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-glob" "eshell/em-glob.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-glob.el
-
-(register-definition-prefixes "em-glob" '("eshell-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-hist" "eshell/em-hist.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-hist.el
-
-(register-definition-prefixes "em-hist" '("eshell"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-ls" "eshell/em-ls.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-ls.el
-
-(register-definition-prefixes "em-ls" '("eshell"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-pred" "eshell/em-pred.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-pred.el
-
-(register-definition-prefixes "em-pred" '("eshell-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-prompt" "eshell/em-prompt.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-prompt.el
-
-(register-definition-prefixes "em-prompt" '("eshell-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-rebind" "eshell/em-rebind.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-rebind.el
-
-(register-definition-prefixes "em-rebind" '("eshell-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-script" "eshell/em-script.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-script.el
-
-(register-definition-prefixes "em-script" '("eshell"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-smart" "eshell/em-smart.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-smart.el
-
-(register-definition-prefixes "em-smart" '("eshell-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-term" "eshell/em-term.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-term.el
-
-(register-definition-prefixes "em-term" '("eshell-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-tramp" "eshell/em-tramp.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-tramp.el
-
-(register-definition-prefixes "em-tramp" '("eshell"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-unix" "eshell/em-unix.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-unix.el
-
-(register-definition-prefixes "em-unix" '("eshell" "nil-blank-string" "pcomplete/"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "em-xtra" "eshell/em-xtra.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from eshell/em-xtra.el
-
-(register-definition-prefixes "em-xtra" '("eshell/" "pcomplete/bcc"))
-
-;;;***
-
 ;;;### (autoloads nil "emacs-lock" "emacs-lock.el" (0 0 0 0))
 ;;; Generated autoloads from emacs-lock.el
 
@@ -10349,7 +10168,15 @@ Already submitted bugs can be found in the Emacs bug tracker:
 
 (set-advertised-calling-convention 'report-emacs-bug '(topic) '"24.5")
 
-(register-definition-prefixes "emacsbug" '("report-emacs-bug-"))
+(autoload 'submit-emacs-patch "emacsbug" "\
+Send an Emacs patch to the Emacs maintainers.
+Interactively, you will be prompted for SUBJECT and a patch FILE
+name (which will be attached to the mail).  You will end up in a
+Message buffer where you can explain more about the patch.
+
+\(fn SUBJECT FILE)" t nil)
+
+(register-definition-prefixes "emacsbug" '("emacs-bug--system-description" "report-emacs-bug-"))
 
 ;;;***
 
@@ -10417,10 +10244,13 @@ Minor mode for editing text/enriched files.
 These are files with embedded formatting information in the MIME standard
 text/enriched format.
 
-If called interactively, enable Enriched mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Enriched mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -10679,10 +10509,13 @@ Encrypt marked files." t nil)
 (autoload 'epa-mail-mode "epa-mail" "\
 A minor-mode for composing encrypted/clearsigned mails.
 
-If called interactively, enable epa-mail mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `epa-mail mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -10746,10 +10579,13 @@ or call the function `epa-global-mail-mode'.")
 (autoload 'epa-global-mail-mode "epa-mail" "\
 Minor mode to hook EasyPG into Mail mode.
 
-If called interactively, enable Epa-Global-Mail mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Epa-Global-Mail mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -10835,7 +10671,7 @@ Non-interactively, it takes the keyword arguments
 
 That is, if called with
 
-   (erc :server \"irc.freenode.net\" :full-name \"Harry S Truman\")
+   (erc :server \"chat.freenode.net\" :full-name \"Harry S Truman\")
 
 then the server and full-name will be set to those values, whereas
 `erc-compute-port', `erc-compute-nick' and `erc-compute-full-name' will
@@ -10862,66 +10698,10 @@ Otherwise, connect to HOST:PORT as USER and /join CHANNEL.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "erc-autoaway"
-;;;;;;  "erc/erc-autoaway.el" (0 0 0 0))
-;;; Generated autoloads from erc/erc-autoaway.el
-
-(register-definition-prefixes "erc-autoaway" '("erc-auto"))
-
-;;;***
-
 ;;;### (autoloads nil "erc-backend" "erc/erc-backend.el" (0 0 0 0))
 ;;; Generated autoloads from erc/erc-backend.el
 
 (register-definition-prefixes "erc-backend" '("erc-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-button" "erc/erc-button.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-button.el
-
-(register-definition-prefixes "erc-button" '("erc-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-capab" "erc/erc-capab.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-capab.el
-
-(register-definition-prefixes "erc-capab" '("erc-capab-identify-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-dcc" "erc/erc-dcc.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-dcc.el
-
-(register-definition-prefixes "erc-dcc" '("erc-" "pcomplete/erc-mode/"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-desktop-notifications"
-;;;;;;  "erc/erc-desktop-notifications.el" (0 0 0 0))
-;;; Generated autoloads from erc/erc-desktop-notifications.el
-
-(register-definition-prefixes "erc-desktop-notifications" '("erc-notifications-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-ezbounce"
-;;;;;;  "erc/erc-ezbounce.el" (0 0 0 0))
-;;; Generated autoloads from erc/erc-ezbounce.el
-
-(register-definition-prefixes "erc-ezbounce" '("erc-ezb-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-fill" "erc/erc-fill.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-fill.el
-
-(register-definition-prefixes "erc-fill" '("erc-"))
 
 ;;;***
 
@@ -10939,74 +10719,10 @@ Otherwise, connect to HOST:PORT as USER and /join CHANNEL.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "erc-identd" "erc/erc-identd.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-identd.el
-
-(register-definition-prefixes "erc-identd" '("erc-identd-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-imenu" "erc/erc-imenu.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-imenu.el
-
-(register-definition-prefixes "erc-imenu" '("erc-unfill-notice"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-join" "erc/erc-join.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-join.el
-
-(register-definition-prefixes "erc-join" '("erc-"))
-
-;;;***
-
 ;;;### (autoloads nil "erc-lang" "erc/erc-lang.el" (0 0 0 0))
 ;;; Generated autoloads from erc/erc-lang.el
 
 (register-definition-prefixes "erc-lang" '("erc-cmd-LANG" "iso-638-languages" "language"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-list" "erc/erc-list.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-list.el
-
-(register-definition-prefixes "erc-list" '("erc-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-log" "erc/erc-log.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-log.el
-
-(register-definition-prefixes "erc-log" '("erc-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-match" "erc/erc-match.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-match.el
-
-(register-definition-prefixes "erc-match" '("erc-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-menu" "erc/erc-menu.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-menu.el
-
-(register-definition-prefixes "erc-menu" '("erc-menu-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-netsplit"
-;;;;;;  "erc/erc-netsplit.el" (0 0 0 0))
-;;; Generated autoloads from erc/erc-netsplit.el
-
-(register-definition-prefixes "erc-netsplit" '("erc-"))
 
 ;;;***
 
@@ -11023,110 +10739,6 @@ server name and search for a match in `erc-networks-alist'." nil nil)
 Interactively select a server to connect to using `erc-server-alist'." t nil)
 
 (register-definition-prefixes "erc-networks" '("erc-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-notify" "erc/erc-notify.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-notify.el
-
-(register-definition-prefixes "erc-notify" '("erc-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-page" "erc/erc-page.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-page.el
-
-(register-definition-prefixes "erc-page" '("erc-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-pcomplete"
-;;;;;;  "erc/erc-pcomplete.el" (0 0 0 0))
-;;; Generated autoloads from erc/erc-pcomplete.el
-
-(register-definition-prefixes "erc-pcomplete" '("erc-pcomplet" "pcomplete"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-replace"
-;;;;;;  "erc/erc-replace.el" (0 0 0 0))
-;;; Generated autoloads from erc/erc-replace.el
-
-(register-definition-prefixes "erc-replace" '("erc-replace-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-ring" "erc/erc-ring.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-ring.el
-
-(register-definition-prefixes "erc-ring" '("erc-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-services"
-;;;;;;  "erc/erc-services.el" (0 0 0 0))
-;;; Generated autoloads from erc/erc-services.el
-
-(register-definition-prefixes "erc-services" '("erc-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-sound" "erc/erc-sound.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-sound.el
-
-(register-definition-prefixes "erc-sound" '("erc-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-speedbar"
-;;;;;;  "erc/erc-speedbar.el" (0 0 0 0))
-;;; Generated autoloads from erc/erc-speedbar.el
-
-(register-definition-prefixes "erc-speedbar" '("erc-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-spelling"
-;;;;;;  "erc/erc-spelling.el" (0 0 0 0))
-;;; Generated autoloads from erc/erc-spelling.el
-
-(register-definition-prefixes "erc-spelling" '("erc-spelling-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-stamp" "erc/erc-stamp.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-stamp.el
-
-(register-definition-prefixes "erc-stamp" '("erc-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-track" "erc/erc-track.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-track.el
-
-(register-definition-prefixes "erc-track" '("erc-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-truncate"
-;;;;;;  "erc/erc-truncate.el" (0 0 0 0))
-;;; Generated autoloads from erc/erc-truncate.el
-
-(register-definition-prefixes "erc-truncate" '("erc-max-buffer-size"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "erc-xdcc" "erc/erc-xdcc.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from erc/erc-xdcc.el
-
-(register-definition-prefixes "erc-xdcc" '("erc-"))
 
 ;;;***
 
@@ -11252,6 +10864,11 @@ Kill all test buffers that are still live." t nil)
 Emacs shell interactive mode.
 
 \(fn)" t nil)
+
+(autoload 'eshell-bookmark-jump "esh-mode" "\
+Default bookmark handler for Eshell buffers.
+
+\(fn BOOKMARK)" nil nil)
 
 (register-definition-prefixes "esh-mode" '("eshell"))
 
@@ -11599,7 +11216,7 @@ Do `query-replace-regexp' of FROM with TO on all files listed in tags table.
 Third arg DELIMITED (prefix arg) means replace only word-delimited matches.
 If you exit (\\[keyboard-quit], RET or q), you can resume the query replace
 with the command \\[tags-loop-continue].
-For non-interactive use, superceded by `fileloop-initialize-replace'.
+For non-interactive use, superseded by `fileloop-initialize-replace'.
 
 \(fn FROM TO &optional DELIMITED FILES)" t nil)
 
@@ -12032,11 +11649,11 @@ Render FILE using EWW.
 \(fn FILE)" t nil)
 
 (autoload 'eww-search-words "eww" "\
-Search the web for the text between BEG and END.
+Search the web for the text in the region.
 If region is active (and not whitespace), search the web for
-the text between BEG and END.  Else, prompt the user for a search
-string.  See the `eww-search-prefix' variable for the search
-engine used." t nil)
+the text between region beginning and end.  Else, prompt the
+user for a search string.  See the variable `eww-search-prefix'
+for the search engine used." t nil)
 
 (autoload 'eww-mode "eww" "\
 Mode for browsing the web.
@@ -12345,10 +11962,13 @@ a top-level keymap, `text-scale-increase' or
 (autoload 'buffer-face-mode "face-remap" "\
 Minor mode for a buffer-specific default face.
 
-If called interactively, enable Buffer-Face mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Buffer-Face mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -12395,7 +12015,7 @@ Besides the choice of face, it is the same as `buffer-face-mode'.
 
 \(fn &optional ARG)" t nil)
 
-(register-definition-prefixes "face-remap" '("buffer-face-mode-" "face-" "internal-lisp-face-attributes" "text-scale-m"))
+(register-definition-prefixes "face-remap" '("buffer-face-mode-" "face-" "internal-lisp-face-attributes" "text-scale-"))
 
 ;;;***
 
@@ -12769,6 +12389,12 @@ Execute BODY, and unwind connection-local variables.
 
 \(fn &rest BODY)" nil t)
 
+(autoload 'path-separator "files-x" "\
+The connection-local value of `path-separator'." nil nil)
+
+(autoload 'null-device "files-x" "\
+The connection-local value of `null-device'." nil nil)
+
 (register-definition-prefixes "files-x" '("connection-local-" "dir-locals-to-string" "hack-connection-local-variables" "modify-" "read-file-local-variable"))
 
 ;;;***
@@ -12817,6 +12443,9 @@ The command run (after changing into DIR) is essentially
 
 except that the car of the variable `find-ls-option' specifies what to
 use in place of \"-ls\" as the final argument.
+
+Collect output in the \"*Find*\" buffer.  To kill the job before
+it finishes, type \\[kill-find].
 
 \(fn DIR ARGS)" t nil)
 
@@ -13261,10 +12890,13 @@ region is invalid.
 (autoload 'flymake-mode "flymake" "\
 Toggle Flymake mode on or off.
 
-If called interactively, enable Flymake mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Flymake mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -13346,10 +12978,13 @@ Turn on `flyspell-mode' for comments and strings." t nil)
 (autoload 'flyspell-mode "flyspell" "\
 Toggle on-the-fly spell checking (Flyspell mode).
 
-If called interactively, enable Flyspell mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Flyspell mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -13374,7 +13009,7 @@ invoking `ispell-change-dictionary'.
 
 Consider using the `ispell-parser' to check your text.  For instance
 consider adding:
-\(add-hook \\='tex-mode-hook (function (lambda () (setq ispell-parser \\='tex))))
+\(add-hook \\='tex-mode-hook (lambda () (setq ispell-parser \\='tex)))
 in your init file.
 
 \\[flyspell-region] checks all words inside a region.
@@ -13426,10 +13061,13 @@ Turn off Follow mode.  Please see the function `follow-mode'." nil nil)
 (autoload 'follow-mode "follow" "\
 Toggle Follow mode.
 
-If called interactively, enable Follow mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Follow mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -13549,15 +13187,17 @@ selected if the original window is the first one in the frame.
 
 ;;;### (autoloads nil "footnote" "mail/footnote.el" (0 0 0 0))
 ;;; Generated autoloads from mail/footnote.el
-(push (purecopy '(footnote 0 19)) package--builtin-versions)
 
 (autoload 'footnote-mode "footnote" "\
 Toggle Footnote mode.
 
-If called interactively, enable Footnote mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Footnote mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -13988,7 +13628,6 @@ Interactively, reads the register using `register-read-with-preview'.
 
 ;;;### (autoloads nil "gamegrid" "play/gamegrid.el" (0 0 0 0))
 ;;; Generated autoloads from play/gamegrid.el
-(push (purecopy '(gamegrid 1 2)) package--builtin-versions)
 
 (register-definition-prefixes "gamegrid" '("gamegrid-"))
 
@@ -14019,10 +13658,13 @@ being transferred.  This list may grow up to a size of
 `gdb-debug-log-max' after which the oldest element (at the end of
 the list) is deleted every time a new one is added (at the front).
 
-If called interactively, enable Gdb-Enable-Debug mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Gdb-Enable-Debug mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -14112,6 +13754,10 @@ instead (which see).")
 (autoload 'define-generic-mode "generic" "\
 Create a new generic mode MODE.
 
+A \"generic\" mode is a simple major mode with basic support for
+comment syntax and Font Lock mode, but otherwise does not have
+any special keystrokes or functionality available.
+
 MODE is the name of the command for the generic mode; don't quote it.
 The optional DOCSTRING is the documentation for the mode command.  If
 you do not supply it, `define-generic-mode' uses a default
@@ -14196,10 +13842,13 @@ regular expression that can be used as an element of
 (autoload 'glasses-mode "glasses" "\
 Minor mode for making identifiers likeThis readable.
 
-If called interactively, enable Glasses mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Glasses mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -14808,10 +14457,13 @@ If FORCE is non-nil, replace the old ones.
 (autoload 'gnus-mailing-list-mode "gnus-ml" "\
 Minor mode for providing mailing-list commands.
 
-If called interactively, enable Gnus-Mailing-List mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called
-from Lisp, also enable the mode if ARG is omitted or nil, and
-toggle it if ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Gnus-Mailing-List mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero
+or negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable
+the mode if ARG is nil, omitted, or is a positive number.
+Disable the mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when
 it is disabled.
@@ -15089,6 +14741,14 @@ Initialize the Gnus registry." t nil)
 
 ;;;***
 
+;;;### (autoloads nil "gnus-search" "gnus/gnus-search.el" (0 0 0
+;;;;;;  0))
+;;; Generated autoloads from gnus/gnus-search.el
+
+(register-definition-prefixes "gnus-search" '("gnus-search-"))
+
+;;;***
+
 ;;;### (autoloads nil "gnus-sieve" "gnus/gnus-sieve.el" (0 0 0 0))
 ;;; Generated autoloads from gnus/gnus-sieve.el
 
@@ -15262,10 +14922,13 @@ Also fontifies the buffer appropriately (see `goto-address-fontify-p' and
 (autoload 'goto-address-mode "goto-addr" "\
 Minor mode to buttonize URLs and e-mail addresses in the current buffer.
 
-If called interactively, enable Goto-Address mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Goto-Address mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -15292,17 +14955,22 @@ ARG is omitted or nil.
 
 Goto-Address mode is enabled in all buffers where
 `goto-addr-mode--turn-on' would do it.
-See `goto-address-mode' for more information on Goto-Address mode.
+
+See `goto-address-mode' for more information on
+Goto-Address mode.
 
 \(fn &optional ARG)" t nil)
 
 (autoload 'goto-address-prog-mode "goto-addr" "\
 Like `goto-address-mode', but only for comments and strings.
 
-If called interactively, enable Goto-Address-Prog mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Goto-Address-Prog mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -15636,10 +15304,13 @@ or call the function `gud-tooltip-mode'.")
 (autoload 'gud-tooltip-mode "gud" "\
 Toggle the display of GUD tooltips.
 
-If called interactively, enable Gud-Tooltip mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Gud-Tooltip mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -16348,24 +16019,19 @@ This discards the buffer's undo information." t nil)
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "hfy-cmap" "hfy-cmap.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from hfy-cmap.el
-
-(register-definition-prefixes "hfy-cmap" '("hfy-" "htmlfontify-unload-rgb-file"))
-
-;;;***
-
 ;;;### (autoloads nil "hi-lock" "hi-lock.el" (0 0 0 0))
 ;;; Generated autoloads from hi-lock.el
 
 (autoload 'hi-lock-mode "hi-lock" "\
 Toggle selective highlighting of patterns (Hi Lock mode).
 
-If called interactively, enable Hi-Lock mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Hi-Lock mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -16452,7 +16118,9 @@ ARG is omitted or nil.
 
 Hi-Lock mode is enabled in all buffers where
 `turn-on-hi-lock-if-enabled' would do it.
-See `hi-lock-mode' for more information on Hi-Lock mode.
+
+See `hi-lock-mode' for more information on
+Hi-Lock mode.
 
 \(fn &optional ARG)" t nil)
 
@@ -16556,6 +16224,9 @@ Interactively added patterns are those normally specified using
 `highlight-regexp' and `highlight-lines-matching-regexp'; they can
 be found in variable `hi-lock-interactive-patterns'." t nil)
 
+(autoload 'hi-lock-find-patterns "hi-lock" "\
+Add patterns from the current buffer to the list of hi-lock patterns." t nil)
+
 (register-definition-prefixes "hi-lock" '("hi-lock-" "turn-on-hi-lock-if-enabled"))
 
 ;;;***
@@ -16566,10 +16237,13 @@ be found in variable `hi-lock-interactive-patterns'." t nil)
 (autoload 'hide-ifdef-mode "hideif" "\
 Toggle features to hide/show #ifdef blocks (Hide-Ifdef mode).
 
-If called interactively, enable Hide-Ifdef mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Hide-Ifdef mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -16617,7 +16291,7 @@ Several variables affect how the hiding is done:
 ;;;### (autoloads nil "hideshow" "progmodes/hideshow.el" (0 0 0 0))
 ;;; Generated autoloads from progmodes/hideshow.el
 
-(defvar hs-special-modes-alist (mapcar 'purecopy '((c-mode "{" "}" "/[*/]" nil nil) (c++-mode "{" "}" "/[*/]" nil nil) (bibtex-mode ("@\\S(*\\(\\s(\\)" 1)) (java-mode "{" "}" "/[*/]" nil nil) (js-mode "{" "}" "/[*/]" nil))) "\
+(defvar hs-special-modes-alist (mapcar 'purecopy '((c-mode "{" "}" "/[*/]" nil nil) (c++-mode "{" "}" "/[*/]" nil nil) (bibtex-mode ("@\\S(*\\(\\s(\\)" 1)) (java-mode "{" "}" "/[*/]" nil nil) (js-mode "{" "}" "/[*/]" nil) (mhtml-mode "{\\|<[^/>]*?" "}\\|</[^/>]*[^/]>" "<!--" mhtml-forward nil))) "\
 Alist for initializing the hideshow variables for different modes.
 Each element has the form
   (MODE START END COMMENT-START FORWARD-SEXP-FUNC ADJUST-BEG-FUNC).
@@ -16648,10 +16322,13 @@ whitespace.  Case does not matter.")
 (autoload 'hs-minor-mode "hideshow" "\
 Minor mode to selectively hide/show code and comment blocks.
 
-If called interactively, enable Hs minor mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Hs minor mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -16695,10 +16372,13 @@ Unconditionally turn off `hs-minor-mode'." nil nil)
 (autoload 'highlight-changes-mode "hilit-chg" "\
 Toggle highlighting changes in this buffer (Highlight Changes mode).
 
-If called interactively, enable Highlight-Changes mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Highlight-Changes mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -16723,10 +16403,13 @@ buffer with the contents of a file
 (autoload 'highlight-changes-visible-mode "hilit-chg" "\
 Toggle visibility of highlighting due to Highlight Changes mode.
 
-If called interactively, enable Highlight-Changes-Visible mode if ARG
-is positive, and disable it if ARG is zero or negative.  If called
-from Lisp, also enable the mode if ARG is omitted or nil, and toggle
-it if ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Highlight-Changes-Visible mode'.  If
+the prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -16821,7 +16504,9 @@ ARG is omitted or nil.
 
 Highlight-Changes mode is enabled in all buffers where
 `highlight-changes-mode-turn-on' would do it.
-See `highlight-changes-mode' for more information on Highlight-Changes mode.
+
+See `highlight-changes-mode' for more information on
+Highlight-Changes mode.
 
 \(fn &optional ARG)" t nil)
 
@@ -16868,10 +16553,13 @@ argument VERBOSE non-nil makes the function verbose.
 (autoload 'hl-line-mode "hl-line" "\
 Toggle highlighting of the current line (Hl-Line mode).
 
-If called interactively, enable Hl-Line mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Hl-Line mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -16903,10 +16591,13 @@ or call the function `global-hl-line-mode'.")
 (autoload 'global-hl-line-mode "hl-line" "\
 Toggle line highlighting in all buffers (Global Hl-Line mode).
 
-If called interactively, enable Global Hl-Line mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Global Hl-Line mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -17083,14 +16774,6 @@ You may also want to set `hfy-page-header' and `hfy-page-footer'.
 \(fn SRCDIR DSTDIR &optional F-EXT L-EXT)" t nil)
 
 (register-definition-prefixes "htmlfontify" '("hfy-" "htmlfontify-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ibuf-ext" "ibuf-ext.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from ibuf-ext.el
-
-(register-definition-prefixes "ibuf-ext" '("alphabetic" "basename" "content" "derived-mode" "directory" "eval" "file" "ibuffer-" "major-mode" "mod" "name" "predicate" "print" "process" "query-replace" "rename-uniquely" "replace-regexp" "revert" "shell-command-" "size" "starred-name" "used-mode" "view-and-eval" "visiting-file"))
 
 ;;;***
 
@@ -17326,10 +17009,13 @@ or call the function `fido-mode'.")
 (autoload 'fido-mode "icomplete" "\
 An enhanced `icomplete-mode' that emulates `ido-mode'.
 
-If called interactively, enable Fido mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Fido mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -17352,10 +17038,13 @@ or call the function `icomplete-mode'.")
 (autoload 'icomplete-mode "icomplete" "\
 Toggle incremental minibuffer completion (Icomplete mode).
 
-If called interactively, enable Icomplete mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Icomplete mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -17590,7 +17279,7 @@ The main features of this mode are
    \\[idlwave-info] to display (complain to your sysadmin if that does
    not work).  For Postscript, PDF, and HTML versions of the
    documentation, check IDLWAVE's homepage at URL
-   `http://github.com/jdtsmith/idlwave'.
+   `https://github.com/jdtsmith/idlwave'.
    IDLWAVE has customize support - see the group `idlwave'.
 
 10.Keybindings
@@ -17897,10 +17586,13 @@ See `inferior-emacs-lisp-mode' for details.
 (autoload 'iimage-mode "iimage" "\
 Toggle Iimage mode on or off.
 
-If called interactively, enable Iimage mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Iimage mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -18208,10 +17900,13 @@ Setup easy-to-use keybindings for the commands to be used in dired mode.
 Note that n, p and <down> and <up> will be hijacked and bound to
 `image-dired-dired-x-line'.
 
-If called interactively, enable Image-Dired minor mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Image-Dired minor mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -18307,10 +18002,13 @@ or call the function `auto-image-file-mode'.")
 (autoload 'auto-image-file-mode "image-file" "\
 Toggle visiting of image files as images (Auto Image File mode).
 
-If called interactively, enable Auto-Image-File mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Auto-Image-File mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -18339,10 +18037,13 @@ Key bindings:
 (autoload 'image-minor-mode "image-mode" "\
 Toggle Image minor mode in this buffer.
 
-If called interactively, enable Image minor mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Image minor mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -18584,7 +18285,7 @@ the environment variable INFOPATH is set.
 
 Although this is a customizable variable, that is mainly for technical
 reasons.  Normally, you should either set INFOPATH or customize
-`Info-additional-directory-list', rather than changing this variable." :initialize 'custom-initialize-delay :type '(repeat directory) :group 'info)
+`Info-additional-directory-list', rather than changing this variable." :initialize 'custom-initialize-delay :type '(repeat directory))
 
 (autoload 'info-other-window "info" "\
 Like `info' but show the Info buffer in another window.
@@ -18965,7 +18666,12 @@ See Info node `(elisp)Defining Functions' for more details.
 Declare that you need either EMACS-VER, XEMACS-VER or SXEMACS-ver.
 Only checks one based on which kind of Emacs is being run.
 
+This function is obsolete; do this instead:
+    (when (version<= \"28.1\" emacs-version) ...)
+
 \(fn EMACS-VER XEMACS-VER SXEMACS-VER)" nil nil)
+
+(make-obsolete 'inversion-require-emacs 'nil '"28.1")
 
 (register-definition-prefixes "inversion" '("inversion-"))
 
@@ -18980,6 +18686,9 @@ Select an input method and turn it on in interactive search." t nil)
 
 (autoload 'isearch-toggle-input-method "isearch-x" "\
 Toggle input method in interactive search." t nil)
+
+(autoload 'isearch-transient-input-method "isearch-x" "\
+Activate transient input method in interactive search." t nil)
 
 (autoload 'isearch-process-search-multibyte-characters "isearch-x" "\
 
@@ -19297,10 +19006,13 @@ available on the net." t nil)
 (autoload 'ispell-minor-mode "ispell" "\
 Toggle last-word spell checking (Ispell minor mode).
 
-If called interactively, enable ISpell minor mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `ISpell minor mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -19336,7 +19048,7 @@ in your init file:
 
 You can bind this to the key C-c i in GNUS or mail by adding to
 `news-reply-mode-hook' or `mail-mode-hook' the following lambda expression:
-   (function (lambda () (local-set-key \"\\C-ci\" \\='ispell-message)))" t nil)
+   (lambda () (local-set-key \"\\C-ci\" \\='ispell-message))" t nil)
 
 (register-definition-prefixes "ispell" '("check-ispell-version" "ispell-"))
 
@@ -19499,7 +19211,7 @@ one of the aforementioned options instead of using this mode.
 
 ;;;### (autoloads nil "jsonrpc" "jsonrpc.el" (0 0 0 0))
 ;;; Generated autoloads from jsonrpc.el
-(push (purecopy '(jsonrpc 1 0 12)) package--builtin-versions)
+(push (purecopy '(jsonrpc 1 0 14)) package--builtin-versions)
 
 (register-definition-prefixes "jsonrpc" '("jsonrpc-"))
 
@@ -19989,10 +19701,13 @@ sleep in seconds.
 (autoload 'linum-mode "linum" "\
 Toggle display of line numbers in the left margin (Linum mode).
 
-If called interactively, enable Linum mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Linum mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -20021,7 +19736,9 @@ ARG is omitted or nil.
 
 Linum mode is enabled in all buffers where
 `linum-on' would do it.
-See `linum-mode' for more information on Linum mode.
+
+See `linum-mode' for more information on
+Linum mode.
 
 \(fn &optional ARG)" t nil)
 
@@ -20046,11 +19763,10 @@ If the feature is required by any other loaded code, and prefix arg FORCE
 is nil, raise an error.
 
 Standard unloading activities include restoring old autoloads for
-functions defined by the library, undoing any additions that the
-library has made to hook variables or to `auto-mode-alist', undoing
-ELP profiling of functions in that library, unproviding any features
-provided by the library, and canceling timers held in variables
-defined by the library.
+functions defined by the library, removing such functions from
+hooks and `auto-mode-alist', undoing their ELP profiling,
+unproviding any features provided by the library, and canceling
+timers held in variables defined by the library.
 
 If a function `FEATURE-unload-function' is defined, this function
 calls it with no arguments, before doing anything else.  That function
@@ -20565,10 +20281,13 @@ or call the function `mail-abbrevs-mode'.")
 (autoload 'mail-abbrevs-mode "mailabbrev" "\
 Toggle abbrev expansion of mail aliases (Mail Abbrevs mode).
 
-If called interactively, enable Mail-Abbrevs mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Mail-Abbrevs mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -20904,10 +20623,13 @@ Default bookmark handler for Man buffers.
 (autoload 'master-mode "master" "\
 Toggle Master mode.
 
-If called interactively, enable Master mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Master mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -20943,10 +20665,13 @@ or call the function `minibuffer-depth-indicate-mode'.")
 (autoload 'minibuffer-depth-indicate-mode "mb-depth" "\
 Toggle Minibuffer Depth Indication mode.
 
-If called interactively, enable Minibuffer-Depth-Indicate mode if ARG
-is positive, and disable it if ARG is zero or negative.  If called
-from Lisp, also enable the mode if ARG is omitted or nil, and toggle
-it if ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Minibuffer-Depth-Indicate mode'.  If
+the prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -20964,7 +20689,6 @@ recursion depth in the minibuffer prompt.  This is only useful if
 
 ;;;### (autoloads nil "md4" "md4.el" (0 0 0 0))
 ;;; Generated autoloads from md4.el
-(push (purecopy '(md4 1 0)) package--builtin-versions)
 
 (register-definition-prefixes "md4" '("md4"))
 
@@ -21488,10 +21212,13 @@ or call the function `midnight-mode'.")
 (autoload 'midnight-mode "midnight" "\
 Non-nil means run `midnight-hook' at midnight.
 
-If called interactively, enable Midnight mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Midnight mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -21537,10 +21264,13 @@ or call the function `minibuffer-electric-default-mode'.")
 (autoload 'minibuffer-electric-default-mode "minibuf-eldef" "\
 Toggle Minibuffer Electric Default mode.
 
-If called interactively, enable Minibuffer-Electric-Default mode if
-ARG is positive, and disable it if ARG is zero or negative.  If called
-from Lisp, also enable the mode if ARG is omitted or nil, and toggle
-it if ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Minibuffer-Electric-Default mode'.
+If the prefix argument is positive, enable the mode, and if it is zero
+or negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -21608,7 +21338,7 @@ upper atmosphere.  These cause momentary pockets of higher-pressure
 air to form, which act as lenses that deflect incoming cosmic rays,
 focusing them to strike the drive platter and flip the desired bit.
 You can type `M-x butterfly C-M-c' to run it.  This is a permuted
-variation of `C-x M-c M-butterfly' from url `http://xkcd.com/378/'." t nil)
+variation of `C-x M-c M-butterfly' from url `https://xkcd.com/378/'." t nil)
 
 (autoload 'list-dynamic-libraries "misc" "\
 Display a list of all dynamic libraries known to Emacs.
@@ -21716,7 +21446,7 @@ whose file names match the specified wildcard.
 ;;;### (autoloads nil "mixal-mode" "progmodes/mixal-mode.el" (0 0
 ;;;;;;  0 0))
 ;;; Generated autoloads from progmodes/mixal-mode.el
-(push (purecopy '(mixal-mode 0 1)) package--builtin-versions)
+(push (purecopy '(mixal-mode 0 4)) package--builtin-versions)
 
 (autoload 'mixal-mode "mixal-mode" "\
 Major mode for the mixal asm language.
@@ -22110,10 +21840,13 @@ or call the function `msb-mode'.")
 (autoload 'msb-mode "msb" "\
 Toggle Msb mode.
 
-If called interactively, enable Msb mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Msb mode'.  If the prefix argument is
+positive, enable the mode, and if it is zero or negative, disable the
+mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -22129,6 +21862,12 @@ different buffer menu using the function `msb'.
 
 ;;;### (autoloads nil "mspools" "mail/mspools.el" (0 0 0 0))
 ;;; Generated autoloads from mail/mspools.el
+
+(autoload 'mspools-show "mspools" "\
+Show the list of non-empty spool files in the *spools* buffer.
+Buffer is not displayed if SHOW is non-nil.
+
+\(fn &optional NOSHOW)" t nil)
 
 (register-definition-prefixes "mspools" '("mspools-"))
 
@@ -22289,7 +22028,7 @@ If ELLIPSIS is non-nil, it should be a string which will replace the
 end of STR (including any padding) if it extends beyond END-COLUMN,
 unless the display width of STR is equal to or less than the display
 width of ELLIPSIS.  If it is non-nil and not a string, then ELLIPSIS
-defaults to `truncate-string-ellipsis'.
+defaults to `truncate-string-ellipsis', or to three dots when it's nil.
 
 If ELLIPSIS-TEXT-PROPERTY is non-nil, a too-long string will not
 be truncated, but instead the elided parts will be covered by a
@@ -22845,13 +22584,6 @@ This command does not work if you use short group names." t nil)
 
 ;;;***
 
-;;;### (autoloads nil "nnir" "gnus/nnir.el" (0 0 0 0))
-;;; Generated autoloads from gnus/nnir.el
-
-(register-definition-prefixes "nnir" '("gnus-" "nnir-"))
-
-;;;***
-
 ;;;### (autoloads nil "nnmail" "gnus/nnmail.el" (0 0 0 0))
 ;;; Generated autoloads from gnus/nnmail.el
 
@@ -22924,6 +22656,13 @@ Generate NOV databases in all nnml directories.
 ;;; Generated autoloads from gnus/nnrss.el
 
 (register-definition-prefixes "nnrss" '("nnrss-"))
+
+;;;***
+
+;;;### (autoloads nil "nnselect" "gnus/nnselect.el" (0 0 0 0))
+;;; Generated autoloads from gnus/nnselect.el
+
+(register-definition-prefixes "nnselect" '("gnus-" "ids-by-group" "nnselect-" "numbers-by-group"))
 
 ;;;***
 
@@ -23208,14 +22947,6 @@ Many aspects this mode can be customized using
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "ob-core" "org/ob-core.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ob-core.el
-
-(register-definition-prefixes "ob-core" '("org-"))
-
-;;;***
-
 ;;;### (autoloads nil "ob-css" "org/ob-css.el" (0 0 0 0))
 ;;; Generated autoloads from org/ob-css.el
 
@@ -23362,14 +23093,6 @@ Many aspects this mode can be customized using
 ;;; Generated autoloads from org/ob-lisp.el
 
 (register-definition-prefixes "ob-lisp" '("org-babel-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ob-lob" "org/ob-lob.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ob-lob.el
-
-(register-definition-prefixes "ob-lob" '("org-babel-"))
 
 ;;;***
 
@@ -23543,14 +23266,6 @@ Many aspects this mode can be customized using
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "ob-tangle" "org/ob-tangle.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ob-tangle.el
-
-(register-definition-prefixes "ob-tangle" '("org-babel-"))
-
-;;;***
-
 ;;;### (autoloads nil "ob-vala" "org/ob-vala.el" (0 0 0 0))
 ;;; Generated autoloads from org/ob-vala.el
 
@@ -23712,14 +23427,6 @@ Also refresh fontification if needed." t nil)
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "ol-bbdb" "org/ol-bbdb.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ol-bbdb.el
-
-(register-definition-prefixes "ol-bbdb" '("org-bbdb-"))
-
-;;;***
-
 ;;;### (autoloads nil "ol-bibtex" "org/ol-bibtex.el" (0 0 0 0))
 ;;; Generated autoloads from org/ol-bibtex.el
 
@@ -23759,14 +23466,6 @@ Also refresh fontification if needed." t nil)
 ;;; Generated autoloads from org/ol-info.el
 
 (register-definition-prefixes "ol-info" '("org-info-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ol-irc" "org/ol-irc.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ol-irc.el
-
-(register-definition-prefixes "ol-irc" '("org-irc-"))
 
 ;;;***
 
@@ -24299,22 +23998,6 @@ to override `appt-message-warning-time'.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "org-archive"
-;;;;;;  "org/org-archive.el" (0 0 0 0))
-;;; Generated autoloads from org/org-archive.el
-
-(register-definition-prefixes "org-archive" '("org-a"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "org-attach" "org/org-attach.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/org-attach.el
-
-(register-definition-prefixes "org-attach" '("org-attach-"))
-
-;;;***
-
 ;;;### (autoloads nil "org-attach-git" "org/org-attach-git.el" (0
 ;;;;;;  0 0 0))
 ;;; Generated autoloads from org/org-attach-git.el
@@ -24366,14 +24049,6 @@ of the day at point (if any) or the current HH:MM time.
 Set `org-capture-templates' to be similar to `org-remember-templates'." t nil)
 
 (register-definition-prefixes "org-capture" '("org-capture-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "org-clock" "org/org-clock.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/org-clock.el
-
-(register-definition-prefixes "org-clock" '("org-"))
 
 ;;;***
 
@@ -24492,14 +24167,6 @@ Try very hard to provide sensible version strings." nil t)
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "org-datetree"
-;;;;;;  "org/org-datetree.el" (0 0 0 0))
-;;; Generated autoloads from org/org-datetree.el
-
-(register-definition-prefixes "org-datetree" '("org-datetree-"))
-
-;;;***
-
 ;;;### (autoloads nil "org-duration" "org/org-duration.el" (0 0 0
 ;;;;;;  0))
 ;;; Generated autoloads from org/org-duration.el
@@ -24555,14 +24222,6 @@ with \"H:MM:SS\" format, return `h:mm:ss'.  Otherwise, return
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "org-element"
-;;;;;;  "org/org-element.el" (0 0 0 0))
-;;; Generated autoloads from org/org-element.el
-
-(register-definition-prefixes "org-element" '("org-element-"))
-
-;;;***
-
 ;;;### (autoloads nil "org-entities" "org/org-entities.el" (0 0 0
 ;;;;;;  0))
 ;;; Generated autoloads from org/org-entities.el
@@ -24575,22 +24234,6 @@ with \"H:MM:SS\" format, return `h:mm:ss'.  Otherwise, return
 ;;; Generated autoloads from org/org-faces.el
 
 (register-definition-prefixes "org-faces" '("org-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "org-feed" "org/org-feed.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/org-feed.el
-
-(register-definition-prefixes "org-feed" '("org-feed-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "org-footnote"
-;;;;;;  "org/org-footnote.el" (0 0 0 0))
-;;; Generated autoloads from org/org-footnote.el
-
-(register-definition-prefixes "org-footnote" '("org-footnote-"))
 
 ;;;***
 
@@ -24634,22 +24277,6 @@ With a prefix argument, use the alternative interface: e.g., if
 ;;; Generated autoloads from org/org-habit.el
 
 (register-definition-prefixes "org-habit" '("org-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "org-id" "org/org-id.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/org-id.el
-
-(register-definition-prefixes "org-id" '("org-id-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "org-indent" "org/org-indent.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/org-indent.el
-
-(register-definition-prefixes "org-indent" '("org-"))
 
 ;;;***
 
@@ -24715,14 +24342,6 @@ Load FILE with optional arguments NOERROR and MUSTSUFFIX.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "org-mobile" "org/org-mobile.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/org-mobile.el
-
-(register-definition-prefixes "org-mobile" '("org-mobile-"))
-
-;;;***
-
 ;;;### (autoloads nil "org-mouse" "org/org-mouse.el" (0 0 0 0))
 ;;; Generated autoloads from org/org-mouse.el
 
@@ -24742,10 +24361,13 @@ NUMBERING is a list of numbers.
 (autoload 'org-num-mode "org-num" "\
 Dynamic numbering of headlines in an Org buffer.
 
-If called interactively, enable Org-Num mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Org-Num mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -24764,14 +24386,6 @@ disabled.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "org-plot" "org/org-plot.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/org-plot.el
-
-(register-definition-prefixes "org-plot" '("org-plot"))
-
-;;;***
-
 ;;;### (autoloads nil "org-protocol" "org/org-protocol.el" (0 0 0
 ;;;;;;  0))
 ;;; Generated autoloads from org/org-protocol.el
@@ -24787,26 +24401,10 @@ disabled.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "org-table" "org/org-table.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/org-table.el
-
-(register-definition-prefixes "org-table" '("org"))
-
-;;;***
-
 ;;;### (autoloads nil "org-tempo" "org/org-tempo.el" (0 0 0 0))
 ;;; Generated autoloads from org/org-tempo.el
 
 (register-definition-prefixes "org-tempo" '("org-tempo-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "org-timer" "org/org-timer.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/org-timer.el
-
-(register-definition-prefixes "org-timer" '("org-timer-"))
 
 ;;;***
 
@@ -24827,6 +24425,7 @@ Inserted by installing Org or when a release is made." nil nil)
 ;;; Generated autoloads from outline.el
 (put 'outline-regexp 'safe-local-variable 'stringp)
 (put 'outline-heading-end-regexp 'safe-local-variable 'stringp)
+(put 'outline-level 'risky-local-variable t)
 
 (autoload 'outline-mode "outline" "\
 Set major mode for editing outlines with selective display.
@@ -24856,10 +24455,13 @@ Turning on outline mode calls the value of `text-mode-hook' and then of
 (autoload 'outline-minor-mode "outline" "\
 Toggle Outline minor mode.
 
-If called interactively, enable Outline minor mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Outline minor mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -24867,105 +24469,8 @@ disabled.
 See the command `outline-mode' for more information on this mode.
 
 \(fn &optional ARG)" t nil)
-(put 'outline-level 'risky-local-variable t)
 
 (register-definition-prefixes "outline" '("outline-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ox" "org/ox.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ox.el
-
-(register-definition-prefixes "ox" '("org-export-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ox-ascii" "org/ox-ascii.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ox-ascii.el
-
-(register-definition-prefixes "ox-ascii" '("org-ascii-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ox-beamer" "org/ox-beamer.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ox-beamer.el
-
-(register-definition-prefixes "ox-beamer" '("org-beamer-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ox-html" "org/ox-html.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ox-html.el
-
-(register-definition-prefixes "ox-html" '("org-html-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ox-icalendar"
-;;;;;;  "org/ox-icalendar.el" (0 0 0 0))
-;;; Generated autoloads from org/ox-icalendar.el
-
-(register-definition-prefixes "ox-icalendar" '("org-icalendar-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ox-latex" "org/ox-latex.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ox-latex.el
-
-(register-definition-prefixes "ox-latex" '("org-latex-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ox-man" "org/ox-man.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ox-man.el
-
-(register-definition-prefixes "ox-man" '("org-man-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ox-md" "org/ox-md.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ox-md.el
-
-(register-definition-prefixes "ox-md" '("org-md-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ox-odt" "org/ox-odt.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ox-odt.el
-
-(register-definition-prefixes "ox-odt" '("org-odt-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ox-org" "org/ox-org.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ox-org.el
-
-(register-definition-prefixes "ox-org" '("org-org-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ox-publish" "org/ox-publish.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ox-publish.el
-
-(register-definition-prefixes "ox-publish" '("org-publish-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ox-texinfo" "org/ox-texinfo.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from org/ox-texinfo.el
-
-(register-definition-prefixes "ox-texinfo" '("org-texinfo-"))
 
 ;;;***
 
@@ -25158,10 +24663,13 @@ or call the function `show-paren-mode'.")
 (autoload 'show-paren-mode "paren" "\
 Toggle visualization of matching parens (Show Paren mode).
 
-If called interactively, enable Show-Paren mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Show-Paren mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -25502,7 +25010,12 @@ Completion rules for the `ssh' command." nil nil)
 Completion rules for the `scp' command.
 Includes files as well as host names followed by a colon." nil nil)
 
-(register-definition-prefixes "pcmpl-unix" '("pcmpl-"))
+(autoload 'pcomplete/telnet "pcmpl-unix" nil nil nil)
+
+(autoload 'pcomplete/rsh "pcmpl-unix" "\
+Complete `rsh', which, after the user and hostname, is like xargs." nil nil)
+
+(register-definition-prefixes "pcmpl-unix" '("pcmpl-" "pcomplete/"))
 
 ;;;***
 
@@ -25521,6 +25034,11 @@ long options." nil nil)
 
 (autoload 'pcomplete/ag "pcmpl-x" "\
 Completion for the `ag' command." nil nil)
+
+(autoload 'pcomplete/bcc32 "pcmpl-x" "\
+Completion function for Borland's C++ compiler." nil nil)
+
+(defalias 'pcomplete/bcc 'pcomplete/bcc32)
 
 (register-definition-prefixes "pcmpl-x" '("pcmpl-x-"))
 
@@ -25858,10 +25376,13 @@ or call the function `pixel-scroll-mode'.")
 (autoload 'pixel-scroll-mode "pixel-scroll" "\
 A minor mode to scroll text pixel-by-pixel.
 
-If called interactively, enable Pixel-Scroll mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Pixel-Scroll mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -26573,7 +26094,7 @@ Open profile FILENAME.
 
 ;;;### (autoloads nil "project" "progmodes/project.el" (0 0 0 0))
 ;;; Generated autoloads from progmodes/project.el
-(push (purecopy '(project 0 5 1)) package--builtin-versions)
+(push (purecopy '(project 0 5 2)) package--builtin-versions)
 
 (autoload 'project-current "project" "\
 Return the project instance in DIRECTORY, defaulting to `default-directory'.
@@ -26622,7 +26143,8 @@ Run project command, displaying resultant buffer in a new tab.
 The following commands are available:
 
 \\{project-prefix-map}" t nil)
- (define-key tab-prefix-map "p" #'project-other-tab-command)
+
+(when (bound-and-true-p tab-prefix-map) (define-key tab-prefix-map "p" #'project-other-tab-command))
 
 (autoload 'project-find-regexp "project" "\
 Find all matches for REGEXP in the current project's roots.
@@ -26644,13 +26166,15 @@ pattern to search for.
 
 (autoload 'project-find-file "project" "\
 Visit a file (with completion) in the current project.
-The completion default is the filename at point, if one is
-recognized." t nil)
+
+The completion default is the filename at point, determined by
+`thing-at-point' (whether such file exists or not)." t nil)
 
 (autoload 'project-or-external-find-file "project" "\
 Visit a file (with completion) in the current project or external roots.
-The completion default is the filename at point, if one is
-recognized." t nil)
+
+The completion default is the filename at point, determined by
+`thing-at-point' (whether such file exists or not)." t nil)
 
 (autoload 'project-dired "project" "\
 Start Dired in the current project's root." t nil)
@@ -26742,7 +26266,7 @@ identical.  Only the buffers that match a condition in
 `project-kill-buffer-conditions' will be killed.  If NO-CONFIRM
 is non-nil, the command will not ask the user for confirmation.
 NO-CONFIRM is always nil when the command is invoked
-interactivly.
+interactively.
 
 \(fn &optional NO-CONFIRM)" t nil)
 
@@ -26873,14 +26397,6 @@ Typing \\<ps-run-mode-map>\\[ps-run-goto-error] when the cursor is at the number
 \(fn)" t nil)
 
 (register-definition-prefixes "ps-mode" '("ps-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "ps-mule" "ps-mule.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from ps-mule.el
-
-(register-definition-prefixes "ps-mule" '("ps-mule-"))
 
 ;;;***
 
@@ -27109,7 +26625,7 @@ Optional argument FACE specifies the face to do the highlighting.
 
 ;;;### (autoloads nil "python" "progmodes/python.el" (0 0 0 0))
 ;;; Generated autoloads from progmodes/python.el
-(push (purecopy '(python 0 26 1)) package--builtin-versions)
+(push (purecopy '(python 0 27)) package--builtin-versions)
 
 (add-to-list 'auto-mode-alist (cons (purecopy "\\.py[iw]?\\'") 'python-mode))
 
@@ -27613,10 +27129,13 @@ or call the function `rcirc-track-minor-mode'.")
 (autoload 'rcirc-track-minor-mode "rcirc" "\
 Global minor mode for tracking activity in rcirc buffers.
 
-If called interactively, enable Rcirc-Track minor mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Rcirc-Track minor mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -27662,10 +27181,13 @@ or call the function `recentf-mode'.")
 (autoload 'recentf-mode "recentf" "\
 Toggle \"Open Recent\" menu (Recentf mode).
 
-If called interactively, enable Recentf mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Recentf mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -27817,10 +27339,13 @@ with a prefix argument, prompt for START-AT and FORMAT.
 (autoload 'rectangle-mark-mode "rect" "\
 Toggle the region as rectangular.
 
-If called interactively, enable Rectangle-Mark mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Rectangle-Mark mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -27853,10 +27378,13 @@ Activates the region if needed.  Only lasts until the region is deactivated.
 (autoload 'refill-mode "refill" "\
 Toggle automatic refilling (Refill mode).
 
-If called interactively, enable Refill mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Refill mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -27887,10 +27415,13 @@ Turn on RefTeX mode." nil nil)
 (autoload 'reftex-mode "reftex" "\
 Minor mode with distinct support for \\label, \\ref and \\cite in LaTeX.
 
-If called interactively, enable Reftex mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Reftex mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -27930,78 +27461,6 @@ Reset the symbols containing information from buffer scanning.
 This enforces rescanning the buffer on next use." nil nil)
 
 (register-definition-prefixes "reftex" '("reftex-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "reftex-auc" "textmodes/reftex-auc.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from textmodes/reftex-auc.el
-
-(register-definition-prefixes "reftex-auc" '("reftex-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "reftex-cite"
-;;;;;;  "textmodes/reftex-cite.el" (0 0 0 0))
-;;; Generated autoloads from textmodes/reftex-cite.el
-
-(register-definition-prefixes "reftex-cite" '("reftex-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "reftex-dcr" "textmodes/reftex-dcr.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from textmodes/reftex-dcr.el
-
-(register-definition-prefixes "reftex-dcr" '("reftex-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "reftex-global"
-;;;;;;  "textmodes/reftex-global.el" (0 0 0 0))
-;;; Generated autoloads from textmodes/reftex-global.el
-
-(register-definition-prefixes "reftex-global" '("reftex-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "reftex-index"
-;;;;;;  "textmodes/reftex-index.el" (0 0 0 0))
-;;; Generated autoloads from textmodes/reftex-index.el
-
-(register-definition-prefixes "reftex-index" '("reftex-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "reftex-parse"
-;;;;;;  "textmodes/reftex-parse.el" (0 0 0 0))
-;;; Generated autoloads from textmodes/reftex-parse.el
-
-(register-definition-prefixes "reftex-parse" '("reftex-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "reftex-ref" "textmodes/reftex-ref.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from textmodes/reftex-ref.el
-
-(register-definition-prefixes "reftex-ref" '("reftex-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "reftex-sel" "textmodes/reftex-sel.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from textmodes/reftex-sel.el
-
-(register-definition-prefixes "reftex-sel" '("reftex-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "reftex-toc" "textmodes/reftex-toc.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from textmodes/reftex-toc.el
-
-(register-definition-prefixes "reftex-toc" '("reftex-"))
 
 ;;;***
 
@@ -28083,7 +27542,6 @@ This means the number of non-shy regexp grouping constructs
 
 ;;;### (autoloads nil "regi" "emacs-lisp/regi.el" (0 0 0 0))
 ;;; Generated autoloads from emacs-lisp/regi.el
-(push (purecopy '(regi 1 8)) package--builtin-versions)
 
 (register-definition-prefixes "regi" '("regi-"))
 
@@ -28238,16 +27696,21 @@ first comment line visible (if point is in a comment).
 (autoload 'reveal-mode "reveal" "\
 Toggle uncloaking of invisible text near point (Reveal mode).
 
-If called interactively, enable Reveal mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Reveal mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
 
 Reveal mode is a buffer-local minor mode.  When enabled, it
 reveals invisible text around point.
+
+Also see the `reveal-auto-hide' variable.
 
 \(fn &optional ARG)" t nil)
 
@@ -28265,10 +27728,13 @@ or call the function `global-reveal-mode'.")
 Toggle Reveal mode in all buffers (Global Reveal mode).
 Reveal mode renders invisible text around point visible again.
 
-If called interactively, enable Global Reveal mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Global Reveal mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -28597,30 +28063,6 @@ Set PASSWORD to be used for retrieving mail from a POP or IMAP server.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "rmailedit" "mail/rmailedit.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from mail/rmailedit.el
-
-(register-definition-prefixes "rmailedit" '("rmail-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "rmailkwd" "mail/rmailkwd.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from mail/rmailkwd.el
-
-(register-definition-prefixes "rmailkwd" '("rmail-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "rmailmm" "mail/rmailmm.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from mail/rmailmm.el
-
-(register-definition-prefixes "rmailmm" '("rmail-"))
-
-;;;***
-
 ;;;### (autoloads nil "rmailout" "mail/rmailout.el" (0 0 0 0))
 ;;; Generated autoloads from mail/rmailout.el
 (put 'rmail-output-file-alist 'risky-local-variable t)
@@ -28690,22 +28132,6 @@ than appending to it.  Deletes the message after writing if
 \(fn FILE-NAME)" t nil)
 
 (register-definition-prefixes "rmailout" '("rmail-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "rmailsort" "mail/rmailsort.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from mail/rmailsort.el
-
-(register-definition-prefixes "rmailsort" '("rmail-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "rmailsum" "mail/rmailsum.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from mail/rmailsum.el
-
-(register-definition-prefixes "rmailsum" '("rmail-"))
 
 ;;;***
 
@@ -28836,10 +28262,13 @@ Validation will be enabled if `rng-nxml-auto-validate-flag' is non-nil." t nil)
 (autoload 'rng-validate-mode "rng-valid" "\
 Minor mode performing continual validation against a RELAX NG schema.
 
-If called interactively, enable Rng-Validate mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Rng-Validate mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -28990,10 +28419,13 @@ highlighting.
 (autoload 'rst-minor-mode "rst" "\
 Toggle ReST minor mode.
 
-If called interactively, enable Rst minor mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Rst minor mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -29025,7 +28457,7 @@ Major mode for editing Ruby code.
 
 \(fn)" t nil)
 
-(add-to-list 'auto-mode-alist (cons (purecopy (concat "\\(?:\\.\\(?:" "rbw?\\|ru\\|rake\\|thor" "\\|jbuilder\\|rabl\\|gemspec\\|podspec" "\\)" "\\|/" "\\(?:Gem\\|Rake\\|Cap\\|Thor" "\\|Puppet\\|Berks" "\\|Vagrant\\|Guard\\|Pod\\)file" "\\)\\'")) 'ruby-mode))
+(add-to-list 'auto-mode-alist (cons (purecopy (concat "\\(?:\\.\\(?:" "rbw?\\|ru\\|rake\\|thor" "\\|jbuilder\\|rabl\\|gemspec\\|podspec" "\\)" "\\|/" "\\(?:Gem\\|Rake\\|Cap\\|Thor" "\\|Puppet\\|Berks\\|Brew" "\\|Vagrant\\|Guard\\|Pod\\)file" "\\)\\'")) 'ruby-mode))
 
 (dolist (name (list "ruby" "rbx" "jruby" "ruby1.9" "ruby1.8")) (add-to-list 'interpreter-mode-alist (cons (purecopy name) 'ruby-mode)))
 
@@ -29043,10 +28475,13 @@ Use the command `ruler-mode' to change this variable.")
 (autoload 'ruler-mode "ruler-mode" "\
 Toggle display of ruler in header line (Ruler mode).
 
-If called interactively, enable Ruler mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Ruler mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -29247,6 +28682,29 @@ For more details, see Info node `(elisp) Extending Rx'.
 
 (function-put 'rx-define 'lisp-indent-function 'defun)
 
+(autoload 'rx--pcase-macroexpander "rx" "\
+A pattern that matches strings against `rx' REGEXPS in sexp form.
+REGEXPS are interpreted as in `rx'.  The pattern matches any
+string that is a match for REGEXPS, as if by `string-match'.
+
+In addition to the usual `rx' syntax, REGEXPS can contain the
+following constructs:
+
+  (let REF RX...)  binds the symbol REF to a submatch that matches
+                   the regular expressions RX.  REF is bound in
+                   CODE to the string of the submatch or nil, but
+                   can also be used in `backref'.
+  (backref REF)    matches whatever the submatch REF matched.
+                   REF can be a number, as usual, or a name
+                   introduced by a previous (let REF ...)
+                   construct.
+
+\(fn &rest REGEXPS)" nil nil)
+
+(define-symbol-prop 'rx--pcase-macroexpander 'edebug-form-spec 'nil)
+
+(define-symbol-prop 'rx 'pcase-macroexpander #'rx--pcase-macroexpander)
+
 (register-definition-prefixes "rx" '("rx-"))
 
 ;;;***
@@ -29274,7 +28732,6 @@ For more details, see Info node `(elisp) Extending Rx'.
 
 ;;;### (autoloads nil "sasl-ntlm" "net/sasl-ntlm.el" (0 0 0 0))
 ;;; Generated autoloads from net/sasl-ntlm.el
-(push (purecopy '(sasl 1 0)) package--builtin-versions)
 
 (register-definition-prefixes "sasl-ntlm" '("sasl-ntlm-"))
 
@@ -29298,7 +28755,6 @@ For more details, see Info node `(elisp) Extending Rx'.
 
 ;;;### (autoloads nil "savehist" "savehist.el" (0 0 0 0))
 ;;; Generated autoloads from savehist.el
-(push (purecopy '(savehist 24)) package--builtin-versions)
 
 (defvar savehist-mode nil "\
 Non-nil if Savehist mode is enabled.
@@ -29313,10 +28769,13 @@ or call the function `savehist-mode'.")
 (autoload 'savehist-mode "savehist" "\
 Toggle saving of minibuffer history (Savehist mode).
 
-If called interactively, enable Savehist mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Savehist mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -29371,10 +28830,13 @@ Non-nil means automatically save place in each file.
 This means when you visit a file, point goes to the last place
 where it was when you previously visited the same file.
 
-If called interactively, enable Save-Place mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Save-Place mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -29387,10 +28849,13 @@ If this mode is enabled, point is recorded when you kill the buffer
 or exit Emacs.  Visiting this file again will go to that position,
 even in a later Emacs session.
 
-If called interactively, enable Save-Place-Local mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Save-Place-Local mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -29478,10 +28943,13 @@ or call the function `scroll-all-mode'.")
 (autoload 'scroll-all-mode "scroll-all" "\
 Toggle shared scrolling in same-frame windows (Scroll-All mode).
 
-If called interactively, enable Scroll-All mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Scroll-All mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -29508,10 +28976,13 @@ one window apply to all visible windows in the same frame.
 (autoload 'scroll-lock-mode "scroll-lock" "\
 Buffer-local minor mode for pager-like scrolling.
 
-If called interactively, enable Scroll-Lock mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Scroll-Lock mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -29556,7 +29027,6 @@ The possible elements of this list include the following:
  `global-semantic-stickyfunc-mode'     - Show current fun in header line.
  `global-semantic-mru-bookmark-mode'   - Provide `switch-to-buffer'-like
                                          keybinding for tag names.
- `global-cedet-m3-minor-mode'          - A mouse 3 context menu.
  `global-semantic-idle-local-symbol-highlight-mode' - Highlight references
                                          of the symbol under point.
 The following modes are more targeted at people who want to see
@@ -29582,10 +29052,13 @@ or call the function `semantic-mode'.")
 (autoload 'semantic-mode "semantic" "\
 Toggle parser features (Semantic mode).
 
-If called interactively, enable Semantic mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Semantic mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -29601,22 +29074,6 @@ Semantic mode.
 \(fn &optional ARG)" t nil)
 
 (register-definition-prefixes "semantic" '("bovinate" "semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/analyze"
-;;;;;;  "cedet/semantic/analyze.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/analyze.el
-
-(register-definition-prefixes "semantic/analyze" '("semantic-a"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/analyze/complete"
-;;;;;;  "cedet/semantic/analyze/complete.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/analyze/complete.el
-
-(register-definition-prefixes "semantic/analyze/complete" '("semantic-analyze-"))
 
 ;;;***
 
@@ -29636,51 +29093,11 @@ Semantic mode.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/analyze/refs"
-;;;;;;  "cedet/semantic/analyze/refs.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/analyze/refs.el
-
-(register-definition-prefixes "semantic/analyze/refs" '("semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/bovine"
-;;;;;;  "cedet/semantic/bovine.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/bovine.el
-
-(register-definition-prefixes "semantic/bovine" '("semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/bovine/c"
-;;;;;;  "cedet/semantic/bovine/c.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/bovine/c.el
-
-(register-definition-prefixes "semantic/bovine/c" '("c-mode" "semantic"))
-
-;;;***
-
 ;;;### (autoloads nil "semantic/bovine/debug" "cedet/semantic/bovine/debug.el"
 ;;;;;;  (0 0 0 0))
 ;;; Generated autoloads from cedet/semantic/bovine/debug.el
 
 (register-definition-prefixes "semantic/bovine/debug" '("semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/bovine/el"
-;;;;;;  "cedet/semantic/bovine/el.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/bovine/el.el
-
-(register-definition-prefixes "semantic/bovine/el" '("emacs-lisp-mode" "semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/bovine/gcc"
-;;;;;;  "cedet/semantic/bovine/gcc.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/bovine/gcc.el
-
-(register-definition-prefixes "semantic/bovine/gcc" '("semantic-"))
 
 ;;;***
 
@@ -29697,51 +29114,11 @@ Major mode for editing Bovine grammars.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/bovine/make"
-;;;;;;  "cedet/semantic/bovine/make.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/bovine/make.el
-
-(register-definition-prefixes "semantic/bovine/make" '("makefile-mode" "semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/bovine/scm"
-;;;;;;  "cedet/semantic/bovine/scm.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/bovine/scm.el
-
-(register-definition-prefixes "semantic/bovine/scm" '("semantic-"))
-
-;;;***
-
 ;;;### (autoloads nil "semantic/chart" "cedet/semantic/chart.el"
 ;;;;;;  (0 0 0 0))
 ;;; Generated autoloads from cedet/semantic/chart.el
 
 (register-definition-prefixes "semantic/chart" '("semantic-chart-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/complete"
-;;;;;;  "cedet/semantic/complete.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/complete.el
-
-(register-definition-prefixes "semantic/complete" '("semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/ctxt"
-;;;;;;  "cedet/semantic/ctxt.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/ctxt.el
-
-(register-definition-prefixes "semantic/ctxt" '("semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/db"
-;;;;;;  "cedet/semantic/db.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/db.el
-
-(register-definition-prefixes "semantic/db" '("semanticdb-"))
 
 ;;;***
 
@@ -29769,43 +29146,11 @@ Major mode for editing Bovine grammars.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/db-file"
-;;;;;;  "cedet/semantic/db-file.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/db-file.el
-
-(register-definition-prefixes "semantic/db-file" '("semanticdb-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/db-find"
-;;;;;;  "cedet/semantic/db-find.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/db-find.el
-
-(register-definition-prefixes "semantic/db-find" '("semanticdb-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/db-global"
-;;;;;;  "cedet/semantic/db-global.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/db-global.el
-
-(register-definition-prefixes "semantic/db-global" '("semanticdb-"))
-
-;;;***
-
 ;;;### (autoloads nil "semantic/db-javascript" "cedet/semantic/db-javascript.el"
 ;;;;;;  (0 0 0 0))
 ;;; Generated autoloads from cedet/semantic/db-javascript.el
 
 (register-definition-prefixes "semantic/db-javascript" '("javascript-mode" "semanticdb-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/db-mode"
-;;;;;;  "cedet/semantic/db-mode.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/db-mode.el
-
-(register-definition-prefixes "semantic/db-mode" '("semanticdb-"))
 
 ;;;***
 
@@ -29817,22 +29162,6 @@ Major mode for editing Bovine grammars.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/db-typecache"
-;;;;;;  "cedet/semantic/db-typecache.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/db-typecache.el
-
-(register-definition-prefixes "semantic/db-typecache" '("semanticdb-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/debug"
-;;;;;;  "cedet/semantic/debug.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/debug.el
-
-(register-definition-prefixes "semantic/debug" '("semantic-debug-"))
-
-;;;***
-
 ;;;### (autoloads nil "semantic/decorate" "cedet/semantic/decorate.el"
 ;;;;;;  (0 0 0 0))
 ;;; Generated autoloads from cedet/semantic/decorate.el
@@ -29841,67 +29170,11 @@ Major mode for editing Bovine grammars.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/decorate/include"
-;;;;;;  "cedet/semantic/decorate/include.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/decorate/include.el
-
-(register-definition-prefixes "semantic/decorate/include" '("semantic-decoration-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/decorate/mode"
-;;;;;;  "cedet/semantic/decorate/mode.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/decorate/mode.el
-
-(register-definition-prefixes "semantic/decorate/mode" '("define-semantic-decoration-style" "semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/dep"
-;;;;;;  "cedet/semantic/dep.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/dep.el
-
-(register-definition-prefixes "semantic/dep" '("defcustom-mode-local-semantic-dependency-system-include-path" "semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/doc"
-;;;;;;  "cedet/semantic/doc.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/doc.el
-
-(register-definition-prefixes "semantic/doc" '("semantic-doc"))
-
-;;;***
-
 ;;;### (autoloads nil "semantic/ede-grammar" "cedet/semantic/ede-grammar.el"
 ;;;;;;  (0 0 0 0))
 ;;; Generated autoloads from cedet/semantic/ede-grammar.el
 
 (register-definition-prefixes "semantic/ede-grammar" '("semantic-ede-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/edit"
-;;;;;;  "cedet/semantic/edit.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/edit.el
-
-(register-definition-prefixes "semantic/edit" '("semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/find"
-;;;;;;  "cedet/semantic/find.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/find.el
-
-(register-definition-prefixes "semantic/find" '("semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/format"
-;;;;;;  "cedet/semantic/format.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/format.el
-
-(register-definition-prefixes "semantic/format" '("semantic-"))
 
 ;;;***
 
@@ -29929,75 +29202,11 @@ Major mode for editing Bovine grammars.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/html"
-;;;;;;  "cedet/semantic/html.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/html.el
-
-(register-definition-prefixes "semantic/html" '("semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/ia"
-;;;;;;  "cedet/semantic/ia.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/ia.el
-
-(register-definition-prefixes "semantic/ia" '("semantic-ia-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/ia-sb"
-;;;;;;  "cedet/semantic/ia-sb.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/ia-sb.el
-
-(register-definition-prefixes "semantic/ia-sb" '("semantic-ia-s"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/idle"
-;;;;;;  "cedet/semantic/idle.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/idle.el
-
-(register-definition-prefixes "semantic/idle" '("define-semantic-idle-service" "global-semantic-idle-summary-mode" "semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/imenu"
-;;;;;;  "cedet/semantic/imenu.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/imenu.el
-
-(register-definition-prefixes "semantic/imenu" '("semantic-"))
-
-;;;***
-
 ;;;### (autoloads nil "semantic/java" "cedet/semantic/java.el" (0
 ;;;;;;  0 0 0))
 ;;; Generated autoloads from cedet/semantic/java.el
 
 (register-definition-prefixes "semantic/java" '("semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/lex"
-;;;;;;  "cedet/semantic/lex.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/lex.el
-
-(register-definition-prefixes "semantic/lex" '("define-lex" "semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/lex-spp"
-;;;;;;  "cedet/semantic/lex-spp.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/lex-spp.el
-
-(register-definition-prefixes "semantic/lex-spp" '("define-lex-spp-" "semantic-lex-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/mru-bookmark"
-;;;;;;  "cedet/semantic/mru-bookmark.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/mru-bookmark.el
-
-(register-definition-prefixes "semantic/mru-bookmark" '("global-semantic-mru-bookmark-mode" "semantic-"))
 
 ;;;***
 
@@ -30009,46 +29218,6 @@ Major mode for editing Bovine grammars.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/scope"
-;;;;;;  "cedet/semantic/scope.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/scope.el
-
-(register-definition-prefixes "semantic/scope" '("semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/senator"
-;;;;;;  "cedet/semantic/senator.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/senator.el
-
-(register-definition-prefixes "semantic/senator" '("semantic-up-reference" "senator-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/sort"
-;;;;;;  "cedet/semantic/sort.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/sort.el
-
-(register-definition-prefixes "semantic/sort" '("semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/symref"
-;;;;;;  "cedet/semantic/symref.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/symref.el
-
-(register-definition-prefixes "semantic/symref" '("semantic-symref-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/symref/cscope"
-;;;;;;  "cedet/semantic/symref/cscope.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/symref/cscope.el
-
-(register-definition-prefixes "semantic/symref/cscope" '("semantic-symref-cscope--line-re"))
-
-;;;***
-
 ;;;### (autoloads nil "semantic/symref/filter" "cedet/semantic/symref/filter.el"
 ;;;;;;  (0 0 0 0))
 ;;; Generated autoloads from cedet/semantic/symref/filter.el
@@ -30057,91 +29226,11 @@ Major mode for editing Bovine grammars.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/symref/global"
-;;;;;;  "cedet/semantic/symref/global.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/symref/global.el
-
-(register-definition-prefixes "semantic/symref/global" '("semantic-symref-global--line-re"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/symref/grep"
-;;;;;;  "cedet/semantic/symref/grep.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/symref/grep.el
-
-(register-definition-prefixes "semantic/symref/grep" '("semantic-symref-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/symref/idutils"
-;;;;;;  "cedet/semantic/symref/idutils.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/symref/idutils.el
-
-(register-definition-prefixes "semantic/symref/idutils" '("semantic-symref-idutils--line-re"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/symref/list"
-;;;;;;  "cedet/semantic/symref/list.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/symref/list.el
-
-(register-definition-prefixes "semantic/symref/list" '("semantic-symref-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/tag"
-;;;;;;  "cedet/semantic/tag.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/tag.el
-
-(register-definition-prefixes "semantic/tag" '("semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/tag-file"
-;;;;;;  "cedet/semantic/tag-file.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/tag-file.el
-
-(register-definition-prefixes "semantic/tag-file" '("semantic-prototype-file"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/tag-ls"
-;;;;;;  "cedet/semantic/tag-ls.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/tag-ls.el
-
-(register-definition-prefixes "semantic/tag-ls" '("semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/tag-write"
-;;;;;;  "cedet/semantic/tag-write.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/tag-write.el
-
-(register-definition-prefixes "semantic/tag-write" '("semantic-tag-write-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/texi"
-;;;;;;  "cedet/semantic/texi.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/texi.el
-
-(register-definition-prefixes "semantic/texi" '("semantic-"))
-
-;;;***
-
 ;;;### (autoloads nil "semantic/util" "cedet/semantic/util.el" (0
 ;;;;;;  0 0 0))
 ;;; Generated autoloads from cedet/semantic/util.el
 
 (register-definition-prefixes "semantic/util" '("semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/util-modes"
-;;;;;;  "cedet/semantic/util-modes.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/util-modes.el
-
-(register-definition-prefixes "semantic/util-modes" '("semantic-"))
 
 ;;;***
 
@@ -30171,30 +29260,6 @@ Major mode for editing Wisent grammars.
 \(fn)" t nil)
 
 (register-definition-prefixes "semantic/wisent/grammar" '("wisent-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/wisent/java-tags"
-;;;;;;  "cedet/semantic/wisent/java-tags.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/wisent/java-tags.el
-
-(register-definition-prefixes "semantic/wisent/java-tags" '("semantic-" "wisent-java-parse-error"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/wisent/javascript"
-;;;;;;  "cedet/semantic/wisent/javascript.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/wisent/javascript.el
-
-(register-definition-prefixes "semantic/wisent/javascript" '("semantic-" "wisent-javascript-jv-expand-tag"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "semantic/wisent/python"
-;;;;;;  "cedet/semantic/wisent/python.el" (0 0 0 0))
-;;; Generated autoloads from cedet/semantic/wisent/python.el
-
-(register-definition-prefixes "semantic/wisent/python" '("semantic-" "wisent-python-"))
 
 ;;;***
 
@@ -30414,7 +29479,7 @@ and `default-sendmail-coding-system',
 but lower priority than the local value of `buffer-file-coding-system'.
 See also the function `select-message-coding-system'.")
 
-(defvar default-sendmail-coding-system 'iso-latin-1 "\
+(defvar default-sendmail-coding-system 'utf-8 "\
 Default coding system for encoding the outgoing mail.
 This variable is used only when `sendmail-coding-system' is nil.
 
@@ -30522,9 +29587,11 @@ Return a list of all the elements for which (PRED element) is nil in SEQUENCE.
 Reduce the function FUNCTION across SEQUENCE, starting with INITIAL-VALUE.
 
 Return the result of calling FUNCTION with INITIAL-VALUE and the
-first element of SEQUENCE, then calling FUNCTION with that result and
-the second element of SEQUENCE, then with that result and the third
-element of SEQUENCE, etc.
+first element of SEQUENCE, then calling FUNCTION with that result
+and the second element of SEQUENCE, then with that result and the
+third element of SEQUENCE, etc.  FUNCTION will be called with
+INITIAL-VALUE (and then the accumulated value) as the first
+argument, and the elements from SEQUENCE as the second argument.
 
 If SEQUENCE is empty, return INITIAL-VALUE and FUNCTION is not called.
 
@@ -30556,6 +29623,13 @@ Return the index of the first element in SEQUENCE that is equal to ELT.
 Equality is defined by TESTFN if non-nil or by `equal' if nil.
 
 \(fn SEQUENCE ELT &optional TESTFN)" nil nil)
+
+(autoload 'seq-group-by "seq" "\
+Apply FUNCTION to each element of SEQUENCE.
+Separate the elements of SEQUENCE into an alist using the results as
+keys.  Keys are compared using `equal'.
+
+\(fn FUNCTION SEQUENCE)" nil nil)
 
 (autoload 'seq-max "seq" "\
 Return the largest element of SEQUENCE.
@@ -30618,10 +29692,13 @@ or call the function `server-mode'.")
 (autoload 'server-mode "server" "\
 Toggle Server mode.
 
-If called interactively, enable Server mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Server mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -30760,7 +29837,6 @@ To work around that, do:
 ;;;### (autoloads nil "sh-script" "progmodes/sh-script.el" (0 0 0
 ;;;;;;  0))
 ;;; Generated autoloads from progmodes/sh-script.el
-(push (purecopy '(sh-script 2 0 6)) package--builtin-versions)
 (put 'sh-shell 'safe-local-variable 'symbolp)
 
 (autoload 'sh-mode "sh-script" "\
@@ -30957,6 +30033,19 @@ Make the shell buffer the current buffer, and return it.
 \(fn &optional BUFFER)" t nil)
 
 (register-definition-prefixes "shell" '("dirs" "explicit-" "shell-"))
+
+;;;***
+
+;;;### (autoloads nil "shortdoc" "emacs-lisp/shortdoc.el" (0 0 0
+;;;;;;  0))
+;;; Generated autoloads from emacs-lisp/shortdoc.el
+
+(autoload 'shortdoc-display-group "shortdoc" "\
+Pop to a buffer with short documentation summary for functions in GROUP.
+
+\(fn GROUP)" t nil)
+
+(register-definition-prefixes "shortdoc" '("alist" "buffer" "define-short-documentation-group" "file" "hash-table" "list" "number" "process" "regexp" "sequence" "shortdoc-" "string" "vector"))
 
 ;;;***
 
@@ -31240,10 +30329,13 @@ buffer names.
 (autoload 'smerge-mode "smerge-mode" "\
 Minor mode to simplify editing output from the diff3 program.
 
-If called interactively, enable Smerge mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Smerge mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -31370,10 +30462,13 @@ Open the so-long `customize' group." t nil)
 (autoload 'so-long-minor-mode "so-long" "\
 This is the minor mode equivalent of `so-long-mode'.
 
-If called interactively, enable So-Long minor mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `So-Long minor mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -31449,10 +30544,13 @@ or call the function `global-so-long-mode'.")
 (autoload 'global-so-long-mode "so-long" "\
 Toggle automated performance mitigations for files with long lines.
 
-If called interactively, enable Global So-Long mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Global So-Long mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -31479,7 +30577,7 @@ Use \\[so-long-customize] to configure the behaviour.
 
 ;;;### (autoloads nil "soap-client" "net/soap-client.el" (0 0 0 0))
 ;;; Generated autoloads from net/soap-client.el
-(push (purecopy '(soap-client 3 1 5)) package--builtin-versions)
+(push (purecopy '(soap-client 3 2 0)) package--builtin-versions)
 
 (register-definition-prefixes "soap-client" '("soap-"))
 
@@ -32407,22 +31505,6 @@ Run vsql as an inferior process.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "srecode/compile"
-;;;;;;  "cedet/srecode/compile.el" (0 0 0 0))
-;;; Generated autoloads from cedet/srecode/compile.el
-
-(register-definition-prefixes "srecode/compile" '("srecode-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "srecode/cpp"
-;;;;;;  "cedet/srecode/cpp.el" (0 0 0 0))
-;;; Generated autoloads from cedet/srecode/cpp.el
-
-(register-definition-prefixes "srecode/cpp" '("srecode-"))
-
-;;;***
-
 ;;;### (autoloads nil "srecode/ctxt" "cedet/srecode/ctxt.el" (0 0
 ;;;;;;  0 0))
 ;;; Generated autoloads from cedet/srecode/ctxt.el
@@ -32436,30 +31518,6 @@ Run vsql as an inferior process.
 ;;; Generated autoloads from cedet/srecode/dictionary.el
 
 (register-definition-prefixes "srecode/dictionary" '("srecode-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "srecode/document"
-;;;;;;  "cedet/srecode/document.el" (0 0 0 0))
-;;; Generated autoloads from cedet/srecode/document.el
-
-(register-definition-prefixes "srecode/document" '("srecode-document-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "srecode/el" "cedet/srecode/el.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from cedet/srecode/el.el
-
-(register-definition-prefixes "srecode/el" '("srecode-semantic-apply-tag-to-dict"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "srecode/expandproto"
-;;;;;;  "cedet/srecode/expandproto.el" (0 0 0 0))
-;;; Generated autoloads from cedet/srecode/expandproto.el
-
-(register-definition-prefixes "srecode/expandproto" '("srecode-"))
 
 ;;;***
 
@@ -32495,51 +31553,11 @@ Run vsql as an inferior process.
 
 ;;;***
 
-;;;### (autoloads "actual autoloads are elsewhere" "srecode/getset"
-;;;;;;  "cedet/srecode/getset.el" (0 0 0 0))
-;;; Generated autoloads from cedet/srecode/getset.el
-
-(register-definition-prefixes "srecode/getset" '("srecode-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "srecode/insert"
-;;;;;;  "cedet/srecode/insert.el" (0 0 0 0))
-;;; Generated autoloads from cedet/srecode/insert.el
-
-(register-definition-prefixes "srecode/insert" '("srecode-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "srecode/map"
-;;;;;;  "cedet/srecode/map.el" (0 0 0 0))
-;;; Generated autoloads from cedet/srecode/map.el
-
-(register-definition-prefixes "srecode/map" '("srecode-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "srecode/mode"
-;;;;;;  "cedet/srecode/mode.el" (0 0 0 0))
-;;; Generated autoloads from cedet/srecode/mode.el
-
-(register-definition-prefixes "srecode/mode" '("srecode-"))
-
-;;;***
-
 ;;;### (autoloads nil "srecode/semantic" "cedet/srecode/semantic.el"
 ;;;;;;  (0 0 0 0))
 ;;; Generated autoloads from cedet/srecode/semantic.el
 
 (register-definition-prefixes "srecode/semantic" '("srecode-semantic-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "srecode/srt"
-;;;;;;  "cedet/srecode/srt.el" (0 0 0 0))
-;;; Generated autoloads from cedet/srecode/srt.el
-
-(register-definition-prefixes "srecode/srt" '("srecode-read-"))
 
 ;;;***
 
@@ -32563,22 +31581,6 @@ Major-mode for writing SRecode macros.
 ;;; Generated autoloads from cedet/srecode/table.el
 
 (register-definition-prefixes "srecode/table" '("object-sort-list" "srecode-"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "srecode/template"
-;;;;;;  "cedet/srecode/template.el" (0 0 0 0))
-;;; Generated autoloads from cedet/srecode/template.el
-
-(register-definition-prefixes "srecode/template" '("semantic-tag-components"))
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "srecode/texi"
-;;;;;;  "cedet/srecode/texi.el" (0 0 0 0))
-;;; Generated autoloads from cedet/srecode/texi.el
-
-(register-definition-prefixes "srecode/texi" '("semantic-insert-foreign-tag" "srecode-texi-"))
 
 ;;;***
 
@@ -32660,10 +31662,13 @@ or call the function `strokes-mode'.")
 (autoload 'strokes-mode "strokes" "\
 Toggle Strokes mode, a global minor mode.
 
-If called interactively, enable Strokes mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Strokes mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -32718,6 +31723,27 @@ Studlify-case the current buffer." t nil)
 ;;;### (autoloads nil "subr-x" "emacs-lisp/subr-x.el" (0 0 0 0))
 ;;; Generated autoloads from emacs-lisp/subr-x.el
 
+(autoload 'if-let "subr-x" "\
+Bind variables according to SPEC and evaluate THEN or ELSE.
+Evaluate each binding in turn, as in `let*', stopping if a
+binding value is nil.  If all are non-nil return the value of
+THEN, otherwise the last form in ELSE.
+
+Each element of SPEC is a list (SYMBOL VALUEFORM) that binds
+SYMBOL to the value of VALUEFORM.  An element can additionally be
+of the form (VALUEFORM), which is evaluated and checked for nil;
+i.e. SYMBOL can be omitted if only the test result is of
+interest.  It can also be of the form SYMBOL, then the binding of
+SYMBOL is checked for nil.
+
+As a special case, interprets a SPEC of the form (SYMBOL SOMETHING)
+like ((SYMBOL SOMETHING)).  This exists for backward compatibility
+with an old syntax that accepted only one binding.
+
+\(fn SPEC THEN &rest ELSE)" nil t)
+
+(function-put 'if-let 'lisp-indent-function '2)
+
 (autoload 'when-let "subr-x" "\
 Bind variables according to SPEC and conditionally evaluate BODY.
 Evaluate each binding in turn, stopping if a binding value is nil.
@@ -32734,7 +31760,7 @@ Truncate STRING to LENGTH, replacing initial surplus with \"...\".
 
 \(fn STRING LENGTH)" nil nil)
 
-(register-definition-prefixes "subr-x" '("and-let*" "hash-table-" "if-let" "internal--" "replace-region-contents" "string-" "thread-" "when-let*"))
+(register-definition-prefixes "subr-x" '("and-let*" "hash-table-" "if-let*" "internal--" "replace-region-contents" "string-" "thread-" "when-let*"))
 
 ;;;***
 
@@ -32746,10 +31772,13 @@ Truncate STRING to LENGTH, replacing initial surplus with \"...\".
 (autoload 'subword-mode "subword" "\
 Toggle subword movement and editing (Subword mode).
 
-If called interactively, enable Subword mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Subword mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -32794,17 +31823,22 @@ ARG is omitted or nil.
 
 Subword mode is enabled in all buffers where
 `(lambda nil (subword-mode 1))' would do it.
-See `subword-mode' for more information on Subword mode.
+
+See `subword-mode' for more information on
+Subword mode.
 
 \(fn &optional ARG)" t nil)
 
 (autoload 'superword-mode "subword" "\
 Toggle superword movement and editing (Superword mode).
 
-If called interactively, enable Superword mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Superword mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -32838,7 +31872,9 @@ ARG is omitted or nil.
 
 Superword mode is enabled in all buffers where
 `(lambda nil (superword-mode 1))' would do it.
-See `superword-mode' for more information on Superword mode.
+
+See `superword-mode' for more information on
+Superword mode.
 
 \(fn &optional ARG)" t nil)
 
@@ -32880,7 +31916,7 @@ and `sc-post-hook' is run after the guts of this function." nil nil)
 
 ;;;### (autoloads nil "svg" "svg.el" (0 0 0 0))
 ;;; Generated autoloads from svg.el
-(push (purecopy '(svg 1 0)) package--builtin-versions)
+(push (purecopy '(svg 1 1)) package--builtin-versions)
 
 (register-definition-prefixes "svg" '("svg-"))
 
@@ -32902,10 +31938,13 @@ or call the function `gpm-mouse-mode'.")
 (autoload 'gpm-mouse-mode "t-mouse" "\
 Toggle mouse support in GNU/Linux consoles (GPM Mouse mode).
 
-If called interactively, enable Gpm-Mouse mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Gpm-Mouse mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -32930,10 +31969,13 @@ GPM.  This is due to limitations in GPM and the Linux kernel.
 (autoload 'tab-line-mode "tab-line" "\
 Toggle display of window tab line in the buffer.
 
-If called interactively, enable Tab-Line mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Tab-Line mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -32964,7 +32006,9 @@ ARG is omitted or nil.
 
 Tab-Line mode is enabled in all buffers where
 `tab-line-mode--turn-on' would do it.
-See `tab-line-mode' for more information on Tab-Line mode.
+
+See `tab-line-mode' for more information on
+Tab-Line mode.
 
 \(fn &optional ARG)" t nil)
 
@@ -33341,10 +32385,13 @@ location is indicated by `table-word-continuation-char'.  This
 variable's value can be toggled by \\[table-fixed-width-mode] at
 run-time.
 
-If called interactively, enable Table-Fixed-Width mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Table-Fixed-Width mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -33383,7 +32430,7 @@ buffer, and leaves the previous contents of the buffer untouched.
 References used for this implementation:
 
 HTML:
-        URL `http://www.w3.org'
+        URL `https://www.w3.org'
 
 LaTeX:
         URL `http://www.maths.tcd.ie/~dwilkins/LaTeXPrimer/Tables.html'
@@ -33663,7 +32710,7 @@ Prefix argument means invert sense of `tcl-use-smart-word-finder'.
 
 \(fn COMMAND &optional ARG)" t nil)
 
-(register-definition-prefixes "tcl" '("add-log-tcl-defun" "calculate-tcl-indent" "indent-tcl-exp" "inferior-tcl-" "run-tcl" "switch-to-tcl" "tcl-"))
+(register-definition-prefixes "tcl" '("inferior-tcl-" "run-tcl" "switch-to-tcl" "tcl-"))
 
 ;;;***
 
@@ -34529,10 +33576,13 @@ This function is meant to be used as a `post-self-insert-hook'." t nil)
 (autoload 'tildify-mode "tildify" "\
 Adds electric behavior to space character.
 
-If called interactively, enable Tildify mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Tildify mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -34581,10 +33631,13 @@ or call the function `display-time-mode'.")
 (autoload 'display-time-mode "time" "\
 Toggle display of time, load level, and mail flag in mode lines.
 
-If called interactively, enable Display-Time mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Display-Time mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -34597,7 +33650,7 @@ runs the normal hook `display-time-hook' after each update.
 
 \(fn &optional ARG)" t nil)
 
-(defalias 'display-time-world #'world-clock)
+(define-obsolete-function-alias 'display-time-world #'world-clock "28.1")
 
 (autoload 'world-clock "time" "\
 Display a world clock buffer with times in various time zones.
@@ -34608,8 +33661,10 @@ To turn off the world time display, go to the window and type `\\[quit-window]'.
 Return a string giving the uptime of this instance of Emacs.
 FORMAT is a string to format the result, using `format-seconds'.
 For example, the Unix uptime command format is \"%D, %z%2h:%.2m\".
+If the optional argument HERE is non-nil, insert string at
+point.
 
-\(fn &optional FORMAT)" t nil)
+\(fn &optional FORMAT HERE)" t nil)
 
 (autoload 'emacs-init-time "time" "\
 Return a string giving the duration of the Emacs initialization." t nil)
@@ -34700,6 +33755,10 @@ Lower-case specifiers return only the unit.
 optional leading \".\" for zero-padding.  For example, \"%.3Y\" will
 return something of the form \"001 year\".
 
+The \"%s\" spec takes an additional optional parameter,
+introduced by the \",\" character, to say how many decimals to
+use.  \"%,1s\" means \"use one decimal\".
+
 The \"%z\" specifier does not print anything.  When it is used, specifiers
 must be given in order of decreasing size.  To the left of \"%z\", nothing
 is output until the first non-zero unit is encountered.
@@ -34766,7 +33825,6 @@ With ARG, turn time stamping on if and only if arg is positive.
 ;;;### (autoloads nil "timeclock" "calendar/timeclock.el" (0 0 0
 ;;;;;;  0))
 ;;; Generated autoloads from calendar/timeclock.el
-(push (purecopy '(timeclock 2 6 1)) package--builtin-versions)
 
 (defvar timeclock-mode-line-display nil "\
 Non-nil if Timeclock-Mode-Line-Display mode is enabled.
@@ -34921,7 +33979,6 @@ To get complete usage, invoke \"emacs -batch -f batch-titdic-convert -h\".
 ;;;### (autoloads nil "tmm" "tmm.el" (0 0 0 0))
 ;;; Generated autoloads from tmm.el
  (define-key global-map "\M-`" 'tmm-menubar)
- (define-key global-map [menu-bar mouse-1] 'tmm-menubar-mouse)
 
 (autoload 'tmm-menubar "tmm" "\
 Text-mode emulation of looking and choosing from a menubar.
@@ -35466,10 +34523,13 @@ or call the function `type-break-mode'.")
 Enable or disable typing-break mode.
 This is a minor mode, but it is global to all buffers by default.
 
-If called interactively, enable Type-Break mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Type-Break mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -35686,14 +34746,6 @@ Called from program, takes two arguments START and END
 which specify the range to operate on.
 
 \(fn START END)" t nil)
-
-;;;***
-
-;;;### (autoloads "actual autoloads are elsewhere" "undigest" "mail/undigest.el"
-;;;;;;  (0 0 0 0))
-;;; Generated autoloads from mail/undigest.el
-
-(register-definition-prefixes "undigest" '("rmail-"))
 
 ;;;***
 
@@ -36002,10 +35054,13 @@ or call the function `url-handler-mode'.")
 (autoload 'url-handler-mode "url-handlers" "\
 Toggle using `url' library for URL filenames (URL Handler mode).
 
-If called interactively, enable Url-Handler mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Url-Handler mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -38160,10 +37215,13 @@ own View-like bindings.
 (autoload 'view-mode "view" "\
 Toggle View mode, a minor mode for viewing text but not editing it.
 
-If called interactively, enable View mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `View mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -38441,6 +37499,11 @@ See also `warning-series', `warning-prefix-function',
 `warning-fill-prefix', and `warning-fill-column' for additional
 programming features.
 
+This will also display buttons allowing the user to permanently
+disable automatic display of the warning or disable the warning
+entirely by setting `warning-suppress-types' or
+`warning-suppress-log-types' on their behalf.
+
 \(fn TYPE MESSAGE &optional LEVEL BUFFER-NAME)" nil nil)
 
 (autoload 'lwarn "warnings" "\
@@ -38531,10 +37594,13 @@ or call the function `which-function-mode'.")
 (autoload 'which-function-mode "which-func" "\
 Toggle mode line display of current function (Which Function mode).
 
-If called interactively, enable Which-Function mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Which-Function mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -38556,10 +37622,13 @@ in certain major modes.
 (autoload 'whitespace-mode "whitespace" "\
 Toggle whitespace visualization (Whitespace mode).
 
-If called interactively, enable Whitespace mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Whitespace mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -38572,10 +37641,13 @@ See also `whitespace-style', `whitespace-newline' and
 (autoload 'whitespace-newline-mode "whitespace" "\
 Toggle newline visualization (Whitespace Newline mode).
 
-If called interactively, enable Whitespace-Newline mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Whitespace-Newline mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -38602,10 +37674,13 @@ or call the function `global-whitespace-mode'.")
 (autoload 'global-whitespace-mode "whitespace" "\
 Toggle whitespace visualization globally (Global Whitespace mode).
 
-If called interactively, enable Global Whitespace mode if ARG is
-positive, and disable it if ARG is zero or negative.  If called from
-Lisp, also enable the mode if ARG is omitted or nil, and toggle it if
-ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Global Whitespace mode'.  If the
+prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -38628,10 +37703,13 @@ or call the function `global-whitespace-newline-mode'.")
 (autoload 'global-whitespace-newline-mode "whitespace" "\
 Toggle global newline visualization (Global Whitespace Newline mode).
 
-If called interactively, enable Global Whitespace-Newline mode if ARG
-is positive, and disable it if ARG is zero or negative.  If called
-from Lisp, also enable the mode if ARG is omitted or nil, and toggle
-it if ARG is `toggle'; disable the mode otherwise.
+If called interactively, toggle `Global Whitespace-Newline mode'.  If
+the prefix argument is positive, enable the mode, and if it is zero or
+negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -38955,10 +38033,13 @@ Show widget browser for WIDGET in other window.
 (autoload 'widget-minor-mode "wid-browse" "\
 Minor mode for traversing widgets.
 
-If called interactively, enable Widget minor mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Widget minor mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -39192,10 +38273,13 @@ or call the function `winner-mode'.")
 (autoload 'winner-mode "winner" "\
 Toggle Winner mode on or off.
 
-If called interactively, enable Winner mode if ARG is positive, and
-disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Winner mode'.  If the prefix argument
+is positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -39481,10 +38565,13 @@ or call the function `xterm-mouse-mode'.")
 (autoload 'xterm-mouse-mode "xt-mouse" "\
 Toggle XTerm mouse mode.
 
-If called interactively, enable Xterm-Mouse mode if ARG is positive,
-and disable it if ARG is zero or negative.  If called from Lisp, also
-enable the mode if ARG is omitted or nil, and toggle it if ARG is
-`toggle'; disable the mode otherwise.
+If called interactively, toggle `Xterm-Mouse mode'.  If the prefix
+argument is positive, enable the mode, and if it is zero or negative,
+disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the
+mode if ARG is a negative number.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
@@ -39601,16 +38688,16 @@ Zone out, completely." t nil)
 ;;;;;;  "erc/erc-notify.el" "erc/erc-page.el" "erc/erc-pcomplete.el"
 ;;;;;;  "erc/erc-replace.el" "erc/erc-ring.el" "erc/erc-services.el"
 ;;;;;;  "erc/erc-sound.el" "erc/erc-speedbar.el" "erc/erc-spelling.el"
-;;;;;;  "erc/erc-stamp.el" "erc/erc-track.el" "erc/erc-truncate.el"
-;;;;;;  "erc/erc-xdcc.el" "eshell/em-alias.el" "eshell/em-banner.el"
-;;;;;;  "eshell/em-basic.el" "eshell/em-cmpl.el" "eshell/em-dirs.el"
-;;;;;;  "eshell/em-glob.el" "eshell/em-hist.el" "eshell/em-ls.el"
-;;;;;;  "eshell/em-pred.el" "eshell/em-prompt.el" "eshell/em-rebind.el"
-;;;;;;  "eshell/em-script.el" "eshell/em-smart.el" "eshell/em-term.el"
-;;;;;;  "eshell/em-tramp.el" "eshell/em-unix.el" "eshell/em-xtra.el"
-;;;;;;  "facemenu.el" "faces.el" "files.el" "font-core.el" "font-lock.el"
-;;;;;;  "format.el" "frame.el" "help.el" "hfy-cmap.el" "ibuf-ext.el"
-;;;;;;  "indent.el" "international/characters.el" "international/charprop.el"
+;;;;;;  "erc/erc-stamp.el" "erc/erc-status-sidebar.el" "erc/erc-track.el"
+;;;;;;  "erc/erc-truncate.el" "erc/erc-xdcc.el" "eshell/em-alias.el"
+;;;;;;  "eshell/em-banner.el" "eshell/em-basic.el" "eshell/em-cmpl.el"
+;;;;;;  "eshell/em-dirs.el" "eshell/em-glob.el" "eshell/em-hist.el"
+;;;;;;  "eshell/em-ls.el" "eshell/em-pred.el" "eshell/em-prompt.el"
+;;;;;;  "eshell/em-rebind.el" "eshell/em-script.el" "eshell/em-smart.el"
+;;;;;;  "eshell/em-term.el" "eshell/em-tramp.el" "eshell/em-unix.el"
+;;;;;;  "eshell/em-xtra.el" "facemenu.el" "faces.el" "files.el" "font-core.el"
+;;;;;;  "font-lock.el" "format.el" "frame.el" "help.el" "hfy-cmap.el"
+;;;;;;  "ibuf-ext.el" "indent.el" "international/characters.el" "international/charprop.el"
 ;;;;;;  "international/charscript.el" "international/cp51932.el"
 ;;;;;;  "international/eucjp-ms.el" "international/mule-cmds.el"
 ;;;;;;  "international/mule-conf.el" "international/mule.el" "international/uni-bidi.el"
@@ -39638,27 +38725,27 @@ Zone out, completely." t nil)
 ;;;;;;  "leim/quail/PY-b5.el" "leim/quail/PY.el" "leim/quail/Punct-b5.el"
 ;;;;;;  "leim/quail/Punct.el" "leim/quail/QJ-b5.el" "leim/quail/QJ.el"
 ;;;;;;  "leim/quail/SW.el" "leim/quail/TONEPY.el" "leim/quail/ZIRANMA.el"
-;;;;;;  "leim/quail/ZOZY.el" "leim/quail/arabic.el" "leim/quail/croatian.el"
-;;;;;;  "leim/quail/cyril-jis.el" "leim/quail/cyrillic.el" "leim/quail/czech.el"
-;;;;;;  "leim/quail/georgian.el" "leim/quail/greek.el" "leim/quail/hanja-jis.el"
-;;;;;;  "leim/quail/hanja.el" "leim/quail/hanja3.el" "leim/quail/hebrew.el"
-;;;;;;  "leim/quail/ipa-praat.el" "leim/quail/latin-alt.el" "leim/quail/latin-ltx.el"
-;;;;;;  "leim/quail/latin-post.el" "leim/quail/latin-pre.el" "leim/quail/persian.el"
-;;;;;;  "leim/quail/programmer-dvorak.el" "leim/quail/py-punct.el"
-;;;;;;  "leim/quail/pypunct-b5.el" "leim/quail/quick-b5.el" "leim/quail/quick-cns.el"
-;;;;;;  "leim/quail/rfc1345.el" "leim/quail/sami.el" "leim/quail/sgml-input.el"
-;;;;;;  "leim/quail/slovak.el" "leim/quail/symbol-ksc.el" "leim/quail/tamil-dvorak.el"
-;;;;;;  "leim/quail/tsang-b5.el" "leim/quail/tsang-cns.el" "leim/quail/vntelex.el"
-;;;;;;  "leim/quail/vnvni.el" "leim/quail/welsh.el" "loadup.el" "mail/blessmail.el"
-;;;;;;  "mail/rmailedit.el" "mail/rmailkwd.el" "mail/rmailmm.el"
-;;;;;;  "mail/rmailmsc.el" "mail/rmailsort.el" "mail/rmailsum.el"
-;;;;;;  "mail/undigest.el" "menu-bar.el" "mh-e/mh-gnus.el" "mh-e/mh-loaddefs.el"
-;;;;;;  "minibuffer.el" "mouse.el" "net/tramp-loaddefs.el" "newcomment.el"
-;;;;;;  "obarray.el" "org/ob-core.el" "org/ob-lob.el" "org/ob-matlab.el"
-;;;;;;  "org/ob-tangle.el" "org/ob.el" "org/ol-bbdb.el" "org/ol-irc.el"
-;;;;;;  "org/org-archive.el" "org/org-attach.el" "org/org-clock.el"
-;;;;;;  "org/org-datetree.el" "org/org-element.el" "org/org-feed.el"
-;;;;;;  "org/org-footnote.el" "org/org-id.el" "org/org-indent.el"
+;;;;;;  "leim/quail/ZOZY.el" "leim/quail/arabic.el" "leim/quail/compose.el"
+;;;;;;  "leim/quail/croatian.el" "leim/quail/cyril-jis.el" "leim/quail/cyrillic.el"
+;;;;;;  "leim/quail/czech.el" "leim/quail/georgian.el" "leim/quail/greek.el"
+;;;;;;  "leim/quail/hanja-jis.el" "leim/quail/hanja.el" "leim/quail/hanja3.el"
+;;;;;;  "leim/quail/hebrew.el" "leim/quail/ipa-praat.el" "leim/quail/latin-alt.el"
+;;;;;;  "leim/quail/latin-ltx.el" "leim/quail/latin-post.el" "leim/quail/latin-pre.el"
+;;;;;;  "leim/quail/persian.el" "leim/quail/programmer-dvorak.el"
+;;;;;;  "leim/quail/py-punct.el" "leim/quail/pypunct-b5.el" "leim/quail/quick-b5.el"
+;;;;;;  "leim/quail/quick-cns.el" "leim/quail/rfc1345.el" "leim/quail/sami.el"
+;;;;;;  "leim/quail/sgml-input.el" "leim/quail/slovak.el" "leim/quail/symbol-ksc.el"
+;;;;;;  "leim/quail/tamil-dvorak.el" "leim/quail/tsang-b5.el" "leim/quail/tsang-cns.el"
+;;;;;;  "leim/quail/vntelex.el" "leim/quail/vnvni.el" "leim/quail/welsh.el"
+;;;;;;  "loadup.el" "mail/blessmail.el" "mail/rmailedit.el" "mail/rmailkwd.el"
+;;;;;;  "mail/rmailmm.el" "mail/rmailmsc.el" "mail/rmailsort.el"
+;;;;;;  "mail/rmailsum.el" "mail/undigest.el" "menu-bar.el" "mh-e/mh-gnus.el"
+;;;;;;  "mh-e/mh-loaddefs.el" "minibuffer.el" "mouse.el" "net/tramp-loaddefs.el"
+;;;;;;  "newcomment.el" "obarray.el" "org/ob-core.el" "org/ob-lob.el"
+;;;;;;  "org/ob-matlab.el" "org/ob-tangle.el" "org/ob.el" "org/ol-bbdb.el"
+;;;;;;  "org/ol-irc.el" "org/org-archive.el" "org/org-attach.el"
+;;;;;;  "org/org-clock.el" "org/org-datetree.el" "org/org-element.el"
+;;;;;;  "org/org-feed.el" "org/org-footnote.el" "org/org-id.el" "org/org-indent.el"
 ;;;;;;  "org/org-install.el" "org/org-mobile.el" "org/org-plot.el"
 ;;;;;;  "org/org-table.el" "org/org-timer.el" "org/ox-ascii.el" "org/ox-beamer.el"
 ;;;;;;  "org/ox-html.el" "org/ox-icalendar.el" "org/ox-latex.el"

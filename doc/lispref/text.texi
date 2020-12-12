@@ -1100,7 +1100,7 @@ one, it rotates the kill ring to place the yanked string at the front.
 This command replaces the just-yanked entry from the kill ring with a
 different entry from the kill ring.
 
-This is allowed only immediately after a @code{yank} or another
+This works only immediately after a @code{yank} or another
 @code{yank-pop}.  At such a time, the region contains text that was just
 inserted by yanking.  @code{yank-pop} deletes that text and inserts in
 its place a different piece of killed text.  It does not add the deleted
@@ -2427,6 +2427,30 @@ already indented, it calls @code{completion-at-point} to complete the
 text at point (@pxref{Completion in Buffers}).
 @end defopt
 
+@defopt tab-first-completion
+If @code{tab-always-indent} is @code{complete}, whether to expand or
+indent can be further customized via the @code{tab-first-completion}
+variable.  The following values can be used:
+@table @code
+@item eol
+Only complete if point is at the end of a line.
+
+@item word
+Complete unless the next character has word syntax.
+
+@item word-or-paren
+Complete unless the next character has word syntax or is a
+parenthesis.
+
+@item word-or-paren-or-punct
+Complete unless the next character has word syntax, or is a
+parenthesis, or is punctuation.
+@end table
+
+In any case, typing @kbd{TAB} a second time always results in
+completion.
+@end defopt
+
 @cindex literate programming
 @cindex multi-mode indentation
   Some major modes need to support embedded regions of text whose
@@ -2542,7 +2566,7 @@ the beginning of the line (if @var{nochange-regexp} is non-@code{nil}).
   This section describes two commands that indent the current line
 based on the contents of previous lines.
 
-@deffn Command indent-relative &optional unindented-ok
+@deffn Command indent-relative &optional first-only unindented-ok
 This command inserts whitespace at point, extending to the same
 column as the next @dfn{indent point} of the previous nonblank line.  An
 indent point is a non-whitespace character following whitespace.  The
@@ -2557,6 +2581,9 @@ nothing (if @var{unindented-ok} is non-@code{nil}) or calls
 @code{tab-to-tab-stop}.  Thus, if point is underneath and to the right
 of the last column of a short line of text, this command ordinarily
 moves point to the next tab stop by inserting whitespace.
+
+If @var{first-only} is non-@code{nil}, only the first indent point is
+considered.
 
 The return value of @code{indent-relative} is unpredictable.
 

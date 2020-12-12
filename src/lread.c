@@ -1056,25 +1056,8 @@ This uses the variables `load-suffixes' and `load-file-rep-suffixes'.  */)
     {
       Lisp_Object exts = Vload_file_rep_suffixes;
       Lisp_Object suffix = XCAR (suffixes);
-      bool native_code_suffix =
-	NATIVE_COMP_FLAG
-        && strcmp (NATIVE_ELISP_SUFFIX, SSDATA (suffix)) == 0;
-
-#ifdef HAVE_MODULES
-      native_code_suffix =
-	native_code_suffix || strcmp (MODULES_SUFFIX, SSDATA (suffix)) == 0;
-#ifdef MODULES_SECONDARY_SUFFIX
-      native_code_suffix =
-	native_code_suffix
-	|| strcmp (MODULES_SECONDARY_SUFFIX, SSDATA (suffix)) == 0;
-#endif
-#endif
-
-      if (native_code_suffix)
-	lst = Fcons (suffix, lst);
-      else
-        FOR_EACH_TAIL (exts)
-          lst = Fcons (concat2 (suffix, XCAR (exts)), lst);
+      FOR_EACH_TAIL (exts)
+	lst = Fcons (concat2 (suffix, XCAR (exts)), lst);
     }
   return Fnreverse (lst);
 }
@@ -1606,7 +1589,7 @@ directories, make sure the PREDICATE function returns `dir-ok' for them.  */)
    If found replace the content of FILENAME and FD. */
 
 static void
-maybe_swap_for_eln (Lisp_Object *filename, int *fd, struct timespec mtime)
+maybe_swap_for_eln (Lisp_Object *filename, int *fd)
 {
 #ifdef HAVE_NATIVE_COMP
   struct stat eln_st;
@@ -1638,19 +1621,13 @@ maybe_swap_for_eln (Lisp_Object *filename, int *fd, struct timespec mtime)
 	    emacs_close (eln_fd);
 	  else
 	    {
-	      struct timespec eln_mtime = get_stat_mtime (&eln_st);
-	      if (timespec_cmp (eln_mtime, mtime) > 0)
-		{
-		  *filename = eln_name;
-		  emacs_close (*fd);
-		  *fd = eln_fd;
-		  /* Store the eln -> el relation.  */
-		  Fputhash (Ffile_name_nondirectory (eln_name),
-			    src_name, Vcomp_eln_to_el_h);
-		  return;
-		}
-	      else
-		emacs_close (eln_fd);
+	      *filename = eln_name;
+	      emacs_close (*fd);
+	      *fd = eln_fd;
+	      /* Store the eln -> el relation.  */
+	      Fputhash (Ffile_name_nondirectory (eln_name),
+			src_name, Vcomp_eln_to_el_h);
+	      return;
 	    }
 	}
     }
@@ -1698,6 +1675,7 @@ openp (Lisp_Object path, Lisp_Object str, Lisp_Object suffixes,
   int last_errno = ENOENT;
   int save_fd = -1;
   USE_SAFE_ALLOCA;
+
   /* The last-modified time of the newest matching file found.
      Initialize it to something less than all valid timestamps.  */
   struct timespec save_mtime = make_timespec (TYPE_MINIMUM (time_t), -1);
@@ -1894,11 +1872,10 @@ openp (Lisp_Object path, Lisp_Object str, Lisp_Object suffixes,
 		  }
 		else
 		  {
-		    maybe_swap_for_eln (&string, &fd, get_stat_mtime (&st));
+		    maybe_swap_for_eln (&string, &fd);
 		    /* We succeeded; return this descriptor and filename.  */
 		    if (storeptr)
 		      *storeptr = string;
-
 		    SAFE_FREE ();
 		    return fd;
 		  }
@@ -1907,7 +1884,7 @@ openp (Lisp_Object path, Lisp_Object str, Lisp_Object suffixes,
 	    /* No more suffixes.  Return the newest.  */
 	    if (0 <= save_fd && ! CONSP (XCDR (tail)))
 	      {
-		maybe_swap_for_eln (&save_string, &save_fd, save_mtime);
+		maybe_swap_for_eln (&save_string, &save_fd);
 		if (storeptr)
 		  *storeptr = save_string;
 		SAFE_FREE ();
@@ -2690,6 +2667,13 @@ read_escape (Lisp_Object readcharfun, bool stringp)
 	while (++count <= unicode_hex_count)
 	  {
 	    c = READCHAR;
+	    if (c < 0)
+	      {
+		if (unicode_hex_count > 4)
+		  error ("Malformed Unicode escape: \\U%x", i);
+		else
+		  error ("Malformed Unicode escape: \\u%x", i);
+	      }
 	    /* `isdigit' and `isalpha' may be locale-specific, which we don't
 	       want.  */
 	    int digit = char_hexdigit (c);

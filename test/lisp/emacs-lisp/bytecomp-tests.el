@@ -26,6 +26,7 @@
 ;;; Commentary:
 
 (require 'ert)
+(require 'ert-x)
 (require 'cl-lib)
 (require 'subr-x)
 (require 'bytecomp)
@@ -365,7 +366,12 @@
             '(((a b)) a b (c) (d)))
     (mapcar (lambda (x) (cond ((memq '(a b) x) 1)
                               ((equal x '(c)) 2)))
-            '(((a b)) a b (c) (d))))
+            '(((a b)) a b (c) (d)))
+
+    (assoc 'b '((a 1) (b 2) (c 3)))
+    (assoc "b" '(("a" 1) ("b" 2) ("c" 3)))
+    (let ((x '((a 1) (b 2) (c 3)))) (assoc 'c x))
+    (assoc 'a '((a 1) (b 2) (c 3)) (lambda (u v) (not (equal u v)))))
   "List of expression for test.
 Each element will be executed by interpreter and with
 bytecompiled code, and their results compared.")
@@ -444,8 +450,8 @@ Subtests signal errors if something goes wrong."
            (if compile
                (let ((byte-compile-dest-file-function
                       (lambda (e) elcfile)))
-                 (byte-compile-file elfile t))
-             (load elfile nil 'nomessage)))
+                 (byte-compile-file elfile)))
+           (load elfile nil 'nomessage))
       (when elfile (delete-file elfile))
       (when elcfile (delete-file elcfile)))))
 (put 'test-byte-comp-compile-and-load 'lisp-indent-function 1)
@@ -484,6 +490,9 @@ Subtests signal errors if something goes wrong."
       (defun def () (m))))
   (should (equal (funcall 'def) 4)))
 
+
+;;;; Warnings.
+
 (ert-deftest bytecomp-tests--warnings ()
   (with-current-buffer (get-buffer-create "*Compile-Log*")
     (let ((inhibit-read-only t)) (erase-buffer)))
@@ -511,19 +520,127 @@ Subtests signal errors if something goes wrong."
     ;; Should not warn that mt--test2 is not known to be defined.
     (should-not (re-search-forward "my--test2" nil t))))
 
+(defmacro bytecomp--with-warning-test (re-warning &rest form)
+  (declare (indent 1))
+  `(with-current-buffer (get-buffer-create "*Compile-Log*")
+     (let ((inhibit-read-only t)) (erase-buffer))
+     (byte-compile ,@form)
+     (ert-info ((buffer-string) :prefix "buffer: ")
+       (should (re-search-forward ,re-warning)))))
+
 (ert-deftest bytecomp-warn-wrong-args ()
-  (with-current-buffer (get-buffer-create "*Compile-Log*")
-    (let ((inhibit-read-only t)) (erase-buffer))
-    (byte-compile '(remq 1 2 3))
-    (ert-info ((buffer-string) :prefix "buffer: ")
-      (should (re-search-forward "remq.*3.*2")))))
+  (bytecomp--with-warning-test "remq.*3.*2"
+    '(remq 1 2 3)))
 
 (ert-deftest bytecomp-warn-wrong-args-subr ()
-  (with-current-buffer (get-buffer-create "*Compile-Log*")
-    (let ((inhibit-read-only t)) (erase-buffer))
-    (byte-compile '(safe-length 1 2 3))
-    (ert-info ((buffer-string) :prefix "buffer: ")
-      (should (re-search-forward "safe-length.*3.*1")))))
+  (bytecomp--with-warning-test "safe-length.*3.*1"
+    '(safe-length 1 2 3)))
+
+(ert-deftest bytecomp-warn-variable-lacks-prefix ()
+  (bytecomp--with-warning-test "foo.*lacks a prefix"
+    '(defvar foo nil)))
+
+(defmacro bytecomp--define-warning-file-test (file re-warning &optional reverse)
+  `(ert-deftest ,(intern (format "bytecomp/%s" file)) ()
+     :expected-result ,(if reverse :failed :passed)
+     (with-current-buffer (get-buffer-create "*Compile-Log*")
+       (let ((inhibit-read-only t)) (erase-buffer))
+       (byte-compile-file ,(ert-resource-file file))
+       (ert-info ((buffer-string) :prefix "buffer: ")
+         (should (re-search-forward ,re-warning))))))
+
+(bytecomp--define-warning-file-test "error-lexical-var-with-add-hook.el"
+                            "add-hook.*lexical var")
+
+(bytecomp--define-warning-file-test "error-lexical-var-with-remove-hook.el"
+                            "remove-hook.*lexical var")
+
+(bytecomp--define-warning-file-test "error-lexical-var-with-run-hook-with-args-until-failure.el"
+                            "args-until-failure.*lexical var")
+
+(bytecomp--define-warning-file-test "error-lexical-var-with-run-hook-with-args-until-success.el"
+                            "args-until-success.*lexical var")
+
+(bytecomp--define-warning-file-test "error-lexical-var-with-run-hook-with-args.el"
+                            "args.*lexical var")
+
+(bytecomp--define-warning-file-test "error-lexical-var-with-symbol-value.el"
+                            "symbol-value.*lexical var")
+
+(bytecomp--define-warning-file-test "warn-autoload-not-on-top-level.el"
+                            "compiler ignores.*autoload.*")
+
+(bytecomp--define-warning-file-test "warn-callargs.el"
+                            "with 2 arguments, but accepts only 1")
+
+(bytecomp--define-warning-file-test "warn-defcustom-nogroup.el"
+                            "fails to specify containing group")
+
+(bytecomp--define-warning-file-test "warn-defcustom-notype.el"
+                            "fails to specify type")
+
+(bytecomp--define-warning-file-test "warn-defvar-lacks-prefix.el"
+                            "var.*foo.*lacks a prefix")
+
+(bytecomp--define-warning-file-test "warn-format.el"
+                            "called with 2 args to fill 1 format field")
+
+(bytecomp--define-warning-file-test "warn-free-setq.el"
+                            "free.*foo")
+
+(bytecomp--define-warning-file-test "warn-free-variable-reference.el"
+                            "free.*bar")
+
+(bytecomp--define-warning-file-test "warn-make-variable-buffer-local.el"
+                            "make-variable-buffer-local.*not called at toplevel")
+
+(bytecomp--define-warning-file-test "warn-interactive-only.el"
+                            "next-line.*interactive use only.*forward-line")
+
+(bytecomp--define-warning-file-test "warn-lambda-malformed-interactive-spec.el"
+                            "malformed interactive spec")
+
+(bytecomp--define-warning-file-test "warn-obsolete-defun.el"
+                            "foo-obsolete.*obsolete function.*99.99")
+
+(defvar bytecomp--tests-obsolete-var nil)
+(make-obsolete-variable 'bytecomp--tests-obsolete-var nil "99.99")
+
+(bytecomp--define-warning-file-test "warn-obsolete-hook.el"
+                            "bytecomp--tests-obs.*obsolete.*99.99")
+
+(bytecomp--define-warning-file-test "warn-obsolete-variable-same-file.el"
+                            "foo-obs.*obsolete.*99.99" t)
+
+(bytecomp--define-warning-file-test "warn-obsolete-variable.el"
+                            "bytecomp--tests-obs.*obsolete.*99.99")
+
+(bytecomp--define-warning-file-test "warn-redefine-defun-as-macro.el"
+                            "as both function and macro")
+
+(bytecomp--define-warning-file-test "warn-redefine-macro-as-defun.el"
+                            "as both function and macro")
+
+(bytecomp--define-warning-file-test "warn-redefine-defun.el"
+                            "defined multiple")
+
+(bytecomp--define-warning-file-test "warn-save-excursion.el"
+                            "with-current.*rather than save-excursion")
+
+(bytecomp--define-warning-file-test "warn-variable-let-bind-constant.el"
+                            "let-bind constant")
+
+(bytecomp--define-warning-file-test "warn-variable-let-bind-nonvariable.el"
+                            "let-bind nonvariable")
+
+(bytecomp--define-warning-file-test "warn-variable-set-constant.el"
+                            "variable reference to constant")
+
+(bytecomp--define-warning-file-test "warn-variable-set-nonvariable.el"
+                            "variable reference to nonvariable")
+
+
+;;;; Macro expansion.
 
 (ert-deftest test-eager-load-macro-expansion ()
   (test-byte-comp-compile-and-load nil
@@ -646,7 +763,8 @@ literals (Bug#20852)."
                     (setq bytecomp-tests--foobar (bytecomp-tests--foobar))))
       (print form (current-buffer)))
     (write-region (point-min) (point-max) source nil 'silent)
-    (byte-compile-file source t)
+    (byte-compile-file source)
+    (load source)
     (should (equal bytecomp-tests--foobar (cons 1 2)))))
 
 (ert-deftest bytecomp-tests--test-no-warnings-with-advice ()
@@ -801,6 +919,12 @@ literals (Bug#20852)."
       obsolete-variable)
    '((obsolete obsolete-variable))
    "obsolete")
+
+  (test-suppression
+   '(defun zot ()
+      (next-line))
+   '((interactive-only next-line))
+   "interactive use only")
 
   (test-suppression
    '(defun zot ()

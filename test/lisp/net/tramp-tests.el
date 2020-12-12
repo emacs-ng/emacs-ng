@@ -4,18 +4,20 @@
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 
-;; This program is free software: you can redistribute it and/or
+;; This file is part of GNU Emacs.
+;;
+;; GNU Emacs is free software: you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
 ;; published by the Free Software Foundation, either version 3 of the
 ;; License, or (at your option) any later version.
 ;;
-;; This program is distributed in the hope that it will be useful, but
+;; GNU Emacs is distributed in the hope that it will be useful, but
 ;; WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 ;; General Public License for more details.
 ;;
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see `https://www.gnu.org/licenses/'.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -111,7 +113,8 @@
   "Temporary directory for Tramp tests.")
 
 (defconst tramp-test-vec
-  (tramp-dissect-file-name tramp-test-temporary-file-directory)
+  (and (file-remote-p tramp-test-temporary-file-directory)
+       (tramp-dissect-file-name tramp-test-temporary-file-directory))
   "The used `tramp-file-name' structure.")
 
 (setq auth-source-save-behavior nil
@@ -2167,6 +2170,8 @@ is greater than 10.
   (skip-unless (tramp--test-enabled))
   ;; The bugs are fixed in Emacs 28.1.
   (skip-unless (tramp--test-emacs28-p))
+  ;; Methods with a share do not expand "/path/..".
+  (skip-unless (not (tramp--test-share-p)))
 
   (should
    (string-equal
@@ -2264,7 +2269,28 @@ This checks also `file-name-as-directory', `file-name-directory',
       (write-region "foo" nil tmp-name)
       (should (file-exists-p tmp-name))
       (delete-file tmp-name)
-      (should-not (file-exists-p tmp-name)))))
+      (should-not (file-exists-p tmp-name))
+
+      ;; Trashing files doesn't work for crypted remote files.
+      (unless (tramp--test-crypt-p)
+	(let ((trash-directory (tramp--test-make-temp-name 'local quoted))
+	      (delete-by-moving-to-trash t))
+	  (make-directory trash-directory)
+	  (should-not (file-exists-p tmp-name))
+	  (write-region "foo" nil tmp-name)
+	  (should (file-exists-p tmp-name))
+	  (delete-file tmp-name 'trash)
+	  (should-not (file-exists-p tmp-name))
+	  (should
+	   (or (file-exists-p
+		(expand-file-name
+		 (file-name-nondirectory tmp-name) trash-directory))
+	       ;; Gdrive.
+	       (file-symlink-p
+		(expand-file-name
+		 (file-name-nondirectory tmp-name) trash-directory))))
+	  (delete-directory trash-directory 'recursive)
+	  (should-not (file-exists-p trash-directory)))))))
 
 (ert-deftest tramp-test08-file-local-copy ()
   "Check `file-local-copy'."
@@ -2429,7 +2455,7 @@ This checks also `file-name-as-directory', `file-name-directory',
 	      (should-error
 	       (cl-letf (((symbol-function #'y-or-n-p) #'ignore)
 			 ;; Ange-FTP.
-			 ((symbol-function 'yes-or-no-p) 'ignore))
+			 ((symbol-function #'yes-or-no-p) #'ignore))
 		 (write-region "foo" nil tmp-name nil nil nil 'mustbenew))
                :type 'file-already-exists)
 	      (should-error
@@ -2517,9 +2543,8 @@ This checks also `file-name-as-directory', `file-name-directory',
 
 	  ;; Copy file to directory.
 	  (unwind-protect
-	      ;; FIXME: This fails on my QNAP server, see
-	      ;; /share/Web/owncloud/data/owncloud.log
-	      (unless (or (tramp--test-ange-ftp-p) (tramp--test-nextcloud-p))
+	      ;; This doesn't work on FTP.
+	      (unless (tramp--test-ange-ftp-p)
 		(write-region "foo" nil source)
 		(should (file-exists-p source))
 		(make-directory target)
@@ -2543,9 +2568,8 @@ This checks also `file-name-as-directory', `file-name-directory',
 
 	  ;; Copy directory to existing directory.
 	  (unwind-protect
-	      ;; FIXME: This fails on my QNAP server, see
-	      ;; /share/Web/owncloud/data/owncloud.log
-	      (unless (or (tramp--test-ange-ftp-p) (tramp--test-nextcloud-p))
+	      ;; This doesn't work on FTP.
+	      (unless (tramp--test-ange-ftp-p)
 		(make-directory source)
 		(should (file-directory-p source))
 		(write-region "foo" nil (expand-file-name "foo" source))
@@ -2566,9 +2590,8 @@ This checks also `file-name-as-directory', `file-name-directory',
 
 	  ;; Copy directory/file to non-existing directory.
 	  (unwind-protect
-	      ;; FIXME: This fails on my QNAP server, see
-	      ;; /share/Web/owncloud/data/owncloud.log
-	      (unless (or (tramp--test-ange-ftp-p) (tramp--test-nextcloud-p))
+	      ;; This doesn't work on FTP.
+	      (unless (tramp--test-ange-ftp-p)
 		(make-directory source)
 		(should (file-directory-p source))
 		(write-region "foo" nil (expand-file-name "foo" source))
@@ -2661,9 +2684,8 @@ This checks also `file-name-as-directory', `file-name-directory',
 
 	  ;; Rename directory to existing directory.
 	  (unwind-protect
-	      ;; FIXME: This fails on my QNAP server, see
-	      ;; /share/Web/owncloud/data/owncloud.log
-	      (unless (or (tramp--test-ange-ftp-p) (tramp--test-nextcloud-p))
+	      ;; This doesn't work on FTP.
+	      (unless (tramp--test-ange-ftp-p)
 		(make-directory source)
 		(should (file-directory-p source))
 		(write-region "foo" nil (expand-file-name "foo" source))
@@ -2685,9 +2707,8 @@ This checks also `file-name-as-directory', `file-name-directory',
 
 	  ;; Rename directory/file to non-existing directory.
 	  (unwind-protect
-	      ;; FIXME: This fails on my QNAP server, see
-	      ;; /share/Web/owncloud/data/owncloud.log
-	      (unless (or (tramp--test-ange-ftp-p) (tramp--test-nextcloud-p))
+	      ;; This doesn't work on FTP.
+	      (unless (tramp--test-ange-ftp-p)
 		(make-directory source)
 		(should (file-directory-p source))
 		(write-region "foo" nil (expand-file-name "foo" source))
@@ -2761,7 +2782,53 @@ This tests also `file-directory-p' and `file-accessible-directory-p'."
        (delete-directory tmp-name1)
        :type 'file-error)
       (delete-directory tmp-name1 'recursive)
-      (should-not (file-directory-p tmp-name1)))))
+      (should-not (file-directory-p tmp-name1))
+
+      ;; Trashing directories works only since Emacs 27.1.  It doesn't
+      ;; work for crypted remote directories and for ange-ftp.
+      (when (and (not (tramp--test-crypt-p)) (not (tramp--test-ftp-p))
+		 (tramp--test-emacs27-p))
+	(let ((trash-directory (tramp--test-make-temp-name 'local quoted))
+	      (delete-by-moving-to-trash t))
+	  (make-directory trash-directory)
+	  ;; Delete empty directory.
+	  (make-directory tmp-name1)
+	  (should (file-directory-p tmp-name1))
+	  (delete-directory tmp-name1 nil 'trash)
+	  (should-not (file-directory-p tmp-name1))
+	  (should
+	   (file-exists-p
+	    (expand-file-name
+	     (file-name-nondirectory tmp-name1) trash-directory)))
+	  (delete-directory trash-directory 'recursive)
+	  (should-not (file-exists-p trash-directory))
+	  ;; Delete non-empty directory.
+	  (make-directory tmp-name1)
+	  (should (file-directory-p tmp-name1))
+	  (write-region "foo" nil (expand-file-name "bla" tmp-name1))
+	  (should (file-exists-p (expand-file-name "bla" tmp-name1)))
+	  (make-directory tmp-name2)
+	  (should (file-directory-p tmp-name2))
+	  (write-region "foo" nil (expand-file-name "bla" tmp-name2))
+	  (should (file-exists-p (expand-file-name "bla" tmp-name2)))
+	  (should-error
+	   (delete-directory tmp-name1 nil 'trash)
+	   ;; tramp-rclone.el calls the local `delete-directory'.
+	   ;; This raises another error.
+	   :type (if (tramp--test-rclone-p) 'error 'file-error))
+	  (delete-directory tmp-name1 'recursive 'trash)
+	  (should-not (file-directory-p tmp-name1))
+	  (should
+	   (file-exists-p
+	    (format
+	     "%s/%s/bla" trash-directory (file-name-nondirectory tmp-name1))))
+	  (should
+	   (file-exists-p
+	    (format
+	     "%s/%s/%s/bla" trash-directory (file-name-nondirectory tmp-name1)
+	     (file-name-nondirectory tmp-name2))))
+	  (delete-directory trash-directory 'recursive)
+	  (should-not (file-exists-p trash-directory)))))))
 
 (ert-deftest tramp-test15-copy-directory ()
   "Check `copy-directory'."
@@ -2861,7 +2928,15 @@ This tests also `file-directory-p' and `file-accessible-directory-p'."
 			   '("bla" "foo")))
 	    (should (equal (directory-files
 			    tmp-name1 'full directory-files-no-dot-files-regexp)
-			   `(,tmp-name2 ,tmp-name3))))
+			   `(,tmp-name2 ,tmp-name3)))
+	    ;; Check the COUNT arg.  It exists since Emacs 28.
+	    (when (tramp--test-emacs28-p)
+	      (with-no-warnings
+		(should
+		 (equal
+		  (directory-files
+		   tmp-name1 nil directory-files-no-dot-files-regexp nil 1)
+		  '("bla"))))))
 
 	;; Cleanup.
 	(ignore-errors (delete-directory tmp-name1 'recursive))))))
@@ -3379,7 +3454,14 @@ They might differ only in time attributes or directory size."
 		(file-attributes (car elt)) (cdr elt))))
 
 	    (setq attr (directory-files-and-attributes tmp-name2 nil "\\`b"))
-	    (should (equal (mapcar #'car attr) '("bar" "boz"))))
+	    (should (equal (mapcar #'car attr) '("bar" "boz")))
+
+	    ;; Check the COUNT arg.  It exists since Emacs 28.
+	    (when (tramp--test-emacs28-p)
+	      (with-no-warnings
+		(setq attr (directory-files-and-attributes
+			    tmp-name2 nil "\\`b" nil nil 1))
+		(should (equal (mapcar #'car attr) '("bar"))))))
 
 	;; Cleanup.
 	(ignore-errors (delete-directory tmp-name1 'recursive))))))
@@ -4367,6 +4449,24 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 	    (should (string-match "foo" (buffer-string))))
 
 	;; Cleanup.
+	(ignore-errors (delete-process proc)))
+
+      ;; PTY.
+      (unwind-protect
+	  (with-temp-buffer
+	    ;; It works only for tramp-sh.el, and not direct async processes.
+	    (if (or (not (tramp--test-sh-p)) (tramp-direct-async-process-p))
+		(should-error
+		 (start-file-process "test4" (current-buffer) nil)
+		 :type 'wrong-type-argument)
+	      (setq proc (start-file-process "test4" (current-buffer) nil))
+	      (should (processp proc))
+	      (should (equal (process-status proc) 'run))
+	      ;; On MS Windows, `process-tty-name' returns nil.
+	      (unless (tramp--test-windows-nt-p)
+		(should (stringp (process-tty-name proc))))))
+
+	;; Cleanup.
 	(ignore-errors (delete-process proc))))))
 
 (defmacro tramp--test--deftest-direct-async-process
@@ -4713,215 +4813,128 @@ INPUT, if non-nil, is a string sent to the process."
 ;; This test is inspired by Bug#39067.
 (ert-deftest tramp-test32-shell-command-dont-erase-buffer ()
   "Check `shell-command-dont-erase-buffer'."
-  :tags '(:expensive-test)
+  ;; As long as Bug#40896 is not solved both in simple.el and Tramp,
+  ;; this test cannot run properly.
+  :tags '(:expensive-test :unstable)
   (skip-unless (tramp--test-enabled))
   (skip-unless (or (tramp--test-adb-p) (tramp--test-sh-p)))
   (skip-unless (not (tramp--test-crypt-p)))
   ;; Prior Emacs 27, `shell-command-dont-erase-buffer' wasn't working properly.
   (skip-unless (tramp--test-emacs27-p))
 
-  ;; We check both the local and remote case, in order to guarantee
-  ;; that they behave similar.
-  (dolist (default-directory
-	    `(,temporary-file-directory ,tramp-test-temporary-file-directory))
-    (let ((buffer (generate-new-buffer "foo"))
-	  ;; Suppress nasty messages.
-	  (inhibit-message t)
-	  point kill-buffer-query-functions)
-      (unwind-protect
-	  (progn
-	    ;; Don't erase if buffer is the current one.  Point is not moved.
-	    (let (shell-command-dont-erase-buffer)
-	      (with-temp-buffer
-		(insert "bar")
-		(setq point (point))
-		(should (string-equal "bar" (buffer-string)))
-		(should (= (point) (point-max)))
-		(shell-command "echo baz" (current-buffer))
-		(should (string-equal "barbaz\n" (buffer-string)))
-		(should (= point (point)))
-		(should-not (= (point) (point-max)))))
+  ;; (message "   s-c-d-e-b current-buffer buffer-string point")
+  ;; (message "===============================================")
 
-	    ;; Erase if the buffer is not current one.  Point is not moved.
-	    (let (shell-command-dont-erase-buffer)
-	      (with-current-buffer buffer
-		(erase-buffer)
-		(insert "bar")
-		(setq point (point))
-		(should (string-equal "bar" (buffer-string)))
-		(should (= (point) (point-max)))
-		(with-temp-buffer
-		  (shell-command "echo baz" buffer))
-		(should (string-equal "baz\n" (buffer-string)))
-		(should (= point (point)))
-		(should-not (= (point) (point-max)))))
+  ;;    s-c-d-e-b current-buffer buffer-string point
+  ;; ===============================================
+  ;;          nil              t    foobazzbar     4 x
+  ;;          nil            nil          bazz     5
+  ;; -----------------------------------------------
+  ;;        erase              t          bazz     1 x
+  ;;        erase            nil          bazz     5
+  ;; -----------------------------------------------
+  ;; beg-last-out              t    foobazzbar     4 x
+  ;; beg-last-out            nil    foobarbazz     7
+  ;; -----------------------------------------------
+  ;; end-last-out              t    foobazzbar     4
+  ;; end-last-out            nil    foobazzbar    11
+  ;; -----------------------------------------------
+  ;;   save-point              t    foobazzbar     4 x
+  ;;   save-point            nil    foobarbazz     4 x
+  ;; -----------------------------------------------
+  ;;       random              t    foobazzbar     4
+  ;;       random            nil    foobazzbar    11
+  ;; -----------------------------------------------
 
-	    ;; Erase if buffer is the current one, but
-	    ;; `shell-command-dont-erase-buffer' is set to `erase'.
-	    ;; There is no point to check point.
-	    (let ((shell-command-dont-erase-buffer 'erase))
-	      (with-temp-buffer
-		(insert "bar")
-		(should (string-equal "bar" (buffer-string)))
-		(should (= (point) (point-max)))
-		(shell-command "echo baz" (current-buffer))
-		(should (string-equal "baz\n" (buffer-string)))
-		;; In the local case, point is not moved after the
-		;; inserted text.
-		(should (= (point)
-			   (if (file-remote-p default-directory)
-			       (point-max) (point-min))))))
+  (let (;; Suppress nasty messages.
+	(inhibit-message t)
+	buffer kill-buffer-query-functions)
+    ;; We check both the local and remote case, in order to guarantee
+    ;; that they behave similar.
+    (dolist (default-directory
+	      `(,temporary-file-directory ,tramp-test-temporary-file-directory))
+      ;; These are the possible values of `shell-command-dont-erase-buffer'.
+      ;; `random' is taken as non-nil value without special meaning.
+      (dolist (shell-command-dont-erase-buffer
+	       '(nil erase beg-last-out end-last-out save-point random))
+	;; `shell-command' might work over the current buffer, or not.
+	(dolist (current '(t nil))
+	  (with-temp-buffer
+	    ;; We insert the string "foobar" into an empty buffer.
+	    ;; Point is set between "foo" and "bar".
+	    (setq buffer (current-buffer))
+	    (insert "foobar")
+	    (goto-char (- (point) 3))
+	    (should (string-equal "foobar" (buffer-string)))
+	    (should (string-equal "foo" (buffer-substring (point-min) (point))))
+	    (should (string-equal "bar" (buffer-substring (point) (point-max))))
 
-	    ;; Don't erase if the buffer is the current one and
-	    ;; `shell-command-dont-erase-buffer' is set to
-	    ;; `beg-last-out'.  Check point.
-	    (let ((shell-command-dont-erase-buffer 'beg-last-out))
-	      (with-temp-buffer
-		(insert "bar")
-		(setq point (point))
-		(should (string-equal "bar" (buffer-string)))
-		(should (= (point) (point-max)))
-		(shell-command "echo baz" (current-buffer))
-		(should (string-equal "barbaz\n" (buffer-string)))
-		;; There is still an error in Tramp.
-		(unless (file-remote-p default-directory)
-		  (should (= point (point)))
-		  (should-not (= (point) (point-max))))))
+	    ;; Apply `shell-command'.  It shall output the string
+	    ;; "bazz".  Messages in the *Messages* buffer are
+	    ;; suppressed.
+            (let (message-log-max)
+	      (if current
+		  (shell-command "echo -n bazz" (current-buffer))
+		(with-temp-buffer (shell-command "echo -n bazz" buffer))))
 
-	    ;; Don't erase if the buffer is not the current one and
-	    ;; `shell-command-dont-erase-buffer' is set to
-	    ;; `beg-last-out'.  Check point.
-	    (let ((shell-command-dont-erase-buffer 'beg-last-out))
-	      (with-current-buffer buffer
-		(erase-buffer)
-		(insert "bar")
-		(setq point (point))
-		(should (string-equal "bar" (buffer-string)))
-		(should (= (point) (point-max)))
-		(with-temp-buffer
-		  (shell-command "echo baz" buffer))
-		(should (string-equal "barbaz\n" (buffer-string)))
-		;; There is still an error in Tramp.
-		(unless (file-remote-p default-directory)
-		  (should (= point (point)))
-		  (should-not (= (point) (point-max))))))
+	  ;;   (message
+	  ;;    "%12s %14s %13s %5d"
+	  ;;    shell-command-dont-erase-buffer current (buffer-string) (point))))
+	  ;; (message "-----------------------------------------------")))))
 
-	    ;; Don't erase if the buffer is the current one and
-	    ;; `shell-command-dont-erase-buffer' is set to
-	    ;; `end-last-out'.  Check point.
-	    (let ((shell-command-dont-erase-buffer 'end-last-out))
-	      (with-temp-buffer
-		(insert "bar")
-		(setq point (point))
-		(should (string-equal "bar" (buffer-string)))
-		(should (= (point) (point-max)))
-		(shell-command "echo baz" (current-buffer))
-		(should (string-equal "barbaz\n" (buffer-string)))
-		;; This does not work as expected in the local case.
-		;; Therefore, we negate the test for the time being.
-		(should-not
-		 (funcall (if (file-remote-p default-directory) #'identity #'not)
-			  (= point (point))))
-		(should
-		 (funcall (if (file-remote-p default-directory) #'identity #'not)
-			  (= (point) (point-max))))))
+	    ;; Check result.
+	    (cond
+	     (current
+	      ;; String is inserted at point, and point is preserved
+	      ;; unless dictated otherwise.
+	      (cond
+	       ((null shell-command-dont-erase-buffer)
+		(should (string-equal "foobazzbar" (buffer-string)))
+		(should (= 4 (point))))
+	       ((eq shell-command-dont-erase-buffer 'erase)
+		(should (string-equal "bazz" (buffer-string)))
+		(should (= 1 (point))))
+	       ((eq shell-command-dont-erase-buffer 'beg-last-out)
+		(should (string-equal "foobazzbar" (buffer-string)))
+		(should (= 4 (point))))
+	       ;; Bug#40896
+	       ;; ((eq shell-command-dont-erase-buffer 'end-last-out)
+	       ;; 	(should (string-equal "foobazzbar" (buffer-string)))
+	       ;; 	(should (= 7 (point))))
+	       ((eq shell-command-dont-erase-buffer 'save-point)
+		(should (string-equal "foobazzbar" (buffer-string)))
+		(should (= 4 (point))))
+	       ;; Bug#40896
+	       ;; ((eq shell-command-dont-erase-buffer 'random)
+	       ;; 	(should (string-equal "foobazzbar" (buffer-string)))
+	       ;; 	(should (= 7 (point))))))
+	       ))
 
-	    ;; Don't erase if the buffer is not the current one and
-	    ;; `shell-command-dont-erase-buffer' is set to
-	    ;; `end-last-out'.  Check point.
-	    (let ((shell-command-dont-erase-buffer 'end-last-out))
-	      (with-current-buffer buffer
-		(erase-buffer)
-		(insert "bar")
-		(setq point (point))
-		(should (string-equal "bar" (buffer-string)))
-		(should (= (point) (point-max)))
-		(with-temp-buffer
-		  (shell-command "echo baz" buffer))
-		(should (string-equal "barbaz\n" (buffer-string)))
-		;; There is still an error in Tramp.
-		(unless (file-remote-p default-directory)
-		  (should-not (= point (point)))
-		  (should (= (point) (point-max))))))
-
-	    ;; Don't erase if the buffer is the current one and
-	    ;; `shell-command-dont-erase-buffer' is set to
-	    ;; `save-point'.  Check point.
-	    (let ((shell-command-dont-erase-buffer 'save-point))
-	      (with-temp-buffer
-		(insert "bar")
-		(goto-char (1- (point-max)))
-		(setq point (point))
-		(should (string-equal "bar" (buffer-string)))
-		(should (= (point) (1- (point-max))))
-		(shell-command "echo baz" (current-buffer))
-		(should (string-equal "babaz\nr" (buffer-string)))
-		;; There is still an error in Tramp.
-		(unless (file-remote-p default-directory)
-		  (should (= point (point)))
-		  (should-not (= (point) (point-max))))))
-
-	    ;; Don't erase if the buffer is not the current one and
-	    ;; `shell-command-dont-erase-buffer' is set to
-	    ;; `save-point'.  Check point.
-	    (let ((shell-command-dont-erase-buffer 'save-point))
-	      (with-current-buffer buffer
-		(erase-buffer)
-		(insert "bar")
-		(goto-char (1- (point-max)))
-		(setq point (point))
-		(should (string-equal "bar" (buffer-string)))
-		(should (= (point) (1- (point-max))))
-		(with-temp-buffer
-		  (shell-command "echo baz" buffer))
-		;; This does not work as expected.  Therefore, we
-		;; use the "wrong" string.
-		(should (string-equal "barbaz\n" (buffer-string)))
-		;; There is still an error in Tramp.
-		(unless (file-remote-p default-directory)
-		  (should (= point (point)))
-		  (should-not (= (point) (point-max))))))
-
-	    ;; Don't erase if the buffer is the current one and
-	    ;; `shell-command-dont-erase-buffer' is set to a random
-	    ;; value.  Check point.
-	    (let ((shell-command-dont-erase-buffer 'random))
-	      (with-temp-buffer
-		(insert "bar")
-		(setq point (point))
-		(should (string-equal "bar" (buffer-string)))
-		(should (= (point) (point-max)))
-		(shell-command "echo baz" (current-buffer))
-		(should (string-equal "barbaz\n" (buffer-string)))
-		;; This does not work as expected in the local case.
-		;; Therefore, we negate the test for the time being.
-		(should-not
-		 (funcall (if (file-remote-p default-directory) #'identity #'not)
-			  (= point (point))))
-		(should
-		 (funcall (if (file-remote-p default-directory) #'identity #'not)
-			  (= (point) (point-max))))))
-
-	    ;; Don't erase if the buffer is not the current one and
-	    ;; `shell-command-dont-erase-buffer' is set to a random
-	    ;; value.  Check point.
-	    (let ((shell-command-dont-erase-buffer 'random))
-	      (with-current-buffer buffer
-		(erase-buffer)
-		(insert "bar")
-		(setq point (point))
-		(should (string-equal "bar" (buffer-string)))
-		(should (= (point) (point-max)))
-		(with-temp-buffer
-		  (shell-command "echo baz" buffer))
-		(should (string-equal "barbaz\n" (buffer-string)))
-		;; There is still an error in Tramp.
-		(unless (file-remote-p default-directory)
-		  (should-not (= point (point)))
-		  (should (= (point) (point-max)))))))
-
-	;; Cleanup.
-	(ignore-errors (kill-buffer buffer))))))
+	     (t ;; not current buffer
+	      ;; String is appended, and point is at point-max unless
+	      ;; dictated otherwise.
+	      (cond
+	       ((null shell-command-dont-erase-buffer)
+		(should (string-equal "bazz" (buffer-string)))
+		(should (= 5 (point))))
+	       ((eq shell-command-dont-erase-buffer 'erase)
+		(should (string-equal "bazz" (buffer-string)))
+		(should (= 5 (point))))
+	       ((eq shell-command-dont-erase-buffer 'beg-last-out)
+		(should (string-equal "foobarbazz" (buffer-string)))
+		(should (= 7 (point))))
+	       ;; ;; Bug#40896
+	       ;; ((eq shell-command-dont-erase-buffer 'end-last-out)
+	       ;; 	(should (string-equal "foobarbazz" (buffer-string)))
+	       ;; 	(should (= 11 (point))))
+	       ((eq shell-command-dont-erase-buffer 'save-point)
+		(should (string-equal "foobarbazz" (buffer-string)))
+		(should (= 4 (point))))
+	       ;; ;; Bug#40896
+	       ;; ((eq shell-command-dont-erase-buffer 'random)
+	       ;; 	(should (string-equal "foobarbazz" (buffer-string)))
+	       ;; 	(should (= 11 (point)))))))))))))
+	       )))))))))
 
 ;; This test is inspired by Bug#23952.
 (ert-deftest tramp-test33-environment-variables ()
@@ -5694,8 +5707,14 @@ This does not support special file names."
 
 (defun tramp--test-sh-p ()
   "Check, whether the remote host runs a based method from tramp-sh.el."
-  (tramp-sh-file-name-handler-p
-   (tramp-dissect-file-name tramp-test-temporary-file-directory)))
+  (tramp-sh-file-name-handler-p tramp-test-vec))
+
+(defun tramp--test-share-p ()
+  "Check, whether the method needs a share."
+  (and (tramp--test-gvfs-p)
+       (string-match-p
+	"^\\(afp\\|davs?\\|smb\\)$"
+	(file-remote-p tramp-test-temporary-file-directory 'method))))
 
 (defun tramp--test-sudoedit-p ()
   "Check, whether the sudoedit method is used."

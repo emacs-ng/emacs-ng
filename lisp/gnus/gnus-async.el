@@ -225,6 +225,13 @@ that was fetched."
       (save-excursion
 	(save-restriction
 	  (narrow-to-region mark (point-max))
+	  ;; Put the articles into the agent, if they aren't already.
+	  (when (and gnus-agent
+		     gnus-agent-eagerly-store-articles
+		     (gnus-agent-group-covered-p group))
+	    (save-restriction
+	      (narrow-to-region mark (point-max))
+	      (gnus-agent-store-article article group)))
 	  ;; Prefetch images for the groups that want that.
 	  (when (fboundp 'gnus-html-prefetch-images)
 	    (gnus-html-prefetch-images summary))

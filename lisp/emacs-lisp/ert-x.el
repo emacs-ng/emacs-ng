@@ -30,6 +30,7 @@
 
 (eval-when-compile (require 'cl-lib))
 (require 'ert)
+(require 'subr-x) ; string-trim
 
 
 ;;; Test buffers.
@@ -353,6 +354,46 @@ convert it to a string and pass it to COLLECTOR first."
                            (funcall func object)))
       (funcall func object printcharfun))))
 
+(defvar ert-resource-directory-format "%s-resources/"
+  "Format for `ert-resource-directory'.")
+(defvar ert-resource-directory-trim-left-regexp ""
+  "Regexp for `string-trim' (left) used by `ert-resource-directory'.")
+(defvar ert-resource-directory-trim-right-regexp "\\(-tests?\\)?\\.el"
+  "Regexp for `string-trim' (right) used by `ert-resource-directory'.")
+
+;; Has to be a macro for `load-file-name'.
+(defmacro ert-resource-directory ()
+  "Return absolute file name of the resource (test data) directory.
+
+The path to the resource directory is the \"resources\" directory
+in the same directory as the test file this is called from.
+
+If that directory doesn't exist, find a directory based on the
+test file name.  If the file is named \"foo-tests.el\", return
+the absolute file name for \"foo-resources\".  If you want a
+different resource directory naming scheme, set the variable
+`ert-resource-directory-format'.  Before formatting, the file
+name will be trimmed using `string-trim' with arguments
+`ert-resource-directory-trim-left-regexp' and
+`ert-resource-directory-trim-right-regexp'."
+  `(let* ((testfile ,(or (bound-and-true-p byte-compile-current-file)
+                         (and load-in-progress load-file-name)
+                         buffer-file-name))
+          (default-directory (file-name-directory testfile)))
+     (file-truename
+      (if (file-accessible-directory-p "resources/")
+          (expand-file-name "resources/")
+        (expand-file-name
+         (format ert-resource-directory-format
+                 (string-trim testfile
+                              ert-resource-directory-trim-left-regexp
+                              ert-resource-directory-trim-right-regexp)))))))
+
+(defmacro ert-resource-file (file)
+  "Return file name of resource file named FILE.
+A resource file is in the resource directory as per
+`ert-resource-directory'."
+  `(expand-file-name ,file (ert-resource-directory)))
 
 (provide 'ert-x)
 

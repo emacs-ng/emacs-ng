@@ -351,6 +351,10 @@ DUMPING=@DUMPING@
 CHECK_STRUCTS = @CHECK_STRUCTS@
 HAVE_PDUMPER = @HAVE_PDUMPER@
 
+## ARM Macs require that all code have a valid signature.  Since pump
+## invalidates the signature, we must re-sign to fix it.
+DO_CODESIGN=$(patsubst aarch64-apple-darwin%,yes,@configuration@)
+
 # 'make' verbosity.
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 
@@ -745,6 +749,9 @@ temacs$(EXEEXT): $(LIBXMENU) $(ALLOBJS) $(LIBREMACS_ARCHIVE) $(RUSTFLAGS_FILE) $
 	  $(ALLOBJS) $(LIBEGNU_ARCHIVE) $(W32_RES_LINK) $(LIBES)
 ifeq ($(HAVE_PDUMPER),yes)
 	$(AM_V_at)$(MAKE_PDUMPER_FINGERPRINT) $@.tmp
+ifeq ($(DO_CODESIGN),yes)
+	codesign -s - -f $@.tmp
+endif
 endif
 	$(AM_V_at)mv $@.tmp $@
 	$(MKDIR_P) $(etc)
@@ -906,7 +913,8 @@ endif
 ifeq ($(DUMPING),pdumper)
 $(bootstrap_pdmp): bootstrap-emacs$(EXEEXT)
 	rm -f $@
-	$(RUN_TEMACS) --batch $(BUILD_DETAILS) -l loadup --temacs=pbootstrap
+	$(RUN_TEMACS) --batch $(BUILD_DETAILS) -l loadup --temacs=pbootstrap \
+		--bin-dest $(BIN_DESTDIR) --eln-dest $(ELN_DESTDIR)
 	@: Compile some files earlier to speed up further compilation.
 	$(MAKE) -C ../lisp compile-first EMACS="$(bootstrap_exe)"
 endif

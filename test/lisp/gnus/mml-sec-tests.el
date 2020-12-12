@@ -16,13 +16,14 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
 ;;; Code:
 
 (require 'ert)
+(require 'ert-x)
 
 (require 'message)
 (require 'epa)
@@ -37,7 +38,10 @@ Mostly, the empty passphrase is used.  However, the keys for
  as S/MIME).")
 
 (defun test-conf ()
-  (ignore-errors (epg-find-configuration 'OpenPGP)))
+  ;; Emacs doesn't have support for finding the name of the PGP agent
+  ;; on MacOS, so disable the checks.
+  (and (not (eq system-type 'darwin))
+       (ignore-errors (epg-find-configuration 'OpenPGP))))
 
 (defun enc-standards ()
   (if with-smime '(enc-pgp enc-pgp-mime enc-smime)
@@ -65,9 +69,7 @@ instead of gpg-agent."
       (let ((agent-info (getenv "GPG_AGENT_INFO"))
 	    (gpghome (getenv "GNUPGHOME")))
 	(condition-case error
-	    (let ((epg-gpg-home-directory
-                   (expand-file-name "test/data/mml-sec" source-directory))
-                  (mml-secure-allow-signing-with-unknown-recipient t)
+            (let ((epg-gpg-home-directory (ert-resource-directory))
 		  (mml-smime-use 'epg)
 		  ;; Create debug output in empty epg-debug-buffer.
 		  (epg-debug t)
@@ -762,37 +764,6 @@ Use sign-with-sender and encrypt-to-self."
 	    method "no-exp@example.org" "sub@example.org" 2 nil))
 	 )))))
 
-(ert-deftest mml-secure-sign-verify-2 ()
-  "Sign message without sender; then verify and test for expected result."
-  (skip-unless (test-conf))
-  (mml-secure-test-key-fixture
-   (lambda ()
-     (dolist (method (sign-standards) nil)
-       (let ((mml-secure-openpgp-sign-with-sender nil)
-	     (mml-secure-smime-sign-with-sender nil))
-	 ;; A single signing key for sender sub@example.org is customized
-	 ;; in the fixture, but not used here.
-	 ;; By default, gpg uses the first secret key in the keyring, which
-	 ;; is 02372A42CA6D40FB (OpenPGP) or
-	 ;; 0E58229B80EE33959FF718FEEF25402B479DC6E2 (S/MIME) here.
-	 (mml-secure-test-en-decrypt
-	  method "uid1@example.org" "sub@example.org" 0 nil)
-
-	 ;; From sub@example.org, sign with specified key:
-	 (let ((mml-secure-openpgp-signers '("02372A42CA6D40FB"))
-	       (mml-secure-smime-signers
-		'("D06AA118653CC38E9D0CAF56ED7A2135E1582177")))
-	   (mml-secure-test-en-decrypt
-	    method "no-exp@example.org" "sub@example.org" 1 nil))
-
-	 ;; From sub@example.org, sign with different specified key:
-	 (let ((mml-secure-openpgp-signers '("C3999CF1268DBEA2"))
-	       (mml-secure-smime-signers
-		'("0E58229B80EE33959FF718FEEF25402B479DC6E2")))
-	   (mml-secure-test-en-decrypt
-	    method "no-exp@example.org" "sub@example.org" 1 nil))
-	 )))))
-
 (ert-deftest mml-secure-sign-verify-3 ()
   "Try to sign message with expired OpenPGP subkey, which raises an error.
 With Ma Gnus v0.14 and earlier a signature would be created with a wrong key."
@@ -912,8 +883,7 @@ So the second decryption fails."
                  (equal (cdr (assq 'comm atts)) "gpg-agent")
                  (string-match
                   (concat "homedir.*"
-                          (regexp-quote (expand-file-name "test/data/mml-sec"
-                                                          source-directory)))
+                          (regexp-quote (ert-resource-directory)))
                   (cdr (assq 'args atts))))
         (call-process "kill" nil nil nil (format "%d" pid))))))
 

@@ -52,7 +52,7 @@
 ;;
 ;;  * Probably.  Show rules/dependencies for ANT like for Makefile (does ANT
 ;;    support vocabularies and grammar inheritance?), I have to look at
-;;    jde-ant.el: http://jakarta.apache.org/ant/manual/OptionalTasks/antlr.html
+;;    jde-ant.el: https://jakarta.apache.org/ant/manual/OptionalTasks/antlr.html
 ;;  * Probably.  Make `indent-region' faster, especially in actions.  ELP
 ;;    profiling in a class init action shows half the time is spent in
 ;;    `antlr-next-rule', the other half in `c-guess-basic-syntax'.
@@ -75,8 +75,8 @@
 ;;   (add-hook 'speedbar-load-hook  ; would be too late in antlr-mode.el
 ;;	       (lambda () (speedbar-add-supported-extension ".g")))
 
-;; I strongly recommend to use font-lock with a support mode like fast-lock,
-;; lazy-lock or better jit-lock (Emacs-21.1+) / lazy-shot (XEmacs).
+;; I strongly recommend to use font-lock with a support mode like
+;; jit-lock (Emacs) / lazy-shot (XEmacs).
 
 ;; To customize, use menu item "Antlr" -> "Customize Antlr".
 
@@ -720,9 +720,8 @@ imenu."
   "Major mode menu."
   `("Antlr"
     ,@(if (cond-emacs-xemacs
-	   :EMACS (and antlr-options-use-submenus
-		       (>= emacs-major-version 21))
-	   :XEMACS antlr-options-use-submenus)
+           :EMACS antlr-options-use-submenus
+           :XEMACS antlr-options-use-submenus)
 	  `(("Insert File Option"
 	     :filter ,(lambda (x) (antlr-options-menu-filter 1 x)))
 	    ("Insert Grammar Option"
@@ -1875,7 +1874,7 @@ cell where the two values determine the area inside the braces."
 (defun antlr-option-spec (level option specs existsp)
   "Return version correct option value specification.
 Return specification for option OPTION of kind level LEVEL.  SPECS
-should correspond to the VALUE-SPEC... in `antlr-option-alists'.
+should correspond to the VALUE-SPEC... in `antlr-options-alists'.
 EXISTSP determines whether the option already exists."
   (let (value)
     (while (and specs (>= antlr-tool-version (caar specs)))
@@ -2593,7 +2592,8 @@ the default language."
 	comment-start-skip "/\\*+ *\\|// *")
   ;; various -----------------------------------------------------------------
   (set (make-local-variable 'font-lock-defaults) antlr-font-lock-defaults)
-  (easy-menu-add antlr-mode-menu)
+  (when (featurep 'xemacs)
+    (easy-menu-add antlr-mode-menu))
   (set (make-local-variable 'imenu-create-index-function)
        'antlr-imenu-create-index-function)
   (set (make-local-variable 'imenu-generic-expression) t) ; fool stupid test

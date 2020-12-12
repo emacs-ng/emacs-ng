@@ -4,7 +4,7 @@
 ;; Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
-;; Version: 0.2
+;; Old-Version: 0.2
 ;; Keywords: OO, chart, graph
 
 ;; This file is part of GNU Emacs.
@@ -120,7 +120,7 @@ too much in text characters anyways.")
 (define-derived-mode chart-mode special-mode "Chart"
   "Define a mode in Emacs for displaying a chart."
   (buffer-disable-undo)
-  (set (make-local-variable 'font-lock-global-modes) nil)
+  (setq-local font-lock-global-modes nil)
   (font-lock-mode -1)                   ;Isn't it off already?  --Stef
   )
 

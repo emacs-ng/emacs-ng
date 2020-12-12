@@ -1840,8 +1840,7 @@ function at point for which PREDICATE returns non-nil)."
 	(or default
 	    ;; Prefer func name at point, if it's an advised function etc.
 	    (let ((function (progn
-			      (require 'help)
-			      (function-called-at-point))))
+                              (function-called-at-point))))
 	      (and function
 		   (member (symbol-name function) ad-advised-functions)
 		   (or (null predicate)
@@ -1894,8 +1893,8 @@ class of FUNCTION)."
   "Read name of existing advice of CLASS for FUNCTION with completion.
 An optional PROMPT is used to prompt for the name."
   (let* ((name-completion-table
-          (mapcar (function (lambda (advice)
-			      (list (symbol-name (ad-advice-name advice)))))
+          (mapcar (lambda (advice)
+                    (list (symbol-name (ad-advice-name advice))))
 		  (ad-get-advice-info-field function class)))
 	 (default
 	   (if (null name-completion-table)
@@ -2052,6 +2051,8 @@ in that CLASS."
 		 function class name)))
     (error "ad-remove-advice: `%s' is not advised" function)))
 
+(declare-function comp-subr-trampoline-install "comp")
+
 ;;;###autoload
 (defun ad-add-advice (function advice class position)
   "Add a piece of ADVICE to FUNCTION's list of advices in CLASS.
@@ -2075,6 +2076,9 @@ mapped to the closest extremal position).
 If FUNCTION was not advised already, its advice info will be
 initialized.  Redefining a piece of advice whose name is part of
 the cache-id will clear the cache."
+  (when (and (featurep 'nativecomp)
+             (subr-primitive-p (symbol-function function)))
+    (comp-subr-trampoline-install function))
   (cond ((not (ad-is-advised function))
          (ad-initialize-advice-info function)
 	 (ad-set-advice-info-field
@@ -2224,8 +2228,6 @@ For that it has to be fbound with a non-autoload definition."
   (let ((byte-compile-warnings byte-compile-warnings)
         ;; Don't pop up windows showing byte-compiler warnings.
         (warning-suppress-types '((bytecomp))))
-    (if (featurep 'cl)
-        (byte-compile-disable-warning 'cl-functions))
     (byte-compile (ad-get-advice-info-field function 'advicefunname))))
 
 ;; @@@ Accessing argument lists:
@@ -2255,13 +2257,11 @@ element is its actual current value, and the third element is either
   (let* ((parsed-arglist (ad-parse-arglist arglist))
 	 (rest (nth 2 parsed-arglist)))
     `(list
-      ,@(mapcar (function
-                 (lambda (req)
-                  `(list ',req ,req 'required)))
+      ,@(mapcar (lambda (req)
+                  `(list ',req ,req 'required))
                 (nth 0 parsed-arglist))
-      ,@(mapcar (function
-                 (lambda (opt)
-                  `(list ',opt ,opt 'optional)))
+      ,@(mapcar (lambda (opt)
+                  `(list ',opt ,opt 'optional))
                 (nth 1 parsed-arglist))
       ,@(if rest (list `(list ',rest ,rest 'rest))))))
 
@@ -2372,28 +2372,26 @@ The assignment starts at position INDEX."
 (defun ad-insert-argument-access-forms (definition arglist)
   "Expands arg-access text macros in DEFINITION according to ARGLIST."
   (ad-substitute-tree
-   (function
-    (lambda (form)
-      (or (eq form 'ad-arg-bindings)
-	  (and (memq (car-safe form)
-		     '(ad-get-arg ad-get-args ad-set-arg ad-set-args))
-	       (integerp (car-safe (cdr form)))))))
-   (function
-    (lambda (form)
-      (if (eq form 'ad-arg-bindings)
-	  (ad-retrieve-args-form arglist)
-	(let ((accessor (car form))
-	      (index (car (cdr form)))
-	      (val (car (cdr (ad-insert-argument-access-forms
-			      (cdr form) arglist)))))
-	  (cond ((eq accessor 'ad-get-arg)
-		 (ad-get-argument arglist index))
-		((eq accessor 'ad-set-arg)
-		 (ad-set-argument arglist index val))
-		((eq accessor 'ad-get-args)
-		 (ad-get-arguments arglist index))
-		((eq accessor 'ad-set-args)
-		 (ad-set-arguments arglist index val)))))))
+   (lambda (form)
+     (or (eq form 'ad-arg-bindings)
+         (and (memq (car-safe form)
+                    '(ad-get-arg ad-get-args ad-set-arg ad-set-args))
+              (integerp (car-safe (cdr form))))))
+   (lambda (form)
+     (if (eq form 'ad-arg-bindings)
+         (ad-retrieve-args-form arglist)
+       (let ((accessor (car form))
+             (index (car (cdr form)))
+             (val (car (cdr (ad-insert-argument-access-forms
+                             (cdr form) arglist)))))
+         (cond ((eq accessor 'ad-get-arg)
+                (ad-get-argument arglist index))
+               ((eq accessor 'ad-set-arg)
+                (ad-set-argument arglist index val))
+               ((eq accessor 'ad-get-args)
+                (ad-get-arguments arglist index))
+               ((eq accessor 'ad-set-args)
+                (ad-set-arguments arglist index val))))))
 		   definition))
 
 ;; @@@ Mapping argument lists:
@@ -2623,8 +2621,8 @@ should be modified.  The assembled function will be returned."
 (defun ad-make-hook-form (function hook-name)
   "Make hook-form from FUNCTION's advice bodies in class HOOK-NAME."
   (let ((hook-forms
-	 (mapcar (function (lambda (advice)
-			     (ad-body-forms (ad-advice-definition advice))))
+         (mapcar (lambda (advice)
+                   (ad-body-forms (ad-advice-definition advice)))
 		 (ad-get-enabled-advices function hook-name))))
     (if hook-forms
 	(macroexp-progn (apply 'append hook-forms)))))
@@ -3167,15 +3165,14 @@ usage: (defadvice FUNCTION (CLASS NAME [POSITION] [ARGLIST] FLAG...)
 			(setq args (cdr args)))))
 	 (flags
 	  (mapcar
-	   (function
-	    (lambda (flag)
+           (lambda (flag)
              (let ((completion
                     (try-completion (symbol-name flag) ad-defadvice-flags)))
                (cond ((eq completion t) flag)
                      ((member completion ad-defadvice-flags)
                       (intern completion))
                      (t (error "defadvice: Invalid or ambiguous flag: %s"
-                               flag))))))
+                               flag)))))
 	   args))
 	 (advice (ad-make-advice
 		  name (memq 'protect flags)
@@ -3217,11 +3214,10 @@ undone on exit of this macro."
   (let* ((index -1)
 	 ;; Make let-variables to store current definitions:
 	 (current-bindings
-	  (mapcar (function
-		   (lambda (function)
+          (mapcar (lambda (function)
                     (setq index (1+ index))
                     (list (intern (format "ad-oRiGdEf-%d" index))
-                          `(symbol-function ',function))))
+                          `(symbol-function ',function)))
 		  functions)))
     `(let ,current-bindings
       (unwind-protect

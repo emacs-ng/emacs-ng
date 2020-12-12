@@ -89,12 +89,6 @@ XOBJFWD (lispfwd a)
 }
 
 static void
-CHECK_SUBR (Lisp_Object x)
-{
-  CHECK_TYPE (SUBRP (x), Qsubrp, x);
-}
-
-static void
 set_blv_found (struct Lisp_Buffer_Local_Value *blv, int found)
 {
   eassert (found == !EQ (blv->defcell, blv->valcell));
@@ -781,6 +775,13 @@ DEFUN ("fset", Ffset, Sfset, 2, 2, 0,
     Fput (symbol, Qautoload, XCDR (function));
 
   eassert (valid_lisp_object_p (definition));
+
+#ifdef HAVE_NATIVE_COMP
+  if (comp_enable_subr_trampolines
+      && SUBRP (function)
+      && !SUBR_NATIVE_COMPILEDP (function))
+    CALLN (Ffuncall, Qcomp_subr_trampoline_install, symbol);
+#endif
 
   set_symbol_function (symbol, definition);
 
@@ -1501,10 +1502,14 @@ set_internal (Lisp_Object symbol, Lisp_Object newval, Lisp_Object where,
 	  {
 	    int offset = XBUFFER_OBJFWD (innercontents)->offset;
 	    int idx = PER_BUFFER_IDX (offset);
-	    if (idx > 0
-                && bindflag == SET_INTERNAL_SET
-		&& !let_shadows_buffer_binding_p (sym))
-	      SET_PER_BUFFER_VALUE_P (buf, idx, 1);
+	    if (idx > 0 && bindflag == SET_INTERNAL_SET
+	        && !PER_BUFFER_VALUE_P (buf, idx))
+	      {
+		if (let_shadows_buffer_binding_p (sym))
+		  set_default_internal (symbol, newval, bindflag);
+		else
+		  SET_PER_BUFFER_VALUE_P (buf, idx, 1);
+	      }
 	  }
 
 	if (voide)
@@ -4054,8 +4059,8 @@ syms_of_data (void)
   defsubr (&Ssubr_arity);
   defsubr (&Ssubr_name);
   defsubr (&Ssubr_native_elisp_p);
-#ifdef HAVE_NATIVE_COMP
   defsubr (&Ssubr_native_lambda_list);
+#ifdef HAVE_NATIVE_COMP
   defsubr (&Ssubr_native_comp_unit);
   defsubr (&Snative_comp_unit_file);
   defsubr (&Snative_comp_unit_set_file);

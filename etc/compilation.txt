@@ -153,7 +153,7 @@ Failing Scenarios:
 cucumber foo/cucumber.feature:6 # Scenario: assertion false (Test::Unit)
 cucumber foo/cucumber.feature:9 # Scenario: assertion false (RSpec)
 cucumber foo/cucumber.feature:12 # Scenario: backtrace in step definition
-cucumber foo/cucumber.feature:15 # Scenario: deeep backtrace in step definition
+cucumber foo/cucumber.feature:15 # Scenario: deep backtrace in step definition
 
 5 scenarios (4 failed, 1 undefined)
 5 steps (4 failed, 1 undefined)
@@ -534,6 +534,14 @@ symbol: sun
 cc-1020 CC: REMARK File = CUI_App.h, Line = 735
 cc-1070 cc: WARNING File = linkl.c, Line = 38
 cf90-113 f90comp: ERROR NSE, File = Hoved.f90, Line = 16, Column = 3
+
+
+* ShellCheck
+
+In autogen.sh line 38:
+autoconf_min=`sed -n 's/^ *AC_PREREQ(\([0-9\.]*\)).*/\1/p' configure.ac`
+^----------^ SC2034: autoconf_min appears unused. Verify use (or export if used externally).
+             ^-- SC2006: Use $(...) notation instead of legacy backticked `...`.
 
 
 * Sun Ada (VADS, Solaris)

@@ -827,7 +827,7 @@ An error is raised if not inside a conflict."
 
 	   ((re-search-backward smerge-base-re start t)
 	    ;; a 3-parts conflict
-	    (set (make-local-variable 'smerge-conflict-style) 'diff3-A)
+            (setq-local smerge-conflict-style 'diff3-A)
 	    (setq base-end upper-end)
 	    (setq upper-end (match-beginning 0))
 	    (setq base-start (match-end 0)))
@@ -835,7 +835,7 @@ An error is raised if not inside a conflict."
 	   ((string= filename (file-name-nondirectory
 			       (or buffer-file-name "")))
 	    ;; a 2-parts conflict
-	    (set (make-local-variable 'smerge-conflict-style) 'diff3-E))
+            (setq-local smerge-conflict-style 'diff3-E))
 
 	   ((and (not base-start)
 		 (or (eq smerge-conflict-style 'diff3-A)
@@ -1350,26 +1350,28 @@ buffer names."
 
     ;; Ediff is now set up, and we are in the control buffer.
     ;; Do a few further adjustments and take precautions for exit.
-    (set (make-local-variable 'smerge-ediff-windows) config)
-    (set (make-local-variable 'smerge-ediff-buf) buf)
-    (set (make-local-variable 'ediff-quit-hook)
-	 (lambda ()
-	   (let ((buffer-A ediff-buffer-A)
-		 (buffer-B ediff-buffer-B)
-		 (buffer-C ediff-buffer-C)
-		 (buffer-Ancestor ediff-ancestor-buffer)
-		 (buf smerge-ediff-buf)
-		 (windows smerge-ediff-windows))
-	     (ediff-cleanup-mess)
-	     (with-current-buffer buf
-	       (erase-buffer)
-	       (insert-buffer-substring buffer-C)
-	       (kill-buffer buffer-A)
-	       (kill-buffer buffer-B)
-	       (kill-buffer buffer-C)
-	       (when (bufferp buffer-Ancestor) (kill-buffer buffer-Ancestor))
-	       (set-window-configuration windows)
-	       (message "Conflict resolution finished; you may save the buffer")))))
+    (setq-local smerge-ediff-windows config)
+    (setq-local smerge-ediff-buf buf)
+    (add-hook 'ediff-quit-hook
+	      (lambda ()
+		(let ((buffer-A ediff-buffer-A)
+		      (buffer-B ediff-buffer-B)
+		      (buffer-C ediff-buffer-C)
+		      (buffer-Ancestor ediff-ancestor-buffer)
+		      (buf smerge-ediff-buf)
+		      (windows smerge-ediff-windows))
+		  (ediff-cleanup-mess)
+		  (with-current-buffer buf
+		    (erase-buffer)
+		    (insert-buffer-substring buffer-C)
+		    (kill-buffer buffer-A)
+		    (kill-buffer buffer-B)
+		    (kill-buffer buffer-C)
+		    (when (bufferp buffer-Ancestor)
+		      (kill-buffer buffer-Ancestor))
+		    (set-window-configuration windows)
+		    (message "Conflict resolution finished; you may save the buffer"))))
+	      nil t)
     (message "Please resolve conflicts now; exit ediff when done")))
 
 (defun smerge-makeup-conflict (pt1 pt2 pt3 &optional pt4)
@@ -1420,11 +1422,11 @@ with a \\[universal-argument] prefix, makes up a 3-way conflict."
 	  (font-lock-fontify-region (match-beginning 0) (match-end 0) nil)))))
   (if (string-match (regexp-quote smerge-parsep-re) paragraph-separate)
       (unless smerge-mode
-        (set (make-local-variable 'paragraph-separate)
-             (replace-match "" t t paragraph-separate)))
+        (setq-local paragraph-separate
+                    (replace-match "" t t paragraph-separate)))
     (when smerge-mode
-        (set (make-local-variable 'paragraph-separate)
-             (concat smerge-parsep-re paragraph-separate))))
+        (setq-local paragraph-separate
+                    (concat smerge-parsep-re paragraph-separate))))
   (unless smerge-mode
     (smerge-remove-props (point-min) (point-max))))
 

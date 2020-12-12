@@ -23,7 +23,7 @@
 ;;; Commentary:
 
 ;; This package provides an implementation of the Secret Service API
-;; <http://www.freedesktop.org/wiki/Specifications/secret-storage-spec>.
+;; <https://www.freedesktop.org/wiki/Specifications/secret-storage-spec>.
 ;; This API is meant to make GNOME-Keyring- and KWallet-like daemons
 ;; available under a common D-BUS interface and thus increase
 ;; interoperability between GNOME, KDE and other applications having
@@ -792,11 +792,11 @@ In this mode, widgets represent the search results.
 
 \\{secrets-mode-map}"
   (setq buffer-undo-list t)
-  (set (make-local-variable 'revert-buffer-function)
-       #'secrets-show-collections)
+  (setq-local revert-buffer-function
+              #'secrets-show-collections)
   ;; When we toggle, we must set temporary widgets.
-  (set (make-local-variable 'tree-widget-after-toggle-functions)
-       '(secrets-tree-widget-after-toggle-function)))
+  (add-hook 'tree-widget-after-toggle-functions
+            #'secrets-tree-widget-after-toggle-function nil t))
 
 ;; It doesn't make sense to call it interactively.
 (put 'secrets-mode 'disabled t)

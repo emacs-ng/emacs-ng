@@ -37,7 +37,6 @@
 ;; 'mwheel-down', but I cannot find a way to do this very easily (or
 ;; portably), so for now I just live with it.
 
-(require 'custom)
 (require 'timer)
 
 (defvar mouse-wheel-mode)
@@ -85,7 +84,7 @@ set to the event sent when clicking on the mouse wheel button."
   :type 'number)
 
 (defcustom mouse-wheel-scroll-amount
-  '(5 ((shift) . 1) ((meta) . nil) ((control) . text-scale))
+  '(1 ((shift) . hscroll) ((meta) . nil) ((control) . text-scale))
   "Amount to scroll windows by when spinning the mouse wheel.
 This is an alist mapping the modifier key to the amount to scroll when
 the wheel is moved with the modifier key depressed.
@@ -96,6 +95,9 @@ AMOUNT should be the number of lines to scroll, or nil for near full
 screen.  It can also be a floating point number, specifying the fraction of
 a full screen to scroll.  A near full screen is `next-screen-context-lines'
 less than a full screen.
+
+If AMOUNT is the symbol 'hscroll', this means that with MODIFIER,
+the mouse wheel will scroll horizontally instead of vertically.
 
 If AMOUNT is the symbol text-scale, this means that with
 MODIFIER, the mouse wheel will change the face height instead of
@@ -123,9 +125,10 @@ scrolling."
                     (const :tag "Scroll full screen" :value nil)
                     (integer :tag "Scroll specific # of lines")
                     (float :tag "Scroll fraction of window")
+                    (const :tag "Scroll horizontally" :value hscroll)
                     (const :tag "Change face size" :value text-scale)))))
   :set 'mouse-wheel-change-button
-  :version "27.1")
+  :version "28.1")
 
 (defcustom mouse-wheel-progressive-speed t
   "If non-nil, the faster the user moves the wheel, the faster the scrolling.
@@ -141,6 +144,16 @@ This affects both the commands for scrolling and changing the
 face height."
   :group 'mouse
   :type 'boolean)
+
+(defcustom mouse-wheel-scroll-amount-horizontal 1
+  "Amount to scroll windows horizontally.
+Its value can be changed dynamically by using a numeric prefix argument
+before starting horizontal scrolling.
+It has effect when `mouse-wheel-scroll-amount' binds the value `hscroll'
+to one of modifiers (`Shift' by default)."
+  :group 'mouse
+  :type 'number
+  :version "28.1")
 
 ;;; For tilt-scroll
 ;;;
@@ -239,11 +252,17 @@ active window."
                frame nil t)))))
       (mwheel-event-window event)))
 
-(defun mwheel-scroll (event)
+(defun mwheel-scroll (event &optional arg)
   "Scroll up or down according to the EVENT.
 This should be bound only to mouse buttons 4, 5, 6, and 7 on
-non-Windows systems."
-  (interactive (list last-input-event))
+non-Windows systems.
+
+Optional argument ARG (interactively, prefix numeric argument) controls
+the step of horizontal scrolling.
+
+The variable `mouse-wheel-scroll-amount-horizontal' records the last
+value of ARG, and the command uses it in subsequent scrolls."
+  (interactive (list last-input-event current-prefix-arg))
   (let* ((selected-window (selected-window))
          (scroll-window (mouse-wheel--get-scroll-window event))
 	 (old-point
@@ -270,7 +289,14 @@ non-Windows systems."
     (condition-case nil
         (unwind-protect
 	    (let ((button (mwheel-event-button event)))
-	      (cond ((eq button mouse-wheel-down-event)
+              (cond ((and (eq amt 'hscroll) (eq button mouse-wheel-down-event))
+                     (when (and (natnump arg) (> arg 0))
+                       (setq mouse-wheel-scroll-amount-horizontal arg))
+                     (funcall (if mouse-wheel-flip-direction
+                                  mwheel-scroll-left-function
+                                mwheel-scroll-right-function)
+                              mouse-wheel-scroll-amount-horizontal))
+                    ((eq button mouse-wheel-down-event)
                      (condition-case nil (funcall mwheel-scroll-down-function amt)
                        ;; Make sure we do indeed scroll to the beginning of
                        ;; the buffer.
@@ -285,7 +311,14 @@ non-Windows systems."
                           ;; for a reason that escapes me.  This problem seems
                           ;; to only affect scroll-down.  --Stef
                           (set-window-start (selected-window) (point-min))))))
-		    ((eq button mouse-wheel-up-event)
+                    ((and (eq amt 'hscroll) (eq button mouse-wheel-up-event))
+                     (when (and (natnump arg) (> arg 0))
+                       (setq mouse-wheel-scroll-amount-horizontal arg))
+                     (funcall (if mouse-wheel-flip-direction
+                                  mwheel-scroll-right-function
+                                mwheel-scroll-left-function)
+                              mouse-wheel-scroll-amount-horizontal))
+                    ((eq button mouse-wheel-up-event)
                      (condition-case nil (funcall mwheel-scroll-up-function amt)
                        ;; Make sure we do indeed scroll to the end of the buffer.
                        (end-of-buffer (while t (funcall mwheel-scroll-up-function)))))

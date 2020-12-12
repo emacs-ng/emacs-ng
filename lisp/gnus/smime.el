@@ -174,8 +174,9 @@ and the files themselves should be in PEM format."
 	   (eq 0 (call-process "openssl" nil nil nil "version"))
 	 (error nil))
        "openssl")
-  "Name of OpenSSL binary."
-  :type 'string
+  "Name of OpenSSL binary or nil if none."
+  :type '(choice string
+                 (const :tag "none" nil))
   :group 'smime)
 
 ;; OpenSSL option to select the encryption cipher
@@ -397,7 +398,7 @@ Any details (stdout and stderr) are left in the buffer specified by
 `smime-details-buffer'."
   (smime-new-details-buffer)
   (if (apply 'smime-call-openssl-region b e (list smime-details-buffer t)
-	     "smime" "-verify" "-noverify" "-out" '("/dev/null"))
+	     "smime" "-verify" "-noverify" "-out" `(,null-device))
       t
     (insert-buffer-substring smime-details-buffer)
     nil))

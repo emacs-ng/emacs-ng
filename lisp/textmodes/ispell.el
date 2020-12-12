@@ -684,13 +684,9 @@ Otherwise returns the library directory name, if that is defined."
     (with-temp-buffer
       (setq status (ispell-call-process
 		    ispell-program-name nil t nil
-		    ;; aspell doesn't accept the -vv switch.
 		    (let ((case-fold-search
-			   (memq system-type '(ms-dos windows-nt)))
-			  (speller
-			   (file-name-nondirectory ispell-program-name)))
-		      ;; Assume anything that isn't `aspell' is Ispell.
-		      (if (string-match "\\`aspell" speller) "-v" "-vv"))))
+			   (memq system-type '(ms-dos windows-nt))))
+		      "-vv")))
       (goto-char (point-min))
       (if interactivep
 	  ;; Report version information of ispell
@@ -771,18 +767,23 @@ Otherwise returns the library directory name, if that is defined."
 	    (setq ispell-really-hunspell nil))))))
     result))
 
+(defmacro ispell-with-safe-default-directory (&rest body)
+  "Execute the forms in BODY with a reasonable
+`default-directory'."
+  (declare (indent 0) (debug t))
+  `(let ((default-directory default-directory))
+     (unless (file-accessible-directory-p default-directory)
+       (setq default-directory (expand-file-name "~/")))
+     ,@body))
+
 (defun ispell-call-process (&rest args)
-  "Like `call-process' but defend against bad `default-directory'."
-  (let ((default-directory default-directory))
-    (unless (file-accessible-directory-p default-directory)
-      (setq default-directory (expand-file-name "~/")))
+  "Like `call-process', but defend against bad `default-directory'."
+  (ispell-with-safe-default-directory
     (apply 'call-process args)))
 
 (defun ispell-call-process-region (&rest args)
-  "Like `call-process-region' but defend against bad `default-directory'."
-  (let ((default-directory default-directory))
-    (unless (file-accessible-directory-p default-directory)
-      (setq default-directory (expand-file-name "~/")))
+  "Like `call-process-region', but defend against bad `default-directory'."
+  (ispell-with-safe-default-directory
     (apply 'call-process-region args)))
 
 (defvar ispell-debug-buffer)
@@ -1216,13 +1217,14 @@ Internal use.")
 (defun ispell--call-enchant-lsmod (&rest args)
   "Call enchant-lsmod with ARGS and return the output as string."
   (with-output-to-string
-    (with-current-buffer
-        standard-output
+    (with-current-buffer standard-output
       (apply #'ispell-call-process
              (replace-regexp-in-string "enchant\\(-[0-9]\\)?\\'"
                                        "enchant-lsmod\\1"
                                        ispell-program-name)
-             nil t nil args))))
+             ;; We discard stderr here because enchant-lsmod can emit
+             ;; unrelated warnings that will confuse us.
+             nil '(t nil) nil args))))
 
 (defun ispell--get-extra-word-characters (&optional lang)
   "Get the extra word characters for LANG as a character class.
@@ -2462,14 +2464,14 @@ SPC:   Accept word this time.
       (progn
 	(require 'ehelp)
 	(with-electric-help
-	 (function (lambda ()
-		     ;;This shouldn't be necessary: with-electric-help needs
-		     ;; an optional argument telling it about the smallest
-		     ;; acceptable window-height of the help buffer.
-		     ;;(if (< (window-height) 15)
-		     ;;	 (enlarge-window
-		     ;;	  (- 15 (ispell-adjusted-window-height))))
-		     (princ "Selections are:
+         (lambda ()
+           ;;This shouldn't be necessary: with-electric-help needs
+           ;; an optional argument telling it about the smallest
+           ;; acceptable window-height of the help buffer.
+           ;;(if (< (window-height) 15)
+           ;;	 (enlarge-window
+           ;;	  (- 15 (ispell-adjusted-window-height))))
+           (princ "Selections are:
 
 DIGIT: Replace the word with a digit offered in the *Choices* buffer.
 SPC:   Accept word this time.
@@ -2489,7 +2491,7 @@ SPC:   Accept word this time.
 `C-l':  Redraw screen.
 `C-r':  Recursive edit.
 `C-z':  Suspend Emacs or iconify frame.")
-		     nil))))
+           nil)))
 
 
     (let ((help-1 (concat "[r/R]eplace word; [a/A]ccept for this session; "
@@ -3272,15 +3274,15 @@ otherwise, the current line is skipped."
 Generated from `ispell-tex-skip-alists'."
   (concat
    ;; raw tex keys
-   (mapconcat (function (lambda (lst) (car lst)))
+   (mapconcat (lambda (lst) (car lst))
 	      (car ispell-tex-skip-alists)
 	      "\\|")
    "\\|"
    ;; keys wrapped in begin{}
-   (mapconcat (function (lambda (lst)
-			  (concat "\\\\begin[ \t\n]*{[ \t\n]*"
-				  (car lst)
-				  "[ \t\n]*}")))
+   (mapconcat (lambda (lst)
+                (concat "\\\\begin[ \t\n]*{[ \t\n]*"
+                        (car lst)
+                        "[ \t\n]*}"))
 	      (car (cdr ispell-tex-skip-alists))
 	      "\\|")))
 
@@ -3702,11 +3704,10 @@ Standard ispell choices are then available."
 	    ((string-equal (upcase word) word)
 	     (setq possibilities (mapcar #'upcase possibilities)))
 	    ((eq (upcase (aref word 0)) (aref word 0))
-             (setq possibilities (mapcar (function
-                                          (lambda (pos)
-                                            (if (eq (aref word 0) (aref pos 0))
-						pos
-                                              (capitalize pos))))
+             (setq possibilities (mapcar (lambda (pos)
+                                           (if (eq (aref word 0) (aref pos 0))
+                                               pos
+                                             (capitalize pos)))
                                          possibilities))))
 	   (setq case-fold-search case-fold-search-val)
 	   (save-window-excursion
@@ -3937,7 +3938,7 @@ in your init file:
 
 You can bind this to the key C-c i in GNUS or mail by adding to
 `news-reply-mode-hook' or `mail-mode-hook' the following lambda expression:
-   (function (lambda () (local-set-key \"\\C-ci\" \\='ispell-message)))"
+   (lambda () (local-set-key \"\\C-ci\" \\='ispell-message))"
   (interactive)
   (save-excursion
     (goto-char (point-min))
@@ -4097,7 +4098,7 @@ Includes LaTeX/Nroff modes and extended character mode."
       (progn
 	(ispell-send-string "+\n")	; set ispell mode to tex
 	(if (not (eq ispell-parser 'tex))
-	    (set (make-local-variable 'ispell-parser) 'tex)))
+            (setq-local ispell-parser 'tex)))
     (ispell-send-string "-\n"))		; set mode to normal (nroff)
   ;; If needed, test for SGML & HTML modes and set a buffer local nil/t value.
   (if (and ispell-skip-html (not (eq ispell-skip-html t)))

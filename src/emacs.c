@@ -170,7 +170,7 @@ static uintmax_t heap_bss_diff;
    We mark being in the exec'd process by a daemon name argument of
    form "--daemon=\nFD0,FD1\nNAME" where FD are the pipe file descriptors,
    NAME is the original daemon name, if any. */
-#if defined NS_IMPL_COCOA || (defined HAVE_NTGUI && defined CYGWIN)
+#if defined NS_IMPL_COCOA || defined CYGWIN
 # define DAEMON_MUST_EXEC
 #endif
 
@@ -386,7 +386,14 @@ terminate_due_to_signal (int sig, int backtrace_limit)
 
           totally_unblock_input ();
           if (sig == SIGTERM || sig == SIGHUP || sig == SIGINT)
-            Fkill_emacs (make_fixnum (sig));
+	    {
+	      /* Avoid abort in shut_down_emacs if we were interrupted
+		 by SIGINT in noninteractive usage, as in that case we
+		 don't care about the message stack.  */
+	      if (sig == SIGINT && noninteractive)
+		clear_message_stack ();
+	      Fkill_emacs (make_fixnum (sig));
+	    }
 
           shut_down_emacs (sig, Qnil);
           emacs_backtrace (backtrace_limit);
@@ -413,16 +420,9 @@ terminate_due_to_signal (int sig, int backtrace_limit)
 
 /* Set `invocation-name' `invocation-directory'.  */
 
-void
+static void
 set_invocation_vars (char *argv0, char const *original_pwd)
 {
-  /* This function can be called from within pdumper or later during
-     boot.  No need to run it twice.  */
-  static bool double_run_guard;
-  if (double_run_guard)
-    return;
-  double_run_guard = true;
-
   Lisp_Object raw_name, handler;
   AUTO_STRING (slash_colon, "/:");
 
@@ -480,6 +480,25 @@ set_invocation_vars (char *argv0, char const *original_pwd)
     }
 }
 
+/* Initialize a number of variables (ultimately
+   'Vinvocation_directory') needed by pdumper to complete native code
+   load.  */
+
+void
+init_vars_for_load (char *argv0, char const *original_pwd)
+{
+  /* This function is called from within pdumper while loading (as
+     soon as we are able to allocate) or later during boot if pdumper
+     is not used.  No need to run it twice.  */
+  static bool double_run_guard;
+  if (double_run_guard)
+    return;
+  double_run_guard = true;
+
+  init_callproc_1 ();	/* Must precede init_cmdargs and init_sys_modes.  */
+  set_invocation_vars (argv0, original_pwd);
+}
+
 
 /* Code for dealing with Lisp access to the Unix command line.  */
 static void
@@ -491,8 +510,6 @@ init_cmdargs (int argc, char **argv, int skip_args, char const *original_pwd)
 
   initial_argv = argv;
   initial_argc = argc;
-
-  set_invocation_vars (argv[0], original_pwd);
 
   Vinstallation_directory = Qnil;
 
@@ -1288,7 +1305,7 @@ main (int argc, char **argv)
 	      || (fcntl (STDIN_FILENO, F_DUPFD_CLOEXEC, STDOUT_FILENO)
 		  != STDOUT_FILENO))
 	    {
-	      char *errstring = strerror (errno);
+	      const char *errstring = strerror (errno);
 	      fprintf (stderr, "%s: %s: %s\n", argv[0], term, errstring);
 	      exit (EXIT_FAILURE);
 	    }
@@ -1788,7 +1805,7 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
   /* Init buffer storage and default directory of main buffer.  */
   init_buffer ();
 
-  init_callproc_1 ();	/* Must precede init_cmdargs and init_sys_modes.  */
+  init_vars_for_load (argv[0], original_pwd);
 
   /* Must precede init_lread.  */
   init_cmdargs (argc, argv, skip_args, original_pwd);
@@ -2762,7 +2779,7 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
 	      }
 	  }
 	else if (cnv_result != 0 && d > path_utf8)
-	  d[-1] = '\0';	/* remove last semi-colon and NUL-terminate PATH */
+	  d[-1] = '\0';	/* remove last semi-colon and null-terminate PATH */
       } while (q);
       path_copy = path_utf8;
 #else  /* MSDOS */

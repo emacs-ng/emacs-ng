@@ -2329,8 +2329,14 @@ lookup_image (struct frame *f, Lisp_Object spec, int face_id)
   struct image *img;
   EMACS_UINT hash;
 
-  struct face *face = (face_id >= 0) ? FACE_FROM_ID (f, face_id)
-    : FACE_FROM_ID (f, DEFAULT_FACE_ID);
+  if (FRAME_FACE_CACHE (f) == NULL)
+    init_frame_faces (f);
+  if (FRAME_FACE_CACHE (f)->used == 0)
+    recompute_basic_faces (f);
+  if (face_id < 0 || face_id >= FRAME_FACE_CACHE (f)->used)
+    face_id = DEFAULT_FACE_ID;
+
+  struct face *face = FACE_FROM_ID (f, face_id);
   unsigned long foreground = FACE_COLOR_TO_PIXEL (face->foreground, f);
   unsigned long background = FACE_COLOR_TO_PIXEL (face->background, f);
 
@@ -9536,11 +9542,19 @@ DEF_DLL_FN (void, rsvg_handle_set_base_uri, (RsvgHandle *, const char *));
 DEF_DLL_FN (gboolean, rsvg_handle_write,
 	    (RsvgHandle *, const guchar *, gsize, GError **));
 DEF_DLL_FN (gboolean, rsvg_handle_close, (RsvgHandle *, GError **));
-#endif
+#  endif
+
+#  if LIBRSVG_CHECK_VERSION (2, 46, 0)
+DEF_DLL_FN (void, rsvg_handle_get_intrinsic_dimensions,
+            (RsvgHandle *, gboolean *, RsvgLength *, gboolean *,
+            RsvgLength *, gboolean *, RsvgRectangle *));
+DEF_DLL_FN (gboolean, rsvg_handle_get_geometry_for_layer,
+	    (RsvgHandle *, const char *, const RsvgRectangle *,
+	     RsvgRectangle *, RsvgRectangle *, GError **));
+#  endif
 DEF_DLL_FN (void, rsvg_handle_get_dimensions,
 	    (RsvgHandle *, RsvgDimensionData *));
 DEF_DLL_FN (GdkPixbuf *, rsvg_handle_get_pixbuf, (RsvgHandle *));
-
 DEF_DLL_FN (int, gdk_pixbuf_get_width, (const GdkPixbuf *));
 DEF_DLL_FN (int, gdk_pixbuf_get_height, (const GdkPixbuf *));
 DEF_DLL_FN (guchar *, gdk_pixbuf_get_pixels, (const GdkPixbuf *));
@@ -9586,6 +9600,10 @@ init_svg_functions (void)
   LOAD_DLL_FN (library, rsvg_handle_write);
   LOAD_DLL_FN (library, rsvg_handle_close);
 #endif
+#if LIBRSVG_CHECK_VERSION (2, 46, 0)
+  LOAD_DLL_FN (library, rsvg_handle_get_intrinsic_dimensions);
+  LOAD_DLL_FN (library, rsvg_handle_get_geometry_for_layer);
+#endif
   LOAD_DLL_FN (library, rsvg_handle_get_dimensions);
   LOAD_DLL_FN (library, rsvg_handle_get_pixbuf);
 
@@ -9621,6 +9639,10 @@ init_svg_functions (void)
 #  undef g_clear_error
 #  undef g_object_unref
 #  undef g_type_init
+#  if LIBRSVG_CHECK_VERSION (2, 46, 0)
+#   undef rsvg_handle_get_intrinsic_dimensions
+#   undef rsvg_handle_get_geometry_for_layer
+#  endif
 #  undef rsvg_handle_get_dimensions
 #  undef rsvg_handle_get_pixbuf
 #  if LIBRSVG_CHECK_VERSION (2, 32, 0)
@@ -9646,6 +9668,12 @@ init_svg_functions (void)
 #  define g_object_unref fn_g_object_unref
 #  if ! GLIB_CHECK_VERSION (2, 36, 0)
 #   define g_type_init fn_g_type_init
+#  endif
+#  if LIBRSVG_CHECK_VERSION (2, 46, 0)
+#   define rsvg_handle_get_intrinsic_dimensions \
+	fn_rsvg_handle_get_intrinsic_dimensions
+#   define rsvg_handle_get_geometry_for_layer	\
+	fn_rsvg_handle_get_geometry_for_layer
 #  endif
 #  define rsvg_handle_get_dimensions fn_rsvg_handle_get_dimensions
 #  define rsvg_handle_get_pixbuf fn_rsvg_handle_get_pixbuf
@@ -9718,6 +9746,49 @@ svg_load (struct frame *f, struct image *img)
   return success_p;
 }
 
+#if LIBRSVG_CHECK_VERSION (2, 46, 0)
+static double
+svg_css_length_to_pixels (RsvgLength length)
+{
+  /* FIXME: 96 appears to be a pretty standard DPI but we should
+     probably use the real DPI if we can get it.  */
+  double dpi = 96;
+  double value = length.length;
+
+  switch (length.unit)
+    {
+    case RSVG_UNIT_PX:
+      /* Already a pixel value.  */
+      break;
+    case RSVG_UNIT_CM:
+      /* 2.54 cm in an inch.  */
+      value = dpi * value / 2.54;
+      break;
+    case RSVG_UNIT_MM:
+      /* 25.4 mm in an inch.  */
+      value = dpi * value / 25.4;
+      break;
+    case RSVG_UNIT_PT:
+      /* 72 points in an inch.  */
+      value = dpi * value / 72;
+      break;
+    case RSVG_UNIT_PC:
+      /* 6 picas in an inch.  */
+      value = dpi * value / 6;
+      break;
+    case RSVG_UNIT_IN:
+      value *= dpi;
+      break;
+    default:
+      /* Probably one of em, ex, or %.  We can't know what the pixel
+         value is without more information.  */
+      value = 0;
+    }
+
+  return value;
+}
+#endif
+
 /* Load frame F and image IMG.  CONTENTS contains the SVG XML data to
    be parsed, SIZE is its size, and FILENAME is the name of the SVG
    file being loaded.
@@ -9730,7 +9801,7 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
 		ptrdiff_t size, char *filename)
 {
   RsvgHandle *rsvg_handle;
-  RsvgDimensionData dimension_data;
+  double viewbox_width, viewbox_height;
   GError *err = NULL;
   GdkPixbuf *pixbuf;
   int width;
@@ -9783,14 +9854,78 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
 #endif
 
   /* Get the image dimensions.  */
-  rsvg_handle_get_dimensions (rsvg_handle, &dimension_data);
+#if LIBRSVG_CHECK_VERSION (2, 46, 0)
+  RsvgRectangle zero_rect, viewbox, out_logical_rect;
+
+  /* Try the instrinsic dimensions first.  */
+  gboolean has_width, has_height, has_viewbox;
+  RsvgLength iwidth, iheight;
+
+  rsvg_handle_get_intrinsic_dimensions (rsvg_handle,
+                                        &has_width, &iwidth,
+                                        &has_height, &iheight,
+                                        &has_viewbox, &viewbox);
+
+  if (has_width && has_height)
+    {
+      /* Success!  We can use these values directly.  */
+      viewbox_width = svg_css_length_to_pixels (iwidth);
+      viewbox_height = svg_css_length_to_pixels (iheight);
+    }
+  else if (has_width && has_viewbox)
+    {
+      viewbox_width = svg_css_length_to_pixels (iwidth);
+      viewbox_height = svg_css_length_to_pixels (iwidth)
+        * viewbox.width / viewbox.height;
+    }
+  else if (has_height && has_viewbox)
+    {
+      viewbox_height = svg_css_length_to_pixels (iheight);
+      viewbox_width = svg_css_length_to_pixels (iheight)
+        * viewbox.height / viewbox.width;
+    }
+  else if (has_viewbox)
+    {
+      viewbox_width = viewbox.width;
+      viewbox_height = viewbox.height;
+    }
+  else
+    {
+      /* We haven't found a useable set of sizes, so try working out
+         the visible area.  */
+      rsvg_handle_get_geometry_for_layer (rsvg_handle, NULL,
+                                          &zero_rect, &viewbox,
+                                          &out_logical_rect, NULL);
+      viewbox_width = viewbox.x + viewbox.width;
+      viewbox_height = viewbox.y + viewbox.height;
+    }
+
+  if (viewbox_width == 0 || viewbox_height == 0)
+#endif
+  {
+    /* The functions used above to get the geometry of the visible
+       area of the SVG are only available in librsvg 2.46 and above,
+       so in certain circumstances this code path can result in some
+       parts of the SVG being cropped.  */
+    RsvgDimensionData dimension_data;
+
+    rsvg_handle_get_dimensions (rsvg_handle, &dimension_data);
+
+    viewbox_width = dimension_data.width;
+    viewbox_height = dimension_data.height;
+  }
+
+  compute_image_size (viewbox_width, viewbox_height, img->spec,
+                      &width, &height);
+
+  if (! check_image_size (f, width, height))
+    {
+      image_size_error ();
+      goto rsvg_error;
+    }
 
   /* We are now done with the unmodified data.  */
   g_object_unref (rsvg_handle);
-
-  /* Calculate the final image size.  */
-  compute_image_size (dimension_data.width, dimension_data.height,
-                      img->spec, &width, &height);
 
   /* Wrap the SVG data in another SVG.  This allows us to set the
      width and height, as well as modify the foreground and background
@@ -9814,7 +9949,7 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
       "xmlns:xi=\"http://www.w3.org/2001/XInclude\" "
       "style=\"color: #%06X; fill: currentColor;\" "
       "width=\"%d\" height=\"%d\" preserveAspectRatio=\"none\" "
-      "viewBox=\"0 0 %d %d\">"
+      "viewBox=\"0 0 %f %f\">"
       "<rect width=\"100%%\" height=\"100%%\" fill=\"#%06X\"/>"
       "<xi:include href=\"data:image/svg+xml;base64,%s\"></xi:include>"
       "</svg>";
@@ -9839,8 +9974,9 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
     if (!wrapped_contents
         || buffer_size <= snprintf (wrapped_contents, buffer_size, wrapper,
                                     foreground & 0xFFFFFF, width, height,
-                                    dimension_data.width, dimension_data.height,
-                                    background & 0xFFFFFF, SSDATA (encoded_contents)))
+                                    viewbox_width, viewbox_height,
+                                    background & 0xFFFFFF,
+                                    SSDATA (encoded_contents)))
       goto rsvg_error;
 
     wrapped_size = strlen (wrapped_contents);
@@ -9881,12 +10017,6 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
   if (err) goto rsvg_error;
 #endif
 
-  rsvg_handle_get_dimensions (rsvg_handle, &dimension_data);
-  if (! check_image_size (f, dimension_data.width, dimension_data.height))
-    {
-      image_size_error ();
-      goto rsvg_error;
-    }
 
   /* We can now get a valid pixel buffer from the svg file, if all
      went ok.  */
