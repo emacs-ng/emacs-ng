@@ -43,8 +43,10 @@ mod lists;
 mod multibyte;
 mod process;
 mod vectors;
+#[cfg(feature = "window-system-webrender")]
 mod wrterm;
 
+#[cfg(feature = "window-system-webrender")]
 pub use crate::wrterm::{tip_frame, wr_display_list};
 
 #[cfg(not(test))]
