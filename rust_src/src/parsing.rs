@@ -7,8 +7,8 @@ use remacs_macros::lisp_fn;
 use serde_json::{map::Map, Value};
 use std::convert::TryInto;
 use std::ffi::CString;
-use std::io::{BufReader, BufWriter};
-use std::process::{Command, Stdio};
+use std::io::{BufReader, BufWriter, Result};
+use std::process::{Child, Command, Stdio};
 use std::thread;
 
 use crate::remacs_sys::{
@@ -19,6 +19,21 @@ use crate::remacs_sys::{
     SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
 };
 
+const ID: &str = "id";
+const RESULT: &str = "result";
+const ERROR: &str = "error";
+const MESSAGE: &str = "message";
+const PARAMS: &str = "params";
+const METHOD: &str = "method";
+const DATA: &str = "data";
+const CODE: &str = "code";
+
+/// Create a 'child process' defined by STRING 'command'
+/// 'args' is a list of STRING arguments for the invoked command. Can be NIL
+/// handler is the FUNCTION that will be invoked on the result data
+/// returned from the process via stdout. The handler should take two
+/// arguments, the pipe process and the data. Data will be returned as
+/// a 'user-ptr', which should be passed to lsp-handler for further processing.
 #[lisp_fn]
 pub fn make_lsp_connection(
     command: LispObject,
@@ -48,26 +63,40 @@ pub fn make_lsp_connection(
             });
     }
 
-    async_create_process(command_string, args_vec, emacs_pipe);
+    if let Err(e) = async_create_process(command_string, args_vec, emacs_pipe) {
+        error!("Error creating process, reason {:?}", e);
+    }
+
     proc
 }
 
+/// Process the result of a lsp-server invoked via make-lsp-connection,
+/// and convert it to a lisp object. Data should be a USER-PTR object
+/// that was provided by the lsp-servers handler.
 #[lisp_fn]
 pub fn lsp_handler(_proc: LispObject, data: LispObject) -> LispObject {
     let user_data: UserData = data.into();
     let msg: Message = unsafe { user_data.unpack() };
     match msg {
-        Message::Request(_) => panic!(),
+        Message::Request(re) => {
+            serde_to_lisp(json!({ID: re.id, METHOD: re.method, PARAMS: re.params}))
+        }
         Message::Response(r) => {
             let response = r.result.unwrap_or_else(|| serde_json::Value::Null);
-            serde_to_lisp(json!({
-            "id": r.id,
-            "response": response,
-            }))
+            let error = r.error.map_or(serde_json::Value::Null, |e| {
+                json!({
+                    CODE: e.code,
+                    MESSAGE: e.message,
+                    DATA: e.data.unwrap_or(serde_json::Value::Null)
+                })
+            });
+            serde_to_lisp(json!({ID: r.id, RESULT: response, ERROR: error}))
         }
-        Message::Notification(_) => panic!(),
+        Message::Notification(n) => serde_to_lisp(json!({METHOD: n.method, PARAMS: n.params})),
     }
 }
+
+/*
 
 #[lisp_fn]
 pub fn lsp_lazy_handler(_proc: LispObject, data: LispObject) -> LispObject {
@@ -77,7 +106,7 @@ pub fn lsp_lazy_handler(_proc: LispObject, data: LispObject) -> LispObject {
         Message::Request(_) => panic!(),
         Message::Response(r) => {
             let response = r.result.unwrap_or_else(|| serde_json::Value::Null);
-            json!({"id": r.id, "response": response})
+            json!({ID: r.id, RESULT: response})
         }
         Message::Notification(_) => panic!(),
     };
@@ -114,6 +143,8 @@ pub fn get_json_cached_data(map: LispCons, key: LispObject) -> LispObject {
         unsafe { HASH_VALUE(h, i) }
     }
 }
+
+*/
 
 fn lisp_to_serde(object: LispObject) -> serde_json::Value {
     if object == QCnull {
@@ -316,28 +347,27 @@ pub fn lsp_send_request(proc: LispObject, method: LispObject, params: LispObject
     let method_s: LispStringRef = method.into();
     let value = lisp_to_serde(params);
     let request = Message::Request(Request::new(RequestId::from(0), method_s.to_utf8(), value));
-    emacs_pipe
-        .message_rust_worker(UserData::new(request))
-        .unwrap();
+    if let Err(e) = emacs_pipe.message_rust_worker(UserData::new(request)) {
+        error!("Failed to send request to server, reason {:?}", e);
+    }
+
     true
 }
 
-pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe) {
-    let process: std::process::Child = Command::new(program)
+pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe) -> Result<()> {
+    let process: Child = Command::new(program)
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .spawn()
-        .expect("failed to spawn child process");
+        .spawn()?;
 
-    // @TODO better error handling......
     let mut inn = process.stdin;
     let in_pipe = pipe.clone();
     thread::spawn(move || {
         let mut stdout_writer = BufWriter::new(inn.as_mut().unwrap());
         while let Ok(msg) = in_pipe.read_pend_message::<UserData>() {
             let value: Message = unsafe { msg.unpack() };
-            value.write(&mut stdout_writer);
+            value.write(&mut stdout_writer).unwrap();
         }
     });
 
@@ -345,11 +375,12 @@ pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe)
     let mut out_pipe = pipe.clone();
     thread::spawn(move || {
         let mut stdout_reader = BufReader::new(out.as_mut().unwrap());
-        // @TODO better error handling
         while let Some(msg) = Message::read(&mut stdout_reader).unwrap() {
-            out_pipe.message_lisp(UserData::new(msg));
+            out_pipe.message_lisp(UserData::new(msg)).unwrap();
         }
     });
+
+    Ok(())
 }
 
 include!(concat!(env!("OUT_DIR"), "/parsing_exports.rs"));
