@@ -3788,8 +3788,6 @@ syms_of_data (void)
 {
   Lisp_Object error_tail, arith_tail;
   rust_init_syms();
-  DEFSYM (QCnull, ":null");
-  DEFSYM (QCfalse, ":false");
 
   DEFSYM (Qquote, "quote");
   DEFSYM (Qlambda, "lambda");
