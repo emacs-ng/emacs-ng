@@ -26,14 +26,17 @@ const SYMBOL: c_int = 4;
 #[allow(dead_code)]
 const FUNCTION: c_int = 5;
 
-type AddGlobalFn = fn(c_int, *const c_char, c_int, *const c_char) -> *const ();
+type AddGlobalFn = ::std::option::Option<
+    unsafe extern "C" fn(c_int, *const c_char, c_int, *const c_char) -> *const (),
+>;
 
 #[no_mangle]
 pub unsafe extern "C" fn scan_rust_file(
     filename: *const c_char,
     generate_globals: c_int,
-    add_global: AddGlobalFn,
+    add_global_fp: AddGlobalFn,
 ) {
+    let add_global = add_global_fp.expect("Function pointer to 'add_global' method was null");
     let filename = CStr::from_ptr(filename).to_str().unwrap();
     let fp = BufReader::new(File::open(&*filename).unwrap());
 
