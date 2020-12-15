@@ -13,10 +13,10 @@ use std::thread;
 
 use crate::remacs_sys::{
     check_integer_range, hash_lookup, hash_put, intmax_t, make_fixed_natnum, make_float, make_int,
-    make_string_from_utf8, make_uint, make_vector, Fhash_table_p, Fmake_hash_table, QCfalse,
-    QCnull, QCsize, QCtest, Qequal, Qhash_table_p, Qt, Qunbound, AREF, ASET, ASIZE, CHECK_SYMBOL,
-    FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, NILP, STRINGP,
-    SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
+    make_string_from_utf8, make_uint, make_vector, Fmake_hash_table, QCfalse, QCnull, QCsize,
+    QCtest, Qequal, Qt, Qunbound, AREF, ASET, ASIZE, CHECK_SYMBOL, FLOATP, HASH_KEY, HASH_TABLE_P,
+    HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, NILP, STRINGP, SYMBOL_NAME, VECTORP, XFLOAT_DATA,
+    XHASH_TABLE,
 };
 
 const ID: &str = "id";
@@ -381,6 +381,17 @@ pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe)
     });
 
     Ok(())
+}
+
+// In order to have rust generate symbols at compile time,
+// I need a line of code starting with "def_lisp_sym"
+// This function does not actually run any code, it should
+// not be called at runtime. Doing so would actually be harmless
+// as 'def_lisp_sym' generates no runtime code.
+#[allow(dead_code)]
+fn init_syms() {
+    def_lisp_sym!(QCnull, ":null");
+    def_lisp_sym!(QCfalse, ":false");
 }
 
 include!(concat!(env!("OUT_DIR"), "/parsing_exports.rs"));
