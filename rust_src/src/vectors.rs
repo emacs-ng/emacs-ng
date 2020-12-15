@@ -11,6 +11,7 @@ use crate::{
 };
 
 pub type LispVectorlikeRef = ExternalPtr<Lisp_Vectorlike>;
+#[allow(dead_code)]
 pub type LispVectorRef = ExternalPtr<Lisp_Vector>;
 
 // Vectorlike support (LispType == 5)
