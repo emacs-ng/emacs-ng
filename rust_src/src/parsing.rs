@@ -13,10 +13,10 @@ use std::thread;
 
 use crate::remacs_sys::{
     check_integer_range, hash_lookup, hash_put, intmax_t, make_fixed_natnum, make_float, make_int,
-    make_string_from_utf8, make_uint, make_vector, Fcons, Fmake_hash_table, QCfalse, QCnull,
-    QCsize, QCtest, Qequal, Qnil, Qt, Qunbound, AREF, ASET, ASIZE, CHECK_SYMBOL, FLOATP, HASH_KEY,
-    HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, NILP, STRINGP, SYMBOL_NAME, VECTORP,
-    XFLOAT_DATA, XHASH_TABLE,
+    make_string_from_utf8, make_uint, make_vector, Fcons, Fintern, Fmake_hash_table, Fnreverse,
+    QCfalse, QCnull, QCsize, QCtest, Qequal, Qnil, Qt, Qunbound, AREF, ASET, ASIZE, CHECK_SYMBOL,
+    FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, NILP, STRINGP,
+    SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
 };
 
 const ID: &str = "id";
@@ -361,8 +361,60 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
 
                     hashmap
                 }
-                ObjectType::Alist => panic!("Not implemented"),
-                ObjectType::Plist => panic!("Not Implemented"),
+                ObjectType::Alist => {
+                    let mut result = Qnil;
+                    let mut keys: Vec<String> =
+                        map.keys().map(|s| s.clone()).collect::<Vec<String>>();
+                    while let Some(k) = keys.pop() {
+                        if let Some(v) = map.remove(&k) {
+                            let len = k.len();
+                            let cstring = CString::new(k).expect("Failure to allocate CString");
+                            let lisp_key = unsafe {
+                                Fintern(
+                                    make_string_from_utf8(
+                                        cstring.as_ptr(),
+                                        len.try_into().unwrap(),
+                                    ),
+                                    Qnil,
+                                )
+                            };
+                            result =
+                                unsafe { Fcons(Fcons(lisp_key, serde_to_lisp(v, config)), result) };
+                        }
+                    }
+
+                    unsafe { Fnreverse(result) }
+                }
+                ObjectType::Plist => {
+                    // @TODO this likely can be optimized by appending the
+                    // : when we clone the string, followed by only looking for
+                    // a slice via map.remove
+                    let mut result = Qnil;
+                    let mut keys: Vec<String> =
+                        map.keys().map(|s| s.clone()).collect::<Vec<String>>();
+                    while let Some(k) = keys.pop() {
+                        if let Some(v) = map.remove(&k) {
+                            let mut colon_key = String::from(":");
+                            colon_key.push_str(&k);
+                            let len = colon_key.len();
+                            let cstring =
+                                CString::new(colon_key).expect("Failure to allocate CString");
+                            let lisp_key = unsafe {
+                                Fintern(
+                                    make_string_from_utf8(
+                                        cstring.as_ptr(),
+                                        len.try_into().unwrap(),
+                                    ),
+                                    Qnil,
+                                )
+                            };
+                            result = unsafe { Fcons(lisp_key, result) };
+                            result = unsafe { Fcons(serde_to_lisp(v, config), result) };
+                        }
+                    }
+
+                    unsafe { Fnreverse(result) }
+                }
             }
         }
     }
