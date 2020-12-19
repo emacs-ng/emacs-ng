@@ -343,7 +343,7 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
 
                     let h = unsafe { XHASH_TABLE(hashmap) };
                     let mut keys: Vec<String> =
-                        map.keys().map(|s| s.clone()).collect::<Vec<String>>();
+                        map.keys().map(|s| s.clone()).rev().collect::<Vec<String>>();
                     while let Some(k) = keys.pop() {
                         if let Some(v) = map.remove(&k) {
                             let len = k.len();
@@ -365,7 +365,7 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
                 ObjectType::Alist => {
                     let mut result = Qnil;
                     let mut keys: Vec<String> =
-                        map.keys().map(|s| s.clone()).collect::<Vec<String>>();
+                        map.keys().map(|s| s.clone()).rev().collect::<Vec<String>>();
                     while let Some(k) = keys.pop() {
                         if let Some(v) = map.remove(&k) {
                             let len = k.len();
@@ -392,7 +392,7 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
                     // a slice via map.remove
                     let mut result = Qnil;
                     let mut keys: Vec<String> =
-                        map.keys().map(|s| s.clone()).collect::<Vec<String>>();
+                        map.keys().map(|s| s.clone()).rev().collect::<Vec<String>>();
                     while let Some(k) = keys.pop() {
                         if let Some(v) = map.remove(&k) {
                             let mut colon_key = String::from(":");
