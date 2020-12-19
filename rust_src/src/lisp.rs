@@ -192,3 +192,7 @@ impl<T> DerefMut for ExternalPtr<T> {
 // Lisp_Subr support
 
 pub type LispSubrRef = ExternalPtr<Aligned_Lisp_Subr>;
+
+/// Used to denote functions that have no limit on the maximum number
+/// of arguments.
+pub const MANY: i16 = -2;

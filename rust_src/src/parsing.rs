@@ -13,10 +13,11 @@ use std::thread;
 
 use crate::remacs_sys::{
     check_integer_range, hash_lookup, hash_put, intmax_t, make_fixed_natnum, make_float, make_int,
-    make_string_from_utf8, make_uint, make_vector, Fcons, Fintern, Fmake_hash_table, Fnreverse,
-    QCfalse, QCnull, QCsize, QCtest, Qequal, Qnil, Qt, Qunbound, AREF, ASET, ASIZE, CHECK_SYMBOL,
-    FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, NILP, STRINGP,
-    SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
+    make_string_from_utf8, make_uint, make_vector, Fcons, Fintern, Flist, Fmake_hash_table,
+    Fnreverse, QCarray_type, QCfalse, QCfalse_object, QCnull, QCnull_object, QCobject_type, QCsize,
+    QCtest, Qalist, Qarray, Qequal, Qhash_table, Qlist, Qnil, Qplist, Qplistp, Qt, Qunbound, AREF,
+    ASET, ASIZE, CHECK_SYMBOL, FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE,
+    INTEGERP, NILP, STRINGP, SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
 };
 
 const ID: &str = "id";
@@ -420,9 +421,63 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
     }
 }
 
-#[lisp_fn]
-pub fn json_se(obj: LispObject) -> LispObject {
-    let value = lisp_to_serde(obj, &JSONConfiguration::default());
+// This function is written so that if len args == 0, it will return
+// JSONConfiguration::default(). If you edit this function, ensure
+// that you aware of that functionality.
+fn generate_config_from_args(args: &[LispObject]) -> JSONConfiguration {
+    let mut config = JSONConfiguration::default();
+
+    if args.len() % 2 != 0 {
+        wrong_type!(Qplistp, unsafe {
+            Flist(
+                args.len().try_into().unwrap(),
+                args.as_ptr() as *mut LispObject,
+            )
+        });
+    }
+
+    for i in 0..args.len() {
+        if i % 2 != 0 {
+            continue;
+        }
+
+        let key = args[i];
+        let value = args[i + 1];
+        match key {
+            QCobject_type => {
+                config.obj = match value {
+                    Qhash_table => ObjectType::Hashtable,
+                    Qalist => ObjectType::Alist,
+                    Qplist => ObjectType::Plist,
+                    _ => error!(":object-type must be 'hash-table, 'alist, 'plist"),
+                };
+            }
+            QCarray_type => {
+                config.arr = match value {
+                    Qarray => ArrayType::Array,
+                    Qlist => ArrayType::List,
+                    _ => error!(":array-type must be 'array, 'list"),
+                };
+            }
+            QCnull_object => {
+                config.null_obj = value;
+            }
+            QCfalse_object => {
+                config.false_obj = value;
+            }
+            _ => {
+                error!("Wrong type: must be :object-type, :array-type, :null-object, :false-object")
+            }
+        }
+    }
+
+    config
+}
+
+#[lisp_fn(min = "1")]
+pub fn json_se(args: &[LispObject]) -> LispObject {
+    let config = generate_config_from_args(&args[1..]);
+    let value = lisp_to_serde(args[0], &config);
     match serde_json::to_string(&value) {
         Ok(v) => {
             let len = v.len();
@@ -433,12 +488,13 @@ pub fn json_se(obj: LispObject) -> LispObject {
     }
 }
 
-#[lisp_fn]
-pub fn json_de(obj: LispObject) -> LispObject {
-    let sref: LispStringRef = obj.into();
+#[lisp_fn(min = "1")]
+pub fn json_de(args: &[LispObject]) -> LispObject {
+    let config = generate_config_from_args(&args[1..]);
+    let sref: LispStringRef = args[0].into();
 
     match serde_json::from_str(&sref.to_utf8()) {
-        Ok(value) => serde_to_lisp(value, &JSONConfiguration::default()),
+        Ok(value) => serde_to_lisp(value, &config),
         Err(e) => error!("Error in parsing json: {:?}", e),
     }
 }
@@ -494,6 +550,13 @@ pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe)
 fn init_syms() {
     def_lisp_sym!(QCnull, ":null");
     def_lisp_sym!(QCfalse, ":false");
+    def_lisp_sym!(QCobject_type, ":object-type");
+    def_lisp_sym!(QCarray_type, ":array-type");
+    def_lisp_sym!(QCnull_object, ":null-object");
+    def_lisp_sym!(QCfalse_object, ":false-object");
+    def_lisp_sym!(Qalist, "alist");
+    def_lisp_sym!(Qplist, "plist");
+    def_lisp_sym!(Qarray, "array");
 }
 
 include!(concat!(env!("OUT_DIR"), "/parsing_exports.rs"));
