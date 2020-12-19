@@ -30,7 +30,7 @@ line-wrap = "0.1.1"
 lsp-server = "0.5.0"
 md5 = "0.6"
 rand = "0.6.5"
-serde_json = "1.0"
+serde_json = { version = "1.0", features = ["preserve_order"] }
 sha1 = "0.6"
 sha2 = "0.8"
 systemstat = "0.1"
