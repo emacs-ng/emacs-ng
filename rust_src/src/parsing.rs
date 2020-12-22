@@ -14,10 +14,11 @@ use std::thread;
 use crate::remacs_sys::{
     check_integer_range, hash_lookup, hash_put, intmax_t, make_fixed_natnum, make_float, make_int,
     make_string_from_utf8, make_uint, make_vector, Fcons, Fintern, Flist, Fmake_hash_table,
-    Fnreverse, QCarray_type, QCfalse, QCfalse_object, QCnull, QCnull_object, QCobject_type, QCsize,
-    QCtest, Qalist, Qarray, Qequal, Qhash_table, Qlist, Qnil, Qplist, Qplistp, Qt, Qunbound, AREF,
-    ASET, ASIZE, CHECK_SYMBOL, FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE,
-    INTEGERP, NILP, STRINGP, SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
+    Fnreverse, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, QCarray_type, QCfalse,
+    QCfalse_object, QCjson_config, QCnull, QCnull_object, QCobject_type, QCsize, QCtest, Qalist,
+    Qarray, Qequal, Qhash_table, Qlist, Qnil, Qplist, Qplistp, Qt, Qunbound, AREF, ASET, ASIZE,
+    CHECK_SYMBOL, FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, NILP,
+    STRINGP, SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
 };
 
 const ID: &str = "id";
@@ -29,17 +30,20 @@ const METHOD: &str = "method";
 const DATA: &str = "data";
 const CODE: &str = "code";
 
+#[derive(Clone)]
 enum ObjectType {
     Hashtable,
     Alist,
     Plist,
 }
 
+#[derive(Clone)]
 enum ArrayType {
     Array,
     List,
 }
 
+#[derive(Clone)]
 struct JSONConfiguration {
     obj: ObjectType,
     arr: ArrayType,
@@ -104,10 +108,10 @@ pub fn make_lsp_connection(
 /// and convert it to a lisp object. Data should be a USER-PTR object
 /// that was provided by the lsp-servers handler.
 #[lisp_fn]
-pub fn lsp_handler(_proc: LispObject, data: LispObject) -> LispObject {
-    let user_data: UserData = data.into();
+pub fn lsp_handler(proc: LispObject, data: LispObject) -> LispObject {
+    let user_data: UserData = data.to_owned_userdata();
     let msg: Message = unsafe { user_data.unpack() };
-    let config = &JSONConfiguration::default();
+    let config = &get_process_json_config(proc);
     match msg {
         Message::Request(re) => serde_to_lisp(
             json!({ID: re.id, METHOD: re.method, PARAMS: re.params}),
@@ -128,6 +132,30 @@ pub fn lsp_handler(_proc: LispObject, data: LispObject) -> LispObject {
             serde_to_lisp(json!({METHOD: n.method, PARAMS: n.params}), config)
         }
     }
+}
+
+fn get_process_json_config(proc: LispObject) -> JSONConfiguration {
+    let plist = unsafe { Fprocess_plist(proc) };
+    let config_obj = unsafe { Fplist_get(plist, QCjson_config) };
+    if config_obj.is_nil() {
+        JSONConfiguration::default()
+    } else {
+        let config: &JSONConfiguration = unsafe { config_obj.as_userdata_ref() };
+        config.clone()
+    }
+}
+
+#[lisp_fn(min = "1")]
+pub fn lsp_json_config(args: &[LispObject]) -> bool {
+    let proc = args[0];
+    let config = generate_config_from_args(&args[1..]);
+    let user_ptr: LispObject = UserData::new(config).into();
+
+    let mut plist = unsafe { Fprocess_plist(proc) };
+    plist = unsafe { Fplist_put(plist, QCjson_config, user_ptr) };
+    unsafe { Fset_process_plist(proc, plist) };
+
+    true
 }
 
 /*
@@ -503,7 +531,8 @@ pub fn json_de(args: &[LispObject]) -> LispObject {
 pub fn lsp_send_request(proc: LispObject, method: LispObject, params: LispObject) -> bool {
     let mut emacs_pipe = unsafe { EmacsPipe::with_process(proc) };
     let method_s: LispStringRef = method.into();
-    let value = lisp_to_serde(params, &JSONConfiguration::default());
+    let config = get_process_json_config(proc);
+    let value = lisp_to_serde(params, &config);
     let request = Message::Request(Request::new(RequestId::from(0), method_s.to_utf8(), value));
     if let Err(e) = emacs_pipe.message_rust_worker(UserData::new(request)) {
         error!("Failed to send request to server, reason {:?}", e);
@@ -525,6 +554,7 @@ pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe)
         let mut stdout_writer = BufWriter::new(inn.as_mut().unwrap());
         while let Ok(msg) = in_pipe.read_pend_message::<UserData>() {
             let value: Message = unsafe { msg.unpack() };
+
             value.write(&mut stdout_writer).unwrap();
         }
     });
@@ -554,6 +584,7 @@ fn init_syms() {
     def_lisp_sym!(QCarray_type, ":array-type");
     def_lisp_sym!(QCnull_object, ":null-object");
     def_lisp_sym!(QCfalse_object, ":false-object");
+    def_lisp_sym!(QCjson_config, ":json-config");
     def_lisp_sym!(Qalist, "alist");
     def_lisp_sym!(Qplist, "plist");
     def_lisp_sym!(Qarray, "array");
