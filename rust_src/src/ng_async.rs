@@ -71,6 +71,11 @@ impl LispObject {
     }
 }
 
+/// UserData is a struct used for ease-of-use for turning Rust structs
+/// into Lisp_User_Ptrs. UserData does NOT implement RAII. This means
+/// that in order for the underlying data to be free'd, you will need
+/// to either manually call finalize, or hand ownership over to lisp
+/// and let the GC take care of the finalization.
 pub struct UserData {
     finalizer: Option<unsafe extern "C" fn(arg1: *mut libc::c_void)>,
     data: *mut libc::c_void,
@@ -81,7 +86,7 @@ pub struct UserData {
 unsafe impl Send for UserData {}
 
 extern "C" fn rust_finalize<T>(raw: *mut libc::c_void) {
-    unsafe { Box::from_raw(raw as *mut T) };
+    let _t = unsafe { *Box::from_raw(raw as *mut T) };
 }
 
 impl UserData {
@@ -101,8 +106,12 @@ impl UserData {
         UserData::with_data_and_finalizer(boxed as *mut libc::c_void, Some(finalizer))
     }
 
-    pub unsafe fn unpack<T: Sized>(self) -> T {
+    pub unsafe fn unpack<T: Sized>(mut self) -> T {
         *Box::from_raw(self.data as *mut T)
+    }
+
+    pub unsafe fn as_ref<T>(&self) -> &T {
+        &(*(self.data as *const T))
     }
 }
 
@@ -117,24 +126,28 @@ impl LispObject {
         unsafe { USER_PTRP(self) }
     }
 
-    pub unsafe fn to_user_ptr_unchecked(self) -> UserData {
-        let p = XUSER_PTR(self);
-        UserData::with_data_and_finalizer((*p).p, (*p).finalizer)
-    }
-
-    pub fn as_user_ptr(self) -> Option<UserData> {
+    pub fn to_owned_userdata(self) -> UserData {
         if self.is_user_ptr() {
-            Some(unsafe { self.to_user_ptr_unchecked() })
+            unsafe {
+                let p = XUSER_PTR(self);
+                let ptr = (*p).p;
+                let fin = (*p).finalizer;
+                (*p).p = std::ptr::null_mut();
+                (*p).finalizer = None;
+                UserData::with_data_and_finalizer(ptr, fin)
+            }
         } else {
-            None
+            wrong_type!(Quser_ptrp, self);
         }
     }
-}
 
-impl From<LispObject> for UserData {
-    fn from(o: LispObject) -> Self {
-        o.as_user_ptr()
-            .unwrap_or_else(|| wrong_type!(Quser_ptrp, o))
+    pub unsafe fn as_userdata_ref<T>(&self) -> &T {
+        if self.is_user_ptr() {
+            let p = XUSER_PTR(*self);
+            &(*((*p).p as *const T))
+        } else {
+            wrong_type!(Quser_ptrp, *self);
+        }
     }
 }
 
