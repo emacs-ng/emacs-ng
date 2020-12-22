@@ -15,6 +15,7 @@
 #![feature(never_type)]
 #![feature(stmt_expr_attributes)]
 #![feature(untagged_unions)]
+#![feature(maybe_uninit_extra)]
 
 extern crate errno;
 extern crate lazy_static;
@@ -31,6 +32,7 @@ extern crate futures;
 extern crate lsp_server;
 #[macro_use]
 extern crate serde_json;
+extern crate rusty_v8;
 
 #[macro_use]
 mod remacs_sys;
@@ -42,6 +44,7 @@ mod ng_async;
 mod parsing;
 
 mod eval;
+mod javascript;
 mod lists;
 mod multibyte;
 mod process;
