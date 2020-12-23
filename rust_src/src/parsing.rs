@@ -340,7 +340,8 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
             match config.arr {
                 ArrayType::Array => {
                     let result = unsafe { make_vector(len.try_into().unwrap(), Qunbound) };
-                    let mut i = len - 1;
+                    let len64: i64 = len.try_into().unwrap();
+                    let mut i = len64 - 1;
                     while let Some(owned) = v.pop() {
                         unsafe {
                             ASET(result, i.try_into().unwrap(), serde_to_lisp(owned, config))
