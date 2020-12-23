@@ -264,7 +264,9 @@ impl EmacsPipe {
         let mut f = unsafe { File::from_raw_fd(self.out_fd) };
         let ptr = Box::into_raw(Box::new(content));
         let bin = ptr as *mut _ as usize;
-        let result = f.write(bin.to_string().as_bytes()).map(|_| ());
+        let mut ptr_str = bin.to_string();
+        ptr_str.push('\n');
+        let result = f.write(ptr_str.as_bytes()).map(|_| ());
         f.into_raw_fd();
         result
     }
@@ -384,19 +386,31 @@ pub fn async_handler(proc: LispObject, data: LispStringRef) -> bool {
     // write the string representation of that pointer over the pipe.
     // This code extracts that data, and gets us the acutal Rust String
     // object, that we then translate to a lisp object.
+    // Our assumption is that the writes will be atomic, due to being
+    // below PIPE_BUF. However, our reads may not be atomic, due to
+    // how emacs is reading the data. We seperate pointers with newline
+    // incase we read multiple pointers in one trip, and execute our
+    // handler logic on each.
     let sslice = data.as_slice();
-    let bin = String::from_utf8_lossy(sslice).parse::<usize>().unwrap();
+    let sstring = String::from_utf8_lossy(sslice);
+    for s in sstring.split('\n') {
+        if s.len() == 0 {
+            // Ignore the empty string.
+            continue;
+        }
 
-    let qtype = unsafe { Fplist_get(plist, Qreturn) };
-    if let Some(quoted_type) = qtype.to_data_option() {
-        let retval = make_return_value(bin, quoted_type);
-        let mut buffer = vec![orig_handler, proc, retval];
-        unsafe { Ffuncall(3, buffer.as_mut_ptr()) };
-    } else {
-        // This means that someone has mishandled the
-        // process plist and removed :type. Without this,
-        // we cannot safely execute data transfer.
-        wrong_type!(Qdata, qtype);
+        let bin = s.parse::<usize>().unwrap();
+        let qtype = unsafe { Fplist_get(plist, Qreturn) };
+        if let Some(quoted_type) = qtype.to_data_option() {
+            let retval = make_return_value(bin, quoted_type);
+            let mut buffer = vec![orig_handler, proc, retval];
+            unsafe { Ffuncall(3, buffer.as_mut_ptr()) };
+        } else {
+            // This means that someone has mishandled the
+            // process plist and removed :type. Without this,
+            // we cannot safely execute data transfer.
+            wrong_type!(Qdata, qtype);
+        }
     }
 
     true
