@@ -2,12 +2,12 @@ use crate::lisp::LispObject;
 use crate::lists::{LispCons, LispConsCircularChecks, LispConsEndChecks};
 use crate::multibyte::LispStringRef;
 use crate::ng_async::{EmacsPipe, PipeDataOption, UserData};
-use lsp_server::{Message, Request, RequestId};
+use lsp_server::{Message, Request, RequestId, Response};
 use remacs_macros::lisp_fn;
 use serde_json::{map::Map, Value};
 use std::convert::TryInto;
 use std::ffi::CString;
-use std::io::{BufReader, BufWriter, Result};
+use std::io::{BufReader, BufWriter, Result, Write};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 
@@ -29,6 +29,9 @@ const PARAMS: &str = "params";
 const METHOD: &str = "method";
 const DATA: &str = "data";
 const CODE: &str = "code";
+
+// Defined by JSON RPC
+const PARSE_ERROR: i32 = -32700;
 
 #[derive(Clone)]
 enum ObjectType {
@@ -555,7 +558,10 @@ pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe)
         while let Ok(msg) = in_pipe.read_pend_message::<UserData>() {
             let value: Message = unsafe { msg.unpack() };
 
-            value.write(&mut stdout_writer).unwrap();
+            if let Err(result) = value.write(&mut stdout_writer) {
+                eprintln!("Error while executing async LSP: {:?}", result);
+                break;
+            }
         }
     });
 
@@ -563,8 +569,26 @@ pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe)
     let mut out_pipe = pipe.clone();
     thread::spawn(move || {
         let mut stdout_reader = BufReader::new(out.as_mut().unwrap());
-        while let Some(msg) = Message::read(&mut stdout_reader).unwrap() {
-            out_pipe.message_lisp(UserData::new(msg)).unwrap();
+        loop {
+            let parsed_message = Message::read(&mut stdout_reader);
+            let msg = match parsed_message {
+                Ok(Some(m)) => m,
+                Ok(None) => Message::Response(Response::new_err(
+                    RequestId::from(0),
+                    PARSE_ERROR,
+                    String::from("Unable to read from stdin"),
+                )),
+                Err(e) => Message::Response(Response::new_err(
+                    RequestId::from(0),
+                    PARSE_ERROR,
+                    format!("JSON Message Error: {:?}", e),
+                )),
+            };
+
+            if let Err(result) = out_pipe.message_lisp(UserData::new(msg)) {
+                eprintln!("Error while executing async LSP: {:?}", result);
+                break;
+            }
         }
     });
 
