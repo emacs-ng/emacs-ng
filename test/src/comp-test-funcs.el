@@ -337,6 +337,59 @@
         (concat head-padding (substring str from-idx idx)
 	        tail-padding ellipsis)))))
 
+(defun comp-test-primitive-advice-f (x y)
+  (declare (speed 2))
+  (+ x y))
+
+(defun comp-test-primitive-redefine-f (x y)
+  (declare (speed 2))
+  (- x y))
+
+(defsubst comp-test-defsubst-f ()
+  t)
+
+(defvar comp-test-and-3-var 1)
+(defun comp-test-and-3-f (x)
+  (and (atom x)
+       comp-test-and-3-var
+       2))
+
+(defun comp-test-copy-insn-f (insn)
+  ;; From `comp-copy-insn'.
+  (if (consp insn)
+      (let (result)
+	(while (consp insn)
+	  (let ((newcar (car insn)))
+	    (if (or (consp (car insn)) (comp-mvar-p (car insn)))
+		(setf newcar (comp-copy-insn (car insn))))
+	    (push newcar result))
+	  (setf insn (cdr insn)))
+	(nconc (nreverse result)
+               (if (comp-mvar-p insn) (comp-copy-insn insn) insn)))
+    (if (comp-mvar-p insn)
+        (copy-comp-mvar insn)
+      insn)))
+
+(defun comp-test-cond-rw-1-1-f ())
+
+(defun comp-test-cond-rw-1-2-f ()
+  (let ((it (comp-test-cond-rw-1-1-f))
+	(key 't))
+    (if (or (equal it key)
+	    (eq key t))
+	it
+      nil)))
+
+(defun comp-test-44968-f (start end)
+  (let ((dirlist)
+        (dir (expand-file-name start))
+        (end (expand-file-name end)))
+    (while (not (or (equal dir (car dirlist))
+                    (file-equal-p dir end)))
+      (push dir dirlist)
+      (setq dir (directory-file-name (file-name-directory dir))))
+    (nreverse dirlist)))
+
 
 ;;;;;;;;;;;;;;;;;;;;
 ;; Tromey's tests ;;

@@ -223,7 +223,8 @@ byte-compiled before it is loaded."
       (org-babel-tangle-file file tangled-file "emacs-lisp"))
     (if compile
 	(progn
-	  (byte-compile-file tangled-file 'load)
+          (byte-compile-file tangled-file)
+          (load tangled-file)
 	  (message "Compiled and loaded %s" tangled-file))
       (load-file tangled-file)
       (message "Loaded %s" tangled-file))))
@@ -2059,7 +2060,7 @@ taken from the (otherwise obsolete) variable `org-todo-interpretation'."
 		   (choice
 		    :tag "Interpretation"
 		    ;;Quick and dirty way to see
-		    ;;`org-todo-interpretations'.  This takes the
+                    ;;`org-todo-interpretation'.  This takes the
 		    ;;place of item arguments
 		    :convert-widget
 		    (lambda (widget)
@@ -4790,7 +4791,6 @@ This is for getting out of special buffers like capture.")
 (require 'time-date)
 (unless (fboundp 'time-subtract) (defalias 'time-subtract 'subtract-time))
 (require 'easymenu)
-(autoload 'easy-menu-add "easymenu")
 (require 'overlay)
 
 ;; (require 'org-macs) moved higher up in the file before it is first used
@@ -5003,8 +5003,6 @@ the rounding returns a past time."
    (org-time-since (* 3600 org-extend-today-until))))
 
 ;;;; Font-Lock stuff, including the activators
-
-(require 'font-lock)
 
 (defconst org-match-sexp-depth 3
   "Number of stacked braces for sub/superscript matching.")
@@ -18534,8 +18532,7 @@ an argument, unconditionally call `org-insert-heading'."
     ("Customize"
      ["Browse Org Group" org-customize t]
      "--"
-     ["Expand This Menu" org-create-customize-menu
-      (fboundp 'customize-menu-create)])
+     ["Expand This Menu" org-create-customize-menu t])
     ["Send bug report" org-submit-bug-report t]
     "--"
     ("Refresh/Reload"
@@ -18708,20 +18705,17 @@ With prefix arg UNCOMPILED, load the uncompiled versions."
   (interactive)
   (org-load-modules-maybe)
   (org-require-autoloaded-modules)
-  (if (fboundp 'customize-menu-create)
-      (progn
-	(easy-menu-change
-	 '("Org") "Customize"
-	 `(["Browse Org group" org-customize t]
-	   "--"
-	   ,(customize-menu-create 'org)
-	   ["Set" Custom-set t]
-	   ["Save" Custom-save t]
-	   ["Reset to Current" Custom-reset-current t]
-	   ["Reset to Saved" Custom-reset-saved t]
-	   ["Reset to Standard Settings" Custom-reset-standard t]))
-	(message "\"Org\"-menu now contains full customization menu"))
-    (error "Cannot expand menu (outdated version of cus-edit.el)")))
+  (easy-menu-change
+   '("Org") "Customize"
+   `(["Browse Org group" org-customize t]
+     "--"
+     ,(customize-menu-create 'org)
+     ["Set" Custom-set t]
+     ["Save" Custom-save t]
+     ["Reset to Current" Custom-reset-current t]
+     ["Reset to Saved" Custom-reset-saved t]
+     ["Reset to Standard Settings" Custom-reset-standard t]))
+  (message "\"Org\"-menu now contains full customization menu"))
 
 ;;;; Miscellaneous stuff
 

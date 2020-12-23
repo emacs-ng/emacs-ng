@@ -365,7 +365,7 @@ appears right below @var{window}.
 @end defun
 
 @cindex window in direction
-@defun window-in-direction direction &optional window ignore sign wrap mini
+@defun window-in-direction direction &optional window ignore sign wrap minibuf
 This function returns the nearest live window in direction
 @var{direction} as seen from the position of @code{window-point} in
 window @var{window}.  The argument @var{direction} must be one of
@@ -392,11 +392,13 @@ is at the top of the frame and @var{direction} is @code{above}, then
 this function usually returns the frame's minibuffer window if it's
 active and a window at the bottom of the frame otherwise.
 
-If the optional argument @var{mini} is @code{nil}, this means to return
-the minibuffer window if and only if it is currently active.  If
-@var{mini} is non-@code{nil}, this function may return the minibuffer
-window even when it's not active.  However, if @var{wrap} is
-non-@code{nil}, it always acts as if @var{mini} were @code{nil}.
+If the optional argument @var{minibuf} is @code{t}, this function may
+return the minibuffer window even when it's not active.  If the
+optional argument @var{minibuf} is @code{nil}, this means to return
+the minibuffer window if and only if it is currently active.
+If @var{minibuf} is neither @code{nil} nor @code{t}, this function
+never returns the minibuffer window.  However, if @var{wrap} is
+non-@code{nil}, it always acts as if @var{minibuf} were @code{nil}.
 
 If it doesn't find a suitable window, this function returns
 @code{nil}.
@@ -5869,13 +5871,16 @@ which window parameters (if any) are saved by this function.
 @xref{Window Parameters}.
 @end defun
 
-@defun set-window-configuration configuration
+@defun set-window-configuration configuration &optional dont-set-frame
 This function restores the configuration of windows and buffers as
 specified by @var{configuration}, for the frame that
 @var{configuration} was created for, regardless of whether that frame
 is selected or not.  The argument @var{configuration} must be a value
 that was previously returned by @code{current-window-configuration}
-for that frame.
+for that frame.  Normally the function also selects the frame which is
+recorded in the configuration, but if @var{dont-set-frame} is
+non-@code{nil}, it leaves selected the frame which was current at the
+start of the function.
 
 If the frame from which @var{configuration} was saved is dead, all
 this function does is to restore the value of the variable

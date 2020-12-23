@@ -2206,8 +2206,8 @@ and selects that window."
 	  ;; Sort the list to put the most popular major modes first.
 	  (setq split-by-major-mode
 		(sort split-by-major-mode
-		      (function (lambda (elt1 elt2)
-				  (> (length elt1) (length elt2))))))
+                      (lambda (elt1 elt2)
+                        (> (length elt1) (length elt2)))))
 	  ;; Make a separate submenu for each major mode
 	  ;; that has more than one buffer,
 	  ;; unless all the remaining buffers are less than 1/10 of them.
@@ -2248,8 +2248,8 @@ and selects that window."
 	head)
     (setq buffers
 	  (sort buffers
-		(function (lambda (elt1 elt2)
-			    (string< (buffer-name elt1) (buffer-name elt2))))))
+                (lambda (elt1 elt2)
+                  (string< (buffer-name elt1) (buffer-name elt2)))))
     (setq tail buffers)
     (while tail
       (or (eq ?\s (aref (buffer-name (car tail)) 0))
@@ -2622,7 +2622,7 @@ is copied instead of being cut."
     ;; this for all windows on all visible frames.  In addition we save
     ;; also the cursor type for the window's buffer so we can restore it
     ;; in case we modified it.
-    ;; https://lists.gnu.org/archive/html/emacs-devel/2017-12/msg00090.html
+    ;; https://lists.gnu.org/r/emacs-devel/2017-12/msg00090.html
     (walk-window-tree
      (lambda (window)
        (setq states

@@ -32,7 +32,7 @@
 ;; along with new versions of IDLWAVE, documentation, and more
 ;; information, at:
 ;;
-;;           http://github.com/jdtsmith/idlwave
+;;           https://github.com/jdtsmith/idlwave
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -306,7 +306,6 @@ Jump:               [h] to function doclib header
 Here are all keybindings.
 \\{idlwave-help-mode-map}"
   (buffer-disable-undo)
-  (easy-menu-add idlwave-help-menu idlwave-help-mode-map)
   (setq truncate-lines t)
   (setq case-fold-search t)
   (setq mode-line-format
@@ -1173,17 +1172,16 @@ When DING is non-nil, ring the bell as well."
 Useful when source code is displayed as help.  See the option
 `idlwave-help-fontify-source-code'."
   (interactive)
-  (if (featurep 'font-lock)
-      (let ((major-mode 'idlwave-mode)
-	    (font-lock-verbose
-	     (if (called-interactively-p 'interactive) font-lock-verbose nil)))
-	(with-syntax-table idlwave-mode-syntax-table
-          (set (make-local-variable 'font-lock-defaults)
-               idlwave-font-lock-defaults)
-          (if (fboundp 'font-lock-ensure) ; Emacs >= 25.1
-              (font-lock-ensure)
-            ;; Silence "interactive use only" warning on Emacs >= 25.1.
-            (with-no-warnings (font-lock-fontify-buffer)))))))
+  (let ((major-mode 'idlwave-mode)
+        (font-lock-verbose
+         (if (called-interactively-p 'interactive) font-lock-verbose nil)))
+    (with-syntax-table idlwave-mode-syntax-table
+      (set (make-local-variable 'font-lock-defaults)
+           idlwave-font-lock-defaults)
+      (if (fboundp 'font-lock-ensure) ; Emacs >= 25.1
+          (font-lock-ensure)
+        ;; Silence "interactive use only" warning on Emacs >= 25.1.
+        (with-no-warnings (font-lock-fontify-buffer))))))
 
 
 (defun idlwave-help-error (name type class keyword)
@@ -1202,16 +1200,9 @@ Useful when source code is displayed as help.  See the option
     (setq idlwave-help-frame
 	  (make-frame idlwave-help-frame-parameters))
     ;; Strip menubar (?) and toolbar from the Help frame.
-    (if (fboundp 'set-specifier)
-	(progn
-	  ;; XEmacs
-	  (let ((sval (cons idlwave-help-frame nil)))
-	    ;; (set-specifier menubar-visible-p sval)
-	    (set-specifier default-toolbar-visible-p sval)))
-      ;; Emacs
-      (modify-frame-parameters idlwave-help-frame
-			       '(;;(menu-bar-lines . 0)
-				 (tool-bar-lines . 0)))))
+    (modify-frame-parameters idlwave-help-frame
+                             '(;;(menu-bar-lines . 0)
+                               (tool-bar-lines . 0))))
   (select-frame idlwave-help-frame))
 
 (defun idlwave-help-get-help-buffer ()

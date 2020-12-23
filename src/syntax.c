@@ -1421,7 +1421,7 @@ DEFUN ("internal-describe-syntax-value", Finternal_describe_syntax_value,
     {
       AUTO_STRING (prefixdoc,
 		   ",\n\t  is a prefix character for `backward-prefix-chars'");
-      insert1 (Fsubstitute_command_keys (prefixdoc));
+      insert1 (call1 (Qsubstitute_command_keys, prefixdoc));
     }
 
   return syntax;
@@ -2354,6 +2354,13 @@ forw_comment (ptrdiff_t from, ptrdiff_t from_byte, ptrdiff_t stop,
 	/* We have encountered a nested comment of the same style
 	   as the comment sequence which began this comment section.  */
 	nesting++;
+      if (comment_end_can_be_escaped
+          && (code == Sescape || code == Scharquote))
+        {
+          inc_both (&from, &from_byte);
+          UPDATE_SYNTAX_TABLE_FORWARD (from);
+          if (from == stop) continue; /* Failure */
+        }
       inc_both (&from, &from_byte);
       UPDATE_SYNTAX_TABLE_FORWARD (from);
 

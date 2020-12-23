@@ -402,7 +402,7 @@ built-in.
 
 See the discussion of bug#39799 for more details about this task.
 Another relevant resource is the Unicode Technical Standard #51
-"Unicode Emoji" (http://www.unicode.org/reports/tr51/).
+"Unicode Emoji" (https://www.unicode.org/reports/tr51/).
 
 ** Extend text-properties and overlays
 
@@ -497,7 +497,7 @@ https://savannah.nongnu.org/projects/emacs-rtf/, which is still in
 very early stages.
 
 Another place to look is the Wikipedia article at
-http://en.wikipedia.org/wiki/Rich_Text_Format.  It currently points to
+https://en.wikipedia.org/wiki/Rich_Text_Format.  It currently points to
 the latest spec of RTF v1.9.1 at
 https://web.archive.org/web/20190708132914/http://www.kleinlercher.at/tools/Windows_Protocols/Word2007RTFSpec9.pdf
 
@@ -525,7 +525,7 @@ Save backtraces when errors happen during specified filters, specified
 timers, and specified hooks.
 
 ** Install mmc@maruska.dyndns.org's no-flicker change
-https://lists.gnu.org/archive/html/emacs-devel/2005-12/msg00699.html
+https://lists.gnu.org/r/emacs-devel/2005-12/msg00699.html
 
 I don't know if this is still relevant.  I can't reach the URLs in
 the above message thread and double-buffering may have solved some
@@ -849,7 +849,7 @@ designed to be compatible with multiple Emacs ports.
 
 (See the scratch/nsxwidget branch, and the discussion around
 Objective-C code and GCC at
-https://lists.gnu.org/archive/html/emacs-devel/2019-08/msg00072.html)
+https://lists.gnu.org/r/emacs-devel/2019-08/msg00072.html )
 
 **** Respect 'frame-inhibit-implied-resize'
 When the variable 'frame-inhibit-implied-resize' is non-nil, frames
@@ -924,16 +924,13 @@ features of that interface could be implemented NS.
 
 **** Smooth scrolling -- maybe not a good idea
 Today, by default, scrolling with a trackpad makes the text move in
-steps of five lines.  (Scrolling with SHIFT scrolls one line at a time.)
+steps of one line.  (Scrolling with SHIFT scrolls horizontally.)
 
 The "mac" port provides smooth, pixel-based, scrolling.  This is a very
-popular features.  However, there are drawbacks to this method: what
+popular feature.  However, there are drawbacks to this method: what
 happens if only a fraction of a line is visible at the top of a
 window, is the partially visible text considered part of the window or
 not?  (Technically, what should 'window-start' return.)
-
-An alternative would be to make one-line scrolling the default on NS
-(or in Emacs in general).
 
 Note: This feature might not be allowed to be implemented until also
 implemented in Emacs for a free system.

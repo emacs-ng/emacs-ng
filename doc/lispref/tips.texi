@@ -95,6 +95,11 @@ If one prefix is insufficient, your package can use two or three
 alternative common prefixes, so long as they make sense.
 
 @item
+We recommend enabling @code{lexical-binding} in new code, and
+converting existing Emacs Lisp code to enable @code{lexical-binding}
+if it doesn't already.  @xref{Using Lexical Binding}.
+
+@item
 Put a call to @code{provide} at the end of each separate Lisp file.
 @xref{Named Features}.
 
@@ -134,17 +139,8 @@ your file do not need to load the extra library.
 
 @item
 If you need Common Lisp extensions, use the @code{cl-lib} library
-rather than the old @code{cl} library.  The latter does not
-use a clean namespace (i.e., its definitions do not
-start with a @samp{cl-} prefix).  If your package loads @code{cl} at
-run time, that could cause name clashes for users who don't use that
-package.
-
-There is no problem with using the @code{cl} package at @emph{compile}
-time, with @code{(eval-when-compile (require 'cl))}.  That's
-sufficient for using the macros in the @code{cl} package, because the
-compiler expands them before generating the byte-code.  It is still
-better to use the more modern @code{cl-lib} in this case, though.
+rather than the old @code{cl} library.  The latter library is
+deprecated and will be removed in a future version of Emacs.
 
 @item
 When defining a major mode, please follow the major mode
@@ -278,8 +274,9 @@ implementing such clickable links.
 @cindex keys, reserved
 Don't define @kbd{C-c @var{letter}} as a key in Lisp programs.
 Sequences consisting of @kbd{C-c} and a letter (either upper or lower
-case) are reserved for users; they are the @strong{only} sequences
-reserved for users, so do not block them.
+case; @acronym{ASCII} or non-@acronym{ASCII}) are reserved for users;
+they are the @strong{only} sequences reserved for users, so do not
+block them.
 
 Changing all the Emacs major modes to respect this convention was a
 lot of work; abandoning this convention would make that work go to
@@ -960,7 +957,7 @@ Using multiple top-level code sections has the advantage that it
 avoids introducing an additional nesting level but it also means that
 the section named @samp{Code} does not contain all the code, which is
 awkward.  To avoid that, you should put no code at all inside that
-section; that way it can be considered a seperator instead of a
+section; that way it can be considered a separator instead of a
 section heading.
 
 Finally, we recommend that you don't end headings with a colon or any
@@ -990,7 +987,7 @@ explains these conventions, starting with an example:
 
 @smallexample
 @group
-;;; foo.el --- Support for the Foo programming language
+;;; foo.el --- Support for the Foo programming language  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2010-2020 Your Name
 @end group
@@ -1013,14 +1010,14 @@ explains these conventions, starting with an example:
   The very first line should have this format:
 
 @example
-;;; @var{filename} --- @var{description}
+;;; @var{filename} --- @var{description}  -*- lexical-binding: t; -*-
 @end example
 
 @noindent
-The description should be contained in one line.  If the file
-needs a @samp{-*-} specification, put it after @var{description}.
-If this would make the first line too long, use a Local Variables
-section at the end of the file.
+The description should be contained in one line.  If the file needs to
+set more variables in the @samp{-*-} specification, add it after
+@code{lexical-binding}.  If this would make the first line too long, use
+a Local Variables section at the end of the file.
 
   The copyright notice usually lists your name (if you wrote the
 file).  If you have an employer who claims copyright on your work, you

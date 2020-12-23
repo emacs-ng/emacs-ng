@@ -1413,11 +1413,12 @@ into a plain rx-expression, collecting names into `rx--pcase-vars'."
                 (mapconcat #'symbol-name rx--pcase-vars " ")))
        `(backref ,index)))
     ((and `(,head . ,rest)
-          (guard (and (symbolp head)
+          (guard (and (or (symbolp head) (memq head '(?\s ??)))
                       (not (memq head '(literal regexp regex eval))))))
      (cons head (mapcar #'rx--pcase-transform rest)))
     (_ rx)))
 
+;;;###autoload
 (pcase-defmacro rx (&rest regexps)
   "A pattern that matches strings against `rx' REGEXPS in sexp form.
 REGEXPS are interpreted as in `rx'.  The pattern matches any

@@ -179,8 +179,9 @@ What paper size are the English versions supposed to be on?
 On Debian testing, the packages texlive-lang-czechslovak and
 texlive-lang-polish will let you generate the cs-* and sk-* pdfs.
 (You may need texlive-lang-cyrillic, texlive-lang-german,
-and texlive-fonts-extra for others.)  On Fedora-like systems,
-texlive-lh may help.
+and texlive-fonts-extra for others.)  Gnus refcards need
+texlive-latex-extra and/or texlive-latex-recommended.  On Fedora-like
+systems, texlive-lh may help.
 
 ** Ask maintainers of refcard translations to update them.
 
@@ -194,6 +195,17 @@ pl	Włodek Bzyl
 pt-br	Rodrigo Real
 ru	Alex Ott
 sk	Miroslav Vaško
+
+** Update some files from their upstream.
+
+Some files in Emacs are copies of data files maintained elsewhere.
+Make sure that they are reasonably up-to-date.
+
+- etc/publicsuffix.txt
+https://publicsuffix.org/list/public_suffix_list.dat
+
+- leim/SKK-DIC/SKK-JISYO.L
+https://raw.githubusercontent.com/skk-dev/dict/master/SKK-JISYO.L
 
 * BUGS
 

@@ -931,18 +931,18 @@ make_frame (bool mini_p)
 
   wset_frame (rw, frame);
 
-  /* 10 is arbitrary,
+  /* 80/25 is arbitrary,
      just so that there is "something there."
      Correct size will be set up later with adjust_frame_size.  */
 
-  SET_FRAME_COLS (f, 10);
-  SET_FRAME_LINES (f, 10);
+  SET_FRAME_COLS (f, 80);
+  SET_FRAME_LINES (f, 25);
   SET_FRAME_WIDTH (f, FRAME_COLS (f) * FRAME_COLUMN_WIDTH (f));
   SET_FRAME_HEIGHT (f, FRAME_LINES (f) * FRAME_LINE_HEIGHT (f));
 
-  rw->total_cols = 10;
+  rw->total_cols = FRAME_COLS (f);
   rw->pixel_width = rw->total_cols * FRAME_COLUMN_WIDTH (f);
-  rw->total_lines = mini_p ? 9 : 10;
+  rw->total_lines = FRAME_LINES (f) - (mini_p ? 1 : 0);
   rw->pixel_height = rw->total_lines * FRAME_LINE_HEIGHT (f);
 
   if (mini_p)
@@ -1101,7 +1101,7 @@ make_initial_frame (void)
 
   terminal = init_initial_terminal ();
 
-  f = make_frame (1);
+  f = make_frame (true);
   XSETFRAME (frame, f);
 
   Vframe_list = Fcons (frame, Vframe_list);
@@ -1426,11 +1426,15 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
       if (FRAMEP (gfocus))
 	{
 	  focus = FRAME_FOCUS_FRAME (XFRAME (gfocus));
-	  if ((FRAMEP (focus) && XFRAME (focus) == SELECTED_FRAME ())
+	  if (FRAMEP (focus) && XFRAME (focus) == SELECTED_FRAME ())
 	      /* Redirect frame focus also when FRAME has its minibuffer
-		 window on the selected frame (see Bug#24500).  */
+		 window on the selected frame (see Bug#24500).
+
+		 Don't do that: It causes redirection problem with a
+		 separate minibuffer frame (Bug#24803) and problems
+		 when updating the cursor on such frames.
 	      || (NILP (focus)
-		  && EQ (FRAME_MINIBUF_WINDOW (f), sf->selected_window)))
+		  && EQ (FRAME_MINIBUF_WINDOW (f), sf->selected_window)))  */
 	    Fredirect_frame_focus (gfocus, frame);
 	}
     }
@@ -1482,6 +1486,7 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
 #endif
     internal_last_event_frame = Qnil;
 
+  move_minibuffer_onto_frame ();
   return frame;
 }
 
@@ -2434,6 +2439,12 @@ passing the normal return value to that function as an argument,
 and returns whatever that function returns.  */)
   (void)
 {
+  return mouse_position (true);
+}
+
+Lisp_Object
+mouse_position (bool call_mouse_position_function)
+{
   struct frame *f;
   Lisp_Object lispy_dummy;
   Lisp_Object x, y, retval;
@@ -2462,7 +2473,7 @@ and returns whatever that function returns.  */)
     }
   XSETFRAME (lispy_dummy, f);
   retval = Fcons (lispy_dummy, Fcons (x, y));
-  if (!NILP (Vmouse_position_function))
+  if (call_mouse_position_function && !NILP (Vmouse_position_function))
     retval = call1 (Vmouse_position_function, retval);
   return retval;
 }
@@ -3623,7 +3634,11 @@ DEFUN ("frame-position", Fframe_position,
 FRAME must be a live frame and defaults to the selected one.  The return
 value is a cons (x, y) of the coordinates of the top left corner of
 FRAME's outer frame, in pixels relative to an origin (0, 0) of FRAME's
-display.  */)
+display.
+
+Note that the values returned are not guaranteed to be accurate: The
+values depend on the underlying window system, and some systems add a
+constant offset to the values.  */)
      (Lisp_Object frame)
 {
   register struct frame *f = decode_live_frame (frame);
@@ -6182,7 +6197,7 @@ window of that frame is the buffer whose text will be eventually shown
 in the minibuffer window.
 
 Any other non-nil value means to resize minibuffer-only frames by
-calling `fit-frame-to-buffer'.  */);
+calling `fit-mini-frame-to-buffer'.  */);
   resize_mini_frames = Qnil;
 
   DEFVAR_LISP ("focus-follows-mouse", focus_follows_mouse,

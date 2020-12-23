@@ -34,7 +34,6 @@
 ;;   prefixes but somewhere within the name.
 
 (require 'ring)
-(require 'button)
 (require 'xref)
 (require 'fileloop)
 
@@ -2135,8 +2134,10 @@ file name, add `tag-partial-file-name-match-p' to the list value.")
     (let ((buffer (find-file-noselect file)))
       (with-current-buffer buffer
         (save-excursion
-          (etags-goto-tag-location tag-info)
-          (point-marker))))))
+          (save-restriction
+            (widen)
+            (etags-goto-tag-location tag-info)
+            (point-marker)))))))
 
 (cl-defmethod xref-location-line ((l xref-etags-location))
   (with-slots (tag-info) l

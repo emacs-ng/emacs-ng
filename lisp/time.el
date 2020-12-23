@@ -1,4 +1,4 @@
-;;; time.el --- display time, load and mail indicator in mode line of Emacs
+;;; time.el --- display time, load and mail indicator in mode line of Emacs  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1985-1987, 1993-1994, 1996, 2000-2020 Free Software
 ;; Foundation, Inc.
@@ -284,6 +284,60 @@ Switches from the 1 to 5 to 15 minute load average, and then back to 1."
   (defvar month)
   (defvar dayname))
 
+(defun display-time-update--load ()
+  (if (null display-time-load-average)
+      ""
+    (condition-case ()
+        ;; Do not show values less than
+        ;; `display-time-load-average-threshold'.
+        (if (> (* display-time-load-average-threshold 100)
+               (nth display-time-load-average (load-average)))
+            ""
+          ;; The load average number is mysterious, so
+          ;; provide some help.
+          (let ((str (format " %03d"
+                             (nth display-time-load-average
+                                  (load-average)))))
+            (propertize
+             (concat (substring str 0 -2) "." (substring str -2))
+             'local-map (make-mode-line-mouse-map
+                         'mouse-2 'display-time-next-load-average)
+             'mouse-face 'mode-line-highlight
+             'help-echo (concat
+                         "System load average for past "
+                         (if (= 0 display-time-load-average)
+                             "1 minute"
+                           (if (= 1 display-time-load-average)
+                               "5 minutes"
+                             "15 minutes"))
+                         "; mouse-2: next"))))
+      (error ""))))
+
+(defun display-time-update--mail ()
+  (let ((mail-spool-file (or display-time-mail-file
+                             (getenv "MAIL")
+                             (concat rmail-spool-directory
+                                     (user-login-name)))))
+    (cond
+     (display-time-mail-function
+      (funcall display-time-mail-function))
+     (display-time-mail-directory
+      (display-time-mail-check-directory))
+     ((and (stringp mail-spool-file)
+           (or (null display-time-server-down-time)
+               ;; If have been down for 20 min, try again.
+               (time-less-p 1200 (time-since
+                              display-time-server-down-time))))
+      (let ((start-time (current-time)))
+        (prog1
+            (display-time-file-nonempty-p mail-spool-file)
+          ;; Record whether mail file is accessible.
+          (setq display-time-server-down-time
+                (let ((end-time (current-time)))
+                  (and (time-less-p 20 (time-subtract
+                                    end-time start-time))
+                       (float-time end-time))))))))))
+
 (defun display-time-update ()
   "Update the display-time info for the mode line.
 However, don't redisplay right now.
@@ -291,57 +345,9 @@ However, don't redisplay right now.
 This is used for things like Rmail `g' that want to force an
 update which can wait for the next redisplay."
   (let* ((now (current-time))
-	 (time (current-time-string now))
-         (load (if (null display-time-load-average)
-		   ""
-		 (condition-case ()
-		     ;; Do not show values less than
-		     ;; `display-time-load-average-threshold'.
-		     (if (> (* display-time-load-average-threshold 100)
-			    (nth display-time-load-average (load-average)))
-			 ""
-		       ;; The load average number is mysterious, so
-		       ;; provide some help.
-		       (let ((str (format " %03d"
-					  (nth display-time-load-average
-					       (load-average)))))
-			 (propertize
-			  (concat (substring str 0 -2) "." (substring str -2))
-			  'local-map (make-mode-line-mouse-map
-				      'mouse-2 'display-time-next-load-average)
-			  'mouse-face 'mode-line-highlight
-			  'help-echo (concat
-				      "System load average for past "
-				      (if (= 0 display-time-load-average)
-					  "1 minute"
-					(if (= 1 display-time-load-average)
-					    "5 minutes"
-					  "15 minutes"))
-				      "; mouse-2: next"))))
-		   (error ""))))
-         (mail-spool-file (or display-time-mail-file
-                              (getenv "MAIL")
-                              (concat rmail-spool-directory
-                                      (user-login-name))))
-	 (mail (cond
-		(display-time-mail-function
-		 (funcall display-time-mail-function))
-		(display-time-mail-directory
-		 (display-time-mail-check-directory))
-		((and (stringp mail-spool-file)
-		      (or (null display-time-server-down-time)
-			  ;; If have been down for 20 min, try again.
-			  (time-less-p 1200 (time-since
-					     display-time-server-down-time))))
-		 (let ((start-time (current-time)))
-		   (prog1
-		       (display-time-file-nonempty-p mail-spool-file)
-		     ;; Record whether mail file is accessible.
-		     (setq display-time-server-down-time
-			   (let ((end-time (current-time)))
-			     (and (time-less-p 20 (time-subtract
-						   end-time start-time))
-				  (float-time end-time)))))))))
+         (time (current-time-string now))
+         (load (display-time-update--load))
+         (mail (display-time-update--mail))
          (24-hours (substring time 11 13))
          (hour (string-to-number 24-hours))
          (12-hours (int-to-string (1+ (% (+ hour 11) 12))))
@@ -525,6 +531,9 @@ See `world-clock'."
   (setq-local revert-buffer-function #'world-clock-update)
   (setq show-trailing-whitespace nil))
 
+(defvar world-clock--timer nil
+  "The current world clock timer.")
+
 (defun world-clock-display (alist)
   "Replace current buffer text with times in various zones, based on ALIST."
   (let ((inhibit-read-only t)
@@ -565,7 +574,8 @@ To turn off the world time display, go to the window and type `\\[quit-window]'.
       (pop-to-buffer buffer)
     (pop-to-buffer world-clock-buffer-name)
     (when world-clock-timer-enable
-      (run-at-time t world-clock-timer-second #'world-clock-update)
+      (setq world-clock--timer
+            (run-at-time t world-clock-timer-second #'world-clock-update))
       (add-hook 'kill-buffer-hook #'world-clock-cancel-timer nil t)))
   (world-clock-display (time--display-world-list))
   (world-clock-mode)
@@ -573,12 +583,9 @@ To turn off the world time display, go to the window and type `\\[quit-window]'.
 
 (defun world-clock-cancel-timer ()
   "Cancel the world clock timer."
-  (let ((list timer-list))
-    (while list
-      (let ((elt (pop list)))
-        (when (equal (symbol-name (timer--function elt))
-                     "world-clock-update")
-          (cancel-timer elt))))))
+  (when world-clock--timer
+    (cancel-timer world-clock--timer)
+    (setq world-clock--timer nil)))
 
 (defun world-clock-update (&optional _arg _noconfirm)
   "Update the `world-clock' buffer."

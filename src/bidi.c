@@ -1460,6 +1460,11 @@ bidi_at_paragraph_end (ptrdiff_t charpos, ptrdiff_t bytepos)
   else
     start_re = paragraph_start_re;
 
+  /* Prevent quitting inside re_match_2, as redisplay_window could
+     have temporarily moved point.  */
+  ptrdiff_t count = SPECPDL_INDEX ();
+  specbind (Qinhibit_quit, Qt);
+
   val = fast_looking_at (sep_re, charpos, bytepos, ZV, ZV_BYTE, Qnil);
   if (val < 0)
     {
@@ -1469,6 +1474,7 @@ bidi_at_paragraph_end (ptrdiff_t charpos, ptrdiff_t bytepos)
 	val = -2;
     }
 
+  unbind_to (count, Qnil);
   return val;
 }
 
@@ -1544,6 +1550,11 @@ bidi_find_paragraph_start (ptrdiff_t pos, ptrdiff_t pos_byte)
   if (cache_buffer->base_buffer)
     cache_buffer = cache_buffer->base_buffer;
 
+  /* Prevent quitting inside re_match_2, as redisplay_window could
+     have temporarily moved point.  */
+  ptrdiff_t count = SPECPDL_INDEX ();
+  specbind (Qinhibit_quit, Qt);
+
   while (pos_byte > BEGV_BYTE
 	 && n++ < MAX_PARAGRAPH_SEARCH
 	 && fast_looking_at (re, pos, pos_byte, limit, limit_byte, Qnil) < 0)
@@ -1561,6 +1572,7 @@ bidi_find_paragraph_start (ptrdiff_t pos, ptrdiff_t pos_byte)
       else
 	pos = find_newline_no_quit (pos, pos_byte, -1, &pos_byte);
     }
+  unbind_to (count, Qnil);
   if (n >= MAX_PARAGRAPH_SEARCH)
     pos = BEGV, pos_byte = BEGV_BYTE;
   if (bpc)
@@ -2338,7 +2350,7 @@ bidi_resolve_weak (struct bidi_it *bidi_it)
 		      and make it L right away, to avoid the
 		      potentially costly loop below.  This is
 		      important when the buffer has a long series of
-		      control characters, like binary NULs, and no
+		      control characters, like binary nulls, and no
 		      R2L characters at all.  */
 		   && new_level == 0
 		   && !bidi_explicit_dir_char (bidi_it->ch)
@@ -2996,7 +3008,7 @@ bidi_resolve_neutral (struct bidi_it *bidi_it)
 	}
       /* The next two "else if" clauses are shortcuts for the
 	 important special case when we have a long sequence of
-	 neutral or WEAK_BN characters, such as whitespace or NULs or
+	 neutral or WEAK_BN characters, such as whitespace or nulls or
 	 other control characters, on the base embedding level of the
 	 paragraph, and that sequence goes all the way to the end of
 	 the paragraph and follows a character whose resolved

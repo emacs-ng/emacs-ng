@@ -157,7 +157,9 @@ set to nil, as the value is no longer rogue."
   (if (keywordp doc)
       (error "Doc string is missing"))
   (let ((initialize #'custom-initialize-reset)
-	(requests nil))
+        (requests nil)
+        ;; Whether automatically buffer-local.
+        buffer-local)
     (unless (memq :group args)
       (custom-add-to-group (custom-current-group) symbol 'custom-variable))
     (while args
@@ -183,7 +185,7 @@ set to nil, as the value is no longer rogue."
 		 (put symbol 'safe-local-variable value))
                 ((eq keyword :local)
                  (when (memq value '(t permanent))
-                   (make-variable-buffer-local symbol))
+                   (setq buffer-local t))
                  (when (eq value 'permanent)
                    (put symbol 'permanent-local t)))
 		((eq keyword :type)
@@ -205,7 +207,9 @@ set to nil, as the value is no longer rogue."
     (put symbol 'custom-requests requests)
     ;; Do the actual initialization.
     (unless custom-dont-initialize
-      (funcall initialize symbol default)))
+      (funcall initialize symbol default))
+    (when buffer-local
+      (make-variable-buffer-local symbol)))
   (run-hooks 'custom-define-hook)
   symbol)
 
@@ -1010,7 +1014,10 @@ COMMENT is a comment string about SYMBOL."
 	       set)
 	  (when requests
 	    (put symbol 'custom-requests requests)
-            (mapc #'require requests))
+            ;; Load any libraries that the setting has specified as
+            ;; being required, but don't error out if the package has
+            ;; been removed.
+            (mapc (lambda (lib) (require lib nil t)) requests))
           (setq set (or (get symbol 'custom-set) #'custom-set-default))
 	  (put symbol 'saved-value (list value))
 	  (put symbol 'saved-variable-comment comment)
@@ -1382,8 +1389,30 @@ function runs.  To disable other themes, use `disable-theme'."
     ;; Loop through theme settings, recalculating vars/faces.
     (dolist (s settings)
       (let* ((prop (car s))
-	     (symbol (cadr s)))
-        (custom-push-theme prop symbol theme 'set (nth 3 s))
+             (symbol (cadr s))
+             (spec-list (get symbol prop))
+             (sv (get symbol 'standard-value))
+             (val (and (boundp symbol) (symbol-value symbol))))
+        ;; We can't call `custom-push-theme' when enabling the theme: it's not
+        ;; that the theme settings have changed, it's just that we want to
+        ;; enable those settings.  But we might need to save a user setting
+        ;; outside of Customize, in order to get back to it when disabling
+        ;; the theme, just like in `custom-push-theme'.
+        (when (and (custom--should-apply-setting theme)
+                   ;; Only do it for variables; for faces, using
+                   ;; `face-new-frame-defaults' is enough.
+                   (eq prop 'theme-value)
+                   (boundp symbol)
+                   (not (or spec-list
+                            ;; Only if the current value is different from
+                            ;; the standard value.
+                            (and sv (equal (eval (car sv)) val))
+                            ;; And only if the changed value is different
+                            ;; from the new value under the user theme.
+                            (and (eq theme 'user)
+                                 (equal (custom-quote val) (nth 3 s))))))
+          (setq spec-list `((changed ,(custom-quote val)))))
+        (put symbol prop (cons (cddr s) (assq-delete-all theme spec-list)))
 	(cond
 	 ((eq prop 'theme-face)
 	  (custom-theme-recalc-face symbol))

@@ -143,8 +143,7 @@ require \"fileinto\";
 (define-derived-mode sieve-manage-mode special-mode "Sieve-manage"
   "Mode used for sieve script management."
   (buffer-disable-undo (current-buffer))
-  (setq truncate-lines t)
-  (easy-menu-add sieve-manage-mode-menu sieve-manage-mode-map))
+  (setq truncate-lines t))
 
 ;; Commands used in sieve-manage mode:
 
@@ -273,8 +272,7 @@ Used to bracket operations which move point in the sieve-buffer."
   (let* ((port (or port sieve-manage-default-port))
          (header (format "Server : %s:%s\n\n" server port)))
     (insert header))
-  (set (make-local-variable 'sieve-buffer-header-end)
-       (point-max)))
+  (setq-local sieve-buffer-header-end (point-max)))
 
 (defun sieve-script-at-point (&optional pos)
   "Return name of sieve script at point POS, or nil."
@@ -305,8 +303,8 @@ Used to bracket operations which move point in the sieve-buffer."
   "Open SERVER (on PORT) and authenticate."
   (with-current-buffer
       (or ;; open server
-       (set (make-local-variable 'sieve-manage-buffer)
-	    (sieve-manage-open server port))
+       (setq-local sieve-manage-buffer
+                   (sieve-manage-open server port))
        (error "Error opening server %s" server))
     (sieve-manage-authenticate)))
 

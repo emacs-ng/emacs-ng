@@ -4205,9 +4205,11 @@ STRING are replaced by `-' and substrings are converted to lower case."
 (defun vhdl-update-mode-menu ()
   "Update VHDL Mode menu."
   (interactive)
-  (easy-menu-remove vhdl-mode-menu-list) ; for XEmacs
+  (when (featurep 'xemacs)
+    (easy-menu-remove vhdl-mode-menu-list))
   (setq vhdl-mode-menu-list (vhdl-create-mode-menu))
-  (easy-menu-add vhdl-mode-menu-list)	; for XEmacs
+  (when (featurep 'xemacs)
+    (easy-menu-add vhdl-mode-menu-list))
   (easy-menu-define vhdl-mode-menu vhdl-mode-map
 		    "Menu keymap for VHDL Mode." vhdl-mode-menu-list))
 
@@ -4313,7 +4315,8 @@ The directory of the current source file is scanned."
     (push ["*Rescan*" vhdl-add-source-files-menu t] menu-list)
     (push "Sources" menu-list)
     ;; Create menu
-    (easy-menu-add menu-list)
+    (when (featurep 'xemacs)
+      (easy-menu-add menu-list))
     (easy-menu-define vhdl-sources-menu newmap
 		      "VHDL source files menu" menu-list))
   (message ""))
@@ -4926,7 +4929,8 @@ Key bindings:
   ;; add source file menu
   (if vhdl-source-file-menu (vhdl-add-source-files-menu))
   ;; add VHDL menu
-  (easy-menu-add vhdl-mode-menu-list)	; for XEmacs
+  (when (featurep 'xemacs)
+    (easy-menu-add vhdl-mode-menu-list))
   (easy-menu-define vhdl-mode-menu vhdl-mode-map
 		    "Menu keymap for VHDL Mode." vhdl-mode-menu-list)
   ;; initialize hideshow and add menu
@@ -5336,9 +5340,6 @@ Key bindings:
 (defvar vhdl-reserved-words-regexp nil
   "Regexp for additional reserved words.")
 
-(defvar vhdl-directive-keywords-regexp nil
-  "Regexp for compiler directive keywords.")
-
 (defun vhdl-upcase-list (condition list)
   "Upcase all elements in LIST based on CONDITION."
   (when condition
@@ -5416,9 +5417,6 @@ Key bindings:
 		  (concat vhdl-forbidden-syntax "\\|"))
 		(regexp-opt vhdl-reserved-words)
 		"\\)\\>"))
-  (setq vhdl-directive-keywords-regexp
-	(concat "\\<\\(" (mapconcat 'regexp-quote
-				    vhdl-directive-keywords "\\|") "\\)\\>"))
   (vhdl-abbrev-list-init))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -13631,7 +13629,10 @@ This does background highlighting of translate-off regions.")
 			    vhdl-template-prompt-syntax ">\\)")
 		    2 'vhdl-font-lock-prompt-face t)
 	      (list (concat "--\\s-*"
-			    vhdl-directive-keywords-regexp "\\s-+\\(.*\\)$")
+                            "\\<"
+                            (regexp-opt vhdl-directive-keywords t)
+                            "\\>"
+			     "\\s-+\\(.*\\)$")
 		    2 'vhdl-font-lock-directive-face t)
 	      ;; highlight c-preprocessor directives
 	      (list "^#[ \t]*\\(\\w+\\)\\([ \t]+\\(\\w+\\)\\)?"

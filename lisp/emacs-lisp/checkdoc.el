@@ -37,7 +37,6 @@
 ;;      documentation whenever you evaluate Lisp code with C-M-x
 ;;      or [menu-bar emacs-lisp eval-buffer].  Additional key-bindings
 ;;      are also provided under C-c ? KEY
-;;        (require 'checkdoc)
 ;;        (add-hook 'emacs-lisp-mode-hook 'checkdoc-minor-mode)
 ;;
 ;; Using `checkdoc':
@@ -2589,7 +2588,7 @@ This function will not modify `match-data'."
 		    ;; going on.
 		    (if checkdoc-bouncy-flag (message "%s -> done" question))
 		    (delete-region start end)
-		    (insert replacewith)
+		    (insert-before-markers replacewith)
 		    (if checkdoc-bouncy-flag (sit-for 0))
 		    (setq ret t)))
 	      (delete-overlay o)

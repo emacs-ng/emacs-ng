@@ -1,4 +1,4 @@
-;;; calc-mode.el --- calculator modes for Calc
+;;; calc-mode.el --- calculator modes for Calc  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1990-1993, 2001-2020 Free Software Foundation, Inc.
 
@@ -268,7 +268,7 @@
   (interactive)
   (calc-wrapper
    (let (pos
-	 (vals (mapcar (function (lambda (v) (symbol-value (car v))))
+         (vals (mapcar (lambda (v) (symbol-value (car v)))
 		       calc-mode-var-list)))
      (unless calc-settings-file
        (error "No `calc-settings-file' specified"))
@@ -424,8 +424,8 @@
 		  (t
 		   "Not recording mode changes permanently")))))
 
-(defun calc-total-algebraic-mode (flag)
-  (interactive "P")
+(defun calc-total-algebraic-mode (&optional _flag)
+  (interactive)
   (calc-wrapper
    (if (eq calc-algebraic-mode 'total)
        (calc-algebraic-mode nil)

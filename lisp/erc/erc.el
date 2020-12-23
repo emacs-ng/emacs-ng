@@ -58,7 +58,6 @@
 (load "erc-loaddefs" nil t)
 
 (require 'cl-lib)
-(require 'font-lock)
 (require 'format-spec)
 (require 'pp)
 (require 'thingatpt)
@@ -1489,18 +1488,18 @@ Defaults to the server buffer."
 (define-derived-mode erc-mode fundamental-mode "ERC"
   "Major mode for Emacs IRC."
   (setq local-abbrev-table erc-mode-abbrev-table)
-  (set (make-local-variable 'next-line-add-newlines) nil)
+  (setq-local next-line-add-newlines nil)
   (setq line-move-ignore-invisible t)
-  (set (make-local-variable 'paragraph-separate)
-       (concat "\C-l\\|\\(^" (regexp-quote (erc-prompt)) "\\)"))
-  (set (make-local-variable 'paragraph-start)
-       (concat "\\(" (regexp-quote (erc-prompt)) "\\)"))
+  (setq-local paragraph-separate
+              (concat "\C-l\\|\\(^" (regexp-quote (erc-prompt)) "\\)"))
+  (setq-local paragraph-start
+              (concat "\\(" (regexp-quote (erc-prompt)) "\\)"))
   (setq-local completion-ignore-case t)
   (add-hook 'completion-at-point-functions 'erc-complete-word-at-point nil t))
 
 ;; activation
 
-(defconst erc-default-server "irc.freenode.net"
+(defconst erc-default-server "chat.freenode.net"
   "IRC server to use if it cannot be detected otherwise.")
 
 (defconst erc-default-port 6667
@@ -2244,7 +2243,7 @@ Non-interactively, it takes the keyword arguments
 
 That is, if called with
 
-   (erc :server \"irc.freenode.net\" :full-name \"Harry S Truman\")
+   (erc :server \"chat.freenode.net\" :full-name \"Harry S Truman\")
 
 then the server and full-name will be set to those values, whereas
 `erc-compute-port', `erc-compute-nick' and `erc-compute-full-name' will
@@ -4015,8 +4014,7 @@ If FACE is non-nil, it will be used to propertize the prompt.  If it is nil,
         ;; of the prompt, but stuff typed in front of the prompt
         ;; shall remain part of the prompt.
         (setq prompt (propertize prompt
-                                 'start-open t ; XEmacs
-                                 'rear-nonsticky t ; Emacs
+                                 'rear-nonsticky t
                                  'erc-prompt t
                                  'field t
                                  'front-sticky t
@@ -5039,7 +5037,7 @@ information if it is not already present in the user or channel
 lists.
 
 If, and only if, changes are made, or the user is added,
-`erc-channel-members-updated-hook' is run, and t is returned.
+`erc-channel-members-changed-hook' is run, and t is returned.
 
 See also: `erc-update-user' and `erc-update-channel-member'."
   (let* (changed user-changed
@@ -5472,6 +5470,10 @@ submitted line to be intentional."
             (time-less-p erc-accidental-paste-threshold-seconds
 			 (time-subtract now erc-last-input-time)))
         (save-restriction
+          ;; If there's an abbrev at the end of the line, expand it.
+          (when (and abbrev-mode
+                     (eolp))
+            (expand-abbrev))
           (widen)
           (if (< (point) (erc-beg-of-input-line))
               (erc-error "Point is not in the input area")
@@ -6072,7 +6074,7 @@ Sets the buffer local variables:
 - `erc-session-connector'
 - `erc-session-server'
 - `erc-session-port'
-- `erc-session-full-name'
+- `erc-session-user-full-name'
 - `erc-server-current-nick'"
   (setq erc-session-connector erc-server-connect-function
         erc-session-server (erc-compute-server server)
@@ -6491,8 +6493,7 @@ if `erc-away' is non-nil."
                           (format-spec erc-header-line-format spec)
                         nil)))
           (cond (erc-header-line-uses-tabbar-p
-                 (set (make-local-variable 'tabbar--local-hlf)
-                      header-line-format)
+                 (setq-local tabbar--local-hlf header-line-format)
                  (kill-local-variable 'header-line-format))
                 ((null header)
                  (setq header-line-format nil))

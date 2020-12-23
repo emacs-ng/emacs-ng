@@ -114,6 +114,13 @@ Returns the newly constructed xwidget, or nil if construction fails.  */)
   if (EQ (xw->type, Qwebkit))
     {
       block_input ();
+      WebKitWebContext *webkit_context = webkit_web_context_get_default ();
+
+# if WEBKIT_CHECK_VERSION (2, 26, 0)
+      if (!webkit_web_context_get_sandbox_enabled (webkit_context))
+	webkit_web_context_set_sandbox_enabled (webkit_context, TRUE);
+# endif
+
       xw->widgetwindow_osr = gtk_offscreen_window_new ();
       gtk_window_resize (GTK_WINDOW (xw->widgetwindow_osr), xw->width,
                          xw->height);
@@ -121,6 +128,16 @@ Returns the newly constructed xwidget, or nil if construction fails.  */)
       if (EQ (xw->type, Qwebkit))
         {
           xw->widget_osr = webkit_web_view_new ();
+
+          /* webkitgtk uses GSubprocess which sets sigaction causing
+             Emacs to not catch SIGCHLD with its usual handle setup in
+             catch_child_signal().  This resets the SIGCHLD
+             sigaction.  */
+          struct sigaction old_action;
+          sigaction (SIGCHLD, NULL, &old_action);
+          webkit_web_view_load_uri(WEBKIT_WEB_VIEW (xw->widget_osr),
+                                   "about:blank");
+          sigaction (SIGCHLD, &old_action, NULL);
         }
 
       gtk_widget_set_size_request (GTK_WIDGET (xw->widget_osr), xw->width,
@@ -152,7 +169,7 @@ Returns the newly constructed xwidget, or nil if construction fails.  */)
                             "load-changed",
                             G_CALLBACK (webkit_view_load_changed_cb), xw);
 
-          g_signal_connect (G_OBJECT (webkit_web_context_get_default ()),
+          g_signal_connect (G_OBJECT (webkit_context),
                             "download-started",
                             G_CALLBACK (webkit_download_cb), xw);
 
@@ -793,7 +810,9 @@ DEFUN ("xwidget-webkit-title",
   WEBKIT_FN_INIT ();
 #ifdef USE_GTK
   WebKitWebView *wkwv = WEBKIT_WEB_VIEW (xw->widget_osr);
-  return build_string (webkit_web_view_get_title (wkwv));
+  const gchar *title = webkit_web_view_get_title (wkwv);
+
+  return build_string (title ? title : "");
 #elif defined NS_IMPL_COCOA
   return nsxwidget_webkit_title (xw);
 #endif

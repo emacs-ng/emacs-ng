@@ -3567,22 +3567,21 @@ articles in every agentized group? "))
                 (let* (delete-recursive
 		       files f
                        (delete-recursive
-                        (function
-                         (lambda (f-or-d)
-                           (ignore-errors
-                             (if (file-directory-p f-or-d)
-                                 (condition-case nil
-                                     (delete-directory f-or-d)
-                                   (file-error
-				    (setq files (directory-files f-or-d))
-				    (while files
-				      (setq f (pop files))
-				      (or (member f '("." ".."))
-					  (funcall delete-recursive
-						   (nnheader-concat
-						    f-or-d f))))
-                                    (delete-directory f-or-d)))
-                               (delete-file f-or-d)))))))
+                        (lambda (f-or-d)
+                          (ignore-errors
+                            (if (file-directory-p f-or-d)
+                                (condition-case nil
+                                    (delete-directory f-or-d)
+                                  (file-error
+                                   (setq files (directory-files f-or-d))
+                                   (while files
+                                     (setq f (pop files))
+                                     (or (member f '("." ".."))
+                                         (funcall delete-recursive
+                                                  (nnheader-concat
+                                                   f-or-d f))))
+                                   (delete-directory f-or-d)))
+                              (delete-file f-or-d))))))
                   (funcall delete-recursive dir)))))))))
 
 ;;;###autoload
@@ -3812,7 +3811,6 @@ has been fetched."
         t))))
 
 (defun gnus-agent-store-article (article group)
-  (declare (obsolete nil "28.1"))
   (let* ((gnus-command-method (gnus-find-method-for-group group))
 	 (file (gnus-agent-article-name (number-to-string article) group))
 	 (file-name-coding-system nnmail-pathname-coding-system)
@@ -4034,11 +4032,11 @@ If REREAD is not nil, downloaded articles are marked as unread."
 	 (list (list
 		(if (listp reread)
 		    reread
-		  (delq nil (mapcar (function (lambda (c)
-						(cond ((eq reread t)
-						       (car c))
-						      ((cdr c)
-						       (car c)))))
+                  (delq nil (mapcar (lambda (c)
+                                      (cond ((eq reread t)
+                                             (car c))
+                                            ((cdr c)
+                                             (car c))))
 				    gnus-agent-article-alist)))
 		'del '(read)))
 	 gnus-command-method)

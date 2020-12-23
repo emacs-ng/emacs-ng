@@ -1658,7 +1658,7 @@ sdata_size (ptrdiff_t n)
 #define GC_STRING_EXTRA GC_STRING_OVERRUN_COOKIE_SIZE
 
 /* Exact bound on the number of bytes in a string, not counting the
-   terminating NUL.  A string cannot contain more bytes than
+   terminating null.  A string cannot contain more bytes than
    STRING_BYTES_BOUND, nor can it be so long that the size_t
    arithmetic in allocate_string_data would overflow while it is
    calculating a value to be passed to malloc.  */
@@ -6082,10 +6082,6 @@ garbage_collect (void)
   mark_fringe_data ();
 #endif
 
-#ifdef HAVE_MODULES
-  mark_modules ();
-#endif
-
   /* Everything is now marked, except for the data in font caches,
      undo lists, and finalizers.  The first two are compacted by
      removing an items which aren't reachable otherwise.  */
@@ -6179,10 +6175,17 @@ where each entry has the form (NAME SIZE USED FREE), where:
 - FREE is the number of those objects that are not live but that Emacs
   keeps around for future allocations (maybe because it does not know how
   to return them to the OS).
+
 However, if there was overflow in pure space, and Emacs was dumped
 using the 'unexec' method, `garbage-collect' returns nil, because
 real GC can't be done.
-See Info node `(elisp)Garbage Collection'.  */)
+
+Note that calling this function does not guarantee that absolutely all
+unreachable objects will be garbage-collected.  Emacs uses a
+mark-and-sweep garbage collector, but is conservative when it comes to
+collecting objects in some circumstances.
+
+For further details, see Info node `(elisp)Garbage Collection'.  */)
   (void)
 {
   if (garbage_collection_inhibited)
@@ -6225,6 +6228,30 @@ See Info node `(elisp)Garbage Collection'.  */)
 #endif
   };
   return CALLMANY (Flist, total);
+}
+
+DEFUN ("garbage-collect-maybe", Fgarbage_collect_maybe,
+Sgarbage_collect_maybe, 1, 1, "",
+       doc: /* Call `garbage-collect' if enough allocation happened.
+FACTOR determines what "enough" means here:
+If FACTOR is a positive number N, it means to run GC if more than
+1/Nth of the allocations needed to trigger automatic allocation took
+place.
+Therefore, as N gets higher, this is more likely to perform a GC.
+Returns non-nil if GC happened, and nil otherwise.  */)
+  (Lisp_Object factor)
+{
+  CHECK_FIXNAT (factor);
+  EMACS_INT fact = XFIXNAT (factor);
+
+  EMACS_INT since_gc = gc_threshold - consing_until_gc;
+  if (fact >= 1 && since_gc > gc_threshold / fact)
+    {
+      garbage_collect ();
+      return Qt;
+    }
+  else
+    return Qnil;
 }
 
 /* Mark Lisp objects in glyph matrix MATRIX.  Currently the
@@ -7225,6 +7252,20 @@ Frames, windows, buffers, and subprocesses count as vectors
 		make_int (strings_consed));
 }
 
+#ifdef GNU_LINUX
+DEFUN ("malloc-info", Fmalloc_info, Smalloc_info, 0, 0, "",
+       doc: /* Report malloc information to stderr.
+This function outputs to stderr an XML-formatted
+description of the current state of the memory-allocation
+arenas.  */)
+  (void)
+{
+  if (malloc_info (0, stderr))
+    error ("malloc_info failed: %s", emacs_strerror (errno));
+  return Qnil;
+}
+#endif
+
 static bool
 symbol_uses_obj (Lisp_Object symbol, Lisp_Object obj)
 {
@@ -7567,8 +7608,12 @@ N should be nonnegative.  */);
   defsubr (&Smake_finalizer);
   defsubr (&Spurecopy);
   defsubr (&Sgarbage_collect);
+  defsubr (&Sgarbage_collect_maybe);
   defsubr (&Smemory_info);
   defsubr (&Smemory_use_counts);
+#ifdef GNU_LINUX
+  defsubr (&Smalloc_info);
+#endif
   defsubr (&Ssuspicious_object);
 
   Lisp_Object watcher;

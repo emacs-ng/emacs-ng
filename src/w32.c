@@ -6144,7 +6144,7 @@ is_symlink (const char *filename)
 
 /* If NAME identifies a symbolic link, copy into BUF the file name of
    the symlink's target.  Copy at most BUF_SIZE bytes, and do NOT
-   NUL-terminate the target name, even if it fits.  Return the number
+   null-terminate the target name, even if it fits.  Return the number
    of bytes copied, or -1 if NAME is not a symlink or any error was
    encountered while resolving it.  The file name copied into BUF is
    encoded in the current ANSI codepage.  */
@@ -6248,10 +6248,10 @@ readlink (const char *name, char *buf, size_t buf_size)
 	  size_t size_to_copy = buf_size;
 
 	  /* According to MSDN, PrintNameLength does not include the
-	     terminating NUL character.  */
+	     terminating null character.  */
 	  lwname = alloca ((lwname_len + 1) * sizeof(WCHAR));
 	  memcpy (lwname, lwname_src, lwname_len);
-	  lwname[lwname_len/sizeof(WCHAR)] = 0; /* NUL-terminate */
+	  lwname[lwname_len/sizeof(WCHAR)] = 0; /* null-terminate */
 	  filename_from_utf16 (lwname, resolved);
 	  dostounix_filename (resolved);
 	  lname_size = strlen (resolved) + 1;
@@ -6520,7 +6520,8 @@ acl_get_file (const char *fname, acl_type_t type)
 		{
 		  xfree (psd);
 		  err = GetLastError ();
-		  if (err == ERROR_NOT_SUPPORTED)
+		  if (err == ERROR_NOT_SUPPORTED
+		      || err == ERROR_ACCESS_DENIED)
 		    errno = ENOTSUP;
 		  else if (err == ERROR_FILE_NOT_FOUND
 			   || err == ERROR_PATH_NOT_FOUND
@@ -6538,7 +6539,11 @@ acl_get_file (const char *fname, acl_type_t type)
 		      be encoded in the current ANSI codepage. */
 		   || err == ERROR_INVALID_NAME)
 	    errno = ENOENT;
-	  else if (err == ERROR_NOT_SUPPORTED)
+	  else if (err == ERROR_NOT_SUPPORTED
+		   /* ERROR_ACCESS_DENIED is what we get for a volume
+		      mounted by WebDAV, which evidently doesn't
+		      support ACLs.  */
+		   || err == ERROR_ACCESS_DENIED)
 	    errno = ENOTSUP;
 	  else
 	    errno = EIO;
@@ -9879,7 +9884,7 @@ w32_read_registry (HKEY rootkey, Lisp_Object lkey, Lisp_Object lname)
       /* Convert input strings to UTF-16.  */
       encoded_key = code_convert_string_norecord (lkey, Qutf_16le, 1);
       memcpy (key_w, SSDATA (encoded_key), SBYTES (encoded_key));
-      /* wchar_t strings need to be terminated by 2 NUL bytes.  */
+      /* wchar_t strings need to be terminated by 2 null bytes.  */
       key_w [SBYTES (encoded_key)/2] = L'\0';
       encoded_vname = code_convert_string_norecord (lname, Qutf_16le, 1);
       memcpy (value_w, SSDATA (encoded_vname), SBYTES (encoded_vname));
@@ -9971,7 +9976,7 @@ w32_read_registry (HKEY rootkey, Lisp_Object lkey, Lisp_Object lname)
       case REG_SZ:
 	if (use_unicode)
 	  {
-	    /* pvalue ends with 2 NUL bytes, but we need only one,
+	    /* pvalue ends with 2 null bytes, but we need only one,
 	       and AUTO_STRING_WITH_LEN will add it.  */
 	    if (pvalue[vsize - 1] == '\0')
 	      vsize -= 2;
@@ -9980,7 +9985,7 @@ w32_read_registry (HKEY rootkey, Lisp_Object lkey, Lisp_Object lname)
 	  }
 	else
 	  {
-	    /* Don't waste a byte on the terminating NUL character,
+	    /* Don't waste a byte on the terminating null character,
 	       since make_unibyte_string will add one anyway.  */
 	    if (pvalue[vsize - 1] == '\0')
 	      vsize--;

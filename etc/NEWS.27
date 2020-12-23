@@ -22,6 +22,54 @@ When you add a new item, use the appropriate mark if you are sure it
 applies, and please also update docstrings as needed.
 
 
+* Installation Changes in Emacs 27.2
+
+
+* Startup Changes in Emacs 27.2
+
+
+* Changes in Emacs 27.2
+
+This is a bug-fix release with no new features.
+
+
+* Lisp Changes in Emacs 27.2
+
+** The behavior of the user option 'resize-mini-frames' has changed.
+If set to a non-nil value which isn't a function, resize the mini
+frame using the new function 'fit-mini-frame-to-buffer' which won't
+skip leading or trailing empty lines of the buffer.
+
+
+* Editing Changes in Emacs 27.2
+
+
+* Changes in Specialized Modes and Packages in Emacs 27.2
+
+** Tramp
+
+*** The user option 'tramp-completion-reread-directory-timeout' is now obsolete.
+
+
+* New Modes and Packages in Emacs 27.2
+
+
+* Incompatible Lisp Changes in Emacs 27.2
+
+
+* Lisp Changes in Emacs 27.2
+
+
+* Changes in Emacs 27.2 on Non-Free Operating Systems
+
+** Emacs now ignores modifier keys when IME input is used.
+By default, pressing Ctrl, Shift, and Alt keys while using IME input
+will no longer apply the modifiers to the produced characters, as
+there are IMEs which use keys with modifiers to input some
+characters.  Customize the variable 'w32-ignore-modifiers-on-IME-input'
+to nil to get back the old behavior.
+
+
 * Installation Changes in Emacs 27.1
 
 ** Emacs now uses GMP, the GNU Multiple Precision library.
@@ -202,7 +250,7 @@ it won't work right without some adjustment:
 Units that are ordered after 'emacs.service' will only be started
 after Emacs has finished initialization and is ready for use, and
 Emacs needs to be built with systemd support.  (If your Emacs is
-installed in a non-standard location and you copied the emacs.service
+installed in a non-standard location and you copied the "emacs.service"
 file to e.g. "~/.config/systemd/user/", you will need to copy the new
 version of the file again.)
 
@@ -1101,7 +1149,7 @@ prefer to rely upon existing Emacs facilities for formatting code but
 the 'sql-indent' package provides facilities to aid more casual SQL
 developers layout queries and complex expressions.
 
-**** 'sql-use-indent-support' (default t) enables SQL indention support.
+**** 'sql-use-indent-support' (default t) enables SQL indentation support.
 The 'sql-indent' package from ELPA must be installed to get the
 indentation support in 'sql-mode' and 'sql-interactive-mode'.
 

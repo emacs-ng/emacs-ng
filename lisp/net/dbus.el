@@ -51,6 +51,7 @@
 (unless (boundp 'dbus-debug)
   (defvar dbus-debug nil))
 
+(require 'cl-lib)
 (require 'seq)
 (require 'subr-x)
 (require 'xml)
@@ -144,6 +145,17 @@ See URL `https://dbus.freedesktop.org/doc/dbus-specification.html#standard-inter
 ;;   </signal>
 ;; </interface>
 
+(defconst dbus-interface-monitoring (concat dbus-interface-dbus ".Monitoring")
+  "The monitoring interface.
+See URL `https://dbus.freedesktop.org/doc/dbus-specification.html#bus-messages-become-monitor'.")
+
+;; <interface name="org.freedesktop.DBus.Monitoring">
+;;   <method name="BecomeMonitor">
+;;     <arg name="rule" type="as" direction="in"/>
+;;     <arg name="flags" type="u" direction="in"/> ;; Not used, must be 0.
+;;   </method>
+;; </interface>
+
 (defconst dbus-interface-local (concat dbus-interface-dbus ".Local")
   "An interface whose methods can only be invoked by the local implementation.")
 
@@ -152,6 +164,9 @@ See URL `https://dbus.freedesktop.org/doc/dbus-specification.html#standard-inter
 ;;     <arg name="object_path"               type="o"/>
 ;;   </signal>
 ;; </interface>
+
+(defconst dbus-annotation-deprecated (concat dbus-interface-dbus ".Deprecated")
+  "An annotation indicating a deprecated interface, method, signal, or property.")
 
 
 ;;; Default D-Bus errors.
@@ -234,7 +249,7 @@ caught in `condition-case' by `dbus-error'.")
 (defvar dbus-return-values-table (make-hash-table :test #'equal)
   "Hash table for temporarily storing arguments of reply messages.
 A key in this hash table is a list (:serial BUS SERIAL), like in
-`dbus-registered-objects-table'.  BUS is either a Lisp symbol,
+`dbus-registered-objects-table'.  BUS is either a Lisp keyword,
 `:system' or `:session', or a string denoting the bus address.
 SERIAL is the serial number of the reply message.
 
@@ -268,8 +283,8 @@ The result will be made available in `dbus-return-values-table'."
 (defun dbus-call-method (bus service path interface method &rest args)
   "Call METHOD on the D-Bus BUS.
 
-BUS is either a Lisp symbol, `:system' or `:session', or a string
-denoting the bus address.
+BUS is either a Lisp keyword, `:system' or `:session', or a
+string denoting the bus address.
 
 SERVICE is the D-Bus service name to be used.  PATH is the D-Bus
 object path SERVICE is registered at.  INTERFACE is an interface
@@ -290,8 +305,8 @@ converted into D-Bus types via the following rules:
   string    => DBUS_TYPE_STRING
   list      => DBUS_TYPE_ARRAY
 
-All arguments can be preceded by a type symbol.  For details about
-type symbols, see Info node `(dbus)Type Conversion'.
+All arguments can be preceded by a type keyword.  For details
+about type keywords, see Info node `(dbus)Type Conversion'.
 
 `dbus-call-method' returns the resulting values of METHOD as a list of
 Lisp objects.  The type conversion happens the other direction as for
@@ -336,7 +351,8 @@ object is returned instead of a list containing this single Lisp object.
 
   (or (featurep 'dbusbind)
       (signal 'dbus-error (list "Emacs not compiled with dbus support")))
-  (or (memq bus '(:system :session)) (stringp bus)
+  (or (memq bus '(:system :session :system-private :session-private))
+      (stringp bus)
       (signal 'wrong-type-argument (list 'keywordp bus)))
   (or (stringp service)
       (signal 'wrong-type-argument (list 'stringp service)))
@@ -393,8 +409,8 @@ object is returned instead of a list containing this single Lisp object.
  (bus service path interface method handler &rest args)
  "Call METHOD on the D-Bus BUS asynchronously.
 
-BUS is either a Lisp symbol, `:system' or `:session', or a string
-denoting the bus address.
+BUS is either a Lisp keyword, `:system' or `:session', or a
+string denoting the bus address.
 
 SERVICE is the D-Bus service name to be used.  PATH is the D-Bus
 object path SERVICE is registered at.  INTERFACE is an interface
@@ -419,8 +435,8 @@ converted into D-Bus types via the following rules:
   string    => DBUS_TYPE_STRING
   list      => DBUS_TYPE_ARRAY
 
-All arguments can be preceded by a type symbol.  For details about
-type symbols, see Info node `(dbus)Type Conversion'.
+All arguments can be preceded by a type keyword.  For details
+about type keywords, see Info node `(dbus)Type Conversion'.
 
 If HANDLER is a Lisp function, the function returns a key into the
 hash table `dbus-registered-objects-table'.  The corresponding entry
@@ -440,7 +456,8 @@ Example:
 
   (or (featurep 'dbusbind)
       (signal 'dbus-error (list "Emacs not compiled with dbus support")))
-  (or (memq bus '(:system :session)) (stringp bus)
+  (or (memq bus '(:system :session :system-private :session-private))
+      (stringp bus)
       (signal 'wrong-type-argument (list 'keywordp bus)))
   (or (stringp service)
       (signal 'wrong-type-argument (list 'stringp service)))
@@ -459,9 +476,9 @@ Example:
 (defun dbus-send-signal (bus service path interface signal &rest args)
   "Send signal SIGNAL on the D-Bus BUS.
 
-BUS is either a Lisp symbol, `:system' or `:session', or a string
-denoting the bus address.  The signal is sent from the D-Bus object
-Emacs is registered at BUS.
+BUS is either a Lisp keyword, `:system' or `:session', or a
+string denoting the bus address.  The signal is sent from the
+D-Bus object Emacs is registered at BUS.
 
 SERVICE is the D-Bus name SIGNAL is sent to.  It can be either a known
 name or a unique name.  If SERVICE is nil, the signal is sent as
@@ -479,8 +496,8 @@ converted into D-Bus types via the following rules:
   string    => DBUS_TYPE_STRING
   list      => DBUS_TYPE_ARRAY
 
-All arguments can be preceded by a type symbol.  For details about
-type symbols, see Info node `(dbus)Type Conversion'.
+All arguments can be preceded by a type keyword.  For details
+about type keywords, see Info node `(dbus)Type Conversion'.
 
 Example:
 
@@ -490,7 +507,8 @@ Example:
 
   (or (featurep 'dbusbind)
       (signal 'dbus-error (list "Emacs not compiled with dbus support")))
-  (or (memq bus '(:system :session)) (stringp bus)
+  (or (memq bus '(:system :session :system-private :session-private))
+      (stringp bus)
       (signal 'wrong-type-argument (list 'keywordp bus)))
   (or (null service) (stringp service)
       (signal 'wrong-type-argument (list 'stringp service)))
@@ -510,7 +528,8 @@ This is an internal function, it shall not be used outside dbus.el."
 
   (or (featurep 'dbusbind)
       (signal 'dbus-error (list "Emacs not compiled with dbus support")))
-  (or (memq bus '(:system :session)) (stringp bus)
+  (or (memq bus '(:system :session :system-private :session-private))
+      (stringp bus)
       (signal 'wrong-type-argument (list 'keywordp bus)))
   (or (stringp service)
       (signal 'wrong-type-argument (list 'stringp service)))
@@ -527,7 +546,8 @@ This is an internal function, it shall not be used outside dbus.el."
 
   (or (featurep 'dbusbind)
       (signal 'dbus-error (list "Emacs not compiled with dbus support")))
-  (or (memq bus '(:system :session)) (stringp bus)
+  (or (memq bus '(:system :session :system-private :session-private))
+      (stringp bus)
       (signal 'wrong-type-argument (list 'keywordp bus)))
   (or (stringp service)
       (signal 'wrong-type-argument (list 'stringp service)))
@@ -545,7 +565,8 @@ This is an internal function, it shall not be used outside dbus.el."
 
   (or (featurep 'dbusbind)
       (signal 'dbus-error (list "Emacs not compiled with dbus support")))
-  (or (memq bus '(:system :session)) (stringp bus)
+  (or (memq bus '(:system :session :system-private :session-private))
+      (stringp bus)
       (signal 'wrong-type-argument (list 'keywordp bus)))
   (or (stringp service)
       (signal 'wrong-type-argument (list 'stringp service)))
@@ -569,8 +590,9 @@ hash table."
 (defun dbus-setenv (bus variable value)
   "Set the value of the BUS environment variable named VARIABLE to VALUE.
 
-BUS is either a Lisp symbol, `:system' or `:session', or a string
-denoting the bus address.  Both VARIABLE and VALUE should be strings.
+BUS is either a Lisp keyword, `:system' or `:session', or a
+string denoting the bus address.  Both VARIABLE and VALUE should
+be strings.
 
 Normally, services inherit the environment of the BUS daemon.  This
 function adds to or modifies that environment when activating services.
@@ -584,8 +606,8 @@ Some bus instances, such as `:system', may disable setting the environment."
 (defun dbus-register-service (bus service &rest flags)
   "Register known name SERVICE on the D-Bus BUS.
 
-BUS is either a Lisp symbol, `:system' or `:session', or a string
-denoting the bus address.
+BUS is either a Lisp keyword, `:system' or `:session', or a
+string denoting the bus address.
 
 SERVICE is the D-Bus service name that should be registered.  It must
 be a known name.
@@ -646,8 +668,9 @@ placed in the queue.
 
 (defun dbus-unregister-service (bus service)
   "Unregister all objects related to SERVICE from D-Bus BUS.
-BUS is either a Lisp symbol, `:system' or `:session', or a string
-denoting the bus address.  SERVICE must be a known service name.
+BUS is either a Lisp keyword, `:system' or `:session', or a
+string denoting the bus address.  SERVICE must be a known service
+name.
 
 The function returns a keyword, indicating the result of the
 operation.  One of the following keywords is returned:
@@ -682,8 +705,8 @@ queue of this service."
   (bus service path interface signal handler &rest args)
   "Register for a signal on the D-Bus BUS.
 
-BUS is either a Lisp symbol, `:system' or `:session', or a string
-denoting the bus address.
+BUS is either a Lisp keyword, `:system' or `:session', or a
+string denoting the bus address.
 
 SERVICE is the D-Bus service name used by the sending D-Bus object.
 It can be either a known name or the unique name of the D-Bus object
@@ -837,8 +860,8 @@ Example:
   (bus service path interface method handler &optional dont-register-service)
   "Register METHOD on the D-Bus BUS.
 
-BUS is either a Lisp symbol, `:system' or `:session', or a string
-denoting the bus address.
+BUS is either a Lisp keyword, `:system' or `:session', or a
+string denoting the bus address.
 
 SERVICE is the D-Bus service name of the D-Bus object METHOD is
 registered for.  It must be a known name (see discussion of
@@ -852,7 +875,7 @@ HANDLER is a Lisp function to be called when a method call is
 received.  It must accept the input arguments of METHOD.  The
 return value of HANDLER is used for composing the returning D-Bus
 message.  If HANDLER returns a reply message with an empty
-argument list, HANDLER must return the symbol `:ignore' in order
+argument list, HANDLER must return the keyword `:ignore' in order
 to distinguish it from nil (the boolean false).
 
 If HANDLER detects an error, it shall return the list `(:error
@@ -889,8 +912,9 @@ discovering the still incomplete interface."
 (defun dbus-unregister-object (object)
   "Unregister OBJECT from D-Bus.
 OBJECT must be the result of a preceding `dbus-register-method',
-`dbus-register-property' or `dbus-register-signal' call.  It
-returns t if OBJECT has been unregistered, nil otherwise.
+`dbus-register-signal', `dbus-register-property' or
+`dbus-register-monitor' call.  The function returns t if OBJECT
+has been unregistered, nil otherwise.
 
 When OBJECT identifies the last method or property, which is
 registered for the respective service, Emacs releases its
@@ -928,7 +952,10 @@ association to the service from D-Bus."
 	(when (eq type :signal)
 	  (dbus-call-method
 	   bus dbus-service-dbus dbus-path-dbus dbus-interface-dbus
-	   "RemoveMatch" (nth 4 elt)))))
+	   "RemoveMatch" (nth 4 elt)))
+        ;; Delete monitor connection by reestablishing private bus.
+        (when (eq type :monitor)
+          (dbus-init-bus bus 'private))))
 
     ;; Check, whether there is still a registered function or property
     ;; for the given service.  If not, unregister the service from the
@@ -1018,27 +1045,37 @@ STRING must have been encoded with `dbus-escape-as-identifier'."
   "Check whether EVENT is a well formed D-Bus event.
 EVENT is a list which starts with symbol `dbus-event':
 
-  (dbus-event BUS TYPE SERIAL SERVICE PATH INTERFACE MEMBER HANDLER &rest ARGS)
+  (dbus-event BUS TYPE SERIAL SERVICE DESTINATION PATH
+              INTERFACE MEMBER HANDLER &rest ARGS)
 
 BUS identifies the D-Bus the message is coming from.  It is
-either a Lisp symbol, `:system' or `:session', or a string
-denoting the bus address.  TYPE is the D-Bus message type which
-has caused the event, SERIAL is the serial number of the received
-D-Bus message.  SERVICE and PATH are the unique name and the
-object path of the D-Bus object emitting the message.  INTERFACE
-and MEMBER denote the message which has been sent.  HANDLER is
-the function which has been registered for this message.  ARGS
-are the typed arguments as returned from the message.  They are
-passed to HANDLER without type information, when it is called
-during event handling in `dbus-handle-event'.
+either a Lisp keyword, `:system', `:session', `:systemp-private'
+or `:session-private', or a string denoting the bus address.
+
+TYPE is the D-Bus message type which has caused the event, SERIAL
+is the serial number of the received D-Bus message when TYPE is
+equal `dbus-message-type-method-return' or `dbus-message-type-error'.
+
+SERVICE and PATH are the unique name and the object path of the
+D-Bus object emitting the message.  DESTINATION is the D-Bus name
+the message is dedicated to, or nil in case the message is a
+broadcast signal.
+
+INTERFACE and MEMBER denote the message which has been sent.
+When TYPE is `dbus-message-type-error', MEMBER is the error name.
+
+HANDLER is the function which has been registered for this
+message.  ARGS are the typed arguments as returned from the
+message.  They are passed to HANDLER without type information,
+when it is called during event handling in `dbus-handle-event'.
 
 This function signals a `dbus-error' if the event is not well
 formed."
   (when dbus-debug (message "DBus-Event %s" event))
   (unless (and (listp event)
 	       (eq (car event) 'dbus-event)
-	       ;; Bus symbol.
-	       (or (symbolp (nth 1 event))
+	       ;; Bus keyword.
+	       (or (keywordp (nth 1 event))
 		   (stringp (nth 1 event)))
 	       ;; Type.
 	       (and (natnump (nth 2 event))
@@ -1050,20 +1087,26 @@ formed."
 		   (= dbus-message-type-error (nth 2 event))
                    (or (stringp (nth 4 event))
                        (null (nth 4 event))))
+	       ;; Destination.
+	       (or (= dbus-message-type-method-return (nth 2 event))
+		   (= dbus-message-type-error (nth 2 event))
+                   (or (stringp (nth 5 event))
+                       (null (nth 5 event))))
 	       ;; Object path.
 	       (or (= dbus-message-type-method-return (nth 2 event))
 		   (= dbus-message-type-error (nth 2 event))
-		   (stringp (nth 5 event)))
+		   (stringp (nth 6 event)))
 	       ;; Interface.
 	       (or (= dbus-message-type-method-return (nth 2 event))
 		   (= dbus-message-type-error (nth 2 event))
-		   (stringp (nth 6 event)))
+		   (stringp (nth 7 event)))
 	       ;; Member.
 	       (or (= dbus-message-type-method-return (nth 2 event))
-		   (= dbus-message-type-error (nth 2 event))
-		   (stringp (nth 7 event)))
+		   (stringp (nth 8 event)))
 	       ;; Handler.
-	       (functionp (nth 8 event)))
+	       (functionp (nth 9 event))
+               ;; Arguments.
+               (listp (nthcdr 10 event)))
     (signal 'dbus-error (list "Not a valid D-Bus event" event))))
 
 (defun dbus-delete-types (&rest args)
@@ -1103,28 +1146,36 @@ part of the event, is called with arguments ARGS (without type information).
 If the HANDLER returns a `dbus-error', it is propagated as return message."
   (interactive "e")
   (condition-case err
-      (let (args result)
+      (let (monitor args result)
 	;; We ignore not well-formed events.
 	(dbus-check-event event)
         ;; Remove type information.
-        (setq args (mapcar #'dbus-delete-types (nthcdr 9 event)))
-	;; Error messages must be propagated.
-	(when (= dbus-message-type-error (nth 2 event))
-	  (signal 'dbus-error args))
-	;; Apply the handler.
-	(setq result (apply (nth 8 event) args))
-	;; Return an (error) message when it is a message call.
-	(when (= dbus-message-type-method-call (nth 2 event))
-	  (dbus-ignore-errors
-            (if (eq (car-safe result) :error)
-                (apply #'dbus-method-error-internal
-	               (nth 1 event) (nth 4 event) (nth 3 event) (cdr result))
-	      (if (eq result :ignore)
-		  (dbus-method-return-internal
-		   (nth 1 event) (nth 4 event) (nth 3 event))
-                (apply #'dbus-method-return-internal
-		       (nth 1 event) (nth 4 event) (nth 3 event)
-		       (if (consp result) result (list result))))))))
+        (setq args (mapcar #'dbus-delete-types (nthcdr 10 event)))
+        (setq monitor
+              (gethash
+               (list :monitor (nth 1 event)) dbus-registered-objects-table))
+        (if monitor
+            ;; A monitor event shall not trigger other operations, and
+            ;; it shall not trigger D-Bus errors.
+            (setq result (dbus-ignore-errors (apply (nth 9 event) args)))
+	  ;; Error messages must be propagated.  The error name is in
+	  ;; the member slot.
+	  (when (= dbus-message-type-error (nth 2 event))
+	    (signal 'dbus-error (cons (nth 8 event) args)))
+	  ;; Apply the handler.
+	  (setq result (apply (nth 9 event) args))
+	  ;; Return an (error) message when it is a message call.
+	  (when (= dbus-message-type-method-call (nth 2 event))
+	    (dbus-ignore-errors
+              (if (eq (car-safe result) :error)
+                  (apply #'dbus-method-error-internal
+	                 (nth 1 event) (nth 4 event) (nth 3 event) (cdr result))
+	        (if (eq result :ignore)
+		    (dbus-method-return-internal
+		     (nth 1 event) (nth 4 event) (nth 3 event))
+                  (apply #'dbus-method-return-internal
+		         (nth 1 event) (nth 4 event) (nth 3 event)
+		         (if (consp result) result (list result)))))))))
     ;; Error handling.
     (dbus-error
      ;; Return an error message when it is a message call.
@@ -1140,8 +1191,8 @@ If the HANDLER returns a `dbus-error', it is propagated as return message."
 
 (defun dbus-event-bus-name (event)
   "Return the bus name the event is coming from.
-The result is either a Lisp symbol, `:system' or `:session', or a
-string denoting the bus address.  EVENT is a D-Bus event, see
+The result is either a Lisp keyword, `:system' or `:session', or
+a string denoting the bus address.  EVENT is a D-Bus event, see
 `dbus-check-event'.  This function signals a `dbus-error' if the
 event is not well formed."
   (dbus-check-event event)
@@ -1172,13 +1223,21 @@ formed."
   (dbus-check-event event)
   (nth 4 event))
 
+(defun dbus-event-destination-name (event)
+  "Return the name of the D-Bus object the event is dedicated to.
+The result is a string.  EVENT is a D-Bus event, see `dbus-check-event'.
+This function signals a `dbus-error' if the event is not well
+formed."
+  (dbus-check-event event)
+  (nth 5 event))
+
 (defun dbus-event-path-name (event)
   "Return the object path of the D-Bus object the event is coming from.
 The result is a string.  EVENT is a D-Bus event, see `dbus-check-event'.
 This function signals a `dbus-error' if the event is not well
 formed."
   (dbus-check-event event)
-  (nth 5 event))
+  (nth 6 event))
 
 (defun dbus-event-interface-name (event)
   "Return the interface name of the D-Bus object the event is coming from.
@@ -1186,15 +1245,32 @@ The result is a string.  EVENT is a D-Bus event, see `dbus-check-event'.
 This function signals a `dbus-error' if the event is not well
 formed."
   (dbus-check-event event)
-  (nth 6 event))
+  (nth 7 event))
 
 (defun dbus-event-member-name (event)
   "Return the member name the event is coming from.
-It is either a signal name or a method name.  The result is a
-string.  EVENT is a D-Bus event, see `dbus-check-event'.  This
-function signals a `dbus-error' if the event is not well formed."
+It is either a signal name, a method name or an error name.  The
+result is a string.  EVENT is a D-Bus event, see
+`dbus-check-event'.  This function signals a `dbus-error' if the
+event is not well formed."
   (dbus-check-event event)
-  (nth 7 event))
+  (nth 8 event))
+
+(defun dbus-event-handler (event)
+  "Return the handler the event is applied with.
+The result is a function.  EVENT is a D-Bus event, see
+`dbus-check-event'.  This function signals a `dbus-error' if the
+event is not well formed."
+  (dbus-check-event event)
+  (nth 9 event))
+
+(defun dbus-event-arguments (event)
+  "Return the arguments the event is carrying on.
+The result is a list of arguments.  EVENT is a D-Bus event, see
+`dbus-check-event'.  This function signals a `dbus-error' if the
+event is not well formed."
+  (dbus-check-event event)
+  (nthcdr 10 event))
 
 
 ;;; D-Bus registered names.
@@ -1309,11 +1385,11 @@ It will be registered for all objects created by `dbus-register-service'."
   "Return all interfaces and sub-nodes of SERVICE,
 registered at object path PATH at bus BUS.
 
-BUS is either a Lisp symbol, `:system' or `:session', or a string
-denoting the bus address.  SERVICE must be a known service name,
-and PATH must be a valid object path.  The last two parameters
-are strings.  The result, the introspection data, is a string in
-XML format."
+BUS is either a Lisp keyword, `:system' or `:session', or a
+string denoting the bus address.  SERVICE must be a known service
+name, and PATH must be a valid object path.  The last two
+parameters are strings.  The result, the introspection data, is a
+string in XML format."
   ;; We don't want to raise errors.
   (let (dbus-debug)
     (dbus-ignore-errors
@@ -1530,7 +1606,7 @@ valid D-Bus value, or nil if there is no PROPERTY, or PROPERTY cannot be read."
 (defun dbus-set-property (bus service path interface property &rest args)
   "Set value of PROPERTY of INTERFACE to VALUE.
 It will be checked at BUS, SERVICE, PATH.  VALUE can be preceded
-by a TYPE symbol.  When the value is successfully set, and the
+by a TYPE keyword.  When the value is successfully set, and the
 property's access type is not `:write', return VALUE.  Otherwise,
 return nil.
 
@@ -1585,8 +1661,8 @@ Filter out matching PATH."
     (bus service path interface property access &rest args)
   "Register PROPERTY on the D-Bus BUS.
 
-BUS is either a Lisp symbol, `:system' or `:session', or a string
-denoting the bus address.
+BUS is either a Lisp keyword, `:system' or `:session', or a
+string denoting the bus address.
 
 SERVICE is the D-Bus service name of the D-Bus.  It must be a
 known name (see discussion of DONT-REGISTER-SERVICE below).
@@ -1596,11 +1672,11 @@ discussion of DONT-REGISTER-SERVICE below).  INTERFACE is the
 name of the interface used at PATH, PROPERTY is the name of the
 property of INTERFACE.  ACCESS indicates, whether the property
 can be changed by other services via D-Bus.  It must be either
-the symbol `:read', `:write' or `:readwrite'.
+the keyword `:read', `:write' or `:readwrite'.
 
 VALUE is the initial value of the property, it can be of any
 valid type (see `dbus-call-method' for details).  VALUE can be
-preceded by a TYPE symbol.
+preceded by a TYPE keyword.
 
 If PROPERTY already exists on PATH, it will be overwritten.  For
 properties with access type `:read' this is the only way to
@@ -1622,7 +1698,7 @@ clients from discovering the still incomplete interface.
 
 \(dbus-register-property BUS SERVICE PATH INTERFACE PROPERTY ACCESS \
 [TYPE] VALUE &optional EMITS-SIGNAL DONT-REGISTER-SERVICE)"
-  (let (;; Read basic type symbol.
+  (let (;; Read basic type keyword.
         (type (when (keywordp (car args)) (pop args)))
         (value (pop args))
         (emits-signal (pop args))
@@ -1664,6 +1740,7 @@ clients from discovering the still incomplete interface.
     (when emits-signal
       (dbus-send-signal
        bus service path dbus-interface-properties "PropertiesChanged"
+       interface
        ;; changed_properties.
        (if (eq access :write)
            '(:array: :signature "{sv}")
@@ -1717,7 +1794,7 @@ It will be registered for all objects created by `dbus-register-property'."
 
      ;; "Set" needs the third typed argument from `last-input-event'.
      ((string-equal method "Set")
-      (let* ((value (dbus-flatten-types (nth 11 last-input-event)))
+      (let* ((value (dbus-flatten-types (nth 12 last-input-event)))
 	     (entry (dbus-get-this-registered-property
                      bus service path interface property))
 	     (object (car (last (car entry)))))
@@ -1742,6 +1819,7 @@ It will be registered for all objects created by `dbus-register-property'."
 	    (when (nth 1 object)
 	      (dbus-send-signal
 	       bus service path dbus-interface-properties "PropertiesChanged"
+               interface
                ;; changed_properties.
 	       (if (eq :write (car object))
                    '(:array: :signature "{sv}")
@@ -1864,35 +1942,38 @@ It will be registered for all objects created by `dbus-register-service'."
       ;; Check for object path wildcard interfaces.
       (maphash
        (lambda (key val)
-	 (when (and (equal (butlast key 2) (list :property bus))
-		    (null (nth 2 (car-safe val))))
-	   (push (nth 2 key) interfaces)))
+	 (when (equal (butlast key 2) (list :property bus))
+           (dolist (item val)
+	     (unless (nth 2 item) ; Path.
+	       (push (nth 2 key) interfaces)))))
        dbus-registered-objects-table)
 
       ;; Check all registered object paths.
       (maphash
        (lambda (key val)
-	 (let ((object (or (nth 2 (car-safe val)) "")))
-	   (when (and (equal (butlast key 2) (list :property bus))
-		      (string-prefix-p path object))
-	     (dolist (interface (cons (nth 2 key) interfaces))
-	       (unless (assoc object result)
-		 (push (list object) result))
-	       (unless (assoc interface (cdr (assoc object result)))
-		 (setcdr
-		  (assoc object result)
-		  (append
-		   (list (cons
-		    interface
-		    ;; We simulate "org.freedesktop.DBus.Properties.GetAll"
-		    ;; by using an appropriate D-Bus event.
-		    (let ((last-input-event
-			   (append
-			    (butlast last-input-event 4)
-			    (list object dbus-interface-properties
-                                  "GetAll" #'dbus-property-handler))))
-		      (dbus-property-handler interface))))
-		   (cdr (assoc object result)))))))))
+	 (when (equal (butlast key 2) (list :property bus))
+           (dolist (item val)
+	     (let ((object (or (nth 2 item) ""))) ; Path.
+	       (when (string-prefix-p path object)
+	         (dolist (interface (cons (nth 2 key) (delete-dups interfaces)))
+	           (unless (assoc object result)
+		     (push (list object) result))
+	           (unless (assoc interface (cdr (assoc object result)))
+		     (setcdr
+		      (assoc object result)
+		      (append
+		       (list (cons
+		              interface
+		              ;; We simulate
+		              ;; "org.freedesktop.DBus.Properties.GetAll"
+		              ;; by using an appropriate D-Bus event.
+		              (let ((last-input-event
+			             (append
+			              (butlast last-input-event 4)
+			              (list object dbus-interface-properties
+                                            "GetAll" #'dbus-property-handler))))
+		                (dbus-property-handler interface))))
+		       (cdr (assoc object result)))))))))))
        dbus-registered-objects-table)
 
       ;; Return the result, or an empty array.
@@ -1907,13 +1988,195 @@ It will be registered for all objects created by `dbus-register-service'."
 	 result)
 	'(:signature "{oa{sa{sv}}}"))))))
 
+(cl-defun dbus-register-monitor
+    (bus &optional handler &key type sender destination path interface member)
+  "Register HANDLER for monitor events on the D-Bus BUS.
+
+BUS is either a Lisp keyword, `:system' or `:session', or a
+string denoting the bus address.
+
+HANDLER is the function to be called when a monitor event
+arrives.  It is called with the `args' slot of the monitor event,
+which are stripped off the type keywords.  If HANDLER is nil, the
+default handler `dbus-monitor-handler' is applied.
+
+The other arguments are keyword-value pairs.  `:type TYPE'
+defines the message type to be monitored.  If given, it must be
+equal one of the strings \"method_call\", \"method_return\",
+\"error\" or \"signal\".
+
+`:sender SENDER' and `:destination DESTINATION' are D-Bus names.
+They can be unique names, or well-known service names.
+
+`:path PATH' is the D-Bus object to be monitored.  `:interface
+INTERFACE' is the name of an interface, and `:member MEMBER' is
+either a method name, a signal name, or an error name."
+  (let ((bus-private (if (eq bus :system) :system-private
+                       (if (eq bus :session) :session-private bus)))
+        rule key key1 value)
+    (unless handler (setq handler #'dbus-monitor-handler))
+    ;; Compose rule.
+    (setq rule
+          (string-join
+           (delq nil (mapcar
+                      (lambda (item)
+                        (when (cdr item)
+                          (format "%s='%s'" (car item) (cdr item))))
+                      `(("type" . ,type) ("sender" . ,sender)
+                        ("destination" . ,destination) ("path" . ,path)
+                        ("interface" . ,interface) ("member" . ,member))))
+           ",")
+          rule (or rule ""))
+
+    (unless (ignore-errors (dbus-get-unique-name bus-private))
+      (dbus-init-bus bus 'private))
+    (dbus-call-method
+     bus-private dbus-service-dbus dbus-path-dbus dbus-interface-monitoring
+     "BecomeMonitor" `(:array :string ,rule) :uint32 0)
+
+    (when dbus-debug (message "Matching rule \"%s\" created" rule))
+
+    ;; Create a hash table entry.
+    (setq key (list :monitor bus-private)
+	  key1 (list nil nil nil handler rule)
+	  value (gethash key dbus-registered-objects-table))
+    (unless  (member key1 value)
+      (puthash key (cons key1 value) dbus-registered-objects-table))
+
+    (when dbus-debug (message "%s" dbus-registered-objects-table))
+
+    ;; Return the object.
+    (list key (list nil nil handler))))
+
+(defconst dbus-monitor-method-call
+  (propertize "method-call" 'face 'font-lock-function-name-face)
+  "Text to be inserted for D-Bus method-call in monitor.")
+
+(defconst dbus-monitor-method-return
+  (propertize "method-return" 'face 'font-lock-function-name-face)
+  "Text to be inserted for D-Bus method-return in monitor.")
+
+(defconst dbus-monitor-error (propertize "error" 'face 'font-lock-warning-face)
+  "Text to be inserted for D-Bus error in monitor.")
+
+(defconst dbus-monitor-signal
+  (propertize "signal" 'face 'font-lock-type-face)
+  "Text to be inserted for D-Bus signal in monitor.")
+
+(defun dbus-monitor-goto-serial ()
+  "Goto D-Bus message with the same serial number."
+  (interactive)
+  (when (mouse-event-p last-input-event) (mouse-set-point last-input-event))
+  (when-let ((point (get-text-property (point) 'dbus-serial)))
+    (goto-char point)))
+
+(defun dbus-monitor-handler (&rest _args)
+  "Default handler for the \"org.freedesktop.DBus.Monitoring.BecomeMonitor\" interface.
+It will be applied for all objects created by `dbus-register-monitor'
+which don't declare an own handler.  The printed timestamps do
+not reflect the time the D-Bus message has passed the D-Bus
+daemon, it is rather the timestamp the corresponding D-Bus event
+has been handled by this function."
+  (with-current-buffer (get-buffer-create "*D-Bus Monitor*")
+    (special-mode)
+    ;; Move forward and backward between messages.
+    (local-set-key [?n] #'forward-paragraph)
+    (local-set-key [?p] #'backward-paragraph)
+    ;; Follow serial links.
+    (local-set-key  (kbd "RET") #'dbus-monitor-goto-serial)
+    (local-set-key  [mouse-2] #'dbus-monitor-goto-serial)
+    (let* ((inhibit-read-only t)
+           (text-quoting-style 'grave)
+           (point (point))
+           (eobp (eobp))
+           (event last-input-event)
+           (type (dbus-event-message-type event))
+	   (sender (dbus-event-service-name event))
+	   (destination (dbus-event-destination-name event))
+           (serial (dbus-event-serial-number event))
+	   (path (dbus-event-path-name event))
+	   (interface (dbus-event-interface-name event))
+	   (member (dbus-event-member-name event))
+           (arguments (dbus-event-arguments event))
+           (time (time-to-seconds (current-time))))
+      (save-excursion
+        ;; Check for matching method-call.
+        (goto-char (point-max))
+        (when (and (or (= type dbus-message-type-method-return)
+                       (= type dbus-message-type-error))
+                   (re-search-backward
+                    (format
+                     (concat
+                      "^method-call time=\\(\\S-+\\) "
+                      ".*sender=%s .*serial=\\(%d\\) ")
+                     destination serial)
+                    nil 'noerror))
+          (setq serial
+                (propertize
+                 (match-string 2) 'dbus-serial (match-beginning 0)
+                 'help-echo "RET, mouse-1, mouse-2: goto method-call"
+                 'face 'link 'follow-link 'mouse-face 'mouse-face 'highlight)
+                time (format "%f (%f)" time (- time (read (match-string 1)))))
+          (set-text-properties
+           (match-beginning 2) (match-end 2)
+           `(dbus-serial ,(point-max)
+             help-echo
+             ,(format
+               "RET, mouse-1, mouse-2: goto %s"
+               (if (= type dbus-message-type-error) "error" "method-return"))
+             face link follow-link mouse-face mouse-face highlight)))
+        ;; Insert D-Bus message.
+        (goto-char (point-max))
+        (insert
+         (format
+          (concat
+           "%s time=%s sender=%s -> destination=%s serial=%s "
+           "path=%s interface=%s member=%s\n")
+          (cond
+           ((= type dbus-message-type-method-call) dbus-monitor-method-call)
+           ((= type dbus-message-type-method-return) dbus-monitor-method-return)
+           ((= type dbus-message-type-error) dbus-monitor-error)
+           ((= type dbus-message-type-signal) dbus-monitor-signal))
+          time sender destination serial path interface member))
+        (dolist (arg arguments)
+          (pp (dbus-flatten-types arg) (current-buffer)))
+        (insert "\n")
+        ;; Show byte arrays as string.
+        (goto-char point)
+        (while (re-search-forward
+                "(:array\\( :byte [[:digit:]]+\\)+)" nil 'noerror)
+          (put-text-property
+           (match-beginning 0) (match-end 0)
+           'help-echo (dbus-byte-array-to-string (read (match-string 0)))))
+        ;; Show fixed numbers.
+        (goto-char point)
+        (while (re-search-forward
+                (concat
+                 (regexp-opt
+                  '(":int16" ":uint16" ":int32" ":uint32" ":int64" ":uint64"))
+                 " \\([-+[:digit:]]+\\)")
+                nil 'noerror)
+          (put-text-property
+           (match-beginning 1) (match-end 1)
+           'help-echo
+           (format
+            "#o%o, #x%X" (read (match-string 1)) (read (match-string 1)))))
+        ;; Show floating numbers.
+        (goto-char point)
+        (while (re-search-forward ":double \\([-+.[:digit:]]+\\)" nil 'noerror)
+          (put-text-property
+           (match-beginning 1) (match-end 1)
+           'help-echo (format "%e" (read (match-string 1))))))
+      (when eobp
+        (goto-char (point-max))))))
+
 (defun dbus-handle-bus-disconnect ()
   "React to a bus disconnection.
 BUS is the bus that disconnected.  This routine unregisters all
 handlers on the given bus and causes all synchronous calls
 pending at the time of disconnect to fail."
   (let ((bus (dbus-event-bus-name last-input-event))
-        (keys-to-remove))
+        keys-to-remove)
     (maphash
      (lambda (key value)
        (when (and (eq (nth 0 key) :serial)
@@ -1923,13 +2186,14 @@ pending at the time of disconnect to fail."
           (list 'dbus-event
                 bus
                 dbus-message-type-error
-                (nth 2 key)
-                nil
-                nil
-                nil
-                nil
-                value)
-          (list 'dbus-error "Bus disconnected" bus))
+                (nth 2 key) ; serial
+                nil         ; service
+                nil         ; destination
+                nil         ; path
+                nil         ; interface
+                nil         ; member
+                value)      ; handler
+          (list 'dbus-error dbus-error-disconnected  "Bus disconnected" bus))
          (push key keys-to-remove)))
      dbus-registered-objects-table)
     (dolist (key keys-to-remove)
@@ -1938,10 +2202,11 @@ pending at the time of disconnect to fail."
 (defun dbus-init-bus (bus &optional private)
   "Establish the connection to D-Bus BUS.
 
-BUS can be either the symbol `:system' or the symbol `:session', or it
-can be a string denoting the address of the corresponding bus.  For
-the system and session buses, this function is called when loading
-`dbus.el', there is no need to call it again.
+BUS can be either the keyword `:system' or the keyword
+`:session', or it can be a string denoting the address of the
+corresponding bus.  For the system and session buses, this
+function is called when loading `dbus.el', there is no need to
+call it again.
 
 The function returns the number of connections this Emacs session
 has established to the BUS under the same unique name (see
@@ -1951,13 +2216,13 @@ example, if Emacs is linked with the GTK+ toolkit, and it runs in
 a GTK+-aware environment like GNOME, another connection might
 already be established.
 
-When PRIVATE is non-nil, a new connection is established instead of
-reusing an existing one.  It results in a new unique name at the bus.
-This can be used, if it is necessary to distinguish from another
-connection used in the same Emacs process, like the one established by
-GTK+.  It should be used with care for at least the `:system' and
-`:session' buses, because other Emacs Lisp packages might already use
-this connection to those buses."
+When PRIVATE is non-nil, a new connection is established instead
+of reusing an existing one.  It results in a new unique name at
+the bus.  This can be used, if it is necessary to distinguish
+from another connection used in the same Emacs process, like the
+one established by GTK+.  If BUS is the keyword `:system' or the
+keyword `:session', the new connection is identified by the
+keywords `:system-private' or `:session-private', respectively."
   (or (featurep 'dbusbind)
       (signal 'dbus-error (list "Emacs not compiled with dbus support")))
   (prog1
@@ -1980,12 +2245,8 @@ this connection to those buses."
 
 ;;; TODO:
 
-;; * Check property type in org.freedesktop.DBus.Properties.Set.
-;;
 ;; * Implement org.freedesktop.DBus.ObjectManager.InterfacesAdded and
 ;;   org.freedesktop.DBus.ObjectManager.InterfacesRemoved.
-;;
-;; * Implement org.freedesktop.DBus.Monitoring.BecomeMonitor.
 ;;
 ;; * Cache introspection data.
 ;;

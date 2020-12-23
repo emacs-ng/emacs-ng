@@ -41,7 +41,7 @@ rules:
   module-env-VER.h.  Add functions solely at the end of the fragment
   file for the next (not yet released) major version of Emacs.  For
   example, if the current Emacs release is 26.2, add functions only to
-  emacs-env-27.h.
+  module-env-27.h.
 
 - emacs-module.h should only depend on standard C headers.  In
   particular, don't include config.h or lisp.h from emacs-module.h.
@@ -55,7 +55,7 @@ rules:
 
 To add a new module function, proceed as follows:
 
-1. Add a new function pointer field at the end of the emacs-env-*.h
+1. Add a new function pointer field at the end of the module-env-*.h
    file for the next major version of Emacs.
 
 2. Run config.status or configure to regenerate emacs-module.h.
@@ -200,8 +200,6 @@ static AVOID module_abort (const char *, ...) ATTRIBUTE_FORMAT_PRINTF (1, 2);
 static emacs_env *initialize_environment (emacs_env *,
 					  struct emacs_env_private *);
 static void finalize_environment (emacs_env *);
-static void finalize_environment_unwind (void *);
-static void finalize_runtime_unwind (void *);
 static void module_handle_nonlocal_exit (emacs_env *, enum nonlocal_exit,
                                          Lisp_Object);
 static void module_non_local_exit_signal_1 (emacs_env *,
@@ -791,6 +789,18 @@ module_make_string (emacs_env *env, const char *str, ptrdiff_t len)
 }
 
 static emacs_value
+module_make_unibyte_string (emacs_env *env, const char *str, ptrdiff_t length)
+{
+  MODULE_FUNCTION_BEGIN (NULL);
+  if (! (0 <= length && length <= STRING_BYTES_BOUND))
+    overflow_error ();
+  Lisp_Object lstr = make_uninit_string (length);
+  memcpy (SDATA (lstr), str, length);
+  SDATA (lstr)[length] = 0;
+  return lisp_to_value (env, lstr);
+}
+
+static emacs_value
 module_make_user_ptr (emacs_env *env, emacs_finalizer fin, void *ptr)
 {
   MODULE_FUNCTION_BEGIN (NULL);
@@ -1077,10 +1087,6 @@ module_signal_or_throw (struct emacs_env_private *env)
     }
 }
 
-/* Live runtime and environment objects, for assertions.  */
-static Lisp_Object Vmodule_runtimes;
-static Lisp_Object Vmodule_environments;
-
 DEFUN ("module-load", Fmodule_load, Smodule_load, 1, 1, 0,
        doc: /* Load module FILE.  */)
   (Lisp_Object file)
@@ -1125,9 +1131,9 @@ DEFUN ("module-load", Fmodule_load, Smodule_load, 1, 1, 0,
   rt->private_members = &rt_priv;
   rt->get_environment = module_get_environment;
 
-  Vmodule_runtimes = Fcons (make_mint_ptr (rt), Vmodule_runtimes);
   ptrdiff_t count = SPECPDL_INDEX ();
-  record_unwind_protect_ptr (finalize_runtime_unwind, rt);
+  record_unwind_protect_module (SPECPDL_MODULE_RUNTIME, rt);
+  record_unwind_protect_module (SPECPDL_MODULE_ENVIRONMENT, rt_priv.env);
 
   int r = module_init (rt);
 
@@ -1155,7 +1161,7 @@ funcall_module (Lisp_Object function, ptrdiff_t nargs, Lisp_Object *arglist)
   struct emacs_env_private priv;
   emacs_env *env = initialize_environment (&pub, &priv);
   ptrdiff_t count = SPECPDL_INDEX ();
-  record_unwind_protect_ptr (finalize_environment_unwind, env);
+  record_unwind_protect_module (SPECPDL_MODULE_ENVIRONMENT, env);
 
   USE_SAFE_ALLOCA;
   emacs_value *args = nargs > 0 ? SAFE_ALLOCA (nargs * sizeof *args) : NULL;
@@ -1231,12 +1237,13 @@ module_assert_runtime (struct emacs_runtime *runtime)
   if (! module_assertions)
     return;
   ptrdiff_t count = 0;
-  for (Lisp_Object tail = Vmodule_runtimes; CONSP (tail); tail = XCDR (tail))
-    {
-      if (xmint_pointer (XCAR (tail)) == runtime)
-        return;
-      ++count;
-    }
+  for (const union specbinding *pdl = specpdl; pdl != specpdl_ptr; ++pdl)
+    if (pdl->kind == SPECPDL_MODULE_RUNTIME)
+      {
+        if (pdl->unwind_ptr.arg == runtime)
+          return;
+        ++count;
+      }
   module_abort ("Runtime pointer not found in list of %"pD"d runtimes",
 		count);
 }
@@ -1247,13 +1254,13 @@ module_assert_env (emacs_env *env)
   if (! module_assertions)
     return;
   ptrdiff_t count = 0;
-  for (Lisp_Object tail = Vmodule_environments; CONSP (tail);
-       tail = XCDR (tail))
-    {
-      if (xmint_pointer (XCAR (tail)) == env)
-        return;
-      ++count;
-    }
+  for (const union specbinding *pdl = specpdl; pdl != specpdl_ptr; ++pdl)
+    if (pdl->kind == SPECPDL_MODULE_ENVIRONMENT)
+      {
+        if (pdl->unwind_ptr.arg == env)
+          return;
+        ++count;
+      }
   module_abort ("Environment pointer not found in list of %"pD"d environments",
                 count);
 }
@@ -1311,22 +1318,22 @@ value_to_lisp (emacs_value v)
          environments.  */
       ptrdiff_t num_environments = 0;
       ptrdiff_t num_values = 0;
-      for (Lisp_Object environments = Vmodule_environments;
-           CONSP (environments); environments = XCDR (environments))
-        {
-          emacs_env *env = xmint_pointer (XCAR (environments));
-          struct emacs_env_private *priv = env->private_members;
-          /* The value might be one of the nonlocal exit values.  Note
-             that we don't check whether a nonlocal exit is currently
-             pending, because the module might have cleared the flag
-             in the meantime.  */
-          if (&priv->non_local_exit_symbol == v
-              || &priv->non_local_exit_data == v)
-            goto ok;
-          if (value_storage_contains_p (&priv->storage, v, &num_values))
-            goto ok;
-          ++num_environments;
-        }
+      for (const union specbinding *pdl = specpdl; pdl != specpdl_ptr; ++pdl)
+        if (pdl->kind == SPECPDL_MODULE_ENVIRONMENT)
+          {
+            const emacs_env *env = pdl->unwind_ptr.arg;
+            struct emacs_env_private *priv = env->private_members;
+            /* The value might be one of the nonlocal exit values.  Note
+               that we don't check whether a nonlocal exit is currently
+               pending, because the module might have cleared the flag
+               in the meantime.  */
+            if (&priv->non_local_exit_symbol == v
+                || &priv->non_local_exit_data == v)
+              goto ok;
+            if (value_storage_contains_p (&priv->storage, v, &num_values))
+              goto ok;
+            ++num_environments;
+          }
       /* Also check global values.  */
       if (module_global_reference_p (v, &num_values))
         goto ok;
@@ -1409,18 +1416,14 @@ allocate_emacs_value (emacs_env *env, Lisp_Object obj)
 /* Mark all objects allocated from local environments so that they
    don't get garbage-collected.  */
 void
-mark_modules (void)
+mark_module_environment (void *ptr)
 {
-  for (Lisp_Object tem = Vmodule_environments; CONSP (tem); tem = XCDR (tem))
-    {
-      emacs_env *env = xmint_pointer (XCAR (tem));
-      struct emacs_env_private *priv = env->private_members;
-      for (struct emacs_value_frame *frame = &priv->storage.initial;
-	   frame != NULL;
-	   frame = frame->next)
-        for (int i = 0; i < frame->offset; ++i)
-          mark_object (frame->objects[i].v);
-    }
+  emacs_env *env = ptr;
+  struct emacs_env_private *priv = env->private_members;
+  for (struct emacs_value_frame *frame = &priv->storage.initial; frame != NULL;
+       frame = frame->next)
+    for (int i = 0; i < frame->offset; ++i)
+      mark_object (frame->objects[i].v);
 }
 
 
@@ -1464,6 +1467,7 @@ initialize_environment (emacs_env *env, struct emacs_env_private *priv)
   env->make_float = module_make_float;
   env->copy_string_contents = module_copy_string_contents;
   env->make_string = module_make_string;
+  env->make_unibyte_string = module_make_unibyte_string;
   env->make_user_ptr = module_make_user_ptr;
   env->get_user_ptr = module_get_user_ptr;
   env->set_user_ptr = module_set_user_ptr;
@@ -1482,7 +1486,6 @@ initialize_environment (emacs_env *env, struct emacs_env_private *priv)
   env->set_function_finalizer = module_set_function_finalizer;
   env->open_channel = module_open_channel;
   env->make_interactive = module_make_interactive;
-  Vmodule_environments = Fcons (make_mint_ptr (env), Vmodule_environments);
   return env;
 }
 
@@ -1492,23 +1495,19 @@ static void
 finalize_environment (emacs_env *env)
 {
   finalize_storage (&env->private_members->storage);
-  eassert (xmint_pointer (XCAR (Vmodule_environments)) == env);
-  Vmodule_environments = XCDR (Vmodule_environments);
 }
 
-static void
+void
 finalize_environment_unwind (void *env)
 {
   finalize_environment (env);
 }
 
-static void
+void
 finalize_runtime_unwind (void *raw_ert)
 {
-  struct emacs_runtime *ert = raw_ert;
-  eassert (xmint_pointer (XCAR (Vmodule_runtimes)) == ert);
-  Vmodule_runtimes = XCDR (Vmodule_runtimes);
-  finalize_environment (ert->private_members->env);
+  /* No further cleanup is required, as the initial environment is
+     unwound separately.  See the logic in Fmodule_load.  */
 }
 
 
@@ -1596,12 +1595,6 @@ syms_of_module (void)
     = make_hash_table (hashtest_eq, DEFAULT_HASH_SIZE,
 		       DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
 		       Qnil, false);
-
-  staticpro (&Vmodule_runtimes);
-  Vmodule_runtimes = Qnil;
-
-  staticpro (&Vmodule_environments);
-  Vmodule_environments = Qnil;
 
   DEFSYM (Qmodule_load_failed, "module-load-failed");
   Fput (Qmodule_load_failed, Qerror_conditions,

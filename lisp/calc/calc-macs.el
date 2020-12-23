@@ -33,12 +33,12 @@
 
 
 (defmacro calc-wrapper (&rest body)
-  `(calc-do (function (lambda ()
-			,@body))))
+  `(calc-do (lambda ()
+              ,@body)))
 
 (defmacro calc-slow-wrapper (&rest body)
   `(calc-do
-    (function (lambda () ,@body)) (point)))
+    (lambda () ,@body) (point)))
 
 (defmacro math-showing-full-precision (form)
   `(let ((calc-float-format calc-full-float-format))
@@ -61,6 +61,7 @@
 (defmacro calc-with-trail-buffer (&rest body)
   `(let ((save-buf (current-buffer))
 	 (calc-command-flags nil))
+     (ignore save-buf)              ;FIXME: Use a name less conflict-prone!
      (with-current-buffer (calc-trail-display t)
        (progn
 	 (goto-char calc-trail-pointer)

@@ -87,8 +87,6 @@
 
 ;;; Code:
 
-(require 'font-lock)
-
 (defgroup hi-lock nil
   "Interactively add and remove font-lock patterns for highlighting text."
   :link '(custom-manual "(emacs)Highlight Interactively")
@@ -136,9 +134,9 @@ patterns."
 (put 'hi-lock-file-patterns-policy 'risky-local-variable t)
 
 (defcustom hi-lock-auto-select-face nil
-  "Non-nil means highlighting commands do not prompt for the face to use.
-Instead, each hi-lock command will cycle through the faces in
-`hi-lock-face-defaults'."
+  "When nil, highlighting commands prompt for the face to use.
+When non-nil, highlighting command determine the faces to use
+by cycling through the faces in `hi-lock-face-defaults'."
   :type 'boolean
   :version "24.4")
 
@@ -484,9 +482,17 @@ the major mode specifies support for Font Lock."
   (interactive
    (list
     (hi-lock-regexp-okay
-     (read-regexp "Regexp to highlight" 'regexp-history-last))
+     (read-regexp "Regexp to highlight"
+                  (if (use-region-p)
+                      (prog1
+                          (buffer-substring (region-beginning)
+                                            (region-end))
+                        (deactivate-mark))
+                    'regexp-history-last)))
     (hi-lock-read-face-name)
     current-prefix-arg))
+  (when (stringp face)
+    (setq face (intern face)))
   (or (facep face) (setq face 'hi-yellow))
   (unless hi-lock-mode (hi-lock-mode 1))
   (hi-lock-set-pattern
@@ -814,6 +820,7 @@ SPACES-REGEXP is a regexp to substitute spaces in font-lock search."
     (font-lock-add-keywords nil hi-lock-file-patterns t)
     (font-lock-flush)))
 
+;;;###autoload
 (defun hi-lock-find-patterns ()
   "Add patterns from the current buffer to the list of hi-lock patterns."
   (interactive)

@@ -146,12 +146,23 @@ textual parts.")
   :version "24.4"
   :group 'nnimap)
 
+(define-obsolete-variable-alias
+  'nnimap-split-download-body-default 'nnimap-split-download-body
+  "28.1")
+
+(defcustom nnimap-split-download-body nil
+  "If non-nil, make message bodies available for consideration during splitting.
+This requires downloading the full message from the IMAP server
+during splitting, which may be slow."
+  :version "28.1"
+  :type 'boolean)
+
+(defvar nnimap--split-download-body nil
+  "Like `nnimap-split-download-body', but for internal use.")
+
 (defvar nnimap-process nil)
 
 (defvar nnimap-status-string "")
-
-(defvar nnimap-split-download-body-default nil
-  "Internal variable with default value for `nnimap-split-download-body'.")
 
 (defvar nnimap-keepalive-timer nil)
 (defvar nnimap-process-buffers nil)
@@ -365,7 +376,7 @@ textual parts.")
     (mm-disable-multibyte)
     (buffer-disable-undo)
     (gnus-add-buffer)
-    (set (make-local-variable 'after-change-functions) nil)
+    (set (make-local-variable 'after-change-functions) nil) ;FIXME: Why?
     (set (make-local-variable 'nnimap-object)
 	 (make-nnimap :server (nnoo-current-server 'nnimap)
 		      :initial-resync 0))
@@ -1772,11 +1783,6 @@ If LIMIT, first try to limit the search to the N last articles."
   ;; read it.
   (subst-char-in-region (point-min) (point-max)
 			?\\ ?% t)
-  ;; Remove any MODSEQ entries in the buffer, because they may contain
-  ;; numbers that are too large for 32-bit Emacsen.
-  (while (re-search-forward " MODSEQ ([0-9]+)" nil t)
-    (replace-match "" t t))
-  (goto-char (point-min))
   (let (start end articles groups uidnext elems permanent-flags
 	      uidvalidity vanished highestmodseq)
     (dolist (elem sequences)
@@ -1803,8 +1809,9 @@ If LIMIT, first try to limit the search to the N last articles."
 		 (setq uidvalidity
 		       (and (re-search-forward "UIDVALIDITY \\([0-9]+\\)"
 					       end t)
-			    ;; Store UIDVALIDITY as a string, as it's
-			    ;; too big for 32-bit Emacsen, usually.
+			    ;; Store UIDVALIDITY as a string; before bignums,
+			    ;; it was usually too big for 32-bit Emacsen,
+			    ;; and we don't want to change the format now.
 			    (match-string 1)))
 		 (goto-char start)
 		 (setq vanished
@@ -2104,7 +2111,8 @@ Return the server's response to the SELECT or EXAMINE command."
 		 "BODY.PEEK"
 	       "RFC822.PEEK"))
 	    (cond
-	     (nnimap-split-download-body-default
+             ((or nnimap-split-download-body
+                  nnimap--split-download-body)
 	      "[]")
 	     ((nnimap-ver4-p)
 	      "[HEADER]")

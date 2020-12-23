@@ -4,7 +4,7 @@
 
 ;; Author: Ron Schnell <ronnie@driver-aces.com>
 ;; Created: 25 Jul 1992
-;; Version: 2.02
+;; Old-Version: 2.02
 ;; Keywords: games
 
 ;; This file is part of GNU Emacs.
@@ -1144,8 +1144,7 @@ treasures for points?" "4" "four")
 
 (define-derived-mode dun-mode text-mode "Dungeon"
   "Major mode for running dunnet."
-  (make-local-variable 'scroll-step)
-  (setq scroll-step 2))
+  (setq-local scroll-step 2))
 
 (defun dun-parse (_arg)
   "Function called when return is pressed in interactive mode to parse line."
@@ -1957,7 +1956,7 @@ to swim.")
 
 (defun dun-help (_args)
   (dun-mprincl
-"Welcome to dunnet (2.02), by Ron Schnell (ronnie@driver-aces.com - @RonnieSchnell).
+"Welcome to dunnet by Ron Schnell (ronnie@driver-aces.com - @RonnieSchnell).
 Here is some useful information (read carefully because there are one
 or more clues in here):
 - If you have a key that can open a door, you do not need to explicitly
@@ -2351,15 +2350,10 @@ for a moment, then straighten yourself up.\n")
 
 (define-key dun-mode-map "\r" 'dun-parse)
 (defvar dungeon-batch-map (make-keymap))
-(if (string= (substring emacs-version 0 2) "18")
-    (let (n)
-      (setq n 32)
-      (while (< 0 (setq n (- n 1)))
-	(aset dungeon-batch-map n 'dungeon-nil)))
-  (let (n)
-    (setq n 32)
-    (while (< 0 (setq n (- n 1)))
-      (aset (car (cdr dungeon-batch-map)) n 'dungeon-nil))))
+(let (n)
+  (setq n 32)
+  (while (< 0 (setq n (- n 1)))
+    (aset (car (cdr dungeon-batch-map)) n 'dungeon-nil)))
 (define-key dungeon-batch-map "\r" 'exit-minibuffer)
 (define-key dungeon-batch-map "\n" 'exit-minibuffer)
 

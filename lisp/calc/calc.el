@@ -506,7 +506,7 @@ The variable VAR will be added to `calc-mode-var-list'."
 
 (defun calc-mode-var-list-restore-default-values ()
   "Restore the default values of the variables in `calc-mode-var-list'."
-  (mapcar (function (lambda (v) (set (car v) (nth 1 v))))
+  (mapcar (lambda (v) (set (car v) (nth 1 v)))
           calc-mode-var-list))
 
 (defun calc-mode-var-list-restore-saved-values ()
@@ -535,7 +535,7 @@ The variable VAR will be added to `calc-mode-var-list'."
                             newvarlist)))
               (setq varlist (cdr varlist)))))))
     (if newvarlist
-        (mapcar (function (lambda (v) (set (car v) (nth 1 v))))
+        (mapcar (lambda (v) (set (car v) (nth 1 v)))
                 newvarlist)
       (calc-mode-var-list-restore-default-values))))
 
@@ -1315,8 +1315,9 @@ Notations:  3.14e6     3.14 * 10^6
 \\{calc-mode-map}
 "
   (interactive)
-  (mapc (function           ;FIXME: Why (set-default v (symbol-value v)) ?!?!?
-	 (lambda (v) (set-default v (symbol-value v))))
+  (mapc (lambda (v)
+          ;; FIXME: Why (set-default v (symbol-value v)) ?!?!?
+          (set-default v (symbol-value v)))
         calc-local-var-list)
   (kill-all-local-variables)
   (use-local-map (if (eq calc-algebraic-mode 'total)
@@ -1435,6 +1436,12 @@ commands given here will actually operate on the *Calculator* stack."
     (require 'calc-ext)
     (calc-set-language calc-language calc-language-option t)))
 
+(defcustom calc-make-windows-dedicated t
+  "If non-nil, windows displaying Calc buffers will be marked dedicated.
+See `window-dedicated-p' for what that means."
+  :version "28.1"
+  :type 'boolean)
+
 ;;;###autoload
 (defun calc (&optional arg full-display interactive)
   "The Emacs Calculator.  Full documentation is listed under `calc-mode'."
@@ -1480,6 +1487,8 @@ commands given here will actually operate on the *Calculator* stack."
       (and (windowp full-display)
            (window-point full-display)
            (select-window full-display))
+      (and calc-make-windows-dedicated
+           (set-window-dedicated-p nil t))
       (calc-check-defines)
       (when (and calc-said-hello interactive)
         (sit-for 2)
@@ -1529,7 +1538,7 @@ commands given here will actually operate on the *Calculator* stack."
             (let ((tail (nthcdr (1- calc-undo-length) calc-undo-list)))
               (if tail (setcdr tail nil)))
             (setq calc-redo-list nil))))
-      (mapc (function (lambda (v) (set-default v (symbol-value v))))
+      (mapc (lambda (v) (set-default v (symbol-value v)))
 	    calc-local-var-list)
       (let ((buf (current-buffer))
             (win (get-buffer-window (current-buffer)))
@@ -2140,7 +2149,9 @@ the United States."
               (if calc-trail-window-hook
                   (run-hooks 'calc-trail-window-hook)
                 (let ((w (split-window nil (/ (* (window-width) 2) 3) t)))
-                  (set-window-buffer w calc-trail-buffer)))
+                  (set-window-buffer w calc-trail-buffer)
+                  (and calc-make-windows-dedicated
+                       (set-window-dedicated-p nil t))))
               (calc-wrapper
                (setq overlay-arrow-string calc-trail-overlay
                      overlay-arrow-position calc-trail-pointer)
@@ -2313,7 +2324,7 @@ the United States."
         ((eq last-command-event ?@) "0@ ")
         (t (char-to-string last-command-event))))
 
-(defvar calc-buffer)
+(defvar calc-buffer nil)
 (defvar calc-prev-char)
 (defvar calc-prev-prev-char)
 (defvar calc-digit-value)
@@ -2353,7 +2364,7 @@ the United States."
 (defun calcDigit-nondigit ()
   (interactive)
   ;; Exercise for the reader:  Figure out why this is a good precaution!
-  (or (boundp 'calc-buffer)
+  (or calc-buffer
       (use-local-map minibuffer-local-map))
   (let ((str (minibuffer-contents)))
     (setq calc-digit-value (with-current-buffer calc-buffer

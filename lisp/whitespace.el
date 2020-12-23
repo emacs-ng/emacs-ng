@@ -5,7 +5,7 @@
 ;; Author: Vinicius Jose Latorre <viniciusjl.gnu@gmail.com>
 ;; Keywords: data, wp
 ;; Version: 13.2.2
-;; X-URL: http://www.emacswiki.org/cgi-bin/wiki/ViniciusJoseLatorre
+;; X-URL: https://www.emacswiki.org/cgi-bin/wiki/ViniciusJoseLatorre
 
 ;; This file is part of GNU Emacs.
 
@@ -85,19 +85,6 @@
 ;;
 ;; * if global whitespace is turned off, whitespace continues on only
 ;;   in the buffers in which local whitespace is on.
-;;
-;; To use whitespace, insert in your ~/.emacs:
-;;
-;;    (require 'whitespace)
-;;
-;; Or autoload at least one of the commands`whitespace-mode',
-;; `whitespace-toggle-options', `global-whitespace-mode' or
-;; `global-whitespace-toggle-options'.  For example:
-;;
-;;    (autoload 'whitespace-mode           "whitespace"
-;;      "Toggle whitespace visualization."        t)
-;;    (autoload 'whitespace-toggle-options "whitespace"
-;;      "Toggle local `whitespace-mode' options." t)
 ;;
 ;; whitespace was inspired by:
 ;;
@@ -445,6 +432,8 @@ See also `whitespace-display-mappings' for documentation."
               (const :tag "(Face) Lines" lines)
               (const :tag "(Face) Lines, only overlong part" lines-tail)
               (const :tag "(Face) NEWLINEs" newline)
+              (const :tag "(Face) Missing newlines at EOB"
+                     missing-newline-at-eof)
               (const :tag "(Face) Empty Lines At BOB And/Or EOB" empty)
               (const :tag "(Face) Indentation SPACEs" indentation::tab)
               (const :tag "(Face) Indentation TABs"
@@ -726,7 +715,7 @@ and the cons cdr is used for TABs visualization.
 
 Used when `whitespace-style' includes `indentation',
 `indentation::tab' or  `indentation::space'."
-  :type '(cons (regexp :tag "Indentation SPACEs")
+  :type '(cons (string :tag "Indentation SPACEs")
 	       (regexp :tag "Indentation TABs"))
   :group 'whitespace)
 
@@ -757,8 +746,8 @@ and the cons cdr is used for TABs visualization.
 
 Used when `whitespace-style' includes `space-after-tab',
 `space-after-tab::tab' or `space-after-tab::space'."
-  :type '(cons (regexp :tag "SPACEs After TAB")
-	       regexp)
+  :type '(cons (string :tag "SPACEs After TAB")
+	       string)
   :group 'whitespace)
 
 (defcustom whitespace-big-indent-regexp
@@ -2471,7 +2460,8 @@ It should be added buffer-locally to `write-file-functions'."
 
 (provide 'whitespace)
 
-
+(make-obsolete-variable 'whitespace-load-hook
+                        "use `with-eval-after-load' instead." "28.1")
 (run-hooks 'whitespace-load-hook)
 
 

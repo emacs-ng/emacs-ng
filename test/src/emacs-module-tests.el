@@ -21,13 +21,14 @@
 
 ;; Unit tests for the dynamic module facility.  See Info node `(elisp)
 ;; Writing Dynamic Modules'.  These tests make use of a small test
-;; module in test/data/emacs-module.
+;; module in the "emacs-module-resources" directory.
 
 ;;; Code:
 ;;; Prelude
 
 (require 'cl-lib)
 (require 'ert)
+(require 'ert-x)
 (require 'help-fns)
 
 (defconst mod-test-emacs
@@ -35,8 +36,7 @@
   "File name of the Emacs binary currently running.")
 
 (eval-and-compile
-  (defconst mod-test-file
-    (expand-file-name "../test/data/emacs-module/mod-test" invocation-directory)
+  (defconst mod-test-file (ert-resource-file "mod-test")
     "File name of the module test file."))
 
 (require 'mod-test mod-test-file)
@@ -313,11 +313,11 @@ local reference."
           (text-quoting-style 'grave))
       (describe-function-1 #'mod-test-sum)
       (goto-char (point-min))
-      (while (re-search-forward "`[^']*/data/emacs-module/" nil t)
-        (replace-match "`data/emacs-module/"))
+      (while (re-search-forward "`[^']*/src/emacs-module-resources/" nil t)
+        (replace-match "`src/emacs-module-resources/"))
       (should (equal
                (buffer-substring-no-properties 1 (point-max))
-               (format "a module function in `data/emacs-module/mod-test%s'.
+               (format "a module function in `src/emacs-module-resources/mod-test%s'.
 
 (mod-test-sum a b)
 
@@ -499,5 +499,61 @@ See Bug#36226."
                  '(interactive "i")))
   (should (eq (mod-test-identity 123) 123))
   (should-not (call-interactively #'mod-test-identity)))
+
+(ert-deftest module/unibyte ()
+  (let ((result (mod-test-return-unibyte)))
+    (should (stringp result))
+    (should (not (multibyte-string-p (mod-test-return-unibyte))))
+    (should (equal result "foo\x00zot"))))
+
+(cl-defstruct (emacs-module-tests--variable
+               (:constructor nil)
+               (:constructor emacs-module-tests--make-variable
+                             (name
+                              &aux
+                              (mutex (make-mutex name))
+                              (condvar (make-condition-variable mutex name))))
+               (:copier nil))
+  "A variable that's protected by a mutex."
+  value
+  (mutex nil :read-only t :type mutex)
+  (condvar nil :read-only t :type condition-variable))
+
+(defun emacs-module-tests--wait-for-variable (variable desired)
+  (with-mutex (emacs-module-tests--variable-mutex variable)
+    (while (not (eq (emacs-module-tests--variable-value variable) desired))
+      (condition-wait (emacs-module-tests--variable-condvar variable)))))
+
+(defun emacs-module-tests--change-variable (variable new)
+  (with-mutex (emacs-module-tests--variable-mutex variable)
+    (setf (emacs-module-tests--variable-value variable) new)
+    (condition-notify (emacs-module-tests--variable-condvar variable) :all)))
+
+(ert-deftest emacs-module-tests/interleaved-threads ()
+  (let* ((state-1 (emacs-module-tests--make-variable "1"))
+         (state-2 (emacs-module-tests--make-variable "2"))
+         (thread-1
+          (make-thread
+           (lambda ()
+             (emacs-module-tests--change-variable state-1 'before-module)
+             (mod-test-funcall
+              (lambda ()
+                (emacs-module-tests--change-variable state-1 'in-module)
+                (emacs-module-tests--wait-for-variable state-2 'in-module)))
+             (emacs-module-tests--change-variable state-1 'after-module))
+           "thread 1"))
+         (thread-2
+          (make-thread
+           (lambda ()
+             (emacs-module-tests--change-variable state-2 'before-module)
+             (emacs-module-tests--wait-for-variable state-1 'in-module)
+             (mod-test-funcall
+              (lambda ()
+                (emacs-module-tests--change-variable state-2 'in-module)
+                (emacs-module-tests--wait-for-variable state-1 'after-module)))
+             (emacs-module-tests--change-variable state-2 'after-module))
+           "thread 2")))
+    (thread-join thread-1)
+    (thread-join thread-2)))
 
 ;;; emacs-module-tests.el ends here

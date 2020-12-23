@@ -4,7 +4,7 @@
 
 ;; Author: John Wiegley <johnw@gnu.org>
 ;; Created: 25 Mar 1999
-;; Version: 2.6.1
+;; Old-Version: 2.6.1
 ;; Keywords: calendar data
 
 ;; This file is part of GNU Emacs.
@@ -36,8 +36,6 @@
 
 ;; You'll probably want to bind the timeclock commands to some handy
 ;; keystrokes.  At the moment, C-x t is unused:
-;;
-;;   (require 'timeclock)
 ;;
 ;;   (define-key ctl-x-map "ti" 'timeclock-in)
 ;;   (define-key ctl-x-map "to" 'timeclock-out)
@@ -555,7 +553,7 @@ relative only to the time worked today, and not to past time."
 OLD-DEFAULT hours are set for every day that has no number indicated."
   (interactive "P")
   (if old-default (setq old-default (prefix-numeric-value old-default))
-    (error "`timelog-make-hours-explicit' requires an explicit argument"))
+    (error "`timeclock-make-hours-explicit' requires an explicit argument"))
   (let ((extant-timelog (find-buffer-visiting timeclock-file))
 	current-date)
     (with-current-buffer (find-file-noselect timeclock-file t)

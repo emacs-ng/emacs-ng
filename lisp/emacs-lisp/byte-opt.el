@@ -830,11 +830,13 @@
 (defun byte-optimize-assoc (form)
   ;; Replace 2-argument `assoc' with `assq', `rassoc' with `rassq',
   ;; if the first arg is a symbol.
-  (if (and (= (length form) 3)
-           (byte-optimize--constant-symbol-p (nth 1 form)))
-      (cons (if (eq (car form) 'assoc) 'assq 'rassq)
-            (cdr form))
-    form))
+  (cond
+   ((/= (length form) 3)
+    form)
+   ((byte-optimize--constant-symbol-p (nth 1 form))
+    (cons (if (eq (car form) 'assoc) 'assq 'rassq)
+          (cdr form)))
+   (t (byte-optimize-constant-args form))))
 
 (defun byte-optimize-memq (form)
   ;; (memq foo '(bar)) => (and (eq foo 'bar) '(bar))
@@ -1044,19 +1046,22 @@
 (defun byte-optimize-apply (form)
   ;; If the last arg is a literal constant, turn this into a funcall.
   ;; The funcall optimizer can then transform (funcall 'foo ...) -> (foo ...).
-  (let ((fn (nth 1 form))
-	(last (nth (1- (length form)) form))) ; I think this really is fastest
-    (or (if (or (null last)
-		(eq (car-safe last) 'quote))
-	    (if (listp (nth 1 last))
-		(let ((butlast (nreverse (cdr (reverse (cdr (cdr form)))))))
-		  (nconc (list 'funcall fn) butlast
-			 (mapcar (lambda (x) (list 'quote x)) (nth 1 last))))
-	      (byte-compile-warn
-	       "last arg to apply can't be a literal atom: `%s'"
-	       (prin1-to-string last))
-	      nil))
-	form)))
+  (if (= (length form) 2)
+      ;; single-argument `apply' is not worth optimizing (bug#40968)
+      form
+    (let ((fn (nth 1 form))
+	  (last (nth (1- (length form)) form))) ; I think this really is fastest
+      (or (if (or (null last)
+		  (eq (car-safe last) 'quote))
+	      (if (listp (nth 1 last))
+		  (let ((butlast (nreverse (cdr (reverse (cdr (cdr form)))))))
+		    (nconc (list 'funcall fn) butlast
+			   (mapcar (lambda (x) (list 'quote x)) (nth 1 last))))
+	        (byte-compile-warn
+	         "last arg to apply can't be a literal atom: `%s'"
+	         (prin1-to-string last))
+	        nil))
+	  form))))
 
 (put 'funcall 'byte-optimizer #'byte-optimize-funcall)
 (put 'apply   'byte-optimizer #'byte-optimize-apply)
@@ -1141,13 +1146,15 @@
 ;; I wonder if I missed any :-\)
 (let ((side-effect-free-fns
        '(% * + - / /= 1+ 1- < <= = > >= abs acos append aref ash asin atan
-	 assoc assq
+	 assq
+         bool-vector-count-consecutive bool-vector-count-population
+         bool-vector-subsetp
 	 boundp buffer-file-name buffer-local-variables buffer-modified-p
 	 buffer-substring byte-code-function-p
 	 capitalize car-less-than-car car cdr ceiling char-after char-before
 	 char-equal char-to-string char-width compare-strings
 	 compare-window-configurations concat coordinates-in-window-p
-	 copy-alist copy-sequence copy-marker cos count-lines
+	 copy-alist copy-sequence copy-marker copysign cos count-lines
 	 current-time-string current-time-zone
 	 decode-char
 	 decode-time default-boundp default-value documentation downcase
@@ -1160,21 +1167,22 @@
 	 frame-visible-p fround ftruncate
 	 get gethash get-buffer get-buffer-window getenv get-file-buffer
 	 hash-table-count
-	 int-to-string intern-soft
+	 int-to-string intern-soft isnan
 	 keymap-parent
-	 length line-beginning-position line-end-position
+         lax-plist-get ldexp length line-beginning-position line-end-position
 	 local-variable-if-set-p local-variable-p locale-info
 	 log log10 logand logb logcount logior lognot logxor lsh
 	 make-byte-code make-list make-string make-symbol marker-buffer max
-	 member memq min minibuffer-selected-window minibuffer-window
+	 member memq memql min minibuffer-selected-window minibuffer-window
 	 mod multibyte-char-to-unibyte next-window nth nthcdr number-to-string
 	 parse-colon-path plist-get plist-member
 	 prefix-numeric-value previous-window prin1-to-string propertize
 	 degrees-to-radians
-	 radians-to-degrees rassq rassoc read-from-string regexp-quote
-	 region-beginning region-end reverse round
-	 sin sqrt string string< string= string-equal string-lessp string-to-char
-	 string-to-number substring
+	 radians-to-degrees rassq rassoc read-from-string regexp-opt
+         regexp-quote region-beginning region-end reverse round
+	 sin sqrt string string< string= string-equal string-lessp
+         string-search string-to-char
+	 string-to-number string-to-syntax substring
 	 sxhash sxhash-equal sxhash-eq sxhash-eql
 	 symbol-function symbol-name symbol-plist symbol-value string-make-unibyte
 	 string-make-multibyte string-as-multibyte string-as-unibyte
@@ -1224,7 +1232,7 @@
 	 standard-case-table standard-syntax-table stringp subrp symbolp
 	 syntax-table syntax-table-p
 	 this-command-keys this-command-keys-vector this-single-command-keys
-	 this-single-command-raw-keys
+	 this-single-command-raw-keys type-of
 	 user-real-login-name user-real-uid user-uid
 	 vector vectorp visible-frame-list
 	 wholenump window-configuration-p window-live-p
@@ -1256,14 +1264,15 @@
        '(concat regexp-opt regexp-quote
 	 string-to-char string-to-syntax symbol-name
          eq eql
-         = /= < <= => > min max
+         = /= < <= >= > min max
          + - * / % mod abs ash 1+ 1- sqrt
          logand logior lognot logxor logcount
          copysign isnan ldexp float logb
          floor ceiling round truncate
          ffloor fceiling fround ftruncate
          string= string-equal string< string-lessp
-         consp atom listp nlistp propert-list-p
+         string-search
+         consp atom listp nlistp proper-list-p
          sequencep arrayp vectorp stringp bool-vector-p hash-table-p
          null not
          numberp integerp floatp natnump characterp
@@ -1450,10 +1459,10 @@
 	(setq rest (cdr rest))))
     (if tags (error "optimizer error: missed tags %s" tags))
     ;; Remove addrs, lap = ( [ (op . arg) | (TAG tagno) ]* )
-    (mapcar (function (lambda (elt)
-			(if (numberp elt)
-			    elt
-			  (cdr elt))))
+    (mapcar (lambda (elt)
+              (if (numberp elt)
+                  elt
+                (cdr elt)))
 	    (nreverse lap))))
 
 

@@ -4,7 +4,7 @@
 ;; Inc.
 
 ;; Author: Daniel Pfeiffer <occitan@esperanto.org>
-;; Version: 2.0f
+;; Old-Version: 2.0f
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: languages, unix
 
@@ -386,6 +386,7 @@ name symbol."
 	?~ "_"
 	?, "_"
 	?= "."
+        ?/ "."
 	?\; "."
 	?| "."
 	?& "."
@@ -2800,12 +2801,12 @@ t means to return a list of all possible completions of STRING.
 	    (not (bolp))
 	    ?\n)
        "exit:\n"
-       "rm $tmp* >&/dev/null" > \n)
+       "rm $tmp* >&" null-device > \n)
   (es (file-name-nondirectory (buffer-file-name))
       > "local( signals = $signals sighup sigint;" \n
       > "tmp = `{ mktemp -t " str ".XXXXXX } ) {" \n
       > "catch @ e {" \n
-      > "rm $tmp^* >[2]/dev/null" \n
+      > "rm $tmp^* >[2]" null-device \n
       "throw $e" \n
       "} {" > \n
       _ \n
@@ -2815,10 +2816,10 @@ t means to return a list of all possible completions of STRING.
 	 7 "EXIT")
   (rc (file-name-nondirectory (buffer-file-name))
       > "tmp = `{ mktemp -t " str ".XXXXXX }" \n
-      "fn sigexit { rm $tmp^* >[2]/dev/null }" \n)
+      "fn sigexit { rm $tmp^* >[2]" null-device " }" \n)
   (sh (file-name-nondirectory (buffer-file-name))
       > "TMP=`mktemp -t " str ".XXXXXX`" \n
-      "trap \"rm $TMP* 2>/dev/null\" " ?0 \n))
+      "trap \"rm $TMP* 2>" null-device "\" " ?0 \n))
 
 
 

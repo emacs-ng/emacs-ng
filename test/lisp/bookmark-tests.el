@@ -24,24 +24,17 @@
 ;;; Code:
 
 (require 'ert)
+(require 'ert-x)
 (require 'bookmark)
 (require 'cl-lib)
 
-(defvar bookmark-tests-data-dir
-  (file-truename
-   (expand-file-name "bookmark-resources/"
-                     (file-name-directory (or load-file-name
-                                              buffer-file-name))))
-  "Base directory of bookmark-tests.el data files.")
-
-(defvar bookmark-tests-bookmark-file
-  (expand-file-name "test.bmk" bookmark-tests-data-dir)
+(defvar bookmark-tests-bookmark-file (ert-resource-file "test.bmk")
   "Bookmark file used for testing.")
 
 (defvar bookmark-tests-example-file
   ;; We use abbreviate-file-name here to match the behavior of
   ;; `bookmark-buffer-file-name'.
-  (abbreviate-file-name (expand-file-name "example.txt" bookmark-tests-data-dir))
+  (abbreviate-file-name (ert-resource-file "example.txt"))
   "Example file used for testing.")
 
 ;; The values below should match `bookmark-tests-bookmark-file'.  We cache
@@ -83,8 +76,7 @@ the lexically-bound variable `buffer'."
           ,@body)
        (kill-buffer buffer))))
 
-(defvar bookmark-tests-bookmark-file-list
-  (expand-file-name "test-list.bmk" bookmark-tests-data-dir)
+(defvar bookmark-tests-bookmark-file-list (ert-resource-file "test-list.bmk")
   "Bookmark file used for testing a list of bookmarks.")
 
 ;; The values below should match `bookmark-tests-bookmark-file-list'
@@ -320,7 +312,7 @@ the lexically-bound variable `buffer'."
   (with-bookmark-test
    (should-error (bookmark-insert-annotation "a missing bookmark"))
    (bookmark-insert-annotation "name")
-   (should (equal (buffer-string) (bookmark-default-annotation-text "name"))))
+   (should (string-match "Type the annotation" (buffer-string))))
   (with-bookmark-test
    (bookmark-set-annotation "name" "some stuff")
    (bookmark-insert-annotation "name")
@@ -479,6 +471,8 @@ testing `bookmark-bmenu-list'."
    (insert "foo")
    (bookmark-send-edited-annotation)
    (should (equal (buffer-name (current-buffer)) bookmark-bmenu-buffer))
+   (beginning-of-line)
+   (forward-char 4)
    (should (looking-at "name"))))
 
 (ert-deftest bookmark-test-bmenu-toggle-filenames ()
@@ -511,6 +505,7 @@ testing `bookmark-bmenu-list'."
 (ert-deftest bookmark-test-bmenu-mark ()
   (with-bookmark-bmenu-test
    (bookmark-bmenu-mark)
+   (forward-line -1)
    (beginning-of-line)
    (should (looking-at "^>"))))
 
@@ -571,6 +566,7 @@ testing `bookmark-bmenu-list'."
    (bookmark-bmenu-mark)
    (goto-char (point-min))
    (bookmark-bmenu-unmark)
+   (forward-line -1)
    (beginning-of-line)
    (should (looking-at "^  "))))
 

@@ -181,6 +181,10 @@ Configure checks for the correct version, but this problem could occur
 if a binary built against a shared libungif is run on a system with an
 older version.
 
+** SVG images may be cropped incorrectly with librsvg 2.45 and below.
+Librsvg 2.46 and above have improved geometry code which Emacs is able
+to take advantage of.
+
 ** Emacs aborts inside the function 'tparam1'.
 
 This can happen if Emacs was built without terminfo support, but the
@@ -348,11 +352,11 @@ is the current directory.
 *** Set find-function-C-source-directory accordingly.
 
 Once you have installed the source package, for example at
-/home/myself/deb-src/emacs-26.3, add the following line to your
+/home/myself/deb-src/emacs-27.1, add the following line to your
 startup file:
 
      (setq find-function-C-source-directory
-           "/home/myself/deb-src/emacs-26.3/src/")
+           "/home/myself/deb-src/emacs-27.1/src/")
 
 The installation directory of the Emacs source package will contain
 the exact package name and version number of Emacs that is installed
@@ -382,7 +386,7 @@ To get describe-function and similar commands to work, you can then
 add something like the following to your startup file:
 
      (setq find-function-C-source-directory
-           "/usr/src/debug/emacs-26.3-1.fc31.x86_64/src/")
+           "/usr/src/debug/emacs-27.1-1.fc31.x86_64/src/")
 
 However, the exact directory name will depend on the system, and you
 will need to both upgrade source and debug info when your system
@@ -786,7 +790,7 @@ build emacs with Cairo enabled ("configure --with-cairo" and have the
 appropriate Cairo development packages installed) as this
 configuration does not suffer from this problem.  See
 <https://github.com/googlefonts/Inconsolata/issues/42> and
-<https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-01/msg00456.html>
+<https://lists.gnu.org/r/bug-gnu-emacs/2020-01/msg00456.html>
 for more discussion.
 
 ** Under X, an unexpected monospace font is used as the default font.

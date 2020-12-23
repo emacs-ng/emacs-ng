@@ -307,7 +307,7 @@ any confusion."
   "Command to take a screenshot.
 The command should insert a PNG in the current buffer."
   :group 'message-various
-  :type '(list string)
+  :type '(repeat string)
   :version "28.1")
 
 ;;; Start of variables adopted from `message-utils.el'.
@@ -1106,7 +1106,8 @@ point and mark around the citation text as modified."
 If nil, don't insert a signature.
 If t, insert `message-signature-file'.
 If a function or form, insert its result.
-See `mail-signature' for the recommended format of a signature."
+See `mail-signature' for the recommended format of a signature.
+Also see `message-signature-insert-empty-line'."
   :version "23.2"
   :type '(choice string
                  (const :tag "None" nil)
@@ -2089,14 +2090,21 @@ is used by default."
       (goto-char (point-min))
       (looking-at message-unix-mail-delimiter))))
 
-(defun message-fetch-field (header &optional not-all)
-  "The same as `mail-fetch-field', only remove all newlines.
+(defun message-fetch-field (header &optional first)
+  "Return the value of the header field named HEADER.
+Continuation lines are folded (i.e., newlines are removed).
 Surrounding whitespace is also removed.
+
+By default, if there's more than one header field named HEADER,
+all the values are returned as one concatenated string, and
+values are comma-separated.
+
+If FIRST is non-nil, only the first value is returned.
 
 The buffer is expected to be narrowed to just the header of the message;
 see `message-narrow-to-headers-or-head'."
   (let* ((inhibit-point-motion-hooks t)
-	 (value (mail-fetch-field header nil (not not-all))))
+	 (value (mail-fetch-field header nil (not first))))
     (when value
       (while (string-match "\n[\t ]+" value)
 	(setq value (replace-match " " t t value)))
@@ -2104,12 +2112,12 @@ see `message-narrow-to-headers-or-head'."
       ;; we have initial or trailing white space; remove it.
       (string-trim value))))
 
-(defun message-field-value (header &optional not-all)
+(defun message-field-value (header &optional first)
   "The same as `message-fetch-field', only narrow to the headers first."
   (save-excursion
     (save-restriction
       (message-narrow-to-headers-or-head)
-      (message-fetch-field header not-all))))
+      (message-fetch-field header first))))
 
 (defun message-narrow-to-field ()
   "Narrow the buffer to the header on the current line."
@@ -2787,9 +2795,7 @@ Consider adding this function to `message-header-setup-hook'"
 	 ;; add URL
 	 (when (nth 1 message-openpgp-header)
 	   (when need-sep (insert "; "))
-	   (if (string-match-p ";")
-	       (insert "url=\"" (nth 1 message-openpgp-header) "\"")
-	     (insert "url=\"" (nth 1 message-openpgp-header) "\""))
+	   (insert "url=\"" (nth 1 message-openpgp-header) "\"")
 	   (setq need-sep t))
 	 ;; add preference
 	 (when (nth 2 message-openpgp-header)
@@ -3110,8 +3116,6 @@ Like `text-mode', but with these additional commands:
        '(message-font-lock-keywords t))
   (if (boundp 'tool-bar-map)
       (set (make-local-variable 'tool-bar-map) (message-make-tool-bar)))
-  (easy-menu-add message-mode-menu message-mode-map)
-  (easy-menu-add message-mode-field-menu message-mode-map)
   ;; Mmmm... Forbidden properties...
   (add-hook 'after-change-functions #'message-strip-forbidden-properties
 	    nil 'local)
@@ -3614,7 +3618,14 @@ Message buffers and is not meant to be called directly."
       (do-auto-fill))))
 
 (defun message-insert-signature (&optional force)
-  "Insert a signature.  See documentation for variable `message-signature'."
+  "Insert a signature at the end of the buffer.
+
+See the documentation for the `message-signature' variable for
+more information.
+
+If FORCE is 0 (or when called interactively), the global values
+of the signature variables will be consulted if the local ones
+are null."
   (interactive (list 0))
   (let ((message-signature message-signature)
 	(message-signature-file message-signature-file))
@@ -4568,7 +4579,8 @@ This function could be useful in `message-setup-hook'."
 (custom-add-option 'message-setup-hook 'message-check-recipients)
 
 (defun message-add-action (action &rest types)
-  "Add ACTION to be performed when doing an exit of type TYPES."
+  "Add ACTION to be performed when doing an exit of type TYPES.
+Valid types are `send', `return', `exit', `kill' and `postpone'."
   (while types
     (add-to-list (intern (format "message-%s-actions" (pop types)))
 		 action)))
@@ -5658,7 +5670,7 @@ The result is a fixnum."
 	       (mail-file-babyl-p filename))
 	  ;; gnus-output-to-mail does the wrong thing with live, mbox
 	  ;; Rmail buffers in Emacs 23.
-	  ;; http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=597255
+          ;; https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=597255
 	  (let ((buff (find-buffer-visiting filename)))
 	    (and buff (with-current-buffer buff
 			(eq major-mode 'rmail-mode)))))
@@ -7644,7 +7656,7 @@ Optional DIGEST will use digest to forward."
     ;; Consider there is no illegible text.
     (add-text-properties
      b (point)
-     '(no-illegible-text t rear-nonsticky t start-open t))))
+     '(no-illegible-text t rear-nonsticky t))))
 
 (defun message-forward-make-body-mml (forward-buffer)
   (insert "\n\n<#mml type=message/rfc822 disposition=inline>\n")
@@ -8099,7 +8111,7 @@ See `gmm-tool-bar-from-list' for the format of the list."
 		  (library image &optional path no-error))
 
 (defun message-make-tool-bar (&optional force)
-  "Make a message mode tool bar from `message-tool-bar-list'.
+  "Make a message mode tool bar from `message-tool-bar'.
 When FORCE, rebuild the tool bar."
   (when (and (boundp 'tool-bar-mode)
 	     tool-bar-mode
@@ -8590,7 +8602,7 @@ Meant for use on `completion-at-point-functions'."
 
 ;; FIXME: What is the most common term (circular letter, form letter, serial
 ;; letter, standard letter) for such kind of letter?  See also
-;; <http://en.wikipedia.org/wiki/Form_letter>
+;; <https://en.wikipedia.org/wiki/Form_letter>
 
 ;; FIXME: Maybe extent message-mode's font-lock support to recognize
 ;; `message-form-letter-separator', i.e. highlight each message like a single
@@ -8854,6 +8866,8 @@ will then start up Emacs ready to compose mail."
 
 (provide 'message)
 
+(make-obsolete-variable 'message-load-hook
+                        "use `with-eval-after-load' instead." "28.1")
 (run-hooks 'message-load-hook)
 
 ;; Local Variables:

@@ -27,8 +27,7 @@
 
 ;; The ideas for this package were derived from the C code in
 ;; src/keymap.c and elsewhere.  The functions in this file should
-;; always be byte-compiled for speed.  Someone should rewrite this in
-;; C (as part of src/keymap.c) for speed.
+;; always be byte-compiled for speed.
 
 ;; The idea for super-apropos is based on the original implementation
 ;; by Lynn Slater <lrs@esl.com>.
@@ -56,8 +55,6 @@
 ;;   from buffer in active window.
 
 ;;; Code:
-
-(require 'button)
 
 (defgroup apropos nil
   "Apropos commands for users and programmers."
@@ -863,14 +860,12 @@ Optional arg BUFFER (default: current buffer) is the buffer to check."
          (setq apropos-accumulator (cons (list symb (apropos-score-str var) nil var)
                                          apropos-accumulator))))))
   (let ((apropos-multi-type  nil))
-    (if (> emacs-major-version 20)
-        (apropos-print
-         nil "\n----------------\n"
-         (format "Buffer `%s' has the following local variables\nmatching %s`%s':"
-                 (buffer-name buffer)
-                 (if (consp pattern) "keywords " "")
-                 pattern))
-      (apropos-print nil "\n----------------\n"))))
+    (apropos-print
+     nil "\n----------------\n"
+     (format "Buffer `%s' has the following local variables\nmatching %s`%s':"
+             (buffer-name buffer)
+             (if (consp pattern) "keywords " "")
+             pattern))))
 
 ;;;###autoload
 (defun apropos-documentation (pattern &optional do-all)
