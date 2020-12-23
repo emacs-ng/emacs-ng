@@ -2748,7 +2748,7 @@ since only regular expressions have distinguished subexpressions.  */)
 
   /* Put point back where it was in the text, if possible.  */
   TEMP_SET_PT (clip_to_bounds (BEGV, opoint + (opoint <= 0 ? ZV : 0), ZV));
-  /* Now move point "officially" to the start of the inserted replacement.  */
+  /* Now move point "officially" to the end of the inserted replacement.  */
   move_if_not_intangible (newpoint);
 
   return Qnil;
@@ -3028,6 +3028,23 @@ If optional arg RESEAT is non-nil, make markers on LIST point nowhere.  */)
       search_regs.start[i] = -1;
   }
 
+  return Qnil;
+}
+
+DEFUN ("match-data--translate", Fmatch_data__translate, Smatch_data__translate,
+       1, 1, 0,
+       doc: /* Add N to all positions in the match data.  Internal.  */)
+  (Lisp_Object n)
+{
+  CHECK_FIXNUM (n);
+  EMACS_INT delta = XFIXNUM (n);
+  if (!NILP (last_thing_searched))
+    for (ptrdiff_t i = 0; i < search_regs.num_regs; i++)
+      if (search_regs.start[i] >= 0)
+        {
+          search_regs.start[i] = max (0, search_regs.start[i] + delta);
+          search_regs.end[i] = max (0, search_regs.end[i] + delta);
+        }
   return Qnil;
 }
 
@@ -3388,6 +3405,7 @@ is to bind it with `let' around a small expression.  */);
   defsubr (&Smatch_end);
   defsubr (&Smatch_data);
   defsubr (&Sset_match_data);
+  defsubr (&Smatch_data__translate);
   defsubr (&Sregexp_quote);
   defsubr (&Snewline_cache_check);
 

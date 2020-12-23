@@ -1,4 +1,4 @@
-;;; calc-misc.el --- miscellaneous functions for Calc
+;;; calc-misc.el --- miscellaneous functions for Calc  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1990-1993, 2001-2020 Free Software Foundation, Inc.
 
@@ -176,9 +176,9 @@ Calc user interface as before (either C-x * C or C-x * K; initially C-x * C).
   "Create another, independent Calculator buffer."
   (interactive)
   (if (eq major-mode 'calc-mode)
-      (mapc (function
-	     (lambda (v)
-	      (set-default v (symbol-value v)))) calc-local-var-list))
+      (mapc (lambda (v)
+              (set-default v (symbol-value v)))
+            calc-local-var-list))
   (set-buffer (generate-new-buffer "*Calculator*"))
   (pop-to-buffer (current-buffer))
   (calc-mode))
@@ -274,9 +274,8 @@ Calc user interface as before (either C-x * C or C-x * K; initially C-x * C).
 ;;;###autoload
 (defun calc-do-handle-whys ()
   (setq calc-why (sort calc-next-why
-		       (function
-			(lambda (x y)
-			  (and (eq (car x) '*) (not (eq (car y) '*))))))
+                       (lambda (x y)
+                         (and (eq (car x) '*) (not (eq (car y) '*)))))
 	calc-next-why nil)
   (if (and calc-why (or (eq calc-auto-why t)
 			(and (eq (car (car calc-why)) '*)
@@ -505,7 +504,7 @@ With argument 0, switch line point is in with line mark is in."
        ;; 3 <-- mid-line = 3
        ;; 4 <-- point
        ;; 5 <-- bot-line = 5
-       (dotimes (i mid-line)
+       (dotimes (_ mid-line)
          (setq mid-cell old-top-list
                old-top-list (cdr old-top-list))
          (setcdr mid-cell new-top-list)
@@ -519,7 +518,7 @@ With argument 0, switch line point is in with line mark is in."
        ;; 2
        ;; 1
        (setq  prev-mid-cell old-top-list)
-       (dotimes (i (- bot-line mid-line))
+       (dotimes (_ (- bot-line mid-line))
          (setq bot-cell old-top-list
                old-top-list (cdr old-top-list))
          (setcdr bot-cell new-top-list)
@@ -757,19 +756,21 @@ loaded and the keystroke automatically re-typed."
 
 ;; The variable math-trunc-prec is local to math-trunc, but used by
 ;; math-trunc-fancy in calc-arith.el, which is called by math-trunc.
+(defvar math-trunc-prec)
 
 ;;;###autoload
-(defun math-trunc (a &optional math-trunc-prec)
-  (cond (math-trunc-prec
+(defun math-trunc (a &optional trunc-prec)
+  (cond (trunc-prec
 	 (require 'calc-ext)
-	 (math-trunc-special a math-trunc-prec))
+	 (math-trunc-special a trunc-prec))
 	((Math-integerp a) a)
 	((Math-looks-negp a)
 	 (math-neg (math-trunc (math-neg a))))
 	((eq (car a) 'float)
 	 (math-scale-int (nth 1 a) (nth 2 a)))
 	(t (require 'calc-ext)
-	   (math-trunc-fancy a))))
+	   (let ((math-trunc-prec trunc-prec))
+	     (math-trunc-fancy a)))))
 ;;;###autoload
 (defalias 'calcFunc-trunc 'math-trunc)
 
@@ -777,12 +778,13 @@ loaded and the keystroke automatically re-typed."
 
 ;; The variable math-floor-prec is local to math-floor, but used by
 ;; math-floor-fancy in calc-arith.el, which is called by math-floor.
+(defvar math-floor-prec)
 
 ;;;###autoload
-(defun math-floor (a &optional math-floor-prec)    ;  [Public]
-  (cond (math-floor-prec
+(defun math-floor (a &optional floor-prec)    ;  [Public]
+  (cond (floor-prec
 	 (require 'calc-ext)
-	 (math-floor-special a math-floor-prec))
+	 (math-floor-special a floor-prec))
 	((Math-integerp a) a)
 	((Math-messy-integerp a) (math-trunc a))
 	((Math-realp a)
@@ -790,7 +792,9 @@ loaded and the keystroke automatically re-typed."
 	     (math-add (math-trunc a) -1)
 	   (math-trunc a)))
 	(t (require 'calc-ext)
-	   (math-floor-fancy a))))
+	   (let ((math-floor-prec floor-prec))
+	     (math-floor-fancy a)))))
+
 ;;;###autoload
 (defalias 'calcFunc-floor 'math-floor)
 

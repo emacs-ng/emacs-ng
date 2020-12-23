@@ -404,7 +404,6 @@
 (make-obsolete-variable 'woman-version nil "28.1")
 
 (require 'man)
-(require 'button)
 (define-button-type 'WoMan-xref-man-page
   :supertype 'Man-abstract-xref-man-page
   'func (lambda (arg)
@@ -2288,6 +2287,12 @@ Currently set only from \\='\\\" t in the first line of the source file.")
     ;; Set buffer-local variables:
     (setq fill-column woman-fill-column
 	  tab-width woman-tab-width)
+
+    ;; Ignore the \, and \/ kerning operators.  See
+    ;; https://www.gnu.org/software/groff/manual/groff.html#Ligatures-and-Kerning
+    (goto-char (point-min))
+    (while (re-search-forward "\\\\[,/]" nil t)
+      (replace-match "" t t))
 
     ;; Hide unpaddable and digit-width spaces \(space) and \0:
     (goto-char from)

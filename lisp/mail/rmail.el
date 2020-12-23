@@ -1431,27 +1431,23 @@ If so restore the actual mbox message collection."
 (defun rmail-perm-variables ()
   (make-local-variable 'rmail-last-regexp)
   (make-local-variable 'rmail-deleted-vector)
-  (make-local-variable 'rmail-buffer)
-  (make-local-variable 'rmail-was-converted)
-  (setq rmail-was-converted nil)
-  (make-local-variable 'rmail-seriously-modified)
-  (setq rmail-seriously-modified nil)
-  (setq rmail-buffer (current-buffer))
+  (setq-local rmail-was-converted nil)
+  (setq-local rmail-seriously-modified nil)
+  (setq-local rmail-buffer (current-buffer))
   (set-buffer-multibyte nil)
   (with-current-buffer (setq rmail-view-buffer (rmail-generate-viewer-buffer))
     (setq buffer-undo-list t)
     ;; Note that this does not erase the buffer.  Should it?
     ;; It depends on how this is called.  If somehow called with the
     ;; rmail buffers swapped, it would erase the message collection.
-    (set (make-local-variable 'rmail-overlay-list) nil)
+    (setq-local rmail-overlay-list nil)
     (set-buffer-multibyte t)
     ;; Force C-x C-s write Unix EOLs.
     (set-buffer-file-coding-system 'undecided-unix))
   (make-local-variable 'rmail-summary-buffer)
   (make-local-variable 'rmail-summary-vector)
   (make-local-variable 'rmail-current-message)
-  (make-local-variable 'rmail-total-messages)
-  (setq rmail-total-messages 0)
+  (setq-local rmail-total-messages 0)
   (make-local-variable 'rmail-message-vector)
   (make-local-variable 'rmail-msgref-vector)
   (make-local-variable 'rmail-inbox-list)
@@ -1466,40 +1462,30 @@ If so restore the actual mbox message collection."
 			   ;; FIXME expand-file-name?
 			   (concat rmail-spool-directory
 				   (user-login-name)))))))
-  (set (make-local-variable 'tool-bar-map) rmail-tool-bar-map))
+  (setq-local tool-bar-map rmail-tool-bar-map))
 
 ;; Set up the non-permanent locals associated with Rmail mode.
 (defun rmail-variables ()
   ;; Turn off undo.  We turn it back on in rmail-edit.
   (setq buffer-undo-list t)
   ;; Don't let a local variables list in a message cause confusion.
-  (make-local-variable 'local-enable-local-variables)
-  (setq local-enable-local-variables nil)
+  (setq-local local-enable-local-variables nil)
   ;; Don't turn off auto-saving based on the size of the buffer
   ;; because that code does not understand buffer-swapping.
-  (make-local-variable 'auto-save-include-big-deletions)
-  (setq auto-save-include-big-deletions t)
-  (make-local-variable 'revert-buffer-function)
-  (setq revert-buffer-function 'rmail-revert)
-  (make-local-variable 'font-lock-defaults)
-  (setq font-lock-defaults
-	'(rmail-font-lock-keywords
-	  t t nil nil
-	  (font-lock-maximum-size . nil)
-          (font-lock-dont-widen . t)
-	  (font-lock-inhibit-thing-lock . (lazy-lock-mode fast-lock-mode))))
-  (make-local-variable 'require-final-newline)
-  (setq require-final-newline nil)
-  (make-local-variable 'version-control)
-  (setq version-control 'never)
-  (make-local-variable 'kill-buffer-hook)
-  (add-hook 'kill-buffer-hook 'rmail-mode-kill-summary)
-  (make-local-variable 'file-precious-flag)
-  (setq file-precious-flag t)
-  (make-local-variable 'desktop-save-buffer)
-  (setq desktop-save-buffer t)
-  (make-local-variable 'save-buffer-coding-system)
-  (setq save-buffer-coding-system 'no-conversion)
+  (setq-local auto-save-include-big-deletions t)
+  (setq-local revert-buffer-function 'rmail-revert)
+  (setq-local font-lock-defaults
+              '(rmail-font-lock-keywords
+                t t nil nil
+                (font-lock-maximum-size . nil)
+                (font-lock-dont-widen . t)
+                (font-lock-inhibit-thing-lock . (lazy-lock-mode fast-lock-mode))))
+  (setq-local require-final-newline nil)
+  (setq-local version-control 'never)
+  (add-hook 'kill-buffer-hook #'rmail-mode-kill-summary nil t)
+  (setq-local file-precious-flag t)
+  (setq-local desktop-save-buffer t)
+  (setq-local save-buffer-coding-system 'no-conversion)
   (setq next-error-move-function 'rmail-next-error-move))
 
 ;; Handle M-x revert-buffer done in an rmail-mode buffer.
@@ -2786,9 +2772,9 @@ The current mail message becomes the message displayed."
 	(with-current-buffer rmail-view-buffer
 	  ;; We give the view buffer a buffer-local value of
 	  ;; rmail-header-style based on the binding in effect when
-	  ;; this function is called; `rmail-toggle-headers' can
+          ;; this function is called; `rmail-toggle-header' can
 	  ;; inspect this value to determine how to toggle.
-	  (set (make-local-variable 'rmail-header-style) header-style)
+          (setq-local rmail-header-style header-style)
           ;; In case viewing the previous message sets the paragraph
           ;; direction non-nil, we reset it here to allow independent
           ;; dynamic determination of paragraph direction in every
@@ -2799,7 +2785,7 @@ The current mail message becomes the message displayed."
 		 (re-search-forward "mime-version: 1.0" nil t))
 	    (let ((rmail-buffer mbox-buf)
 		  (rmail-view-buffer view-buf))
-	      (set (make-local-variable 'rmail-mime-decoded) t)
+              (setq-local rmail-mime-decoded t)
 	      (funcall rmail-show-mime-function))
 	  (setq body-start (search-forward "\n\n" nil t))
 	  (narrow-to-region beg (point))
@@ -2877,9 +2863,9 @@ The current mail message becomes the message displayed."
 	(rmail-display-labels)
 	(rmail-swap-buffers)
 	(setq rmail-buffer-swapped t)
-	(run-hooks 'rmail-show-message-hook)
 	(when showing-message
-	  (setq blurb (format "Showing message %d...done" msg)))))
+	  (setq blurb (format "Showing message %d...done" msg)))
+	(run-hooks 'rmail-show-message-hook)))
     blurb))
 
 (defun rmail-copy-headers (beg _end &optional ignored-headers)
@@ -4147,22 +4133,12 @@ The variable `rmail-retry-ignored-headers' is a regular expression
 specifying headers which should not be copied into the new message."
   (interactive)
   (require 'mail-utils)
-  ;; FIXME This does not handle rmail-mime-feature != 'rmailmm.
-  ;; There is no API defined for rmail-mime-feature to provide
-  ;; rmail-mime-message-p, rmail-mime-toggle-raw equivalents.
-  ;; But does anyone actually use rmail-mime-feature != 'rmailmm?
-  (if (and rmail-enable-mime
-	   (eq rmail-mime-feature 'rmailmm)
-	   (featurep rmail-mime-feature))
-      (with-current-buffer rmail-buffer
-	(if (rmail-mime-message-p)
-	    (let ((rmail-mime-mbox-buffer rmail-view-buffer)
-		  (rmail-mime-view-buffer rmail-buffer))
-	      (rmail-mime-toggle-raw 'raw)))))
-
-  (let ((rmail-this-buffer (current-buffer))
+  (let (bounce-buffer  ;; Buffer we found it in
+        bounce-start   ;; Position of start of failed message in that buffer
+        bounce-end     ;; Position of end of failed message in that buffer
+        bounce-indent  ;; Number of columns we need to de-indent it.
 	(msgnum rmail-current-message)
-	bounce-start bounce-end bounce-indent resending
+	resending
 	(content-type (rmail-get-header "Content-Type")))
     (save-excursion
       (goto-char (point-min))
@@ -4171,19 +4147,27 @@ specifying headers which should not be copied into the new message."
 		 (string-match
 		  ";[\n\t ]*boundary=\"?\\([-0-9a-z'()+_,./:=? ]+\\)\"?"
 		  content-type))
-	    ;; Handle a MIME multipart bounce message.
+	    ;; Handle a MIME multipart bounce message
+            ;; by scanning the raw buffer.
 	    (let ((codestring
 		   (concat "\n--"
 			   (substring content-type (match-beginning 1)
-				      (match-end 1)))))
-	      (unless (re-search-forward mail-mime-unsent-header nil t)
-		(error "Cannot find beginning of header in failed message"))
-	      (unless (search-forward "\n\n" nil t)
-		(error "Cannot find start of Mime data in failed message"))
-	      (setq bounce-start (point))
-	      (if (search-forward codestring nil t)
-		  (setq bounce-end (match-beginning 0))
-		(setq bounce-end (point-max))))
+				      (match-end 1))))
+                  (beg (rmail-msgbeg msgnum))
+                  (end (rmail-msgend msgnum)))
+              (with-current-buffer rmail-view-buffer
+                (save-restriction
+                  (narrow-to-region beg end)
+                  (goto-char (point-min))
+	          (unless (re-search-forward mail-mime-unsent-header nil t)
+		    (error "Cannot find beginning of header in failed message"))
+	          (unless (search-forward "\n\n" nil t)
+		    (error "Cannot find start of Mime data in failed message"))
+	          (setq bounce-start (point))
+                  (setq bounce-buffer (current-buffer))
+	          (if (search-forward codestring nil t)
+		      (setq bounce-end (match-beginning 0))
+		    (setq bounce-end (point-max))))))
 	  ;; Non-MIME bounce.
 	  (or (re-search-forward mail-unsent-separator nil t)
 	      (error "Cannot parse this as a failure message"))
@@ -4198,6 +4182,7 @@ specifying headers which should not be copied into the new message."
 		(setq bounce-indent (- (current-column)))
 		(goto-char (point-max))
 		(re-search-backward "^End of returned message$" nil t)
+                (setq bounce-buffer (current-buffer))
 		(setq bounce-end (point)))
 	    ;; One message contained a few random lines before
 	    ;; the old message header.  The first line of the
@@ -4214,8 +4199,10 @@ specifying headers which should not be copied into the new message."
 		  (setq bounce-start (point))
 		  (goto-char (point-max))
 		  (search-backward (concat "\n\n" boundary) bounce-start t)
+                  (setq bounce-buffer (current-buffer))
 		  (setq bounce-end (point)))
 	      (setq bounce-start (point)
+                    bounce-buffer (current-buffer)
 		    bounce-end (point-max)))
 	    (unless (search-forward "\n\n" nil t)
 	      (error "Cannot find end of header in failed message"))))))
@@ -4224,9 +4211,9 @@ specifying headers which should not be copied into the new message."
     ;; Turn off the usual actions for initializing the message body
     ;; because we want to get only the text from the failure message.
     (let (mail-signature mail-setup-hook)
-      (if (rmail-start-mail nil nil nil nil nil rmail-this-buffer
+      (if (rmail-start-mail nil nil nil nil nil rmail-buffer
 			    (list (list 'rmail-mark-message
-					rmail-this-buffer
+					rmail-buffer
 					(aref rmail-msgref-vector msgnum)
 					rmail-retried-attr-index)))
 	  ;; Insert original text as initial text of new draft message.
@@ -4235,7 +4222,7 @@ specifying headers which should not be copied into the new message."
 	  (let ((inhibit-read-only t)
 		eoh)
 	    (erase-buffer)
-	    (insert-buffer-substring rmail-this-buffer
+	    (insert-buffer-substring bounce-buffer
 				     bounce-start bounce-end)
 	    (goto-char (point-min))
 	    (if bounce-indent

@@ -58,13 +58,11 @@
 ;;; Code:
 
 (require 'cl-lib)
-(require 'button)
 (require 'debug)
 (require 'backtrace)
 (require 'easymenu)
 (require 'ewoc)
 (require 'find-func)
-(require 'help)
 (require 'pp)
 
 ;;; UI customization options.
@@ -736,7 +734,7 @@ run.  ARGS are the arguments to `debugger'."
               ;; This means we have to limit `print-level' and
               ;; `print-length' when printing result objects.  That
               ;; might not be worth while when we can also use
-              ;; `ert-results-rerun-test-debugging-errors-at-point',
+              ;; `ert-results-rerun-test-at-point-debugging-errors',
               ;; (i.e., when running interactively) but having the
               ;; backtrace ready for printing is important for batch
               ;; use.
@@ -958,7 +956,7 @@ Selectors that do not, such as (member ...), just return the
 set implied by them without checking whether it is really
 contained in UNIVERSE."
   ;; This code needs to match the cases in
-  ;; `ert-insert-human-readable-selector'.
+  ;; `ert--insert-human-readable-selector'.
   (pcase-exhaustive selector
     ('nil nil)
     ('t (pcase-exhaustive universe
@@ -1305,7 +1303,8 @@ EXPECTEDP specifies whether the result was expected."
   "Pretty-print OBJECT, indenting it to the current column of point.
 Ensures a final newline is inserted."
   (let ((begin (point))
-        (pp-escape-newlines nil))
+        (pp-escape-newlines nil)
+        (print-escape-control-characters t))
     (pp object (current-buffer))
     (unless (bolp) (insert "\n"))
     (save-excursion
@@ -1803,8 +1802,8 @@ Also sets `ert--results-progress-bar-button-begin'."
            ;; `progress-bar-button-begin' will be the right position
            ;; even in the results buffer.
            (with-current-buffer results-buffer
-             (set (make-local-variable 'ert--results-progress-bar-button-begin)
-                  progress-bar-button-begin))))
+             (setq-local ert--results-progress-bar-button-begin
+                         progress-bar-button-begin))))
        (insert "\n\n")
        (buffer-string))
      ;; footer
@@ -1980,15 +1979,15 @@ BUFFER-NAME, if non-nil, is the buffer name to use."
         ;; from ert-results-mode to ert-results-mode when
         ;; font-lock-mode turns itself off in change-major-mode-hook.)
         (erase-buffer)
-        (set (make-local-variable 'font-lock-function)
-             'ert--results-font-lock-function)
+        (setq-local font-lock-function
+                    'ert--results-font-lock-function)
         (let ((ewoc (ewoc-create 'ert--print-test-for-ewoc nil nil t)))
-          (set (make-local-variable 'ert--results-ewoc) ewoc)
-          (set (make-local-variable 'ert--results-stats) stats)
-          (set (make-local-variable 'ert--results-progress-bar-string)
-               (make-string (ert-stats-total stats)
-                            (ert-char-for-test-result nil t)))
-          (set (make-local-variable 'ert--results-listener) listener)
+          (setq-local ert--results-ewoc ewoc)
+          (setq-local ert--results-stats stats)
+          (setq-local ert--results-progress-bar-string
+                      (make-string (ert-stats-total stats)
+                                   (ert-char-for-test-result nil t)))
+          (setq-local ert--results-listener listener)
           (cl-loop for test across (ert--stats-tests stats) do
                    (ewoc-enter-last ewoc
                                     (make-ert--ewoc-entry :test test

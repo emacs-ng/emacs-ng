@@ -193,9 +193,9 @@ except that PLACE is evaluated only once (after NEWELT)."
       (list 'setq place
             (list 'cons newelt place))
     (require 'macroexp)
-    (macroexp-let2 macroexp-copyable-p v newelt
+    (macroexp-let2 macroexp-copyable-p x newelt
       (gv-letplace (getter setter) place
-        (funcall setter `(cons ,v ,getter))))))
+        (funcall setter `(cons ,x ,getter))))))
 
 (defmacro pop (place)
   "Return the first element of PLACE's value, and remove it from the list.
@@ -284,8 +284,11 @@ Then evaluate RESULT to get return value, default nil.
 (defmacro dotimes (spec &rest body)
   "Loop a certain number of times.
 Evaluate BODY with VAR bound to successive integers running from 0,
-inclusive, to COUNT, exclusive.  Then evaluate RESULT to get
-the return value (nil if RESULT is omitted).  Its use is deprecated.
+inclusive, to COUNT, exclusive.
+
+Finally RESULT is evaluated to get the return value (nil if
+RESULT is omitted).  Using RESULT is deprecated, and may result
+in compilation warnings about unused variables.
 
 \(fn (VAR COUNT [RESULT]) BODY...)"
   (declare (indent 1) (debug dolist))
@@ -834,10 +837,11 @@ Elements of ALIST that are not conses are ignored."
 If KEY is not found in ALIST, return DEFAULT.
 Equality with KEY is tested by TESTFN, defaulting to `eq'.
 
-You can use `alist-get' in PLACE expressions.  This will modify
-an existing association (more precisely, the first one if
-multiple exist), or add a new element to the beginning of ALIST,
-destructively modifying the list stored in ALIST.
+You can use `alist-get' in \"place expressions\"; i.e., as a
+generalized variable.  Doing this will modify an existing
+association (more precisely, the first one if multiple exist), or
+add a new element to the beginning of ALIST, destructively
+modifying the list stored in ALIST.
 
 Example:
 
@@ -887,10 +891,6 @@ side-effects, and the argument LIST is not modified."
 
 ;;;; Keymap support.
 
-;; Declare before first use of `save-match-data',
-;; where it is used internally.
-(defvar save-match-data-internal)
-
 (defun kbd (keys)
   "Convert KEYS to the internal Emacs key representation.
 KEYS should be a string in the format returned by commands such
@@ -901,7 +901,7 @@ This is the same format used for saving keyboard macros (see
 For an approximate inverse of this, see `key-description'."
   ;; Don't use a defalias, since the `pure' property is true only for
   ;; the calling convention of `kbd'.
-  (declare (pure t))
+  (declare (pure t) (side-effect-free t))
   ;; A pure function is expected to preserve the match data.
   (save-match-data (read-kbd-macro keys)))
 
@@ -1283,10 +1283,10 @@ The normal global definition of the character C-x indirects to this keymap.")
   "Convert a key sequence to a list of events."
   (if (vectorp key)
       (append key nil)
-    (mapcar (function (lambda (c)
-			(if (> c 127)
-			    (logxor c listify-key-sequence-1)
-			  c)))
+    (mapcar (lambda (c)
+              (if (> c 127)
+                  (logxor c listify-key-sequence-1)
+                c))
 	    key)))
 
 (defun eventp (object)
@@ -1368,7 +1368,8 @@ EVENT is nil, the value of `posn-at-point' is used instead.
 The following accessor functions are used to access the elements
 of the position:
 
-`posn-window': The window the event is in.
+`posn-window': The window of the event end, or its frame if the
+event end point belongs to no window.
 `posn-area': A symbol identifying the area the event occurred in,
 or nil if the event occurred in the text area.
 `posn-point': The buffer position of the event.
@@ -1424,8 +1425,9 @@ than a window, return nil."
 
 (defsubst posn-window (position)
   "Return the window in POSITION.
-POSITION should be a list of the form returned by the `event-start'
-and `event-end' functions."
+If POSITION is outside the frame where the event was initiated,
+return that frame instead.  POSITION should be a list of the form
+returned by the `event-start' and `event-end' functions."
   (nth 0 position))
 
 (defsubst posn-area (position)
@@ -1452,9 +1454,14 @@ a click on a scroll bar)."
 (defun posn-set-point (position)
   "Move point to POSITION.
 Select the corresponding window as well."
-  (if (not (windowp (posn-window position)))
+  (if (framep (posn-window position))
+      (progn
+        (unless (windowp (frame-selected-window (posn-window position)))
+          (error "Position not in text area of window"))
+        (select-window (frame-selected-window (posn-window position))))
+    (unless (windowp (posn-window position))
       (error "Position not in text area of window"))
-  (select-window (posn-window position))
+    (select-window (posn-window position)))
   (if (numberp (posn-point position))
       (goto-char (posn-point position))))
 
@@ -1624,8 +1631,8 @@ be a list of the form returned by `event-start' and `event-end'."
 (make-obsolete-variable 'x-gtk-use-window-move nil "26.1")
 
 (defvaralias 'messages-buffer-max-lines 'message-log-max)
-(define-obsolete-variable-alias 'inhibit-null-byte-detection
-  'inhibit-nul-byte-detection "27.1")
+(define-obsolete-variable-alias 'inhibit-nul-byte-detection
+  'inhibit-null-byte-detection "28.1")
 (make-obsolete-variable 'load-dangerous-libraries
                         "no longer used." "27.1")
 
@@ -2604,7 +2611,11 @@ This function is used by the `interactive' code letter `n'."
 Any input that is not one of CHARS is ignored.
 
 If optional argument INHIBIT-KEYBOARD-QUIT is non-nil, ignore
-keyboard-quit events while waiting for a valid input."
+keyboard-quit events while waiting for a valid input.
+
+If you bind the variable `help-form' to a non-nil value
+while calling this function, then pressing `help-char'
+causes it to evaluate `help-form' and display the result."
   (unless (consp chars)
     (error "Called `read-char-choice' without valid char choices"))
   (let (char done show-help (helpbuf " *Char Help*"))
@@ -2733,7 +2744,7 @@ floating point support."
   "Keymap for the `read-char-from-minibuffer' function.")
 
 (defconst read-char-from-minibuffer-map-hash
-  (make-hash-table :weakness 'key :test 'equal))
+  (make-hash-table :test 'equal))
 
 (defun read-char-from-minibuffer-insert-char ()
   "Insert the character you type in the minibuffer and exit.
@@ -2757,25 +2768,44 @@ Also discard all previous input in the minibuffer."
 (defvar empty-history)
 
 (defun read-char-from-minibuffer (prompt &optional chars history)
-  "Read a character from the minibuffer, prompting for PROMPT.
+  "Read a character from the minibuffer, prompting for it with PROMPT.
 Like `read-char', but uses the minibuffer to read and return a character.
-When CHARS is non-nil, any input that is not one of CHARS is ignored.
-When HISTORY is a symbol, then allows navigating in a history.
-The navigation commands are `M-p' and `M-n', with `RET' to select
-a character from history."
+Optional argument CHARS, if non-nil, should be a list of characters;
+the function will ignore any input that is not one of CHARS.
+Optional argument HISTORY, if non-nil, should be a symbol that
+specifies the history list variable to use for navigating in input
+history using `M-p' and `M-n', with `RET' to select a character from
+history.
+If you bind the variable `help-form' to a non-nil value
+while calling this function, then pressing `help-char'
+causes it to evaluate `help-form' and display the result.
+There is no need to explicitly add `help-char' to CHARS;
+`help-char' is bound automatically to `help-form-show'."
   (let* ((empty-history '())
          (map (if (consp chars)
-                  (or (gethash chars read-char-from-minibuffer-map-hash)
-                      (puthash chars
-                               (let ((map (make-sparse-keymap)))
-                                 (set-keymap-parent map read-char-from-minibuffer-map)
-                                 (dolist (char chars)
-                                   (define-key map (vector char)
-                                     'read-char-from-minibuffer-insert-char))
-                                 (define-key map [remap self-insert-command]
-                                   'read-char-from-minibuffer-insert-other)
-                                 map)
-                               read-char-from-minibuffer-map-hash))
+                  (or (gethash (list help-form (cons help-char chars))
+                               read-char-from-minibuffer-map-hash)
+                      (let ((map (make-sparse-keymap))
+                            (msg help-form))
+                        (set-keymap-parent map read-char-from-minibuffer-map)
+                        ;; If we have a dynamically bound `help-form'
+                        ;; here, then the `C-h' (i.e., `help-char')
+                        ;; character should output that instead of
+                        ;; being a command char.
+                        (when help-form
+                          (define-key map (vector help-char)
+                            (lambda ()
+                              (interactive)
+                              (let ((help-form msg)) ; lexically bound msg
+                                (help-form-show)))))
+                        (dolist (char chars)
+                          (define-key map (vector char)
+                            'read-char-from-minibuffer-insert-char))
+                        (define-key map [remap self-insert-command]
+                          'read-char-from-minibuffer-insert-other)
+                        (puthash (list help-form (cons help-char chars))
+                                 map read-char-from-minibuffer-map-hash)
+                        map))
                 read-char-from-minibuffer-map))
          (result
           (read-from-minibuffer prompt nil map nil
@@ -2807,7 +2837,7 @@ a character from history."
 
     (define-key map [remap skip] 'y-or-n-p-insert-n)
 
-    (dolist (symbol '(help backup undo undo-all edit edit-replacement
+    (dolist (symbol '(backup undo undo-all edit edit-replacement
                       delete-and-edit ignore self-insert-command))
       (define-key map (vector 'remap symbol) 'y-or-n-p-insert-other))
 
@@ -2862,6 +2892,12 @@ Return t if answer is \"y\" and nil if it is \"n\".
 PROMPT is the string to display to ask the question.  It should
 end in a space; `y-or-n-p' adds \"(y or n) \" to it.
 
+If you bind the variable `help-form' to a non-nil value
+while calling this function, then pressing `help-char'
+causes it to evaluate `help-form' and display the result.
+PROMPT is also updated to show `help-char' like \"(y, n or C-h) \",
+where `help-char' is automatically bound to `help-form-show'.
+
 No confirmation of the answer is requested; a single character is
 enough.  SPC also means yes, and DEL means no.
 
@@ -2884,7 +2920,13 @@ is nil and `use-dialog-box' is non-nil."
 		    (concat prompt
 			    (if (or (zerop l) (eq ?\s (aref prompt (1- l))))
 				"" " ")
-			    (if dialog "" "(y or n) "))))))
+			    (if dialog ""
+                              (if help-form
+                                  (format "(y, n or %s) "
+		                          (key-description
+                                           (vector help-char)))
+                                  "(y or n) "
+                                  )))))))
     (cond
      (noninteractive
       (setq prompt (funcall padded prompt))
@@ -2893,6 +2935,7 @@ is nil and `use-dialog-box' is non-nil."
 	  (let ((str (read-string temp-prompt)))
 	    (cond ((member str '("y" "Y")) (setq answer 'act))
 		  ((member str '("n" "N")) (setq answer 'skip))
+		  ((and (member str '("h" "H")) help-form) (print help-form))
 		  (t (setq temp-prompt (concat "Please answer y or n.  "
 					       prompt))))))))
      ((and (display-popup-menus-p)
@@ -2905,10 +2948,20 @@ is nil and `use-dialog-box' is non-nil."
       (setq prompt (funcall padded prompt))
       (let* ((empty-history '())
              (enable-recursive-minibuffers t)
+             (msg help-form)
+             (keymap (let ((map (make-composed-keymap
+                                 y-or-n-p-map query-replace-map)))
+                       (when help-form
+                         ;; Create a new map before modifying
+                         (setq map (copy-keymap map))
+                         (define-key map (vector help-char)
+                           (lambda ()
+                             (interactive)
+                             (let ((help-form msg)) ; lexically bound msg
+                               (help-form-show)))))
+                       map))
              (str (read-from-minibuffer
-                   prompt nil
-                   (make-composed-keymap y-or-n-p-map query-replace-map)
-                   nil
+                   prompt nil keymap nil
                    (or y-or-n-p-history-variable 'empty-history))))
         (setq answer (if (member str '("y" "Y")) 'act 'skip)))))
     (let ((ret (eq answer 'act)))
@@ -2988,7 +3041,21 @@ to `accept-change-group' or `cancel-change-group'."
   (dolist (elt handle)
     (with-current-buffer (car elt)
       (if (eq buffer-undo-list t)
-	  (setq buffer-undo-list nil)))))
+	  (setq buffer-undo-list nil)
+	;; Add a boundary to make sure the upcoming changes won't be
+	;; merged/combined with any previous changes (bug#33341).
+	;; We're not supposed to introduce a real (visible)
+        ;; `undo-boundary', tho, so we have to push something else
+        ;; that acts like a boundary w.r.t preventing merges while
+	;; being harmless.
+        ;; We use for that an "empty insertion", but in order to be harmless,
+        ;; it has to be at a harmless position.  Currently only
+        ;; insertions are ever merged/combined, so we use such a "boundary"
+        ;; only when the last change was an insertion and we use the position
+        ;; of the last insertion.
+        (when (numberp (caar buffer-undo-list))
+          (push (cons (caar buffer-undo-list) (caar buffer-undo-list))
+                buffer-undo-list))))))
 
 (defun accept-change-group (handle)
   "Finish a change group made with `prepare-change-group' (which see).
@@ -3253,7 +3320,7 @@ See Info node `(elisp)Security Considerations'."
 
     ;; First, quote argument so that CommandLineToArgvW will
     ;; understand it.  See
-    ;; http://msdn.microsoft.com/en-us/library/17w5ykft%28v=vs.85%29.aspx
+    ;; https://msdn.microsoft.com/en-us/library/17w5ykft%28v=vs.85%29.aspx
     ;; After we perform that level of quoting, escape shell
     ;; metacharacters so that cmd won't mangle our argument.  If the
     ;; argument contains no double quote characters, we can just
@@ -4197,11 +4264,7 @@ Optional FIXEDCASE, LITERAL, STRING and SUBEXP have the same
 meaning as for `replace-match'."
   (let ((match (match-string 0 string)))
     (save-match-data
-      (set-match-data (mapcar (lambda (x)
-				(if (numberp x)
-				    (- x (match-beginning 0))
-				  x))
-			      (match-data t)))
+      (match-data--translate (- (match-beginning 0)))
       (replace-match replacement fixedcase literal match subexp))))
 
 
@@ -4434,39 +4497,26 @@ Unless optional argument INPLACE is non-nil, return a new string."
 	  (aset newstr i tochar)))
     newstr))
 
-(defun replace-in-string (fromstring tostring instring)
-  "Replace FROMSTRING with TOSTRING in INSTRING each time it occurs.
-This function returns a freshly created string."
-  (declare (side-effect-free t))
-  (let ((i 0)
-        (start 0)
-        (result nil))
-    (while (< i (length instring))
-      (if (eq (aref instring i)
-              (aref fromstring 0))
-          ;; See if we're in a match.
-          (let ((ii i)
-                (if 0))
-            (while (and (< ii (length instring))
-                        (< if (length fromstring))
-                        (eq (aref instring ii)
-                            (aref fromstring if)))
-              (setq ii (1+ ii)
-                    if (1+ if)))
-            (if (not (= if (length fromstring)))
-                ;; We didn't have a match after all.
-                (setq i (1+ i))
-              ;; We had one, so gather the previous part and the
-              ;; substitution.
-              (when (not (= start i))
-                (push (substring instring start i) result))
-              (push tostring result)
-              (setq i ii
-                    start ii)))
-        (setq i (1+ i))))
-    (when (not (= start i))
-      (push (substring instring start i) result))
-    (apply #'concat (nreverse result))))
+(defun string-replace (fromstring tostring instring)
+  "Replace FROMSTRING with TOSTRING in INSTRING each time it occurs."
+  (declare (pure t) (side-effect-free t))
+  (when (equal fromstring "")
+    (signal 'wrong-length-argument fromstring))
+  (let ((start 0)
+        (result nil)
+        pos)
+    (while (setq pos (string-search fromstring instring start))
+      (unless (= start pos)
+        (push (substring instring start pos) result))
+      (push tostring result)
+      (setq start (+ pos (length fromstring))))
+    (if (null result)
+        ;; No replacements were done, so just return the original string.
+        instring
+      ;; Get any remaining bit.
+      (unless (= start (length instring))
+        (push (substring instring start) result))
+      (apply #'concat (nreverse result)))))
 
 (defun replace-regexp-in-string (regexp rep string &optional
 					fixedcase literal subexp start)
@@ -4511,10 +4561,9 @@ and replace a sub-expression, e.g.
 	(when (= me mb) (setq me (min l (1+ mb))))
 	;; Generate a replacement for the matched substring.
 	;; Operate on only the substring to minimize string consing.
-	;; Set up match data for the substring for replacement;
-	;; presumably this is likely to be faster than munging the
-	;; match data directly in Lisp.
-	(string-match regexp (setq str (substring string mb me)))
+        ;; Translate the match data so that it applies to the matched substring.
+        (match-data--translate (- mb))
+        (setq str (substring string mb me))
 	(setq matches
 	      (cons (replace-match (if (stringp rep)
 				       rep
@@ -5214,6 +5263,8 @@ use `called-interactively-p'.
 
 To test whether a function can be called interactively, use
 `commandp'."
+  ;; Kept around for now.  See discussion at:
+  ;; https://lists.gnu.org/r/emacs-devel/2020-08/msg00564.html
   (declare (obsolete called-interactively-p "23.2"))
   (called-interactively-p 'interactive))
 

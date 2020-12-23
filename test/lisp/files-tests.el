@@ -20,6 +20,7 @@
 ;;; Code:
 
 (require 'ert)
+(require 'ert-x)
 (require 'nadvice)
 (eval-when-compile (require 'cl-lib))
 (require 'bytecomp) ; `byte-compiler-base-file-name'.
@@ -151,7 +152,7 @@ form.")
           (should (file-test--do-local-variables-test str subtest)))))))
 
 (defvar files-test-bug-18141-file
-  (expand-file-name "data/files-bug18141.el.gz" (getenv "EMACS_TEST_DIRECTORY"))
+  (ert-resource-file "files-bug18141.el.gz")
   "Test file for bug#18141.")
 
 (ert-deftest files-tests-bug-18141 ()
@@ -959,7 +960,7 @@ unquoted file names."
           (let ((linkname (expand-file-name "link" nospecial-dir)))
             (should-error (make-symbolic-link tmpfile linkname))))))))
 
-;; See `files-tests--file-name-non-special--subprocess'.
+;; See `files-tests-file-name-non-special--subprocess'.
 ;; (ert-deftest files-tests-file-name-non-special-process-file ())
 
 (ert-deftest files-tests-file-name-non-special-rename-file ()
@@ -1103,7 +1104,7 @@ unquoted file names."
   (files-tests--with-temp-non-special-and-file-name-handler (tmpfile nospecial)
     (should (equal (vc-registered nospecial) (vc-registered tmpfile)))))
 
-;; See test `files-tests--file-name-non-special--buffers'.
+;; See test `files-tests-file-name-non-special--buffers'.
 ;; (ert-deftest files-tests-file-name-non-special-verify-visited-file-modtime ())
 
 (ert-deftest files-tests-file-name-non-special-write-region ()

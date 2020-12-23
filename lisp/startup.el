@@ -534,9 +534,14 @@ It is the default value of the variable `top-level'."
     (setq user-emacs-directory
 	  (startup--xdg-or-homedot startup--xdg-config-home-emacs nil))
 
-    (when (boundp 'comp-eln-load-path)
-      (setq comp-eln-load-path (cons (concat user-emacs-directory "eln-cache/")
-                                     comp-eln-load-path)))
+    (when (featurep 'nativecomp)
+      (defvar comp-eln-load-path)
+      (let ((path-env (getenv "EMACSNATIVELOADPATH")))
+        (when path-env
+          (dolist (path (split-string path-env ":"))
+            (unless (string= "" path)
+              (push path comp-eln-load-path)))))
+      (push (concat user-emacs-directory "eln-cache/") comp-eln-load-path))
     ;; Look in each dir in load-path for a subdirs.el file.  If we
     ;; find one, load it, which will add the appropriate subdirs of
     ;; that dir into load-path.  This needs to be done before setting
@@ -1506,7 +1511,7 @@ Consider using a subdirectory instead, e.g.: %s"
 (defun x-apply-session-resources ()
   "Apply X resources which specify initial values for Emacs variables.
 This is called from a window-system initialization function, such
-as `x-initialize-window-system' for X, either at startup (prior
+as `window-system-initialization' for X, either at startup (prior
 to reading the init file), or afterwards when the user first
 opens a graphical frame.
 

@@ -82,9 +82,13 @@ being via `pcmpl-ssh-known-hosts-file'."
 ;;;###autoload
 (defun pcomplete/xargs ()
   "Completion for `xargs'."
-  (pcomplete-here (funcall pcomplete-command-completion-function))
+  ;; FIXME: Add completion of xargs-specific arguments.
+  (funcall pcomplete-command-completion-function)
   (funcall (or (pcomplete-find-completion-function (pcomplete-arg 1))
 	       pcomplete-default-completion-function)))
+
+;; FIXME: Add completion of sudo-specific arguments.
+(defalias 'pcomplete/sudo #'pcomplete/xargs)
 
 ;;;###autoload
 (defalias 'pcomplete/time 'pcomplete/xargs)
@@ -144,7 +148,7 @@ documentation), this function returns nil."
 
 
 ;; ssh support by Phil Hagelberg.
-;; http://www.emacswiki.org/cgi-bin/wiki/pcmpl-ssh.el
+;; https://www.emacswiki.org/cgi-bin/wiki/pcmpl-ssh.el
 
 (defun pcmpl-ssh-known-hosts ()
   "Return a list of hosts found in `pcmpl-ssh-known-hosts-file'."

@@ -217,7 +217,7 @@ ARGUMENTS to pass to the OPERATION."
 	 (lambda (line)
 	   (when (string-match "^\\(\\S-+\\)[[:space:]]+device$" line)
 	     ;; Replace ":" by "#".
-	     `(nil ,(replace-regexp-in-string
+	     `(nil ,(tramp-compat-string-replace
 		     ":" tramp-prefix-port-format (match-string 1 line)))))
 	 (tramp-process-lines nil tramp-adb-program "devices"))))
 
@@ -301,7 +301,7 @@ ARGUMENTS to pass to the OPERATION."
       file-properties)))
 
 (defun tramp-adb-handle-directory-files-and-attributes
-  (directory &optional full match nosort id-format)
+  (directory &optional full match nosort id-format count)
   "Like `directory-files-and-attributes' for Tramp files."
   (unless (file-exists-p directory)
     (tramp-error
@@ -311,8 +311,8 @@ ARGUMENTS to pass to the OPERATION."
     (with-parsed-tramp-file-name (expand-file-name directory) nil
       (copy-tree
        (with-tramp-file-property
-	   v localname (format "directory-files-and-attributes-%s-%s-%s-%s"
-			       full match id-format nosort)
+	   v localname (format "directory-files-and-attributes-%s-%s-%s-%s-%s"
+			       full match id-format nosort count)
 	 (with-current-buffer (tramp-get-buffer v)
 	   (when (tramp-adb-send-command-and-check
 		  v (format "%s -a -l %s"
@@ -342,11 +342,17 @@ ARGUMENTS to pass to the OPERATION."
 	     (unless nosort
 	       (setq result
 		     (sort result (lambda (x y) (string< (car x) (car y))))))
-	     (delq nil
-		   (mapcar (lambda (x)
-			     (if (or (not match) (string-match-p match (car x)))
-				 x))
-			   result)))))))))
+
+             (setq result (delq nil
+                                (mapcar
+                                 (lambda (x) (if (or (not match)
+                                                     (string-match-p
+                                                      match (car x)))
+                                                 x))
+                                 result)))
+	     (when (and (natnump count) (> count 0))
+	       (setq result (nbutlast result (- (length result) count))))
+             result)))))))
 
 (defun tramp-adb-get-ls-command (vec)
   "Determine `ls' command and its arguments."
@@ -357,7 +363,8 @@ ARGUMENTS to pass to the OPERATION."
      ;; by GNU Coreutils. Force "ls" to print one column and set
      ;; time-style to imitate other "ls" flavors.
      ((tramp-adb-send-command-and-check
-       vec "ls --time-style=long-iso /dev/null")
+       vec (concat "ls --time-style=long-iso "
+                   (tramp-get-remote-null-device vec)))
       "ls -1 --time-style=long-iso")
      ;; Can't disable coloring explicitly for toybox ls command.  We
      ;; also must force "ls" to print just one column.
@@ -365,7 +372,8 @@ ARGUMENTS to pass to the OPERATION."
      ;; On CyanogenMod based system BusyBox is used and "ls" output
      ;; coloring is enabled by default.  So we try to disable it when
      ;; possible.
-     ((tramp-adb-send-command-and-check vec "ls --color=never -al /dev/null")
+     ((tramp-adb-send-command-and-check
+       vec (concat "ls --color=never -al " (tramp-get-remote-null-device vec)))
       "ls --color=never")
      (t "ls"))))
 
@@ -437,27 +445,25 @@ Emacs dired can't find files."
 		(and parents (file-directory-p dir)))
       (tramp-error v 'file-error "Couldn't make directory %s" dir))))
 
-(defun tramp-adb-handle-delete-directory (directory &optional recursive _trash)
+(defun tramp-adb-handle-delete-directory (directory &optional recursive trash)
   "Like `delete-directory' for Tramp files."
-  (setq directory (expand-file-name directory))
-  (with-parsed-tramp-file-name (file-truename directory) nil
-    (tramp-flush-directory-properties v localname))
-  (with-parsed-tramp-file-name directory nil
-    (tramp-flush-directory-properties v localname)
+  (tramp-skeleton-delete-directory directory recursive trash
     (tramp-adb-barf-unless-okay
      v (format "%s %s"
 	       (if recursive "rm -r" "rmdir")
 	       (tramp-shell-quote-argument localname))
      "Couldn't delete %s" directory)))
 
-(defun tramp-adb-handle-delete-file (filename &optional _trash)
+(defun tramp-adb-handle-delete-file (filename &optional trash)
   "Like `delete-file' for Tramp files."
   (setq filename (expand-file-name filename))
   (with-parsed-tramp-file-name filename nil
     (tramp-flush-file-properties v localname)
-    (tramp-adb-barf-unless-okay
-     v (format "rm %s" (tramp-shell-quote-argument localname))
-     "Couldn't delete %s" filename)))
+    (if (and delete-by-moving-to-trash trash)
+	(move-file-to-trash filename)
+      (tramp-adb-barf-unless-okay
+       v (format "rm %s" (tramp-shell-quote-argument localname))
+       "Couldn't delete %s" filename))))
 
 (defun tramp-adb-handle-file-name-all-completions (filename directory)
   "Like `file-name-all-completions' for Tramp files."
@@ -571,8 +577,9 @@ But handle the case, if the \"test\" command is not available."
       ;; Set file modification time.
       (when (or (eq visit t) (stringp visit))
 	(set-visited-file-modtime
-	 (tramp-compat-file-attribute-modification-time
-	  (file-attributes filename))))
+	 (or (tramp-compat-file-attribute-modification-time
+	      (file-attributes filename))
+	     (current-time))))
 
       ;; The end.
       (when (and (null noninteractive)
@@ -606,13 +613,13 @@ But handle the case, if the \"test\" command is not available."
       ;; (introduced in POSIX.1-2008) fails.
       (tramp-adb-send-command-and-check
        v (format
-	  (concat "touch -d %s %s %s 2>/dev/null || "
-		  "touch -d %s %s %s 2>/dev/null || "
+	  (concat "touch -d %s %s %s 2>%s || "
+		  "touch -d %s %s %s 2>%s || "
 		  "touch -t %s %s %s")
 	  (format-time-string "%Y-%m-%dT%H:%M:%S.%NZ" time t)
-	  nofollow quoted-name
+	  nofollow quoted-name (tramp-get-remote-null-device v)
 	  (format-time-string "%Y-%m-%dT%H:%M:%S" time t)
-	  nofollow quoted-name
+	  nofollow quoted-name (tramp-get-remote-null-device v)
 	  (format-time-string "%Y%m%d%H%M.%S" time t)
 	  nofollow quoted-name)))))
 
@@ -786,7 +793,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 			       (cons program args) " "))
       ;; Determine input.
       (if (null infile)
-	  (setq input "/dev/null")
+	  (setq input (tramp-get-remote-null-device v))
 	(setq infile (expand-file-name infile))
 	(if (tramp-equal-remote default-directory infile)
 	    ;; INFILE is on the same remote host.
@@ -828,7 +835,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 		  tmpstderr (tramp-make-tramp-file-name v stderr))))
 	 ;; stderr to be discarded.
 	 ((null (cadr destination))
-	  (setq stderr "/dev/null"))))
+	  (setq stderr (tramp-get-remote-null-device v)))))
        ;; 't
        (destination
 	(setq outbuf (current-buffer))))
@@ -1067,7 +1074,7 @@ E.g. a host name \"192.168.1.1#5555\" returns \"192.168.1.1:5555\"
     (let* ((host (tramp-file-name-host vec))
 	   (port (tramp-file-name-port-or-default vec))
 	   (devices (mapcar #'cadr (tramp-adb-parse-device-names nil))))
-      (replace-regexp-in-string
+      (tramp-compat-string-replace
        tramp-prefix-port-format ":"
        (cond ((member host devices) host)
 	     ;; This is the case when the host is connected to the default port.
@@ -1083,7 +1090,7 @@ E.g. a host name \"192.168.1.1#5555\" returns \"192.168.1.1:5555\"
 		   (not (zerop (length host)))
 		   (tramp-adb-execute-adb-command
                     vec "connect"
-                    (replace-regexp-in-string
+                    (tramp-compat-string-replace
 		     tramp-prefix-port-format ":" host)))
 	      ;; When new device connected, running other adb command (e.g.
 	      ;; adb shell) immediately will fail.  To get around this
@@ -1311,23 +1318,24 @@ connection if a previous connection has died for some reason."
 	    ;; Mark it as connected.
 	    (tramp-set-connection-property p "connected" t)))))))
 
-;; Default settings for connection-local variables.
-(defconst tramp-adb-connection-local-default-profile
-  '((shell-file-name . "/system/bin/sh")
-    (shell-command-switch . "-c"))
-  "Default connection-local variables for remote adb connections.")
-
+;;; Default connection-local variables for Tramp:
 ;; `connection-local-set-profile-variables' and
 ;; `connection-local-set-profiles' exists since Emacs 26.1.
+(defconst tramp-adb-connection-local-default-shell-variables
+  '((shell-file-name . "/system/bin/sh")
+    (shell-command-switch . "-c"))
+  "Default connection-local shell variables for remote adb connections.")
+
+(tramp-compat-funcall
+ 'connection-local-set-profile-variables
+ 'tramp-adb-connection-local-default-shell-profile
+ tramp-adb-connection-local-default-shell-variables)
+
 (with-eval-after-load 'shell
-  (tramp-compat-funcall
-   'connection-local-set-profile-variables
-   'tramp-adb-connection-local-default-profile
-   tramp-adb-connection-local-default-profile)
   (tramp-compat-funcall
    'connection-local-set-profiles
    `(:application tramp :protocol ,tramp-adb-method)
-   'tramp-adb-connection-local-default-profile))
+   'tramp-adb-connection-local-default-shell-profile))
 
 (add-hook 'tramp-unload-hook
 	  (lambda ()

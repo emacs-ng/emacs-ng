@@ -35,10 +35,11 @@ user.  For related topics such as keymaps and syntax tables, see
 @section Hooks
 @cindex hooks
 
-  A @dfn{hook} is a variable where you can store a function or functions
-to be called on a particular occasion by an existing program.  Emacs
-provides hooks for the sake of customization.  Most often, hooks are set
-up in the init file (@pxref{Init File}), but Lisp programs can set them also.
+  A @dfn{hook} is a variable where you can store a function or
+functions (@pxref{What Is a Function}) to be called on a particular
+occasion by an existing program.  Emacs provides hooks for the sake of
+customization.  Most often, hooks are set up in the init file
+(@pxref{Init File}), but Lisp programs can set them also.
 @xref{Standard Hooks}, for a list of some standard hook variables.
 
 @cindex normal hook
@@ -56,27 +57,36 @@ minor mode functions also run a mode hook at the end.  But hooks are
 used in other contexts too.  For example, the hook @code{suspend-hook}
 runs just before Emacs suspends itself (@pxref{Suspending Emacs}).
 
-  The recommended way to add a hook function to a hook is by calling
-@code{add-hook} (@pxref{Setting Hooks}).  The hook functions may be any
-of the valid kinds of functions that @code{funcall} accepts (@pxref{What
-Is a Function}).  Most normal hook variables are initially void;
-@code{add-hook} knows how to deal with this.  You can add hooks either
-globally or buffer-locally with @code{add-hook}.
-
 @cindex abnormal hook
   If the hook variable's name does not end with @samp{-hook}, that
 indicates it is probably an @dfn{abnormal hook}.  That means the hook
 functions are called with arguments, or their return values are used
 in some way.  The hook's documentation says how the functions are
-called.  You can use @code{add-hook} to add a function to an abnormal
-hook, but you must write the function to follow the hook's calling
-convention.  By convention, abnormal hook names end in @samp{-functions}.
+called.  Any functions added to an abnormal hook must follow the
+hook's calling convention.  By convention, abnormal hook names end in
+@samp{-functions}.
 
 @cindex single-function hook
-If the variable's name ends in @samp{-function}, then its value is
-just a single function, not a list of functions.  @code{add-hook} cannot be
-used to modify such a @emph{single function hook}, and you have to use
-@code{add-function} instead (@pxref{Advising Functions}).
+If the name of the variable ends in @samp{-predicate} or
+@samp{-function} (singular) then its value must be a function, not a
+list of functions.  As with abnormal hooks, the expected arguments and
+meaning of the return value vary across such @emph{single function
+hooks}.  The details are explained in each variable's docstring.
+
+  Since hooks (both multi and single function) are variables, their
+values can be modified with @code{setq} or temporarily with
+@code{let}.  However, it is often useful to add or remove a particular
+function from a hook while preserving any other functions it might
+have.  For multi function hooks, the recommended way of doing this is
+with @code{add-hook} and @code{remove-hook} (@pxref{Setting Hooks}).
+Most normal hook variables are initially void; @code{add-hook} knows
+how to deal with this.  You can add hooks either globally or
+buffer-locally with @code{add-hook}.  For hooks which hold only a
+single function, @code{add-hook} is not appropriate, but you can use
+@code{add-function} (@pxref{Advising Functions}) to combine new
+functions with the hook.  Note that some single function hooks may be
+@code{nil} which @code{add-function} cannot deal with, so you must
+check for that before calling @code{add-function}.
 
 @menu
 * Running Hooks::    How to run a hook.
@@ -1729,7 +1739,8 @@ The command named @var{mode} first performs the standard actions such as
 setting the variable named @var{mode} and then executes the @var{body}
 forms, if any.  It then runs the mode hook variable
 @code{@var{mode}-hook} and finishes by evaluating any form in
-@code{:after-hook}.
+@code{:after-hook}.  (Note that all of this, including running the
+hook, is done both when the mode is enabled and disabled.)
 @end defmac
 
   The initial value must be @code{nil} except in cases where (1) the
@@ -1795,10 +1806,11 @@ don't need any.
 
 @defmac define-globalized-minor-mode global-mode mode turn-on keyword-args@dots{} body@dots{}
 This defines a global toggle named @var{global-mode} whose meaning is
-to enable or disable the buffer-local minor mode @var{mode} in all
-buffers.  It also executes the @var{body} forms.  To turn on the minor
-mode in a buffer, it uses the function @var{turn-on}; to turn off the
-minor mode, it calls @var{mode} with @minus{}1 as argument.
+to enable or disable the buffer-local minor mode @var{mode} in all (or
+some; see below) buffers.  It also executes the @var{body} forms.  To
+turn on the minor mode in a buffer, it uses the function
+@var{turn-on}; to turn off the minor mode, it calls @var{mode} with
+@minus{}1 as argument.
 
 Globally enabling the mode also affects buffers subsequently created
 by visiting files, and buffers that use a major mode other than
@@ -1819,6 +1831,38 @@ also define a non-globalized version, so that people can use (or
 disable) it in individual buffers.  This also allows them to disable a
 globally enabled minor mode in a specific major mode, by using that
 mode's hook.
+
+If given a @code{:predicate} keyword, a user option called the same as
+the global mode variable, but with @code{-modes} instead of
+@code{-mode} at the end will be created.  The variable is used as a
+predicate that specifies which major modes the minor mode should be
+activated in.  Valid values include @code{t} (use in all major modes,
+@code{nil} (use in no major modes), or a list of mode names (or
+@code{(not mode-name ...)}) elements (as well as @code{t} and
+@code{nil}).
+
+@example
+(c-mode (not mail-mode message-mode) text-mode)
+@end example
+
+This means ``use in modes derived from @code{c-mode}, and not in
+modes derived from @code{message-mode} or @code{mail-mode}, but do use
+in modes derived from @code{text-mode}, and otherwise no other
+modes''.
+
+@example
+((not c-mode) t)
+@end example
+
+This means ``don't use modes derived from @code{c-mode}, but use
+everywhere else''.
+
+@example
+(text-mode)
+@end example
+
+This means ``use in modes derived from @code{text-mode}, but nowhere
+else''.  (There's an implicit @code{nil} element at the end.)
 @end defmac
 
 
@@ -3293,7 +3337,7 @@ is disabled, @code{font-lock-face} has no effect on the display.
 also use the normal Font Lock machinery.  But if the mode does not use
 the normal Font Lock machinery, it should not set the variable
 @code{font-lock-defaults}.  In this case the @code{face} property will
-not be overriden, so using the @code{face} property could work too.
+not be overridden, so using the @code{face} property could work too.
 However, using @code{font-lock-face} is generally preferable as it
 allows the user to control the fontification by toggling
 @code{font-lock-mode}, and lets the code work regardless of whether

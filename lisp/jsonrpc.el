@@ -4,7 +4,7 @@
 
 ;; Author: João Távora <joaotavora@gmail.com>
 ;; Keywords: processes, languages, extensions
-;; Version: 1.0.12
+;; Version: 1.0.14
 ;; Package-Requires: ((emacs "25.2"))
 
 ;; This is a GNU ELPA :core package.  Avoid functionality that is not
@@ -26,7 +26,7 @@
 ;;; Commentary:
 
 ;; This library implements the JSONRPC 2.0 specification as described
-;; in http://www.jsonrpc.org/.  As the name suggests, JSONRPC is a
+;; in https://www.jsonrpc.org/.  As the name suggests, JSONRPC is a
 ;; generic Remote Procedure Call protocol designed around JSON
 ;; objects.  To learn how to write JSONRPC programs with this library,
 ;; see Info node `(elisp)JSONRPC'."
@@ -138,18 +138,15 @@ immediately."
 
 (defun jsonrpc-events-buffer (connection)
   "Get or create JSONRPC events buffer for CONNECTION."
-  (let* ((probe (jsonrpc--events-buffer connection))
-         (buffer (or (and (buffer-live-p probe)
-                          probe)
-                     (let ((buffer (get-buffer-create
-                                    (format "*%s events*"
-                                            (jsonrpc-name connection)))))
-                       (with-current-buffer buffer
-                         (buffer-disable-undo)
-                         (read-only-mode t)
-                         (setf (jsonrpc--events-buffer connection) buffer))
-                       buffer))))
-    buffer))
+  (let ((probe (jsonrpc--events-buffer connection)))
+    (if (buffer-live-p probe)
+        probe
+      (with-current-buffer
+          (get-buffer-create (format "*%s events*" (jsonrpc-name connection)))
+        (buffer-disable-undo)
+        (setq buffer-read-only t)
+        (setf (jsonrpc--events-buffer connection)
+              (current-buffer))))))
 
 (defun jsonrpc-forget-pending-continuations (connection)
   "Stop waiting for responses from the current JSONRPC CONNECTION."
@@ -239,8 +236,8 @@ JSON object.
 The caller can expect SUCCESS-FN or ERROR-FN to be called with a
 JSONRPC `:result' or `:error' object, respectively.  If this
 doesn't happen after TIMEOUT seconds (defaults to
-`jsonrpc-request-timeout'), the caller can expect TIMEOUT-FN to be
-called with no arguments. The default values of SUCCESS-FN,
+`jrpc-default-request-timeout'), the caller can expect TIMEOUT-FN
+to be called with no arguments. The default values of SUCCESS-FN,
 ERROR-FN and TIMEOUT-FN simply log the events into
 `jsonrpc-events-buffer'.
 
@@ -271,7 +268,7 @@ it only exits locally (returning the JSONRPC result object) if
 the request is successful, otherwise it exits non-locally with an
 error of type `jsonrpc-error'.
 
-DEFERRED is passed to `jsonrpc-async-request', which see.
+DEFERRED and TIMEOUT as in `jsonrpc-async-request', which see.
 
 If CANCEL-ON-INPUT is non-nil and the user inputs something while
 the function is waiting, then it exits immediately, returning
@@ -284,7 +281,8 @@ ignored."
               (catch tag
                 (setq
                  id-and-timer
-                 (jsonrpc--async-request-1
+                 (apply
+                  #'jsonrpc--async-request-1
                   connection method params
                   :success-fn (lambda (result)
                                 (unless cancelled
@@ -300,11 +298,12 @@ ignored."
                   (lambda ()
                     (unless cancelled
                       (throw tag '(error (jsonrpc-error-message . "Timed out")))))
-                  :deferred deferred
-                  :timeout timeout))
+                  `(,@(when deferred `(:deferred ,deferred))
+                    ,@(when timeout  `(:timeout  ,timeout)))))
                 (cond (cancel-on-input
-                       (while (sit-for 30))
-                       (setq cancelled t)
+                       (unwind-protect
+                           (let ((inhibit-quit t)) (while (sit-for 30)))
+                         (setq cancelled t))
                        `(cancelled ,cancel-on-input-retval))
                       (t (while t (accept-process-output nil 30)))))
             ;; In normal operation, cancellation is handled by the
@@ -404,7 +403,7 @@ connection object, called when the process dies .")
           (ignore-errors (kill-buffer hidden-name))
           (rename-buffer hidden-name)
           (process-put proc 'jsonrpc-stderr (current-buffer))
-          (read-only-mode t))))
+          (setq buffer-read-only t))))
     (setf (jsonrpc--process conn) proc)
     (set-process-buffer proc (get-buffer-create (format " *%s output*" name)))
     (set-process-filter proc #'jsonrpc--process-filter)
@@ -412,7 +411,9 @@ connection object, called when the process dies .")
     (with-current-buffer (process-buffer proc)
       (buffer-disable-undo)
       (set-marker (process-mark proc) (point-min))
-      (let ((inhibit-read-only t)) (erase-buffer) (read-only-mode t)))
+      (let ((inhibit-read-only t))
+        (erase-buffer))
+      (setq buffer-read-only t))
     (process-put proc 'jsonrpc-connection conn)))
 
 (cl-defmethod jsonrpc-connection-send ((connection jsonrpc-process-connection)
@@ -649,7 +650,7 @@ TIMEOUT is nil)."
       (if (jsonrpc-connection-ready-p connection deferred)
           ;; Server is ready, we jump below and send it immediately.
           (remhash (list deferred buf) (jsonrpc--deferred-actions connection))
-        ;; Otherwise, save in `eglot--deferred-actions' and exit non-locally
+        ;; Otherwise, save in `jsonrpc--deferred-actions' and exit non-locally
         (unless old-id
           (jsonrpc--debug connection `(:deferring ,method :id ,id :params
                                                   ,params)))

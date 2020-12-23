@@ -856,18 +856,25 @@ VALUE is a CCL program name defined by `define-ccl-program'.  The
 CCL program reads a character sequence and writes a byte sequence
 as an encoding result.
 
-`:inhibit-nul-byte-detection'
+`:inhibit-null-byte-detection'
 
-VALUE non-nil means Emacs ignore null bytes on code detection.
-See the variable `inhibit-nul-byte-detection'.  This attribute
+VALUE non-nil means Emacs should ignore null bytes on code detection.
+See the variable `inhibit-null-byte-detection'.  This attribute
 is meaningful only when `:coding-type' is `undecided'.
+If VALUE is t, Emacs will ignore null bytes unconditionally while
+detecting encoding.  If VALUE is non-nil and not t, Emacs will
+ignore null bytes if `inhibit-null-byte-detection' is non-nil.
 
 `:inhibit-iso-escape-detection'
 
-VALUE non-nil means Emacs ignores ISO-2022 escape sequences on
+VALUE non-nil means Emacs should ignore ISO-2022 escape sequences on
 code detection.  See the variable `inhibit-iso-escape-detection'.
 This attribute is meaningful only when `:coding-type' is
 `undecided'.
+If VALUE is t, Emacs will ignore escape sequences unconditionally
+while detecting encoding.  If VALUE is non-nil and not t, Emacs
+will ignore escape sequences if `inhibit-iso-escape-detection' is
+non-nil.
 
 `:prefer-utf-8'
 
@@ -904,7 +911,7 @@ non-ASCII files.  This attribute is meaningful only when
 				      :ccl-encoder
 				      :valids))
 				   ((eq coding-type 'undecided)
-				    '(:inhibit-nul-byte-detection
+				    '(:inhibit-null-byte-detection
 				      :inhibit-iso-escape-detection
 				      :prefer-utf-8))))))
 
@@ -1711,8 +1718,8 @@ in-place."
   ;; self-extracting exe archives.
   (mapcar (lambda (arg) (cons (purecopy (car arg)) (cdr arg)))
 	  '(("\\.\\(\
-arc\\|zip\\|lzh\\|lha\\|zoo\\|[jew]ar\\|xpi\\|rar\\|7z\\|\
-ARC\\|ZIP\\|LZH\\|LHA\\|ZOO\\|[JEW]AR\\|XPI\\|RAR\\|7Z\\)\\'"
+arc\\|zip\\|lzh\\|lha\\|zoo\\|[jew]ar\\|xpi\\|rar\\|7z\\|squashfs\\|\
+ARC\\|ZIP\\|LZH\\|LHA\\|ZOO\\|[JEW]AR\\|XPI\\|RAR\\|7Z\\|SQUASHFS\\)\\'"
      . no-conversion-multibyte)
     ("\\.\\(exe\\|EXE\\)\\'" . no-conversion)
     ("\\.\\(sx[dmicw]\\|odt\\|tar\\|t[bg]z\\)\\'" . no-conversion)

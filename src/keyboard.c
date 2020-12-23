@@ -2040,7 +2040,7 @@ help_echo_substitute_command_keys (Lisp_Object help)
                                     help)))
     return help;
 
-  return Fsubstitute_command_keys (help);
+  return call1 (Qsubstitute_command_keys, help);
 }
 
 /* Display the help-echo property of the character after the mouse pointer.
@@ -2122,7 +2122,7 @@ read_char_help_form_unwind (void)
   Lisp_Object window_config = XCAR (help_form_saved_window_configs);
   help_form_saved_window_configs = XCDR (help_form_saved_window_configs);
   if (!NILP (window_config))
-    Fset_window_configuration (window_config);
+    Fset_window_configuration (window_config, Qnil);
 }
 
 #define STOP_POLLING					\
@@ -3736,9 +3736,6 @@ discard_mouse_events (void)
       if (sp->kind == MOUSE_CLICK_EVENT
 	  || sp->kind == WHEEL_EVENT
           || sp->kind == HORIZ_WHEEL_EVENT
-#ifdef HAVE_GPM
-	  || sp->kind == GPM_CLICK_EVENT
-#endif
 	  || sp->kind == SCROLL_BAR_CLICK_EVENT
 	  || sp->kind == HORIZONTAL_SCROLL_BAR_CLICK_EVENT)
 	{
@@ -5254,7 +5251,6 @@ make_lispy_position (struct frame *f, Lisp_Object x, Lisp_Object y,
 					extra_info)));
     }
 
-#ifdef HAVE_WINDOW_SYSTEM
   else if (f)
     {
       /* Return mouse pixel coordinates here.  */
@@ -5262,7 +5258,9 @@ make_lispy_position (struct frame *f, Lisp_Object x, Lisp_Object y,
       xret = XFIXNUM (x);
       yret = XFIXNUM (y);
 
-      if (FRAME_LIVE_P (f)
+#ifdef HAVE_WINDOW_SYSTEM
+      if (FRAME_WINDOW_P (f)
+	  && FRAME_LIVE_P (f)
 	  && FRAME_INTERNAL_BORDER_WIDTH (f) > 0
 	  && !NILP (get_frame_param (f, Qdrag_internal_border)))
 	{
@@ -5271,8 +5269,8 @@ make_lispy_position (struct frame *f, Lisp_Object x, Lisp_Object y,
 
 	  posn = builtin_lisp_symbol (internal_border_parts[part]);
 	}
-    }
 #endif
+    }
 
   else
     window_or_frame = Qnil;
@@ -5541,9 +5539,6 @@ make_lispy_event (struct input_event *event)
       /* A mouse click.  Figure out where it is, decide whether it's
          a press, click or drag, and build the appropriate structure.  */
     case MOUSE_CLICK_EVENT:
-#ifdef HAVE_GPM
-    case GPM_CLICK_EVENT:
-#endif
 #ifndef USE_TOOLKIT_SCROLL_BARS
     case SCROLL_BAR_CLICK_EVENT:
     case HORIZONTAL_SCROLL_BAR_CLICK_EVENT:
@@ -5558,11 +5553,7 @@ make_lispy_event (struct input_event *event)
 	position = Qnil;
 
 	/* Build the position as appropriate for this mouse click.  */
-	if (event->kind == MOUSE_CLICK_EVENT
-#ifdef HAVE_GPM
-	    || event->kind == GPM_CLICK_EVENT
-#endif
-	    )
+	if (event->kind == MOUSE_CLICK_EVENT)
 	  {
 	    struct frame *f = XFRAME (event->frame_or_window);
 	    int row, column;
@@ -6234,7 +6225,7 @@ parse_modifiers_uncached (Lisp_Object symbol, ptrdiff_t *modifier_end)
 static Lisp_Object
 apply_modifiers_uncached (int modifiers, char *base, int base_len, int base_len_byte)
 {
-  /* Since BASE could contain NULs, we can't use intern here; we have
+  /* Since BASE could contain nulls, we can't use intern here; we have
      to use Fintern, which expects a genuine Lisp_String, and keeps a
      reference to it.  */
   char new_mods[sizeof "A-C-H-M-S-s-up-down-drag-double-triple-"];
@@ -7004,11 +6995,7 @@ tty_read_avail_input (struct terminal *terminal,
   if (gpm_tty == tty)
   {
       Gpm_Event event;
-      struct input_event gpm_hold_quit;
       int gpm, fd = gpm_fd;
-
-      EVENT_INIT (gpm_hold_quit);
-      gpm_hold_quit.kind = NO_EVENT;
 
       /* gpm==1 if event received.
          gpm==0 if the GPM daemon has closed the connection, in which case
@@ -7017,13 +7004,11 @@ tty_read_avail_input (struct terminal *terminal,
 		select masks.
          gpm==-1 if a protocol error or EWOULDBLOCK; the latter is normal.  */
       while (gpm = Gpm_GetEvent (&event), gpm == 1) {
-	  nread += handle_one_term_event (tty, &event, &gpm_hold_quit);
+	  nread += handle_one_term_event (tty, &event);
       }
       if (gpm == 0)
 	/* Presumably the GPM daemon has closed the connection.  */
 	close_gpm (fd);
-      if (gpm_hold_quit.kind != NO_EVENT)
-	  kbd_buffer_store_event (&gpm_hold_quit);
       if (nread)
 	  return nread;
   }
@@ -7855,7 +7840,7 @@ parse_menu_item (Lisp_Object item, int inmenubar)
     /* The previous code preferred :key-sequence to :keys, so we
        preserve this behavior.  */
     if (STRINGP (keyeq) && !CONSP (keyhint))
-      keyeq = concat2 (space_space, Fsubstitute_command_keys (keyeq));
+      keyeq = concat2 (space_space, call1 (Qsubstitute_command_keys, keyeq));
     else
       {
 	Lisp_Object prefix = keyeq;
@@ -10566,8 +10551,6 @@ DEFUN ("this-single-command-keys", Fthis_single_command_keys,
        doc: /* Return the key sequence that invoked this command.
 More generally, it returns the last key sequence read, either by
 the command loop or by `read-key-sequence'.
-Unlike `this-command-keys', this function's value
-does not include prefix arguments.
 The value is always a vector.  */)
   (void)
 {
@@ -12106,7 +12089,8 @@ See also `pre-command-hook'.  */);
 
   DEFVAR_LISP ("menu-bar-final-items", Vmenu_bar_final_items,
 	       doc: /* List of menu bar items to move to the end of the menu bar.
-The elements of the list are event types that may have menu bar bindings.  */);
+The elements of the list are event types that may have menu bar
+bindings.  The order of this list controls the order of the items.  */);
   Vmenu_bar_final_items = Qnil;
 
   DEFVAR_LISP ("tab-bar-separator-image-expression", Vtab_bar_separator_image_expression,

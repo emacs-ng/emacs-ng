@@ -42,25 +42,7 @@
 (defvar tmm-next-shortcut-digit)
 (defvar tmm-table-undef)
 
-(defun tmm-menubar-keymap ()
-  "Return the current menu-bar keymap.
-
-The ordering of the return value respects `menu-bar-final-items'."
-  (let ((menu-bar '())
-        (menu-end '()))
-    (map-keymap
-     (lambda (key binding)
-       (push (cons key binding)
-             ;; If KEY is the name of an item that we want to put last,
-             ;; move it to the end.
-             (if (memq key menu-bar-final-items)
-                 menu-end
-               menu-bar)))
-     (tmm-get-keybind [menu-bar]))
-    `(keymap ,@(nreverse menu-bar) ,@(nreverse menu-end))))
-
 ;;;###autoload (define-key global-map "\M-`" 'tmm-menubar)
-;;;###autoload (define-key global-map [menu-bar mouse-1] 'tmm-menubar-mouse)
 
 ;;;###autoload
 (defun tmm-menubar (&optional x-position)
@@ -74,30 +56,12 @@ to invoke `tmm-menubar' instead, customize the variable
 `tty-menu-open-use-tmm' to a non-nil value."
   (interactive)
   (run-hooks 'menu-bar-update-hook)
-  ;; Obey menu-bar-final-items; put those items last.
-  (let ((menu-bar (tmm-menubar-keymap))
-	menu-bar-item)
-    (if x-position
-	(let ((column 0)
-              prev-key)
-          (catch 'done
-            (map-keymap
-             (lambda (key binding)
-               (when (> column x-position)
-                 (setq menu-bar-item prev-key)
-                 (throw 'done nil))
-               (setq prev-key key)
-               (pcase binding
-                 ((or `(,(and (pred stringp) name) . ,_) ;Simple menu item.
-                      `(menu-item ,name ,_cmd            ;Extended menu item.
-                        . ,(and props
-                                (guard (let ((visible
-                                              (plist-get props :visible)))
-                                         (or (null visible)
-                                             (eval visible)))))))
-                  (setq column (+ column (length name) 1)))))
-             menu-bar))))
-    (tmm-prompt menu-bar nil menu-bar-item)))
+  (let ((menu-bar (menu-bar-keymap))
+        (menu-bar-item-cons (and x-position
+                                 (menu-bar-item-at-x x-position))))
+    (tmm-prompt menu-bar
+                nil
+                (and menu-bar-item-cons (car menu-bar-item-cons)))))
 
 ;;;###autoload
 (defun tmm-menubar-mouse (event)
@@ -516,14 +480,6 @@ It uses the free variable `tmm-table-undef' to keep undefined keys."
       (and km str
 	   (or (assoc str tmm-km-list)
 	       (push (cons str (cons event km)) tmm-km-list))))))
-
-(defun tmm-get-keybind (keyseq)
-  "Return the current binding of KEYSEQ, merging prefix definitions.
-If KEYSEQ is a prefix key that has local and global bindings,
-we merge them into a single keymap which shows the proper order of the menu.
-However, for the menu bar itself, the value does not take account
-of `menu-bar-final-items'."
-  (lookup-key (cons 'keymap (nreverse (current-active-maps))) keyseq))
 
 (provide 'tmm)
 

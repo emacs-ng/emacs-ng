@@ -1504,13 +1504,12 @@ see `dired-use-ls-dired' for more details.")
              ;; "--dired", so we cannot add it to the `process-file'
              ;; call for wildcards.
              (when (file-remote-p dir)
-               (setq switches (dired-replace-in-string "--dired" "" switches)))
+               (setq switches (string-replace "--dired" "" switches)))
              (let* ((default-directory (car dir-wildcard))
                     (script (format "ls %s %s" switches (cdr dir-wildcard)))
                     (remotep (file-remote-p dir))
                     (sh (or (and remotep "/bin/sh")
-                            (and (bound-and-true-p explicit-shell-file-name)
-                                 (executable-find explicit-shell-file-name))
+                            (executable-find shell-file-name)
                             (executable-find "sh")))
                     (switch (if remotep "-c" shell-command-switch)))
                ;; Enable globstar
@@ -4062,10 +4061,10 @@ only in the active region if `dired-mark-region' is non-nil."
 	    (if fn (backup-file-name-p fn))))
      "backup file")))
 
-(defun dired-change-marks (old new)
+(defun dired-change-marks (&optional old new)
   "Change all OLD marks to NEW marks.
 OLD and NEW are both characters used to mark files."
-  (declare (advertised-calling-convention '(old new) "28.1"))
+  (declare (advertised-calling-convention (old new) "28.1"))
   (interactive
    (let* ((cursor-in-echo-area t)
 	  (old (progn (message "Change (old mark): ") (read-char)))
@@ -4227,22 +4226,50 @@ format, use `\\[universal-argument] \\[dired]'.")
   "Non-nil means the Dired sort command is disabled.
 The idea is to set this buffer-locally in special Dired buffers.")
 
+(defcustom dired-switches-in-mode-line nil
+  "How to indicate `dired-actual-switches' in mode-line.
+Possible values:
+ * `nil':    Indicate name-or-date sort order, if possible.
+             Else show full switches.
+ * `as-is':  Show full switches.
+ * Integer:  Show only the first N chars of full switches.
+ * Function: Pass `dired-actual-switches' as arg and show result."
+  :group 'Dired-Plus
+  :type '(choice
+          (const    :tag "Indicate by name or date, else full"   nil)
+          (const    :tag "Show full switches"                    as-is)
+          (integer  :tag "Show first N chars of switches" :value 10)
+          (function :tag "Format with function"           :value identity)))
+
 (defun dired-sort-set-mode-line ()
-  ;; Set mode line display according to dired-actual-switches.
-  ;; Mode line display of "by name" or "by date" guarantees the user a
-  ;; match with the corresponding regexps.  Non-matching switches are
-  ;; shown literally.
+  "Set mode-line according to option `dired-switches-in-mode-line'."
   (when (eq major-mode 'dired-mode)
     (setq mode-name
-	  (let (case-fold-search)
-	    (cond ((string-match-p
-		    dired-sort-by-name-regexp dired-actual-switches)
-		   "Dired by name")
-		  ((string-match-p
-		    dired-sort-by-date-regexp dired-actual-switches)
-		   "Dired by date")
-		  (t
-		   (concat "Dired " dired-actual-switches)))))
+	  (let ((case-fold-search  nil))
+            (if dired-switches-in-mode-line
+                (concat
+                 "Dired"
+                 (cond ((integerp dired-switches-in-mode-line)
+                        (let* ((l1 (length dired-actual-switches))
+                               (xs (substring
+                                    dired-actual-switches
+                                    0 (min l1 dired-switches-in-mode-line)))
+                               (l2 (length xs)))
+                          (if (zerop l2)
+                              xs
+                            (concat " " xs (and (< l2  l1) "…")))))
+                       ((functionp dired-switches-in-mode-line)
+                        (format " %s" (funcall
+                                       dired-switches-in-mode-line
+                                       dired-actual-switches)))
+                       (t (concat " " dired-actual-switches))))
+              (cond ((string-match-p dired-sort-by-name-regexp
+                                     dired-actual-switches)
+                     "Dired by name")
+                    ((string-match-p dired-sort-by-date-regexp
+                                     dired-actual-switches)
+                     "Dired by date")
+                    (t (concat "Dired " dired-actual-switches))))))
     (force-mode-line-update)))
 
 (define-obsolete-function-alias 'dired-sort-set-modeline
@@ -4290,11 +4317,10 @@ With a prefix argument, edit the current listing switches instead."
   (dired-sort-set-mode-line)
   (revert-buffer))
 
-;; Some user code loads dired especially for this.
-;; Don't do that--use replace-regexp-in-string instead.
 (defun dired-replace-in-string (regexp newtext string)
   ;; Replace REGEXP with NEWTEXT everywhere in STRING and return result.
   ;; NEWTEXT is taken literally---no \\DIGIT escapes will be recognized.
+  (declare (obsolete replace-regexp-in-string "28.1"))
   (let ((result "") (start 0) mb me)
     (while (string-match regexp string start)
       (setq mb (match-beginning 0)

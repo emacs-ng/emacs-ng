@@ -406,6 +406,9 @@ load_gccjit_if_necessary (bool mandatory)
 }
 
 
+/* Increase this number to force a new Vcomp_abi_hash to be generated.  */
+#define ABI_VERSION "0"
+
 /* C symbols emitted for the load relocation mechanism.  */
 #define CURRENT_THREAD_RELOC_SYM "current_thread_reloc"
 #define PURE_RELOC_SYM "pure_reloc"
@@ -422,10 +425,6 @@ load_gccjit_if_necessary (bool mandatory)
 
 #define TEXT_OPTIM_QLY_SYM "text_optim_qly"
 #define TEXT_FDOC_SYM "text_data_fdoc"
-
-
-#define COMP_SPEED XFIXNUM (Fsymbol_value (Qcomp_speed))
-#define COMP_DEBUG XFIXNUM (Fsymbol_value (Qcomp_debug))
 
 #define STR_VALUE(s) #s
 #define STR(s) STR_VALUE (s)
@@ -485,6 +484,8 @@ enum cast_kind_of_type
 /* C side of the compiler context.  */
 
 typedef struct {
+  EMACS_INT speed;
+  EMACS_INT debug;
   gcc_jit_context *ctxt;
   gcc_jit_type *void_type;
   gcc_jit_type *bool_type;
@@ -579,8 +580,11 @@ typedef struct {
   gcc_jit_rvalue *data_relocs_impure;
   /* Same as before but content does not survive load phase. */
   gcc_jit_rvalue *data_relocs_ephemeral;
-  /* Synthesized struct holding func relocs.  */
+  /* Global structure holding function relocations.  */
   gcc_jit_lvalue *func_relocs;
+  gcc_jit_type *func_relocs_ptr_type;
+  /* Pointer to this structure local to each function.  */
+  gcc_jit_lvalue *func_relocs_local;
   gcc_jit_function *memcpy;
   Lisp_Object d_default_idx;
   Lisp_Object d_impure_idx;
@@ -780,8 +784,10 @@ hash_native_abi (void)
   eassert (NILP (Vcomp_abi_hash));
 
   Vcomp_abi_hash =
-    comp_hash_string (Fmapconcat (intern_c_string ("subr-name"),
-				  Vcomp_subr_list, build_string ("")));
+    comp_hash_string (
+      concat2 (build_string (ABI_VERSION),
+	       Fmapconcat (intern_c_string ("subr-name"),
+			   Vcomp_subr_list, build_string (""))));
   Lisp_Object separator = build_string ("-");
   Vcomp_native_version_dir =
     concat3 (Vemacs_version,
@@ -916,7 +922,7 @@ obj_to_reloc (Lisp_Object obj)
 static void
 emit_comment (const char *str)
 {
-  if (COMP_DEBUG)
+  if (comp.debug)
     gcc_jit_block_add_comment (comp.block,
 			       NULL,
 			       str);
@@ -964,12 +970,13 @@ declare_imported_func (Lisp_Object subr_sym, gcc_jit_type *ret_type,
 	   subr_sym, make_string ("R", 1));
 
   gcc_jit_type *f_ptr_type =
-    gcc_jit_context_new_function_ptr_type (comp.ctxt,
-					   NULL,
-					   ret_type,
-					   nargs,
-					   types,
-					   0);
+    gcc_jit_type_get_const (
+      gcc_jit_context_new_function_ptr_type (comp.ctxt,
+					     NULL,
+					     ret_type,
+					     nargs,
+					     types,
+					     0));
   gcc_jit_field *field =
     gcc_jit_context_new_field (comp.ctxt,
 			       NULL,
@@ -1009,9 +1016,17 @@ emit_call (Lisp_Object func, gcc_jit_type *ret_type, ptrdiff_t nargs,
     }
   else
     {
+      /* Inline functions so far don't have a local variable for
+	 function reloc table so we fall back to the global one.  Even
+	 if this is not aesthetic calling into C from open-code is
+	 always a fallback and therefore not be performance critical.
+	 To fix this could think do the inline our-self without
+	 relying on GCC. */
       gcc_jit_lvalue *f_ptr =
 	gcc_jit_rvalue_dereference_field (
-	  gcc_jit_lvalue_as_rvalue (comp.func_relocs),
+	  gcc_jit_lvalue_as_rvalue (comp.func_relocs_local
+				    ? comp.func_relocs_local
+				    : comp.func_relocs),
 	  NULL,
 	  (gcc_jit_field *) xmint_pointer (gcc_func));
 
@@ -1514,7 +1529,7 @@ emit_XFIXNUM (gcc_jit_rvalue *obj)
   emit_comment ("XFIXNUM");
   gcc_jit_rvalue *i = emit_coerce (comp.emacs_uint_type, emit_XLI (obj));
 
-  /* FIXME: Implementation dependent (both RSHIFT are arithmetics).  */
+  /* FIXME: Implementation dependent (both RSHIFT are arithmetic).  */
 
   if (!USE_LSB_TAG)
     {
@@ -1842,32 +1857,32 @@ emit_PURE_P (gcc_jit_rvalue *ptr)
 static gcc_jit_rvalue *
 emit_mvar_rval (Lisp_Object mvar)
 {
-  Lisp_Object const_vld = CALL1I (comp-mvar-const-vld, mvar);
-  Lisp_Object constant = CALL1I (comp-mvar-constant, mvar);
+  Lisp_Object const_vld = CALL1I (comp-mvar-value-vld-p, mvar);
 
   if (!NILP (const_vld))
     {
-      if (COMP_DEBUG > 1)
+      Lisp_Object value = CALL1I (comp-mvar-value, mvar);
+      if (comp.debug > 1)
 	{
 	  Lisp_Object func =
-	    Fgethash (constant,
+	    Fgethash (value,
 		      CALL1I (comp-ctxt-byte-func-to-func-h, Vcomp_ctxt),
 		      Qnil);
 
 	  emit_comment (
 	    SSDATA (
 	      Fprin1_to_string (
-		NILP (func) ? constant : CALL1I (comp-func-c-name, func),
+		NILP (func) ? value : CALL1I (comp-func-c-name, func),
 		Qnil)));
 	}
-      if (FIXNUMP (constant))
+      if (FIXNUMP (value))
 	{
 	  /* We can still emit directly objects that are self-contained in a
 	     word (read fixnums).  */
-          return emit_rvalue_from_lisp_obj (constant);
+          return emit_rvalue_from_lisp_obj (value);
 	}
       /* Other const objects are fetched from the reloc array.  */
-      return emit_lisp_obj_rval (constant);
+      return emit_lisp_obj_rval (value);
     }
 
   return gcc_jit_lvalue_as_rvalue (emit_mvar_lval (mvar));
@@ -2131,9 +2146,9 @@ emit_limple_insn (Lisp_Object insn)
 			       n);
       emit_cond_jump (test, target2, target1);
     }
-  else if (EQ (op, Qphi))
+  else if (EQ (op, Qphi) || EQ (op, Qassume))
     {
-      /* Nothing to do for phis into the backend.  */
+      /* Nothing to do for phis or assumes in the backend.  */
     }
   else if (EQ (op, Qpush_handler))
     {
@@ -2368,12 +2383,13 @@ static gcc_jit_rvalue *
 emit_call_with_type_hint (gcc_jit_function *func, Lisp_Object insn,
 			  Lisp_Object type)
 {
-  bool type_hint = EQ (CALL1I (comp-mvar-type, SECOND (insn)), type);
+  bool hint_match =
+    !NILP (CALL2I (comp-mvar-type-hint-match-p, SECOND (insn), type));
   gcc_jit_rvalue *args[] =
     { emit_mvar_rval (SECOND (insn)),
       gcc_jit_context_new_rvalue_from_int (comp.ctxt,
 					   comp.bool_type,
-					   type_hint) };
+					   hint_match) };
 
   return gcc_jit_context_new_call (comp.ctxt, NULL, func, 2, args);
 }
@@ -2383,13 +2399,14 @@ static gcc_jit_rvalue *
 emit_call2_with_type_hint (gcc_jit_function *func, Lisp_Object insn,
 			   Lisp_Object type)
 {
-  bool type_hint = EQ (CALL1I (comp-mvar-type, SECOND (insn)), type);
+  bool hint_match =
+    !NILP (CALL2I (comp-mvar-type-hint-match-p, SECOND (insn), type));
   gcc_jit_rvalue *args[] =
     { emit_mvar_rval (SECOND (insn)),
       emit_mvar_rval (THIRD (insn)),
       gcc_jit_context_new_rvalue_from_int (comp.ctxt,
 					   comp.bool_type,
-					   type_hint) };
+					   hint_match) };
 
   return gcc_jit_context_new_call (comp.ctxt, NULL, func, 3, args);
 }
@@ -2566,7 +2583,7 @@ emit_static_object (const char *name, Lisp_Object obj)
 				  0, NULL, 0);
   DECL_BLOCK (block, f);
 
-  if (COMP_DEBUG > 1)
+  if (comp.debug > 1)
     {
       char *comment = memcpy (xmalloc (len), p, len);
       for (ptrdiff_t i = 0; i < len - 1; i++)
@@ -2789,10 +2806,8 @@ emit_ctxt_code (void)
 {
   /* Emit optimize qualities.  */
   Lisp_Object opt_qly[] =
-    { Fcons (Qcomp_speed,
-	     Fsymbol_value (Qcomp_speed)),
-      Fcons (Qcomp_debug,
-	     Fsymbol_value (Qcomp_debug)),
+    { Fcons (Qcomp_speed, make_fixnum (comp.speed)),
+      Fcons (Qcomp_debug, make_fixnum (comp.debug)),
       Fcons (Qgccjit,
 	     Fcomp_libgccjit_version ()) };
   emit_static_object (TEXT_OPTIM_QLY_SYM, Flist (ARRAYELTS (opt_qly), opt_qly));
@@ -2858,13 +2873,16 @@ emit_ctxt_code (void)
 				     NULL,
 				     "freloc_link_table",
 				     n_frelocs, fields);
+  comp.func_relocs_ptr_type =
+    gcc_jit_type_get_pointer (
+      gcc_jit_struct_as_type (f_reloc_struct));
+
   comp.func_relocs =
-    gcc_jit_context_new_global (
-      comp.ctxt,
-      NULL,
-      GCC_JIT_GLOBAL_EXPORTED,
-      gcc_jit_type_get_pointer (gcc_jit_struct_as_type (f_reloc_struct)),
-      FUNC_LINK_TABLE_SYM);
+    gcc_jit_context_new_global (comp.ctxt,
+				NULL,
+				GCC_JIT_GLOBAL_EXPORTED,
+				comp.func_relocs_ptr_type,
+				FUNC_LINK_TABLE_SYM);
 
   xfree (fields);
 }
@@ -3777,7 +3795,7 @@ define_maybe_gc_or_quit (void)
     /* 9 translates into checking for GC or quit every 512 calls to
        'maybe_gc_quit'.  This is the smallest value I could find with
        no performance impact running elisp-banechmarks and the same
-       used by the byte intepreter (see 'exec_byte_code').  */
+       used by the byte interpreter (see 'exec_byte_code').  */
     maybe_do_it_block,
     pass_block);
 
@@ -3925,6 +3943,12 @@ compile_function (Lisp_Object func)
   comp.func_has_non_local = !NILP (CALL1I (comp-func-has-non-local, func));
   comp.func_speed = XFIXNUM (CALL1I (comp-func-speed, func));
 
+  comp.func_relocs_local =
+    gcc_jit_function_new_local (comp.func,
+				NULL,
+				comp.func_relocs_ptr_type,
+				"freloc");
+
   comp.frame = SAFE_ALLOCA (frame_size * sizeof (*comp.frame));
   if (comp.func_has_non_local || !comp.func_speed)
     {
@@ -3979,6 +4003,12 @@ compile_function (Lisp_Object func)
 	declare_block (HASH_KEY (ht, i));
     }
 
+  gcc_jit_block_add_assignment (retrive_block (Qentry),
+				NULL,
+				comp.func_relocs_local,
+				gcc_jit_lvalue_as_rvalue (comp.func_relocs));
+
+
   for (ptrdiff_t i = 0; i < ht->count; i++)
     {
       Lisp_Object block_name = HASH_KEY (ht, i);
@@ -4013,15 +4043,36 @@ compile_function (Lisp_Object func)
 /* In use by Fcomp_el_to_eln_filename.  */
 static Lisp_Object loadsearch_re_list;
 
+static Lisp_Object
+make_directory_wrapper (Lisp_Object directory)
+{
+  CALL2I (make-directory, directory, Qt);
+  return Qnil;
+}
+
+static Lisp_Object
+make_directory_wrapper_1 (Lisp_Object ignore)
+{
+  return Qt;
+}
+
 DEFUN ("comp-el-to-eln-filename", Fcomp_el_to_eln_filename,
        Scomp_el_to_eln_filename, 1, 2, 0,
-       doc: /* Given a source file return the corresponding .eln true filename.
+       doc: /* Return the corresponding .eln filename for source FILENAME.
 If BASE-DIR is nil use the first entry in `comp-eln-load-path'.  */)
   (Lisp_Object filename, Lisp_Object base_dir)
 {
   CHECK_STRING (filename);
 
-  filename = Fexpand_file_name (filename, Qnil);
+  /* Use `file-truename' or fall back to `expand-file-name' when the
+     first is not available (bug#44701).
+
+     `file-truename' is not available only for a short phases of the
+     bootstrap before file.el is loaded, given we do not symlink
+     inside the build directory this should work.  */
+  filename = NILP (Ffboundp (intern_c_string ("file-truename")))
+    ? Fexpand_file_name (filename, Qnil)
+    : CALL1I (file-truename, filename);
 
   if (NILP (Ffile_exists_p (filename)))
     xsignal1 (Qfile_missing, filename);
@@ -4043,34 +4094,22 @@ If BASE-DIR is nil use the first entry in `comp-eln-load-path'.  */)
      included in the hashing algorithm.
 
      As at any point in time no more then one file can exist with the
-     same filename, should be possibile to clean up all
+     same filename, should be possible to clean up all
      filename-path_hash-* except the most recent one (or the new one
      being recompiled).
 
      As installing .eln files compiled during the build changes their
      absolute path we need an hashing mechanism that is not sensitive
      to that.  For this we replace if match PATH_DUMPLOADSEARCH or
-     PATH_LOADSEARCH with '//' before generating the hash.  */
+     *PATH_REL_LOADSEARCH with '//' before computing the hash.  */
 
   if (NILP (loadsearch_re_list))
     {
-      Lisp_Object sys_re;
-#ifdef __APPLE__
-      /* On MacOS we relax the match on PATH_LOADSEARCH making
-	 everything before ".app/" a wildcard.  This to obtain a
-	 self-contained Emacs.app (bug#43532).  */
-      char *c;
-      if ((c = strstr (PATH_LOADSEARCH, ".app/")))
-	sys_re =
-	  concat2 (build_string ("\\`[[:ascii:]]+"),
-		   Fregexp_quote (build_string (c)));
-      else
-	sys_re = Fregexp_quote (build_string (PATH_LOADSEARCH));
-#else
-      sys_re = Fregexp_quote (build_string (PATH_LOADSEARCH));
-#endif
+      Lisp_Object sys_re =
+	concat2 (build_string ("\\`[[:ascii:]]+"),
+		 Fregexp_quote (build_string ("/" PATH_REL_LOADSEARCH "/")));
       loadsearch_re_list =
-	list2 (sys_re, Fregexp_quote (build_string (PATH_DUMPLOADSEARCH)));
+	list2 (sys_re, Fregexp_quote (build_string (PATH_DUMPLOADSEARCH "/")));
     }
 
   Lisp_Object lds_re_tail = loadsearch_re_list;
@@ -4092,8 +4131,39 @@ If BASE-DIR is nil use the first entry in `comp-eln-load-path'.  */)
 		      separator);
   Lisp_Object hash = concat3 (path_hash, separator, content_hash);
   filename = concat3 (filename, hash, build_string (NATIVE_ELISP_SUFFIX));
+
+  /* If base_dir was not specified search inside Vcomp_eln_load_path
+     for the first directory where we have write access.  */
   if (NILP (base_dir))
-    base_dir = XCAR (Vcomp_eln_load_path);
+    {
+      Lisp_Object eln_load_paths = Vcomp_eln_load_path;
+      FOR_EACH_TAIL (eln_load_paths)
+	{
+	  Lisp_Object dir = XCAR (eln_load_paths);
+	  if (!NILP (Ffile_exists_p (dir)))
+	    {
+	      if (!NILP (Ffile_writable_p (dir)))
+		{
+		  base_dir = dir;
+		  break;
+		}
+	    }
+	  else
+	    {
+	      /* Try to create the directory and if succeeds use it.  */
+	      if (NILP (internal_condition_case_1 (make_directory_wrapper,
+						   dir, Qt,
+						   make_directory_wrapper_1)))
+		{
+		  base_dir = dir;
+		  break;
+		}
+	    }
+	}
+      if (NILP (base_dir))
+	error ("Cannot find suitable directory for output in "
+	       "`comp-native-load-path'.");
+    }
 
   if (!file_name_absolute_p (SSDATA (base_dir)))
     base_dir = Fexpand_file_name (base_dir, Vinvocation_directory);
@@ -4102,9 +4172,44 @@ If BASE-DIR is nil use the first entry in `comp-eln-load-path'.  */)
 			    concat2 (base_dir, Vcomp_native_version_dir));
 }
 
+DEFUN ("comp--install-trampoline", Fcomp__install_trampoline,
+       Scomp__install_trampoline, 2, 2, 0,
+       doc: /* Install a TRAMPOLINE for primitive SUBR-NAME.  */)
+  (Lisp_Object subr_name, Lisp_Object trampoline)
+{
+  CHECK_SYMBOL (subr_name);
+  CHECK_SUBR (trampoline);
+  Lisp_Object orig_subr = Fsymbol_function (subr_name);
+  CHECK_SUBR (orig_subr);
+
+  /* FIXME: add a post dump load trampoline machinery to remove this
+     check.  */
+  if (will_dump_p ())
+    signal_error ("Trying to advice unexpected primitive before dumping",
+		  subr_name);
+
+  Lisp_Object subr_l = Vcomp_subr_list;
+  ptrdiff_t i = ARRAYELTS (helper_link_table);
+  FOR_EACH_TAIL (subr_l)
+    {
+      Lisp_Object subr = XCAR (subr_l);
+      if (EQ (subr, orig_subr))
+	{
+	  freloc.link_table[i] = XSUBR (trampoline)->function.a0;
+	  Fputhash (subr_name, trampoline, Vcomp_installed_trampolines_h);
+	  return Qt;
+	}
+      i++;
+    }
+    signal_error ("Trying to install trampoline for non existent subr",
+		  subr_name);
+    return Qnil;
+}
+
 DEFUN ("comp--init-ctxt", Fcomp__init_ctxt, Scomp__init_ctxt,
        0, 0, 0,
-       doc: /* Initialize the native compiler context. Return t on success.  */)
+       doc: /* Initialize the native compiler context.
+Return t on success.  */)
   (void)
 {
   load_gccjit_if_necessary (true);
@@ -4145,26 +4250,6 @@ DEFUN ("comp--init-ctxt", Fcomp__init_ctxt, Scomp__init_ctxt,
     }
 
   comp.ctxt = gcc_jit_context_acquire ();
-
-  if (COMP_DEBUG)
-    {
-      gcc_jit_context_set_bool_option (comp.ctxt,
-				       GCC_JIT_BOOL_OPTION_DEBUGINFO,
-				       1);
-    }
-  if (COMP_DEBUG > 2)
-    {
-      logfile = fopen ("libgccjit.log", "w");
-      gcc_jit_context_set_logfile (comp.ctxt,
-				   logfile,
-				   0, 0);
-      gcc_jit_context_set_bool_option (comp.ctxt,
-				       GCC_JIT_BOOL_OPTION_KEEP_INTERMEDIATES,
-				       1);
-      gcc_jit_context_set_bool_option (comp.ctxt,
-				       GCC_JIT_BOOL_OPTION_DUMP_EVERYTHING,
-				       1);
-    }
 
   comp.void_type = gcc_jit_context_get_type (comp.ctxt, GCC_JIT_TYPE_VOID);
   comp.void_ptr_type =
@@ -4282,8 +4367,7 @@ DEFUN ("comp-native-driver-options-effective-p",
        Fcomp_native_driver_options_effective_p,
        Scomp_native_driver_options_effective_p,
        0, 0, 0,
-       doc: /* Return t if `comp-native-driver-options' is
-	       effective nil otherwise.  */)
+       doc: /* Return t if `comp-native-driver-options' is effective.  */)
   (void)
 {
 #if defined (LIBGCCJIT_HAVE_gcc_jit_context_add_driver_option)  \
@@ -4329,18 +4413,41 @@ restore_sigmask (void)
 DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
        Scomp__compile_ctxt_to_file,
        1, 1, 0,
-       doc: /* Compile as native code the current context to file.  */)
-  (Lisp_Object file_name)
+       doc: /* Compile the current context as native code to file FILENAME.  */)
+  (Lisp_Object filename)
 {
   load_gccjit_if_necessary (true);
 
-  CHECK_STRING (file_name);
-  Lisp_Object base_name = Fsubstring (file_name, Qnil, make_fixnum (-4));
+  CHECK_STRING (filename);
+  Lisp_Object base_name = Fsubstring (filename, Qnil, make_fixnum (-4));
+
+  comp.func_relocs_local = NULL;
+
+  comp.speed = XFIXNUM (CALL1I (comp-ctxt-speed, Vcomp_ctxt));
+  comp.debug = XFIXNUM (CALL1I (comp-ctxt-debug, Vcomp_ctxt));
+
+  if (comp.debug)
+      gcc_jit_context_set_bool_option (comp.ctxt,
+				       GCC_JIT_BOOL_OPTION_DEBUGINFO,
+				       1);
+  if (comp.debug > 2)
+    {
+      logfile = fopen ("libgccjit.log", "w");
+      gcc_jit_context_set_logfile (comp.ctxt,
+				   logfile,
+				   0, 0);
+      gcc_jit_context_set_bool_option (comp.ctxt,
+				       GCC_JIT_BOOL_OPTION_KEEP_INTERMEDIATES,
+				       1);
+      gcc_jit_context_set_bool_option (comp.ctxt,
+				       GCC_JIT_BOOL_OPTION_DUMP_EVERYTHING,
+				       1);
+    }
 
   gcc_jit_context_set_int_option (comp.ctxt,
 				  GCC_JIT_INT_OPTION_OPTIMIZATION_LEVEL,
-				  COMP_SPEED < 0 ? 0
-				  : (COMP_SPEED > 3 ? 3 : COMP_SPEED));
+				  comp.speed < 0 ? 0
+				  : (comp.speed > 3 ? 3 : comp.speed));
   comp.d_default_idx =
     CALL1I (comp-data-container-idx, CALL1I (comp-ctxt-d-default, Vcomp_ctxt));
   comp.d_impure_idx =
@@ -4390,11 +4497,11 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
 
   add_driver_options ();
 
-  if (COMP_DEBUG)
+  if (comp.debug)
       gcc_jit_context_dump_to_file (comp.ctxt,
 				    format_string ("%s.c", SSDATA (base_name)),
 				    1);
-  if (COMP_DEBUG > 2)
+  if (comp.debug > 2)
     gcc_jit_context_dump_reproducer_to_file (comp.ctxt, "comp_reproducer.c");
 
   Lisp_Object tmp_file =
@@ -4407,22 +4514,24 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
   if (err)
     xsignal3 (Qnative_ice,
 	      build_string ("failed to compile"),
-	      file_name,
+	      filename,
 	      build_string (err));
 
-  CALL1I (comp-clean-up-stale-eln, file_name);
-  CALL2I (comp-delete-or-replace-file, file_name, tmp_file);
+  CALL1I (comp-clean-up-stale-eln, filename);
+  CALL2I (comp-delete-or-replace-file, filename, tmp_file);
 
   if (!noninteractive)
     unbind_to (count, Qnil);
 
-  return file_name;
+  return filename;
 }
 
 DEFUN ("comp-libgccjit-version", Fcomp_libgccjit_version,
        Scomp_libgccjit_version, 0, 0, 0,
-       doc: /* Return the libgccjit version in use in the form
-(MAJOR MINOR PATCHLEVEL) or nil if unknown (pre GCC10).  */)
+       doc: /* Return libgccjit version in use.
+
+The return value has the form (MAJOR MINOR PATCHLEVEL) or nil if
+unknown (before GCC version 10).  */)
   (void)
 {
 #if defined (LIBGCCJIT_HAVE_gcc_jit_version) || defined (WINDOWSNT)
@@ -4537,7 +4646,7 @@ register_native_comp_unit (Lisp_Object comp_u)
    loaded the compiler and its dependencies.  */
 static Lisp_Object delayed_sources;
 
-/* Queue an asyncronous compilation for the source file defining
+/* Queue an asynchronous compilation for the source file defining
    FUNCTION_NAME and perform a late load.
 
    NOTE: ideally would be nice to move its call simply into Fload but
@@ -4591,19 +4700,19 @@ maybe_defer_native_compilation (Lisp_Object function_name,
     }
 
   /* This is to have deferred compilaiton able to compile comp
-     dependecies breaking circularity.  */
+     dependencies breaking circularity.  */
   if (!NILP (Ffeaturep (Qcomp, Qnil)))
     {
       /* Comp already loaded.  */
       if (!NILP (delayed_sources))
 	{
-	  CALLN (Ffuncall, intern_c_string ("native-compile-async"),
+	  CALLN (Ffuncall, intern_c_string ("native--compile-async"),
 		 delayed_sources, Qnil, Qlate);
 	  delayed_sources = Qnil;
 	}
       Fputhash (function_name, definition, Vcomp_deferred_pending_h);
-      CALLN (Ffuncall, intern_c_string ("native-compile-async"), src, Qnil,
-	     Qlate);
+      CALLN (Ffuncall, intern_c_string ("native--compile-async"),
+	     src, Qnil, Qlate);
     }
   else
     {
@@ -4702,10 +4811,11 @@ unset_cu_load_ongoing (Lisp_Object comp_u)
   XNATIVE_COMP_UNIT (comp_u)->load_ongoing = false;
 }
 
-void
+Lisp_Object
 load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u, bool loading_dump,
 		bool late_load)
 {
+  Lisp_Object res = Qnil;
   dynlib_handle_ptr handle = comp_u->handle;
   Lisp_Object comp_u_lisp_obj;
   XSETNATIVE_COMP_UNIT (comp_u_lisp_obj, comp_u);
@@ -4831,7 +4941,7 @@ load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u, bool loading_dump,
 	}
       /* Executing this will perform all the expected environment
 	 modifications.  */
-      top_level_run (comp_u_lisp_obj);
+      res = top_level_run (comp_u_lisp_obj);
       /* Make sure data_ephemeral_vec still exists after top_level_run has run.
 	 Guard against sibling call optimization (or any other).  */
       data_ephemeral_vec = data_ephemeral_vec;
@@ -4844,7 +4954,7 @@ load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u, bool loading_dump,
 
   register_native_comp_unit (comp_u_lisp_obj);
 
-  return;
+  return res;
 }
 
 Lisp_Object
@@ -4903,8 +5013,8 @@ make_subr (Lisp_Object symbol_name, Lisp_Object minarg, Lisp_Object maxarg,
 
 DEFUN ("comp--register-lambda", Fcomp__register_lambda, Scomp__register_lambda,
        7, 7, 0,
-       doc: /* This gets called by top_level_run during load phase to register
-	       anonymous lambdas.  */)
+       doc: /* Register anonymous lambda.
+This gets called by top_level_run during the load phase.  */)
   (Lisp_Object reloc_idx, Lisp_Object minarg, Lisp_Object maxarg,
    Lisp_Object c_name, Lisp_Object doc_idx, Lisp_Object intspec,
    Lisp_Object comp_u)
@@ -4931,8 +5041,8 @@ DEFUN ("comp--register-lambda", Fcomp__register_lambda, Scomp__register_lambda,
 
 DEFUN ("comp--register-subr", Fcomp__register_subr, Scomp__register_subr,
        7, 7, 0,
-       doc: /* This gets called by top_level_run during load phase to register
-	       each exported subr.  */)
+       doc: /* Register exported subr.
+This gets called by top_level_run during the load phase.  */)
   (Lisp_Object name, Lisp_Object minarg, Lisp_Object maxarg,
    Lisp_Object c_name, Lisp_Object doc_idx, Lisp_Object intspec,
    Lisp_Object comp_u)
@@ -4941,6 +5051,9 @@ DEFUN ("comp--register-subr", Fcomp__register_subr, Scomp__register_subr,
     make_subr (SYMBOL_NAME (name), minarg, maxarg, c_name, doc_idx, intspec,
 	       comp_u);
 
+  if (AUTOLOADP (XSYMBOL (name)->u.s.function))
+    /* Remember that the function was already an autoload.  */
+    LOADHIST_ATTACH (Fcons (Qt, name));
   LOADHIST_ATTACH (Fcons (Qdefun, name));
 
   { /* Handle automatic advice activation (bug#42038).
@@ -4957,8 +5070,8 @@ DEFUN ("comp--register-subr", Fcomp__register_subr, Scomp__register_subr,
 
 DEFUN ("comp--late-register-subr", Fcomp__late_register_subr,
        Scomp__late_register_subr, 7, 7, 0,
-       doc: /* This gets called by late_top_level_run during load
-	       phase to register each exported subr.  */)
+       doc: /* Register exported subr.
+This gets called by late_top_level_run during the load phase.  */)
   (Lisp_Object name, Lisp_Object minarg, Lisp_Object maxarg,
    Lisp_Object c_name, Lisp_Object doc, Lisp_Object intspec,
    Lisp_Object comp_u)
@@ -4985,8 +5098,7 @@ file_in_eln_sys_dir (Lisp_Object filename)
 /* Load related routines.  */
 DEFUN ("native-elisp-load", Fnative_elisp_load, Snative_elisp_load, 1, 2, 0,
        doc: /* Load native elisp code FILENAME.
-	       LATE_LOAD has to be non nil when loading for deferred
-	       compilation.  */)
+LATE_LOAD has to be non-nil when loading for deferred compilation.  */)
   (Lisp_Object filename, Lisp_Object late_load)
 {
   CHECK_STRING (filename);
@@ -5024,17 +5136,14 @@ DEFUN ("native-elisp-load", Fnative_elisp_load, Snative_elisp_load, 1, 2, 0,
   comp_u->data_vec = Qnil;
   comp_u->lambda_gc_guard_h = CALLN (Fmake_hash_table, QCtest, Qeq);
   comp_u->lambda_c_name_idx_h = CALLN (Fmake_hash_table, QCtest, Qequal);
-  load_comp_unit (comp_u, false, !NILP (late_load));
-
-  return Qt;
+  return load_comp_unit (comp_u, false, !NILP (late_load));
 }
 
 #endif /* HAVE_NATIVE_COMP */
 
 DEFUN ("native-comp-available-p", Fnative_comp_available_p,
        Snative_comp_available_p, 0, 0, 0,
-       doc: /* Returns t if native compilation of Lisp files is available in
-this instance of Emacs. */)
+       doc: /* Return non-nil if native compilation support is built-in.  */)
   (void)
 {
 #ifdef HAVE_NATIVE_COMP
@@ -5051,11 +5160,10 @@ syms_of_comp (void)
 #ifdef HAVE_NATIVE_COMP
   /* Compiler control customizes.  */
   DEFVAR_BOOL ("comp-deferred-compilation", comp_deferred_compilation,
-	       doc: /* If non-nil compile asyncronously all .elc files
-being loaded.
+	       doc: /* If non-nil compile loaded .elc files asynchronously.
 
-Once compilation happened each function definition is updated to the
-native compiled one.  */);
+After compilation, each function definition is updated to the native
+compiled one.  */);
   comp_deferred_compilation = true;
 
   DEFSYM (Qcomp_speed, "comp-speed");
@@ -5069,6 +5177,7 @@ native compiled one.  */);
   DEFSYM (Qcallref, "callref");
   DEFSYM (Qdirect_call, "direct-call");
   DEFSYM (Qdirect_callref, "direct-callref");
+  DEFSYM (Qassume, "assume");
   DEFSYM (Qsetimm, "setimm");
   DEFSYM (Qreturn, "return");
   DEFSYM (Qcomp_mvar, "comp-mvar");
@@ -5119,6 +5228,7 @@ native compiled one.  */);
   DEFSYM (Qlate, "late");
   DEFSYM (Qlambda_fixup, "lambda-fixup");
   DEFSYM (Qgccjit, "gccjit");
+  DEFSYM (Qcomp_subr_trampoline_install, "comp-subr-trampoline-install")
 
   /* To be signaled by the compiler.  */
   DEFSYM (Qnative_compiler_error, "native-compiler-error");
@@ -5162,6 +5272,7 @@ native compiled one.  */);
 
   defsubr (&Scomp_el_to_eln_filename);
   defsubr (&Scomp_native_driver_options_effective_p);
+  defsubr (&Scomp__install_trampoline);
   defsubr (&Scomp__init_ctxt);
   defsubr (&Scomp__release_ctxt);
   defsubr (&Scomp__compile_ctxt_to_file);
@@ -5196,15 +5307,15 @@ native compiled one.  */);
   DEFVAR_LISP ("comp-subr-list", Vcomp_subr_list,
 	       doc: /* List of all defined subrs.  */);
   DEFVAR_LISP ("comp-abi-hash", Vcomp_abi_hash,
-	       doc: /* String signing the ABI exposed to .eln files.  */);
+	       doc: /* String signing the .eln files ABI.  */);
   Vcomp_abi_hash = Qnil;
   DEFVAR_LISP ("comp-native-version-dir", Vcomp_native_version_dir,
 	       doc: /* Directory in use to disambiguate eln compatibility.  */);
   Vcomp_native_version_dir = Qnil;
 
   DEFVAR_LISP ("comp-deferred-pending-h", Vcomp_deferred_pending_h,
-	       doc: /* Hash table symbol-name -> function-value.  For
-		       internal use during  */);
+	       doc: /* Hash table symbol-name -> function-value.
+For internal use.  */);
   Vcomp_deferred_pending_h = CALLN (Fmake_hash_table, QCtest, Qeq);
 
   DEFVAR_LISP ("comp-eln-to-el-h", Vcomp_eln_to_el_h,
@@ -5218,11 +5329,22 @@ If a directory is non absolute is assumed to be relative to
 `invocation-directory'.
 The last directory of this list is assumed to be the system one.  */);
 
-  /* Temporary value in use for boostrap.  We can't do better as
+  /* Temporary value in use for bootstrap.  We can't do better as
      `invocation-directory' is still unset, will be fixed up during
      dump reload.  */
   Vcomp_eln_load_path = Fcons (build_string ("../native-lisp/"), Qnil);
 
+  DEFVAR_BOOL ("comp-enable-subr-trampolines", comp_enable_subr_trampolines,
+	       doc: /* If non-nil, enable trampoline synthesis triggered by `fset'.
+This makes primitives redefinable effectively.  */);
+
+  DEFVAR_LISP ("comp-installed-trampolines-h", Vcomp_installed_trampolines_h,
+	       doc: /* Hash table subr-name -> installed trampoline.
+This is used to prevent double trampoline instantiation but also to
+protect the trampolines against GC.  */);
+  Vcomp_installed_trampolines_h = CALLN (Fmake_hash_table);
+
+  Fprovide (intern_c_string ("nativecomp"), Qnil);
 #endif /* #ifdef HAVE_NATIVE_COMP */
 
   defsubr (&Snative_comp_available_p);

@@ -123,13 +123,12 @@
 ;;  full advantage of this package
 ;;
 ;;  (add-hook 'term-mode-hook
-;;  	      (function
-;;  	       (lambda ()
-;;  	             (setq term-prompt-regexp "^[^#$%>\n]*[#$%>] *")
-;;  	             (setq-local mouse-yank-at-point t)
-;;  	             (setq-local transient-mark-mode nil)
-;;  	             (auto-fill-mode -1)
-;;  	             (setq tab-width 8 ))))
+;;            (lambda ()
+;;              (setq term-prompt-regexp "^[^#$%>\n]*[#$%>] *")
+;;              (setq-local mouse-yank-at-point t)
+;;              (setq-local transient-mark-mode nil)
+;;              (auto-fill-mode -1)
+;;              (setq tab-width 8)))
 ;;
 ;;             ----------------------------------------
 ;;
@@ -300,17 +299,13 @@
 ;; so it is important to increase it if there are protocol-relevant changes.
 (defconst term-protocol-version "0.96")
 
-(eval-when-compile (require 'ange-ftp))
-(eval-when-compile (require 'cl-lib))
-(require 'ring)
-(require 'ehelp)
+(eval-when-compile
+  (require 'ange-ftp)
+  (require 'cl-lib))
 (require 'comint) ; Password regexp.
-
-(declare-function ring-empty-p "ring" (ring))
-(declare-function ring-ref "ring" (ring index))
-(declare-function ring-insert-at-beginning "ring" (ring item))
-(declare-function ring-length "ring" (ring))
-(declare-function ring-insert "ring" (ring item))
+(require 'ehelp)
+(require 'ring)
+(require 'shell)
 
 (defgroup term nil
   "General command interpreter in a window."
@@ -393,11 +388,6 @@ by moving term-home-marker.  It is set to t if there is a
 (defvar term-pager-old-filter) ; Saved process-filter while paging.
 (defvar-local term-line-mode-buffer-read-only nil
   "The `buffer-read-only' state to set in `term-line-mode'.")
-
-(defcustom explicit-shell-file-name nil
-  "If non-nil, is file name to use for explicitly requested inferior shell."
-  :type '(choice (const nil) file)
-  :group 'term)
 
 (defvar term-prompt-regexp "^"
   "Regexp to recognize prompts in the inferior process.
@@ -554,7 +544,7 @@ See also `term-dynamic-complete'.
 This is a good thing to set in mode hooks.")
 
 (defvar term-input-filter
-  (function (lambda (str) (not (string-match "\\`\\s *\\'" str))))
+  (lambda (str) (not (string-match "\\`\\s *\\'" str)))
   "Predicate for filtering additions to input history.
 Only inputs answering true to this function are saved on the input
 history list.  Default is to save anything that isn't all whitespace.")
@@ -860,6 +850,7 @@ is buffer-local."
     (define-key map [prior] 'term-send-prior)
     (define-key map [next] 'term-send-next)
     (define-key map [xterm-paste] #'term--xterm-paste)
+    (define-key map [?\C-/] #'term-send-C-_)
     map)
   "Keyboard map for sending characters directly to the inferior process.")
 
@@ -1107,8 +1098,6 @@ Entry to this mode runs the hooks on `term-mode-hook'."
 
   (term--reset-scroll-region)
 
-  (easy-menu-add term-terminal-menu)
-  (easy-menu-add term-signals-menu)
   (or term-input-ring
       (setq term-input-ring (make-ring term-input-ring-size)))
   (term-update-mode-line))
@@ -1282,6 +1271,7 @@ without any interpretation."
 (defun term-send-next  () (interactive) (term-send-raw-string "\e[6~"))
 (defun term-send-del   () (interactive) (term-send-raw-string "\e[3~"))
 (defun term-send-backspace  () (interactive) (term-send-raw-string "\C-?"))
+(defun term-send-C-_  () (interactive) (term-send-raw-string "\C-_"))
 
 (defun term-char-mode ()
   "Switch to char (\"raw\") sub-mode of term mode.
@@ -1292,8 +1282,6 @@ intervention from Emacs, except for the escape character (usually C-c)."
   (when (term-in-line-mode)
     (setq term-old-mode-map (current-local-map))
     (use-local-map term-raw-map)
-    (easy-menu-add term-terminal-menu)
-    (easy-menu-add term-signals-menu)
 
     ;; Don't allow changes to the buffer or to point which are not
     ;; caused by the process filter.
@@ -1575,9 +1563,9 @@ Nil if unknown.")
             process-environment))
     (apply #'start-process name buffer
 	   "/bin/sh" "-c"
-	   (format "stty -nl echo rows %d columns %d sane 2>/dev/null;\
+	   (format "stty -nl echo rows %d columns %d sane 2>%s;\
 if [ $1 = .. ]; then shift; fi; exec \"$@\""
-		   term-height term-width)
+		   term-height term-width null-device)
 	   ".."
 	   command switches)))
 
@@ -2803,7 +2791,7 @@ See `term-prompt-regexp'."
 
 ;; References:
 ;; [ctlseqs]: http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
-;; [ECMA-48]: http://www.ecma-international.org/publications/standards/Ecma-048.htm
+;; [ECMA-48]: https://www.ecma-international.org/publications/standards/Ecma-048.htm
 ;; [vt100]: https://vt100.net/docs/vt100-ug/chapter3.html
 
 (defconst term-control-seq-regexp
@@ -3549,9 +3537,6 @@ The top-most line is line 0."
   ;;   (stop-process process))
   (setq term-pager-old-local-map (current-local-map))
   (use-local-map term-pager-break-map)
-  (easy-menu-add term-terminal-menu)
-  (easy-menu-add term-signals-menu)
-  (easy-menu-add term-pager-menu)
   (make-local-variable 'term-old-mode-line-format)
   (setq term-old-mode-line-format mode-line-format)
   (setq mode-line-format
@@ -3638,8 +3623,8 @@ The top-most line is line 0."
   (message "Terminal-emulator pager break help...")
   (sit-for 0)
   (with-electric-help
-    (function (lambda ()
-		(princ (substitute-command-keys
+    (lambda ()
+      (princ (substitute-command-keys
 "\\<term-pager-break-map>\
 Terminal-emulator MORE break.\n\
 Type one of the following keys:\n\n\
@@ -3657,7 +3642,7 @@ Type one of the following keys:\n\n\
 Any other key is passed through to the program
 running under the terminal emulator and disables pager processing until
 all pending output has been dealt with."))
-		nil))))
+      nil)))
 
 (defun term-pager-continue (new-count)
   (let ((process (get-buffer-process (current-buffer))))

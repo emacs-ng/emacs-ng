@@ -62,8 +62,9 @@ struct buffer buffer_defaults;
 
 /* This structure marks which slots in a buffer have corresponding
    default values in buffer_defaults.
-   Each such slot has a nonzero value in this structure.
-   The value has only one nonzero bit.
+   Each such slot has a value in this structure.
+   The value is a positive Lisp integer that must be smaller than
+   MAX_PER_BUFFER_VARS.
 
    When a buffer has its own local value for a slot,
    the entry for that slot (found in the same slot in this structure)
@@ -295,11 +296,6 @@ static void
 bset_mark (struct buffer *b, Lisp_Object val)
 {
   b->mark_ = val;
-}
-static void
-bset_minor_modes (struct buffer *b, Lisp_Object val)
-{
-  b->minor_modes_ = val;
 }
 static void
 bset_mode_line_format (struct buffer *b, Lisp_Object val)
@@ -1004,7 +1000,6 @@ reset_buffer_local_variables (struct buffer *b, bool permanent_too)
   bset_major_mode (b, Qfundamental_mode);
   bset_keymap (b, Qnil);
   bset_mode_name (b, QSFundamental);
-  bset_minor_modes (b, Qnil);
 
   /* If the standard case table has been altered and invalidated,
      fix up its insides first.  */
@@ -5180,7 +5175,6 @@ init_buffer_once (void)
   bset_upcase_table (&buffer_local_flags, make_fixnum (0));
   bset_case_canon_table (&buffer_local_flags, make_fixnum (0));
   bset_case_eqv_table (&buffer_local_flags, make_fixnum (0));
-  bset_minor_modes (&buffer_local_flags, make_fixnum (0));
   bset_width_table (&buffer_local_flags, make_fixnum (0));
   bset_pt_marker (&buffer_local_flags, make_fixnum (0));
   bset_begv_marker (&buffer_local_flags, make_fixnum (0));
@@ -5645,6 +5639,9 @@ Use the command `abbrev-mode' to change this variable.  */);
   DEFVAR_PER_BUFFER ("fill-column", &BVAR (current_buffer, fill_column),
 		     Qintegerp,
 		     doc: /* Column beyond which automatic line-wrapping should happen.
+It is used by filling commands, such as `fill-region' and `fill-paragraph',
+and by `auto-fill-mode', which see.
+See also `current-fill-column'.
 Interactively, you can set the buffer local value using \\[set-fill-column].  */);
 
   DEFVAR_PER_BUFFER ("left-margin", &BVAR (current_buffer, left_margin),

@@ -100,6 +100,13 @@ To change the default value, use \\[customize] or call the function
   :set #'grep-apply-setting
   :version "22.1")
 
+(defcustom grep-match-regexp "\033\\[0?1;31m\\(.*?\\)\033\\[[0-9]*m"
+  "Regular expression matching grep markers to highlight.
+It matches SGR ANSI escape sequences which are emitted by grep to
+color its output.  This variable is used in `grep-filter'."
+  :type 'regexp
+  :version "28.1")
+
 (defcustom grep-scroll-output nil
   "Non-nil to scroll the *grep* buffer window as output appears.
 
@@ -289,8 +296,10 @@ See `compilation-error-screen-columns'."
 		  :help "Kill the currently running grep process"))
     (define-key map [menu-bar grep compilation-separator2] '("----"))
     (define-key map [menu-bar grep compilation-compile]
-      '(menu-item "Compile..." compile
-		  :help "Compile the program including the current buffer.  Default: run `make'"))
+      '(menu-item
+        "Compile..." compile
+	:help
+        "Compile the program including the current buffer.  Default: run `make'"))
     (define-key map [menu-bar grep compilation-rgrep]
       '(menu-item "Recursive grep..." rgrep
 		  :help "User-friendly recursive grep in directory tree"))
@@ -301,15 +310,18 @@ See `compilation-error-screen-columns'."
       '(menu-item "Grep via Find..." grep-find
 		  :help "Run grep via find, with user-specified args"))
     (define-key map [menu-bar grep compilation-grep]
-      '(menu-item "Another grep..." grep
-		  :help "Run grep, with user-specified args, and collect output in a buffer."))
+      '(menu-item
+        "Another grep..." grep
+	:help
+        "Run grep, with user-specified args, and collect output in a buffer."))
     (define-key map [menu-bar grep compilation-recompile]
       '(menu-item "Repeat grep" recompile
 		  :help "Run grep again"))
     (define-key map [menu-bar grep compilation-separator1] '("----"))
     (define-key map [menu-bar grep compilation-first-error]
-      '(menu-item "First Match" first-error
-		  :help "Restart at the first match, visit corresponding location"))
+      '(menu-item
+        "First Match" first-error
+	:help "Restart at the first match, visit corresponding location"))
     (define-key map [menu-bar grep compilation-previous-error]
       '(menu-item "Previous Match" previous-error
 		  :help "Visit the previous match and corresponding location"))
@@ -382,7 +394,8 @@ Notice that using \\[next-error] or \\[compile-goto-error] modifies
          (when grep-highlight-matches
            (let* ((beg (match-end 0))
                   (end (save-excursion (goto-char beg) (line-end-position)))
-                  (mbeg (text-property-any beg end 'font-lock-face grep-match-face)))
+                  (mbeg
+                   (text-property-any beg end 'font-lock-face grep-match-face)))
              (when mbeg
                (- mbeg beg)))))
       .
@@ -390,8 +403,11 @@ Notice that using \\[next-error] or \\[compile-goto-error] modifies
          (when grep-highlight-matches
            (let* ((beg (match-end 0))
                   (end (save-excursion (goto-char beg) (line-end-position)))
-                  (mbeg (text-property-any beg end 'font-lock-face grep-match-face))
-                  (mend (and mbeg (next-single-property-change mbeg 'font-lock-face nil end))))
+                  (mbeg
+                   (text-property-any beg end 'font-lock-face grep-match-face))
+                  (mend
+                   (and mbeg (next-single-property-change
+                              mbeg 'font-lock-face nil end))))
              (when mend
                (- mend beg))))))
      nil nil
@@ -590,7 +606,7 @@ This function is called from `compilation-filter-hook'."
       (when (< (point) end)
         (setq end (copy-marker end))
         ;; Highlight grep matches and delete marking sequences.
-        (while (re-search-forward "\033\\[0?1;31m\\(.*?\\)\033\\[[0-9]*m" end 1)
+        (while (re-search-forward grep-match-regexp end 1)
           (replace-match (propertize (match-string 1)
                                      'face nil 'font-lock-face grep-match-face)
                          t t)
@@ -606,6 +622,15 @@ This function is called from `compilation-filter-hook'."
 	       (apply (or func #'process-file) command args)
 	     (error nil))
 	   (or result 0))))
+
+(defun grep-hello-file ()
+  (let ((result
+         (if (file-remote-p default-directory)
+             (make-temp-file (file-name-as-directory (temporary-file-directory)))
+           (expand-file-name "HELLO" data-directory))))
+    (when (file-remote-p result)
+      (write-region "Copyright\n" nil result))
+    result))
 
 ;;;###autoload
 (defun grep-compute-defaults ()
@@ -648,37 +673,46 @@ The value depends on `grep-command', `grep-template',
     (unless (or (not grep-use-null-device) (eq grep-use-null-device t))
       (setq grep-use-null-device
 	    (with-temp-buffer
-	      (let ((hello-file (expand-file-name "HELLO" data-directory)))
-		(not
-		 (and (if grep-command
-			  ;; `grep-command' is already set, so
-			  ;; use that for testing.
-			  (grep-probe grep-command
-				      `(nil t nil "^Copyright" ,hello-file)
-				      #'call-process-shell-command)
-			;; otherwise use `grep-program'
-			(grep-probe grep-program
-				    `(nil t nil "-nH" "^Copyright" ,hello-file)))
-		      (progn
-			(goto-char (point-min))
-			(looking-at
-			 (concat (regexp-quote hello-file)
-				 ":[0-9]+:Copyright")))))))))
+	      (let ((hello-file (grep-hello-file)))
+                (prog1
+		    (not
+		     (and (if grep-command
+			      ;; `grep-command' is already set, so
+			      ;; use that for testing.
+			      (grep-probe
+                               grep-command
+			       `(nil t nil "^Copyright"
+                                     ,(file-local-name hello-file))
+			       #'process-file-shell-command)
+			    ;; otherwise use `grep-program'
+			    (grep-probe
+                             grep-program
+			     `(nil t nil "-nH" "^Copyright"
+                                   ,(file-local-name hello-file))))
+		          (progn
+			    (goto-char (point-min))
+			    (looking-at
+			     (concat (regexp-quote (file-local-name hello-file))
+				     ":[0-9]+:Copyright")))))
+                  (when (file-remote-p hello-file) (delete-file hello-file)))))))
 
     (when (eq grep-use-null-filename-separator 'auto-detect)
       (setq grep-use-null-filename-separator
             (with-temp-buffer
-              (let* ((hello-file (expand-file-name "HELLO" data-directory))
-                     (args `("--null" "-ne" "^Copyright" ,hello-file)))
+              (let* ((hello-file (grep-hello-file))
+                     (args `("--null" "-ne" "^Copyright"
+                             ,(file-local-name hello-file))))
                 (if grep-use-null-device
-                    (setq args (append args (list null-device)))
+                    (setq args (append args (list (null-device))))
                   (push "-H" args))
-                (and (grep-probe grep-program `(nil t nil ,@args))
-                     (progn
-                       (goto-char (point-min))
-                       (looking-at
-                        (concat (regexp-quote hello-file)
-                                "\0[0-9]+:Copyright"))))))))
+                (prog1
+                    (and (grep-probe grep-program `(nil t nil ,@args))
+                         (progn
+                           (goto-char (point-min))
+                           (looking-at
+                            (concat (regexp-quote (file-local-name hello-file))
+                                    "\0[0-9]+:Copyright"))))
+                  (when (file-remote-p hello-file) (delete-file hello-file)))))))
 
     (when (eq grep-highlight-matches 'auto-detect)
       (setq grep-highlight-matches
@@ -696,22 +730,23 @@ The value depends on `grep-command', `grep-template',
       (let ((grep-options
 	     (concat (if grep-use-null-device "-n" "-nH")
                      (if grep-use-null-filename-separator " --null")
-		     (if (grep-probe grep-program
-				     `(nil nil nil "-e" "foo" ,null-device)
-				     nil 1)
-			 " -e"))))
+                     (when (grep-probe grep-program
+                                       `(nil nil nil "-e" "foo" ,(null-device))
+                                       nil 1)
+                       " -e"))))
 	(unless grep-command
 	  (setq grep-command
 		(format "%s %s %s " grep-program
                         (or
                          (and grep-highlight-matches
-                              (grep-probe grep-program
-                                          `(nil nil nil "--color" "x" ,null-device)
-                                          nil 1)
+                              (grep-probe
+                               grep-program
+                               `(nil nil nil "--color" "x" ,(null-device))
+                               nil 1)
                               (if (eq grep-highlight-matches 'always)
                                   "--color=always" "--color"))
                          "")
-                         grep-options)))
+                        grep-options)))
 	(unless grep-template
 	  (setq grep-template
 		(format "%s <X> <C> %s <R> <F>" grep-program grep-options)))
@@ -719,11 +754,12 @@ The value depends on `grep-command', `grep-template',
 	  (setq grep-find-use-xargs
 		(cond
 		 ((grep-probe find-program
-			      `(nil nil nil ,null-device "-exec" "echo"
+			      `(nil nil nil ,(null-device) "-exec" "echo"
 				    "{}" "+"))
 		  'exec-plus)
 		 ((and
-		   (grep-probe find-program `(nil nil nil ,null-device "-print0"))
+		   (grep-probe
+                    find-program `(nil nil nil ,(null-device) "-print0"))
 		   (grep-probe xargs-program '(nil nil nil "-0" "echo")))
 		  'gnu)
 		 (t
@@ -743,12 +779,13 @@ The value depends on `grep-command', `grep-template',
 		       (let ((cmd0 (format "%s . -type f -exec %s"
 					   find-program grep-command))
 			     (null (if grep-use-null-device
-				       (format "%s " null-device)
+				       (format "%s " (null-device))
 				     "")))
 			 (cons
 			  (if (eq grep-find-use-xargs 'exec-plus)
 			      (format "%s %s%s +" cmd0 null quot-braces)
-			    (format "%s %s %s%s" cmd0 quot-braces null quot-scolon))
+			    (format "%s %s %s%s"
+                                    cmd0 quot-braces null quot-scolon))
 			  (1+ (length cmd0)))))
 		      (t
 		       (format "%s . -type f -print | \"%s\" %s"
@@ -758,7 +795,7 @@ The value depends on `grep-command', `grep-template',
 		(let ((gcmd (format "%s <C> %s <R>"
 				    grep-program grep-options))
 		      (null (if grep-use-null-device
-				(format "%s " null-device)
+				(format "%s " (null-device))
 			      "")))
 		  (cond ((eq grep-find-use-xargs 'gnu)
 			 (format "%s <D> <X> -type f <F> -print0 | \"%s\" -0 %s"
@@ -807,7 +844,8 @@ The value depends on `grep-command', `grep-template',
   (let ((tag-default (shell-quote-argument (grep-tag-default)))
 	;; This a regexp to match single shell arguments.
 	;; Could someone please add comments explaining it?
-	(sh-arg-re "\\(\\(?:\"\\(?:[^\"]\\|\\\\\"\\)+\"\\|'[^']+'\\|[^\"' \t\n]\\)+\\)")
+	(sh-arg-re
+         "\\(\\(?:\"\\(?:[^\"]\\|\\\\\"\\)+\"\\|'[^']+'\\|[^\"' \t\n]\\)+\\)")
 	(grep-default (or (car grep-history) grep-command)))
     ;; In the default command, find the arg that specifies the pattern.
     (when (or (string-match
@@ -902,8 +940,8 @@ list is empty)."
   (grep--save-buffers)
   ;; Setting process-setup-function makes exit-message-function work
   ;; even when async processes aren't supported.
-  (compilation-start (if (and grep-use-null-device null-device)
-			 (concat command-args " " null-device)
+  (compilation-start (if (and grep-use-null-device null-device (null-device))
+			 (concat command-args " " (null-device))
 		       command-args)
 		     #'grep-mode))
 
@@ -941,7 +979,7 @@ easily repeat a find command."
   '(("<C>" . (mapconcat #'identity opts " "))
     ("<D>" . (or dir "."))
     ("<F>" . files)
-    ("<N>" . null-device)
+    ("<N>" . (null-device))
     ("<X>" . excl)
     ("<R>" . (shell-quote-argument (or regexp ""))))
   "List of substitutions performed by `grep-expand-template'.
@@ -952,10 +990,10 @@ The substitution is based on variables bound dynamically, and
 these include `opts', `dir', `files', `null-device', `excl' and
 `regexp'.")
 
-(defun grep-expand-template (template &optional regexp files dir excl)
+(defun grep-expand-template (template &optional regexp files dir excl more-opts)
   "Expand grep COMMAND string replacing <C>, <D>, <F>, <R>, and <X>."
   (let* ((command template)
-         (env `((opts . ,(let (opts)
+         (env `((opts . ,(let ((opts more-opts))
                            (when (and case-fold-search
                                       (isearch-no-upper-case-p regexp t))
                              (push "-i" opts))
@@ -1045,11 +1083,14 @@ REGEXP is used as a string in the prompt."
 		 #'read-file-name-internal
 		 nil nil nil 'grep-files-history
 		 (delete-dups
-		  (delq nil (append (list default default-alias default-extension)
-				    (mapcar #'car grep-files-aliases)))))))
+		  (delq nil
+                        (append (list default default-alias default-extension)
+				(mapcar #'car grep-files-aliases)))))))
     (and files
 	 (or (cdr (assoc files grep-files-aliases))
 	     files))))
+
+(defvar grep-use-directories-skip 'auto-detect)
 
 ;;;###autoload
 (defun lgrep (regexp &optional files dir confirm)
@@ -1096,6 +1137,13 @@ command before it's run."
 	  (if (string= command grep-command)
 	      (setq command nil))
 	(setq dir (file-name-as-directory (expand-file-name dir)))
+	(unless (or (not grep-use-directories-skip)
+                    (eq grep-use-directories-skip t))
+	  (setq grep-use-directories-skip
+		(grep-probe grep-program
+			  `(nil nil nil "--directories=skip" "foo"
+				,(null-device))
+			  nil 1)))
 	(setq command (grep-expand-template
 		       grep-template
 		       regexp
@@ -1112,7 +1160,9 @@ command before it's run."
 						     (shell-quote-argument
 						      (cdr ignore))))))
 				     grep-find-ignored-files
-				     " --exclude=")))))
+				     " --exclude=")))
+		       (and (eq grep-use-directories-skip t)
+			    '("--directories=skip"))))
 	(when command
 	  (if confirm
 	      (setq command
@@ -1124,10 +1174,11 @@ command before it's run."
 	  ;; Setting process-setup-function makes exit-message-function work
 	  ;; even when async processes aren't supported.
           (grep--save-buffers)
-	  (compilation-start (if (and grep-use-null-device null-device)
-				 (concat command " " null-device)
-			       command)
-			     'grep-mode))
+	  (compilation-start
+           (if (and grep-use-null-device null-device (null-device))
+	       (concat command " " (null-device))
+	     command)
+	   'grep-mode))
 	;; Set default-directory if we started lgrep in the *grep* buffer.
 	(if (eq next-error-last-buffer (current-buffer))
 	    (setq default-directory dir))))))

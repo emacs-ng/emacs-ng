@@ -1556,7 +1556,7 @@ good, skip, fatal, or unknown."
          ;; This looks like an error, but we have to keep reading the output
          ;; to see if it was fixed or not.  E.g. it may indicate that IPv6
          ;; failed, but maybe a subsequent IPv4 fallback succeeded.
-         (set (make-local-variable 'ange-ftp-pending-error-line) line)
+         (setq-local ange-ftp-pending-error-line line)
          t)
 	((string-match ange-ftp-fatal-msgs line)
 	 (delete-process proc)
@@ -1970,30 +1970,24 @@ on the gateway machine to do the FTP instead."
   "Major mode for interacting with the FTP process.
 
 \\{comint-mode-map}"
-  (make-local-variable 'ange-ftp-process-string)
-  (setq ange-ftp-process-string "")
+  (setq-local ange-ftp-process-string "")
   (make-local-variable 'ange-ftp-process-busy)
   (make-local-variable 'ange-ftp-process-result)
   (make-local-variable 'ange-ftp-process-msg)
   (make-local-variable 'ange-ftp-process-multi-skip)
-  (make-local-variable 'ange-ftp-process-result-line)
   (make-local-variable 'ange-ftp-process-continue)
-  (make-local-variable 'ange-ftp-hash-mark-count)
   (make-local-variable 'ange-ftp-binary-hash-mark-size)
   (make-local-variable 'ange-ftp-ascii-hash-mark-size)
   (make-local-variable 'ange-ftp-hash-mark-unit)
-  (make-local-variable 'ange-ftp-xfer-size)
   (make-local-variable 'ange-ftp-last-percent)
-  (setq ange-ftp-hash-mark-count 0)
-  (setq ange-ftp-xfer-size 0)
-  (setq ange-ftp-process-result-line "")
+  (setq-local ange-ftp-hash-mark-count 0)
+  (setq-local ange-ftp-xfer-size 0)
+  (setq-local ange-ftp-process-result-line "")
   (setq comint-prompt-regexp "^ftp> ")
-  (make-local-variable 'comint-password-prompt-regexp)
   ;; This is a regexp that can't match anything.
   ;; ange-ftp has its own ways of handling passwords.
-  (setq comint-password-prompt-regexp regexp-unmatchable)
-  (make-local-variable 'paragraph-start)
-  (setq paragraph-start comint-prompt-regexp))
+  (setq-local comint-password-prompt-regexp regexp-unmatchable)
+  (setq-local paragraph-start comint-prompt-regexp))
 
 (defcustom ange-ftp-raw-login nil
   "Use raw FTP commands for login, if account password is not nil.
@@ -3427,8 +3421,7 @@ system TYPE.")
   (and (file-directory-p name)
        (file-readable-p name)))
 
-(defun ange-ftp-directory-files (directory &optional full match
-					   &rest v19-args)
+(defun ange-ftp-directory-files (directory &optional full match nosort count)
   (setq directory (expand-file-name directory))
   (if (ange-ftp-ftp-name directory)
       (progn
@@ -3443,19 +3436,21 @@ system TYPE.")
 	    (if (or (not match) (string-match-p match f))
 		(setq files
 		      (cons (if full (concat directory f) f) files))))
+          (when (natnump count)
+            (setq files (last files count)))
 	  (nreverse files)))
-    (apply 'ange-ftp-real-directory-files directory full match v19-args)))
+    (apply 'ange-ftp-real-directory-files directory full match nosort count)))
 
 (defun ange-ftp-directory-files-and-attributes
-  (directory &optional full match nosort id-format)
+  (directory &optional full match nosort id-format count)
   (setq directory (expand-file-name directory))
   (if (ange-ftp-ftp-name directory)
       (mapcar
        (lambda (file)
 	 (cons file (file-attributes (expand-file-name file directory))))
-       (ange-ftp-directory-files directory full match nosort))
+       (ange-ftp-directory-files directory full match nosort count))
     (ange-ftp-real-directory-files-and-attributes
-     directory full match nosort id-format)))
+     directory full match nosort id-format count)))
 
 (defun ange-ftp-file-attributes (file &optional id-format)
   (setq file (expand-file-name file))
@@ -3535,20 +3530,22 @@ system TYPE.")
   (setq file (expand-file-name file))
   (let ((parsed (ange-ftp-ftp-name file)))
     (if parsed
-	(let* ((host (nth 0 parsed))
-	       (user (nth 1 parsed))
-	       (name (ange-ftp-quote-string (nth 2 parsed)))
-	       (abbr (ange-ftp-abbreviate-filename file))
-	       (result (ange-ftp-send-cmd host user
-					  (list 'delete name)
-					  (format "Deleting %s" abbr))))
-	  (or (car result)
-	      (signal 'ftp-error
-		      (list
-		       "Removing old name"
-		       (format "FTP Error: \"%s\"" (cdr result))
-		       file)))
-	  (ange-ftp-delete-file-entry file))
+        (if (and delete-by-moving-to-trash trash)
+	    (move-file-to-trash file)
+	  (let* ((host (nth 0 parsed))
+	         (user (nth 1 parsed))
+	         (name (ange-ftp-quote-string (nth 2 parsed)))
+	         (abbr (ange-ftp-abbreviate-filename file))
+	         (result (ange-ftp-send-cmd host user
+					    (list 'delete name)
+					    (format "Deleting %s" abbr))))
+	    (or (car result)
+	        (signal 'ftp-error
+		        (list
+		         "Removing old name"
+		         (format "FTP Error: \"%s\"" (cdr result))
+		         file)))
+	    (ange-ftp-delete-file-entry file)))
       (ange-ftp-real-delete-file file trash))))
 
 (defun ange-ftp-file-modtime (file)
@@ -3659,7 +3656,7 @@ so return the size on the remote host exactly. See RFC 3659."
 ;;     (set-process-sentinel proc 'ange-ftp-copy-file-locally-sentinel)
 ;;     (set-process-query-on-exit-flag proc nil)
 ;;     (with-current-buffer (process-buffer proc)
-;;       (set (make-local-variable 'copy-cont) cont))))
+;;       (setq-local copy-cont cont))))
 ;;
 ;; (defun ange-ftp-copy-file-locally-sentinel (proc status)
 ;;   (with-current-buffer (process-buffer proc)
@@ -4162,45 +4159,55 @@ directory, so that Emacs will know its current contents."
 
 (defun ange-ftp-delete-directory (dir &optional recursive trash)
   (if (file-directory-p dir)
-      (let ((parsed (ange-ftp-ftp-name dir)))
-	(if recursive
-	    (mapc
-	     (lambda (file)
-	       (if (file-directory-p file)
-		   (ange-ftp-delete-directory file recursive trash)
-		 (delete-file file trash)))
-	     (directory-files dir 'full directory-files-no-dot-files-regexp)))
-	(if parsed
-	    (let* ((host (nth 0 parsed))
-		   (user (nth 1 parsed))
-		   ;; Some ftp's on unix machines (at least on Suns)
-		   ;; insist that rmdir take a filename, and not a
-		   ;; directory-name name as an arg. Argh!! This is a bug.
-		   ;; Non-unix machines will probably always insist
-		   ;; that rmdir takes a directory-name as an arg
-		   ;; (as the ftp man page says it should).
-		   (name (ange-ftp-quote-string
-			  (if (eq (ange-ftp-host-type host) 'unix)
-			      (ange-ftp-real-directory-file-name
-			       (nth 2 parsed))
-			    (ange-ftp-real-file-name-as-directory
-			     (nth 2 parsed)))))
-		   (abbr (ange-ftp-abbreviate-filename dir))
-		   (result
-		    (progn
-		      ;; CWD must not in this directory.
-		      (ange-ftp-cd host user "/" 'noerror)
-		      (ange-ftp-send-cmd host user
-					 (list 'rmdir name)
-					 (format "Removing directory %s"
-						 abbr)))))
-	      (or (car result)
-		  (ange-ftp-error host user
-				  (format "Could not remove directory %s: %s"
-					  dir
-					  (cdr result))))
-	      (ange-ftp-delete-file-entry dir t))
-	  (ange-ftp-real-delete-directory dir recursive trash)))
+      ;; Trashing directories does not work yet, because
+      ;; `rename-file', called in `move-file-to-trash', does not
+      ;; handle directories.
+      (if nil ; (and delete-by-moving-to-trash trash)
+	  ;; Move non-empty dir to trash only if recursive deletion was
+	  ;; requested.
+	  (if (not (or recursive (directory-empty-p dir)))
+	      (signal 'ftp-error
+                      (list "Directory is not empty, not moving to trash"))
+	    (move-file-to-trash dir))
+        (let ((parsed (ange-ftp-ftp-name dir)))
+	  (if recursive
+	      (mapc
+	       (lambda (file)
+	         (if (file-directory-p file)
+		     (ange-ftp-delete-directory file recursive)
+		   (delete-file file)))
+	       (directory-files dir 'full directory-files-no-dot-files-regexp)))
+	  (if parsed
+	      (let* ((host (nth 0 parsed))
+		     (user (nth 1 parsed))
+		     ;; Some ftp's on unix machines (at least on Suns)
+		     ;; insist that rmdir take a filename, and not a
+		     ;; directory-name name as an arg. Argh!! This is a bug.
+		     ;; Non-unix machines will probably always insist
+		     ;; that rmdir takes a directory-name as an arg
+		     ;; (as the ftp man page says it should).
+		     (name (ange-ftp-quote-string
+			    (if (eq (ange-ftp-host-type host) 'unix)
+			        (ange-ftp-real-directory-file-name
+			         (nth 2 parsed))
+			      (ange-ftp-real-file-name-as-directory
+			       (nth 2 parsed)))))
+		     (abbr (ange-ftp-abbreviate-filename dir))
+		     (result
+		      (progn
+		        ;; CWD must not in this directory.
+		        (ange-ftp-cd host user "/" 'noerror)
+		        (ange-ftp-send-cmd host user
+					   (list 'rmdir name)
+					   (format "Removing directory %s"
+						   abbr)))))
+	        (or (car result)
+		    (ange-ftp-error host user
+				    (format "Could not remove directory %s: %s"
+					    dir
+					    (cdr result))))
+	        (ange-ftp-delete-file-entry dir t))
+	    (ange-ftp-real-delete-directory dir recursive trash))))
     (error "Not a directory: %s" dir)))
 
 ;; Make a local copy of FILE and return its name.

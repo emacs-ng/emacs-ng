@@ -1582,6 +1582,13 @@ starts with @kbd{@key{ESC} [}.)  If Emacs understands your terminal
 type properly, it automatically handles such sequences as single input
 events.
 
+  Key sequences that consist of @kbd{C-c} followed by a letter (upper
+or lower case; @acronym{ASCII} or non-@acronym{ASCII}) are reserved
+for users.  Emacs itself will never bind those key sequences, and
+Emacs extensions should avoid binding them.  In other words, users can
+bind key sequences like @kbd{C-c a} or @kbd{C-c ç} and rely on these
+never being shadowed by other Emacs bindings.
+
 @node Prefix Keymaps
 @subsection Prefix Keymaps
 
@@ -2679,7 +2686,7 @@ basename.)
 
 Emacs can also look in an XDG-compatible location for @file{init.el},
 the default is the directory @file{~/.config/emacs}.  This can be
-overriden by setting @env{XDG_CONFIG_HOME} in your environment, its
+overridden by setting @env{XDG_CONFIG_HOME} in your environment, its
 value replaces @file{~/.config} in the name of the default XDG init
 file.  However @file{~/.emacs.d}, @file{~/.emacs}, and
 @file{~/.emacs.el} are always preferred if they exist, which means

@@ -54,7 +54,7 @@
 ;; as well as the following Atom formats:
 ;;  * Atom 0.3
 ;;  * Atom 1.0
-;;    (see http://www.ietf.org/internet-drafts/draft-ietf-atompub-format-11.txt)
+;;    (see https://www.ietf.org/internet-drafts/draft-ietf-atompub-format-11.txt)
 ;; That makes Newsticker.el an "Atom aggregator, "RSS reader", "RSS
 ;; aggregator", and "Feed Reader".
 
@@ -77,14 +77,6 @@
 
 ;; Installation
 ;; ------------
-
-;; If you are using Newsticker as part of GNU Emacs there is no need to
-;; perform any installation steps in order to use Newsticker.  Otherwise
-;; place Newsticker in a directory where Emacs can find it.  Add the
-;; following line to your init file:
-;;   (add-to-list 'load-path "/path/to/newsticker/")
-;;   (autoload 'newsticker-start "newsticker" "Emacs Newsticker" t)
-;;   (autoload 'newsticker-show-news "newsticker" "Emacs Newsticker" t)
 
 ;; If you are using `imenu', which allows for navigating with the help of a
 ;; menu, you should add the following to your Emacs startup file

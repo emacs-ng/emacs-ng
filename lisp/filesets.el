@@ -35,7 +35,7 @@
 ;; inclusion group (i.e. a base file including other files).
 
 ;; Usage:
-;; 1. Put (require 'filesets) and (filesets-init) in your init file.
+;; 1. Put (filesets-init) in your init file.
 ;; 2. Type ;; M-x filesets-edit or choose "Edit Filesets" from the menu.
 ;; 3. Save your customizations.
 
@@ -52,7 +52,7 @@
 
 ;; BTW, if you close a fileset, files, which have been changed, will
 ;; be silently saved.  Change this behavior by setting
-;; `filesets-save-buffer-fn'.
+;; `filesets-save-buffer-function'.
 
 ;;; Supported modes for inclusion groups (`filesets-ingroup-patterns'):
 ;; - Elisp
@@ -89,6 +89,7 @@
 ;;; Code:
 
 (eval-when-compile (require 'cl-lib))
+(require 'easymenu)
 
 ;;; Some variables
 
@@ -202,8 +203,8 @@ key is supported."
 (defun filesets-select-command (cmd-list)
   "Select one command from CMD-LIST -- a string with space separated names."
   (let ((this (shell-command-to-string
-	       (format "which --skip-alias %s 2> /dev/null | head -n 1"
-		       cmd-list))))
+	       (format "which --skip-alias %s 2> %s | head -n 1"
+		       cmd-list null-device))))
     (if (equal this "")
 	nil
       (file-name-nondirectory (substring this 0 (- (length this) 1))))))
@@ -308,7 +309,7 @@ SYM to VAL and return t.  If INIT-FLAG is non-nil, set with
 
 (defcustom filesets-menu-path '("File")	; cf recentf-menu-path
   "The menu under which the filesets menu should be inserted.
-See `add-submenu' for documentation."
+See `easy-menu-add-item' for documentation."
   :set (function filesets-set-default)
   :type '(choice (const :tag "Top Level" nil)
 		 (sexp :tag "Menu Path"))
@@ -317,7 +318,7 @@ See `add-submenu' for documentation."
 
 (defcustom filesets-menu-before "Open File..." ; cf recentf-menu-before
   "The name of a menu before which this menu should be added.
-See `add-submenu' for documentation."
+See `easy-menu-add-item' for documentation."
   :set (function filesets-set-default)
   :type '(choice (string :tag "Name")
                  (const :tag "Last" nil))
@@ -326,7 +327,7 @@ See `add-submenu' for documentation."
 
 (defcustom filesets-menu-in-menu nil
   "Use that instead of `current-menubar' as the menu to change.
-See `add-submenu' for documentation."
+See `easy-menu-add-item' for documentation."
   :set (function filesets-set-default)
   :type 'sexp
   :group 'filesets)
@@ -1075,18 +1076,6 @@ defined in `filesets-ingroup-patterns'."
   :type 'integer
   :group 'filesets)
 
-;;; Emacs compatibility
-(eval-and-compile
-  (if (featurep 'xemacs)
-      (fset 'filesets-error 'error)
-
-    (require 'easymenu)
-
-    (defun filesets-error (_class &rest args)
-      "`error' wrapper."
-      (error "%s" (mapconcat 'identity args " ")))
-
-    ))
 
 (defun filesets-filter-dir-names (lst &optional negative)
   "Remove non-directory names from a list of strings.
@@ -1160,7 +1149,7 @@ Return full path if FULL-FLAG is non-nil."
     (filesets-message 1 "Filesets: %S doesn't exist" dir)
     nil)
    (t
-    (filesets-error 'error "Filesets: " dir " does not exist"))))
+    (error "Filesets: %s does not exist" dir))))
 
 (defun filesets-quote (txt)
   "Return TXT in quotes."
@@ -1172,7 +1161,7 @@ Return full path if FULL-FLAG is non-nil."
 	(p (point)))
     (if m
 	(buffer-substring (min m p) (max m p))
-      (filesets-error 'error "No selection."))))
+      (error "No selection"))))
 
 (defun filesets-get-quoted-selection ()
   "Return the currently selected text in quotes."
@@ -1357,8 +1346,7 @@ Use the viewer defined in EV-ENTRY (a valid element of
 		(goto-char (point-min)))
 	    (when oh
 	      (run-hooks 'oh))))
-      (filesets-error 'error
-		      "Filesets: general error when spawning external viewer"))))
+      (error "Filesets: general error when spawning external viewer"))))
 
 (defun filesets-find-file (file)
   "Call `find-file' after a possible delay (see `filesets-find-file-delay').
@@ -1730,9 +1718,12 @@ Assume MODE (see `filesets-entry-mode'), if provided."
 				(filesets-entry-get-master entry)))))
 		  (cons entry (filesets-ingroup-cache-get entry))))
 	       (:tree
-		(let ((dir  (nth 0 entry))
-		      (patt (nth 1 entry)))
-		  (filesets-directory-files dir patt ':files t)))
+                (let* ((dirpatt (filesets-entry-get-tree entry))
+                       (dir (nth 0 dirpatt))
+                       (patt (nth 1 dirpatt))
+                       (depth (or (filesets-entry-get-tree-max-level entry)
+                                  filesets-tree-max-level)))
+                  (filesets-files-under 0 depth entry dir patt)))
 	       (:pattern
 		(let ((dirpatt (filesets-entry-get-pattern entry)))
 		  (if dirpatt
@@ -1741,11 +1732,38 @@ Assume MODE (see `filesets-entry-mode'), if provided."
 			;;(filesets-message 3 "Filesets: scanning %s" dirpatt)
 			(filesets-directory-files dir patt ':files t))
 		    ;; (message "Filesets: malformed entry: %s" entry)))))))
-		    (filesets-error 'error "Filesets: malformed entry: "
-				    entry)))))))
+                    (error "Filesets: malformed entry: %s" entry)))))))
     (filesets-filter-list fl
 			  (lambda (file)
 			    (not (filesets-filetype-property file event))))))
+
+(defun filesets-files-under (level depth entry dir patt &optional relativep)
+  "Files under DIR that match PATT.
+LEVEL is the current level under DIR.
+DEPTH is the maximal tree scanning depth for ENTRY.
+ENTRY is a fileset.
+DIR is a directory.
+PATT is a regexp that included file names must match.
+RELATIVEP non-nil means use relative file names."
+  (and (or (= depth 0) (< level depth))
+       (let* ((dir         (file-name-as-directory dir))
+              (files-here  (filesets-directory-files
+                            dir patt nil (not relativep)
+                            (filesets-entry-get-filter-dirs-flag entry)))
+              (subdirs     (filesets-filter-dir-names files-here))
+              (files
+               (filesets-filter-dir-names
+                (apply #'append
+                       files-here
+                       (mapcar
+                        (lambda (subdir)
+                          (let* ((subdir (file-name-as-directory subdir))
+                                 (full-subdir  (concat dir subdir)))
+                            (filesets-files-under (+ level 1) depth entry
+                                                  full-subdir patt)))
+                        subdirs))
+                t)))
+         files)))
 
 (defun filesets-open (&optional mode name lookup-name)
   "Open the fileset called NAME.
@@ -1768,7 +1786,7 @@ Use LOOKUP-NAME for searching additional data if provided."
 	      (dolist (this files nil)
 		(filesets-file-open open-function this))
 	    (message "Filesets: canceled")))
-      (filesets-error 'error "Filesets: Unknown fileset: " name))))
+      (error "Filesets: Unknown fileset: %s" name))))
 
 (defun filesets-close (&optional mode name lookup-name)
   "Close all buffers belonging to the fileset called NAME.
@@ -1789,7 +1807,7 @@ Use LOOKUP-NAME for deducing the save-function, if provided."
 	      (if buffer
 		  (filesets-file-close save-function buffer)))))
 ;      (message "Filesets: Unknown fileset: `%s'" name))))
-      (filesets-error 'error "Filesets: Unknown fileset: " name))))
+      (error "Filesets: Unknown fileset: %s" name))))
 
 (defun filesets-add-buffer (&optional name buffer)
   "Add BUFFER (or current buffer) to the fileset called NAME.
@@ -1891,7 +1909,7 @@ User will be queried, if no fileset name is provided."
 		       (substring (elt submenu 0) 2))))
     (if (listp submenu)
 	(cons name (cdr submenu))
-      (apply 'vector (list name (cdr (append submenu nil)))))))
+      (apply 'vector (list name (cadr (append submenu nil)))))))
 ;      (vconcat `[,name] (subseq submenu 1)))))
 
 (defun filesets-wrap-submenu (submenu-body)
@@ -1997,7 +2015,7 @@ LOOKUP-NAME is used as lookup name for retrieving fileset specific settings."
 	   `(["Rebuild this submenu"
 	      (filesets-rebuild-this-submenu ',lookup-name)]))))
     (_
-     (filesets-error 'error "Filesets: malformed definition of " something))))
+     (error "Filesets: malformed definition of %s" something))))
 
 (defun filesets-ingroup-get-data (master pos &optional fun)
   "Access to `filesets-ingroup-patterns'.  Extract data section."
@@ -2070,8 +2088,7 @@ LOOKUP-NAME is used as lookup name for retrieving fileset specific settings."
 		   (lst      nil))
 	      (cond
 	       ((not this-patt)
-		(filesets-error 'error "Filesets: malformed :ingroup definition "
-				this-def))
+                (error "Filesets: malformed :ingroup definition %s" this-def))
 	       ((< this-sd 0)
 		nil)
 	       (t
@@ -2174,7 +2191,7 @@ FS is a fileset's name.  FLIST is a list returned by
 	(progn
 	  (message "Filesets: can't parse %s" master)
 	  nil)
-      (filesets-error 'error "Filesets: can't parse " master))))
+      (error "Filesets: can't parse %s" master))))
 
 (defun filesets-build-dir-submenu-now (level depth entry lookup-name dir patt fd
 					     &optional rebuild-flag)
@@ -2349,21 +2366,20 @@ bottom up, set `filesets-submenus' to nil, first.)"
       (filesets-menu-cache-file-save-maybe)))
   (let ((cb (current-buffer)))
     (when (not (member cb filesets-updated-buffers))
-      (add-submenu
-       filesets-menu-path
-       `(,filesets-menu-name
-	 ("# Filesets"
-	  ["Edit Filesets"   filesets-edit]
-	  ["Save Filesets"   filesets-save-config]
-	  ["Save Menu Cache" filesets-menu-cache-file-save]
-	  ["Rebuild Menu"    filesets-build-menu]
-	  ["Customize"       filesets-customize]
-	  ["About"           filesets-info])
-	 ,(filesets-get-cmd-menu)
-	 "---"
-	 ,@filesets-menu-cache)
-       filesets-menu-before
-       filesets-menu-in-menu)
+      (easy-menu-add-item (or filesets-menu-in-menu (current-global-map))
+                          (cons "menu-bar" filesets-menu-path)
+                          `(,filesets-menu-name
+                            ("# Filesets"
+                             ["Edit Filesets"   filesets-edit]
+                             ["Save Filesets"   filesets-save-config]
+                             ["Save Menu Cache" filesets-menu-cache-file-save]
+                             ["Rebuild Menu"    filesets-build-menu]
+                             ["Customize"       filesets-customize]
+                             ["About"           filesets-info])
+                            ,(filesets-get-cmd-menu)
+                            "---"
+                            ,@filesets-menu-cache)
+                          filesets-menu-before)
       (setq filesets-updated-buffers
 	    (cons cb filesets-updated-buffers))
       ;; This wipes out other messages in the echo area.
@@ -2474,7 +2490,7 @@ We apologize for the inconvenience.")))
       (insert msg)
       (when (y-or-n-p (format "Edit startup (%s) file now? " cf))
 	(find-file-other-window cf))
-      (filesets-error 'error msg))))
+      (error msg))))
 
 (defun filesets-update (cached-version)
   "Do some cleanup after updating filesets.el."
@@ -2510,8 +2526,7 @@ We apologize for the inconvenience.")))
 (defun filesets-init ()
   "Filesets initialization.
 Set up hooks, load the cache file -- if existing -- and build the menu."
-  (add-hook (if (featurep 'xemacs) 'activate-menubar-hook 'menu-bar-update-hook)
-	    (function filesets-build-menu-maybe))
+  (add-hook 'menu-bar-update-hook #'filesets-build-menu-maybe)
   (add-hook 'kill-buffer-hook (function filesets-remove-from-ubl))
   (add-hook 'first-change-hook (function filesets-reset-filename-on-change))
   (add-hook 'kill-emacs-hook (function filesets-exit))
@@ -2525,6 +2540,10 @@ Set up hooks, load the cache file -- if existing -- and build the menu."
 	    (setq filesets-menu-use-cached-flag t)))
     (filesets-build-menu)))
 
+(defun filesets-error (_class &rest args)
+  "`error' wrapper."
+  (declare (obsolete error "28.1"))
+  (error "%s" (mapconcat 'identity args " ")))
 
 (provide 'filesets)
 

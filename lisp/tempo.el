@@ -75,7 +75,7 @@
 ;; ftp.lysator.liu.se in the directory /pub/emacs
 
 ;; There is also a WWW page at
-;; http://www.lysator.liu.se/~davidk/elisp/ which has some information
+;; https://www.lysator.liu.se/~davidk/elisp/ which has some information
 
 ;;; Known bugs:
 
@@ -306,8 +306,8 @@ mode, ON-REGION is ignored and assumed true if the region is active."
 	    (goto-char tempo-region-start))
 	(save-excursion
 	  (tempo-insert-mark (point-marker))
-	  (mapc (function (lambda (elt)
-			    (tempo-insert elt on-region)))
+          (mapc (lambda (elt)
+                  (tempo-insert elt on-region))
 		(symbol-value template))
 	  (tempo-insert-mark (point-marker)))
 	(tempo-forward-mark))
@@ -353,9 +353,8 @@ possible."
 	((and (consp element)
 	      (eq (car element) 's)) (tempo-insert-named (car (cdr element))))
 	((and (consp element)
-	      (eq (car element) 'l)) (mapcar (function
-					      (lambda (elt)
-						(tempo-insert elt on-region)))
+              (eq (car element) 'l)) (mapcar (lambda (elt)
+                                               (tempo-insert elt on-region))
 					     (cdr element)))
 	((eq element 'p) (tempo-insert-mark (point-marker)))
 	((eq element 'r) (if on-region
@@ -449,9 +448,9 @@ never prompted."
   "Tries all the user-defined element handlers in `tempo-user-elements'."
   ;; Sigh... I need (some list)
   (catch 'found
-    (mapc (function (lambda (handler)
-		      (let ((result (funcall handler element)))
-			(if result (throw 'found result)))))
+    (mapc (lambda (handler)
+            (let ((result (funcall handler element)))
+              (if result (throw 'found result))))
 	  tempo-user-elements)
     (throw 'found nil)))
 
@@ -542,14 +541,13 @@ and insert the results."
 ;;; tempo-forward-mark
 
 (defun tempo-forward-mark ()
-  "Jump to the next mark in `tempo-forward-mark-list'."
+  "Jump to the next mark in `tempo-marks'."
   (interactive)
   (let ((next-mark (catch 'found
 		     (mapc
-		      (function
-		       (lambda (mark)
-			 (if (< (point) mark)
-			     (throw 'found mark))))
+                      (lambda (mark)
+                        (if (< (point) mark)
+                            (throw 'found mark)))
 		      tempo-marks)
 		     ;; return nil if not found
 		     nil)))
@@ -560,16 +558,15 @@ and insert the results."
 ;;; tempo-backward-mark
 
 (defun tempo-backward-mark ()
-  "Jump to the previous mark in `tempo-back-mark-list'."
+  "Jump to the previous mark in `tempo-marks'."
   (interactive)
   (let ((prev-mark (catch 'found
 		     (let (last)
 		       (mapc
-			(function
-			 (lambda (mark)
-			   (if (<= (point) mark)
-			       (throw 'found last))
-			   (setq last mark)))
+                        (lambda (mark)
+                          (if (<= (point) mark)
+                              (throw 'found last))
+                          (setq last mark))
 			tempo-marks)
 		       last))))
     (if prev-mark
@@ -640,11 +637,11 @@ If `tempo-dirty-collection' is nil, the old collection is reused."
 	       tempo-collection)
 	  (setq tempo-collection
 		(apply (function append)
-		       (mapcar (function (lambda (tag-list)
+                       (mapcar (lambda (tag-list)
 					; If the format for
 					; tempo-local-tags changes,
 					; change this
-					   (eval (car tag-list))))
+                                 (eval (car tag-list)))
 			       tempo-local-tags))))
     (setq tempo-dirty-collection nil)))
 

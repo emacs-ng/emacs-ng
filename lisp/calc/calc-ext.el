@@ -678,14 +678,13 @@
 
   (calc-init-prefixes)
 
-  (mapc (function
-	 (lambda (x)
+  (mapc (lambda (x)
 	  (define-key calc-mode-map (format "c%c" x) 'calc-clean-num)
 	  (define-key calc-mode-map (format "j%c" x) 'calc-select-part)
 	  (define-key calc-mode-map (format "r%c" x) 'calc-recall-quick)
 	  (define-key calc-mode-map (format "s%c" x) 'calc-store-quick)
 	  (define-key calc-mode-map (format "t%c" x) 'calc-store-into-quick)
-	  (define-key calc-mode-map (format "u%c" x) 'calc-quick-units)))
+          (define-key calc-mode-map (format "u%c" x) 'calc-quick-units))
 	"0123456789")
 
   (let ((i ?A))
@@ -711,9 +710,9 @@
   (define-key calc-alg-map "\e\177" 'calc-pop-above)
 
 ;;;; (Autoloads here)
-  (mapc (function (lambda (x)
-    (mapcar (function (lambda (func) (autoload func (car x))))
-            (cdr x))))
+  (mapc (lambda (x)
+          (mapcar (lambda (func) (autoload func (car x)))
+                  (cdr x)))
     '(
 
  ("calc-alg" calc-has-rules math-defsimplify
@@ -980,9 +979,9 @@ calc-force-refresh calc-locate-cursor-element calc-show-edit-buffer)
 
 ))
 
-  (mapcar (function (lambda (x)
-                      (mapcar (function (lambda (cmd) (autoload cmd (car x) nil t)))
-                              (cdr x))))
+  (mapcar (lambda (x)
+            (mapcar (lambda (cmd) (autoload cmd (car x) nil t))
+                    (cdr x)))
     '(
 
  ("calc-alg" calc-alg-evaluate calc-apart calc-collect calc-expand
@@ -1358,7 +1357,7 @@ calc-kill calc-kill-region calc-yank))))
             calc-redo-list nil)
       (let (calc-stack calc-user-parse-tables calc-standard-date-formats
                        calc-invocation-macro)
-        (mapc (function (lambda (v) (set v nil))) calc-local-var-list)
+        (mapc (lambda (v) (set v nil)) calc-local-var-list)
         (if (and arg (<= arg 0))
             (calc-mode-var-list-restore-default-values)
           (calc-mode-var-list-restore-saved-values)))
@@ -1398,9 +1397,8 @@ calc-kill calc-kill-region calc-yank))))
 
 (defun calc-scroll-up (n)
   (interactive "P")
-  (condition-case nil
-      (scroll-up (or n (/ (window-height) 2)))
-    (error nil))
+  (ignore-errors
+    (scroll-up (or n (/ (window-height) 2))))
   (if (pos-visible-in-window-p (max 1 (- (point-max) 2)))
       (if (eq major-mode 'calc-mode)
 	  (calc-realign)
@@ -1659,7 +1657,7 @@ calc-kill calc-kill-region calc-yank))))
 	    (calc-pop-stack n 1 t)
 	    (calc-push-list (mapcar #'car entries)
 			    1
-			    (mapcar (function (lambda (x) (nth 2 x)))
+                            (mapcar (lambda (x) (nth 2 x))
 				    entries)))))))
 
 (defvar calc-refreshing-evaltos nil)
@@ -1925,11 +1923,10 @@ calc-kill calc-kill-region calc-yank))))
   (let* ((calc-z-prefix-msgs nil)
 	 (calc-z-prefix-buf "")
 	 (kmap (sort (copy-sequence (calc-user-key-map))
-		     (function (lambda (x y) (< (car x) (car y))))))
+                     (lambda (x y) (< (car x) (car y)))))
 	 (flags (apply #'logior
-		       (mapcar (function
-				(lambda (k)
-				  (calc-user-function-classify (car k))))
+                       (mapcar (lambda (k)
+                                 (calc-user-function-classify (car k)))
 			       kmap))))
     (if (= (logand flags 8) 0)
 	(calc-user-function-list kmap 7)
@@ -2634,9 +2631,8 @@ If X is not an error form, return 1."
 	   (let ((rhs (calc-top-n 1)))
 	     (calc-enter-result (- 1 n)
 				name
-				(mapcar (function
-					 (lambda (x)
-					   (list func x rhs)))
+                                (mapcar (lambda (x)
+                                          (list func x rhs))
 					(calc-top-list-n (- n) 2))))))))
 
 (defun calc-unary-op-fancy (name func arg)
@@ -2645,9 +2641,8 @@ If X is not an error form, return 1."
     (cond ((> n 0)
 	   (calc-enter-result n
 			      name
-			      (mapcar (function
-				       (lambda (x)
-					 (list func x)))
+                              (mapcar (lambda (x)
+                                        (list func x))
 				      (calc-top-list-n n))))
 	  ((< n 0)
 	   (calc-enter-result 1
@@ -3095,6 +3090,7 @@ If X is not an error form, return 1."
 (defvar math-read-big-baseline)
 (defvar math-read-big-h2)
 (defvar math-read-big-err-msg)
+(defvar math-read-big-lines)
 
 (defun math-read-big-expr (str)
   (and (> (length calc-left-label) 0)
@@ -3139,41 +3135,42 @@ If X is not an error form, return 1."
 
 (defvar math-rb-h2)
 
-(defun math-read-big-bigp (math-read-big-lines)
-  (and (cdr math-read-big-lines)
-       (let ((matrix nil)
-	     (v 0)
-	     (height (if (> (length (car math-read-big-lines)) 0) 1 0)))
-	 (while (and (cdr math-read-big-lines)
-		     (let* ((i 0)
-			    j
-			    (l1 (car math-read-big-lines))
-			    (l2 (nth 1 math-read-big-lines))
-			    (len (min (length l1) (length l2))))
-		       (if (> (length l2) 0)
-			   (setq height (1+ height)))
-		       (while (and (< i len)
-				   (or (memq (aref l1 i) '(?\  ?\- ?\_))
-				       (memq (aref l2 i) '(?\  ?\-))
-				       (and (memq (aref l1 i) '(?\| ?\,))
-					    (= (aref l2 i) (aref l1 i)))
-				       (and (eq (aref l1 i) ?\[)
-					    (eq (aref l2 i) ?\[)
-					    (let ((math-rb-h2 (length l1)))
-					      (setq j (math-read-big-balance
-						       (1+ i) v "[")))
-					    (setq i (1- j)))))
-			 (setq i (1+ i)))
-		       (or (= i len)
-			   (and (eq (aref l1 i) ?\[)
-				(eq (aref l2 i) ?\[)
-				(setq matrix t)
-				nil))))
-	   (setq math-read-big-lines (cdr math-read-big-lines)
-		 v (1+ v)))
-	 (or (and (> height 1)
-		  (not (cdr math-read-big-lines)))
-	     matrix))))
+(defun math-read-big-bigp (read-big-lines)
+  (when (cdr read-big-lines)
+    (let ((math-read-big-lines read-big-lines)
+	  (matrix nil)
+	  (v 0)
+	  (height (if (> (length (car read-big-lines)) 0) 1 0)))
+      (while (and (cdr math-read-big-lines)
+		  (let* ((i 0)
+			 j
+			 (l1 (car math-read-big-lines))
+			 (l2 (nth 1 math-read-big-lines))
+			 (len (min (length l1) (length l2))))
+		    (if (> (length l2) 0)
+			(setq height (1+ height)))
+		    (while (and (< i len)
+				(or (memq (aref l1 i) '(?\  ?\- ?\_))
+				    (memq (aref l2 i) '(?\  ?\-))
+				    (and (memq (aref l1 i) '(?\| ?\,))
+					 (= (aref l2 i) (aref l1 i)))
+				    (and (eq (aref l1 i) ?\[)
+					 (eq (aref l2 i) ?\[)
+					 (let ((math-rb-h2 (length l1)))
+					   (setq j (math-read-big-balance
+						    (1+ i) v "[")))
+					 (setq i (1- j)))))
+		      (setq i (1+ i)))
+		    (or (= i len)
+			(and (eq (aref l1 i) ?\[)
+			     (eq (aref l2 i) ?\[)
+			     (setq matrix t)
+			     nil))))
+	(setq math-read-big-lines (cdr math-read-big-lines)
+	      v (1+ v)))
+      (or (and (> height 1)
+	       (not (cdr math-read-big-lines)))
+	  matrix))))
 
 ;;; Nontrivial "flat" formatting.
 
@@ -3457,6 +3454,8 @@ A command spec is a command name symbol, a keyboard macro string, a
 list containing a numeric entry string, or nil.
 A key may contain additional specs for Inverse, Hyperbolic, and Inv+Hyp.")
 
+(make-obsolete-variable 'calc-ext-load-hook
+                        "use `with-eval-after-load' instead." "28.1")
 (run-hooks 'calc-ext-load-hook)
 
 (provide 'calc-ext)

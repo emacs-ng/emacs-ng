@@ -113,7 +113,6 @@
 (require 'esh-io)
 
 (require 'pcomplete)
-(require 'env)
 (require 'ring)
 
 (defgroup eshell-var nil
@@ -228,12 +227,11 @@ environment of created subprocesses."
   ;; Break the association with our parent's environment.  Otherwise,
   ;; changing a variable will affect all of Emacs.
   (unless eshell-modify-global-environment
-    (set (make-local-variable 'process-environment)
-	 (eshell-copy-environment)))
+    (setq-local process-environment (eshell-copy-environment)))
 
-  (set (make-local-variable 'eshell-special-chars-inside-quoting)
+  (setq-local eshell-special-chars-inside-quoting
        (append eshell-special-chars-inside-quoting '(?$)))
-  (set (make-local-variable 'eshell-special-chars-outside-quoting)
+  (setq-local eshell-special-chars-outside-quoting
        (append eshell-special-chars-outside-quoting '(?$)))
 
   (add-hook 'eshell-parse-argument-hook #'eshell-interpolate-variable t t)
@@ -382,9 +380,8 @@ This function is explicit for adding to `eshell-parse-argument-hook'."
 
 (defun eshell-envvar-names (&optional environment)
   "Return a list of currently visible environment variable names."
-  (mapcar (function
-	   (lambda (x)
-	     (substring x 0 (string-match "=" x))))
+  (mapcar (lambda (x)
+            (substring x 0 (string-match "=" x)))
 	  (or environment process-environment)))
 
 (defun eshell-environment-variables ()
@@ -463,8 +460,8 @@ Possible options are:
                    (eshell-as-subcommand ,(eshell-parse-command cmd))
                    (ignore
                     (nconc eshell-this-command-hook
-                           (list (function (lambda ()
-                                              (delete-file ,temp))))))
+                           (list (lambda ()
+                                   (delete-file ,temp)))))
                    (quote ,temp)))
             (goto-char (1+ end)))))))
    ((eq (char-after) ?\()
@@ -618,14 +615,13 @@ For example, to retrieve the second element of a user's record in
     (sort
      (append
       (mapcar
-       (function
-	(lambda (varname)
-	  (let ((value (eshell-get-variable varname)))
-	    (if (and value
-		     (stringp value)
-		     (file-directory-p value))
-		(concat varname "/")
-	      varname))))
+       (lambda (varname)
+         (let ((value (eshell-get-variable varname)))
+           (if (and value
+                    (stringp value)
+                    (file-directory-p value))
+               (concat varname "/")
+             varname)))
        (eshell-envvar-names (eshell-environment-variables)))
       (all-completions argname obarray 'boundp)
       completions)

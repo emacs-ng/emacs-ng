@@ -209,21 +209,6 @@ See `allout-widgets-mode' for allout widgets mode features."
   :group 'allout-widgets)
 (make-obsolete-variable 'allout-widgets-item-image-properties-xemacs nil "28.1")
 ;;;_  . Developer
-;;;_   = allout-widgets-run-unit-tests-on-load
-(defcustom allout-widgets-run-unit-tests-on-load nil
-  "When non-nil, unit tests will be run at end of loading allout-widgets.
-
-Generally, allout widgets code developers are the only ones who'll want to
-set this.
-
-\(If set, this makes it an even better practice to exercise changes by
-doing byte-compilation with a repeat count, so the file is loaded after
-compilation.)
-
-See `allout-widgets-run-unit-tests' to see what's run."
-  :version "24.1"
-  :type 'boolean
-  :group 'allout-widgets-developer)
 ;;;_   = allout-widgets-time-decoration-activity
 (defcustom allout-widgets-time-decoration-activity nil
   "Retain timing info of the last cooperative redecoration.
@@ -931,15 +916,15 @@ posting threshold criteria."
           (let ((min (point-max))
                 (max 0)
                 first second)
-            (mapc (function (lambda (entry)
-                              (if (eq :undone-exposure (car entry))
-                                  nil
-                                (setq first (cadr entry)
-                                      second (caddr entry))
-                                (if (< (min first second) min)
-                                    (setq min (min first second)))
-                                (if (> (max first second) max)
-                                    (setq max (max first second))))))
+            (mapc (lambda (entry)
+                    (if (eq :undone-exposure (car entry))
+                        nil
+                      (setq first (cadr entry)
+                            second (caddr entry))
+                      (if (< (min first second) min)
+                          (setq min (min first second)))
+                      (if (> (max first second) max)
+                          (setq max (max first second)))))
                     allout-widgets-changes-record)
             (> (- max min) allout-widgets-adjust-message-size-threshold)))
       (let ((prior (current-message)))
@@ -990,8 +975,8 @@ Records changes in `allout-widgets-changes-record'."
 
 Generally invoked via `allout-exposure-change-functions'."
 
-  (let ((changes (sort changes (function (lambda (this next)
-                                           (< (cadr this) (cadr next))))))
+  (let ((changes (sort changes (lambda (this next)
+                                 (< (cadr this) (cadr next)))))
         ;; have to distinguish between concealing and exposing so that, eg,
         ;; `allout-expose-topic's mix is handled properly.
         handled-expose
@@ -1353,64 +1338,6 @@ FROM and TO must be in increasing order, as must be the pairs in RANGES."
     (setq new-ranges (nreverse new-ranges))
     (if ranges (setq new-ranges (append new-ranges ranges)))
     (list (if included-from t) new-ranges)))
-;;;_   > allout-test-range-overlaps ()
-(defun allout-test-range-overlaps ()
-  "`allout-range-overlaps' unit tests."
-  (let* (ranges
-         got
-         (try (lambda (from to)
-                (setq got (allout-range-overlaps from to ranges))
-                (setq ranges (cadr got))
-                got)))
-;;     ;; biggie:
-;;     (setq ranges nil)
-;;     ;; ~ .02 to .1 seconds for just repeated listing args instead of funcall
-;;     ;; ~ 13 seconds for doing repeated funcall
-;;     (message "time-trial: %s, resulting size %s"
-;;              (time-trial
-;;               '(let ((size 10000)
-;;                      doing)
-;;                  (dotimes (count size)
-;;                    (setq doing (random size))
-;;                    (funcall try doing (+ doing (random 5)))
-;;                    ;;(list doing (+ doing (random 5)))
-;;                    )))
-;;              (length ranges))
-;;     (sit-for 2)
-
-    ;; fresh:
-    (setq ranges nil)
-    (cl-assert (equal (funcall try 3 5) '(nil ((3 5)))))
-    ;; add range at end:
-    (cl-assert (equal (funcall try 10 12) '(nil ((3 5) (10 12)))))
-    ;; add range at beginning:
-    (cl-assert (equal (funcall try 1 2) '(nil ((1 2) (3 5) (10 12)))))
-    ;; insert range somewhere in the middle:
-    (cl-assert (equal (funcall try 7 9) '(nil ((1 2) (3 5) (7 9) (10 12)))))
-    ;; consolidate some:
-    (cl-assert (equal (funcall try 5 8) '(t ((1 2) (3 9) (10 12)))))
-    ;; add more:
-    (cl-assert (equal (funcall try 15 17) '(nil ((1 2) (3 9) (10 12) (15 17)))))
-    ;; add more:
-    (cl-assert (equal (funcall try 20 22)
-                   '(nil ((1 2) (3 9) (10 12) (15 17) (20 22)))))
-    ;; encompass more:
-    (cl-assert (equal (funcall try 4 11) '(t ((1 2) (3 12) (15 17) (20 22)))))
-    ;; encompass all:
-    (cl-assert (equal (funcall try 2 25) '(t ((1 25)))))
-
-    ;; fresh slate:
-    (setq ranges nil)
-    (cl-assert (equal (funcall try 20 25) '(nil ((20 25)))))
-    (cl-assert (equal (funcall try 30 35) '(nil ((20 25) (30 35)))))
-    (cl-assert (equal (funcall try 26 28) '(nil ((20 25) (26 28) (30 35)))))
-    (cl-assert (equal (funcall try 15 20) '(t ((15 25) (26 28) (30 35)))))
-    (cl-assert (equal (funcall try 10 30) '(t ((10 35)))))
-    (cl-assert (equal (funcall try 5 6) '(nil ((5 6) (10 35)))))
-    (cl-assert (equal (funcall try 2 100) '(t ((2 100)))))
-
-    (setq ranges nil)
-    ))
 ;;;_   > allout-widgetize-buffer (&optional doing)
 (defun allout-widgetize-buffer (&optional doing)
   "EXAMPLE FUNCTION.  Widgetize items in buffer using allout-chart-subtree.
@@ -2374,23 +2301,11 @@ The elements of LIST are not copied, just the list structure itself."
         end (or end (point-max)))
   (if (> start end) (let ((interim start)) (setq start end end interim)))
   (let ((button-overlays (delq nil
-                               (mapcar (function (lambda (o)
-                                                   (if (overlay-get o 'button)
-                                                       o)))
+                               (mapcar (lambda (o)
+                                         (if (overlay-get o 'button)
+                                             o))
                                        (overlays-in start end)))))
     (length button-overlays)))
-
-;;;_ : Run unit tests:
-(defun allout-widgets-run-unit-tests ()
-  (message "Running allout-widget tests...")
-
-  (allout-test-range-overlaps)
-
-  (message "Running allout-widget tests...  Done.")
-  (sit-for .5))
-
-(when allout-widgets-run-unit-tests-on-load
-  (allout-widgets-run-unit-tests))
 
 ;;;_ : provide
 (provide 'allout-widgets)
