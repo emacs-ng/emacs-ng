@@ -532,7 +532,7 @@ pub fn json_de(args: &[LispObject]) -> LispObject {
 }
 
 #[lisp_fn]
-pub fn lsp_send_request(proc: LispObject, method: LispObject, params: LispObject) -> bool {
+pub fn lsp_async_send_request(proc: LispObject, method: LispObject, params: LispObject) -> bool {
     let mut emacs_pipe = unsafe { EmacsPipe::with_process(proc) };
     let method_s: LispStringRef = method.into();
     let config = get_process_json_config(proc);
