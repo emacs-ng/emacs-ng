@@ -567,6 +567,7 @@ pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe)
 
     let mut out = process.stdout;
     let mut out_pipe = pipe.clone();
+    let sender = out_pipe.get_sender();
     thread::spawn(move || {
         let mut stdout_reader = BufReader::new(out.as_mut().unwrap());
         loop {
@@ -585,7 +586,7 @@ pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe)
                 )),
             };
 
-            if let Err(_) = out_pipe.message_lisp(UserData::new(msg)) {
+            if let Err(_) = out_pipe.message_lisp(&sender, UserData::new(msg)) {
                 break;
             }
         }
