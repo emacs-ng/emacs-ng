@@ -259,10 +259,7 @@ impl EmacsPipe {
         (unsafe { EmacsPipe::with_process(proc) }, proc)
     }
 
-    fn send(&mut self, s: String) -> std::io::Result<()> {
-        let plist = unsafe { Fprocess_plist(self.proc) };
-        let sender_obj = unsafe { Fplist_get(plist, QCinchannel) };
-        let sender: &Sender<String> = unsafe { sender_obj.as_userdata_ref() };
+    fn send(sender: &Sender<String>, s: String) -> std::io::Result<()> {
         sender.send(s).map_err(|e| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -272,6 +269,12 @@ impl EmacsPipe {
                 ),
             )
         })
+    }
+
+    pub fn get_sender(&self) -> Sender<String> {
+        let plist = unsafe { Fprocess_plist(self.proc) };
+        let sender_obj = unsafe { Fplist_get(plist, QCinchannel) };
+        unsafe { sender_obj.as_userdata_ref::<Sender<String>>().clone() }
     }
 
     fn recv(&mut self) -> std::io::Result<String> {
@@ -293,11 +296,15 @@ impl EmacsPipe {
     // to enter in memory addresses for deference. This will also eliminate
     // the issue of 'partial reads' if an address crosses the arbitrary maximum
     // read value of a lisp data pipe (which is 4096 bytes as of this commit)
-    pub fn message_lisp<T: PipeData>(&mut self, content: T) -> std::io::Result<()> {
+    pub fn message_lisp<T: PipeData>(
+        &mut self,
+        sender: &Sender<String>,
+        content: T,
+    ) -> std::io::Result<()> {
         let mut f = unsafe { File::from_raw_fd(self.out_fd) };
         let ptr = Box::into_raw(Box::new(content));
         let bin = ptr as *mut _ as usize;
-        self.send(bin.to_string())?;
+        Self::send(sender, bin.to_string())?;
         f.write("r".as_bytes())?;
         f.into_raw_fd();
         Ok(())
@@ -367,11 +374,12 @@ pub fn rust_worker<
     fnc: T,
 ) -> LispObject {
     let (mut pipe, proc) = EmacsPipe::with_handler(handler, INPUT::marker(), OUTPUT::marker());
+    let sender = pipe.get_sender();
     thread::spawn(move || loop {
         match pipe.read_pend_message() {
             Ok(message) => {
                 let result = fnc(message);
-                if let Err(err) = pipe.message_lisp(result) {
+                if let Err(err) = pipe.message_lisp(&sender, result) {
                     eprint_if_unexpected_error(err);
                     break;
                 }
