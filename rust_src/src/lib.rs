@@ -31,6 +31,7 @@ extern crate futures;
 extern crate lsp_server;
 #[macro_use]
 extern crate serde_json;
+extern crate crossbeam;
 
 #[macro_use]
 mod remacs_sys;
