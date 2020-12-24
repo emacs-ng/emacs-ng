@@ -559,8 +559,7 @@ pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe)
         while let Ok(msg) = in_pipe.read_pend_message::<UserData>() {
             let value: Message = unsafe { msg.unpack() };
 
-            if let Err(result) = value.write(&mut stdout_writer) {
-                eprintln!("Error while executing async LSP: {:?}", result);
+            if let Err(_) = value.write(&mut stdout_writer) {
                 break;
             }
         }
@@ -586,8 +585,7 @@ pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe)
                 )),
             };
 
-            if let Err(result) = out_pipe.message_lisp(UserData::new(msg)) {
-                eprintln!("Error while executing async LSP: {:?}", result);
+            if let Err(_) = out_pipe.message_lisp(UserData::new(msg)) {
                 break;
             }
         }
