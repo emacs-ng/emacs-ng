@@ -7,7 +7,7 @@ use remacs_macros::lisp_fn;
 use serde_json::{map::Map, Value};
 use std::convert::TryInto;
 use std::ffi::CString;
-use std::io::{BufReader, BufWriter, Result, Write};
+use std::io::{BufReader, BufWriter, Result};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 

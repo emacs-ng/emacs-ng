@@ -19,6 +19,7 @@ remacs-macros = { version = "0.1.0", path = "remacs-macros" }
 base64 = "0.10.0"
 clippy = { version = "*", optional = true }
 cfg-if = "0.1"
+crossbeam = "0.8"
 errno = "0.2"
 field-offset = "0.1"
 flate2 = { version = "1.0", features = ["rust_backend"], default-features = false }
