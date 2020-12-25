@@ -113,94 +113,110 @@ pub fn lisp_callback(
     }
 }
 
-// #[lisp_fn]
-// pub fn eval_js(string_obj: LispStringRef) -> LispObject {
-//     js_eval(string_obj.to_utf8())
-// }
+#[lisp_fn]
+pub fn eval_js(string_obj: LispStringRef) -> LispObject {
+    run_module("anon-lisp.js", Some(string_obj.to_utf8()))
+}
 
 #[lisp_fn]
 pub fn eval_js_file(filename: LispStringRef) -> LispObject {
     let string = std::fs::read_to_string(filename.to_utf8()).unwrap();
     println!("{}", string);
-    run_module(filename.to_utf8())
+    run_module(&filename.to_utf8(), None)
 }
 
 macro_rules! tick_js {
-    ($r:expr, $worker:expr) => {{
-        $r.block_on(async move {
+    () => {{
+        execute!(async move |mut w: deno_runtime::worker::MainWorker| {
             let _x: () = futures::future::poll_fn(|cx| {
-                let _ = $worker.poll_event_loop(cx);
+                let _ = w.poll_event_loop(cx);
                 std::task::Poll::Ready(())
             })
             .await;
 
-            $worker
+            w
         })
     }};
 }
 
-fn run_module(filepath: String) -> LispObject {
-    let mut r = tokio::runtime::Builder::new()
-        .threaded_scheduler()
-        .enable_io()
-        .enable_time()
-        .max_threads(32)
-        .build()
-        .unwrap();
+macro_rules! execute {
+    ($fnc:expr) => {{
+        let (mut r, mut w) = EmacsJsRuntime::take();
+        w = r.block_on(async move { $fnc(w).await });
+        EmacsJsRuntime::set_main(r, w);
+    }};
+}
 
-    let main_module = deno_core::ModuleSpecifier::resolve_url_or_path(&filepath).unwrap();
-    let ops = deno_runtime::permissions::PermissionsOptions {
-        allow_net: true,
-        ..Default::default()
-    };
-    let permissions = deno_runtime::permissions::Permissions::from_options(&ops);
+static ONCE: std::sync::Once = std::sync::Once::new();
 
-    let options = deno_runtime::worker::WorkerOptions {
-        apply_source_maps: false,
-        user_agent: "x".to_string(),
-        args: vec![],
-        debug_flag: false,
-        unstable: false,
-        ca_filepath: None,
-        seed: None,
-        js_error_create_fn: None,
-        create_web_worker_cb: std::sync::Arc::new(|_| unreachable!()),
-        attach_inspector: false,
-        maybe_inspector_server: None,
-        should_break_on_first_statement: false,
-        module_loader: std::rc::Rc::new(deno_core::FsModuleLoader),
-        runtime_version: "x".to_string(),
-        ts_version: "x".to_string(),
-        no_color: true,
-        get_error_class_fn: None,
-    };
+fn run_module(filepath: &str, additional_js: Option<String>) -> LispObject {
+    ONCE.call_once(|| {
+        let mut r = tokio::runtime::Builder::new()
+            .threaded_scheduler()
+            .enable_io()
+            .enable_time()
+            .max_threads(32)
+            .build()
+            .unwrap();
 
-    let mut worker =
-        deno_runtime::worker::MainWorker::from_options(main_module.clone(), permissions, &options);
-    worker = r.block_on(async move {
-        worker.bootstrap(&options);
-        let runtime = &mut worker.js_runtime;
-        {
-            let context = runtime.global_context();
-            let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
-            let context = scope.get_current_context();
-            let global = context.global(scope);
+        let main_module = deno_core::ModuleSpecifier::resolve_url_or_path(filepath).unwrap();
+        let ops = deno_runtime::permissions::PermissionsOptions {
+            allow_net: true,
+            allow_read: true,
+            allow_write: true,
+            ..Default::default()
+        };
+        let permissions = deno_runtime::permissions::Permissions::from_options(&ops);
+
+        let options = deno_runtime::worker::WorkerOptions {
+            apply_source_maps: false,
+            user_agent: "x".to_string(),
+            args: vec![],
+            debug_flag: false,
+            unstable: false,
+            ca_filepath: None,
+            seed: None,
+            js_error_create_fn: None,
+            create_web_worker_cb: std::sync::Arc::new(|_| unreachable!()),
+            attach_inspector: false,
+            maybe_inspector_server: None,
+            should_break_on_first_statement: false,
+            module_loader: std::rc::Rc::new(deno_core::FsModuleLoader),
+            runtime_version: "x".to_string(),
+            ts_version: "x".to_string(),
+            no_color: true,
+            get_error_class_fn: None,
+        };
+
+        let mut worker = deno_runtime::worker::MainWorker::from_options(
+            main_module.clone(),
+            permissions,
+            &options,
+        );
+        worker = r.block_on(async move {
+            worker.bootstrap(&options);
+            let runtime = &mut worker.js_runtime;
             {
-                let name = v8::String::new(scope, "lisp_invoke").unwrap();
-                let func = v8::Function::new(scope, lisp_callback).unwrap();
-                global.set(scope, name.into(), func.into());
+                let context = runtime.global_context();
+                let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
+                let context = scope.get_current_context();
+                let global = context.global(scope);
+                {
+                    let name = v8::String::new(scope, "lisp_invoke").unwrap();
+                    let func = v8::Function::new(scope, lisp_callback).unwrap();
+                    global.set(scope, name.into(), func.into());
+                }
+                {
+                    let name = v8::String::new(scope, "is_proxy").unwrap();
+                    let func = v8::Function::new(scope, is_proxy).unwrap();
+                    global.set(scope, name.into(), func.into());
+                }
             }
             {
-                let name = v8::String::new(scope, "is_proxy").unwrap();
-                let func = v8::Function::new(scope, is_proxy).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-        }
-        {
-            runtime
-                .execute(
-                    "prelim.js",
-                    "var lisp = new Proxy({}, {
+                runtime
+                    .execute(
+                        "prelim.js",
+                        "var lisp = new Proxy({}, {
                 get: function(o, k) {
                    return function() {
                        const modargs = [k.replaceAll('-', '_')];
@@ -217,39 +233,48 @@ fn run_module(filepath: String) -> LispObject {
                    }
 
                 }});",
-                )
-                .unwrap();
-        }
+                    )
+                    .unwrap();
+            }
 
-        worker.execute_module(&main_module).await.unwrap();
-        worker
+            worker
+        });
+
+        EmacsJsRuntime::set_main(r, worker);
+        //(run-with-timer t 1 'js-tick-event-loop)
+
+        let cstr = CString::new("run-with-timer").expect("Failed to create timer");
+        let callback = CString::new("js-tick-event-loop").expect("Failed to create timer");
+        unsafe {
+            let fun = crate::remacs_sys::intern_c_string(cstr.as_ptr());
+            let fun_callback = crate::remacs_sys::intern_c_string(callback.as_ptr());
+            let mut args = vec![
+                fun,
+                crate::remacs_sys::Qt,
+                crate::remacs_sys::make_float(0.1),
+                fun_callback,
+            ];
+            crate::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
+        }
     });
 
-    EmacsJsRuntime::set_main(r, worker);
-    //(run-with-timer t 1 'js-tick-event-loop)
+    execute!(async move |mut w: deno_runtime::worker::MainWorker| {
+        if let Some(js) = additional_js {
+            w.execute(&js).unwrap();
+        } else {
+            let main_module = deno_core::ModuleSpecifier::resolve_url_or_path(filepath).unwrap();
+            w.execute_module(&main_module).await.unwrap();
+        }
 
-    let cstr = CString::new("run-with-timer").expect("Failed to create timer");
-    let callback = CString::new("js-tick-event-loop").expect("Failed to create timer");
-    unsafe {
-        let fun = crate::remacs_sys::intern_c_string(cstr.as_ptr());
-        let fun_callback = crate::remacs_sys::intern_c_string(callback.as_ptr());
-        let mut args = vec![
-            fun,
-            crate::remacs_sys::Qt,
-            crate::remacs_sys::make_float(0.1),
-            fun_callback,
-        ];
-        crate::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
-    }
+        w
+    });
 
     crate::remacs_sys::Qnil
 }
 
 #[lisp_fn]
 pub fn js_tick_event_loop() -> LispObject {
-    let (mut r, mut w) = EmacsJsRuntime::take();
-    w = tick_js!(r, w);
-    EmacsJsRuntime::set_main(r, w);
+    tick_js!();
     crate::remacs_sys::Qnil
 }
 

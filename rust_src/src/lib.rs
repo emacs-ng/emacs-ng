@@ -16,6 +16,7 @@
 #![feature(stmt_expr_attributes)]
 #![feature(untagged_unions)]
 #![feature(maybe_uninit_extra)]
+#![feature(async_closure)]
 
 extern crate errno;
 extern crate lazy_static;
