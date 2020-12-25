@@ -527,28 +527,8 @@ pub fn json_de(args: &[LispObject]) -> LispObject {
     }
 }
 
-pub fn deser(string: &str, proxy: bool) -> std::result::Result<LispObject, serde_json::Error> {
+pub fn deser(string: &str) -> std::result::Result<LispObject, serde_json::Error> {
     let val = serde_json::from_str(string)?;
-    if proxy {
-        match val {
-            serde_json::Value::Object(m) => {
-                let mut rval = Qnil;
-                if let Some(r) = m.get("__proxy__") {
-                    match r {
-                        Value::String(s) => {
-                            let raw = s.parse::<crate::remacs_sys::EmacsUint>().unwrap();
-                            rval = LispObject::from_C_unsigned(raw);
-                        }
-                        _ => panic!(),
-                    }
-                }
-
-                return Ok(rval);
-            }
-            _ => {}
-        }
-    }
-
     Ok(serde_to_lisp(val, &JSONConfiguration::default()))
 }
 

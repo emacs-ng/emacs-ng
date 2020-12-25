@@ -1,7 +1,6 @@
 use crate::lisp::LispObject;
 use crate::multibyte::LispStringRef;
-use crate::remacs_sys::{intern_c_string, make_string_from_utf8, Ffuncall};
-use lazy_static::lazy_static;
+use crate::remacs_sys::{intern_c_string, Ffuncall};
 use remacs_macros::lisp_fn;
 use rusty_v8 as v8;
 use std::convert::TryFrom;
@@ -35,6 +34,23 @@ impl EmacsJsRuntime {
     }
 }
 
+pub fn is_proxy(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut retval: v8::ReturnValue,
+) {
+    let mut is_proxy = false;
+    if args.get(0).is_object() {
+        let arg = args.get(0).to_object(scope).unwrap();
+        if arg.internal_field_count() > 0 {
+            is_proxy = true;
+        }
+    }
+    let boolean = v8::Boolean::new(scope, is_proxy);
+    let r = v8::Local::<v8::Value>::try_from(boolean).unwrap();
+    retval.set(r);
+}
+
 pub fn lisp_callback(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
@@ -54,15 +70,28 @@ pub fn lisp_callback(
     lisp_args.push(interned);
 
     for i in 1..len {
-        let arg = args
-            .get(i)
-            .to_string(scope)
-            .unwrap()
-            .to_rust_string_lossy(scope);
+        let arg = args.get(i);
 
-        if let Ok(deser) = crate::parsing::deser(&arg, true) {
-            lisp_args.push(deser);
+        if arg.is_string() {
+            let a = arg.to_string(scope).unwrap().to_rust_string_lossy(scope);
+
+            if let Ok(deser) = crate::parsing::deser(&a) {
+                lisp_args.push(deser);
+            }
+        } else if arg.is_object() {
+            let a = arg.to_object(scope).unwrap();
+            assert!(a.internal_field_count() > 0);
+            let internal = a.get_internal_field(scope, 0).unwrap();
+            let ptrstr = internal
+                .to_string(scope)
+                .unwrap()
+                .to_rust_string_lossy(scope);
+            let lispobj = LispObject::from_C_unsigned(
+                ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap(),
+            );
+            lisp_args.push(lispobj);
         } else {
+            panic!("Wrong Argument");
         }
     }
 
@@ -73,41 +102,34 @@ pub fn lisp_callback(
         let r = v8::Local::<v8::Value>::try_from(v8::String::new(scope, &json).unwrap()).unwrap();
         retval.set(r);
     } else {
-        // @TODO, FIXME
-        // This is NOT how to implement proxies! Use the proper v8 API
-        // for setting a real proxy.
-        let obj = v8::Object::new(scope);
-        let key = v8::String::new(scope, "__proxy__").unwrap();
+        let template = v8::ObjectTemplate::new(scope);
+        template.set_internal_field_count(1);
+        let obj = template.new_instance(scope).unwrap();
         let value = v8::String::new(scope, &results.to_C_unsigned().to_string()).unwrap();
-        obj.set(
-            scope,
-            v8::Local::<v8::Value>::try_from(key).unwrap(),
-            v8::Local::<v8::Value>::try_from(value).unwrap(),
-        );
-        let json_result =
-            v8::json::stringify(scope, v8::Local::<v8::Value>::try_from(obj).unwrap()).unwrap();
-        let r = v8::Local::<v8::Value>::try_from(json_result).unwrap();
+        let inserted = obj.set_internal_field(0, v8::Local::<v8::Value>::try_from(value).unwrap());
+        assert!(inserted);
+        let r = v8::Local::<v8::Value>::try_from(obj).unwrap();
         retval.set(r);
     }
 }
 
-#[lisp_fn]
-pub fn eval_js(string_obj: LispStringRef) -> LispObject {
-    js_eval(string_obj.to_utf8())
-}
+// #[lisp_fn]
+// pub fn eval_js(string_obj: LispStringRef) -> LispObject {
+//     js_eval(string_obj.to_utf8())
+// }
 
 #[lisp_fn]
 pub fn eval_js_file(filename: LispStringRef) -> LispObject {
     let string = std::fs::read_to_string(filename.to_utf8()).unwrap();
     println!("{}", string);
-    js_eval(string)
+    run_module(filename.to_utf8())
 }
 
 macro_rules! tick_js {
     ($r:expr, $worker:expr) => {{
         $r.block_on(async move {
             let _x: () = futures::future::poll_fn(|cx| {
-                $worker.poll_event_loop(cx);
+                let _ = $worker.poll_event_loop(cx);
                 std::task::Poll::Ready(())
             })
             .await;
@@ -117,7 +139,7 @@ macro_rules! tick_js {
     }};
 }
 
-fn js_eval(string: String) -> LispObject {
+fn run_module(filepath: String) -> LispObject {
     let mut r = tokio::runtime::Builder::new()
         .threaded_scheduler()
         .enable_io()
@@ -126,8 +148,12 @@ fn js_eval(string: String) -> LispObject {
         .build()
         .unwrap();
 
-    let main_module = deno_core::ModuleSpecifier::resolve_url_or_path("./test.js").unwrap();
-    let permissions = deno_runtime::permissions::Permissions::default();
+    let main_module = deno_core::ModuleSpecifier::resolve_url_or_path(&filepath).unwrap();
+    let ops = deno_runtime::permissions::PermissionsOptions {
+        allow_net: true,
+        ..Default::default()
+    };
+    let permissions = deno_runtime::permissions::Permissions::from_options(&ops);
 
     let options = deno_runtime::worker::WorkerOptions {
         apply_source_maps: false,
@@ -159,9 +185,16 @@ fn js_eval(string: String) -> LispObject {
             let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
             let context = scope.get_current_context();
             let global = context.global(scope);
-            let name = v8::String::new(scope, "lisp_invoke").unwrap();
-            let func = v8::Function::new(scope, lisp_callback).unwrap();
-            global.set(scope, name.into(), func.into());
+            {
+                let name = v8::String::new(scope, "lisp_invoke").unwrap();
+                let func = v8::Function::new(scope, lisp_callback).unwrap();
+                global.set(scope, name.into(), func.into());
+            }
+            {
+                let name = v8::String::new(scope, "is_proxy").unwrap();
+                let func = v8::Function::new(scope, is_proxy).unwrap();
+                global.set(scope, name.into(), func.into());
+            }
         }
         {
             runtime
@@ -172,9 +205,15 @@ fn js_eval(string: String) -> LispObject {
                    return function() {
                        const modargs = [k.replaceAll('-', '_')];
                           for (let i = 0; i < arguments.length; ++i) {
-                             modargs.push(JSON.stringify(arguments[i]));
+                             if (is_proxy(arguments[i])) {
+                                 modargs.push(arguments[i]);
+                             } else {
+                                 modargs.push(JSON.stringify(arguments[i]));
+                             }
                           }
-                       return JSON.parse(lisp_invoke.apply(this, modargs));
+                       let result = lisp_invoke.apply(this, modargs);
+                       let retval = is_proxy(result) ? result : JSON.parse(result);
+                       return retval;
                    }
 
                 }});",
@@ -197,7 +236,7 @@ fn js_eval(string: String) -> LispObject {
         let mut args = vec![
             fun,
             crate::remacs_sys::Qt,
-            crate::remacs_sys::make_int(1),
+            crate::remacs_sys::make_float(0.1),
             fun_callback,
         ];
         crate::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
