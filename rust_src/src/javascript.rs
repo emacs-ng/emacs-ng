@@ -120,8 +120,6 @@ pub fn eval_js(string_obj: LispStringRef) -> LispObject {
 
 #[lisp_fn]
 pub fn eval_js_file(filename: LispStringRef) -> LispObject {
-    let string = std::fs::read_to_string(filename.to_utf8()).unwrap();
-    println!("{}", string);
     run_module(&filename.to_utf8(), None)
 }
 
