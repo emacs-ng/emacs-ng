@@ -32,7 +32,10 @@ extern crate futures;
 extern crate lsp_server;
 #[macro_use]
 extern crate serde_json;
+extern crate deno_core;
+extern crate deno_runtime;
 extern crate rusty_v8;
+extern crate tokio;
 
 #[macro_use]
 mod remacs_sys;
