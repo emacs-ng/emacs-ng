@@ -1,8 +1,10 @@
+use std::ffi::CString;
 use std::ptr;
 
 use lazy_static::lazy_static;
 
 use super::{
+    color::{color_to_xcolor, lookup_color_by_name_or_hex},
     display_info::{DisplayInfo, DisplayInfoRef},
     output::OutputRef,
 };
@@ -213,12 +215,28 @@ extern "C" fn new_font(
 
 extern "C" fn defined_color(
     _frame: *mut Lisp_Frame,
-    _color_name: *const libc::c_char,
-    _color_def: *mut Emacs_Color,
+    color_name: *const libc::c_char,
+    color_def: *mut Emacs_Color,
     _alloc_p: bool,
     _make_indext: bool,
 ) -> bool {
-    false
+    let c_color = unsafe { CString::from_raw(color_name as *mut _) };
+
+    let color = c_color
+        .to_str()
+        .ok()
+        .and_then(|color| lookup_color_by_name_or_hex(color));
+
+    // throw back the c pointer
+    c_color.into_raw();
+
+    match color {
+        Some(c) => {
+            color_to_xcolor(c, color_def);
+            true
+        }
+        _ => false,
+    }
 }
 
 extern "C" fn frame_visible_invisible(frame: *mut Lisp_Frame, is_visible: bool) {
