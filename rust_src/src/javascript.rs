@@ -164,6 +164,7 @@ fn run_module(filepath: &str, additional_js: Option<String>) -> LispObject {
             allow_net: true,
             allow_read: true,
             allow_write: true,
+            allow_run: true,
             ..Default::default()
         };
         let permissions = deno_runtime::permissions::Permissions::from_options(&ops);
