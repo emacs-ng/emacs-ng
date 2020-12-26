@@ -1229,7 +1229,6 @@ rustfmt:
 	(cd rust_src/remacs-lib && cargo fmt)
 	(cd rust_src/remacs-util && cargo fmt)
 	(cd rust_src/remacs-macros && cargo fmt)
-	(cd rust_src/alloc_unexecmacosx && cargo fmt)
 
 .PHONY: gitmerge
 
