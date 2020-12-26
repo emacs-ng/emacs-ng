@@ -33,11 +33,11 @@ extern crate futures;
 extern crate lsp_server;
 #[macro_use]
 extern crate serde_json;
+extern crate crossbeam;
 extern crate deno_core;
 extern crate deno_runtime;
 extern crate rusty_v8;
 extern crate tokio;
-extern crate crossbeam;
 
 #[macro_use]
 mod remacs_sys;
@@ -50,8 +50,8 @@ mod parsing;
 
 mod data;
 mod eval;
-mod javascript;
 mod frame;
+mod javascript;
 mod lists;
 mod multibyte;
 mod process;

@@ -34,6 +34,40 @@ impl EmacsJsRuntime {
     }
 }
 
+pub fn lisp_json(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut retval: v8::ReturnValue,
+) {
+    let mut parsed = false;
+    if args.get(0).is_object() {
+        let a = args.get(0).to_object(scope).unwrap();
+        assert!(a.internal_field_count() > 0);
+        let internal = a.get_internal_field(scope, 0).unwrap();
+        let ptrstr = internal
+            .to_string(scope)
+            .unwrap()
+            .to_rust_string_lossy(scope);
+        let lispobj =
+            LispObject::from_C_unsigned(ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap());
+
+        if let Ok(json) = crate::parsing::ser(lispobj) {
+            parsed = true;
+            let r =
+                v8::Local::<v8::Value>::try_from(v8::String::new(scope, &json).unwrap()).unwrap();
+            retval.set(r);
+        }
+    }
+
+    if !parsed {
+        let r = v8::Local::<v8::Value>::try_from(
+            v8::String::new(scope, "{\"nativeProxy\": true}").unwrap(),
+        )
+        .unwrap();
+        retval.set(r);
+    }
+}
+
 pub fn finalize(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
@@ -125,9 +159,20 @@ pub fn lisp_callback(
     let results = unsafe { Ffuncall(lisp_args.len().try_into().unwrap(), lisp_args.as_mut_ptr()) };
     // LOGIC, attempt to se, with a version of se that returns an error,
     // if this can't se, it is a proxy, and we will treat it as such.
-    if let Ok(json) = crate::parsing::ser(results) {
-        let r = v8::Local::<v8::Value>::try_from(v8::String::new(scope, &json).unwrap()).unwrap();
-        retval.set(r);
+
+    let is_primative = unsafe {
+        crate::remacs_sys::STRINGP(results)
+            || crate::remacs_sys::FIXNUMP(results)
+            || crate::remacs_sys::FLOATP(results)
+            || results == crate::remacs_sys::Qnil
+            || results == crate::remacs_sys::Qt
+    };
+    if is_primative {
+        if let Ok(json) = crate::parsing::ser(results) {
+            let r =
+                v8::Local::<v8::Value>::try_from(v8::String::new(scope, &json).unwrap()).unwrap();
+            retval.set(r);
+        }
     } else {
         let template = v8::ObjectTemplate::new(scope);
         template.set_internal_field_count(1);
@@ -262,6 +307,11 @@ fn run_module(filepath: &str, additional_js: Option<String>) -> LispObject {
                     let func = v8::Function::new(scope, finalize).unwrap();
                     global.set(scope, name.into(), func.into());
                 }
+                {
+                    let name = v8::String::new(scope, "lisp_json").unwrap();
+                    let func = v8::Function::new(scope, lisp_json).unwrap();
+                    global.set(scope, name.into(), func.into());
+                }
             }
             {
                 // Hold on you fool, why not use FinalizerRegistry, it
@@ -281,6 +331,8 @@ let global = (1,eval)('this');
 let __weak = [];
 let finalize = global.finalize;
 delete global.finalize;
+let lisp_json = global.lisp_json;
+delete global.lisp_json;
 setInterval(() => {
         const nw = [];
         const args = [];
@@ -308,6 +360,10 @@ global.lisp = new Proxy({}, {
                        let result = lisp_invoke.apply(this, modargs);
                        let retval = null;
                        if (is_proxy(result)) {
+                           result.json = () => {
+                                return JSON.parse(lisp_json(result));
+                           };
+
                            __weak.push(new WeakRef(result));
                            retval = result;
                        } else {

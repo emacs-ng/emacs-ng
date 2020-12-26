@@ -531,13 +531,22 @@ pub fn json_de(args: &[LispObject]) -> LispObject {
     }
 }
 
+fn gen_ser_deser_config() -> JSONConfiguration {
+    JSONConfiguration {
+        null_obj: Qnil,
+        ..Default::default()
+    }
+}
+
 pub fn deser(string: &str) -> std::result::Result<LispObject, serde_json::Error> {
     let val = serde_json::from_str(string)?;
-    Ok(serde_to_lisp(val, &JSONConfiguration::default()))
+    let config = gen_ser_deser_config();
+    Ok(serde_to_lisp(val, &config))
 }
 
 pub fn ser(o: LispObject) -> Result<String> {
-    let value = lisp_to_serde(o, &JSONConfiguration::default())
+    let config = gen_ser_deser_config();
+    let value = lisp_to_serde(o, &config)
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "bad"))?;
     serde_json::to_string(&value)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", e)))
