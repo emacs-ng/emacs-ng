@@ -19,6 +19,7 @@ remacs-macros = { version = "0.1.0", path = "remacs-macros" }
 base64 = "0.10.0"
 clippy = { version = "*", optional = true }
 cfg-if = "0.1"
+crossbeam = "0.8"
 errno = "0.2"
 field-offset = "0.1"
 flate2 = { version = "1.0", features = ["rust_backend"], default-features = false }
@@ -27,8 +28,10 @@ itertools = "0.8"
 lazy_static = "1.2"
 libc = "0.2"
 line-wrap = "0.1.1"
+lsp-server = "0.5.0"
 md5 = "0.6"
 rand = "0.6.5"
+serde_json = { version = "1.0", features = ["preserve_order"] }
 sha1 = "0.6"
 sha2 = "0.8"
 systemstat = "0.1"

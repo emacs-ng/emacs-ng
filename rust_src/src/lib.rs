@@ -28,6 +28,10 @@ extern crate remacs_lib;
 extern crate remacs_macros;
 
 extern crate futures;
+extern crate lsp_server;
+#[macro_use]
+extern crate serde_json;
+extern crate crossbeam;
 
 #[macro_use]
 mod remacs_sys;
@@ -36,6 +40,7 @@ mod lisp;
 #[macro_use]
 mod eval_macros;
 mod ng_async;
+mod parsing;
 
 mod eval;
 mod frame;
