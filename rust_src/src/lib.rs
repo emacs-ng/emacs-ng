@@ -37,6 +37,7 @@ extern crate deno_core;
 extern crate deno_runtime;
 extern crate rusty_v8;
 extern crate tokio;
+extern crate crossbeam;
 
 #[macro_use]
 mod remacs_sys;
@@ -50,10 +51,16 @@ mod parsing;
 mod data;
 mod eval;
 mod javascript;
+mod frame;
 mod lists;
 mod multibyte;
 mod process;
 mod vectors;
+#[cfg(feature = "window-system-webrender")]
+mod wrterm;
+
+#[cfg(feature = "window-system-webrender")]
+pub use crate::wrterm::{tip_frame, wr_display_list};
 
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));

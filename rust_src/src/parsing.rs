@@ -2,7 +2,7 @@ use crate::lisp::LispObject;
 use crate::lists::{LispCons, LispConsCircularChecks, LispConsEndChecks};
 use crate::multibyte::LispStringRef;
 use crate::ng_async::{EmacsPipe, PipeDataOption, UserData};
-use lsp_server::{Message, Request, RequestId};
+use lsp_server::{Message, Request, RequestId, Response};
 use remacs_macros::lisp_fn;
 use serde_json::{map::Map, Value};
 use std::convert::TryInto;
@@ -29,6 +29,9 @@ const PARAMS: &str = "params";
 const METHOD: &str = "method";
 const DATA: &str = "data";
 const CODE: &str = "code";
+
+// Defined by JSON RPC
+const PARSE_ERROR: i32 = -32700;
 
 #[derive(Clone)]
 enum ObjectType {
@@ -337,7 +340,8 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
             match config.arr {
                 ArrayType::Array => {
                     let result = unsafe { make_vector(len.try_into().unwrap(), Qunbound) };
-                    let mut i = len - 1;
+                    let len64: i64 = len.try_into().unwrap();
+                    let mut i = len64 - 1;
                     while let Some(owned) = v.pop() {
                         unsafe {
                             ASET(result, i.try_into().unwrap(), serde_to_lisp(owned, config))
@@ -540,7 +544,7 @@ pub fn ser(o: LispObject) -> Result<String> {
 }
 
 #[lisp_fn]
-pub fn lsp_send_request(proc: LispObject, method: LispObject, params: LispObject) -> bool {
+pub fn lsp_async_send_request(proc: LispObject, method: LispObject, params: LispObject) -> bool {
     let mut emacs_pipe = unsafe { EmacsPipe::with_process(proc) };
     let method_s: LispStringRef = method.into();
     let config = get_process_json_config(proc);
@@ -567,16 +571,36 @@ pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe)
         while let Ok(msg) = in_pipe.read_pend_message::<UserData>() {
             let value: Message = unsafe { msg.unpack() };
 
-            value.write(&mut stdout_writer).unwrap();
+            if let Err(_) = value.write(&mut stdout_writer) {
+                break;
+            }
         }
     });
 
     let mut out = process.stdout;
     let mut out_pipe = pipe.clone();
+    let sender = out_pipe.get_sender();
     thread::spawn(move || {
         let mut stdout_reader = BufReader::new(out.as_mut().unwrap());
-        while let Some(msg) = Message::read(&mut stdout_reader).unwrap() {
-            out_pipe.message_lisp(UserData::new(msg)).unwrap();
+        loop {
+            let parsed_message = Message::read(&mut stdout_reader);
+            let msg = match parsed_message {
+                Ok(Some(m)) => m,
+                Ok(None) => Message::Response(Response::new_err(
+                    RequestId::from(0),
+                    PARSE_ERROR,
+                    String::from("Unable to read from stdin"),
+                )),
+                Err(e) => Message::Response(Response::new_err(
+                    RequestId::from(0),
+                    PARSE_ERROR,
+                    format!("JSON Message Error: {:?}", e),
+                )),
+            };
+
+            if let Err(_) = out_pipe.message_lisp(&sender, UserData::new(msg)) {
+                break;
+            }
         }
     });
 

@@ -574,6 +574,7 @@ struct frame
     struct x_output *x;         /* From xterm.h.  */
     struct w32_output *w32;     /* From w32term.h.  */
     struct ns_output *ns;       /* From nsterm.h.  */
+    struct wr_output *wr;       /* From wrsterm.h.  */
   }
   output_data;
 
@@ -1210,7 +1211,7 @@ default_pixels_per_inch_y (void)
 #define SET_FRAME_HEIGHT(f, height)					\
   ((f)->text_height = (height),						\
    (f)->pixel_height = ((height)					\
-    			+ FRAME_TOP_MARGIN_HEIGHT (f)			\
+                        + FRAME_TOP_MARGIN_HEIGHT (f)			\
 			+ FRAME_SCROLL_BAR_AREA_HEIGHT (f)		\
 			+ 2 * FRAME_INTERNAL_BORDER_WIDTH (f)))
 
