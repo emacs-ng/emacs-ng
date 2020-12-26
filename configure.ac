@@ -6061,13 +6061,6 @@ CARGO_DEFAULT_FEATURES=""
 if test "$HAVE_LIBXML2" = "yes"; then
     CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"use-xml2\", "
 fi
-if test "$CANNOT_DUMP" != "yes"; then
-    if test "$opsys" = "darwin"; then
-        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"unexecmacosx\", "
-    else
-        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"unexec\", "
-    fi
-fi
 if test "$window_system" != "none"; then
     CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system\", "
 fi

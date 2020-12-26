@@ -11,7 +11,7 @@ edition = "2018"
 
 [workspace]
 members = ["remacs-lib", "remacs-macros", "remacs-util"]
-exclude = ["remacs-bindings", "alloc_unexecmacosx"]
+exclude = ["remacs-bindings"]
 
 [dependencies]
 remacs-lib = { version = "0.1.0", path = "remacs-lib" }
@@ -36,10 +36,6 @@ sha1 = "0.6"
 sha2 = "0.8"
 systemstat = "0.1"
 
-# Only want this local crate as dependency on Mac OS X
-[target.'cfg(target_os = "macos")'.dependencies]
-alloc_unexecmacosx = { version = "0.1.0", path = "alloc_unexecmacosx", optional = true }
-
 [build-dependencies]
 clippy = { version = "*", optional = true }
 lazy_static = "1.2"
@@ -62,13 +58,9 @@ panic = "abort"
 
 [features]
 default = [
-  "unexec",
-
+  "use-xml2", "window-system", "window-system-x11", "libvterm",
 ]
-# Use unexec crate on Mac
-unexecmacosx = ["alloc_unexecmacosx"]
-# unexec everywhere else
-unexec = []
+
 # Compile with C xml2 library support.
 use-xml2 = []
 # Use a window system
@@ -81,6 +73,8 @@ window-system-nextstep = []
 window-system-w32 = []
 # Build with libvterm support.
 libvterm = []
+# Use the webrender window system
+window-system-webrender = []
 # Treat warnings as a build error on Travis.
 strict = []
 
