@@ -276,7 +276,11 @@ fn run_module(filepath: &str, additional_js: Option<String>) -> LispObject {
                     .execute(
                         "prelim.js",
                         "
-(() => { let global = (1,eval)('this'); global.__weak = []; })();
+(() => {
+let global = (1,eval)('this');
+let __weak = [];
+let finalize = global.finalize;
+delete global.finalize;
 setInterval(() => {
         const nw = [];
         const args = [];
@@ -290,7 +294,7 @@ setInterval(() => {
         });
         __weak = nw;
 }, 10000);
-var lisp = new Proxy({}, {
+global.lisp = new Proxy({}, {
                 get: function(o, k) {
                    return function() {
                        const modargs = [k.replaceAll('-', '_')];
@@ -313,7 +317,8 @@ var lisp = new Proxy({}, {
                        return retval;
                    }
 
-                }});",
+                }});
+})();",
                     )
                     .unwrap();
             }
