@@ -47,6 +47,7 @@ mod eval_macros;
 mod ng_async;
 mod parsing;
 
+mod data;
 mod eval;
 mod javascript;
 mod lists;
@@ -56,3 +57,22 @@ mod vectors;
 
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));
+
+mod hacks {
+    use core::mem::ManuallyDrop;
+
+    pub union Hack<T> {
+        t: ManuallyDrop<T>,
+        u: (),
+    }
+
+    impl<T> Hack<T> {
+        pub const unsafe fn uninitialized() -> Self {
+            Self { u: () }
+        }
+
+        pub unsafe fn get_mut(&mut self) -> &mut T {
+            &mut *self.t
+        }
+    }
+}

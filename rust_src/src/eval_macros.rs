@@ -67,3 +67,45 @@ macro_rules! error {
 macro_rules! def_lisp_sym {
     ($name:expr, $value:expr) => {};
 }
+
+/// Macros we use to define forwarded Lisp variables.
+/// These are used in the syms_of_FILENAME functions.
+///
+/// An ordinary (not in buffer_defaults, per-buffer, or per-keyboard)
+/// lisp variable is actually a field in `struct emacs_globals'.
+///
+/// In the C code, the field's name begins with "f_", which is a
+/// convention enforced by these macros.  Each such global has a
+/// corresponding #define in globals.h; the plain name should be used
+/// in the C code.
+///
+/// E.g., the global "cons_cells_consed" is declared as "int
+/// f_cons_cells_consed" in globals.h, but there is a define:
+///
+///    #define cons_cells_consed globals.f_cons_cells_consed
+///
+/// All C code uses the `cons_cells_consed' name.
+///
+/// As the Rust macro system has identifier hygine, the Rust code's
+/// version of the struct emacs_globals does not include the f_ prefix
+/// on the field names, and Rust code accesses the fields directly,
+/// rather than through a macro.
+///
+/// This is all done this way to support indirection for
+/// multi-threaded Emacs.
+#[macro_export]
+macro_rules! defvar_lisp {
+    ($field_name:ident, $lisp_name:expr, $value:expr) => {{
+        #[allow(unused_unsafe)]
+        unsafe {
+            #[allow(const_err)]
+            static mut o_fwd: crate::hacks::Hack<crate::data::Lisp_Objfwd> =
+                unsafe { crate::hacks::Hack::uninitialized() };
+            crate::remacs_sys::defvar_lisp(
+                o_fwd.get_mut() as *mut _ as *const crate::remacs_sys::Lisp_Objfwd,
+                concat!($lisp_name, "\0").as_ptr() as *const libc::c_char,
+            );
+            crate::remacs_sys::globals.$field_name = $value;
+        }
+    }};
+}

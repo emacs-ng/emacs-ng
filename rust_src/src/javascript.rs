@@ -34,6 +34,33 @@ impl EmacsJsRuntime {
     }
 }
 
+pub fn finalize(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    _retval: v8::ReturnValue,
+) {
+    let len = args.length();
+    let mut new_list = LispObject::cons(crate::remacs_sys::Qnil, crate::remacs_sys::Qnil);
+    for i in 0..len {
+        let arg = args.get(i);
+        if arg.is_object() {
+            let a = arg.to_object(scope).unwrap();
+            assert!(a.internal_field_count() > 0);
+            let internal = a.get_internal_field(scope, 0).unwrap();
+            let ptrstr = internal
+                .to_string(scope)
+                .unwrap()
+                .to_rust_string_lossy(scope);
+            let lispobj = LispObject::from_C_unsigned(
+                ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap(),
+            );
+            new_list = LispObject::cons(lispobj, new_list);
+        }
+    }
+
+    unsafe { crate::remacs_sys::globals.Vjs_retain_map = new_list };
+}
+
 pub fn is_proxy(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
@@ -108,6 +135,18 @@ pub fn lisp_callback(
         let value = v8::String::new(scope, &results.to_C_unsigned().to_string()).unwrap();
         let inserted = obj.set_internal_field(0, v8::Local::<v8::Value>::try_from(value).unwrap());
         assert!(inserted);
+
+        unsafe {
+            if crate::remacs_sys::globals.Vjs_retain_map == crate::remacs_sys::Qnil {
+                crate::remacs_sys::globals.Vjs_retain_map =
+                    LispObject::cons(results, crate::remacs_sys::Qnil);
+                crate::remacs_sys::staticpro(&crate::remacs_sys::globals.Vjs_retain_map);
+            } else {
+                crate::remacs_sys::globals.Vjs_retain_map =
+                    LispObject::cons(results, crate::remacs_sys::globals.Vjs_retain_map);
+            }
+        }
+
         let r = v8::Local::<v8::Value>::try_from(obj).unwrap();
         retval.set(r);
     }
@@ -127,7 +166,12 @@ macro_rules! tick_js {
     () => {{
         execute!(async move |mut w: deno_runtime::worker::MainWorker| {
             let _x: () = futures::future::poll_fn(|cx| {
-                let _ = w.poll_event_loop(cx);
+                let polled = w.poll_event_loop(cx);
+                match polled {
+                    std::task::Poll::Ready(r) => r.unwrap(),
+                    std::task::Poll::Pending => {}
+                }
+
                 std::task::Poll::Ready(())
             })
             .await;
@@ -167,6 +211,9 @@ fn run_module(filepath: &str, additional_js: Option<String>) -> LispObject {
         };
         let permissions = deno_runtime::permissions::Permissions::from_options(&ops);
 
+        // @TODO I'm leaving this line commented out, but we should add this to
+        // the init API. Flags listed at https://deno.land/manual/contributing/development_tools
+        // v8::V8::set_flags_from_string("--trace-gc --gc-global --gc-interval 1 --heap-profiler-trace-objects");
         let options = deno_runtime::worker::WorkerOptions {
             apply_source_maps: false,
             user_agent: "x".to_string(),
@@ -210,12 +257,40 @@ fn run_module(filepath: &str, additional_js: Option<String>) -> LispObject {
                     let func = v8::Function::new(scope, is_proxy).unwrap();
                     global.set(scope, name.into(), func.into());
                 }
+                {
+                    let name = v8::String::new(scope, "finalize").unwrap();
+                    let func = v8::Function::new(scope, finalize).unwrap();
+                    global.set(scope, name.into(), func.into());
+                }
             }
             {
+                // Hold on you fool, why not use FinalizerRegistry, it
+                // was made for this! That API does not work in Deno
+                // at this time, due to their handling of the DefaultPlatform
+                // Due to this, I opt'd to use weakrefs in a map. Its nice
+                // because I just need to sync that map with a lisp gc root
+                // and my job is done.
+                // @TODO either make that time for sync customizable
+                // or explore better options than hardcoding 10s.
                 runtime
                     .execute(
                         "prelim.js",
-                        "var lisp = new Proxy({}, {
+                        "
+(() => { let global = (1,eval)('this'); global.__weak = []; })();
+setInterval(() => {
+        const nw = [];
+        const args = [];
+        __weak.forEach((e) => {
+              let x = e.deref();
+              if (x) {
+                  nw.push(e);
+                  args.push(x);
+              }
+              finalize.apply(this, args);
+        });
+        __weak = nw;
+}, 10000);
+var lisp = new Proxy({}, {
                 get: function(o, k) {
                    return function() {
                        const modargs = [k.replaceAll('-', '_')];
@@ -227,7 +302,14 @@ fn run_module(filepath: &str, additional_js: Option<String>) -> LispObject {
                              }
                           }
                        let result = lisp_invoke.apply(this, modargs);
-                       let retval = is_proxy(result) ? result : JSON.parse(result);
+                       let retval = null;
+                       if (is_proxy(result)) {
+                           __weak.push(new WeakRef(result));
+                           retval = result;
+                       } else {
+                           retval = JSON.parse(result);
+                       }
+
                        return retval;
                    }
 
@@ -275,6 +357,12 @@ fn run_module(filepath: &str, additional_js: Option<String>) -> LispObject {
 pub fn js_tick_event_loop() -> LispObject {
     tick_js!();
     crate::remacs_sys::Qnil
+}
+
+// @TODO we actually should call this, since it performs runtime actions.
+// for now, we are manually calling 'staticpro'
+fn init_syms() {
+    defvar_lisp!(Vjs_retain_map, "js-retain-map", crate::remacs_sys::Qnil);
 }
 
 include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
