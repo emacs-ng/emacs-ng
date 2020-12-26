@@ -43,10 +43,16 @@ mod ng_async;
 mod parsing;
 
 mod eval;
+mod frame;
 mod lists;
 mod multibyte;
 mod process;
 mod vectors;
+#[cfg(feature = "window-system-webrender")]
+mod wrterm;
+
+#[cfg(feature = "window-system-webrender")]
+pub use crate::wrterm::{tip_frame, wr_display_list};
 
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));

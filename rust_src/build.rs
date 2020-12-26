@@ -369,11 +369,12 @@ fn env_var(name: &str) -> String {
 }
 
 // What to ignore when walking the list of files
-fn ignore(path: &str, _additional_ignored_paths: &Vec<&str>) -> bool {
+fn ignore(path: &str, additional_ignored_paths: &Vec<&str>) -> bool {
     path == ""
         || path.starts_with('.')
         || path == "lib.rs"
         || path == "functions.rs"
+        || additional_ignored_paths.contains(&path)
         || if cfg!(feature = "libvterm") {
             false
         } else {
@@ -388,6 +389,9 @@ fn build_ignored_paths() -> Vec<&'static str> {
 
     #[cfg(not(feature = "window-system-x11"))]
     ignored_paths.push("xsettings.rs");
+
+    #[cfg(not(feature = "window-system-webrender"))]
+    ignored_paths.push("wrterm.rs");
 
     ignored_paths
 }
