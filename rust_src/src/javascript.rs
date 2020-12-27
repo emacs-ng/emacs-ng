@@ -7,7 +7,7 @@ use rusty_v8 as v8;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ffi::CString;
-use std::io::{Error, Result};
+use std::io::Result;
 
 struct EmacsJsRuntime {
     r: Option<tokio::runtime::Runtime>,
@@ -16,6 +16,7 @@ struct EmacsJsRuntime {
 
 static mut MAIN_RUNTIME: std::mem::MaybeUninit<EmacsJsRuntime> =
     std::mem::MaybeUninit::<EmacsJsRuntime>::uninit();
+static mut WITHIN_RUNTIME: bool = false;
 
 impl EmacsJsRuntime {
     fn set_main(r: tokio::runtime::Runtime, w: deno_runtime::worker::MainWorker) {
@@ -30,9 +31,15 @@ impl EmacsJsRuntime {
         unsafe { &mut *MAIN_RUNTIME.as_mut_ptr() }
     }
 
-    fn take() -> (tokio::runtime::Runtime, deno_runtime::worker::MainWorker) {
+    fn handle() -> tokio::runtime::Handle {
         let runtime = Self::runtime();
-        (runtime.r.take().unwrap(), runtime.w.take().unwrap())
+        let roption: &Option<tokio::runtime::Runtime> = &runtime.r;
+        roption.as_ref().unwrap().handle().clone()
+    }
+
+    fn worker() -> &'static mut deno_runtime::worker::MainWorker {
+        let runtime = Self::runtime();
+        runtime.w.as_mut().unwrap()
     }
 }
 
@@ -238,6 +245,7 @@ pub fn lisp_callback(
 struct EmacsJsOptions {
     tick_rate: f64,
     ops: deno_runtime::permissions::PermissionsOptions,
+    error_handler: LispObject,
 }
 
 const JS_PERMS_ERROR: &str =
@@ -248,6 +256,7 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
     let mut allow_write = true;
     let mut allow_run = true;
     let mut tick_rate = 0.1;
+    let mut error_handler = crate::remacs_sys::Qnil;
 
     if args.len() % 2 != 0 {
         error!(JS_PERMS_ERROR);
@@ -287,6 +296,9 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
                     tick_rate = crate::remacs_sys::XFLOAT_DATA(value);
                 }
             },
+            crate::remacs_sys::QCjs_error_handler => {
+                error_handler = value;
+            }
             _ => error!(JS_PERMS_ERROR),
         }
     }
@@ -299,77 +311,66 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
         ..Default::default()
     };
 
-    EmacsJsOptions { tick_rate, ops }
-}
-
-macro_rules! err_to_lisp_string {
-    ($e:expr) => {{
-        let err = format!("Javascript error: {:?}", $e);
-        let len = err.len();
-        let cstr = CString::new(err).expect("Failure to allocate JS Error String");
-        unsafe { crate::remacs_sys::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap()) }
-    }};
+    EmacsJsOptions {
+        tick_rate,
+        ops,
+        error_handler,
+    }
 }
 
 #[lisp_fn(min = "1")]
 pub fn eval_js(args: &[LispObject]) -> LispObject {
     let string_obj: LispStringRef = args[0].into();
     let ops = permissions_from_args(&args[1..args.len()]);
-    run_module("anon-lisp.js", Some(string_obj.to_utf8()), ops)
-        .unwrap_or_else(|e| err_to_lisp_string!(e))
+    run_module("anon-lisp.js", Some(string_obj.to_utf8()), &ops)
+        .unwrap_or_else(move |e| handle_error(e, ops.error_handler))
 }
 
 #[lisp_fn(min = "1")]
 pub fn eval_js_file(args: &[LispObject]) -> LispObject {
     let filename: LispStringRef = args[0].into();
     let ops = permissions_from_args(&args[1..args.len()]);
-    run_module(&filename.to_utf8(), None, ops).unwrap_or_else(|e| err_to_lisp_string!(e))
+    run_module(&filename.to_utf8(), None, &ops)
+        .unwrap_or_else(move |e| handle_error(e, ops.error_handler))
 }
 
-macro_rules! tick_js {
-    () => {{
-        execute!(async move |mut w: deno_runtime::worker::MainWorker| {
-            let x: Result<()> = futures::future::poll_fn(|cx| {
-                let polled = w.poll_event_loop(cx);
-                match polled {
-                    std::task::Poll::Ready(r) => r.map_err(basic_error!())?,
-                    std::task::Poll::Pending => {}
-                }
+fn into_ioerr<E: Into<Box<dyn std::error::Error + Send + Sync>>>(e: E) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::Other, e)
+}
 
-                std::task::Poll::Ready(Ok(()))
-            })
-            .await;
-            let _ = x?;
+fn execute<T: Sized + std::future::Future<Output = Result<()>>>(fnc: T) -> Result<()> {
+    if unsafe { WITHIN_RUNTIME } {
+        Err(std::io::Error::new(std::io::ErrorKind::Other, "Attempted to execute javascript from lisp within the javascript context. Javascript is not re-entrant, cannot call JS -> Lisp -> JS"))
+    } else {
+        let handle = EmacsJsRuntime::handle();
+        unsafe { WITHIN_RUNTIME = true };
+        let result = handle.block_on(fnc);
+        unsafe { WITHIN_RUNTIME = false };
+        result
+    }
+}
 
-            Ok(w)
+fn tick_js() -> Result<()> {
+    execute(async move {
+        let x: Result<()> = futures::future::poll_fn(|cx| {
+            let w = EmacsJsRuntime::worker();
+            let polled = w.poll_event_loop(cx);
+            match polled {
+                std::task::Poll::Ready(r) => r.map_err(|e| into_ioerr(e))?,
+                std::task::Poll::Pending => {}
+            }
+
+            std::task::Poll::Ready(Ok(()))
         })
-    }};
-}
+        .await;
+        let _ = x?;
 
-macro_rules! execute {
-    ($fnc:expr) => {{
-        let (mut r, mut w) = EmacsJsRuntime::take();
-        let result: Result<deno_runtime::worker::MainWorker> =
-            r.block_on(async move { $fnc(w).await });
-        EmacsJsRuntime::set_main(r, result?);
         Ok(())
-    }};
-}
-
-macro_rules! basic_error {
-    () => {{
-        let f = |e| std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", e));
-        f
-    }};
+    })
 }
 
 static ONCE: std::sync::Once = std::sync::Once::new();
-
-fn run_module(
-    filepath: &str,
-    additional_js: Option<String>,
-    js_options: EmacsJsOptions,
-) -> Result<LispObject> {
+fn init_once(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     let mut once_result: Result<()> = Ok(());
     ONCE.call_once(|| {
         let indirect = || -> Result<()> {
@@ -511,7 +512,7 @@ global.lisp = new Proxy({}, {
             });
 
             EmacsJsRuntime::set_main(r, worker);
-            //(run-with-timer t 1 'js-tick-event-loop)
+            //(run-with-timer t 1 'js-tick-event-loop error-handler)
 
             let cstr = CString::new("run-with-timer").expect("Failed to create timer");
             let callback = CString::new("js-tick-event-loop").expect("Failed to create timer");
@@ -523,6 +524,7 @@ global.lisp = new Proxy({}, {
                     crate::remacs_sys::Qt,
                     crate::remacs_sys::make_float(js_options.tick_rate),
                     fun_callback,
+                    js_options.error_handler,
                 ];
                 crate::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
             }
@@ -532,43 +534,60 @@ global.lisp = new Proxy({}, {
         once_result = indirect();
     });
 
-    let _ = once_result?;
+    once_result
+}
 
-    let r: Result<()> = execute!(async move |mut w: deno_runtime::worker::MainWorker| {
+fn run_module(
+    filepath: &str,
+    additional_js: Option<String>,
+    js_options: &EmacsJsOptions,
+) -> Result<LispObject> {
+    init_once(filepath, js_options)?;
+
+    execute(async move {
+        let w = EmacsJsRuntime::worker();
         if let Some(js) = additional_js {
-            w.execute(&js).map_err(basic_error!())?;
+            w.execute(&js).map_err(|e| into_ioerr(e))?;
         } else {
             let main_module = deno_core::ModuleSpecifier::resolve_url_or_path(filepath)
-                .map_err(basic_error!())?;
+                .map_err(|e| into_ioerr(e))?;
             w.execute_module(&main_module)
                 .await
-                .map_err(basic_error!())?;
+                .map_err(|e| into_ioerr(e))?;
         }
 
-        Ok(w)
-    });
-
-    let _ = r?;
+        Ok(())
+    })?;
 
     Ok(crate::remacs_sys::Qnil)
 }
 
-#[lisp_fn]
-pub fn js_tick_event_loop() -> LispObject {
-    let wrapper = || -> Result<()> {
-        let r: Result<()> = tick_js!();
-        r
-    };
-
-    if let Err(e) = wrapper() {
-        crate::remacs_sys::Qt
+fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
+    let err_string = e.to_string();
+    if handler.is_nil() {
+        error!(err_string);
     } else {
-        crate::remacs_sys::Qnil
+        unsafe {
+            let len = err_string.len();
+            let cstr = CString::new(err_string).expect("Failed to allocate CString");
+            let lstring =
+                crate::remacs_sys::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap());
+            let mut args = vec![handler, lstring];
+            Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr())
+        }
     }
+}
+
+#[lisp_fn]
+pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
+    tick_js()
+        .map(|_| crate::remacs_sys::Qnil)
+        .unwrap_or_else(|e| handle_error(e, handler))
 }
 
 // @TODO we actually should call this, since it performs runtime actions.
 // for now, we are manually calling 'staticpro'
+#[allow(dead_code)]
 fn init_syms() {
     defvar_lisp!(Vjs_retain_map, "js-retain-map", crate::remacs_sys::Qnil);
 
@@ -578,6 +597,8 @@ fn init_syms() {
     def_lisp_sym!(QCallow_write, ":allow-write");
     def_lisp_sym!(QCallow_run, ":allow-run");
     def_lisp_sym!(QCjs_tick_rate, ":js-tick-rate");
+    def_lisp_sym!(Qjs_error, "js-error");
+    def_lisp_sym!(QCjs_error_handler, ":js-error-handler");
 }
 
 include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
