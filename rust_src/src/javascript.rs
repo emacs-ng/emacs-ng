@@ -234,13 +234,19 @@ pub fn lisp_callback(
     }
 }
 
+struct EmacsJsOptions {
+    tick_rate: f64,
+    ops: deno_runtime::permissions::PermissionsOptions,
+}
+
 const JS_PERMS_ERROR: &str =
     "Valid options are: :allow-net nil :allow-read nil :allow-write nil :allow-run nil";
-fn permissions_from_args(args: &[LispObject]) -> deno_runtime::permissions::PermissionsOptions {
+fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
     let mut allow_net = true;
     let mut allow_read = true;
     let mut allow_write = true;
     let mut allow_run = true;
+    let mut tick_rate = 0.1;
 
     if args.len() % 2 != 0 {
         error!(JS_PERMS_ERROR);
@@ -275,17 +281,24 @@ fn permissions_from_args(args: &[LispObject]) -> deno_runtime::permissions::Perm
                     allow_run = false
                 }
             }
+            crate::remacs_sys::QCjs_tick_rate => unsafe {
+                if crate::remacs_sys::FLOATP(value) {
+                    tick_rate = crate::remacs_sys::XFLOAT_DATA(value);
+                }
+            },
             _ => error!(JS_PERMS_ERROR),
         }
     }
 
-    deno_runtime::permissions::PermissionsOptions {
+    let ops = deno_runtime::permissions::PermissionsOptions {
         allow_net,
         allow_read,
         allow_write,
         allow_run,
         ..Default::default()
-    }
+    };
+
+    EmacsJsOptions { tick_rate, ops }
 }
 
 #[lisp_fn(min = "1")]
@@ -334,7 +347,7 @@ static ONCE: std::sync::Once = std::sync::Once::new();
 fn run_module(
     filepath: &str,
     additional_js: Option<String>,
-    ops: deno_runtime::permissions::PermissionsOptions,
+    js_options: EmacsJsOptions,
 ) -> LispObject {
     ONCE.call_once(|| {
         let mut r = tokio::runtime::Builder::new()
@@ -346,7 +359,7 @@ fn run_module(
             .unwrap();
 
         let main_module = deno_core::ModuleSpecifier::resolve_url_or_path(filepath).unwrap();
-        let permissions = deno_runtime::permissions::Permissions::from_options(&ops);
+        let permissions = deno_runtime::permissions::Permissions::from_options(&js_options.ops);
 
         // @TODO I'm leaving this line commented out, but we should add this to
         // the init API. Flags listed at https://deno.land/manual/contributing/development_tools
@@ -485,7 +498,7 @@ global.lisp = new Proxy({}, {
             let mut args = vec![
                 fun,
                 crate::remacs_sys::Qt,
-                crate::remacs_sys::make_float(0.1),
+                crate::remacs_sys::make_float(js_options.tick_rate),
                 fun_callback,
             ];
             crate::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
@@ -522,6 +535,7 @@ fn init_syms() {
     def_lisp_sym!(QCallow_read, ":allow-read");
     def_lisp_sym!(QCallow_write, ":allow-write");
     def_lisp_sym!(QCallow_run, ":allow-run");
+    def_lisp_sym!(QCjs_tick_rate, ":js-tick-rate");
 }
 
 include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
