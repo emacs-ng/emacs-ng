@@ -352,7 +352,7 @@ fn execute<T: Sized + std::future::Future<Output = Result<()>>>(fnc: T) -> Resul
 
 fn tick_js() -> Result<()> {
     execute(async move {
-        let x: Result<()> = futures::future::poll_fn(|cx| {
+        futures::future::poll_fn(|cx| {
             let w = EmacsJsRuntime::worker();
             let polled = w.poll_event_loop(cx);
             match polled {
@@ -362,27 +362,31 @@ fn tick_js() -> Result<()> {
 
             std::task::Poll::Ready(Ok(()))
         })
-        .await;
-        let _ = x?;
-
-        Ok(())
+        .await
     })
 }
-
+static mut FAILED_TO_INIT: bool = false;
 static ONCE: std::sync::Once = std::sync::Once::new();
 fn init_once(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
+    if unsafe { FAILED_TO_INIT } {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Javascript environment failed to initalize, cannot run JS code",
+        ));
+    }
+
     let mut once_result: Result<()> = Ok(());
     ONCE.call_once(|| {
         let indirect = || -> Result<()> {
-            let mut r = tokio::runtime::Builder::new()
+            let mut runtime = tokio::runtime::Builder::new()
                 .threaded_scheduler()
                 .enable_io()
                 .enable_time()
                 .max_threads(32)
-                .build()
-                .unwrap();
+                .build()?;
 
-            let main_module = deno_core::ModuleSpecifier::resolve_url_or_path(filepath).unwrap();
+            let main_module = deno_core::ModuleSpecifier::resolve_url_or_path(filepath)
+                .map_err(|e| into_ioerr(e))?;
             let permissions = deno_runtime::permissions::Permissions::from_options(&js_options.ops);
 
             // @TODO I'm leaving this line commented out, but we should add this to
@@ -413,7 +417,7 @@ fn init_once(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
                 permissions,
                 &options,
             );
-            worker = r.block_on(async move {
+            let result: Result<deno_runtime::worker::MainWorker> = runtime.block_on(async move {
                 worker.bootstrap(&options);
                 let runtime = &mut worker.js_runtime;
                 {
@@ -452,66 +456,15 @@ fn init_once(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
                     // @TODO either make that time for sync customizable
                     // or explore better options than hardcoding 10s.
                     runtime
-                        .execute(
-                            "prelim.js",
-                            "
-(() => {
-let global = (1,eval)('this');
-let __weak = [];
-let finalize = global.finalize;
-delete global.finalize;
-let lisp_json = global.lisp_json;
-delete global.lisp_json;
-setInterval(() => {
-        const nw = [];
-        const args = [];
-        __weak.forEach((e) => {
-              let x = e.deref();
-              if (x) {
-                  nw.push(e);
-                  args.push(x);
-              }
-              finalize.apply(this, args);
-        });
-        __weak = nw;
-}, 10000);
-global.lisp = new Proxy({}, {
-                get: function(o, k) {
-                   return function() {
-                       const modargs = [k.replaceAll('-', '_')];
-                          for (let i = 0; i < arguments.length; ++i) {
-                             if (is_proxy(arguments[i])) {
-                                 modargs.push(arguments[i]);
-                             } else {
-                                 modargs.push(JSON.stringify(arguments[i]));
-                             }
-                          }
-                       let result = lisp_invoke.apply(this, modargs);
-                       let retval = null;
-                       if (is_proxy(result)) {
-                           result.json = () => {
-                                return JSON.parse(lisp_json(result));
-                           };
-
-                           __weak.push(new WeakRef(result));
-                           retval = result;
-                       } else {
-                           retval = JSON.parse(result);
-                       }
-
-                       return retval;
-                   }
-
-                }});
-})();",
-                        )
-                        .unwrap();
+                        .execute("prelim.js", include_str!("prelim.js"))
+                        .map_err(|e| into_ioerr(e))?
                 }
 
-                worker
+                Ok(worker)
             });
 
-            EmacsJsRuntime::set_main(r, worker);
+            let worker = result?;
+            EmacsJsRuntime::set_main(runtime, worker);
             //(run-with-timer t 1 'js-tick-event-loop error-handler)
 
             let cstr = CString::new("run-with-timer").expect("Failed to create timer");
@@ -533,6 +486,10 @@ global.lisp = new Proxy({}, {
         };
         once_result = indirect();
     });
+
+    if once_result.is_err() {
+        unsafe { FAILED_TO_INIT = true };
+    }
 
     once_result
 }
