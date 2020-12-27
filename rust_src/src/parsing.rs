@@ -211,6 +211,8 @@ pub fn get_json_cached_data(map: LispCons, key: LispObject) -> LispObject {
 
 */
 
+// @TODO: Instead of an option, have this return a result
+// and do not invoke 'error' directly. Have serde_to_lisp match.
 fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> Option<serde_json::Value> {
     if object == config.null_obj {
         Some(serde_json::Value::Null)
@@ -237,7 +239,7 @@ fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> Option<serde
         let size = unsafe { ASIZE(object) };
         let mut vector: Vec<serde_json::Value> = vec![];
         for i in 0..size {
-            vector.push(lisp_to_serde(unsafe { AREF(object, i) }, config).unwrap());
+            vector.push(lisp_to_serde(unsafe { AREF(object, i) }, config)?);
         }
 
         Some(serde_json::Value::Array(vector))
@@ -252,7 +254,7 @@ fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> Option<serde
                 let key_string: LispStringRef = key.into();
                 let key_utf8 = key_string.to_utf8();
                 let lisp_val = unsafe { HASH_VALUE(h, i) };
-                let insert_result = map.insert(key_utf8, lisp_to_serde(lisp_val, config).unwrap());
+                let insert_result = map.insert(key_utf8, lisp_to_serde(lisp_val, config)?);
                 if insert_result.is_some() {
                     error!("Duplicate keys are not allowed");
                 }
@@ -268,6 +270,7 @@ fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> Option<serde
         let is_plist = !tail.car().is_cons();
         let mut map = Map::new();
         let mut skip_cycle = false;
+        let mut return_none = false;
         iter.for_each(|tail| {
             if skip_cycle {
                 skip_cycle = false;
@@ -276,6 +279,11 @@ fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> Option<serde
 
             let (key, value) = if is_plist {
                 let key = tail.car();
+                if !tail.cdr().is_cons() {
+                    return_none = true;
+                    return;
+                }
+
                 let cdr_cons: LispCons = tail.cdr().into();
                 // we have looked at key, and taken value, so we want to skip the inter
                 // iteration
@@ -284,6 +292,11 @@ fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> Option<serde
                 (key, value)
             } else {
                 let pair = tail.car();
+                if !pair.is_cons() {
+                    return_none = true;
+                    return;
+                }
+
                 let pair_value: LispCons = pair.into();
                 (pair_value.car(), pair_value.cdr())
             };
@@ -299,11 +312,19 @@ fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> Option<serde
             // We only will add to the map if a value is not present
             // at that key
             if !map.contains_key(&key_utf8) {
-                map.insert(key_utf8, lisp_to_serde(value, config).unwrap());
+                if let Some(insert_value) = lisp_to_serde(value, config) {
+                    map.insert(key_utf8, insert_value);
+                } else {
+                    return_none = true;
+                }
             }
         });
 
-        Some(serde_json::Value::Object(map))
+        if return_none {
+            None
+        } else {
+            Some(serde_json::Value::Object(map))
+        }
     } else {
         None
     }
@@ -509,6 +530,7 @@ fn generate_config_from_args(args: &[LispObject]) -> JSONConfiguration {
 #[lisp_fn(min = "1")]
 pub fn json_se(args: &[LispObject]) -> LispObject {
     let config = generate_config_from_args(&args[1..]);
+    // @TODO remove this unwrap, instead throw error
     let value = lisp_to_serde(args[0], &config).unwrap();
     match serde_json::to_string(&value) {
         Ok(v) => {

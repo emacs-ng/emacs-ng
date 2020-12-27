@@ -1,4 +1,5 @@
 use crate::lisp::LispObject;
+use crate::lists::LispCons;
 use crate::multibyte::LispStringRef;
 use crate::remacs_sys::{intern_c_string, Ffuncall};
 use remacs_macros::lisp_fn;
@@ -112,6 +113,18 @@ pub fn is_proxy(
     retval.set(r);
 }
 
+unsafe extern "C" fn lisp_springboard(arg1: *mut ::libc::c_void) -> LispObject {
+    let mut lisp_args: Vec<LispObject> = *Box::from_raw(arg1 as *mut Vec<LispObject>);
+    Ffuncall(lisp_args.len().try_into().unwrap(), lisp_args.as_mut_ptr())
+}
+
+unsafe extern "C" fn lisp_handler(
+    _arg1: crate::remacs_sys::nonlocal_exit::Type,
+    arg2: LispObject,
+) -> LispObject {
+    LispObject::cons(crate::remacs_sys::Qjs_lisp_error, arg2)
+}
+
 pub fn lisp_callback(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
@@ -156,10 +169,34 @@ pub fn lisp_callback(
         }
     }
 
-    let results = unsafe { Ffuncall(lisp_args.len().try_into().unwrap(), lisp_args.as_mut_ptr()) };
+    let boxed = Box::new(lisp_args);
+    let raw_ptr = Box::into_raw(boxed);
+    let results = unsafe {
+        crate::remacs_sys::internal_catch_all(
+            Some(lisp_springboard),
+            raw_ptr as *mut ::libc::c_void,
+            Some(lisp_handler),
+        )
+    };
+
+    if results.is_cons() {
+        let cons: LispCons = results.into();
+        if cons.car() == crate::remacs_sys::Qjs_lisp_error {
+            // Lisp has thrown, so we want to throw a JS exception.
+            let lisp_error_string = unsafe { crate::remacs_sys::Ferror_message_string(cons.cdr()) };
+            let lisp_ref: LispStringRef = lisp_error_string.into();
+            let err = lisp_ref.to_utf8();
+            let error = v8::String::new(scope, &err).unwrap();
+            let exception = v8::Exception::error(scope, error);
+            scope.throw_exception(exception);
+            // We do not want to execute any additional JS operations now
+            // that we have thrown an exception. Instead we return.
+            return;
+        }
+    }
+
     // LOGIC, attempt to se, with a version of se that returns an error,
     // if this can't se, it is a proxy, and we will treat it as such.
-
     let is_primative = unsafe {
         crate::remacs_sys::STRINGP(results)
             || crate::remacs_sys::FIXNUMP(results)
@@ -424,6 +461,8 @@ pub fn js_tick_event_loop() -> LispObject {
 // for now, we are manually calling 'staticpro'
 fn init_syms() {
     defvar_lisp!(Vjs_retain_map, "js-retain-map", crate::remacs_sys::Qnil);
+
+    def_lisp_sym!(Qjs_lisp_error, "js-lisp-error");
 }
 
 include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
