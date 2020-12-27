@@ -234,14 +234,72 @@ pub fn lisp_callback(
     }
 }
 
-#[lisp_fn]
-pub fn eval_js(string_obj: LispStringRef) -> LispObject {
-    run_module("anon-lisp.js", Some(string_obj.to_utf8()))
+const JS_PERMS_ERROR: &str =
+    "Valid options are: :allow-net nil :allow-read nil :allow-write nil :allow-run nil";
+fn permissions_from_args(args: &[LispObject]) -> deno_runtime::permissions::PermissionsOptions {
+    let mut allow_net = true;
+    let mut allow_read = true;
+    let mut allow_write = true;
+    let mut allow_run = true;
+
+    if args.len() % 2 != 0 {
+        error!(JS_PERMS_ERROR);
+    }
+
+    for i in 0..args.len() {
+        if i % 2 != 0 {
+            continue;
+        }
+
+        let key = args[i];
+        let value = args[i + 1];
+
+        match key {
+            crate::remacs_sys::QCallow_net => {
+                if value == crate::remacs_sys::Qnil {
+                    allow_net = false
+                }
+            }
+            crate::remacs_sys::QCallow_read => {
+                if value == crate::remacs_sys::Qnil {
+                    allow_read = false
+                }
+            }
+            crate::remacs_sys::QCallow_write => {
+                if value == crate::remacs_sys::Qnil {
+                    allow_write = false
+                }
+            }
+            crate::remacs_sys::QCallow_run => {
+                if value == crate::remacs_sys::Qnil {
+                    allow_run = false
+                }
+            }
+            _ => error!(JS_PERMS_ERROR),
+        }
+    }
+
+    deno_runtime::permissions::PermissionsOptions {
+        allow_net,
+        allow_read,
+        allow_write,
+        allow_run,
+        ..Default::default()
+    }
 }
 
-#[lisp_fn]
-pub fn eval_js_file(filename: LispStringRef) -> LispObject {
-    run_module(&filename.to_utf8(), None)
+#[lisp_fn(min = "1")]
+pub fn eval_js(args: &[LispObject]) -> LispObject {
+    let string_obj: LispStringRef = args[0].into();
+    let ops = permissions_from_args(&args[1..args.len()]);
+    run_module("anon-lisp.js", Some(string_obj.to_utf8()), ops)
+}
+
+#[lisp_fn(min = "1")]
+pub fn eval_js_file(args: &[LispObject]) -> LispObject {
+    let filename: LispStringRef = args[0].into();
+    let ops = permissions_from_args(&args[1..args.len()]);
+    run_module(&filename.to_utf8(), None, ops)
 }
 
 macro_rules! tick_js {
@@ -273,7 +331,11 @@ macro_rules! execute {
 
 static ONCE: std::sync::Once = std::sync::Once::new();
 
-fn run_module(filepath: &str, additional_js: Option<String>) -> LispObject {
+fn run_module(
+    filepath: &str,
+    additional_js: Option<String>,
+    ops: deno_runtime::permissions::PermissionsOptions,
+) -> LispObject {
     ONCE.call_once(|| {
         let mut r = tokio::runtime::Builder::new()
             .threaded_scheduler()
@@ -284,13 +346,6 @@ fn run_module(filepath: &str, additional_js: Option<String>) -> LispObject {
             .unwrap();
 
         let main_module = deno_core::ModuleSpecifier::resolve_url_or_path(filepath).unwrap();
-        let ops = deno_runtime::permissions::PermissionsOptions {
-            allow_net: true,
-            allow_read: true,
-            allow_write: true,
-            allow_run: true,
-            ..Default::default()
-        };
         let permissions = deno_runtime::permissions::Permissions::from_options(&ops);
 
         // @TODO I'm leaving this line commented out, but we should add this to
@@ -463,6 +518,10 @@ fn init_syms() {
     defvar_lisp!(Vjs_retain_map, "js-retain-map", crate::remacs_sys::Qnil);
 
     def_lisp_sym!(Qjs_lisp_error, "js-lisp-error");
+    def_lisp_sym!(QCallow_net, ":allow-net");
+    def_lisp_sym!(QCallow_read, ":allow-read");
+    def_lisp_sym!(QCallow_write, ":allow-write");
+    def_lisp_sym!(QCallow_run, ":allow-run");
 }
 
 include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
