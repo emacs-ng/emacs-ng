@@ -447,14 +447,6 @@ fn init_once(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
                     }
                 }
                 {
-                    // Hold on you fool, why not use FinalizerRegistry, it
-                    // was made for this! That API does not work in Deno
-                    // at this time, due to their handling of the DefaultPlatform
-                    // Due to this, I opt'd to use weakrefs in a map. Its nice
-                    // because I just need to sync that map with a lisp gc root
-                    // and my job is done.
-                    // @TODO either make that time for sync customizable
-                    // or explore better options than hardcoding 10s.
                     runtime
                         .execute("prelim.js", include_str!("prelim.js"))
                         .map_err(|e| into_ioerr(e))?
