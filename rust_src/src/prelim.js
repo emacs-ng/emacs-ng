@@ -119,6 +119,75 @@
 		}
 	    }
 
+	    if (k === 'defun') {
+		return function () {
+		    let args = arguments;
+		    if (args.length === 2) {
+			let name = args[0];
+			const func = args[1];
+			if (typeof name === 'string') {
+			    name = lisp.intern(name);
+			}
+			const numArgs = func.length;
+			const argList = argsLists[numArgs];
+			const invokes = invokeLists[numArgs];
+			const len = __functions.length;
+
+			lisp.eval(lisp.list(lisp.q.defun, name, argList(), invokes(len)));
+			__functions.push(func);
+		    } else if (args.length === 3) {
+			let name = args[0];
+			let second = args[1];
+			const func = args[2];
+			if (typeof name === 'string') {
+			    name = lisp.intern(name);
+			}
+
+			if (second.interactive) {
+			    if (second.arg) {
+				second = lisp.list(lisp.q.interactive, second.arg);
+			    } else {
+				second = lisp.list(lisp.q.interactive);
+			    }
+			}
+
+			const numArgs = func.length;
+			const argList = argsLists[numArgs];
+			const invokes = invokeLists[numArgs];
+			const len = __functions.length;
+
+			lisp.eval(lisp.list(lisp.q.defun, name, argList(), second, invokes(len)));
+			__functions.push(func);
+		    } else if (args.length === 4) {
+			let name = args[0];
+			let docstring = args[1];
+			let interactive = args[2];
+			const func = args[3];
+			if (typeof name === 'string') {
+			    name = lisp.intern(name);
+			}
+
+			if (interactive.interactive) {
+			    if (interactive.arg) {
+				interactive = lisp.list(lisp.q.interactive, interactive.arg);
+			    } else {
+				interactive = lisp.list(lisp.q.interactive);
+			    }
+			}
+
+			const numArgs = func.length;
+			const argList = argsLists[numArgs];
+			const invokes = invokeLists[numArgs];
+			const len = __functions.length;
+
+			lisp.eval(lisp.list(lisp.q.defun, name, argList(), docstring, interactive, invokes(len)));
+			__functions.push(func);
+
+		    }
+
+		}
+	    }
+
             return function() {
                 const modargs = [k.replaceAll('-', '_')];
                 for (let i = 0; i < arguments.length; ++i) {
