@@ -1,7 +1,7 @@
 use crate::lisp::LispObject;
 use crate::lists::LispCons;
 use crate::multibyte::LispStringRef;
-use crate::parsing::{ArrayType, JSONConfiguration, ObjectType};
+use crate::parsing::{ArrayType, ObjectType};
 use crate::remacs_sys::{intern_c_string, Ffuncall};
 use remacs_macros::lisp_fn;
 use rusty_v8 as v8;
@@ -207,8 +207,9 @@ unsafe extern "C" fn lisp_handler(
     LispObject::cons(crate::remacs_sys::Qjs_lisp_error, arg2)
 }
 
+static mut raw_handle: *mut v8::HandleScope = std::ptr::null_mut();
 pub fn lisp_callback(
-    scope: &mut v8::HandleScope,
+    mut scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
     mut retval: v8::ReturnValue,
 ) {
@@ -251,6 +252,7 @@ pub fn lisp_callback(
         }
     }
 
+    unsafe { raw_handle = std::mem::transmute(scope) };
     let boxed = Box::new(lisp_args);
     let raw_ptr = Box::into_raw(boxed);
     let results = unsafe {
@@ -260,6 +262,11 @@ pub fn lisp_callback(
             Some(lisp_handler),
         )
     };
+
+    unsafe {
+        scope = std::mem::transmute(raw_handle);
+        raw_handle = std::ptr::null_mut();
+    }
 
     if results.is_cons() {
         let cons: LispCons = results.into();
@@ -433,6 +440,95 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
     // if permissions have already been set for this module.
     run_module("initalize.js", Some("".to_string()), unsafe { &OPTS })
         .unwrap_or_else(move |e| handle_error(e, unsafe { OPTS.error_handler }))
+}
+
+fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObject {
+    let index = args[0];
+    if !unsafe { crate::remacs_sys::INTEGERP(index) } {
+        error!("Failed to provide proper index to js--reenter");
+    }
+
+    let value = unsafe {
+        crate::remacs_sys::check_integer_range(
+            index,
+            crate::remacs_sys::intmax_t::MIN,
+            crate::remacs_sys::intmax_t::MAX,
+        )
+    };
+
+    let context = scope.get_current_context();
+    let global = context.global(scope);
+
+    let name = v8::String::new(scope, "__invoke").unwrap();
+    let fnc: v8::Local<v8::Function> = global.get(scope, name.into()).unwrap().try_into().unwrap();
+
+    let recv =
+        v8::Local::<v8::Value>::try_from(v8::String::new(scope, "lisp_invoke").unwrap()).unwrap();
+    let arg0 = v8::Local::<v8::Value>::try_from(v8::Number::new(scope, value as f64)).unwrap();
+    let mut v8_args = vec![arg0];
+
+    for i in 1..args.len() {
+        let a = args[i];
+        let is_primative = unsafe {
+            crate::remacs_sys::STRINGP(a)
+                || crate::remacs_sys::FIXNUMP(a)
+                || crate::remacs_sys::FLOATP(a)
+                || a == crate::remacs_sys::Qnil
+                || a == crate::remacs_sys::Qt
+        };
+        if is_primative {
+            if let Ok(json) = crate::parsing::ser(a) {
+                v8_args.push(
+                    v8::Local::<v8::Value>::try_from(v8::String::new(scope, &json).unwrap())
+                        .unwrap(),
+                );
+            }
+        } else {
+            let obj = make_proxy!(scope, a);
+            v8_args.push(v8::Local::<v8::Value>::try_from(obj).unwrap());
+        }
+    }
+
+    let result = fnc.call(scope, recv, v8_args.as_slice()).unwrap();
+    let mut retval = crate::remacs_sys::Qnil;
+    if result.is_string() {
+        let a = result.to_string(scope).unwrap().to_rust_string_lossy(scope);
+
+        if let Ok(deser) = crate::parsing::deser(&a, None) {
+            retval = deser;
+        }
+    } else if result.is_object() {
+        let a = result.to_object(scope).unwrap();
+        assert!(a.internal_field_count() > 0);
+        let internal = a.get_internal_field(scope, 0).unwrap();
+        let ptrstr = internal
+            .to_string(scope)
+            .unwrap()
+            .to_rust_string_lossy(scope);
+        let lispobj =
+            LispObject::from_C_unsigned(ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap());
+        retval = lispobj;
+    }
+
+    retval
+}
+
+#[lisp_fn(min = "1")]
+pub fn js__reenter(args: &[LispObject]) -> LispObject {
+    let retval;
+    if !unsafe { WITHIN_RUNTIME } {
+        let worker = EmacsJsRuntime::worker();
+        let runtime = &mut worker.js_runtime;
+        let context = runtime.global_context();
+        let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
+        retval = js_reenter_inner(scope, args);
+    } else {
+        let scope: &mut v8::HandleScope = unsafe { std::mem::transmute(raw_handle) };
+        retval = js_reenter_inner(scope, args);
+        unsafe { raw_handle = std::mem::transmute(scope) };
+    }
+
+    retval
 }
 
 fn into_ioerr<E: Into<Box<dyn std::error::Error + Send + Sync>>>(e: E) -> std::io::Error {

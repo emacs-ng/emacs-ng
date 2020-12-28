@@ -12,6 +12,30 @@
 	recursive_edit: true,
     };
 
+    const __functions = [];
+
+    global.__invoke = function (idx) {
+	let modargs = [];
+	for (let i = 1; i < arguments.length; ++i) {
+	    const result = arguments[i];
+            if (is_proxy(result)) {
+                result.json = () => {
+                    return JSON.parse(lisp_json(result));
+                };
+
+		modargs.push(result);
+	    } else {
+		modargs.push(JSON.parse(arguments[i]));
+	    }
+	}
+	const retval = __functions[idx].apply(this, modargs);
+	if (is_proxy) {
+	    return retval;
+	} else {
+	    return JSON.stringify(retval);
+	}
+    };
+
     const specialForms = {
 	hashtable: (a) => json_lisp(JSON.stringify(a), 0),
 	alist: (a) => json_lisp(JSON.stringify(a), 1),
@@ -19,6 +43,29 @@
 	array: (a) => json_lisp(JSON.stringify(a), 3),
 	list: (a) => json_lisp(JSON.stringify(a), 4),
     };
+
+    const argsLists = [
+	() => lisp.list(),
+	() => lisp.list(lisp.q.a),
+	() => lisp.list(lisp.q.a, lisp.q.b),
+	() => lisp.list(lisp.q.a, lisp.q.b, lisp.q.c),
+	() => lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d),
+	() => lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e),
+	() => lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e. lisp.q.f),
+	() => lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e. lisp.q.f, lisp.q.g),
+    ];
+
+    const invokeLists = [
+	(len) => lisp.list(lisp.q.js__reenter, len),
+	(len) => lisp.list(lisp.q.js__reenter, len, lisp.q.a),
+	(len) => lisp.list(lisp.q.js__reenter, len, lisp.q.a, lisp.q.b),
+	(len) => lisp.list(lisp.q.js__reenter, len, lisp.q.a, lisp.q.b, lisp.q.c),
+	(len) => lisp.list(lisp.q.js__reenter, len, lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d),
+	(len) => lisp.list(lisp.q.js__reenter, len, lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e),
+	(len) => lisp.list(lisp.q.js__reenter, len, lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e, lisp.q.f),
+	(len) => lisp.list(lisp.q.js__reenter, len, lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e, lisp.q.f, lisp.q.g),
+
+    ];
 
     // Hold on you fool, why not use FinalizerRegistry, it
     // was made for this! That API does not work in Deno
@@ -61,15 +108,37 @@
 		return specialForms;
 	    }
 
+	    if (k === 'setq') {
+		return function () {
+		    let newArgs = [lisp.q.setq];
+		    for (let i = 0; i < arguments.length; ++i) {
+			newArgs.push(arguments[i]);
+		    }
+
+		    return lisp.eval(lisp.list.apply(this, newArgs));
+		}
+	    }
+
             return function() {
                 const modargs = [k.replaceAll('-', '_')];
                 for (let i = 0; i < arguments.length; ++i) {
-                    if (is_proxy(arguments[i])) {
+		    if (typeof arguments[i] === 'function') {
+			const len = __functions.length;
+			const numArgs = arguments[i].length;
+			const args = argsLists[numArgs];
+			const invokes = invokeLists[numArgs];
+			// @TODO the invokation statement needs multiple variants
+			// for varargs.
+			const lambda = lisp.list(lisp.q.lambda, args(), invokes(len));
+			__functions.push(arguments[i]);
+			modargs.push(lambda);
+		    } else if (is_proxy(arguments[i])) {
                         modargs.push(arguments[i]);
                     } else {
                         modargs.push(JSON.stringify(arguments[i]));
                     }
                 }
+
                 let result = lisp_invoke.apply(this, modargs);
                 let retval = null;
                 if (is_proxy(result)) {
