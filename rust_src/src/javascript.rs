@@ -14,21 +14,12 @@ struct EmacsJsRuntime {
     w: Option<deno_runtime::worker::MainWorker>,
 }
 
-static mut MAIN_RUNTIME: std::mem::MaybeUninit<EmacsJsRuntime> =
-    std::mem::MaybeUninit::<EmacsJsRuntime>::uninit();
+static mut MAIN_RUNTIME: EmacsJsRuntime = EmacsJsRuntime { r: None, w: None };
 static mut WITHIN_RUNTIME: bool = false;
 
 impl EmacsJsRuntime {
-    fn set_main(r: tokio::runtime::Runtime, w: deno_runtime::worker::MainWorker) {
-        let main = EmacsJsRuntime {
-            r: Some(r),
-            w: Some(w),
-        };
-        unsafe { MAIN_RUNTIME.write(main) };
-    }
-
     fn runtime() -> &'static mut EmacsJsRuntime {
-        unsafe { &mut *MAIN_RUNTIME.as_mut_ptr() }
+        unsafe { &mut MAIN_RUNTIME }
     }
 
     fn handle() -> tokio::runtime::Handle {
@@ -40,6 +31,22 @@ impl EmacsJsRuntime {
     fn worker() -> &'static mut deno_runtime::worker::MainWorker {
         let runtime = Self::runtime();
         runtime.w.as_mut().unwrap()
+    }
+
+    unsafe fn take_worker() -> deno_runtime::worker::MainWorker {
+        Self::runtime().w.take().unwrap()
+    }
+
+    fn set_worker(w: deno_runtime::worker::MainWorker) {
+        Self::runtime().w = Some(w);
+    }
+
+    fn main_worker_active() -> bool {
+        Self::runtime().w.is_some()
+    }
+
+    fn set_runtime(r: tokio::runtime::Runtime) {
+        Self::runtime().r = Some(r);
     }
 }
 
@@ -248,6 +255,23 @@ struct EmacsJsOptions {
     error_handler: LispObject,
 }
 
+static mut OPTS: EmacsJsOptions = EmacsJsOptions {
+    tick_rate: 0.1,
+    ops: deno_runtime::permissions::PermissionsOptions {
+        allow_net: true,
+        allow_read: true,
+        allow_write: true,
+        allow_run: true,
+        allow_env: true,
+        allow_hrtime: true,
+        allow_plugin: true,
+        net_allowlist: vec![],
+        read_allowlist: vec![],
+        write_allowlist: vec![],
+    },
+    error_handler: crate::remacs_sys::Qnil,
+};
+
 const JS_PERMS_ERROR: &str =
     "Valid options are: :allow-net nil :allow-read nil :allow-write nil :allow-run nil";
 fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
@@ -318,20 +342,47 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
     }
 }
 
-#[lisp_fn(min = "1")]
-pub fn eval_js(args: &[LispObject]) -> LispObject {
-    let string_obj: LispStringRef = args[0].into();
-    let ops = permissions_from_args(&args[1..args.len()]);
-    run_module("anon-lisp.js", Some(string_obj.to_utf8()), &ops)
-        .unwrap_or_else(move |e| handle_error(e, ops.error_handler))
+#[lisp_fn]
+pub fn eval_js(string_obj: LispStringRef) -> LispObject {
+    let ops = unsafe { &OPTS };
+    run_module("anon-lisp.js", Some(string_obj.to_utf8()), ops).unwrap_or_else(move |e| {
+        // See comment in eval-js-file for why we call take_worker
+        unsafe { EmacsJsRuntime::take_worker() };
+        handle_error(e, ops.error_handler)
+    })
 }
 
-#[lisp_fn(min = "1")]
-pub fn eval_js_file(args: &[LispObject]) -> LispObject {
-    let filename: LispStringRef = args[0].into();
-    let ops = permissions_from_args(&args[1..args.len()]);
-    run_module(&filename.to_utf8(), None, &ops)
-        .unwrap_or_else(move |e| handle_error(e, ops.error_handler))
+#[lisp_fn]
+pub fn eval_js_file(filename: LispStringRef) -> LispObject {
+    let ops = unsafe { &OPTS };
+    run_module(&filename.to_utf8(), None, ops).unwrap_or_else(move |e| {
+        // If a toplevel module rejects in the Deno
+        // framework, it will .unwrap() a bad result
+        // in the next call to poll(). This is due to
+        // assumptions that deno is making about module
+        // re-entry after a failure. Even though
+        // v8 can handle reusing an isolate after a
+        // module fails to load, Deno cannot at this time.
+        // So instead, we destroy the main worker,
+        // and re-create the isolate. The user impact
+        // should be minimal since their module never
+        // loaded anyway.
+        unsafe { EmacsJsRuntime::take_worker() };
+        handle_error(e, ops.error_handler)
+    })
+}
+
+#[lisp_fn]
+pub fn js_initialize(args: &[LispObject]) -> LispObject {
+    let ops = permissions_from_args(args);
+    unsafe {
+        OPTS = ops;
+    }
+
+    // For code reuse, we execute a dummy module. NOTE This is a no-op
+    // if permissions have already been set for this module.
+    run_module("initalize.js", Some("".to_string()), unsafe { &OPTS })
+        .unwrap_or_else(move |e| handle_error(e, unsafe { OPTS.error_handler }))
 }
 
 fn into_ioerr<E: Into<Box<dyn std::error::Error + Send + Sync>>>(e: E) -> std::io::Error {
@@ -367,7 +418,7 @@ fn tick_js() -> Result<()> {
 }
 static mut FAILED_TO_INIT: bool = false;
 static ONCE: std::sync::Once = std::sync::Once::new();
-fn init_once(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
+fn init_once(js_options: &EmacsJsOptions) -> Result<()> {
     if unsafe { FAILED_TO_INIT } {
         return Err(std::io::Error::new(
             std::io::ErrorKind::Other,
@@ -378,87 +429,16 @@ fn init_once(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     let mut once_result: Result<()> = Ok(());
     ONCE.call_once(|| {
         let indirect = || -> Result<()> {
-            let mut runtime = tokio::runtime::Builder::new()
+            let runtime = tokio::runtime::Builder::new()
                 .threaded_scheduler()
                 .enable_io()
                 .enable_time()
                 .max_threads(32)
                 .build()?;
 
-            let main_module = deno_core::ModuleSpecifier::resolve_url_or_path(filepath)
-                .map_err(|e| into_ioerr(e))?;
-            let permissions = deno_runtime::permissions::Permissions::from_options(&js_options.ops);
+            EmacsJsRuntime::set_runtime(runtime);
 
-            // @TODO I'm leaving this line commented out, but we should add this to
-            // the init API. Flags listed at https://deno.land/manual/contributing/development_tools
-            // v8::V8::set_flags_from_string("--trace-gc --gc-global --gc-interval 1 --heap-profiler-trace-objects");
-            let options = deno_runtime::worker::WorkerOptions {
-                apply_source_maps: false,
-                user_agent: "x".to_string(),
-                args: vec![],
-                debug_flag: false,
-                unstable: false,
-                ca_filepath: None,
-                seed: None,
-                js_error_create_fn: None,
-                create_web_worker_cb: std::sync::Arc::new(|_| unreachable!()),
-                attach_inspector: false,
-                maybe_inspector_server: None,
-                should_break_on_first_statement: false,
-                module_loader: std::rc::Rc::new(deno_core::FsModuleLoader),
-                runtime_version: "x".to_string(),
-                ts_version: "x".to_string(),
-                no_color: true,
-                get_error_class_fn: None,
-            };
-
-            let mut worker = deno_runtime::worker::MainWorker::from_options(
-                main_module.clone(),
-                permissions,
-                &options,
-            );
-            let result: Result<deno_runtime::worker::MainWorker> = runtime.block_on(async move {
-                worker.bootstrap(&options);
-                let runtime = &mut worker.js_runtime;
-                {
-                    let context = runtime.global_context();
-                    let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
-                    let context = scope.get_current_context();
-                    let global = context.global(scope);
-                    {
-                        let name = v8::String::new(scope, "lisp_invoke").unwrap();
-                        let func = v8::Function::new(scope, lisp_callback).unwrap();
-                        global.set(scope, name.into(), func.into());
-                    }
-                    {
-                        let name = v8::String::new(scope, "is_proxy").unwrap();
-                        let func = v8::Function::new(scope, is_proxy).unwrap();
-                        global.set(scope, name.into(), func.into());
-                    }
-                    {
-                        let name = v8::String::new(scope, "finalize").unwrap();
-                        let func = v8::Function::new(scope, finalize).unwrap();
-                        global.set(scope, name.into(), func.into());
-                    }
-                    {
-                        let name = v8::String::new(scope, "lisp_json").unwrap();
-                        let func = v8::Function::new(scope, lisp_json).unwrap();
-                        global.set(scope, name.into(), func.into());
-                    }
-                }
-                {
-                    runtime
-                        .execute("prelim.js", include_str!("prelim.js"))
-                        .map_err(|e| into_ioerr(e))?
-                }
-
-                Ok(worker)
-            });
-
-            let worker = result?;
-            EmacsJsRuntime::set_main(runtime, worker);
             //(run-with-timer t 1 'js-tick-event-loop error-handler)
-
             let cstr = CString::new("run-with-timer").expect("Failed to create timer");
             let callback = CString::new("js-tick-event-loop").expect("Failed to create timer");
             unsafe {
@@ -486,12 +466,91 @@ fn init_once(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     once_result
 }
 
+fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
+    if EmacsJsRuntime::main_worker_active() {
+        return Ok(());
+    }
+
+    let runtime = EmacsJsRuntime::handle();
+    let main_module =
+        deno_core::ModuleSpecifier::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
+    let permissions = deno_runtime::permissions::Permissions::from_options(&js_options.ops);
+
+    // @TODO I'm leaving this line commented out, but we should add this to
+    // the init API. Flags listed at https://deno.land/manual/contributing/development_tools
+    // v8::V8::set_flags_from_string("--trace-gc --gc-global --gc-interval 1 --heap-profiler-trace-objects");
+    let options = deno_runtime::worker::WorkerOptions {
+        apply_source_maps: false,
+        user_agent: "x".to_string(),
+        args: vec![],
+        debug_flag: false,
+        unstable: false,
+        ca_filepath: None,
+        seed: None,
+        js_error_create_fn: None,
+        create_web_worker_cb: std::sync::Arc::new(|_| unreachable!()),
+        attach_inspector: false,
+        maybe_inspector_server: None,
+        should_break_on_first_statement: false,
+        module_loader: std::rc::Rc::new(deno_core::FsModuleLoader),
+        runtime_version: "x".to_string(),
+        ts_version: "x".to_string(),
+        no_color: true,
+        get_error_class_fn: None,
+    };
+
+    let mut worker =
+        deno_runtime::worker::MainWorker::from_options(main_module.clone(), permissions, &options);
+    let result: Result<deno_runtime::worker::MainWorker> = runtime.block_on(async move {
+        worker.bootstrap(&options);
+        let runtime = &mut worker.js_runtime;
+        {
+            let context = runtime.global_context();
+            let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
+            let context = scope.get_current_context();
+            let global = context.global(scope);
+            {
+                let name = v8::String::new(scope, "lisp_invoke").unwrap();
+                let func = v8::Function::new(scope, lisp_callback).unwrap();
+                global.set(scope, name.into(), func.into());
+            }
+            {
+                let name = v8::String::new(scope, "is_proxy").unwrap();
+                let func = v8::Function::new(scope, is_proxy).unwrap();
+                global.set(scope, name.into(), func.into());
+            }
+            {
+                let name = v8::String::new(scope, "finalize").unwrap();
+                let func = v8::Function::new(scope, finalize).unwrap();
+                global.set(scope, name.into(), func.into());
+            }
+            {
+                let name = v8::String::new(scope, "lisp_json").unwrap();
+                let func = v8::Function::new(scope, lisp_json).unwrap();
+                global.set(scope, name.into(), func.into());
+            }
+        }
+        {
+            runtime
+                .execute("prelim.js", include_str!("prelim.js"))
+                .map_err(|e| into_ioerr(e))?
+        }
+
+        Ok(worker)
+    });
+
+    let worker = result?;
+    EmacsJsRuntime::set_worker(worker);
+    Ok(())
+}
+
 fn run_module(
     filepath: &str,
     additional_js: Option<String>,
     js_options: &EmacsJsOptions,
 ) -> Result<LispObject> {
-    init_once(filepath, js_options)?;
+    init_once(js_options)?;
+    init_worker(filepath, js_options)?;
 
     execute(async move {
         let w = EmacsJsRuntime::worker();
@@ -531,6 +590,9 @@ fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
 pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
     tick_js()
         .map(|_| crate::remacs_sys::Qnil)
+        // We do NOT want to destroy the MainWorker if we error here.
+        // We can still use this isolate for future promise resolutions
+        // instead, just pass to the error handler.
         .unwrap_or_else(|e| handle_error(e, handler))
 }
 
