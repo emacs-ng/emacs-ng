@@ -98,11 +98,15 @@ macro_rules! defvar_lisp {
     ($field_name:ident, $lisp_name:expr, $value:expr) => {{
         #[allow(unused_unsafe)]
         unsafe {
-            #[allow(const_err)]
-            static mut o_fwd: crate::hacks::Hack<crate::data::Lisp_Objfwd> =
-                unsafe { crate::hacks::Hack::uninitialized() };
+            use crate::remacs_sys::Lisp_Objfwd;
+
+            static mut o_fwd: Lisp_Objfwd = Lisp_Objfwd {
+                type_: crate::remacs_sys::Lisp_Fwd_Type::Lisp_Fwd_Obj,
+                objvar: unsafe { &crate::remacs_sys::globals.$field_name as *const _ as *mut _ },
+            };
+
             crate::remacs_sys::defvar_lisp(
-                o_fwd.get_mut() as *mut _ as *const crate::remacs_sys::Lisp_Objfwd,
+                &o_fwd,
                 concat!($lisp_name, "\0").as_ptr() as *const libc::c_char,
             );
             crate::remacs_sys::globals.$field_name = $value;

@@ -34,24 +34,24 @@ const CODE: &str = "code";
 const PARSE_ERROR: i32 = -32700;
 
 #[derive(Clone)]
-enum ObjectType {
+pub(crate) enum ObjectType {
     Hashtable,
     Alist,
     Plist,
 }
 
 #[derive(Clone)]
-enum ArrayType {
+pub(crate) enum ArrayType {
     Array,
     List,
 }
 
 #[derive(Clone)]
-struct JSONConfiguration {
-    obj: ObjectType,
-    arr: ArrayType,
-    null_obj: LispObject,
-    false_obj: LispObject,
+pub(crate) struct JSONConfiguration {
+    pub(crate) obj: ObjectType,
+    pub(crate) arr: ArrayType,
+    pub(crate) null_obj: LispObject,
+    pub(crate) false_obj: LispObject,
 }
 
 impl Default for JSONConfiguration {
@@ -553,20 +553,23 @@ pub fn json_de(args: &[LispObject]) -> LispObject {
     }
 }
 
-fn gen_ser_deser_config() -> JSONConfiguration {
+pub(crate) fn gen_ser_deser_config() -> JSONConfiguration {
     JSONConfiguration {
         null_obj: Qnil,
         ..Default::default()
     }
 }
 
-pub fn deser(string: &str) -> std::result::Result<LispObject, serde_json::Error> {
+pub(crate) fn deser(
+    string: &str,
+    config: Option<JSONConfiguration>,
+) -> std::result::Result<LispObject, serde_json::Error> {
     let val = serde_json::from_str(string)?;
-    let config = gen_ser_deser_config();
+    let config = config.unwrap_or_else(|| gen_ser_deser_config());
     Ok(serde_to_lisp(val, &config))
 }
 
-pub fn ser(o: LispObject) -> Result<String> {
+pub(crate) fn ser(o: LispObject) -> Result<String> {
     let config = gen_ser_deser_config();
     let value = lisp_to_serde(o, &config)
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "bad"))?;

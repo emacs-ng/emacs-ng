@@ -1,6 +1,7 @@
 use crate::lisp::LispObject;
 use crate::lists::LispCons;
 use crate::multibyte::LispStringRef;
+use crate::parsing::{ArrayType, JSONConfiguration, ObjectType};
 use crate::remacs_sys::{intern_c_string, Ffuncall};
 use remacs_macros::lisp_fn;
 use rusty_v8 as v8;
@@ -47,6 +48,72 @@ impl EmacsJsRuntime {
 
     fn set_runtime(r: tokio::runtime::Runtime) {
         Self::runtime().r = Some(r);
+    }
+}
+
+// Aligned with code in prelim.js
+const HASHTABLE: u32 = 0;
+const ALIST: u32 = 1;
+const PLIST: u32 = 2;
+const ARRAY: u32 = 3;
+const LIST: u32 = 4;
+
+macro_rules! make_proxy {
+    ($scope:expr, $lisp:expr) => {{
+        let template = v8::ObjectTemplate::new($scope);
+        template.set_internal_field_count(1);
+        let obj = template.new_instance($scope).unwrap();
+        let value = v8::String::new($scope, &$lisp.to_C_unsigned().to_string()).unwrap();
+        let inserted = obj.set_internal_field(0, v8::Local::<v8::Value>::try_from(value).unwrap());
+        assert!(inserted);
+
+        unsafe {
+            if crate::remacs_sys::globals.Vjs_retain_map == crate::remacs_sys::Qnil {
+                crate::remacs_sys::globals.Vjs_retain_map =
+                    LispObject::cons($lisp, crate::remacs_sys::Qnil);
+                crate::remacs_sys::staticpro(&crate::remacs_sys::globals.Vjs_retain_map);
+            } else {
+                crate::remacs_sys::globals.Vjs_retain_map =
+                    LispObject::cons($lisp, crate::remacs_sys::globals.Vjs_retain_map);
+            }
+        }
+
+        obj
+    }};
+}
+
+pub fn json_lisp(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut retval: v8::ReturnValue,
+) {
+    let message = args
+        .get(0)
+        .to_string(scope)
+        .unwrap()
+        .to_rust_string_lossy(scope);
+    let option = args
+        .get(1)
+        .to_uint32(scope)
+        .unwrap()
+        .uint32_value(scope)
+        .unwrap();
+
+    let mut base_config = crate::parsing::gen_ser_deser_config();
+
+    match option {
+        HASHTABLE => base_config.obj = ObjectType::Hashtable,
+        ALIST => base_config.obj = ObjectType::Alist,
+        PLIST => base_config.obj = ObjectType::Plist,
+        ARRAY => base_config.arr = ArrayType::Array,
+        LIST => base_config.arr = ArrayType::List,
+        _ => { /* noop */ }
+    }
+
+    if let Ok(result) = crate::parsing::deser(&message, Some(base_config)) {
+        let proxy = make_proxy!(scope, result);
+        let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
+        retval.set(r);
     }
 }
 
@@ -164,7 +231,7 @@ pub fn lisp_callback(
         if arg.is_string() {
             let a = arg.to_string(scope).unwrap().to_rust_string_lossy(scope);
 
-            if let Ok(deser) = crate::parsing::deser(&a) {
+            if let Ok(deser) = crate::parsing::deser(&a, None) {
                 lisp_args.push(deser);
             }
         } else if arg.is_object() {
@@ -226,24 +293,7 @@ pub fn lisp_callback(
             retval.set(r);
         }
     } else {
-        let template = v8::ObjectTemplate::new(scope);
-        template.set_internal_field_count(1);
-        let obj = template.new_instance(scope).unwrap();
-        let value = v8::String::new(scope, &results.to_C_unsigned().to_string()).unwrap();
-        let inserted = obj.set_internal_field(0, v8::Local::<v8::Value>::try_from(value).unwrap());
-        assert!(inserted);
-
-        unsafe {
-            if crate::remacs_sys::globals.Vjs_retain_map == crate::remacs_sys::Qnil {
-                crate::remacs_sys::globals.Vjs_retain_map =
-                    LispObject::cons(results, crate::remacs_sys::Qnil);
-                crate::remacs_sys::staticpro(&crate::remacs_sys::globals.Vjs_retain_map);
-            } else {
-                crate::remacs_sys::globals.Vjs_retain_map =
-                    LispObject::cons(results, crate::remacs_sys::globals.Vjs_retain_map);
-            }
-        }
-
+        let obj = make_proxy!(scope, results);
         let r = v8::Local::<v8::Value>::try_from(obj).unwrap();
         retval.set(r);
     }
@@ -529,6 +579,11 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
                 let func = v8::Function::new(scope, lisp_json).unwrap();
                 global.set(scope, name.into(), func.into());
             }
+            {
+                let name = v8::String::new(scope, "json_lisp").unwrap();
+                let func = v8::Function::new(scope, json_lisp).unwrap();
+                global.set(scope, name.into(), func.into());
+            }
         }
         {
             runtime
@@ -586,9 +641,14 @@ fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
     }
 }
 
+fn tick() -> Result<()> {
+    init_worker("tick.js", unsafe { &OPTS })?;
+    tick_js()
+}
+
 #[lisp_fn]
 pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
-    tick_js()
+    tick()
         .map(|_| crate::remacs_sys::Qnil)
         // We do NOT want to destroy the MainWorker if we error here.
         // We can still use this isolate for future promise resolutions

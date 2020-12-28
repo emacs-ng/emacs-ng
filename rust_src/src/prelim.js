@@ -6,6 +6,20 @@
     let lisp_json = global.lisp_json;
     delete global.lisp_json;
 
+    global.errorFuncs = {
+	eval_js: true,
+	eval_js_file: true,
+	recursive_edit: true,
+    };
+
+    const specialForms = {
+	hashtable: (a) => json_lisp(JSON.stringify(a), 0),
+	alist: (a) => json_lisp(JSON.stringify(a), 1),
+	plist: (a) => json_lisp(JSON.stringify(a), 2),
+	array: (a) => json_lisp(JSON.stringify(a), 3),
+	list: (a) => json_lisp(JSON.stringify(a), 4),
+    };
+
     // Hold on you fool, why not use FinalizerRegistry, it
     // was made for this! That API does not work in Deno
     // at this time, due to their handling of the DefaultPlatform
@@ -30,6 +44,23 @@
 
     global.lisp = new Proxy({}, {
         get: function(o, k) {
+	    if (errorFuncs[k]) {
+		throw new Error("Attempting to call non-supported function via javascript invokation (" + k + ")");
+	    }
+
+	    if (k === 'q') {
+		return new Proxy({}, {
+		    get: function(o, k) {
+			return lisp.intern(k.replaceAll('_', '-'));
+		    }
+		});
+
+	    }
+
+	    if (k === 'alloc') {
+		return specialForms;
+	    }
+
             return function() {
                 const modargs = [k.replaceAll('-', '_')];
                 for (let i = 0; i < arguments.length; ++i) {

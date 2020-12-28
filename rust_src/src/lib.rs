@@ -64,22 +64,3 @@ pub use crate::wrterm::{tip_frame, wr_display_list};
 
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));
-
-mod hacks {
-    use core::mem::ManuallyDrop;
-
-    pub union Hack<T> {
-        t: ManuallyDrop<T>,
-        u: (),
-    }
-
-    impl<T> Hack<T> {
-        pub const unsafe fn uninitialized() -> Self {
-            Self { u: () }
-        }
-
-        pub unsafe fn get_mut(&mut self) -> &mut T {
-            &mut *self.t
-        }
-    }
-}
