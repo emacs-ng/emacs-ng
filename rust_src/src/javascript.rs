@@ -248,7 +248,12 @@ pub fn lisp_callback(
             );
             lisp_args.push(lispobj);
         } else {
-            panic!("Wrong Argument");
+            let error = v8::String::new(scope, "Invalid arguments passed to lisp_invoke. Valid options are String, Function, or Proxy Object").unwrap();
+            let exception = v8::Exception::error(scope, error);
+            scope.throw_exception(exception);
+            // We do not want to execute any additional JS operations now
+            // that we have thrown an exception. Instead we return.
+            return;
         }
     }
 

@@ -95,7 +95,7 @@
 		throw new Error("Attempting to call non-supported function via javascript invokation (" + k + ")");
 	    }
 
-	    if (k === 'q') {
+	    if (k === 'symbols' || k === 'q') {
 		return new Proxy({}, {
 		    get: function(o, k) {
 			return lisp.intern(k.replaceAll('_', '-'));
@@ -104,7 +104,7 @@
 
 	    }
 
-	    if (k === 'alloc') {
+	    if (k === 'make') {
 		return specialForms;
 	    }
 
