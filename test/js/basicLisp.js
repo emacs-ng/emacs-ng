@@ -1,13 +1,10 @@
 export function basicLisp() {
     return Promise.resolve()
-	.then(() => {
+	.test(() => {
 	    let plist = lisp.make.plist({x: 3, y: 4});
 	    let alist = lisp.make.alist({s: 5, y: "Hello World"});
-	    console.log("Printing results of lisp.make");
-	    lisp.print(plist);
-	    lisp.print(alist);
 	})
-	.then(() => {
+	.test(() => {
 	    let p = lisp.symbols.a;
 	    let qq = lisp.symbols.qq;
 	    lisp.setq(p, "hello");
@@ -16,7 +13,7 @@ export function basicLisp() {
 		throw new Error("Failure in test lisp.setq");
 	    }
 	})
-	.then(() => {
+	.test(() => {
 	    let mutated = 0;
 	    let myFunc = lisp.defun("hello", (arg) => {
 		mutated = arg;
@@ -34,6 +31,26 @@ export function basicLisp() {
 
 	    if (mutated !== 1) {
 		throw new Error("Failure in test Defun: Mutated value not set from callback");
+	    }
+	})
+	.test(() => {
+	    lisp.make_pipe_process(lisp.keywords.name, "mybuff");
+	})
+	.test(() => {
+	    lisp.let((a) => {
+		if (a !== 3) {
+		    throw new Error("Arguments do not match");
+		}
+
+		lisp.setq(lisp.symbols.a, "3");
+
+		if (lisp.symbol_value(lisp.symbols.a) !== "3") {
+		    throw new Error("Value not set within let.");
+		}
+	    }, 3);
+
+	    if (lisp.symbol_value(lisp.symbols.a) === "3") {
+		throw new Error("Scope leaking from let statement");
 	    }
 	});
 }

@@ -98,6 +98,15 @@
 	});
     };
 
+    const keywords = () => {
+	return new Proxy({}, {
+	    get: function(o, k) {
+		return lisp.intern(':' + k.replaceAll('_', '-'));
+	    }
+	});
+
+    };
+
     const setq = () => {
 	return function () {
 	    let newArgs = [lisp.q.setq];
@@ -160,12 +169,30 @@
 	};
     };
 
+    const _let = function () {
+	return function (lambda) {
+	    const args = [];
+	    const numArgs = lambda.length;
+	    const argList = argsLists[numArgs];
+	    const invoke = invokeLists[numArgs];
+	    const list = [lisp.q['let'], argList, invoke(numArgs)];
+
+	    for (let i = 1; i < arguments.length; ++i) {
+		list.push(arguments[i]);
+	    }
+
+	    return lisp.eval(lisp.list.apply(this, args));
+	}
+    };
+
     const specialForms = {
 	make: makeFuncs,
 	q: symbols(),
 	symbols: symbols(),
 	setq: setq(),
 	defun: defun(),
+	keywords: keywords(),
+	"let": _let(),
     };
 
 
