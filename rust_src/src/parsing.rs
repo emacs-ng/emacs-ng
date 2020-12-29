@@ -34,24 +34,24 @@ const CODE: &str = "code";
 const PARSE_ERROR: i32 = -32700;
 
 #[derive(Clone)]
-enum ObjectType {
+pub(crate) enum ObjectType {
     Hashtable,
     Alist,
     Plist,
 }
 
 #[derive(Clone)]
-enum ArrayType {
+pub(crate) enum ArrayType {
     Array,
     List,
 }
 
 #[derive(Clone)]
-struct JSONConfiguration {
-    obj: ObjectType,
-    arr: ArrayType,
-    null_obj: LispObject,
-    false_obj: LispObject,
+pub(crate) struct JSONConfiguration {
+    pub(crate) obj: ObjectType,
+    pub(crate) arr: ArrayType,
+    pub(crate) null_obj: LispObject,
+    pub(crate) false_obj: LispObject,
 }
 
 impl Default for JSONConfiguration {
@@ -211,36 +211,38 @@ pub fn get_json_cached_data(map: LispCons, key: LispObject) -> LispObject {
 
 */
 
-fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> serde_json::Value {
+// @TODO: Instead of an option, have this return a result
+// and do not invoke 'error' directly. Have serde_to_lisp match.
+fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> Option<serde_json::Value> {
     if object == config.null_obj {
-        serde_json::Value::Null
+        Some(serde_json::Value::Null)
     } else if object == config.false_obj {
-        serde_json::Value::Bool(false)
+        Some(serde_json::Value::Bool(false))
     } else if object == Qt {
-        serde_json::Value::Bool(true)
+        Some(serde_json::Value::Bool(true))
     } else if unsafe { INTEGERP(object) } {
         let value = unsafe { check_integer_range(object, intmax_t::MIN, intmax_t::MAX) };
         let num = serde_json::Number::from(value);
-        serde_json::Value::Number(num)
+        Some(serde_json::Value::Number(num))
     } else if unsafe { FLOATP(object) } {
         let float_value = unsafe { XFLOAT_DATA(object) };
         if let Some(flt) = serde_json::Number::from_f64(float_value) {
-            serde_json::Value::Number(flt)
+            Some(serde_json::Value::Number(flt))
         } else {
             error!("Invalid float value {}", float_value);
         }
     } else if unsafe { STRINGP(object) } {
         let string_ref: LispStringRef = object.into();
         let utf8_string = string_ref.to_utf8();
-        serde_json::Value::String(utf8_string)
+        Some(serde_json::Value::String(utf8_string))
     } else if unsafe { VECTORP(object) } {
         let size = unsafe { ASIZE(object) };
         let mut vector: Vec<serde_json::Value> = vec![];
         for i in 0..size {
-            vector.push(lisp_to_serde(unsafe { AREF(object, i) }, config));
+            vector.push(lisp_to_serde(unsafe { AREF(object, i) }, config)?);
         }
 
-        serde_json::Value::Array(vector)
+        Some(serde_json::Value::Array(vector))
     } else if unsafe { HASH_TABLE_P(object) } {
         let h = unsafe { XHASH_TABLE(object) };
         let size = unsafe { HASH_TABLE_SIZE(h) };
@@ -252,22 +254,23 @@ fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> serde_json::
                 let key_string: LispStringRef = key.into();
                 let key_utf8 = key_string.to_utf8();
                 let lisp_val = unsafe { HASH_VALUE(h, i) };
-                let insert_result = map.insert(key_utf8, lisp_to_serde(lisp_val, config));
+                let insert_result = map.insert(key_utf8, lisp_to_serde(lisp_val, config)?);
                 if insert_result.is_some() {
                     error!("Duplicate keys are not allowed");
                 }
             }
         }
 
-        serde_json::Value::Object(map)
+        Some(serde_json::Value::Object(map))
     } else if unsafe { NILP(object) } {
-        serde_json::Value::Object(Map::new())
+        Some(serde_json::Value::Object(Map::new()))
     } else if object.is_cons() {
         let tail: LispCons = object.into();
         let iter = tail.iter_tails(LispConsEndChecks::on, LispConsCircularChecks::on);
         let is_plist = !tail.car().is_cons();
         let mut map = Map::new();
         let mut skip_cycle = false;
+        let mut return_none = false;
         iter.for_each(|tail| {
             if skip_cycle {
                 skip_cycle = false;
@@ -276,6 +279,11 @@ fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> serde_json::
 
             let (key, value) = if is_plist {
                 let key = tail.car();
+                if !tail.cdr().is_cons() {
+                    return_none = true;
+                    return;
+                }
+
                 let cdr_cons: LispCons = tail.cdr().into();
                 // we have looked at key, and taken value, so we want to skip the inter
                 // iteration
@@ -284,6 +292,11 @@ fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> serde_json::
                 (key, value)
             } else {
                 let pair = tail.car();
+                if !pair.is_cons() {
+                    return_none = true;
+                    return;
+                }
+
                 let pair_value: LispCons = pair.into();
                 (pair_value.car(), pair_value.cdr())
             };
@@ -299,13 +312,21 @@ fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> serde_json::
             // We only will add to the map if a value is not present
             // at that key
             if !map.contains_key(&key_utf8) {
-                map.insert(key_utf8, lisp_to_serde(value, config));
+                if let Some(insert_value) = lisp_to_serde(value, config) {
+                    map.insert(key_utf8, insert_value);
+                } else {
+                    return_none = true;
+                }
             }
         });
 
-        serde_json::Value::Object(map)
+        if return_none {
+            None
+        } else {
+            Some(serde_json::Value::Object(map))
+        }
     } else {
-        error!("Wrong Argument Type");
+        None
     }
 }
 
@@ -509,7 +530,8 @@ fn generate_config_from_args(args: &[LispObject]) -> JSONConfiguration {
 #[lisp_fn(min = "1")]
 pub fn json_se(args: &[LispObject]) -> LispObject {
     let config = generate_config_from_args(&args[1..]);
-    let value = lisp_to_serde(args[0], &config);
+    // @TODO remove this unwrap, instead throw error
+    let value = lisp_to_serde(args[0], &config).unwrap();
     match serde_json::to_string(&value) {
         Ok(v) => {
             let len = v.len();
@@ -529,6 +551,30 @@ pub fn json_de(args: &[LispObject]) -> LispObject {
         Ok(value) => serde_to_lisp(value, &config),
         Err(e) => error!("Error in parsing json: {:?}", e),
     }
+}
+
+pub(crate) fn gen_ser_deser_config() -> JSONConfiguration {
+    JSONConfiguration {
+        null_obj: Qnil,
+        ..Default::default()
+    }
+}
+
+pub(crate) fn deser(
+    string: &str,
+    config: Option<JSONConfiguration>,
+) -> std::result::Result<LispObject, serde_json::Error> {
+    let val = serde_json::from_str(string)?;
+    let config = config.unwrap_or_else(|| gen_ser_deser_config());
+    Ok(serde_to_lisp(val, &config))
+}
+
+pub(crate) fn ser(o: LispObject) -> Result<String> {
+    let config = gen_ser_deser_config();
+    let value = lisp_to_serde(o, &config)
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "bad"))?;
+    serde_json::to_string(&value)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", e)))
 }
 
 #[lisp_fn]
