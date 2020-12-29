@@ -23,6 +23,15 @@ export function basicLisp() {
 	    });
 	    lisp.hello(1);
 
+	    let myFuncTwo = lisp.defun("helloTwo", "myDocString", (arg) => { });
+	    lisp.helloTwo(2);
+
+	    let myFuncThree = lisp.defun("helloThree", {interactive: true, arg: "P\nbbuffer:"}, (arg) => { });
+	    lisp.helloThree(3);
+
+	    let myFuncFour = lisp.defun("helloFour", "HelloFour", {interactive: true}, () => { });
+	    lisp.helloFour();
+
 	    if (mutated !== 1) {
 		throw new Error("Failure in test Defun: Mutated value not set from callback");
 	    }

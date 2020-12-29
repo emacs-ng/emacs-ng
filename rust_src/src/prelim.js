@@ -29,14 +29,14 @@
 	    }
 	}
 	const retval = __functions[idx].apply(this, modargs);
-	if (is_proxy) {
+	if (is_proxy(retval)) {
 	    return retval;
 	} else {
 	    return JSON.stringify(retval);
 	}
     };
 
-    const specialForms = {
+    const makeFuncs = {
 	hashtable: (a) => json_lisp(JSON.stringify(a), 0),
 	alist: (a) => json_lisp(JSON.stringify(a), 1),
 	plist: (a) => json_lisp(JSON.stringify(a), 2),
@@ -89,107 +89,94 @@
         __weak = nw;
     }, 10000);
 
+
+    const symbols = () => {
+	return new Proxy({}, {
+	    get: function(o, k) {
+		return lisp.intern(k.replaceAll('_', '-'));
+	    }
+	});
+    };
+
+    const setq = () => {
+	return function () {
+	    let newArgs = [lisp.q.setq];
+	    for (let i = 0; i < arguments.length; ++i) {
+		if (lisp.listp(arguments[i])) {
+		    newArgs.push(lisp.list(lisp.q.quote, arguments[i]));
+		} else {
+		    newArgs.push(arguments[i]);
+		}
+	    }
+
+	    return lisp.eval(lisp.list.apply(this, newArgs));
+	};
+    };
+
+    const defun = () => {
+	const makeStatement = (name, docString, interactive, lambda) => {
+	    if (typeof name === 'string') {
+		name = lisp.intern(name);
+	    }
+
+	    const argLen = lambda.length;
+	    const argList = argsLists[argLen];
+	    const invoke = invokeLists[argLen];
+	    const args = [lisp.q.defun, name, argList()];
+	    if (docString) {
+		args.push(docString);
+	    }
+
+	    if (interactive) {
+		if (interactive.interactive) {
+		    if (interactive.args) {
+			args.push(lisp.list(lisp.q.interactive, interactive.args));
+		    } else {
+			args.push(lisp.list(lisp.q.interactive));
+		    }
+		}
+	    }
+
+	    let len = __functions.length;
+	    args.push(invoke(len));
+	    lisp.eval(lisp.list.apply(this, args));
+	    __functions.push(lambda);
+	};
+
+
+	return function () {
+	    let args = arguments;
+	    if (args.length === 2) {
+		return makeStatement(args[0], null, null, args[1]);
+	    } else if (args.length === 3) {
+		if (args[1].interactive) {
+		    return makeStatement(args[0], null, args[1], args[2]);
+		} else {
+		    return makeStatement(args[0], args[1], null, args[2]);
+		}
+	    } else if (args.length === 4) {
+		return makeStatement(args[0], args[1], args[2], args[3]);
+	    }
+	};
+    };
+
+    const specialForms = {
+	make: makeFuncs,
+	q: symbols(),
+	symbols: symbols(),
+	setq: setq(),
+	defun: defun(),
+    };
+
+
     global.lisp = new Proxy({}, {
         get: function(o, k) {
 	    if (errorFuncs[k]) {
 		throw new Error("Attempting to call non-supported function via javascript invokation (" + k + ")");
 	    }
 
-	    if (k === 'symbols' || k === 'q') {
-		return new Proxy({}, {
-		    get: function(o, k) {
-			return lisp.intern(k.replaceAll('_', '-'));
-		    }
-		});
-
-	    }
-
-	    if (k === 'make') {
-		return specialForms;
-	    }
-
-	    if (k === 'setq') {
-		return function () {
-		    let newArgs = [lisp.q.setq];
-		    for (let i = 0; i < arguments.length; ++i) {
-			if (lisp.listp(arguments[i])) {
-			    newArgs.push(lisp.list(lisp.q.quote, arguments[i]));
-			} else {
-			    newArgs.push(arguments[i]);
-			}
-		    }
-
-		    return lisp.eval(lisp.list.apply(this, newArgs));
-		}
-	    }
-
-	    if (k === 'defun') {
-		return function () {
-		    let args = arguments;
-		    if (args.length === 2) {
-			let name = args[0];
-			const func = args[1];
-			if (typeof name === 'string') {
-			    name = lisp.intern(name);
-			}
-			const numArgs = func.length;
-			const argList = argsLists[numArgs];
-			const invokes = invokeLists[numArgs];
-			const len = __functions.length;
-
-			lisp.eval(lisp.list(lisp.q.defun, name, argList(), invokes(len)));
-			__functions.push(func);
-		    } else if (args.length === 3) {
-			let name = args[0];
-			let second = args[1];
-			const func = args[2];
-			if (typeof name === 'string') {
-			    name = lisp.intern(name);
-			}
-
-			if (second.interactive) {
-			    if (second.arg) {
-				second = lisp.list(lisp.q.interactive, second.arg);
-			    } else {
-				second = lisp.list(lisp.q.interactive);
-			    }
-			}
-
-			const numArgs = func.length;
-			const argList = argsLists[numArgs];
-			const invokes = invokeLists[numArgs];
-			const len = __functions.length;
-
-			lisp.eval(lisp.list(lisp.q.defun, name, argList(), second, invokes(len)));
-			__functions.push(func);
-		    } else if (args.length === 4) {
-			let name = args[0];
-			let docstring = args[1];
-			let interactive = args[2];
-			const func = args[3];
-			if (typeof name === 'string') {
-			    name = lisp.intern(name);
-			}
-
-			if (interactive.interactive) {
-			    if (interactive.arg) {
-				interactive = lisp.list(lisp.q.interactive, interactive.arg);
-			    } else {
-				interactive = lisp.list(lisp.q.interactive);
-			    }
-			}
-
-			const numArgs = func.length;
-			const argList = argsLists[numArgs];
-			const invokes = invokeLists[numArgs];
-			const len = __functions.length;
-
-			lisp.eval(lisp.list(lisp.q.defun, name, argList(), docstring, interactive, invokes(len)));
-			__functions.push(func);
-
-		    }
-
-		}
+	    if (specialForms[k]) {
+		return specialForms[k];
 	    }
 
             return function() {
@@ -200,8 +187,6 @@
 			const numArgs = arguments[i].length;
 			const args = argsLists[numArgs];
 			const invokes = invokeLists[numArgs];
-			// @TODO the invokation statement needs multiple variants
-			// for varargs.
 			const lambda = lisp.list(lisp.q.lambda, args(), invokes(len));
 			__functions.push(arguments[i]);
 			modargs.push(lambda);
