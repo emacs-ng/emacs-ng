@@ -52,5 +52,23 @@ export function basicLisp() {
 	    if (lisp.symbol_value(lisp.symbols.a) === "3") {
 		throw new Error("Scope leaking from let statement");
 	    }
+	})
+	.test(() => {
+	    let buf = lisp.get_buffer_create("mybuff");
+	    lisp.with_current_buffer(buf, (buffer) => {
+		lisp.insert("Hello");
+		if (lisp.buffer_string() !== "Hello") {
+		    throw new Error("Error in current buffer implementation");
+		}
+	    });
+	})
+	.test(() => {
+	    lisp.with_temp_buffer(() => {
+		lisp.insert("XXX12345");
+	    });
+
+	    if (lisp.buffer_string() === "XXX12345") {
+		throw new Error("Error in with-temp-buffer test: mutated normal buffer");
+	    }
 	});
 }

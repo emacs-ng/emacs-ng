@@ -185,6 +185,36 @@
 	}
     };
 
+    const with_current_buffer = () => {
+	return function(bufferOrName, lambda) {
+	    if (lambda.length !== 1) {
+		throw new Exception("with-current-buffer lambda takes one argument");
+	    }
+
+	    const argList = argsLists[1];
+	    const invoke = invokeLists[1];
+	    const list = [lisp.q.with_current_buffer, bufferOrName, argList, invoke(1)];
+
+	    return lisp.eval(lisp.list.apply(this, list));
+	}
+
+    };
+
+    const with_temp_buffer = () => {
+	return function(lambda) {
+	    if (lambda.length !== 0) {
+		throw new Exception("with-temp-buffer lambda takes 0 arguments");
+	    }
+
+	    const argList = argsLists[0];
+	    const invoke = invokeLists[0];
+	    const list = [lisp.q.with_temp_buffer, argList, invoke(0)];
+
+	    return lisp.eval(lisp.list.apply(this, list));
+	}
+
+    };
+
     const specialForms = {
 	make: makeFuncs,
 	q: symbols(),
@@ -193,6 +223,8 @@
 	defun: defun(),
 	keywords: keywords(),
 	"let": _let(),
+	with_current_buffer: with_current_buffer(),
+	with_temp_buffer: with_temp_buffer(),
     };
 
 
