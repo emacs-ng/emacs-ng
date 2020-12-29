@@ -112,7 +112,11 @@
 		return function () {
 		    let newArgs = [lisp.q.setq];
 		    for (let i = 0; i < arguments.length; ++i) {
-			newArgs.push(arguments[i]);
+			if (lisp.listp(arguments[i])) {
+			    newArgs.push(lisp.list(lisp.q.quote, arguments[i]));
+			} else {
+			    newArgs.push(arguments[i]);
+			}
 		    }
 
 		    return lisp.eval(lisp.list.apply(this, newArgs));
