@@ -29,6 +29,18 @@ export function basicLisp() {
 	    let myFuncFour = lisp.defun("helloFour", "HelloFour", {interactive: true}, () => { });
 	    lisp.helloFour();
 
+	    let myFuncFive = lisp.defun({
+		name: "helloFive",
+		docString: "My Cool Function",
+		interactive: true,
+		args: "p",
+		func: (a) => { return (a); }
+	    });
+
+	    if (lisp.helloFive(1) !== 1) {
+		throw new Error("Return Value incorrect for Defun");
+	    }
+
 	    if (mutated !== 1) {
 		throw new Error("Failure in test Defun: Mutated value not set from callback");
 	    }

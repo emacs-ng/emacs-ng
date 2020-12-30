@@ -158,6 +158,11 @@
 
 
 	return function () {
+	    if (typeof arguments[0] === 'object' && arguments[0].name) {
+		const arg = arguments[0];
+		return makeStatement(arg.name, arg.docString, { interactive: arg.interactive, args: arg.args}, arg.func);
+	    }
+
 	    let args = arguments;
 	    if (args.length === 2) {
 		return makeStatement(args[0], null, null, args[1]);
