@@ -296,6 +296,24 @@ pub fn lisp_callback(
         }
     }
 
+    // 'Why are you using mem transmute to store this scope globally?'
+    // If you attempt to re-enter JS from a lisp function
+    // i.e. js -> lisp -> js, if you were to use "worker.execute",
+    // Deno will attempt to create a new handlescope using the
+    // thread isolate and global context. Due to how Deno
+    // constructed the HandleScope class, attempting to create
+    // a handle scope from an isolate when there is already a handle
+    // on the stack will cause the process to panic.
+    // The 'right way' to do  this is to use the handle that is currently
+    // on the stack, which is scope. Since JS and Lisp are on the same thread,
+    // scope will be alive in the situation we go from js -> lisp -> js. This
+    // is reflected in the stateful variable WITHIN_RUNTIME. If you are
+    // not within the runtime, you can run worker.execute. If you are within
+    // the runtime, you mem::transmute this scope and use that.
+    // Think of it like passing down scope through every function call until we
+    // need it, but in a round about way.
+    // >>> Code touching 'raw_handle' and 'WITHIN_RUNTIME' needs to be
+    // >>> managed very carefully. It should not be touched without a good reason.
     unsafe { raw_handle = std::mem::transmute(scope) };
     let boxed = Box::new(lisp_args);
     let raw_ptr = Box::into_raw(boxed);
