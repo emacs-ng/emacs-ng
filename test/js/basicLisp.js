@@ -7,6 +7,7 @@ export function basicLisp() {
 	.test(() => {
 	    let p = lisp.symbols.a;
 	    let qq = lisp.symbols.qq;
+	    let qc = lisp.keywords.word;
 	    lisp.setq(p, "hello");
 	    lisp.setq(qq, lisp.list(1, 2, 3));
 	    if (lisp.symbol_value(p) !== 'hello') {

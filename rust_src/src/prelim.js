@@ -46,17 +46,6 @@
 	list: (a) => json_lisp(JSON.stringify(a), 4),
     };
 
-    const argsLists = [
-	() => lisp.list(),
-	() => lisp.list(lisp.q.a),
-	() => lisp.list(lisp.q.a, lisp.q.b),
-	() => lisp.list(lisp.q.a, lisp.q.b, lisp.q.c),
-	() => lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d),
-	() => lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e),
-	() => lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e. lisp.q.f),
-	() => lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e. lisp.q.f, lisp.q.g),
-    ];
-
     const invokeLists = [
 	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len)),
 	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len), lisp.q.a),
@@ -93,8 +82,18 @@
         __weak = nw;
     }, 2500);
 
+
+    // Crossing the JS -> Lisp bridge costs time, which we want to save.
+    // We can save time by not crossing the bridge if we cache our symbols in a map.
+    // However, this costs memory, AND it can cause issues if the user decides to
+    // unintern a symbol, or change the value of Vobarray. In prelim.js, we have
+    // a lot of hot fundemental codepaths we want to be fast, so we use the cached
+    // version (lisp.q and lisp.k). This is accessible to the user, but not documented on
+    // purpose. The user is encouraged to use lisp.symbols and lisp.keywords, which
+    // are just wrappers for intern, which will behave as they expect with usage of
+    // unintern, or changing the obarray.
     const symbolCache = {};
-    const symbols = () => {
+    const symbolsCached = () => {
 	return new Proxy({}, {
 	    get: function(o, k) {
 		let cached = symbolCache[k] || lisp.intern(k.replaceAll('_', '-'));
@@ -104,8 +103,16 @@
 	});
     };
 
+    const symbols = () => {
+	return new Proxy({}, {
+	    get: function(o, k) {
+		return lisp.intern(k.replaceAll('_', '-'));
+	    }
+	});
+    };
+
     const keywordCache = {};
-    const keywords = () => {
+    const keywordsCached = () => {
 	return new Proxy({}, {
 	    get: function(o, k) {
 		const cached = keywordCache[k] || lisp.intern(':' + k.replaceAll('_', '-'));
@@ -113,7 +120,14 @@
 		return cached;
 	    }
 	});
+    };
 
+    const keywords = () => {
+	return new Proxy({}, {
+	    get: function(o, k) {
+		return lisp.intern(':' + k.replaceAll('_', '-'));
+	    }
+	});
     };
 
     const quote = (arg) => lisp.list(lisp.q.quote, arg);
@@ -141,7 +155,7 @@
 	    const argLen = lambda.length;
 	    const argList = argsLists[argLen];
 	    const invoke = invokeLists[argLen];
-	    const args = [lisp.q.defun, name, argList()];
+	    const args = [lisp.q.defun, name, argList];
 	    if (docString) {
 		args.push(docString);
 	    }
@@ -190,7 +204,7 @@
 	    const numArgs = lambda.length;
 	    const argList = argsLists[numArgs];
 	    const invoke = invokeLists[numArgs];
-	    const list = [lisp.q['let'], argList(), invoke(numArgs)];
+	    const list = [lisp.q['let'], argList, invoke(numArgs)];
 
 	    for (let i = 1; i < arguments.length; ++i) {
 		list.push(arguments[i]);
@@ -234,11 +248,12 @@
 
     const specialForms = {
 	make: makeFuncs,
-	q: symbols(),
+	q: symbolsCached(),
 	symbols: symbols(),
 	setq: setq(),
 	defun: defun(),
 	keywords: keywords(),
+	k: keywordsCached(),
 	"let": _let(),
 	with_current_buffer: with_current_buffer(),
 	with_temp_buffer: with_temp_buffer(),
@@ -263,7 +278,7 @@
 			const numArgs = arguments[i].length;
 			const args = argsLists[numArgs];
 			const invokes = invokeLists[numArgs];
-			const lambda = lisp.list(lisp.q.lambda, args(), invokes(len));
+			const lambda = lisp.list(lisp.q.lambda, args, invokes(len));
 			__functions.push(arguments[i]);
 			modargs.push(lambda);
 		    } else if (is_proxy(arguments[i])) {
@@ -290,4 +305,15 @@
             }
 
         }});
+
+    const argsLists = [
+	lisp.list(),
+	lisp.list(lisp.q.a),
+	lisp.list(lisp.q.a, lisp.q.b),
+	lisp.list(lisp.q.a, lisp.q.b, lisp.q.c),
+	lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d),
+	lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e),
+	lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e, lisp.q.f),
+	lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e, lisp.q.f, lisp.q.g),
+    ];
 })();
