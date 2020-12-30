@@ -8,7 +8,7 @@ let buffer = lisp.get_buffer_create("mybuf");
 
 The lisp object uses reflection to invoke the equivalent of `(get-buffer-create "mybuf")`. In this example, get-buffer-create returns a buffer object. In order to represent this, we use a technique called proxying, in which we give a reference to the elisp object to an internal field of a javascript object. This field is only accessible by the native layer, so it cannot be tampered with in the javascript layer. When javascript calls subsequent functions using `buffer`, a translation layer will extract the elisp object and invoke it on the function.
 
-Primative data structures will be converted automatically. More complex data structures can be converted to native javascript objects via a call to a special function called `json`
+Primitive data structures will be converted automatically. More complex data structures can be converted to native javascript objects via a call to a special function called `json`
 
 ``` js
 let qcname = lisp.intern(":name");
