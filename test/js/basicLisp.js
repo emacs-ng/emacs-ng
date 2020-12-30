@@ -54,21 +54,21 @@ export function basicLisp() {
 		    throw new Error("Arguments do not match");
 		}
 
-		lisp.setq(lisp.symbols.a, "3");
+		lisp.setq(lisp.symbols.bbb, "3");
 
-		if (lisp.symbol_value(lisp.symbols.a) !== "3") {
+		if (lisp.symbol_value(lisp.symbols.bbb) !== "3") {
 		    throw new Error("Value not set within let.");
 		}
 	    }, 3);
-
-	    if (lisp.symbol_value(lisp.symbols.a) === "3") {
-		throw new Error("Scope leaking from let statement");
-	    }
 	})
 	.test(() => {
 	    let buf = lisp.get_buffer_create("mybuff");
+	    let buf2 = lisp.get_buffer_create("mybuff2");
+	    lisp.set_buffer(buf2);
+	    lisp.insert("World,,,");
+
 	    let executed = false;
-	    lisp.with_current_buffer(buf, (buffer) => {
+	    lisp.with_current_buffer(buf, () => {
 		executed = true;
 		lisp.insert("Hello");
 		if (lisp.buffer_string() !== "Hello") {
@@ -78,6 +78,10 @@ export function basicLisp() {
 
 	    if (!executed) {
 		throw new Error("with-current-buffer failed to execute");
+	    }
+
+	    if (lisp.buffer_string() === "Hello" || lisp.buffer_string() !== "World,,,") {
+		throw new Error("with-current-buffer did not properly retain buffer state");
 	    }
 	})
 	.test(() => {

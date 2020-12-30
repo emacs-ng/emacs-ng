@@ -93,30 +93,36 @@
         __weak = nw;
     }, 2500);
 
-
+    const symbolCache = {};
     const symbols = () => {
 	return new Proxy({}, {
 	    get: function(o, k) {
-		return lisp.intern(k.replaceAll('_', '-'));
+		let cached = symbolCache[k] || lisp.intern(k.replaceAll('_', '-'));
+		symbolCache[k] = cached;
+		return cached;
 	    }
 	});
     };
 
+    const keywordCache = {};
     const keywords = () => {
 	return new Proxy({}, {
 	    get: function(o, k) {
-		return lisp.intern(':' + k.replaceAll('_', '-'));
+		const cached = keywordCache[k] || lisp.intern(':' + k.replaceAll('_', '-'));
+		keywordCache[k] = cached;
+		return cached;
 	    }
 	});
 
     };
 
+    const quote = (arg) => lisp.list(lisp.q.quote, arg);
     const setq = () => {
 	return function () {
 	    let newArgs = [lisp.q.setq];
 	    for (let i = 0; i < arguments.length; ++i) {
 		if (lisp.listp(arguments[i])) {
-		    newArgs.push(lisp.list(lisp.q.quote, arguments[i]));
+		    newArgs.push(quote(arguments[i]));
 		} else {
 		    newArgs.push(arguments[i]);
 		}
@@ -184,7 +190,7 @@
 	    const numArgs = lambda.length;
 	    const argList = argsLists[numArgs];
 	    const invoke = invokeLists[numArgs];
-	    const list = [lisp.q['let'], argList, invoke(numArgs)];
+	    const list = [lisp.q['let'], argList(), invoke(numArgs)];
 
 	    for (let i = 1; i < arguments.length; ++i) {
 		list.push(arguments[i]);
@@ -196,14 +202,13 @@
 
     const with_current_buffer = () => {
 	return function(bufferOrName, lambda) {
-	    if (lambda.length !== 1) {
-		throw new Exception("with-current-buffer lambda takes one argument");
+	    if (lambda.length !== 0) {
+		throw new Exception("with-current-buffer lambda takes 0 arguments");
 	    }
 
-	    const argList = argsLists[1];
-	    const invoke = invokeLists[1];
+	    const invoke = invokeLists[0];
 	    const len = __functions.length;
-	    const list = [lisp.q.with_current_buffer, bufferOrName, argList, invoke(len)];
+	    const list = [lisp.q.with_current_buffer, bufferOrName, invoke(len)];
 	    __functions.push(lambda);
 
 	    return lisp.eval(lisp.list.apply(this, list));
@@ -217,10 +222,9 @@
 		throw new Exception("with-temp-buffer lambda takes 0 arguments");
 	    }
 
-	    const argList = argsLists[0];
 	    const invoke = invokeLists[0];
 	    const len = __functions.length;
-	    const list = [lisp.q.with_temp_buffer, argList, invoke(len)];
+	    const list = [lisp.q.with_temp_buffer, invoke(len)];
 	    __functions.push(lambda);
 
 	    return lisp.eval(lisp.list.apply(this, list));
