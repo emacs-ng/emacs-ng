@@ -7,7 +7,7 @@ use remacs_macros::lisp_fn;
 use serde_json::{map::Map, Value};
 use std::convert::TryInto;
 use std::ffi::CString;
-use std::io::{BufReader, BufWriter, Result, Error};
+use std::io::{BufReader, BufWriter, Error, Result};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 
@@ -531,9 +531,12 @@ fn generate_config_from_args(args: &[LispObject]) -> JSONConfiguration {
 pub fn json_se(args: &[LispObject]) -> LispObject {
     let config = generate_config_from_args(&args[1..]);
     let value = lisp_to_serde(args[0], &config)
-	.ok_or(Error::new(std::io::ErrorKind::Other, "Failure to parse json object due to construction"))
-	.map_err(|e| { error!("Error in json serialization: {:?}", e) })
-	.unwrap(); // Safe because we mapped error.
+        .ok_or(Error::new(
+            std::io::ErrorKind::Other,
+            "Failure to parse json object due to construction",
+        ))
+        .map_err(|e| error!("Error in json serialization: {:?}", e))
+        .unwrap(); // Safe because we mapped error.
     match serde_json::to_string(&value) {
         Ok(v) => {
             let len = v.len();

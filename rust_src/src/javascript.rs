@@ -9,6 +9,7 @@ use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::io::Result;
+use std::sync::Arc;
 
 struct EmacsJsRuntime {
     r: Option<tokio::runtime::Runtime>,
@@ -49,6 +50,44 @@ impl EmacsJsRuntime {
     fn set_runtime(r: tokio::runtime::Runtime) {
         Self::runtime().r = Some(r);
     }
+}
+
+fn create_web_worker_callback() -> Arc<deno_runtime::ops::worker_host::CreateWebWorkerCb> {
+    Arc::new(|args| {
+        let create_web_worker_cb = create_web_worker_callback();
+
+        let options = deno_runtime::web_worker::WebWorkerOptions {
+            apply_source_maps: false,
+            user_agent: "x".to_string(),
+            args: vec![],
+            debug_flag: false,
+            unstable: false,
+            ca_filepath: None,
+            seed: None,
+            js_error_create_fn: None,
+            create_web_worker_cb,
+            attach_inspector: false,
+            maybe_inspector_server: None,
+            use_deno_namespace: false,
+            module_loader: std::rc::Rc::new(deno_core::FsModuleLoader),
+            runtime_version: "x".to_string(),
+            ts_version: "x".to_string(),
+            no_color: true,
+            get_error_class_fn: None,
+        };
+
+        let mut worker = deno_runtime::web_worker::WebWorker::from_options(
+            args.name,
+            args.permissions,
+            args.main_module,
+            args.worker_id,
+            &options,
+        );
+
+        worker.bootstrap(&options);
+
+        worker
+    })
 }
 
 // Aligned with code in prelim.js
@@ -635,11 +674,11 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
         user_agent: "x".to_string(),
         args: vec![],
         debug_flag: false,
-        unstable: false,
+        unstable: true,
         ca_filepath: None,
         seed: None,
         js_error_create_fn: None,
-        create_web_worker_cb: std::sync::Arc::new(|_| unreachable!()),
+        create_web_worker_cb: create_web_worker_callback(),
         attach_inspector: false,
         maybe_inspector_server: None,
         should_break_on_first_statement: false,
