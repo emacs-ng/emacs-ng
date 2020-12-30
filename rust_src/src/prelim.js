@@ -202,7 +202,9 @@
 
 	    const argList = argsLists[1];
 	    const invoke = invokeLists[1];
-	    const list = [lisp.q.with_current_buffer, bufferOrName, argList, invoke(1)];
+	    const len = __functions.length;
+	    const list = [lisp.q.with_current_buffer, bufferOrName, argList, invoke(len)];
+	    __functions.push(lambda);
 
 	    return lisp.eval(lisp.list.apply(this, list));
 	}
@@ -217,7 +219,9 @@
 
 	    const argList = argsLists[0];
 	    const invoke = invokeLists[0];
-	    const list = [lisp.q.with_temp_buffer, argList, invoke(0)];
+	    const len = __functions.length;
+	    const list = [lisp.q.with_temp_buffer, argList, invoke(len)];
+	    __functions.push(lambda);
 
 	    return lisp.eval(lisp.list.apply(this, list));
 	}

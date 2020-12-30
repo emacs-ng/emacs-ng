@@ -67,20 +67,32 @@ export function basicLisp() {
 	})
 	.test(() => {
 	    let buf = lisp.get_buffer_create("mybuff");
+	    let executed = false;
 	    lisp.with_current_buffer(buf, (buffer) => {
+		executed = true;
 		lisp.insert("Hello");
 		if (lisp.buffer_string() !== "Hello") {
 		    throw new Error("Error in current buffer implementation");
 		}
 	    });
+
+	    if (!executed) {
+		throw new Error("with-current-buffer failed to execute");
+	    }
 	})
 	.test(() => {
+	    let executed = false;
 	    lisp.with_temp_buffer(() => {
+		executed = true;
 		lisp.insert("XXX12345");
 	    });
 
 	    if (lisp.buffer_string() === "XXX12345") {
 		throw new Error("Error in with-temp-buffer test: mutated normal buffer");
+	    }
+
+	    if (!executed) {
+		throw new Error("with-temp-buffer failed to execute");
 	    }
 	});
 }
