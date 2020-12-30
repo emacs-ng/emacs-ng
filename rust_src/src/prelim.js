@@ -36,6 +36,8 @@
 	}
     };
 
+    global.__clear = (idx) => { __functions[idx] = null; };
+
     const makeFuncs = {
 	hashtable: (a) => json_lisp(JSON.stringify(a), 0),
 	alist: (a) => json_lisp(JSON.stringify(a), 1),
@@ -56,16 +58,18 @@
     ];
 
     const invokeLists = [
-	(len) => lisp.list(lisp.q.js__reenter, len),
-	(len) => lisp.list(lisp.q.js__reenter, len, lisp.q.a),
-	(len) => lisp.list(lisp.q.js__reenter, len, lisp.q.a, lisp.q.b),
-	(len) => lisp.list(lisp.q.js__reenter, len, lisp.q.a, lisp.q.b, lisp.q.c),
-	(len) => lisp.list(lisp.q.js__reenter, len, lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d),
-	(len) => lisp.list(lisp.q.js__reenter, len, lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e),
-	(len) => lisp.list(lisp.q.js__reenter, len, lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e, lisp.q.f),
-	(len) => lisp.list(lisp.q.js__reenter, len, lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e, lisp.q.f, lisp.q.g),
+	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len)),
+	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len), lisp.q.a),
+	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len), lisp.q.a, lisp.q.b),
+	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len), lisp.q.a, lisp.q.b, lisp.q.c),
+	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len), lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d),
+	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len), lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e),
+	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len), lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e, lisp.q.f),
+	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len), lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e, lisp.q.f, lisp.q.g),
 
     ];
+
+    const finalizerLists = (len) => lisp.eval(lisp.list(lisp.q.make_finalizer, lisp.list(lisp.q.lambda, lisp.list(), lisp.list(lisp.q.js__clear, len))));
 
     // Hold on you fool, why not use FinalizerRegistry, it
     // was made for this! That API does not work in Deno

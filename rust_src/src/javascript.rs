@@ -488,6 +488,7 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
 
 fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObject {
     let index = args[0];
+
     if !unsafe { crate::remacs_sys::INTEGERP(index) } {
         error!("Failed to provide proper index to js--reenter");
     }
@@ -511,7 +512,7 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
     let arg0 = v8::Local::<v8::Value>::try_from(v8::Number::new(scope, value as f64)).unwrap();
     let mut v8_args = vec![arg0];
 
-    for i in 1..args.len() {
+    for i in 2..args.len() {
         let a = args[i];
         let is_primative = unsafe {
             crate::remacs_sys::STRINGP(a)
@@ -573,6 +574,44 @@ pub fn js__reenter(args: &[LispObject]) -> LispObject {
     }
 
     retval
+}
+
+fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
+    let value = unsafe {
+        crate::remacs_sys::check_integer_range(
+            idx,
+            crate::remacs_sys::intmax_t::MIN,
+            crate::remacs_sys::intmax_t::MAX,
+        )
+    };
+
+    let context = scope.get_current_context();
+    let global = context.global(scope);
+
+    let name = v8::String::new(scope, "__clear").unwrap();
+    let fnc: v8::Local<v8::Function> = global.get(scope, name.into()).unwrap().try_into().unwrap();
+    let recv =
+        v8::Local::<v8::Value>::try_from(v8::String::new(scope, "lisp_invoke").unwrap()).unwrap();
+    let arg0 = v8::Local::<v8::Value>::try_from(v8::Number::new(scope, value as f64)).unwrap();
+    let v8_args = vec![arg0];
+    fnc.call(scope, recv, v8_args.as_slice()).unwrap();
+}
+
+#[lisp_fn]
+pub fn js__clear(idx: LispObject) -> LispObject {
+    if !unsafe { WITHIN_RUNTIME } {
+        let worker = EmacsJsRuntime::worker();
+        let runtime = &mut worker.js_runtime;
+        let context = runtime.global_context();
+        let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
+        js_clear_internal(scope, idx);
+    } else {
+        let scope: &mut v8::HandleScope = unsafe { std::mem::transmute(raw_handle) };
+        js_clear_internal(scope, idx);
+        unsafe { raw_handle = std::mem::transmute(scope) };
+    }
+
+    crate::remacs_sys::Qnil
 }
 
 fn into_ioerr<E: Into<Box<dyn std::error::Error + Send + Sync>>>(e: E) -> std::io::Error {
