@@ -78,7 +78,7 @@
     // because I just need to sync that map with a lisp gc root
     // and my job is done.
     // @TODO either make that time for sync customizable
-    // or explore better options than hardcoding 10s.
+    // or explore better options than hardcoding 2.5s.
     setInterval(() => {
         const nw = [];
         const args = [];
@@ -91,7 +91,7 @@
             finalize.apply(this, args);
         });
         __weak = nw;
-    }, 10000);
+    }, 2500);
 
 
     const symbols = () => {
