@@ -3,13 +3,20 @@ use crate::lists::LispCons;
 use crate::multibyte::LispStringRef;
 use crate::parsing::{ArrayType, ObjectType};
 use crate::remacs_sys::{intern_c_string, Ffuncall};
+use futures::future::FutureExt;
+use lazy_static::lazy_static;
 use remacs_macros::lisp_fn;
 use rusty_v8 as v8;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::io::Result;
+use std::pin::Pin;
+use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 struct EmacsJsRuntime {
     r: Option<tokio::runtime::Runtime>,
@@ -52,13 +59,89 @@ impl EmacsJsRuntime {
     }
 }
 
+lazy_static! {
+    static ref FILE_CACHE: Mutex<HashMap<String, String>> = {
+        {
+            Mutex::new(HashMap::new())
+        }
+    };
+}
+
+struct CachedFileModuleLoader {
+    loader: deno_core::FsModuleLoader,
+}
+
+impl CachedFileModuleLoader {
+    fn new() -> Self {
+        CachedFileModuleLoader {
+            loader: deno_core::FsModuleLoader,
+        }
+    }
+
+    fn insert(fake_file_name: String, code: String) {
+        let mut map = FILE_CACHE.lock().unwrap();
+        map.insert(fake_file_name, code);
+    }
+
+    fn get(filepath: String) -> Option<String> {
+        let map = FILE_CACHE.lock().unwrap();
+        map.get(&filepath).map(|x| x.clone())
+    }
+}
+
+impl deno_core::ModuleLoader for CachedFileModuleLoader {
+    fn resolve(
+        &self,
+        _op_state: Rc<RefCell<deno_core::OpState>>,
+        specifier: &str,
+        referrer: &str,
+        _is_main: bool,
+    ) -> std::result::Result<deno_core::ModuleSpecifier, deno_core::error::AnyError> {
+        self.loader
+            .resolve(_op_state, specifier, referrer, _is_main)
+    }
+
+    fn load(
+        &self,
+        _op_state: Rc<RefCell<deno_core::OpState>>,
+        module_specifier: &deno_core::ModuleSpecifier,
+        _maybe_referrer: Option<deno_core::ModuleSpecifier>,
+        _is_dynamic: bool,
+    ) -> Pin<Box<deno_core::ModuleSourceFuture>> {
+        let path = module_specifier.as_str().to_string();
+        if let Some(code) = CachedFileModuleLoader::get(path) {
+            let module_specifier = module_specifier.clone();
+            async move {
+                let module = deno_core::ModuleSource {
+                    code,
+                    module_url_specified: module_specifier.to_string(),
+                    module_url_found: module_specifier.to_string(),
+                };
+                Ok(module)
+            }
+            .boxed_local()
+        } else {
+            self.loader
+                .load(_op_state, module_specifier, _maybe_referrer, _is_dynamic)
+        }
+    }
+}
+
+fn user_agent() -> String {
+    let len = crate::remacs_sys::PACKAGE_STRING.len();
+    // Ignore the null terminator included in this string
+    let version_slice = &crate::remacs_sys::PACKAGE_STRING[0..(len - 1)];
+    let emacs_version = String::from_utf8_lossy(version_slice).into_owned();
+    format!("emacs-ng (Like Deno/) {}", emacs_version)
+}
+
 fn create_web_worker_callback() -> Arc<deno_runtime::ops::worker_host::CreateWebWorkerCb> {
     Arc::new(|args| {
         let create_web_worker_cb = create_web_worker_callback();
 
         let options = deno_runtime::web_worker::WebWorkerOptions {
             apply_source_maps: false,
-            user_agent: "x".to_string(),
+            user_agent: user_agent(),
             args: vec![],
             debug_flag: false,
             unstable: false,
@@ -382,11 +465,10 @@ static mut OPTS: EmacsJsOptions = EmacsJsOptions {
 
 fn set_default_opts_if_unset() {
     unsafe {
-	if  OPTS.ops.is_none() {
-	    OPTS.ops = Some(deno_runtime::permissions::Permissions::allow_all());
-	}
+        if OPTS.ops.is_none() {
+            OPTS.ops = Some(deno_runtime::permissions::Permissions::allow_all());
+        }
     }
-
 }
 
 const JS_PERMS_ERROR: &str =
@@ -411,17 +493,20 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
         match key {
             crate::remacs_sys::QCallow_net => {
                 if value == crate::remacs_sys::Qnil {
-                    permissions.net.global_state = deno_runtime::permissions::PermissionState::Denied;
+                    permissions.net.global_state =
+                        deno_runtime::permissions::PermissionState::Denied;
                 }
             }
             crate::remacs_sys::QCallow_read => {
                 if value == crate::remacs_sys::Qnil {
-                    permissions.read.global_state = deno_runtime::permissions::PermissionState::Denied;
+                    permissions.read.global_state =
+                        deno_runtime::permissions::PermissionState::Denied;
                 }
             }
             crate::remacs_sys::QCallow_write => {
                 if value == crate::remacs_sys::Qnil {
-                    permissions.write.global_state = deno_runtime::permissions::PermissionState::Denied;
+                    permissions.write.global_state =
+                        deno_runtime::permissions::PermissionState::Denied;
                 }
             }
             crate::remacs_sys::QCallow_run => {
@@ -451,7 +536,7 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
 #[lisp_fn]
 pub fn eval_js(string_obj: LispStringRef) -> LispObject {
     let ops = unsafe { &OPTS };
-    run_module("anon-lisp.js", Some(string_obj.to_utf8()), ops).unwrap_or_else(move |e| {
+    run_module("./$anon$lisp.js", Some(string_obj.to_utf8()), ops).unwrap_or_else(move |e| {
         // See comment in eval-js-file for why we call take_worker
         unsafe { EmacsJsRuntime::take_worker() };
         handle_error(e, ops.error_handler)
@@ -473,6 +558,29 @@ pub fn eval_js_file(filename: LispStringRef) -> LispObject {
         // and re-create the isolate. The user impact
         // should be minimal since their module never
         // loaded anyway.
+        unsafe { EmacsJsRuntime::take_worker() };
+        handle_error(e, ops.error_handler)
+    })
+}
+
+#[lisp_fn(min = "0", intspec = "")]
+pub fn eval_js_buffer(mut buffer: LispObject) -> LispObject {
+    if buffer.is_nil() {
+        buffer = unsafe { crate::remacs_sys::Fcurrent_buffer() };
+    }
+
+    let lisp_string = unsafe {
+        let current = crate::remacs_sys::Fcurrent_buffer();
+        crate::remacs_sys::Fset_buffer(buffer);
+        let lstring: LispStringRef = crate::remacs_sys::Fbuffer_string().into();
+        crate::remacs_sys::Fset_buffer(current);
+
+        lstring
+    };
+
+    let ops = unsafe { &OPTS };
+    run_module("./$js$bufer.js", Some(lisp_string.to_utf8()), ops).unwrap_or_else(move |e| {
+        // See comment in eval-js-file for why we call take_worker
         unsafe { EmacsJsRuntime::take_worker() };
         handle_error(e, ops.error_handler)
     })
@@ -539,25 +647,27 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
         }
     }
 
-    let result = fnc.call(scope, recv, v8_args.as_slice()).unwrap();
     let mut retval = crate::remacs_sys::Qnil;
-    if result.is_string() {
-        let a = result.to_string(scope).unwrap().to_rust_string_lossy(scope);
+    if let Some(result) = fnc.call(scope, recv, v8_args.as_slice()) {
+        if result.is_string() {
+            let a = result.to_string(scope).unwrap().to_rust_string_lossy(scope);
 
-        if let Ok(deser) = crate::parsing::deser(&a, None) {
-            retval = deser;
+            if let Ok(deser) = crate::parsing::deser(&a, None) {
+                retval = deser;
+            }
+        } else if result.is_object() {
+            let a = result.to_object(scope).unwrap();
+            assert!(a.internal_field_count() > 0);
+            let internal = a.get_internal_field(scope, 0).unwrap();
+            let ptrstr = internal
+                .to_string(scope)
+                .unwrap()
+                .to_rust_string_lossy(scope);
+            let lispobj = LispObject::from_C_unsigned(
+                ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap(),
+            );
+            retval = lispobj;
         }
-    } else if result.is_object() {
-        let a = result.to_object(scope).unwrap();
-        assert!(a.internal_field_count() > 0);
-        let internal = a.get_internal_field(scope, 0).unwrap();
-        let ptrstr = internal
-            .to_string(scope)
-            .unwrap()
-            .to_rust_string_lossy(scope);
-        let lispobj =
-            LispObject::from_C_unsigned(ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap());
-        retval = lispobj;
     }
 
     retval
@@ -716,7 +826,7 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     // v8::V8::set_flags_from_string("--trace-gc --gc-global --gc-interval 1 --heap-profiler-trace-objects");
     let options = deno_runtime::worker::WorkerOptions {
         apply_source_maps: false,
-        user_agent: "x".to_string(),
+        user_agent: user_agent(),
         args: vec![],
         debug_flag: false,
         unstable: true,
@@ -727,7 +837,7 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
         attach_inspector: false,
         maybe_inspector_server: None,
         should_break_on_first_statement: false,
-        module_loader: std::rc::Rc::new(deno_core::FsModuleLoader),
+        module_loader: std::rc::Rc::new(CachedFileModuleLoader::new()),
         runtime_version: "x".to_string(),
         ts_version: "x".to_string(),
         no_color: true,
@@ -794,15 +904,14 @@ fn run_module(
 
     execute(async move {
         let w = EmacsJsRuntime::worker();
+        let main_module = deno_core::ModuleSpecifier::resolve_url_or_path(filepath).unwrap();
         if let Some(js) = additional_js {
-            w.execute(&js).map_err(|e| into_ioerr(e))?;
-        } else {
-            let main_module = deno_core::ModuleSpecifier::resolve_url_or_path(filepath)
-                .map_err(|e| into_ioerr(e))?;
-            w.execute_module(&main_module)
-                .await
-                .map_err(|e| into_ioerr(e))?;
+            CachedFileModuleLoader::insert(main_module.as_str().to_string(), js);
         }
+
+        w.execute_module(&main_module)
+            .await
+            .map_err(|e| into_ioerr(e))?;
 
         Ok(())
     })?;
