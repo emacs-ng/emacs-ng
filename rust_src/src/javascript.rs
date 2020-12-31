@@ -9,6 +9,7 @@ use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::io::Result;
+use std::sync::Arc;
 
 struct EmacsJsRuntime {
     r: Option<tokio::runtime::Runtime>,
@@ -49,6 +50,44 @@ impl EmacsJsRuntime {
     fn set_runtime(r: tokio::runtime::Runtime) {
         Self::runtime().r = Some(r);
     }
+}
+
+fn create_web_worker_callback() -> Arc<deno_runtime::ops::worker_host::CreateWebWorkerCb> {
+    Arc::new(|args| {
+        let create_web_worker_cb = create_web_worker_callback();
+
+        let options = deno_runtime::web_worker::WebWorkerOptions {
+            apply_source_maps: false,
+            user_agent: "x".to_string(),
+            args: vec![],
+            debug_flag: false,
+            unstable: false,
+            ca_filepath: None,
+            seed: None,
+            js_error_create_fn: None,
+            create_web_worker_cb,
+            attach_inspector: false,
+            maybe_inspector_server: None,
+            use_deno_namespace: false,
+            module_loader: std::rc::Rc::new(deno_core::FsModuleLoader),
+            runtime_version: "x".to_string(),
+            ts_version: "x".to_string(),
+            no_color: true,
+            get_error_class_fn: None,
+        };
+
+        let mut worker = deno_runtime::web_worker::WebWorker::from_options(
+            args.name,
+            args.permissions,
+            args.main_module,
+            args.worker_id,
+            &options,
+        );
+
+        worker.bootstrap(&options);
+
+        worker
+    })
 }
 
 // Aligned with code in prelim.js
@@ -257,6 +296,24 @@ pub fn lisp_callback(
         }
     }
 
+    // 'Why are you using mem transmute to store this scope globally?'
+    // If you attempt to re-enter JS from a lisp function
+    // i.e. js -> lisp -> js, if you were to use "worker.execute",
+    // Deno will attempt to create a new handlescope using the
+    // thread isolate and global context. Due to how Deno
+    // constructed the HandleScope class, attempting to create
+    // a handle scope from an isolate when there is already a handle
+    // on the stack will cause the process to panic.
+    // The 'right way' to do  this is to use the handle that is currently
+    // on the stack, which is scope. Since JS and Lisp are on the same thread,
+    // scope will be alive in the situation we go from js -> lisp -> js. This
+    // is reflected in the stateful variable WITHIN_RUNTIME. If you are
+    // not within the runtime, you can run worker.execute. If you are within
+    // the runtime, you mem::transmute this scope and use that.
+    // Think of it like passing down scope through every function call until we
+    // need it, but in a round about way.
+    // >>> Code touching 'raw_handle' and 'WITHIN_RUNTIME' needs to be
+    // >>> managed very carefully. It should not be touched without a good reason.
     unsafe { raw_handle = std::mem::transmute(scope) };
     let boxed = Box::new(lisp_args);
     let raw_ptr = Box::into_raw(boxed);
@@ -449,6 +506,7 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
 
 fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObject {
     let index = args[0];
+
     if !unsafe { crate::remacs_sys::INTEGERP(index) } {
         error!("Failed to provide proper index to js--reenter");
     }
@@ -472,7 +530,7 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
     let arg0 = v8::Local::<v8::Value>::try_from(v8::Number::new(scope, value as f64)).unwrap();
     let mut v8_args = vec![arg0];
 
-    for i in 1..args.len() {
+    for i in 2..args.len() {
         let a = args[i];
         let is_primative = unsafe {
             crate::remacs_sys::STRINGP(a)
@@ -534,6 +592,44 @@ pub fn js__reenter(args: &[LispObject]) -> LispObject {
     }
 
     retval
+}
+
+fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
+    let value = unsafe {
+        crate::remacs_sys::check_integer_range(
+            idx,
+            crate::remacs_sys::intmax_t::MIN,
+            crate::remacs_sys::intmax_t::MAX,
+        )
+    };
+
+    let context = scope.get_current_context();
+    let global = context.global(scope);
+
+    let name = v8::String::new(scope, "__clear").unwrap();
+    let fnc: v8::Local<v8::Function> = global.get(scope, name.into()).unwrap().try_into().unwrap();
+    let recv =
+        v8::Local::<v8::Value>::try_from(v8::String::new(scope, "lisp_invoke").unwrap()).unwrap();
+    let arg0 = v8::Local::<v8::Value>::try_from(v8::Number::new(scope, value as f64)).unwrap();
+    let v8_args = vec![arg0];
+    fnc.call(scope, recv, v8_args.as_slice()).unwrap();
+}
+
+#[lisp_fn]
+pub fn js__clear(idx: LispObject) -> LispObject {
+    if !unsafe { WITHIN_RUNTIME } {
+        let worker = EmacsJsRuntime::worker();
+        let runtime = &mut worker.js_runtime;
+        let context = runtime.global_context();
+        let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
+        js_clear_internal(scope, idx);
+    } else {
+        let scope: &mut v8::HandleScope = unsafe { std::mem::transmute(raw_handle) };
+        js_clear_internal(scope, idx);
+        unsafe { raw_handle = std::mem::transmute(scope) };
+    }
+
+    crate::remacs_sys::Qnil
 }
 
 fn into_ioerr<E: Into<Box<dyn std::error::Error + Send + Sync>>>(e: E) -> std::io::Error {
@@ -635,11 +731,11 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
         user_agent: "x".to_string(),
         args: vec![],
         debug_flag: false,
-        unstable: false,
+        unstable: true,
         ca_filepath: None,
         seed: None,
         js_error_create_fn: None,
-        create_web_worker_cb: std::sync::Arc::new(|_| unreachable!()),
+        create_web_worker_cb: create_web_worker_callback(),
         attach_inspector: false,
         maybe_inspector_server: None,
         should_break_on_first_statement: false,
