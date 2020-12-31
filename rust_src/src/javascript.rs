@@ -370,34 +370,29 @@ pub fn lisp_callback(
 
 struct EmacsJsOptions {
     tick_rate: f64,
-    ops: deno_runtime::permissions::PermissionsOptions,
+    ops: Option<deno_runtime::permissions::Permissions>,
     error_handler: LispObject,
 }
 
 static mut OPTS: EmacsJsOptions = EmacsJsOptions {
     tick_rate: 0.1,
-    ops: deno_runtime::permissions::PermissionsOptions {
-        allow_net: true,
-        allow_read: true,
-        allow_write: true,
-        allow_run: true,
-        allow_env: true,
-        allow_hrtime: true,
-        allow_plugin: true,
-        net_allowlist: vec![],
-        read_allowlist: vec![],
-        write_allowlist: vec![],
-    },
+    ops: None,
     error_handler: crate::remacs_sys::Qnil,
 };
+
+fn set_default_opts_if_unset() {
+    unsafe {
+	if  OPTS.ops.is_none() {
+	    OPTS.ops = Some(deno_runtime::permissions::Permissions::allow_all());
+	}
+    }
+
+}
 
 const JS_PERMS_ERROR: &str =
     "Valid options are: :allow-net nil :allow-read nil :allow-write nil :allow-run nil";
 fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
-    let mut allow_net = true;
-    let mut allow_read = true;
-    let mut allow_write = true;
-    let mut allow_run = true;
+    let mut permissions = deno_runtime::permissions::Permissions::allow_all();
     let mut tick_rate = 0.1;
     let mut error_handler = crate::remacs_sys::Qnil;
 
@@ -416,22 +411,22 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
         match key {
             crate::remacs_sys::QCallow_net => {
                 if value == crate::remacs_sys::Qnil {
-                    allow_net = false
+                    permissions.net.global_state = deno_runtime::permissions::PermissionState::Denied;
                 }
             }
             crate::remacs_sys::QCallow_read => {
                 if value == crate::remacs_sys::Qnil {
-                    allow_read = false
+                    permissions.read.global_state = deno_runtime::permissions::PermissionState::Denied;
                 }
             }
             crate::remacs_sys::QCallow_write => {
                 if value == crate::remacs_sys::Qnil {
-                    allow_write = false
+                    permissions.write.global_state = deno_runtime::permissions::PermissionState::Denied;
                 }
             }
             crate::remacs_sys::QCallow_run => {
                 if value == crate::remacs_sys::Qnil {
-                    allow_run = false
+                    permissions.run = deno_runtime::permissions::PermissionState::Denied;
                 }
             }
             crate::remacs_sys::QCjs_tick_rate => unsafe {
@@ -446,17 +441,9 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
         }
     }
 
-    let ops = deno_runtime::permissions::PermissionsOptions {
-        allow_net,
-        allow_read,
-        allow_write,
-        allow_run,
-        ..Default::default()
-    };
-
     EmacsJsOptions {
         tick_rate,
-        ops,
+        ops: Some(permissions),
         error_handler,
     }
 }
@@ -721,7 +708,8 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     let runtime = EmacsJsRuntime::handle();
     let main_module =
         deno_core::ModuleSpecifier::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
-    let permissions = deno_runtime::permissions::Permissions::from_options(&js_options.ops);
+    set_default_opts_if_unset();
+    let permissions = js_options.ops.as_ref().unwrap().clone();
 
     // @TODO I'm leaving this line commented out, but we should add this to
     // the init API. Flags listed at https://deno.land/manual/contributing/development_tools
