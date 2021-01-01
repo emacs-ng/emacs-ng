@@ -59,6 +59,11 @@ impl EmacsJsRuntime {
     }
 }
 
+// (DDS) See CacheFileModuleLoader::load for more details
+// on why this exists. I picked u128 because there
+// is no way that will overflow before emacs just crashes
+// from the small amount of lisp VM memory leaks
+// independent from the javascript module.
 static mut COUNTER: u128 = 0;
 macro_rules! unique_module {
     ($format: expr) => {{
@@ -66,6 +71,12 @@ macro_rules! unique_module {
             COUNTER += 1;
             format!($format, COUNTER)
         }
+    }};
+}
+
+macro_rules! unique_module_import {
+    ($format: expr) => {{
+        unsafe { format!($format, COUNTER) }
     }};
 }
 
@@ -77,6 +88,10 @@ lazy_static! {
     };
 }
 
+/// The purpose of this class is two fold: 1. To allow custom
+/// execution of JS Scripts as modules and 2. Allow async loading
+/// of files via tokio. The default FsModuleLoader uses sync IO and
+/// does not leverage tokio.
 struct CachedFileModuleLoader {
     loader: deno_core::FsModuleLoader,
 }
@@ -110,14 +125,34 @@ impl deno_core::ModuleLoader for CachedFileModuleLoader {
         self.loader.resolve(op_state, specifier, referrer, is_main)
     }
 
+    // This function is accomplishing two things:
+    // 1. Allow async I/O for our files
+    // 2. Allow loose JS scripts to be executed as
+    // modules to allow  for import statements in
+    // things like eval-js-region or eval-js-buffer
+    // Note that in Deno, once a module is evalulated
+    // (by its canonical path), it will not be evaluated
+    // again. Meaning that in the default FsModuleLoader,
+    // if I load main.js, and then later load main.js with
+    // the same worker, main.js will not execute the second time.
+    // This makes sense for deno_cli, which creates a new main
+    // worker on each invokation, however we have chosen to have
+    // javascript environments live between calls to eval-js-file
+    // and such. Due to this, we need to trick the Deno system.
+    // We make each filename unique, by appending a counter in a specific
+    // way. See below for more details.
     fn load(
         &self,
-        op_state: Rc<RefCell<deno_core::OpState>>,
+        _op_state: Rc<RefCell<deno_core::OpState>>,
         module_specifier: &deno_core::ModuleSpecifier,
         maybe_referrer: Option<deno_core::ModuleSpecifier>,
-        is_dynamic: bool,
+        _is_dynamic: bool,
     ) -> Pin<Box<deno_core::ModuleSourceFuture>> {
         let path = module_specifier.as_str().to_string();
+        // If we have code in the code cache, this is an annonymous script
+        // The filename is alread unqiue, and has a number inserted into it
+        // somewhere. We can just return our module source with its already
+        // unique identifier.
         if let Some(code) = CachedFileModuleLoader::remove(path.clone()) {
             let module_specifier = module_specifier.clone();
             async move {
@@ -133,6 +168,9 @@ impl deno_core::ModuleLoader for CachedFileModuleLoader {
             let path = module_specifier.as_str().to_string();
             let mut true_path = path;
             let mut requires_rename = true;
+            // Modules explicity loaded via (eval-js-file)
+            // will end with ${}X, where {} is a unique number.
+            // We filter that out to get the "true path" to the file.
             if true_path.ends_with("$") {
                 if let Some(i) = true_path.rfind("X") {
                     true_path = String::from(&true_path[0..i]);
@@ -141,14 +179,27 @@ impl deno_core::ModuleLoader for CachedFileModuleLoader {
             }
 
             let mut module_specifier = module_specifier.clone();
+            let handle = EmacsJsRuntime::handle();
             async move {
+                // If you are a module that was not loaded by a call to (eval-js-file)
+                // you are being loaded in an import statement. In that case,
+                // we want your side effects every time you are loaded WITHIN THAT (eval) statement.
+                // Important note: We DON'T want your side effects if you are imported multiple times
+                // within the same round. I.e. main requires vec and queue, and queue requires
+                // vec. We don't want vec being evaluated twice. To do this,
+                // we need to trick Deno into reevaluating this module by appending a number
+                // to the end of the filename. That number is only incremented by the
+                // call to eval-*
                 if requires_rename {
-                    let module = unique_module!("_{}");
+                    let module = unique_module_import!("_{}");
                     let mut fake_path = true_path.clone();
                     fake_path.push_str(&module);
                     module_specifier = deno_core::ModuleSpecifier::resolve_url_or_path(&fake_path)?
                 }
 
+                // 'true_module_*' means the ACTUAL, TRUE path to the file. We
+                // need this to load the file. module_specifier at this point
+                // is a fake filename that is being used to trick the system
                 let true_module_specifier =
                     deno_core::ModuleSpecifier::resolve_url_or_path(&true_path)?;
                 let resolved_true_path =
@@ -159,7 +210,15 @@ impl deno_core::ModuleLoader for CachedFileModuleLoader {
                         ))
                     })?;
 
-                let code = std::fs::read_to_string(resolved_true_path)?;
+                // This line here is the actual async I/O. Its only a few lines
+                // and is much simpler then all the fake naming that is happening above.
+                let code_result: Result<String> = handle
+                    .spawn(async move {
+                        let r = tokio::fs::read(resolved_true_path).await?;
+                        Ok(String::from_utf8_lossy(&r).to_string())
+                    })
+                    .await?;
+                let code = code_result?;
                 let module = deno_core::ModuleSource {
                     code,
                     module_url_specified: true_module_specifier.to_string(),
@@ -197,6 +256,10 @@ fn create_web_worker_callback() -> Arc<deno_runtime::ops::worker_host::CreateWeb
             attach_inspector: false,
             maybe_inspector_server: None,
             use_deno_namespace: false,
+            // Web Workers will not use the CachedModuleLoader -> they live in a simpler
+            // world where they live, run javascript, and die. We can implement
+            // async I/O for their module loading as an optimization, but they
+            // are already not blocking the main thread.
             module_loader: std::rc::Rc::new(deno_core::FsModuleLoader),
             runtime_version: "x".to_string(),
             ts_version: "x".to_string(),
@@ -628,7 +691,8 @@ pub fn eval_js_buffer(mut buffer: LispObject) -> LispObject {
     };
 
     let ops = unsafe { &OPTS };
-    run_module("./$js$bufer.js", Some(lisp_string.to_utf8()), ops).unwrap_or_else(move |e| {
+    let module = unique_module!("./$js$buffer${}.js");
+    run_module(&module, Some(lisp_string.to_utf8()), ops).unwrap_or_else(move |e| {
         // See comment in eval-js-file for why we call take_worker
         unsafe { EmacsJsRuntime::take_worker() };
         handle_error(e, ops.error_handler)
@@ -953,9 +1017,9 @@ fn run_module(
 
     execute(async move {
         let w = EmacsJsRuntime::worker();
-        let main_module = deno_core::ModuleSpecifier::resolve_url_or_path(filepath).unwrap();
+        let main_module =
+            deno_core::ModuleSpecifier::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
         if let Some(js) = additional_js {
-            println!("Inserting code for {}", main_module.as_str().to_string());
             CachedFileModuleLoader::insert(main_module.as_str().to_string(), js);
         }
 
