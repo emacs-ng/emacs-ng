@@ -135,7 +135,8 @@
 	return function () {
 	    let newArgs = [lisp.q.setq];
 	    for (let i = 0; i < arguments.length; ++i) {
-		if (lisp.listp(arguments[i])) {
+		if (lisp.listp(arguments[i])
+		    && !lisp.eq(lisp.q.quote, lisp.car(arguments[i]))) {
 		    newArgs.push(quote(arguments[i]));
 		} else {
 		    newArgs.push(arguments[i]);
@@ -257,6 +258,7 @@
 	"let": _let(),
 	with_current_buffer: with_current_buffer(),
 	with_temp_buffer: with_temp_buffer(),
+	quote: quote,
     };
 
 
