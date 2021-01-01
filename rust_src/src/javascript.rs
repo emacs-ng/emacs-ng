@@ -3,13 +3,20 @@ use crate::lists::LispCons;
 use crate::multibyte::LispStringRef;
 use crate::parsing::{ArrayType, ObjectType};
 use crate::remacs_sys::{intern_c_string, Ffuncall};
+use futures::future::FutureExt;
+use lazy_static::lazy_static;
 use remacs_macros::lisp_fn;
 use rusty_v8 as v8;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::io::Result;
+use std::pin::Pin;
+use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 struct EmacsJsRuntime {
     r: Option<tokio::runtime::Runtime>,
@@ -52,13 +59,193 @@ impl EmacsJsRuntime {
     }
 }
 
+// (DDS) See CacheFileModuleLoader::load for more details
+// on why this exists. I picked u128 because there
+// is no way that will overflow before emacs just crashes
+// from the small amount of lisp VM memory leaks
+// independent from the javascript module.
+static mut COUNTER: u128 = 0;
+macro_rules! unique_module {
+    ($format: expr) => {{
+        unsafe {
+            COUNTER += 1;
+            format!($format, COUNTER)
+        }
+    }};
+}
+
+macro_rules! unique_module_import {
+    ($format: expr) => {{
+        unsafe { format!($format, COUNTER) }
+    }};
+}
+
+lazy_static! {
+    static ref FILE_CACHE: Mutex<HashMap<String, String>> = {
+        {
+            Mutex::new(HashMap::new())
+        }
+    };
+}
+
+/// The purpose of this class is two fold: 1. To allow custom
+/// execution of JS Scripts as modules and 2. Allow async loading
+/// of files via tokio. The default FsModuleLoader uses sync IO and
+/// does not leverage tokio.
+struct CachedFileModuleLoader {
+    loader: deno_core::FsModuleLoader,
+}
+
+impl CachedFileModuleLoader {
+    fn new() -> Self {
+        CachedFileModuleLoader {
+            loader: deno_core::FsModuleLoader,
+        }
+    }
+
+    fn insert(fake_file_name: String, code: String) {
+        let mut map = FILE_CACHE.lock().unwrap();
+        map.insert(fake_file_name, code);
+    }
+
+    fn remove(filepath: String) -> Option<String> {
+        let mut map = FILE_CACHE.lock().unwrap();
+        map.remove(&filepath)
+    }
+}
+
+impl deno_core::ModuleLoader for CachedFileModuleLoader {
+    fn resolve(
+        &self,
+        op_state: Rc<RefCell<deno_core::OpState>>,
+        specifier: &str,
+        referrer: &str,
+        is_main: bool,
+    ) -> std::result::Result<deno_core::ModuleSpecifier, deno_core::error::AnyError> {
+        self.loader.resolve(op_state, specifier, referrer, is_main)
+    }
+
+    // This function is accomplishing two things:
+    // 1. Allow async I/O for our files
+    // 2. Allow loose JS scripts to be executed as
+    // modules to allow  for import statements in
+    // things like eval-js-region or eval-js-buffer
+    // Note that in Deno, once a module is evalulated
+    // (by its canonical path), it will not be evaluated
+    // again. Meaning that in the default FsModuleLoader,
+    // if I load main.js, and then later load main.js with
+    // the same worker, main.js will not execute the second time.
+    // This makes sense for deno_cli, which creates a new main
+    // worker on each invokation, however we have chosen to have
+    // javascript environments live between calls to eval-js-file
+    // and such. Due to this, we need to trick the Deno system.
+    // We make each filename unique, by appending a counter in a specific
+    // way. See below for more details.
+    fn load(
+        &self,
+        _op_state: Rc<RefCell<deno_core::OpState>>,
+        module_specifier: &deno_core::ModuleSpecifier,
+        _maybe_referrer: Option<deno_core::ModuleSpecifier>,
+        _is_dynamic: bool,
+    ) -> Pin<Box<deno_core::ModuleSourceFuture>> {
+        let path = module_specifier.as_str().to_string();
+        // If we have code in the code cache, this is an annonymous script
+        // The filename is alread unqiue, and has a number inserted into it
+        // somewhere. We can just return our module source with its already
+        // unique identifier.
+        if let Some(code) = CachedFileModuleLoader::remove(path.clone()) {
+            let module_specifier = module_specifier.clone();
+            async move {
+                let module = deno_core::ModuleSource {
+                    code,
+                    module_url_specified: module_specifier.to_string(),
+                    module_url_found: module_specifier.to_string(),
+                };
+                Ok(module)
+            }
+            .boxed_local()
+        } else {
+            let path = module_specifier.as_str().to_string();
+            let mut true_path = path;
+            let mut requires_rename = true;
+            // Modules explicity loaded via (eval-js-file)
+            // will end with ${}X, where {} is a unique number.
+            // We filter that out to get the "true path" to the file.
+            if true_path.ends_with("$") {
+                if let Some(i) = true_path.rfind("X") {
+                    true_path = String::from(&true_path[0..i]);
+                    requires_rename = false;
+                }
+            }
+
+            let mut module_specifier = module_specifier.clone();
+            let handle = EmacsJsRuntime::handle();
+            async move {
+                // If you are a module that was not loaded by a call to (eval-js-file)
+                // you are being loaded in an import statement. In that case,
+                // we want your side effects every time you are loaded WITHIN THAT (eval) statement.
+                // Important note: We DON'T want your side effects if you are imported multiple times
+                // within the same round. I.e. main requires vec and queue, and queue requires
+                // vec. We don't want vec being evaluated twice. To do this,
+                // we need to trick Deno into reevaluating this module by appending a number
+                // to the end of the filename. That number is only incremented by the
+                // call to eval-*
+                if requires_rename {
+                    let module = unique_module_import!("_{}");
+                    let mut fake_path = true_path.clone();
+                    fake_path.push_str(&module);
+                    module_specifier = deno_core::ModuleSpecifier::resolve_url_or_path(&fake_path)?
+                }
+
+                // 'true_module_*' means the ACTUAL, TRUE path to the file. We
+                // need this to load the file. module_specifier at this point
+                // is a fake filename that is being used to trick the system
+                let true_module_specifier =
+                    deno_core::ModuleSpecifier::resolve_url_or_path(&true_path)?;
+                let resolved_true_path =
+                    true_module_specifier.as_url().to_file_path().map_err(|_| {
+                        deno_core::error::generic_error(format!(
+                            "Provided module specifier \"{}\" is not a file URL.",
+                            module_specifier
+                        ))
+                    })?;
+
+                // This line here is the actual async I/O. Its only a few lines
+                // and is much simpler then all the fake naming that is happening above.
+                let code_result: Result<String> = handle
+                    .spawn(async move {
+                        let r = tokio::fs::read(resolved_true_path).await?;
+                        Ok(String::from_utf8_lossy(&r).to_string())
+                    })
+                    .await?;
+                let code = code_result?;
+                let module = deno_core::ModuleSource {
+                    code,
+                    module_url_specified: true_module_specifier.to_string(),
+                    module_url_found: module_specifier.to_string(),
+                };
+                Ok(module)
+            }
+            .boxed_local()
+        }
+    }
+}
+
+fn user_agent() -> String {
+    let len = crate::remacs_sys::PACKAGE_STRING.len();
+    // Ignore the null terminator included in this string
+    let version_slice = &crate::remacs_sys::PACKAGE_STRING[0..(len - 1)];
+    let emacs_version = String::from_utf8_lossy(version_slice).into_owned();
+    format!("emacs-ng (Like Deno/) {}", emacs_version)
+}
+
 fn create_web_worker_callback() -> Arc<deno_runtime::ops::worker_host::CreateWebWorkerCb> {
     Arc::new(|args| {
         let create_web_worker_cb = create_web_worker_callback();
 
         let options = deno_runtime::web_worker::WebWorkerOptions {
             apply_source_maps: false,
-            user_agent: "x".to_string(),
+            user_agent: user_agent(),
             args: vec![],
             debug_flag: false,
             unstable: false,
@@ -69,6 +256,10 @@ fn create_web_worker_callback() -> Arc<deno_runtime::ops::worker_host::CreateWeb
             attach_inspector: false,
             maybe_inspector_server: None,
             use_deno_namespace: false,
+            // Web Workers will not use the CachedModuleLoader -> they live in a simpler
+            // world where they live, run javascript, and die. We can implement
+            // async I/O for their module loading as an optimization, but they
+            // are already not blocking the main thread.
             module_loader: std::rc::Rc::new(deno_core::FsModuleLoader),
             runtime_version: "x".to_string(),
             ts_version: "x".to_string(),
@@ -382,11 +573,10 @@ static mut OPTS: EmacsJsOptions = EmacsJsOptions {
 
 fn set_default_opts_if_unset() {
     unsafe {
-	if  OPTS.ops.is_none() {
-	    OPTS.ops = Some(deno_runtime::permissions::Permissions::allow_all());
-	}
+        if OPTS.ops.is_none() {
+            OPTS.ops = Some(deno_runtime::permissions::Permissions::allow_all());
+        }
     }
-
 }
 
 const JS_PERMS_ERROR: &str =
@@ -411,17 +601,20 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
         match key {
             crate::remacs_sys::QCallow_net => {
                 if value == crate::remacs_sys::Qnil {
-                    permissions.net.global_state = deno_runtime::permissions::PermissionState::Denied;
+                    permissions.net.global_state =
+                        deno_runtime::permissions::PermissionState::Denied;
                 }
             }
             crate::remacs_sys::QCallow_read => {
                 if value == crate::remacs_sys::Qnil {
-                    permissions.read.global_state = deno_runtime::permissions::PermissionState::Denied;
+                    permissions.read.global_state =
+                        deno_runtime::permissions::PermissionState::Denied;
                 }
             }
             crate::remacs_sys::QCallow_write => {
                 if value == crate::remacs_sys::Qnil {
-                    permissions.write.global_state = deno_runtime::permissions::PermissionState::Denied;
+                    permissions.write.global_state =
+                        deno_runtime::permissions::PermissionState::Denied;
                 }
             }
             crate::remacs_sys::QCallow_run => {
@@ -451,7 +644,8 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
 #[lisp_fn]
 pub fn eval_js(string_obj: LispStringRef) -> LispObject {
     let ops = unsafe { &OPTS };
-    run_module("anon-lisp.js", Some(string_obj.to_utf8()), ops).unwrap_or_else(move |e| {
+    let name = unique_module!("./$anon$lisp${}.js");
+    run_module(&name, Some(string_obj.to_utf8()), ops).unwrap_or_else(move |e| {
         // See comment in eval-js-file for why we call take_worker
         unsafe { EmacsJsRuntime::take_worker() };
         handle_error(e, ops.error_handler)
@@ -461,7 +655,10 @@ pub fn eval_js(string_obj: LispStringRef) -> LispObject {
 #[lisp_fn]
 pub fn eval_js_file(filename: LispStringRef) -> LispObject {
     let ops = unsafe { &OPTS };
-    run_module(&filename.to_utf8(), None, ops).unwrap_or_else(move |e| {
+    let suffix = unique_module!("X{}$");
+    let mut module = filename.to_utf8();
+    module.push_str(&suffix);
+    run_module(&module, None, ops).unwrap_or_else(move |e| {
         // If a toplevel module rejects in the Deno
         // framework, it will .unwrap() a bad result
         // in the next call to poll(). This is due to
@@ -476,6 +673,37 @@ pub fn eval_js_file(filename: LispStringRef) -> LispObject {
         unsafe { EmacsJsRuntime::take_worker() };
         handle_error(e, ops.error_handler)
     })
+}
+
+#[lisp_fn(min = "0", intspec = "")]
+pub fn eval_js_buffer(mut buffer: LispObject) -> LispObject {
+    if buffer.is_nil() {
+        buffer = unsafe { crate::remacs_sys::Fcurrent_buffer() };
+    }
+
+    let lisp_string = unsafe {
+        let current = crate::remacs_sys::Fcurrent_buffer();
+        crate::remacs_sys::Fset_buffer(buffer);
+        let lstring = crate::remacs_sys::Fbuffer_string();
+        crate::remacs_sys::Fset_buffer(current);
+
+        lstring
+    };
+
+    Feval_js(lisp_string)
+}
+
+#[lisp_fn(intspec = "r")]
+pub fn eval_js_region(start: LispObject, end: LispObject) -> LispObject {
+    let saved = unsafe { crate::remacs_sys::save_restriction_save() };
+    let lisp_string = unsafe {
+        crate::remacs_sys::Fnarrow_to_region(start, end);
+        let lstring = crate::remacs_sys::Fbuffer_string();
+        crate::remacs_sys::save_restriction_restore(saved);
+        lstring
+    };
+
+    Feval_js(lisp_string)
 }
 
 #[lisp_fn]
@@ -539,25 +767,27 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
         }
     }
 
-    let result = fnc.call(scope, recv, v8_args.as_slice()).unwrap();
     let mut retval = crate::remacs_sys::Qnil;
-    if result.is_string() {
-        let a = result.to_string(scope).unwrap().to_rust_string_lossy(scope);
+    if let Some(result) = fnc.call(scope, recv, v8_args.as_slice()) {
+        if result.is_string() {
+            let a = result.to_string(scope).unwrap().to_rust_string_lossy(scope);
 
-        if let Ok(deser) = crate::parsing::deser(&a, None) {
-            retval = deser;
+            if let Ok(deser) = crate::parsing::deser(&a, None) {
+                retval = deser;
+            }
+        } else if result.is_object() {
+            let a = result.to_object(scope).unwrap();
+            assert!(a.internal_field_count() > 0);
+            let internal = a.get_internal_field(scope, 0).unwrap();
+            let ptrstr = internal
+                .to_string(scope)
+                .unwrap()
+                .to_rust_string_lossy(scope);
+            let lispobj = LispObject::from_C_unsigned(
+                ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap(),
+            );
+            retval = lispobj;
         }
-    } else if result.is_object() {
-        let a = result.to_object(scope).unwrap();
-        assert!(a.internal_field_count() > 0);
-        let internal = a.get_internal_field(scope, 0).unwrap();
-        let ptrstr = internal
-            .to_string(scope)
-            .unwrap()
-            .to_rust_string_lossy(scope);
-        let lispobj =
-            LispObject::from_C_unsigned(ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap());
-        retval = lispobj;
     }
 
     retval
@@ -716,7 +946,7 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     // v8::V8::set_flags_from_string("--trace-gc --gc-global --gc-interval 1 --heap-profiler-trace-objects");
     let options = deno_runtime::worker::WorkerOptions {
         apply_source_maps: false,
-        user_agent: "x".to_string(),
+        user_agent: user_agent(),
         args: vec![],
         debug_flag: false,
         unstable: true,
@@ -727,7 +957,7 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
         attach_inspector: false,
         maybe_inspector_server: None,
         should_break_on_first_statement: false,
-        module_loader: std::rc::Rc::new(deno_core::FsModuleLoader),
+        module_loader: std::rc::Rc::new(CachedFileModuleLoader::new()),
         runtime_version: "x".to_string(),
         ts_version: "x".to_string(),
         no_color: true,
@@ -794,16 +1024,15 @@ fn run_module(
 
     execute(async move {
         let w = EmacsJsRuntime::worker();
+        let main_module =
+            deno_core::ModuleSpecifier::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
         if let Some(js) = additional_js {
-            w.execute(&js).map_err(|e| into_ioerr(e))?;
-        } else {
-            let main_module = deno_core::ModuleSpecifier::resolve_url_or_path(filepath)
-                .map_err(|e| into_ioerr(e))?;
-            w.execute_module(&main_module)
-                .await
-                .map_err(|e| into_ioerr(e))?;
+            CachedFileModuleLoader::insert(main_module.as_str().to_string(), js);
         }
 
+        w.execute_module(&main_module)
+            .await
+            .map_err(|e| into_ioerr(e))?;
         Ok(())
     })?;
 
