@@ -59,6 +59,16 @@ impl EmacsJsRuntime {
     }
 }
 
+static mut COUNTER: u128 = 0;
+macro_rules! unique_module {
+    ($format: expr) => {{
+        unsafe {
+            COUNTER += 1;
+            format!($format, COUNTER)
+        }
+    }};
+}
+
 lazy_static! {
     static ref FILE_CACHE: Mutex<HashMap<String, String>> = {
         {
@@ -83,33 +93,32 @@ impl CachedFileModuleLoader {
         map.insert(fake_file_name, code);
     }
 
-    fn get(filepath: String) -> Option<String> {
-        let map = FILE_CACHE.lock().unwrap();
-        map.get(&filepath).map(|x| x.clone())
+    fn remove(filepath: String) -> Option<String> {
+        let mut map = FILE_CACHE.lock().unwrap();
+        map.remove(&filepath)
     }
 }
 
 impl deno_core::ModuleLoader for CachedFileModuleLoader {
     fn resolve(
         &self,
-        _op_state: Rc<RefCell<deno_core::OpState>>,
+        op_state: Rc<RefCell<deno_core::OpState>>,
         specifier: &str,
         referrer: &str,
-        _is_main: bool,
+        is_main: bool,
     ) -> std::result::Result<deno_core::ModuleSpecifier, deno_core::error::AnyError> {
-        self.loader
-            .resolve(_op_state, specifier, referrer, _is_main)
+        self.loader.resolve(op_state, specifier, referrer, is_main)
     }
 
     fn load(
         &self,
-        _op_state: Rc<RefCell<deno_core::OpState>>,
+        op_state: Rc<RefCell<deno_core::OpState>>,
         module_specifier: &deno_core::ModuleSpecifier,
-        _maybe_referrer: Option<deno_core::ModuleSpecifier>,
-        _is_dynamic: bool,
+        maybe_referrer: Option<deno_core::ModuleSpecifier>,
+        is_dynamic: bool,
     ) -> Pin<Box<deno_core::ModuleSourceFuture>> {
         let path = module_specifier.as_str().to_string();
-        if let Some(code) = CachedFileModuleLoader::get(path) {
+        if let Some(code) = CachedFileModuleLoader::remove(path.clone()) {
             let module_specifier = module_specifier.clone();
             async move {
                 let module = deno_core::ModuleSource {
@@ -121,8 +130,44 @@ impl deno_core::ModuleLoader for CachedFileModuleLoader {
             }
             .boxed_local()
         } else {
-            self.loader
-                .load(_op_state, module_specifier, _maybe_referrer, _is_dynamic)
+            let path = module_specifier.as_str().to_string();
+            let mut true_path = path;
+            let mut requires_rename = true;
+            if true_path.ends_with("$") {
+                if let Some(i) = true_path.rfind("X") {
+                    true_path = String::from(&true_path[0..i]);
+                    requires_rename = false;
+                }
+            }
+
+            let mut module_specifier = module_specifier.clone();
+            async move {
+                if requires_rename {
+                    let module = unique_module!("_{}");
+                    let mut fake_path = true_path.clone();
+                    fake_path.push_str(&module);
+                    module_specifier = deno_core::ModuleSpecifier::resolve_url_or_path(&fake_path)?
+                }
+
+                let true_module_specifier =
+                    deno_core::ModuleSpecifier::resolve_url_or_path(&true_path)?;
+                let resolved_true_path =
+                    true_module_specifier.as_url().to_file_path().map_err(|_| {
+                        deno_core::error::generic_error(format!(
+                            "Provided module specifier \"{}\" is not a file URL.",
+                            module_specifier
+                        ))
+                    })?;
+
+                let code = std::fs::read_to_string(resolved_true_path)?;
+                let module = deno_core::ModuleSource {
+                    code,
+                    module_url_specified: true_module_specifier.to_string(),
+                    module_url_found: module_specifier.to_string(),
+                };
+                Ok(module)
+            }
+            .boxed_local()
         }
     }
 }
@@ -536,7 +581,8 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
 #[lisp_fn]
 pub fn eval_js(string_obj: LispStringRef) -> LispObject {
     let ops = unsafe { &OPTS };
-    run_module("./$anon$lisp.js", Some(string_obj.to_utf8()), ops).unwrap_or_else(move |e| {
+    let name = unique_module!("./$anon$lisp${}.js");
+    run_module(&name, Some(string_obj.to_utf8()), ops).unwrap_or_else(move |e| {
         // See comment in eval-js-file for why we call take_worker
         unsafe { EmacsJsRuntime::take_worker() };
         handle_error(e, ops.error_handler)
@@ -546,7 +592,10 @@ pub fn eval_js(string_obj: LispStringRef) -> LispObject {
 #[lisp_fn]
 pub fn eval_js_file(filename: LispStringRef) -> LispObject {
     let ops = unsafe { &OPTS };
-    run_module(&filename.to_utf8(), None, ops).unwrap_or_else(move |e| {
+    let suffix = unique_module!("X{}$");
+    let mut module = filename.to_utf8();
+    module.push_str(&suffix);
+    run_module(&module, None, ops).unwrap_or_else(move |e| {
         // If a toplevel module rejects in the Deno
         // framework, it will .unwrap() a bad result
         // in the next call to poll(). This is due to
@@ -906,13 +955,13 @@ fn run_module(
         let w = EmacsJsRuntime::worker();
         let main_module = deno_core::ModuleSpecifier::resolve_url_or_path(filepath).unwrap();
         if let Some(js) = additional_js {
+            println!("Inserting code for {}", main_module.as_str().to_string());
             CachedFileModuleLoader::insert(main_module.as_str().to_string(), js);
         }
 
         w.execute_module(&main_module)
             .await
             .map_err(|e| into_ioerr(e))?;
-
         Ok(())
     })?;
 
