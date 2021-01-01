@@ -145,7 +145,7 @@ impl deno_core::ModuleLoader for CachedFileModuleLoader {
         &self,
         _op_state: Rc<RefCell<deno_core::OpState>>,
         module_specifier: &deno_core::ModuleSpecifier,
-        maybe_referrer: Option<deno_core::ModuleSpecifier>,
+        _maybe_referrer: Option<deno_core::ModuleSpecifier>,
         _is_dynamic: bool,
     ) -> Pin<Box<deno_core::ModuleSourceFuture>> {
         let path = module_specifier.as_str().to_string();
@@ -684,19 +684,13 @@ pub fn eval_js_buffer(mut buffer: LispObject) -> LispObject {
     let lisp_string = unsafe {
         let current = crate::remacs_sys::Fcurrent_buffer();
         crate::remacs_sys::Fset_buffer(buffer);
-        let lstring: LispStringRef = crate::remacs_sys::Fbuffer_string().into();
+        let lstring = crate::remacs_sys::Fbuffer_string();
         crate::remacs_sys::Fset_buffer(current);
 
         lstring
     };
 
-    let ops = unsafe { &OPTS };
-    let module = unique_module!("./$js$buffer${}.js");
-    run_module(&module, Some(lisp_string.to_utf8()), ops).unwrap_or_else(move |e| {
-        // See comment in eval-js-file for why we call take_worker
-        unsafe { EmacsJsRuntime::take_worker() };
-        handle_error(e, ops.error_handler)
-    })
+    Feval_js(lisp_string)
 }
 
 #[lisp_fn(intspec = "r")]
@@ -704,18 +698,12 @@ pub fn eval_js_region(start: LispObject, end: LispObject) -> LispObject {
     let saved = unsafe { crate::remacs_sys::save_restriction_save() };
     let lisp_string = unsafe {
         crate::remacs_sys::Fnarrow_to_region(start, end);
-        let lisp_string: LispStringRef = crate::remacs_sys::Fbuffer_string().into();
+        let lstring = crate::remacs_sys::Fbuffer_string();
         crate::remacs_sys::save_restriction_restore(saved);
-        lisp_string
+        lstring
     };
 
-    let ops = unsafe { &OPTS };
-    let module = unique_module!("./$js$region${}.js");
-    run_module(&module, Some(lisp_string.to_utf8()), ops).unwrap_or_else(move |e| {
-        // See comment in eval-js-file for why we call take_worker
-        unsafe { EmacsJsRuntime::take_worker() };
-        handle_error(e, ops.error_handler)
-    })
+    Feval_js(lisp_string)
 }
 
 #[lisp_fn]
