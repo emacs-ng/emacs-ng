@@ -16,12 +16,13 @@ export function basicLisp() {
 	})
 	.test(() => {
 	    let mutated = 0;
-	    let myFunc = lisp.defun("hello", (arg) => {
+	    let myFunc = lisp.defun("hello", (arg, arg2) => {
 		mutated = arg;
+		return 4;
 	    });
-	    lisp.hello(1);
+	    lisp.hello(1, 3);
 
-	    let myFuncTwo = lisp.defun("helloTwo", "myDocString", (arg) => { });
+	    let myFuncTwo = lisp.defun("helloTwo", "myDocString", (arg) => { return arg; });
 	    lisp.helloTwo(2);
 
 	    let myFuncThree = lisp.defun("helloThree", {interactive: true, arg: "P\nbbuffer:"}, (arg) => { });

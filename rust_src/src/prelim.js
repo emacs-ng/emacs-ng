@@ -28,6 +28,7 @@
 		modargs.push(JSON.parse(arguments[i]));
 	    }
 	}
+
 	const retval = __functions[idx].apply(this, modargs);
 	if (is_proxy(retval)) {
 	    return retval;
@@ -46,19 +47,58 @@
 	list: (a) => json_lisp(JSON.stringify(a), 4),
     };
 
-    const invokeLists = [
-	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len)),
-	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len), lisp.q.a),
-	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len), lisp.q.a, lisp.q.b),
-	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len), lisp.q.a, lisp.q.b, lisp.q.c),
-	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len), lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d),
-	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len), lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e),
-	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len), lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e, lisp.q.f),
-	(len) => lisp.list(lisp.q.js__reenter, len, finalizerLists(len), lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e, lisp.q.f, lisp.q.g),
+    const stringToLispCache = {};
+    const getOrCacheString = (str) => {
+	let value = stringToLispCache[str];
+	if (value) {
+	    let deref = value.deref();
+	    if (deref) {
+		return deref;
+	    }
+	}
 
-    ];
+	const string = processReturn(lisp_string(str));
+	stringToLispCache[str] = new WeakRef(string);
+	return string;
+    };
 
-    const finalizerLists = (len) => lisp.eval(lisp.list(lisp.q.make_finalizer, lisp.list(lisp.q.lambda, lisp.list(), lisp.list(lisp.q.js__clear, len))));
+    const numCache = {};
+    const getOrCacheNum = (num) => {
+	let value = numCache[num];
+	if (value) {
+	    let deref = value.deref();
+	    if (deref) {
+		return deref;
+	    }
+	}
+
+	const isInt = num % 1 === 0;
+	let v = null;
+	if (isInt) {
+	    v = lisp_fixnum(num);
+	} else {
+	    v = lisp_float(num);
+	}
+
+	const result = processReturn(v);
+	numCache[num] = new WeakRef(result);
+	return result;
+    }
+
+    const getLambdaArgs = (len) => {
+	if (len === 0) {
+	    return lisp.q.nil;
+	}
+
+	return varArgsList;
+    }
+
+    const getLambdaDef = (numArgs, lambda) => {
+	const len = __functions.length;
+	const result = lisp_make_lambda(len, numArgs);
+	__functions.push(lambda);
+	return result;
+    };
 
     // Hold on you fool, why not use FinalizerRegistry, it
     // was made for this! That API does not work in Deno
@@ -93,12 +133,26 @@
     // are just wrappers for intern, which will behave as they expect with usage of
     // unintern, or changing the obarray.
     const symbolCache = {};
+
+    const get_or_cache = (k, cache) => {
+	const cached = cache[k];
+	if (cached) {
+	    const v = cached.deref();
+	    if (v) {
+		return v;
+	    }
+	}
+
+	const v = _intern(k.replaceAll('_', '-'));
+	cache[k] = new WeakRef(v);
+	return v;
+    };
+
+
     const symbolsCached = () => {
 	return new Proxy({}, {
 	    get: function(o, k) {
-		let cached = symbolCache[k] || lisp.intern(k.replaceAll('_', '-'));
-		symbolCache[k] = cached;
-		return cached;
+		return get_or_cache(k, symbolCache);
 	    }
 	});
     };
@@ -115,9 +169,7 @@
     const keywordsCached = () => {
 	return new Proxy({}, {
 	    get: function(o, k) {
-		const cached = keywordCache[k] || lisp.intern(':' + k.replaceAll('_', '-'));
-		keywordCache[k] = cached;
-		return cached;
+		return get_or_cache(k, keywordCache);
 	    }
 	});
     };
@@ -154,8 +206,8 @@
 	    }
 
 	    const argLen = lambda.length;
-	    const argList = argsLists[argLen];
-	    const invoke = invokeLists[argLen];
+	    const argList = getLambdaArgs(argLen);
+	    const lambdaDef = getLambdaDef(argLen, lambda);
 	    const args = [lisp.q.defun, name, argList];
 	    if (docString) {
 		args.push(docString);
@@ -171,10 +223,8 @@
 		}
 	    }
 
-	    let len = __functions.length;
-	    args.push(invoke(len));
+	    args.push(lambdaDef);
 	    lisp.eval(lisp.list.apply(this, args));
-	    __functions.push(lambda);
 	};
 
 
@@ -203,9 +253,9 @@
 	return function (lambda) {
 	    const args = [];
 	    const numArgs = lambda.length;
-	    const argList = argsLists[numArgs];
-	    const invoke = invokeLists[numArgs];
-	    const list = [lisp.q['let'], argList, invoke(numArgs)];
+	    const argList = getLambdaArgs(numArgs);
+	    const lambdaDef = getLambdaDef(numArgs, lambda);
+	    const list = [lisp.q['let'], argList, lambdaDef];
 
 	    for (let i = 1; i < arguments.length; ++i) {
 		list.push(arguments[i]);
@@ -221,10 +271,8 @@
 		throw new Exception("with-current-buffer lambda takes 0 arguments");
 	    }
 
-	    const invoke = invokeLists[0];
-	    const len = __functions.length;
-	    const list = [lisp.q.with_current_buffer, bufferOrName, invoke(len)];
-	    __functions.push(lambda);
+	    const lambdaDef = getLambdaDef(0, lambda);
+	    const list = [lisp.q.with_current_buffer, bufferOrName, lambdaDef];
 
 	    return lisp.eval(lisp.list.apply(this, list));
 	}
@@ -237,14 +285,68 @@
 		throw new Exception("with-temp-buffer lambda takes 0 arguments");
 	    }
 
-	    const invoke = invokeLists[0];
-	    const len = __functions.length;
-	    const list = [lisp.q.with_temp_buffer, invoke(len)];
-	    __functions.push(lambda);
+	    const lambdaDef = getLambdaDef(0, lambda);
+	    const list = [lisp.q.with_temp_buffer, lambdaDef];
 
 	    return lisp.eval(lisp.list.apply(this, list));
 	}
 
+    };
+
+    const processReturn = (result, knownProxy) => {
+        let retval = null;
+        if (knownProxy || is_proxy(result)) {
+            result.json = () => {
+                return JSON.parse(lisp_json(result));
+            };
+
+            __weak.push(new WeakRef(result));
+            retval = result;
+        } else {
+            retval = JSON.parse(result);
+        }
+
+	return retval;
+    };
+
+    const processArgs = (dataArr, container) => {
+	const retval = container || [];
+        for (let i = 0; i < dataArr.length; ++i) {
+	    if (typeof dataArr[i] === 'function') {
+		const len = __functions.length;
+		const numArgs = dataArr[i].length;
+		const args = getLambdaArgs(numArgs);
+		const lambdaDef = getLambdaDef(numArgs, lambda);
+		const lambda = lisp.list(lisp.q.lambda, args, lambdaDef);
+		retval.push(lambda);
+	    } else if (typeof dataArr[i] === 'string') {
+		let stringProxy = getOrCacheString(dataArr[i]);
+		retval.push(stringProxy);
+	    } else if (typeof dataArr[i] === 'number') {
+		let numProxy = getOrCacheNum(dataArr[i]);
+		retval.push(numProxy);
+	    } else if (is_proxy(dataArr[i])) {
+		retval.push(dataArr[i]);
+            } else {
+                retval.push(JSON.stringify(dataArr[i]));
+            }
+        }
+
+	return retval;
+    };
+
+    const _intern = (arg) => {
+        let result = lisp_intern(getOrCacheString(arg)) || {};
+	return processReturn(result, true);
+    };
+
+    const list = function() {
+	if (arguments.length === 0) {
+	    return lisp.q.nil;
+	}
+
+	let args = processArgs(arguments);
+	return processReturn(lisp_list.apply(this, args), true);
     };
 
     const specialForms = {
@@ -259,6 +361,7 @@
 	with_current_buffer: with_current_buffer(),
 	with_temp_buffer: with_temp_buffer(),
 	quote: quote,
+	list: list,
     };
 
 
@@ -273,49 +376,13 @@
 	    }
 
             return function() {
-                const modargs = [k.replaceAll('-', '_')];
-                for (let i = 0; i < arguments.length; ++i) {
-		    if (typeof arguments[i] === 'function') {
-			const len = __functions.length;
-			const numArgs = arguments[i].length;
-			const args = argsLists[numArgs];
-			const invokes = invokeLists[numArgs];
-			const lambda = lisp.list(lisp.q.lambda, args, invokes(len));
-			__functions.push(arguments[i]);
-			modargs.push(lambda);
-		    } else if (is_proxy(arguments[i])) {
-                        modargs.push(arguments[i]);
-                    } else {
-                        modargs.push(JSON.stringify(arguments[i]));
-                    }
-                }
-
-                let result = lisp_invoke.apply(this, modargs);
-                let retval = null;
-                if (is_proxy(result)) {
-                    result.json = () => {
-                        return JSON.parse(lisp_json(result));
-                    };
-
-                    __weak.push(new WeakRef(result));
-                    retval = result;
-                } else {
-                    retval = JSON.parse(result);
-                }
-
-                return retval;
+                const modargs = [lisp.q[k.replaceAll('_', '-')]];
+		processArgs(arguments, modargs);
+                const result = lisp_invoke.apply(this, modargs);
+		return processReturn(result);
             }
 
         }});
 
-    const argsLists = [
-	lisp.list(),
-	lisp.list(lisp.q.a),
-	lisp.list(lisp.q.a, lisp.q.b),
-	lisp.list(lisp.q.a, lisp.q.b, lisp.q.c),
-	lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d),
-	lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e),
-	lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e, lisp.q.f),
-	lisp.list(lisp.q.a, lisp.q.b, lisp.q.c, lisp.q.d, lisp.q.e, lisp.q.f, lisp.q.g),
-    ];
+	const varArgsList = lisp.list(lisp.q['&rest'], lisp.q.alpha);
 })();

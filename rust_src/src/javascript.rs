@@ -1,5 +1,5 @@
 use crate::lisp::LispObject;
-use crate::lists::LispCons;
+use crate::lists::{LispCons, LispConsCircularChecks, LispConsEndChecks};
 use crate::multibyte::LispStringRef;
 use crate::parsing::{ArrayType, ObjectType};
 use crate::remacs_sys::{intern_c_string, Ffuncall};
@@ -290,12 +290,17 @@ const LIST: u32 = 4;
 
 macro_rules! make_proxy {
     ($scope:expr, $lisp:expr) => {{
-        let template = v8::ObjectTemplate::new($scope);
-        template.set_internal_field_count(1);
-        let obj = template.new_instance($scope).unwrap();
-        let value = v8::String::new($scope, &$lisp.to_C_unsigned().to_string()).unwrap();
-        let inserted = obj.set_internal_field(0, v8::Local::<v8::Value>::try_from(value).unwrap());
-        assert!(inserted);
+        let obj = if let Some(template) = unsafe { g.clone() } {
+            let tpl = template.get($scope);
+            let obj = tpl.new_instance($scope).unwrap();
+            let value = v8::String::new($scope, &$lisp.to_C_unsigned().to_string()).unwrap();
+            let inserted =
+                obj.set_internal_field(0, v8::Local::<v8::Value>::try_from(value).unwrap());
+            assert!(inserted);
+            obj
+        } else {
+            panic!("Proxy Template None, unable  to build proxies");
+        };
 
         unsafe {
             if crate::remacs_sys::globals.Vjs_retain_map == crate::remacs_sys::Qnil {
@@ -345,6 +350,206 @@ pub fn json_lisp(
         let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
         retval.set(r);
     }
+}
+
+pub fn lisp_make_finalizer(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut retval: v8::ReturnValue,
+) {
+    let len = args
+        .get(0)
+        .to_uint32(scope)
+        .unwrap()
+        .uint32_value(scope)
+        .unwrap();
+
+    let result = unsafe {
+        let mut bound = vec![
+            crate::remacs_sys::Qjs__clear,
+            crate::remacs_sys::make_fixnum(len.into()),
+        ];
+        let list = crate::remacs_sys::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
+        let mut lambda = vec![crate::remacs_sys::Qlambda, crate::remacs_sys::Qnil, list];
+        let lambda_list =
+            crate::remacs_sys::Flist(lambda.len().try_into().unwrap(), lambda.as_mut_ptr());
+        crate::remacs_sys::Fmake_finalizer(lambda_list)
+    };
+
+    let proxy = make_proxy!(scope, result);
+    let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
+    retval.set(r);
+}
+
+pub fn lisp_make_lambda(
+    mut scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut retval: v8::ReturnValue,
+) {
+    let len = args
+        .get(0)
+        .to_uint32(scope)
+        .unwrap()
+        .uint32_value(scope)
+        .unwrap();
+
+    let num_args = args
+        .get(1)
+        .to_uint32(scope)
+        .unwrap()
+        .uint32_value(scope)
+        .unwrap();
+
+    let llen = unsafe { crate::remacs_sys::make_fixnum(len.into()) };
+
+    let finalizer = unsafe {
+        let mut bound = vec![crate::remacs_sys::Qjs__clear, llen];
+        let list = crate::remacs_sys::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
+        let mut fargs = vec![crate::remacs_sys::Qand_rest, crate::remacs_sys::Qalpha];
+        let fargs_list =
+            crate::remacs_sys::Flist(fargs.len().try_into().unwrap(), fargs.as_mut_ptr());
+
+        let mut lambda = vec![crate::remacs_sys::Qlambda, fargs_list, list];
+        let lambda_list =
+            crate::remacs_sys::Flist(lambda.len().try_into().unwrap(), lambda.as_mut_ptr());
+        crate::remacs_sys::Fmake_finalizer(lambda_list)
+    };
+
+    let mut inner = vec![crate::remacs_sys::Qjs__reenter, llen, finalizer];
+    if num_args > 0 {
+        inner.push(crate::remacs_sys::Qalpha);
+    }
+
+    let result =
+        unsafe { crate::remacs_sys::Flist(inner.len().try_into().unwrap(), inner.as_mut_ptr()) };
+
+    let proxy = make_proxy!(scope, result);
+    let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
+    retval.set(r);
+}
+
+pub fn lisp_string(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut retval: v8::ReturnValue,
+) {
+    let message = args
+        .get(0)
+        .to_string(scope)
+        .unwrap()
+        .to_rust_string_lossy(scope);
+
+    let len = message.len();
+    let cstr = CString::new(message).expect("Failed to allocate CString");
+    let result =
+        unsafe { crate::remacs_sys::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap()) };
+    let proxy = make_proxy!(scope, result);
+    let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
+    retval.set(r);
+}
+
+pub fn lisp_fixnum(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut retval: v8::ReturnValue,
+) {
+    let message = args
+        .get(0)
+        .to_number(scope)
+        .unwrap()
+        .integer_value(scope)
+        .unwrap();
+
+    let result = unsafe { crate::remacs_sys::make_fixnum(message) };
+    let proxy = make_proxy!(scope, result);
+    let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
+    retval.set(r);
+}
+
+pub fn lisp_float(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut retval: v8::ReturnValue,
+) {
+    let message = args
+        .get(0)
+        .to_number(scope)
+        .unwrap()
+        .number_value(scope)
+        .unwrap();
+
+    let result = unsafe { crate::remacs_sys::make_float(message) };
+    let proxy = make_proxy!(scope, result);
+    let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
+    retval.set(r);
+}
+
+pub fn lisp_intern(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut retval: v8::ReturnValue,
+) {
+    let a = args.get(0).to_object(scope).unwrap();
+    assert!(a.internal_field_count() > 0);
+    let internal = a.get_internal_field(scope, 0).unwrap();
+    let ptrstr = internal
+        .to_string(scope)
+        .unwrap()
+        .to_rust_string_lossy(scope);
+    let lispobj =
+        LispObject::from_C_unsigned(ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap());
+
+    let result = unsafe { crate::remacs_sys::Fintern(lispobj, crate::remacs_sys::Qnil) };
+
+    let proxy = make_proxy!(scope, result);
+    let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
+    retval.set(r);
+}
+
+pub fn lisp_list(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut retval: v8::ReturnValue,
+) {
+    let len = args.length();
+    let mut lisp_args = vec![];
+    for i in 0..len {
+        let arg = args.get(i);
+
+        if arg.is_string() {
+            let a = arg.to_string(scope).unwrap().to_rust_string_lossy(scope);
+
+            if let Ok(deser) = crate::parsing::deser(&a, None) {
+                lisp_args.push(deser);
+            }
+        } else if arg.is_object() {
+            let a = arg.to_object(scope).unwrap();
+            assert!(a.internal_field_count() > 0);
+            let internal = a.get_internal_field(scope, 0).unwrap();
+            let ptrstr = internal
+                .to_string(scope)
+                .unwrap()
+                .to_rust_string_lossy(scope);
+            let lispobj = LispObject::from_C_unsigned(
+                ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap(),
+            );
+            lisp_args.push(lispobj);
+        } else {
+            let error = v8::String::new(scope, "Invalid arguments passed to lisp_invoke. Valid options are String, Function, or Proxy Object").unwrap();
+            let exception = v8::Exception::error(scope, error);
+            scope.throw_exception(exception);
+            // We do not want to execute any additional JS operations now
+            // that we have thrown an exception. Instead we return.
+            return;
+        }
+    }
+
+    let result = unsafe {
+        crate::remacs_sys::Flist(lisp_args.len().try_into().unwrap(), lisp_args.as_mut_ptr())
+    };
+    let proxy = make_proxy!(scope, result);
+    let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
+    retval.set(r);
 }
 
 pub fn lisp_json(
@@ -446,15 +651,16 @@ pub fn lisp_callback(
     let mut lisp_args = vec![];
     let len = args.length();
 
-    let message = args
-        .get(0)
+    let a = args.get(0).to_object(scope).unwrap();
+    assert!(a.internal_field_count() > 0);
+    let internal = a.get_internal_field(scope, 0).unwrap();
+    let ptrstr = internal
         .to_string(scope)
         .unwrap()
-        .to_rust_string_lossy(scope)
-        .replace("_", "-");
-    let cstr = CString::new(message).expect("Failure of CString");
-    let interned = unsafe { intern_c_string(cstr.as_ptr()) };
-    lisp_args.push(interned);
+        .to_rust_string_lossy(scope);
+    let lispobj =
+        LispObject::from_C_unsigned(ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap());
+    lisp_args.push(lispobj);
 
     for i in 1..len {
         let arg = args.get(i);
@@ -745,26 +951,31 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
     let arg0 = v8::Local::<v8::Value>::try_from(v8::Number::new(scope, value as f64)).unwrap();
     let mut v8_args = vec![arg0];
 
-    for i in 2..args.len() {
-        let a = args[i];
-        let is_primative = unsafe {
-            crate::remacs_sys::STRINGP(a)
-                || crate::remacs_sys::FIXNUMP(a)
-                || crate::remacs_sys::FLOATP(a)
-                || a == crate::remacs_sys::Qnil
-                || a == crate::remacs_sys::Qt
-        };
-        if is_primative {
-            if let Ok(json) = crate::parsing::ser(a) {
-                v8_args.push(
-                    v8::Local::<v8::Value>::try_from(v8::String::new(scope, &json).unwrap())
-                        .unwrap(),
-                );
-            }
-        } else {
-            let obj = make_proxy!(scope, a);
-            v8_args.push(v8::Local::<v8::Value>::try_from(obj).unwrap());
-        }
+    if args.len() > 2 {
+        let cons: LispCons = args[2].into();
+        cons.iter_cars(LispConsEndChecks::on, LispConsCircularChecks::on)
+            .for_each(|a| {
+                let is_primative = unsafe {
+                    crate::remacs_sys::STRINGP(a)
+                        || crate::remacs_sys::FIXNUMP(a)
+                        || crate::remacs_sys::FLOATP(a)
+                        || a == crate::remacs_sys::Qnil
+                        || a == crate::remacs_sys::Qt
+                };
+                if is_primative {
+                    if let Ok(json) = crate::parsing::ser(a) {
+                        v8_args.push(
+                            v8::Local::<v8::Value>::try_from(
+                                v8::String::new(scope, &json).unwrap(),
+                            )
+                            .unwrap(),
+                        );
+                    }
+                } else {
+                    let obj = make_proxy!(scope, a);
+                    v8_args.push(v8::Local::<v8::Value>::try_from(obj).unwrap());
+                }
+            });
     }
 
     let mut retval = crate::remacs_sys::Qnil;
@@ -930,6 +1141,7 @@ fn init_once(js_options: &EmacsJsOptions) -> Result<()> {
     once_result
 }
 
+static mut g: Option<v8::Global<v8::ObjectTemplate>> = None;
 fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     if EmacsJsRuntime::main_worker_active() {
         return Ok(());
@@ -975,6 +1187,15 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
             let context = scope.get_current_context();
             let global = context.global(scope);
             {
+                let name = v8::String::new(scope, "proxyProto").unwrap();
+                let template = v8::ObjectTemplate::new(scope);
+                template.set_internal_field_count(1);
+                let glob = v8::Global::new(scope, template);
+                unsafe { g = Some(glob) };
+                let obj = v8::Object::new(scope);
+                global.set(scope, name.into(), obj.into());
+            }
+            {
                 let name = v8::String::new(scope, "lisp_invoke").unwrap();
                 let func = v8::Function::new(scope, lisp_callback).unwrap();
                 global.set(scope, name.into(), func.into());
@@ -992,6 +1213,41 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
             {
                 let name = v8::String::new(scope, "lisp_json").unwrap();
                 let func = v8::Function::new(scope, lisp_json).unwrap();
+                global.set(scope, name.into(), func.into());
+            }
+            {
+                let name = v8::String::new(scope, "lisp_intern").unwrap();
+                let func = v8::Function::new(scope, lisp_intern).unwrap();
+                global.set(scope, name.into(), func.into());
+            }
+            {
+                let name = v8::String::new(scope, "lisp_make_finalizer").unwrap();
+                let func = v8::Function::new(scope, lisp_make_finalizer).unwrap();
+                global.set(scope, name.into(), func.into());
+            }
+            {
+                let name = v8::String::new(scope, "lisp_string").unwrap();
+                let func = v8::Function::new(scope, lisp_string).unwrap();
+                global.set(scope, name.into(), func.into());
+            }
+            {
+                let name = v8::String::new(scope, "lisp_fixnum").unwrap();
+                let func = v8::Function::new(scope, lisp_fixnum).unwrap();
+                global.set(scope, name.into(), func.into());
+            }
+            {
+                let name = v8::String::new(scope, "lisp_float").unwrap();
+                let func = v8::Function::new(scope, lisp_float).unwrap();
+                global.set(scope, name.into(), func.into());
+            }
+            {
+                let name = v8::String::new(scope, "lisp_make_lambda").unwrap();
+                let func = v8::Function::new(scope, lisp_make_lambda).unwrap();
+                global.set(scope, name.into(), func.into());
+            }
+            {
+                let name = v8::String::new(scope, "lisp_list").unwrap();
+                let func = v8::Function::new(scope, lisp_list).unwrap();
                 global.set(scope, name.into(), func.into());
             }
             {
@@ -1084,6 +1340,10 @@ fn init_syms() {
     def_lisp_sym!(QCjs_tick_rate, ":js-tick-rate");
     def_lisp_sym!(Qjs_error, "js-error");
     def_lisp_sym!(QCjs_error_handler, ":js-error-handler");
+
+    def_lisp_sym!(Qjs__clear, "js--clear");
+    def_lisp_sym!(Qlambda, "lambda");
+    def_lisp_sym!(Qjs__reenter, "js--reenter");
 }
 
 include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
