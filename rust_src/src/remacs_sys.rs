@@ -31,9 +31,14 @@ include!("../generated/globals.rs");
 
 pub const VAL_MAX: EmacsInt = (EMACS_INT_MAX >> (GCTYPEBITS - 1));
 pub const VALMASK: EmacsInt = [VAL_MAX, -(1 << GCTYPEBITS)][USE_LSB_TAG as usize];
+
+#[cfg(target_os = "linux")]
 pub const INTMASK: EmacsInt = (EMACS_INT_MAX >> (INTTYPEBITS - 1));
+#[cfg(target_os = "linux")]
 pub const MOST_POSITIVE_FIXNUM: EmacsInt = EMACS_INT_MAX >> INTTYPEBITS as u32;
+#[cfg(target_os = "linux")]
 pub const MOST_NEGATIVE_FIXNUM: EmacsInt = -1 - MOST_POSITIVE_FIXNUM;
+
 pub const PSEUDOVECTOR_FLAG: usize = 0x4000_0000_0000_0000;
 
 // These signal an error, therefore are marked as non-returning.
