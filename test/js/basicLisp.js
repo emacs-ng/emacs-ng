@@ -16,18 +16,20 @@ export function basicLisp() {
 	})
 	.test(() => {
 	    let mutated = 0;
-	    let myFunc = lisp.defun("hello", (arg) => {
+	    let myFunc = lisp.defun("hello", (arg, arg2) => {
+		console.log("First Value " + arg + ", " + arg2);
 		mutated = arg;
+		return 4;
 	    });
-	    lisp.hello(1);
+	    lisp.hello(1, 3);
 
-	    let myFuncTwo = lisp.defun("helloTwo", "myDocString", (arg) => { });
+	    let myFuncTwo = lisp.defun("helloTwo", "myDocString", (arg) => { return arg; });
 	    lisp.helloTwo(2);
 
 	    let myFuncThree = lisp.defun("helloThree", {interactive: true, arg: "P\nbbuffer:"}, (arg) => { });
 	    lisp.helloThree(3);
 
-	    let myFuncFour = lisp.defun("helloFour", "HelloFour", {interactive: true}, () => { });
+	    let myFuncFour = lisp.defun("helloFour", "HelloFour", {interactive: true}, () => { console.log('no args'); });
 	    lisp.helloFour();
 
 	    let myFuncFive = lisp.defun({
@@ -38,6 +40,7 @@ export function basicLisp() {
 		func: (a) => { return (a); }
 	    });
 
+	    console.log(lisp.helloFive(1));
 	    if (lisp.helloFive(1) !== 1) {
 		throw new Error("Return Value incorrect for Defun");
 	    }
