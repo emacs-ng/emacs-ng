@@ -11,7 +11,7 @@ use std::io::{stdout, BufRead, BufReader, Write};
 use std::mem;
 use std::ptr;
 
-use remacs_util::parse_lisp_fn;
+use lisp_util::parse_lisp_fn;
 
 #[allow(dead_code)]
 const INVALID: c_int = 0;

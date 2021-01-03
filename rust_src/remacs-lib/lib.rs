@@ -8,7 +8,7 @@ extern crate lazy_static;
 extern crate libc;
 extern crate rand;
 extern crate regex;
-extern crate remacs_util;
+extern crate lisp_util;
 extern crate time as time_crate;
 
 mod docfile;

@@ -3,7 +3,7 @@
 use std::ffi::CString;
 use std::ptr;
 
-use remacs_macros::lisp_fn;
+use lisp_macros::lisp_fn;
 
 use crate::{
     frame::LispFrameRef,

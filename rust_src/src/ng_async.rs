@@ -11,7 +11,7 @@ use crate::{
 };
 
 use crossbeam::channel::{Receiver, Sender};
-use remacs_macros::{async_stream, lisp_fn};
+use lisp_macros::{async_stream, lisp_fn};
 use std::thread;
 
 use std::{
