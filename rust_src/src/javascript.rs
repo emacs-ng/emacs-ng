@@ -2,19 +2,15 @@ use crate::lisp::LispObject;
 use crate::lists::{LispCons, LispConsCircularChecks, LispConsEndChecks};
 use crate::multibyte::LispStringRef;
 use crate::parsing::{ArrayType, ObjectType};
-use crate::remacs_sys::{intern_c_string, Ffuncall};
-use futures::future::FutureExt;
+use crate::remacs_sys::Ffuncall;
 use lazy_static::lazy_static;
 use remacs_macros::lisp_fn;
 use rusty_v8 as v8;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::io::Result;
-use std::pin::Pin;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -75,8 +71,11 @@ macro_rules! unique_module {
 }
 
 macro_rules! unique_module_import {
-    ($format: expr) => {{
-        unsafe { format!($format, COUNTER) }
+    ($filename: expr) => {{
+        unsafe {
+            COUNTER += 1;
+            format!("import '{}#{}';", $filename, COUNTER)
+        }
     }};
 }
 
@@ -189,7 +188,7 @@ pub fn lisp_make_finalizer(
 }
 
 pub fn lisp_make_lambda(
-    mut scope: &mut v8::HandleScope,
+    scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
     mut retval: v8::ReturnValue,
 ) {
@@ -692,12 +691,8 @@ pub fn eval_js_file(args: &[LispObject]) -> LispObject {
     // executing a module multiple times.
     // @TODO (DDS) we should revisit if we actually want to
     // do this.
-    let import = unsafe {
-        COUNTER += 1;
-        format!("import '{}#{}';", module, COUNTER)
-    };
-
-    module = unique_module!("./$import${}.js");
+    let import = unique_module_import!(module);
+    module = unique_module!("./$import${}.ts");
 
     let result = run_module(&module, Some(import), ops, is_typescript).unwrap_or_else(move |e| {
         // If a toplevel module rejects in the Deno
@@ -732,13 +727,13 @@ fn get_buffer_contents(mut buffer: LispObject) -> LispObject {
 }
 
 #[lisp_fn(min = "0", intspec = "")]
-pub fn eval_js_buffer(mut buffer: LispObject) -> LispObject {
+pub fn eval_js_buffer(buffer: LispObject) -> LispObject {
     let lisp_string = get_buffer_contents(buffer);
     eval_js(&[lisp_string])
 }
 
 #[lisp_fn(min = "0", intspec = "")]
-pub fn eval_ts_buffer(mut buffer: LispObject) -> LispObject {
+pub fn eval_ts_buffer(buffer: LispObject) -> LispObject {
     let lisp_string = get_buffer_contents(buffer);
     eval_js(&[
         lisp_string,
