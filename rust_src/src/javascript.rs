@@ -661,12 +661,15 @@ fn is_typescript(s: &str) -> bool {
     !s.ends_with("js")
 }
 
-#[lisp_fn]
-pub fn eval_js(string_obj: LispStringRef) -> LispObject {
+#[lisp_fn(min = "1")]
+pub fn eval_js(args: &[LispObject]) -> LispObject {
+    let string_obj: LispStringRef = args[0].into();
     let ops = unsafe { &OPTS };
-    let name = unique_module!("./$anon$lisp${}.js");
+    let name = unique_module!("./$anon$lisp${}.ts");
     let string = string_obj.to_utf8();
-    let is_typescript = is_typescript(&string);
+    let is_typescript = args.len() == 3
+        && args[1] == crate::remacs_sys::QCtypescript
+        && args[2] == crate::remacs_sys::Qt;
     let result = run_module(&name, Some(string), ops, is_typescript).unwrap_or_else(move |e| {
         // See comment in eval-js-file for why we call take_worker
         unsafe { EmacsJsRuntime::take_worker() };
@@ -675,11 +678,15 @@ pub fn eval_js(string_obj: LispStringRef) -> LispObject {
     result
 }
 
-#[lisp_fn]
-pub fn eval_js_file(filename: LispStringRef) -> LispObject {
+#[lisp_fn(min = "1")]
+pub fn eval_js_file(args: &[LispObject]) -> LispObject {
+    let filename: LispStringRef = args[0].into();
     let ops = unsafe { &OPTS };
     let mut module = filename.to_utf8();
-    let is_typescript = is_typescript(&module);
+    let is_typescript = (args.len() == 3
+        && args[1] == crate::remacs_sys::QCtypescript
+        && args[2] == crate::remacs_sys::Qt)
+        || is_typescript(&module);
 
     // This is a hack to allow for our behavior of
     // executing a module multiple times.
@@ -710,35 +717,60 @@ pub fn eval_js_file(filename: LispStringRef) -> LispObject {
     result
 }
 
-#[lisp_fn(min = "0", intspec = "")]
-pub fn eval_js_buffer(mut buffer: LispObject) -> LispObject {
+fn get_buffer_contents(mut buffer: LispObject) -> LispObject {
     if buffer.is_nil() {
         buffer = unsafe { crate::remacs_sys::Fcurrent_buffer() };
     }
 
-    let lisp_string = unsafe {
+    unsafe {
         let current = crate::remacs_sys::Fcurrent_buffer();
         crate::remacs_sys::Fset_buffer(buffer);
         let lstring = crate::remacs_sys::Fbuffer_string();
         crate::remacs_sys::Fset_buffer(current);
-
         lstring
-    };
-
-    Feval_js(lisp_string)
+    }
 }
 
-#[lisp_fn(intspec = "r")]
-pub fn eval_js_region(start: LispObject, end: LispObject) -> LispObject {
+#[lisp_fn(min = "0", intspec = "")]
+pub fn eval_js_buffer(mut buffer: LispObject) -> LispObject {
+    let lisp_string = get_buffer_contents(buffer);
+    eval_js(&[lisp_string])
+}
+
+#[lisp_fn(min = "0", intspec = "")]
+pub fn eval_ts_buffer(mut buffer: LispObject) -> LispObject {
+    let lisp_string = get_buffer_contents(buffer);
+    eval_js(&[
+        lisp_string,
+        crate::remacs_sys::QCtypescript,
+        crate::remacs_sys::Qt,
+    ])
+}
+
+fn get_region(start: LispObject, end: LispObject) -> LispObject {
     let saved = unsafe { crate::remacs_sys::save_restriction_save() };
-    let lisp_string = unsafe {
+    unsafe {
         crate::remacs_sys::Fnarrow_to_region(start, end);
         let lstring = crate::remacs_sys::Fbuffer_string();
         crate::remacs_sys::save_restriction_restore(saved);
         lstring
-    };
+    }
+}
 
-    Feval_js(lisp_string)
+#[lisp_fn(intspec = "r")]
+pub fn eval_js_region(start: LispObject, end: LispObject) -> LispObject {
+    let lisp_string = get_region(start, end);
+    eval_js(&[lisp_string])
+}
+
+#[lisp_fn(intspec = "r")]
+pub fn eval_ts_region(start: LispObject, end: LispObject) -> LispObject {
+    let lisp_string = get_region(start, end);
+    eval_js(&[
+        lisp_string,
+        crate::remacs_sys::QCtypescript,
+        crate::remacs_sys::Qt,
+    ])
 }
 
 #[lisp_fn]
@@ -1168,6 +1200,7 @@ fn init_syms() {
     def_lisp_sym!(QCjs_tick_rate, ":js-tick-rate");
     def_lisp_sym!(Qjs_error, "js-error");
     def_lisp_sym!(QCjs_error_handler, ":js-error-handler");
+    def_lisp_sym!(QCtypescript, ":typescript");
 
     def_lisp_sym!(Qjs__clear, "js--clear");
     def_lisp_sym!(Qlambda, "lambda");
