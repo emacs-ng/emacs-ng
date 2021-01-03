@@ -67,10 +67,7 @@ impl EmacsJsRuntime {
 static mut COUNTER: u128 = 0;
 macro_rules! unique_module {
     ($format: expr) => {{
-        unsafe {
-            COUNTER += 1;
-            format!($format, COUNTER)
-        }
+	$format
     }};
 }
 
@@ -850,7 +847,7 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
 #[lisp_fn]
 pub fn eval_js(string_obj: LispStringRef) -> LispObject {
     let ops = unsafe { &OPTS };
-    let name = unique_module!("./$anon$lisp${}.js");
+    let name = unique_module!("./$anon$lisp$.js");
     run_module(&name, Some(string_obj.to_utf8()), ops).unwrap_or_else(move |e| {
         // See comment in eval-js-file for why we call take_worker
         unsafe { EmacsJsRuntime::take_worker() };
@@ -861,9 +858,7 @@ pub fn eval_js(string_obj: LispStringRef) -> LispObject {
 #[lisp_fn]
 pub fn eval_js_file(filename: LispStringRef) -> LispObject {
     let ops = unsafe { &OPTS };
-    let suffix = unique_module!("X{}$");
     let mut module = filename.to_utf8();
-    module.push_str(&suffix);
     run_module(&module, None, ops).unwrap_or_else(move |e| {
         // If a toplevel module rejects in the Deno
         // framework, it will .unwrap() a bad result
@@ -1153,33 +1148,13 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     set_default_opts_if_unset();
     let permissions = js_options.ops.as_ref().unwrap().clone();
 
-    // @TODO I'm leaving this line commented out, but we should add this to
-    // the init API. Flags listed at https://deno.land/manual/contributing/development_tools
-    // v8::V8::set_flags_from_string("--trace-gc --gc-global --gc-interval 1 --heap-profiler-trace-objects");
-    let options = deno_runtime::worker::WorkerOptions {
-        apply_source_maps: false,
-        user_agent: user_agent(),
-        args: vec![],
-        debug_flag: false,
-        unstable: true,
-        ca_filepath: None,
-        seed: None,
-        js_error_create_fn: None,
-        create_web_worker_cb: create_web_worker_callback(),
-        attach_inspector: false,
-        maybe_inspector_server: None,
-        should_break_on_first_statement: false,
-        module_loader: std::rc::Rc::new(CachedFileModuleLoader::new()),
-        runtime_version: "x".to_string(),
-        ts_version: "x".to_string(),
-        no_color: true,
-        get_error_class_fn: None,
+    let flags = deno::flags::Flags{
+	..Default::default()
     };
-
-    let mut worker =
-        deno_runtime::worker::MainWorker::from_options(main_module.clone(), permissions, &options);
+    let program_state = Arc::new(deno::program_state::ProgramState::new(flags)
+				 .map_err(|e| into_ioerr(e))?);
+    let mut worker = deno::create_main_worker(&program_state, main_module.clone(), permissions);
     let result: Result<deno_runtime::worker::MainWorker> = runtime.block_on(async move {
-        worker.bootstrap(&options);
         let runtime = &mut worker.js_runtime;
         {
             let context = runtime.global_context();

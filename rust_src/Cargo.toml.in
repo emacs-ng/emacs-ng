@@ -16,8 +16,9 @@ remacs-lib = { version = "0.1.0", path = "remacs-lib" }
 remacs-macros = { version = "0.1.0", path = "remacs-macros" }
 clippy = { version = "*", optional = true }
 cfg-if = "0.1"
-deno_core = "0.75.0"
-deno_runtime = "0.5.0"
+deno_core = { version = "0.75.0", path = "deno/core" }
+deno_runtime = { version = "0.5.0", path = "deno/runtime" }
+deno = { version = "1.6.3", path = "deno/cli" }
 crossbeam = "0.8"
 errno = "0.2"
 field-offset = "0.1"
