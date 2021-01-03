@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-remacs-util = { version = "0.1.0", path = "../remacs-util" }
+lisp-util = { version = "0.1.0", path = "../crates/lisp_util" }
 darling = "0.2"
 errno = "0.2"
 lazy_static = "1.2"

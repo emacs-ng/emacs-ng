@@ -3,7 +3,7 @@ use crate::lists::{LispCons, LispConsCircularChecks, LispConsEndChecks};
 use crate::multibyte::LispStringRef;
 use crate::ng_async::{EmacsPipe, PipeDataOption, UserData};
 use lsp_server::{Message, Request, RequestId, Response};
-use remacs_macros::lisp_fn;
+use lisp_macros::lisp_fn;
 use serde_json::{map::Map, Value};
 use std::convert::TryInto;
 use std::ffi::CString;

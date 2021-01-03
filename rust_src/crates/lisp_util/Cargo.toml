@@ -1,7 +1,7 @@
 [package]
-name = "remacs-util"
+name = "lisp-util"
 version = "0.1.0"
-description = "Common utility code linked by other remacs crates."
+description = "Utility code for lisp_fn."
 edition = "2018"
 
 [dependencies]

@@ -555,11 +555,12 @@ dependencies = [
  "lazy_static",
  "libc",
  "line-wrap",
+ "lisp-macros",
+ "lisp-util",
  "lsp-server",
  "rand 0.6.5",
  "regex 1.4.2",
  "remacs-lib",
- "remacs-macros",
  "rusty_v8",
  "serde_json",
  "systemstat",
@@ -1107,6 +1108,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f30344350a2a51da54c1d53be93fade8a237e545dbcc4bdbe635413f2117cab9"
 dependencies = [
  "safemem",
+]
+
+[[package]]
+name = "lisp-macros"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "lisp-util",
+ "proc-macro2 0.4.30",
+ "quote 0.6.13",
+ "regex 0.2.11",
+ "syn 0.15.44",
+]
+
+[[package]]
+name = "lisp-util"
+version = "0.1.0"
+dependencies = [
+ "darling",
+ "errno",
+ "libc",
+ "syn 0.11.11",
 ]
 
 [[package]]
@@ -1712,32 +1735,10 @@ dependencies = [
  "errno",
  "lazy_static",
  "libc",
+ "lisp-util",
  "rand 0.6.5",
  "regex 1.4.2",
- "remacs-util",
  "time",
-]
-
-[[package]]
-name = "remacs-macros"
-version = "0.1.0"
-dependencies = [
- "lazy_static",
- "proc-macro2 0.4.30",
- "quote 0.6.13",
- "regex 0.2.11",
- "remacs-util",
- "syn 0.15.44",
-]
-
-[[package]]
-name = "remacs-util"
-version = "0.1.0"
-dependencies = [
- "darling",
- "errno",
- "libc",
- "syn 0.11.11",
 ]
 
 [[package]]

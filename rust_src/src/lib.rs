@@ -27,7 +27,7 @@ extern crate libc;
 
 // Needed for linking.
 extern crate remacs_lib;
-extern crate remacs_macros;
+extern crate lisp_macros;
 
 extern crate futures;
 extern crate lsp_server;
