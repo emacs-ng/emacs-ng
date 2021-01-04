@@ -39,12 +39,52 @@
 
     global.__clear = (idx) => { __functions[idx] = null; };
 
+    const makeHashTable = (a) => {
+	let x = lisp.make_hash_table();
+	for (k in a) {
+	    lisp.puthash(k, a[k], x);
+	}
+
+	return x;
+    };
+
+    const makeAlist = (a) => {
+	let result = lisp.q.nil;
+	for (k in a) {
+	    const sym = lisp.intern(k);
+	    result = lisp.cons(lisp.cons(sym, a[k]), result);
+	}
+
+	return lisp.reverse(result);
+    };
+
+    const makePlist = (a) => {
+	let result = lisp.q.nil;
+	for (k in a) {
+	    const sym = lisp.intern(':' + k);
+	    result = lisp.cons(sym, result);
+	    result = lisp.cons(a[k], result);
+	}
+
+	return lisp.reverse(result);
+    };
+
+    const makeArray = (a) => {
+	const len = a.length
+	let v = lisp.make_vector(len, lisp.q.unbound);
+	for (let i = 0; i < len; ++i) {
+	    lisp.aset(v, i, a[i]);
+	}
+
+	return v;
+    };
+
     const makeFuncs = {
-	hashtable: (a) => json_lisp(JSON.stringify(a), 0),
-	alist: (a) => json_lisp(JSON.stringify(a), 1),
-	plist: (a) => json_lisp(JSON.stringify(a), 2),
-	array: (a) => json_lisp(JSON.stringify(a), 3),
-	list: (a) => json_lisp(JSON.stringify(a), 4),
+	hashtable: (a) => makeHashTable(a),
+	alist: (a) => makeAlist(a),
+	plist: (a) => makePlist(a),
+	array: (a) => makeArray(a),
+	list: (a) => lisp.list.apply(this, a),
     };
 
     const stringToLispCache = {};

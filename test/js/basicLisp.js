@@ -1,8 +1,24 @@
 export function basicLisp() {
     return Promise.resolve()
 	.test(() => {
-	    let plist = lisp.make.plist({x: 3, y: 4});
-	    let alist = lisp.make.alist({s: 5, y: "Hello World"});
+	    let plist = lisp.make.plist({x: 3, y: 4, z: lisp.symbols.qqz});
+	    let alist = lisp.make.alist({s: 5, y: "Hello World", z: lisp.symbols.qq});
+
+	    let prop = lisp.plist_get(plist, lisp.keywords.z);
+	    if (!lisp.eq(prop, lisp.symbols.qqz)) {
+		throw new Error("Failed to insert symbol into plist");
+	    }
+
+	    let prop2 = lisp.alist_get(lisp.symbols.s, alist);
+	    if (prop2 !== 5) {
+		throw new Error("Failed to get proper alist property");
+	    }
+
+	    let list = lisp.make.list([1, 2, "foo", lisp.symbols.qqq]);
+	    let item = lisp.nth(3, list);
+	    if (!lisp.eq(item, lisp.symbols.qqq)) {
+		throw new Error("Failed to fetch list item properly");
+	    }
 	})
 	.test(() => {
 	    let p = lisp.symbols.a;

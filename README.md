@@ -13,6 +13,10 @@ emacs-ng has integrated the [Deno Runtime](https://deno.land/) to allow for the 
 
 This code is a strictly additive layer, it changes no elisp functionality, and should be able to merge upstream patches cleanly.
 
+#### Typescript
+emacs-ng supports native typescript. In order to have your script evaluated as typescript, it just needs to end in a typescript extension (like .ts) when using `(eval-js-file)`, or you can pass it the argument `:typescript t`. You can also evaluate annonymous scripts as typescript using `(eval-js "let x: string = '5';" :typescript t)`. If your typescript fails to compile, those functions will throw elisp errors that you can address within your program. Currently, emacs-ng does not provide type definition files for elisp functions, however we welcome contributions to that effort. If you call lisp functions within typescript, ensure you add the following line to your module to ensure that the typescript compiler knows about the global lisp variable: `declare global { var lisp: any };`
+
+
 The high level concept here is to allow full control of emacs-ng via the javascript layer. In order to avoid conflict between the elisp and javascript layers, only one scripting engine will be running at a time. elisp is the "authoritative" layer, in that the javascript will invoke elisp functions to interact with the editor. This is done via a special object in javascript called `lisp`. An example of it's usage would be:
 
 ``` js

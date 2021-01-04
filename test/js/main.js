@@ -2,6 +2,7 @@ import { helloWorld } from "./helloWorld.js";
 import { basicLisp } from "./basicLisp.js";
 import { webWorkers } from "./webWorkers.js";
 import { webAsm } from "./webAsm.js";
+import { basicTyping } from "./basicTyping.ts";
 
 let counter = 1;
 Promise.prototype.test = (func) => {
@@ -16,7 +17,8 @@ Promise.all([
     helloWorld(),
     basicLisp(),
     webWorkers(),
-    webAsm()
+    webAsm(),
+    basicTyping(),
 ])
     .then(() => {
 	console.log("JS Tests Complete, No Errors");

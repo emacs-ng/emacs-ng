@@ -1,0 +1,3 @@
+[submodule "rust_src/deno"]
+	path = rust_src/deno
+	url = https://github.com/DavidDeSimone/deno

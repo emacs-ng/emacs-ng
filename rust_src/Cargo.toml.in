@@ -17,8 +17,9 @@ lisp-util = { version = "0.1.0", path = "crates/lisp_util" }
 lisp-macros = { version = "0.1.0", path = "crates/lisp_macros" }
 clippy = { version = "*", optional = true }
 cfg-if = "0.1"
-deno_core = "0.75.0"
-deno_runtime = "0.5.0"
+deno_core = { version = "0.75.0", path = "deno/core" }
+deno_runtime = { version = "0.5.0", path = "deno/runtime" }
+deno = { version = "1.6.3", path = "deno/cli" }
 crossbeam = "0.8"
 errno = "0.2"
 field-offset = "0.1"
@@ -54,6 +55,12 @@ panic = "abort"
 
 [profile.release]
 panic = "abort"
+codegen-units = 1
+lto = true
+# This reduces the binary size from 125M to 70M due
+# to Deno inclusion
+opt-level = 'z' # Optimize for size
+
 
 [features]
 default = [
