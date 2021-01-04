@@ -54,6 +54,12 @@ panic = "abort"
 
 [profile.release]
 panic = "abort"
+codegen-units = 1
+lto = true
+# This reduces the binary size from 125M to 70M due
+# to Deno inclusion
+opt-level = 'z' # Optimize for size
+
 
 [features]
 default = [

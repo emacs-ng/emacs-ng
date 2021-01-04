@@ -55,17 +55,26 @@ impl EmacsJsRuntime {
     }
 }
 
-// (DDS) See CacheFileModuleLoader::load for more details
-// on why this exists. I picked u128 because there
-// is no way that will overflow before emacs just crashes
-// from the small amount of lisp VM memory leaks
-// independent from the javascript module.
-static mut COUNTER: u128 = 0;
+// (DDS) This exists for breaking Deno's cache busting
+// across invokations of emacs-ng, along with a hack
+// to allow modules to be evaluated multiple times.
+// By default, deno cache's modules results in a cache
+// dir, ($HOME/.cache/deno/...) by default. If we didn't append
+// time, it would re-evaluate $$import#1$$ over and over,
+// and sometimes those cached files are different, which can
+// lead to bad states.
+// Sub-modules can be cached, which in general is fine, we just
+// want our users high level code to be re-executed.
+static mut COUNTER: u64 = 0;
 macro_rules! unique_module {
     ($format: expr) => {{
         unsafe {
             COUNTER += 1;
-            format!($format, COUNTER)
+            let time = std::time::SystemTime::now()
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            format!($format, COUNTER, time)
         }
     }};
 }
@@ -74,7 +83,11 @@ macro_rules! unique_module_import {
     ($filename: expr) => {{
         unsafe {
             COUNTER += 1;
-            format!("import '{}#{}';", $filename, COUNTER)
+            let time = std::time::SystemTime::now()
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            format!("import '{}#{}{}';", $filename, COUNTER, time)
         }
     }};
 }
@@ -571,16 +584,22 @@ pub fn lisp_callback(
     }
 }
 
+const DEFAULT_ADDR: &str = "127.0.0.1:9229";
+
 struct EmacsJsOptions {
     tick_rate: f64,
     ops: Option<deno_runtime::permissions::Permissions>,
     error_handler: LispObject,
+    inspect: Option<String>,
+    inspect_brk: Option<String>,
 }
 
 static mut OPTS: EmacsJsOptions = EmacsJsOptions {
     tick_rate: 0.1,
     ops: None,
     error_handler: crate::remacs_sys::Qnil,
+    inspect: None,
+    inspect_brk: None,
 };
 
 fn set_default_opts_if_unset() {
@@ -597,6 +616,8 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
     let mut permissions = deno_runtime::permissions::Permissions::allow_all();
     let mut tick_rate = 0.1;
     let mut error_handler = crate::remacs_sys::Qnil;
+    let mut inspect = None;
+    let mut inspect_brk = None;
 
     if args.len() % 2 != 0 {
         error!(JS_PERMS_ERROR);
@@ -642,6 +663,21 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
             crate::remacs_sys::QCjs_error_handler => {
                 error_handler = value;
             }
+            crate::remacs_sys::QCinspect => {
+                if value.is_string() {
+                    inspect = Some(value.as_string().unwrap().to_utf8());
+                } else if value == crate::remacs_sys::Qt {
+                    inspect = Some(DEFAULT_ADDR.to_string());
+                }
+            }
+            crate::remacs_sys::QCinspect_brk => {
+                if value.is_string() {
+                    inspect_brk = Some(value.as_string().unwrap().to_utf8());
+                } else if value == crate::remacs_sys::Qt {
+                    inspect_brk = Some(DEFAULT_ADDR.to_string());
+                }
+            }
+
             _ => error!(JS_PERMS_ERROR),
         }
     }
@@ -650,6 +686,8 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
         tick_rate,
         ops: Some(permissions),
         error_handler,
+        inspect,
+        inspect_brk,
     }
 }
 
@@ -664,7 +702,7 @@ fn is_typescript(s: &str) -> bool {
 pub fn eval_js(args: &[LispObject]) -> LispObject {
     let string_obj: LispStringRef = args[0].into();
     let ops = unsafe { &OPTS };
-    let name = unique_module!("./$anon$lisp${}.ts");
+    let name = unique_module!("./$anon$lisp${}{}.ts");
     let string = string_obj.to_utf8();
     let is_typescript = args.len() == 3
         && args[1] == crate::remacs_sys::QCtypescript
@@ -692,7 +730,7 @@ pub fn eval_js_file(args: &[LispObject]) -> LispObject {
     // @TODO (DDS) we should revisit if we actually want to
     // do this.
     let import = unique_module_import!(module);
-    module = unique_module!("./$import${}.ts");
+    module = unique_module!("./$import${}{}.ts");
 
     let result = run_module(&module, Some(import), ops, is_typescript).unwrap_or_else(move |e| {
         // If a toplevel module rejects in the Deno
@@ -1005,8 +1043,28 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
         deno_core::ModuleSpecifier::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
     set_default_opts_if_unset();
     let permissions = js_options.ops.as_ref().unwrap().clone();
+    let inspect = if let Some(i) = &js_options.inspect {
+        Some(
+            i.parse::<std::net::SocketAddr>()
+                .map_err(|e| into_ioerr(e))?,
+        )
+    } else {
+        None
+    };
+
+    let inspect_brk = if let Some(i) = &js_options.inspect_brk {
+        Some(
+            i.parse::<std::net::SocketAddr>()
+                .map_err(|e| into_ioerr(e))?,
+        )
+    } else {
+        None
+    };
+
     let flags = deno::flags::Flags {
         unstable: true,
+        inspect,
+        inspect_brk,
         ..Default::default()
     };
 
@@ -1200,6 +1258,8 @@ fn init_syms() {
     def_lisp_sym!(Qjs__clear, "js--clear");
     def_lisp_sym!(Qlambda, "lambda");
     def_lisp_sym!(Qjs__reenter, "js--reenter");
+    def_lisp_sym!(QCinspect, ":inspect");
+    def_lisp_sym!(QCinspect_brk, ":inspect-brk");
 }
 
 include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
