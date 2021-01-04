@@ -1227,8 +1227,8 @@ check-declare:
 rustfmt:
 	(cd rust_src && cargo fmt)
 	(cd rust_src/remacs-lib && cargo fmt)
-	(cd rust_src/remacs-util && cargo fmt)
-	(cd rust_src/remacs-macros && cargo fmt)
+	(cd rust_src/crates/lisp_util && cargo fmt)
+	(cd rust_src/crates/lisp_macros && cargo fmt)
 
 .PHONY: gitmerge
 

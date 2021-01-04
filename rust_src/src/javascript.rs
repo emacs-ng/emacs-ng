@@ -4,7 +4,7 @@ use crate::multibyte::LispStringRef;
 use crate::parsing::{ArrayType, ObjectType};
 use crate::remacs_sys::Ffuncall;
 use lazy_static::lazy_static;
-use remacs_macros::lisp_fn;
+use lisp_macros::lisp_fn;
 use rusty_v8 as v8;
 use std::collections::HashMap;
 use std::convert::TryFrom;
