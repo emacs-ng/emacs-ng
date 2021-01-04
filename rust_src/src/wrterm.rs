@@ -714,6 +714,56 @@ pub fn x_display_monitor_attributes_list(terminal: LispObject) -> LispObject {
     }
 }
 
+/// Return the width in pixels of the X display TERMINAL.
+/// The optional argument TERMINAL specifies which display to ask about.
+/// TERMINAL should be a terminal object, a frame or a display name (a string).
+/// If omitted or nil, that stands for the selected frame's display.
+/// \(On MS Windows, this function does not accept terminal objects.)
+///
+/// On \"multi-monitor\" setups this refers to the pixel width for all
+/// physical monitors associated with TERMINAL.  To get information for
+/// each physical monitor, use `display-monitor-attributes-list'.
+#[lisp_fn(min = "0")]
+pub fn x_display_pixel_width(terminal: LispObject) -> i32 {
+    let dpyinfo = check_x_display_info(terminal);
+
+    let output = dpyinfo.get_inner().output;
+
+    let primary_monitor = output.get_primary_monitor();
+
+    let dpi_factor = primary_monitor.scale_factor();
+
+    let physical_size = primary_monitor.size();
+    let logical_size = physical_size.to_logical::<i32>(dpi_factor);
+
+    logical_size.width
+}
+
+/// Return the height in pixels of the X display TERMINAL.
+/// The optional argument TERMINAL specifies which display to ask about.
+/// TERMINAL should be a terminal object, a frame or a display name (a string).
+/// If omitted or nil, that stands for the selected frame's display.
+/// \(On MS Windows, this function does not accept terminal objects.)
+///
+/// On \"multi-monitor\" setups this refers to the pixel height for all
+/// physical monitors associated with TERMINAL.  To get information for
+/// each physical monitor, use `display-monitor-attributes-list'.
+#[lisp_fn(min = "0")]
+pub fn x_display_pixel_height(terminal: LispObject) -> i32 {
+    let dpyinfo = check_x_display_info(terminal);
+
+    let output = dpyinfo.get_inner().output;
+
+    let primary_monitor = output.get_primary_monitor();
+
+    let dpi_factor = primary_monitor.scale_factor();
+
+    let physical_size = primary_monitor.size();
+    let logical_size = physical_size.to_logical::<i32>(dpi_factor);
+
+    logical_size.height
+}
+
 /// Assert an X selection of type SELECTION and value VALUE.
 /// SELECTION is a symbol, typically `PRIMARY', `SECONDARY', or `CLIPBOARD'.
 /// \(Those are literal upper-case symbol names, since that's what X expects.)
