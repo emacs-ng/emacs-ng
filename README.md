@@ -32,11 +32,11 @@ The goal of this fork is to explore new development approaches.
 
 # Why Emacsng
 
-Emacs-ng is an additive native layer over emacs, bringing features like Deno's Javascript and Async I/O environment, Mozilla's Webrender (experimental opt-in feature), and other features in development. emacs-ng's approach is to utilize multiple new development approaches and tools to bring Emacs to the next level. emacs-ng is maintained by a team that loves Emacs and everything it stands for - being totally introspectable, with a fully customizable and free development environment. We want Emacs to be a editor 40+ years from now, that has the flexibility and design to keep up with progressive technology.
+Emacs-ng is an additive native layer over emacs, bringing features like Deno's Javascript and Async I/O environment, Mozilla's Webrender (experimental opt-in feature), and other features in development. emacs-ng's approach is to utilize multiple new development approaches and tools to bring Emacs to the next level. emacs-ng is maintained by a team that loves Emacs and everything it stands for - being totally introspectable, with a fully customizable and free development environment. We want Emacs to be a editor 40+ years from now that has the flexibility and design to keep up with progressive technology.
 
 ## Why JavaScript
 
-One is emacs-ng's primary features is integrating the [Deno Runtime](https://deno.land/), which allows execution of JavaScript, and Typescript within Emacs. The details of that feature are listed below, however many users would ask themselves **WHY JAVASCRIPT?** JavaScript is an extremely dynamic language that allows for a user to inspect and control their scripting environment. The key to note is that brining in Deno isn't JUST JavaScript - it's an ecosystem of powerful tools and approaches that Emacs just doesn't have currently.
+One of emacs-ng's primary features is integrating the [Deno Runtime](https://deno.land/), which allows execution of JavaScript and Typescript within Emacs. The details of that feature are listed below, however many users would ask themselves **WHY JAVASCRIPT?** JavaScript is an extremely dynamic language that allows for a user to inspect and control their scripting environment. The key to note is that brining in Deno isn't JUST JavaScript - it's an ecosystem of powerful tools and approaches that Emacs just doesn't have currently.
 
 * TypeScript offers an extremely flexible typing system, that allows to user to have compile time control of their scripting, with the flexibility of types "getting out of the way" when not needed.
 * Deno uses Google's v8 JavaScript engine, which features an extremely powerful JIT and world-class garbage collector.
@@ -46,7 +46,7 @@ One is emacs-ng's primary features is integrating the [Deno Runtime](https://den
 
 ### Performance
 
-v8's world-class JIT offers massive performance gains. For a simple benchmark (fibonacci), using the following implementations:
+v8's world-class JIT offers the potential for massive performance gains. For a simple benchmark (fibonacci), using the following implementations:
 
 ``` lisp
 (defun fibonacci(n)
