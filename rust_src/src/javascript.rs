@@ -38,8 +38,11 @@ impl EmacsJsRuntime {
         runtime.w.as_mut().unwrap()
     }
 
-    unsafe fn take_worker() -> deno_runtime::worker::MainWorker {
-        Self::runtime().w.take().unwrap()
+    fn destroy_worker() {
+	let runtime = Self::runtime();
+	if runtime.w.is_some() {
+	    runtime.w.take();
+	}
     }
 
     fn set_worker(w: deno_runtime::worker::MainWorker) {
@@ -708,8 +711,8 @@ pub fn eval_js(args: &[LispObject]) -> LispObject {
         && args[1] == crate::remacs_sys::QCtypescript
         && args[2] == crate::remacs_sys::Qt;
     let result = run_module(&name, Some(string), ops, is_typescript).unwrap_or_else(move |e| {
-        // See comment in eval-js-file for why we call take_worker
-        unsafe { EmacsJsRuntime::take_worker() };
+        // See comment in eval-js-file for why we call destroy_worker
+	EmacsJsRuntime::destroy_worker();
         handle_error(e, ops.error_handler)
     });
     result
@@ -744,7 +747,7 @@ pub fn eval_js_file(args: &[LispObject]) -> LispObject {
         // and re-create the isolate. The user impact
         // should be minimal since their module never
         // loaded anyway.
-        unsafe { EmacsJsRuntime::take_worker() };
+	EmacsJsRuntime::destroy_worker();
         handle_error(e, ops.error_handler)
     });
     result
