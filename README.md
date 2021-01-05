@@ -12,15 +12,15 @@
     - [Requirements](#requirements)
     - [Building emacsng](#building-emacsng)
     - [Running emacsng](#running-emacsng)
-    - [Features](#features)
-        - [Javascript](#javascript)
-            - [Typescript](#typescript)
-            - [Interacting with buffers and symbols](#interacting-with-buffers-and-symbols)
-            - [Using Async I/O](#using-async-io)
-            - [Module Importing](#module-importing)
-            - [Error Handling](#error-handling)
-            - [Access Control](#access-control)
-            - [WebWorkers and WebAsm](#webworkers-and-webasm)
+- [Features](#features)
+    - [Javascript](#javascript)
+        - [Typescript](#typescript)
+        - [Interacting with buffers and symbols](#interacting-with-buffers-and-symbols)
+        - [Using Async I/O](#using-async-io)
+        - [Module Importing](#module-importing)
+        - [Error Handling](#error-handling)
+        - [Access Control](#access-control)
+        - [WebWorkers and WebAsm](#webworkers-and-webasm)
 
 <!-- markdown-toc end -->
 
@@ -140,18 +140,18 @@ make install
 
 Contributions are welcome. We try to maintain a list of "new contributor" friendly issues tagged with "good first issue".
 
-## Features
+# Features
 
-### Javascript
+## Javascript
 This code is a strictly additive layer, it changes no elisp functionality, and should be able to merge upstream patches cleanly. JS tests can be run by building the editor and executing `./src/emacs --batch -l test/js/bootstrap.el`.
 
-#### Typescript
+### Typescript
 emacs-ng supports native typescript. In order to have your script evaluated as typescript, it just needs to end in a typescript extension (like .ts) when using `(eval-js-file)`, or you can pass it the argument `:typescript t`. You can also evaluate anonymous scripts as typescript using `(eval-js "let x: string = '5';" :typescript t)`. If your typescript fails to compile, those functions will throw elisp errors that you can address within your program. Currently, emacs-ng does not provide type definition files for elisp functions, however we welcome contributions to that effort. If you call lisp functions within typescript, ensure you add the following line to your module to ensure that the typescript compiler knows about the global lisp variable: `declare var lisp: any;`
 
 
 The high level concept here is to allow full control of emacs-ng via the javascript layer. In order to avoid conflict between the elisp and javascript layers, only one scripting engine will be running at a time. elisp is the "authoritative" layer, in that the javascript will invoke elisp functions to interact with the editor. This is done via a special object in javascript called `lisp`. An example of it's usage would be:
 
-#### Interacting with buffers and symbols
+### Interacting with buffers and symbols
 
 ``` js
 let buffer = lisp.get_buffer_create("mybuf");
@@ -178,7 +178,7 @@ let jsond = myList.json();
 jsond.name = 4; // This did not edit a lisp object.
 ```
 
-#### Using Async I/O
+### Using Async I/O
 
 We expose the async IO functionality included with deno. Users can fetch data async from their local file system, or  the network. They can use that data to interact with the editor. An example would be:
 
@@ -228,7 +228,7 @@ lisp.defun({
 });
 ```
 
-#### Module Importing
+### Module Importing
 
 We also leverage module loading. Javascript can be invoked anonymously via `(eval-js "....")`, or a module can be loaded via `(eval-js-file "./my-file.js")`. Loading js as a module enables ES6 module imports to be used:
 
@@ -243,7 +243,7 @@ Though tokio is driving the io operations, execution of javascript is strictly c
 
 While a LispObject is being proxy'd by javascript, we add that lisp object to a rooted lisp data structure, and add a special reference to the proxy in javascript called a `WeakRef`. We use `WeakRef`s to manage when javascript objects are no longer used by the javascript runtime and can be removed from our lisp GC root.
 
-#### Error Handling
+### Error Handling
 
 When executing javascript, invoking lisp functions may result in lisp throwing errors. For example:
 
@@ -261,7 +261,7 @@ try {
 }
 ```
 
-#### Access Control
+### Access Control
 
 The user can control what permissions javascript is granted when the runtime is initialized by a call to (js-initalize &REST). The user must call this function prior to javascript being executed for it to take effect. Otherwise, the js environment will initialize with default values.
 
@@ -279,7 +279,7 @@ In order to communicate errors to lisp, the user can provide an error handler at
 
 If the user does not provide an error handler, the default behavior will be to invoke (error ...) on any uncaught javascript errors.
 
-#### WebWorkers and WebAsm
+### WebWorkers and WebAsm
 
 We also support WebWorkers, meaning that you can run javascript in seperate threads. Note that WebWorkers cannot interact with the lisp VM, however they can use Deno for async I/O. See test/js/webWorkers.js for an example.
 
