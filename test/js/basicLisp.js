@@ -31,6 +31,12 @@ export function basicLisp() {
 	    }
 	})
 	.test(() => {
+	    return new Promise((resolve, reject) => {
+		let timer = lisp.run_with_timer(1, lisp.symbols.nil, () => resolve());
+		setTimeout(() => reject("Failure to execute simple timer."), 5000);
+	    });
+	})
+	.test(() => {
 	    let mutated = 0;
 	    let myFunc = lisp.defun("hello", (arg, arg2) => {
 		mutated = arg;

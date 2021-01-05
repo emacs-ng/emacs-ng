@@ -353,10 +353,9 @@
 	const retval = container || [];
         for (let i = 0; i < dataArr.length; ++i) {
 	    if (typeof dataArr[i] === 'function') {
-		const len = __functions.length;
 		const numArgs = dataArr[i].length;
 		const args = getLambdaArgs(numArgs);
-		const lambdaDef = getLambdaDef(numArgs, lambda);
+		const lambdaDef = getLambdaDef(numArgs, dataArr[i]);
 		const lambda = lisp.list(lisp.q.lambda, args, lambdaDef);
 		retval.push(lambda);
 	    } else if (typeof dataArr[i] === 'string') {

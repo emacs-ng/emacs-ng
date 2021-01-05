@@ -5,12 +5,14 @@ import { webAsm } from "./webAsm.js";
 import { basicTyping } from "./basicTyping.ts";
 
 let counter = 1;
-Promise.prototype.test = (func) => {
-    const r = func();
-    return Promise.resolve().then(() => r).then(() => {
-	console.log("Passed Test ..... " + counter);
-	counter += 1;
-    });
+Promise.prototype.test = function(f) {
+    return this.then(f)
+	.then((result) => {
+	    counter += 1;
+	    console.log("Passed Test ... " + counter);
+	    return result;
+	});
+
 };
 
 Promise.all([
@@ -25,6 +27,7 @@ Promise.all([
 	Deno.exit(0);
     })
     .catch(e => {
+	console.log(">>> TEST FAILURE <<<");
 	console.log(e);
 	Deno.exit(1);
     });

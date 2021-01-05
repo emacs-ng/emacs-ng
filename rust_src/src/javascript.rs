@@ -902,7 +902,14 @@ pub fn js__reenter(args: &[LispObject]) -> LispObject {
         let runtime = &mut worker.js_runtime;
         let context = runtime.global_context();
         let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
+        let stacked = unsafe { raw_handle }; // Should be std::ptr::null_mut()
+        unsafe {
+            raw_handle = scope as *mut v8::HandleScope;
+        };
+        unsafe { WITHIN_RUNTIME = true };
         retval = js_reenter_inner(scope, args);
+        unsafe { WITHIN_RUNTIME = false };
+        unsafe { raw_handle = stacked };
     } else {
         let scope: &mut v8::HandleScope = unsafe { std::mem::transmute(raw_handle) };
         retval = js_reenter_inner(scope, args);
@@ -1231,6 +1238,14 @@ fn tick() -> Result<()> {
 
 #[lisp_fn]
 pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
+    // If we are within the runtime, we don't want to attempt to
+    // call execute, as we will error, and there really isn't anything
+    // anyone can do about it. Just defer the event loop until
+    // we are out of the runtime.
+    if unsafe { WITHIN_RUNTIME } {
+        return crate::remacs_sys::Qnil;
+    }
+
     tick()
         .map(|_| crate::remacs_sys::Qnil)
         // We do NOT want to destroy the MainWorker if we error here.
