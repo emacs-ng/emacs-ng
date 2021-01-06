@@ -77,15 +77,25 @@ emacs-ng's JS implementation clocks in over **50 times** faster than emacs 28 wi
    This happens automatically, so don't override the toolchain manually.
    IMPORTANT: Whenever the toolchain updates, you have to reinstall
    rustfmt manually.
+   
+   
+2. You will need to clone the repository. emacs-ng uses submodules,
+   so you can either run
+   
+        git clone --recurse-submodules https://github.com/emacs-ng/emacs-ng
+	
+   or you can clone as normal and run
+       
+        git submodule init && git submodule update 
 
-2. You will need a C compiler and toolchain. On Linux, you can do
+3. You will need a C compiler and toolchain. On Linux, you can do
    something like:
 
         apt install build-essential automake clang libclang-dev
 
    On macOS, you'll need Xcode.
 
-3. Linux:
+4. Linux:
 
         apt install texinfo libjpeg-dev libtiff-dev \
           libgif-dev libxpm-dev libgtk-3-dev gnutls-dev \
@@ -135,6 +145,8 @@ If you want to install it, just use
 ```bash
 make install
 ```
+
+You may need to run sudo make install depending on your system configuration. 
 
 ## Contributing
 
