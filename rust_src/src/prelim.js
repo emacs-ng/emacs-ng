@@ -223,21 +223,6 @@
     };
 
     const quote = (arg) => lisp.list(lisp.q.quote, arg);
-    const setq = () => {
-	return function () {
-	    let newArgs = [lisp.q.setq];
-	    for (let i = 0; i < arguments.length; ++i) {
-		if (lisp.listp(arguments[i])
-		    && !lisp.eq(lisp.q.quote, lisp.car(arguments[i]))) {
-		    newArgs.push(quote(arguments[i]));
-		} else {
-		    newArgs.push(arguments[i]);
-		}
-	    }
-
-	    return lisp.eval(lisp.list.apply(this, newArgs));
-	};
-    };
 
     const defun = () => {
 	const makeStatement = (name, docString, interactive, lambda) => {
@@ -388,19 +373,41 @@
 	return processReturn(lisp_list.apply(this, args), true);
     };
 
+    const evalForm = (symbol, ...args) => {
+	let form = [symbol];
+	for (let i = 0; i < args.length; ++i) {
+	    if (lisp.listp(args[i])
+		&& !lisp.eq(lisp.q.quote, lisp.car(args[i]))) {
+		form.push(quote(args[i]));
+	    } else {
+		form.push(args[i]);
+	    }
+	}
+
+	return lisp.eval(lisp.list.apply(this, form));
+    };
+
+    const setq = (...args) => evalForm(lisp.q.setq, ...args);
+    const defvar = (...args) => evalForm(lisp.q.defvar, ...args);
+    const define_key = (...args) => evalForm(lisp.q.define_key, ...args);
+    const define_minor_mode = (...args) => evalForm(lisp.q.define_minor_mode, ...args);
+
     const specialForms = {
 	make: makeFuncs,
 	q: symbolsCached(),
 	symbols: symbols(),
-	setq: setq(),
+	setq,
 	defun: defun(),
 	keywords: keywords(),
 	k: keywordsCached(),
 	"let": _let(),
 	with_current_buffer: with_current_buffer(),
 	with_temp_buffer: with_temp_buffer(),
-	quote: quote,
-	list: list,
+	quote,
+	list,
+	defvar,
+	define_key,
+	define_minor_mode,
     };
 
 
@@ -423,5 +430,6 @@
 
         }});
 
-	const varArgsList = lisp.list(lisp.q['&rest'], lisp.q.alpha);
+    const varArgsList = lisp.list(lisp.q['&rest'], lisp.q.alpha);
+
 })();
