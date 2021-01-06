@@ -13,6 +13,7 @@
 /// Like `Fsignal`, but never returns. Can be used for any error
 /// except `Qquit`, which can return from `Fsignal`. See the elisp docstring
 /// for `signal` for an explanation of the arguments.
+#[macro_export]
 macro_rules! xsignal {
     ($symbol:expr) => {
         #[allow(unused_unsafe)]
@@ -29,18 +30,21 @@ macro_rules! xsignal {
 }
 
 /// Macro to format a "wrong argument type" error message.
+#[macro_export]
 macro_rules! wrong_type {
     ($pred:expr, $arg:expr) => {
         xsignal!(crate::remacs_sys::Qwrong_type_argument, $pred, $arg);
     };
 }
 
+#[macro_export]
 macro_rules! list {
     ($arg:expr, $($tt:tt)+) => { $crate::lisp::LispObject::cons($arg, list!($($tt)+)) };
     ($arg:expr) => { $crate::lisp::LispObject::cons($arg, list!()) };
     () => { crate::remacs_sys::Qnil };
 }
 
+#[macro_export]
 macro_rules! error {
     ($str:expr) => {{
         #[allow(unused_unsafe)]
@@ -64,6 +68,7 @@ macro_rules! error {
 /// Macro that expands to nothing, but is used at build time to
 /// generate the starting symbol table. Equivalent to the DEFSYM
 /// macro. See also lib-src/make-docfile.c
+#[macro_export]
 macro_rules! def_lisp_sym {
     ($name:expr, $value:expr) => {};
 }

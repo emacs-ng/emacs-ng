@@ -1,9 +1,9 @@
-use crate::lisp::LispObject;
-use crate::lists::{LispCons, LispConsCircularChecks, LispConsEndChecks};
-use crate::multibyte::LispStringRef;
-use crate::ng_async::{EmacsPipe, PipeDataOption, UserData};
-use lsp_server::{Message, Request, RequestId, Response};
+use crate::ng_async::{EmacsPipe, PipeDataOption, UserData, to_owned_userdata};
+use lisp::lisp::LispObject;
+use lisp::lists::{LispCons, LispConsCircularChecks, LispConsEndChecks};
+use lisp::multibyte::LispStringRef;
 use lisp_macros::lisp_fn;
+use lsp_server::{Message, Request, RequestId, Response};
 use serde_json::{map::Map, Value};
 use std::convert::TryInto;
 use std::ffi::CString;
@@ -11,7 +11,7 @@ use std::io::{BufReader, BufWriter, Error, Result};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 
-use crate::remacs_sys::{
+use lisp::remacs_sys::{
     check_integer_range, hash_lookup, hash_put, intmax_t, make_fixed_natnum, make_float, make_int,
     make_string_from_utf8, make_uint, make_vector, Fcons, Fintern, Flist, Fmake_hash_table,
     Fnreverse, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, QCarray_type, QCfalse,
@@ -112,7 +112,7 @@ pub fn make_lsp_connection(
 /// that was provided by the lsp-servers handler.
 #[lisp_fn]
 pub fn lsp_handler(proc: LispObject, data: LispObject) -> LispObject {
-    let user_data: UserData = data.to_owned_userdata();
+    let user_data: UserData = to_owned_userdata(data);
     let msg: Message = unsafe { user_data.unpack() };
     let config = &get_process_json_config(proc);
     match msg {

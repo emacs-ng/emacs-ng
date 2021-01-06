@@ -26,8 +26,10 @@ extern crate field_offset;
 extern crate libc;
 
 // Needed for linking.
-extern crate remacs_lib;
+#[macro_use]
+extern crate lisp;
 extern crate lisp_macros;
+extern crate remacs_lib;
 
 extern crate futures;
 extern crate lsp_server;
@@ -40,28 +42,31 @@ extern crate deno_runtime;
 extern crate rusty_v8;
 extern crate tokio;
 
+
 #[macro_use]
-mod remacs_sys;
-#[macro_use]
-mod lisp;
-#[macro_use]
-mod eval_macros;
+macro_rules! export_lisp_fns {
+    ($($(#[$($meta:meta),*])* $f:ident),+) => {
+	pub fn rust_init_syms() {
+	    #[allow(unused_unsafe)] // just in case the block is empty
+	    unsafe {
+		$(
+		    $(#[$($meta),*])* lisp::remacs_sys::defsubr(
+			concat_idents!(S, $f).as_ptr() as *mut lisp::remacs_sys::Aligned_Lisp_Subr
+		    );
+		)+
+	    }
+	}
+    }
+}
+
 mod ng_async;
 mod parsing;
-
-mod data;
-mod eval;
-mod frame;
 mod javascript;
-mod lists;
-mod multibyte;
-mod process;
-mod vectors;
-#[cfg(feature = "window-system-webrender")]
-mod webrender_backend;
-mod windows;
-#[cfg(feature = "window-system-webrender")]
-mod wrterm;
+
+// #[cfg(feature = "window-system-webrender")]
+// mod webrender_backend;
+// #[cfg(feature = "window-system-webrender")]
+// mod wrterm;
 
 #[cfg(feature = "window-system-webrender")]
 pub use crate::wrterm::{tip_frame, wr_display_list};

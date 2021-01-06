@@ -1,5 +1,5 @@
-// //! This module contains Rust definitions whose C equivalents live in
-// //! lisp.h.
+//! This module contains Rust definitions whose C equivalents live in
+//! lisp.h.
 
 use std::ffi::CString;
 use std::mem;
@@ -11,7 +11,10 @@ use crate::{
     remacs_sys::build_string,
     remacs_sys::Aligned_Lisp_Subr,
     remacs_sys::EmacsInt,
-    remacs_sys::{EmacsUint, Lisp_Bits, Lisp_Type, Qnil, Qt, USE_LSB_TAG, VALMASK},
+    remacs_sys::{
+        make_user_ptr, EmacsUint, Lisp_Bits, Lisp_Type, Qnil, Qstring, Qt, Quser_ptr, Quser_ptrp,
+        USER_PTRP, USE_LSB_TAG, VALMASK, XUSER_PTR,
+    },
 };
 
 // TODO: tweak Makefile to rebuild C files if this changes.
@@ -212,3 +215,18 @@ pub type LispSubrRef = ExternalPtr<Aligned_Lisp_Subr>;
 /// Used to denote functions that have no limit on the maximum number
 /// of arguments.
 pub const MANY: i16 = -2;
+
+impl LispObject {
+    pub fn is_user_ptr(self) -> bool {
+        unsafe { USER_PTRP(self) }
+    }
+
+    pub unsafe fn as_userdata_ref<T>(&self) -> &T {
+        if self.is_user_ptr() {
+            let p = XUSER_PTR(*self);
+            &(*((*p).p as *const T))
+        } else {
+            wrong_type!(Quser_ptrp, *self);
+        }
+    }
+}

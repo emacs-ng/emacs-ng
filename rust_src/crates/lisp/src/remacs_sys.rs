@@ -22,12 +22,12 @@ use libc::timespec;
 
 use crate::lisp::LispObject;
 
-include!("../generated/definitions.rs");
+include!("../../../generated/definitions.rs");
 
 type Lisp_Object = LispObject;
 
-include!("../generated/bindings.rs");
-include!("../generated/globals.rs");
+include!("../../../generated/bindings.rs");
+include!("../../../generated/globals.rs");
 
 pub const VAL_MAX: EmacsInt = (EMACS_INT_MAX >> (GCTYPEBITS - 1));
 pub const VALMASK: EmacsInt = [VAL_MAX, -(1 << GCTYPEBITS)][USE_LSB_TAG as usize];
@@ -141,21 +141,6 @@ pub const WAIT_READING_MAX: i64 = i64::max_value();
 unsafe impl Sync for Lisp_Subr {}
 unsafe impl Sync for Aligned_Lisp_Subr {}
 unsafe impl Sync for crate::lisp::LispSubrRef {}
-
-macro_rules! export_lisp_fns {
-    ($($(#[$($meta:meta),*])* $f:ident),+) => {
-	pub fn rust_init_syms() {
-	    #[allow(unused_unsafe)] // just in case the block is empty
-	    unsafe {
-		$(
-		    $(#[$($meta),*])* crate::remacs_sys::defsubr(
-			concat_idents!(S, $f).as_ptr() as *mut crate::remacs_sys::Aligned_Lisp_Subr
-		    );
-		)+
-	    }
-	}
-    }
-}
 
 pub type Lisp_Buffer = buffer;
 pub type Lisp_Font_Object = font;

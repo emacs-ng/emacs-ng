@@ -1,7 +1,7 @@
 use libc;
 use std::ptr;
 
-use crate::{lisp::ExternalPtr, remacs_sys::wr_output};
+use lisp::{lisp::ExternalPtr, remacs_sys::wr_output};
 
 use super::display_info::DisplayInfoRef;
 use super::font::FontRef;
