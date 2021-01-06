@@ -44,10 +44,10 @@ export function basicLisp() {
 	    });
 	    lisp.hello(1, 3);
 
-	    let myFuncTwo = lisp.defun("helloTwo", "myDocString", (arg) => { return arg; });
+	    let myFuncTwo = lisp.defun("helloTwo", "myDocString", (arg) => { lisp.hello(1, 2); return arg; });
 	    lisp.helloTwo(2);
 
-	    let myFuncThree = lisp.defun("helloThree", {interactive: true, arg: "P\nbbuffer:"}, (arg) => { });
+	    let myFuncThree = lisp.defun("helloThree", {interactive: true, arg: "P\nbbuffer:"}, (arg) => { lisp.helloTwo(1) });
 	    lisp.helloThree(3);
 
 	    let myFuncFour = lisp.defun("helloFour", "HelloFour", {interactive: true}, () => { });
