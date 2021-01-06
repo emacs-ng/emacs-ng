@@ -1,7 +1,9 @@
 use libc;
 use std::ptr;
 
-use crate::{frame::LispFrameRef, lisp::ExternalPtr, remacs_sys::wr_display_info};
+use lisp::{lisp::ExternalPtr, remacs_sys::wr_display_info};
+
+use crate::{frame::LispFrameRef};
 
 use super::term::TerminalRef;
 

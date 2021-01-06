@@ -883,6 +883,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "line-wrap",
+ "lisp",
  "lisp-macros",
  "lisp-util",
  "lsp-server",
@@ -1565,10 +1566,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "lisp"
+version = "0.1.0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "lisp-macros"
 version = "0.1.0"
 dependencies = [
  "lazy_static",
+ "lisp",
  "lisp-util",
  "proc-macro2 0.4.30",
  "quote 0.6.13",

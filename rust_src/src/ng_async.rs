@@ -1,17 +1,15 @@
-use crate::lisp::LispObject;
-use crate::process::LispProcessRef;
-use crate::{
-    multibyte::LispStringRef,
-    remacs_sys::{
-        build_string, intern_c_string, make_string_from_utf8, make_user_ptr, Ffuncall,
-        Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, Fuser_ptrp,
-        QCcoding, QCfilter, QCinchannel, QCname, QCoutchannel, QCplist, QCtype, Qcall, Qdata, Qnil,
-        Qraw_text, Qreturn, Qstring, Quser_ptr, Quser_ptrp, USER_PTRP, XUSER_PTR,
-    },
+use lisp::{lisp::LispObject, multibyte::LispStringRef};
+
+use lisp::process::LispProcessRef;
+use lisp::remacs_sys::{
+    build_string, intern_c_string, make_string_from_utf8, make_user_ptr, Ffuncall,
+    Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, Fuser_ptrp,
+    QCcoding, QCfilter, QCinchannel, QCname, QCoutchannel, QCplist, QCtype, Qcall, Qdata, Qnil,
+    Qraw_text, Qreturn, Qstring, Quser_ptr, Quser_ptrp,   XUSER_PTR,
 };
 
 use crossbeam::channel::{Receiver, Sender};
-use lisp_macros::{async_stream, lisp_fn};
+use lisp_macros::{lisp_fn};
 use std::thread;
 
 use std::{
@@ -56,22 +54,22 @@ fn is_user_ptr(o: LispObject) -> bool {
     unsafe { Fuser_ptrp(o).into() }
 }
 
-impl LispObject {
-    fn to_data_option(self) -> Option<PipeDataOption> {
-        match self {
-            Qstring => Some(String::marker()),
-            Quser_ptr => Some(UserData::marker()),
-            _ => None,
-        }
-    }
-
-    fn from_data_option(option: PipeDataOption) -> LispObject {
-        match option {
-            PipeDataOption::STRING => Qstring,
-            PipeDataOption::USER_DATA => Quser_ptr,
-        }
+// impl LispObject {
+fn to_data_option(obj: LispObject) -> Option<PipeDataOption> {
+    match obj {
+        Qstring => Some(String::marker()),
+        Quser_ptr => Some(UserData::marker()),
+        _ => None,
     }
 }
+
+fn from_data_option(option: PipeDataOption) -> LispObject {
+    match option {
+        PipeDataOption::STRING => Qstring,
+        PipeDataOption::USER_DATA => Quser_ptr,
+    }
+}
+// }
 
 /// UserData is a struct used for ease-of-use for turning Rust structs
 /// into Lisp_User_Ptrs. UserData does NOT implement RAII. This means
@@ -123,33 +121,18 @@ impl From<UserData> for LispObject {
     }
 }
 
-impl LispObject {
-    pub fn is_user_ptr(self) -> bool {
-        unsafe { USER_PTRP(self) }
-    }
-
-    pub fn to_owned_userdata(self) -> UserData {
-        if self.is_user_ptr() {
-            unsafe {
-                let p = XUSER_PTR(self);
-                let ptr = (*p).p;
-                let fin = (*p).finalizer;
-                (*p).p = std::ptr::null_mut();
-                (*p).finalizer = None;
-                UserData::with_data_and_finalizer(ptr, fin)
-            }
-        } else {
-            wrong_type!(Quser_ptrp, self);
+pub fn to_owned_userdata(obj: LispObject) -> UserData {
+    if obj.is_user_ptr() {
+        unsafe {
+            let p = XUSER_PTR(obj);
+            let ptr = (*p).p;
+            let fin = (*p).finalizer;
+            (*p).p = std::ptr::null_mut();
+            (*p).finalizer = None;
+            UserData::with_data_and_finalizer(ptr, fin)
         }
-    }
-
-    pub unsafe fn as_userdata_ref<T>(&self) -> &T {
-        if self.is_user_ptr() {
-            let p = XUSER_PTR(*self);
-            &(*((*p).p as *const T))
-        } else {
-            wrong_type!(Quser_ptrp, *self);
-        }
+    } else {
+        wrong_type!(Quser_ptrp, obj);
     }
 }
 
@@ -242,8 +225,8 @@ impl EmacsPipe {
             Fmake_pipe_process(proc_args.len().try_into().unwrap(), proc_args.as_mut_ptr())
         };
 
-        let input_type = LispObject::from_data_option(input);
-        let output_type = LispObject::from_data_option(output);
+        let input_type = from_data_option(input);
+        let output_type = from_data_option(output);
         let mut plist = unsafe { Fprocess_plist(proc) };
         plist = unsafe { Fplist_put(plist, Qcall, handler) };
         plist = unsafe { Fplist_put(plist, QCtype, input_type) };
@@ -434,7 +417,7 @@ pub fn async_handler(proc: LispObject, data: LispStringRef) -> bool {
         if let Ok(s) = pipe.recv() {
             let bin = s.parse::<usize>().unwrap();
             let qtype = unsafe { Fplist_get(plist, Qreturn) };
-            if let Some(quoted_type) = qtype.to_data_option() {
+            if let Some(quoted_type) = to_data_option(qtype) {
                 let retval = make_return_value(bin, quoted_type);
                 let mut buffer = vec![orig_handler, proc, retval];
                 unsafe { Ffuncall(3, buffer.as_mut_ptr()) };
@@ -495,7 +478,7 @@ pub fn async_send_message(proc: LispObject, message: LispObject) -> bool {
     let mut pipe = unsafe { EmacsPipe::with_process(proc) };
     let plist = unsafe { Fprocess_plist(proc) };
     let qtype = unsafe { Fplist_get(plist, QCtype) };
-    if let Some(option) = qtype.to_data_option() {
+    if let Some(option) = to_data_option(qtype) {
         internal_send_message(&mut pipe, message, option)
     } else {
         // This means that someone has mishandled the

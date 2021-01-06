@@ -1,0 +1,9 @@
+[package]
+name = "lisp"
+version = "0.1.0"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+libc = "0.2"

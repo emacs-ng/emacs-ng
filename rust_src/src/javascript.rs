@@ -1,9 +1,9 @@
-use crate::lisp::LispObject;
-use crate::lists::{LispCons, LispConsCircularChecks, LispConsEndChecks};
-use crate::multibyte::LispStringRef;
 use crate::parsing::{ArrayType, ObjectType};
-use crate::remacs_sys::Ffuncall;
 use lazy_static::lazy_static;
+use lisp::lisp::LispObject;
+use lisp::lists::{LispCons, LispConsCircularChecks, LispConsEndChecks};
+use lisp::multibyte::LispStringRef;
+use lisp::remacs_sys::Ffuncall;
 use lisp_macros::lisp_fn;
 use rusty_v8 as v8;
 use std::collections::HashMap;
@@ -39,10 +39,10 @@ impl EmacsJsRuntime {
     }
 
     fn destroy_worker() {
-	let runtime = Self::runtime();
-	if runtime.w.is_some() {
-	    runtime.w.take();
-	}
+        let runtime = Self::runtime();
+        if runtime.w.is_some() {
+            runtime.w.take();
+        }
     }
 
     fn set_worker(w: deno_runtime::worker::MainWorker) {
@@ -125,13 +125,13 @@ macro_rules! make_proxy {
         };
 
         unsafe {
-            if crate::remacs_sys::globals.Vjs_retain_map == crate::remacs_sys::Qnil {
-                crate::remacs_sys::globals.Vjs_retain_map =
-                    LispObject::cons($lisp, crate::remacs_sys::Qnil);
-                crate::remacs_sys::staticpro(&crate::remacs_sys::globals.Vjs_retain_map);
+            if lisp::remacs_sys::globals.Vjs_retain_map == lisp::remacs_sys::Qnil {
+                lisp::remacs_sys::globals.Vjs_retain_map =
+                    LispObject::cons($lisp, lisp::remacs_sys::Qnil);
+                lisp::remacs_sys::staticpro(&lisp::remacs_sys::globals.Vjs_retain_map);
             } else {
-                crate::remacs_sys::globals.Vjs_retain_map =
-                    LispObject::cons($lisp, crate::remacs_sys::globals.Vjs_retain_map);
+                lisp::remacs_sys::globals.Vjs_retain_map =
+                    LispObject::cons($lisp, lisp::remacs_sys::globals.Vjs_retain_map);
             }
         }
 
@@ -188,14 +188,14 @@ pub fn lisp_make_finalizer(
 
     let result = unsafe {
         let mut bound = vec![
-            crate::remacs_sys::Qjs__clear,
-            crate::remacs_sys::make_fixnum(len.into()),
+            lisp::remacs_sys::Qjs__clear,
+            lisp::remacs_sys::make_fixnum(len.into()),
         ];
-        let list = crate::remacs_sys::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
-        let mut lambda = vec![crate::remacs_sys::Qlambda, crate::remacs_sys::Qnil, list];
+        let list = lisp::remacs_sys::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
+        let mut lambda = vec![lisp::remacs_sys::Qlambda, lisp::remacs_sys::Qnil, list];
         let lambda_list =
-            crate::remacs_sys::Flist(lambda.len().try_into().unwrap(), lambda.as_mut_ptr());
-        crate::remacs_sys::Fmake_finalizer(lambda_list)
+            lisp::remacs_sys::Flist(lambda.len().try_into().unwrap(), lambda.as_mut_ptr());
+        lisp::remacs_sys::Fmake_finalizer(lambda_list)
     };
 
     let proxy = make_proxy!(scope, result);
@@ -222,28 +222,28 @@ pub fn lisp_make_lambda(
         .uint32_value(scope)
         .unwrap();
 
-    let llen = unsafe { crate::remacs_sys::make_fixnum(len.into()) };
+    let llen = unsafe { lisp::remacs_sys::make_fixnum(len.into()) };
 
     let finalizer = unsafe {
-        let mut bound = vec![crate::remacs_sys::Qjs__clear, llen];
-        let list = crate::remacs_sys::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
-        let mut fargs = vec![crate::remacs_sys::Qand_rest, crate::remacs_sys::Qalpha];
+        let mut bound = vec![lisp::remacs_sys::Qjs__clear, llen];
+        let list = lisp::remacs_sys::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
+        let mut fargs = vec![lisp::remacs_sys::Qand_rest, lisp::remacs_sys::Qalpha];
         let fargs_list =
-            crate::remacs_sys::Flist(fargs.len().try_into().unwrap(), fargs.as_mut_ptr());
+            lisp::remacs_sys::Flist(fargs.len().try_into().unwrap(), fargs.as_mut_ptr());
 
-        let mut lambda = vec![crate::remacs_sys::Qlambda, fargs_list, list];
+        let mut lambda = vec![lisp::remacs_sys::Qlambda, fargs_list, list];
         let lambda_list =
-            crate::remacs_sys::Flist(lambda.len().try_into().unwrap(), lambda.as_mut_ptr());
-        crate::remacs_sys::Fmake_finalizer(lambda_list)
+            lisp::remacs_sys::Flist(lambda.len().try_into().unwrap(), lambda.as_mut_ptr());
+        lisp::remacs_sys::Fmake_finalizer(lambda_list)
     };
 
-    let mut inner = vec![crate::remacs_sys::Qjs__reenter, llen, finalizer];
+    let mut inner = vec![lisp::remacs_sys::Qjs__reenter, llen, finalizer];
     if num_args > 0 {
-        inner.push(crate::remacs_sys::Qalpha);
+        inner.push(lisp::remacs_sys::Qalpha);
     }
 
     let result =
-        unsafe { crate::remacs_sys::Flist(inner.len().try_into().unwrap(), inner.as_mut_ptr()) };
+        unsafe { lisp::remacs_sys::Flist(inner.len().try_into().unwrap(), inner.as_mut_ptr()) };
 
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
@@ -264,7 +264,7 @@ pub fn lisp_string(
     let len = message.len();
     let cstr = CString::new(message).expect("Failed to allocate CString");
     let result =
-        unsafe { crate::remacs_sys::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap()) };
+        unsafe { lisp::remacs_sys::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap()) };
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
     retval.set(r);
@@ -282,7 +282,7 @@ pub fn lisp_fixnum(
         .integer_value(scope)
         .unwrap();
 
-    let result = unsafe { crate::remacs_sys::make_fixnum(message) };
+    let result = unsafe { lisp::remacs_sys::make_fixnum(message) };
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
     retval.set(r);
@@ -300,7 +300,7 @@ pub fn lisp_float(
         .number_value(scope)
         .unwrap();
 
-    let result = unsafe { crate::remacs_sys::make_float(message) };
+    let result = unsafe { lisp::remacs_sys::make_float(message) };
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
     retval.set(r);
@@ -319,9 +319,9 @@ pub fn lisp_intern(
         .unwrap()
         .to_rust_string_lossy(scope);
     let lispobj =
-        LispObject::from_C_unsigned(ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap());
+        LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
 
-    let result = unsafe { crate::remacs_sys::Fintern(lispobj, crate::remacs_sys::Qnil) };
+    let result = unsafe { lisp::remacs_sys::Fintern(lispobj, lisp::remacs_sys::Qnil) };
 
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
@@ -352,9 +352,8 @@ pub fn lisp_list(
                 .to_string(scope)
                 .unwrap()
                 .to_rust_string_lossy(scope);
-            let lispobj = LispObject::from_C_unsigned(
-                ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap(),
-            );
+            let lispobj =
+                LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
             lisp_args.push(lispobj);
         } else {
             let error = v8::String::new(scope, "Invalid arguments passed to lisp_invoke. Valid options are String, Function, or Proxy Object").unwrap();
@@ -367,7 +366,7 @@ pub fn lisp_list(
     }
 
     let result = unsafe {
-        crate::remacs_sys::Flist(lisp_args.len().try_into().unwrap(), lisp_args.as_mut_ptr())
+        lisp::remacs_sys::Flist(lisp_args.len().try_into().unwrap(), lisp_args.as_mut_ptr())
     };
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
@@ -389,7 +388,7 @@ pub fn lisp_json(
             .unwrap()
             .to_rust_string_lossy(scope);
         let lispobj =
-            LispObject::from_C_unsigned(ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap());
+            LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
 
         if let Ok(json) = crate::parsing::ser(lispobj) {
             parsed = true;
@@ -414,7 +413,7 @@ pub fn finalize(
     _retval: v8::ReturnValue,
 ) {
     let len = args.length();
-    let mut new_list = LispObject::cons(crate::remacs_sys::Qnil, crate::remacs_sys::Qnil);
+    let mut new_list = LispObject::cons(lisp::remacs_sys::Qnil, lisp::remacs_sys::Qnil);
     for i in 0..len {
         let arg = args.get(i);
         if arg.is_object() {
@@ -425,14 +424,13 @@ pub fn finalize(
                 .to_string(scope)
                 .unwrap()
                 .to_rust_string_lossy(scope);
-            let lispobj = LispObject::from_C_unsigned(
-                ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap(),
-            );
+            let lispobj =
+                LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
             new_list = LispObject::cons(lispobj, new_list);
         }
     }
 
-    unsafe { crate::remacs_sys::globals.Vjs_retain_map = new_list };
+    unsafe { lisp::remacs_sys::globals.Vjs_retain_map = new_list };
 }
 
 pub fn is_proxy(
@@ -458,10 +456,10 @@ unsafe extern "C" fn lisp_springboard(arg1: *mut ::libc::c_void) -> LispObject {
 }
 
 unsafe extern "C" fn lisp_handler(
-    _arg1: crate::remacs_sys::nonlocal_exit::Type,
+    _arg1: lisp::remacs_sys::nonlocal_exit::Type,
     arg2: LispObject,
 ) -> LispObject {
-    LispObject::cons(crate::remacs_sys::Qjs_lisp_error, arg2)
+    LispObject::cons(lisp::remacs_sys::Qjs_lisp_error, arg2)
 }
 
 static mut raw_handle: *mut v8::HandleScope = std::ptr::null_mut();
@@ -481,7 +479,7 @@ pub fn lisp_callback(
         .unwrap()
         .to_rust_string_lossy(scope);
     let lispobj =
-        LispObject::from_C_unsigned(ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap());
+        LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
     lisp_args.push(lispobj);
 
     for i in 1..len {
@@ -501,9 +499,8 @@ pub fn lisp_callback(
                 .to_string(scope)
                 .unwrap()
                 .to_rust_string_lossy(scope);
-            let lispobj = LispObject::from_C_unsigned(
-                ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap(),
-            );
+            let lispobj =
+                LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
             lisp_args.push(lispobj);
         } else {
             let error = v8::String::new(scope, "Invalid arguments passed to lisp_invoke. Valid options are String, Function, or Proxy Object").unwrap();
@@ -537,7 +534,7 @@ pub fn lisp_callback(
     let boxed = Box::new(lisp_args);
     let raw_ptr = Box::into_raw(boxed);
     let results = unsafe {
-        crate::remacs_sys::internal_catch_all(
+        lisp::remacs_sys::internal_catch_all(
             Some(lisp_springboard),
             raw_ptr as *mut ::libc::c_void,
             Some(lisp_handler),
@@ -551,9 +548,9 @@ pub fn lisp_callback(
 
     if results.is_cons() {
         let cons: LispCons = results.into();
-        if cons.car() == crate::remacs_sys::Qjs_lisp_error {
+        if cons.car() == lisp::remacs_sys::Qjs_lisp_error {
             // Lisp has thrown, so we want to throw a JS exception.
-            let lisp_error_string = unsafe { crate::remacs_sys::Ferror_message_string(cons.cdr()) };
+            let lisp_error_string = unsafe { lisp::remacs_sys::Ferror_message_string(cons.cdr()) };
             let lisp_ref: LispStringRef = lisp_error_string.into();
             let err = lisp_ref.to_utf8();
             let error = v8::String::new(scope, &err).unwrap();
@@ -568,11 +565,11 @@ pub fn lisp_callback(
     // LOGIC, attempt to se, with a version of se that returns an error,
     // if this can't se, it is a proxy, and we will treat it as such.
     let is_primative = unsafe {
-        crate::remacs_sys::STRINGP(results)
-            || crate::remacs_sys::FIXNUMP(results)
-            || crate::remacs_sys::FLOATP(results)
-            || results == crate::remacs_sys::Qnil
-            || results == crate::remacs_sys::Qt
+        lisp::remacs_sys::STRINGP(results)
+            || lisp::remacs_sys::FIXNUMP(results)
+            || lisp::remacs_sys::FLOATP(results)
+            || results == lisp::remacs_sys::Qnil
+            || results == lisp::remacs_sys::Qt
     };
     if is_primative {
         if let Ok(json) = crate::parsing::ser(results) {
@@ -600,7 +597,7 @@ struct EmacsJsOptions {
 static mut OPTS: EmacsJsOptions = EmacsJsOptions {
     tick_rate: 0.1,
     ops: None,
-    error_handler: crate::remacs_sys::Qnil,
+    error_handler: lisp::remacs_sys::Qnil,
     inspect: None,
     inspect_brk: None,
 };
@@ -618,7 +615,7 @@ const JS_PERMS_ERROR: &str =
 fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
     let mut permissions = deno_runtime::permissions::Permissions::allow_all();
     let mut tick_rate = 0.1;
-    let mut error_handler = crate::remacs_sys::Qnil;
+    let mut error_handler = lisp::remacs_sys::Qnil;
     let mut inspect = None;
     let mut inspect_brk = None;
 
@@ -635,48 +632,48 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
         let value = args[i + 1];
 
         match key {
-            crate::remacs_sys::QCallow_net => {
-                if value == crate::remacs_sys::Qnil {
+            lisp::remacs_sys::QCallow_net => {
+                if value == lisp::remacs_sys::Qnil {
                     permissions.net.global_state =
                         deno_runtime::permissions::PermissionState::Denied;
                 }
             }
-            crate::remacs_sys::QCallow_read => {
-                if value == crate::remacs_sys::Qnil {
+            lisp::remacs_sys::QCallow_read => {
+                if value == lisp::remacs_sys::Qnil {
                     permissions.read.global_state =
                         deno_runtime::permissions::PermissionState::Denied;
                 }
             }
-            crate::remacs_sys::QCallow_write => {
-                if value == crate::remacs_sys::Qnil {
+            lisp::remacs_sys::QCallow_write => {
+                if value == lisp::remacs_sys::Qnil {
                     permissions.write.global_state =
                         deno_runtime::permissions::PermissionState::Denied;
                 }
             }
-            crate::remacs_sys::QCallow_run => {
-                if value == crate::remacs_sys::Qnil {
+            lisp::remacs_sys::QCallow_run => {
+                if value == lisp::remacs_sys::Qnil {
                     permissions.run = deno_runtime::permissions::PermissionState::Denied;
                 }
             }
-            crate::remacs_sys::QCjs_tick_rate => unsafe {
-                if crate::remacs_sys::FLOATP(value) {
-                    tick_rate = crate::remacs_sys::XFLOAT_DATA(value);
+            lisp::remacs_sys::QCjs_tick_rate => unsafe {
+                if lisp::remacs_sys::FLOATP(value) {
+                    tick_rate = lisp::remacs_sys::XFLOAT_DATA(value);
                 }
             },
-            crate::remacs_sys::QCjs_error_handler => {
+            lisp::remacs_sys::QCjs_error_handler => {
                 error_handler = value;
             }
-            crate::remacs_sys::QCinspect => {
+            lisp::remacs_sys::QCinspect => {
                 if value.is_string() {
                     inspect = Some(value.as_string().unwrap().to_utf8());
-                } else if value == crate::remacs_sys::Qt {
+                } else if value == lisp::remacs_sys::Qt {
                     inspect = Some(DEFAULT_ADDR.to_string());
                 }
             }
-            crate::remacs_sys::QCinspect_brk => {
+            lisp::remacs_sys::QCinspect_brk => {
                 if value.is_string() {
                     inspect_brk = Some(value.as_string().unwrap().to_utf8());
-                } else if value == crate::remacs_sys::Qt {
+                } else if value == lisp::remacs_sys::Qt {
                     inspect_brk = Some(DEFAULT_ADDR.to_string());
                 }
             }
@@ -708,11 +705,11 @@ pub fn eval_js(args: &[LispObject]) -> LispObject {
     let name = unique_module!("./$anon$lisp${}{}.ts");
     let string = string_obj.to_utf8();
     let is_typescript = args.len() == 3
-        && args[1] == crate::remacs_sys::QCtypescript
-        && args[2] == crate::remacs_sys::Qt;
+        && args[1] == lisp::remacs_sys::QCtypescript
+        && args[2] == lisp::remacs_sys::Qt;
     let result = run_module(&name, Some(string), ops, is_typescript).unwrap_or_else(move |e| {
         // See comment in eval-js-file for why we call destroy_worker
-	EmacsJsRuntime::destroy_worker();
+        EmacsJsRuntime::destroy_worker();
         handle_error(e, ops.error_handler)
     });
     result
@@ -724,8 +721,8 @@ pub fn eval_js_file(args: &[LispObject]) -> LispObject {
     let ops = unsafe { &OPTS };
     let mut module = filename.to_utf8();
     let is_typescript = (args.len() == 3
-        && args[1] == crate::remacs_sys::QCtypescript
-        && args[2] == crate::remacs_sys::Qt)
+        && args[1] == lisp::remacs_sys::QCtypescript
+        && args[2] == lisp::remacs_sys::Qt)
         || is_typescript(&module);
 
     // This is a hack to allow for our behavior of
@@ -747,7 +744,7 @@ pub fn eval_js_file(args: &[LispObject]) -> LispObject {
         // and re-create the isolate. The user impact
         // should be minimal since their module never
         // loaded anyway.
-	EmacsJsRuntime::destroy_worker();
+        EmacsJsRuntime::destroy_worker();
         handle_error(e, ops.error_handler)
     });
     result
@@ -755,14 +752,14 @@ pub fn eval_js_file(args: &[LispObject]) -> LispObject {
 
 fn get_buffer_contents(mut buffer: LispObject) -> LispObject {
     if buffer.is_nil() {
-        buffer = unsafe { crate::remacs_sys::Fcurrent_buffer() };
+        buffer = unsafe { lisp::remacs_sys::Fcurrent_buffer() };
     }
 
     unsafe {
-        let current = crate::remacs_sys::Fcurrent_buffer();
-        crate::remacs_sys::Fset_buffer(buffer);
-        let lstring = crate::remacs_sys::Fbuffer_string();
-        crate::remacs_sys::Fset_buffer(current);
+        let current = lisp::remacs_sys::Fcurrent_buffer();
+        lisp::remacs_sys::Fset_buffer(buffer);
+        let lstring = lisp::remacs_sys::Fbuffer_string();
+        lisp::remacs_sys::Fset_buffer(current);
         lstring
     }
 }
@@ -778,17 +775,17 @@ pub fn eval_ts_buffer(buffer: LispObject) -> LispObject {
     let lisp_string = get_buffer_contents(buffer);
     eval_js(&[
         lisp_string,
-        crate::remacs_sys::QCtypescript,
-        crate::remacs_sys::Qt,
+        lisp::remacs_sys::QCtypescript,
+        lisp::remacs_sys::Qt,
     ])
 }
 
 fn get_region(start: LispObject, end: LispObject) -> LispObject {
-    let saved = unsafe { crate::remacs_sys::save_restriction_save() };
+    let saved = unsafe { lisp::remacs_sys::save_restriction_save() };
     unsafe {
-        crate::remacs_sys::Fnarrow_to_region(start, end);
-        let lstring = crate::remacs_sys::Fbuffer_string();
-        crate::remacs_sys::save_restriction_restore(saved);
+        lisp::remacs_sys::Fnarrow_to_region(start, end);
+        let lstring = lisp::remacs_sys::Fbuffer_string();
+        lisp::remacs_sys::save_restriction_restore(saved);
         lstring
     }
 }
@@ -804,8 +801,8 @@ pub fn eval_ts_region(start: LispObject, end: LispObject) -> LispObject {
     let lisp_string = get_region(start, end);
     eval_js(&[
         lisp_string,
-        crate::remacs_sys::QCtypescript,
-        crate::remacs_sys::Qt,
+        lisp::remacs_sys::QCtypescript,
+        lisp::remacs_sys::Qt,
     ])
 }
 
@@ -815,21 +812,21 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
     unsafe {
         OPTS = ops;
     }
-    crate::remacs_sys::Qnil
+    lisp::remacs_sys::Qnil
 }
 
 fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObject {
     let index = args[0];
 
-    if !unsafe { crate::remacs_sys::INTEGERP(index) } {
+    if !unsafe { lisp::remacs_sys::INTEGERP(index) } {
         error!("Failed to provide proper index to js--reenter");
     }
 
     let value = unsafe {
-        crate::remacs_sys::check_integer_range(
+        lisp::remacs_sys::check_integer_range(
             index,
-            crate::remacs_sys::intmax_t::MIN,
-            crate::remacs_sys::intmax_t::MAX,
+            lisp::remacs_sys::intmax_t::MIN,
+            lisp::remacs_sys::intmax_t::MAX,
         )
     };
 
@@ -849,11 +846,11 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
         cons.iter_cars(LispConsEndChecks::on, LispConsCircularChecks::on)
             .for_each(|a| {
                 let is_primative = unsafe {
-                    crate::remacs_sys::STRINGP(a)
-                        || crate::remacs_sys::FIXNUMP(a)
-                        || crate::remacs_sys::FLOATP(a)
-                        || a == crate::remacs_sys::Qnil
-                        || a == crate::remacs_sys::Qt
+                    lisp::remacs_sys::STRINGP(a)
+                        || lisp::remacs_sys::FIXNUMP(a)
+                        || lisp::remacs_sys::FLOATP(a)
+                        || a == lisp::remacs_sys::Qnil
+                        || a == lisp::remacs_sys::Qt
                 };
                 if is_primative {
                     if let Ok(json) = crate::parsing::ser(a) {
@@ -871,7 +868,7 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
             });
     }
 
-    let mut retval = crate::remacs_sys::Qnil;
+    let mut retval = lisp::remacs_sys::Qnil;
     if let Some(result) = fnc.call(scope, recv, v8_args.as_slice()) {
         if result.is_string() {
             let a = result.to_string(scope).unwrap().to_rust_string_lossy(scope);
@@ -887,9 +884,8 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
                 .to_string(scope)
                 .unwrap()
                 .to_rust_string_lossy(scope);
-            let lispobj = LispObject::from_C_unsigned(
-                ptrstr.parse::<crate::remacs_sys::EmacsUint>().unwrap(),
-            );
+            let lispobj =
+                LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
             retval = lispobj;
         }
     }
@@ -924,10 +920,10 @@ pub fn js__reenter(args: &[LispObject]) -> LispObject {
 
 fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
     let value = unsafe {
-        crate::remacs_sys::check_integer_range(
+        lisp::remacs_sys::check_integer_range(
             idx,
-            crate::remacs_sys::intmax_t::MIN,
-            crate::remacs_sys::intmax_t::MAX,
+            lisp::remacs_sys::intmax_t::MIN,
+            lisp::remacs_sys::intmax_t::MAX,
         )
     };
 
@@ -957,7 +953,7 @@ pub fn js__clear(idx: LispObject) -> LispObject {
         unsafe { raw_handle = std::mem::transmute(scope) };
     }
 
-    crate::remacs_sys::Qnil
+    lisp::remacs_sys::Qnil
 }
 
 fn into_ioerr<E: Into<Box<dyn std::error::Error + Send + Sync>>>(e: E) -> std::io::Error {
@@ -1017,16 +1013,16 @@ fn init_once(js_options: &EmacsJsOptions) -> Result<()> {
             let cstr = CString::new("run-with-timer").expect("Failed to create timer");
             let callback = CString::new("js-tick-event-loop").expect("Failed to create timer");
             unsafe {
-                let fun = crate::remacs_sys::intern_c_string(cstr.as_ptr());
-                let fun_callback = crate::remacs_sys::intern_c_string(callback.as_ptr());
+                let fun = lisp::remacs_sys::intern_c_string(cstr.as_ptr());
+                let fun_callback = lisp::remacs_sys::intern_c_string(callback.as_ptr());
                 let mut args = vec![
                     fun,
-                    crate::remacs_sys::Qt,
-                    crate::remacs_sys::make_float(js_options.tick_rate),
+                    lisp::remacs_sys::Qt,
+                    lisp::remacs_sys::make_float(js_options.tick_rate),
                     fun_callback,
                     js_options.error_handler,
                 ];
-                crate::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
+                lisp::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
             }
 
             Ok(())
@@ -1215,7 +1211,7 @@ fn run_module(
         Ok(())
     })?;
 
-    Ok(crate::remacs_sys::Qnil)
+    Ok(lisp::remacs_sys::Qnil)
 }
 
 fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
@@ -1227,7 +1223,7 @@ fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
             let len = err_string.len();
             let cstr = CString::new(err_string).expect("Failed to allocate CString");
             let lstring =
-                crate::remacs_sys::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap());
+                lisp::remacs_sys::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap());
             let mut args = vec![handler, lstring];
             Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr())
         }
@@ -1246,11 +1242,11 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
     // anyone can do about it. Just defer the event loop until
     // we are out of the runtime.
     if unsafe { WITHIN_RUNTIME } {
-        return crate::remacs_sys::Qnil;
+        return lisp::remacs_sys::Qnil;
     }
 
     tick()
-        .map(|_| crate::remacs_sys::Qnil)
+        .map(|_| lisp::remacs_sys::Qnil)
         // We do NOT want to destroy the MainWorker if we error here.
         // We can still use this isolate for future promise resolutions
         // instead, just pass to the error handler.
@@ -1261,7 +1257,7 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
 // for now, we are manually calling 'staticpro'
 #[allow(dead_code)]
 fn init_syms() {
-    defvar_lisp!(Vjs_retain_map, "js-retain-map", crate::remacs_sys::Qnil);
+    defvar_lisp!(Vjs_retain_map, "js-retain-map", lisp::remacs_sys::Qnil);
 
     def_lisp_sym!(Qjs_lisp_error, "js-lisp-error");
     def_lisp_sym!(QCallow_net, ":allow-net");

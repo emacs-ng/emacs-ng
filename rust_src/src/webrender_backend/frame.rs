@@ -1,10 +1,13 @@
-use crate::{
-    frame::LispFrameRef,
+use lisp::{
     lisp::LispObject,
     remacs_sys::{
         make_frame, make_frame_without_minibuffer, make_minibuffer_frame, output_method, Qnil,
         Qnone, Qonly,
     },
+};
+
+use crate::{
+    frame::LispFrameRef,
 };
 
 use super::{
