@@ -2,10 +2,11 @@
 
 pub type LispProcessRef = ExternalPtr<Lisp_Process>;
 
+use crate::vectors::LispVectorlikeRef;
+
 use crate::{
     lisp::{ExternalPtr, LispObject},
     remacs_sys::{Lisp_Process, Qprocessp},
-    vectors::LispVectorlikeRef,
 };
 
 impl LispObject {

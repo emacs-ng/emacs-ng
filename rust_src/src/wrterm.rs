@@ -7,6 +7,15 @@ use lisp_macros::lisp_fn;
 
 use crate::{
     frame::LispFrameRef,
+    webrender_backend::{
+        font::{FontRef, FONT_DRIVER},
+        frame::create_frame,
+        output::OutputRef,
+        term::wr_term_init,
+    },
+};
+
+use lisp::{
     lisp::{ExternalPtr, LispObject},
     remacs_sys::globals,
     remacs_sys::resource_types::{RES_TYPE_NUMBER, RES_TYPE_STRING, RES_TYPE_SYMBOL},
@@ -16,12 +25,6 @@ use crate::{
         Fprovide, Pixmap, Qfont, Qfont_backend, Qminibuffer, Qname, Qnil, Qparent_id, Qterminal,
         Qunbound, Qwr, Qx, WRImage, Window, XrmDatabase, DEFAULT_REHASH_SIZE,
         DEFAULT_REHASH_THRESHOLD,
-    },
-    webrender_backend::{
-        font::{FontRef, FONT_DRIVER},
-        frame::create_frame,
-        output::OutputRef,
-        term::wr_term_init,
     },
 };
 

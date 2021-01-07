@@ -6,9 +6,9 @@ extern crate errno;
 #[macro_use]
 extern crate lazy_static;
 extern crate libc;
+extern crate lisp_util;
 extern crate rand;
 extern crate regex;
-extern crate lisp_util;
 extern crate time as time_crate;
 
 mod docfile;

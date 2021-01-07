@@ -13,57 +13,62 @@
 /// Like `Fsignal`, but never returns. Can be used for any error
 /// except `Qquit`, which can return from `Fsignal`. See the elisp docstring
 /// for `signal` for an explanation of the arguments.
+#[macro_export]
 macro_rules! xsignal {
     ($symbol:expr) => {
         #[allow(unused_unsafe)]
         unsafe {
-            crate::eval::signal_rust($symbol, crate::remacs_sys::Qnil);
+            $crate::eval::signal_rust($symbol, crate::remacs_sys::Qnil);
         }
     };
     ($symbol:expr, $($tt:tt)+) => {
         #[allow(unused_unsafe)]
         unsafe {
-            crate::eval::signal_rust($symbol, list!($($tt)+));
+            $crate::eval::signal_rust($symbol, list!($($tt)+));
         }
     };
 }
 
 /// Macro to format a "wrong argument type" error message.
+#[macro_export]
 macro_rules! wrong_type {
     ($pred:expr, $arg:expr) => {
-        xsignal!(crate::remacs_sys::Qwrong_type_argument, $pred, $arg);
+        xsignal!($crate::remacs_sys::Qwrong_type_argument, $pred, $arg);
     };
 }
 
+#[macro_export]
 macro_rules! list {
     ($arg:expr, $($tt:tt)+) => { $crate::lisp::LispObject::cons($arg, list!($($tt)+)) };
     ($arg:expr) => { $crate::lisp::LispObject::cons($arg, list!()) };
-    () => { crate::remacs_sys::Qnil };
+    () => { $crate::remacs_sys::Qnil };
 }
 
+#[macro_export]
 macro_rules! error {
     ($str:expr) => {{
         #[allow(unused_unsafe)]
         let strobj = unsafe {
-            crate::remacs_sys::make_string($str.as_ptr() as *const ::libc::c_char,
+            $crate::remacs_sys::make_string($str.as_ptr() as *const ::libc::c_char,
                                       $str.len() as ::libc::ptrdiff_t)
         };
-        xsignal!(crate::remacs_sys::Qerror, strobj);
+        xsignal!($crate::remacs_sys::Qerror, strobj);
     }};
     ($fmtstr:expr, $($arg:expr),*) => {{
         let formatted = format!($fmtstr, $($arg),*);
         #[allow(unused_unsafe)]
         let strobj = unsafe {
-            crate::remacs_sys::make_string(formatted.as_ptr() as *const ::libc::c_char,
+            $crate::remacs_sys::make_string(formatted.as_ptr() as *const ::libc::c_char,
                                       formatted.len() as ::libc::ptrdiff_t)
         };
-        xsignal!(crate::remacs_sys::Qerror, strobj);
+        xsignal!($crate::remacs_sys::Qerror, strobj);
     }};
 }
 
 /// Macro that expands to nothing, but is used at build time to
 /// generate the starting symbol table. Equivalent to the DEFSYM
 /// macro. See also lib-src/make-docfile.c
+#[macro_export]
 macro_rules! def_lisp_sym {
     ($name:expr, $value:expr) => {};
 }
@@ -98,18 +103,18 @@ macro_rules! defvar_lisp {
     ($field_name:ident, $lisp_name:expr, $value:expr) => {{
         #[allow(unused_unsafe)]
         unsafe {
-            use crate::remacs_sys::Lisp_Objfwd;
+            use $crate::remacs_sys::Lisp_Objfwd;
 
             static mut o_fwd: Lisp_Objfwd = Lisp_Objfwd {
-                type_: crate::remacs_sys::Lisp_Fwd_Type::Lisp_Fwd_Obj,
-                objvar: unsafe { &crate::remacs_sys::globals.$field_name as *const _ as *mut _ },
+                type_: $crate::remacs_sys::Lisp_Fwd_Type::Lisp_Fwd_Obj,
+                objvar: unsafe { &$crate::remacs_sys::globals.$field_name as *const _ as *mut _ },
             };
 
-            crate::remacs_sys::defvar_lisp(
+            $crate::remacs_sys::defvar_lisp(
                 &o_fwd,
                 concat!($lisp_name, "\0").as_ptr() as *const libc::c_char,
             );
-            crate::remacs_sys::globals.$field_name = $value;
+            $crate::remacs_sys::globals.$field_name = $value;
         }
     }};
 }
@@ -118,18 +123,18 @@ macro_rules! defvar_lisp {
 macro_rules! defvar_bool {
     ($field_name:ident, $lisp_name:expr, $value:expr) => {{
         unsafe {
-            use crate::remacs_sys::Lisp_Boolfwd;
+            use $crate::remacs_sys::Lisp_Boolfwd;
 
             static mut o_fwd: Lisp_Boolfwd = Lisp_Boolfwd {
-                type_: crate::remacs_sys::Lisp_Fwd_Type::Lisp_Fwd_Bool,
-                boolvar: unsafe { &crate::remacs_sys::globals.$field_name as *const _ as *mut _ },
+                type_: $crate::remacs_sys::Lisp_Fwd_Type::Lisp_Fwd_Bool,
+                boolvar: unsafe { &$crate::remacs_sys::globals.$field_name as *const _ as *mut _ },
             };
 
-            crate::remacs_sys::defvar_bool(
+            $crate::remacs_sys::defvar_bool(
                 &o_fwd,
                 concat!($lisp_name, "\0").as_ptr() as *const libc::c_char,
             );
-            crate::remacs_sys::globals.$field_name = $value;
+            $crate::remacs_sys::globals.$field_name = $value;
         }
     }};
 }

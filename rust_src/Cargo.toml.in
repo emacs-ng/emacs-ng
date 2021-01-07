@@ -13,6 +13,7 @@ exclude = ["remacs-bindings"]
 
 [dependencies]
 remacs-lib = { version = "0.1.0", path = "remacs-lib" }
+lisp = { version = "0.1.0", path = "crates/lisp" }
 lisp-util = { version = "0.1.0", path = "crates/lisp_util" }
 lisp-macros = { version = "0.1.0", path = "crates/lisp_macros" }
 clippy = { version = "*", optional = true }
