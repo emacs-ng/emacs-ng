@@ -66,9 +66,6 @@ struct EmacsMainJsRuntime {
     /// The optiosn passed to (js-initialize) to customize the
     /// JS runtime.
     options: EmacsJsOptions,
-    /// If the tokio runtime failed to init. This is a critical
-    /// error, and means that no JS can be run.
-    failed_to_init: bool,
     /// Proxies are created by a global template, stored in this
     /// field
     proxy_template: Option<v8::Global<v8::ObjectTemplate>>,
@@ -87,7 +84,6 @@ impl Default for EmacsMainJsRuntime {
             module_counter: 0,
             stacked_v8_handle: None,
             options: EmacsJsOptions::default(),
-            failed_to_init: false,
             proxy_template: None,
             program_state: None,
         }
@@ -173,14 +169,6 @@ impl EmacsMainJsRuntime {
         Self::access(|main| main.proxy_template.clone().unwrap())
     }
 
-    fn get_failed_to_init() -> bool {
-        Self::access(|main| main.failed_to_init)
-    }
-
-    fn set_failed_to_init(failed: bool) {
-        Self::access(move |main| main.failed_to_init = failed);
-    }
-
     fn get_options() -> EmacsJsOptions {
         Self::set_default_perms_if_unset();
         Self::access(|main| main.options.clone())
@@ -245,6 +233,10 @@ impl EmacsMainJsRuntime {
         Self::access(|main| main.tokio_runtime.as_ref().unwrap().handle().clone())
     }
 
+    fn is_tokio_active() -> bool {
+        Self::access(|main| main.tokio_runtime.is_some())
+    }
+
     fn destroy_worker() {
         Self::access(|main| {
             main.proxy_template = None;
@@ -273,7 +265,6 @@ impl EmacsMainJsRuntime {
     }
 }
 
-static ONCE: std::sync::Once = std::sync::Once::new();
 // (DDS) This exists for breaking Deno's cache busting
 // across invokations of emacs-ng, along with a hack
 // to allow modules to be evaluated multiple times.
@@ -1266,51 +1257,34 @@ fn tick_js() -> Result<()> {
 }
 
 fn init_once(js_options: &EmacsJsOptions) -> Result<()> {
-    if EmacsMainJsRuntime::get_failed_to_init() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Javascript environment failed to initalize, cannot run JS code",
-        ));
+    if !EmacsMainJsRuntime::is_tokio_active() {
+        let runtime = tokio::runtime::Builder::new()
+            .threaded_scheduler()
+            .enable_io()
+            .enable_time()
+            .max_threads(32)
+            .build()?;
+
+        EmacsMainJsRuntime::set_tokio_runtime(runtime);
+
+        //(run-with-timer t 1 'js-tick-event-loop error-handler)
+        let cstr = CString::new("run-with-timer").expect("Failed to create timer");
+        let callback = CString::new("js-tick-event-loop").expect("Failed to create timer");
+        unsafe {
+            let fun = crate::remacs_sys::intern_c_string(cstr.as_ptr());
+            let fun_callback = crate::remacs_sys::intern_c_string(callback.as_ptr());
+            let mut args = vec![
+                fun,
+                crate::remacs_sys::Qt,
+                crate::remacs_sys::make_float(js_options.tick_rate),
+                fun_callback,
+                js_options.error_handler,
+            ];
+            crate::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
+        }
     }
 
-    let mut once_result: Result<()> = Ok(());
-    ONCE.call_once(|| {
-        let indirect = || -> Result<()> {
-            let runtime = tokio::runtime::Builder::new()
-                .threaded_scheduler()
-                .enable_io()
-                .enable_time()
-                .max_threads(32)
-                .build()?;
-
-            EmacsMainJsRuntime::set_tokio_runtime(runtime);
-
-            //(run-with-timer t 1 'js-tick-event-loop error-handler)
-            let cstr = CString::new("run-with-timer").expect("Failed to create timer");
-            let callback = CString::new("js-tick-event-loop").expect("Failed to create timer");
-            unsafe {
-                let fun = crate::remacs_sys::intern_c_string(cstr.as_ptr());
-                let fun_callback = crate::remacs_sys::intern_c_string(callback.as_ptr());
-                let mut args = vec![
-                    fun,
-                    crate::remacs_sys::Qt,
-                    crate::remacs_sys::make_float(js_options.tick_rate),
-                    fun_callback,
-                    js_options.error_handler,
-                ];
-                crate::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
-            }
-
-            Ok(())
-        };
-        once_result = indirect();
-    });
-
-    if once_result.is_err() {
-        EmacsMainJsRuntime::set_failed_to_init(true);
-    }
-
-    once_result
+    Ok(())
 }
 
 fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
