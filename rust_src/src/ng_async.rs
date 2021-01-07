@@ -5,11 +5,11 @@ use lisp::remacs_sys::{
     build_string, intern_c_string, make_string_from_utf8, make_user_ptr, Ffuncall,
     Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, Fuser_ptrp,
     QCcoding, QCfilter, QCinchannel, QCname, QCoutchannel, QCplist, QCtype, Qcall, Qdata, Qnil,
-    Qraw_text, Qreturn, Qstring, Quser_ptr, Quser_ptrp,   XUSER_PTR,
+    Qraw_text, Qreturn, Qstring, Quser_ptr, Quser_ptrp, XUSER_PTR,
 };
 
 use crossbeam::channel::{Receiver, Sender};
-use lisp_macros::{lisp_fn};
+use lisp_macros::{async_stream, lisp_fn};
 use std::thread;
 
 use std::{
