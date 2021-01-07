@@ -2,8 +2,9 @@ use std::ptr;
 
 use lazy_static::lazy_static;
 
-use crate::{
-    frame::LispFrameRef,
+use crate::frame::LispFrameRef;
+
+use lisp::{
     lisp::{ExternalPtr, LispObject},
     remacs_sys::{font, font_driver, font_metrics, frame, glyph_string, Qwr},
 };

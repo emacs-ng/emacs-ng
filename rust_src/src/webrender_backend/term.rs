@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 
 use super::display_info::{DisplayInfo, DisplayInfoRef};
 
-use crate::{
+use lisp::{
     lisp::{ExternalPtr, LispObject},
     remacs_sys::{
         allocate_kboard, create_terminal, current_kboard, frame_parm_handler, gui_set_font,
