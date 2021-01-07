@@ -63,10 +63,10 @@ mod ng_async;
 mod parsing;
 mod javascript;
 
-// #[cfg(feature = "window-system-webrender")]
-// mod webrender_backend;
-// #[cfg(feature = "window-system-webrender")]
-// mod wrterm;
+#[cfg(feature = "window-system-webrender")]
+mod webrender_backend;
+#[cfg(feature = "window-system-webrender")]
+mod wrterm;
 
 #[cfg(feature = "window-system-webrender")]
 pub use crate::wrterm::{tip_frame, wr_display_list};
