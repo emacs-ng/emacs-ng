@@ -12,7 +12,7 @@ use crate::{
     remacs_sys::Aligned_Lisp_Subr,
     remacs_sys::EmacsInt,
     remacs_sys::{
-        make_user_ptr, EmacsUint, Lisp_Bits, Lisp_Type, Qnil, Qstring, Qt, Quser_ptr, Quser_ptrp,
+        EmacsUint, Lisp_Bits, Lisp_Type, Qnil, Qt, Quser_ptrp,
         USER_PTRP, USE_LSB_TAG, VALMASK, XUSER_PTR,
     },
 };
