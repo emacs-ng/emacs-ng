@@ -876,10 +876,10 @@ pub fn eval_ts_region(start: LispObject, end: LispObject) -> LispObject {
 /// js-initialize takes arguments that allow the JavaScript runtime
 /// to be customized:
 ///
-/// :allow-net nil - Will prevent JS from accessing the network
-/// :allow-write nil - Will prevent JS from writing to the file system
-/// :allow-read nil - Will prevent JS from reading the file system
-/// :allow-run nil - Will prevent JS from executing sub-processes
+/// :allow-net nil - Prevents JS from accessing the network
+/// :allow-write nil - Prevents JS from writing to the file system
+/// :allow-read nil - Prevents JS from reading the file system
+/// :allow-run nil - Prevents JS from executing sub-processes
 /// :js-tick-rate - Defaults to 0.1. This is the interval that js
 /// will evaluate if there are any resolved pending async operations
 /// and execute callbacks.
