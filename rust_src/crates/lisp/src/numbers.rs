@@ -1,5 +1,8 @@
 //! Functions operating on numbers.
 
+// This was ported over from remacs, but isn't used yet. Comment this functionality
+// in as you need it, but we want to avoid unused code or #[allow(dead_code)]
+
 // use crate::{
 //     lisp::LispObject,
 //     remacs_sys::{
