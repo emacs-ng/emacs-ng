@@ -54,7 +54,6 @@ fn is_user_ptr(o: LispObject) -> bool {
     unsafe { Fuser_ptrp(o).into() }
 }
 
-// impl LispObject {
 fn to_data_option(obj: LispObject) -> Option<PipeDataOption> {
     match obj {
         Qstring => Some(String::marker()),
@@ -69,7 +68,6 @@ fn from_data_option(option: PipeDataOption) -> LispObject {
         PipeDataOption::USER_DATA => Quser_ptr,
     }
 }
-// }
 
 /// UserData is a struct used for ease-of-use for turning Rust structs
 /// into Lisp_User_Ptrs. UserData does NOT implement RAII. This means
