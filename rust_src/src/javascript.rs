@@ -182,6 +182,7 @@ impl EmacsMainJsRuntime {
     }
 
     fn get_options() -> EmacsJsOptions {
+        Self::set_default_perms_if_unset();
         Self::access(|main| main.options.clone())
     }
 
@@ -263,7 +264,7 @@ impl EmacsMainJsRuntime {
         Self::access(|main| main.deno_worker.is_some())
     }
 
-    fn set_default_oerms_if_unset() {
+    fn set_default_perms_if_unset() {
         Self::access(|main| {
             if main.options.ops.is_none() {
                 main.options.ops = Some(deno_runtime::permissions::Permissions::allow_all())
@@ -1320,7 +1321,6 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     let runtime = EmacsMainJsRuntime::get_tokio_handle();
     let main_module =
         deno_core::ModuleSpecifier::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
-    EmacsMainJsRuntime::set_default_oerms_if_unset();
     let permissions = js_options.ops.as_ref().unwrap().clone();
     let inspect = if let Some(i) = &js_options.inspect {
         Some(
