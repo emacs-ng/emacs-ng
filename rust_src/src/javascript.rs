@@ -1262,7 +1262,6 @@ fn init_once() -> Result<()> {
             .build()?;
 
         EmacsMainJsRuntime::set_tokio_runtime(runtime);
-        schedule_tick();
     }
 
     Ok(())
@@ -1441,6 +1440,7 @@ fn run_module(
         Ok(())
     })?;
 
+    schedule_tick();
     Ok(lisp::remacs_sys::Qnil)
 }
 
@@ -1487,6 +1487,8 @@ fn schedule_tick() {
 
 #[lisp_fn]
 pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
+    schedule_tick();
+
     // If we are within the runtime, we don't want to attempt to
     // call execute, as we will error, and there really isn't anything
     // anyone can do about it. Just defer the event loop until
@@ -1501,7 +1503,6 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
         // We can still use this isolate for future promise resolutions
         // instead, just pass to the error handler.
         .unwrap_or_else(|e| handle_error(e, handler));
-    schedule_tick();
     result
 }
 
