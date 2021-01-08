@@ -1252,7 +1252,7 @@ fn tick_js() -> Result<()> {
     })
 }
 
-fn init_once(js_options: &EmacsJsOptions) -> Result<()> {
+fn init_once() -> Result<()> {
     if !EmacsMainJsRuntime::is_tokio_active() {
         let runtime = tokio::runtime::Builder::new()
             .threaded_scheduler()
@@ -1262,22 +1262,7 @@ fn init_once(js_options: &EmacsJsOptions) -> Result<()> {
             .build()?;
 
         EmacsMainJsRuntime::set_tokio_runtime(runtime);
-
-        //(run-with-timer t 1 'js-tick-event-loop error-handler)
-        let cstr = CString::new("run-with-timer").expect("Failed to create timer");
-        let callback = CString::new("js-tick-event-loop").expect("Failed to create timer");
-        unsafe {
-            let fun = lisp::remacs_sys::intern_c_string(cstr.as_ptr());
-            let fun_callback = lisp::remacs_sys::intern_c_string(callback.as_ptr());
-            let mut args = vec![
-                fun,
-                lisp::remacs_sys::Qt,
-                lisp::remacs_sys::make_float(js_options.tick_rate),
-                fun_callback,
-                js_options.error_handler,
-            ];
-            lisp::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
-        }
+        schedule_tick();
     }
 
     Ok(())
@@ -1421,7 +1406,7 @@ fn run_module(
     js_options: &EmacsJsOptions,
     as_typescript: bool,
 ) -> Result<LispObject> {
-    init_once(js_options)?;
+    init_once()?;
     init_worker(filepath, js_options)?;
 
     execute(async move {
@@ -1481,6 +1466,25 @@ fn tick() -> Result<()> {
     tick_js()
 }
 
+fn schedule_tick() {
+    let js_options = EmacsMainJsRuntime::get_options();
+    //(run-with-timer t 0.1 'js-tick-event-loop error-handler)
+    let cstr = CString::new("run-with-timer").expect("Failed to create timer");
+    let callback = CString::new("js-tick-event-loop").expect("Failed to create timer");
+    unsafe {
+        let fun = lisp::remacs_sys::intern_c_string(cstr.as_ptr());
+        let fun_callback = lisp::remacs_sys::intern_c_string(callback.as_ptr());
+        let mut args = vec![
+            fun,
+            lisp::remacs_sys::make_float(js_options.tick_rate),
+            lisp::remacs_sys::Qnil,
+            fun_callback,
+            js_options.error_handler,
+        ];
+        lisp::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
+    }
+}
+
 #[lisp_fn]
 pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
     // If we are within the runtime, we don't want to attempt to
@@ -1491,12 +1495,14 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
         return lisp::remacs_sys::Qnil;
     }
 
-    tick()
+    let result = tick()
         .map(|_| lisp::remacs_sys::Qnil)
         // We do NOT want to destroy the MainWorker if we error here.
         // We can still use this isolate for future promise resolutions
         // instead, just pass to the error handler.
-        .unwrap_or_else(|e| handle_error(e, handler))
+        .unwrap_or_else(|e| handle_error(e, handler));
+    schedule_tick();
+    result
 }
 
 // @TODO we actually should call this, since it performs runtime actions.
