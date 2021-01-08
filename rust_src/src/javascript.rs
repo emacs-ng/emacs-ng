@@ -21,6 +21,9 @@ struct EmacsJsOptions {
     inspect: Option<String>,
     inspect_brk: Option<String>,
     use_color: bool,
+    ts_config: Option<String>,
+    no_check: bool,
+    no_remote: bool,
 }
 
 /// In order to smoothly interface with the Lisp VM,
@@ -99,6 +102,9 @@ impl Default for EmacsJsOptions {
             inspect: None,
             inspect_brk: None,
             use_color: false,
+            ts_config: None,
+            no_check: false,
+            no_remote: false,
         }
     }
 }
@@ -780,12 +786,13 @@ const DEFAULT_ADDR: &str = "127.0.0.1:9229";
 const JS_PERMS_ERROR: &str =
     "Valid options are: :allow-net nil :allow-read nil :allow-write nil :allow-run nil";
 fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
-    let mut permissions = deno_runtime::permissions::Permissions::allow_all();
-    let mut tick_rate = 0.1;
-    let mut error_handler = lisp::remacs_sys::Qnil;
-    let mut inspect = None;
-    let mut inspect_brk = None;
-    let mut use_color = false;
+    let mut options = EmacsJsOptions {
+        ops: Some(deno_runtime::permissions::Permissions::allow_all()),
+        ..Default::default()
+    };
+
+    // Safe since it was just set.
+    let permissions = options.ops.as_mut().unwrap();
 
     if args.len() % 2 != 0 {
         error!(JS_PERMS_ERROR);
@@ -825,29 +832,44 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
             }
             lisp::remacs_sys::QCjs_tick_rate => unsafe {
                 if lisp::remacs_sys::FLOATP(value) {
-                    tick_rate = lisp::remacs_sys::XFLOAT_DATA(value);
+                    options.tick_rate = lisp::remacs_sys::XFLOAT_DATA(value);
                 }
             },
             lisp::remacs_sys::QCjs_error_handler => {
-                error_handler = value;
+                options.error_handler = value;
             }
             lisp::remacs_sys::QCinspect => {
                 if value.is_string() {
-                    inspect = Some(value.as_string().unwrap().to_utf8());
+                    options.inspect = Some(value.as_string().unwrap().to_utf8());
                 } else if value == lisp::remacs_sys::Qt {
-                    inspect = Some(DEFAULT_ADDR.to_string());
+                    options.inspect = Some(DEFAULT_ADDR.to_string());
                 }
             }
             lisp::remacs_sys::QCinspect_brk => {
                 if value.is_string() {
-                    inspect_brk = Some(value.as_string().unwrap().to_utf8());
+                    options.inspect_brk = Some(value.as_string().unwrap().to_utf8());
                 } else if value == lisp::remacs_sys::Qt {
-                    inspect_brk = Some(DEFAULT_ADDR.to_string());
+                    options.inspect_brk = Some(DEFAULT_ADDR.to_string());
                 }
             }
             lisp::remacs_sys::QCuse_color => {
                 if value.is_t() {
-                    use_color = true;
+                    options.use_color = true;
+                }
+            }
+            lisp::remacs_sys::QCts_config => {
+                let sref: LispStringRef = value.into();
+                let rstring = sref.to_utf8();
+                options.ts_config = Some(rstring);
+            }
+            lisp::remacs_sys::QCno_check => {
+                if value.is_t() {
+                    options.no_check = true;
+                }
+            }
+            lisp::remacs_sys::QCno_remote => {
+                if value.is_t() {
+                    options.no_remote = true;
                 }
             }
 
@@ -855,14 +877,7 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
         }
     }
 
-    EmacsJsOptions {
-        tick_rate,
-        ops: Some(permissions),
-        error_handler,
-        inspect,
-        inspect_brk,
-        use_color,
-    }
+    options
 }
 
 // I'm keeping the logic simple  for now,
@@ -1058,6 +1073,12 @@ pub fn eval_ts_region(start: LispObject, end: LispObject) -> LispObject {
 /// prior to their code being executed.
 /// :js-error-handler 'function - A function to call if a JS error occures, including
 /// TypeScript compile errors. If not specified, will default to (error ...)
+/// :ts-config PATH - Specifies the file path to your custom tsconfig json file
+/// see https://www.typescriptlang.org/docs/handbook/tsconfig-json.html
+/// :no-check t - disables TypeScript type checking. Can be used to gain performance
+/// when the user does not want or require typechecking
+/// :no-remote t - disables the import of remote files via import statements.
+/// This option still allows network options via calls to fetch(...)
 #[lisp_fn]
 pub fn js_initialize(args: &[LispObject]) -> LispObject {
     let ops = permissions_from_args(args);
@@ -1299,7 +1320,10 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     }
 
     let flags = deno::flags::Flags {
-        unstable: true,
+        unstable: true, // Needed for deno in WebWorkers
+        no_check: js_options.no_check,
+        no_remote: js_options.no_remote,
+        config_path: js_options.ts_config.clone(),
         inspect,
         inspect_brk,
         ..Default::default()
@@ -1528,6 +1552,10 @@ fn init_syms() {
     def_lisp_sym!(QCinspect, ":inspect");
     def_lisp_sym!(QCinspect_brk, ":inspect-brk");
     def_lisp_sym!(QCuse_color, ":use-color");
+
+    def_lisp_sym!(QCts_config, ":ts-config");
+    def_lisp_sym!(QCno_check, ":no-check");
+    def_lisp_sym!(QCno_remote, ":no-remote");
 }
 
 include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
