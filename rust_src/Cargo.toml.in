@@ -18,9 +18,9 @@ lisp-util = { version = "0.1.0", path = "crates/lisp_util" }
 lisp-macros = { version = "0.1.0", path = "crates/lisp_macros" }
 clippy = { version = "*", optional = true }
 cfg-if = "0.1"
-deno_core = { version = "0.75.0", path = "deno/core" }
-deno_runtime = { version = "0.5.0", path = "deno/runtime" }
-deno = { version = "1.6.3", path = "deno/cli" }
+deno_core = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng" }
+deno_runtime = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng" }
+deno = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng" }
 crossbeam = "0.8"
 errno = "0.2"
 field-offset = "0.1"
