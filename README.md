@@ -295,5 +295,20 @@ If the user does not provide an error handler, the default behavior will be to i
 
 We also support WebWorkers, meaning that you can run javascript in seperate threads. Note that WebWorkers cannot interact with the lisp VM, however they can use Deno for async I/O. See test/js/webWorkers.js for an example.
 
-WebAsm.js in test/js/ offers an example of running a WebAsm Module
+Web Assembly allows you to perform things normally handled by native libraries with easy distribution. Want to manipulate sqlite3? Use the [deno sqlite wasm package](https://deno.land/x/sqlite@v2.3.2/mod.ts)
+
+``` js 
+import { DB } from "https://deno.land/x/sqlite@v2.3.2/mod.ts";
+
+const db = new DB("test.db");
+db.query("CREATE TABLE IF NOT EXISTS people (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)");
+
+const name = "David";
+db.query("INSERT INTO people (name) VALUES (?)", [name]);
+for (const [name] of db.query("SELECT name FROM people")) {
+    console.log(name);
+}
+
+db.close();
+```
 
