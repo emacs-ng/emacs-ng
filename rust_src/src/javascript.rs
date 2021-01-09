@@ -1,60 +1,267 @@
 use crate::parsing::{ArrayType, ObjectType};
-use lazy_static::lazy_static;
 use lisp::lisp::LispObject;
 use lisp::lists::{LispCons, LispConsCircularChecks, LispConsEndChecks};
 use lisp::multibyte::LispStringRef;
 use lisp::remacs_sys::Ffuncall;
 use lisp_macros::lisp_fn;
 use rusty_v8 as v8;
-use std::collections::HashMap;
+use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::io::Result;
+use std::mem::MaybeUninit;
 use std::sync::Arc;
-use std::sync::Mutex;
 
-struct EmacsJsRuntime {
-    r: Option<tokio::runtime::Runtime>,
-    w: Option<deno_runtime::worker::MainWorker>,
+#[derive(Clone)]
+struct EmacsJsOptions {
+    tick_rate: f64,
+    ops: Option<deno_runtime::permissions::Permissions>,
+    error_handler: LispObject,
+    inspect: Option<String>,
+    inspect_brk: Option<String>,
+    use_color: bool,
 }
 
-static mut MAIN_RUNTIME: EmacsJsRuntime = EmacsJsRuntime { r: None, w: None };
-static mut WITHIN_RUNTIME: bool = false;
+/// In order to smoothly interface with the Lisp VM,
+/// we maintain a bit of global state, which resides in
+/// a thread local singleton of this struct.
+struct EmacsMainJsRuntime {
+    /// The primary Tokio Runtime used for power Async I/O
+    /// within the deno_worker. Unlike the deno_worker which
+    /// may be destroyed and created multiple times,
+    /// the tokio runtime is only created once.
+    tokio_runtime: Option<tokio::runtime::Runtime>,
+    /// The Primary deno worker, which contains the v8
+    /// isolate. Used to execute javascript and interface
+    /// with the deno runtime.
+    deno_worker: Option<deno_runtime::worker::MainWorker>,
+    /// If we are within the current tokio runtime. If we
+    /// are within the runtime, we cannot call worker.execute
+    /// or worker.execute_module due to a Deno bug. This means
+    /// we need to execute an alternative code path for JavaScript
+    /// See 'stacked_v8_handle'
+    within_runtime: bool,
+    /// In order to allow users to re-eval modules upon multiple calls
+    /// to (eval-js-file), we append a unique module id and timestamp
+    /// to every module evaluation.
+    module_counter: u64,
+    /// In order to allow for JS -> Lisp -> JS calls, we would need
+    /// a valid HandleScope to use. Due to the way Deno is designed,
+    /// we cannot just use the Global HandleScrope from the v8::Isolate,
+    /// If a HandleScope is above us on the stack, we need to use THAT HandleScope
+    /// if we are not provided one, OR we can create a new HandleScope NOT from
+    /// the v8 Isolate. Due to this, when we call a JS function that may go
+    /// JS -> Lisp -> JS (or even deeper, say JS -> Lisp -> JS -> Lisp -> JS),
+    /// we store the pointer value of the current handle scope. By doing this,
+    /// WE BREAK RUST'S BIGGEST RULE, and create two mutable references to
+    /// the same variable. However, the only above us on the stack
+    /// cannot be touched, by careful design. The native C++ doesn't know about
+    /// lifetimes or Rust's rules, so doing this doesn't affect the underlying v8.
+    /// This is inheriently fragile, but we do it in a very
+    /// careful way that really only makes it a valid lifetime extension.
+    /// If there is every a stray SEGFAULT or general issue with this class,
+    /// it will likely be caused by mishandling of this variable.
+    stacked_v8_handle: Option<*mut v8::HandleScope<'static>>,
+    /// The optiosn passed to (js-initialize) to customize the
+    /// JS runtime.
+    options: EmacsJsOptions,
+    /// Proxies are created by a global template, stored in this
+    /// field
+    proxy_template: Option<v8::Global<v8::ObjectTemplate>>,
+    /// The deno program state for our worker. Usually not touched,
+    /// it may be sometimes references to refer to certain variables
+    /// not stored in EmacsJsOptions.
+    program_state: Option<Arc<deno::program_state::ProgramState>>,
+}
 
-impl EmacsJsRuntime {
-    fn runtime() -> &'static mut EmacsJsRuntime {
-        unsafe { &mut MAIN_RUNTIME }
+impl Default for EmacsMainJsRuntime {
+    fn default() -> Self {
+        Self {
+            tokio_runtime: None,
+            deno_worker: None,
+            within_runtime: false,
+            module_counter: 0,
+            stacked_v8_handle: None,
+            options: EmacsJsOptions::default(),
+            proxy_template: None,
+            program_state: None,
+        }
     }
+}
 
-    fn handle() -> tokio::runtime::Handle {
-        let runtime = Self::runtime();
-        let roption: &Option<tokio::runtime::Runtime> = &runtime.r;
-        roption.as_ref().unwrap().handle().clone()
+impl Default for EmacsJsOptions {
+    fn default() -> Self {
+        Self {
+            tick_rate: 0.1,
+            ops: None,
+            error_handler: lisp::remacs_sys::Qnil,
+            inspect: None,
+            inspect_brk: None,
+            use_color: false,
+        }
     }
+}
 
-    fn worker() -> &'static mut deno_runtime::worker::MainWorker {
-        let runtime = Self::runtime();
-        runtime.w.as_mut().unwrap()
+impl Drop for EmacsMainJsRuntime {
+    fn drop(&mut self) {
+        if let Some(runtime) = self.tokio_runtime.take() {
+            // This is to prevent a panic if we are dropping within an async runtime.
+            // The only time we drop this is during program shutdown, or thread shutdown,
+            // and in either case, we don't want to block on pending tasks, or panic in
+            // general.
+            runtime.shutdown_background();
+        }
     }
+}
 
-    fn destroy_worker() {
-        let runtime = Self::runtime();
-        if runtime.w.is_some() {
-            runtime.w.take();
+thread_local! {
+    static MAIN: RefCell<EmacsMainJsRuntime> = RefCell::new(EmacsMainJsRuntime::default());
+}
+
+struct MainWorkerHandle {
+    worker: Option<deno_runtime::worker::MainWorker>,
+}
+
+impl Drop for MainWorkerHandle {
+    fn drop(&mut self) {
+        EmacsMainJsRuntime::set_deno_worker(self.worker.take().unwrap());
+    }
+}
+
+impl MainWorkerHandle {
+    fn new(worker: deno_runtime::worker::MainWorker) -> Self {
+        Self {
+            worker: Some(worker),
         }
     }
 
-    fn set_worker(w: deno_runtime::worker::MainWorker) {
-        Self::runtime().w = Some(w);
+    fn as_mut_ref(&mut self) -> &mut deno_runtime::worker::MainWorker {
+        self.worker.as_mut().unwrap()
+    }
+}
+
+impl EmacsMainJsRuntime {
+    fn access<F: Sized, T: FnOnce(&mut std::cell::RefMut<'_, EmacsMainJsRuntime>) -> F>(t: T) -> F {
+        let mut input: MaybeUninit<F> = MaybeUninit::<F>::uninit();
+        let input_ref = &mut input;
+        MAIN.with(move |main| {
+            let mut x = main.borrow_mut();
+            input_ref.write(t(&mut x));
+        });
+
+        unsafe { input.assume_init() }
     }
 
-    fn main_worker_active() -> bool {
-        Self::runtime().w.is_some()
+    fn set_program_state(program: Arc<deno::program_state::ProgramState>) {
+        Self::access(move |main| main.program_state = Some(program));
     }
 
-    fn set_runtime(r: tokio::runtime::Runtime) {
-        Self::runtime().r = Some(r);
+    fn get_program_state() -> Arc<deno::program_state::ProgramState> {
+        Self::access(|main| main.program_state.as_ref().unwrap().clone())
+    }
+
+    fn set_proxy_template(global: v8::Global<v8::ObjectTemplate>) {
+        Self::access(move |main| main.proxy_template = Some(global));
+    }
+
+    fn get_proxy_template() -> v8::Global<v8::ObjectTemplate> {
+        Self::access(|main| main.proxy_template.clone().unwrap())
+    }
+
+    fn get_options() -> EmacsJsOptions {
+        Self::set_default_perms_if_unset();
+        Self::access(|main| main.options.clone())
+    }
+
+    fn set_options(options: EmacsJsOptions) {
+        Self::access(move |main| main.options = options);
+    }
+
+    unsafe fn get_stacked_v8_handle<'a>() -> &'a mut v8::HandleScope<'a> {
+        Self::access(|main| {
+            std::mem::transmute::<*mut v8::HandleScope<'static>, &'a mut v8::HandleScope>(
+                main.stacked_v8_handle.unwrap(),
+            )
+        })
+    }
+
+    unsafe fn set_stacked_v8_handle(handle_opt: Option<&mut v8::HandleScope>) {
+        Self::access(|main| {
+            main.stacked_v8_handle = handle_opt.map(|handle| {
+                std::mem::transmute::<&mut v8::HandleScope, *mut v8::HandleScope<'static>>(handle)
+            });
+        });
+    }
+
+    fn get_raw_v8_handle() -> Option<*mut v8::HandleScope<'static>> {
+        Self::access(|main| main.stacked_v8_handle.take())
+    }
+
+    fn set_raw_v8_handle(o: Option<*mut v8::HandleScope<'static>>) {
+        Self::access(move |main| main.stacked_v8_handle = o);
+    }
+
+    fn inc_module_counter() -> u64 {
+        Self::access(|main| {
+            main.module_counter += 1;
+            main.module_counter
+        })
+    }
+
+    fn enter_runtime() {
+        Self::_set_within_runtime(true);
+    }
+
+    fn exit_runtime() {
+        Self::_set_within_runtime(false);
+    }
+
+    fn _set_within_runtime(within_runtime: bool) {
+        Self::access(move |main| main.within_runtime = within_runtime);
+    }
+
+    fn is_within_runtime() -> bool {
+        Self::access(|main| main.within_runtime)
+    }
+
+    fn set_tokio_runtime(r: tokio::runtime::Runtime) {
+        Self::access(move |main| main.tokio_runtime = Some(r));
+    }
+
+    fn get_tokio_handle() -> tokio::runtime::Handle {
+        Self::access(|main| main.tokio_runtime.as_ref().unwrap().handle().clone())
+    }
+
+    fn is_tokio_active() -> bool {
+        Self::access(|main| main.tokio_runtime.is_some())
+    }
+
+    fn destroy_worker() {
+        Self::access(|main| {
+            main.proxy_template = None;
+            main.deno_worker = None;
+        });
+    }
+
+    fn get_deno_worker() -> MainWorkerHandle {
+        Self::access(|main| MainWorkerHandle::new(main.deno_worker.take().unwrap()))
+    }
+
+    fn set_deno_worker(worker: deno_runtime::worker::MainWorker) {
+        Self::access(move |main| main.deno_worker = Some(worker));
+    }
+
+    fn is_main_worker_active() -> bool {
+        Self::access(|main| main.deno_worker.is_some())
+    }
+
+    fn set_default_perms_if_unset() {
+        Self::access(|main| {
+            if main.options.ops.is_none() {
+                main.options.ops = Some(deno_runtime::permissions::Permissions::allow_all())
+            }
+        });
     }
 }
 
@@ -68,39 +275,26 @@ impl EmacsJsRuntime {
 // lead to bad states.
 // Sub-modules can be cached, which in general is fine, we just
 // want our users high level code to be re-executed.
-static mut COUNTER: u64 = 0;
 macro_rules! unique_module {
     ($format: expr) => {{
-        unsafe {
-            COUNTER += 1;
-            let time = std::time::SystemTime::now()
-                .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-            format!($format, COUNTER, time)
-        }
+        let counter = EmacsMainJsRuntime::inc_module_counter();
+        let time = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        format!($format, counter, time)
     }};
 }
 
 macro_rules! unique_module_import {
     ($filename: expr) => {{
-        unsafe {
-            COUNTER += 1;
-            let time = std::time::SystemTime::now()
-                .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-            format!("import '{}#{}{}';", $filename, COUNTER, time)
-        }
+        let counter = EmacsMainJsRuntime::inc_module_counter();
+        let time = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        format!("import '{}#{}{}';", $filename, counter, time)
     }};
-}
-
-lazy_static! {
-    static ref FILE_CACHE: Mutex<HashMap<String, String>> = {
-        {
-            Mutex::new(HashMap::new())
-        }
-    };
 }
 
 // Aligned with code in prelim.js
@@ -112,17 +306,12 @@ const LIST: u32 = 4;
 
 macro_rules! make_proxy {
     ($scope:expr, $lisp:expr) => {{
-        let obj = if let Some(template) = unsafe { g.clone() } {
-            let tpl = template.get($scope);
-            let obj = tpl.new_instance($scope).unwrap();
-            let value = v8::String::new($scope, &$lisp.to_C_unsigned().to_string()).unwrap();
-            let inserted =
-                obj.set_internal_field(0, v8::Local::<v8::Value>::try_from(value).unwrap());
-            assert!(inserted);
-            obj
-        } else {
-            panic!("Proxy Template None, unable  to build proxies");
-        };
+        let template = EmacsMainJsRuntime::get_proxy_template();
+        let tpl = template.get($scope);
+        let obj = tpl.new_instance($scope).unwrap();
+        let value = v8::String::new($scope, &$lisp.to_C_unsigned().to_string()).unwrap();
+        let inserted = obj.set_internal_field(0, v8::Local::<v8::Value>::try_from(value).unwrap());
+        assert!(inserted);
 
         unsafe {
             if lisp::remacs_sys::globals.Vjs_retain_map == lisp::remacs_sys::Qnil {
@@ -462,7 +651,6 @@ unsafe extern "C" fn lisp_handler(
     LispObject::cons(lisp::remacs_sys::Qjs_lisp_error, arg2)
 }
 
-static mut raw_handle: *mut v8::HandleScope = std::ptr::null_mut();
 pub fn lisp_callback(
     mut scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
@@ -512,7 +700,6 @@ pub fn lisp_callback(
         }
     }
 
-    // 'Why are you using mem transmute to store this scope globally?'
     // If you attempt to re-enter JS from a lisp function
     // i.e. js -> lisp -> js, if you were to use "worker.execute",
     // Deno will attempt to create a new handlescope using the
@@ -523,14 +710,19 @@ pub fn lisp_callback(
     // The 'right way' to do  this is to use the handle that is currently
     // on the stack, which is scope. Since JS and Lisp are on the same thread,
     // scope will be alive in the situation we go from js -> lisp -> js. This
-    // is reflected in the stateful variable WITHIN_RUNTIME. If you are
+    // is reflected in EmacsMainJsRuntime. If you are
     // not within the runtime, you can run worker.execute. If you are within
     // the runtime, you mem::transmute this scope and use that.
     // Think of it like passing down scope through every function call until we
     // need it, but in a round about way.
-    // >>> Code touching 'raw_handle' and 'WITHIN_RUNTIME' needs to be
+    // >>> Code touching EmacsMainJsRuntime::{get/set}_stacked_v8_handle or
+    // >>> EmacsMainJsRuntime::{enter/exit}_runtime needs to be
     // >>> managed very carefully. It should not be touched without a good reason.
-    unsafe { raw_handle = std::mem::transmute(scope) };
+    let current = unsafe {
+        let cur = EmacsMainJsRuntime::get_raw_v8_handle();
+        EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope));
+        cur
+    };
     let boxed = Box::new(lisp_args);
     let raw_ptr = Box::into_raw(boxed);
     let results = unsafe {
@@ -542,8 +734,8 @@ pub fn lisp_callback(
     };
 
     unsafe {
-        scope = std::mem::transmute(raw_handle);
-        raw_handle = std::ptr::null_mut();
+        scope = EmacsMainJsRuntime::get_stacked_v8_handle();
+        EmacsMainJsRuntime::set_raw_v8_handle(current);
     }
 
     if results.is_cons() {
@@ -585,33 +777,6 @@ pub fn lisp_callback(
 }
 
 const DEFAULT_ADDR: &str = "127.0.0.1:9229";
-
-struct EmacsJsOptions {
-    tick_rate: f64,
-    ops: Option<deno_runtime::permissions::Permissions>,
-    error_handler: LispObject,
-    inspect: Option<String>,
-    inspect_brk: Option<String>,
-    use_color: bool,
-}
-
-static mut OPTS: EmacsJsOptions = EmacsJsOptions {
-    tick_rate: 0.1,
-    ops: None,
-    error_handler: lisp::remacs_sys::Qnil,
-    inspect: None,
-    inspect_brk: None,
-    use_color: false,
-};
-
-fn set_default_opts_if_unset() {
-    unsafe {
-        if OPTS.ops.is_none() {
-            OPTS.ops = Some(deno_runtime::permissions::Permissions::allow_all());
-        }
-    }
-}
-
 const JS_PERMS_ERROR: &str =
     "Valid options are: :allow-net nil :allow-read nil :allow-write nil :allow-run nil";
 fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
@@ -722,15 +887,15 @@ fn is_typescript(s: &str) -> bool {
 #[lisp_fn(min = "1")]
 pub fn eval_js(args: &[LispObject]) -> LispObject {
     let string_obj: LispStringRef = args[0].into();
-    let ops = unsafe { &OPTS };
+    let ops = EmacsMainJsRuntime::get_options();
     let name = unique_module!("./$anon$lisp${}{}.ts");
     let string = string_obj.to_utf8();
     let is_typescript = args.len() == 3
         && args[1] == lisp::remacs_sys::QCtypescript
         && args[2] == lisp::remacs_sys::Qt;
-    let result = run_module(&name, Some(string), ops, is_typescript).unwrap_or_else(move |e| {
+    let result = run_module(&name, Some(string), &ops, is_typescript).unwrap_or_else(move |e| {
         // See comment in eval-js-file for why we call destroy_worker
-        EmacsJsRuntime::destroy_worker();
+        EmacsMainJsRuntime::destroy_worker();
         handle_error(e, ops.error_handler)
     });
     result
@@ -755,7 +920,7 @@ pub fn eval_js(args: &[LispObject]) -> LispObject {
 #[lisp_fn(min = "1")]
 pub fn eval_js_file(args: &[LispObject]) -> LispObject {
     let filename: LispStringRef = args[0].into();
-    let ops = unsafe { &OPTS };
+    let ops = EmacsMainJsRuntime::get_options();
     let mut module = filename.to_utf8();
     let is_typescript = (args.len() == 3
         && args[1] == lisp::remacs_sys::QCtypescript
@@ -769,7 +934,7 @@ pub fn eval_js_file(args: &[LispObject]) -> LispObject {
     let import = unique_module_import!(module);
     module = unique_module!("./$import${}{}.ts");
 
-    let result = run_module(&module, Some(import), ops, is_typescript).unwrap_or_else(move |e| {
+    let result = run_module(&module, Some(import), &ops, is_typescript).unwrap_or_else(move |e| {
         // If a toplevel module rejects in the Deno
         // framework, it will .unwrap() a bad result
         // in the next call to poll(). This is due to
@@ -781,7 +946,7 @@ pub fn eval_js_file(args: &[LispObject]) -> LispObject {
         // and re-create the isolate. The user impact
         // should be minimal since their module never
         // loaded anyway.
-        EmacsJsRuntime::destroy_worker();
+        EmacsMainJsRuntime::destroy_worker();
         handle_error(e, ops.error_handler)
     });
     result
@@ -896,15 +1061,11 @@ pub fn eval_ts_region(start: LispObject, end: LispObject) -> LispObject {
 #[lisp_fn]
 pub fn js_initialize(args: &[LispObject]) -> LispObject {
     let ops = permissions_from_args(args);
-    unsafe {
-        OPTS = ops;
-    }
-
-    let options = unsafe { &OPTS };
-    run_module("init.js", Some("".to_string()), options, false).unwrap_or_else(move |e| {
+    EmacsMainJsRuntime::set_options(ops.clone());
+    run_module("init.js", Some("".to_string()), &ops, false).unwrap_or_else(move |e| {
         // See comment in eval-js-file for why we call destroy_worker
-        EmacsJsRuntime::destroy_worker();
-        handle_error(e, options.error_handler)
+        EmacsMainJsRuntime::destroy_worker();
+        handle_error(e, ops.error_handler)
     })
 }
 
@@ -912,7 +1073,7 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
 /// reinitalized upon the next call to eval-js*, or to js-initialize
 #[lisp_fn]
 pub fn js_cleanup() -> LispObject {
-    EmacsJsRuntime::destroy_worker();
+    EmacsMainJsRuntime::destroy_worker();
     lisp::remacs_sys::Qnil
 }
 
@@ -997,23 +1158,21 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
 #[lisp_fn(min = "1")]
 pub fn js__reenter(args: &[LispObject]) -> LispObject {
     let retval;
-    if !unsafe { WITHIN_RUNTIME } {
-        let worker = EmacsJsRuntime::worker();
+    if !EmacsMainJsRuntime::is_within_runtime() {
+        let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
+        let worker = worker_handle.as_mut_ref();
         let runtime = &mut worker.js_runtime;
         let context = runtime.global_context();
         let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
-        let stacked = unsafe { raw_handle }; // Should be std::ptr::null_mut()
-        unsafe {
-            raw_handle = scope as *mut v8::HandleScope;
-        };
-        unsafe { WITHIN_RUNTIME = true };
+        unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope)) };
+        EmacsMainJsRuntime::enter_runtime();
         retval = js_reenter_inner(scope, args);
-        unsafe { WITHIN_RUNTIME = false };
-        unsafe { raw_handle = stacked };
+        EmacsMainJsRuntime::exit_runtime();
+        unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(None) };
     } else {
-        let scope: &mut v8::HandleScope = unsafe { std::mem::transmute(raw_handle) };
+        let scope: &mut v8::HandleScope = unsafe { EmacsMainJsRuntime::get_stacked_v8_handle() };
         retval = js_reenter_inner(scope, args);
-        unsafe { raw_handle = std::mem::transmute(scope) };
+        unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope)) };
     }
 
     retval
@@ -1042,16 +1201,19 @@ fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
 
 #[lisp_fn]
 pub fn js__clear(idx: LispObject) -> LispObject {
-    if !unsafe { WITHIN_RUNTIME } {
-        let worker = EmacsJsRuntime::worker();
+    if !EmacsMainJsRuntime::is_within_runtime() {
+        let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
+        let worker = worker_handle.as_mut_ref();
         let runtime = &mut worker.js_runtime;
         let context = runtime.global_context();
         let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
+        EmacsMainJsRuntime::enter_runtime();
         js_clear_internal(scope, idx);
+        EmacsMainJsRuntime::exit_runtime();
     } else {
-        let scope: &mut v8::HandleScope = unsafe { std::mem::transmute(raw_handle) };
+        let scope: &mut v8::HandleScope = unsafe { EmacsMainJsRuntime::get_stacked_v8_handle() };
         js_clear_internal(scope, idx);
-        unsafe { raw_handle = std::mem::transmute(scope) };
+        unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope)) };
     }
 
     lisp::remacs_sys::Qnil
@@ -1062,13 +1224,13 @@ fn into_ioerr<E: Into<Box<dyn std::error::Error + Send + Sync>>>(e: E) -> std::i
 }
 
 fn execute<T: Sized + std::future::Future<Output = Result<()>>>(fnc: T) -> Result<()> {
-    if unsafe { WITHIN_RUNTIME } {
+    if EmacsMainJsRuntime::is_within_runtime() {
         Err(std::io::Error::new(std::io::ErrorKind::Other, "Attempted to execute javascript from lisp within the javascript context. Javascript is not re-entrant, cannot call JS -> Lisp -> JS"))
     } else {
-        let handle = EmacsJsRuntime::handle();
-        unsafe { WITHIN_RUNTIME = true };
+        let handle = EmacsMainJsRuntime::get_tokio_handle();
+        EmacsMainJsRuntime::enter_runtime();
         let result = handle.block_on(fnc);
-        unsafe { WITHIN_RUNTIME = false };
+        EmacsMainJsRuntime::exit_runtime();
         result
     }
 }
@@ -1076,7 +1238,8 @@ fn execute<T: Sized + std::future::Future<Output = Result<()>>>(fnc: T) -> Resul
 fn tick_js() -> Result<()> {
     execute(async move {
         futures::future::poll_fn(|cx| {
-            let w = EmacsJsRuntime::worker();
+            let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
+            let w = worker_handle.as_mut_ref();
             let polled = w.poll_event_loop(cx);
             match polled {
                 std::task::Poll::Ready(r) => r.map_err(|e| into_ioerr(e))?,
@@ -1088,67 +1251,30 @@ fn tick_js() -> Result<()> {
         .await
     })
 }
-static mut FAILED_TO_INIT: bool = false;
-static ONCE: std::sync::Once = std::sync::Once::new();
-fn init_once(js_options: &EmacsJsOptions) -> Result<()> {
-    if unsafe { FAILED_TO_INIT } {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Javascript environment failed to initalize, cannot run JS code",
-        ));
+
+fn init_once() -> Result<()> {
+    if !EmacsMainJsRuntime::is_tokio_active() {
+        let runtime = tokio::runtime::Builder::new()
+            .threaded_scheduler()
+            .enable_io()
+            .enable_time()
+            .max_threads(32)
+            .build()?;
+
+        EmacsMainJsRuntime::set_tokio_runtime(runtime);
     }
 
-    let mut once_result: Result<()> = Ok(());
-    ONCE.call_once(|| {
-        let indirect = || -> Result<()> {
-            let runtime = tokio::runtime::Builder::new()
-                .threaded_scheduler()
-                .enable_io()
-                .enable_time()
-                .max_threads(32)
-                .build()?;
-
-            EmacsJsRuntime::set_runtime(runtime);
-
-            //(run-with-timer t 1 'js-tick-event-loop error-handler)
-            let cstr = CString::new("run-with-timer").expect("Failed to create timer");
-            let callback = CString::new("js-tick-event-loop").expect("Failed to create timer");
-            unsafe {
-                let fun = lisp::remacs_sys::intern_c_string(cstr.as_ptr());
-                let fun_callback = lisp::remacs_sys::intern_c_string(callback.as_ptr());
-                let mut args = vec![
-                    fun,
-                    lisp::remacs_sys::Qt,
-                    lisp::remacs_sys::make_float(js_options.tick_rate),
-                    fun_callback,
-                    js_options.error_handler,
-                ];
-                lisp::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
-            }
-
-            Ok(())
-        };
-        once_result = indirect();
-    });
-
-    if once_result.is_err() {
-        unsafe { FAILED_TO_INIT = true };
-    }
-
-    once_result
+    Ok(())
 }
 
-static mut g: Option<v8::Global<v8::ObjectTemplate>> = None;
-static mut program_state: Option<Arc<deno::program_state::ProgramState>> = None;
 fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
-    if EmacsJsRuntime::main_worker_active() {
+    if EmacsMainJsRuntime::is_main_worker_active() {
         return Ok(());
     }
 
-    let runtime = EmacsJsRuntime::handle();
+    let runtime = EmacsMainJsRuntime::get_tokio_handle();
     let main_module =
         deno_core::ModuleSpecifier::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
-    set_default_opts_if_unset();
     let permissions = js_options.ops.as_ref().unwrap().clone();
     let inspect = if let Some(i) = &js_options.inspect {
         Some(
@@ -1179,11 +1305,8 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
         ..Default::default()
     };
 
-    let program = unsafe {
-        let p = deno::program_state::ProgramState::new(flags).map_err(|e| into_ioerr(e))?;
-        program_state = Some(p);
-        program_state.as_ref().clone().unwrap()
-    };
+    let program = deno::program_state::ProgramState::new(flags).map_err(|e| into_ioerr(e))?;
+    EmacsMainJsRuntime::set_program_state(program.clone());
     let mut worker = deno::create_main_worker(&program, main_module.clone(), permissions);
     let result: Result<deno_runtime::worker::MainWorker> = runtime.block_on(async move {
         let runtime = &mut worker.js_runtime;
@@ -1197,7 +1320,7 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
                 let template = v8::ObjectTemplate::new(scope);
                 template.set_internal_field_count(1);
                 let glob = v8::Global::new(scope, template);
-                unsafe { g = Some(glob) };
+                EmacsMainJsRuntime::set_proxy_template(glob);
                 let obj = v8::Object::new(scope);
                 global.set(scope, name.into(), obj.into());
             }
@@ -1272,7 +1395,7 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     });
 
     let worker = result?;
-    EmacsJsRuntime::set_worker(worker);
+    EmacsMainJsRuntime::set_deno_worker(worker);
     Ok(())
 }
 
@@ -1282,17 +1405,18 @@ fn run_module(
     js_options: &EmacsJsOptions,
     as_typescript: bool,
 ) -> Result<LispObject> {
-    init_once(js_options)?;
+    init_once()?;
     init_worker(filepath, js_options)?;
 
     execute(async move {
-        let w = EmacsJsRuntime::worker();
+        let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
+        let w = worker_handle.as_mut_ref();
         let main_module =
             deno_core::ModuleSpecifier::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
 
         let main_module_url = main_module.as_url().to_owned();
         if let Some(js) = additional_js {
-            let program = unsafe { program_state.as_ref().clone().unwrap() };
+            let program = EmacsMainJsRuntime::get_program_state();
             // We are inserting a fake file into the file cache in order to execute
             // our module.
             let file = deno::file_fetcher::File {
@@ -1316,6 +1440,7 @@ fn run_module(
         Ok(())
     })?;
 
+    schedule_tick();
     Ok(lisp::remacs_sys::Qnil)
 }
 
@@ -1336,26 +1461,49 @@ fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
 }
 
 fn tick() -> Result<()> {
-    init_worker("tick.js", unsafe { &OPTS })?;
+    let ops = EmacsMainJsRuntime::get_options();
+    init_worker("tick.js", &ops)?;
     tick_js()
+}
+
+fn schedule_tick() {
+    let js_options = EmacsMainJsRuntime::get_options();
+    //(run-with-timer t 0.1 'js-tick-event-loop error-handler)
+    let cstr = CString::new("run-with-timer").expect("Failed to create timer");
+    let callback = CString::new("js-tick-event-loop").expect("Failed to create timer");
+    unsafe {
+        let fun = lisp::remacs_sys::intern_c_string(cstr.as_ptr());
+        let fun_callback = lisp::remacs_sys::intern_c_string(callback.as_ptr());
+        let mut args = vec![
+            fun,
+            lisp::remacs_sys::make_float(js_options.tick_rate),
+            lisp::remacs_sys::Qnil,
+            fun_callback,
+            js_options.error_handler,
+        ];
+        lisp::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
+    }
 }
 
 #[lisp_fn]
 pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
+    schedule_tick();
+
     // If we are within the runtime, we don't want to attempt to
     // call execute, as we will error, and there really isn't anything
     // anyone can do about it. Just defer the event loop until
     // we are out of the runtime.
-    if unsafe { WITHIN_RUNTIME } {
+    if EmacsMainJsRuntime::is_within_runtime() {
         return lisp::remacs_sys::Qnil;
     }
 
-    tick()
+    let result = tick()
         .map(|_| lisp::remacs_sys::Qnil)
         // We do NOT want to destroy the MainWorker if we error here.
         // We can still use this isolate for future promise resolutions
         // instead, just pass to the error handler.
-        .unwrap_or_else(|e| handle_error(e, handler))
+        .unwrap_or_else(|e| handle_error(e, handler));
+    result
 }
 
 // @TODO we actually should call this, since it performs runtime actions.
