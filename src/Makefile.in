@@ -45,7 +45,7 @@ MKDIR_P = @MKDIR_P@
 # linked with Emacs or is duplicated by the other stuff below.
 # LIBS = @LIBS@
 LIBOBJS = @LIBOBJS@
-REMACSLIB_NAME=@REMACSLIB_NAME@
+EMACSNGLIB_NAME=@EMACSNGLIB_NAME@
 
 rust_srcdir=$(top_srcdir)/rust_src
 lispsource = $(top_srcdir)/lisp
@@ -688,18 +688,18 @@ $(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE): $(filter-out ./macuvs.h,$(
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
 	$(CARGO_RUN) --release --manifest-path=$(rust_srcdir)/remacs-bindings/Cargo.toml -- $(basename $(notdir $@)) $@
-
-generated-bindings: $(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE)
+	touch $@
 
 cargo_manifest=$(rust_srcdir)/Cargo.toml
-LIBREMACS_ARCHIVE=$(rust_srcdir)/target/$(CARGO_BUILD_DIR)/$(REMACSLIB_NAME)
-$(LIBREMACS_ARCHIVE): globals.h $(rust_srcdir)/src/** $(rust_srcdir)/Cargo.* $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT) generated-bindings
+LIBEMACSNG_ARCHIVE=$(rust_srcdir)/target/$(CARGO_BUILD_DIR)/$(EMACSNGLIB_NAME)
+$(LIBEMACSNG_ARCHIVE): globals.h $(rust_srcdir)/src/** $(rust_srcdir)/crates/lisp/src/** $(rust_srcdir)/crates/lisp_util/** $(rust_srcdir)/crates/lisp_macros/** $(rust_srcdir)/Cargo.* $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT) $(DEFINITIONS_FILE) $(GLOBALS_FILE) $(BINDINGS_FILE)
+	touch $@
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
 	SRC_HASH="$(shell EMACS_CFLAGS="-I../rust_src $(EMACS_CFLAGS)" ../lib-src/hashdir/target/$(CARGO_BUILD_DIR)/hashdir)" \
 	$(CARGO_BUILD) $(CARGO_FLAGS) --manifest-path $(cargo_manifest)
 
-clippy: generated-bindings
+clippy: $(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE)
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
 	$(CARGO_CLIPPY) $(CARGO_FLAGS) --manifest-path $(cargo_manifest)
@@ -721,7 +721,7 @@ check check-maybe check-expensive: $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/h
 	$(CARGO_TEST) $(CARGO_FLAGS) --manifest-path $(cargo_manifest)
 
 $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT): ${libsrc}/hashdir/Cargo.toml ${libsrc}/hashdir/src/main.rs
-	RUSTFLAGS="$(RUSTFLAGS)" $(CARGO_BUILD) --manifest-path=${libsrc}/hashdir/Cargo.toml
+	RUSTFLAGS="$(RUSTFLAGS)" $(CARGO_BUILD) $(CARGO_FLAGS) --manifest-path=${libsrc}/hashdir/Cargo.toml
 
 $(ALLOBJS): globals.h
 
@@ -740,7 +740,7 @@ endif
 ## existence when setting Vinstallation_directory (FIXME?).
 ## This goes on to affect various things, and the emacs binary fails
 ## to start if Vinstallation_directory has the wrong value.
-temacs$(EXEEXT): $(LIBXMENU) $(ALLOBJS) $(LIBREMACS_ARCHIVE) $(RUSTFLAGS_FILE) $(LIBEGNU_ARCHIVE) $(EMACSRES) \
+temacs$(EXEEXT): $(LIBXMENU) $(ALLOBJS) $(LIBEMACSNG_ARCHIVE) $(RUSTFLAGS_FILE) $(LIBEGNU_ARCHIVE) $(EMACSRES) \
   $(charsets) $(charscript) $(MAKE_PDUMPER_FINGERPRINT)
 	$(AM_V_CCLD)$(CC) -o $@.tmp \
 	  $(ALL_CFLAGS) $(TEMACS_LDFLAGS) $(LDFLAGS) \

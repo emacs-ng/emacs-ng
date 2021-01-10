@@ -5653,14 +5653,17 @@ AC_SUBST(CARGO_FLAGS)
 case "${opsys}" in
   darwin) RUST_DEPS="-ldl -lm -lresolv"
         REMACSLIB_NAME="libremacs_lib.a"
+        EMACSNGLIB_NAME="libemacsng.a"
         REMACSLIB_CFLAGS="-pthread -DEMACS_EXTERN_INLINE" ;;
   gnu*) RUST_DEPS="-ldl -lm -lrt"
         REMACSLIB_NAME="libremacs_lib.a"
+        EMACSNGLIB_NAME="libemacsng.a"
         REMACSLIB_CFLAGS="-pthread -DEMACS_EXTERN_INLINE" ;;
 esac
 
 if test "${HAVE_W32}" = "yes"; then
     REMACSLIB_NAME="remacs_lib.lib"
+    EMACSNGLIB_NAME="libemacsng.lib"
     RUST_DEPS="$RUST_DEPS -lws2_32 -luserenv"
 
     # Windows fails linking in the 'cargo test' stage, skip for now.
@@ -5682,6 +5685,7 @@ AC_SUBST(LIB_REMACS)
 AC_SUBST(RUST_DEPS)
 AC_SUBST(REMACSLIB_CFLAGS)
 AC_SUBST(REMACSLIB_NAME)
+AC_SUBST(EMACSNGLIB_NAME)
 AC_SUBST(CARGO_TEST)
 
 if test "${opsys}" = "mingw32"; then
