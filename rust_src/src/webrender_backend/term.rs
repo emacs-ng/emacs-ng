@@ -5,32 +5,16 @@ use lazy_static::lazy_static;
 use super::display_info::{DisplayInfo, DisplayInfoRef};
 
 use lisp::{
+    keyboard::allocate_keyboard,
     lisp::{ExternalPtr, LispObject},
     remacs_sys::{
-        allocate_kboard, create_terminal, current_kboard, frame_parm_handler, gui_set_font,
-        gui_set_font_backend, initial_kboard, output_method, redisplay_interface, terminal,
-        xlispstrdup, Fcons, Qnil, Qwr, KBOARD,
+        create_terminal, current_kboard, frame_parm_handler, gui_set_font, gui_set_font_backend,
+        initial_kboard, output_method, redisplay_interface, terminal, xlispstrdup, Fcons, Qnil,
+        Qwr,
     },
 };
 
 pub type TerminalRef = ExternalPtr<terminal>;
-
-impl Default for TerminalRef {
-    fn default() -> Self {
-        Self::new(ptr::null_mut())
-    }
-}
-
-pub type KboardRef = ExternalPtr<KBOARD>;
-
-impl KboardRef {
-    pub fn add_ref(&mut self) {
-        (*self).reference_count = (*self).reference_count + 1;
-    }
-}
-
-type RedisplayInterfaceRef = ExternalPtr<redisplay_interface>;
-unsafe impl Sync for RedisplayInterfaceRef {}
 
 fn get_frame_parm_handlers() -> [frame_parm_handler; 47] {
     // Keep this list in the same order as frame_parms in frame.c.
@@ -88,11 +72,14 @@ fn get_frame_parm_handlers() -> [frame_parm_handler; 47] {
     handlers
 }
 
+struct RedisplayInterface(pub redisplay_interface);
+unsafe impl Sync for RedisplayInterface {}
+
 lazy_static! {
-    static ref REDISPLAY_INTERFACE: RedisplayInterfaceRef = {
+    static ref REDISPLAY_INTERFACE: RedisplayInterface = {
         let frame_parm_handlers = Box::new(get_frame_parm_handlers());
 
-        let interface = Box::new(redisplay_interface {
+        let interface = redisplay_interface {
             frame_parm_handlers: (Box::into_raw(frame_parm_handlers)) as *mut Option<_>,
             produce_glyphs: None,
             write_glyphs: None,
@@ -121,9 +108,9 @@ lazy_static! {
             shift_glyphs_for_insert: None,
             show_hourglass: None,
             hide_hourglass: None,
-        });
+        };
 
-        RedisplayInterfaceRef::new(Box::into_raw(interface))
+        RedisplayInterface(interface)
     };
 }
 
@@ -139,15 +126,15 @@ fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     let terminal_ptr = unsafe {
         create_terminal(
             output_method::output_wr,
-            REDISPLAY_INTERFACE.clone().as_mut(),
+            &REDISPLAY_INTERFACE.0 as *const _ as *mut _,
         )
     };
     let mut terminal = TerminalRef::new(terminal_ptr);
 
     // Link terminal and dpyinfo together
-    terminal.display_info.wr = dpyinfo.as_mut();
+    terminal.display_info.wr = dpyinfo.get_raw().as_mut();
     dpyinfo.get_inner().terminal = terminal;
-    dpyinfo.terminal = terminal.as_mut();
+    dpyinfo.get_raw().terminal = terminal.as_mut();
 
     //TODO: add terminal hook
     // Other hooks are NULL by default.
@@ -162,7 +149,8 @@ pub fn wr_term_init(display_name: LispObject) -> DisplayInfoRef {
 
     let mut terminal = wr_create_terminal(dpyinfo_ref);
 
-    let mut kboard = KboardRef::new(unsafe { allocate_kboard(Qwr) });
+    let mut kboard = allocate_keyboard(Qwr);
+
     terminal.kboard = kboard.as_mut();
 
     // Don't let the initial kboard remain current longer than necessary.
@@ -176,11 +164,14 @@ pub fn wr_term_init(display_name: LispObject) -> DisplayInfoRef {
 
     kboard.add_ref();
 
-    dpyinfo_ref.name_list_element = unsafe { Fcons(display_name, Qnil) };
+    {
+        let mut dpyinfo_ref = dpyinfo_ref.get_raw();
+        dpyinfo_ref.name_list_element = unsafe { Fcons(display_name, Qnil) };
 
-    // https://lists.gnu.org/archive/html/emacs-devel/2015-11/msg00194.html
-    dpyinfo_ref.smallest_font_height = 1;
-    dpyinfo_ref.smallest_char_width = 1;
+        // https://lists.gnu.org/archive/html/emacs-devel/2015-11/msg00194.html
+        dpyinfo_ref.smallest_font_height = 1;
+        dpyinfo_ref.smallest_char_width = 1;
+    }
 
     // Set the name of the terminal.
     terminal.name = unsafe { xlispstrdup(display_name) };

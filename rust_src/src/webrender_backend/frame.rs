@@ -1,4 +1,6 @@
 use lisp::{
+    frame::LispFrameRef,
+    keyboard::KeyboardRef,
     lisp::LispObject,
     remacs_sys::{
         make_frame, make_frame_without_minibuffer, make_minibuffer_frame, output_method, Qnil,
@@ -6,21 +8,16 @@ use lisp::{
     },
 };
 
-use crate::{
-    frame::LispFrameRef,
-};
-
 use super::{
     display_info::DisplayInfoRef,
     output::{Output, OutputRef},
-    term::KboardRef,
 };
 
 pub fn create_frame(
     display: LispObject,
     dpyinfo: DisplayInfoRef,
     tem: LispObject,
-    mut kb: KboardRef,
+    mut kb: KeyboardRef,
 ) -> LispFrameRef {
     let frame = if tem.eq(Qnone) || tem.is_nil() {
         unsafe { make_frame_without_minibuffer(Qnil, kb.as_mut(), display) }

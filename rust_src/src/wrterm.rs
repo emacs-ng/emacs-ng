@@ -5,17 +5,15 @@ use std::ptr;
 
 use lisp_macros::lisp_fn;
 
-use crate::{
-    frame::LispFrameRef,
-    webrender_backend::{
-        font::{FontRef, FONT_DRIVER},
-        frame::create_frame,
-        output::OutputRef,
-        term::wr_term_init,
-    },
+use crate::webrender_backend::{
+    font::{FontRef, FONT_DRIVER},
+    frame::create_frame,
+    output::OutputRef,
+    term::wr_term_init,
 };
 
 use lisp::{
+    frame::LispFrameRef,
     lisp::{ExternalPtr, LispObject},
     remacs_sys::globals,
     remacs_sys::resource_types::{RES_TYPE_NUMBER, RES_TYPE_STRING, RES_TYPE_SYMBOL},
@@ -288,7 +286,7 @@ pub fn x_create_frame(parms: LispObject) -> LispFrameRef {
     let kb = dpyinfo.get_inner().terminal.kboard;
     let name = unsafe {
         gui_display_get_arg(
-            dpyinfo.as_mut(),
+            dpyinfo.get_raw().as_mut(),
             parms,
             Qname,
             ptr::null(),
@@ -309,7 +307,7 @@ pub fn x_create_frame(parms: LispObject) -> LispFrameRef {
 
     let mut parent = unsafe {
         gui_display_get_arg(
-            dpyinfo.as_mut(),
+            dpyinfo.get_raw().as_mut(),
             parms,
             Qparent_id,
             ptr::null(),
@@ -325,7 +323,7 @@ pub fn x_create_frame(parms: LispObject) -> LispFrameRef {
     if parent.is_not_nil() {}
     let tem = unsafe {
         gui_display_get_arg(
-            dpyinfo.as_mut(),
+            dpyinfo.get_raw().as_mut(),
             parms,
             Qminibuffer,
             CString::new("minibuffer").unwrap().as_ptr(),
@@ -337,7 +335,7 @@ pub fn x_create_frame(parms: LispObject) -> LispFrameRef {
     let mut frame = create_frame(display, dpyinfo, tem, kb.into());
 
     unsafe {
-        register_font_driver(FONT_DRIVER.clone().as_mut(), frame.as_mut());
+        register_font_driver(&FONT_DRIVER.0 as *const _, frame.as_mut());
     };
 
     unsafe {
@@ -383,7 +381,7 @@ pub fn x_open_connection(
 
     // Put this display on the chain.
     unsafe {
-        display_info.next = wr_display_list.as_mut();
+        display_info.get_raw().next = wr_display_list.get_raw().as_mut();
         wr_display_list = display_info;
     }
     Qnil

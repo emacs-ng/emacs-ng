@@ -1,10 +1,7 @@
-use std::ptr;
-
 use lazy_static::lazy_static;
 
-use crate::frame::LispFrameRef;
-
 use lisp::{
+    frame::LispFrameRef,
     lisp::{ExternalPtr, LispObject},
     remacs_sys::{font, font_driver, font_metrics, frame, glyph_string, Qwr},
 };
@@ -12,18 +9,13 @@ use lisp::{
 use super::output::OutputRef;
 
 pub type FontRef = ExternalPtr<font>;
-impl Default for FontRef {
-    fn default() -> Self {
-        FontRef::new(ptr::null_mut())
-    }
-}
 
-type FontDriverRef = ExternalPtr<font_driver>;
-unsafe impl Sync for FontDriverRef {}
+pub struct FontDriver(pub font_driver);
+unsafe impl Sync for FontDriver {}
 
 lazy_static! {
-    pub static ref FONT_DRIVER: FontDriverRef = {
-        let mut font_driver = Box::new(font_driver::default());
+    pub static ref FONT_DRIVER: FontDriver = {
+        let mut font_driver = font_driver::default();
 
         font_driver.type_ = Qwr;
         font_driver.case_sensitive = true;
@@ -37,7 +29,7 @@ lazy_static! {
         font_driver.text_extents = Some(text_extents);
         font_driver.draw = Some(draw);
 
-        FontDriverRef::new(Box::into_raw(font_driver))
+        FontDriver(font_driver)
     };
 }
 
@@ -46,9 +38,9 @@ extern "C" fn get_cache(f: *mut frame) -> LispObject {
     let frame = LispFrameRef::new(f);
     let output: OutputRef = unsafe { frame.output_data.wr.into() };
 
-    let dpyinfo = output.get_inner().display_info;
+    let mut dpyinfo = output.get_inner().display_info;
 
-    dpyinfo.name_list_element
+    dpyinfo.get_raw().name_list_element
 }
 
 #[allow(unused_variables)]

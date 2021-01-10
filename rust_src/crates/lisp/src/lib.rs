@@ -28,6 +28,7 @@ pub mod lisp;
 
 pub mod eval;
 pub mod frame;
+pub mod keyboard;
 pub mod list;
 pub mod multibyte;
 pub mod number;
