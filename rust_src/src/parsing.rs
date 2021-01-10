@@ -1,6 +1,6 @@
 use crate::ng_async::{EmacsPipe, PipeDataOption, UserData, to_owned_userdata};
 use lisp::lisp::LispObject;
-use lisp::lists::{LispCons, LispConsCircularChecks, LispConsEndChecks};
+use lisp::list::{LispCons, LispConsCircularChecks, LispConsEndChecks};
 use lisp::multibyte::LispStringRef;
 use lisp_macros::lisp_fn;
 use lsp_server::{Message, Request, RequestId, Response};
