@@ -2,7 +2,7 @@ use crate::parsing::{ArrayType, ObjectType};
 use lisp::lisp::LispObject;
 use lisp::list::{LispCons, LispConsCircularChecks, LispConsEndChecks};
 use lisp::multibyte::LispStringRef;
-use lisp::remacs_sys::Ffuncall;
+use lisp::generated::Ffuncall;
 use lisp_macros::lisp_fn;
 use rusty_v8 as v8;
 use std::cell::RefCell;
@@ -98,7 +98,7 @@ impl Default for EmacsJsOptions {
         Self {
             tick_rate: 0.1,
             ops: None,
-            error_handler: lisp::remacs_sys::Qnil,
+            error_handler: lisp::generated::Qnil,
             inspect: None,
             inspect_brk: None,
             use_color: false,
@@ -320,13 +320,13 @@ macro_rules! make_proxy {
         assert!(inserted);
 
         unsafe {
-            if lisp::remacs_sys::globals.Vjs_retain_map == lisp::remacs_sys::Qnil {
-                lisp::remacs_sys::globals.Vjs_retain_map =
-                    LispObject::cons($lisp, lisp::remacs_sys::Qnil);
-                lisp::remacs_sys::staticpro(&lisp::remacs_sys::globals.Vjs_retain_map);
+            if lisp::generated::globals.Vjs_retain_map == lisp::generated::Qnil {
+                lisp::generated::globals.Vjs_retain_map =
+                    LispObject::cons($lisp, lisp::generated::Qnil);
+                lisp::generated::staticpro(&lisp::generated::globals.Vjs_retain_map);
             } else {
-                lisp::remacs_sys::globals.Vjs_retain_map =
-                    LispObject::cons($lisp, lisp::remacs_sys::globals.Vjs_retain_map);
+                lisp::generated::globals.Vjs_retain_map =
+                    LispObject::cons($lisp, lisp::generated::globals.Vjs_retain_map);
             }
         }
 
@@ -383,14 +383,14 @@ pub fn lisp_make_finalizer(
 
     let result = unsafe {
         let mut bound = vec![
-            lisp::remacs_sys::Qjs__clear,
-            lisp::remacs_sys::make_fixnum(len.into()),
+            lisp::generated::Qjs__clear,
+            lisp::generated::make_fixnum(len.into()),
         ];
-        let list = lisp::remacs_sys::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
-        let mut lambda = vec![lisp::remacs_sys::Qlambda, lisp::remacs_sys::Qnil, list];
+        let list = lisp::generated::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
+        let mut lambda = vec![lisp::generated::Qlambda, lisp::generated::Qnil, list];
         let lambda_list =
-            lisp::remacs_sys::Flist(lambda.len().try_into().unwrap(), lambda.as_mut_ptr());
-        lisp::remacs_sys::Fmake_finalizer(lambda_list)
+            lisp::generated::Flist(lambda.len().try_into().unwrap(), lambda.as_mut_ptr());
+        lisp::generated::Fmake_finalizer(lambda_list)
     };
 
     let proxy = make_proxy!(scope, result);
@@ -417,28 +417,28 @@ pub fn lisp_make_lambda(
         .uint32_value(scope)
         .unwrap();
 
-    let llen = unsafe { lisp::remacs_sys::make_fixnum(len.into()) };
+    let llen = unsafe { lisp::generated::make_fixnum(len.into()) };
 
     let finalizer = unsafe {
-        let mut bound = vec![lisp::remacs_sys::Qjs__clear, llen];
-        let list = lisp::remacs_sys::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
-        let mut fargs = vec![lisp::remacs_sys::Qand_rest, lisp::remacs_sys::Qalpha];
+        let mut bound = vec![lisp::generated::Qjs__clear, llen];
+        let list = lisp::generated::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
+        let mut fargs = vec![lisp::generated::Qand_rest, lisp::generated::Qalpha];
         let fargs_list =
-            lisp::remacs_sys::Flist(fargs.len().try_into().unwrap(), fargs.as_mut_ptr());
+            lisp::generated::Flist(fargs.len().try_into().unwrap(), fargs.as_mut_ptr());
 
-        let mut lambda = vec![lisp::remacs_sys::Qlambda, fargs_list, list];
+        let mut lambda = vec![lisp::generated::Qlambda, fargs_list, list];
         let lambda_list =
-            lisp::remacs_sys::Flist(lambda.len().try_into().unwrap(), lambda.as_mut_ptr());
-        lisp::remacs_sys::Fmake_finalizer(lambda_list)
+            lisp::generated::Flist(lambda.len().try_into().unwrap(), lambda.as_mut_ptr());
+        lisp::generated::Fmake_finalizer(lambda_list)
     };
 
-    let mut inner = vec![lisp::remacs_sys::Qjs__reenter, llen, finalizer];
+    let mut inner = vec![lisp::generated::Qjs__reenter, llen, finalizer];
     if num_args > 0 {
-        inner.push(lisp::remacs_sys::Qalpha);
+        inner.push(lisp::generated::Qalpha);
     }
 
     let result =
-        unsafe { lisp::remacs_sys::Flist(inner.len().try_into().unwrap(), inner.as_mut_ptr()) };
+        unsafe { lisp::generated::Flist(inner.len().try_into().unwrap(), inner.as_mut_ptr()) };
 
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
@@ -459,7 +459,7 @@ pub fn lisp_string(
     let len = message.len();
     let cstr = CString::new(message).expect("Failed to allocate CString");
     let result =
-        unsafe { lisp::remacs_sys::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap()) };
+        unsafe { lisp::generated::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap()) };
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
     retval.set(r);
@@ -477,7 +477,7 @@ pub fn lisp_fixnum(
         .integer_value(scope)
         .unwrap();
 
-    let result = unsafe { lisp::remacs_sys::make_fixnum(message) };
+    let result = unsafe { lisp::generated::make_fixnum(message) };
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
     retval.set(r);
@@ -495,7 +495,7 @@ pub fn lisp_float(
         .number_value(scope)
         .unwrap();
 
-    let result = unsafe { lisp::remacs_sys::make_float(message) };
+    let result = unsafe { lisp::generated::make_float(message) };
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
     retval.set(r);
@@ -514,9 +514,9 @@ pub fn lisp_intern(
         .unwrap()
         .to_rust_string_lossy(scope);
     let lispobj =
-        LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
+        LispObject::from_C_unsigned(ptrstr.parse::<lisp::generated::EmacsUint>().unwrap());
 
-    let result = unsafe { lisp::remacs_sys::Fintern(lispobj, lisp::remacs_sys::Qnil) };
+    let result = unsafe { lisp::generated::Fintern(lispobj, lisp::generated::Qnil) };
 
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
@@ -548,7 +548,7 @@ pub fn lisp_list(
                 .unwrap()
                 .to_rust_string_lossy(scope);
             let lispobj =
-                LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
+                LispObject::from_C_unsigned(ptrstr.parse::<lisp::generated::EmacsUint>().unwrap());
             lisp_args.push(lispobj);
         } else {
             let error = v8::String::new(scope, "Invalid arguments passed to lisp_invoke. Valid options are String, Function, or Proxy Object").unwrap();
@@ -561,7 +561,7 @@ pub fn lisp_list(
     }
 
     let result = unsafe {
-        lisp::remacs_sys::Flist(lisp_args.len().try_into().unwrap(), lisp_args.as_mut_ptr())
+        lisp::generated::Flist(lisp_args.len().try_into().unwrap(), lisp_args.as_mut_ptr())
     };
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
@@ -583,7 +583,7 @@ pub fn lisp_json(
             .unwrap()
             .to_rust_string_lossy(scope);
         let lispobj =
-            LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
+            LispObject::from_C_unsigned(ptrstr.parse::<lisp::generated::EmacsUint>().unwrap());
 
         if let Ok(json) = crate::parsing::ser(lispobj) {
             parsed = true;
@@ -608,7 +608,7 @@ pub fn finalize(
     _retval: v8::ReturnValue,
 ) {
     let len = args.length();
-    let mut new_list = LispObject::cons(lisp::remacs_sys::Qnil, lisp::remacs_sys::Qnil);
+    let mut new_list = LispObject::cons(lisp::generated::Qnil, lisp::generated::Qnil);
     for i in 0..len {
         let arg = args.get(i);
         if arg.is_object() {
@@ -620,12 +620,12 @@ pub fn finalize(
                 .unwrap()
                 .to_rust_string_lossy(scope);
             let lispobj =
-                LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
+                LispObject::from_C_unsigned(ptrstr.parse::<lisp::generated::EmacsUint>().unwrap());
             new_list = LispObject::cons(lispobj, new_list);
         }
     }
 
-    unsafe { lisp::remacs_sys::globals.Vjs_retain_map = new_list };
+    unsafe { lisp::generated::globals.Vjs_retain_map = new_list };
 }
 
 pub fn is_proxy(
@@ -651,10 +651,10 @@ unsafe extern "C" fn lisp_springboard(arg1: *mut ::libc::c_void) -> LispObject {
 }
 
 unsafe extern "C" fn lisp_handler(
-    _arg1: lisp::remacs_sys::nonlocal_exit::Type,
+    _arg1: lisp::generated::nonlocal_exit::Type,
     arg2: LispObject,
 ) -> LispObject {
-    LispObject::cons(lisp::remacs_sys::Qjs_lisp_error, arg2)
+    LispObject::cons(lisp::generated::Qjs_lisp_error, arg2)
 }
 
 pub fn lisp_callback(
@@ -673,7 +673,7 @@ pub fn lisp_callback(
         .unwrap()
         .to_rust_string_lossy(scope);
     let lispobj =
-        LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
+        LispObject::from_C_unsigned(ptrstr.parse::<lisp::generated::EmacsUint>().unwrap());
     lisp_args.push(lispobj);
 
     for i in 1..len {
@@ -694,7 +694,7 @@ pub fn lisp_callback(
                 .unwrap()
                 .to_rust_string_lossy(scope);
             let lispobj =
-                LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
+                LispObject::from_C_unsigned(ptrstr.parse::<lisp::generated::EmacsUint>().unwrap());
             lisp_args.push(lispobj);
         } else {
             let error = v8::String::new(scope, "Invalid arguments passed to lisp_invoke. Valid options are String, Function, or Proxy Object").unwrap();
@@ -732,7 +732,7 @@ pub fn lisp_callback(
     let boxed = Box::new(lisp_args);
     let raw_ptr = Box::into_raw(boxed);
     let results = unsafe {
-        lisp::remacs_sys::internal_catch_all(
+        lisp::generated::internal_catch_all(
             Some(lisp_springboard),
             raw_ptr as *mut ::libc::c_void,
             Some(lisp_handler),
@@ -746,9 +746,9 @@ pub fn lisp_callback(
 
     if results.is_cons() {
         let cons: LispCons = results.into();
-        if cons.car() == lisp::remacs_sys::Qjs_lisp_error {
+        if cons.car() == lisp::generated::Qjs_lisp_error {
             // Lisp has thrown, so we want to throw a JS exception.
-            let lisp_error_string = unsafe { lisp::remacs_sys::Ferror_message_string(cons.cdr()) };
+            let lisp_error_string = unsafe { lisp::generated::Ferror_message_string(cons.cdr()) };
             let lisp_ref: LispStringRef = lisp_error_string.into();
             let err = lisp_ref.to_utf8();
             let error = v8::String::new(scope, &err).unwrap();
@@ -763,11 +763,11 @@ pub fn lisp_callback(
     // LOGIC, attempt to se, with a version of se that returns an error,
     // if this can't se, it is a proxy, and we will treat it as such.
     let is_primative = unsafe {
-        lisp::remacs_sys::STRINGP(results)
-            || lisp::remacs_sys::FIXNUMP(results)
-            || lisp::remacs_sys::FLOATP(results)
-            || results == lisp::remacs_sys::Qnil
-            || results == lisp::remacs_sys::Qt
+        lisp::generated::STRINGP(results)
+            || lisp::generated::FIXNUMP(results)
+            || lisp::generated::FLOATP(results)
+            || results == lisp::generated::Qnil
+            || results == lisp::generated::Qt
     };
     if is_primative {
         if let Ok(json) = crate::parsing::ser(results) {
@@ -807,67 +807,67 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
         let value = args[i + 1];
 
         match key {
-            lisp::remacs_sys::QCallow_net => {
-                if value == lisp::remacs_sys::Qnil {
+            lisp::generated::QCallow_net => {
+                if value == lisp::generated::Qnil {
                     permissions.net.global_state =
                         deno_runtime::permissions::PermissionState::Denied;
                 }
             }
-            lisp::remacs_sys::QCallow_read => {
-                if value == lisp::remacs_sys::Qnil {
+            lisp::generated::QCallow_read => {
+                if value == lisp::generated::Qnil {
                     permissions.read.global_state =
                         deno_runtime::permissions::PermissionState::Denied;
                 }
             }
-            lisp::remacs_sys::QCallow_write => {
-                if value == lisp::remacs_sys::Qnil {
+            lisp::generated::QCallow_write => {
+                if value == lisp::generated::Qnil {
                     permissions.write.global_state =
                         deno_runtime::permissions::PermissionState::Denied;
                 }
             }
-            lisp::remacs_sys::QCallow_run => {
-                if value == lisp::remacs_sys::Qnil {
+            lisp::generated::QCallow_run => {
+                if value == lisp::generated::Qnil {
                     permissions.run = deno_runtime::permissions::PermissionState::Denied;
                 }
             }
-            lisp::remacs_sys::QCjs_tick_rate => unsafe {
-                if lisp::remacs_sys::FLOATP(value) {
-                    options.tick_rate = lisp::remacs_sys::XFLOAT_DATA(value);
+            lisp::generated::QCjs_tick_rate => unsafe {
+                if lisp::generated::FLOATP(value) {
+                    options.tick_rate = lisp::generated::XFLOAT_DATA(value);
                 }
             },
-            lisp::remacs_sys::QCjs_error_handler => {
+            lisp::generated::QCjs_error_handler => {
                 options.error_handler = value;
             }
-            lisp::remacs_sys::QCinspect => {
+            lisp::generated::QCinspect => {
                 if value.is_string() {
                     options.inspect = Some(value.as_string().unwrap().to_utf8());
-                } else if value == lisp::remacs_sys::Qt {
+                } else if value == lisp::generated::Qt {
                     options.inspect = Some(DEFAULT_ADDR.to_string());
                 }
             }
-            lisp::remacs_sys::QCinspect_brk => {
+            lisp::generated::QCinspect_brk => {
                 if value.is_string() {
                     options.inspect_brk = Some(value.as_string().unwrap().to_utf8());
-                } else if value == lisp::remacs_sys::Qt {
+                } else if value == lisp::generated::Qt {
                     options.inspect_brk = Some(DEFAULT_ADDR.to_string());
                 }
             }
-            lisp::remacs_sys::QCuse_color => {
+            lisp::generated::QCuse_color => {
                 if value.is_t() {
                     options.use_color = true;
                 }
             }
-            lisp::remacs_sys::QCts_config => {
+            lisp::generated::QCts_config => {
                 let sref: LispStringRef = value.into();
                 let rstring = sref.to_utf8();
                 options.ts_config = Some(rstring);
             }
-            lisp::remacs_sys::QCno_check => {
+            lisp::generated::QCno_check => {
                 if value.is_t() {
                     options.no_check = true;
                 }
             }
-            lisp::remacs_sys::QCno_remote => {
+            lisp::generated::QCno_remote => {
                 if value.is_t() {
                     options.no_remote = true;
                 }
@@ -906,8 +906,8 @@ pub fn eval_js(args: &[LispObject]) -> LispObject {
     let name = unique_module!("./$anon$lisp${}{}.ts");
     let string = string_obj.to_utf8();
     let is_typescript = args.len() == 3
-        && args[1] == lisp::remacs_sys::QCtypescript
-        && args[2] == lisp::remacs_sys::Qt;
+        && args[1] == lisp::generated::QCtypescript
+        && args[2] == lisp::generated::Qt;
     let result = run_module(&name, Some(string), &ops, is_typescript).unwrap_or_else(move |e| {
         // See comment in eval-js-file for why we call destroy_worker
         EmacsMainJsRuntime::destroy_worker();
@@ -938,8 +938,8 @@ pub fn eval_js_file(args: &[LispObject]) -> LispObject {
     let ops = EmacsMainJsRuntime::get_options();
     let mut module = filename.to_utf8();
     let is_typescript = (args.len() == 3
-        && args[1] == lisp::remacs_sys::QCtypescript
-        && args[2] == lisp::remacs_sys::Qt)
+        && args[1] == lisp::generated::QCtypescript
+        && args[2] == lisp::generated::Qt)
         || is_typescript(&module);
 
     // This is a hack to allow for our behavior of
@@ -969,14 +969,14 @@ pub fn eval_js_file(args: &[LispObject]) -> LispObject {
 
 fn get_buffer_contents(mut buffer: LispObject) -> LispObject {
     if buffer.is_nil() {
-        buffer = unsafe { lisp::remacs_sys::Fcurrent_buffer() };
+        buffer = unsafe { lisp::generated::Fcurrent_buffer() };
     }
 
     unsafe {
-        let current = lisp::remacs_sys::Fcurrent_buffer();
-        lisp::remacs_sys::Fset_buffer(buffer);
-        let lstring = lisp::remacs_sys::Fbuffer_string();
-        lisp::remacs_sys::Fset_buffer(current);
+        let current = lisp::generated::Fcurrent_buffer();
+        lisp::generated::Fset_buffer(buffer);
+        let lstring = lisp::generated::Fbuffer_string();
+        lisp::generated::Fset_buffer(current);
         lstring
     }
 }
@@ -1006,17 +1006,17 @@ pub fn eval_ts_buffer(buffer: LispObject) -> LispObject {
     let lisp_string = get_buffer_contents(buffer);
     eval_js(&[
         lisp_string,
-        lisp::remacs_sys::QCtypescript,
-        lisp::remacs_sys::Qt,
+        lisp::generated::QCtypescript,
+        lisp::generated::Qt,
     ])
 }
 
 fn get_region(start: LispObject, end: LispObject) -> LispObject {
-    let saved = unsafe { lisp::remacs_sys::save_restriction_save() };
+    let saved = unsafe { lisp::generated::save_restriction_save() };
     unsafe {
-        lisp::remacs_sys::Fnarrow_to_region(start, end);
-        let lstring = lisp::remacs_sys::Fbuffer_string();
-        lisp::remacs_sys::save_restriction_restore(saved);
+        lisp::generated::Fnarrow_to_region(start, end);
+        let lstring = lisp::generated::Fbuffer_string();
+        lisp::generated::save_restriction_restore(saved);
         lstring
     }
 }
@@ -1046,8 +1046,8 @@ pub fn eval_ts_region(start: LispObject, end: LispObject) -> LispObject {
     let lisp_string = get_region(start, end);
     eval_js(&[
         lisp_string,
-        lisp::remacs_sys::QCtypescript,
-        lisp::remacs_sys::Qt,
+        lisp::generated::QCtypescript,
+        lisp::generated::Qt,
     ])
 }
 
@@ -1095,21 +1095,21 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
 #[lisp_fn]
 pub fn js_cleanup() -> LispObject {
     EmacsMainJsRuntime::destroy_worker();
-    lisp::remacs_sys::Qnil
+    lisp::generated::Qnil
 }
 
 fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObject {
     let index = args[0];
 
-    if !unsafe { lisp::remacs_sys::INTEGERP(index) } {
+    if !unsafe { lisp::generated::INTEGERP(index) } {
         error!("Failed to provide proper index to js--reenter");
     }
 
     let value = unsafe {
-        lisp::remacs_sys::check_integer_range(
+        lisp::generated::check_integer_range(
             index,
-            lisp::remacs_sys::intmax_t::MIN,
-            lisp::remacs_sys::intmax_t::MAX,
+            lisp::generated::intmax_t::MIN,
+            lisp::generated::intmax_t::MAX,
         )
     };
 
@@ -1129,11 +1129,11 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
         cons.iter_cars(LispConsEndChecks::on, LispConsCircularChecks::on)
             .for_each(|a| {
                 let is_primative = unsafe {
-                    lisp::remacs_sys::STRINGP(a)
-                        || lisp::remacs_sys::FIXNUMP(a)
-                        || lisp::remacs_sys::FLOATP(a)
-                        || a == lisp::remacs_sys::Qnil
-                        || a == lisp::remacs_sys::Qt
+                    lisp::generated::STRINGP(a)
+                        || lisp::generated::FIXNUMP(a)
+                        || lisp::generated::FLOATP(a)
+                        || a == lisp::generated::Qnil
+                        || a == lisp::generated::Qt
                 };
                 if is_primative {
                     if let Ok(json) = crate::parsing::ser(a) {
@@ -1151,7 +1151,7 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
             });
     }
 
-    let mut retval = lisp::remacs_sys::Qnil;
+    let mut retval = lisp::generated::Qnil;
     if let Some(result) = fnc.call(scope, recv, v8_args.as_slice()) {
         if result.is_string() {
             let a = result.to_string(scope).unwrap().to_rust_string_lossy(scope);
@@ -1168,7 +1168,7 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
                 .unwrap()
                 .to_rust_string_lossy(scope);
             let lispobj =
-                LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
+                LispObject::from_C_unsigned(ptrstr.parse::<lisp::generated::EmacsUint>().unwrap());
             retval = lispobj;
         }
     }
@@ -1201,10 +1201,10 @@ pub fn js__reenter(args: &[LispObject]) -> LispObject {
 
 fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
     let value = unsafe {
-        lisp::remacs_sys::check_integer_range(
+        lisp::generated::check_integer_range(
             idx,
-            lisp::remacs_sys::intmax_t::MIN,
-            lisp::remacs_sys::intmax_t::MAX,
+            lisp::generated::intmax_t::MIN,
+            lisp::generated::intmax_t::MAX,
         )
     };
 
@@ -1237,7 +1237,7 @@ pub fn js__clear(idx: LispObject) -> LispObject {
         unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope)) };
     }
 
-    lisp::remacs_sys::Qnil
+    lisp::generated::Qnil
 }
 
 fn into_ioerr<E: Into<Box<dyn std::error::Error + Send + Sync>>>(e: E) -> std::io::Error {
@@ -1465,7 +1465,7 @@ fn run_module(
     })?;
 
     schedule_tick();
-    Ok(lisp::remacs_sys::Qnil)
+    Ok(lisp::generated::Qnil)
 }
 
 fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
@@ -1477,7 +1477,7 @@ fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
             let len = err_string.len();
             let cstr = CString::new(err_string).expect("Failed to allocate CString");
             let lstring =
-                lisp::remacs_sys::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap());
+                lisp::generated::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap());
             let mut args = vec![handler, lstring];
             Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr())
         }
@@ -1496,16 +1496,16 @@ fn schedule_tick() {
     let cstr = CString::new("run-with-timer").expect("Failed to create timer");
     let callback = CString::new("js-tick-event-loop").expect("Failed to create timer");
     unsafe {
-        let fun = lisp::remacs_sys::intern_c_string(cstr.as_ptr());
-        let fun_callback = lisp::remacs_sys::intern_c_string(callback.as_ptr());
+        let fun = lisp::generated::intern_c_string(cstr.as_ptr());
+        let fun_callback = lisp::generated::intern_c_string(callback.as_ptr());
         let mut args = vec![
             fun,
-            lisp::remacs_sys::make_float(js_options.tick_rate),
-            lisp::remacs_sys::Qnil,
+            lisp::generated::make_float(js_options.tick_rate),
+            lisp::generated::Qnil,
             fun_callback,
             js_options.error_handler,
         ];
-        lisp::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
+        lisp::generated::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
     }
 }
 
@@ -1518,11 +1518,11 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
     // anyone can do about it. Just defer the event loop until
     // we are out of the runtime.
     if EmacsMainJsRuntime::is_within_runtime() {
-        return lisp::remacs_sys::Qnil;
+        return lisp::generated::Qnil;
     }
 
     let result = tick()
-        .map(|_| lisp::remacs_sys::Qnil)
+        .map(|_| lisp::generated::Qnil)
         // We do NOT want to destroy the MainWorker if we error here.
         // We can still use this isolate for future promise resolutions
         // instead, just pass to the error handler.
@@ -1534,7 +1534,7 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
 // for now, we are manually calling 'staticpro'
 #[allow(dead_code)]
 fn init_syms() {
-    defvar_lisp!(Vjs_retain_map, "js-retain-map", lisp::remacs_sys::Qnil);
+    defvar_lisp!(Vjs_retain_map, "js-retain-map", lisp::generated::Qnil);
 
     def_lisp_sym!(Qjs_lisp_error, "js-lisp-error");
     def_lisp_sym!(QCallow_net, ":allow-net");

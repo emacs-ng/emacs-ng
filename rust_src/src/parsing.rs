@@ -11,7 +11,7 @@ use std::io::{BufReader, BufWriter, Error, Result};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 
-use lisp::remacs_sys::{
+use lisp::generated::{
     check_integer_range, hash_lookup, hash_put, intmax_t, make_fixed_natnum, make_float, make_int,
     make_string_from_utf8, make_uint, make_vector, Fcons, Fintern, Flist, Fmake_hash_table,
     Fnreverse, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, QCarray_type, QCfalse,

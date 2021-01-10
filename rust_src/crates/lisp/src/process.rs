@@ -6,7 +6,7 @@ use crate::vector::LispVectorlikeRef;
 
 use crate::{
     lisp::{ExternalPtr, LispObject},
-    remacs_sys::{Lisp_Process, Qprocessp},
+    generated::{Lisp_Process, Qprocessp},
 };
 
 impl LispObject {

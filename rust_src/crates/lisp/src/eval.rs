@@ -1,6 +1,6 @@
 //! Generic Lisp eval functions
 
-use crate::{lisp::LispObject, remacs_sys::signal_or_quit};
+use crate::{lisp::LispObject, generated::signal_or_quit};
 
 /// Signal an error.  Args are ERROR-SYMBOL and associated DATA. This
 /// function does not return.

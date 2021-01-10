@@ -1,7 +1,7 @@
 use lisp::{lisp::LispObject, multibyte::LispStringRef};
 
 use lisp::process::LispProcessRef;
-use lisp::remacs_sys::{
+use lisp::generated::{
     build_string, intern_c_string, make_string_from_utf8, make_user_ptr, Ffuncall,
     Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, Fuser_ptrp,
     QCcoding, QCfilter, QCinchannel, QCname, QCoutchannel, QCplist, QCtype, Qcall, Qdata, Qnil,

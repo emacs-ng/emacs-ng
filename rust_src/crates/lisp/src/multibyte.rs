@@ -38,7 +38,7 @@ use std::slice;
 
 use crate::{
     lisp::{ExternalPtr, LispObject},
-    remacs_sys::{encode_string_utf_8, Lisp_String, Lisp_Type, Qnil, Qstringp, Qt},
+    generated::{encode_string_utf_8, Lisp_String, Lisp_Type, Qnil, Qstringp, Qt},
 };
 
 pub type LispStringRef = ExternalPtr<Lisp_String>;

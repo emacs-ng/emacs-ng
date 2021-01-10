@@ -4,9 +4,9 @@ use libc::c_void;
 
 use crate::{
     lisp::LispObject,
-    remacs_sys::{circular_list, Lisp_Cons, Lisp_Type},
-    remacs_sys::{Fcons, CHECK_IMPURE, MOST_POSITIVE_FIXNUM},
-    remacs_sys::{Qconsp, Qlistp},
+    generated::{circular_list, Lisp_Cons, Lisp_Type},
+    generated::{Fcons, CHECK_IMPURE, MOST_POSITIVE_FIXNUM},
+    generated::{Qconsp, Qlistp},
 };
 
 // Cons support (LispType == 6 | 3)

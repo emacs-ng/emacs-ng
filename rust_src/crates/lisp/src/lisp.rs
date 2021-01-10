@@ -8,10 +8,10 @@ use std::ops::{Deref, DerefMut};
 use libc::{c_void, intptr_t, uintptr_t};
 
 use crate::{
-    remacs_sys::build_string,
-    remacs_sys::Aligned_Lisp_Subr,
-    remacs_sys::EmacsInt,
-    remacs_sys::{
+    generated::build_string,
+    generated::Aligned_Lisp_Subr,
+    generated::EmacsInt,
+    generated::{
         EmacsUint, Lisp_Bits, Lisp_Type, Qnil, Qt, Quser_ptrp,
         USER_PTRP, USE_LSB_TAG, VALMASK, XUSER_PTR,
     },

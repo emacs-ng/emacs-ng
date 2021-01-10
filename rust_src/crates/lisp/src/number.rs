@@ -5,7 +5,7 @@
 
 // use crate::{
 //     lisp::LispObject,
-//     remacs_sys::{
+//     generated::{
 //         EmacsInt, EmacsUint, Lisp_Bits, Lisp_Type, Qintegerp, Qwholenump, EMACS_INT_MAX, INTMASK,
 //         USE_LSB_TAG,
 //     },

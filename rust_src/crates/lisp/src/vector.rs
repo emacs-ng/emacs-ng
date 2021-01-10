@@ -6,7 +6,7 @@ use crate::process::LispProcessRef;
 
 use crate::{
     lisp::{ExternalPtr, LispObject, LispSubrRef},
-    remacs_sys::{
+    generated::{
         pvec_type, Lisp_Type, Lisp_Vector, Lisp_Vectorlike, More_Lisp_Bits, PSEUDOVECTOR_FLAG,
     },
 };

@@ -21,7 +21,7 @@
 extern crate libc;
 
 #[macro_use]
-pub mod remacs_sys;
+pub mod generated;
 #[macro_use]
 pub mod eval_macros;
 pub mod lisp;

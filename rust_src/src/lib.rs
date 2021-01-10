@@ -50,8 +50,8 @@ macro_rules! export_lisp_fns {
 	    #[allow(unused_unsafe)] // just in case the block is empty
 	    unsafe {
 		$(
-		    $(#[$($meta),*])* lisp::remacs_sys::defsubr(
-			concat_idents!(S, $f).as_ptr() as *mut lisp::remacs_sys::Aligned_Lisp_Subr
+		    $(#[$($meta),*])* lisp::generated::defsubr(
+			concat_idents!(S, $f).as_ptr() as *mut lisp::generated::Aligned_Lisp_Subr
 		    );
 		)+
 	    }

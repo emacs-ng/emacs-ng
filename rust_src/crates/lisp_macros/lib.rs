@@ -110,8 +110,8 @@ pub fn lisp_fn(attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
 
     if cfg!(windows) {
         windows_header = quote! {
-            | (std::mem::size_of::<lisp::remacs_sys::Lisp_Subr>()
-               / std::mem::size_of::<lisp::remacs_sys::EmacsInt>()) as libc::ptrdiff_t
+            | (std::mem::size_of::<lisp::generated::Lisp_Subr>()
+               / std::mem::size_of::<lisp::generated::EmacsInt>()) as libc::ptrdiff_t
         };
     }
 
@@ -131,20 +131,20 @@ pub fn lisp_fn(attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
     use lazy_static::lazy_static as #lazy_include;
 
     #[no_mangle]
-    pub static mut #srname: std::mem::MaybeUninit<lisp::remacs_sys::Aligned_Lisp_Subr>
-        = std::mem::MaybeUninit::<lisp::remacs_sys::Aligned_Lisp_Subr>::uninit();
+    pub static mut #srname: std::mem::MaybeUninit<lisp::generated::Aligned_Lisp_Subr>
+        = std::mem::MaybeUninit::<lisp::generated::Aligned_Lisp_Subr>::uninit();
 
         #lazy_include! {
             pub static ref #sname: lisp::lisp::LispSubrRef = {
-                let mut subr = lisp::remacs_sys::Aligned_Lisp_Subr::default();
+                let mut subr = lisp::generated::Aligned_Lisp_Subr::default();
         unsafe {
             let mut subr_ref = subr.s.as_mut();
-            subr_ref.header = lisp::remacs_sys::vectorlike_header {
-            size: ((lisp::remacs_sys::pvec_type::PVEC_SUBR as libc::ptrdiff_t)
-                   << lisp::remacs_sys::More_Lisp_Bits::PSEUDOVECTOR_AREA_BITS)
+            subr_ref.header = lisp::generated::vectorlike_header {
+            size: ((lisp::generated::pvec_type::PVEC_SUBR as libc::ptrdiff_t)
+                   << lisp::generated::More_Lisp_Bits::PSEUDOVECTOR_AREA_BITS)
                 #windows_header,
             };
-            subr_ref.function = lisp::remacs_sys::Lisp_Subr__bindgen_ty_1 {
+            subr_ref.function = lisp::generated::Lisp_Subr__bindgen_ty_1 {
                         #functype: (Some(self::#fname))
             };
             subr_ref.min_args = #min_args;

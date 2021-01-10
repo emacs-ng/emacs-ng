@@ -2,7 +2,7 @@
 
 use crate::{
     lisp::{ExternalPtr, LispObject},
-    remacs_sys::{Lisp_Frame, Lisp_Type},
+    generated::{Lisp_Frame, Lisp_Type},
 };
 
 /// LispFrameRef is a reference to the LispFrame

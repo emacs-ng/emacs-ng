@@ -1,4 +1,4 @@
-use crate::{lisp::LispObject, remacs_sys::pvec_type};
+use crate::{lisp::LispObject, generated::pvec_type};
 
 impl LispObject {
     pub fn is_window(self) -> bool {
