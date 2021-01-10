@@ -1,9 +1,7 @@
 use libc;
 use std::ptr;
 
-use lisp::{lisp::ExternalPtr, remacs_sys::wr_display_info};
-
-use crate::{frame::LispFrameRef};
+use lisp::{frame::LispFrameRef, lisp::ExternalPtr, remacs_sys::wr_display_info};
 
 use super::term::TerminalRef;
 
@@ -15,7 +13,7 @@ pub struct DisplayInfoInner {
 impl Default for DisplayInfoInner {
     fn default() -> Self {
         DisplayInfoInner {
-            terminal: TerminalRef::default(),
+            terminal: TerminalRef::new(ptr::null_mut()),
             focus_frame: LispFrameRef::new(ptr::null_mut()),
         }
     }
@@ -23,38 +21,37 @@ impl Default for DisplayInfoInner {
 
 pub type DisplayInfoInnerRef = ExternalPtr<DisplayInfoInner>;
 
-pub type DisplayInfo = wr_display_info;
+#[derive(Default)]
+#[repr(transparent)]
+pub struct DisplayInfo(wr_display_info);
 
 impl DisplayInfo {
     pub fn new() -> Self {
         let mut df = DisplayInfo::default();
 
         let inner = Box::new(DisplayInfoInner::default());
-        df.inner = Box::into_raw(inner) as *mut libc::c_void;
+        df.0.inner = Box::into_raw(inner) as *mut libc::c_void;
 
         df
     }
 
     pub fn get_inner(&self) -> DisplayInfoInnerRef {
-        DisplayInfoInnerRef::new(self.inner as *mut DisplayInfoInner)
+        DisplayInfoInnerRef::new(self.0.inner as *mut DisplayInfoInner)
+    }
+
+    pub fn get_raw(&mut self) -> ExternalPtr<wr_display_info> {
+        (&mut self.0 as *mut wr_display_info).into()
     }
 }
 
 impl Drop for DisplayInfo {
     fn drop(&mut self) {
-        if self.inner != ptr::null_mut() {
+        if self.0.inner != ptr::null_mut() {
             unsafe {
-                Box::from_raw(self.inner as *mut DisplayInfoInner);
+                Box::from_raw(self.0.inner as *mut DisplayInfoInner);
             }
         }
     }
 }
 
 pub type DisplayInfoRef = ExternalPtr<DisplayInfo>;
-unsafe impl Sync for DisplayInfoRef {}
-
-impl Default for DisplayInfoRef {
-    fn default() -> Self {
-        Self::new(ptr::null_mut())
-    }
-}
