@@ -2,7 +2,7 @@
 
 pub type LispProcessRef = ExternalPtr<Lisp_Process>;
 
-use crate::vectors::LispVectorlikeRef;
+use crate::vector::LispVectorlikeRef;
 
 use crate::{
     lisp::{ExternalPtr, LispObject},

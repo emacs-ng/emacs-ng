@@ -26,11 +26,11 @@ pub mod remacs_sys;
 pub mod eval_macros;
 pub mod lisp;
 
-pub mod numbers;
-pub mod frames;
 pub mod eval;
-pub mod lists;
+pub mod frame;
+pub mod list;
 pub mod multibyte;
+pub mod number;
 pub mod process;
-pub mod vectors;
-pub mod windows;
+pub mod vector;
+pub mod window;

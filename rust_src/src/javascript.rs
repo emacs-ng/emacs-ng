@@ -1,6 +1,6 @@
 use crate::parsing::{ArrayType, ObjectType};
 use lisp::lisp::LispObject;
-use lisp::lists::{LispCons, LispConsCircularChecks, LispConsEndChecks};
+use lisp::list::{LispCons, LispConsCircularChecks, LispConsEndChecks};
 use lisp::multibyte::LispStringRef;
 use lisp::remacs_sys::Ffuncall;
 use lisp_macros::lisp_fn;
