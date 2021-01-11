@@ -1,4 +1,5 @@
 [![](https://badges.gitter.im/emacs-ng/emacs-ng.svg)](https://gitter.im/emacsng/community)
+[![](https://img.shields.io/reddit/subreddit-subscribers/emacsng?label=Join%20r%2Femacsng&style=social)](https://gitter.im/emacsng/community)
 
 <!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
 **Table of Contents**
