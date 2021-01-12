@@ -85,6 +85,7 @@
 	plist: (a) => makePlist(a),
 	array: (a) => makeArray(a),
 	list: (a) => lisp.list.apply(this, a),
+	string: (a) => lisp_string(a),
     };
 
     const stringToLispCache = {};
@@ -334,6 +335,9 @@
 	return retval;
     };
 
+    // We do not call getOrCacheString on purpose here
+    // in case the user manipulates the strings properties
+    // Those properties will be on the cache string.
     const processArgs = (dataArr, container) => {
 	const retval = container || [];
         for (let i = 0; i < dataArr.length; ++i) {
@@ -343,9 +347,6 @@
 		const lambdaDef = getLambdaDef(numArgs, dataArr[i]);
 		const lambda = lisp.list(lisp.q.lambda, args, lambdaDef);
 		retval.push(lambda);
-	    } else if (typeof dataArr[i] === 'string') {
-		let stringProxy = getOrCacheString(dataArr[i]);
-		retval.push(stringProxy);
 	    } else if (typeof dataArr[i] === 'number') {
 		let numProxy = getOrCacheNum(dataArr[i]);
 		retval.push(numProxy);
@@ -415,6 +416,10 @@
         get: function(o, k) {
 	    if (errorFuncs[k]) {
 		throw new Error("Attempting to call non-supported function via javascript invokation (" + k + ")");
+	    }
+
+	    if (k === 'specialForms') {
+		return specialForms;
 	    }
 
 	    if (specialForms[k]) {

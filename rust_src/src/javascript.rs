@@ -76,6 +76,7 @@ struct EmacsMainJsRuntime {
     /// it may be sometimes references to refer to certain variables
     /// not stored in EmacsJsOptions.
     program_state: Option<Arc<deno::program_state::ProgramState>>,
+    within_toplevel: bool,
 }
 
 impl Default for EmacsMainJsRuntime {
@@ -89,6 +90,7 @@ impl Default for EmacsMainJsRuntime {
             options: EmacsJsOptions::default(),
             proxy_template: None,
             program_state: None,
+            within_toplevel: false,
         }
     }
 }
@@ -213,6 +215,22 @@ impl EmacsMainJsRuntime {
             main.module_counter += 1;
             main.module_counter
         })
+    }
+
+    fn _set_toplevel(b: bool) {
+        Self::access(move |main| main.within_toplevel = b);
+    }
+
+    fn enter_toplevel_module() {
+        Self::_set_toplevel(true);
+    }
+
+    fn exit_toplevel_module() {
+        Self::_set_toplevel(false);
+    }
+
+    fn is_within_toplevel_module() -> bool {
+        Self::access(|main| main.within_toplevel)
     }
 
     fn enter_runtime() {
@@ -880,6 +898,27 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
     options
 }
 
+// If a toplevel module rejects in the Deno
+// framework, it will .unwrap() a bad result
+// in the next call to poll(). This is due to
+// assumptions that deno is making about module
+// re-entry after a failure. Even though
+// v8 can handle reusing an isolate after a
+// module fails to load, Deno cannot at this time.
+// So instead, we destroy the main worker,
+// and re-create the isolate. The user impact
+// should be minimal since their module never
+// loaded anyway.
+fn destroy_worker_on_promise_rejection(e: &std::io::Error) {
+    let is_within_toplevel = EmacsMainJsRuntime::is_within_toplevel_module();
+    if is_within_toplevel
+        && e.kind() == std::io::ErrorKind::Other
+        && e.to_string().starts_with("Uncaught (in promise)")
+    {
+        EmacsMainJsRuntime::destroy_worker();
+    }
+}
+
 // I'm keeping the logic simple  for now,
 // if it doesn't end with .js, we will
 // treat it as ts
@@ -908,12 +947,8 @@ pub fn eval_js(args: &[LispObject]) -> LispObject {
     let is_typescript = args.len() == 3
         && args[1] == lisp::remacs_sys::QCtypescript
         && args[2] == lisp::remacs_sys::Qt;
-    let result = run_module(&name, Some(string), &ops, is_typescript).unwrap_or_else(move |e| {
-        // See comment in eval-js-file for why we call destroy_worker
-        EmacsMainJsRuntime::destroy_worker();
-        handle_error(e, ops.error_handler)
-    });
-    result
+
+    run_module(&name, Some(string), &ops, is_typescript)
 }
 
 /// Reads and evaluates FILENAME as a JavaScript module on
@@ -944,27 +979,9 @@ pub fn eval_js_file(args: &[LispObject]) -> LispObject {
 
     // This is a hack to allow for our behavior of
     // executing a module multiple times.
-    // @TODO (DDS) we should revisit if we actually want to
-    // do this.
     let import = unique_module_import!(module);
     module = unique_module!("./$import${}{}.ts");
-
-    let result = run_module(&module, Some(import), &ops, is_typescript).unwrap_or_else(move |e| {
-        // If a toplevel module rejects in the Deno
-        // framework, it will .unwrap() a bad result
-        // in the next call to poll(). This is due to
-        // assumptions that deno is making about module
-        // re-entry after a failure. Even though
-        // v8 can handle reusing an isolate after a
-        // module fails to load, Deno cannot at this time.
-        // So instead, we destroy the main worker,
-        // and re-create the isolate. The user impact
-        // should be minimal since their module never
-        // loaded anyway.
-        EmacsMainJsRuntime::destroy_worker();
-        handle_error(e, ops.error_handler)
-    });
-    result
+    run_module(&module, Some(import), &ops, is_typescript)
 }
 
 fn get_buffer_contents(mut buffer: LispObject) -> LispObject {
@@ -1083,11 +1100,8 @@ pub fn eval_ts_region(start: LispObject, end: LispObject) -> LispObject {
 pub fn js_initialize(args: &[LispObject]) -> LispObject {
     let ops = permissions_from_args(args);
     EmacsMainJsRuntime::set_options(ops.clone());
-    run_module("init.js", Some("".to_string()), &ops, false).unwrap_or_else(move |e| {
-        // See comment in eval-js-file for why we call destroy_worker
-        EmacsMainJsRuntime::destroy_worker();
-        handle_error(e, ops.error_handler)
-    })
+    EmacsMainJsRuntime::enter_toplevel_module();
+    run_module("init.js", Some("".to_string()), &ops, false)
 }
 
 /// Destroys the current JavaScript environment. The JavaScript environment will be
@@ -1423,7 +1437,7 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     Ok(())
 }
 
-fn run_module(
+fn run_module_inner(
     filepath: &str,
     additional_js: Option<String>,
     js_options: &EmacsJsOptions,
@@ -1466,6 +1480,22 @@ fn run_module(
 
     schedule_tick();
     Ok(lisp::remacs_sys::Qnil)
+}
+
+fn run_module(
+    filepath: &str,
+    additional_js: Option<String>,
+    js_options: &EmacsJsOptions,
+    as_typescript: bool,
+) -> LispObject {
+    EmacsMainJsRuntime::enter_toplevel_module();
+    let result = run_module_inner(filepath, additional_js, js_options, as_typescript)
+        .unwrap_or_else(move |e| {
+            destroy_worker_on_promise_rejection(&e);
+            handle_error(e, js_options.error_handler)
+        });
+    EmacsMainJsRuntime::exit_toplevel_module();
+    result
 }
 
 fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
