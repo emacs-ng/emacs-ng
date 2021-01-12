@@ -1,4 +1,4 @@
-use crate::ng_async::{EmacsPipe, PipeDataOption, UserData, to_owned_userdata};
+use crate::ng_async::{to_owned_userdata, EmacsPipe, PipeDataOption, UserData};
 use lisp::lisp::LispObject;
 use lisp::list::{LispCons, LispConsCircularChecks, LispConsEndChecks};
 use lisp::multibyte::LispStringRef;
