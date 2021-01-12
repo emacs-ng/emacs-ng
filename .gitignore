@@ -299,5 +299,3 @@ nt/emacs.rc
 nt/emacsclient.rc
 src/gdb.ini
 /var/
-
-rust_src/Cargo.toml
