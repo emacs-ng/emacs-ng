@@ -1,6 +1,10 @@
 use webrender::{self, api::units::*, api::*};
 
-use super::{font::{WRFontRef, WRFont}, output::OutputRef, util::HandyDandyRectBuilder};
+use super::{
+    font::{WRFont, WRFontRef},
+    output::OutputRef,
+    util::HandyDandyRectBuilder,
+};
 
 use lisp::{glyph::GlyphStringRef, remacs_sys::glyph_type};
 
