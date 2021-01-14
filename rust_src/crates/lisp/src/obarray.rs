@@ -3,12 +3,8 @@
 use crate::{
     lisp::LispObject,
     multibyte::{LispStringRef, LispSymbolOrString},
-    remacs_sys::Qvectorp,
-    remacs_sys::{
-        fatal_error_in_progress, globals, initial_obarray, intern_driver, oblookup, Fpurecopy,
-    },
+    remacs_sys::{check_obarray, globals, intern_driver, oblookup, Fpurecopy},
     symbol::LispSymbolRef,
-    vector::LispVectorRef,
 };
 
 /// A lisp object containing an `obarray`.
@@ -54,23 +50,7 @@ impl LispObarrayRef {
 
     /// Ensure that we have a valid obarray.
     pub fn check(self) -> Self {
-        // We don't want to signal a wrong-type error when we are shutting
-        // down due to a fatal error and we don't want to hit assertions
-        // if the fatal error was during GC.
-        if unsafe { fatal_error_in_progress } {
-            return self;
-        }
-
-        // A valid obarray is a non-empty vector.
-        let v = self.0.as_vector();
-        if v.map_or(0, LispVectorRef::len) == 0 {
-            // If Vobarray is now invalid, force it to be valid.
-            if unsafe { globals.Vobarray }.eq(self.0) {
-                unsafe { globals.Vobarray = initial_obarray };
-            }
-            wrong_type!(Qvectorp, self.0);
-        }
-
+        unsafe { check_obarray(self.0) };
         self
     }
 
