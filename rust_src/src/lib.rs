@@ -39,6 +39,7 @@ extern crate crossbeam;
 extern crate deno;
 extern crate deno_core;
 extern crate deno_runtime;
+extern crate git2;
 extern crate rusty_v8;
 extern crate tokio;
 
@@ -58,6 +59,7 @@ macro_rules! export_lisp_fns {
     }
 }
 
+mod git;
 mod javascript;
 mod ng_async;
 mod parsing;
