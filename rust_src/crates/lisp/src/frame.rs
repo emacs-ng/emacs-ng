@@ -1,14 +1,14 @@
 //! Generic frame functions.
-
-use std::ffi::CString;
-
 use crate::{
     lisp::{ExternalPtr, LispObject},
-    remacs_sys::{
-        frame_dimension, gui_default_parameter, resource_types, vertical_scroll_bar_type,
-        Lisp_Frame, Lisp_Type,
-    },
+    remacs_sys::{frame_dimension, Lisp_Frame, Lisp_Type},
     vector::LispVectorlikeRef,
+};
+
+#[cfg(feature = "window-system")]
+use {
+    crate::remacs_sys::{gui_default_parameter, resource_types, vertical_scroll_bar_type},
+    std::ffi::CString,
 };
 
 /// LispFrameRef is a reference to the LispFrame
@@ -101,6 +101,7 @@ impl LispFrameRef {
             - 2 * self.internal_border_width()
     }
 
+    #[cfg(feature = "window-system")]
     pub fn gui_default_parameter(
         mut self,
         alist: LispObject,
