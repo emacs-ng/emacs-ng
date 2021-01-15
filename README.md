@@ -147,7 +147,7 @@ Contributions are welcome. We try to maintain a list of "new contributor" friend
 # Features
 
 ## Javascript
-This code is a strictly additive layer, it changes no elisp functionality, and should be able to merge upstream patches cleanly. JS tests can be run by building the editor and executing `./src/emacs --batch -l test/js/bootstrap.el`.
+This code is a strictly additive layer, it changes no elisp functionality, and should be able to merge upstream patches cleanly. JS tests can be run by building the editor and executing `cd test && ../src/emacs --batch -l js/bootstrap.el`.
 
 ### Typescript
 emacs-ng supports native typescript. In order to have your script evaluated as typescript, it just needs to end in a typescript extension (like .ts) when using `(eval-js-file)`, or you can pass it the argument `:typescript t`. You can also evaluate anonymous scripts as typescript using `(eval-js "let x: string = '5';" :typescript t)`. If your typescript fails to compile, those functions will throw elisp errors that you can address within your program. Currently, emacs-ng does not provide type definition files for elisp functions, however we welcome contributions to that effort. If you call lisp functions within typescript, ensure you add the following line to your module to ensure that the typescript compiler knows about the global lisp variable: `declare var lisp: any;`
