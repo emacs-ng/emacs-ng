@@ -1,6 +1,6 @@
 /* Fully extensible Emacs, running on Unix, intended for GNU.
 
-Copyright (C) 1985-1987, 1993-1995, 1997-1999, 2001-2020 Free Software
+Copyright (C) 1985-1987, 1993-1995, 1997-1999, 2001-2021 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -1989,12 +1989,7 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
       syms_of_json ();
 #endif
 
-      keys_of_casefiddle ();
-      keys_of_cmds ();
-      keys_of_buffer ();
       keys_of_keyboard ();
-      keys_of_keymap ();
-      keys_of_window ();
 
 #ifdef HAVE_NATIVE_COMP
       /* Must be after the last defsubr has run.  */
@@ -2403,10 +2398,13 @@ all of which are called before Emacs is actually killed.  */
   /* Fsignal calls emacs_abort () if it sees that waiting_for_input is
      set.  */
   waiting_for_input = 0;
-  if (noninteractive)
-    safe_run_hooks (Qkill_emacs_hook);
-  else
-    run_hook (Qkill_emacs_hook);
+  if (!NILP (find_symbol_value (Qkill_emacs_hook)))
+    {
+      if (noninteractive)
+	safe_run_hooks (Qkill_emacs_hook);
+      else
+	call1 (Qrun_hook_query_error_with_timeout, Qkill_emacs_hook);
+    }
 
 #ifdef HAVE_X_WINDOWS
   /* Transfer any clipboards we own to the clipboard manager.  */
@@ -2932,6 +2930,8 @@ syms_of_emacs (void)
   DEFSYM (Qrisky_local_variable, "risky-local-variable");
   DEFSYM (Qkill_emacs, "kill-emacs");
   DEFSYM (Qkill_emacs_hook, "kill-emacs-hook");
+  DEFSYM (Qrun_hook_query_error_with_timeout,
+	  "run-hook-query-error-with-timeout");
 
 #ifdef HAVE_UNEXEC
   defsubr (&Sdump_emacs);
@@ -3084,10 +3084,10 @@ libraries; only those already known by Emacs will be loaded.  */);
 #ifdef WINDOWSNT
   /* We may need to load libgccjit when dumping before term/w32-win.el
      defines `dynamic-library-alist`. This will fail if that variable
-     is empty, so add libgccjit.dll to it.  */
+     is empty, so add libgccjit-0.dll to it.  */
   if (will_dump_p ())
     Vdynamic_library_alist = list1 (list2 (Qgccjit,
-                                           build_string ("libgccjit.dll")));
+                                           build_string ("libgccjit-0.dll")));
   else
     Vdynamic_library_alist = Qnil;
 #else

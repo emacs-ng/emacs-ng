@@ -56,8 +56,9 @@
   "Compile the compiler and load it to compile it-self.
 Check that the resulting binaries do not differ."
   :tags '(:expensive-test :nativecomp)
-  (let* ((comp-src (concat comp-test-directory
-                           "../../lisp/emacs-lisp/comp.el"))
+  (let* ((byte-native-for-bootstrap t) ; FIXME HACK
+         (comp-src (concat comp-test-directory
+                              "../../lisp/emacs-lisp/comp.el"))
          (comp1-src (make-temp-file "stage1-" nil ".el"))
          (comp2-src (make-temp-file "stage2-" nil ".el"))
          ;; Can't use debug symbols.
@@ -395,6 +396,27 @@ https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-03/msg00914.html."
   "<https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-11/msg02357.html>"
   (comp-test-44968-f "/tmp/test/foo" "/tmp"))
 
+(comp-deftest bug-45342 ()
+  "Preserve multibyte immediate strings.
+<https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-12/msg01771.html>"
+  (should (string= " ➊" (comp-test-45342-f 1))))
+
+(comp-deftest assume-double-neg ()
+  "In fwprop assumtions (not (not (member x))) /= (member x)."
+  (should-not (comp-test-assume-double-neg-f "bar" "foo")))
+
+(comp-deftest assume-in-loop-1 ()
+  "Broken call args assumptions lead to infinite loop."
+  (should (equal (comp-test-assume-in-loop-1-f "cd") '("cd"))))
+
+(comp-deftest bug-45376-1 ()
+  "<https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-12/msg01883.html>"
+  (should (equal (comp-test-45376-1-f) '(1 0))))
+
+(comp-deftest bug-45376-2 ()
+  "<https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-12/msg01883.html>"
+  (should (equal (comp-test-45376-2-f) '(0 2 1 0 1 0 1 0 0 0 0 0))))
+
 (defvar comp-test-primitive-advice)
 (comp-deftest primitive-advice ()
   "Test effectiveness of primitive advicing."
@@ -453,9 +475,27 @@ https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-03/msg00914.html."
                  '(1 2 3 (4 5 6))))
   (should (null (comp-test-copy-insn-f nil))))
 
-(comp-deftest comp-test-cond-rw-1 ()
+(comp-deftest cond-rw-1 ()
   "Check cond-rw does not break target blocks with multiple predecessor."
   (should (null (comp-test-cond-rw-1-2-f))))
+
+(comp-deftest not-cons-1 ()
+  (should-not (comp-test-not-cons-f nil)))
+
+(comp-deftest 45576-1 ()
+  "Functionp satisfies also symbols.
+<https://lists.gnu.org/archive/html/bug-gnu-emacs/2021-01/msg00029.html>."
+  (should (eq (comp-test-45576-f) 'eval)))
+
+(comp-deftest 45635-1 ()
+  "<https://lists.gnu.org/archive/html/bug-gnu-emacs/2021-01/msg00158.html>."
+  (should (string= (comp-test-45635-f :height 180 :family "PragmataPro Liga")
+                   "PragmataPro Liga")))
+
+(comp-deftest 45603-1 ()
+  "<https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-12/msg01994.html>"
+  (load (native-compile (concat comp-test-directory "comp-test-45603.el")))
+  (should (fboundp #'comp-test-45603--file-local-name)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;
@@ -770,135 +810,424 @@ Return a list of results."
     (should (subr-native-elisp-p (symbol-function #'comp-tests-fw-prop-1-f)))
     (should (= (comp-tests-fw-prop-1-f) 6))))
 
-(defun comp-tests-check-ret-type-spec (func-form type-specifier)
+(defun comp-tests-check-ret-type-spec (func-form ret-type)
   (let ((lexical-binding t)
-        (speed 2)
-        (comp-post-pass-hooks
-         `((comp-final
-            ,(lambda (_)
-               (let ((f (gethash (comp-c-func-name (cadr func-form) "F" t)
-                                 (comp-ctxt-funcs-h comp-ctxt))))
-                 (should (equal (comp-func-ret-type-specifier f)
-                                type-specifier))))))))
+        (comp-speed 2)
+        (f-name (cl-second func-form)))
     (eval func-form t)
-    (native-compile (cadr func-form))))
+    (native-compile f-name)
+    (should (equal (cl-third (subr-type (symbol-function f-name)))
+                   ret-type))))
 
-(defconst comp-tests-type-spec-tests
-  `(((defun comp-tests-ret-type-spec-f (x)
-       x)
-     t)
+(cl-eval-when (compile eval load)
+  (defconst comp-tests-type-spec-tests
+    `(
+      ;; 1
+      ((defun comp-tests-ret-type-spec-f (x)
+         x)
+       t)
 
-    ((defun comp-tests-ret-type-spec-f ()
-       1)
-     (integer 1 1))
+      ;; 2
+      ((defun comp-tests-ret-type-spec-f ()
+         1)
+       (integer 1 1))
 
-    ((defun comp-tests-ret-type-spec-f (x)
-       (if x 1 3))
-     (or (integer 1 1) (integer 3 3)))
+      ;; 3
+      ((defun comp-tests-ret-type-spec-f (x)
+         (if x 1 3))
+       (or (integer 1 1) (integer 3 3)))
 
-    ((defun comp-tests-ret-type-spec-f (x)
-       (let (y)
+      ;; 4
+      ((defun comp-tests-ret-type-spec-f (x)
+         (let (y)
+           (if x
+               (setf y 1)
+             (setf y 2))
+           y))
+       (integer 1 2))
+
+      ;; 5
+      ((defun comp-tests-ret-type-spec-f (x)
+         (let (y)
+           (if x
+               (setf y 1)
+             (setf y 3))
+           y))
+       (or (integer 1 1) (integer 3 3)))
+
+      ;; 6
+      ((defun comp-tests-ret-type-spec-f (x)
          (if x
-             (setf y 1)
-           (setf y 2))
-         y))
-     (integer 1 2))
+             (list x)
+           3))
+       (or cons (integer 3 3)))
 
-    ((defun comp-tests-ret-type-spec-f (x)
-       (let (y)
+      ;; 7
+      ((defun comp-tests-ret-type-spec-f (x)
          (if x
-             (setf y 1)
-           (setf y 3))
-         y))
-     (or (integer 1 1) (integer 3 3)))
+             'foo
+           3))
+       (or (member foo) (integer 3 3)))
 
-    ((defun comp-tests-ret-type-spec-f (x)
-       (if x
-           (list x)
-         3))
-     (or cons (integer 3 3)))
+      ;; 8
+      ((defun comp-tests-ret-type-spec-f (x)
+         (if (eq x 3)
+             x
+           'foo))
+       (or (member foo) (integer 3 3)))
 
-    ((defun comp-tests-ret-type-spec-f (x)
-       (if x
-           'foo
-         3))
-     (or (member foo) (integer 3 3)))
+      ;; 9
+      ((defun comp-tests-ret-type-spec-f (x)
+         (if (eq 3 x)
+             x
+           'foo))
+       (or (member foo) (integer 3 3)))
 
-    ((defun comp-tests-ret-type-spec-f (x)
-       (if (eq x 3)
-           x
-         'foo))
-     (or (member foo) (integer 3 3)))
+      ;; 10
+      ((defun comp-tests-ret-type-spec-f (x)
+         (if (= x 3)
+             x
+           'foo))
+       (or (member foo) (integer 3 3)))
 
-    ((defun comp-tests-ret-type-spec-f (x)
-       (if (eq 3 x)
-           x
-         'foo))
-     (or (member foo) (integer 3 3)))
+      ;; 11
+      ((defun comp-tests-ret-type-spec-f (x)
+         (if (= 3 x)
+             x
+           'foo))
+       (or (member foo) (integer 3 3)))
 
-    ((defun comp-tests-ret-type-spec-f (x)
-       (if (= x 3)
-           x
-         'foo))
-     (or (member foo) (integer 3 3)))
+      ;; 12
+      ((defun comp-tests-ret-type-spec-f (x)
+         (if (= x 3)
+             'foo
+           x))
+       (or (member foo) marker number))
 
-    ((defun comp-tests-ret-type-spec-f (x)
-       (if (= 3 x)
-           x
-         'foo))
-     (or (member foo) (integer 3 3)))
+      ;; 13
+      ((defun comp-tests-ret-type-spec-f (x y)
+         (if (= x y)
+             x
+           'foo))
+       (or (member foo) marker number))
 
-    ;; FIXME would be nice to have (or number (member foo))
-    ((defun comp-tests-ret-type-spec-8-3-f (x)
-       (if (= x 3)
-           'foo
-         x))
-     t)
+      ;; 14
+      ((defun comp-tests-ret-type-spec-f (x)
+         (comp-hint-fixnum x))
+       (integer ,most-negative-fixnum ,most-positive-fixnum))
 
-    ((defun comp-tests-ret-type-spec-8-4-f (x y)
-       (if (= x y)
-           x
-         'foo))
-     (or (member foo) number))
+      ;; 15
+      ((defun comp-tests-ret-type-spec-f (x)
+         (comp-hint-cons x))
+       cons)
 
-    ((defun comp-tests-ret-type-spec-9-1-f (x)
-       (comp-hint-fixnum x))
-     (integer ,most-negative-fixnum ,most-positive-fixnum))
+      ;; 16
+      ((defun comp-tests-ret-type-spec-f (x)
+         (let (y)
+           (when x
+             (setf y 4))
+           y))
+       (or null (integer 4 4)))
 
-    ((defun comp-tests-ret-type-spec-f (x)
-       (comp-hint-cons x))
-     cons)
+      ;; 17
+      ((defun comp-tests-ret-type-spec-f ()
+         (let (x
+               (y 3))
+           (setf x y)
+           y))
+       (integer 3 3))
 
-    ((defun comp-tests-ret-type-spec-f (x)
-        (let (y)
-          (when x
-            (setf y 4))
-          y))
-     (or null (integer 4 4)))
+      ;; 18
+      ((defun comp-tests-ret-type-spec-f (x)
+         (let ((y 3))
+           (when x
+             (setf y x))
+           y))
+       t)
 
-    ((defun comp-tests-ret-type-spec-f ()
-        (let (x
-              (y 3))
-          (setf x y)
-          y))
-     (integer 3 3))
+      ;; 19
+      ((defun comp-tests-ret-type-spec-f (x y)
+         (eq x y))
+       boolean)
 
-    ((defun comp-tests-ret-type-spec-f (x)
-       (let ((y 3))
+      ;; 20
+      ((defun comp-tests-ret-type-spec-f (x)
          (when x
-           (setf y x))
-         y))
-     t)
+           'foo))
+       (or (member foo) null))
 
-    ((defun comp-tests-ret-type-spec-f (x y)
-       (eq x y))
-     boolean)))
+      ;; 21
+      ((defun comp-tests-ret-type-spec-f (x)
+         (unless x
+           'foo))
+       (or (member foo) null))
 
-(comp-deftest ret-type-spec ()
-  "Some derived return type specifier tests."
-  (cl-loop with comp-ctxt = (make-comp-cstr-ctxt)
-           for (func-form  type-spec) in comp-tests-type-spec-tests
-           do (comp-tests-check-ret-type-spec func-form type-spec)))
+      ;; 22
+      ((defun comp-tests-ret-type-spec-f (x)
+	 (when (> x 3)
+	   x))
+       (or null float (integer 4 *)))
+
+      ;; 23
+      ((defun comp-tests-ret-type-spec-f (x)
+	 (when (>= x 3)
+	   x))
+       (or null float (integer 3 *)))
+
+      ;; 24
+      ((defun comp-tests-ret-type-spec-f (x)
+	 (when (< x 3)
+	   x))
+       (or null float (integer * 2)))
+
+      ;; 25
+      ((defun comp-tests-ret-type-spec-f (x)
+	 (when (<= x 3)
+	   x))
+       (or null float (integer * 3)))
+
+      ;; 26
+      ((defun comp-tests-ret-type-spec-f (x)
+	 (when (> 3 x)
+	   x))
+       (or null float (integer * 2)))
+
+      ;; 27
+      ((defun comp-tests-ret-type-spec-f (x)
+	 (when (>= 3 x)
+	   x))
+       (or null float (integer * 3)))
+
+      ;; 28
+      ((defun comp-tests-ret-type-spec-f (x)
+	 (when (< 3 x)
+	   x))
+       (or null float (integer 4 *)))
+
+      ;; 29
+      ((defun comp-tests-ret-type-spec-f (x)
+	 (when (<= 3 x)
+	   x))
+       (or null float (integer 3 *)))
+
+      ;; 30
+      ((defun comp-tests-ret-type-spec-f (x)
+         (let ((y 3))
+	   (when (> x y)
+	     x)))
+       (or null float (integer 4 *)))
+
+      ;; 31
+      ((defun comp-tests-ret-type-spec-f (x)
+         (let ((y 3))
+	   (when (> y x)
+	     x)))
+       (or null float (integer * 2)))
+
+      ;; 32
+      ((defun comp-tests-ret-type-spec-f (x)
+         (when (and (> x 3)
+		    (< x 10))
+	   x))
+       (or null float (integer 4 9)))
+
+      ;; 33
+      ((defun comp-tests-ret-type-spec-f (x)
+         (when (or (> x 3)
+                   (< x 10))
+	   x))
+       (or null float integer))
+
+      ;; 34
+      ((defun comp-tests-ret-type-spec-f (x)
+         (when (or (< x 3)
+                   (> x 10))
+	   x))
+       (or null float (integer * 2) (integer 11 *)))
+
+      ;; 35 No float range support.
+      ((defun comp-tests-ret-type-spec-f (x)
+	 (when (> x 1.0)
+	   x))
+       (or null marker number))
+
+      ;; 36
+      ((defun comp-tests-ret-type-spec-f (x y)
+         (when (and (> x 3)
+                    (> y 2))
+           (+ x y)))
+       (or null float (integer 7 *)))
+
+      ;; 37
+      ;; SBCL: (OR REAL NULL)
+      ((defun comp-tests-ret-type-spec-f (x y)
+         (when (and (<= x 3)
+                    (<= y 2))
+           (+ x y)))
+       (or null float (integer * 5)))
+
+      ;; 38
+      ((defun comp-tests-ret-type-spec-f (x y)
+         (when (and (< 1 x 5)
+	            (< 1 y 5))
+           (+ x y)))
+       (or null float (integer 4 8)))
+
+      ;; 39
+      ;; SBCL gives: (OR REAL NULL)
+      ((defun comp-tests-ret-type-spec-f (x y)
+	 (when (and (<= 1 x 10)
+		    (<= 2 y 3))
+	   (+ x y)))
+       (or null float (integer 3 13)))
+
+      ;; 40
+      ;; SBCL: (OR REAL NULL)
+      ((defun comp-tests-ret-type-spec-f (x y)
+	 (when (and (<= 1 x 10)
+		    (<= 2 y 3))
+	   (- x y)))
+       (or null float (integer -2 8)))
+
+      ;; 41
+      ((defun comp-tests-ret-type-spec-f (x y)
+         (when (and (<= 1 x)
+                    (<= 2 y 3))
+           (- x y)))
+       (or null float (integer -2 *)))
+
+      ;; 42
+      ((defun comp-tests-ret-type-spec-f (x y)
+         (when (and (<= 1 x 10)
+                    (<= 2 y))
+           (- x y)))
+       (or null float (integer * 8)))
+
+      ;; 43
+      ((defun comp-tests-ret-type-spec-f (x y)
+	 (when (and (<= x 10)
+		    (<= 2 y))
+	   (- x y)))
+       (or null float (integer * 8)))
+
+      ;; 44
+      ((defun comp-tests-ret-type-spec-f (x y)
+         (when (and (<= x 10)
+                    (<= y 3))
+           (- x y)))
+       (or null float integer))
+
+      ;; 45
+      ((defun comp-tests-ret-type-spec-f (x y)
+         (when (and (<= 2 x)
+                    (<= 3 y))
+           (- x y)))
+       (or null float integer))
+
+      ;; 46
+      ;; SBCL: (OR (RATIONAL (6) (30)) (SINGLE-FLOAT 6.0 30.0)
+      ;;           (DOUBLE-FLOAT 6.0d0 30.0d0) NULL)
+      ((defun comp-tests-ret-type-spec-f (x y z i j k)
+         (when (and (< 1 x 5)
+	            (< 1 y 5)
+	            (< 1 z 5)
+	            (< 1 i 5)
+	            (< 1 j 5)
+	            (< 1 k 5))
+           (+ x y z i j k)))
+       (or null float (integer 12 24)))
+
+      ;; 47
+      ((defun comp-tests-ret-type-spec-f (x)
+         (when (<= 1 x 5)
+           (1+ x)))
+       (or null float (integer 2 6)))
+
+      ;;48
+      ((defun comp-tests-ret-type-spec-f (x)
+         (when (<= 1 x 5)
+           (1- x)))
+       (or null float (integer 0 4)))
+
+      ;; 49
+      ((defun comp-tests-ret-type-spec-f ()
+         (error "foo"))
+       nil)
+
+      ;; 50
+      ((defun comp-tests-ret-type-spec-f (x)
+         (if (stringp x)
+	     x
+           'bar))
+       (or (member bar) string))
+
+      ;; 51
+      ((defun comp-tests-ret-type-spec-f (x)
+         (if (stringp x)
+             'bar
+           x))
+       (not string))
+
+      ;; 52
+      ((defun comp-tests-ret-type-spec-f (x)
+         (if (integerp x)
+             x
+           'bar))
+       (or (member bar) integer))
+
+      ;; 53
+      ((defun comp-tests-ret-type-spec-f (x)
+         (when (integerp x)
+           x))
+       (or null integer))
+
+      ;; 54
+      ((defun comp-tests-ret-type-spec-f (x)
+         (unless (symbolp x)
+           x))
+       (not symbol))
+
+      ;; 55
+      ((defun comp-tests-ret-type-spec-f (x)
+         (unless (integerp x)
+           x))
+       (not integer))
+
+      ;; 56
+      ((defun comp-tests-ret-type-spec-f (x)
+         (cl-ecase x
+           (1 (message "one"))
+           (5 (message "five")))
+         x)
+       t
+       ;; FIXME improve `comp-cond-cstrs-target-mvar' to cross block
+       ;; boundary if necessary as this should return:
+       ;; (or (integer 1 1) (integer 5 5))
+       )
+
+      ;; 57
+      ((defun comp-tests-ret-type-spec-f (x)
+         (unless (or (eq x 'foo)
+	             (= x 3))
+           (error "Not foo or 3"))
+         x)
+       (or (member foo) (integer 3 3)))))
+
+  (defun comp-tests-define-type-spec-test (number x)
+    `(comp-deftest ,(intern (format "ret-type-spec-%d" number)) ()
+                   ,(format "Type specifier test number %d." number)
+                   (let ((comp-ctxt (make-comp-cstr-ctxt)))
+                     (comp-tests-check-ret-type-spec ',(car x) ',(cadr x))))))
+
+(defmacro comp-tests-define-type-spec-tests ()
+  "Define all type specifier tests."
+  `(progn
+     ,@(cl-loop
+        for test in comp-tests-type-spec-tests
+        for n from 1
+        collect (comp-tests-define-type-spec-test n test))))
+
+(comp-tests-define-type-spec-tests)
 
 (defun comp-tests-pure-checker-1 (_)
   "Check that inside `comp-tests-pure-caller-f' `comp-tests-pure-callee-f' is

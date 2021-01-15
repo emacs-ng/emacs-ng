@@ -1,6 +1,6 @@
 ;;; vc-git.el --- VC backend for the git version control system -*- lexical-binding: t -*-
 
-;; Copyright (C) 2006-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2021 Free Software Foundation, Inc.
 
 ;; Author: Alexandre Julliard <julliard@winehq.org>
 ;; Keywords: vc tools
@@ -72,7 +72,7 @@
 ;;                                          by git, so it's probably
 ;;                                          not a good idea.
 ;; - merge-news (file)                      see `merge-file'
-;; - mark-resolved (file)                          OK
+;; - mark-resolved (files)                         OK
 ;; - steal-lock (file &optional revision)          NOT NEEDED
 ;; HISTORY FUNCTIONS
 ;; * print-log (files buffer &optional shortlog start-revision limit)   OK

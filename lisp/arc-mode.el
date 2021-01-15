@@ -1,6 +1,6 @@
 ;;; arc-mode.el --- simple editing of archives  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995, 1997-1998, 2001-2020 Free Software Foundation,
+;; Copyright (C) 1995, 1997-1998, 2001-2021 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Morten Welinder <terra@gnu.org>
@@ -2236,8 +2236,6 @@ This doesn't recover lost files, it just undoes changes in the buffer itself."
 ;; TODO: we currently only handle the basic format of ar archives,
 ;; not the GNU nor the BSD extensions.  As it turns out, this is sufficient
 ;; for .deb packages.
-
-(autoload 'tar-grind-file-mode "tar-mode")
 
 (defconst archive-ar-file-header-re
   "\\(.\\{16\\}\\)\\([ 0-9]\\{12\\}\\)\\([ 0-9]\\{6\\}\\)\\([ 0-9]\\{6\\}\\)\\([ 0-7]\\{8\\}\\)\\([ 0-9]\\{10\\}\\)`\n")

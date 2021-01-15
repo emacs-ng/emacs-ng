@@ -1,6 +1,6 @@
 /* Simple built-in editing commands.
 
-Copyright (C) 1985, 1993-1998, 2001-2020 Free Software Foundation, Inc.
+Copyright (C) 1985, 1993-1998, 2001-2021 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -528,25 +528,4 @@ This is run after inserting the character.  */);
 
   defsubr (&Sdelete_char);
   defsubr (&Sself_insert_command);
-}
-
-void
-keys_of_cmds (void)
-{
-  int n;
-
-  initial_define_key (global_map, Ctl ('I'), "self-insert-command");
-  for (n = 040; n < 0177; n++)
-    initial_define_key (global_map, n, "self-insert-command");
-#ifdef MSDOS
-  for (n = 0200; n < 0240; n++)
-    initial_define_key (global_map, n, "self-insert-command");
-#endif
-  for (n = 0240; n < 0400; n++)
-    initial_define_key (global_map, n, "self-insert-command");
-
-  initial_define_key (global_map, Ctl ('A'), "beginning-of-line");
-  initial_define_key (global_map, Ctl ('B'), "backward-char");
-  initial_define_key (global_map, Ctl ('E'), "end-of-line");
-  initial_define_key (global_map, Ctl ('F'), "forward-char");
 }

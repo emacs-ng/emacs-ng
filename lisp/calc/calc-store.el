@@ -1,6 +1,6 @@
 ;;; calc-store.el --- value storage functions for Calc  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2021 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -437,10 +437,10 @@
 	 (if (eq (car-safe value) 'special-const)
 	     (error "%s is a special constant" var))
 	 (setq calc-last-edited-variable var)
-	 (calc-edit-mode (list 'calc-finish-stack-edit (list 'quote var))
-			 t
-			 (format-message
-                          "Editing variable `%s'" (calc-var-name var)))
+	 (calc--edit-mode (lambda () (calc-finish-stack-edit var))
+			  t
+			  (format-message
+                           "Editing variable `%s'" (calc-var-name var)))
 	 (and value
 	      (insert (math-format-nice-expr value (frame-width)) "\n")))))
   (calc-show-edit-buffer))

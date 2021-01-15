@@ -1,5 +1,5 @@
 /* Primitive operations on Lisp data types for GNU Emacs Lisp interpreter.
-   Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2020 Free Software
+   Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2021 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -897,6 +897,19 @@ function or t otherwise.  */)
     : Qt;
 }
 
+DEFUN ("subr-type", Fsubr_type,
+       Ssubr_type, 1, 1, 0,
+       doc: /* Return the type of SUBR.  */)
+  (Lisp_Object subr)
+{
+  CHECK_SUBR (subr);
+#ifdef HAVE_NATIVE_COMP
+  return SUBR_TYPE (subr);
+#else
+  return Qnil;
+#endif
+}
+
 #ifdef HAVE_NATIVE_COMP
 
 DEFUN ("subr-native-comp-unit", Fsubr_native_comp_unit,
@@ -1701,8 +1714,9 @@ default_value (Lisp_Object symbol)
 
 DEFUN ("default-boundp", Fdefault_boundp, Sdefault_boundp, 1, 1, 0,
        doc: /* Return t if SYMBOL has a non-void default value.
-This is the value that is seen in buffers that do not have their own values
-for this variable.  */)
+A variable may have a buffer-local or a `let'-bound local value.  This
+function says whether the variable has a non-void value outside of the
+current context.  Also see `default-value'.  */)
   (Lisp_Object symbol)
 {
   register Lisp_Object value;
@@ -4060,6 +4074,7 @@ syms_of_data (void)
   defsubr (&Ssubr_name);
   defsubr (&Ssubr_native_elisp_p);
   defsubr (&Ssubr_native_lambda_list);
+  defsubr (&Ssubr_type);
 #ifdef HAVE_NATIVE_COMP
   defsubr (&Ssubr_native_comp_unit);
   defsubr (&Snative_comp_unit_file);

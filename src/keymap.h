@@ -1,5 +1,5 @@
 /* Functions to manipulate keymaps.
-   Copyright (C) 2001-2020 Free Software Foundation, Inc.
+   Copyright (C) 2001-2021 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -37,10 +37,8 @@ extern char *push_key_description (EMACS_INT, char *);
 extern Lisp_Object access_keymap (Lisp_Object, Lisp_Object, bool, bool, bool);
 extern Lisp_Object get_keymap (Lisp_Object, bool, bool);
 extern ptrdiff_t current_minor_maps (Lisp_Object **, Lisp_Object **);
-extern void initial_define_key (Lisp_Object, int, const char *);
 extern void initial_define_lispy_key (Lisp_Object, const char *, const char *);
 extern void syms_of_keymap (void);
-extern void keys_of_keymap (void);
 
 typedef void (*map_keymap_function_t)
      (Lisp_Object key, Lisp_Object val, Lisp_Object args, void *data);
