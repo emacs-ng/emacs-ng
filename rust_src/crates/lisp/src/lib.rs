@@ -31,6 +31,7 @@ pub mod lisp;
 pub mod eval;
 pub mod font;
 pub mod frame;
+#[cfg(feature = "window-system")]
 pub mod glyph;
 pub mod keyboard;
 pub mod list;
