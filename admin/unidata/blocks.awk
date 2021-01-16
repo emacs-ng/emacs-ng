@@ -1,6 +1,6 @@
 #!/usr/bin/awk -f
 
-## Copyright (C) 2015-2020 Free Software Foundation, Inc.
+## Copyright (C) 2015-2021 Free Software Foundation, Inc.
 
 ## Author: Glenn Morris <rgm@gnu.org>
 ## Maintainer: emacs-devel@gnu.org
@@ -203,7 +203,7 @@ function name2alias(name   , w, w2) {
 }
 
 END {
-    print ";;; charscript.el --- character script table"
+    print ";;; charscript.el --- character script table  -*- lexical-binding:t -*-"
     print ";;; Automatically generated from admin/unidata/Blocks.txt"
     print "(let (script-list)"
     print "  (dolist (elt '("

@@ -1,6 +1,6 @@
 /* Lisp object printing and output streams.
 
-Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2020 Free Software
+Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2021 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -562,7 +562,7 @@ temp_output_buffer_setup (const char *bufname)
 
   record_unwind_current_buffer ();
 
-  Fset_buffer (Fget_buffer_create (build_string (bufname)));
+  Fset_buffer (Fget_buffer_create (build_string (bufname), Qnil));
 
   Fkill_all_local_variables ();
   delete_all_overlays (current_buffer);
@@ -1557,7 +1557,8 @@ print_vectorlike (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag,
 	/* Implement a readable output, e.g.:
 	  #s(hash-table size 2 test equal data (k1 v1 k2 v2)) */
 	/* Always print the size.  */
-	int len = sprintf (buf, "#s(hash-table size %"pD"d", ASIZE (h->next));
+	int len = sprintf (buf, "#s(hash-table size %"pD"d",
+                           HASH_TABLE_SIZE (h));
 	strout (buf, len, len, printcharfun);
 
 	if (!NILP (h->test.name))

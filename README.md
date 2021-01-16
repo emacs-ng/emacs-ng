@@ -79,7 +79,7 @@ emacs-ng's JS implementation clocks in over **50 times** faster than emacs 28 wi
    This happens automatically, so don't override the toolchain manually.
    IMPORTANT: Whenever the toolchain updates, you have to reinstall
    rustfmt manually.
-   
+
 2. You will need a C compiler and toolchain. On Linux, you can do
    something like:
 
@@ -138,7 +138,7 @@ If you want to install it, just use
 make install
 ```
 
-You may need to run sudo make install depending on your system configuration. 
+You may need to run sudo make install depending on your system configuration.
 
 ## Contributing
 
@@ -289,7 +289,7 @@ We also support WebWorkers, meaning that you can run javascript in seperate thre
 
 Web Assembly allows you to perform things normally handled by native libraries with easy distribution. Want to manipulate sqlite3? Use the [deno sqlite wasm package](https://deno.land/x/sqlite@v2.3.2/mod.ts)
 
-``` js 
+``` js
 import { DB } from "https://deno.land/x/sqlite@v2.3.2/mod.ts";
 
 const db = new DB("test.db");
@@ -303,4 +303,3 @@ for (const [name] of db.query("SELECT name FROM people")) {
 
 db.close();
 ```
-

@@ -2,7 +2,7 @@
 
 ;; Author: Andrea Corallo <akrl@sdf.com>
 
-;; Copyright (C) 2019-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2021 Free Software Foundation, Inc.
 
 ;; Keywords: lisp
 ;; Package: emacs
@@ -136,6 +136,15 @@ Passing these options is only available in libgccjit version 9
 and above."
   :type 'list)
 
+(defcustom comp-libgccjit-reproducer nil
+  "When non-nil produce a libgccjit reproducer.
+The reproducer is a file ELNFILENAME_libgccjit_repro.c deposed in
+the .eln output directory."
+  :type 'boolean)
+
+(defvar comp-log-time-report nil
+  "If non-nil, log a time report for each pass.")
+
 (defvar comp-dry-run nil
   "If non-nil, run everything but the C back-end.")
 
@@ -164,7 +173,7 @@ Can be one of: 'd-default', 'd-impure' or 'd-ephemeral'.  See `comp-ctxt'.")
                         comp-fwprop
                         comp-call-optim
                         comp-ipa-pure
-                        comp-cond-rw
+                        comp-add-cstrs
                         comp-fwprop
                         comp-dead-code
                         comp-tco
@@ -184,88 +193,310 @@ Useful to hook into pass checkers.")
 
 ;; FIXME this probably should not be here but... good for now.
 (defconst comp-known-type-specifiers
-  `((cons (function (t t) cons))
-    (1+ (function ((or number marker)) number))
-    (1- (function ((or number marker)) number))
+  `(
+    ;; Functions we can trust not to be or if redefined should expose
+    ;; the same type.  Vast majority of these is either pure or
+    ;; pritive, the original list is the union of pure +
+    ;; side-effect-free-fns + side-effect-and-error-free-fns:
+    (% (function ((or number marker) (or number marker)) number))
+    (* (function (&rest (or number marker)) number))
     (+ (function (&rest (or number marker)) number))
     (- (function (&rest (or number marker)) number))
-    (* (function (&rest (or number marker)) number))
     (/ (function ((or number marker) &rest (or number marker)) number))
-    (% (function ((or number marker) (or number marker)) number))
-    (concat (function (&rest sequence) string))
-    (regexp-opt (function (list) string))
-    (string-to-char (function (string) integer))
-    (symbol-name (function (symbol) string))
-    (eq (function (t t) boolean))
-    (eql (function (t t) boolean))
-    (= (function ((or number marker) (or number marker)) boolean))
     (/= (function ((or number marker) (or number marker)) boolean))
+    (1+ (function ((or number marker)) number))
+    (1- (function ((or number marker)) number))
     (< (function ((or number marker) &rest (or number marker)) boolean))
     (<= (function ((or number marker) &rest (or number marker)) boolean))
-    (>= (function ((or number marker) &rest (or number marker)) boolean))
+    (= (function ((or number marker) &rest (or number marker)) boolean))
     (> (function ((or number marker) &rest (or number marker)) boolean))
-    (min (function ((or number marker) &rest (or number marker)) number))
-    (max (function ((or number marker) &rest (or number marker)) number))
-    (mod (function ((or number marker) (or number marker))
-                   (or (integer 0 *) (float 0 *))))
+    (>= (function ((or number marker) &rest (or number marker)) boolean))
     (abs (function (number) number))
+    (acos (function (number) float))
+    (append (function (&rest list) list))
+    (aref (function (array fixnum) t))
+    (arrayp (function (t) boolean))
     (ash (function (integer integer) integer))
-    (sqrt (function (number) float))
+    (asin (function (number) float))
+    (assq (function (t list) list))
+    (atan (function (number &optional number) float))
+    (atom (function (t) boolean))
+    (bignump (function (t) boolean))
+    (bobp (function () boolean))
+    (bolp (function () boolean))
+    (bool-vector-count-consecutive (function (bool-vector bool-vector integer) fixnum))
+    (bool-vector-count-population (function (bool-vector) fixnum))
+    (bool-vector-not (function (bool-vector &optional bool-vector) bool-vector))
+    (bool-vector-p (function (t) boolean))
+    (bool-vector-subsetp (function (bool-vector bool-vector) boolean))
+    (boundp (function (symbol) boolean))
+    (buffer-end (function ((or number marker)) integer))
+    (buffer-file-name (function (&optional buffer) string))
+    (buffer-list (function (&optional frame) list))
+    (buffer-local-variables (function (&optional buffer) list))
+    (buffer-modified-p (function (&optional buffer) boolean))
+    (buffer-size (function (&optional buffer) integer))
+    (buffer-string (function () string))
+    (buffer-substring (function ((or integer marker) (or integer marker)) string))
+    (bufferp (function (t) boolean))
+    (byte-code-function-p (function (t) boolean))
+    (capitalize (function (or integer string) (or integer string)))
+    (car (function (list) t))
+    (car-less-than-car (function (list list) boolean))
+    (car-safe (function (t) t))
+    (case-table-p (function (t) boolean))
+    (cdr (function (list) t))
+    (cdr-safe (function (t) t))
+    (ceiling (function (number &optional number) integer))
+    (char-after (function (&optional (or marker integer)) fixnum))
+    (char-before (function (&optional (or marker integer)) fixnum))
+    (char-equal (function (integer integer) boolean))
+    (char-or-string-p (function (t) boolean))
+    (char-to-string (function (fixnum) string))
+    (char-width (function (fixnum) fixnum))
+    (characterp (function (t &optional t) boolean))
+    (charsetp (function (t) boolean))
+    (commandp (function (t &optional t) boolean))
+    (compare-strings (function (string (or integer marker null) (or integer marker null) string (or integer marker null) (or integer marker null) &optional t) (or (member t) fixnum)))
+    (concat (function (&rest sequence) string))
+    (cons (function (t t) cons))
+    (consp (function (t) boolean))
+    (coordinates-in-window-p (function (cons window) boolean))
+    (copy-alist (function (list) list))
+    (copy-marker (function (&optional (or integer marker) boolean) marker))
+    (copy-sequence (function (sequence) sequence))
+    (copysign (function (float float) float))
+    (cos (function (number) float))
+    (count-lines (function ((or integer marker) (or integer marker) &optional t) integer))
+    (current-buffer (function () buffer))
+    (current-global-map (function () cons))
+    (current-indentation (function () integer))
+    (current-local-map (function () cons))
+    (current-minor-mode-maps (function () cons))
+    (current-time (function () cons))
+    (current-time-string (function (&optional string boolean) string))
+    (current-time-zone (function (&optional string boolean) cons))
+    (custom-variable-p (function (symbol) boolean))
+    (decode-char (function (cons t) (or fixnum null)))
+    (decode-time (function (&optional string symbol symbol) cons))
+    (default-boundp (function (symbol) boolean))
+    (default-value (function (symbol) t))
+    (degrees-to-radians (function (number) float))
+    (documentation (function ((or function symbol subr) &optional t) (or null string)))
+    (downcase (function ((or fixnum string)) (or fixnum string)))
+    (elt (function (sequence integer) t))
+    (encode-char (function (fixnum symbol) (or fixnum null)))
+    (encode-time (function (cons &rest t) cons))
+    (eobp (function () boolean))
+    (eolp (function () boolean))
+    (eq (function (t t) boolean))
+    (eql (function (t t) boolean))
+    (equal (function (t t) boolean))
+    (error-message-string (function (list) string))
+    (eventp (function (t) boolean))
+    (exp (function (number) float))
+    (expt (function (number number) float))
+    (fboundp (function (symbol) boolean))
+    (fceiling (function (float) float))
+    (featurep (function (symbol &optional symbol) boolean))
+    (ffloor (function (float) float))
+    (file-directory-p (function (string) boolean))
+    (file-exists-p (function (string) boolean))
+    (file-locked-p (function (string) boolean))
+    (file-name-absolute-p (function (string) boolean))
+    (file-newer-than-file-p (function (string string) boolean))
+    (file-readable-p (function (string) boolean))
+    (file-symlink-p (function (string) boolean))
+    (file-writable-p (function (string) boolean))
+    (fixnump (function (t) boolean))
+    (float (function (number) float))
+    (float-time (function (&optional cons) float))
+    (floatp (function (t) boolean))
+    (floor (function (number &optional number) integer))
+    (following-char (function () fixnum))
+    (format (function (string &rest t) string))
+    (format-time-string (function (string &optional cons symbol) string))
+    (frame-first-window (function ((or frame window)) window))
+    (frame-root-window (function (&optional (or frame window)) window))
+    (frame-selected-window (function (&optional (or frame window)) window))
+    (frame-visible-p (function (frame) boolean))
+    (framep (function (t) boolean))
+    (fround (function (float) float))
+    (ftruncate (function (float) float))
+    (get (function (symbol symbol) t))
+    (get-buffer (function ((or buffer string)) (or buffer null)))
+    (get-buffer-window (function (&optional (or buffer string) (or symbol (integer 0 0))) (or null window)))
+    (get-file-buffer (function (string) (or null buffer)))
+    (get-largest-window (function (&optional t t t) window))
+    (get-lru-window (function (&optional t t t) window))
+    (getenv (function (string &optional frame) (or null string)))
+    (gethash (function (t hash-table &optional t) t))
+    (hash-table-count (function (hash-table) integer))
+    (hash-table-p (function (t) boolean))
+    (identity (function (t) t))
+    (ignore (function (&rest t) null))
+    (int-to-string (function (number) string))
+    (integer-or-marker-p (function (t) boolean))
+    (integerp (function (t) boolean))
+    (interactive-p (function () boolean))
+    (intern-soft (function (string &optional vector) symbol))
+    (invocation-directory (function () string))
+    (invocation-name (function () string))
+    (isnan (function (float) boolean))
+    (keymap-parent (function (cons) (or cons null)))
+    (keymapp (function (t) boolean))
+    (keywordp (function (t) boolean))
+    (last (function (list &optional integer) list))
+    (lax-plist-get (function (list t) t))
+    (ldexp (function (number integer) float))
+    (length (function (sequence) integer))
+    (length< (function (sequence fixnum) boolean))
+    (length= (function (sequence fixnum) boolean))
+    (length> (function (sequence fixnum) boolean))
+    (line-beginning-position (function (&optional integer) integer))
+    (line-end-position (function (&optional integer) integer))
+    (list (function (&rest t) list))
+    (listp (function (t) boolean))
+    (local-variable-if-set-p (function (symbol &optional buffer) boolean))
+    (local-variable-p (function (symbol &optional buffer) boolean))
+    (locale-info (function ((member codeset days months paper)) (or null string)))
+    (log (function (number number) float))
+    (log10 (function (number) float))
     (logand (function (&rest (or integer marker)) integer))
+    (logb (function (number) integer))
+    (logcount (function (integer) integer))
     (logior (function (&rest (or integer marker)) integer))
     (lognot (function (integer) integer))
     (logxor (function (&rest (or integer marker)) integer))
-    (logcount (function (integer) integer))
-    (copysign (function (float float) float))
-    (isnan (function (float) boolean))
-    (ldexp (function (number integer) float))
-    (float (function (number) float))
-    (logb (function (number) integer))
-    (floor (function (number &optional number) integer))
-    (ceiling (function (number &optional number) integer))
+    ;; (lsh (function ((integer ,most-negative-fixnum *) integer) integer)) ?
+    (lsh (function (integer integer) integer))
+    (make-byte-code (function ((or fixnum list) string vector integer &optional string t &rest t) vector))
+    (make-list (function (integer t) list))
+    (make-marker (function () marker))
+    (make-string (function (integer fixnum &optional t) string))
+    (make-symbol (function (string) symbol))
+    (mark (function (&optional t) (or integer null)))
+    (mark-marker (function () marker))
+    (marker-buffer (function (marker) buffer))
+    (markerp (function (t) boolean))
+    (max (function ((or number marker) &rest (or number marker)) number))
+    (max-char (function () fixnum))
+    (member (function (t list) list))
+    (memory-limit (function () integer))
+    (memq (function (t list) list))
+    (memql (function (t list) list))
+    (min (function ((or number marker) &rest (or number marker)) number))
+    (minibuffer-selected-window (function () window))
+    (minibuffer-window (function (&optional frame) window))
+    (mod (function ((or number marker) (or number marker)) (or (integer 0 *) (float 0 *))))
+    (mouse-movement-p (function (t) boolean))
+    (multibyte-char-to-unibyte (function (fixnum) fixnum))
+    (natnump (function (t) boolean))
+    (next-window (function (&optional window t t) window))
+    (nlistp (function (t) boolean))
+    (not (function (t) boolean))
+    (nth (function (integer list) t))
+    (nthcdr (function (integer list) list))
+    (null (function (t) boolean))
+    (number-or-marker-p (function (t) boolean))
+    (number-to-string (function (number) string))
+    (numberp (function (t) boolean))
+    (one-window-p (function (&optional t t) boolean))
+    (overlayp (function (t) boolean))
+    (parse-colon-path (function (string) cons))
+    (plist-get (function (list t) t))
+    (plist-member (function (list t) list))
+    (point (function () integer))
+    (point-marker (function () marker))
+    (point-max (function () integer))
+    (point-min (function () integer))
+    (preceding-char (function () fixnum))
+    (previous-window (function (&optional window t t) window))
+    (prin1-to-string (function (t &optional t) string))
+    (processp (function (t) boolean))
+    (proper-list-p (function (t) integer))
+    (propertize (function (string &rest t) string))
+    (radians-to-degrees (function (number) float))
+    (rassoc (function (t list) list))
+    (rassq (function (t list) list))
+    (read-from-string (function (string &optional integer integer) cons))
+    (recent-keys (function (&optional (or cons null)) vector))
+    (recursion-depth (function () integer))
+    (regexp-opt (function (list) string))
+    (regexp-quote (function (string) string))
+    (region-beginning (function () integer))
+    (region-end (function () integer))
+    (reverse (function (sequence) sequence))
     (round (function (number &optional number) integer))
-    (truncate (function (number &optional number) integer))
-    (ffloor (function (float) float))
-    (fceiling (function (float) float))
-    (fround (function (float) float))
-    (ftruncate (function (float) float))
-    (string= (function ((or string symbol) (or string symbol)) boolean))
+    (safe-length (function (t) integer))
+    (selected-frame (function () frame))
+    (selected-window (function () window))
+    (sequencep (function (t) boolean))
+    (sin (function (number) float))
+    (sqrt (function (number) float))
+    (standard-case-table (function () char-table))
+    (standard-syntax-table (function () char-table))
+    (string (function (&rest fixnum) strng))
+    (string-as-multibyte (function (string) string))
+    (string-as-unibyte (function (string) string))
     (string-equal (function ((or string symbol) (or string symbol)) boolean))
-    (string< (function ((or string symbol) (or string symbol)) boolean))
     (string-lessp (function ((or string symbol) (or string symbol)) boolean))
-    (string-search (function (string string) (or integer null)))
-    (string-to-char (function (string) integer))
+    (string-make-multibyte (function (string) string))
+    (string-make-unibyte (function (string) string))
+    (string-search (function (string string &optional integer) integer))
+    (string-to-char (function (string) fixnum))
+    (string-to-multibyte (function (string) string))
     (string-to-number (function (string &optional integer) number))
     (string-to-syntax (function (string) cons))
-    (substring (function (string &optional integer integer) string))
+    (string< (function ((or string symbol) (or string symbol)) boolean))
+    (string= (function ((or string symbol) (or string symbol)) boolean))
+    (stringp (function (t) boolean))
+    (subrp (function (t) boolean))
+    (substring (function ((or string vector) &optional integer integer) (or string vector)))
     (sxhash (function (t) integer))
-    (sxhash-equal (function (t) integer))
     (sxhash-eq (function (t) integer))
     (sxhash-eql (function (t) integer))
+    (sxhash-equal (function (t) integer))
     (symbol-function (function (symbol) t))
     (symbol-name (function (symbol) string))
     (symbol-plist (function (symbol) list))
     (symbol-value (function (symbol) t))
-    (string-make-unibyte (function (string) string))
-    (string-make-multibyte (function (string) string))
-    (string-as-multibyte (function (string) string))
-    (string-as-unibyte (function (string) string))
-    (string-to-multibyte (function (string) string))
+    (symbolp (function (t) boolean))
+    (syntax-table (function () char-table))
+    (syntax-table-p (function (t) boolean))
     (tan (function (number) float))
+    (this-command-keys (function () string))
+    (this-command-keys-vector (function () vector))
+    (this-single-command-keys (function () vector))
+    (this-single-command-raw-keys (function () vector))
     (time-convert (function (t &optional (or boolean integer)) cons))
-    (truncate (function (number) integer))
+    (truncate (function (number &optional number) integer))
+    (type-of (function (t) symbol))
     (unibyte-char-to-multibyte (function (fixnum) fixnum)) ;; byte is fixnum
     (upcase (function ((or fixnum string)) (or fixnum string)))
     (user-full-name (function (&optional integer) string))
     (user-login-name (function (&optional integer) (or string null)))
     (user-original-login-name (function (&optional integer) (or string null)))
-    (custom-variable-p (function (symbol) boolean))
+    (user-real-login-name (function () string))
+    (user-real-uid (function () integer))
+    (user-uid (function () integer))
     (vconcat (function (&rest sequence) vector))
-    ;; TODO all window-* :x
+    (vector (function (&rest t) vector))
+    (vectorp (function (t) boolean))
+    (visible-frame-list (function () list))
+    (wholenump (function (t) boolean))
+    (window-configuration-p (function (t) boolean))
+    (window-live-p (function (t) boolean))
+    (window-valid-p (function (t) boolean))
+    (windowp (function (t) boolean))
     (zerop (function (number) boolean))
     ;; Type hints
     (comp-hint-fixnum (function (t) fixnum))
-    (comp-hint-cons (function (t) cons)))
+    (comp-hint-cons (function (t) cons))
+    ;; Non returning functions
+    (throw (function (t t) nil))
+    (error (function (string &rest t) nil))
+    (signal (function (symbol t) nil)))
   "Alist used for type propagation.")
 
 (defconst comp-known-func-cstr-h
@@ -275,8 +506,53 @@ Useful to hook into pass checkers.")
    for (f type-spec) in comp-known-type-specifiers
    for cstr = (comp-type-spec-to-cstr type-spec)
    do (puthash f cstr h)
-   finally (cl-return h))
+   finally return h)
   "Hash table function -> `comp-constraint'")
+
+(defconst comp-known-predicates
+  '((arrayp              . array)
+    (atom		 . atom)
+    (characterp          . fixnum)
+    (booleanp            . boolean)
+    (bool-vector-p       . bool-vector)
+    (bufferp             . buffer)
+    (natnump             . (integer 0 *))
+    (char-table-p	 . char-table)
+    (hash-table-p	 . hash-table)
+    (consp               . cons)
+    (integerp            . integer)
+    (floatp              . float)
+    (functionp           . (or function symbol))
+    (integerp            . integer)
+    (keywordp            . keyword)
+    (listp               . list)
+    (numberp             . number)
+    (null		 . null)
+    (numberp             . number)
+    (sequencep           . sequence)
+    (stringp             . string)
+    (symbolp             . symbol)
+    (vectorp             . vector)
+    (integer-or-marker-p . integer-or-marker))
+  "Alist predicate -> matched type specifier.")
+
+(defconst comp-known-predicates-h
+  (cl-loop
+   with comp-ctxt = (make-comp-cstr-ctxt)
+   with h = (make-hash-table :test #'eq)
+   for (pred . type-spec) in comp-known-predicates
+   for cstr = (comp-type-spec-to-cstr type-spec)
+   do (puthash pred cstr h)
+   finally return h)
+  "Hash table function -> `comp-constraint'")
+
+(defun comp-known-predicate-p (predicate)
+  "Predicate matching if PREDICATE is known."
+  (when (gethash predicate comp-known-predicates-h) t))
+
+(defun comp-pred-to-cstr (predicate)
+  "Given PREDICATE return the correspondig constraint."
+  (gethash predicate comp-known-predicates-h))
 
 (defconst comp-symbol-values-optimizable '(most-positive-fixnum
                                            most-negative-fixnum)
@@ -312,6 +588,12 @@ Useful to hook into pass checkers.")
                             ,@comp-limple-branches
                             return)
   "All limple operators.")
+
+(defvar comp-func nil
+  "Bound to the current function by most passes.")
+
+(defvar comp-block nil
+  "Bound to the current basic block by some pass.")
 
 (define-error 'native-compiler-error-dyn-func
   "can't native compile a non-lexically-scoped function"
@@ -370,18 +652,17 @@ This is typically for top-level forms other than defun.")
                   :documentation "When non-nil support late load."))
 
 (cl-defstruct comp-args-base
-  (min nil :type number
+  (min nil :type integer
        :documentation "Minimum number of arguments allowed."))
 
 (cl-defstruct (comp-args (:include comp-args-base))
-  (max nil :type number
-       :documentation "Maximum number of arguments allowed.
-To be used when ncall-conv is nil."))
+  (max nil :type integer
+       :documentation "Maximum number of arguments allowed."))
 
 (cl-defstruct (comp-nargs (:include comp-args-base))
   "Describe args when the function signature is of kind:
 (ptrdiff_t nargs, Lisp_Object *args)."
-  (nonrest nil :type number
+  (nonrest nil :type integer
            :documentation "Number of non rest arguments.")
   (rest nil :type boolean
         :documentation "t if rest argument is present."))
@@ -400,13 +681,13 @@ To be used when ncall-conv is nil."))
             :documentation "List of incoming edges.")
   (out-edges () :type list
              :documentation "List of out-coming edges.")
-  (dom nil :type comp-block
+  (idom nil :type (or null comp-block)
         :documentation "Immediate dominator.")
-  (df (make-hash-table) :type hash-table
+  (df (make-hash-table) :type (or null hash-table)
       :documentation "Dominance frontier set. Block-name -> block")
-  (post-num nil :type number
+  (post-num nil :type (or null number)
             :documentation "Post order number.")
-  (final-frame nil :type vector
+  (final-frame nil :type (or null vector)
              :documentation "This is a copy of the frame when leaving the block.
 Is in use to help the SSA rename pass."))
 
@@ -414,25 +695,44 @@ Is in use to help the SSA rename pass."))
                               (:include comp-block)
                               (:constructor make--comp-block-lap
                                             (addr sp name))) ; Positional
-  "A basic block created from lap."
+  "A basic block created from lap (real code)."
   ;; These two slots are used during limplification.
   (sp nil :type number
       :documentation "When non-nil indicates the sp value while entering
 into it.")
   (addr nil :type number
-        :documentation "Start block LAP address."))
+        :documentation "Start block LAP address.")
+  (non-ret-insn nil :type list
+                :documentation "Insn known to perform a non local exit.
+`comp-fwprop' may identify and store here basic blocks performing
+non local exits and mark it rewrite it later.")
+  (no-ret nil :type boolean
+         :documentation "t when the block is known to perform a
+non local exit (ends with an `unreachable' insn)."))
 
 (cl-defstruct (comp-latch (:copier nil)
                           (:include comp-block))
   "A basic block for a latch loop.")
 
+(cl-defstruct (comp-block-cstr (:copier nil)
+                               (:include comp-block))
+  "A basic block holding only constraints.")
+
 (cl-defstruct (comp-edge (:copier nil) (:constructor make--comp-edge))
   "An edge connecting two basic blocks."
-  (src nil :type comp-block)
-  (dst nil :type comp-block)
+  (src nil :type (or null comp-block))
+  (dst nil :type (or null comp-block))
   (number nil :type number
           :documentation "The index number corresponding to this edge in the
  edge hash."))
+
+(defun make-comp-edge (&rest args)
+  "Create a `comp-edge' with basic blocks SRC and DST."
+  (let ((n (funcall (comp-func-edge-cnt-gen comp-func))))
+    (puthash
+     n
+     (apply #'make--comp-edge :number n args)
+     (comp-func-edges-h comp-func))))
 
 (defun comp-block-preds (basic-block)
   "Given BASIC-BLOCK return the list of its predecessors."
@@ -462,9 +762,9 @@ into it.")
        :documentation "SSA status either: 'nil', 'dirty' or 't'.
 Once in SSA form this *must* be set to 'dirty' every time the topology of the
 CFG is mutated by a pass.")
-  (frame-size nil :type number)
-  (blocks (make-hash-table) :type hash-table
-          :documentation "Basic block name -> basic block.")
+  (frame-size nil :type integer)
+  (blocks (make-hash-table :test #'eq) :type hash-table
+          :documentation "Basic block symbol -> basic block.")
   (lap-block (make-hash-table :test #'equal) :type hash-table
              :documentation "LAP label -> LIMPLE basic block name.")
   (edges-h (make-hash-table) :type hash-table
@@ -481,8 +781,8 @@ CFG is mutated by a pass.")
          :documentation "Optimization level (see `comp-speed').")
   (pure nil :type boolean
         :documentation "t if pure nil otherwise.")
-  (ret-type-specifier '(t) :type list
-                      :documentation "Derived return type specifier."))
+  (type nil :type (or null comp-mvar)
+        :documentation "Mvar holding the derived return type."))
 
 (cl-defstruct (comp-func-l (:include comp-func))
   "Lexically-scoped function."
@@ -505,7 +805,8 @@ CFG is mutated by a pass.")
 
 (defun comp-mvar-value-vld-p (mvar)
   "Return t if one single value can be extracted by the MVAR constrains."
-  (when (null (comp-mvar-typeset mvar))
+  (when (and (null (comp-mvar-typeset mvar))
+             (null (comp-mvar-neg mvar)))
     (let* ((v (comp-mvar-valset mvar))
            (r (comp-mvar-range mvar))
            (valset-len (length v))
@@ -520,6 +821,8 @@ CFG is mutated by a pass.")
             (and (integerp low)
                  (integerp high)
                  (= low high))))))))
+
+;; FIXME move these into cstr?
 
 (defun comp-mvar-value (mvar)
   "Return the constant value of MVAR.
@@ -539,18 +842,20 @@ CFG is mutated by a pass.")
 
 (defun comp-mvar-fixnum-p (mvar)
   "Return t if MVAR is certainly a fixnum."
-  (when-let (range (comp-mvar-range mvar))
-    (let* ((low (caar range))
-           (high (cdar (last range))))
-      (unless (or (eq low '-)
-                  (< low most-negative-fixnum)
-                  (eq high '+)
-                  (> high most-positive-fixnum))
-        t))))
+  (when (null (comp-mvar-neg mvar))
+    (when-let (range (comp-mvar-range mvar))
+      (let* ((low (caar range))
+             (high (cdar (last range))))
+        (unless (or (eq low '-)
+                    (< low most-negative-fixnum)
+                    (eq high '+)
+                    (> high most-positive-fixnum))
+          t)))))
 
 (defun comp-mvar-symbol-p (mvar)
   "Return t if MVAR is certainly a symbol."
   (and (null (comp-mvar-range mvar))
+       (null (comp-mvar-neg mvar))
        (or (and (null (comp-mvar-valset mvar))
                 (equal (comp-mvar-typeset mvar) '(symbol)))
            (and (or (null (comp-mvar-typeset mvar))
@@ -561,6 +866,7 @@ CFG is mutated by a pass.")
   "Return t if MVAR is certainly a cons."
   (and (null (comp-mvar-valset mvar))
        (null (comp-mvar-range mvar))
+       (null (comp-mvar-neg mvar))
        (equal (comp-mvar-typeset mvar) '(cons))))
 
 (defun comp-mvar-type-hint-match-p (mvar type-hint)
@@ -569,9 +875,6 @@ In use by the backend."
   (cl-ecase type-hint
     (cons (comp-mvar-cons-p mvar))
     (fixnum (comp-mvar-fixnum-p mvar))))
-
-;; Special vars used by some passes
-(defvar comp-func)
 
 
 
@@ -585,6 +888,14 @@ To be used by all entry points."
    ((null (native-comp-available-p))
     (error "Cannot find libgccjit"))))
 
+(defun comp-equality-fun-p (function)
+  "Equality functions predicate for FUNCTION."
+  (when (memq function '(eq eql = equal)) t))
+
+(defun comp-range-cmp-fun-p (function)
+  "Predicate for range comparision functions."
+  (when (memq function '(> < >= <=)) t))
+
 (defun comp-set-op-p (op)
   "Assignment predicate for OP."
   (when (memq op comp-limple-sets) t))
@@ -596,6 +907,10 @@ To be used by all entry points."
 (defun comp-call-op-p (op)
   "Call predicate for OP."
   (when (memq op comp-limple-calls) t))
+
+(defun comp-branch-op-p (op)
+  "Branch predicate for OP."
+  (when (memq op comp-limple-branches) t))
 
 (defsubst comp-limple-insn-call-p (insn)
   "Limple INSN call predicate."
@@ -644,13 +959,16 @@ Assume allocation class 'd-default as default."
 
 (defconst comp-limple-lock-keywords
   `((,(rx bol "(comment" (1+ not-newline)) . font-lock-comment-face)
-    (,(rx "#s(" (group-n 1 "comp-mvar"))
+    (,(rx "#(" (group-n 1 "mvar"))
      (1 font-lock-function-name-face))
     (,(rx bol "(" (group-n 1 "phi"))
      (1 font-lock-variable-name-face))
+    (,(rx bol "(" (group-n 1 (or "return" "unreachable")))
+     (1 font-lock-warning-face))
     (,(rx (group-n 1 (or "entry"
                          (seq (or "entry_" "entry_fallback_" "bb_")
-                              (1+ num) (? "_latch")))))
+                              (1+ num) (? (or "_latch"
+                                              (seq "_cstrs_" (1+ num))))))))
      (1 font-lock-constant-face))
     (,(rx-to-string
        `(seq "(" (group-n 1 (or ,@(mapcar #'symbol-name comp-limple-ops)))))
@@ -703,15 +1021,30 @@ log with `comp-log-to-buffer'."
         (with-selected-window log-window
           (goto-char (point-max)))))))
 
+(defun comp-prettyformat-mvar (mvar)
+  (format "#(mvar %s %s %S)"
+          (comp-mvar-id mvar)
+          (comp-mvar-slot mvar)
+          (comp-cstr-to-type-spec mvar)))
+
+(defun comp-prettyformat-insn (insn)
+  (cl-typecase insn
+    (comp-mvar (comp-prettyformat-mvar insn))
+    (atom (prin1-to-string insn))
+    (cons (concat "(" (mapconcat #'comp-prettyformat-insn insn " ") ")"))))
+
 (defun comp-log-func (func verbosity)
   "Log function FUNC.
 VERBOSITY is a number between 0 and 3."
   (when (>= comp-verbose verbosity)
     (comp-log (format "\nFunction: %s\n" (comp-func-name func)) verbosity)
-    (cl-loop for block-name being each hash-keys of (comp-func-blocks func)
-             using (hash-value bb)
-             do (comp-log (concat "<" (symbol-name block-name) ">") verbosity)
-                (comp-log (comp-block-insns bb) verbosity t))))
+    (cl-loop
+     for block-name being each hash-keys of (comp-func-blocks func)
+     using (hash-value bb)
+     do (comp-log (concat "<" (symbol-name block-name) ">") verbosity)
+        (cl-loop
+         for insn in (comp-block-insns bb)
+         do (comp-log (comp-prettyformat-insn insn) verbosity)))))
 
 (defun comp-log-edges (func)
   "Log edges in FUNC."
@@ -731,14 +1064,15 @@ VERBOSITY is a number between 0 and 3."
 
 (defmacro comp-loop-insn-in-block (basic-block &rest body)
   "Loop over all insns in BASIC-BLOCK executing BODY.
-Inside BODY `insn' can be used to read or set the current
-instruction."
+Inside BODY `insn' and `insn-cell'can be used to read or set the
+current instruction or its cell."
   (declare (debug (form body))
            (indent defun))
-  (let ((sym-cell (gensym "cell-")))
-    `(cl-symbol-macrolet ((insn (car ,sym-cell)))
-       (cl-loop for ,sym-cell on (comp-block-insns ,basic-block)
-	        do ,@body))))
+  `(cl-symbol-macrolet ((insn (car insn-cell)))
+     (let ((insn-cell (comp-block-insns ,basic-block)))
+       (while insn-cell
+         ,@body
+         (setf insn-cell (cdr insn-cell))))))
 
 ;;; spill-lap pass specific code.
 
@@ -1201,8 +1535,8 @@ Return value is the fall through block name."
       (when label-sp
         (cl-assert (= (1- label-sp) (+ target-offset (comp-sp)))))
       (comp-emit (if negated
-		     (list 'cond-jump a b eff-target-name bb)
-		   (list 'cond-jump a b bb eff-target-name)))
+                     (list 'cond-jump a b bb eff-target-name)
+		   (list 'cond-jump a b eff-target-name bb)))
       (comp-mark-curr-bb-closed)
       bb)))
 
@@ -1293,7 +1627,7 @@ Return value is the fall through block name."
                                             (comp-new-block-sym)))
         for ff-bb-name = (comp-block-name ff-bb)
         if (eq test-func 'eq)
-          do (comp-emit (list 'cond-jump var m-test ff-bb-name target-name))
+          do (comp-emit (list 'cond-jump var m-test target-name ff-bb-name))
         else
         ;; Store the result of the comparison into the scratch slot before
         ;; emitting the conditional jump.
@@ -1302,7 +1636,7 @@ Return value is the fall through block name."
              (comp-emit (list 'cond-jump
                               (make-comp-mvar :slot 'scratch)
                               (make-comp-mvar :constant nil)
-                              target-name ff-bb-name))
+                              ff-bb-name target-name))
         unless last
         ;; All fall through are artificially created here except the last one.
           do (puthash ff-bb-name ff-bb (comp-func-blocks comp-func))
@@ -1361,9 +1695,9 @@ the annotation emission."
 		if body
 		collect `(',op
                           ;; Log all LAP ops except the TAG one.
-                          ,(unless (eq op 'TAG)
-                             `(comp-emit-annotation
-                               ,(concat "LAP op " op-name)))
+                          ;; ,(unless (eq op 'TAG)
+                          ;;    `(comp-emit-annotation
+                          ;;      ,(concat "LAP op " op-name)))
                           ;; Emit the stack adjustment if present.
                           ,(when (and sp-delta (not (eq 0 sp-delta)))
 			     `(cl-incf (comp-sp) ,sp-delta))
@@ -1418,7 +1752,9 @@ the annotation emission."
       (byte-listp auto)
       (byte-eq auto)
       (byte-memq auto)
-      (byte-not null)
+      (byte-not
+       (comp-emit-set-call (comp-call 'eq (comp-slot-n (comp-sp))
+                                      (make-comp-mvar :constant nil))))
       (byte-car auto)
       (byte-cdr auto)
       (byte-cons auto)
@@ -1571,8 +1907,8 @@ the annotation emission."
        ;; Assume to follow the emission of a setimm.
        ;; This is checked into comp-emit-switch.
        (comp-emit-switch (comp-slot+1)
-                         (cl-second (comp-block-insns
-                                     (comp-limplify-curr-block comp-pass)))))
+                         (cl-first (comp-block-insns
+                                    (comp-limplify-curr-block comp-pass)))))
       (byte-constant
        (comp-emit-setimm arg))
       (byte-discardN-preserve-tos
@@ -1587,12 +1923,12 @@ the annotation emission."
   (cl-loop for i from minarg below nonrest
            for bb = (intern (format "entry_%s" i))
            for fallback = (intern (format "entry_fallback_%s" i))
-           do (comp-emit `(cond-jump-narg-leq ,i ,bb ,fallback))
+           do (comp-emit `(cond-jump-narg-leq ,i ,fallback ,bb))
               (comp-make-curr-block bb (comp-sp))
               (comp-emit `(set-args-to-local ,(comp-slot-n i)))
               (comp-emit '(inc-args))
               finally (comp-emit '(jump entry_rest_args)))
-  (when (not (= minarg nonrest))
+  (when (/= minarg nonrest)
     (cl-loop for i from minarg below nonrest
              for bb = (intern (format "entry_fallback_%s" i))
              for next-bb = (if (= (1+ i) nonrest)
@@ -1652,17 +1988,19 @@ the annotation emission."
                            'comp--late-register-subr
                          'comp--register-subr)
                        (make-comp-mvar :constant name)
+                       (make-comp-mvar :constant c-name)
                        (car args)
                        (cdr args)
-                       (make-comp-mvar :constant c-name)
+                       (setf (comp-func-type f)
+                             (make-comp-mvar :constant nil))
                        (make-comp-mvar
                         :constant
-                        (let* ((h (comp-ctxt-function-docs comp-ctxt))
-                               (i (hash-table-count h)))
-                          (puthash i (comp-func-doc f) h)
-                          i))
-                       (make-comp-mvar :constant
-                                       (comp-func-int-spec f))
+                        (list
+                         (let* ((h (comp-ctxt-function-docs comp-ctxt))
+                                (i (hash-table-count h)))
+                           (puthash i (comp-func-doc f) h)
+                           i)
+                         (comp-func-int-spec f)))
                        ;; This is the compilation unit it-self passed as
                        ;; parameter.
                        (make-comp-mvar :slot 0))))))
@@ -1693,15 +2031,19 @@ These are stored in the reloc data array."
                     (puthash (comp-func-byte-func func)
                              (make-comp-mvar :constant nil)
                              (comp-ctxt-lambda-fixups-h comp-ctxt)))
+                (make-comp-mvar :constant (comp-func-c-name func))
                 (car args)
                 (cdr args)
-                (make-comp-mvar :constant (comp-func-c-name func))
+                (setf (comp-func-type func)
+                      (make-comp-mvar :constant nil))
                 (make-comp-mvar
-                 :constant (let* ((h (comp-ctxt-function-docs comp-ctxt))
-                                  (i (hash-table-count h)))
-                             (puthash i (comp-func-doc func) h)
-                             i))
-                (make-comp-mvar :constant (comp-func-int-spec func))
+                 :constant
+                 (list
+                  (let* ((h (comp-ctxt-function-docs comp-ctxt))
+                         (i (hash-table-count h)))
+                    (puthash i (comp-func-doc func) h)
+                    i)
+                  (comp-func-int-spec func)))
                 ;; This is the compilation unit it-self passed as
                 ;; parameter.
                 (make-comp-mvar :slot 0)))))
@@ -1839,64 +2181,345 @@ into the C code forwarding the compilation unit."
     (comp-add-func-to-ctxt (comp-limplify-top-level t))))
 
 
-;;; conditional branches rewrite pass specific code.
+;;; add-cstrs pass specific code.
 
-(defun comp-emit-assume (target-slot rhs bb-name kind)
-  "Emit an assume of kind KIND for TARGET-SLOT being RHS.
-The assume is emitted at the beginning of the block named
-BB-NAME."
-  (push `(assume ,(make-comp-mvar :slot target-slot) ,rhs ,kind)
-	(comp-block-insns (gethash bb-name (comp-func-blocks comp-func))))
-  (setf (comp-func-ssa-status comp-func) 'dirty))
+;; This pass is responsible for adding constraints, these are
+;; generated from:
+;;
+;;  - Conditional branches: each branch taken or non taken can be used
+;;    in the CFG to infer information on the tested variables.
+;;
+;;  - Range propagation under test and branch (when the test is an
+;;    arithmetic comparison).
+;;
+;;  - Type constraint under test and branch (when the test is a
+;;    known predicate).
+;;
+;;  - Function calls: function calls to function assumed to be not
+;;    redefinable can be used to add constrains on the function
+;;    arguments.  Ex: if we execute successfully (= x y) we know that
+;;    afterwards both x and y must satisfy the (or number marker)
+;;    type specifier.
 
-(defun comp-cond-rw-target-slot (slot-num exit-insn bb)
-  "Search for the last assignment of SLOT-NUM in BB.
-Keep on searching till EXIT-INSN is encountered.
-Return the corresponding rhs slot number."
+
+(defsubst comp-mvar-used-p (mvar)
+  "Non-nil when MVAR is used as lhs in the current funciton."
+  (declare (gv-setter (lambda (val)
+			`(puthash ,mvar ,val comp-pass))))
+  (gethash mvar comp-pass))
+
+(defun comp-collect-mvars (form)
+  "Add rhs m-var present in FORM into `comp-pass'."
+  (cl-loop for x in form
+           if (consp x)
+             do (comp-collect-mvars x)
+           else
+             when (comp-mvar-p x)
+               do (setf (comp-mvar-used-p x) t)))
+
+(defun comp-collect-rhs ()
+  "Collect all lhs mvars into `comp-pass'."
+  (cl-loop
+   for b being each hash-value of (comp-func-blocks comp-func)
+   do (cl-loop
+       for insn in (comp-block-insns b)
+       for (op . args) = insn
+       if (comp-assign-op-p op)
+         do (comp-collect-mvars (cdr args))
+       else
+         do (comp-collect-mvars args))))
+
+(defun comp-negate-range-cmp-fun (function)
+  "Negate FUNCTION."
+  (cl-ecase function
+    (> '<=)
+    (< '>=)
+    (>= '<)
+    (<= '>)))
+
+(defun comp-reverse-cmp-fun (function)
+  "Reverse FUNCTION."
+  (cl-case function
+    (> '<)
+    (< '>)
+    (>= '<=)
+    (<= '>=)
+    (t function)))
+
+(defun comp-emit-assume (kind lhs rhs bb negated)
+  "Emit an assume of kind KIND for mvar LHS being RHS.
+When NEGATED is non-nil the assumption is negated.
+The assume is emitted at the beginning of the block BB."
+  (let ((lhs-slot (comp-mvar-slot lhs)))
+    (cl-assert lhs-slot)
+    (pcase kind
+      ('and
+       (if (comp-mvar-p rhs)
+           (let ((tmp-mvar (if negated
+                               (make-comp-mvar :slot (comp-mvar-slot rhs))
+                             rhs)))
+             (push `(assume ,(make-comp-mvar :slot lhs-slot)
+                            (and ,lhs ,tmp-mvar))
+	           (comp-block-insns bb))
+             (if negated
+                 (push `(assume ,tmp-mvar (not ,rhs))
+	               (comp-block-insns bb))))
+         ;; If is only a constraint we can negate it directly.
+         (push `(assume ,(make-comp-mvar :slot lhs-slot)
+                        (and ,lhs ,(if negated
+                                       (comp-cstr-negation-make rhs)
+                                     rhs)))
+	       (comp-block-insns bb))))
+      ((pred comp-range-cmp-fun-p)
+       (let ((kind (if negated
+                       (comp-negate-range-cmp-fun kind)
+                     kind)))
+         (push `(assume ,(make-comp-mvar :slot lhs-slot)
+                        (,kind ,lhs
+                               ,(if-let* ((vld (comp-mvar-value-vld-p rhs))
+                                          (val (comp-mvar-value rhs))
+                                          (ok (integerp val)))
+                                    val
+                                  (make-comp-mvar :slot (comp-mvar-slot rhs)))))
+	       (comp-block-insns bb))))
+      (_ (cl-assert nil)))
+    (setf (comp-func-ssa-status comp-func) 'dirty)))
+
+(defun comp-add-new-block-between (bb-symbol bb-a bb-b)
+  "Create a new basic-block named BB-SYMBOL and add it between BB-A and BB-B."
+  (cl-loop
+   with new-bb = (make-comp-block-cstr :name bb-symbol
+                                       :insns `((jump ,(comp-block-name bb-b))))
+   with new-edge = (make-comp-edge :src bb-a :dst new-bb)
+   for ed in (comp-block-in-edges bb-b)
+   when (eq (comp-edge-src ed) bb-a)
+   do
+   ;; Connect `ed' to `new-bb' and disconnect it from `bb-a'.
+   (cl-assert (memq ed (comp-block-out-edges bb-a)))
+   (setf (comp-edge-src ed) new-bb
+         (comp-block-out-edges bb-a) (delq ed (comp-block-out-edges bb-a)))
+   (push ed (comp-block-out-edges new-bb))
+   ;; Connect `bb-a' `new-bb' with `new-edge'.
+   (push new-edge (comp-block-out-edges bb-a))
+   (push new-edge (comp-block-in-edges new-bb))
+   (setf (comp-func-ssa-status comp-func) 'dirty)
+   ;; Add `new-edge' to the current function and return it.
+   (cl-return (puthash bb-symbol new-bb (comp-func-blocks comp-func)))
+   finally (cl-assert nil)))
+
+;; Cheap substitute to a copy propagation pass...
+(defun comp-cond-cstrs-target-mvar (mvar exit-insn bb)
+  "Given MVAR search in BB the original mvar MVAR got assigned from.
+Keep on searching till EXIT-INSN is encountered."
   (cl-flet ((targetp (x)
               ;; Ret t if x is an mvar and target the correct slot number.
               (and (comp-mvar-p x)
-                   (eql slot-num (comp-mvar-slot x)))))
+                   (eql (comp-mvar-slot mvar) (comp-mvar-slot x)))))
     (cl-loop
      with res = nil
      for insn in (comp-block-insns bb)
      when (eq insn exit-insn)
-     do (cl-return (and (comp-mvar-p res) (comp-mvar-slot res)))
+     do (cl-return (and (comp-mvar-p res) res))
      do (pcase insn
           (`(,(pred comp-assign-op-p) ,(pred targetp) ,rhs)
            (setf res rhs)))
      finally (cl-assert nil))))
 
-(defun comp-cond-rw-func ()
-  "`comp-cond-rw' worker function for each selected function."
+(defun comp-add-cond-cstrs-target-block (curr-bb target-bb-sym)
+  "Return the appropriate basic block to add constraint assumptions into.
+CURR-BB is the current basic block.
+TARGET-BB-SYM is the symbol name of the target block."
+  (let* ((target-bb (gethash target-bb-sym
+                             (comp-func-blocks comp-func)))
+         (target-bb-in-edges (comp-block-in-edges target-bb)))
+    (cl-assert target-bb-in-edges)
+    (if (= (length target-bb-in-edges) 1)
+        ;; If block has only one predecessor is already suitable for
+        ;; adding constraint assumptions.
+        target-bb
+      (cl-loop
+       ;; Search for the first suitable basic block name.
+       for i from 0
+       for new-name = (intern (format "%s_cstrs_%d" (symbol-name target-bb-sym)
+                                      i))
+       until (null (gethash new-name (comp-func-blocks comp-func)))
+       finally
+       ;; Add it.
+       (cl-return (comp-add-new-block-between new-name curr-bb target-bb))))))
+
+(defun comp-add-cond-cstrs-simple ()
+  "`comp-add-cstrs' worker function for each selected function."
   (cl-loop
    for b being each hash-value of (comp-func-blocks comp-func)
-   do (cl-loop
-       named in-the-basic-block
-       for insns-seq on (comp-block-insns b)
-       do (pcase insns-seq
-            (`((set ,(and (pred comp-mvar-p) cond)
-                    (,(pred comp-call-op-p)
-                     ,(and (or 'eq 'eql '= 'equal) test-fn) ,op1 ,op2))
-	       (comment ,_comment-str)
-	       (cond-jump ,cond ,(pred comp-mvar-p) ,bb-1 ,_bb-2))
-             ;; FIXME We guard the target block against having more
-             ;; then one predecessor.  The right fix will be to add a
-             ;; new dedicated basic block for the assumptions so we
-             ;; can proceed always.
-             (when (= (length (comp-block-in-edges
-                                 (gethash bb-1
-                                          (comp-func-blocks comp-func))))
-                      1)
-               (when-let ((target-slot1 (comp-cond-rw-target-slot
-                                         (comp-mvar-slot op1) (car insns-seq) b)))
-                 (comp-emit-assume target-slot1 op2 bb-1 test-fn))
-               (when-let ((target-slot2 (comp-cond-rw-target-slot
-                                         (comp-mvar-slot op2) (car insns-seq) b)))
-                 (comp-emit-assume target-slot2 op1 bb-1 test-fn)))
-	     (cl-return-from in-the-basic-block))))))
+   do
+   (cl-loop
+    named in-the-basic-block
+    for insn-seq on (comp-block-insns b)
+    do
+    (pcase insn-seq
+      (`((set ,(and (pred comp-mvar-p) tmp-mvar)
+              ,(and (pred comp-mvar-p) obj1))
+         ;; (comment ,_comment-str)
+         (cond-jump ,tmp-mvar ,obj2 . ,blocks))
+       (cl-loop
+        for branch-target-cell on blocks
+        for branch-target = (car branch-target-cell)
+        for negated in '(nil t)
+	when (comp-mvar-used-p tmp-mvar)
+        do
+	(let ((block-target (comp-add-cond-cstrs-target-block b branch-target)))
+          (setf (car branch-target-cell) (comp-block-name block-target))
+          (comp-emit-assume 'and tmp-mvar obj2 block-target negated))
+        finally (cl-return-from in-the-basic-block)))
+      (`((cond-jump ,obj1 ,obj2 . ,blocks))
+       (cl-loop
+        for branch-target-cell on blocks
+        for branch-target = (car branch-target-cell)
+        for negated in '(nil t)
+	when (comp-mvar-used-p obj1)
+        do
+	(let ((block-target (comp-add-cond-cstrs-target-block b branch-target)))
+          (setf (car branch-target-cell) (comp-block-name block-target))
+          (comp-emit-assume 'and obj1 obj2 block-target negated))
+        finally (cl-return-from in-the-basic-block)))))))
 
-(defun comp-cond-rw (_)
+(defun comp-add-cond-cstrs ()
+  "`comp-add-cstrs' worker function for each selected function."
+  (cl-loop
+   for b being each hash-value of (comp-func-blocks comp-func)
+   do
+   (cl-loop
+    named in-the-basic-block
+    for insns-seq on (comp-block-insns b)
+    do
+    (pcase insns-seq
+      (`((set ,(and (pred comp-mvar-p) cmp-res)
+              (,(pred comp-call-op-p)
+               ,(and (or (pred comp-equality-fun-p)
+                         (pred comp-range-cmp-fun-p))
+                     fun)
+               ,op1 ,op2))
+	 ;; (comment ,_comment-str)
+	 (cond-jump ,cmp-res ,(pred comp-mvar-p) . ,blocks))
+       (cl-loop
+        with target-mvar1 = (comp-cond-cstrs-target-mvar op1 (car insns-seq) b)
+        with target-mvar2 = (comp-cond-cstrs-target-mvar op2 (car insns-seq) b)
+        with equality = (comp-equality-fun-p fun)
+        for branch-target-cell on blocks
+        for branch-target = (car branch-target-cell)
+        for negated in '(t nil)
+        for kind = (if equality 'and fun)
+        when (or (comp-mvar-used-p target-mvar1)
+                 (comp-mvar-used-p target-mvar2))
+        do
+        (let ((block-target (comp-add-cond-cstrs-target-block b branch-target)))
+          (setf (car branch-target-cell) (comp-block-name block-target))
+          (when (comp-mvar-used-p target-mvar1)
+            (comp-emit-assume kind target-mvar1 op2 block-target negated))
+          (when (comp-mvar-used-p target-mvar2)
+            (comp-emit-assume (comp-reverse-cmp-fun kind)
+                              target-mvar2 op1 block-target negated)))
+        finally (cl-return-from in-the-basic-block)))
+      (`((set ,(and (pred comp-mvar-p) cmp-res)
+              (,(pred comp-call-op-p)
+               ,(and (pred comp-known-predicate-p) fun)
+               ,op))
+	 ;; (comment ,_comment-str)
+	 (cond-jump ,cmp-res ,(pred comp-mvar-p) . ,blocks))
+       (cl-loop
+        with target-mvar = (comp-cond-cstrs-target-mvar op (car insns-seq) b)
+        with cstr = (comp-pred-to-cstr fun)
+        for branch-target-cell on blocks
+        for branch-target = (car branch-target-cell)
+        for negated in '(t nil)
+        when (comp-mvar-used-p target-mvar)
+        do
+        (let ((block-target (comp-add-cond-cstrs-target-block b branch-target)))
+          (setf (car branch-target-cell) (comp-block-name block-target))
+          (comp-emit-assume 'and target-mvar cstr block-target negated))
+        finally (cl-return-from in-the-basic-block)))
+      ;; Match predicate on the negated branch (unless).
+      (`((set ,(and (pred comp-mvar-p) cmp-res)
+              (,(pred comp-call-op-p)
+               ,(and (pred comp-known-predicate-p) fun)
+               ,op))
+         (set ,neg-cmp-res (call eq ,cmp-res ,(pred comp-cstr-null-p)))
+	 (cond-jump ,neg-cmp-res ,(pred comp-mvar-p) . ,blocks))
+       (cl-loop
+        with target-mvar = (comp-cond-cstrs-target-mvar op (car insns-seq) b)
+        with cstr = (comp-pred-to-cstr fun)
+        for branch-target-cell on blocks
+        for branch-target = (car branch-target-cell)
+        for negated in '(nil t)
+        when (comp-mvar-used-p target-mvar)
+        do
+        (let ((block-target (comp-add-cond-cstrs-target-block b branch-target)))
+          (setf (car branch-target-cell) (comp-block-name block-target))
+          (comp-emit-assume 'and target-mvar cstr block-target negated))
+        finally (cl-return-from in-the-basic-block)))))))
+
+(defsubst comp-insert-insn (insn insn-cell)
+  "Insert INSN as second insn of INSN-CELL."
+  (let ((next-cell (cdr insn-cell))
+        (new-cell `(,insn)))
+    (setf (cdr insn-cell) new-cell
+          (cdr new-cell) next-cell
+          (comp-func-ssa-status comp-func) 'dirty)))
+
+(defun comp-emit-call-cstr (mvar call-cell cstr)
+  "Emit a constraint CSTR for MVAR after CALL-CELL."
+  (let* ((new-mvar (make-comp-mvar :slot (comp-mvar-slot mvar)))
+         ;; Have new-mvar as LHS *and* RHS to ensure monotonicity and
+         ;; fwprop convergence!!
+         (insn `(assume ,new-mvar (and ,new-mvar ,mvar ,cstr))))
+    (comp-insert-insn insn call-cell)))
+
+(defun comp-lambda-list-gen (lambda-list)
+  "Return a generator to iterate over LAMBDA-LIST."
+  (lambda ()
+    (cl-case (car lambda-list)
+      (&optional
+       (setf lambda-list (cdr lambda-list))
+       (prog1
+           (car lambda-list)
+         (setf lambda-list (cdr lambda-list))))
+      (&rest
+       (cadr lambda-list))
+      (t
+       (prog1
+           (car lambda-list)
+         (setf lambda-list (cdr lambda-list)))))))
+
+(defun comp-add-call-cstr ()
+  "Add args assumptions for each function of which the type specifier is known."
+  (cl-loop
+   for bb being each hash-value of (comp-func-blocks comp-func)
+   do
+   (comp-loop-insn-in-block bb
+     (when-let ((match
+                 (pcase insn
+                   (`(set ,lhs (,(pred comp-call-op-p) ,f . ,args))
+                    (when-let ((cstr-f (gethash f comp-known-func-cstr-h)))
+                      (cl-values f cstr-f lhs args)))
+                   (`(,(pred comp-call-op-p) ,f . ,args)
+                    (when-let ((cstr-f (gethash f comp-known-func-cstr-h)))
+                      (cl-values f cstr-f nil args))))))
+       (cl-multiple-value-bind (f cstr-f lhs args) match
+         (cl-loop
+          with gen = (comp-lambda-list-gen (comp-cstr-f-args cstr-f))
+          for arg in args
+          for cstr = (funcall gen)
+          for target = (comp-cond-cstrs-target-mvar arg insn bb)
+          unless (comp-cstr-p cstr)
+            do (signal 'native-ice
+                       (list "Incoherent type specifier for function" f))
+          when (and target
+                    (or (null lhs)
+                        (not (eql (comp-mvar-slot lhs)
+                                  (comp-mvar-slot target)))))
+            do (comp-emit-call-cstr target insn-cell cstr)))))))
+
+(defun comp-add-cstrs (_)
   "Rewrite conditional branches adding appropriate 'assume' insns.
 This is introducing and placing 'assume' insns in use by fwprop
 to propagate conditional branch test information on target basic
@@ -1908,8 +2531,12 @@ blocks."
                         ;; variables.
 			(comp-func-l-p f)
                         (not (comp-func-has-non-local f)))
-               (let ((comp-func f))
-                 (comp-cond-rw-func)
+               (let ((comp-func f)
+                     (comp-pass (make-hash-table :test #'eq)))
+                 (comp-collect-rhs)
+		 (comp-add-cond-cstrs-simple)
+                 (comp-add-cond-cstrs)
+                 (comp-add-call-cstr)
                  (comp-log-func comp-func 3))))
            (comp-ctxt-funcs-h comp-ctxt)))
 
@@ -1991,7 +2618,7 @@ blocks."
    for b being each hash-value of (comp-func-blocks f)
    do (setf (comp-block-in-edges b) ()
             (comp-block-out-edges b) ()
-            (comp-block-dom b) nil
+            (comp-block-idom b) nil
             (comp-block-df b) (make-hash-table)
             (comp-block-post-num b) nil
             (comp-block-final-frame b) nil
@@ -2002,45 +2629,39 @@ blocks."
 
 (defun comp-compute-edges ()
   "Compute the basic block edges for the current function."
-  (cl-flet ((edge-add (&rest args &aux (n (funcall
-                                           (comp-func-edge-cnt-gen comp-func))))
-                      (puthash
-                       n
-                       (apply #'make--comp-edge :number n args)
-                       (comp-func-edges-h comp-func))))
-
-    (cl-loop with blocks = (comp-func-blocks comp-func)
-             for bb being each hash-value of blocks
-             for last-insn = (car (last (comp-block-insns bb)))
-             for (op first second third forth) = last-insn
-             do (cl-case op
-                  (jump
-                   (edge-add :src bb :dst (gethash first blocks)))
-                  (cond-jump
-                   (edge-add :src bb :dst (gethash third blocks))
-                   (edge-add :src bb :dst (gethash forth blocks)))
-                  (cond-jump-narg-leq
-                   (edge-add :src bb :dst (gethash second blocks))
-                   (edge-add :src bb :dst (gethash third blocks)))
-                  (push-handler
-                   (edge-add :src bb :dst (gethash third blocks))
-                   (edge-add :src bb :dst (gethash forth blocks)))
-                  (return)
-                  (otherwise
-                   (signal 'native-ice
-                           (list "block does not end with a branch"
-                                 bb
-                                 (comp-func-name comp-func)))))
-             ;; Update edge refs into blocks.
-             finally
-             (cl-loop
-              for edge being the hash-value in (comp-func-edges-h comp-func)
-              do
-              (push edge
-                    (comp-block-out-edges (comp-edge-src edge)))
-              (push edge
-                    (comp-block-in-edges (comp-edge-dst edge))))
-             (comp-log-edges comp-func))))
+  (cl-loop with blocks = (comp-func-blocks comp-func)
+           for bb being each hash-value of blocks
+           for last-insn = (car (last (comp-block-insns bb)))
+           for (op first second third forth) = last-insn
+           do (cl-case op
+                (jump
+                 (make-comp-edge :src bb :dst (gethash first blocks)))
+                (cond-jump
+                 (make-comp-edge :src bb :dst (gethash third blocks))
+                 (make-comp-edge :src bb :dst (gethash forth blocks)))
+                (cond-jump-narg-leq
+                 (make-comp-edge :src bb :dst (gethash second blocks))
+                 (make-comp-edge :src bb :dst (gethash third blocks)))
+                (push-handler
+                 (make-comp-edge :src bb :dst (gethash third blocks))
+                 (make-comp-edge :src bb :dst (gethash forth blocks)))
+                (return)
+                (unreachable)
+                (otherwise
+                 (signal 'native-ice
+                         (list "block does not end with a branch"
+                               bb
+                               (comp-func-name comp-func)))))
+           ;; Update edge refs into blocks.
+           finally
+           (cl-loop
+            for edge being the hash-value in (comp-func-edges-h comp-func)
+            do
+            (push edge
+                  (comp-block-out-edges (comp-edge-src edge)))
+            (push edge
+                  (comp-block-in-edges (comp-edge-dst edge))))
+           (comp-log-edges comp-func)))
 
 (defun comp-collect-rev-post-order (basic-block)
   "Walk BASIC-BLOCK children and return their name in reversed post-order."
@@ -2066,44 +2687,48 @@ blocks."
                     (finger2 (comp-block-post-num b2)))
                 (while (not (= finger1 finger2))
                   (while (< finger1 finger2)
-                    (setf b1 (comp-block-dom b1)
+                    (setf b1 (comp-block-idom b1)
                           finger1 (comp-block-post-num b1)))
                   (while (< finger2 finger1)
-                    (setf b2 (comp-block-dom b2)
+                    (setf b2 (comp-block-idom b2)
                           finger2 (comp-block-post-num b2))))
                 b1))
             (first-processed (l)
-              (if-let ((p (cl-find-if (lambda (p) (comp-block-dom p)) l)))
+              (if-let ((p (cl-find-if (lambda (p) (comp-block-idom p)) l)))
                   p
                 (signal 'native-ice "cant't find first preprocessed"))))
 
     (when-let ((blocks (comp-func-blocks comp-func))
                (entry (gethash 'entry blocks))
                ;; No point to go on if the only bb is 'entry'.
-               (bb1 (gethash 'bb_1 blocks)))
-      (cl-loop with rev-bb-list = (comp-collect-rev-post-order entry)
-               with changed = t
-               while changed
-               initially (progn
-                           (comp-log "Computing dominator tree...\n" 2)
-                           (setf (comp-block-dom entry) entry)
-                           ;; Set the post order number.
-                           (cl-loop for name in (reverse rev-bb-list)
-                                    for b = (gethash name blocks)
-                                    for i from 0
-                                    do (setf (comp-block-post-num b) i)))
-               do (cl-loop
-                   for name in (cdr rev-bb-list)
-                   for b = (gethash name blocks)
-                   for preds = (comp-block-preds b)
-                   for new-idom = (first-processed preds)
-                   initially (setf changed nil)
-                   do (cl-loop for p in (delq new-idom preds)
-                               when (comp-block-dom p)
-                                 do (setf new-idom (intersect p new-idom)))
-                   unless (eq (comp-block-dom b) new-idom)
-                   do (setf (comp-block-dom b) new-idom
-                            changed t))))))
+               (bb0 (gethash 'bb_0 blocks)))
+      (cl-loop
+       with rev-bb-list = (comp-collect-rev-post-order entry)
+       with changed = t
+       while changed
+       initially (progn
+                   (comp-log "Computing dominator tree...\n" 2)
+                   (setf (comp-block-idom entry) entry)
+                   ;; Set the post order number.
+                   (cl-loop for name in (reverse rev-bb-list)
+                            for b = (gethash name blocks)
+                            for i from 0
+                            do (setf (comp-block-post-num b) i)))
+       do (cl-loop
+           for name in (cdr rev-bb-list)
+           for b = (gethash name blocks)
+           for preds = (comp-block-preds b)
+           for new-idom = (first-processed preds)
+           initially (setf changed nil)
+           do (cl-loop for p in (delq new-idom preds)
+                       when (comp-block-idom p)
+                       do (setf new-idom (intersect p new-idom)))
+           unless (eq (comp-block-idom b) new-idom)
+           do (setf (comp-block-idom b) (unless (and (comp-block-lap-p new-idom)
+                                                    (comp-block-lap-no-ret
+                                                     new-idom))
+                                         new-idom)
+                    changed t))))))
 
 (defun comp-compute-dominator-frontiers ()
   "Compute the dominator frontier for each basic block in `comp-func'."
@@ -2116,14 +2741,14 @@ blocks."
            when (>= (length preds) 2) ; All joins
            do (cl-loop for p in preds
                        for runner = p
-                       do (while (not (eq runner (comp-block-dom b)))
+                       do (while (not (eq runner (comp-block-idom b)))
                             (puthash b-name b (comp-block-df runner))
-                            (setf runner (comp-block-dom runner))))))
+                            (setf runner (comp-block-idom runner))))))
 
 (defun comp-log-block-info ()
   "Log basic blocks info for the current function."
   (maphash (lambda (name bb)
-             (let ((dom (comp-block-dom bb))
+             (let ((dom (comp-block-idom bb))
                    (df (comp-block-df bb)))
                (comp-log (format "block: %s idom: %s DF %s\n"
                                  name
@@ -2181,7 +2806,7 @@ PRE-LAMBDA and POST-LAMBDA are called in pre or post-order if non-nil."
   (when-let ((out-edges (comp-block-out-edges bb)))
     (cl-loop for ed in out-edges
              for child = (comp-edge-dst ed)
-             when (eq bb (comp-block-dom child))
+             when (eq bb (comp-block-idom child))
              ;; Current block is the immediate dominator then recur.
              do (comp-dom-tree-walker child pre-lambda post-lambda)))
   (when post-lambda
@@ -2206,7 +2831,7 @@ PRE-LAMBDA and POST-LAMBDA are called in pre or post-order if non-nil."
       (pcase insn
         (`(,(pred comp-assign-op-p) ,(pred targetp) . ,_)
          (let ((mvar (aref frame slot-n)))
-           (setcdr insn (cl-nsubst-if mvar #'targetp (cdr insn))))
+           (setf (cddr insn) (cl-nsubst-if mvar #'targetp (cddr insn))))
          (new-lvalue))
         (`(fetch-handler . ,_)
          ;; Clobber all no matter what!
@@ -2249,7 +2874,7 @@ PRE-LAMBDA and POST-LAMBDA are called in pre or post-order if non-nil."
                                for e in (comp-block-in-edges b)
                                for b = (comp-edge-src e)
                                for in-frame = (comp-block-final-frame b)
-                               collect (cons (aref in-frame slot-n)
+                               collect (list (aref in-frame slot-n)
                                              (comp-block-name b))))))
 
     (cl-loop for b being each hash-value of (comp-func-blocks comp-func)
@@ -2257,16 +2882,34 @@ PRE-LAMBDA and POST-LAMBDA are called in pre or post-order if non-nil."
                          when (eq op 'phi)
                            do (finalize-phi args b)))))
 
+(defun comp-remove-unreachable-blocks ()
+  "Remove unreachable basic blocks.
+Return t when one or more block was removed, nil otherwise."
+  (cl-loop
+   with ret
+   for bb being each hash-value of (comp-func-blocks comp-func)
+   for bb-name = (comp-block-name bb)
+   when (and (not (eq 'entry bb-name))
+             (null (comp-block-idom bb)))
+   do
+   (comp-log (format "Removing block: %s" bb-name) 1)
+   (remhash bb-name (comp-func-blocks comp-func))
+   (setf (comp-func-ssa-status comp-func) t
+              ret t)
+   finally return ret))
+
 (defun comp-ssa ()
   "Port all functions into minimal SSA form."
   (maphash (lambda (_ f)
              (let* ((comp-func f)
                     (ssa-status (comp-func-ssa-status f)))
                (unless (eq ssa-status t)
-                 (when (eq ssa-status 'dirty)
-                   (comp-clean-ssa f))
-                 (comp-compute-edges)
-                 (comp-compute-dominator-tree)
+                 (cl-loop
+                  when (eq ssa-status 'dirty)
+                    do (comp-clean-ssa f)
+                  do (comp-compute-edges)
+                     (comp-compute-dominator-tree)
+                 until (null (comp-remove-unreachable-blocks)))
                  (comp-compute-dominator-frontiers)
                  (comp-log-block-info)
                  (comp-place-phis)
@@ -2332,7 +2975,8 @@ Forward propagate immediate involed in assignments."
   "Propagate into LVAL properties of RVAL."
   (setf (comp-mvar-typeset lval) (comp-mvar-typeset rval)
         (comp-mvar-valset lval) (comp-mvar-valset rval)
-        (comp-mvar-range lval) (comp-mvar-range rval)))
+        (comp-mvar-range lval) (comp-mvar-range rval)
+        (comp-mvar-neg lval) (comp-mvar-neg rval)))
 
 (defun comp-function-foldable-p (f args)
   "Given function F called with ARGS return non-nil when optimizable."
@@ -2374,11 +3018,24 @@ Return non-nil if the function is folded successfully."
 F is the function being called with arguments ARGS.
 Fold the call in case."
   (unless (comp-function-call-maybe-fold insn f args)
+    (when (and (eq 'funcall f)
+               (comp-mvar-value-vld-p (car args)))
+      (setf f (comp-mvar-value (car args))
+            args (cdr args)))
     (when-let ((cstr-f (gethash f comp-known-func-cstr-h)))
       (let ((cstr (comp-cstr-f-ret cstr-f)))
+        (when (comp-cstr-empty-p cstr)
+          ;; Store it to be rewrittein as non local exit.
+          (setf (comp-block-lap-non-ret-insn comp-block) insn))
         (setf (comp-mvar-range lval) (comp-cstr-range cstr)
               (comp-mvar-valset lval) (comp-cstr-valset cstr)
-              (comp-mvar-typeset lval) (comp-cstr-typeset cstr))))))
+              (comp-mvar-typeset lval) (comp-cstr-typeset cstr)
+              (comp-mvar-neg lval) (comp-cstr-neg cstr))))
+    (cl-case f
+      (+ (comp-cstr-add lval args))
+      (- (comp-cstr-sub lval args))
+      (1+ (comp-cstr-add lval `(,(car args) ,comp-cstr-one)))
+      (1- (comp-cstr-sub lval `(,(car args) ,comp-cstr-one))))))
 
 (defun comp-fwprop-insn (insn)
   "Propagate within INSN."
@@ -2392,29 +3049,33 @@ Fold the call in case."
           (comp-fwprop-call insn lval f args)))
        (_
         (comp-mvar-propagate lval rval))))
-    (`(assume ,lval ,rval ,kind)
-     (pcase kind
-       ('eq
-        (comp-mvar-propagate lval rval))
-       ((or 'eql 'equal)
-        (if (or (comp-mvar-symbol-p rval)
-                (comp-mvar-fixnum-p rval))
-            (comp-mvar-propagate lval rval)
-          (setf (comp-mvar-typeset lval) (comp-mvar-typeset rval))))
-       ('=
-        (if (comp-mvar-fixnum-p rval)
-            (comp-mvar-propagate lval rval)
-          (setf (comp-mvar-typeset lval)
-                (unless (comp-mvar-range rval)
-                  '(number)))))))
+    (`(assume ,lval (,kind . ,operands))
+     (cl-case kind
+       (and
+        (apply #'comp-cstr-intersection lval operands))
+       (not
+        ;; Prevent double negation!
+        (unless (comp-cstr-neg (car operands))
+          (comp-cstr-value-negation lval (car operands))))
+       (>
+        (comp-cstr-> lval (car operands) (cadr operands)))
+       (>=
+        (comp-cstr->= lval (car operands) (cadr operands)))
+       (<
+        (comp-cstr-< lval (car operands) (cadr operands)))
+       (<=
+        (comp-cstr-<= lval (car operands) (cadr operands)))))
     (`(setimm ,lval ,v)
      (setf (comp-mvar-value lval) v))
     (`(phi ,lval . ,rest)
      (let* ((from-latch (cl-some
                          (lambda (x)
-                           (comp-latch-p
-                            (gethash (cdr x)
-                                     (comp-func-blocks comp-func))))
+                           (let* ((bb-name (cadr x))
+                                  (bb (gethash bb-name
+                                               (comp-func-blocks comp-func))))
+                             (or (comp-latch-p bb)
+                                 (when (comp-block-cstr-p bb)
+                                   (comp-latch-p (car (comp-block-preds bb)))))))
                          rest))
             (prop-fn (if from-latch
                          #'comp-cstr-union-no-range
@@ -2427,14 +3088,33 @@ Fold the call in case."
 Return t if something was changed."
   (cl-loop with modified = nil
            for b being each hash-value of (comp-func-blocks comp-func)
-           do (cl-loop for insn in (comp-block-insns b)
-                       for orig-insn = (unless modified
-                                         ;; Save consing after 1th change.
-                                         (comp-copy-insn insn))
-                       do (comp-fwprop-insn insn)
-                       when (and (null modified) (not (equal insn orig-insn)))
-                         do (setf modified t))
+           do (cl-loop
+               with comp-block = b
+               for insn in (comp-block-insns b)
+               for orig-insn = (unless modified
+                                 ;; Save consing after 1th change.
+                                 (comp-copy-insn insn))
+               do (comp-fwprop-insn insn)
+               when (and (null modified) (not (equal insn orig-insn)))
+                 do (setf modified t))
            finally return modified))
+
+(defun comp-rewrite-non-locals ()
+  "Make explicit in LIMPLE non-local exits if identified."
+  (cl-loop
+   for bb being each hash-value of (comp-func-blocks comp-func)
+   for non-local-insn = (and (comp-block-lap-p bb)
+                             (comp-block-lap-non-ret-insn bb))
+   when non-local-insn
+   do
+   ;; Rework the current block.
+   (let* ((insn-seq (memq non-local-insn (comp-block-insns bb))))
+     (setf (comp-block-lap-non-ret-insn bb) ()
+           (comp-block-lap-no-ret bb) t
+           (comp-block-out-edges bb) ()
+           ;; Prune unnecessary insns!
+           (cdr insn-seq) '((unreachable))
+           (comp-func-ssa-status comp-func) 'dirty))))
 
 (defun comp-fwprop (_)
   "Forward propagate types and consts within the lattice."
@@ -2446,9 +3126,15 @@ Return t if something was changed."
                (let ((comp-func f))
                  (comp-fwprop-prologue)
                  (cl-loop
-                  for i from 1
+                  for i from 1 to 100
                   while (comp-fwprop*)
-                  finally (comp-log (format "Propagation run %d times\n" i) 2))
+                  finally
+                  (when (= i 100)
+                    (display-warning
+                     'comp
+                     (format "fwprop pass jammed into %s?" (comp-func-name f))))
+                  (comp-log (format "Propagation run %d times\n" i) 2))
+                 (comp-rewrite-non-locals)
                  (comp-log-func comp-func 3))))
            (comp-ctxt-funcs-h comp-ctxt)))
 
@@ -2578,7 +3264,7 @@ Return the list of m-var ids nuked."
      do (cl-loop
          for insn in (comp-block-insns b)
          for (op arg0 . rest) = insn
-         if (comp-set-op-p op)
+         if (comp-assign-op-p op)
            do (push (comp-mvar-id arg0) l-vals)
               (setf r-vals (nconc (comp-collect-mvar-ids rest) r-vals))
          else
@@ -2596,7 +3282,7 @@ Return the list of m-var ids nuked."
        for b being each hash-value of (comp-func-blocks comp-func)
        do (comp-loop-insn-in-block b
             (cl-destructuring-bind (op &optional arg0 arg1 &rest rest) insn
-              (when (and (comp-set-op-p op)
+              (when (and (comp-assign-op-p op)
                          (memq (comp-mvar-id arg0) nuke-list))
                 (setf insn
                       (if (comp-limple-insn-call-p arg1)
@@ -2638,7 +3324,7 @@ Return the list of m-var ids nuked."
        for insns-seq on (comp-block-insns b)
        do (pcase insns-seq
             (`((set ,l-val (direct-call ,func . ,args))
-               (comment ,_comment)
+               ;; (comment ,_comment)
                (return ,ret-val))
              (when (and (string= func (comp-func-c-name comp-func))
                         (eq l-val ret-val))
@@ -2687,26 +3373,56 @@ These are substituted with a normal 'set' op."
 
 ;;; Final pass specific code.
 
-(defun comp-ret-type-spec (_ func)
+(defun comp-args-to-lambda-list (args)
+  "Return a lambda list for args."
+  (cl-loop
+   with res
+   repeat (comp-args-base-min args)
+   do (push t res)
+   finally
+   (if (comp-args-p args)
+       (cl-loop
+        with n = (- (comp-args-max args) (comp-args-min args))
+        initially (unless (zerop n)
+                    (push '&optional res))
+        repeat n
+        do (push t res))
+     (cl-loop
+      with n = (- (comp-nargs-nonrest args) (comp-nargs-min args))
+      initially (unless (zerop n)
+                  (push '&optional res))
+      repeat n
+      do (push t res)
+      finally (when (comp-nargs-rest args)
+                (push '&rest res)
+                (push 't res))))
+   (cl-return (reverse res))))
+
+(defun comp-compute-function-type (_ func)
   "Compute type specifier for `comp-func' FUNC.
-Set it into the `ret-type-specifier' slot."
-  (let* ((comp-func (make-comp-func))
-         (res-mvar (apply #'comp-cstr-union
-                          (make-comp-cstr)
-                          (cl-loop
-                           with res = nil
-                           for bb being the hash-value in (comp-func-blocks
-                                                           func)
-                           do (cl-loop
-                               for insn in (comp-block-insns bb)
-                               ;; Collect over every exit point the returned
-                               ;; mvars and union results.
-                               do (pcase insn
-                                    (`(return ,mvar)
-                                     (push mvar res))))
-                           finally (cl-return res)))))
-    (setf (comp-func-ret-type-specifier func)
-          (comp-cstr-to-type-spec res-mvar))))
+Set it into the `type' slot."
+  (when (and (comp-func-l-p func)
+             (comp-mvar-p (comp-func-type func)))
+    (let* ((comp-func (make-comp-func))
+           (res-mvar (apply #'comp-cstr-union
+                            (make-comp-cstr)
+                            (cl-loop
+                             with res = nil
+                             for bb being the hash-value in (comp-func-blocks
+                                                             func)
+                             do (cl-loop
+                                 for insn in (comp-block-insns bb)
+                                 ;; Collect over every exit point the returned
+                                 ;; mvars and union results.
+                                 do (pcase insn
+                                      (`(return ,mvar)
+                                       (push mvar res))))
+                             finally return res)))
+           (type `(function ,(comp-args-to-lambda-list (comp-func-l-args func))
+                            ,(comp-cstr-to-type-spec res-mvar))))
+      (comp-add-const-to-relocs type)
+      ;; Fix it up.
+      (setf (comp-mvar-value (comp-func-type func)) type))))
 
 (defun comp-finalize-container (cont)
   "Finalize data container CONT."
@@ -2810,7 +3526,7 @@ Prepare every function for final compilation and drive the C back-end."
 
 (defun comp-final (_)
   "Final pass driving the C back-end for code emission."
-  (maphash #'comp-ret-type-spec (comp-ctxt-funcs-h comp-ctxt))
+  (maphash #'comp-compute-function-type (comp-ctxt-funcs-h comp-ctxt))
   (unless comp-dry-run
     ;; Always run the C side of the compilation as a sub-process
     ;; unless during bootstrap or async compilation (bug#45056).  GCC
@@ -2826,9 +3542,11 @@ Prepare every function for final compilation and drive the C back-end."
              (print-quoted t)
              (print-gensym t)
              (print-circle t)
+             (print-escape-multibyte t)
              (expr `(progn
                       (require 'comp)
                       (setf comp-verbose ,comp-verbose
+                            comp-libgccjit-reproducer ,comp-libgccjit-reproducer
                             comp-ctxt ,comp-ctxt
                             comp-eln-load-path ',comp-eln-load-path
                             comp-native-driver-options
@@ -2842,6 +3560,7 @@ Prepare every function for final compilation and drive the C back-end."
 				 (file-name-base output) "-")
 			 nil ".el")))
 	(with-temp-file temp-file
+          (insert ";; -*-coding: nil; -*-\n")
           (insert (prin1-to-string expr)))
 	(with-temp-buffer
           (unwind-protect
@@ -2873,6 +3592,15 @@ Prepare every function for final compilation and drive the C back-end."
 
 ;; Primitive function advice machinery
 
+(defun comp-eln-load-path-eff ()
+  "Return a list of effective eln load directories.
+Account for `comp-load-path' and `comp-native-version-dir'."
+  (mapcar (lambda (dir)
+            (concat (file-name-as-directory
+                     (expand-file-name dir invocation-directory))
+                    comp-native-version-dir))
+          comp-eln-load-path))
+
 (defun comp-trampoline-filename (subr-name)
   "Given SUBR-NAME return the filename containing the trampoline."
   (concat (comp-c-func-name subr-name "subr--trampoline-" t) ".eln"))
@@ -2897,9 +3625,8 @@ Prepare every function for final compilation and drive the C back-end."
 Return the trampoline if found or nil otherwise."
   (cl-loop
    with rel-filename = (comp-trampoline-filename subr-name)
-   for dir in comp-eln-load-path
-   for filename = (expand-file-name rel-filename
-                                    (concat dir comp-native-version-dir))
+   for dir in (comp-eln-load-path-eff)
+   for filename = (expand-file-name rel-filename dir)
    when (file-exists-p filename)
      do (cl-return (native-elisp-load filename))))
 
@@ -2925,8 +3652,7 @@ Return the trampoline if found or nil otherwise."
     (comp--native-compile
      form nil
      (cl-loop
-      for load-dir in comp-eln-load-path
-      for dir = (concat load-dir comp-native-version-dir)
+      for dir in (comp-eln-load-path-eff)
       for f = (expand-file-name
                (comp-trampoline-filename subr-name)
                dir)
@@ -2965,11 +3691,10 @@ sharing the original source filename (including FILE)."
      with filename-hash = (match-string 1 file)
      with regexp = (rx-to-string
                     `(seq "-" ,filename-hash "-" (1+ hex) ".eln" eos))
-     for dir in (butlast comp-eln-load-path) ; Skip last dir.
+     for dir in (butlast (comp-eln-load-path-eff)) ; Skip last dir.
      do (cl-loop
-         with full-dir = (concat dir comp-native-version-dir)
-         for f in (when (file-exists-p full-dir)
-		    (directory-files full-dir t regexp t))
+         for f in (when (file-exists-p dir)
+		    (directory-files dir t regexp t))
          do (comp-delete-or-replace-file f)))))
 
 (defun comp-delete-or-replace-file (oldfile &optional newfile)
@@ -3080,6 +3805,7 @@ display a message."
                             (setf comp-speed ,comp-speed
                                   comp-debug ,comp-debug
                                   comp-verbose ,comp-verbose
+                                  comp-libgccjit-reproducer ,comp-libgccjit-reproducer
                                   comp-async-compilation t
                                   comp-eln-load-path ',comp-eln-load-path
                                   comp-native-driver-options
@@ -3152,15 +3878,24 @@ load once finished compiling."
                                     :with-late-load with-late-load)))
     (comp-log "\n\n" 1)
     (condition-case err
-        (mapc (lambda (pass)
-                (unless (memq pass comp-disabled-passes)
-                  (comp-log (format "(%s) Running pass %s:\n"
-                                    function-or-file pass)
-                            2)
-                  (setf data (funcall pass data))
-                  (cl-loop for f in (alist-get pass comp-post-pass-hooks)
-                           do (funcall f data))))
-              comp-passes)
+        (cl-loop
+         with report = nil
+         for t0 = (current-time)
+         for pass in comp-passes
+         unless (memq pass comp-disabled-passes)
+           do
+           (comp-log (format "(%s) Running pass %s:\n"
+                           function-or-file pass)
+                   2)
+           (setf data (funcall pass data))
+           (push (cons pass (float-time (time-since t0))) report)
+           (cl-loop for f in (alist-get pass comp-post-pass-hooks)
+                    do (funcall f data))
+         finally
+         (when comp-log-time-report
+           (comp-log (format "Done compiling %s" data) 0)
+           (cl-loop for (pass . time) in (reverse report)
+                    do (comp-log (format "Pass %s took: %fs." pass time) 0))))
       (native-compiler-error
        ;; Add source input.
        (let ((err-val (cdr err)))

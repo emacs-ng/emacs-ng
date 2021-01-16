@@ -1,6 +1,6 @@
 ;;; help-tests.el --- Tests for help.el  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2019-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2021 Free Software Foundation, Inc.
 
 ;; Author: Juanma Barranquero <lekktu@gmail.com>
 ;;         Eli Zaretskii <eliz@gnu.org>
@@ -102,7 +102,7 @@ RET		minibuffer-complete-and-exit
 ESC		Prefix Command
 SPC		minibuffer-complete-word
 ?		minibuffer-completion-help
-<C-tab>		file-cache-minibuffer-complete
+C-<tab>		file-cache-minibuffer-complete
 <XF86Back>	previous-history-element
 <XF86Forward>	next-history-element
 <down>		next-line-or-history-element

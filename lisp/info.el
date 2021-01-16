@@ -1,6 +1,6 @@
 ;; info.el --- Info package for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1992-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 1992-2021 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: help
@@ -160,17 +160,14 @@ A header-line does not scroll with the rest of the buffer."
   :version "24.4")
 
 ;; This is a defcustom largely so that we can get the benefit
-;; of custom-initialize-delay.  Perhaps it would work to make it a
-;; defvar and explicitly give it a standard-value property, and
-;; call custom-initialize-delay on it.
-;; The progn forces the autoloader to include the whole thing, not
-;; just an abbreviated version.  The value is initialized at startup
-;; time, when command-line calls custom-reevaluate-setting on all
-;; the defcustoms in custom-delayed-init-variables.  This is
-;; somewhat sub-optimal, as ideally this should be done when Info
-;; mode is first invoked.
+;; of `custom-initialize-delay'.  Perhaps it would work to make it a
+;; `defvar' and explicitly give it a `standard-value' property, and
+;; call `custom-initialize-delay' on it.
+;; The value is initialized at startup time, when command-line calls
+;; `custom-reevaluate-setting' on all the defcustoms in
+;; `custom-delayed-init-variables'.  This is somewhat sub-optimal, as ideally
+;; this should be done when Info mode is first invoked.
 ;;;###autoload
-(progn
 (defcustom Info-default-directory-list
   (let* ((config-dir
 	  (file-name-as-directory
@@ -232,8 +229,8 @@ the environment variable INFOPATH is set.
 Although this is a customizable variable, that is mainly for technical
 reasons.  Normally, you should either set INFOPATH or customize
 `Info-additional-directory-list', rather than changing this variable."
-  :initialize 'custom-initialize-delay
-  :type '(repeat directory)))
+  :initialize #'custom-initialize-delay
+  :type '(repeat directory))
 
 (defvar Info-directory-list nil
   "List of directories to search for Info documentation files.
@@ -2473,7 +2470,7 @@ Table of contents is created from the tree structure of menus."
               (setq bound (or (and (equal nodename "Top")
                                    (save-excursion
                                      (re-search-forward
-                                      "^[ \t-]*The Detailed Node Listing" nil t)))
+                                      "^[ \t—-]*The Detailed Node Listing" nil t)))
                               bound))
               (while (< (point) bound)
                 (cond
@@ -3105,9 +3102,11 @@ See `Info-scroll-down'."
 (defun Info-next-reference-or-link (pat prop)
   "Move point to the next pattern-based cross-reference or property-based link.
 The next cross-reference is searched using the regexp PAT, and the next link
-is searched using the text property PROP.  Move point to the closest found position
-of either a cross-reference found by `re-search-forward' or a link found by
-`next-single-char-property-change'.  Return the new position of point, or nil."
+is searched using the text property PROP.  Move point to the closest found
+position of either a cross-reference found by `re-search-forward' or a link
+found by `next-single-char-property-change'.
+
+Return the new position of point, or nil."
   (let ((pxref (save-excursion (re-search-forward pat nil t)))
 	(plink (next-single-char-property-change (point) prop)))
     (when (and (< plink (point-max)) (not (get-char-property plink prop)))
@@ -3120,10 +3119,12 @@ of either a cross-reference found by `re-search-forward' or a link found by
 
 (defun Info-prev-reference-or-link (pat prop)
   "Move point to the previous pattern-based cross-reference or property-based link.
-The previous cross-reference is searched using the regexp PAT, and the previous link
-is searched using the text property PROP.  Move point to the closest found position
-of either a cross-reference found by `re-search-backward' or a link found by
-`previous-single-char-property-change'.  Return the new position of point, or nil."
+The previous cross-reference is searched using the regexp PAT, and the previous
+link is searched using the text property PROP.  Move point to the closest found
+position of either a cross-reference found by `re-search-backward' or a link
+found by `previous-single-char-property-change'.
+
+Return the new position of point, or nil."
   (let ((pxref (save-excursion (re-search-backward pat nil t)))
 	(plink (previous-single-char-property-change (point) prop)))
     (when (and (> plink (point-min)) (not (get-char-property plink prop)))
@@ -4790,10 +4791,10 @@ first line or header line, and for breadcrumb links.")
 		    ;; an end of sentence
 		    (skip-syntax-backward " ("))
                   (setq other-tag
-			(cond ((save-match-data (looking-back "\\<see"
+			(cond ((save-match-data (looking-back "\\(^\\| \\)see"
                                                               (- (point) 3)))
 			       "")
-			      ((save-match-data (looking-back "\\<in"
+			      ((save-match-data (looking-back "\\(^\\| \\)in"
                                                               (- (point) 2)))
 			       "")
 			      ((memq (char-before) '(nil ?\. ?! ??))

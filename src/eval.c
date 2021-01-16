@@ -1,6 +1,6 @@
 /* Evaluator for GNU Emacs Lisp interpreter.
 
-Copyright (C) 1985-1987, 1993-1995, 1999-2020 Free Software Foundation,
+Copyright (C) 1985-1987, 1993-1995, 1999-2021 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -1534,6 +1534,35 @@ internal_condition_case_4 (Lisp_Object (*bfun) (Lisp_Object, Lisp_Object,
     }
 }
 
+/* Like internal_condition_case_1 but call BFUN with ARG1, ARG2, ARG3,
+   ARG4, ARG5 as its arguments.  */
+
+Lisp_Object
+internal_condition_case_5 (Lisp_Object (*bfun) (Lisp_Object, Lisp_Object,
+                                                Lisp_Object, Lisp_Object,
+						Lisp_Object),
+                           Lisp_Object arg1, Lisp_Object arg2,
+                           Lisp_Object arg3, Lisp_Object arg4,
+			   Lisp_Object arg5, Lisp_Object handlers,
+                           Lisp_Object (*hfun) (Lisp_Object))
+{
+  struct handler *c = push_handler (handlers, CONDITION_CASE);
+  if (sys_setjmp (c->jmp))
+    {
+      Lisp_Object val = handlerlist->val;
+      clobbered_eassert (handlerlist == c);
+      handlerlist = handlerlist->next;
+      return hfun (val);
+    }
+  else
+    {
+      Lisp_Object val = bfun (arg1, arg2, arg3, arg4, arg5);
+      eassert (handlerlist == c);
+      handlerlist = c->next;
+      return val;
+    }
+}
+
 /* Like internal_condition_case but call BFUN with NARGS as first,
    and ARGS as second argument.  */
 
@@ -1794,11 +1823,16 @@ signal_or_quit (Lisp_Object error_symbol, Lisp_Object data, bool keyboard_quit)
 	return Qnil;
     }
 
-  /* If we're in batch mode, print a backtrace unconditionally to help with
-     debugging.  Make sure to use `debug' unconditionally to not interfere with
-     ERT or other packages that install custom debuggers.  */
+  /* If we're in batch mode, print a backtrace unconditionally to help
+     with debugging.  Make sure to use `debug' unconditionally to not
+     interfere with ERT or other packages that install custom
+     debuggers.  Don't try to call the debugger while dumping or
+     bootstrapping, it wouldn't work anyway.  */
   if (!debugger_called && !NILP (error_symbol)
-      && (NILP (clause) || EQ (h->tag_or_ch, Qerror)) && noninteractive)
+      && (NILP (clause) || EQ (h->tag_or_ch, Qerror))
+      && noninteractive && backtrace_on_error_noninteractive
+      && !will_dump_p () && !will_bootstrap_p ()
+      && NILP (Vinhibit_debugger))
     {
       ptrdiff_t count = SPECPDL_INDEX ();
       specbind (Vdebugger, Qdebug);
@@ -4342,6 +4376,14 @@ The Edebug package uses this to regain control.  */);
 Note that `debug-on-error', `debug-on-quit' and friends
 still determine whether to handle the particular condition.  */);
   Vdebug_on_signal = Qnil;
+
+  DEFVAR_BOOL ("backtrace-on-error-noninteractive",
+               backtrace_on_error_noninteractive,
+               doc: /* Non-nil means print backtrace on error in batch mode.
+If this is nil, errors in batch mode will just print the error
+message upon encountering an unhandled error, without showing
+the Lisp backtrace.  */);
+  backtrace_on_error_noninteractive = true;
 
   /* The value of num_nonmacro_input_events as of the last time we
    started to enter the debugger.  If we decide to enter the debugger

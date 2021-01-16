@@ -390,6 +390,94 @@
       (setq dir (directory-file-name (file-name-directory dir))))
     (nreverse dirlist)))
 
+(defun comp-test-45342-f (n)
+  (pcase n
+    (1 " ➊") (2 " ➋") (3 " ➌") (4 " ➍") (5 " ➎") (6 " ➏")
+    (7 " ➐") (8 " ➑") (9 " ➒") (10 " ➓") (_ "")))
+
+(defun comp-test-assume-double-neg-f (collection value)
+  ;; Reduced from `auth-source-search-collection'.
+  (when (atom collection)
+    (setq collection (list collection)))
+  (or (eq value t)
+      ;; value is (not (member t))
+      (eq collection value)
+      ;; collection is t, not (member t)!
+      (member value collection)))
+
+(defun comp-test-assume-in-loop-1-f (arg)
+  ;; Reduced from `comint-delim-arg'.
+  (let ((args nil)
+	(pos 0)
+	(len (length arg)))
+    (while (< pos len)
+      (let ((start pos))
+	(while (< pos len)
+	  (setq pos (1+ pos)))
+	(setq args (cons (substring arg start pos) args))))
+    args))
+
+(defun comp-test-45376-1-f ()
+  ;; Reduced from `eshell-ls-find-column-lengths'.
+  (let* (res
+	 (len 2)
+	 (i 0)
+	 (j 0))
+    (while (< j len)
+      (if (= i len)
+	  (setq i 0))
+      (setq res (cons i res)
+	    j (1+ j)
+	    i (1+ i)))
+    res))
+
+(defun comp-test-45376-2-f ()
+  ;; Also reduced from `eshell-ls-find-column-lengths'.
+  (let* ((x 1)
+	 res)
+    (while x
+      (let* ((y 4)
+	     (i 0))
+	(while (> y 0)
+	  (when (= i x)
+	    (setq i 0))
+	  (setf res (cons i res))
+	  (setq y (1- y)
+		i (1+ i)))
+	(if (>= x 3)
+	    (setq x nil)
+	  (setq x (1+ x)))))
+    res))
+
+(defun comp-test-not-cons-f (x)
+  ;; Reduced from `cl-copy-list'.
+  (if (consp x)
+      (print x)
+    (car x)))
+
+(defun comp-test-45576-f ()
+  ;; Reduced from `eshell-find-alias-function'.
+  (let ((sym (intern-soft "eval")))
+    (if (and (functionp sym)
+	     '(eshell-ls eshell-pred eshell-prompt eshell-script
+			 eshell-term eshell-unix))
+	sym)))
+
+(defun comp-test-45635-f (&rest args)
+  ;; Reduced from `set-face-attribute'.
+  (let ((spec args)
+	family)
+    (while spec
+      (cond ((eq (car spec) :family)
+	     (setq family (cadr spec))))
+      (setq spec (cddr spec)))
+    (when (and (stringp family)
+	       (string-match "\\([^-]*\\)-\\([^-]*\\)" family))
+      (setq family (match-string 2 family)))
+    (when (or (stringp family)
+	      (eq family 'unspecified))
+      family)))
+
 
 ;;;;;;;;;;;;;;;;;;;;
 ;; Tromey's tests ;;
@@ -555,6 +643,22 @@
       (when load
 	(load (if (file-exists-p dest) dest filename)))
       'no-byte-compile)))
+
+(defun comp-test-no-return-1 (x)
+  (while x
+   (error "foo")))
+
+(defun comp-test-no-return-2 (x)
+  (cond
+   ((eql x '2) t)
+   ((error "bar") nil)))
+
+(defun comp-test-no-return-3 ())
+(defun comp-test-no-return-4 (x)
+  (when x
+    (error "foo")
+    (while (comp-test-no-return-3)
+      (comp-test-no-return-3))))
 
 (provide 'comp-test-funcs)
 

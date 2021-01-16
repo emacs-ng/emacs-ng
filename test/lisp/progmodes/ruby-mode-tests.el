@@ -1,6 +1,6 @@
 ;;; ruby-mode-tests.el --- Test suite for ruby-mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2012-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2021 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -497,7 +497,8 @@ VALUES-PLIST is a list with alternating index and value elements."
 (ert-deftest ruby-add-log-current-method-examples ()
   (let ((pairs '(("foo" . "#foo")
                  ("C.foo" . ".foo")
-                 ("self.foo" . ".foo"))))
+                 ("self.foo" . ".foo")
+                 ("<<" . "#<<"))))
     (dolist (pair pairs)
       (let ((name  (car pair))
             (value (cdr pair)))

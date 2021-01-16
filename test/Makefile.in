@@ -1,6 +1,6 @@
 ### @configure_input@
 
-# Copyright (C) 2010-2020 Free Software Foundation, Inc.
+# Copyright (C) 2010-2021 Free Software Foundation, Inc.
 
 # This file is part of GNU Emacs.
 
@@ -168,9 +168,13 @@ endif
 
 ## Save logs, and show logs for failed tests.
 WRITE_LOG = > $@ 2>&1 || { STAT=$$?; cat $@; exit $$STAT; }
+## On Hydra or Emba, always show logs for certain problematic tests.
 ifdef EMACS_HYDRA_CI
-## On Hydra, always show logs for certain problematic tests.
 lisp/net/tramp-tests.log \
+: WRITE_LOG = 2>&1 | tee $@
+endif
+ifdef EMACS_EMBA_CI
+lisp/filenotify-tests.log lisp/net/tramp-tests.log \
 : WRITE_LOG = 2>&1 | tee $@
 endif
 
@@ -275,6 +279,7 @@ $(test_module): $(test_module:${SO}=.c) ../src/emacs-module.h
 	$(AM_V_CCLD)$(CC) -shared $(CPPFLAGS) $(MODULE_CFLAGS) $(LDFLAGS) \
 	  -o $@ $< $(LIBGMP) \
 	  $(and $(GMP_H),$(srcdir)/../lib/mini-gmp-gnulib.c) \
+	  $(if $(OMIT_GNULIB_MODULE_free-posix),,$(srcdir)/../lib/free.c) \
 	  $(srcdir)/../lib/timespec.c $(srcdir)/../lib/gettime.c
 endif
 
