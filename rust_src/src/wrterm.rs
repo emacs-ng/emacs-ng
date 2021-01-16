@@ -341,12 +341,14 @@ pub fn x_create_frame(parms: LispObject) -> LispFrameRef {
 
     if parent.is_not_nil() {}
     let tem = unsafe {
+        let lcmb = CString::new("minibuffer").unwrap();
+        let ucmb = CString::new("Minibuffer").unwrap();
         gui_display_get_arg(
             dpyinfo.get_raw().as_mut(),
             parms,
             Qminibuffer,
-            CString::new("minibuffer").unwrap().as_ptr(),
-            CString::new("Minibuffer").unwrap().as_ptr(),
+            lcmb.as_ptr(),
+            ucmb.as_ptr(),
             RES_TYPE_SYMBOL,
         )
     };

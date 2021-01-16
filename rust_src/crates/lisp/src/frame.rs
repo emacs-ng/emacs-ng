@@ -111,11 +111,19 @@ impl LispFrameRef {
         xclass: &str,
         res_type: resource_types::Type,
     ) {
-        let xprop = CString::new(xprop).unwrap().as_ptr();
-        let xclass = CString::new(xclass).unwrap().as_ptr();
+        let xprop = CString::new(xprop).unwrap();
+        let xclass = CString::new(xclass).unwrap();
 
         unsafe {
-            gui_default_parameter(self.as_mut(), alist, prop, default, xprop, xclass, res_type);
+            gui_default_parameter(
+                self.as_mut(),
+                alist,
+                prop,
+                default,
+                xprop.as_ptr(),
+                xclass.as_ptr(),
+                res_type,
+            );
         };
     }
 }
