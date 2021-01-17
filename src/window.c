@@ -1,6 +1,6 @@
 /* Window creation, deletion and examination for GNU Emacs.
    Does not include redisplay.
-   Copyright (C) 1985-1987, 1993-1998, 2000-2020 Free Software
+   Copyright (C) 1985-1987, 1993-1998, 2000-2021 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -617,11 +617,12 @@ equals the special symbol `mark-for-redisplay'.
 Run `buffer-list-update-hook' unless NORECORD is non-nil.  Note that
 applications and internal routines often select a window temporarily for
 various purposes; mostly, to simplify coding.  As a rule, such
-selections should be not recorded and therefore will not pollute
+selections should not be recorded and therefore will not pollute
 `buffer-list-update-hook'.  Selections that "really count" are those
 causing a visible change in the next redisplay of WINDOW's frame and
-should be always recorded.  So if you think of running a function each
-time a window gets selected put it on `buffer-list-update-hook'.
+should always be recorded.  So if you think of running a function each
+time a window gets selected, put it on `buffer-list-update-hook' or
+`window-selection-change-functions'.
 
 Also note that the main editor command loop sets the current buffer to
 the buffer of the selected window before each command.  */)
@@ -5671,7 +5672,7 @@ window_scroll_pixel_based (Lisp_Object window, int n, bool whole, bool noerror)
   if (whole)
     {
       ptrdiff_t start_pos = IT_CHARPOS (it);
-      int dy = frame_line_height;
+      int flh = frame_line_height;
       int ht = window_box_height (w);
       int nscls = sanitize_next_screen_context_lines ();
       /* In the below we divide the window box height by the frame's
@@ -5679,14 +5680,30 @@ window_scroll_pixel_based (Lisp_Object window, int n, bool whole, bool noerror)
 	 box is not an integral multiple of the line height.  This is
 	 important to ensure we get back to the same position when
 	 scrolling up, then down.  */
-      dy = n * max (dy, (ht / dy - nscls) * dy);
+      int dy = n * max (flh, (ht / flh - nscls) * flh);
+      int goal_y;
+      void *it_data;
 
       /* Note that move_it_vertically always moves the iterator to the
          start of a line.  So, if the last line doesn't have a newline,
 	 we would end up at the start of the line ending at ZV.  */
       if (dy <= 0)
 	{
+	  goal_y = it.current_y + dy;
 	  move_it_vertically_backward (&it, -dy);
+	  /* move_it_vertically_backward above always overshoots if DY
+	     cannot be reached exactly, i.e. if it falls in the middle
+	     of a screen line.  But if that screen line is large
+	     (e.g., a tall image), it might make more sense to
+	     undershoot instead.  */
+	  if (goal_y - it.current_y > 0.5 * flh)
+	    {
+	      it_data = bidi_shelve_cache ();
+	      struct it it1 = it;
+	      if (line_bottom_y (&it1) - goal_y < goal_y - it.current_y)
+		move_it_by_lines (&it, 1);
+	      bidi_unshelve_cache (it_data, true);
+	    }
 	  /* Ensure we actually do move, e.g. in case we are currently
 	     looking at an image that is taller that the window height.  */
 	  while (start_pos == IT_CHARPOS (it)
@@ -5695,8 +5712,28 @@ window_scroll_pixel_based (Lisp_Object window, int n, bool whole, bool noerror)
 	}
       else if (dy > 0)
 	{
-	  move_it_to (&it, ZV, -1, it.current_y + dy, -1,
-		      MOVE_TO_POS | MOVE_TO_Y);
+	  goal_y = it.current_y + dy;
+	  move_it_to (&it, ZV, -1, goal_y, -1, MOVE_TO_POS | MOVE_TO_Y);
+	  /* Extra precision for people who want us to preserve the
+	     screen position of the cursor: effectively round DY to the
+	     nearest screen line, instead of rounding to zero; the latter
+	     causes point to move by one line after C-v followed by M-v,
+	     if the buffer has lines of different height.  */
+	  if (!NILP (Vscroll_preserve_screen_position)
+	      && goal_y - it.current_y  > 0.5 * flh)
+	    {
+	      it_data = bidi_shelve_cache ();
+	      struct it it2 = it;
+
+	      move_it_by_lines (&it, 1);
+	      if (it.current_y > goal_y + 0.5 * flh)
+		{
+		  it = it2;
+		  bidi_unshelve_cache (it_data, false);
+		}
+	      else
+		bidi_unshelve_cache (it_data, true);
+	    }
 	  /* Ensure we actually do move, e.g. in case we are currently
 	     looking at an image that is taller that the window height.  */
 	  while (start_pos == IT_CHARPOS (it)
@@ -7788,7 +7825,7 @@ set_window_scroll_bars (struct window *w, Lisp_Object width,
 	 if more than a single window needs to be considered, see
 	 redisplay_internal.  */
       if (changed)
-	windows_or_buffers_changed = 31;
+	wset_redisplay (w);
 
       return changed ? w : NULL;
     }
@@ -8065,6 +8102,18 @@ and scrolling positions.  */)
     return Qt;
   return Qnil;
 }
+
+DEFUN ("window-bump-use-time", Fwindow_bump_use_time,
+       Swindow_bump_use_time, 1, 1, 0,
+       doc: /* Mark WINDOW as having been recently used.  */)
+  (Lisp_Object window)
+{
+  struct window *w = decode_valid_window (window);
+
+  w->use_time = ++window_select_count;
+  return Qnil;
+}
+
 
 
 static void init_window_once_for_pdumper (void);
@@ -8208,11 +8257,17 @@ is displayed in the `mode-line' face.  */);
   DEFVAR_LISP ("scroll-preserve-screen-position",
 	       Vscroll_preserve_screen_position,
 	       doc: /* Controls if scroll commands move point to keep its screen position unchanged.
+
 A value of nil means point does not keep its screen position except
 at the scroll margin or window boundary respectively.
+
 A value of t means point keeps its screen position if the scroll
 command moved it vertically out of the window, e.g. when scrolling
-by full screens.
+by full screens.  If point is within `next-screen-context-lines' lines
+from the edges of the window, point will typically not keep its screen
+position when doing commands like `scroll-up-command'/`scroll-down-command'
+and the like.
+
 Any other value means point always keeps its screen position.
 Scroll commands should have the `scroll-command' property
 on their symbols to be controlled by this variable.  */);
@@ -8532,6 +8587,7 @@ displayed after a scrolling operation to be somewhat inaccurate.  */);
   defsubr (&Swindow_vscroll);
   defsubr (&Sset_window_vscroll);
   defsubr (&Scompare_window_configurations);
+  defsubr (&Swindow_bump_use_time);
   defsubr (&Swindow_list);
   defsubr (&Swindow_list_1);
   defsubr (&Swindow_prev_buffers);
@@ -8541,15 +8597,4 @@ displayed after a scrolling operation to be somewhat inaccurate.  */);
   defsubr (&Swindow_parameters);
   defsubr (&Swindow_parameter);
   defsubr (&Sset_window_parameter);
-}
-
-void
-keys_of_window (void)
-{
-  initial_define_key (control_x_map, '<', "scroll-left");
-  initial_define_key (control_x_map, '>', "scroll-right");
-
-  initial_define_key (global_map, Ctl ('V'), "scroll-up-command");
-  initial_define_key (meta_map, Ctl ('V'), "scroll-other-window");
-  initial_define_key (meta_map, 'v', "scroll-down-command");
 }

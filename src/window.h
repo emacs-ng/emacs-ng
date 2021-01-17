@@ -1,5 +1,5 @@
 /* Window definitions for GNU Emacs.
-   Copyright (C) 1985-1986, 1993, 1995, 1997-2020 Free Software
+   Copyright (C) 1985-1986, 1993, 1995, 1997-2021 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -1202,7 +1202,6 @@ extern bool window_outdated (struct window *);
 extern void init_window_once (void);
 extern void init_window (void);
 extern void syms_of_window (void);
-extern void keys_of_window (void);
 /* Move cursor to row/column position VPOS/HPOS, pixel coordinates
    Y/X. HPOS/VPOS are window-relative row and column numbers and X/Y
    are window-relative pixel positions.  This is always done during

@@ -1,4 +1,4 @@
-/* Copyright (C) 2018-2020 Free Software Foundation, Inc.
+/* Copyright (C) 2018-2021 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -2075,7 +2075,7 @@ dump_interval_tree (struct dump_context *ctx,
 static dump_off
 dump_string (struct dump_context *ctx, const struct Lisp_String *string)
 {
-#if CHECK_STRUCTS && !defined (HASH_Lisp_String_86FEA6EC7C)
+#if CHECK_STRUCTS && !defined (HASH_Lisp_String_348C2B2FDB)
 # error "Lisp_String changed. See CHECK_STRUCTS comment in config.h."
 #endif
   /* If we have text properties, write them _after_ the string so that
@@ -2709,7 +2709,7 @@ dump_hash_table (struct dump_context *ctx,
 static dump_off
 dump_buffer (struct dump_context *ctx, const struct buffer *in_buffer)
 {
-#if CHECK_STRUCTS && !defined HASH_buffer_EE36B4292E
+#if CHECK_STRUCTS && !defined HASH_buffer_99D642C1CB
 # error "buffer changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct buffer munged_buffer = *in_buffer;
@@ -2860,7 +2860,7 @@ dump_bool_vector (struct dump_context *ctx, const struct Lisp_Vector *v)
 static dump_off
 dump_subr (struct dump_context *ctx, const struct Lisp_Subr *subr)
 {
-#if CHECK_STRUCTS && !defined (HASH_Lisp_Subr_35CE99B716)
+#if CHECK_STRUCTS && !defined (HASH_Lisp_Subr_AA236F7759)
 # error "Lisp_Subr changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct Lisp_Subr out;
@@ -2893,6 +2893,7 @@ dump_subr (struct dump_context *ctx, const struct Lisp_Subr *subr)
 	dump_field_fixup_later (ctx, &out, subr, &subr->native_c_name[0]);
 
       dump_field_lv (ctx, &out, subr, &subr->lambda_list[0], WEIGHT_NORMAL);
+      dump_field_lv (ctx, &out, subr, &subr->type[0], WEIGHT_NORMAL);
     }
   dump_off subr_off = dump_object_finish (ctx, &out, sizeof (out));
   if (NATIVE_COMP_FLAG

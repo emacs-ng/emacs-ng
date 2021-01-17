@@ -1,6 +1,6 @@
 ;;; pop3.el --- Post Office Protocol (RFC 1460) interface  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1996-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
 
 ;; Author: Richard L. Pieri <ratinox@peorth.gweep.net>
 ;; Maintainer: emacs-devel@gnu.org
@@ -463,7 +463,7 @@ Return non-nil if it is necessary to update the local UIDL file."
 		(when (cdr elt)
 		  (insert "(\"" (pop elt) "\"\n   ")
 		  (while elt
-		    (insert (format "\"%s\" %s\n   " (pop elt) (pop elt))))
+		    (insert (format "%S %s\n   " (pop elt) (pop elt))))
 		  (delete-char -4)
 		  (insert ")\n  ")))
 	      (delete-char -3)

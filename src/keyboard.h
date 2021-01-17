@@ -1,5 +1,5 @@
 /* Declarations useful when processing input.
-   Copyright (C) 1985-1987, 1993, 2001-2020 Free Software Foundation,
+   Copyright (C) 1985-1987, 1993, 2001-2021 Free Software Foundation,
    Inc.
 
 This file is part of GNU Emacs.
@@ -432,7 +432,7 @@ extern int parse_solitary_modifier (Lisp_Object symbol);
 extern Lisp_Object real_this_command;
 
 extern int quit_char;
-
+extern bool input_was_pending;
 extern unsigned int timers_run;
 
 extern bool menu_separator_name_p (const char *);
@@ -446,7 +446,6 @@ extern void push_kboard (struct kboard *);
 extern void push_frame_kboard (struct frame *);
 extern void pop_kboard (void);
 extern void temporarily_switch_to_single_kboard (struct frame *);
-extern void record_asynch_buffer_change (void);
 extern void input_poll_signal (int);
 extern void start_polling (void);
 extern void stop_polling (void);

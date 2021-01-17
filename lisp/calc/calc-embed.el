@@ -1,6 +1,6 @@
 ;;; calc-embed.el --- embed Calc in a buffer  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2021 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -396,7 +396,7 @@
     (calc-wrapper
      (setq str (math-showing-full-precision
 		(math-format-nice-expr (aref info 8) (frame-width))))
-     (calc-edit-mode (list 'calc-embedded-finish-edit info))
+     (calc--edit-mode (lambda () (calc-embedded-finish-edit info)))
      (insert str "\n")))
   (calc-show-edit-buffer)))
 

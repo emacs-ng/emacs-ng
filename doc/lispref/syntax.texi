@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2020 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2021 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Syntax Tables
@@ -252,7 +252,7 @@ comment and a newline or formfeed ends one.
 
 @item Inherit standard syntax: @samp{@@}
 This syntax class does not specify a particular syntax.  It says to
-look in the standard syntax table to find the syntax of this
+look in the parent syntax table to find the syntax of this
 character.
 
 @item Generic comment delimiters: @samp{!}

@@ -1,6 +1,6 @@
 ;;; rmail.el --- main code of "RMAIL" mail reader for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1988, 1993-1998, 2000-2020 Free Software
+;; Copyright (C) 1985-1988, 1993-1998, 2000-2021 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -161,13 +161,6 @@ its character representation and its display representation.")
   :version "21.1")
 
 ;;;###autoload
-(put 'rmail-spool-directory 'standard-value
-     '((cond ((file-exists-p "/var/mail") "/var/mail/")
-	     ((file-exists-p "/var/spool/mail") "/var/spool/mail/")
-	     ((memq system-type '(hpux usg-unix-v)) "/usr/mail/")
-	     (t "/usr/spool/mail/"))))
-
-;;;###autoload
 (defcustom rmail-spool-directory
   (purecopy
   (cond ((file-exists-p "/var/mail")
@@ -181,11 +174,9 @@ its character representation and its display representation.")
 	(t "/usr/spool/mail/")))
   "Name of directory used by system mailer for delivering new mail.
 Its name should end with a slash."
-  :initialize 'custom-initialize-delay
+  :initialize #'custom-initialize-delay
   :type 'directory
   :group 'rmail)
-
-;;;###autoload(custom-initialize-delay 'rmail-spool-directory nil)
 
 (defcustom rmail-movemail-program nil
   "If non-nil, the file name of the `movemail' program."
@@ -1080,6 +1071,7 @@ The buffer is expected to be narrowed to just the header of the message."
     (define-key map [?\S-\ ] 'scroll-down-command)
     (define-key map "\177"   'scroll-down-command)
     (define-key map "?"      'describe-mode)
+    (define-key map "\C-c\C-d" 'rmail-epa-decrypt)
     (define-key map "\C-c\C-s\C-d" 'rmail-sort-by-date)
     (define-key map "\C-c\C-s\C-s" 'rmail-sort-by-subject)
     (define-key map "\C-c\C-s\C-a" 'rmail-sort-by-author)
@@ -1272,6 +1264,7 @@ Instead, these commands are available:
 \\[rmail-undelete-previous-message]	Undelete message.  Tries current message, then earlier messages
 	till a deleted message is found.
 \\[rmail-edit-current-message]	Edit the current message.  \\[rmail-cease-edit] to return to Rmail.
+\\[rmail-epa-decrypt]	Decrypt the current message.
 \\[rmail-expunge]	Expunge deleted messages.
 \\[rmail-expunge-and-save]	Expunge and save the file.
 \\[rmail-quit]       Quit Rmail: expunge, save, then switch to another buffer.
@@ -4610,11 +4603,10 @@ Argument MIME is non-nil if this is a mime message."
 		     "> ")
 	      (push (rmail-epa-decrypt-1 mime) decrypts))))
 
-      (when (and decrypts (eq major-mode 'rmail-mode))
-        (rmail-add-label "decrypt"))
-
       (when (and decrypts (rmail-buffers-swapped-p))
 	(when (y-or-n-p "Replace the original message? ")
+          (when (eq major-mode 'rmail-mode)
+            (rmail-add-label "decrypt"))
 	  (setq decrypts (nreverse decrypts))
 	  (let ((beg (rmail-msgbeg rmail-current-message))
 		(end (rmail-msgend rmail-current-message)))

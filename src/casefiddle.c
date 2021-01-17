@@ -1,7 +1,7 @@
 /* -*- coding: utf-8 -*- */
 /* GNU Emacs case conversion functions.
 
-Copyright (C) 1985, 1994, 1997-1999, 2001-2020 Free Software Foundation,
+Copyright (C) 1985, 1994, 1997-1999, 2001-2021 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -681,17 +681,4 @@ Called with one argument METHOD which can be:
   defsubr (&Supcase_word);
   defsubr (&Sdowncase_word);
   defsubr (&Scapitalize_word);
-}
-
-void
-keys_of_casefiddle (void)
-{
-  initial_define_key (control_x_map, Ctl ('U'), "upcase-region");
-  Fput (intern ("upcase-region"), Qdisabled, Qt);
-  initial_define_key (control_x_map, Ctl ('L'), "downcase-region");
-  Fput (intern ("downcase-region"), Qdisabled, Qt);
-
-  initial_define_key (meta_map, 'u', "upcase-word");
-  initial_define_key (meta_map, 'l', "downcase-word");
-  initial_define_key (meta_map, 'c', "capitalize-word");
 }

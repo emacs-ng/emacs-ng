@@ -102,6 +102,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #undef gcc_jit_rvalue_get_type
 #undef gcc_jit_struct_as_type
 #undef gcc_jit_struct_set_fields
+#undef gcc_jit_type_get_const
 #undef gcc_jit_type_get_pointer
 #undef gcc_jit_version_major
 #undef gcc_jit_version_minor
@@ -208,6 +209,7 @@ DEF_DLL_FN (gcc_jit_type *, gcc_jit_context_new_union_type,
 DEF_DLL_FN (gcc_jit_type *, gcc_jit_rvalue_get_type, (gcc_jit_rvalue *rvalue));
 DEF_DLL_FN (gcc_jit_type *, gcc_jit_struct_as_type,
             (gcc_jit_struct *struct_type));
+DEF_DLL_FN (gcc_jit_type *, gcc_jit_type_get_const, (gcc_jit_type *type));
 DEF_DLL_FN (gcc_jit_type *, gcc_jit_type_get_pointer, (gcc_jit_type *type));
 DEF_DLL_FN (void, gcc_jit_block_add_assignment,
             (gcc_jit_block *block, gcc_jit_location *loc, gcc_jit_lvalue *lvalue,
@@ -308,6 +310,7 @@ init_gccjit_functions (void)
   LOAD_DLL_FN (library, gcc_jit_rvalue_get_type);
   LOAD_DLL_FN (library, gcc_jit_struct_as_type);
   LOAD_DLL_FN (library, gcc_jit_struct_set_fields);
+  LOAD_DLL_FN (library, gcc_jit_type_get_const);
   LOAD_DLL_FN (library, gcc_jit_type_get_pointer);
   LOAD_DLL_FN_OPT (library, gcc_jit_context_add_driver_option);
   LOAD_DLL_FN_OPT (library, gcc_jit_global_set_initializer);
@@ -373,6 +376,7 @@ init_gccjit_functions (void)
 #define gcc_jit_rvalue_get_type fn_gcc_jit_rvalue_get_type
 #define gcc_jit_struct_as_type fn_gcc_jit_struct_as_type
 #define gcc_jit_struct_set_fields fn_gcc_jit_struct_set_fields
+#define gcc_jit_type_get_const fn_gcc_jit_type_get_const
 #define gcc_jit_type_get_pointer fn_gcc_jit_type_get_pointer
 #define gcc_jit_version_major fn_gcc_jit_version_major
 #define gcc_jit_version_minor fn_gcc_jit_version_minor
@@ -407,7 +411,7 @@ load_gccjit_if_necessary (bool mandatory)
 
 
 /* Increase this number to force a new Vcomp_abi_hash to be generated.  */
-#define ABI_VERSION "0"
+#define ABI_VERSION "1"
 
 /* C symbols emitted for the load relocation mechanism.  */
 #define CURRENT_THREAD_RELOC_SYM "current_thread_reloc"
@@ -661,94 +665,6 @@ comp_hash_string (Lisp_Object string)
   return digest;
 }
 
-#define MD5_BLOCKSIZE 32768 /* From md5.c  */
-
-static char acc_buff[2 * MD5_BLOCKSIZE];
-static size_t acc_size;
-
-static void
-accumulate_and_process_md5 (void *data, size_t len, struct md5_ctx *ctxt)
-{
-  eassert (len <= MD5_BLOCKSIZE);
-  /* We may optimize this saving some of these memcpy/move using
-     directly the outer buffers but so far I'll not bother.  */
-  memcpy (acc_buff + acc_size, data, len);
-  acc_size += len;
-  if (acc_size >= MD5_BLOCKSIZE)
-    {
-      acc_size -= MD5_BLOCKSIZE;
-      md5_process_block (acc_buff, MD5_BLOCKSIZE, ctxt);
-      memmove (acc_buff, acc_buff + MD5_BLOCKSIZE, acc_size);
-    }
-}
-
-static void
-final_process_md5 (struct md5_ctx *ctxt)
-{
-  if (acc_size)
-    {
-      md5_process_bytes (acc_buff, acc_size, ctxt);
-      acc_size = 0;
-    }
-}
-
-static int
-md5_gz_stream (FILE *source, void *resblock)
-{
-  z_stream stream;
-  unsigned char in[MD5_BLOCKSIZE];
-  unsigned char out[MD5_BLOCKSIZE];
-
-  eassert (!acc_size);
-
-  struct md5_ctx ctx;
-  md5_init_ctx (&ctx);
-
-  /* allocate inflate state */
-  stream.zalloc = Z_NULL;
-  stream.zfree = Z_NULL;
-  stream.opaque = Z_NULL;
-  stream.avail_in = 0;
-  stream.next_in = Z_NULL;
-  int res = inflateInit2 (&stream, MAX_WBITS + 32);
-  if (res != Z_OK)
-    return -1;
-
-  do {
-    stream.avail_in = fread (in, 1, MD5_BLOCKSIZE, source);
-    if (ferror (source)) {
-      inflateEnd (&stream);
-      return -1;
-    }
-    if (stream.avail_in == 0)
-      break;
-    stream.next_in = in;
-
-    do {
-      stream.avail_out = MD5_BLOCKSIZE;
-      stream.next_out = out;
-      res = inflate (&stream, Z_NO_FLUSH);
-
-      if (res != Z_OK && res != Z_STREAM_END)
-	return -1;
-
-      accumulate_and_process_md5 (out, MD5_BLOCKSIZE - stream.avail_out, &ctx);
-    } while (!stream.avail_out);
-
-  } while (res != Z_STREAM_END);
-
-  final_process_md5 (&ctx);
-  inflateEnd (&stream);
-
-  if (res != Z_STREAM_END)
-    return -1;
-
-  md5_finish_ctx (&ctx, resblock);
-
-  return 0;
-}
-#undef MD5_BLOCKSIZE
-
 static Lisp_Object
 comp_hash_source_file (Lisp_Object filename)
 {
@@ -837,7 +753,7 @@ retrive_block (Lisp_Object block_name)
   Lisp_Object value = Fgethash (block_name, comp.func_blocks_h, Qnil);
 
   if (NILP (value))
-    xsignal1 (Qnative_ice, build_string ("missing basic block"));
+    xsignal2 (Qnative_ice, build_string ("missing basic block"), block_name);
 
   return (gcc_jit_block *) xmint_pointer (value);
 }
@@ -2122,7 +2038,7 @@ emit_limple_insn (Lisp_Object insn)
       gcc_jit_block *target1 = retrive_block (arg[2]);
       gcc_jit_block *target2 = retrive_block (arg[3]);
 
-      emit_cond_jump (emit_EQ (a, b), target2, target1);
+      emit_cond_jump (emit_EQ (a, b), target1, target2);
     }
   else if (EQ (op, Qcond_jump_narg_leq))
     {
@@ -2144,7 +2060,7 @@ emit_limple_insn (Lisp_Object insn)
 			       GCC_JIT_COMPARISON_LE,
 			       gcc_jit_lvalue_as_rvalue (nargs),
 			       n);
-      emit_cond_jump (test, target2, target1);
+      emit_cond_jump (test, target1, target2);
     }
   else if (EQ (op, Qphi) || EQ (op, Qassume))
     {
@@ -2366,6 +2282,13 @@ emit_limple_insn (Lisp_Object insn)
 				     NULL,
 				     emit_mvar_rval (arg[0]));
     }
+  else if (EQ (op, Qunreachable))
+    {
+      /* Libgccjit has no __builtin_unreachable.  */
+      gcc_jit_block_end_with_return (comp.block,
+				     NULL,
+				     emit_lisp_obj_rval (Qnil));
+    }
   else
     {
       xsignal2 (Qnative_ice,
@@ -2493,6 +2416,7 @@ emit_maybe_gc_or_quit (Lisp_Object insn)
 
 /* This is in charge of serializing an object and export a function to
    retrieve it at load time.  */
+#pragma GCC diagnostic ignored "-Waddress"
 static void
 emit_static_object (const char *name, Lisp_Object obj)
 {
@@ -2521,9 +2445,7 @@ emit_static_object (const char *name, Lisp_Object obj)
 
 #if defined (LIBGCCJIT_HAVE_gcc_jit_global_set_initializer) \
   || defined (WINDOWSNT)
-#pragma GCC diagnostic ignored "-Waddress"
   if (gcc_jit_global_set_initializer)
-#pragma GCC diagnostic pop
     {
       ptrdiff_t str_size = len + 1;
       ptrdiff_t size = sizeof (static_obj_t) + str_size;
@@ -2682,6 +2604,7 @@ emit_static_object (const char *name, Lisp_Object obj)
   gcc_jit_rvalue *res = gcc_jit_lvalue_get_address (data_struct, NULL);
   gcc_jit_block_end_with_return (block, NULL, res);
 }
+#pragma GCC diagnostic pop
 
 static gcc_jit_rvalue *
 declare_imported_data_relocs (Lisp_Object container, const char *code_symbol,
@@ -3994,13 +3917,13 @@ compile_function (Lisp_Object func)
      The "entry" block must be declared as first.  */
   declare_block (Qentry);
   Lisp_Object blocks = CALL1I (comp-func-blocks, func);
-  Lisp_Object entry_block = Fgethash (Qentry, blocks, Qnil);
   struct Lisp_Hash_Table *ht = XHASH_TABLE (blocks);
-  for (ptrdiff_t i = 0; i < ht->count; i++)
+  for (ptrdiff_t i = 0; i < HASH_TABLE_SIZE (ht); i++)
     {
-      Lisp_Object block = HASH_VALUE (ht, i);
-      if (!EQ (block, entry_block))
-	declare_block (HASH_KEY (ht, i));
+      Lisp_Object block_name = HASH_KEY (ht, i);
+      if (!EQ (block_name, Qentry)
+	  && !EQ (block_name, Qunbound))
+	declare_block (block_name);
     }
 
   gcc_jit_block_add_assignment (retrive_block (Qentry),
@@ -4009,21 +3932,24 @@ compile_function (Lisp_Object func)
 				gcc_jit_lvalue_as_rvalue (comp.func_relocs));
 
 
-  for (ptrdiff_t i = 0; i < ht->count; i++)
+  for (ptrdiff_t i = 0; i < HASH_TABLE_SIZE (ht); i++)
     {
       Lisp_Object block_name = HASH_KEY (ht, i);
-      Lisp_Object block = HASH_VALUE (ht, i);
-      Lisp_Object insns = CALL1I (comp-block-insns, block);
-      if (NILP (block) || NILP (insns))
-	xsignal1 (Qnative_ice,
-		  build_string ("basic block is missing or empty"));
-
-      comp.block = retrive_block (block_name);
-      while (CONSP (insns))
+      if (!EQ (block_name, Qunbound))
 	{
-	  Lisp_Object insn = XCAR (insns);
-	  emit_limple_insn (insn);
-	  insns = XCDR (insns);
+	  Lisp_Object block = HASH_VALUE (ht, i);
+	  Lisp_Object insns = CALL1I (comp-block-insns, block);
+	  if (NILP (block) || NILP (insns))
+	    xsignal1 (Qnative_ice,
+		      build_string ("basic block is missing or empty"));
+
+	  comp.block = retrive_block (block_name);
+	  while (CONSP (insns))
+	    {
+	      Lisp_Object insn = XCAR (insns);
+	      emit_limple_insn (insn);
+	      insns = XCDR (insns);
+	    }
 	}
     }
   const char *err =  gcc_jit_context_get_first_error (comp.ctxt);
@@ -4169,7 +4095,8 @@ If BASE-DIR is nil use the first entry in `comp-eln-load-path'.  */)
     base_dir = Fexpand_file_name (base_dir, Vinvocation_directory);
 
   return Fexpand_file_name (filename,
-			    concat2 (base_dir, Vcomp_native_version_dir));
+			    concat2 (Ffile_name_as_directory (base_dir),
+				     Vcomp_native_version_dir));
 }
 
 DEFUN ("comp--install-trampoline", Fcomp__install_trampoline,
@@ -4363,6 +4290,7 @@ DEFUN ("comp--release-ctxt", Fcomp__release_ctxt, Scomp__release_ctxt,
   return Qt;
 }
 
+#pragma GCC diagnostic ignored "-Waddress"
 DEFUN ("comp-native-driver-options-effective-p",
        Fcomp_native_driver_options_effective_p,
        Scomp_native_driver_options_effective_p,
@@ -4372,14 +4300,12 @@ DEFUN ("comp-native-driver-options-effective-p",
 {
 #if defined (LIBGCCJIT_HAVE_gcc_jit_context_add_driver_option)  \
   || defined (WINDOWSNT)
-#pragma GCC diagnostic ignored "-Waddress"
   if (gcc_jit_context_add_driver_option)
     return Qt;
-#pragma GCC diagnostic pop
 #endif
   return Qnil;
 }
-
+#pragma GCC diagnostic pop
 
 static void
 add_driver_options (void)
@@ -4455,7 +4381,6 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
   comp.d_ephemeral_idx =
     CALL1I (comp-data-container-idx, CALL1I (comp-ctxt-d-ephemeral, Vcomp_ctxt));
 
-  sigset_t oldset;
   ptrdiff_t count = 0;
 
   if (!noninteractive)
@@ -4469,7 +4394,7 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
 #ifdef USABLE_SIGIO
       sigaddset (&blocked, SIGIO);
 #endif
-      pthread_sigmask (SIG_BLOCK, &blocked, &oldset);
+      pthread_sigmask (SIG_BLOCK, &blocked, &saved_sigset);
       count = SPECPDL_INDEX ();
       record_unwind_protect_void (restore_sigmask);
     }
@@ -4488,12 +4413,14 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
 
   struct Lisp_Hash_Table *func_h =
     XHASH_TABLE (CALL1I (comp-ctxt-funcs-h, Vcomp_ctxt));
-  for (ptrdiff_t i = 0; i < func_h->count; i++)
-    declare_function (HASH_VALUE (func_h, i));
+  for (ptrdiff_t i = 0; i < HASH_TABLE_SIZE (func_h); i++)
+    if (!EQ (HASH_VALUE (func_h, i), Qunbound))
+      declare_function (HASH_VALUE (func_h, i));
   /* Compile all functions. Can't be done before because the
      relocation structs has to be already defined.  */
-  for (ptrdiff_t i = 0; i < func_h->count; i++)
-    compile_function (HASH_VALUE (func_h, i));
+  for (ptrdiff_t i = 0; i < HASH_TABLE_SIZE (func_h); i++)
+    if (!EQ (HASH_VALUE (func_h, i), Qunbound))
+      compile_function (HASH_VALUE (func_h, i));
 
   add_driver_options ();
 
@@ -4501,8 +4428,10 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
       gcc_jit_context_dump_to_file (comp.ctxt,
 				    format_string ("%s.c", SSDATA (base_name)),
 				    1);
-  if (comp.debug > 2)
-    gcc_jit_context_dump_reproducer_to_file (comp.ctxt, "comp_reproducer.c");
+  if (!NILP (Fsymbol_value (Qcomp_libgccjit_reproducer)))
+    gcc_jit_context_dump_reproducer_to_file (
+      comp.ctxt,
+      format_string ("%s_libgccjit_repro.c", SSDATA (base_name)));
 
   Lisp_Object tmp_file =
     Fmake_temp_file_internal (base_name, Qnil, build_string (".eln.tmp"), Qnil);
@@ -4526,6 +4455,7 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
   return filename;
 }
 
+#pragma GCC diagnostic ignored "-Waddress"
 DEFUN ("comp-libgccjit-version", Fcomp_libgccjit_version,
        Scomp_libgccjit_version, 0, 0, 0,
        doc: /* Return libgccjit version in use.
@@ -4537,19 +4467,16 @@ unknown (before GCC version 10).  */)
 #if defined (LIBGCCJIT_HAVE_gcc_jit_version) || defined (WINDOWSNT)
   load_gccjit_if_necessary (true);
 
-  /* FIXME this kludge is quite bad.  Can we dynamically load on all
-     operating systems?  */
-#pragma GCC diagnostic ignored "-Waddress"
   return gcc_jit_version_major
     ? list3 (make_fixnum (gcc_jit_version_major ()),
 	     make_fixnum (gcc_jit_version_minor ()),
 	     make_fixnum (gcc_jit_version_patchlevel ()))
     : Qnil;
-#pragma GCC diagnostic pop
 #else
   return Qnil;
 #endif
 }
+#pragma GCC diagnostic pop
 
 
 /******************************************************************************/
@@ -4618,11 +4545,11 @@ eln_load_path_final_clean_up (void)
   FOR_EACH_TAIL (dir_tail)
     {
       Lisp_Object files_in_dir =
-	internal_condition_case_4 (Fdirectory_files,
+	internal_condition_case_5 (Fdirectory_files,
 				   concat2 (XCAR (dir_tail),
 					    Vcomp_native_version_dir),
 				   Qt, build_string ("\\.eln\\.old\\'"), Qnil,
-				   Qt, return_nil);
+				   Qnil, Qt, return_nil);
       FOR_EACH_TAIL (files_in_dir)
 	Fdelete_file (XCAR (files_in_dir), Qnil);
     }
@@ -4973,8 +4900,8 @@ native_function_doc (Lisp_Object function)
 
 static Lisp_Object
 make_subr (Lisp_Object symbol_name, Lisp_Object minarg, Lisp_Object maxarg,
-	   Lisp_Object c_name, Lisp_Object doc_idx, Lisp_Object intspec,
-	   Lisp_Object comp_u)
+	   Lisp_Object c_name, Lisp_Object type, Lisp_Object doc_idx,
+	   Lisp_Object intspec, Lisp_Object comp_u)
 {
   struct Lisp_Native_Comp_Unit *cu = XNATIVE_COMP_UNIT (comp_u);
   dynlib_handle_ptr handle = cu->handle;
@@ -5005,6 +4932,7 @@ make_subr (Lisp_Object symbol_name, Lisp_Object minarg, Lisp_Object maxarg,
   x->s.doc = XFIXNUM (doc_idx);
   x->s.native_comp_u[0] = comp_u;
   x->s.native_c_name[0] = xstrdup (SSDATA (c_name));
+  x->s.type[0] = type;
   Lisp_Object tem;
   XSETSUBR (tem, &x->s);
 
@@ -5015,16 +4943,18 @@ DEFUN ("comp--register-lambda", Fcomp__register_lambda, Scomp__register_lambda,
        7, 7, 0,
        doc: /* Register anonymous lambda.
 This gets called by top_level_run during the load phase.  */)
-  (Lisp_Object reloc_idx, Lisp_Object minarg, Lisp_Object maxarg,
-   Lisp_Object c_name, Lisp_Object doc_idx, Lisp_Object intspec,
+  (Lisp_Object reloc_idx, Lisp_Object c_name, Lisp_Object minarg,
+   Lisp_Object maxarg, Lisp_Object type, Lisp_Object rest,
    Lisp_Object comp_u)
 {
+  Lisp_Object doc_idx = FIRST (rest);
+  Lisp_Object intspec = SECOND (rest);
   struct Lisp_Native_Comp_Unit *cu = XNATIVE_COMP_UNIT (comp_u);
   if (cu->loaded_once)
     return Qnil;
 
   Lisp_Object tem =
-    make_subr (c_name, minarg, maxarg, c_name, doc_idx, intspec, comp_u);
+    make_subr (c_name, minarg, maxarg, c_name, type, doc_idx, intspec, comp_u);
 
   /* We must protect it against GC because the function is not
      reachable through symbols.  */
@@ -5043,13 +4973,15 @@ DEFUN ("comp--register-subr", Fcomp__register_subr, Scomp__register_subr,
        7, 7, 0,
        doc: /* Register exported subr.
 This gets called by top_level_run during the load phase.  */)
-  (Lisp_Object name, Lisp_Object minarg, Lisp_Object maxarg,
-   Lisp_Object c_name, Lisp_Object doc_idx, Lisp_Object intspec,
+  (Lisp_Object name, Lisp_Object c_name, Lisp_Object minarg,
+   Lisp_Object maxarg, Lisp_Object type, Lisp_Object rest,
    Lisp_Object comp_u)
 {
+  Lisp_Object doc_idx = FIRST (rest);
+  Lisp_Object intspec = SECOND (rest);
   Lisp_Object tem =
-    make_subr (SYMBOL_NAME (name), minarg, maxarg, c_name, doc_idx, intspec,
-	       comp_u);
+    make_subr (SYMBOL_NAME (name), minarg, maxarg, c_name, type, doc_idx,
+	       intspec, comp_u);
 
   if (AUTOLOADP (XSYMBOL (name)->u.s.function))
     /* Remember that the function was already an autoload.  */
@@ -5072,13 +5004,13 @@ DEFUN ("comp--late-register-subr", Fcomp__late_register_subr,
        Scomp__late_register_subr, 7, 7, 0,
        doc: /* Register exported subr.
 This gets called by late_top_level_run during the load phase.  */)
-  (Lisp_Object name, Lisp_Object minarg, Lisp_Object maxarg,
-   Lisp_Object c_name, Lisp_Object doc, Lisp_Object intspec,
+  (Lisp_Object name, Lisp_Object c_name, Lisp_Object minarg,
+   Lisp_Object maxarg, Lisp_Object type, Lisp_Object rest,
    Lisp_Object comp_u)
 {
   if (!NILP (Fequal (Fsymbol_function (name),
 		     Fgethash (name, Vcomp_deferred_pending_h, Qnil))))
-    Fcomp__register_subr (name, minarg, maxarg, c_name, doc, intspec, comp_u);
+    Fcomp__register_subr (name, c_name, minarg, maxarg, type, rest, comp_u);
   Fremhash (name, Vcomp_deferred_pending_h);
   return Qnil;
 }
@@ -5169,6 +5101,7 @@ compiled one.  */);
   DEFSYM (Qcomp_speed, "comp-speed");
   DEFSYM (Qcomp_debug, "comp-debug");
   DEFSYM (Qcomp_native_driver_options, "comp-native-driver-options");
+  DEFSYM (Qcomp_libgccjit_reproducer, "comp-libgccjit-reproducer");
 
   /* Limple instruction set.  */
   DEFSYM (Qcomment, "comment");
@@ -5180,6 +5113,7 @@ compiled one.  */);
   DEFSYM (Qassume, "assume");
   DEFSYM (Qsetimm, "setimm");
   DEFSYM (Qreturn, "return");
+  DEFSYM (Qunreachable, "unreachable");
   DEFSYM (Qcomp_mvar, "comp-mvar");
   DEFSYM (Qcond_jump, "cond-jump");
   DEFSYM (Qphi, "phi");

@@ -1,6 +1,6 @@
 ### @configure_input@
 
-# Copyright (C) 1992-2020 Free Software Foundation, Inc.
+# Copyright (C) 1992-2021 Free Software Foundation, Inc.
 
 # This file is part of GNU Emacs.
 
@@ -414,6 +414,7 @@ epaths-force-w32:
 	  w32locallisppath=$${w32locallisppath//$${w32prefix}/"%emacs_dir%"} ; \
 	  sed < ${srcdir}/nt/epaths.nt > epaths.h.$$$$		\
 	  -e 's;\(#.*PATH_SITELOADSEARCH\).*$$;\1 "'"$${w32locallisppath//;/\\;}"'";' \
+	  -e 's;\(#.*PATH_REL_LOADSEARCH\).*$$;\1 "${lispdirrel}";' \
 	  -e '/^.*#/s/@VER@/${version}/g' 			\
 	  -e '/^.*#/s/@CFG@/${configuration}/g' 		\
 	  -e "/^.*#/s|@SRC@|$${w32srcdir}|g") &&		\
@@ -1005,6 +1006,9 @@ rustdoc:
 	$(MAKE) -C src $@
 
 .PHONY: clippy
+
+test/%:
+	$(MAKE) -C test $*
 
 dist:
 	cd ${srcdir}; ./make-dist

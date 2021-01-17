@@ -1,6 +1,6 @@
 ;;; startup.el --- process Emacs shell arguments  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994-2020 Free Software Foundation,
+;; Copyright (C) 1985-1986, 1992, 1994-2021 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -641,7 +641,7 @@ It is the default value of the variable `top-level'."
       (with-current-buffer "*Messages*"
         (messages-buffer-mode)
         ;; Make it easy to do like "tail -f".
-        (set (make-local-variable 'window-point-insertion-type) t)
+        (setq-local window-point-insertion-type t)
         ;; Give *Messages* the same default-directory as *scratch*,
         ;; just to keep things predictable.
 	(setq default-directory (or dir (expand-file-name "~/")))))
@@ -957,10 +957,10 @@ init-file, or to a default value if loading is not possible."
 
               (when (and (eq user-init-file t) alternate-filename-function)
                 (let ((alt-file (funcall alternate-filename-function)))
-                  (and (equal (file-name-extension alt-file) "el")
-                       (setq alt-file (file-name-sans-extension alt-file)))
 		  (unless init-file-name
 		    (setq init-file-name alt-file))
+                  (and (equal (file-name-extension alt-file) "el")
+                       (setq alt-file (file-name-sans-extension alt-file)))
                   (load alt-file 'noerror 'nomessage)))
 
               ;; If we did not find the user's init file, set
@@ -1238,17 +1238,7 @@ please check its value")
        package-enable-at-startup
        (not (bound-and-true-p package--activated))
        (catch 'package-dir-found
-	 (let (dirs)
-	   (if (boundp 'package-directory-list)
-	       (setq dirs package-directory-list)
-	     (dolist (f load-path)
-	       (and (stringp f)
-		    (equal (file-name-nondirectory f) "site-lisp")
-		    (push (expand-file-name "elpa" f) dirs))))
-	   (push (if (boundp 'package-user-dir)
-		     package-user-dir
-		   (locate-user-emacs-file "elpa"))
-		 dirs)
+	 (let ((dirs (cons package-user-dir package-directory-list)))
 	   (dolist (dir dirs)
 	     (when (file-directory-p dir)
 	       (dolist (subdir (directory-files dir))
@@ -1390,7 +1380,7 @@ please check its value")
          "~/.emacs")))
      (lambda ()
        (expand-file-name
-        "init"
+        "init.el"
         startup-init-directory))
      (not inhibit-default-init))
 
@@ -2007,7 +1997,7 @@ splash screen in another window."
       (setq buffer-read-only nil)
       (erase-buffer)
       (setq default-directory command-line-default-directory)
-      (set (make-local-variable 'tab-width) 8)
+      (setq-local tab-width 8)
 
       (if pure-space-overflow
 	  (insert pure-space-overflow-message))
