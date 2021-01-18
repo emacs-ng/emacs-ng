@@ -1192,26 +1192,7 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
 
 #[lisp_fn(min = "1")]
 pub fn js__reenter(args: &[LispObject]) -> LispObject {
-    let retval;
-    if !EmacsMainJsRuntime::is_within_runtime() {
-        let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
-        let worker = worker_handle.as_mut_ref();
-        let runtime = &mut worker.js_runtime;
-        let context = runtime.global_context();
-        let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
-        let handle = EmacsMainJsRuntime::get_tokio_handle();
-        unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope)) };
-        EmacsMainJsRuntime::enter_runtime();
-        retval = handle.block_on(async move { js_reenter_inner(scope, args) });
-        EmacsMainJsRuntime::exit_runtime();
-        unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(None) };
-    } else {
-        let scope: &mut v8::HandleScope = unsafe { EmacsMainJsRuntime::get_stacked_v8_handle() };
-        retval = js_reenter_inner(scope, args);
-        unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope)) };
-    }
-
-    retval
+    inner_invokation(move |scope| js_reenter_inner(scope, args))
 }
 
 fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
@@ -1235,8 +1216,8 @@ fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
     fnc.call(scope, recv, v8_args.as_slice()).unwrap();
 }
 
-#[lisp_fn]
-pub fn js__clear(idx: LispObject) -> LispObject {
+fn inner_invokation<F, R: Sized>(f: F) -> R where F: Fn(&mut v8::HandleScope) -> R {
+    let result;
     if !EmacsMainJsRuntime::is_within_runtime() {
         let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
         let worker = worker_handle.as_mut_ref();
@@ -1245,14 +1226,20 @@ pub fn js__clear(idx: LispObject) -> LispObject {
         let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
         let handle = EmacsMainJsRuntime::get_tokio_handle();
         EmacsMainJsRuntime::enter_runtime();
-        handle.block_on(async move { js_clear_internal(scope, idx) });
+        result = handle.block_on(async move { f(scope) });
         EmacsMainJsRuntime::exit_runtime();
     } else {
         let scope: &mut v8::HandleScope = unsafe { EmacsMainJsRuntime::get_stacked_v8_handle() };
-        js_clear_internal(scope, idx);
+        result = f(scope);
         unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope)) };
     }
 
+    result
+}
+
+#[lisp_fn]
+pub fn js__clear(idx: LispObject) -> LispObject {
+    inner_invokation(move |scope| js_clear_internal(scope, idx));
     lisp::remacs_sys::Qnil
 }
 
@@ -1270,6 +1257,44 @@ fn execute<T: Sized + std::future::Future<Output = Result<()>>>(fnc: T) -> Resul
         EmacsMainJsRuntime::exit_runtime();
         result
     }
+}
+
+fn schedule_sweep() {
+    let cstr = CString::new("run-with-timer").expect("Failed to create timer");
+    let callback = CString::new("js--sweep").expect("Failed to create timer");
+    unsafe {
+        let fun = lisp::remacs_sys::intern_c_string(cstr.as_ptr());
+        let fun_callback = lisp::remacs_sys::intern_c_string(callback.as_ptr());
+        let mut args = vec![
+            fun,
+            lisp::remacs_sys::make_float(2.5f64),
+            lisp::remacs_sys::Qnil,
+            fun_callback,
+        ];
+        lisp::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
+    }
+}
+
+fn js_sweep_inner(scope: &mut v8::HandleScope) {
+    let context = scope.get_current_context();
+    let global = context.global(scope);
+
+    let name = v8::String::new(scope, "__sweep").unwrap();
+    let fnc: v8::Local<v8::Function> = global.get(scope, name.into()).unwrap().try_into().unwrap();
+    let recv =
+        v8::Local::<v8::Value>::try_from(v8::String::new(scope, "lisp_invoke").unwrap()).unwrap();
+    let v8_args = vec![];
+    fnc.call(scope, recv, v8_args.as_slice()).unwrap();
+}
+
+#[lisp_fn]
+pub fn js__sweep() -> LispObject {
+    if EmacsMainJsRuntime::is_main_worker_active() {
+	inner_invokation(|scope| js_sweep_inner(scope));
+	schedule_sweep();
+    }
+
+    lisp::remacs_sys::Qnil
 }
 
 fn tick_js() -> Result<()> {
@@ -1480,6 +1505,7 @@ fn run_module_inner(
         Ok(())
     })?;
 
+    schedule_sweep();
     schedule_tick();
     Ok(lisp::remacs_sys::Qnil)
 }
@@ -1516,12 +1542,6 @@ fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
     }
 }
 
-fn tick() -> Result<()> {
-    let ops = EmacsMainJsRuntime::get_options();
-    init_worker("tick.js", &ops)?;
-    tick_js()
-}
-
 fn schedule_tick() {
     let js_options = EmacsMainJsRuntime::get_options();
     //(run-with-timer t 0.1 'js-tick-event-loop error-handler)
@@ -1543,8 +1563,11 @@ fn schedule_tick() {
 
 #[lisp_fn]
 pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
-    schedule_tick();
+    if !EmacsMainJsRuntime::is_main_worker_active() {
+	return lisp::remacs_sys::Qnil;
+    }
 
+    schedule_tick();
     // If we are within the runtime, we don't want to attempt to
     // call execute, as we will error, and there really isn't anything
     // anyone can do about it. Just defer the event loop until
@@ -1553,7 +1576,7 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
         return lisp::remacs_sys::Qnil;
     }
 
-    let result = tick()
+    let result = tick_js()
         .map(|_| lisp::remacs_sys::Qnil)
         // We do NOT want to destroy the MainWorker if we error here.
         // We can still use this isolate for future promise resolutions

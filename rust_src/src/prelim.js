@@ -149,7 +149,7 @@
     // and my job is done.
     // @TODO either make that time for sync customizable
     // or explore better options than hardcoding 2.5s.
-    setInterval(() => {
+    global.__sweep = () => {
         const nw = [];
         const args = [];
         __weak.forEach((e) => {
@@ -161,7 +161,7 @@
             finalize.apply(this, args);
         });
         __weak = nw;
-    }, 2500);
+    };
 
 
     // Crossing the JS -> Lisp bridge costs time, which we want to save.
