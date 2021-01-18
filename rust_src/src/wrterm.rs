@@ -27,7 +27,7 @@ use lisp::{
         Fmake_vector, Fprovide, MonitorInfo, Pixmap, Qbackground_color, Qfont, Qfont_backend,
         Qforeground_color, Qleft_fringe, Qminibuffer, Qname, Qnil, Qparent_id, Qright_fringe,
         Qterminal, Qunbound, Qwr, Qx, Qx_create_frame_1, Qx_create_frame_2, Vframe_list, WRImage,
-        Window, XrmDatabase, DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
+        Window, DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
     },
 };
 
@@ -95,34 +95,6 @@ pub extern "C" fn get_keysym_name(keysym: i32) -> *mut libc::c_char {
     name as *mut libc::c_char
 }
 
-#[allow(unused_variables)]
-#[no_mangle]
-pub extern "C" fn x_clear_under_internal_border(frame: LispFrameRef) {}
-
-#[allow(unused_variables)]
-#[no_mangle]
-pub extern "C" fn x_set_scroll_bar_default_width(frame: LispFrameRef) {
-    // Currently, the web render based GUI does't support scroll bar.
-    // So Do nothing.
-}
-
-#[allow(unused_variables)]
-#[no_mangle]
-pub extern "C" fn x_set_scroll_bar_default_height(frame: LispFrameRef) {
-    // Currently, the web render based GUI does't support scroll bar.
-    // So Do nothing.
-}
-
-#[allow(unused_variables)]
-#[no_mangle]
-pub extern "C" fn x_get_string_resource(
-    _rdb: XrmDatabase,
-    _name: *const libc::c_char,
-    _class: *const libc::c_char,
-) -> *mut libc::c_char {
-    ptr::null_mut()
-}
-
 #[no_mangle]
 pub extern "C" fn check_x_display_info(obj: LispObject) -> DisplayInfoRef {
     if obj.is_nil() {
@@ -130,18 +102,6 @@ pub extern "C" fn check_x_display_info(obj: LispObject) -> DisplayInfoRef {
     } else {
         unimplemented!();
     }
-}
-
-#[allow(unused_variables)]
-#[no_mangle]
-pub extern "C" fn x_bitmap_icon(frame: LispFrameRef, icon: LispObject) -> bool {
-    unimplemented!();
-}
-
-#[allow(unused_variables)]
-#[no_mangle]
-pub extern "C" fn x_focus_frame(frame: LispFrameRef, noactivate: bool) {
-    unimplemented!();
 }
 
 // FRAME is used only to get a handle on the X display.  We don't pass the
@@ -159,10 +119,6 @@ pub extern "C" fn x_get_focus_frame(frame: LispFrameRef) -> LispObject {
         false => focus_frame.into(),
     }
 }
-
-#[allow(unused_variables)]
-#[no_mangle]
-pub extern "C" fn x_set_offset(frame: LispFrameRef, xoff: i32, yoff: i32, change_gravity: i32) {}
 
 // This tries to wait until the frame is really visible, depending on
 // the value of Vx_wait_for_event_timeout.
@@ -193,28 +149,6 @@ pub extern "C" fn x_iconify_frame(mut f: LispFrameRef) {
 
     let output: OutputRef = unsafe { f.output_data.wr.into() };
     output.hide_window()
-}
-
-// Set the pixel height of the tool bar of frame F to HEIGHT.
-#[no_mangle]
-pub extern "C" fn x_change_tool_bar_height(_f: LispFrameRef, _hight: i32) {
-    // Currently, the webrender based GUI does't support tool bar.
-    // So Do nothing.
-}
-
-// Call this to change the size of frame F's x-window.
-// If CHANGE_GRAVITY, change to top-left-corner window gravity
-// for this size change and subsequent size changes.
-// Otherwise we leave the window gravity unchanged.
-#[allow(unused_variables)]
-#[no_mangle]
-pub extern "C" fn x_set_window_size(
-    f: LispFrameRef,
-    change_gravity: bool,
-    width: i32,
-    height: i32,
-    pixelwise: bool,
-) {
 }
 
 // Move the mouse to position pixel PIX_X, PIX_Y relative to frame F.
