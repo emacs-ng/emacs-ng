@@ -235,12 +235,12 @@ impl DrawCanvas {
             LineStyle::Solid
         };
 
-        let info =
-            CommonItemProperties::new((x, position).by(s.width as i32, thickness), space_and_clip);
-
         let visible_height = unsafe { (*s.row).visible_height };
 
-        let visible_rect = (x, y).by(s.width as i32, visible_height);
+        let info =
+            CommonItemProperties::new((x, y).by(s.width as i32, visible_height), space_and_clip);
+
+        let visible_rect = (x, position).by(s.width as i32, thickness);
 
         builder.push_line(
             &info,
