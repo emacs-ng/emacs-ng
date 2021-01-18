@@ -1590,6 +1590,13 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
         // We can still use this isolate for future promise resolutions
         // instead, just pass to the error handler.
         .unwrap_or_else(|e| {
+            // If handler is nil, we need to manually
+            // schedule tick since handle_error isn't
+            // going to return.
+            if handler.is_nil() {
+                schedule_tick();
+            }
+
             handle_error(e, handler);
             false
         });
