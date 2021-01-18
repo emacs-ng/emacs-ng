@@ -104,53 +104,6 @@ pub extern "C" fn check_x_display_info(obj: LispObject) -> DisplayInfoRef {
     }
 }
 
-// FRAME is used only to get a handle on the X display.  We don't pass the
-// display info directly because we're called from frame.c, which doesn't
-// know about that structure.
-#[no_mangle]
-pub extern "C" fn x_get_focus_frame(frame: LispFrameRef) -> LispObject {
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
-    let dpyinfo = output.display_info();
-
-    let focus_frame = dpyinfo.get_inner().focus_frame;
-
-    match focus_frame.is_null() {
-        true => Qnil,
-        false => focus_frame.into(),
-    }
-}
-
-// This tries to wait until the frame is really visible, depending on
-// the value of Vx_wait_for_event_timeout.
-// However, if the window manager asks the user where to position
-// the frame, this will return before the user finishes doing that.
-// The frame will not actually be visible at that time,
-// but it will become visible later when the window manager
-// finishes with it.
-#[no_mangle]
-pub extern "C" fn x_make_frame_visible(mut f: LispFrameRef) {
-    f.set_visible(true as u32);
-
-    let output: OutputRef = unsafe { f.output_data.wr.into() };
-    output.show_window()
-}
-
-#[no_mangle]
-pub extern "C" fn x_make_frame_invisible(mut f: LispFrameRef) {
-    f.set_visible(false as u32);
-
-    let output: OutputRef = unsafe { f.output_data.wr.into() };
-    output.hide_window()
-}
-
-#[no_mangle]
-pub extern "C" fn x_iconify_frame(mut f: LispFrameRef) {
-    f.set_iconified(true);
-
-    let output: OutputRef = unsafe { f.output_data.wr.into() };
-    output.hide_window()
-}
-
 // Move the mouse to position pixel PIX_X, PIX_Y relative to frame F.
 #[allow(unused_variables)]
 #[no_mangle]

@@ -636,6 +636,49 @@ extern "C" fn implicitly_set_name(frame: *mut Lisp_Frame, arg: LispObject, _oldv
     output.set_title(&title);
 }
 
+extern "C" fn get_focus_frame(frame: *mut Lisp_Frame) -> LispObject {
+    let frame: LispFrameRef = frame.into();
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let dpyinfo = output.display_info();
+
+    let focus_frame = dpyinfo.get_inner().focus_frame;
+
+    match focus_frame.is_null() {
+        true => Qnil,
+        false => focus_frame.into(),
+    }
+}
+
+// This tries to wait until the frame is really visible, depending on
+// the value of Vx_wait_for_event_timeout.
+// However, if the window manager asks the user where to position
+// the frame, this will return before the user finishes doing that.
+// The frame will not actually be visible at that time,
+// but it will become visible later when the window manager
+// finishes with it.
+extern "C" fn make_frame_visible_invisible(f: *mut Lisp_Frame, visible: bool) {
+    let mut frame: LispFrameRef = f.into();
+
+    frame.set_visible(visible as u32);
+
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    if visible {
+        output.show_window();
+    } else {
+        output.hide_window();
+    }
+}
+
+extern "C" fn iconify_frame(f: *mut Lisp_Frame) {
+    let mut frame: LispFrameRef = f.into();
+
+    frame.set_iconified(true);
+
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    output.hide_window()
+}
+
 fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     let terminal_ptr = unsafe {
         create_terminal(
@@ -661,6 +704,9 @@ fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     terminal.read_socket_hook = Some(read_input_event);
     terminal.fullscreen_hook = Some(fullscreen);
     terminal.implicit_set_name_hook = Some(implicitly_set_name);
+    terminal.get_focus_frame = Some(get_focus_frame);
+    terminal.frame_visible_invisible_hook = Some(make_frame_visible_invisible);
+    terminal.iconify_frame_hook = Some(iconify_frame);
 
     terminal
 }
