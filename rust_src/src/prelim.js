@@ -147,8 +147,8 @@
     // Due to this, I opt'd to use weakrefs in a map. Its nice
     // because I just need to sync that map with a lisp gc root
     // and my job is done.
-    // @TODO either make that time for sync customizable
-    // or explore better options than hardcoding 2.5s.
+    // This is called from lisp's native garbage_collect function
+    // via the lisp function (js--sweep)
     global.__sweep = () => {
         const nw = [];
         const args = [];
