@@ -1199,9 +1199,10 @@ pub fn js__reenter(args: &[LispObject]) -> LispObject {
         let runtime = &mut worker.js_runtime;
         let context = runtime.global_context();
         let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
+        let handle = EmacsMainJsRuntime::get_tokio_handle();
         unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope)) };
         EmacsMainJsRuntime::enter_runtime();
-        retval = js_reenter_inner(scope, args);
+        retval = handle.block_on(async move { js_reenter_inner(scope, args) });
         EmacsMainJsRuntime::exit_runtime();
         unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(None) };
     } else {
@@ -1242,8 +1243,9 @@ pub fn js__clear(idx: LispObject) -> LispObject {
         let runtime = &mut worker.js_runtime;
         let context = runtime.global_context();
         let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
+        let handle = EmacsMainJsRuntime::get_tokio_handle();
         EmacsMainJsRuntime::enter_runtime();
-        js_clear_internal(scope, idx);
+        handle.block_on(async move { js_clear_internal(scope, idx) });
         EmacsMainJsRuntime::exit_runtime();
     } else {
         let scope: &mut v8::HandleScope = unsafe { EmacsMainJsRuntime::get_stacked_v8_handle() };
