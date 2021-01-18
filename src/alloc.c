@@ -6000,7 +6000,7 @@ garbage_collect (void)
 
   if (garbage_collection_inhibited)
     return;
-
+  Fjs__sweep();
   /* Record this function, so it appears on the profiler's backtraces.  */
   record_in_backtrace (QAutomatic_GC, 0, 0);
 

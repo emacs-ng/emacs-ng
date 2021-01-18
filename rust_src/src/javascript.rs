@@ -77,6 +77,7 @@ struct EmacsMainJsRuntime {
     /// not stored in EmacsJsOptions.
     program_state: Option<Arc<deno::program_state::ProgramState>>,
     within_toplevel: bool,
+    tick_scheduled: bool,
 }
 
 impl Default for EmacsMainJsRuntime {
@@ -91,6 +92,7 @@ impl Default for EmacsMainJsRuntime {
             proxy_template: None,
             program_state: None,
             within_toplevel: false,
+            tick_scheduled: false,
         }
     }
 }
@@ -98,7 +100,7 @@ impl Default for EmacsMainJsRuntime {
 impl Default for EmacsJsOptions {
     fn default() -> Self {
         Self {
-            tick_rate: 0.1,
+            tick_rate: 0.001,
             ops: None,
             error_handler: lisp::remacs_sys::Qnil,
             inspect: None,
@@ -286,6 +288,14 @@ impl EmacsMainJsRuntime {
                 main.options.ops = Some(deno_runtime::permissions::Permissions::allow_all())
             }
         });
+    }
+
+    fn set_tick_scheduled(b: bool) {
+        Self::access(|main| main.tick_scheduled = b);
+    }
+
+    fn get_tick_scheduled() -> bool {
+        Self::access(|main| main.tick_scheduled)
     }
 }
 
@@ -1192,26 +1202,7 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
 
 #[lisp_fn(min = "1")]
 pub fn js__reenter(args: &[LispObject]) -> LispObject {
-    let retval;
-    if !EmacsMainJsRuntime::is_within_runtime() {
-        let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
-        let worker = worker_handle.as_mut_ref();
-        let runtime = &mut worker.js_runtime;
-        let context = runtime.global_context();
-        let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
-        let handle = EmacsMainJsRuntime::get_tokio_handle();
-        unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope)) };
-        EmacsMainJsRuntime::enter_runtime();
-        retval = handle.block_on(async move { js_reenter_inner(scope, args) });
-        EmacsMainJsRuntime::exit_runtime();
-        unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(None) };
-    } else {
-        let scope: &mut v8::HandleScope = unsafe { EmacsMainJsRuntime::get_stacked_v8_handle() };
-        retval = js_reenter_inner(scope, args);
-        unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope)) };
-    }
-
-    retval
+    inner_invokation(move |scope| js_reenter_inner(scope, args), true)
 }
 
 fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
@@ -1235,8 +1226,11 @@ fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
     fnc.call(scope, recv, v8_args.as_slice()).unwrap();
 }
 
-#[lisp_fn]
-pub fn js__clear(idx: LispObject) -> LispObject {
+fn inner_invokation<F, R: Sized>(f: F, should_schedule: bool) -> R
+where
+    F: Fn(&mut v8::HandleScope) -> R,
+{
+    let result;
     if !EmacsMainJsRuntime::is_within_runtime() {
         let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
         let worker = worker_handle.as_mut_ref();
@@ -1245,14 +1239,27 @@ pub fn js__clear(idx: LispObject) -> LispObject {
         let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
         let handle = EmacsMainJsRuntime::get_tokio_handle();
         EmacsMainJsRuntime::enter_runtime();
-        handle.block_on(async move { js_clear_internal(scope, idx) });
+        result = handle.block_on(async move { f(scope) });
         EmacsMainJsRuntime::exit_runtime();
+
+        // Only in the case that the event loop as gone to sleep,
+        // we want to reinvoke it, in case the above
+        // invokation has scheduled promises.
+        if !EmacsMainJsRuntime::get_tick_scheduled() && should_schedule {
+            schedule_tick();
+        }
     } else {
         let scope: &mut v8::HandleScope = unsafe { EmacsMainJsRuntime::get_stacked_v8_handle() };
-        js_clear_internal(scope, idx);
+        result = f(scope);
         unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope)) };
     }
 
+    result
+}
+
+#[lisp_fn]
+pub fn js__clear(idx: LispObject) -> LispObject {
+    inner_invokation(move |scope| js_clear_internal(scope, idx), false);
     lisp::remacs_sys::Qnil
 }
 
@@ -1272,14 +1279,40 @@ fn execute<T: Sized + std::future::Future<Output = Result<()>>>(fnc: T) -> Resul
     }
 }
 
-fn tick_js() -> Result<()> {
+fn js_sweep_inner(scope: &mut v8::HandleScope) {
+    let context = scope.get_current_context();
+    let global = context.global(scope);
+
+    let name = v8::String::new(scope, "__sweep").unwrap();
+    let fnc: v8::Local<v8::Function> = global.get(scope, name.into()).unwrap().try_into().unwrap();
+    let recv =
+        v8::Local::<v8::Value>::try_from(v8::String::new(scope, "lisp_invoke").unwrap()).unwrap();
+    let v8_args = vec![];
+    fnc.call(scope, recv, v8_args.as_slice()).unwrap();
+}
+
+#[lisp_fn]
+pub fn js__sweep() -> LispObject {
+    if EmacsMainJsRuntime::is_main_worker_active() {
+        inner_invokation(|scope| js_sweep_inner(scope), false);
+    }
+
+    lisp::remacs_sys::Qnil
+}
+
+fn tick_js() -> Result<bool> {
+    let mut is_complete = false;
+    let is_complete_ref = &mut is_complete;
     execute(async move {
         futures::future::poll_fn(|cx| {
             let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
             let w = worker_handle.as_mut_ref();
             let polled = w.poll_event_loop(cx);
             match polled {
-                std::task::Poll::Ready(r) => r.map_err(|e| into_ioerr(e))?,
+                std::task::Poll::Ready(r) => {
+                    *is_complete_ref = true;
+                    r.map_err(|e| into_ioerr(e))?
+                }
                 std::task::Poll::Pending => {}
             }
 
@@ -1287,6 +1320,7 @@ fn tick_js() -> Result<()> {
         })
         .await
     })
+    .map(move |_| is_complete)
 }
 
 fn init_once() -> Result<()> {
@@ -1516,13 +1550,8 @@ fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
     }
 }
 
-fn tick() -> Result<()> {
-    let ops = EmacsMainJsRuntime::get_options();
-    init_worker("tick.js", &ops)?;
-    tick_js()
-}
-
 fn schedule_tick() {
+    EmacsMainJsRuntime::set_tick_scheduled(true);
     let js_options = EmacsMainJsRuntime::get_options();
     //(run-with-timer t 0.1 'js-tick-event-loop error-handler)
     let cstr = CString::new("run-with-timer").expect("Failed to create timer");
@@ -1543,27 +1572,47 @@ fn schedule_tick() {
 
 #[lisp_fn]
 pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
-    schedule_tick();
+    if !EmacsMainJsRuntime::is_main_worker_active() {
+        return lisp::remacs_sys::Qnil;
+    }
 
     // If we are within the runtime, we don't want to attempt to
     // call execute, as we will error, and there really isn't anything
     // anyone can do about it. Just defer the event loop until
     // we are out of the runtime.
     if EmacsMainJsRuntime::is_within_runtime() {
+        schedule_tick();
         return lisp::remacs_sys::Qnil;
     }
 
-    let result = tick()
-        .map(|_| lisp::remacs_sys::Qnil)
+    let is_complete = tick_js()
         // We do NOT want to destroy the MainWorker if we error here.
         // We can still use this isolate for future promise resolutions
         // instead, just pass to the error handler.
-        .unwrap_or_else(|e| handle_error(e, handler));
-    result
+        .unwrap_or_else(|e| {
+            // If handler is nil, we need to manually
+            // schedule tick since handle_error isn't
+            // going to return.
+            if handler.is_nil() {
+                schedule_tick();
+            }
+
+            handle_error(e, handler);
+            false
+        });
+
+    if !is_complete {
+        schedule_tick();
+    } else {
+        EmacsMainJsRuntime::set_tick_scheduled(false);
+    }
+
+    lisp::remacs_sys::Qnil
 }
 
-// @TODO we actually should call this, since it performs runtime actions.
-// for now, we are manually calling 'staticpro'
+// Do NOT call this function, it is just used for macro purposes to
+// generate variables. The user should NOT have direct access to
+// 'js-retain-map' from the scripting engine.
 #[allow(dead_code)]
 fn init_syms() {
     defvar_lisp!(Vjs_retain_map, "js-retain-map", lisp::remacs_sys::Qnil);
