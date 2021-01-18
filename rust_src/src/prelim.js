@@ -150,7 +150,6 @@
     // @TODO either make that time for sync customizable
     // or explore better options than hardcoding 2.5s.
     global.__sweep = () => {
-	console.log("SWEEPING...");
         const nw = [];
         const args = [];
         __weak.forEach((e) => {

@@ -1238,13 +1238,12 @@ fn inner_invokation<F, R: Sized>(f: F, should_schedule: bool) -> R where F: Fn(&
         EmacsMainJsRuntime::enter_runtime();
         result = handle.block_on(async move { f(scope) });
         EmacsMainJsRuntime::exit_runtime();
-	println!("Inner Invokation...");
+
 	// Only in the case that the event loop as gone to sleep,
 	// we want to reinvoke it, in case the above
 	// invokation has scheduled promises.
 	if !EmacsMainJsRuntime::get_tick_scheduled()
 	    && should_schedule {
-	    println!("Scheduled...");
 	    schedule_tick();
 	}
     } else {
@@ -1278,22 +1277,6 @@ fn execute<T: Sized + std::future::Future<Output = Result<()>>>(fnc: T) -> Resul
     }
 }
 
-fn schedule_sweep() {
-    let cstr = CString::new("run-with-timer").expect("Failed to create timer");
-    let callback = CString::new("js--sweep").expect("Failed to create timer");
-    unsafe {
-        let fun = lisp::remacs_sys::intern_c_string(cstr.as_ptr());
-        let fun_callback = lisp::remacs_sys::intern_c_string(callback.as_ptr());
-        let mut args = vec![
-            fun,
-            lisp::remacs_sys::make_float(2.5f64),
-            lisp::remacs_sys::Qnil,
-            fun_callback,
-        ];
-        lisp::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
-    }
-}
-
 fn js_sweep_inner(scope: &mut v8::HandleScope) {
     let context = scope.get_current_context();
     let global = context.global(scope);
@@ -1310,7 +1293,6 @@ fn js_sweep_inner(scope: &mut v8::HandleScope) {
 pub fn js__sweep() -> LispObject {
     if EmacsMainJsRuntime::is_main_worker_active() {
 	inner_invokation(|scope| js_sweep_inner(scope), false);
-	schedule_sweep();
     }
 
     lisp::remacs_sys::Qnil
@@ -1529,7 +1511,6 @@ fn run_module_inner(
         Ok(())
     })?;
 
-    schedule_sweep();
     schedule_tick();
     Ok(lisp::remacs_sys::Qnil)
 }
@@ -1592,7 +1573,6 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
 	return lisp::remacs_sys::Qnil;
     }
 
-    println!("WIthin loop....");
     // If we are within the runtime, we don't want to attempt to
     // call execute, as we will error, and there really isn't anything
     // anyone can do about it. Just defer the event loop until
@@ -1615,7 +1595,6 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
 	schedule_tick();
     } else {
 	EmacsMainJsRuntime::set_tick_scheduled(false);
-	println!("Not within loop...");
     }
 
     lisp::remacs_sys::Qnil
