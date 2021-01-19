@@ -42,9 +42,9 @@ tokio-rustls = "0.14.1"
 glutin = { version = "0.24", optional = true }
 gleam = { version = "0.6", optional = true }
 webrender = { version = "0.61", optional = true }
-openssl = { version = "0.10", features = ["vendored"] }
-openssl-sys = "0.9"
-git2 = "0.13"
+# openssl = { version = "0.10", features = ["vendored"] }
+# openssl-sys = "0.9"
+# git2 = "0.13"
 
 [build-dependencies]
 clippy = { version = "*", optional = true }
