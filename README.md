@@ -41,7 +41,7 @@ If you would like to see a breakdown of what JavaScript can do, feel free to jum
 
 ## Why JavaScript
 
-One of emacs-ng's primary features is integrating the [Deno Runtime](https://deno.land/), which allows execution of JavaScript and Typescript within Emacs. The details of that feature are listed below, however many users would ask themselves **WHY JAVASCRIPT?** JavaScript is an extremely dynamic language that allows for a user to inspect and control their scripting environment. The key to note is that brining in Deno isn't JUST JavaScript - it's an ecosystem of powerful tools and approaches that Emacs just doesn't have currently.
+One of emacs-ng's primary features is integrating the [Deno Runtime](https://deno.land/), which allows execution of JavaScript and Typescript within Emacs. The details of that feature are listed below, however many users would ask themselves **WHY JAVASCRIPT?** JavaScript is an extremely dynamic language that allows for a user to inspect and control their scripting environment. The key to note is that bringing in Deno isn't JUST JavaScript - it's an ecosystem of powerful tools and approaches that Emacs just doesn't have currently.
 
 * TypeScript offers an extremely flexible typing system, that allows to user to have compile time control of their scripting, with the flexibility of types "getting out of the way" when not needed.
 * Deno uses Google's v8 JavaScript engine, which features an extremely powerful JIT and world-class garbage collector.
@@ -63,7 +63,7 @@ v8's world-class JIT offers the potential for massive performance gains. For a s
 ``` js
 const fib = (n) => {
     if (n <= 1) {
-	return n;
+        return n;
     }
 
     return fib(n - 1) + fib(n - 2);
@@ -173,7 +173,7 @@ console.log(myList.json()); // prints { name: 3 }, defaulting to the assumption 
 
 ### Using Async I/O
 
-We expose the async IO functionality included with deno. Users can fetch data async from their local file system, or  the network. They can use that data to interact with the editor. An example would be:
+We expose the async IO functionality included with deno. Users can fetch data async from their local file system, or the network. They can use that data to interact with the editor. An example would be:
 
 ``` js
 const json = fetch("https://api.github.com/users/denoland")
@@ -196,7 +196,7 @@ This example assumes you have a json file named `test.json` in your current dire
 
 ### WebWorkers and Parallel Scripting
 
-We also support WebWorkers, meaning that you can run javascript in seperate threads. Note that WebWorkers cannot interact with the lisp VM, however they can use Deno for async I/O. See [Advanced Features](https://github.com/emacs-ng/emacs-ng/blob/master/adv-features.md)
+We also support WebWorkers, meaning that you can run javascript in separate threads. Note that WebWorkers cannot interact with the lisp VM, however they can use Deno for async I/O. See [Advanced Features](https://github.com/emacs-ng/emacs-ng/blob/master/adv-features.md)
 
 Web Assembly allows you to perform things normally handled by native libraries with easy distribution. Want to manipulate sqlite3? Use the [deno sqlite wasm package](https://deno.land/x/sqlite@v2.3.2/mod.ts)
 
