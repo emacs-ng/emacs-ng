@@ -39,7 +39,8 @@ extern crate crossbeam;
 extern crate deno;
 extern crate deno_core;
 extern crate deno_runtime;
-extern crate git2;
+// TODO: enable after #111 is fixed
+// extern crate git2;
 extern crate rusty_v8;
 extern crate tokio;
 
