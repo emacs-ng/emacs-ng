@@ -100,7 +100,7 @@ impl Default for EmacsMainJsRuntime {
 impl Default for EmacsJsOptions {
     fn default() -> Self {
         Self {
-            tick_rate: 0.001,
+            tick_rate: 0.1,
             ops: None,
             error_handler: lisp::remacs_sys::Qnil,
             inspect: None,
@@ -1547,6 +1547,27 @@ fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
             let mut args = vec![handler, lstring];
             Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr())
         }
+    }
+}
+
+/// Gets the current tick rate of JavaScript.
+#[lisp_fn]
+pub fn js_get_tick_rate() -> LispObject {
+    let options = EmacsMainJsRuntime::get_options();
+    unsafe { lisp::remacs_sys::make_float(options.tick_rate) }
+}
+
+/// Sets F to be the current js tick rate. Increase this number
+/// to improve file read performance, decrease to preventing
+/// hitching and save battery life.
+#[lisp_fn]
+pub fn js_set_tick_rate(f: LispObject) {
+    let mut options = EmacsMainJsRuntime::get_options();
+
+    unsafe {
+        lisp::remacs_sys::CHECK_NUMBER(f);
+        options.tick_rate = lisp::remacs_sys::XFLOATINT(f);
+        EmacsMainJsRuntime::set_options(options);
     }
 }
 
