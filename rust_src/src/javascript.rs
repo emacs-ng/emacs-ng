@@ -1561,7 +1561,7 @@ pub fn js_get_tick_rate() -> LispObject {
 /// to improve file read performance, decrease to preventing
 /// hitching and save battery life.
 #[lisp_fn]
-pub fn js_set_tick_rate(f: LispObject) -> LispObject {
+pub fn js_set_tick_rate(f: LispObject) {
     let mut options = EmacsMainJsRuntime::get_options();
 
     unsafe {
@@ -1569,8 +1569,6 @@ pub fn js_set_tick_rate(f: LispObject) -> LispObject {
         options.tick_rate = lisp::remacs_sys::XFLOATINT(f);
         EmacsMainJsRuntime::set_options(options);
     }
-
-    lisp::remacs_sys::Qnil
 }
 
 fn schedule_tick() {
