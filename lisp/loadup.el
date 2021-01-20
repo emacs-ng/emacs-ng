@@ -137,7 +137,7 @@
 (add-hook 'after-load-functions (lambda (f) (garbage-collect)))
 
 (load "version")
-
+(load "emacs-lisp/emacs-ng")
 (load "widget")
 (load "custom")
 (load "emacs-lisp/map-ynp")
