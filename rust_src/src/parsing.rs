@@ -115,7 +115,7 @@ pub fn lsp_handler(proc: LispObject, data: LispObject) -> LispObject {
     let user_data: UserData = to_owned_userdata(data);
     let msg: Message = unsafe { user_data.unpack() };
     let config = &get_process_json_config(proc);
-    match msg {
+    let result = match msg {
         Message::Request(re) => serde_to_lisp(
             json!({ID: re.id, METHOD: re.method, PARAMS: re.params}),
             config,
@@ -134,7 +134,11 @@ pub fn lsp_handler(proc: LispObject, data: LispObject) -> LispObject {
         Message::Notification(n) => {
             serde_to_lisp(json!({METHOD: n.method, PARAMS: n.params}), config)
         }
-    }
+    };
+
+    result.unwrap_or_else(|e| {
+        error!(e.to_string());
+    })
 }
 
 fn get_process_json_config(proc: LispObject) -> JSONConfiguration {
@@ -160,56 +164,6 @@ pub fn lsp_json_config(args: &[LispObject]) -> bool {
 
     true
 }
-
-/*
-
-#[lisp_fn]
-pub fn lsp_lazy_handler(_proc: LispObject, data: LispObject) -> LispObject {
-    let user_data: UserData = data.into();
-    let msg: Message = unsafe { user_data.unpack() };
-    let payload = match msg {
-        Message::Request(_) => panic!(),
-        Message::Response(r) => {
-            let response = r.result.unwrap_or_else(|| serde_json::Value::Null);
-            json!({ID: r.id, RESULT: response})
-        }
-        Message::Notification(_) => panic!(),
-    };
-
-    let mut args = vec![QCtest, Qequal];
-
-    let hashmap = unsafe { Fmake_hash_table(args.len().try_into().unwrap(), args.as_mut_ptr()) };
-    let payload_data = UserData::new(payload);
-
-    LispObject::cons(hashmap, payload_data)
-}
-
-#[lisp_fn]
-pub fn get_json_cached_data(map: LispCons, key: LispObject) -> LispObject {
-    let hashmap = map.car();
-    let string_val: LispStringRef = key.into();
-    let is_hashtable: bool = unsafe { Fhash_table_p(hashmap) }.into();
-    if !is_hashtable {
-        wrong_type!(Qhash_table_p, hashmap);
-    }
-
-    let h = unsafe { XHASH_TABLE(hashmap) };
-    let mut lisp_hash: LispObject = LispObject::from(0);
-    let i = unsafe { hash_lookup(h, key, &mut lisp_hash) };
-    if i < 0 {
-        let u: UserData = map.cdr().into();
-        let mut m: serde_json::Value = unsafe { u.unpack() };
-        let utf8 = string_val.to_utf8();
-        let taken = m["response"][utf8].take();
-        let result = serde_to_lisp(taken);
-        unsafe { hash_put(h, key, result, lisp_hash) };
-        result
-    } else {
-        unsafe { HASH_VALUE(h, i) }
-    }
-}
-
-*/
 
 // @TODO: Instead of an option, have this return a result
 // and do not invoke 'error' directly. Have serde_to_lisp match.
@@ -330,8 +284,11 @@ fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> Option<serde
     }
 }
 
-fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispObject {
-    match value {
+fn serde_to_lisp(
+    value: serde_json::Value,
+    config: &JSONConfiguration,
+) -> std::result::Result<LispObject, std::ffi::NulError> {
+    let result = match value {
         Value::Null => config.null_obj,
         Value::Bool(b) => {
             if b {
@@ -353,7 +310,7 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
         }
         Value::String(s) => {
             let len = s.len();
-            let c_content = CString::new(s).expect("Failed to convert to C string");
+            let c_content = CString::new(s)?;
             unsafe { make_string_from_utf8(c_content.as_ptr(), len.try_into().unwrap()) }
         }
         Value::Array(mut v) => {
@@ -365,7 +322,7 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
                     let mut i = len64 - 1;
                     while let Some(owned) = v.pop() {
                         unsafe {
-                            ASET(result, i.try_into().unwrap(), serde_to_lisp(owned, config))
+                            ASET(result, i.try_into().unwrap(), serde_to_lisp(owned, config)?)
                         };
                         i -= 1;
                     }
@@ -375,7 +332,7 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
                 ArrayType::List => {
                     let mut result = Qnil;
                     for i in (0..len).rev() {
-                        result = unsafe { Fcons(serde_to_lisp(v[i].take(), config), result) };
+                        result = unsafe { Fcons(serde_to_lisp(v[i].take(), config)?, result) };
                     }
 
                     result
@@ -400,14 +357,14 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
                     while let Some(k) = keys.pop() {
                         if let Some(v) = map.remove(&k) {
                             let len = k.len();
-                            let cstring = CString::new(k).expect("Failure to allocate CString");
+                            let cstring = CString::new(k)?;
                             let lisp_key = unsafe {
                                 make_string_from_utf8(cstring.as_ptr(), len.try_into().unwrap())
                             };
                             let mut lisp_hash: LispObject = LispObject::from(0);
                             let i = unsafe { hash_lookup(h, lisp_key, &mut lisp_hash) };
                             assert!(i < 0);
-                            unsafe { hash_put(h, lisp_key, serde_to_lisp(v, config), lisp_hash) };
+                            unsafe { hash_put(h, lisp_key, serde_to_lisp(v, config)?, lisp_hash) };
                         } else {
                             error!("Error in deserializing json value");
                         }
@@ -422,7 +379,7 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
                     while let Some(k) = keys.pop() {
                         if let Some(v) = map.remove(&k) {
                             let len = k.len();
-                            let cstring = CString::new(k).expect("Failure to allocate CString");
+                            let cstring = CString::new(k)?;
                             let lisp_key = unsafe {
                                 Fintern(
                                     make_string_from_utf8(
@@ -432,8 +389,9 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
                                     Qnil,
                                 )
                             };
-                            result =
-                                unsafe { Fcons(Fcons(lisp_key, serde_to_lisp(v, config)), result) };
+                            result = unsafe {
+                                Fcons(Fcons(lisp_key, serde_to_lisp(v, config)?), result)
+                            };
                         }
                     }
 
@@ -451,8 +409,7 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
                             let mut colon_key = String::from(":");
                             colon_key.push_str(&k);
                             let len = colon_key.len();
-                            let cstring =
-                                CString::new(colon_key).expect("Failure to allocate CString");
+                            let cstring = CString::new(colon_key)?;
                             let lisp_key = unsafe {
                                 Fintern(
                                     make_string_from_utf8(
@@ -463,7 +420,7 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
                                 )
                             };
                             result = unsafe { Fcons(lisp_key, result) };
-                            result = unsafe { Fcons(serde_to_lisp(v, config), result) };
+                            result = unsafe { Fcons(serde_to_lisp(v, config)?, result) };
                         }
                     }
 
@@ -471,7 +428,9 @@ fn serde_to_lisp(value: serde_json::Value, config: &JSONConfiguration) -> LispOb
                 }
             }
         }
-    }
+    };
+
+    Ok(result)
 }
 
 // This function is written so that if len args == 0, it will return
@@ -553,7 +512,7 @@ pub fn json_de(args: &[LispObject]) -> LispObject {
     let sref: LispStringRef = args[0].into();
 
     match serde_json::from_str(&sref.to_utf8()) {
-        Ok(value) => serde_to_lisp(value, &config),
+        Ok(value) => serde_to_lisp(value, &config).unwrap_or_else(|e| error!(e.to_string())),
         Err(e) => error!("Error in parsing json: {:?}", e),
     }
 }
@@ -565,13 +524,11 @@ pub(crate) fn gen_ser_deser_config() -> JSONConfiguration {
     }
 }
 
-pub(crate) fn deser(
-    string: &str,
-    config: Option<JSONConfiguration>,
-) -> std::result::Result<LispObject, serde_json::Error> {
+pub(crate) fn deser(string: &str, config: Option<JSONConfiguration>) -> Result<LispObject> {
     let val = serde_json::from_str(string)?;
     let config = config.unwrap_or_else(|| gen_ser_deser_config());
-    Ok(serde_to_lisp(val, &config))
+    serde_to_lisp(val, &config)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
 }
 
 pub(crate) fn ser(o: LispObject) -> Result<String> {
