@@ -37,7 +37,7 @@ Emacs-ng is an additive native layer over emacs, bringing features like Deno's J
 
 ## New User Guides
 
-If you would like to see a breakdown of what JavaScript can do, feel free to jump into our User Guides: [Getting Started](https://github.com/emacs-ng/emacs-ng/blob/master/getting-started.md), [Using Deno](https://github.com/emacs-ng/emacs-ng/blob/master/using-deno.md), and [Advanced Features](https://github.com/emacs-ng/emacs-ng/blob/master/adv-features.md). Otherwise, you can continue reading for a project outline and build instructions.
+If you would like to see a breakdown of what JavaScript can do, feel free to jump into our User Guides: [Getting Started](https://github.com/emacs-ng/emacs-ng/blob/master/getting-started.md), [Using Deno](https://github.com/emacs-ng/emacs-ng/blob/master/using-deno.md), and [Advanced Features](https://github.com/emacs-ng/emacs-ng/blob/master/adv-features.md), or [check out our FAQ for common questions about the project](https://github.com/emacs-ng/emacs-ng/blob/master/faq.md). Otherwise, you can continue reading for a project outline and build instructions.
 
 ## Why JavaScript
 
