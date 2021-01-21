@@ -362,6 +362,13 @@ macro_rules! make_proxy {
     }};
 }
 
+fn throw_exception_with_error<E: std::error::Error>(scope: &mut v8::HandleScope, e: E) {
+    let error_string = e.to_string();
+    let error = v8::String::new(scope, &error_string).unwrap();
+    let exception = v8::Exception::error(scope, error);
+    scope.throw_exception(exception);
+}
+
 pub fn json_lisp(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
@@ -390,10 +397,17 @@ pub fn json_lisp(
         _ => { /* noop */ }
     }
 
-    if let Ok(result) = crate::parsing::deser(&message, Some(base_config)) {
-        let proxy = make_proxy!(scope, result);
-        let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
-        retval.set(r);
+    let deser_result = crate::parsing::deser(&message, Some(base_config));
+    match deser_result {
+        Ok(result) => {
+            let proxy = make_proxy!(scope, result);
+            let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
+            retval.set(r);
+        }
+        Err(e) => {
+            throw_exception_with_error(scope, e);
+            return;
+        }
     }
 }
 
@@ -485,12 +499,21 @@ pub fn lisp_string(
         .to_rust_string_lossy(scope);
 
     let len = message.len();
-    let cstr = CString::new(message).expect("Failed to allocate CString");
-    let result =
-        unsafe { lisp::remacs_sys::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap()) };
-    let proxy = make_proxy!(scope, result);
-    let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
-    retval.set(r);
+    let c_alloc = CString::new(message);
+    match c_alloc {
+        Ok(cstr) => {
+            let result = unsafe {
+                lisp::remacs_sys::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap())
+            };
+            let proxy = make_proxy!(scope, result);
+            let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
+            retval.set(r);
+        }
+        Err(e) => {
+            throw_exception_with_error(scope, e);
+            return;
+        }
+    }
 }
 
 pub fn lisp_fixnum(
@@ -564,8 +587,15 @@ pub fn lisp_list(
         if arg.is_string() {
             let a = arg.to_string(scope).unwrap().to_rust_string_lossy(scope);
 
-            if let Ok(deser) = crate::parsing::deser(&a, None) {
-                lisp_args.push(deser);
+            let deser_result = crate::parsing::deser(&a, None);
+            match deser_result {
+                Ok(deser) => {
+                    lisp_args.push(deser);
+                }
+                Err(e) => {
+                    throw_exception_with_error(scope, e);
+                    return;
+                }
             }
         } else if arg.is_object() {
             let a = arg.to_object(scope).unwrap();
@@ -710,8 +740,15 @@ pub fn lisp_callback(
         if arg.is_string() {
             let a = arg.to_string(scope).unwrap().to_rust_string_lossy(scope);
 
-            if let Ok(deser) = crate::parsing::deser(&a, None) {
-                lisp_args.push(deser);
+            let deser_result = crate::parsing::deser(&a, None);
+            match deser_result {
+                Ok(deser) => {
+                    lisp_args.push(deser);
+                }
+                Err(e) => {
+                    throw_exception_with_error(scope, e);
+                    return;
+                }
             }
         } else if arg.is_object() {
             let a = arg.to_object(scope).unwrap();
@@ -1180,8 +1217,13 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
         if result.is_string() {
             let a = result.to_string(scope).unwrap().to_rust_string_lossy(scope);
 
-            if let Ok(deser) = crate::parsing::deser(&a, None) {
-                retval = deser;
+            let deser_result = crate::parsing::deser(&a, None);
+            match deser_result {
+                Ok(deser) => retval = deser,
+                Err(e) => {
+                    throw_exception_with_error(scope, e);
+                    return lisp::remacs_sys::Qnil;
+                }
             }
         } else if result.is_object() {
             let a = result.to_object(scope).unwrap();
