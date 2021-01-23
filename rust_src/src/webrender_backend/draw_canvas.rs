@@ -138,6 +138,8 @@ impl DrawCanvas {
                 glyph_instances.push(glyph_instance);
             }
 
+            let mut s = s.clone();
+
             let x = s.x;
             let y = s.y;
 
@@ -155,6 +157,8 @@ impl DrawCanvas {
                     &CommonItemProperties::new(background_bounds, space_and_clip),
                     background_color,
                 );
+
+                s.set_background_filled_p(true);
             }
 
             let foreground_color = pixel_to_color(unsafe { (*gc).foreground });
@@ -180,7 +184,7 @@ impl DrawCanvas {
         });
     }
 
-    fn draw_stretch_glyph_string(&mut self, s: GlyphStringRef) {
+    fn draw_stretch_glyph_string(&mut self, mut s: GlyphStringRef) {
         if s.background_filled_p() {
             return;
         }
@@ -196,6 +200,8 @@ impl DrawCanvas {
                 background_color,
             );
         });
+
+        s.set_background_filled_p(true);
     }
 
     fn draw_underline(
