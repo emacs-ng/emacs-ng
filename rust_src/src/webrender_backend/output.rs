@@ -483,7 +483,9 @@ impl Output {
     }
 
     pub fn get_primary_monitor(&self) -> MonitorHandle {
-        self.window.primary_monitor()
+        self.window
+            .primary_monitor()
+            .unwrap_or_else(|| -> MonitorHandle { self.window.current_monitor().unwrap() })
     }
 
     pub fn get_position(&self) -> Option<PhysicalPosition<i32>> {
