@@ -39,7 +39,7 @@ serde_json = { version = "1.0", features = ["preserve_order"] }
 systemstat = "0.1"
 tokio = { version = "0.2.22", features = ["full"] }
 tokio-rustls = "0.14.1"
-glutin = { version = "0.24", optional = true }
+glutin = { version = "0.26", optional = true }
 gleam = { version = "0.6", optional = true }
 webrender = { version = "0.61", optional = true }
 # openssl = { version = "0.10", features = ["vendored"] }
