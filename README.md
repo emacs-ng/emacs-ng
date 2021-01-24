@@ -17,11 +17,8 @@
     - [Running emacsng](#running-emacsng)
 - [Features](#features)
     - [Javascript](#javascript)
-        - [Typescript](#typescript)
-        - [Interacting with buffers and symbols](#interacting-with-buffers-and-symbols)
         - [WebWorkers and Parallel Scripting](#webworkers-and-parallel-scripting)
         - [Using Async I/O](#using-async-io)
-        - [Adding Hooks](#adding-hooks)
     - [Webrender](#webrender)
 
 <!-- markdown-toc end -->
@@ -30,7 +27,7 @@
 
 ## Motivation
 
-The goal of this fork is to explore new development approaches.
+The goal of this fork is to explore new development approaches. To accomplish this, we aim to maintain an inclusive and innovative environment. Contributions are welcome from anyone, and we do not require copyright assignment. We welcome interesting ideas to make emacs better. Our only request is that you open an issue before starting work and be willing to take feedback from the core contributors.
 
 # Why Emacsng
 
@@ -153,24 +150,7 @@ Contributions are welcome. We try to maintain a list of "new contributor" friend
 ## Javascript
 This code is a strictly additive layer, it changes no elisp functionality, and should be able to merge upstream patches cleanly. JS tests can be run by building the editor and executing `cd test && ../src/emacs --batch -l js/bootstrap.el`.
 
-To learn more about JavaScript, it is recommended you check out [Getting Started](https://github.com/emacs-ng/emacs-ng/blob/master/getting-started.md), [Using Deno](https://github.com/emacs-ng/emacs-ng/blob/master/using-deno.md), and [Advanced Features](https://github.com/emacs-ng/emacs-ng/blob/master/adv-features.md)
-
-### Typescript
-emacs-ng supports native typescript. If your typescript fails to compile, those functions will throw elisp errors that you can address within your program.
-
-The high level concept here is to allow full control of emacs-ng via the javascript layer. In order to avoid conflict between the elisp and javascript layers, only one scripting engine will be running at a time. elisp is the "authoritative" layer, in that the javascript will invoke elisp functions to interact with the editor. This is done via a special object in javascript called `lisp`. An example of it's usage would be:
-
-### Interacting with buffers and symbols
-
-``` js
-let buffer = lisp.get_buffer_create("mybuf");
-let qcname = lisp.keywords.name; // Will return an object representing :name
-let myList = lisp.list(qcname, 3);
-console.log(myList); // prints { nativeProxy : true }
-console.log(myList.json()); // prints { name: 3 }, defaulting to the assumption this list is a plist
-```
-
-*Almost* any function callable from lisp can be invoked in JavaScript via the lisp object. So `(function-name)` becomes `lisp.function_name`. If you find a lisp function that cannot be called from JS, that is a bug.
+To learn more about JavaScript and TypeScript, it is recommended you check out [Getting Started](https://github.com/emacs-ng/emacs-ng/blob/master/getting-started.md), [Using Deno](https://github.com/emacs-ng/emacs-ng/blob/master/using-deno.md), and [Advanced Features](https://github.com/emacs-ng/emacs-ng/blob/master/adv-features.md)
 
 ### Using Async I/O
 
@@ -214,35 +194,6 @@ for (const [name] of db.query("SELECT name FROM people")) {
 }
 
 db.close();
-```
-
-### Adding Hooks
-
-Lambdas are converted automatically between the two languages via proxying. You can use  this to set timers, or to add hooks. This example features the lisp.symbols object, which returns a proxy to the quoted key. lisp.setq functions similarly to `(setq ....)`
-
-``` js
-lisp.add_hook(lisp.symbols.text_mode_hook, () => {
-    lisp.setq(lisp.symbols.foo, "3");
-});
-
-// Or set timer with arguments...
-lisp.run_with_timer(lisp.symbols.t, 1, (a, b) => {
-    console.log('hello ' + a);
-    lisp.print(b);
-    return 3;
-}, 3, lisp.make.alist({x: 3}));
-```
-
-The user can also define functions via `defun` that will call back into javascript. Like in normal defun, DOCSTRING and the INTERACTIVE decl are optional. This example features both docstring and interactive
-
-``` js
-lisp.defun({
-    name: "my-funcntion",
-    docString: "This is my docstring",
-    interactive: true,
-    args: "P\nbbuffer:",
-    func: (a, b) => console.log('hello buffer!')
-});
 ```
 
 ## Webrender
