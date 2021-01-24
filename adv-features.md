@@ -27,7 +27,7 @@ WebWorkers communicate via two special functions, postMessage and onmessage. onm
 
 Create a new file with the following code:
 
-```js
+```ts
 declare var lisp: any;
 
 const worker = new Worker(new URL("web-worker.js", import.meta.url).href,
@@ -46,7 +46,7 @@ worker.onmessage = (output) => {
 worker.postMessage({ message: "You have my sword .... " });
 ```
 
-This code spins up our WebWorker and passes it a message. Running this code should print a reference to a cool little obscure movie in your minibuffer.
+This code spins up our WebWorker and passes it a message. Running this code with `eval-ts-buffer` should print a reference to a cool little obscure movie in your minibuffer.
 
 ## Using Deno with WebWorkers
 
