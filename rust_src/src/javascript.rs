@@ -2,7 +2,7 @@ use crate::parsing::{ArrayType, ObjectType};
 use lisp::lisp::LispObject;
 use lisp::list::{LispCons, LispConsCircularChecks, LispConsEndChecks};
 use lisp::multibyte::LispStringRef;
-use lisp::remacs_sys::Ffuncall;
+use lisp::remacs_sys::{EmacsUint, Ffuncall};
 use lisp_macros::lisp_fn;
 use rusty_v8 as v8;
 use std::cell::RefCell;
@@ -24,6 +24,7 @@ struct EmacsJsOptions {
     ts_config: Option<String>,
     no_check: bool,
     no_remote: bool,
+    loops_per_tick: EmacsUint,
 }
 
 /// In order to smoothly interface with the Lisp VM,
@@ -100,7 +101,7 @@ impl Default for EmacsMainJsRuntime {
 impl Default for EmacsJsOptions {
     fn default() -> Self {
         Self {
-            tick_rate: 0.1,
+            tick_rate: 0.25,
             ops: None,
             error_handler: lisp::remacs_sys::Qnil,
             inspect: None,
@@ -109,6 +110,7 @@ impl Default for EmacsJsOptions {
             ts_config: None,
             no_check: false,
             no_remote: false,
+            loops_per_tick: 1000,
         }
     }
 }
@@ -296,6 +298,10 @@ impl EmacsMainJsRuntime {
 
     fn get_tick_scheduled() -> bool {
         Self::access(|main| main.tick_scheduled)
+    }
+
+    fn get_loops_per_tick() -> EmacsUint {
+        Self::access(|main| main.options.loops_per_tick)
     }
 }
 
@@ -1288,7 +1294,7 @@ where
         // we want to reinvoke it, in case the above
         // invokation has scheduled promises.
         if !EmacsMainJsRuntime::get_tick_scheduled() && should_schedule {
-            schedule_tick();
+            js_tick_event_loop(lisp::remacs_sys::Qnil);
         }
     } else {
         let scope: &mut v8::HandleScope = unsafe { EmacsMainJsRuntime::get_stacked_v8_handle() };
@@ -1599,16 +1605,21 @@ pub fn js_get_tick_rate() -> LispObject {
     unsafe { lisp::remacs_sys::make_float(options.tick_rate) }
 }
 
-/// Sets F to be the current js tick rate. Increase this number
-/// to improve file read performance, decrease to preventing
-/// hitching and save battery life.
-#[lisp_fn]
-pub fn js_set_tick_rate(f: LispObject) {
+/// Sets F to be the current js tick rate. Every F seconds, javascript
+/// will attempt to evaluate the JS event loop. It will advance the
+/// event loop LOOPS_PER_TICK iterations.
+#[lisp_fn(min = "1")]
+pub fn js_set_tick_rate(f: LispObject, loops_per_tick: LispObject) {
     let mut options = EmacsMainJsRuntime::get_options();
 
     unsafe {
         lisp::remacs_sys::CHECK_NUMBER(f);
         options.tick_rate = lisp::remacs_sys::XFLOATINT(f);
+
+        if loops_per_tick.is_not_nil() {
+            options.loops_per_tick = loops_per_tick.as_natnum_or_error();
+        }
+
         EmacsMainJsRuntime::set_options(options);
     }
 }
@@ -1616,24 +1627,42 @@ pub fn js_set_tick_rate(f: LispObject) {
 fn schedule_tick() {
     EmacsMainJsRuntime::set_tick_scheduled(true);
     let js_options = EmacsMainJsRuntime::get_options();
-    //(run-with-timer t 0.1 'js-tick-event-loop error-handler)
-    let cstr = CString::new("run-with-timer").expect("Failed to create timer");
-    let callback = CString::new("js-tick-event-loop").expect("Failed to create timer");
     unsafe {
-        let fun = lisp::remacs_sys::intern_c_string(cstr.as_ptr());
-        let fun_callback = lisp::remacs_sys::intern_c_string(callback.as_ptr());
         let mut args = vec![
-            fun,
+            lisp::remacs_sys::Qrun_with_timer,
             lisp::remacs_sys::make_float(js_options.tick_rate),
             lisp::remacs_sys::Qnil,
-            fun_callback,
-            js_options.error_handler,
+            lisp::remacs_sys::Qjs_tick_event_loop,
         ];
         lisp::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
     }
 }
 
-#[lisp_fn]
+fn tick_and_handle_error(handler: LispObject) -> bool {
+    let error_handler = if handler.is_nil() {
+        EmacsMainJsRuntime::get_options().error_handler
+    } else {
+        handler
+    };
+
+    tick_js()
+        // We do NOT want to destroy the MainWorker if we error here.
+        // We can still use this isolate for future promise resolutions
+        // instead, just pass to the error handler.
+        .unwrap_or_else(|e| {
+            // If handler is nil, we need to manually
+            // schedule tick since handle_error isn't
+            // going to return.
+            if handler.is_nil() {
+                schedule_tick();
+            }
+
+            handle_error(e, error_handler);
+            false
+        })
+}
+
+#[lisp_fn(min = "0")]
 pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
     if !EmacsMainJsRuntime::is_main_worker_active() {
         return lisp::remacs_sys::Qnil;
@@ -1648,21 +1677,14 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
         return lisp::remacs_sys::Qnil;
     }
 
-    let is_complete = tick_js()
-        // We do NOT want to destroy the MainWorker if we error here.
-        // We can still use this isolate for future promise resolutions
-        // instead, just pass to the error handler.
-        .unwrap_or_else(|e| {
-            // If handler is nil, we need to manually
-            // schedule tick since handle_error isn't
-            // going to return.
-            if handler.is_nil() {
-                schedule_tick();
-            }
-
-            handle_error(e, handler);
-            false
-        });
+    let num_loops = EmacsMainJsRuntime::get_loops_per_tick();
+    let mut is_complete = false;
+    for _ in 0..num_loops {
+        is_complete = tick_and_handle_error(handler);
+        if is_complete {
+            break;
+        }
+    }
 
     if !is_complete {
         schedule_tick();
@@ -1700,6 +1722,10 @@ fn init_syms() {
     def_lisp_sym!(QCts_config, ":ts-config");
     def_lisp_sym!(QCno_check, ":no-check");
     def_lisp_sym!(QCno_remote, ":no-remote");
+    def_lisp_sym!(QCloops_per_tick, ":loops-per-tick");
+
+    def_lisp_sym!(Qrun_with_timer, "run-with-timer");
+    def_lisp_sym!(Qjs_tick_event_loop, "js-tick-event-loop");
 }
 
 include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));

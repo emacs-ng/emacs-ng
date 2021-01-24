@@ -901,7 +901,7 @@ dependencies = [
 [[package]]
 name = "deno"
 version = "1.6.3"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#02ba0a4cc0f6038793dd33adda3823c728401f31"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#97f5395a7956d7519b3c1878c8fb906b75386474"
 dependencies = [
  "atty",
  "base64 0.12.3",
@@ -953,7 +953,7 @@ dependencies = [
 [[package]]
 name = "deno_core"
 version = "0.75.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#02ba0a4cc0f6038793dd33adda3823c728401f31"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#97f5395a7956d7519b3c1878c8fb906b75386474"
 dependencies = [
  "anyhow",
  "futures",
@@ -972,7 +972,7 @@ dependencies = [
 [[package]]
 name = "deno_crypto"
 version = "0.9.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#02ba0a4cc0f6038793dd33adda3823c728401f31"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#97f5395a7956d7519b3c1878c8fb906b75386474"
 dependencies = [
  "deno_core",
  "rand 0.7.3",
@@ -997,7 +997,7 @@ dependencies = [
 [[package]]
 name = "deno_fetch"
 version = "0.18.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#02ba0a4cc0f6038793dd33adda3823c728401f31"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#97f5395a7956d7519b3c1878c8fb906b75386474"
 dependencies = [
  "deno_core",
  "reqwest",
@@ -1025,7 +1025,7 @@ dependencies = [
 [[package]]
 name = "deno_runtime"
 version = "0.5.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#02ba0a4cc0f6038793dd33adda3823c728401f31"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#97f5395a7956d7519b3c1878c8fb906b75386474"
 dependencies = [
  "atty",
  "deno_core",
@@ -1067,7 +1067,7 @@ dependencies = [
 [[package]]
 name = "deno_web"
 version = "0.26.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#02ba0a4cc0f6038793dd33adda3823c728401f31"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#97f5395a7956d7519b3c1878c8fb906b75386474"
 dependencies = [
  "deno_core",
  "idna",
