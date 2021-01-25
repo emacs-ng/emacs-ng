@@ -8,6 +8,7 @@ use glutin::{event::VirtualKeyCode, monitor::MonitorHandle};
 use lisp_macros::lisp_fn;
 
 use crate::webrender_backend::{
+    color::lookup_color_by_name_or_hex,
     font::{FontRef, FONT_DRIVER},
     frame::create_frame,
     keyboard::winit_keycode_emacs_key_name,
@@ -22,7 +23,7 @@ use lisp::{
     remacs_sys::resource_types::{RES_TYPE_NUMBER, RES_TYPE_STRING, RES_TYPE_SYMBOL},
     remacs_sys::{
         adjust_frame_size, block_input, gui_display_get_arg, hashtest_eql, image, init_frame_faces,
-        make_fixnum, make_hash_table, make_monitor_attribute_list, register_font_driver,
+        list3i, make_fixnum, make_hash_table, make_monitor_attribute_list, register_font_driver,
         unblock_input, Display, EmacsInt, Emacs_Pixmap, Emacs_Rectangle, Fcons, Fcopy_alist,
         Fmake_vector, Fprovide, MonitorInfo, Pixmap, Qbackground_color, Qfont, Qfont_backend,
         Qforeground_color, Qleft_fringe, Qminibuffer, Qname, Qnil, Qparent_id, Qright_fringe,
@@ -377,8 +378,18 @@ pub fn x_display_grayscale_p(_terminal: LispObject) -> bool {
 
 /// Internal function called by `color-values', which see.
 #[lisp_fn(min = "1")]
-pub fn xw_color_values(_color: LispObject, _frame: Option<LispFrameRef>) -> LispObject {
-    Qnil
+pub fn xw_color_values(color: LispObject, _frame: Option<LispFrameRef>) -> LispObject {
+    let color_str = format!("{}", color.force_string());
+    match lookup_color_by_name_or_hex(&color_str) {
+        Some(c) => unsafe {
+            list3i(
+                (c.r * u16::MAX as f32) as i64,
+                (c.g * u16::MAX as f32) as i64,
+                (c.b * u16::MAX as f32) as i64,
+            )
+        },
+        None => Qnil,
+    }
 }
 
 /// Request that dnd events are made for ClientMessages with ATOM.
