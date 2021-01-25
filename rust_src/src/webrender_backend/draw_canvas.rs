@@ -145,7 +145,11 @@ impl DrawCanvas {
 
             let face = s.face;
 
-            let visible_height = unsafe { (*s.row).visible_height };
+            let visible_height = if unsafe { (*s.row).mode_line_p() } {
+                unsafe { (*s.row).height }
+            } else {
+                unsafe { (*s.row).visible_height }
+            };
 
             // draw background
             if !s.background_filled_p() {
