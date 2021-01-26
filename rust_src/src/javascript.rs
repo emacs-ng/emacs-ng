@@ -1295,6 +1295,7 @@ where
         // invokation has scheduled promises.
         if !EmacsMainJsRuntime::get_tick_scheduled() && should_schedule {
             js_tick_event_loop(lisp::remacs_sys::Qnil);
+            schedule_tick();
         }
     } else {
         let scope: &mut v8::HandleScope = unsafe { EmacsMainJsRuntime::get_stacked_v8_handle() };
