@@ -1313,22 +1313,22 @@ where
 {
     let result;
     if !EmacsMainJsRuntime::is_within_runtime() {
-        let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
-        let worker = worker_handle.as_mut_ref();
-        let runtime = &mut worker.js_runtime;
-        let context = runtime.global_context();
-        let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
-        let handle = EmacsMainJsRuntime::get_tokio_handle();
-        EmacsMainJsRuntime::enter_runtime();
-        result = handle.block_on(async move { f(scope) });
-        EmacsMainJsRuntime::exit_runtime();
-
+        {
+            let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
+            let worker = worker_handle.as_mut_ref();
+            let runtime = &mut worker.js_runtime;
+            let context = runtime.global_context();
+            let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
+            let handle = EmacsMainJsRuntime::get_tokio_handle();
+            EmacsMainJsRuntime::enter_runtime();
+            result = handle.block_on(async move { f(scope) });
+            EmacsMainJsRuntime::exit_runtime();
+        }
         // Only in the case that the event loop as gone to sleep,
         // we want to reinvoke it, in case the above
         // invokation has scheduled promises.
         if !EmacsMainJsRuntime::get_tick_scheduled() && should_schedule {
             js_tick_event_loop(lisp::remacs_sys::Qnil);
-            schedule_tick();
         }
     } else {
         let scope: &mut v8::HandleScope = unsafe { EmacsMainJsRuntime::get_stacked_v8_handle() };
@@ -1714,6 +1714,8 @@ fn tick_and_handle_error(handler: LispObject) -> bool {
 /// invoked regularly with custom logic.
 #[lisp_fn(min = "0")]
 pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
+    // Consume the tick for this event loop call.
+    EmacsMainJsRuntime::set_tick_scheduled(false);
     if !EmacsMainJsRuntime::is_main_worker_active() {
         return lisp::remacs_sys::Qnil;
     }
@@ -1738,8 +1740,6 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
 
     if !is_complete {
         schedule_tick();
-    } else {
-        EmacsMainJsRuntime::set_tick_scheduled(false);
     }
 
     lisp::remacs_sys::Qnil
