@@ -37,6 +37,15 @@ This is a relative filepath, and it works off of emacs current working directory
 
 You should see "Hello TypeScript" printed. All of the eval-js* functions return nil. If you want to use a calculated value from JavaScript/TypeScript in Lisp, you can either set a variable (via `lisp.setq`, or call a lisp function with it as an argument.
 
+If these typescript examples are taking a long time to evaluate, it's likely due to the processing power required to compile everything. If you want to turn off TypeScript typechecking for the remainder of the examples, you can run:
+
+```lisp
+(js-cleanup)
+(js-initialize :no-check t)
+```
+
+This code will cleanup your current JS environment and re-initialize it with TypeScript type checking disabled.
+
 ## Iteration
 
 Now that we have our TypeScript file, let us get out of lisp and work purely in TypeScript. Open "basic.ts" by pressing C-x C-f and open "basic.ts". Press M-x and enter "eval-ts-buffer". This will evaluate the current contents of your buffer as typescript. You should see "Hello Typescript" print in your minibuffer. From now on, this will be our preferred way to iterate.
