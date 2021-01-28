@@ -182,3 +182,20 @@ impl Clone for hash_table_test {
         }
     }
 }
+
+pub mod EmacsModifiers {
+    pub type Type = u32;
+
+    pub const up_modifier: Type = 1;
+    pub const down_modifier: Type = 2;
+    pub const drag_modifier: Type = 4;
+    pub const click_modifier: Type = 8;
+    pub const double_modifier: Type = 16;
+    pub const triple_modifier: Type = 32;
+    pub const alt_modifier: Type = 4194304;
+    pub const super_modifier: Type = 8388608;
+    pub const hyper_modifier: Type = 16777216;
+    pub const shift_modifier: Type = 33554432;
+    pub const ctrl_modifier: Type = 67108864;
+    pub const meta_modifier: Type = 134217728;
+}
