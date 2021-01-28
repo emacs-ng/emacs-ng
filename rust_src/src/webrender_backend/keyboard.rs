@@ -3,8 +3,9 @@ use glutin::event::{ModifiersState, VirtualKeyCode};
 use lisp::{
     lisp::LispObject,
     remacs_sys::{
-        _bindgen_ty_52::{ctrl_modifier, meta_modifier, shift_modifier, super_modifier},
-        event_kind, input_event, scroll_bar_part, Qnil,
+        event_kind, input_event, scroll_bar_part,
+        EmacsModifiers::{ctrl_modifier, meta_modifier, shift_modifier, super_modifier},
+        Qnil,
     },
 };
 
