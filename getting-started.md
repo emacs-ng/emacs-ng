@@ -37,14 +37,6 @@ This is a relative filepath, and it works off of emacs current working directory
 
 You should see "Hello TypeScript" printed. All of the eval-js* functions return nil. If you want to use a calculated value from JavaScript/TypeScript in Lisp, you can either set a variable (via `lisp.setq`, or call a lisp function with it as an argument.
 
-If these typescript examples are taking a long time to evaluate, it's likely due to the processing power required to compile everything. If you want to turn off TypeScript typechecking for the remainder of the examples, you can run:
-
-```lisp
-(js-cleanup)
-(js-initialize :no-check t)
-```
-
-This code will cleanup your current JS environment and re-initialize it with TypeScript type checking disabled.
 
 ## Iteration
 
@@ -66,6 +58,15 @@ let y: string = 3;
 ```
 
 It's important to understand that your TypeScript code is compiled prior to execution - unlike standard JavaScript which is evaluated until you encounter a runtime error. Within emacs-ng, that means that your code isn't executed if you have a type error in TypeScript.
+
+If these typescript examples are taking a long time to evaluate, it's likely due to the processing power required to compile everything. If you want to turn off TypeScript typechecking for the remainder of the examples, you can run:
+
+```lisp
+(js-cleanup)
+(js-initialize :no-check t)
+```
+
+This code will cleanup your current JS environment and re-initialize it with TypeScript type checking disabled. If you do not care about the type checking that TypeScript offers, or your computer struggles with the cost of compiling, you can add `(js-initialize :no-check t)` to your init.el. 
 
 Let's stop printing to the minibuffer, and instead start pushing our results into buffers. Let's start by something simple: make a network call and dump the results into a buffer.
 
