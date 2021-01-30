@@ -1,3 +1,4 @@
+#![deny(warnings)]
 #![allow(clippy::cognitive_complexity)]
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -36,12 +37,17 @@ extern crate lsp_server;
 #[macro_use]
 extern crate serde_json;
 extern crate crossbeam;
+#[cfg(feature = "javascript")]
 extern crate deno;
+#[cfg(feature = "javascript")]
 extern crate deno_core;
+#[cfg(feature = "javascript")]
 extern crate deno_runtime;
 // TODO: enable after #111 is fixed
 // extern crate git2;
+#[cfg(feature = "javascript")]
 extern crate rusty_v8;
+#[cfg(feature = "javascript")]
 extern crate tokio;
 
 #[macro_use]
@@ -61,7 +67,9 @@ macro_rules! export_lisp_fns {
 }
 
 mod git;
+#[cfg(feature = "javascript")]
 mod javascript;
+mod javascript_stubs;
 mod ng_async;
 mod parsing;
 
@@ -72,6 +80,11 @@ mod wrterm;
 
 #[cfg(feature = "window-system-webrender")]
 pub use crate::wrterm::{tip_frame, wr_display_list};
+
+#[cfg(not(feature = "javascript"))]
+mod javascript {
+    include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
+}
 
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));

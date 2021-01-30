@@ -517,6 +517,7 @@ pub fn json_de(args: &[LispObject]) -> LispObject {
     }
 }
 
+#[cfg(feature = "javascript")]
 pub(crate) fn gen_ser_deser_config() -> JSONConfiguration {
     JSONConfiguration {
         null_obj: Qnil,
@@ -524,6 +525,7 @@ pub(crate) fn gen_ser_deser_config() -> JSONConfiguration {
     }
 }
 
+#[cfg(feature = "javascript")]
 pub(crate) fn deser(string: &str, config: Option<JSONConfiguration>) -> Result<LispObject> {
     let val = serde_json::from_str(string)?;
     let config = config.unwrap_or_else(|| gen_ser_deser_config());
@@ -531,6 +533,7 @@ pub(crate) fn deser(string: &str, config: Option<JSONConfiguration>) -> Result<L
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
 }
 
+#[cfg(feature = "javascript")]
 pub(crate) fn ser(o: LispObject) -> Result<String> {
     let config = gen_ser_deser_config();
     let value = lisp_to_serde(o, &config)

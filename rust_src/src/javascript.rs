@@ -997,6 +997,7 @@ fn is_typescript(s: &str) -> bool {
 /// reset and reinitalized lazily. If that happens, all
 /// global state will be reset. This can be prevented by
 /// implementing a top level Promise error handler.
+#[cfg(feature = "javascript")]
 #[lisp_fn(min = "1")]
 pub fn eval_js(args: &[LispObject]) -> LispObject {
     let string_obj: LispStringRef = args[0].into();
@@ -1026,6 +1027,7 @@ pub fn eval_js(args: &[LispObject]) -> LispObject {
 /// reset and reinitalized lazily. If that happens, all
 /// global state will be reset. This can be prevented by
 /// implementing a top level Promise error handler.
+#[cfg(feature = "javascript")]
 #[lisp_fn(min = "1")]
 pub fn eval_js_file(args: &[LispObject]) -> LispObject {
     let filename: LispStringRef = args[0].into();
@@ -1064,6 +1066,7 @@ fn get_buffer_contents(mut buffer: LispObject) -> LispObject {
 /// reset and reinitalized lazily. If that happens, all
 /// global state will be reset. This can be prevented by
 /// implementing a top level Promise error handler.
+#[cfg(feature = "javascript")]
 #[lisp_fn(min = "0", intspec = "")]
 pub fn eval_js_buffer(buffer: LispObject) -> LispObject {
     let lisp_string = get_buffer_contents(buffer);
@@ -1077,6 +1080,7 @@ pub fn eval_js_buffer(buffer: LispObject) -> LispObject {
 /// reset and reinitalized lazily. If that happens, all
 /// global state will be reset. This can be prevented by
 /// implementing a top level Promise error handler.
+#[cfg(feature = "javascript")]
 #[lisp_fn(min = "0", intspec = "")]
 pub fn eval_ts_buffer(buffer: LispObject) -> LispObject {
     let lisp_string = get_buffer_contents(buffer);
@@ -1104,6 +1108,7 @@ fn get_region(start: LispObject, end: LispObject) -> LispObject {
 /// reset and reinitalized lazily. If that happens, all
 /// global state will be reset. This can be prevented by
 /// implementing a top level Promise error handler.
+#[cfg(feature = "javascript")]
 #[lisp_fn(intspec = "r")]
 pub fn eval_js_region(start: LispObject, end: LispObject) -> LispObject {
     let lisp_string = get_region(start, end);
@@ -1117,6 +1122,7 @@ pub fn eval_js_region(start: LispObject, end: LispObject) -> LispObject {
 /// reset and reinitalized lazily. If that happens, all
 /// global state will be reset. This can be prevented by
 /// implementing a top level Promise error handler.
+#[cfg(feature = "javascript")]
 #[lisp_fn(intspec = "r")]
 pub fn eval_ts_region(start: LispObject, end: LispObject) -> LispObject {
     let lisp_string = get_region(start, end);
@@ -1173,6 +1179,7 @@ pub fn eval_ts_region(start: LispObject, end: LispObject) -> LispObject {
 /// :js-tick-rate - Defaults to 0.25. This is the interval that js
 /// will evaluate if there are any resolved pending async operations
 /// and execute callbacks.
+#[cfg(feature = "javascript")]
 #[lisp_fn]
 pub fn js_initialize(args: &[LispObject]) -> LispObject {
     let ops = permissions_from_args(args);
@@ -1192,6 +1199,7 @@ fn js_initialize_inner(js_options: &EmacsJsOptions) -> Result<()> {
 
 /// Destroys the current JavaScript environment. The JavaScript environment will be
 /// reinitalized upon the next call to eval-js*, or to js-initialize
+#[cfg(feature = "javascript")]
 #[lisp_fn]
 pub fn js_cleanup() -> LispObject {
     EmacsMainJsRuntime::destroy_worker();
@@ -1281,6 +1289,7 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
     retval
 }
 
+#[cfg(feature = "javascript")]
 #[lisp_fn(min = "1")]
 pub fn js__reenter(args: &[LispObject]) -> LispObject {
     inner_invokation(move |scope| js_reenter_inner(scope, args), true)
@@ -1340,6 +1349,7 @@ where
 }
 
 /// Internal function used for cleanup. Do not call directly.
+#[cfg(feature = "javascript")]
 #[lisp_fn]
 pub fn js__clear(idx: LispObject) -> LispObject {
     inner_invokation(move |scope| js_clear_internal(scope, idx), false);
@@ -1375,6 +1385,7 @@ fn js_sweep_inner(scope: &mut v8::HandleScope) {
 }
 
 /// Internal function called by 'garbage-collect'. Do not call directly.
+#[cfg(feature = "javascript")]
 #[lisp_fn]
 pub fn js__sweep() -> LispObject {
     if EmacsMainJsRuntime::is_main_worker_active() {
@@ -1635,6 +1646,7 @@ fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
 }
 
 /// Gets the current tick rate of JavaScript.
+#[cfg(feature = "javascript")]
 #[lisp_fn]
 pub fn js_get_tick_rate() -> LispObject {
     let options = EmacsMainJsRuntime::get_options();
@@ -1644,6 +1656,7 @@ pub fn js_get_tick_rate() -> LispObject {
 /// Sets F to be the current js tick rate. Every F seconds, javascript
 /// will attempt to evaluate the JS event loop. It will advance the
 /// event loop LOOPS_PER_TICK iterations.
+#[cfg(feature = "javascript")]
 #[lisp_fn(min = "1")]
 pub fn js_set_tick_rate(f: LispObject, loops_per_tick: LispObject) {
     let mut options = EmacsMainJsRuntime::get_options();
@@ -1712,6 +1725,7 @@ fn tick_and_handle_error(handler: LispObject) -> bool {
 /// we will advance the loop by a certain number of iterations (default 1000).
 /// This function is safe to call directly, and can even be set up to be
 /// invoked regularly with custom logic.
+#[cfg(feature = "javascript")]
 #[lisp_fn(min = "0")]
 pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
     // Consume the tick for this event loop call.

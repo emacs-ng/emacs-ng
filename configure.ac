@@ -514,6 +514,9 @@ OPTION_DEFAULT_OFF([webrender],
   [enable use of webrender(written in Rust) as GUI backend on
 multiple platforms(Linux, Windows and MacOS) (experimental)])
 
+OPTION_DEFAULT_ON([javascript],
+  [enable use of JavaScript, TypeScript, and Deno within the emacs runtime(Linux, MacOs)])
+
 ## For the times when you want to build Emacs but don't have
 ## a suitable makeinfo, and can live without the manuals.
 dnl https://lists.gnu.org/r/emacs-devel/2008-04/msg01844.html
@@ -5979,6 +5982,7 @@ AS_ECHO(["  Does Emacs use -lXaw3d?                                 ${HAVE_XAW3D
   Which dumping strategy does Emacs use?                  ${with_dumping}
   Does Emacs have native lisp compiler?                   ${HAVE_NATIVE_COMP}
   Does Emacs use webrender?                               ${with_webrender}
+  Does Emacs include JavaScript?                          ${with_javascript}
 "])
 
 if test -n "${EMACSDATA}"; then
@@ -6110,6 +6114,10 @@ case "$window_system" in
 esac
 if test "$HAVE_LIBVTERM" = "yes"; then
    CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"libvterm\", "
+fi
+
+if test "${with_javascript}" = "yes"; then
+  CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"javascript\", "
 fi
 AC_SUBST(CARGO_DEFAULT_FEATURES)
 AC_CONFIG_FILES([rust_src/Cargo.toml])
