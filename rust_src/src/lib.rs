@@ -86,6 +86,5 @@ mod javascript {
     include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
 }
 
-
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));
