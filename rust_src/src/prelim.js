@@ -39,6 +39,12 @@
 
     global.__clear = (idx) => { __functions[idx] = null; };
 
+    global.__eval = (str) => {
+	const evalResult = (1,eval)(str);
+	const retval = processArgs([evalResult]);
+	return retval[0];
+    };
+
     const makeHashTable = (a) => {
 	let x = lisp.make_hash_table();
 	for (k in a) {
