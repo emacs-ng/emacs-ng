@@ -35,8 +35,7 @@ Now we go back to \*scratch\* and run
 
 This is a relative filepath, and it works off of emacs current working directory (cwd). If you are in doubt to what emacs cwd is, just run the lisp function `(pwd)` in the lisp scratchpad
 
-You should see "Hello TypeScript" printed. All of the eval-js* functions return nil. If you want to use a calculated value from JavaScript/TypeScript in Lisp, you can either set a variable (via `lisp.setq`, or call a lisp function with it as an argument.
-
+You should see "Hello TypeScript" printed. All of the eval-js* functions return nil. If you want to use a calculated value from JavaScript in Lisp, you should use `eval-js-literally`. If you are looking for something like `eval-expression`, which is normally bound to M-:, you should use `eval-js-expression`. It accepts the same arguments as `eval-expression`, except with the first argument being a JavaScript expression, and behaves very similarly to `eval-expression`. It will also inserts the results into `values` just like `eval-expression`. `eval-js-literally` and `eval-js-expression` do not work with TypeScript at this time.
 
 ## Iteration
 

@@ -1011,6 +1011,127 @@ pub fn eval_js(args: &[LispObject]) -> LispObject {
     run_module(&name, Some(string), &ops, is_typescript)
 }
 
+/// Evaluates JS in the global context and returns the value
+/// of the latest expression with in the statement. This is
+/// a wrapper around JavaScript's global `eval` function,
+/// and follows the same rules.
+///
+/// Using global `eval` does not support ES6 import
+/// statements or top-level await
+#[cfg(feature = "javascript")]
+#[lisp_fn(intspec = "MEval JS: ")]
+pub fn eval_js_literally(js: LispStringRef) -> LispObject {
+    let ops = EmacsMainJsRuntime::get_options();
+    js_initialize_inner(&ops).unwrap_or_else(|e| {
+        error!("JS Failed to initialize with error: {}", e);
+    });
+    inner_invokation(move |scope| eval_literally_inner(scope, js), true)
+}
+
+/// Evaluate the contents of BUFFER as JavaScript
+/// in the global context and returns the value
+/// of the latest expression with in the statement. This is
+/// a wrapper around JavaScript's global `eval` function,
+/// and follows the same rules.
+///
+/// Using global `eval` does not support ES6 import
+/// statements or top-level await
+#[cfg(feature = "javascript")]
+#[lisp_fn(min = "0", intspec = "")]
+pub fn eval_js_buffer_literally(buffer: LispObject) -> LispObject {
+    let lisp_string = get_buffer_contents(buffer);
+    eval_js_literally(lisp_string.into())
+}
+
+/// Evaluate the contents of REGION as JavaScript
+/// in the global context and returns the value
+/// of the latest expression with in the statement. This is
+/// a wrapper around JavaScript's global `eval` function,
+/// and follows the same rules.
+///
+/// Using global `eval` does not support ES6 import
+/// statements or top-level await
+#[cfg(feature = "javascript")]
+#[lisp_fn(intspec = "r")]
+pub fn eval_js_region_literally(start: LispObject, end: LispObject) -> LispObject {
+    let lisp_string = get_region(start, end);
+    eval_js_literally(lisp_string.into())
+}
+
+/// Evaluate JS and print value in the echo area.
+///
+/// Similar to eval-expression, except for JavaScript. This
+/// function does not accept TypeScript.
+///
+/// When called interactively, read an Emacs Lisp expression and
+/// evaluate it.  Value is also consed on to front of the variable
+/// ‘values’.  Optional argument INSERT-VALUE non-nil (interactively,
+/// with a non ‘-’ prefix argument) means insert the result into the
+/// current buffer instead of printing it in the echo area.
+///
+/// Normally, this function truncates long output according to the
+/// value of the variables ‘eval-expression-print-length’ and
+/// ‘eval-expression-print-level’.  When NO-TRUNCATE is
+/// non-nil (interactively, with a prefix argument of zero), however,
+/// there is no such truncation.
+///
+/// Runs the hook ‘eval-expression-minibuffer-setup-hook’ on entering the
+/// minibuffer.
+#[cfg(feature = "javascript")]
+#[lisp_fn(min = "1", intspec = "MEval JS: ")]
+pub fn eval_js_expression(args: &[LispObject]) -> LispObject {
+    let js: LispStringRef = args[0].into();
+    let result = eval_js_literally(js);
+    let mut call = vec![lisp::remacs_sys::Qeval_expression, result];
+    for i in 1..args.len() {
+        call.push(args[i]);
+    }
+
+    unsafe { Ffuncall(call.len().try_into().unwrap(), call.as_mut_ptr()) }
+}
+
+fn eval_literally_inner(scope: &mut v8::HandleScope, js: LispStringRef) -> LispObject {
+    let context = scope.get_current_context();
+    let global = context.global(scope);
+
+    let name = v8::String::new(scope, "__eval").unwrap();
+    let fnc: v8::Local<v8::Function> = global.get(scope, name.into()).unwrap().try_into().unwrap();
+
+    let eval_data = js.to_utf8();
+    let arg0 =
+        v8::Local::<v8::Value>::try_from(v8::String::new(scope, &eval_data).unwrap()).unwrap();
+    let recv =
+        v8::Local::<v8::Value>::try_from(v8::String::new(scope, "lisp_invoke").unwrap()).unwrap();
+    let v8_args = vec![arg0];
+    let mut retval = lisp::remacs_sys::Qnil;
+    if let Some(result) = fnc.call(scope, recv, v8_args.as_slice()) {
+        if result.is_string() {
+            let a = result.to_string(scope).unwrap().to_rust_string_lossy(scope);
+            let deser_result = crate::parsing::deser(&a, None);
+            match deser_result {
+                Ok(deser) => retval = deser,
+                Err(e) => {
+                    throw_exception_with_error(scope, e);
+                    return lisp::remacs_sys::Qnil;
+                }
+            }
+        } else if result.is_object() {
+            let a = result.to_object(scope).unwrap();
+            assert!(a.internal_field_count() > 0);
+            let internal = a.get_internal_field(scope, 0).unwrap();
+            let ptrstr = internal
+                .to_string(scope)
+                .unwrap()
+                .to_rust_string_lossy(scope);
+            let lispobj =
+                LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
+            retval = lispobj;
+        }
+    }
+
+    retval
+}
+
 /// Reads and evaluates FILENAME as a JavaScript module on
 /// the main emacs thread.
 ///
@@ -1790,6 +1911,7 @@ fn init_syms() {
 
     def_lisp_sym!(Qrun_with_timer, "run-with-timer");
     def_lisp_sym!(Qjs_tick_event_loop, "js-tick-event-loop");
+    def_lisp_sym!(Qeval_expression, "eval-expression");
 }
 
 include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
