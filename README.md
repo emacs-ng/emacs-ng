@@ -25,6 +25,12 @@
 
 # emacs-ng
 
+## Intro
+
+emacs-ng is based off of the `native-comp` branch of emacs, and regularly merges in the latest from that branch.
+
+The last merged commit is f1efac1f9e Andrea Corallo Thu Jan 14 22:38:55 2021.
+
 ## Motivation
 
 The goal of this fork is to explore new development approaches. To accomplish this, we aim to maintain an inclusive and innovative environment. Contributions are welcome from anyone, and we do not require copyright assignment. We welcome interesting ideas to make emacs better. Our only request is that you open an issue before starting work and be willing to take feedback from the core contributors.
