@@ -6,6 +6,7 @@
 **Table of Contents**
 
 - [emacs-ng](#emacs-ng)
+    - [Intro](#intro)
     - [Motivation](#motivation)
 - [Why Emacsng](#why-emacsng)
     - [New User Guides](#new-user-guides)
@@ -15,10 +16,11 @@
     - [Requirements](#requirements)
     - [Building emacsng](#building-emacsng)
     - [Running emacsng](#running-emacsng)
+    - [Contributing](#contributing)
 - [Features](#features)
     - [Javascript](#javascript)
-        - [WebWorkers and Parallel Scripting](#webworkers-and-parallel-scripting)
         - [Using Async I/O](#using-async-io)
+        - [WebWorkers and Parallel Scripting](#webworkers-and-parallel-scripting)
     - [Webrender](#webrender)
 
 <!-- markdown-toc end -->
@@ -29,7 +31,7 @@
 
 emacs-ng is based off of the `native-comp` branch of emacs, and regularly merges in the latest from that branch.
 
-The last merged commit is f1efac1f9e Andrea Corallo Thu Jan 14 22:38:55 2021.
+The last merged commit is `f1efac1f9e` by Andrea Corallo (Thu Jan 14 22:38:55 2021).
 
 ## Motivation
 
