@@ -1327,7 +1327,7 @@ pub fn js_cleanup() -> LispObject {
     lisp::remacs_sys::Qnil
 }
 
-fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObject {
+fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> Result<LispObject> {
     let index = args[0];
 
     if !unsafe { lisp::remacs_sys::INTEGERP(index) } {
@@ -1381,39 +1381,45 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
     }
 
     let mut retval = lisp::remacs_sys::Qnil;
-    if let Some(result) = fnc.call(scope, recv, v8_args.as_slice()) {
+    let tc_scope = &mut v8::TryCatch::new(scope);
+    if let Some(result) = fnc.call(tc_scope, recv, v8_args.as_slice()) {
         if result.is_string() {
-            let a = result.to_string(scope).unwrap().to_rust_string_lossy(scope);
-
-            let deser_result = crate::parsing::deser(&a, None);
-            match deser_result {
-                Ok(deser) => retval = deser,
-                Err(e) => {
-                    throw_exception_with_error(scope, e);
-                    return lisp::remacs_sys::Qnil;
-                }
-            }
-        } else if result.is_object() {
-            let a = result.to_object(scope).unwrap();
-            assert!(a.internal_field_count() > 0);
-            let internal = a.get_internal_field(scope, 0).unwrap();
-            let ptrstr = internal
-                .to_string(scope)
+            let a = result
+                .to_string(tc_scope)
                 .unwrap()
-                .to_rust_string_lossy(scope);
+                .to_rust_string_lossy(tc_scope);
+
+            retval = crate::parsing::deser(&a, None)?;
+        } else if result.is_object() {
+            let a = result.to_object(tc_scope).unwrap();
+            assert!(a.internal_field_count() > 0);
+            let internal = a.get_internal_field(tc_scope, 0).unwrap();
+            let ptrstr = internal
+                .to_string(tc_scope)
+                .unwrap()
+                .to_rust_string_lossy(tc_scope);
             let lispobj =
                 LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
             retval = lispobj;
         }
+    } else {
+        let exception = tc_scope.exception().unwrap();
+        let ioerr = into_ioerr(deno_core::error::JsError::from_v8_exception(
+            tc_scope, exception,
+        ));
+        return Err(ioerr);
     }
 
-    retval
+    Ok(retval)
 }
 
 #[cfg(feature = "javascript")]
 #[lisp_fn(min = "1")]
 pub fn js__reenter(args: &[LispObject]) -> LispObject {
-    inner_invokation(move |scope| js_reenter_inner(scope, args), true)
+    inner_invokation(move |scope| js_reenter_inner(scope, args), true).unwrap_or_else(|e| {
+        let js_options = EmacsMainJsRuntime::get_options();
+        handle_error(e, js_options.error_handler)
+    })
 }
 
 fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
