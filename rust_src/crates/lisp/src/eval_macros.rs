@@ -29,6 +29,19 @@ macro_rules! xsignal {
     };
 }
 
+/// Macro to call Lisp functions with any number of arguments.
+/// Replaces call0, call1, etc. in the C layer.
+#[allow(unused_macros)]
+#[macro_export]
+macro_rules! call {
+    ($func:expr, $($arg:expr),*) => {
+        crate::eval::funcall(&mut [$func, $($arg),*])
+    };
+    ($func:expr) => {
+        crate::eval::funcall(&mut [$func])
+    }
+}
+
 /// Macro to format a "wrong argument type" error message.
 #[macro_export]
 macro_rules! wrong_type {
