@@ -17,8 +17,8 @@ use lisp::remacs_sys::{
     Fnreverse, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, QCarray_type, QCfalse,
     QCfalse_object, QCjson_config, QCnull, QCnull_object, QCobject_type, QCsize, QCtest, Qalist,
     Qarray, Qequal, Qhash_table, Qlist, Qnil, Qplist, Qplistp, Qt, Qunbound, AREF, ASET, ASIZE,
-    CHECK_SYMBOL, FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, NILP,
-    STRINGP, SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
+    FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, NILP, STRINGP, SYMBOLP,
+    SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
 };
 
 const ID: &str = "id";
@@ -226,6 +226,10 @@ fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> Option<serde
         let mut skip_cycle = false;
         let mut return_none = false;
         iter.for_each(|tail| {
+            if return_none {
+                return;
+            }
+
             if skip_cycle {
                 skip_cycle = false;
                 return;
@@ -255,7 +259,11 @@ fn lisp_to_serde(object: LispObject, config: &JSONConfiguration) -> Option<serde
                 (pair_value.car(), pair_value.cdr())
             };
 
-            unsafe { CHECK_SYMBOL(key) };
+            if !unsafe { SYMBOLP(key) } {
+                return_none = true;
+                return;
+            }
+
             let key_symbol = unsafe { SYMBOL_NAME(key) };
             let key_string: LispStringRef = key_symbol.into();
             let mut key_utf8 = key_string.to_utf8();

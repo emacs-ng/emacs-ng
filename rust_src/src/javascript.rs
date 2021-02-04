@@ -653,7 +653,6 @@ pub fn lisp_json(
             .to_rust_string_lossy(scope);
         let lispobj =
             LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
-
         if let Ok(json) = crate::parsing::ser(lispobj) {
             parsed = true;
             let r =
@@ -1381,7 +1380,14 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> Result<
     }
 
     let mut retval = lisp::remacs_sys::Qnil;
+    // A try catch scope counts as a cope that needs to be placed
+    // on the handle stack.
     let tc_scope = &mut v8::TryCatch::new(scope);
+    let curr = unsafe {
+        let cur = EmacsMainJsRuntime::get_raw_v8_handle();
+        EmacsMainJsRuntime::set_stacked_v8_handle(Some(tc_scope));
+        cur
+    };
     if let Some(result) = fnc.call(tc_scope, recv, v8_args.as_slice()) {
         if result.is_string() {
             let a = result
@@ -1403,12 +1409,27 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> Result<
             retval = lispobj;
         }
     } else {
-        let exception = tc_scope.exception().unwrap();
-        let ioerr = into_ioerr(deno_core::error::JsError::from_v8_exception(
-            tc_scope, exception,
-        ));
+        // From https://github.com/denoland/deno/core/runtime.js
+        // Credit to deno authors
+        let mut exception = tc_scope.exception().unwrap();
+        let is_terminating_exception = tc_scope.is_execution_terminating();
+
+        if is_terminating_exception {
+            tc_scope.cancel_terminate_execution();
+
+            if exception.is_null_or_undefined() {
+                let message = v8::String::new(tc_scope, "execution terminated").unwrap();
+                exception = v8::Exception::error(tc_scope, message);
+            }
+        }
+
+        let v8_exception = deno_core::error::JsError::from_v8_exception(tc_scope, exception);
+        let ioerr = into_ioerr(v8_exception);
+        EmacsMainJsRuntime::set_raw_v8_handle(curr);
         return Err(ioerr);
     }
+
+    EmacsMainJsRuntime::set_raw_v8_handle(curr);
 
     Ok(retval)
 }
@@ -1417,8 +1438,17 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> Result<
 #[lisp_fn(min = "1")]
 pub fn js__reenter(args: &[LispObject]) -> LispObject {
     inner_invokation(move |scope| js_reenter_inner(scope, args), true).unwrap_or_else(|e| {
-        let js_options = EmacsMainJsRuntime::get_options();
-        handle_error(e, js_options.error_handler)
+        if !EmacsMainJsRuntime::is_within_runtime() {
+            let js_options = EmacsMainJsRuntime::get_options();
+            handle_error(e, js_options.error_handler)
+        } else {
+            // If we are within the runtime, we want to unwind back up to
+            // the next error handler. This would imply that there is a funcall
+            // above us that called back into JS. If we were to just call the error handler,
+            // we would be returning the error handlers value back UP the stack, which would
+            // lead to undesirable behavior.
+            error!("{}", e.to_string())
+        }
     })
 }
 
