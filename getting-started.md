@@ -116,15 +116,17 @@ const insertIntoTypeScriptBuffer = (str: string) => {
       lisp.with_current_buffer(buffer, () => lisp.insert(`${str}\n`));
 };
 
-let iters: number = 0;
-const watcher = Deno.watchFs(".");
-const process = (event: any): any => {
-      insertIntoTypeScriptBuffer(JSON.stringify(event));
-      iters += 1;
-      return iters < 5 ? watcher.next().then(process) : Promise.resolve({ done: true });
-};
+async function watch(dir: string) {
+    const watcher = Deno.watchFs(dir);
+    let i = 0;
+    for await (const event of watcher) {
+	i += 1;
+	if (i > 5) break;
+	insertIntoTypeScriptBuffer(JSON.stringify(event));
+    }
+}
 
-watcher.next().then(process);
+watch('.')
 ```
 
 This example is built to only record 5 events prior to ending itself. You can write whatever logic you would like for ending your filewatcher.
@@ -132,9 +134,9 @@ This example is built to only record 5 events prior to ending itself. You can wr
 running `touch foo.ts` in your current directory should yield something like the following in the "TypeScript Filewatching" buffer
 
 ```json
-{"value":{"kind":"create","paths":["/home/user/./foo.ts"]},"done":false}
-{"value":{"kind":"modify","paths":["/home/user/./foo.ts"]},"done":false}
-{"value":{"kind":"access","paths":["/home/user/./foo.ts"]},"done":false}
+{"kind":"create","paths":["/home/user/./foo.ts"]}
+{"kind":"modify","paths":["/home/user/./foo.ts"]}
+{"kind":"access","paths":["/home/user/./foo.ts"]}
 ```
 
 [Deno has further documentation on this](https://deno.land/manual@v1.6.3/examples/file_system_events). Note that these events can differ per operating system.
