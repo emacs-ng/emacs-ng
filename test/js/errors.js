@@ -52,5 +52,37 @@ export function errors() {
 	    if (!caught) {
 		throw new Error("Did not throw error within defun");
 	    }
+	})
+	.test(() => {
+	    let thrown = false;
+	    try {
+		lisp.make.string('\0');
+	    } catch(e) {
+		thrown = true;
+		if (!e) {
+		    throw new Error("Nul byte in string did not error");
+		}
+	    }
+
+	    if (!thrown) {
+		throw new Error("Nul byte did not throw");
+	    }
+	})
+	.test(() => {
+	    lisp.defun({
+		name: "ng-test--fx--1",
+		func: (callback) => {
+		    callback.json();
+		}
+	    });
+
+	    lisp.defun({
+		name: "ng-test--fx--2",
+		func: () => {
+		    lisp.ng_test__fx__1(() => console.log('foo'));
+		}
+	    });
+
+	    lisp.ng_test__fx__2();
 	});
 };
