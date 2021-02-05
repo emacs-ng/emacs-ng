@@ -3,6 +3,7 @@ import { basicLisp } from "./basicLisp.js";
 import { webWorkers } from "./webWorkers.js";
 import { webAsm } from "./webAsm.js";
 import { basicTyping } from "./basicTyping.ts";
+import { errors } from "./errors.js";
 
 let counter = 1;
 Promise.prototype.test = function(f) {
@@ -21,6 +22,7 @@ Promise.all([
     webWorkers(),
     webAsm(),
     basicTyping(),
+    errors(),
 ])
     .then(() => {
 	console.log("JS Tests Complete, No Errors");
