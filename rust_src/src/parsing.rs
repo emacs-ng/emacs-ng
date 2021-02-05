@@ -281,10 +281,14 @@ fn lisp_to_serde(
             // We only will add to the map if a value is not present
             // at that key
             if !map.contains_key(&key_utf8) {
-                if let Ok(insert_value) = lisp_to_serde(value, config) {
-                    map.insert(key_utf8, insert_value);
-                } else {
-                    return_none = true;
+                match lisp_to_serde(value, config) {
+                    Ok(insert_value) => {
+                        map.insert(key_utf8, insert_value);
+                    }
+                    Err(e) => {
+                        reason = e.to_string();
+                        return_none = true;
+                    }
                 }
             }
         });
