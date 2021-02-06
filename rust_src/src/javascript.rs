@@ -373,6 +373,17 @@ macro_rules! make_proxy {
     }};
 }
 
+macro_rules! unproxy {
+    ($scope:expr, $obj:expr) => {{
+        let internal = $obj.get_internal_field($scope, 0).unwrap();
+        let ptrstr = internal
+            .to_string($scope)
+            .unwrap()
+            .to_rust_string_lossy($scope);
+        LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap())
+    }};
+}
+
 fn throw_exception_with_error<E: std::error::Error>(scope: &mut v8::HandleScope, e: E) {
     let error_string = e.to_string();
     let error = v8::String::new(scope, &error_string).unwrap();
@@ -472,6 +483,13 @@ pub fn lisp_make_lambda(
 
     let llen = unsafe { lisp::remacs_sys::make_fixnum(len.into()) };
 
+    // WHAT IS THIS?!
+    // This is doing the following in native code:
+    // (lambda (&REST) (js--reenter llen (make-finalizer (lambda () js--clear llen)) REST))
+    // To walk through it, this is a lambda that will call js--reenter with the index of our
+    // js lambda. In order to clean all this garbage up, we make a finalizer that will call
+    // js--clear to null out that lambda, to 'release' it from the JS GC. JS lambdas bound
+    // this way just live in a global array, and js--clear just removes them from that array.
     let finalizer = unsafe {
         let mut bound = vec![lisp::remacs_sys::Qjs__clear, llen];
         let list = lisp::remacs_sys::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
@@ -568,18 +586,8 @@ pub fn lisp_intern(
     args: v8::FunctionCallbackArguments,
     mut retval: v8::ReturnValue,
 ) {
-    let a = args.get(0).to_object(scope).unwrap();
-    assert!(a.internal_field_count() > 0);
-    let internal = a.get_internal_field(scope, 0).unwrap();
-    let ptrstr = internal
-        .to_string(scope)
-        .unwrap()
-        .to_rust_string_lossy(scope);
-    let lispobj =
-        LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
-
+    let lispobj = unproxy!(scope, args.get(0).to_object(scope).unwrap());
     let result = unsafe { lisp::remacs_sys::Fintern(lispobj, lisp::remacs_sys::Qnil) };
-
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
     retval.set(r);
@@ -609,15 +617,7 @@ pub fn lisp_list(
                 }
             }
         } else if arg.is_object() {
-            let a = arg.to_object(scope).unwrap();
-            assert!(a.internal_field_count() > 0);
-            let internal = a.get_internal_field(scope, 0).unwrap();
-            let ptrstr = internal
-                .to_string(scope)
-                .unwrap()
-                .to_rust_string_lossy(scope);
-            let lispobj =
-                LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
+            let lispobj = unproxy!(scope, arg.to_object(scope).unwrap());
             lisp_args.push(lispobj);
         } else {
             let error = v8::String::new(scope, "Invalid arguments passed to lisp_invoke. Valid options are String, Function, or Proxy Object").unwrap();
@@ -644,16 +644,7 @@ pub fn lisp_json(
 ) {
     let mut parsed = false;
     if args.get(0).is_object() {
-        let a = args.get(0).to_object(scope).unwrap();
-        assert!(a.internal_field_count() > 0);
-        let internal = a.get_internal_field(scope, 0).unwrap();
-        let ptrstr = internal
-            .to_string(scope)
-            .unwrap()
-            .to_rust_string_lossy(scope);
-        let lispobj =
-            LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
-
+        let lispobj = unproxy!(scope, args.get(0).to_object(scope).unwrap());
         if let Ok(json) = crate::parsing::ser(lispobj) {
             parsed = true;
             let r =
@@ -681,15 +672,7 @@ pub fn finalize(
     for i in 0..len {
         let arg = args.get(i);
         if arg.is_object() {
-            let a = arg.to_object(scope).unwrap();
-            assert!(a.internal_field_count() > 0);
-            let internal = a.get_internal_field(scope, 0).unwrap();
-            let ptrstr = internal
-                .to_string(scope)
-                .unwrap()
-                .to_rust_string_lossy(scope);
-            let lispobj =
-                LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
+            let lispobj = unproxy!(scope, arg.to_object(scope).unwrap());
             new_list = LispObject::cons(lispobj, new_list);
         }
     }
@@ -733,16 +716,7 @@ pub fn lisp_callback(
 ) {
     let mut lisp_args = vec![];
     let len = args.length();
-
-    let a = args.get(0).to_object(scope).unwrap();
-    assert!(a.internal_field_count() > 0);
-    let internal = a.get_internal_field(scope, 0).unwrap();
-    let ptrstr = internal
-        .to_string(scope)
-        .unwrap()
-        .to_rust_string_lossy(scope);
-    let lispobj =
-        LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
+    let lispobj = unproxy!(scope, args.get(0).to_object(scope).unwrap());
     lisp_args.push(lispobj);
 
     for i in 1..len {
@@ -762,15 +736,7 @@ pub fn lisp_callback(
                 }
             }
         } else if arg.is_object() {
-            let a = arg.to_object(scope).unwrap();
-            assert!(a.internal_field_count() > 0);
-            let internal = a.get_internal_field(scope, 0).unwrap();
-            let ptrstr = internal
-                .to_string(scope)
-                .unwrap()
-                .to_rust_string_lossy(scope);
-            let lispobj =
-                LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
+            let lispobj = unproxy!(scope, arg.to_object(scope).unwrap());
             lisp_args.push(lispobj);
         } else {
             let error = v8::String::new(scope, "Invalid arguments passed to lisp_invoke. Valid options are String, Function, or Proxy Object").unwrap();
@@ -1116,16 +1082,7 @@ fn eval_literally_inner(scope: &mut v8::HandleScope, js: LispStringRef) -> LispO
                 }
             }
         } else if result.is_object() {
-            let a = result.to_object(scope).unwrap();
-            assert!(a.internal_field_count() > 0);
-            let internal = a.get_internal_field(scope, 0).unwrap();
-            let ptrstr = internal
-                .to_string(scope)
-                .unwrap()
-                .to_rust_string_lossy(scope);
-            let lispobj =
-                LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
-            retval = lispobj;
+            retval = unproxy!(scope, result.to_object(scope).unwrap());
         }
     }
 
@@ -1327,7 +1284,7 @@ pub fn js_cleanup() -> LispObject {
     lisp::remacs_sys::Qnil
 }
 
-fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObject {
+fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> Result<LispObject> {
     let index = args[0];
 
     if !unsafe { lisp::remacs_sys::INTEGERP(index) } {
@@ -1381,39 +1338,67 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> LispObj
     }
 
     let mut retval = lisp::remacs_sys::Qnil;
-    if let Some(result) = fnc.call(scope, recv, v8_args.as_slice()) {
+    // A try catch scope counts as a cope that needs to be placed
+    // on the handle stack.
+    let tc_scope = &mut v8::TryCatch::new(scope);
+    let curr = unsafe {
+        let cur = EmacsMainJsRuntime::get_raw_v8_handle();
+        EmacsMainJsRuntime::set_stacked_v8_handle(Some(tc_scope));
+        cur
+    };
+    if let Some(result) = fnc.call(tc_scope, recv, v8_args.as_slice()) {
         if result.is_string() {
-            let a = result.to_string(scope).unwrap().to_rust_string_lossy(scope);
-
-            let deser_result = crate::parsing::deser(&a, None);
-            match deser_result {
-                Ok(deser) => retval = deser,
-                Err(e) => {
-                    throw_exception_with_error(scope, e);
-                    return lisp::remacs_sys::Qnil;
-                }
-            }
-        } else if result.is_object() {
-            let a = result.to_object(scope).unwrap();
-            assert!(a.internal_field_count() > 0);
-            let internal = a.get_internal_field(scope, 0).unwrap();
-            let ptrstr = internal
-                .to_string(scope)
+            let a = result
+                .to_string(tc_scope)
                 .unwrap()
-                .to_rust_string_lossy(scope);
-            let lispobj =
-                LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap());
-            retval = lispobj;
+                .to_rust_string_lossy(tc_scope);
+
+            retval = crate::parsing::deser(&a, None)?;
+        } else if result.is_object() {
+            retval = unproxy!(tc_scope, result.to_object(tc_scope).unwrap());
         }
+    } else {
+        // From https://github.com/denoland/deno/core/runtime.js
+        // Credit to deno authors
+        let mut exception = tc_scope.exception().unwrap();
+        let is_terminating_exception = tc_scope.is_execution_terminating();
+
+        if is_terminating_exception {
+            tc_scope.cancel_terminate_execution();
+
+            if exception.is_null_or_undefined() {
+                let message = v8::String::new(tc_scope, "execution terminated").unwrap();
+                exception = v8::Exception::error(tc_scope, message);
+            }
+        }
+
+        let v8_exception = deno_core::error::JsError::from_v8_exception(tc_scope, exception);
+        let ioerr = into_ioerr(v8_exception);
+        EmacsMainJsRuntime::set_raw_v8_handle(curr);
+        return Err(ioerr);
     }
 
-    retval
+    EmacsMainJsRuntime::set_raw_v8_handle(curr);
+
+    Ok(retval)
 }
 
 #[cfg(feature = "javascript")]
 #[lisp_fn(min = "1")]
 pub fn js__reenter(args: &[LispObject]) -> LispObject {
-    inner_invokation(move |scope| js_reenter_inner(scope, args), true)
+    inner_invokation(move |scope| js_reenter_inner(scope, args), true).unwrap_or_else(|e| {
+        if !EmacsMainJsRuntime::is_within_runtime() {
+            let js_options = EmacsMainJsRuntime::get_options();
+            handle_error(e, js_options.error_handler)
+        } else {
+            // If we are within the runtime, we want to unwind back up to
+            // the next error handler. This would imply that there is a funcall
+            // above us that called back into JS. If we were to just call the error handler,
+            // we would be returning the error handlers value back UP the stack, which would
+            // lead to undesirable behavior.
+            error!("{}", e.to_string())
+        }
+    })
 }
 
 fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
