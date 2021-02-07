@@ -180,7 +180,6 @@ impl RuntimeHandle {
     }
 }
 
-
 impl EmacsMainJsRuntime {
     fn access<F: Sized, T: FnOnce(&mut std::cell::RefMut<'_, EmacsMainJsRuntime>) -> F>(t: T) -> F {
         let mut input: MaybeUninit<F> = MaybeUninit::<F>::uninit();
@@ -1458,7 +1457,7 @@ where
             let context = runtime.global_context();
             let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
             let mut handle = EmacsMainJsRuntime::get_tokio_handle();
-	    let handle_ref = handle.as_mut_ref();
+            let handle_ref = handle.as_mut_ref();
             EmacsMainJsRuntime::enter_runtime();
             result = handle_ref.block_on(async move { f(scope) });
             EmacsMainJsRuntime::exit_runtime();
@@ -1495,7 +1494,7 @@ fn execute<T: Sized + std::future::Future<Output = Result<()>>>(fnc: T) -> Resul
         Err(std::io::Error::new(std::io::ErrorKind::Other, "Attempted to execute javascript from lisp within the javascript context. Javascript is not re-entrant, cannot call JS -> Lisp -> JS"))
     } else {
         let mut handle = EmacsMainJsRuntime::get_tokio_handle();
-	let handle_ref = handle.as_mut_ref();
+        let handle_ref = handle.as_mut_ref();
         EmacsMainJsRuntime::enter_runtime();
         let result = handle_ref.block_on(fnc);
         EmacsMainJsRuntime::exit_runtime();
@@ -1554,7 +1553,7 @@ fn init_once() -> Result<()> {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_io()
             .enable_time()
-	    .worker_threads(2)
+            .worker_threads(2)
             .max_blocking_threads(32)
             .build()?;
 
