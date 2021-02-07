@@ -45,6 +45,8 @@ Emacs-ng is an additive native layer over emacs, bringing features like Deno's J
 
 If you would like to see a breakdown of what JavaScript can do, feel free to jump into our User Guides: [Getting Started](https://github.com/emacs-ng/emacs-ng/blob/master/getting-started.md), [Using Deno](https://github.com/emacs-ng/emacs-ng/blob/master/using-deno.md), and [Advanced Features](https://github.com/emacs-ng/emacs-ng/blob/master/adv-features.md), or [check out our FAQ for common questions about the project](https://github.com/emacs-ng/emacs-ng/blob/master/faq.md). Otherwise, you can continue reading for a project outline and build instructions.
 
+If you want a deep dive into our native changes, check out our [Architecture Doc: Emacs-ng Native Hacker's Handbook](https://github.com/emacs-ng/emacs-ng/blob/master/Architecture.md)
+
 ## Why JavaScript
 
 One of emacs-ng's primary features is integrating the [Deno Runtime](https://deno.land/), which allows execution of JavaScript and Typescript within Emacs. The details of that feature are listed below, however many users would ask themselves **WHY JAVASCRIPT?** JavaScript is an extremely dynamic language that allows for a user to inspect and control their scripting environment. The key to note is that bringing in Deno isn't JUST JavaScript - it's an ecosystem of powerful tools and approaches that Emacs just doesn't have currently.
