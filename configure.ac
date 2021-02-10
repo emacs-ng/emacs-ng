@@ -514,6 +514,8 @@ OPTION_DEFAULT_OFF([webrender],
   [enable use of webrender(written in Rust) as GUI backend on
 multiple platforms(Linux, Windows and MacOS) (experimental)])
 
+## Based on Deno 1.7.2
+## Update the above when upgrading Deno
 OPTION_DEFAULT_ON([javascript],
   [enable use of JavaScript, TypeScript, and Deno within the emacs runtime(Linux, MacOs)])
 

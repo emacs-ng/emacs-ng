@@ -158,6 +158,28 @@ impl MainWorkerHandle {
     }
 }
 
+struct RuntimeHandle {
+    worker: Option<tokio::runtime::Runtime>,
+}
+
+impl Drop for RuntimeHandle {
+    fn drop(&mut self) {
+        EmacsMainJsRuntime::set_tokio_runtime(self.worker.take().unwrap());
+    }
+}
+
+impl RuntimeHandle {
+    fn new(worker: tokio::runtime::Runtime) -> Self {
+        Self {
+            worker: Some(worker),
+        }
+    }
+
+    fn as_mut_ref(&mut self) -> &mut tokio::runtime::Runtime {
+        self.worker.as_mut().unwrap()
+    }
+}
+
 impl EmacsMainJsRuntime {
     fn access<F: Sized, T: FnOnce(&mut std::cell::RefMut<'_, EmacsMainJsRuntime>) -> F>(t: T) -> F {
         let mut input: MaybeUninit<F> = MaybeUninit::<F>::uninit();
@@ -262,8 +284,8 @@ impl EmacsMainJsRuntime {
         Self::access(move |main| main.tokio_runtime = Some(r));
     }
 
-    fn get_tokio_handle() -> tokio::runtime::Handle {
-        Self::access(|main| main.tokio_runtime.as_ref().unwrap().handle().clone())
+    fn get_tokio_handle() -> RuntimeHandle {
+        Self::access(|main| RuntimeHandle::new(main.tokio_runtime.take().unwrap()))
     }
 
     fn is_tokio_active() -> bool {
@@ -1434,9 +1456,10 @@ where
             let runtime = &mut worker.js_runtime;
             let context = runtime.global_context();
             let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
-            let handle = EmacsMainJsRuntime::get_tokio_handle();
+            let mut handle = EmacsMainJsRuntime::get_tokio_handle();
+            let handle_ref = handle.as_mut_ref();
             EmacsMainJsRuntime::enter_runtime();
-            result = handle.block_on(async move { f(scope) });
+            result = handle_ref.block_on(async move { f(scope) });
             EmacsMainJsRuntime::exit_runtime();
         }
         // Only in the case that the event loop as gone to sleep,
@@ -1470,9 +1493,10 @@ fn execute<T: Sized + std::future::Future<Output = Result<()>>>(fnc: T) -> Resul
     if EmacsMainJsRuntime::is_within_runtime() {
         Err(std::io::Error::new(std::io::ErrorKind::Other, "Attempted to execute javascript from lisp within the javascript context. Javascript is not re-entrant, cannot call JS -> Lisp -> JS"))
     } else {
-        let handle = EmacsMainJsRuntime::get_tokio_handle();
+        let mut handle = EmacsMainJsRuntime::get_tokio_handle();
+        let handle_ref = handle.as_mut_ref();
         EmacsMainJsRuntime::enter_runtime();
-        let result = handle.block_on(fnc);
+        let result = handle_ref.block_on(fnc);
         EmacsMainJsRuntime::exit_runtime();
         result
     }
@@ -1526,11 +1550,11 @@ fn tick_js() -> Result<bool> {
 
 fn init_once() -> Result<()> {
     if !EmacsMainJsRuntime::is_tokio_active() {
-        let runtime = tokio::runtime::Builder::new()
-            .threaded_scheduler()
+        let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_io()
             .enable_time()
-            .max_threads(32)
+            .worker_threads(2)
+            .max_blocking_threads(32)
             .build()?;
 
         EmacsMainJsRuntime::set_tokio_runtime(runtime);
@@ -1544,7 +1568,8 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
         return Ok(());
     }
 
-    let runtime = EmacsMainJsRuntime::get_tokio_handle();
+    let mut handle = EmacsMainJsRuntime::get_tokio_handle();
+    let runtime = handle.as_mut_ref();
     let main_module =
         deno_core::ModuleSpecifier::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
     let permissions = js_options.ops.as_ref().unwrap().clone();
