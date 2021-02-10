@@ -11,7 +11,7 @@ use crate::webrender_backend::{
     color::lookup_color_by_name_or_hex,
     font::{FontRef, FONT_DRIVER},
     frame::create_frame,
-    keyboard::winit_keycode_emacs_key_name,
+    input::winit_keycode_emacs_key_name,
     output::OutputRef,
     term::wr_term_init,
 };
