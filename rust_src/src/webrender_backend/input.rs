@@ -1,24 +1,32 @@
-use glutin::event::{ModifiersState, VirtualKeyCode};
+use glutin::{
+    dpi::PhysicalPosition,
+    event::{ElementState, ModifiersState, MouseButton, VirtualKeyCode},
+};
 
 use lisp::{
     lisp::LispObject,
     remacs_sys::{
         event_kind, input_event, scroll_bar_part,
-        EmacsModifiers::{ctrl_modifier, meta_modifier, shift_modifier, super_modifier},
+        EmacsModifiers::{
+            ctrl_modifier, down_modifier, meta_modifier, shift_modifier, super_modifier,
+            up_modifier,
+        },
         Qnil,
     },
 };
 
-pub struct KeyboardProcessor {
-    pub modifiers: ModifiersState,
-    pub suppress_chars: bool,
+pub struct InputProcessor {
+    modifiers: ModifiersState,
+    suppress_chars: bool,
+    cursor_positon: PhysicalPosition<f64>,
 }
 
-impl KeyboardProcessor {
-    pub fn new() -> KeyboardProcessor {
-        KeyboardProcessor {
+impl InputProcessor {
+    pub fn new() -> InputProcessor {
+        InputProcessor {
             modifiers: ModifiersState::empty(),
             suppress_chars: false,
+            cursor_positon: PhysicalPosition::new(0.0, 0.0),
         }
     }
 
@@ -74,6 +82,45 @@ impl KeyboardProcessor {
 
     pub fn key_released(&mut self) {
         self.suppress_chars = false;
+    }
+
+    pub fn mouse_pressed(
+        &self,
+        button: MouseButton,
+        state: ElementState,
+        top_frame: LispObject,
+    ) -> Option<input_event> {
+        let c = match button {
+            MouseButton::Left => 0,
+            MouseButton::Middle => 1,
+            MouseButton::Right => 2,
+            MouseButton::Other(_) => 0,
+        };
+
+        let s = match state {
+            ElementState::Pressed => up_modifier,
+            ElementState::Released => down_modifier,
+        };
+
+        let iev = input_event {
+            _bitfield_1: input_event::new_bitfield_1(
+                event_kind::MOUSE_CLICK_EVENT,
+                scroll_bar_part::scroll_bar_nowhere,
+            ),
+            code: c as u32,
+            modifiers: Self::to_emacs_modifiers(self.modifiers) | s,
+            x: (self.cursor_positon.x as i32).into(),
+            y: (self.cursor_positon.y as i32).into(),
+            timestamp: 0,
+            frame_or_window: top_frame,
+            arg: Qnil,
+        };
+
+        Some(iev)
+    }
+
+    pub fn cursor_move(&mut self, position: PhysicalPosition<f64>) {
+        self.cursor_positon = position;
     }
 
     pub fn change_modifiers(&mut self, modifiers: ModifiersState) {

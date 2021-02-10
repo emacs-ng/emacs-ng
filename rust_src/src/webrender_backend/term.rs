@@ -27,8 +27,8 @@ use lisp::{
         gui_fix_overlapping_area, gui_get_glyph_overhangs, gui_produce_glyphs,
         gui_set_bottom_divider_width, gui_set_font, gui_set_font_backend, gui_set_left_fringe,
         gui_set_right_divider_width, gui_set_right_fringe, gui_update_cursor, gui_write_glyphs,
-        input_event, kbd_buffer_store_event_hold, run, store_frame_param, unblock_input,
-        update_face_from_frame_parameter, window_box, Vframe_list,
+        input_event, kbd_buffer_store_event_hold, note_mouse_highlight, run, store_frame_param,
+        unblock_input, update_face_from_frame_parameter, window_box, Vframe_list,
     },
     remacs_sys::{
         create_terminal, current_kboard, draw_fringe_bitmap_params, fontset_from_font,
@@ -501,7 +501,7 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
             event: WindowEvent::ReceivedCharacter(key_code),
             ..
         } => {
-            if let Some(mut iev) = dpyinfo.keyboard_processor.receive_char(key_code, top_frame) {
+            if let Some(mut iev) = dpyinfo.input_processor.receive_char(key_code, top_frame) {
                 unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
                 count += 1;
             }
@@ -511,7 +511,7 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
             event: WindowEvent::ModifiersChanged(state),
             ..
         } => {
-            dpyinfo.keyboard_processor.change_modifiers(state);
+            dpyinfo.input_processor.change_modifiers(state);
         }
 
         Event::WindowEvent {
@@ -528,13 +528,41 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
             ..
         } => match state {
             ElementState::Pressed => {
-                if let Some(mut iev) = dpyinfo.keyboard_processor.key_pressed(key_code, top_frame) {
+                if let Some(mut iev) = dpyinfo.input_processor.key_pressed(key_code, top_frame) {
                     unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
                     count += 1;
                 }
             }
-            ElementState::Released => dpyinfo.keyboard_processor.key_released(),
+            ElementState::Released => dpyinfo.input_processor.key_released(),
         },
+
+        Event::WindowEvent {
+            event: WindowEvent::MouseInput { state, button, .. },
+            ..
+        } => {
+            if let Some(mut iev) = dpyinfo
+                .input_processor
+                .mouse_pressed(button, state, top_frame)
+            {
+                unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
+                count += 1;
+            }
+        }
+
+        Event::WindowEvent {
+            event: WindowEvent::CursorMoved { position, .. },
+            ..
+        } => {
+            dpyinfo.input_processor.cursor_move(position);
+
+            unsafe {
+                note_mouse_highlight(
+                    top_frame.as_frame().unwrap().as_mut(),
+                    position.x as i32,
+                    position.y as i32,
+                )
+            };
+        }
 
         Event::WindowEvent {
             event: WindowEvent::Focused(is_focused),
