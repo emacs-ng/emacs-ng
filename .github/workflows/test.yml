@@ -27,6 +27,7 @@ jobs:
                   ./configure --enable-checking=glyphs
                   make -j3
 
-             - name: run js tests
-               run: |
-                   cd test/ && ../src/emacs --batch -l js/bootstrap.el
+            - name: run js tests
+              run: |
+                  cd test/
+                  ../src/emacs --batch -l js/bootstrap.el
