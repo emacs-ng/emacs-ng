@@ -2,10 +2,12 @@
 
 use std::ptr;
 
+use libc;
+
 use crate::{
     lisp::{ExternalPtr, LispObject},
-    remacs_sys::make_lisp_symbol,
     remacs_sys::Qsymbolp,
+    remacs_sys::{intern_1, make_lisp_symbol},
     remacs_sys::{lispsym, EmacsInt, Lisp_Symbol, Lisp_Type, USE_LSB_TAG},
 };
 
@@ -131,4 +133,16 @@ impl Iterator for LispSymbolIter {
             Some(sym)
         }
     }
+}
+
+/// Intern (e.g. create a symbol from) a string.
+pub fn intern<T: AsRef<str>>(string: T) -> LispSymbolRef {
+    let s = string.as_ref();
+    unsafe {
+        intern_1(
+            s.as_ptr() as *const libc::c_char,
+            s.len() as libc::ptrdiff_t,
+        )
+    }
+    .into()
 }
