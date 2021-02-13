@@ -1014,6 +1014,7 @@ pub fn eval_js_literally(js: LispStringRef) -> LispObject {
         error!("JS Failed to initialize with error: {}", e);
     });
     inner_invokation(move |scope| eval_literally_inner(scope, js), true)
+        .unwrap_or_else(|e| handle_error_inner_invokation(e))
 }
 
 /// Evaluate the contents of BUFFER as JavaScript
@@ -1078,7 +1079,7 @@ pub fn eval_js_expression(args: &[LispObject]) -> LispObject {
     unsafe { Ffuncall(call.len().try_into().unwrap(), call.as_mut_ptr()) }
 }
 
-fn eval_literally_inner(scope: &mut v8::HandleScope, js: LispStringRef) -> LispObject {
+fn eval_literally_inner(scope: &mut v8::HandleScope, js: LispStringRef) -> Result<LispObject> {
     let context = scope.get_current_context();
     let global = context.global(scope);
 
@@ -1088,27 +1089,8 @@ fn eval_literally_inner(scope: &mut v8::HandleScope, js: LispStringRef) -> LispO
     let eval_data = js.to_utf8();
     let arg0 =
         v8::Local::<v8::Value>::try_from(v8::String::new(scope, &eval_data).unwrap()).unwrap();
-    let recv =
-        v8::Local::<v8::Value>::try_from(v8::String::new(scope, "lisp_invoke").unwrap()).unwrap();
     let v8_args = vec![arg0];
-    let mut retval = lisp::remacs_sys::Qnil;
-    if let Some(result) = fnc.call(scope, recv, v8_args.as_slice()) {
-        if result.is_string() {
-            let a = result.to_string(scope).unwrap().to_rust_string_lossy(scope);
-            let deser_result = crate::parsing::deser(&a, None);
-            match deser_result {
-                Ok(deser) => retval = deser,
-                Err(e) => {
-                    throw_exception_with_error(scope, e);
-                    return lisp::remacs_sys::Qnil;
-                }
-            }
-        } else if result.is_object() {
-            retval = unproxy!(scope, result.to_object(scope).unwrap());
-        }
-    }
-
-    retval
+    execute_function_may_throw(scope, &fnc, &v8_args)
 }
 
 /// Reads and evaluates FILENAME as a JavaScript module on
@@ -1327,8 +1309,6 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> Result<
     let name = v8::String::new(scope, "__invoke").unwrap();
     let fnc: v8::Local<v8::Function> = global.get(scope, name.into()).unwrap().try_into().unwrap();
 
-    let recv =
-        v8::Local::<v8::Value>::try_from(v8::String::new(scope, "lisp_invoke").unwrap()).unwrap();
     let arg0 = v8::Local::<v8::Value>::try_from(v8::Number::new(scope, value as f64)).unwrap();
     let mut v8_args = vec![arg0];
 
@@ -1359,10 +1339,21 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> Result<
             });
     }
 
+    execute_function_may_throw(scope, &fnc, &mut v8_args)
+}
+
+fn execute_function_may_throw(
+    scope: &mut v8::HandleScope,
+    fnc: &v8::Local<v8::Function>,
+    v8_args: &Vec<v8::Local<v8::Value>>,
+) -> Result<LispObject> {
     let mut retval = lisp::remacs_sys::Qnil;
     // A try catch scope counts as a cope that needs to be placed
     // on the handle stack.
+
     let tc_scope = &mut v8::TryCatch::new(scope);
+    let recv = v8::Local::<v8::Value>::try_from(v8::String::new(tc_scope, "lisp_invoke").unwrap())
+        .unwrap();
     let curr = unsafe {
         let cur = EmacsMainJsRuntime::get_raw_v8_handle();
         EmacsMainJsRuntime::set_stacked_v8_handle(Some(tc_scope));
@@ -1405,22 +1396,25 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> Result<
     Ok(retval)
 }
 
+fn handle_error_inner_invokation(e: std::io::Error) -> LispObject {
+    if !EmacsMainJsRuntime::is_within_runtime() {
+        let js_options = EmacsMainJsRuntime::get_options();
+        handle_error(e, js_options.error_handler)
+    } else {
+        // If we are within the runtime, we want to unwind back up to
+        // the next error handler. This would imply that there is a funcall
+        // above us that called back into JS. If we were to just call the error handler,
+        // we would be returning the error handlers value back UP the stack, which would
+        // lead to undesirable behavior.
+        error!("{}", e.to_string())
+    }
+}
+
 #[cfg(feature = "javascript")]
 #[lisp_fn(min = "1")]
 pub fn js__reenter(args: &[LispObject]) -> LispObject {
-    inner_invokation(move |scope| js_reenter_inner(scope, args), true).unwrap_or_else(|e| {
-        if !EmacsMainJsRuntime::is_within_runtime() {
-            let js_options = EmacsMainJsRuntime::get_options();
-            handle_error(e, js_options.error_handler)
-        } else {
-            // If we are within the runtime, we want to unwind back up to
-            // the next error handler. This would imply that there is a funcall
-            // above us that called back into JS. If we were to just call the error handler,
-            // we would be returning the error handlers value back UP the stack, which would
-            // lead to undesirable behavior.
-            error!("{}", e.to_string())
-        }
-    })
+    inner_invokation(move |scope| js_reenter_inner(scope, args), true)
+        .unwrap_or_else(|e| handle_error_inner_invokation(e))
 }
 
 fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
@@ -1491,7 +1485,10 @@ fn into_ioerr<E: Into<Box<dyn std::error::Error + Send + Sync>>>(e: E) -> std::i
 
 fn execute<T: Sized + std::future::Future<Output = Result<()>>>(fnc: T) -> Result<()> {
     if EmacsMainJsRuntime::is_within_runtime() {
-        Err(std::io::Error::new(std::io::ErrorKind::Other, "Attempted to execute javascript from lisp within the javascript context. Javascript is not re-entrant, cannot call JS -> Lisp -> JS"))
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Attempted to execute javascript from lisp within the javascript context.",
+        ))
     } else {
         let mut handle = EmacsMainJsRuntime::get_tokio_handle();
         let handle_ref = handle.as_mut_ref();
@@ -1549,7 +1546,11 @@ fn tick_js() -> Result<bool> {
 }
 
 fn init_once() -> Result<()> {
-    if !EmacsMainJsRuntime::is_tokio_active() {
+    if !EmacsMainJsRuntime::is_tokio_active()
+    // Needed in the case that the tokio runtime is being taken
+    // for completing a JS operation
+	&& !EmacsMainJsRuntime::is_within_runtime()
+    {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_io()
             .enable_time()
@@ -1564,7 +1565,7 @@ fn init_once() -> Result<()> {
 }
 
 fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
-    if EmacsMainJsRuntime::is_main_worker_active() {
+    if EmacsMainJsRuntime::is_main_worker_active() || EmacsMainJsRuntime::is_within_runtime() {
         return Ok(());
     }
 

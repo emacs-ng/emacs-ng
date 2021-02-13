@@ -84,5 +84,22 @@ export function errors() {
 	    });
 
 	    lisp.ng_test__fx__2();
+	})
+	.test(() => {
+	    const result = lisp.eval_js_literally('3');
+	    if (result !== 3) {
+		throw new Error("Failed to literally eval JS");
+	    }
+
+	    let thrown = false;
+	    try {
+		lisp.eval_js_literally('throw new Error("s")');
+	    } catch(e) {
+		thrown = true;
+	    }
+
+	    if (!thrown) {
+		throw new Error("Eval JS Literally did not throw");
+	    }
 	});
 };
