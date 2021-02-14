@@ -27,6 +27,9 @@ pub mod eval_macros;
 #[macro_use]
 pub mod vector_macros;
 pub mod lisp;
+pub mod definitions;
+pub mod bindings;
+pub mod globals;
 
 pub mod eval;
 pub mod font;

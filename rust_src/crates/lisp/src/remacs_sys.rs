@@ -20,14 +20,14 @@ use std::mem;
 
 use libc::timespec;
 
-use crate::lisp::LispObject;
 
-include!("../../../generated/definitions.rs");
+pub use crate::{definitions::*, lisp::LispObject};
 
 type Lisp_Object = LispObject;
 
-include!("../../../generated/bindings.rs");
-include!("../../../generated/globals.rs");
+pub use crate::{bindings::*, globals::*};
+pub use crate::bindings;
+pub use crate::globals;
 
 pub const VAL_MAX: EmacsInt = (EMACS_INT_MAX >> (GCTYPEBITS - 1));
 pub const VALMASK: EmacsInt = [VAL_MAX, -(1 << GCTYPEBITS)][USE_LSB_TAG as usize];
