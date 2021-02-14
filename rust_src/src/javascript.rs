@@ -410,6 +410,14 @@ macro_rules! unproxy {
     }};
 }
 
+macro_rules! bind_global_fn {
+    ($scope:expr, $global: expr, $fnc:ident) => {{
+        let name = v8::String::new($scope, stringify!($fnc)).unwrap();
+        let func = v8::Function::new($scope, $fnc).unwrap();
+        $global.set($scope, name.into(), func.into());
+    }};
+}
+
 fn throw_exception_with_error<E: std::error::Error>(scope: &mut v8::HandleScope, e: E) {
     let error_string = e.to_string();
     let error = v8::String::new(scope, &error_string).unwrap();
@@ -735,7 +743,7 @@ unsafe extern "C" fn lisp_handler(
     LispObject::cons(lisp::remacs_sys::Qjs_lisp_error, arg2)
 }
 
-pub fn lisp_callback(
+pub fn lisp_invoke(
     mut scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
     mut retval: v8::ReturnValue,
@@ -1014,11 +1022,14 @@ pub fn eval_js(args: &[LispObject]) -> LispObject {
 #[lisp_fn(intspec = "MEval JS: ")]
 pub fn eval_js_literally(js: LispStringRef) -> LispObject {
     let ops = EmacsMainJsRuntime::get_options();
-    js_initialize_inner(&ops).unwrap_or_else(|e| {
+    js_init_sys("init.js", &ops).unwrap_or_else(|e| {
         error!("JS Failed to initialize with error: {}", e);
     });
-    inner_invokation(move |scope| eval_literally_inner(scope, js), true)
-        .unwrap_or_else(|e| handle_error_inner_invokation(e))
+
+    let result = execute_with_current_scope(move |scope| eval_literally_inner(scope, js))
+        .unwrap_or_else(|e| handle_error_inner_invokation(e));
+    tick_and_schedule_if_required();
+    result
 }
 
 /// Evaluate the contents of BUFFER as JavaScript
@@ -1270,16 +1281,16 @@ pub fn eval_ts_region(start: LispObject, end: LispObject) -> LispObject {
 pub fn js_initialize(args: &[LispObject]) -> LispObject {
     let ops = permissions_from_args(args);
     EmacsMainJsRuntime::set_options(ops.clone());
-    js_initialize_inner(&ops)
+    js_init_sys("init.js", &ops)
         .map(|_| lisp::remacs_sys::Qt)
         .unwrap_or_else(|e| {
             error!("JS Failed to initialize with error: {}", e);
         })
 }
 
-fn js_initialize_inner(js_options: &EmacsJsOptions) -> Result<()> {
-    init_once()?;
-    init_worker("init.js", js_options)?;
+fn js_init_sys(filename: &str, js_options: &EmacsJsOptions) -> Result<()> {
+    init_tokio()?;
+    init_worker(filename, js_options)?;
     Ok(())
 }
 
@@ -1400,6 +1411,12 @@ fn execute_function_may_throw(
     Ok(retval)
 }
 
+fn tick_and_schedule_if_required() {
+    if !EmacsMainJsRuntime::is_within_runtime() && !EmacsMainJsRuntime::get_tick_scheduled() {
+        js_tick_event_loop(lisp::remacs_sys::Qnil);
+    }
+}
+
 fn handle_error_inner_invokation(e: std::io::Error) -> LispObject {
     if !EmacsMainJsRuntime::is_within_runtime() {
         let js_options = EmacsMainJsRuntime::get_options();
@@ -1417,8 +1434,10 @@ fn handle_error_inner_invokation(e: std::io::Error) -> LispObject {
 #[cfg(feature = "javascript")]
 #[lisp_fn(min = "1")]
 pub fn js__reenter(args: &[LispObject]) -> LispObject {
-    inner_invokation(move |scope| js_reenter_inner(scope, args), true)
-        .unwrap_or_else(|e| handle_error_inner_invokation(e))
+    let result = execute_with_current_scope(move |scope| js_reenter_inner(scope, args))
+        .unwrap_or_else(|e| handle_error_inner_invokation(e));
+    tick_and_schedule_if_required();
+    result
 }
 
 fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
@@ -1442,30 +1461,23 @@ fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
     fnc.call(scope, recv, v8_args.as_slice()).unwrap();
 }
 
-fn inner_invokation<F, R: Sized>(f: F, should_schedule: bool) -> R
+fn execute_with_current_scope<F, R: Sized>(f: F) -> R
 where
     F: Fn(&mut v8::HandleScope) -> R,
 {
     let result;
     if !EmacsMainJsRuntime::is_within_runtime() {
-        {
+        result = block_on(async move {
             let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
             let worker = worker_handle.as_mut_ref();
             let runtime = &mut worker.js_runtime;
             let context = runtime.global_context();
             let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
-            let mut handle = EmacsMainJsRuntime::get_tokio_handle();
-            let handle_ref = handle.as_mut_ref();
-            EmacsMainJsRuntime::enter_runtime();
-            result = handle_ref.block_on(async move { f(scope) });
-            EmacsMainJsRuntime::exit_runtime();
-        }
-        // Only in the case that the event loop as gone to sleep,
-        // we want to reinvoke it, in case the above
-        // invokation has scheduled promises.
-        if !EmacsMainJsRuntime::get_tick_scheduled() && should_schedule {
-            js_tick_event_loop(lisp::remacs_sys::Qnil);
-        }
+            let retval = f(scope);
+
+            Ok(retval)
+        })
+        .unwrap(); // Safe due to the fact we set this to Ok
     } else {
         let scope: &mut v8::HandleScope = unsafe { EmacsMainJsRuntime::get_stacked_v8_handle() };
         result = f(scope);
@@ -1479,7 +1491,7 @@ where
 #[cfg(feature = "javascript")]
 #[lisp_fn]
 pub fn js__clear(idx: LispObject) -> LispObject {
-    inner_invokation(move |scope| js_clear_internal(scope, idx), false);
+    execute_with_current_scope(move |scope| js_clear_internal(scope, idx));
     lisp::remacs_sys::Qnil
 }
 
@@ -1487,7 +1499,7 @@ fn into_ioerr<E: Into<Box<dyn std::error::Error + Send + Sync>>>(e: E) -> std::i
     std::io::Error::new(std::io::ErrorKind::Other, e)
 }
 
-fn execute<T: Sized + std::future::Future<Output = Result<()>>>(fnc: T) -> Result<()> {
+fn block_on<R: Sized, T: Sized + std::future::Future<Output = Result<R>>>(fnc: T) -> Result<R> {
     if EmacsMainJsRuntime::is_within_runtime() {
         Err(std::io::Error::new(
             std::io::ErrorKind::Other,
@@ -1520,7 +1532,7 @@ fn js_sweep_inner(scope: &mut v8::HandleScope) {
 #[lisp_fn]
 pub fn js__sweep() -> LispObject {
     if EmacsMainJsRuntime::is_main_worker_active() {
-        inner_invokation(|scope| js_sweep_inner(scope), false);
+        execute_with_current_scope(|scope| js_sweep_inner(scope));
     }
 
     lisp::remacs_sys::Qnil
@@ -1529,7 +1541,7 @@ pub fn js__sweep() -> LispObject {
 fn tick_js() -> Result<bool> {
     let mut is_complete = false;
     let is_complete_ref = &mut is_complete;
-    execute(async move {
+    block_on(async move {
         futures::future::poll_fn(|cx| {
             let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
             let w = worker_handle.as_mut_ref();
@@ -1549,7 +1561,7 @@ fn tick_js() -> Result<bool> {
     .map(move |_| is_complete)
 }
 
-fn init_once() -> Result<()> {
+fn init_tokio() -> Result<()> {
     if !EmacsMainJsRuntime::is_tokio_active()
     // Needed in the case that the tokio runtime is being taken
     // for completing a JS operation
@@ -1629,66 +1641,18 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
                 let obj = v8::Object::new(scope);
                 global.set(scope, name.into(), obj.into());
             }
-            {
-                let name = v8::String::new(scope, "lisp_invoke").unwrap();
-                let func = v8::Function::new(scope, lisp_callback).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "is_proxy").unwrap();
-                let func = v8::Function::new(scope, is_proxy).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "finalize").unwrap();
-                let func = v8::Function::new(scope, finalize).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_json").unwrap();
-                let func = v8::Function::new(scope, lisp_json).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_intern").unwrap();
-                let func = v8::Function::new(scope, lisp_intern).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_make_finalizer").unwrap();
-                let func = v8::Function::new(scope, lisp_make_finalizer).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_string").unwrap();
-                let func = v8::Function::new(scope, lisp_string).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_fixnum").unwrap();
-                let func = v8::Function::new(scope, lisp_fixnum).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_float").unwrap();
-                let func = v8::Function::new(scope, lisp_float).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_make_lambda").unwrap();
-                let func = v8::Function::new(scope, lisp_make_lambda).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_list").unwrap();
-                let func = v8::Function::new(scope, lisp_list).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "json_lisp").unwrap();
-                let func = v8::Function::new(scope, json_lisp).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
+            bind_global_fn!(scope, global, lisp_invoke);
+            bind_global_fn!(scope, global, is_proxy);
+            bind_global_fn!(scope, global, finalize);
+            bind_global_fn!(scope, global, lisp_json);
+            bind_global_fn!(scope, global, lisp_intern);
+            bind_global_fn!(scope, global, lisp_make_finalizer);
+            bind_global_fn!(scope, global, lisp_string);
+            bind_global_fn!(scope, global, lisp_fixnum);
+            bind_global_fn!(scope, global, lisp_float);
+            bind_global_fn!(scope, global, lisp_make_lambda);
+            bind_global_fn!(scope, global, lisp_list);
+            bind_global_fn!(scope, global, json_lisp);
         }
         {
             runtime
@@ -1710,10 +1674,9 @@ fn run_module_inner(
     js_options: &EmacsJsOptions,
     as_typescript: bool,
 ) -> Result<LispObject> {
-    init_once()?;
-    init_worker(filepath, js_options)?;
+    js_init_sys(filepath, js_options)?;
 
-    execute(async move {
+    block_on(async move {
         let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
         let w = worker_handle.as_mut_ref();
         let main_module =
