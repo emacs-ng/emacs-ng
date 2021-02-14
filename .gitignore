@@ -301,3 +301,7 @@ src/gdb.ini
 /var/
 
 rust_src/Cargo.toml
+
+rust_src/crates/lisp/src/bindings.rs
+rust_src/crates/lisp/src/globals.rs
+rust_src/crates/lisp/src/definitions.rs
