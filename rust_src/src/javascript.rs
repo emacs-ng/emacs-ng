@@ -50,22 +50,35 @@ struct EmacsMainJsRuntime {
     /// to (eval-js-file), we append a unique module id and timestamp
     /// to every module evaluation.
     module_counter: u64,
-    /// In order to allow for JS -> Lisp -> JS calls, we would need
-    /// a valid HandleScope to use. Due to the way Deno is designed,
-    /// we cannot just use the Global HandleScrope from the v8::Isolate,
-    /// If a HandleScope is above us on the stack, we need to use THAT HandleScope
-    /// if we are not provided one, OR we can create a new HandleScope NOT from
-    /// the v8 Isolate. Due to this, when we call a JS function that may go
-    /// JS -> Lisp -> JS (or even deeper, say JS -> Lisp -> JS -> Lisp -> JS),
-    /// we store the pointer value of the current handle scope. By doing this,
-    /// WE BREAK RUST'S BIGGEST RULE, and create two mutable references to
-    /// the same variable. However, the only above us on the stack
-    /// cannot be touched, by careful design. The native C++ doesn't know about
-    /// lifetimes or Rust's rules, so doing this doesn't affect the underlying v8.
-    /// This is inheriently fragile, but we do it in a very
-    /// careful way that really only makes it a valid lifetime extension.
-    /// If there is every a stray SEGFAULT or general issue with this class,
-    /// it will likely be caused by mishandling of this variable.
+    /// In order to execute v8 Operations, you need a valid "Scope" Object.
+    /// Certain functions, like `block_on` and `MainWorker::execute` internally
+    /// handle creating that scope object for you. However,
+    /// we cannot always use `block_on`, or `MainWorker::execute` due to the
+    /// fact that either of those approaches will cause an intentional panic
+    /// if we have already called them further up the function stack.
+    /// In the case of `block_on`, we would be blocking on an already blocked
+    /// runtime, and in the case of MainWorker::execute, we would be attempting
+    /// to access the v8 Isolate's base Scope while there are other scopes on the
+    /// scope stack.
+    /// This variable is only relevent in the case that we call Lisp -> JS -> Lisp -> JS
+    /// In that event, when we are in the second JS invocation, we want to use
+    /// the HandleScope reference that is above us on the stack.
+    /// This is safe because the JavaScript and Lisp runtimes are synchronous
+    /// and we carefully manage the code to ensure that all of the invariants
+    /// needed to use a pointer this way are maintained.
+    /// Source: https://doc.rust-lang.org/std/primitive.pointer.html#method.as_mut
+    /// We must ALWAYS fufill the following conditions:
+    /// You have to ensure that either the pointer is NULL or all of the following is true:
+    /// 1. The pointer must be properly aligned.
+    /// 2. It must be "dereferencable" in the sense defined in the module documentation.
+    /// 3. The pointer must point to an initialized instance of T.
+    /// 4. You must enforce Rust's aliasing rules, since the returned lifetime 'a is arbitrarily
+    /// chosen and does not necessarily reflect the actual lifetime of the data. In particular, for
+    /// the duration of this lifetime, the memory the pointer points to must not get accessed (read
+    /// or written) through any other pointer.
+    /// This applies even if the result of this method is unused! (The part about being initialized
+    /// is not yet fully decided, but until it is, the only safe approach is to ensure that they
+    /// are indeed initialized.)
     stacked_v8_handle: Option<*mut v8::HandleScope<'static>>,
     /// The optiosn passed to (js-initialize) to customize the
     /// JS runtime.
@@ -217,27 +230,41 @@ impl EmacsMainJsRuntime {
         Self::access(move |main| main.options = options);
     }
 
-    unsafe fn get_stacked_v8_handle<'a>() -> &'a mut v8::HandleScope<'a> {
+    fn push_stack(scope: &mut v8::HandleScope) -> Option<*mut v8::HandleScope<'static>> {
+        let current = Self::_pop_handle();
+        Self::_push_handle(Some(scope));
+        current
+    }
+
+    fn peek_stack<'a>() -> &'a mut v8::HandleScope<'a> {
         Self::access(|main| {
-            std::mem::transmute::<*mut v8::HandleScope<'static>, &'a mut v8::HandleScope>(
-                main.stacked_v8_handle.unwrap(),
-            )
+            let ptr = main.stacked_v8_handle.unwrap() as *const _ as *mut v8::HandleScope<'a>;
+            // Since this ptr is always derived from a valid
+            // reference, this is safe
+            unsafe { ptr.as_mut() }.unwrap()
         })
     }
 
-    unsafe fn set_stacked_v8_handle(handle_opt: Option<&mut v8::HandleScope>) {
+    fn restore_stack<'a>(
+        current: Option<*mut v8::HandleScope<'static>>,
+    ) -> &'a mut v8::HandleScope<'a> {
+        let scope = Self::peek_stack();
+        Self::_push_ptr(current);
+        scope
+    }
+
+    fn _push_handle(handle_opt: Option<&mut v8::HandleScope>) {
         Self::access(|main| {
-            main.stacked_v8_handle = handle_opt.map(|handle| {
-                std::mem::transmute::<&mut v8::HandleScope, *mut v8::HandleScope<'static>>(handle)
-            });
+            main.stacked_v8_handle =
+                handle_opt.map(|handle| handle as *const _ as *mut v8::HandleScope<'static>);
         });
     }
 
-    fn get_raw_v8_handle() -> Option<*mut v8::HandleScope<'static>> {
+    fn _pop_handle() -> Option<*mut v8::HandleScope<'static>> {
         Self::access(|main| main.stacked_v8_handle.take())
     }
 
-    fn set_raw_v8_handle(o: Option<*mut v8::HandleScope<'static>>) {
+    fn _push_ptr(o: Option<*mut v8::HandleScope<'static>>) {
         Self::access(move |main| main.stacked_v8_handle = o);
     }
 
@@ -800,11 +827,7 @@ pub fn lisp_invoke(
     // >>> Code touching EmacsMainJsRuntime::{get/set}_stacked_v8_handle or
     // >>> EmacsMainJsRuntime::{enter/exit}_runtime needs to be
     // >>> managed very carefully. It should not be touched without a good reason.
-    let current = unsafe {
-        let cur = EmacsMainJsRuntime::get_raw_v8_handle();
-        EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope));
-        cur
-    };
+    let current = EmacsMainJsRuntime::push_stack(scope);
     let boxed = Box::new(lisp_args);
     let raw_ptr = Box::into_raw(boxed);
     let results = unsafe {
@@ -815,10 +838,7 @@ pub fn lisp_invoke(
         )
     };
 
-    unsafe {
-        scope = EmacsMainJsRuntime::get_stacked_v8_handle();
-        EmacsMainJsRuntime::set_raw_v8_handle(current);
-    }
+    scope = EmacsMainJsRuntime::restore_stack(current);
 
     if results.is_cons() {
         let cons: LispCons = results.into();
@@ -1369,11 +1389,7 @@ fn execute_function_may_throw(
     let tc_scope = &mut v8::TryCatch::new(scope);
     let recv = v8::Local::<v8::Value>::try_from(v8::String::new(tc_scope, "lisp_invoke").unwrap())
         .unwrap();
-    let curr = unsafe {
-        let cur = EmacsMainJsRuntime::get_raw_v8_handle();
-        EmacsMainJsRuntime::set_stacked_v8_handle(Some(tc_scope));
-        cur
-    };
+    let current = EmacsMainJsRuntime::push_stack(tc_scope);
     if let Some(result) = fnc.call(tc_scope, recv, v8_args.as_slice()) {
         if result.is_string() {
             let a = result
@@ -1402,12 +1418,11 @@ fn execute_function_may_throw(
 
         let v8_exception = deno_core::error::JsError::from_v8_exception(tc_scope, exception);
         let ioerr = into_ioerr(v8_exception);
-        EmacsMainJsRuntime::set_raw_v8_handle(curr);
+        EmacsMainJsRuntime::restore_stack(current);
         return Err(ioerr);
     }
 
-    EmacsMainJsRuntime::set_raw_v8_handle(curr);
-
+    EmacsMainJsRuntime::restore_stack(current);
     Ok(retval)
 }
 
@@ -1479,9 +1494,9 @@ where
         })
         .unwrap(); // Safe due to the fact we set this to Ok
     } else {
-        let scope: &mut v8::HandleScope = unsafe { EmacsMainJsRuntime::get_stacked_v8_handle() };
+        let scope = EmacsMainJsRuntime::peek_stack();
         result = f(scope);
-        unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope)) };
+        EmacsMainJsRuntime::restore_stack(Some(scope));
     }
 
     result
