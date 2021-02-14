@@ -1,6 +1,6 @@
 export function basicLisp() {
     return Promise.resolve()
-	.test(() => {
+	.test('lispAllocations', () => {
 	    let plist = lisp.make.plist({x: 3, y: 4, z: lisp.symbols.qqz});
 	    let alist = lisp.make.alist({s: 5, y: "Hello World", z: lisp.symbols.qq});
 
@@ -20,7 +20,7 @@ export function basicLisp() {
 		throw new Error("Failed to fetch list item properly");
 	    }
 	})
-	.test(() => {
+	.test('symbols', () => {
 	    let p = lisp.symbols.a;
 	    let qq = lisp.symbols.qq;
 	    let qc = lisp.keywords.word;
@@ -30,13 +30,13 @@ export function basicLisp() {
 		throw new Error("Failure in test lisp.setq");
 	    }
 	})
-	.test(() => {
+	.test('timers', () => {
 	    return new Promise((resolve, reject) => {
 		let timer = lisp.run_with_timer(1, lisp.symbols.nil, () => resolve());
 		setTimeout(() => reject("Failure to execute simple timer."), 5000);
 	    });
 	})
-	.test(() => {
+	.test('basicDefun', () => {
 	    let mutated = 0;
 	    let myFunc = lisp.defun("hello", (arg, arg2) => {
 		mutated = arg;
@@ -69,10 +69,10 @@ export function basicLisp() {
 		throw new Error("Failure in test Defun: Mutated value not set from callback");
 	    }
 	})
-	.test(() => {
+	.test('pipeProcess', () => {
 	    lisp.make_pipe_process(lisp.keywords.name, "mybuff");
 	})
-	.test(() => {
+	.test('setqLogic', () => {
 	    lisp.let((a) => {
 		if (a !== 3) {
 		    throw new Error("Arguments do not match");
@@ -85,7 +85,7 @@ export function basicLisp() {
 		}
 	    }, 3);
 	})
-	.test(() => {
+	.test('withCurrentBuffer', () => {
 	    let buf = lisp.get_buffer_create("mybuff");
 	    let buf2 = lisp.get_buffer_create("mybuff2");
 	    lisp.set_buffer(buf2);
@@ -108,7 +108,7 @@ export function basicLisp() {
 		throw new Error("with-current-buffer did not properly retain buffer state");
 	    }
 	})
-	.test(() => {
+	.test('bufferString', () => {
 	    let executed = false;
 	    lisp.with_temp_buffer(() => {
 		executed = true;
@@ -123,7 +123,7 @@ export function basicLisp() {
 		throw new Error("with-temp-buffer failed to execute");
 	    }
 	})
-	.test(async () => {
+	.test('denoAdditions', async () => {
 	    const minPowTwo = 2;
 	    const maxPowTwo = 1024 * 64;
 

@@ -1,4 +1,4 @@
 export function helloWorld() {
     return Promise.resolve()
-	.test(() => console.log('Hello World'));
+	.test('helloWorld', () => console.log('Hello World'));
 };
