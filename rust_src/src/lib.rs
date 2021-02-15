@@ -72,6 +72,8 @@ mod javascript;
 mod javascript_stubs;
 mod ng_async;
 mod parsing;
+#[cfg(feature = "javascript")]
+mod subcommands;
 
 #[cfg(feature = "window-system-webrender")]
 mod webrender_backend;

@@ -13,6 +13,10 @@ use std::io::Result;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
 
+use crate::futures::FutureExt;
+use futures::Future;
+use std::pin::Pin;
+
 #[derive(Clone)]
 struct EmacsJsOptions {
     tick_rate: f64,
@@ -1595,6 +1599,44 @@ fn init_tokio() -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn v8_bind_lisp_funcs(worker: &mut deno_runtime::worker::MainWorker) -> Result<()> {
+    let runtime = &mut worker.js_runtime;
+    {
+        let context = runtime.global_context();
+        let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
+        let context = scope.get_current_context();
+        let global = context.global(scope);
+        {
+            let name = v8::String::new(scope, "proxyProto").unwrap();
+            let template = v8::ObjectTemplate::new(scope);
+            template.set_internal_field_count(1);
+            let glob = v8::Global::new(scope, template);
+            EmacsMainJsRuntime::set_proxy_template(glob);
+            let obj = v8::Object::new(scope);
+            global.set(scope, name.into(), obj.into());
+        }
+        bind_global_fn!(scope, global, lisp_invoke);
+        bind_global_fn!(scope, global, is_proxy);
+        bind_global_fn!(scope, global, finalize);
+        bind_global_fn!(scope, global, lisp_json);
+        bind_global_fn!(scope, global, lisp_intern);
+        bind_global_fn!(scope, global, lisp_make_finalizer);
+        bind_global_fn!(scope, global, lisp_string);
+        bind_global_fn!(scope, global, lisp_fixnum);
+        bind_global_fn!(scope, global, lisp_float);
+        bind_global_fn!(scope, global, lisp_make_lambda);
+        bind_global_fn!(scope, global, lisp_list);
+        bind_global_fn!(scope, global, json_lisp);
+    }
+    {
+        runtime
+            .execute("prelim.js", include_str!("prelim.js"))
+            .map_err(|e| into_ioerr(e))?
+    }
+
+    Ok(())
+}
+
 fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     if EmacsMainJsRuntime::is_main_worker_active() || EmacsMainJsRuntime::is_within_runtime() {
         return Ok(());
@@ -1641,40 +1683,7 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     EmacsMainJsRuntime::set_program_state(program.clone());
     let mut worker = deno::create_main_worker(&program, main_module.clone(), permissions);
     let result: Result<deno_runtime::worker::MainWorker> = runtime.block_on(async move {
-        let runtime = &mut worker.js_runtime;
-        {
-            let context = runtime.global_context();
-            let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
-            let context = scope.get_current_context();
-            let global = context.global(scope);
-            {
-                let name = v8::String::new(scope, "proxyProto").unwrap();
-                let template = v8::ObjectTemplate::new(scope);
-                template.set_internal_field_count(1);
-                let glob = v8::Global::new(scope, template);
-                EmacsMainJsRuntime::set_proxy_template(glob);
-                let obj = v8::Object::new(scope);
-                global.set(scope, name.into(), obj.into());
-            }
-            bind_global_fn!(scope, global, lisp_invoke);
-            bind_global_fn!(scope, global, is_proxy);
-            bind_global_fn!(scope, global, finalize);
-            bind_global_fn!(scope, global, lisp_json);
-            bind_global_fn!(scope, global, lisp_intern);
-            bind_global_fn!(scope, global, lisp_make_finalizer);
-            bind_global_fn!(scope, global, lisp_string);
-            bind_global_fn!(scope, global, lisp_fixnum);
-            bind_global_fn!(scope, global, lisp_float);
-            bind_global_fn!(scope, global, lisp_make_lambda);
-            bind_global_fn!(scope, global, lisp_list);
-            bind_global_fn!(scope, global, json_lisp);
-        }
-        {
-            runtime
-                .execute("prelim.js", include_str!("prelim.js"))
-                .map_err(|e| into_ioerr(e))?
-        }
-
+        v8_bind_lisp_funcs(&mut worker)?;
         Ok(worker)
     });
 
@@ -1887,6 +1896,63 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
     }
 
     lisp::remacs_sys::Qnil
+}
+
+// We overwrite certain subcommands to allow interfacing with emacs-lisp
+// other subcommands, we will use deno's default implementation
+fn get_subcommand(
+    flags: deno::flags::Flags,
+) -> Pin<Box<dyn Future<Output = std::result::Result<(), deno_core::error::AnyError>>>> {
+    match flags.clone().subcommand {
+        deno::flags::DenoSubcommand::Eval {
+            print,
+            code,
+            as_typescript,
+        } => crate::subcommands::eval_command(flags, code, as_typescript, print).boxed_local(),
+        deno::flags::DenoSubcommand::Run { script } => {
+            crate::subcommands::run_command(flags, script).boxed_local()
+        }
+        deno::flags::DenoSubcommand::Repl => crate::subcommands::run_repl(flags).boxed_local(),
+        deno::flags::DenoSubcommand::Test {
+            no_run,
+            fail_fast,
+            quiet,
+            include,
+            allow_none,
+            filter,
+        } => crate::subcommands::test_command(
+            flags, include, no_run, fail_fast, quiet, allow_none, filter,
+        )
+        .boxed_local(),
+        _ => deno::get_subcommand(flags),
+    }
+}
+
+#[cfg(feature = "javascript")]
+#[lisp_fn(min = "1")]
+pub fn deno(cmd_args: &[LispObject]) {
+    let mut args = vec!["deno".to_string()];
+    for i in 0..cmd_args.len() {
+        let stringref: LispStringRef = cmd_args[i].into();
+        let string = stringref.to_utf8();
+        args.push(string);
+    }
+
+    let flags = deno::flags::flags_from_vec(args).unwrap_or_else(|e| {
+        error!("Error in parsing flags: {}", e);
+    });
+    let fut = get_subcommand(flags); //deno::get_subcommand(flags);
+    init_tokio().unwrap_or_else(|e| {
+        error!("Unable to initialize tokio runtime: {}", e);
+    });
+
+    block_on(async move {
+        fut.await.map_err(|e| into_ioerr(e))?;
+        Ok(())
+    })
+    .unwrap_or_else(|e| {
+        error!("Error in deno command {}", e);
+    });
 }
 
 // Do NOT call this function, it is just used for macro purposes to
