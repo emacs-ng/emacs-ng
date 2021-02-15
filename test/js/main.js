@@ -5,12 +5,12 @@ import { webAsm } from "./webAsm.js";
 import { basicTyping } from "./basicTyping.ts";
 import { errors } from "./errors.js";
 
-let counter = 1;
-Promise.prototype.test = function(f) {
-    return this.then(f)
+Promise.prototype.test = function(name, f) {
+    let now = Date.now();
+    return this.then(() => { now = Date.now() })
+	.then(f)
 	.then((result) => {
-	    counter += 1;
-	    console.log("Passed Test ... " + counter);
+	    console.log(`Passed Test ${name} ... (${Date.now() - now} ms)`);
 	    return result;
 	});
 

@@ -1,6 +1,6 @@
 export function webWorkers() {
     return Promise.resolve()
-	.test(() => {
+	.test('webWorkerTest', () => {
 	    let worker = new Worker(new URL("webWorkerModule.js", import.meta.url).href,
 				    { type: "module",
 				      deno: true,

@@ -1,6 +1,6 @@
 export function errors() {
     return Promise.resolve()
-	.test(() => {
+	.test('consThrow', () => {
 	    try {
 		lisp.cons();
 	    } catch (e) {
@@ -9,7 +9,7 @@ export function errors() {
 		}
 	    }
 	})
-	.test(() => {
+	.test('errorPropagation', () => {
 	    let sent = null;
 	    const failure = 'fail';
 	    lisp.defun({
@@ -53,7 +53,7 @@ export function errors() {
 		throw new Error("Did not throw error within defun");
 	    }
 	})
-	.test(() => {
+	.test('nullTerminatorInString', () => {
 	    let thrown = false;
 	    try {
 		lisp.make.string('\0');
@@ -68,7 +68,7 @@ export function errors() {
 		throw new Error("Nul byte did not throw");
 	    }
 	})
-	.test(() => {
+	.test('functionJson', () => {
 	    lisp.defun({
 		name: "ng-test--fx--1",
 		func: (callback) => {
@@ -85,7 +85,7 @@ export function errors() {
 
 	    lisp.ng_test__fx__2();
 	})
-	.test(() => {
+	.test('evalJsLiterally', () => {
 	    const result = lisp.eval_js_literally('3');
 	    if (result !== 3) {
 		throw new Error("Failed to literally eval JS");

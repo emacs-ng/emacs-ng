@@ -332,6 +332,10 @@ impl EmacsMainJsRuntime {
     }
 }
 
+fn is_interactive() -> bool {
+    unsafe { !lisp::remacs_sys::globals.noninteractive1 }
+}
+
 // (DDS) This exists for breaking Deno's cache busting
 // across invokations of emacs-ng, along with a hack
 // to allow modules to be evaluated multiple times.
@@ -1813,11 +1817,23 @@ fn schedule_tick() {
 
     EmacsMainJsRuntime::set_tick_scheduled(true);
     let js_options = EmacsMainJsRuntime::get_options();
+    let rate;
+    let repeat;
+
+    let tick_rate = unsafe { lisp::remacs_sys::make_float(js_options.tick_rate) };
+    if is_interactive() {
+        rate = tick_rate;
+        repeat = lisp::remacs_sys::Qnil;
+    } else {
+        rate = lisp::remacs_sys::Qt;
+        repeat = tick_rate;
+    }
+
     unsafe {
         let mut args = vec![
             lisp::remacs_sys::Qrun_with_timer,
-            lisp::remacs_sys::make_float(js_options.tick_rate),
-            lisp::remacs_sys::Qnil,
+            rate,
+            repeat,
             lisp::remacs_sys::Qjs_tick_event_loop,
         ];
         lisp::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
@@ -1861,7 +1877,11 @@ fn tick_and_handle_error(handler: LispObject) -> bool {
 #[lisp_fn(min = "0")]
 pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
     // Consume the tick for this event loop call.
-    EmacsMainJsRuntime::set_tick_scheduled(false);
+    // Unless we are non-interactive
+    if is_interactive() {
+        EmacsMainJsRuntime::set_tick_scheduled(false);
+    }
+
     if !EmacsMainJsRuntime::is_main_worker_active() {
         return lisp::remacs_sys::Qnil;
     }
