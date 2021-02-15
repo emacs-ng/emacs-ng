@@ -1923,11 +1923,84 @@ fn get_subcommand(
         } => crate::subcommands::test_command(
             flags, include, no_run, fail_fast, quiet, allow_none, filter,
         )
+            .boxed_local(),
+	deno::flags::DenoSubcommand::Info { json, .. } => async move {
+	    if is_interactive() && json && !flags.unstable {
+		Err(deno_core::error::generic_error(
+                    "--unstable is required for this command",
+                ))
+	    } else {
+                deno::get_subcommand(flags).await
+	    }
+	}.boxed_local(),
+        deno::flags::DenoSubcommand::Compile { .. } => async {
+	    if is_interactive() && !flags.unstable {
+                Err(deno_core::error::generic_error(
+                    "--unstable is required for this command",
+                ))
+            } else {
+                deno::get_subcommand(flags).await
+            }
+	}.boxed_local(),
+        deno::flags::DenoSubcommand::Lint { .. } => async {
+            if is_interactive() {
+                Err(deno_core::error::generic_error(
+                    "lint is not supported in interactive mode. Lint files with emacs as a subprocess using emacs --batch --eval '(deno \"lint\" \"--unstable\")'",
+                ))
+            } else {
+                deno::get_subcommand(flags).await
+            }
+        }
+        .boxed_local(),
+        // (DDS) We don't want upgrade to be run from emacs
+        // since it wouldnt do what the user expects
+        // instead, we will just throw an error
+        // @TODO it would be nice if this actually
+        // upgraded emacs-ng instead
+        deno::flags::DenoSubcommand::Upgrade { .. } => async {
+            Err(deno_core::error::generic_error(
+                "(deno upgrade) is unsupported in emacs-ng at this time.",
+            ))
+        }
         .boxed_local(),
         _ => deno::get_subcommand(flags),
     }
 }
 
+/// Usage: (deno CMD &REST ARGS)
+///
+/// Invokes a deno command using emacs-ng. This behavior mirrors as if you
+/// ran a deno command from the command line, except that lisp
+/// functions are available
+///
+/// Unlike normal JavaScript run in emacs, using this command
+/// respects deno's permission model. You will need to pass
+/// --allow-read, --allow-write, --allow-net or --allow-run
+///
+/// Using this command is using emacs AS deno, and does not change
+/// how deno handles Input/Output. This means that deno will write
+/// to stdout and recieve input via stdin as it normally would.
+/// The primary use case of this function is be run from the
+/// command line, however it can be used while running emacs
+///
+/// The only command not fully supported is (deno "upgrade")
+///
+/// (deno "lint") can only be run while emacs is in batch mode via the command
+/// line: emacs --batch --eval '(deno "lint" "--unstable")'
+///
+/// This can be combined with running emacs-ng in batch mode to fully mirror deno
+/// functionality. I.e. `emacs --batch --eval '(deno "repl")'
+///
+/// This function is safe to execute from a lisp thread if you want to make
+/// the operation non-blocking. (make-thread (lambda () (deno "fmt")))
+///
+/// Examples:
+/// (deno "fmt") ; Will format files in the current directory as if you ran
+///              ; deno fmt from the command line.
+///
+/// (deno "run" "--allow-read" "my-file.ts") ; Runs a typescript file named
+///                                          ; my-file.ts, allowing reads
+///
 #[cfg(feature = "javascript")]
 #[lisp_fn(min = "1")]
 pub fn deno(cmd_args: &[LispObject]) {
@@ -1938,20 +2011,16 @@ pub fn deno(cmd_args: &[LispObject]) {
         args.push(string);
     }
 
-    let flags = deno::flags::flags_from_vec(args).unwrap_or_else(|e| {
+    let flags = deno::flags::flags_from_vec(args.clone()).unwrap_or_else(|e| {
         error!("Error in parsing flags: {}", e);
     });
-    let fut = get_subcommand(flags); //deno::get_subcommand(flags);
+    let fut = get_subcommand(flags);
     init_tokio().unwrap_or_else(|e| {
         error!("Unable to initialize tokio runtime: {}", e);
     });
 
-    block_on(async move {
-        fut.await.map_err(|e| into_ioerr(e))?;
-        Ok(())
-    })
-    .unwrap_or_else(|e| {
-        error!("Error in deno command {}", e);
+    block_on(async move { fut.await.map_err(|e| into_ioerr(e)) }).unwrap_or_else(|e| {
+        error!("Error in deno command '{}': {}", args.join(" "), e);
     });
 }
 
