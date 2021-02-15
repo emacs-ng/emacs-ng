@@ -2,7 +2,7 @@
 
 ## What is Deno ?
 
-[Deno](deno.land) is a program that is similar to node.js, except it is written in Rust. Both Deno and nodejs were created by the same person, Ryan Dhal. While normally you would invoke Deno via the command line, the emacs-ng project has integrated the Deno runtime into the emacs-ng client directly. Deno is powered by v8, Chrome's Open Source JavaScript engine.
+[Deno](https://deno.land) is a program that is similar to node.js, except it is written in Rust. Both Deno and nodejs were created by the same person, Ryan Dhal. While normally you would invoke Deno via the command line, the emacs-ng project has integrated the Deno runtime into the emacs-ng client directly. Deno is powered by v8, Chrome's Open Source JavaScript engine.
 
 A JavaScript engine is more limited then most users realize. For example, utilities like XMLHttpRequest are not provided directly by the JavaScript engine, but are instead provided by a runtime (like your browser). Deno provides interfaces for performing I/O operations like file reads/writes, network operations, and spawning subprocesses.
 

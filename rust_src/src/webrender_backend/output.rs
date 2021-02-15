@@ -239,6 +239,14 @@ impl Output {
                         ..
                     }
                     | Event::WindowEvent {
+                        event: WindowEvent::MouseInput { .. },
+                        ..
+                    }
+                    | Event::WindowEvent {
+                        event: WindowEvent::CursorMoved { .. },
+                        ..
+                    }
+                    | Event::WindowEvent {
                         event: WindowEvent::Focused(_),
                         ..
                     } => {
