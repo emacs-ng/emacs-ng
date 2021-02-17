@@ -57,6 +57,31 @@ Once you have created your great emacs-ng module, how do you distribute it? Norm
 
 Where instead of fuzzy_search@0.3.0/mod-fuzzy.js, you instead have your module version and filename.
 
+## Using emacs as deno
+
+emacs-ng offers the `deno` function in elisp, which allows users to leverage whatever deno offers from the command line. For example, you can run deno's repl (with elisp functions) by running the following:
+
+```bash
+emacs --batch --eval '(deno "repl")'
+```
+
+You can use deno's formatter by running
+
+
+```bash
+emacs --batch --eval '(deno "fmt")'
+```
+
+You could even run a script via
+
+```bash
+emacs --batch --eval '(deno "run" "--allow-read" "test.ts")'
+```
+
+Note that when using emacs in this way, you need to specify read/write/etc. permissions. Think of this as if you were using emacs AS deno.
+
+The deno function takes the exact same flags as the deno application. It's designed for use in batch mode on the command line, however it can be used in regular elisp.
+
 ## Where to go next
 
 We don't want to duplicate Deno's excellent documentation, so it's recommended you [read their manual](https://deno.land/manual) for their standard library, and their examples.

@@ -1977,6 +1977,11 @@ fn get_subcommand(
 /// respects deno's permission model. You will need to pass
 /// --allow-read, --allow-write, --allow-net or --allow-run
 ///
+/// This command spawns a new JavaScript environment to
+/// simulate how deno cli works. HOWEVER, Lisp variables
+/// are shared. `deno` is a blocking call, and so interacting
+/// with lisp does not need a lock.
+///
 /// Using this command is using emacs AS deno, and does not change
 /// how deno handles Input/Output. This means that deno will write
 /// to stdout and recieve input via stdin as it normally would.
