@@ -451,7 +451,7 @@ OPTION_DEFAULT_ON([lcms2],[don't compile with Little CMS support])
 OPTION_DEFAULT_ON([libsystemd],[don't compile with libsystemd support])
 OPTION_DEFAULT_ON([cairo],[don't compile with Cairo drawing])
 OPTION_DEFAULT_ON([xml2],[don't compile with XML parsing support])
-OPTION_DEFAULT_ON([libvterm],[don't compile with libvterm support])
+OPTION_DEFAULT_OFF([libgit],[enable libgit2 and git2rs (experimental)])
 OPTION_DEFAULT_OFF([imagemagick],[compile with ImageMagick image support])
 OPTION_DEFAULT_ON([native-image-api], [don't use native image APIs (GDI+ on Windows)])
 OPTION_DEFAULT_IFAVAILABLE([json], [compile with native JSON support])
@@ -2205,7 +2205,6 @@ if test "${HAVE_W32}" = "yes"; then
   window_system=w32
   with_xft=no
 fi
-
 
 if test "${with_webrender}" = "yes"; then
   window_system=webrender
@@ -4230,16 +4229,11 @@ fi
 AC_SUBST(LIBXML2_LIBS)
 AC_SUBST(LIBXML2_CFLAGS)
 
-dnl ### Use libvterm (-lvterm) if available
-HAVE_LIBVTERM=no
-if test "${with_libvterm}" != "no"; then
-  EMACS_CHECK_MODULES([LIBVTERM], [vterm])
-  if test "${HAVE_LIBVTERM}" = "yes"; then
-    AC_DEFINE(HAVE_LIBVTERM, 1, [Define to 1 if libvterm library is present.])
-  fi
+### Use libgit2 and git2rs
+if test "${with_libgit}" = "yes"; then
+  HAVE_LIBGIT=yes
+  AC_DEFINE(HAVE_LIBGIT, 1, [Define to 1 if you want to use libgit2 and git2rs.])
 fi
-AC_SUBST(LIBVTERM_LIBS)
-AC_SUBST(LIBVTERM_CFLAGS)
 
 BLESSMAIL_TARGET=
 LIBS_MAIL=
@@ -6112,8 +6106,8 @@ case "$window_system" in
         CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-webrender\", "
     ;;
 esac
-if test "$HAVE_LIBVTERM" = "yes"; then
-   CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"libvterm\", "
+if test "$HAVE_LIBGIT" = "yes"; then
+   CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"libgit\", "
 fi
 if test "${with_javascript}" = "yes"; then
   CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"javascript\", "

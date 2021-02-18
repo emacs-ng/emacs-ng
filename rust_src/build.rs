@@ -396,6 +396,9 @@ fn build_ignored_paths() -> Vec<&'static str> {
     #[cfg(not(feature = "ng-module"))]
     ignored_paths.push("ng_module.rs");
 
+    #[cfg(not(feature = "libgit"))]
+    ignored_paths.push("git.rs");
+
     ignored_paths
 }
 
