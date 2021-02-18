@@ -42,9 +42,9 @@ tokio-rustls = { version = "0.22.0", optional = true }
 glutin = { version = "0.26", optional = true }
 gleam = { version = "0.6", optional = true }
 webrender = { version = "0.61", optional = true }
-# openssl = { version = "0.10", features = ["vendored"] }
-# openssl-sys = "0.9"
-# git2 = "0.13"
+openssl = { version = "0.10", features = ["vendored"], optional = true }
+openssl-sys = { version = "0.9", optional = true }
+git2 = { version = "0.13", optional = true }
 
 [build-dependencies]
 clippy = { version = "*", optional = true }
@@ -88,8 +88,8 @@ window-system-x11 = []
 window-system-nextstep = []
 # Use the w32 window system
 window-system-w32 = []
-# Build with libvterm support.
-libvterm = []
+# Build with git2rs support
+libgit = ["git2", "openssl", "openssl-sys"]
 # Use the webrender window system
 window-system-webrender = ["font-kit", "webrender", "glutin", "gleam", "app_units", "emacs/window-system-webrender"]
 # Treat warnings as a build error on Travis.
