@@ -78,9 +78,9 @@ You could even run a script via
 emacs --batch --eval '(deno "run" "--allow-read" "test.ts")'
 ```
 
-Note that when using emacs in this way, you need to specify read/write/etc. permissions. Think of this as if you were using emacs AS deno.
+Note you need to specify read/write/etc. permissions. Think of this as if you were using emacs AS deno.
 
-The deno function takes the exact same flags as the deno application. It's designed for use in batch mode on the command line, however it can be used in regular elisp.
+The deno function takes the exact same flags as the deno application. It's designed for use in batch mode on the command line, however it can also be used in regular elisp.
 
 ## Where to go next
 
