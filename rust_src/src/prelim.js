@@ -152,7 +152,7 @@
   // Hold on you fool, why not use FinalizerRegistry, it
   // was made for this! That API does not work in Deno
   // at this time, due to their handling of the DefaultPlatform
-  // Due to this, I opt'd to use weakrefs in a map. Its nice
+  // Due to this, I opt'd to use weakrefs in a map. It's nice
   // because I just need to sync that map with a lisp gc root
   // and my job is done.
   // This is called from lisp's native garbage_collect function
@@ -342,7 +342,7 @@
   };
 
   // We do not call getOrCacheString on purpose here
-  // in case the user manipulates the strings properties
+  // in case the user manipulates the string's properties
   // Those properties will be on the cache string.
   const processArgs = (dataArr, container) => {
     const retval = container || [];

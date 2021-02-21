@@ -1899,7 +1899,7 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
 }
 
 // We overwrite certain subcommands to allow interfacing with emacs-lisp
-// other subcommands, we will use deno's default implementation
+// All other subcommands will use deno's default implementation
 fn get_subcommand(
     flags: deno::flags::Flags,
 ) -> Pin<Box<dyn Future<Output = std::result::Result<(), deno_core::error::AnyError>>>> {
