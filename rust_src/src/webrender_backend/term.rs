@@ -555,13 +555,13 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
         } => {
             dpyinfo.input_processor.cursor_move(position);
 
-            unsafe {
-                note_mouse_highlight(
-                    top_frame.as_frame().unwrap().as_mut(),
-                    position.x as i32,
-                    position.y as i32,
-                )
-            };
+            if top_frame.as_frame().is_none() {
+                return;
+            }
+
+            let mut frame: LispFrameRef = top_frame.into();
+
+            unsafe { note_mouse_highlight(frame.as_mut(), position.x as i32, position.y as i32) };
         }
 
         Event::WindowEvent {
