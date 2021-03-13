@@ -2,9 +2,67 @@
 
 This is an introduction for building applications and hacking on emacs-ng using JavaScript. emacs-ng supports both TypeScript and JavaScript, so these examples will feature both languages. This guide uses emacs terminology for key binds, i.e. C-x means holding down control and pressing x. M-x means holding Alt and pressing x (unless you are on a system where Escape is the 'Meta' key). C-x C-f means hold down control, press x, keep holding control, press f.
 
+## Requirements
+
+1. You will need
+   [Rust installed](https://www.rust-lang.org/en-US/install.html).
+   The file `rust-toolchain` indicates the version that gets installed.
+   This happens automatically, so don't override the toolchain manually.
+   IMPORTANT: Whenever the toolchain updates, you have to reinstall
+   rustfmt manually.
+
+2. You will need a C compiler and toolchain. On Linux, you can do
+   something like:
+
+        apt install build-essential automake clang libclang-dev
+
+   On macOS, you'll need Xcode.
+
+3. Linux:
+
+        apt install texinfo libjpeg-dev libtiff-dev \
+          libgif-dev libxpm-dev libgtk-3-dev gnutls-dev \
+          libncurses5-dev libxml2-dev libxt-dev
+
+   macOS:
+
+        brew install gnutls texinfo autoconf
+
+    To use the installed version of `makeinfo` instead of the built-in
+    (`/usr/bin/makeinfo`) one, you'll need to make sure `/usr/local/opt/texinfo/bin`
+    is before `/usr/bin` in `PATH`.
+    Mojave install libxml2 headers with: `open /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg`
+
+
+If you want to run doomemacs, you will need to compile with `./configure --with-nativecomp`. nativecomp will also require `zlib1g-dev libgccjit-8-dev`
+
+
 ## Building
 
-First things first, we will want to follow our build instructions found in the project's [README](https://github.com/emacs-ng/emacs-ng). The final command you should run is `make`, or `make install`. We will write this guide assuming you ran `make` and are working out of the emacs-ng repository, however the guide will work if you ran `make install` instead.
+```
+$ ./autogen.sh
+$ ./configure --enable-rust-debug
+$ make -j 8 # or your number of cores
+```
+
+For a release build, don't pass `--enable-rust-debug`.
+
+The Makefile obeys cargo's RUSTFLAGS variable and additional options
+can be passed to cargo with CARGO_FLAGS.
+
+For example:
+
+``` bash
+$ make CARGO_FLAGS="-vv" RUSTFLAGS="-Zunstable-options --cfg MARKER_DEBUG"
+```
+
+If you want to install it, just use
+
+```bash
+make install
+```
+
+You may need to run sudo make install depending on your system configuration.
 
 Now emacs should be available at `./src/emacs`. We can launch the application via `./src/emacs`. We can navigate to the lisp scratchpad by pressing C-x b and hitting enter.
 
