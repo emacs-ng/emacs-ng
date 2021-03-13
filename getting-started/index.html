@@ -1,0 +1,979 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A new approach to Emacs - Including TypeScript, Threading, Async I/O, and WebRender.">
+      
+      
+      
+      
+        <link rel="canonical" href="https://emacs-ng.github.io/emacs-ng/getting-started/">
+      
+      <link rel="shortcut icon" href="../images/logo.png">
+      <meta name="generator" content="mkdocs-1.1.2, mkdocs-material-7.0.5">
+    
+    
+      
+        <title>Getting started - Emacs NG - A new approach to Emacs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.77f3fd56.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.7fa14f5b.min.css">
+        
+      
+    
+    
+    
+      
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&display=fallback">
+        <style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
+      
+    
+    
+    
+      <link rel="stylesheet" href="../stylesheets/layout.css">
+    
+    
+      
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="" data-md-color-primary="none" data-md-color-accent="none">
+      
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#getting-started" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="https://emacs-ng.github.io/emacs-ng" title="Emacs NG - A new approach to Emacs" class="md-header__button md-logo" aria-label="Emacs NG - A new approach to Emacs">
+      
+  <img src="../images/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Emacs NG - A new approach to Emacs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Getting started
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="md-header__options">
+      
+    </div>
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+      </label>
+      
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" data-md-state="active" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+      </label>
+      <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        
+<a href="https://github.com/emacs-ng/emacs-ng/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    emacs-ng/emacs-ng
+  </div>
+</a>
+      </div>
+    
+  </nav>
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-tabs__inner md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href=".." class="md-tabs__link">
+      Home
+    </a>
+  </li>
+
+      
+        
+  
+  
+
+
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../main-features/" class="md-tabs__link">
+        Features
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+
+
+  <li class="md-tabs__item">
+    <a href="./" class="md-tabs__link md-tabs__link--active">
+      Getting started
+    </a>
+  </li>
+
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href="../using-deno/" class="md-tabs__link">
+      Using Deno
+    </a>
+  </li>
+
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href="../faq/" class="md-tabs__link">
+      FAQ
+    </a>
+  </li>
+
+      
+    </ul>
+  </div>
+</nav>
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="https://emacs-ng.github.io/emacs-ng" title="Emacs NG - A new approach to Emacs" class="md-nav__button md-logo" aria-label="Emacs NG - A new approach to Emacs">
+      
+  <img src="../images/logo.png" alt="logo">
+
+    </a>
+    Emacs NG - A new approach to Emacs
+  </label>
+  
+    <div class="md-nav__source">
+      
+<a href="https://github.com/emacs-ng/emacs-ng/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    emacs-ng/emacs-ng
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        Home
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" >
+      
+      <label class="md-nav__link" for="__nav_2">
+        Features
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Features" data-md-level="1">
+        <label class="md-nav__title" for="__nav_2">
+          <span class="md-nav__icon md-icon"></span>
+          Features
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../main-features/" class="md-nav__link">
+        Basic features
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adv-features/" class="md-nav__link">
+        Advanced features
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Getting started
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        Getting started
+      </a>
+      
+        
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#requirements" class="md-nav__link">
+    Requirements
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building" class="md-nav__link">
+    Building
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-javascript" class="md-nav__link">
+    Running JavaScript
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#iteration" class="md-nav__link">
+    Iteration
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#buffers" class="md-nav__link">
+    Buffers
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filewatching" class="md-nav__link">
+    Filewatching
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modules" class="md-nav__link">
+    Modules
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lisp-interaction" class="md-nav__link">
+    Lisp Interaction
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lisp-primitives" class="md-nav__link">
+    Lisp Primitives
+  </a>
+  
+    <nav class="md-nav" aria-label="Lisp Primitives">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    Errors
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#defining-lisp-functions" class="md-nav__link">
+    Defining Lisp Functions
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#conclusion" class="md-nav__link">
+    Conclusion
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../using-deno/" class="md-nav__link">
+        Using Deno
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        FAQ
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#requirements" class="md-nav__link">
+    Requirements
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building" class="md-nav__link">
+    Building
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-javascript" class="md-nav__link">
+    Running JavaScript
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#iteration" class="md-nav__link">
+    Iteration
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#buffers" class="md-nav__link">
+    Buffers
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filewatching" class="md-nav__link">
+    Filewatching
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modules" class="md-nav__link">
+    Modules
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lisp-interaction" class="md-nav__link">
+    Lisp Interaction
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lisp-primitives" class="md-nav__link">
+    Lisp Primitives
+  </a>
+  
+    <nav class="md-nav" aria-label="Lisp Primitives">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    Errors
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#defining-lisp-functions" class="md-nav__link">
+    Defining Lisp Functions
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#conclusion" class="md-nav__link">
+    Conclusion
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content" data-md-component="content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/emacs-ng/emacs-ng/edit/master/docs/getting-started.md" title="Edit this page" class="md-content__button md-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
+                  </a>
+                
+                
+                <h1 id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">#</a></h1>
+<p>This is an introduction for building applications and hacking on emacs-ng using JavaScript. emacs-ng supports both TypeScript and JavaScript, so these examples will feature both languages. This guide uses emacs terminology for key binds, i.e. C-x means holding down control and pressing x. M-x means holding Alt and pressing x (unless you are on a system where Escape is the 'Meta' key). C-x C-f means hold down control, press x, keep holding control, press f.</p>
+<h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">#</a></h2>
+<ol>
+<li>
+<p>You will need
+   <a href="https://www.rust-lang.org/en-US/install.html">Rust installed</a>.
+   The file <code>rust-toolchain</code> indicates the version that gets installed.
+   This happens automatically, so don't override the toolchain manually.
+   IMPORTANT: Whenever the toolchain updates, you have to reinstall
+   rustfmt manually.</p>
+</li>
+<li>
+<p>You will need a C compiler and toolchain. On Linux, you can do
+   something like:</p>
+<div class="codehilite"><pre><span></span><code>apt install build-essential automake clang libclang-dev
+</code></pre></div>
+
+</li>
+</ol>
+<p>On macOS, you'll need Xcode.</p>
+<ol>
+<li>Linux:<div class="codehilite"><pre><span></span><code>apt install texinfo libjpeg-dev libtiff-dev \
+  libgif-dev libxpm-dev libgtk-3-dev gnutls-dev \
+  libncurses5-dev libxml2-dev libxt-dev
+</code></pre></div>
+
+</li>
+</ol>
+<p>macOS:</p>
+<div class="codehilite"><pre><span></span><code>    <span class="n">brew</span> <span class="k">install</span> <span class="n">gnutls</span> <span class="n">texinfo</span> <span class="n">autoconf</span>
+
+<span class="k">To</span> <span class="k">use</span> <span class="n">the</span> <span class="n">installed</span> <span class="n">version</span> <span class="k">of</span> <span class="n n-Quoted">`makeinfo`</span> <span class="n">instead</span> <span class="k">of</span> <span class="n">the</span> <span class="n">built</span><span class="o">-</span><span class="k">in</span>
+<span class="p">(</span><span class="n n-Quoted">`/usr/bin/makeinfo`</span><span class="p">)</span> <span class="k">one</span><span class="p">,</span> <span class="n">you</span><span class="s1">&#39;ll need to make sure `/usr/local/opt/texinfo/bin`</span>
+<span class="s1">is before `/usr/bin` in `PATH`.</span>
+<span class="s1">Mojave install libxml2 headers with: `open /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg`</span>
+</code></pre></div>
+
+<p>If you want to run doomemacs, you will need to compile with <code>./configure --with-nativecomp</code>. nativecomp will also require <code>zlib1g-dev libgccjit-8-dev</code></p>
+<h2 id="building">Building<a class="headerlink" href="#building" title="Permanent link">#</a></h2>
+<div class="highlight"><pre><span></span><code>$ ./autogen.sh
+$ ./configure --enable-rust-debug
+$ make -j 8 # or your number of cores
+</code></pre></div>
+<p>For a release build, don't pass <code>--enable-rust-debug</code>.</p>
+<p>The Makefile obeys cargo's RUSTFLAGS variable and additional options
+can be passed to cargo with CARGO_FLAGS.</p>
+<p>For example:</p>
+<div class="highlight"><pre><span></span><code>$ make <span class="nv">CARGO_FLAGS</span><span class="o">=</span><span class="s2">&quot;-vv&quot;</span> <span class="nv">RUSTFLAGS</span><span class="o">=</span><span class="s2">&quot;-Zunstable-options --cfg MARKER_DEBUG&quot;</span>
+</code></pre></div>
+<p>If you want to install it, just use</p>
+<div class="highlight"><pre><span></span><code>make install
+</code></pre></div>
+<p>You may need to run sudo make install depending on your system configuration.</p>
+<p>Now emacs should be available at <code>./src/emacs</code>. We can launch the application via <code>./src/emacs</code>. We can navigate to the lisp scratchpad by pressing C-x b and hitting enter.</p>
+<p>Type in the following line and press C-j</p>
+<div class="highlight"><pre><span></span><code><span class="p">(</span><span class="nv">eval-js</span> <span class="s">&quot;lisp.print(&#39;hello world!&#39;)&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>This will display "hello world" in your display area (along with 'nil' - we will get to that). This is an anonymous javascript evaluation. Before we go further, let’s make an environment for working with our new scripting language.</p>
+<h2 id="running-javascript">Running JavaScript<a class="headerlink" href="#running-javascript" title="Permanent link">#</a></h2>
+<p>We have multiple ways to run JavaScript. Let us open a new <em>TypeScript</em> file by creating a file name "basic.ts" in our current directory. It will look something like:</p>
+<div class="highlight"><pre><span></span><code><span class="kr">declare</span> <span class="kd">var</span> <span class="nx">lisp</span>: <span class="kt">any</span><span class="p">;</span>
+
+<span class="kd">let</span> <span class="nx">x</span>: <span class="kt">string</span> <span class="o">=</span> <span class="s2">&quot;Hello TypeScript&quot;</span><span class="p">;</span>
+<span class="nx">lisp</span><span class="p">.</span><span class="nx">print</span><span class="p">(</span><span class="nx">x</span><span class="p">);</span>
+</code></pre></div>
+<p>Now we go back to *scratch* and run</p>
+<div class="highlight"><pre><span></span><code><span class="p">(</span><span class="nv">eval-js-file</span> <span class="s">&quot;./basic.ts&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>This is a relative filepath, and it works off of emacs current working directory (cwd). If you are in doubt to what emacs cwd is, just run the lisp function <code>(pwd)</code> in the lisp scratchpad</p>
+<p>You should see "Hello TypeScript" printed. All of the eval-js* functions return nil. If you want to use a calculated value from JavaScript in Lisp, you should use <code>eval-js-literally</code>. If you are looking for something like <code>eval-expression</code>, which is normally bound to M-:, you should use <code>eval-js-expression</code>. It accepts the same arguments as <code>eval-expression</code>, except with the first argument being a JavaScript expression, and behaves very similarly to <code>eval-expression</code>. It will also inserts the results into <code>values</code> just like <code>eval-expression</code>. <code>eval-js-literally</code> and <code>eval-js-expression</code> do not work with TypeScript at this time.</p>
+<h2 id="iteration">Iteration<a class="headerlink" href="#iteration" title="Permanent link">#</a></h2>
+<p>Now that we have our TypeScript file, let us get out of lisp and work purely in TypeScript. Open "basic.ts" by pressing C-x C-f and open "basic.ts". Press M-x and enter "eval-ts-buffer". This will evaluate the current contents of your buffer as typescript. You should see "Hello Typescript" print in your minibuffer. From now on, this will be our preferred way to iterate.</p>
+<p>If you do not want to evaluate the entire buffer, you can press C-space, highlight a region of code, and press M-x eval-ts-region. Try that with this code and see what happens:</p>
+<div class="highlight"><pre><span></span><code><span class="kd">let</span> <span class="nx">y</span>: <span class="kt">string</span> <span class="o">=</span> <span class="mf">3</span><span class="p">;</span>
+</code></pre></div>
+<p>You will see the following error in your minibuffer:</p>
+<div class="highlight"><pre><span></span><code>TS2322 <span class="o">[</span>ERROR<span class="o">]</span>: Type <span class="s1">&#39;number&#39;</span> is not assignable to <span class="nb">type</span> <span class="s1">&#39;string&#39;</span>.
+<span class="nb">let</span> y: <span class="nv">string</span> <span class="o">=</span> <span class="m">3</span><span class="p">;</span>
+    ^
+    at file:///home/user/<span class="nv">$anon$lisp$91610855413</span>.ts:1:5TS2322
+</code></pre></div>
+<p>It's important to understand that your TypeScript code is compiled prior to execution - unlike standard JavaScript which is evaluated until you encounter a runtime error. Within emacs-ng, that means that your code isn't executed if you have a type error in TypeScript.</p>
+<p>If these typescript examples are taking a long time to evaluate, it's likely due to the processing power required to compile everything. If you want to turn off TypeScript typechecking for the remainder of the examples, you can run:</p>
+<div class="highlight"><pre><span></span><code><span class="p">(</span><span class="nv">js-cleanup</span><span class="p">)</span>
+<span class="p">(</span><span class="nv">js-initialize</span> <span class="ss">:no-check</span> <span class="no">t</span><span class="p">)</span>
+</code></pre></div>
+<p>This code will cleanup your current JS environment and re-initialize it with TypeScript type checking disabled. If you do not care about the type checking that TypeScript offers, or your computer struggles with the cost of compiling, you can add <code>(js-initialize :no-check t)</code> to your init.el. </p>
+<p>Let's stop printing to the minibuffer, and instead start pushing our results into buffers. Let's start by something simple: make a network call and dump the results into a buffer.</p>
+<h2 id="buffers">Buffers<a class="headerlink" href="#buffers" title="Permanent link">#</a></h2>
+<p>First thing first, let's make our network call. In order to do this, we will use our built-in <a href="deno.land">Deno APIs</a>. Deno implements <code>fetch</code>, which looks something like this:</p>
+<div class="highlight"><pre><span></span><code><span class="kr">declare</span> <span class="kd">var</span> <span class="nx">lisp</span>: <span class="kt">any</span><span class="p">;</span>
+
+<span class="nx">fetch</span><span class="p">(</span><span class="s2">&quot;https://api.github.com/users/denoland&quot;</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">then</span><span class="p">(</span><span class="nx">response</span> <span class="o">=&gt;</span> <span class="nx">response</span><span class="p">.</span><span class="nx">json</span><span class="p">())</span>
+    <span class="p">.</span><span class="k">catch</span><span class="p">(</span><span class="nx">e</span> <span class="o">=&gt;</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">print</span><span class="p">(</span><span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">e</span><span class="p">)));</span>
+</code></pre></div>
+<p><code>fetch</code> is a common API <a href="https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API">documented here</a>. It returns a <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise">Promise</a>, which is a tool we will use to manage async I/O operations. Here, the network call isn't blocking, and it managed by our Rust runtime called Tokio. The <code>.then</code> is saying that once this promise is resolved, execute the next function in the chain. We have added a <code>.catch</code>, which will be executed if fetch errors.</p>
+<p>NOTE: If you have an unhandled toplevel promise rejection, the JavaScript runtime will RESET. You should always have a toplevel promise handler within any emacs-ng code. We will see the way we can interface with lisp error handling further on.</p>
+<p>However we want to put this response into a buffer. In order to do this, we will extend our .then chain, like so</p>
+<div class="highlight"><pre><span></span><code><span class="kr">declare</span> <span class="kd">var</span> <span class="nx">lisp</span>: <span class="kt">any</span><span class="p">;</span>
+
+<span class="nx">fetch</span><span class="p">(</span><span class="s2">&quot;https://api.github.com/users/denoland&quot;</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">then</span><span class="p">(</span><span class="nx">response</span> <span class="o">=&gt;</span> <span class="nx">response</span><span class="p">.</span><span class="nx">json</span><span class="p">())</span>
+    <span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">data</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">buffer</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">get_buffer_create</span><span class="p">(</span><span class="s2">&quot;TypeScript Buffer&quot;</span><span class="p">);</span>
+        <span class="nx">lisp</span><span class="p">.</span><span class="nx">with_current_buffer</span><span class="p">(</span><span class="nx">buffer</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">insert</span><span class="p">(</span><span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">data</span><span class="p">)));</span>
+    <span class="p">})</span>
+    <span class="p">.</span><span class="k">catch</span><span class="p">(</span><span class="nx">e</span> <span class="o">=&gt;</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">print</span><span class="p">(</span><span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">e</span><span class="p">)));</span>
+</code></pre></div>
+<p>Wait for the network call to resolve, and navigate to "TypeScript Buffer" via C-x b and typing in "TypeScript Buffer", or pressing C-x C-b and selecting our buffer from the buffer list.</p>
+<p>By now, you may be wondering about this <code>lisp</code> object, and how we are able to get references to lisp objects from JavaScript. Our next example should illustrate this further.</p>
+<h2 id="filewatching">Filewatching<a class="headerlink" href="#filewatching" title="Permanent link">#</a></h2>
+<p>Let's write an async filewatch that logs changes to a directory into a buffer, with a little extra data. In order to do this, we will use Deno's standard library. Deno has built in functions like <code>fetch</code>, along with a robust standard library that you need to import. That will look like this:</p>
+<div class="highlight"><pre><span></span><code><span class="kr">declare</span> <span class="kd">var</span> <span class="nx">lisp</span>: <span class="kt">any</span><span class="p">;</span>
+
+<span class="c1">// This will allow us to write</span>
+<span class="kd">const</span> <span class="nx">insertIntoTypeScriptBuffer</span> <span class="o">=</span> <span class="p">(</span><span class="nx">str</span>: <span class="kt">string</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="kd">const</span> <span class="nx">buffer</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">get_buffer_create</span><span class="p">(</span><span class="s2">&quot;TypeScript Filewatching&quot;</span><span class="p">);</span>
+      <span class="nx">lisp</span><span class="p">.</span><span class="nx">with_current_buffer</span><span class="p">(</span><span class="nx">buffer</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">insert</span><span class="p">(</span><span class="sb">`</span><span class="si">${</span><span class="nx">str</span><span class="si">}</span><span class="sb">\n`</span><span class="p">));</span>
+<span class="p">};</span>
+
+<span class="k">async</span> <span class="kd">function</span> <span class="nx">watch</span><span class="p">(</span><span class="nx">dir</span>: <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">watcher</span> <span class="o">=</span> <span class="nx">Deno</span><span class="p">.</span><span class="nx">watchFs</span><span class="p">(</span><span class="nx">dir</span><span class="p">);</span>
+    <span class="kd">let</span> <span class="nx">i</span> <span class="o">=</span> <span class="mf">0</span><span class="p">;</span>
+    <span class="k">for</span> <span class="k">await</span> <span class="p">(</span><span class="kd">const</span> <span class="nx">event</span> <span class="k">of</span> <span class="nx">watcher</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">i</span> <span class="o">+=</span> <span class="mf">1</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">i</span> <span class="o">&gt;</span> <span class="mf">5</span><span class="p">)</span> <span class="k">break</span><span class="p">;</span>
+    <span class="nx">insertIntoTypeScriptBuffer</span><span class="p">(</span><span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">event</span><span class="p">));</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="nx">watch</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span>
+</code></pre></div>
+<p>This example is built to only record 5 events prior to ending itself. You can write whatever logic you would like for ending your filewatcher.</p>
+<p>running <code>touch foo.ts</code> in your current directory should yield something like the following in the "TypeScript Filewatching" buffer</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span><span class="nt">&quot;kind&quot;</span><span class="p">:</span><span class="s2">&quot;create&quot;</span><span class="p">,</span><span class="nt">&quot;paths&quot;</span><span class="p">:[</span><span class="s2">&quot;/home/user/./foo.ts&quot;</span><span class="p">]}</span>
+<span class="p">{</span><span class="nt">&quot;kind&quot;</span><span class="p">:</span><span class="s2">&quot;modify&quot;</span><span class="p">,</span><span class="nt">&quot;paths&quot;</span><span class="p">:[</span><span class="s2">&quot;/home/user/./foo.ts&quot;</span><span class="p">]}</span>
+<span class="p">{</span><span class="nt">&quot;kind&quot;</span><span class="p">:</span><span class="s2">&quot;access&quot;</span><span class="p">,</span><span class="nt">&quot;paths&quot;</span><span class="p">:[</span><span class="s2">&quot;/home/user/./foo.ts&quot;</span><span class="p">]}</span>
+</code></pre></div>
+<p><a href="https://deno.land/manual@v1.6.3/examples/file_system_events">Deno has further documentation on this</a>. Note that these events can differ per operating system.</p>
+<p>A few key take aways here - all of the TypeScript written above is executed on the Main elisp thread - there are no race conditions with lisp here. Even though the filewatcher is async, it calls back onto the mainthread when it has data. Multithreaded scripting is possible and will be covered later on.</p>
+<h2 id="modules">Modules<a class="headerlink" href="#modules" title="Permanent link">#</a></h2>
+<p>Now let's look at our tools for importing code. emacs-ng supports <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules">ES6 modules</a>. emacs-ng does not support node's <code>require</code> syntax. See the "Using Deno" section for more information on modules.</p>
+<p>Let's create a submodule for our main program. Create a file named "mod-sub.js":</p>
+<div class="highlight"><pre><span></span><code><span class="k">export</span> <span class="kd">function</span> <span class="nx">generateRandomNumber</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="mf">4</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Now in our main file, we can add the following to the top of our file:</p>
+<div class="highlight"><pre><span></span><code><span class="k">import</span> <span class="p">{</span> <span class="nx">generateRandomNumber</span> <span class="p">}</span> <span class="nx">from</span> <span class="s2">&quot;./mod-sub.js&quot;</span><span class="p">;</span>
+<span class="kr">declare</span> <span class="kd">var</span> <span class="nx">lisp</span>: <span class="kt">any</span><span class="p">;</span>
+
+<span class="nx">lisp</span><span class="p">.</span><span class="nx">print</span><span class="p">(</span><span class="nx">generateRandomNumber</span><span class="p">());</span>
+</code></pre></div>
+<p>Even though our module is TypeScript, we can still import plain old JavaScript.</p>
+<p>It's important to note that ES6 modules are supposed to be immutable. What does that mean? If we were to edit mod-js to include the following:</p>
+<div class="highlight"><pre><span></span><code><span class="k">export</span> <span class="kd">function</span> <span class="nx">generateRandomNumber</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="mf">4</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="nx">lisp</span><span class="p">.</span><span class="nx">print</span><span class="p">(</span><span class="nx">generateRandomNumber</span><span class="p">());</span>
+</code></pre></div>
+<p>We see that in addition to exporting a function, we execute code with side-effects (printing). Those side-effects only happen <em>once</em>. If I import mod-sub multiple times, I will only ever see "4" printed once. Another important note is that <strong>this rule does not apply to any toplevel module you execute</strong>. Meaning that if you call (eval-js-file "./basic.ts") multiple times, your code is executed every single time, however your dependencies are only executed once. This is by design.</p>
+<p>If you want to break this, you can append a number to your dependency and use so-called <em>dynamic importing</em>, like so:</p>
+<div class="highlight"><pre><span></span><code><span class="nx">declare</span> <span class="kd">var</span> <span class="nx">lisp</span><span class="o">:</span> <span class="nx">any</span><span class="p">;</span>
+
+<span class="kd">let</span> <span class="nx">timestamp</span><span class="o">:</span> <span class="nx">number</span> <span class="o">=</span> <span class="nb">Date</span><span class="p">.</span><span class="nx">now</span><span class="p">();</span>
+<span class="kd">const</span> <span class="p">{</span> <span class="nx">generateRandomNumber</span> <span class="p">}</span> <span class="o">=</span> <span class="k">await</span> <span class="k">import</span><span class="p">(</span><span class="sb">`./mod-sub.js#</span><span class="si">${</span><span class="nx">timestamp</span><span class="si">}</span><span class="sb">`</span><span class="p">);</span>
+
+<span class="nx">lisp</span><span class="p">.</span><span class="nx">print</span><span class="p">(</span><span class="nx">generateRandomNumber</span><span class="p">());</span>
+</code></pre></div>
+<p>This can be useful if you are a module developer and you want to iterate on your modules within emacs-ng. It is recommended that you do not ship your modules using this pattern, as it will not cache results properly and lead to a susoptimal user experience. Your imports should aim to not have side effects, and instead should only export functions or variables to be used by your main module.</p>
+<p>The intended use of <em>Dynamic Importing</em> is to allow you to have condition imports, like so:</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="p">(</span><span class="nx">myCondition</span><span class="p">)</span> <span class="p">{</span>
+     <span class="kd">const</span> <span class="p">{</span> <span class="nx">func</span> <span class="p">}</span> <span class="o">=</span> <span class="k">await</span> <span class="k">import</span><span class="p">(</span><span class="s1">&#39;example-mod.js&#39;</span><span class="p">);</span>
+     <span class="nx">func</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="lisp-interaction">Lisp Interaction<a class="headerlink" href="#lisp-interaction" title="Permanent link">#</a></h2>
+<p>The lisp object is magic - it has (almost) all lisp functions defined on it, including any functions defined in your custom packages. If you can invoke it via <code>(funcall ....)</code>, you can call it via the lisp object if you change <code>-</code> for <code>_</code>. For example:</p>
+<div class="highlight"><pre><span></span><code>(with-current-buffer (get-buffer-create &quot;BUFFER&quot;) (lambda () (insert &quot;DATA&quot;)))
+</code></pre></div>
+<p>becomes</p>
+<div class="highlight"><pre><span></span><code><span class="nx">lisp</span><span class="p">.</span><span class="nx">with_current_buffer</span><span class="p">(</span><span class="nx">lisp</span><span class="p">.</span><span class="nx">get_buffer_create</span><span class="p">(</span><span class="s2">&quot;BUFFER&quot;</span><span class="p">),</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">insert</span><span class="p">(</span><span class="s2">&quot;DATA&quot;</span><span class="p">));</span>
+</code></pre></div>
+<p>We have implementations of common macros like <code>with-current-buffer</code>. If you find that a certain common macro doesn't work, you can report it to the project's maintainers and they will implement it, however what they are doing isn't magic - they are just calling eval on your whatever macro you want to invoke from JavaScript.</p>
+<div class="highlight"><pre><span></span><code><span class="nx">lisp</span><span class="p">.</span><span class="nb">eval</span><span class="p">(</span><span class="nx">lisp</span><span class="p">.</span><span class="nx">list</span><span class="p">(</span><span class="nx">lisp</span><span class="p">.</span><span class="nx">symbols</span><span class="p">.</span><span class="nx">with_current_buffer</span><span class="p">,</span> <span class="nx">arg1</span><span class="p">,</span> <span class="nx">arg2</span><span class="p">));</span>
+</code></pre></div>
+<p>You can override the behavior of the lisp object via the special object <code>specialForms</code>, which looks like</p>
+<div class="highlight"><pre><span></span><code><span class="nx">lisp</span><span class="p">.</span><span class="nx">specialForms</span><span class="p">.</span><span class="nx">with_current_buffer</span> <span class="o">=</span> <span class="nx">myWithCurrentBufferFunction</span><span class="p">;</span>
+</code></pre></div>
+<p>This overrides JavaScript's implementation of with_current_buffer without touching lisp's implementation. Let's discuss working with lisp more:</p>
+<h2 id="lisp-primitives">Lisp Primitives<a class="headerlink" href="#lisp-primitives" title="Permanent link">#</a></h2>
+<p>Primitives (Number, String, Boolean) are automatically translated when calling lisp functions</p>
+<div class="highlight"><pre><span></span><code><span class="nx">lisp</span><span class="p">.</span><span class="nx">my_function</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2</span><span class="p">,</span> <span class="s2">&quot;MYSTRING&quot;</span><span class="p">,</span> <span class="kc">false</span><span class="p">)</span>
+</code></pre></div>
+<p>If you need to access a symbol or keyword, you will use the symbol keyword objects</p>
+<div class="highlight"><pre><span></span><code><span class="kd">const</span> <span class="nx">mySymbol</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">symbols</span><span class="p">.</span><span class="nx">foo</span><span class="p">;</span> <span class="c1">// foo</span>
+<span class="kd">const</span> <span class="nx">myKeyword</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">keywords</span><span class="p">.</span><span class="nx">foo</span><span class="p">;</span> <span class="c1">// :foo</span>
+</code></pre></div>
+<p>You can create more complex objects via the <code>make</code> object</p>
+<div class="highlight"><pre><span></span><code><span class="kd">const</span> <span class="nx">hashtable</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">make</span><span class="p">.</span><span class="nx">hashtable</span><span class="p">({</span><span class="nx">x</span>: <span class="kt">3</span><span class="p">,</span> <span class="nx">y</span>: <span class="kt">4</span><span class="p">});</span>
+<span class="kd">const</span> <span class="nx">alist</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">make</span><span class="p">.</span><span class="nx">alist</span><span class="p">({</span><span class="nx">x</span>: <span class="kt">lisp.symbols.bar</span><span class="p">,</span> <span class="nx">y</span><span class="o">:</span> <span class="s2">&quot;String&quot;</span><span class="p">});</span>
+<span class="kd">const</span> <span class="nx">plist</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">make</span><span class="p">.</span><span class="nx">plist</span><span class="p">({</span><span class="nx">zz</span>: <span class="kt">19</span><span class="p">,</span> <span class="nx">zx</span>: <span class="kt">false</span><span class="p">});</span>
+
+<span class="kd">const</span> <span class="nx">array</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">make</span><span class="p">.</span><span class="nx">array</span><span class="p">([</span><span class="mf">1</span><span class="p">,</span> <span class="mf">2</span><span class="p">,</span> <span class="mf">3</span><span class="p">,</span> <span class="mf">4</span><span class="p">,</span> <span class="mf">5</span><span class="p">]);</span>
+<span class="kd">const</span> <span class="nx">list</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">make</span><span class="p">.</span><span class="nx">list</span><span class="p">([</span><span class="mf">1</span><span class="p">,</span> <span class="mf">5</span><span class="p">,</span> <span class="s2">&quot;String&quot;</span><span class="p">,</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">symbols</span><span class="p">.</span><span class="nx">x</span><span class="p">]);</span>
+<span class="kd">const</span> <span class="nx">lstring</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">make</span><span class="p">.</span><span class="kt">string</span><span class="p">(</span><span class="s2">&quot;MyString&quot;</span><span class="p">);</span>
+</code></pre></div>
+<h3 id="errors">Errors<a class="headerlink" href="#errors" title="Permanent link">#</a></h3>
+<p>If a lisp function would trigger <code>(error ...)</code> in lisp, it will throw an error in javascript. An example:</p>
+<div class="highlight"><pre><span></span><code><span class="k">try</span> <span class="p">{</span>
+    <span class="nx">lisp</span><span class="p">.</span><span class="nx">cons</span><span class="p">();</span> <span class="c1">// No arguments</span>
+<span class="p">}</span> <span class="k">catch</span> <span class="p">(</span><span class="nx">e</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">lisp</span><span class="p">.</span><span class="nx">print</span><span class="p">(</span><span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">e</span><span class="p">));</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="defining-lisp-functions">Defining Lisp Functions<a class="headerlink" href="#defining-lisp-functions" title="Permanent link">#</a></h2>
+<p>We can also define functions that can be called via lisp. We will use <code>defun</code> to accomplish this:</p>
+<div class="highlight"><pre><span></span><code><span class="kr">declare</span> <span class="kd">var</span> <span class="nx">lisp</span>: <span class="kt">any</span><span class="p">;</span>
+
+<span class="kd">const</span> <span class="nx">insertIntoTypeScriptBuffer</span> <span class="o">=</span> <span class="p">(</span><span class="nx">str</span>: <span class="kt">string</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="kd">const</span> <span class="nx">buffer</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">get_buffer_create</span><span class="p">(</span><span class="s2">&quot;TypeScript Filewatching&quot;</span><span class="p">);</span>
+      <span class="nx">lisp</span><span class="p">.</span><span class="nx">with_current_buffer</span><span class="p">(</span><span class="nx">buffer</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">insert</span><span class="p">(</span><span class="nx">str</span><span class="p">));</span>
+<span class="p">};</span>
+
+<span class="nx">lisp</span><span class="p">.</span><span class="nx">defun</span><span class="p">({</span>
+    <span class="nx">name</span><span class="o">:</span> <span class="s2">&quot;my-function&quot;</span><span class="p">,</span>
+    <span class="nx">docString</span><span class="o">:</span> <span class="s2">&quot;My Example Function&quot;</span><span class="p">,</span>
+    <span class="nx">interactive</span>: <span class="kt">true</span><span class="p">,</span>
+    <span class="nx">args</span><span class="o">:</span> <span class="s2">&quot;MInput&quot;</span><span class="p">,</span>
+    <span class="nx">func</span><span class="o">:</span> <span class="p">(</span><span class="nx">str</span>: <span class="kt">string</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">insertIntoTypeScriptBuffer</span><span class="p">(</span><span class="nx">str</span><span class="p">)</span>
+<span class="p">});</span>
+</code></pre></div>
+<p>This defines a lisp function named <code>my-function</code>. We can call this function from lisp <code>(my-function STRING)</code>, in JavaScript via <code>lisp.my_function(STRING)</code>, or call it interactively. That means that within the editor if we press M-x and type "my-function", we can invoke the function. It will then perform our JavaScript action, which is to insert whatever text we enter into our TypeScript Buffer.</p>
+<h2 id="conclusion">Conclusion<a class="headerlink" href="#conclusion" title="Permanent link">#</a></h2>
+<p>This covers the basic of calling lisp functions and I/O using Deno. Together using these tools you can already build powerful apps, or allow emacs-ng to perform actions. In our next series we will cover more advanced topics like Threading and WebASM.</p>
+                
+                  
+                    
+
+<hr>
+<div class="md-source-date">
+  <small>
+    
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">March 13, 2021</span>
+    
+  </small>
+</div>
+                  
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <nav class="md-footer__inner md-grid" aria-label="Footer">
+      
+        <a href="../adv-features/" class="md-footer__link md-footer__link--prev" rel="prev">
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+          </div>
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              Advanced features
+            </div>
+          </div>
+        </a>
+      
+      
+        <a href="../using-deno/" class="md-footer__link md-footer__link--next" rel="next">
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              Using Deno
+            </div>
+          </div>
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"/></svg>
+          </div>
+        </a>
+      
+    </nav>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        Made with
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs
+        </a>
+        
+      </div>
+      
+  <div class="md-footer-social">
+    
+      
+      
+        
+        
+      
+      <a href="https://github.com/emacs-ng/emacs-ng" target="_blank" rel="noopener" title="github.com" class="md-footer-social__link">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 512"><path d="M186.1 328.7c0 20.9-10.9 55.1-36.7 55.1s-36.7-34.2-36.7-55.1 10.9-55.1 36.7-55.1 36.7 34.2 36.7 55.1zM480 278.2c0 31.9-3.2 65.7-17.5 95-37.9 76.6-142.1 74.8-216.7 74.8-75.8 0-186.2 2.7-225.6-74.8-14.6-29-20.2-63.1-20.2-95 0-41.9 13.9-81.5 41.5-113.6-5.2-15.8-7.7-32.4-7.7-48.8 0-21.5 4.9-32.3 14.6-51.8 45.3 0 74.3 9 108.8 36 29-6.9 58.8-10 88.7-10 27 0 54.2 2.9 80.4 9.2 34-26.7 63-35.2 107.8-35.2 9.8 19.5 14.6 30.3 14.6 51.8 0 16.4-2.6 32.7-7.7 48.2 27.5 32.4 39 72.3 39 114.2zm-64.3 50.5c0-43.9-26.7-82.6-73.5-82.6-18.9 0-37 3.4-56 6-14.9 2.3-29.8 3.2-45.1 3.2-15.2 0-30.1-.9-45.1-3.2-18.7-2.6-37-6-56-6-46.8 0-73.5 38.7-73.5 82.6 0 87.8 80.4 101.3 150.4 101.3h48.2c70.3 0 150.6-13.4 150.6-101.3zm-82.6-55.1c-25.8 0-36.7 34.2-36.7 55.1s10.9 55.1 36.7 55.1 36.7-34.2 36.7-55.1-10.9-55.1-36.7-55.1z"/></svg>
+      </a>
+    
+  </div>
+
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs"], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing"}, "search": "../assets/javascripts/workers/search.fb4a9340.min.js", "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.5cf3e710.min.js"></script>
+      
+    
+  </body>
+</html>
