@@ -14,7 +14,7 @@ jobs:
 
       - name: Generate docs 
         run: |
-          cp -rf README.md docs
+          cp -rf images README.md docs
           docker login docker.pkg.github.com --username $GITHUB_ACTOR --password ${{ secrets.GITHUB_TOKEN }}
           docker run --rm -v ${PWD}:/docs docker.pkg.github.com/emacs-ng/docs-image/docs-image -- build
       - name: Deploy
