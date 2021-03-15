@@ -133,6 +133,7 @@ typedef struct ns_bitmap_record Bitmap_Record;
 typedef struct wr_bitmap_record Bitmap_Record;
 
 #define GET_PIXEL(ximg, x, y) wr_get_pixel(ximg, x, y)
+#define PUT_PIXEL(ximg, x, y, pixel) wr_put_pixel(ximg, x, y, pixel)
 #define NO_PIXMAP 0
 
 #define PIX_MASK_RETAIN	0

@@ -131,6 +131,7 @@ extern Display *wr_get_display(wr_display_info* output);
 extern Screen wr_get_screen(wr_display_info* output);
 extern int wr_get_baseline_offset(wr_output* output);
 extern int wr_get_pixel(WRImage *ximg, int x, int y);
+extern int wr_put_pixel(WRImage *ximg, int x, int y, unsigned long pixel);
 
 /* This is the `Display *' which frame F is on.  */
 #define FRAME_X_DISPLAY(f) (wr_get_display(FRAME_DISPLAY_INFO (f)))
