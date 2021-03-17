@@ -34,7 +34,7 @@ This is an introduction for building applications and hacking on emacs-ng using 
     Mojave install libxml2 headers with: `open /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg`
 
 
-If you want to run doomemacs, you will need to compile with `./configure --with-nativecomp`. nativecomp will also require `zlib1g-dev libgccjit-8-dev`
+If you want to run doomemacs, you will need to compile with `./configure --with-nativecomp`. nativecomp will also require `zlib1g-dev libgccjit-9-dev`
 
 
 ## Building
