@@ -41,6 +41,7 @@
 (require 'shell)
 (require 'subr-x)
 
+(declare-function tramp-error "tramp")
 ;; `temporary-file-directory' as function is introduced with Emacs 26.1.
 (declare-function tramp-handle-temporary-file-directory "tramp")
 (declare-function tramp-tramp-file-p "tramp")
@@ -69,7 +70,7 @@
 It is the default value of `temporary-file-directory'."
   ;; We must return a local directory.  If it is remote, we could run
   ;; into an infloop.
-  (eval (car (get 'temporary-file-directory 'standard-value))))
+  (eval (car (get 'temporary-file-directory 'standard-value)) t))
 
 (defsubst tramp-compat-make-temp-name ()
   "Generate a local temporary file name (compat function)."
@@ -177,6 +178,12 @@ This is a string of ten letters or dashes as in ls -l."
 (defconst tramp-file-missing
   (if (get 'file-missing 'error-conditions) 'file-missing 'file-error)
   "The error symbol for the `file-missing' error.")
+
+(defsubst tramp-compat-file-missing (vec file)
+  "Emit the `file-missing' error."
+  (if (get 'file-missing 'error-conditions)
+      (tramp-error vec tramp-file-missing file)
+    (tramp-error vec tramp-file-missing "No such file or directory: %s" file)))
 
 ;; `file-local-name', `file-name-quoted-p', `file-name-quote' and
 ;; `file-name-unquote' are introduced in Emacs 26.1.

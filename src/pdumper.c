@@ -121,6 +121,9 @@ static const char dump_magic[16] = {
 static pdumper_hook dump_hooks[24];
 static int nr_dump_hooks = 0;
 
+static pdumper_hook dump_late_hooks[24];
+static int nr_dump_late_hooks = 0;
+
 static struct
 {
   void *mem;
@@ -2709,7 +2712,7 @@ dump_hash_table (struct dump_context *ctx,
 static dump_off
 dump_buffer (struct dump_context *ctx, const struct buffer *in_buffer)
 {
-#if CHECK_STRUCTS && !defined HASH_buffer_99D642C1CB
+#if CHECK_STRUCTS && !defined HASH_buffer_F8FE65D42F
 # error "buffer changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct buffer munged_buffer = *in_buffer;
@@ -2720,6 +2723,7 @@ dump_buffer (struct dump_context *ctx, const struct buffer *in_buffer)
     buffer->window_count = 0;
   else
     eassert (buffer->window_count == -1);
+  buffer->local_minor_modes_ = Qnil;
   buffer->last_selected_window_ = Qnil;
   buffer->display_count_ = make_fixnum (0);
   buffer->clip_changed = 0;
@@ -3244,6 +3248,12 @@ dump_metadata_for_pdumper (struct dump_context *ctx)
     dump_emacs_reloc_to_emacs_ptr_raw (ctx, &dump_hooks[i],
 				       (void const *) dump_hooks[i]);
   dump_emacs_reloc_immediate_int (ctx, &nr_dump_hooks, nr_dump_hooks);
+
+  for (int i = 0; i < nr_dump_late_hooks; ++i)
+    dump_emacs_reloc_to_emacs_ptr_raw (ctx, &dump_late_hooks[i],
+				       (void const *) dump_late_hooks[i]);
+  dump_emacs_reloc_immediate_int (ctx, &nr_dump_late_hooks,
+				  nr_dump_late_hooks);
 
   for (int i = 0; i < nr_remembered_data; ++i)
     {
@@ -4316,6 +4326,15 @@ pdumper_do_now_and_after_load_impl (pdumper_hook hook)
   hook ();
 }
 
+void
+pdumper_do_now_and_after_late_load_impl (pdumper_hook hook)
+{
+  if (nr_dump_late_hooks == ARRAYELTS (dump_late_hooks))
+    fatal ("out of dump hooks: make dump_late_hooks[] bigger");
+  dump_late_hooks[nr_dump_late_hooks++] = hook;
+  hook ();
+}
+
 static void
 pdumper_remember_user_data_1 (void *mem, int nbytes)
 {
@@ -5261,10 +5280,10 @@ dump_do_dump_relocation (const uintptr_t dump_base,
 	/* Check just once if this is a local build or Emacs was installed.  */
 	if (installation_state == UNKNOWN)
 	  {
-	    char *fname = SSDATA (concat2 (Vinvocation_directory,
-					   XCAR (comp_u->file)));
+	    Lisp_Object fname =
+	      concat2 (Vinvocation_directory, XCAR (comp_u->file));
 	    FILE *file;
-	    if ((file = fopen (fname, "r")))
+	    if ((file = emacs_fopen (SSDATA (ENCODE_FILE (fname)), "r")))
 	      {
 		fclose (file);
 		installation_state = INSTALLED;
@@ -5460,7 +5479,7 @@ pdumper_load (const char *dump_filename, char *argv0, char const *original_pwd)
   eassert (!dump_loaded_p ());
 
   int err;
-  int dump_fd = emacs_open (dump_filename, O_RDONLY, 0);
+  int dump_fd = emacs_open_noquit (dump_filename, O_RDONLY, 0);
   if (dump_fd < 0)
     {
       err = (errno == ENOENT || errno == ENOTDIR
@@ -5597,6 +5616,12 @@ pdumper_load (const char *dump_filename, char *argv0, char const *original_pwd)
 
   dump_do_all_dump_reloc_for_phase (header, dump_base, LATE_RELOCS);
   dump_do_all_dump_reloc_for_phase (header, dump_base, VERY_LATE_RELOCS);
+
+  /* Run the functions Emacs registered for doing post-dump-load
+     initialization.  */
+  for (int i = 0; i < nr_dump_late_hooks; ++i)
+    dump_late_hooks[i] ();
+
   initialized = true;
 
   struct timespec load_timespec =

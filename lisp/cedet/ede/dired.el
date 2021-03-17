@@ -1,4 +1,4 @@
-;;; ede/dired.el --- EDE extensions to dired.
+;;; ede/dired.el --- EDE extensions to dired.  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1998-2000, 2003, 2009-2021 Free Software Foundation,
 ;; Inc.
@@ -30,7 +30,6 @@
 
 ;;; Code:
 
-(require 'easymenu)
 (require 'dired)
 (require 'ede)
 

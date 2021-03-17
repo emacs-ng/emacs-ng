@@ -1037,10 +1037,9 @@ Should never be set permanently.")
 (defvar ido-completion-map nil
   "Currently active keymap for Ido commands.")
 
-(defvar ido-eoinput 1
+(defvar-local ido-eoinput 1
   "Point where minibuffer input ends and completion info begins.
 Copied from `icomplete-eoinput'.")
-(make-variable-buffer-local 'ido-eoinput)
 
 (defvar ido-common-match-string  nil
   "Stores the string that is common to all matching files.")
@@ -1747,7 +1746,7 @@ is enabled then some keybindings are changed in the keymap."
 		       ido-max-file-prompt-width))
 	  (literal (and (boundp 'ido-find-literal) ido-find-literal "(literal) "))
 	  (vc-off (and ido-saved-vc-hb (not vc-handled-backends) "[-VC] "))
-	  (prefix nil)
+	  ;; (prefix nil)
 	  (rule ido-rewrite-file-prompt-rules))
       (let ((case-fold-search nil))
 	(while rule
@@ -1763,7 +1762,7 @@ is enabled then some keybindings are changed in the keymap."
 	      ; (if ido-process-ignore-lists "" "&")
 	      (or literal "")
 	      (or vc-off  "")
-	      (or prefix "")
+	      ;; (or prefix "")
 	      (let ((l (length dirname)))
 		(if (and max-width (> max-width 0) (> l max-width))
 		    (let* ((s (substring dirname (- max-width)))

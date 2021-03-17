@@ -1,4 +1,4 @@
-;;; robin.el --- yet another input method (smaller than quail)
+;;; robin.el --- yet another input method (smaller than quail)  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -371,14 +371,12 @@ Internal use only."
 
 ;;; Interactive use
 
-(defvar robin-mode nil
+(defvar-local robin-mode nil
   "If non-nil, `robin-input-method' is active.")
-(make-variable-buffer-local 'robin-mode)
 
-(defvar robin-current-package-name nil
+(defvar-local robin-current-package-name nil
   "String representing the name of the current robin package.
 A nil value means no package is selected.")
-(make-variable-buffer-local 'robin-current-package-name)
 
 ;;;###autoload
 (defun robin-use-package (name)

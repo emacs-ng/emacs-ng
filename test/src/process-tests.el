@@ -28,6 +28,7 @@
 (require 'puny)
 (require 'rx)
 (require 'subr-x)
+(require 'dns)
 
 ;; Timeout in seconds; the test fails if the timeout is reached.
 (defvar process-test-sentinel-wait-timeout 2.0)
@@ -347,47 +348,65 @@ See Bug#30460."
                                                   invocation-directory))
                  :stop t))))
 
-;; All the following tests require working DNS, which appears not to
-;; be the case for hydra.nixos.org, so disable them there for now.
+;; The following tests require working DNS
+
+;; This will need updating when IANA assign more IPv6 global ranges.
+(defun ipv6-is-available ()
+  (and (featurep 'make-network-process '(:family ipv6))
+       (cl-rassoc-if
+        (lambda (elt)
+          (and (eq 9 (length elt))
+               (= (logand (aref elt 0) #xe000) #x2000)))
+        (network-interface-list))))
+
+;; Check if the Internet seems to be working.  Mainly to pacify
+;; Debian's CI system.
+(defvar internet-is-working
+  (progn
+    (require 'dns)
+    (dns-query "google.com")))
 
 (ert-deftest lookup-family-specification ()
   "`network-lookup-address-info' should only accept valid family symbols."
-  (skip-unless (not (getenv "EMACS_HYDRA_CI")))
+  (skip-unless internet-is-working)
   (with-timeout (60 (ert-fail "Test timed out"))
-  (should-error (network-lookup-address-info "google.com" 'both))
-  (should (network-lookup-address-info "google.com" 'ipv4))
-  (when (featurep 'make-network-process '(:family ipv6))
-    (should (network-lookup-address-info "google.com" 'ipv6)))))
+  (should-error (network-lookup-address-info "localhost" 'both))
+  (should (network-lookup-address-info "localhost" 'ipv4))
+  (when (ipv6-is-available)
+    (should (network-lookup-address-info "localhost" 'ipv6)))))
 
 (ert-deftest lookup-unicode-domains ()
   "Unicode domains should fail."
-  (skip-unless (not (getenv "EMACS_HYDRA_CI")))
+  (skip-unless internet-is-working)
   (with-timeout (60 (ert-fail "Test timed out"))
   (should-error (network-lookup-address-info "faß.de"))
   (should (network-lookup-address-info (puny-encode-domain "faß.de")))))
 
 (ert-deftest unibyte-domain-name ()
   "Unibyte domain names should work."
-  (skip-unless (not (getenv "EMACS_HYDRA_CI")))
+  (skip-unless internet-is-working)
   (with-timeout (60 (ert-fail "Test timed out"))
   (should (network-lookup-address-info (string-to-unibyte "google.com")))))
 
 (ert-deftest lookup-google ()
   "Check that we can look up google IP addresses."
-  (skip-unless (not (getenv "EMACS_HYDRA_CI")))
+  (skip-unless internet-is-working)
   (with-timeout (60 (ert-fail "Test timed out"))
   (let ((addresses-both (network-lookup-address-info "google.com"))
         (addresses-v4 (network-lookup-address-info "google.com" 'ipv4)))
     (should addresses-both)
     (should addresses-v4))
-  (when (featurep 'make-network-process '(:family ipv6))
+  (when (and (ipv6-is-available)
+             (dns-query "google.com" 'AAAA))
     (should (network-lookup-address-info "google.com" 'ipv6)))))
 
 (ert-deftest non-existent-lookup-failure ()
   "Check that looking up non-existent domain returns nil."
-  (skip-unless (not (getenv "EMACS_HYDRA_CI")))
+  (skip-unless internet-is-working)
   (with-timeout (60 (ert-fail "Test timed out"))
   (should (eq nil (network-lookup-address-info "emacs.invalid")))))
+
+;; End of tests requiring DNS
 
 (defmacro process-tests--ignore-EMFILE (&rest body)
   "Evaluate BODY, ignoring EMFILE errors."
@@ -722,6 +741,179 @@ Return nil if that can't be determined."
                                     (+ blank) (group (+ nonl))))
                 (match-string-no-properties 1))))))
   process-tests--EMFILE-message)
+
+(ert-deftest process-tests/sentinel-called ()
+  "Check that sentinels are called after processes finish"
+  (let ((command (process-tests--emacs-command)))
+    (skip-unless command)
+    (dolist (conn-type '(pipe pty))
+      (ert-info ((format "Connection type: %s" conn-type))
+        (process-tests--with-processes processes
+          (let* ((calls ())
+                 (process (make-process
+                           :name "echo"
+                           :command (process-tests--eval
+                                     command '(print "first"))
+                           :noquery t
+                           :connection-type conn-type
+                           :coding 'utf-8-unix
+                           :sentinel (lambda (process message)
+                                       (push (list process message)
+                                             calls)))))
+            (push process processes)
+            (while (accept-process-output process))
+            (should (equal calls
+                           (list (list process "finished\n"))))))))))
+
+(ert-deftest process-tests/sentinel-with-multiple-processes ()
+  "Check that sentinels are called in time even when other processes
+have written output."
+  (let ((command (process-tests--emacs-command)))
+    (skip-unless command)
+    (dolist (conn-type '(pipe pty))
+      (ert-info ((format "Connection type: %s" conn-type))
+        (process-tests--with-processes processes
+          (let* ((calls ())
+                 (process (make-process
+                           :name "echo"
+                           :command (process-tests--eval
+                                     command '(print "first"))
+                           :noquery t
+                           :connection-type conn-type
+                           :coding 'utf-8-unix
+                           :sentinel (lambda (process message)
+                                       (push (list process message)
+                                             calls)))))
+            (push process processes)
+            (push (make-process
+                   :name "bash"
+                   :command (process-tests--eval
+                             command
+                             '(progn (sleep-for 10) (print "second")))
+                   :noquery t
+                   :connection-type conn-type)
+                  processes)
+            (while (accept-process-output process))
+            (should (equal calls
+                           (list (list process "finished\n"))))))))))
+
+(ert-deftest process-tests/multiple-threads-waiting ()
+  (skip-unless (fboundp 'make-thread))
+  (with-timeout (60 (ert-fail "Test timed out"))
+    (process-tests--with-processes processes
+      (let ((threads ())
+            (cat (executable-find "cat")))
+        (skip-unless cat)
+        (dotimes (i 10)
+          (let* ((name (format "test %d" i))
+                 (process (make-process :name name
+                                        :command (list cat)
+                                        :coding 'no-conversion
+                                        :noquery t
+                                        :connection-type 'pipe)))
+            (push process processes)
+            (set-process-thread process nil)
+            (push (make-thread
+                   (lambda ()
+                     (while (accept-process-output process)))
+                   name)
+                  threads)))
+        (mapc #'process-send-eof processes)
+        (cl-loop for process in processes
+                 and thread in threads
+                 do
+                 (should-not (thread-join thread))
+                 (should-not (thread-last-error))
+                 (should (eq (process-status process) 'exit))
+                 (should (eql (process-exit-status process) 0)))))))
+
+(defun process-tests--eval (command form)
+  "Return a command that evaluates FORM in an Emacs subprocess.
+COMMAND must be a list returned by
+`process-tests--emacs-command'."
+  (let ((print-gensym t)
+        (print-circle t)
+        (print-length nil)
+        (print-level nil)
+        (print-escape-control-characters t)
+        (print-escape-newlines t)
+        (print-escape-multibyte t)
+        (print-escape-nonascii t))
+    `(,@command "--quick" "--batch" ,(format "--eval=%S" form))))
+
+(defun process-tests--emacs-command ()
+  "Return a command to reinvoke the current Emacs instance.
+Return nil if that doesn't appear to be possible."
+  (when-let ((binary (process-tests--emacs-binary))
+             (dump (process-tests--dump-file)))
+    (cons binary
+          (unless (eq dump :not-needed)
+            (list (concat "--dump-file="
+                          (file-name-unquote dump)))))))
+
+(defun process-tests--emacs-binary ()
+  "Return the filename of the currently running Emacs binary.
+Return nil if that can't be determined."
+  (and (stringp invocation-name)
+       (not (file-remote-p invocation-name))
+       (not (file-name-absolute-p invocation-name))
+       (stringp invocation-directory)
+       (not (file-remote-p invocation-directory))
+       (file-name-absolute-p invocation-directory)
+       (when-let ((file (process-tests--usable-file-for-reinvoke
+                         (expand-file-name invocation-name
+                                           invocation-directory))))
+         (and (file-executable-p file) file))))
+
+(defun process-tests--dump-file ()
+  "Return the filename of the dump file used to start Emacs.
+Return nil if that can't be determined.  Return `:not-needed' if
+Emacs wasn't started with a dump file."
+  (if-let ((stats (and (fboundp 'pdumper-stats) (pdumper-stats))))
+      (when-let ((file (process-tests--usable-file-for-reinvoke
+                        (cdr (assq 'dump-file-name stats)))))
+        (and (file-readable-p file) file))
+    :not-needed))
+
+(defun process-tests--usable-file-for-reinvoke (filename)
+  "Return a version of FILENAME that can be used to reinvoke Emacs.
+Return nil if FILENAME doesn't exist."
+  (when (and (stringp filename)
+             (not (file-remote-p filename)))
+    (cl-callf file-truename filename)
+    (and (stringp filename)
+         (not (file-remote-p filename))
+         (file-name-absolute-p filename)
+         (file-regular-p filename)
+         filename)))
+
+;; Bug#46284
+(ert-deftest process-sentinel-interrupt-event ()
+  "Test that interrupting a process on Windows sends \"interrupt\" to sentinel."
+  (skip-unless (eq system-type 'windows-nt))
+  (with-temp-buffer
+    (let* ((proc-buf (current-buffer))
+	   ;; Start a new emacs process to wait idly until interrupted.
+	   (cmd "emacs -batch --eval=\"(sit-for 50000)\"")
+	   (proc (start-file-process-shell-command
+                  "test/process-sentinel-signal-event" proc-buf cmd))
+	   (events '()))
+
+      ;; Capture any incoming events.
+      (set-process-sentinel proc
+                            (lambda (_prc event)
+			      (push event events)))
+      ;; Wait for the process to start.
+      (sleep-for 2)
+      (should (equal 'run (process-status proc)))
+      ;; Interrupt the sub-process and wait for it to die.
+      (interrupt-process proc)
+      (sleep-for 2)
+      ;; Should have received SIGINT...
+      (should (equal 'signal (process-status proc)))
+      (should (equal 2 (process-exit-status proc)))
+      ;; ...and the change description should be "interrupt".
+      (should (equal '("interrupt\n") events)))))
 
 (provide 'process-tests)
 ;;; process-tests.el ends here

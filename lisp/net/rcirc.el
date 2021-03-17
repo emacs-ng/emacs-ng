@@ -178,13 +178,11 @@ If nil, no maximum is applied."
   :type '(choice (const :tag "No maximum" nil)
                  (integer :tag "Number of characters")))
 
-(defvar rcirc-ignore-buffer-activity-flag nil
+(defvar-local rcirc-ignore-buffer-activity-flag nil
   "If non-nil, ignore activity in this buffer.")
-(make-variable-buffer-local 'rcirc-ignore-buffer-activity-flag)
 
-(defvar rcirc-low-priority-flag nil
+(defvar-local rcirc-low-priority-flag nil
   "If non-nil, activity in this buffer is considered low priority.")
-(make-variable-buffer-local 'rcirc-low-priority-flag)
 
 (defcustom rcirc-omit-responses
   '("JOIN" "PART" "QUIT" "NICK")
@@ -295,7 +293,7 @@ The following replacements are made:
 Setting this alone will not affect the prompt;
 use either M-x customize or also call `rcirc-update-prompt'."
   :type 'string
-  :set 'rcirc-set-changed
+  :set #'rcirc-set-changed
   :initialize 'custom-initialize-default)
 
 (defcustom rcirc-keywords nil
@@ -331,7 +329,8 @@ Called with 5 arguments, PROCESS, SENDER, RESPONSE, TARGET and TEXT."
   :type 'hook)
 
 (defvar rcirc-authenticated-hook nil
-  "Hook run after successfully authenticated.")
+  "Hook run after successfully authenticated.
+Functions in this hook are called with a single argument PROCESS.")
 
 (defcustom rcirc-always-use-server-buffer-flag nil
   "Non-nil means messages without a channel target will go to the server buffer."
@@ -1328,8 +1327,7 @@ Create the buffer if it doesn't exist."
 	  (rcirc-send-string process
 			     (concat command " :" args)))))))
 
-(defvar rcirc-parent-buffer nil)
-(make-variable-buffer-local 'rcirc-parent-buffer)
+(defvar-local rcirc-parent-buffer nil)
 (put 'rcirc-parent-buffer 'permanent-local t)
 (defvar rcirc-window-configuration nil)
 (defun rcirc-edit-multiline ()
@@ -1501,10 +1499,8 @@ is found by looking up RESPONSE in `rcirc-response-formats'."
 	  ((or (rcirc-get-buffer process target)
 	       (rcirc-any-buffer process))))))
 
-(defvar rcirc-activity-types nil)
-(make-variable-buffer-local 'rcirc-activity-types)
-(defvar rcirc-last-sender nil)
-(make-variable-buffer-local 'rcirc-last-sender)
+(defvar-local rcirc-activity-types nil)
+(defvar-local rcirc-last-sender nil)
 
 (defcustom rcirc-omit-threshold 100
   "Lines since last activity from a nick before `rcirc-omit-responses' are omitted."

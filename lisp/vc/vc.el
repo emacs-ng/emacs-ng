@@ -1425,6 +1425,7 @@ first backend that could register the file is used."
   (let ((vc-handled-backends (list backend)))
     (call-interactively 'vc-register)))
 
+;;;###autoload
 (defun vc-ignore (file &optional directory remove)
   "Ignore FILE under the VCS of DIRECTORY.
 
@@ -1549,6 +1550,9 @@ After check-out, runs the normal hook `vc-checkout-hook'."
 	  (vc-call-backend backend 'mark-resolved files)
 	  ;; FIXME: Is this TRTD?  Might not be.
 	  `((vc-state . edited)))
+    ;; Recompute mode lines.
+    (dolist (file files)
+      (vc-mode-line file backend))
     (message
      (substitute-command-keys
       "Conflicts have been resolved in %s.  \
@@ -1828,7 +1832,7 @@ Return t if the buffer had changes, nil otherwise."
          (backend (car vc-fileset))
          (first (car files))
          (rev1-default nil)
-         (rev2-default nil))
+         ) ;; (rev2-default nil)
     (cond
      ;; someday we may be able to do revision completion on non-singleton
      ;; filesets, but not yet.
@@ -1852,9 +1856,10 @@ Return t if the buffer had changes, nil otherwise."
                                     rev1-default "): ")
                           "Older revision: "))
            (rev2-prompt (concat "Newer revision (default "
-                                (or rev2-default "current source") "): "))
+                                ;; (or rev2-default
+                                "current source): "))
            (rev1 (vc-read-revision rev1-prompt files backend rev1-default))
-           (rev2 (vc-read-revision rev2-prompt files backend rev2-default)))
+           (rev2 (vc-read-revision rev2-prompt files backend nil))) ;; rev2-default
       (when (string= rev1 "") (setq rev1 nil))
       (when (string= rev2 "") (setq rev2 nil))
       (list files rev1 rev2))))
@@ -2392,6 +2397,7 @@ If it contains `file', show short logs for files.
 Not all VC backends support short logs!")
 
 (defvar log-view-vc-fileset)
+(defvar log-view-message-re)
 
 (defun vc-print-log-setup-buttons (working-revision is-start-revision limit pl-return)
   "Insert at the end of the current buffer buttons to show more log entries.
@@ -2401,21 +2407,32 @@ Does nothing if IS-START-REVISION is non-nil, or if LIMIT is nil,
 or if PL-RETURN is `limit-unsupported'."
   (when (and limit (not (eq 'limit-unsupported pl-return))
 	     (not is-start-revision))
-    (goto-char (point-max))
-    (insert "\n")
-    (insert-text-button "Show 2X entries"
-                        'action (lambda (&rest _ignore)
-                                  (vc-print-log-internal
-                                   log-view-vc-backend log-view-vc-fileset
-                                   working-revision nil (* 2 limit)))
-                        'help-echo "Show the log again, and double the number of log entries shown")
-    (insert "    ")
-    (insert-text-button "Show unlimited entries"
-                        'action (lambda (&rest _ignore)
-                                  (vc-print-log-internal
-                                   log-view-vc-backend log-view-vc-fileset
-                                   working-revision nil nil))
-                        'help-echo "Show the log again, including all entries")))
+    (let ((entries 0))
+      (goto-char (point-min))
+      (while (re-search-forward log-view-message-re nil t)
+        (cl-incf entries))
+      ;; If we got fewer entries than we asked for, then displaying
+      ;; the "more" buttons isn't useful.
+      (when (>= entries limit)
+        (goto-char (point-max))
+        (insert "\n")
+        (insert-text-button
+         "Show 2X entries"
+         'action (lambda (&rest _ignore)
+                   (vc-print-log-internal
+                    log-view-vc-backend log-view-vc-fileset
+                    working-revision nil (* 2 limit)))
+         'help-echo
+         "Show the log again, and double the number of log entries shown")
+        (insert "    ")
+        (insert-text-button
+         "Show unlimited entries"
+         'action (lambda (&rest _ignore)
+                   (vc-print-log-internal
+                    log-view-vc-backend log-view-vc-fileset
+                    working-revision nil nil))
+         'help-echo "Show the log again, including all entries")
+        (insert "\n")))))
 
 (defun vc-print-log-internal (backend files working-revision
                                       &optional is-start-revision limit type)

@@ -69,13 +69,7 @@
 ;; Recommended use
 ;; ===============
 
-;; Put this in your .emacs:
-;;   (autoload 'woman "woman"
-;;             "Decode and browse a UN*X man page." t)
-;;   (autoload 'woman-find-file "woman"
-;;             "Find, decode and browse a specific UN*X man-page file." t)
-
-;; Then either (1 -- *RECOMMENDED*): If the `MANPATH' environment
+;; Either (1 -- *RECOMMENDED*): If the `MANPATH' environment
 ;; variable is set then WoMan will use it; otherwise you may need to
 ;; reset the Lisp variable `woman-manpath', and you may also want to
 ;; set the Lisp variable `woman-path'.  Please see the online
@@ -139,14 +133,8 @@
 ;; ==============================
 
 ;; WoMan supports the GNU Emacs customization facility, and puts
-;; a customization group called `WoMan' in the `Help' group under the
-;; top-level `Emacs' group.  In order to be able to customize WoMan
-;; without first loading it, add the following sexp to your .emacs:
-
-;;  (defgroup woman nil
-;;     "Browse UNIX manual pages `wo (without) man'."
-;;     :tag "WoMan" :group 'help :load "woman")
-
+;; a customization group called `woman' in the `help' group under the
+;; top-level `emacs' group.
 
 ;; WoMan currently runs two hooks: `woman-pre-format-hook' immediately
 ;; before formatting a buffer and `woman-post-format-hook' immediately
@@ -1078,9 +1066,8 @@ Set by `.ns' request; reset by any output or `.rs' request")
   ;; Could end with "\\( +\\|$\\)" instead of " *"
   "Regexp to match a ?roff request plus trailing white space.")
 
-(defvar woman-imenu-done nil
+(defvar-local woman-imenu-done nil
   "Buffer-local: set to true if function `woman-imenu' has been called.")
-(make-variable-buffer-local 'woman-imenu-done)
 
 ;; From imenu.el -- needed when reformatting a file in its old buffer.
 ;; The latest buffer index used to update the menu bar menu.
@@ -1869,13 +1856,15 @@ Argument EVENT is the invoking mouse event."
 
 (defvar bookmark-make-record-function)
 
-(define-derived-mode woman-mode special-mode "WoMan"
+(define-derived-mode woman-mode man-common "WoMan"
   "Turn on (most of) Man mode to browse a buffer formatted by WoMan.
 WoMan is an ELisp emulation of much of the functionality of the Emacs
 `man' command running the standard UN*X man and ?roff programs.
 WoMan author: F.J.Wright@Maths.QMW.ac.uk
 See `Man-mode' for additional details.
 \\{woman-mode-map}"
+  ;; FIXME: Should all this just be re-arranged so that this can just
+  ;; inherit `man-common' and be done with it?
   (let ((Man-build-page-list (symbol-function 'Man-build-page-list))
 	(Man-strip-page-headers (symbol-function 'Man-strip-page-headers))
 	(Man-unindent (symbol-function 'Man-unindent))
@@ -2115,7 +2104,7 @@ No external programs are used."
   (interactive)				; mainly for testing
   (WoMan-log-begin)
   (run-hooks 'woman-pre-format-hook)
-  (and (boundp 'font-lock-mode) font-lock-mode (font-lock-mode -1))
+  (and font-lock-mode (font-lock-mode -1))
   ;; (fundamental-mode)
   (let ((start-time (current-time))
 	time)

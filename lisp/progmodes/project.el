@@ -1,8 +1,8 @@
 ;;; project.el --- Operations on the current project  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
-;; Version: 0.5.3
-;; Package-Requires: ((emacs "26.3") (xref "1.0.2"))
+;; Version: 0.5.4
+;; Package-Requires: ((emacs "26.1") (xref "1.0.2"))
 
 ;; This is a GNU ELPA :core package.  Avoid using functionality that
 ;; not compatible with the version of Emacs recorded above.
@@ -106,7 +106,7 @@
 ;;
 ;; - Write a new function that will determine the current project
 ;; based on the directory and add it to `project-find-functions'
-;; (which see) using `add-hook'. It is a good idea to depend on the
+;; (which see) using `add-hook'.  It is a good idea to depend on the
 ;; directory only, and not on the current major mode, for example.
 ;; Because the usual expectation is that all files in the directory
 ;; belong to the same project (even if some/most of them are ignored).
@@ -725,6 +725,7 @@ requires quoting, e.g. `\\[quoted-insert]<space>'."
   (require 'xref)
   (require 'grep)
   (let* ((pr (project-current t))
+         (default-directory (project-root pr))
          (files
           (if (not current-prefix-arg)
               (project-files pr)
@@ -756,6 +757,7 @@ pattern to search for."
   (interactive (list (project--read-regexp)))
   (require 'xref)
   (let* ((pr (project-current t))
+         (default-directory (project-root pr))
          (files
           (project-files pr (cons
                              (project-root pr)
@@ -773,7 +775,7 @@ pattern to search for."
     xrefs))
 
 (defun project--read-regexp ()
-  (let ((sym (thing-at-point 'symbol)))
+  (let ((sym (thing-at-point 'symbol t)))
     (read-regexp "Find regexp" (and sym (regexp-quote sym)))))
 
 ;;;###autoload
@@ -922,12 +924,13 @@ if one already exists."
                   "-eshell*"))
          (eshell-buffer (get-buffer eshell-buffer-name)))
     (if (and eshell-buffer (not current-prefix-arg))
-        (pop-to-buffer eshell-buffer)
+        (pop-to-buffer-same-window eshell-buffer)
       (eshell t))))
 
 ;;;###autoload
 (defun project-async-shell-command ()
   "Run `async-shell-command' in the current project's root directory."
+  (declare (interactive-only async-shell-command))
   (interactive)
   (let ((default-directory (project-root (project-current t))))
     (call-interactively #'async-shell-command)))
@@ -935,6 +938,7 @@ if one already exists."
 ;;;###autoload
 (defun project-shell-command ()
   "Run `shell-command' in the current project's root directory."
+  (declare (interactive-only shell-command))
   (interactive)
   (let ((default-directory (project-root (project-current t))))
     (call-interactively #'shell-command)))
@@ -970,20 +974,12 @@ loop using the command \\[fileloop-continue]."
 (declare-function compilation-read-command "compile")
 
 ;;;###autoload
-(defun project-compile (command &optional comint)
-  "Run `compile' in the project root.
-Arguments the same as in `compile'."
-  (interactive
-   (list
-    (let ((command (eval compile-command)))
-      (require 'compile)
-      (if (or compilation-read-command current-prefix-arg)
-	  (compilation-read-command command)
-	command))
-    (consp current-prefix-arg)))
-  (let* ((pr (project-current t))
-         (default-directory (project-root pr)))
-    (compile command comint)))
+(defun project-compile ()
+  "Run `compile' in the project root."
+  (declare (interactive-only compile))
+  (interactive)
+  (let ((default-directory (project-root (project-current t))))
+    (call-interactively #'compile)))
 
 (defun project--read-project-buffer ()
   (let* ((pr (project-current t))
@@ -1259,7 +1255,6 @@ It's also possible to enter an arbitrary directory not in the list."
 
 ;;; Project switching
 
-;;;###autoload
 (defcustom project-switch-commands
   '((project-find-file "Find file")
     (project-find-regexp "Find regexp")

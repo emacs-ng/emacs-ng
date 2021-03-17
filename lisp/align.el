@@ -424,7 +424,7 @@ The possible settings for `align-region-separate' are:
                       (backward-word 1)
                       (looking-at
                        "\\(goto\\|return\\|new\\|delete\\|throw\\)"))
-                    (if (and (boundp 'font-lock-mode) font-lock-mode)
+                    (if font-lock-mode
                         (eq (get-text-property (point) 'face)
                             'font-lock-comment-face)
                       (eq (caar (c-guess-basic-syntax)) 'c)))))))
@@ -775,17 +775,13 @@ See the documentation for `align-rules-list' for more info."
 
 ;;; Internal Variables:
 
-(defvar align-mode-rules-list nil
+(defvar-local align-mode-rules-list nil
   "Alignment rules specific to the current major mode.
 See the variable `align-rules-list' for more details.")
 
-(make-variable-buffer-local 'align-mode-rules-list)
-
-(defvar align-mode-exclude-rules-list nil
+(defvar-local align-mode-exclude-rules-list nil
   "Alignment exclusion rules specific to the current major mode.
 See the variable `align-exclude-rules-list' for more details.")
-
-(make-variable-buffer-local 'align-mode-exclude-rules-list)
 
 (defvar align-highlight-overlays nil
   "The current overlays highlighting the text matched by a rule.")
@@ -1314,7 +1310,7 @@ aligner would have dealt with are."
 		 (thissep (if rulesep (cdr rulesep) separate))
 		 same (eol 0)
 		 search-start
-		 groups group-c
+		 groups ;; group-c
 		 spacing spacing-c
 		 tab-stop tab-stop-c
 		 repeat repeat-c
@@ -1438,7 +1434,7 @@ aligner would have dealt with are."
 
                     ;; lookup the `group' attribute the first time
                     ;; that we need it
-                    (unless group-c
+                    (unless nil ;; group-c
                       (setq groups (or (cdr (assq 'group rule)) 1))
                       (unless (listp groups)
                         (setq groups (list groups)))

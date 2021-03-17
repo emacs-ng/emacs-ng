@@ -133,26 +133,22 @@
 	'("-%*- %15b --"  (-3 . "%p")  "--%[("  mode-name
 	  minor-mode-alist  "%n"  mode-line-process  ")%]%-")
   "Value of `mode-line-format' for a buffer in two-column minor mode."
-  :type 'sexp
-  :group 'two-column)
+  :type 'sexp)
 
 (defcustom 2C-other-buffer-hook 'text-mode
   "Hook run in new buffer when it is associated with current one."
-  :type 'function
-  :group 'two-column)
+  :type 'function)
 
 (defcustom 2C-separator ""
   "A string inserted between the two columns when merging.
 This gets set locally by \\[2C-split]."
-  :type 'string
-  :group 'two-column)
+  :type 'string)
 (put '2C-separator 'permanent-local t)
 
 (defcustom 2C-window-width 40
   "The width of the first column.  (Must be at least `window-min-width'.)
 This value is local for every buffer that sets it."
-  :type 'integer
-  :group 'two-column)
+  :type 'integer)
 (make-variable-buffer-local '2C-window-width)
 (put '2C-window-width 'permanent-local t)
 
@@ -160,13 +156,11 @@ This value is local for every buffer that sets it."
   "Base for calculating `fill-column' for a buffer in two-column minor mode.
 The value of `fill-column' becomes `2C-window-width' for this buffer
 minus this value."
-  :type 'integer
-  :group 'two-column)
+  :type 'integer)
 
 (defcustom 2C-autoscroll t
   "If non-nil, Emacs attempts to keep the two column's buffers aligned."
-  :type 'boolean
-  :group 'two-column)
+  :type 'boolean)
 
 
 (defvar 2C-mode-map
@@ -218,15 +212,13 @@ minus this value."
 ;; Markers seem to be the only buffer-id not affected by renaming a buffer.
 ;; This nevertheless loses when a buffer is killed.  The variable-name is
 ;; required by `describe-mode'.
-(defvar 2C-mode nil
+(defvar-local 2C-mode nil
   "Marker to the associated buffer, if non-nil.")
-(make-variable-buffer-local '2C-mode)
 (put '2C-mode 'permanent-local t)
 
 (setq minor-mode-alist (cons '(2C-mode " 2C") minor-mode-alist))
 
-(defvar 2C-autoscroll-start nil)
-(make-variable-buffer-local '2C-autoscroll-start)
+(defvar-local 2C-autoscroll-start nil)
 
 ;;;;; base functions ;;;;;
 

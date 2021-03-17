@@ -1065,9 +1065,6 @@ binding KEY to DEF is added at the front of KEYMAP.  */)
   if (length == 0)
     return Qnil;
 
-  if (SYMBOLP (def) && !EQ (Vdefine_key_rebound_commands, Qt))
-    Vdefine_key_rebound_commands = Fcons (def, Vdefine_key_rebound_commands);
-
   int meta_bit = (VECTORP (key) || (STRINGP (key) && STRING_MULTIBYTE (key))
 		  ? meta_modifier : 0x80);
 
@@ -1642,39 +1639,6 @@ specified buffer position instead of point are used.
     }
 
   return value;
-}
-
-/* GC is possible in this function if it autoloads a keymap.  */
-
-DEFUN ("local-key-binding", Flocal_key_binding, Slocal_key_binding, 1, 2, 0,
-       doc: /* Return the binding for command KEYS in current local keymap only.
-KEYS is a string or vector, a sequence of keystrokes.
-The binding is probably a symbol with a function definition.
-
-If optional argument ACCEPT-DEFAULT is non-nil, recognize default
-bindings; see the description of `lookup-key' for more details about this.  */)
-  (Lisp_Object keys, Lisp_Object accept_default)
-{
-  register Lisp_Object map = BVAR (current_buffer, keymap);
-  if (NILP (map))
-    return Qnil;
-  return Flookup_key (map, keys, accept_default);
-}
-
-/* GC is possible in this function if it autoloads a keymap.  */
-
-DEFUN ("global-key-binding", Fglobal_key_binding, Sglobal_key_binding, 1, 2, 0,
-       doc: /* Return the binding for command KEYS in current global keymap only.
-KEYS is a string or vector, a sequence of keystrokes.
-The binding is probably a symbol with a function definition.
-This function's return values are the same as those of `lookup-key'
-\(which see).
-
-If optional argument ACCEPT-DEFAULT is non-nil, recognize default
-bindings; see the description of `lookup-key' for more details about this.  */)
-  (Lisp_Object keys, Lisp_Object accept_default)
-{
-  return Flookup_key (current_global_map, keys, accept_default);
 }
 
 /* GC is possible in this function if it autoloads a keymap.  */
@@ -2882,6 +2846,21 @@ DESCRIBER is the output function used; nil means use `princ'.  */)
   return unbind_to (count, Qnil);
 }
 
+static Lisp_Object fontify_key_properties;
+
+static Lisp_Object
+describe_key_maybe_fontify (Lisp_Object str, Lisp_Object prefix,
+				   bool keymap_p)
+{
+  Lisp_Object key_desc = Fkey_description (str, prefix);
+  if (keymap_p)
+    Fadd_text_properties (make_fixnum (0),
+			  make_fixnum (SCHARS (key_desc)),
+			  fontify_key_properties,
+			  key_desc);
+  return key_desc;
+}
+
 DEFUN ("help--describe-vector", Fhelp__describe_vector, Shelp__describe_vector, 7, 7, 0,
        doc: /* Insert in the current buffer a description of the contents of VECTOR.
 Call DESCRIBER to insert the description of one value found in VECTOR.
@@ -3057,7 +3036,7 @@ describe_vector (Lisp_Object vector, Lisp_Object prefix, Lisp_Object args,
       if (!NILP (elt_prefix))
 	insert1 (elt_prefix);
 
-      insert1 (Fkey_description (kludge, prefix));
+      insert1 (describe_key_maybe_fontify (kludge, prefix, keymap_p));
 
       /* Find all consecutive characters or rows that have the same
 	 definition.  But, if VECTOR is a char-table, we had better
@@ -3107,7 +3086,7 @@ describe_vector (Lisp_Object vector, Lisp_Object prefix, Lisp_Object args,
 	  if (!NILP (elt_prefix))
 	    insert1 (elt_prefix);
 
-	  insert1 (Fkey_description (kludge, prefix));
+	  insert1 (describe_key_maybe_fontify (kludge, prefix, keymap_p));
 	}
 
       /* Print a description of the definition of this character.
@@ -3164,12 +3143,6 @@ syms_of_keymap (void)
      pure_cons (build_pure_c_string ("ESC"), build_pure_c_string ("\\e")),
      pure_cons (build_pure_c_string ("SPC"), build_pure_c_string (" ")));
   staticpro (&exclude_keys);
-
-  DEFVAR_LISP ("define-key-rebound-commands", Vdefine_key_rebound_commands,
-	       doc: /* List of commands given new key bindings recently.
-This is used for internal purposes during Emacs startup;
-don't alter it yourself.  */);
-  Vdefine_key_rebound_commands = Qt;
 
   DEFVAR_LISP ("minibuffer-local-map", Vminibuffer_local_map,
 	       doc: /* Default keymap to use when reading from the minibuffer.  */);
@@ -3242,6 +3215,12 @@ be preferred.  */);
   staticpro (&where_is_cache);
   staticpro (&where_is_cache_keymaps);
 
+  DEFSYM (Qfont_lock_face, "font-lock-face");
+  DEFSYM (Qhelp_key_binding, "help-key-binding");
+  staticpro (&fontify_key_properties);
+  fontify_key_properties = Fcons (Qfont_lock_face,
+				  Fcons (Qhelp_key_binding, Qnil));
+
   defsubr (&Skeymapp);
   defsubr (&Skeymap_parent);
   defsubr (&Skeymap_prompt);
@@ -3253,8 +3232,6 @@ be preferred.  */);
   defsubr (&Scopy_keymap);
   defsubr (&Scommand_remapping);
   defsubr (&Skey_binding);
-  defsubr (&Slocal_key_binding);
-  defsubr (&Sglobal_key_binding);
   defsubr (&Sminor_mode_key_binding);
   defsubr (&Sdefine_key);
   defsubr (&Slookup_key);

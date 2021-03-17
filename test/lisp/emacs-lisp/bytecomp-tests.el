@@ -32,6 +32,15 @@
 (require 'bytecomp)
 
 ;;; Code:
+(defvar bytecomp-test-var nil)
+
+(defun bytecomp-test-get-var ()
+  bytecomp-test-var)
+
+(defun bytecomp-test-identity (x)
+  "Identity, but hidden from some optimisations."
+  x)
+
 (defconst byte-opt-testsuite-arith-data
   '(
     ;; some functional tests
@@ -371,7 +380,57 @@
     (assoc 'b '((a 1) (b 2) (c 3)))
     (assoc "b" '(("a" 1) ("b" 2) ("c" 3)))
     (let ((x '((a 1) (b 2) (c 3)))) (assoc 'c x))
-    (assoc 'a '((a 1) (b 2) (c 3)) (lambda (u v) (not (equal u v)))))
+    (assoc 'a '((a 1) (b 2) (c 3)) (lambda (u v) (not (equal u v))))
+
+    ;; Constprop test cases
+    (let ((a 'alpha) (b (concat "be" "ta")) (c nil) (d t) (e :gamma)
+          (f '(delta epsilon)))
+      (list a b c d e f))
+
+    (let ((x 1) (y (+ 3 4)))
+      (list
+       (let (q (y x) (z y))
+         (if q x (list x y z)))))
+
+    (let* ((x 3) (y (* x 2)) (x (1+ y)))
+      x)
+
+    (let ((x 1) (bytecomp-test-var 2) (y 3))
+      (list x bytecomp-test-var (bytecomp-get-test-var) y))
+
+    (progn
+      (defvar d)
+      (let ((x 'a) (y 'b)) (list x y)))
+
+    (let ((x 2))
+      (list x (setq x 13) (setq x (* x 2)) x))
+
+    (let ((x 'a) (y 'b))
+      (setq y x
+            x (cons 'c y)
+            y x)
+      (list x y))
+
+    (let ((x 3))
+      (let ((y x) z)
+        (setq x 5)
+        (setq y (+ y 8))
+        (setq z (if (bytecomp-test-identity t)
+                    (progn
+                      (setq x (+ x 1))
+                      (list x y))
+                  (setq x (+ x 2))
+                  (list x y)))
+        (list x y z)))
+
+    (let ((i 1) (s 0) (x 13))
+      (while (< i 5)
+        (setq s (+ s i))
+        (setq i (1+ i)))
+      (list s x i))
+
+    (let ((x 2))
+      (list (or (bytecomp-identity 'a) (setq x 3)) x)))
   "List of expression for test.
 Each element will be executed by interpreter and with
 bytecompiled code, and their results compared.")
@@ -436,6 +495,7 @@ Subtests signal errors if something goes wrong."
       (insert "\n"))))
 
 (defun test-byte-comp-compile-and-load (compile &rest forms)
+  (declare (indent 1))
   (let ((elfile nil)
         (elcfile nil))
     (unwind-protect
@@ -454,7 +514,6 @@ Subtests signal errors if something goes wrong."
            (load elfile nil 'nomessage))
       (when elfile (delete-file elfile))
       (when elcfile (delete-file elcfile)))))
-(put 'test-byte-comp-compile-and-load 'lisp-indent-function 1)
 
 (ert-deftest test-byte-comp-macro-expansion ()
   (test-byte-comp-compile-and-load t
@@ -617,13 +676,13 @@ Subtests signal errors if something goes wrong."
 (make-obsolete-variable 'bytecomp--tests-obsolete-var nil "99.99")
 
 (bytecomp--define-warning-file-test "warn-obsolete-hook.el"
-                            "bytecomp--tests-obs.*obsolete.*99.99")
+                            "bytecomp--tests-obs.*obsolete[^z-a]*99.99")
 
 (bytecomp--define-warning-file-test "warn-obsolete-variable-same-file.el"
                             "foo-obs.*obsolete.*99.99" t)
 
 (bytecomp--define-warning-file-test "warn-obsolete-variable.el"
-                            "bytecomp--tests-obs.*obsolete.*99.99")
+                            "bytecomp--tests-obs.*obsolete[^z-a]*99.99")
 
 (bytecomp--define-warning-file-test "warn-obsolete-variable-bound.el"
                             "bytecomp--tests-obs.*obsolete.*99.99" t)
@@ -712,6 +771,10 @@ Subtests signal errors if something goes wrong."
 (bytecomp--define-warning-file-test
  "warn-wide-docstring-multiline.el"
  "defvar.*foo.*wider than.*characters")
+
+(bytecomp--define-warning-file-test
+ "nowarn-inline-after-defvar.el"
+ "Lexical argument shadows" 'reverse)
 
 
 ;;;; Macro expansion.
@@ -1104,6 +1167,65 @@ mountpoint (Bug#44631)."
                              (file-attributes "test.elc")))))
       (with-demoted-errors "Error cleaning up directory: %s"
         (delete-directory directory :recursive)))))
+
+(defun bytecomp-tests--get-vars ()
+  (list (ignore-errors (symbol-value 'bytecomp-tests--var1))
+        (ignore-errors (symbol-value 'bytecomp-tests--var2))))
+
+(ert-deftest bytecomp-local-defvar ()
+  "Check that local `defvar' declarations work correctly, both
+interpreted and compiled."
+  (let ((lexical-binding t))
+    (let ((fun '(lambda ()
+                  (defvar bytecomp-tests--var1)
+                  (let ((bytecomp-tests--var1 'a)    ; dynamic
+                        (bytecomp-tests--var2 'b))   ; still lexical
+                    (ignore bytecomp-tests--var2)    ; avoid warning
+                    (bytecomp-tests--get-vars)))))
+      (should (listp fun))      ; Guard against overzealous refactoring!
+      (should (equal (funcall (eval fun t)) '(a nil)))
+      (should (equal (funcall (byte-compile fun)) '(a nil)))
+      )
+
+    ;; `progn' does not constitute a lexical scope for `defvar' (bug#46387).
+    (let ((fun '(lambda ()
+                  (progn
+                    (defvar bytecomp-tests--var1)
+                    (defvar bytecomp-tests--var2))
+                  (let ((bytecomp-tests--var1 'c)
+                        (bytecomp-tests--var2 'd))
+                    (bytecomp-tests--get-vars)))))
+      (should (listp fun))
+      (should (equal (funcall (eval fun t)) '(c d)))
+      (should (equal (funcall (byte-compile fun)) '(c d))))))
+
+(ert-deftest bytecomp-reify-function ()
+  "Check that closures that modify their bound variables are
+compiled correctly."
+  (cl-letf ((lexical-binding t)
+            ((symbol-function 'counter) nil))
+    (let ((x 0))
+      (defun counter () (cl-incf x))
+      (should (equal (counter) 1))
+      (should (equal (counter) 2))
+      ;; byte compiling should not cause counter to always return the
+      ;; same value (bug#46834)
+      (byte-compile 'counter)
+      (should (equal (counter) 3))
+      (should (equal (counter) 4)))
+    (let ((x 0))
+      (let ((x 1))
+        (defun counter () x)
+        (should (equal (counter) 1))
+        ;; byte compiling should not cause the outer binding to shadow
+        ;; the inner one (bug#46834)
+        (byte-compile 'counter)
+        (should (equal (counter) 1))))))
+
+(ert-deftest bytecomp-string-vs-docstring ()
+  ;; Don't confuse a string return value for a docstring.
+  (let ((lexical-binding t))
+    (should (equal (funcall (byte-compile '(lambda (x) "foo")) 'dummy) "foo"))))
 
 ;; Local Variables:
 ;; no-byte-compile: t

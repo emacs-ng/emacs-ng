@@ -1,4 +1,4 @@
-;;; gnus-win.el --- window configuration functions for Gnus
+;;; gnus-win.el --- window configuration functions for Gnus  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
 
@@ -36,7 +36,6 @@
 
 (defcustom gnus-use-full-window t
   "If non-nil, use the entire Emacs screen."
-  :group 'gnus-windows
   :type 'boolean)
 
 (defcustom gnus-use-atomic-windows nil
@@ -46,17 +45,14 @@
 
 (defcustom gnus-window-min-width 2
   "Minimum width of Gnus buffers."
-  :group 'gnus-windows
   :type 'integer)
 
 (defcustom gnus-window-min-height 1
   "Minimum height of Gnus buffers."
-  :group 'gnus-windows
   :type 'integer)
 
 (defcustom gnus-always-force-window-configuration nil
   "If non-nil, always force the Gnus window configurations."
-  :group 'gnus-windows
   :type 'boolean)
 
 (defcustom gnus-use-frames-on-any-display nil
@@ -64,7 +60,6 @@
 When nil, only frames on the same display as the selected frame will be
 used to display Gnus windows."
   :version "22.1"
-  :group 'gnus-windows
   :type 'boolean)
 
 (defvar gnus-buffer-configuration
@@ -145,7 +140,6 @@ used to display Gnus windows."
                (,shell-command-buffer-name 1.0)))
     (bug
      (vertical 1.0
-	       (if gnus-bug-create-help-buffer '("*Gnus Help Bug*" 0.5))
 	       ("*Gnus Bug*" 1.0 point)))
     (score-trace
      (vertical 1.0
@@ -203,7 +197,6 @@ See the Gnus manual for an explanation of the syntax used.")
 (defcustom gnus-configure-windows-hook nil
   "A hook called when configuring windows."
   :version "22.1"
-  :group 'gnus-windows
   :type 'hook)
 
 ;;; Internal variables.
@@ -253,7 +246,7 @@ See the Gnus manual for an explanation of the syntax used.")
     ;; return a new SPLIT.
     (while (and (not (assq (car split) gnus-window-to-buffer))
 		(symbolp (car split)) (fboundp (car split)))
-      (setq split (eval split)))
+      (setq split (eval split t)))
     (let* ((type (car split))
 	   (subs (cddr split))
 	   (len (if (eq type 'horizontal) (window-width) (window-height)))
@@ -330,7 +323,7 @@ See the Gnus manual for an explanation of the syntax used.")
 	    (setq sub (append (pop subs) nil))
 	    (while (and (not (assq (car sub) gnus-window-to-buffer))
 			(symbolp (car sub)) (fboundp (car sub)))
-	      (setq sub (eval sub)))
+	      (setq sub (eval sub t)))
 	    (when sub
 	      (push sub comp-subs)
 	      (setq size (cadar comp-subs))
@@ -478,7 +471,7 @@ should have point."
       ;; return a new SPLIT.
       (while (and (not (assq (car split) gnus-window-to-buffer))
 		  (symbolp (car split)) (fboundp (car split)))
-	(setq split (eval split)))
+	(setq split (eval split t)))
 
       (setq type (elt split 0))
       (cond

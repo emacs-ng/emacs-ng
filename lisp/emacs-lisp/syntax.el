@@ -75,7 +75,7 @@ properties won't work properly.")
 
 (defvar syntax-propertize-chunk-size 500)
 
-(defvar syntax-propertize-extend-region-functions
+(defvar-local syntax-propertize-extend-region-functions
   '(syntax-propertize-wholelines)
   "Special hook run just before proceeding to propertize a region.
 This is used to allow major modes to help `syntax-propertize' find safe buffer
@@ -89,7 +89,6 @@ These functions are run in turn repeatedly until they all return nil.
 Put first the functions more likely to cause a change and cheaper to compute.")
 ;; Mark it as a special hook which doesn't use any global setting
 ;; (i.e. doesn't obey the element t in the buffer-local value).
-(make-variable-buffer-local 'syntax-propertize-extend-region-functions)
 
 (cl-defstruct (ppss
                (:constructor make-ppss)
@@ -291,12 +290,13 @@ all RULES in total."
                                     ',(string-to-syntax (nth 1 action)))
                                    ,@(nthcdr 2 action))
                                `((let ((mb (match-beginning ,gn))
-                                       (me (match-end ,gn))
-                                       (syntax ,(nth 1 action)))
-                                   (if syntax
-                                       (put-text-property
-                                        mb me 'syntax-table syntax))
-                                   ,@(nthcdr 2 action)))))
+                                       (me (match-end ,gn)))
+                                   ,(macroexp-let2 nil syntax (nth 1 action)
+                                      `(progn
+                                         (if ,syntax
+                                             (put-text-property
+                                              mb me 'syntax-table ,syntax))
+                                         ,@(nthcdr 2 action)))))))
                             (t
                              `((let ((mb (match-beginning ,gn))
                                      (me (match-end ,gn))

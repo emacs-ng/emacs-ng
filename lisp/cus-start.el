@@ -36,7 +36,7 @@
 (defun minibuffer-prompt-properties--setter (symbol value)
   (set-default symbol value)
   (if (memq 'cursor-intangible value)
-      (add-hook 'minibuffer-setup-hook 'cursor-intangible-mode)
+      (add-hook 'minibuffer-setup-hook #'cursor-intangible-mode)
     ;; Removing it is a bit trickier since it could have been added by someone
     ;; else as well, so let's just not bother.
     ))
@@ -302,6 +302,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     ;; fns.c
 	     (use-dialog-box menu boolean "21.1")
 	     (use-file-dialog menu boolean "22.1")
+	     (use-short-answers menu boolean "28.1")
 	     (focus-follows-mouse
               frames (choice
                       (const :tag "Off (nil)" :value nil)
@@ -343,7 +344,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 					    (const :tag "Never" nil)
 					    (const :tag "Always" t)
 					    (repeat (symbol :tag "Parameter")))
-					   "25.1")
+					   "27.1")
 	     (iconify-child-frame frames
 				  (choice
 				   (const :tag "Do nothing" nil)
@@ -394,7 +395,11 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     ;;    			(directory :format "%v"))))
 	     (load-prefer-newer lisp boolean "24.4")
 	     ;; minibuf.c
-             (minibuffer-follows-selected-frame minibuffer boolean "28.1")
+	     (minibuffer-follows-selected-frame
+              minibuffer (choice (const :tag "Always" t)
+                                 (const :tag "When used" hybrid)
+                                 (const :tag "Never" nil))
+              "28.1")
 	     (enable-recursive-minibuffers minibuffer boolean)
 	     (history-length minibuffer
 			     (choice (const :tag "Infinite" t) integer)
@@ -876,7 +881,7 @@ since it could result in memory overflow and make Emacs crash."
       ;; Don't re-add to custom-delayed-init-variables post-startup.
       (unless after-init-time
 	;; Note this is the _only_ initialize property we handle.
-	(if (eq (cadr (memq :initialize rest)) 'custom-initialize-delay)
+	(if (eq (cadr (memq :initialize rest)) #'custom-initialize-delay)
 	    ;; These vars are defined early and should hence be initialized
 	    ;; early, even if this file happens to be loaded late.  so add them
 	    ;; to the end of custom-delayed-init-variables.  Otherwise,

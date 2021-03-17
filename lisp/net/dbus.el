@@ -1144,6 +1144,7 @@ compound type arguments (TYPE VALUE) will be kept as is."
 EVENT is a D-Bus event, see `dbus-check-event'.  HANDLER, being
 part of the event, is called with arguments ARGS (without type information).
 If the HANDLER returns a `dbus-error', it is propagated as return message."
+  (declare (completion ignore))
   (interactive "e")
   (condition-case err
       (let (monitor args result)
@@ -2079,6 +2080,7 @@ daemon, it is rather the timestamp the corresponding D-Bus event
 has been handled by this function."
   (with-current-buffer (get-buffer-create "*D-Bus Monitor*")
     (special-mode)
+    (buffer-disable-undo)
     ;; Move forward and backward between messages.
     (local-set-key [?n] #'forward-paragraph)
     (local-set-key [?p] #'backward-paragraph)
@@ -2169,6 +2171,23 @@ has been handled by this function."
            'help-echo (format "%e" (read (match-string 1))))))
       (when eobp
         (goto-char (point-max))))))
+
+;;;###autoload
+(defun dbus-monitor (&optional bus)
+  "Invoke `dbus-register-monitor' interactively, and switch to the buffer.
+BUS is either a Lisp keyword, `:system' or `:session', or a
+string denoting the bus address.  The value nil defaults to `:session'."
+  (interactive
+   (list
+    (let ((input
+           (completing-read
+            (format-prompt "Enter bus symbol or name" :session)
+            '(:system :session) nil nil nil nil :session)))
+      (if (and (stringp input)
+               (string-match-p "^\\(:session\\|:system\\)$" input))
+          (intern input) input))))
+  (dbus-register-monitor (or bus :session))
+  (switch-to-buffer (get-buffer-create "*D-Bus Monitor*")))
 
 (defun dbus-handle-bus-disconnect ()
   "React to a bus disconnection.

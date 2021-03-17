@@ -224,25 +224,15 @@ each one of its four blocks.")
 
 ;; ;;;;;;;;;;;;; variables ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defvar tetris-shape 0)
-(defvar tetris-rot 0)
-(defvar tetris-next-shape 0)
-(defvar tetris-n-shapes 0)
-(defvar tetris-n-rows 0)
-(defvar tetris-score 0)
-(defvar tetris-pos-x 0)
-(defvar tetris-pos-y 0)
-(defvar tetris-paused nil)
-
-(make-variable-buffer-local 'tetris-shape)
-(make-variable-buffer-local 'tetris-rot)
-(make-variable-buffer-local 'tetris-next-shape)
-(make-variable-buffer-local 'tetris-n-shapes)
-(make-variable-buffer-local 'tetris-n-rows)
-(make-variable-buffer-local 'tetris-score)
-(make-variable-buffer-local 'tetris-pos-x)
-(make-variable-buffer-local 'tetris-pos-y)
-(make-variable-buffer-local 'tetris-paused)
+(defvar-local tetris-shape 0)
+(defvar-local tetris-rot 0)
+(defvar-local tetris-next-shape 0)
+(defvar-local tetris-n-shapes 0)
+(defvar-local tetris-n-rows 0)
+(defvar-local tetris-score 0)
+(defvar-local tetris-pos-x 0)
+(defvar-local tetris-pos-y 0)
+(defvar-local tetris-paused nil)
 
 ;; ;;;;;;;;;;;;; keymaps ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -516,7 +506,7 @@ Drops the shape one square, testing for collision."
 
 (defun tetris-move-bottom ()
   "Drop the shape to the bottom of the playing area."
-  (interactive)
+  (interactive nil tetris-mode)
   (unless tetris-paused
     (let ((hit nil))
       (tetris-erase-shape)
@@ -529,7 +519,7 @@ Drops the shape one square, testing for collision."
 
 (defun tetris-move-left ()
   "Move the shape one square to the left."
-  (interactive)
+  (interactive nil tetris-mode)
   (unless tetris-paused
     (tetris-erase-shape)
     (setq tetris-pos-x (1- tetris-pos-x))
@@ -539,7 +529,7 @@ Drops the shape one square, testing for collision."
 
 (defun tetris-move-right ()
   "Move the shape one square to the right."
-  (interactive)
+  (interactive nil tetris-mode)
   (unless tetris-paused
     (tetris-erase-shape)
     (setq tetris-pos-x (1+ tetris-pos-x))
@@ -549,7 +539,7 @@ Drops the shape one square, testing for collision."
 
 (defun tetris-move-down ()
   "Move the shape one square to the bottom."
-  (interactive)
+  (interactive nil tetris-mode)
   (unless tetris-paused
     (tetris-erase-shape)
     (setq tetris-pos-y (1+ tetris-pos-y))
@@ -559,7 +549,7 @@ Drops the shape one square, testing for collision."
 
 (defun tetris-rotate-prev ()
   "Rotate the shape clockwise."
-  (interactive)
+  (interactive nil tetris-mode)
   (unless tetris-paused
       (tetris-erase-shape)
       (setq tetris-rot (% (+ 1 tetris-rot)
@@ -571,7 +561,7 @@ Drops the shape one square, testing for collision."
 
 (defun tetris-rotate-next ()
   "Rotate the shape anticlockwise."
-  (interactive)
+  (interactive nil tetris-mode)
   (unless tetris-paused
         (tetris-erase-shape)
         (setq tetris-rot (% (+ 3 tetris-rot)
@@ -583,14 +573,14 @@ Drops the shape one square, testing for collision."
 
 (defun tetris-end-game ()
   "Terminate the current game."
-  (interactive)
+  (interactive nil tetris-mode)
   (gamegrid-kill-timer)
   (use-local-map tetris-null-map)
   (gamegrid-add-score tetris-score-file tetris-score))
 
 (defun tetris-start-game ()
   "Start a new game of Tetris."
-  (interactive)
+  (interactive nil tetris-mode)
   (tetris-reset-game)
   (use-local-map tetris-mode-map)
   (let ((period (or (tetris-get-tick-period)
@@ -599,7 +589,7 @@ Drops the shape one square, testing for collision."
 
 (defun tetris-pause-game ()
   "Pause (or resume) the current game."
-  (interactive)
+  (interactive nil tetris-mode)
   (setq tetris-paused (not tetris-paused))
   (message (and tetris-paused "Game paused (press p to resume)")))
 
@@ -610,6 +600,7 @@ Drops the shape one square, testing for collision."
 
 (define-derived-mode tetris-mode nil "Tetris"
   "A mode for playing Tetris."
+  :interactive nil
 
   (add-hook 'kill-buffer-hook 'gamegrid-kill-timer nil t)
 

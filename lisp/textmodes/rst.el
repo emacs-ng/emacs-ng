@@ -105,10 +105,6 @@
 ;; Common Lisp stuff
 (require 'cl-lib)
 
-;; Correct wrong declaration.
-(def-edebug-spec push
-  (&or [form symbolp] [form gv-place]))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Support for `testcover'
 
@@ -620,7 +616,7 @@ After interpretation of ARGS the results are concatenated as for
    (:constructor
     rst-Ado-new-transition
     (&aux
-     (char nil)
+     ;; (char nil)
      (-style 'transition)))
    ;; Construct a simple section header.
    (:constructor
@@ -3627,10 +3623,7 @@ Region is from BEG to END.  With WITH-EMPTY prefix empty lines too."
                         "customize the face `rst-definition' instead."
                         "24.1")
 
-;; XEmacs compatibility (?).
-(defface rst-directive (if (boundp 'font-lock-builtin-face)
-                           '((t :inherit font-lock-builtin-face))
-                         '((t :inherit font-lock-preprocessor-face)))
+(defface rst-directive '((t :inherit font-lock-builtin-face))
   "Face used for directives and roles."
   :version "24.1"
   :group 'rst-faces)

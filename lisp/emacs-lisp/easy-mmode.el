@@ -172,6 +172,10 @@ BODY contains code to execute each time the mode is enabled or disabled.
 :lighter SPEC	Same as the LIGHTER argument.
 :keymap MAP	Same as the KEYMAP argument.
 :require SYM	Same as in `defcustom'.
+:interactive VAL  Whether this mode should be a command or not.  The default
+                is to make it one; use nil to avoid that.  If VAL is a list,
+                it's interpreted as a list of major modes this minor mode
+                is useful in.
 :variable PLACE	The location to use instead of the variable MODE to store
 		the state of the mode.	This can be simply a different
 		named variable, or a generalized variable.
@@ -226,6 +230,7 @@ For example, you could write
 	 (hook (intern (concat mode-name "-hook")))
 	 (hook-on (intern (concat mode-name "-on-hook")))
 	 (hook-off (intern (concat mode-name "-off-hook")))
+         (interactive t)
 	 keyw keymap-sym tmp)
 
     ;; Check keys.
@@ -245,6 +250,7 @@ For example, you could write
 	(:type (setq type (list :type (pop body))))
 	(:require (setq require (pop body)))
 	(:keymap (setq keymap (pop body)))
+	(:interactive (setq interactive (pop body)))
         (:variable (setq variable (pop body))
                    (if (not (and (setq tmp (cdr-safe variable))
                                  (or (symbolp tmp)
@@ -278,11 +284,10 @@ For example, you could write
          ((not globalp)
           `(progn
              :autoload-end
-             (defvar ,mode ,init-value
+             (defvar-local ,mode ,init-value
                ,(concat (format "Non-nil if %s is enabled.\n" pretty-name)
                         (internal--format-docstring-line
-                         "Use the command `%s' to change this variable." mode)))
-             (make-variable-buffer-local ',mode)))
+                         "Use the command `%s' to change this variable." mode)))))
          (t
 	  (let ((base-doc-string
                  (concat "Non-nil if %s is enabled.
@@ -304,11 +309,18 @@ or call the function `%s'."))))
        ;; The actual function.
        (defun ,modefun (&optional arg ,@extra-args)
          ,(easy-mmode--mode-docstring doc pretty-name keymap-sym)
-	 ;; Use `toggle' rather than (if ,mode 0 1) so that using
-	 ;; repeat-command still does the toggling correctly.
-	 (interactive (list (if current-prefix-arg
-                                (prefix-numeric-value current-prefix-arg)
-                              'toggle)))
+         ,(when interactive
+	    ;; Use `toggle' rather than (if ,mode 0 1) so that using
+	    ;; repeat-command still does the toggling correctly.
+            (if (consp interactive)
+                `(interactive
+                  (list (if current-prefix-arg
+                            (prefix-numeric-value current-prefix-arg)
+                          'toggle))
+                  ,@interactive)
+	      '(interactive (list (if current-prefix-arg
+                                     (prefix-numeric-value current-prefix-arg)
+                                   'toggle)))))
 	 (let ((,last-message (current-message)))
            (,@setter
             (cond ((eq arg 'toggle)
@@ -318,6 +330,22 @@ or call the function `%s'."))))
                    nil)
                   (t
                    t)))
+           ;; Keep minor modes list up to date.
+           ,@(if globalp
+                 ;; When running this byte-compiled code in earlier
+                 ;; Emacs versions, these variables may not be defined
+                 ;; there.  So check defensively, even if they're
+                 ;; always defined in Emacs 28 and up.
+                 `((when (boundp 'global-minor-modes)
+                     (setq global-minor-modes
+                           (delq ',modefun global-minor-modes))
+                     (when ,getter
+                       (push ',modefun global-minor-modes))))
+               ;; Ditto check.
+               `((when (boundp 'local-minor-modes)
+                   (setq local-minor-modes (delq ',modefun local-minor-modes))
+                   (when ,getter
+                     (push ',modefun local-minor-modes)))))
            ,@body
            ;; The on/off hooks are here for backward compatibility only.
            (run-hooks ',hook (if ,getter ',hook-on ',hook-off))
@@ -419,6 +447,7 @@ on if the hook has explicitly disabled it.
 	 (pretty-global-name (easy-mmode-pretty-mode-name global-mode))
 	 (group nil)
 	 (extra-keywords nil)
+         (MODE-variable mode)
 	 (MODE-buffers (intern (concat global-mode-name "-buffers")))
 	 (MODE-enable-in-buffers
 	  (intern (concat global-mode-name "-enable-in-buffers")))
@@ -440,6 +469,7 @@ on if the hook has explicitly disabled it.
       (pcase keyw
         (:group (setq group (nconc group (list :group (pop body)))))
         (:global (pop body))
+        (:variable (setq MODE-variable (pop body)))
         (:predicate
          (setq predicate (list (pop body)))
          (setq turn-on-function
@@ -453,8 +483,7 @@ on if the hook has explicitly disabled it.
        (progn
          (put ',global-mode 'globalized-minor-mode t)
          :autoload-end
-         (defvar ,MODE-major-mode nil)
-         (make-variable-buffer-local ',MODE-major-mode))
+         (defvar-local ,MODE-major-mode nil))
        ;; The actual global minor-mode
        (define-minor-mode ,global-mode
          ,(concat (format "Toggle %s in all buffers.\n" pretty-name)
@@ -543,7 +572,7 @@ list."
                (with-current-buffer buf
                  (unless ,MODE-set-explicitly
                    (unless (eq ,MODE-major-mode major-mode)
-                     (if ,mode
+                     (if ,MODE-variable
                          (progn
                            (,mode -1)
                            (funcall ,turn-on-function))

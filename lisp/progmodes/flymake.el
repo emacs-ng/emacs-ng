@@ -4,7 +4,7 @@
 
 ;; Author: Pavel Kobyakov <pk_at_work@yahoo.com>
 ;; Maintainer: João Távora <joaotavora@gmail.com>
-;; Version: 1.1.0
+;; Version: 1.1.1
 ;; Keywords: c languages tools
 ;; Package-Requires: ((emacs "26.1") (eldoc "1.1.0"))
 
@@ -284,17 +284,17 @@ If set to nil, don't suppress any zero counters."
 (defmacro flymake-log (level msg &rest args)
   "Log, at level LEVEL, the message MSG formatted with ARGS.
 LEVEL is passed to `display-warning', which is used to display
-the warning.  If this form is included in a byte-compiled file,
+the warning.  If this form is included in a file,
 the generated warning contains an indication of the file that
 generated it."
-  (let* ((compile-file (and (boundp 'byte-compile-current-file)
-                            (symbol-value 'byte-compile-current-file)))
-         (sublog (if (and
-                      compile-file
-                      (not load-file-name))
+  (let* ((file (if (fboundp 'macroexp-file-name)
+                   (macroexp-file-name)
+                 (and (not load-file-name)
+                      (bound-and-true-p byte-compile-current-file))))
+         (sublog (if file
                      (intern
                       (file-name-nondirectory
-                       (file-name-sans-extension compile-file))))))
+                       (file-name-sans-extension file))))))
     `(flymake--log-1 ,level ',sublog ,msg ,@args)))
 
 (defun flymake-error (text &rest args)
@@ -352,12 +352,20 @@ diagnostics at BEG."
 (flymake--diag-accessor flymake-diagnostic-data flymake--diag-data backend)
 
 (defun flymake-diagnostic-beg (diag)
-  "Get Flymake diagnostic DIAG's start position."
-  (overlay-start (flymake--diag-overlay diag)))
+  "Get Flymake diagnostic DIAG's start position.
+This position only be queried after DIAG has been reported to Flymake."
+  (let ((overlay (flymake--diag-overlay diag)))
+    (unless overlay
+      (error "DIAG %s not reported to Flymake yet" diag))
+    (overlay-start overlay)))
 
 (defun flymake-diagnostic-end (diag)
-  "Get Flymake diagnostic DIAG's end position."
-  (overlay-end (flymake--diag-overlay diag)))
+  "Get Flymake diagnostic DIAG's end position.
+This position only be queried after DIAG has been reported to Flymake."
+  (let ((overlay (flymake--diag-overlay diag)))
+    (unless overlay
+      (error "DIAG %s not reported to Flymake yet" diag))
+    (overlay-end overlay)))
 
 (cl-defun flymake--overlays (&key beg end filter compare key)
   "Get flymake-related overlays.
@@ -475,7 +483,7 @@ Currently, Flymake may provide these keyword-value pairs:
 
 * `:recent-changes', a list of recent changes since the last time
   the backend function was called for the buffer.  An empty list
-  indicates that no changes have been reocrded.  If it is the
+  indicates that no changes have been recorded.  If it is the
   first time that this backend function is called for this
   activation of `flymake-mode', then this argument isn't provided
   at all (i.e. it's not merely nil).
@@ -1190,7 +1198,6 @@ default) no filter is applied."
   '(" " flymake-mode-line-title flymake-mode-line-exception
     flymake-mode-line-counters)
   "Mode line construct for customizing Flymake information."
-  :group 'flymake
   :type '(repeat (choice string symbol)))
 
 (defcustom flymake-mode-line-counter-format
@@ -1202,7 +1209,6 @@ default) no filter is applied."
 This is a suitable place for placing the `flymake-error-counter',
 `flymake-warning-counter' and `flymake-note-counter' constructs.
 Separating each of these with space is not necessary."
-  :group 'flymake
   :type '(repeat (choice string symbol)))
 
 (defvar flymake-mode-line-title '(:eval (flymake--mode-line-title))
@@ -1283,6 +1289,8 @@ correctly.")
   (when (flymake-running-backends) flymake-mode-line-counter-format))
 
 (defun flymake--mode-line-counter (type &optional no-space)
+  "Compute number of diagnostics in buffer with TYPE's severity.
+TYPE is usually keyword `:error', `:warning' or `:note'."
   (let ((count 0)
         (face (flymake--lookup-type-property type
                                              'mode-line-face
@@ -1290,7 +1298,8 @@ correctly.")
     (maphash (lambda
                (_b state)
                (dolist (d (flymake--backend-state-diags state))
-                 (when (eq type (flymake--diag-type d))
+                 (when (= (flymake--severity type)
+                          (flymake--severity (flymake--diag-type d)))
                    (cl-incf count))))
              flymake--backend-state)
     (when (or (cl-plusp count)

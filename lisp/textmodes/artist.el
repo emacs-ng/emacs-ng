@@ -408,57 +408,43 @@ be in `artist-spray-chars', or spraying will behave strangely.")
 
 ;; Internal variables
 ;;
-(defvar artist-mode nil
-  "Non-nil to enable `artist-mode' and nil to disable.")
-(make-variable-buffer-local 'artist-mode)
-
 (defvar artist-mode-name " Artist"
   "Name of Artist mode beginning with a space (appears in the mode-line).")
 
-(defvar artist-curr-go 'pen-line
+(defvar-local artist-curr-go 'pen-line
   "Current selected graphics operation.")
-(make-variable-buffer-local 'artist-curr-go)
 
-(defvar artist-line-char-set nil
+(defvar-local artist-line-char-set nil
   "Boolean to tell whether user has set some char to use when drawing lines.")
-(make-variable-buffer-local 'artist-line-char-set)
 
-(defvar artist-line-char nil
+(defvar-local artist-line-char nil
   "Char to use when drawing lines.")
-(make-variable-buffer-local 'artist-line-char)
 
-(defvar artist-fill-char-set nil
+(defvar-local artist-fill-char-set nil
   "Boolean to tell whether user has set some char to use when filling.")
-(make-variable-buffer-local 'artist-fill-char-set)
 
-(defvar artist-fill-char nil
+(defvar-local artist-fill-char nil
   "Char to use when filling.")
-(make-variable-buffer-local 'artist-fill-char)
 
-(defvar artist-erase-char ?\s
+(defvar-local artist-erase-char ?\s
   "Char to use when erasing.")
-(make-variable-buffer-local 'artist-erase-char)
 
-(defvar artist-default-fill-char ?.
+(defvar-local artist-default-fill-char ?.
   "Char to use when a fill-char is required but none is set.")
-(make-variable-buffer-local 'artist-default-fill-char)
 
 ; This variable is not buffer local
 (defvar artist-copy-buffer nil
   "Copy buffer.")
 
-(defvar artist-draw-region-min-y 0
+(defvar-local artist-draw-region-min-y 0
   "Line-number for top-most visited line for draw operation.")
-(make-variable-buffer-local 'artist-draw-region-min-y)
 
-(defvar artist-draw-region-max-y 0
+(defvar-local artist-draw-region-max-y 0
   "Line-number for bottom-most visited line for draw operation.")
-(make-variable-buffer-local 'artist-draw-region-max-y)
 
-(defvar artist-borderless-shapes nil
+(defvar-local artist-borderless-shapes nil
   "When non-nil, draw shapes without border.
 The fill char is used instead, if it is set.")
-(make-variable-buffer-local 'artist-borderless-shapes)
 
 (defvar artist-prev-next-op-alist nil
   "Assoc list for looking up next and/or previous draw operation.
@@ -495,50 +481,6 @@ This variable is initialized by the `artist-make-prev-next-op-alist' function.")
 (defvar artist-arrow-point-1 nil)
 (defvar artist-arrow-point-2 nil)
 
-(defvar artist-menu-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [spray-chars]
-      '(menu-item "Characters for Spray" artist-select-spray-chars
-		  :help "Choose characters for sprayed by the spray-can"))
-    (define-key map [borders]
-      '(menu-item "Draw Shape Borders" artist-toggle-borderless-shapes
-		  :help "Toggle whether shapes are drawn with borders"
-		  :button (:toggle . (not artist-borderless-shapes))))
-    (define-key map [trimming]
-      '(menu-item "Trim Line Endings" artist-toggle-trim-line-endings
-		  :help "Toggle trimming of line-endings"
-		  :button (:toggle . artist-trim-line-endings)))
-    (define-key map [rubber-band]
-      '(menu-item "Rubber-banding" artist-toggle-rubber-banding
-		  :help "Toggle rubber-banding"
-		  :button (:toggle . artist-rubber-banding)))
-    (define-key map [set-erase]
-      '(menu-item "Character to Erase..." artist-select-erase-char
-		  :help "Choose a specific character to erase"))
-    (define-key map [set-line]
-      '(menu-item "Character for Line..." artist-select-line-char
-		  :help "Choose the character to insert when drawing lines"))
-    (define-key map [set-fill]
-      '(menu-item "Character for Fill..." artist-select-fill-char
-		  :help "Choose the character to insert when filling in shapes"))
-    (define-key map [artist-separator] '(menu-item "--"))
-    (dolist (op '(("Vaporize" artist-select-op-vaporize-lines vaporize-lines)
-		  ("Erase" artist-select-op-erase-rectangle erase-rect)
-		  ("Spray-can" artist-select-op-spray-set-size spray-get-size)
-		  ("Text" artist-select-op-text-overwrite text-ovwrt)
-		  ("Ellipse" artist-select-op-circle circle)
-		  ("Poly-line" artist-select-op-straight-poly-line spolyline)
-		  ("Square" artist-select-op-square square)
-		  ("Rectangle" artist-select-op-rectangle rectangle)
-    		  ("Line" artist-select-op-straight-line s-line)
-    		  ("Pen" artist-select-op-pen-line pen-line)))
-      (define-key map (vector (nth 2 op))
-    	`(menu-item ,(nth 0 op)
-    		    ,(nth 1 op)
-    		    :help ,(format "Draw using the %s style" (nth 0 op))
-    		    :button (:radio . (eq artist-curr-go ',(nth 2 op))))))
-    map))
-
 (defvar artist-mode-map
   (let ((map (make-sparse-keymap)))
     (setq artist-mode-map (make-sparse-keymap))
@@ -591,9 +533,49 @@ This variable is initialized by the `artist-make-prev-next-op-alist' function.")
     (define-key map "\C-c\C-a\C-y" 'artist-select-op-paste)
     (define-key map "\C-c\C-af"    'artist-select-op-flood-fill)
     (define-key map "\C-c\C-a\C-b" 'artist-submit-bug-report)
-    (define-key map [menu-bar artist] (cons "Artist" artist-menu-map))
     map)
   "Keymap for `artist-mode'.")
+
+(easy-menu-define artist-menu-map artist-mode-map
+  "Menu for `artist-mode'."
+  `("Artist"
+    ,@(mapcar
+       (lambda (op)
+         `[,(nth 0 op) ,(nth 1 op)
+           :help ,(format "Draw using the %s style" (nth 0 op))
+           :style radio
+           :selected (eq artist-curr-go ',(nth 2 op))])
+       '(("Vaporize" artist-select-op-vaporize-lines vaporize-lines)
+         ("Erase" artist-select-op-erase-rectangle erase-rect)
+         ("Spray-can" artist-select-op-spray-set-size spray-get-size)
+         ("Text" artist-select-op-text-overwrite text-ovwrt)
+         ("Ellipse" artist-select-op-circle circle)
+         ("Poly-line" artist-select-op-straight-poly-line spolyline)
+         ("Square" artist-select-op-square square)
+         ("Rectangle" artist-select-op-rectangle rectangle)
+         ("Line" artist-select-op-straight-line s-line)
+         ("Pen" artist-select-op-pen-line pen-line)))
+    "---"
+    ["Character for Fill..." artist-select-fill-char
+     :help "Choose the character to insert when filling in shapes"]
+    ["Character for Line..." artist-select-line-char
+     :help "Choose the character to insert when drawing lines"]
+    ["Character to Erase..." artist-select-erase-char
+     :help "Choose a specific character to erase"]
+    ["Rubber-banding" artist-toggle-rubber-banding
+     :help "Toggle rubber-banding"
+     :style toggle
+     :selected artist-rubber-banding]
+    ["Trim Line Endings" artist-toggle-trim-line-endings
+     :help "Toggle trimming of line-endings"
+     :style toggle
+     :selected artist-trim-line-endings]
+    ["Draw Shape Borders" artist-toggle-borderless-shapes
+     :help "Toggle whether shapes are drawn with borders"
+     :style toggle
+     :selected (not artist-borderless-shapes)]
+    ["Characters for Spray" artist-select-spray-chars
+     :help "Choose characters for sprayed by the spray-can"]))
 
 (defvar artist-replacement-table (make-vector 256 0)
   "Replacement table for `artist-replace-char'.")
@@ -3484,7 +3466,7 @@ The Y-RADIUS must be 0, but the X-RADIUS must not be 0."
 	(line-char  (if artist-line-char-set artist-line-char ?-))
 	(i          0)
 	(point-list nil)
-	(fill-info  nil)
+	;; (fill-info  nil)
 	(shape-info (make-vector 2 0)))
     (while (< i width)
       (let* ((line-x (+ left-edge i))
@@ -3497,7 +3479,7 @@ The Y-RADIUS must be 0, but the X-RADIUS must not be 0."
 	(setq point-list (append point-list (list new-coord)))
 	(setq i (1+ i))))
     (aset shape-info 0 point-list)
-    (aset shape-info 1 fill-info)
+    (aset shape-info 1 nil) ;; fill-info
     (artist-make-2point-object (artist-make-endpoint x1 y1)
 			       (artist-make-endpoint x-radius y-radius)
 			       shape-info)))
@@ -5004,7 +4986,7 @@ The event, EV, is the mouse event."
                   (setq timer (run-at-time interval interval draw-fn x1 y1))))
 
             ;; Read next event
-            (setq ev (read-event))))
+            (setq ev (read--potential-mouse-event))))
       ;; Cleanup: get rid of any active timer.
       (if timer
           (cancel-timer timer)))
@@ -5212,7 +5194,7 @@ The event, EV, is the mouse event."
 
 	;; Read next event (only if we should not stop)
 	(if (not done)
-	    (setq ev (read-event)))))
+	    (setq ev (read--potential-mouse-event)))))
 
     ;; Reverse point-list (last points are cond'ed first)
     (setq point-list (reverse point-list))
@@ -5339,7 +5321,7 @@ The event, EV, is the mouse event."
 
 
 	;; Read next event
-	(setq ev (read-event))))
+	(setq ev (read--potential-mouse-event))))
 
     ;; If we are not rubber-banding (that is, we were moving around the `2')
     ;; draw the shape

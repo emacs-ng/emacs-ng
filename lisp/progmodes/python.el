@@ -2027,8 +2027,12 @@ position, else returns nil."
   :group 'python
   :safe 'stringp)
 
-(defcustom python-shell-interpreter "python"
+(defcustom python-shell-interpreter
+  (cond ((executable-find "python3") "python3")
+        ((executable-find "python") "python")
+        (t "python3"))
   "Default Python interpreter for shell."
+  :version "28.1"
   :type 'string
   :group 'python)
 
@@ -3269,7 +3273,8 @@ process running; defaults to t when called interactively."
     ;; lines have been removed/added.
     (with-current-buffer (process-buffer process)
       (compilation-forget-errors))
-    (python-shell-send-string string process)))
+    (python-shell-send-string string process)
+    (deactivate-mark)))
 
 (defun python-shell-send-statement (&optional send-main msg)
   "Send the statement at point to inferior Python process.

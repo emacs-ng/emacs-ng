@@ -122,7 +122,8 @@ This metadata is an alist.  Currently understood keys are:
    returns a string to append to STRING.
 - `affixation-function': function to prepend/append a prefix/suffix to
    entries.  Takes one argument (COMPLETIONS) and should return a list
-   of completions with a list of three elements: completion, its prefix
+   of completions with a list of either two elements: completion
+   and suffix, or three elements: completion, its prefix
    and suffix.  This function takes priority over `annotation-function'
    when both are provided, so only this function is used.
 - `display-sort-function': function to sort entries in *Completions*.
@@ -1785,22 +1786,17 @@ It also eliminates runs of equal strings."
                 (when prefix
                   (let ((beg (point))
                         (end (progn (insert prefix) (point))))
-                    (put-text-property beg end 'mouse-face nil)
-                    ;; When both prefix and suffix are added
-                    ;; by the caller via affixation-function,
-                    ;; then allow the caller to decide
-                    ;; what faces to put on prefix and suffix.
-                    (unless prefix
-                      (font-lock-prepend-text-property
-                       beg end 'face 'completions-annotations))))
+                    (put-text-property beg end 'mouse-face nil)))
                 (put-text-property (point) (progn (insert (car str)) (point))
                                    'mouse-face 'highlight)
                 (let ((beg (point))
                       (end (progn (insert suffix) (point))))
                   (put-text-property beg end 'mouse-face nil)
                   ;; Put the predefined face only when suffix
-                  ;; is added via annotation-function.
-                  (unless prefix
+                  ;; is added via annotation-function without prefix,
+                  ;; and when the caller doesn't use own face.
+                  (unless (or prefix (text-property-not-all
+                                      0 (length suffix) 'face nil suffix))
                     (font-lock-prepend-text-property
                      beg end 'face 'completions-annotations)))))
 	    (cond
@@ -1927,6 +1923,7 @@ These include:
 `:affixation-function': Function to prepend/append a prefix/suffix to
    completions.  The function must accept one argument, a list of
    completions, and return a list where each element is a list of
+   either two elements: a completion, and a suffix, or
    three elements: a completion, a prefix and a suffix.
    This function takes priority over `:annotation-function'
    when both are provided, so only this function is used.
@@ -2119,6 +2116,11 @@ variables.")
 (defun exit-minibuffer ()
   "Terminate this minibuffer argument."
   (interactive)
+  (when (minibufferp)
+    (when (not (minibuffer-innermost-command-loop-p))
+      (error "%s" "Not in most nested command loop"))
+    (when (not (innermost-minibuffer-p))
+      (error "%s" "Not in most nested minibuffer")))
   ;; If the command that uses this has made modifications in the minibuffer,
   ;; we don't want them to cause deactivation of the mark in the original
   ;; buffer.
@@ -2394,7 +2396,7 @@ The completion method is determined by `completion-at-point-functions'."
 ;;; Key bindings.
 
 (let ((map minibuffer-local-map))
-  (define-key map "\C-g" 'abort-recursive-edit)
+  (define-key map "\C-g" 'abort-minibuffers)
   (define-key map "\M-<" 'minibuffer-beginning-of-buffer)
 
   (define-key map "\r" 'exit-minibuffer)
@@ -3160,7 +3162,7 @@ or a symbol, see `completion-pcm--merge-completions'."
   (let ((n '()))
     (while p
       (pcase p
-        (`(,(or 'any 'any-delim) ,(or 'any 'point) . ,rest)
+        (`(,(or 'any 'any-delim) ,(or 'any 'point) . ,_)
          (setq p (cdr p)))
         ;; This is not just a performance improvement: it turns a
         ;; terminating `point' into an implicit `any', which affects

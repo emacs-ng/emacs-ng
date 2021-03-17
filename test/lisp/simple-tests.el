@@ -48,6 +48,31 @@
     (should (= (count-words (point-min) (point-max)) 10))))
 
 
+;;; `count-lines'
+
+(ert-deftest simple-test-count-lines ()
+  (with-temp-buffer
+    (should (= (count-lines (point-min) (point-max)) 0))
+    (insert "foo")
+    (should (= (count-lines (point-min) (point-max)) 1))
+    (insert "\nbar\nbaz\n")
+    (should (= (count-lines (point-min) (point-max)) 3))
+    (insert "r\n")
+    (should (= (count-lines (point-min) (point-max)) 4))))
+
+(ert-deftest simple-test-count-lines/ignore-invisible-lines ()
+  (with-temp-buffer
+    (insert "foo\nbar")
+    (should (= (count-lines (point-min) (point-max) t) 2))
+    (insert (propertize "\nbar\nbaz\nzut" 'invisible t))
+    (should (= (count-lines (point-min) (point-max) t) 2))))
+
+(ert-deftest simple-text-count-lines-non-ascii ()
+  (with-temp-buffer
+    (insert "あ\nい\nう\nえ\nお\n")
+    (should (= (count-lines (point) (point)) 0))))
+
+
 ;;; `transpose-sexps'
 (defmacro simple-test--transpositions (&rest body)
   (declare (indent 0)
@@ -440,8 +465,117 @@ See bug#35036."
     (simple-tests--exec '(backward-char undo-redo undo-redo))
     (should (equal (buffer-string) "abc"))
     (simple-tests--exec '(backward-char undo-redo undo-redo))
+    (should (equal (buffer-string) "abcde")))
+  ;; Test undo/redo in region.
+  (with-temp-buffer
+    (buffer-enable-undo)
+    (dolist (x '("a" "b" "c" "d" "e"))
+      (insert x)
+      (undo-boundary))
     (should (equal (buffer-string) "abcde"))
-    ))
+    ;; The test does this: activate region, `undo', break the undo
+    ;; chain (by deactivating and reactivating the region), then
+    ;; `undo-only'.  There used to be a bug in
+    ;; `undo-make-selective-list' that makes `undo-only' error out in
+    ;; that case, which is fixed by in the same commit as this change.
+    (simple-tests--exec '(move-beginning-of-line
+                          push-mark-command
+                          forward-char
+                          forward-char
+                          undo))
+    (should (equal (buffer-string) "acde"))
+    (simple-tests--exec '(move-beginning-of-line
+                          push-mark-command
+                          forward-char
+                          forward-char
+                          undo-only))
+    (should (equal (buffer-string) "abcde"))
+    ;; Rest are simple redo in region tests.
+    (simple-tests--exec '(undo-redo))
+    (should (equal (buffer-string) "acde"))
+    (simple-tests--exec '(undo-redo))
+    (should (equal (buffer-string) "abcde"))))
+
+(defun simple-tests--sans-leading-nil (lst)
+  "Return LST sans the leading nils."
+  (while (and (consp lst) (null (car lst)))
+    (setq lst (cdr lst)))
+  lst)
+
+(ert-deftest simple-tests--undo-equiv-table ()
+  (with-temp-buffer
+    (buffer-enable-undo)
+    (let ((ul-hash-table (make-hash-table :test #'equal)))
+      (dolist (x '("a" "b" "c"))
+        (insert x)
+        (puthash x (simple-tests--sans-leading-nil buffer-undo-list)
+                 ul-hash-table)
+        (undo-boundary))
+      (should (equal (buffer-string) "abc"))
+      ;; Tests mappings in `undo-equiv-table'.
+      (simple-tests--exec '(undo))
+      (should (equal (buffer-string) "ab"))
+      (should (eq (gethash (simple-tests--sans-leading-nil
+                            buffer-undo-list)
+                           undo-equiv-table)
+                  (gethash "b" ul-hash-table)))
+      (simple-tests--exec '(backward-char undo))
+      (should (equal (buffer-string) "abc"))
+      (should (eq (gethash (simple-tests--sans-leading-nil
+                            buffer-undo-list)
+                           undo-equiv-table)
+                  (gethash "c" ul-hash-table)))
+      ;; Undo in region should map to 'undo-in-region.
+      (simple-tests--exec '(backward-char
+                            push-mark-command
+                            move-end-of-line
+                            undo))
+      (should (equal (buffer-string) "ab"))
+      (should (eq (gethash (simple-tests--sans-leading-nil
+                            buffer-undo-list)
+                           undo-equiv-table)
+                  'undo-in-region))
+      ;; The undo that undoes to the beginning should map to t.
+      (deactivate-mark 'force)
+      (simple-tests--exec '(backward-char
+                            undo undo undo
+                            undo undo undo))
+      (should (equal (buffer-string) ""))
+      (should (eq (gethash (simple-tests--sans-leading-nil
+                            buffer-undo-list)
+                           undo-equiv-table)
+                  t))
+      ;; Erroneous nil undo should map to 'empty.
+      (insert "a")
+      (undo-boundary)
+      (push nil buffer-undo-list)
+      (simple-tests--exec '(backward-char undo))
+      (should (equal (buffer-string) "a"))
+      (should (eq (gethash (simple-tests--sans-leading-nil
+                            buffer-undo-list)
+                           undo-equiv-table)
+                  'empty))
+      ;; But if the previous record is a redo record, its mapping
+      ;; shouldn't change.
+      (insert "e")
+      (undo-boundary)
+      (should (equal (buffer-string) "ea"))
+      (puthash "e" (simple-tests--sans-leading-nil buffer-undo-list)
+               ul-hash-table)
+      (insert "a")
+      (undo-boundary)
+      (simple-tests--exec '(backward-char undo))
+      (should (equal (buffer-string) "ea"))
+      (push nil buffer-undo-list)
+      (simple-tests--exec '(forward-char undo))
+      ;; Buffer content should change since we just undid a nil
+      ;; record.
+      (should (equal (buffer-string) "ea"))
+      ;; The previous redo record shouldn't map to empty.
+      (should (equal (gethash (simple-tests--sans-leading-nil
+                               buffer-undo-list)
+                              undo-equiv-table)
+                     (gethash "e" ul-hash-table))))))
 
 ;;; undo auto-boundary tests
 (ert-deftest undo-auto-boundary-timer ()

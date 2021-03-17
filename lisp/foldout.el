@@ -209,14 +209,12 @@
 
 (require 'outline)
 
-(defvar foldout-fold-list nil
+(defvar-local foldout-fold-list nil
   "List of start and end markers for the folds currently entered.
 An end marker of nil means the fold ends after (point-max).")
-(make-variable-buffer-local 'foldout-fold-list)
 
-(defvar foldout-mode-line-string nil
+(defvar-local foldout-mode-line-string nil
   "Mode line string announcing that we are in an outline fold.")
-(make-variable-buffer-local 'foldout-mode-line-string)
 
 ;; put our minor mode string immediately following outline-minor-mode's
 (or (assq 'foldout-mode-line-string minor-mode-alist)
@@ -487,7 +485,7 @@ What happens depends on the number of mouse clicks:-
 Signal an error if the final event isn't the same type as the first one."
   (let ((initial-event-type (event-basic-type event)))
     (while (null (sit-for (/ double-click-time 1000.0) 'nodisplay))
-      (setq event (read-event)))
+      (setq event (read--potential-mouse-event)))
     (or (eq initial-event-type (event-basic-type event))
 	(error "")))
   event)
