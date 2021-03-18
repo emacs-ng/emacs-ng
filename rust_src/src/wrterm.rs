@@ -84,6 +84,12 @@ pub extern "C" fn wr_get_pixel(ximg: ImageRef, x: i32, y: i32) -> i32 {
 
 #[allow(unused_variables)]
 #[no_mangle]
+pub extern "C" fn wr_put_pixel(ximg: ImageRef, x: i32, y: i32, pixel: u64) {
+    unimplemented!();
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
 pub extern "C" fn wr_free_pixmap(display: DisplayRef, pixmap: Pixmap) -> i32 {
     unimplemented!();
 }
