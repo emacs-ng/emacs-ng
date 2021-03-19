@@ -1,7 +1,7 @@
 # Main Features
 
 ## Javascript
-This code is a strictly additive layer, it changes no elisp functionality, and should be able to merge upstream patches cleanly. JS tests can be run by building the editor and executing `cd test && ../src/emacs --batch -l js/bootstrap.el`.
+This code is a strictly additive layer, it changes no elisp functionality, and should be able to merge upstream patches cleanly. JS tests can be run by building the editor and executing `cd test/js && ../../src/emacs --batch --eval '(deno "test" "--allow-read" "--allow-write" "main.js")'`.
 
 To learn more about JavaScript and TypeScript, it is recommended you check out [Getting Started](https://github.com/emacs-ng/emacs-ng/blob/master/docs/getting-started.md), [Using Deno](https://github.com/emacs-ng/emacs-ng/blob/master/docs/using-deno.md), and [Advanced Features](https://github.com/emacs-ng/emacs-ng/blob/master/docs/adv-features.md)
 

@@ -27,7 +27,15 @@ jobs:
                   ./configure --enable-checking=glyphs
                   make -j3
 
+            - name: js fmt
+              run: |
+                  cd test/js/
+                  ../../src/emacs --batch --eval '(deno "fmt" "--check")'
+                  cd ../../rust_src/src
+                  ../../src/emacs --batch --eval '(deno "fmt" "--check")'
+                  cd ../../
+
             - name: run js tests
               run: |
-                  cd test/
-                  ../src/emacs --batch -l js/bootstrap.el
+                  cd test/js/
+                  ../../src/emacs --batch --eval '(deno "test" "main.js" "--allow-read" "--allow-write")'
