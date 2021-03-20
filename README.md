@@ -44,26 +44,8 @@ One of emacs-ng's primary features is integrating the [Deno Runtime](https://den
 
 ### Performance
 
-v8's world-class JIT offers the potential for massive performance gains. For a simple benchmark (fibonacci), using the following implementations:
+v8's world-class JIT offers the potential for large performance gains. Async I/O from Deno, WebWorkers, and WebAsm, gives you the tools to make Emacs a smoother and faster experience without having to install additional tools to launch as background processes or worry about shared library versions.
 
-``` lisp
-(defun fibonacci(n)
-  (if (<= n 1)
-      n
-    (+ (fibonacci (- n 1)) (fibonacci (- n 2)))))
-```
-
-``` js
-const fib = (n) => {
-    if (n <= 1) {
-        return n;
-    }
-
-    return fib(n - 1) + fib(n - 2);
-};
-```
-
-emacs-ng's JS implementation clocks in over **50 times** faster than emacs 28 without native-comp for calculating fib(40). With native-comp at level 3, JS clocks in over **15** times faster. This, along with Async I/O from Deno, WebWorkers, and WebAsm, gives you the tools to make Emacs a smoother and faster experience without having to install additional tools to launch as background processes or worry about shared library versions - **full performance with EVERYTHING in the scripting layer**.
 
 ## Contributing
 
