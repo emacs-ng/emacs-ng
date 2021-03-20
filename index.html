@@ -587,21 +587,7 @@
 <li>Emacs-ng also has WebAssembly support - compile your C module as WebAsm and distribute it to the world. Don't worry about packaging shared libraries or changing module interfaces, everything can be handled and customized by you the user, at the scripting layer. No need to be dependent on native implementation details.</li>
 </ul>
 <h3 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">#</a></h3>
-<p>v8's world-class JIT offers the potential for massive performance gains. For a simple benchmark (fibonacci), using the following implementations:</p>
-<div class="highlight"><pre><span></span><code><span class="p">(</span><span class="nb">defun</span> <span class="nv">fibonacci</span><span class="p">(</span><span class="nv">n</span><span class="p">)</span>
-  <span class="p">(</span><span class="k">if</span> <span class="p">(</span><span class="nb">&lt;=</span> <span class="nv">n</span> <span class="mi">1</span><span class="p">)</span>
-      <span class="nv">n</span>
-    <span class="p">(</span><span class="nb">+</span> <span class="p">(</span><span class="nv">fibonacci</span> <span class="p">(</span><span class="nb">-</span> <span class="nv">n</span> <span class="mi">1</span><span class="p">))</span> <span class="p">(</span><span class="nv">fibonacci</span> <span class="p">(</span><span class="nb">-</span> <span class="nv">n</span> <span class="mi">2</span><span class="p">)))))</span>
-</code></pre></div>
-<div class="highlight"><pre><span></span><code><span class="kd">const</span> <span class="nx">fib</span> <span class="o">=</span> <span class="p">(</span><span class="nx">n</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="p">{</span>
-    <span class="k">if</span> <span class="p">(</span><span class="nx">n</span> <span class="o">&lt;=</span> <span class="mf">1</span><span class="p">)</span> <span class="p">{</span>
-        <span class="k">return</span> <span class="nx">n</span><span class="p">;</span>
-    <span class="p">}</span>
-
-    <span class="k">return</span> <span class="nx">fib</span><span class="p">(</span><span class="nx">n</span> <span class="o">-</span> <span class="mf">1</span><span class="p">)</span> <span class="o">+</span> <span class="nx">fib</span><span class="p">(</span><span class="nx">n</span> <span class="o">-</span> <span class="mf">2</span><span class="p">);</span>
-<span class="p">};</span>
-</code></pre></div>
-<p>emacs-ng's JS implementation clocks in over <strong>50 times</strong> faster than emacs 28 without native-comp for calculating fib(40). With native-comp at level 3, JS clocks in over <strong>15</strong> times faster. This, along with Async I/O from Deno, WebWorkers, and WebAsm, gives you the tools to make Emacs a smoother and faster experience without having to install additional tools to launch as background processes or worry about shared library versions - <strong>full performance with EVERYTHING in the scripting layer</strong>.</p>
+<p>v8's world-class JIT offers the potential for large performance gains. Async I/O from Deno, WebWorkers, and WebAsm, gives you the tools to make Emacs a smoother and faster experience without having to install additional tools to launch as background processes or worry about shared library versions.</p>
 <h2 id="contributing">Contributing<a class="headerlink" href="#contributing" title="Permanent link">#</a></h2>
 <p>Contributions are welcome. We try to maintain a list of "new contributor" friendly issues tagged with "good first issue".</p>
                 
@@ -612,7 +598,7 @@
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">March 19, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">March 20, 2021</span>
     
   </small>
 </div>
