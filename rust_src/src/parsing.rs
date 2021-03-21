@@ -1,11 +1,11 @@
 use crate::ng_async::{to_owned_userdata, EmacsPipe, PipeDataOption, UserData};
-use lisp::{bindings::GCompletion, lisp::LispObject};
+use lisp::lisp::LispObject;
 use lisp::list::{LispCons, LispConsCircularChecks, LispConsEndChecks};
 use lisp::multibyte::LispStringRef;
 use lisp_macros::lisp_fn;
 use lsp_server::{Message, Notification, Request, RequestId, Response};
 use serde_json::{map::Map, Value};
-use std::{collections, convert::TryInto};
+use std::convert::TryInto;
 use std::ffi::CString;
 use std::io::{BufReader, BufWriter, Result};
 use std::process::{Child, Command, Stdio};
@@ -561,7 +561,6 @@ pub(crate) fn deser(string: &str, config: Option<JSONConfiguration>) -> Result<L
 #[cfg(feature = "javascript")]
 pub(crate) fn ser(o: LispObject) -> Result<String> {
     let config = gen_ser_deser_config();
-    con
     let value = lisp_to_serde(o, &config)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", e)))?;
     serde_json::to_string(&value)
