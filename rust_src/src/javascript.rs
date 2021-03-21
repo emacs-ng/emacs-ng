@@ -1644,8 +1644,7 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
 
     let mut handle = EmacsMainJsRuntime::get_tokio_handle();
     let runtime = handle.as_mut_ref();
-    let main_module =
-        deno_core::ModuleSpecifier::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
+    let main_module = deno_core::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
     let permissions = js_options.ops.as_ref().unwrap().clone();
     let inspect = if let Some(i) = &js_options.inspect {
         Some(
@@ -1679,7 +1678,8 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
         ..Default::default()
     };
 
-    let program = deno::program_state::ProgramState::new(flags).map_err(|e| into_ioerr(e))?;
+    let program_fut = futures::executor::block_on(deno::program_state::ProgramState::build(flags));
+    let program = program_fut.map_err(|e| into_ioerr(e))?;
     EmacsMainJsRuntime::set_program_state(program.clone());
     let mut worker = deno::create_main_worker(&program, main_module.clone(), permissions);
     let result: Result<deno_runtime::worker::MainWorker> = runtime.block_on(async move {
@@ -1703,16 +1703,14 @@ fn run_module_inner(
     block_on(async move {
         let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
         let w = worker_handle.as_mut_ref();
-        let main_module =
-            deno_core::ModuleSpecifier::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
+        let main_module = deno_core::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
 
-        let main_module_url = main_module.as_url().to_owned();
         if let Some(js) = additional_js {
             let program = EmacsMainJsRuntime::get_program_state();
             // We are inserting a fake file into the file cache in order to execute
             // our module.
             let file = deno::file_fetcher::File {
-                local: main_module_url.to_file_path().unwrap(),
+                local: main_module.clone().to_file_path().unwrap(),
                 maybe_types: None,
                 media_type: if as_typescript {
                     deno::media_type::MediaType::TypeScript
@@ -1720,7 +1718,7 @@ fn run_module_inner(
                     deno::media_type::MediaType::JavaScript
                 },
                 source: js,
-                specifier: deno_core::ModuleSpecifier::from(main_module_url),
+                specifier: main_module.clone(),
             };
 
             program.file_fetcher.insert_cached(file);
@@ -1907,8 +1905,8 @@ fn get_subcommand(
         deno::flags::DenoSubcommand::Eval {
             print,
             code,
-            as_typescript,
-        } => crate::subcommands::eval_command(flags, code, as_typescript, print).boxed_local(),
+	    ext,
+        } => crate::subcommands::eval_command(flags, code, ext, print).boxed_local(),
         deno::flags::DenoSubcommand::Run { script } => {
             crate::subcommands::run_command(flags, script).boxed_local()
         }

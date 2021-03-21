@@ -5682,11 +5682,11 @@ fi
 AC_SUBST(CARGO_FLAGS)
 
 case "${opsys}" in
-  darwin) RUST_DEPS="-ldl -lm -lresolv"
+  darwin) RUST_DEPS="-ldl -lm -lresolv -lstdc++"
         REMACSLIB_NAME="libremacs_lib.a"
         EMACSNGLIB_NAME="libemacsng.a"
         REMACSLIB_CFLAGS="-pthread -DEMACS_EXTERN_INLINE" ;;
-  gnu*) RUST_DEPS="-ldl -lm -lrt"
+  gnu*) RUST_DEPS="-ldl -lm -lrt -lstdc++"
         REMACSLIB_NAME="libremacs_lib.a"
         EMACSNGLIB_NAME="libemacsng.a"
         REMACSLIB_CFLAGS="-pthread -DEMACS_EXTERN_INLINE" ;;

@@ -34,10 +34,10 @@ libc = "0.2"
 line-wrap = "0.1.1"
 lsp-server = "0.5.0"
 rand = "0.6.5"
-rusty_v8 = { version = "0.16.0", optional = true }
+rusty_v8 = { version = "0.20.0", optional = true }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 systemstat = "0.1"
-tokio = { version = "1.1.1", features = ["full"], optional = true }
+tokio = { version = "1.2.0", features = ["full"], optional = true }
 tokio-rustls = { version = "0.22.0", optional = true }
 glutin = { version = "0.26", optional = true }
 gleam = { version = "0.6", optional = true }
