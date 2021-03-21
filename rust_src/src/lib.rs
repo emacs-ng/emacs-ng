@@ -71,6 +71,7 @@ mod git;
 mod javascript;
 mod javascript_stubs;
 mod ng_async;
+mod ng_module;
 mod parsing;
 #[cfg(feature = "javascript")]
 mod subcommands;
