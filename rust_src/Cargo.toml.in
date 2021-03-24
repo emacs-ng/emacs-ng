@@ -96,5 +96,7 @@ window-system-webrender = ["font-kit", "webrender", "glutin", "gleam", "app_unit
 strict = []
 # Use JavaScript and Deno
 javascript = ["deno", "deno_core", "deno_runtime", "tokio", "rusty_v8", "tokio-rustls"]
+# Build with dynamic modules support's extensions.
+ng-module = []
 # Enable glyphs debugging code.
 glyph-debug = []

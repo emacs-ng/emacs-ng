@@ -393,6 +393,9 @@ fn build_ignored_paths() -> Vec<&'static str> {
     #[cfg(not(feature = "window-system-webrender"))]
     ignored_paths.push("wrterm.rs");
 
+    #[cfg(not(feature = "ng-module"))]
+    ignored_paths.push("ng_module.rs");
+
     ignored_paths
 }
 

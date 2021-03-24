@@ -6117,9 +6117,11 @@ esac
 if test "$HAVE_LIBVTERM" = "yes"; then
    CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"libvterm\", "
 fi
-
 if test "${with_javascript}" = "yes"; then
   CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"javascript\", "
+fi
+if test "${HAVE_MODULES}" = "yes"; then
+  CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"ng-module\", "
 fi
 AC_SUBST(CARGO_DEFAULT_FEATURES)
 AC_CONFIG_FILES([rust_src/Cargo.toml])
