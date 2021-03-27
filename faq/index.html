@@ -576,7 +576,7 @@
 <h2 id="how-should-i-use-jsts-as-an-existing-package-maintainer">How should I use JS/TS as an existing package maintainer?<a class="headerlink" href="#how-should-i-use-jsts-as-an-existing-package-maintainer" title="Permanent link">#</a></h2>
 <p>If you have a large elisp package, our guidance is not that you should rewrite your entire package in JS/TS. Instead, we encourage package maintainers to explore using JS/TS's Async I/O and Threading capabilities to improve performance their hot code paths on emacs-ng. Using <code>(featurep 'emacs-ng)</code>, you can include an import statement for a JS/TS package that defun's functions for you to use. Our <a href="https://github.com/emacs-ng/emacs-ng/blob/master/docs/getting-started.md">Getting Started Guide</a> is a good place to start.</p>
 <h2 id="how-does-adding-jsts-affect-your-ability-to-merge-future-emacs-improvements">How does adding JS/TS affect your ability to merge future emacs improvements?<a class="headerlink" href="#how-does-adding-jsts-affect-your-ability-to-merge-future-emacs-improvements" title="Permanent link">#</a></h2>
-<p>JS/TS is almost a completely additive layer, we have made extremely minimal C changes. As of writing this FAQ, we have only made a small edit to a single line of C to support JS/TS. WebRender, while still in development, has also made minimal C changes. We have the ability to cleanly merge upstream patches without conflict. emacs-ng is based off of the <code>native-comp</code> branch of emacs, and regularly merges in the latest from that branch. emacs-ng can be compiled with nativecomp using <code>./configure --with-nativecomp</code>.</p>
+<p>JS/TS is almost a completely additive layer, we have made extremely minimal C changes. As of writing this FAQ, we have only made a small edit to a single line of C to support JS/TS. WebRender, while still in development, has also made minimal C changes. We have the ability to cleanly merge upstream patches without conflict. emacs-ng is based off of the <code>native-comp</code> branch of emacs, and regularly merges in the latest from that branch. emacs-ng can be compiled with nativecomp using <code>./configure --with-native-compilation</code>.</p>
 <h2 id="how-does-jsts-running-affect-performance">How does JS/TS running affect performance?<a class="headerlink" href="#how-does-jsts-running-affect-performance" title="Permanent link">#</a></h2>
 <p>JS/TS is a "you pay for what you use" system. The JS runtime starts uninitialized, and will not be initialized until you run JavaScript. The JS/TS event loop only runs when you have a pending async operation, including timer callbacks. If you don't have any pending promises/callbacks, the event loop isn't running. This means that impact is proportional to how you use the runtime.</p>
 <h2 id="if-im-chasing-performance-why-not-just-write-a-crust-module">If I'm chasing performance, why not just write a C/Rust module?<a class="headerlink" href="#if-im-chasing-performance-why-not-just-write-a-crust-module" title="Permanent link">#</a></h2>
@@ -595,7 +595,7 @@
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">March 20, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">March 27, 2021</span>
     
   </small>
 </div>
