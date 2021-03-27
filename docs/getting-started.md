@@ -34,7 +34,7 @@ This is an introduction for building applications and hacking on emacs-ng using 
     Mojave install libxml2 headers with: `open /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg`
 
 
-If you want to run doomemacs, you will need to compile with `./configure --with-nativecomp`. nativecomp will also require `zlib1g-dev libgccjit-8-dev`
+If you want to run doomemacs, you will need to compile with `./configure --with-nativecomp`. nativecomp will also require `zlib1g-dev libgccjit-9-dev`
 
 
 ## Building
@@ -123,7 +123,7 @@ If these typescript examples are taking a long time to evaluate, it's likely due
 (js-initialize :no-check t)
 ```
 
-This code will cleanup your current JS environment and re-initialize it with TypeScript type checking disabled. If you do not care about the type checking that TypeScript offers, or your computer struggles with the cost of compiling, you can add `(js-initialize :no-check t)` to your init.el. 
+This code will cleanup your current JS environment and re-initialize it with TypeScript type checking disabled. If you do not care about the type checking that TypeScript offers, or your computer struggles with the cost of compiling, you can add `(js-initialize :no-check t)` to your init.el.
 
 Let's stop printing to the minibuffer, and instead start pushing our results into buffers. Let's start by something simple: make a network call and dump the results into a buffer.
 

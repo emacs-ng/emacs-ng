@@ -13,6 +13,10 @@ use std::io::Result;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
 
+use crate::futures::FutureExt;
+use futures::Future;
+use std::pin::Pin;
+
 #[derive(Clone)]
 struct EmacsJsOptions {
     tick_rate: f64,
@@ -1595,6 +1599,44 @@ fn init_tokio() -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn v8_bind_lisp_funcs(worker: &mut deno_runtime::worker::MainWorker) -> Result<()> {
+    let runtime = &mut worker.js_runtime;
+    {
+        let context = runtime.global_context();
+        let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
+        let context = scope.get_current_context();
+        let global = context.global(scope);
+        {
+            let name = v8::String::new(scope, "proxyProto").unwrap();
+            let template = v8::ObjectTemplate::new(scope);
+            template.set_internal_field_count(1);
+            let glob = v8::Global::new(scope, template);
+            EmacsMainJsRuntime::set_proxy_template(glob);
+            let obj = v8::Object::new(scope);
+            global.set(scope, name.into(), obj.into());
+        }
+        bind_global_fn!(scope, global, lisp_invoke);
+        bind_global_fn!(scope, global, is_proxy);
+        bind_global_fn!(scope, global, finalize);
+        bind_global_fn!(scope, global, lisp_json);
+        bind_global_fn!(scope, global, lisp_intern);
+        bind_global_fn!(scope, global, lisp_make_finalizer);
+        bind_global_fn!(scope, global, lisp_string);
+        bind_global_fn!(scope, global, lisp_fixnum);
+        bind_global_fn!(scope, global, lisp_float);
+        bind_global_fn!(scope, global, lisp_make_lambda);
+        bind_global_fn!(scope, global, lisp_list);
+        bind_global_fn!(scope, global, json_lisp);
+    }
+    {
+        runtime
+            .execute("prelim.js", include_str!("prelim.js"))
+            .map_err(|e| into_ioerr(e))?
+    }
+
+    Ok(())
+}
+
 fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     if EmacsMainJsRuntime::is_main_worker_active() || EmacsMainJsRuntime::is_within_runtime() {
         return Ok(());
@@ -1641,40 +1683,7 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     EmacsMainJsRuntime::set_program_state(program.clone());
     let mut worker = deno::create_main_worker(&program, main_module.clone(), permissions);
     let result: Result<deno_runtime::worker::MainWorker> = runtime.block_on(async move {
-        let runtime = &mut worker.js_runtime;
-        {
-            let context = runtime.global_context();
-            let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
-            let context = scope.get_current_context();
-            let global = context.global(scope);
-            {
-                let name = v8::String::new(scope, "proxyProto").unwrap();
-                let template = v8::ObjectTemplate::new(scope);
-                template.set_internal_field_count(1);
-                let glob = v8::Global::new(scope, template);
-                EmacsMainJsRuntime::set_proxy_template(glob);
-                let obj = v8::Object::new(scope);
-                global.set(scope, name.into(), obj.into());
-            }
-            bind_global_fn!(scope, global, lisp_invoke);
-            bind_global_fn!(scope, global, is_proxy);
-            bind_global_fn!(scope, global, finalize);
-            bind_global_fn!(scope, global, lisp_json);
-            bind_global_fn!(scope, global, lisp_intern);
-            bind_global_fn!(scope, global, lisp_make_finalizer);
-            bind_global_fn!(scope, global, lisp_string);
-            bind_global_fn!(scope, global, lisp_fixnum);
-            bind_global_fn!(scope, global, lisp_float);
-            bind_global_fn!(scope, global, lisp_make_lambda);
-            bind_global_fn!(scope, global, lisp_list);
-            bind_global_fn!(scope, global, json_lisp);
-        }
-        {
-            runtime
-                .execute("prelim.js", include_str!("prelim.js"))
-                .map_err(|e| into_ioerr(e))?
-        }
-
+        v8_bind_lisp_funcs(&mut worker)?;
         Ok(worker)
     });
 
@@ -1887,6 +1896,137 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
     }
 
     lisp::remacs_sys::Qnil
+}
+
+// We overwrite certain subcommands to allow interfacing with emacs-lisp
+// All other subcommands will use deno's default implementation
+fn get_subcommand(
+    flags: deno::flags::Flags,
+) -> Pin<Box<dyn Future<Output = std::result::Result<(), deno_core::error::AnyError>>>> {
+    match flags.clone().subcommand {
+        deno::flags::DenoSubcommand::Eval {
+            print,
+            code,
+            as_typescript,
+        } => crate::subcommands::eval_command(flags, code, as_typescript, print).boxed_local(),
+        deno::flags::DenoSubcommand::Run { script } => {
+            crate::subcommands::run_command(flags, script).boxed_local()
+        }
+        deno::flags::DenoSubcommand::Repl => crate::subcommands::run_repl(flags).boxed_local(),
+        deno::flags::DenoSubcommand::Test {
+            no_run,
+            fail_fast,
+            quiet,
+            include,
+            allow_none,
+            filter,
+        } => crate::subcommands::test_command(
+            flags, include, no_run, fail_fast, quiet, allow_none, filter,
+        )
+            .boxed_local(),
+	deno::flags::DenoSubcommand::Info { json, .. } => async move {
+	    if is_interactive() && json && !flags.unstable {
+		Err(deno_core::error::generic_error(
+                    "--unstable is required for this command",
+                ))
+	    } else {
+                deno::get_subcommand(flags).await
+	    }
+	}.boxed_local(),
+        deno::flags::DenoSubcommand::Compile { .. } => async {
+	    if is_interactive() && !flags.unstable {
+                Err(deno_core::error::generic_error(
+                    "--unstable is required for this command",
+                ))
+            } else {
+                deno::get_subcommand(flags).await
+            }
+	}.boxed_local(),
+        deno::flags::DenoSubcommand::Lint { .. } => async {
+            if is_interactive() {
+                Err(deno_core::error::generic_error(
+                    "lint is not supported in interactive mode. Lint files with emacs as a subprocess using emacs --batch --eval '(deno \"lint\" \"--unstable\")'",
+                ))
+            } else {
+                deno::get_subcommand(flags).await
+            }
+        }
+        .boxed_local(),
+        // (DDS) We don't want upgrade to be run from emacs
+        // since it wouldnt do what the user expects
+        // instead, we will just throw an error
+        // @TODO it would be nice if this actually
+        // upgraded emacs-ng instead
+        deno::flags::DenoSubcommand::Upgrade { .. } => async {
+            Err(deno_core::error::generic_error(
+                "(deno upgrade) is unsupported in emacs-ng at this time.",
+            ))
+        }
+        .boxed_local(),
+        _ => deno::get_subcommand(flags),
+    }
+}
+
+/// Usage: (deno CMD &REST ARGS)
+///
+/// Invokes a deno command using emacs-ng. This behavior mirrors as if you
+/// ran a deno command from the command line, except that lisp
+/// functions are available
+///
+/// Unlike normal JavaScript run in emacs, using this command
+/// respects deno's permission model. You will need to pass
+/// --allow-read, --allow-write, --allow-net or --allow-run
+///
+/// This command spawns a new JavaScript environment to
+/// simulate how deno cli works. HOWEVER, Lisp variables
+/// are shared. `deno` is a blocking call, and so interacting
+/// with lisp does not need a lock.
+///
+/// Using this command is using emacs AS deno, and does not change
+/// how deno handles Input/Output. This means that deno will write
+/// to stdout and recieve input via stdin as it normally would.
+/// The primary use case of this function is be run from the
+/// command line, however it can be used while running emacs
+///
+/// The only command not fully supported is (deno "upgrade")
+///
+/// (deno "lint") can only be run while emacs is in batch mode via the command
+/// line: emacs --batch --eval '(deno "lint" "--unstable")'
+///
+/// This can be combined with running emacs-ng in batch mode to fully mirror deno
+/// functionality. I.e. `emacs --batch --eval '(deno "repl")'
+///
+/// This function is safe to execute from a lisp thread if you want to make
+/// the operation non-blocking. (make-thread (lambda () (deno "fmt")))
+///
+/// Examples:
+/// (deno "fmt") ; Will format files in the current directory as if you ran
+///              ; deno fmt from the command line.
+///
+/// (deno "run" "--allow-read" "my-file.ts") ; Runs a typescript file named
+///                                          ; my-file.ts, allowing reads
+///
+#[cfg(feature = "javascript")]
+#[lisp_fn(min = "1")]
+pub fn deno(cmd_args: &[LispObject]) {
+    let mut args = vec!["deno".to_string()];
+    for i in 0..cmd_args.len() {
+        let stringref: LispStringRef = cmd_args[i].into();
+        let string = stringref.to_utf8();
+        args.push(string);
+    }
+
+    let flags = deno::flags::flags_from_vec(args.clone()).unwrap_or_else(|e| {
+        error!("Error in parsing flags: {}", e);
+    });
+    let fut = get_subcommand(flags);
+    init_tokio().unwrap_or_else(|e| {
+        error!("Unable to initialize tokio runtime: {}", e);
+    });
+
+    block_on(async move { fut.await.map_err(|e| into_ioerr(e)) }).unwrap_or_else(|e| {
+        error!("Error in deno command '{}': {}", args.join(" "), e);
+    });
 }
 
 // Do NOT call this function, it is just used for macro purposes to
