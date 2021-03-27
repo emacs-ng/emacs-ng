@@ -620,14 +620,12 @@ Element N specifies the summary line for message N+1.")
 
 ;; Rmail buffer swapping variables.
 
-(defvar rmail-buffer-swapped nil
+(defvar-local rmail-buffer-swapped nil
   "If non-nil, `rmail-buffer' is swapped with `rmail-view-buffer'.")
-(make-variable-buffer-local 'rmail-buffer-swapped)
 (put 'rmail-buffer-swapped 'permanent-local t)
 
-(defvar rmail-view-buffer nil
+(defvar-local rmail-view-buffer nil
   "Buffer which holds RMAIL message for MIME displaying.")
-(make-variable-buffer-local 'rmail-view-buffer)
 (put 'rmail-view-buffer 'permanent-local t)
 
 ;; `Sticky' default variables.
@@ -1723,7 +1721,7 @@ not be a new one).  It returns non-nil if it got any new messages."
 		  (buffer-read-only nil)
 		  ;; Don't make undo records while getting mail.
 		  (buffer-undo-list t)
-		  delete-files files file-last-names)
+		  files file-last-names) ;; delete-files
 	      ;; Pull files off all-files onto files as long as there is
 	      ;; no name conflict.  A conflict happens when two inbox
 	      ;; file names have the same last component.
@@ -1745,7 +1743,7 @@ not be a new one).  It returns non-nil if it got any new messages."
 		(while (not (looking-back "\n\n" (- (point) 2)))
 		  (insert "\n")))
 	      (setq found (or
-			   (rmail-get-new-mail-1 file-name files delete-files)
+			   (rmail-get-new-mail-1 file-name files nil) ;; delete-files
 			   found))))
 	  ;; Move to the first new message unless we have other unseen
 	  ;; messages before it.
@@ -2723,6 +2721,12 @@ See also `unrmail-mbox-format'."
   :version "24.4"
   :group 'rmail-files)
 
+(defcustom rmail-show-message-set-modified nil
+  "If non-nil, displaying an unseen message marks the Rmail buffer as modified."
+  :type 'boolean
+  :group 'rmail
+  :version "28.1")
+
 (defun rmail-show-message-1 (&optional msg)
   "Show message MSG (default: current message) using `rmail-view-buffer'.
 Return text to display in the minibuffer if MSG is out of
@@ -2750,6 +2754,8 @@ The current mail message becomes the message displayed."
 	;; Mark the message as seen, but preserve buffer modified flag.
 	(let ((modiff (buffer-modified-p)))
 	  (rmail-set-attribute rmail-unseen-attr-index nil)
+          (and rmail-show-message-set-modified
+               (setq modiff t))
 	  (unless modiff
 	    (restore-buffer-modified-p modiff)))
 	;; bracket the message in the mail

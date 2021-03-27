@@ -1,5 +1,5 @@
 /* Compile elisp into native code.
-   Copyright (C) 2019-2020 Free Software Foundation, Inc.
+   Copyright (C) 2019-2021 Free Software Foundation, Inc.
 
 Author: Andrea Corallo <akrl@sdf.org>
 
@@ -36,6 +36,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "dynlib.h"
 #include "buffer.h"
 #include "blockinput.h"
+#include "coding.h"
 #include "md5.h"
 #include "sysstdio.h"
 #include "zlib.h"
@@ -56,6 +57,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #undef gcc_jit_block_end_with_return
 #undef gcc_jit_block_end_with_void_return
 #undef gcc_jit_context_acquire
+#undef gcc_jit_context_add_command_line_option
 #undef gcc_jit_context_add_driver_option
 #undef gcc_jit_context_compile_to_file
 #undef gcc_jit_context_dump_reproducer_to_file
@@ -87,6 +89,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #undef gcc_jit_context_set_bool_option
 #undef gcc_jit_context_set_int_option
 #undef gcc_jit_context_set_logfile
+#undef gcc_jit_context_set_str_option
 #undef gcc_jit_function_get_param
 #undef gcc_jit_function_new_block
 #undef gcc_jit_function_new_local
@@ -124,6 +127,8 @@ DEF_DLL_FN (const char *, gcc_jit_context_get_first_error,
 DEF_DLL_FN (gcc_jit_block *, gcc_jit_function_new_block,
             (gcc_jit_function *func, const char *name));
 DEF_DLL_FN (gcc_jit_context *, gcc_jit_context_acquire, (void));
+DEF_DLL_FN (void, gcc_jit_context_add_command_line_option,
+            (gcc_jit_context *ctxt, const char *optname));
 DEF_DLL_FN (void, gcc_jit_context_add_driver_option,
             (gcc_jit_context *ctxt, const char *optname));
 DEF_DLL_FN (gcc_jit_field *, gcc_jit_context_new_field,
@@ -176,8 +181,10 @@ DEF_DLL_FN (gcc_jit_rvalue *, gcc_jit_context_new_comparison,
              enum gcc_jit_comparison op, gcc_jit_rvalue *a, gcc_jit_rvalue *b));
 DEF_DLL_FN (gcc_jit_rvalue *, gcc_jit_context_new_rvalue_from_long,
             (gcc_jit_context *ctxt, gcc_jit_type *numeric_type, long value));
+#if LISP_WORDS_ARE_POINTERS
 DEF_DLL_FN (gcc_jit_rvalue *, gcc_jit_context_new_rvalue_from_ptr,
             (gcc_jit_context *ctxt, gcc_jit_type *pointer_type, void *value));
+#endif
 DEF_DLL_FN (gcc_jit_rvalue *, gcc_jit_context_new_string_literal,
             (gcc_jit_context *ctxt, const char *value));
 DEF_DLL_FN (gcc_jit_rvalue *, gcc_jit_context_new_unary_op,
@@ -242,6 +249,9 @@ DEF_DLL_FN (void, gcc_jit_context_set_int_option,
             (gcc_jit_context *ctxt, enum gcc_jit_int_option opt, int value));
 DEF_DLL_FN (void, gcc_jit_context_set_logfile,
             (gcc_jit_context *ctxt, FILE *logfile, int flags, int verbosity));
+DEF_DLL_FN (void, gcc_jit_context_set_str_option,
+	    (gcc_jit_context *ctxt, enum gcc_jit_str_option opt,
+	     const char *value));
 DEF_DLL_FN (void, gcc_jit_struct_set_fields,
             (gcc_jit_struct *struct_type, gcc_jit_location *loc, int num_fields,
              gcc_jit_field **fields));
@@ -287,7 +297,9 @@ init_gccjit_functions (void)
   LOAD_DLL_FN (library, gcc_jit_context_new_param);
   LOAD_DLL_FN (library, gcc_jit_context_new_rvalue_from_int);
   LOAD_DLL_FN (library, gcc_jit_context_new_rvalue_from_long);
+#if LISP_WORDS_ARE_POINTERS
   LOAD_DLL_FN (library, gcc_jit_context_new_rvalue_from_ptr);
+#endif
   LOAD_DLL_FN (library, gcc_jit_context_new_string_literal);
   LOAD_DLL_FN (library, gcc_jit_context_new_struct_type);
   LOAD_DLL_FN (library, gcc_jit_context_new_unary_op);
@@ -296,6 +308,7 @@ init_gccjit_functions (void)
   LOAD_DLL_FN (library, gcc_jit_context_set_bool_option);
   LOAD_DLL_FN (library, gcc_jit_context_set_int_option);
   LOAD_DLL_FN (library, gcc_jit_context_set_logfile);
+  LOAD_DLL_FN (library, gcc_jit_context_set_str_option);
   LOAD_DLL_FN (library, gcc_jit_function_get_param);
   LOAD_DLL_FN (library, gcc_jit_function_new_block);
   LOAD_DLL_FN (library, gcc_jit_function_new_local);
@@ -312,6 +325,7 @@ init_gccjit_functions (void)
   LOAD_DLL_FN (library, gcc_jit_struct_set_fields);
   LOAD_DLL_FN (library, gcc_jit_type_get_const);
   LOAD_DLL_FN (library, gcc_jit_type_get_pointer);
+  LOAD_DLL_FN_OPT (library, gcc_jit_context_add_command_line_option);
   LOAD_DLL_FN_OPT (library, gcc_jit_context_add_driver_option);
   LOAD_DLL_FN_OPT (library, gcc_jit_global_set_initializer);
   LOAD_DLL_FN_OPT (library, gcc_jit_version_major);
@@ -330,6 +344,7 @@ init_gccjit_functions (void)
 #define gcc_jit_block_end_with_return fn_gcc_jit_block_end_with_return
 #define gcc_jit_block_end_with_void_return fn_gcc_jit_block_end_with_void_return
 #define gcc_jit_context_acquire fn_gcc_jit_context_acquire
+#define gcc_jit_context_add_command_line_option fn_gcc_jit_context_add_command_line_option
 #define gcc_jit_context_add_driver_option fn_gcc_jit_context_add_driver_option
 #define gcc_jit_context_compile_to_file fn_gcc_jit_context_compile_to_file
 #define gcc_jit_context_dump_reproducer_to_file fn_gcc_jit_context_dump_reproducer_to_file
@@ -352,7 +367,9 @@ init_gccjit_functions (void)
 #define gcc_jit_context_new_param fn_gcc_jit_context_new_param
 #define gcc_jit_context_new_rvalue_from_int fn_gcc_jit_context_new_rvalue_from_int
 #define gcc_jit_context_new_rvalue_from_long fn_gcc_jit_context_new_rvalue_from_long
-#define gcc_jit_context_new_rvalue_from_ptr fn_gcc_jit_context_new_rvalue_from_ptr
+#if LISP_WORDS_ARE_POINTERS
+# define gcc_jit_context_new_rvalue_from_ptr fn_gcc_jit_context_new_rvalue_from_ptr
+#endif
 #define gcc_jit_context_new_string_literal fn_gcc_jit_context_new_string_literal
 #define gcc_jit_context_new_struct_type fn_gcc_jit_context_new_struct_type
 #define gcc_jit_context_new_unary_op fn_gcc_jit_context_new_unary_op
@@ -361,6 +378,7 @@ init_gccjit_functions (void)
 #define gcc_jit_context_set_bool_option fn_gcc_jit_context_set_bool_option
 #define gcc_jit_context_set_int_option fn_gcc_jit_context_set_int_option
 #define gcc_jit_context_set_logfile fn_gcc_jit_context_set_logfile
+#define gcc_jit_context_set_str_option fn_gcc_jit_context_set_str_option
 #define gcc_jit_function_get_param fn_gcc_jit_function_get_param
 #define gcc_jit_function_new_block fn_gcc_jit_function_new_block
 #define gcc_jit_function_new_local fn_gcc_jit_function_new_local
@@ -411,7 +429,10 @@ load_gccjit_if_necessary (bool mandatory)
 
 
 /* Increase this number to force a new Vcomp_abi_hash to be generated.  */
-#define ABI_VERSION "1"
+#define ABI_VERSION "4"
+
+/* Length of the hashes used for eln file naming.  */
+#define HASH_LENGTH 8
 
 /* C symbols emitted for the load relocation mechanism.  */
 #define CURRENT_THREAD_RELOC_SYM "current_thread_reloc"
@@ -485,11 +506,17 @@ enum cast_kind_of_type
     kind_pointer
   };
 
+typedef struct {
+  EMACS_INT len;
+  gcc_jit_rvalue *r_val;
+} reloc_array_t;
+
 /* C side of the compiler context.  */
 
 typedef struct {
   EMACS_INT speed;
   EMACS_INT debug;
+  Lisp_Object driver_options;
   gcc_jit_context *ctxt;
   gcc_jit_type *void_type;
   gcc_jit_type *bool_type;
@@ -557,6 +584,7 @@ typedef struct {
   EMACS_INT func_speed; /* From comp-func speed slot.  */
   gcc_jit_block *block;  /* Current basic block being compiled.  */
   gcc_jit_lvalue *scratch; /* Used as scratch slot for some code sequence (switch).  */
+  ptrdiff_t frame_size; /* Size of the following array in elements. */
   gcc_jit_lvalue **frame; /* Frame slot n -> gcc_jit_lvalue *.  */
   gcc_jit_rvalue *zero;
   gcc_jit_rvalue *one;
@@ -579,11 +607,11 @@ typedef struct {
   Lisp_Object imported_funcs_h; /* subr_name -> gcc_jit_field *reloc_field.  */
   Lisp_Object emitter_dispatcher;
   /* Synthesized struct holding data relocs.  */
-  gcc_jit_rvalue *data_relocs;
+  reloc_array_t data_relocs;
   /* Same as before but can't go in pure space. */
-  gcc_jit_rvalue *data_relocs_impure;
+  reloc_array_t data_relocs_impure;
   /* Same as before but content does not survive load phase. */
-  gcc_jit_rvalue *data_relocs_ephemeral;
+  reloc_array_t data_relocs_ephemeral;
   /* Global structure holding function relocations.  */
   gcc_jit_lvalue *func_relocs;
   gcc_jit_type *func_relocs_ptr_type;
@@ -606,7 +634,7 @@ typedef struct {
 } static_obj_t;
 
 typedef struct {
-  gcc_jit_rvalue *array;
+  reloc_array_t array;
   gcc_jit_rvalue *idx;
 } imm_reloc_t;
 
@@ -626,7 +654,6 @@ void *helper_link_table[] =
     helper_PSEUDOVECTOR_TYPEP_XUNTAG,
     pure_write_error,
     push_handler,
-    SETJMP_NAME,
     record_unwind_protect_excursion,
     helper_unbind_n,
     helper_save_restriction,
@@ -662,7 +689,7 @@ comp_hash_string (Lisp_Object string)
   md5_buffer (SSDATA (string), SCHARS (string), SSDATA (digest));
   hexbuf_digest (SSDATA (digest), SDATA (digest), MD5_DIGEST_SIZE);
 
-  return digest;
+  return Fsubstring (digest, Qnil, make_fixnum (HASH_LENGTH));
 }
 
 static Lisp_Object
@@ -671,7 +698,8 @@ comp_hash_source_file (Lisp_Object filename)
   /* Can't use Finsert_file_contents + Fbuffer_hash as this is called
      by Fcomp_el_to_eln_filename too early during bootstrap.  */
   bool is_gz = suffix_p (filename, ".gz");
-  FILE *f = emacs_fopen (SSDATA (filename), is_gz ? "rb" : "r");
+  Lisp_Object encoded_filename = ENCODE_FILE (filename);
+  FILE *f = emacs_fopen (SSDATA (encoded_filename), is_gz ? "rb" : "r");
 
   if (!f)
     report_file_error ("Opening source file", filename);
@@ -688,7 +716,17 @@ comp_hash_source_file (Lisp_Object filename)
 
   hexbuf_digest (SSDATA (digest), SSDATA (digest), MD5_DIGEST_SIZE);
 
-  return digest;
+  return Fsubstring (digest, Qnil, make_fixnum (HASH_LENGTH));
+}
+
+DEFUN ("comp--subr-signature", Fcomp__subr_signature,
+       Scomp__subr_signature, 1, 1, 0,
+       doc: /* Support function to 'hash_native_abi'.
+For internal use.  */)
+  (Lisp_Object subr)
+{
+  return concat2 (Fsubr_name (subr),
+		  Fprin1_to_string (Fsubr_arity (subr), Qnil));
 }
 
 /* Produce a key hashing Vcomp_subr_list.  */
@@ -701,16 +739,13 @@ hash_native_abi (void)
 
   Vcomp_abi_hash =
     comp_hash_string (
-      concat2 (build_string (ABI_VERSION),
-	       Fmapconcat (intern_c_string ("subr-name"),
+      concat3 (build_string (ABI_VERSION),
+	       concat3 (Vemacs_version, Vsystem_configuration,
+			Vsystem_configuration_options),
+	       Fmapconcat (intern_c_string ("comp--subr-signature"),
 			   Vcomp_subr_list, build_string (""))));
-  Lisp_Object separator = build_string ("-");
   Vcomp_native_version_dir =
-    concat3 (Vemacs_version,
-	     separator,
-	     concat3 (Vsystem_configuration,
-		      separator,
-		      Vcomp_abi_hash));
+    concat3 (Vemacs_version, build_string ("-"), Vcomp_abi_hash);
 }
 
 static void
@@ -786,7 +821,9 @@ emit_mvar_lval (Lisp_Object mvar)
       return comp.scratch;
     }
 
-  return comp.frame[XFIXNUM (mvar_slot)];
+  EMACS_INT slot_n = XFIXNUM (mvar_slot);
+  eassert (slot_n < comp.frame_size);
+  return comp.frame[slot_n];
 }
 
 static void
@@ -825,7 +862,9 @@ obj_to_reloc (Lisp_Object obj)
   xsignal1 (Qnative_ice,
 	    build_string ("cant't find data in relocation containers"));
   assume (false);
+
  found:
+  eassert (XFIXNUM (idx) < reloc.array.len);
   if (!FIXNUMP (idx))
     xsignal1 (Qnative_ice,
 	      build_string ("inconsistent data relocation container"));
@@ -1120,62 +1159,21 @@ emit_rvalue_from_long_long (gcc_jit_type *type, long long n)
 }
 
 static gcc_jit_rvalue *
-emit_rvalue_from_unsigned_long_long (gcc_jit_type *type, unsigned long long n)
-{
-  emit_comment (format_string ("emit unsigned long long: %llu", n));
-
-  gcc_jit_rvalue *high =
-    gcc_jit_context_new_rvalue_from_long (comp.ctxt,
-					  comp.unsigned_long_long_type,
-					  n >> 32);
-  gcc_jit_rvalue *low =
-    emit_binary_op (GCC_JIT_BINARY_OP_RSHIFT,
-		    comp.unsigned_long_long_type,
-		    emit_binary_op (GCC_JIT_BINARY_OP_LSHIFT,
-				    comp.unsigned_long_long_type,
-				    gcc_jit_context_new_rvalue_from_long (
-				      comp.ctxt,
-				      comp.unsigned_long_long_type,
-				      n),
-				    gcc_jit_context_new_rvalue_from_int (
-				      comp.ctxt,
-				      comp.unsigned_long_long_type,
-				      32)),
-		    gcc_jit_context_new_rvalue_from_int (
-		      comp.ctxt,
-		      comp.unsigned_long_long_type,
-		      32));
-
-  return emit_coerce (
-           type,
-           emit_binary_op (
-             GCC_JIT_BINARY_OP_BITWISE_OR,
-             comp.unsigned_long_long_type,
-             emit_binary_op (
-               GCC_JIT_BINARY_OP_LSHIFT,
-               comp.unsigned_long_long_type,
-               high,
-               gcc_jit_context_new_rvalue_from_int (comp.ctxt,
-                                                    comp.unsigned_long_long_type,
-                                                    32)),
-             low));
-}
-
-static gcc_jit_rvalue *
 emit_rvalue_from_emacs_uint (EMACS_UINT val)
 {
-  if (val != (long) val)
-    return emit_rvalue_from_unsigned_long_long (comp.emacs_uint_type, val);
-  else
-    return gcc_jit_context_new_rvalue_from_long (comp.ctxt,
-						 comp.emacs_uint_type,
-						 val);
+#ifdef WIDE_EMACS_INT
+  if (val > ULONG_MAX)
+    return emit_rvalue_from_long_long (comp.emacs_uint_type, val);
+#endif
+  return gcc_jit_context_new_rvalue_from_long (comp.ctxt,
+					       comp.emacs_uint_type,
+					       val);
 }
 
 static gcc_jit_rvalue *
 emit_rvalue_from_emacs_int (EMACS_INT val)
 {
-  if (val != (long) val)
+  if (val > LONG_MAX || val < LONG_MIN)
     return emit_rvalue_from_long_long (comp.emacs_int_type, val);
   else
     return gcc_jit_context_new_rvalue_from_long (comp.ctxt,
@@ -1185,12 +1183,13 @@ emit_rvalue_from_emacs_int (EMACS_INT val)
 static gcc_jit_rvalue *
 emit_rvalue_from_lisp_word_tag (Lisp_Word_tag val)
 {
-  if (val != (long) val)
-    return emit_rvalue_from_unsigned_long_long (comp.lisp_word_tag_type, val);
-  else
-    return gcc_jit_context_new_rvalue_from_long (comp.ctxt,
-						 comp.lisp_word_tag_type,
-						 val);
+#ifdef WIDE_EMACS_INT
+  if (val > ULONG_MAX)
+    return emit_rvalue_from_long_long (comp.lisp_word_tag_type, val);
+#endif
+  return gcc_jit_context_new_rvalue_from_long (comp.ctxt,
+					       comp.lisp_word_tag_type,
+					       val);
 }
 
 static gcc_jit_rvalue *
@@ -1201,8 +1200,8 @@ emit_rvalue_from_lisp_word (Lisp_Word val)
                                               comp.lisp_word_type,
                                               val);
 #else
-  if (val != (long) val)
-    return emit_rvalue_from_unsigned_long_long (comp.lisp_word_type, val);
+  if (val > LONG_MAX || val < LONG_MIN)
+    return emit_rvalue_from_long_long (comp.lisp_word_type, val);
   else
     return gcc_jit_context_new_rvalue_from_long (comp.ctxt,
 						 comp.lisp_word_type,
@@ -1556,7 +1555,7 @@ emit_lisp_obj_reloc_lval (Lisp_Object obj)
   imm_reloc_t reloc = obj_to_reloc (obj);
   return gcc_jit_context_new_array_access (comp.ctxt,
 					   NULL,
-					   reloc.array,
+					   reloc.array.r_val,
 					   reloc.idx);
 }
 
@@ -1773,11 +1772,11 @@ emit_PURE_P (gcc_jit_rvalue *ptr)
 static gcc_jit_rvalue *
 emit_mvar_rval (Lisp_Object mvar)
 {
-  Lisp_Object const_vld = CALL1I (comp-mvar-value-vld-p, mvar);
+  Lisp_Object const_vld = CALL1I (comp-cstr-imm-vld-p, mvar);
 
   if (!NILP (const_vld))
     {
-      Lisp_Object value = CALL1I (comp-mvar-value, mvar);
+      Lisp_Object value = CALL1I (comp-cstr-imm, mvar);
       if (comp.debug > 1)
 	{
 	  Lisp_Object func =
@@ -1955,10 +1954,26 @@ emit_setjmp (gcc_jit_rvalue *buf)
 {
 #ifndef WINDOWSNT
   gcc_jit_rvalue *args[] = {buf};
-  return emit_call (intern_c_string (STR (SETJMP_NAME)), comp.int_type, 1, args,
-                   false);
+  gcc_jit_param *params[] =
+  {
+    gcc_jit_context_new_param (comp.ctxt, NULL, comp.void_ptr_type, "buf"),
+  };
+  /* Don't call setjmp through a function pointer (Bug#46824) */
+  gcc_jit_function *f =
+    gcc_jit_context_new_function (comp.ctxt, NULL,
+				  GCC_JIT_FUNCTION_IMPORTED,
+				  comp.int_type, STR (SETJMP_NAME),
+				  ARRAYELTS (params), params,
+				  false);
+
+  return gcc_jit_context_new_call (comp.ctxt, NULL, f, 1, args);
 #else
   /* _setjmp (buf, __builtin_frame_address (0)) */
+  gcc_jit_param *params[] =
+  {
+    gcc_jit_context_new_param (comp.ctxt, NULL, comp.void_ptr_type, "buf"),
+    gcc_jit_context_new_param (comp.ctxt, NULL, comp.void_ptr_type, "frame"),
+  };
   gcc_jit_rvalue *args[2];
 
   args[0] =
@@ -1972,8 +1987,14 @@ emit_setjmp (gcc_jit_rvalue *buf)
 					    "__builtin_frame_address"),
       1, args);
   args[0] = buf;
-  return emit_call (intern_c_string (STR (SETJMP_NAME)), comp.int_type, 2, args,
-                    false);
+  gcc_jit_function *f =
+    gcc_jit_context_new_function (comp.ctxt, NULL,
+				  GCC_JIT_FUNCTION_IMPORTED,
+				  comp.int_type, STR (SETJMP_NAME),
+				  ARRAYELTS (params), params,
+				  false);
+
+  return gcc_jit_context_new_call (comp.ctxt, NULL, f, 2, args);
 #endif
 }
 
@@ -2048,6 +2069,7 @@ emit_limple_insn (Lisp_Object insn)
       */
       gcc_jit_lvalue *nargs =
 	gcc_jit_param_as_lvalue (gcc_jit_function_get_param (comp.func, 0));
+      eassert (XFIXNUM (arg[0]) < INT_MAX);
       gcc_jit_rvalue *n =
 	gcc_jit_context_new_rvalue_from_int (comp.ctxt,
 					     comp.ptrdiff_type,
@@ -2191,6 +2213,7 @@ emit_limple_insn (Lisp_Object insn)
     {
       /* Ex: (set-par-to-local #s(comp-mvar 0 3 nil nil nil nil) 0).  */
       EMACS_INT param_n = XFIXNUM (arg[1]);
+      eassert (param_n < INT_MAX);
       gcc_jit_rvalue *param =
 	gcc_jit_param_as_rvalue (gcc_jit_function_get_param (comp.func,
 							     param_n));
@@ -2219,6 +2242,7 @@ emit_limple_insn (Lisp_Object insn)
       */
 
       EMACS_INT slot_n = XFIXNUM (CALL1I (comp-mvar-slot, arg[0]));
+      eassert (slot_n < INT_MAX);
       gcc_jit_rvalue *n =
 	gcc_jit_context_new_rvalue_from_int (comp.ctxt,
 					     comp.ptrdiff_type,
@@ -2268,7 +2292,7 @@ emit_limple_insn (Lisp_Object insn)
 	gcc_jit_lvalue_as_rvalue (
 	  gcc_jit_context_new_array_access (comp.ctxt,
 					    NULL,
-					    reloc.array,
+					    reloc.array.r_val,
 					    reloc.idx)));
     }
   else if (EQ (op, Qcomment))
@@ -2606,18 +2630,19 @@ emit_static_object (const char *name, Lisp_Object obj)
 }
 #pragma GCC diagnostic pop
 
-static gcc_jit_rvalue *
+static reloc_array_t
 declare_imported_data_relocs (Lisp_Object container, const char *code_symbol,
 			      const char *text_symbol)
 {
   /* Imported objects.  */
-  EMACS_INT d_reloc_len =
+  reloc_array_t res;
+  res.len =
     XFIXNUM (CALL1I (hash-table-count,
 		     CALL1I (comp-data-container-idx, container)));
   Lisp_Object d_reloc = CALL1I (comp-data-container-l, container);
   d_reloc = Fvconcat (1, &d_reloc);
 
-  gcc_jit_rvalue *reloc_struct =
+  res.r_val =
     gcc_jit_lvalue_as_rvalue (
       gcc_jit_context_new_global (
 	comp.ctxt,
@@ -2626,12 +2651,12 @@ declare_imported_data_relocs (Lisp_Object container, const char *code_symbol,
 	gcc_jit_context_new_array_type (comp.ctxt,
 					NULL,
 					comp.lisp_obj_type,
-					d_reloc_len),
+					res.len),
 	code_symbol));
 
   emit_static_object (text_symbol, d_reloc);
 
-  return reloc_struct;
+  return res;
 }
 
 static void
@@ -2683,15 +2708,6 @@ declare_runtime_imported_funcs (void)
   args[0] = comp.lisp_obj_type;
   args[1] = comp.int_type;
   ADD_IMPORTED (push_handler, comp.handler_ptr_type, 2, args);
-
-#ifndef WINDOWSNT
-  args[0] = gcc_jit_type_get_pointer (gcc_jit_struct_as_type (comp.jmp_buf_s));
-  ADD_IMPORTED (SETJMP_NAME, comp.int_type, 1, args);
-#else
-  args[0] = gcc_jit_type_get_pointer (gcc_jit_struct_as_type (comp.jmp_buf_s));
-  args[1] = comp.void_ptr_type;
-  ADD_IMPORTED (SETJMP_NAME, comp.int_type, 2, args);
-#endif
 
   ADD_IMPORTED (record_unwind_protect_excursion, comp.void_type, 0, NULL);
 
@@ -2760,7 +2776,7 @@ emit_ctxt_code (void)
 	comp.ctxt,
 	NULL,
 	GCC_JIT_GLOBAL_EXPORTED,
-	gcc_jit_type_get_pointer (comp.lisp_obj_ptr_type),
+	comp.lisp_obj_type,
 	COMP_UNIT_SYM);
 
   declare_imported_data ();
@@ -3787,7 +3803,7 @@ static gcc_jit_function *
 declare_lex_function (Lisp_Object func)
 {
   gcc_jit_function *res;
-  char *c_name = SSDATA (CALL1I (comp-func-c-name, func));
+  Lisp_Object c_name = CALL1I (comp-func-c-name, func);
   Lisp_Object args = CALL1I (comp-func-l-args, func);
   bool nargs = !NILP (CALL1I (comp-nargs-p, args));
   USE_SAFE_ALLOCA;
@@ -3795,6 +3811,7 @@ declare_lex_function (Lisp_Object func)
   if (!nargs)
     {
       EMACS_INT max_args = XFIXNUM (CALL1I (comp-args-max, args));
+      eassert (max_args < INT_MAX);
       gcc_jit_type **type = SAFE_ALLOCA (max_args * sizeof (*type));
       for (ptrdiff_t i = 0; i < max_args; i++)
 	type[i] = comp.lisp_obj_type;
@@ -3808,7 +3825,7 @@ declare_lex_function (Lisp_Object func)
       res = gcc_jit_context_new_function (comp.ctxt, NULL,
 					  GCC_JIT_FUNCTION_EXPORTED,
 					  comp.lisp_obj_type,
-					  c_name,
+					  SSDATA (c_name),
 					  max_args,
 					  params,
 					  0);
@@ -3829,7 +3846,8 @@ declare_lex_function (Lisp_Object func)
 				      NULL,
 				      GCC_JIT_FUNCTION_EXPORTED,
 				      comp.lisp_obj_type,
-				      c_name, ARRAYELTS (params), params, 0);
+				      SSDATA (c_name),
+				      ARRAYELTS (params), params, 0);
     }
   SAFE_FREE ();
   return res;
@@ -3858,7 +3876,8 @@ static void
 compile_function (Lisp_Object func)
 {
   USE_SAFE_ALLOCA;
-  EMACS_INT frame_size = XFIXNUM (CALL1I (comp-func-frame-size, func));
+  comp.frame_size = XFIXNUM (CALL1I (comp-func-frame-size, func));
+  eassert (comp.frame_size < INT_MAX);
 
   comp.func = xmint_pointer (Fgethash (CALL1I (comp-func-c-name, func),
 				       comp.exported_funcs_h, Qnil));
@@ -3872,7 +3891,7 @@ compile_function (Lisp_Object func)
 				comp.func_relocs_ptr_type,
 				"freloc");
 
-  comp.frame = SAFE_ALLOCA (frame_size * sizeof (*comp.frame));
+  comp.frame = SAFE_ALLOCA (comp.frame_size * sizeof (*comp.frame));
   if (comp.func_has_non_local || !comp.func_speed)
     {
       /* FIXME: See bug#42360.  */
@@ -3883,10 +3902,10 @@ compile_function (Lisp_Object func)
           gcc_jit_context_new_array_type (comp.ctxt,
                                           NULL,
                                           comp.lisp_obj_type,
-                                          frame_size),
+                                          comp.frame_size),
           "frame");
 
-      for (ptrdiff_t i = 0; i < frame_size; ++i)
+      for (ptrdiff_t i = 0; i < comp.frame_size; ++i)
 	comp.frame[i] =
           gcc_jit_context_new_array_access (
             comp.ctxt,
@@ -3897,7 +3916,7 @@ compile_function (Lisp_Object func)
                                                  i));
     }
   else
-    for (ptrdiff_t i = 0; i < frame_size; ++i)
+    for (ptrdiff_t i = 0; i < comp.frame_size; ++i)
       comp.frame[i] =
 	gcc_jit_function_new_local (comp.func,
 				    NULL,
@@ -4003,6 +4022,10 @@ If BASE-DIR is nil use the first entry in `comp-eln-load-path'.  */)
   if (NILP (Ffile_exists_p (filename)))
     xsignal1 (Qfile_missing, filename);
 
+#ifdef WINDOWSNT
+  filename = Fw32_long_file_name (filename);
+#endif
+
   Lisp_Object content_hash = comp_hash_source_file (filename);
 
   if (suffix_p (filename, ".gz"))
@@ -4034,8 +4057,11 @@ If BASE-DIR is nil use the first entry in `comp-eln-load-path'.  */)
       Lisp_Object sys_re =
 	concat2 (build_string ("\\`[[:ascii:]]+"),
 		 Fregexp_quote (build_string ("/" PATH_REL_LOADSEARCH "/")));
-      loadsearch_re_list =
-	list2 (sys_re, Fregexp_quote (build_string (PATH_DUMPLOADSEARCH "/")));
+      Lisp_Object dump_load_search = build_string (PATH_DUMPLOADSEARCH "/");
+#ifdef WINDOWSNT
+      dump_load_search = Fw32_long_file_name (dump_load_search);
+#endif
+      loadsearch_re_list = list2 (sys_re, Fregexp_quote (dump_load_search));
     }
 
   Lisp_Object lds_re_tail = loadsearch_re_list;
@@ -4095,8 +4121,8 @@ If BASE-DIR is nil use the first entry in `comp-eln-load-path'.  */)
     base_dir = Fexpand_file_name (base_dir, Vinvocation_directory);
 
   return Fexpand_file_name (filename,
-			    concat2 (Ffile_name_as_directory (base_dir),
-				     Vcomp_native_version_dir));
+			    Fexpand_file_name (Vcomp_native_version_dir,
+					       base_dir));
 }
 
 DEFUN ("comp--install-trampoline", Fcomp__install_trampoline,
@@ -4312,14 +4338,17 @@ add_driver_options (void)
 {
   Lisp_Object options = Fsymbol_value (Qcomp_native_driver_options);
 
-#if defined (LIBGCCJIT_HAVE_gcc_jit_context_add_driver_option) \
+#if defined (LIBGCCJIT_HAVE_gcc_jit_context_add_driver_option)	\
   || defined (WINDOWSNT)
   load_gccjit_if_necessary (true);
   if (!NILP (Fcomp_native_driver_options_effective_p ()))
     FOR_EACH_TAIL (options)
       gcc_jit_context_add_driver_option (comp.ctxt,
+					 /* FIXME: Need to encode
+					    this, but how? either
+					    ENCODE_FILE or
+					    ENCODE_SYSTEM.  */
 					 SSDATA (XCAR (options)));
-  return;
 #endif
   if (CONSP (options))
     xsignal1 (Qnative_compiler_error,
@@ -4327,13 +4356,20 @@ add_driver_options (void)
 			    " via `comp-native-driver-options' is"
 			    " only available on libgccjit version 9"
 			    " and above."));
-}
 
-static void
-restore_sigmask (void)
-{
-  pthread_sigmask (SIG_SETMASK, &saved_sigset, 0);
-  unblock_input ();
+  /* Captured `comp-native-driver-options' because file-local.  */
+#if defined (LIBGCCJIT_HAVE_gcc_jit_context_add_driver_option)	\
+  || defined (WINDOWSNT)
+  options = comp.driver_options;
+  if (!NILP (Fcomp_native_driver_options_effective_p ()))
+    FOR_EACH_TAIL (options)
+      gcc_jit_context_add_driver_option (comp.ctxt,
+					 /* FIXME: Need to encode
+					    this, but how? either
+					    ENCODE_FILE or
+					    ENCODE_SYSTEM.  */
+					 SSDATA (XCAR (options)));
+#endif
 }
 
 DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
@@ -4346,11 +4382,41 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
 
   CHECK_STRING (filename);
   Lisp_Object base_name = Fsubstring (filename, Qnil, make_fixnum (-4));
+  Lisp_Object ebase_name = ENCODE_FILE (base_name);
 
   comp.func_relocs_local = NULL;
 
+#ifdef WINDOWSNT
+  ebase_name = ansi_encode_filename (ebase_name);
+  /* Tell libgccjit the actual file name of the loaded DLL, otherwise
+     it will use 'libgccjit.so', which is not useful.  */
+  Lisp_Object libgccjit_loaded_from = Fget (Qgccjit, QCloaded_from);
+  Lisp_Object libgccjit_fname;
+
+  if (CONSP (libgccjit_loaded_from))
+    {
+      /* Use the absolute file name if available, otherwise the name
+	 we looked for in w32_delayed_load.  */
+      libgccjit_fname = XCDR (libgccjit_loaded_from);
+      if (NILP (libgccjit_fname))
+	libgccjit_fname = XCAR (libgccjit_loaded_from);
+      /* Must encode to ANSI, as libgccjit will not be able to handle
+	 UTF-8 encoded file names.  */
+      libgccjit_fname = ENCODE_FILE (libgccjit_fname);
+      libgccjit_fname = ansi_encode_filename (libgccjit_fname);
+      gcc_jit_context_set_str_option (comp.ctxt, GCC_JIT_STR_OPTION_PROGNAME,
+				      SSDATA (libgccjit_fname));
+    }
+  else	/* this should never happen */
+    gcc_jit_context_set_str_option (comp.ctxt, GCC_JIT_STR_OPTION_PROGNAME,
+				    "libgccjit-0.dll");
+#endif
+
   comp.speed = XFIXNUM (CALL1I (comp-ctxt-speed, Vcomp_ctxt));
+  eassert (comp.speed < INT_MAX);
   comp.debug = XFIXNUM (CALL1I (comp-ctxt-debug, Vcomp_ctxt));
+  eassert (comp.debug < INT_MAX);
+  comp.driver_options = CALL1I (comp-ctxt-driver-options, Vcomp_ctxt);
 
   if (comp.debug)
       gcc_jit_context_set_bool_option (comp.ctxt,
@@ -4358,7 +4424,7 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
 				       1);
   if (comp.debug > 2)
     {
-      logfile = fopen ("libgccjit.log", "w");
+      logfile = emacs_fopen ("libgccjit.log", "w");
       gcc_jit_context_set_logfile (comp.ctxt,
 				   logfile,
 				   0, 0);
@@ -4381,23 +4447,6 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
   comp.d_ephemeral_idx =
     CALL1I (comp-data-container-idx, CALL1I (comp-ctxt-d-ephemeral, Vcomp_ctxt));
 
-  ptrdiff_t count = 0;
-
-  if (!noninteractive)
-    {
-      sigset_t blocked;
-      /* Gcc doesn't like being interrupted at all.  */
-      block_input ();
-      sigemptyset (&blocked);
-      sigaddset (&blocked, SIGALRM);
-      sigaddset (&blocked, SIGINT);
-#ifdef USABLE_SIGIO
-      sigaddset (&blocked, SIGIO);
-#endif
-      pthread_sigmask (SIG_BLOCK, &blocked, &saved_sigset);
-      count = SPECPDL_INDEX ();
-      record_unwind_protect_void (restore_sigmask);
-    }
   emit_ctxt_code ();
 
   /* Define inline functions.  */
@@ -4422,22 +4471,37 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
     if (!EQ (HASH_VALUE (func_h, i), Qunbound))
       compile_function (HASH_VALUE (func_h, i));
 
+  /* Work around bug#46495 (GCC PR99126). */
+#if defined (WIDE_EMACS_INT)						\
+  && (defined (LIBGCCJIT_HAVE_gcc_jit_context_add_command_line_option)	\
+      || defined (WINDOWSNT))
+  Lisp_Object version = Fcomp_libgccjit_version ();
+  if (NILP (version)
+      || XFIXNUM (XCAR (version)) < 11)
+    gcc_jit_context_add_command_line_option (comp.ctxt,
+					     "-fdisable-tree-isolate-paths");
+#endif
+
   add_driver_options ();
 
   if (comp.debug)
       gcc_jit_context_dump_to_file (comp.ctxt,
-				    format_string ("%s.c", SSDATA (base_name)),
+				    format_string ("%s.c", SSDATA (ebase_name)),
 				    1);
   if (!NILP (Fsymbol_value (Qcomp_libgccjit_reproducer)))
     gcc_jit_context_dump_reproducer_to_file (
       comp.ctxt,
-      format_string ("%s_libgccjit_repro.c", SSDATA (base_name)));
+      format_string ("%s_libgccjit_repro.c", SSDATA (ebase_name)));
 
   Lisp_Object tmp_file =
     Fmake_temp_file_internal (base_name, Qnil, build_string (".eln.tmp"), Qnil);
+  Lisp_Object encoded_tmp_file = ENCODE_FILE (tmp_file);
+#ifdef WINDOWSNT
+  encoded_tmp_file = ansi_encode_filename (encoded_tmp_file);
+#endif
   gcc_jit_context_compile_to_file (comp.ctxt,
 				   GCC_JIT_OUTPUT_KIND_DYNAMIC_LIBRARY,
-				   SSDATA (tmp_file));
+				   SSDATA (encoded_tmp_file));
 
   const char *err =  gcc_jit_context_get_first_error (comp.ctxt);
   if (err)
@@ -4448,9 +4512,6 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
 
   CALL1I (comp-clean-up-stale-eln, filename);
   CALL2I (comp-delete-or-replace-file, filename, tmp_file);
-
-  if (!noninteractive)
-    unbind_to (count, Qnil);
 
   return filename;
 }
@@ -4528,6 +4589,14 @@ helper_PSEUDOVECTOR_TYPEP_XUNTAG (Lisp_Object a, enum pvec_type code)
 
 static Lisp_Object all_loaded_comp_units_h;
 
+#ifdef WINDOWSNT
+static Lisp_Object
+return_nil (Lisp_Object arg)
+{
+  return Qnil;
+}
+#endif
+
 /* Windows does not let us delete a .eln file that is currently loaded
    by a process.  The strategy is to rename .eln files into .old.eln
    instead of removing them when this is not possible and clean-up
@@ -4539,19 +4608,17 @@ void
 eln_load_path_final_clean_up (void)
 {
 #ifdef WINDOWSNT
-  Lisp_Object return_nil (Lisp_Object arg) { return Qnil; }
-
   Lisp_Object dir_tail = Vcomp_eln_load_path;
   FOR_EACH_TAIL (dir_tail)
     {
       Lisp_Object files_in_dir =
 	internal_condition_case_5 (Fdirectory_files,
-				   concat2 (XCAR (dir_tail),
-					    Vcomp_native_version_dir),
+				   Fexpand_file_name (Vcomp_native_version_dir,
+						      XCAR (dir_tail)),
 				   Qt, build_string ("\\.eln\\.old\\'"), Qnil,
 				   Qnil, Qt, return_nil);
       FOR_EACH_TAIL (files_in_dir)
-	Fdelete_file (XCAR (files_in_dir), Qnil);
+	internal_delete_file (XCAR (files_in_dir));
     }
 #endif
 }
@@ -4711,12 +4778,12 @@ check_comp_unit_relocs (struct Lisp_Native_Comp_Unit *comp_u)
   Lisp_Object *data_imp_relocs = dynlib_sym (handle, DATA_RELOC_IMPURE_SYM);
 
   EMACS_INT d_vec_len = XFIXNUM (Flength (comp_u->data_vec));
-  for (EMACS_INT i = 0; i < d_vec_len; i++)
+  for (ptrdiff_t i = 0; i < d_vec_len; i++)
     if (!EQ (data_relocs[i],  AREF (comp_u->data_vec, i)))
       return false;
 
   d_vec_len = XFIXNUM (Flength (comp_u->data_impure_vec));
-  for (EMACS_INT i = 0; i < d_vec_len; i++)
+  for (ptrdiff_t i = 0; i < d_vec_len; i++)
     {
       Lisp_Object x = data_imp_relocs[i];
       if (EQ (x, Qlambda_fixup))
@@ -4762,7 +4829,7 @@ load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u, bool loading_dump,
     /* 'dlopen' returns the same handle when trying to load two times
        the same shared.  In this case touching 'd_reloc' etc leads to
        fails in case a frame with a reference to it in a live reg is
-       active (comp-speed >= 0).
+       active (comp-speed > 0).
 
        We must *never* mess with static pointers in an already loaded
        eln.  */
@@ -4859,7 +4926,7 @@ load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u, bool loading_dump,
 	 is not cons hashed.  */
       if (!recursive_load)
 	{
-	  Lisp_Object volatile data_ephemeral_vec  =
+	  data_ephemeral_vec =
 	    load_static_obj (comp_u, TEXT_DATA_RELOC_EPHEMERAL_SYM);
 
 	  EMACS_INT d_vec_len = XFIXNUM (Flength (data_ephemeral_vec));
@@ -4882,6 +4949,20 @@ load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u, bool loading_dump,
   register_native_comp_unit (comp_u_lisp_obj);
 
   return res;
+}
+
+void
+unload_comp_unit (struct Lisp_Native_Comp_Unit *cu)
+{
+  if (cu->handle == NULL)
+    return;
+
+  Lisp_Object *saved_cu = dynlib_sym (cu->handle, COMP_UNIT_SYM);
+  Lisp_Object this_cu;
+  XSETNATIVE_COMP_UNIT (this_cu, cu);
+  if (EQ (this_cu, *saved_cu))
+    *saved_cu = Qnil;
+  dynlib_close (cu->handle);
 }
 
 Lisp_Object
@@ -5038,28 +5119,29 @@ LATE_LOAD has to be non-nil when loading for deferred compilation.  */)
     xsignal2 (Qnative_lisp_load_failed, build_string ("file does not exists"),
 	      filename);
   struct Lisp_Native_Comp_Unit *comp_u = allocate_native_comp_unit ();
+  Lisp_Object encoded_filename = ENCODE_FILE (filename);
 
   if (!NILP (Fgethash (filename, all_loaded_comp_units_h, Qnil))
       && !file_in_eln_sys_dir (filename)
       && !NILP (Ffile_writable_p (filename)))
     {
       /* If in this session there was ever a file loaded with this
-	 name rename before loading it to make sure we always get a
+	 name, rename it before loading, to make sure we always get a
 	 new handle!  */
       Lisp_Object tmp_filename =
 	Fmake_temp_file_internal (filename, Qnil, build_string (".eln.tmp"),
 				  Qnil);
       if (NILP (Ffile_writable_p (tmp_filename)))
-	comp_u->handle = dynlib_open (SSDATA (filename));
+	comp_u->handle = dynlib_open (SSDATA (encoded_filename));
       else
 	{
 	  Frename_file (filename, tmp_filename, Qt);
-	  comp_u->handle = dynlib_open (SSDATA (tmp_filename));
+	  comp_u->handle = dynlib_open (SSDATA (ENCODE_FILE (tmp_filename)));
 	  Frename_file (tmp_filename, filename, Qnil);
 	}
     }
   else
-    comp_u->handle = dynlib_open (SSDATA (filename));
+    comp_u->handle = dynlib_open (SSDATA (encoded_filename));
 
   if (!comp_u->handle)
     xsignal2 (Qnative_lisp_load_failed, filename,
@@ -5204,6 +5286,7 @@ compiled one.  */);
         build_pure_c_string ("eln file inconsistent with current runtime "
 			     "configuration, please recompile"));
 
+  defsubr (&Scomp__subr_signature);
   defsubr (&Scomp_el_to_eln_filename);
   defsubr (&Scomp_native_driver_options_effective_p);
   defsubr (&Scomp__install_trampoline);
@@ -5269,8 +5352,8 @@ The last directory of this list is assumed to be the system one.  */);
   Vcomp_eln_load_path = Fcons (build_string ("../native-lisp/"), Qnil);
 
   DEFVAR_BOOL ("comp-enable-subr-trampolines", comp_enable_subr_trampolines,
-	       doc: /* If non-nil, enable trampoline synthesis triggered by `fset'.
-This makes primitives redefinable effectively.  */);
+	       doc: /* If non-nil enable primitive trampoline synthesis.
+This makes primitive functions redefinable or advisable effectively.  */);
 
   DEFVAR_LISP ("comp-installed-trampolines-h", Vcomp_installed_trampolines_h,
 	       doc: /* Hash table subr-name -> installed trampoline.

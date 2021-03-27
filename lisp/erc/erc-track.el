@@ -4,7 +4,7 @@
 
 ;; Author: Mario Lang <mlang@delysid.org>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>
-;; Keywords: comm, faces
+;; Keywords: comm
 ;; URL: https://www.emacswiki.org/emacs/ErcChannelTracking
 
 ;; This file is part of GNU Emacs.
@@ -243,8 +243,6 @@ The effect may be disabled by setting this variable to nil."
 
 (defcustom erc-track-position-in-mode-line 'before-modes
   "Where to show modified channel information in the mode-line.
-
-Setting this variable only has effect in GNU Emacs versions above 21.3.
 
 Choices are:
 `before-modes' - add to the beginning of `mode-line-modes',

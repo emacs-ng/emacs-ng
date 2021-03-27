@@ -201,7 +201,6 @@
 
 ;;; Code:
 
-(require 'easymenu)
 (eval-when-compile (require 'cl-lib))
 
 ;;; Variables
@@ -1140,9 +1139,8 @@ Otherwise, return nil."
 ;; is nil.  Start every window directly after the end of the previous
 ;; window, to make sure long lines are displayed correctly.
 
-(defvar follow-start-end-invalid t
+(defvar-local follow-start-end-invalid t
   "When non-nil, indicates `follow-windows-start-end-cache' is invalid.")
-(make-variable-buffer-local 'follow-start-end-invalid)
 
 (defun follow-redisplay (&optional windows win preserve-win)
   "Reposition the WINDOWS around WIN.

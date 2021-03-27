@@ -106,7 +106,31 @@
            #("foobar" 3 6 (face error))))
   (should (ert-equal-including-properties
            (format (concat "%s " (propertize "%s" 'face 'error)) "foo" "bar")
-           #("foo bar" 4 7 (face error)))))
+           #("foo bar" 4 7 (face error))))
+  ;; Bug #46317
+  (let ((s (propertize "X" 'prop "val")))
+    (should (ert-equal-including-properties
+             (format (concat "%3s/" s) 12)
+             #(" 12/X" 4 5 (prop "val"))))
+    (should (ert-equal-including-properties
+             (format (concat "%3S/" s) 12)
+             #(" 12/X" 4 5 (prop "val"))))
+    (should (ert-equal-including-properties
+             (format (concat "%3d/" s) 12)
+             #(" 12/X" 4 5 (prop "val"))))
+    (should (ert-equal-including-properties
+             (format (concat "%-3s/" s) 12)
+             #("12 /X" 4 5 (prop "val"))))
+    (should (ert-equal-including-properties
+             (format (concat "%-3S/" s) 12)
+             #("12 /X" 4 5 (prop "val"))))
+    (should (ert-equal-including-properties
+             (format (concat "%-3d/" s) 12)
+             #("12 /X" 4 5 (prop "val"))))))
+
+(ert-deftest propertize/error-even-number-of-args ()
+  "Number of args for `propertize' must be odd."
+  (should-error (propertize "foo" 'bar) :type 'wrong-number-of-arguments))
 
 ;; Tests for bug#5131.
 (defun transpose-test-reverse-word (start end)

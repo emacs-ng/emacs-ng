@@ -1,4 +1,4 @@
-;;; semantic/tag.el --- tag creation and access
+;;; semantic/tag.el --- Tag creation and access  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1999-2005, 2007-2021 Free Software Foundation, Inc.
 
@@ -229,6 +229,28 @@ See also the function `semantic-ctxt-current-mode'."
           (require 'semantic/ctxt)
           (semantic-ctxt-current-mode)))))
 
+;; Is this function still necessary?
+(defun semantic-tag-make-plist (args)
+  "Create a property list with ARGS.
+Args is a property list of the form (KEY1 VALUE1 ... KEYN VALUEN).
+Where KEY is a symbol, and VALUE is the value for that symbol.
+The return value will be a new property list, with these KEY/VALUE
+pairs eliminated:
+
+  - KEY associated to nil VALUE.
+  - KEY associated to an empty string VALUE.
+  - KEY associated to a zero VALUE."
+  (let (plist key val)
+    (while args
+      (setq key  (car args)
+            val  (nth 1 args)
+            args (nthcdr 2 args))
+      (or (member val '("" nil))
+          (and (numberp val) (zerop val))
+          (setq plist (cons key (cons val plist)))))
+    ;; It is not useful to reverse the new plist.
+    plist))
+
 (defsubst semantic--tag-attributes-cdr (tag)
   "Return the cons cell whose car is the ATTRIBUTES part of TAG.
 That function is for internal use only."
@@ -440,28 +462,6 @@ class to store those methods."
 
 ;;; Tag creation
 ;;
-
-;; Is this function still necessary?
-(defun semantic-tag-make-plist (args)
-  "Create a property list with ARGS.
-Args is a property list of the form (KEY1 VALUE1 ... KEYN VALUEN).
-Where KEY is a symbol, and VALUE is the value for that symbol.
-The return value will be a new property list, with these KEY/VALUE
-pairs eliminated:
-
-  - KEY associated to nil VALUE.
-  - KEY associated to an empty string VALUE.
-  - KEY associated to a zero VALUE."
-  (let (plist key val)
-    (while args
-      (setq key  (car args)
-            val  (nth 1 args)
-            args (nthcdr 2 args))
-      (or (member val '("" nil))
-          (and (numberp val) (zerop val))
-          (setq plist (cons key (cons val plist)))))
-    ;; It is not useful to reverse the new plist.
-    plist))
 
 (defsubst semantic-tag (name class &rest attributes)
   "Create a generic semantic tag.
@@ -1038,25 +1038,17 @@ See `semantic-tag-bounds'."
 
 (defmacro semantic-with-buffer-narrowed-to-current-tag (&rest body)
   "Execute BODY with the buffer narrowed to the current tag."
+  (declare (indent 0) (debug t))
   `(save-restriction
      (semantic-narrow-to-tag (semantic-current-tag))
      ,@body))
-(put 'semantic-with-buffer-narrowed-to-current-tag 'lisp-indent-function 0)
-(add-hook 'edebug-setup-hook
-	  (lambda ()
-	    (def-edebug-spec semantic-with-buffer-narrowed-to-current-tag
-	      (def-body))))
 
 (defmacro semantic-with-buffer-narrowed-to-tag (tag &rest body)
   "Narrow to TAG, and execute BODY."
+  (declare (indent 1) (debug t))
   `(save-restriction
      (semantic-narrow-to-tag ,tag)
      ,@body))
-(put 'semantic-with-buffer-narrowed-to-tag 'lisp-indent-function 1)
-(add-hook 'edebug-setup-hook
-	  (lambda ()
-	    (def-edebug-spec semantic-with-buffer-narrowed-to-tag
-	      (def-body))))
 
 ;;; Tag Hooks
 ;;
@@ -1194,7 +1186,7 @@ See also the function `semantic--expand-tag'."
       (setq tag (cdr tag)))
     (null tag)))
 
-(defvar semantic-tag-expand-function nil
+(defvar-local semantic-tag-expand-function nil
   "Function used to expand a tag.
 It is passed each tag production, and must return a list of tags
 derived from it, or nil if it does not need to be expanded.
@@ -1207,7 +1199,6 @@ following definition is easily parsed into one tag:
 
 This function should take this compound tag and turn it into two tags,
 one for A, and the other for B.")
-(make-variable-buffer-local 'semantic-tag-expand-function)
 
 (defun semantic--tag-expand (tag)
   "Convert TAG from a raw state to a cooked state, and expand it.

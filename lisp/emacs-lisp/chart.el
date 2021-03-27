@@ -67,9 +67,8 @@
 (define-obsolete-variable-alias 'chart-map 'chart-mode-map "24.1")
 (defvar chart-mode-map (make-sparse-keymap) "Keymap used in chart mode.")
 
-(defvar chart-local-object nil
+(defvar-local chart-local-object nil
   "Local variable containing the locally displayed chart object.")
-(make-variable-buffer-local 'chart-local-object)
 
 (defvar chart-face-color-list '("red" "green" "blue"
 				"cyan" "yellow" "purple")
@@ -188,7 +187,7 @@ Make sure the width/height is correct."
    )
   "Class used to display an axis which represents different named items.")
 
-(defclass chart-sequece ()
+(defclass chart-sequence ()
   ((data :initarg :data
 	 :initform nil)
    (name :initarg :name
@@ -584,12 +583,12 @@ SORT-PRED if desired."
 			   ))
 	(iv (eq dir 'vertical)))
     (chart-add-sequence nc
-			(make-instance 'chart-sequece
+			(make-instance 'chart-sequence
 				       :data namelst
 				       :name nametitle)
 			(if iv 'x-axis 'y-axis))
     (chart-add-sequence nc
-			(make-instance 'chart-sequece
+			(make-instance 'chart-sequence
 				       :data numlst
 				       :name numtitle)
 			(if iv 'y-axis 'x-axis))

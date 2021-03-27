@@ -10,7 +10,7 @@ If you have a large elisp package, our guidance is not that you should rewrite y
 
 ## How does adding JS/TS affect your ability to merge future emacs improvements?
 
-JS/TS is almost a completely additive layer, we have made extremely minimal C changes. As of writing this FAQ, we have only made a small edit to a single line of C to support JS/TS. WebRender, while still in development, has also made minimal C changes. We have the ability to cleanly merge upstream patches without conflict. emacs-ng is based off of the `native-comp` branch of emacs, and regularly merges in the latest from that branch. emacs-ng can be compiled with nativecomp using `./configure --with-nativecomp`.
+JS/TS is almost a completely additive layer, we have made extremely minimal C changes. As of writing this FAQ, we have only made a small edit to a single line of C to support JS/TS. WebRender, while still in development, has also made minimal C changes. We have the ability to cleanly merge upstream patches without conflict. emacs-ng is based off of the `native-comp` branch of emacs, and regularly merges in the latest from that branch. emacs-ng can be compiled with nativecomp using `./configure --with-native-compilation`.
 
 ## How does JS/TS running affect performance?
 

@@ -26,7 +26,7 @@
 
 ;; Instructions
 
-;; For programmed use of isearch-mode, e.g. calling (isearch-forward),
+;; For programmed use of isearch-mode, e.g. calling `isearch-forward',
 ;; isearch-mode behaves modally and does not return until the search
 ;; is completed.  It uses a recursive-edit to behave this way.
 
@@ -46,7 +46,7 @@
 ;; exits and searches in the last search direction.
 
 ;; Exiting immediately from isearch uses isearch-edit-string instead
-;; of nonincremental-search, if search-nonincremental-instead is non-nil.
+;; of nonincremental-search, if `search-nonincremental-instead' is non-nil.
 ;; The name of this option should probably be changed if we decide to
 ;; keep the behavior.  No point in forcing nonincremental search until
 ;; the last possible moment.
@@ -320,7 +320,8 @@ matching the current search string is highlighted lazily
 When multiple windows display the current buffer, the
 highlighting is displayed only on the selected window, unless
 this variable is set to the symbol `all-windows'."
-  :type '(choice boolean
+  :type '(choice (const :tag "Off" nil)
+                 (const :tag "On, and applied to current window" t)
                  (const :tag "On, and applied to all windows" all-windows))
   :group 'lazy-highlight
   :group 'isearch)
@@ -352,9 +353,19 @@ If this is nil, extra highlighting can be \"manually\" removed with
   :group 'lazy-highlight)
 
 (defcustom lazy-highlight-initial-delay 0.25
-  "Seconds to wait before beginning to lazily highlight all matches."
+  "Seconds to wait before beginning to lazily highlight all matches.
+This setting only has effect when the search string is less than
+`lazy-highlight-no-delay-length' characters long."
   :type 'number
   :group 'lazy-highlight)
+
+(defcustom lazy-highlight-no-delay-length 3
+  "For search strings at least this long, lazy highlight starts immediately.
+For shorter search strings, `lazy-highlight-initial-delay'
+applies."
+  :type 'integer
+  :group 'lazy-highlight
+  :version "28.1")
 
 (defcustom lazy-highlight-interval 0 ; 0.0625
   "Seconds between lazily highlighting successive matches."
@@ -449,11 +460,11 @@ and doesn't remove full-buffer highlighting after a search."
 (make-help-screen isearch-help-for-help-internal
   (purecopy "Type a help option: [bkm] or ?")
   "You have typed %THIS-KEY%, the help character.  Type a Help option:
-\(Type \\<help-map>\\[help-quit] to exit the Help command.)
+\(Type \\<isearch-help-map>\\[help-quit] to exit the Help command.)
 
-b           Display all Isearch key bindings.
-k KEYS      Display full documentation of Isearch key sequence.
-m           Display documentation of Isearch mode.
+\\[isearch-describe-bindings]           Display all Isearch key bindings.
+\\[isearch-describe-key] KEYS      Display full documentation of Isearch key sequence.
+\\[isearch-describe-mode]           Display documentation of Isearch mode.
 
 You can't type here other help keys available in the global help map,
 but outside of this help window when you type them in Isearch mode,
@@ -513,161 +524,8 @@ This is like `describe-bindings', but displays only Isearch keys."
     (call-interactively command)))
 
 (defvar isearch-menu-bar-commands
-  '(isearch-tmm-menubar menu-bar-open mouse-minor-mode-menu)
+  '(isearch-tmm-menubar tmm-menubar menu-bar-open mouse-minor-mode-menu)
   "List of commands that can open a menu during Isearch.")
-
-(defvar isearch-menu-bar-yank-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [isearch-yank-pop]
-      '(menu-item "Previous kill" isearch-yank-pop-only
-                  :help "Replace previous yanked kill on search string"))
-    (define-key map [isearch-yank-kill]
-      '(menu-item "Current kill" isearch-yank-kill
-                  :help "Append current kill to search string"))
-    (define-key map [isearch-yank-until-char]
-      '(menu-item "Until char..." isearch-yank-until-char
-                  :help "Yank from point to specified character into search string"))
-    (define-key map [isearch-yank-line]
-      '(menu-item "Rest of line" isearch-yank-line
-                  :help "Yank the rest of the current line on search string"))
-    (define-key map [isearch-yank-symbol-or-char]
-      '(menu-item "Symbol/char"
-                  isearch-yank-symbol-or-char
-                  :help "Yank next symbol or char on search string"))
-    (define-key map [isearch-yank-word-or-char]
-      '(menu-item "Word/char"
-                  isearch-yank-word-or-char
-                  :help "Yank next word or char on search string"))
-    (define-key map [isearch-yank-char]
-      '(menu-item "Char" isearch-yank-char
-                  :help "Yank char at point on search string"))
-    map))
-
-(defvar isearch-menu-bar-map
-  (let ((map (make-sparse-keymap "Isearch")))
-    (define-key map [isearch-complete]
-      '(menu-item "Complete current search string" isearch-complete
-                  :help "Complete current search string over search history"))
-    (define-key map [isearch-complete-separator]
-      '(menu-item "--"))
-    (define-key map [isearch-query-replace-regexp]
-      '(menu-item "Replace search string as regexp" isearch-query-replace-regexp
-                  :help "Replace matches for current search string as regexp"))
-    (define-key map [isearch-query-replace]
-      '(menu-item "Replace search string" isearch-query-replace
-                  :help "Replace matches for current search string"))
-    (define-key map [isearch-occur]
-      '(menu-item "Show all matches for search string" isearch-occur
-                  :help "Show all matches for current search string"))
-    (define-key map [isearch-highlight-regexp]
-      '(menu-item "Highlight all matches for search string"
-                  isearch-highlight-regexp
-                  :help "Highlight all matches for current search string"))
-    (define-key map [isearch-search-replace-separator]
-      '(menu-item "--"))
-    (define-key map [isearch-transient-input-method]
-      '(menu-item "Turn on transient input method"
-                  isearch-transient-input-method
-                  :help "Turn on transient input method for search"))
-    (define-key map [isearch-toggle-specified-input-method]
-      '(menu-item "Turn on specific input method"
-                  isearch-toggle-specified-input-method
-                  :help "Turn on specific input method for search"))
-    (define-key map [isearch-toggle-input-method]
-      '(menu-item "Toggle input method" isearch-toggle-input-method
-                  :help "Toggle input method for search"))
-    (define-key map [isearch-input-method-separator]
-      '(menu-item "--"))
-    (define-key map [isearch-char-by-name]
-      '(menu-item "Search for char by name" isearch-char-by-name
-                  :help "Search for character by name"))
-    (define-key map [isearch-quote-char]
-      '(menu-item "Search for literal char" isearch-quote-char
-                  :help "Search for literal char"))
-    (define-key map [isearch-special-char-separator]
-      '(menu-item "--"))
-    (define-key map [isearch-toggle-word]
-      '(menu-item "Word matching" isearch-toggle-word
-                  :help "Word matching"
-                  :button (:toggle
-                           . (eq isearch-regexp-function 'word-search-regexp))))
-    (define-key map [isearch-toggle-symbol]
-      '(menu-item "Symbol matching" isearch-toggle-symbol
-                  :help "Symbol matching"
-                  :button (:toggle
-                           . (eq isearch-regexp-function
-                                 'isearch-symbol-regexp))))
-    (define-key map [isearch-toggle-regexp]
-      '(menu-item "Regexp matching" isearch-toggle-regexp
-                  :help "Regexp matching"
-                  :button (:toggle . isearch-regexp)))
-    (define-key map [isearch-toggle-invisible]
-      '(menu-item "Invisible text matching" isearch-toggle-invisible
-                  :help "Invisible text matching"
-                  :button (:toggle . isearch-invisible)))
-    (define-key map [isearch-toggle-char-fold]
-      '(menu-item "Character folding matching" isearch-toggle-char-fold
-                  :help "Character folding matching"
-                  :button (:toggle
-                           . (eq isearch-regexp-function
-                                 'char-fold-to-regexp))))
-    (define-key map [isearch-toggle-case-fold]
-      '(menu-item "Case folding matching" isearch-toggle-case-fold
-                  :help "Case folding matching"
-                  :button (:toggle . isearch-case-fold-search)))
-    (define-key map [isearch-toggle-lax-whitespace]
-      '(menu-item "Lax whitespace matching" isearch-toggle-lax-whitespace
-                  :help "Lax whitespace matching"
-                  :button (:toggle . isearch-lax-whitespace)))
-    (define-key map [isearch-toggle-separator]
-      '(menu-item "--"))
-    (define-key map [isearch-yank-menu]
-      `(menu-item "Yank on search string" ,isearch-menu-bar-yank-map))
-    (define-key map [isearch-edit-string]
-      '(menu-item "Edit current search string" isearch-edit-string
-                  :help "Edit current search string"))
-    (define-key map [isearch-ring-retreat]
-      '(menu-item "Edit previous search string" isearch-ring-retreat
-                  :help "Edit previous search string in Isearch history"))
-    (define-key map [isearch-ring-advance]
-      '(menu-item "Edit next search string" isearch-ring-advance
-                  :help "Edit next search string in Isearch history"))
-    (define-key map [isearch-del-char]
-      '(menu-item "Delete last char from search string" isearch-del-char
-                  :help "Delete last character from search string"))
-    (define-key map [isearch-delete-char]
-      '(menu-item "Undo last input item" isearch-delete-char
-                  :help "Undo the effect of the last Isearch command"))
-    (define-key map [isearch-end-of-buffer]
-      '(menu-item "Go to last match" isearch-end-of-buffer
-                  :help "Go to last occurrence of current search string"))
-    (define-key map [isearch-beginning-of-buffer]
-      '(menu-item "Go to first match" isearch-beginning-of-buffer
-                  :help "Go to first occurrence of current search string"))
-    (define-key map [isearch-repeat-backward]
-      '(menu-item "Repeat search backward" isearch-repeat-backward
-                  :help "Repeat current search backward"))
-    (define-key map [isearch-repeat-forward]
-      '(menu-item "Repeat search forward" isearch-repeat-forward
-                  :help "Repeat current search forward"))
-    (define-key map [isearch-nonincremental]
-      '(menu-item "Nonincremental search" isearch-exit
-                  :help "Start nonincremental search"
-                  :visible (string-equal isearch-string "")))
-    (define-key map [isearch-exit]
-      '(menu-item "Finish search" isearch-exit
-                  :help "Finish search leaving point where it is"
-                  :visible (not (string-equal isearch-string ""))))
-    (define-key map [isearch-abort]
-      '(menu-item "Remove characters not found" isearch-abort
-                  :help "Quit current search"
-                  :visible (not isearch-success)))
-    (define-key map [isearch-cancel]
-      `(menu-item "Cancel search" isearch-cancel
-                  :help "Cancel current search and return to starting point"
-                  :filter ,(lambda (binding)
-                             (if isearch-success 'isearch-abort binding))))
-    map))
 
 ;; Note: Before adding more key bindings to this map, please keep in
 ;; mind that any unbound key exits Isearch and runs the command bound
@@ -784,13 +642,115 @@ This is like `describe-bindings', but displays only Isearch keys."
     ;; The key translations defined in the C-x 8 prefix should add
     ;; characters to the search string.  See iso-transl.el.
     (define-key map "\C-x8\r" 'isearch-char-by-name)
-
-    (define-key map [menu-bar search-menu]
-      (list 'menu-item "Isearch" isearch-menu-bar-map))
-    (define-key map [remap tmm-menubar] 'isearch-tmm-menubar)
-
     map)
   "Keymap for `isearch-mode'.")
+
+(easy-menu-define isearch-menu-bar-map  isearch-mode-map
+  "Menu for `isearch-mode'."
+  '("Isearch"
+    ["Cancel search" isearch-cancel
+     :help "Cancel current search and return to starting point"
+     :filter (lambda (binding)
+               (if isearch-success 'isearch-abort binding))]
+    ["Remove characters not found" isearch-abort
+     :help "Quit current search"
+     :visible (not isearch-success)]
+    ["Finish search" isearch-exit
+     :help "Finish search leaving point where it is"
+     :visible (not (string-equal isearch-string ""))]
+    ["Nonincremental search" isearch-exit
+     :help "Start nonincremental search"
+     :visible (string-equal isearch-string "")]
+    ["Repeat search forward" isearch-repeat-forward
+     :help "Repeat current search forward"]
+    ["Repeat search backward" isearch-repeat-backward
+     :help "Repeat current search backward"]
+    ["Go to first match" isearch-beginning-of-buffer
+     :help "Go to first occurrence of current search string"]
+    ["Go to last match" isearch-end-of-buffer
+     :help "Go to last occurrence of current search string"]
+    ["Undo last input item" isearch-delete-char
+     :help "Undo the effect of the last Isearch command"]
+    ["Delete last char from search string" isearch-del-char
+     :help "Delete last character from search string"]
+    ["Edit next search string" isearch-ring-advance
+     :help "Edit next search string in Isearch history"]
+    ["Edit previous search string" isearch-ring-retreat
+     :help "Edit previous search string in Isearch history"]
+    ["Edit current search string" isearch-edit-string
+     :help "Edit current search string"]
+    ("Yank on search string"
+     ["Char" isearch-yank-char
+      :help "Yank char at point on search string"]
+     ["Word/char"
+      isearch-yank-word-or-char
+      :help "Yank next word or char on search string"]
+     ["Symbol/char"
+      isearch-yank-symbol-or-char
+      :help "Yank next symbol or char on search string"]
+     ["Rest of line" isearch-yank-line
+      :help "Yank the rest of the current line on search string"]
+     ["Until char..." isearch-yank-until-char
+      :help "Yank from point to specified character into search string"]
+     ["Current kill" isearch-yank-kill
+      :help "Append current kill to search string"]
+     ["Previous kill" isearch-yank-pop-only
+      :help "Replace previous yanked kill on search string"])
+    "---"
+    ["Lax whitespace matching" isearch-toggle-lax-whitespace
+     :help "Lax whitespace matching"
+     :style toggle
+     :selected isearch-lax-whitespace]
+    ["Case folding matching" isearch-toggle-case-fold
+     :help "Case folding matching"
+     :style toggle
+     :selected isearch-case-fold-search]
+    ["Character folding matching" isearch-toggle-char-fold
+     :help "Character folding matching"
+     :style toggle
+     :selected (eq isearch-regexp-function
+                   'char-fold-to-regexp)]
+    ["Invisible text matching" isearch-toggle-invisible
+     :help "Invisible text matching"
+     :style toggle
+     :selected isearch-invisible]
+    ["Regexp matching" isearch-toggle-regexp
+     :help "Regexp matching"
+     :style toggle
+     :selected isearch-regexp]
+    ["Symbol matching" isearch-toggle-symbol
+     :help "Symbol matching"
+     :style toggle
+     :selected (eq isearch-regexp-function
+                   'isearch-symbol-regexp)]
+    ["Word matching" isearch-toggle-word
+     :help "Word matching"
+     :style toggle
+     :selected (eq isearch-regexp-function 'word-search-regexp)]
+    "---"
+    ["Search for literal char" isearch-quote-char
+     :help "Search for literal char"]
+    ["Search for char by name" isearch-char-by-name
+     :help "Search for character by name"]
+    "---"
+    ["Toggle input method" isearch-toggle-input-method
+     :help "Toggle input method for search"]
+    ["Turn on specific input method" isearch-toggle-specified-input-method
+     :help "Turn on specific input method for search"]
+    ["Turn on transient input method" isearch-transient-input-method
+     :help "Turn on transient input method for search"]
+    "---"
+    ["Highlight all matches for search string" isearch-highlight-regexp
+     :help "Highlight all matches for current search string"]
+    ["Show all matches for search string" isearch-occur
+     :help "Show all matches for current search string"]
+    ["Replace search string" isearch-query-replace
+     :help "Replace matches for current search string"]
+    ["Replace search string as regexp" isearch-query-replace-regexp
+     :help "Replace matches for current search string as regexp"]
+    "---"
+    ["Complete current search string" isearch-complete
+     :help "Complete current search string over search history"]))
 
 (defvar isearch-tool-bar-old-map nil
   "Variable holding the old local value of `tool-bar-map', if any.")
@@ -838,10 +798,6 @@ This is like `describe-bindings', but displays only Isearch keys."
             :image '(isearch-tool-bar-image "left-arrow")))
     map))
 
-;; Note: Before adding more key bindings to this map, please keep in
-;; mind that any unbound key exits Isearch and runs the command bound
-;; to it in the local or global map.  So in effect every key unbound
-;; in this map is implicitly bound.
 (defvar minibuffer-local-isearch-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map minibuffer-local-map)
@@ -1493,7 +1449,7 @@ REGEXP if non-nil says use the regexp search ring."
   (apply 'propertize string properties))
 
 (defun isearch-update-from-string-properties (string)
-  "Update isearch properties from the isearch string"
+  "Update isearch properties from the isearch STRING."
   (when (plist-member (text-properties-at 0 string) 'isearch-case-fold-search)
     (setq isearch-case-fold-search
 	  (get-text-property 0 'isearch-case-fold-search string)))
@@ -2498,6 +2454,21 @@ If search string is empty, just beep."
   (unless isearch-mode (isearch-mode t))
   (isearch-yank-string (current-kill 0)))
 
+(defun isearch-yank-from-kill-ring ()
+  "Read a string from the `kill-ring' and append it to the search string."
+  (interactive)
+  (with-isearch-suspended
+   (let ((string (read-from-kill-ring)))
+     (if (and isearch-case-fold-search
+              (eq 'not-yanks search-upper-case))
+         (setq string (downcase string)))
+     (if isearch-regexp (setq string (regexp-quote string)))
+     (setq isearch-yank-flag t)
+     (setq isearch-new-string (concat isearch-string string)
+           isearch-new-message (concat isearch-message
+                                       (mapconcat 'isearch-text-char-description
+                                                  string ""))))))
+
 (defun isearch-yank-pop ()
   "Replace just-yanked search string with previously killed string.
 Unlike `isearch-yank-pop-only', when this command is called not immediately
@@ -2506,37 +2477,31 @@ minibuffer to read a string from the `kill-ring' as `yank-pop' does."
   (interactive)
   (if (not (memq last-command '(isearch-yank-kill
                                 isearch-yank-pop isearch-yank-pop-only)))
-      ;; Yank string from kill-ring-browser.
-      (with-isearch-suspended
-       (let ((string (read-from-kill-ring)))
-         (if (and isearch-case-fold-search
-                  (eq 'not-yanks search-upper-case))
-             (setq string (downcase string)))
-         (if isearch-regexp (setq string (regexp-quote string)))
-         (setq isearch-yank-flag t)
-         (setq isearch-new-string (concat isearch-string string)
-               isearch-new-message (concat isearch-message
-                                           (mapconcat 'isearch-text-char-description
-                                                      string "")))))
+      (isearch-yank-from-kill-ring)
     (isearch-pop-state)
     (isearch-yank-string (current-kill 1))))
 
-(defun isearch-yank-pop-only ()
+(defun isearch-yank-pop-only (&optional arg)
   "Replace just-yanked search string with previously killed string.
 Unlike `isearch-yank-pop', when this command is called not immediately
 after a `isearch-yank-kill' or a `isearch-yank-pop-only', it only pops
 the last killed string instead of activating the minibuffer to read
-a string from the `kill-ring' as `yank-pop' does."
-  (interactive)
-  (if (not (memq last-command '(isearch-yank-kill
-                                isearch-yank-pop isearch-yank-pop-only)))
-      ;; Fall back on `isearch-yank-kill' for the benefits of people
-      ;; who are used to the old behavior of `M-y' in isearch mode.
-      ;; In future, `M-y' could be changed from `isearch-yank-pop-only'
-      ;; to `isearch-yank-pop' that uses the kill-ring-browser.
-      (isearch-yank-kill)
+a string from the `kill-ring' as `yank-pop' does.  The prefix arg \\[universal-argument]
+always reads a string from the `kill-ring' using the minibuffer."
+  (interactive "P")
+  (cond
+   ((equal arg '(4))
+    (isearch-yank-from-kill-ring))
+   ((not (memq last-command '(isearch-yank-kill
+                              isearch-yank-pop isearch-yank-pop-only)))
+    ;; Fall back on `isearch-yank-kill' for the benefits of people
+    ;; who are used to the old behavior of `M-y' in isearch mode.
+    ;; In future, `M-y' could be changed from `isearch-yank-pop-only'
+    ;; to `isearch-yank-pop' that uses the kill-ring-browser.
+    (isearch-yank-kill))
+   (t
     (isearch-pop-state)
-    (isearch-yank-string (current-kill 1))))
+    (isearch-yank-string (current-kill 1)))))
 
 (defun isearch-yank-x-selection ()
   "Pull current X selection into search string."
@@ -2680,7 +2645,7 @@ With argument, add COUNT copies of the character."
 						      string ""))))))))
 
 (defun isearch-search-and-update ()
-  ;; Do the search and update the display.
+  "Do the search and update the display."
   (when (or isearch-success
 	    ;; Unsuccessful regexp search may become successful by
 	    ;; addition of characters which make isearch-string valid
@@ -2997,7 +2962,7 @@ See more for options in `search-exit-option'."
      ((and (eq (car-safe main-event) 'down-mouse-1)
 	   (window-minibuffer-p (posn-window (event-start main-event))))
       ;; Swallow the up-event.
-      (read-event)
+      (read--potential-mouse-event)
       (setq this-command 'isearch-edit-string))
      ;; Don't terminate the search for motion commands.
      ((and isearch-yank-on-move
@@ -3212,7 +3177,7 @@ If there is no completion possible, say so and continue searching."
 ;; Message string
 
 (defun isearch-message (&optional c-q-hack ellipsis)
-  ;; Generate and print the message string.
+  "Generate and print the message string."
 
   ;; N.B.: This function should always be called with point at the
   ;; search point, because in certain (rare) circumstances, undesired
@@ -3341,7 +3306,7 @@ the word mode."
 
 (defun isearch-lazy-count-format (&optional suffix-p)
   "Format the current match number and the total number of matches.
-When SUFFIX-P is non-nil, the returned string is indended for
+When SUFFIX-P is non-nil, the returned string is intended for
 isearch-message-suffix prompt.  Otherwise, for isearch-message-prefix."
   (let ((format-string (if suffix-p
                            lazy-count-suffix-format
@@ -3352,7 +3317,7 @@ isearch-message-suffix prompt.  Otherwise, for isearch-message-prefix."
              (not isearch-error)
              (not isearch-suspended))
         (format format-string
-                (if isearch-forward
+                (if isearch-lazy-highlight-forward
                     isearch-lazy-count-current
                   (if (eq isearch-lazy-count-current 0)
                       0
@@ -3466,7 +3431,7 @@ Optional third argument, if t, means if fail just return nil (no error).
       pos1)))
 
 (defun isearch-search ()
-  ;; Do the search with the current search string.
+  "Do the search with the current search string."
   (if (and (eq isearch-case-fold-search t) search-upper-case)
       (setq isearch-case-fold-search
 	    (isearch-no-upper-case-p isearch-string isearch-regexp)))
@@ -3752,23 +3717,27 @@ since they have special meaning in a regexp."
 	(overlay-put isearch-overlay 'priority 1001)
 	(overlay-put isearch-overlay 'face isearch-face)))
 
-  (when (and search-highlight-submatches
-	     isearch-regexp)
+  (when (and search-highlight-submatches isearch-regexp)
     (mapc 'delete-overlay isearch-submatches-overlays)
     (setq isearch-submatches-overlays nil)
-    (let ((submatch-data (cddr (butlast match-data)))
+    ;; 'cddr' removes whole expression match from match-data
+    (let ((submatch-data (cddr match-data))
           (group 0)
-          ov face)
+          b e ov face)
       (while submatch-data
-        (setq group (1+ group))
-        (setq ov (make-overlay (pop submatch-data) (pop submatch-data))
-              face (intern-soft (format "isearch-group-%d" group)))
-        ;; Recycle faces from beginning.
-        (unless (facep face)
-          (setq group 1 face 'isearch-group-1))
-        (overlay-put ov 'face face)
-        (overlay-put ov 'priority 1002)
-        (push ov isearch-submatches-overlays)))))
+        (setq b (pop submatch-data)
+              e (pop submatch-data))
+        (when (and (integer-or-marker-p b)
+                   (integer-or-marker-p e))
+          (setq ov (make-overlay b e)
+                group (1+ group)
+                face (intern-soft (format "isearch-group-%d" group)))
+          ;; Recycle faces from beginning
+          (unless (facep face)
+            (setq group 1 face 'isearch-group-1))
+          (overlay-put ov 'face face)
+          (overlay-put ov 'priority 1002)
+          (push ov isearch-submatches-overlays))))))
 
 (defun isearch-dehighlight ()
   (when isearch-overlay
@@ -3908,7 +3877,8 @@ by other Emacs features."
         (clrhash isearch-lazy-count-hash)
         (setq isearch-lazy-count-current nil
               isearch-lazy-count-total nil)
-        (isearch-message)))
+        ;; Delay updating the message if possible, to avoid flicker
+        (when (string-equal isearch-string "") (isearch-message))))
     (setq isearch-lazy-highlight-window-start-changed nil)
     (setq isearch-lazy-highlight-window-end-changed nil)
     (setq isearch-lazy-highlight-error isearch-error)
@@ -3953,7 +3923,11 @@ by other Emacs features."
 		 (point-min))))
     (unless (equal isearch-string "")
       (setq isearch-lazy-highlight-timer
-            (run-with-idle-timer lazy-highlight-initial-delay nil
+            (run-with-idle-timer (if (>= (length isearch-string)
+                                         lazy-highlight-no-delay-length)
+                                     0
+                                   lazy-highlight-initial-delay)
+                                 nil
                                  'isearch-lazy-highlight-start))))
   ;; Update the current match number only in isearch-mode and
   ;; unless isearch-mode is used specially with isearch-message-function
@@ -4103,13 +4077,13 @@ Attempt to do the search exactly the way the pending Isearch would."
   "Update highlighting of other matches in the full buffer."
   (let ((max lazy-highlight-buffer-max-at-a-time)
         (looping t)
-        nomore window-start window-end
-        (opoint (point)))
+        nomore opoint window-start window-end)
     (with-local-quit
       (save-selected-window
 	(if (and (window-live-p isearch-lazy-highlight-window)
 		 (not (memq (selected-window) isearch-lazy-highlight-window-group)))
 	    (select-window isearch-lazy-highlight-window))
+	(setq opoint (point))
 	(setq window-start (window-group-start))
 	(setq window-end (window-group-end))
 	(save-excursion

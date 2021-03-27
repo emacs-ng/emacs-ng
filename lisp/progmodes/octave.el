@@ -165,7 +165,7 @@ parenthetical grouping.")
     (modify-syntax-entry ?| "."   table)
     (modify-syntax-entry ?! "."   table)
     (modify-syntax-entry ?\\ "."  table)
-    (modify-syntax-entry ?\' "\""  table)
+    (modify-syntax-entry ?\' "."  table)
     (modify-syntax-entry ?\` "."  table)
     (modify-syntax-entry ?. "."   table)
     (modify-syntax-entry ?\" "\"" table)
@@ -215,9 +215,15 @@ newline or semicolon after an else or end keyword."
   (concat "[^#%\n]*\\(" octave-continuation-marker-regexp
           "\\)\\s-*\\(\\s<.*\\)?$"))
 
-;; Char \ is considered a bad decision for continuing a line.
 (defconst octave-continuation-string "..."
-  "Character string used for Octave continuation lines.")
+  "Character string used for Octave continuation lines.
+Joins current line with following line, except within
+double-quoted strings, where `octave-string-continuation-marker'
+is used instead.")
+
+(defconst octave-string-continuation-marker "\\"
+  "Line continuation marker for double-quoted Octave strings.
+Non-string statements use `octave-continuation-string'.")
 
 (defvar octave-mode-imenu-generic-expression
   (list
@@ -964,8 +970,7 @@ output is passed to the filter `inferior-octave-output-digest'."
 	  (setq list (cdr list)))
       (set-process-filter proc filter))))
 
-(defvar inferior-octave-directory-tracker-resync nil)
-(make-variable-buffer-local 'inferior-octave-directory-tracker-resync)
+(defvar-local inferior-octave-directory-tracker-resync nil)
 
 (defun inferior-octave-directory-tracker (string)
   "Tracks `cd' commands issued to the inferior Octave process.
@@ -1033,11 +1038,11 @@ directory and makes this the current buffer's default directory."
     (looking-at regexp)))
 
 (defun octave-maybe-insert-continuation-string ()
-  (if (or (octave-in-comment-p)
-	  (save-excursion
-	    (beginning-of-line)
-	    (looking-at octave-continuation-regexp)))
-      nil
+  (declare (obsolete nil "28.1"))
+  (unless (or (octave-in-comment-p)
+              (save-excursion
+                (beginning-of-line)
+                (looking-at octave-continuation-regexp)))
     (delete-horizontal-space)
     (insert (concat " " octave-continuation-string))))
 
@@ -1219,23 +1224,22 @@ q: Don't fix\n" func file))
 (defun octave-indent-new-comment-line (&optional soft)
   "Break Octave line at point, continuing comment if within one.
 Insert `octave-continuation-string' before breaking the line
-unless inside a list.  Signal an error if within a single-quoted
-string."
+unless inside a list.  If within a double-quoted string, insert
+`octave-string-continuation-marker' instead.  Signal an error if
+within a single-quoted string."
   (interactive)
   (funcall comment-line-break-function soft))
 
 (defun octave--indent-new-comment-line (orig &rest args)
-  (cond
-   ((octave-in-comment-p) nil)
-   ((eq (octave-in-string-p) ?')
-    (error "Cannot split a single-quoted string"))
-   ((eq (octave-in-string-p) ?\")
-    (insert octave-continuation-string))
-   (t
-    (delete-horizontal-space)
-    (unless (and (cadr (syntax-ppss))
-                 (eq (char-after (cadr (syntax-ppss))) ?\())
-      (insert " " octave-continuation-string))))
+  (pcase (syntax-ppss)
+    ((app ppss-string-terminator ?\')
+     (user-error "Cannot split a single-quoted string"))
+    ((app ppss-string-terminator ?\")
+     (insert octave-string-continuation-marker))
+    ((pred (not ppss-comment-depth))
+     (delete-horizontal-space)
+     (unless (octave-smie--in-parens-p)
+       (insert " " octave-continuation-string))))
   (apply orig args)
   (indent-according-to-mode))
 
@@ -1517,7 +1521,8 @@ current buffer file unless called with a prefix arg \\[universal-argument]."
       ;; https://lists.gnu.org/r/emacs-devel/2013-10/msg00095.html
       (compilation-forget-errors)
       (insert-before-markers string "\n")
-      (comint-send-string proc (concat string "\n"))))
+      (comint-send-string proc (concat string "\n")))
+    (deactivate-mark))
   (if octave-send-show-buffer
       (display-buffer inferior-octave-buffer)))
 
@@ -1663,9 +1668,7 @@ code line."
 
 (define-button-type 'octave-help-function
   'follow-link t
-  'action (lambda (b)
-            (octave-help
-             (buffer-substring (button-start b) (button-end b)))))
+  'action (lambda (b) (octave-help (button-label b))))
 
 (defvar octave-help-mode-map
   (let ((map (make-sparse-keymap)))

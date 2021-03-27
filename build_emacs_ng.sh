@@ -12,7 +12,7 @@ sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10
 ./configure CFLAGS="-Wl,-rpath,shared -Wl,--disable-new-dtags" \
             --with-json --with-modules --with-harfbuzz --with-compress-install \
             --with-threads --with-included-regex --with-zlib --with-cairo --with-libsystemd \
-             --with-nativecomp \
+            --with-native-compilation \
             --without-rsvg --without-sound --without-imagemagick --without-makeinfo \
             --without-gpm --without-dbus --without-pop --without-toolkit-scroll-bars \
             --without-mailutils --without-gsettings \

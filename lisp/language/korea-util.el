@@ -1,4 +1,4 @@
-;;; korea-util.el --- utilities for Korean
+;;; korea-util.el --- utilities for Korean  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1997, 1999, 2001-2021 Free Software Foundation, Inc.
 ;; Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
@@ -32,21 +32,25 @@
    (purecopy (if (string-match "3" (or (getenv "HANGUL_KEYBOARD_TYPE") ""))
       "3"
     ""))
-   "The kind of Korean keyboard for Korean input method.
-\"\" for 2, \"3\" for 3.")
+   "The kind of Korean keyboard for Korean (Hangul) input method.
+\"\" for 2, \"3\" for 3, and \"3f\" for 3f.")
 
 ;; functions useful for Korean text input
 
 (defun toggle-korean-input-method ()
-  "Turn on or off a Korean text input method for the current buffer."
+  "Turn on or off a Korean text input method for the current buffer.
+The keyboard layout variation used is determined by
+`default-korean-keyboard'."
   (interactive)
   (if current-input-method
       (deactivate-input-method)
     (activate-input-method
      (concat "korean-hangul" default-korean-keyboard))))
 
-(defun quail-hangul-switch-symbol-ksc (&rest ignore)
-  "Switch to/from Korean symbol package."
+(defun quail-hangul-switch-symbol-ksc (&rest _ignore)
+  "Switch to/from Korean symbol package.
+The keyboard layout variation used is determined by
+`default-korean-keyboard'."
   (interactive "i")
   (and current-input-method
        (if (string-equal current-input-method "korean-symbol")
@@ -54,8 +58,10 @@
 					  default-korean-keyboard))
 	 (activate-input-method "korean-symbol"))))
 
-(defun quail-hangul-switch-hanja (&rest ignore)
-  "Switch to/from Korean hanja package."
+(defun quail-hangul-switch-hanja (&rest _ignore)
+  "Switch to/from Korean hanja package.
+The keyboard layout variation used is determined by
+`default-korean-keyboard'."
   (interactive "i")
   (and current-input-method
        (if (string-match "korean-hanja" current-input-method)

@@ -50,8 +50,7 @@
 
 (defcustom enriched-verbose t
   "If non-nil, give status messages when reading and writing files."
-  :type 'boolean
-  :group 'enriched)
+  :type 'boolean)
 
 ;;;
 ;;; Set up faces & display table
@@ -65,14 +64,12 @@
   "Face used for text that must be shown in fixed width.
 Currently, Emacs can only display fixed-width fonts, but this may change.
 This face is used for text specifically marked as fixed-width, for example
-in text/enriched files."
-  :group 'enriched)
+in text/enriched files.")
 
 (defface excerpt
   '((t (:slant italic)))
   "Face used for text that is an excerpt from another document.
-This is used in Enriched mode for text explicitly marked as an excerpt."
-  :group 'enriched)
+This is used in Enriched mode for text explicitly marked as an excerpt.")
 
 (defconst enriched-display-table (or (copy-sequence standard-display-table)
 				     (make-display-table)))
@@ -146,8 +143,7 @@ Any property that is neither on this list nor dealt with by
 If you set variables in this hook, you should arrange for them to be restored
 to their old values if you leave Enriched mode.  One way to do this is to add
 them and their old values to `enriched-old-bindings'."
-  :type 'hook
-  :group 'enriched)
+  :type 'hook)
 
 (defcustom enriched-allow-eval-in-display-props nil
   "If non-nil allow to evaluate arbitrary forms in display properties.
@@ -162,13 +158,11 @@ Note, however, that applying unsafe display properties could
 execute malicious Lisp code, if that code came from an external source."
   :risky t
   :type 'boolean
-  :version "26.1"
-  :group 'enriched)
+  :version "26.1")
 
-(defvar enriched-old-bindings nil
+(defvar-local enriched-old-bindings nil
   "Store old variable values that we change when entering mode.
 The value is a list of \(VAR VALUE VAR VALUE...).")
-(make-variable-buffer-local 'enriched-old-bindings)
 
 ;; The next variable is buffer local if and only if Enriched mode is
 ;; enabled.  The buffer local value records whether
@@ -187,7 +181,6 @@ The value is a list of \(VAR VALUE VAR VALUE...).")
 
 (defvar enriched-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map [remap move-beginning-of-line] 'beginning-of-line-text)
     (define-key map "\C-m" 'reindent-then-newline-and-indent)
     (define-key map
       [remap newline-and-indent] 'reindent-then-newline-and-indent)

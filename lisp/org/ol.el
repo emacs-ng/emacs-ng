@@ -376,9 +376,9 @@ changes to the current buffer."
 
 Shell links can be dangerous: just think about a link
 
-     [[shell:rm -rf ~/*][Google Search]]
+     [[shell:rm -rf ~/*][Web Search]]
 
-This link would show up in your Org document as \"Google Search\",
+This link would show up in your Org document as \"Web Search\",
 but really it would remove your entire home directory.
 Therefore we advise against setting this variable to nil.
 Just change it to `y-or-n-p' if you want to confirm with a
@@ -401,9 +401,9 @@ single keystroke rather than having to type \"yes\"."
   "Non-nil means ask for confirmation before executing Emacs Lisp links.
 Elisp links can be dangerous: just think about a link
 
-     [[elisp:(shell-command \"rm -rf ~/*\")][Google Search]]
+     [[elisp:(shell-command \"rm -rf ~/*\")][Web Search]]
 
-This link would show up in your Org document as \"Google Search\",
+This link would show up in your Org document as \"Web Search\",
 but really it would remove your entire home directory.
 Therefore we advise against setting this variable to nil.
 Just change it to `y-or-n-p' if you want to confirm with a
@@ -591,7 +591,7 @@ handle this as a special case.
 
 When the function does handle the link, it must return a non-nil value.
 If it decides that it is not responsible for this link, it must return
-nil to indicate that that Org can continue with other options like
+nil to indicate that Org can continue with other options like
 exact and fuzzy text search.")
 
 
@@ -1467,7 +1467,7 @@ non-nil."
 	    (move-beginning-of-line 2)
 	    (set-mark (point)))))
     (setq org-store-link-plist nil)
-    (let (link cpltxt desc description search custom-id agenda-link)
+    (let (link cpltxt desc search custom-id agenda-link) ;; description
       (cond
        ;; Store a link using an external link type, if any function is
        ;; available. If more than one can generate a link from current
@@ -1598,7 +1598,7 @@ non-nil."
 		      'org-create-file-search-functions))
 	(setq link (concat "file:" (abbreviate-file-name buffer-file-name)
 			   "::" search))
-	(setq cpltxt (or description link)))
+	(setq cpltxt (or link))) ;; description
 
        ((and (buffer-file-name (buffer-base-buffer)) (derived-mode-p 'org-mode))
 	(org-with-limited-levels

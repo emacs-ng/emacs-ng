@@ -183,8 +183,7 @@ You should bind this variable with `let', but do not set it globally.")
 (defvar epa-last-coding-system-specified nil)
 
 (defvar epa-key-list-mode-map
-  (let ((keymap (make-sparse-keymap))
-	(menu-map (make-sparse-keymap)))
+  (let ((keymap (make-sparse-keymap)))
     (define-key keymap "\C-m" 'epa-show-key)
     (define-key keymap [?\t] 'forward-button)
     (define-key keymap [backtab] 'backward-button)
@@ -204,37 +203,31 @@ You should bind this variable with `let', but do not set it globally.")
     (define-key keymap [?\S-\ ] 'scroll-down-command)
     (define-key keymap [delete] 'scroll-down-command)
     (define-key keymap "q" 'epa-exit-buffer)
-    (define-key keymap [menu-bar epa-key-list-mode] (cons "Keys" menu-map))
-    (define-key menu-map [epa-key-list-unmark-key]
-      '(menu-item "Unmark Key" epa-unmark-key
-		  :help "Unmark a key"))
-    (define-key menu-map [epa-key-list-mark-key]
-      '(menu-item "Mark Key" epa-mark-key
-		  :help "Mark a key"))
-    (define-key menu-map [separator-epa-file] '(menu-item "--"))
-    (define-key menu-map [epa-verify-file]
-      '(menu-item "Verify File..." epa-verify-file
-		  :help "Verify FILE"))
-    (define-key menu-map [epa-sign-file]
-      '(menu-item "Sign File..." epa-sign-file
-		  :help "Sign FILE by SIGNERS keys selected"))
-    (define-key menu-map [epa-decrypt-file]
-      '(menu-item "Decrypt File..." epa-decrypt-file
-		  :help "Decrypt FILE"))
-    (define-key menu-map [epa-encrypt-file]
-      '(menu-item "Encrypt File..." epa-encrypt-file
-		  :help "Encrypt FILE for RECIPIENTS"))
-    (define-key menu-map [separator-epa-key-list] '(menu-item "--"))
-    (define-key menu-map [epa-key-list-delete-keys]
-      '(menu-item "Delete Keys" epa-delete-keys
-		  :help "Delete Marked Keys"))
-    (define-key menu-map [epa-key-list-import-keys]
-      '(menu-item "Import Keys" epa-import-keys
-		  :help "Import keys from a file"))
-    (define-key menu-map [epa-key-list-export-keys]
-      '(menu-item "Export Keys" epa-export-keys
-		  :help "Export marked keys to a file"))
     keymap))
+
+(easy-menu-define epa-key-list-mode-menu epa-key-list-mode-map
+  "Menu for `epa-key-list-mode'."
+  '("Keys"
+    ["Export Keys" epa-export-keys
+     :help "Export marked keys to a file"]
+    ["Import Keys" epa-import-keys
+     :help "Import keys from a file"]
+    ["Delete Keys" epa-delete-keys
+     :help "Delete Marked Keys"]
+    "---"
+    ["Encrypt File..." epa-encrypt-file
+     :help "Encrypt file for recipients"]
+    ["Decrypt File..." epa-decrypt-file
+     :help "Decrypt file"]
+    ["Sign File..." epa-sign-file
+     :help "Sign file by signers keys selected"]
+    ["Verify File..." epa-verify-file
+     :help "Verify file"]
+    "---"
+    ["Mark Key" epa-mark-key
+     :help "Mark a key"]
+    ["Unmark Key" epa-unmark-key
+     :help "Unmark a key"]))
 
 (defvar epa-key-mode-map
   (let ((keymap (make-sparse-keymap)))
@@ -359,8 +352,8 @@ DOC is documentation text to insert at the start."
 
     ;; Find the end of the documentation text at the start.
     ;; Set POINT to where it ends, or nil if ends at eob.
-    (unless (get-text-property point 'epa-list-keys)
-      (setq point (next-single-property-change point 'epa-list-keys)))
+    (unless (get-text-property point 'epa-key)
+      (setq point (next-single-property-change point 'epa-key)))
 
     ;; If caller specified documentation text for that, replace the old
     ;; documentation text (if any) with what was specified.
@@ -379,8 +372,7 @@ DOC is documentation text to insert at the start."
       (goto-char point))
 
     (epa--insert-keys (epg-list-keys context name secret)))
-  (make-local-variable 'epa-list-keys-arguments)
-  (setq epa-list-keys-arguments (list name secret))
+  (setq-local epa-list-keys-arguments (list name secret))
   (goto-char (point-min))
   (pop-to-buffer (current-buffer)))
 
@@ -500,8 +492,7 @@ If SECRET is non-nil, list secret keys instead of public keys."
 		     (format "*Key*%s" (epg-sub-key-id primary-sub-key)))))
     (set-buffer (cdr entry))
     (epa-key-mode)
-    (make-local-variable 'epa-key)
-    (setq epa-key key)
+    (setq-local epa-key key)
     (erase-buffer)
     (setq pointer (epg-key-user-id-list key))
     (while pointer

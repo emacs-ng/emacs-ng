@@ -85,10 +85,6 @@
 
 ;;; Code:
 
-;; Global bindings:
-(define-key global-map [C-down-mouse-2] 'facemenu-menu)
-(define-key global-map "\M-o" 'facemenu-keymap)
-
 (defgroup facemenu nil
   "Create a face menu for interactively adding fonts to text."
   :group 'faces
@@ -606,9 +602,14 @@ color.  The function should accept a single argument, the color name."
 
 (defun list-colors-print (list &optional callback)
   (let ((callback-fn
-	 (if callback
-	     `(lambda (button)
-		(funcall ,callback (button-get button 'color-name))))))
+         ;; Expect CALLBACK to be a function, but allow it to be a form that
+         ;; evaluates to a function, for backward-compatibility.  (Bug#45831)
+         (cond ((functionp callback)
+                (lambda (button)
+                  (funcall callback (button-get button 'color-name))))
+               (callback
+                `(lambda (button)
+                  (funcall ,callback (button-get button 'color-name)))))))
     (dolist (color list)
       (if (consp color)
 	  (if (cdr color)

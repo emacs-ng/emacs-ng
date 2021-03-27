@@ -1,4 +1,4 @@
-;;; mouse-copy.el --- one-click text copy and move
+;;; mouse-copy.el --- one-click text copy and move  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1996, 2001-2021 Free Software Foundation, Inc.
 
@@ -54,9 +54,6 @@
 ;; mouse-2 scrolling.  The package mouse-scroll.el by Tom Wurgler
 ;; <twurgler@goodyear.com> is similar to mouse-drag-throw, but
 ;; doesn't pass clicks through.
-;;
-;; These functions have been tested in emacs version 19.30,
-;; and this package has run in the past on 19.25-19.29.
 ;;
 ;; Originally mouse-copy was part of a larger package.
 ;; As of 11 July 96 the scrolling functions were split out
@@ -216,8 +213,7 @@ by johnh@ficus.cs.ucla.edu."
   (if (mouse-drag-secondary start-event)
       (progn
 	(mouse-kill-preserving-secondary)
-	(insert (gui-get-selection 'SECONDARY))))
-)
+        (insert (gui-get-selection 'SECONDARY)))))
 
 (provide 'mouse-copy)
 

@@ -2199,7 +2199,7 @@ the above example."
 		(not (funcall pred type)))
       ;; Strip off last hyphen and what follows, then try again
       (setq type
-	    (if (setq hyphend (string-match-p "[-_][^-_]+$" type))
+	    (if (setq hyphend (string-match-p "[-_.][^-_.]+$" type))
 		(substring type 0 hyphend)
 	      nil))))
   type)
@@ -2683,8 +2683,17 @@ the same as `window-divider' face."
 
 (defface internal-border
     '((t nil))
-  "Basic face for the internal border."
+  "Basic face for the internal border.
+For the internal border of child frames see `child-frame-border'."
   :version "26.1"
+  :group 'frames
+  :group 'basic-faces)
+
+(defface child-frame-border
+  '((t nil))
+  "Basic face for the internal border of child frames.
+For the internal border of non-child frames see `internal-border'."
+  :version "28.1"
   :group 'frames
   :group 'basic-faces)
 
@@ -2804,6 +2813,23 @@ Note: Other faces cannot inherit from the cursor face."
 
 (defface help-argument-name '((t :inherit italic))
   "Face to highlight argument names in *Help* buffers."
+  :group 'help)
+
+(defface help-key-binding
+  '((((class color) (min-colors 88) (background light)) :background "grey90")
+    (((class color) (min-colors 88) (background dark)) :background "grey25")
+    (((class color grayscale) (background light)) :background "grey90")
+    (((class color grayscale) (background dark)) :background "grey25")
+    (t :background "grey90"))
+  "Face for keybindings in *Help* buffers.
+
+This face is added by `substitute-command-keys', which see.
+
+Note that this face will also be used for key bindings in
+tooltips.  This means that, for example, changing the :height of
+this face will increase the height of any tooltip containing key
+bindings.  See also the face `tooltip'."
+  :version "28.1"
   :group 'help)
 
 (defface glyphless-char

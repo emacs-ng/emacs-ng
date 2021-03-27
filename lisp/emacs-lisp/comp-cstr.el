@@ -71,7 +71,7 @@
                                        (irange &aux
                                                (range (list irange))
                                                (typeset ())))
-                         (:copier nil))
+                         (:copier comp-cstr-shallow-copy))
   "Internal representation of a type/value constraint."
   (typeset '(t) :type list
            :documentation "List of possible types the mvar can assume.
@@ -179,6 +179,9 @@ Return them as multiple value."
 (defvar comp-cstr-one (comp-value-to-cstr 1)
   "Represent the integer immediate one.")
 
+(defvar comp-cstr-t (comp-type-to-cstr t)
+  "Represent the superclass t.")
+
 
 ;;; Value handling.
 
@@ -284,7 +287,7 @@ Return them as multiple value."
 (defun comp-intersect-typesets (&rest typesets)
   "Intersect types present into TYPESETS."
   (unless (cl-some #'null typesets)
-    (if (= (length typesets) 1)
+    (if (length= typesets 1)
         (car typesets)
       (comp-normalize-typeset
        (cl-reduce #'comp-intersect-two-typesets typesets)))))
@@ -594,6 +597,12 @@ DST is returned."
                           (valset pos)))
               ;; Pos is a superset of neg.
               (give-up))
+             ((cl-some (lambda (x)
+                         (cl-some (lambda (y)
+                                    (comp-subtype-p y x))
+                                  (mapcar #'type-of (valset pos))))
+                       (typeset neg))
+              (give-up))
              (t
               ;; pos is a subset or eq to neg
               (setf (valset neg)
@@ -655,7 +664,7 @@ DST is returned."
       (cl-return-from comp-cstr-intersection-homogeneous dst))
 
     (setf (neg dst) (when srcs
-                                (neg (car srcs))))
+                      (neg (car srcs))))
 
     ;; Type propagation.
     (setf (typeset dst)
@@ -673,7 +682,7 @@ DST is returned."
              ;; If (member value) is subtypep of all other sources then
              ;; is good to be colleted.
              when (cl-every (lambda (s)
-                              (or (memq val (valset s))
+                              (or (memql val (valset s))
                                   (cl-some (lambda (type)
                                              (cl-typep val type))
                                            (typeset s))))
@@ -780,6 +789,114 @@ Non memoized version of `comp-cstr-intersection-no-mem'."
 
 ;;; Entry points.
 
+(defun comp-cstr-imm-vld-p (cstr)
+  "Return t if one and only one immediate value can be extracted from CSTR."
+  (with-comp-cstr-accessors
+    (when (and (null (typeset cstr))
+               (null (neg cstr)))
+      (let* ((v (valset cstr))
+             (r (range cstr))
+             (valset-len (length v))
+             (range-len (length r)))
+        (if (and (= valset-len 1)
+                 (= range-len 0))
+            t
+          (when (and (= valset-len 0)
+                     (= range-len 1))
+            (let* ((low (caar r))
+                   (high (cdar r)))
+              (and (integerp low)
+                   (integerp high)
+                   (= low high)))))))))
+
+(defun comp-cstr-imm (cstr)
+  "Return the immediate value of CSTR.
+`comp-cstr-imm-vld-p' *must* be satisfied before calling
+`comp-cstr-imm'."
+  (declare (gv-setter
+            (lambda (val)
+              `(with-comp-cstr-accessors
+                 (if (integerp ,val)
+                     (setf (typeset ,cstr) nil
+                           (range ,cstr) (list (cons ,val ,val)))
+                   (setf (typeset ,cstr) nil
+                         (valset ,cstr) (list ,val)))))))
+  (with-comp-cstr-accessors
+    (let ((v (valset cstr)))
+      (if (length= v 1)
+          (car v)
+        (caar (range cstr))))))
+
+(defun comp-cstr-fixnum-p (cstr)
+  "Return t if CSTR is certainly a fixnum."
+  (with-comp-cstr-accessors
+    (when (null (neg cstr))
+      (when-let (range (range cstr))
+        (let* ((low (caar range))
+               (high (cdar (last range))))
+          (unless (or (eq low '-)
+                      (< low most-negative-fixnum)
+                      (eq high '+)
+                      (> high most-positive-fixnum))
+            t))))))
+
+(defun comp-cstr-symbol-p (cstr)
+  "Return t if CSTR is certainly a symbol."
+  (with-comp-cstr-accessors
+    (and (null (range cstr))
+         (null (neg cstr))
+         (or (and (null (valset cstr))
+                  (equal (typeset cstr) '(symbol)))
+             (and (or (null (typeset cstr))
+                      (equal (typeset cstr) '(symbol)))
+                  (cl-every #'symbolp (valset cstr)))))))
+
+(defsubst comp-cstr-cons-p (cstr)
+  "Return t if CSTR is certainly a cons."
+  (with-comp-cstr-accessors
+    (and (null (valset cstr))
+         (null (range cstr))
+         (null (neg cstr))
+         (equal (typeset cstr) '(cons)))))
+
+(defun comp-cstr-= (dst op1 op2)
+  "Constraint OP1 being = OP2 setting the result into DST."
+  (with-comp-cstr-accessors
+    (cl-flet ((relax-cstr (cstr)
+                (setf cstr (comp-cstr-shallow-copy cstr))
+                ;; If can be any float extend it to all integers.
+                (when (memq 'float (typeset cstr))
+                  (setf (range cstr) '((- . +))))
+                ;; For each float value that can be represented
+                ;; precisely as an integer add the integer as well.
+                (cl-loop
+                 for v in (valset cstr)
+                 do
+                 (when-let* ((ok (floatp v))
+                             (truncated (ignore-error 'overflow-error
+                                          (truncate v)))
+                             (ok (= v truncated)))
+                   (push (cons truncated truncated) (range cstr))))
+                (cl-loop
+                 with vals-to-add
+                 for (l . h) in (range cstr)
+                 ;; If an integer range reduces to single value add
+                 ;; its float value too.
+                 if (eql l h)
+                   do (push (float l) vals-to-add)
+                 ;; Otherwise can be any float.
+                 else
+                   do (cl-pushnew 'float (typeset cstr))
+                      (cl-return cstr)
+                 finally (setf (valset cstr)
+                               (append vals-to-add (valset cstr))))
+                (when (memql 0.0 (valset cstr))
+                  (cl-pushnew -0.0 (valset cstr)))
+                (when (memql -0.0 (valset cstr))
+                  (cl-pushnew 0.0 (valset cstr)))
+                cstr))
+      (comp-cstr-intersection dst (relax-cstr op1) (relax-cstr op2)))))
+
 (defun comp-cstr-> (dst old-dst src)
   "Constraint DST being > than SRC.
 SRC can be either a comp-cstr or an integer."
@@ -788,7 +905,7 @@ SRC can be either a comp-cstr or an integer."
            (if (integerp src)
                `((,(1+ src) . +))
              (when-let* ((range (range src))
-                         (low (comp-cstr-greatest-in-range range))
+                         (low (comp-cstr-smallest-in-range range))
                          (okay (integerp low)))
                `((,(1+ low) . +))))))
       (comp-cstr-set-cmp-range dst old-dst ext-range))))
@@ -801,7 +918,7 @@ SRC can be either a comp-cstr or an integer."
            (if (integerp src)
                `((,src . +))
              (when-let* ((range (range src))
-                         (low (comp-cstr-greatest-in-range range))
+                         (low (comp-cstr-smallest-in-range range))
                          (okay (integerp low)))
                `((,low . +))))))
       (comp-cstr-set-cmp-range dst old-dst ext-range))))
@@ -814,7 +931,7 @@ SRC can be either a comp-cstr or an integer."
            (if (integerp src)
                `((- . ,(1- src)))
              (when-let* ((range (range src))
-                         (low (comp-cstr-smallest-in-range range))
+                         (low (comp-cstr-greatest-in-range range))
                          (okay (integerp low)))
                `((- . ,(1- low)))))))
       (comp-cstr-set-cmp-range dst old-dst ext-range))))
@@ -827,7 +944,7 @@ SRC can be either a comp-cstr or an integer."
            (if (integerp src)
                `((- . ,src))
              (when-let* ((range (range src))
-                         (low (comp-cstr-smallest-in-range range))
+                         (low (comp-cstr-greatest-in-range range))
                          (okay (integerp low)))
                `((- . ,low))))))
       (comp-cstr-set-cmp-range dst old-dst ext-range))))
@@ -876,6 +993,34 @@ DST is returned."
             (range dst) (range res)
             (neg dst) (neg res))
       res)))
+
+(defun comp-cstr-intersection-no-hashcons (dst &rest srcs)
+  "Combine SRCS by intersection set operation setting the result in DST.
+Non hash consed values are not propagated as values but rather
+promoted to their types.
+DST is returned."
+  (with-comp-cstr-accessors
+    (apply #'comp-cstr-intersection dst srcs)
+    (if (and (neg dst)
+             (valset dst)
+             (cl-notevery #'symbolp (valset dst)))
+        (setf (valset dst) ()
+              (typeset dst) '(t)
+              (range dst) ()
+              (neg dst) nil)
+      (let (strip-values strip-types)
+        (cl-loop for v in (valset dst)
+                 unless (symbolp v)
+                   do (push v strip-values)
+                      (push (type-of v) strip-types))
+        (when strip-values
+          (setf (typeset dst) (comp-union-typesets (typeset dst) strip-types)
+                (valset dst) (cl-set-difference (valset dst) strip-values)))
+        (cl-loop for (l . h) in (range dst)
+                 when (or (bignump l) (bignump h))
+                 do (setf (range dst) '((- . +)))
+                    (cl-return))))
+    dst))
 
 (defun comp-cstr-intersection-make (&rest srcs)
   "Combine SRCS by intersection set operation and return a new constraint."

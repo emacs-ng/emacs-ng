@@ -1802,12 +1802,12 @@ FEATURE-NAME is a relative file name, file extension is optional.
 This commands delegates to `gem which', which searches both
 installed gems and the standard library.  When called
 interactively, defaults to the feature name in the `require'
-statement around point."
+or `gem' statement around point."
   (interactive)
   (unless feature-name
     (let ((init (save-excursion
                   (forward-line 0)
-                  (when (looking-at "require [\"']\\(.*\\)[\"']")
+                  (when (looking-at "\\(?:require\\| *gem\\) [\"']\\(.*?\\)[\"']")
                     (match-string 1)))))
       (setq feature-name (read-string "Feature name: " init))))
   (let ((out
@@ -1869,8 +1869,8 @@ It will be properly highlighted even when the call omits parens.")
       ;; Symbols with special characters.
       (":\\([-+~]@?\\|[/%&|^`]\\|\\*\\*?\\|<\\(<\\|=>?\\)?\\|>[>=]?\\|===?\\|=~\\|![~=]?\\|\\[\\]=?\\)"
        (1 (unless (or
-                   (eq (char-before (match-beginning 0)) ?:)
-                   (nth 8 (syntax-ppss (match-beginning 1))))
+                   (nth 8 (syntax-ppss (match-beginning 1)))
+                   (eq (char-before (match-beginning 0)) ?:))
             (goto-char (match-end 0))
             (string-to-syntax "_"))))
       ;; Symbols ending with '=' (bug#42846).

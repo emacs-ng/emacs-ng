@@ -72,15 +72,6 @@
 ;; Please report bugs, suggestions, complaints and so on to
 ;; bug-gnu-emacs@gnu.org and pot@gnu.org (Francesco Potortì).
 
-;; IMPROVEMENTS OVER emacs 18.xx cmacexp.el ==========================
-
-;; - A lot of user and programmer visible changes.  See above.
-;; - #line directives are inserted, so __LINE__ and __FILE__ are
-;;   correctly expanded.  Works even with START inside a string, a
-;;   comment or a region #ifdef'd away by cpp. cpp is invoked with -C,
-;;   making comments visible in the expansion.
-;; - All work is done in core memory, no need for temporary files.
-
 ;; ACKNOWLEDGMENTS ===================================================
 
 ;; A lot of thanks to Don Maszle who did a great work of testing, bug
@@ -108,13 +99,11 @@
 
 (defcustom c-macro-shrink-window-flag nil
   "Non-nil means shrink the *Macroexpansion* window to fit its contents."
-  :type 'boolean
-  :group 'c-macro)
+  :type 'boolean)
 
 (defcustom c-macro-prompt-flag nil
   "Non-nil makes `c-macro-expand' prompt for preprocessor arguments."
-  :type 'boolean
-  :group 'c-macro)
+  :type 'boolean)
 
 (defcustom c-macro-preprocessor
   (cond ;; Solaris has it in an unusual place.
@@ -138,13 +127,11 @@
 
 If you change this, be sure to preserve the `-C' (don't strip comments)
 option, or to set an equivalent one."
-  :type 'string
-  :group 'c-macro)
+  :type 'string)
 
 (defcustom c-macro-cppflags ""
   "Preprocessor flags used by `c-macro-expand'."
-  :type 'string
-  :group 'c-macro)
+  :type 'string)
 
 (defconst c-macro-buffer-name "*Macroexpansion*")
 

@@ -40,6 +40,11 @@
     (t :height 0.1 :inverse-video t :extend t))
   "Face used to separate sections.")
 
+(defface shortdoc-heading
+  '((t :inherit variable-pitch :height 1.3 :weight bold))
+  "Face used for a heading."
+  :version "28.1")
+
 (defface shortdoc-section
   '((t :inherit variable-pitch))
   "Face used for a section.")
@@ -1107,7 +1112,7 @@ There can be any number of :example/:result elements."
            (insert "\n"))
          (insert (propertize
                   (concat (substitute-command-keys data) "\n\n")
-                  'face '(variable-pitch (:height 1.3 :weight bold))
+                  'face 'shortdoc-heading
                   'shortdoc-section t)))
         ;; There may be functions not yet defined in the data.
         ((fboundp (car data))
@@ -1126,12 +1131,21 @@ There can be any number of :example/:result elements."
     (insert (propertize "("
                         'shortdoc-function t))
     (if (plist-get data :no-manual)
-        (insert (symbol-name function))
+        (insert-text-button
+         (symbol-name function)
+         'face 'button
+         'action (lambda (_)
+                   (describe-function function))
+         'follow-link t
+         'help-echo (purecopy "mouse-1, RET: describe function"))
       (insert-text-button
        (symbol-name function)
        'face 'button
        'action (lambda (_)
-                 (info-lookup-symbol function 'emacs-lisp-mode))))
+                 (info-lookup-symbol function 'emacs-lisp-mode))
+       'follow-link t
+       'help-echo (purecopy "mouse-1, RET: show \
+function's documentation in the Info manual")))
     (setq arglist-start (point))
     (insert ")\n")
     ;; Doc string.
@@ -1166,7 +1180,7 @@ There can be any number of :example/:result elements."
                     (prin1 value (current-buffer)))
                   (insert "\n    " single-arrow " "
                           (propertize "[it depends]"
-                                      'face 'variable-pitch)
+                                      'face 'shortdoc-section)
                           "\n"))
                  (:no-value
                   (if (stringp value)

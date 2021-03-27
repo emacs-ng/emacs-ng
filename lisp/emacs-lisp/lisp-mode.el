@@ -62,9 +62,6 @@
     (modify-syntax-entry ?\t "    " table)
     (modify-syntax-entry ?\f "    " table)
     (modify-syntax-entry ?\n ">   " table)
-    ;; This is probably obsolete since nowadays such features use overlays.
-    ;; ;; Give CR the same syntax as newline, for selective-display.
-    ;; (modify-syntax-entry ?\^m ">   " table)
     (modify-syntax-entry ?\; "<   " table)
     (modify-syntax-entry ?` "'   " table)
     (modify-syntax-entry ?' "'   " table)
@@ -201,41 +198,53 @@
 
 (defun lisp--el-non-funcall-position-p (pos)
   "Heuristically determine whether POS is an evaluated position."
+  (declare (obsolete lisp--el-funcall-position-p "28.1"))
+  (not (lisp--el-funcall-position-p pos)))
+
+(defun lisp--el-funcall-position-p (pos)
+  "Heuristically determine whether POS is an evaluated position."
   (save-match-data
     (save-excursion
       (ignore-errors
         (goto-char pos)
         ;; '(lambda ..) is not a funcall position, but #'(lambda ...) is.
-        (or (and (eql (char-before) ?\')
-                 (not (eql (char-before (1- (point))) ?#)))
-            (let* ((ppss (syntax-ppss))
-                   (paren-posns (nth 9 ppss))
-                   (parent
-                    (when paren-posns
-                      (goto-char (car (last paren-posns))) ;(up-list -1)
-                      (cond
-                       ((ignore-errors
-                          (and (eql (char-after) ?\()
-                               (when (cdr paren-posns)
-                                 (goto-char (car (last paren-posns 2)))
-                                 (looking-at "(\\_<let\\*?\\_>"))))
-                        (goto-char (match-end 0))
-                        'let)
-                       ((looking-at
-                         (rx "("
-                             (group-n 1 (+ (or (syntax w) (syntax _))))
-                             symbol-end))
-                        (prog1 (intern-soft (match-string-no-properties 1))
-                          (goto-char (match-end 1))))))))
-              (or (eq parent 'declare)
-                  (and (eq parent 'let)
-                       (progn
-                         (forward-sexp 1)
-                         (< pos (point))))
-                  (and (eq parent 'condition-case)
-                       (progn
-                         (forward-sexp 2)
-                         (< (point) pos))))))))))
+        (if (eql (char-before) ?\')
+            (eql (char-before (1- (point))) ?#)
+          (let* ((ppss (syntax-ppss))
+                 (paren-posns (nth 9 ppss))
+                 (parent
+                  (when paren-posns
+                    (goto-char (car (last paren-posns))) ;(up-list -1)
+                    (cond
+                     ((ignore-errors
+                        (and (eql (char-after) ?\()
+                             (when (cdr paren-posns)
+                               (goto-char (car (last paren-posns 2)))
+                               (looking-at "(\\_<let\\*?\\_>"))))
+                      (goto-char (match-end 0))
+                      'let)
+                     ((looking-at
+                       (rx "("
+                           (group-n 1 (+ (or (syntax w) (syntax _))))
+                           symbol-end))
+                      (prog1 (intern-soft (match-string-no-properties 1))
+                        (goto-char (match-end 1))))))))
+            (pcase parent
+              ('declare nil)
+              ('let
+                (forward-sexp 1)
+                (>= pos (point)))
+              ('condition-case
+                  ;; If (cdr paren-posns), then we're in the BODY
+                  ;; of HANDLERS.
+                  (or (cdr paren-posns)
+                      (progn
+                        (forward-sexp 1)
+                        ;; If we're in the second form, then we're in
+                        ;; a funcall position.
+                        (< (point) pos (progn (forward-sexp 1)
+                                              (point))))))
+              (_ t))))))))
 
 (defun lisp--el-match-keyword (limit)
   ;; FIXME: Move to elisp-mode.el.
@@ -245,11 +254,9 @@
               (concat "(\\(" lisp-mode-symbol-regexp "\\)\\_>"))
             limit t)
       (let ((sym (intern-soft (match-string 1))))
-	(when (or (special-form-p sym)
-		  (and (macrop sym)
-                       (not (get sym 'no-font-lock-keyword))
-                       (not (lisp--el-non-funcall-position-p
-                             (match-beginning 0)))))
+	(when (and (or (special-form-p sym) (macrop sym))
+                   (not (get sym 'no-font-lock-keyword))
+                   (lisp--el-funcall-position-p (match-beginning 0)))
 	  (throw 'found t))))))
 
 (defmacro let-when-compile (bindings &rest body)
@@ -456,8 +463,7 @@ This will generate compile-time constants from BINDINGS."
          ("\\(\\\\\\)\\([^\"\\]\\)"
           (1 (elisp--font-lock-backslash) prepend))
          ;; Words inside ‘’ and `' tend to be symbol names.
-         (,(concat "[`‘]\\(\\(?:\\sw\\|\\s_\\|\\\\.\\)"
-                   lisp-mode-symbol-regexp "\\)['’]")
+         (,(concat "[`‘]\\(" lisp-mode-symbol-regexp "\\)['’]")
           (1 font-lock-constant-face prepend))
          ;; Constant values.
          (,(concat "\\_<:" lisp-mode-symbol-regexp "\\_>")
@@ -507,8 +513,7 @@ This will generate compile-time constants from BINDINGS."
          (,(concat "(" cl-errs-re "\\_>")
            (1 font-lock-warning-face))
          ;; Words inside ‘’ and `' tend to be symbol names.
-         (,(concat "[`‘]\\(\\(?:\\sw\\|\\s_\\|\\\\.\\)"
-                   lisp-mode-symbol-regexp "\\)['’]")
+         (,(concat "[`‘]\\(" lisp-mode-symbol-regexp "\\)['’]")
           (1 font-lock-constant-face prepend))
          ;; Uninterned symbols, e.g., (defpackage #:my-package ...)
          ;; must come before keywords below to have effect
@@ -735,24 +740,23 @@ font-lock keywords will not be case sensitive."
 ;;; Generic Lisp mode.
 
 (defvar lisp-mode-map
-  (let ((map (make-sparse-keymap))
-	(menu-map (make-sparse-keymap "Lisp")))
+  (let ((map (make-sparse-keymap)))
     (set-keymap-parent map lisp-mode-shared-map)
     (define-key map "\e\C-x" 'lisp-eval-defun)
     (define-key map "\C-c\C-z" 'run-lisp)
-    (bindings--define-key map [menu-bar lisp] (cons "Lisp" menu-map))
-    (bindings--define-key menu-map [run-lisp]
-      '(menu-item "Run inferior Lisp" run-lisp
-		  :help "Run an inferior Lisp process, input and output via buffer `*inferior-lisp*'"))
-    (bindings--define-key menu-map [ev-def]
-      '(menu-item "Eval defun" lisp-eval-defun
-		  :help "Send the current defun to the Lisp process made by M-x run-lisp"))
-    (bindings--define-key menu-map [ind-sexp]
-      '(menu-item "Indent sexp" indent-sexp
-		  :help "Indent each line of the list starting just after point"))
     map)
   "Keymap for ordinary Lisp mode.
 All commands in `lisp-mode-shared-map' are inherited by this map.")
+
+(easy-menu-define lisp-mode-menu lisp-mode-map
+  "Menu for ordinary Lisp mode."
+  '("Lisp"
+    ["Indent sexp" indent-sexp
+     :help "Indent each line of the list starting just after point"]
+    ["Eval defun" lisp-eval-defun
+     :help "Send the current defun to the Lisp process made by M-x run-lisp"]
+    ["Run inferior Lisp" run-lisp
+     :help "Run an inferior Lisp process, input and output via buffer `*inferior-lisp*'"]))
 
 (define-derived-mode lisp-mode lisp-data-mode "Lisp"
   "Major mode for editing Lisp code for Lisps other than GNU Emacs Lisp.
@@ -767,6 +771,8 @@ or to switch back to an existing one."
   (setq-local find-tag-default-function 'lisp-find-tag-default)
   (setq-local comment-start-skip
 	      "\\(\\(^\\|[^\\\n]\\)\\(\\\\\\\\\\)*\\)\\(;+\\|#|\\) *")
+  (setq-local comment-end-skip "[ \t]*\\(\\s>\\||#\\)")
+  (setq-local font-lock-comment-end-skip "|#")
   (setq imenu-case-fold-search t))
 
 (defun lisp-find-tag-default ()
@@ -1363,7 +1369,27 @@ and initial semicolons."
                                   (derived-mode-p 'emacs-lisp-mode))
                              emacs-lisp-docstring-fill-column
                            fill-column)))
-	(fill-paragraph justify))
+        (save-restriction
+          (save-excursion
+          (let ((ppss (syntax-ppss))
+                (start (point)))
+            ;; If we're in a string, then narrow (roughly) to that
+            ;; string before filling.  This avoids filling Lisp
+            ;; statements that follow the string.
+            (when (ppss-string-terminator ppss)
+              (goto-char (ppss-comment-or-string-start ppss))
+              (beginning-of-line)
+              ;; The string may be unterminated -- in that case, don't
+              ;; narrow.
+              (when (ignore-errors
+                      (progn
+                        (forward-sexp 1)
+                        t))
+                (narrow-to-region (ppss-comment-or-string-start ppss)
+                                  (point))))
+            ;; Move back to where we were.
+            (goto-char start)
+	    (fill-paragraph justify)))))
       ;; Never return nil.
       t))
 
