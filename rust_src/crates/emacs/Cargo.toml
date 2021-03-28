@@ -1,0 +1,15 @@
+[package]
+name = "emacs"
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+libc = "0.2"
+lazy_static = "1.4.0"
+
+[features]
+window-system = []
+window-system-webrender = []

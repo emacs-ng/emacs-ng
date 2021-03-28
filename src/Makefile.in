@@ -672,9 +672,9 @@ $(RUSTFLAGS_FILE) : FORCE
 
 HEADERS=$(wildcard $(srcdir)/*.h)
 
-DEFINITIONS_FILE=$(rust_srcdir)/generated/definitions.rs
-BINDINGS_FILE=$(rust_srcdir)/generated/bindings.rs
-GLOBALS_FILE=$(rust_srcdir)/generated/globals.rs
+DEFINITIONS_FILE=$(rust_srcdir)/crates/emacs/src/definitions.rs
+BINDINGS_FILE=$(rust_srcdir)/crates/emacs/src/bindings.rs
+GLOBALS_FILE=$(rust_srcdir)/crates/emacs/src/globals.rs
 # macuvs.h has a rule to regenerate it which depends on emacs being
 # built. That creates a circular dependency which we can break by not
 # depending on it as this is not a file that changes under normal
@@ -690,7 +690,7 @@ $(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE): $(filter-out ./macuvs.h,$(
 
 cargo_manifest=$(rust_srcdir)/Cargo.toml
 LIBEMACSNG_ARCHIVE=$(rust_srcdir)/target/$(CARGO_BUILD_DIR)/$(EMACSNGLIB_NAME)
-$(LIBEMACSNG_ARCHIVE): globals.h $(rust_srcdir)/src/** $(rust_srcdir)/crates/lisp/src/** $(rust_srcdir)/crates/lisp_util/** $(rust_srcdir)/crates/lisp_macros/** $(rust_srcdir)/Cargo.* $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT) $(DEFINITIONS_FILE) $(GLOBALS_FILE) $(BINDINGS_FILE)
+$(LIBEMACSNG_ARCHIVE): globals.h $(rust_srcdir)/src/** $(rust_srcdir)/crates/emacs/src/** $(rust_srcdir)/crates/lisp_util/** $(rust_srcdir)/crates/lisp_macros/** $(rust_srcdir)/Cargo.* $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT) $(DEFINITIONS_FILE) $(GLOBALS_FILE) $(BINDINGS_FILE)
 	touch $@
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \

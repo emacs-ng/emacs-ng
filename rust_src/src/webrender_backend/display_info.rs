@@ -1,10 +1,10 @@
 use libc;
 use std::ptr;
 
-use lisp::{
+use emacs::{
+    bindings::{wr_display_info, Emacs_GC},
     frame::LispFrameRef,
     lisp::ExternalPtr,
-    remacs_sys::{wr_display_info, Emacs_GC},
 };
 
 use super::{input::InputProcessor, output::OutputRef, term::TerminalRef};

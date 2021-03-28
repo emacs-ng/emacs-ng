@@ -1,7 +1,7 @@
 #[cfg(not(feature = "javascript"))]
-use lisp::lisp::LispObject;
+use emacs::globals::Qnil;
 #[cfg(not(feature = "javascript"))]
-use lisp::remacs_sys::Qnil;
+use emacs::lisp::LispObject;
 #[cfg(not(feature = "javascript"))]
 use lisp_macros::lisp_fn;
 

@@ -14,13 +14,8 @@ use super::{
     output::OutputRef,
 };
 
-use lisp::{
-    font::LispFontRef,
-    frame::LispFrameRef,
-    glyph::GlyphStringRef,
-    keyboard::allocate_keyboard,
-    lisp::{ExternalPtr, LispObject},
-    remacs_sys::{
+use emacs::{
+    bindings::{
         block_input, change_frame_size, display_and_set_cursor, do_pending_window_change,
         draw_window_fringes, face_id, glyph_row_area, gui_clear_end_of_line,
         gui_clear_window_mouse_face, gui_draw_right_divider, gui_draw_vertical_border,
@@ -30,13 +25,18 @@ use lisp::{
         input_event, kbd_buffer_store_event_hold, note_mouse_highlight, run, store_frame_param,
         unblock_input, update_face_from_frame_parameter, window_box, Vframe_list,
     },
-    remacs_sys::{
+    bindings::{
         create_terminal, current_kboard, draw_fringe_bitmap_params, fontset_from_font,
         frame_parm_handler, fullscreen_type, glyph_row, glyph_string, initial_kboard,
         output_method, redisplay_interface, terminal, text_cursor_kinds, xlispstrdup, Emacs_Color,
         Fcons, Fredraw_frame, Lisp_Frame, Lisp_Window, Qbackground_color, Qfullscreen, Qmaximized,
         Qnil, Qwr,
     },
+    font::LispFontRef,
+    frame::LispFrameRef,
+    glyph::GlyphStringRef,
+    keyboard::allocate_keyboard,
+    lisp::{ExternalPtr, LispObject},
     window::LispWindowRef,
 };
 
@@ -589,9 +589,9 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
             };
 
             let event_type = if is_focused {
-                lisp::remacs_sys::event_kind::FOCUS_IN_EVENT
+                emacs::bindings::event_kind::FOCUS_IN_EVENT
             } else {
-                lisp::remacs_sys::event_kind::FOCUS_OUT_EVENT
+                emacs::bindings::event_kind::FOCUS_OUT_EVENT
             };
 
             let mut event = create_emacs_event(event_type, top_frame.into());

@@ -1,6 +1,6 @@
-use lisp::{
+use emacs::{
+    bindings::{event_kind, input_event, scroll_bar_part, Qnil},
     lisp::LispObject,
-    remacs_sys::{event_kind, input_event, scroll_bar_part, Qnil},
 };
 
 pub fn create_emacs_event(kind: event_kind::Type, top_frame: LispObject) -> input_event {

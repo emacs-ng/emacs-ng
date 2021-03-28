@@ -1260,6 +1260,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 
 [[package]]
+name = "emacs"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "libc",
+]
+
+[[package]]
 name = "emacsng"
 version = "0.1.0"
 dependencies = [
@@ -1270,6 +1278,7 @@ dependencies = [
  "deno",
  "deno_core",
  "deno_runtime",
+ "emacs",
  "errno",
  "field-offset",
  "flate2",
@@ -1281,7 +1290,6 @@ dependencies = [
  "lazy_static",
  "libc",
  "line-wrap",
- "lisp",
  "lisp-macros",
  "lisp-util",
  "lsp-server",
@@ -2193,19 +2201,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fb9b38af92608140b86b693604b9ffcc5824240a484d1ecd4795bacb2fe88f3"
 
 [[package]]
-name = "lisp"
-version = "0.1.0"
-dependencies = [
- "lazy_static",
- "libc",
-]
-
-[[package]]
 name = "lisp-macros"
 version = "0.1.0"
 dependencies = [
+ "emacs",
  "lazy_static",
- "lisp",
  "lisp-util",
  "proc-macro2 0.4.30",
  "quote 0.6.13",

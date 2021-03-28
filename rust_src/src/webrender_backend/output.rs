@@ -28,7 +28,7 @@ use glutin::platform::windows::EventLoopExtUnix;
 
 use webrender::{self, api::units::*, api::*};
 
-use lisp::remacs_sys::wr_output;
+use emacs::bindings::wr_output;
 
 use super::display_info::DisplayInfoRef;
 use super::font::FontRef;
