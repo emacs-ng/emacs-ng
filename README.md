@@ -22,7 +22,7 @@ A new approach to Emacs - Including TypeScript, Threading, Async I/O, and WebRen
 
 emacs-ng is based off of the `native-comp` branch of emacs, and regularly merges in the latest from that branch.
 
-The last merged commit is `f1efac1f9e` by Andrea Corallo (Thu Jan 14 22:38:55 2021).
+The last merged commit is `3e133cc050` by Andrea Corallo (Tue Mar 16 2021).
 
 ## Motivation
 
