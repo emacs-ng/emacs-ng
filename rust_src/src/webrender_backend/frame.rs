@@ -1,11 +1,11 @@
-use lisp::{
-    frame::LispFrameRef,
-    keyboard::KeyboardRef,
-    lisp::LispObject,
-    remacs_sys::{
+use emacs::{
+    bindings::{
         make_frame, make_frame_without_minibuffer, make_minibuffer_frame, output_method, wr_output,
         Qnil, Qnone, Qonly,
     },
+    frame::LispFrameRef,
+    keyboard::KeyboardRef,
+    lisp::LispObject,
 };
 
 use super::{display_info::DisplayInfoRef, output::Output};

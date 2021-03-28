@@ -8,12 +8,12 @@ use super::{
     util::HandyDandyRectBuilder,
 };
 
-use lisp::{
-    glyph::GlyphStringRef,
-    remacs_sys::{
+use emacs::{
+    bindings::{
         draw_fringe_bitmap_params, draw_glyphs_face, face as Face, face_underline_type, glyph_row,
         glyph_type, prepare_face_for_display,
     },
+    glyph::GlyphStringRef,
 };
 
 impl OutputRef {

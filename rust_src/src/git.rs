@@ -4,7 +4,7 @@
 
 // use lisp_macros::lisp_fn;
 
-// use lisp::multibyte::LispStringRef;
+// use emacs::multibyte::LispStringRef;
 
 // #[lisp_fn]
 // pub fn git_init(path: LispStringRef) -> LispStringRef {
