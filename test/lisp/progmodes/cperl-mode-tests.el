@@ -135,6 +135,28 @@ point in the distant past, and is still broken in perl-mode. "
         (should (equal (nth 3 (syntax-ppss)) nil))
         (should (equal (nth 4 (syntax-ppss)) t))))))
 
+(ert-deftest cperl-test-fontify-declarations ()
+  "Test that declarations and package usage use consistent fontification."
+  (with-temp-buffer
+    (funcall cperl-test-mode)
+    (insert "package Foo::Bar;\n")
+    (insert "use Fee::Fie::Foe::Foo\n;")
+    (insert "my $xyzzy = 'PLUGH';\n")
+    (goto-char (point-min))
+    (font-lock-ensure)
+    (search-forward "Bar")
+    (should (equal (get-text-property (match-beginning 0) 'face)
+                   'font-lock-function-name-face))
+    (search-forward "use") ; This was buggy in perl-mode
+    (should (equal (get-text-property (match-beginning 0) 'face)
+                   'font-lock-keyword-face))
+    (search-forward "my")
+    (should (equal (get-text-property (match-beginning 0) 'face)
+                   'font-lock-keyword-face))))
+
+(defvar perl-continued-statement-offset)
+(defvar perl-indent-level)
+
 (ert-deftest cperl-test-heredocs ()
   "Test that HERE-docs are fontified with the appropriate face."
   (require 'perl-mode)
@@ -242,7 +264,7 @@ This test relies on the specific layout of the index alist as
 created by CPerl mode, so skip it for Perl mode."
   (skip-unless (eq cperl-test-mode #'cperl-mode))
   (with-temp-buffer
-    (insert-file (ert-resource-file "grammar.pl"))
+    (insert-file-contents (ert-resource-file "grammar.pl"))
     (cperl-mode)
     (let ((index (cperl-imenu--create-perl-index))
           current-list)
@@ -446,5 +468,31 @@ have a face property."
                       "}\n")))
     ;; The yadda-yadda operator should not be in a string.
     (should (equal (nth 8 (cperl-test-ppss code "\\.")) nil))))
+
+(ert-deftest cperl-test-bug-47112 ()
+  "Check that in a bareword starting with a quote-like operator
+followed by an underscore is not interpreted as that quote-like
+operator.  Also check that a quote-like operator followed by a
+colon (which is, like ?_, a symbol in CPerl mode) _is_ identified
+as that quote like operator."
+  (with-temp-buffer
+    (funcall cperl-test-mode)
+    (insert "sub y_max { q:bar:; y _bar_foo_; }")
+    (goto-char (point-min))
+    (syntax-propertize (point-max))
+    (font-lock-ensure)
+    (search-forward "max")
+    (should (equal (get-text-property (match-beginning 0) 'face)
+                   'font-lock-function-name-face))
+    (search-forward "bar")
+    (should (equal (get-text-property (match-beginning 0) 'face)
+                   'font-lock-string-face))
+    ; perl-mode doesn't highlight
+    (when (eq cperl-test-mode #'cperl-mode)
+      (search-forward "_")
+      (should (equal (get-text-property (match-beginning 0) 'face)
+                     (if (eq cperl-test-mode #'cperl-mode)
+                         'font-lock-constant-face
+                       font-lock-string-face))))))
 
 ;;; cperl-mode-tests.el ends here

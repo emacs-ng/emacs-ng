@@ -3606,7 +3606,7 @@ Prepare every function for final compilation and drive the C back-end."
              (comp-ctxt-funcs-h comp-ctxt))
     (unless (file-exists-p dir)
       ;; In case it's created in the meanwhile.
-      (ignore-error 'file-already-exists
+      (ignore-error file-already-exists
         (make-directory dir t)))
     (comp--compile-ctxt-to-file name)))
 
@@ -3692,7 +3692,7 @@ Prepare every function for final compilation and drive the C back-end."
 
 (defun comp-eln-load-path-eff ()
   "Return a list of effective eln load directories.
-Account for `comp-load-path' and `comp-native-version-dir'."
+Account for `comp-eln-load-path' and `comp-native-version-dir'."
   (mapcar (lambda (dir)
             (expand-file-name comp-native-version-dir
                               (file-name-as-directory
@@ -4098,6 +4098,21 @@ bytecode definition was not changed in the meantime)."
 
 
 ;;; Compiler entry points.
+
+;;;###autoload
+(defun comp-lookup-eln (filename)
+  "Given a Lisp source FILENAME return the corresponding .eln file if found.
+Search happens in `comp-eln-load-path'."
+  (cl-loop
+   with eln-filename = (comp-el-to-eln-rel-filename filename)
+   for dir in comp-eln-load-path
+   for f = (expand-file-name eln-filename
+                             (expand-file-name comp-native-version-dir
+                                               (expand-file-name
+                                                dir
+                                                invocation-directory)))
+   when (file-exists-p f)
+     do (cl-return f)))
 
 ;;;###autoload
 (defun native-compile (function-or-file &optional output)
