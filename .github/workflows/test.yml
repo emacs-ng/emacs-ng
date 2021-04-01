@@ -4,17 +4,30 @@ on: [push, pull_request]
 
 jobs:
     unix-test:
-        runs-on: ubuntu-latest
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, macos-latest]
 
         steps:
             - uses: actions/checkout@v2
+
+            - name: Install depedencies on Linux
+              if: runner.os == 'Linux'
+              run: |
+                  sudo apt install -y build-essential texinfo libx11-dev libxpm-dev libjpeg-dev libpng-dev libgif-dev libtiff-dev libgtk2.0-dev libncurses-dev libxpm-dev automake autoconf libgnutls28-dev
+
+            - name: Install depedencies on macOS
+              if: runner.os == 'macOS'
+              run: |
+                brew install gnutls texinfo autoconf
 
             - name: rustfmt
               run: |
                   # Configure $PATH: Executables are installed to $HOME/bin
                   export PATH="$HOME/bin:$PATH"
 
-                  sudo apt install -y libgnutls28-dev
                   rustup install $(cat rust-toolchain)
                   rustup component add rustfmt-preview
                   ./autogen.sh && ./configure --without-makeinfo --with-x=no --with-ns=no --without-gconf --without-gsettings
@@ -22,7 +35,6 @@ jobs:
 
             - name: build
               run: |
-                  sudo apt install -y build-essential texinfo libx11-dev libxpm-dev libjpeg-dev libpng-dev libgif-dev libtiff-dev libgtk2.0-dev libncurses-dev libxpm-dev automake autoconf
                   ./autogen.sh && RUSTFLAGS="-Dwarnings" WERROR_CFLAGS='-Werror -Wno-error=deprecated-declarations'
                   ./configure --enable-checking=glyphs
                   make -j3
