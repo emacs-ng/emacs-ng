@@ -14,10 +14,11 @@
 //! To make the ABI easy to consume, primitive data types are preferred over structs. If a struct
 //! is used, it must be marked `#[repr(C)]`, and its layout must not be changed.
 
-use lisp::{
+use emacs::{
+    bindings::{buffer_text, current_thread, make_user_ptr, BYTE_POS_ADDR},
+    globals::Qnil,
     lisp::LispObject,
     multibyte::LispStringRef,
-    remacs_sys::{buffer_text, current_thread, make_user_ptr, Qnil, BYTE_POS_ADDR},
 };
 use lisp_macros::lisp_fn;
 
