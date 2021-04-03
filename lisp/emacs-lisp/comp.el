@@ -56,14 +56,14 @@
   :safe #'integerp
   :version "28.1")
 
-(defcustom comp-debug 0
+(defcustom comp-debug (if (eq 'windows-nt system-type) 1 0)
   "Debug level for native compilation, a number between 0 and 3.
 This is intended for debugging the compiler itself.
-  0 no debugging output.
-    This is the recommended value unless you are debugging the compiler itself.
-  1 emit debug symbols and dump pseudo C code.
-  2 dump gcc passes and libgccjit log file.
-  3 dump libgccjit reproducers."
+  0 no debug output.
+  1 emit debug symbols.
+  2 emit debug symbols and dump pseudo C code.
+  3 emit debug symbols and dump: pseudo C code, GCC intermediate
+  passes and libgccjit log file."
   :type 'integer
   :safe #'natnump
   :version "28.1")
@@ -177,6 +177,13 @@ and above."
   "When non-nil produce a libgccjit reproducer.
 The reproducer is a file ELNFILENAME_libgccjit_repro.c deposed in
 the .eln output directory."
+  :type 'boolean
+  :version "28.1")
+
+(defcustom comp-warning-on-missing-source t
+  "Emit a warning if a byte-code file being loaded has no corresponding source.
+The source file is necessary for native code file look-up and deferred
+compilation mechanism."
   :type 'boolean
   :version "28.1")
 
@@ -3666,7 +3673,9 @@ Prepare every function for final compilation and drive the C back-end."
                    (call-process (expand-file-name invocation-name
                                                    invocation-directory)
 				 nil t t "--batch" "-l" temp-file))
-                  output
+                  (progn
+                    (delete-file temp-file)
+                    output)
 		(signal 'native-compiler-error (buffer-string)))
             (comp-log-to-buffer (buffer-string))))))))
 
