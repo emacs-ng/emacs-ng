@@ -278,10 +278,10 @@ The return list is meant to be saved in a semanticdb table."
   (let (macros)
     (when (obarrayp semantic-lex-spp-dynamic-macro-symbol-obarray)
       (mapatoms
-       #'(lambda (symbol)
-	   (setq macros (cons (cons (symbol-name symbol)
-				    (symbol-value symbol))
-			      macros)))
+       (lambda (symbol)
+         (setq macros (cons (cons (symbol-name symbol)
+                                  (symbol-value symbol))
+                            macros)))
        semantic-lex-spp-dynamic-macro-symbol-obarray))
     macros))
 
@@ -291,18 +291,18 @@ The value of each symbol is the replacement stream."
   (let (macros)
     (when (obarrayp semantic-lex-spp-macro-symbol-obarray)
       (mapatoms
-       #'(lambda (symbol)
-	   (setq macros (cons symbol macros)))
+       (lambda (symbol)
+         (setq macros (cons symbol macros)))
        semantic-lex-spp-macro-symbol-obarray))
     (when (obarrayp semantic-lex-spp-project-macro-symbol-obarray)
       (mapatoms
-       #'(lambda (symbol)
-	   (setq macros (cons symbol macros)))
+       (lambda (symbol)
+         (setq macros (cons symbol macros)))
        semantic-lex-spp-project-macro-symbol-obarray))
     (when (obarrayp semantic-lex-spp-dynamic-macro-symbol-obarray)
       (mapatoms
-       #'(lambda (symbol)
-	   (setq macros (cons symbol macros)))
+       (lambda (symbol)
+         (setq macros (cons symbol macros)))
        semantic-lex-spp-dynamic-macro-symbol-obarray))
     macros))
 
@@ -850,7 +850,7 @@ Argument BEG and END specify the bounds of SYM in the buffer."
     ))
 (define-obsolete-function-alias
   'semantic-lex-spp-anlyzer-do-replace
-  'semantic-lex-spp-analyzer-do-replace "25.1")
+  #'semantic-lex-spp-analyzer-do-replace "25.1")
 
 (defvar semantic-lex-spp-replacements-enabled t
   "Non-nil means do replacements when finding keywords.
@@ -1070,7 +1070,7 @@ and variable state from the current buffer."
 	    (semantic-lex-init)
 	    (semantic-clear-toplevel-cache)
 	    (remove-hook 'semantic-lex-reset-functions
-			 'semantic-lex-spp-reset-hook t)
+			 #'semantic-lex-spp-reset-hook t)
 	    ))
 
 	;; Second Cheat: copy key variables regarding macro state from the

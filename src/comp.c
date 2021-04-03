@@ -4001,11 +4001,10 @@ make_directory_wrapper_1 (Lisp_Object ignore)
   return Qt;
 }
 
-DEFUN ("comp-el-to-eln-filename", Fcomp_el_to_eln_filename,
-       Scomp_el_to_eln_filename, 1, 2, 0,
-       doc: /* Return the corresponding .eln filename for source FILENAME.
-If BASE-DIR is nil use the first entry in `comp-eln-load-path'.  */)
-  (Lisp_Object filename, Lisp_Object base_dir)
+DEFUN ("comp-el-to-eln-rel-filename", Fcomp_el_to_eln_rel_filename,
+       Scomp_el_to_eln_rel_filename, 1, 1, 0,
+       doc: /* Return the corresponding .eln relative filename.  */)
+  (Lisp_Object filename)
 {
   CHECK_STRING (filename);
 
@@ -4082,7 +4081,17 @@ If BASE-DIR is nil use the first entry in `comp-eln-load-path'.  */)
 							   make_fixnum (-3))),
 		      separator);
   Lisp_Object hash = concat3 (path_hash, separator, content_hash);
-  filename = concat3 (filename, hash, build_string (NATIVE_ELISP_SUFFIX));
+  return concat3 (filename, hash, build_string (NATIVE_ELISP_SUFFIX));
+}
+
+DEFUN ("comp-el-to-eln-filename", Fcomp_el_to_eln_filename,
+       Scomp_el_to_eln_filename, 1, 2, 0,
+       doc: /* Return the .eln filename for source FILENAME to used
+for new compilations.
+If BASE-DIR is nil use the first entry in `comp-eln-load-path'.  */)
+  (Lisp_Object filename, Lisp_Object base_dir)
+{
+  filename = Fcomp_el_to_eln_rel_filename (filename);
 
   /* If base_dir was not specified search inside Vcomp_eln_load_path
      for the first directory where we have write access.  */
@@ -4422,7 +4431,7 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
       gcc_jit_context_set_bool_option (comp.ctxt,
 				       GCC_JIT_BOOL_OPTION_DEBUGINFO,
 				       1);
-  if (comp.debug > 2)
+  if (comp.debug >= 3)
     {
       logfile = emacs_fopen ("libgccjit.log", "w");
       gcc_jit_context_set_logfile (comp.ctxt,
@@ -4484,7 +4493,7 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
 
   add_driver_options ();
 
-  if (comp.debug)
+  if (comp.debug > 1)
       gcc_jit_context_dump_to_file (comp.ctxt,
 				    format_string ("%s.c", SSDATA (ebase_name)),
 				    1);
@@ -4680,7 +4689,8 @@ maybe_defer_native_compilation (Lisp_Object function_name,
       || !NILP (Vpurify_flag)
       || !COMPILEDP (definition)
       || !STRINGP (Vload_true_file_name)
-      || !suffix_p (Vload_true_file_name, ".elc"))
+      || !suffix_p (Vload_true_file_name, ".elc")
+      || !NILP (Fgethash (Vload_true_file_name, V_comp_no_native_file_h, Qnil)))
     return;
 
   Lisp_Object src =
@@ -5244,7 +5254,8 @@ compiled one.  */);
   DEFSYM (Qlate, "late");
   DEFSYM (Qlambda_fixup, "lambda-fixup");
   DEFSYM (Qgccjit, "gccjit");
-  DEFSYM (Qcomp_subr_trampoline_install, "comp-subr-trampoline-install")
+  DEFSYM (Qcomp_subr_trampoline_install, "comp-subr-trampoline-install");
+  DEFSYM (Qcomp_warning_on_missing_source, "comp-warning-on-missing-source");
 
   /* To be signaled by the compiler.  */
   DEFSYM (Qnative_compiler_error, "native-compiler-error");
@@ -5287,6 +5298,7 @@ compiled one.  */);
 			     "configuration, please recompile"));
 
   defsubr (&Scomp__subr_signature);
+  defsubr (&Scomp_el_to_eln_rel_filename);
   defsubr (&Scomp_el_to_eln_filename);
   defsubr (&Scomp_native_driver_options_effective_p);
   defsubr (&Scomp__install_trampoline);
@@ -5344,6 +5356,8 @@ For internal use.  */);
 
 If a directory is non absolute is assumed to be relative to
 `invocation-directory'.
+`comp-native-version-dir' value is used as a sub-folder name inside
+each eln cache directory.
 The last directory of this list is assumed to be the system one.  */);
 
   /* Temporary value in use for bootstrap.  We can't do better as
@@ -5360,6 +5374,13 @@ This makes primitive functions redefinable or advisable effectively.  */);
 This is used to prevent double trampoline instantiation but also to
 protect the trampolines against GC.  */);
   Vcomp_installed_trampolines_h = CALLN (Fmake_hash_table);
+
+  DEFVAR_LISP ("comp-no-native-file-h", V_comp_no_native_file_h,
+	       doc: /* Files for which no deferred compilation has to
+be performed because the bytecode version was explicitly requested by
+the user during load.
+For internal use.  */);
+  V_comp_no_native_file_h = CALLN (Fmake_hash_table, QCtest, Qequal);
 
   Fprovide (intern_c_string ("nativecomp"), Qnil);
 #endif /* #ifdef HAVE_NATIVE_COMP */

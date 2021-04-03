@@ -24,9 +24,6 @@
 ;;; Commentary:
 ;;
 
-;;; History:
-;;
-
 ;;; Code:
 
 (require 'semantic/wisent)
@@ -111,12 +108,12 @@ Use the alternate LALR(1) parser."
   (setq
    ;; Lexical analysis
    semantic-lex-number-expression semantic-java-number-regexp
-   semantic-lex-analyzer 'wisent-java-tags-lexer
+   semantic-lex-analyzer #'wisent-java-tags-lexer
    ;; Parsing
-   semantic-tag-expand-function 'semantic-java-expand-tag
+   semantic-tag-expand-function #'semantic-java-expand-tag
    ;; Environment
-   semantic-imenu-summary-function 'semantic-format-tag-prototype
-   imenu-create-index-function 'semantic-create-imenu-index
+   semantic-imenu-summary-function #'semantic-format-tag-prototype
+   imenu-create-index-function #'semantic-create-imenu-index
    semantic-type-relation-separator-character '(".")
    semantic-command-separation-character ";"
    ;; speedbar and imenu buckets name

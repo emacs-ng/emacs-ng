@@ -366,13 +366,15 @@ This variable is buffer-local."
 ;; OpenBSD doas prints "doas (user@host) password:".
 ;; See ert test `comint-test-password-regexp'.
 (defcustom comint-password-prompt-regexp
+  ;; When extending this, please also add a corresponding test where
+  ;; possible (see `comint-testsuite-password-strings').
   (concat
    "\\(^ *\\|"
    (regexp-opt
     '("Enter" "enter" "Enter same" "enter same" "Enter the" "enter the"
       "Enter Auth" "enter auth" "Old" "old" "New" "new" "'s" "login"
       "Kerberos" "CVS" "UNIX" " SMB" "LDAP" "PEM" "SUDO"
-      "[sudo]" "doas" "Repeat" "Bad" "Retype")
+      "[sudo]" "doas" "Repeat" "Bad" "Retype" "Verify")
     t)
    ;; Allow for user name to precede password equivalent (Bug#31075).
    " +.*\\)"
@@ -382,7 +384,7 @@ This variable is buffer-local."
    "\\(?: [[:alpha:]]+ .+\\)?[[:blank:]]*[:：៖][[:space:]]*\\'")
   "Regexp matching prompts for passwords in the inferior process.
 This is used by `comint-watch-for-password-prompt'."
-  :version "27.1"
+  :version "28.1"
   :type 'regexp
   :group 'comint)
 
@@ -2944,7 +2946,7 @@ two arguments are used for determining defaults.)  If MUSTMATCH-P is true,
 then the filename reader will only accept a file that exists.
 
 A typical use:
- (interactive (comint-get-source \"Compile file: \" prev-lisp-dir/file
+ (interactive (comint-get-source \"Compile file\" prev-lisp-dir/file
                                  \\='(lisp-mode) t))"
   (let* ((def (comint-source-default prev-dir/file source-modes))
 	 (stringfile (comint-extract-string))
@@ -2957,9 +2959,7 @@ A typical use:
                     (car def)))
 	 (deffile (if sfile-p (file-name-nondirectory stringfile)
                     (cdr def)))
-	 (ans (read-file-name (if deffile (format "%s(default %s) "
-						  prompt    deffile)
-                                prompt)
+	 (ans (read-file-name (format-prompt prompt deffile)
 			      defdir
 			      (concat defdir deffile)
 			      mustmatch-p)))

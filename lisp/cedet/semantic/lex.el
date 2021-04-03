@@ -192,9 +192,9 @@ If optional PROPERTY is non-nil, call FUN only on every symbol which
 as a PROPERTY value.  FUN receives a symbol as argument."
   (if (obarrayp table)
       (mapatoms
-       #'(lambda (symbol)
-           (if (or (null property) (get symbol property))
-               (funcall fun symbol)))
+       (lambda (symbol)
+         (if (or (null property) (get symbol property))
+             (funcall fun symbol)))
        table)))
 
 ;;; Lexical keyword table handling.
@@ -286,7 +286,7 @@ If optional PROPERTY is non-nil, return only keywords which have a
 PROPERTY set."
   (let (keywords)
     (semantic-lex-map-keywords
-     #'(lambda (symbol) (setq keywords (cons symbol keywords)))
+     (lambda (symbol) (setq keywords (cons symbol keywords)))
      property)
     keywords))
 
@@ -462,14 +462,14 @@ If optional PROPERTY is non-nil, return only type symbols which have
 PROPERTY set."
   (let (types)
     (semantic-lex-map-types
-     #'(lambda (symbol) (setq types (cons symbol types)))
+     (lambda (symbol) (setq types (cons symbol types)))
      property)
     types))
 
 ;;; Lexical Analyzer framework settings
 ;;
 
-(defvar-local semantic-lex-analyzer 'semantic-lex
+(defvar-local semantic-lex-analyzer #'semantic-lex
   "The lexical analyzer used for a given buffer.
 See `semantic-lex' for documentation.")
 
