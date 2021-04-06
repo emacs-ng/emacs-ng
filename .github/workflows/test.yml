@@ -28,6 +28,11 @@ jobs:
                     ./rust_src/target
                   key: ${{ runner.os }}-build-${{ hashFiles('**/rust-toolchain', '**/Cargo.toml*', '**/rustfmt.toml') }}
 
+            - name: c cache
+              uses: hendrikmuhs/ccache-action@v1
+              with:
+                  key: ${{ runner.os }}-build-ccache
+
             - name: Install dependencies on Linux
               if: runner.os == 'Linux'
               run: |
@@ -39,6 +44,9 @@ jobs:
                   brew install gnutls texinfo autoconf
                   # libx11 libxpm jpeg libpng giflib libtiff gtk+3 ncurses libgccjit
 
+                  # https://github.com/memkind/memkind/issues/33
+                  alias nproc="sysctl -n hw.logicalcpu"
+
             - name: rustfmt
               run: |
                   # Configure $PATH: Executables are installed to $HOME/bin
@@ -49,9 +57,11 @@ jobs:
 
             - name: build
               run: |
+                  export CARGO_INCREMENTAL=0
+                  export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
                   ./autogen.sh && RUSTFLAGS="-Dwarnings" WERROR_CFLAGS='-Werror -Wno-error=deprecated-declarations'
                   ./configure --enable-checking=glyphs
-                  make -j3
+                  make -j$((`nproc`+1))
 
             - name: js fmt
               run: |
