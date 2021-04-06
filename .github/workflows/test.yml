@@ -13,6 +13,21 @@ jobs:
         steps:
             - uses: actions/checkout@v2
 
+            - name: rust setup
+              run: |
+                  rustup install $(cat rust-toolchain)
+                  rustup component add rustfmt-preview
+
+            - name: rust cache
+              uses: actions/cache@v2
+              with:
+                  path: |
+                    ~/.cargo/registry/index
+                    ~/.cargo/registry/cache
+                    ~/.cargo/git
+                    ./rust_src/target
+                  key: ${{ runner.os }}-build-${{ hashFiles('**/rust-toolchain', '**/Cargo.toml*', '**/rustfmt.toml') }}
+
             - name: Install dependencies on Linux
               if: runner.os == 'Linux'
               run: |
@@ -29,8 +44,6 @@ jobs:
                   # Configure $PATH: Executables are installed to $HOME/bin
                   export PATH="$HOME/bin:$PATH"
 
-                  rustup install $(cat rust-toolchain)
-                  rustup component add rustfmt-preview
                   ./autogen.sh && ./configure --without-makeinfo --with-x=no --with-ns=no --without-gconf --without-gsettings
                   admin/format-rust.sh
 
