@@ -9,11 +9,8 @@ use crate::{
 
 // Largest and smallest numbers that can be represented as fixnums in
 // Emacs lisp.
-#[cfg(target_os = "linux")]
 pub const INTMASK: EmacsInt = EMACS_INT_MAX >> (INTTYPEBITS - 1);
-#[cfg(target_os = "linux")]
 pub const MOST_POSITIVE_FIXNUM: EmacsInt = EMACS_INT_MAX >> INTTYPEBITS as u32;
-#[cfg(target_os = "linux")]
 pub const MOST_NEGATIVE_FIXNUM: EmacsInt = -1 - MOST_POSITIVE_FIXNUM;
 
 // Fixnum(Integer) support (LispType == Lisp_Int0 | Lisp_Int1 == 2 | 6(LSB) )
