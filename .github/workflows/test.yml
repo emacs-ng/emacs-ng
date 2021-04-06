@@ -16,12 +16,13 @@ jobs:
             - name: Install dependencies on Linux
               if: runner.os == 'Linux'
               run: |
-                  sudo apt install -y build-essential texinfo libx11-dev libxpm-dev libjpeg-dev libpng-dev libgif-dev libtiff-dev libgtk2.0-dev libncurses-dev libxpm-dev automake autoconf libgnutls28-dev zlib1g-dev libgccjit-9-dev
+                  sudo apt install -y build-essential texinfo libx11-dev libxpm-dev libjpeg-dev libpng-dev libgif-dev libtiff-dev libgtk2.0-dev libncurses-dev automake autoconf libgnutls28-dev zlib1g-dev libgccjit-9-dev
 
             - name: Install dependencies on macOS
               if: runner.os == 'macOS'
               run: |
                   brew install gnutls texinfo autoconf
+                  # libx11 libxpm jpeg libpng giflib libtiff gtk+3 ncurses libgccjit
 
             - name: rustfmt
               run: |
