@@ -22,7 +22,6 @@ jobs:
               uses: actions/cache@v2
               with:
                   path: |
-                    ~/.cargo/registry/index
                     ~/.cargo/registry/cache
                     ~/.cargo/git
                     ./rust_src/target
@@ -60,11 +59,20 @@ jobs:
                   export CARGO_INCREMENTAL=0
                   export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
                   ./autogen.sh && RUSTFLAGS="-Dwarnings" WERROR_CFLAGS='-Werror -Wno-error=deprecated-declarations' CFLAGS=' -g' CXXFLAGS=' -g'
-                  ./configure --enable-checking=glyphs
+                  ./configure --enable-checking=glyphs --enable-rust-debug
 
                   # Avoid lisp compile && make info.
                   # lib -> lib-src -> src -> lisp -> info
                   make -j$((`nproc`+1)) src
+
+                  ## Reduce Cache
+                  # Note that all of the above need to be repeated for `release/` instead of
+                  # `debug/` if your build script builds artifacts in release mode.
+                  # https://bheisler.github.io/post/efficient-use-of-travis-ci-cache-for-rust/
+                  # Delete loose files in the debug directory
+                  find ./rust_src/target/debug -maxdepth 1 -type f -delete
+                  # Delete just meta data
+                  rm -f  ./rust_src/target/.rustc_info.json
 
             - name: js fmt
               run: |
