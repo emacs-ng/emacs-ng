@@ -9,6 +9,7 @@ jobs:
             fail-fast: false
             matrix:
                 os: [ubuntu-latest, macos-latest]
+                build: [general, webrender]
 
         steps:
             - uses: actions/checkout@v2
@@ -27,16 +28,16 @@ jobs:
                       ~/.cargo/registry/cache
                       ~/.cargo/git
                       ./rust_src/target
-                  key: ${{ runner.os }}-build-rust-${{ hashFiles('**/rust-toolchain', '**/Cargo.toml*', '**/rustfmt.toml') }}--${{ steps.rust-setup.outputs.week }}
+                  key: ${{ runner.os }}-${{ matrix.build }}-rust-${{ hashFiles('**/rust-toolchain', '**/Cargo.toml*', '**/rustfmt.toml') }}-${{ steps.rust-setup.outputs.week }}
                   restore-keys: |
-                      ${{ runner.os }}-build-rust-${{ hashFiles('**/rust-toolchain', '**/Cargo.toml*', '**/rustfmt.toml') }}-${{ steps.rust-setup.outputs.week }}-test
-                      ${{ runner.os }}-build-rust-${{ hashFiles('**/rust-toolchain', '**/Cargo.toml*', '**/rustfmt.toml') }}-
-                      ${{ runner.os }}-build-rust
+                      ${{ runner.os }}-${{ matrix.build }}-rust-${{ hashFiles('**/rust-toolchain', '**/Cargo.toml*', '**/rustfmt.toml') }}-${{ steps.rust-setup.outputs.week }}
+                      ${{ runner.os }}-${{ matrix.build }}-rust-${{ hashFiles('**/rust-toolchain', '**/Cargo.toml*', '**/rustfmt.toml') }}-
+                      ${{ runner.os }}-${{ matrix.build }}-rust
 
             - name: c cache
               uses: hendrikmuhs/ccache-action@v1
               with:
-                  key: ${{ runner.os }}-build-ccache
+                  key: ${{ runner.os }}-${{ matrix.build }}-ccache
 
             - name: Install dependencies on Linux
               if: runner.os == 'Linux'
@@ -46,15 +47,6 @@ jobs:
                   # Already installed: automake autoconf texinfo libjpeg-dev libpng-dev libtiff-dev libx11-dev  libncurses-dev zlib1g-dev
                   # When use native-comp: libgccjit-9-dev
                   # When use gcc: build-essential
-
-                  ## Setup Env
-                  export LD="lld"
-                  export AR="llvm-ar"
-                  export AS="llvm-as"
-                  export RANLIB="llvm-ranlib"
-                  export CFLAGS=" -fuse-ld=lld"
-                  export CXXFLAGS=" -fuse-ld=lld"
-                  export RUSTFLAGS=" -Clink-arg=-fuse-ld=lld"
 
             - name: Install dependencies on macOS
               if: runner.os == 'macOS'
@@ -70,21 +62,14 @@ jobs:
                   # /usr/local/bin/zld
                   # https://afnan.io/posts/2018-10-01-using-the-latest-llvm-release-on-macos/
                   # https://steipete.com/posts/zld-a-faster-linker/
-                  mkdir $HOME/bin
-                  cd $HOME/bin
-                  curl -fLO https://github.com/michaeleisel/zld/releases/latest/download/zld.tar.xz
-                  gtar --verbose -xf ./zld.tar.xz
+                  # mkdir $HOME/bin
+                  # cd $HOME/bin
+                  # curl -fLO https://github.com/michaeleisel/zld/releases/latest/download/zld.tar.xz
+                  # gtar --verbose -xf ./zld.tar.xz
 
-                  export CPLUS_INCLUDE_PATH=$(/usr/local/opt/llvm/bin/llvm-config --includedir):$CPLUS_INCLUDE_PATH
-                  export LD_LIBRARY_PATH=$(/usr/local/opt/llvm/bin/llvm-config --libdir):$LD_LIBRARY_PATH
-                  export LD="$HOME/bin/zld"
-                  export AR="/usr/local/opt/llvm/bin/llvm-ar"
-                  export AS="/usr/local/opt/llvm/bin/llvm-as"
-                  export RANLIB="/usr/local/opt/llvm/bin/llvm-ranlib"
-                  export CFLAGS=" -fuse-ld=$HOME/bin/zld"
-                  export CXXFLAGS=" -fuse-ld=$HOME/bin/zld"
-                  export RUSTFLAGS=" -Clink-arg=-fuse-ld=$HOME/bin/zld -Csplit-debuginfo=unpacked"
-                  export OTHER_LDFLAGS=" -fuse-ld=$HOME/bin/zld"
+                  ## Set Path
+                  echo "/usr/local/opt/llvm/bin" >> $GITHUB_PATH
+                  echo "$HOME/bin" >> $GITHUB_PATH
                   # TODO for native-comp: export LDFLAGS="-L/usr/local/Cellar/libgccjit/10.2.0_1/lib/gcc/10"
 
                   ## nproc for mac
@@ -96,12 +81,12 @@ jobs:
               uses: actions/cache@v2
               with:
                   path: /tmp/zld-*
-                  key: ${{ runner.OS }}-build-zld-${{ steps.rust-setup.outputs.date }}
+                  key: ${{ runner.OS }}-${{ matrix.build }}-zld-${{ steps.rust-setup.outputs.date }}
                   restore-keys: |
-                      ${{ runner.OS }}-build-zld-${{ steps.rust-setup.outputs.date }}
-                      ${{ runner.OS }}-build-zld-
+                      ${{ runner.OS }}-${{ matrix.build }}-zld-${{ steps.rust-setup.outputs.date }}
+                      ${{ runner.OS }}-${{ matrix.build }}-zld-
 
-            - name: rustfmt
+            - name: rustfmt && common env set
               run: |
                   # Configure $PATH: Executables are installed to $HOME/bin
                   export PATH="$HOME/bin:$PATH"
@@ -109,29 +94,54 @@ jobs:
                   ./autogen.sh && ./configure --without-makeinfo --with-x=no --with-ns=no --without-gconf --without-gsettings
                   admin/format-rust.sh
 
-            - name: build
-              run: |
                   ## Set env
                   # Path Set
-                  export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
+                  echo "/usr/lib/ccache:/usr/local/opt/ccache/libexec" >> $GITHUB_PATH
 
                   # Compile with clang
-                  export CC="clang"
-                  export CXX="clang++"
-                  export CPP="clang -E"
-                  export CARGO_INCREMENTAL=0
+                  echo "CC=clang" >> $GITHUB_ENV
+                  echo "CXX=clang++" >> $GITHUB_ENV
+                  echo "CPP=clang -E" >> $GITHUB_ENV
+                  echo "CFLAGS= -g1 -O2" >> $GITHUB_ENV
+                  echo "CXXFLAGS= -g1 -O2" >> $GITHUB_ENV
+                  echo "AR=llvm-ar" >> $GITHUB_ENV
+                  echo "AS=llvm-as" >> $GITHUB_ENV
+                  echo "RANLIB=llvm-ranlib" >> $GITHUB_ENV
 
                   # Other Flags
-                  export CARGO_INCREMENTAL=0
-                  export RUSTFLAGS="-Zshare-generics=y -Copt-level=2 -Cdebuginfo=1 -Ctarget-cpu=native $RUSTFLAGS"
+                  echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
+                  echo "RUSTFLAGS=-Zshare-generics=y -Cdebuginfo=1 -Copt-level=0" >> $GITHUB_ENV
 
-                  # Options used before
-                  # RUSTFLAGS="-Dwarnings"
-                  # export WERROR_CFLAGS="-Werror -Wno-error=deprecated-declarations"
+            - name: env(for linux)
+              if: runner.os == 'Linux'
+              run: |
+                  echo "LD=lld" >> $GITHUB_ENV
+                  echo "CFLAGS=$CFLAGS -fuse-ld=lld" >> $GITHUB_ENV
+                  echo "CXXFLAGS=$CXXFLAGS -fuse-ld=lld" >> $GITHUB_ENV
+                  echo "RUSTFLAGS=$RUSTFLAGS -Clink-arg=-fuse-ld=lld" >> $GITHUB_ENV
+
+            - name: env(for mac)
+              if: runner.os == 'macOS'
+              run: |
+                  echo "CPLUS_INCLUD=$(/usr/local/opt/llvm/bin/llvm-config --includedir):$CPLUS_INCLUDE_PATH" >> $GITHUB_ENV
+                  echo "LD_LIBRARY_PATH=$(/usr/local/opt/llvm/bin/llvm-config --libdir):$LD_LIBRARY_PATH" >> $GITHUB_ENV
+                  echo "CFLAGS=$CFLAGS -march=native" >> $GITHUB_ENV
+                  echo "CXXFLAGS=$CXXFLAGS -march=native" >> $GITHUB_ENV
+                  echo "RUSTFLAGS=$RUSTFLAGS -Ctarget-cpu=native" >> $GITHUB_ENV
 
 
-                  ## Build
+            - name: configure(general)
+              if: ${{ matrix.build == 'general' }}
+              run: |
                   ./configure --enable-checking=glyphs --enable-rust-debug
+
+            - name: configure(webrender)
+              if: ${{ matrix.build == 'webrender' }}
+              run: |
+                  ./configure --enable-checking=glyphs --enable-rust-debug --with-webrender
+
+            - name: build
+              run: |
                   # Avoid lisp compile && make info.
                   # lib -> lib-src -> src -> lisp -> info
                   make -j$((`nproc`+1)) src
