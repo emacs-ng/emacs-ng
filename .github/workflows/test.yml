@@ -15,6 +15,7 @@ jobs:
             - uses: actions/checkout@v2
 
             - name: rust setup
+              id: rust-setup
               run: |
                   rustup install $(cat rust-toolchain)
                   rustup component add rustfmt-preview
@@ -57,16 +58,6 @@ jobs:
                   # Option: libx11 libxpm jpeg libpng giflib libtiff gtk+3 ncurses
                   # When use native-comp: libgccjit
 
-                  ## Install zld
-                  # brew insall michaeleisel/zld/zld
-                  # /usr/local/bin/zld
-                  # https://afnan.io/posts/2018-10-01-using-the-latest-llvm-release-on-macos/
-                  # https://steipete.com/posts/zld-a-faster-linker/
-                  # mkdir $HOME/bin
-                  # cd $HOME/bin
-                  # curl -fLO https://github.com/michaeleisel/zld/releases/latest/download/zld.tar.xz
-                  # gtar --verbose -xf ./zld.tar.xz
-
                   ## Set Path
                   echo "/usr/local/opt/llvm/bin" >> $GITHUB_PATH
                   echo "$HOME/bin" >> $GITHUB_PATH
@@ -75,16 +66,6 @@ jobs:
                   ## nproc for mac
                   # https://github.com/memkind/memkind/issues/33
                   alias nproc="sysctl -n hw.logicalcpu"
-
-            - name: zld cache(for mac)
-              if: runner.os == 'macOS'
-              uses: actions/cache@v2
-              with:
-                  path: /tmp/zld-*
-                  key: ${{ runner.OS }}-${{ matrix.build }}-zld-${{ steps.rust-setup.outputs.date }}
-                  restore-keys: |
-                      ${{ runner.OS }}-${{ matrix.build }}-zld-${{ steps.rust-setup.outputs.date }}
-                      ${{ runner.OS }}-${{ matrix.build }}-zld-
 
             - name: rustfmt && common env set
               run: |
@@ -128,7 +109,6 @@ jobs:
                   echo "CFLAGS=$CFLAGS -march=native" >> $GITHUB_ENV
                   echo "CXXFLAGS=$CXXFLAGS -march=native" >> $GITHUB_ENV
                   echo "RUSTFLAGS=$RUSTFLAGS -Ctarget-cpu=native" >> $GITHUB_ENV
-
 
             - name: configure(general)
               if: ${{ matrix.build == 'general' }}
