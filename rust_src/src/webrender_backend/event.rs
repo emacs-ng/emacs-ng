@@ -1,5 +1,6 @@
 use emacs::{
-    bindings::{event_kind, input_event, scroll_bar_part, Qnil},
+    bindings::{event_kind, input_event, scroll_bar_part},
+    globals::Qnil,
     lisp::LispObject,
 };
 

@@ -29,15 +29,15 @@ use emacs::{
         create_terminal, current_kboard, draw_fringe_bitmap_params, fontset_from_font,
         frame_parm_handler, fullscreen_type, glyph_row, glyph_string, initial_kboard,
         output_method, redisplay_interface, terminal, text_cursor_kinds, xlispstrdup, Emacs_Color,
-        Fcons, Fredraw_frame, Lisp_Frame, Lisp_Window, Qbackground_color, Qfullscreen, Qmaximized,
-        Qnil, Qwr,
+        Fcons, Fredraw_frame,
     },
     font::LispFontRef,
-    frame::LispFrameRef,
+    frame::{LispFrameRef, Lisp_Frame},
+    globals::{Qbackground_color, Qfullscreen, Qmaximized, Qnil, Qwr},
     glyph::GlyphStringRef,
     keyboard::allocate_keyboard,
     lisp::{ExternalPtr, LispObject},
-    window::LispWindowRef,
+    window::{LispWindowRef, Lisp_Window},
 };
 
 pub type TerminalRef = ExternalPtr<terminal>;

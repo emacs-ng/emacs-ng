@@ -17,10 +17,13 @@ use emacs::{
     bindings::{
         font, font_driver, font_make_entity, font_make_object, font_metrics, font_property_index,
         font_style_to_value, frame, glyph_string, Fassoc, Fcdr, Fcons, Fmake_symbol, Fnreverse,
-        Qbold, Qextra_bold, Qextra_light, Qitalic, Qlight, Qnil, Qnormal, Qoblique, Qsemi_bold,
-        Qultra_bold, Qwr, FONT_INVALID_CODE,
+        FONT_INVALID_CODE,
     },
     frame::LispFrameRef,
+    globals::{
+        Qbold, Qextra_bold, Qextra_light, Qitalic, Qlight, Qnil, Qnormal, Qoblique, Qsemi_bold,
+        Qultra_bold, Qwr,
+    },
     lisp::{ExternalPtr, LispObject},
     multibyte::LispStringRef,
     symbol::LispSymbolRef,

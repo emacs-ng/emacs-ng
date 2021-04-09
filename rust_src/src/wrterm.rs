@@ -22,13 +22,17 @@ use emacs::{
     bindings::{
         adjust_frame_size, block_input, gui_display_get_arg, hashtest_eql, image, init_frame_faces,
         list3i, make_fixnum, make_hash_table, make_monitor_attribute_list, register_font_driver,
-        unblock_input, Display, EmacsInt, Emacs_Pixmap, Emacs_Rectangle, Fcons, Fcopy_alist,
-        Fmake_vector, Fprovide, MonitorInfo, Pixmap, Qbackground_color, Qfont, Qfont_backend,
-        Qforeground_color, Qleft_fringe, Qminibuffer, Qname, Qnil, Qparent_id, Qright_fringe,
-        Qterminal, Qunbound, Qwr, Qx, Qx_create_frame_1, Qx_create_frame_2, Vframe_list, WRImage,
-        Window, DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
+        unblock_input, Display, Emacs_Pixmap, Emacs_Rectangle, Fcons, Fcopy_alist, Fmake_vector,
+        Fprovide, MonitorInfo, Pixmap, Vframe_list, WRImage, Window, DEFAULT_REHASH_SIZE,
+        DEFAULT_REHASH_THRESHOLD,
     },
+    definitions::EmacsInt,
     frame::{window_frame_live_or_selected, LispFrameRef},
+    globals::{
+        Qbackground_color, Qfont, Qfont_backend, Qforeground_color, Qleft_fringe, Qminibuffer,
+        Qname, Qnil, Qparent_id, Qright_fringe, Qterminal, Qunbound, Qwr, Qx, Qx_create_frame_1,
+        Qx_create_frame_2,
+    },
     lisp::{ExternalPtr, LispObject},
 };
 
