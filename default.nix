@@ -1,20 +1,13 @@
-{ pkgs ? import <nixpkgs> {} }:
-
-with pkgs;
-
-stdenv.mkDerivation rec {
-  version = "27.0.1";
-
-  name = "remacs-${version}";
-
-  buildInputs = [
-    systemd texinfo libjpeg libtiff giflib xorg.libXpm gtk3
-    gnutls ncurses libxml2 xorg.libXt imagemagick librsvg gpm dbus
-    libotf clang_6 pkgconfig autoconf rustup
-  ];
-
-  shellHook = ''
-    export NIX_PATH="nixpkgs=${toString <nixpkgs>}"
-    export LIBCLANG_PATH="${llvmPackages_6.libclang.lib}/lib";
-  '';
-}
+(import
+  (
+    let
+      lock = builtins.fromJSON (builtins.readFile ./flake.lock);
+    in
+    fetchTarball {
+      url = "https://github.com/edolstra/flake-compat/archive/${lock.nodes.flake-compat.locked.rev}.tar.gz";
+      sha256 = lock.nodes.flake-compat.locked.narHash;
+    }
+  )
+  {
+    src = ./.;
+  }).defaultNix
