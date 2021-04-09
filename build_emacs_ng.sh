@@ -1,7 +1,10 @@
 sudo add-apt-repository -y ppa:ubuntu-toolchain-r/ppa
 sudo apt install -y autoconf make checkinstall texinfo libxpm-dev libjpeg-dev \
      libgtk-3-dev libgif-dev libtiff-dev libpng-dev libgnutls28-dev libncurses5-dev \
-     libsystemd-dev libjansson-dev libharfbuzz-dev libgccjit-10-dev gcc-10 g++-10
+     libsystemd-dev libjansson-dev libharfbuzz-dev libgccjit-10-dev gcc-10 g++-10 libxt-dev \
+     libclang-10-dev
+
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
 sudo apt update
 sudo apt -y upgrade
 
