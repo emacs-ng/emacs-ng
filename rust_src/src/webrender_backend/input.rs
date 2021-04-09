@@ -4,15 +4,12 @@ use glutin::{
 };
 
 use emacs::{
-    bindings::{
-        event_kind, input_event, scroll_bar_part,
-        EmacsModifiers::{
-            ctrl_modifier, down_modifier, meta_modifier, shift_modifier, super_modifier,
-            up_modifier,
-        },
-        Qnil,
-    },
+    bindings::{event_kind, input_event, scroll_bar_part},
+    globals::Qnil,
     lisp::LispObject,
+    sys::EmacsModifiers::{
+        ctrl_modifier, down_modifier, meta_modifier, shift_modifier, super_modifier, up_modifier,
+    },
 };
 
 pub struct InputProcessor {

@@ -1,9 +1,9 @@
 use emacs::{
     bindings::{
         make_frame, make_frame_without_minibuffer, make_minibuffer_frame, output_method, wr_output,
-        Qnil, Qnone, Qonly,
     },
     frame::LispFrameRef,
+    globals::{Qnil, Qnone, Qonly},
     keyboard::KeyboardRef,
     lisp::LispObject,
 };
