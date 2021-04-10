@@ -43,6 +43,7 @@
                 rust-bin.nightly."2021-01-14".rust
                 llvmPackages.clang
                 llvmPackages.libclang
+                emacsNg
               ];
             };
 
