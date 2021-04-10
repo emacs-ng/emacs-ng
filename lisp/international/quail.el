@@ -1,4 +1,4 @@
-;;; quail.el --- provides simple input method for multilingual text
+;;; quail.el --- provides simple input method for multilingual text  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1997-1998, 2000-2021 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
@@ -61,15 +61,14 @@
 
 ;; Buffer local variables
 
-(defvar quail-current-package nil
+(defvar-local quail-current-package nil
   "The current Quail package, which depends on the current input method.
 See the documentation of `quail-package-alist' for the format.")
-(make-variable-buffer-local 'quail-current-package)
 (put 'quail-current-package 'permanent-local t)
 
 ;; Quail uses the following variables to assist users.
 ;; A string containing available key sequences or translation list.
-(defvar quail-guidance-str nil)
+(defvar-local quail-guidance-str nil)
 ;; A buffer to show completion list of the current key sequence.
 (defvar quail-completion-buf nil)
 ;; We may display the guidance string in a buffer on a one-line frame.
@@ -78,41 +77,34 @@ See the documentation of `quail-package-alist' for the format.")
 
 ;; Each buffer in which Quail is activated should use different
 ;; guidance string.
-(make-variable-buffer-local 'quail-guidance-str)
 (put 'quail-guidance-str 'permanent-local t)
 
-(defvar quail-overlay nil
+(defvar-local quail-overlay nil
   "Overlay which covers the current translation region of Quail.")
-(make-variable-buffer-local 'quail-overlay)
 
-(defvar quail-conv-overlay nil
+(defvar-local quail-conv-overlay nil
   "Overlay which covers the text to be converted in Quail mode.")
-(make-variable-buffer-local 'quail-conv-overlay)
 
-(defvar quail-current-key nil
+(defvar-local quail-current-key nil
   "Current key for translation in Quail mode.")
-(make-variable-buffer-local 'quail-current-key)
 
-(defvar quail-current-str nil
+(defvar-local quail-current-str nil
   "Currently selected translation of the current key.")
-(make-variable-buffer-local 'quail-current-str)
 
-(defvar quail-current-translations nil
+(defvar-local quail-current-translations nil
   "Cons of indices and vector of possible translations of the current key.
 Indices is a list of (CURRENT START END BLOCK BLOCKS), where
 CURRENT is an index of the current translation,
 START and END are indices of the start and end of the current block,
 BLOCK is the current block index,
 BLOCKS is a number of  blocks of translation.")
-(make-variable-buffer-local 'quail-current-translations)
 
-(defvar quail-current-data nil
+(defvar-local quail-current-data nil
   "Any Lisp object holding information of current translation status.
 When a key sequence is mapped to TRANS and TRANS is a cons
 of actual translation and some Lisp object to be referred
 for translating the longer key sequence, this variable is set
 to that Lisp object.")
-(make-variable-buffer-local 'quail-current-data)
 
 ;; Quail package handlers.
 
@@ -1046,7 +1038,7 @@ the following annotation types are supported.
 	   (quail-install-decode-map ',decode-map))))))
 
 ;;;###autoload
-(defun quail-install-map (map &optional name)
+(defun quail-install-map (map &optional _name)
   "Install the Quail map MAP in the current Quail package.
 
 Optional 2nd arg NAME, if non-nil, is a name of Quail package for
@@ -1060,7 +1052,7 @@ The installed map can be referred by the function `quail-map'."
   (setcar (cdr (cdr quail-current-package)) map))
 
 ;;;###autoload
-(defun quail-install-decode-map (decode-map &optional name)
+(defun quail-install-decode-map (decode-map &optional _name)
   "Install the Quail decode map DECODE-MAP in the current Quail package.
 
 Optional 2nd arg NAME, if non-nil, is a name of Quail package for
@@ -1083,7 +1075,7 @@ The installed decode map can be referred by the function `quail-decode-map'."
 KEY is a string meaning a sequence of keystrokes to be translated.
 TRANSLATION is a character, a string, a vector, a Quail map,
  a function, or a cons.
-It it is a character, it is the sole translation of KEY.
+If it is a character, it is the sole translation of KEY.
 If it is a string, each character is a candidate for the translation.
 If it is a vector, each element (string or character) is a candidate
  for the translation.
@@ -1390,7 +1382,7 @@ Return the input string."
       (let* ((echo-keystrokes 0)
 	     (help-char nil)
 	     (overriding-terminal-local-map (quail-translation-keymap))
-	     (generated-events nil)     ;FIXME: What is this?
+	     ;; (generated-events nil)     ;FIXME: What is this?
 	     (input-method-function nil)
 	     (modified-p (buffer-modified-p))
 	     last-command-event last-command this-command inhibit-record)
@@ -1455,7 +1447,7 @@ Return the input string."
       (let* ((echo-keystrokes 0)
 	     (help-char nil)
 	     (overriding-terminal-local-map (quail-conversion-keymap))
-	     (generated-events nil)     ;FIXME: What is this?
+	     ;; (generated-events nil)     ;FIXME: What is this?
 	     (input-method-function nil)
 	     (modified-p (buffer-modified-p))
 	     last-command-event last-command this-command inhibit-record)
@@ -2027,10 +2019,15 @@ minibuffer and the selected frame has no other windows)."
   (bury-buffer quail-completion-buf)
 
   ;; Then, show the guidance.
-  (when (and (quail-require-guidance-buf)
-	     (not input-method-use-echo-area)
-	     (null unread-command-events)
-	     (null unread-post-input-method-events))
+  (when (and 
+         ;; Don't try to display guidance on an expired minibuffer.  This
+         ;; would go into an infinite wait rather than executing the user's
+         ;; command.  Bug #45792.
+         (not (eq major-mode 'minibuffer-inactive-mode))
+         (quail-require-guidance-buf)
+	 (not input-method-use-echo-area)
+	 (null unread-command-events)
+	 (null unread-post-input-method-events))
     (if (minibufferp)
 	(if (eq (minibuffer-window) (frame-root-window))
 	    ;; Use another frame.  It is sure that we are using some
@@ -2452,7 +2449,7 @@ should be made by `quail-build-decode-map' (which see)."
               (insert-char ?- single-trans-width)
               (forward-line 1)
               ;; Insert the key-tran pairs.
-              (dotimes (row rows)
+              (dotimes (_ rows)
                 (let ((elt (pop single-list)))
                   (when elt
                     (move-to-column col)
@@ -2625,12 +2622,14 @@ KEY BINDINGS FOR CONVERSION
 	(run-hooks 'temp-buffer-show-hook)))))
 
 (defun quail-help-insert-keymap-description (keymap &optional header)
+  (defvar the-keymap)
   (let ((pos1 (point))
+        (the-keymap keymap)
         pos2)
     (if header
 	(insert header))
     (save-excursion
-      (insert (substitute-command-keys "\\{keymap}")))
+      (insert (substitute-command-keys "\\{the-keymap}")))
     ;; Skip headers "key bindings", etc.
     (forward-line 3)
     (setq pos2 (point))
@@ -3011,7 +3010,7 @@ of each directory."
 
     ;; At first, clean up the file.
     (with-current-buffer list-buf
-      (goto-char 1)
+      (goto-char (point-min))
 
       ;; Insert the correct header.
       (if (looking-at (regexp-quote leim-list-header))
@@ -3067,28 +3066,31 @@ of each directory."
 	    ;; Don't get fooled by commented-out code.
 	    (while (re-search-forward "^[ \t]*(quail-define-package" nil t)
 	      (goto-char (match-beginning 0))
-	      (condition-case nil
-		  (let ((form (read (current-buffer))))
-		    (with-current-buffer list-buf
-		      (insert
-		       (format "(register-input-method
+              (let (form)
+	        (condition-case err
+		    (progn
+                      (setq form (read (current-buffer)))
+		      (with-current-buffer list-buf
+		        (insert
+		         (format "(register-input-method
  %S %S '%s
  %S %S
  %S)\n"
-			       (nth 1 form) ; PACKAGE-NAME
-			       (nth 2 form) ; LANGUAGE
-			       'quail-use-package ; ACTIVATE-FUNC
-			       (nth 3 form) ; PACKAGE-TITLE
-			       (progn	; PACKAGE-DESCRIPTION (one line)
-				 (string-match ".*" (nth 5 form))
-				 (match-string 0 (nth 5 form)))
-			       (file-relative-name ; PACKAGE-FILENAME
-				(file-name-sans-extension (car pkg-list))
-				(car dirnames))))))
-		(error
-		 ;; Ignore the remaining contents of this file.
-		 (goto-char (point-max))
-		 (message "Some part of \"%s\" is broken" (car pkg-list))))))
+			         (nth 1 form)       ; PACKAGE-NAME
+			         (nth 2 form)       ; LANGUAGE
+			         'quail-use-package ; ACTIVATE-FUNC
+			         (nth 3 form)       ; PACKAGE-TITLE
+			         (progn	; PACKAGE-DESCRIPTION (one line)
+				   (string-match ".*" (nth 5 form))
+				   (match-string 0 (nth 5 form)))
+			         (file-relative-name ; PACKAGE-FILENAME
+				  (file-name-sans-extension (car pkg-list))
+				  (car dirnames))))))
+		  (error
+		   ;; Ignore the remaining contents of this file.
+		   (goto-char (point-max))
+		   (message "Some part of \"%s\" is broken: %s in %s"
+                            (car pkg-list) err form))))))
 	  (setq pkg-list (cdr pkg-list)))
 	(setq quail-dirs (cdr quail-dirs) dirnames (cdr dirnames))))
 

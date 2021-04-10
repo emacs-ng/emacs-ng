@@ -91,7 +91,6 @@ Possible settings are:.
 nil           - Disables automatic Nickserv identification.
 
 You can also use \\[erc-nickserv-identify-mode] to change modes."
-  :group 'erc-services
   :type '(choice (const autodetect)
 		 (const nick-change)
 		 (const both)
@@ -107,13 +106,13 @@ You can also use \\[erc-nickserv-identify-mode] to change modes."
   "This mode automates communication with services."
   ((erc-nickserv-identify-mode erc-nickserv-identify-mode))
   ((remove-hook 'erc-server-NOTICE-functions
-		'erc-nickserv-identify-autodetect)
+		#'erc-nickserv-identify-autodetect)
    (remove-hook 'erc-after-connect
-		'erc-nickserv-identify-on-connect)
+		#'erc-nickserv-identify-on-connect)
    (remove-hook 'erc-nick-changed-functions
-		'erc-nickserv-identify-on-nick-change)
+		#'erc-nickserv-identify-on-nick-change)
    (remove-hook 'erc-server-NOTICE-functions
-		'erc-nickserv-identification-autodetect)))
+		#'erc-nickserv-identification-autodetect)))
 
 ;;;###autoload
 (defun erc-nickserv-identify-mode (mode)
@@ -123,7 +122,7 @@ You can also use \\[erc-nickserv-identify-mode] to change modes."
 		  "Choose Nickserv identify mode (RET to disable): "
 		  '(("autodetect") ("nick-change") ("both")) nil t))))
   (add-hook 'erc-server-NOTICE-functions
-	    'erc-nickserv-identification-autodetect)
+	    #'erc-nickserv-identification-autodetect)
   (unless erc-networks-mode
     ;; Force-enable networks module, because we need it to set
     ;; erc-network for us.
@@ -131,52 +130,60 @@ You can also use \\[erc-nickserv-identify-mode] to change modes."
   (cond ((eq mode 'autodetect)
 	 (setq erc-nickserv-identify-mode 'autodetect)
 	 (add-hook 'erc-server-NOTICE-functions
-		   'erc-nickserv-identify-autodetect)
+		   #'erc-nickserv-identify-autodetect)
 	 (remove-hook 'erc-nick-changed-functions
-		      'erc-nickserv-identify-on-nick-change)
+		      #'erc-nickserv-identify-on-nick-change)
 	 (remove-hook 'erc-after-connect
-		      'erc-nickserv-identify-on-connect))
+		      #'erc-nickserv-identify-on-connect))
 	((eq mode 'nick-change)
 	 (setq erc-nickserv-identify-mode 'nick-change)
 	 (add-hook 'erc-after-connect
-		   'erc-nickserv-identify-on-connect)
+		   #'erc-nickserv-identify-on-connect)
 	 (add-hook 'erc-nick-changed-functions
-		   'erc-nickserv-identify-on-nick-change)
+		   #'erc-nickserv-identify-on-nick-change)
 	 (remove-hook 'erc-server-NOTICE-functions
-		      'erc-nickserv-identify-autodetect))
+		      #'erc-nickserv-identify-autodetect))
 	((eq mode 'both)
 	 (setq erc-nickserv-identify-mode 'both)
 	 (add-hook 'erc-server-NOTICE-functions
-		   'erc-nickserv-identify-autodetect)
+		   #'erc-nickserv-identify-autodetect)
 	 (add-hook 'erc-after-connect
-		   'erc-nickserv-identify-on-connect)
+		   #'erc-nickserv-identify-on-connect)
 	 (add-hook 'erc-nick-changed-functions
-		   'erc-nickserv-identify-on-nick-change))
+		   #'erc-nickserv-identify-on-nick-change))
 	(t
 	 (setq erc-nickserv-identify-mode nil)
 	 (remove-hook 'erc-server-NOTICE-functions
-		      'erc-nickserv-identify-autodetect)
+		      #'erc-nickserv-identify-autodetect)
 	 (remove-hook 'erc-after-connect
-		      'erc-nickserv-identify-on-connect)
+		      #'erc-nickserv-identify-on-connect)
 	 (remove-hook 'erc-nick-changed-functions
-		      'erc-nickserv-identify-on-nick-change)
+		      #'erc-nickserv-identify-on-nick-change)
 	 (remove-hook 'erc-server-NOTICE-functions
-		      'erc-nickserv-identification-autodetect))))
+		      #'erc-nickserv-identification-autodetect))))
 
 (defcustom erc-prompt-for-nickserv-password t
   "Ask for the password when identifying to NickServ."
-  :group 'erc-services
+  :type 'boolean)
+
+(defcustom erc-use-auth-source-for-nickserv-password nil
+  "Query auth-source for a password when identifiying to NickServ.
+This option has an no effect if `erc-prompt-for-nickserv-password'
+is non-nil, and passwords from `erc-nickserv-passwords' take
+precedence."
+  :version "28.1"
   :type 'boolean)
 
 (defcustom erc-nickserv-passwords nil
   "Passwords used when identifying to NickServ automatically.
+`erc-prompt-for-nickserv-password' must be nil for these
+passwords to be used.
 
 Example of use:
   (setq erc-nickserv-passwords
         \\='((freenode ((\"nick-one\" . \"password\")
                      (\"nick-two\" . \"password\")))
           (DALnet ((\"nick\" . \"password\")))))"
-  :group 'erc-services
   :type '(repeat
 	  (list :tag "Network"
 		(choice :tag "Network name"
@@ -294,7 +301,6 @@ ANSWER is the command to use for the answer.  The default is `privmsg'.
 SUCCESS-REGEXP is a regular expression matching the message nickserv
   sends when you've successfully identified.
 The last two elements are optional."
-   :group 'erc-services
    :type '(repeat
 	   (list :tag "Nickserv data"
 		 (symbol :tag "Network name")
@@ -346,7 +352,6 @@ The last two elements are optional."
 (defcustom erc-nickserv-identified-hook nil
   "Run this hook when NickServ acknowledged successful identification.
 Hooks are called with arguments (NETWORK NICK)."
-  :group 'erc-services
   :type 'hook)
 
 (defun erc-nickserv-identification-autodetect (_proc parsed)
@@ -375,7 +380,8 @@ Make sure it is the real NickServ for this network.
 If `erc-prompt-for-nickserv-password' is non-nil, prompt the user for the
 password for this nickname, otherwise try to send it automatically."
   (unless (and (null erc-nickserv-passwords)
-	       (null erc-prompt-for-nickserv-password))
+               (null erc-prompt-for-nickserv-password)
+               (null erc-use-auth-source-for-nickserv-password))
     (let* ((network (erc-network))
 	   (sender (erc-nickserv-alist-sender network))
 	   (identify-regex (erc-nickserv-alist-regexp network))
@@ -394,18 +400,41 @@ password for this nickname, otherwise try to send it automatically."
 (defun erc-nickserv-identify-on-connect (_server nick)
   "Identify to Nickserv after the connection to the server is established."
   (unless (or (and (null erc-nickserv-passwords)
-		   (null erc-prompt-for-nickserv-password))
-	      (and (eq erc-nickserv-identify-mode 'both)
-		   (erc-nickserv-alist-regexp (erc-network))))
+                   (null erc-prompt-for-nickserv-password)
+                   (null erc-use-auth-source-for-nickserv-password))
+              (and (eq erc-nickserv-identify-mode 'both)
+                   (erc-nickserv-alist-regexp (erc-network))))
     (erc-nickserv-call-identify-function nick)))
 
 (defun erc-nickserv-identify-on-nick-change (nick _old-nick)
   "Identify to Nickserv whenever your nick changes."
   (unless (or (and (null erc-nickserv-passwords)
-		   (null erc-prompt-for-nickserv-password))
-	      (and (eq erc-nickserv-identify-mode 'both)
-		   (erc-nickserv-alist-regexp (erc-network))))
+                   (null erc-prompt-for-nickserv-password)
+                   (null erc-use-auth-source-for-nickserv-password))
+              (and (eq erc-nickserv-identify-mode 'both)
+                   (erc-nickserv-alist-regexp (erc-network))))
     (erc-nickserv-call-identify-function nick)))
+
+(defun erc-nickserv-get-password (nickname)
+  "Return the password for NICKNAME from configured sources.
+
+It uses `erc-nickserv-passwords' and additionally auth-source
+when `erc-use-auth-source-for-nickserv-password' is not nil."
+  (or
+   (when erc-nickserv-passwords
+     (cdr (assoc nickname
+                 (nth 1 (assoc (erc-network)
+                               erc-nickserv-passwords)))))
+   (when erc-use-auth-source-for-nickserv-password
+     (let* ((secret (nth 0 (auth-source-search
+                            :max 1 :require '(:secret)
+                            :host (erc-with-server-buffer erc-session-server)
+                            :port (format ; ensure we have a string
+                                   "%s" (erc-with-server-buffer erc-session-port))
+                            :user nickname))))
+       (when secret
+         (let ((passwd (plist-get secret :secret)))
+           (if (functionp passwd) (funcall passwd) passwd)))))))
 
 (defun erc-nickserv-call-identify-function (nickname)
   "Call `erc-nickserv-identify'.
@@ -413,11 +442,7 @@ Either call it interactively or run it with NICKNAME's password,
 depending on the value of `erc-prompt-for-nickserv-password'."
   (if erc-prompt-for-nickserv-password
       (call-interactively 'erc-nickserv-identify)
-    (when erc-nickserv-passwords
-      (erc-nickserv-identify
-       (cdr (assoc nickname
-		   (nth 1 (assoc (erc-network)
-				 erc-nickserv-passwords))))))))
+    (erc-nickserv-identify (erc-nickserv-get-password nickname))))
 
 (defvar erc-auto-discard-away)
 
@@ -450,6 +475,7 @@ When called interactively, read the password using `read-passwd'."
 		   (concat nickserv " " identify-word " " nick password)))))
 
 (provide 'erc-services)
+
 
 ;;; erc-services.el ends here
 ;;

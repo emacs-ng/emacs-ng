@@ -113,6 +113,9 @@ The return value of this function is not used."
       (list 'function-put (list 'quote f)
             ''side-effect-free (list 'quote val))))
 
+(put 'compiler-macro 'edebug-declaration-spec
+     '(&or symbolp ("lambda" &define lambda-list lambda-doc def-body)))
+
 (defalias 'byte-run--set-compiler-macro
   #'(lambda (f args compiler-function)
       (if (not (eq (car-safe compiler-function) 'lambda))
@@ -148,6 +151,16 @@ The return value of this function is not used."
       (list 'function-put (list 'quote f)
             ''speed (list 'quote val))))
 
+(defalias 'byte-run--set-completion
+  #'(lambda (f _args val)
+      (list 'function-put (list 'quote f)
+            ''completion-predicate (list 'function val))))
+
+(defalias 'byte-run--set-modes
+  #'(lambda (f _args &rest val)
+      (list 'function-put (list 'quote f)
+            ''command-modes (list 'quote val))))
+
 ;; Add any new entries to info node `(elisp)Declare Form'.
 (defvar defun-declarations-alist
   (list
@@ -165,7 +178,9 @@ If `error-free', drop calls even if `byte-compile-delete-errors' is nil.")
    (list 'compiler-macro #'byte-run--set-compiler-macro)
    (list 'doc-string #'byte-run--set-doc-string)
    (list 'indent #'byte-run--set-indent)
-   (list 'speed #'byte-run--set-speed))
+   (list 'speed #'byte-run--set-speed)
+   (list 'completion #'byte-run--set-completion)
+   (list 'modes #'byte-run--set-modes))
   "List associating function properties to their macro expansion.
 Each element of the list takes the form (PROP FUN) where FUN is
 a function.  For each (PROP . VALUES) in a function's declaration,
@@ -238,8 +253,11 @@ The return value is undefined.
 		  #'(lambda (x)
 		      (let ((f (cdr (assq (car x) macro-declarations-alist))))
 			(if f (apply (car f) name arglist (cdr x))
-			  (message "Warning: Unknown macro property %S in %S"
-				   (car x) name))))
+			  (macroexp-warn-and-return
+			   (format-message
+			    "Unknown macro property %S in %S"
+			    (car x) name)
+			   nil))))
 		  decls)))
 	   ;; Refresh font-lock if this is a new macro, or it is an
 	   ;; existing macro whose 'no-font-lock-keyword declaration
@@ -307,9 +325,12 @@ The return value is undefined.
                                 (cdr body)
                               body)))
                     nil)
-                   (t (message "Warning: Unknown defun property `%S' in %S"
-                               (car x) name)))))
-                   decls))
+                   (t
+                    (macroexp-warn-and-return
+                     (format-message "Unknown defun property `%S' in %S"
+                                     (car x) name)
+                     nil)))))
+            decls))
           (def (list 'defalias
                      (list 'quote name)
                      (list 'function

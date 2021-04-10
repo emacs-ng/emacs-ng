@@ -1,4 +1,4 @@
-;;; tutorial.el --- tutorial for Emacs
+;;; tutorial.el --- tutorial for Emacs  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2006-2021 Free Software Foundation, Inc.
 
@@ -25,10 +25,6 @@
 
 ;; Code for running the Emacs tutorial.
 
-;;; History:
-
-;; File was created 2006-09.
-
 ;;; Code:
 
 (require 'help-mode) ;; for function help-buffer
@@ -38,17 +34,14 @@
   "Face used to highlight warnings in the tutorial."
   :group 'help)
 
-(defvar tutorial--point-before-chkeys 0
+(defvar-local tutorial--point-before-chkeys 0
   "Point before display of key changes.")
-(make-variable-buffer-local 'tutorial--point-before-chkeys)
 
-(defvar tutorial--point-after-chkeys 0
+(defvar-local tutorial--point-after-chkeys 0
   "Point after display of key changes.")
-(make-variable-buffer-local 'tutorial--point-after-chkeys)
 
-(defvar tutorial--lang nil
+(defvar-local tutorial--lang nil
   "Tutorial language.")
-(make-variable-buffer-local 'tutorial--lang)
 
 (defvar tutorial--buffer nil
   "The selected tutorial buffer.")
@@ -520,8 +513,8 @@ where
 			   (list "more info" 'current-binding
 				 key-fun def-fun key where))
 		     nil))
-	    (add-to-list 'changed-keys
-			 (list key def-fun def-fun-txt where remark nil))))))
+            (push (list key def-fun def-fun-txt where remark nil)
+                  changed-keys)))))
     changed-keys))
 
 (defun tutorial--key-description (key)
@@ -771,7 +764,7 @@ Run the Viper tutorial? "))
 	(if (fboundp 'viper-tutorial)
 	    (if (y-or-n-p (concat prompt1 prompt2))
 		(progn (message "")
-		       (funcall 'viper-tutorial 0))
+                       (funcall #'viper-tutorial 0))
 	      (message "Tutorial aborted by user"))
 	  (message prompt1)))
     (let* ((lang (cond

@@ -262,11 +262,12 @@ keyboard input to go into icons."
   (let (event)
     (message
      "Select windows by clicking.  Please click on Window %d " wind-number)
-    (while (not (ediff-mouse-event-p (setq event (read-event))))
+    (while (not (ediff-mouse-event-p (setq event
+                                           (read--potential-mouse-event))))
       (if (sit-for 1) ; if sequence of events, wait till the final word
 	  (beep 1))
       (message "Please click on Window %d " wind-number))
-    (read-event) ; discard event
+    (read--potential-mouse-event) ; discard event
     (posn-window (event-start event))))
 
 
@@ -1042,8 +1043,8 @@ create a new splittable frame if none is found."
   (with-current-buffer ctl-buffer
     (let* ((frame-A (window-frame ediff-window-A))
 	   (frame-A-parameters (frame-parameters frame-A))
-	   (frame-A-top (eval (cdr (assoc 'top frame-A-parameters))))
-	   (frame-A-left (eval (cdr (assoc 'left frame-A-parameters))))
+	   (frame-A-top (eval (cdr (assoc 'top frame-A-parameters)) t))
+	   (frame-A-left (eval (cdr (assoc 'left frame-A-parameters)) t))
 	   (frame-A-width (frame-width frame-A))
 	   (ctl-frame ediff-control-frame)
 	   horizontal-adjustment upward-adjustment
@@ -1104,7 +1105,7 @@ It assumes that it is called from within the control buffer."
 	 (cw (frame-char-width frame-A))
 	 (wd (- (/ (display-pixel-width) cw) 5)))
     (setq ediff-wide-display-orig-parameters
-	  (list (cons 'left (max 0 (eval (cdr (assoc 'left frame-A-params)))))
+	  (list (cons 'left (max 0 (eval (cdr (assoc 'left frame-A-params)) t)))
 		(cons 'width (cdr (assoc 'width frame-A-params))))
 	  ediff-wide-display-frame frame-A)
     (modify-frame-parameters

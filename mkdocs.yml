@@ -12,6 +12,7 @@ nav:
     - Advanced features: adv-features.md
   - Getting started: getting-started.md
   - Using Deno: using-deno.md
+  - Dynamic modules: ng-module.md
   - FAQ: faq.md
 
 theme:

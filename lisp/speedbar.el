@@ -1,18 +1,9 @@
-;;; speedbar --- quick access to files and tags in a frame
+;;; speedbar --- quick access to files and tags in a frame  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: file, tags, tools
-
-(defvar speedbar-version "1.0"
-  "The current version of speedbar.")
-(make-obsolete-variable 'speedbar-version nil "28.1")
-(defvar speedbar-incompatible-version "0.14beta4"
-  "This version of speedbar is incompatible with this version.
-Due to massive API changes (removing the use of the word PATH)
-this version is not backward compatible to 0.14 or earlier.")
-(make-obsolete-variable 'speedbar-incompatible-version nil "28.1")
 
 ;; This file is part of GNU Emacs.
 
@@ -115,7 +106,6 @@ this version is not backward compatible to 0.14 or earlier.")
 ;;; TODO:
 ;; - Timeout directories we haven't visited in a while.
 
-(require 'easymenu)
 (require 'dframe)
 (require 'ezimage)
 
@@ -150,25 +140,6 @@ this version is not backward compatible to 0.14 or earlier.")
   :type 'boolean)
 
 ;;; Code:
-
-;; Note: `inversion-test' requires parts of the CEDET package that are
-;; not included with Emacs.
-;;
-;; (defun speedbar-require-version (major minor &optional beta)
-;;   "Non-nil if this version of SPEEDBAR does not satisfy a specific version.
-;; Arguments can be:
-;;
-;;   (MAJOR MINOR &optional BETA)
-;;
-;;   Values MAJOR and MINOR must be integers.  BETA can be an integer, or
-;; excluded if a released version is required.
-;;
-;; It is assumed that if the current version is newer than that specified,
-;; everything passes.  Exceptions occur when known incompatibilities are
-;; introduced."
-;;   (inversion-test 'speedbar
-;; 		  (concat major "." minor
-;; 			  (when beta (concat "beta" beta)))))
 
 (defvar speedbar-initial-expansion-mode-alist
   '(("buffers" speedbar-buffer-easymenu-definition speedbar-buffers-key-map
@@ -317,22 +288,6 @@ The default buffer is the buffer in the selected window in the attached frame."
 A nil value means don't show the file in the list."
   :group 'speedbar
   :type 'boolean)
-
-;;; EVENTUALLY REMOVE THESE
-
-;; When I moved to a repeating timer, I had the horrible misfortune
-;; of losing the ability for adaptive speed choice.  This update
-;; speed currently causes long delays when it should have been turned off.
-(defvar speedbar-update-speed dframe-update-speed)
-(make-obsolete-variable 'speedbar-update-speed
-			'dframe-update-speed
-			"speedbar 1.0pre3 (Emacs 23.1)")
-
-(defvar speedbar-navigating-speed dframe-update-speed)
-(make-obsolete-variable 'speedbar-navigating-speed
-			'dframe-update-speed
-			"speedbar 1.0pre3 (Emacs 23.1)")
-;;; END REMOVE THESE
 
 (defcustom speedbar-frame-parameters '((minibuffer . nil)
 				       (width . 20)
@@ -1649,7 +1604,7 @@ variable `speedbar-obj-alist'."
 
 (defmacro speedbar-with-writable (&rest forms)
   "Allow the buffer to be writable and evaluate FORMS."
-  (declare (indent 0))
+  (declare (indent 0) (debug t))
   `(let ((inhibit-read-only t))
      ,@forms))
 
@@ -2204,10 +2159,13 @@ passes some tests."
 			  ;; way by displaying the range over which we
 			  ;; have grouped them.
 			  (setq work-list
-				(cons (cons (concat short-start-name
-						    " to "
-						    short-end-name)
-					    short-group-list)
+				(cons (cons
+                                       (concat short-start-name
+					       " to " short-end-name)
+                                       (sort (copy-sequence short-group-list)
+                                             (lambda (e1 e2)
+                                               (string< (car e1)
+                                                        (car e2)))))
 				      work-list))))
 		     ;; Reset short group list information every time.
 			(setq short-group-list nil
@@ -3289,7 +3247,7 @@ subdirectory chosen will be at INDENT level."
   ;; in case.
   (let ((speedbar-smart-directory-expand-flag nil))
     (speedbar-update-contents))
-  (speedbar-set-timer speedbar-navigating-speed)
+  (speedbar-set-timer dframe-update-speed)
   (setq speedbar-last-selected-file nil)
   (speedbar-stealthy-updates))
 
@@ -3352,7 +3310,7 @@ INDENT is the current indentation level and is unused."
   ;; update contents will change directory without
   ;; having to touch the attached frame.
   (speedbar-update-contents)
-  (speedbar-set-timer speedbar-navigating-speed))
+  (speedbar-set-timer dframe-update-speed))
 
 (defun speedbar-tag-file (text token indent)
   "The cursor is on a selected line.  Expand the tags in the specified file.
@@ -4010,11 +3968,6 @@ TEXT is the buffer's name, TOKEN and INDENT are unused."
   "Speedbar face for separator labels in a display."
   :group 'speedbar-faces)
 
-;; some edebug hooks
-(add-hook 'edebug-setup-hook
-	  (lambda ()
-	    (def-edebug-spec speedbar-with-writable def-body)))
-
 ;; Fix a font lock problem for some versions of Emacs
 (and (boundp 'font-lock-global-modes)
      font-lock-global-modes
@@ -4085,6 +4038,19 @@ See `speedbar-expand-image-button-alist' for details."
 						(length (car (car ia))))
 	    (insert (car (car ia)) "\t" (format "%s" (cdr (car ia))) "\n"))
 	  (setq ia (cdr ia)))))))
+
+
+;; Obsolete
+
+(defvar speedbar-version "1.0"
+  "The current version of speedbar.")
+(make-obsolete-variable 'speedbar-version 'emacs-version "28.1")
+
+(defvar speedbar-incompatible-version "0.14beta4"
+  "This version of speedbar is incompatible with this version.
+Due to massive API changes (removing the use of the word PATH)
+this version is not backward compatible to 0.14 or earlier.")
+(make-obsolete-variable 'speedbar-incompatible-version nil "28.1")
 
 
 (provide 'speedbar)

@@ -1,4 +1,4 @@
-;;; semantic/db-find.el --- Searching through semantic databases.
+;;; semantic/db-find.el --- Searching through semantic databases.  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2000-2021 Free Software Foundation, Inc.
 
@@ -209,14 +209,14 @@ This class will cache data derived during various searches.")
   )
 
 (cl-defmethod semanticdb-synchronize ((idx semanticdb-find-search-index)
-				   new-tags)
+				      _new-tags)
   "Synchronize the search index IDX with some NEW-TAGS."
   ;; Reset our parts.
   (semantic-reset idx)
   ;; Notify dependants by clearing their indices.
   (semanticdb-notify-references
    (oref idx table)
-   (lambda (tab me)
+   (lambda (tab _me)
      (semantic-reset (semanticdb-get-table-index tab))))
   )
 
@@ -230,7 +230,7 @@ This class will cache data derived during various searches.")
 	;; Notify dependants by clearing their indices.
 	(semanticdb-notify-references
 	 (oref idx table)
-	 (lambda (tab me)
+	 (lambda (tab _me)
 	   (semantic-reset (semanticdb-get-table-index tab))))
 	)
     ;; Else, not an include, by just a type.
@@ -240,7 +240,7 @@ This class will cache data derived during various searches.")
 	;; Notify dependants by clearing their indices.
 	(semanticdb-notify-references
 	 (oref idx table)
-	 (lambda (tab me)
+	 (lambda (tab _me)
 	   (let ((tab-idx (semanticdb-get-table-index tab)))
 	     ;; Not a full reset?
 	     (when (oref tab-idx type-cache)
@@ -426,17 +426,15 @@ Default action as described in `semanticdb-find-translate-path'."
       ;; searchable item, then instead do the regular thing without caching.
       (semanticdb-find-translate-path-includes--internal path))))
 
-(defvar semanticdb-find-lost-includes nil
+(defvar-local semanticdb-find-lost-includes nil
   "Include files that we cannot find associated with this buffer.")
-(make-variable-buffer-local 'semanticdb-find-lost-includes)
 
-(defvar semanticdb-find-scanned-include-tags nil
+(defvar-local semanticdb-find-scanned-include-tags nil
   "All include tags scanned, plus action taken on the tag.
 Each entry is an alist:
   (ACTION . TAG)
 where ACTION is one of `scanned', `duplicate', `lost'
 and TAG is a clone of the include tag that was found.")
-(make-variable-buffer-local 'semanticdb-find-scanned-include-tags)
 
 (defvar semanticdb-implied-include-tags nil
   "Include tags implied for all files of a given mode.
@@ -793,7 +791,8 @@ PREBUTTONTEXT is some text between prefix and the overlay button."
 	 (file (semantic-tag-file-name tag))
 	 (str1 (format "%S %s" mode name))
 	 (str2 (format " : %s" file))
-	 (tip nil))
+	 ;; (tip nil)
+	 )
     (insert prefix prebuttontext str1)
     (setq end (point))
     (insert str2)
@@ -809,7 +808,7 @@ PREBUTTONTEXT is some text between prefix and the overlay button."
     (put-text-property start end 'ddebug (cdr consdata))
     (put-text-property start end 'ddebug-indent(length prefix))
     (put-text-property start end 'ddebug-prefix prefix)
-    (put-text-property start end 'help-echo tip)
+    ;; (put-text-property start end 'help-echo tip)
     (put-text-property start end 'ddebug-function
 		       'data-debug-insert-tag-parts-from-point)
     (insert "\n")
@@ -1011,7 +1010,7 @@ is still made current."
 	  (when norm
 	    ;; The normalized tags can now be found based on that
 	    ;; tags table.
-	    (condition-case foo
+	    (condition-case nil
 		(progn
 		  (semanticdb-set-buffer (car norm))
 		  ;; Now reset ans

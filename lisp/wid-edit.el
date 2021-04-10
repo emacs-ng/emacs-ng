@@ -131,16 +131,21 @@ This exists as a variable so it can be set locally in certain buffers.")
 			(((class grayscale color)
 			  (background light))
 			 :background "gray85"
+                         ;; We use negative thickness of the horizontal box border line to
+                         ;; avoid making lines taller when fields become visible.
+                         :box (:line-width (1 . -1) :color "gray80")
 			 :extend t)
 			(((class grayscale color)
 			  (background dark))
 			 :background "dim gray"
+                         :box (:line-width (1 . -1) :color "gray46")
 			 :extend t)
 			(t
 			 :slant italic
 			 :extend t))
   "Face used for editable fields."
-  :group 'widget-faces)
+  :group 'widget-faces
+  :version "28.1")
 
 (defface widget-single-line-field '((((type tty))
 				     :background "green3"
@@ -1019,9 +1024,8 @@ button end points."
 Recommended as a parent keymap for modes using widgets.
 Note that such modes will need to require wid-edit.")
 
-(defvar widget-global-map global-map
+(defvar-local widget-global-map global-map
   "Keymap used for events a widget does not handle itself.")
-(make-variable-buffer-local 'widget-global-map)
 
 (defvar widget-field-keymap
   (let ((map (copy-keymap widget-keymap)))
@@ -1104,7 +1108,7 @@ If nothing was called, return non-nil."
 		  (unless (widget-apply button :mouse-down-action event)
 		    (let ((track-mouse t))
 		      (while (not (widget-button-release-event-p event))
-		        (setq event (read-event))
+                        (setq event (read--potential-mouse-event))
 		        (when (and mouse-1 (mouse-movement-p event))
 			  (push event unread-command-events)
 			  (setq event oevent)
@@ -1169,7 +1173,7 @@ If nothing was called, return non-nil."
 	    (when up
 	      ;; Don't execute up events twice.
 	      (while (not (widget-button-release-event-p event))
-		(setq event (read-event))))
+		(setq event (read--potential-mouse-event))))
 	    (when command
 	      (call-interactively command)))))
     (message "You clicked somewhere weird.")))
@@ -1326,13 +1330,11 @@ When not inside a field, signal an error."
 
 ;;; Setting up the buffer.
 
-(defvar widget-field-new nil
+(defvar-local widget-field-new nil
   "List of all newly created editable fields in the buffer.")
-(make-variable-buffer-local 'widget-field-new)
 
-(defvar widget-field-list nil
+(defvar-local widget-field-list nil
   "List of all editable fields in the buffer.")
-(make-variable-buffer-local 'widget-field-list)
 
 (defun widget-at (&optional pos)
   "The button or field at POS (default, point)."
@@ -1359,13 +1361,11 @@ When not inside a field, signal an error."
   (widget-clear-undo)
   (widget-add-change))
 
-(defvar widget-field-last nil)
-;; Last field containing point.
-(make-variable-buffer-local 'widget-field-last)
+(defvar-local widget-field-last nil
+  "Last field containing point.")
 
-(defvar widget-field-was nil)
-;; The widget data before the change.
-(make-variable-buffer-local 'widget-field-was)
+(defvar-local widget-field-was nil
+  "The widget data before the change.")
 
 (defun widget-field-at (pos)
   "Return the widget field at POS, or nil if none."
@@ -3486,14 +3486,16 @@ It reads a directory name from an editable text field."
   :help-echo "C-q: insert KEY, EVENT, or CODE; RET: enter value"
   :tag "Key sequence")
 
+;; FIXME: Consider combining this with help--read-key-sequence which
+;; can also read double and triple mouse events.
 (defun widget-key-sequence-read-event (ev)
   (interactive (list
 		(let ((inhibit-quit t) quit-flag)
-		  (read-event "Insert KEY, EVENT, or CODE: "))))
+		  (read-key "Insert KEY, EVENT, or CODE: " t))))
   (let ((ev2 (and (memq 'down (event-modifiers ev))
-		  (read-event)))
-	(tr (and (keymapp function-key-map)
-		 (lookup-key function-key-map (vector ev)))))
+		  (read-key nil t)))
+	(tr (and (keymapp local-function-key-map)
+		 (lookup-key local-function-key-map (vector ev)))))
     (when (and (integerp ev)
 	       (or (and (<= ?0 ev) (< ev (+ ?0 (min 10 read-quoted-char-radix))))
 		   (and (<= ?a (downcase ev))
@@ -4024,17 +4026,19 @@ is inline."
 
 ;;; The `color' Widget.
 
-;; Fixme: match
 (define-widget 'color 'editable-field
   "Choose a color name (with sample)."
   :format "%{%t%}: %v (%{sample%})\n"
   :value-create 'widget-color-value-create
-  :size 10
+  :size (1+ (apply #'max 13 ; Longest RGB hex string.
+                   (mapcar #'length (defined-colors))))
   :tag "Color"
   :value "black"
-  :completions (or facemenu-color-alist (defined-colors))
+  :completions (defined-colors)
   :sample-face-get 'widget-color-sample-face-get
   :notify 'widget-color-notify
+  :match #'widget-color-match
+  :validate #'widget-color-validate
   :action 'widget-color-action)
 
 (defun widget-color-value-create (widget)
@@ -4045,7 +4049,10 @@ is inline."
    :tag " Choose " :action 'widget-color--choose-action)
   (widget-insert " "))
 
+(declare-function list-colors-display "facemenu")
+
 (defun widget-color--choose-action (widget &optional _event)
+  (require 'facemenu)
   (list-colors-display
    nil nil
    (let ((cbuf (current-buffer))
@@ -4068,8 +4075,11 @@ is inline."
 	(list (cons 'foreground-color value))
       'default)))
 
+(declare-function facemenu-read-color "facemenu")
+
 (defun widget-color-action (widget &optional event)
   "Prompt for a color."
+  (require 'facemenu)
   (let* ((tag (widget-apply widget :menu-tag-get))
 	 (prompt (concat tag ": "))
 	 (answer (facemenu-read-color prompt)))
@@ -4083,6 +4093,19 @@ is inline."
   (overlay-put (widget-get widget :sample-overlay)
 	       'face (widget-apply widget :sample-face-get))
   (widget-default-notify widget child event))
+
+(defun widget-color-match (_widget value)
+  "Non-nil if VALUE is a defined color or a RGB hex string."
+  (and (stringp value)
+       (or (color-defined-p value)
+           (string-match-p "^#\\(?:[[:xdigit:]]\\{3\\}\\)\\{1,4\\}$" value))))
+
+(defun widget-color-validate (widget)
+  "Check that WIDGET's value is a valid color."
+  (let ((value (widget-value widget)))
+    (unless (widget-color-match widget value)
+      (widget-put widget :error (format "Invalid color: %S" value))
+      widget)))
 
 ;;; The Help Echo
 

@@ -1,6 +1,6 @@
 use webrender::api::ColorF;
 
-use lisp::remacs_sys::Emacs_Color;
+use emacs::bindings::Emacs_Color;
 
 mod colors {
     use lazy_static::lazy_static;

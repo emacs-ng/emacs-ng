@@ -1061,9 +1061,7 @@ This may be needed if the previous `:map' command terminated abnormally."
   (if (viper-window-display-p)
       (viper--advice-add
        'handle-switch-frame :before
-       (lambda (&rest _)
-	 "Remember the selected frame before the switch-frame event."
-	 (viper-remember-current-frame (selected-frame)))))
+       #'viper-remember-current-frame))
 
   ) ; end viper-non-hook-settings
 
@@ -1191,7 +1189,7 @@ These two lines must come in the order given."))
 
 ;; The default viper-toggle-key is \C-z; for the novice, it suspends or
 ;; iconifies Emacs
-(define-key viper-vi-intercept-map viper-toggle-key 'viper-toggle-key-action)
+(define-key viper-vi-intercept-map viper-toggle-key #'viper-toggle-key-action)
 (define-key
   viper-emacs-intercept-map viper-toggle-key #'viper-change-state-to-vi)
 
@@ -1255,10 +1253,5 @@ These two lines must come in the order given."))
 (run-hooks 'viper-load-hook) ; the last chance to change something
 
 (provide 'viper)
-
-
-;; Local Variables:
-;; eval: (put 'viper-deflocalvar 'lisp-indent-hook 'defun)
-;; End:
 
 ;;; viper.el ends here

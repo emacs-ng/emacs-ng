@@ -153,8 +153,8 @@ See `tramp-actions-before-shell' for more info.")
 ;;;###tramp-autoload
 (defun tramp-sudoedit-file-name-handler (operation &rest args)
   "Invoke the SUDOEDIT handler for OPERATION and ARGS.
-First arg specifies the OPERATION, second arg is a list of arguments to
-pass to the OPERATION."
+First arg specifies the OPERATION, second arg is a list of
+arguments to pass to the OPERATION."
   (if-let ((fn (assoc operation tramp-sudoedit-file-name-handler-alist)))
       (save-match-data (apply (cdr fn) args))
     (tramp-run-real-handler operation args)))
@@ -243,9 +243,7 @@ absolute file names."
 
       (with-parsed-tramp-file-name (if t1 filename newname) nil
 	(unless (file-exists-p filename)
-	  (tramp-error
-	   v tramp-file-missing
-	   "%s file" msg-operation "No such file or directory" filename))
+	  (tramp-compat-file-missing v filename))
 	(when (and (not ok-if-already-exists) (file-exists-p newname))
 	  (tramp-error v 'file-already-exists newname))
 	(when (and (file-directory-p newname)
@@ -366,6 +364,9 @@ the result will be a local, non-Tramp, file name."
 	(when (string-equal uname "~")
 	  (setq uname (concat uname user)))
 	(setq localname (concat uname fname))))
+     ;; Do not keep "/..".
+      (when (string-match-p "^/\\.\\.?$" localname)
+	(setq localname "/"))
     ;; Do normal `expand-file-name' (this does "~user/", "/./" and "/../").
     (tramp-make-tramp-file-name v (expand-file-name localname))))
 
@@ -790,22 +791,16 @@ in case of error, t otherwise."
   (tramp-sudoedit-maybe-open-connection vec)
   (with-current-buffer (tramp-get-connection-buffer vec)
     (erase-buffer)
-    (let* ((login (tramp-get-method-parameter vec 'tramp-sudo-login))
-	   (host (or (tramp-file-name-host vec) ""))
-	   (user (or (tramp-file-name-user vec) ""))
-	   (spec (format-spec-make ?h host ?u user))
-	   (args (append
-		  (tramp-compat-flatten-tree
-		   (mapcar
-		    (lambda (x)
-		      (setq x (mapcar (lambda (y) (format-spec y spec)) x))
-		      (unless (member "" x) x))
-		    login))
-		  (tramp-compat-flatten-tree (delq nil args))))
-	   (delete-exited-processes t)
+    (let* ((delete-exited-processes t)
 	   (process-connection-type tramp-process-connection-type)
 	   (p (apply #'start-process
-		     (tramp-get-connection-name vec) (current-buffer) args))
+		     (tramp-get-connection-name vec) (current-buffer)
+		     (append
+		      (tramp-expand-args
+		       vec 'tramp-sudo-login
+		       ?h (or (tramp-file-name-host vec) "")
+		       ?u (or (tramp-file-name-user vec) ""))
+		      (tramp-compat-flatten-tree args))))
 	   ;; We suppress the messages `Waiting for prompts from remote shell'.
 	   (tramp-verbose (if (= tramp-verbose 3) 2 tramp-verbose))
 	   ;; We do not want to save the password.

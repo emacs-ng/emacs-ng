@@ -78,6 +78,8 @@ extern void hash_native_abi (void);
 extern Lisp_Object load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u,
 				   bool loading_dump, bool late_load);
 
+extern void unload_comp_unit (struct Lisp_Native_Comp_Unit *);
+
 extern Lisp_Object native_function_doc (Lisp_Object function);
 
 extern void syms_of_comp (void);
@@ -94,6 +96,10 @@ extern void fixup_eln_load_path (Lisp_Object directory);
 static inline void
 maybe_defer_native_compilation (Lisp_Object function_name,
 				Lisp_Object definition)
+{}
+
+static inline
+void unload_comp_unit (struct Lisp_Native_Comp_Unit *cu)
 {}
 
 extern void syms_of_comp (void);

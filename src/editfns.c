@@ -52,6 +52,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "window.h"
 #include "blockinput.h"
 
+#ifdef WINDOWSNT
+# include "w32common.h"
+#endif
 static void update_buffer_properties (ptrdiff_t, ptrdiff_t);
 static Lisp_Object styled_format (ptrdiff_t, Lisp_Object *, bool);
 
@@ -121,12 +124,14 @@ init_editfns (void)
   else if (NILP (Vuser_full_name))
     Vuser_full_name = build_string ("unknown");
 
-#ifdef HAVE_SYS_UTSNAME_H
+#if defined HAVE_SYS_UTSNAME_H
   {
     struct utsname uts;
     uname (&uts);
     Voperating_system_release = build_string (uts.release);
   }
+#elif defined WINDOWSNT
+  Voperating_system_release = build_string (w32_version_string ());
 #else
   Voperating_system_release = Qnil;
 #endif
@@ -1692,7 +1697,11 @@ they can be in either order.  */)
 DEFUN ("buffer-string", Fbuffer_string, Sbuffer_string, 0, 0, 0,
        doc: /* Return the contents of the current buffer as a string.
 If narrowing is in effect, this function returns only the visible part
-of the buffer.  */)
+of the buffer.
+
+This function copies the text properties of that part of the buffer
+into the result string; if you don’t want the text properties,
+use `buffer-substring-no-properties' instead.  */)
   (void)
 {
   return make_buffer_string_both (BEGV, BEGV_BYTE, ZV, ZV_BYTE, 1);
@@ -2940,7 +2949,7 @@ usage: (propertize STRING &rest PROPERTIES)  */)
 
   /* Number of args must be odd.  */
   if ((nargs & 1) == 0)
-    error ("Wrong number of arguments");
+    xsignal2 (Qwrong_number_of_arguments, Qpropertize, make_fixnum (nargs));
 
   properties = string = Qnil;
 
@@ -3129,6 +3138,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
   char *format_start = SSDATA (args[0]);
   bool multibyte_format = STRING_MULTIBYTE (args[0]);
   ptrdiff_t formatlen = SBYTES (args[0]);
+  bool fmt_props = !!string_intervals (args[0]);
 
   /* Upper bound on number of format specs.  Each uses at least 2 chars.  */
   ptrdiff_t nspec_bound = SCHARS (args[0]) >> 1;
@@ -3401,13 +3411,20 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 	      convbytes += padding;
 	      if (convbytes <= buf + bufsize - p)
 		{
+		  /* If the format spec has properties, we should account
+		     for the padding on the left in the info[] array.  */
+		  if (fmt_props)
+		    spec->start = nchars;
 		  if (! minus_flag)
 		    {
 		      memset (p, ' ', padding);
 		      p += padding;
 		      nchars += padding;
 		    }
-		  spec->start = nchars;
+		  /* If the properties will come from the argument, we
+		     don't extend them to the left due to padding.  */
+		  if (!fmt_props)
+		    spec->start = nchars;
 
 		  if (p > buf
 		      && multibyte
@@ -4435,6 +4452,7 @@ syms_of_editfns (void)
 {
   DEFSYM (Qbuffer_access_fontify_functions, "buffer-access-fontify-functions");
   DEFSYM (Qwall, "wall");
+  DEFSYM (Qpropertize, "propertize");
 
   DEFVAR_LISP ("inhibit-field-text-motion", Vinhibit_field_text_motion,
 	       doc: /* Non-nil means text motion commands don't notice fields.  */);
@@ -4479,7 +4497,9 @@ functions if all the text being accessed has this property.  */);
 	       doc: /* The user's name, based upon the real uid only.  */);
 
   DEFVAR_LISP ("operating-system-release", Voperating_system_release,
-	       doc: /* The release of the operating system Emacs is running on.  */);
+	       doc: /* The kernel version of the operating system on which Emacs is running.
+The value is a string.  It can also be nil if Emacs doesn't
+know how to get the kernel version on the underlying OS.  */);
 
   DEFVAR_BOOL ("binary-as-unsigned",
 	       binary_as_unsigned,

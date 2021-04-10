@@ -1,4 +1,4 @@
-;;; refill.el --- `auto-fill' by refilling paragraphs on changes
+;;; refill.el --- `auto-fill' by refilling paragraphs on changes  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2000-2021 Free Software Foundation, Inc.
 
@@ -83,17 +83,11 @@
 
 ;;; Code:
 
-;; Unused.
-;;; (defgroup refill nil
-;;;   "Refilling paragraphs on changes."
-;;;   :group 'fill)
-
-(defvar refill-ignorable-overlay nil
+(defvar-local refill-ignorable-overlay nil
   "Portion of the most recently filled paragraph not needing filling.
 This is used to optimize refilling.")
-(make-variable-buffer-local 'refill-ignorable-overlay)
 
-(defun refill-adjust-ignorable-overlay (overlay afterp beg end &optional len)
+(defun refill-adjust-ignorable-overlay (overlay afterp beg _end &optional _len)
   "Adjust OVERLAY to not include the about-to-be-modified region."
   (when (not afterp)
     (save-excursion
@@ -149,7 +143,7 @@ This is used to optimize refilling.")
   "Like `fill-paragraph' but don't delete whitespace at paragraph end."
   (refill-fill-paragraph-at (point) arg))
 
-(defvar refill-doit nil
+(defvar-local refill-doit nil
   "Non-nil tells `refill-post-command-function' to do its processing.
 Set by `refill-after-change-function' in `after-change-functions' and
 unset by `refill-post-command-function' in `post-command-hook', and
@@ -157,9 +151,8 @@ sometimes `refill-pre-command-function' in `pre-command-hook'.  This
 ensures refilling is only done once per command that causes a change,
 regardless of the number of after-change calls from commands doing
 complex processing.")
-(make-variable-buffer-local 'refill-doit)
 
-(defun refill-after-change-function (beg end len)
+(defun refill-after-change-function (_beg end _len)
   "Function for `after-change-functions' which just sets `refill-doit'."
   (unless undo-in-progress
     (setq refill-doit end)))
@@ -234,9 +227,9 @@ For true \"word wrap\" behavior, use `visual-line-mode' instead."
     (kill-local-variable 'refill-saved-state))
   (if refill-mode
       (progn
-	(add-hook 'after-change-functions 'refill-after-change-function nil t)
-	(add-hook 'post-command-hook 'refill-post-command-function nil t)
-	(add-hook 'pre-command-hook 'refill-pre-command-function nil t)
+	(add-hook 'after-change-functions #'refill-after-change-function nil t)
+	(add-hook 'post-command-hook #'refill-post-command-function nil t)
+	(add-hook 'pre-command-hook #'refill-pre-command-function nil t)
         (setq-local refill-saved-state
                     (mapcar (lambda (s) (cons s (symbol-value s)))
                             '(fill-paragraph-function auto-fill-function)))
@@ -251,8 +244,8 @@ For true \"word wrap\" behavior, use `visual-line-mode' instead."
 	(overlay-put refill-ignorable-overlay 'insert-behind-hooks
 		     '(refill-adjust-ignorable-overlay))
 	(auto-fill-mode 0))
-    (remove-hook 'after-change-functions 'refill-after-change-function t)
-    (remove-hook 'post-command-hook 'refill-post-command-function t)
+    (remove-hook 'after-change-functions #'refill-after-change-function t)
+    (remove-hook 'post-command-hook #'refill-post-command-function t)
     (kill-local-variable 'backward-delete-char-untabify-method)))
 
 (provide 'refill)

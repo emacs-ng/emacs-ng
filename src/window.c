@@ -2260,7 +2260,7 @@ return value is a list of elements of the form (PARAMETER . VALUE).  */)
 Lisp_Object
 window_parameter (struct window *w, Lisp_Object parameter)
 {
-  Lisp_Object result = Fassq (parameter, w->window_parameters);
+  Lisp_Object result = assq_no_quit (parameter, w->window_parameters);
 
   return CDR_SAFE (result);
 }
@@ -2665,12 +2665,15 @@ static void
 decode_next_window_args (Lisp_Object *window, Lisp_Object *minibuf, Lisp_Object *all_frames)
 {
   struct window *w = decode_live_window (*window);
+  Lisp_Object miniwin = XFRAME (w->frame)->minibuffer_window;
 
   XSETWINDOW (*window, w);
   /* MINIBUF nil may or may not include minibuffers.  Decide if it
      does.  */
   if (NILP (*minibuf))
-    *minibuf = minibuf_level ? minibuf_window : Qlambda;
+    *minibuf = this_minibuffer_depth (XWINDOW (miniwin)->contents)
+      ? miniwin
+      : Qlambda;
   else if (!EQ (*minibuf, Qt))
     *minibuf = Qlambda;
 
@@ -6957,7 +6960,8 @@ the return value is nil.  Otherwise the value is t.  */)
 
 	  if (BUFFERP (w->contents)
 	      && !EQ (w->contents, p->buffer)
-	      && BUFFER_LIVE_P (XBUFFER (p->buffer)))
+	      && BUFFER_LIVE_P (XBUFFER (p->buffer))
+	      && (NILP (Fminibufferp (p->buffer, Qnil))))
 	    /* If a window we restore gets another buffer, record the
 	       window's old buffer.  */
 	    call1 (Qrecord_window_buffer, window);
@@ -8133,7 +8137,7 @@ init_window_once (void)
   minibuf_selected_window = Qnil;
   staticpro (&minibuf_selected_window);
 
-  pdumper_do_now_and_after_load (init_window_once_for_pdumper);
+  pdumper_do_now_and_after_late_load (init_window_once_for_pdumper);
 }
 
 static void init_window_once_for_pdumper (void)

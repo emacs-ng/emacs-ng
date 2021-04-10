@@ -51,10 +51,10 @@ Setting this option to nil might speed up the generation of summaries."
   :group 'rmail-summary)
 
 (defvar rmail-summary-font-lock-keywords
-  '(("^.....D.*" . font-lock-string-face)			; Deleted.
-    ("^.....-.*" . font-lock-type-face)				; Unread.
+  '(("^ *[0-9]+D.*" . font-lock-string-face)			; Deleted.
+    ("^ *[0-9]+-.*" . font-lock-type-face)			; Unread.
     ;; Neither of the below will be highlighted if either of the above are:
-    ("^.....[^D-] \\(......\\)" 1 font-lock-keyword-face)	; Date.
+    ("^ *[0-9]+[^D-] \\(......\\)" 1 font-lock-keyword-face)	; Date.
     ("{ \\([^\n}]+\\) }" 1 font-lock-comment-face))		; Labels.
   "Additional expressions to highlight in Rmail Summary mode.")
 
@@ -930,10 +930,11 @@ a negative argument means to delete and move backward."
   (unless (numberp count) (setq count 1))
   (let (del-msg
         (backward (< count 0)))
-    (while (and (/= count 0)
-		;; Don't waste time if we are at the beginning
-		;; and trying to go backward.
-		(not (and backward (bobp))))
+    (while (/= count 0)
+      ;; Don't waste time counting down without doing anything if we
+      ;; are at the beginning and trying to go backward.
+      (if (and backward (bobp))
+          (setq count -1))
       (rmail-summary-goto-msg)
       (with-current-buffer rmail-buffer
 	(setq del-msg rmail-current-message)
@@ -974,8 +975,9 @@ a negative argument means to delete and move forward."
 	  (delete-char 1)
 	  (insert "D"))
 	;; Discard cached new summary line.
-	(with-current-buffer rmail-buffer
-	  (aset rmail-summary-vector (1- n) nil))))
+        (when n
+	  (with-current-buffer rmail-buffer
+	    (aset rmail-summary-vector (1- n) nil)))))
   (beginning-of-line))
 
 (defun rmail-summary-update-line (n)

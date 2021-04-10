@@ -1,4 +1,4 @@
-;;; nnrss.el --- interfacing with RSS
+;;; nnrss.el --- interfacing with RSS  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
 
@@ -100,7 +100,6 @@ Note that you have to regenerate all the nnrss groups if you change
 the value.  Moreover, you should be patient even if you are made to
 read the same articles twice, that arises for the difference of the
 versions of xml.el."
-  :group 'nnrss
   :type 'coding-system)
 
 (defvar nnrss-compatible-encoding-alist
@@ -126,7 +125,7 @@ for decoding when the cdr that the data specify is not available.")
       (setq group (decode-coding-string group 'utf-8))
     group))
 
-(deffoo nnrss-retrieve-headers (articles &optional group server fetch-old)
+(deffoo nnrss-retrieve-headers (articles &optional group server _fetch-old)
   (setq group (nnrss-decode-group-name group))
   (nnrss-possibly-change-group group server)
   (let (e)
@@ -174,7 +173,7 @@ for decoding when the cdr that the data specify is not available.")
 		    "\n")))))
   'nov)
 
-(deffoo nnrss-request-group (group &optional server dont-check info)
+(deffoo nnrss-request-group (group &optional server dont-check _info)
   (setq group (nnrss-decode-group-name group))
   (nnheader-message 6 "nnrss: Requesting %s..." group)
   (nnrss-possibly-change-group group server)
@@ -189,7 +188,7 @@ for decoding when the cdr that the data specify is not available.")
 	 t))
     (nnheader-message 6 "nnrss: Requesting %s...done" group)))
 
-(deffoo nnrss-close-group (group &optional server)
+(deffoo nnrss-close-group (_group &optional _server)
   t)
 
 (deffoo nnrss-request-article (article &optional group server buffer)
@@ -201,7 +200,7 @@ for decoding when the cdr that the data specify is not available.")
   (nnrss-possibly-change-group group server)
   (let ((e (assq article nnrss-group-data))
 	(nntp-server-buffer (or buffer nntp-server-buffer))
-	post err)
+	) ;; err post
     (when e
       (with-current-buffer nntp-server-buffer
 	(erase-buffer)
@@ -223,7 +222,7 @@ for decoding when the cdr that the data specify is not available.")
 		   (cons '("Newsgroups" . utf-8)
 			 rfc2047-header-encoding-alist)
 		 rfc2047-header-encoding-alist))
-	      rfc2047-encode-encoded-words body fn)
+	      rfc2047-encode-encoded-words body) ;; fn
 	  (when (or text link enclosure comments)
 	    (insert "\n")
 	    (insert "<#multipart type=alternative>\n"
@@ -303,8 +302,7 @@ for decoding when the cdr that the data specify is not available.")
 	(when nnrss-content-function
 	  (funcall nnrss-content-function e group article))))
     (cond
-     (err
-      (nnheader-report 'nnrss err))
+     ;; (err (nnheader-report 'nnrss err))
      ((not e)
       (nnheader-report 'nnrss "no such id: %d" article))
      (t
@@ -312,7 +310,7 @@ for decoding when the cdr that the data specify is not available.")
       ;; we return the article number.
       (cons nnrss-group (car e))))))
 
-(deffoo nnrss-open-server (server &optional defs connectionless)
+(deffoo nnrss-open-server (server &optional defs _connectionless)
   (nnrss-read-server-data server)
   (nnoo-change-server 'nnrss server defs)
   t)
@@ -336,7 +334,7 @@ for decoding when the cdr that the data specify is not available.")
 	(nnrss-save-group-data group server))
     not-expirable))
 
-(deffoo nnrss-request-delete-group (group &optional force server)
+(deffoo nnrss-request-delete-group (group &optional _force server)
   (setq group (nnrss-decode-group-name group))
   (nnrss-possibly-change-group group server)
   (let (elem)
@@ -562,7 +560,7 @@ which RSS 2.0 allows."
 
 ;;; URL interface
 
-(defun nnrss-no-cache (url)
+(defun nnrss-no-cache (_url)
   "")
 
 (defun nnrss-insert (url)
@@ -614,7 +612,7 @@ which RSS 2.0 allows."
 
 (defun nnrss-check-group (group server)
   (let (file xml subject url extra changed author date feed-subject
-	     enclosure comments rss-ns rdf-ns content-ns dc-ns
+	     enclosure comments rss-ns  content-ns dc-ns ;; rdf-ns
 	     hash-index)
     (if (and nnrss-use-local
 	     (file-exists-p (setq file (expand-file-name
@@ -638,7 +636,7 @@ which RSS 2.0 allows."
 	(setq changed t))
       (setq xml (nnrss-fetch url)))
     (setq dc-ns (nnrss-get-namespace-prefix xml "http://purl.org/dc/elements/1.1/")
-	  rdf-ns (nnrss-get-namespace-prefix xml "http://www.w3.org/1999/02/22-rdf-syntax-ns#")
+	  ;; rdf-ns (nnrss-get-namespace-prefix xml "http://www.w3.org/1999/02/22-rdf-syntax-ns#")
 	  rss-ns (nnrss-get-namespace-prefix xml "http://purl.org/rss/1.0/")
 	  content-ns (nnrss-get-namespace-prefix xml "http://purl.org/rss/1.0/modules/content/"))
     (dolist (item (nreverse (nnrss-find-el (intern (concat rss-ns "item")) xml)))
@@ -798,7 +796,7 @@ It is useful when `(setq nnrss-use-local t)'."
 
 (defun nnrss-node-just-text (node)
   (if (and node (listp node))
-      (mapconcat 'nnrss-node-just-text (cddr node) " ")
+      (mapconcat #'nnrss-node-just-text (cddr node) " ")
     node))
 
 (defun nnrss-find-el (tag data &optional found-list)
@@ -932,60 +930,7 @@ Use Mark Pilgrim's `ultra-liberal rss locator'."
 		      (setq rss-link (nnrss-rss-title-description
 				      rss-ns href-data (car hrefs))))
 		  (setq hrefs (cdr hrefs)))))
-	    (if rss-link
-		rss-link
-	      ;;    4. check syndic8
-	      (nnrss-find-rss-via-syndic8 url))))))))
-
-(declare-function xml-rpc-method-call "ext:xml-rpc"
-		  (server-url method &rest params))
-
-(defun nnrss-find-rss-via-syndic8 (url)
-  "Query syndic8 for the rss feeds it has for URL."
-  (if (not (locate-library "xml-rpc"))
-      (progn
-	(message "XML-RPC is not available... not checking Syndic8.")
-	nil)
-    (require 'xml-rpc)
-    (let ((feedid (xml-rpc-method-call
-		   "http://www.syndic8.com/xmlrpc.php"
-		   'syndic8.FindSites
-		   url)))
-      (when feedid
-	(let* ((feedinfo (xml-rpc-method-call
-			  "http://www.syndic8.com/xmlrpc.php"
-			  'syndic8.GetFeedInfo
-			  feedid))
-	       (urllist
-		(delq nil
-		      (mapcar
-		       (lambda (listinfo)
-			 (if (string-equal
-			      (cdr (assoc "status" listinfo))
-			      "Syndicated")
-			     (cons
-			      (cdr (assoc "sitename" listinfo))
-			      (list
-			       (cons 'title
-				     (cdr (assoc
-					   "sitename" listinfo)))
-			       (cons 'href
-				     (cdr (assoc
-					   "dataurl" listinfo)))))))
-		       feedinfo))))
-	  (if (not (> (length urllist) 1))
-	      (cdar urllist)
-	    (let ((completion-ignore-case t)
-		  (selection
-		   (mapcar (lambda (listinfo)
-			     (cons (cdr (assoc "sitename" listinfo))
-				   (string-to-number
-				    (cdr (assoc "feedid" listinfo)))))
-			   feedinfo)))
-	      (cdr (assoc
-		    (gnus-completing-read
-		     "Multiple feeds found. Select one"
-		     selection t) urllist)))))))))
+            rss-link))))))
 
 (defun nnrss-rss-p (data)
   "Test if DATA is an RSS feed.
@@ -1023,6 +968,11 @@ prefix), return the prefix."
     (if (and ns (not (string= ns "")))
 	(concat ns ":")
       ns)))
+
+(defun nnrss-find-rss-via-syndic8 (_url)
+  "This function is obsolete and does nothing.  Syndic8 shut down in 2013."
+  (declare (obsolete nil "28.1"))
+  nil)
 
 (provide 'nnrss)
 

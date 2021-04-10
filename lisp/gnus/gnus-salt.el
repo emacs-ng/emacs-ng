@@ -1,4 +1,4 @@
-;;; gnus-salt.el --- alternate summary mode interfaces for Gnus
+;;; gnus-salt.el --- alternate summary mode interfaces for Gnus  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1996-1999, 2001-2021 Free Software Foundation, Inc.
 
@@ -103,7 +103,7 @@ It accepts the same format specs that `gnus-summary-line-format' does."
    ((not (derived-mode-p 'gnus-summary-mode)) (setq gnus-pick-mode nil))
    ((not gnus-pick-mode)
     ;; FIXME: a buffer-local minor mode removing globally from a hook??
-    (remove-hook 'gnus-message-setup-hook 'gnus-pick-setup-message))
+    (remove-hook 'gnus-message-setup-hook #'gnus-pick-setup-message))
    (t
     ;; Make sure that we don't select any articles upon group entry.
     (setq-local gnus-auto-select-first nil)
@@ -113,7 +113,7 @@ It accepts the same format specs that `gnus-summary-line-format' does."
     (gnus-update-format-specifications nil 'summary)
     (gnus-update-summary-mark-positions)
     ;; FIXME: a buffer-local minor mode adding globally to a hook??
-    (add-hook 'gnus-message-setup-hook 'gnus-pick-setup-message)
+    (add-hook 'gnus-message-setup-hook #'gnus-pick-setup-message)
     (setq-local gnus-summary-goto-unread 'never)
     ;; Set up the menu.
     (when (gnus-visual-p 'pick-menu 'menu)
@@ -137,6 +137,8 @@ It accepts the same format specs that `gnus-summary-line-format' does."
   "Start reading the picked articles.
 If given a prefix, mark all unpicked articles as read."
   (interactive "P")
+  (declare (completion (lambda (s b)
+			 (completion-minor-mode-active-p s b 'gnus-pick-mode))))
   (if gnus-newsgroup-processable
       (progn
 	(gnus-summary-limit-to-articles nil)
@@ -462,7 +464,7 @@ Two predefined functions are available:
 
 (defun gnus-tree-read-summary-keys (&optional arg)
   "Read a summary buffer key sequence and execute it."
-  (interactive "P")
+  (interactive "P" gnus-tree-mode)
   (unless gnus-tree-inhibit
     (let ((buf (current-buffer))
 	  (gnus-tree-inhibit t)
@@ -477,7 +479,7 @@ Two predefined functions are available:
 
 (defun gnus-tree-show-summary ()
   "Reconfigure windows to show summary buffer."
-  (interactive)
+  (interactive nil gnus-tree-mode)
   (if (not (gnus-buffer-live-p gnus-summary-buffer))
       (error "There is no summary buffer for this tree buffer")
     (gnus-configure-windows 'article)
@@ -485,7 +487,7 @@ Two predefined functions are available:
 
 (defun gnus-tree-select-article (article)
   "Select the article under point, if any."
-  (interactive (list (gnus-tree-article-number)))
+  (interactive (list (gnus-tree-article-number)) gnus-tree-mode)
   (let ((buf (current-buffer)))
     (when article
       (with-current-buffer gnus-summary-buffer
@@ -494,7 +496,7 @@ Two predefined functions are available:
 
 (defun gnus-tree-pick-article (e)
   "Select the article under the mouse pointer."
-  (interactive "e")
+  (interactive "e" gnus-tree-mode)
   (mouse-set-point e)
   (gnus-tree-select-article (gnus-tree-article-number)))
 
@@ -609,7 +611,7 @@ Two predefined functions are available:
 	 beg end)
     (add-text-properties
      (setq beg (point))
-     (setq end (progn (eval gnus-tree-line-format-spec) (point)))
+     (setq end (progn (eval gnus-tree-line-format-spec t) (point)))
      (list 'gnus-number gnus-tmp-number))
     (when (or t (gnus-visual-p 'tree-highlight 'highlight))
       (gnus-tree-highlight-node gnus-tmp-number beg end))))

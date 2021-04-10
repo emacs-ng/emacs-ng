@@ -25,6 +25,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'ediff-util)
 
 ;; Start compiler pacifier
 (defvar ediff-metajob-name)
@@ -80,13 +81,12 @@ that Ediff doesn't know about.")
 ;; so that `kill-all-local-variables' (called by major-mode setting
 ;; commands) won't destroy Ediff control variables.
 ;;
-;; Plagiarized from `emerge-defvar-local' for XEmacs.
+;; Plagiarized from `emerge-defvar-local'.
 (defmacro ediff-defvar-local (var value doc)
   "Defines VAR as a local variable."
   (declare (indent defun) (doc-string 3))
   `(progn
-     (defvar ,var ,value ,doc)
-     (make-variable-buffer-local ',var)
+     (defvar-local ,var ,value ,doc)
      (put ',var 'permanent-local t)))
 
 
@@ -798,13 +798,6 @@ to temp files in buffer jobs and when Ediff needs to find fine differences."
 	 (message "Pixmap not found for %S: %s" (face-name face) pixmap)
 	 (sit-for 1)))))
 
-(defun ediff-hide-face (face)
-  (if (and (ediff-has-face-support-p)
-	   (boundp 'add-to-list)
-	   (boundp 'facemenu-unlisted-faces))
-      (add-to-list 'facemenu-unlisted-faces face)))
-
-
 
 (defface ediff-current-diff-A
   '((((class color) (min-colors 88) (background light))
@@ -825,7 +818,6 @@ to temp files in buffer jobs and when Ediff needs to find fine differences."
 DO NOT CHANGE this variable.  Instead, use the customization
 widget to customize the actual face object `ediff-current-diff-A'
 this variable represents.")
-(ediff-hide-face ediff-current-diff-face-A)
 
 (defface ediff-current-diff-B
   '((((class color) (min-colors 88) (background light))
@@ -847,7 +839,6 @@ this variable represents.")
  this variable.  Instead, use the customization
 widget to customize the actual face `ediff-current-diff-B'
 this variable represents.")
-(ediff-hide-face ediff-current-diff-face-B)
 
 (defface ediff-current-diff-C
   '((((class color) (min-colors 88) (background light))
@@ -868,7 +859,6 @@ this variable represents.")
 DO NOT CHANGE this variable.  Instead, use the customization
 widget to customize the actual face object `ediff-current-diff-C'
 this variable represents.")
-(ediff-hide-face ediff-current-diff-face-C)
 
 (defface ediff-current-diff-Ancestor
   '((((class color) (min-colors 88) (background light))
@@ -891,7 +881,6 @@ this variable represents.")
 DO NOT CHANGE this variable.  Instead, use the customization
 widget to customize the actual face object `ediff-current-diff-Ancestor'
 this variable represents.")
-(ediff-hide-face ediff-current-diff-face-Ancestor)
 
 (defface ediff-fine-diff-A
   '((((class color) (min-colors 88) (background light))
@@ -912,7 +901,6 @@ this variable represents.")
 DO NOT CHANGE this variable.  Instead, use the customization
 widget to customize the actual face object `ediff-fine-diff-A'
 this variable represents.")
-(ediff-hide-face ediff-fine-diff-face-A)
 
 (defface ediff-fine-diff-B
   '((((class color) (min-colors 88) (background light))
@@ -933,7 +921,6 @@ this variable represents.")
 DO NOT CHANGE this variable.  Instead, use the customization
 widget to customize the actual face object `ediff-fine-diff-B'
 this variable represents.")
-(ediff-hide-face ediff-fine-diff-face-B)
 
 (defface ediff-fine-diff-C
   '((((class color) (min-colors 88) (background light))
@@ -957,7 +944,6 @@ this variable represents.")
 DO NOT CHANGE this variable.  Instead, use the customization
 widget to customize the actual face object `ediff-fine-diff-C'
 this variable represents.")
-(ediff-hide-face ediff-fine-diff-face-C)
 
 (defface ediff-fine-diff-Ancestor
   '((((class color) (min-colors 88) (background light))
@@ -982,7 +968,6 @@ ancestor buffer."
 DO NOT CHANGE this variable.  Instead, use the customization
 widget to customize the actual face object `ediff-fine-diff-Ancestor'
 this variable represents.")
-(ediff-hide-face ediff-fine-diff-face-Ancestor)
 
 ;; Some installs don't have stipple or Stipple. So, try them in turn.
 (defvar stipple-pixmap
@@ -996,8 +981,10 @@ this variable represents.")
 (defface ediff-even-diff-A
   `((((type pc))
      (:foreground "green3" :background "light grey" :extend t))
-    (((class color) (min-colors 88))
-     (:background "light grey" :extend t))
+    (((class color) (min-colors 88) (background light))
+     (:distant-foreground "Black" :background "light grey" :extend t))
+    (((class color) (min-colors 88) (background dark))
+     (:distant-foreground "White" :background "dark grey" :extend t))
     (((class color) (min-colors 16))
      (:foreground "Black" :background "light grey" :extend t))
     (((class color))
@@ -1013,11 +1000,12 @@ this variable represents.")
 DO NOT CHANGE this variable.  Instead, use the customization
 widget to customize the actual face object `ediff-even-diff-A'
 this variable represents.")
-(ediff-hide-face ediff-even-diff-face-A)
 
 (defface ediff-even-diff-B
-  `((((class color) (min-colors 88))
-     (:background "Grey" :extend t))
+  `((((class color) (min-colors 88) (background light))
+     (:distant-foreground "Black" :background "Grey" :extend t))
+    (((class color) (min-colors 88) (background dark))
+     (:distant-foreground "White" :background "dim grey" :extend t))
     (((class color) (min-colors 16))
      (:foreground "White" :background "Grey" :extend t))
     (((class color))
@@ -1032,13 +1020,14 @@ this variable represents.")
 DO NOT CHANGE this variable.  Instead, use the customization
 widget to customize the actual face object `ediff-even-diff-B'
 this variable represents.")
-(ediff-hide-face ediff-even-diff-face-B)
 
 (defface ediff-even-diff-C
   `((((type pc))
      (:foreground "yellow3" :background "light grey" :extend t))
-    (((class color) (min-colors 88))
-     (:background "light grey" :extend t))
+    (((class color) (min-colors 88) (background light))
+     (:distant-foreground "Black" :background "light grey" :extend t))
+    (((class color) (min-colors 88) (background dark))
+     (:distant-foreground "White" :background "dark grey" :extend t))
     (((class color) (min-colors 16))
      (:foreground "Black" :background "light grey" :extend t))
     (((class color))
@@ -1054,13 +1043,14 @@ this variable represents.")
 DO NOT CHANGE this variable.  Instead, use the customization
 widget to customize the actual face object `ediff-even-diff-C'
 this variable represents.")
-(ediff-hide-face ediff-even-diff-face-C)
 
 (defface ediff-even-diff-Ancestor
   `((((type pc))
      (:foreground "cyan3" :background "light grey" :extend t))
-    (((class color) (min-colors 88))
-     (:background "Grey" :extend t))
+    (((class color) (min-colors 88) (background light))
+     (:distant-foreground "Black" :background "Grey" :extend t))
+    (((class color) (min-colors 88) (background dark))
+     (:distant-foreground "White" :background "dim grey" :extend t))
     (((class color) (min-colors 16))
      (:foreground "White" :background "Grey" :extend t))
     (((class color))
@@ -1076,7 +1066,6 @@ this variable represents.")
 DO NOT CHANGE this variable.  Instead, use the customization
 widget to customize the actual face object `ediff-even-diff-Ancestor'
 this variable represents.")
-(ediff-hide-face ediff-even-diff-face-Ancestor)
 
 ;; Association between buffer types and even-diff-face symbols
 (defconst ediff-even-diff-face-alist
@@ -1088,8 +1077,10 @@ this variable represents.")
 (defface ediff-odd-diff-A
   '((((type pc))
      (:foreground "green3" :background "gray40" :extend t))
-    (((class color) (min-colors 88))
-     (:background "Grey" :extend t))
+    (((class color) (min-colors 88) (background light))
+     (:distant-foreground "Black" :background "Grey" :extend t))
+    (((class color) (min-colors 88) (background dark))
+     (:distant-foreground "White" :background "dim grey" :extend t))
     (((class color) (min-colors 16))
      (:foreground "White" :background "Grey" :extend t))
     (((class color))
@@ -1104,14 +1095,14 @@ this variable represents.")
 DO NOT CHANGE this variable.  Instead, use the customization
 widget to customize the actual face object `ediff-odd-diff-A'
 this variable represents.")
-(ediff-hide-face ediff-odd-diff-face-A)
-
 
 (defface ediff-odd-diff-B
   '((((type pc))
      (:foreground "White" :background "gray40" :extend t))
-    (((class color) (min-colors 88))
-     (:background "light grey" :extend t))
+    (((class color) (min-colors 88) (background light))
+     (:distant-foreground "Black" :background "light grey" :extend t))
+    (((class color) (min-colors 88) (background dark))
+     (:distant-foreground "White" :background "dark grey" :extend t))
     (((class color) (min-colors 16))
      (:foreground "Black" :background "light grey" :extend t))
     (((class color))
@@ -1126,13 +1117,14 @@ this variable represents.")
 DO NOT CHANGE this variable.  Instead, use the customization
 widget to customize the actual face object `ediff-odd-diff-B'
 this variable represents.")
-(ediff-hide-face ediff-odd-diff-face-B)
 
 (defface ediff-odd-diff-C
   '((((type pc))
      (:foreground "yellow3" :background "gray40" :extend t))
-    (((class color) (min-colors 88))
-     (:background "Grey" :extend t))
+    (((class color) (min-colors 88) (background light))
+     (:distant-foreground "Black" :background "Grey" :extend t))
+    (((class color) (min-colors 88) (background dark))
+     (:distant-foreground "White" :background "dim grey" :extend t))
     (((class color) (min-colors 16))
      (:foreground "White" :background "Grey" :extend t))
     (((class color))
@@ -1147,7 +1139,6 @@ this variable represents.")
 DO NOT CHANGE this variable.  Instead, use the customization
 widget to customize the actual face object `ediff-odd-diff-C'
 this variable represents.")
-(ediff-hide-face ediff-odd-diff-face-C)
 
 (defface ediff-odd-diff-Ancestor
   '((((class color) (min-colors 88))
@@ -1166,7 +1157,6 @@ this variable represents.")
 DO NOT CHANGE this variable.  Instead, use the customization
 widget to customize the actual face object `ediff-odd-diff-Ancestor'
 this variable represents.")
-(ediff-hide-face ediff-odd-diff-face-Ancestor)
 
 ;; Association between buffer types and odd-diff-face symbols
 (defconst ediff-odd-diff-face-alist
@@ -1192,8 +1182,8 @@ this variable represents.")
 (put ediff-fine-diff-face-Ancestor 'ediff-help-echo
      "A `refinement' of the current difference region")
 
-(add-hook 'ediff-quit-hook 'ediff-cleanup-mess)
-(add-hook 'ediff-suspend-hook 'ediff-default-suspend-function)
+(add-hook 'ediff-quit-hook #'ediff-cleanup-mess)
+(add-hook 'ediff-suspend-hook #'ediff-default-suspend-function)
 
 
 ;;; Overlays
@@ -1323,7 +1313,8 @@ This default should work without changes."
 (defun ediff-paint-background-regions-in-one-buffer (buf-type unhighlight)
   (let ((diff-vector
 	 (eval (ediff-get-symbol-from-alist
-		buf-type ediff-difference-vector-alist)))
+		buf-type ediff-difference-vector-alist)
+	       t))
 	overl diff-num)
     (mapcar (lambda (rec)
 	      (setq overl (ediff-get-diff-overlay-from-diff-record rec)
@@ -1572,12 +1563,16 @@ This default should work without changes."
   (ediff-file-attributes filename 5))
 
 
+;;; Obsolete
+
 (defun ediff-convert-standard-filename (fname)
   (declare (obsolete convert-standard-filename "28.1"))
   (convert-standard-filename fname))
 
 (define-obsolete-function-alias 'ediff-with-syntax-table
   #'with-syntax-table "27.1")
+
+(define-obsolete-function-alias 'ediff-hide-face #'ignore "28.1")
 
 (provide 'ediff-init)
 ;;; ediff-init.el ends here

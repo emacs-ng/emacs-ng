@@ -367,6 +367,7 @@ there (in decreasing order of priority)."
       ;; by the lines added in x-create-frame for the tab-bar and
       ;; switch `tab-bar-mode' off.
       (when (display-graphic-p)
+        (declare-function tab-bar-height "xdisp.c" (&optional frame pixelwise))
 	(let* ((init-lines
 		(assq 'tab-bar-lines initial-frame-alist))
 	       (other-lines
@@ -708,9 +709,11 @@ Return nil if we don't know how to interpret DISPLAY."
 (defun make-frame-on-display (display &optional parameters)
   "Make a frame on display DISPLAY.
 The optional argument PARAMETERS specifies additional frame parameters."
-  (interactive (list (completing-read
-                      (format "Make frame on display: ")
-                      (x-display-list))))
+  (interactive (if (fboundp 'x-display-list)
+                   (list (completing-read
+                          (format "Make frame on display: ")
+                          (x-display-list)))
+                 (user-error "This Emacs build does not support X displays")))
   (make-frame (cons (cons 'display display) parameters)))
 
 (defun make-frame-on-current-monitor (&optional parameters)
@@ -1370,6 +1373,7 @@ FRAME defaults to the selected frame."
 FRAME defaults to the selected frame."
   (setq frame (window-normalize-frame frame))
   (- (frame-native-height frame)
+     (if (fboundp 'tab-bar-height) (tab-bar-height frame t) 0)
      (* 2 (frame-internal-border-width frame))))
 
 (defun frame-outer-width (&optional frame)
@@ -2552,13 +2556,15 @@ Use 0 or negative value to blink forever."
 This starts the timer `blink-cursor-timer', which makes the cursor blink
 if appropriate.  It also arranges to cancel that timer when the next
 command starts, by installing a pre-command hook."
-  (when (null blink-cursor-timer)
+  (cond
+   ((null blink-cursor-mode) (blink-cursor-mode -1))
+   ((null blink-cursor-timer)
     ;; Set up the timer first, so that if this signals an error,
     ;; blink-cursor-end is not added to pre-command-hook.
     (setq blink-cursor-blinks-done 1)
     (blink-cursor--start-timer)
-    (add-hook 'pre-command-hook 'blink-cursor-end)
-    (internal-show-cursor nil nil)))
+    (add-hook 'pre-command-hook #'blink-cursor-end)
+    (internal-show-cursor nil nil))))
 
 (defun blink-cursor-timer-function ()
   "Timer function of timer `blink-cursor-timer'."
@@ -2572,14 +2578,14 @@ command starts, by installing a pre-command hook."
   (when (and (> blink-cursor-blinks 0)
              (<= (* 2 blink-cursor-blinks) blink-cursor-blinks-done))
     (blink-cursor-suspend)
-    (add-hook 'post-command-hook 'blink-cursor-check)))
+    (add-hook 'post-command-hook #'blink-cursor-check)))
 
 (defun blink-cursor-end ()
   "Stop cursor blinking.
 This is installed as a pre-command hook by `blink-cursor-start'.
 When run, it cancels the timer `blink-cursor-timer' and removes
 itself as a pre-command hook."
-  (remove-hook 'pre-command-hook 'blink-cursor-end)
+  (remove-hook 'pre-command-hook #'blink-cursor-end)
   (internal-show-cursor nil t)
   (when blink-cursor-timer
     (cancel-timer blink-cursor-timer)
@@ -2615,7 +2621,7 @@ stopped by `blink-cursor-suspend'.  Internally calls
 `blink-cursor--should-blink' and returns its result."
   (let ((should-blink (blink-cursor--should-blink)))
     (when (and should-blink (not blink-cursor-idle-timer))
-      (remove-hook 'post-command-hook 'blink-cursor-check)
+      (remove-hook 'post-command-hook #'blink-cursor-check)
       (blink-cursor--start-idle-timer))
     should-blink))
 
@@ -2637,18 +2643,18 @@ This command is effective only on graphical frames.  On text-only
 terminals, cursor blinking is controlled by the terminal."
   :init-value (not (or noninteractive
 		       no-blinking-cursor
-		       (eq system-type 'ms-dos)
-		       (not (display-blink-cursor-p))))
-  :initialize 'custom-initialize-delay
+		       (eq system-type 'ms-dos)))
+  :initialize #'custom-initialize-delay
   :group 'cursor
   :global t
   (blink-cursor-suspend)
   (remove-hook 'after-delete-frame-functions #'blink-cursor--rescan-frames)
   (remove-function after-focus-change-function #'blink-cursor--rescan-frames)
   (when blink-cursor-mode
-    (add-function :after after-focus-change-function #'blink-cursor--rescan-frames)
+    (add-function :after after-focus-change-function
+                  #'blink-cursor--rescan-frames)
     (add-hook 'after-delete-frame-functions #'blink-cursor--rescan-frames)
-    (blink-cursor--start-idle-timer)))
+    (blink-cursor-check)))
 
 
 ;; Frame maximization/fullscreen
@@ -2729,6 +2735,14 @@ See also `toggle-frame-maximized'."
 ;; Defined in dispnew.c.
 (make-obsolete-variable
  'window-system-version "it does not give useful information." "24.3")
+
+(defun set-frame-property--interactive (prompt number)
+  "Get a value for `set-frame-width' or `set-frame-height', prompting with PROMPT.
+Offer NUMBER as default value, if it is a natural number."
+  (if (and current-prefix-arg (not (consp current-prefix-arg)))
+      (list (selected-frame) (prefix-numeric-value current-prefix-arg))
+    (let ((default (and (natnump number) number)))
+      (list (selected-frame) (read-number prompt default)))))
 
 ;; Variables whose change of value should trigger redisplay of the
 ;; current buffer.

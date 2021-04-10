@@ -3,9 +3,8 @@ use glutin::{
     event::{ElementState, ModifiersState, MouseButton, VirtualKeyCode},
 };
 
-use lisp::{
-    lisp::LispObject,
-    remacs_sys::{
+use emacs::{
+    bindings::{
         event_kind, input_event, scroll_bar_part,
         EmacsModifiers::{
             ctrl_modifier, down_modifier, meta_modifier, shift_modifier, super_modifier,
@@ -13,6 +12,7 @@ use lisp::{
         },
         Qnil,
     },
+    lisp::LispObject,
 };
 
 pub struct InputProcessor {

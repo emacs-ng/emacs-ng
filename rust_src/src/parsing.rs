@@ -1,7 +1,7 @@
 use crate::ng_async::{to_owned_userdata, EmacsPipe, PipeDataOption, UserData};
-use lisp::lisp::LispObject;
-use lisp::list::{LispCons, LispConsCircularChecks, LispConsEndChecks};
-use lisp::multibyte::LispStringRef;
+use emacs::lisp::LispObject;
+use emacs::list::{LispCons, LispConsCircularChecks, LispConsEndChecks};
+use emacs::multibyte::LispStringRef;
 use lisp_macros::lisp_fn;
 use lsp_server::{Message, Request, RequestId, Response};
 use serde_json::{map::Map, Value};
@@ -11,14 +11,18 @@ use std::io::{BufReader, BufWriter, Result};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 
-use lisp::remacs_sys::{
+use emacs::bindings::{
     check_integer_range, hash_lookup, hash_put, intmax_t, make_fixed_natnum, make_float, make_int,
     make_string_from_utf8, make_uint, make_vector, Fcons, Fintern, Flist, Fmake_hash_table,
-    Fnreverse, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, QCarray_type, QCfalse,
-    QCfalse_object, QCjson_config, QCnull, QCnull_object, QCobject_type, QCsize, QCtest, Qalist,
-    Qarray, Qequal, Qhash_table, Qlist, Qnil, Qplist, Qplistp, Qt, Qunbound, AREF, ASET, ASIZE,
+    Fnreverse, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, AREF, ASET, ASIZE,
     FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, NILP, STRINGP, SYMBOLP,
     SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
+};
+
+use emacs::globals::{
+    QCarray_type, QCfalse, QCfalse_object, QCjson_config, QCnull, QCnull_object, QCobject_type,
+    QCsize, QCtest, Qalist, Qarray, Qequal, Qhash_table, Qlist, Qnil, Qplist, Qplistp, Qt,
+    Qunbound,
 };
 
 const ID: &str = "id";

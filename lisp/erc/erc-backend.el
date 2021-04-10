@@ -6,7 +6,7 @@
 ;; Author: Lawrence Mitchell <wence@gmx.li>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>
 ;; Created: 2004-05-7
-;; Keywords: IRC chat client internet
+;; Keywords: comm, IRC, chat, client, internet
 
 ;; This file is part of GNU Emacs.
 
@@ -120,38 +120,31 @@
 
 ;;; User data
 
-(defvar erc-server-current-nick nil
+(defvar-local erc-server-current-nick nil
   "Nickname on the current server.
 Use `erc-current-nick' to access this.")
-(make-variable-buffer-local 'erc-server-current-nick)
 
 ;;; Server attributes
 
-(defvar erc-server-process nil
+(defvar-local erc-server-process nil
   "The process object of the corresponding server connection.")
-(make-variable-buffer-local 'erc-server-process)
 
-(defvar erc-session-server nil
+(defvar-local erc-session-server nil
   "The server name used to connect to for this session.")
-(make-variable-buffer-local 'erc-session-server)
 
-(defvar erc-session-connector nil
+(defvar-local erc-session-connector nil
   "The function used to connect to this session (nil for the default).")
-(make-variable-buffer-local 'erc-session-connector)
 
-(defvar erc-session-port nil
+(defvar-local erc-session-port nil
   "The port used to connect to.")
-(make-variable-buffer-local 'erc-session-port)
 
-(defvar erc-server-announced-name nil
+(defvar-local erc-server-announced-name nil
   "The name the server announced to use.")
-(make-variable-buffer-local 'erc-server-announced-name)
 
-(defvar erc-server-version nil
+(defvar-local erc-server-version nil
   "The name and version of the server's ircd.")
-(make-variable-buffer-local 'erc-server-version)
 
-(defvar erc-server-parameters nil
+(defvar-local erc-server-parameters nil
   "Alist listing the supported server parameters.
 
 This is only set if the server sends 005 messages saying what is
@@ -177,86 +170,70 @@ RFC2812 - server supports RFC 2812 features
 SILENCE=10 - supports the SILENCE command, maximum allowed number of entries
 TOPICLEN=160 - maximum allowed topic length
 WALLCHOPS - supports sending messages to all operators in a channel")
-(make-variable-buffer-local 'erc-server-parameters)
 
 ;;; Server and connection state
 
 (defvar erc-server-ping-timer-alist nil
   "Mapping of server buffers to their specific ping timer.")
 
-(defvar erc-server-connected nil
+(defvar-local erc-server-connected nil
   "Non-nil if the current buffer has been used by ERC to establish
 an IRC connection.
 
 If you wish to determine whether an IRC connection is currently
 active, use the `erc-server-process-alive' function instead.")
-(make-variable-buffer-local 'erc-server-connected)
 
-(defvar erc-server-reconnect-count 0
+(defvar-local erc-server-reconnect-count 0
   "Number of times we have failed to reconnect to the current server.")
-(make-variable-buffer-local 'erc-server-reconnect-count)
 
-(defvar erc-server-quitting nil
+(defvar-local erc-server-quitting nil
   "Non-nil if the user requests a quit.")
-(make-variable-buffer-local 'erc-server-quitting)
 
-(defvar erc-server-reconnecting nil
+(defvar-local erc-server-reconnecting nil
   "Non-nil if the user requests an explicit reconnect, and the
 current IRC process is still alive.")
-(make-variable-buffer-local 'erc-server-reconnecting)
 
-(defvar erc-server-timed-out nil
+(defvar-local erc-server-timed-out nil
   "Non-nil if the IRC server failed to respond to a ping.")
-(make-variable-buffer-local 'erc-server-timed-out)
 
-(defvar erc-server-banned nil
+(defvar-local erc-server-banned nil
   "Non-nil if the user is denied access because of a server ban.")
-(make-variable-buffer-local 'erc-server-banned)
 
-(defvar erc-server-error-occurred nil
+(defvar-local erc-server-error-occurred nil
   "Non-nil if the user triggers some server error.")
-(make-variable-buffer-local 'erc-server-error-occurred)
 
-(defvar erc-server-lines-sent nil
+(defvar-local erc-server-lines-sent nil
   "Line counter.")
-(make-variable-buffer-local 'erc-server-lines-sent)
 
-(defvar erc-server-last-peers '(nil . nil)
+(defvar-local erc-server-last-peers '(nil . nil)
   "Last peers used, both sender and receiver.
 Those are used for /MSG destination shortcuts.")
-(make-variable-buffer-local 'erc-server-last-peers)
 
-(defvar erc-server-last-sent-time nil
+(defvar-local erc-server-last-sent-time nil
   "Time the message was sent.
 This is useful for flood protection.")
-(make-variable-buffer-local 'erc-server-last-sent-time)
 
-(defvar erc-server-last-ping-time nil
+(defvar-local erc-server-last-ping-time nil
   "Time the last ping was sent.
 This is useful for flood protection.")
-(make-variable-buffer-local 'erc-server-last-ping-time)
 
-(defvar erc-server-last-received-time nil
+(defvar-local erc-server-last-received-time nil
   "Time the last message was received from the server.
 This is useful for detecting hung connections.")
-(make-variable-buffer-local 'erc-server-last-received-time)
 
-(defvar erc-server-lag nil
+(defvar-local erc-server-lag nil
   "Calculated server lag time in seconds.
 This variable is only set in a server buffer.")
-(make-variable-buffer-local 'erc-server-lag)
 
-(defvar erc-server-filter-data nil
+(defvar-local erc-server-filter-data nil
   "The data that arrived from the server
 but has not been processed yet.")
-(make-variable-buffer-local 'erc-server-filter-data)
 
-(defvar erc-server-duplicates (make-hash-table :test 'equal)
+(defvar-local erc-server-duplicates (make-hash-table :test 'equal)
   "Internal variable used to track duplicate messages.")
-(make-variable-buffer-local 'erc-server-duplicates)
 
 ;; From Circe
-(defvar erc-server-processing-p nil
+(defvar-local erc-server-processing-p nil
   "Non-nil when we're currently processing a message.
 
 When ERC receives a private message, it sets up a new buffer for
@@ -267,23 +244,19 @@ network exceptions.  So, if someone sends you two messages
 quickly after each other, ispell is started for the first, but
 might take long enough for the second message to be processed
 first.")
-(make-variable-buffer-local 'erc-server-processing-p)
 
-(defvar erc-server-flood-last-message 0
+(defvar-local erc-server-flood-last-message 0
   "When we sent the last message.
 See `erc-server-flood-margin' for an explanation of the flood
 protection algorithm.")
-(make-variable-buffer-local 'erc-server-flood-last-message)
 
-(defvar erc-server-flood-queue nil
+(defvar-local erc-server-flood-queue nil
   "The queue of messages waiting to be sent to the server.
 See `erc-server-flood-margin' for an explanation of the flood
 protection algorithm.")
-(make-variable-buffer-local 'erc-server-flood-queue)
 
-(defvar erc-server-flood-timer nil
+(defvar-local erc-server-flood-timer nil
   "The timer to resume sending.")
-(make-variable-buffer-local 'erc-server-flood-timer)
 
 ;;; IRC protocol and misc options
 
@@ -295,7 +268,6 @@ protection algorithm.")
   "Non-nil means that ERC will attempt to reestablish broken connections.
 
 Reconnection will happen automatically for any unexpected disconnection."
-  :group 'erc-server
   :type 'boolean)
 
 (defcustom erc-server-reconnect-attempts 2
@@ -303,7 +275,6 @@ Reconnection will happen automatically for any unexpected disconnection."
 broken connection, or t to always attempt to reconnect.
 
 This only has an effect if `erc-server-auto-reconnect' is non-nil."
-  :group 'erc-server
   :type '(choice (const :tag "Always reconnect" t)
                  integer))
 
@@ -312,7 +283,6 @@ This only has an effect if `erc-server-auto-reconnect' is non-nil."
 successive reconnect attempts.
 
 If a key is pressed while ERC is waiting, it will stop waiting."
-  :group 'erc-server
   :type 'number)
 
 (defcustom erc-split-line-length 440
@@ -326,14 +296,12 @@ And a typical message looks like this:
 
 You can limit here the maximum length of the \"Hello!\" part.
 Good luck."
-  :type 'integer
-  :group 'erc-server)
+  :type 'integer)
 
 (defcustom erc-coding-system-precedence '(utf-8 undecided)
   "List of coding systems to be preferred when receiving a string from the server.
 This will only be consulted if the coding system in
 `erc-server-coding-system' is `undecided'."
-  :group 'erc-server
   :version "24.1"
   :type '(repeat coding-system))
 
@@ -358,7 +326,6 @@ If you need to send non-ASCII text to people not using a client that
 does decoding on its own, you must tell ERC what encoding to use.
 Emacs cannot guess it, since it does not know what the people on the
 other end of the line are using."
-  :group 'erc-server
   :type '(choice (const :tag "None" nil)
                  coding-system
                  (cons (coding-system :tag "encoding" :value utf-8)
@@ -373,37 +340,32 @@ current target as returned by `erc-default-target'.
 Example: If you know that the channel #linux-ru uses the coding-system
 `cyrillic-koi8', then add (\"#linux-ru\" . cyrillic-koi8) to the
 alist."
-  :group 'erc-server
   :type '(repeat (cons (regexp :tag "Target")
                        coding-system)))
 
 (defcustom erc-server-connect-function #'erc-open-network-stream
   "Function used to initiate a connection.
 It should take same arguments as `open-network-stream' does."
-  :group 'erc-server
   :type 'function)
 
 (defcustom erc-server-prevent-duplicates '("301")
   "Either nil or a list of strings.
 Each string is a IRC message type, like PRIVMSG or NOTICE.
 All Message types in that list of subjected to duplicate prevention."
-  :type '(choice (const nil) (list string))
-  :group 'erc-server)
+  :type '(choice (const nil) (list string)))
 
 (defcustom erc-server-duplicate-timeout 60
   "The time allowed in seconds between duplicate messages.
 
 If two identical messages arrive within this value of one another, the second
 isn't displayed."
-  :type 'integer
-  :group 'erc-server)
+  :type 'integer)
 
 (defcustom erc-server-timestamp-format "%Y-%m-%d %T"
   "Timestamp format used with server response messages.
 This string is processed using `format-time-string'."
   :version "24.3"
-  :type 'string
-  :group 'erc-server)
+  :type 'string)
 
 ;;; Flood-related
 
@@ -422,22 +384,19 @@ detailed in RFC 2813, section 5.8 \"Flood control of clients\".
     time, send a message, and increase
     `erc-server-flood-last-message' by
     `erc-server-flood-penalty' for each message."
-  :type 'integer
-  :group 'erc-server)
+  :type 'integer)
 
 (defcustom erc-server-flood-penalty 3
   "How much we penalize a message.
 See `erc-server-flood-margin' for an explanation of the flood
 protection algorithm."
-  :type 'integer
-  :group 'erc-server)
+  :type 'integer)
 
 ;; Ping handling
 
 (defcustom erc-server-send-ping-interval 30
   "Interval of sending pings to the server, in seconds.
 If this is set to nil, pinging the server is disabled."
-  :group 'erc-server
   :type '(choice (const :tag "Disabled" nil)
                  (integer :tag "Seconds")))
 
@@ -449,13 +408,11 @@ This must be greater than or equal to the value for
 `erc-server-send-ping-interval'.
 
 If this is set to nil, never try to reconnect."
-  :group 'erc-server
   :type '(choice (const :tag "Disabled" nil)
                  (integer :tag "Seconds")))
 
-(defvar erc-server-ping-handler nil
+(defvar-local erc-server-ping-handler nil
   "This variable holds the periodic ping timer.")
-(make-variable-buffer-local 'erc-server-ping-handler)
 
 ;;;; Helper functions
 
@@ -1107,14 +1064,9 @@ Finds hooks by looking in the `erc-server-responses' hash table."
     (erc-display-message parsed 'notice proc line)))
 
 
-(put 'define-erc-response-handler 'edebug-form-spec
-     '(&define :name erc-response-handler
-               (name &rest name)
-               &optional sexp sexp def-body))
-
 (cl-defmacro define-erc-response-handler ((name &rest aliases)
-                                        &optional extra-fn-doc extra-var-doc
-                                        &rest fn-body)
+                                          &optional extra-fn-doc extra-var-doc
+                                          &rest fn-body)
   "Define an ERC handler hook/function pair.
 NAME is the response name as sent by the server (see the IRC RFC for
 meanings).
@@ -1194,6 +1146,9 @@ Would expand to:
   See also `erc-server-311'.\"))
 
 \(fn (NAME &rest ALIASES) &optional EXTRA-FN-DOC EXTRA-VAR-DOC &rest FN-BODY)"
+  (declare (debug (&define [&name "erc-response-handler@"
+                                  (symbolp &rest symbolp)]
+                           &optional sexp sexp def-body)))
   (if (numberp name) (setq name (intern (format "%03i" name))))
   (setq aliases (mapcar (lambda (a)
                           (if (numberp a)
@@ -1256,8 +1211,8 @@ add things to `%s' instead."
        ,@(cl-loop for fn in fn-alternates
                   for var in var-alternates
                   for a in aliases
-                  nconc (list `(defalias ',fn ',fn-name)
-                              `(defvar ,var ',fn-name ,(format hook-doc a))
+                  nconc (list `(defalias ',fn #',fn-name)
+                              `(defvar ,var #',fn-name ,(format hook-doc a))
                               `(put ',var 'definition-name ',hook-name))))))
 
 (define-erc-response-handler (ERROR)

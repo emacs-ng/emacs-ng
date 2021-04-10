@@ -26,9 +26,7 @@
 ;;; Commentary:
 
 ;; This file defines a shell-in-a-buffer package (shell mode) built on
-;; top of comint mode.  This is actually cmushell with things renamed
-;; to replace its counterpart in Emacs 18.  cmushell is more
-;; featureful, robust, and uniform than the Emacs 18 version.
+;; top of comint mode.
 
 ;; Since this mode is built on top of the general command-interpreter-in-
 ;; a-buffer mode (comint mode), it shares a common base functionality,
@@ -111,11 +109,6 @@
 (defgroup shell-directories nil
   "Directory support in shell mode."
   :group 'shell)
-
-;; Unused.
-;;; (defgroup shell-faces nil
-;;;   "Faces in shell buffers."
-;;;   :group 'shell)
 
 ;;;###autoload
 (defcustom shell-dumb-shell-regexp (purecopy "cmd\\(proxy\\)?\\.exe")
@@ -465,7 +458,7 @@ Shell buffers.  It implements `shell-completion-execonly' for
   (if (pcomplete-match "/")
       (pcomplete-here (pcomplete-entries nil
 					 (if shell-completion-execonly
-					     'file-executable-p)))
+					     #'file-executable-p)))
     (pcomplete-here
      (nth 2 (shell--command-completion-data)))))
 
@@ -558,8 +551,7 @@ Variables `comint-output-filter-functions', a hook, and
 `comint-scroll-to-bottom-on-input' and `comint-scroll-to-bottom-on-output'
 control whether input and output cause the window to scroll to the end of the
 buffer."
-  (when (called-interactively-p 'any)
-    (error "Can't be called interactively; did you mean `shell-script-mode' instead?"))
+  :interactive nil
   (setq comint-prompt-regexp shell-prompt-pattern)
   (shell-completion-vars)
   (setq-local paragraph-separate "\\'")
@@ -603,6 +595,7 @@ buffer."
 	     (or hfile
 		 (cond ((string-equal shell "bash") "~/.bash_history")
 		       ((string-equal shell "ksh") "~/.sh_history")
+		       ((string-equal shell "zsh") "~/.zsh_history")
 		       (t "~/.history")))))
       (if (or (equal comint-input-ring-file-name "")
 	      (equal (file-truename comint-input-ring-file-name)
@@ -745,7 +738,7 @@ Make the shell buffer the current buffer, and return it.
                  (current-buffer)))
   ;; The buffer's window must be correctly set when we call comint
   ;; (so that comint sets the COLUMNS env var properly).
-  (pop-to-buffer buffer)
+  (pop-to-buffer-same-window buffer)
 
   (with-connection-local-variables
    ;; On remote hosts, the local `shell-file-name' might be useless.
@@ -784,8 +777,7 @@ Make the shell buffer the current buffer, and return it.
 ;; that tracks cd, pushd, and popd commands issued to the shell, and
 ;; changes the current directory of the shell buffer accordingly.
 ;;
-;; This is basically a fragile hack, although it's more accurate than
-;; the version in Emacs 18's shell.el. It has the following failings:
+;; This is basically a fragile hack.  It has the following failings:
 ;; 1. It doesn't know about the cdpath shell variable.
 ;; 2. It cannot infallibly deal with command sequences, though it does well
 ;;    with these and with ignoring commands forked in another shell with ()s.

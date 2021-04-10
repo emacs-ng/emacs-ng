@@ -1072,8 +1072,13 @@ To kill an entire subdirectory \(without killing its line in the
 parent directory), go to its directory header line and use this
 command with a prefix argument (the value does not matter).
 
-To undo the killing, the undo command can be used as normally."
-  ;; Returns count of killed lines.  FMT="" suppresses message.
+To undo the killing, the undo command can be used as normally.
+
+This function returns the number of killed lines.
+
+FMT is a format string used for messaging the user about the
+killed lines, and defaults to \"Killed %d line%s.\" if not
+present.  A FMT of \"\" will suppress the messaging."
   (interactive "P")
   (if arg
       (if (dired-get-subdir)
@@ -1168,7 +1173,10 @@ ARGS are command switches passed to PROGRAM.")
     ("\\.tar\\.bz2\\'" . "tar -cf - %i | bzip2 -c9 > %o")
     ("\\.tar\\.xz\\'" . "tar -cf - %i | xz -c9 > %o")
     ("\\.tar\\.zst\\'" . "tar -cf - %i | zstd -19 -o %o")
-    ("\\.zip\\'" . "zip %o -r --filesync %i"))
+    ("\\.tar\\.lz\\'" . "tar -cf - %i | lzip -c9 > %o")
+    ("\\.tar\\.lzo\\'" . "tar -cf - %i | lzop -c9 > %o")
+    ("\\.zip\\'" . "zip %o -r --filesync %i")
+    ("\\.pax\\'" . "pax -wf %o %i"))
   "Control the compression shell command for `dired-do-compress-to'.
 
 Each element is (REGEXP . CMD), where REGEXP is the name of the
@@ -1176,7 +1184,7 @@ archive to which you want to compress, and CMD is the
 corresponding command.
 
 Within CMD, %i denotes the input file(s), and %o denotes the
-output file. %i path(s) are relative, while %o is absolute.")
+output file.  %i path(s) are relative, while %o is absolute.")
 
 ;;;###autoload
 (defun dired-do-compress-to ()
@@ -3145,7 +3153,7 @@ REGEXP should use constructs supported by your local `grep' command."
   (with-current-buffer
       (let ((xref-show-xrefs-function
              ;; Some future-proofing (bug#44905).
-             (eval (car (get 'xref-show-xrefs-function 'standard-value)))))
+             (custom--standard-value 'xref-show-xrefs-function)))
         (dired-do-find-regexp from))
     (xref-query-replace-in-results from to)))
 

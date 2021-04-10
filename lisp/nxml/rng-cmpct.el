@@ -26,7 +26,7 @@
 ;; specified in rng-pttrn.el.
 ;;
 ;; RELAX NG Compact Syntax is specified by
-;;    http://relaxng.org/compact.html
+;;    https://relaxng.org/compact.html
 ;;
 ;; This file uses the prefix "rng-c-".
 
@@ -123,8 +123,7 @@ Return a pattern."
   (set-buffer-multibyte t)
   (set-syntax-table rng-c-syntax-table))
 
-(defvar rng-c-current-token nil)
-(make-variable-buffer-local 'rng-c-current-token)
+(defvar-local rng-c-current-token nil)
 
 (defun rng-c-advance ()
   (cond ((looking-at rng-c-token-re)
@@ -334,11 +333,9 @@ OVERRIDE is either nil, require or t."
 
 ;;; Parsing
 
-(defvar rng-c-escape-positions nil)
-(make-variable-buffer-local 'rng-c-escape-positions)
+(defvar-local rng-c-escape-positions nil)
 
-(defvar rng-c-file-name nil)
-(make-variable-buffer-local 'rng-c-file-name)
+(defvar-local rng-c-file-name nil)
 
 (defvar rng-c-file-index nil)
 

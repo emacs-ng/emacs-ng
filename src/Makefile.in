@@ -29,6 +29,9 @@ SHELL = @SHELL@
 # We use $(srcdir) explicitly in dependencies so as not to depend on VPATH.
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
+top_builddir = @top_builddir@
+-include ${top_builddir}/src/verbose.mk
+
 # MinGW CPPFLAGS may use this.
 abs_top_srcdir=@abs_top_srcdir@
 VPATH = $(srcdir)
@@ -455,7 +458,7 @@ base_obj = dispnew.o frame.o scroll.o xdisp.o menu.o $(XMENU_OBJ) window.o \
 	thread.o systhread.o \
 	$(if $(HYBRID_MALLOC),sheap.o) \
 	$(MSDOS_OBJ) $(MSDOS_X_OBJ) $(NS_OBJ) $(CYGWIN_OBJ) $(FONT_OBJ) \
-	$(W32_OBJ) $(WINDOW_SYSTEM_OBJ) $(XGSELOBJ) $(JSON_OBJ) $(GMP_OBJ)
+	$(W32_OBJ) $(WINDOW_SYSTEM_OBJ) $(XGSELOBJ) $(JSON_OBJ)
 obj = $(base_obj) $(NS_OBJC_OBJ)
 
 ## Object files used on some machine or other.
@@ -652,11 +655,6 @@ buildobj.h: Makefile
 
 GLOBAL_SOURCES = $(base_obj:.o=.c) $(NS_OBJC_OBJ:.o=.m) $(rust_srcdir)/src/*.rs
 
-AM_V_GLOBALS = $(am__v_GLOBALS_@AM_V@)
-am__v_GLOBALS_ = $(am__v_GLOBALS_@AM_DEFAULT_V@)
-am__v_GLOBALS_0 = @echo "  GEN     " globals.h;
-am__v_GLOBALS_1 =
-
 gl-stamp: $(libsrc)/make-docfile$(EXEEXT) $(GLOBAL_SOURCES)
 	$(AM_V_GLOBALS)$(libsrc)/make-docfile -d $(srcdir) -g $(obj) $(rust_srcdir)/src/*.rs > globals.tmp
 	$(AM_V_at)$(top_srcdir)/build-aux/move-if-change globals.tmp globals.h
@@ -674,9 +672,9 @@ $(RUSTFLAGS_FILE) : FORCE
 
 HEADERS=$(wildcard $(srcdir)/*.h)
 
-DEFINITIONS_FILE=$(rust_srcdir)/generated/definitions.rs
-BINDINGS_FILE=$(rust_srcdir)/generated/bindings.rs
-GLOBALS_FILE=$(rust_srcdir)/generated/globals.rs
+DEFINITIONS_FILE=$(rust_srcdir)/crates/emacs/src/definitions.rs
+BINDINGS_FILE=$(rust_srcdir)/crates/emacs/src/bindings.rs
+GLOBALS_FILE=$(rust_srcdir)/crates/emacs/src/globals.rs
 # macuvs.h has a rule to regenerate it which depends on emacs being
 # built. That creates a circular dependency which we can break by not
 # depending on it as this is not a file that changes under normal
@@ -692,7 +690,7 @@ $(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE): $(filter-out ./macuvs.h,$(
 
 cargo_manifest=$(rust_srcdir)/Cargo.toml
 LIBEMACSNG_ARCHIVE=$(rust_srcdir)/target/$(CARGO_BUILD_DIR)/$(EMACSNGLIB_NAME)
-$(LIBEMACSNG_ARCHIVE): globals.h $(rust_srcdir)/src/** $(rust_srcdir)/crates/lisp/src/** $(rust_srcdir)/crates/lisp_util/** $(rust_srcdir)/crates/lisp_macros/** $(rust_srcdir)/Cargo.* $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT) $(DEFINITIONS_FILE) $(GLOBALS_FILE) $(BINDINGS_FILE)
+$(LIBEMACSNG_ARCHIVE): globals.h $(rust_srcdir)/src/** $(rust_srcdir)/crates/emacs/src/** $(rust_srcdir)/crates/lisp_util/** $(rust_srcdir)/crates/lisp_macros/** $(rust_srcdir)/Cargo.* $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT) $(DEFINITIONS_FILE) $(GLOBALS_FILE) $(BINDINGS_FILE)
 	touch $@
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
@@ -814,7 +812,7 @@ bootstrap-clean: clean
 	fi
 
 distclean: bootstrap-clean
-	rm -f Makefile lisp.mk
+	rm -f Makefile lisp.mk verbose.mk
 	rm -fr $(DEPDIR)
 
 maintainer-clean: distclean

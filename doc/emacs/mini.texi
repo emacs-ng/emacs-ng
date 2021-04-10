@@ -76,9 +76,15 @@ default, the active minibuffer moves to this new frame.  If you set
 the user option @code{minibuffer-follows-selected-frame} to
 @code{nil}, then the minibuffer stays in the frame where you opened
 it, and you must switch back to that frame in order to complete (or
-abort) the current command.  Note that the effect of the command, when
-you finally finish using the minibuffer, always takes place in the
-frame where you first opened it.
+abort) the current command.  If you set that option to a value which
+is neither @code{nil} nor @code{t}, the minibuffer moves frame only
+after a recursive minibuffer has been opened in the current command
+(@pxref{Recursive Mini,,, elisp}).  This option is mainly to retain
+(approximately) the behavior prior to Emacs 28.1.  Note that the
+effect of the command, when you finally finish using the minibuffer,
+always takes place in the frame where you first opened it.  The sole
+exception is that when that frame no longer exists, the action takes
+place in the currently selected frame.
 
 @node Minibuffer File
 @section Minibuffers for File Names
@@ -796,6 +802,7 @@ can re-execute a command by calling @code{eval} with the
 
 @node Passwords
 @section Entering passwords
+@cindex entering passwords
 
 Sometimes, you may need to enter a password into Emacs.  For instance,
 when you tell Emacs to visit a file on another machine via a network
@@ -806,7 +813,7 @@ access to the machine (@pxref{Remote Files}).
 displays a prompt in the echo area (such as @samp{Password: }); after
 you type the required password, press @key{RET} to submit it.  To
 prevent others from seeing your password, every character you type is
-displayed as a dot (@samp{.}) instead of its usual form.
+displayed as an asterisk (@samp{*}) instead of its usual form.
 
   Most of the features and commands associated with the minibuffer
 @emph{cannot} be used when entering a password.  There is no history

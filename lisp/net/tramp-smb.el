@@ -60,20 +60,17 @@
   tramp-smb-method
   '((tramp-parse-netrc "~/.netrc"))))
 
-;;;###tramp-autoload
 (defcustom tramp-smb-program "smbclient"
   "Name of SMB client to run."
   :group 'tramp
   :type 'string)
 
-;;;###tramp-autoload
 (defcustom tramp-smb-acl-program "smbcacls"
   "Name of SMB acls to run."
   :group 'tramp
   :type 'string
   :version "24.4")
 
-;;;###tramp-autoload
 (defcustom tramp-smb-conf null-device
   "Path of the \"smb.conf\" file.
 If it is nil, no \"smb.conf\" will be added to the `tramp-smb-program'
@@ -81,7 +78,6 @@ call, letting the SMB client use the default one."
   :group 'tramp
   :type '(choice (const nil) (file :must-match t)))
 
-;;;###tramp-autoload
 (defcustom tramp-smb-options nil
   "List of additional options.
 They are added to the `tramp-smb-program' call via \"--option '...'\".
@@ -156,6 +152,7 @@ this variable (\"client min protocol=NT1\") ."
 	 "NT_STATUS_NO_SUCH_FILE"
 	 "NT_STATUS_NO_SUCH_USER"
 	 "NT_STATUS_NOT_A_DIRECTORY"
+	 "NT_STATUS_NOT_SUPPORTED"
 	 "NT_STATUS_OBJECT_NAME_COLLISION"
 	 "NT_STATUS_OBJECT_NAME_INVALID"
 	 "NT_STATUS_OBJECT_NAME_NOT_FOUND"
@@ -304,7 +301,6 @@ See `tramp-actions-before-shell' for more info.")
 Operations not mentioned here will be handled by the default Emacs primitives.")
 
 ;; Options for remote processes via winexe.
-;;;###tramp-autoload
 (defcustom tramp-smb-winexe-program "winexe"
   "Name of winexe client to run.
 If it isn't found in the local $PATH, the absolute path of winexe
@@ -313,7 +309,6 @@ shall be given.  This is needed for remote processes."
   :type 'string
   :version "24.3")
 
-;;;###tramp-autoload
 (defcustom tramp-smb-winexe-shell-command "powershell.exe"
   "Shell to be used for processes on remote machines.
 This must be Powershell V2 compatible."
@@ -321,7 +316,6 @@ This must be Powershell V2 compatible."
   :type 'string
   :version "24.3")
 
-;;;###tramp-autoload
 (defcustom tramp-smb-winexe-shell-command-switch "-file -"
   "Command switch used together with `tramp-smb-winexe-shell-command'.
 This can be used to disable echo etc."
@@ -341,8 +335,8 @@ This can be used to disable echo etc."
 ;;;###tramp-autoload
 (defun tramp-smb-file-name-handler (operation &rest args)
   "Invoke the SMB related OPERATION and ARGS.
-First arg specifies the OPERATION, second arg is a list of arguments to
-pass to the OPERATION."
+First arg specifies the OPERATION, second arg is a list of
+arguments to pass to the OPERATION."
   (if-let ((fn (assoc operation tramp-smb-file-name-handler-alist)))
       (save-match-data (apply (cdr fn) args))
     (tramp-run-real-handler operation args)))
@@ -371,17 +365,17 @@ pass to the OPERATION."
 	(tramp-error
 	 v2 'file-error
 	 "add-name-to-file: %s must not be a directory" filename))
-	;; Do the 'confirm if exists' thing.
-	(when (file-exists-p newname)
-	  ;; What to do?
-	  (if (or (null ok-if-already-exists) ; not allowed to exist
-		  (and (numberp ok-if-already-exists)
-		       (not (yes-or-no-p
-			     (format
-			      "File %s already exists; make it a link anyway? "
-			      v2-localname)))))
-	      (tramp-error v2 'file-already-exists newname)
-	    (delete-file newname)))
+      ;; Do the 'confirm if exists' thing.
+      (when (file-exists-p newname)
+	;; What to do?
+	(if (or (null ok-if-already-exists) ; not allowed to exist
+		(and (numberp ok-if-already-exists)
+		     (not (yes-or-no-p
+			   (format
+			    "File %s already exists; make it a link anyway? "
+			    v2-localname)))))
+	    (tramp-error v2 'file-already-exists newname)
+	  (delete-file newname)))
       ;; We must also flush the cache of the directory, because
       ;; `file-attributes' reads the values from there.
       (tramp-flush-file-properties v2 v2-localname)
@@ -429,9 +423,7 @@ pass to the OPERATION."
 	(with-tramp-progress-reporter
 	    v 0 (format "Copying %s to %s" dirname newname)
 	  (unless (file-exists-p dirname)
-	    (tramp-error
-	     v tramp-file-missing
-	     "Copying directory" "No such file or directory" dirname))
+	    (tramp-compat-file-missing v dirname))
 	  (when (and (file-directory-p newname)
 		     (not (directory-name-p newname)))
 	    (tramp-error v 'file-already-exists newname))
@@ -587,11 +579,10 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 	(copy-directory filename newname keep-date 'parents 'copy-contents)
 
       (unless (file-exists-p filename)
-	(tramp-error
+	(tramp-compat-file-missing
 	 (tramp-dissect-file-name
 	  (if (tramp-tramp-file-p filename) filename newname))
-	 tramp-file-missing
-	 "Copying file" "No such file or directory" filename))
+	 filename))
 
       (if-let ((tmpfile (file-local-copy filename)))
 	  ;; Remote filename.
@@ -692,9 +683,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
   (directory &optional full match nosort count)
   "Like `directory-files' for Tramp files."
   (unless (file-exists-p directory)
-    (tramp-error
-     (tramp-dissect-file-name directory) tramp-file-missing
-     "No such file or directory" directory))
+    (tramp-compat-file-missing (tramp-dissect-file-name directory) directory))
   (let ((result (mapcar #'directory-file-name
 			(file-name-all-completions "" directory))))
     ;; Discriminate with regexp.
@@ -747,6 +736,9 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
       ;; Make the file name absolute.
       (unless (tramp-run-real-handler #'file-name-absolute-p (list localname))
 	(setq localname (concat "/" localname)))
+     ;; Do not keep "/..".
+      (when (string-match-p "^/\\.\\.?$" localname)
+	(setq localname "/"))
       ;; No tilde characters in file name, do normal
       ;; `expand-file-name' (this does "/./" and "/../").
       (tramp-make-tramp-file-name
@@ -961,9 +953,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
   "Like `file-local-copy' for Tramp files."
   (with-parsed-tramp-file-name (file-truename filename) nil
     (unless (file-exists-p (file-truename filename))
-      (tramp-error
-       v tramp-file-missing
-       "Cannot make local copy of non-existing file `%s'" filename))
+      (tramp-compat-file-missing v filename))
     (let ((tmpfile (tramp-compat-make-temp-file filename)))
       (with-tramp-progress-reporter
 	  v 3 (format "Fetching %s to tmp file %s" filename tmpfile)
@@ -1152,12 +1142,10 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 		 ;; of `default-directory'.
 		 (let ((start (point)))
 		   (insert
-		    (format
-		     "%s"
-		     (file-relative-name
-		      (expand-file-name
-		       (nth 0 x) (file-name-directory filename))
-		      (when full-directory-p (file-name-directory filename)))))
+		    (file-relative-name
+		     (expand-file-name
+		      (nth 0 x) (file-name-directory filename))
+		     (when full-directory-p (file-name-directory filename))))
 		   (put-text-property start (point) 'dired-filename t))
 
 		 ;; Insert symlink.
@@ -1166,7 +1154,6 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 		   (insert " -> " (tramp-compat-file-attribute-type attr))))
 
 	       (insert "\n")
-	       (forward-line)
 	       (beginning-of-line)))
 	   entries))))))
 
@@ -1177,7 +1164,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
     (setq dir (expand-file-name dir default-directory)))
   (with-parsed-tramp-file-name dir nil
     (when (and (null parents) (file-exists-p dir))
-      (tramp-error v 'file-already-exists "Directory already exists %s" dir))
+      (tramp-error v 'file-already-exists dir))
     (let* ((ldir (file-name-directory dir)))
       ;; Make missing directory parts.
       (when (and parents
@@ -1386,9 +1373,7 @@ component is used as the target of the symlink."
   (with-parsed-tramp-file-name
       (if (tramp-tramp-file-p filename) filename newname) nil
     (unless (file-exists-p filename)
-      (tramp-error
-       v tramp-file-missing
-       "Renaming file" "No such file or directory" filename))
+      (tramp-compat-file-missing v filename))
     (when (and (not ok-if-already-exists) (file-exists-p newname))
       (tramp-error v 'file-already-exists newname))
     (when (and (file-directory-p newname)
@@ -1936,7 +1921,7 @@ If ARGUMENT is non-nil, use it as argument for
 
     ;; Check whether we still have the same smbclient version.
     ;; Otherwise, we must delete the connection cache, because
-    ;; capabilities migh have changed.
+    ;; capabilities might have changed.
     (unless (or argument (processp p))
       (let ((default-directory (tramp-compat-temporary-file-directory))
 	    (command (concat tramp-smb-program " -V")))
@@ -2010,10 +1995,8 @@ If ARGUMENT is non-nil, use it as argument for
 	  (when port   (setq args (append args (list "-p" port))))
 	  (when tramp-smb-conf
 	    (setq args (append args (list "-s" tramp-smb-conf))))
-	  (while options
-	    (setq args
-		  (append args `("--option" ,(format "%s" (car options))))
-		  options (cdr options)))
+	  (dolist (option options)
+	    (setq args (append args (list "--option" option))))
 	  (when argument
 	    (setq args (append args (list argument))))
 

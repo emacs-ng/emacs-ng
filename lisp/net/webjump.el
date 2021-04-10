@@ -2,9 +2,10 @@
 
 ;; Copyright (C) 1996-1997, 2001-2021 Free Software Foundation, Inc.
 
-;; Author:    Neil W. Van Dyke <nwv@acm.org>
-;; Created:   09-Aug-1996
-;; Keywords:  comm www
+;; Author:     Neil W. Van Dyke <nwv@acm.org>
+;; Maintainer: emacs-devel@gnu.org
+;; Created:    09-Aug-1996
+;; Keywords:   comm www
 
 ;; This file is part of GNU Emacs.
 
@@ -95,9 +96,6 @@
     ("DuckDuckGo" .
      [simple-query "duckduckgo.com"
 		   "duckduckgo.com/?q=" ""])
-    ("Google" .
-     [simple-query "www.google.com"
-		   "www.google.com/search?q=" ""])
     ("Google Groups" .
      [simple-query "groups.google.com"
 		   "groups.google.com/groups?q=" ""])
@@ -254,7 +252,7 @@ Please submit bug reports and other feedback to the author, Neil W. Van Dyke
 		 (cond ((not expr) "")
 		       ((stringp expr) expr)
 		       ((vectorp expr) (webjump-builtin expr name))
-		       ((listp expr) (eval expr))
+		       ((listp expr) (eval expr t))
 		       ((symbolp expr)
 			(if (fboundp expr)
 			    (funcall expr name)

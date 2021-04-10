@@ -2829,9 +2829,7 @@ configured."
 
     ;; Force font lock to reinitialize if it is already on
     ;; Otherwise, we can wait until it can be started.
-    (when (and (fboundp 'font-lock-mode)
-	       (boundp 'font-lock-mode)
-	       font-lock-mode)
+    (when font-lock-mode
       (font-lock-mode-internal nil)
       (font-lock-mode-internal t))
 
@@ -2994,7 +2992,7 @@ displayed."
 ;; (defconst sql-smie-grammar
 ;;   (smie-prec2->grammar
 ;;    (smie-bnf->prec2
-;;     ;; Partly based on http://www.h2database.com/html/grammar.html
+;;     ;; Partly based on https://www.h2database.com/html/grammar.html
 ;;     '((cmd ("SELECT" select-exp "FROM" select-table-exp)
 ;;            )
 ;;       (select-exp ("*") (exp) (exp "AS" column-alias))

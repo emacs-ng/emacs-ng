@@ -283,6 +283,18 @@ static int max_desc;
    the file descriptor of a socket that is already bound.  */
 static int external_sock_fd;
 
+/* File descriptor that becomes readable when we receive SIGCHLD.  */
+static int child_signal_read_fd = -1;
+/* The write end thereof.  The SIGCHLD handler writes to this file
+   descriptor to notify `wait_reading_process_output' of process
+   status changes.  */
+static int child_signal_write_fd = -1;
+static void child_signal_init (void);
+#ifndef WINDOWSNT
+static void child_signal_read (int, void *);
+#endif
+static void child_signal_notify (void);
+
 /* Indexed by descriptor, gives the process (if any) for that descriptor.  */
 static Lisp_Object chan_process[FD_SETSIZE];
 static void wait_for_socket_fds (Lisp_Object, char const *);
@@ -692,8 +704,7 @@ status_convert (int w)
   if (WIFSTOPPED (w))
     return Fcons (Qstop, Fcons (make_fixnum (WSTOPSIG (w)), Qnil));
   else if (WIFEXITED (w))
-    return Fcons (Qexit, Fcons (make_fixnum (WEXITSTATUS (w)),
-				WCOREDUMP (w) ? Qt : Qnil));
+    return Fcons (Qexit, Fcons (make_fixnum (WEXITSTATUS (w)), Qnil));
   else if (WIFSIGNALED (w))
     return Fcons (Qsignal, Fcons (make_fixnum (WTERMSIG (w)),
 				  WCOREDUMP (w) ? Qt : Qnil));
@@ -1925,7 +1936,7 @@ usage: (make-process &rest ARGS)  */)
 	{
 	  tem = Qnil;
 	  openp (Vexec_path, program, Vexec_suffixes, &tem,
-		 make_fixnum (X_OK), false);
+		 make_fixnum (X_OK), false, false);
 	  if (NILP (tem))
 	    report_file_error ("Searching for program", program);
 	  tem = Fexpand_file_name (tem, Qnil);
@@ -2059,6 +2070,11 @@ create_process (Lisp_Object process, char **new_argv, Lisp_Object current_dir)
   bool pty_flag = 0;
   char pty_name[PTY_NAME_SIZE];
   Lisp_Object lisp_pty_name = Qnil;
+  sigset_t oldset;
+
+  /* Ensure that the SIGCHLD handler can notify
+     `wait_reading_process_output'.  */
+  child_signal_init ();
 
   inchannel = outchannel = -1;
 
@@ -2139,19 +2155,26 @@ create_process (Lisp_Object process, char **new_argv, Lisp_Object current_dir)
   setup_process_coding_systems (process);
   char **env = make_environment_block (current_dir);
 
+  block_input ();
+  block_child_signal (&oldset);
+
   pty_flag = p->pty_flag;
   eassert (pty_flag == ! NILP (lisp_pty_name));
 
   vfork_errno
     = emacs_spawn (&pid, forkin, forkout, forkerr, new_argv, env,
                    SSDATA (current_dir),
-                   pty_flag ? SSDATA (lisp_pty_name) : NULL);
+                   pty_flag ? SSDATA (lisp_pty_name) : NULL, &oldset);
 
   eassert ((vfork_errno == 0) == (0 < pid));
 
   p->pid = pid;
   if (pid >= 0)
     p->alive = 1;
+
+  /* Stop blocking in the parent.  */
+  unblock_child_signal (&oldset);
+  unblock_input ();
 
   /* Environment block no longer needed.  */
   unbind_to (count, Qnil);
@@ -5302,6 +5325,15 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
             compute_input_wait_mask (&Atemp);
 	  compute_write_mask (&Ctemp);
 
+	  /* If a process status has changed, the child signal pipe
+	     will likely be readable.  We want to ignore it for now,
+	     because otherwise we wouldn't run into a timeout
+	     below.  */
+	  int fd = child_signal_read_fd;
+	  eassert (fd < FD_SETSIZE);
+	  if (0 <= fd)
+	    FD_CLR (fd, &Atemp);
+
 	  timeout = make_timespec (0, 0);
 	  if ((thread_select (pselect, max_desc + 1,
 			      &Atemp,
@@ -5387,6 +5419,14 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
  	  check_delay = wait_proc ? 0 : process_output_delay_count;
 	  check_write = true;
 	}
+
+      /* We have to be informed when we receive a SIGCHLD signal for
+	 an asynchronous process.  Otherwise this might deadlock if we
+	 receive a SIGCHLD during `pselect'.  */
+      int child_fd = child_signal_read_fd;
+      eassert (child_fd < FD_SETSIZE);
+      if (0 <= child_fd)
+        FD_SET (child_fd, &Available);
 
       /* If frame size has changed or the window is newly mapped,
 	 redisplay now, before we start to wait.  There is a race
@@ -7107,7 +7147,95 @@ process has been transmitted to the serial port.  */)
    subprocesses which the main thread should not reap.  For example,
    if the main thread attempted to reap an already-reaped child, it
    might inadvertently reap a GTK-created process that happened to
-   have the same process ID.  */
+   have the same process ID.
+
+   To avoid a deadlock when receiving SIGCHLD while
+   'wait_reading_process_output' is in 'pselect', the SIGCHLD handler
+   will notify the `pselect' using a self-pipe.  The deadlock could
+   occur if SIGCHLD is delivered outside of the 'pselect' call, in
+   which case 'pselect' will not be interrupted by the signal, and
+   will therefore wait on the process's output descriptor for the
+   output that will never come.
+
+   WINDOWSNT doesn't need this facility because its 'pselect'
+   emulation (see 'sys_select' in w32proc.c) waits on a subprocess
+   handle, which becomes signaled when the process exits, and also
+   because that emulation delays the delivery of the simulated SIGCHLD
+   until all the output from the subprocess has been consumed.  */
+
+/* FIXME: On Unix-like systems that have a proper 'pselect'
+   (HAVE_PSELECT), we should block SIGCHLD in
+   'wait_reading_process_output' and pass a non-NULL signal mask to
+   'pselect' to avoid the need for the self-pipe.  */
+
+/* Set up `child_signal_read_fd' and `child_signal_write_fd'.  */
+
+static void
+child_signal_init (void)
+{
+  /* Either both are initialized, or both are uninitialized.  */
+  eassert ((child_signal_read_fd < 0) == (child_signal_write_fd < 0));
+
+#ifndef WINDOWSNT
+  if (0 <= child_signal_read_fd)
+    return; /* already done */
+
+  int fds[2];
+  if (emacs_pipe (fds) < 0)
+    report_file_error ("Creating pipe for child signal", Qnil);
+  if (FD_SETSIZE <= fds[0])
+    {
+      /* Since we need to `pselect' on the read end, it has to fit
+	 into an `fd_set'.  */
+      emacs_close (fds[0]);
+      emacs_close (fds[1]);
+      report_file_errno ("Creating pipe for child signal", Qnil,
+			 EMFILE);
+    }
+
+  /* We leave the file descriptors open until the Emacs process
+     exits.  */
+  eassert (0 <= fds[0]);
+  eassert (0 <= fds[1]);
+  if (fcntl (fds[0], F_SETFL, O_NONBLOCK) != 0)
+    emacs_perror ("fcntl");
+  if (fcntl (fds[1], F_SETFL, O_NONBLOCK) != 0)
+    emacs_perror ("fcntl");
+  add_read_fd (fds[0], child_signal_read, NULL);
+  fd_callback_info[fds[0]].flags &= ~KEYBOARD_FD;
+  child_signal_read_fd = fds[0];
+  child_signal_write_fd = fds[1];
+#endif	/* !WINDOWSNT */
+}
+
+#ifndef WINDOWSNT
+/* Consume a process status change.  */
+
+static void
+child_signal_read (int fd, void *data)
+{
+  eassert (0 <= fd);
+  eassert (fd == child_signal_read_fd);
+  char dummy;
+  if (emacs_read (fd, &dummy, 1) < 0 && errno != EAGAIN)
+    emacs_perror ("reading from child signal FD");
+}
+#endif	/* !WINDOWSNT */
+
+/* Notify `wait_reading_process_output' of a process status
+   change.  */
+
+static void
+child_signal_notify (void)
+{
+#ifndef WINDOWSNT
+  int fd = child_signal_write_fd;
+  eassert (0 <= fd);
+  char dummy = 0;
+  if (emacs_write (fd, &dummy, 1) != 1)
+    emacs_perror ("writing to child signal FD");
+#endif
+}
 
 /* LIB_CHILD_HANDLER is a SIGCHLD handler that Emacs calls while doing
    its own SIGCHLD handling.  On POSIXish systems, glib needs this to
@@ -7145,6 +7273,7 @@ static void
 handle_child_signal (int sig)
 {
   Lisp_Object tail, proc;
+  bool changed = false;
 
   /* Find the process that signaled us, and record its status.  */
 
@@ -7167,6 +7296,7 @@ handle_child_signal (int sig)
 	  eassert (ok);
 	  if (child_status_changed (deleted_pid, 0, 0))
 	    {
+	      changed = true;
 	      if (STRINGP (XCDR (head)))
 		unlink (SSDATA (XCDR (head)));
 	      XSETCAR (tail, Qnil);
@@ -7184,6 +7314,7 @@ handle_child_signal (int sig)
 	  && child_status_changed (p->pid, &status, WUNTRACED | WCONTINUED))
 	{
 	  /* Change the status of the process that was found.  */
+	  changed = true;
 	  p->tick = ++process_tick;
 	  p->raw_status = status;
 	  p->raw_status_new = 1;
@@ -7202,6 +7333,10 @@ handle_child_signal (int sig)
 	    }
 	}
     }
+
+  if (changed)
+    /* Wake up `wait_reading_process_output'.  */
+    child_signal_notify ();
 
   lib_child_handler (sig);
 #ifdef NS_IMPL_GNUSTEP
@@ -8120,7 +8255,7 @@ init_process_emacs (int sockfd)
 	 private SIGCHLD handler, allowing catch_child_signal to copy
 	 it into lib_child_handler.
 
-         Unfortunatly in glib commit 2e471acf, the behavior changed to
+         Unfortunately in glib commit 2e471acf, the behavior changed to
          always install a signal handler when g_child_watch_source_new
          is called and not just the first time it's called.  Glib also
          now resets signal handlers to SIG_DFL when it no longer has a

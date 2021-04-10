@@ -3328,7 +3328,7 @@ update_frame_with_menu (struct frame *f, int row, int col)
 }
 
 /* Update the mouse position for a frame F.  This handles both
-   updating the display for mouse-face propreties and updating the
+   updating the display for mouse-face properties and updating the
    help echo text.
 
    Returns the number of events generated.  */
@@ -3588,6 +3588,7 @@ update_window (struct window *w, bool force_p)
       int yb;
       bool changed_p = 0, mouse_face_overwritten_p = 0;
       int n_updated = 0;
+      bool invisible_rows_marked = false;
 
 #ifdef HAVE_WINDOW_SYSTEM
       gui_update_window_begin (w);
@@ -3679,12 +3680,35 @@ update_window (struct window *w, bool force_p)
 	       tempted to optimize redisplay based on lines displayed
 	       in the first redisplay.  */
 	    if (MATRIX_ROW_BOTTOM_Y (row) >= yb)
-	      for (i = vpos + 1; i < w->current_matrix->nrows - 1; ++i)
-		SET_MATRIX_ROW_ENABLED_P (w->current_matrix, i, false);
+	      {
+		for (i = vpos + 1; i < w->current_matrix->nrows - 1; ++i)
+		  SET_MATRIX_ROW_ENABLED_P (w->current_matrix, i, false);
+		invisible_rows_marked = true;
+	      }
 	  }
 
       /* Was display preempted?  */
       paused_p = row < end;
+
+      if (!paused_p && !invisible_rows_marked)
+	{
+	  /* If we didn't mark the invisible rows in the current
+	     matrix as invalid above, do that now.  This can happen if
+	     scrolling_window updates the last visible rows of the
+	     current matrix, in which case the above loop doesn't get
+	     to examine the last visible row.  */
+	  int i;
+	  for (i = 0; i < w->current_matrix->nrows - 1; ++i)
+	    {
+	      struct glyph_row *current_row = MATRIX_ROW (w->current_matrix, i);
+	      if (current_row->enabled_p
+		  && MATRIX_ROW_BOTTOM_Y (current_row) >= yb)
+		{
+		  for (++i ; i < w->current_matrix->nrows - 1; ++i)
+		    SET_MATRIX_ROW_ENABLED_P (w->current_matrix, i, false);
+		}
+	    }
+	}
 
     set_cursor:
 
@@ -6049,7 +6073,14 @@ additional wait period, in milliseconds; this is for backwards compatibility.
    READING is true if reading input.
    If DISPLAY_OPTION is >0 display process output while waiting.
    If DISPLAY_OPTION is >1 perform an initial redisplay before waiting.
-*/
+
+   Returns a boolean Qt if we waited the full time and returns Qnil if the
+   wait was interrupted by incoming process output or keyboard events.
+
+   FIXME: When `wait_reading_process_output` returns early because of
+   process output, instead of returning nil we should loop and wait some
+   more (i.e. until either there's pending input events or the timeout
+   expired).  */
 
 Lisp_Object
 sit_for (Lisp_Object timeout, bool reading, int display_option)
@@ -6110,8 +6141,9 @@ sit_for (Lisp_Object timeout, bool reading, int display_option)
   gobble_input ();
 #endif
 
-  wait_reading_process_output (sec, nsec, reading ? -1 : 1, do_display,
-			       Qnil, NULL, 0);
+  int nbytes
+    = wait_reading_process_output (sec, nsec, reading ? -1 : 1, do_display,
+			           Qnil, NULL, 0);
 
   if (reading && curbuf_eq_winbuf)
     /* Timers and process filters/sentinels may have changed the selected
@@ -6120,7 +6152,7 @@ sit_for (Lisp_Object timeout, bool reading, int display_option)
        buffer to start with).  */
     set_buffer_internal (XBUFFER (XWINDOW (selected_window)->contents));
 
-  return detect_input_pending () ? Qnil : Qt;
+  return (nbytes > 0 || detect_input_pending ()) ? Qnil : Qt;
 }
 
 

@@ -128,6 +128,7 @@ fn generate_globals(path: &str) {
     let mut out_file = File::create(out_path).expect("Failed to create definition file");
     let mut parse_state = ParseState::ReadingGlobals;
 
+    write!(out_file, "use crate::{{\n    lisp::LispObject,\n    definitions::*,\n    bindings::*,\n}};\n\n").expect("Write error!");
     write!(out_file, "#[allow(unused)]\n").expect("Write error!");
     write!(out_file, "#[repr(C)]\n").expect("Write error!");
     write!(out_file, "pub struct emacs_globals {{\n").expect("Write error!");
@@ -313,10 +314,9 @@ fn run_bindgen(path: &str) {
                 r"pub use self\s*::\s*gnutls_cipher_algorithm_t as gnutls_cipher_algorithm\s*;",
             );
             let munged = re.unwrap().replace_all(&source, "");
-            let file = File::create(out_path);
-            file.unwrap()
-                .write_all(munged.into_owned().as_bytes())
-                .unwrap();
+            let mut file = File::create(out_path).unwrap();
+            write!(file, "use crate::{{\n    globals::emacs_globals,\n    sys::Lisp_Object,\n}};\n\nuse libc::timespec;\n").expect("Write error!");
+            file.write_all(munged.into_owned().as_bytes()).unwrap();
         }
     }
 }

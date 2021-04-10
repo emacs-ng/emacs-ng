@@ -330,7 +330,7 @@ Please send all bug fixes and enhancements to
 ;;			("Augmented BNF for Syntax Specifications: ABNF").
 ;;
 ;;    `iso-ebnf'	ebnf2ps recognizes the syntax described in the URL:
-;;			`http://www.cl.cam.ac.uk/~mgk25/iso-ebnf.html'
+;;			`https://www.cl.cam.ac.uk/~mgk25/iso-ebnf.html'
 ;;			("International Standard of the ISO EBNF Notation").
 ;;			The following variables *ONLY* have effect with this
 ;;			setting:
@@ -1783,7 +1783,7 @@ Valid values are:
 		(\"Augmented BNF for Syntax Specifications: ABNF\").
 
    `iso-ebnf'	ebnf2ps recognizes the syntax described in the URL:
-		`http://www.cl.cam.ac.uk/~mgk25/iso-ebnf.html'
+                `https://www.cl.cam.ac.uk/~mgk25/iso-ebnf.html'
 		(\"International Standard of the ISO EBNF Notation\").
 		The following variables *ONLY* have effect with this
 		setting:
@@ -2920,7 +2920,7 @@ See `ebnf-style-database' documentation."
 	value
       (and (car value) (ebnf-apply-style1 (car value)))
       (while (setq value (cdr value))
-	(set (caar value) (eval (cdar value)))))))
+	(set (caar value) (eval (cdar value) t))))))
 
 
 (defun ebnf-check-style-values (values)
@@ -2941,16 +2941,11 @@ See `ebnf-style-database' documentation."
 (defvar ebnf-eps-executing      nil)
 (defvar ebnf-eps-header-comment nil)
 (defvar ebnf-eps-footer-comment nil)
-(defvar ebnf-eps-upper-x        0.0)
-(make-variable-buffer-local 'ebnf-eps-upper-x)
-(defvar ebnf-eps-upper-y        0.0)
-(make-variable-buffer-local 'ebnf-eps-upper-y)
-(defvar ebnf-eps-prod-width     0.0)
-(make-variable-buffer-local 'ebnf-eps-prod-width)
-(defvar ebnf-eps-max-height     0.0)
-(make-variable-buffer-local 'ebnf-eps-max-height)
-(defvar ebnf-eps-max-width      0.0)
-(make-variable-buffer-local 'ebnf-eps-max-width)
+(defvar-local ebnf-eps-upper-x        0.0)
+(defvar-local ebnf-eps-upper-y        0.0)
+(defvar-local ebnf-eps-prod-width     0.0)
+(defvar-local ebnf-eps-max-height     0.0)
+(defvar-local ebnf-eps-max-width      0.0)
 
 
 (defvar ebnf-eps-context nil
@@ -5492,7 +5487,7 @@ killed after process termination."
 		      (ebnf-shape-value ebnf-chart-shape
 					ebnf-terminal-shape-alist))
 	      (format "/UserArrow{%s}def\n"
-		      (let ((arrow (eval ebnf-user-arrow)))
+		      (let ((arrow (eval ebnf-user-arrow t)))
 			(if (stringp arrow)
 			    arrow
 			  "")))
@@ -6295,7 +6290,7 @@ killed after process termination."
 (defun ebnf-log-header (format-str &rest args)
   (when ebnf-log
     (apply
-     'ebnf-log
+     #'ebnf-log
      (concat
       "\n\n===============================================================\n\n"
       format-str)

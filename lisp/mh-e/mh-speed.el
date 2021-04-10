@@ -1,4 +1,4 @@
-;;; mh-speed.el --- MH-E speedbar support
+;;; mh-speed.el --- MH-E speedbar support  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2002-2021 Free Software Foundation, Inc.
 
@@ -100,9 +100,9 @@
 
 ;; Alphabetical.
 
-(defalias 'mh-speed-contract-folder 'mh-speed-toggle)
+(defalias 'mh-speed-contract-folder #'mh-speed-toggle)
 
-(defalias 'mh-speed-expand-folder 'mh-speed-toggle)
+(defalias 'mh-speed-expand-folder #'mh-speed-toggle)
 
 (defun mh-speed-refresh ()
   "Regenerates the list of folders in the speedbar.
@@ -125,11 +125,10 @@ With non-nil FORCE, the update is always carried out."
         ;; Otherwise on to your regular programming
         (t t)))
 
-(defun mh-speed-toggle (&rest ignored)
+(defun mh-speed-toggle (&rest _ignored)
   "Toggle the display of child folders in the speedbar.
 The optional arguments from speedbar are IGNORED."
   (interactive)
-  (declare (ignore args))
   (beginning-of-line)
   (let ((parent (get-text-property (point) 'mh-folder))
         (kids-p (get-text-property (point) 'mh-children-p))
@@ -164,11 +163,10 @@ The optional arguments from speedbar are IGNORED."
               (mh-line-beginning-position) (1+ (line-beginning-position))
               '(mh-expanded t)))))))
 
-(defun mh-speed-view (&rest ignored)
+(defun mh-speed-view (&rest _ignored)
   "Visits the selected folder just as if you had used \\<mh-folder-mode-map>\\[mh-visit-folder].
 The optional arguments from speedbar are IGNORED."
   (interactive)
-  (declare (ignore args))
   (let* ((folder (get-text-property (mh-line-beginning-position) 'mh-folder))
          (range (and (stringp folder)
                      (mh-read-range "Scan" folder t nil nil
@@ -204,9 +202,9 @@ created."
       (mh-speed-flists nil))))
 
 ;;;###mh-autoload
-(defalias 'mh-show-speedbar-buttons 'mh-folder-speedbar-buttons)
+(defalias 'mh-show-speedbar-buttons #'mh-folder-speedbar-buttons)
 ;;;###mh-autoload
-(defalias 'mh-letter-speedbar-buttons 'mh-folder-speedbar-buttons)
+(defalias 'mh-letter-speedbar-buttons #'mh-folder-speedbar-buttons)
 
 (defmacro mh-speed-select-attached-frame ()
   "Compatibility macro to handle speedbar versions 0.11a and 0.14beta4."
@@ -433,7 +431,7 @@ flists is run only for that one folder."
                (setq mh-speed-flists-folder nil)
                (mh-process-kill-without-query mh-speed-flists-process)
                (set-process-filter mh-speed-flists-process
-                                   'mh-speed-parse-flists-output)))))))
+                                   #'mh-speed-parse-flists-output)))))))
 
 ;; Copied from mh-make-folder-list-filter...
 ;; XXX Refactor to use mh-make-folder-list-filer?
