@@ -413,6 +413,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#nix-linux-only" class="md-nav__link">
+    Nix (Linux only)
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -600,6 +607,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#nix-linux-only" class="md-nav__link">
+    Nix (Linux only)
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -751,6 +765,69 @@ compile it(no guarantee that they work):</p>
 <li>https://gist.github.com/mikroskeem/0a5c909c1880408adf732ceba6d3f9ab</li>
 <li>https://gist.github.com/AllenDang/f019593e65572a8e0aefc96058a2d23e</li>
 </ul>
+<h3 id="nix-linux-only">Nix (Linux only)<a class="headerlink" href="#nix-linux-only" title="Permanent link">#</a></h3>
+<p>Nix flake feature alread in emacsNg</p>
+<p>nix run github:emacs-ng/emacs-ng (launch emacs locally )
+  nix build github:emacs-ng/emacs-ng (build emacs locally)
+  nix develop github:emacs-ng/emacs-ng (enter develop emacs environment locally)</p>
+<p>Also, you can run native nix commands under <code>emacs-ng</code> repo such as</p>
+<p>nix-shell
+  nix-build</p>
+<ul>
+<li>using <code>cachix</code> to (download binary cache)speed up build</li>
+<li>without install cachix</li>
+</ul>
+<p><div class="highlight"><pre><span></span><code>nix build github:emacs-ng/emacs-ng --option substituters <span class="s2">&quot;https://emacsng.cachix.org&quot;</span> --option trusted-public-keys <span class="s2">&quot;emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=&quot;</span> -o emacsNg
+ls -il emacs
+<span class="c1">#or check ./result/bin/emacs</span>
+nix-build --option substituters <span class="s2">&quot;https://emacsng.cachix.org&quot;</span> --option trusted-public-keys <span class="s2">&quot;emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=&quot;</span>
+</code></pre></div>
+   2. install cachix</p>
+<div class="highlight"><pre><span></span><code>nix-env -iA cachix -f https://cachix.org/api/v1/install <span class="c1">#install cachix</span>
+cachix use emacsng
+<span class="c1">#then</span>
+nix-build
+<span class="c1">#or</span>
+nix build github:emacs-ng/emacs-ng -o emacsNg
+ls -il emacsNg
+</code></pre></div>
+<ul>
+<li>launch <code>emacs-ng</code> with Doom Emacs Example</li>
+</ul>
+<div class="highlight"><pre><span></span><code>nix-shell <span class="c1">#or nix develop github:emacs-ng/emacs-ng</span>
+~/.emacs.d/bin/doom sync
+emacs
+</code></pre></div>
+<ul>
+<li>using Emacs-ng in your NixOS configuration</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+  <span class="ss">description =</span> <span class="s2">&quot;My configuration&quot;</span><span class="p">;</span>
+
+  <span class="ss">inputs =</span> <span class="p">{</span>
+    nixpkgs<span class="o">.</span><span class="ss">url =</span> <span class="s2">&quot;github:nixos/nixpkgs/nixos-unstable&quot;</span><span class="p">;</span>
+    emacsNg-flake<span class="o">.</span><span class="ss">url =</span> <span class="s2">&quot;github:emacs-ng/emacs-ng&quot;</span><span class="p">;</span>
+    <span class="ss">rust-overlay =</span> <span class="p">{</span> <span class="ss">url =</span> <span class="s2">&quot;github:oxalica/rust-overlay&quot;</span><span class="p">;};</span>
+  <span class="p">};</span>
+
+  <span class="ss">outputs =</span> <span class="p">{</span> nixpkgs<span class="p">,</span> emacsNg-flake<span class="p">,</span> rust-overlay <span class="o">...</span> <span class="p">}:</span> <span class="p">{</span>
+    <span class="ss">nixosConfigurations =</span> <span class="p">{</span>
+      <span class="ss">hostname =</span> nixpkgs<span class="o">.</span>lib<span class="o">.</span>nixosSystem <span class="p">{</span>
+        <span class="ss">system =</span> <span class="s2">&quot;x86_64-linux&quot;</span><span class="p">;</span>
+        <span class="ss">modules =</span> <span class="p">[</span>
+          <span class="o">.</span><span class="l">/configuration.nix</span> <span class="c1"># Your system configuration.</span>
+          <span class="p">({</span> pkgs<span class="p">,</span> <span class="o">...</span> <span class="p">}:</span> <span class="p">{</span>
+                  nixpkgs<span class="o">.</span><span class="ss">overlays =</span> <span class="p">[</span> emacsNg-flake<span class="o">.</span>overlay
+                                       rust-overlay<span class="o">.</span>overlay
+                                     <span class="p">];</span>
+            environment<span class="o">.</span><span class="ss">systemPackages =</span> <span class="p">[</span> pkgs<span class="o">.</span>emacsNg <span class="p">];</span>
+          <span class="p">})</span>
+        <span class="p">];</span>
+      <span class="p">};</span>
+    <span class="p">};</span>
+  <span class="p">};</span>
+<span class="p">}</span>
+</code></pre></div>
 <h2 id="building">Building<a class="headerlink" href="#building" title="Permanent link">#</a></h2>
 <div class="highlight"><pre><span></span><code>$ ./autogen.sh
 $ ./configure --enable-rust-debug
@@ -1054,7 +1131,7 @@ Threading and WebASM.</p>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">April 6, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">April 10, 2021</span>
     
   </small>
 </div>
