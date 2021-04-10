@@ -2547,7 +2547,7 @@ can parse the output from a DIR listing for a host of type TYPE.")
 FILE is the full name of the remote file, LSARGS is any args to pass to the
 `ls' command, and PARSE specifies that the output should be parsed and stored
 away in the internal cache."
-  (when (string-match "^--dired\\s-+" lsargs)
+  (while (string-match "^--dired\\s-+" lsargs)
     (setq lsargs (replace-match "" nil t lsargs)))
   ;; If parse is t, we assume that file is a directory. i.e. we only parse
   ;; full directory listings.
@@ -3716,7 +3716,7 @@ so return the size on the remote host exactly. See RFC 3659."
 	     (binary (or (ange-ftp-binary-file filename)
 			 (ange-ftp-binary-file newname)))
 	     temp1
-	     temp2)
+	     ) ;; temp2
 
 	;; check to see if we can overwrite
 	(if (or (not ok-if-already-exists)
@@ -3750,7 +3750,7 @@ so return the size on the remote host exactly. See RFC 3659."
 		     filename newname binary msg
 		     f-parsed f-host f-user f-name f-abbr
 		     t-parsed t-host t-user t-name t-abbr
-		     temp1 temp2 cont nowait)
+		     temp1 nil cont nowait) ;; temp2
 	       nowait))
 
 	  ;; filename wasn't remote.  newname must be remote.  call the
@@ -6111,8 +6111,7 @@ Other orders of $ and _ seem to all work just fine.")
 				       (1- (match-end 2)))))
 		(filename (if (match-beginning 3)
 			      (substring name (match-beginning 3)))))
-	    (if (and (boundp 'filename)
-		     (stringp filename)
+	    (if (and (stringp filename)
 		     (string-match "[#@].+" filename))
 		(setq filename (concat ange-ftp-bs2000-special-prefix
 				       (substring filename 1))))

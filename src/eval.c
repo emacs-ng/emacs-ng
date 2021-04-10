@@ -221,7 +221,7 @@ init_eval_once (void)
   /* Don't forget to update docs (lispref node "Local Variables").  */
   if (!NATIVE_COMP_FLAG)
     {
-      max_specpdl_size = 1600; /* 1500 is not enough for cl-generic.el.  */
+      max_specpdl_size = 1800; /* See bug#46818.  */
       max_lisp_eval_depth = 800;
     }
   else
@@ -827,6 +827,8 @@ The optional argument DOCSTRING is a documentation string for the
 variable.
 
 To define a user option, use `defcustom' instead of `defvar'.
+
+To define a buffer-local variable, use `defvar-local'.
 usage: (defvar SYMBOL &optional INITVALUE DOCSTRING)  */)
   (Lisp_Object args)
 {
@@ -1172,12 +1174,23 @@ usage: (catch TAG BODY...)  */)
    FUNC should return a Lisp_Object.
    This is how catches are done from within C code.  */
 
+/* MINIBUFFER_QUIT_LEVEL is to handle quitting from nested minibuffers by
+   throwing t to tag `exit'.
+   0 means there is no (throw 'exit t) in progress, or it wasn't from
+     a minibuffer which isn't the most nested;
+   N > 0 means the `throw' was done from the minibuffer at level N which
+     wasn't the most nested.  */
+EMACS_INT minibuffer_quit_level = 0;
+
 Lisp_Object
 internal_catch (Lisp_Object tag,
 		Lisp_Object (*func) (Lisp_Object), Lisp_Object arg)
 {
   /* This structure is made part of the chain `catchlist'.  */
   struct handler *c = push_handler (tag, CATCHER);
+
+  if (EQ (tag, Qexit))
+    minibuffer_quit_level = 0;
 
   /* Call FUNC.  */
   if (! sys_setjmp (c->jmp))
@@ -1192,6 +1205,17 @@ internal_catch (Lisp_Object tag,
       Lisp_Object val = handlerlist->val;
       clobbered_eassert (handlerlist == c);
       handlerlist = handlerlist->next;
+      if (EQ (tag, Qexit) && EQ (val, Qt) && minibuffer_quit_level > 0)
+	/* If we've thrown t to tag `exit' from within a minibuffer, we
+	   exit all minibuffers more deeply nested than the current
+	   one.  */
+	{
+	  if (minibuf_level > minibuffer_quit_level
+	      && !NILP (Fminibuffer_innermost_command_loop_p (Qnil)))
+            Fthrow (Qexit, Qt);
+	  else
+	    minibuffer_quit_level = 0;
+	}
       return val;
     }
 }
@@ -2148,14 +2172,21 @@ then strings and vectors are not accepted.  */)
 DEFUN ("autoload", Fautoload, Sautoload, 2, 5, 0,
        doc: /* Define FUNCTION to autoload from FILE.
 FUNCTION is a symbol; FILE is a file name string to pass to `load'.
+
 Third arg DOCSTRING is documentation for the function.
-Fourth arg INTERACTIVE if non-nil says function can be called interactively.
+
+Fourth arg INTERACTIVE if non-nil says function can be called
+interactively.  If INTERACTIVE is a list, it is interpreted as a list
+of modes the function is applicable for.
+
 Fifth arg TYPE indicates the type of the object:
    nil or omitted says FUNCTION is a function,
    `keymap' says FUNCTION is really a keymap, and
    `macro' or t says FUNCTION is really a macro.
+
 Third through fifth args give info about the real definition.
 They default to nil.
+
 If FUNCTION is already defined other than as an autoload,
 this does nothing and returns nil.  */)
   (Lisp_Object function, Lisp_Object file, Lisp_Object docstring, Lisp_Object interactive, Lisp_Object type)

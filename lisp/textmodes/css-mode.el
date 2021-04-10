@@ -71,9 +71,8 @@
     "while")
   "Additional identifiers that appear in the form @foo in SCSS.")
 
-(defvar css--at-ids css-at-ids
+(defvar-local css--at-ids css-at-ids
   "List of at-rules for the current mode.")
-(make-variable-buffer-local 'css--at-ids)
 
 (defconst css-bang-ids
   '("important")
@@ -83,9 +82,8 @@
   '("default" "global" "optional")
   "Additional identifiers that appear in the form !foo in SCSS.")
 
-(defvar css--bang-ids css-bang-ids
+(defvar-local css--bang-ids css-bang-ids
   "List of bang-rules for the current mode.")
-(make-variable-buffer-local 'css--bang-ids)
 
 (defconst css-descriptor-ids
   '("ascent" "baseline" "bbox" "cap-height" "centerline" "definition-src"
@@ -429,7 +427,7 @@
      "paged-y" "paged-x-controls" "paged-y-controls" "fragments")
 
     ;; CSS Text Decoration Module Level 3
-    ;; (http://dev.w3.org/csswg/css-text-decor-3/#property-index)
+    ;; (https://dev.w3.org/csswg/css-text-decor-3/#property-index)
     ("text-decoration" text-decoration-line text-decoration-style
      text-decoration-color)
     ("text-decoration-color" color)
@@ -1374,9 +1372,8 @@ the string PROPERTY."
   "List of HTML tags.
 Used to provide completion of HTML tags in selectors.")
 
-(defvar css--nested-selectors-allowed nil
+(defvar-local css--nested-selectors-allowed nil
   "Non-nil if nested selectors are allowed in the current mode.")
-(make-variable-buffer-local 'css--nested-selectors-allowed)
 
 (defvar css-class-list-function #'ignore
   "Called to provide completions of class names.

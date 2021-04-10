@@ -91,13 +91,13 @@ MODES can be a symbol or a list of symbols.
 FUNCTION does not have arguments."
   (or (listp modes) (setq modes (list modes)))
   (mode-local-map-file-buffers
-   function #'(lambda ()
-		(let ((mm (mode-local-equivalent-mode-p major-mode))
-		      (ans nil))
-		  (while (and (not ans) mm)
-		    (setq ans (memq (car mm) modes)
-			  mm (cdr mm)) )
-		  ans))))
+   function (lambda ()
+              (let ((mm (mode-local-equivalent-mode-p major-mode))
+                    (ans nil))
+                (while (and (not ans) mm)
+                  (setq ans (memq (car mm) modes)
+                        mm (cdr mm)) )
+                ans))))
 
 ;;; Hook machinery
 ;;
@@ -170,11 +170,10 @@ definition."
 
 ;;; Core bindings API
 ;;
-(defvar mode-local-symbol-table nil
+(defvar-local mode-local-symbol-table nil
   "Buffer local mode bindings.
 These symbols provide a hook for a `major-mode' to specify specific
 behaviors.  Use the function `mode-local-bind' to define new bindings.")
-(make-variable-buffer-local 'mode-local-symbol-table)
 
 (defvar mode-local-active-mode nil
   "Major mode in which bindings are active.")
@@ -324,14 +323,14 @@ Elements are (SYMBOL . PREVIOUS-VALUE), describing one variable."
       (dolist (mode modes)
 	(when (setq table (get mode 'mode-local-symbol-table))
 	  (mapatoms
-	   #'(lambda (var)
-	       (when (get var 'mode-variable-flag)
-		 (let ((v (intern (symbol-name var))))
-		   ;; Save the current buffer-local value of the
-		   ;; mode-local variable.
-		   (and (local-variable-p v (current-buffer))
-			(push (cons v (symbol-value v)) old-locals))
-		   (set (make-local-variable v) (symbol-value var)))))
+           (lambda (var)
+             (when (get var 'mode-variable-flag)
+               (let ((v (intern (symbol-name var))))
+                 ;; Save the current buffer-local value of the
+                 ;; mode-local variable.
+                 (and (local-variable-p v (current-buffer))
+                      (push (cons v (symbol-value v)) old-locals))
+                 (set (make-local-variable v) (symbol-value var)))))
 	   table)))
       old-locals)))
 
@@ -349,9 +348,9 @@ If MODE is not specified it defaults to current `major-mode'."
     (while mode
       (when (setq table (get mode 'mode-local-symbol-table))
         (mapatoms
-         #'(lambda (var)
-             (when (get var 'mode-variable-flag)
-               (kill-local-variable (intern (symbol-name var)))))
+         (lambda (var)
+           (when (get var 'mode-variable-flag)
+             (kill-local-variable (intern (symbol-name var)))))
          table))
       (setq mode (get-mode-local-parent mode)))))
 
@@ -429,7 +428,7 @@ Return the value of the last VAL."
          ;; Save mode bindings
          (mode-local-bind (list ,@bl) '(mode-variable-flag t) ',mode)
          ;; Assign to local variables in all existing buffers in MODE
-         (mode-local-map-mode-buffers #'(lambda () ,@sl) ',mode)
+         (mode-local-map-mode-buffers (lambda () ,@sl) ',mode)
          ;; Return the last value
          ,tmp)
       )))
@@ -577,7 +576,7 @@ OVERARGS is a list of arguments passed to the override and
 (put :override-with-args 'lisp-indent-function 1)
 
 (define-obsolete-function-alias 'define-overload
-  'define-overloadable-function "27.1")
+  #'define-overloadable-function "27.1")
 
 (define-obsolete-function-alias 'function-overload-p
   #'mode-local--function-overload-p "27.1")
@@ -894,7 +893,7 @@ invoked interactively."
   (interactive
    (list (completing-read
           "Mode: " obarray
-          #'(lambda (s) (get s 'mode-local-symbol-table))
+          (lambda (s) (get s 'mode-local-symbol-table))
           t (symbol-name major-mode))))
   (when (setq mode (intern-soft mode))
     (mode-local-describe-bindings-1 mode (called-interactively-p 'any))))

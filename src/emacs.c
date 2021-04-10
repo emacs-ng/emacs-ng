@@ -37,6 +37,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <mbstring.h>
+#include <filename.h>	/* for IS_ABSOLUTE_FILE_NAME */
 #include "w32.h"
 #include "w32heap.h"
 #endif
@@ -186,7 +187,8 @@ bool build_details;
 /* Name for the server started by the daemon.*/
 static char *daemon_name;
 
-/* 0 not a daemon, 1 new-style (foreground), 2 old-style (background).  */
+/* 0 not a daemon, 1 new-style (foreground), 2 old-style (background).
+   A negative value means the daemon initialization was already done.  */
 int daemon_type;
 
 #ifndef WINDOWSNT
@@ -432,6 +434,12 @@ set_invocation_vars (char *argv0, char const *original_pwd)
   {
     char argv0_1[MAX_UTF8_PATH];
 
+    /* Avoid calling 'openp' below, as we aren't ready for that yet:
+       emacs_dir is not yet defined in the environment, and therefore
+       emacs_root_dir, called by expand-file-name, will abort.  */
+    if (!IS_ABSOLUTE_FILE_NAME (argv0))
+      argv0 = w32_my_exename ();
+
     if (filename_from_ansi (argv0, argv0_1) == 0)
       raw_name = build_unibyte_string (argv0_1);
     else
@@ -450,13 +458,19 @@ set_invocation_vars (char *argv0, char const *original_pwd)
   Vinvocation_name = Ffile_name_nondirectory (raw_name);
   Vinvocation_directory = Ffile_name_directory (raw_name);
 
+#ifdef WINDOWSNT
+  eassert (!NILP (Vinvocation_directory)
+	   && !NILP (Ffile_name_absolute_p (Vinvocation_directory)));
+#endif
+
   /* If we got no directory in argv0, search PATH to find where
      Emacs actually came from.  */
   if (NILP (Vinvocation_directory))
     {
       Lisp_Object found;
-      int yes = openp (Vexec_path, Vinvocation_name,
-		       Vexec_suffixes, &found, make_fixnum (X_OK), false);
+      int yes =
+	openp (Vexec_path, Vinvocation_name, Vexec_suffixes, &found,
+	       make_fixnum (X_OK), false, false);
       if (yes == 1)
 	{
 	  /* Add /: to the front of the name
@@ -1300,7 +1314,7 @@ main (int argc, char **argv)
 	{
 	  emacs_close (STDIN_FILENO);
 	  emacs_close (STDOUT_FILENO);
-	  int result = emacs_open (term, O_RDWR, 0);
+	  int result = emacs_open_noquit (term, O_RDWR, 0);
 	  if (result != STDIN_FILENO
 	      || (fcntl (STDIN_FILENO, F_DUPFD_CLOEXEC, STDOUT_FILENO)
 		  != STDOUT_FILENO))
@@ -2392,7 +2406,10 @@ all of which are called before Emacs is actually killed.  */
   int exit_code;
 
 #ifdef HAVE_LIBSYSTEMD
-  sd_notify(0, "STOPPING=1");
+  /* Notify systemd we are shutting down, but only if we have notified
+     it about startup.  */
+  if (daemon_type == -1)
+    sd_notify(0, "STOPPING=1");
 #endif /* HAVE_LIBSYSTEMD */
 
   /* Fsignal calls emacs_abort () if it sees that waiting_for_input is
@@ -2889,7 +2906,7 @@ from the parent process and its tty file descriptors.  */)
       int nfd;
 
       /* Get rid of stdin, stdout and stderr.  */
-      nfd = emacs_open ("/dev/null", O_RDWR, 0);
+      nfd = emacs_open_noquit ("/dev/null", O_RDWR, 0);
       err |= nfd < 0;
       err |= dup2 (nfd, STDIN_FILENO) < 0;
       err |= dup2 (nfd, STDOUT_FILENO) < 0;
@@ -2908,7 +2925,7 @@ from the parent process and its tty file descriptors.  */)
     }
 
   /* Set it to an invalid value so we know we've already run this function.  */
-  daemon_type = -1;
+  daemon_type = -daemon_type;
 
 #else  /* WINDOWSNT */
   /* Signal the waiting emacsclient process.  */
@@ -3082,9 +3099,9 @@ because they do not depend on external libraries and are always available.
 Also note that this is not a generic facility for accessing external
 libraries; only those already known by Emacs will be loaded.  */);
 #ifdef WINDOWSNT
-  /* We may need to load libgccjit when dumping before term/w32-win.el
-     defines `dynamic-library-alist`. This will fail if that variable
-     is empty, so add libgccjit-0.dll to it.  */
+  /* FIXME: We may need to load libgccjit when dumping before
+     term/w32-win.el defines `dynamic-library-alist`. This will fail
+     if that variable is empty, so add libgccjit-0.dll to it.  */
   if (will_dump_p ())
     Vdynamic_library_alist = list1 (list2 (Qgccjit,
                                            build_string ("libgccjit-0.dll")));

@@ -1,13 +1,13 @@
 use libc;
 use std::ptr;
 
-use lisp::{
+use emacs::{
+    bindings::{wr_display_info, Emacs_GC},
     frame::LispFrameRef,
     lisp::ExternalPtr,
-    remacs_sys::{wr_display_info, Emacs_GC},
 };
 
-use super::{keyboard::KeyboardProcessor, output::OutputRef, term::TerminalRef};
+use super::{input::InputProcessor, output::OutputRef, term::TerminalRef};
 
 pub struct DisplayInfoInner {
     pub terminal: TerminalRef,
@@ -15,7 +15,7 @@ pub struct DisplayInfoInner {
 
     pub output: OutputRef,
 
-    pub keyboard_processor: KeyboardProcessor,
+    pub input_processor: InputProcessor,
 
     pub scratch_cursor_gc: Box<Emacs_GC>,
 }
@@ -26,7 +26,7 @@ impl Default for DisplayInfoInner {
             terminal: TerminalRef::new(ptr::null_mut()),
             focus_frame: LispFrameRef::new(ptr::null_mut()),
             output: OutputRef::new(ptr::null_mut()),
-            keyboard_processor: KeyboardProcessor::new(),
+            input_processor: InputProcessor::new(),
             scratch_cursor_gc: Box::new(Emacs_GC {
                 foreground: 0,
                 background: 0,

@@ -1,4 +1,4 @@
-;;; reftex-vars.el --- configuration variables for RefTeX
+;;; reftex-vars.el --- configuration variables for RefTeX  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1997-1999, 2001-2021 Free Software Foundation, Inc.
 
@@ -282,7 +282,7 @@ distribution.  Mixed-case symbols are convenience aliases.")
 The file name is expected after the command, either in braces or separated
 by whitespace."
   :group 'reftex-table-of-contents-browser
-  :set 'reftex-set-dirty
+  :set #'reftex-set-dirty
   :type '(repeat string))
 
 (defcustom reftex-max-section-depth 12
@@ -319,7 +319,7 @@ commands, promotion only works correctly if this list is sorted first
 by set, then within each set by level.  The promotion commands always
 select the nearest entry with the correct new level."
   :group 'reftex-table-of-contents-browser
-  :set 'reftex-set-dirty
+  :set #'reftex-set-dirty
   :type '(repeat
           (cons (string :tag "sectioning macro" "")
                 (choice
@@ -463,7 +463,7 @@ The value of this variable is a list of symbols with associations in the
 constant `reftex-label-alist-builtin'.  Check that constant for a full list
 of options."
   :group 'reftex-defining-label-environments
-  :set   'reftex-set-dirty
+  :set   #'reftex-set-dirty
   :type `(set
           :indent 4
           :inline t
@@ -611,7 +611,7 @@ Any list entry may also be a symbol.  If that has an association in
 list.  However, builtin defaults should normally be set with the variable
 `reftex-default-label-alist-entries'."
   :group 'reftex-defining-label-environments
-  :set 'reftex-set-dirty
+  :set #'reftex-set-dirty
   :type
   `(repeat
     (choice :tag "Package or Detailed   "
@@ -900,13 +900,14 @@ DOWNCASE    t:   Downcase words before using them."
       ,(concat
         ;; Make sure we search only for optional arguments of
         ;; environments/macros and don't match any other [.  ctable
-        ;; provides a macro called \ctable, listings/breqn have
+        ;; provides a macro called \ctable, beamer/breqn/listings have
         ;; environments.  Start with a backslash and a group for names
         "\\\\\\(?:"
         ;; begin, optional spaces and opening brace
         "begin[[:space:]]*{"
         ;; Build a regexp for env names
-        (regexp-opt '("lstlisting" "dmath" "dseries" "dgroup" "darray"))
+        (regexp-opt '("lstlisting" "dmath" "dseries" "dgroup"
+                      "darray" "frame"))
         ;; closing brace, optional spaces
         "}[[:space:]]*"
         ;; Now for macros
@@ -919,9 +920,9 @@ DOWNCASE    t:   Downcase words before using them."
         "\\[[^][]*"
         ;; Allow nested levels of chars enclosed in braces
         "\\(?:{[^}{]*"
-          "\\(?:{[^}{]*"
-            "\\(?:{[^}{]*}[^}{]*\\)*"
-          "}[^}{]*\\)*"
+        "\\(?:{[^}{]*"
+        "\\(?:{[^}{]*}[^}{]*\\)*"
+        "}[^}{]*\\)*"
         "}[^][]*\\)*"
         ;; Match the label key
         "\\<label[[:space:]]*=[[:space:]]*"
@@ -935,8 +936,9 @@ The default value matches usual \\label{...} definitions and
 keyval style [..., label = {...}, ...] label definitions.  The
 regexp for keyval style explicitly looks for environments
 provided by the packages \"listings\" (\"lstlisting\"),
-\"breqn\" (\"dmath\", \"dseries\", \"dgroup\", \"darray\") and
-the macro \"\\ctable\" provided by the package of the same name.
+\"beamer\" (\"frame\"), \"breqn\" (\"dmath\", \"dseries\",
+\"dgroup\", \"darray\") and the macro \"\\ctable\" provided by
+the package of the same name.
 
 It is assumed that the regexp group 1 matches the label text, so
 you have to define it using \\(?1:...\\) when adding new regexps.
@@ -944,7 +946,7 @@ you have to define it using \\(?1:...\\) when adding new regexps.
 When changed from Lisp, make sure to call
 `reftex-compile-variables' afterwards to make the change
 effective."
-    :version "27.1"
+    :version "28.1"
     :set (lambda (symbol value)
 	   (set symbol value)
 	   (when (fboundp 'reftex-compile-variables)
@@ -1196,7 +1198,7 @@ File names matched by these regexps will not be parsed by RefTeX.
 Intended for files which contain only `@string' macro definitions and the
 like, which are ignored by RefTeX anyway."
   :group 'reftex-citation-support
-  :set 'reftex-set-dirty
+  :set #'reftex-set-dirty
   :type '(repeat (regexp)))
 
 (defcustom reftex-default-bibliography nil
@@ -1316,7 +1318,7 @@ macro before insertion.  For example, it will change
     \\cite[][Chapter 1]{Jones}     -> \\cite[Chapter 1]{Jones}
     \\cite[see][]{Jones}           -> \\cite[see][]{Jones}
     \\cite[see][Chapter 1]{Jones}  -> \\cite{Jones}
-Is is possible that other packages have other conventions about which
+It is possible that other packages have other conventions about which
 optional argument is interpreted how - that is why this cleaning up
 can be turned off."
   :group 'reftex-citation-support
@@ -1458,7 +1460,7 @@ Note that AUCTeX sets these things internally for RefTeX as well, so
 with a sufficiently new version of AUCTeX, you should not set the
 package here."
   :group 'reftex-index-support
-  :set 'reftex-set-dirty
+  :set #'reftex-set-dirty
   :type `(list
           (repeat
            :inline t
@@ -1726,7 +1728,7 @@ Multiple directories can be separated by the system dependent `path-separator'.
 Directories ending in `//' or `!!' will be expanded recursively.
 See also `reftex-use-external-file-finders'."
   :group 'reftex-finding-files
-  :set 'reftex-set-dirty
+  :set #'reftex-set-dirty
   :type '(repeat (string :tag "Specification")))
 
 (defcustom reftex-bibpath-environment-variables '("BIBINPUTS" "TEXBIB")
@@ -1742,7 +1744,7 @@ Directories ending in `//' or `!!' will be expanded recursively.
 See also `reftex-use-external-file-finders'."
   :group 'reftex-citation-support
   :group 'reftex-finding-files
-  :set 'reftex-set-dirty
+  :set #'reftex-set-dirty
   :type '(repeat (string :tag "Specification")))
 
 (defcustom reftex-file-extensions '(("tex" . (".tex" ".ltx"))

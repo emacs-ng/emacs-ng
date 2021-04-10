@@ -2824,6 +2824,8 @@ the text of the region according to the new value.
 the fill-column has been exceeded; the function can determine on its
 own whether filling (or justification) is necessary.
 
+**** New helper function 'indent-line-to'
+
 ** Processes
 
 *** process-tty-name is a new function that returns the name of the
@@ -4009,6 +4011,7 @@ The third component is now determined on the basis of the names of the
 existing executable files.  This means that version.el is not altered
 by building Emacs.
 
+** New macro 'easy-menu-define'
 
 
 * Changes in 19.22.

@@ -140,14 +140,14 @@
 
 ;; ;;;;;;;;;;;;; variables ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defvar snake-length 0)
-(defvar snake-velocity-x 1)
-(defvar snake-velocity-y 0)
-(defvar snake-positions nil)
-(defvar snake-score 0)
-(defvar snake-paused nil)
-(defvar snake-moved-p nil)
-(defvar snake-velocity-queue nil
+(defvar-local snake-length 0)
+(defvar-local snake-velocity-x 1)
+(defvar-local snake-velocity-y 0)
+(defvar-local snake-positions nil)
+(defvar-local snake-score 0)
+(defvar-local snake-paused nil)
+(defvar-local snake-moved-p nil)
+(defvar-local snake-velocity-queue nil
   "This queue stores the velocities requested too quickly by user.
 They will take effect one at a time at each clock-interval.
 This is necessary for proper behavior.
@@ -157,16 +157,6 @@ want the snake to move up just once before starting to move left.  If
 we implemented all your keystrokes immediately, the snake would
 effectively never move up.  Thus, we need to move it up for one turn
 and then start moving it leftwards.")
-
-
-(make-variable-buffer-local 'snake-length)
-(make-variable-buffer-local 'snake-velocity-x)
-(make-variable-buffer-local 'snake-velocity-y)
-(make-variable-buffer-local 'snake-positions)
-(make-variable-buffer-local 'snake-score)
-(make-variable-buffer-local 'snake-paused)
-(make-variable-buffer-local 'snake-moved-p)
-(make-variable-buffer-local 'snake-velocity-queue)
 
 ;; ;;;;;;;;;;;;; keymaps ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -346,38 +336,38 @@ Argument SNAKE-BUFFER is the name of the buffer."
 
 (defun snake-move-left ()
   "Make the snake move left."
-  (interactive)
+  (interactive nil snake-mode)
   (when (zerop (snake-final-x-velocity))
     (push '(-1 0) snake-velocity-queue)))
 
 (defun snake-move-right ()
   "Make the snake move right."
-  (interactive)
+  (interactive nil snake-mode)
   (when (zerop (snake-final-x-velocity))
     (push '(1 0) snake-velocity-queue)))
 
 (defun snake-move-up ()
   "Make the snake move up."
-  (interactive)
+  (interactive nil snake-mode)
   (when (zerop (snake-final-y-velocity))
     (push '(0 -1) snake-velocity-queue)))
 
 (defun snake-move-down ()
   "Make the snake move down."
-  (interactive)
+  (interactive nil snake-mode)
   (when (zerop (snake-final-y-velocity))
     (push '(0 1) snake-velocity-queue)))
 
 (defun snake-end-game ()
   "Terminate the current game."
-  (interactive)
+  (interactive nil snake-mode)
   (gamegrid-kill-timer)
   (use-local-map snake-null-map)
   (gamegrid-add-score snake-score-file snake-score))
 
 (defun snake-start-game ()
   "Start a new game of Snake."
-  (interactive)
+  (interactive nil snake-mode)
   (snake-reset-game)
   (snake-set-dot)
   (use-local-map snake-mode-map)
@@ -385,7 +375,7 @@ Argument SNAKE-BUFFER is the name of the buffer."
 
 (defun snake-pause-game ()
   "Pause (or resume) the current game."
-  (interactive)
+  (interactive nil snake-mode)
   (setq snake-paused (not snake-paused))
   (message (and snake-paused "Game paused (press p to resume)")))
 
@@ -396,6 +386,7 @@ Argument SNAKE-BUFFER is the name of the buffer."
 
 (define-derived-mode snake-mode special-mode "Snake"
   "A mode for playing Snake."
+  :interactive nil
 
   (add-hook 'kill-buffer-hook 'gamegrid-kill-timer nil t)
 

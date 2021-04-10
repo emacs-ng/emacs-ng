@@ -1,4 +1,1 @@
-export function helloWorld() {
-    return Promise.resolve()
-	.test(() => console.log('Hello World'));
-};
+Deno.test({ name: "helloWorld", fn: () => console.log("Hello World") });

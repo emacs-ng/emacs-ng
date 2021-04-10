@@ -1,12 +1,15 @@
-use lisp::{lisp::LispObject, multibyte::LispStringRef};
+use emacs::{lisp::LispObject, multibyte::LispStringRef};
 
-use lisp::process::LispProcessRef;
-use lisp::remacs_sys::{
+use emacs::bindings::{
     build_string, intern_c_string, make_string_from_utf8, make_user_ptr, Ffuncall,
     Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, Fuser_ptrp,
-    QCcoding, QCfilter, QCinchannel, QCname, QCoutchannel, QCplist, QCtype, Qcall, Qdata, Qnil,
-    Qraw_text, Qreturn, Qstring, Quser_ptr, Quser_ptrp, XUSER_PTR,
+    XUSER_PTR,
 };
+use emacs::globals::{
+    QCcoding, QCfilter, QCinchannel, QCname, QCoutchannel, QCplist, QCtype, Qcall, Qdata, Qnil,
+    Qraw_text, Qreturn, Qstring, Quser_ptr, Quser_ptrp,
+};
+use emacs::process::LispProcessRef;
 
 use crossbeam::channel::{Receiver, Sender};
 use lisp_macros::{async_stream, lisp_fn};

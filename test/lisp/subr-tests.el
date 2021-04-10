@@ -78,14 +78,29 @@
 
 (ert-deftest subr-test-define-prefix-command ()
   (define-prefix-command 'foo-prefix-map)
+  (defvar foo-prefix-map)
+  (declare-function foo-prefix-map "subr-tests")
   (should (keymapp foo-prefix-map))
   (should (fboundp #'foo-prefix-map))
   ;; With optional argument.
   (define-prefix-command 'bar-prefix 'bar-prefix-map)
+  (defvar bar-prefix-map)
+  (declare-function bar-prefix "subr-tests")
   (should (keymapp bar-prefix-map))
   (should (fboundp #'bar-prefix))
   ;; Returns the symbol.
   (should (eq (define-prefix-command 'foo-bar) 'foo-bar)))
+
+(ert-deftest subr-test-local-key-binding ()
+  (with-temp-buffer
+    (emacs-lisp-mode)
+    (should (keymapp (local-key-binding [menu-bar])))
+    (should-not (local-key-binding [f12]))))
+
+(ert-deftest subr-test-global-key-binding ()
+  (should (eq (global-key-binding [f1]) 'help-command))
+  (should (eq (global-key-binding "x") 'self-insert-command))
+  (should-not (global-key-binding [f12])))
 
 
 ;;;; Mode hooks.
@@ -433,6 +448,15 @@ See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=19350."
   (should (equal (flatten-tree '(1 ("foo" "bar") 2))
                  '(1 "foo" "bar" 2))))
 
+(ert-deftest subr--tests-letrec ()
+  ;; Test that simple cases of `letrec' get optimized back to `let*'.
+  (should (equal (macroexpand '(letrec ((subr-tests-var1 1)
+                                        (subr-tests-var2 subr-tests-var1))
+                                 (+ subr-tests-var1 subr-tests-var2)))
+                 '(let* ((subr-tests-var1 1)
+                         (subr-tests-var2 subr-tests-var1))
+                    (+ subr-tests-var1 subr-tests-var2)))))
+
 (defvar subr-tests--hook nil)
 
 (ert-deftest subr-tests-add-hook-depth ()
@@ -511,7 +535,8 @@ See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=19350."
   (should (equal (string-replace "a" "aa" "aaa") "aaaaaa"))
   (should (equal (string-replace "abc" "defg" "abc") "defg"))
 
-  (should-error (string-replace "" "x" "abc")))
+  (should (equal (should-error (string-replace "" "x" "abc"))
+                 '(wrong-length-argument 0))))
 
 (ert-deftest subr-replace-regexp-in-string ()
   (should (equal (replace-regexp-in-string "a+" "xy" "abaabbabaaba")

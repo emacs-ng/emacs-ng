@@ -1,7 +1,7 @@
 use super::output::OutputRef;
 
-use lisp::{
-    remacs_sys::{
+use emacs::{
+    bindings::{
         draw_glyphs_face, draw_phys_cursor_glyph, get_phys_cursor_geometry, get_phys_cursor_glyph,
         glyph_row, glyph_type,
     },
@@ -64,7 +64,7 @@ pub fn draw_bar_cursor(
 
     let face = unsafe {
         let face_id = (*cursor_glyph).face_id();
-        let face_id = std::mem::transmute::<u32, lisp::remacs_sys::face_id>(face_id);
+        let face_id = std::mem::transmute::<u32, emacs::bindings::face_id>(face_id);
 
         &*frame.face_from_id(face_id).unwrap()
     };

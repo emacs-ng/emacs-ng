@@ -272,7 +272,9 @@ long context_menu_value = 0;
 
 /* display update */
 static struct frame *ns_updating_frame;
+#if !defined (NS_DRAW_TO_BUFFER) || MAC_OS_X_VERSION_MIN_REQUIRED < 101400
 static NSView *focus_view = NULL;
+#endif
 static int ns_window_num = 0;
 static BOOL gsaved = NO;
 static BOOL ns_fake_keydown = NO;
@@ -855,6 +857,17 @@ ns_row_rect (struct window *w, struct glyph_row *row,
 }
 
 
+double
+ns_frame_scale_factor (struct frame *f)
+{
+#if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MAX_ALLOWED > 1060
+  return [[FRAME_NS_VIEW (f) window] backingScaleFactor];
+#else
+  return [[FRAME_NS_VIEW (f) window] userSpaceScaleFactor];
+#endif
+}
+
+
 /* ==========================================================================
 
     Focus (clipping) and screen update
@@ -1139,7 +1152,9 @@ ns_update_end (struct frame *f)
    external (RIF) call; for whole frame, called after gui_update_window_end
    -------------------------------------------------------------------------- */
 {
+#if !defined (NS_DRAW_TO_BUFFER) || MAC_OS_X_VERSION_MIN_REQUIRED < 101400
   EmacsView *view = FRAME_NS_VIEW (f);
+#endif
 
   NSTRACE_WHEN (NSTRACE_GROUP_UPDATES, "ns_update_end");
 
@@ -1449,7 +1464,7 @@ ns_ring_bell (struct frame *f)
     }
 }
 
-
+#if !defined (NS_DRAW_TO_BUFFER) || MAC_OS_X_VERSION_MIN_REQUIRED < 101400
 static void
 hide_bell (void)
 /* --------------------------------------------------------------------------
@@ -1463,6 +1478,7 @@ hide_bell (void)
       [bell_view remove];
     }
 }
+#endif
 
 
 /* ==========================================================================
@@ -2876,6 +2892,8 @@ ns_get_shifted_character (NSEvent *event)
    ========================================================================== */
 
 
+#if 0
+/* FIXME: Remove this function. */
 static void
 ns_redraw_scroll_bars (struct frame *f)
 {
@@ -2890,6 +2908,7 @@ ns_redraw_scroll_bars (struct frame *f)
       [view display];
     }
 }
+#endif
 
 
 void
@@ -3029,9 +3048,13 @@ ns_clear_under_internal_border (struct frame *f)
       NSRectEdge edge[] = {NSMinXEdge, NSMinYEdge, NSMaxXEdge, NSMaxYEdge};
 
       int face_id =
-	!NILP (Vface_remapping_alist)
-	? lookup_basic_face (NULL, f, INTERNAL_BORDER_FACE_ID)
-	: INTERNAL_BORDER_FACE_ID;
+        (FRAME_PARENT_FRAME (f)
+         ? (!NILP (Vface_remapping_alist)
+            ? lookup_basic_face (NULL, f, CHILD_FRAME_BORDER_FACE_ID)
+            : CHILD_FRAME_BORDER_FACE_ID)
+         : (!NILP (Vface_remapping_alist)
+            ? lookup_basic_face (NULL, f, INTERNAL_BORDER_FACE_ID)
+            : INTERNAL_BORDER_FACE_ID));
       struct face *face = FACE_FROM_ID_OR_NULL (f, face_id);
 
       if (!face)
@@ -5602,7 +5625,11 @@ ns_term_init (Lisp_Object display_name)
   ns_drag_types = [[NSArray arrayWithObjects:
                             NSPasteboardTypeString,
                             NSPasteboardTypeTabularText,
+#if NS_USE_NSPasteboardTypeFileURL != 0
+                            NSPasteboardTypeFileURL,
+#else
                             NSFilenamesPboardType,
+#endif
                             NSPasteboardTypeURL, nil] retain];
 
   /* If fullscreen is in init/default-frame-alist, focus isn't set
@@ -7323,6 +7350,8 @@ not_in_argv (NSString *arg)
 
       [surface release];
       surface = nil;
+
+      [self setNeedsDisplay:YES];
     }
 #endif
 
@@ -7493,6 +7522,16 @@ not_in_argv (NSString *arg)
                  FRAME_TEXT_LINES_TO_PIXEL_HEIGHT (f, f->text_lines));
   [self initWithFrame: r];
   [self setAutoresizingMask: NSViewWidthSizable | NSViewHeightSizable];
+
+#ifdef NS_DRAW_TO_BUFFER
+  /* These settings mean AppKit will retain the contents of the frame
+     on resize.  Unfortunately it also means the frame will not be
+     automatically marked for display, but we can do that ourselves in
+     viewDidResize.  */
+  [self setLayerContentsRedrawPolicy:
+          NSViewLayerContentsRedrawOnSetNeedsDisplay];
+  [self setLayerContentsPlacement:NSViewLayerContentsPlacementTopLeft];
+#endif
 
   FRAME_NS_VIEW (f) = self;
   emacsframe = f;
@@ -8338,6 +8377,11 @@ not_in_argv (NSString *arg)
       surface = [[EmacsSurface alloc] initWithSize:s
                                         ColorSpace:[[[self window] colorSpace]
                                                      CGColorSpace]];
+
+      /* Since we're using NSViewLayerContentsRedrawOnSetNeedsDisplay
+         the layer's scale factor is not set automatically, so do it
+         now.  */
+      [[self layer] setContentsScale:[[self window] backingScaleFactor]];
     }
 
   CGContextRef context = [surface getContext];
@@ -8367,13 +8411,16 @@ not_in_argv (NSString *arg)
 {
   NSTRACE ("EmacsView windowDidChangeBackingProperties:]");
 
-  NSRect frame = [self frame];
+  if ([self wantsUpdateLayer])
+    {
+      NSRect frame = [self frame];
 
-  [surface release];
-  surface = nil;
+      [surface release];
+      surface = nil;
 
-  ns_clear_frame (emacsframe);
-  expose_frame (emacsframe, 0, 0, NSWidth (frame), NSHeight (frame));
+      ns_clear_frame (emacsframe);
+      expose_frame (emacsframe, 0, 0, NSWidth (frame), NSHeight (frame));
+    }
 }
 #endif /* NS_DRAW_TO_BUFFER */
 
@@ -8395,21 +8442,23 @@ not_in_argv (NSString *arg)
       void *pixels = CGBitmapContextGetData (context);
       int rowSize = CGBitmapContextGetBytesPerRow (context);
       int srcRowSize = NSWidth (srcRect) * scale * bpp;
-      void *srcPixels = pixels + (int)(NSMinY (srcRect) * scale * rowSize
-                                       + NSMinX (srcRect) * scale * bpp);
-      void *dstPixels = pixels + (int)(NSMinY (dstRect) * scale * rowSize
-                                       + NSMinX (dstRect) * scale * bpp);
+      void *srcPixels = (char *) pixels
+                        + (int) (NSMinY (srcRect) * scale * rowSize
+                                 + NSMinX (srcRect) * scale * bpp);
+      void *dstPixels = (char *) pixels
+                        + (int) (NSMinY (dstRect) * scale * rowSize
+                                 + NSMinX (dstRect) * scale * bpp);
 
       if (NSIntersectsRect (srcRect, dstRect)
           && NSMinY (srcRect) < NSMinY (dstRect))
         for (int y = NSHeight (srcRect) * scale - 1 ; y >= 0 ; y--)
-          memmove (dstPixels + y * rowSize,
-                   srcPixels + y * rowSize,
+          memmove ((char *) dstPixels + y * rowSize,
+                   (char *) srcPixels + y * rowSize,
                    srcRowSize);
       else
         for (int y = 0 ; y < NSHeight (srcRect) * scale ; y++)
-          memmove (dstPixels + y * rowSize,
-                   srcPixels + y * rowSize,
+          memmove ((char *) dstPixels + y * rowSize,
+                   (char *) srcPixels + y * rowSize,
                    srcRowSize);
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
@@ -8435,6 +8484,33 @@ not_in_argv (NSString *arg)
 
 
 #ifdef NS_DRAW_TO_BUFFER
+/* If the frame has been garbaged but the toolkit wants to draw, for
+   example when resizing the frame, we end up with a blank screen.
+   Sometimes this results in an unpleasant flicker, so try to
+   redisplay before drawing.  */
+- (void)viewWillDraw
+{
+  if (FRAME_GARBAGED_P (emacsframe)
+      && !redisplaying_p
+      && [self wantsUpdateLayer])
+    {
+      /* If there is IO going on when redisplay is run here Emacs
+         crashes.  I think it's because this code will always be run
+         within the run loop and for whatever reason processing input
+         is dangerous.  This technique was stolen wholesale from
+         nsmenu.m and seems to work.  */
+      bool owfi = waiting_for_input;
+      waiting_for_input = 0;
+      block_input ();
+
+      redisplay ();
+
+      unblock_input ();
+      waiting_for_input = owfi;
+    }
+}
+
+
 - (BOOL)wantsUpdateLayer
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
@@ -8450,6 +8526,13 @@ not_in_argv (NSString *arg)
 - (void)updateLayer
 {
   NSTRACE ("[EmacsView updateLayer]");
+
+  /* We run redisplay on frames that are garbaged, but marked for
+     display, before updateLayer is called so if the frame is still
+     garbaged that means the last redisplay must have refused to
+     update the frame.  */
+  if (FRAME_GARBAGED_P (emacsframe))
+    return;
 
   /* This can fail to update the screen if the same surface is
      provided twice in a row, even if its contents have changed.
@@ -8533,9 +8616,19 @@ not_in_argv (NSString *arg)
     {
       return NO;
     }
-  /* FIXME: NSFilenamesPboardType is deprecated in 10.14, but the
-     NSURL method can only handle one file at a time.  Stick with the
-     existing code at the moment.  */
+#if NS_USE_NSPasteboardTypeFileURL != 0
+  else if ([type isEqualToString: NSPasteboardTypeFileURL])
+    {
+      type_sym = Qfile;
+
+      NSArray *urls = [pb readObjectsForClasses: @[[NSURL self]]
+                                        options: nil];
+      NSEnumerator *uenum = [urls objectEnumerator];
+      NSURL *url;
+      while ((url = [uenum nextObject]))
+        strings = Fcons ([[url path] lispString], strings);
+    }
+#else  // !NS_USE_NSPasteboardTypeFileURL
   else if ([type isEqualToString: NSFilenamesPboardType])
     {
       NSArray *files;
@@ -8551,6 +8644,7 @@ not_in_argv (NSString *arg)
       while ( (file = [fenum nextObject]) )
         strings = Fcons ([file lispString], strings);
     }
+#endif   // !NS_USE_NSPasteboardTypeFileURL
   else if ([type isEqualToString: NSPasteboardTypeURL])
     {
       NSURL *url = [NSURL URLFromPasteboard: pb];
@@ -8727,7 +8821,8 @@ not_in_argv (NSString *arg)
 /* The array returned by [NSWindow parentWindow] may already be
    sorted, but the documentation doesn't tell us whether or not it is,
    so to be safe we'll sort it.  */
-NSInteger nswindow_orderedIndex_sort (id w1, id w2, void *c)
+static NSInteger
+nswindow_orderedIndex_sort (id w1, id w2, void *c)
 {
   NSInteger i1 = [w1 orderedIndex];
   NSInteger i2 = [w2 orderedIndex];
@@ -9674,7 +9769,7 @@ NSInteger nswindow_orderedIndex_sort (id w1, id w2, void *c)
   for (id object in cache)
     CFRelease ((IOSurfaceRef)object);
 
-  [cache removeAllObjects];
+  [cache release];
 
   [super dealloc];
 }

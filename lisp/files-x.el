@@ -570,13 +570,12 @@ from the MODE alist ignoring the input argument VALUE."
 (defvar enable-connection-local-variables t
   "Non-nil means enable use of connection-local variables.")
 
-(defvar connection-local-variables-alist nil
+(defvar-local connection-local-variables-alist nil
   "Alist of connection-local variable settings in the current buffer.
 Each element in this list has the form (VAR . VALUE), where VAR
 is a connection-local variable (a symbol) and VALUE is its value.
 The actual value in the buffer may differ from VALUE, if it is
 changed by the user.")
-(make-variable-buffer-local 'connection-local-variables-alist)
 (setq ignored-local-variables
       (cons 'connection-local-variables-alist ignored-local-variables))
 
@@ -700,13 +699,14 @@ will not be changed."
         (copy-tree connection-local-variables-alist)))
    (hack-local-variables-apply)))
 
-(defsubst connection-local-criteria-for-default-directory ()
-  "Return a connection-local criteria, which represents `default-directory'."
+(defsubst connection-local-criteria-for-default-directory (&optional application)
+  "Return a connection-local criteria, which represents `default-directory'.
+If APPLICATION is nil, the symbol `tramp' is used."
   (when (file-remote-p default-directory)
-    `(:application tramp
-       :protocol ,(file-remote-p default-directory 'method)
-       :user     ,(file-remote-p default-directory 'user)
-       :machine  ,(file-remote-p default-directory 'host))))
+    `(:application ,(or application 'tramp)
+       :protocol   ,(file-remote-p default-directory 'method)
+       :user       ,(file-remote-p default-directory 'user)
+       :machine    ,(file-remote-p default-directory 'host))))
 
 ;;;###autoload
 (defmacro with-connection-local-variables (&rest body)

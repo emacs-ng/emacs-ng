@@ -1,4 +1,4 @@
-;;; semantic.el --- Semantic buffer evaluator.
+;;; semantic.el --- Semantic buffer evaluator.  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
 
@@ -57,6 +57,7 @@ excluded if a released version is required.
 It is assumed that if the current version is newer than that specified,
 everything passes.  Exceptions occur when known incompatibilities are
 introduced."
+  (declare (obsolete emacs-version "28.1"))
   (require 'inversion)
   (inversion-test 'semantic
 		  (concat major "." minor
@@ -77,13 +78,12 @@ introduced."
 
 ;;; Variables and Configuration
 ;;
-(defvar semantic--parse-table nil
+(defvar-local semantic--parse-table nil
   "Variable that defines how to parse top level items in a buffer.
 This variable is for internal use only, and its content depends on the
 external parser used.")
-(make-variable-buffer-local 'semantic--parse-table)
 
-(defvar semantic-symbol->name-assoc-list
+(defvar-local semantic-symbol->name-assoc-list
   '((type     . "Types")
     (variable . "Variables")
     (function . "Functions")
@@ -95,22 +95,19 @@ It is sometimes useful for a language to use a different string
 in place of the default, even though that language will still
 return a symbol.  For example, Java return's includes, but the
 string can be replaced with `Imports'.")
-(make-variable-buffer-local 'semantic-symbol->name-assoc-list)
 
-(defvar semantic-symbol->name-assoc-list-for-type-parts nil
+(defvar-local semantic-symbol->name-assoc-list-for-type-parts nil
   "Like `semantic-symbol->name-assoc-list' for type parts.
 Some tags that have children (see `semantic-tag-children-compatibility')
 will want to define the names of classes of tags differently than at
 the top level.  For example, in C++, a Function may be called a
 Method.  In addition, there may be new types of tags that exist only
 in classes, such as protection labels.")
-(make-variable-buffer-local 'semantic-symbol->name-assoc-list-for-type-parts)
 
-(defvar semantic-case-fold nil
+(defvar-local semantic-case-fold nil
   "Value for `case-fold-search' when parsing.")
-(make-variable-buffer-local 'semantic-case-fold)
 
-(defvar semantic--buffer-cache nil
+(defvar-local semantic--buffer-cache nil
   "A cache of the fully parsed buffer.
 If no significant changes have been made (based on the state) then
 this is returned instead of re-parsing the buffer.
@@ -120,16 +117,13 @@ this is returned instead of re-parsing the buffer.
 If you need a tag list, use `semantic-fetch-tags'.  If you need the
 cached values for some reason, chances are you can add a hook to
 `semantic-after-toplevel-cache-change-hook'.")
-(make-variable-buffer-local 'semantic--buffer-cache)
 
-(defvar semantic-unmatched-syntax-cache nil
+(defvar-local semantic-unmatched-syntax-cache nil
   "A cached copy of unmatched syntax tokens.")
-(make-variable-buffer-local 'semantic-unmatched-syntax-cache)
 
-(defvar semantic-unmatched-syntax-cache-check nil
+(defvar-local semantic-unmatched-syntax-cache-check nil
   "Non-nil if the unmatched syntax cache is out of date.
 This is tracked with `semantic-change-function'.")
-(make-variable-buffer-local 'semantic-unmatched-syntax-cache-check)
 
 (defvar semantic-edits-are-safe nil
   "When non-nil, modifications do not require a reparse.
@@ -180,19 +174,16 @@ during a flush when the cache is given a new value of nil.")
   :group 'semantic
   :type 'boolean)
 
-(defvar semantic-parser-name "LL"
+(defvar-local semantic-parser-name "LL"
   "Optional name of the parser used to parse input stream.")
-(make-variable-buffer-local 'semantic-parser-name)
 
-(defvar semantic--completion-cache nil
+(defvar-local semantic--completion-cache nil
   "Internal variable used by `semantic-complete-symbol'.")
-(make-variable-buffer-local 'semantic--completion-cache)
 
 ;;; Parse tree state management API
 ;;
-(defvar semantic-parse-tree-state 'needs-rebuild
+(defvar-local semantic-parse-tree-state 'needs-rebuild
   "State of the current parse tree.")
-(make-variable-buffer-local 'semantic-parse-tree-state)
 
 (defmacro semantic-parse-tree-unparseable ()
   "Indicate that the current buffer is unparseable.
@@ -268,9 +259,8 @@ These functions are called by `semantic-new-buffer-fcn', before
 (defvar semantic-init-hook nil
   "Hook run when a buffer is initialized with a parsing table.")
 
-(defvar semantic-init-mode-hook nil
+(defvar-local semantic-init-mode-hook nil
   "Hook run when a buffer of a particular mode is initialized.")
-(make-variable-buffer-local 'semantic-init-mode-hook)
 
 (defvar semantic-init-db-hook nil
   "Hook run when a buffer is initialized with a parsing table for DBs.
@@ -307,7 +297,7 @@ to use Semantic, and `semantic-init-hook' is run."
                    'semantic-inhibit-functions)))
     ;; Make sure that if this buffer is cloned, our tags and overlays
     ;; don't go along for the ride.
-    (add-hook 'clone-indirect-buffer-hook 'semantic-clear-toplevel-cache
+    (add-hook 'clone-indirect-buffer-hook #'semantic-clear-toplevel-cache
 	      nil t)
     ;; Specify that this function has done its work.  At this point
     ;; we can consider that semantic is active in this buffer.
@@ -476,12 +466,12 @@ is requested."
   ;; Nuke all semantic overlays.  This is faster than deleting based
   ;; on our data structure.
   (let ((l (overlay-lists)))
-    (mapc 'semantic-delete-overlay-maybe (car l))
-    (mapc 'semantic-delete-overlay-maybe (cdr l))
+    (mapc #'semantic-delete-overlay-maybe (car l))
+    (mapc #'semantic-delete-overlay-maybe (cdr l))
     )
   (semantic-parse-tree-set-needs-rebuild)
   ;; Remove this hook which tracks if a buffer is up to date or not.
-  (remove-hook 'after-change-functions 'semantic-change-function t)
+  (remove-hook 'after-change-functions #'semantic-change-function t)
 
   (run-hook-with-args 'semantic-after-toplevel-cache-change-hook
 		      semantic--buffer-cache)
@@ -497,7 +487,7 @@ is requested."
   ;; This is specific to the bovine parser.
   (setq-local semantic-bovinate-nonterminal-check-obarray nil)
   (semantic-parse-tree-set-up-to-date)
-  (add-hook 'after-change-functions 'semantic-change-function nil t)
+  (add-hook 'after-change-functions #'semantic-change-function nil t)
   (run-hook-with-args 'semantic-after-toplevel-cache-change-hook
 		      semantic--buffer-cache)
   (setq semantic--completion-cache nil)
@@ -688,15 +678,15 @@ This function returns semantic tags without overlays."
       (if tag
           (if (car tag)
               (setq tag (mapcar
-                         #'(lambda (tag)
-                             ;; Set the 'reparse-symbol property to
-                             ;; NONTERM unless it was already setup
-                             ;; by a tag expander
-                             (or (semantic--tag-get-property
-                                  tag 'reparse-symbol)
-                                 (semantic--tag-put-property
-                                  tag 'reparse-symbol nonterm))
-                             tag)
+                         (lambda (tag)
+                           ;; Set the 'reparse-symbol property to
+                           ;; NONTERM unless it was already setup
+                           ;; by a tag expander
+                           (or (semantic--tag-get-property
+                                tag 'reparse-symbol)
+                               (semantic--tag-put-property
+                                tag 'reparse-symbol nonterm))
+                           tag)
                          (semantic--tag-expand tag))
                     result (append result tag))
             ;; No error in this case, a purposeful nil means don't
@@ -729,9 +719,8 @@ This function returns semantic tags without overlays."
 ;;
 ;; Any parser can use this API to provide a list of warnings during a
 ;; parse which a user may want to investigate.
-(defvar semantic-parser-warnings nil
+(defvar-local semantic-parser-warnings nil
   "A list of parser warnings since the last full reparse.")
-(make-variable-buffer-local 'semantic-parser-warnings)
 
 (defun semantic-clear-parser-warnings ()
   "Clear the current list of parser warnings for this buffer."
@@ -790,25 +779,25 @@ Throw away all the old tags, and recreate the tag database."
 (defvar semantic-mode-map
   (let ((map (make-sparse-keymap)))
     ;; Key bindings:
-    ;; (define-key km "f"    'senator-search-set-tag-class-filter)
-    ;; (define-key km "i"    'senator-isearch-toggle-semantic-mode)
-    (define-key map "\C-c,j" 'semantic-complete-jump-local)
-    (define-key map "\C-c,J" 'semantic-complete-jump)
-    (define-key map "\C-c,m" 'semantic-complete-jump-local-members)
-    (define-key map "\C-c,g" 'semantic-symref-symbol)
-    (define-key map "\C-c,G" 'semantic-symref)
-    (define-key map "\C-c,p" 'senator-previous-tag)
-    (define-key map "\C-c,n" 'senator-next-tag)
-    (define-key map "\C-c,u" 'senator-go-to-up-reference)
-    (define-key map "\C-c, " 'semantic-complete-analyze-inline)
-    (define-key map "\C-c,\C-w" 'senator-kill-tag)
-    (define-key map "\C-c,\M-w" 'senator-copy-tag)
-    (define-key map "\C-c,\C-y" 'senator-yank-tag)
-    (define-key map "\C-c,r" 'senator-copy-tag-to-register)
-    (define-key map "\C-c,," 'semantic-force-refresh)
-    (define-key map [?\C-c ?, up] 'senator-transpose-tags-up)
-    (define-key map [?\C-c ?, down] 'senator-transpose-tags-down)
-    (define-key map "\C-c,l" 'semantic-analyze-possible-completions)
+    ;; (define-key km "f"    #'senator-search-set-tag-class-filter)
+    ;; (define-key km "i"    #'senator-isearch-toggle-semantic-mode)
+    (define-key map "\C-c,j" #'semantic-complete-jump-local)
+    (define-key map "\C-c,J" #'semantic-complete-jump)
+    (define-key map "\C-c,m" #'semantic-complete-jump-local-members)
+    (define-key map "\C-c,g" #'semantic-symref-symbol)
+    (define-key map "\C-c,G" #'semantic-symref)
+    (define-key map "\C-c,p" #'senator-previous-tag)
+    (define-key map "\C-c,n" #'senator-next-tag)
+    (define-key map "\C-c,u" #'senator-go-to-up-reference)
+    (define-key map "\C-c, " #'semantic-complete-analyze-inline)
+    (define-key map "\C-c,\C-w" #'senator-kill-tag)
+    (define-key map "\C-c,\M-w" #'senator-copy-tag)
+    (define-key map "\C-c,\C-y" #'senator-yank-tag)
+    (define-key map "\C-c,r" #'senator-copy-tag-to-register)
+    (define-key map "\C-c,," #'semantic-force-refresh)
+    (define-key map [?\C-c ?, up] #'senator-transpose-tags-up)
+    (define-key map [?\C-c ?, down] #'senator-transpose-tags-down)
+    (define-key map "\C-c,l" #'semantic-analyze-possible-completions)
     ;; This hack avoids showing the CEDET menu twice if ede-minor-mode
     ;; and Semantic are both enabled.  Is there a better way?
     (define-key map [menu-bar cedet-menu]
@@ -1040,7 +1029,7 @@ Semantic mode.
 		     (file-exists-p semanticdb-default-system-save-directory))
 	    (require 'semantic/db-ebrowse)
 	    (semanticdb-load-ebrowse-caches)))
-	(add-hook 'mode-local-init-hook 'semantic-new-buffer-fcn)
+	(add-hook 'mode-local-init-hook #'semantic-new-buffer-fcn)
 	;; Add semantic-ia-complete-symbol to
 	;; completion-at-point-functions, so that it is run from
 	;; M-TAB.
@@ -1048,11 +1037,11 @@ Semantic mode.
 	;; Note: The first entry added is the last entry run, so the
 	;;       most specific entry should be last.
 	(add-hook 'completion-at-point-functions
-		  'semantic-analyze-nolongprefix-completion-at-point-function)
+		  #'semantic-analyze-nolongprefix-completion-at-point-function)
 	(add-hook 'completion-at-point-functions
-		  'semantic-analyze-notc-completion-at-point-function)
+		  #'semantic-analyze-notc-completion-at-point-function)
 	(add-hook 'completion-at-point-functions
-		  'semantic-analyze-completion-at-point-function)
+		  #'semantic-analyze-completion-at-point-function)
 
 	(if (bound-and-true-p global-ede-mode)
 	    (define-key cedet-menu-map [cedet-menu-separator] '("--")))
@@ -1063,21 +1052,21 @@ Semantic mode.
     ;; introduced in the buffer is pretty much futile, but we have to
     ;; clean the hooks and delete Semantic-related overlays, so that
     ;; Semantic can be re-activated cleanly.
-    (remove-hook 'mode-local-init-hook 'semantic-new-buffer-fcn)
+    (remove-hook 'mode-local-init-hook #'semantic-new-buffer-fcn)
     (remove-hook 'completion-at-point-functions
-		 'semantic-analyze-completion-at-point-function)
+		 #'semantic-analyze-completion-at-point-function)
     (remove-hook 'completion-at-point-functions
-		 'semantic-analyze-notc-completion-at-point-function)
+		 #'semantic-analyze-notc-completion-at-point-function)
     (remove-hook 'completion-at-point-functions
-		 'semantic-analyze-nolongprefix-completion-at-point-function)
+		 #'semantic-analyze-nolongprefix-completion-at-point-function)
 
     (remove-hook 'after-change-functions
-		 'semantic-change-function)
+		 #'semantic-change-function)
     (define-key cedet-menu-map [cedet-menu-separator] nil)
     (define-key cedet-menu-map [semantic-options-separator] nil)
     ;; FIXME: handle semanticdb-load-ebrowse-caches
     (dolist (mode semantic-submode-list)
-      (if (and (boundp mode) (eval mode))
+      (if (and (boundp mode) (symbol-value mode))
 	  (funcall mode -1)))
     ;; Unlink buffer and clear cache
     (semantic--tag-unlink-cache-from-buffer)

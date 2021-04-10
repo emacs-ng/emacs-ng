@@ -1,4 +1,4 @@
-;;; gnus-eform.el --- a mode for editing forms for Gnus
+;;; gnus-eform.el --- a mode for editing forms for Gnus  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
 
@@ -37,12 +37,10 @@
 
 (defcustom gnus-edit-form-mode-hook nil
   "Hook run in `gnus-edit-form-mode' buffers."
-  :group 'gnus-edit-form
   :type 'hook)
 
 (defcustom gnus-edit-form-menu-hook nil
   "Hook run when creating menus in `gnus-edit-form-mode' buffers."
-  :group 'gnus-edit-form
   :type 'hook)
 
 ;;; Internal variables
@@ -106,7 +104,7 @@ The optional LAYOUT overrides the `edit-form' window layout."
 
 (defun gnus-edit-form-done ()
   "Update changes and kill the current buffer."
-  (interactive)
+  (interactive nil gnus-edit-form-mode)
   (goto-char (point-min))
   (let ((form (condition-case nil
 		  (read (current-buffer))
@@ -117,7 +115,7 @@ The optional LAYOUT overrides the `edit-form' window layout."
 
 (defun gnus-edit-form-exit ()
   "Kill the current buffer."
-  (interactive)
+  (interactive nil gnus-edit-form-mode)
   (let ((winconf gnus-prev-winconf))
     (kill-buffer (current-buffer))
     (set-window-configuration winconf)))

@@ -1,4 +1,4 @@
-;;; admin.el --- utilities for Emacs administration
+;;; admin.el --- utilities for Emacs administration  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
 
@@ -151,7 +151,7 @@ Root must be the root of an Emacs source tree."
           (display-warning 'admin
                            "NEWS file contains empty sections - remove them?"))
         (goto-char (point-min))
-        (if (re-search-forward "^\\(\\+\\+\\+ *$\\|--- *$\\|Temporary note:\\)" nil t)
+        (if (re-search-forward "^\\(\\+\\+\\+? *$\\|---? *$\\|Temporary note:\\)" nil t)
             (display-warning 'admin
                              "NEWS file still contains temporary markup.
 Documentation changes might not have been completed!"))))
@@ -254,7 +254,7 @@ ROOT should be the root of an Emacs source tree."
     (search-forward "INFO_COMMON = ")
     (let ((start (point)))
       (end-of-line)
-      (while (and (looking-back "\\\\")
+      (while (and (looking-back "\\\\" (- (point) 2))
 		  (zerop (forward-line 1)))
 	(end-of-line))
       (append (split-string (replace-regexp-in-string
@@ -545,7 +545,7 @@ Leave point after the table."
 	(forward-line 1)
 	(while (not done)
 	  (cond ((re-search-forward "<tr><td.*&bull; \\(<a.*</a>\\)\
-:</td><td>&nbsp;&nbsp;</td><td[^>]*>\\(.*\\)" (line-end-position) t)
+:?</td><td>&nbsp;&nbsp;</td><td[^>]*>\\(.*\\)" (line-end-position) t)
 		 (replace-match (format "<tr><td%s>\\1</td>\n<td>\\2"
 					(if table-workaround
 					    " bgcolor=\"white\"" "")))
@@ -665,6 +665,8 @@ style=\"text-align:left\">")
 
 (defconst make-manuals-dist-output-variables
   '(("@\\(top_\\)?srcdir@" . ".")	; top_srcdir is wrong, but not used
+    ("@\\(abs_\\)?top_builddir@" . ".") ; wrong but unused
+    ("^\\(EMACS *=\\).*" . "\\1 emacs")
     ("^\\(\\(?:texinfo\\|buildinfo\\|emacs\\)dir *=\\).*" . "\\1 .")
     ("^\\(clean:.*\\)" . "\\1 infoclean")
     ("@MAKEINFO@" . "makeinfo")
@@ -682,9 +684,7 @@ style=\"text-align:left\">")
     ("@INSTALL@" . "install -c")
     ("@INSTALL_DATA@" . "${INSTALL} -m 644")
     ("@configure_input@" . "")
-    ("@AM_DEFAULT_VERBOSITY@" . "0")
-    ("@AM_V@" . "${V}")
-    ("@AM_DEFAULT_V@" . "${AM_DEFAULT_VERBOSITY}"))
+    ("@AM_DEFAULT_VERBOSITY@" . "0"))
   "Alist of (REGEXP . REPLACEMENT) pairs for `make-manuals-dist'.")
 
 (defun make-manuals-dist--1 (root type)
@@ -714,7 +714,8 @@ style=\"text-align:left\">")
 		   (string-match-p "\\.\\(eps\\|pdf\\)\\'" file)))
 	  (copy-file file stem)))
     (with-temp-buffer
-      (let ((outvars make-manuals-dist-output-variables))
+      (let ((outvars make-manuals-dist-output-variables)
+            (case-fold-search nil))
 	(push `("@version@" . ,version) outvars)
 	(insert-file-contents (format "../doc/%s/Makefile.in" type))
 	(dolist (cons outvars)
@@ -930,13 +931,19 @@ changes (in a non-trivial way).  This function does not check for that."
   (interactive
    (list (progn
            (require 'debbugs-gnu)
+           (defvar debbugs-gnu-emacs-blocking-reports)
+           (defvar debbugs-gnu-emacs-current-release)
            (completing-read
 	    "Emacs release: "
 	    (mapcar #'identity debbugs-gnu-emacs-blocking-reports)
 	    nil t debbugs-gnu-emacs-current-release))))
 
   (require 'debbugs-gnu)
+  (declare-function debbugs-get-status "debbugs" (&rest bug-numbers))
+  (declare-function debbugs-get-attribute "debbugs" (bug-or-message attribute))
   (require 'reporter)
+  (declare-function mail-position-on-field "sendmail" (field &optional soft))
+  (declare-function mail-text "sendmail" ())
 
   (when-let ((id (alist-get version debbugs-gnu-emacs-blocking-reports
                             nil nil #'string-equal))
@@ -958,11 +965,11 @@ changes (in a non-trivial way).  This function does not check for that."
        (insert "
 The following bugs are regarded as release-blocking for Emacs " version ".
 People are encouraged to work on them with priority.\n\n")
-       (dolist (_ blockedby-status)
-         (unless (equal (debbugs-get-attribute _ 'pending) "done")
+       (dolist (i blockedby-status)
+         (unless (equal (debbugs-get-attribute i 'pending) "done")
            (insert (format "bug#%d %s\n"
-                           (debbugs-get-attribute _ 'id)
-                           (debbugs-get-attribute _ 'subject)))))
+                           (debbugs-get-attribute i 'id)
+                           (debbugs-get-attribute i 'subject)))))
        (insert "
 If you use the debbugs package from GNU ELPA, you can apply the
 following form to see all bugs which block a given release:

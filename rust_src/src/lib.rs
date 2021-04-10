@@ -28,7 +28,7 @@ extern crate libc;
 
 // Needed for linking.
 #[macro_use]
-extern crate lisp;
+extern crate emacs;
 extern crate lisp_macros;
 extern crate remacs_lib;
 
@@ -57,8 +57,8 @@ macro_rules! export_lisp_fns {
 	    #[allow(unused_unsafe)] // just in case the block is empty
 	    unsafe {
 		$(
-		    $(#[$($meta),*])* lisp::remacs_sys::defsubr(
-			concat_idents!(S, $f).as_ptr() as *mut lisp::remacs_sys::Aligned_Lisp_Subr
+		    $(#[$($meta),*])* emacs::bindings::defsubr(
+			concat_idents!(S, $f).as_ptr() as *mut emacs::bindings::Aligned_Lisp_Subr
 		    );
 		)+
 	    }
@@ -71,7 +71,11 @@ mod git;
 mod javascript;
 mod javascript_stubs;
 mod ng_async;
+#[cfg(feature = "ng-module")]
+mod ng_module;
 mod parsing;
+#[cfg(feature = "javascript")]
+mod subcommands;
 
 #[cfg(feature = "window-system-webrender")]
 mod webrender_backend;

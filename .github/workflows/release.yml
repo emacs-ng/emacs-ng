@@ -1,0 +1,54 @@
+name: Create Release Asset
+
+on:
+  schedule:
+    - cron: "0 0 * * 0" # weekly
+  push:
+    tags:
+      'v*'
+
+jobs:
+  build:
+    name: Create Release Asset
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - name: Install minimal nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+      - name: Set outputs
+        id: vars
+        run: |
+          tag=${GITHUB_REF#refs/tags/*}
+          sha=$(git rev-parse --short HEAD)
+          version=$([[ $tag == v* ]] && echo ${tag:1} || echo 0.0.$sha)
+          prerelease=$([[ $tag == v* ]] && echo false || echo true)
+          echo "tag=$tag" >> $GITHUB_ENV
+          echo "sha=$sha" >> $GITHUB_ENV
+          echo "version=$version" >> $GITHUB_ENV
+          echo "prerelease=$prerelease" >> $GITHUB_ENV
+      - name: Build project # This would actually build your project, using zip for an example artifact
+        run: |
+          ./build_emacs_ng.sh ${{ env.version }}
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: v${{ env.version }}
+          release_name: emacs-ng_${{ env.version }}
+          draft: false
+          prerelease: ${{ env.prerelease }}
+      - name: Upload Release Asset
+        id: upload_release_asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./emacs-ng_${{ env.version }}-1_amd64.deb
+          asset_name: emacs-ng_${{ env.version }}-1_amd64.deb
+          asset_content_type: application/vnd.debian.binary-package

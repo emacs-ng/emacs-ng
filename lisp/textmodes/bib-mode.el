@@ -1,4 +1,4 @@
-;;; bib-mode.el --- major mode for editing bib files
+;;; bib-mode.el --- major mode for editing bib files  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1989, 2001-2021 Free Software Foundation, Inc.
 
@@ -29,6 +29,8 @@
 ;;   bibliography file.  Keys are automagically inserted as you type,
 ;;   and appropriate keys are presented for various kinds of entries.
 
+;; FIXME: Fix the namespace use of this library.
+
 ;;; Code:
 
 (defgroup bib nil
@@ -39,21 +41,19 @@
 
 (defcustom bib-file "~/my-bibliography.bib"
   "Default name of file used by `addbib'."
-    :type 'file
-    :group 'bib)
+  :type 'file)
 
 (defcustom unread-bib-file "~/to-be-read.bib"
    "Default name of file used by `unread-bib' in Bib mode."
-   :type 'file
-   :group 'bib)
+   :type 'file)
 
 (defvar bib-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map text-mode-map)
-    (define-key map "\C-M" 'return-key-bib)
-    (define-key map "\C-c\C-u" 'unread-bib)
-    (define-key map "\C-c\C-@" 'mark-bib)
-    (define-key map "\e`" 'abbrev-mode)
+    (define-key map "\C-M" #'return-key-bib)
+    (define-key map "\C-c\C-u" #'unread-bib)
+    (define-key map "\C-c\C-@" #'mark-bib)
+    (define-key map "\e`" #'abbrev-mode)
     map))
 
 (defun addbib ()
@@ -138,8 +138,7 @@ with the cdr.")
 
 (defcustom bib-auto-capitalize t
   "True to automatically capitalize appropriate fields in Bib mode."
-  :type 'boolean
-  :group 'bib)
+  :type 'boolean)
 
 (defconst bib-capitalized-fields "%[AETCBIJR]")
 

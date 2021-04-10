@@ -191,20 +191,18 @@ if the file has changed on disk and you have not edited the buffer."
   :type '(repeat regexp)
   :group 'find-file)
 
-(defvar buffer-file-number nil
+(defvar-local buffer-file-number nil
   "The device number and file number of the file visited in the current buffer.
 The value is a list of the form (FILENUM DEVNUM).
 This pair of numbers uniquely identifies the file.
 If the buffer is visiting a new file, the value is nil.")
-(make-variable-buffer-local 'buffer-file-number)
 (put 'buffer-file-number 'permanent-local t)
 
 (defvar buffer-file-numbers-unique (not (memq system-type '(windows-nt)))
   "Non-nil means that `buffer-file-number' uniquely identifies files.")
 
-(defvar buffer-file-read-only nil
+(defvar-local buffer-file-read-only nil
   "Non-nil if visited file was read-only when visited.")
-(make-variable-buffer-local 'buffer-file-read-only)
 
 (defcustom small-temporary-file-directory
   (if (eq system-type 'ms-dos) (getenv "TMPDIR"))
@@ -529,15 +527,14 @@ updates before the buffer is saved, use `before-save-hook'.")
 (put 'write-file-functions 'permanent-local t)
 
 ;; I found some files still using the obsolete form in 2018.
-(defvar local-write-file-hooks nil)
-(make-variable-buffer-local 'local-write-file-hooks)
+(defvar-local local-write-file-hooks nil)
 (put 'local-write-file-hooks 'permanent-local t)
 (make-obsolete-variable 'local-write-file-hooks 'write-file-functions "22.1")
 
 ;; I found some files still using the obsolete form in 2018.
 (define-obsolete-variable-alias 'write-contents-hooks
     'write-contents-functions "22.1")
-(defvar write-contents-functions nil
+(defvar-local write-contents-functions nil
   "List of functions to be called before writing out a buffer to a file.
 
 Used only by `save-buffer'.  If one of them returns non-nil, the
@@ -556,7 +553,6 @@ For hooks that _do_ pertain to the particular visited file, use
 `write-file-functions' relate to how a buffer is saved to file.
 To perform various checks or updates before the buffer is saved,
 use `before-save-hook'.")
-(make-variable-buffer-local 'write-contents-functions)
 
 (defcustom enable-local-variables t
   "Control use of local variables in files you visit.
@@ -827,7 +823,9 @@ The path separator is colon in GNU and GNU-like systems."
          (expand-file-name dir))
     (locate-file dir cd-path nil
                  (lambda (f) (and (file-directory-p f) 'dir-ok)))
-    (error "No such directory found via CDPATH environment variable"))))
+    (if (getenv "CDPATH")
+        (error "No such directory found via CDPATH environment variable: %s" dir)
+      (error "No such directory: %s" dir)))))
 
 (defun directory-files-recursively (dir regexp
                                         &optional include-directories predicate
@@ -1648,7 +1646,7 @@ called additional times).
 
 This macro actually adds an auxiliary function that calls FUN,
 rather than FUN itself, to `minibuffer-setup-hook'."
-  (declare (indent 1) (debug t))
+  (declare (indent 1) (debug ([&or (":append" form) [&or symbolp form]] body)))
   (let ((hook (make-symbol "setup-hook"))
         (funsym (make-symbol "fun"))
         (append nil))
@@ -2539,13 +2537,11 @@ unless NOMODES is non-nil."
 	   (msg
 	    (cond
 	     ((not warn) nil)
-	     ((and error (file-attributes buffer-file-name))
+	     ((and error (file-exists-p buffer-file-name))
 	      (setq buffer-read-only t)
-	      (if (and (file-symlink-p buffer-file-name)
-		       (not (file-exists-p
-			     (file-chase-links buffer-file-name))))
-		  "Symbolic link that points to nonexistent file"
-		"File exists, but cannot be read"))
+	      "File exists, but cannot be read")
+	     ((and error (file-symlink-p buffer-file-name))
+	      "Symbolic link that points to nonexistent file")
 	     ((not buffer-read-only)
 	      (if (and warn
 		       ;; No need to warn if buffer is auto-saved
@@ -2562,13 +2558,12 @@ unless NOMODES is non-nil."
 	     ((not error)
 	      (setq not-serious t)
 	      "Note: file is write protected")
-	     ((file-attributes (directory-file-name default-directory))
+	     ((file-accessible-directory-p default-directory)
 	      "File not found and directory write-protected")
-	     ((file-exists-p (file-name-directory buffer-file-name))
-	      (setq buffer-read-only nil))
 	     (t
 	      (setq buffer-read-only nil)
-	      "Use M-x make-directory RET RET to create the directory and its parents"))))
+	      (unless (file-directory-p default-directory)
+		"Use M-x make-directory RET RET to create the directory and its parents")))))
       (when msg
 	(message "%s" msg)
 	(or not-serious (sit-for 1 t))))
@@ -2735,6 +2730,7 @@ since only a single case-insensitive search through the alist is made."
      ("\\.scm\\.[0-9]*\\'" . scheme-mode)
      ("\\.[ckz]?sh\\'\\|\\.shar\\'\\|/\\.z?profile\\'" . sh-mode)
      ("\\.bash\\'" . sh-mode)
+     ("/PKGBUILD\\'" . sh-mode)
      ("\\(/\\|\\`\\)\\.\\(bash_\\(profile\\|history\\|log\\(in\\|out\\)\\)\\|z?log\\(in\\|out\\)\\)\\'" . sh-mode)
      ("\\(/\\|\\`\\)\\.\\(shrc\\|zshrc\\|m?kshrc\\|bashrc\\|t?cshrc\\|esrc\\)\\'" . sh-mode)
      ("\\(/\\|\\`\\)\\.\\([kz]shenv\\|xinitrc\\|startxrc\\|xsession\\)\\'" . sh-mode)
@@ -3448,23 +3444,21 @@ asking you for confirmation."
 
 (put 'c-set-style 'safe-local-eval-function t)
 
-(defvar file-local-variables-alist nil
+(defvar-local file-local-variables-alist nil
   "Alist of file-local variable settings in the current buffer.
 Each element in this list has the form (VAR . VALUE), where VAR
 is a file-local variable (a symbol) and VALUE is the value
 specified.  The actual value in the buffer may differ from VALUE,
 if it is changed by the major or minor modes, or by the user.")
-(make-variable-buffer-local 'file-local-variables-alist)
 (put 'file-local-variables-alist 'permanent-local t)
 
-(defvar dir-local-variables-alist nil
+(defvar-local dir-local-variables-alist nil
   "Alist of directory-local variable settings in the current buffer.
 Each element in this list has the form (VAR . VALUE), where VAR
 is a directory-local variable (a symbol) and VALUE is the value
 specified in .dir-locals.el.  The actual value in the buffer
 may differ from VALUE, if it is changed by the major or minor modes,
 or by the user.")
-(make-variable-buffer-local 'dir-local-variables-alist)
 
 (defvar before-hack-local-variables-hook nil
   "Normal hook run before setting file-local variables.
@@ -4067,13 +4061,13 @@ Return the new variables list."
                      (subdirs (assq 'subdirs alist)))
                 (if (or (not subdirs)
                         (progn
-                          (setq alist (delq subdirs alist))
+                          (setq alist (remq subdirs alist))
                           (cdr-safe subdirs))
                         ;; TODO someone might want to extend this to allow
                         ;; integer values for subdir, where N means
                         ;; variables apply to this directory and N levels
                         ;; below it (0 == nil).
-                        (equal root default-directory))
+                        (equal root (expand-file-name default-directory)))
                     (setq variables (dir-locals-collect-mode-variables
                                      alist variables))))))))
       (error
@@ -5238,7 +5232,7 @@ Used only by `save-buffer'."
   :type 'hook
   :group 'files)
 
-(defvar save-buffer-coding-system nil
+(defvar-local save-buffer-coding-system nil
   "If non-nil, use this coding system for saving the buffer.
 More precisely, use this coding system in place of the
 value of `buffer-file-coding-system', when saving the buffer.
@@ -5246,7 +5240,6 @@ Calling `write-region' for any purpose other than saving the buffer
 will still use `buffer-file-coding-system'; this variable has no effect
 in such cases.")
 
-(make-variable-buffer-local 'save-buffer-coding-system)
 (put 'save-buffer-coding-system 'permanent-local t)
 
 (defun basic-save-buffer (&optional called-interactively)
@@ -5515,9 +5508,8 @@ Before and after saving the buffer, this function runs
   "ACTION-ALIST argument used in call to `map-y-or-n-p'.")
 (put 'save-some-buffers-action-alist 'risky-local-variable t)
 
-(defvar buffer-save-without-query nil
+(defvar-local buffer-save-without-query nil
   "Non-nil means `save-some-buffers' should save this buffer without asking.")
-(make-variable-buffer-local 'buffer-save-without-query)
 
 (defcustom save-some-buffers-default-predicate nil
   "Default predicate for `save-some-buffers'.
@@ -6250,11 +6242,6 @@ an auto-save file."
              "Cannot revert unreadable file %s")
            file-name))
    (t
-    ;; Bind buffer-file-name to nil
-    ;; so that we don't try to lock the file.
-    (let ((buffer-file-name nil))
-      (or auto-save-p
-          (unlock-buffer)))
     (widen)
     (let ((coding-system-for-read
            ;; Auto-saved file should be read by Emacs's
@@ -7876,9 +7863,22 @@ Otherwise, trash FILENAME using the freedesktop.org conventions,
 
 	       ;; Make a .trashinfo file.  Use O_EXCL, as per trash-spec 1.0.
 	       (let* ((files-base (file-name-nondirectory fn))
-		      (info-fn (expand-file-name
+                      (overwrite nil)
+                      info-fn)
+                 ;; We're checking further down whether the info file
+                 ;; exists, but the file name may exist in the trash
+                 ;; directory even if there is no info file for it.
+                 (when (file-exists-p
+                        (expand-file-name files-base trash-files-dir))
+                   (setq overwrite t
+                         files-base (file-name-nondirectory
+                                     (make-temp-file
+                                      (expand-file-name
+                                       files-base trash-files-dir)))))
+		 (setq info-fn (expand-file-name
 				(concat files-base ".trashinfo")
-				trash-info-dir)))
+				trash-info-dir))
+                 ;; Re-check the existence (sort of).
 		 (condition-case nil
 		     (write-region nil nil info-fn nil 'quiet info-fn 'excl)
 		   (file-already-exists
@@ -7894,7 +7894,7 @@ Otherwise, trash FILENAME using the freedesktop.org conventions,
 		 ;; Finally, try to move the file to the trashcan.
 		 (let ((delete-by-moving-to-trash nil)
 		       (new-fn (expand-file-name files-base trash-files-dir)))
-		   (rename-file fn new-fn)))))))))
+		   (rename-file fn new-fn overwrite)))))))))
 
 (defsubst file-attribute-type (attributes)
   "The type field in ATTRIBUTES returned by `file-attributes'.

@@ -215,28 +215,6 @@ The variable list SPEC is the same as in `if-let'."
 
 (define-obsolete-function-alias 'string-reverse 'reverse "25.1")
 
-(defsubst string-trim-left (string &optional regexp)
-  "Trim STRING of leading string matching REGEXP.
-
-REGEXP defaults to \"[ \\t\\n\\r]+\"."
-  (if (string-match (concat "\\`\\(?:" (or regexp "[ \t\n\r]+") "\\)") string)
-      (substring string (match-end 0))
-    string))
-
-(defsubst string-trim-right (string &optional regexp)
-  "Trim STRING of trailing string matching REGEXP.
-
-REGEXP defaults to  \"[ \\t\\n\\r]+\"."
-  (let ((i (string-match-p (concat "\\(?:" (or regexp "[ \t\n\r]+") "\\)\\'")
-                           string)))
-    (if i (substring string 0 i) string)))
-
-(defsubst string-trim (string &optional trim-left trim-right)
-  "Trim STRING of leading and trailing strings matching TRIM-LEFT and TRIM-RIGHT.
-
-TRIM-LEFT and TRIM-RIGHT default to \"[ \\t\\n\\r]+\"."
-  (string-trim-left (string-trim-right string trim-right) trim-left))
-
 ;;;###autoload
 (defun string-truncate-left (string length)
   "Truncate STRING to LENGTH, replacing initial surplus with \"...\"."
@@ -388,6 +366,28 @@ it makes no sense to convert it to a string using
 	      (let ((tmp-buffer (current-buffer)))
 		(set-buffer source-buffer)
 		(replace-buffer-contents tmp-buffer max-secs max-costs)))))))))
+
+(defmacro named-let (name bindings &rest body)
+  "Looping construct taken from Scheme.
+Like `let', bind variables in BINDINGS and then evaluate BODY,
+but with the twist that BODY can evaluate itself recursively by
+calling NAME, where the arguments passed to NAME are used
+as the new values of the bound variables in the recursive invocation."
+  (declare (indent 2) (debug (symbolp (&rest (symbolp form)) body)))
+  (require 'cl-lib)
+  (let ((fargs (mapcar (lambda (b) (if (consp b) (car b) b)) bindings))
+        (aargs (mapcar (lambda (b) (if (consp b) (cadr b))) bindings)))
+    ;; According to the Scheme semantics of named let, `name' is not in scope
+    ;; while evaluating the expressions in `bindings', and for this reason, the
+    ;; "initial" function call below needs to be outside of the `cl-labels'.
+    ;; When the "self-tco" eliminates all recursive calls, the `cl-labels'
+    ;; expands to a lambda which the byte-compiler then combines with the
+    ;; funcall to make a `let' so we end up with a plain `while' loop and no
+    ;; remaining `lambda' at all.
+    `(funcall
+      (cl-labels ((,name ,fargs . ,body)) #',name)
+      . ,aargs)))
+
 
 (provide 'subr-x)
 

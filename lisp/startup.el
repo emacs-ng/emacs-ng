@@ -320,6 +320,8 @@ early init file.")
 This variable is used to define the proper function and keypad
 keys for use under X.  It is used in a fashion analogous to the
 environment variable TERM.")
+(make-obsolete-variable 'keyboard-type nil "28.1")
+(internal-make-var-non-special 'keyboard-type)
 
 (defvar window-setup-hook nil
   "Normal hook run after loading init files and handling the command line.
@@ -535,13 +537,19 @@ It is the default value of the variable `top-level'."
 	  (startup--xdg-or-homedot startup--xdg-config-home-emacs nil))
 
     (when (featurep 'nativecomp)
+      ;; Form `comp-eln-load-path'.
       (defvar comp-eln-load-path)
       (let ((path-env (getenv "EMACSNATIVELOADPATH")))
         (when path-env
-          (dolist (path (split-string path-env ":"))
+          (dolist (path (split-string path-env path-separator))
             (unless (string= "" path)
               (push path comp-eln-load-path)))))
-      (push (concat user-emacs-directory "eln-cache/") comp-eln-load-path))
+      (push (concat user-emacs-directory "eln-cache/") comp-eln-load-path)
+      ;; When $HOME is set to '/nonexistent' means we are running the
+      ;; testsuite, add a temporary folder in front to produce there
+      ;; new compilations.
+      (when (equal (getenv "HOME") "/nonexistent")
+        (push (make-temp-file "emacs-testsuite-" t) comp-eln-load-path)))
     ;; Look in each dir in load-path for a subdirs.el file.  If we
     ;; find one, load it, which will add the appropriate subdirs of
     ;; that dir into load-path.  This needs to be done before setting
@@ -929,7 +937,8 @@ the name of the init-file to load.  If this file cannot be
 loaded, and ALTERNATE-FILENAME-FUNCTION is non-nil, then it is
 called with no arguments and should return the name of an
 alternate init-file to load.  If LOAD-DEFAULTS is non-nil, then
-load default.el after the init-file.
+load default.el after the init-file, unless `inhibit-default-init'
+is non-nil.
 
 This function sets `user-init-file' to the name of the loaded
 init-file, or to a default value if loading is not possible."
@@ -985,8 +994,8 @@ init-file, or to a default value if loading is not possible."
                     (sit-for 1))
                   (setq user-init-file source))))
 
-            (when load-defaults
-
+            (when (and load-defaults
+                       (not inhibit-default-init))
               ;; Prevent default.el from changing the value of
               ;; `inhibit-startup-screen'.
               (let ((inhibit-startup-screen nil))
@@ -1174,12 +1183,12 @@ please check its value")
 
   ;; Re-evaluate predefined variables whose initial value depends on
   ;; the runtime context.
-  (let (current-load-list) ; c-r-s may call defvar, and hence LOADHIST_ATTACH
-    (setq custom-delayed-init-variables
-          ;; Initialize them in the same order they were loaded, in case there
-          ;; are dependencies between them.
-          (nreverse custom-delayed-init-variables))
-    (mapc 'custom-reevaluate-setting custom-delayed-init-variables))
+  (setq custom-delayed-init-variables
+        ;; Initialize them in the same order they were loaded, in case there
+        ;; are dependencies between them.
+        (nreverse custom-delayed-init-variables))
+  (mapc #'custom-reevaluate-setting custom-delayed-init-variables)
+  (setq custom-delayed-init-variables nil)
 
   ;; Warn for invalid user name.
   (when init-file-user
@@ -1296,8 +1305,7 @@ please check its value")
     (if (or noninteractive emacs-basic-display)
 	(setq menu-bar-mode nil
 	      tab-bar-mode nil
-	      tool-bar-mode nil
-	      no-blinking-cursor t))
+	      tool-bar-mode nil))
     (frame-initialize))
 
   (when (fboundp 'x-create-frame)
@@ -1306,25 +1314,9 @@ please check its value")
     (unless noninteractive
       (tool-bar-setup)))
 
-  ;; Turn off blinking cursor if so specified in X resources.  This is here
-  ;; only because all other settings of no-blinking-cursor are here.
-  (unless (or noninteractive
-	      emacs-basic-display
-	      (and (memq window-system '(x w32 ns))
-		   (not (member (x-get-resource "cursorBlink" "CursorBlink")
-				'("no" "off" "false" "0")))))
-    (setq no-blinking-cursor t))
-
   (unless noninteractive
     (startup--setup-quote-display)
     (setq internal--text-quoting-flag t))
-
-  ;; Re-evaluate again the predefined variables whose initial value
-  ;; depends on the runtime context, in case some of them depend on
-  ;; the window-system features.  Example: blink-cursor-mode.
-  (let (current-load-list) ; c-r-s may call defvar, and hence LOADHIST_ATTACH
-    (mapc 'custom-reevaluate-setting custom-delayed-init-variables)
-    (setq custom-delayed-init-variables nil))
 
   (normal-erase-is-backspace-setup-frame)
 
@@ -1382,7 +1374,7 @@ please check its value")
        (expand-file-name
         "init.el"
         startup-init-directory))
-     (not inhibit-default-init))
+     t)
 
     (when (and deactivate-mark transient-mark-mode)
       (with-current-buffer (window-buffer)
@@ -1408,7 +1400,7 @@ please check its value")
 	 (equal user-mail-address
 		(let (mail-host-address)
 		  (ignore-errors
-		    (eval (car (get 'user-mail-address 'standard-value))))))
+		    (custom--standard-value 'user-mail-address))))
 	 (custom-reevaluate-setting 'user-mail-address))
 
     ;; If parameter have been changed in the init file which influence
@@ -1506,13 +1498,13 @@ to reading the init file), or afterwards when the user first
 opens a graphical frame.
 
 This can set the values of `menu-bar-mode', `tool-bar-mode',
-`tab-bar-mode', and `no-blinking-cursor', as well as the `cursor' face.
+`tab-bar-mode', and `blink-cursor-mode', as well as the `cursor' face.
 Changed settings will be marked as \"CHANGED outside of Customize\"."
   (let ((no-vals  '("no" "off" "false" "0"))
 	(settings '(("menuBar" "MenuBar" menu-bar-mode nil)
 		    ("toolBar" "ToolBar" tool-bar-mode nil)
 		    ("scrollBar" "ScrollBar" scroll-bar-mode nil)
-		    ("cursorBlink" "CursorBlink" no-blinking-cursor t))))
+		    ("cursorBlink" "CursorBlink" blink-cursor-mode nil))))
     (dolist (x settings)
       (if (member (x-get-resource (nth 0 x) (nth 1 x)) no-vals)
 	  (set (nth 2 x) (nth 3 x)))))

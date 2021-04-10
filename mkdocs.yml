@@ -1,0 +1,48 @@
+site_name: Emacs NG - A new approach to Emacs
+site_description: A new approach to Emacs - Including TypeScript, Threading, Async I/O, and WebRender.
+site_url: https://emacs-ng.github.io/emacs-ng
+
+repo_name: emacs-ng/emacs-ng
+repo_url: https://github.com/emacs-ng/emacs-ng
+
+nav:
+  - Home: README.md
+  - Features:
+    - Basic features: main-features.md
+    - Advanced features: adv-features.md
+  - Getting started: getting-started.md
+  - Using Deno: using-deno.md
+  - Dynamic modules: ng-module.md
+  - FAQ: faq.md
+
+theme:
+  name: material
+  logo: images/logo.png
+  favicon: images/logo.png
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+
+extra:
+  social:
+    - icon: fontawesome/brands/github-alt
+      link: https://github.com/emacs-ng/emacs-ng
+
+extra_css:
+  - stylesheets/layout.css
+
+markdown_extensions:
+  - pymdownx.superfences
+  - codehilite
+  - meta
+  - toc:
+      permalink: '#'
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+
+plugins:
+  - search
+  - awesome-pages
+  - git-revision-date-localized

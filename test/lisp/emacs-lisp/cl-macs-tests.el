@@ -4,18 +4,18 @@
 
 ;; This file is part of GNU Emacs.
 
-;; This program is free software: you can redistribute it and/or
-;; modify it under the terms of the GNU General Public License as
-;; published by the Free Software Foundation, either version 3 of the
-;; License, or (at your option) any later version.
-;;
-;; This program is distributed in the hope that it will be useful, but
-;; WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-;; General Public License for more details.
-;;
+;; GNU Emacs is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; GNU Emacs is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see `https://www.gnu.org/licenses/'.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -609,5 +609,48 @@ collection clause."
            (current-buffer))
     ;; Just make sure the function can be instrumented.
     (edebug-defun)))
+
+;;; cl-labels
+
+(ert-deftest cl-macs--labels ()
+  ;; Simple recursive function.
+  (cl-labels ((len (xs) (if xs (1+ (len (cdr xs))) 0)))
+    (should (equal (len (make-list 42 t)) 42)))
+
+  (let ((list-42 (make-list 42 t))
+        (list-42k (make-list 42000 t)))
+
+    (cl-labels
+        ;; Simple tail-recursive function.
+        ((len (xs n) (if xs (len (cdr xs) (1+ n)) n))
+         ;; Slightly obfuscated version to exercise tail calls from
+         ;; `let', `progn', `and' and `or'.
+         (len2 (xs n) (or (and (not xs) n)
+                          (let (n1)
+                            (and xs
+                                 (progn (setq n1 (1+ n))
+                                        (len2 (cdr xs) n1)))))))
+      (should (equal (len nil 0) 0))
+      (should (equal (len2 nil 0) 0))
+      (should (equal (len list-42 0) 42))
+      (should (equal (len2 list-42 0) 42))
+      ;; Should not bump into stack depth limits.
+      (should (equal (len list-42k 0) 42000))
+      (should (equal (len2 list-42k 0) 42000))))
+
+  ;; Check that non-recursive functions are handled more efficiently.
+  (should (pcase (macroexpand '(cl-labels ((f (x) (+ x 1))) (f 5)))
+            (`(let* ,_ (funcall ,_ 5)) t)))
+
+  ;; Case of "tail-recursive lambdas".
+  (should (pcase (macroexpand
+                  '(cl-labels ((len (xs n) (if xs (len (cdr xs) (1+ n)) n)))
+                     #'len))
+            (`(function (lambda (,_ ,_) . ,_)) t))))
+
+(ert-deftest cl-macs--progv ()
+  (should (= (cl-progv '(test test) '(1 2) test) 2))
+  (should (equal (cl-progv '(test1 test2) '(1 2) (list test1 test2))
+                 '(1 2))))
 
 ;;; cl-macs-tests.el ends here

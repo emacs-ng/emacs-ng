@@ -739,6 +739,7 @@ Minibuffers
 * Minibuffer Windows::      Operating on the special minibuffer windows.
 * Minibuffer Contents::     How such commands access the minibuffer text.
 * Recursive Mini::          Whether recursive entry to minibuffer is allowed.
+* Inhibiting Interaction::  Running Emacs when no interaction is possible.
 * Minibuffer Misc::         Various customization hooks and variables.
 
 Completion
@@ -1407,8 +1408,9 @@ Low-Level Network Access
 
 Packing and Unpacking Byte Arrays
 
-* Bindat Spec::             Describing data layout.
+* Bindat Types::            Describing data layout.
 * Bindat Functions::        Doing the unpacking and packing.
+* Bindat Computed Types::   Advanced data layout specifications.
 
 Emacs Display
 

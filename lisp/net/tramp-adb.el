@@ -44,7 +44,6 @@
   :version "24.4"
   :type 'string)
 
-;;;###tramp-autoload
 (defcustom tramp-adb-connect-if-not-connected nil
   "Try to run `adb connect' if provided device is not connected currently.
 It is used for TCP/IP devices."
@@ -56,7 +55,6 @@ It is used for TCP/IP devices."
 (defconst tramp-adb-method "adb"
   "When this method name is used, forward all calls to Android Debug Bridge.")
 
-;;;###tramp-autoload
 (defcustom tramp-adb-prompt "^[^#$\n\r]*[#$][[:space:]]"
   "Regexp used as prompt in almquist shell."
   :type 'regexp
@@ -98,6 +96,7 @@ It is used for TCP/IP devices."
 	      `(,tramp-adb-method
                 (tramp-login-program ,tramp-adb-program)
                 (tramp-login-args    (("shell")))
+                (tramp-direct-async  t)
 	        (tramp-tmpdir        "/data/local/tmp")
                 (tramp-default-port  5555)))
 
@@ -196,13 +195,13 @@ It is used for TCP/IP devices."
 		tramp-adb-method)))
 
 ;;;###tramp-autoload
-(defun tramp-adb-file-name-handler (operation &rest arguments)
+(defun tramp-adb-file-name-handler (operation &rest args)
   "Invoke the ADB handler for OPERATION.
 First arg specifies the OPERATION, second arg is a list of
-ARGUMENTS to pass to the OPERATION."
+arguments to pass to the OPERATION."
   (if-let ((fn (assoc operation tramp-adb-file-name-handler-alist)))
-      (save-match-data (apply (cdr fn) arguments))
-    (tramp-run-real-handler operation arguments)))
+      (save-match-data (apply (cdr fn) args))
+    (tramp-run-real-handler operation args)))
 
 ;;;###tramp-autoload
 (tramp--with-startup
@@ -304,9 +303,7 @@ ARGUMENTS to pass to the OPERATION."
   (directory &optional full match nosort id-format count)
   "Like `directory-files-and-attributes' for Tramp files."
   (unless (file-exists-p directory)
-    (tramp-error
-     (tramp-dissect-file-name directory) tramp-file-missing
-     "No such file or directory" directory))
+    (tramp-compat-file-missing (tramp-dissect-file-name directory) directory))
   (when (file-directory-p directory)
     (with-parsed-tramp-file-name (expand-file-name directory) nil
       (copy-tree
@@ -434,7 +431,7 @@ Emacs dired can't find files."
   (setq dir (expand-file-name dir))
   (with-parsed-tramp-file-name dir nil
     (when (and (null parents) (file-exists-p dir))
-      (tramp-error v 'file-already-exists "Directory already exists %s" dir))
+      (tramp-error v 'file-already-exists dir))
     (when parents
       (let ((par (expand-file-name ".." dir)))
 	(unless (file-directory-p par)
@@ -497,9 +494,7 @@ Emacs dired can't find files."
   "Like `file-local-copy' for Tramp files."
   (with-parsed-tramp-file-name filename nil
     (unless (file-exists-p (file-truename filename))
-      (tramp-error
-       v tramp-file-missing
-       "Cannot make local copy of non-existing file `%s'" filename))
+      (tramp-compat-file-missing v filename))
     (let ((tmpfile (tramp-compat-make-temp-file filename)))
       (with-tramp-progress-reporter
 	  v 3 (format "Fetching %s to tmp file %s" filename tmpfile)
@@ -635,12 +630,13 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
       (copy-directory filename newname keep-date t)
 
     (let ((t1 (tramp-tramp-file-p filename))
-	  (t2 (tramp-tramp-file-p newname)))
+	  (t2 (tramp-tramp-file-p newname))
+	  ;; We don't want the target file to be compressed, so we
+	  ;; let-bind `jka-compr-inhibit' to t.
+	  (jka-compr-inhibit t))
       (with-parsed-tramp-file-name (if t1 filename newname) nil
 	(unless (file-exists-p filename)
-	  (tramp-error
-	   v tramp-file-missing
-	   "Copying file" "No such file or directory" filename))
+	  (tramp-compat-file-missing v filename))
 	(when (and (not ok-if-already-exists) (file-exists-p newname))
 	  (tramp-error v 'file-already-exists newname))
 	(when (and (file-directory-p newname)
@@ -716,12 +712,13 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 	(delete-directory filename 'recursive))
 
     (let ((t1 (tramp-tramp-file-p filename))
-	  (t2 (tramp-tramp-file-p newname)))
+	  (t2 (tramp-tramp-file-p newname))
+	  ;; We don't want the target file to be compressed, so we
+	  ;; let-bind `jka-compr-inhibit' to t.
+	  (jka-compr-inhibit t))
       (with-parsed-tramp-file-name (if t1 filename newname) nil
 	(unless (file-exists-p filename)
-	  (tramp-error
-	   v tramp-file-missing
-	   "Renaming file" "No such file or directory" filename))
+	  (tramp-compat-file-missing v filename))
 	(when (and (not ok-if-already-exists) (file-exists-p newname))
 	  (tramp-error v 'file-already-exists newname))
 	(when (and (file-directory-p newname)
@@ -895,8 +892,9 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 ;; terminated.
 (defun tramp-adb-handle-make-process (&rest args)
   "Like `make-process' for Tramp files.
-If connection property \"direct-async-process\" is non-nil, an
-alternative implementation will be used."
+If method parameter `tramp-direct-async' and connection property
+\"direct-async-process\" are non-nil, an alternative
+implementation will be used."
   (if (tramp-direct-async-process-p args)
       (apply #'tramp-handle-make-process args)
     (when args

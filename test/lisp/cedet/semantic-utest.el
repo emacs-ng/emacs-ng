@@ -1,6 +1,6 @@
 ;;; semantic-utest.el --- Tests for semantic's parsing system. -*- lexical-binding:t -*-
 
-;;; Copyright (C) 2003-2004, 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2021  Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -577,10 +577,8 @@ INSERTME is the text to be inserted after the deletion."
 
 
 (ert-deftest semantic-utest-Javascript()
-  (if (fboundp 'javascript-mode)
-      (semantic-utest-generic (semantic-utest-fname "javascripttest.js") semantic-utest-Javascript-buffer-contents  semantic-utest-Javascript-name-contents   '("fun2") "//1" "//deleted line")
-    (message "Skipping JavaScript test: NO major mode."))
-  )
+  (skip-unless (fboundp 'javascript-mode))
+  (semantic-utest-generic (semantic-utest-fname "javascripttest.js") semantic-utest-Javascript-buffer-contents  semantic-utest-Javascript-name-contents   '("fun2") "//1" "//deleted line"))
 
 (ert-deftest semantic-utest-Java()
   ;; If JDE is installed, it might mess things up depending on the version

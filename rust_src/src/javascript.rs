@@ -1,8 +1,9 @@
 use crate::parsing::{ArrayType, ObjectType};
-use lisp::lisp::LispObject;
-use lisp::list::{LispCons, LispConsCircularChecks, LispConsEndChecks};
-use lisp::multibyte::LispStringRef;
-use lisp::remacs_sys::{EmacsUint, Ffuncall};
+use emacs::bindings::Ffuncall;
+use emacs::definitions::EmacsUint;
+use emacs::lisp::LispObject;
+use emacs::list::{LispCons, LispConsCircularChecks, LispConsEndChecks};
+use emacs::multibyte::LispStringRef;
 use lisp_macros::lisp_fn;
 use rusty_v8 as v8;
 use std::cell::RefCell;
@@ -12,6 +13,10 @@ use std::ffi::CString;
 use std::io::Result;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
+
+use crate::futures::FutureExt;
+use futures::Future;
+use std::pin::Pin;
 
 #[derive(Clone)]
 struct EmacsJsOptions {
@@ -50,22 +55,35 @@ struct EmacsMainJsRuntime {
     /// to (eval-js-file), we append a unique module id and timestamp
     /// to every module evaluation.
     module_counter: u64,
-    /// In order to allow for JS -> Lisp -> JS calls, we would need
-    /// a valid HandleScope to use. Due to the way Deno is designed,
-    /// we cannot just use the Global HandleScrope from the v8::Isolate,
-    /// If a HandleScope is above us on the stack, we need to use THAT HandleScope
-    /// if we are not provided one, OR we can create a new HandleScope NOT from
-    /// the v8 Isolate. Due to this, when we call a JS function that may go
-    /// JS -> Lisp -> JS (or even deeper, say JS -> Lisp -> JS -> Lisp -> JS),
-    /// we store the pointer value of the current handle scope. By doing this,
-    /// WE BREAK RUST'S BIGGEST RULE, and create two mutable references to
-    /// the same variable. However, the only above us on the stack
-    /// cannot be touched, by careful design. The native C++ doesn't know about
-    /// lifetimes or Rust's rules, so doing this doesn't affect the underlying v8.
-    /// This is inheriently fragile, but we do it in a very
-    /// careful way that really only makes it a valid lifetime extension.
-    /// If there is every a stray SEGFAULT or general issue with this class,
-    /// it will likely be caused by mishandling of this variable.
+    /// In order to execute v8 Operations, you need a valid "Scope" Object.
+    /// Certain functions, like `block_on` and `MainWorker::execute` internally
+    /// handle creating that scope object for you. However,
+    /// we cannot always use `block_on`, or `MainWorker::execute` due to the
+    /// fact that either of those approaches will cause an intentional panic
+    /// if we have already called them further up the function stack.
+    /// In the case of `block_on`, we would be blocking on an already blocked
+    /// runtime, and in the case of MainWorker::execute, we would be attempting
+    /// to access the v8 Isolate's base Scope while there are other scopes on the
+    /// scope stack.
+    /// This variable is only relevent in the case that we call Lisp -> JS -> Lisp -> JS
+    /// In that event, when we are in the second JS invocation, we want to use
+    /// the HandleScope reference that is above us on the stack.
+    /// This is safe because the JavaScript and Lisp runtimes are synchronous
+    /// and we carefully manage the code to ensure that all of the invariants
+    /// needed to use a pointer this way are maintained.
+    /// Source: https://doc.rust-lang.org/std/primitive.pointer.html#method.as_mut
+    /// We must ALWAYS fufill the following conditions:
+    /// You have to ensure that either the pointer is NULL or all of the following is true:
+    /// 1. The pointer must be properly aligned.
+    /// 2. It must be "dereferencable" in the sense defined in the module documentation.
+    /// 3. The pointer must point to an initialized instance of T.
+    /// 4. You must enforce Rust's aliasing rules, since the returned lifetime 'a is arbitrarily
+    /// chosen and does not necessarily reflect the actual lifetime of the data. In particular, for
+    /// the duration of this lifetime, the memory the pointer points to must not get accessed (read
+    /// or written) through any other pointer.
+    /// This applies even if the result of this method is unused! (The part about being initialized
+    /// is not yet fully decided, but until it is, the only safe approach is to ensure that they
+    /// are indeed initialized.)
     stacked_v8_handle: Option<*mut v8::HandleScope<'static>>,
     /// The optiosn passed to (js-initialize) to customize the
     /// JS runtime.
@@ -108,7 +126,7 @@ impl Default for EmacsJsOptions {
         Self {
             tick_rate: 0.25,
             ops: None,
-            error_handler: lisp::remacs_sys::Qnil,
+            error_handler: emacs::globals::Qnil,
             inspect: None,
             inspect_brk: None,
             use_color: false,
@@ -158,6 +176,28 @@ impl MainWorkerHandle {
     }
 }
 
+struct RuntimeHandle {
+    worker: Option<tokio::runtime::Runtime>,
+}
+
+impl Drop for RuntimeHandle {
+    fn drop(&mut self) {
+        EmacsMainJsRuntime::set_tokio_runtime(self.worker.take().unwrap());
+    }
+}
+
+impl RuntimeHandle {
+    fn new(worker: tokio::runtime::Runtime) -> Self {
+        Self {
+            worker: Some(worker),
+        }
+    }
+
+    fn as_mut_ref(&mut self) -> &mut tokio::runtime::Runtime {
+        self.worker.as_mut().unwrap()
+    }
+}
+
 impl EmacsMainJsRuntime {
     fn access<F: Sized, T: FnOnce(&mut std::cell::RefMut<'_, EmacsMainJsRuntime>) -> F>(t: T) -> F {
         let mut input: MaybeUninit<F> = MaybeUninit::<F>::uninit();
@@ -195,27 +235,41 @@ impl EmacsMainJsRuntime {
         Self::access(move |main| main.options = options);
     }
 
-    unsafe fn get_stacked_v8_handle<'a>() -> &'a mut v8::HandleScope<'a> {
+    fn push_stack(scope: &mut v8::HandleScope) -> Option<*mut v8::HandleScope<'static>> {
+        let current = Self::_pop_handle();
+        Self::_push_handle(Some(scope));
+        current
+    }
+
+    fn peek_stack<'a>() -> &'a mut v8::HandleScope<'a> {
         Self::access(|main| {
-            std::mem::transmute::<*mut v8::HandleScope<'static>, &'a mut v8::HandleScope>(
-                main.stacked_v8_handle.unwrap(),
-            )
+            let ptr = main.stacked_v8_handle.unwrap() as *const _ as *mut v8::HandleScope<'a>;
+            // Since this ptr is always derived from a valid
+            // reference, this is safe
+            unsafe { ptr.as_mut() }.unwrap()
         })
     }
 
-    unsafe fn set_stacked_v8_handle(handle_opt: Option<&mut v8::HandleScope>) {
+    fn restore_stack<'a>(
+        current: Option<*mut v8::HandleScope<'static>>,
+    ) -> &'a mut v8::HandleScope<'a> {
+        let scope = Self::peek_stack();
+        Self::_push_ptr(current);
+        scope
+    }
+
+    fn _push_handle(handle_opt: Option<&mut v8::HandleScope>) {
         Self::access(|main| {
-            main.stacked_v8_handle = handle_opt.map(|handle| {
-                std::mem::transmute::<&mut v8::HandleScope, *mut v8::HandleScope<'static>>(handle)
-            });
+            main.stacked_v8_handle =
+                handle_opt.map(|handle| handle as *const _ as *mut v8::HandleScope<'static>);
         });
     }
 
-    fn get_raw_v8_handle() -> Option<*mut v8::HandleScope<'static>> {
+    fn _pop_handle() -> Option<*mut v8::HandleScope<'static>> {
         Self::access(|main| main.stacked_v8_handle.take())
     }
 
-    fn set_raw_v8_handle(o: Option<*mut v8::HandleScope<'static>>) {
+    fn _push_ptr(o: Option<*mut v8::HandleScope<'static>>) {
         Self::access(move |main| main.stacked_v8_handle = o);
     }
 
@@ -262,8 +316,8 @@ impl EmacsMainJsRuntime {
         Self::access(move |main| main.tokio_runtime = Some(r));
     }
 
-    fn get_tokio_handle() -> tokio::runtime::Handle {
-        Self::access(|main| main.tokio_runtime.as_ref().unwrap().handle().clone())
+    fn get_tokio_handle() -> RuntimeHandle {
+        Self::access(|main| RuntimeHandle::new(main.tokio_runtime.take().unwrap()))
     }
 
     fn is_tokio_active() -> bool {
@@ -308,6 +362,10 @@ impl EmacsMainJsRuntime {
     fn get_loops_per_tick() -> EmacsUint {
         Self::access(|main| main.options.loops_per_tick)
     }
+}
+
+fn is_interactive() -> bool {
+    unsafe { !emacs::bindings::globals.noninteractive1 }
 }
 
 // (DDS) This exists for breaking Deno's cache busting
@@ -359,13 +417,13 @@ macro_rules! make_proxy {
         assert!(inserted);
 
         unsafe {
-            if lisp::remacs_sys::globals.Vjs_retain_map == lisp::remacs_sys::Qnil {
-                lisp::remacs_sys::globals.Vjs_retain_map =
-                    LispObject::cons($lisp, lisp::remacs_sys::Qnil);
-                lisp::remacs_sys::staticpro(&lisp::remacs_sys::globals.Vjs_retain_map);
+            if emacs::bindings::globals.Vjs_retain_map == emacs::globals::Qnil {
+                emacs::bindings::globals.Vjs_retain_map =
+                    LispObject::cons($lisp, emacs::globals::Qnil);
+                emacs::bindings::staticpro(&emacs::bindings::globals.Vjs_retain_map);
             } else {
-                lisp::remacs_sys::globals.Vjs_retain_map =
-                    LispObject::cons($lisp, lisp::remacs_sys::globals.Vjs_retain_map);
+                emacs::bindings::globals.Vjs_retain_map =
+                    LispObject::cons($lisp, emacs::bindings::globals.Vjs_retain_map);
             }
         }
 
@@ -380,7 +438,15 @@ macro_rules! unproxy {
             .to_string($scope)
             .unwrap()
             .to_rust_string_lossy($scope);
-        LispObject::from_C_unsigned(ptrstr.parse::<lisp::remacs_sys::EmacsUint>().unwrap())
+        LispObject::from_C_unsigned(ptrstr.parse::<emacs::definitions::EmacsUint>().unwrap())
+    }};
+}
+
+macro_rules! bind_global_fn {
+    ($scope:expr, $global: expr, $fnc:ident) => {{
+        let name = v8::String::new($scope, stringify!($fnc)).unwrap();
+        let func = v8::Function::new($scope, $fnc).unwrap();
+        $global.set($scope, name.into(), func.into());
     }};
 }
 
@@ -447,14 +513,14 @@ pub fn lisp_make_finalizer(
 
     let result = unsafe {
         let mut bound = vec![
-            lisp::remacs_sys::Qjs__clear,
-            lisp::remacs_sys::make_fixnum(len.into()),
+            emacs::globals::Qjs__clear,
+            emacs::bindings::make_fixnum(len.into()),
         ];
-        let list = lisp::remacs_sys::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
-        let mut lambda = vec![lisp::remacs_sys::Qlambda, lisp::remacs_sys::Qnil, list];
+        let list = emacs::bindings::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
+        let mut lambda = vec![emacs::globals::Qlambda, emacs::globals::Qnil, list];
         let lambda_list =
-            lisp::remacs_sys::Flist(lambda.len().try_into().unwrap(), lambda.as_mut_ptr());
-        lisp::remacs_sys::Fmake_finalizer(lambda_list)
+            emacs::bindings::Flist(lambda.len().try_into().unwrap(), lambda.as_mut_ptr());
+        emacs::bindings::Fmake_finalizer(lambda_list)
     };
 
     let proxy = make_proxy!(scope, result);
@@ -481,7 +547,7 @@ pub fn lisp_make_lambda(
         .uint32_value(scope)
         .unwrap();
 
-    let llen = unsafe { lisp::remacs_sys::make_fixnum(len.into()) };
+    let llen = unsafe { emacs::bindings::make_fixnum(len.into()) };
 
     // WHAT IS THIS?!
     // This is doing the following in native code:
@@ -491,25 +557,25 @@ pub fn lisp_make_lambda(
     // js--clear to null out that lambda, to 'release' it from the JS GC. JS lambdas bound
     // this way just live in a global array, and js--clear just removes them from that array.
     let finalizer = unsafe {
-        let mut bound = vec![lisp::remacs_sys::Qjs__clear, llen];
-        let list = lisp::remacs_sys::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
-        let mut fargs = vec![lisp::remacs_sys::Qand_rest, lisp::remacs_sys::Qalpha];
+        let mut bound = vec![emacs::globals::Qjs__clear, llen];
+        let list = emacs::bindings::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
+        let mut fargs = vec![emacs::globals::Qand_rest, emacs::globals::Qalpha];
         let fargs_list =
-            lisp::remacs_sys::Flist(fargs.len().try_into().unwrap(), fargs.as_mut_ptr());
+            emacs::bindings::Flist(fargs.len().try_into().unwrap(), fargs.as_mut_ptr());
 
-        let mut lambda = vec![lisp::remacs_sys::Qlambda, fargs_list, list];
+        let mut lambda = vec![emacs::globals::Qlambda, fargs_list, list];
         let lambda_list =
-            lisp::remacs_sys::Flist(lambda.len().try_into().unwrap(), lambda.as_mut_ptr());
-        lisp::remacs_sys::Fmake_finalizer(lambda_list)
+            emacs::bindings::Flist(lambda.len().try_into().unwrap(), lambda.as_mut_ptr());
+        emacs::bindings::Fmake_finalizer(lambda_list)
     };
 
-    let mut inner = vec![lisp::remacs_sys::Qjs__reenter, llen, finalizer];
+    let mut inner = vec![emacs::globals::Qjs__reenter, llen, finalizer];
     if num_args > 0 {
-        inner.push(lisp::remacs_sys::Qalpha);
+        inner.push(emacs::globals::Qalpha);
     }
 
     let result =
-        unsafe { lisp::remacs_sys::Flist(inner.len().try_into().unwrap(), inner.as_mut_ptr()) };
+        unsafe { emacs::bindings::Flist(inner.len().try_into().unwrap(), inner.as_mut_ptr()) };
 
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
@@ -532,7 +598,7 @@ pub fn lisp_string(
     match c_alloc {
         Ok(cstr) => {
             let result = unsafe {
-                lisp::remacs_sys::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap())
+                emacs::bindings::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap())
             };
             let proxy = make_proxy!(scope, result);
             let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
@@ -557,7 +623,7 @@ pub fn lisp_fixnum(
         .integer_value(scope)
         .unwrap();
 
-    let result = unsafe { lisp::remacs_sys::make_fixnum(message) };
+    let result = unsafe { emacs::bindings::make_fixnum(message) };
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
     retval.set(r);
@@ -575,7 +641,7 @@ pub fn lisp_float(
         .number_value(scope)
         .unwrap();
 
-    let result = unsafe { lisp::remacs_sys::make_float(message) };
+    let result = unsafe { emacs::bindings::make_float(message) };
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
     retval.set(r);
@@ -587,7 +653,7 @@ pub fn lisp_intern(
     mut retval: v8::ReturnValue,
 ) {
     let lispobj = unproxy!(scope, args.get(0).to_object(scope).unwrap());
-    let result = unsafe { lisp::remacs_sys::Fintern(lispobj, lisp::remacs_sys::Qnil) };
+    let result = unsafe { emacs::bindings::Fintern(lispobj, emacs::globals::Qnil) };
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
     retval.set(r);
@@ -630,7 +696,7 @@ pub fn lisp_list(
     }
 
     let result = unsafe {
-        lisp::remacs_sys::Flist(lisp_args.len().try_into().unwrap(), lisp_args.as_mut_ptr())
+        emacs::bindings::Flist(lisp_args.len().try_into().unwrap(), lisp_args.as_mut_ptr())
     };
     let proxy = make_proxy!(scope, result);
     let r = v8::Local::<v8::Value>::try_from(proxy).unwrap();
@@ -668,7 +734,7 @@ pub fn finalize(
     _retval: v8::ReturnValue,
 ) {
     let len = args.length();
-    let mut new_list = LispObject::cons(lisp::remacs_sys::Qnil, lisp::remacs_sys::Qnil);
+    let mut new_list = LispObject::cons(emacs::globals::Qnil, emacs::globals::Qnil);
     for i in 0..len {
         let arg = args.get(i);
         if arg.is_object() {
@@ -677,7 +743,7 @@ pub fn finalize(
         }
     }
 
-    unsafe { lisp::remacs_sys::globals.Vjs_retain_map = new_list };
+    unsafe { emacs::bindings::globals.Vjs_retain_map = new_list };
 }
 
 pub fn is_proxy(
@@ -703,13 +769,13 @@ unsafe extern "C" fn lisp_springboard(arg1: *mut ::libc::c_void) -> LispObject {
 }
 
 unsafe extern "C" fn lisp_handler(
-    _arg1: lisp::remacs_sys::nonlocal_exit::Type,
+    _arg1: emacs::bindings::nonlocal_exit::Type,
     arg2: LispObject,
 ) -> LispObject {
-    LispObject::cons(lisp::remacs_sys::Qjs_lisp_error, arg2)
+    LispObject::cons(emacs::globals::Qjs_lisp_error, arg2)
 }
 
-pub fn lisp_callback(
+pub fn lisp_invoke(
     mut scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
     mut retval: v8::ReturnValue,
@@ -766,31 +832,24 @@ pub fn lisp_callback(
     // >>> Code touching EmacsMainJsRuntime::{get/set}_stacked_v8_handle or
     // >>> EmacsMainJsRuntime::{enter/exit}_runtime needs to be
     // >>> managed very carefully. It should not be touched without a good reason.
-    let current = unsafe {
-        let cur = EmacsMainJsRuntime::get_raw_v8_handle();
-        EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope));
-        cur
-    };
+    let current = EmacsMainJsRuntime::push_stack(scope);
     let boxed = Box::new(lisp_args);
     let raw_ptr = Box::into_raw(boxed);
     let results = unsafe {
-        lisp::remacs_sys::internal_catch_all(
+        emacs::bindings::internal_catch_all(
             Some(lisp_springboard),
             raw_ptr as *mut ::libc::c_void,
             Some(lisp_handler),
         )
     };
 
-    unsafe {
-        scope = EmacsMainJsRuntime::get_stacked_v8_handle();
-        EmacsMainJsRuntime::set_raw_v8_handle(current);
-    }
+    scope = EmacsMainJsRuntime::restore_stack(current);
 
     if results.is_cons() {
         let cons: LispCons = results.into();
-        if cons.car() == lisp::remacs_sys::Qjs_lisp_error {
+        if cons.car() == emacs::globals::Qjs_lisp_error {
             // Lisp has thrown, so we want to throw a JS exception.
-            let lisp_error_string = unsafe { lisp::remacs_sys::Ferror_message_string(cons.cdr()) };
+            let lisp_error_string = unsafe { emacs::bindings::Ferror_message_string(cons.cdr()) };
             let lisp_ref: LispStringRef = lisp_error_string.into();
             let err = lisp_ref.to_utf8();
             let error = v8::String::new(scope, &err).unwrap();
@@ -805,11 +864,11 @@ pub fn lisp_callback(
     // LOGIC, attempt to se, with a version of se that returns an error,
     // if this can't se, it is a proxy, and we will treat it as such.
     let is_primative = unsafe {
-        lisp::remacs_sys::STRINGP(results)
-            || lisp::remacs_sys::FIXNUMP(results)
-            || lisp::remacs_sys::FLOATP(results)
-            || results == lisp::remacs_sys::Qnil
-            || results == lisp::remacs_sys::Qt
+        emacs::bindings::STRINGP(results)
+            || emacs::bindings::FIXNUMP(results)
+            || emacs::bindings::FLOATP(results)
+            || results == emacs::globals::Qnil
+            || results == emacs::globals::Qt
     };
     if is_primative {
         if let Ok(json) = crate::parsing::ser(results) {
@@ -849,67 +908,67 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
         let value = args[i + 1];
 
         match key {
-            lisp::remacs_sys::QCallow_net => {
-                if value == lisp::remacs_sys::Qnil {
+            emacs::globals::QCallow_net => {
+                if value == emacs::globals::Qnil {
                     permissions.net.global_state =
                         deno_runtime::permissions::PermissionState::Denied;
                 }
             }
-            lisp::remacs_sys::QCallow_read => {
-                if value == lisp::remacs_sys::Qnil {
+            emacs::globals::QCallow_read => {
+                if value == emacs::globals::Qnil {
                     permissions.read.global_state =
                         deno_runtime::permissions::PermissionState::Denied;
                 }
             }
-            lisp::remacs_sys::QCallow_write => {
-                if value == lisp::remacs_sys::Qnil {
+            emacs::globals::QCallow_write => {
+                if value == emacs::globals::Qnil {
                     permissions.write.global_state =
                         deno_runtime::permissions::PermissionState::Denied;
                 }
             }
-            lisp::remacs_sys::QCallow_run => {
-                if value == lisp::remacs_sys::Qnil {
+            emacs::globals::QCallow_run => {
+                if value == emacs::globals::Qnil {
                     permissions.run = deno_runtime::permissions::PermissionState::Denied;
                 }
             }
-            lisp::remacs_sys::QCjs_tick_rate => unsafe {
-                if lisp::remacs_sys::FLOATP(value) {
-                    options.tick_rate = lisp::remacs_sys::XFLOAT_DATA(value);
+            emacs::globals::QCjs_tick_rate => unsafe {
+                if emacs::bindings::FLOATP(value) {
+                    options.tick_rate = emacs::bindings::XFLOAT_DATA(value);
                 }
             },
-            lisp::remacs_sys::QCjs_error_handler => {
+            emacs::globals::QCjs_error_handler => {
                 options.error_handler = value;
             }
-            lisp::remacs_sys::QCinspect => {
+            emacs::globals::QCinspect => {
                 if value.is_string() {
                     options.inspect = Some(value.as_string().unwrap().to_utf8());
-                } else if value == lisp::remacs_sys::Qt {
+                } else if value == emacs::globals::Qt {
                     options.inspect = Some(DEFAULT_ADDR.to_string());
                 }
             }
-            lisp::remacs_sys::QCinspect_brk => {
+            emacs::globals::QCinspect_brk => {
                 if value.is_string() {
                     options.inspect_brk = Some(value.as_string().unwrap().to_utf8());
-                } else if value == lisp::remacs_sys::Qt {
+                } else if value == emacs::globals::Qt {
                     options.inspect_brk = Some(DEFAULT_ADDR.to_string());
                 }
             }
-            lisp::remacs_sys::QCuse_color => {
+            emacs::globals::QCuse_color => {
                 if value.is_t() {
                     options.use_color = true;
                 }
             }
-            lisp::remacs_sys::QCts_config => {
+            emacs::globals::QCts_config => {
                 let sref: LispStringRef = value.into();
                 let rstring = sref.to_utf8();
                 options.ts_config = Some(rstring);
             }
-            lisp::remacs_sys::QCno_check => {
+            emacs::globals::QCno_check => {
                 if value.is_t() {
                     options.no_check = true;
                 }
             }
-            lisp::remacs_sys::QCno_remote => {
+            emacs::globals::QCno_remote => {
                 if value.is_t() {
                     options.no_remote = true;
                 }
@@ -970,9 +1029,8 @@ pub fn eval_js(args: &[LispObject]) -> LispObject {
     let ops = EmacsMainJsRuntime::get_options();
     let name = unique_module!("./$anon$lisp${}{}.ts");
     let string = string_obj.to_utf8();
-    let is_typescript = args.len() == 3
-        && args[1] == lisp::remacs_sys::QCtypescript
-        && args[2] == lisp::remacs_sys::Qt;
+    let is_typescript =
+        args.len() == 3 && args[1] == emacs::globals::QCtypescript && args[2] == emacs::globals::Qt;
 
     run_module(&name, Some(string), &ops, is_typescript)
 }
@@ -988,10 +1046,14 @@ pub fn eval_js(args: &[LispObject]) -> LispObject {
 #[lisp_fn(intspec = "MEval JS: ")]
 pub fn eval_js_literally(js: LispStringRef) -> LispObject {
     let ops = EmacsMainJsRuntime::get_options();
-    js_initialize_inner(&ops).unwrap_or_else(|e| {
+    js_init_sys("init.js", &ops).unwrap_or_else(|e| {
         error!("JS Failed to initialize with error: {}", e);
     });
-    inner_invokation(move |scope| eval_literally_inner(scope, js), true)
+
+    let result = execute_with_current_scope(move |scope| eval_literally_inner(scope, js))
+        .unwrap_or_else(|e| handle_error_inner_invokation(e));
+    tick_and_schedule_if_required();
+    result
 }
 
 /// Evaluate the contents of BUFFER as JavaScript
@@ -1048,7 +1110,7 @@ pub fn eval_js_region_literally(start: LispObject, end: LispObject) -> LispObjec
 pub fn eval_js_expression(args: &[LispObject]) -> LispObject {
     let js: LispStringRef = args[0].into();
     let result = eval_js_literally(js);
-    let mut call = vec![lisp::remacs_sys::Qeval_expression, result];
+    let mut call = vec![emacs::globals::Qeval_expression, result];
     for i in 1..args.len() {
         call.push(args[i]);
     }
@@ -1056,7 +1118,7 @@ pub fn eval_js_expression(args: &[LispObject]) -> LispObject {
     unsafe { Ffuncall(call.len().try_into().unwrap(), call.as_mut_ptr()) }
 }
 
-fn eval_literally_inner(scope: &mut v8::HandleScope, js: LispStringRef) -> LispObject {
+fn eval_literally_inner(scope: &mut v8::HandleScope, js: LispStringRef) -> Result<LispObject> {
     let context = scope.get_current_context();
     let global = context.global(scope);
 
@@ -1066,27 +1128,8 @@ fn eval_literally_inner(scope: &mut v8::HandleScope, js: LispStringRef) -> LispO
     let eval_data = js.to_utf8();
     let arg0 =
         v8::Local::<v8::Value>::try_from(v8::String::new(scope, &eval_data).unwrap()).unwrap();
-    let recv =
-        v8::Local::<v8::Value>::try_from(v8::String::new(scope, "lisp_invoke").unwrap()).unwrap();
     let v8_args = vec![arg0];
-    let mut retval = lisp::remacs_sys::Qnil;
-    if let Some(result) = fnc.call(scope, recv, v8_args.as_slice()) {
-        if result.is_string() {
-            let a = result.to_string(scope).unwrap().to_rust_string_lossy(scope);
-            let deser_result = crate::parsing::deser(&a, None);
-            match deser_result {
-                Ok(deser) => retval = deser,
-                Err(e) => {
-                    throw_exception_with_error(scope, e);
-                    return lisp::remacs_sys::Qnil;
-                }
-            }
-        } else if result.is_object() {
-            retval = unproxy!(scope, result.to_object(scope).unwrap());
-        }
-    }
-
-    retval
+    execute_function_may_throw(scope, &fnc, &v8_args)
 }
 
 /// Reads and evaluates FILENAME as a JavaScript module on
@@ -1112,8 +1155,8 @@ pub fn eval_js_file(args: &[LispObject]) -> LispObject {
     let ops = EmacsMainJsRuntime::get_options();
     let mut module = filename.to_utf8();
     let is_typescript = (args.len() == 3
-        && args[1] == lisp::remacs_sys::QCtypescript
-        && args[2] == lisp::remacs_sys::Qt)
+        && args[1] == emacs::globals::QCtypescript
+        && args[2] == emacs::globals::Qt)
         || is_typescript(&module);
 
     // This is a hack to allow for our behavior of
@@ -1125,14 +1168,14 @@ pub fn eval_js_file(args: &[LispObject]) -> LispObject {
 
 fn get_buffer_contents(mut buffer: LispObject) -> LispObject {
     if buffer.is_nil() {
-        buffer = unsafe { lisp::remacs_sys::Fcurrent_buffer() };
+        buffer = unsafe { emacs::bindings::Fcurrent_buffer() };
     }
 
     unsafe {
-        let current = lisp::remacs_sys::Fcurrent_buffer();
-        lisp::remacs_sys::Fset_buffer(buffer);
-        let lstring = lisp::remacs_sys::Fbuffer_string();
-        lisp::remacs_sys::Fset_buffer(current);
+        let current = emacs::bindings::Fcurrent_buffer();
+        emacs::bindings::Fset_buffer(buffer);
+        let lstring = emacs::bindings::Fbuffer_string();
+        emacs::bindings::Fset_buffer(current);
         lstring
     }
 }
@@ -1164,17 +1207,17 @@ pub fn eval_ts_buffer(buffer: LispObject) -> LispObject {
     let lisp_string = get_buffer_contents(buffer);
     eval_js(&[
         lisp_string,
-        lisp::remacs_sys::QCtypescript,
-        lisp::remacs_sys::Qt,
+        emacs::globals::QCtypescript,
+        emacs::globals::Qt,
     ])
 }
 
 fn get_region(start: LispObject, end: LispObject) -> LispObject {
-    let saved = unsafe { lisp::remacs_sys::save_restriction_save() };
+    let saved = unsafe { emacs::bindings::save_restriction_save() };
     unsafe {
-        lisp::remacs_sys::Fnarrow_to_region(start, end);
-        let lstring = lisp::remacs_sys::Fbuffer_string();
-        lisp::remacs_sys::save_restriction_restore(saved);
+        emacs::bindings::Fnarrow_to_region(start, end);
+        let lstring = emacs::bindings::Fbuffer_string();
+        emacs::bindings::save_restriction_restore(saved);
         lstring
     }
 }
@@ -1206,8 +1249,8 @@ pub fn eval_ts_region(start: LispObject, end: LispObject) -> LispObject {
     let lisp_string = get_region(start, end);
     eval_js(&[
         lisp_string,
-        lisp::remacs_sys::QCtypescript,
-        lisp::remacs_sys::Qt,
+        emacs::globals::QCtypescript,
+        emacs::globals::Qt,
     ])
 }
 
@@ -1262,16 +1305,16 @@ pub fn eval_ts_region(start: LispObject, end: LispObject) -> LispObject {
 pub fn js_initialize(args: &[LispObject]) -> LispObject {
     let ops = permissions_from_args(args);
     EmacsMainJsRuntime::set_options(ops.clone());
-    js_initialize_inner(&ops)
-        .map(|_| lisp::remacs_sys::Qt)
+    js_init_sys("init.js", &ops)
+        .map(|_| emacs::globals::Qt)
         .unwrap_or_else(|e| {
             error!("JS Failed to initialize with error: {}", e);
         })
 }
 
-fn js_initialize_inner(js_options: &EmacsJsOptions) -> Result<()> {
-    init_once()?;
-    init_worker("init.js", js_options)?;
+fn js_init_sys(filename: &str, js_options: &EmacsJsOptions) -> Result<()> {
+    init_tokio()?;
+    init_worker(filename, js_options)?;
     Ok(())
 }
 
@@ -1281,21 +1324,21 @@ fn js_initialize_inner(js_options: &EmacsJsOptions) -> Result<()> {
 #[lisp_fn]
 pub fn js_cleanup() -> LispObject {
     EmacsMainJsRuntime::destroy_worker();
-    lisp::remacs_sys::Qnil
+    emacs::globals::Qnil
 }
 
 fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> Result<LispObject> {
     let index = args[0];
 
-    if !unsafe { lisp::remacs_sys::INTEGERP(index) } {
+    if !unsafe { emacs::bindings::INTEGERP(index) } {
         error!("Failed to provide proper index to js--reenter");
     }
 
     let value = unsafe {
-        lisp::remacs_sys::check_integer_range(
+        emacs::bindings::check_integer_range(
             index,
-            lisp::remacs_sys::intmax_t::MIN,
-            lisp::remacs_sys::intmax_t::MAX,
+            emacs::bindings::intmax_t::MIN,
+            emacs::bindings::intmax_t::MAX,
         )
     };
 
@@ -1305,8 +1348,6 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> Result<
     let name = v8::String::new(scope, "__invoke").unwrap();
     let fnc: v8::Local<v8::Function> = global.get(scope, name.into()).unwrap().try_into().unwrap();
 
-    let recv =
-        v8::Local::<v8::Value>::try_from(v8::String::new(scope, "lisp_invoke").unwrap()).unwrap();
     let arg0 = v8::Local::<v8::Value>::try_from(v8::Number::new(scope, value as f64)).unwrap();
     let mut v8_args = vec![arg0];
 
@@ -1315,11 +1356,11 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> Result<
         cons.iter_cars(LispConsEndChecks::on, LispConsCircularChecks::on)
             .for_each(|a| {
                 let is_primative = unsafe {
-                    lisp::remacs_sys::STRINGP(a)
-                        || lisp::remacs_sys::FIXNUMP(a)
-                        || lisp::remacs_sys::FLOATP(a)
-                        || a == lisp::remacs_sys::Qnil
-                        || a == lisp::remacs_sys::Qt
+                    emacs::bindings::STRINGP(a)
+                        || emacs::bindings::FIXNUMP(a)
+                        || emacs::bindings::FLOATP(a)
+                        || a == emacs::globals::Qnil
+                        || a == emacs::globals::Qt
                 };
                 if is_primative {
                     if let Ok(json) = crate::parsing::ser(a) {
@@ -1337,15 +1378,22 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> Result<
             });
     }
 
-    let mut retval = lisp::remacs_sys::Qnil;
+    execute_function_may_throw(scope, &fnc, &mut v8_args)
+}
+
+fn execute_function_may_throw(
+    scope: &mut v8::HandleScope,
+    fnc: &v8::Local<v8::Function>,
+    v8_args: &Vec<v8::Local<v8::Value>>,
+) -> Result<LispObject> {
+    let mut retval = emacs::globals::Qnil;
     // A try catch scope counts as a cope that needs to be placed
     // on the handle stack.
+
     let tc_scope = &mut v8::TryCatch::new(scope);
-    let curr = unsafe {
-        let cur = EmacsMainJsRuntime::get_raw_v8_handle();
-        EmacsMainJsRuntime::set_stacked_v8_handle(Some(tc_scope));
-        cur
-    };
+    let recv = v8::Local::<v8::Value>::try_from(v8::String::new(tc_scope, "lisp_invoke").unwrap())
+        .unwrap();
+    let current = EmacsMainJsRuntime::push_stack(tc_scope);
     if let Some(result) = fnc.call(tc_scope, recv, v8_args.as_slice()) {
         if result.is_string() {
             let a = result
@@ -1374,39 +1422,49 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> Result<
 
         let v8_exception = deno_core::error::JsError::from_v8_exception(tc_scope, exception);
         let ioerr = into_ioerr(v8_exception);
-        EmacsMainJsRuntime::set_raw_v8_handle(curr);
+        EmacsMainJsRuntime::restore_stack(current);
         return Err(ioerr);
     }
 
-    EmacsMainJsRuntime::set_raw_v8_handle(curr);
-
+    EmacsMainJsRuntime::restore_stack(current);
     Ok(retval)
+}
+
+fn tick_and_schedule_if_required() {
+    if !EmacsMainJsRuntime::is_within_runtime() && !EmacsMainJsRuntime::get_tick_scheduled() {
+        js_tick_event_loop(emacs::globals::Qnil);
+    }
+}
+
+fn handle_error_inner_invokation(e: std::io::Error) -> LispObject {
+    if !EmacsMainJsRuntime::is_within_runtime() {
+        let js_options = EmacsMainJsRuntime::get_options();
+        handle_error(e, js_options.error_handler)
+    } else {
+        // If we are within the runtime, we want to unwind back up to
+        // the next error handler. This would imply that there is a funcall
+        // above us that called back into JS. If we were to just call the error handler,
+        // we would be returning the error handlers value back UP the stack, which would
+        // lead to undesirable behavior.
+        error!("{}", e.to_string())
+    }
 }
 
 #[cfg(feature = "javascript")]
 #[lisp_fn(min = "1")]
 pub fn js__reenter(args: &[LispObject]) -> LispObject {
-    inner_invokation(move |scope| js_reenter_inner(scope, args), true).unwrap_or_else(|e| {
-        if !EmacsMainJsRuntime::is_within_runtime() {
-            let js_options = EmacsMainJsRuntime::get_options();
-            handle_error(e, js_options.error_handler)
-        } else {
-            // If we are within the runtime, we want to unwind back up to
-            // the next error handler. This would imply that there is a funcall
-            // above us that called back into JS. If we were to just call the error handler,
-            // we would be returning the error handlers value back UP the stack, which would
-            // lead to undesirable behavior.
-            error!("{}", e.to_string())
-        }
-    })
+    let result = execute_with_current_scope(move |scope| js_reenter_inner(scope, args))
+        .unwrap_or_else(|e| handle_error_inner_invokation(e));
+    tick_and_schedule_if_required();
+    result
 }
 
 fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
     let value = unsafe {
-        lisp::remacs_sys::check_integer_range(
+        emacs::bindings::check_integer_range(
             idx,
-            lisp::remacs_sys::intmax_t::MIN,
-            lisp::remacs_sys::intmax_t::MAX,
+            emacs::bindings::intmax_t::MIN,
+            emacs::bindings::intmax_t::MAX,
         )
     };
 
@@ -1422,33 +1480,27 @@ fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
     fnc.call(scope, recv, v8_args.as_slice()).unwrap();
 }
 
-fn inner_invokation<F, R: Sized>(f: F, should_schedule: bool) -> R
+fn execute_with_current_scope<F, R: Sized>(f: F) -> R
 where
     F: Fn(&mut v8::HandleScope) -> R,
 {
     let result;
     if !EmacsMainJsRuntime::is_within_runtime() {
-        {
+        result = block_on(async move {
             let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
             let worker = worker_handle.as_mut_ref();
             let runtime = &mut worker.js_runtime;
             let context = runtime.global_context();
             let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
-            let handle = EmacsMainJsRuntime::get_tokio_handle();
-            EmacsMainJsRuntime::enter_runtime();
-            result = handle.block_on(async move { f(scope) });
-            EmacsMainJsRuntime::exit_runtime();
-        }
-        // Only in the case that the event loop as gone to sleep,
-        // we want to reinvoke it, in case the above
-        // invokation has scheduled promises.
-        if !EmacsMainJsRuntime::get_tick_scheduled() && should_schedule {
-            js_tick_event_loop(lisp::remacs_sys::Qnil);
-        }
+            let retval = f(scope);
+
+            Ok(retval)
+        })
+        .unwrap(); // Safe due to the fact we set this to Ok
     } else {
-        let scope: &mut v8::HandleScope = unsafe { EmacsMainJsRuntime::get_stacked_v8_handle() };
+        let scope = EmacsMainJsRuntime::peek_stack();
         result = f(scope);
-        unsafe { EmacsMainJsRuntime::set_stacked_v8_handle(Some(scope)) };
+        EmacsMainJsRuntime::restore_stack(Some(scope));
     }
 
     result
@@ -1458,21 +1510,25 @@ where
 #[cfg(feature = "javascript")]
 #[lisp_fn]
 pub fn js__clear(idx: LispObject) -> LispObject {
-    inner_invokation(move |scope| js_clear_internal(scope, idx), false);
-    lisp::remacs_sys::Qnil
+    execute_with_current_scope(move |scope| js_clear_internal(scope, idx));
+    emacs::globals::Qnil
 }
 
 fn into_ioerr<E: Into<Box<dyn std::error::Error + Send + Sync>>>(e: E) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::Other, e)
 }
 
-fn execute<T: Sized + std::future::Future<Output = Result<()>>>(fnc: T) -> Result<()> {
+fn block_on<R: Sized, T: Sized + std::future::Future<Output = Result<R>>>(fnc: T) -> Result<R> {
     if EmacsMainJsRuntime::is_within_runtime() {
-        Err(std::io::Error::new(std::io::ErrorKind::Other, "Attempted to execute javascript from lisp within the javascript context. Javascript is not re-entrant, cannot call JS -> Lisp -> JS"))
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Attempted to execute javascript from lisp within the javascript context.",
+        ))
     } else {
-        let handle = EmacsMainJsRuntime::get_tokio_handle();
+        let mut handle = EmacsMainJsRuntime::get_tokio_handle();
+        let handle_ref = handle.as_mut_ref();
         EmacsMainJsRuntime::enter_runtime();
-        let result = handle.block_on(fnc);
+        let result = handle_ref.block_on(fnc);
         EmacsMainJsRuntime::exit_runtime();
         result
     }
@@ -1495,16 +1551,16 @@ fn js_sweep_inner(scope: &mut v8::HandleScope) {
 #[lisp_fn]
 pub fn js__sweep() -> LispObject {
     if EmacsMainJsRuntime::is_main_worker_active() {
-        inner_invokation(|scope| js_sweep_inner(scope), false);
+        execute_with_current_scope(|scope| js_sweep_inner(scope));
     }
 
-    lisp::remacs_sys::Qnil
+    emacs::globals::Qnil
 }
 
 fn tick_js() -> Result<bool> {
     let mut is_complete = false;
     let is_complete_ref = &mut is_complete;
-    execute(async move {
+    block_on(async move {
         futures::future::poll_fn(|cx| {
             let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
             let w = worker_handle.as_mut_ref();
@@ -1524,13 +1580,17 @@ fn tick_js() -> Result<bool> {
     .map(move |_| is_complete)
 }
 
-fn init_once() -> Result<()> {
-    if !EmacsMainJsRuntime::is_tokio_active() {
-        let runtime = tokio::runtime::Builder::new()
-            .threaded_scheduler()
+fn init_tokio() -> Result<()> {
+    if !EmacsMainJsRuntime::is_tokio_active()
+    // Needed in the case that the tokio runtime is being taken
+    // for completing a JS operation
+	&& !EmacsMainJsRuntime::is_within_runtime()
+    {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_io()
             .enable_time()
-            .max_threads(32)
+            .worker_threads(2)
+            .max_blocking_threads(32)
             .build()?;
 
         EmacsMainJsRuntime::set_tokio_runtime(runtime);
@@ -1539,12 +1599,51 @@ fn init_once() -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn v8_bind_lisp_funcs(worker: &mut deno_runtime::worker::MainWorker) -> Result<()> {
+    let runtime = &mut worker.js_runtime;
+    {
+        let context = runtime.global_context();
+        let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
+        let context = scope.get_current_context();
+        let global = context.global(scope);
+        {
+            let name = v8::String::new(scope, "proxyProto").unwrap();
+            let template = v8::ObjectTemplate::new(scope);
+            template.set_internal_field_count(1);
+            let glob = v8::Global::new(scope, template);
+            EmacsMainJsRuntime::set_proxy_template(glob);
+            let obj = v8::Object::new(scope);
+            global.set(scope, name.into(), obj.into());
+        }
+        bind_global_fn!(scope, global, lisp_invoke);
+        bind_global_fn!(scope, global, is_proxy);
+        bind_global_fn!(scope, global, finalize);
+        bind_global_fn!(scope, global, lisp_json);
+        bind_global_fn!(scope, global, lisp_intern);
+        bind_global_fn!(scope, global, lisp_make_finalizer);
+        bind_global_fn!(scope, global, lisp_string);
+        bind_global_fn!(scope, global, lisp_fixnum);
+        bind_global_fn!(scope, global, lisp_float);
+        bind_global_fn!(scope, global, lisp_make_lambda);
+        bind_global_fn!(scope, global, lisp_list);
+        bind_global_fn!(scope, global, json_lisp);
+    }
+    {
+        runtime
+            .execute("prelim.js", include_str!("prelim.js"))
+            .map_err(|e| into_ioerr(e))?
+    }
+
+    Ok(())
+}
+
 fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
-    if EmacsMainJsRuntime::is_main_worker_active() {
+    if EmacsMainJsRuntime::is_main_worker_active() || EmacsMainJsRuntime::is_within_runtime() {
         return Ok(());
     }
 
-    let runtime = EmacsMainJsRuntime::get_tokio_handle();
+    let mut handle = EmacsMainJsRuntime::get_tokio_handle();
+    let runtime = handle.as_mut_ref();
     let main_module =
         deno_core::ModuleSpecifier::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
     let permissions = js_options.ops.as_ref().unwrap().clone();
@@ -1584,88 +1683,7 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     EmacsMainJsRuntime::set_program_state(program.clone());
     let mut worker = deno::create_main_worker(&program, main_module.clone(), permissions);
     let result: Result<deno_runtime::worker::MainWorker> = runtime.block_on(async move {
-        let runtime = &mut worker.js_runtime;
-        {
-            let context = runtime.global_context();
-            let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
-            let context = scope.get_current_context();
-            let global = context.global(scope);
-            {
-                let name = v8::String::new(scope, "proxyProto").unwrap();
-                let template = v8::ObjectTemplate::new(scope);
-                template.set_internal_field_count(1);
-                let glob = v8::Global::new(scope, template);
-                EmacsMainJsRuntime::set_proxy_template(glob);
-                let obj = v8::Object::new(scope);
-                global.set(scope, name.into(), obj.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_invoke").unwrap();
-                let func = v8::Function::new(scope, lisp_callback).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "is_proxy").unwrap();
-                let func = v8::Function::new(scope, is_proxy).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "finalize").unwrap();
-                let func = v8::Function::new(scope, finalize).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_json").unwrap();
-                let func = v8::Function::new(scope, lisp_json).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_intern").unwrap();
-                let func = v8::Function::new(scope, lisp_intern).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_make_finalizer").unwrap();
-                let func = v8::Function::new(scope, lisp_make_finalizer).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_string").unwrap();
-                let func = v8::Function::new(scope, lisp_string).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_fixnum").unwrap();
-                let func = v8::Function::new(scope, lisp_fixnum).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_float").unwrap();
-                let func = v8::Function::new(scope, lisp_float).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_make_lambda").unwrap();
-                let func = v8::Function::new(scope, lisp_make_lambda).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "lisp_list").unwrap();
-                let func = v8::Function::new(scope, lisp_list).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-            {
-                let name = v8::String::new(scope, "json_lisp").unwrap();
-                let func = v8::Function::new(scope, json_lisp).unwrap();
-                global.set(scope, name.into(), func.into());
-            }
-        }
-        {
-            runtime
-                .execute("prelim.js", include_str!("prelim.js"))
-                .map_err(|e| into_ioerr(e))?
-        }
-
+        v8_bind_lisp_funcs(&mut worker)?;
         Ok(worker)
     });
 
@@ -1680,10 +1698,9 @@ fn run_module_inner(
     js_options: &EmacsJsOptions,
     as_typescript: bool,
 ) -> Result<LispObject> {
-    init_once()?;
-    init_worker(filepath, js_options)?;
+    js_init_sys(filepath, js_options)?;
 
-    execute(async move {
+    block_on(async move {
         let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
         let w = worker_handle.as_mut_ref();
         let main_module =
@@ -1716,7 +1733,7 @@ fn run_module_inner(
     })?;
 
     schedule_tick();
-    Ok(lisp::remacs_sys::Qnil)
+    Ok(emacs::globals::Qnil)
 }
 
 fn run_module(
@@ -1744,7 +1761,7 @@ fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
             let len = err_string.len();
             let cstr = CString::new(err_string).expect("Failed to allocate CString");
             let lstring =
-                lisp::remacs_sys::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap());
+                emacs::bindings::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap());
             let mut args = vec![handler, lstring];
             Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr())
         }
@@ -1756,7 +1773,7 @@ fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
 #[lisp_fn]
 pub fn js_get_tick_rate() -> LispObject {
     let options = EmacsMainJsRuntime::get_options();
-    unsafe { lisp::remacs_sys::make_float(options.tick_rate) }
+    unsafe { emacs::bindings::make_float(options.tick_rate) }
 }
 
 /// Sets F to be the current js tick rate. Every F seconds, javascript
@@ -1768,8 +1785,8 @@ pub fn js_set_tick_rate(f: LispObject, loops_per_tick: LispObject) {
     let mut options = EmacsMainJsRuntime::get_options();
 
     unsafe {
-        lisp::remacs_sys::CHECK_NUMBER(f);
-        options.tick_rate = lisp::remacs_sys::XFLOATINT(f);
+        emacs::bindings::CHECK_NUMBER(f);
+        options.tick_rate = emacs::bindings::XFLOATINT(f);
 
         if loops_per_tick.is_not_nil() {
             options.loops_per_tick = loops_per_tick.as_natnum_or_error();
@@ -1787,14 +1804,26 @@ fn schedule_tick() {
 
     EmacsMainJsRuntime::set_tick_scheduled(true);
     let js_options = EmacsMainJsRuntime::get_options();
+    let rate;
+    let repeat;
+
+    let tick_rate = unsafe { emacs::bindings::make_float(js_options.tick_rate) };
+    if is_interactive() {
+        rate = tick_rate;
+        repeat = emacs::globals::Qnil;
+    } else {
+        rate = emacs::globals::Qt;
+        repeat = tick_rate;
+    }
+
     unsafe {
         let mut args = vec![
-            lisp::remacs_sys::Qrun_with_timer,
-            lisp::remacs_sys::make_float(js_options.tick_rate),
-            lisp::remacs_sys::Qnil,
-            lisp::remacs_sys::Qjs_tick_event_loop,
+            emacs::globals::Qrun_with_timer,
+            rate,
+            repeat,
+            emacs::globals::Qjs_tick_event_loop,
         ];
-        lisp::remacs_sys::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
+        emacs::bindings::Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr());
     }
 }
 
@@ -1835,9 +1864,13 @@ fn tick_and_handle_error(handler: LispObject) -> bool {
 #[lisp_fn(min = "0")]
 pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
     // Consume the tick for this event loop call.
-    EmacsMainJsRuntime::set_tick_scheduled(false);
+    // Unless we are non-interactive
+    if is_interactive() {
+        EmacsMainJsRuntime::set_tick_scheduled(false);
+    }
+
     if !EmacsMainJsRuntime::is_main_worker_active() {
-        return lisp::remacs_sys::Qnil;
+        return emacs::globals::Qnil;
     }
 
     // If we are within the runtime, we don't want to attempt to
@@ -1846,7 +1879,7 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
     // we are out of the runtime.
     if EmacsMainJsRuntime::is_within_runtime() {
         schedule_tick();
-        return lisp::remacs_sys::Qnil;
+        return emacs::globals::Qnil;
     }
 
     let num_loops = EmacsMainJsRuntime::get_loops_per_tick();
@@ -1862,7 +1895,138 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
         schedule_tick();
     }
 
-    lisp::remacs_sys::Qnil
+    emacs::globals::Qnil
+}
+
+// We overwrite certain subcommands to allow interfacing with emacs-lisp
+// All other subcommands will use deno's default implementation
+fn get_subcommand(
+    flags: deno::flags::Flags,
+) -> Pin<Box<dyn Future<Output = std::result::Result<(), deno_core::error::AnyError>>>> {
+    match flags.clone().subcommand {
+        deno::flags::DenoSubcommand::Eval {
+            print,
+            code,
+            as_typescript,
+        } => crate::subcommands::eval_command(flags, code, as_typescript, print).boxed_local(),
+        deno::flags::DenoSubcommand::Run { script } => {
+            crate::subcommands::run_command(flags, script).boxed_local()
+        }
+        deno::flags::DenoSubcommand::Repl => crate::subcommands::run_repl(flags).boxed_local(),
+        deno::flags::DenoSubcommand::Test {
+            no_run,
+            fail_fast,
+            quiet,
+            include,
+            allow_none,
+            filter,
+        } => crate::subcommands::test_command(
+            flags, include, no_run, fail_fast, quiet, allow_none, filter,
+        )
+            .boxed_local(),
+	deno::flags::DenoSubcommand::Info { json, .. } => async move {
+	    if is_interactive() && json && !flags.unstable {
+		Err(deno_core::error::generic_error(
+                    "--unstable is required for this command",
+                ))
+	    } else {
+                deno::get_subcommand(flags).await
+	    }
+	}.boxed_local(),
+        deno::flags::DenoSubcommand::Compile { .. } => async {
+	    if is_interactive() && !flags.unstable {
+                Err(deno_core::error::generic_error(
+                    "--unstable is required for this command",
+                ))
+            } else {
+                deno::get_subcommand(flags).await
+            }
+	}.boxed_local(),
+        deno::flags::DenoSubcommand::Lint { .. } => async {
+            if is_interactive() {
+                Err(deno_core::error::generic_error(
+                    "lint is not supported in interactive mode. Lint files with emacs as a subprocess using emacs --batch --eval '(deno \"lint\" \"--unstable\")'",
+                ))
+            } else {
+                deno::get_subcommand(flags).await
+            }
+        }
+        .boxed_local(),
+        // (DDS) We don't want upgrade to be run from emacs
+        // since it wouldnt do what the user expects
+        // instead, we will just throw an error
+        // @TODO it would be nice if this actually
+        // upgraded emacs-ng instead
+        deno::flags::DenoSubcommand::Upgrade { .. } => async {
+            Err(deno_core::error::generic_error(
+                "(deno upgrade) is unsupported in emacs-ng at this time.",
+            ))
+        }
+        .boxed_local(),
+        _ => deno::get_subcommand(flags),
+    }
+}
+
+/// Usage: (deno CMD &REST ARGS)
+///
+/// Invokes a deno command using emacs-ng. This behavior mirrors as if you
+/// ran a deno command from the command line, except that lisp
+/// functions are available
+///
+/// Unlike normal JavaScript run in emacs, using this command
+/// respects deno's permission model. You will need to pass
+/// --allow-read, --allow-write, --allow-net or --allow-run
+///
+/// This command spawns a new JavaScript environment to
+/// simulate how deno cli works. HOWEVER, Lisp variables
+/// are shared. `deno` is a blocking call, and so interacting
+/// with lisp does not need a lock.
+///
+/// Using this command is using emacs AS deno, and does not change
+/// how deno handles Input/Output. This means that deno will write
+/// to stdout and recieve input via stdin as it normally would.
+/// The primary use case of this function is be run from the
+/// command line, however it can be used while running emacs
+///
+/// The only command not fully supported is (deno "upgrade")
+///
+/// (deno "lint") can only be run while emacs is in batch mode via the command
+/// line: emacs --batch --eval '(deno "lint" "--unstable")'
+///
+/// This can be combined with running emacs-ng in batch mode to fully mirror deno
+/// functionality. I.e. `emacs --batch --eval '(deno "repl")'
+///
+/// This function is safe to execute from a lisp thread if you want to make
+/// the operation non-blocking. (make-thread (lambda () (deno "fmt")))
+///
+/// Examples:
+/// (deno "fmt") ; Will format files in the current directory as if you ran
+///              ; deno fmt from the command line.
+///
+/// (deno "run" "--allow-read" "my-file.ts") ; Runs a typescript file named
+///                                          ; my-file.ts, allowing reads
+///
+#[cfg(feature = "javascript")]
+#[lisp_fn(min = "1")]
+pub fn deno(cmd_args: &[LispObject]) {
+    let mut args = vec!["deno".to_string()];
+    for i in 0..cmd_args.len() {
+        let stringref: LispStringRef = cmd_args[i].into();
+        let string = stringref.to_utf8();
+        args.push(string);
+    }
+
+    let flags = deno::flags::flags_from_vec(args.clone()).unwrap_or_else(|e| {
+        error!("Error in parsing flags: {}", e);
+    });
+    let fut = get_subcommand(flags);
+    init_tokio().unwrap_or_else(|e| {
+        error!("Unable to initialize tokio runtime: {}", e);
+    });
+
+    block_on(async move { fut.await.map_err(|e| into_ioerr(e)) }).unwrap_or_else(|e| {
+        error!("Error in deno command '{}': {}", args.join(" "), e);
+    });
 }
 
 // Do NOT call this function, it is just used for macro purposes to
@@ -1870,7 +2034,7 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
 // 'js-retain-map' from the scripting engine.
 #[allow(dead_code)]
 fn init_syms() {
-    defvar_lisp!(Vjs_retain_map, "js-retain-map", lisp::remacs_sys::Qnil);
+    defvar_lisp!(Vjs_retain_map, "js-retain-map", emacs::globals::Qnil);
 
     def_lisp_sym!(Qjs_lisp_error, "js-lisp-error");
     def_lisp_sym!(QCallow_net, ":allow-net");

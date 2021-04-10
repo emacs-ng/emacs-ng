@@ -410,19 +410,18 @@ dnl This should be the last --with option, because --with-x is
 dnl added later on when we find the file name of X, and it's best to
 dnl keep them together visually.
 AC_ARG_WITH([x-toolkit],[AS_HELP_STRING([--with-x-toolkit=KIT],
- [use an X toolkit (KIT one of: yes or gtk, gtk2, gtk3, lucid or athena, motif, no)])],
+ [use an X toolkit (KIT one of: yes or gtk, gtk2, gtk3, lucid or athena, no)])],
 [	  case "${withval}" in
 	    y | ye | yes )	val=gtk ;;
 	    n | no )		val=no  ;;
 	    l | lu | luc | luci | lucid )	val=lucid ;;
 	    a | at | ath | athe | athen | athena )	val=athena ;;
-	    m | mo | mot | moti | motif )	val=motif ;;
 	    g | gt | gtk  )	val=gtk ;;
 	    gtk2  )	val=gtk2 ;;
 	    gtk3  )	val=gtk3 ;;
 	    * )
 AC_MSG_ERROR(['--with-x-toolkit=$withval' is invalid;
-this option's value should be 'yes', 'no', 'lucid', 'athena', 'motif', 'gtk',
+this option's value should be 'yes', 'no', 'lucid', 'athena', 'gtk',
 'gtk2' or 'gtk3'.  'yes' and 'gtk' are synonyms.
 'athena' and 'lucid' are synonyms.])
 	    ;;
@@ -462,7 +461,7 @@ OPTION_DEFAULT_ON([harfbuzz],[don't use HarfBuzz for text shaping])
 OPTION_DEFAULT_ON([libotf],[don't use libotf for OpenType font support])
 OPTION_DEFAULT_ON([m17n-flt],[don't use m17n-flt for text shaping])
 
-OPTION_DEFAULT_ON([toolkit-scroll-bars],[don't use Motif/Xaw3d/GTK toolkit scroll bars])
+OPTION_DEFAULT_ON([toolkit-scroll-bars],[don't use Xaw3d/GTK toolkit scroll bars])
 OPTION_DEFAULT_ON([xaw3d],[don't use Xaw3d])
 OPTION_DEFAULT_ON([xim],[at runtime, default X11 XIM to off])
 OPTION_DEFAULT_ON([xdbe],[don't use X11 double buffering support])
@@ -486,7 +485,7 @@ OPTION_DEFAULT_ON([gnutls],[don't use -lgnutls for SSL/TLS support])
 OPTION_DEFAULT_ON([zlib],[don't compile with zlib decompression support])
 OPTION_DEFAULT_ON([modules],[don't compile with dynamic modules support])
 OPTION_DEFAULT_ON([threads],[don't compile with elisp threading support])
-OPTION_DEFAULT_OFF([nativecomp],[compile with Emacs Lisp native compiler support])
+OPTION_DEFAULT_OFF([native-compilation],[compile with Emacs Lisp native compiler support])
 
 AC_ARG_WITH([file-notification],[AS_HELP_STRING([--with-file-notification=LIB],
  [use a file notification library (LIB one of: yes, inotify, kqueue, gfile, w32, no)])],
@@ -514,6 +513,8 @@ OPTION_DEFAULT_OFF([webrender],
   [enable use of webrender(written in Rust) as GUI backend on
 multiple platforms(Linux, Windows and MacOS) (experimental)])
 
+## Based on Deno 1.7.2
+## Update the above when upgrading Deno
 OPTION_DEFAULT_ON([javascript],
   [enable use of JavaScript, TypeScript, and Deno within the emacs runtime(Linux, MacOs)])
 
@@ -1203,9 +1204,6 @@ AC_DEFUN([AM_CONDITIONAL],
 
 dnl Prefer silent make output.  For verbose output, use
 dnl 'configure --disable-silent-rules' or 'make V=1' .
-dnl This code is adapted from Automake.
-dnl Although it can be simplified now that GNU Make is assumed,
-dnl the simplification hasn't been done yet.
 AC_ARG_ENABLE([silent-rules],
   [AS_HELP_STRING(
      [--disable-silent-rules],
@@ -1215,11 +1213,8 @@ if test "$enable_silent_rules" = no; then
 else
   AM_DEFAULT_VERBOSITY=0
 fi
-AM_V='$(V)'
-AM_DEFAULT_V='$(AM_DEFAULT_VERBOSITY)'
-AC_SUBST([AM_V])
-AC_SUBST([AM_DEFAULT_V])
 AC_SUBST([AM_DEFAULT_VERBOSITY])
+AC_CONFIG_FILES([src/verbose.mk])
 
 dnl Some other nice autoconf tests.
 AC_PROG_INSTALL
@@ -1358,14 +1353,13 @@ if test -n "$BREW"; then
 fi
 
 ## Require makeinfo >= 4.13 (last of the 4.x series) to build the manuals.
-if test "${MAKEINFO:=makeinfo}" != "no"; then
-  case `($MAKEINFO --version) 2>/dev/null` in
-    *' (GNU texinfo) '4.1[[3-9]]* | \
-    *' (GNU texinfo) '[[5-9]]* | \
-    *' (GNU texinfo) '[[1-9][0-9]]* ) ;;
-    *) MAKEINFO=no;;
-  esac
-fi
+: ${MAKEINFO:=makeinfo}
+case `($MAKEINFO --version) 2>/dev/null` in
+  *' (GNU texinfo) '4.1[[3-9]]* | \
+  *' (GNU texinfo) '[[5-9]]* | \
+  *' (GNU texinfo) '[[1-9][0-9]]* ) ;;
+  *) MAKEINFO=no;;
+esac
 
 ## Makeinfo is unusual.  For a released Emacs, the manuals are
 ## pre-built, and not deleted by the normal clean rules.  makeinfo is
@@ -1376,21 +1370,19 @@ fi
 ## should test for it as it does for any other build requirement.
 ## We use the presence of $srcdir/info/emacs to distinguish a release,
 ## with pre-built manuals, from a repository checkout.
-HAVE_MAKEINFO=yes
-
 if test "$MAKEINFO" = "no"; then
   MAKEINFO=makeinfo
-  if test "x${with_makeinfo}" = "xno"; then
-    HAVE_MAKEINFO=no
-  elif test ! -e "$srcdir/info/emacs" && test ! -e "$srcdir/info/emacs.info"; then
+  if test ! -e "$srcdir/info/emacs" && test ! -e "$srcdir/info/emacs.info"; then
     AC_MSG_ERROR( [You do not seem to have makeinfo >= 4.13, and your
 source tree does not seem to have pre-built manuals in the 'info' directory.
-Either install a suitable version of makeinfo, or re-run configure
-with the '--without-makeinfo' option to build without the manuals.] )
+Please install a suitable version of makeinfo.] )
+  else
+    AC_MSG_WARN( [You do not seem to have makeinfo >= 4.13.
+You will not be able to rebuild the manuals if you delete them or change
+their sources.] )
   fi
 fi
 AC_SUBST([MAKEINFO])
-AC_SUBST(HAVE_MAKEINFO)
 
 if test $opsys = mingw32; then
    DOCMISC_W32=efaq-w32
@@ -1781,8 +1773,8 @@ fi
 
 dnl On Solaris 8 there's a compilation warning for term.h because
 dnl it doesn't define 'bool'.
-AC_CHECK_HEADERS(term.h, , , -)
-AC_HEADER_TIME
+AC_PREPROC_IFELSE([AC_LANG_PROGRAM([[#include <term.h>]],[[]])],
+  AC_DEFINE(HAVE_TERM_H, 1, [Define to 1 if you have the <term.h> header file.]))
 AC_HEADER_SYS_WAIT
 
 AC_CHECK_HEADERS_ONCE(sys/socket.h)
@@ -2274,7 +2266,7 @@ if test "$window_system" = none && test "X$with_x" != "Xno"; then
    then
         AC_MSG_ERROR([You seem to be running X, but no X development libraries
 were found.  You should install the relevant development files for X
-and for the toolkit you want, such as Gtk+ or Motif.  Also make
+and for the toolkit you want, such as Gtk+.  Also make
 sure you have development files for image handling, i.e.
 tiff, gif, jpeg, png and xpm.
 If you are sure you want Emacs compiled without X window support, pass
@@ -3806,7 +3798,7 @@ AC_DEFUN([libgccjit_not_found], [
   AC_MSG_ERROR([elisp native compiler requested but libgccjit not found.
 Please try installing libgccjit or similar package.
 If you are sure you want Emacs compiled without elisp native compiler, pass
-  --without-nativecomp
+  --without-native-compilation
 to configure.])])
 
 AC_DEFUN([libgccjit_dev_not_found], [
@@ -3828,7 +3820,7 @@ Here instructions on how to compile and install libgccjit from source:
 
 HAVE_NATIVE_COMP=no
 LIBGCCJIT_LIB=
-if test "${with_nativecomp}" != "no"; then
+if test "${with_native_compilation}" != "no"; then
     if test "${HAVE_PDUMPER}" = no; then
        AC_MSG_ERROR(['--with-nativecomp' requires '--with-dumping=pdumper'])
     fi
@@ -4042,6 +4034,11 @@ case $with_json,$HAVE_JSON in
      WITH_IFAVAILABLE="$WITH_IFAVAILABLE --with-json=ifavailable";;
 esac
 if test "X${MISSING}" != X; then
+  # If we have a missing library, and we don't have pkg-config installed,
+  # the missing pkg-config may be the reason.  Give the user a hint.
+  if test "X${PKG_CONFIG}" = X; then
+    AC_MSG_WARN([Unable to locate a usable pkg-config])
+  fi
   AC_MSG_ERROR([The following required libraries were not found:
     $MISSING
 Maybe some development libraries/packages are missing?
@@ -4858,10 +4855,10 @@ if test "$USE_X_TOOLKIT" != "none"; then
     else
       OTHERLIBS="-lXt -$LIBXMU"
     fi
-    AC_TRY_LINK(
-      [#include <X11/Intrinsic.h>
-       #include <X11/Xmu/Editres.h>],
-      [_XEditResCheckMessages (0, 0, 0, 0);],
+    AC_LINK_IFELSE([AC_LANG_PROGRAM(
+      [[#include <X11/Intrinsic.h>
+       #include <X11/Xmu/Editres.h>]],
+      [[_XEditResCheckMessages (0, 0, 0, 0);]])],
       [AC_DEFINE([X_TOOLKIT_EDITRES], 1,
         [Define to 1 if we should use XEditRes.])])
     LIBS=$OLDLIBS
@@ -5881,6 +5878,12 @@ else
   ACL_SUMMARY=no
 fi
 
+if test -z "$GMP_H"; then
+  HAVE_GMP=yes
+else
+  HAVE_GMP=no
+fi
+
 emacs_standard_dirs='Standard dirs'
 AS_ECHO(["
 Configured for '${canonical}'.
@@ -5896,12 +5899,14 @@ Configured for '${canonical}'.
   Where do we find X Windows header files?                ${x_includes:-$emacs_standard_dirs}
   Where do we find X Windows libraries?                   ${x_libraries:-$emacs_standard_dirs}"])
 
+#### Please respect alphabetical ordering when making additions.
 optsep=
 emacs_config_features=
-for opt in XAW3D XPM JPEG TIFF GIF PNG RSVG CAIRO IMAGEMAGICK SOUND GPM DBUS \
-  GCONF GSETTINGS GLIB NOTIFY ACL LIBSELINUX GNUTLS LIBXML2 FREETYPE HARFBUZZ M17N_FLT \
-  LIBOTF XFT ZLIB TOOLKIT_SCROLL_BARS X_TOOLKIT OLDXMENU X11 XDBE XIM \
-  NS MODULES NATIVE_COMP THREADS XWIDGETS LIBSYSTEMD JSON PDUMPER UNEXEC LCMS2 GMP; do
+for opt in ACL CAIRO DBUS FREETYPE GCONF GIF GLIB GMP GNUTLS GPM GSETTINGS \
+ HARFBUZZ IMAGEMAGICK JPEG JSON LCMS2 LIBOTF LIBSELINUX LIBSYSTEMD LIBXML2 \
+ M17N_FLT MODULES NATIVE_COMP NOTIFY NS OLDXMENU PDUMPER PNG RSVG SOUND \
+ THREADS TIFF TOOLKIT_SCROLL_BARS UNEXEC X11 XAW3D XDBE XFT XIM XPM XWIDGETS \
+ X_TOOLKIT ZLIB; do
 
     case $opt in
       PDUMPER) val=${with_pdumper} ;;
@@ -5938,11 +5943,6 @@ done
 AC_DEFINE_UNQUOTED(EMACS_CONFIG_FEATURES, "${emacs_config_features}",
   [Summary of some of the main features enabled by configure.])
 
-if test -z "$GMP_H"; then
-  HAVE_GMP=yes
-else
-  HAVE_GMP=no
-fi
 AS_ECHO(["  Does Emacs use -lXaw3d?                                 ${HAVE_XAW3D}
   Does Emacs use -lXpm?                                   ${HAVE_XPM}
   Does Emacs use -ljpeg?                                  ${HAVE_JPEG}
@@ -6115,9 +6115,11 @@ esac
 if test "$HAVE_LIBVTERM" = "yes"; then
    CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"libvterm\", "
 fi
-
 if test "${with_javascript}" = "yes"; then
   CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"javascript\", "
+fi
+if test "${HAVE_MODULES}" = "yes"; then
+  CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"ng-module\", "
 fi
 AC_SUBST(CARGO_DEFAULT_FEATURES)
 AC_CONFIG_FILES([rust_src/Cargo.toml])
@@ -6155,7 +6157,7 @@ if test $AUTO_DEPEND = yes; then
      AS_MKDIR_P([$dir/deps])
    done
 fi
-if $gl_gnulib_enabled_scratch_buffer; then
+if $gl_gnulib_enabled_dynarray || $gl_gnulib_enabled_scratch_buffer; then
   AS_MKDIR_P([lib/malloc])
   if test $AUTO_DEPEND = yes; then
     AS_MKDIR_P([lib/deps/malloc])

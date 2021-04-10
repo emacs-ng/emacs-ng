@@ -209,14 +209,12 @@
 
 (require 'outline)
 
-(defvar foldout-fold-list nil
+(defvar-local foldout-fold-list nil
   "List of start and end markers for the folds currently entered.
 An end marker of nil means the fold ends after (point-max).")
-(make-variable-buffer-local 'foldout-fold-list)
 
-(defvar foldout-mode-line-string nil
+(defvar-local foldout-mode-line-string nil
   "Mode line string announcing that we are in an outline fold.")
-(make-variable-buffer-local 'foldout-mode-line-string)
 
 ;; put our minor mode string immediately following outline-minor-mode's
 (or (assq 'foldout-mode-line-string minor-mode-alist)
@@ -232,14 +230,6 @@ An end marker of nil means the fold ends after (point-max).")
       (setcdr outl-entry (nconc foldout-entry (cdr outl-entry)))
       ))
 
-;; outline-flag-region has different `flag' values in outline.el and
-;; noutline.el for hiding and showing text.
-
-(defconst foldout-hide-flag
-  (if (featurep 'noutline) t ?\^M))
-
-(defconst foldout-show-flag
-  (if (featurep 'noutline) nil ?\n))
 
 
 (defun foldout-zoom-subtree (&optional exposure)
@@ -366,8 +356,7 @@ exited and text is left visible."
 
 	;; make sure the next heading is exposed
 	(if end-marker
-	    (outline-flag-region end-of-subtree beginning-of-heading
-				 foldout-show-flag)))
+            (outline-flag-region end-of-subtree beginning-of-heading nil)))
 
       ;; zap the markers so they don't slow down editing
       (set-marker start-marker nil)
@@ -487,7 +476,7 @@ What happens depends on the number of mouse clicks:-
 Signal an error if the final event isn't the same type as the first one."
   (let ((initial-event-type (event-basic-type event)))
     (while (null (sit-for (/ double-click-time 1000.0) 'nodisplay))
-      (setq event (read-event)))
+      (setq event (read--potential-mouse-event)))
     (or (eq initial-event-type (event-basic-type event))
 	(error "")))
   event)
@@ -552,6 +541,14 @@ Valid modifiers are shift, control, meta, alt, hyper and super.")
     (define-key outline-minor-mode-map mouse-2 'foldout-mouse-show)
     (define-key outline-minor-mode-map mouse-3 'foldout-mouse-hide-or-exit)
     ))
+
+;; Obsolete.
+
+(defconst foldout-hide-flag t)
+(make-obsolete-variable 'foldout-hide-flag nil "28.1")
+
+(defconst foldout-show-flag nil)
+(make-obsolete-variable 'foldout-show-flag nil "28.1")
 
 (provide 'foldout)
 

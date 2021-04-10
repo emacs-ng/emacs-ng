@@ -4,7 +4,7 @@ use font_kit::{
     family_name::FamilyName,
     loaders::default::Font,
     metrics::Metrics,
-    properties::{Style, Weight},
+    properties::{Properties, Style, Weight},
     source::{Source, SystemSource},
 };
 use lazy_static::lazy_static;
@@ -13,16 +13,16 @@ use webrender::api::*;
 
 use super::output::OutputRef;
 
-use lisp::{
-    frame::LispFrameRef,
-    lisp::{ExternalPtr, LispObject},
-    multibyte::LispStringRef,
-    remacs_sys::{
+use emacs::{
+    bindings::{
         font, font_driver, font_make_entity, font_make_object, font_metrics, font_property_index,
         font_style_to_value, frame, glyph_string, Fassoc, Fcdr, Fcons, Fmake_symbol, Fnreverse,
         Qbold, Qextra_bold, Qextra_light, Qitalic, Qlight, Qnil, Qnormal, Qoblique, Qsemi_bold,
         Qultra_bold, Qwr, FONT_INVALID_CODE,
     },
+    frame::LispFrameRef,
+    lisp::{ExternalPtr, LispObject},
+    multibyte::LispStringRef,
     symbol::LispSymbolRef,
 };
 
@@ -77,6 +77,23 @@ impl LispFontLike {
                 "Cursive" => Some(FamilyName::Cursive),
                 "Fantasy" => Some(FamilyName::Fantasy),
                 f => Some(FamilyName::Title(f.to_string().replace("-", "\\-"))),
+            }
+        }
+    }
+
+    fn get_slant(&self) -> Option<Style> {
+        let slant = self.aref(font_property_index::FONT_SLANT_INDEX);
+
+        if slant.is_nil() {
+            None
+        } else {
+            let symbol_or_string = slant.as_symbol_or_string();
+            let string: LispStringRef = symbol_or_string.into();
+            match string.to_string().as_ref() {
+                "Qnormal" => Some(Style::Normal),
+                "Qitalic" => Some(Style::Italic),
+                "Qoblique" => Some(Style::Oblique),
+                _ => Some(Style::Normal),
             }
         }
     }
@@ -198,17 +215,17 @@ extern "C" fn match_(_f: *mut frame, spec: LispObject) -> LispObject {
                 // set size
                 entity.aset(font_property_index::FONT_SIZE_INDEX, (0 as usize).into());
 
-                let postscript_name: &str = &f
-                    .postscript_name()
-                    .expect("Font must have a postcript_name!");
+                if let Some(postscript_name) = f.postscript_name() {
+                    let postscript_name: &str = &postscript_name;
+                    // set name
+                    entity.aset(font_property_index::FONT_EXTRA_INDEX, unsafe {
+                        Fcons(
+                            Fcons(":postscript-name".into(), LispObject::from(postscript_name)),
+                            Qnil,
+                        )
+                    });
+                }
 
-                // set name
-                entity.aset(font_property_index::FONT_EXTRA_INDEX, unsafe {
-                    Fcons(
-                        Fcons(":postscript-name".into(), LispObject::from(postscript_name)),
-                        Qnil,
-                    )
-                });
                 list = unsafe { Fcons(entity.as_lisp_object(), list) }
             }
 
@@ -303,17 +320,23 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
 
     let val = unsafe { Fassoc(":postscript-name".into(), font_extra, Qnil) };
 
-    if val.is_nil() {
-        error!("postscript-name can not be found!");
-    }
+    let font = if val.is_nil() {
+        let family = font_entity.get_family().unwrap();
 
-    let postscript_name = unsafe { Fcdr(val) }.as_string().unwrap().to_string();
+        let slant = font_entity.get_slant().unwrap();
 
-    // load font by postscript_name.
-    // The existing of font has been checked in `match` function.
-    let font = SystemSource::new()
-        .select_by_postscript_name(&postscript_name)
-        .unwrap();
+        SystemSource::new()
+            .select_best_match(&[family], &Properties::new().style(slant))
+            .unwrap()
+    } else {
+        let postscript_name = unsafe { Fcdr(val) }.as_string().unwrap().to_string();
+
+        // load font by postscript_name.
+        // The existing of font has been checked in `match` function.
+        SystemSource::new()
+            .select_by_postscript_name(&postscript_name)
+            .unwrap()
+    };
 
     let mut wr_font = WRFontRef::new(
         font_object

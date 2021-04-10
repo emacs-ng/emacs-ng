@@ -11,17 +11,15 @@ use crate::webrender_backend::{
     color::lookup_color_by_name_or_hex,
     font::{FontRef, FONT_DRIVER},
     frame::create_frame,
-    keyboard::winit_keycode_emacs_key_name,
+    input::winit_keycode_emacs_key_name,
     output::OutputRef,
     term::wr_term_init,
 };
 
-use lisp::{
-    frame::{window_frame_live_or_selected, LispFrameRef},
-    lisp::{ExternalPtr, LispObject},
-    remacs_sys::globals,
-    remacs_sys::resource_types::{RES_TYPE_NUMBER, RES_TYPE_STRING, RES_TYPE_SYMBOL},
-    remacs_sys::{
+use emacs::{
+    bindings::globals,
+    bindings::resource_types::{RES_TYPE_NUMBER, RES_TYPE_STRING, RES_TYPE_SYMBOL},
+    bindings::{
         adjust_frame_size, block_input, gui_display_get_arg, hashtest_eql, image, init_frame_faces,
         list3i, make_fixnum, make_hash_table, make_monitor_attribute_list, register_font_driver,
         unblock_input, Display, EmacsInt, Emacs_Pixmap, Emacs_Rectangle, Fcons, Fcopy_alist,
@@ -30,6 +28,8 @@ use lisp::{
         Qterminal, Qunbound, Qwr, Qx, Qx_create_frame_1, Qx_create_frame_2, Vframe_list, WRImage,
         Window, DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
     },
+    frame::{window_frame_live_or_selected, LispFrameRef},
+    lisp::{ExternalPtr, LispObject},
 };
 
 pub use crate::webrender_backend::display_info::{DisplayInfo, DisplayInfoRef};
@@ -79,6 +79,12 @@ pub extern "C" fn wr_get_baseline_offset(output: OutputRef) -> i32 {
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn wr_get_pixel(ximg: ImageRef, x: i32, y: i32) -> i32 {
+    unimplemented!();
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn wr_put_pixel(ximg: ImageRef, x: i32, y: i32, pixel: u64) {
     unimplemented!();
 }
 
