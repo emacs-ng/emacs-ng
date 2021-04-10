@@ -27,5 +27,9 @@
      <loc>https://emacs-ng.github.io/emacs-ng/faq/</loc>
      <lastmod>2021-04-10</lastmod>
      <changefreq>daily</changefreq>
+    </url><url>
+     <loc>https://emacs-ng.github.io/emacs-ng/architecture/</loc>
+     <lastmod>2021-04-10</lastmod>
+     <changefreq>daily</changefreq>
     </url>
 </urlset>

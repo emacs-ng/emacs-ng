@@ -11,14 +11,14 @@
       
       
       
-        <link rel="canonical" href="https://emacs-ng.github.io/emacs-ng/main-features/">
+        <link rel="canonical" href="https://emacs-ng.github.io/emacs-ng/architecture/">
       
       <link rel="shortcut icon" href="../images/logo.png">
       <meta name="generator" content="mkdocs-1.1.2, mkdocs-material-7.0.5">
     
     
       
-        <title>Basic features - Emacs NG - A new approach to Emacs</title>
+        <title>Native Hackers Handbook (Architecture) - Emacs NG - A new approach to Emacs</title>
       
     
     
@@ -64,7 +64,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#main-features" class="md-skip">
+        <a href="#emacs-ng-native-hackers-handbook" class="md-skip">
           Skip to content
         </a>
       
@@ -95,7 +95,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Basic features
+              Native Hackers Handbook (Architecture)
             
           </span>
         </div>
@@ -176,15 +176,13 @@
         
   
   
-    
-  
 
 
   
   
   
     <li class="md-tabs__item">
-      <a href="./" class="md-tabs__link md-tabs__link--active">
+      <a href="../main-features/" class="md-tabs__link">
         Features
       </a>
     </li>
@@ -242,10 +240,12 @@
         
   
   
+    
+  
 
 
   <li class="md-tabs__item">
-    <a href="../architecture/" class="md-tabs__link">
+    <a href="./" class="md-tabs__link md-tabs__link--active">
       Native Hackers Handbook (Architecture)
     </a>
   </li>
@@ -317,14 +317,12 @@
 
   
   
-    
-  
   
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" >
       
       <label class="md-nav__link" for="__nav_2">
         Features
@@ -340,76 +338,11 @@
             
   
   
-    
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          Basic features
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../main-features/" class="md-nav__link">
         Basic features
       </a>
-      
-        
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#javascript" class="md-nav__link">
-    Javascript
-  </a>
-  
-    <nav class="md-nav" aria-label="Javascript">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#using-async-io" class="md-nav__link">
-    Using Async I/O
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#webworkers-and-parallel-scripting" class="md-nav__link">
-    WebWorkers and Parallel Scripting
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#webrender" class="md-nav__link">
-    Webrender
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -498,11 +431,123 @@
 
   
   
+    
   
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Native Hackers Handbook (Architecture)
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         Native Hackers Handbook (Architecture)
       </a>
+      
+        
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#javascript" class="md-nav__link">
+    JavaScript
+  </a>
+  
+    <nav class="md-nav" aria-label="JavaScript">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#emacsmainjsruntime" class="md-nav__link">
+    EmacsMainJsRuntime
+  </a>
+  
+    <nav class="md-nav" aria-label="EmacsMainJsRuntime">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tokio" class="md-nav__link">
+    Tokio
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mainworker" class="md-nav__link">
+    MainWorker
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#event-loop" class="md-nav__link">
+    Event Loop
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#proxies-and-garbage-collector-gc-interoperability" class="md-nav__link">
+    Proxies and Garbage Collector (GC) Interoperability
+  </a>
+  
+    <nav class="md-nav" aria-label="Proxies and Garbage Collector (GC) Interoperability">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-lisp-object" class="md-nav__link">
+    The Lisp Object
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gc-usage" class="md-nav__link">
+    GC Usage
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lambda-usage" class="md-nav__link">
+    Lambda Usage
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -533,22 +578,30 @@
       
         <li class="md-nav__item">
   <a href="#javascript" class="md-nav__link">
-    Javascript
+    JavaScript
   </a>
   
-    <nav class="md-nav" aria-label="Javascript">
+    <nav class="md-nav" aria-label="JavaScript">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#using-async-io" class="md-nav__link">
-    Using Async I/O
+  <a href="#emacsmainjsruntime" class="md-nav__link">
+    EmacsMainJsRuntime
+  </a>
+  
+    <nav class="md-nav" aria-label="EmacsMainJsRuntime">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tokio" class="md-nav__link">
+    Tokio
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#webworkers-and-parallel-scripting" class="md-nav__link">
-    WebWorkers and Parallel Scripting
+  <a href="#mainworker" class="md-nav__link">
+    MainWorker
   </a>
   
 </li>
@@ -557,11 +610,50 @@
     </nav>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#webrender" class="md-nav__link">
-    Webrender
+        
+          <li class="md-nav__item">
+  <a href="#event-loop" class="md-nav__link">
+    Event Loop
   </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#proxies-and-garbage-collector-gc-interoperability" class="md-nav__link">
+    Proxies and Garbage Collector (GC) Interoperability
+  </a>
+  
+    <nav class="md-nav" aria-label="Proxies and Garbage Collector (GC) Interoperability">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-lisp-object" class="md-nav__link">
+    The Lisp Object
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gc-usage" class="md-nav__link">
+    GC Usage
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lambda-usage" class="md-nav__link">
+    Lambda Usage
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -577,56 +669,53 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/emacs-ng/emacs-ng/edit/master/docs/main-features.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/emacs-ng/emacs-ng/edit/master/docs/architecture.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
                 
-                <h1 id="main-features">Main Features<a class="headerlink" href="#main-features" title="Permanent link">#</a></h1>
-<h2 id="javascript">Javascript<a class="headerlink" href="#javascript" title="Permanent link">#</a></h2>
-<p>This code is a strictly additive layer, it changes no elisp functionality, and should be able to merge upstream patches cleanly. JS tests can be run by building the editor and executing <code>cd test/js &amp;&amp; ../../src/emacs --batch --eval '(deno "test" "--allow-read" "--allow-write" "main.js")'</code>.</p>
-<p>To learn more about JavaScript and TypeScript, it is recommended you check out <a href="https://github.com/emacs-ng/emacs-ng/blob/master/docs/getting-started.md">Getting Started</a>, <a href="https://github.com/emacs-ng/emacs-ng/blob/master/docs/using-deno.md">Using Deno</a>, and <a href="https://github.com/emacs-ng/emacs-ng/blob/master/docs/adv-features.md">Advanced Features</a></p>
-<h3 id="using-async-io">Using Async I/O<a class="headerlink" href="#using-async-io" title="Permanent link">#</a></h3>
-<p>We expose the async IO functionality included with deno. Users can fetch data async from their local file system, or the network. They can use that data to interact with the editor. An example would be:</p>
-<p><div class="highlight"><pre><span></span><code><span class="kd">const</span> <span class="nx">json</span> <span class="o">=</span> <span class="nx">fetch</span><span class="p">(</span><span class="s2">&quot;https://api.github.com/users/denoland&quot;</span><span class="p">)</span>
-<span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">response</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="p">{</span> <span class="k">return</span> <span class="nx">response</span><span class="p">.</span><span class="nx">json</span><span class="p">();</span> <span class="p">});</span>
-
-<span class="kd">const</span> <span class="nx">txt</span> <span class="o">=</span> <span class="nx">Deno</span><span class="p">.</span><span class="nx">readTextFile</span><span class="p">(</span><span class="s2">&quot;./test.json&quot;</span><span class="p">);</span>
-
-<span class="nb">Promise</span><span class="p">.</span><span class="nx">all</span><span class="p">([</span><span class="nx">json</span><span class="p">,</span> <span class="nx">text</span><span class="p">])</span>
-    <span class="p">.</span><span class="nx">then</span><span class="p">((</span><span class="nx">data</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="p">{</span>
-        <span class="kd">let</span> <span class="nx">buffer</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">get_buffer_create</span><span class="p">(</span><span class="s1">&#39;hello&#39;</span><span class="p">);</span>
-        <span class="kd">const</span> <span class="nx">current</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">current_buffer</span><span class="p">();</span>
-        <span class="nx">lisp</span><span class="p">.</span><span class="nx">set_buffer</span><span class="p">(</span><span class="nx">buffer</span><span class="p">);</span>
-        <span class="nx">lisp</span><span class="p">.</span><span class="nx">insert</span><span class="p">(</span><span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">data</span><span class="p">[</span><span class="mf">0</span><span class="p">]));</span>
-        <span class="nx">lisp</span><span class="p">.</span><span class="nx">insert</span><span class="p">(</span><span class="nx">data</span><span class="p">[</span><span class="mf">1</span><span class="p">]);</span>
-        <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">lisp</span><span class="p">.</span><span class="nx">buffer_string</span><span class="p">());</span>
-        <span class="nx">lisp</span><span class="p">.</span><span class="nx">set_buffer</span><span class="p">(</span><span class="nx">current</span><span class="p">);</span>
-    <span class="p">});</span>
+                <h1 id="emacs-ng-native-hackers-handbook">Emacs-ng Native Hacker's Handbook<a class="headerlink" href="#emacs-ng-native-hackers-handbook" title="Permanent link">#</a></h1>
+<p>The purpose of this document is to outline how emacs-ng's native changes work.</p>
+<h2 id="javascript">JavaScript<a class="headerlink" href="#javascript" title="Permanent link">#</a></h2>
+<p>The majority of JavaScript related code is located in rust_src/src/javascript.rs. There is a lot to unpack on this file, but I will attempt to unpack the core concepts:</p>
+<h3 id="emacsmainjsruntime">EmacsMainJsRuntime<a class="headerlink" href="#emacsmainjsruntime" title="Permanent link">#</a></h3>
+<p>This is a <em>thread local</em> singleton containing the JavaScript runtime and associated state. The two major fields in this struct are the Tokio runtime and the MainWorker. The choice to make this a thread local struct was due to the fact that Emacs has the ability to spawn threads via (make-thread), but v8 isolates do not like being shared between threads without using a specific API. We lean heavily on Deno's MainWorker class, which is also not designed to be shared between threads, so we made the choice to just stay threadlocal. The oddity here is that in the case of calling make-thread, the lisp threads will have their lisp variables will shared, but not their JavaScript variables.</p>
+<h4 id="tokio">Tokio<a class="headerlink" href="#tokio" title="Permanent link">#</a></h4>
+<p>The Tokio runtime is what is driving all JavaScript Async I/O and timers. Tokio maintains its own threadpool on which tasks are enqueued. This is all "behind the scenes" to any emacs-ng code. The system is designed with the assumption that emacs-ng code will not have to call tokio::spawn or tokio::spawn_blocking.</p>
+<h4 id="mainworker">MainWorker<a class="headerlink" href="#mainworker" title="Permanent link">#</a></h4>
+<p>The "MainWorker" is a Deno concept. It encapsulates their module loader, file cache, and most importantly, the "JsRuntime". The JsRuntime encapsules the v8::Isolate, which can be described as the true, actual "JavaScript Runtime". Interfacing with the v8::Isolate is ultimately how JavaScript will be run. There are a few instances where we call execute using the isolate directly. The MainWorker has some key restrictions included by design - if you have a top level module promise rejection, the Worker will panic upon the next attempt to execute JavaScript. The worker cannot handle cases where execute is called "deep" within the callstack. Meaning that if I call lisp -&gt; javascript -&gt; lisp -&gt; JavaScript, I cannot depend on the Worker's execute method. We will have an entire section dedicated to that fact.</p>
+<p>The EmacsMainJsRuntime is thread local because of the MainWorker - it is not Send nor Sync. The v8::Isolate, which is contained within the MainWorker, cannot be shared between threads by design. A quirk of this is that if you spawn a lisp thread, it has its own JavaScript runtime. This means that while the thread shares lisp globals, it does not share javaScript globals.</p>
+<h3 id="event-loop">Event Loop<a class="headerlink" href="#event-loop" title="Permanent link">#</a></h3>
+<p>A core concept to JavaScript is the event loop. All JS invocations in emacs-ng start with a call to "run_module". run_module will eventually call into the MainWorkers execute method, which in turn calls into the v8::Isolate's execute method - are you starting to see the pattern?</p>
+<p>Once you call run_module, you will begin to execute JavaScript. Doing so may enqueue async events, like setTimeout, fetch, etc. These are all things that Deno calls <code>async_ops</code> or <code>sync_ops</code>. They have a system to manage ops. We have a policy that emacs-ng will not add ops, or deal with the ops API. If you want to add native functionality to emacs-ng, you should directly bind the function, like with <code>lisp_callback</code> and friends.</p>
+<p>As these async events execute in the background, we will poll for their completion. In order to integrate with Emacs program loop, we set a timer, calling a function named <code>js-tick-event-loop</code>. This function is really just a wrapper around Deno's <code>poll_event_loop</code>. For performance reasons, <code>js-tick-event-loop</code> can call <code>poll_event_loop</code> multiple times. The user does have control of this behavior via <code>js_set_tick_rate</code>. In general, we want to give the user full control of emacs-ng, including how the JavaScript environment is configured.</p>
+<h3 id="proxies-and-garbage-collector-gc-interoperability">Proxies and Garbage Collector (GC) Interoperability<a class="headerlink" href="#proxies-and-garbage-collector-gc-interoperability" title="Permanent link">#</a></h3>
+<p>JavaScript has a concept of a 'Proxy' object, which we use in emacs-ng, however this section is about our JS &lt;--&gt; elisp marshalling. We refer to that as 'proxying' within internal documentation. For example, we will discuss how this code actually works:</p>
+<div class="highlight"><pre><span></span><code><span class="kd">const</span> <span class="nx">buffer</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">get_buffer_create</span><span class="p">(</span><span class="s1">&#39;*foo*&#39;</span><span class="p">);</span>
+<span class="nx">lisp</span><span class="p">.</span><span class="nx">set_current_buffer</span><span class="p">(</span><span class="nx">buffer</span><span class="p">);</span>
+<span class="nx">lisp</span><span class="p">.</span><span class="nx">insert</span><span class="p">(</span><span class="s2">&quot;FOOBAR&quot;</span><span class="p">);</span>
 </code></pre></div>
-This example assumes you have a json file named <code>test.json</code> in your current directory.</p>
-<h3 id="webworkers-and-parallel-scripting">WebWorkers and Parallel Scripting<a class="headerlink" href="#webworkers-and-parallel-scripting" title="Permanent link">#</a></h3>
-<p>We also support WebWorkers, meaning that you can run javascript in separate threads. Note that WebWorkers cannot interact with the lisp VM, however they can use Deno for async I/O. See <a href="https://github.com/emacs-ng/emacs-ng/blob/master/docs/adv-features.md">Advanced Features</a></p>
-<p>Web Assembly allows you to perform things normally handled by native libraries with easy distribution. Want to manipulate sqlite3? Use the <a href="https://deno.land/x/sqlite@v2.3.2/mod.ts">deno sqlite wasm package</a></p>
-<div class="highlight"><pre><span></span><code><span class="k">import</span> <span class="p">{</span> <span class="nx">DB</span> <span class="p">}</span> <span class="nx">from</span> <span class="s2">&quot;https://deno.land/x/sqlite@v2.3.2/mod.ts&quot;</span><span class="p">;</span>
-
-<span class="kd">const</span> <span class="nx">db</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">DB</span><span class="p">(</span><span class="s2">&quot;test.db&quot;</span><span class="p">);</span>
-<span class="nx">db</span><span class="p">.</span><span class="nx">query</span><span class="p">(</span><span class="s2">&quot;CREATE TABLE IF NOT EXISTS people (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)&quot;</span><span class="p">);</span>
-
-<span class="kd">const</span> <span class="nx">name</span> <span class="o">=</span> <span class="s2">&quot;David&quot;</span><span class="p">;</span>
-<span class="nx">db</span><span class="p">.</span><span class="nx">query</span><span class="p">(</span><span class="s2">&quot;INSERT INTO people (name) VALUES (?)&quot;</span><span class="p">,</span> <span class="p">[</span><span class="nx">name</span><span class="p">]);</span>
-<span class="k">for</span> <span class="p">(</span><span class="kd">const</span> <span class="p">[</span><span class="nx">name</span><span class="p">]</span> <span class="k">of</span> <span class="nx">db</span><span class="p">.</span><span class="nx">query</span><span class="p">(</span><span class="s2">&quot;SELECT name FROM people&quot;</span><span class="p">))</span> <span class="p">{</span>
-    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">name</span><span class="p">);</span>
-<span class="p">}</span>
-
-<span class="nx">db</span><span class="p">.</span><span class="nx">close</span><span class="p">();</span>
+<h4 id="the-lisp-object">The Lisp Object<a class="headerlink" href="#the-lisp-object" title="Permanent link">#</a></h4>
+<p>The <code>lisp</code> object is a <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy">JavaScript Capital-P Proxy</a>. When you access <code>lisp.get_buffer_create</code>, it returns a function that does something like:</p>
+<div class="highlight"><pre><span></span><code><span class="p">(...</span><span class="nx">args</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="nx">lisp_invoke</span><span class="p">(</span><span class="s1">&#39;get-buffer-create&#39;</span> <span class="p">...</span><span class="nx">args</span><span class="p">);</span>
 </code></pre></div>
-<h2 id="webrender">Webrender<a class="headerlink" href="#webrender" title="Permanent link">#</a></h2>
-<p><a href="https://github.com/servo/webrender">WebRender</a> is a GPU-based 2D rendering engine written in Rust from Mozilla. Firefox, the research web browser Servo, and other GUI frameworks draw with it. emacs-ng use it as a new experimental graphic backend to leverage GPU hardware.</p>
-<p>Webrender rendering is a opt-in feature. You can enable it by this.</p>
-<div class="highlight"><pre><span></span><code>$ ./configure --with-webrender
+<p><code>lisp_invoke</code> is a native function defined in javascript.rs. It's a wrapper around <code>ffuncall</code> with logic for object translation. It will also catch any lisp errors and translates them to JavaScript errors. <code>lisp_invoke</code> returns a JavaScript object - but this is a 'special object' in that it may have an internal field. Internal fields are data objects that are contained within JavaScript objects that are not accessible by the user. This is because LispObjects are just pointers - if we let the user alter pointers, they could cause SEGFAULTS or read arbitrary memory.</p>
+<p>If we can parse the result of <code>lisp_invoke</code> as JSON, we do not proxy it. Instead we return the JavaScript equivalent (i.e. a JS string or number). However, if we cannot convert it to JSON, like in the case of a buffer, we return a proxy. Functions (i.e. <code>(lambda () (...))</code>) are another special case where additional logic is employed.</p>
+<p>lisp_invoke also works in reverse when being called, it will <code>unproxy</code> the arguments it is passed in order to further pass them to <code>ffuncall</code>.</p>
+<p>We expose a special function called <code>is_proxy</code> in order to tell if an object is a proxy.</p>
+<h4 id="gc-usage">GC Usage<a class="headerlink" href="#gc-usage" title="Permanent link">#</a></h4>
+<p>When we create a proxy, we need to properly manage it in the lisp garbage collector. We do not want lisp to GC an object out from underneath us. In order to do this, we need to make two considerations for each direction of JS -&gt; Lisp and Lisp -&gt; JS</p>
+<p>To prevent the lisp GC from removing objects that JS has a valid reference to, we include them in a special cons called the <code>js-retain-map</code>. The user does not have direct access to this object. Allowing them to access this cons would allow mutation in a way that could lead to use after free bugs.</p>
+<p>When a proxy is created in JavaScript, we create a special JavaScript object called a <code>WeakRef</code>. This is <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakRef">documented here</a>. Once an object has no outstanding references (besides the WeakRef itself) the WeakRef will return undefined once accessed. We maintain a global array of WeakRefs for all proxies that we sweep every time lisp performs its garbage collection. We map this array to the <code>js-retain-map</code>. The end result is that if you have an object in JavaScript that is a proxy, it will always be valid.</p>
+<p>elisp does not have proxies, it will only receive valid lisp objects from JavaScript, so this problem does not exist in the opposite direction.</p>
+<h4 id="lambda-usage">Lambda Usage<a class="headerlink" href="#lambda-usage" title="Permanent link">#</a></h4>
+<p>Users will notice that lambas will auto convert between JS and elisp. Example:</p>
+<div class="highlight"><pre><span></span><code><span class="nv">lisp.run_with_timer</span><span class="p">(</span><span class="mi">1</span><span class="o">,</span> <span class="nv">lisp.symbols.nil,</span> <span class="p">()</span> <span class="nv">=&gt;</span> <span class="nv">console.log</span><span class="p">(</span><span class="ss">&#39;This</span> <span class="nv">works...</span><span class="o">&#39;</span><span class="p">))</span><span class="c1">;</span>
 </code></pre></div>
-<p>If you get "Couldn't find any available vsync extension" runtime panic, enabling 3D acceleration will fixes it.</p>
+<p>How does this work under the hood? When we go to create a proxy, we will test if that object is a function. If so, we will include it in another special array for functions. We will then create the following lisp object representing that lambda:</p>
+<div class="highlight"><pre><span></span><code><span class="p">(</span><span class="k">lambda</span> <span class="p">(</span><span class="nv">&amp;REST</span><span class="p">)</span> <span class="p">(</span><span class="nv">js--reenter</span> <span class="nv">INDEX</span> <span class="p">(</span><span class="nv">make-finalizer</span> <span class="p">(</span><span class="k">lambda</span> <span class="p">()</span> <span class="nv">js--clear</span> <span class="nv">INDEX</span><span class="p">))</span> <span class="nv">REST</span><span class="p">))</span>
+</code></pre></div>
+<p>Index is hard-coded per lambda object, i.e. <code>js--reenter 1 ...</code>. Calling this lambda will call js--reenter, which is just calling the function in the array at INDEX. In order to ensure that function will be garbage collected, we add a lisp finalizer, which will clear the lambda from the array upon GC.</p>
                 
                   
                     
@@ -657,7 +746,7 @@ This example assumes you have a json file named <code>test.json</code> in your c
   
     <nav class="md-footer__inner md-grid" aria-label="Footer">
       
-        <a href=".." class="md-footer__link md-footer__link--prev" rel="prev">
+        <a href="../faq/" class="md-footer__link md-footer__link--prev" rel="prev">
           <div class="md-footer__button md-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
           </div>
@@ -666,25 +755,11 @@ This example assumes you have a json file named <code>test.json</code> in your c
               <span class="md-footer__direction">
                 Previous
               </span>
-              Home
+              FAQ
             </div>
           </div>
         </a>
       
-      
-        <a href="../adv-features/" class="md-footer__link md-footer__link--next" rel="next">
-          <div class="md-footer__title">
-            <div class="md-ellipsis">
-              <span class="md-footer__direction">
-                Next
-              </span>
-              Advanced features
-            </div>
-          </div>
-          <div class="md-footer__button md-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"/></svg>
-          </div>
-        </a>
       
     </nav>
   
