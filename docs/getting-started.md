@@ -53,6 +53,78 @@ compile it(no guarantee that they work):
 - https://gist.github.com/mikroskeem/0a5c909c1880408adf732ceba6d3f9ab
 - https://gist.github.com/AllenDang/f019593e65572a8e0aefc96058a2d23e
 
+### Nix (Linux only)
+Nix flake feature alread in emacsNg
+
+  nix run github:emacs-ng/emacs-ng (launch emacs locally )
+  nix build github:emacs-ng/emacs-ng (build emacs locally)
+  nix develop github:emacs-ng/emacs-ng (enter develop emacs environment locally)
+
+Also, you can run native nix commands under `emacs-ng` repo such as
+
+  nix-shell
+  nix-build
+
+- using `cachix` to (download binary cache)speed up build
+  1. without install cachix
+
+```bash
+nix build github:emacs-ng/emacs-ng --option substituters "https://emacsng.cachix.org" --option trusted-public-keys "emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=" -o emacsNg
+ls -il emacs
+#or check ./result/bin/emacs
+nix-build --option substituters "https://emacsng.cachix.org" --option trusted-public-keys "emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI="
+```
+   2. install cachix
+
+```bash
+nix-env -iA cachix -f https://cachix.org/api/v1/install #install cachix
+cachix use emacsng
+#then
+nix-build
+#or
+nix build github:emacs-ng/emacs-ng -o emacsNg
+ls -il emacsNg
+```
+
+- launch `emacs-ng` with Doom Emacs Example
+
+```bash
+nix-shell #or nix develop github:emacs-ng/emacs-ng
+~/.emacs.d/bin/doom sync
+emacs
+```
+
+- using Emacs-ng in your NixOS configuration
+
+```nix
+{
+  description = "My configuration";
+
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    emacsNg-flake.url = "github:emacs-ng/emacs-ng";
+    rust-overlay = { url = "github:oxalica/rust-overlay";};
+  };
+
+  outputs = { nixpkgs, emacsNg-flake, rust-overlay ... }: {
+    nixosConfigurations = {
+      hostname = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./configuration.nix # Your system configuration.
+          ({ pkgs, ... }: {
+                  nixpkgs.overlays = [ emacsNg-flake.overlay
+                                       rust-overlay.overlay
+                                     ];
+            environment.systemPackages = [ pkgs.emacsNg ];
+          })
+        ];
+      };
+    };
+  };
+}
+```
+
 ## Building
 
 ```
