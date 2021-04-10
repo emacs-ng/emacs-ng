@@ -2,7 +2,7 @@
   description = "emacsNg Nix flake";
 
   inputs = {
-    nixpkgs.url = "nixpkgs/e4650171afb53ca227d0c51f13fae87207153d69";
+    nixpkgs.url = "nixpkgs/d09f37cc24e4ec1a567f77e553a298158185182d";
     emacs-overlay = {
       type = "github";
       owner = "nix-community";
@@ -10,12 +10,11 @@
       rev = "d9530a7048f4b1c0f65825202a0ce1d111a1d39a";
     };
     flake-compat = { url = "github:edolstra/flake-compat"; flake = false; };
-    rust-overlay = { url = "github:oxalica/rust-overlay"; inputs.nixpkgs.follows = "nixpkgs"; };
-    emacsNg-src = { url = "github:emacs-ng/emacs-ng"; flake = false; };
+    rust-overlay = { url = "github:oxalica/rust-overlay/6642000a09ac2d0a1a8d91849e28a36f2c6c35cf"; inputs.nixpkgs.follows = "nixpkgs"; };
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, emacs-overlay, flake-compat, emacsNg-src, rust-overlay, flake-utils }:
+  outputs = { self, nixpkgs, emacs-overlay, flake-compat, rust-overlay, flake-utils }:
     { }
     //
     (flake-utils.lib.eachSystem [ "x86_64-linux" "x86_64-darwin" ]
@@ -81,7 +80,7 @@
               '';
 
               remacsLibDeps = prev.rustPlatform.fetchCargoTarball {
-                src = emacsNg-src;
+                src = ./.;
                 sourceRoot = "source/rust_src/remacs-lib";
                 name = "remacsLibDeps";
                 cargoUpdateHook = doVersionedUpdate;
@@ -90,7 +89,7 @@
               };
 
               remacsBindings = prev.rustPlatform.fetchCargoTarball {
-                src = emacsNg-src;
+                src = ./.;
                 sourceRoot = "source/rust_src/remacs-bindings";
                 cargoUpdateHook = doVersionedUpdate;
                 name = "remacsBindings";
@@ -99,17 +98,17 @@
               };
 
               remacsSrc = prev.rustPlatform.fetchCargoTarball {
-                src = "${emacsNg-src}/rust_src";
+                src = "${./.}/rust_src";
                 cargoUpdateHook = ''
                   sed -e 's/@CARGO_.*@//' Cargo.toml.in > Cargo.toml
                 '' + doVersionedUpdate;
                 name = "remacsSrc";
-                sha256 = "sha256-5D7Q46JTtr8jfE43CnrxvpTQj6iw9Qi5aGJL/TgCc/Y=";
+                sha256 = "sha256-8Es749ddZ3yxBnij8swIda6AKlHJffWaLV2yIi7oRqU=";
                 inherit installPhase;
               };
 
               remacsHashdir = prev.rustPlatform.fetchCargoTarball {
-                src = "${emacsNg-src}/lib-src/hashdir";
+                src = "${./.}/lib-src/hashdir";
                 sourceRoot = null;
                 name = "remacsHashdir";
                 cargoUpdateHook = doVersionedUpdate;
@@ -157,10 +156,9 @@
               custom-llvmPackages = prev.llvmPackages_9;
             in
             rec {
-              name = "emacsNg-" + version;
-              src = emacsNg-src;
-              version = builtins.substring 0 7 emacsNg-src.rev;
-
+              name = "emacsNg-" + "20210410161355";
+              src = ./.;
+              #version = toString self.lastModifiedDate;
               preConfigure = (old.preConfigure or "") + ''
             '';
 
@@ -179,9 +177,9 @@
                       done
                     }
                     _librusty_v8_setup "debug" "release" "${arch}/release"
-                    sed -i 's|deno = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng"|deno = { version = "1.7.2"|' rust_src/Cargo.toml
-                    sed -i 's|deno_runtime = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng"|deno_runtime = { version = "0.8.0"|' rust_src/Cargo.toml
-                    sed -i 's|deno_core = { git = "https://github.com/DavidDeSimone/deno"|deno_core = { version = "0.78.0"|' rust_src/Cargo.toml
+                      sed -i 's|deno = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng"|deno = { version = "1.8.1"|' rust_src/Cargo.toml
+                      sed -i 's|deno_runtime = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng"|deno_runtime = { version = "0.9.3"|' rust_src/Cargo.toml
+                      sed -i 's|deno_core = { git = "https://github.com/DavidDeSimone/deno"|deno_core = { version = "0.80.2"|' rust_src/Cargo.toml
                     export HOME=${final.emacsNg-rust}
                 '';
 
