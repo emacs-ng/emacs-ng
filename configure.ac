@@ -5680,7 +5680,7 @@ case "${opsys}" in
   darwin) RUST_DEPS="-ldl -lm -lresolv -lstdc++"
         REMACSLIB_NAME="libremacs_lib.a"
         EMACSNGLIB_NAME="libemacsng.a"
-        REMACSLIB_CFLAGS="-pthread -DEMACS_EXTERN_INLINE -Wl,-framework Metal" ;;
+        REMACSLIB_CFLAGS="-pthread -DEMACS_EXTERN_INLINE -Wl,-framework -Wl,Metal" ;;
   gnu*) RUST_DEPS="-ldl -lm -lrt -lstdc++"
         REMACSLIB_NAME="libremacs_lib.a"
         EMACSNGLIB_NAME="libemacsng.a"
