@@ -7,6 +7,7 @@ use deno::module_graph;
 use deno::program_state::ProgramState;
 use deno::specifier_handler::FetchHandler;
 use deno_core::error::AnyError;
+use deno_core::resolve_url_or_path;
 use deno_core::ModuleSpecifier;
 use deno_runtime::permissions::Permissions;
 
@@ -23,9 +24,9 @@ use std::sync::{Arc, Mutex};
 // likely need to refork these functions.
 // Copyright 2018-2021 the Deno authors. All rights reserved. MIT license.
 pub(crate) async fn run_repl(flags: Flags) -> Result<(), AnyError> {
-    let main_module = ModuleSpecifier::resolve_url_or_path("./$deno$repl.ts").unwrap();
+    let main_module = resolve_url_or_path("./$deno$repl.ts").unwrap();
     let permissions = Permissions::from_options(&flags.clone().into());
-    let program_state = ProgramState::new(flags)?;
+    let program_state = ProgramState::build(flags).await?;
     let mut worker = deno::create_main_worker(&program_state, main_module.clone(), permissions);
     crate::javascript::v8_bind_lisp_funcs(&mut worker)?;
     worker.run_event_loop().await?;
@@ -36,16 +37,16 @@ pub(crate) async fn run_repl(flags: Flags) -> Result<(), AnyError> {
 pub(crate) async fn eval_command(
     flags: Flags,
     code: String,
-    as_typescript: bool,
+    ext: String,
     print: bool,
 ) -> Result<(), AnyError> {
     // Force TypeScript compile.
-    let main_module = ModuleSpecifier::resolve_url_or_path("./$deno$eval.ts").unwrap();
+    let main_module = resolve_url_or_path("./$deno$eval.ts").unwrap();
     let permissions = Permissions::from_options(&flags.clone().into());
-    let program_state = ProgramState::new(flags)?;
+    let program_state = ProgramState::build(flags).await?;
     let mut worker = deno::create_main_worker(&program_state, main_module.clone(), permissions);
     crate::javascript::v8_bind_lisp_funcs(&mut worker)?;
-    let main_module_url = main_module.as_url().to_owned();
+
     // Create a dummy source file.
     let source_code = if print {
         format!("console.log({})", code)
@@ -55,15 +56,19 @@ pub(crate) async fn eval_command(
     .into_bytes();
 
     let file = File {
-        local: main_module_url.to_file_path().unwrap(),
+        local: main_module.clone().to_file_path().unwrap(),
         maybe_types: None,
-        media_type: if as_typescript {
+        media_type: if ext.as_str() == "ts" {
             MediaType::TypeScript
-        } else {
+        } else if ext.as_str() == "tsx" {
+            MediaType::TSX
+        } else if ext.as_str() == "js" {
             MediaType::JavaScript
+        } else {
+            MediaType::JSX
         },
         source: String::from_utf8(source_code)?,
-        specifier: ModuleSpecifier::from(main_module_url),
+        specifier: main_module.clone(),
     };
 
     // Save our fake file into file fetcher cache
@@ -77,19 +82,19 @@ pub(crate) async fn eval_command(
 }
 
 async fn run_from_stdin(flags: Flags) -> Result<(), AnyError> {
-    let program_state = ProgramState::new(flags.clone())?;
+    let program_state = ProgramState::build(flags.clone()).await?;
     let permissions = Permissions::from_options(&flags.clone().into());
-    let main_module = ModuleSpecifier::resolve_url_or_path("./$deno$stdin.ts").unwrap();
+    let main_module = resolve_url_or_path("./$deno$stdin.ts").unwrap();
     let mut worker =
         deno::create_main_worker(&program_state.clone(), main_module.clone(), permissions);
     crate::javascript::v8_bind_lisp_funcs(&mut worker)?;
 
     let mut source = Vec::new();
     std::io::stdin().read_to_end(&mut source)?;
-    let main_module_url = main_module.as_url().to_owned();
+
     // Create a dummy source file.
     let source_file = File {
-        local: main_module_url.to_file_path().unwrap(),
+        local: main_module.clone().to_file_path().unwrap(),
         maybe_types: None,
         media_type: MediaType::TypeScript,
         source: String::from_utf8(source)?,
@@ -112,8 +117,8 @@ async fn run_with_watch(flags: Flags, script: String) -> Result<(), AnyError> {
         let script2 = script.clone();
         let flags = flags.clone();
         async move {
-            let main_module = ModuleSpecifier::resolve_url_or_path(&script1)?;
-            let program_state = ProgramState::new(flags)?;
+            let main_module = resolve_url_or_path(&script1)?;
+            let program_state = ProgramState::build(flags).await?;
             let handler = Arc::new(Mutex::new(FetchHandler::new(
                 &program_state,
                 Permissions::allow_all(),
@@ -130,7 +135,7 @@ async fn run_with_watch(flags: Flags, script: String) -> Result<(), AnyError> {
             let mut paths_to_watch: Vec<PathBuf> = module_graph
                 .get_modules()
                 .iter()
-                .filter_map(|specifier| specifier.as_url().to_file_path().ok())
+                .filter_map(|specifier| specifier.to_file_path().ok())
                 .collect();
 
             if let Some(import_map) = program_state.flags.import_map_path.as_ref() {
@@ -159,7 +164,7 @@ async fn run_with_watch(flags: Flags, script: String) -> Result<(), AnyError> {
         let permissions = Permissions::from_options(&flags.clone().into());
         async move {
             let main_module = main_module.clone();
-            let program_state = ProgramState::new(flags)?;
+            let program_state = ProgramState::build(flags).await?;
             let mut worker =
                 deno::create_main_worker(&program_state, main_module.clone(), permissions);
             crate::javascript::v8_bind_lisp_funcs(&mut worker)?;
@@ -185,8 +190,8 @@ pub(crate) async fn run_command(flags: Flags, script: String) -> Result<(), AnyE
         return run_with_watch(flags, script).await;
     }
 
-    let main_module = ModuleSpecifier::resolve_url_or_path(&script)?;
-    let program_state = ProgramState::new(flags.clone())?;
+    let main_module = resolve_url_or_path(&script)?;
+    let program_state = ProgramState::build(flags.clone()).await?;
     let permissions = Permissions::from_options(&flags.clone().into());
     let mut worker = deno::create_main_worker(&program_state, main_module.clone(), permissions);
     crate::javascript::v8_bind_lisp_funcs(&mut worker)?;
@@ -224,7 +229,7 @@ pub(crate) async fn test_command(
     allow_none: bool,
     filter: Option<String>,
 ) -> Result<(), AnyError> {
-    let program_state = ProgramState::new(flags.clone())?;
+    let program_state = ProgramState::build(flags.clone()).await?;
     let permissions = Permissions::from_options(&flags.clone().into());
     let cwd = std::env::current_dir().expect("No current directory");
     let include = include.unwrap_or_else(|| vec![".".to_string()]);
@@ -237,10 +242,10 @@ pub(crate) async fn test_command(
         }
         return Ok(());
     }
-    let main_module = ModuleSpecifier::resolve_path("$deno$test.ts")?;
+    let main_module = deno_core::resolve_path("$deno$test.ts")?;
     // Create a dummy source file.
     let source_file = File {
-        local: main_module.as_url().to_file_path().unwrap(),
+        local: main_module.to_file_path().unwrap(),
         maybe_types: None,
         media_type: MediaType::TypeScript,
         source: deno::tools::test_runner::render_test_file(
@@ -301,21 +306,6 @@ pub(crate) async fn test_command(
 
     if let Some(coverage_collector) = maybe_coverage_collector.as_mut() {
         coverage_collector.stop_collecting().await?;
-
-        // TODO(caspervonb) extract reporting into it's own subcommand.
-        // For now, we'll only report for the command that passed --coverage as a flag.
-        if flags.coverage_dir.is_some() {
-            let mut exclude = test_modules.clone();
-            let main_module_url = main_module.as_url().to_owned();
-            exclude.push(main_module_url);
-            deno::tools::coverage::report_coverages(
-                program_state.clone(),
-                &coverage_collector.dir,
-                quiet,
-                exclude,
-            )
-            .await?;
-        }
     }
 
     Ok(())
