@@ -12,13 +12,13 @@ This is a *thread local* singleton containing the JavaScript runtime and associa
 
 #### Tokio
 
-The Tokio runtime is what is driving all JavaScript Async I/O and timers. Tokio maintains it's own threadpool on which tasks are enqueued. This is all "behind the scenes" to any emacs-ng code. The system is designed with the assumption that emacs-ng code will not have to call tokio::spawn or tokio::spawn_blocking.
+The Tokio runtime is what is driving all JavaScript Async I/O and timers. Tokio maintains its own threadpool on which tasks are enqueued. This is all "behind the scenes" to any emacs-ng code. The system is designed with the assumption that emacs-ng code will not have to call tokio::spawn or tokio::spawn_blocking.
 
 #### MainWorker
 
 The "MainWorker" is a Deno concept. It encapsulates their module loader, file cache, and most importantly, the "JsRuntime". The JsRuntime encapsules the v8::Isolate, which can be described as the true, actual "JavaScript Runtime". Interfacing with the v8::Isolate is ultimately how JavaScript will be run. There are a few instances where we call execute using the isolate directly. The MainWorker has some key restrictions included by design - if you have a top level module promise rejection, the Worker will panic upon the next attempt to execute JavaScript. The worker cannot handle cases where execute is called "deep" within the callstack. Meaning that if I call lisp -> javascript -> lisp -> JavaScript, I cannot depend on the Worker's execute method. We will have an entire section dedicated to that fact.
 
-The EmacsMainJsRuntime is thread local because of the MainWorker - it is not Send nor Sync. The v8::Isolate, which is contained within the MainWorker, cannot be shared between threads by design. A quirk of this is that if you spawn a lisp thread, it has it's own JavaScript runtime. This means that while the thread shares lisp globals, it does not share javaScript globals.
+The EmacsMainJsRuntime is thread local because of the MainWorker - it is not Send nor Sync. The v8::Isolate, which is contained within the MainWorker, cannot be shared between threads by design. A quirk of this is that if you spawn a lisp thread, it has its own JavaScript runtime. This means that while the thread shares lisp globals, it does not share javaScript globals.
 
 ### Event Loop
 
@@ -46,11 +46,11 @@ The `lisp` object is a [JavaScript Capital-P Proxy](https://developer.mozilla.or
 (...args) => lisp_invoke('get-buffer-create' ...args);
 ```
 
-`lisp_invoke` is a native function defined in javascript.rs. It's a wrapper around ffuncall with logic for object translation. It will also catch any lisp errors and translates them to JavaScript errors. `lisp_invoke` returns a JavaScript object - but this is a 'special object' in that it may have an internal field. Internal fields are data objects that are contained within JavaScript objects that are not accessible by users. This is because LispObjects are just pointers - if we let the user alter pointers, they could cause SEGFAULTS or read arbitrary memory.
+`lisp_invoke` is a native function defined in javascript.rs. It's a wrapper around `ffuncall` with logic for object translation. It will also catch any lisp errors and translates them to JavaScript errors. `lisp_invoke` returns a JavaScript object - but this is a 'special object' in that it may have an internal field. Internal fields are data objects that are contained within JavaScript objects that are not accessible by the user. This is because LispObjects are just pointers - if we let the user alter pointers, they could cause SEGFAULTS or read arbitrary memory.
 
-If we can parse the result of lisp_invoke as JSON, we do not proxy it. Instead we return the JavaScript equivalent (i.e. a JS string or number). However, if we cannot convert it to JSON, like in the case of a buffer, we return a proxy. Functions (i.e. `(lambda () (...))`) are another special case where additional logic is employed.
+If we can parse the result of `lisp_invoke` as JSON, we do not proxy it. Instead we return the JavaScript equivalent (i.e. a JS string or number). However, if we cannot convert it to JSON, like in the case of a buffer, we return a proxy. Functions (i.e. `(lambda () (...))`) are another special case where additional logic is employed.
 
-lisp_invoke also works in reverse when being called, it will `unproxy` the arguments it is passed in order to further pass them to ffuncall.
+lisp_invoke also works in reverse when being called, it will `unproxy` the arguments it is passed in order to further pass them to `ffuncall`.
 
 We expose a special function called `is_proxy` in order to tell if an object is a proxy.
 
@@ -58,9 +58,9 @@ We expose a special function called `is_proxy` in order to tell if an object is 
 
 When we create a proxy, we need to properly manage it in the lisp garbage collector. We do not want lisp to GC an object out from underneath us. In order to do this, we need to make two considerations for each direction of JS -> Lisp and Lisp -> JS
 
-To prevent the lisp GC from removing objects that JS has a valid reference to, we include them in a special cons called the `js-retain-map`. The user does not have direct access to this object. Allowing them to access this cons would allow them to mutate it in a way that could lead to use after free bugs.
+To prevent the lisp GC from removing objects that JS has a valid reference to, we include them in a special cons called the `js-retain-map`. The user does not have direct access to this object. Allowing them to access this cons would allow mutation in a way that could lead to use after free bugs.
 
-When a proxy is created in JavaScript, we create a special JavaScript object called a `WeakRef`. This is [documented here](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakRef). Once an object has no outstanding references (besides the WeakRef itself) the WeakRef will return undefined once accessed. We maintain a global array of WeakRefs for all proxies that we sweep every time lisp performs its garbage collection. We map this array to the `js-retain-map`. The end result is that if you have an object is JavaScript that is a proxy, it will always be valid.
+When a proxy is created in JavaScript, we create a special JavaScript object called a `WeakRef`. This is [documented here](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakRef). Once an object has no outstanding references (besides the WeakRef itself) the WeakRef will return undefined once accessed. We maintain a global array of WeakRefs for all proxies that we sweep every time lisp performs its garbage collection. We map this array to the `js-retain-map`. The end result is that if you have an object in JavaScript that is a proxy, it will always be valid.
 
 elisp does not have proxies, it will only receive valid lisp objects from JavaScript, so this problem does not exist in the opposite direction.
 
