@@ -3,7 +3,7 @@ name: CI
 on: [push, pull_request]
 
 jobs:
-    unix-test:
+    build-test:
         runs-on: ${{ matrix.os }}
         strategy:
             fail-fast: false
