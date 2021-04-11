@@ -21,7 +21,7 @@ jobs:
         id: cur_release
         uses: pozetroninc/github-action-get-latest-release@master
         with:
-          repository: emacs-ng/emacs-ng
+          repository: ${{ github.repository }}
           excludes: draft
       - name: Set outputs
         id: vars
