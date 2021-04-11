@@ -8,15 +8,11 @@ on:
       'v*'
 
 jobs:
-  build:
-    name: Create Release Asset
+  prepare_env:
+    name: Prepare build version
     runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
-        with:
-          fetch-depth: 2
       - name: Get latest release
         id: cur_release
         uses: pozetroninc/github-action-get-latest-release@master
@@ -30,23 +26,92 @@ jobs:
           sha=$(git rev-parse --short HEAD)
           version=$([[ $tag == v* ]] && echo ${tag:1} || echo 0.0.$sha)
           prerelease=$([[ $tag == v* ]] && echo false || echo true)
+          rust_cache=${{ hashFiles('**/rust-toolchain', '**/Cargo.lock') }}
           [[ v$version == ${{ steps.cur_release.outputs.release }} ]] && exit 1
-          echo "tag=$tag" >> $GITHUB_ENV
-          echo "sha=$sha" >> $GITHUB_ENV
           echo "version=$version" >> $GITHUB_ENV
           echo "prerelease=$prerelease" >> $GITHUB_ENV
-      - name: Build project # This would actually build your project, using zip for an example artifact
+          echo "rust_cache=$rust_cache" >> $GITHUB_ENV
+    outputs:
+      version: ${{ env.version }}
+      prerelease: ${{ env.prerelease }}
+      rust_cache: ${{ env.rust_cache }}
+
+  build:
+    needs: prepare_env
+    name: Build and release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build: [general, webrender]
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CARGO_INCREMENTAL: 0
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cache rust
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ./rust_src/target
+          key: ${{ runner.os }}-cargo-${{ needs.prepare_env.outputs.rust_cache }}
+          restore-keys:
+            ${{ runner.os }}-cargo
+      - name: Build project
+        if: ${{ matrix.build == 'general' }}
         run: |
-          ./build_emacs_ng.sh ${{ env.version }}
+          version=${{ needs.prepare_env.outputs.version }}
+          bin_version=$version
+          echo "version=$version" >> $GITHUB_ENV
+          echo "bin_version=$bin_version" >> $GITHUB_ENV
+          ./build_emacs_ng.sh $version
+      - name: Build project with webrender
+        if: ${{ matrix.build == 'webrender' }}
+        run: |
+          version=${{ needs.prepare_env.outputs.version }}
+          bin_version=$version.webrender
+          echo "version=$version" >> $GITHUB_ENV
+          echo "bin_version=$bin_version" >> $GITHUB_ENV
+          ./build_emacs_ng.sh $version.webrender --with-webrender
+      - name: Reduce cache
+        continue-on-error: true
+        run: |
+          ## Reduce Cache
+          # https://bheisler.github.io/post/efficient-use-of-travis-ci-cache-for-rust/
+          # Delete loose files in the release/debug directory
+          sudo find ./rust_src/target/release -maxdepth 1 -type f -delete
+          # Delete just meta data
+          sudo rm -f  ./rust_src/target/.rustc_info.json
+          # Also delete cargo's registry index. This is updated on every build, but it's
+          # way cheaper to re-download than the whole cache is.
+          sudo rm -rf ~/.cargo/registry/index/
+      - name: Get release
+        id: get_release_by_tag
+        uses: jonfriesen/get-release-by-tag@v0.0.11
+        with:
+          tag_name: v${{ env.version }}
+        continue-on-error: true
       - name: Do Release
+        if: steps.get_release_by_tag.outcome == 'failure'
         id: do_release
         uses: ncipollo/release-action@v1
         with:
           tag: v${{ env.version }}
           name: emacs-ng_${{ env.version }}
           draft: false
-          prerelease: ${{ env.prerelease }}
+          prerelease: ${{ needs.prepare_env.outputs.prerelease }}
           artifactErrorsFailBuild: true
-          artifacts: ./emacs-ng_${{ env.version }}-1_amd64.deb
+          artifacts: ./emacs-ng_${{ env.bin_version }}-1_amd64.deb
           artifactContentType: application/vnd.debian.binary-package
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Do upload to release
+        if: steps.get_release_by_tag.outcome == 'success'
+        id: upload_release_asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.get_release_by_tag.outputs.upload_url }}
+          asset_path: ./emacs-ng_${{ env.bin_version }}-1_amd64.deb
+          asset_name: emacs-ng_${{ env.bin_version }}-1_amd64.deb
+          asset_content_type: application/vnd.debian.binary-package
