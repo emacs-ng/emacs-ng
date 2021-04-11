@@ -43,8 +43,6 @@ extern crate deno;
 extern crate deno_core;
 #[cfg(feature = "javascript")]
 extern crate deno_runtime;
-#[cfg(feature = "libgit")]
-extern crate git2;
 #[cfg(feature = "javascript")]
 extern crate rusty_v8;
 #[cfg(feature = "javascript")]
@@ -66,8 +64,6 @@ macro_rules! export_lisp_fns {
     }
 }
 
-#[cfg(feature = "libgit")]
-mod git;
 #[cfg(feature = "javascript")]
 mod javascript;
 mod javascript_stubs;
