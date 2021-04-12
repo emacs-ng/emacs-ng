@@ -5,12 +5,14 @@ in
 with lib;
 {
   options.language.rust = {
-    overlaySet = mkOption {
+    rustOverlay = mkOption {
       type = types.attrs;
       default = pkgs.rust-bin.nightly."2021-01-14";
+      description = "Which nightly rust version to use
+      check valid data from https://github.com/oxalica/rust-overlay/tree/master/manifests/nightly";
     };
 
-    rustSet = mkOption {
+    rustPackages = mkOption {
       type = types.attrs;
       default = pkgs.rustPackages;
       description = "Which rust package set to use";
@@ -21,17 +23,19 @@ with lib;
       default = [
         "clippy"
       ];
-      description = "Which rust tools to pull from the platform package set";
+      description = "Which rust tools to pull from the nixpkgs channel package set
+      search valid packages here https://search.nixos.org/packages?channel=unstable&";
     };
 
-    toolchain = mkOption {
+    rustOverlaySet = mkOption {
       type = types.listOf types.str;
       default = [
         "rustc"
         "cargo"
-        "rustfmt"
+        "rustfmt-preview"
       ];
-      description = "Which rust tools to pull from the rust overlay";
+      description = "Which rust tools to pull from the rust overlay
+      https://github.com/oxalica/rust-overlay/blob/master/manifests/profiles.nix";
     };
   };
 
@@ -39,10 +43,13 @@ with lib;
     env = [{
       # Used by tools like rust-analyzer
       name = "RUST_SRC_PATH";
-      value = (toString cfg.overlaySet.rust-src) + "/lib/rustlib/src/rust/library";
+      value = (toString cfg.rustOverlay.rust-src) + "/lib/rustlib/src/rust/library";
     }];
 
-    devshell.packages = map (tool: cfg.rustSet.${tool}) cfg.rustPackagesSet
-      ++ map (tool: cfg.overlaySet.${tool}) cfg.toolchain;
+    devshell.packages = map (tool: cfg.rustPackages.${tool}) cfg.rustPackagesSet
+      ++ map (tool: cfg.rustOverlay.${tool}) cfg.rustOverlaySet ++ (with pkgs;[
+      #custom nixpkgs packages
+      rustracer
+    ]);
   };
 }

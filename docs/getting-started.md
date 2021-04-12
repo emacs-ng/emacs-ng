@@ -62,11 +62,12 @@ Nix flake feature alread in emacsNg
 
 Also, you can run native nix commands under `emacs-ng` repo such as
 
-  nix-shell
-  nix-build
+    nix-shell
+    nix-build
 
-- using `cachix` to (download binary cache)speed up build
-  1. without install cachix
+#### using `cachix` to (download binary cache)speed up build
+
+1. without install cachix
 
 ```bash
 nix build github:emacs-ng/emacs-ng --option substituters "https://emacsng.cachix.org" --option trusted-public-keys "emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=" -o emacsNg
@@ -74,11 +75,13 @@ ls -il emacs
 #or check ./result/bin/emacs
 nix-build --option substituters "https://emacsng.cachix.org" --option trusted-public-keys "emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI="
 ```
-   2. install cachix
+
+2. Install cachix
 
 ```bash
 nix-env -iA cachix -f https://cachix.org/api/v1/install #install cachix
-cachix use emacsng
+exec bash -l
+cachix use emacsng # make sure you have saw the output like: Configured https://emacsng.cachix.org binary cache in /home/test/.config/nix/nix.conf
 #then
 nix-build
 #or
@@ -86,7 +89,7 @@ nix build github:emacs-ng/emacs-ng -o emacsNg
 ls -il emacsNg
 ```
 
-- launch `emacs-ng` with Doom Emacs Example
+#### Launch `emacs-ng` with Doom Emacs Example
 
 ```bash
 nix-shell #or nix develop github:emacs-ng/emacs-ng
@@ -94,7 +97,7 @@ nix-shell #or nix develop github:emacs-ng/emacs-ng
 emacs
 ```
 
-- using Emacs-ng in your NixOS configuration
+#### Using Emacs-ng in your NixOS configuration
 
 ```nix
 {
