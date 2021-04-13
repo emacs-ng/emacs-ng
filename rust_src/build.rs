@@ -402,11 +402,12 @@ fn build_ignored_paths() -> Vec<&'static str> {
     ignored_paths
 }
 
-fn generate_include_files() -> Result<(), BuildError> {
+/// Find modules in PATH which should contain the src directory of a crate
+fn find_crate_modules(path: PathBuf) -> Result<Vec<ModuleData>, BuildError> {
     let mut modules: Vec<ModuleData> = Vec::new();
     let ignored_paths = build_ignored_paths();
 
-    let in_path: PathBuf = [&env_var("CARGO_MANIFEST_DIR"), "src"].iter().collect();
+    let in_path: PathBuf = path.iter().collect();
     for entry in fs::read_dir(in_path)? {
         let mod_path = entry?.path();
 
@@ -417,9 +418,21 @@ fn generate_include_files() -> Result<(), BuildError> {
         }
     }
 
-    if modules.is_empty() {
-        return Ok(());
-    }
+    Ok(modules)
+}
+
+fn generate_include_files() -> Result<(), BuildError> {
+    let path: PathBuf = [&env_var("CARGO_MANIFEST_DIR"), "src"].iter().collect();
+    let modules = match find_crate_modules(path) {
+        Ok(modules) => {
+            if modules.is_empty() {
+                return Ok(());
+            } else {
+                modules
+            }
+        }
+        Err(e) => return Err(e),
+    };
 
     let out_path: PathBuf = [&env_var("OUT_DIR"), "c_exports.rs"].iter().collect();
     let mut out_file = File::create(out_path)?;
