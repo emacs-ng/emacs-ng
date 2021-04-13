@@ -6,7 +6,10 @@ repo_name: emacs-ng/emacs-ng
 repo_url: https://github.com/emacs-ng/emacs-ng
 
 nav:
-  - Home: README.md
+  - Home:
+    - Overview: README.md
+    - Setup:
+      - Nix Build / Develop: nix-develop.md
   - Features:
     - Basic features: main-features.md
     - Advanced features: adv-features.md

@@ -21,7 +21,6 @@ with lib;
     rustPackagesSet = mkOption {
       type = types.listOf types.str;
       default = [
-        "clippy"
       ];
       description = "Which rust tools to pull from the nixpkgs channel package set
       search valid packages here https://search.nixos.org/packages?channel=unstable&";
@@ -30,9 +29,7 @@ with lib;
     rustOverlaySet = mkOption {
       type = types.listOf types.str;
       default = [
-        "rustc"
-        "cargo"
-        "rustfmt-preview"
+        "rust"
       ];
       description = "Which rust tools to pull from the rust overlay
       https://github.com/oxalica/rust-overlay/blob/master/manifests/profiles.nix";

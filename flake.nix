@@ -10,7 +10,7 @@
       rev = "d9530a7048f4b1c0f65825202a0ce1d111a1d39a";
     };
 
-    master.url = "nixpkgs";
+    master.url = "nixpkgs/7d71001b796340b219d1bfa8552c81995017544a";
     devshell-flake.url = "github:numtide/devshell";
     emacsNg-src = { url = "github:emacs-ng/emacs-ng"; flake = false; };
     flake-compat = { url = "github:edolstra/flake-compat"; flake = false; };
@@ -66,7 +66,7 @@
                     key = pwd + "/nix/cachix-key.secrets";
                   in
                   if lib.pathExists key then
-                    builtins.readFile key else "";
+                    lib.removeSuffix "\n" (builtins.readFile key) else "";
               }
             ];
 
@@ -125,8 +125,8 @@
                 '';
 
                 remacsLibDeps = prev.rustPlatform.fetchCargoTarball {
-                  src = "${emacsNgSource}/rust_src/remacs-lib";
-                  sourceRoot = null;
+                  src = emacsNgSource;
+                  sourceRoot = "source/rust_src/remacs-lib";
                   name = "remacsLibDeps";
                   cargoUpdateHook = doVersionedUpdate;
                   sha256 = "sha256-TtL+zfr4iaCG9I4NJ1i18c4aIgGyPfYfryHVAzBl3eI=";
@@ -209,6 +209,7 @@
             '';
 
                 patches = (old.patches or [ ]) ++ [ ];
+
                 #custom configure Flags Setting
                 configureFlags = (old.configureFlags or [ ]) ++ [
                   "--with-json"
@@ -217,6 +218,8 @@
                   "--with-harfbuzz"
                   "--with-compress-install"
                   "--with-zlib"
+                  "--with-dumping=pdumper"
+                  #"--with-webrender"
                 ];
 
                 preBuild = let arch = rust.toRustTarget stdenv.hostPlatform; in
@@ -247,17 +250,20 @@
                   custom-llvmPackages.libclang
                   final.rust-bin.nightly."2021-01-14".rust
                 ] ++ lib.optionals
-                  stdenv.isDarwin [
-                  darwin.libobjc
-                  darwin.apple_sdk.frameworks.Security
-                  darwin.apple_sdk.frameworks.CoreServices
-                  darwin.apple_sdk.frameworks.Metal
-                  darwin.apple_sdk.frameworks.Foundation
-                ];
+                  stdenv.isDarwin
+                  (with darwin.apple_sdk.frameworks; with darwin; [
+                    libobjc
+                    Security
+                    CoreServices
+                    Metal
+                    Foundation
+                    libiconv
+                  ]);
 
-                makeFlags = (old.makeFlags or [ ]) ++ [
-                  "CARGO_FLAGS=--offline" #nightly channel
-                ];
+                makeFlags =
+                  (old.makeFlags or [ ]) ++ [
+                    "CARGO_FLAGS=--offline" #nightly channel
+                  ];
               });
         };
     };
