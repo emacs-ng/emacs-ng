@@ -1,0 +1,46 @@
+[[commands]]
+name = "update-emacsNg"
+category = "Update"
+command = "nix flake lock --update-input emacsNg-src"
+help = "update EmacsNg src"
+
+[[commands]]
+name = "update-rustOverlay"
+category = "Update"
+command = "nix flake lock --update-input rust-overlay"
+help = "update rust overlay"
+
+[[commands]]
+name = "update-nixpkgs"
+category = "Update"
+command = "nix flake lock --update-input nixpkgs"
+help = "update nixpkgs channel"
+
+[[commands]]
+name = "update-master"
+category = "Update"
+command = "nix flake lock --update-input master"
+help = "update nixpkgs of master channel"
+
+
+[[commands]]
+name = "emacs"
+command = '$(nix-build . --option substituters "https://emacsng.cachix.org" --option trusted-public-keys "emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI="--no-out-link)/bin/emacs $@'
+help = "launch emacsNg"
+category = "emacsNg"
+
+[[commands]]
+name = "push-cachix"
+command = "nix-build | cachix push emacsng"
+help = "push emacsNg binary cache to Cachix | -> nix/cachix-key.secrets"
+category = "update"
+
+[[commands]]
+name = "build-bindings"
+command = "cargo build --manifest-path=./rust_src/remacs-bindings/Cargo.toml"
+help = "cargo build remacs-bindings"
+category = "rust-build"
+
+# [[env]]
+# name = "HOME"
+# value = "bin/test"
