@@ -166,11 +166,15 @@
   
 
 
-  <li class="md-tabs__item">
-    <a href=".." class="md-tabs__link">
-      Home
-    </a>
-  </li>
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        Home
+      </a>
+    </li>
+  
 
       
         
@@ -303,10 +307,76 @@
   
   
   
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_1" type="checkbox" id="__nav_1" >
+      
+      <label class="md-nav__link" for="__nav_1">
+        Home
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Home" data-md-level="1">
+        <label class="md-nav__title" for="__nav_1">
+          <span class="md-nav__icon md-icon"></span>
+          Home
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
     <li class="md-nav__item">
       <a href=".." class="md-nav__link">
-        Home
+        Overview
       </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_1_2" type="checkbox" id="__nav_1_2" >
+      
+      <label class="md-nav__link" for="__nav_1_2">
+        Setup
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Setup" data-md-level="2">
+        <label class="md-nav__title" for="__nav_1_2">
+          <span class="md-nav__icon md-icon"></span>
+          Setup
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nix-develop/" class="md-nav__link">
+        Nix Build / Develop
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
     </li>
   
 
@@ -429,6 +499,33 @@
   <a href="#nix-linux-only" class="md-nav__link">
     Nix (Linux only)
   </a>
+  
+    <nav class="md-nav" aria-label="Nix (Linux only)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#using-cachix-to-download-binary-cachespeed-up-build" class="md-nav__link">
+    using cachix to (download binary cache)speed up build
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#launch-emacs-ng-with-doom-emacs-example" class="md-nav__link">
+    Launch emacs-ng with Doom Emacs Example
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-emacs-ng-in-your-nixos-configuration" class="md-nav__link">
+    Using Emacs-ng in your NixOS configuration
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -639,6 +736,33 @@
     Nix (Linux only)
   </a>
   
+    <nav class="md-nav" aria-label="Nix (Linux only)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#using-cachix-to-download-binary-cachespeed-up-build" class="md-nav__link">
+    using cachix to (download binary cache)speed up build
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#launch-emacs-ng-with-doom-emacs-example" class="md-nav__link">
+    Launch emacs-ng with Doom Emacs Example
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-emacs-ng-in-your-nixos-configuration" class="md-nav__link">
+    Using Emacs-ng in your NixOS configuration
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
       </ul>
@@ -798,36 +922,37 @@ compile it(no guarantee that they work):</p>
   nix build github:emacs-ng/emacs-ng (build emacs locally)
   nix develop github:emacs-ng/emacs-ng (enter develop emacs environment locally)</p>
 <p>Also, you can run native nix commands under <code>emacs-ng</code> repo such as</p>
-<p>nix-shell
-  nix-build</p>
-<ul>
-<li>using <code>cachix</code> to (download binary cache)speed up build</li>
+<div class="codehilite"><pre><span></span><code>nix-shell
+nix-build
+</code></pre></div>
+
+<h4 id="using-cachix-to-download-binary-cachespeed-up-build">using <code>cachix</code> to (download binary cache)speed up build<a class="headerlink" href="#using-cachix-to-download-binary-cachespeed-up-build" title="Permanent link">#</a></h4>
+<ol>
 <li>without install cachix</li>
-</ul>
-<p><div class="highlight"><pre><span></span><code>nix build github:emacs-ng/emacs-ng --option substituters <span class="s2">&quot;https://emacsng.cachix.org&quot;</span> --option trusted-public-keys <span class="s2">&quot;emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=&quot;</span> -o emacsNg
+</ol>
+<div class="highlight"><pre><span></span><code>nix build github:emacs-ng/emacs-ng --option substituters <span class="s2">&quot;https://emacsng.cachix.org&quot;</span> --option trusted-public-keys <span class="s2">&quot;emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=&quot;</span> -o emacsNg
 ls -il emacs
 <span class="c1">#or check ./result/bin/emacs</span>
 nix-build --option substituters <span class="s2">&quot;https://emacsng.cachix.org&quot;</span> --option trusted-public-keys <span class="s2">&quot;emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=&quot;</span>
 </code></pre></div>
-   2. install cachix</p>
+<ol>
+<li>Install cachix</li>
+</ol>
 <div class="highlight"><pre><span></span><code>nix-env -iA cachix -f https://cachix.org/api/v1/install <span class="c1">#install cachix</span>
-cachix use emacsng
+<span class="nb">exec</span> bash -l
+cachix use emacsng <span class="c1"># make sure you have saw the output like: Configured https://emacsng.cachix.org binary cache in /home/test/.config/nix/nix.conf</span>
 <span class="c1">#then</span>
 nix-build
 <span class="c1">#or</span>
 nix build github:emacs-ng/emacs-ng -o emacsNg
 ls -il emacsNg
 </code></pre></div>
-<ul>
-<li>launch <code>emacs-ng</code> with Doom Emacs Example</li>
-</ul>
+<h4 id="launch-emacs-ng-with-doom-emacs-example">Launch <code>emacs-ng</code> with Doom Emacs Example<a class="headerlink" href="#launch-emacs-ng-with-doom-emacs-example" title="Permanent link">#</a></h4>
 <div class="highlight"><pre><span></span><code>nix-shell <span class="c1">#or nix develop github:emacs-ng/emacs-ng</span>
 ~/.emacs.d/bin/doom sync
 emacs
 </code></pre></div>
-<ul>
-<li>using Emacs-ng in your NixOS configuration</li>
-</ul>
+<h4 id="using-emacs-ng-in-your-nixos-configuration">Using Emacs-ng in your NixOS configuration<a class="headerlink" href="#using-emacs-ng-in-your-nixos-configuration" title="Permanent link">#</a></h4>
 <div class="highlight"><pre><span></span><code><span class="p">{</span>
   <span class="ss">description =</span> <span class="s2">&quot;My configuration&quot;</span><span class="p">;</span>
 
@@ -1158,7 +1283,7 @@ Threading and WebASM.</p>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">April 13, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">April 14, 2021</span>
     
   </small>
 </div>

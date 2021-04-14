@@ -1,0 +1,1067 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A new approach to Emacs - Including TypeScript, Threading, Async I/O, and WebRender.">
+      
+      
+      
+      
+        <link rel="canonical" href="https://emacs-ng.github.io/emacs-ng/nix-develop/">
+      
+      <link rel="shortcut icon" href="../images/logo.png">
+      <meta name="generator" content="mkdocs-1.1.2, mkdocs-material-7.0.5">
+    
+    
+      
+        <title>Nix Build / Develop - Emacs NG - A new approach to Emacs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.77f3fd56.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.7fa14f5b.min.css">
+        
+      
+    
+    
+    
+      
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&display=fallback">
+        <style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
+      
+    
+    
+    
+      <link rel="stylesheet" href="../stylesheets/layout.css">
+    
+    
+      
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="" data-md-color-primary="none" data-md-color-accent="none">
+      
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#using-nix-develop-environment" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="https://emacs-ng.github.io/emacs-ng" title="Emacs NG - A new approach to Emacs" class="md-header__button md-logo" aria-label="Emacs NG - A new approach to Emacs">
+      
+  <img src="../images/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Emacs NG - A new approach to Emacs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Nix Build / Develop
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="md-header__options">
+      
+    </div>
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+      </label>
+      
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" data-md-state="active" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+      </label>
+      <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        
+<a href="https://github.com/emacs-ng/emacs-ng/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    emacs-ng/emacs-ng
+  </div>
+</a>
+      </div>
+    
+  </nav>
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-tabs__inner md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+    
+  
+
+
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link md-tabs__link--active">
+        Home
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+
+
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../main-features/" class="md-tabs__link">
+        Features
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href="../getting-started/" class="md-tabs__link">
+      Getting started
+    </a>
+  </li>
+
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href="../using-deno/" class="md-tabs__link">
+      Using Deno
+    </a>
+  </li>
+
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href="../ng-module/" class="md-tabs__link">
+      Dynamic modules
+    </a>
+  </li>
+
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href="../faq/" class="md-tabs__link">
+      FAQ
+    </a>
+  </li>
+
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href="../architecture/" class="md-tabs__link">
+      Native Hackers Handbook (Architecture)
+    </a>
+  </li>
+
+      
+    </ul>
+  </div>
+</nav>
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="https://emacs-ng.github.io/emacs-ng" title="Emacs NG - A new approach to Emacs" class="md-nav__button md-logo" aria-label="Emacs NG - A new approach to Emacs">
+      
+  <img src="../images/logo.png" alt="logo">
+
+    </a>
+    Emacs NG - A new approach to Emacs
+  </label>
+  
+    <div class="md-nav__source">
+      
+<a href="https://github.com/emacs-ng/emacs-ng/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    emacs-ng/emacs-ng
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_1" type="checkbox" id="__nav_1" checked>
+      
+      <label class="md-nav__link" for="__nav_1">
+        Home
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Home" data-md-level="1">
+        <label class="md-nav__title" for="__nav_1">
+          <span class="md-nav__icon md-icon"></span>
+          Home
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+    
+  
+  
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_1_2" type="checkbox" id="__nav_1_2" checked>
+      
+      <label class="md-nav__link" for="__nav_1_2">
+        Setup
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Setup" data-md-level="2">
+        <label class="md-nav__title" for="__nav_1_2">
+          <span class="md-nav__icon md-icon"></span>
+          Setup
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Nix Build / Develop
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        Nix Build / Develop
+      </a>
+      
+        
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install-nix-from-shell" class="md-nav__link">
+    Install nix from shell
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install-flake-feature-of-nix" class="md-nav__link">
+    Install flake feature of nix
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clone-emacs-ng-by-nix-shell-and-enable-emacs-cachix" class="md-nav__link">
+    Clone Emacs-ng by nix-shell and enable emacs cachix
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setting-up-rust-develop-environment" class="md-nav__link">
+    Setting up Rust develop environment
+  </a>
+  
+    <nav class="md-nav" aria-label="Setting up Rust develop environment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#change-rust-version" class="md-nav__link">
+    change rust version
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-package-from-rustoverly" class="md-nav__link">
+    Add Package from RustOverly
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-rustpackages-from-nixpkgs-channel" class="md-nav__link">
+    Add rustPackages from nixpkgs channel
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-nixpkgs-package-to-current-environment" class="md-nav__link">
+    Add nixpkgs package to current Environment
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-direnv-support-with-emacs" class="md-nav__link">
+    Add direnv support with Emacs
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#write-a-custom-command-or-environment-variable" class="md-nav__link">
+    write a custom command or environment variable
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-emacs-ng-in-develop-mode" class="md-nav__link">
+    Building Emacs-ng in develop mode
+  </a>
+  
+    <nav class="md-nav" aria-label="Building Emacs-ng in develop mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#add-custom-configflags-to-emacsng-build-process" class="md-nav__link">
+    Add custom configFlags to emacsNg build process
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" >
+      
+      <label class="md-nav__link" for="__nav_2">
+        Features
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Features" data-md-level="1">
+        <label class="md-nav__title" for="__nav_2">
+          <span class="md-nav__icon md-icon"></span>
+          Features
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../main-features/" class="md-nav__link">
+        Basic features
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adv-features/" class="md-nav__link">
+        Advanced features
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        Getting started
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../using-deno/" class="md-nav__link">
+        Using Deno
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ng-module/" class="md-nav__link">
+        Dynamic modules
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        FAQ
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        Native Hackers Handbook (Architecture)
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install-nix-from-shell" class="md-nav__link">
+    Install nix from shell
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install-flake-feature-of-nix" class="md-nav__link">
+    Install flake feature of nix
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clone-emacs-ng-by-nix-shell-and-enable-emacs-cachix" class="md-nav__link">
+    Clone Emacs-ng by nix-shell and enable emacs cachix
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setting-up-rust-develop-environment" class="md-nav__link">
+    Setting up Rust develop environment
+  </a>
+  
+    <nav class="md-nav" aria-label="Setting up Rust develop environment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#change-rust-version" class="md-nav__link">
+    change rust version
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-package-from-rustoverly" class="md-nav__link">
+    Add Package from RustOverly
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-rustpackages-from-nixpkgs-channel" class="md-nav__link">
+    Add rustPackages from nixpkgs channel
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-nixpkgs-package-to-current-environment" class="md-nav__link">
+    Add nixpkgs package to current Environment
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-direnv-support-with-emacs" class="md-nav__link">
+    Add direnv support with Emacs
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#write-a-custom-command-or-environment-variable" class="md-nav__link">
+    write a custom command or environment variable
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-emacs-ng-in-develop-mode" class="md-nav__link">
+    Building Emacs-ng in develop mode
+  </a>
+  
+    <nav class="md-nav" aria-label="Building Emacs-ng in develop mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#add-custom-configflags-to-emacsng-build-process" class="md-nav__link">
+    Add custom configFlags to emacsNg build process
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content" data-md-component="content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/emacs-ng/emacs-ng/edit/master/docs/nix-develop.md" title="Edit this page" class="md-content__button md-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
+                  </a>
+                
+                
+                <h1 id="using-nix-develop-environment">Using Nix Develop Environment<a class="headerlink" href="#using-nix-develop-environment" title="Permanent link">#</a></h1>
+<h2 id="install-nix-from-shell">Install nix from shell<a class="headerlink" href="#install-nix-from-shell" title="Permanent link">#</a></h2>
+<div class="codehilite"><pre><span></span><code>sh &lt;(curl -L https://nixos.org/nix/install) --daemon
+</code></pre></div>
+
+<p>then <code>exec bash -l</code> reload your bash to load the nix-env</p>
+<h2 id="install-flake-feature-of-nix">Install flake feature of nix<a class="headerlink" href="#install-flake-feature-of-nix" title="Permanent link">#</a></h2>
+<div class="codehilite"><pre><span></span><code>nix-env -iA nixpkgs.nixUnstable
+echo &quot;experimental-features = nix-command flakes&quot; | sudo tee -a /etc/nix/nix.conf
+sudo pkill nix-daemon
+</code></pre></div>
+
+<p>NOTE: <code>reload bash</code> and check your nix-version first</p>
+<div class="codehilite"><pre><span></span><code>nix --version
+nix (Nix) 2.4pre20210326_dd77f71
+</code></pre></div>
+
+<h2 id="clone-emacs-ng-by-nix-shell-and-enable-emacs-cachix">Clone Emacs-ng by nix-shell and enable emacs cachix<a class="headerlink" href="#clone-emacs-ng-by-nix-shell-and-enable-emacs-cachix" title="Permanent link">#</a></h2>
+<div class="highlight"><pre><span></span><code>nix-env -iA cachix -f https://cachix.org/api/v1/install
+<span class="nb">exec</span> bash -l
+cachix use emacsng <span class="c1"># make sure you have saw the output like: Configured https://emacsng.cachix.org binary cache in /home/test/.config/nix/nix.conf</span>
+nix-shell -p git --command <span class="s2">&quot;git clone https://github.com/emacs-ng/emacs-ng.git &amp;&amp; cd emacs-ng &amp;&amp; nix-shell&quot;</span>
+</code></pre></div>
+<h2 id="setting-up-rust-develop-environment">Setting up Rust develop environment<a class="headerlink" href="#setting-up-rust-develop-environment" title="Permanent link">#</a></h2>
+<h3 id="change-rust-version">change rust version<a class="headerlink" href="#change-rust-version" title="Permanent link">#</a></h3>
+<ol>
+<li>Night version</li>
+<li>
+<p>located <code>nix/rust.nix</code> modify the <code>2021-01-14</code>to which your want.(<a href="https://github.com/oxalica/rust-overlay/tree/master/manifests/nightly/default.nix">rustOverlay-NightlyCheck</a>) 
+     Example: <code>default = pkgs.rust-bin.nightly."2021-03-23";</code></p>
+</li>
+<li>
+<p>stable version</p>
+</li>
+<li>
+<p>example : <code>default = pkgs.rust-bin.stable."1.50.0";</code>
+   (<a href="https://github.com/oxalica/rust-overlay/tree/master/manifests/stable/default.nix">rustOverlay-StableCheck</a>) </p>
+</li>
+<li>
+<p>beta version</p>
+</li>
+<li>
+<p>example : <code>default = pkgs.rust-bin.beta."2021-03-06";</code>
+   (<a href="https://github.com/oxalica/rust-overlay/tree/master/manifests/beta/default.nix">rustOverlay-StableCheck</a>) </p>
+</li>
+</ol>
+<h3 id="add-package-from-rustoverly">Add Package from RustOverly<a class="headerlink" href="#add-package-from-rustoverly" title="Permanent link">#</a></h3>
+<p>the RustOverly supported Packages list that you can find here (<a href="https://github.com/oxalica/rust-overlay/blob/master/manifests/profiles.nix">packages-list</a>)</p>
+<ul>
+<li>located <code>nix/rust.nix</code>
+<div class="highlight"><pre><span></span><code>    <span class="ss">rustOverlaySet =</span> mkOption <span class="p">{</span>
+      <span class="ss">type =</span> types<span class="o">.</span>listOf types<span class="o">.</span>str<span class="p">;</span>
+      <span class="ss">default =</span> <span class="p">[</span>
+        <span class="s2">&quot;rustc&quot;</span>
+        <span class="s2">&quot;cargo&quot;</span>
+        <span class="s2">&quot;rustfmt-preview&quot;</span>
+        <span class="s2">&quot;&lt;add other package which you can found in package-list&gt;&quot;</span>
+      <span class="p">];</span>
+      <span class="ss">description =</span> <span class="s2">&quot;Which rust tools to pull from the rust overlay</span>
+<span class="s2">      https://github.com/oxalica/rust-overlay/blob/master/manifests/profiles.nix&quot;</span><span class="p">;</span>
+    <span class="p">};</span>
+</code></pre></div></li>
+</ul>
+<h3 id="add-rustpackages-from-nixpkgs-channel">Add rustPackages from nixpkgs channel<a class="headerlink" href="#add-rustpackages-from-nixpkgs-channel" title="Permanent link">#</a></h3>
+<ul>
+<li>located <code>nix/rust.nix</code> and the default nix expression like this  <code>rustPackages.clippy</code>. In this cause, most of rust toolchain installed from <code>rustOverly</code></li>
+</ul>
+<div class="highlight"><pre><span></span><code>    <span class="ss">rustPackagesSet =</span> mkOption <span class="p">{</span>
+      <span class="ss">type =</span> types<span class="o">.</span>listOf types<span class="o">.</span>str<span class="p">;</span>
+      <span class="ss">default =</span> <span class="p">[</span>
+        <span class="s2">&quot;clippy&quot;</span>
+        <span class="s2">&quot;&lt;add custom Rust toolchain package&gt;&quot;</span>
+      <span class="p">];</span>
+      <span class="ss">description =</span> <span class="s2">&quot;Which rust tools to pull from the nixpkgs channel package set</span>
+<span class="s2">      check valid package from https://search.nixos.org/packages?channel=unstable&quot;</span><span class="p">;</span>
+      <span class="s2">&quot;;</span>
+<span class="s2">    };</span>
+</code></pre></div>
+<h3 id="add-nixpkgs-package-to-current-environment">Add nixpkgs package to current Environment<a class="headerlink" href="#add-nixpkgs-package-to-current-environment" title="Permanent link">#</a></h3>
+<ul>
+<li>located <code>nix/rust.nix</code></li>
+</ul>
+<p>first search any package in <a href="https://search.nixos.org/packages?channel=unstable&amp;">search-package</a> then add the name to </p>
+<div class="highlight"><pre><span></span><code>     devshell<span class="o">.</span><span class="ss">packages =</span> <span class="nb">map</span> <span class="p">(</span>tool<span class="p">:</span> cfg<span class="o">.</span>rustPackages<span class="o">.</span><span class="err">$</span><span class="p">{</span>tool<span class="p">})</span> cfg<span class="o">.</span>rustPackagesSet
+      <span class="o">++</span> <span class="nb">map</span> <span class="p">(</span>tool<span class="p">:</span> cfg<span class="o">.</span>rustOverlay<span class="o">.</span><span class="err">$</span><span class="p">{</span>tool<span class="p">})</span> cfg<span class="o">.</span>rustOverlaySet <span class="o">++</span> <span class="p">(</span><span class="k">with</span> pkgs<span class="p">;[</span>
+      <span class="c1">#custom nixpkgs packages</span>
+      rustracer
+      <span class="err">&lt;</span>add package here<span class="err">&gt;</span>
+    <span class="p">]);</span>
+ <span class="err">```</span>
+
+<span class="c1">## Reload all of envs when you changed something</span>
+
+<span class="err">-</span> normally<span class="p">,</span> we can re-enter <span class="err">`</span>nix-shell<span class="err">`</span> to reload envrs<span class="o">.</span> But for this project<span class="p">,</span> we are using direnv to load <span class="ow">and</span> unload environment variables <span class="k">in</span> an convenient way<span class="o">.</span>
+
+<span class="c1">### Recommended way -&gt; Direnv</span>
+
+ Install direnv by Nix
+
+    nix-env <span class="err">-</span>i direnv
+
+<span class="ow">and</span> hook direnv to your bash <span class="p">[</span>direnv-hook<span class="p">](</span><span class="l">https://direnv.net/docs/hook.html</span><span class="p">)</span>
+
+<span class="err">-</span> using <span class="err">`</span>direnv allow<span class="err">`</span>  <span class="ow">or</span> <span class="err">`</span>direnv deny<span class="err">`</span> to enable <span class="ow">or</span> disable load <span class="err">`</span>nix-shell<span class="err">`</span> <span class="k">in</span> current path
+
+<span class="err">-</span> using <span class="err">`</span>direnv reload<span class="err">`</span> to reload <span class="err">`</span>nix-shell<span class="err">`</span>
+
+<span class="err">-</span> Also<span class="p">,</span> you can put as follows to <span class="err">`~</span><span class="l">/.config/direnv/direnvrc</span><span class="err">`</span> watching the envrs every time changes that could be reload automatically<span class="o">.</span>
+
+<span class="err">```</span>conf
+use_flake<span class="p">()</span> <span class="p">{</span>
+  watch_file flake<span class="o">.</span>nix
+  watch_file flake<span class="o">.</span>lock
+  eval <span class="s2">&quot;$(nix print-dev-env)&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="add-direnv-support-with-emacs">Add direnv support with Emacs<a class="headerlink" href="#add-direnv-support-with-emacs" title="Permanent link">#</a></h3>
+<ul>
+<li><a href="https://github.com/purcell/envrc">https://github.com/purcell/envrc</a></li>
+</ul>
+<p>Install direnv to Doom Emacs, Example</p>
+<p><div class="highlight"><pre><span></span><code><span class="p">(</span><span class="nv">package!</span> <span class="nv">envrc</span> <span class="nb">:recipe</span> <span class="p">(</span><span class="nb">:host</span> <span class="nv">github</span> <span class="nb">:repo</span> <span class="s">&quot;purcell/envrc&quot;</span><span class="p">))</span>
+<span class="p">(</span><span class="nv">use-package!</span> <span class="nv">envrc</span>
+<span class="nb">:hook</span> <span class="p">(</span><span class="nv">after-init</span> <span class="o">.</span> <span class="nv">envrc-global-mode</span><span class="p">)</span>
+<span class="p">)</span>
+</code></pre></div>
+ then <code>M-x</code> typing <code>envrv-&lt;**&gt;</code> check related commands similar to native direnv-commands</p>
+<h3 id="write-a-custom-command-or-environment-variable">write a custom command or environment variable<a class="headerlink" href="#write-a-custom-command-or-environment-variable" title="Permanent link">#</a></h3>
+<ul>
+<li>
+<p>locaed <code>nix/commands.toml</code></p>
+</li>
+<li>
+<p>Add custom command as following: 
+ Example</p>
+</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="k">[[commands]]</span>
+<span class="n">name</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+<span class="n">command</span> <span class="o">=</span> <span class="s">&quot;cargo build --manifest-path=./rust_src/remacs-bindings/Cargo.toml&quot;</span>
+<span class="n">help</span> <span class="o">=</span> <span class="s">&quot;cargo build remacs-bindings&quot;</span>
+<span class="n">category</span> <span class="o">=</span> <span class="s">&quot;rust-build&quot;</span>
+</code></pre></div>
+<ul>
+<li>Add custom env variable as following: </li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="k">[[env]]</span>
+<span class="n">name</span> <span class="o">=</span> <span class="s">&quot;TEST&quot;</span>
+<span class="n">vale</span> <span class="o">=</span> <span class="s">&quot;/bin/test&quot;</span>
+<span class="c1">#prefix = &quot;$( cd &quot;$(dirname &quot;$\{\BASH_SOURCE [ 0 ]}&quot;)&quot;; pwd )&quot; can be prefix </span>
+</code></pre></div>
+<h2 id="building-emacs-ng-in-develop-mode">Building Emacs-ng in develop mode<a class="headerlink" href="#building-emacs-ng-in-develop-mode" title="Permanent link">#</a></h2>
+<ul>
+<li>located <code>flake.nix</code> commented <code>emacsNg-src</code> to <code>"./."</code> </li>
+</ul>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code>        <span class="k">let</span>
+          <span class="c1">#emacsNgSource = emacsNg-src;</span>
+          <span class="ss">emacsNgSource =</span> <span class="s2">&quot;./.&quot;</span><span class="p">;</span>
+        <span class="k">in</span>
+</code></pre></div>
+<p>then <code>nix-build</code> it;</p>
+<h3 id="add-custom-configflags-to-emacsng-build-process">Add custom configFlags to emacsNg build process<a class="headerlink" href="#add-custom-configflags-to-emacsng-build-process" title="Permanent link">#</a></h3>
+<ul>
+<li>located <code>flake.nix</code></li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="ss">configureFlags =</span> <span class="p">(</span>old<span class="o">.</span>configureFlags <span class="ow">or</span> <span class="p">[</span> <span class="p">])</span> <span class="o">++</span> <span class="p">[</span>
+        <span class="s2">&quot;--with-json&quot;</span>
+        <span class="s2">&quot;--with-threads&quot;</span>
+        <span class="s2">&quot;--with-included-regex&quot;</span>
+        <span class="s2">&quot;--with-harfbuzz&quot;</span>
+        <span class="s2">&quot;--with-compress-install&quot;</span>
+        <span class="s2">&quot;--with-zlib&quot;</span>
+        <span class="s2">&quot;&lt;custom flags&gt;&quot;</span>
+<span class="p">];</span>
+</code></pre></div>
+<p>NOTICE :  <code>nix-build</code> action in sandbox mode. If you want to modify something or patch it, please put it this way to the corresponding step. For example:</p>
+<div class="highlight"><pre><span></span><code><span class="ss">preConfigure =</span> <span class="p">(</span>old<span class="o">.</span>preConfigure <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;&#39;</span>
+<span class="s1">  &lt;modify shell&gt;</span>
+<span class="s1">            &#39;&#39;</span><span class="p">;</span>
+
+<span class="ss">patches =</span> <span class="p">(</span>old<span class="o">.</span>patches <span class="ow">or</span> <span class="p">[</span> <span class="p">])</span> <span class="o">++</span> <span class="p">[</span> 
+<span class="o">.</span><span class="l">/nix</span><span class="err">/</span><span class="l">&lt;your-pathc-file.patch&gt;</span>
+<span class="p">];</span>
+</code></pre></div>
+<p>if everything looks like good, run <code>nix-build</code> right now.</p>
+                
+                  
+                    
+
+<hr>
+<div class="md-source-date">
+  <small>
+    
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">April 14, 2021</span>
+    
+  </small>
+</div>
+                  
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <nav class="md-footer__inner md-grid" aria-label="Footer">
+      
+        <a href=".." class="md-footer__link md-footer__link--prev" rel="prev">
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+          </div>
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              Overview
+            </div>
+          </div>
+        </a>
+      
+      
+        <a href="../main-features/" class="md-footer__link md-footer__link--next" rel="next">
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              Basic features
+            </div>
+          </div>
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"/></svg>
+          </div>
+        </a>
+      
+    </nav>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        Made with
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs
+        </a>
+        
+      </div>
+      
+  <div class="md-footer-social">
+    
+      
+      
+        
+        
+      
+      <a href="https://github.com/emacs-ng/emacs-ng" target="_blank" rel="noopener" title="github.com" class="md-footer-social__link">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 512"><path d="M186.1 328.7c0 20.9-10.9 55.1-36.7 55.1s-36.7-34.2-36.7-55.1 10.9-55.1 36.7-55.1 36.7 34.2 36.7 55.1zM480 278.2c0 31.9-3.2 65.7-17.5 95-37.9 76.6-142.1 74.8-216.7 74.8-75.8 0-186.2 2.7-225.6-74.8-14.6-29-20.2-63.1-20.2-95 0-41.9 13.9-81.5 41.5-113.6-5.2-15.8-7.7-32.4-7.7-48.8 0-21.5 4.9-32.3 14.6-51.8 45.3 0 74.3 9 108.8 36 29-6.9 58.8-10 88.7-10 27 0 54.2 2.9 80.4 9.2 34-26.7 63-35.2 107.8-35.2 9.8 19.5 14.6 30.3 14.6 51.8 0 16.4-2.6 32.7-7.7 48.2 27.5 32.4 39 72.3 39 114.2zm-64.3 50.5c0-43.9-26.7-82.6-73.5-82.6-18.9 0-37 3.4-56 6-14.9 2.3-29.8 3.2-45.1 3.2-15.2 0-30.1-.9-45.1-3.2-18.7-2.6-37-6-56-6-46.8 0-73.5 38.7-73.5 82.6 0 87.8 80.4 101.3 150.4 101.3h48.2c70.3 0 150.6-13.4 150.6-101.3zm-82.6-55.1c-25.8 0-36.7 34.2-36.7 55.1s10.9 55.1 36.7 55.1 36.7-34.2 36.7-55.1-10.9-55.1-36.7-55.1z"/></svg>
+      </a>
+    
+  </div>
+
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs"], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing"}, "search": "../assets/javascripts/workers/search.fb4a9340.min.js", "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.5cf3e710.min.js"></script>
+      
+    
+  </body>
+</html>
