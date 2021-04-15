@@ -421,23 +421,12 @@ fn find_crate_modules(path: PathBuf) -> Result<Vec<ModuleData>, BuildError> {
     Ok(modules)
 }
 
-fn generate_include_files() -> Result<(), BuildError> {
-    let path: PathBuf = [&env_var("CARGO_MANIFEST_DIR"), "src"].iter().collect();
-    let modules = match find_crate_modules(path) {
-        Ok(modules) => {
-            if modules.is_empty() {
-                return Ok(());
-            } else {
-                modules
-            }
-        }
-        Err(e) => return Err(e),
-    };
-
-    let out_path: PathBuf = [&env_var("OUT_DIR"), "c_exports.rs"].iter().collect();
-    let mut out_file = File::create(out_path)?;
-
-    for mod_data in &modules {
+/// Create c_export file for CRATE.
+fn generate_crate_c_export_file(
+    mut out_file: &File,
+    modules: &Vec<ModuleData>,
+) -> Result<(), BuildError> {
+    for mod_data in modules {
         for (cfg, func) in &mod_data.c_exports {
             if let Some(cfg) = cfg {
                 write!(out_file, "{}\n", cfg)?;
@@ -460,6 +449,26 @@ fn generate_include_files() -> Result<(), BuildError> {
         }
     }
     write!(out_file, "\n")?;
+
+    Ok(())
+}
+
+fn generate_include_files() -> Result<(), BuildError> {
+    let path: PathBuf = [&env_var("CARGO_MANIFEST_DIR"), "src"].iter().collect();
+    let modules = match find_crate_modules(path) {
+        Ok(modules) => {
+            if modules.is_empty() {
+                return Ok(());
+            } else {
+                modules
+            }
+        }
+        Err(e) => return Err(e),
+    };
+
+    let out_path: PathBuf = [&env_var("OUT_DIR"), "c_exports.rs"].iter().collect();
+    let mut out_file = File::create(out_path)?;
+    generate_crate_c_export_file( &out_file, &modules)?;
 
     write!(
         out_file,
