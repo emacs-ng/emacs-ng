@@ -58,8 +58,13 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                os: [ubuntu-latest, macos-latest]
-                build: [general, webrender]
+                include:
+                    - os: ubuntu-latest
+                      build: general
+                    - os: ubuntu-latest
+                      build: webrender
+                    - os: macos-latest
+                      build: general
 
         steps:
             - uses: actions/checkout@v2
