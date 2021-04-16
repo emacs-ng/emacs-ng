@@ -3,41 +3,198 @@ name: CI
 on: [push, pull_request]
 
 jobs:
-    unix-test:
-        runs-on: ${{ matrix.os }}
-        strategy:
-            fail-fast: false
-            matrix:
-                os: [ubuntu-latest, macos-latest]
-
+    rustfmt-test:
+        runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v2
+            - name: rust setup
+              id: rust-setup
+              run: |
+                  rustup install $(cat rust-toolchain)
+                  rustup component add rustfmt-preview
+                  echo "::set-output name=week::$(/bin/date -u '+%Yy_%mm_%Ww')"
+
+            - name: rust cache
+              uses: actions/cache@v2
+              with:
+                  path: |
+                      ~/.cargo/registry/cache
+                      ~/.cargo/git
+                      ./rust_src/target
+                  key: |
+                      ${{ runner.os }}-${{ matrix.build }}-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-${{ steps.rust-setup.outputs.week }}
+                  restore-keys: |
+                      ${{ runner.os }}-${{ matrix.build }}-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-${{ steps.rust-setup.outputs.week }}
+                      ${{ runner.os }}-${{ matrix.build }}-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-
+                      ${{ runner.os }}-${{ matrix.build }}-rust
+
+            - name: cache cleanup
+              if: steps.rust-cache.outputs.cache-hit != 'true'
+              run: |
+                  ## Cargo Cache Clean
+                  cargo install cargo-cache --no-default-features --features ci-autoclean cargo-cache
+                  cargo-cache
+                  cargo uninstall cargo-cache
 
             - name: Install dependencies on Linux
               if: runner.os == 'Linux'
               run: |
-                  sudo apt install -y build-essential texinfo libx11-dev libxpm-dev libjpeg-dev libpng-dev libgif-dev libtiff-dev libgtk2.0-dev libncurses-dev libxpm-dev automake autoconf libgnutls28-dev zlib1g-dev libgccjit-9-dev
+                  ## Package Install
+                  sudo apt install -y libgnutls28-dev
+
+            - name: configure
+              run: |
+                  ./autogen.sh
+                  ./configure --without-makeinfo --with-x=no --with-ns=no --without-gconf --without-gsettings
+
+            - name: rust fmt
+              run: |
+                  # Configure $PATH: Executables are installed to $HOME/bin
+                  export PATH="$HOME/bin:$PATH"
+                  admin/format-rust.sh
+
+    build-test:
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - os: ubuntu-latest
+                      build: general
+                    - os: ubuntu-latest
+                      build: webrender
+                    - os: macos-latest
+                      build: general
+
+        steps:
+            - uses: actions/checkout@v2
+
+            - name: rust setup
+              id: rust-setup
+              run: |
+                  rustup install $(cat rust-toolchain)
+                  echo "::set-output name=week::$(/bin/date -u '+%Yy_%mm_%Ww')"
+
+            - name: rust cache
+              uses: actions/cache@v2
+              with:
+                  path: |
+                      ~/.cargo/registry/cache
+                      ~/.cargo/git
+                      ./rust_src/target
+                  key: |
+                      ${{ runner.os }}-${{ matrix.build }}-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/Cargo.toml*') }}-${{ steps.rust-setup.outputs.week }}
+                  restore-keys: |
+                      ${{ runner.os }}-${{ matrix.build }}-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/Cargo.toml*') }}-${{ steps.rust-setup.outputs.week }}
+                      ${{ runner.os }}-${{ matrix.build }}-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/Cargo.toml*') }}-
+                      ${{ runner.os }}-${{ matrix.build }}-rust-
+
+            - name: cache cleanup
+              if: steps.rust-cache.outputs.cache-hit != 'true'
+              run: |
+                  ## Cargo Cache Clean
+                  cargo install cargo-cache --no-default-features --features ci-autoclean cargo-cache
+                  cargo-cache
+                  cargo uninstall cargo-cache
+
+            - name: c cache
+              uses: hendrikmuhs/ccache-action@v1
+              with:
+                  key: ${{ runner.os }}-${{ matrix.build }}-ccache
+
+            - name: Install dependencies on Linux
+              if: runner.os == 'Linux'
+              run: |
+                  ## Package Install
+                  sudo apt install -y libxpm-dev libgtk2.0-dev libgif-dev libgnutls28-dev clang llvm lld
+                  # Already installed: automake autoconf texinfo libjpeg-dev libpng-dev libtiff-dev libx11-dev  libncurses-dev zlib1g-dev
+                  # When use native-comp: libgccjit-9-dev
+                  # When use gcc: build-essential
 
             - name: Install dependencies on macOS
               if: runner.os == 'macOS'
               run: |
-                  brew install gnutls texinfo autoconf
+                  ## Package Install
+                  brew install texinfo automake
+                  # Already intalled: gnutls autoconf llvm
+                  # Option: libx11 libxpm jpeg libpng giflib libtiff gtk+3 ncurses
+                  # When use native-comp: libgccjit
 
-            - name: rustfmt
+                  ## Set Path
+                  echo "/usr/local/opt/llvm/bin" >> $GITHUB_PATH
+                  echo "$HOME/bin" >> $GITHUB_PATH
+                  # TODO for native-comp: export LDFLAGS="-L/usr/local/Cellar/libgccjit/10.2.0_1/lib/gcc/10"
+
+            - name: common env set
               run: |
-                  # Configure $PATH: Executables are installed to $HOME/bin
-                  export PATH="$HOME/bin:$PATH"
+                  # autogen
+                  ./autogen.sh
 
-                  rustup install $(cat rust-toolchain)
-                  rustup component add rustfmt-preview
-                  ./autogen.sh && ./configure --without-makeinfo --with-x=no --with-ns=no --without-gconf --without-gsettings
-                  admin/format-rust.sh
+                  ## Set env
+                  # Path Set
+                  echo "/usr/lib/ccache:/usr/local/opt/ccache/libexec" >> $GITHUB_PATH
+
+                  # Compile with clang
+                  echo "CC=clang" >> $GITHUB_ENV
+                  echo "CXX=clang++" >> $GITHUB_ENV
+                  echo "CPP=clang -E" >> $GITHUB_ENV
+                  echo "CFLAGS= -g1 -O2" >> $GITHUB_ENV
+                  echo "CXXFLAGS= -g1 -O2" >> $GITHUB_ENV
+                  echo "AR=llvm-ar" >> $GITHUB_ENV
+                  echo "AS=llvm-as" >> $GITHUB_ENV
+                  echo "RANLIB=llvm-ranlib" >> $GITHUB_ENV
+
+                  # Other Flags
+                  echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
+                  echo "RUSTFLAGS=-Zshare-generics=y -Cdebuginfo=1 -Copt-level=0" >> $GITHUB_ENV
+
+            - name: env(for linux)
+              if: runner.os == 'Linux'
+              run: |
+                  echo "LD=lld" >> $GITHUB_ENV
+                  echo "CFLAGS=$CFLAGS -fuse-ld=lld" >> $GITHUB_ENV
+                  echo "CXXFLAGS=$CXXFLAGS -fuse-ld=lld" >> $GITHUB_ENV
+                  echo "RUSTFLAGS=$RUSTFLAGS -Clink-arg=-fuse-ld=lld" >> $GITHUB_ENV
+
+                  echo "NPROC=nproc" >> $GITHUB_ENV
+
+            - name: env(for mac)
+              if: runner.os == 'macOS'
+              run: |
+                  echo "CPLUS_INCLUD=$(/usr/local/opt/llvm/bin/llvm-config --includedir):$CPLUS_INCLUDE_PATH" >> $GITHUB_ENV
+                  echo "LD_LIBRARY_PATH=$(/usr/local/opt/llvm/bin/llvm-config --libdir):$LD_LIBRARY_PATH" >> $GITHUB_ENV
+                  echo "CFLAGS=$CFLAGS -march=native" >> $GITHUB_ENV
+                  echo "CXXFLAGS=$CXXFLAGS -march=native" >> $GITHUB_ENV
+                  echo "RUSTFLAGS=$RUSTFLAGS -Ctarget-cpu=native" >> $GITHUB_ENV
+
+                  ## nproc for mac
+                  # https://github.com/memkind/memkind/issues/33
+                  echo "NPROC=sysctl -n hw.logicalcpu" >> $GITHUB_ENV
+
+            - name: configure(general)
+              if: ${{ matrix.build == 'general' }}
+              run: |
+                  ./configure --enable-checking=glyphs --enable-rust-debug
+
+            - name: configure(webrender)
+              if: ${{ matrix.build == 'webrender' }}
+              run: |
+                  ./configure --enable-checking=glyphs --enable-rust-debug --with-webrender
 
             - name: build
               run: |
-                  ./autogen.sh && RUSTFLAGS="-Dwarnings" WERROR_CFLAGS='-Werror -Wno-error=deprecated-declarations'
-                  ./configure --enable-checking=glyphs
-                  make -j3
+                  # Avoid lisp compile && make info.
+                  # lib -> lib-src -> src -> lisp -> info
+                  make -j$((`$NPROC`+1)) src
+
+                  ## Reduce Cache
+                  # Note that all of the above need to be repeated for `release/` instead of
+                  # `debug/` if your build script builds artifacts in release mode.
+                  # https://bheisler.github.io/post/efficient-use-of-travis-ci-cache-for-rust/
+                  # Delete loose files in the debug directory
+                  find ./rust_src/target/debug -maxdepth 1 -type f -delete
+                  # Delete just meta data
+                  rm -f  ./rust_src/target/.rustc_info.json
 
             - name: js fmt
               run: |
