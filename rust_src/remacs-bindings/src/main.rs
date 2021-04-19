@@ -6,7 +6,6 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::mem::size_of;
 use std::path::{Path, PathBuf};
-use std::process;
 
 #[cfg(feature = "wide-emacs-int")]
 const WIDE_EMACS_INT: bool = true;
@@ -38,8 +37,7 @@ enum ParseState {
     Complete,
 }
 
-fn generate_definitions(path: &str) {
-    let out_path = PathBuf::from(path);
+fn generate_definitions(out_path: PathBuf) {
     let mut file = File::create(out_path).expect("Failed to create definition file");
 
     // signed and unsigned size shall be the same.
@@ -117,18 +115,21 @@ fn generate_definitions(path: &str) {
     .expect("Write error!");
 }
 
-fn generate_globals(path: &str) {
+fn generate_globals(out_path: PathBuf) {
     let in_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
         .join("..")
         .join("..")
         .join("src")
         .join("globals.h");
     let in_file = BufReader::new(File::open(in_path).expect("Failed to open globals file"));
-    let out_path = PathBuf::from(path);
     let mut out_file = File::create(out_path).expect("Failed to create definition file");
     let mut parse_state = ParseState::ReadingGlobals;
 
-    write!(out_file, "use crate::{{\n    lisp::LispObject,\n    definitions::*,\n    bindings::*,\n}};\n\n").expect("Write error!");
+    write!(
+        out_file,
+        "use crate::{{\n    lisp::LispObject,\n    definitions::*,\n    bindings::*,\n}};\n\n"
+    )
+    .expect("Write error!");
     write!(out_file, "#[allow(unused)]\n").expect("Write error!");
     write!(out_file, "#[repr(C)]\n").expect("Write error!");
     write!(out_file, "pub struct emacs_globals {{\n").expect("Write error!");
@@ -188,8 +189,7 @@ fn generate_globals(path: &str) {
     }
 }
 
-fn run_bindgen(path: &str) {
-    let out_path = PathBuf::from(path);
+fn run_bindgen(out_path: PathBuf) {
     let skip = std::env::var_os("SKIP_BINDINGS");
     if skip.is_some() {
         // create bindings.rs if it doesn't already exist, leaving it empty.
@@ -321,17 +321,15 @@ fn run_bindgen(path: &str) {
     }
 }
 
-fn usage() {
-    println!("usage: remacs-bindings <definitions|bindings|globals> <path>");
-    process::exit(1);
-}
-
 fn main() {
-    let args = env::args().collect::<Vec<String>>();
-    match args[1].as_str() {
-        "definitions" => generate_definitions(&args[2]),
-        "bindings" => run_bindgen(&args[2]),
-        "globals" => generate_globals(&args[2]),
-        _ => usage(),
-    };
+    let root = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|e| panic!("{}", e));
+    // generated bindings are located in the crate "emacs"
+    let path = PathBuf::from(root)
+        .parent()
+        .unwrap()
+        .join("crates/emacs/src");
+
+    generate_definitions(path.join("definitions.rs"));
+    run_bindgen(path.join("bindings.rs"));
+    generate_globals(path.join("globals.rs"));
 }
