@@ -20,8 +20,11 @@
 
 extern crate libc;
 
+#[rustfmt::skip]
 pub mod bindings;
+#[rustfmt::skip]
 pub mod definitions;
+#[rustfmt::skip]
 pub mod globals;
 
 #[macro_use]
