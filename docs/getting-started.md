@@ -56,9 +56,9 @@ compile it(no guarantee that they work):
 ### Nix (Linux only)
 Nix flake feature alread in emacsNg
 
-  nix run github:emacs-ng/emacs-ng (launch emacs locally )
-  nix build github:emacs-ng/emacs-ng (build emacs locally)
-  nix develop github:emacs-ng/emacs-ng (enter develop emacs environment locally)
+    nix run github:emacs-ng/emacs-ng (launch emacs locally )
+    nix build github:emacs-ng/emacs-ng (build emacs locally)
+    nix develop github:emacs-ng/emacs-ng (enter develop emacs environment locally)
 
 Also, you can run native nix commands under `emacs-ng` repo such as
 
@@ -226,7 +226,7 @@ results into a buffer.
 ## Buffers
 
 First thing first, let's make our network call. In order to do this, we will use
-our built-in [Deno APIs](deno.land). Deno implements `fetch`, which looks
+our built-in [Deno APIs](https://deno.land). Deno implements `fetch`, which looks
 something like this:
 
 ```ts

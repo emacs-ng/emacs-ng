@@ -30,4 +30,4 @@ This is due to Tokio/v8 loading up a potentially large number of worker threads 
 
 ## I have an existing node package I want to use, but import isn't working
 
-We use the [Deno Framework](deno.land) for our JavaScript. Deno uses actual ES6 imports, and not node's commonJS require syntax. You will need to use Deno's compatability module to use require syntax. See https://github.com/denoland/deno/tree/master/std/node
+We use the [Deno Framework](https://deno.land) for our JavaScript. Deno uses actual ES6 imports, and not node's commonJS require syntax. You will need to use Deno's compatability module to use require syntax. See https://github.com/denoland/deno/tree/master/std/node
