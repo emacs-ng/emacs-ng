@@ -14,6 +14,7 @@ nav:
     - Basic features: main-features.md
     - Advanced features: adv-features.md
   - Getting started: getting-started.md
+  - Building: building.md
   - Using Deno: using-deno.md
   - Dynamic modules: ng-module.md
   - FAQ: faq.md

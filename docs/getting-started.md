@@ -128,36 +128,11 @@ emacs
 }
 ```
 
-## Building
+## Install emacs-ng from binary distributions
 
-```
-$ ./autogen.sh
-$ ./configure --enable-rust-debug
-$ make -j 8 # or your number of cores
-```
+Our CI builds releases [packages for Ubuntu 20](https://github.com/emacs-ng/emacs-ng/releases), you can find instruction on how to build with Docker [for other Linux distributions](https://github.com/emacs-ng/emacs-ng/tree/master/docker): contributions are welcome!
 
-For a release build, don't pass `--enable-rust-debug`.
-
-The Makefile obeys cargo's RUSTFLAGS variable and additional options can be
-passed to cargo with CARGO_FLAGS.
-
-For example:
-
-``` bash
-$ make CARGO_FLAGS="-vv" RUSTFLAGS="-Zunstable-options --cfg MARKER_DEBUG"
-```
-
-If you want to install it, just use
-
-```bash
-make install
-```
-
-You may need to run sudo make install depending on your system configuration.
-
-Now emacs should be available at `./src/emacs`. We can launch the application
-via `./src/emacs`. We can navigate to the lisp scratchpad by pressing C-x b and
-hitting enter.
+## Running JavaScript
 
 Type in the following line and press C-j
 
@@ -168,8 +143,6 @@ Type in the following line and press C-j
 This will display "hello world" in your display area (along with 'nil' - we will
 get to that). This is an anonymous javascript evaluation. Before we go further,
 let’s make an environment for working with our new scripting language.
-
-## Running JavaScript
 
 We have multiple ways to run JavaScript. Let us open a new *TypeScript* file by
 creating a file name "basic.ts" in our current directory. It will look something
