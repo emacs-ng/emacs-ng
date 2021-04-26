@@ -42,10 +42,10 @@ use emacs::{
 
 pub type TerminalRef = ExternalPtr<terminal>;
 
-fn get_frame_parm_handlers() -> [frame_parm_handler; 47] {
+fn get_frame_parm_handlers() -> [frame_parm_handler; 48] {
     // Keep this list in the same order as frame_parms in frame.c.
     // Use None for unsupported frame parameters.
-    let handlers: [frame_parm_handler; 47] = [
+    let handlers: [frame_parm_handler; 48] = [
         None,
         None,
         Some(set_background_color),
@@ -54,6 +54,7 @@ fn get_frame_parm_handlers() -> [frame_parm_handler; 47] {
         Some(set_cursor_color),
         None,
         Some(gui_set_font),
+        None,
         None,
         None,
         None,
