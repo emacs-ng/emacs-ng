@@ -1,39 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url>
      <loc>https://emacs-ng.github.io/emacs-ng/</loc>
-     <lastmod>2021-04-25</lastmod>
+     <lastmod>2021-04-27</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/nix-develop/</loc>
-     <lastmod>2021-04-25</lastmod>
+     <lastmod>2021-04-27</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/main-features/</loc>
-     <lastmod>2021-04-25</lastmod>
+     <lastmod>2021-04-27</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/adv-features/</loc>
-     <lastmod>2021-04-25</lastmod>
+     <lastmod>2021-04-27</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/getting-started/</loc>
-     <lastmod>2021-04-25</lastmod>
+     <lastmod>2021-04-27</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/using-deno/</loc>
-     <lastmod>2021-04-25</lastmod>
+     <lastmod>2021-04-27</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/ng-module/</loc>
-     <lastmod>2021-04-25</lastmod>
+     <lastmod>2021-04-27</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/faq/</loc>
-     <lastmod>2021-04-25</lastmod>
+     <lastmod>2021-04-27</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/architecture/</loc>
-     <lastmod>2021-04-25</lastmod>
+     <lastmod>2021-04-27</lastmod>
      <changefreq>daily</changefreq>
     </url>
 </urlset>
