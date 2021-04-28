@@ -2,7 +2,7 @@
   description = "emacsNg Nix flake";
 
   inputs = {
-    nixpkgs.url = "nixpkgs/d09f37cc24e4ec1a567f77e553a298158185182d";
+    nixpkgs.url = "nixpkgs/ccabc238a8bd142e58c2cd8db8ebd78ab38555d9";
     emacs-overlay = {
       type = "github";
       owner = "nix-community";
@@ -110,8 +110,12 @@
         let
           emacsNgSource = emacsNg-src;
           #emacsNgSource = "./.";
+          #rust nightly date
+          locked-date = prev.lib.removePrefix "nightly-" (prev.lib.removeSuffix "\n" (builtins.readFile ./rust-toolchain));
         in
         {
+          cargo = final.rust-bin.nightly."${locked-date}".cargo;
+
           emacsNg-rust = with final;
             (
               let
@@ -129,7 +133,7 @@
                   sourceRoot = "source/rust_src/remacs-lib";
                   name = "remacsLibDeps";
                   cargoUpdateHook = doVersionedUpdate;
-                  sha256 = "sha256-TtL+zfr4iaCG9I4NJ1i18c4aIgGyPfYfryHVAzBl3eI=";
+                  sha256 = "sha256-W/A3mYNBLZrcjL9ehXe6ndjv/bMiUdRDTylAM9hLeoo=";
                   inherit installPhase;
                 };
 
@@ -138,7 +142,7 @@
                   sourceRoot = null;
                   cargoUpdateHook = doVersionedUpdate;
                   name = "remacsBindings";
-                  sha256 = "sha256-uEUXWv1ybXN7B8sOsVnXxGgjDPTtsVbE++I0grwvn2E=";
+                  sha256 = "sha256-537/sJVxRe9qIGrmzrkKU7INdEXR0hGRBYatlz+aXms=";
                   inherit installPhase;
                 };
 
@@ -148,7 +152,7 @@
                     sed -e 's/@CARGO_.*@//' Cargo.toml.in > Cargo.toml
                   '' + doVersionedUpdate;
                   name = "remacsSrc";
-                  sha256 = "sha256-8Es749ddZ3yxBnij8swIda6AKlHJffWaLV2yIi7oRqU=";
+                  sha256 = "sha256-1ELtwJeAyIO1I35Its/pwsA+/d7lHDighSFPFbIBXIQ=";
                   inherit installPhase;
                 };
 
@@ -157,7 +161,7 @@
                   sourceRoot = null;
                   name = "remacsHashdir";
                   cargoUpdateHook = doVersionedUpdate;
-                  sha256 = "sha256-yC/1uhiVJ2OOf56A+Hy8jRqhXvSMC5V/DwdSsBFgGDI=";
+                  sha256 = "sha256-UseR96MO9J+g/G+MUTkoxF95Y4r53xbY/5iBNyJajgA=";
                   inherit installPhase;
                 };
               in
@@ -189,7 +193,11 @@
             );
 
           librusty_v8 = prev.callPackage ./nix/librusty_v8.nix { };
-          emacsNg = with prev; (
+
+          emacsNg = with prev; let
+            withWebreader = false;
+          in
+          (
             final.emacsGcc.override
               ({
                 withImageMagick = true;
@@ -199,6 +207,19 @@
             (old:
               let
                 custom-llvmPackages = prev.llvmPackages_10;
+                #withGLX
+                rpathLibs =
+                  (with xorg; lib.optionals (stdenv.isLinux && withWebreader) [
+                    libX11
+                    libGLU
+                    libGL
+                    libXpm
+                    libXext
+                    libXxf86vm
+                    alsaLib
+                    libxkbcommon
+                    wayland
+                  ]);
               in
               rec {
                 name = "emacsNg-" + version;
@@ -208,10 +229,17 @@
                 preConfigure = (old.preConfigure or "") + ''
             '';
 
-                patches = (old.patches or [ ]) ++ [ ];
+                patches = (old.patches or [ ]) ++ [
+                ];
 
                 #custom configure Flags Setting
-                configureFlags = (old.configureFlags or [ ]) ++ [
+                configureFlags = (if withWebreader then
+                  lib.subtractLists [
+                    "--with-x-toolkit=gtk3"
+                    "--with-xft"
+                  ]
+                    old.configureFlags else
+                  old.configureFlags) ++ [
                   "--with-json"
                   "--with-threads"
                   "--with-included-regex"
@@ -219,10 +247,15 @@
                   "--with-compress-install"
                   "--with-zlib"
                   "--with-dumping=pdumper"
-                  #"--with-webrender"
+                ] ++ lib.optionals withWebreader [
+                  "--with-webrender"
+                ] ++ lib.optionals stdenv.isLinux [
+                  "--with-dbus"
                 ];
 
-                preBuild = let arch = rust.toRustTarget stdenv.hostPlatform; in
+                preBuild =
+                  let arch = rust.toRustTarget stdenv.hostPlatform;
+                  in
                   (old.preBuild or "") + ''
                     _librusty_v8_setup() {
                         for v in "$@"; do
@@ -244,11 +277,12 @@
 
                 LIBCLANG_PATH = "${custom-llvmPackages.libclang}/lib";
 
+
                 buildInputs = (old.buildInputs or [ ]) ++
                 [
                   custom-llvmPackages.clang
                   custom-llvmPackages.libclang
-                  final.rust-bin.nightly."2021-01-14".rust
+                  final.rust-bin.nightly."${locked-date}".default
                 ] ++ lib.optionals
                   stdenv.isDarwin
                   (with darwin.apple_sdk.frameworks; with darwin; [
@@ -258,12 +292,29 @@
                     Metal
                     Foundation
                     libiconv
+                  ] ++ lib.optionals (withWebreader && stdenv.isDarwin) [
+                    AppKit
+                    CoreGraphics
+                    CoreServices
+                    CoreText
+                    Foundation
+                    OpenGL
                   ]);
 
                 makeFlags =
                   (old.makeFlags or [ ]) ++ [
                     "CARGO_FLAGS=--offline" #nightly channel
                   ];
+
+                postFixup = (old.postFixup or "") + (if withWebreader then
+                  lib.concatStringsSep "\n" [
+                    (lib.optionalString stdenv.isLinux ''
+                      patchelf --set-rpath \
+                        "$(patchelf --print-rpath "$out/bin/.emacs-28.0.50-wrapped"):${lib.makeLibraryPath rpathLibs}" \
+                        "$out/bin/.emacs-28.0.50-wrapped"
+                        patchelf --add-needed "libfontconfig.so" "$out/bin/.emacs-28.0.50-wrapped"
+                    '')
+                  ] else "");
               });
         };
     };
