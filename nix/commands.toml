@@ -25,7 +25,9 @@ help = "update nixpkgs of master channel"
 
 [[commands]]
 name = "emacs"
-command = '$(nix-build . --option substituters "https://emacsng.cachix.org" --option trusted-public-keys "emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI="--no-out-link)/bin/emacs $@'
+command = '''
+        $(nix-build . --option substituters "https://emacsng.cachix.org" --option trusted-public-keys "emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=" --no-out-link)/bin/emacs $@
+        '''
 help = "launch emacsNg"
 category = "emacsNg"
 
