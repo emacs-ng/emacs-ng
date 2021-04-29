@@ -442,14 +442,12 @@ macro_rules! unproxy {
     }};
 }
 
+const REVERSE_PROXY_MARKER: i64 = 0x22fafd;
+
 macro_rules! make_reverse_proxy {
     ($scope:expr, $lisp:expr) => {{
-        let obj = make_proxy!($scope, $lisp);
-        obj.set_internal_field(
-            1,
-            v8::Local::<v8::Value>::try_from(v8::Boolean::new($scope, true)).unwrap(),
-        );
-        obj
+        let marker = unsafe { emacs::bindings::make_int(REVERSE_PROXY_MARKER) };
+        make_proxy!($scope, LispObject::cons(marker, $lisp))
     }};
 }
 
@@ -779,16 +777,25 @@ pub fn is_reverse_proxy(
     args: v8::FunctionCallbackArguments,
     mut retval: v8::ReturnValue,
 ) {
-    let mut is_proxy = false;
+    let mut is_reverse_proxy = false;
     if args.get(0).is_object() {
         let arg = args.get(0).to_object(scope).unwrap();
-        if arg.internal_field_count() > 0 {
-            if arg.get_internal_field(scope, 1).is_some() {
-                is_proxy = true;
+        let lisp = unproxy!(scope, arg);
+        if let Some(cons) = lisp.as_cons() {
+            if unsafe { emacs::bindings::INTEGERP(cons.car()) } {
+                let value = unsafe {
+                    emacs::bindings::check_integer_range(
+                        cons.car(),
+                        emacs::bindings::intmax_t::MIN,
+                        emacs::bindings::intmax_t::MAX,
+                    )
+                };
+                is_reverse_proxy = value == REVERSE_PROXY_MARKER;
             }
         }
     }
-    let boolean = v8::Boolean::new(scope, is_proxy);
+
+    let boolean = v8::Boolean::new(scope, is_reverse_proxy);
     let r = v8::Local::<v8::Value>::try_from(boolean).unwrap();
     retval.set(r);
 }
@@ -817,8 +824,8 @@ pub fn make_reverse_proxy(
         emacs::bindings::Fmake_finalizer(lambda_list)
     };
 
-    let fixnum = unsafe { emacs::bindings::make_fixnum(idx.into()) };
-    let rp = make_reverse_proxy!(scope, LispObject::cons(finalizer, fixnum));
+    let num = unsafe { emacs::bindings::make_int(idx.into()) };
+    let rp = make_reverse_proxy!(scope, LispObject::cons(finalizer, num));
     let r = v8::Local::<v8::Value>::try_from(rp).unwrap();
     retval.set(r);
 }
@@ -831,9 +838,25 @@ pub fn unreverse_proxy(
     let obj = args.get(0).to_object(scope).unwrap();
     let maybe_cons = unproxy!(scope, obj);
     if let Some(cons) = maybe_cons.as_cons() {
-        let num = cons.cdr().as_fixnum_or_error();
-        let r = v8::Local::<v8::Value>::try_from(v8::Number::new(scope, num as f64)).unwrap();
-        retval.set(r);
+        if let Some(inner) = cons.cdr().as_cons() {
+            if !unsafe { emacs::bindings::INTEGERP(inner.cdr()) } {
+                panic!("WHOAAA"); // @TODO return error
+            }
+
+            let value = unsafe {
+                emacs::bindings::check_integer_range(
+                    inner.cdr(),
+                    emacs::bindings::intmax_t::MIN,
+                    emacs::bindings::intmax_t::MAX,
+                )
+            };
+            let r = v8::Local::<v8::Value>::try_from(v8::Number::new(scope, value as f64)).unwrap();
+            retval.set(r);
+        } else {
+            panic!("AAAAAA");
+        }
+    } else {
+        panic!("WHOA");
     }
 }
 
@@ -1699,7 +1722,7 @@ pub(crate) fn v8_bind_lisp_funcs(worker: &mut deno_runtime::worker::MainWorker) 
         {
             let name = v8::String::new(scope, "proxyProto").unwrap();
             let template = v8::ObjectTemplate::new(scope);
-            template.set_internal_field_count(2);
+            template.set_internal_field_count(1);
             let glob = v8::Global::new(scope, template);
             EmacsMainJsRuntime::set_proxy_template(glob);
             let obj = v8::Object::new(scope);
