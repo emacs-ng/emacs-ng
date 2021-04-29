@@ -840,7 +840,7 @@ pub fn unreverse_proxy(
     if let Some(cons) = maybe_cons.as_cons() {
         if let Some(inner) = cons.cdr().as_cons() {
             if !unsafe { emacs::bindings::INTEGERP(inner.cdr()) } {
-                panic!("WHOAAA"); // @TODO return error
+                return;
             }
 
             let value = unsafe {
@@ -852,11 +852,7 @@ pub fn unreverse_proxy(
             };
             let r = v8::Local::<v8::Value>::try_from(v8::Number::new(scope, value as f64)).unwrap();
             retval.set(r);
-        } else {
-            panic!("AAAAAA");
         }
-    } else {
-        panic!("WHOA");
     }
 }
 
