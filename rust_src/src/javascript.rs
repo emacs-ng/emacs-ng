@@ -442,12 +442,9 @@ macro_rules! unproxy {
     }};
 }
 
-const REVERSE_PROXY_MARKER: i64 = 0x22fafd;
-
 macro_rules! make_reverse_proxy {
     ($scope:expr, $lisp:expr) => {{
-        let marker = unsafe { emacs::bindings::make_int(REVERSE_PROXY_MARKER) };
-        make_proxy!($scope, LispObject::cons(marker, $lisp))
+        make_proxy!($scope, LispObject::cons(emacs::globals::Qjs_proxy, $lisp))
     }};
 }
 
@@ -782,16 +779,7 @@ pub fn is_reverse_proxy(
         let arg = args.get(0).to_object(scope).unwrap();
         let lisp = unproxy!(scope, arg);
         if let Some(cons) = lisp.as_cons() {
-            if unsafe { emacs::bindings::INTEGERP(cons.car()) } {
-                let value = unsafe {
-                    emacs::bindings::check_integer_range(
-                        cons.car(),
-                        emacs::bindings::intmax_t::MIN,
-                        emacs::bindings::intmax_t::MAX,
-                    )
-                };
-                is_reverse_proxy = value == REVERSE_PROXY_MARKER;
-            }
+            is_reverse_proxy = cons.car().eq(emacs::globals::Qjs_proxy);
         }
     }
 
@@ -813,18 +801,15 @@ pub fn make_reverse_proxy(
         .unwrap();
 
     let finalizer = unsafe {
-        let mut bound = vec![
+        let list = list!(
             emacs::globals::Qjs__clear_r,
-            emacs::bindings::make_fixnum(idx.into()),
-        ];
-        let list = emacs::bindings::Flist(bound.len().try_into().unwrap(), bound.as_mut_ptr());
-        let mut lambda = vec![emacs::globals::Qlambda, emacs::globals::Qnil, list];
-        let lambda_list =
-            emacs::bindings::Flist(lambda.len().try_into().unwrap(), lambda.as_mut_ptr());
+            emacs::bindings::make_fixnum(idx.into())
+        );
+        let lambda_list = list!(emacs::globals::Qlambda, emacs::globals::Qnil, list);
         emacs::bindings::Fmake_finalizer(lambda_list)
     };
 
-    let num = unsafe { emacs::bindings::make_int(idx.into()) };
+    let num = LispObject::from_fixnum(idx);
     let rp = make_reverse_proxy!(scope, LispObject::cons(finalizer, num));
     let r = v8::Local::<v8::Value>::try_from(rp).unwrap();
     retval.set(r);
@@ -839,19 +824,11 @@ pub fn unreverse_proxy(
     let maybe_cons = unproxy!(scope, obj);
     if let Some(cons) = maybe_cons.as_cons() {
         if let Some(inner) = cons.cdr().as_cons() {
-            if !unsafe { emacs::bindings::INTEGERP(inner.cdr()) } {
-                return;
+            if let Some(value) = inner.cdr().as_fixnum() {
+                let r =
+                    v8::Local::<v8::Value>::try_from(v8::Number::new(scope, value as f64)).unwrap();
+                retval.set(r);
             }
-
-            let value = unsafe {
-                emacs::bindings::check_integer_range(
-                    inner.cdr(),
-                    emacs::bindings::intmax_t::MIN,
-                    emacs::bindings::intmax_t::MAX,
-                )
-            };
-            let r = v8::Local::<v8::Value>::try_from(v8::Number::new(scope, value as f64)).unwrap();
-            retval.set(r);
         }
     }
 }
@@ -1610,17 +1587,15 @@ where
 /// Internal function used for cleanup. Do not call directly.
 #[cfg(feature = "javascript")]
 #[lisp_fn]
-pub fn js__clear(idx: LispObject) -> LispObject {
+pub fn js__clear(idx: LispObject) {
     execute_with_current_scope(move |scope| js_clear_internal(scope, idx));
-    emacs::globals::Qnil
 }
 
 /// Internal function used for cleanup. Do not call directly.
 #[cfg(feature = "javascript")]
 #[lisp_fn]
-pub fn js__clear_r(idx: LispObject) -> LispObject {
+pub fn js__clear_r(idx: LispObject) {
     execute_with_current_scope(move |scope| js_clear_r_internal(scope, idx));
-    emacs::globals::Qnil
 }
 
 fn into_ioerr<E: Into<Box<dyn std::error::Error + Send + Sync>>>(e: E) -> std::io::Error {
@@ -2172,6 +2147,8 @@ fn init_syms() {
     def_lisp_sym!(Qrun_with_timer, "run-with-timer");
     def_lisp_sym!(Qjs_tick_event_loop, "js-tick-event-loop");
     def_lisp_sym!(Qeval_expression, "eval-expression");
+
+    def_lisp_sym!(Qjs_proxy, "js-proxy");
 }
 
 include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
