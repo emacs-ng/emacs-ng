@@ -13,17 +13,23 @@
   };
 
   const __functions = [];
+  const __reverse_proxies = [];
 
   global.__invoke = function (idx) {
     let modargs = [];
     for (let i = 1; i < arguments.length; ++i) {
       const result = arguments[i];
       if (is_proxy(result)) {
-        result.json = () => {
-          return JSON.parse(lisp_json(result));
-        };
+        if (is_reverse_proxy(result)) {
+          const idx = unreverse_proxy(result);
+          modargs.push(__reverse_proxies[idx]);
+        } else {
+          result.json = () => {
+            return JSON.parse(lisp_json(result));
+          };
 
-        modargs.push(result);
+          modargs.push(result);
+        }
       } else {
         modargs.push(JSON.parse(arguments[i]));
       }
@@ -39,6 +45,10 @@
 
   global.__clear = (idx) => {
     __functions[idx] = null;
+  };
+
+  global.__clear_r = (idx) => {
+    __reverse_proxies[idx] = null;
   };
 
   global.__eval = (str) => {
@@ -87,6 +97,12 @@
     return v;
   };
 
+  const makeReverseProxy = (a) => {
+    const len = __reverse_proxies.length;
+    __reverse_proxies.push(a);
+    return make_reverse_proxy(len);
+  };
+
   const makeFuncs = {
     hashtable: (a) => makeHashTable(a),
     alist: (a) => makeAlist(a),
@@ -94,6 +110,7 @@
     array: (a) => makeArray(a),
     list: (a) => lisp.list.apply(this, a),
     string: (a) => lisp_string(a),
+    proxy: (a) => makeReverseProxy(a),
   };
 
   const stringToLispCache = {};

@@ -442,6 +442,12 @@ macro_rules! unproxy {
     }};
 }
 
+macro_rules! make_reverse_proxy {
+    ($scope:expr, $lisp:expr) => {{
+        make_proxy!($scope, LispObject::cons(emacs::globals::Qjs_proxy, $lisp))
+    }};
+}
+
 macro_rules! bind_global_fn {
     ($scope:expr, $global: expr, $fnc:ident) => {{
         let name = v8::String::new($scope, stringify!($fnc)).unwrap();
@@ -761,6 +767,70 @@ pub fn is_proxy(
     let boolean = v8::Boolean::new(scope, is_proxy);
     let r = v8::Local::<v8::Value>::try_from(boolean).unwrap();
     retval.set(r);
+}
+
+pub fn is_reverse_proxy(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut retval: v8::ReturnValue,
+) {
+    let mut is_reverse_proxy = false;
+    if args.get(0).is_object() {
+        let arg = args.get(0).to_object(scope).unwrap();
+        let lisp = unproxy!(scope, arg);
+        if let Some(cons) = lisp.as_cons() {
+            is_reverse_proxy = cons.car().eq(emacs::globals::Qjs_proxy);
+        }
+    }
+
+    let boolean = v8::Boolean::new(scope, is_reverse_proxy);
+    let r = v8::Local::<v8::Value>::try_from(boolean).unwrap();
+    retval.set(r);
+}
+
+pub fn make_reverse_proxy(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut retval: v8::ReturnValue,
+) {
+    let idx = args
+        .get(0)
+        .to_number(scope)
+        .unwrap()
+        .integer_value(scope)
+        .unwrap();
+
+    let finalizer = unsafe {
+        let list = list!(
+            emacs::globals::Qjs__clear_r,
+            emacs::bindings::make_fixnum(idx.into())
+        );
+        let lambda_list = list!(emacs::globals::Qlambda, emacs::globals::Qnil, list);
+        emacs::bindings::Fmake_finalizer(lambda_list)
+    };
+
+    let num = LispObject::from_fixnum(idx);
+    let rp = make_reverse_proxy!(scope, LispObject::cons(finalizer, num));
+    let r = v8::Local::<v8::Value>::try_from(rp).unwrap();
+    retval.set(r);
+}
+
+pub fn unreverse_proxy(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut retval: v8::ReturnValue,
+) {
+    let obj = args.get(0).to_object(scope).unwrap();
+    let maybe_cons = unproxy!(scope, obj);
+    if let Some(cons) = maybe_cons.as_cons() {
+        if let Some(inner) = cons.cdr().as_cons() {
+            if let Some(value) = inner.cdr().as_fixnum() {
+                let r =
+                    v8::Local::<v8::Value>::try_from(v8::Number::new(scope, value as f64)).unwrap();
+                retval.set(r);
+            }
+        }
+    }
 }
 
 unsafe extern "C" fn lisp_springboard(arg1: *mut ::libc::c_void) -> LispObject {
@@ -1460,6 +1530,14 @@ pub fn js__reenter(args: &[LispObject]) -> LispObject {
 }
 
 fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
+    js_clear_internal_impl(scope, idx, "__clear");
+}
+
+fn js_clear_r_internal(scope: &mut v8::HandleScope, idx: LispObject) {
+    js_clear_internal_impl(scope, idx, "__clear_r");
+}
+
+fn js_clear_internal_impl(scope: &mut v8::HandleScope, idx: LispObject, func: &str) {
     let value = unsafe {
         emacs::bindings::check_integer_range(
             idx,
@@ -1471,7 +1549,7 @@ fn js_clear_internal(scope: &mut v8::HandleScope, idx: LispObject) {
     let context = scope.get_current_context();
     let global = context.global(scope);
 
-    let name = v8::String::new(scope, "__clear").unwrap();
+    let name = v8::String::new(scope, func).unwrap();
     let fnc: v8::Local<v8::Function> = global.get(scope, name.into()).unwrap().try_into().unwrap();
     let recv =
         v8::Local::<v8::Value>::try_from(v8::String::new(scope, "lisp_invoke").unwrap()).unwrap();
@@ -1509,9 +1587,15 @@ where
 /// Internal function used for cleanup. Do not call directly.
 #[cfg(feature = "javascript")]
 #[lisp_fn]
-pub fn js__clear(idx: LispObject) -> LispObject {
+pub fn js__clear(idx: LispObject) {
     execute_with_current_scope(move |scope| js_clear_internal(scope, idx));
-    emacs::globals::Qnil
+}
+
+/// Internal function used for cleanup. Do not call directly.
+#[cfg(feature = "javascript")]
+#[lisp_fn]
+pub fn js__clear_r(idx: LispObject) {
+    execute_with_current_scope(move |scope| js_clear_r_internal(scope, idx));
 }
 
 fn into_ioerr<E: Into<Box<dyn std::error::Error + Send + Sync>>>(e: E) -> std::io::Error {
@@ -1627,6 +1711,9 @@ pub(crate) fn v8_bind_lisp_funcs(worker: &mut deno_runtime::worker::MainWorker) 
         bind_global_fn!(scope, global, lisp_make_lambda);
         bind_global_fn!(scope, global, lisp_list);
         bind_global_fn!(scope, global, json_lisp);
+        bind_global_fn!(scope, global, is_reverse_proxy);
+        bind_global_fn!(scope, global, make_reverse_proxy);
+        bind_global_fn!(scope, global, unreverse_proxy);
     }
     {
         runtime
@@ -2045,6 +2132,7 @@ fn init_syms() {
     def_lisp_sym!(QCtypescript, ":typescript");
 
     def_lisp_sym!(Qjs__clear, "js--clear");
+    def_lisp_sym!(Qjs__clear_r, "js--clear-r");
     def_lisp_sym!(Qlambda, "lambda");
     def_lisp_sym!(Qjs__reenter, "js--reenter");
     def_lisp_sym!(QCinspect, ":inspect");
@@ -2059,6 +2147,8 @@ fn init_syms() {
     def_lisp_sym!(Qrun_with_timer, "run-with-timer");
     def_lisp_sym!(Qjs_tick_event_loop, "js-tick-event-loop");
     def_lisp_sym!(Qeval_expression, "eval-expression");
+
+    def_lisp_sym!(Qjs_proxy, "js-proxy");
 }
 
 include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
