@@ -9,12 +9,13 @@ nav:
   - Home:
     - Overview: README.md
     - Setup:
+      - Build from source: building.md
+      - Release .deb package: release.md
       - Nix Build / Develop: nix-develop.md
   - Features:
     - Basic features: main-features.md
     - Advanced features: adv-features.md
   - Getting started: getting-started.md
-  - Building: building.md
   - Using Deno: using-deno.md
   - Dynamic modules: ng-module.md
   - FAQ: faq.md

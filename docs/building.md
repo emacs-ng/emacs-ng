@@ -1,6 +1,52 @@
-These are instructions to build emacs-ng on your workstation. First [check the requirements][compile-req].
+These are instructions to build emacs-ng on your workstation.
 
-[compile-req]: https://emacs-ng.github.io/emacs-ng/getting-started/index.html#requirements
+## Build requirements
+
+You will need [Rust installed](https://www.rust-lang.org/en-US/install.html).
+The file `rust-toolchain` indicates the version that gets installed.  This
+happens automatically, so don't override the toolchain manually. IMPORTANT:
+Whenever the toolchain updates, you have to reinstall rustfmt manually.
+
+### Linux
+
+You will need a C compiler and toolchain. On Linux, you can do something like:
+
+    apt install build-essential automake clang libclang-dev
+
+Additional requirements:
+
+    apt install texinfo libjpeg-dev libtiff-dev \
+    libgif-dev libxpm-dev libgtk-3-dev gnutls-dev \
+    libncurses5-dev libxml2-dev libxt-dev
+
+For native-comp you will also need `zlib1g-dev libgccjit-9-dev`.
+
+### MacOS
+
+On macOS, you'll need Xcode.
+
+    brew install gnutls texinfo autoconf
+
+To use the installed version of `makeinfo` instead of the built-in
+(`/usr/bin/makeinfo`) one, you'll need to make sure `/usr/local/opt/texinfo/bin`
+is before `/usr/bin` in `PATH`.
+
+Mojave install libxml2 headers with: `open
+/Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg`
+
+If you want to use native-comp, you will need to compile with `./configure
+--with-native-compilation`. nativecomp will also require:
+
+    brew install zlib libgccjit
+
+It seems to be more difficult to build native-comp on macOS than on linux.
+There are several tutorials that provide instructions on how to successfully
+compile it(no guarantee that they work):
+
+- https://gist.github.com/mikroskeem/0a5c909c1880408adf732ceba6d3f9ab
+- https://gist.github.com/AllenDang/f019593e65572a8e0aefc96058a2d23e
+
+## Compile and install
 
 ```
 $ ./autogen.sh
@@ -30,7 +76,3 @@ You may need to run `sudo make install` depending on your system configuration.
 Now emacs should be available at `./src/emacs`. We can launch the application
 via `./src/emacs`. We can navigate to the lisp scratchpad by pressing C-x b and
 hitting enter.
-
-### Using Docker
-
-If you want to build packages without installing all the tooling, you can use a Docker container. Our CI builds [releases for Ubuntu 20](https://github.com/emacs-ng/emacs-ng/releases), you can find instruction on how to build with Docker [at this link](https://github.com/emacs-ng/emacs-ng/tree/master/docker).
