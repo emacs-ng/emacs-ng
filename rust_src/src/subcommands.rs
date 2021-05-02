@@ -1,11 +1,12 @@
+use deno::create_main_worker;
 use deno::file_fetcher::File;
 use deno::file_watcher;
 use deno::file_watcher::ModuleResolutionResult;
 use deno::flags::Flags;
 use deno::media_type::MediaType;
-use deno::module_graph;
 use deno::program_state::ProgramState;
 use deno::specifier_handler::FetchHandler;
+use deno::{fs_util, module_graph, tools};
 use deno_core::error::AnyError;
 use deno_core::resolve_url_or_path;
 use deno_core::ModuleSpecifier;
@@ -13,6 +14,7 @@ use deno_runtime::permissions::Permissions;
 
 use crate::futures::FutureExt;
 
+use std::env;
 use std::io::Read;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -27,11 +29,11 @@ pub(crate) async fn run_repl(flags: Flags) -> Result<(), AnyError> {
     let main_module = resolve_url_or_path("./$deno$repl.ts").unwrap();
     let permissions = Permissions::from_options(&flags.clone().into());
     let program_state = ProgramState::build(flags).await?;
-    let mut worker = deno::create_main_worker(&program_state, main_module.clone(), permissions);
+    let mut worker = create_main_worker(&program_state, main_module.clone(), permissions);
     crate::javascript::v8_bind_lisp_funcs(&mut worker)?;
     worker.run_event_loop().await?;
 
-    deno::tools::repl::run(&program_state, worker).await
+    tools::repl::run(&program_state, worker).await
 }
 
 pub(crate) async fn eval_command(
@@ -44,9 +46,8 @@ pub(crate) async fn eval_command(
     let main_module = resolve_url_or_path("./$deno$eval.ts").unwrap();
     let permissions = Permissions::from_options(&flags.clone().into());
     let program_state = ProgramState::build(flags).await?;
-    let mut worker = deno::create_main_worker(&program_state, main_module.clone(), permissions);
+    let mut worker = create_main_worker(&program_state, main_module.clone(), permissions);
     crate::javascript::v8_bind_lisp_funcs(&mut worker)?;
-
     // Create a dummy source file.
     let source_code = if print {
         format!("console.log({})", code)
@@ -61,11 +62,11 @@ pub(crate) async fn eval_command(
         media_type: if ext.as_str() == "ts" {
             MediaType::TypeScript
         } else if ext.as_str() == "tsx" {
-            MediaType::TSX
+            MediaType::Tsx
         } else if ext.as_str() == "js" {
             MediaType::JavaScript
         } else {
-            MediaType::JSX
+            MediaType::Jsx
         },
         source: String::from_utf8(source_code)?,
         specifier: main_module.clone(),
@@ -74,6 +75,7 @@ pub(crate) async fn eval_command(
     // Save our fake file into file fetcher cache
     // to allow module access by TS compiler.
     program_state.file_fetcher.insert_cached(file);
+    //  debug!("main_module {}", &main_module);
     worker.execute_module(&main_module).await?;
     worker.execute("window.dispatchEvent(new Event('load'))")?;
     worker.run_event_loop().await?;
@@ -85,13 +87,11 @@ async fn run_from_stdin(flags: Flags) -> Result<(), AnyError> {
     let program_state = ProgramState::build(flags.clone()).await?;
     let permissions = Permissions::from_options(&flags.clone().into());
     let main_module = resolve_url_or_path("./$deno$stdin.ts").unwrap();
-    let mut worker =
-        deno::create_main_worker(&program_state.clone(), main_module.clone(), permissions);
-    crate::javascript::v8_bind_lisp_funcs(&mut worker)?;
+    let mut worker = create_main_worker(&program_state.clone(), main_module.clone(), permissions);
 
+    crate::javascript::v8_bind_lisp_funcs(&mut worker)?;
     let mut source = Vec::new();
     std::io::stdin().read_to_end(&mut source)?;
-
     // Create a dummy source file.
     let source_file = File {
         local: main_module.clone().to_file_path().unwrap(),
@@ -104,6 +104,7 @@ async fn run_from_stdin(flags: Flags) -> Result<(), AnyError> {
     // to allow module access by TS compiler
     program_state.file_fetcher.insert_cached(source_file);
 
+    //  debug!("main_module {}", main_module);
     worker.execute_module(&main_module).await?;
     worker.execute("window.dispatchEvent(new Event('load'))")?;
     worker.run_event_loop().await?;
@@ -139,9 +140,7 @@ async fn run_with_watch(flags: Flags, script: String) -> Result<(), AnyError> {
                 .collect();
 
             if let Some(import_map) = program_state.flags.import_map_path.as_ref() {
-                paths_to_watch.push(deno::fs_util::resolve_from_cwd(std::path::Path::new(
-                    import_map,
-                ))?);
+                paths_to_watch.push(fs_util::resolve_from_cwd(std::path::Path::new(import_map))?);
             }
 
             Ok((paths_to_watch, main_module))
@@ -165,8 +164,7 @@ async fn run_with_watch(flags: Flags, script: String) -> Result<(), AnyError> {
         async move {
             let main_module = main_module.clone();
             let program_state = ProgramState::build(flags).await?;
-            let mut worker =
-                deno::create_main_worker(&program_state, main_module.clone(), permissions);
+            let mut worker = create_main_worker(&program_state, main_module.clone(), permissions);
             crate::javascript::v8_bind_lisp_funcs(&mut worker)?;
             //      debug!("main_module {}", main_module);
             worker.execute_module(&main_module).await?;
@@ -182,6 +180,7 @@ async fn run_with_watch(flags: Flags, script: String) -> Result<(), AnyError> {
 }
 
 pub(crate) async fn run_command(flags: Flags, script: String) -> Result<(), AnyError> {
+    // Read script content from stdin
     if script == "-" {
         return run_from_stdin(flags).await;
     }
@@ -193,14 +192,14 @@ pub(crate) async fn run_command(flags: Flags, script: String) -> Result<(), AnyE
     let main_module = resolve_url_or_path(&script)?;
     let program_state = ProgramState::build(flags.clone()).await?;
     let permissions = Permissions::from_options(&flags.clone().into());
-    let mut worker = deno::create_main_worker(&program_state, main_module.clone(), permissions);
+    let mut worker = create_main_worker(&program_state, main_module.clone(), permissions);
     crate::javascript::v8_bind_lisp_funcs(&mut worker)?;
+
     let mut maybe_coverage_collector = if let Some(ref coverage_dir) = program_state.coverage_dir {
         let session = worker.create_inspector_session();
 
         let coverage_dir = PathBuf::from(coverage_dir);
-        let mut coverage_collector =
-            deno::tools::coverage::CoverageCollector::new(coverage_dir, session);
+        let mut coverage_collector = tools::coverage::CoverageCollector::new(coverage_dir, session);
         coverage_collector.start_collecting().await?;
 
         Some(coverage_collector)
@@ -208,6 +207,7 @@ pub(crate) async fn run_command(flags: Flags, script: String) -> Result<(), AnyE
         None
     };
 
+    //  debug!("main_module {}", main_module);
     worker.execute_module(&main_module).await?;
     worker.execute("window.dispatchEvent(new Event('load'))")?;
     worker.run_event_loop().await?;
@@ -233,7 +233,7 @@ pub(crate) async fn test_command(
     let permissions = Permissions::from_options(&flags.clone().into());
     let cwd = std::env::current_dir().expect("No current directory");
     let include = include.unwrap_or_else(|| vec![".".to_string()]);
-    let test_modules = deno::tools::test_runner::prepare_test_modules_urls(include, &cwd)?;
+    let test_modules = tools::test_runner::prepare_test_modules_urls(include, &cwd)?;
 
     if test_modules.is_empty() {
         println!("No matching test modules found");
@@ -248,7 +248,7 @@ pub(crate) async fn test_command(
         local: main_module.to_file_path().unwrap(),
         maybe_types: None,
         media_type: MediaType::TypeScript,
-        source: deno::tools::test_runner::render_test_file(
+        source: tools::test_runner::render_test_file(
             test_modules.clone(),
             fail_fast,
             quiet,
@@ -278,18 +278,17 @@ pub(crate) async fn test_command(
         return Ok(());
     }
 
-    let mut worker = deno::create_main_worker(&program_state, main_module.clone(), permissions);
+    let mut worker = create_main_worker(&program_state, main_module.clone(), permissions);
     crate::javascript::v8_bind_lisp_funcs(&mut worker)?;
+
     if let Some(ref coverage_dir) = flags.coverage_dir {
-        std::env::set_var("DENO_UNSTABLE_COVERAGE_DIR", coverage_dir);
+        env::set_var("DENO_UNSTABLE_COVERAGE_DIR", coverage_dir);
     }
 
     let mut maybe_coverage_collector = if let Some(ref coverage_dir) = program_state.coverage_dir {
         let session = worker.create_inspector_session();
-
         let coverage_dir = PathBuf::from(coverage_dir);
-        let mut coverage_collector =
-            deno::tools::coverage::CoverageCollector::new(coverage_dir, session);
+        let mut coverage_collector = tools::coverage::CoverageCollector::new(coverage_dir, session);
         coverage_collector.start_collecting().await?;
 
         Some(coverage_collector)

@@ -980,25 +980,22 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
         match key {
             emacs::globals::QCallow_net => {
                 if value == emacs::globals::Qnil {
-                    permissions.net.global_state =
-                        deno_runtime::permissions::PermissionState::Denied;
+                    permissions.net.revoke::<&str>(None);
                 }
             }
             emacs::globals::QCallow_read => {
                 if value == emacs::globals::Qnil {
-                    permissions.read.global_state =
-                        deno_runtime::permissions::PermissionState::Denied;
+                    permissions.read.revoke(None);
                 }
             }
             emacs::globals::QCallow_write => {
                 if value == emacs::globals::Qnil {
-                    permissions.write.global_state =
-                        deno_runtime::permissions::PermissionState::Denied;
+                    permissions.write.revoke(None);
                 }
             }
             emacs::globals::QCallow_run => {
                 if value == emacs::globals::Qnil {
-                    permissions.run = deno_runtime::permissions::PermissionState::Denied;
+                    permissions.run.revoke(None);
                 }
             }
             emacs::globals::QCjs_tick_rate => unsafe {
