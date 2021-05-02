@@ -362,6 +362,30 @@
   
   
     <li class="md-nav__item">
+      <a href="../building/" class="md-nav__link">
+        Build from source
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release/" class="md-nav__link">
+        Release .deb package
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../nix-develop/" class="md-nav__link">
         Nix Build / Develop
       </a>
@@ -476,67 +500,6 @@
         <li class="md-nav__item">
   <a href="#requirements" class="md-nav__link">
     Requirements
-  </a>
-  
-    <nav class="md-nav" aria-label="Requirements">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#linux" class="md-nav__link">
-    Linux
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#macos" class="md-nav__link">
-    MacOS
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#nix-linux-only" class="md-nav__link">
-    Nix (Linux only)
-  </a>
-  
-    <nav class="md-nav" aria-label="Nix (Linux only)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#using-cachix-to-download-binary-cachespeed-up-build" class="md-nav__link">
-    using cachix to (download binary cache)speed up build
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#launch-emacs-ng-with-doom-emacs-example" class="md-nav__link">
-    Launch emacs-ng with Doom Emacs Example
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#using-emacs-ng-in-your-nixos-configuration" class="md-nav__link">
-    Using Emacs-ng in your NixOS configuration
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#building" class="md-nav__link">
-    Building
   </a>
   
 </li>
@@ -714,67 +677,6 @@
     Requirements
   </a>
   
-    <nav class="md-nav" aria-label="Requirements">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#linux" class="md-nav__link">
-    Linux
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#macos" class="md-nav__link">
-    MacOS
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#nix-linux-only" class="md-nav__link">
-    Nix (Linux only)
-  </a>
-  
-    <nav class="md-nav" aria-label="Nix (Linux only)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#using-cachix-to-download-binary-cachespeed-up-build" class="md-nav__link">
-    using cachix to (download binary cache)speed up build
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#launch-emacs-ng-with-doom-emacs-example" class="md-nav__link">
-    Launch emacs-ng with Doom Emacs Example
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#using-emacs-ng-in-your-nixos-configuration" class="md-nav__link">
-    Using Emacs-ng in your NixOS configuration
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#building" class="md-nav__link">
-    Building
-  </a>
-  
 </li>
       
         <li class="md-nav__item">
@@ -882,129 +784,15 @@ means hold down control, press x, keep holding control, press f.</p>
 The file <code>rust-toolchain</code> indicates the version that gets installed.  This
 happens automatically, so don't override the toolchain manually.  IMPORTANT:
 Whenever the toolchain updates, you have to reinstall rustfmt manually.</p>
-<h3 id="linux">Linux<a class="headerlink" href="#linux" title="Permanent link">#</a></h3>
-<p>You will need a C compiler and toolchain. On Linux, you can do something like:</p>
-<div class="codehilite"><pre><span></span><code>apt install build-essential automake clang libclang-dev
-</code></pre></div>
-
-<p>Additional requirements:</p>
-<div class="codehilite"><pre><span></span><code>apt install texinfo libjpeg-dev libtiff-dev \
-libgif-dev libxpm-dev libgtk-3-dev gnutls-dev \
-libncurses5-dev libxml2-dev libxt-dev
-</code></pre></div>
-
-<p>For native-comp you will also need <code>zlib1g-dev libgccjit-9-dev</code>.</p>
-<h3 id="macos">MacOS<a class="headerlink" href="#macos" title="Permanent link">#</a></h3>
-<p>On macOS, you'll need Xcode.</p>
-<div class="codehilite"><pre><span></span><code>brew install gnutls texinfo autoconf
-</code></pre></div>
-
-<p>To use the installed version of <code>makeinfo</code> instead of the built-in
-(<code>/usr/bin/makeinfo</code>) one, you'll need to make sure <code>/usr/local/opt/texinfo/bin</code>
-is before <code>/usr/bin</code> in <code>PATH</code>.</p>
-<p>Mojave install libxml2 headers with: <code>open
-/Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg</code></p>
-<p>If you want to use native-comp, you will need to compile with <code>./configure
---with-native-compilation</code>. nativecomp will also require:</p>
-<div class="codehilite"><pre><span></span><code>brew install zlib libgccjit
-</code></pre></div>
-
-<p>It seems to be more difficult to build native-comp on macOS than on linux.
-There are several tutorials that provide instructions on how to successfully
-compile it(no guarantee that they work):</p>
-<ul>
-<li>https://gist.github.com/mikroskeem/0a5c909c1880408adf732ceba6d3f9ab</li>
-<li>https://gist.github.com/AllenDang/f019593e65572a8e0aefc96058a2d23e</li>
-</ul>
-<h3 id="nix-linux-only">Nix (Linux only)<a class="headerlink" href="#nix-linux-only" title="Permanent link">#</a></h3>
-<p>Nix flake feature alread in emacsNg</p>
-<p>nix run github:emacs-ng/emacs-ng (launch emacs locally )
-  nix build github:emacs-ng/emacs-ng (build emacs locally)
-  nix develop github:emacs-ng/emacs-ng (enter develop emacs environment locally)</p>
-<p>Also, you can run native nix commands under <code>emacs-ng</code> repo such as</p>
-<div class="codehilite"><pre><span></span><code>nix-shell
-nix-build
-</code></pre></div>
-
-<h4 id="using-cachix-to-download-binary-cachespeed-up-build">using <code>cachix</code> to (download binary cache)speed up build<a class="headerlink" href="#using-cachix-to-download-binary-cachespeed-up-build" title="Permanent link">#</a></h4>
-<ol>
-<li>without install cachix</li>
-</ol>
-<div class="highlight"><pre><span></span><code>nix build github:emacs-ng/emacs-ng --option substituters <span class="s2">&quot;https://emacsng.cachix.org&quot;</span> --option trusted-public-keys <span class="s2">&quot;emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=&quot;</span> -o emacsNg
-ls -il emacs
-<span class="c1">#or check ./result/bin/emacs</span>
-nix-build --option substituters <span class="s2">&quot;https://emacsng.cachix.org&quot;</span> --option trusted-public-keys <span class="s2">&quot;emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=&quot;</span>
-</code></pre></div>
-<ol>
-<li>Install cachix</li>
-</ol>
-<div class="highlight"><pre><span></span><code>nix-env -iA cachix -f https://cachix.org/api/v1/install <span class="c1">#install cachix</span>
-<span class="nb">exec</span> bash -l
-cachix use emacsng <span class="c1"># make sure you have saw the output like: Configured https://emacsng.cachix.org binary cache in /home/test/.config/nix/nix.conf</span>
-<span class="c1">#then</span>
-nix-build
-<span class="c1">#or</span>
-nix build github:emacs-ng/emacs-ng -o emacsNg
-ls -il emacsNg
-</code></pre></div>
-<h4 id="launch-emacs-ng-with-doom-emacs-example">Launch <code>emacs-ng</code> with Doom Emacs Example<a class="headerlink" href="#launch-emacs-ng-with-doom-emacs-example" title="Permanent link">#</a></h4>
-<div class="highlight"><pre><span></span><code>nix-shell <span class="c1">#or nix develop github:emacs-ng/emacs-ng</span>
-~/.emacs.d/bin/doom sync
-emacs
-</code></pre></div>
-<h4 id="using-emacs-ng-in-your-nixos-configuration">Using Emacs-ng in your NixOS configuration<a class="headerlink" href="#using-emacs-ng-in-your-nixos-configuration" title="Permanent link">#</a></h4>
-<div class="highlight"><pre><span></span><code><span class="p">{</span>
-  <span class="ss">description =</span> <span class="s2">&quot;My configuration&quot;</span><span class="p">;</span>
-
-  <span class="ss">inputs =</span> <span class="p">{</span>
-    nixpkgs<span class="o">.</span><span class="ss">url =</span> <span class="s2">&quot;github:nixos/nixpkgs/nixos-unstable&quot;</span><span class="p">;</span>
-    emacsNg-flake<span class="o">.</span><span class="ss">url =</span> <span class="s2">&quot;github:emacs-ng/emacs-ng&quot;</span><span class="p">;</span>
-    <span class="ss">rust-overlay =</span> <span class="p">{</span> <span class="ss">url =</span> <span class="s2">&quot;github:oxalica/rust-overlay&quot;</span><span class="p">;};</span>
-  <span class="p">};</span>
-
-  <span class="ss">outputs =</span> <span class="p">{</span> nixpkgs<span class="p">,</span> emacsNg-flake<span class="p">,</span> rust-overlay <span class="o">...</span> <span class="p">}:</span> <span class="p">{</span>
-    <span class="ss">nixosConfigurations =</span> <span class="p">{</span>
-      <span class="ss">hostname =</span> nixpkgs<span class="o">.</span>lib<span class="o">.</span>nixosSystem <span class="p">{</span>
-        <span class="ss">system =</span> <span class="s2">&quot;x86_64-linux&quot;</span><span class="p">;</span>
-        <span class="ss">modules =</span> <span class="p">[</span>
-          <span class="o">.</span><span class="l">/configuration.nix</span> <span class="c1"># Your system configuration.</span>
-          <span class="p">({</span> pkgs<span class="p">,</span> <span class="o">...</span> <span class="p">}:</span> <span class="p">{</span>
-                  nixpkgs<span class="o">.</span><span class="ss">overlays =</span> <span class="p">[</span> emacsNg-flake<span class="o">.</span>overlay
-                                       rust-overlay<span class="o">.</span>overlay
-                                     <span class="p">];</span>
-            environment<span class="o">.</span><span class="ss">systemPackages =</span> <span class="p">[</span> pkgs<span class="o">.</span>emacsNg <span class="p">];</span>
-          <span class="p">})</span>
-        <span class="p">];</span>
-      <span class="p">};</span>
-    <span class="p">};</span>
-  <span class="p">};</span>
-<span class="p">}</span>
-</code></pre></div>
-<h2 id="building">Building<a class="headerlink" href="#building" title="Permanent link">#</a></h2>
-<div class="highlight"><pre><span></span><code>$ ./autogen.sh
-$ ./configure --enable-rust-debug
-$ make -j 8 # or your number of cores
-</code></pre></div>
-<p>For a release build, don't pass <code>--enable-rust-debug</code>.</p>
-<p>The Makefile obeys cargo's RUSTFLAGS variable and additional options can be
-passed to cargo with CARGO_FLAGS.</p>
-<p>For example:</p>
-<div class="highlight"><pre><span></span><code>$ make <span class="nv">CARGO_FLAGS</span><span class="o">=</span><span class="s2">&quot;-vv&quot;</span> <span class="nv">RUSTFLAGS</span><span class="o">=</span><span class="s2">&quot;-Zunstable-options --cfg MARKER_DEBUG&quot;</span>
-</code></pre></div>
-<p>If you want to install it, just use</p>
-<div class="highlight"><pre><span></span><code>make install
-</code></pre></div>
-<p>You may need to run sudo make install depending on your system configuration.</p>
-<p>Now emacs should be available at <code>./src/emacs</code>. We can launch the application
-via <code>./src/emacs</code>. We can navigate to the lisp scratchpad by pressing C-x b and
-hitting enter.</p>
+<p>You also need a working installation of emacs-ng. You can either
+<a href="/building/">build it</a> or install a precompiled binary distribution <a href="/release/">from our CI</a>.</p>
+<h2 id="running-javascript">Running JavaScript<a class="headerlink" href="#running-javascript" title="Permanent link">#</a></h2>
 <p>Type in the following line and press C-j</p>
 <div class="highlight"><pre><span></span><code><span class="p">(</span><span class="nv">eval-js</span> <span class="s">&quot;lisp.print(&#39;hello world!&#39;)&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p>This will display "hello world" in your display area (along with 'nil' - we will
 get to that). This is an anonymous javascript evaluation. Before we go further,
 let’s make an environment for working with our new scripting language.</p>
-<h2 id="running-javascript">Running JavaScript<a class="headerlink" href="#running-javascript" title="Permanent link">#</a></h2>
 <p>We have multiple ways to run JavaScript. Let us open a new <em>TypeScript</em> file by
 creating a file name "basic.ts" in our current directory. It will look something
 like:</p>
@@ -1064,7 +852,7 @@ into buffers. Let's start by something simple: make a network call and dump the
 results into a buffer.</p>
 <h2 id="buffers">Buffers<a class="headerlink" href="#buffers" title="Permanent link">#</a></h2>
 <p>First thing first, let's make our network call. In order to do this, we will use
-our built-in <a href="deno.land">Deno APIs</a>. Deno implements <code>fetch</code>, which looks
+our built-in <a href="https://deno.land">Deno APIs</a>. Deno implements <code>fetch</code>, which looks
 something like this:</p>
 <div class="highlight"><pre><span></span><code><span class="kr">declare</span> <span class="kd">var</span> <span class="nx">lisp</span>: <span class="kt">any</span><span class="p">;</span>
 
@@ -1283,7 +1071,7 @@ Threading and WebASM.</p>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">May 1, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">May 2, 2021</span>
     
   </small>
 </div>

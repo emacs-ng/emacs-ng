@@ -362,6 +362,30 @@
   
   
     <li class="md-nav__item">
+      <a href="../building/" class="md-nav__link">
+        Build from source
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release/" class="md-nav__link">
+        Release .deb package
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../nix-develop/" class="md-nav__link">
         Nix Build / Develop
       </a>
@@ -710,7 +734,7 @@
 <h2 id="emacs-ng-seems-to-be-using-a-large-amount-of-virtual-memory">emacs-ng seems to be using a large amount of virtual memory?<a class="headerlink" href="#emacs-ng-seems-to-be-using-a-large-amount-of-virtual-memory" title="Permanent link">#</a></h2>
 <p>This is due to Tokio/v8 loading up a potentially large number of worker threads based on your core count. You will notice that real memory committed goes up very little from initializing the runtime. In standard emacs, we have observed emacs sitting at about 700K rss vs 900K rss with the JS runtime initialized. Overall, the real memory overhead of initializing is not as bad as the virtual commitment makes it seem.</p>
 <h2 id="i-have-an-existing-node-package-i-want-to-use-but-import-isnt-working">I have an existing node package I want to use, but import isn't working<a class="headerlink" href="#i-have-an-existing-node-package-i-want-to-use-but-import-isnt-working" title="Permanent link">#</a></h2>
-<p>We use the <a href="deno.land">Deno Framework</a> for our JavaScript. Deno uses actual ES6 imports, and not node's commonJS require syntax. You will need to use Deno's compatability module to use require syntax. See https://github.com/denoland/deno/tree/master/std/node</p>
+<p>We use the <a href="https://deno.land">Deno Framework</a> for our JavaScript. Deno uses actual ES6 imports, and not node's commonJS require syntax. You will need to use Deno's compatability module to use require syntax. See https://github.com/denoland/deno/tree/master/std/node</p>
                 
                   
                     
@@ -719,7 +743,7 @@
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">May 1, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">May 2, 2021</span>
     
   </small>
 </div>
