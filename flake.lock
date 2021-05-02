@@ -34,11 +34,11 @@
     "emacsNg-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1619505640,
-        "narHash": "sha256-YRJBdC2bOTvaUzN2SbXxvb7usv4YwN6ya9w1tidnyKs=",
+        "lastModified": 1619896564,
+        "narHash": "sha256-y2+T4Pc1bEAP0MpL6m9UgIkcHTlv/CEvabLTAyTnmoE=",
         "owner": "emacs-ng",
         "repo": "emacs-ng",
-        "rev": "a93e3e4ba9254ebe3147dacc695f5cc42b975a09",
+        "rev": "b02603f7a167cbef5c177c6291644677fa4bcfeb",
         "type": "github"
       },
       "original": {
@@ -143,11 +143,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1619490314,
-        "narHash": "sha256-PDta6J/ZewJFkPy1yNplzsn53vsqaNt/z3NYz/C4W1I=",
+        "lastModified": 1619835986,
+        "narHash": "sha256-RZ6opJgAJhcW6jou50D+V36BHu3WUc2uh4C42vx4kio=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "4062bc4c899019c2c7b11d26ae142837cbf0d0dc",
+        "rev": "4f2051c76032e86338219f477e5ac9e522dd362a",
         "type": "github"
       },
       "original": {
