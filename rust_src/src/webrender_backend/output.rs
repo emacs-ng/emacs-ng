@@ -37,7 +37,7 @@ use super::util::HandyDandyRectBuilder;
 
 pub enum EmacsGUIEvent {
     Flush(SyncSender<ImageKey>),
-    ReadBytes(DeviceIntRect, SyncSender<ImageKey>),
+    ReadBytes(LayoutIntRect, SyncSender<ImageKey>),
 }
 
 pub type GUIEvent = Event<'static, EmacsGUIEvent>;
@@ -267,8 +267,11 @@ impl Output {
                             &renderer,
                         );
                     }
-                    Event::UserEvent(EmacsGUIEvent::ReadBytes(device_rect, sender)) => {
-                        copy_framebuffer_to_texture(device_rect, sender, &renderer);
+                    Event::UserEvent(EmacsGUIEvent::ReadBytes(copy_rect, sender)) => {
+                        let device_rect =
+                            copy_rect.to_f32() * LayoutToDeviceScale::new(device_pixel_ratio);
+
+                        copy_framebuffer_to_texture(device_rect.to_i32(), sender, &renderer);
                     }
                     _ => {}
                 };
@@ -428,12 +431,12 @@ impl Output {
         }
     }
 
-    pub fn read_pixels_rgba8_into_image(&mut self, device_rect: DeviceIntRect) -> ImageKey {
+    pub fn read_pixels_rgba8_into_image(&mut self, rect: LayoutIntRect) -> ImageKey {
         let (texture_sender, texture_receiver) = sync_channel(1);
 
         let _ = self
             .event_loop_proxy
-            .send_event(EmacsGUIEvent::ReadBytes(device_rect, texture_sender));
+            .send_event(EmacsGUIEvent::ReadBytes(rect, texture_sender));
 
         texture_receiver.recv().unwrap()
     }
