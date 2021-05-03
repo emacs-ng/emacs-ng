@@ -404,9 +404,9 @@ impl DrawCanvas {
             }
         };
 
-        let copy_rect = DeviceIntRect::new(
-            DeviceIntPoint::new(x as i32, from_y as i32),
-            DeviceIntSize::new(width as i32, height as i32),
+        let copy_rect = LayoutIntRect::new(
+            LayoutIntPoint::new(x, from_y),
+            LayoutIntSize::new(width, height),
         );
 
         let image_key = self.output.read_pixels_rgba8_into_image(copy_rect);
