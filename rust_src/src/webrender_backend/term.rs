@@ -37,7 +37,7 @@ use emacs::{
     },
     font::LispFontRef,
     frame::{LispFrameRef, Lisp_Frame},
-    globals::{Qbackground_color, Qfullscreen, Qmaximized, Qnil, Qwr},
+    globals::{Qbackground_color, Qfullscreen, Qmaximized, Qnil, Qx},
     glyph::GlyphStringRef,
     keyboard::allocate_keyboard,
     lisp::{ExternalPtr, LispObject},
@@ -750,7 +750,8 @@ pub fn wr_term_init(display_name: LispObject) -> DisplayInfoRef {
 
     let mut terminal = wr_create_terminal(dpyinfo_ref);
 
-    let mut kboard = allocate_keyboard(Qwr);
+    // Pretend that we are X while actually wr
+    let mut kboard = allocate_keyboard(Qx);
 
     terminal.kboard = kboard.as_mut();
 
