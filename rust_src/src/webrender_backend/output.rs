@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    os::raw::c_void,
     rc::Rc,
     sync::mpsc::{channel, sync_channel, Receiver, SyncSender},
     thread::JoinHandle,
@@ -11,7 +12,7 @@ use glutin::{
     self,
     dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoopProxy},
+    event_loop::{ControlFlow, EventLoopProxy, EventLoopWindowTarget},
     monitor::MonitorHandle,
     window::Window,
     ContextWrapper, PossiblyCurrent,
@@ -26,9 +27,24 @@ use glutin::platform::unix::EventLoopExtUnix;
 #[cfg(windows)]
 use glutin::platform::windows::EventLoopExtUnix;
 
+#[cfg(unix)]
+use glutin::platform::unix::EventLoopWindowTargetExtUnix;
+
 use webrender::{self, api::units::*, api::*};
 
 use emacs::bindings::wr_output;
+
+#[cfg(macos)]
+use copypasta::osx_clipboard::OSXClipboardContext;
+#[cfg(windows)]
+use copypasta::windows_clipboard::WindowsClipboardContext;
+#[cfg(unix)]
+use copypasta::{
+    wayland_clipboard::create_clipboards_from_external,
+    x11_clipboard::{Clipboard, X11ClipboardContext},
+};
+
+use copypasta::ClipboardProvider;
 
 use super::display_info::DisplayInfoRef;
 use super::font::FontRef;
@@ -39,6 +55,17 @@ pub enum EmacsGUIEvent {
     Flush(SyncSender<ImageKey>),
     ReadBytes(LayoutIntRect, SyncSender<ImageKey>),
 }
+
+#[allow(dead_code)]
+#[derive(Clone, Copy)]
+pub enum Platform {
+    X11,
+    Wayland(*mut c_void),
+    MacOS,
+    Windows,
+}
+
+unsafe impl Send for Platform {}
 
 pub type GUIEvent = Event<'static, EmacsGUIEvent>;
 
@@ -65,12 +92,24 @@ pub struct Output {
     color_bits: u8,
 
     event_rx: Receiver<GUIEvent>,
+
+    clipboard: Box<dyn ClipboardProvider>,
 }
 
 impl Output {
     pub fn new() -> Self {
-        let (api, window, document_id, loop_thread, event_loop_proxy, color_bits, event_rx) =
-            Self::create_webrender_window();
+        let (
+            api,
+            window,
+            document_id,
+            loop_thread,
+            event_loop_proxy,
+            color_bits,
+            event_rx,
+            platform,
+        ) = Self::create_webrender_window();
+
+        let clipboard = Self::build_clipboard(platform);
 
         Self {
             output: wr_output::default(),
@@ -87,6 +126,7 @@ impl Output {
             event_loop_proxy,
             color_bits,
             event_rx,
+            clipboard,
         }
     }
 
@@ -98,6 +138,7 @@ impl Output {
         EventLoopProxy<EmacsGUIEvent>,
         u8,
         std::sync::mpsc::Receiver<GUIEvent>,
+        Platform,
     ) {
         let (webrender_tx, webrender_rx) = sync_channel(1);
 
@@ -155,8 +196,17 @@ impl Output {
 
             let color_bits = current_context.get_pixel_format().color_bits;
 
+            let platform = Self::detect_platform(&events_loop);
+
             webrender_tx
-                .send((api, window, document_id, color_bits, events_loop_proxy))
+                .send((
+                    api,
+                    window,
+                    document_id,
+                    color_bits,
+                    events_loop_proxy,
+                    platform,
+                ))
                 .unwrap();
 
             let api = sender.create_api();
@@ -278,7 +328,8 @@ impl Output {
             })
         });
 
-        let (api, window, document_id, color_bits, event_loop_proxy) = webrender_rx.recv().unwrap();
+        let (api, window, document_id, color_bits, event_loop_proxy, platform) =
+            webrender_rx.recv().unwrap();
 
         let pipeline_id = PipelineId(0, 0);
 
@@ -294,6 +345,7 @@ impl Output {
             event_loop_proxy,
             color_bits,
             event_rx,
+            platform,
         )
     }
 
@@ -321,6 +373,29 @@ impl Output {
             DeviceIntSize::new(physical_size.width as i32, physical_size.height as i32);
 
         (device_size, layout_size)
+    }
+
+    fn detect_platform<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Platform {
+        #[cfg(unix)]
+        {
+            if event_loop.is_wayland() {
+                return Platform::Wayland(
+                    event_loop
+                        .wayland_display()
+                        .expect("Fetch Wayland display failed"),
+                );
+            } else {
+                return Platform::X11;
+            }
+        }
+        #[cfg(macos)]
+        {
+            return Platform::MacOS;
+        }
+        #[cfg(windows)]
+        {
+            return Platform::Windows;
+        }
     }
 
     fn new_builder(&mut self, image: Option<(ImageKey, LayoutRect)>) -> DisplayListBuilder {
@@ -502,6 +577,7 @@ impl Output {
     pub fn get_position(&self) -> Option<PhysicalPosition<i32>> {
         self.window.outer_position().ok()
     }
+
     pub fn poll_events<F>(&mut self, mut f: F)
     where
         F: FnMut(GUIEvent),
@@ -509,6 +585,32 @@ impl Output {
         for e in self.event_rx.try_iter() {
             f(e);
         }
+    }
+
+    fn build_clipboard(platform: Platform) -> Box<dyn ClipboardProvider> {
+        #[cfg(unix)]
+        {
+            return match platform {
+                Platform::Wayland(wayland_display) => {
+                    let (_, clipboard) =
+                        unsafe { create_clipboards_from_external(wayland_display) };
+                    Box::new(clipboard)
+                }
+                _ => Box::new(X11ClipboardContext::<Clipboard>::new().unwrap()),
+            };
+        }
+        #[cfg(windows)]
+        {
+            return Box::new(WindowsClipboardContext::new().unwrap());
+        }
+        #[cfg(macos)]
+        {
+            return Box::new(OSXClipboardContext::new().unwrap());
+        }
+    }
+
+    pub fn get_clipboard(&mut self) -> &mut Box<dyn ClipboardProvider> {
+        &mut self.clipboard
     }
 }
 

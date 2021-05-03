@@ -30,8 +30,8 @@ use emacs::{
     frame::{window_frame_live_or_selected, LispFrameRef},
     globals::{
         Qbackground_color, Qfont, Qfont_backend, Qforeground_color, Qleft_fringe, Qminibuffer,
-        Qname, Qnil, Qparent_id, Qright_fringe, Qterminal, Qunbound, Qwr, Qx, Qx_create_frame_1,
-        Qx_create_frame_2,
+        Qname, Qnil, Qparent_id, Qright_fringe, Qt, Qterminal, Qunbound, Qwr, Qx,
+        Qx_create_frame_1, Qx_create_frame_2,
     },
     lisp::{ExternalPtr, LispObject},
 };
@@ -685,10 +685,19 @@ pub fn x_display_pixel_height(terminal: LispObject) -> i32 {
 #[lisp_fn(min = "2")]
 pub fn x_own_selection_internal(
     _selection: LispObject,
-    _value: LispObject,
-    _frame: LispObject,
+    value: LispObject,
+    frame: LispObject,
 ) -> LispObject {
-    Qnil
+    let frame = window_frame_live_or_selected(frame);
+    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    let clipboard = output.get_clipboard();
+
+    let content = value.force_string().to_utf8();
+
+    clipboard.set_contents(content).unwrap();
+
+    value
 }
 
 /// Return text selected from some X window.
@@ -709,8 +718,48 @@ pub fn x_get_selection_internal(
     _selection_symbol: LispObject,
     _target_type: LispObject,
     _time_stamp: LispObject,
-    _terminal: LispObject,
+    terminal: LispObject,
 ) -> LispObject {
+    let frame = window_frame_live_or_selected(terminal);
+    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    let clipboard = output.get_clipboard();
+
+    let contents: &str = &clipboard.get_contents().unwrap();
+
+    contents.into()
+}
+
+/// Whether the current Emacs process owns the given X Selection.
+/// The arg should be the name of the selection in question, typically one of
+/// the symbols `PRIMARY', `SECONDARY', or `CLIPBOARD'.
+/// \(Those are literal upper-case symbol names, since that's what X expects.)
+/// For convenience, the symbol nil is the same as `PRIMARY',
+/// and t is the same as `SECONDARY'.
+///
+/// TERMINAL should be a terminal object or a frame specifying the X
+/// server to query.  If omitted or nil, that stands for the selected
+/// frame's display, or the first available X display.
+///
+/// On Nextstep, TERMINAL is unused.
+#[lisp_fn(min = "0")]
+pub fn x_selection_owner_p(_selection: LispObject, _terminal: LispObject) -> LispObject {
+    Qnil
+}
+
+/// Whether there is an owner for the given X selection.
+/// SELECTION should be the name of the selection in question, typically
+/// one of the symbols `PRIMARY', `SECONDARY', `CLIPBOARD', or
+/// `CLIPBOARD_MANAGER' (X expects these literal upper-case names.)  The
+/// symbol nil is the same as `PRIMARY', and t is the same as `SECONDARY'.
+///
+/// TERMINAL should be a terminal object or a frame specifying the X
+/// server to query.  If omitted or nil, that stands for the selected
+/// frame's display, or the first available X display.
+///
+/// On Nextstep, TERMINAL is unused.
+#[lisp_fn(min = "0")]
+pub fn x_selection_exists_p(_selection: LispObject, _terminal: LispObject) -> LispObject {
     Qnil
 }
 
@@ -770,6 +819,13 @@ pub extern "C" fn syms_of_wrterm() {
     // baseline level.  The default value is nil.
     #[rustfmt::skip]
     defvar_bool!(Vx_underline_at_descent_line, "x-underline-at-descent-line", false);
+
+    // Whether to enable X clipboard manager support.
+    // If non-nil, then whenever Emacs is killed or an Emacs frame is deleted
+    // while owning the X clipboard, the clipboard contents are saved to the
+    // clipboard manager if one is present.
+    #[rustfmt::skip]
+    defvar_lisp!(Vx_select_enable_clipboard_manager, "x-select-enable-clipboard-manager", Qt);
 
     syms_of_wrfont();
 }

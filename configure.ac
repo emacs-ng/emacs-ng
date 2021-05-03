@@ -5452,6 +5452,9 @@ if test "${window_system}" = "webrender" ; then
   EMACS_CHECK_MODULES([FONTCONFIG], [fontconfig >= 2.2.0])
   test "$HAVE_FONTCONFIG" = "no" && AC_MSG_ERROR(webrender requires libfontconfig)
 
+  EMACS_CHECK_MODULES([XCB], [xcb >= 1.0.0])
+  test "$HAVE_XCB" = "no" && AC_MSG_ERROR(webrender requires libxcb)
+
 fi
 
 AC_SUBST(XMENU_OBJ)
