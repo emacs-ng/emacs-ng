@@ -17,7 +17,7 @@ use super::{
 use emacs::{
     bindings::{
         block_input, change_frame_size, display_and_set_cursor, do_pending_window_change,
-        draw_window_fringes, face_id, glyph_row_area, gui_clear_end_of_line,
+        draw_window_fringes, face_id, glyph_row_area, gui_clear_cursor, gui_clear_end_of_line,
         gui_clear_window_mouse_face, gui_draw_right_divider, gui_draw_vertical_border,
         gui_fix_overlapping_area, gui_get_glyph_overhangs, gui_produce_glyphs, gui_set_alpha,
         gui_set_autolower, gui_set_autoraise, gui_set_border_width, gui_set_bottom_divider_width,
@@ -475,6 +475,9 @@ extern "C" fn scroll_run(w: *mut Lisp_Window, run: *mut run) {
     let to_y = unsafe { (*run).desired_y + window.top_edge_y() };
 
     let scroll_height = unsafe { (*run).height };
+
+    // Cursor off.  Will be switched on again in gui_update_window_end.
+    unsafe { gui_clear_cursor(w) };
 
     output
         .canvas()

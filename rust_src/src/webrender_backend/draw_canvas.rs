@@ -409,6 +409,9 @@ impl DrawCanvas {
             LayoutIntSize::new(width, height),
         );
 
+        // flush all content to screen before coping screen pixels
+        self.output.flush();
+
         let image_key = self.output.read_pixels_rgba8_into_image(copy_rect);
 
         self.output.display(|builder, space_and_clip| {
