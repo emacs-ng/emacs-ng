@@ -1,0 +1,7 @@
+docker-emacs-ng
+docker
+docs
+generate-docs.sh
+nix
+default.nix
+.git
