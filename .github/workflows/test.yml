@@ -152,7 +152,7 @@ jobs:
               if: runner.os == 'Linux'
               run: |
                   echo "LD=lld" >> $GITHUB_ENV
-                  echo "CFLAGS=$CFLAGS -fuse-ld=lld" >> $GITHUB_ENV
+                  echo "CFLAGS=$CFLAGS -fuse-ld=lld -lxcb-render -lxcb-xfixes -lxcb-shape" >> $GITHUB_ENV
                   echo "CXXFLAGS=$CXXFLAGS -fuse-ld=lld" >> $GITHUB_ENV
                   echo "RUSTFLAGS=$RUSTFLAGS -Clink-arg=-fuse-ld=lld" >> $GITHUB_ENV
 
