@@ -95,8 +95,8 @@ impl InputProcessor {
         };
 
         let s = match state {
-            ElementState::Pressed => up_modifier,
-            ElementState::Released => down_modifier,
+            ElementState::Pressed => down_modifier,
+            ElementState::Released => up_modifier,
         };
 
         let iev = input_event {
