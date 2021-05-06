@@ -108,8 +108,8 @@
     // {
       overlay = final: prev:
         let
-          #emacsNgSource = emacsNg-src;
-          emacsNgSource = ./.;
+          emacsNgSource = emacsNg-src;
+          #emacsNgSource = ./.;
           #rust nightly date
           locked-date = prev.lib.removePrefix "nightly-" (prev.lib.removeSuffix "\n" (builtins.readFile ./rust-toolchain));
         in
@@ -129,11 +129,15 @@
                 '';
 
                 remacsLibDeps = prev.rustPlatform.fetchCargoTarball {
-                  #FIXME: emacsNgSource carshed here
-                  src = emacsNg-src;
-                  sourceRoot = "source/rust_src/remacs-lib";
+                  src = emacsNgSource + /rust_src/remacs-lib;
                   name = "remacsLibDeps";
-                  cargoUpdateHook = doVersionedUpdate;
+                  cargoUpdateHook =
+                    let
+                      pathDir = emacsNgSource + /rust_src/crates;
+                    in
+                    ''
+                      cp -r ${pathDir} /build/crates
+                    '' + doVersionedUpdate;
                   sha256 = "sha256-W/A3mYNBLZrcjL9ehXe6ndjv/bMiUdRDTylAM9hLeoo=";
                   inherit installPhase;
                 };
@@ -225,8 +229,8 @@
               rec {
                 name = "emacsNg-" + version;
                 src = emacsNgSource;
-                #version = builtins.substring 0 7 emacsNgSource.rev;
-                version = "develop";
+                version = builtins.substring 0 7 emacsNgSource.rev;
+                #version = "develop";
 
                 preConfigure = (old.preConfigure or "") + ''
             '';
