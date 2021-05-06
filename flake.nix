@@ -108,8 +108,8 @@
     // {
       overlay = final: prev:
         let
-          emacsNgSource = emacsNg-src;
-          #emacsNgSource = "./.";
+          #emacsNgSource = emacsNg-src;
+          emacsNgSource = ./.;
           #rust nightly date
           locked-date = prev.lib.removePrefix "nightly-" (prev.lib.removeSuffix "\n" (builtins.readFile ./rust-toolchain));
         in
@@ -129,7 +129,8 @@
                 '';
 
                 remacsLibDeps = prev.rustPlatform.fetchCargoTarball {
-                  src = emacsNgSource;
+                  #FIXME: emacsNgSource carshed here
+                  src = emacsNg-src;
                   sourceRoot = "source/rust_src/remacs-lib";
                   name = "remacsLibDeps";
                   cargoUpdateHook = doVersionedUpdate;
@@ -138,7 +139,7 @@
                 };
 
                 remacsBindings = prev.rustPlatform.fetchCargoTarball {
-                  src = "${emacsNgSource}/rust_src/remacs-bindings";
+                  src = emacsNgSource + "/rust_src/remacs-bindings";
                   sourceRoot = null;
                   cargoUpdateHook = doVersionedUpdate;
                   name = "remacsBindings";
@@ -147,17 +148,17 @@
                 };
 
                 remacsSrc = prev.rustPlatform.fetchCargoTarball {
-                  src = "${emacsNgSource}/rust_src";
+                  src = emacsNgSource + "/rust_src";
                   cargoUpdateHook = ''
                     sed -e 's/@CARGO_.*@//' Cargo.toml.in > Cargo.toml
                   '' + doVersionedUpdate;
                   name = "remacsSrc";
-                  sha256 = "sha256-Tn1sbMSIjy+VTId5lrlw8eeBFgIiAtQoSv6c+VDvmfI=";
+                  sha256 = "sha256-d8Fvg+FrYNVTZAU/QRyvSPuSXbqncg3LaEOWeZzSa8Q=";
                   inherit installPhase;
                 };
 
                 remacsHashdir = prev.rustPlatform.fetchCargoTarball {
-                  src = "${emacsNgSource}/lib-src/hashdir";
+                  src = emacsNgSource + "/lib-src/hashdir";
                   sourceRoot = null;
                   name = "remacsHashdir";
                   cargoUpdateHook = doVersionedUpdate;
@@ -224,7 +225,8 @@
               rec {
                 name = "emacsNg-" + version;
                 src = emacsNgSource;
-                version = builtins.substring 0 7 emacsNgSource.rev;
+                #version = builtins.substring 0 7 emacsNgSource.rev;
+                version = "develop";
 
                 preConfigure = (old.preConfigure or "") + ''
             '';
@@ -263,9 +265,9 @@
                         done
                       }
                       _librusty_v8_setup "debug" "release" "${arch}/release"
-                        sed -i 's|deno = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng"|deno = { version = "1.8.1"|' rust_src/Cargo.toml
-                        sed -i 's|deno_runtime = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng"|deno_runtime = { version = "0.9.3"|' rust_src/Cargo.toml
-                        sed -i 's|deno_core = { git = "https://github.com/DavidDeSimone/deno"|deno_core = { version = "0.80.2"|' rust_src/Cargo.toml
+                        sed -i 's|deno = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng"|deno = { version = "1.9.2"|' rust_src/Cargo.toml
+                        sed -i 's|deno_runtime = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng"|deno_runtime = { version = "0.13.0"|' rust_src/Cargo.toml
+                        sed -i 's|deno_core = { git = "https://github.com/DavidDeSimone/deno"|deno_core = { version = "0.86.0"|' rust_src/Cargo.toml
                       export HOME=${final.emacsNg-rust}
                   '';
 

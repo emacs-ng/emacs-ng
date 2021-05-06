@@ -43,6 +43,14 @@ command = "cargo build --manifest-path=./rust_src/remacs-bindings/Cargo.toml"
 help = "cargo build remacs-bindings"
 category = "rust-build"
 
+[[commands]]
+name = "lock-emacsng"
+category = "emacsNg"
+command = '''
+        git apply nix/lock-rev.patch
+        nix flake lock --update-input emacsNg-src
+        '''
+help = ""
 # [[env]]
 # name = "HOME"
 # value = "bin/test"
