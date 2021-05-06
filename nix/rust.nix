@@ -1,7 +1,7 @@
 { lib, config, pkgs, ... }:
 let
   cfg = config.language.rust;
-  date = "2021-01-14";
+  date = "2021-04-25";
 in
 with pkgs;
 with lib;
