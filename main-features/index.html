@@ -691,7 +691,7 @@
                 <h1 id="main-features">Main Features<a class="headerlink" href="#main-features" title="Permanent link">#</a></h1>
 <h2 id="javascript">Javascript<a class="headerlink" href="#javascript" title="Permanent link">#</a></h2>
 <p>This code is a strictly additive layer, it changes no elisp functionality, and should be able to merge upstream patches cleanly. JS tests can be run by building the editor and executing <code>cd test/js &amp;&amp; ../../src/emacs --batch --eval '(deno "test" "--allow-read" "--allow-write" "main.js")'</code>.</p>
-<p>To learn more about JavaScript and TypeScript, it is recommended you check out <a href="https://github.com/emacs-ng/emacs-ng/blob/master/docs/getting-started.md">Getting Started</a>, <a href="https://github.com/emacs-ng/emacs-ng/blob/master/docs/using-deno.md">Using Deno</a>, and <a href="https://github.com/emacs-ng/emacs-ng/blob/master/docs/adv-features.md">Advanced Features</a></p>
+<p>To learn more about JavaScript and TypeScript, it is recommended you check out <a href="../getting-started/">Getting Started</a>, <a href="../using-deno/">Using Deno</a>, and <a href="../adv-features/">Advanced Features</a></p>
 <h3 id="using-async-io">Using Async I/O<a class="headerlink" href="#using-async-io" title="Permanent link">#</a></h3>
 <p>We expose the async IO functionality included with deno. Users can fetch data async from their local file system, or the network. They can use that data to interact with the editor. An example would be:</p>
 <p><div class="highlight"><pre><span></span><code><span class="kd">const</span> <span class="nx">json</span> <span class="o">=</span> <span class="nx">fetch</span><span class="p">(</span><span class="s2">&quot;https://api.github.com/users/denoland&quot;</span><span class="p">)</span>
@@ -712,7 +712,7 @@
 </code></pre></div>
 This example assumes you have a json file named <code>test.json</code> in your current directory.</p>
 <h3 id="webworkers-and-parallel-scripting">WebWorkers and Parallel Scripting<a class="headerlink" href="#webworkers-and-parallel-scripting" title="Permanent link">#</a></h3>
-<p>We also support WebWorkers, meaning that you can run javascript in separate threads. Note that WebWorkers cannot interact with the lisp VM, however they can use Deno for async I/O. See <a href="https://github.com/emacs-ng/emacs-ng/blob/master/docs/adv-features.md">Advanced Features</a></p>
+<p>We also support WebWorkers, meaning that you can run javascript in separate threads. Note that WebWorkers cannot interact with the lisp VM, however they can use Deno for async I/O. See <a href="../adv-features/">Advanced Features</a></p>
 <p>Web Assembly allows you to perform things normally handled by native libraries with easy distribution. Want to manipulate sqlite3? Use the <a href="https://deno.land/x/sqlite@v2.3.2/mod.ts">deno sqlite wasm package</a></p>
 <div class="highlight"><pre><span></span><code><span class="k">import</span> <span class="p">{</span> <span class="nx">DB</span> <span class="p">}</span> <span class="nx">from</span> <span class="s2">&quot;https://deno.land/x/sqlite@v2.3.2/mod.ts&quot;</span><span class="p">;</span>
 
