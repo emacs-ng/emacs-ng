@@ -10,6 +10,7 @@ nav:
     - Overview: README.md
     - Setup:
       - Build from source: building.md
+      - Build with Docker: docker.md
       - Release .deb package: release.md
       - Nix Build / Develop: nix-develop.md
   - Features:
