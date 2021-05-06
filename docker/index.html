@@ -11,14 +11,14 @@
       
       
       
-        <link rel="canonical" href="https://emacs-ng.github.io/emacs-ng/release/">
+        <link rel="canonical" href="https://emacs-ng.github.io/emacs-ng/docker/">
       
       <link rel="shortcut icon" href="../images/logo.png">
       <meta name="generator" content="mkdocs-1.1.2, mkdocs-material-7.0.5">
     
     
       
-        <title>Release .deb package - Emacs NG - A new approach to Emacs</title>
+        <title>Build with Docker - Emacs NG - A new approach to Emacs</title>
       
     
     
@@ -63,6 +63,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#build-emacs-ng-using-a-docker-container" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -90,7 +95,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Release .deb package
+              Build with Docker
             
           </span>
         </div>
@@ -371,18 +376,6 @@
             
   
   
-  
-    <li class="md-nav__item">
-      <a href="../docker/" class="md-nav__link">
-        Build with Docker
-      </a>
-    </li>
-  
-
-          
-            
-  
-  
     
   
   
@@ -390,11 +383,25 @@
       
       <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
       
+        
+      
       
       <a href="./" class="md-nav__link md-nav__link--active">
-        Release .deb package
+        Build with Docker
       </a>
       
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release/" class="md-nav__link">
+        Release .deb package
+      </a>
     </li>
   
 
@@ -559,19 +566,62 @@
               </div>
             
             
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
           
           <div class="md-content" data-md-component="content">
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/emacs-ng/emacs-ng/edit/master/docs/release.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/emacs-ng/emacs-ng/edit/master/docs/docker.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
                 
-                  <h1>Release .deb package</h1>
-                
-                <p>Our CI currently builds <a href="https://github.com/emacs-ng/emacs-ng/releases">binary releases for Ubuntu</a>. Expect more to come: contributions are welcome!</p>
+                <h1 id="build-emacs-ng-using-a-docker-container">Build emacs-ng using a Docker container<a class="headerlink" href="#build-emacs-ng-using-a-docker-container" title="Permanent link">#</a></h1>
+<p>To ease the job of building emacs-ng, we are preparing Docker images
+to allow a fully containerized build without installing any build dependencies.</p>
+<p>Bulding this will create a Docker image of about ~9 gb and will take
+quite some time (~45 minutes, depending on your workstation specs). Once the
+build is completed you can extract the artifact out of the container
+and install it.</p>
+<p>Usage example of the Dockerfile for building for Debian GNU/Linux:</p>
+<p>Clone the emacs-ng repository and build the image locally:
+<div class="highlight"><pre><span></span><code>$ git clone --depth<span class="o">=</span><span class="m">1</span> https://github.com/emacs-ng/emacs-ng.git
+$ <span class="nb">cd</span> emacs-ng
+$ docker build -t emacs-ng:builder -f docker/Dockerfile.debian .
+</code></pre></div></p>
+<p>At the end you should read this output:
+<div class="highlight"><pre><span></span><code>**********************************************************************
+
+ Done. The new package has been saved to
+
+ /src/emacs-ng_0.1-1_amd64.deb
+ You can install it <span class="k">in</span> your system anytime using:
+
+      dpkg -i emacs-ng_0.1-1_amd64.deb
+
+**********************************************************************
+</code></pre></div></p>
+<p>Copy the .deb out of the container, then destroy the container:
+<div class="highlight"><pre><span></span><code>$ <span class="nv">container_id</span><span class="o">=</span><span class="k">$(</span> docker run -d --name delete-me emacs-ng:builder <span class="k">)</span>
+$ docker cp <span class="nv">$container_id</span>:/emacs-ng/emacs-ng_0.1-1_amd64.deb ~/tmp/
+$ docker rm delete-me
+</code></pre></div></p>
                 
                   
                     
@@ -602,7 +652,7 @@
   
     <nav class="md-footer__inner md-grid" aria-label="Footer">
       
-        <a href="../docker/" class="md-footer__link md-footer__link--prev" rel="prev">
+        <a href="../building/" class="md-footer__link md-footer__link--prev" rel="prev">
           <div class="md-footer__button md-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
           </div>
@@ -611,19 +661,19 @@
               <span class="md-footer__direction">
                 Previous
               </span>
-              Build with Docker
+              Build from source
             </div>
           </div>
         </a>
       
       
-        <a href="../nix-develop/" class="md-footer__link md-footer__link--next" rel="next">
+        <a href="../release/" class="md-footer__link md-footer__link--next" rel="next">
           <div class="md-footer__title">
             <div class="md-ellipsis">
               <span class="md-footer__direction">
                 Next
               </span>
-              Nix Build / Develop
+              Release .deb package
             </div>
           </div>
           <div class="md-footer__button md-icon">
