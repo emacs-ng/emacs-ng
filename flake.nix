@@ -129,7 +129,8 @@
                 '';
 
                 remacsLibDeps = prev.rustPlatform.fetchCargoTarball {
-                  src = emacsNgSource;
+                  #FIXME: emacsNgSource carshed here
+                  src = emacsNg-src;
                   sourceRoot = "source/rust_src/remacs-lib";
                   name = "remacsLibDeps";
                   cargoUpdateHook = doVersionedUpdate;
