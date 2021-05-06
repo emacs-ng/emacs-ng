@@ -33,7 +33,9 @@ category = "emacsNg"
 
 [[commands]]
 name = "push-cachix"
-command = "nix-build | cachix push emacsng"
+command = '''
+          nix-shell --command "push-cachix"
+        '''
 help = "push emacsNg binary cache to Cachix | -> nix/cachix-key.secrets"
 category = "update"
 
@@ -47,10 +49,24 @@ category = "rust-build"
 name = "lock-emacsng"
 category = "emacsNg"
 command = '''
-        git apply nix/lock-rev.patch
+        sed -i 's|version = "develop|\#version = "develop|' flake.nix
+        sed -i 's|\#version = builtins|version = builtins|' flake.nix
+        sed -i 's|emacsNgSource = ./|\#emacsNgSource = ./|' flake.nix
+        sed -i 's|\#emacsNgSource = emacs|emacsNgSource = emacs|' flake.nix
         nix flake lock --update-input emacsNg-src
         '''
-help = ""
+help = "lock rev for bindary cache build"
+
+[[commands]]
+name = "dev-emacsng"
+category = "emacsNg"
+command = '''
+        sed -i 's|\#version = "develop|version = "develop|' flake.nix
+        sed -i 's|version = builtins|\#version = builtins|' flake.nix
+        sed -i 's|\#emacsNgSource = ./|emacsNgSource = ./|' flake.nix
+        sed -i 's|emacsNgSource = emacs|\#emacsNgSource = emacs|' flake.nix
+        '''
+help = "using src = ./. for develop mode"
 # [[env]]
 # name = "HOME"
 # value = "bin/test"

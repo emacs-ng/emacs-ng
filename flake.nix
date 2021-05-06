@@ -108,8 +108,8 @@
     // {
       overlay = final: prev:
         let
-          #emacsNgSource = emacsNg-src;
-          emacsNgSource = ./.;
+          emacsNgSource = emacsNg-src;
+          #emacsNgSource = ./.;
           #rust nightly date
           locked-date = prev.lib.removePrefix "nightly-" (prev.lib.removeSuffix "\n" (builtins.readFile ./rust-toolchain));
         in
@@ -129,11 +129,15 @@
                 '';
 
                 remacsLibDeps = prev.rustPlatform.fetchCargoTarball {
-                  #FIXME: emacsNgSource carshed here
-                  src = emacsNg-src;
-                  sourceRoot = "source/rust_src/remacs-lib";
+                  src = emacsNgSource + /rust_src/remacs-lib;
                   name = "remacsLibDeps";
-                  cargoUpdateHook = doVersionedUpdate;
+                  cargoUpdateHook =
+                    let
+                      pathDir = emacsNgSource + /rust_src/crates;
+                    in
+                    ''
+                      cp -r ${pathDir} /build/crates
+                    '' + doVersionedUpdate;
                   sha256 = "sha256-W/A3mYNBLZrcjL9ehXe6ndjv/bMiUdRDTylAM9hLeoo=";
                   inherit installPhase;
                 };
@@ -220,37 +224,49 @@
                     alsaLib
                     libxkbcommon
                     wayland
+                    libxcb
                   ]);
               in
               rec {
                 name = "emacsNg-" + version;
                 src = emacsNgSource;
-                #version = builtins.substring 0 7 emacsNgSource.rev;
-                version = "develop";
+                version = builtins.substring 0 7 emacsNgSource.rev;
+                #version = "develop";
 
                 preConfigure = (old.preConfigure or "") + ''
-            '';
+                '' + lib.optionalString withWebreader ''
+                  export NIX_CFLAGS_LINK="$NIX_CFLAGS_LINK -lxcb-render -lxcb-xfixes -lxcb-shape"
+                '';
 
                 patches = (old.patches or [ ]) ++ [
                 ];
+
+                makeFlags =
+                  (old.makeFlags or [ ]) ++ [
+                    "CARGO_FLAGS=--offline" #nightly channel
+                  ];
 
                 #custom configure Flags Setting
                 configureFlags = (if withWebreader then
                   lib.subtractLists [
                     "--with-x-toolkit=gtk3"
                     "--with-xft"
+                    "--with-harfbuzz"
+                    "--with-cairo"
+                    "--with-imagemagick"
                   ]
                     old.configureFlags else
                   old.configureFlags) ++ [
                   "--with-json"
                   "--with-threads"
                   "--with-included-regex"
-                  "--with-harfbuzz"
                   "--with-compress-install"
                   "--with-zlib"
                   "--with-dumping=pdumper"
                 ] ++ lib.optionals withWebreader [
                   "--with-webrender"
+                ] ++ lib.optionals (! withWebreader) [
+                  "--with-harfbuzz"
                 ] ++ lib.optionals stdenv.isLinux [
                   "--with-dbus"
                 ];
@@ -285,7 +301,10 @@
                   custom-llvmPackages.clang
                   custom-llvmPackages.libclang
                   final.rust-bin.nightly."${locked-date}".default
-                ] ++ lib.optionals
+                ] ++ lib.optionals withWebreader (with xorg;[
+                  python3
+                  rpathLibs
+                ]) ++ lib.optionals
                   stdenv.isDarwin
                   (with darwin.apple_sdk.frameworks; with darwin; [
                     libobjc
@@ -303,10 +322,7 @@
                     OpenGL
                   ]);
 
-                makeFlags =
-                  (old.makeFlags or [ ]) ++ [
-                    "CARGO_FLAGS=--offline" #nightly channel
-                  ];
+
 
                 postFixup = (old.postFixup or "") + (if withWebreader then
                   lib.concatStringsSep "\n" [
