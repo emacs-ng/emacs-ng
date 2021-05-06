@@ -6,7 +6,7 @@ The answer here is a loud NO. The maintainers love elisp and we will never remov
 
 ## How should I use JS/TS as an existing package maintainer?
 
-If you have a large elisp package, our guidance is not that you should rewrite your entire package in JS/TS. Instead, we encourage package maintainers to explore using JS/TS's Async I/O and Threading capabilities to improve performance their hot code paths on emacs-ng. Using `(featurep 'emacs-ng)`, you can include an import statement for a JS/TS package that defun's functions for you to use. Our [Getting Started Guide](https://github.com/emacs-ng/emacs-ng/blob/master/docs/getting-started.md) is a good place to start.
+If you have a large elisp package, our guidance is not that you should rewrite your entire package in JS/TS. Instead, we encourage package maintainers to explore using JS/TS's Async I/O and Threading capabilities to improve performance their hot code paths on emacs-ng. Using `(featurep 'emacs-ng)`, you can include an import statement for a JS/TS package that defun's functions for you to use. Our [Getting Started Guide](./getting-started.md) is a good place to start.
 
 ## How does adding JS/TS affect your ability to merge future emacs improvements?
 
