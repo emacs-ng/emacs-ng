@@ -9,8 +9,8 @@ render_deps=",librsvg2-2,libxpm4,libjpeg9,libtiff5,libgif7,libpng16-16,libgtk-3-
 
 if [[ ${@:2} == *--with-webrender* ]]; then
     echo "in"
-    render_libs=
-    render_deps=
+    render_libs="${render_libs} libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev"
+    render_deps="${render_deps},libxcb1,libxcb-render0,libxcb-shape0,libxcb-xfixes0"
 fi
 
 sudo add-apt-repository -y ppa:ubuntu-toolchain-r/ppa

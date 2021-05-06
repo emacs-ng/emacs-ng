@@ -44,6 +44,7 @@ webrender = { version = "0.61", optional = true }
 openssl = { version = "0.10", features = ["vendored"], optional = true }
 openssl-sys = { version = "0.9", optional = true }
 git2 = { version = "0.13", optional = true }
+copypasta = { version = "0.7.1", optional = true }
 
 [build-dependencies]
 clippy = { version = "*", optional = true }
@@ -90,7 +91,7 @@ window-system-w32 = []
 # Build with git2rs support
 libgit = ["git2", "openssl", "openssl-sys"]
 # Use the webrender window system
-window-system-webrender = ["font-kit", "webrender", "glutin", "gleam", "app_units", "emacs/window-system-webrender"]
+window-system-webrender = ["font-kit", "webrender", "glutin", "gleam", "app_units", "emacs/window-system-webrender", "copypasta"]
 # Treat warnings as a build error on Travis.
 strict = []
 # Use JavaScript and Deno

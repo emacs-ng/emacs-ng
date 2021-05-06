@@ -106,7 +106,7 @@ jobs:
               if: runner.os == 'Linux'
               run: |
                   ## Package Install
-                  sudo apt install -y libxpm-dev libgtk2.0-dev libgif-dev libgnutls28-dev clang llvm lld
+                  sudo apt install -y libxpm-dev libgtk2.0-dev libgif-dev libgnutls28-dev libxcb-render0-dev libxcb-shape0-dev  libxcb-xfixes0-dev clang llvm lld
                   # Already installed: automake autoconf texinfo libjpeg-dev libpng-dev libtiff-dev libx11-dev  libncurses-dev zlib1g-dev
                   # When use native-comp: libgccjit-9-dev
                   # When use gcc: build-essential
@@ -152,7 +152,7 @@ jobs:
               if: runner.os == 'Linux'
               run: |
                   echo "LD=lld" >> $GITHUB_ENV
-                  echo "CFLAGS=$CFLAGS -fuse-ld=lld" >> $GITHUB_ENV
+                  echo "CFLAGS=$CFLAGS -fuse-ld=lld -lxcb-render -lxcb-xfixes -lxcb-shape" >> $GITHUB_ENV
                   echo "CXXFLAGS=$CXXFLAGS -fuse-ld=lld" >> $GITHUB_ENV
                   echo "RUSTFLAGS=$RUSTFLAGS -Clink-arg=-fuse-ld=lld" >> $GITHUB_ENV
 

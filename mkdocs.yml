@@ -9,6 +9,8 @@ nav:
   - Home:
     - Overview: README.md
     - Setup:
+      - Build from source: building.md
+      - Release .deb package: release.md
       - Nix Build / Develop: nix-develop.md
   - Features:
     - Basic features: main-features.md
