@@ -17,8 +17,8 @@ Whenever the toolchain updates, you have to reinstall rustfmt manually.
 You also need a working installation of emacs-ng. You can either
 [build it] or install a precompiled binary distribution [from our CI].
 
-[build it]: /building/
-[from our CI]: /release/
+[build it]: ./building.md
+[from our CI]: ./release.md
 
 ## Running JavaScript
 
