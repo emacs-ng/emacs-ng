@@ -224,6 +224,7 @@
                     alsaLib
                     libxkbcommon
                     wayland
+                    libxcb
                   ]);
               in
               rec {
@@ -233,28 +234,39 @@
                 #version = "develop";
 
                 preConfigure = (old.preConfigure or "") + ''
-            '';
+                '' + lib.optionalString withWebreader ''
+                  export NIX_CFLAGS_LINK="$NIX_CFLAGS_LINK -lxcb-render -lxcb-xfixes -lxcb-shape"
+                '';
 
                 patches = (old.patches or [ ]) ++ [
                 ];
+
+                makeFlags =
+                  (old.makeFlags or [ ]) ++ [
+                    "CARGO_FLAGS=--offline" #nightly channel
+                  ];
 
                 #custom configure Flags Setting
                 configureFlags = (if withWebreader then
                   lib.subtractLists [
                     "--with-x-toolkit=gtk3"
                     "--with-xft"
+                    "--with-harfbuzz"
+                    "--with-cairo"
+                    "--with-imagemagick"
                   ]
                     old.configureFlags else
                   old.configureFlags) ++ [
                   "--with-json"
                   "--with-threads"
                   "--with-included-regex"
-                  "--with-harfbuzz"
                   "--with-compress-install"
                   "--with-zlib"
                   "--with-dumping=pdumper"
                 ] ++ lib.optionals withWebreader [
                   "--with-webrender"
+                ] ++ lib.optionals (! withWebreader) [
+                  "--with-harfbuzz"
                 ] ++ lib.optionals stdenv.isLinux [
                   "--with-dbus"
                 ];
@@ -289,7 +301,10 @@
                   custom-llvmPackages.clang
                   custom-llvmPackages.libclang
                   final.rust-bin.nightly."${locked-date}".default
-                ] ++ lib.optionals
+                ] ++ lib.optionals withWebreader (with xorg;[
+                  python3
+                  rpathLibs
+                ]) ++ lib.optionals
                   stdenv.isDarwin
                   (with darwin.apple_sdk.frameworks; with darwin; [
                     libobjc
@@ -307,10 +322,7 @@
                     OpenGL
                   ]);
 
-                makeFlags =
-                  (old.makeFlags or [ ]) ++ [
-                    "CARGO_FLAGS=--offline" #nightly channel
-                  ];
+
 
                 postFixup = (old.postFixup or "") + (if withWebreader then
                   lib.concatStringsSep "\n" [
