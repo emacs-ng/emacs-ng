@@ -22,11 +22,11 @@ jobs:
                       ~/.cargo/git
                       ./rust_src/target
                   key: |
-                      ${{ runner.os }}-${{ matrix.build }}-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-${{ steps.rust-setup.outputs.week }}
+                      ${{ runner.os }}-${{ matrix.build }}-deno-v1.9.1-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-${{ steps.rust-setup.outputs.week }}
                   restore-keys: |
-                      ${{ runner.os }}-${{ matrix.build }}-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-${{ steps.rust-setup.outputs.week }}
-                      ${{ runner.os }}-${{ matrix.build }}-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-
-                      ${{ runner.os }}-${{ matrix.build }}-rust
+                      ${{ runner.os }}-${{ matrix.build }}-deno-v1.9.1-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-${{ steps.rust-setup.outputs.week }}
+                      ${{ runner.os }}-${{ matrix.build }}-deno-v1.9.1-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-
+                      ${{ runner.os }}-${{ matrix.build }}-deno-v1.9.1-rust
 
             - name: cache cleanup
               if: steps.rust-cache.outputs.cache-hit != 'true'
