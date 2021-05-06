@@ -15,5 +15,5 @@ GITHUB_ACTOR=YOUR_GITHUB_USERNAME
 GITHUB_TOKEN=${GITHUB_TOKEN}
 
 cp -rf images README.md docs
-#docker login docker.pkg.github.com --username $GITHUB_ACTOR --password $GITHUB_TOKEN
+docker login docker.pkg.github.com --username $GITHUB_ACTOR --password $GITHUB_TOKEN
 docker run --network host --rm -v ${PWD}:/docs docker.pkg.github.com/emacs-ng/docs-image/docs-image -- serve
