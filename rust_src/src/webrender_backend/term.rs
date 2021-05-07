@@ -622,7 +622,6 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
                     false,
                     true,
                     false,
-                    true,
                 );
 
                 do_pending_window_change(false);
