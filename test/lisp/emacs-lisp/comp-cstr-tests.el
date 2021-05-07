@@ -1,6 +1,6 @@
 ;;; comp-cstr-tests.el --- unit tests for src/comp.c -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2020 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
 
 ;; Author: Andrea Corallo <akrl@sdf.org>
 
@@ -147,7 +147,7 @@
       ;; 52 Conservative.
       ((or (member foo) (not string)) . (not string))
       ;; 53
-      ((or (not (integer 1 2)) integer) . integer)
+      ((or (not (integer 1 2)) integer) . t)
       ;; 54
       ((or (not (integer 1 2)) (not integer)) . (not integer))
       ;; 55
@@ -181,7 +181,7 @@
       ;; 69
       ((and (integer 0 20) (not (integer 5 10))) . (or (integer 0 4) (integer 11 20)))
       ;; 70
-      ((and (not (member a)) (not (member b))) . (not (member b a)))
+      ((and (not (member a)) (not (member b))) . (not (member a b)))
       ;; 71
       ((and (not boolean) (not (member b))) . (not (or (member b) boolean)))
       ;; 72
@@ -198,22 +198,26 @@
       ((and (or symbol string) (or number marker)) . nil)
       ;; 78
       ((and t t) . t)
-      ;; 80
+      ;; 79
       ((and (or marker number) (integer 0 0)) . (integer 0 0))
-      ;; 81
+      ;; 80
       ((and t (not t)) . nil)
-      ;; 82
+      ;; 81
       ((or (integer 1 1) (not (integer 1 1))) . t)
-      ;; 83
+      ;; 82
       ((not t) . nil)
-      ;; 84
+      ;; 83
       ((not nil) . t)
-      ;; 85
+      ;; 84
       ((or (not string) t) . t)
-      ;; 86
+      ;; 85
       ((or (not vector) sequence) . sequence)
+      ;; 86
+      ((or (not symbol) null) . t)
       ;; 87
-      ((or (not symbol) null) . t))
+      ((and (or null integer) (not (or null integer))) . nil)
+      ;; 88
+      ((and (or (member a b c)) (not (or (member a b)))) . (member c)))
     "Alist type specifier -> expected type specifier."))
 
 (defmacro comp-cstr-synthesize-tests ()

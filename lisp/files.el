@@ -1653,13 +1653,14 @@ rather than FUN itself, to `minibuffer-setup-hook'."
     (when (eq (car-safe fun) :append)
       (setq append '(t) fun (cadr fun)))
     `(let ((,funsym ,fun)
-           ,hook)
-       (setq ,hook
-             (lambda ()
-               ;; Clear out this hook so it does not interfere
-               ;; with any recursive minibuffer usage.
-               (remove-hook 'minibuffer-setup-hook ,hook)
-               (funcall ,funsym)))
+           ;; Use a symbol to make sure `add-hook' doesn't waste time
+           ;; in `equal'ity testing (bug#46326).
+           (,hook (make-symbol "minibuffer-setup")))
+       (fset ,hook (lambda ()
+                     ;; Clear out this hook so it does not interfere
+                     ;; with any recursive minibuffer usage.
+                     (remove-hook 'minibuffer-setup-hook ,hook)
+                     (funcall ,funsym)))
        (unwind-protect
            (progn
              (add-hook 'minibuffer-setup-hook ,hook ,@append)
@@ -2128,27 +2129,60 @@ think it does, because \"free\" is pretty hard to define in practice."
 
 (declare-function x-popup-dialog "menu.c" (position contents &optional header))
 
+(defun files--ask-user-about-large-file-help-text (op-type size)
+  "Format the text that explains the options to open large files in Emacs.
+OP-TYPE contains the kind of file operation that will be
+performed.  SIZE is the size of the large file."
+  (format
+   "The file that you want to %s is large (%s), which exceeds the
+ threshold above which Emacs asks for confirmation (%s).
+
+ Large files may be slow to edit or navigate so Emacs asks you
+ before you try to %s such files.
+
+ You can press:
+ 'y' to %s the file.
+ 'n' to abort, and not %s the file.
+ 'l' (the letter ell) to %s the file literally, which means that
+ Emacs will %s the file without doing any format or character code
+ conversion and in Fundamental mode, without loading any potentially
+ expensive features.
+
+ You can customize the option `large-file-warning-threshold' to be the
+ file size, in bytes, from which Emacs will ask for confirmation.  Set
+ it to nil to never request confirmation."
+   op-type
+   size
+   (funcall byte-count-to-string-function large-file-warning-threshold)
+   op-type
+   op-type
+   op-type
+   op-type
+   op-type))
+
 (defun files--ask-user-about-large-file (size op-type filename offer-raw)
+  "Query the user about what to do with large files.
+Files are \"large\" if file SIZE is larger than `large-file-warning-threshold'.
+
+OP-TYPE specifies the file operation being performed on FILENAME.
+
+If OFFER-RAW is true, give user the additional option to open the
+file literally."
   (let ((prompt (format "File %s is large (%s), really %s?"
 		        (file-name-nondirectory filename)
 		        (funcall byte-count-to-string-function size) op-type)))
     (if (not offer-raw)
         (if (y-or-n-p prompt) nil 'abort)
-      (let* ((use-dialog (and (display-popup-menus-p)
-                              last-input-event
-	                      (listp last-nonmenu-event)
-	                      use-dialog-box))
-             (choice
-              (if use-dialog
-                  (x-popup-dialog t `(,prompt
-                                      ("Yes" . ?y)
-                                      ("No" . ?n)
-                                      ("Open literally" . ?l)))
-                (read-char-choice
-                 (concat prompt " (y)es or (n)o or (l)iterally ")
-                 '(?y ?Y ?n ?N ?l ?L)))))
-        (cond ((memq choice '(?y ?Y)) nil)
-              ((memq choice '(?l ?L)) 'raw)
+      (let ((choice
+             (car
+              (read-multiple-choice
+               prompt '((?y "yes")
+                        (?n "no")
+                        (?l "literally"))
+               (files--ask-user-about-large-file-help-text
+                op-type (funcall byte-count-to-string-function size))))))
+        (cond ((eq choice ?y) nil)
+              ((eq choice ?l) 'raw)
               (t 'abort))))))
 
 (defun abort-if-file-too-large (size op-type filename &optional offer-raw)
@@ -2536,21 +2570,20 @@ unless NOMODES is non-nil."
     (let* (not-serious
 	   (msg
 	    (cond
-	     ((not warn) nil)
 	     ((and error (file-exists-p buffer-file-name))
 	      (setq buffer-read-only t)
 	      "File exists, but cannot be read")
 	     ((and error (file-symlink-p buffer-file-name))
 	      "Symbolic link that points to nonexistent file")
 	     ((not buffer-read-only)
-	      (if (and warn
-		       ;; No need to warn if buffer is auto-saved
-		       ;; under the name of the visited file.
-		       (not (and buffer-file-name
-				 auto-save-visited-file-name))
-		       (file-newer-than-file-p (or buffer-auto-save-file-name
-						   (make-auto-save-file-name))
-					       buffer-file-name))
+	      (if (and
+                   ;; No need to warn if buffer is auto-saved
+		   ;; under the name of the visited file.
+		   (not (and buffer-file-name
+			     auto-save-visited-file-name))
+		   (file-newer-than-file-p (or buffer-auto-save-file-name
+					       (make-auto-save-file-name))
+					   buffer-file-name))
 		  (format "%s has auto save data; consider M-x recover-this-file"
 			  (file-name-nondirectory buffer-file-name))
 		(setq not-serious t)
@@ -2564,7 +2597,7 @@ unless NOMODES is non-nil."
 	      (setq buffer-read-only nil)
 	      (unless (file-directory-p default-directory)
 		"Use M-x make-directory RET RET to create the directory and its parents")))))
-      (when msg
+      (when (and warn msg)
 	(message "%s" msg)
 	(or not-serious (sit-for 1 t))))
     (when (and auto-save-default (not noauto))
@@ -7438,7 +7471,11 @@ only these files will be asked to be saved."
         ;; might be bound to different file name handlers, we still
         ;; need this.
         (saved-file-name-handler-alist file-name-handler-alist)
-        file-name-handler-alist
+        (inhibit-file-name-handlers
+         (cons 'file-name-non-special
+               (and (eq inhibit-file-name-operation operation)
+                    inhibit-file-name-handlers)))
+        (inhibit-file-name-operation operation)
         ;; Some operations respect file name handlers in
         ;; `default-directory'.  Because core function like
         ;; `call-process' don't care about file name handlers in
@@ -7522,7 +7559,10 @@ only these files will be asked to be saved."
 	(setq file-arg-indices (cdr file-arg-indices))))
     (pcase method
       ('identity (car arguments))
-      ('add (file-name-quote (apply operation arguments) t))
+      ('add
+       ;; This is `file-truename'.  We don't want file name handlers
+       ;; to expand this.
+       (file-name-quote (let (tramp-mode) (apply operation arguments)) t))
       ('buffer-file-name
        (let ((buffer-file-name (file-name-unquote buffer-file-name t)))
          (apply operation arguments)))
@@ -7638,6 +7678,9 @@ If CHAR is in [Xugo], the value is taken from FROM (or 0 if omitted)."
 	;; Rights relative to the previous file modes.
 	((= char ?X) (if (= (logand from #o111) 0) 0 #o0111))
 	((= char ?u) (let ((uright (logand #o4700 from)))
+		       ;; FIXME: These divisions/shifts seem to be right
+                       ;; for the `7' part of the #o4700 mask, but not
+                       ;; for the `4' part.  Same below for `g' and `o'.
 		       (+ uright (/ uright #o10) (/ uright #o100))))
 	((= char ?g) (let ((gright (logand #o2070 from)))
 		       (+ gright (/ gright #o10) (* gright #o10))))
@@ -7672,11 +7715,28 @@ as in \"og+rX-w\"."
 	      op char-right)))
     num-rights))
 
-(defun file-modes-number-to-symbolic (mode)
+(defun file-modes-number-to-symbolic (mode &optional filetype)
+  "Return a string describing a file's MODE.
+For instance, if MODE is #o700, then it produces `-rwx------'.
+FILETYPE if provided should be a character denoting the type of file,
+such as `?d' for a directory, or `?l' for a symbolic link and will override
+the leading `-' char."
   (string
-   (if (zerop (logand  8192 mode))
-       (if (zerop (logand 16384 mode)) ?- ?d)
-     ?c) ; completeness
+   (or filetype
+       (pcase (lsh mode -12)
+         ;; POSIX specifies that the file type is included in st_mode
+         ;; and provides names for the file types but values only for
+         ;; the permissions (e.g., S_IWOTH=2).
+
+         ;; (#o017 ??) ;; #define S_IFMT  00170000
+         (#o014 ?s)    ;; #define S_IFSOCK 0140000
+         (#o012 ?l)    ;; #define S_IFLNK  0120000
+         ;; (8  ??)    ;; #define S_IFREG  0100000
+         (#o006  ?b)   ;; #define S_IFBLK  0060000
+         (#o004  ?d)   ;; #define S_IFDIR  0040000
+         (#o002  ?c)   ;; #define S_IFCHR  0020000
+         (#o001  ?p)   ;; #define S_IFIFO  0010000
+         (_ ?-)))
    (if (zerop (logand   256 mode)) ?- ?r)
    (if (zerop (logand   128 mode)) ?- ?w)
    (if (zerop (logand    64 mode))

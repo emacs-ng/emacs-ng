@@ -1,4 +1,4 @@
-/* Compile elisp into native code.
+/* Compile Emacs Lisp into native code.
    Copyright (C) 2019-2021 Free Software Foundation, Inc.
 
 Author: Andrea Corallo <akrl@sdf.org>
@@ -2745,8 +2745,8 @@ emit_ctxt_code (void)
 {
   /* Emit optimize qualities.  */
   Lisp_Object opt_qly[] =
-    { Fcons (Qcomp_speed, make_fixnum (comp.speed)),
-      Fcons (Qcomp_debug, make_fixnum (comp.debug)),
+    { Fcons (Qnative_comp_speed, make_fixnum (comp.speed)),
+      Fcons (Qnative_comp_debug, make_fixnum (comp.debug)),
       Fcons (Qgccjit,
 	     Fcomp_libgccjit_version ()) };
   emit_static_object (TEXT_OPTIM_QLY_SYM, Flist (ARRAYELTS (opt_qly), opt_qly));
@@ -4088,16 +4088,18 @@ DEFUN ("comp-el-to-eln-filename", Fcomp_el_to_eln_filename,
        Scomp_el_to_eln_filename, 1, 2, 0,
        doc: /* Return the .eln filename for source FILENAME to used
 for new compilations.
-If BASE-DIR is nil use the first entry in `comp-eln-load-path'.  */)
+If BASE-DIR is non-nil use it as a base directory, look for a suitable
+directory in `comp-eln-load-path' otherwise.  */)
   (Lisp_Object filename, Lisp_Object base_dir)
 {
+  Lisp_Object source_filename = filename;
   filename = Fcomp_el_to_eln_rel_filename (filename);
 
-  /* If base_dir was not specified search inside Vcomp_eln_load_path
+  /* If base_dir was not specified search inside Vnative_comp_eln_load_path
      for the first directory where we have write access.  */
   if (NILP (base_dir))
     {
-      Lisp_Object eln_load_paths = Vcomp_eln_load_path;
+      Lisp_Object eln_load_paths = Vnative_comp_eln_load_path;
       FOR_EACH_TAIL (eln_load_paths)
 	{
 	  Lisp_Object dir = XCAR (eln_load_paths);
@@ -4129,9 +4131,20 @@ If BASE-DIR is nil use the first entry in `comp-eln-load-path'.  */)
   if (!file_name_absolute_p (SSDATA (base_dir)))
     base_dir = Fexpand_file_name (base_dir, Vinvocation_directory);
 
-  return Fexpand_file_name (filename,
-			    Fexpand_file_name (Vcomp_native_version_dir,
-					       base_dir));
+  /* In case the file being compiled is found in 'LISP_PRELOADED' or
+     `comp-file-preloaded-p' is non-nil target for output the
+     'preloaded' subfolder.  */
+  Lisp_Object lisp_preloaded =
+    Fgetenv_internal (build_string ("LISP_PRELOADED"), Qnil);
+  base_dir = Fexpand_file_name (Vcomp_native_version_dir, base_dir);
+  if (comp_file_preloaded_p
+      || (!NILP (lisp_preloaded)
+	  && !NILP (Fmember (CALL1I (file-name-base, source_filename),
+			     Fmapcar (intern_c_string ("file-name-base"),
+				      CALL1I (split-string, lisp_preloaded))))))
+    base_dir = Fexpand_file_name (build_string ("preloaded"), base_dir);
+
+  return Fexpand_file_name (filename, base_dir);
 }
 
 DEFUN ("comp--install-trampoline", Fcomp__install_trampoline,
@@ -4345,7 +4358,7 @@ DEFUN ("comp-native-driver-options-effective-p",
 static void
 add_driver_options (void)
 {
-  Lisp_Object options = Fsymbol_value (Qcomp_native_driver_options);
+  Lisp_Object options = Fsymbol_value (Qnative_comp_driver_options);
 
 #if defined (LIBGCCJIT_HAVE_gcc_jit_context_add_driver_option)	\
   || defined (WINDOWSNT)
@@ -4617,7 +4630,7 @@ void
 eln_load_path_final_clean_up (void)
 {
 #ifdef WINDOWSNT
-  Lisp_Object dir_tail = Vcomp_eln_load_path;
+  Lisp_Object dir_tail = Vnative_comp_eln_load_path;
   FOR_EACH_TAIL (dir_tail)
     {
       Lisp_Object files_in_dir =
@@ -4703,7 +4716,7 @@ maybe_defer_native_compilation (Lisp_Object function_name,
 	return;
     }
 
-  /* This is to have deferred compilaiton able to compile comp
+  /* This is so deferred compilation is able to compile comp
      dependencies breaking circularity.  */
   if (!NILP (Ffeaturep (Qcomp, Qnil)))
     {
@@ -4736,24 +4749,28 @@ maybe_defer_native_compilation (Lisp_Object function_name,
 /* Functions used to load eln files.  */
 /**************************************/
 
-/* Fixup the system eln-cache dir.  This is the last entry in
-   `comp-eln-load-path'.  */
+/* Fixup the system eln-cache directory, which is the last entry in
+   `comp-eln-load-path'.  Argument is a .eln file in that directory.  */
 void
-fixup_eln_load_path (Lisp_Object directory)
+fixup_eln_load_path (Lisp_Object eln_filename)
 {
   Lisp_Object last_cell = Qnil;
-  Lisp_Object tmp = Vcomp_eln_load_path;
-  FOR_EACH_TAIL (tmp)
-    if (CONSP (tmp))
-      last_cell = tmp;
+  Lisp_Object tem = Vnative_comp_eln_load_path;
+  FOR_EACH_TAIL (tem)
+    if (CONSP (tem))
+      last_cell = tem;
 
-  Lisp_Object eln_cache_sys =
-    Ffile_name_directory (concat2 (Vinvocation_directory,
-				   directory));
-  /* One directory up...  */
-  eln_cache_sys =
-    Ffile_name_directory (Fsubstring (eln_cache_sys, Qnil,
-				      make_fixnum (-1)));
+  const char preloaded[] = "/preloaded/";
+  Lisp_Object eln_cache_sys = Ffile_name_directory (eln_filename);
+  const char *p_preloaded =
+    SSDATA (eln_cache_sys) + SBYTES (eln_cache_sys) - sizeof (preloaded) + 1;
+  bool preloaded_p = strcmp (p_preloaded, preloaded) == 0;
+
+  /* One or two directories up...  */
+  for (int i = 0; i < (preloaded_p ? 2 : 1); i++)
+    eln_cache_sys =
+      Ffile_name_directory (Fsubstring_no_properties (eln_cache_sys, Qnil,
+						      make_fixnum (-1)));
   Fsetcar (last_cell, eln_cache_sys);
 }
 
@@ -4839,7 +4856,7 @@ load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u, bool loading_dump,
     /* 'dlopen' returns the same handle when trying to load two times
        the same shared.  In this case touching 'd_reloc' etc leads to
        fails in case a frame with a reference to it in a live reg is
-       active (comp-speed > 0).
+       active (native-comp-speed > 0).
 
        We must *never* mess with static pointers in an already loaded
        eln.  */
@@ -4932,7 +4949,7 @@ load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u, bool loading_dump,
       /* In case another load of the same CU is active on the stack
 	 all ephemeral data is hold by that frame.  Re-writing
 	 'data_ephemeral_vec' would be not only a waste of cycles but
-	 more importanly would lead to crashed if the contained data
+	 more importantly would lead to crashes if the contained data
 	 is not cons hashed.  */
       if (!recursive_load)
 	{
@@ -5110,7 +5127,7 @@ static bool
 file_in_eln_sys_dir (Lisp_Object filename)
 {
   Lisp_Object eln_sys_dir = Qnil;
-  Lisp_Object tmp = Vcomp_eln_load_path;
+  Lisp_Object tmp = Vnative_comp_eln_load_path;
   FOR_EACH_TAIL (tmp)
     eln_sys_dir = XCAR (tmp);
   return !NILP (Fstring_match (Fregexp_quote (Fexpand_file_name (eln_sys_dir,
@@ -5190,9 +5207,9 @@ After compilation, each function definition is updated to the native
 compiled one.  */);
   comp_deferred_compilation = true;
 
-  DEFSYM (Qcomp_speed, "comp-speed");
-  DEFSYM (Qcomp_debug, "comp-debug");
-  DEFSYM (Qcomp_native_driver_options, "comp-native-driver-options");
+  DEFSYM (Qnative_comp_speed, "native-comp-speed");
+  DEFSYM (Qnative_comp_debug, "native-comp-debug");
+  DEFSYM (Qnative_comp_driver_options, "native-comp-driver-options");
   DEFSYM (Qcomp_libgccjit_reproducer, "comp-libgccjit-reproducer");
 
   /* Limple instruction set.  */
@@ -5255,7 +5272,8 @@ compiled one.  */);
   DEFSYM (Qlambda_fixup, "lambda-fixup");
   DEFSYM (Qgccjit, "gccjit");
   DEFSYM (Qcomp_subr_trampoline_install, "comp-subr-trampoline-install");
-  DEFSYM (Qcomp_warning_on_missing_source, "comp-warning-on-missing-source");
+  DEFSYM (Qnative_comp_warning_on_missing_source,
+	  "native-comp-warning-on-missing-source");
 
   /* To be signaled by the compiler.  */
   DEFSYM (Qnative_compiler_error, "native-compiler-error");
@@ -5351,7 +5369,7 @@ For internal use.  */);
 	       doc: /* Hash table eln-filename -> el-filename.  */);
   Vcomp_eln_to_el_h = CALLN (Fmake_hash_table, QCtest, Qequal);
 
-  DEFVAR_LISP ("comp-eln-load-path", Vcomp_eln_load_path,
+  DEFVAR_LISP ("native-comp-eln-load-path", Vnative_comp_eln_load_path,
 	       doc: /* List of eln cache directories.
 
 If a directory is non absolute is assumed to be relative to
@@ -5363,7 +5381,7 @@ The last directory of this list is assumed to be the system one.  */);
   /* Temporary value in use for bootstrap.  We can't do better as
      `invocation-directory' is still unset, will be fixed up during
      dump reload.  */
-  Vcomp_eln_load_path = Fcons (build_string ("../native-lisp/"), Qnil);
+  Vnative_comp_eln_load_path = Fcons (build_string ("../native-lisp/"), Qnil);
 
   DEFVAR_BOOL ("comp-enable-subr-trampolines", comp_enable_subr_trampolines,
 	       doc: /* If non-nil enable primitive trampoline synthesis.
@@ -5382,7 +5400,11 @@ the user during load.
 For internal use.  */);
   V_comp_no_native_file_h = CALLN (Fmake_hash_table, QCtest, Qequal);
 
-  Fprovide (intern_c_string ("nativecomp"), Qnil);
+  DEFVAR_BOOL ("comp-file-preloaded-p", comp_file_preloaded_p,
+	       doc: /* When non-nil assume the file being compiled to
+be preloaded.  */);
+
+  Fprovide (intern_c_string ("native-compile"), Qnil);
 #endif /* #ifdef HAVE_NATIVE_COMP */
 
   defsubr (&Snative_comp_available_p);

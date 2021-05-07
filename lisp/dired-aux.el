@@ -1962,6 +1962,11 @@ ESC or `q' to not overwrite any of the remaining files,
 		   (file-in-directory-p destname from)
 		   (error "Cannot copy `%s' into its subdirectory `%s'"
 			  from to)))
+            ;; Check, that `dired-do-symlink' does not create symlinks
+            ;; on different hosts.
+            (when (and (eq file-creator 'make-symbolic-link)
+                       (not (equal (file-remote-p from) (file-remote-p to))))
+	      (error "Cannot symlink `%s' to `%s' on another host" from to))
             (condition-case err
                 (progn
                   (funcall file-creator from to dired-overwrite-confirmed)
@@ -2980,7 +2985,7 @@ a file name.  Otherwise, it searches the whole buffer without restrictions."
 When on, Isearch skips matches outside file names using the predicate
 `dired-isearch-filter-filenames' that matches only at file names.
 When off, it uses the original predicate."
-  nil nil nil
+  :lighter nil
   (if dired-isearch-filenames-mode
       (add-function :before-while (local 'isearch-filter-predicate)
                     #'dired-isearch-filter-filenames
