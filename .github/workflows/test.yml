@@ -40,6 +40,7 @@ jobs:
               if: runner.os == 'Linux'
               run: |
                   ## Package Install
+                  sudo apt update
                   sudo apt install -y libgnutls28-dev
 
             - name: configure
@@ -106,6 +107,7 @@ jobs:
               if: runner.os == 'Linux'
               run: |
                   ## Package Install
+                  sudo apt update
                   sudo apt install -y libxpm-dev libgtk2.0-dev libgif-dev libgnutls28-dev libxcb-render0-dev libxcb-shape0-dev  libxcb-xfixes0-dev clang llvm lld
                   # Already installed: automake autoconf texinfo libjpeg-dev libpng-dev libtiff-dev libx11-dev  libncurses-dev zlib1g-dev
                   # When use native-comp: libgccjit-9-dev
