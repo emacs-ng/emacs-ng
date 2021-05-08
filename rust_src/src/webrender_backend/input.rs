@@ -124,6 +124,10 @@ impl InputProcessor {
         self.modifiers = modifiers;
     }
 
+    pub fn current_cursor_position(&self) -> &PhysicalPosition<f64> {
+        &self.cursor_positon
+    }
+
     fn remove_control(c: char) -> char {
         let mut c = c as u8;
 
