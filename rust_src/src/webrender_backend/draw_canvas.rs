@@ -281,16 +281,18 @@ impl DrawCanvas {
 
         let face = unsafe { (*p).face };
 
-        let visible_rect = (pos_x, pos_y).by(width, height);
+        if pos_x > 0 {
+            let visible_rect = (pos_x, pos_y).by(width, height);
 
-        let background_color = pixel_to_color(unsafe { (*face).background });
+            let background_color = pixel_to_color(unsafe { (*face).background });
 
-        self.output.display(|builder, space_and_clip| {
-            builder.push_rect(
-                &CommonItemProperties::new(visible_rect, space_and_clip),
-                background_color,
-            );
-        });
+            self.output.display(|builder, space_and_clip| {
+                builder.push_rect(
+                    &CommonItemProperties::new(visible_rect, space_and_clip),
+                    background_color,
+                );
+            });
+        }
     }
 
     pub fn draw_vertical_window_border(
