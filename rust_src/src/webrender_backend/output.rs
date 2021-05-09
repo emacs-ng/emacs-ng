@@ -299,6 +299,10 @@ impl Output {
                     | Event::WindowEvent {
                         event: WindowEvent::Focused(_),
                         ..
+                    }
+                    | Event::WindowEvent {
+                        event: WindowEvent::MouseWheel { .. },
+                        ..
                     } => {
                         event_tx.send(e.to_static().unwrap()).unwrap();
                         unsafe { libc::raise(libc::SIGIO) };
