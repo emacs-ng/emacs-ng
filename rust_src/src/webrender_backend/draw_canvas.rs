@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use webrender::{self, api::units::*, api::*};
 
 use super::{
@@ -13,6 +15,7 @@ use emacs::{
         draw_fringe_bitmap_params, draw_glyphs_face, face as Face, face_underline_type, glyph_row,
         glyph_type, prepare_face_for_display,
     },
+    frame::LispFrameRef,
     glyph::GlyphStringRef,
 };
 
@@ -194,8 +197,15 @@ impl DrawCanvas {
         }
 
         let visible_height = unsafe { (*s.row).visible_height };
+        let background_width = if s.hl == draw_glyphs_face::DRAW_CURSOR {
+            let frame: LispFrameRef = s.f.into();
 
-        let background_bounds = (s.x, s.y).by(s.background_width as i32, visible_height);
+            min(frame.column_width, s.background_width)
+        } else {
+            s.background_width
+        };
+
+        let background_bounds = (s.x, s.y).by(background_width, visible_height);
         let background_color = pixel_to_color(unsafe { (*s.gc).background } as u64);
 
         self.output.display(|builder, space_and_clip| {
