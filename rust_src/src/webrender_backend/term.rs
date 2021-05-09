@@ -561,6 +561,26 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
         }
 
         Event::WindowEvent {
+            event: WindowEvent::MouseWheel { delta, phase, .. },
+            ..
+        } => {
+            if top_frame.as_frame().is_none() {
+                return;
+            }
+
+            if let Some(mut iev) = dpyinfo
+                .input_processor
+                .mouse_wheel_scrolled(delta, phase, top_frame)
+            {
+                unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
+                count += 1;
+            }
+
+            let mut frame: LispFrameRef = top_frame.into();
+            frame.set_mouse_moved(false);
+        }
+
+        Event::WindowEvent {
             event: WindowEvent::CursorMoved { position, .. },
             ..
         } => {
