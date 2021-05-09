@@ -603,12 +603,16 @@ means display it in the right marginal area."
 (defun insert-image (image &optional string area slice)
   "Insert IMAGE into current buffer at point.
 IMAGE is displayed by inserting STRING into the current buffer
-with a `display' property whose value is the image.  STRING
-defaults to a single space if you omit it.
+with a `display' property whose value is the image.
+
+STRING defaults to a single space if you omit it, which means
+that the inserted image will behave as whitespace syntactically.
+
 AREA is where to display the image.  AREA nil or omitted means
 display it in the text area, a value of `left-margin' means
 display it in the left marginal area, a value of `right-margin'
 means display it in the right marginal area.
+
 SLICE specifies slice of IMAGE to insert.  SLICE nil or omitted
 means insert whole image.  SLICE is a list (X Y WIDTH HEIGHT)
 specifying the X and Y positions and WIDTH and HEIGHT of image area
@@ -835,6 +839,9 @@ number, play until that number of seconds has elapsed."
 	  (cancel-timer timer))
       (plist-put (cdr image) :animate-buffer (current-buffer))
       (plist-put (cdr image) :animate-tardiness 0)
+      ;; Stash the data about the animation here so that we don't
+      ;; trigger image recomputation unnecessarily later.
+      (plist-put (cdr image) :animate-multi-frame-data animation)
       (run-with-timer 0.2 nil #'image-animate-timeout
 		      image (or index 0) (car animation)
 		      0 limit (+ (float-time) 0.2)))))
@@ -865,9 +872,10 @@ Frames are indexed from 0.  Optional argument NOCHECK non-nil means
 do not check N is within the range of frames present in the image."
   (unless nocheck
     (if (< n 0) (setq n 0)
-      (setq n (min n (1- (car (image-multi-frame-p image)))))))
+      (setq n (min n (1- (car (plist-get (cdr image)
+                                         :animate-multi-frame-data)))))))
   (plist-put (cdr image) :index n)
-  (force-window-update))
+  (force-window-update (plist-get (cdr image) :animate-buffer)))
 
 (defun image-animate-get-speed (image)
   "Return the speed factor for animating IMAGE."
@@ -913,11 +921,11 @@ for the animation speed.  A negative value means to animate in reverse."
     (image-show-frame image n t)
     (let* ((speed (image-animate-get-speed image))
 	   (time (current-time))
-	   (animation (image-multi-frame-p image))
 	   (time-to-load-image (time-since time))
-	   (stated-delay-time (/ (or (cdr animation)
-				     image-default-frame-delay)
-				 (float (abs speed))))
+	   (stated-delay-time
+            (/ (or (cdr (plist-get (cdr image) :animate-multi-frame-data))
+		   image-default-frame-delay)
+	       (float (abs speed))))
 	   ;; Subtract off the time we took to load the image from the
 	   ;; stated delay time.
 	   (delay (max (float-time (time-subtract stated-delay-time

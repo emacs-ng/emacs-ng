@@ -1876,10 +1876,9 @@ static void
 ns_set_window_size (struct frame *f,
                     bool change_gravity,
                     int width,
-                    int height,
-                    bool pixelwise)
+                    int height)
 /* --------------------------------------------------------------------------
-     Adjust window pixel size based on given character grid size
+     Adjust window pixel size based on native sizes WIDTH and HEIGHT.
      Impl is a bit more complex than other terms, need to do some
      internal clipping.
    -------------------------------------------------------------------------- */
@@ -1887,7 +1886,6 @@ ns_set_window_size (struct frame *f,
   EmacsView *view = FRAME_NS_VIEW (f);
   NSWindow *window = [view window];
   NSRect wr = [window frame];
-  int pixelwidth, pixelheight;
   int orig_height = wr.size.height;
 
   NSTRACE ("ns_set_window_size");
@@ -1896,24 +1894,13 @@ ns_set_window_size (struct frame *f,
     return;
 
   NSTRACE_RECT ("current", wr);
-  NSTRACE_MSG ("Width:%d Height:%d Pixelwise:%d", width, height, pixelwise);
+  NSTRACE_MSG ("Width:%d Height:%d", width, height);
   NSTRACE_MSG ("Font %d x %d", FRAME_COLUMN_WIDTH (f), FRAME_LINE_HEIGHT (f));
 
   block_input ();
 
-  if (pixelwise)
-    {
-      pixelwidth = FRAME_TEXT_TO_PIXEL_WIDTH (f, width);
-      pixelheight = FRAME_TEXT_TO_PIXEL_HEIGHT (f, height);
-    }
-  else
-    {
-      pixelwidth =  FRAME_TEXT_COLS_TO_PIXEL_WIDTH   (f, width);
-      pixelheight = FRAME_TEXT_LINES_TO_PIXEL_HEIGHT (f, height);
-    }
-
-  wr.size.width = pixelwidth + f->border_width;
-  wr.size.height = pixelheight;
+  wr.size.width = width + f->border_width;
+  wr.size.height = height;
   if (! [view isFullscreen])
     wr.size.height += FRAME_NS_TITLEBAR_HEIGHT (f)
       + FRAME_TOOLBAR_HEIGHT (f);
@@ -1926,21 +1913,10 @@ ns_set_window_size (struct frame *f,
  else
    wr.origin.y += orig_height - wr.size.height;
 
- frame_size_history_add
-   (f, Qx_set_window_size_1, width, height,
-    list5 (Fcons (make_fixnum (pixelwidth), make_fixnum (pixelheight)),
-	   Fcons (make_fixnum (wr.size.width), make_fixnum (wr.size.height)),
-	   make_fixnum (f->border_width),
-	   make_fixnum (FRAME_NS_TITLEBAR_HEIGHT (f)),
-	   make_fixnum (FRAME_TOOLBAR_HEIGHT (f))));
-
  /* Usually it seems safe to delay changing the frame size, but when a
     series of actions are taken with no redisplay between them then we
     can end up using old values so don't delay here.  */
- change_frame_size (f,
-                    FRAME_PIXEL_TO_TEXT_WIDTH (f, pixelwidth),
-                    FRAME_PIXEL_TO_TEXT_HEIGHT (f, pixelheight),
-                    0, NO, 0, 1);
+ change_frame_size (f, width, height, false, NO, false);
 
   [window setFrame:wr display:NO];
 
@@ -7320,49 +7296,50 @@ not_in_argv (NSString *arg)
 - (void)viewDidResize:(NSNotification *)notification
 {
   NSRect frame = [self frame];
-  int neww, newh;
+  int neww, newh, oldw, oldh;
 
   if (! FRAME_LIVE_P (emacsframe))
     return;
 
   NSTRACE ("[EmacsView viewDidResize]");
 
-  neww = (int)NSWidth (frame);
-  newh = (int)NSHeight (frame);
-  NSTRACE_SIZE ("New size", NSMakeSize (neww, newh));
-
 #ifdef NS_DRAW_TO_BUFFER
-  if ([self wantsUpdateLayer])
+  /* If the buffer size doesn't match the view's backing size, destroy
+     the buffer and let it be recreated at the correct size later.  */
+  if ([self wantsUpdateLayer] && surface)
     {
-      CGFloat scale = [[self window] backingScaleFactor];
-      NSSize size = [surface getSize];
-      int oldw = size.width / scale;
-      int oldh = size.height / scale;
+      NSRect surfaceRect = {{0, 0}, [surface getSize]};
+      NSRect frameRect = [[self window] convertRectToBacking:frame];
 
-      NSTRACE_SIZE ("Original size", NSMakeSize (oldw, oldh));
-
-      /* Don't want to do anything when the view size hasn't changed. */
-      if ((oldh == newh && oldw == neww))
+      if (!NSEqualRects (frameRect, surfaceRect))
         {
-          NSTRACE_MSG ("No change");
-          return;
+          [surface release];
+          surface = nil;
+
+          [self setNeedsDisplay:YES];
         }
-
-      [surface release];
-      surface = nil;
-
-      [self setNeedsDisplay:YES];
     }
 #endif
 
-  /* I'm not sure if it's safe to call this every time the view
-     changes size, as Emacs may already know about the change.
-     Unfortunately there doesn't seem to be a bullet-proof method of
-     determining whether we need to call it or not.  */
-  change_frame_size (emacsframe,
-                     FRAME_PIXEL_TO_TEXT_WIDTH (emacsframe, neww),
-                     FRAME_PIXEL_TO_TEXT_HEIGHT (emacsframe, newh),
-                     0, YES, 0, 1);
+  neww = (int)NSWidth (frame);
+  newh = (int)NSHeight (frame);
+  oldw = FRAME_PIXEL_WIDTH (emacsframe);
+  oldh = FRAME_PIXEL_HEIGHT (emacsframe);
+
+  /* Don't want to do anything when the view size hasn't changed. */
+  if (emacsframe->new_size_p
+      ? (newh == emacsframe->new_height
+         && neww == emacsframe->new_width)
+      : (oldh == newh && oldw == neww))
+    {
+      NSTRACE_MSG ("No change");
+      return;
+    }
+
+  NSTRACE_SIZE ("New size", NSMakeSize (neww, newh));
+  NSTRACE_SIZE ("Original size", NSMakeSize (oldw, oldh));
+
+  change_frame_size (emacsframe, neww, newh, false, YES, false);
 
   SET_FRAME_GARBAGED (emacsframe);
   cancel_mouse_face (emacsframe);
@@ -9790,7 +9767,7 @@ nswindow_orderedIndex_sort (id w1, id w2, void *c)
   IOSurfaceRef surface = NULL;
 
   NSTRACE ("[EmacsSurface getContextWithSize:]");
-  NSTRACE_MSG (@"IOSurface count: %lu", [cache count] + (lastSurface ? 1 : 0));
+  NSTRACE_MSG ("IOSurface count: %lu", [cache count] + (lastSurface ? 1 : 0));
 
   for (id object in cache)
     {

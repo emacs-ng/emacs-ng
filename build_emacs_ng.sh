@@ -17,7 +17,7 @@ sudo add-apt-repository -y ppa:ubuntu-toolchain-r/ppa
 sudo apt update
 sudo apt install -y autoconf make checkinstall texinfo $render_libs libgnutls28-dev \
      libncurses5-dev libsystemd-dev libjansson-dev libgccjit-9-dev gcc-9 g++-9 libxt-dev \
-     libclang-10-dev
+     libclang-10-dev curl
 
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
     sh -s -- -y --profile minimal --default-toolchain $(cat rust-toolchain)

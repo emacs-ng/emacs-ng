@@ -2238,12 +2238,12 @@ With argument ARG, insert value in current buffer after the form."
         (setq byte-compile-noruntime-functions nil)
         (setq byte-compile-new-defuns nil)
         (when byte-native-compiling
-          (defvar comp-speed)
-          (push `(comp-speed . ,comp-speed) byte-native-qualities)
-          (defvar comp-debug)
-          (push `(comp-debug . ,comp-debug) byte-native-qualities)
-          (defvar comp-native-driver-options)
-          (push `(comp-native-driver-options . ,comp-native-driver-options)
+          (defvar native-comp-speed)
+          (push `(native-comp-speed . ,native-comp-speed) byte-native-qualities)
+          (defvar native-comp-debug)
+          (push `(native-comp-debug . ,native-comp-debug) byte-native-qualities)
+          (defvar native-comp-driver-options)
+          (push `(native-comp-driver-options . ,native-comp-driver-options)
                 byte-native-qualities)
           (defvar no-native-compile)
           (push `(no-native-compile . ,no-native-compile)
@@ -4715,10 +4715,15 @@ binding slots have been popped."
 (defun byte-compile-condition-case (form)
   (let* ((var (nth 1 form))
          (body (nth 2 form))
+         (handlers (nthcdr 3 form))
          (depth byte-compile-depth)
+         (success-handler (assq :success handlers))
+         (failure-handlers (if success-handler
+                               (remq success-handler handlers)
+                             handlers))
          (clauses (mapcar (lambda (clause)
                             (cons (byte-compile-make-tag) clause))
-                          (nthcdr 3 form)))
+                          failure-handlers))
          (endtag (byte-compile-make-tag)))
     (byte-compile-set-symbol-position 'condition-case)
     (unless (symbolp var)
@@ -4744,30 +4749,40 @@ binding slots have been popped."
 
     (byte-compile-form body) ;; byte-compile--for-effect
     (dolist (_ clauses) (byte-compile-out 'byte-pophandler))
-    (byte-compile-goto 'byte-goto endtag)
 
-    (while clauses
-      (let ((clause (pop clauses))
-            (byte-compile-bound-variables byte-compile-bound-variables)
-            (byte-compile--lexical-environment
-             byte-compile--lexical-environment))
-        (setq byte-compile-depth (1+ depth))
-        (byte-compile-out-tag (pop clause))
-        (dolist (_ clauses) (byte-compile-out 'byte-pophandler))
-        (cond
-         ((null var) (byte-compile-discard))
-         (lexical-binding
-          (push (cons var (1- byte-compile-depth))
-                byte-compile--lexical-environment))
-         (t (byte-compile-dynamic-variable-bind var)))
-        (byte-compile-body (cdr clause)) ;; byte-compile--for-effect
-        (cond
-         ((null var) nil)
-         (lexical-binding (byte-compile-discard 1 'preserve-tos))
-         (t (byte-compile-out 'byte-unbind 1)))
-        (byte-compile-goto 'byte-goto endtag)))
+    (let ((compile-handler-body
+           (lambda (body)
+             (let ((byte-compile-bound-variables byte-compile-bound-variables)
+                   (byte-compile--lexical-environment
+                    byte-compile--lexical-environment))
+               (cond
+                ((null var) (byte-compile-discard))
+                (lexical-binding
+                 (push (cons var (1- byte-compile-depth))
+                       byte-compile--lexical-environment))
+                (t (byte-compile-dynamic-variable-bind var)))
 
-    (byte-compile-out-tag endtag)))
+               (byte-compile-body body) ;; byte-compile--for-effect
+
+               (cond
+                ((null var))
+                (lexical-binding (byte-compile-discard 1 'preserve-tos))
+                (t (byte-compile-out 'byte-unbind 1)))))))
+
+      (when success-handler
+        (funcall compile-handler-body (cdr success-handler)))
+
+      (byte-compile-goto 'byte-goto endtag)
+
+      (while clauses
+        (let ((clause (pop clauses)))
+          (setq byte-compile-depth (1+ depth))
+          (byte-compile-out-tag (pop clause))
+          (dolist (_ clauses) (byte-compile-out 'byte-pophandler))
+          (funcall compile-handler-body (cdr clause))
+          (byte-compile-goto 'byte-goto endtag)))
+
+      (byte-compile-out-tag endtag))))
 
 (defun byte-compile-save-excursion (form)
   (if (and (eq 'set-buffer (car-safe (car-safe (cdr form))))
@@ -5296,7 +5311,8 @@ already up-to-date."
   "Reload any Lisp file that was changed since Emacs was dumped.
 Use with caution."
   (let* ((argv0 (car command-line-args))
-         (emacs-file (or (cdr (nth 2 (pdumper-stats)))
+         (emacs-file (or (and (fboundp 'pdumper-stats)
+                              (cdr (nth 2 (pdumper-stats))))
                          (executable-find argv0))))
     (if (not (and emacs-file (file-exists-p emacs-file)))
         (message "Can't find %s to refresh preloaded Lisp files" argv0)

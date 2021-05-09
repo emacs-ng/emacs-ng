@@ -73,9 +73,9 @@
 ;; M-x list-packages
 ;;    Enters a mode similar to buffer-menu which lets you manage
 ;;    packages.  You can choose packages for install (mark with "i",
-;;    then "x" to execute) or deletion (not implemented yet), and you
-;;    can see what packages are available.  This will automatically
-;;    fetch the latest list of packages from ELPA.
+;;    then "x" to execute) or deletion, and you can see what packages
+;;    are available.  This will automatically fetch the latest list of
+;;    packages from ELPA.
 ;;
 ;; M-x package-install-from-buffer
 ;;    Install a package consisting of a single .el file that appears
@@ -89,7 +89,7 @@
 ;;    Install a package from the indicated file.  The package can be
 ;;    either a tar file or a .el file.  A tar file must contain an
 ;;    appropriately-named "-pkg.el" file; a .el file must be properly
-;;    formatted as with package-install-from-buffer.
+;;    formatted as with `package-install-from-buffer'.
 
 ;;; Thanks:
 ;;; (sorted by sort-lines):
@@ -228,7 +228,7 @@ security."
   :type '(alist :key-type (string :tag "Archive name")
                 :value-type (string :tag "URL or directory name"))
   :risky t
-  :version "26.1")                      ; gnutls test
+  :version "28.1")
 
 (defcustom package-menu-hide-low-priority 'archive
   "If non-nil, hide low priority packages from the packages menu.
@@ -838,8 +838,6 @@ correspond to previously loaded files (those returned by
       ;; Don't return nil.
       t)))
 
-(declare-function find-library-name "find-func" (library))
-
 (defun package--files-load-history ()
   (delq nil
         (mapcar (lambda (x)
@@ -849,20 +847,22 @@ correspond to previously loaded files (those returned by
                 load-history)))
 
 (defun package--list-of-conflicts (dir history)
-   (delq
-    nil
-    (mapcar
-     (lambda (x) (let* ((file (file-relative-name x dir))
-                        ;; Previously loaded file, if any.
-                        (previous
-                         (ignore-errors
-                           (file-name-sans-extension
-                            (file-truename (find-library-name file)))))
-                        (pos (when previous (member previous history))))
-                   ;; Return (RELATIVE-FILENAME . HISTORY-POSITION)
-                   (when pos
-                     (cons (file-name-sans-extension file) (length pos)))))
-     (directory-files-recursively dir "\\`[^\\.].*\\.el\\'"))))
+  (require 'find-func)
+  (declare-function find-library-name "find-func" (library))
+  (delq
+   nil
+   (mapcar
+    (lambda (x) (let* ((file (file-relative-name x dir))
+                  ;; Previously loaded file, if any.
+                  (previous
+                   (ignore-error file-error ;"Can't find library"
+                     (file-name-sans-extension
+                      (file-truename (find-library-name file)))))
+                  (pos (when previous (member previous history))))
+             ;; Return (RELATIVE-FILENAME . HISTORY-POSITION)
+             (when pos
+               (cons (file-name-sans-extension file) (length pos)))))
+    (directory-files-recursively dir "\\`[^\\.].*\\.el\\'"))))
 
 (defun package--list-loaded-files (dir)
   "Recursively list all files in DIR which correspond to loaded features.
@@ -1084,7 +1084,7 @@ This assumes that `pkg-desc' has already been activated with
   "Native compile installed package PKG-DESC asynchronously.
 This assumes that `pkg-desc' has already been activated with
 `package-activate-1'."
-  (when (and (featurep 'nativecomp)
+  (when (and (featurep 'native-compile)
              (native-comp-available-p))
     (let ((warning-minimum-level :error))
       (native-compile-async (package-desc-dir pkg-desc) t))))
@@ -2268,9 +2268,9 @@ confirmation to install packages."
   "Delete DIR recursively.
 Clean-up the corresponding .eln files if Emacs is native
 compiled."
-  (when (featurep 'nativecomp)
+  (when (featurep 'native-compile)
     (cl-loop
-     for file in (directory-files-recursively dir ".el\\'")
+     for file in (directory-files-recursively dir "\\.el\\'")
      do (comp-clean-up-stale-eln (comp-el-to-eln-filename file))))
   (delete-directory dir t))
 
@@ -2727,9 +2727,9 @@ PROPERTIES are passed to `insert-text-button', for which this
 function is a convenience wrapper used by `describe-package-1'."
   (let ((button-text (if (display-graphic-p) text (concat "[" text "]")))
         (button-face (if (display-graphic-p)
-                         '(:box (:line-width 2 :color "dark grey")
-                                :background "light grey"
-                                :foreground "black")
+                         (progn
+                           (require 'cus-edit) ; for the custom-button face
+                           'custom-button)
                        'link)))
     (apply #'insert-text-button button-text 'face button-face 'follow-link t
            properties)))

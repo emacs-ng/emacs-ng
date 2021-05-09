@@ -2224,7 +2224,7 @@ Help message may be switched off by setting `cperl-message-electric-keyword'
 to nil."
   (let ((beg (point-at-bol)))
     (and (save-excursion
-	   (backward-sexp 1)
+           (skip-chars-backward "[:alpha:]")
 	   (cperl-after-expr-p nil "{;:"))
 	 (save-excursion
 	   (not
@@ -3585,7 +3585,7 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
 		"\\<\\(q[wxqr]?\\|[msy]\\|tr\\)\\>" ; QUOTED CONSTRUCT
 		"\\|"
 		;; 1+6+2+1=10 extra () before this:
-		"\\([?/<]\\)"	; /blah/ or ?blah? or <file*glob>
+		"\\([/<]\\)"	; /blah/ or <file*glob>
 		"\\|"
 		;; 1+6+2+1+1=11 extra () before this
 		"\\<" cperl-sub-regexp "\\>" ;  sub with proto/attr
@@ -3608,7 +3608,8 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
 		;; 1+6+2+1+1+6+1+1+1=20 extra () before this:
 		"\\|"
 		"\\\\\\(['`\"($]\\)")	; BACKWACKED something-hairy
-	     ""))))
+	     "")))
+         warning-message)
     (unwind-protect
 	(progn
 	  (save-excursion
@@ -3671,7 +3672,7 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
 			(looking-at "\\(cut\\|end\\)\\>"))
 		    (if (or (nth 3 state) (nth 4 state) ignore-max)
 			nil		; Doing a chunk only
-		      (message "=cut is not preceded by a POD section")
+		      (setq warning-message "=cut is not preceded by a POD section")
 		      (or (car err-l) (setcar err-l (point))))
 		  (beginning-of-line)
 
@@ -3686,7 +3687,7 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
 			(goto-char b)
 			(if (re-search-forward "\n=\\(cut\\|end\\)\\>" stop-point 'toend)
 			    (progn
-			      (message "=cut is not preceded by an empty line")
+			      (setq warning-message "=cut is not preceded by an empty line")
 			      (setq b1 t)
 			      (or (car err-l) (setcar err-l b))))))
 		  (beginning-of-line 2)	; An empty line after =cut is not POD!
@@ -3829,7 +3830,8 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
 		    (progn		; Pretend we matched at the end
 		      (goto-char (point-max))
 		      (re-search-forward "\\'")
-		      (message "End of here-document `%s' not found." tag)
+		      (setq warning-message
+                            (format "End of here-document `%s' not found." tag))
 		      (or (car err-l) (setcar err-l b))))
 		  (if cperl-pod-here-fontify
 		      (progn
@@ -3906,7 +3908,8 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
 						    'face font-lock-string-face)
 		      (cperl-commentify (point) (+ (point) 2) nil)
 		      (cperl-put-do-not-fontify (point) (+ (point) 2) t))
-		  (message "End of format `%s' not found." name)
+		  (setq warning-message
+                        (format "End of format `%s' not found." name))
 		  (or (car err-l) (setcar err-l b)))
 		(forward-line)
 		(if (> (point) max)
@@ -3917,7 +3920,7 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
 		;; 1+6+2=9 extra () before this:
 		;; "\\<\\(q[wxqr]?\\|[msy]\\|tr\\)\\>"
 		;; "\\|"
-		;; "\\([?/<]\\)"	; /blah/ or ?blah? or <file*glob>
+		;; "\\([/<]\\)"	; /blah/ or <file*glob>
 		(setq b1 (if (match-beginning 10) 10 11)
 		      argument (buffer-substring
 				(match-beginning b1) (match-end b1))
@@ -3955,7 +3958,7 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
 		(goto-char (match-beginning b1))
 		(cperl-backward-to-noncomment (point-min))
 		(or bb
-		    (if (eq b1 11)	; bare /blah/ or ?blah? or <foo>
+		    (if (eq b1 11)	; bare /blah/ or <foo>
 			(setq argument ""
 			      b1 nil
 			      bb	; Not a regexp?
@@ -3963,7 +3966,7 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
 			       ;; What is below: regexp-p?
 			       (and
 				(or (memq (preceding-char)
-					  (append (if (memq c '(?\? ?\<))
+					  (append (if (char-equal c ?\<)
 						      ;; $a++ ? 1 : 2
 						      "~{(=|&*!,;:["
 						    "~{(=|&+-*!,;:[") nil))
@@ -3974,14 +3977,11 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
 					   (forward-sexp -1)
 ;; After these keywords `/' starts a RE.  One should add all the
 ;; functions/builtins which expect an argument, but ...
-					   (if (eq (preceding-char) ?-)
-					       ;; -d ?foo? is a RE
-					       (looking-at "[a-zA-Z]\\>")
 					     (and
 					      (not (memq (preceding-char)
 							 '(?$ ?@ ?& ?%)))
 					      (looking-at
-					       "\\(while\\|if\\|unless\\|until\\|and\\|or\\|not\\|xor\\|split\\|grep\\|map\\|print\\|say\\|return\\)\\>")))))
+					       "\\(while\\|if\\|unless\\|until\\|and\\|or\\|not\\|xor\\|split\\|grep\\|map\\|print\\|say\\|return\\)\\>"))))
 				    (and (eq (preceding-char) ?.)
 					 (eq (char-after (- (point) 2)) ?.))
 				    (bobp))
@@ -4426,8 +4426,9 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
 					  REx-subgr-end argument) ; continue
 				  (setq argument nil)))
 			      (and argument
-				   (message "Couldn't find end of charclass in a REx, pos=%s"
-					    REx-subgr-start))
+				   (setq warning-message
+                                         (format "Couldn't find end of charclass in a REx, pos=%s"
+					         REx-subgr-start)))
 			      (setq argument (1- (point)))
 			      (goto-char REx-subgr-end)
 			      (cperl-highlight-charclass
@@ -4483,7 +4484,8 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
 					   (setq qtag "Can't find })")))
 				  (progn
 				    (goto-char (1- e))
-				    (message "%s" qtag))
+				    (setq warning-message
+                                          (format "%s" qtag)))
 				(cperl-postpone-fontification
 				 (1- tag) (1- (point))
 				 'face font-lock-variable-name-face)
@@ -4512,9 +4514,9 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
 			       ;; (1- e) 'toend)
 			       (search-forward ")" (1- e) 'toend)
 			       ;;)
-			       (message
-				"Couldn't find end of (?#...)-comment in a REx, pos=%s"
-				REx-subgr-start))))
+			       (setq warning-message
+				     (format "Couldn't find end of (?#...)-comment in a REx, pos=%s"
+				             REx-subgr-start)))))
 			    (if (>= (point) e)
 				(goto-char (1- e)))
 			    (cond
@@ -4592,8 +4594,8 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
 	      (if (> (point) stop-point)
 		  (progn
 		    (if end
-			(message "Garbage after __END__/__DATA__ ignored")
-		      (message "Unbalanced syntax found while scanning")
+			(setq warning-message "Garbage after __END__/__DATA__ ignored")
+		      (setq warning-message "Unbalanced syntax found while scanning")
 		      (or (car err-l) (setcar err-l b)))
 		    (goto-char stop-point))))
 	    (setq cperl-syntax-state (cons state-point state)
@@ -4612,6 +4614,7 @@ the sections using `cperl-pod-head-face', `cperl-pod-face',
       ;; cperl-mode-syntax-table.
       ;; (set-syntax-table cperl-mode-syntax-table)
       )
+    (when warning-message (message warning-message))
     (list (car err-l) overshoot)))
 
 (defun cperl-find-pods-heres-region (min max)
@@ -7226,8 +7229,7 @@ $~	The name of the current report format.
 ... >= ...	Numeric greater than or equal to.
 ... >> ...	Bitwise shift right.
 ... >>= ...	Bitwise shift right assignment.
-... ? ... : ...	Condition=if-then-else operator.   ?PAT? One-time pattern match.
-?PATTERN?	One-time pattern match.
+... ? ... : ...	Condition=if-then-else operator.
 @ARGV	Command line arguments (not including the command name - see $0).
 @INC	List of places to look for perl scripts during do/include/use.
 @_    Parameter array for subroutines; result of split() unless in list context.

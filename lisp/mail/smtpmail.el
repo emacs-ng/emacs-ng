@@ -207,11 +207,15 @@ for `smtpmail-try-auth-method'.")
         ;; Examine this variable now, so that
 	;; local binding in the mail buffer will take effect.
 	(smtpmail-mail-address
-         (or (and mail-specify-envelope-from (mail-envelope-from))
-             (let ((from (mail-fetch-field "from")))
-	       (and from
-		    (cadr (mail-extract-address-components from))))
-	     (smtpmail-user-mail-address)))
+         (save-restriction
+           ;; Only look at the headers when fetching the
+           ;; envelope address.
+           (message-narrow-to-headers)
+           (or (and mail-specify-envelope-from (mail-envelope-from))
+               (let ((from (mail-fetch-field "from")))
+	         (and from
+		      (cadr (mail-extract-address-components from))))
+	       (smtpmail-user-mail-address))))
 	(smtpmail-code-conv-from
 	 (if enable-multibyte-characters
 	     (let ((sendmail-coding-system smtpmail-code-conv-from))
@@ -434,7 +438,12 @@ for `smtpmail-try-auth-method'.")
 	  (let ((coding-system-for-read 'no-conversion))
 	    (insert-file-contents file-data))
           (let ((smtpmail-mail-address
-                 (or (and mail-specify-envelope-from (mail-envelope-from))
+                 (or (and mail-specify-envelope-from
+                          (save-restriction
+                            ;; Only look at the headers when fetching the
+                            ;; envelope address.
+                            (message-narrow-to-headers)
+                            (mail-envelope-from)))
                      user-mail-address)))
             (if (not (null smtpmail-recipient-address-list))
                 (when (setq result (smtpmail-via-smtp
@@ -489,13 +498,6 @@ for `smtpmail-try-auth-method'.")
       recipient
     (concat recipient "@" smtpmail-sendto-domain)))
 
-(defun smtpmail-intersection (list1 list2)
-  (let ((result nil))
-    (dolist (el2 list2)
-      (when (memq el2 list1)
-	(push el2 result)))
-    (nreverse result)))
-
 (defun smtpmail-command-or-throw (process string &optional code)
   (let (ret)
     (smtpmail-send-command process string)
@@ -512,9 +514,10 @@ for `smtpmail-try-auth-method'.")
 	(if port
 	    (format "%s" port)
 	  "smtp"))
-  (let* ((mechs (smtpmail-intersection
+  (let* ((mechs (seq-intersection
+                 smtpmail-auth-supported
                  (cdr-safe (assoc 'auth supported-extensions))
-                 smtpmail-auth-supported))
+                 #'eq))
 	 (auth-source-creation-prompts
           '((user  . "SMTP user name for %h: ")
             (secret . "SMTP password for %u@%h: ")))
@@ -683,13 +686,17 @@ Returns an error if the server cannot be contacted."
         ;; `smtpmail-mail-address' should be set to the appropriate
         ;; buffer-local value by the caller, but in case not:
         (envelope-from
-	 (or smtpmail-mail-address
-	     (and mail-specify-envelope-from
-		  (mail-envelope-from))
-	     (let ((from (mail-fetch-field "from")))
-	       (and from
-		    (cadr (mail-extract-address-components from))))
-	     (smtpmail-user-mail-address)))
+         (save-restriction
+           ;; Only look at the headers when fetching the
+           ;; envelope address.
+           (message-narrow-to-headers)
+	   (or smtpmail-mail-address
+	       (and mail-specify-envelope-from
+		    (mail-envelope-from))
+	       (let ((from (mail-fetch-field "from")))
+	         (and from
+		      (cadr (mail-extract-address-components from))))
+	       (smtpmail-user-mail-address))))
 	process-buffer
 	result
 	auth-mechanisms
@@ -1086,6 +1093,12 @@ many continuation lines."
 	;; get rid of any continuation lines
 	(while (and (looking-at "^[ \t].*\n") (< (point) header-end))
 	  (replace-match ""))))))
+
+;; Obsolete.
+
+(defun smtpmail-intersection (list1 list2)
+  (declare (obsolete seq-intersection "28.1"))
+  (seq-intersection list2 list1 #'eq))
 
 (provide 'smtpmail)
 
