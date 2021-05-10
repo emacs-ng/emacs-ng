@@ -441,29 +441,49 @@
       
         <li class="md-nav__item">
   <a href="#install-flake-feature-of-nix" class="md-nav__link">
-    Install flake feature of nix
+    Install Flake Feature Of Nix
   </a>
   
 </li>
       
         <li class="md-nav__item">
+  <a href="#nix-flake-feature-alread-in-emacsng" class="md-nav__link">
+    Nix flake feature alread in emacsNg
+  </a>
+  
+    <nav class="md-nav" aria-label="Nix flake feature alread in emacsNg">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#using-cachix-to-download-binary-cachespeed-up-build" class="md-nav__link">
+    using cachix to (download binary cache)speed up build
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#clone-emacs-ng-by-nix-shell-and-enable-emacs-cachix" class="md-nav__link">
-    Clone Emacs-ng by nix-shell and enable emacs cachix
+    Clone Emacs Ng By Nix-Shell And Enable Emacs Cachix
   </a>
   
 </li>
       
         <li class="md-nav__item">
   <a href="#setting-up-rust-develop-environment" class="md-nav__link">
-    Setting up Rust develop environment
+    Setting Up Rust Develop Environment
   </a>
   
-    <nav class="md-nav" aria-label="Setting up Rust develop environment">
+    <nav class="md-nav" aria-label="Setting Up Rust Develop Environment">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#change-rust-version" class="md-nav__link">
-    change rust version
+    Change Rust Version
   </a>
   
 </li>
@@ -491,14 +511,14 @@
         
           <li class="md-nav__item">
   <a href="#add-direnv-support-with-emacs" class="md-nav__link">
-    Add direnv support with Emacs
+    Add Direnv Support With Emacs
   </a>
   
 </li>
         
           <li class="md-nav__item">
   <a href="#write-a-custom-command-or-environment-variable" class="md-nav__link">
-    write a custom command or environment variable
+    Write A Custom Command Or Environment Variable
   </a>
   
 </li>
@@ -710,29 +730,49 @@
       
         <li class="md-nav__item">
   <a href="#install-flake-feature-of-nix" class="md-nav__link">
-    Install flake feature of nix
+    Install Flake Feature Of Nix
   </a>
   
 </li>
       
         <li class="md-nav__item">
+  <a href="#nix-flake-feature-alread-in-emacsng" class="md-nav__link">
+    Nix flake feature alread in emacsNg
+  </a>
+  
+    <nav class="md-nav" aria-label="Nix flake feature alread in emacsNg">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#using-cachix-to-download-binary-cachespeed-up-build" class="md-nav__link">
+    using cachix to (download binary cache)speed up build
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#clone-emacs-ng-by-nix-shell-and-enable-emacs-cachix" class="md-nav__link">
-    Clone Emacs-ng by nix-shell and enable emacs cachix
+    Clone Emacs Ng By Nix-Shell And Enable Emacs Cachix
   </a>
   
 </li>
       
         <li class="md-nav__item">
   <a href="#setting-up-rust-develop-environment" class="md-nav__link">
-    Setting up Rust develop environment
+    Setting Up Rust Develop Environment
   </a>
   
-    <nav class="md-nav" aria-label="Setting up Rust develop environment">
+    <nav class="md-nav" aria-label="Setting Up Rust Develop Environment">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#change-rust-version" class="md-nav__link">
-    change rust version
+    Change Rust Version
   </a>
   
 </li>
@@ -760,14 +800,14 @@
         
           <li class="md-nav__item">
   <a href="#add-direnv-support-with-emacs" class="md-nav__link">
-    Add direnv support with Emacs
+    Add Direnv Support With Emacs
   </a>
   
 </li>
         
           <li class="md-nav__item">
   <a href="#write-a-custom-command-or-environment-variable" class="md-nav__link">
-    write a custom command or environment variable
+    Write A Custom Command Or Environment Variable
   </a>
   
 </li>
@@ -820,7 +860,7 @@
 </code></pre></div>
 
 <p>then <code>exec bash -l</code> reload your bash to load the nix-env</p>
-<h2 id="install-flake-feature-of-nix">Install flake feature of nix<a class="headerlink" href="#install-flake-feature-of-nix" title="Permanent link">#</a></h2>
+<h2 id="install-flake-feature-of-nix">Install Flake Feature Of Nix<a class="headerlink" href="#install-flake-feature-of-nix" title="Permanent link">#</a></h2>
 <div class="codehilite"><pre><span></span><code>nix-env -iA nixpkgs.nixUnstable
 echo &quot;experimental-features = nix-command flakes&quot; | sudo tee -a /etc/nix/nix.conf
 sudo pkill nix-daemon
@@ -831,16 +871,48 @@ sudo pkill nix-daemon
 nix (Nix) 2.4pre20210326_dd77f71
 </code></pre></div>
 
-<h2 id="clone-emacs-ng-by-nix-shell-and-enable-emacs-cachix">Clone Emacs-ng by nix-shell and enable emacs cachix<a class="headerlink" href="#clone-emacs-ng-by-nix-shell-and-enable-emacs-cachix" title="Permanent link">#</a></h2>
+<h2 id="nix-flake-feature-alread-in-emacsng">Nix flake feature alread in emacsNg<a class="headerlink" href="#nix-flake-feature-alread-in-emacsng" title="Permanent link">#</a></h2>
+<div class="codehilite"><pre><span></span><code>nix run github:emacs-ng/emacs-ng (launch emacs locally )
+nix build github:emacs-ng/emacs-ng (build emacs locally)
+nix develop github:emacs-ng/emacs-ng (enter develop emacs environment locally)
+</code></pre></div>
+
+<p>Also, you can run native nix commands(Nix Stable Version) under <code>emacs-ng</code> repo such as</p>
+<div class="codehilite"><pre><span></span><code>nix-shell
+nix-build
+</code></pre></div>
+
+<h4 id="using-cachix-to-download-binary-cachespeed-up-build">using <code>cachix</code> to (download binary cache)speed up build<a class="headerlink" href="#using-cachix-to-download-binary-cachespeed-up-build" title="Permanent link">#</a></h4>
+<ol>
+<li>without install cachix</li>
+</ol>
+<div class="highlight"><pre><span></span><code>nix build github:emacs-ng/emacs-ng --option substituters <span class="s2">&quot;https://emacsng.cachix.org&quot;</span> --option trusted-public-keys <span class="s2">&quot;emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=&quot;</span> -o emacsNg
+ls -il emacs
+<span class="c1">#or check ./result/bin/emacs</span>
+nix-build --option substituters <span class="s2">&quot;https://emacsng.cachix.org&quot;</span> --option trusted-public-keys <span class="s2">&quot;emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=&quot;</span>
+</code></pre></div>
+<ol>
+<li>Install cachix</li>
+</ol>
+<div class="highlight"><pre><span></span><code>nix-env -iA cachix -f https://cachix.org/api/v1/install <span class="c1">#install cachix</span>
+<span class="nb">exec</span> bash -l
+cachix use emacsng <span class="c1"># make sure you have saw the output like: Configured https://emacsng.cachix.org binary cache in /home/test/.config/nix/nix.conf</span>
+<span class="c1">#then</span>
+nix-build
+<span class="c1">#or</span>
+nix build github:emacs-ng/emacs-ng -o emacsNg
+ls -il emacsNg
+</code></pre></div>
+<h2 id="clone-emacs-ng-by-nix-shell-and-enable-emacs-cachix">Clone Emacs Ng By Nix-Shell And Enable Emacs Cachix<a class="headerlink" href="#clone-emacs-ng-by-nix-shell-and-enable-emacs-cachix" title="Permanent link">#</a></h2>
 <div class="highlight"><pre><span></span><code>nix-env -iA cachix -f https://cachix.org/api/v1/install
 <span class="nb">exec</span> bash -l
 cachix use emacsng <span class="c1"># make sure you have saw the output like: Configured https://emacsng.cachix.org binary cache in /home/test/.config/nix/nix.conf</span>
 nix-shell -p git --command <span class="s2">&quot;git clone https://github.com/emacs-ng/emacs-ng.git &amp;&amp; cd emacs-ng &amp;&amp; nix-shell&quot;</span>
 </code></pre></div>
-<h2 id="setting-up-rust-develop-environment">Setting up Rust develop environment<a class="headerlink" href="#setting-up-rust-develop-environment" title="Permanent link">#</a></h2>
-<h3 id="change-rust-version">change rust version<a class="headerlink" href="#change-rust-version" title="Permanent link">#</a></h3>
+<h2 id="setting-up-rust-develop-environment">Setting Up Rust Develop Environment<a class="headerlink" href="#setting-up-rust-develop-environment" title="Permanent link">#</a></h2>
+<h3 id="change-rust-version">Change Rust Version<a class="headerlink" href="#change-rust-version" title="Permanent link">#</a></h3>
 <ol>
-<li>Night version</li>
+<li>Nightly Version</li>
 <li>
 <p>located <code>nix/rust.nix</code> modify the <code>2021-01-14</code>to which your want.(<a href="https://github.com/oxalica/rust-overlay/tree/master/manifests/nightly/default.nix">rustOverlay-NightlyCheck</a>) 
      Example: <code>default = pkgs.rust-bin.nightly."2021-03-23";</code></p>
@@ -896,8 +968,8 @@ nix-shell -p git --command <span class="s2">&quot;git clone https://github.com/e
 <ul>
 <li>located <code>nix/rust.nix</code></li>
 </ul>
-<p>first search any package in <a href="https://search.nixos.org/packages?channel=unstable&amp;">search-package</a> then add the name to </p>
-<div class="highlight"><pre><span></span><code>     devshell<span class="o">.</span><span class="ss">packages =</span> <span class="nb">map</span> <span class="p">(</span>tool<span class="p">:</span> cfg<span class="o">.</span>rustPackages<span class="o">.</span><span class="err">$</span><span class="p">{</span>tool<span class="p">})</span> cfg<span class="o">.</span>rustPackagesSet
+<p>first, search package in <a href="https://search.nixos.org/packages?channel=unstable&amp;">search-package</a> then add the name of package to:</p>
+<div class="highlight"><pre><span></span><code>devshell<span class="o">.</span><span class="ss">packages =</span> <span class="nb">map</span> <span class="p">(</span>tool<span class="p">:</span> cfg<span class="o">.</span>rustPackages<span class="o">.</span><span class="err">$</span><span class="p">{</span>tool<span class="p">})</span> cfg<span class="o">.</span>rustPackagesSet
       <span class="o">++</span> <span class="nb">map</span> <span class="p">(</span>tool<span class="p">:</span> cfg<span class="o">.</span>rustOverlay<span class="o">.</span><span class="err">$</span><span class="p">{</span>tool<span class="p">})</span> cfg<span class="o">.</span>rustOverlaySet <span class="o">++</span> <span class="p">(</span><span class="k">with</span> pkgs<span class="p">;[</span>
       <span class="c1">#custom nixpkgs packages</span>
       rustracer
@@ -909,7 +981,7 @@ nix-shell -p git --command <span class="s2">&quot;git clone https://github.com/e
 
 <span class="err">-</span> normally<span class="p">,</span> we can re-enter <span class="err">`</span>nix-shell<span class="err">`</span> to reload envrs<span class="o">.</span> But for this project<span class="p">,</span> we are using direnv to load <span class="ow">and</span> unload environment variables <span class="k">in</span> an convenient way<span class="o">.</span>
 
-<span class="c1">### Recommended way -&gt; Direnv</span>
+<span class="c1">### Recommended Way -&gt; Direnv</span>
 
  Install direnv by Nix
 
@@ -923,14 +995,15 @@ nix-shell -p git --command <span class="s2">&quot;git clone https://github.com/e
 
 <span class="err">-</span> Also<span class="p">,</span> you can put as follows to <span class="err">`~</span><span class="l">/.config/direnv/direnvrc</span><span class="err">`</span> watching the envrs every time changes that could be reload automatically<span class="o">.</span>
 
-<span class="err">```</span>conf
+
+<span class="err">```</span>bash
 use_flake<span class="p">()</span> <span class="p">{</span>
   watch_file flake<span class="o">.</span>nix
   watch_file flake<span class="o">.</span>lock
   eval <span class="s2">&quot;$(nix print-dev-env)&quot;</span>
 <span class="p">}</span>
 </code></pre></div>
-<h3 id="add-direnv-support-with-emacs">Add direnv support with Emacs<a class="headerlink" href="#add-direnv-support-with-emacs" title="Permanent link">#</a></h3>
+<h3 id="add-direnv-support-with-emacs">Add Direnv Support With Emacs<a class="headerlink" href="#add-direnv-support-with-emacs" title="Permanent link">#</a></h3>
 <ul>
 <li><a href="https://github.com/purcell/envrc">https://github.com/purcell/envrc</a></li>
 </ul>
@@ -941,7 +1014,7 @@ use_flake<span class="p">()</span> <span class="p">{</span>
 <span class="p">)</span>
 </code></pre></div>
  then <code>M-x</code> typing <code>envrv-&lt;**&gt;</code> check related commands similar to native direnv-commands</p>
-<h3 id="write-a-custom-command-or-environment-variable">write a custom command or environment variable<a class="headerlink" href="#write-a-custom-command-or-environment-variable" title="Permanent link">#</a></h3>
+<h3 id="write-a-custom-command-or-environment-variable">Write A Custom Command Or Environment Variable<a class="headerlink" href="#write-a-custom-command-or-environment-variable" title="Permanent link">#</a></h3>
 <ul>
 <li>
 <p>locaed <code>nix/commands.toml</code></p>
@@ -1008,7 +1081,7 @@ use_flake<span class="p">()</span> <span class="p">{</span>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">May 4, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">May 10, 2021</span>
     
   </small>
 </div>
