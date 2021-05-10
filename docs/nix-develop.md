@@ -6,7 +6,7 @@
 
 then `exec bash -l` reload your bash to load the nix-env
 
-## Install flake feature of nix
+## Install Flake Feature Of Nix
 
     nix-env -iA nixpkgs.nixUnstable
     echo "experimental-features = nix-command flakes" | sudo tee -a /etc/nix/nix.conf
@@ -17,7 +17,42 @@ then `exec bash -l` reload your bash to load the nix-env
     nix --version
     nix (Nix) 2.4pre20210326_dd77f71
   
-## Clone Emacs-ng by nix-shell and enable emacs cachix 
+## Nix flake feature alread in emacsNg
+
+    nix run github:emacs-ng/emacs-ng (launch emacs locally )
+    nix build github:emacs-ng/emacs-ng (build emacs locally)
+    nix develop github:emacs-ng/emacs-ng (enter develop emacs environment locally)
+
+Also, you can run native nix commands(Nix Stable Version) under `emacs-ng` repo such as
+
+    nix-shell
+    nix-build
+
+#### using `cachix` to (download binary cache)speed up build
+
+1. without install cachix
+
+```bash
+nix build github:emacs-ng/emacs-ng --option substituters "https://emacsng.cachix.org" --option trusted-public-keys "emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=" -o emacsNg
+ls -il emacs
+#or check ./result/bin/emacs
+nix-build --option substituters "https://emacsng.cachix.org" --option trusted-public-keys "emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI="
+```
+
+2. Install cachix
+
+```bash
+nix-env -iA cachix -f https://cachix.org/api/v1/install #install cachix
+exec bash -l
+cachix use emacsng # make sure you have saw the output like: Configured https://emacsng.cachix.org binary cache in /home/test/.config/nix/nix.conf
+#then
+nix-build
+#or
+nix build github:emacs-ng/emacs-ng -o emacsNg
+ls -il emacsNg
+```
+
+## Clone Emacs Ng By Nix-Shell And Enable Emacs Cachix 
 
 ```bash
 nix-env -iA cachix -f https://cachix.org/api/v1/install
@@ -26,10 +61,10 @@ cachix use emacsng # make sure you have saw the output like: Configured https://
 nix-shell -p git --command "git clone https://github.com/emacs-ng/emacs-ng.git && cd emacs-ng && nix-shell"
 ```
 
-## Setting up Rust develop environment
+## Setting Up Rust Develop Environment
 
-### change rust version
-1. Night version
+### Change Rust Version
+1. Nightly Version
    - located `nix/rust.nix` modify the `2021-01-14`to which your want.([rustOverlay-NightlyCheck](https://github.com/oxalica/rust-overlay/tree/master/manifests/nightly/default.nix)) 
      Example: `default = pkgs.rust-bin.nightly."2021-03-23";`
 
@@ -82,10 +117,10 @@ the RustOverly supported Packages list that you can find here ([packages-list](h
 
 - located `nix/rust.nix`
 
-first search any package in [search-package](https://search.nixos.org/packages?channel=unstable&) then add the name to 
+first, search package in [search-package](https://search.nixos.org/packages?channel=unstable&) then add the name of package to:
 
 ```nix
-     devshell.packages = map (tool: cfg.rustPackages.${tool}) cfg.rustPackagesSet
+devshell.packages = map (tool: cfg.rustPackages.${tool}) cfg.rustPackagesSet
       ++ map (tool: cfg.rustOverlay.${tool}) cfg.rustOverlaySet ++ (with pkgs;[
       #custom nixpkgs packages
       rustracer
@@ -96,8 +131,8 @@ first search any package in [search-package](https://search.nixos.org/packages?c
 ## Reload all of envs when you changed something
 
 - normally, we can re-enter `nix-shell` to reload envrs. But for this project, we are using direnv to load and unload environment variables in an convenient way.
-
-### Recommended way -> Direnv
+  
+### Recommended Way -> Direnv
 
  Install direnv by Nix
 
@@ -111,7 +146,8 @@ and hook direnv to your bash [direnv-hook](https://direnv.net/docs/hook.html)
 
 - Also, you can put as follows to `~/.config/direnv/direnvrc` watching the envrs every time changes that could be reload automatically.
 
-```conf
+
+```bash
 use_flake() {
   watch_file flake.nix
   watch_file flake.lock
@@ -119,7 +155,7 @@ use_flake() {
 }
 ```
 
-### Add direnv support with Emacs
+### Add Direnv Support With Emacs
 
 - <https://github.com/purcell/envrc>
 
@@ -133,7 +169,7 @@ Install direnv to Doom Emacs, Example
 ```
  then `M-x` typing `envrv-<**>` check related commands similar to native direnv-commands
 
-### write a custom command or environment variable
+### Write A Custom Command Or Environment Variable
 
 - locaed `nix/commands.toml`
 
@@ -175,6 +211,7 @@ then `nix-build` it;
 ### Add custom configFlags to emacsNg build process
 
 - located `flake.nix`
+
 
 ```nix
 configureFlags = (old.configureFlags or [ ]) ++ [
