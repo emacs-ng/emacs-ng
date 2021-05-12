@@ -31,6 +31,8 @@ extern crate libc;
 extern crate emacs;
 extern crate lisp_macros;
 extern crate remacs_lib;
+#[cfg(feature = "libgit")]
+extern crate git;
 
 extern crate futures;
 extern crate lsp_server;
