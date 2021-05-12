@@ -35,8 +35,8 @@ use emacs::{
     bindings::{
         create_terminal, current_kboard, draw_fringe_bitmap_params, fontset_from_font,
         frame_parm_handler, fullscreen_type, glyph_row, glyph_string, initial_kboard,
-        output_method, redisplay_interface, scroll_bar_part, terminal, text_cursor_kinds,
-        xlispstrdup, Emacs_Color, Fcons, Fredraw_frame,
+        note_mouse_highlight, output_method, redisplay_interface, scroll_bar_part, terminal,
+        text_cursor_kinds, xlispstrdup, Emacs_Color, Emacs_Cursor, Fcons, Fredraw_frame,
     },
     font::LispFontRef,
     frame::{LispFrameRef, Lisp_Frame},
@@ -133,7 +133,7 @@ lazy_static! {
             destroy_fringe_bitmap: None,
             compute_glyph_string_overhangs: None,
             draw_glyph_string: Some(draw_glyph_string),
-            define_frame_cursor: None,
+            define_frame_cursor: Some(define_frame_cursor),
             default_font_parameter: None,
             clear_frame_area: Some(clear_frame_area),
             draw_window_cursor: Some(draw_window_cursor),
@@ -487,6 +487,14 @@ extern "C" fn scroll_run(w: *mut Lisp_Window, run: *mut run) {
         .scroll(x, y, width, height, from_y, to_y, scroll_height);
 }
 
+extern "C" fn define_frame_cursor(f: *mut Lisp_Frame, cursor: Emacs_Cursor) {
+    let frame: LispFrameRef = f.into();
+
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    output.set_mouse_cursor(cursor);
+}
+
 extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_event) -> i32 {
     let terminal: TerminalRef = terminal.into();
     let dpyinfo = DisplayInfoRef::new(unsafe { terminal.display_info.wr } as *mut _);
@@ -589,6 +597,8 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
             }
 
             let mut frame: LispFrameRef = top_frame.into();
+
+            unsafe { note_mouse_highlight(frame.as_mut(), position.x as i32, position.y as i32) };
 
             dpyinfo.input_processor.cursor_move(position);
 
@@ -777,6 +787,19 @@ extern "C" fn mouse_position(
     unsafe { *y = cursor_pos.y.into() };
 }
 
+extern "C" fn update_end(f: *mut Lisp_Frame) {
+    let mut dpyinfo = {
+        let frame: LispFrameRef = f.into();
+        let output: OutputRef = unsafe { frame.output_data.wr.into() };
+        output.display_info()
+    };
+
+    let mut dpyinfo = dpyinfo.get_raw();
+
+    // Mouse highlight may be displayed again.
+    dpyinfo.mouse_highlight.set_mouse_face_defer(false);
+}
+
 fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     let terminal_ptr = unsafe {
         create_terminal(
@@ -806,6 +829,7 @@ fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     terminal.frame_visible_invisible_hook = Some(make_frame_visible_invisible);
     terminal.iconify_frame_hook = Some(iconify_frame);
     terminal.mouse_position_hook = Some(mouse_position);
+    terminal.update_end_hook = Some(update_end);
 
     terminal
 }

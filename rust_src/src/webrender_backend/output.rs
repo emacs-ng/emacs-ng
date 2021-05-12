@@ -14,7 +14,7 @@ use glutin::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoopProxy, EventLoopWindowTarget},
     monitor::MonitorHandle,
-    window::Window,
+    window::{CursorIcon, Window},
     ContextWrapper, PossiblyCurrent,
 };
 use std::{
@@ -32,7 +32,7 @@ use glutin::platform::unix::EventLoopWindowTargetExtUnix;
 
 use webrender::{self, api::units::*, api::*};
 
-use emacs::bindings::wr_output;
+use emacs::bindings::{wr_output, Emacs_Cursor};
 
 #[cfg(macos)]
 use copypasta::osx_clipboard::OSXClipboardContext;
@@ -46,10 +46,10 @@ use copypasta::{
 
 use copypasta::ClipboardProvider;
 
-use super::display_info::DisplayInfoRef;
-use super::font::FontRef;
 use super::texture::TextureResourceManager;
 use super::util::HandyDandyRectBuilder;
+use super::{cursor::emacs_to_winit_cursor, display_info::DisplayInfoRef};
+use super::{cursor::winit_to_emacs_cursor, font::FontRef};
 
 pub enum EmacsGUIEvent {
     Flush(SyncSender<ImageKey>),
@@ -111,7 +111,7 @@ impl Output {
 
         let clipboard = Self::build_clipboard(platform);
 
-        Self {
+        let mut output = Self {
             output: wr_output::default(),
             font: FontRef::new(ptr::null_mut()),
             fontset: 0,
@@ -127,7 +127,11 @@ impl Output {
             color_bits,
             event_rx,
             clipboard,
-        }
+        };
+
+        Self::build_mouse_cursors(&mut output);
+
+        output
     }
 
     fn create_webrender_window() -> (
@@ -615,6 +619,34 @@ impl Output {
 
     pub fn get_clipboard(&mut self) -> &mut Box<dyn ClipboardProvider> {
         &mut self.clipboard
+    }
+
+    fn build_mouse_cursors(output: &mut Output) {
+        output.output.text_cursor = winit_to_emacs_cursor(CursorIcon::Text);
+        output.output.nontext_cursor = winit_to_emacs_cursor(CursorIcon::Arrow);
+        output.output.modeline_cursor = winit_to_emacs_cursor(CursorIcon::Hand);
+        output.output.hand_cursor = winit_to_emacs_cursor(CursorIcon::Hand);
+        output.output.hourglass_cursor = winit_to_emacs_cursor(CursorIcon::Progress);
+
+        output.output.horizontal_drag_cursor = winit_to_emacs_cursor(CursorIcon::ColResize);
+        output.output.vertical_drag_cursor = winit_to_emacs_cursor(CursorIcon::RowResize);
+
+        output.output.left_edge_cursor = winit_to_emacs_cursor(CursorIcon::WResize);
+        output.output.right_edge_cursor = winit_to_emacs_cursor(CursorIcon::EResize);
+        output.output.top_edge_cursor = winit_to_emacs_cursor(CursorIcon::NResize);
+        output.output.bottom_edge_cursor = winit_to_emacs_cursor(CursorIcon::SResize);
+
+        output.output.top_left_corner_cursor = winit_to_emacs_cursor(CursorIcon::NwResize);
+        output.output.top_right_corner_cursor = winit_to_emacs_cursor(CursorIcon::NeResize);
+
+        output.output.bottom_left_corner_cursor = winit_to_emacs_cursor(CursorIcon::SwResize);
+        output.output.bottom_right_corner_cursor = winit_to_emacs_cursor(CursorIcon::SeResize);
+    }
+
+    pub fn set_mouse_cursor(&self, cursor: Emacs_Cursor) {
+        let cursor = emacs_to_winit_cursor(cursor);
+
+        self.window.set_cursor_icon(cursor)
     }
 }
 
