@@ -450,7 +450,8 @@ fn generate_crate_c_export_file(
 /// First we have to generate the files for the main crate. The other crates
 /// *_init_syms functions will be called from rust_init_syms from src/.
 fn generate_include_files() -> Result<(), BuildError> {
-    // The first section of this function takes care of the main crate
+    // The first section of this function generates the include files for
+    // the main crate
     let path: PathBuf = [&env_var("CARGO_MANIFEST_DIR"), "src"].iter().collect();
     let modules = find_crate_modules(&path)?;
 
@@ -466,7 +467,7 @@ fn generate_include_files() -> Result<(), BuildError> {
 
     write_lisp_fns(&out_path, &out_file, &modules)?;
 
-    // In this section we proceed with the crates from the directory "crates"
+    // In this section we do the same for the crates from the directory "crates"
     let crates: PathBuf = [&env_var("CARGO_MANIFEST_DIR"), "crates"].iter().collect();
 
     // Iterate crates path and generate include files
@@ -492,10 +493,10 @@ fn generate_include_files() -> Result<(), BuildError> {
 /// Return true when crate is supposed to be ignored.
 /// The list of ignored crates depends on the activated features.
 fn build_ignored_crates(path: &PathBuf) -> bool {
-    let ignored_crates = vec!["lisp_util", "lisp_macros", "emacs"];
+    let mut ignored_crates = vec!["lisp_util", "lisp_macros", "emacs"];
 
     #[cfg(not(feature = "libgit"))]
-    ignored_paths.push("git");
+    ignored_crates.push("git");
 
     let crate_path = path_as_str(path.file_name()).to_string();
 
@@ -513,11 +514,10 @@ fn build_ignored_crates(path: &PathBuf) -> bool {
 /// and write_lisp_fns to create the include file for each module which holds
 /// the lisp_fns.
 fn generate_crate_exports(path: &PathBuf) -> Result<(), BuildError> {
-    let modules = find_crate_modules(&path)?;
+    let modules = find_crate_modules(&path.join("src"))?;
 
     fs::create_dir(path.join("out"));
     let mut out_file = File::create(path.join("out").join("c_exports.rs"))?;
-
     generate_crate_c_export_file(&out_file, &modules)?;
 
     let crate_name = path_as_str(path.file_name()).to_string();
@@ -535,7 +535,7 @@ fn generate_crate_exports(path: &PathBuf) -> Result<(), BuildError> {
 }
 
 /// Export lisp functions defined in rust by using the macro `export_lisp_fns`
-/// Add *_init_syms function of each module to the c_exports file of the crate
+/// Add *_init_syms function of each module to the c_exports OUT_FILE
 fn write_lisp_fns(
     crate_path: &PathBuf,
     mut out_file: &File,
@@ -544,8 +544,8 @@ fn write_lisp_fns(
     for mod_data in modules {
         let exports_path: PathBuf = crate_path.join([&mod_data.info.name, "_exports.rs"].concat());
 
+        // Start with a clean slate
         if exports_path.exists() {
-            // Start with a clean slate
             fs::remove_file(&exports_path)?;
         }
 

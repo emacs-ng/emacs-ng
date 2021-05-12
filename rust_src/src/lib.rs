@@ -29,10 +29,10 @@ extern crate libc;
 // Needed for linking.
 #[macro_use]
 extern crate emacs;
-extern crate lisp_macros;
-extern crate remacs_lib;
 #[cfg(feature = "libgit")]
 extern crate git;
+extern crate lisp_macros;
+extern crate remacs_lib;
 
 extern crate futures;
 extern crate lsp_server;
