@@ -375,11 +375,6 @@ fn ignore(path: &str, additional_ignored_paths: &Vec<&str>) -> bool {
         || path == "lib.rs"
         || path == "functions.rs"
         || additional_ignored_paths.contains(&path)
-        || if cfg!(feature = "libvterm") {
-            false
-        } else {
-            path == "vterm.rs"
-        }
 }
 
 // What files to ignore depending on chosen features
