@@ -9,6 +9,7 @@ path = "src/lib.rs"
 [dependencies]
 emacs = { version = "0.1.0", path = "../emacs" }
 lisp-macros = { version = "0.1.0", path = "../lisp_macros" }
+lisp-util = { version = "0.1.0", path = "../lisp_util" }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9" }
 git2 = "0.13"
