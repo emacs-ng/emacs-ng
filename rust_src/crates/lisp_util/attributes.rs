@@ -84,3 +84,19 @@ where
             .and_then(|v| v.convert(def_name, def_min_args))
     }
 }
+
+#[macro_export]
+macro_rules! export_lisp_fns {
+    ($($(#[$($meta:meta),*])* $f:ident),+) => {
+	pub fn rust_init_syms() {
+	    #[allow(unused_unsafe)] // just in case the block is empty
+	    unsafe {
+		$(
+		    $(#[$($meta),*])* emacs::bindings::defsubr(
+			concat_idents!(S, $f).as_ptr() as *mut emacs::bindings::Aligned_Lisp_Subr
+		    );
+		)+
+	    }
+	}
+    }
+}
