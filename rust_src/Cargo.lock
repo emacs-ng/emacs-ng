@@ -1416,7 +1416,6 @@ dependencies = [
  "cfg-if 0.1.10",
  "clippy",
  "copypasta",
- "crossbeam",
  "deno",
  "deno_core",
  "deno_runtime",
@@ -1435,12 +1434,11 @@ dependencies = [
  "line-wrap",
  "lisp-macros",
  "lisp-util",
- "lsp-server",
+ "ng_async",
  "rand 0.6.5",
  "regex 1.4.3",
  "remacs-lib",
  "rusty_v8",
- "serde_json",
  "tempfile",
  "tokio",
  "tokio-rustls",
@@ -2052,6 +2050,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "lisp-macros",
+ "lisp-util",
  "openssl",
  "openssl-sys",
 ]
@@ -3022,6 +3021,21 @@ name = "new_debug_unreachable"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4a24736216ec316047a1fc4252e27dabb04218aa4a3f37c6e7ddbf1f9782b54"
+
+[[package]]
+name = "ng_async"
+version = "0.1.0"
+dependencies = [
+ "crossbeam",
+ "emacs",
+ "futures",
+ "lazy_static",
+ "libc",
+ "lisp-macros",
+ "lisp-util",
+ "lsp-server",
+ "serde_json",
+]
 
 [[package]]
 name = "nibble_vec"
