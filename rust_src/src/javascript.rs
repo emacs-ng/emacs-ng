@@ -1,4 +1,4 @@
-use crate::parsing::{ArrayType, ObjectType};
+use ng_async::parsing::{ArrayType, ObjectType};
 use emacs::bindings::Ffuncall;
 use emacs::definitions::EmacsUint;
 use emacs::lisp::LispObject;
@@ -480,7 +480,7 @@ pub fn json_lisp(
         .uint32_value(scope)
         .unwrap();
 
-    let mut base_config = crate::parsing::gen_ser_deser_config();
+    let mut base_config = ng_async::parsing::gen_ser_deser_config();
 
     match option {
         HASHTABLE => base_config.obj = ObjectType::Hashtable,
@@ -491,7 +491,7 @@ pub fn json_lisp(
         _ => { /* noop */ }
     }
 
-    let deser_result = crate::parsing::deser(&message, Some(base_config));
+    let deser_result = ng_async::parsing::deser(&message, Some(base_config));
     match deser_result {
         Ok(result) => {
             let proxy = make_proxy!(scope, result);
@@ -678,7 +678,7 @@ pub fn lisp_list(
         if arg.is_string() {
             let a = arg.to_string(scope).unwrap().to_rust_string_lossy(scope);
 
-            let deser_result = crate::parsing::deser(&a, None);
+            let deser_result = ng_async::parsing::deser(&a, None);
             match deser_result {
                 Ok(deser) => {
                     lisp_args.push(deser);
@@ -717,7 +717,7 @@ pub fn lisp_json(
     let mut parsed = false;
     if args.get(0).is_object() {
         let lispobj = unproxy!(scope, args.get(0).to_object(scope).unwrap());
-        if let Ok(json) = crate::parsing::ser(lispobj) {
+        if let Ok(json) = ng_async::parsing::ser(lispobj) {
             parsed = true;
             let r =
                 v8::Local::<v8::Value>::try_from(v8::String::new(scope, &json).unwrap()).unwrap();
@@ -861,7 +861,7 @@ pub fn lisp_invoke(
         if arg.is_string() {
             let a = arg.to_string(scope).unwrap().to_rust_string_lossy(scope);
 
-            let deser_result = crate::parsing::deser(&a, None);
+            let deser_result = ng_async::parsing::deser(&a, None);
             match deser_result {
                 Ok(deser) => {
                     lisp_args.push(deser);
@@ -941,7 +941,7 @@ pub fn lisp_invoke(
             || results == emacs::globals::Qt
     };
     if is_primative {
-        if let Ok(json) = crate::parsing::ser(results) {
+        if let Ok(json) = ng_async::parsing::ser(results) {
             let r =
                 v8::Local::<v8::Value>::try_from(v8::String::new(scope, &json).unwrap()).unwrap();
             retval.set(r);
@@ -1430,7 +1430,7 @@ fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> Result<
                         || a == emacs::globals::Qt
                 };
                 if is_primative {
-                    if let Ok(json) = crate::parsing::ser(a) {
+                    if let Ok(json) = ng_async::parsing::ser(a) {
                         v8_args.push(
                             v8::Local::<v8::Value>::try_from(
                                 v8::String::new(scope, &json).unwrap(),
@@ -1468,7 +1468,7 @@ fn execute_function_may_throw(
                 .unwrap()
                 .to_rust_string_lossy(tc_scope);
 
-            retval = crate::parsing::deser(&a, None)?;
+            retval = ng_async::parsing::deser(&a, None)?;
         } else if result.is_object() {
             retval = unproxy!(tc_scope, result.to_object(tc_scope).unwrap());
         }
