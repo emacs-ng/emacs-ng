@@ -1,10 +1,10 @@
-use ng_async::parsing::{ArrayType, ObjectType};
 use emacs::bindings::Ffuncall;
 use emacs::definitions::EmacsUint;
 use emacs::lisp::LispObject;
 use emacs::list::{LispCons, LispConsCircularChecks, LispConsEndChecks};
 use emacs::multibyte::LispStringRef;
 use lisp_macros::lisp_fn;
+use ng_async::parsing::{ArrayType, ObjectType};
 use rusty_v8 as v8;
 use std::cell::RefCell;
 use std::convert::TryFrom;

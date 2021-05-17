@@ -34,16 +34,16 @@ extern crate git;
 extern crate lisp_macros;
 #[macro_use]
 extern crate lisp_util;
-extern crate remacs_lib;
 extern crate ng_async;
+extern crate remacs_lib;
 
-extern crate futures;
 #[cfg(feature = "javascript")]
 extern crate deno;
 #[cfg(feature = "javascript")]
 extern crate deno_core;
 #[cfg(feature = "javascript")]
 extern crate deno_runtime;
+extern crate futures;
 #[cfg(feature = "javascript")]
 extern crate rusty_v8;
 #[cfg(feature = "javascript")]

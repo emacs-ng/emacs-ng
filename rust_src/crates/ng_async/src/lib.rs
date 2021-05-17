@@ -4,8 +4,8 @@
 
 extern crate libc;
 
-extern crate lazy_static;
 extern crate futures;
+extern crate lazy_static;
 extern crate lsp_server;
 #[macro_use]
 extern crate serde_json;
@@ -17,8 +17,8 @@ extern crate lisp_macros;
 #[macro_use]
 extern crate lisp_util;
 
-mod ng_async;
-mod parsing;
+pub mod ng_async;
+pub mod parsing;
 
 #[cfg(not(test))]
 include!(concat!(env!("CARGO_MANIFEST_DIR"), "/out/c_exports.rs"));
