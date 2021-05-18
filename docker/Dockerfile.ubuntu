@@ -1,0 +1,57 @@
+FROM ubuntu:20.04
+
+# using local cloned repo
+WORKDIR /src
+COPY . /src
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Needed for add-apt-repository, et al.
+RUN apt update && apt upgrade -y \
+        && apt install -y \
+        apt-transport-https \
+        ca-certificates \
+        curl \
+        gnupg-agent \
+        software-properties-common \
+        git
+
+# deps
+RUN apt install -y clang autoconf make checkinstall texinfo \
+    librsvg2-dev libxpm-dev libjpeg-dev libgtk-3-dev libgif-dev libtiff-dev libpng-dev \
+    libgnutls28-dev libncurses5-dev libsystemd-dev libjansson-dev libjansson4 libharfbuzz-dev libxt-dev \
+    libgccjit-9-dev gcc-9 g++-9
+
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 9
+RUN update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 9
+
+# Cleanup apt cache to reclaim some space
+RUN apt clean && rm -rf /var/lib/apt/lists/*
+
+# Download Rust nightly
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+     sh -s -- -y --default-host x86_64-unknown-linux-gnu --default-toolchain $( cat rust-toolchain )
+RUN . $HOME/.cargo/env && rustup component add rustfmt
+
+# configure emacs-ng compilation
+RUN . $HOME/.cargo/env && ./autogen.sh && \
+    ./configure PATH=$PATH:$HOME/.cargo/bin CFLAGS="-Wl,-rpath,shared -Wl,--disable-new-dtags" \
+    --with-json --with-modules --with-harfbuzz --with-compress-install \
+    --with-threads --with-included-regex --with-zlib --with-cairo --with-libsystemd \
+    --with-rsvg --with-native-compilation \
+    --without-sound --without-imagemagick --without-makeinfo --without-gpm --without-dbus \
+    --without-pop --without-toolkit-scroll-bars --without-mailutils --without-gsettings \
+    --with-all
+
+# compile
+RUN . $HOME/.cargo/env && \
+    make PATH=$PATH:$HOME/.cargo/bin -j$(nproc) && \
+    make install-strip
+
+# make .deb
+RUN checkinstall -y -D --pkgname=emacs-ng --pkgversion="0.1" \
+  --requires="libjansson4,libncurses5,libgccjit0,librsvg2-2,libxpm4,libgif7,libtiff5,libjpeg9,libpng16-16,libgtk-3-0,libharfbuzz0b" \
+  --pkggroup=emacs --gzman=yes --install=no \
+  make install-strip
+
+CMD ["/bin/bash"]
