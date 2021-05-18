@@ -30,6 +30,7 @@
 (require 'mail-utils)
 (require 'rfc2047)
 (autoload 'message-make-date "message")
+(autoload 'message-narrow-to-headers "message")
 
 (defgroup sendmail nil
   "Mail sending commands for Emacs."
@@ -961,7 +962,10 @@ the user from the mailer."
 
 (defun mail-envelope-from ()
   "Return the envelope mail address to use when sending mail.
-This function uses `mail-envelope-from'."
+This function uses the `mail-envelope-from' variable.
+
+The buffer should be narrowed to the headers of the mail message
+before this function is called."
   (if (eq mail-envelope-from 'header)
       (nth 1 (mail-extract-address-components
  	      (mail-fetch-field "From")))
@@ -1177,7 +1181,12 @@ external program defined by `sendmail-program'."
 	;; local binding in the mail buffer will take effect.
 	(envelope-from
 	 (and mail-specify-envelope-from
-	      (or (mail-envelope-from) user-mail-address))))
+	      (or (save-restriction
+                    ;; Only look at the headers when fetching the
+                    ;; envelope address.
+                    (message-narrow-to-headers)
+                    (mail-envelope-from))
+                  user-mail-address))))
     (unwind-protect
 	(with-current-buffer tembuf
 	  (erase-buffer)

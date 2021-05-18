@@ -16,4 +16,7 @@ pub fn git_init(path: LispStringRef) -> LispStringRef {
     }
 }
 
-include!(concat!(env!("OUT_DIR"), "/git_exports.rs"));
+include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/out/repository_exports.rs"
+));

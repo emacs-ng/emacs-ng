@@ -1,7 +1,10 @@
 use std::ffi::CString;
 use std::ptr;
 
-use glutin::event::{ElementState, Event, KeyboardInput, WindowEvent};
+use glutin::{
+    dpi::PhysicalPosition,
+    event::{ElementState, Event, KeyboardInput, WindowEvent},
+};
 use lazy_static::lazy_static;
 
 use webrender::api::*;
@@ -17,7 +20,7 @@ use super::{
 use emacs::{
     bindings::{
         block_input, change_frame_size, display_and_set_cursor, do_pending_window_change,
-        draw_window_fringes, face_id, glyph_row_area, gui_clear_end_of_line,
+        draw_window_fringes, face_id, glyph_row_area, gui_clear_cursor, gui_clear_end_of_line,
         gui_clear_window_mouse_face, gui_draw_right_divider, gui_draw_vertical_border,
         gui_fix_overlapping_area, gui_get_glyph_overhangs, gui_produce_glyphs, gui_set_alpha,
         gui_set_autolower, gui_set_autoraise, gui_set_border_width, gui_set_bottom_divider_width,
@@ -26,14 +29,14 @@ use emacs::{
         gui_set_right_divider_width, gui_set_right_fringe, gui_set_screen_gamma,
         gui_set_scroll_bar_height, gui_set_scroll_bar_width, gui_set_unsplittable,
         gui_set_vertical_scroll_bars, gui_set_visibility, gui_update_cursor, gui_write_glyphs,
-        input_event, kbd_buffer_store_event_hold, note_mouse_highlight, run, store_frame_param,
-        unblock_input, update_face_from_frame_parameter, window_box, Vframe_list,
+        input_event, kbd_buffer_store_event_hold, run, store_frame_param, unblock_input,
+        update_face_from_frame_parameter, window_box, Time, Vframe_list,
     },
     bindings::{
         create_terminal, current_kboard, draw_fringe_bitmap_params, fontset_from_font,
         frame_parm_handler, fullscreen_type, glyph_row, glyph_string, initial_kboard,
-        output_method, redisplay_interface, terminal, text_cursor_kinds, xlispstrdup, Emacs_Color,
-        Fcons, Fredraw_frame,
+        note_mouse_highlight, output_method, redisplay_interface, scroll_bar_part, terminal,
+        text_cursor_kinds, xlispstrdup, Emacs_Color, Emacs_Cursor, Fcons, Fredraw_frame,
     },
     font::LispFontRef,
     frame::{LispFrameRef, Lisp_Frame},
@@ -130,7 +133,7 @@ lazy_static! {
             destroy_fringe_bitmap: None,
             compute_glyph_string_overhangs: None,
             draw_glyph_string: Some(draw_glyph_string),
-            define_frame_cursor: None,
+            define_frame_cursor: Some(define_frame_cursor),
             default_font_parameter: None,
             clear_frame_area: Some(clear_frame_area),
             draw_window_cursor: Some(draw_window_cursor),
@@ -476,9 +479,20 @@ extern "C" fn scroll_run(w: *mut Lisp_Window, run: *mut run) {
 
     let scroll_height = unsafe { (*run).height };
 
+    // Cursor off.  Will be switched on again in gui_update_window_end.
+    unsafe { gui_clear_cursor(w) };
+
     output
         .canvas()
         .scroll(x, y, width, height, from_y, to_y, scroll_height);
+}
+
+extern "C" fn define_frame_cursor(f: *mut Lisp_Frame, cursor: Emacs_Cursor) {
+    let frame: LispFrameRef = f.into();
+
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    output.set_mouse_cursor(cursor);
 }
 
 extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_event) -> i32 {
@@ -555,11 +569,29 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
         }
 
         Event::WindowEvent {
+            event: WindowEvent::MouseWheel { delta, phase, .. },
+            ..
+        } => {
+            if top_frame.as_frame().is_none() {
+                return;
+            }
+
+            if let Some(mut iev) = dpyinfo
+                .input_processor
+                .mouse_wheel_scrolled(delta, phase, top_frame)
+            {
+                unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
+                count += 1;
+            }
+
+            let mut frame: LispFrameRef = top_frame.into();
+            frame.set_mouse_moved(false);
+        }
+
+        Event::WindowEvent {
             event: WindowEvent::CursorMoved { position, .. },
             ..
         } => {
-            dpyinfo.input_processor.cursor_move(position);
-
             if top_frame.as_frame().is_none() {
                 return;
             }
@@ -567,6 +599,10 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
             let mut frame: LispFrameRef = top_frame.into();
 
             unsafe { note_mouse_highlight(frame.as_mut(), position.x as i32, position.y as i32) };
+
+            dpyinfo.input_processor.cursor_move(position);
+
+            frame.set_mouse_moved(true);
         }
 
         Event::WindowEvent {
@@ -622,7 +658,6 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
                     false,
                     true,
                     false,
-                    true,
                 );
 
                 do_pending_window_change(false);
@@ -712,6 +747,59 @@ extern "C" fn iconify_frame(f: *mut Lisp_Frame) {
     output.hide_window()
 }
 
+extern "C" fn mouse_position(
+    fp: *mut *mut Lisp_Frame,
+    _insist: i32,
+    bar_window: *mut LispObject,
+    part: *mut scroll_bar_part::Type,
+    x: *mut LispObject,
+    y: *mut LispObject,
+    _timestamp: *mut Time,
+) {
+    let dpyinfo = {
+        let frame: LispFrameRef = unsafe { (*fp).into() };
+        let output: OutputRef = unsafe { frame.output_data.wr.into() };
+        output.display_info()
+    };
+
+    // Clear the mouse-moved flag for every frame on this display.
+    for_each_frame!(frame => {
+        let mut frame: LispFrameRef = frame.into();
+
+        let target_dpyinfo = {
+            let output: OutputRef = unsafe { frame.output_data.wr.into() };
+            output.display_info()
+        };
+
+        if target_dpyinfo == dpyinfo {
+            frame.set_mouse_moved(false);
+        }
+    });
+
+    unsafe { *bar_window = Qnil };
+    unsafe { *part = 0 };
+
+    let dpyinfo = dpyinfo.get_inner();
+    let cursor_pos: PhysicalPosition<i32> =
+        dpyinfo.input_processor.current_cursor_position().cast();
+
+    unsafe { *x = cursor_pos.x.into() };
+    unsafe { *y = cursor_pos.y.into() };
+}
+
+extern "C" fn update_end(f: *mut Lisp_Frame) {
+    let mut dpyinfo = {
+        let frame: LispFrameRef = f.into();
+        let output: OutputRef = unsafe { frame.output_data.wr.into() };
+        output.display_info()
+    };
+
+    let mut dpyinfo = dpyinfo.get_raw();
+
+    // Mouse highlight may be displayed again.
+    dpyinfo.mouse_highlight.set_mouse_face_defer(false);
+}
+
 fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     let terminal_ptr = unsafe {
         create_terminal(
@@ -740,6 +828,8 @@ fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     terminal.get_focus_frame = Some(get_focus_frame);
     terminal.frame_visible_invisible_hook = Some(make_frame_visible_invisible);
     terminal.iconify_frame_hook = Some(iconify_frame);
+    terminal.mouse_position_hook = Some(mouse_position);
+    terminal.update_end_hook = Some(update_end);
 
     terminal
 }

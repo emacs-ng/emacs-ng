@@ -26,18 +26,15 @@
 ;;; Code:
 
 (require 'ert)
+(require 'ert-x)
 (require 'cl-lib)
-(require 'comp)
 
-(defconst comp-test-directory (file-name-directory (or load-file-name
-                                                       buffer-file-name)))
-(defconst comp-test-src
-  (concat comp-test-directory "comp-test-funcs.el"))
+(defconst comp-test-src (ert-resource-file "comp-test-funcs.el"))
 
-(defconst comp-test-dyn-src
-  (concat comp-test-directory "comp-test-funcs-dyn.el"))
+(defconst comp-test-dyn-src (ert-resource-file "comp-test-funcs-dyn.el"))
 
-(when (featurep 'nativecomp)
+(when (featurep 'native-compile)
+  (require 'comp)
   (message "Compiling tests...")
   (load (native-compile comp-test-src))
   (load (native-compile comp-test-dyn-src)))
@@ -57,12 +54,12 @@
 Check that the resulting binaries do not differ."
   :tags '(:expensive-test :nativecomp)
   (let* ((byte-native-for-bootstrap t) ; FIXME HACK
-         (comp-src (concat comp-test-directory
-                              "../../lisp/emacs-lisp/comp.el"))
+         (comp-src (expand-file-name "../../../lisp/emacs-lisp/comp.el"
+                                     (ert-resource-directory)))
          (comp1-src (make-temp-file "stage1-" nil ".el"))
          (comp2-src (make-temp-file "stage2-" nil ".el"))
          ;; Can't use debug symbols.
-         (comp-debug 0))
+         (native-comp-debug 0))
     (copy-file comp-src comp1-src t)
     (copy-file comp-src comp2-src t)
     (let ((load-no-native t))
@@ -296,7 +293,7 @@ Check that the resulting binaries do not differ."
                (comp-tests-throw-f 3)))))
 
 (comp-deftest gc ()
-  "Try to do some longer computation to let the gc kick in."
+  "Try to do some longer computation to let the GC kick in."
   (dotimes (_ 100000)
     (comp-tests-cons-cdr-f 3))
   (should (= (comp-tests-cons-cdr-f 3) 3)))
@@ -320,7 +317,7 @@ Check that the resulting binaries do not differ."
   (should (string= (comp-tests-string-trim-f "dsaf ") "dsaf")))
 
 (comp-deftest trampoline-removal ()
-  ;; This tests that we can can call primitives with no dedicated bytecode.
+  ;; This tests that we can call primitives with no dedicated bytecode.
   ;; At speed >= 2 the trampoline will not be used.
   (should (hash-table-p (comp-tests-trampoline-removal-f))))
 
@@ -402,7 +399,7 @@ https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-03/msg00914.html."
   (should (string= " ➊" (comp-test-45342-f 1))))
 
 (comp-deftest assume-double-neg ()
-  "In fwprop assumtions (not (not (member x))) /= (member x)."
+  "In fwprop assumptions (not (not (member x))) /= (member x)."
   (should-not (comp-test-assume-double-neg-f "bar" "foo")))
 
 (comp-deftest assume-in-loop-1 ()
@@ -419,7 +416,7 @@ https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-03/msg00914.html."
 
 (defvar comp-test-primitive-advice)
 (comp-deftest primitive-advice ()
-  "Test effectiveness of primitive advicing."
+  "Test effectiveness of primitive advising."
   (let (comp-test-primitive-advice
         (f (lambda (&rest args)
              (setq comp-test-primitive-advice args))))
@@ -494,7 +491,7 @@ https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-03/msg00914.html."
 
 (comp-deftest 45603-1 ()
   "<https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-12/msg01994.html>"
-  (load (native-compile (concat comp-test-directory "comp-test-45603.el")))
+  (load (native-compile (ert-resource-file "comp-test-45603.el")))
   (should (fboundp #'comp-test-45603--file-local-name)))
 
 (comp-deftest 46670-1 ()
@@ -506,6 +503,15 @@ https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-03/msg00914.html."
 (comp-deftest 46824-1 ()
   "<https://lists.gnu.org/archive/html/bug-gnu-emacs/2021-02/msg01949.html>"
   (should (equal (comp-test-46824-1-f) nil)))
+
+(comp-deftest comp-test-47868-1 ()
+  "Verify string hash consing strategy.
+
+<https://lists.gnu.org/archive/html/bug-gnu-emacs/2021-04/msg00921.html>"
+  (should-not (equal-including-properties (comp-test-47868-1-f)
+                                          (comp-test-47868-2-f)))
+  (should (eq (comp-test-47868-1-f) (comp-test-47868-3-f)))
+  (should (eq (comp-test-47868-2-f) (comp-test-47868-4-f))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;
@@ -780,7 +786,7 @@ Return a list of results."
 
 (comp-deftest tco ()
   "Check for tail recursion elimination."
-  (let ((comp-speed 3)
+  (let ((native-comp-speed 3)
         ;; Disable ipa-pure otherwise `comp-tests-tco-f' gets
         ;; optimized-out.
         (comp-disabled-passes '(comp-ipa-pure))
@@ -808,7 +814,7 @@ Return a list of results."
 
 (comp-deftest fw-prop-1 ()
   "Some tests for forward propagation."
-  (let ((comp-speed 2)
+  (let ((native-comp-speed 2)
         (comp-post-pass-hooks '((comp-final comp-tests-fw-prop-checker-1))))
     (eval '(defun comp-tests-fw-prop-1-f ()
              (let* ((a "xxx")
@@ -822,7 +828,7 @@ Return a list of results."
 
 (defun comp-tests-check-ret-type-spec (func-form ret-type)
   (let ((lexical-binding t)
-        (comp-speed 2)
+        (native-comp-speed 2)
         (f-name (cl-second func-form)))
     (eval func-form t)
     (native-compile f-name)
@@ -1393,10 +1399,10 @@ Return a list of results."
 
 (comp-deftest pure ()
   "Some tests for pure functions optimization."
-  (let ((comp-speed 3)
+  (let ((native-comp-speed 3)
         (comp-post-pass-hooks '((comp-final comp-tests-pure-checker-1
                                             comp-tests-pure-checker-2))))
-    (load (native-compile (concat comp-test-directory "comp-test-pure.el")))
+    (load (native-compile (ert-resource-file "comp-test-pure.el")))
 
     (should (subr-native-elisp-p (symbol-function #'comp-tests-pure-caller-f)))
     (should (= (comp-tests-pure-caller-f) 4))

@@ -238,9 +238,16 @@ extern "C" fn match_(_f: *mut frame, spec: LispObject) -> LispObject {
     }
 }
 
-#[allow(unused_variables)]
-extern "C" fn list_family(f: *mut frame) -> LispObject {
-    unimplemented!();
+extern "C" fn list_family(_f: *mut frame) -> LispObject {
+    let mut list = Qnil;
+
+    if let Some(families) = SystemSource::new().all_families().ok() {
+        for f in families {
+            list = LispObject::cons(LispObject::from(&f as &str), list);
+        }
+    }
+
+    list
 }
 
 #[repr(C)]

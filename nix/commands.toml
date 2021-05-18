@@ -34,10 +34,16 @@ category = "emacsNg"
 [[commands]]
 name = "push-cachix"
 command = '''
-          nix-shell --command "push-cachix"
+          nix-shell --command "cachix-emacsNg"
         '''
 help = "push emacsNg binary cache to Cachix | -> nix/cachix-key.secrets"
 category = "update"
+
+[[commands]]
+name = "cachix-emacsNg"
+category = "update"
+command = "nix-build | cachix push emacsng"
+help = "nix-build localy then push to cachix"
 
 [[commands]]
 name = "build-bindings"
