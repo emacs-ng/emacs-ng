@@ -2,18 +2,11 @@
 #![feature(concat_idents)]
 #![feature(async_closure)]
 
-extern crate libc;
-
-extern crate futures;
-extern crate lazy_static;
-extern crate lsp_server;
 #[macro_use]
 extern crate serde_json;
-extern crate crossbeam;
 
 #[macro_use]
 extern crate emacs;
-extern crate lisp_macros;
 #[macro_use]
 extern crate lisp_util;
 
