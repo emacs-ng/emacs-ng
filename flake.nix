@@ -2,12 +2,11 @@
   description = "emacsNg Nix flake";
 
   inputs = {
-    nixpkgs.url = "nixpkgs/ccabc238a8bd142e58c2cd8db8ebd78ab38555d9";
+    nixpkgs.url = "nixpkgs/67bbabc0a471ec286cf63f3424c91eb8b31d9000";
     emacs-overlay = {
       type = "github";
       owner = "nix-community";
       repo = "emacs-overlay";
-      rev = "d9530a7048f4b1c0f65825202a0ce1d111a1d39a";
     };
 
     master.url = "nixpkgs/7d71001b796340b219d1bfa8552c81995017544a";
@@ -114,8 +113,6 @@
           locked-date = prev.lib.removePrefix "nightly-" (prev.lib.removeSuffix "\n" (builtins.readFile ./rust-toolchain));
         in
         {
-          cargo = final.rust-bin.nightly."${locked-date}".cargo;
-
           emacsNg-rust = with final;
             (
               let
@@ -294,7 +291,7 @@
                 '';
 
                 LIBCLANG_PATH = "${custom-llvmPackages.libclang}/lib";
-
+                RUST_BACKTRACE = "full";
 
                 buildInputs = (old.buildInputs or [ ]) ++
                 [

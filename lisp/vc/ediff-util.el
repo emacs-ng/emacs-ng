@@ -2002,9 +2002,8 @@ ARG is a prefix argument.  If nil, copy the current difference region."
 		    (goto-char reg-to-delete-end)
 		    (insert reg-to-copy)
 
-		    (if (> reg-to-delete-end reg-to-delete-beg)
-			(kill-region reg-to-delete-beg reg-to-delete-end))
-		    ))
+		    (when (> reg-to-delete-end reg-to-delete-beg)
+		      (delete-region reg-to-delete-beg reg-to-delete-end))))
 		(or batch-invocation
 		    (setq
 		     messg
@@ -2105,8 +2104,8 @@ ARG is a prefix argument.  If nil, copy the current difference region."
 	    (goto-char reg-end)
 	    (insert saved-diff)
 
-	    (if (> reg-end reg-beg)
-		(kill-region reg-beg reg-end))
+	    (when (> reg-end reg-beg)
+	      (delete-region reg-beg reg-end))
 
 	    (setq recovered t)
 	    ))
@@ -4188,12 +4187,7 @@ Mail anyway? (y or n) ")
     (cdr result)))
 
 (define-obsolete-function-alias 'ediff-add-to-history #'add-to-history "27.1")
-
-(defalias 'ediff-copy-list 'copy-sequence)
-
-
-;; don't report error if version control package wasn't found
-;;(ediff-load-version-control 'silent)
+(define-obsolete-function-alias 'ediff-copy-list #'copy-sequence "28.1")
 
 (run-hooks 'ediff-load-hook)
 

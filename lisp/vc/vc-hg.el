@@ -26,12 +26,6 @@
 
 ;; This is a mercurial version control backend
 
-;;; Thanks:
-
-;;; Bugs:
-
-;;; Installation:
-
 ;;; Todo:
 
 ;; 1) Implement the rest of the vc interface. See the comment at the

@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use webrender::{self, api::units::*, api::*};
 
 use super::{
@@ -13,6 +15,7 @@ use emacs::{
         draw_fringe_bitmap_params, draw_glyphs_face, face as Face, face_underline_type, glyph_row,
         glyph_type, prepare_face_for_display,
     },
+    frame::LispFrameRef,
     glyph::GlyphStringRef,
 };
 
@@ -194,8 +197,15 @@ impl DrawCanvas {
         }
 
         let visible_height = unsafe { (*s.row).visible_height };
+        let background_width = if s.hl == draw_glyphs_face::DRAW_CURSOR {
+            let frame: LispFrameRef = s.f.into();
 
-        let background_bounds = (s.x, s.y).by(s.background_width as i32, visible_height);
+            min(frame.column_width, s.background_width)
+        } else {
+            s.background_width
+        };
+
+        let background_bounds = (s.x, s.y).by(background_width, visible_height);
         let background_color = pixel_to_color(unsafe { (*s.gc).background } as u64);
 
         self.output.display(|builder, space_and_clip| {
@@ -271,16 +281,18 @@ impl DrawCanvas {
 
         let face = unsafe { (*p).face };
 
-        let visible_rect = (pos_x, pos_y).by(width, height);
+        if pos_x > 0 {
+            let visible_rect = (pos_x, pos_y).by(width, height);
 
-        let background_color = pixel_to_color(unsafe { (*face).background });
+            let background_color = pixel_to_color(unsafe { (*face).background });
 
-        self.output.display(|builder, space_and_clip| {
-            builder.push_rect(
-                &CommonItemProperties::new(visible_rect, space_and_clip),
-                background_color,
-            );
-        });
+            self.output.display(|builder, space_and_clip| {
+                builder.push_rect(
+                    &CommonItemProperties::new(visible_rect, space_and_clip),
+                    background_color,
+                );
+            });
+        }
     }
 
     pub fn draw_vertical_window_border(
@@ -408,6 +420,9 @@ impl DrawCanvas {
             LayoutIntPoint::new(x, from_y),
             LayoutIntSize::new(width, height),
         );
+
+        // flush all content to screen before coping screen pixels
+        self.output.flush();
 
         let image_key = self.output.read_pixels_rgba8_into_image(copy_rect);
 

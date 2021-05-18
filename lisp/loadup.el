@@ -1,4 +1,4 @@
-;;; loadup.el --- load up standardly loaded Lisp files for Emacs
+;;; loadup.el --- load up standardly loaded Lisp files for Emacs  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1985-1986, 1992, 1994, 2001-2021 Free Software
 ;; Foundation, Inc.
@@ -112,7 +112,7 @@
 
 (if (eq t purify-flag)
     ;; Hash consing saved around 11% of pure space in my tests.
-    (setq purify-flag (make-hash-table :test 'equal :size 80000)))
+    (setq purify-flag (make-hash-table :test #'equal :size 80000)))
 
 (message "Using load-path %s" load-path)
 
@@ -134,7 +134,7 @@
 
 ;; Do it after subr, since both after-load-functions and add-hook are
 ;; implemented in subr.el.
-(add-hook 'after-load-functions (lambda (f) (garbage-collect)))
+(add-hook 'after-load-functions (lambda (_) (garbage-collect)))
 
 (load "version")
 (load "emacs-lisp/emacs-ng")
@@ -151,7 +151,7 @@
 ;; variable its advertised default value (it starts as nil, see
 ;; xdisp.c).
 (setq resize-mini-windows 'grow-only)
-(setq load-source-file-function 'load-with-code-conversion)
+(setq load-source-file-function #'load-with-code-conversion)
 (load "files")
 
 ;; Load-time macro-expansion can only take effect after setting
@@ -187,7 +187,7 @@
   ;; In case loaddefs hasn't been generated yet.
   (file-error (load "ldefs-boot.el")))
 
-(let ((new (make-hash-table :test 'equal)))
+(let ((new (make-hash-table :test #'equal)))
   ;; Now that loaddefs has populated definition-prefixes, purify its contents.
   (maphash (lambda (k v) (puthash (purecopy k) (purecopy v) new))
            definition-prefixes)
@@ -400,7 +400,7 @@ lost after dumping")))
             emacs-repository-branch (ignore-errors (emacs-repository-get-branch)))
       ;; A constant, so we shouldn't change it with `setq'.
       (defconst emacs-build-number
-	(if versions (1+ (apply 'max versions)) 1))))
+	(if versions (1+ (apply #'max versions)) 1))))
 
 
 (message "Finding pointers to doc strings...")
@@ -430,11 +430,11 @@ lost after dumping")))
 ;; We keep the load-history data in PURE space.
 ;; Make sure that the spine of the list is not in pure space because it can
 ;; be destructively mutated in lread.c:build_load_history.
-(setq load-history (mapcar 'purecopy load-history))
+(setq load-history (mapcar #'purecopy load-history))
 
 (set-buffer-modified-p nil)
 
-(remove-hook 'after-load-functions (lambda (f) (garbage-collect)))
+(remove-hook 'after-load-functions (lambda (_) (garbage-collect)))
 
 (if (boundp 'load--prefer-newer)
     (progn
@@ -449,10 +449,10 @@ lost after dumping")))
 ;; At this point, we're ready to resume undo recording for scratch.
 (buffer-enable-undo "*scratch*")
 
-(when (featurep 'nativecomp)
+(when (featurep 'native-compile)
   ;; Fix the compilation unit filename to have it working when
   ;; installed or if the source directory got moved.  This is set to be
-  ;; a cons cell of the form:
+  ;; a pair in the form of:
   ;;     (rel-filename-from-install-bin . rel-filename-from-local-bin).
   (let ((h (make-hash-table :test #'eq))
         (bin-dest-dir (cadr (member "--bin-dest" command-line-args)))
@@ -465,17 +465,25 @@ lost after dumping")))
                     (when (subr-native-elisp-p f)
                       (puthash (subr-native-comp-unit f) nil h)))))
       (maphash (lambda (cu _)
-                 (native-comp-unit-set-file
-                  cu
-	          (cons
-                   ;; Relative filename from the installed binary.
-                   (file-relative-name (concat eln-dest-dir
-                                               (file-name-nondirectory
-                                                (native-comp-unit-file cu)))
-                                       bin-dest-dir)
-                   ;; Relative filename from the built uninstalled binary.
-                   (file-relative-name (native-comp-unit-file cu)
-                                       invocation-directory))))
+                 (let* ((file (native-comp-unit-file cu))
+                        (preloaded (equal (substring (file-name-directory file)
+                                                     -10 -1)
+                                          "preloaded"))
+                        (eln-dest-dir-eff (if preloaded
+                                              (expand-file-name "preloaded"
+                                                                eln-dest-dir)
+                                            eln-dest-dir)))
+                   (native-comp-unit-set-file
+                    cu
+	            (cons
+                     ;; Relative filename from the installed binary.
+                     (file-relative-name (expand-file-name
+                                          (file-name-nondirectory
+                                           file)
+                                          eln-dest-dir-eff)
+                                         bin-dest-dir)
+                     ;; Relative filename from the built uninstalled binary.
+                     (file-relative-name file invocation-directory)))))
 	       h))))
 
 (when (hash-table-p purify-flag)
@@ -513,7 +521,7 @@ lost after dumping")))
                         ((equal dump-mode "bootstrap") "emacs")
                         ((equal dump-mode "pbootstrap") "bootstrap-emacs.pdmp")
                         (t (error "unrecognized dump mode %s" dump-mode)))))
-      (when (and (featurep 'nativecomp)
+      (when (and (featurep 'native-compile)
                  (equal dump-mode "pdump"))
         ;; Don't enable this before bootstrap is completed, as the
         ;; compiler infrastructure may not be usable yet.
@@ -576,7 +584,7 @@ lost after dumping")))
 ;; (or load-file-name byte-compile-current-file).
 (setq load-true-file-name nil)
 (setq load-file-name nil)
-(eval top-level)
+(eval top-level t)
 
 
 ;; Local Variables:

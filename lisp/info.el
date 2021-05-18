@@ -1,4 +1,4 @@
-;; info.el --- Info package for Emacs  -*- lexical-binding:t -*-
+;;; info.el --- Info package for Emacs  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1985-1986, 1992-2021 Free Software Foundation, Inc.
 
@@ -916,7 +916,8 @@ find a node."
 	  (when (and (not no-pop-to-dir)
                      (not Info-current-file))
 	    (Info-directory))
-	  (user-error "Info file %s does not exist" filename)))
+          (user-error "Info file `%s' does not exist; consider installing it"
+                      filename)))
       filename))))
 
 (defun Info-find-node (filename nodename &optional no-going-back strict-case)
@@ -1854,7 +1855,8 @@ See `completing-read' for a description of arguments and usage."
          (lambda (string pred action)
            (complete-with-action
             action
-            (Info-build-node-completions (Info-find-file file1 nil t))
+            (when-let ((file2 (Info-find-file file1 'noerror t)))
+              (Info-build-node-completions file2))
             string pred))
 	 nodename predicate code))))
    ;; Otherwise use Info-read-node-completion-table.
@@ -1880,10 +1882,17 @@ the Top node in FILENAME."
       (or (cdr (assoc filename Info-file-completions))
 	  (with-temp-buffer
 	    (Info-mode)
-	    (Info-goto-node (format "(%s)Top" filename))
-	    (Info-build-node-completions-1)
-	    (push (cons filename Info-current-file-completions) Info-file-completions)
-	    Info-current-file-completions))
+            (condition-case nil
+	        (Info-goto-node (format "(%s)Top" filename))
+              ;; `Info-goto-node' signals a `user-error' when there
+              ;; are no nodes in the file in question (for instance,
+              ;; if it's not actually an Info file).
+              (user-error nil)
+              (:success
+	       (Info-build-node-completions-1)
+	       (push (cons filename Info-current-file-completions)
+                     Info-file-completions)
+	       Info-current-file-completions))))
     (or Info-current-file-completions
 	(Info-build-node-completions-1))))
 

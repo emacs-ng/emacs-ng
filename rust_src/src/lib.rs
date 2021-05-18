@@ -29,7 +29,11 @@ extern crate libc;
 // Needed for linking.
 #[macro_use]
 extern crate emacs;
+#[cfg(feature = "libgit")]
+extern crate git;
 extern crate lisp_macros;
+#[macro_use]
+extern crate lisp_util;
 extern crate remacs_lib;
 
 extern crate futures;
@@ -43,31 +47,11 @@ extern crate deno;
 extern crate deno_core;
 #[cfg(feature = "javascript")]
 extern crate deno_runtime;
-#[cfg(feature = "libgit")]
-extern crate git2;
 #[cfg(feature = "javascript")]
 extern crate rusty_v8;
 #[cfg(feature = "javascript")]
 extern crate tokio;
 
-#[macro_use]
-macro_rules! export_lisp_fns {
-    ($($(#[$($meta:meta),*])* $f:ident),+) => {
-	pub fn rust_init_syms() {
-	    #[allow(unused_unsafe)] // just in case the block is empty
-	    unsafe {
-		$(
-		    $(#[$($meta),*])* emacs::bindings::defsubr(
-			concat_idents!(S, $f).as_ptr() as *mut emacs::bindings::Aligned_Lisp_Subr
-		    );
-		)+
-	    }
-	}
-    }
-}
-
-#[cfg(feature = "libgit")]
-mod git;
 #[cfg(feature = "javascript")]
 mod javascript;
 mod javascript_stubs;
