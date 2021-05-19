@@ -31,7 +31,7 @@
 ### Code:
 
 ## Rust tool chain required version path.
-## Assumes this script is run in Remacs root dir (as does other code in this script).
+## Assumes this script is run in Emacs root dir (as does other code in this script).
 ## Future maybe: let an env var set/override this.
 rust_toolchain_vers_path="./rust-toolchain"
 
@@ -146,12 +146,12 @@ case $do_autoconf,$do_git in
 esac
 
 echo "Checking Rust toolchain install ..."
-command -v rustup >/dev/null 2>&1 || { echo >&2 "Remacs requires the rustup command to be installed in order to build. Please see https://www.rustup.rs/; Aborting."; exit 1; }
+command -v rustup >/dev/null 2>&1 || { echo >&2 "Emacs requires the rustup command to be installed in order to build. Please see https://www.rustup.rs/; Aborting."; exit 1; }
 
-## $1 = Remacs required version
-## Return 0 if Remacs Rust toolchain required version is installed and active
-## Return 1 if Remacs Rust toolchain required version is not installed
-## Return 2 if Remacs Rust toolchain required version is installed but not active (directory override)
+## $1 = Emacs required version
+## Return 0 if Emacs Rust toolchain required version is installed and active
+## Return 1 if Emacs Rust toolchain required version is not installed
+## Return 2 if Emacs Rust toolchain required version is installed but not active (directory override)
 ## Return 3 for unexpected error
 check_rust_version ()
 {
@@ -181,7 +181,7 @@ check_rust_version ()
 if [ -n $rust_toolchain_vers_path ] ; then
 
     if [ ! -r $rust_toolchain_vers_path ] ; then
-	echo >&2 "Remacs rust-toolchain file does not exist or is not readable: $rust_toolchain_vers_path."
+	echo >&2 "Emacs rust-toolchain file does not exist or is not readable: $rust_toolchain_vers_path."
 	exit 1
     fi
 
@@ -189,16 +189,16 @@ if [ -n $rust_toolchain_vers_path ] ; then
     retval=$?
 
     case $retval in
-        0) echo "Your system has the required Rust toolchain installed for building Remacs." ;;
-        1) echo >&2 "Remacs currently requires Rust toolchain version $emacs_version."
+        0) echo "Your system has the required Rust toolchain installed for building Emacs." ;;
+        1) echo >&2 "Emacs currently requires Rust toolchain version $emacs_version."
 	   echo >&2 "Run 'rustup install $emacs_version'."
 	   exit 1 ;;
-        2) echo >&2 "Remacs currently requires Rust toolchain version $emacs_version."
+        2) echo >&2 "Emacs currently requires Rust toolchain version $emacs_version."
 	   echo >&2 -e "The active version is not the required one and is set via directory override:\n\t$rustup_active_version"
 	   echo >&2 "Run 'rustup override unset' in this directory."
 	   exit 1 ;;
         *) # /should/ not happen
-	   echo >&2 "Remacs currently requires Rust toolchain version $emacs_version."
+	   echo >&2 "Emacs currently requires Rust toolchain version $emacs_version."
 	   exit 1 ;;
     esac
 
