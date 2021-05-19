@@ -52,8 +52,6 @@ extern crate tokio;
 #[cfg(feature = "javascript")]
 mod javascript;
 mod javascript_stubs;
-#[cfg(feature = "ng-module")]
-mod ng_module;
 #[cfg(feature = "javascript")]
 mod subcommands;
 

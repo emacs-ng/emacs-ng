@@ -1,0 +1,14 @@
+[package]
+name = "ng_module"
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+emacs = { version = "0.1.0", path = "../emacs" }
+lisp-macros = { version = "0.1.0", path = "../lisp_macros" }
+lisp-util = { version = "0.1.0", path = "../lisp_util" }
+libc = "0.2"
+lazy_static = "1.2"
