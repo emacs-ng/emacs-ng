@@ -19,6 +19,7 @@ lisp-util = { version = "0.1.0", path = "crates/lisp_util" }
 lisp-macros = { version = "0.1.0", path = "crates/lisp_macros" }
 git = { version = "0.1.0", path = "crates/git", optional = true }
 ng_async = { version = "0.1.0", path = "crates/ng_async" }
+ng_module = { version = "0.1.0", path = "crates/ng_module", optional = true }
 clippy = { version = "*", optional = true }
 cfg-if = "0.1"
 deno_core = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng", optional = true }
@@ -93,6 +94,6 @@ strict = []
 # Use JavaScript and Deno
 javascript = ["deno", "deno_core", "deno_runtime", "tokio", "rusty_v8", "tokio-rustls"]
 # Build with dynamic modules support's extensions.
-ng-module = []
+ng-module = ["ng_module"]
 # Enable glyphs debugging code.
 glyph-debug = []
