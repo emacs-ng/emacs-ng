@@ -10,13 +10,15 @@ use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ffi::CString;
-use std::io::Result;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
 
 use crate::futures::FutureExt;
 use futures::Future;
 use std::pin::Pin;
+
+pub type EmacsJsError = deno_core::error::AnyError;
+pub type EmacsJsResult<T> = Result<T, EmacsJsError>;
 
 #[derive(Clone)]
 struct EmacsJsOptions {
@@ -1059,12 +1061,9 @@ fn permissions_from_args(args: &[LispObject]) -> EmacsJsOptions {
 // and re-create the isolate. The user impact
 // should be minimal since their module never
 // loaded anyway.
-fn destroy_worker_on_promise_rejection(e: &std::io::Error) {
+fn destroy_worker_on_promise_rejection(e: &EmacsJsError) {
     let is_within_toplevel = EmacsMainJsRuntime::is_within_toplevel_module();
-    if is_within_toplevel
-        && e.kind() == std::io::ErrorKind::Other
-        && e.to_string().starts_with("Uncaught (in promise)")
-    {
+    if is_within_toplevel && e.to_string().starts_with("Uncaught (in promise)") {
         EmacsMainJsRuntime::destroy_worker();
     }
 }
@@ -1185,7 +1184,10 @@ pub fn eval_js_expression(args: &[LispObject]) -> LispObject {
     unsafe { Ffuncall(call.len().try_into().unwrap(), call.as_mut_ptr()) }
 }
 
-fn eval_literally_inner(scope: &mut v8::HandleScope, js: LispStringRef) -> Result<LispObject> {
+fn eval_literally_inner(
+    scope: &mut v8::HandleScope,
+    js: LispStringRef,
+) -> EmacsJsResult<LispObject> {
     let context = scope.get_current_context();
     let global = context.global(scope);
 
@@ -1379,7 +1381,7 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
         })
 }
 
-fn js_init_sys(filename: &str, js_options: &EmacsJsOptions) -> Result<()> {
+fn js_init_sys(filename: &str, js_options: &EmacsJsOptions) -> EmacsJsResult<()> {
     init_tokio()?;
     init_worker(filename, js_options)?;
     Ok(())
@@ -1394,7 +1396,7 @@ pub fn js_cleanup() -> LispObject {
     emacs::globals::Qnil
 }
 
-fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> Result<LispObject> {
+fn js_reenter_inner(scope: &mut v8::HandleScope, args: &[LispObject]) -> EmacsJsResult<LispObject> {
     let index = args[0];
 
     if !unsafe { emacs::bindings::INTEGERP(index) } {
@@ -1452,7 +1454,7 @@ fn execute_function_may_throw(
     scope: &mut v8::HandleScope,
     fnc: &v8::Local<v8::Function>,
     v8_args: &Vec<v8::Local<v8::Value>>,
-) -> Result<LispObject> {
+) -> EmacsJsResult<LispObject> {
     let mut retval = emacs::globals::Qnil;
     // A try catch scope counts as a cope that needs to be placed
     // on the handle stack.
@@ -1488,9 +1490,8 @@ fn execute_function_may_throw(
         }
 
         let v8_exception = deno_core::error::JsError::from_v8_exception(tc_scope, exception);
-        let ioerr = into_ioerr(v8_exception);
         EmacsMainJsRuntime::restore_stack(current);
-        return Err(ioerr);
+        return Err(v8_exception.into());
     }
 
     EmacsMainJsRuntime::restore_stack(current);
@@ -1503,7 +1504,7 @@ fn tick_and_schedule_if_required() {
     }
 }
 
-fn handle_error_inner_invokation(e: std::io::Error) -> LispObject {
+fn handle_error_inner_invokation(e: EmacsJsError) -> LispObject {
     if !EmacsMainJsRuntime::is_within_runtime() {
         let js_options = EmacsMainJsRuntime::get_options();
         handle_error(e, js_options.error_handler)
@@ -1595,14 +1596,11 @@ pub fn js__clear_r(idx: LispObject) {
     execute_with_current_scope(move |scope| js_clear_r_internal(scope, idx));
 }
 
-fn into_ioerr<E: Into<Box<dyn std::error::Error + Send + Sync>>>(e: E) -> std::io::Error {
-    std::io::Error::new(std::io::ErrorKind::Other, e)
-}
-
-fn block_on<R: Sized, T: Sized + std::future::Future<Output = Result<R>>>(fnc: T) -> Result<R> {
+fn block_on<R: Sized, T: Sized + std::future::Future<Output = EmacsJsResult<R>>>(
+    fnc: T,
+) -> EmacsJsResult<R> {
     if EmacsMainJsRuntime::is_within_runtime() {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
+        Err(deno_core::error::generic_error(
             "Attempted to execute javascript from lisp within the javascript context.",
         ))
     } else {
@@ -1638,7 +1636,7 @@ pub fn js__sweep() -> LispObject {
     emacs::globals::Qnil
 }
 
-fn tick_js() -> Result<bool> {
+fn tick_js() -> EmacsJsResult<bool> {
     let mut is_complete = false;
     let is_complete_ref = &mut is_complete;
     block_on(async move {
@@ -1649,7 +1647,7 @@ fn tick_js() -> Result<bool> {
             match polled {
                 std::task::Poll::Ready(r) => {
                     *is_complete_ref = true;
-                    r.map_err(|e| into_ioerr(e))?
+                    r?
                 }
                 std::task::Poll::Pending => {}
             }
@@ -1661,7 +1659,7 @@ fn tick_js() -> Result<bool> {
     .map(move |_| is_complete)
 }
 
-fn init_tokio() -> Result<()> {
+fn init_tokio() -> EmacsJsResult<()> {
     if !EmacsMainJsRuntime::is_tokio_active()
     // Needed in the case that the tokio runtime is being taken
     // for completing a JS operation
@@ -1680,7 +1678,9 @@ fn init_tokio() -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn v8_bind_lisp_funcs(worker: &mut deno_runtime::worker::MainWorker) -> Result<()> {
+pub(crate) fn v8_bind_lisp_funcs(
+    worker: &mut deno_runtime::worker::MainWorker,
+) -> EmacsJsResult<()> {
     let runtime = &mut worker.js_runtime;
     {
         let context = runtime.global_context();
@@ -1713,37 +1713,29 @@ pub(crate) fn v8_bind_lisp_funcs(worker: &mut deno_runtime::worker::MainWorker) 
         bind_global_fn!(scope, global, unreverse_proxy);
     }
     {
-        runtime
-            .execute("prelim.js", include_str!("prelim.js"))
-            .map_err(|e| into_ioerr(e))?
+        runtime.execute("prelim.js", include_str!("prelim.js"))?
     }
 
     Ok(())
 }
 
-fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
+fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> EmacsJsResult<()> {
     if EmacsMainJsRuntime::is_main_worker_active() || EmacsMainJsRuntime::is_within_runtime() {
         return Ok(());
     }
 
     let mut handle = EmacsMainJsRuntime::get_tokio_handle();
     let runtime = handle.as_mut_ref();
-    let main_module = deno_core::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
+    let main_module = deno_core::resolve_url_or_path(filepath)?;
     let permissions = js_options.ops.as_ref().unwrap().clone();
     let inspect = if let Some(i) = &js_options.inspect {
-        Some(
-            i.parse::<std::net::SocketAddr>()
-                .map_err(|e| into_ioerr(e))?,
-        )
+        Some(i.parse::<std::net::SocketAddr>()?)
     } else {
         None
     };
 
     let inspect_brk = if let Some(i) = &js_options.inspect_brk {
-        Some(
-            i.parse::<std::net::SocketAddr>()
-                .map_err(|e| into_ioerr(e))?,
-        )
+        Some(i.parse::<std::net::SocketAddr>()?)
     } else {
         None
     };
@@ -1763,10 +1755,10 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
     };
 
     let program_fut = futures::executor::block_on(deno::program_state::ProgramState::build(flags));
-    let program = program_fut.map_err(|e| into_ioerr(e))?;
+    let program = program_fut?;
     EmacsMainJsRuntime::set_program_state(program.clone());
     let mut worker = deno::create_main_worker(&program, main_module.clone(), permissions);
-    let result: Result<deno_runtime::worker::MainWorker> = runtime.block_on(async move {
+    let result: EmacsJsResult<deno_runtime::worker::MainWorker> = runtime.block_on(async move {
         v8_bind_lisp_funcs(&mut worker)?;
         Ok(worker)
     });
@@ -1781,13 +1773,13 @@ fn run_module_inner(
     additional_js: Option<String>,
     js_options: &EmacsJsOptions,
     as_typescript: bool,
-) -> Result<LispObject> {
+) -> EmacsJsResult<LispObject> {
     js_init_sys(filepath, js_options)?;
 
     block_on(async move {
         let mut worker_handle = EmacsMainJsRuntime::get_deno_worker();
         let w = worker_handle.as_mut_ref();
-        let main_module = deno_core::resolve_url_or_path(filepath).map_err(|e| into_ioerr(e))?;
+        let main_module = deno_core::resolve_url_or_path(filepath)?;
 
         if let Some(js) = additional_js {
             let program = EmacsMainJsRuntime::get_program_state();
@@ -1808,9 +1800,7 @@ fn run_module_inner(
             program.file_fetcher.insert_cached(file);
         }
 
-        w.execute_module(&main_module)
-            .await
-            .map_err(|e| into_ioerr(e))?;
+        w.execute_module(&main_module).await?;
         Ok(())
     })?;
 
@@ -1834,7 +1824,7 @@ fn run_module(
     result
 }
 
-fn handle_error(e: std::io::Error, handler: LispObject) -> LispObject {
+fn handle_error(e: EmacsJsError, handler: LispObject) -> LispObject {
     let err_string = e.to_string();
     if handler.is_nil() {
         error!(err_string);
@@ -1982,9 +1972,7 @@ pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
 
 // We overwrite certain subcommands to allow interfacing with emacs-lisp
 // All other subcommands will use deno's default implementation
-fn get_subcommand(
-    flags: deno::flags::Flags,
-) -> Pin<Box<dyn Future<Output = std::result::Result<(), deno_core::error::AnyError>>>> {
+fn get_subcommand(flags: deno::flags::Flags) -> Pin<Box<dyn Future<Output = EmacsJsResult<()>>>> {
     match flags.clone().subcommand {
         deno::flags::DenoSubcommand::Eval {
             print,
@@ -2106,7 +2094,7 @@ pub fn deno(cmd_args: &[LispObject]) {
         error!("Unable to initialize tokio runtime: {}", e);
     });
 
-    block_on(async move { fut.await.map_err(|e| into_ioerr(e)) }).unwrap_or_else(|e| {
+    block_on(async move { fut.await }).unwrap_or_else(|e| {
         error!("Error in deno command '{}': {}", args.join(" "), e);
     });
 }
