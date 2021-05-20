@@ -17,4 +17,5 @@ base_config: |
         libxml2-dev \
         libxpm-dev \
         libxt-dev \
-        texinfo
+        texinfo \
+        libgccjit-5-dev gcc-5 g++-5
