@@ -6155,6 +6155,7 @@ if test "$HAVE_LIBGIT" = "yes"; then
    CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"libgit\", "
 fi
 if test "${with_javascript}" = "yes"; then
+  AC_DEFINE(USE_JAVASCRIPT, 1, [Define to 1 if you want to use deno/javascript.])
   CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"javascript\", "
 fi
 if test "${HAVE_MODULES}" = "yes"; then
