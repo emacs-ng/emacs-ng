@@ -1,4 +1,3 @@
-#![deny(warnings)]
 #![allow(clippy::cognitive_complexity)]
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -35,8 +34,6 @@ mod wrterm;
 #[cfg(feature = "window-system-webrender")]
 pub use crate::wrterm::{tip_frame, wr_display_list};
 
-#[cfg(not(feature = "javascript"))]
-mod javascript_stubs;
 #[cfg(not(feature = "javascript"))]
 mod javascript {
     include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
