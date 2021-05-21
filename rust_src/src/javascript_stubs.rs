@@ -12,4 +12,7 @@ pub fn js__sweep() -> LispObject {
     Qnil
 }
 
-include!(concat!(env!("OUT_DIR"), "/javascript_stubs_exports.rs"));
+include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/javascript_stubs_exports.rs"
+));
