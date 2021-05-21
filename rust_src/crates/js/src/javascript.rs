@@ -1088,7 +1088,6 @@ fn is_typescript(s: &str) -> bool {
 /// reset and reinitalized lazily. If that happens, all
 /// global state will be reset. This can be prevented by
 /// implementing a top level Promise error handler.
-#[cfg(feature = "javascript")]
 #[lisp_fn(min = "1")]
 pub fn eval_js(args: &[LispObject]) -> LispObject {
     let string_obj: LispStringRef = args[0].into();
@@ -1108,7 +1107,6 @@ pub fn eval_js(args: &[LispObject]) -> LispObject {
 ///
 /// Using global `eval` does not support ES6 import
 /// statements or top-level await
-#[cfg(feature = "javascript")]
 #[lisp_fn(intspec = "MEval JS: ")]
 pub fn eval_js_literally(js: LispStringRef) -> LispObject {
     let ops = EmacsMainJsRuntime::get_options();
@@ -1130,7 +1128,6 @@ pub fn eval_js_literally(js: LispStringRef) -> LispObject {
 ///
 /// Using global `eval` does not support ES6 import
 /// statements or top-level await
-#[cfg(feature = "javascript")]
 #[lisp_fn(min = "0", intspec = "")]
 pub fn eval_js_buffer_literally(buffer: LispObject) -> LispObject {
     let lisp_string = get_buffer_contents(buffer);
@@ -1145,7 +1142,6 @@ pub fn eval_js_buffer_literally(buffer: LispObject) -> LispObject {
 ///
 /// Using global `eval` does not support ES6 import
 /// statements or top-level await
-#[cfg(feature = "javascript")]
 #[lisp_fn(intspec = "r")]
 pub fn eval_js_region_literally(start: LispObject, end: LispObject) -> LispObject {
     let lisp_string = get_region(start, end);
@@ -1171,7 +1167,6 @@ pub fn eval_js_region_literally(start: LispObject, end: LispObject) -> LispObjec
 ///
 /// Runs the hook ‘eval-expression-minibuffer-setup-hook’ on entering the
 /// minibuffer.
-#[cfg(feature = "javascript")]
 #[lisp_fn(min = "1", intspec = "MEval JS: ")]
 pub fn eval_js_expression(args: &[LispObject]) -> LispObject {
     let js: LispStringRef = args[0].into();
@@ -1217,7 +1212,6 @@ fn eval_literally_inner(
 /// reset and reinitalized lazily. If that happens, all
 /// global state will be reset. This can be prevented by
 /// implementing a top level Promise error handler.
-#[cfg(feature = "javascript")]
 #[lisp_fn(min = "1")]
 pub fn eval_js_file(args: &[LispObject]) -> LispObject {
     let filename: LispStringRef = args[0].into();
@@ -1256,7 +1250,6 @@ fn get_buffer_contents(mut buffer: LispObject) -> LispObject {
 /// reset and reinitalized lazily. If that happens, all
 /// global state will be reset. This can be prevented by
 /// implementing a top level Promise error handler.
-#[cfg(feature = "javascript")]
 #[lisp_fn(min = "0", intspec = "")]
 pub fn eval_js_buffer(buffer: LispObject) -> LispObject {
     let lisp_string = get_buffer_contents(buffer);
@@ -1270,7 +1263,6 @@ pub fn eval_js_buffer(buffer: LispObject) -> LispObject {
 /// reset and reinitalized lazily. If that happens, all
 /// global state will be reset. This can be prevented by
 /// implementing a top level Promise error handler.
-#[cfg(feature = "javascript")]
 #[lisp_fn(min = "0", intspec = "")]
 pub fn eval_ts_buffer(buffer: LispObject) -> LispObject {
     let lisp_string = get_buffer_contents(buffer);
@@ -1298,7 +1290,6 @@ fn get_region(start: LispObject, end: LispObject) -> LispObject {
 /// reset and reinitalized lazily. If that happens, all
 /// global state will be reset. This can be prevented by
 /// implementing a top level Promise error handler.
-#[cfg(feature = "javascript")]
 #[lisp_fn(intspec = "r")]
 pub fn eval_js_region(start: LispObject, end: LispObject) -> LispObject {
     let lisp_string = get_region(start, end);
@@ -1312,7 +1303,6 @@ pub fn eval_js_region(start: LispObject, end: LispObject) -> LispObject {
 /// reset and reinitalized lazily. If that happens, all
 /// global state will be reset. This can be prevented by
 /// implementing a top level Promise error handler.
-#[cfg(feature = "javascript")]
 #[lisp_fn(intspec = "r")]
 pub fn eval_ts_region(start: LispObject, end: LispObject) -> LispObject {
     let lisp_string = get_region(start, end);
@@ -1369,7 +1359,6 @@ pub fn eval_ts_region(start: LispObject, end: LispObject) -> LispObject {
 /// :js-tick-rate - Defaults to 0.25. This is the interval that js
 /// will evaluate if there are any resolved pending async operations
 /// and execute callbacks.
-#[cfg(feature = "javascript")]
 #[lisp_fn]
 pub fn js_initialize(args: &[LispObject]) -> LispObject {
     let ops = permissions_from_args(args);
@@ -1389,7 +1378,6 @@ fn js_init_sys(filename: &str, js_options: &EmacsJsOptions) -> EmacsJsResult<()>
 
 /// Destroys the current JavaScript environment. The JavaScript environment will be
 /// reinitalized upon the next call to eval-js*, or to js-initialize
-#[cfg(feature = "javascript")]
 #[lisp_fn]
 pub fn js_cleanup() -> LispObject {
     EmacsMainJsRuntime::destroy_worker();
@@ -1518,7 +1506,6 @@ fn handle_error_inner_invokation(e: EmacsJsError) -> LispObject {
     }
 }
 
-#[cfg(feature = "javascript")]
 #[lisp_fn(min = "1")]
 pub fn js__reenter(args: &[LispObject]) -> LispObject {
     let result = execute_with_current_scope(move |scope| js_reenter_inner(scope, args))
@@ -1583,14 +1570,12 @@ where
 }
 
 /// Internal function used for cleanup. Do not call directly.
-#[cfg(feature = "javascript")]
 #[lisp_fn]
 pub fn js__clear(idx: LispObject) {
     execute_with_current_scope(move |scope| js_clear_internal(scope, idx));
 }
 
 /// Internal function used for cleanup. Do not call directly.
-#[cfg(feature = "javascript")]
 #[lisp_fn]
 pub fn js__clear_r(idx: LispObject) {
     execute_with_current_scope(move |scope| js_clear_r_internal(scope, idx));
@@ -1626,7 +1611,6 @@ fn js_sweep_inner(scope: &mut v8::HandleScope) {
 }
 
 /// Internal function called by 'garbage-collect'. Do not call directly.
-#[cfg(feature = "javascript")]
 #[lisp_fn]
 pub fn js__sweep() -> LispObject {
     if EmacsMainJsRuntime::is_main_worker_active() {
@@ -1841,7 +1825,6 @@ fn handle_error(e: EmacsJsError, handler: LispObject) -> LispObject {
 }
 
 /// Gets the current tick rate of JavaScript.
-#[cfg(feature = "javascript")]
 #[lisp_fn]
 pub fn js_get_tick_rate() -> LispObject {
     let options = EmacsMainJsRuntime::get_options();
@@ -1851,7 +1834,6 @@ pub fn js_get_tick_rate() -> LispObject {
 /// Sets F to be the current js tick rate. Every F seconds, javascript
 /// will attempt to evaluate the JS event loop. It will advance the
 /// event loop LOOPS_PER_TICK iterations.
-#[cfg(feature = "javascript")]
 #[lisp_fn(min = "1")]
 pub fn js_set_tick_rate(f: LispObject, loops_per_tick: LispObject) {
     let mut options = EmacsMainJsRuntime::get_options();
@@ -1932,7 +1914,6 @@ fn tick_and_handle_error(handler: LispObject) -> bool {
 /// we will advance the loop by a certain number of iterations (default 1000).
 /// This function is safe to call directly, and can even be set up to be
 /// invoked regularly with custom logic.
-#[cfg(feature = "javascript")]
 #[lisp_fn(min = "0")]
 pub fn js_tick_event_loop(handler: LispObject) -> LispObject {
     // Consume the tick for this event loop call.
@@ -2076,7 +2057,6 @@ fn get_subcommand(flags: deno::flags::Flags) -> Pin<Box<dyn Future<Output = Emac
 /// (deno "run" "--allow-read" "my-file.ts") ; Runs a typescript file named
 ///                                          ; my-file.ts, allowing reads
 ///
-#[cfg(feature = "javascript")]
 #[lisp_fn(min = "1")]
 pub fn deno(cmd_args: &[LispObject]) {
     let mut args = vec!["deno".to_string()];
@@ -2099,41 +2079,7 @@ pub fn deno(cmd_args: &[LispObject]) {
     });
 }
 
-// Do NOT call this function, it is just used for macro purposes to
-// generate variables. The user should NOT have direct access to
-// 'js-retain-map' from the scripting engine.
-#[allow(dead_code)]
-fn init_syms() {
-    defvar_lisp!(Vjs_retain_map, "js-retain-map", emacs::globals::Qnil);
-
-    def_lisp_sym!(Qjs_lisp_error, "js-lisp-error");
-    def_lisp_sym!(QCallow_net, ":allow-net");
-    def_lisp_sym!(QCallow_read, ":allow-read");
-    def_lisp_sym!(QCallow_write, ":allow-write");
-    def_lisp_sym!(QCallow_run, ":allow-run");
-    def_lisp_sym!(QCjs_tick_rate, ":js-tick-rate");
-    def_lisp_sym!(Qjs_error, "js-error");
-    def_lisp_sym!(QCjs_error_handler, ":js-error-handler");
-    def_lisp_sym!(QCtypescript, ":typescript");
-
-    def_lisp_sym!(Qjs__clear, "js--clear");
-    def_lisp_sym!(Qjs__clear_r, "js--clear-r");
-    def_lisp_sym!(Qlambda, "lambda");
-    def_lisp_sym!(Qjs__reenter, "js--reenter");
-    def_lisp_sym!(QCinspect, ":inspect");
-    def_lisp_sym!(QCinspect_brk, ":inspect-brk");
-    def_lisp_sym!(QCuse_color, ":use-color");
-
-    def_lisp_sym!(QCts_config, ":ts-config");
-    def_lisp_sym!(QCno_check, ":no-check");
-    def_lisp_sym!(QCno_remote, ":no-remote");
-    def_lisp_sym!(QCloops_per_tick, ":loops-per-tick");
-
-    def_lisp_sym!(Qrun_with_timer, "run-with-timer");
-    def_lisp_sym!(Qjs_tick_event_loop, "js-tick-event-loop");
-    def_lisp_sym!(Qeval_expression, "eval-expression");
-
-    def_lisp_sym!(Qjs_proxy, "js-proxy");
-}
-
-include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
+include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/out/javascript_exports.rs"
+));
