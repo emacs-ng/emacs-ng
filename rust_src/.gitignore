@@ -1,5 +1,4 @@
 target
-generated/
 
 crates/emacs/src/bindings.rs
 crates/emacs/src/definitions.rs
