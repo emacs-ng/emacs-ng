@@ -373,23 +373,16 @@ fn ignore(path: &str, additional_ignored_paths: &Vec<&str>) -> bool {
     path == ""
         || path.starts_with('.')
         || path == "lib.rs"
-        || path == "functions.rs"
         || additional_ignored_paths.contains(&path)
 }
 
 // What files to ignore depending on chosen features
 fn build_ignored_paths() -> Vec<&'static str> {
     #[allow(unused_mut)]
-    let mut ignored_paths = vec!["lib.rs", "functions.rs"];
-
-    #[cfg(not(feature = "window-system-x11"))]
-    ignored_paths.push("xsettings.rs");
+    let mut ignored_paths = vec!["lib.rs"];
 
     #[cfg(not(feature = "window-system-webrender"))]
     ignored_paths.push("wrterm.rs");
-
-    #[cfg(not(feature = "ng-module"))]
-    ignored_paths.push("ng_module.rs");
 
     ignored_paths
 }
