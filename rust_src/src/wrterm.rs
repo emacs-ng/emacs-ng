@@ -8,6 +8,7 @@ use glutin::{event::VirtualKeyCode, monitor::MonitorHandle};
 use lisp_macros::lisp_fn;
 
 use crate::webrender_backend::{
+    self,
     color::lookup_color_by_name_or_hex,
     font::{FontRef, FONT_DRIVER},
     frame::create_frame,
@@ -20,10 +21,10 @@ use emacs::{
     bindings::globals,
     bindings::resource_types::{RES_TYPE_NUMBER, RES_TYPE_STRING, RES_TYPE_SYMBOL},
     bindings::{
-        adjust_frame_size, block_input, gui_display_get_arg, hashtest_eql, image, init_frame_faces,
-        list3i, make_fixnum, make_hash_table, make_monitor_attribute_list, register_font_driver,
-        unblock_input, Display, Emacs_Pixmap, Emacs_Rectangle, Fcons, Fcopy_alist, Fmake_vector,
-        Fprovide, MonitorInfo, Pixmap, Vframe_list, WRImage, Window, DEFAULT_REHASH_SIZE,
+        adjust_frame_size, block_input, gui_display_get_arg, hashtest_eql, image as Emacs_Image,
+        init_frame_faces, list3i, make_fixnum, make_hash_table, make_monitor_attribute_list,
+        register_font_driver, unblock_input, Display, Emacs_Pixmap, Emacs_Rectangle, Fcons,
+        Fcopy_alist, Fmake_vector, Fprovide, MonitorInfo, Vframe_list, Window, DEFAULT_REHASH_SIZE,
         DEFAULT_REHASH_THRESHOLD,
     },
     definitions::EmacsInt,
@@ -39,7 +40,6 @@ use emacs::{
 pub use crate::webrender_backend::display_info::{DisplayInfo, DisplayInfoRef};
 
 pub type DisplayRef = ExternalPtr<Display>;
-pub type ImageRef = ExternalPtr<WRImage>;
 
 #[no_mangle]
 pub static tip_frame: LispObject = Qnil;
@@ -82,20 +82,29 @@ pub extern "C" fn wr_get_baseline_offset(output: OutputRef) -> i32 {
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn wr_get_pixel(ximg: ImageRef, x: i32, y: i32) -> i32 {
+pub extern "C" fn wr_get_pixel(ximg: *mut Emacs_Image, x: i32, y: i32) -> i32 {
     unimplemented!();
 }
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn wr_put_pixel(ximg: ImageRef, x: i32, y: i32, pixel: u64) {
+pub extern "C" fn wr_put_pixel(ximg: *mut Emacs_Image, x: i32, y: i32, pixel: u64) {
     unimplemented!();
 }
 
-#[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn wr_free_pixmap(display: DisplayRef, pixmap: Pixmap) -> i32 {
-    unimplemented!();
+pub extern "C" fn wr_can_use_native_image_api(image_type: LispObject) -> bool {
+    webrender_backend::image::can_use_native_image_api(image_type)
+}
+
+#[no_mangle]
+pub extern "C" fn wr_load_image(
+    frame: LispFrameRef,
+    img: *mut Emacs_Image,
+    spec_file: LispObject,
+    spec_data: LispObject,
+) -> bool {
+    webrender_backend::image::load_image(frame, img, spec_file, spec_data)
 }
 
 #[no_mangle]
@@ -125,7 +134,7 @@ pub extern "C" fn frame_set_mouse_pixel_position(f: LispFrameRef, pix_x: i32, pi
 }
 
 #[no_mangle]
-pub extern "C" fn image_sync_to_pixmaps(_frame: LispFrameRef, _img: *mut image) {
+pub extern "C" fn image_sync_to_pixmaps(_frame: LispFrameRef, _img: *mut Emacs_Image) {
     unimplemented!();
 }
 

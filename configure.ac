@@ -5483,6 +5483,8 @@ if test "${window_system}" = "webrender" ; then
   EMACS_CHECK_MODULES([XCB], [xcb >= 1.0.0])
   test "$HAVE_XCB" = "no" && AC_MSG_ERROR(webrender requires libxcb)
 
+  AC_DEFINE(HAVE_NATIVE_IMAGE_API, 1, [Define to use native OS APIs for images.])
+  NATIVE_IMAGE_API="yes (webrender)"
 fi
 
 AC_SUBST(XMENU_OBJ)

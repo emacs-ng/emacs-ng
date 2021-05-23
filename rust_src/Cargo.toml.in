@@ -40,6 +40,7 @@ glutin = { version = "0.26", optional = true }
 gleam = { version = "0.6", optional = true }
 webrender = { version = "0.61", optional = true }
 copypasta = { version = "0.7.1", optional = true }
+image = { version = "0.23.14", optional = true }
 
 [build-dependencies]
 clippy = { version = "*", optional = true }
@@ -86,7 +87,7 @@ window-system-w32 = []
 # Build with git2rs support
 libgit = ["git"]
 # Use the webrender window system
-window-system-webrender = ["font-kit", "webrender", "glutin", "gleam", "app_units", "emacs/window-system-webrender", "copypasta"]
+window-system-webrender = ["font-kit", "webrender", "glutin", "gleam", "app_units", "emacs/window-system-webrender", "copypasta", "image"]
 # Treat warnings as a build error on Travis.
 strict = []
 # Use JavaScript and Deno

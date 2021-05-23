@@ -2,6 +2,8 @@ use std::cmp::min;
 
 use webrender::{self, api::units::*, api::*};
 
+use crate::webrender_backend::image::WrPixmap;
+
 use super::{
     color::{color_to_pixel, pixel_to_color},
     display_info::DisplayInfoRef,
@@ -12,8 +14,9 @@ use super::{
 
 use emacs::{
     bindings::{
-        draw_fringe_bitmap_params, draw_glyphs_face, face as Face, face_underline_type, glyph_row,
-        glyph_type, prepare_face_for_display,
+        draw_fringe_bitmap_params, draw_glyphs_face, face as Face, face_underline_type,
+        get_glyph_string_clip_rect, glyph_row, glyph_type, prepare_face_for_display,
+        Emacs_Rectangle,
     },
     frame::LispFrameRef,
     glyph::GlyphStringRef,
@@ -91,6 +94,7 @@ impl DrawCanvas {
         match type_ {
             glyph_type::CHAR_GLYPH => self.draw_char_glyph_string(s),
             glyph_type::STRETCH_GLYPH => self.draw_stretch_glyph_string(s),
+            glyph_type::IMAGE_GLYPH => self.draw_image_glyph(s),
             _ => {}
         }
     }
@@ -216,6 +220,51 @@ impl DrawCanvas {
         });
 
         s.set_background_filled_p(true);
+    }
+
+    fn draw_image_glyph(&mut self, mut s: GlyphStringRef) {
+        let wr_pixmap = unsafe { (*s.img).pixmap } as *mut WrPixmap;
+
+        let image_key = unsafe { (*wr_pixmap).image_key };
+
+        let mut clip_rect = Emacs_Rectangle {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+        };
+
+        unsafe { get_glyph_string_clip_rect(s.as_mut(), &mut clip_rect) };
+
+        let clip_bounds =
+            (clip_rect.x, clip_rect.y).by(clip_rect.width as i32, clip_rect.height as i32);
+        let bounds = (s.x, s.y).by(s.slice.width() as i32, s.slice.height() as i32);
+
+        let face = unsafe { &*s.face };
+
+        let background_color = pixel_to_color(face.background);
+
+        let background_rect = bounds.intersection(&clip_bounds);
+
+        self.output.display(|builder, space_and_clip| {
+            if let Some(background_rect) = background_rect {
+                // render background
+                builder.push_rect(
+                    &CommonItemProperties::new(background_rect, space_and_clip),
+                    background_color,
+                );
+            }
+
+            // render image
+            builder.push_image(
+                &CommonItemProperties::new(clip_bounds, space_and_clip),
+                bounds,
+                ImageRendering::Auto,
+                AlphaType::Alpha,
+                image_key,
+                ColorF::WHITE,
+            );
+        });
     }
 
     fn draw_underline(
