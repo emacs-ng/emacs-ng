@@ -14,6 +14,7 @@ use super::{
     cursor::{draw_bar_cursor, draw_filled_cursor, draw_hollow_box_cursor},
     display_info::{DisplayInfo, DisplayInfoRef},
     event::create_emacs_event,
+    image::WrPixmap,
     output::OutputRef,
 };
 
@@ -36,7 +37,8 @@ use emacs::{
         create_terminal, current_kboard, draw_fringe_bitmap_params, fontset_from_font,
         frame_parm_handler, fullscreen_type, glyph_row, glyph_string, initial_kboard,
         note_mouse_highlight, output_method, redisplay_interface, scroll_bar_part, terminal,
-        text_cursor_kinds, xlispstrdup, Emacs_Color, Emacs_Cursor, Fcons, Fredraw_frame,
+        text_cursor_kinds, xlispstrdup, Emacs_Color, Emacs_Cursor, Emacs_Pixmap, Fcons,
+        Fredraw_frame,
     },
     font::LispFontRef,
     frame::{LispFrameRef, Lisp_Frame},
@@ -800,6 +802,18 @@ extern "C" fn update_end(f: *mut Lisp_Frame) {
     dpyinfo.mouse_highlight.set_mouse_face_defer(false);
 }
 
+extern "C" fn free_pixmap(f: *mut Lisp_Frame, pixmap: Emacs_Pixmap) {
+    // take back ownership and RAII will drop resource.
+    let pixmap = unsafe { Box::from_raw(pixmap as *mut WrPixmap) };
+
+    let image_key = pixmap.image_key;
+
+    let frame: LispFrameRef = f.into();
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    output.delete_image(image_key);
+}
+
 fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     let terminal_ptr = unsafe {
         create_terminal(
@@ -830,6 +844,7 @@ fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     terminal.iconify_frame_hook = Some(iconify_frame);
     terminal.mouse_position_hook = Some(mouse_position);
     terminal.update_end_hook = Some(update_end);
+    terminal.free_pixmap = Some(free_pixmap);
 
     terminal
 }

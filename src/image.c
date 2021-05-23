@@ -6427,6 +6427,8 @@ image_can_use_native_api (Lisp_Object type)
   return w32_can_use_native_image_api (type);
 # elif defined HAVE_NS
   return ns_can_use_native_image_api (type);
+# elif defined USE_WEBRENDER
+  return wr_can_use_native_image_api (type);
 # else
   return false;
 # endif
@@ -6500,6 +6502,9 @@ native_image_load (struct frame *f, struct image *img)
                          image_spec_value (img->spec, QCdata, NULL));
 # elif defined HAVE_NS
   return ns_load_image (f, img, image_file,
+                        image_spec_value (img->spec, QCdata, NULL));
+# elif defined USE_WEBRENDER
+  return wr_load_image (f, img, image_file,
                         image_spec_value (img->spec, QCdata, NULL));
 # else
   return 0;

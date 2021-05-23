@@ -132,6 +132,9 @@ extern Screen wr_get_screen(wr_display_info* output);
 extern int wr_get_baseline_offset(wr_output* output);
 extern int wr_get_pixel(WRImage *ximg, int x, int y);
 extern int wr_put_pixel(WRImage *ximg, int x, int y, unsigned long pixel);
+extern bool wr_load_image (struct frame *f, struct image *img,
+			   Lisp_Object spec_file, Lisp_Object spec_data);
+extern bool wr_can_use_native_image_api (Lisp_Object type);
 
 /* This is the `Display *' which frame F is on.  */
 #define FRAME_X_DISPLAY(f) (wr_get_display(FRAME_DISPLAY_INFO (f)))
