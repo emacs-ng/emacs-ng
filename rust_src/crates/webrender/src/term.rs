@@ -885,7 +885,7 @@ extern "C" fn free_pixmap(f: *mut Lisp_Frame, pixmap: Emacs_Pixmap) {
     let image_key = pixmap.image_key;
 
     let frame: LispFrameRef = f.into();
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
 
     output.delete_image(image_key);
 }

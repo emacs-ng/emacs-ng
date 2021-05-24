@@ -13,7 +13,7 @@ use font_kit::handle::Handle as FontHandle;
 use gleam::gl::{self, Gl};
 use glutin::{
     self,
-    dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
+    dpi::{PhysicalPosition, PhysicalSize},
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoopProxy, EventLoopWindowTarget},
     monitor::MonitorHandle,
@@ -33,7 +33,7 @@ use glutin::platform::windows::EventLoopExtUnix;
 #[cfg(unix)]
 use glutin::platform::unix::EventLoopWindowTargetExtUnix;
 
-use webrender::{self, api::units::*, api::*};
+use webrender::{self, api::units::*, api::*, RenderApi, Transaction};
 
 use emacs::bindings::{wr_output, Emacs_Cursor};
 
@@ -168,15 +168,12 @@ impl Output {
 
             let events_loop_proxy = events_loop.create_proxy();
 
-            let device_pixel_ratio = window.scale_factor() as f32;
-
             let mut device_size = {
                 let size = window.inner_size();
                 DeviceIntSize::new(size.width as i32, size.height as i32)
             };
 
             let webrender_opts = webrender::RendererOptions {
-                device_pixel_ratio,
                 clear_color: None,
                 ..webrender::RendererOptions::default()
             };
@@ -184,8 +181,7 @@ impl Output {
             let notifier = Box::new(Notifier::new(events_loop_proxy.clone()));
 
             let (mut renderer, sender) =
-                webrender::Renderer::new(gl.clone(), notifier, webrender_opts, None, device_size)
-                    .unwrap();
+                webrender::Renderer::new(gl.clone(), notifier, webrender_opts, None).unwrap();
 
             let texture_resources = Rc::new(RefCell::new(TextureResourceManager::new(
                 gl.clone(),
@@ -199,7 +195,7 @@ impl Output {
 
             let api = sender.create_api();
 
-            let document_id = api.add_document(device_size, 0 /* layer */);
+            let document_id = api.add_document(device_size);
 
             let color_bits = current_context.get_pixel_format().color_bits;
 
@@ -216,7 +212,7 @@ impl Output {
                 ))
                 .unwrap();
 
-            let api = sender.create_api();
+            let mut api = sender.create_api();
 
             events_loop.run(move |e, _, control_flow| {
                 *control_flow = ControlFlow::Wait;
@@ -225,19 +221,22 @@ impl Output {
                     |device_rect: DeviceIntRect,
                      sender: SyncSender<ImageKey>,
                      renderer: &webrender::Renderer| {
-                        let mut fb_rect =
-                            FramebufferIntRect::from_untyped(&device_rect.to_untyped());
+                        let mut origin = device_rect.min;
 
                         if !renderer.device.surface_origin_is_top_left() {
-                            fb_rect.origin.y =
-                                device_size.height - fb_rect.origin.y - fb_rect.size.height;
+                            origin.y = device_size.height - origin.y - device_rect.height();
                         }
+
+                        let fb_rect = FramebufferIntRect::from_origin_and_size(
+                            FramebufferIntPoint::from_untyped(origin.to_untyped()),
+                            FramebufferIntSize::from_untyped(device_rect.size().to_untyped()),
+                        );
 
                         let need_flip = !renderer.device.surface_origin_is_top_left();
 
                         let (image_key, texture_id) = texture_resources.borrow_mut().new_image(
                             document_id,
-                            fb_rect.size,
+                            fb_rect.size(),
                             need_flip,
                         );
 
@@ -250,10 +249,10 @@ impl Output {
                             0,
                             0,
                             0,
-                            fb_rect.origin.x,
-                            fb_rect.origin.y,
-                            fb_rect.size.width,
-                            fb_rect.size.height,
+                            fb_rect.min.x,
+                            fb_rect.min.y,
+                            fb_rect.size().width,
+                            fb_rect.size().height,
                         );
 
                         gl.bind_texture(gl::TEXTURE_2D, 0);
@@ -265,11 +264,15 @@ impl Output {
                         ..
                     } => {
                         device_size = DeviceIntSize::new(size.width as i32, size.height as i32);
-                        api.set_document_view(
-                            document_id,
-                            DeviceIntRect::from_size(device_size),
-                            device_pixel_ratio,
+
+                        let device_rect = DeviceIntRect::from_origin_and_size(
+                            DeviceIntPoint::new(0, 0),
+                            device_size,
                         );
+
+                        let mut txn = Transaction::new();
+                        txn.set_document_view(device_rect);
+                        api.send_transaction(document_id, txn);
 
                         current_context.resize(size);
 
@@ -316,7 +319,7 @@ impl Output {
                     }
                     Event::UserEvent(EmacsGUIEvent::Flush(sender)) => {
                         renderer.update();
-                        renderer.render(device_size).unwrap();
+                        renderer.render(device_size, 0).unwrap();
                         let _ = renderer.flush_pipeline_info();
                         current_context.swap_buffers().ok();
 
@@ -329,17 +332,20 @@ impl Output {
                         );
                     }
                     Event::UserEvent(EmacsGUIEvent::ReadBytes(copy_rect, sender)) => {
-                        let device_rect =
-                            copy_rect.to_f32() * LayoutToDeviceScale::new(device_pixel_ratio);
+                        let device_rect = copy_rect.to_f32() * LayoutToDeviceScale::new(1.0);
 
-                        copy_framebuffer_to_texture(device_rect.to_i32(), sender, &renderer);
+                        copy_framebuffer_to_texture(
+                            device_rect.to_i32().to_box2d(),
+                            sender,
+                            &renderer,
+                        );
                     }
                     _ => {}
                 };
             })
         });
 
-        let (api, window, document_id, color_bits, event_loop_proxy, platform) =
+        let (mut api, window, document_id, color_bits, event_loop_proxy, platform) =
             webrender_rx.recv().unwrap();
 
         let pipeline_id = PipelineId(0, 0);
@@ -372,18 +378,10 @@ impl Output {
         }
     }
 
-    fn get_size(window: &Window) -> (DeviceIntSize, LayoutSize) {
-        let device_pixel_ratio = window.scale_factor() as f32;
-
+    fn get_size(window: &Window) -> LayoutSize {
         let physical_size = window.inner_size();
-
-        let logical_size = physical_size.to_logical::<f32>(device_pixel_ratio as f64);
-
-        let layout_size = LayoutSize::new(logical_size.width as f32, logical_size.height as f32);
-        let device_size =
-            DeviceIntSize::new(physical_size.width as i32, physical_size.height as i32);
-
-        (device_size, layout_size)
+        let device_size = LayoutSize::new(physical_size.width as f32, physical_size.height as f32);
+        device_size
     }
 
     fn detect_platform<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Platform {
@@ -412,8 +410,8 @@ impl Output {
     fn new_builder(&mut self, image: Option<(ImageKey, LayoutRect)>) -> DisplayListBuilder {
         let pipeline_id = PipelineId(0, 0);
 
-        let (_, layout_size) = Self::get_size(&self.window);
-        let mut builder = DisplayListBuilder::new(pipeline_id, layout_size);
+        let layout_size = Self::get_size(&self.window);
+        let mut builder = DisplayListBuilder::new(pipeline_id);
 
         if let Some((image_key, image_rect)) = image {
             let space_and_clip = SpaceAndClipInfo::root_scroll(pipeline_id);
@@ -456,10 +454,8 @@ impl Output {
         DisplayInfoRef::new(self.output.display_info as *mut _)
     }
 
-    pub fn get_inner_size(&self) -> LogicalSize<f32> {
-        let scale_factor = self.window.scale_factor();
-
-        self.window.inner_size().to_logical(scale_factor)
+    pub fn get_inner_size(&self) -> PhysicalSize<u32> {
+        self.window.inner_size()
     }
 
     pub fn get_physical_size(&self) -> PhysicalSize<u32> {
@@ -489,14 +485,14 @@ impl Output {
         let builder = std::mem::replace(&mut self.display_list_builder, None);
 
         if let Some(builder) = builder {
-            let (_, layout_size) = Self::get_size(&self.window);
+            let layout_size = Self::get_size(&self.window);
 
             let epoch = Epoch(0);
             let mut txn = Transaction::new();
 
-            txn.set_display_list(epoch, None, layout_size, builder.finalize(), true);
+            txn.set_display_list(epoch, None, layout_size.to_f32(), builder.finalize(), true);
 
-            txn.generate_frame();
+            txn.generate_frame(0);
 
             self.render_api.send_transaction(self.document_id, txn);
 
@@ -512,7 +508,7 @@ impl Output {
 
             self.display_list_builder = Some(self.new_builder(Some((
                 pre_frame_image_key,
-                LayoutRect::from_size(layout_size),
+                LayoutRect::from_size(layout_size.to_f32()),
             ))));
         }
     }
@@ -531,7 +527,7 @@ impl Output {
         let _ = std::mem::replace(&mut self.display_list_builder, None);
     }
 
-    pub fn add_font_instance(&self, font_key: FontKey, pixel_size: i32) -> FontInstanceKey {
+    pub fn add_font_instance(&mut self, font_key: FontKey, pixel_size: i32) -> FontInstanceKey {
         let mut txn = Transaction::new();
 
         let font_instance_key = self.render_api.generate_font_instance_key();
@@ -539,7 +535,7 @@ impl Output {
         txn.add_font_instance(
             font_instance_key,
             font_key,
-            app_units::Au::from_px(pixel_size),
+            pixel_size as f32,
             None,
             None,
             vec![],
@@ -549,7 +545,7 @@ impl Output {
         font_instance_key
     }
 
-    pub fn add_font(&self, font_handle: &FontHandle) -> FontKey {
+    pub fn add_font(&mut self, font_handle: &FontHandle) -> FontKey {
         let mut txn = Transaction::new();
 
         let font_key = self.render_api.generate_font_key();
@@ -656,7 +652,7 @@ impl Output {
         self.window.set_cursor_icon(cursor)
     }
 
-    pub fn add_image(&self, width: i32, height: i32, image_data: Arc<Vec<u8>>) -> ImageKey {
+    pub fn add_image(&mut self, width: i32, height: i32, image_data: Arc<Vec<u8>>) -> ImageKey {
         let image_key = self.render_api.generate_image_key();
 
         self.update_image(image_key, width, height, image_data);
@@ -665,7 +661,7 @@ impl Output {
     }
 
     pub fn update_image(
-        &self,
+        &mut self,
         image_key: ImageKey,
         width: i32,
         height: i32,
@@ -688,7 +684,7 @@ impl Output {
         self.render_api.send_transaction(self.document_id, txn);
     }
 
-    pub fn delete_image(&self, image_key: ImageKey) {
+    pub fn delete_image(&mut self, image_key: ImageKey) {
         let mut txn = Transaction::new();
 
         txn.delete_image(image_key);
@@ -756,7 +752,7 @@ impl RenderNotifier for Notifier {
         })
     }
 
-    fn wake_up(&self) {}
+    fn wake_up(&self, _composite_needed: bool) {}
 
     fn new_frame_ready(
         &self,
