@@ -202,9 +202,9 @@ jobs:
               run: |
                   cd test/js/
                   ../../src/emacs --batch --eval '(deno "fmt" "--check")'
-                  cd ../../rust_src/src
-                  ../../src/emacs --batch --eval '(deno "fmt" "--check")'
-                  cd ../../
+                  cd ../../rust_src/crates/js/src/
+                  ../../../../src/emacs --batch --eval '(deno "fmt" "--check")'
+                  cd ../../../../
 
             - name: run js tests
               run: |
