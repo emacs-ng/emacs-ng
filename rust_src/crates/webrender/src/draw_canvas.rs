@@ -165,6 +165,7 @@ impl DrawCanvas {
 
                 builder.push_rect(
                     &CommonItemProperties::new(background_bounds, space_and_clip),
+                    background_bounds,
                     background_color,
                 );
 
@@ -214,6 +215,7 @@ impl DrawCanvas {
         self.output.display(|builder, space_and_clip| {
             builder.push_rect(
                 &CommonItemProperties::new(background_bounds, space_and_clip),
+                background_bounds,
                 background_color,
             );
         });
@@ -250,6 +252,7 @@ impl DrawCanvas {
                 // render background
                 builder.push_rect(
                     &CommonItemProperties::new(background_rect, space_and_clip),
+                    background_rect,
                     background_color,
                 );
             }
@@ -345,6 +348,7 @@ impl DrawCanvas {
             // clear area
             builder.push_rect(
                 &CommonItemProperties::new(clear_rect, space_and_clip),
+                clear_rect,
                 background_color,
             );
 
@@ -387,6 +391,7 @@ impl DrawCanvas {
         self.output.display(|builder, space_and_clip| {
             builder.push_rect(
                 &CommonItemProperties::new(visible_rect, space_and_clip),
+                visible_rect,
                 color,
             );
         });
@@ -407,31 +412,46 @@ impl DrawCanvas {
                 // A vertical divider, at least three pixels wide: Draw first and
                 // last pixels differently.
 
+                let first = (x0, y0).to(x0 + 1, y1);
+                let middle = (x0 + 1, y0).to(x1 - 1, y1);
+                let last = (x1 - 1, y0).to(x1, y1);
+
                 builder.push_rect(
-                    &CommonItemProperties::new((x0, y0).to(x0 + 1, y1), space_and_clip),
+                    &CommonItemProperties::new(first, space_and_clip),
+                    first,
                     pixel_to_color(color_first),
                 );
                 builder.push_rect(
-                    &CommonItemProperties::new((x0 + 1, y0).to(x1 - 1, y1), space_and_clip),
+                    &CommonItemProperties::new(middle, space_and_clip),
+                    middle,
                     pixel_to_color(color),
                 );
                 builder.push_rect(
-                    &CommonItemProperties::new((x1 - 1, y0).to(x1, y1), space_and_clip),
+                    &CommonItemProperties::new(last, space_and_clip),
+                    last,
                     pixel_to_color(color_last),
                 );
             } else if (x1 - x0 > y1 - y0) && (y1 - y0 >= 3) {
                 // A horizontal divider, at least three pixels high: Draw first and
                 // last pixels differently.
+
+                let first = (x0, y0).to(x1, 1);
+                let middle = (x0, y0 + 1).to(x1, y1 - 1);
+                let last = (x0, y1 - 1).to(x1, y1);
+
                 builder.push_rect(
-                    &CommonItemProperties::new((x0, y0).to(x1, 1), space_and_clip),
+                    &CommonItemProperties::new(first, space_and_clip),
+                    first,
                     pixel_to_color(color_first),
                 );
                 builder.push_rect(
-                    &CommonItemProperties::new((x0, y0 + 1).to(x1, y1 - 1), space_and_clip),
+                    &CommonItemProperties::new(middle, space_and_clip),
+                    middle,
                     pixel_to_color(color),
                 );
                 builder.push_rect(
-                    &CommonItemProperties::new((x0, y1 - 1).to(x1, y1), space_and_clip),
+                    &CommonItemProperties::new(last, space_and_clip),
+                    last,
                     pixel_to_color(color_last),
                 );
             } else {
@@ -440,6 +460,7 @@ impl DrawCanvas {
                 let visible_rect = (x0, y0).to(x1, y1);
                 builder.push_rect(
                     &CommonItemProperties::new(visible_rect, space_and_clip),
+                    visible_rect,
                     pixel_to_color(color),
                 );
             }
@@ -452,6 +473,7 @@ impl DrawCanvas {
         self.output.display(|builder, space_and_clip| {
             builder.push_rect(
                 &CommonItemProperties::new(visible_rect, space_and_clip),
+                visible_rect,
                 clear_color,
             );
         });
@@ -547,9 +569,11 @@ impl DrawCanvas {
             self.output.cursor_color
         };
 
+        let bounds = (x, y).by(width, height);
         self.output.display(|builder, space_and_clip| {
             builder.push_rect(
-                &CommonItemProperties::new((x, y).by(width, height), space_and_clip),
+                &CommonItemProperties::new(bounds, space_and_clip),
+                bounds,
                 cursor_color,
             );
         });

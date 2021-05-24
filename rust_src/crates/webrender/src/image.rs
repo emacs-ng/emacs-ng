@@ -181,7 +181,7 @@ fn define_image(frame: LispFrameRef, img: *mut Emacs_Image, image_buffer: Dynami
     let width = image_buffer.width() as i32;
     let height = image_buffer.height() as i32;
 
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
 
     let old_image_key = if unsafe { (*img).pixmap } != ptr::null_mut() {
         let pixmap = unsafe { (*img).pixmap as *mut WrPixmap };

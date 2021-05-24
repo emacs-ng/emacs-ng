@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use gleam::gl::{self, Gl};
-use webrender::{self, api::units::*, api::*};
+use webrender::{self, api::units::*, api::*, RenderApi, Transaction};
 
 type TextureTable = HashMap<gl::GLuint, (FramebufferIntSize, bool)>;
 
@@ -105,7 +105,7 @@ impl TextureResourceManager {
             ImageData::External(ExternalImageData {
                 id: ExternalImageId(texture_id as u64),
                 channel_index: 0,
-                image_type: ExternalImageType::TextureHandle(TextureTarget::Default),
+                image_type: ExternalImageType::TextureHandle(ImageBufferKind::Texture2D),
             }),
             None,
         );

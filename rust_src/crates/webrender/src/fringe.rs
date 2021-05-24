@@ -41,7 +41,7 @@ pub fn get_or_create_fringe_bitmap(
     return Some(bitmap);
 }
 
-fn create_fringe_bitmap(output: OutputRef, p: *mut draw_fringe_bitmap_params) -> FringeBitmap {
+fn create_fringe_bitmap(mut output: OutputRef, p: *mut draw_fringe_bitmap_params) -> FringeBitmap {
     let image_buffer = create_fringe_bitmap_image_buffer(p);
 
     let (width, height) = image_buffer.dimensions();

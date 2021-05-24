@@ -3,7 +3,6 @@ use std::mem::ManuallyDrop;
 use font_kit::{
     family_name::FamilyName,
     loaders::default::Font,
-    metrics::Metrics,
     properties::{Properties, Style, Weight},
     source::{Source, SystemSource},
 };
@@ -255,9 +254,6 @@ pub struct WRFont {
     // extend basic font
     pub font: font,
 
-    // font-kit font
-    pub metrics: Metrics,
-
     pub font_backend: ManuallyDrop<Font>,
 
     pub font_instance_key: FontInstanceKey,
@@ -282,7 +278,7 @@ impl WRFont {
             .map(|i| {
                 self.font_backend
                     .advance(i)
-                    .map(|a| (a.x * scale).round() as i32)
+                    .map(|a| (a.x() * scale).round() as i32)
                     .ok()
             })
             .collect()
@@ -295,7 +291,7 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     let font_entity: LispFontLike = font_entity.into();
 
     let frame: LispFrameRef = frame.into();
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
 
     let mut pixel_size = pixel_size as i64;
 
@@ -369,7 +365,7 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     let scale = pixel_size as f32 / font_metrics.units_per_em as f32;
 
     wr_font.font.pixel_size = pixel_size as i32;
-    wr_font.font.average_width = (font_advance.x * scale) as i32;
+    wr_font.font.average_width = (font_advance.x() * scale) as i32;
     wr_font.font.ascent = (scale * font_metrics.ascent).round() as i32;
     wr_font.font.descent = (-scale * font_metrics.descent).round() as i32;
     wr_font.font.space_width = wr_font.font.average_width;
