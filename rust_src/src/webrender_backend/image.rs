@@ -14,8 +14,8 @@ use emacs::{
     lisp::LispObject,
 };
 use image::{
-    codecs::gif::GifDecoder, io::Reader, AnimationDecoder, DynamicImage, GenericImageView,
-    ImageFormat, ImageResult,
+    codecs::gif::GifDecoder, imageops::FilterType, io::Reader, AnimationDecoder, DynamicImage,
+    GenericImageView, ImageFormat, ImageResult,
 };
 use libc::c_void;
 use webrender::api::ImageKey;
@@ -24,6 +24,7 @@ use super::output::OutputRef;
 
 pub struct WrPixmap {
     pub image_key: ImageKey,
+    pub image_buffer: DynamicImage,
 }
 
 pub fn can_use_native_image_api(image_type: LispObject) -> bool {
@@ -101,7 +102,12 @@ pub fn load_image(
     if unsafe { (*img).pixmap } == ptr::null_mut() {
         let image_key =
             output.add_image(width, height, Arc::new(loaded_image.to_rgba8().into_raw()));
-        let wr_pixmap = Box::new(WrPixmap { image_key });
+
+        let wr_pixmap = Box::new(WrPixmap {
+            image_key,
+            image_buffer: loaded_image,
+        });
+
         let wr_pixmap_ptr = Box::into_raw(wr_pixmap);
 
         unsafe {
@@ -109,12 +115,15 @@ pub fn load_image(
         };
     } else {
         let wr_image = unsafe { (*img).pixmap } as *mut WrPixmap;
+
         output.update_image(
             unsafe { (*wr_image).image_key },
             width,
             height,
             Arc::new(loaded_image.to_rgba8().into_raw()),
         );
+
+        unsafe { (*wr_image).image_buffer = loaded_image };
     }
 
     let lisp_data = match meta {
@@ -149,4 +158,44 @@ pub fn load_image(
     };
 
     return true;
+}
+
+pub fn transform_image(
+    frame: LispFrameRef,
+    img: *mut Emacs_Image,
+    width: i32,
+    height: i32,
+    rotation: f64,
+) {
+    let pixmap = unsafe { (*img).pixmap as *mut WrPixmap };
+
+    let image_buffer = unsafe { (*pixmap).image_buffer.clone() };
+
+    let image_buffer = image_buffer.resize_exact(width as u32, height as u32, FilterType::Lanczos3);
+
+    let rotation = rotation as u32;
+    let image_buffer = match rotation {
+        90 => image_buffer.rotate90(),
+        180 => image_buffer.rotate180(),
+        270 => image_buffer.rotate270(),
+        _ => image_buffer,
+    };
+
+    let (width, height) = image_buffer.dimensions();
+
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    output.update_image(
+        unsafe { (*pixmap).image_key },
+        width as i32,
+        height as i32,
+        Arc::new(image_buffer.to_rgba8().into_raw()),
+    );
+
+    unsafe {
+        (*pixmap).image_buffer = image_buffer;
+
+        (*img).width = width as i32;
+        (*img).height = height as i32;
+    };
 }

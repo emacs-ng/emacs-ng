@@ -108,6 +108,17 @@ pub extern "C" fn wr_load_image(
 }
 
 #[no_mangle]
+pub extern "C" fn wr_transform_image(
+    frame: LispFrameRef,
+    img: *mut Emacs_Image,
+    width: i32,
+    height: i32,
+    rotation: f64,
+) {
+    webrender_backend::image::transform_image(frame, img, width, height, rotation);
+}
+
+#[no_mangle]
 pub extern "C" fn get_keysym_name(keysym: i32) -> *mut libc::c_char {
     let name =
         winit_keycode_emacs_key_name(unsafe { std::mem::transmute::<i32, VirtualKeyCode>(keysym) });
