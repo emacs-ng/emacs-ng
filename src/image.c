@@ -2257,6 +2257,10 @@ image_set_transform (struct frame *f, struct image *img)
   double rotation = 0.0;
   compute_image_rotation (img, &rotation);
 
+#ifdef USE_WEBRENDER
+  return wr_transform_image(f, img, width, height, rotation);
+#endif
+
 # if defined USE_CAIRO || defined HAVE_XRENDER || defined HAVE_NS
   /* We want scale up operations to use a nearest neighbor filter to
      show real pixels instead of munging them, but scale down
@@ -10638,7 +10642,7 @@ The list of capabilities can include one or more of the following:
   if (FRAME_WINDOW_P (f))
     {
 #ifdef HAVE_NATIVE_TRANSFORMS
-# if defined HAVE_IMAGEMAGICK || defined (USE_CAIRO) || defined (HAVE_NS)
+# if defined HAVE_IMAGEMAGICK || defined (USE_CAIRO) || defined (HAVE_NS) || defined (USE_WEBRENDER)
       return list2 (Qscale, Qrotate90);
 # elif defined (HAVE_X_WINDOWS) && defined (HAVE_XRENDER)
       int event_basep, error_basep;

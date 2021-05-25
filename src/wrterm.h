@@ -136,6 +136,8 @@ extern bool wr_load_image (struct frame *f, struct image *img,
 			   Lisp_Object spec_file, Lisp_Object spec_data);
 extern bool wr_can_use_native_image_api (Lisp_Object type);
 
+extern void wr_transform_image(struct frame *f, struct image *img, int width, int height, double rotation);
+
 /* This is the `Display *' which frame F is on.  */
 #define FRAME_X_DISPLAY(f) (wr_get_display(FRAME_DISPLAY_INFO (f)))
 
