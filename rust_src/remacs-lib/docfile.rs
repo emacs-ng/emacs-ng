@@ -30,6 +30,11 @@ type AddGlobalFn = ::std::option::Option<
     unsafe extern "C" fn(c_int, *const c_char, c_int, *const c_char) -> *const (),
 >;
 
+/// This function is called by lib-src/scan_file and runs with make-docfile
+/// in src/Makefile.
+/// We have to ensure that all necessary rust paths will be considered to
+/// generate the defined globals and extract their docstrings so they can be
+/// used in elisp.
 #[no_mangle]
 pub unsafe extern "C" fn scan_rust_file(
     filename: *const c_char,
