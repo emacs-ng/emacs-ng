@@ -39,32 +39,5 @@ mod javascript {
     include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
 }
 
-// TODO: move to ng_async::ng_async
-#[allow(dead_code)]
-fn def_syms() {
-    def_lisp_sym!(QCinchannel, "inchannel");
-    def_lisp_sym!(QCoutchannel, "outchannel");
-}
-
-// TODO: move to ng_async::parsing
-// In order to have rust generate symbols at compile time,
-// I need a line of code starting with "def_lisp_sym"
-// This function does not actually run any code, it should
-// not be called at runtime. Doing so would actually be harmless
-// as 'def_lisp_sym' generates no runtime code.
-#[allow(dead_code)]
-fn init_syms() {
-    def_lisp_sym!(QCnull, ":null");
-    def_lisp_sym!(QCfalse, ":false");
-    def_lisp_sym!(QCobject_type, ":object-type");
-    def_lisp_sym!(QCarray_type, ":array-type");
-    def_lisp_sym!(QCnull_object, ":null-object");
-    def_lisp_sym!(QCfalse_object, ":false-object");
-    def_lisp_sym!(QCjson_config, ":json-config");
-    def_lisp_sym!(Qalist, "alist");
-    def_lisp_sym!(Qplist, "plist");
-    def_lisp_sym!(Qarray, "array");
-}
-
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));
