@@ -66,43 +66,5 @@ fn init_syms() {
     def_lisp_sym!(Qarray, "array");
 }
 
-// TODO: move to javascript::javascript
-// Do NOT call this function, it is just used for macro purposes to
-// generate variables. The user should NOT have direct access to
-// 'js-retain-map' from the scripting engine.
-#[allow(dead_code)]
-fn init_syms_js() {
-    defvar_lisp!(Vjs_retain_map, "js-retain-map", emacs::globals::Qnil);
-
-    def_lisp_sym!(Qjs_lisp_error, "js-lisp-error");
-    def_lisp_sym!(QCallow_net, ":allow-net");
-    def_lisp_sym!(QCallow_read, ":allow-read");
-    def_lisp_sym!(QCallow_write, ":allow-write");
-    def_lisp_sym!(QCallow_run, ":allow-run");
-    def_lisp_sym!(QCjs_tick_rate, ":js-tick-rate");
-    def_lisp_sym!(Qjs_error, "js-error");
-    def_lisp_sym!(QCjs_error_handler, ":js-error-handler");
-    def_lisp_sym!(QCtypescript, ":typescript");
-
-    def_lisp_sym!(Qjs__clear, "js--clear");
-    def_lisp_sym!(Qjs__clear_r, "js--clear-r");
-    def_lisp_sym!(Qlambda, "lambda");
-    def_lisp_sym!(Qjs__reenter, "js--reenter");
-    def_lisp_sym!(QCinspect, ":inspect");
-    def_lisp_sym!(QCinspect_brk, ":inspect-brk");
-    def_lisp_sym!(QCuse_color, ":use-color");
-
-    def_lisp_sym!(QCts_config, ":ts-config");
-    def_lisp_sym!(QCno_check, ":no-check");
-    def_lisp_sym!(QCno_remote, ":no-remote");
-    def_lisp_sym!(QCloops_per_tick, ":loops-per-tick");
-
-    def_lisp_sym!(Qrun_with_timer, "run-with-timer");
-    def_lisp_sym!(Qjs_tick_event_loop, "js-tick-event-loop");
-    def_lisp_sym!(Qeval_expression, "eval-expression");
-
-    def_lisp_sym!(Qjs_proxy, "js-proxy");
-}
-
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));
