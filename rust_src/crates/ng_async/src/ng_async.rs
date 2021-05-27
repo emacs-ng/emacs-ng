@@ -495,6 +495,12 @@ pub fn async_close_stream(proc: LispObject) -> bool {
     pipe.close_stream().is_ok()
 }
 
+#[allow(dead_code)]
+fn init_syms() {
+    def_lisp_sym!(QCinchannel, "inchannel");
+    def_lisp_sym!(QCoutchannel, "outchannel");
+}
+
 include!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/out/ng_async_exports.rs"

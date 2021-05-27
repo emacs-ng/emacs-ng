@@ -637,7 +637,7 @@ $(etc)/DOC: lisp.mk $(libsrc)/make-docfile$(EXEEXT) $(obj) $(lisp) $(rust_srcdir
 	$(AM_V_GEN)$(MKDIR_P) $(etc)
 	$(AM_V_at)rm -f $(etc)/DOC
 	$(AM_V_at)$(libsrc)/make-docfile -d $(srcdir) \
-	  $(SOME_MACHINE_OBJECTS) $(obj) $(rust_srcdir)/src/*.rs $(rust_srcdir)/crates/js/src/*.rs > $(etc)/DOC
+	  $(SOME_MACHINE_OBJECTS) $(obj) $(rust_srcdir)/src/*.rs $(rust_srcdir)/crates/js/src/*.rs $(rust_srcdir)/crates/ng_async/src/*.rs > $(etc)/DOC
 	$(AM_V_at)$(libsrc)/make-docfile -a $(etc)/DOC -d $(lispsource) \
 	  $(shortlisp)
 
@@ -655,7 +655,7 @@ buildobj.h: Makefile
 GLOBAL_SOURCES = $(base_obj:.o=.c) $(NS_OBJC_OBJ:.o=.m) $(rust_srcdir)/src/*.rs
 
 gl-stamp: $(libsrc)/make-docfile$(EXEEXT) $(GLOBAL_SOURCES)
-	$(AM_V_GLOBALS)$(libsrc)/make-docfile -d $(srcdir) -g $(obj) $(rust_srcdir)/src/*.rs $(rust_srcdir)/crates/js/src/*.rs > globals.tmp
+	$(AM_V_GLOBALS)$(libsrc)/make-docfile -d $(srcdir) -g $(obj) $(rust_srcdir)/src/*.rs $(rust_srcdir)/crates/js/src/*.rs $(rust_srcdir)/crates/ng_async/src/*.rs > globals.tmp
 	$(AM_V_at)$(top_srcdir)/build-aux/move-if-change globals.tmp globals.h
 	$(AM_V_at)echo timestamp > $@
 

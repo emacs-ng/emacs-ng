@@ -622,6 +622,25 @@ pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe)
     Ok(())
 }
 
+// In order to have rust generate symbols at compile time,
+// I need a line of code starting with "def_lisp_sym"
+// This function does not actually run any code, it should
+// not be called at runtime. Doing so would actually be harmless
+// as 'def_lisp_sym' generates no runtime code.
+#[allow(dead_code)]
+fn init_syms() {
+    def_lisp_sym!(QCnull, ":null");
+    def_lisp_sym!(QCfalse, ":false");
+    def_lisp_sym!(QCobject_type, ":object-type");
+    def_lisp_sym!(QCarray_type, ":array-type");
+    def_lisp_sym!(QCnull_object, ":null-object");
+    def_lisp_sym!(QCfalse_object, ":false-object");
+    def_lisp_sym!(QCjson_config, ":json-config");
+    def_lisp_sym!(Qalist, "alist");
+    def_lisp_sym!(Qplist, "plist");
+    def_lisp_sym!(Qarray, "array");
+}
+
 include!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/out/parsing_exports.rs"
