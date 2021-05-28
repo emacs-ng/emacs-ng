@@ -491,6 +491,12 @@ fn build_ignored_crates(path: &PathBuf) -> bool {
     #[cfg(not(feature = "libgit"))]
     ignored_crates.push("git");
 
+    #[cfg(not(feature = "javascript"))]
+    ignored_crates.push("js");
+
+    #[cfg(not(feature = "ng-module"))]
+    ignored_crates.push("ng_module");
+
     let crate_path = path_as_str(path.file_name()).to_string();
 
     for ignored in ignored_crates {
