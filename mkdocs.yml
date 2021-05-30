@@ -14,11 +14,11 @@ nav:
       - Release .deb package: release.md
       - Nix Build / Develop: nix-develop.md
   - Deno/Javascript:
-    - Using Deno: using-deno.md
-    - Getting started: getting-started.md
-    - Basic features: main-features.md
-    - Advanced features: adv-features.md
-    - Architecture: architecture.md
+    - Using Deno: js/using-deno.md
+    - Getting started: js/getting-started.md
+    - Basic features: js/main-features.md
+    - Advanced features: js/adv-features.md
+    - Architecture: js/architecture.md
   - Webrender: webrender.md
   - Dynamic modules: ng-module.md
   - FAQ: faq.md
