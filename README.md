@@ -11,12 +11,10 @@ A new approach to Emacs - Including TypeScript, Threading, Async I/O, and WebRen
 <hr>
 <p align="center">
   <a href="https://emacs-ng.github.io/emacs-ng"><strong>homepage</strong></a> •
-  <a href="https://emacs-ng.github.io/emacs-ng/main-features/"><strong>features</strong></a> •
-  <a href="https://emacs-ng.github.io/emacs-ng/building/"><strong>setup</strong></a> •
-  <a href="https://emacs-ng.github.io/emacs-ng/getting-started/"><strong>getting started</strong></a> •
-  <a href="https://emacs-ng.github.io/emacs-ng/using-deno/"><strong>using deno</strong></a> •
-  <a href="https://emacs-ng.github.io/emacs-ng/faq"><strong>FAQ</strong></a> •
-  <a href="https://emacs-ng.github.io/emacs-ng/architecture/"><strong>Native Hackers Handbook (Architecture)</strong></a>
+  <a href="https://emacs-ng.github.io/emacs-ng/js/using-deno/"><strong>Deno/Javascript</strong></a> •
+  <a href="https://emacs-ng.github.io/emacs-ng/webrender/"><strong>webrender</strong></a> •
+  <a href="https://emacs-ng.github.io/emacs-ng/ng-module/"><strong>ng-module</strong></a> •
+  <a href="https://emacs-ng.github.io/emacs-ng/handbook/tests/"><strong>handbook</strong></a> •
 </p>
 <hr>
 
