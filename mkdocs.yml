@@ -13,14 +13,16 @@ nav:
       - Build with Docker: docker.md
       - Release .deb package: release.md
       - Nix Build / Develop: nix-develop.md
-  - Features:
+  - Deno/Javascript:
+    - Using Deno: using-deno.md
+    - Getting started: getting-started.md
     - Basic features: main-features.md
     - Advanced features: adv-features.md
-  - Getting started: getting-started.md
-  - Using Deno: using-deno.md
+    - Architecture: architecture.md
+  - Webrender: webrender.md
   - Dynamic modules: ng-module.md
   - FAQ: faq.md
-  - Native Hackers Handbook (Architecture): architecture.md
+  - Native Hackers Handbook: handbook.md
 
 theme:
   name: material
