@@ -23,6 +23,9 @@ nav:
   - Dynamic modules: ng-module.md
   - FAQ: faq.md
   - Native Hackers Handbook: handbook.md
+    - tests: handbook/tests.md
+    - lisp-fn: handbook/lisp-fn.md
+    - types: handbook/types.md
 
 theme:
   name: material

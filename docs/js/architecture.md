@@ -1,4 +1,4 @@
-# Emacs-ng Native Hacker's Handbook
+# Architecture
 
 The purpose of this document is to outline how emacs-ng's native changes work.
 
