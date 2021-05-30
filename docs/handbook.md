@@ -1,6 +1,4 @@
-remacs-macros
-=============
-
+# lisp_fn
 # Attributes
 
 ## `lisp_fn`
@@ -60,7 +58,7 @@ fn first(args: &mut [LispObject]) -> LispObject {
 }
 ```
 
-### Example: Porting `numberp`
+### Example: `numberp`
 
 This is how the `numberp` function looks in C.
 
