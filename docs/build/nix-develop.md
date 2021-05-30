@@ -16,7 +16,7 @@ then `exec bash -l` reload your bash to load the nix-env
 
     nix --version
     nix (Nix) 2.4pre20210326_dd77f71
-  
+
 ## Nix flake feature alread in emacsNg
 
     nix run github:emacs-ng/emacs-ng (launch emacs locally )
@@ -52,7 +52,7 @@ nix build github:emacs-ng/emacs-ng -o emacsNg
 ls -il emacsNg
 ```
 
-## Clone Emacs Ng By Nix-Shell And Enable Emacs Cachix 
+## Clone Emacs Ng By Nix-Shell And Enable Emacs Cachix
 
 ```bash
 nix-env -iA cachix -f https://cachix.org/api/v1/install
@@ -65,18 +65,18 @@ nix-shell -p git --command "git clone https://github.com/emacs-ng/emacs-ng.git &
 
 ### Change Rust Version
 1. Nightly Version
-   - located `nix/rust.nix` modify the `2021-01-14`to which your want.([rustOverlay-NightlyCheck](https://github.com/oxalica/rust-overlay/tree/master/manifests/nightly/default.nix)) 
+   - located `nix/rust.nix` modify the `2021-01-14`to which your want.([rustOverlay-NightlyCheck](https://github.com/oxalica/rust-overlay/tree/master/manifests/nightly/default.nix))
      Example: `default = pkgs.rust-bin.nightly."2021-03-23";`
 
 2. stable version
 
  - example : `default = pkgs.rust-bin.stable."1.50.0";`
-   ([rustOverlay-StableCheck](https://github.com/oxalica/rust-overlay/tree/master/manifests/stable/default.nix)) 
+   ([rustOverlay-StableCheck](https://github.com/oxalica/rust-overlay/tree/master/manifests/stable/default.nix))
 
 3. beta version
 
 - example : `default = pkgs.rust-bin.beta."2021-03-06";`
-   ([rustOverlay-StableCheck](https://github.com/oxalica/rust-overlay/tree/master/manifests/beta/default.nix)) 
+   ([rustOverlay-StableCheck](https://github.com/oxalica/rust-overlay/tree/master/manifests/beta/default.nix))
 
 ### Add Package from RustOverly
 
@@ -131,7 +131,7 @@ devshell.packages = map (tool: cfg.rustPackages.${tool}) cfg.rustPackagesSet
 ## Reload all of envs when you changed something
 
 - normally, we can re-enter `nix-shell` to reload envrs. But for this project, we are using direnv to load and unload environment variables in an convenient way.
-  
+
 ### Recommended Way -> Direnv
 
  Install direnv by Nix
@@ -173,7 +173,7 @@ Install direnv to Doom Emacs, Example
 
 - locaed `nix/commands.toml`
 
-- Add custom command as following: 
+- Add custom command as following:
  Example
 
 ```toml
@@ -184,19 +184,19 @@ help = "cargo build remacs-bindings"
 category = "rust-build"
 ```
 
-- Add custom env variable as following: 
+- Add custom env variable as following:
 
 ```toml
 [[env]]
 name = "TEST"
 vale = "/bin/test"
-#prefix = "$( cd "$(dirname "$\{\BASH_SOURCE [ 0 ]}")"; pwd )" can be prefix 
+#prefix = "$( cd "$(dirname "$\{\BASH_SOURCE [ 0 ]}")"; pwd )" can be prefix
 ```
 
 ## Building Emacs-ng in develop mode
 
-- located `flake.nix` commented `emacsNg-src` to `"./."` 
-  
+- located `flake.nix` commented `emacsNg-src` to `"./."`
+
   Example:
 
 ```nix
@@ -231,8 +231,8 @@ NOTICE :  `nix-build` action in sandbox mode. If you want to modify something or
 preConfigure = (old.preConfigure or "") + ''
   <modify shell>
             '';
-            
-patches = (old.patches or [ ]) ++ [ 
+
+patches = (old.patches or [ ]) ++ [
 ./nix/<your-pathc-file.patch>
 ];
 ```

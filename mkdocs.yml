@@ -9,10 +9,10 @@ nav:
   - Home:
     - Overview: README.md
     - Setup:
-      - Build from source: building.md
-      - Build with Docker: docker.md
-      - Release .deb package: release.md
-      - Nix Build / Develop: nix-develop.md
+      - Build from source: build/building.md
+      - Build with Docker: build/docker.md
+      - Release .deb package: build/release.md
+      - Nix Build / Develop: build/nix-develop.md
   - Deno/Javascript:
     - Using Deno: js/using-deno.md
     - Getting started: js/getting-started.md
