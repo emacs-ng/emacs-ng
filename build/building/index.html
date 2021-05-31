@@ -11,21 +11,21 @@
       
       
       
-        <link rel="canonical" href="https://emacs-ng.github.io/emacs-ng/release/">
+        <link rel="canonical" href="https://emacs-ng.github.io/emacs-ng/build/building/">
       
-      <link rel="shortcut icon" href="../images/logo.png">
+      <link rel="shortcut icon" href="../../images/logo.png">
       <meta name="generator" content="mkdocs-1.1.2, mkdocs-material-7.0.5">
     
     
       
-        <title>Release .deb package - Emacs NG - A new approach to Emacs</title>
+        <title>Build from source - Emacs NG - A new approach to Emacs</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.77f3fd56.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.77f3fd56.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.7fa14f5b.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.7fa14f5b.min.css">
         
       
     
@@ -40,7 +40,7 @@
     
     
     
-      <link rel="stylesheet" href="../stylesheets/layout.css">
+      <link rel="stylesheet" href="../../stylesheets/layout.css">
     
     
       
@@ -63,6 +63,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#build-requirements" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -74,7 +79,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="https://emacs-ng.github.io/emacs-ng" title="Emacs NG - A new approach to Emacs" class="md-header__button md-logo" aria-label="Emacs NG - A new approach to Emacs">
       
-  <img src="../images/logo.png" alt="logo">
+  <img src="../../images/logo.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -90,7 +95,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Release .deb package
+              Build from source
             
           </span>
         </div>
@@ -167,7 +172,7 @@
   
   
     <li class="md-tabs__item">
-      <a href=".." class="md-tabs__link md-tabs__link--active">
+      <a href="../.." class="md-tabs__link md-tabs__link--active">
         Home
       </a>
     </li>
@@ -183,7 +188,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../js/using-deno/" class="md-tabs__link">
+      <a href="../../js/using-deno/" class="md-tabs__link">
         Deno/Javascript
       </a>
     </li>
@@ -196,7 +201,7 @@
 
 
   <li class="md-tabs__item">
-    <a href="../webrender/" class="md-tabs__link">
+    <a href="../../webrender/" class="md-tabs__link">
       Webrender
     </a>
   </li>
@@ -208,7 +213,7 @@
 
 
   <li class="md-tabs__item">
-    <a href="../ng-module/" class="md-tabs__link">
+    <a href="../../ng-module/" class="md-tabs__link">
       Dynamic modules
     </a>
   </li>
@@ -220,7 +225,7 @@
 
 
   <li class="md-tabs__item">
-    <a href="../faq/" class="md-tabs__link">
+    <a href="../../faq/" class="md-tabs__link">
       FAQ
     </a>
   </li>
@@ -231,11 +236,15 @@
   
 
 
-  <li class="md-tabs__item">
-    <a href="../handbook/" class="md-tabs__link">
-      Native Hackers Handbook
-    </a>
-  </li>
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../handbook/tests/" class="md-tabs__link">
+        Native Hackers Handbook
+      </a>
+    </li>
+  
 
       
     </ul>
@@ -262,7 +271,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="https://emacs-ng.github.io/emacs-ng" title="Emacs NG - A new approach to Emacs" class="md-nav__button md-logo" aria-label="Emacs NG - A new approach to Emacs">
       
-  <img src="../images/logo.png" alt="logo">
+  <img src="../../images/logo.png" alt="logo">
 
     </a>
     Emacs NG - A new approach to Emacs
@@ -314,7 +323,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         Overview
       </a>
     </li>
@@ -347,11 +356,72 @@
             
   
   
+    
   
-    <li class="md-nav__item">
-      <a href="../building/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Build from source
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         Build from source
       </a>
+      
+        
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#build-requirements" class="md-nav__link">
+    Build requirements
+  </a>
+  
+    <nav class="md-nav" aria-label="Build requirements">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#linux" class="md-nav__link">
+    Linux
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#macos" class="md-nav__link">
+    MacOS
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compile-and-install" class="md-nav__link">
+    Compile and install
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -371,18 +441,11 @@
             
   
   
-    
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../release/" class="md-nav__link">
         Release .deb package
       </a>
-      
     </li>
   
 
@@ -440,7 +503,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../js/using-deno/" class="md-nav__link">
+      <a href="../../js/using-deno/" class="md-nav__link">
         Using Deno
       </a>
     </li>
@@ -452,7 +515,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../js/getting-started/" class="md-nav__link">
+      <a href="../../js/getting-started/" class="md-nav__link">
         Getting started
       </a>
     </li>
@@ -464,7 +527,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../js/main-features/" class="md-nav__link">
+      <a href="../../js/main-features/" class="md-nav__link">
         Basic features
       </a>
     </li>
@@ -476,7 +539,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../js/adv-features/" class="md-nav__link">
+      <a href="../../js/adv-features/" class="md-nav__link">
         Advanced features
       </a>
     </li>
@@ -488,7 +551,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../js/architecture/" class="md-nav__link">
+      <a href="../../js/architecture/" class="md-nav__link">
         Architecture
       </a>
     </li>
@@ -509,7 +572,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../webrender/" class="md-nav__link">
+      <a href="../../webrender/" class="md-nav__link">
         Webrender
       </a>
     </li>
@@ -524,7 +587,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ng-module/" class="md-nav__link">
+      <a href="../../ng-module/" class="md-nav__link">
         Dynamic modules
       </a>
     </li>
@@ -539,7 +602,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../faq/" class="md-nav__link">
+      <a href="../../faq/" class="md-nav__link">
         FAQ
       </a>
     </li>
@@ -553,10 +616,61 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../handbook/" class="md-nav__link">
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" type="checkbox" id="__nav_6" >
+      
+      <label class="md-nav__link" for="__nav_6">
         Native Hackers Handbook
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Native Hackers Handbook" data-md-level="1">
+        <label class="md-nav__title" for="__nav_6">
+          <span class="md-nav__icon md-icon"></span>
+          Native Hackers Handbook
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../handbook/tests/" class="md-nav__link">
+        tests
       </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../handbook/lisp-fn/" class="md-nav__link">
+        lisp-fn
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../handbook/types/" class="md-nav__link">
+        types
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
     </li>
   
 
@@ -568,19 +682,132 @@
               </div>
             
             
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#build-requirements" class="md-nav__link">
+    Build requirements
+  </a>
+  
+    <nav class="md-nav" aria-label="Build requirements">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#linux" class="md-nav__link">
+    Linux
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#macos" class="md-nav__link">
+    MacOS
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compile-and-install" class="md-nav__link">
+    Compile and install
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
           
           <div class="md-content" data-md-component="content">
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/emacs-ng/emacs-ng/edit/master/docs/release.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/emacs-ng/emacs-ng/edit/master/docs/build/building.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
                 
-                  <h1>Release .deb package</h1>
+                  <h1>Build from source</h1>
                 
-                <p>Our CI currently builds <a href="https://github.com/emacs-ng/emacs-ng/releases">binary releases for Ubuntu</a>. Expect more to come: contributions are welcome!</p>
+                <p>These are instructions to build emacs-ng on your workstation.</p>
+<h2 id="build-requirements">Build requirements<a class="headerlink" href="#build-requirements" title="Permanent link">#</a></h2>
+<p>You will need <a href="https://www.rust-lang.org/en-US/install.html">Rust installed</a>.
+The file <code>rust-toolchain</code> indicates the version that gets installed.  This
+happens automatically, so don't override the toolchain manually. IMPORTANT:
+Whenever the toolchain updates, you have to reinstall rustfmt manually.</p>
+<h3 id="linux">Linux<a class="headerlink" href="#linux" title="Permanent link">#</a></h3>
+<p>You will need a C compiler and toolchain. On Linux, you can do something like:</p>
+<div class="codehilite"><pre><span></span><code>apt install build-essential automake clang libclang-dev
+</code></pre></div>
+
+<p>Additional requirements:</p>
+<div class="codehilite"><pre><span></span><code>apt install texinfo libjpeg-dev libtiff-dev \
+libgif-dev libxpm-dev libgtk-3-dev gnutls-dev \
+libncurses5-dev libxml2-dev libxt-dev
+</code></pre></div>
+
+<p>For native-comp you will also need <code>zlib1g-dev libgccjit-9-dev</code>.</p>
+<h3 id="macos">MacOS<a class="headerlink" href="#macos" title="Permanent link">#</a></h3>
+<p>On macOS, you'll need Xcode.</p>
+<div class="codehilite"><pre><span></span><code>brew install gnutls texinfo autoconf
+</code></pre></div>
+
+<p>To use the installed version of <code>makeinfo</code> instead of the built-in
+(<code>/usr/bin/makeinfo</code>) one, you'll need to make sure <code>/usr/local/opt/texinfo/bin</code>
+is before <code>/usr/bin</code> in <code>PATH</code>.</p>
+<p>Mojave install libxml2 headers with: <code>open
+/Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg</code></p>
+<p>If you want to use native-comp, you will need to compile with <code>./configure
+--with-native-compilation</code>. nativecomp will also require:</p>
+<div class="codehilite"><pre><span></span><code>brew install zlib libgccjit
+</code></pre></div>
+
+<p>It seems to be more difficult to build native-comp on macOS than on linux.
+There are several tutorials that provide instructions on how to successfully
+compile it(no guarantee that they work):</p>
+<ul>
+<li>https://gist.github.com/mikroskeem/0a5c909c1880408adf732ceba6d3f9ab</li>
+<li>https://gist.github.com/AllenDang/f019593e65572a8e0aefc96058a2d23e</li>
+</ul>
+<h2 id="compile-and-install">Compile and install<a class="headerlink" href="#compile-and-install" title="Permanent link">#</a></h2>
+<div class="highlight"><pre><span></span><code>$ ./autogen.sh
+$ ./configure --enable-rust-debug
+$ make -j 8 # or your number of cores
+</code></pre></div>
+<p>For a release build, don't pass <code>--enable-rust-debug</code>.</p>
+<p>The Makefile obeys cargo's RUSTFLAGS variable and additional options can be
+passed to cargo with CARGO_FLAGS.</p>
+<p>For example:</p>
+<div class="highlight"><pre><span></span><code>$ make <span class="nv">CARGO_FLAGS</span><span class="o">=</span><span class="s2">&quot;-vv&quot;</span> <span class="nv">RUSTFLAGS</span><span class="o">=</span><span class="s2">&quot;-Zunstable-options --cfg MARKER_DEBUG&quot;</span>
+</code></pre></div>
+<p>If you want to install it, just use</p>
+<div class="highlight"><pre><span></span><code>make install
+</code></pre></div>
+<p>You may need to run <code>sudo make install</code> depending on your system configuration.</p>
+<p>Now emacs should be available at <code>./src/emacs</code>. We can launch the application
+via <code>./src/emacs</code>. We can navigate to the lisp scratchpad by pressing C-x b and
+hitting enter.</p>
                 
                   
                     
@@ -611,7 +838,7 @@
   
     <nav class="md-footer__inner md-grid" aria-label="Footer">
       
-        <a href="../docker/" class="md-footer__link md-footer__link--prev" rel="prev">
+        <a href="../.." class="md-footer__link md-footer__link--prev" rel="prev">
           <div class="md-footer__button md-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
           </div>
@@ -620,19 +847,19 @@
               <span class="md-footer__direction">
                 Previous
               </span>
-              Build with Docker
+              Overview
             </div>
           </div>
         </a>
       
       
-        <a href="../nix-develop/" class="md-footer__link md-footer__link--next" rel="next">
+        <a href="../docker/" class="md-footer__link md-footer__link--next" rel="next">
           <div class="md-footer__title">
             <div class="md-ellipsis">
               <span class="md-footer__direction">
                 Next
               </span>
-              Nix Build / Develop
+              Build with Docker
             </div>
           </div>
           <div class="md-footer__button md-icon">
@@ -674,10 +901,10 @@
     <div class="md-dialog" data-md-component="dialog">
       <div class="md-dialog__inner md-typeset"></div>
     </div>
-    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs"], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing"}, "search": "../assets/javascripts/workers/search.fb4a9340.min.js", "version": null}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs"], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing"}, "search": "../../assets/javascripts/workers/search.fb4a9340.min.js", "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.5cf3e710.min.js"></script>
+      <script src="../../assets/javascripts/bundle.5cf3e710.min.js"></script>
       
     
   </body>

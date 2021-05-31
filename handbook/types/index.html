@@ -11,14 +11,14 @@
       
       
       
-        <link rel="canonical" href="https://emacs-ng.github.io/emacs-ng/js/architecture/">
+        <link rel="canonical" href="https://emacs-ng.github.io/emacs-ng/handbook/types/">
       
       <link rel="shortcut icon" href="../../images/logo.png">
       <meta name="generator" content="mkdocs-1.1.2, mkdocs-material-7.0.5">
     
     
       
-        <title>Architecture - Emacs NG - A new approach to Emacs</title>
+        <title>types - Emacs NG - A new approach to Emacs</title>
       
     
     
@@ -64,7 +64,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#architecture" class="md-skip">
+        <a href="#types" class="md-skip">
           Skip to content
         </a>
       
@@ -95,7 +95,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Architecture
+              types
             
           </span>
         </div>
@@ -180,15 +180,13 @@
         
   
   
-    
-  
 
 
   
   
   
     <li class="md-tabs__item">
-      <a href="../using-deno/" class="md-tabs__link md-tabs__link--active">
+      <a href="../../js/using-deno/" class="md-tabs__link">
         Deno/Javascript
       </a>
     </li>
@@ -234,13 +232,15 @@
         
   
   
+    
+  
 
 
   
   
   
     <li class="md-tabs__item">
-      <a href="../../handbook/tests/" class="md-tabs__link">
+      <a href="../tests/" class="md-tabs__link md-tabs__link--active">
         Native Hackers Handbook
       </a>
     </li>
@@ -415,14 +415,12 @@
 
   
   
-    
-  
   
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" >
       
       <label class="md-nav__link" for="__nav_2">
         Deno/Javascript
@@ -440,7 +438,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../using-deno/" class="md-nav__link">
+      <a href="../../js/using-deno/" class="md-nav__link">
         Using Deno
       </a>
     </li>
@@ -452,7 +450,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/" class="md-nav__link">
+      <a href="../../js/getting-started/" class="md-nav__link">
         Getting started
       </a>
     </li>
@@ -464,7 +462,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../main-features/" class="md-nav__link">
+      <a href="../../js/main-features/" class="md-nav__link">
         Basic features
       </a>
     </li>
@@ -476,7 +474,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adv-features/" class="md-nav__link">
+      <a href="../../js/adv-features/" class="md-nav__link">
         Advanced features
       </a>
     </li>
@@ -486,123 +484,11 @@
             
   
   
-    
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          Architecture
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../js/architecture/" class="md-nav__link">
         Architecture
       </a>
-      
-        
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#javascript" class="md-nav__link">
-    JavaScript
-  </a>
-  
-    <nav class="md-nav" aria-label="JavaScript">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#emacsmainjsruntime" class="md-nav__link">
-    EmacsMainJsRuntime
-  </a>
-  
-    <nav class="md-nav" aria-label="EmacsMainJsRuntime">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#tokio" class="md-nav__link">
-    Tokio
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#mainworker" class="md-nav__link">
-    MainWorker
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#event-loop" class="md-nav__link">
-    Event Loop
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#proxies-and-garbage-collector-gc-interoperability" class="md-nav__link">
-    Proxies and Garbage Collector (GC) Interoperability
-  </a>
-  
-    <nav class="md-nav" aria-label="Proxies and Garbage Collector (GC) Interoperability">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#the-lisp-object" class="md-nav__link">
-    The Lisp Object
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#gc-usage" class="md-nav__link">
-    GC Usage
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#lambda-usage" class="md-nav__link">
-    Lambda Usage
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -664,12 +550,14 @@
 
   
   
+    
+  
   
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" type="checkbox" id="__nav_6" checked>
       
       <label class="md-nav__link" for="__nav_6">
         Native Hackers Handbook
@@ -687,7 +575,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../handbook/tests/" class="md-nav__link">
+      <a href="../tests/" class="md-nav__link">
         tests
       </a>
     </li>
@@ -699,7 +587,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../handbook/lisp-fn/" class="md-nav__link">
+      <a href="../lisp-fn/" class="md-nav__link">
         lisp-fn
       </a>
     </li>
@@ -709,11 +597,70 @@
             
   
   
+    
   
-    <li class="md-nav__item">
-      <a href="../../handbook/types/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          types
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         types
       </a>
+      
+        
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#lispobject-and-lisp_object" class="md-nav__link">
+    LispObject and Lisp_Object
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#emacsint-and-emacs_int" class="md-nav__link">
+    EmacsInt and EMACS_INT
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#char-and-i8u8" class="md-nav__link">
+    char and i8/u8
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enum_bf-and-bool_bf" class="md-nav__link">
+    ENUM_BF and bool_bf
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -749,83 +696,30 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#javascript" class="md-nav__link">
-    JavaScript
-  </a>
-  
-    <nav class="md-nav" aria-label="JavaScript">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#emacsmainjsruntime" class="md-nav__link">
-    EmacsMainJsRuntime
-  </a>
-  
-    <nav class="md-nav" aria-label="EmacsMainJsRuntime">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#tokio" class="md-nav__link">
-    Tokio
+  <a href="#lispobject-and-lisp_object" class="md-nav__link">
+    LispObject and Lisp_Object
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#mainworker" class="md-nav__link">
-    MainWorker
+      
+        <li class="md-nav__item">
+  <a href="#emacsint-and-emacs_int" class="md-nav__link">
+    EmacsInt and EMACS_INT
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#event-loop" class="md-nav__link">
-    Event Loop
+      
+        <li class="md-nav__item">
+  <a href="#char-and-i8u8" class="md-nav__link">
+    char and i8/u8
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#proxies-and-garbage-collector-gc-interoperability" class="md-nav__link">
-    Proxies and Garbage Collector (GC) Interoperability
+      
+        <li class="md-nav__item">
+  <a href="#enum_bf-and-bool_bf" class="md-nav__link">
+    ENUM_BF and bool_bf
   </a>
-  
-    <nav class="md-nav" aria-label="Proxies and Garbage Collector (GC) Interoperability">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#the-lisp-object" class="md-nav__link">
-    The Lisp Object
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#gc-usage" class="md-nav__link">
-    GC Usage
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#lambda-usage" class="md-nav__link">
-    Lambda Usage
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -841,53 +735,81 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/emacs-ng/emacs-ng/edit/master/docs/js/architecture.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/emacs-ng/emacs-ng/edit/master/docs/handbook/types.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
                 
-                <h1 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">#</a></h1>
-<p>The purpose of this document is to outline how emacs-ng's native changes work.</p>
-<h2 id="javascript">JavaScript<a class="headerlink" href="#javascript" title="Permanent link">#</a></h2>
-<p>The majority of JavaScript related code is located in rust_src/src/javascript.rs. There is a lot to unpack on this file, but I will attempt to unpack the core concepts:</p>
-<h3 id="emacsmainjsruntime">EmacsMainJsRuntime<a class="headerlink" href="#emacsmainjsruntime" title="Permanent link">#</a></h3>
-<p>This is a <em>thread local</em> singleton containing the JavaScript runtime and associated state. The two major fields in this struct are the Tokio runtime and the MainWorker. The choice to make this a thread local struct was due to the fact that Emacs has the ability to spawn threads via (make-thread), but v8 isolates do not like being shared between threads without using a specific API. We lean heavily on Deno's MainWorker class, which is also not designed to be shared between threads, so we made the choice to just stay threadlocal. The oddity here is that in the case of calling make-thread, the lisp threads will have their lisp variables will shared, but not their JavaScript variables.</p>
-<h4 id="tokio">Tokio<a class="headerlink" href="#tokio" title="Permanent link">#</a></h4>
-<p>The Tokio runtime is what is driving all JavaScript Async I/O and timers. Tokio maintains its own threadpool on which tasks are enqueued. This is all "behind the scenes" to any emacs-ng code. The system is designed with the assumption that emacs-ng code will not have to call tokio::spawn or tokio::spawn_blocking.</p>
-<h4 id="mainworker">MainWorker<a class="headerlink" href="#mainworker" title="Permanent link">#</a></h4>
-<p>The "MainWorker" is a Deno concept. It encapsulates their module loader, file cache, and most importantly, the "JsRuntime". The JsRuntime encapsules the v8::Isolate, which can be described as the true, actual "JavaScript Runtime". Interfacing with the v8::Isolate is ultimately how JavaScript will be run. There are a few instances where we call execute using the isolate directly. The MainWorker has some key restrictions included by design - if you have a top level module promise rejection, the Worker will panic upon the next attempt to execute JavaScript. The worker cannot handle cases where execute is called "deep" within the callstack. Meaning that if I call lisp -&gt; javascript -&gt; lisp -&gt; JavaScript, I cannot depend on the Worker's execute method. We will have an entire section dedicated to that fact.</p>
-<p>The EmacsMainJsRuntime is thread local because of the MainWorker - it is not Send nor Sync. The v8::Isolate, which is contained within the MainWorker, cannot be shared between threads by design. A quirk of this is that if you spawn a lisp thread, it has its own JavaScript runtime. This means that while the thread shares lisp globals, it does not share javaScript globals.</p>
-<h3 id="event-loop">Event Loop<a class="headerlink" href="#event-loop" title="Permanent link">#</a></h3>
-<p>A core concept to JavaScript is the event loop. All JS invocations in emacs-ng start with a call to "run_module". run_module will eventually call into the MainWorkers execute method, which in turn calls into the v8::Isolate's execute method - are you starting to see the pattern?</p>
-<p>Once you call run_module, you will begin to execute JavaScript. Doing so may enqueue async events, like setTimeout, fetch, etc. These are all things that Deno calls <code>async_ops</code> or <code>sync_ops</code>. They have a system to manage ops. We have a policy that emacs-ng will not add ops, or deal with the ops API. If you want to add native functionality to emacs-ng, you should directly bind the function, like with <code>lisp_callback</code> and friends.</p>
-<p>As these async events execute in the background, we will poll for their completion. In order to integrate with Emacs program loop, we set a timer, calling a function named <code>js-tick-event-loop</code>. This function is really just a wrapper around Deno's <code>poll_event_loop</code>. For performance reasons, <code>js-tick-event-loop</code> can call <code>poll_event_loop</code> multiple times. The user does have control of this behavior via <code>js_set_tick_rate</code>. In general, we want to give the user full control of emacs-ng, including how the JavaScript environment is configured.</p>
-<h3 id="proxies-and-garbage-collector-gc-interoperability">Proxies and Garbage Collector (GC) Interoperability<a class="headerlink" href="#proxies-and-garbage-collector-gc-interoperability" title="Permanent link">#</a></h3>
-<p>JavaScript has a concept of a 'Proxy' object, which we use in emacs-ng, however this section is about our JS &lt;--&gt; elisp marshalling. We refer to that as 'proxying' within internal documentation. For example, we will discuss how this code actually works:</p>
-<div class="highlight"><pre><span></span><code><span class="kd">const</span> <span class="nx">buffer</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">get_buffer_create</span><span class="p">(</span><span class="s1">&#39;*foo*&#39;</span><span class="p">);</span>
-<span class="nx">lisp</span><span class="p">.</span><span class="nx">set_current_buffer</span><span class="p">(</span><span class="nx">buffer</span><span class="p">);</span>
-<span class="nx">lisp</span><span class="p">.</span><span class="nx">insert</span><span class="p">(</span><span class="s2">&quot;FOOBAR&quot;</span><span class="p">);</span>
+                <h1 id="types">Types<a class="headerlink" href="#types" title="Permanent link">#</a></h1>
+<h2 id="lispobject-and-lisp_object">LispObject and Lisp_Object<a class="headerlink" href="#lispobject-and-lisp_object" title="Permanent link">#</a></h2>
+<p>Lisp_Object (LispObject in Rust) is an integer aka EMACS_INT (EmacsInt in Rust). It is also used as a pointer and bitmasking is used to add extra data to the Lisp_Object.
+Numbers</p>
+<h2 id="emacsint-and-emacs_int">EmacsInt and EMACS_INT<a class="headerlink" href="#emacsint-and-emacs_int" title="Permanent link">#</a></h2>
+<p>There are two types of Integers in Emacs Lisp -- Fixnums and Natnums. A fixnum is equivalent to a i64/i32 in Rust and a natnum is u64/u32. In general, use a fixnum unless there is a reason to use a natnum. A fixnum is represented by a EmacsInt and natnum by a EmacsUint.</p>
+<h2 id="char-and-i8u8">char and i8/u8<a class="headerlink" href="#char-and-i8u8" title="Permanent link">#</a></h2>
+<p>Emacs uses the C char type to represent single byte values. Since char is unsigned by default on ARM platforms and signed on x86 and others, it's important to use the libc::c_char when writing functions that interoperate with the char type.</p>
+<h2 id="enum_bf-and-bool_bf">ENUM_BF and bool_bf<a class="headerlink" href="#enum_bf-and-bool_bf" title="Permanent link">#</a></h2>
+<p>Because part of emacs-ng is written in Rust, while the bulk of it is still in C, both the Rust and the C code must be able to call functions written in the other language. Rust makes this fairly painless. It has excellent support for C FFI.</p>
+<p>However, manually translating function and structure declarations into Rust can be quite painful. Worse, any tiny mistake will come back to haunt you later. Crashes and weird bugs that don't make sense are a very real problem. We had several itermittant bugs that were introduced when a complicated struct was incorrectly translated into Rust, so that parts of the code were stepping on each other.</p>
+<p>We've fixed this problem by using Bindgen to generate these bindings for us.</p>
+<p>Aside from saving us a lot of time, Bindgen also gives us relatively nice ways to handle C enums, unions, bitfields, and variable-length structures. Emacs frequently uses these, so this is a great help.</p>
+<p>First allow me to show you a fairly important C structure called Lisp_Symbol. This struct holds all of the information that Emacs knows about a Lisp symbol. It's got a number of bit fields as well as an internal union. Note that I've elided the comments from this declaration:</p>
+<div class="highlight"><pre><span></span><code><span class="k">struct</span> <span class="nc">Lisp_Symbol</span>
+<span class="p">{</span>
+  <span class="n">bool_bf</span> <span class="nl">gcmarkbit</span> <span class="p">:</span> <span class="mi">1</span><span class="p">;</span>
+  <span class="n">ENUM_BF</span> <span class="p">(</span><span class="n">symbol_redirect</span><span class="p">)</span> <span class="nl">redirect</span> <span class="p">:</span> <span class="mi">3</span><span class="p">;</span>
+  <span class="n">ENUM_BF</span> <span class="p">(</span><span class="n">symbol_trapped_write</span><span class="p">)</span> <span class="nl">trapped_write</span> <span class="p">:</span> <span class="mi">2</span><span class="p">;</span>
+  <span class="kt">unsigned</span> <span class="nl">interned</span> <span class="p">:</span> <span class="mi">2</span><span class="p">;</span>
+  <span class="n">bool_bf</span> <span class="nl">declared_special</span> <span class="p">:</span> <span class="mi">1</span><span class="p">;</span>
+  <span class="n">bool_bf</span> <span class="nl">pinned</span> <span class="p">:</span> <span class="mi">1</span><span class="p">;</span>
+  <span class="n">Lisp_Object</span> <span class="n">name</span><span class="p">;</span>
+  <span class="k">union</span> <span class="p">{</span>
+    <span class="n">Lisp_Object</span> <span class="n">value</span><span class="p">;</span>
+    <span class="k">struct</span> <span class="nc">Lisp_Symbol</span> <span class="o">*</span><span class="n">alias</span><span class="p">;</span>
+    <span class="k">struct</span> <span class="nc">Lisp_Buffer_Local_Value</span> <span class="o">*</span><span class="n">blv</span><span class="p">;</span>
+    <span class="k">union</span> <span class="nc">Lisp_Fwd</span> <span class="o">*</span><span class="n">fwd</span><span class="p">;</span>
+  <span class="p">}</span> <span class="n">val</span><span class="p">;</span>
+  <span class="n">Lisp_Object</span> <span class="n">function</span><span class="p">;</span>
+  <span class="n">Lisp_Object</span> <span class="n">plist</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="nc">Lisp_Symbol</span> <span class="o">*</span><span class="n">next</span><span class="p">;</span>
+<span class="p">};</span>
 </code></pre></div>
-<h4 id="the-lisp-object">The Lisp Object<a class="headerlink" href="#the-lisp-object" title="Permanent link">#</a></h4>
-<p>The <code>lisp</code> object is a <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy">JavaScript Capital-P Proxy</a>. When you access <code>lisp.get_buffer_create</code>, it returns a function that does something like:</p>
-<div class="highlight"><pre><span></span><code><span class="p">(...</span><span class="nx">args</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="nx">lisp_invoke</span><span class="p">(</span><span class="s1">&#39;get-buffer-create&#39;</span> <span class="p">...</span><span class="nx">args</span><span class="p">);</span>
+<p>ENUM_BF and bool_bf are C preprocessor hacks that allow the code to be compiled even when the compiler doesn't support enums or bools as bitfield types. Bindgen generates the following Rust struct:</p>
+<div class="highlight"><pre><span></span><code><span class="cp">#[repr(C)]</span><span class="w"></span>
+<span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">Lisp_Symbol</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">_bitfield_1</span>: <span class="nc">__BindgenBitfieldUnit</span><span class="o">&lt;</span><span class="p">[</span><span class="kt">u8</span><span class="p">;</span><span class="w"> </span><span class="mi">2</span><span class="k">usize</span><span class="p">],</span><span class="w"> </span><span class="kt">u8</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">name</span>: <span class="nc">Lisp_Object</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">val</span>: <span class="nc">Lisp_Symbol__bindgen_ty_1</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">function</span>: <span class="nc">Lisp_Object</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">plist</span>: <span class="nc">Lisp_Object</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">next</span>: <span class="o">*</span><span class="k">mut</span><span class="w"> </span><span class="n">Lisp_Symbol</span><span class="p">,</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+<span class="cp">#[repr(C)]</span><span class="w"></span>
+<span class="k">pub</span><span class="w"> </span><span class="k">union</span> <span class="nc">Lisp_Symbol__bindgen_ty_1</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">value</span>: <span class="nc">Lisp_Object</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">alias</span>: <span class="o">*</span><span class="k">mut</span><span class="w"> </span><span class="n">Lisp_Symbol</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">blv</span>: <span class="o">*</span><span class="k">mut</span><span class="w"> </span><span class="n">Lisp_Buffer_Local_Value</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">fwd</span>: <span class="o">*</span><span class="k">mut</span><span class="w"> </span><span class="n">Lisp_Fwd</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="n">_bindgen_union_align</span>: <span class="kt">u64</span><span class="p">,</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
 </code></pre></div>
-<p><code>lisp_invoke</code> is a native function defined in javascript.rs. It's a wrapper around <code>ffuncall</code> with logic for object translation. It will also catch any lisp errors and translates them to JavaScript errors. <code>lisp_invoke</code> returns a JavaScript object - but this is a 'special object' in that it may have an internal field. Internal fields are data objects that are contained within JavaScript objects that are not accessible by the user. This is because LispObjects are just pointers - if we let the user alter pointers, they could cause SEGFAULTS or read arbitrary memory.</p>
-<p>If we can parse the result of <code>lisp_invoke</code> as JSON, we do not proxy it. Instead we return the JavaScript equivalent (i.e. a JS string or number). However, if we cannot convert it to JSON, like in the case of a buffer, we return a proxy. Functions (i.e. <code>(lambda () (...))</code>) are another special case where additional logic is employed.</p>
-<p>lisp_invoke also works in reverse when being called, it will <code>unproxy</code> the arguments it is passed in order to further pass them to <code>ffuncall</code>.</p>
-<p>We expose a special function called <code>is_proxy</code> in order to tell if an object is a proxy.</p>
-<h4 id="gc-usage">GC Usage<a class="headerlink" href="#gc-usage" title="Permanent link">#</a></h4>
-<p>When we create a proxy, we need to properly manage it in the lisp garbage collector. We do not want lisp to GC an object out from underneath us. In order to do this, we need to make two considerations for each direction of JS -&gt; Lisp and Lisp -&gt; JS</p>
-<p>To prevent the lisp GC from removing objects that JS has a valid reference to, we include them in a special cons called the <code>js-retain-map</code>. The user does not have direct access to this object. Allowing them to access this cons would allow mutation in a way that could lead to use after free bugs.</p>
-<p>When a proxy is created in JavaScript, we create a special JavaScript object called a <code>WeakRef</code>. This is <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakRef">documented here</a>. Once an object has no outstanding references (besides the WeakRef itself) the WeakRef will return undefined once accessed. We maintain a global array of WeakRefs for all proxies that we sweep every time lisp performs its garbage collection. We map this array to the <code>js-retain-map</code>. The end result is that if you have an object in JavaScript that is a proxy, it will always be valid.</p>
-<p>elisp does not have proxies, it will only receive valid lisp objects from JavaScript, so this problem does not exist in the opposite direction.</p>
-<h4 id="lambda-usage">Lambda Usage<a class="headerlink" href="#lambda-usage" title="Permanent link">#</a></h4>
-<p>Users will notice that lambas will auto convert between JS and elisp. Example:</p>
-<div class="highlight"><pre><span></span><code><span class="nv">lisp.run_with_timer</span><span class="p">(</span><span class="mi">1</span><span class="o">,</span> <span class="nv">lisp.symbols.nil,</span> <span class="p">()</span> <span class="nv">=&gt;</span> <span class="nv">console.log</span><span class="p">(</span><span class="ss">&#39;This</span> <span class="nv">works...</span><span class="o">&#39;</span><span class="p">))</span><span class="c1">;</span>
+<p>As you can see, the bitfields become rather opaque, they're no longer listed in the struct (you can, however, still see that they occupy two bytes in the struct). Instead, Bindgen creates getter and setter methods and adds them to the impl Lisp_Symbol. I'll just show an excerpt here:</p>
+<div class="highlight"><pre><span></span><code><span class="k">impl</span><span class="w"> </span><span class="n">Lisp_Symbol</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="cp">#[inline]</span><span class="w"></span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">gcmarkbit</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">bool_bf</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="k">unsafe</span><span class="w"> </span><span class="p">{</span><span class="w"> </span>::<span class="n">std</span>::<span class="n">mem</span>::<span class="n">transmute</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="n">_bitfield_1</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="mi">0</span><span class="k">usize</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="k">u8</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="cp">#[inline]</span><span class="w"></span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">set_gcmarkbit</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">val</span>: <span class="nc">bool_bf</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="k">unsafe</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">            </span><span class="kd">let</span><span class="w"> </span><span class="n">val</span>: <span class="kt">u8</span> <span class="o">=</span><span class="w"> </span>::<span class="n">std</span>::<span class="n">mem</span>::<span class="n">transmute</span><span class="p">(</span><span class="n">val</span><span class="p">);</span><span class="w"></span>
+<span class="w">            </span><span class="bp">self</span><span class="p">.</span><span class="n">_bitfield_1</span><span class="p">.</span><span class="n">set</span><span class="p">(</span><span class="mi">0</span><span class="k">usize</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="k">u8</span><span class="p">,</span><span class="w"> </span><span class="n">val</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u64</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="c1">// ---8&lt;---</span>
+<span class="p">}</span><span class="w"></span>
 </code></pre></div>
-<p>How does this work under the hood? When we go to create a proxy, we will test if that object is a function. If so, we will include it in another special array for functions. We will then create the following lisp object representing that lambda:</p>
-<div class="highlight"><pre><span></span><code><span class="p">(</span><span class="k">lambda</span> <span class="p">(</span><span class="nv">&amp;REST</span><span class="p">)</span> <span class="p">(</span><span class="nv">js--reenter</span> <span class="nv">INDEX</span> <span class="p">(</span><span class="nv">make-finalizer</span> <span class="p">(</span><span class="k">lambda</span> <span class="p">()</span> <span class="nv">js--clear</span> <span class="nv">INDEX</span><span class="p">))</span> <span class="nv">REST</span><span class="p">))</span>
-</code></pre></div>
-<p>Index is hard-coded per lambda object, i.e. <code>js--reenter 1 ...</code>. Calling this lambda will call js--reenter, which is just calling the function in the array at INDEX. In order to ensure that function will be garbage collected, we add a lisp finalizer, which will clear the lambda from the array upon GC.</p>
+<p>The union is also a little more verbose than before, as it cannot be put anonymously into the rest of the struct. Rust requires that it have a proper name, and so Bindgen has generated one. It's not great, but it'll suffice.</p>
                 
                   
                     
@@ -918,7 +840,7 @@
   
     <nav class="md-footer__inner md-grid" aria-label="Footer">
       
-        <a href="../adv-features/" class="md-footer__link md-footer__link--prev" rel="prev">
+        <a href="../lisp-fn/" class="md-footer__link md-footer__link--prev" rel="prev">
           <div class="md-footer__button md-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
           </div>
@@ -927,25 +849,11 @@
               <span class="md-footer__direction">
                 Previous
               </span>
-              Advanced features
+              lisp-fn
             </div>
           </div>
         </a>
       
-      
-        <a href="../../webrender/" class="md-footer__link md-footer__link--next" rel="next">
-          <div class="md-footer__title">
-            <div class="md-ellipsis">
-              <span class="md-footer__direction">
-                Next
-              </span>
-              Webrender
-            </div>
-          </div>
-          <div class="md-footer__button md-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"/></svg>
-          </div>
-        </a>
       
     </nav>
   
