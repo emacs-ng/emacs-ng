@@ -645,5 +645,6 @@ fn main() {
         }
     }
 
+    #[cfg(feature = "window-system-webrender")]
     generate_rgb_list();
 }
