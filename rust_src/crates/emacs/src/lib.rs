@@ -18,8 +18,6 @@
 #![feature(maybe_uninit_extra)]
 #![feature(async_closure)]
 
-extern crate libc;
-
 #[rustfmt::skip]
 pub mod bindings;
 #[rustfmt::skip]

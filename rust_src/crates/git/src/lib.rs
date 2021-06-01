@@ -1,9 +1,5 @@
 #![feature(concat_idents)]
 
-extern crate git2;
-extern crate lazy_static;
-extern crate libc;
-
 #[macro_use]
 extern crate emacs;
 extern crate lisp_macros;

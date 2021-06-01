@@ -1,7 +1,5 @@
 #[macro_use]
 extern crate lazy_static;
-extern crate libc;
-extern crate regex;
 
 use std::env;
 use std::ffi::OsStr;
