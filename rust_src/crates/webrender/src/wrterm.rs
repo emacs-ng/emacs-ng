@@ -7,8 +7,7 @@ use glutin::{event::VirtualKeyCode, monitor::MonitorHandle};
 
 use lisp_macros::lisp_fn;
 
-use crate::webrender_backend::{
-    self,
+use crate::{
     color::lookup_color_by_name_or_hex,
     font::{FontRef, FONT_DRIVER},
     frame::create_frame,
@@ -37,7 +36,7 @@ use emacs::{
     lisp::{ExternalPtr, LispObject},
 };
 
-pub use crate::webrender_backend::display_info::{DisplayInfo, DisplayInfoRef};
+pub use crate::display_info::{DisplayInfo, DisplayInfoRef};
 
 pub type DisplayRef = ExternalPtr<Display>;
 
@@ -94,7 +93,7 @@ pub extern "C" fn wr_put_pixel(ximg: *mut Emacs_Image, x: i32, y: i32, pixel: u6
 
 #[no_mangle]
 pub extern "C" fn wr_can_use_native_image_api(image_type: LispObject) -> bool {
-    webrender_backend::image::can_use_native_image_api(image_type)
+    crate::image::can_use_native_image_api(image_type)
 }
 
 #[no_mangle]
@@ -104,7 +103,7 @@ pub extern "C" fn wr_load_image(
     spec_file: LispObject,
     spec_data: LispObject,
 ) -> bool {
-    webrender_backend::image::load_image(frame, img, spec_file, spec_data)
+    crate::image::load_image(frame, img, spec_file, spec_data)
 }
 
 #[no_mangle]
@@ -115,7 +114,7 @@ pub extern "C" fn wr_transform_image(
     height: i32,
     rotation: f64,
 ) {
-    webrender_backend::image::transform_image(frame, img, width, height, rotation);
+    crate::image::transform_image(frame, img, width, height, rotation);
 }
 
 #[no_mangle]
@@ -850,4 +849,7 @@ pub extern "C" fn syms_of_wrterm() {
     syms_of_wrfont();
 }
 
-include!(concat!(env!("OUT_DIR"), "/wrterm_exports.rs"));
+include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/out/wrterm_exports.rs"
+));

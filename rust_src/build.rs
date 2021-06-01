@@ -376,21 +376,10 @@ fn ignore(path: &str, additional_ignored_paths: &Vec<&str>) -> bool {
         || additional_ignored_paths.contains(&path)
 }
 
-// What files to ignore depending on chosen features
-fn build_ignored_paths() -> Vec<&'static str> {
-    #[allow(unused_mut)]
-    let mut ignored_paths = vec!["lib.rs"];
-
-    #[cfg(not(feature = "window-system-webrender"))]
-    ignored_paths.push("wrterm.rs");
-
-    ignored_paths
-}
-
 /// Find modules in PATH which should contain the src directory of a crate
 fn find_crate_modules(path: &PathBuf) -> Result<Vec<ModuleData>, BuildError> {
     let mut modules: Vec<ModuleData> = Vec::new();
-    let ignored_paths = build_ignored_paths();
+    let ignored_paths = vec!["lib.rs"];
 
     let in_path: PathBuf = path.iter().collect();
     for entry in fs::read_dir(in_path)? {
@@ -439,18 +428,12 @@ fn generate_crate_c_export_file(
     Ok(())
 }
 
-/// Generate include files for CRATES.
-/// First we have to generate the files for the main crate. The other crates
-/// *_init_syms functions will be called from rust_init_syms from src/.
+/// First we have to generate the include file for the main crate which
+/// will be stored in OUT_DIR. It only contains the rust_init_syms
+/// that runs the crates *_init_syms functions.
 fn generate_include_files() -> Result<(), BuildError> {
-    // The first section of this function generates the include files for
-    // the main crate
-    let path: PathBuf = [&env_var("CARGO_MANIFEST_DIR"), "src"].iter().collect();
-    let modules = find_crate_modules(&path)?;
-
     let out_path: PathBuf = [&env_var("OUT_DIR")].iter().collect();
     let mut out_file = File::create(out_path.join("c_exports.rs"))?;
-    generate_crate_c_export_file(&out_file, &modules)?;
 
     // Add main rust_init_syms function to the main c_exports file
     write!(
@@ -458,9 +441,7 @@ fn generate_include_files() -> Result<(), BuildError> {
         "#[no_mangle]\npub extern \"C\" fn rust_init_syms() {{\n"
     )?;
 
-    write_lisp_fns(&out_path, &out_file, &modules)?;
-
-    // In this section we do the same for the crates from the directory "crates"
+    // generates include files for the crates from the directory "crates"
     let crates: PathBuf = [&env_var("CARGO_MANIFEST_DIR"), "crates"].iter().collect();
 
     // Iterate crates path and generate include files
@@ -496,6 +477,9 @@ fn build_ignored_crates(path: &PathBuf) -> bool {
 
     #[cfg(not(feature = "ng-module"))]
     ignored_crates.push("ng_module");
+
+    #[cfg(not(feature = "window-system-webrender"))]
+    ignored_crates.push("webrender");
 
     let crate_path = path_as_str(path.file_name()).to_string();
 
@@ -620,7 +604,11 @@ fn generate_rgb_list() {
             (name, (red, green, blue))
         });
 
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("colors.rs");
+    let webrender_exports_path: PathBuf =
+        [&env_var("CARGO_MANIFEST_DIR"), "crates", "webrender", "out"]
+            .iter()
+            .collect();
+    let out_path = webrender_exports_path.join("colors.rs");
 
     let color_function_body = format!(
         "let mut color_map: HashMap<&'static str, (u8, u8, u8)> = HashMap::new(); {} color_map",

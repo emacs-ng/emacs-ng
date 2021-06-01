@@ -9,7 +9,7 @@ use lazy_static::lazy_static;
 
 use webrender::api::*;
 
-use super::{
+use crate::{
     color::{color_to_pixel, color_to_xcolor, lookup_color_by_name_or_hex, pixel_to_color},
     cursor::{draw_bar_cursor, draw_filled_cursor, draw_hollow_box_cursor},
     display_info::{DisplayInfo, DisplayInfoRef},

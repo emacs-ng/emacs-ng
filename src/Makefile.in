@@ -52,7 +52,7 @@ EMACSNGLIB_NAME=@EMACSNGLIB_NAME@
 
 rust_srcdir=$(top_srcdir)/rust_src
 # Crates that contain globals
-RUST_CRATES_SOURCES=$(rust_srcdir)/crates/js/src/*.rs $(rust_srcdir)/crates/ng_async/src/*.rs $(rust_srcdir)/crates/ng_module/src/*.rs
+RUST_CRATES_SOURCES=$(rust_srcdir)/crates/js/src/*.rs $(rust_srcdir)/crates/ng_async/src/*.rs $(rust_srcdir)/crates/ng_module/src/*.rs $(rust_srcdir)/crates/webrender/src/*.rs
 lispsource = $(top_srcdir)/lisp
 lib = ../lib
 libsrc = ../lib-src
@@ -635,11 +635,11 @@ endif
 ## for the first time, this prevents any variation between configurations
 ## in the contents of the DOC file.
 ##
-$(etc)/DOC: lisp.mk $(libsrc)/make-docfile$(EXEEXT) $(obj) $(lisp) $(rust_srcdir)/src/**
+$(etc)/DOC: lisp.mk $(libsrc)/make-docfile$(EXEEXT) $(obj) $(lisp)
 	$(AM_V_GEN)$(MKDIR_P) $(etc)
 	$(AM_V_at)rm -f $(etc)/DOC
 	$(AM_V_at)$(libsrc)/make-docfile -d $(srcdir) \
-	  $(SOME_MACHINE_OBJECTS) $(obj) $(rust_srcdir)/src/*.rs $(RUST_CRATES_SOURCES) > $(etc)/DOC
+	  $(SOME_MACHINE_OBJECTS) $(obj) $(RUST_CRATES_SOURCES) > $(etc)/DOC
 	$(AM_V_at)$(libsrc)/make-docfile -a $(etc)/DOC -d $(lispsource) \
 	  $(shortlisp)
 
@@ -654,10 +654,10 @@ buildobj.h: Makefile
 	done >$@.tmp
 	$(AM_V_at)mv $@.tmp $@
 
-GLOBAL_SOURCES = $(base_obj:.o=.c) $(NS_OBJC_OBJ:.o=.m) $(rust_srcdir)/src/*.rs
+GLOBAL_SOURCES = $(base_obj:.o=.c) $(NS_OBJC_OBJ:.o=.m) $(rust_srcdir)/crates/js/src/*.rs $(rust_srcdir)/crates/ng_async/src/*.rs $(rust_srcdir)/crates/ng_module/src/*.rs $(rust_srcdir)/crates/webrender/src/*.rs
 
 gl-stamp: $(libsrc)/make-docfile$(EXEEXT) $(GLOBAL_SOURCES)
-	$(AM_V_GLOBALS)$(libsrc)/make-docfile -d $(srcdir) -g $(obj) $(rust_srcdir)/src/*.rs $(RUST_CRATES_SOURCES) > globals.tmp
+	$(AM_V_GLOBALS)$(libsrc)/make-docfile -d $(srcdir) -g $(obj) $(RUST_CRATES_SOURCES) > globals.tmp
 	$(AM_V_at)$(top_srcdir)/build-aux/move-if-change globals.tmp globals.h
 	$(AM_V_at)echo timestamp > $@
 
@@ -691,7 +691,7 @@ $(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE): $(filter-out ./macuvs.h,$(
 
 cargo_manifest=$(rust_srcdir)/Cargo.toml
 LIBEMACSNG_ARCHIVE=$(rust_srcdir)/target/$(CARGO_BUILD_DIR)/$(EMACSNGLIB_NAME)
-$(LIBEMACSNG_ARCHIVE): globals.h $(rust_srcdir)/src/** $(rust_srcdir)/crates/emacs/src/** $(rust_srcdir)/crates/lisp_util/** $(rust_srcdir)/crates/lisp_macros/** $(rust_srcdir)/Cargo.* $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT) $(DEFINITIONS_FILE) $(GLOBALS_FILE) $(BINDINGS_FILE)
+$(LIBEMACSNG_ARCHIVE): globals.h $(rust_srcdir)/crates/emacs/src/** $(rust_srcdir)/crates/lisp_util/** $(rust_srcdir)/crates/lisp_macros/** $(rust_srcdir)/Cargo.* $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT) $(DEFINITIONS_FILE) $(GLOBALS_FILE) $(BINDINGS_FILE)
 	touch $@
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
