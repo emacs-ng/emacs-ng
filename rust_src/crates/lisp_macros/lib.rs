@@ -1,13 +1,5 @@
 #![recursion_limit = "256"]
 
-extern crate lazy_static;
-extern crate lisp_util;
-extern crate proc_macro;
-extern crate proc_macro2;
-extern crate quote;
-extern crate regex;
-extern crate syn;
-
 use lazy_static::lazy_static;
 use proc_macro::TokenStream;
 use quote::quote;

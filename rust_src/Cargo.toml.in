@@ -22,13 +22,6 @@ ng_module = { version = "0.1.0", path = "crates/ng_module", optional = true }
 js = { version = "0.1.0", path = "crates/js", optional = true }
 webrender = { version = "0.1.0", path = "crates/webrender", optional = true }
 clippy = { version = "*", optional = true }
-cfg-if = "0.1"
-errno = "0.2"
-field-offset = "0.1"
-flate2 = { version = "1.0", features = ["rust_backend"], default-features = false }
-lazy_static = "1.2"
-libc = "0.2"
-rand = "0.6.5"
 
 [build-dependencies]
 clippy = { version = "*", optional = true }
@@ -76,7 +69,7 @@ window-system-w32 = []
 # Build with git2rs support
 libgit = ["git"]
 # Use the webrender window system
-window-system-webrender = ["webrender", "emacs/window-system-webrender"]
+window-system-webrender = ["webrender"]
 # Treat warnings as a build error on Travis.
 strict = []
 # Use JavaScript and Deno
