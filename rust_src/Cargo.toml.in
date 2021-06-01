@@ -12,29 +12,23 @@ members = ["remacs-lib", "crates/*"]
 exclude = ["remacs-bindings"]
 
 [dependencies]
-app_units = { version = "0.7.1", optional = true }
 remacs-lib = { version = "0.1.0", path = "remacs-lib" }
 emacs = { version = "0.1.0", path = "crates/emacs" }
 lisp-util = { version = "0.1.0", path = "crates/lisp_util" }
 lisp-macros = { version = "0.1.0", path = "crates/lisp_macros" }
-git = { version = "0.1.0", path = "crates/git", optional = true }
 ng_async = { version = "0.1.0", path = "crates/ng_async" }
+git = { version = "0.1.0", path = "crates/git", optional = true }
 ng_module = { version = "0.1.0", path = "crates/ng_module", optional = true }
 js = { version = "0.1.0", path = "crates/js", optional = true }
+webrender = { version = "0.1.0", path = "crates/webrender", optional = true }
 clippy = { version = "*", optional = true }
 cfg-if = "0.1"
 errno = "0.2"
 field-offset = "0.1"
 flate2 = { version = "1.0", features = ["rust_backend"], default-features = false }
-font-kit = { version = "0.5.0", optional = true }
 lazy_static = "1.2"
 libc = "0.2"
 rand = "0.6.5"
-glutin = { version = "0.26", optional = true }
-gleam = { version = "0.6", optional = true }
-webrender = { version = "0.61", optional = true }
-copypasta = { version = "0.7.1", optional = true }
-image = { version = "0.23.14", optional = true }
 
 [build-dependencies]
 clippy = { version = "*", optional = true }
@@ -47,6 +41,7 @@ tempfile = "3.0"
 
 [lib]
 crate-type = ["staticlib"]
+path = "lib.rs"
 
 # Allow unwinding in functions called from C. See
 # https://www.reddit.com/r/rust/comments/565q1f/wrote_a_blogpost_from_my_experiences_the_arduous/d8h053m/
@@ -81,7 +76,7 @@ window-system-w32 = []
 # Build with git2rs support
 libgit = ["git"]
 # Use the webrender window system
-window-system-webrender = ["font-kit", "webrender", "glutin", "gleam", "app_units", "emacs/window-system-webrender", "copypasta", "image"]
+window-system-webrender = ["webrender", "emacs/window-system-webrender"]
 # Treat warnings as a build error on Travis.
 strict = []
 # Use JavaScript and Deno

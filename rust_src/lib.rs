@@ -20,24 +20,10 @@
 
 #[macro_use]
 extern crate emacs;
-#[cfg(feature = "libgit")]
-extern crate git;
 extern crate lisp_macros;
 #[macro_use]
 extern crate lisp_util;
 extern crate remacs_lib;
-
-#[cfg(feature = "window-system-webrender")]
-mod webrender_backend;
-#[cfg(feature = "window-system-webrender")]
-mod wrterm;
-#[cfg(feature = "window-system-webrender")]
-pub use crate::wrterm::{tip_frame, wr_display_list};
-
-#[cfg(not(feature = "javascript"))]
-mod javascript {
-    include!(concat!(env!("OUT_DIR"), "/javascript_exports.rs"));
-}
 
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));

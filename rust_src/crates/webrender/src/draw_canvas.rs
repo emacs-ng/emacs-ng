@@ -2,7 +2,7 @@ use std::cmp::min;
 
 use webrender::{self, api::units::*, api::*};
 
-use crate::webrender_backend::image::WrPixmap;
+use crate::image::WrPixmap;
 
 use super::{
     color::{color_to_pixel, pixel_to_color},
