@@ -1,7 +1,7 @@
 [package]
-name = "remacs-bindings"
+name = "ng-bindgen"
 version = "0.1.0"
-description = "Tool to create remacs C bindings."
+description = "Tool to create emacs-ng C bindings."
 edition = "2018"
 
 [dependencies]

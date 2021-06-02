@@ -140,7 +140,7 @@
                 };
 
                 remacsBindings = prev.rustPlatform.fetchCargoTarball {
-                  src = emacsNgSource + "/rust_src/remacs-bindings";
+                  src = emacsNgSource + "/rust_src/ng-bindgen";
                   sourceRoot = null;
                   cargoUpdateHook = doVersionedUpdate;
                   name = "remacsBindings";

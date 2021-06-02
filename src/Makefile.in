@@ -681,12 +681,12 @@ GLOBALS_FILE=$(rust_srcdir)/crates/emacs/src/globals.rs
 # depending on it as this is not a file that changes under normal
 # operation.
 $(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE): $(filter-out ./macuvs.h,$(HEADERS)) $(rust_srcdir)/wrapper.h \
-							$(rust_srcdir)/remacs-bindings/Cargo.toml \
-							$(rust_srcdir)/remacs-bindings/src/main.rs
+							$(rust_srcdir)/ng-bindgen/Cargo.toml \
+							$(rust_srcdir)/ng-bindgen/src/main.rs
 	$(MKDIR_P) $(dir $@)
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
-	$(CARGO_RUN) --release --manifest-path=$(rust_srcdir)/remacs-bindings/Cargo.toml -- $(basename $(notdir $@)) $@
+	$(CARGO_RUN) --release --manifest-path=$(rust_srcdir)/ng-bindgen/Cargo.toml -- $(basename $(notdir $@)) $@
 	touch $@
 
 cargo_manifest=$(rust_srcdir)/Cargo.toml

@@ -9,7 +9,7 @@ edition = "2018"
 
 [workspace]
 members = ["remacs-lib", "crates/*"]
-exclude = ["remacs-bindings"]
+exclude = ["ng-bindgen"]
 
 [dependencies]
 app_units = { version = "0.7.1", optional = true }
