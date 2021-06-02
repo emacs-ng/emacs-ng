@@ -322,7 +322,7 @@ fn run_bindgen(path: &str) {
 }
 
 fn usage() {
-    println!("usage: remacs-bindings <definitions|bindings|globals> <path>");
+    println!("usage: ng-bindgen <definitions|bindings|globals> <path>");
     process::exit(1);
 }
 
