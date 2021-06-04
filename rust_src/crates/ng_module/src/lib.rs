@@ -1,6 +1,5 @@
 #![feature(concat_idents)]
 
-#[macro_use]
 extern crate emacs;
 #[macro_use]
 extern crate lisp_util;

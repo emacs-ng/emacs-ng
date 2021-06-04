@@ -497,7 +497,7 @@ fn build_ignored_crates(path: &PathBuf) -> bool {
 fn generate_crate_exports(path: &PathBuf) -> Result<(), BuildError> {
     let modules = find_crate_modules(&path.join("src"))?;
 
-    fs::create_dir(path.join("out"));
+    let _ = fs::create_dir(path.join("out"));
     let mut out_file = File::create(path.join("out").join("c_exports.rs"))?;
     generate_crate_c_export_file(&out_file, &modules)?;
 

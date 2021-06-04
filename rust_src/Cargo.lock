@@ -1436,43 +1436,27 @@ version = "0.1.0"
 dependencies = [
  "lazy_static",
  "libc",
+ "memoffset",
 ]
 
 [[package]]
 name = "emacsng"
 version = "0.1.0"
 dependencies = [
- "app_units",
- "cfg-if 0.1.10",
  "clippy",
- "copypasta",
- "deno",
- "deno_core",
- "deno_runtime",
  "emacs",
- "errno",
- "field-offset",
- "flate2",
- "font-kit",
- "futures",
  "git",
- "gleam",
- "glutin",
- "image",
+ "js",
  "lazy_static",
  "libc",
  "lisp-macros",
  "lisp-util",
  "ng_async",
  "ng_module",
- "rand 0.6.5",
  "regex 1.4.3",
  "remacs-lib",
- "rusty_v8",
  "tempfile",
- "tokio",
- "tokio-rustls",
- "webrender",
+ "webrender 0.1.0",
 ]
 
 [[package]]
@@ -1583,12 +1567,6 @@ dependencies = [
  "bit-set",
  "regex 1.4.3",
 ]
-
-[[package]]
-name = "field-offset"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64e9bc339e426139e02601fa69d101e96a92aee71b58bc01697ec2a63a5c9e68"
 
 [[package]]
 name = "filetime"
@@ -2567,6 +2545,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "js"
+version = "0.1.0"
+dependencies = [
+ "deno",
+ "deno_core",
+ "deno_runtime",
+ "emacs",
+ "futures",
+ "lazy_static",
+ "libc",
+ "lisp-macros",
+ "lisp-util",
+ "ng_async",
+ "rusty_v8",
+ "serde_json",
+ "tokio",
+ "tokio-rustls",
+]
+
+[[package]]
 name = "js-sys"
 version = "0.3.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2878,9 +2876,9 @@ dependencies = [
 
 [[package]]
 name = "memoffset"
-version = "0.6.1"
+version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "157b4208e3059a8f9e78d559edc658e13df41410cb3ae03979c83130067fdd87"
+checksum = "59accc507f1338036a0477ef61afdae33cde60840f4dfe481319ce3ad116ddf9"
 dependencies = [
  "autocfg 1.0.1",
 ]
@@ -5796,6 +5794,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aabe153544e473b775453675851ecc86863d2a81d786d741f6b76778f2a48940"
 dependencies = [
  "webpki",
+]
+
+[[package]]
+name = "webrender"
+version = "0.1.0"
+dependencies = [
+ "app_units",
+ "copypasta",
+ "emacs",
+ "font-kit",
+ "gleam",
+ "glutin",
+ "image",
+ "lazy_static",
+ "libc",
+ "lisp-macros",
+ "lisp-util",
+ "webrender 0.61.0",
 ]
 
 [[package]]
