@@ -1,6 +1,7 @@
 use std::ffi::CString;
 use std::ptr;
 
+use emacs::multibyte::LispStringRef;
 use glutin::{
     dpi::PhysicalPosition,
     event::{ElementState, Event, KeyboardInput, WindowEvent},
@@ -238,7 +239,8 @@ extern "C" fn draw_fringe_bitmap(
 extern "C" fn set_cursor_color(f: *mut Lisp_Frame, arg: LispObject, _old_val: LispObject) {
     let frame: LispFrameRef = f.into();
 
-    let color_str = format!("{}", arg.force_string());
+    let color_str: LispStringRef = arg.as_symbol_or_string().into();
+    let color_str = format!("{}", color_str.to_string());
     let color = lookup_color_by_name_or_hex(&color_str);
 
     if let Some(color) = color {
