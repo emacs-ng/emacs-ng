@@ -18,6 +18,7 @@ pub mod term;
 mod cursor;
 mod draw_canvas;
 mod event;
+mod fringe;
 mod image;
 mod texture;
 mod util;

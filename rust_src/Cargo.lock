@@ -5801,6 +5801,7 @@ name = "webrender"
 version = "0.1.0"
 dependencies = [
  "app_units",
+ "bit-vec",
  "copypasta",
  "emacs",
  "font-kit",
