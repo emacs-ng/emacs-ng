@@ -589,6 +589,10 @@ impl Output {
         self.window.outer_position().ok()
     }
 
+    pub fn get_window(&self) -> &Window {
+        &self.window
+    }
+
     pub fn poll_events<F>(&mut self, mut f: F)
     where
         F: FnMut(GUIEvent),
