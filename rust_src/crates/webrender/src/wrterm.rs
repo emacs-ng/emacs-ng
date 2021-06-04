@@ -3,6 +3,7 @@
 use std::ffi::CString;
 use std::ptr;
 
+use emacs::bindings::output_method;
 use glutin::{event::VirtualKeyCode, monitor::MonitorHandle};
 
 use lisp_macros::lisp_fn;
@@ -128,10 +129,62 @@ pub extern "C" fn get_keysym_name(keysym: i32) -> *mut libc::c_char {
 #[no_mangle]
 pub extern "C" fn check_x_display_info(obj: LispObject) -> DisplayInfoRef {
     if obj.is_nil() {
-        unsafe { wr_display_list }
-    } else {
-        unimplemented!();
+        let frame = window_frame_live_or_selected(obj);
+
+        if (frame.output_method() == output_method::output_wr) && frame.is_live() {
+            let output: OutputRef = unsafe { frame.output_data.wr.into() };
+            return output.display_info();
+        }
+
+        if !unsafe { wr_display_list.is_null() } {
+            return unsafe { wr_display_list };
+        }
+
+        error!("Webrender windows are not in use or not initialized");
     }
+
+    if let Some(terminal) = obj.as_terminal() {
+        if terminal.type_ != output_method::output_wr {
+            error!("Terminal {} is not a webrender display", terminal.id);
+        }
+
+        let dpyinfo = DisplayInfoRef::new(unsafe { terminal.display_info.wr as *mut _ });
+
+        return dpyinfo;
+    }
+
+    if let Some(display_name) = obj.as_string() {
+        let display_name = display_name.to_string();
+        let mut dpyinfo = unsafe { wr_display_list };
+
+        while !dpyinfo.is_null() {
+            if dpyinfo
+                .get_raw()
+                .name_list_element
+                .force_cons()
+                .car()
+                .force_string()
+                .to_string()
+                == display_name
+            {
+                return dpyinfo;
+            }
+
+            dpyinfo = DisplayInfoRef::new(dpyinfo.get_raw().next as *mut _);
+        }
+
+        x_open_connection(obj, Qnil, Qnil);
+
+        if !unsafe { wr_display_list.is_null() } {
+            return unsafe { wr_display_list };
+        }
+
+        error!("Display on {} not responding.", display_name);
+    }
+
+    let frame = window_frame_live_or_selected(obj);
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    return output.display_info();
 }
 
 // Move the mouse to position pixel PIX_X, PIX_Y relative to frame F.
