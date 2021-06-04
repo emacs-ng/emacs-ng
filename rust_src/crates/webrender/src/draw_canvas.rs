@@ -2,7 +2,7 @@ use std::cmp::min;
 
 use webrender::{self, api::units::*, api::*};
 
-use crate::image::WrPixmap;
+use crate::{fringe::FringeBitmap, image::WrPixmap};
 
 use super::{
     color::{color_to_pixel, pixel_to_color},
@@ -14,9 +14,8 @@ use super::{
 
 use emacs::{
     bindings::{
-        draw_fringe_bitmap_params, draw_glyphs_face, face as Face, face_underline_type,
-        get_glyph_string_clip_rect, glyph_row, glyph_type, prepare_face_for_display,
-        Emacs_Rectangle,
+        draw_glyphs_face, face as Face, face_underline_type, get_glyph_string_clip_rect,
+        glyph_type, prepare_face_for_display, Emacs_Rectangle,
     },
     frame::LispFrameRef,
     glyph::GlyphStringRef,
@@ -321,27 +320,50 @@ impl DrawCanvas {
         );
     }
 
-    pub fn draw_fringe_bitmap(&mut self, _row: *mut glyph_row, p: *mut draw_fringe_bitmap_params) {
-        let pos_x = unsafe { (*p).bx };
-        let pos_y = unsafe { (*p).by };
+    pub fn draw_fringe_bitmap(
+        &mut self,
+        pos: LayoutPoint,
+        image: Option<FringeBitmap>,
+        bitmap_color: ColorF,
+        background_color: ColorF,
+        image_clip_rect: LayoutRect,
+        clear_rect: LayoutRect,
+        row_rect: LayoutRect,
+    ) {
+        // Fixed clear_rect
+        let clear_rect = clear_rect
+            .union(&image_clip_rect)
+            .intersection(&row_rect)
+            .unwrap_or_else(|| LayoutRect::zero());
 
-        let width = unsafe { (*p).nx };
-        let height = unsafe { (*p).ny };
+        // Fixed image_clip_rect
+        let image_clip_rect = image_clip_rect
+            .intersection(&row_rect)
+            .unwrap_or_else(|| LayoutRect::zero());
 
-        let face = unsafe { (*p).face };
+        self.output.display(|builder, space_and_clip| {
+            // clear area
+            builder.push_rect(
+                &CommonItemProperties::new(clear_rect, space_and_clip),
+                background_color,
+            );
 
-        if pos_x > 0 {
-            let visible_rect = (pos_x, pos_y).by(width, height);
-
-            let background_color = pixel_to_color(unsafe { (*face).background });
-
-            self.output.display(|builder, space_and_clip| {
-                builder.push_rect(
-                    &CommonItemProperties::new(visible_rect, space_and_clip),
-                    background_color,
+            if let Some(image) = &image {
+                let image_display_rect = LayoutRect::new(
+                    pos,
+                    LayoutSize::new(image.width as f32, image.height as f32),
                 );
-            });
-        }
+                // render image
+                builder.push_image(
+                    &CommonItemProperties::new(image_clip_rect, space_and_clip),
+                    image_display_rect,
+                    ImageRendering::Auto,
+                    AlphaType::Alpha,
+                    image.image_key,
+                    bitmap_color,
+                );
+            }
+        });
     }
 
     pub fn draw_vertical_window_border(

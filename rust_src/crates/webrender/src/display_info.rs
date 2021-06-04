@@ -1,5 +1,5 @@
 use libc;
-use std::ptr;
+use std::{collections::HashMap, ptr};
 
 use emacs::{
     bindings::{wr_display_info, Emacs_GC},
@@ -7,7 +7,7 @@ use emacs::{
     lisp::ExternalPtr,
 };
 
-use super::{input::InputProcessor, output::OutputRef, term::TerminalRef};
+use crate::{fringe::FringeBitmap, input::InputProcessor, output::OutputRef, term::TerminalRef};
 
 pub struct DisplayInfoInner {
     pub terminal: TerminalRef,
@@ -18,6 +18,8 @@ pub struct DisplayInfoInner {
     pub input_processor: InputProcessor,
 
     pub scratch_cursor_gc: Box<Emacs_GC>,
+
+    pub fringe_bitmap_caches: HashMap<i32, FringeBitmap>,
 }
 
 impl Default for DisplayInfoInner {
@@ -31,6 +33,8 @@ impl Default for DisplayInfoInner {
                 foreground: 0,
                 background: 0,
             }),
+
+            fringe_bitmap_caches: HashMap::new(),
         }
     }
 }

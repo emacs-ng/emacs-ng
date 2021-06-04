@@ -1,5 +1,5 @@
-use std::ffi::CString;
 use std::ptr;
+use std::{cmp::max, ffi::CString};
 
 use emacs::multibyte::LispStringRef;
 use glutin::{
@@ -8,8 +8,10 @@ use glutin::{
 };
 use lazy_static::lazy_static;
 
-use webrender::api::*;
+use webrender::api::units::LayoutPoint;
+use webrender::api::{units::LayoutRect, *};
 
+use crate::fringe::get_or_create_fringe_bitmap;
 use crate::{
     color::{color_to_pixel, color_to_xcolor, lookup_color_by_name_or_hex, pixel_to_color},
     cursor::{draw_bar_cursor, draw_filled_cursor, draw_hollow_box_cursor},
@@ -17,6 +19,7 @@ use crate::{
     event::create_emacs_event,
     image::WrPixmap,
     output::OutputRef,
+    util::HandyDandyRectBuilder,
 };
 
 use emacs::{
@@ -228,12 +231,83 @@ extern "C" fn draw_fringe_bitmap(
     row: *mut glyph_row,
     p: *mut draw_fringe_bitmap_params,
 ) {
-    let window: LispWindowRef = window.into();
+    let mut window: LispWindowRef = window.into();
     let frame: LispFrameRef = window.get_frame();
 
     let output: OutputRef = unsafe { frame.output_data.wr.into() };
 
-    output.canvas().draw_fringe_bitmap(row, p);
+    let row_rect: LayoutRect = unsafe {
+        let mut window_x: i32 = 0;
+        let mut window_y: i32 = 0;
+        let mut window_width: i32 = 0;
+
+        window_box(
+            window.as_mut(),
+            glyph_row_area::ANY_AREA,
+            &mut window_x,
+            &mut window_y,
+            &mut window_width,
+            ptr::null_mut(),
+        );
+
+        let x = window_x;
+
+        let row_y = window.frame_pixel_y(max(0, (*row).y));
+        let y = max(row_y, window_y);
+
+        let width = window_width;
+        let height = (*row).visible_height;
+
+        (x, y).by(width, height)
+    };
+
+    let which = unsafe { (*p).which };
+
+    let pos_x = unsafe { (*p).x };
+    let pos_y = unsafe { (*p).y };
+
+    let pos = LayoutPoint::new(pos_x as f32, pos_y as f32);
+
+    let image_clip_rect: LayoutRect = {
+        let width = unsafe { (*p).wd };
+        let height = unsafe { (*p).h };
+
+        if which > 0 {
+            (pos_x, pos_y).by(width, height)
+        } else {
+            LayoutRect::zero()
+        }
+    };
+
+    let clear_rect = if unsafe { (*p).bx >= 0 && !(*p).overlay_p() } {
+        unsafe { ((*p).bx, (*p).by).by((*p).nx, (*p).ny) }
+    } else {
+        LayoutRect::zero()
+    };
+
+    let image = get_or_create_fringe_bitmap(output, which, p);
+
+    let face = unsafe { (*p).face };
+
+    let background_color = pixel_to_color(unsafe { (*face).background });
+
+    let bitmap_color = if unsafe { (*p).cursor_p() } {
+        output.cursor_color
+    } else if unsafe { (*p).overlay_p() } {
+        background_color
+    } else {
+        pixel_to_color(unsafe { (*face).foreground })
+    };
+
+    output.canvas().draw_fringe_bitmap(
+        pos,
+        image,
+        bitmap_color,
+        background_color,
+        image_clip_rect,
+        clear_rect,
+        row_rect,
+    );
 }
 
 extern "C" fn set_cursor_color(f: *mut Lisp_Frame, arg: LispObject, _old_val: LispObject) {
