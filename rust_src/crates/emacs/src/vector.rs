@@ -11,6 +11,7 @@ use crate::{
     lisp::{ExternalPtr, LispObject, LispSubrRef},
     process::LispProcessRef,
     sys::{Lisp_Vectorlike, PSEUDOVECTOR_FLAG},
+    terminal::LispTerminalRef,
     window::LispWindowRef,
 };
 
@@ -102,6 +103,14 @@ impl LispVectorlikeRef {
 
     pub fn as_frame(self) -> Option<LispFrameRef> {
         if self.is_pseudovector(pvec_type::PVEC_FRAME) {
+            Some(self.cast())
+        } else {
+            None
+        }
+    }
+
+    pub fn as_terminal(self) -> Option<LispTerminalRef> {
+        if self.is_pseudovector(pvec_type::PVEC_TERMINAL) {
             Some(self.cast())
         } else {
             None

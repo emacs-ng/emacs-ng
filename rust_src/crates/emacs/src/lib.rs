@@ -46,5 +46,6 @@ pub mod obarray;
 pub mod process;
 pub mod string;
 pub mod symbol;
+pub mod terminal;
 pub mod vector;
 pub mod window;
