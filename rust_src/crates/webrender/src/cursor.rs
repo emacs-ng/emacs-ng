@@ -1,3 +1,5 @@
+use crate::util::HandyDandyRectBuilder;
+
 use super::output::OutputRef;
 
 use glutin::window::CursorIcon;
@@ -5,7 +7,7 @@ use glutin::window::CursorIcon;
 use emacs::{
     bindings::{
         draw_glyphs_face, draw_phys_cursor_glyph, get_phys_cursor_geometry, get_phys_cursor_glyph,
-        glyph_row, glyph_type, Emacs_Cursor,
+        glyph_row, glyph_row_area, glyph_type, window_box, Emacs_Cursor,
     },
     window::LispWindowRef,
 };
@@ -39,7 +41,28 @@ pub fn draw_hollow_box_cursor(mut window: LispWindowRef, row: *mut glyph_row) {
     let frame = window.get_frame();
     let output: OutputRef = unsafe { frame.output_data.wr.into() };
 
-    output.canvas().draw_hollow_box_cursor(x, y, width, height);
+    let cursor_rect = (x, y).by(width, height);
+
+    let window_rect = unsafe {
+        let mut x: i32 = 0;
+        let mut y: i32 = 0;
+        let mut width: i32 = 0;
+        let mut height: i32 = 0;
+
+        window_box(
+            window.as_mut(),
+            glyph_row_area::ANY_AREA,
+            &mut x,
+            &mut y,
+            &mut width,
+            &mut height,
+        );
+        (x, y).by(width, height)
+    };
+
+    output
+        .canvas()
+        .draw_hollow_box_cursor(cursor_rect, window_rect);
 }
 
 pub fn draw_bar_cursor(

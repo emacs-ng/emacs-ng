@@ -489,7 +489,7 @@ impl DrawCanvas {
         });
     }
 
-    pub fn draw_hollow_box_cursor(&mut self, x: i32, y: i32, width: i32, height: i32) {
+    pub fn draw_hollow_box_cursor(&mut self, cursor_rect: LayoutRect, clip_rect: LayoutRect) {
         let cursor_color = self.output.cursor_color;
 
         let border_widths = LayoutSideOffsets::new_all_same(1.0);
@@ -508,12 +508,10 @@ impl DrawCanvas {
             do_aa: true,
         });
 
-        let bounds = (x, y).by(width, height);
-
         self.output.display(|builder, space_and_clip| {
             builder.push_border(
-                &CommonItemProperties::new(bounds, space_and_clip),
-                bounds,
+                &CommonItemProperties::new(clip_rect, space_and_clip),
+                cursor_rect,
                 border_widths,
                 border_details,
             );
