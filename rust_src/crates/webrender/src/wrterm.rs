@@ -7,6 +7,7 @@ use glutin::{event::VirtualKeyCode, monitor::MonitorHandle};
 
 use lisp_macros::lisp_fn;
 
+use crate::frame::frame_edges;
 use crate::{
     color::lookup_color_by_name_or_hex,
     font::{FontRef, FONT_DRIVER},
@@ -780,6 +781,26 @@ pub fn x_selection_owner_p(_selection: LispObject, _terminal: LispObject) -> Lis
 #[lisp_fn(min = "0")]
 pub fn x_selection_exists_p(_selection: LispObject, _terminal: LispObject) -> LispObject {
     Qnil
+}
+
+/// Return edge coordinates of FRAME.
+/// FRAME must be a live frame and defaults to the selected one.  The return
+/// value is a list of the form (LEFT, TOP, RIGHT, BOTTOM).  All values are
+/// in pixels relative to the origin - the position (0, 0) - of FRAME's
+/// display.
+///
+/// If optional argument TYPE is the symbol `outer-edges', return the outer
+/// edges of FRAME.  The outer edges comprise the decorations of the window
+/// manager (like the title bar or external borders) as well as any external
+/// menu or tool bar of FRAME.  If optional argument TYPE is the symbol
+/// `native-edges' or nil, return the native edges of FRAME.  The native
+/// edges exclude the decorations of the window manager and any external
+/// menu or tool bar of FRAME.  If TYPE is the symbol `inner-edges', return
+/// the inner edges of FRAME.  These edges exclude title bar, any borders,
+/// menu bar or tool bar of FRAME.
+#[lisp_fn(min = "0")]
+pub fn x_frame_edges(frame: LispObject, type_: LispObject) -> LispObject {
+    frame_edges(frame, type_)
 }
 
 fn syms_of_wrfont() {

@@ -1,12 +1,16 @@
 use emacs::{
     bindings::{
-        make_frame, make_frame_without_minibuffer, make_minibuffer_frame, output_method, wr_output,
+        list4i, make_frame, make_frame_without_minibuffer, make_minibuffer_frame, output_method,
+        wr_output,
     },
-    frame::LispFrameRef,
-    globals::{Qnil, Qnone, Qonly},
+    frame::{window_frame_live_or_selected, LispFrameRef},
+    globals::{Qinner_edges, Qnil, Qnone, Qonly, Qouter_edges},
     keyboard::KeyboardRef,
     lisp::LispObject,
 };
+use glutin::dpi::PhysicalPosition;
+
+use crate::output::OutputRef;
 
 use super::{display_info::DisplayInfoRef, output::Output};
 
@@ -41,4 +45,59 @@ pub fn create_frame(
     dpyinfo.get_inner().output = unsafe { frame.output_data.wr.into() };
 
     frame
+}
+
+pub fn frame_edges(frame: LispObject, type_: LispObject) -> LispObject {
+    let frame = window_frame_live_or_selected(frame);
+
+    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+
+    let window = output.get_window();
+
+    let (left, top, right, bottom) = match type_ {
+        Qouter_edges => {
+            let pos = window
+                .outer_position()
+                .unwrap_or_else(|_| PhysicalPosition::<i32>::new(0, 0));
+
+            let size = window.outer_size();
+
+            let left = pos.x;
+            let top = pos.y;
+            let right = left + size.width as i32;
+            let bottom = top + size.height as i32;
+
+            (left, top, right, bottom)
+        }
+        Qinner_edges => {
+            let pos = window
+                .inner_position()
+                .unwrap_or_else(|_| PhysicalPosition::<i32>::new(0, 0));
+            let size = window.inner_size();
+            let internal_border_width = frame.internal_border_width();
+
+            // webrender window has no interanl menu_bar, tab_bar and tool_bar
+            let left = pos.x + internal_border_width;
+            let top = pos.x + internal_border_width;
+            let right = (left + size.width as i32) - internal_border_width;
+            let bottom = (top + size.height as i32) - internal_border_width;
+
+            (left, top, right, bottom)
+        }
+        // native edges
+        _ => {
+            let pos = window
+                .inner_position()
+                .unwrap_or_else(|_| PhysicalPosition::<i32>::new(0, 0));
+            let size = window.inner_size();
+
+            let left = pos.x;
+            let top = pos.y;
+            let right = left + size.width as i32;
+            let bottom = top + size.height as i32;
+
+            (left, top, right, bottom)
+        }
+    };
+    unsafe { list4i(left as i64, top as i64, right as i64, bottom as i64) }
 }
