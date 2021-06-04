@@ -9,6 +9,7 @@ path = "src/lib.rs"
 [dependencies]
 libc = "0.2"
 lazy_static = "1.4.0"
+memoffset = "0.6.4"
 
 [features]
 window-system = []
