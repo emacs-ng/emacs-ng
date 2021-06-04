@@ -59,3 +59,15 @@ fn test_lisp_float_size() { let double_size =
     assert!(mem::size_of::<Lisp_Float>() == max(double_size,
 ptr_size)); }
 ```
+
+## Running code formatters
+
+### Rust
+
+
+Run `cargo fmt` in the `rust_src/` folder and format all crates in the workspace.
+
+```sh
+make rustfmt
+
+```

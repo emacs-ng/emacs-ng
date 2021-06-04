@@ -1203,10 +1203,7 @@ check-declare:
 .PHONY: rustfmt
 
 rustfmt:
-	(cd rust_src && cargo fmt)
-	(cd rust_src/remacs-lib && cargo fmt)
-	(cd rust_src/crates/lisp_util && cargo fmt)
-	(cd rust_src/crates/lisp_macros && cargo fmt)
+	(cd rust_src && cargo fmt --all)
 
 .PHONY: gitmerge
 
