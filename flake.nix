@@ -139,12 +139,12 @@
                   inherit installPhase;
                 };
 
-                remacsBindings = prev.rustPlatform.fetchCargoTarball {
-                  src = emacsNgSource + "/rust_src/remacs-bindings";
+                ngBindgen = prev.rustPlatform.fetchCargoTarball {
+                  src = emacsNgSource + "/rust_src/ng-bindgen";
                   sourceRoot = null;
                   cargoUpdateHook = doVersionedUpdate;
-                  name = "remacsBindings";
-                  sha256 = "sha256-537/sJVxRe9qIGrmzrkKU7INdEXR0hGRBYatlz+aXms=";
+                  name = "ngBindgen";
+                  sha256 = "sha256-XGZMeq3U9RzqRXD3sHnblIM7GNVGnzCIwBIzlj+LBf8=";
                   inherit installPhase;
                 };
 
@@ -154,7 +154,7 @@
                     sed -e 's/@CARGO_.*@//' Cargo.toml.in > Cargo.toml
                   '' + doVersionedUpdate;
                   name = "remacsSrc";
-                  sha256 = "sha256-d8Fvg+FrYNVTZAU/QRyvSPuSXbqncg3LaEOWeZzSa8Q=";
+                  sha256 = "sha256-TcEDvSYWGUCLQf09O27rAkEALSIZZFOEiGHqigKP7fo=";
                   inherit installPhase;
                 };
 
@@ -171,7 +171,7 @@
                 name = "emacsNg-rust";
                 srcs = [
                   remacsLibDeps
-                  remacsBindings
+                  ngBindgen
                   remacsHashdir
                   remacsSrc
                 ];
@@ -187,7 +187,7 @@
                     directory = "$out/.cargo/registry"
                   EOF
                   cp -R remacsLibDeps-vendor.tar.gz-versioned/* $out/.cargo/registry
-                  cp -R remacsBindings-vendor.tar.gz-versioned/* $out/.cargo/registry
+                  cp -R ngBindgen-vendor.tar.gz-versioned/* $out/.cargo/registry
                   cp -R remacsHashdir-vendor.tar.gz-versioned/* $out/.cargo/registry
                   cp -R remacsSrc-vendor.tar.gz-versioned/* $out/.cargo/registry
                 '';
@@ -278,9 +278,9 @@
                         done
                       }
                       _librusty_v8_setup "debug" "release" "${arch}/release"
-                        sed -i 's|deno = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng"|deno = { version = "1.9.2"|' rust_src/Cargo.toml
-                        sed -i 's|deno_runtime = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng"|deno_runtime = { version = "0.13.0"|' rust_src/Cargo.toml
-                        sed -i 's|deno_core = { git = "https://github.com/DavidDeSimone/deno"|deno_core = { version = "0.86.0"|' rust_src/Cargo.toml
+                        sed -i 's|deno = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng"|deno = { version = "1.9.2"|' rust_src/crates/js/Cargo.toml
+                        sed -i 's|deno_runtime = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng"|deno_runtime = { version = "0.13.0"|' rust_src/crates/js/Cargo.toml
+                        sed -i 's|deno_core = { git = "https://github.com/DavidDeSimone/deno"|deno_core = { version = "0.86.0"|' rust_src/crates/js/Cargo.toml
                       export HOME=${final.emacsNg-rust}
                   '';
 
