@@ -22,11 +22,10 @@ use emacs::{
     bindings::globals,
     bindings::resource_types::{RES_TYPE_NUMBER, RES_TYPE_STRING, RES_TYPE_SYMBOL},
     bindings::{
-        adjust_frame_size, block_input, gui_display_get_arg, hashtest_eql, image as Emacs_Image,
-        init_frame_faces, list3i, make_fixnum, make_hash_table, make_monitor_attribute_list,
-        register_font_driver, unblock_input, Display, Emacs_Pixmap, Emacs_Rectangle, Fcons,
-        Fcopy_alist, Fmake_vector, Fprovide, MonitorInfo, Vframe_list, Window, DEFAULT_REHASH_SIZE,
-        DEFAULT_REHASH_THRESHOLD,
+        block_input, gui_display_get_arg, hashtest_eql, image as Emacs_Image, list3i, make_fixnum,
+        make_hash_table, make_monitor_attribute_list, register_font_driver, unblock_input, Display,
+        Emacs_Pixmap, Emacs_Rectangle, Fcons, Fcopy_alist, Fmake_vector, Fprovide, MonitorInfo,
+        Vframe_list, Window, DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
     },
     definitions::EmacsInt,
     frame::{window_frame_live_or_selected, LispFrameRef},
@@ -384,29 +383,23 @@ pub fn x_create_frame(parms: LispObject) -> LispFrameRef {
 
     frame.set_can_set_window_size(true);
 
-    unsafe {
-        adjust_frame_size(
-            frame.as_mut(),
-            frame.text_width,
-            frame.text_height,
-            5,
-            true,
-            Qx_create_frame_1,
-        )
-    }
+    frame.adjust_size(
+        frame.text_width,
+        frame.text_height,
+        5,
+        true,
+        Qx_create_frame_1,
+    );
 
-    unsafe {
-        adjust_frame_size(
-            frame.as_mut(),
-            frame.text_width,
-            frame.text_height,
-            0,
-            true,
-            Qx_create_frame_2,
-        )
-    }
+    frame.adjust_size(
+        frame.text_width,
+        frame.text_height,
+        0,
+        true,
+        Qx_create_frame_2,
+    );
 
-    unsafe { init_frame_faces(frame.as_mut()) };
+    frame.init_faces();
 
     /* Now consider the frame official.  */
     unsafe { Vframe_list = Fcons(frame.into(), Vframe_list) };

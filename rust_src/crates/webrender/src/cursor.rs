@@ -7,7 +7,7 @@ use glutin::window::CursorIcon;
 use emacs::{
     bindings::{
         draw_glyphs_face, draw_phys_cursor_glyph, get_phys_cursor_geometry, get_phys_cursor_glyph,
-        glyph_row, glyph_row_area, glyph_type, window_box, Emacs_Cursor,
+        glyph_row, glyph_row_area, glyph_type, Emacs_Cursor,
     },
     window::LispWindowRef,
 };
@@ -43,20 +43,8 @@ pub fn draw_hollow_box_cursor(mut window: LispWindowRef, row: *mut glyph_row) {
 
     let cursor_rect = (x, y).by(width, height);
 
-    let window_rect = unsafe {
-        let mut x: i32 = 0;
-        let mut y: i32 = 0;
-        let mut width: i32 = 0;
-        let mut height: i32 = 0;
-
-        window_box(
-            window.as_mut(),
-            glyph_row_area::ANY_AREA,
-            &mut x,
-            &mut y,
-            &mut width,
-            &mut height,
-        );
+    let window_rect = {
+        let (x, y, width, height) = window.area_box(glyph_row_area::ANY_AREA);
         (x, y).by(width, height)
     };
 

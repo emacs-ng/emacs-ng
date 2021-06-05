@@ -1,5 +1,8 @@
 use crate::{
-    bindings::{glyph_row_area::TEXT_AREA, pvec_type, window, window_box_left, Lisp_Type},
+    bindings::{
+        glyph_row_area::{self, TEXT_AREA},
+        pvec_type, window, window_box, window_box_left, Lisp_Type,
+    },
     frame::LispFrameRef,
     globals::Qwindowp,
     lisp::{ExternalPtr, LispObject},
@@ -89,6 +92,19 @@ impl LispWindowRef {
     /// Convert window text relative pixel X to frame pixel coordinates.
     pub fn text_to_frame_pixel_x(mut self, x: i32) -> i32 {
         x + unsafe { window_box_left(self.as_mut(), TEXT_AREA) }
+    }
+
+    pub fn area_box(mut self, area: glyph_row_area::Type) -> (i32, i32, i32, i32) {
+        let mut x: i32 = 0;
+        let mut y: i32 = 0;
+        let mut width: i32 = 0;
+        let mut height: i32 = 0;
+
+        unsafe {
+            window_box(self.as_mut(), area, &mut x, &mut y, &mut width, &mut height);
+        }
+
+        (x, y, width, height)
     }
 }
 
