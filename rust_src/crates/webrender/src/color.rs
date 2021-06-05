@@ -48,7 +48,18 @@ pub fn color_to_xcolor(color: ColorF, xcolor: *mut Emacs_Color) {
 pub fn lookup_color_by_name_or_hex(color_string: &str) -> Option<ColorF> {
     // HEX value color, color_string is the hex string.
     if color_string.starts_with('#') {
-        if color_string.len() == 7 {
+        if color_string.len() == 4 {
+            let red = u8::from_str_radix(&color_string[1..2], 16).unwrap();
+            let green = u8::from_str_radix(&color_string[2..3], 16).unwrap();
+            let blue = u8::from_str_radix(&color_string[3..], 16).unwrap();
+
+            Some(ColorF::new(
+                red as f32 / 16.0,
+                green as f32 / 16.0,
+                blue as f32 / 16.0,
+                1.0,
+            ))
+        } else if color_string.len() == 7 {
             let red = u8::from_str_radix(&color_string[1..3], 16).unwrap();
             let green = u8::from_str_radix(&color_string[3..5], 16).unwrap();
             let blue = u8::from_str_radix(&color_string[5..7], 16).unwrap();
