@@ -11,6 +11,7 @@ use lazy_static::lazy_static;
 use webrender::api::units::LayoutPoint;
 use webrender::api::{units::LayoutRect, *};
 
+use crate::frame::LispFrameExt;
 use crate::fringe::get_or_create_fringe_bitmap;
 use crate::{
     color::{color_to_pixel, color_to_xcolor, lookup_color_by_name_or_hex, pixel_to_color},
@@ -192,16 +193,13 @@ extern "C" fn update_window_end(
     unsafe { unblock_input() };
 
     let frame: LispFrameRef = window.get_frame();
-    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
-
-    output.flush();
+    frame.wr_output().flush();
 }
 
 extern "C" fn flush_display(f: *mut Lisp_Frame) {
     let frame: LispFrameRef = f.into();
-    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
 
-    output.flush();
+    frame.wr_output().flush();
 }
 
 #[allow(unused_variables)]
@@ -219,7 +217,7 @@ extern "C" fn draw_glyph_string(s: *mut glyph_string) {
 
     let output: OutputRef = {
         let frame: LispFrameRef = s.f.into();
-        unsafe { frame.output_data.wr.into() }
+        frame.wr_output()
     };
 
     output.canvas().draw_glyph_string(s);
@@ -233,7 +231,7 @@ extern "C" fn draw_fringe_bitmap(
     let window: LispWindowRef = window.into();
     let frame: LispFrameRef = window.get_frame();
 
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let output = frame.wr_output();
 
     let row_rect: LayoutRect = unsafe {
         let (window_x, window_y, window_width, _) = window.area_box(glyph_row_area::ANY_AREA);
@@ -306,8 +304,7 @@ extern "C" fn set_cursor_color(f: *mut Lisp_Frame, arg: LispObject, _old_val: Li
     let color = lookup_color_by_name_or_hex(&color_str);
 
     if let Some(color) = color {
-        let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
-        output.cursor_color = color;
+        frame.wr_output().cursor_color = color;
     }
 
     if frame.is_visible() {
@@ -320,7 +317,7 @@ extern "C" fn draw_window_divider(window: *mut Lisp_Window, x0: i32, x1: i32, y0
     let window: LispWindowRef = window.into();
     let frame: LispFrameRef = window.get_frame();
 
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let output = frame.wr_output();
 
     let face = frame.face_from_id(face_id::WINDOW_DIVIDER_FACE_ID);
     let face_first = frame.face_from_id(face_id::WINDOW_DIVIDER_FIRST_PIXEL_FACE_ID);
@@ -350,7 +347,7 @@ extern "C" fn draw_vertical_window_border(window: *mut Lisp_Window, x: i32, y0: 
     let window: LispWindowRef = window.into();
     let frame: LispFrameRef = window.get_frame();
 
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let output = frame.wr_output();
 
     let face = frame.face_from_id(face_id::VERTICAL_BORDER_FACE_ID);
 
@@ -360,7 +357,7 @@ extern "C" fn draw_vertical_window_border(window: *mut Lisp_Window, x: i32, y0: 
 #[allow(unused_variables)]
 extern "C" fn clear_frame_area(f: *mut Lisp_Frame, x: i32, y: i32, width: i32, height: i32) {
     let frame: LispFrameRef = f.into();
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let output = frame.wr_output();
 
     let color = pixel_to_color(frame.background_pixel);
 
@@ -425,7 +422,7 @@ extern "C" fn new_font(
     let mut frame: LispFrameRef = frame.into();
 
     let font = LispFontRef::from_vectorlike(font_object.as_vectorlike().unwrap()).as_font_mut();
-    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let mut output = frame.wr_output();
 
     let fontset = if fontset < 0 {
         unsafe { fontset_from_font(font_object) }
@@ -478,7 +475,7 @@ extern "C" fn frame_visible_invisible(frame: *mut Lisp_Frame, is_visible: bool) 
 
     f.set_visible(is_visible as u32);
 
-    let output: OutputRef = unsafe { f.output_data.wr.into() };
+    let output = f.wr_output();
 
     if is_visible {
         output.show_window();
@@ -489,7 +486,7 @@ extern "C" fn frame_visible_invisible(frame: *mut Lisp_Frame, is_visible: bool) 
 
 extern "C" fn set_background_color(f: *mut Lisp_Frame, arg: LispObject, _old_val: LispObject) {
     let mut frame: LispFrameRef = f.into();
-    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let mut output = frame.wr_output();
 
     let color = lookup_color_by_name_or_hex(&format!("{}", arg.as_string().unwrap()))
         .unwrap_or_else(|| ColorF::WHITE);
@@ -508,7 +505,7 @@ extern "C" fn set_background_color(f: *mut Lisp_Frame, arg: LispObject, _old_val
 
 extern "C" fn clear_frame(f: *mut Lisp_Frame) {
     let frame: LispFrameRef = f.into();
-    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let mut output = frame.wr_output();
 
     output.clear_display_list_builder();
 
@@ -521,7 +518,7 @@ extern "C" fn clear_frame(f: *mut Lisp_Frame) {
 extern "C" fn scroll_run(w: *mut Lisp_Window, run: *mut run) {
     let window: LispWindowRef = w.into();
     let frame = window.get_frame();
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let output = frame.wr_output();
 
     let (x, y, width, height) = window.area_box(glyph_row_area::ANY_AREA);
 
@@ -540,8 +537,7 @@ extern "C" fn scroll_run(w: *mut Lisp_Window, run: *mut run) {
 
 extern "C" fn define_frame_cursor(f: *mut Lisp_Frame, cursor: Emacs_Cursor) {
     let frame: LispFrameRef = f.into();
-
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let output = frame.wr_output();
 
     output.set_mouse_cursor(cursor);
 }
@@ -556,9 +552,7 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
     let mut top_frame: LispObject = Qnil;
 
     for frame in all_frames() {
-        let frame_output: OutputRef = unsafe { frame.output_data.wr.into() };
-
-        if frame_output == output {
+        if frame.wr_output() == output {
             top_frame = frame.into();
             break;
         }
@@ -726,7 +720,8 @@ extern "C" fn fullscreen(f: *mut Lisp_Frame) {
         return;
     }
 
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let output = frame.wr_output();
+
     if frame.want_fullscreen() == fullscreen_type::FULLSCREEN_MAXIMIZED {
         output.maximize();
 
@@ -748,15 +743,12 @@ extern "C" fn implicitly_set_name(frame: *mut Lisp_Frame, arg: LispObject, _oldv
 
     let title = format!("{}", arg.force_string());
 
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
-
-    output.set_title(&title);
+    frame.wr_output().set_title(&title);
 }
 
 extern "C" fn get_focus_frame(frame: *mut Lisp_Frame) -> LispObject {
     let frame: LispFrameRef = frame.into();
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
-    let dpyinfo = output.display_info();
+    let dpyinfo = frame.wr_output().display_info();
 
     let focus_frame = dpyinfo.get_inner().focus_frame;
 
@@ -778,7 +770,7 @@ extern "C" fn make_frame_visible_invisible(f: *mut Lisp_Frame, visible: bool) {
 
     frame.set_visible(visible as u32);
 
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let output = frame.wr_output();
 
     if visible {
         output.show_window();
@@ -792,8 +784,7 @@ extern "C" fn iconify_frame(f: *mut Lisp_Frame) {
 
     frame.set_iconified(true);
 
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
-    output.hide_window()
+    frame.wr_output().hide_window()
 }
 
 extern "C" fn mouse_position(
@@ -807,18 +798,12 @@ extern "C" fn mouse_position(
 ) {
     let dpyinfo = {
         let frame: LispFrameRef = unsafe { (*fp).into() };
-        let output: OutputRef = unsafe { frame.output_data.wr.into() };
-        output.display_info()
+        frame.wr_display_info()
     };
 
     // Clear the mouse-moved flag for every frame on this display.
     for mut frame in all_frames() {
-        let target_dpyinfo = {
-            let output: OutputRef = unsafe { frame.output_data.wr.into() };
-            output.display_info()
-        };
-
-        if target_dpyinfo == dpyinfo {
+        if frame.wr_display_info() == dpyinfo {
             frame.set_mouse_moved(false);
         }
     }
@@ -837,8 +822,7 @@ extern "C" fn mouse_position(
 extern "C" fn update_end(f: *mut Lisp_Frame) {
     let mut dpyinfo = {
         let frame: LispFrameRef = f.into();
-        let output: OutputRef = unsafe { frame.output_data.wr.into() };
-        output.display_info()
+        frame.wr_display_info()
     };
 
     let mut dpyinfo = dpyinfo.get_raw();
@@ -854,9 +838,7 @@ extern "C" fn free_pixmap(f: *mut Lisp_Frame, pixmap: Emacs_Pixmap) {
     let image_key = pixmap.image_key;
 
     let frame: LispFrameRef = f.into();
-    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
-
-    output.delete_image(image_key);
+    frame.wr_output().delete_image(image_key);
 }
 
 fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {

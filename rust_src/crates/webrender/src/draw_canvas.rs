@@ -2,11 +2,10 @@ use std::cmp::min;
 
 use webrender::{self, api::units::*, api::*};
 
-use crate::{fringe::FringeBitmap, image::WrPixmap};
+use crate::{frame::LispFrameExt, fringe::FringeBitmap, image::WrPixmap};
 
 use super::{
     color::{color_to_pixel, pixel_to_color},
-    display_info::DisplayInfoRef,
     font::{WRFont, WRFontRef},
     output::OutputRef,
     util::HandyDandyRectBuilder,
@@ -52,8 +51,9 @@ impl DrawCanvas {
 
             draw_glyphs_face::DRAW_CURSOR => {
                 let face = unsafe { &*s.face };
-                let output: OutputRef = unsafe { (*s.f).output_data.wr.into() };
-                let dpyinfo = DisplayInfoRef::new(output.output.display_info as *mut _);
+                let frame: LispFrameRef = (*s).f.into();
+                let output = frame.wr_output();
+                let dpyinfo = output.display_info();
 
                 let mut foreground = face.background;
                 let mut background = color_to_pixel(output.cursor_color);

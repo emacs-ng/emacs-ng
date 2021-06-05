@@ -9,6 +9,7 @@ use glutin::{event::VirtualKeyCode, monitor::MonitorHandle};
 use lisp_macros::lisp_fn;
 
 use crate::frame::frame_edges;
+use crate::frame::LispFrameExt;
 use crate::{
     color::lookup_color_by_name_or_hex,
     font::{FontRef, FONT_DRIVER},
@@ -132,8 +133,7 @@ pub extern "C" fn check_x_display_info(obj: LispObject) -> DisplayInfoRef {
         let frame = window_frame_live_or_selected(obj);
 
         if (frame.output_method() == output_method::output_wr) && frame.is_live() {
-            let output: OutputRef = unsafe { frame.output_data.wr.into() };
-            return output.display_info();
+            return frame.wr_display_info();
         }
 
         if !unsafe { wr_display_list.is_null() } {
@@ -183,8 +183,7 @@ pub extern "C" fn check_x_display_info(obj: LispObject) -> DisplayInfoRef {
     }
 
     let frame = window_frame_live_or_selected(obj);
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
-    return output.display_info();
+    return frame.wr_display_info();
 }
 
 // Move the mouse to position pixel PIX_X, PIX_Y relative to frame F.
@@ -371,7 +370,7 @@ pub fn x_create_frame(parms: LispObject) -> LispFrameRef {
         RES_TYPE_NUMBER,
     );
 
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let output = frame.wr_output();
 
     let output_size = output.get_inner_size();
 
@@ -404,7 +403,6 @@ pub fn x_create_frame(parms: LispObject) -> LispFrameRef {
     /* Now consider the frame official.  */
     unsafe { Vframe_list = Fcons(frame.into(), Vframe_list) };
 
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
     let mut dpyinfo = output.display_info();
 
     dpyinfo.get_raw().highlight_frame = frame.as_mut();
@@ -513,7 +511,7 @@ pub fn x_display_color_cells(obj: LispObject) -> LispObject {
     // FIXME: terminal object or display name (a string) is not implemented
     let frame = window_frame_live_or_selected(obj);
 
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let output = frame.wr_output();
 
     let mut color_bits = output.get_color_bits();
 
@@ -541,7 +539,7 @@ pub fn x_display_planes(obj: LispObject) -> LispObject {
     // FIXME: terminal object or display name (a string) is not implemented
     let frame = window_frame_live_or_selected(obj);
 
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let output = frame.wr_output();
 
     let color_bits = output.get_color_bits();
 
@@ -649,7 +647,7 @@ pub fn x_display_monitor_attributes_list(terminal: LispObject) -> LispObject {
     let mut monitor_frames = unsafe { Fmake_vector(n_monitors.into(), Qnil).as_vector_unchecked() };
 
     for frame in all_frames() {
-        let output: OutputRef = unsafe { frame.output_data.wr.into() };
+        let output = frame.wr_output();
 
         let output_pos = output.get_position().unwrap();
 
@@ -752,7 +750,7 @@ pub fn x_own_selection_internal(
     frame: LispObject,
 ) -> LispObject {
     let frame = window_frame_live_or_selected(frame);
-    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let mut output = frame.wr_output();
 
     let clipboard = output.get_clipboard();
 
@@ -784,7 +782,7 @@ pub fn x_get_selection_internal(
     terminal: LispObject,
 ) -> LispObject {
     let frame = window_frame_live_or_selected(terminal);
-    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let mut output = frame.wr_output();
 
     let clipboard = output.get_clipboard();
 
