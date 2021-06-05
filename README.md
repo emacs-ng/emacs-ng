@@ -14,7 +14,8 @@ A new approach to Emacs - Including TypeScript, Threading, Async I/O, and WebRen
   <a href="https://emacs-ng.github.io/emacs-ng/js/using-deno/"><strong>Deno/Javascript</strong></a> •
   <a href="https://emacs-ng.github.io/emacs-ng/webrender/"><strong>webrender</strong></a> •
   <a href="https://emacs-ng.github.io/emacs-ng/ng-module/"><strong>ng-module</strong></a> •
-  <a href="https://emacs-ng.github.io/emacs-ng/handbook/tests/"><strong>handbook</strong></a> •
+  <a href="https://emacs-ng.github.io/emacs-ng/handbook/"><strong>handbook</strong></a> •
+  <a href="https://emacs-ng.github.io/emacs-ng/faq/"><strong>handbook</strong></a>
 </p>
 <hr>
 
