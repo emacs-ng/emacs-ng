@@ -3,10 +3,11 @@ use crate::{
     bindings::{
         adjust_frame_size, change_frame_size, face, face_id, frame, frame_dimension,
         init_frame_faces, pvec_type, store_frame_param, update_face_from_frame_parameter, Fassq,
-        Fselected_frame, Lisp_Type,
+        Fselected_frame, Lisp_Type, Vframe_list,
     },
     globals::{Qframe_live_p, Qframep, Qnil},
     lisp::{ExternalPtr, LispObject},
+    list::{LispConsCircularChecks, LispConsEndChecks},
     vector::LispVectorlikeRef,
     window::LispWindowRef,
 };
@@ -258,12 +259,10 @@ pub fn window_frame_live_or_selected(object: LispObject) -> LispFrameRef {
     }
 }
 
-#[macro_export]
-macro_rules! for_each_frame {
-    ($name:ident => $action:block) => {
-        let frame_it = unsafe { Vframe_list.iter_cars($crate::list::LispConsEndChecks::off,
-                                                      $crate::list::LispConsCircularChecks::off) };
-        for $name in frame_it.map(LispFrameRef::from)
-            $action
-    };
+pub fn all_frames() -> impl Iterator<Item = LispFrameRef> {
+    let frame_it =
+        unsafe { Vframe_list.iter_cars(LispConsEndChecks::off, LispConsCircularChecks::off) }
+            .map(LispFrameRef::from);
+
+    frame_it
 }

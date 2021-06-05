@@ -34,7 +34,7 @@ use emacs::{
         gui_set_right_divider_width, gui_set_right_fringe, gui_set_screen_gamma,
         gui_set_scroll_bar_height, gui_set_scroll_bar_width, gui_set_unsplittable,
         gui_set_vertical_scroll_bars, gui_set_visibility, gui_update_cursor, gui_write_glyphs,
-        input_event, kbd_buffer_store_event_hold, run, unblock_input, Time, Vframe_list,
+        input_event, kbd_buffer_store_event_hold, run, unblock_input, Time,
     },
     bindings::{
         create_terminal, current_kboard, draw_fringe_bitmap_params, fontset_from_font,
@@ -44,7 +44,7 @@ use emacs::{
         Fredraw_frame,
     },
     font::LispFontRef,
-    frame::{LispFrameRef, Lisp_Frame},
+    frame::{all_frames, LispFrameRef, Lisp_Frame},
     globals::{Qbackground_color, Qfullscreen, Qmaximized, Qnil, Qx},
     glyph::GlyphStringRef,
     keyboard::allocate_keyboard,
@@ -555,14 +555,14 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
 
     let mut top_frame: LispObject = Qnil;
 
-    for_each_frame!(frame => {
+    for frame in all_frames() {
         let frame_output: OutputRef = unsafe { frame.output_data.wr.into() };
 
         if frame_output == output {
             top_frame = frame.into();
             break;
         }
-    });
+    }
 
     let mut count = 0;
 
@@ -812,9 +812,7 @@ extern "C" fn mouse_position(
     };
 
     // Clear the mouse-moved flag for every frame on this display.
-    for_each_frame!(frame => {
-        let mut frame: LispFrameRef = frame.into();
-
+    for mut frame in all_frames() {
         let target_dpyinfo = {
             let output: OutputRef = unsafe { frame.output_data.wr.into() };
             output.display_info()
@@ -823,7 +821,7 @@ extern "C" fn mouse_position(
         if target_dpyinfo == dpyinfo {
             frame.set_mouse_moved(false);
         }
-    });
+    }
 
     unsafe { *bar_window = Qnil };
     unsafe { *part = 0 };
