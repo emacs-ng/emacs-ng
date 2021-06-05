@@ -28,7 +28,7 @@ use emacs::{
         Vframe_list, Window, DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
     },
     definitions::EmacsInt,
-    frame::{window_frame_live_or_selected, LispFrameRef},
+    frame::{all_frames, window_frame_live_or_selected, LispFrameRef},
     globals::{
         Qbackground_color, Qfont, Qfont_backend, Qforeground_color, Qleft_fringe, Qminibuffer,
         Qname, Qnil, Qparent_id, Qright_fringe, Qt, Qterminal, Qunbound, Qwr, Qx,
@@ -648,8 +648,7 @@ pub fn x_display_monitor_attributes_list(terminal: LispObject) -> LispObject {
     let n_monitors = monitors.len();
     let mut monitor_frames = unsafe { Fmake_vector(n_monitors.into(), Qnil).as_vector_unchecked() };
 
-    for_each_frame!(f => {
-        let frame: LispFrameRef = f.into();
+    for frame in all_frames() {
         let output: OutputRef = unsafe { frame.output_data.wr.into() };
 
         let output_pos = output.get_position().unwrap();
@@ -657,7 +656,6 @@ pub fn x_display_monitor_attributes_list(terminal: LispObject) -> LispObject {
         let mut window_at_monitor_index = 0;
 
         for (i, m) in monitors.iter().enumerate() {
-
             let monitor_pos = m.position();
             let monitor_size = m.size();
 
@@ -672,8 +670,7 @@ pub fn x_display_monitor_attributes_list(terminal: LispObject) -> LispObject {
         monitor_frames.set(window_at_monitor_index, unsafe {
             Fcons(frame.into(), monitor_frames.get(window_at_monitor_index))
         });
-
-    });
+    }
 
     let source = CString::new("fallback").unwrap();
 
