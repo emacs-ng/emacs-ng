@@ -1,7 +1,9 @@
 //! Generic frame functions.
 use crate::{
     bindings::{
-        face, face_id, frame, frame_dimension, pvec_type, Fassq, Fselected_frame, Lisp_Type,
+        adjust_frame_size, change_frame_size, face, face_id, frame, frame_dimension,
+        init_frame_faces, pvec_type, store_frame_param, update_face_from_frame_parameter, Fassq,
+        Fselected_frame, Lisp_Type,
     },
     globals::{Qframe_live_p, Qframep, Qnil},
     lisp::{ExternalPtr, LispObject},
@@ -155,6 +157,51 @@ impl LispFrameRef {
                 res_type,
             );
         };
+    }
+
+    pub fn change_size(
+        mut self,
+        new_width: i32,
+        new_height: i32,
+        pretend: bool,
+        delay: bool,
+        safe: bool,
+    ) {
+        unsafe {
+            change_frame_size(self.as_mut(), new_width, new_height, pretend, delay, safe);
+        }
+    }
+
+    pub fn adjust_size(
+        mut self,
+        new_text_width: i32,
+        new_text_height: i32,
+        inhibit: i32,
+        pretend: bool,
+        parameter: LispObject,
+    ) {
+        unsafe {
+            adjust_frame_size(
+                self.as_mut(),
+                new_text_width,
+                new_text_height,
+                inhibit,
+                pretend,
+                parameter,
+            );
+        }
+    }
+
+    pub fn store_param(mut self, prop: LispObject, val: LispObject) {
+        unsafe { store_frame_param(self.as_mut(), prop, val) };
+    }
+
+    pub fn update_face_from_frame_param(mut self, prop: LispObject, new_val: LispObject) {
+        unsafe { update_face_from_frame_parameter(self.as_mut(), prop, new_val) };
+    }
+
+    pub fn init_faces(mut self) {
+        unsafe { init_frame_faces(self.as_mut()) };
     }
 }
 

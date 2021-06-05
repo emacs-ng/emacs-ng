@@ -24,8 +24,8 @@ use crate::{
 
 use emacs::{
     bindings::{
-        block_input, change_frame_size, display_and_set_cursor, do_pending_window_change,
-        draw_window_fringes, face_id, glyph_row_area, gui_clear_cursor, gui_clear_end_of_line,
+        block_input, display_and_set_cursor, do_pending_window_change, draw_window_fringes,
+        face_id, glyph_row_area, gui_clear_cursor, gui_clear_end_of_line,
         gui_clear_window_mouse_face, gui_draw_right_divider, gui_draw_vertical_border,
         gui_fix_overlapping_area, gui_get_glyph_overhangs, gui_produce_glyphs, gui_set_alpha,
         gui_set_autolower, gui_set_autoraise, gui_set_border_width, gui_set_bottom_divider_width,
@@ -34,8 +34,7 @@ use emacs::{
         gui_set_right_divider_width, gui_set_right_fringe, gui_set_screen_gamma,
         gui_set_scroll_bar_height, gui_set_scroll_bar_width, gui_set_unsplittable,
         gui_set_vertical_scroll_bars, gui_set_visibility, gui_update_cursor, gui_write_glyphs,
-        input_event, kbd_buffer_store_event_hold, run, store_frame_param, unblock_input,
-        update_face_from_frame_parameter, window_box, Time, Vframe_list,
+        input_event, kbd_buffer_store_event_hold, run, unblock_input, Time, Vframe_list,
     },
     bindings::{
         create_terminal, current_kboard, draw_fringe_bitmap_params, fontset_from_font,
@@ -231,24 +230,13 @@ extern "C" fn draw_fringe_bitmap(
     row: *mut glyph_row,
     p: *mut draw_fringe_bitmap_params,
 ) {
-    let mut window: LispWindowRef = window.into();
+    let window: LispWindowRef = window.into();
     let frame: LispFrameRef = window.get_frame();
 
     let output: OutputRef = unsafe { frame.output_data.wr.into() };
 
     let row_rect: LayoutRect = unsafe {
-        let mut window_x: i32 = 0;
-        let mut window_y: i32 = 0;
-        let mut window_width: i32 = 0;
-
-        window_box(
-            window.as_mut(),
-            glyph_row_area::ANY_AREA,
-            &mut window_x,
-            &mut window_y,
-            &mut window_width,
-            ptr::null_mut(),
-        );
+        let (window_x, window_y, window_width, _) = window.area_box(glyph_row_area::ANY_AREA);
 
         let x = window_x;
 
@@ -511,7 +499,7 @@ extern "C" fn set_background_color(f: *mut Lisp_Frame, arg: LispObject, _old_val
     frame.background_pixel = pixel;
     output.background_color = color;
 
-    unsafe { update_face_from_frame_parameter(frame.as_mut(), Qbackground_color, arg) };
+    frame.update_face_from_frame_param(Qbackground_color, arg);
 
     if frame.is_visible() {
         unsafe { Fredraw_frame(frame.into()) };
@@ -535,22 +523,7 @@ extern "C" fn scroll_run(w: *mut Lisp_Window, run: *mut run) {
     let frame = window.get_frame();
     let output: OutputRef = unsafe { frame.output_data.wr.into() };
 
-    let (x, y, width, height) = unsafe {
-        let mut x: i32 = 0;
-        let mut y: i32 = 0;
-        let mut width: i32 = 0;
-        let mut height: i32 = 0;
-
-        window_box(
-            w,
-            glyph_row_area::ANY_AREA,
-            &mut x,
-            &mut y,
-            &mut width,
-            &mut height,
-        );
-        (x, y, width, height)
-    };
+    let (x, y, width, height) = window.area_box(glyph_row_area::ANY_AREA);
 
     let from_y = unsafe { (*run).current_y + window.top_edge_y() };
     let to_y = unsafe { (*run).desired_y + window.top_edge_y() };
@@ -727,19 +700,17 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
                 return;
             }
 
-            let mut frame: LispFrameRef = top_frame.into();
-            unsafe {
-                change_frame_size(
-                    frame.as_mut(),
-                    size.width as i32,
-                    size.height as i32 - frame.menu_bar_height,
-                    false,
-                    true,
-                    false,
-                );
+            let frame: LispFrameRef = top_frame.into();
 
-                do_pending_window_change(false);
-            }
+            frame.change_size(
+                size.width as i32,
+                size.height as i32 - frame.menu_bar_height,
+                false,
+                true,
+                false,
+            );
+
+            unsafe { do_pending_window_change(false) };
         }
 
         _ => {}
@@ -759,7 +730,7 @@ extern "C" fn fullscreen(f: *mut Lisp_Frame) {
     if frame.want_fullscreen() == fullscreen_type::FULLSCREEN_MAXIMIZED {
         output.maximize();
 
-        unsafe { store_frame_param(f, Qfullscreen, Qmaximized) };
+        frame.store_param(Qfullscreen, Qmaximized);
     }
 }
 
