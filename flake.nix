@@ -198,7 +198,7 @@
           librusty_v8 = prev.callPackage ./nix/librusty_v8.nix { };
 
           emacsNg = with prev; let
-            withWebreader = false;
+            withWebrender = false;
           in
           (
             final.emacsGcc.override
@@ -212,7 +212,7 @@
                 custom-llvmPackages = prev.llvmPackages_10;
                 #withGLX
                 rpathLibs =
-                  (with xorg; lib.optionals (stdenv.isLinux && withWebreader) [
+                  (with xorg; lib.optionals (stdenv.isLinux && withWebrender) [
                     libX11
                     libGLU
                     libGL
@@ -232,7 +232,7 @@
                 #version = "develop";
 
                 preConfigure = (old.preConfigure or "") + ''
-                '' + lib.optionalString withWebreader ''
+                '' + lib.optionalString withWebrender ''
                   export NIX_CFLAGS_LINK="$NIX_CFLAGS_LINK -lxcb-render -lxcb-xfixes -lxcb-shape"
                 '';
 
@@ -245,7 +245,7 @@
                   ];
 
                 #custom configure Flags Setting
-                configureFlags = (if withWebreader then
+                configureFlags = (if withWebrender then
                   lib.subtractLists [
                     "--with-x-toolkit=gtk3"
                     "--with-xft"
@@ -261,9 +261,9 @@
                   "--with-compress-install"
                   "--with-zlib"
                   "--with-dumping=pdumper"
-                ] ++ lib.optionals withWebreader [
+                ] ++ lib.optionals withWebrender [
                   "--with-webrender"
-                ] ++ lib.optionals (! withWebreader) [
+                ] ++ lib.optionals (! withWebrender) [
                   "--with-harfbuzz"
                 ] ++ lib.optionals stdenv.isLinux [
                   "--with-dbus"
@@ -299,7 +299,7 @@
                   custom-llvmPackages.clang
                   custom-llvmPackages.libclang
                   final.rust-bin.nightly."${locked-date}".default
-                ] ++ lib.optionals withWebreader (with xorg;[
+                ] ++ lib.optionals withWebrender (with xorg;[
                   python3
                   rpathLibs
                 ]) ++ lib.optionals
@@ -311,7 +311,7 @@
                     Metal
                     Foundation
                     libiconv
-                  ] ++ lib.optionals (withWebreader && stdenv.isDarwin) [
+                  ] ++ lib.optionals (withWebrender && stdenv.isDarwin) [
                     AppKit
                     CoreGraphics
                     CoreServices
@@ -322,7 +322,7 @@
 
 
 
-                postFixup = (old.postFixup or "") + (if withWebreader then
+                postFixup = (old.postFixup or "") + (if withWebrender then
                   lib.concatStringsSep "\n" [
                     (lib.optionalString stdenv.isLinux ''
                       patchelf --set-rpath \
