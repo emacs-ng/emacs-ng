@@ -42,7 +42,7 @@ pub fn create_frame(
     let output = Box::into_raw(output);
     frame.output_data.wr = output as *mut wr_output;
 
-    dpyinfo.get_inner().output = unsafe { frame.output_data.wr.into() };
+    dpyinfo.get_inner().output = frame.wr_output();
 
     frame
 }
@@ -50,7 +50,7 @@ pub fn create_frame(
 pub fn frame_edges(frame: LispObject, type_: LispObject) -> LispObject {
     let frame = window_frame_live_or_selected(frame);
 
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let output = frame.wr_output();
 
     let window = output.get_window();
 
@@ -100,4 +100,20 @@ pub fn frame_edges(frame: LispObject, type_: LispObject) -> LispObject {
         }
     };
     unsafe { list4i(left as i64, top as i64, right as i64, bottom as i64) }
+}
+
+pub trait LispFrameExt {
+    fn wr_output(&self) -> OutputRef;
+    fn wr_display_info(&self) -> DisplayInfoRef;
+}
+
+impl LispFrameExt for LispFrameRef {
+    fn wr_output(&self) -> OutputRef {
+        let output: OutputRef = unsafe { self.output_data.wr.into() };
+        output
+    }
+
+    fn wr_display_info(&self) -> DisplayInfoRef {
+        self.wr_output().display_info()
+    }
 }

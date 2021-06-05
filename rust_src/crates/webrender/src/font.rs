@@ -10,6 +10,8 @@ use lazy_static::lazy_static;
 
 use webrender::api::*;
 
+use crate::frame::LispFrameExt;
+
 use super::output::OutputRef;
 
 use emacs::{
@@ -125,9 +127,7 @@ impl From<LispObject> for LispFontLike {
 
 extern "C" fn get_cache(f: *mut frame) -> LispObject {
     let frame = LispFrameRef::new(f);
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
-
-    let mut dpyinfo = output.display_info();
+    let mut dpyinfo = frame.wr_display_info();
 
     dpyinfo.get_raw().name_list_element
 }
@@ -291,7 +291,7 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     let font_entity: LispFontLike = font_entity.into();
 
     let frame: LispFrameRef = frame.into();
-    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let mut output = frame.wr_output();
 
     let mut pixel_size = pixel_size as i64;
 

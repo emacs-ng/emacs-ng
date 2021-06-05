@@ -26,10 +26,9 @@ use image::{
 use libc::c_void;
 use webrender::api::{ColorF, ColorU, ImageKey};
 
-use super::{
-    color::{lookup_color_by_name_or_hex, pixel_to_color},
-    output::OutputRef,
-};
+use crate::frame::LispFrameExt;
+
+use super::color::{lookup_color_by_name_or_hex, pixel_to_color};
 
 pub struct WrPixmap {
     pub image_key: ImageKey,
@@ -181,7 +180,7 @@ fn define_image(frame: LispFrameRef, img: *mut Emacs_Image, image_buffer: Dynami
     let width = image_buffer.width() as i32;
     let height = image_buffer.height() as i32;
 
-    let mut output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let mut output = frame.wr_output();
 
     let old_image_key = if unsafe { (*img).pixmap } != ptr::null_mut() {
         let pixmap = unsafe { (*img).pixmap as *mut WrPixmap };

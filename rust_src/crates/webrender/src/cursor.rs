@@ -1,6 +1,4 @@
-use crate::util::HandyDandyRectBuilder;
-
-use super::output::OutputRef;
+use crate::{frame::LispFrameExt, util::HandyDandyRectBuilder};
 
 use glutin::window::CursorIcon;
 
@@ -39,7 +37,7 @@ pub fn draw_hollow_box_cursor(mut window: LispWindowRef, row: *mut glyph_row) {
     let width = window.phys_cursor_width;
 
     let frame = window.get_frame();
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let output = frame.wr_output();
 
     let cursor_rect = (x, y).by(width, height);
 
@@ -60,7 +58,7 @@ pub fn draw_bar_cursor(
     is_hbar: bool,
 ) {
     let frame = window.get_frame();
-    let output: OutputRef = unsafe { frame.output_data.wr.into() };
+    let output = frame.wr_output();
 
     let cursor_glyph = unsafe { get_phys_cursor_glyph(window.as_mut()) };
 
