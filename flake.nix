@@ -133,7 +133,8 @@
                       pathDir = emacsNgSource + /rust_src/crates;
                     in
                     ''
-                      cp -r ${pathDir} /build/crates
+                      cp -r ${pathDir} crates
+                      sed -i 's|../crates/lisp_util|./crates/lisp_util|' Cargo.toml
                     '' + doVersionedUpdate;
                   sha256 = "sha256-W/A3mYNBLZrcjL9ehXe6ndjv/bMiUdRDTylAM9hLeoo=";
                   inherit installPhase;
