@@ -56,7 +56,6 @@ use super::{cursor::winit_to_emacs_cursor, font::FontRef};
 
 pub enum EmacsGUIEvent {
     Flush(SyncSender<ImageKey>),
-    ReadBytes(LayoutIntRect, SyncSender<ImageKey>),
 }
 
 #[allow(dead_code)]
@@ -83,7 +82,8 @@ pub struct Output {
     pub loop_thread: JoinHandle<()>,
     pub document_id: DocumentId,
 
-    pub display_list_builder: Option<DisplayListBuilder>,
+    display_list_builder: Option<DisplayListBuilder>,
+    previous_frame_image: Option<ImageKey>,
 
     pub background_color: ColorF,
     pub cursor_color: ColorF,
@@ -122,6 +122,7 @@ impl Output {
             loop_thread,
             document_id,
             display_list_builder: None,
+            previous_frame_image: None,
             background_color: ColorF::WHITE,
             cursor_color: ColorF::BLACK,
             cursor_foreground_color: ColorF::WHITE,
@@ -331,15 +332,6 @@ impl Output {
                             &renderer,
                         );
                     }
-                    Event::UserEvent(EmacsGUIEvent::ReadBytes(copy_rect, sender)) => {
-                        let device_rect = copy_rect.to_f32() * LayoutToDeviceScale::new(1.0);
-
-                        copy_framebuffer_to_texture(
-                            device_rect.to_i32().to_box2d(),
-                            sender,
-                            &renderer,
-                        );
-                    }
                     _ => {}
                 };
             })
@@ -467,9 +459,13 @@ impl Output {
         F: Fn(&mut DisplayListBuilder, SpaceAndClipInfo),
     {
         if self.display_list_builder.is_none() {
-            let builder = self.new_builder(None);
+            let layout_size = Self::get_size(&self.window);
 
-            self.display_list_builder = Some(builder);
+            let image_and_pos = self
+                .previous_frame_image
+                .map(|image_key| (image_key, LayoutRect::from_size(layout_size)));
+
+            self.display_list_builder = Some(self.new_builder(image_and_pos));
         }
 
         let pipeline_id = PipelineId(0, 0);
@@ -504,23 +500,12 @@ impl Output {
                 .event_loop_proxy
                 .send_event(EmacsGUIEvent::Flush(sender));
 
-            let pre_frame_image_key = receiver.recv().unwrap();
-
-            self.display_list_builder = Some(self.new_builder(Some((
-                pre_frame_image_key,
-                LayoutRect::from_size(layout_size.to_f32()),
-            ))));
+            self.previous_frame_image = Some(receiver.recv().unwrap());
         }
     }
 
-    pub fn read_pixels_rgba8_into_image(&mut self, rect: LayoutIntRect) -> ImageKey {
-        let (texture_sender, texture_receiver) = sync_channel(1);
-
-        let _ = self
-            .event_loop_proxy
-            .send_event(EmacsGUIEvent::ReadBytes(rect, texture_sender));
-
-        texture_receiver.recv().unwrap()
+    pub fn get_previous_frame(&self) -> Option<ImageKey> {
+        self.previous_frame_image
     }
 
     pub fn clear_display_list_builder(&mut self) {

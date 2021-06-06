@@ -509,28 +509,29 @@ impl DrawCanvas {
             }
         };
 
-        let copy_rect = LayoutIntRect::new(
-            LayoutIntPoint::new(x, from_y),
-            LayoutIntSize::new(width, height),
-        );
-
         // flush all content to screen before coping screen pixels
         self.output.flush();
 
-        let image_key = self.output.read_pixels_rgba8_into_image(copy_rect);
+        let viewport = (x, to_y).by(width, height);
 
-        self.output.display(|builder, space_and_clip| {
-            let bounds = (x, to_y).by(width, height);
+        let diff_y = to_y - from_y;
+        let frame_size = self.output.get_inner_size();
 
-            builder.push_image(
-                &CommonItemProperties::new(bounds, space_and_clip),
-                bounds,
-                ImageRendering::Auto,
-                AlphaType::PremultipliedAlpha,
-                image_key,
-                ColorF::WHITE,
-            );
-        });
+        let new_frame_position =
+            (0, 0 + diff_y).by(frame_size.width as i32, frame_size.height as i32);
+
+        if let Some(image_key) = self.output.get_previous_frame() {
+            self.output.display(|builder, space_and_clip| {
+                builder.push_image(
+                    &CommonItemProperties::new(viewport, space_and_clip),
+                    new_frame_position,
+                    ImageRendering::Auto,
+                    AlphaType::PremultipliedAlpha,
+                    image_key,
+                    ColorF::WHITE,
+                );
+            });
+        }
     }
 
     pub fn draw_hollow_box_cursor(&mut self, cursor_rect: LayoutRect, clip_rect: LayoutRect) {
