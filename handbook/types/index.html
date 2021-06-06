@@ -240,7 +240,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../tests/" class="md-tabs__link md-tabs__link--active">
+      <a href="../getting-started/" class="md-tabs__link md-tabs__link--active">
         Native Hackers Handbook
       </a>
     </li>
@@ -575,6 +575,18 @@
   
   
     <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        Getting started
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../tests/" class="md-nav__link">
         tests
       </a>
@@ -742,18 +754,41 @@
                 
                 <h1 id="types">Types<a class="headerlink" href="#types" title="Permanent link">#</a></h1>
 <h2 id="lispobject-and-lisp_object">LispObject and Lisp_Object<a class="headerlink" href="#lispobject-and-lisp_object" title="Permanent link">#</a></h2>
-<p>Lisp_Object (LispObject in Rust) is an integer aka EMACS_INT (EmacsInt in Rust). It is also used as a pointer and bitmasking is used to add extra data to the Lisp_Object.
-Numbers</p>
+<p>Lisp_Object (LispObject in Rust) is an integer aka EMACS_INT (EmacsInt
+in Rust). It is also used as a pointer and bitmasking is used to add
+extra data to the Lisp_Object.  Numbers</p>
 <h2 id="emacsint-and-emacs_int">EmacsInt and EMACS_INT<a class="headerlink" href="#emacsint-and-emacs_int" title="Permanent link">#</a></h2>
-<p>There are two types of Integers in Emacs Lisp -- Fixnums and Natnums. A fixnum is equivalent to a i64/i32 in Rust and a natnum is u64/u32. In general, use a fixnum unless there is a reason to use a natnum. A fixnum is represented by a EmacsInt and natnum by a EmacsUint.</p>
+<p>There are two types of Integers in Emacs Lisp -- Fixnums and
+Natnums. A fixnum is equivalent to a i64/i32 in Rust and a natnum is
+u64/u32. In general, use a fixnum unless there is a reason to use a
+natnum. A fixnum is represented by a EmacsInt and natnum by a
+EmacsUint.</p>
 <h2 id="char-and-i8u8">char and i8/u8<a class="headerlink" href="#char-and-i8u8" title="Permanent link">#</a></h2>
-<p>Emacs uses the C char type to represent single byte values. Since char is unsigned by default on ARM platforms and signed on x86 and others, it's important to use the libc::c_char when writing functions that interoperate with the char type.</p>
+<p>Emacs uses the C char type to represent single byte values. Since char
+is unsigned by default on ARM platforms and signed on x86 and others,
+it's important to use the libc::c_char when writing functions that
+interoperate with the char type.</p>
 <h2 id="enum_bf-and-bool_bf">ENUM_BF and bool_bf<a class="headerlink" href="#enum_bf-and-bool_bf" title="Permanent link">#</a></h2>
-<p>Because part of emacs-ng is written in Rust, while the bulk of it is still in C, both the Rust and the C code must be able to call functions written in the other language. Rust makes this fairly painless. It has excellent support for C FFI.</p>
-<p>However, manually translating function and structure declarations into Rust can be quite painful. Worse, any tiny mistake will come back to haunt you later. Crashes and weird bugs that don't make sense are a very real problem. We had several itermittant bugs that were introduced when a complicated struct was incorrectly translated into Rust, so that parts of the code were stepping on each other.</p>
-<p>We've fixed this problem by using Bindgen to generate these bindings for us.</p>
-<p>Aside from saving us a lot of time, Bindgen also gives us relatively nice ways to handle C enums, unions, bitfields, and variable-length structures. Emacs frequently uses these, so this is a great help.</p>
-<p>First allow me to show you a fairly important C structure called Lisp_Symbol. This struct holds all of the information that Emacs knows about a Lisp symbol. It's got a number of bit fields as well as an internal union. Note that I've elided the comments from this declaration:</p>
+<p>Because part of emacs-ng is written in Rust, while the bulk of it is
+still in C, both the Rust and the C code must be able to call
+functions written in the other language. Rust makes this fairly
+painless. It has excellent support for C FFI.</p>
+<p>However, manually translating function and structure declarations into
+Rust can be quite painful. Worse, any tiny mistake will come back to
+haunt you later. Crashes and weird bugs that don't make sense are a
+very real problem. We had several itermittant bugs that were
+introduced when a complicated struct was incorrectly translated into
+Rust, so that parts of the code were stepping on each other.</p>
+<p>We've fixed this problem by using Bindgen to generate these bindings
+for us.</p>
+<p>Aside from saving us a lot of time, Bindgen also gives us relatively
+nice ways to handle C enums, unions, bitfields, and variable-length
+structures. Emacs frequently uses these, so this is a great help.</p>
+<p>First allow me to show you a fairly important C structure called
+Lisp_Symbol. This struct holds all of the information that Emacs knows
+about a Lisp symbol. It's got a number of bit fields as well as an
+internal union. Note that I've elided the comments from this
+declaration:</p>
 <div class="highlight"><pre><span></span><code><span class="k">struct</span> <span class="nc">Lisp_Symbol</span>
 <span class="p">{</span>
   <span class="n">bool_bf</span> <span class="nl">gcmarkbit</span> <span class="p">:</span> <span class="mi">1</span><span class="p">;</span>
@@ -774,7 +809,9 @@ Numbers</p>
   <span class="k">struct</span> <span class="nc">Lisp_Symbol</span> <span class="o">*</span><span class="n">next</span><span class="p">;</span>
 <span class="p">};</span>
 </code></pre></div>
-<p>ENUM_BF and bool_bf are C preprocessor hacks that allow the code to be compiled even when the compiler doesn't support enums or bools as bitfield types. Bindgen generates the following Rust struct:</p>
+<p>ENUM_BF and bool_bf are C preprocessor hacks that allow the code to be
+compiled even when the compiler doesn't support enums or bools as
+bitfield types. Bindgen generates the following Rust struct:</p>
 <div class="highlight"><pre><span></span><code><span class="cp">#[repr(C)]</span><span class="w"></span>
 <span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">Lisp_Symbol</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">_bitfield_1</span>: <span class="nc">__BindgenBitfieldUnit</span><span class="o">&lt;</span><span class="p">[</span><span class="kt">u8</span><span class="p">;</span><span class="w"> </span><span class="mi">2</span><span class="k">usize</span><span class="p">],</span><span class="w"> </span><span class="kt">u8</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
@@ -793,7 +830,11 @@ Numbers</p>
 <span class="w">    </span><span class="n">_bindgen_union_align</span>: <span class="kt">u64</span><span class="p">,</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 </code></pre></div>
-<p>As you can see, the bitfields become rather opaque, they're no longer listed in the struct (you can, however, still see that they occupy two bytes in the struct). Instead, Bindgen creates getter and setter methods and adds them to the impl Lisp_Symbol. I'll just show an excerpt here:</p>
+<p>As you can see, the bitfields become rather opaque, they're no longer
+listed in the struct (you can, however, still see that they occupy two
+bytes in the struct). Instead, Bindgen creates getter and setter
+methods and adds them to the impl Lisp_Symbol. I'll just show an
+excerpt here:</p>
 <div class="highlight"><pre><span></span><code><span class="k">impl</span><span class="w"> </span><span class="n">Lisp_Symbol</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">    </span><span class="cp">#[inline]</span><span class="w"></span>
 <span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">gcmarkbit</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">bool_bf</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
@@ -809,7 +850,10 @@ Numbers</p>
 <span class="w">    </span><span class="c1">// ---8&lt;---</span>
 <span class="p">}</span><span class="w"></span>
 </code></pre></div>
-<p>The union is also a little more verbose than before, as it cannot be put anonymously into the rest of the struct. Rust requires that it have a proper name, and so Bindgen has generated one. It's not great, but it'll suffice.</p>
+<p>The union is also a little more verbose than before, as it cannot be
+put anonymously into the rest of the struct. Rust requires that it
+have a proper name, and so Bindgen has generated one. It's not great,
+but it'll suffice.</p>
                 
                   
                     

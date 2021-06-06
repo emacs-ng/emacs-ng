@@ -11,14 +11,14 @@
       
       
       
-        <link rel="canonical" href="https://emacs-ng.github.io/emacs-ng/handbook/tests/">
+        <link rel="canonical" href="https://emacs-ng.github.io/emacs-ng/handbook/getting-started/">
       
       <link rel="shortcut icon" href="../../images/logo.png">
       <meta name="generator" content="mkdocs-1.1.2, mkdocs-material-7.0.5">
     
     
       
-        <title>tests - Emacs NG - A new approach to Emacs</title>
+        <title>Getting started - Emacs NG - A new approach to Emacs</title>
       
     
     
@@ -64,7 +64,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#tests" class="md-skip">
+        <a href="#contributors-guide" class="md-skip">
           Skip to content
         </a>
       
@@ -95,7 +95,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              tests
+              Getting started
             
           </span>
         </div>
@@ -240,7 +240,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../getting-started/" class="md-tabs__link md-tabs__link--active">
+      <a href="./" class="md-tabs__link md-tabs__link--active">
         Native Hackers Handbook
       </a>
     </li>
@@ -573,18 +573,6 @@
             
   
   
-  
-    <li class="md-nav__item">
-      <a href="../getting-started/" class="md-nav__link">
-        Getting started
-      </a>
-    </li>
-  
-
-          
-            
-  
-  
     
   
   
@@ -596,12 +584,12 @@
       
       
         <label class="md-nav__link md-nav__link--active" for="__toc">
-          tests
+          Getting started
           <span class="md-nav__icon md-icon"></span>
         </label>
       
       <a href="./" class="md-nav__link md-nav__link--active">
-        tests
+        Getting started
       </a>
       
         
@@ -618,56 +606,30 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#running-tests" class="md-nav__link">
-    Running tests
+  <a href="#getting-started" class="md-nav__link">
+    Getting started
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#writing-tests" class="md-nav__link">
-    Writing tests
+  <a href="#overview" class="md-nav__link">
+    Overview
   </a>
-  
-    <nav class="md-nav" aria-label="Writing tests">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#elisp" class="md-nav__link">
-    Elisp
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rust" class="md-nav__link">
-    Rust
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#running-code-formatters" class="md-nav__link">
-    Running code formatters
-  </a>
-  
-    <nav class="md-nav" aria-label="Running code formatters">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#rust_1" class="md-nav__link">
-    Rust
+  <a href="#bindgen" class="md-nav__link">
+    Bindgen
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#lisp" class="md-nav__link">
+    Lisp
+  </a>
   
 </li>
       
@@ -675,6 +637,18 @@
   
 </nav>
       
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tests/" class="md-nav__link">
+        tests
+      </a>
     </li>
   
 
@@ -734,56 +708,30 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#running-tests" class="md-nav__link">
-    Running tests
+  <a href="#getting-started" class="md-nav__link">
+    Getting started
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#writing-tests" class="md-nav__link">
-    Writing tests
+  <a href="#overview" class="md-nav__link">
+    Overview
   </a>
-  
-    <nav class="md-nav" aria-label="Writing tests">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#elisp" class="md-nav__link">
-    Elisp
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rust" class="md-nav__link">
-    Rust
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#running-code-formatters" class="md-nav__link">
-    Running code formatters
-  </a>
-  
-    <nav class="md-nav" aria-label="Running code formatters">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#rust_1" class="md-nav__link">
-    Rust
+  <a href="#bindgen" class="md-nav__link">
+    Bindgen
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#lisp" class="md-nav__link">
+    Lisp
+  </a>
   
 </li>
       
@@ -799,66 +747,55 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/emacs-ng/emacs-ng/edit/master/docs/handbook/tests.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/emacs-ng/emacs-ng/edit/master/docs/handbook/getting-started.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
                 
-                <h1 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">#</a></h1>
-<h2 id="running-tests">Running tests<a class="headerlink" href="#running-tests" title="Permanent link">#</a></h2>
-<p>Run elisp and Rust tests in toplevel directory. If run in a
-subdirectory, only run the tests in that directory.</p>
-<div class="codehilite"><pre><span></span><code><span class="nv">make</span> <span class="nv">check</span> <span class="nv">Run</span> <span class="nv">all</span> <span class="nv">tests</span> <span class="nv">as</span> <span class="nv">defined</span> <span class="nv">in</span> <span class="nv">the</span> <span class="nv">directory</span>. <span class="nv">Expensive</span> <span class="nv">tests</span> <span class="nv">are</span> <span class="nv">suppressed</span>. <span class="nv">The</span> <span class="nb">result</span> <span class="nv">of</span> <span class="nv">the</span> <span class="nv">tests</span> <span class="k">for</span> .<span class="nv">el</span> <span class="nv">is</span> <span class="nv">stored</span> <span class="nv">in</span> .<span class="nv">log</span>.
-
-<span class="nv">make</span> <span class="nv">check</span><span class="o">-</span><span class="nv">maybe</span> <span class="nv">Like</span> <span class="s2">&quot;</span><span class="s">make check</span><span class="s2">&quot;</span>, <span class="nv">but</span> <span class="nv">run</span> <span class="nv">only</span> <span class="nv">the</span> <span class="nv">tests</span> <span class="k">for</span> <span class="nv">files</span> <span class="nv">that</span> <span class="nv">have</span> <span class="nv">been</span> <span class="nv">modified</span> <span class="nv">since</span> <span class="nv">the</span> <span class="nv">last</span> <span class="nv">build</span>.
-</code></pre></div>
-
-<h2 id="writing-tests">Writing tests<a class="headerlink" href="#writing-tests" title="Permanent link">#</a></h2>
-<h3 id="elisp">Elisp<a class="headerlink" href="#elisp" title="Permanent link">#</a></h3>
-<p>For elisp testing, remacs uses ert.</p>
-<p>Add new tests to test/rust_src/src/<filename>-tests.el. There are good
-examples in the directory to follow. In general, there should be at
-least one test function for each Rust function. This function should
-be a 'smoke' test. Does the Rust call succeed for common values? Does
-it fail for common values? More complex tests or tests that involve
-several lisp functions should be defined in a function named after
-what the test is trying to validate.</p>
-<p>As an example here is how the if function is tested:</p>
-<div class="highlight"><pre><span></span><code><span class="p">(</span><span class="nb">ert-deftest</span> <span class="nv">eval-tests--if-base</span> <span class="p">()</span>
-  <span class="s">&quot;Check (if) base cases&quot;</span>
-  <span class="p">(</span><span class="nv">should-error</span> <span class="p">(</span><span class="nf">eval</span> <span class="o">&#39;</span><span class="p">(</span><span class="k">if</span><span class="p">))</span> <span class="nb">:type</span> <span class="ss">&#39;wrong-number-of-arguments</span><span class="p">)</span>
-  <span class="p">(</span><span class="nv">should</span> <span class="p">(</span><span class="nf">eq</span> <span class="p">(</span><span class="k">if</span> <span class="no">t</span> <span class="ss">&#39;a</span><span class="p">)</span> <span class="ss">&#39;a</span><span class="p">))</span>
-  <span class="p">(</span><span class="nv">should</span> <span class="p">(</span><span class="nf">eq</span> <span class="p">(</span><span class="k">if</span> <span class="no">t</span> <span class="ss">&#39;a</span> <span class="ss">&#39;b</span><span class="p">)</span> <span class="ss">&#39;a</span><span class="p">))</span>
-  <span class="p">(</span><span class="nv">should</span> <span class="p">(</span><span class="nf">eq</span> <span class="p">(</span><span class="k">if</span> <span class="no">nil</span> <span class="ss">&#39;a</span><span class="p">)</span> <span class="no">nil</span><span class="p">))</span>
-  <span class="p">(</span><span class="nv">should</span> <span class="p">(</span><span class="nf">eq</span> <span class="p">(</span><span class="k">if</span> <span class="no">nil</span> <span class="ss">&#39;a</span> <span class="ss">&#39;b</span><span class="p">)</span> <span class="ss">&#39;b</span><span class="p">))</span>
-  <span class="p">(</span><span class="nv">should</span> <span class="p">(</span><span class="nf">eq</span> <span class="p">(</span><span class="k">if</span> <span class="no">t</span> <span class="ss">&#39;a</span> <span class="p">(</span><span class="ne">error</span> <span class="s">&quot;Not evaluated!&quot;</span><span class="p">))</span> <span class="ss">&#39;a</span><span class="p">))</span>
-  <span class="p">(</span><span class="nv">should</span> <span class="p">(</span><span class="nf">eq</span> <span class="p">(</span><span class="k">if</span> <span class="no">nil</span> <span class="p">(</span><span class="ne">error</span> <span class="s">&quot;Not evaluated!&quot;</span><span class="p">)</span> <span class="ss">&#39;a</span><span class="p">)</span> <span class="ss">&#39;a</span><span class="p">)))</span>
-
-<span class="p">(</span><span class="nb">ert-deftest</span> <span class="nv">eval-tests--if-dot-string</span> <span class="p">()</span>
-  <span class="s">&quot;Check that Emacs rejects (if . \&quot;string\&quot;).&quot;</span>
-  <span class="p">(</span><span class="nv">should-error</span> <span class="p">(</span><span class="nf">eval</span> <span class="o">&#39;</span><span class="p">(</span><span class="k">if</span> <span class="o">.</span> <span class="s">&quot;abc&quot;</span><span class="p">))</span> <span class="nb">:type</span> <span class="ss">&#39;wrong-type-argument</span><span class="p">)</span>
-  <span class="p">(</span><span class="k">let</span> <span class="p">((</span><span class="nv">if-tail</span> <span class="p">(</span><span class="nf">list</span> <span class="o">&#39;</span><span class="p">(</span><span class="nf">setcdr</span> <span class="nv">if-tail</span> <span class="s">&quot;abc&quot;</span><span class="p">)</span> <span class="no">t</span><span class="p">)))</span>
-    <span class="p">(</span><span class="nv">should-error</span> <span class="p">(</span><span class="nf">eval</span> <span class="p">(</span><span class="nf">cons</span> <span class="ss">&#39;if</span> <span class="nv">if-tail</span><span class="p">))))</span>
-  <span class="p">(</span><span class="k">let</span> <span class="p">((</span><span class="nv">if-tail</span> <span class="p">(</span><span class="nf">list</span> <span class="o">&#39;</span><span class="p">(</span><span class="k">progn</span> <span class="p">(</span><span class="nf">setcdr</span> <span class="nv">if-tail</span> <span class="s">&quot;abc&quot;</span><span class="p">)</span> <span class="no">nil</span><span class="p">)</span> <span class="no">t</span><span class="p">)))</span>
-    <span class="p">(</span><span class="nv">should-error</span> <span class="p">(</span><span class="nf">eval</span> <span class="p">(</span><span class="nf">cons</span> <span class="ss">&#39;if</span> <span class="nv">if-tail</span><span class="p">)))))</span>
-</code></pre></div>
-<h3 id="rust">Rust<a class="headerlink" href="#rust" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><span class="cp">#[cfg(test)]</span><span class="w"></span>
-<span class="k">use</span><span class="w"> </span><span class="n">std</span>::<span class="n">cmp</span>::<span class="n">max</span><span class="p">;</span><span class="w"></span>
-
-<span class="cp">#[test]</span><span class="w"></span>
-<span class="k">fn</span> <span class="nf">test_lisp_float_size</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="n">double_size</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
-<span class="w">    </span><span class="n">mem</span>::<span class="n">size_of</span>::<span class="o">&lt;</span><span class="n">EmacsDouble</span><span class="o">&gt;</span><span class="p">();</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="n">ptr_size</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
-<span class="w">    </span><span class="n">mem</span>::<span class="n">size_of</span>::<span class="o">&lt;*</span><span class="k">const</span><span class="w"> </span><span class="n">Lisp_Float</span><span class="o">&gt;</span><span class="p">();</span><span class="w"></span>
-
-<span class="w">    </span><span class="fm">assert!</span><span class="p">(</span><span class="n">mem</span>::<span class="n">size_of</span>::<span class="o">&lt;</span><span class="n">Lisp_Float</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">max</span><span class="p">(</span><span class="n">double_size</span><span class="p">,</span><span class="w"></span>
-<span class="n">ptr_size</span><span class="p">));</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
-</code></pre></div>
-<h2 id="running-code-formatters">Running code formatters<a class="headerlink" href="#running-code-formatters" title="Permanent link">#</a></h2>
-<h3 id="rust_1">Rust<a class="headerlink" href="#rust_1" title="Permanent link">#</a></h3>
-<p>Run <code>cargo fmt</code> in the <code>rust_src/</code> folder and format all crates in the workspace.</p>
-<div class="highlight"><pre><span></span><code>make rustfmt
-</code></pre></div>
+                <h1 id="contributors-guide">Contributor's guide<a class="headerlink" href="#contributors-guide" title="Permanent link">#</a></h1>
+<h2 id="getting-started">Getting started<a class="headerlink" href="#getting-started" title="Permanent link">#</a></h2>
+<p>Huge code bases can be intimidating and it always takes some time to
+get familiar with a project. Don't be afraid to ask questions and to
+say your opinion. We want to encourage you to share your thoughts with
+us, so if you have an idea for a new feature or how we can improve the
+existing ones, feel free to open an issue.</p>
+<p>You should start by reading our docs. This also allows you to start
+contributing by improving our docs. Since documentation is very
+important to get new contibutors on board, this helps us to grow the
+community.</p>
+<p>This document is only supposed as an introduction but we will add more
+doc files that contain detailed information on important parts of the
+project. Advanced features like webrender or javascript support are
+documented seperately.</p>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">#</a></h2>
+<p>Most of the additional functionality of emacs-ng can be found in
+<code>rust_src/</code>. This is the root of the main crate, however the actual code
+is located under <code>rust_src/crates/</code>, except the crates that are only
+used for the build.</p>
+<p>Some crates will only be built if you activate the related features
+when calling <code>./configure</code>. You can find the features that are used by
+emacs-ng in <code>Cargo.toml.in</code>. Some of them are turned on by
+default. Take a look at <code>configure.ac</code> to see how they will be
+activated during the build process.</p>
+<p>We only apply changes to the emacs code if it's necessary for features
+that are defined in rust. This way there are less merge conflicts when
+we perform upstream merges.</p>
+<p>Bug fixes that also affect emacs can be tracked by an issue, but
+should but fixed upstream.</p>
+<h2 id="bindgen">Bindgen<a class="headerlink" href="#bindgen" title="Permanent link">#</a></h2>
+<p>We use bindgen to generate rust bindings for the functions defined in
+C. Those bindings are in the crate "emacs" and are used by other
+crates through importing them from the emacs crate.</p>
+<p>The crate ng-bindgen holds the code that is responsible for generating
+the bindings.</p>
+<h2 id="lisp">Lisp<a class="headerlink" href="#lisp" title="Permanent link">#</a></h2>
+<p>The emacs crate also contains most of the code that allows us to make
+use of elisp types. One of the most important types is <code>LispObject</code>
+which is the equivalent to the C type
+<code>Lisp_Object</code>.(handbook/types.md)</p>
+<p>In order to define lisp functions in rust you have to take a look at
+the macro <code>lisp_fn</code>. Compared to the C version <code>DEFUN</code> it provides a
+lot more flexibility(handbook/lisp-fn.md).</p>
                 
                   
                     
@@ -889,7 +826,7 @@ what the test is trying to validate.</p>
   
     <nav class="md-footer__inner md-grid" aria-label="Footer">
       
-        <a href="../getting-started/" class="md-footer__link md-footer__link--prev" rel="prev">
+        <a href="../../faq/" class="md-footer__link md-footer__link--prev" rel="prev">
           <div class="md-footer__button md-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
           </div>
@@ -898,19 +835,19 @@ what the test is trying to validate.</p>
               <span class="md-footer__direction">
                 Previous
               </span>
-              Getting started
+              FAQ
             </div>
           </div>
         </a>
       
       
-        <a href="../lisp-fn/" class="md-footer__link md-footer__link--next" rel="next">
+        <a href="../tests/" class="md-footer__link md-footer__link--next" rel="next">
           <div class="md-footer__title">
             <div class="md-ellipsis">
               <span class="md-footer__direction">
                 Next
               </span>
-              lisp-fn
+              tests
             </div>
           </div>
           <div class="md-footer__button md-icon">
