@@ -360,7 +360,7 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     wr_font.font_instance_key = output.add_font_instance(font_key, pixel_size as i32);
 
     let font_metrics = wr_font.font_backend.metrics();
-    let font_advance = wr_font.font_backend.advance(33).unwrap();
+    let font_advance = wr_font.font_backend.advance(0).unwrap();
 
     let scale = pixel_size as f32 / font_metrics.units_per_em as f32;
 
