@@ -26,7 +26,7 @@ clippy = { version = "*", optional = true }
 [build-dependencies]
 clippy = { version = "*", optional = true }
 lazy_static = "1.2"
-libc = "0.2"
+libc = "0.2.95"
 regex = "1.1"
 
 [dev-dependencies]

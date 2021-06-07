@@ -11,7 +11,7 @@ emacs = { version = "0.1.0", path = "../emacs" }
 lisp-macros = { version = "0.1.0", path = "../lisp_macros" }
 lisp-util = { version = "0.1.0", path = "../lisp_util" }
 ng_async = { version = "0.1.0", path = "../ng_async" }
-libc = "0.2"
+libc = "0.2.95"
 lazy_static = "1.2"
 futures = "0.3"
 deno_core = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng" }
