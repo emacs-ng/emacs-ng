@@ -226,15 +226,18 @@ macro_rules! defvar_lisp {
     ($field_name:ident, $lisp_name:expr, $value:expr) => {{
         #[allow(unused_unsafe)]
         unsafe {
-            #[allow(const_err)]
-            static mut o_fwd: ::hacks::Hack<::data::Lisp_Objfwd> =
-                unsafe { ::hacks::Hack::uninitialized() };
-            ::remacs_sys::defvar_lisp(
-                o_fwd.get_mut(),
-                concat!($lisp_name, "\0").as_ptr() as *const i8,
-                &mut ::remacs_sys::globals.$field_name,
+            use $crate::bindings::Lisp_Objfwd;
+
+            static mut o_fwd: Lisp_Objfwd = Lisp_Objfwd {
+                type_: $crate::bindings::Lisp_Fwd_Type::Lisp_Fwd_Obj,
+                objvar: unsafe { &$crate::bindings::globals.$field_name as *const _ as *mut _ },
+            };
+
+            $crate::bindings::defvar_lisp(
+                &o_fwd,
+                concat!($lisp_name, "\0").as_ptr() as *const libc::c_char,
             );
-            ::remacs_sys::globals.$field_name = $value;
+            $crate::bindings::globals.$field_name = $value;
         }
     }};
 }

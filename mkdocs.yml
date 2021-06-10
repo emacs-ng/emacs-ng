@@ -14,8 +14,9 @@ nav:
       - Release .deb package: build/release.md
       - Nix Build / Develop: build/nix-develop.md
   - Deno/Javascript:
-    - Using Deno: js/using-deno.md
+    - Overview: js/overview.md
     - Getting started: js/getting-started.md
+    - Using Deno: js/using-deno.md
     - Basic features: js/main-features.md
     - Advanced features: js/adv-features.md
     - Architecture: js/architecture.md
