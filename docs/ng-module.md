@@ -1,10 +1,17 @@
 # Dynamic Modules
 
-Emacs-ng is always built with dynamic modules support enabled, and is *fully compatible* with dynamic modules written for "vanilla" Emacs.
+Emacs-ng is always built with dynamic modules support enabled, and is
+*fully compatible* with dynamic modules written for "vanilla" Emacs.
 
-On top of the existing `emacs-module.h` interface, Emacs-ng provides additional extensions that allow dynamic modules to access *more of Emacs's internals*. Dynamic modules can be written to take advantage of these extra functionalities when they are available, while at the same time being *fully compatible* with vanilla Emacs.
+On top of the existing `emacs-module.h` interface, Emacs-ng provides
+additional extensions that allow dynamic modules to access *more of
+Emacs's internals*. Dynamic modules can be written to take advantage
+of these extra functionalities when they are available, while at the
+same time being *fully compatible* with vanilla Emacs.
 
-The additional extensions are exposed as a registry of named native functions that can be looked up at run time. These native functions are called *ng-module functions*:
+The additional extensions are exposed as a registry of named native
+functions that can be looked up at run time. These native functions
+are called *ng-module functions*:
 
 ```emacs-lisp
 ELISP> (ng-module-function-address "ng_module_access_current_buffer_contents")
@@ -13,19 +20,44 @@ ELISP> (ng-module-function-address "non_existing_or_removed_function")
 nil
 ```
 
-Unlike normal module functions from `emacs_env`,  these ng-module functions have *globally stable addresses*. Therefore, the lookup can (and should) be done once, at module load time, inside `emacs_module_init`. Also note that, even though the lookup function `ng-module-function-address` is available to Lisp code, it is intended to be used by dynamic modules' native code. (Lisp code cannot meaningfully use the returned address, anyway.)
+Unlike normal module functions from `emacs_env`, these ng-module
+functions have *globally stable addresses*. Therefore, the lookup can
+(and should) be done once, at module load time, inside
+`emacs_module_init`. Also note that, even though the lookup function
+`ng-module-function-address` is available to Lisp code, it is intended
+to be used by dynamic modules' native code. (Lisp code cannot
+meaningfully use the returned address, anyway.)
 
-Once an ng-module function is added, its signature will not change. If a similar ng-module function with improved functionalities is added, it will be given a different name. However, a ng-module function **can be removed**.
+Once an ng-module function is added, its signature will not change. If
+a similar ng-module function with improved functionalities is added,
+it will be given a different name. However, a ng-module function **can
+be removed**.
 
 ## Direct access to buffer text
 
-To access a buffer's text, a "vanilla" dynamic module has to call a buffer-to-string function, like `buffer-substring`, then call `emacs_env->copy_string_contents` (resulting in a `memcpy`). The temporary Lisp string is typically discarded right away. This is a potential performance bottleneck in hot code paths, like [emacs-tree-sitter](https://github.com/ubolonton/emacs-tree-sitter)'s parsing/querying.
+To access a buffer's text, a "vanilla" dynamic module has to call a
+buffer-to-string function, like `buffer-substring`, then call
+`emacs_env->copy_string_contents` (resulting in a `memcpy`). The
+temporary Lisp string is typically discarded right away. This is a
+potential performance bottleneck in hot code paths, like
+[emacs-tree-sitter](https://github.com/ubolonton/emacs-tree-sitter)'s
+parsing/querying.
 
-A dynamic module can instead use the ng-module function `ng_module_access_current_buffer_contents` to directly read a buffer's text, without copying, or creating a Lisp string. It returns the pointers to (and the sizes of) the 2 contiguous byte segments before and after the buffer's gap.
+A dynamic module can instead use the ng-module function
+`ng_module_access_current_buffer_contents` to directly read a buffer's
+text, without copying, or creating a Lisp string. It returns the
+pointers to (and the sizes of) the 2 contiguous byte segments before
+and after the buffer's gap.
 
-The caller **must not write** through the returned pointers, and must ensure that the data is **read before it is invalidated**. Some operations that may invalidate the data are: buffer modifications, garbage collection (which can be triggered by uses of `emacs_env`), arena compaction (which can be triggered by `malloc` when Emacs is built with `REL_ALLOC`).
+The caller **must not write** through the returned pointers, and must
+ensure that the data is **read before it is invalidated**. Some
+operations that may invalidate the data are: buffer modifications,
+garbage collection (which can be triggered by uses of `emacs_env`),
+arena compaction (which can be triggered by `malloc` when Emacs is
+built with `REL_ALLOC`).
 
-Below is an example of how to use this function in a dynamic module written in Rust:
+Below is an example of how to use this function in a dynamic module
+written in Rust:
 
 ```rust
 use std::mem::{self, MaybeUninit};
@@ -91,4 +123,6 @@ pub unsafe fn current_buffer_contents(_: &Env) -> (&[u8], &[u8]) {
 }
 ```
 
-A future version of [emacs-module-rs](https://github.com/ubolonton/emacs-module-rs/) may provide a more convenient wrapper for this function.
+A future version of
+[emacs-module-rs](https://github.com/ubolonton/emacs-module-rs/) may
+provide a more convenient wrapper for this function.
