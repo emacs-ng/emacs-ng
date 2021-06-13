@@ -14,19 +14,19 @@ jobs:
                   rustup component add rustfmt-preview
                   echo "::set-output name=week::$(/bin/date -u '+%Yy_%mm_%Ww')"
 
-            - name: rust cache
-              uses: actions/cache@v2
-              with:
-                  path: |
-                      ~/.cargo/registry/cache
-                      ~/.cargo/git
-                      ./rust_src/target
-                  key: |
-                      ${{ runner.os }}-${{ matrix.build }}-deno-v1.9.2-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-${{ steps.rust-setup.outputs.week }}
-                  restore-keys: |
-                      ${{ runner.os }}-${{ matrix.build }}-deno-v1.9.2-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-${{ steps.rust-setup.outputs.week }}
-                      ${{ runner.os }}-${{ matrix.build }}-deno-v1.9.2-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-
-                      ${{ runner.os }}-${{ matrix.build }}-deno-v1.9.2-rust
+            # - name: rust cache
+            #   uses: actions/cache@v2
+            #   with:
+            #       path: |
+            #           ~/.cargo/registry/cache
+            #           ~/.cargo/git
+            #           ./rust_src/target
+            #       key: |
+            #           ${{ runner.os }}-${{ matrix.build }}-deno-v1.9.2-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-${{ steps.rust-setup.outputs.week }}
+            #       restore-keys: |
+            #           ${{ runner.os }}-${{ matrix.build }}-deno-v1.9.2-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-${{ steps.rust-setup.outputs.week }}
+            #           ${{ runner.os }}-${{ matrix.build }}-deno-v1.9.2-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-
+            #           ${{ runner.os }}-${{ matrix.build }}-deno-v1.9.2-rust
 
             - name: cache cleanup
               if: steps.rust-cache.outputs.cache-hit != 'true'
@@ -76,19 +76,19 @@ jobs:
                   rustup install $(cat rust-toolchain)
                   echo "::set-output name=week::$(/bin/date -u '+%Yy_%mm_%Ww')"
 
-            - name: rust cache
-              uses: actions/cache@v2
-              with:
-                  path: |
-                      ~/.cargo/registry/cache
-                      ~/.cargo/git
-                      ./rust_src/target
-                  key: |
-                      ${{ runner.os }}-${{ matrix.build }}-rust-deno-v1.9.2-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/Cargo.toml*') }}-${{ steps.rust-setup.outputs.week }}
-                  restore-keys: |
-                      ${{ runner.os }}-${{ matrix.build }}-rust-deno-v1.9.2-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/Cargo.toml*') }}-${{ steps.rust-setup.outputs.week }}
-                      ${{ runner.os }}-${{ matrix.build }}-rust-deno-v1.9.2-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/Cargo.toml*') }}-
-                      ${{ runner.os }}-${{ matrix.build }}-rust-deno-v1.9.2-
+            # - name: rust cache
+            #   uses: actions/cache@v2
+            #   with:
+            #       path: |
+            #           ~/.cargo/registry/cache
+            #           ~/.cargo/git
+            #           ./rust_src/target
+            #       key: |
+            #           ${{ runner.os }}-${{ matrix.build }}-rust-deno-v1.9.2-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/Cargo.toml*') }}-${{ steps.rust-setup.outputs.week }}
+            #       restore-keys: |
+            #           ${{ runner.os }}-${{ matrix.build }}-rust-deno-v1.9.2-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/Cargo.toml*') }}-${{ steps.rust-setup.outputs.week }}
+            #           ${{ runner.os }}-${{ matrix.build }}-rust-deno-v1.9.2-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/Cargo.toml*') }}-
+            #           ${{ runner.os }}-${{ matrix.build }}-rust-deno-v1.9.2-
 
             - name: cache cleanup
               if: steps.rust-cache.outputs.cache-hit != 'true'
