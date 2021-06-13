@@ -20,5 +20,5 @@ jobs:
       run: nix flake check
     - name: Build Emacsng-Rust Dependency
       run: nix build .#emacsNg-rust
-    - name: Run Emacsng Exec
-      run: nix-shell --command "emacs --version"
+    # - name: Run Emacsng Exec
+    #   run: nix-shell --command "emacs --version"

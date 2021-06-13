@@ -136,7 +136,7 @@
                       cp -r ${pathDir} crates
                       sed -i 's|../crates/lisp_util|./crates/lisp_util|' Cargo.toml
                     '' + doVersionedUpdate;
-                  sha256 = "sha256-W/A3mYNBLZrcjL9ehXe6ndjv/bMiUdRDTylAM9hLeoo=";
+                  sha256 = "sha256-BI02D+hdl6kluu89ID0QEj7e5mb7p7Bi5Nj1HPjg9oc=";
                   inherit installPhase;
                 };
 
@@ -145,17 +145,17 @@
                   sourceRoot = null;
                   cargoUpdateHook = doVersionedUpdate;
                   name = "ngBindgen";
-                  sha256 = "sha256-XGZMeq3U9RzqRXD3sHnblIM7GNVGnzCIwBIzlj+LBf8=";
+                  sha256 = "sha256-MsMfcZ/Oni5dsOeuA37bSYscQLTZOJe5D4dB8KAgc5s=";
                   inherit installPhase;
                 };
 
                 remacsSrc = prev.rustPlatform.fetchCargoTarball {
-                  src = emacsNgSource + "/rust_src";
+                  src = ./. + "/rust_src";
                   cargoUpdateHook = ''
                     sed -e 's/@CARGO_.*@//' Cargo.toml.in > Cargo.toml
                   '' + doVersionedUpdate;
                   name = "remacsSrc";
-                  sha256 = "sha256-TcEDvSYWGUCLQf09O27rAkEALSIZZFOEiGHqigKP7fo=";
+                  sha256 = "sha256-JsMVCyWWEBOFUgYUynWU/tiqzDdTNZSrvZAlIEy8r7g=";
                   inherit installPhase;
                 };
 
@@ -279,9 +279,9 @@
                         done
                       }
                       _librusty_v8_setup "debug" "release" "${arch}/release"
-                        sed -i 's|deno = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng"|deno = { version = "1.9.2"|' rust_src/crates/js/Cargo.toml
-                        sed -i 's|deno_runtime = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng"|deno_runtime = { version = "0.13.0"|' rust_src/crates/js/Cargo.toml
-                        sed -i 's|deno_core = { git = "https://github.com/DavidDeSimone/deno"|deno_core = { version = "0.86.0"|' rust_src/crates/js/Cargo.toml
+                        sed -i 's|deno = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng"|deno = { version = "1.9.2"|' rust_src/crates/js/Cargo.toml
+                        sed -i 's|deno_runtime = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng"|deno_runtime = { version = "0.13.0"|' rust_src/crates/js/Cargo.toml
+                        sed -i 's|deno_core = { git = "https://github.com/emacs-ng/deno"|deno_core = { version = "0.86.0"|' rust_src/crates/js/Cargo.toml
                       export HOME=${final.emacsNg-rust}
                   '';
 
