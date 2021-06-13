@@ -866,7 +866,7 @@ dependencies = [
 [[package]]
 name = "deno"
 version = "1.9.2"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#64d58c916233c58044b859bdd06e77fdd15069bf"
+source = "git+https://github.com/emacs-ng/deno?branch=emacs-ng#bb9335dca35b05348cb032cc85bcde457ece2d64"
 dependencies = [
  "atty",
  "base64 0.13.0",
@@ -920,7 +920,7 @@ dependencies = [
 [[package]]
 name = "deno_console"
 version = "0.5.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#64d58c916233c58044b859bdd06e77fdd15069bf"
+source = "git+https://github.com/emacs-ng/deno?branch=emacs-ng#bb9335dca35b05348cb032cc85bcde457ece2d64"
 dependencies = [
  "deno_core",
 ]
@@ -928,7 +928,7 @@ dependencies = [
 [[package]]
 name = "deno_core"
 version = "0.86.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#64d58c916233c58044b859bdd06e77fdd15069bf"
+source = "git+https://github.com/emacs-ng/deno?branch=emacs-ng#bb9335dca35b05348cb032cc85bcde457ece2d64"
 dependencies = [
  "anyhow",
  "futures",
@@ -947,7 +947,7 @@ dependencies = [
 [[package]]
 name = "deno_crypto"
 version = "0.19.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#64d58c916233c58044b859bdd06e77fdd15069bf"
+source = "git+https://github.com/emacs-ng/deno?branch=emacs-ng#bb9335dca35b05348cb032cc85bcde457ece2d64"
 dependencies = [
  "deno_core",
  "rand 0.8.3",
@@ -972,7 +972,7 @@ dependencies = [
 [[package]]
 name = "deno_fetch"
 version = "0.27.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#64d58c916233c58044b859bdd06e77fdd15069bf"
+source = "git+https://github.com/emacs-ng/deno?branch=emacs-ng#bb9335dca35b05348cb032cc85bcde457ece2d64"
 dependencies = [
  "bytes",
  "data-url",
@@ -989,7 +989,7 @@ dependencies = [
 [[package]]
 name = "deno_file"
 version = "0.4.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#64d58c916233c58044b859bdd06e77fdd15069bf"
+source = "git+https://github.com/emacs-ng/deno?branch=emacs-ng#bb9335dca35b05348cb032cc85bcde457ece2d64"
 dependencies = [
  "deno_core",
  "uuid",
@@ -1018,7 +1018,7 @@ dependencies = [
 [[package]]
 name = "deno_runtime"
 version = "0.13.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#64d58c916233c58044b859bdd06e77fdd15069bf"
+source = "git+https://github.com/emacs-ng/deno?branch=emacs-ng#bb9335dca35b05348cb032cc85bcde457ece2d64"
 dependencies = [
  "atty",
  "bytes",
@@ -1066,7 +1066,7 @@ dependencies = [
 [[package]]
 name = "deno_timers"
 version = "0.3.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#64d58c916233c58044b859bdd06e77fdd15069bf"
+source = "git+https://github.com/emacs-ng/deno?branch=emacs-ng#bb9335dca35b05348cb032cc85bcde457ece2d64"
 dependencies = [
  "deno_core",
  "tokio",
@@ -1075,7 +1075,7 @@ dependencies = [
 [[package]]
 name = "deno_url"
 version = "0.5.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#64d58c916233c58044b859bdd06e77fdd15069bf"
+source = "git+https://github.com/emacs-ng/deno?branch=emacs-ng#bb9335dca35b05348cb032cc85bcde457ece2d64"
 dependencies = [
  "deno_core",
  "idna",
@@ -1086,7 +1086,7 @@ dependencies = [
 [[package]]
 name = "deno_web"
 version = "0.35.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#64d58c916233c58044b859bdd06e77fdd15069bf"
+source = "git+https://github.com/emacs-ng/deno?branch=emacs-ng#bb9335dca35b05348cb032cc85bcde457ece2d64"
 dependencies = [
  "deno_core",
 ]
@@ -1094,7 +1094,7 @@ dependencies = [
 [[package]]
 name = "deno_webgpu"
 version = "0.6.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#64d58c916233c58044b859bdd06e77fdd15069bf"
+source = "git+https://github.com/emacs-ng/deno?branch=emacs-ng#bb9335dca35b05348cb032cc85bcde457ece2d64"
 dependencies = [
  "deno_core",
  "serde",
@@ -1106,7 +1106,7 @@ dependencies = [
 [[package]]
 name = "deno_webidl"
 version = "0.5.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#64d58c916233c58044b859bdd06e77fdd15069bf"
+source = "git+https://github.com/emacs-ng/deno?branch=emacs-ng#bb9335dca35b05348cb032cc85bcde457ece2d64"
 dependencies = [
  "deno_core",
 ]
@@ -1114,7 +1114,7 @@ dependencies = [
 [[package]]
 name = "deno_websocket"
 version = "0.10.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#64d58c916233c58044b859bdd06e77fdd15069bf"
+source = "git+https://github.com/emacs-ng/deno?branch=emacs-ng#bb9335dca35b05348cb032cc85bcde457ece2d64"
 dependencies = [
  "deno_core",
  "http",
@@ -4292,7 +4292,7 @@ dependencies = [
 [[package]]
 name = "serde_v8"
 version = "0.3.0"
-source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng#64d58c916233c58044b859bdd06e77fdd15069bf"
+source = "git+https://github.com/emacs-ng/deno?branch=emacs-ng#bb9335dca35b05348cb032cc85bcde457ece2d64"
 dependencies = [
  "rusty_v8",
  "serde",
