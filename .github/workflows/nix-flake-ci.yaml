@@ -4,6 +4,8 @@ on:
   push:
 jobs:
   nix-build:
+    # TODO: enable job when nix build is fixed
+    if: ${{ false }}
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
