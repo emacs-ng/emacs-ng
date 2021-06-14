@@ -136,7 +136,7 @@
                       cp -r ${pathDir} crates
                       sed -i 's|../crates/lisp_util|./crates/lisp_util|' Cargo.toml
                     '' + doVersionedUpdate;
-                  sha256 = "sha256-BI02D+hdl6kluu89ID0QEj7e5mb7p7Bi5Nj1HPjg9oc=";
+                  sha256 = "sha256-BI02D+hdl6kluu89ID0QEj7e5mb7p7Bi5Nj1HPjg9of=";
                   inherit installPhase;
                 };
 
@@ -150,12 +150,12 @@
                 };
 
                 remacsSrc = prev.rustPlatform.fetchCargoTarball {
-                  src = ./. + "/rust_src";
+                  src = emacsNgSource + "/rust_src";
                   cargoUpdateHook = ''
                     sed -e 's/@CARGO_.*@//' Cargo.toml.in > Cargo.toml
                   '' + doVersionedUpdate;
                   name = "remacsSrc";
-                  sha256 = "sha256-JsMVCyWWEBOFUgYUynWU/tiqzDdTNZSrvZAlIEy8r7g=";
+                  sha256 = "sha256-BCVybKYD+xmKWprVBUgqDaa+8/+Sopo3G3cc6gCXKw4=";
                   inherit installPhase;
                 };
 
@@ -282,6 +282,8 @@
                         sed -i 's|deno = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng"|deno = { version = "1.9.2"|' rust_src/crates/js/Cargo.toml
                         sed -i 's|deno_runtime = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng"|deno_runtime = { version = "0.13.0"|' rust_src/crates/js/Cargo.toml
                         sed -i 's|deno_core = { git = "https://github.com/emacs-ng/deno"|deno_core = { version = "0.86.0"|' rust_src/crates/js/Cargo.toml
+
+                        sed -i 's|git = "https://github.com/servo/webrender.git", rev = ".*."|version = "0.61.0"|' rust_src/crates/webrender/Cargo.toml
                       export HOME=${final.emacsNg-rust}
                   '';
 
