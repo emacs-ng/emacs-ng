@@ -3,9 +3,8 @@
 #![feature(async_closure)]
 #![feature(maybe_uninit_extra)]
 
-#[macro_use]
-extern crate serde_json;
 extern crate futures;
+extern crate serde_json;
 
 #[macro_use]
 extern crate emacs;
