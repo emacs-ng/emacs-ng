@@ -574,6 +574,7 @@ fn write_lisp_fns(
     Ok(())
 }
 
+#[cfg(feature = "window-system-webrender")]
 fn generate_rgb_list() {
     let file = BufReader::new(File::open("../etc/rgb.txt").unwrap());
     let color = file
