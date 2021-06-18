@@ -1294,8 +1294,8 @@ elements are present."
 
 ;; First, some common methods.
 
-(cl-defgeneric gnus-search-indexed-parse-output (engine server &optional groups)
-  "Parse the results of ENGINE's query against SERVER in GROUPS.
+(cl-defgeneric gnus-search-indexed-parse-output (engine server query &optional groups)
+  "Parse the results of ENGINE's QUERY against SERVER in GROUPS.
 Locally-indexed search engines return results as a list of
 filenames, sometimes with additional information.  Returns a list
 of viable results, in the form of a list of [group article score]
@@ -1358,9 +1358,12 @@ Returns a list of [group article score] vectors."
 			 "\\|")))
 	artlist vectors article group)
     (goto-char (point-min))
-    (while (not (eobp))
+    (while (not (or (eobp)
+                    (looking-at-p
+                     "\\(?:[[:space:]\n]+\\)?Process .+ finished")))
       (pcase-let ((`(,f-name ,score) (gnus-search-indexed-extract engine)))
-	(when (and (file-readable-p f-name)
+	(when (and f-name
+                   (file-readable-p f-name)
 		   (null (file-directory-p f-name))
 		   (or (null groups)
 		       (and (gnus-search-single-p query)

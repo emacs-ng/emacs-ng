@@ -1197,11 +1197,11 @@ please check its value")
 
   ;; Re-evaluate predefined variables whose initial value depends on
   ;; the runtime context.
-  (setq custom-delayed-init-variables
-        ;; Initialize them in the same order they were loaded, in case there
-        ;; are dependencies between them.
-        (nreverse custom-delayed-init-variables))
-  (mapc #'custom-reevaluate-setting custom-delayed-init-variables)
+  (when (listp custom-delayed-init-variables)
+    (mapc #'custom-reevaluate-setting
+          ;; Initialize them in the same order they were loaded, in
+          ;; case there are dependencies between them.
+          (reverse custom-delayed-init-variables)))
   (setq custom-delayed-init-variables t)
 
   ;; Warn for invalid user name.
@@ -2316,6 +2316,9 @@ A fancy display is used on graphic displays, normal otherwise."
       (with-current-buffer (get-buffer-create "*scratch*")
         (set-buffer-major-mode (current-buffer))
         (current-buffer))))
+
+;; This avoids byte-compiler warning in the unexec build.
+(declare-function pdumper-stats "pdumper.c" ())
 
 (defun command-line-1 (args-left)
   "A subroutine of `command-line'."
