@@ -25,6 +25,7 @@ nav:
   - FAQ: faq.md
   - Native Hackers Handbook:
     - Getting started: handbook/getting-started.md
+    - build: handbook/build.md
     - tests: handbook/tests.md
     - lisp-fn: handbook/lisp-fn.md
     - types: handbook/types.md
