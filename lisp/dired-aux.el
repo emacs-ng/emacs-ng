@@ -1132,6 +1132,7 @@ present.  A FMT of \"\" will suppress the messaging."
     ;; Solaris 10 version of tar (obsolete in 2024?).
     ;; Same thing on AIX 7.1 (obsolete 2023?) and 7.2 (obsolete 2022?).
     ("\\.tar\\.gz\\'" "" "gzip -dc %i | tar -xf -")
+    ("\\.tar\\.xz\\'" "" "xz -dc %i | tar -xf -")
     ("\\.tgz\\'" "" "gzip -dc %i | tar -xf -")
     ("\\.gz\\'" "" "gunzip")
     ("\\.lz\\'" "" "lzip -d")
@@ -1149,10 +1150,7 @@ present.  A FMT of \"\" will suppress the messaging."
     ("\\.zst\\'" "" "unzstd --rm")
     ("\\.7z\\'" "" "7z x -aoa -o%o %i")
     ;; This item controls naming for compression.
-    ("\\.tar\\'" ".tgz" nil)
-    ;; This item controls the compression of directories.  Its REGEXP
-    ;; element should never match any valid file name.
-    ("\000" ".tar.gz" "tar -cf - %i | gzip -c9 > %o"))
+    ("\\.tar\\'" ".tgz" nil))
   "Control changes in file name suffixes for compression and uncompression.
 Each element specifies one transformation rule, and has the form:
   (REGEXP NEW-SUFFIX PROGRAM)
@@ -1168,6 +1166,34 @@ output file.
 Otherwise, the rule is a compression rule, and compression is done with gzip.
 ARGS are command switches passed to PROGRAM.")
 
+(defcustom dired-compress-file-default-suffix nil
+  "Default suffix for compressing a single file.
+If nil, \".gz\" will be used."
+  :type '(choice (const :tag ".gz" nil) string)
+  :group 'dired
+  :version "28.1")
+
+(defvar dired-compress-file-alist
+  '(("\\.gz\\'" . "gzip -9f %i")
+    ("\\.bz2\\'" . "bzip2 -9f %i")
+    ("\\.xz\\'" . "xz -9f %i")
+    ("\\.zst\\'" . "zstd -qf -19 --rm -o %o %i"))
+  "Controls the compression shell command for `dired-do-compress-to'.
+
+Each element is (REGEXP . CMD), where REGEXP is the name of the
+archive to which you want to compress, and CMD is the
+corresponding command.
+
+Within CMD, %i denotes the input file(s), and %o denotes the
+output file.  %i path(s) are relative, while %o is absolute.")
+
+(defcustom dired-compress-directory-default-suffix nil
+  "Default suffix for compressing a directory.
+If nil, \".tar.gz\" will be used."
+  :type '(choice (const :tag ".tar.gz" nil) string)
+  :group 'dired
+  :version "28.1")
+
 (defvar dired-compress-files-alist
   '(("\\.tar\\.gz\\'" . "tar -cf - %i | gzip -c9 > %o")
     ("\\.tar\\.bz2\\'" . "tar -cf - %i | bzip2 -c9 > %o")
@@ -1177,7 +1203,7 @@ ARGS are command switches passed to PROGRAM.")
     ("\\.tar\\.lzo\\'" . "tar -cf - %i | lzop -c9 > %o")
     ("\\.zip\\'" . "zip %o -r --filesync %i")
     ("\\.pax\\'" . "pax -wf %o %i"))
-  "Control the compression shell command for `dired-do-compress-to'.
+  "Controls the compression shell command for `dired-do-compress-to'.
 
 Each element is (REGEXP . CMD), where REGEXP is the name of the
 archive to which you want to compress, and CMD is the
@@ -1275,37 +1301,62 @@ Return nil if no change in files."
            ;; Try gzip; if we don't have that, use compress.
            (condition-case nil
                (if (file-directory-p file)
-                   (progn
-                     (setq suffix (cdr (assoc "\000" dired-compress-file-suffixes)))
-                     (when suffix
-                       (let ((out-name (concat file (car suffix)))
-                             (default-directory (file-name-directory file)))
-                         (dired-shell-command
-                          (replace-regexp-in-string
-                           "%o" (shell-quote-argument out-name)
+                   (let* ((suffix
+                           (or dired-compress-directory-default-suffix
+                               ".tar.gz"))
+                          (rule (cl-find-if
+                                 (lambda (x) (string-match-p (car x) suffix))
+                                 dired-compress-files-alist)))
+                     (if rule
+                         (let ((out-name (concat file suffix))
+                               (default-directory (file-name-directory file)))
+                           (dired-shell-command
+                            (replace-regexp-in-string
+                             "%o" (shell-quote-argument out-name)
+                             (replace-regexp-in-string
+                              "%i" (shell-quote-argument
+                                    (file-name-nondirectory file))
+                              (cdr rule)
+                              nil t)
+                             nil t))
+                           out-name)
+                       (user-error
+                        "No compression rule found for \
+`dired-compress-directory-default-suffix' %s, see `dired-compress-files-alist' for\
+ the supported suffixes list."
+                        dired-compress-directory-default-suffix)))
+                 (let* ((suffix (or dired-compress-file-default-suffix ".gz"))
+                        (out-name (concat file suffix))
+                        (rule (cl-find-if
+                               (lambda (x) (string-match-p (car x) suffix))
+                               dired-compress-file-alist)))
+                   (if (not rule)
+                       (user-error "No compression rule found for suffix %s, \
+see `dired-compress-file-alist' for the supported suffixes list."
+                                   dired-compress-file-default-suffix)
+                     (and (file-exists-p file)
+                          (or (not (file-exists-p out-name))
+                              (y-or-n-p
+                               (format
+                                "File %s already exists.  Really compress? "
+                                out-name)))
+                          (dired-shell-command
                            (replace-regexp-in-string
-                            "%i" (shell-quote-argument (file-name-nondirectory file))
-                            (cadr suffix)
-                            nil t)
-                           nil t))
-                         out-name)))
-                 (let ((out-name (concat file ".gz")))
-                   (and (or (not (file-exists-p out-name))
-                            (y-or-n-p
-                             (format "File %s already exists.  Really compress? "
-                                     out-name)))
-                        (not
-                         (dired-check-process (concat "Compressing " file)
-                                              "gzip" "-f" file))
-                        (or (file-exists-p out-name)
-                            (setq out-name (concat file ".z")))
-                        ;; Rename the compressed file to NEWNAME
-                        ;; if it hasn't got that name already.
-                        (if (and newname (not (equal newname out-name)))
-                            (progn
-                              (rename-file out-name newname t)
-                              newname)
-                          out-name))))
+                            "%o" (shell-quote-argument out-name)
+                            (replace-regexp-in-string
+                             "%i" (shell-quote-argument file)
+                             (cdr rule)
+                             nil t)
+                            nil t))
+                          (or (file-exists-p out-name)
+                              (setq out-name (concat file ".z")))
+                          ;; Rename the compressed file to NEWNAME
+                          ;; if it hasn't got that name already.
+                          (if (and newname (not (equal newname out-name)))
+                              (progn
+                                (rename-file out-name newname t)
+                                newname)
+                            out-name)))))
              (file-error
               (if (not (dired-check-process (concat "Compressing " file)
                                             "compress" "-f" file))
@@ -1808,7 +1859,7 @@ unless OK-IF-ALREADY-EXISTS is non-nil."
     (while blist
       (with-current-buffer (car blist)
 	(if (and buffer-file-name
-		 (dired-in-this-tree-p buffer-file-name expanded-from-dir))
+		 (file-in-directory-p buffer-file-name expanded-from-dir))
 	    (let ((modflag (buffer-modified-p))
 		  (to-file (replace-regexp-in-string
 			    (concat "^" (regexp-quote from-dir))
@@ -1827,7 +1878,7 @@ unless OK-IF-ALREADY-EXISTS is non-nil."
     (while alist
       (setq elt (car alist)
 	    alist (cdr alist))
-      (if (dired-in-this-tree-p (car elt) expanded-dir)
+      (if (file-in-directory-p (car elt) expanded-dir)
 	  ;; ELT's subdir is affected by the rename
 	  (dired-rename-subdir-2 elt dir to)))
     (if (equal dir default-directory)
@@ -1912,6 +1963,9 @@ or with the current marker character if MARKER-CHAR is t."
     (let (to overwrite-query
 	     overwrite-backup-query)	; for dired-handle-overwrite
       (dolist (from fn-list)
+        ;; Position point on the current file -- this is useful if
+        ;; handling a number of files to show where we're working at.
+        (dired-goto-file from)
         (setq to (funcall name-constructor from))
         (if (equal to from)
             (progn
@@ -2014,6 +2068,25 @@ ESC or `q' to not overwrite any of the remaining files,
 	       operation success-count))))
   (dired-move-to-filename))
 
+(defcustom dired-do-revert-buffer nil
+  "Automatically revert Dired buffers after `dired-do' operations.
+This option controls whether to refresh the directory listing in a
+Dired buffer that is the destination of one of these operations:
+`dired-do-copy', `dired-do-rename', `dired-do-symlink', `dired-do-hardlink'.
+If the value is t, always revert the Dired buffer updated in the result
+of these operations.
+If the value is a function, it is called with the destination directory name
+as a single argument, and the buffer is reverted after Dired operations
+if the function returns non-nil."
+  :type '(choice
+          (const :tag "Don't revert" nil)
+          (const :tag "Always revert destination directory" t)
+          (const :tag "Revert only local Dired buffers"
+                 (lambda (dir) (not (file-remote-p dir))))
+          (function :tag "Predicate function"))
+  :group 'dired
+  :version "28.1")
+
 (defun dired-do-create-files (op-symbol file-creator operation arg
 					&optional marker-char op1
 					how-to)
@@ -2109,15 +2182,21 @@ Optional arg HOW-TO determines how to treat the target.
           (error "%s: Target directory does not exist: %s" operation target))
       ;; rename-file bombs when moving directories unless we do this:
       (or into-dir (setq target (directory-file-name target)))
-      (dired-create-files
-       file-creator operation fn-list
-       (if into-dir			; target is a directory
-	   ;; This function uses fluid variable target when called
-	   ;; inside dired-create-files:
-	   (lambda (from)
-	     (expand-file-name (file-name-nondirectory from) target))
-	 (lambda (_from) target))
-       marker-char))))
+      (prog1
+          (dired-create-files
+           file-creator operation fn-list
+           (if into-dir			; target is a directory
+	       ;; This function uses fluid variable target when called
+	       ;; inside dired-create-files:
+	       (lambda (from)
+	         (expand-file-name (file-name-nondirectory from) target))
+	     (lambda (_from) target))
+           marker-char)
+        (when (or (eq dired-do-revert-buffer t)
+                  (and (functionp dired-do-revert-buffer)
+                       (funcall dired-do-revert-buffer target)))
+          (dired-fun-in-all-buffers (file-name-directory target) nil
+                                    #'revert-buffer))))))
 
 ;; Read arguments for a marked-files command that wants a file name,
 ;; perhaps popping up the list of marked files.
@@ -2628,7 +2707,7 @@ This function takes some pains to conform to `ls -lR' output."
       (setq switches (string-replace "R" "" switches))
       (dolist (cur-ass dired-subdir-alist)
 	(let ((cur-dir (car cur-ass)))
-	  (and (dired-in-this-tree-p cur-dir dirname)
+	  (and (file-in-directory-p cur-dir dirname)
 	       (let ((cur-cons (assoc-string cur-dir dired-switches-alist)))
 		 (if cur-cons
 		     (setcdr cur-cons switches)
@@ -2640,7 +2719,7 @@ This function takes some pains to conform to `ls -lR' output."
 (defun dired-insert-subdir-validate (dirname &optional switches)
   ;; Check that it is valid to insert DIRNAME with SWITCHES.
   ;; Signal an error if invalid (e.g. user typed `i' on `..').
-  (or (dired-in-this-tree-p dirname (expand-file-name default-directory))
+  (or (file-in-directory-p dirname (expand-file-name default-directory))
       (error  "%s: not in this directory tree" dirname))
   (let ((real-switches (or switches dired-subdir-switches)))
     (when real-switches
@@ -2681,7 +2760,7 @@ of marked files.  If KILL-ROOT is non-nil, kill DIRNAME as well."
       (setq dir (car (car s-alist))
 	    s-alist (cdr s-alist))
       (and (or kill-root (not (string-equal dir dirname)))
-	   (dired-in-this-tree-p dir dirname)
+	   (file-in-directory-p dir dirname)
 	   (dired-goto-subdir dir)
 	   (setq m-alist (nconc (dired-kill-subdir remember-marks) m-alist))))
     m-alist))
@@ -2913,7 +2992,7 @@ Lower levels are unaffected."
       (while rest
 	(setq elt (car rest)
 	      rest (cdr rest))
-	(if (dired-in-this-tree-p (directory-file-name (car elt)) dir)
+	(if (file-in-directory-p (directory-file-name (car elt)) dir)
 	    (setq rest nil
 		  pos (dired-goto-subdir (car elt))))))
     (if pos

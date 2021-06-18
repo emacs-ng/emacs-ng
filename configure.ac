@@ -2298,6 +2298,9 @@ doug_lea_malloc=$emacs_cv_var_doug_lea_malloc
 hybrid_malloc=
 system_malloc=yes
 
+dnl This must be before the test of $ac_cv_func_sbrk below.
+AC_CHECK_FUNCS_ONCE([sbrk])
+
 test $with_unexec = yes &&
 case "$opsys" in
   ## darwin ld insists on the use of malloc routines in the System framework.
@@ -3794,27 +3797,28 @@ AC_DEFUN([libgccjit_smoke_test], [
       }]])])
 
 AC_DEFUN([libgccjit_not_found], [
-  AC_MSG_ERROR([elisp native compiler requested but libgccjit not found.
-Please try installing libgccjit or similar package.
-If you are sure you want Emacs compiled without elisp native compiler, pass
-  --without-native-compilation
-to configure.])])
+  AC_MSG_ERROR([ELisp native compiler was requested, but libgccjit was not found.
+Please try installing libgccjit or a similar package.
+If you are sure you want Emacs be compiled without ELisp native compiler,
+pass the --without-native-compilation option to configure.])])
 
 AC_DEFUN([libgccjit_dev_not_found], [
-  AC_MSG_ERROR([elisp native compiler requested but libgccjit header files were
+  AC_MSG_ERROR([ELisp native compiler was requested, but libgccjit header files were
 not found.
-Please try installing libgccjit-dev or similar package.
-If you are sure you want Emacs compiled without elisp native compiler, pass
---without-nativecomp
-to configure.])])
+Please try installing libgccjit-dev or a similar package.
+If you are sure you want Emacs be compiled without ELisp native compiler,
+pass the --without-nativecomp option to configure.])])
 
 AC_DEFUN([libgccjit_broken], [
-  AC_MSG_ERROR([Installed libgccjit has failed passing the smoke test.
-You can verify it yourself compiling:
+  AC_MSG_ERROR([The installed libgccjit failed to compile and run a test program using
+the libgccjit library; see config.log for the details of the failure.
+The test program can be found here:
 <https://gcc.gnu.org/onlinedocs/jit/intro/tutorial01.html>.
-Please report the issue to your distribution if libgccjit was installed through
-that.
-Here instructions on how to compile and install libgccjit from source:
+You can try compiling it yourself to investigate the issues.
+Please report the issue to your distribution if libgccjit was installed
+through that.
+You can find the instructions on how to compile and install libgccjit from
+source on this site:
 <https://gcc.gnu.org/wiki/JIT>.])])
 
 HAVE_NATIVE_COMP=no
@@ -4708,7 +4712,7 @@ AC_CHECK_HEADERS(valgrind/valgrind.h)
 
 AC_CHECK_MEMBERS([struct unipair.unicode], [], [], [[#include <linux/kd.h>]])
 
-AC_CHECK_FUNCS_ONCE([__lsan_ignore_object sbrk])
+AC_CHECK_FUNCS_ONCE([__lsan_ignore_object])
 
 AC_FUNC_FORK
 

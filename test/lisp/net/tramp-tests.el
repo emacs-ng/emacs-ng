@@ -179,6 +179,11 @@ The temporary file is not created."
   "Whether `tramp--test-instrument-test-case' run.
 This shall used dynamically bound only.")
 
+;; When `tramp-verbose' is greater than 10, and you want to trace
+;; other functions as well, do something like
+;; (let ((tramp-trace-functions '(file-name-non-special)))
+;;   (tramp--test-instrument-test-case 11
+;;     ...))
 (defmacro tramp--test-instrument-test-case (verbose &rest body)
   "Run BODY with `tramp-verbose' equal VERBOSE.
 Print the content of the Tramp connection and debug buffers, if
@@ -187,8 +192,7 @@ is greater than 10.
 `should-error' is not handled properly.  BODY shall not contain a timeout."
   (declare (indent 1) (debug (natnump body)))
   `(let* ((tramp-verbose (max (or ,verbose 0) (or tramp-verbose 0)))
-	  (trace-buffer
-	   (when (> tramp-verbose 10) (generate-new-buffer " *temp*")))
+	  (trace-buffer (tramp-trace-buffer-name tramp-test-vec))
 	  (debug-ignored-errors
 	   (append
 	    '("^make-symbolic-link not supported$"
@@ -198,13 +202,9 @@ is greater than 10.
      (unwind-protect
 	 (let ((tramp--test-instrument-test-case-p t)) ,@body)
        ;; Unwind forms.
-       (when trace-buffer
-	 (untrace-all))
        (when (and (null tramp--test-instrument-test-case-p) (> tramp-verbose 3))
-	 (dolist
-	     (buf (append
-		   (tramp-list-tramp-buffers)
-		   (and trace-buffer (list (get-buffer trace-buffer)))))
+	 (untrace-all)
+	 (dolist (buf (tramp-list-tramp-buffers))
 	   (with-current-buffer buf
 	     (message ";; %s\n%s" buf (buffer-string)))
 	   (kill-buffer buf))))))
@@ -228,6 +228,16 @@ is greater than 10.
        (tramp--test-message
 	"%s %f sec"
 	,message (float-time (time-subtract (current-time) start))))))
+
+;; `always' is introduced with Emacs 28.1.
+(defalias 'tramp--test-always
+  (if (fboundp 'always)
+      #'always
+    (lambda (&rest _arguments)
+      "Do nothing and return t.
+This function accepts any number of ARGUMENTS, but ignores them.
+Also see `ignore'."
+      t)))
 
 (ert-deftest tramp-test00-availability ()
   "Test availability of Tramp functions."
@@ -2454,9 +2464,9 @@ This checks also `file-name-as-directory', `file-name-directory',
 			tramp--test-messages))))))))
 
 	    ;; Do not overwrite if excluded.
-	    (cl-letf (((symbol-function #'y-or-n-p) (lambda (_prompt) t))
+	    (cl-letf (((symbol-function #'y-or-n-p) #'tramp--test-always)
 		      ;; Ange-FTP.
-		      ((symbol-function 'yes-or-no-p) (lambda (_prompt) t)))
+		      ((symbol-function 'yes-or-no-p) #'tramp--test-always))
 	      (write-region "foo" nil tmp-name nil nil nil 'mustbenew))
 	    ;; `mustbenew' is passed to Tramp since Emacs 26.1.
 	    (when (tramp--test-emacs26-p)
@@ -3094,7 +3104,6 @@ This tests also `file-directory-p' and `file-accessible-directory-p'."
   (skip-unless (tramp--test-enabled))
   (skip-unless (tramp--test-sh-p))
   (skip-unless (not (tramp--test-rsync-p)))
-  (skip-unless (not (tramp--test-windows-nt-and-scp-p)))
   ;; Wildcards are not supported in tramp-crypt.el.
   (skip-unless (not (tramp--test-crypt-p)))
   ;; Since Emacs 26.1.
@@ -3672,7 +3681,7 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 		(should-error
 		 (make-symbolic-link tmp-name1 tmp-name2 0)
 		 :type 'file-already-exists)))
-	    (cl-letf (((symbol-function #'yes-or-no-p) (lambda (_prompt) t)))
+	    (cl-letf (((symbol-function #'yes-or-no-p) #'tramp--test-always))
 	      (make-symbolic-link tmp-name1 tmp-name2 0)
 	      (should
 	       (string-equal
@@ -3748,7 +3757,7 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 	       (should-error
 		(add-name-to-file tmp-name1 tmp-name2 0)
 		:type 'file-already-exists))
-	     (cl-letf (((symbol-function #'yes-or-no-p) (lambda (_prompt) t)))
+	     (cl-letf (((symbol-function #'yes-or-no-p) #'tramp--test-always))
 	       (add-name-to-file tmp-name1 tmp-name2 0)
 	       (should (file-regular-p tmp-name2)))
 	     (add-name-to-file tmp-name1 tmp-name2 'ok-if-already-exists)
@@ -4546,7 +4555,7 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 If UNSTABLE is non-nil, the test is tagged as `:unstable'."
   (declare (indent 1))
   ;; `make-process' supports file name handlers since Emacs 27.
-  (when (let ((file-name-handler-alist '(("" . (lambda (&rest _) t)))))
+  (when (let ((file-name-handler-alist '(("" . #'tramp--test-always))))
 	  (ignore-errors (make-process :file-handler t)))
     `(ert-deftest ,(intern (concat (symbol-name test) "-direct-async")) ()
        ,docstring
@@ -4562,7 +4571,7 @@ If UNSTABLE is non-nil, the test is tagged as `:unstable'."
 	 ;; `file-truename' does it by side-effect.  Suppress
 	 ;; `tramp--test-enabled', in order to keep the connection.
 	 ;; Suppress "Process ... finished" messages.
-	 (cl-letf (((symbol-function #'tramp--test-enabled) (lambda nil t))
+	 (cl-letf (((symbol-function #'tramp--test-enabled) #'tramp--test-always)
 		   ((symbol-function #'internal-default-process-sentinel)
 		    #'ignore))
 	   (file-truename tramp-test-temporary-file-directory)
@@ -4582,8 +4591,7 @@ If UNSTABLE is non-nil, the test is tagged as `:unstable'."
 
   (dolist (quoted (if (tramp--test-expensive-test) '(nil t) '(nil)))
     (let ((default-directory tramp-test-temporary-file-directory)
-	  (tmp-name1 (tramp--test-make-temp-name nil quoted))
-	  (tmp-name2 (tramp--test-make-temp-name 'local quoted))
+	  (tmp-name (tramp--test-make-temp-name nil quoted))
 	  kill-buffer-query-functions proc)
       (with-no-warnings (should-not (make-process)))
 
@@ -4611,13 +4619,13 @@ If UNSTABLE is non-nil, the test is tagged as `:unstable'."
       ;; Simple process using a file.
       (unwind-protect
 	  (with-temp-buffer
-	    (write-region "foo" nil tmp-name1)
-	    (should (file-exists-p tmp-name1))
+	    (write-region "foo" nil tmp-name)
+	    (should (file-exists-p tmp-name))
 	    (setq proc
 		  (with-no-warnings
 		    (make-process
 		     :name "test2" :buffer (current-buffer)
-		     :command `("cat" ,(file-name-nondirectory tmp-name1))
+		     :command `("cat" ,(file-name-nondirectory tmp-name))
 		     :file-handler t)))
 	    (should (processp proc))
 	    ;; Read output.
@@ -4629,7 +4637,7 @@ If UNSTABLE is non-nil, the test is tagged as `:unstable'."
 	;; Cleanup.
 	(ignore-errors
 	  (delete-process proc)
-	  (delete-file tmp-name1)))
+	  (delete-file tmp-name)))
 
       ;; Process filter.
       (unwind-protect
@@ -4693,11 +4701,17 @@ If UNSTABLE is non-nil, the test is tagged as `:unstable'."
 			 :stderr stderr
 			 :file-handler t)))
 		(should (processp proc))
-		;; Read stderr.
+		;; Read output.
 		(with-timeout (10 (tramp--test-timeout-handler))
 		  (while (accept-process-output proc 0 nil t)))
-		(delete-process proc)
+		;; Read stderr.
 		(with-current-buffer stderr
+		  (with-timeout (10 (tramp--test-timeout-handler))
+		    (while (not (string-match-p
+				 "No such file or directory" (buffer-string)))
+		      (while (accept-process-output
+			      (get-buffer-process stderr) 0 nil t))))
+		  (delete-process proc)
 		  (should
 		   (string-match-p
 		    "cat:.* No such file or directory" (buffer-string)))))
@@ -4708,30 +4722,29 @@ If UNSTABLE is non-nil, the test is tagged as `:unstable'."
 
       ;; Process with stderr file.
       (unless (tramp-direct-async-process-p)
-	(dolist (tmpfile `(,tmp-name1 ,tmp-name2))
-	  (unwind-protect
+	(unwind-protect
+	    (with-temp-buffer
+	      (setq proc
+		    (with-no-warnings
+		      (make-process
+		       :name "test6" :buffer (current-buffer)
+		       :command '("cat" "/does-not-exist")
+		       :stderr tmp-name
+		       :file-handler t)))
+	      (should (processp proc))
+	      ;; Read stderr.
+	      (with-timeout (10 (tramp--test-timeout-handler))
+		(while (accept-process-output proc nil nil t)))
+	      (delete-process proc)
 	      (with-temp-buffer
-		(setq proc
-		      (with-no-warnings
-			(make-process
-			 :name "test6" :buffer (current-buffer)
-			 :command '("cat" "/does-not-exist")
-			 :stderr tmpfile
-			 :file-handler t)))
-		(should (processp proc))
-		;; Read stderr.
-		(with-timeout (10 (tramp--test-timeout-handler))
-		  (while (accept-process-output proc nil nil t)))
-		(delete-process proc)
-		(with-temp-buffer
-		  (insert-file-contents tmpfile)
-		  (should
-		   (string-match-p
-		    "cat:.* No such file or directory" (buffer-string)))))
+		(insert-file-contents tmp-name)
+		(should
+		 (string-match-p
+		  "cat:.* No such file or directory" (buffer-string)))))
 
-	    ;; Cleanup.
-	    (ignore-errors (delete-process proc))
-	    (ignore-errors (delete-file tmpfile))))))))
+	  ;; Cleanup.
+	  (ignore-errors (delete-process proc))
+	  (ignore-errors (delete-file tmp-name)))))))
 
 (tramp--test--deftest-direct-async-process tramp-test30-make-process
   "Check direct async `make-process'.")
@@ -5551,11 +5564,38 @@ Use direct async.")
 			 ("]" . "_r"))
 		       (tramp-compat-file-name-unquote tmp-name1)))
 		     tmp-name2)))
-		  (should (file-directory-p tmp-name2))))))
+		  (should (file-directory-p tmp-name2)))))
+
+	    ;; Create temporary file.  This shall check for sensible
+	    ;; files, owned by root.
+	    (let ((tramp-auto-save-directory temporary-file-directory)
+		  tramp-allow-unsafe-temporary-files)
+	      (write-region "foo" nil tmp-name1)
+	      (when (zerop (or (tramp-compat-file-attribute-user-id
+				(file-attributes tmp-name1))
+			       tramp-unknown-id-integer))
+		(with-temp-buffer
+		  (setq buffer-file-name tmp-name1)
+		  (tramp-cleanup-connection
+		   tramp-test-vec 'keep-debug 'keep-password)
+		  (let ((tramp-allow-unsafe-temporary-files t))
+		    (should (stringp (make-auto-save-file-name))))
+		  (tramp-cleanup-connection
+		   tramp-test-vec 'keep-debug 'keep-password)
+		  (cl-letf (((symbol-function #'yes-or-no-p) #'ignore))
+		    (should-error
+		     (make-auto-save-file-name)
+		     :type 'file-error))
+		  (tramp-cleanup-connection
+		   tramp-test-vec 'keep-debug 'keep-password)
+		  (cl-letf (((symbol-function #'yes-or-no-p)
+			     #'tramp--test-always))
+		    (should (stringp (make-auto-save-file-name))))))))
 
 	;; Cleanup.
 	(ignore-errors (delete-file tmp-name1))
-	(ignore-errors (delete-directory tmp-name2 'recursive))))))
+	(ignore-errors (delete-directory tmp-name2 'recursive))
+	(tramp-cleanup-connection tramp-test-vec 'keep-debug 'keep-password)))))
 
 (ert-deftest tramp-test38-find-backup-file-name ()
   "Check `find-backup-file-name'."
@@ -5669,7 +5709,37 @@ Use direct async.")
 	      (should (file-directory-p tmp-name2))))
 
 	;; Cleanup.
-	(ignore-errors (delete-directory tmp-name2 'recursive))))))
+	(ignore-errors (delete-directory tmp-name2 'recursive)))
+
+      (unwind-protect
+	  ;; Create temporary file.  This shall check for sensible
+	  ;; files, owned by root.
+	  (let ((backup-directory-alist `(("." . ,temporary-file-directory)))
+		tramp-allow-unsafe-temporary-files
+		tramp-backup-directory-alist)
+	    (write-region "foo" nil tmp-name1)
+	    (when (zerop (or (tramp-compat-file-attribute-user-id
+			      (file-attributes tmp-name1))
+			     tramp-unknown-id-integer))
+	      (tramp-cleanup-connection
+	       tramp-test-vec 'keep-debug 'keep-password)
+	      (let ((tramp-allow-unsafe-temporary-files t))
+		(should (stringp (car (find-backup-file-name tmp-name1)))))
+	      (tramp-cleanup-connection
+	       tramp-test-vec 'keep-debug 'keep-password)
+	      (cl-letf (((symbol-function #'yes-or-no-p) #'ignore))
+		(should-error
+		 (find-backup-file-name tmp-name1)
+		 :type 'file-error))
+	      (tramp-cleanup-connection
+	       tramp-test-vec 'keep-debug 'keep-password)
+	      (cl-letf (((symbol-function #'yes-or-no-p)
+			 #'tramp--test-always))
+		(should (stringp (car (find-backup-file-name tmp-name1)))))))
+
+	;; Cleanup.
+	(ignore-errors (delete-file tmp-name1))
+	(tramp-cleanup-connection tramp-test-vec 'keep-debug 'keep-password)))))
 
 ;; The functions were introduced in Emacs 26.1.
 (ert-deftest tramp-test39-make-nearby-temp-file ()
@@ -5841,13 +5911,6 @@ This requires restrictions of file name syntax."
 This does not support utf8 based file transfer."
   (and (eq system-type 'windows-nt)
        (tramp-method-out-of-band-p tramp-test-vec 1)))
-
-(defun tramp--test-windows-nt-and-scp-p ()
-  "Check, whether the locale host runs MS Windows, and scpx? is used.
-This does not support utf8 based file transfer."
-  (and (eq system-type 'windows-nt)
-       (string-match-p
-	"^scpx?" (file-remote-p tramp-test-temporary-file-directory 'method))))
 
 (defun tramp--test-windows-nt-or-smb-p ()
   "Check, whether the locale or remote host runs MS Windows.
@@ -6072,10 +6135,9 @@ This requires restrictions of file name syntax."
 		 "\tfoo bar baz\t")
 		(t " foo\tbar baz\t"))
 	  "@foo@bar@baz@"
-	  (unless (tramp--test-windows-nt-and-scp-p)
-	    "$foo$bar$$baz$")
+	  (unless (tramp--test-windows-nt-and-out-of-band-p) "$foo$bar$$baz$")
 	  "-foo-bar-baz-"
-	  "%foo%bar%baz%"
+	  (unless (tramp--test-windows-nt-and-out-of-band-p) "%foo%bar%baz%")
 	  "&foo&bar&baz&"
 	  (unless (or (tramp--test-ftp-p)
 		      (tramp--test-gvfs-p)
@@ -6089,7 +6151,7 @@ This requires restrictions of file name syntax."
 	      "'foo'bar'baz'"
 	    "'foo\"bar'baz\"")
 	  "#foo~bar#baz~"
-	  (unless (tramp--test-windows-nt-and-scp-p)
+	  (unless (tramp--test-windows-nt-and-out-of-band-p)
 	    (if (or (tramp--test-gvfs-p) (tramp--test-windows-nt-or-smb-p))
 		"!foo!bar!baz!"
 	      "!foo|bar!baz|"))
