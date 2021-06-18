@@ -11,7 +11,7 @@ A new approach to Emacs
 <hr>
 <p align="center">
   <a href="https://emacs-ng.github.io/emacs-ng"><strong>homepage</strong></a> •
-  <a href="https://emacs-ng.github.io/emacs-ng/js/using-deno/"><strong>Deno/Javascript</strong></a> •
+  <a href="https://emacs-ng.github.io/emacs-ng/js/using-deno"><strong>Deno/Javascript</strong></a> •
   <a href="https://emacs-ng.github.io/emacs-ng/webrender/"><strong>webrender</strong></a> •
   <a href="https://emacs-ng.github.io/emacs-ng/ng-module/"><strong>ng-module</strong></a> •
   <a href="https://emacs-ng.github.io/emacs-ng/handbook/getting-started"><strong>handbook</strong></a> •

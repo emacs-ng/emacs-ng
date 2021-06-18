@@ -14,9 +14,8 @@ nav:
       - Release .deb package: build/release.md
       - Nix Build / Develop: build/nix-develop.md
   - Deno/Javascript:
-    - Overview: js/overview.md
-    - Getting started: js/getting-started.md
     - Using Deno: js/using-deno.md
+    - Getting started: js/getting-started.md
     - Basic features: js/main-features.md
     - Advanced features: js/adv-features.md
     - Architecture: js/architecture.md
@@ -25,10 +24,10 @@ nav:
   - FAQ: faq.md
   - Native Hackers Handbook:
     - Getting started: handbook/getting-started.md
-    - build: handbook/build.md
-    - tests: handbook/tests.md
+    - Build: handbook/build.md
+    - Tests: handbook/tests.md
     - lisp-fn: handbook/lisp-fn.md
-    - types: handbook/types.md
+    - Types: handbook/types.md
 
 theme:
   name: material
