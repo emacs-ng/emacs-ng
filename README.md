@@ -22,10 +22,10 @@ A new approach to Emacs
 ## Intro
 
 emacs-ng is based off of the `master` branch of emacs, and regularly
-merges in the latest changes. (this branch includes the native
+merges in the latest changes(this branch includes the native
 compilation feature from Andrea Corallo).
 
-The last merged commit is `a2842a1172` (Fri May 7 2021).
+The last merged commit is `6af9f1f3ef` (Jun 18 2021).
 
 ## Motivation
 
