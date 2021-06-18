@@ -188,7 +188,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="js/using-deno/" class="md-tabs__link">
+      <a href="js/overview.md" class="md-tabs__link">
         Deno/Javascript
       </a>
     </li>
@@ -354,8 +354,8 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
-    Overview
+  <a href="#intro" class="md-nav__link">
+    Intro
   </a>
   
 </li>
@@ -375,11 +375,40 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-javascript" class="md-nav__link">
-    Why JavaScript
+  <a href="#contributing" class="md-nav__link">
+    Contributing
   </a>
   
-    <nav class="md-nav" aria-label="Why JavaScript">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    Features
+  </a>
+  
+    <nav class="md-nav" aria-label="Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#webrender" class="md-nav__link">
+    Webrender
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dynamic-modules" class="md-nav__link">
+    Dynamic modules
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#denojavascript" class="md-nav__link">
+    Deno/Javascript
+  </a>
+  
+    <nav class="md-nav" aria-label="Deno/Javascript">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -393,11 +422,9 @@
     </nav>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#contributing" class="md-nav__link">
-    Contributing
-  </a>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -519,8 +546,8 @@
   
   
     <li class="md-nav__item">
-      <a href="js/using-deno/" class="md-nav__link">
-        Using Deno
+      <a href="js/overview.md" class="md-nav__link">
+        Overview
       </a>
     </li>
   
@@ -533,6 +560,18 @@
     <li class="md-nav__item">
       <a href="js/getting-started/" class="md-nav__link">
         Getting started
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="js/using-deno/" class="md-nav__link">
+        Using Deno
       </a>
     </li>
   
@@ -728,8 +767,8 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
-    Overview
+  <a href="#intro" class="md-nav__link">
+    Intro
   </a>
   
 </li>
@@ -749,11 +788,40 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-javascript" class="md-nav__link">
-    Why JavaScript
+  <a href="#contributing" class="md-nav__link">
+    Contributing
   </a>
   
-    <nav class="md-nav" aria-label="Why JavaScript">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    Features
+  </a>
+  
+    <nav class="md-nav" aria-label="Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#webrender" class="md-nav__link">
+    Webrender
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dynamic-modules" class="md-nav__link">
+    Dynamic modules
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#denojavascript" class="md-nav__link">
+    Deno/Javascript
+  </a>
+  
+    <nav class="md-nav" aria-label="Deno/Javascript">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -767,11 +835,9 @@
     </nav>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#contributing" class="md-nav__link">
-    Contributing
-  </a>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -797,7 +863,7 @@
 <a href="https://github.com/emacs-ng/emacs-ng/actions?query=workflow%3ACI"><img alt="" src="https://github.com/emacs-ng/emacs-ng/workflows/CI/badge.svg" /></a>
 <a href="https://www.reddit.com/r/emacsng/"><img alt="" src="https://img.shields.io/reddit/subreddit-subscribers/emacsng?label=Join%20r%2Femacsng&amp;style=social" /></a></p>
 <h1 id="emacs-ng">emacs-ng<a class="headerlink" href="#emacs-ng" title="Permanent link">#</a></h1>
-<p>A new approach to Emacs - Including TypeScript, Threading, Async I/O, and WebRender.</p>
+<p>A new approach to Emacs</p>
 <hr>
 <p align="center">
   <a href="https://emacs-ng.github.io/emacs-ng"><strong>homepage</strong></a> •
@@ -809,63 +875,80 @@
 </p>
 <hr>
 
-<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">#</a></h2>
+<h2 id="intro">Intro<a class="headerlink" href="#intro" title="Permanent link">#</a></h2>
 <p>emacs-ng is based off of the <code>master</code> branch of emacs, and regularly
 merges in the latest changes. (this branch includes the native
 compilation feature from Andrea Corallo).</p>
 <p>The last merged commit is <code>a2842a1172</code> (Fri May 7 2021).</p>
 <h2 id="motivation">Motivation<a class="headerlink" href="#motivation" title="Permanent link">#</a></h2>
-<p>The goal of this fork is to explore new development approaches. To accomplish
-this, we aim to maintain an inclusive and innovative environment. The project is
-not about replacing elisp with a more popular language like Javascript. We just
-want to make emacs more approachable for people who don't like lisp as much as
-we do.</p>
-<p>Contributions are welcome from anyone and we are always happy to invite new
-people to the project. We are open towards interesting ideas to make emacs
-better. Our only request is that you open an issue before starting work and be
-willing to take feedback from the core contributors.</p>
+<p>The goal of this fork is to explore new development approaches. To
+accomplish this, we aim to maintain an inclusive and innovative
+environment. The project is not about replacing elisp with a more
+popular language like Javascript. We just want to make emacs more
+approachable for people who don't like lisp as much as we do.</p>
+<p>Contributions are welcome from anyone and we are always happy to
+invite new people to the project. We are open towards interesting
+ideas to make emacs better.</p>
 <h2 id="why-emacs-ng">Why Emacs-ng<a class="headerlink" href="#why-emacs-ng" title="Permanent link">#</a></h2>
-<p>Emacs-ng is an additive native layer over emacs, bringing features like Deno's
-Javascript and Async I/O environment, Mozilla's Webrender (experimental opt-in
-feature), and other features in development. emacs-ng's approach is to utilize
-multiple new development approaches and tools to bring Emacs to the next
-level. emacs-ng is maintained by a team that loves Emacs and everything it
-stands for - being totally introspectable, with a fully customizable and free
-development environment. We want Emacs to be a editor 40+ years from now that
-has the flexibility and design to keep up with progressive technology.</p>
-<h2 id="why-javascript">Why JavaScript<a class="headerlink" href="#why-javascript" title="Permanent link">#</a></h2>
+<p>This project should be considered an additive native layer over emacs,
+bringing features like Deno's Javascript and Async I/O environment,
+Mozilla's Webrender, and other features in development. emacs-ng's
+approach is to utilize multiple new development approaches and tools
+to bring Emacs to the next level. It is maintained by a team that
+loves Emacs and everything it stands for - being totally
+introspectable, with a fully customizable and free development
+environment. We want Emacs to be a editor 40+ years from now that has
+the flexibility and design to keep up with progressive technology.</p>
+<h2 id="contributing">Contributing<a class="headerlink" href="#contributing" title="Permanent link">#</a></h2>
+<p>Emacs combined with the rust ecosystem brings a lot of
+possibilities. If you have any idea for a new feature, just open an
+issue before starting work so we can give you some feedback.</p>
+<p>We try to maintain a list of "new contributor" friendly issues tagged
+with "good first issue". You should also take a look at our
+<a href="https://emacs-ng.github.io/emacs-ng/handbook/getting-started/">handbook</a>.</p>
+<h2 id="features">Features<a class="headerlink" href="#features" title="Permanent link">#</a></h2>
+<h3 id="webrender">Webrender<a class="headerlink" href="#webrender" title="Permanent link">#</a></h3>
+<p><a href="https://github.com/servo/webrender">WebRender</a> is a GPU-based 2D
+rendering engine written in Rust from Mozilla. Firefox, the research
+web browser Servo, and other GUI frameworks draw with it. emacs-ng use
+it as a new experimental graphic backend to leverage GPU hardware.</p>
+<h3 id="dynamic-modules">Dynamic modules<a class="headerlink" href="#dynamic-modules" title="Permanent link">#</a></h3>
+<p>Allow dynamic modules to access <em>more of Emacs's internals</em>. Dynamic
+modules can be written to take advantage of these extra
+functionalities when they are available, while at the same time being
+<em>fully compatible</em> with vanilla Emacs.</p>
+<h3 id="denojavascript">Deno/Javascript<a class="headerlink" href="#denojavascript" title="Permanent link">#</a></h3>
 <p>One of emacs-ng's primary features is integrating the <a href="https://deno.land/">Deno
 Runtime</a>, which allows execution of JavaScript and
-Typescript within Emacs. The details of that feature are listed below, however
-many users would ask themselves <strong>WHY JAVASCRIPT?</strong> JavaScript is an extremely
-dynamic language that allows for a user to inspect and control their scripting
-environment. The key to note is that bringing in Deno isn't JUST JavaScript -
-it's an ecosystem of powerful tools and approaches that Emacs just doesn't have
-currently.</p>
+Typescript within Emacs. The details of that feature are listed below,
+however many users would ask themselves <strong>WHY JAVASCRIPT?</strong> JavaScript
+is an extremely dynamic language that allows for a user to inspect and
+control their scripting environment. The key to note is that bringing
+in Deno isn't JUST JavaScript - it's an ecosystem of powerful tools
+and approaches that Emacs just doesn't have currently.</p>
 <ul>
-<li>TypeScript offers an extremely flexible typing system, that allows to user to
-  have compile time control of their scripting, with the flexibility of types
-  "getting out of the way" when not needed.</li>
-<li>Deno uses Google's v8 JavaScript engine, which features an extremely powerful
-  JIT and world-class garbage collector.</li>
+<li>TypeScript offers an extremely flexible typing system, that allows
+  to user to have compile time control of their scripting, with the
+  flexibility of types "getting out of the way" when not needed.</li>
+<li>Deno uses Google's v8 JavaScript engine, which features an extremely
+  powerful JIT and world-class garbage collector.</li>
 <li>Usage of modern Async I/O utilizing Rust's Tokio library.</li>
-<li>Emacs-ng has WebWorker support, meaning that multiple JavaScript engines can
-  be running in parallel within the editor. The only restriction is that only
-  the 'main' JS Engine can directly call lisp functions.</li>
-<li>Emacs-ng also has WebAssembly support - compile your C module as WebAsm and
-  distribute it to the world. Don't worry about packaging shared libraries or
-  changing module interfaces, everything can be handled and customized by you
-  the user, at the scripting layer. No need to be dependent on native
-  implementation details.</li>
+<li>Emacs-ng has WebWorker support, meaning that multiple JavaScript
+  engines can be running in parallel within the editor. The only
+  restriction is that only the 'main' JS Engine can directly call lisp
+  functions.</li>
+<li>Emacs-ng also has WebAssembly support - compile your C module as
+  WebAsm and distribute it to the world. Don't worry about packaging
+  shared libraries or changing module interfaces, everything can be
+  handled and customized by you the user, at the scripting layer. No
+  need to be dependent on native implementation details.</li>
 </ul>
-<h3 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">#</a></h3>
-<p>v8's world-class JIT offers the potential for large performance gains. Async I/O
-from Deno, WebWorkers, and WebAsm, gives you the tools to make Emacs a smoother
-and faster experience without having to install additional tools to launch as
-background processes or worry about shared library versions.</p>
-<h2 id="contributing">Contributing<a class="headerlink" href="#contributing" title="Permanent link">#</a></h2>
-<p>Contributions are welcome. We try to maintain a list of "new contributor"
-friendly issues tagged with "good first issue".</p>
+<h4 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">#</a></h4>
+<p>v8's world-class JIT offers the potential for large performance
+gains. Async I/O from Deno, WebWorkers, and WebAsm, gives you the
+tools to make Emacs a smoother and faster experience without having to
+install additional tools to launch as background processes or worry
+about shared library versions.</p>
                 
                   
                     

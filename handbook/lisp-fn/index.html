@@ -186,7 +186,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../js/using-deno/" class="md-tabs__link">
+      <a href="../../js/overview.md" class="md-tabs__link">
         Deno/Javascript
       </a>
     </li>
@@ -438,8 +438,8 @@
   
   
     <li class="md-nav__item">
-      <a href="../../js/using-deno/" class="md-nav__link">
-        Using Deno
+      <a href="../../js/overview.md" class="md-nav__link">
+        Overview
       </a>
     </li>
   
@@ -452,6 +452,18 @@
     <li class="md-nav__item">
       <a href="../../js/getting-started/" class="md-nav__link">
         Getting started
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../js/using-deno/" class="md-nav__link">
+        Using Deno
       </a>
     </li>
   
@@ -947,15 +959,18 @@ thread and a lot of the rest of the code will just work.</p>
 <span class="w">    </span><span class="p">(</span><span class="cp">$field_name</span>:<span class="nc">ident</span><span class="p">,</span><span class="w"> </span><span class="cp">$lisp_name</span>:<span class="nc">expr</span><span class="p">,</span><span class="w"> </span><span class="cp">$value</span>:<span class="nc">expr</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{{</span><span class="w"></span>
 <span class="w">        </span><span class="cp">#[allow(unused_unsafe)]</span><span class="w"></span>
 <span class="w">        </span><span class="k">unsafe</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">            </span><span class="cp">#[allow(const_err)]</span><span class="w"></span>
-<span class="w">            </span><span class="k">static</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">o_fwd</span>: ::<span class="n">hacks</span>::<span class="n">Hack</span><span class="o">&lt;</span>::<span class="n">data</span>::<span class="n">Lisp_Objfwd</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
-<span class="w">                </span><span class="k">unsafe</span><span class="w"> </span><span class="p">{</span><span class="w"> </span>::<span class="n">hacks</span>::<span class="n">Hack</span>::<span class="n">uninitialized</span><span class="p">()</span><span class="w"> </span><span class="p">};</span><span class="w"></span>
-<span class="w">            </span>::<span class="n">remacs_sys</span>::<span class="n">defvar_lisp</span><span class="p">(</span><span class="w"></span>
-<span class="w">                </span><span class="n">o_fwd</span><span class="p">.</span><span class="n">get_mut</span><span class="p">(),</span><span class="w"></span>
-<span class="w">                </span><span class="fm">concat!</span><span class="p">(</span><span class="cp">$lisp_name</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;</span><span class="se">\0</span><span class="s">&quot;</span><span class="p">).</span><span class="n">as_ptr</span><span class="p">()</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="o">*</span><span class="k">const</span><span class="w"> </span><span class="kt">i8</span><span class="p">,</span><span class="w"></span>
-<span class="w">                </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span>::<span class="n">remacs_sys</span>::<span class="n">globals</span><span class="p">.</span><span class="cp">$field_name</span><span class="p">,</span><span class="w"></span>
+<span class="w">            </span><span class="k">use</span><span class="w"> </span><span class="cp">$crate</span>::<span class="n">bindings</span>::<span class="n">Lisp_Objfwd</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">            </span><span class="k">static</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">o_fwd</span>: <span class="nc">Lisp_Objfwd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Lisp_Objfwd</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">                </span><span class="n">type_</span>: <span class="cp">$crate</span>::<span class="n">bindings</span>::<span class="n">Lisp_Fwd_Type</span>::<span class="n">Lisp_Fwd_Obj</span><span class="p">,</span><span class="w"></span>
+<span class="w">                </span><span class="n">objvar</span>: <span class="nc">unsafe</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="o">&amp;</span><span class="cp">$crate</span>::<span class="n">bindings</span>::<span class="n">globals</span><span class="p">.</span><span class="cp">$field_name</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="o">*</span><span class="k">const</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="o">*</span><span class="k">mut</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="p">},</span><span class="w"></span>
+<span class="w">            </span><span class="p">};</span><span class="w"></span>
+
+<span class="w">            </span><span class="cp">$crate</span>::<span class="n">bindings</span>::<span class="n">defvar_lisp</span><span class="p">(</span><span class="w"></span>
+<span class="w">                </span><span class="o">&amp;</span><span class="n">o_fwd</span><span class="p">,</span><span class="w"></span>
+<span class="w">                </span><span class="fm">concat!</span><span class="p">(</span><span class="cp">$lisp_name</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;</span><span class="se">\0</span><span class="s">&quot;</span><span class="p">).</span><span class="n">as_ptr</span><span class="p">()</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="o">*</span><span class="k">const</span><span class="w"> </span><span class="n">libc</span>::<span class="n">c_char</span><span class="p">,</span><span class="w"></span>
 <span class="w">            </span><span class="p">);</span><span class="w"></span>
-<span class="w">            </span>::<span class="n">remacs_sys</span>::<span class="n">globals</span><span class="p">.</span><span class="cp">$field_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="cp">$value</span><span class="p">;</span><span class="w"></span>
+<span class="w">            </span><span class="cp">$crate</span>::<span class="n">bindings</span>::<span class="n">globals</span><span class="p">.</span><span class="cp">$field_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="cp">$value</span><span class="p">;</span><span class="w"></span>
 <span class="w">        </span><span class="p">}</span><span class="w"></span>
 <span class="w">    </span><span class="p">}};</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
@@ -979,7 +994,7 @@ Lisp name of the variable is a null-terminated string though.</p>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">June 18, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">June 10, 2021</span>
     
   </small>
 </div>

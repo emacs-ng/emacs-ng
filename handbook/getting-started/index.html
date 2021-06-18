@@ -186,7 +186,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../js/using-deno/" class="md-tabs__link">
+      <a href="../../js/overview.md" class="md-tabs__link">
         Deno/Javascript
       </a>
     </li>
@@ -438,8 +438,8 @@
   
   
     <li class="md-nav__item">
-      <a href="../../js/using-deno/" class="md-nav__link">
-        Using Deno
+      <a href="../../js/overview.md" class="md-nav__link">
+        Overview
       </a>
     </li>
   
@@ -452,6 +452,18 @@
     <li class="md-nav__item">
       <a href="../../js/getting-started/" class="md-nav__link">
         Getting started
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../js/using-deno/" class="md-nav__link">
+        Using Deno
       </a>
     </li>
   
@@ -620,8 +632,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#bindgen" class="md-nav__link">
-    Bindgen
+  <a href="#build" class="md-nav__link">
+    Build
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ci" class="md-nav__link">
+    CI
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    Tests
   </a>
   
 </li>
@@ -629,6 +655,13 @@
         <li class="md-nav__item">
   <a href="#lisp" class="md-nav__link">
     Lisp
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-features" class="md-nav__link">
+    Adding features
   </a>
   
 </li>
@@ -722,8 +755,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#bindgen" class="md-nav__link">
-    Bindgen
+  <a href="#build" class="md-nav__link">
+    Build
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ci" class="md-nav__link">
+    CI
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    Tests
   </a>
   
 </li>
@@ -731,6 +778,13 @@
         <li class="md-nav__item">
   <a href="#lisp" class="md-nav__link">
     Lisp
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-features" class="md-nav__link">
+    Adding features
   </a>
   
 </li>
@@ -769,9 +823,9 @@ project. Advanced features like webrender or javascript support are
 documented seperately.</p>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">#</a></h2>
 <p>Most of the additional functionality of emacs-ng can be found in
-<code>rust_src/</code>. This is the root of the main crate, however the actual code
-is located under <code>rust_src/crates/</code>, except the crates that are only
-used for the build.</p>
+<code>rust_src/</code>. This is the root of the main crate, however the actual
+code is located under <code>rust_src/crates/</code>, except the crates that are
+only used for the build.</p>
 <p>Some crates will only be built if you activate the related features
 when calling <code>./configure</code>. You can find the features that are used by
 emacs-ng in <code>Cargo.toml.in</code>. Some of them are turned on by
@@ -782,20 +836,45 @@ that are defined in rust. This way there are less merge conflicts when
 we perform upstream merges.</p>
 <p>Bug fixes that also affect emacs can be tracked by an issue, but
 should but fixed upstream.</p>
-<h2 id="bindgen">Bindgen<a class="headerlink" href="#bindgen" title="Permanent link">#</a></h2>
+<h2 id="build">Build<a class="headerlink" href="#build" title="Permanent link">#</a></h2>
 <p>We use bindgen to generate rust bindings for the functions defined in
-C. Those bindings are in the crate "emacs" and are used by other
-crates through importing them from the emacs crate.</p>
+C. Those bindings are in the crate emacs and are used by other crates
+through importing them from the emacs crate.</p>
 <p>The crate ng-bindgen holds the code that is responsible for generating
 the bindings.</p>
+<p>There's an ongoing effort to explain how emacs-ng is built on top of
+emacs in handbook/build.md.</p>
+<h2 id="ci">CI<a class="headerlink" href="#ci" title="Permanent link">#</a></h2>
+<p>Since we use github actions, the ci related files are located at
+<code>.github/workflow</code>. The main job(test.yml) is for building emacs-ng
+on Linux and osx(including formatting with rustfmt). There's also
+docs.yml that is responsible for generating and deploying our docs.
+The remaining files are used to test if the nix build works and to
+create the release build that runs once a week.</p>
+<h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">#</a></h2>
+<p>Currently we only run some js related tests. Because there are several
+failing native lisp tests, we haven't included them in our build.
+However there's an open issue that tracks the status. At this point
+there are no tests that are written in rust.</p>
+<p>If you want to know how you can run tests, look at handbook/tests.md.
+The file also contains some test examples.</p>
 <h2 id="lisp">Lisp<a class="headerlink" href="#lisp" title="Permanent link">#</a></h2>
 <p>The emacs crate also contains most of the code that allows us to make
 use of elisp types. One of the most important types is <code>LispObject</code>
 which is the equivalent to the C type
-<code>Lisp_Object</code>.(handbook/types.md)</p>
+<code>Lisp_Object</code>(handbook/types.md).</p>
 <p>In order to define lisp functions in rust you have to take a look at
 the macro <code>lisp_fn</code>. Compared to the C version <code>DEFUN</code> it provides a
 lot more flexibility(handbook/lisp-fn.md).</p>
+<h2 id="adding-features">Adding features<a class="headerlink" href="#adding-features" title="Permanent link">#</a></h2>
+<p>The rust ecosystem provides tons of possibilities to improve emacs.
+We intend to use make use of
+<a href="https://github.com/libgit2/libgit2">libgit</a> through
+<a href="https://github.com/rust-lang/git2-rs">git2-rs</a> to improve magit. It
+would also be cool if we would have a terminal emulator based on rust.</p>
+<p>If you have any idea for a new feature you want to work on, just add a
+configure option and create a new crate. You can always ask for help when
+you get stuck.</p>
                 
                   
                     
@@ -804,7 +883,7 @@ lot more flexibility(handbook/lisp-fn.md).</p>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">June 18, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">June 10, 2021</span>
     
   </small>
 </div>
