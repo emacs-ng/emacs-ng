@@ -419,6 +419,9 @@
   const define_minor_mode = (...args) =>
     evalForm(lisp.q.define_minor_mode, ...args);
 
+  const define_derived_mode = (...args) =>
+    evalForm(lisp.q.define_derived_mode, ...args);
+
   const specialForms = {
     make: makeFuncs,
     q: symbolsCached(),
@@ -435,6 +438,7 @@
     defvar,
     define_key,
     define_minor_mode,
+    define_derived_mode,
   };
 
   global.lisp = new Proxy({}, {
