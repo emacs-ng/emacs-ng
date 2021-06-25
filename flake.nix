@@ -2,7 +2,7 @@
   description = "emacsNg Nix flake";
 
   inputs = {
-    nixpkgs.url = "nixpkgs/67bbabc0a471ec286cf63f3424c91eb8b31d9000";
+    nixpkgs.url = "nixpkgs/release-21.05";
     emacs-overlay = {
       type = "github";
       owner = "nix-community";
@@ -41,7 +41,7 @@
         in
         rec {
           devShell = with pkgs; let
-            custom-llvmPackages = llvmPackages_10;
+            custom-llvmPackages = llvmPackages_latest;
           in
           devshell.mkShell {
             imports = [
@@ -205,11 +205,10 @@
               ({
                 withImageMagick = true;
                 imagemagick = prev.imagemagick;
-              })
-          ).overrideAttrs
+              })).overrideAttrs
             (old:
               let
-                custom-llvmPackages = prev.llvmPackages_10;
+                custom-llvmPackages = prev.llvmPackages_latest;
                 #withGLX
                 rpathLibs =
                   (with xorg; lib.optionals (stdenv.isLinux && withWebrender) [
@@ -293,7 +292,7 @@
                   substituteInPlace lib-src/Makefile.in --replace "/bin/pwd" "$pwd"
                 '';
 
-                LIBCLANG_PATH = "${custom-llvmPackages.libclang}/lib";
+                LIBCLANG_PATH = "${custom-llvmPackages.libclang.lib}/lib";
                 RUST_BACKTRACE = "full";
 
                 buildInputs = (old.buildInputs or [ ]) ++

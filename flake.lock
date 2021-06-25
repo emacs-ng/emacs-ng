@@ -33,11 +33,11 @@
     "emacsNg-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1623689892,
-        "narHash": "sha256-QB1YGaIJaxowoazJD3o09q8/OnvkYOXNj/DNLLESypU=",
+        "lastModified": 1624180663,
+        "narHash": "sha256-p5KQEe2i2QxGR1G9Qulo4qT9rD6eSP0lX1Gwm4kqhYU=",
         "owner": "emacs-ng",
         "repo": "emacs-ng",
-        "rev": "15933baebbeaef4bf32711e3ae8f7e71aeea0fd6",
+        "rev": "fc8c301e5df9e870035817cee99ff2229e9f551c",
         "type": "github"
       },
       "original": {
@@ -109,16 +109,16 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1620330441,
-        "narHash": "sha256-j3Q5xQk+C/xvt+fH64JfZq98b9J6GjIYL8tjzIWwCR4=",
+        "lastModified": 1624583608,
+        "narHash": "sha256-KJ5VB90FXmQAp0B2jNptu9g9rzrZBQFMVqJuoeKMRIg=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "67bbabc0a471ec286cf63f3424c91eb8b31d9000",
+        "rev": "8112fbe212f6086151acb19fe464b00c8ac1aebd",
         "type": "github"
       },
       "original": {
         "id": "nixpkgs",
-        "rev": "67bbabc0a471ec286cf63f3424c91eb8b31d9000",
+        "ref": "release-21.05",
         "type": "indirect"
       }
     },
