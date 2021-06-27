@@ -1368,6 +1368,7 @@ dependencies = [
  "libc",
  "lisp-macros",
  "lisp-util",
+ "lsp_json",
  "ng_async",
  "ng_module",
  "regex 1.4.3",
@@ -2687,6 +2688,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "lsp_json"
+version = "0.1.0"
+dependencies = [
+ "emacs",
+ "lazy_static",
+ "libc",
+ "lisp-macros",
+ "lisp-util",
+ "lsp-server",
+ "ng_async",
+ "serde_json",
+]
+
+[[package]]
 name = "lspower"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2980,8 +2995,6 @@ dependencies = [
  "libc",
  "lisp-macros",
  "lisp-util",
- "lsp-server",
- "serde_json",
 ]
 
 [[package]]

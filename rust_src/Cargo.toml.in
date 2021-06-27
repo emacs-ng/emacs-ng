@@ -17,6 +17,7 @@ emacs = { version = "0.1.0", path = "crates/emacs" }
 lisp-util = { version = "0.1.0", path = "crates/lisp_util" }
 lisp-macros = { version = "0.1.0", path = "crates/lisp_macros" }
 ng_async = { version = "0.1.0", path = "crates/ng_async" }
+lsp_json = { version = "0.1.0", path = "crates/lsp_json" }
 git = { version = "0.1.0", path = "crates/git", optional = true }
 ng_module = { version = "0.1.0", path = "crates/ng_module", optional = true }
 js = { version = "0.1.0", path = "crates/js", optional = true }
