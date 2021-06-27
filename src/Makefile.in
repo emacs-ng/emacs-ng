@@ -52,7 +52,7 @@ EMACSNGLIB_NAME=@EMACSNGLIB_NAME@
 
 rust_srcdir=$(top_srcdir)/rust_src
 # Crates that contain globals
-RUST_CRATES_SOURCES=$(rust_srcdir)/crates/js/src/*.rs $(rust_srcdir)/crates/ng_async/src/*.rs $(rust_srcdir)/crates/ng_module/src/*.rs $(rust_srcdir)/crates/webrender/src/*.rs
+RUST_CRATES_SOURCES=$(rust_srcdir)/crates/js/src/*.rs $(rust_srcdir)/crates/ng_async/src/*.rs $(rust_srcdir)/crates/ng_module/src/*.rs $(rust_srcdir)/crates/webrender/src/*.rs $(rust_srcdir)/crates/lsp_json/src/*.rs
 lispsource = $(top_srcdir)/lisp
 lib = ../lib
 libsrc = ../lib-src
