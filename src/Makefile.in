@@ -654,7 +654,7 @@ buildobj.h: Makefile
 	done >$@.tmp
 	$(AM_V_at)mv $@.tmp $@
 
-GLOBAL_SOURCES = $(base_obj:.o=.c) $(NS_OBJC_OBJ:.o=.m) $(rust_srcdir)/crates/js/src/*.rs $(rust_srcdir)/crates/ng_async/src/*.rs $(rust_srcdir)/crates/ng_module/src/*.rs $(rust_srcdir)/crates/webrender/src/*.rs
+GLOBAL_SOURCES = $(base_obj:.o=.c) $(NS_OBJC_OBJ:.o=.m) $(rust_srcdir)/crates/js/src/*.rs $(rust_srcdir)/crates/ng_async/src/*.rs $(rust_srcdir)/crates/ng_module/src/*.rs $(rust_srcdir)/crates/webrender/src/*.rs $(rust_srcdir)/crates/lsp_json/src/*.rs
 
 gl-stamp: $(libsrc)/make-docfile$(EXEEXT) $(GLOBAL_SOURCES)
 	$(AM_V_GLOBALS)$(libsrc)/make-docfile -d $(srcdir) -g $(obj) $(RUST_CRATES_SOURCES) > globals.tmp
