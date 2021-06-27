@@ -3,11 +3,14 @@
 #![feature(async_closure)]
 
 #[macro_use]
+extern crate serde_json;
+
+#[macro_use]
 extern crate emacs;
 #[macro_use]
 extern crate lisp_util;
 
-pub mod ng_async;
+pub mod parsing;
 
 #[cfg(not(test))]
 include!(concat!(env!("CARGO_MANIFEST_DIR"), "/out/c_exports.rs"));

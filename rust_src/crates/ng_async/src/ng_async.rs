@@ -1,4 +1,14 @@
-use emacs::{lisp::LispObject, multibyte::LispStringRef};
+use std::{
+    convert::TryInto,
+    ffi::CString,
+    fs::File,
+    io::{Read, Write},
+    os::unix::io::{FromRawFd, IntoRawFd},
+};
+
+use std::thread;
+
+use crossbeam::channel::{Receiver, Sender};
 
 use emacs::bindings::{
     build_string, intern_c_string, make_string_from_utf8, make_user_ptr, Ffuncall,
@@ -10,18 +20,8 @@ use emacs::globals::{
     Qraw_text, Qreturn, Qstring, Quser_ptr, Quser_ptrp,
 };
 use emacs::process::LispProcessRef;
-
-use crossbeam::channel::{Receiver, Sender};
+use emacs::{lisp::LispObject, multibyte::LispStringRef};
 use lisp_macros::{async_stream, lisp_fn};
-use std::thread;
-
-use std::{
-    convert::TryInto,
-    ffi::CString,
-    fs::File,
-    io::{Read, Write},
-    os::unix::io::{FromRawFd, IntoRawFd},
-};
 
 #[repr(u32)]
 enum PIPE_PROCESS {
