@@ -18,7 +18,7 @@ use emacs::bindings::{
     check_integer_range, hash_lookup, hash_put, intmax_t, make_fixed_natnum, make_float, make_int,
     make_string_from_utf8, make_uint, make_vector, Fcons, Fintern, Flist, Fmake_hash_table,
     Fnreverse, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, AREF, ASET, ASIZE,
-    FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, NILP, STRINGP, SYMBOLP,
+    FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, STRINGP, SYMBOLP,
     SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
 };
 
@@ -224,8 +224,8 @@ fn lisp_to_serde(
         }
 
         Ok(serde_json::Value::Object(map))
-    } else if unsafe { NILP(object) } {
-        Ok(serde_json::Value::Object(Map::new()))
+    } else if object.is_nil() {
+        Ok(serde_json::Value::Null)
     } else if object.is_cons() {
         let tail: LispCons = object.into();
         let iter = tail.iter_tails(LispConsEndChecks::on, LispConsCircularChecks::on);
