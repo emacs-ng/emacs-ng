@@ -33,11 +33,11 @@
     "emacsNg-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1624180663,
-        "narHash": "sha256-p5KQEe2i2QxGR1G9Qulo4qT9rD6eSP0lX1Gwm4kqhYU=",
+        "lastModified": 1625762587,
+        "narHash": "sha256-fGDkO2dlJqlKM7vS8f/vjeeZv5SpMdhW/hW6WbImMi4=",
         "owner": "emacs-ng",
         "repo": "emacs-ng",
-        "rev": "fc8c301e5df9e870035817cee99ff2229e9f551c",
+        "rev": "f4d7ea3062f17aa258b0d61e05cdd329392e6984",
         "type": "github"
       },
       "original": {
