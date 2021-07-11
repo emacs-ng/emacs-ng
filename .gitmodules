@@ -1,0 +1,8 @@
+[submodule "use-package"]
+	path = lisp/use-package
+	url = https://github.com/jwiegley/use-package.git
+	shallow = true
+[submodule "straight.el"]
+	path = lisp/straight
+	url = https://github.com/raxod502/straight.el.git
+	shallow = true
