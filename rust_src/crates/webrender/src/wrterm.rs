@@ -217,7 +217,7 @@ pub extern "C" fn image_pixmap_draw_cross(
 /// Value is t if tooltip was open, nil otherwise.
 #[lisp_fn]
 pub fn x_hide_tip() -> bool {
-    unimplemented!();
+    false
 }
 
 /// Make a new X window, which is called a "frame" in Emacs terms.
