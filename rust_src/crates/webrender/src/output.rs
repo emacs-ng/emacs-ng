@@ -9,7 +9,7 @@ use std::{
     thread::JoinHandle,
 };
 
-use font_kit::handle::Handle as FontHandle;
+use fontdb::{FaceInfo, Source};
 use gleam::gl::{self, Gl};
 use glutin::{
     self,
@@ -530,20 +530,22 @@ impl Output {
         font_instance_key
     }
 
-    pub fn add_font(&mut self, font_handle: &FontHandle) -> FontKey {
+    pub fn add_font(&mut self, font_handle: &FaceInfo) -> FontKey {
         let mut txn = Transaction::new();
 
         let font_key = self.render_api.generate_font_key();
-        match font_handle {
-            FontHandle::Path { path, font_index } => {
+
+        let font_index = font_handle.index;
+        match font_handle.source.as_ref() {
+            Source::File(path) => {
                 let font = NativeFontHandle {
                     path: path.clone().into_os_string().into(),
-                    index: *font_index,
+                    index: font_index,
                 };
                 txn.add_native_font(font_key, font);
             }
-            FontHandle::Memory { bytes, font_index } => {
-                txn.add_raw_font(font_key, bytes.to_vec(), *font_index);
+            Source::Binary(bytes) => {
+                txn.add_raw_font(font_key, bytes.to_vec(), font_index);
             }
         }
 

@@ -116,6 +116,10 @@ impl LispVectorlikeRef {
             None
         }
     }
+
+    pub fn pv_size(self) -> isize {
+        unsafe { self.header.size & More_Lisp_Bits::PSEUDOVECTOR_SIZE_MASK as isize }
+    }
 }
 
 macro_rules! impl_vectorlike_ref {
