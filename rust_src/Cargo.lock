@@ -2480,7 +2480,7 @@ dependencies = [
  "libc",
  "lisp-macros",
  "lisp-util",
- "ng_async",
+ "lsp_json",
  "rusty_v8",
  "serde_json",
  "tokio",
