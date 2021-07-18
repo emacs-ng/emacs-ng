@@ -386,10 +386,18 @@ TAGS: etags${EXEEXT} ${tagsfiles}
 ../lib/libgnu.a: $(config_h)
 	$(MAKE) -C ../lib all
 
-cargo_manifest=../rust_src/remacs-lib/Cargo.toml
-$(RUST_ARCHIVE): $(rust_srcdir)/remacs-lib/**
+cargo_manifest=$(rust_srcdir)/remacs-lib/Cargo.toml
+RUST_DEP-INFO=$(RUST_ARCHIVE:.a=.d)
+RUST_CARGO_FILES = $(sort $(shell find ${rust_srcdir}/remacs-lib -type f \
+-name 'Cargo.*' -o -name "build.rs"))
+
+$(RUST_ARCHIVE) $(RUST_DEP-INFO): $(RUST_CARGO_FILES)
+	CARGO_BUILD_DEP_INFO_BASEDIR=$(realpath $(top_srcdir)) \
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	$(CARGO_BUILD) $(CARGO_FLAGS) --manifest-path=$(cargo_manifest)
+	sed -i~ 's/rust_src\//..\/rust_src\//g' $(RUST_DEP-INFO)
+
+include $(RUST_DEP-INFO)
 
 remacs-libclean:
 	$(CARGO_CLEAN) --manifest-path=$(cargo_manifest)
