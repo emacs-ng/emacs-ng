@@ -9,24 +9,23 @@
       repo = "emacs-overlay";
     };
 
-    master.url = "nixpkgs/7d71001b796340b219d1bfa8552c81995017544a";
     devshell-flake.url = "github:numtide/devshell";
+    nvfetcher = {
+      url = "github:berberman/nvfetcher/ba3366421ff66a06f4176780dff5e8373512bfba";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     emacsNg-src = { url = "github:emacs-ng/emacs-ng"; flake = false; };
     flake-compat = { url = "github:edolstra/flake-compat"; flake = false; };
     rust-overlay = { url = "github:oxalica/rust-overlay"; inputs.nixpkgs.follows = "nixpkgs"; };
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, master, emacs-overlay, emacsNg-src, flake-compat, rust-overlay, flake-utils, devshell-flake }:
+  outputs = { self, nixpkgs, emacs-overlay, emacsNg-src, flake-compat, rust-overlay, flake-utils, devshell-flake, nvfetcher }:
     { }
     //
     (flake-utils.lib.eachSystem [ "x86_64-linux" "x86_64-darwin" ]
       (system:
         let
-          unstable = final: prev: {
-            inherit ((import master) { inherit system; })
-              rustracer;
-          };
           pkgs = import nixpkgs {
             inherit system;
             overlays = [
@@ -34,7 +33,7 @@
               emacs-overlay.overlay
               rust-overlay.overlay
               devshell-flake.overlay
-              unstable
+              (final: prev: { nvfetcher-bin = nvfetcher.defaultPackage."${prev.system}"; })
             ];
             config = { };
           };
@@ -79,6 +78,11 @@
                   copy emacsNg rust deps path to where
                 '';
               }
+              {
+                name = pkgs.nvfetcher-bin.pname;
+                help = pkgs.nvfetcher-bin.meta.description;
+                command = "cd $DEVSHELL_ROOT/nix; ${pkgs.nvfetcher-bin}/bin/nvfetcher -c ./sources.toml --no-output $@;";
+              }
             ];
           };
 
@@ -107,12 +111,14 @@
     // {
       overlay = final: prev:
         let
-          emacsNgSource = emacsNg-src;
           #emacsNgSource = ./.;
           #rust nightly date
           locked-date = prev.lib.removePrefix "nightly-" (prev.lib.removeSuffix "\n" (builtins.readFile ./rust-toolchain));
+          emacs-ng-sources = prev.callPackage ./nix/_sources/generated.nix { };
+          emacsNgSource = final.emacs-ng-sources.emacs-ng.src;
         in
         {
+          inherit emacs-ng-sources;
           emacsNg-rust = with final;
             (
               let
@@ -126,11 +132,11 @@
                 '';
 
                 remacsLibDeps = prev.rustPlatform.fetchCargoTarball {
-                  src = emacsNgSource + /rust_src/remacs-lib;
+                  src = emacsNgSource + "/rust_src/remacs-lib";
                   name = "remacsLibDeps";
                   cargoUpdateHook =
                     let
-                      pathDir = emacsNgSource + /rust_src/crates;
+                      pathDir = emacsNgSource + "/rust_src/crates";
                     in
                     ''
                       cp -r ${pathDir} crates
@@ -155,7 +161,7 @@
                     sed -e 's/@CARGO_.*@//' Cargo.toml.in > Cargo.toml
                   '' + doVersionedUpdate;
                   name = "remacsSrc";
-                  sha256 = "sha256-BCVybKYD+xmKWprVBUgqDaa+8/+Sopo3G3cc6gCXKw4=";
+                  sha256 = "sha256-McGugFJUwgpw9bK/sIlzryBNz7y0quo+oQSBET2+Pc4=";
                   inherit installPhase;
                 };
 
@@ -227,7 +233,7 @@
               rec {
                 name = "emacsNg-" + version;
                 src = emacsNgSource;
-                version = builtins.substring 0 7 emacsNgSource.rev;
+                version = builtins.substring 0 7 final.emacs-ng-sources.emacs-ng.version;
                 #version = "develop";
 
                 preConfigure = (old.preConfigure or "") + ''
@@ -300,6 +306,7 @@
                   custom-llvmPackages.clang
                   custom-llvmPackages.libclang
                   final.rust-bin.nightly."${locked-date}".default
+                  git
                 ] ++ lib.optionals withWebrender (with xorg;[
                   python3
                   rpathLibs
@@ -321,7 +328,7 @@
                     OpenGL
                   ]);
 
-
+                dontPatchShebangs = true; #straight_watch_callback.py: unsupported interpreter directive "#!/usr/bin/env -S python3 -u"
 
                 postFixup = (old.postFixup or "") + (if withWebrender then
                   lib.concatStringsSep "\n" [
