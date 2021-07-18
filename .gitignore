@@ -307,6 +307,8 @@ src/gdb.ini
 
 # emacs-ng
 rust_src/Cargo.toml
+!nix/_sources
+nix/_sources/*.shake
 nix/cachix-key.secrets
 build-aux/config.guess
 build-aux/config.sub

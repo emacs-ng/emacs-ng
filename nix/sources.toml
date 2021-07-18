@@ -1,0 +1,5 @@
+# nvfetcher.toml
+[emacs-ng]
+src.git = "https://github.com/emacs-ng/emacs-ng"
+fetch.github = "emacs-ng/emacs-ng"
+git.fetchSubmodules = true
