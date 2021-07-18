@@ -22,3 +22,14 @@ impl HandyDandyRectBuilder for (i32, i32) {
         )
     }
 }
+
+// Assign to string s the name of the currently executing program (but
+// not its full path).
+// https://programming-idioms.org/idiom/105/current-executable-name/1887/rust
+// `let s = get_exec_name().unwrap();`
+pub fn get_exec_name() -> Option<String> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|pb| pb.file_name().map(|s| s.to_os_string()))
+        .and_then(|s| s.into_string().ok())
+}

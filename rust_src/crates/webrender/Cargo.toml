@@ -20,3 +20,8 @@ copypasta = "0.7.1"
 image = "0.23.14"
 app_units = "0.7.1"
 bit-vec = "0.6.3"
+
+[features]
+default = ["wayland", "x11"]
+x11 = ["copypasta/x11", "glutin/x11"]
+wayland = ["copypasta/wayland", "glutin/wayland"]
