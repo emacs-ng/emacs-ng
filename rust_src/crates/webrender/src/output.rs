@@ -27,6 +27,8 @@ use std::{
 
 #[cfg(unix)]
 use glutin::platform::unix::EventLoopExtUnix;
+#[cfg(not(any(target_os = "macos", windows)))]
+use glutin::platform::unix::WindowBuilderExtUnix;
 #[cfg(windows)]
 use glutin::platform::windows::EventLoopExtUnix;
 
@@ -50,7 +52,7 @@ use copypasta::{
 use copypasta::ClipboardProvider;
 
 use super::texture::TextureResourceManager;
-use super::util::HandyDandyRectBuilder;
+use super::util::{get_exec_name, HandyDandyRectBuilder};
 use super::{cursor::emacs_to_winit_cursor, display_info::DisplayInfoRef};
 use super::{cursor::winit_to_emacs_cursor, font::FontRef};
 
@@ -157,6 +159,10 @@ impl Output {
             let window_builder = glutin::window::WindowBuilder::new()
                 .with_visible(true)
                 .with_maximized(true);
+
+            #[cfg(all(feature = "wayland", not(any(target_os = "macos", windows))))]
+            let window_builder =
+                window_builder.with_app_id(get_exec_name().unwrap_or("emacs".to_owned()));
 
             let window_context = glutin::ContextBuilder::new()
                 .build_windowed(window_builder, &events_loop)
