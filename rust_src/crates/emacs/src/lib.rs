@@ -10,7 +10,6 @@
 #![cfg_attr(test, allow(unused))]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![feature(concat_idents)]
-#![feature(const_fn)]
 #![feature(const_fn_union)]
 #![feature(never_type)]
 #![feature(stmt_expr_attributes)]
