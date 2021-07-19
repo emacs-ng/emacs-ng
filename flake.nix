@@ -237,6 +237,7 @@
                 #version = "develop";
 
                 preConfigure = (old.preConfigure or "") + ''
+
                 '' + lib.optionalString withWebrender ''
                   export NIX_CFLAGS_LINK="$NIX_CFLAGS_LINK -lxcb-render -lxcb-xfixes -lxcb-shape"
                 '';
@@ -286,7 +287,7 @@
                       _librusty_v8_setup "debug" "release" "${arch}/release"
                         sed -i 's|deno = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng"|deno = { version = "1.9.2"|' rust_src/crates/js/Cargo.toml
                         sed -i 's|deno_runtime = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng"|deno_runtime = { version = "0.13.0"|' rust_src/crates/js/Cargo.toml
-                        sed -i 's|deno_core = { git = "https://github.com/emacs-ng/deno"|deno_core = { version = "0.86.0"|' rust_src/crates/js/Cargo.toml
+                        sed -i 's|deno_core = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng"|deno_core = { version = "0.86.0"|' rust_src/crates/js/Cargo.toml
 
                         sed -i 's|git = "https://github.com/servo/webrender.git", rev = ".*."|version = "0.61.0"|' rust_src/crates/webrender/Cargo.toml
                       export HOME=${final.emacsNg-rust}
