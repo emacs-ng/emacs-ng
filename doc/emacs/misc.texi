@@ -1021,7 +1021,10 @@ pending in the shell buffer and not yet sent.
 @findex comint-delete-output
 Delete the last batch of output from a shell command
 (@code{comint-delete-output}).  This is useful if a shell command spews
-out lots of output that just gets in the way.
+out lots of output that just gets in the way.  With a prefix argument,
+this command saves the deleted text in the @code{kill-ring}
+(@pxref{Kill Ring}), so that you could later yank it (@pxref{Yanking})
+elsewhere.
 
 @item C-c C-s
 @kindex C-c C-s @r{(Shell mode)}
@@ -1757,6 +1760,13 @@ expression @code{(+ 1 2)} on the @samp{foo} server, and returns
 @code{3}.  (If there is no server with that name, an error is
 signaled.)  Currently, this feature is mainly useful for developers.
 
+  If your operating system’s desktop environment is
+@url{https://www.freedesktop.org/wiki/Specifications/,,freedesktop.org-compatible}
+(which is true of most GNU/Linux and other recent Unix-like GUIs), you
+may use the @samp{Emacs (Client)} menu entry to connect to an Emacs
+server with @command{emacsclient}.  The daemon starts if not
+already running.
+
 @menu
 * TCP Emacs server::     Listening to a TCP socket.
 * Invoking emacsclient:: Connecting to the Emacs server.
@@ -2024,7 +2034,7 @@ evaluation performed is for side-effect rather than result.
 Connect to the Emacs server named @var{server-name}.  (This option is
 not supported on MS-Windows.)  The server name is given by the
 variable @code{server-name} on the Emacs server.  If this option is
-omitted, @command{emacsclient} connects to the first server it finds.
+omitted, @command{emacsclient} connects to the default socket.
 If you set @code{server-name} of the Emacs server to an absolute file
 name, give the same absolute file name as @var{server-name} to this
 option to instruct @command{emacsclient} to connect to that server.

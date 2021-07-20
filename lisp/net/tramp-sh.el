@@ -962,6 +962,7 @@ Format specifiers \"%s\" are replaced before the script is used.")
     (file-exists-p . tramp-sh-handle-file-exists-p)
     (file-in-directory-p . tramp-handle-file-in-directory-p)
     (file-local-copy . tramp-sh-handle-file-local-copy)
+    (file-locked-p . tramp-handle-file-locked-p)
     (file-modes . tramp-handle-file-modes)
     (file-name-all-completions . tramp-sh-handle-file-name-all-completions)
     (file-name-as-directory . tramp-handle-file-name-as-directory)
@@ -988,9 +989,11 @@ Format specifiers \"%s\" are replaced before the script is used.")
     (insert-directory . tramp-sh-handle-insert-directory)
     (insert-file-contents . tramp-handle-insert-file-contents)
     (load . tramp-handle-load)
+    (lock-file . tramp-handle-lock-file)
     (make-auto-save-file-name . tramp-handle-make-auto-save-file-name)
     (make-directory . tramp-sh-handle-make-directory)
     ;; `make-directory-internal' performed by default handler.
+    (make-lock-file-name . tramp-handle-make-lock-file-name)
     (make-nearby-temp-file . tramp-handle-make-nearby-temp-file)
     (make-process . tramp-sh-handle-make-process)
     (make-symbolic-link . tramp-sh-handle-make-symbolic-link)
@@ -1009,6 +1012,7 @@ Format specifiers \"%s\" are replaced before the script is used.")
     (tramp-get-remote-uid . tramp-sh-handle-get-remote-uid)
     (tramp-set-file-uid-gid . tramp-sh-handle-set-file-uid-gid)
     (unhandled-file-name-directory . ignore)
+    (unlock-file . tramp-handle-unlock-file)
     (vc-registered . tramp-sh-handle-vc-registered)
     (verify-visited-file-modtime . tramp-sh-handle-verify-visited-file-modtime)
     (write-region . tramp-sh-handle-write-region))
@@ -2667,56 +2671,63 @@ the result will be a local, non-Tramp, file name."
   (setq dir (or dir default-directory "/"))
   ;; Handle empty NAME.
   (when (zerop (length name)) (setq name "."))
-  ;; Unless NAME is absolute, concat DIR and NAME.
-  (unless (file-name-absolute-p name)
-    (setq name (concat (file-name-as-directory dir) name)))
-  ;; If connection is not established yet, run the real handler.
-  (if (not (tramp-connectable-p name))
-      (tramp-run-real-handler #'expand-file-name (list name nil))
-    ;; Dissect NAME.
-    (with-parsed-tramp-file-name name nil
-      (unless (tramp-run-real-handler #'file-name-absolute-p (list localname))
-	(setq localname (concat "~/" localname)))
-      ;; Tilde expansion if necessary.  This needs a shell which
-      ;; groks tilde expansion!  The function `tramp-find-shell' is
-      ;; supposed to find such a shell on the remote host.  Please
-      ;; tell me about it when this doesn't work on your system.
-      (when (string-match "\\`\\(~[^/]*\\)\\(.*\\)\\'" localname)
-	(let ((uname (match-string 1 localname))
-	      (fname (match-string 2 localname)))
-	  ;; We cannot simply apply "~/", because under sudo "~/" is
-	  ;; expanded to the local user home directory but to the
-	  ;; root home directory.  On the other hand, using always
-	  ;; the default user name for tilde expansion is not
-	  ;; appropriate either, because ssh and companions might
-	  ;; use a user name from the config file.
-	  (when (and (string-equal uname "~")
-		     (string-match-p "\\`su\\(do\\)?\\'" method))
-	    (setq uname (concat uname user)))
-	  (setq uname
-		(with-tramp-connection-property v uname
-		  (tramp-send-command
-		   v (format "cd %s && pwd" (tramp-shell-quote-argument uname)))
-		  (with-current-buffer (tramp-get-buffer v)
-		    (goto-char (point-min))
-		    (buffer-substring (point) (point-at-eol)))))
-	  (setq localname (concat uname fname))))
-      ;; There might be a double slash, for example when "~/"
-      ;; expands to "/".  Remove this.
-      (while (string-match "//" localname)
-	(setq localname (replace-match "/" t t localname)))
-      ;; Do not keep "/..".
-      (when (string-match-p "^/\\.\\.?$" localname)
-	(setq localname "/"))
-      ;; No tilde characters in file name, do normal
-      ;; `expand-file-name' (this does "/./" and "/../").
-      ;; `default-directory' is bound, because on Windows there would
-      ;; be problems with UNC shares or Cygwin mounts.
-      (let ((default-directory (tramp-compat-temporary-file-directory)))
-	(tramp-make-tramp-file-name
-	 v (tramp-drop-volume-letter
-	    (tramp-run-real-handler
-	     #'expand-file-name (list localname))))))))
+  ;; On MS Windows, some special file names are not returned properly
+  ;; by `file-name-absolute-p'.
+  (if (and (eq system-type 'windows-nt)
+	   (string-match-p
+	    (concat "^\\([[:alpha:]]:\\|" null-device "$\\)") name))
+      (tramp-run-real-handler #'expand-file-name (list name dir))
+    ;; Unless NAME is absolute, concat DIR and NAME.
+    (unless (file-name-absolute-p name)
+      (setq name (concat (file-name-as-directory dir) name)))
+    ;; If connection is not established yet, run the real handler.
+    (if (not (tramp-connectable-p name))
+	(tramp-run-real-handler #'expand-file-name (list name nil))
+      ;; Dissect NAME.
+      (with-parsed-tramp-file-name name nil
+	(unless (tramp-run-real-handler #'file-name-absolute-p (list localname))
+	  (setq localname (concat "~/" localname)))
+	;; Tilde expansion if necessary.  This needs a shell which
+	;; groks tilde expansion!  The function `tramp-find-shell' is
+	;; supposed to find such a shell on the remote host.  Please
+	;; tell me about it when this doesn't work on your system.
+	(when (string-match "\\`\\(~[^/]*\\)\\(.*\\)\\'" localname)
+	  (let ((uname (match-string 1 localname))
+		(fname (match-string 2 localname)))
+	    ;; We cannot simply apply "~/", because under sudo "~/" is
+	    ;; expanded to the local user home directory but to the
+	    ;; root home directory.  On the other hand, using always
+	    ;; the default user name for tilde expansion is not
+	    ;; appropriate either, because ssh and companions might
+	    ;; use a user name from the config file.
+	    (when (and (string-equal uname "~")
+		       (string-match-p "\\`su\\(do\\)?\\'" method))
+	      (setq uname (concat uname user)))
+	    (setq uname
+		  (with-tramp-connection-property v uname
+		    (tramp-send-command
+		     v
+		     (format "cd %s && pwd" (tramp-shell-quote-argument uname)))
+		    (with-current-buffer (tramp-get-buffer v)
+		      (goto-char (point-min))
+		      (buffer-substring (point) (point-at-eol)))))
+	    (setq localname (concat uname fname))))
+	;; There might be a double slash, for example when "~/"
+	;; expands to "/".  Remove this.
+	(while (string-match "//" localname)
+	  (setq localname (replace-match "/" t t localname)))
+	;; Do not keep "/..".
+	(when (string-match-p "^/\\.\\.?$" localname)
+	  (setq localname "/"))
+	;; No tilde characters in file name, do normal
+	;; `expand-file-name' (this does "/./" and "/../").
+	;; `default-directory' is bound, because on Windows there
+	;; would be problems with UNC shares or Cygwin mounts.
+	(let ((default-directory (tramp-compat-temporary-file-directory)))
+	  (tramp-make-tramp-file-name
+	   v (tramp-drop-volume-letter
+	      (tramp-run-real-handler
+	       #'expand-file-name (list localname)))))))))
 
 ;;; Remote commands:
 
@@ -3018,7 +3029,7 @@ implementation will be used."
   (when (and (numberp destination) (zerop destination))
     (error "Implementation does not handle immediate return"))
 
-  (with-parsed-tramp-file-name default-directory nil
+  (with-parsed-tramp-file-name (expand-file-name default-directory) nil
     (let (command env uenv input tmpinput stderr tmpstderr outbuf ret)
       ;; Compute command.
       (setq command (mapconcat #'tramp-shell-quote-argument
@@ -3225,11 +3236,11 @@ implementation will be used."
       (run-hooks 'tramp-handle-file-local-copy-hook)
       tmpfile)))
 
-;; CCC grok LOCKNAME
 (defun tramp-sh-handle-write-region
   (start end filename &optional append visit lockname mustbenew)
   "Like `write-region' for Tramp files."
-  (setq filename (expand-file-name filename))
+  (setq filename (expand-file-name filename)
+	lockname (file-truename (or lockname filename)))
   (with-parsed-tramp-file-name filename nil
     (when (and mustbenew (file-exists-p filename)
 	       (or (eq mustbenew 'excl)
@@ -3238,25 +3249,31 @@ implementation will be used."
 		     (format "File %s exists; overwrite anyway? " filename)))))
       (tramp-error v 'file-already-exists filename))
 
-    (let ((uid (or (tramp-compat-file-attribute-user-id
+    (let ((file-locked (eq (file-locked-p lockname) t))
+	  (uid (or (tramp-compat-file-attribute-user-id
 		    (file-attributes filename 'integer))
 		   (tramp-get-remote-uid v 'integer)))
 	  (gid (or (tramp-compat-file-attribute-group-id
 		    (file-attributes filename 'integer))
 		   (tramp-get-remote-gid v 'integer))))
 
+      ;; Lock file.
+      (when (and (not (auto-save-file-name-p (file-name-nondirectory filename)))
+		 (file-remote-p lockname)
+		 (not file-locked))
+	(setq file-locked t)
+	;; `lock-file' exists since Emacs 28.1.
+	(tramp-compat-funcall 'lock-file lockname))
+
       (if (and (tramp-local-host-p v)
 	       ;; `file-writable-p' calls `file-expand-file-name'.  We
 	       ;; cannot use `tramp-run-real-handler' therefore.
-	       (let (file-name-handler-alist)
-		 (and
-		  (file-writable-p (file-name-directory localname))
-		  (or (file-directory-p localname)
-		      (file-writable-p localname)))))
+	       (file-writable-p (file-name-directory localname))
+	       (or (file-directory-p localname)
+		   (file-writable-p localname)))
 	  ;; Short track: if we are on the local host, we can run directly.
-	  (tramp-run-real-handler
-	   #'write-region
-	   (list start end localname append 'no-message lockname))
+	  (let ((create-lockfiles (not file-locked)))
+	    (write-region start end localname append 'no-message lockname))
 
 	(let* ((modes (tramp-default-file-modes
 		       filename (and (eq mustbenew 'excl) 'nofollow)))
@@ -3289,13 +3306,11 @@ implementation will be used."
 	  ;; file.  We call `set-visited-file-modtime' ourselves later
 	  ;; on.  We must ensure that `file-coding-system-alist'
 	  ;; matches `tmpfile'.
-	  (let (file-name-handler-alist
-		(file-coding-system-alist
-		 (tramp-find-file-name-coding-system-alist filename tmpfile)))
+	  (let ((file-coding-system-alist
+		 (tramp-find-file-name-coding-system-alist filename tmpfile))
+                create-lockfiles)
 	    (condition-case err
-		(tramp-run-real-handler
-		 #'write-region
-		 (list start end tmpfile append 'no-message lockname))
+		(write-region start end tmpfile append 'no-message)
 	      ((error quit)
 	       (setq tramp-temp-buffer-file-name nil)
 	       (delete-file tmpfile)
@@ -3464,6 +3479,12 @@ implementation will be used."
 	;; Set the ownership.
         (when need-chown
           (tramp-set-file-uid-gid filename uid gid))
+
+	;; Unlock file.
+	(when file-locked
+	  ;; `unlock-file' exists since Emacs 28.1.
+	  (tramp-compat-funcall 'unlock-file lockname))
+
 	(when (and (null noninteractive)
 		   (or (eq visit t) (null visit) (stringp visit)))
 	  (tramp-message v 0 "Wrote %s" filename))
