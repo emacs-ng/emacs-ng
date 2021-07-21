@@ -1658,6 +1658,11 @@ starting with `not' and followed by regexps."
   "Face used for displaying MML."
   :group 'message-faces)
 
+(defface message-signature-separator '((t :bold t))
+  "Face used for displaying the signature separator."
+  :group 'message-faces
+  :version "28.1")
+
 (defun message-match-to-eoh (_limit)
   (let ((start (point)))
     (rfc822-goto-eoh)
@@ -1751,8 +1756,21 @@ number of levels specified in the faces `message-cited-text-*'."
                 (0 ',cited-text-face))
               keywords))
        (setq level (1+ level)))
-     keywords))
+     keywords)
+   ;; Match signature.  This `field' stuff ensures that hitting `RET'
+   ;; after the signature separator doesn't remove the trailing space.
+   (list
+    '(message--match-signature (0 '( face message-signature-separator
+                                     rear-nonsticky t
+                                     field signature)))))
   "Additional expressions to highlight in Message mode.")
+
+(defun message--match-signature (limit)
+  (save-excursion
+    (and (re-search-forward message-signature-separator limit t)
+         ;; It's the last one in the buffer.
+         (not (save-excursion
+                (re-search-forward message-signature-separator nil t))))))
 
 (defvar message-face-alist
   '((bold . message-bold-region)
@@ -8722,17 +8740,18 @@ Header and body are separated by `mail-header-separator'."
 
 (defun message-replace-header (header new-value &optional after force)
   "Remove HEADER and insert the NEW-VALUE.
-If AFTER, insert after this header.  If FORCE, insert new field
-even if NEW-VALUE is empty."
+If AFTER, insert after this header.  AFTER may be a list of
+headers.  If FORCE, insert new field even if NEW-VALUE is empty."
   ;; Similar to `nnheader-replace-header' but for message buffers.
   (save-excursion
     (save-restriction
       (message-narrow-to-headers)
       (message-remove-header header))
     (when (or force (> (length new-value) 0))
-      (if after
-	  (message-position-on-field header after)
-	(message-position-on-field header))
+      (apply #'message-position-on-field header
+             (if (listp after)
+                 after
+               (list after)))
       (insert new-value))))
 
 (make-obsolete-variable

@@ -459,6 +459,16 @@ Useful for shells like zsh that has this feature."
           (push (mapconcat #'identity (nreverse arg) "") args)))
       (cons (nreverse args) (nreverse begins)))))
 
+;;;###autoload
+(defun split-string-shell-command (string)
+  "Split STRING (a shell command) into a list of strings.
+General shell syntax, like single and double quoting, as well as
+backslash quoting, is respected."
+  (with-temp-buffer
+    (insert string)
+    (let ((comint-file-name-quote-list shell-file-name-quote-list))
+      (car (shell--parse-pcomplete-arguments)))))
+
 (defun shell-command-completion-function ()
   "Completion function for shell command names.
 This is the value of `pcomplete-command-completion-function' for
@@ -759,7 +769,8 @@ Make the shell buffer the current buffer, and return it.
                  (file-local-name
                   (expand-file-name
                    (read-file-name "Remote shell path: " default-directory
-                                   shell-file-name t shell-file-name)))))
+                                   shell-file-name t shell-file-name
+                                   #'file-remote-p)))))
 
    ;; Rain or shine, BUFFER must be current by now.
    (unless (comint-check-proc buffer)

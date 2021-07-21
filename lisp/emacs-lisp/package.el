@@ -3377,7 +3377,8 @@ If optional arg BUTTON is non-nil, describe its associated package."
         (forward-line 1)))))
 
 (defvar package--quick-help-keys
-  '(("install," "delete," "unmark," ("execute" . 1))
+  '((("mark for installation," . 9)
+     ("mark for deletion," . 9) "unmark," ("execute marked actions" . 1))
     ("next," "previous")
     ("Hide-package," "(-toggle-hidden")
     ("g-refresh-contents," "/-filter," "help")))
@@ -3956,9 +3957,14 @@ packages."
   (package--ensure-package-menu-mode)
   (if (or (not status) (string-empty-p status))
       (package-menu--generate t t)
-    (package-menu--filter-by (lambda (pkg-desc)
-                        (string-match-p status (package-desc-status pkg-desc)))
-                      (format "status:%s" status))))
+    (let ((status-list
+           (if (listp status)
+               status
+             (split-string status ","))))
+      (package-menu--filter-by
+       (lambda (pkg-desc)
+         (member (package-desc-status pkg-desc) status-list))
+       (format "status:%s" (string-join status-list ","))))))
 
 (defun package-menu-filter-by-version (version predicate)
   "Filter the \"*Packages*\" buffer by VERSION and PREDICATE.

@@ -718,7 +718,7 @@ Emacs can then detect the first attempt to modify a buffer visiting a
 file that is locked by another Emacs job, and ask the user what to do.
 The file lock is really a file, a symbolic link with a special name,
 stored in the same directory as the file you are editing.  The name is
-constructed by prepending @file{.#} to the filename of the buffer.
+constructed by prepending @file{.#} to the file name of the buffer.
 The target of the symbolic link will be of the form
 @code{@var{user}@@@var{host}.@var{pid}:@var{boot}}, where @var{user}
 is replaced with the current username (from @code{user-login-name}),
@@ -772,6 +772,20 @@ and otherwise ignores the error.
 If this variable is @code{nil}, Emacs does not lock files.
 @end defopt
 
+@defopt lock-file-name-transforms
+By default, Emacs creates the lock files in the same directory as the
+files that are being locked.  This can be changed by customizing this
+variable.  Is has the same syntax as
+@code{auto-save-file-name-transforms} (@pxref{Auto-Saving}).  For
+instance, to make Emacs write all the lock files to @file{/var/tmp/},
+you could say something like:
+
+@lisp
+(setq lock-file-name-transforms
+      '(("\\`/.*/\\([^/]+\\)\\'" "/var/tmp/\\1" t)))
+@end lisp
+@end defopt
+
 @defun ask-user-about-lock file other-user
 This function is called when the user tries to modify @var{file}, but it
 is locked by another user named @var{other-user}.  The default
@@ -806,6 +820,16 @@ name of the user who has locked the file.
 If you wish, you can replace the @code{ask-user-about-lock} function
 with your own version that makes the decision in another way.
 @end defun
+
+@defopt remote-file-name-inhibit-locks
+You can prevent the creation of remote lock files by setting the
+variable @code{remote-file-name-inhibit-locks} to @code{t}.
+@end defopt
+
+@deffn Command lock-file-mode
+This command, called interactively, toggles the local value of
+@code{create-lockfiles} in the current buffer.
+@end deffn
 
 @node Information about Files
 @section Information about Files
@@ -1932,7 +1956,7 @@ is a symbolic link and @var{flag} is @code{nofollow}.
 
 @defun set-file-extended-attributes filename attribute-alist
 This function sets the Emacs-recognized extended file attributes for
-@code{filename}.  The second argument @var{attribute-alist} should be
+@var{filename}.  The second argument @var{attribute-alist} should be
 an alist of the same form returned by @code{file-extended-attributes}.
 The return value is @code{t} if the attributes are successfully set,
 otherwise it is @code{nil}.
@@ -2127,6 +2151,25 @@ extension.  Thus, @file{.emacs}'s extension is @code{nil}, not
 If @var{period} is non-@code{nil}, then the returned value includes
 the period that delimits the extension, and if @var{filename} has no
 extension, the value is @code{""}.
+@end defun
+
+@defun file-name-with-extension filename extension
+This function returns @var{filename} with its extension set to
+@var{extension}.  A single leading dot in the @var{extension} will be
+stripped if there is one.  For example:
+
+@example
+(file-name-with-extension "file" "el")
+     @result{} "file.el"
+(file-name-with-extension "file" ".el")
+     @result{} "file.el"
+(file-name-with-extension "file.c" "el")
+     @result{} "file.el"
+@end example
+
+Note that this function will error if @var{filename} or
+@var{extension} are empty, or if the @var{filename} is shaped like a
+directory (i.e., if @code{directory-name-p} returns non-@code{nil}).
 @end defun
 
 @defun file-name-sans-extension filename
@@ -2415,7 +2458,7 @@ might begin with a literal @samp{~}, you can use @code{(concat
 (file-name-as-directory directory) filename)} instead of
 @code{(expand-file-name filename directory)}.
 
-Filenames containing @samp{.} or @samp{..} are simplified to their
+File names containing @samp{.} or @samp{..} are simplified to their
 canonical form:
 
 @example
@@ -3254,7 +3297,7 @@ first, before handlers for jobs such as remote file access.
 @code{file-equal-p},
 @code{file-executable-p}, @code{file-exists-p},
 @code{file-in-directory-p},
-@code{file-local-copy},
+@code{file-local-copy}, @code{file-locked-p},
 @code{file-modes}, @code{file-name-all-completions},
 @code{file-name-as-directory},
 @code{file-name-case-insensitive-p},
@@ -3273,10 +3316,11 @@ first, before handlers for jobs such as remote file access.
 @code{get-file-buffer},
 @code{insert-directory},
 @code{insert-file-contents},@*
-@code{load},
+@code{load}, @code{lock-file},
 @code{make-auto-save-file-name},
 @code{make-directory},
 @code{make-directory-internal},
+@code{make-lock-file-name},
 @code{make-nearby-temp-file},
 @code{make-process},
 @code{make-symbolic-link},@*
@@ -3288,6 +3332,7 @@ first, before handlers for jobs such as remote file access.
 @code{substitute-in-file-name},@*
 @code{temporary-file-directory},
 @code{unhandled-file-name-directory},
+@code{unlock-file},
 @code{vc-registered},
 @code{verify-visited-file-modtime},@*
 @code{write-region}.
@@ -3312,7 +3357,7 @@ first, before handlers for jobs such as remote file access.
 @code{file-equal-p},
 @code{file-executable-p}, @code{file-exists-p},
 @code{file-in-directory-p},
-@code{file-local-copy},
+@code{file-local-copy}, @code{file-locked-p},
 @code{file-modes}, @code{file-name-all-completions},
 @code{file-name-as-directory},
 @code{file-name-case-insensitive-p},
@@ -3331,10 +3376,12 @@ first, before handlers for jobs such as remote file access.
 @code{get-file-buffer},
 @code{insert-directory},
 @code{insert-file-contents},
-@code{load},
+@code{load}, @code{lock-file},
 @code{make-auto-save-file-name},
 @code{make-direc@discretionary{}{}{}tory},
 @code{make-direc@discretionary{}{}{}tory-internal},
+@code{make-lock-file-name},
+@code{make-nearby-temp-file},
 @code{make-process},
 @code{make-symbolic-link},
 @code{process-file},
@@ -3343,7 +3390,9 @@ first, before handlers for jobs such as remote file access.
 @code{set-visited-file-modtime}, @code{shell-command},
 @code{start-file-process},
 @code{substitute-in-file-name},
+@code{temporary-file-directory},
 @code{unhandled-file-name-directory},
+@code{unlock-file},
 @code{vc-regis@discretionary{}{}{}tered},
 @code{verify-visited-file-modtime},
 @code{write-region}.
@@ -3457,11 +3506,11 @@ identifies the remote system.
 
 This identifier string can include a host name and a user name, as
 well as characters designating the method used to access the remote
-system.  For example, the remote identifier string for the filename
+system.  For example, the remote identifier string for the file name
 @code{/sudo::/some/file} is @code{/sudo:root@@localhost:}.
 
 If @code{file-remote-p} returns the same identifier for two different
-filenames, that means they are stored on the same file system and can
+file names, that means they are stored on the same file system and can
 be accessed locally with respect to each other.  This means, for
 example, that it is possible to start a remote process accessing both
 files at the same time.  Implementers of file name handlers need to

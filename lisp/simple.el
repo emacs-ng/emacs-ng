@@ -695,6 +695,30 @@ When called from Lisp code, ARG may be a prefix string to copy."
     (indent-to col 0)
     (goto-char pos)))
 
+(defface separator-line
+  '((((type graphic) (background dark))
+     :height 0.1 :background "#505050")
+    (((type graphic) (background light))
+     :height 0.1 :background "#a0a0a0")
+    (t :foreground "ForestGreen"))
+  "Face for separator lines."
+  :version "28.1"
+  :group 'text)
+
+(defun make-separator-line (&optional length)
+  "Make a string appropriate for usage as a visual separator line.
+This uses the `separator-line' face.
+
+If LENGTH is nil, use the window width."
+  (if (display-graphic-p)
+      (if length
+          (concat (propertize (make-string length ?\s) 'face 'separator-line)
+                  "\n")
+        (propertize "\n" 'face '(:inherit separator-line :extend t)))
+    (concat (propertize (make-string (or length (1- (window-width))) ?-)
+                        'face 'separator-line)
+            "\n")))
+
 (defun delete-indentation (&optional arg beg end)
   "Join this line to previous and fix up whitespace at join.
 If there is a fill prefix, delete it from the beginning of this
@@ -5060,6 +5084,16 @@ The comparison is done using `equal-including-properties'."
   :group 'killing
   :version "23.2")
 
+(defcustom kill-transform-function nil
+  "Function to call to transform a string before it's put on the kill ring.
+The function is called with one parameter (the string that's to
+be put on the kill ring).  It should return a string or nil.  If
+the latter, the string is not put on the kill ring."
+  :type '(choice (const :tag "No transform" nil)
+                 function)
+  :group 'killing
+  :version "28.1")
+
 (defun kill-new (string &optional replace)
   "Make STRING the latest kill in the kill ring.
 Set `kill-ring-yank-pointer' to point to it.
@@ -5075,38 +5109,41 @@ When the yank handler has a non-nil PARAM element, the original STRING
 argument is not used by `insert-for-yank'.  However, since Lisp code
 may access and use elements from the kill ring directly, the STRING
 argument should still be a \"useful\" string for such uses."
-  (unless (and kill-do-not-save-duplicates
-	       ;; Due to text properties such as 'yank-handler that
-	       ;; can alter the contents to yank, comparison using
-	       ;; `equal' is unsafe.
-	       (equal-including-properties string (car kill-ring)))
-    (if (fboundp 'menu-bar-update-yank-menu)
-	(menu-bar-update-yank-menu string (and replace (car kill-ring)))))
-  (when save-interprogram-paste-before-kill
-    (let ((interprogram-paste (and interprogram-paste-function
-                                   (funcall interprogram-paste-function))))
-      (when interprogram-paste
-        (setq interprogram-paste
-              (if (listp interprogram-paste)
-                  ;; Use `reverse' to avoid modifying external data.
-                  (reverse interprogram-paste)
-		(list interprogram-paste)))
-        (when (or (not (numberp save-interprogram-paste-before-kill))
-                  (< (seq-reduce #'+ (mapcar #'length interprogram-paste) 0)
-                     save-interprogram-paste-before-kill))
-          (dolist (s interprogram-paste)
-	    (unless (and kill-do-not-save-duplicates
-                         (equal-including-properties s (car kill-ring)))
-	      (push s kill-ring)))))))
-  (unless (and kill-do-not-save-duplicates
-	       (equal-including-properties string (car kill-ring)))
-    (if (and replace kill-ring)
-	(setcar kill-ring string)
-      (let ((history-delete-duplicates nil))
-        (add-to-history 'kill-ring string kill-ring-max t))))
-  (setq kill-ring-yank-pointer kill-ring)
-  (if interprogram-cut-function
-      (funcall interprogram-cut-function string)))
+  ;; Allow the user to transform or ignore the string.
+  (when (or (not kill-transform-function)
+            (setq string (funcall kill-transform-function string)))
+    (unless (and kill-do-not-save-duplicates
+	         ;; Due to text properties such as 'yank-handler that
+	         ;; can alter the contents to yank, comparison using
+	         ;; `equal' is unsafe.
+	         (equal-including-properties string (car kill-ring)))
+      (if (fboundp 'menu-bar-update-yank-menu)
+	  (menu-bar-update-yank-menu string (and replace (car kill-ring)))))
+    (when save-interprogram-paste-before-kill
+      (let ((interprogram-paste (and interprogram-paste-function
+                                     (funcall interprogram-paste-function))))
+        (when interprogram-paste
+          (setq interprogram-paste
+                (if (listp interprogram-paste)
+                    ;; Use `reverse' to avoid modifying external data.
+                    (reverse interprogram-paste)
+		  (list interprogram-paste)))
+          (when (or (not (numberp save-interprogram-paste-before-kill))
+                    (< (seq-reduce #'+ (mapcar #'length interprogram-paste) 0)
+                       save-interprogram-paste-before-kill))
+            (dolist (s interprogram-paste)
+	      (unless (and kill-do-not-save-duplicates
+                           (equal-including-properties s (car kill-ring)))
+	        (push s kill-ring)))))))
+    (unless (and kill-do-not-save-duplicates
+	         (equal-including-properties string (car kill-ring)))
+      (if (and replace kill-ring)
+	  (setcar kill-ring string)
+        (let ((history-delete-duplicates nil))
+          (add-to-history 'kill-ring string kill-ring-max t))))
+    (setq kill-ring-yank-pointer kill-ring)
+    (if interprogram-cut-function
+        (funcall interprogram-cut-function string))))
 
 ;; It has been argued that this should work like `self-insert-command'
 ;; which merges insertions in `buffer-undo-list' in groups of 20
@@ -5829,7 +5866,13 @@ Can be `untabify' -- turn a tab to many spaces, then delete one space;
 (defun backward-delete-char-untabify (arg &optional killp)
   "Delete characters backward, changing tabs into spaces.
 The exact behavior depends on `backward-delete-char-untabify-method'.
+
 Delete ARG chars, and kill (save in kill ring) if KILLP is non-nil.
+
+If Transient Mark mode is enabled, the mark is active, and ARG is 1,
+delete the text in the region and deactivate the mark instead.
+To disable this, set option ‘delete-active-region’ to nil.
+
 Interactively, ARG is the prefix arg (default 1)
 and KILLP is t if a prefix arg was specified."
   (interactive "*p\nP")
@@ -6662,6 +6705,10 @@ or \"mark.*active\" at the prompt."
   :global t
   ;; It's defined in C/cus-start, this stops the d-m-m macro defining it again.
   :variable (default-value 'transient-mark-mode))
+
+(define-minor-mode indent-tabs-mode
+  "Toggle whether indentation can insert TAB characters."
+  :global t :group 'indent :variable indent-tabs-mode)
 
 (defvar widen-automatically t
   "Non-nil means it is ok for commands to call `widen' when they want to.

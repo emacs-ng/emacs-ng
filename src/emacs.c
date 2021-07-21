@@ -670,7 +670,9 @@ argmatch (char **argv, int argc, const char *sstr, const char *lstr,
     }
   arglen = (valptr != NULL && (p = strchr (arg, '=')) != NULL
 	    ? p - arg : strlen (arg));
-  if (lstr == 0 || arglen < minlen || strncmp (arg, lstr, arglen) != 0)
+  if (!lstr)
+    return 0;
+  if (arglen < minlen || strncmp (arg, lstr, arglen) != 0)
     return 0;
   else if (valptr == NULL)
     {
@@ -835,7 +837,13 @@ load_pdump (int argc, char **argv)
     NULL
 #endif
     ;
-  const char *argv0_base = "emacs";
+  const char *argv0_base =
+#ifdef NS_SELF_CONTAINED
+    "Emacs"
+#else
+    "emacs"
+#endif
+    ;
 
   /* TODO: maybe more thoroughly scrub process environment in order to
      make this use case (loading a dump file in an unexeced emacs)
@@ -912,6 +920,8 @@ load_pdump (int argc, char **argv)
   /* On MS-Windows, PATH_EXEC normally starts with a literal
      "%emacs_dir%", so it will never work without some tweaking.  */
   path_exec = w32_relocate (path_exec);
+#elif defined (HAVE_NS)
+  path_exec = ns_relocate (path_exec);
 #endif
 
   /* Look for "emacs.pdmp" in PATH_EXEC.  We hardcode "emacs" in
@@ -929,6 +939,7 @@ load_pdump (int argc, char **argv)
     }
   sprintf (dump_file, "%s%c%s%s",
            path_exec, DIRECTORY_SEP, argv0_base, suffix);
+#if !defined (NS_SELF_CONTAINED)
   /* Assume the Emacs binary lives in a sibling directory as set up by
      the default installation configuration.  */
   const char *go_up = "../../../../bin/";
@@ -943,6 +954,7 @@ load_pdump (int argc, char **argv)
   sprintf (emacs_executable, "%s%c%s%s%s",
 	   path_exec, DIRECTORY_SEP, go_up, argv0_base,
 	   strip_suffix ? strip_suffix : "");
+#endif
   result = pdumper_load (dump_file, emacs_executable);
 
   if (result == PDUMPER_LOAD_FILE_NOT_FOUND)
@@ -2965,7 +2977,11 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
     path = 0;
   if (!path)
     {
+#ifdef NS_SELF_CONTAINED
+      path = ns_relocate (defalt);
+#else
       path = defalt;
+#endif
 #ifdef WINDOWSNT
       defaulted = 1;
 #endif

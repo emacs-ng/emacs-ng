@@ -465,6 +465,31 @@ If `silently', don't ask the user before saving."
   :type '(choice (const t) (const nil) (const silently))
   :group 'abbrev)
 
+(defcustom lock-file-name-transforms nil
+  "Transforms to apply to buffer file name before making a lock file name.
+This has the same syntax as
+`auto-save-file-name-transforms' (which see), but instead of
+applying to auto-save file names, it's applied to lock file names.
+
+By default, a lock file is put into the same directory as the
+file it's locking, and it has the same name, but with \".#\" prepended."
+  :group 'files
+  :type '(repeat (list (regexp :tag "Regexp")
+                       (string :tag "Replacement")
+		       (boolean :tag "Uniquify")))
+  :version "28.1")
+
+(defcustom remote-file-name-inhibit-locks nil
+  "Whether to use file locks for remote files."
+  :group 'files
+  :version "28.1"
+  :type 'boolean)
+
+(define-minor-mode lock-file-mode
+  "Toggle file locking in the current buffer (Lock File mode)."
+  :version "28.1"
+  (setq-local create-lockfiles (and lock-file-mode t)))
+
 (defcustom find-file-run-dired t
   "Non-nil means allow `find-file' to visit directories.
 To visit the directory, `find-file' runs `find-directory-functions'."
@@ -1011,7 +1036,7 @@ Any directory whose name matches this regexp will be treated like
 a kind of root directory by `locate-dominating-file', which will stop its
 search when it bumps into it.
 The default regexp prevents fruitless and time-consuming attempts to find
-special files in directories in which filenames are interpreted as hostnames,
+special files in directories in which file names are interpreted as host names,
 or mount points potentially requiring authentication as a different user.")
 
 (defun locate-dominating-file (file name)
@@ -2133,6 +2158,19 @@ think it does, because \"free\" is pretty hard to define in practice."
   :version "25.1"
   :type '(choice integer (const :tag "Never issue warning" nil)))
 
+(defcustom query-about-changed-file t
+  "If non-nil, query the user when re-visiting a file that has changed.
+This happens if the file is already visited in a buffer, the
+file was changed externally, and the user re-visits the file.
+
+If nil, don't prompt the user, but instead provide instructions for
+reverting, after switching to the buffer with its contents before
+the external changes."
+  :group 'files
+  :group 'find-file
+  :version "28.1"
+  :type 'boolean)
+
 (declare-function x-popup-dialog "menu.c" (position contents &optional header))
 
 (defun files--ask-user-about-large-file-help-text (op-type size)
@@ -2288,7 +2326,8 @@ the various files."
 	;; Check to see if the file looks uncommonly large.
 	(when (not (or buf nowarn))
           (when (eq (abort-if-file-too-large
-                     (file-attribute-size attributes) "open" filename t)
+                     (file-attribute-size attributes) "open" filename
+                     (not rawfile))
                     'raw)
             (setf rawfile t))
 	  (warn-maybe-out-of-memory (file-attribute-size attributes)))
@@ -2314,6 +2353,14 @@ the various files."
 			   (message "Reverting file %s..." filename)
 			   (revert-buffer t t)
 			   (message "Reverting file %s...done" filename)))
+                        ((not query-about-changed-file)
+                         (message
+                          (substitute-command-keys
+                           "File %s changed on disk.  \\[revert-buffer] to load new contents%s")
+                          (file-name-nondirectory filename)
+                          (if (buffer-modified-p buf)
+                              " and discard your edits"
+                            "")))
 			((yes-or-no-p
 			  (if (string= (file-name-nondirectory filename)
 				       (buffer-name buf))
@@ -2429,7 +2476,8 @@ Do you want to revisit the file normally now? ")))
 	   (set-buffer-multibyte t))
       (if rawfile
 	  (condition-case ()
-	      (let ((inhibit-read-only t))
+	      (let ((inhibit-read-only t)
+                    (enable-local-variables nil))
 		(insert-file-contents-literally filename t))
 	    (file-error
 	     (when (and (file-exists-p filename)
@@ -2468,7 +2516,7 @@ Do you want to revisit the file normally now? ")))
 	   (not (funcall backup-enable-predicate buffer-file-name))
            (setq-local backup-inhibited t))
       (if rawfile
-	  (progn
+	  (let ((enable-local-variables nil))
 	    (set-buffer-multibyte nil)
 	    (setq buffer-file-coding-system 'no-conversion)
 	    (set-buffer-major-mode buf)
@@ -2957,7 +3005,7 @@ ARC\\|ZIP\\|LZH\\|LHA\\|ZOO\\|[JEW]AR\\|XPI\\|RAR\\|CBR\\|7Z\\|SQUASHFS\\)\\'" .
      ("\\.xmp\\'" . image-mode)
      ("\\.xwd\\'" . image-mode)
      ("\\.yuv\\'" . image-mode)))
-  "Alist of filename patterns vs corresponding major mode functions.
+  "Alist of file name patterns vs corresponding major mode functions.
 Each element looks like (REGEXP . FUNCTION) or (REGEXP FUNCTION NON-NIL).
 \(NON-NIL stands for anything that is not nil; the value does not matter.)
 Visiting a file whose name matches REGEXP specifies FUNCTION as the
@@ -3150,7 +3198,7 @@ To find the right major mode, this function checks for a -*- mode tag
 checks for a `mode:' entry in the Local Variables section of the file,
 checks if it uses an interpreter listed in `interpreter-mode-alist',
 matches the buffer beginning against `magic-mode-alist',
-compares the filename against the entries in `auto-mode-alist',
+compares the file name against the entries in `auto-mode-alist',
 then matches the buffer beginning against `magic-fallback-mode-alist'.
 
 If `enable-local-variables' is nil, or if the file name matches
@@ -3387,12 +3435,26 @@ Major modes can use this to examine user-specified local variables
 in order to initialize other data structure based on them.")
 
 (defcustom safe-local-variable-values nil
-  "List variable-value pairs that are considered safe.
+  "List of variable-value pairs that are considered safe.
 Each element is a cons cell (VAR . VAL), where VAR is a variable
-symbol and VAL is a value that is considered safe."
+symbol and VAL is a value that is considered safe.
+
+Also see `ignored-local-variable-values'."
   :risky t
   :group 'find-file
   :type 'alist)
+
+(defcustom ignored-local-variable-values nil
+  "List of variable-value pairs that should always be ignored.
+Each element is a cons cell (VAR . VAL), where VAR is a variable
+symbol and VAL is its value; if VAR is set to VAL by a file-local
+variables section, that setting should be ignored.
+
+Also see `safe-local-variable-values'."
+  :risky t
+  :group 'find-file
+  :type 'alist
+  :version "28.1")
 
 (defcustom safe-local-eval-forms
   ;; This should be here at least as long as Emacs supports write-file-hooks.
@@ -3544,7 +3606,9 @@ n  -- to ignore the local variables list.")
 	(if offer-save
 	    (insert "
 !  -- to apply the local variables list, and permanently mark these
-      values (*) as safe (in the future, they will be set automatically.)\n\n")
+      values (*) as safe (in the future, they will be set automatically.)
+i  -- to ignore the local variables list, and permanently mark these
+      values (*) as ignored\n\n")
 	  (insert "\n\n"))
 	(dolist (elt all-vars)
 	  (cond ((member elt unsafe-vars)
@@ -3568,16 +3632,24 @@ n  -- to ignore the local variables list.")
 	(pop-to-buffer buf '(display-buffer--maybe-at-bottom))
 	(let* ((exit-chars '(?y ?n ?\s))
 	       (prompt (format "Please type %s%s: "
-			       (if offer-save "y, n, or !" "y or n")
+			       (if offer-save "y, n, ! or i" "y or n")
 			       (if (< (line-number-at-pos (point-max))
 				      (window-body-height))
 				   ""
 				 ", or C-v/M-v to scroll")))
 	       char)
-	  (if offer-save (push ?! exit-chars))
+	  (when offer-save
+            (push ?i exit-chars)
+            (push ?! exit-chars))
 	  (setq char (read-char-choice prompt exit-chars))
-	  (when (and offer-save (= char ?!) unsafe-vars)
-	    (customize-push-and-save 'safe-local-variable-values unsafe-vars))
+	  (when (and offer-save
+                     (or (= char ?!) (= char ?i))
+                     unsafe-vars)
+	    (customize-push-and-save
+             (if (= char ?!)
+                 'safe-local-variable-values
+               'ignored-local-variable-values)
+             unsafe-vars))
 	  (prog1 (memq char '(?! ?\s ?y))
 	    (quit-window t)))))))
 
@@ -3670,13 +3742,18 @@ If these settings come from directory-local variables, then
 DIR-NAME is the name of the associated directory.  Otherwise it is nil."
   ;; Find those variables that we may want to save to
   ;; `safe-local-variable-values'.
-  (let (all-vars risky-vars unsafe-vars)
+  (let (all-vars risky-vars unsafe-vars ignored)
     (dolist (elt variables)
       (let ((var (car elt))
 	    (val (cdr elt)))
 	(cond ((memq var ignored-local-variables)
 	       ;; Ignore any variable in `ignored-local-variables'.
 	       nil)
+              ((seq-some (lambda (elem)
+                           (and (eq (car elem) var)
+                                (eq (cdr elem) val)))
+                         ignored-local-variable-values)
+               nil)
 	      ;; Obey `enable-local-eval'.
 	      ((eq var 'eval)
 	       (when enable-local-eval
@@ -4039,7 +4116,7 @@ already the major mode."
     ('eval
      (pcase val
        (`(add-hook ',hook . ,_) (hack-one-local-variable--obsolete hook)))
-     (save-excursion (eval val)))
+     (save-excursion (eval val t)))
     (_
      (hack-one-local-variable--obsolete var)
      ;; Make sure the string has no text properties.
@@ -4892,6 +4969,27 @@ extension, the value is \"\"."
         (if period
             "")))))
 
+(defun file-name-with-extension (filename extension)
+  "Set the EXTENSION of a FILENAME.
+The extension (in a file name) is the part that begins with the last \".\".
+
+Trims a leading dot from the EXTENSION so that either \"foo\" or
+\".foo\" can be given.
+
+Errors if the FILENAME or EXTENSION are empty, or if the given
+FILENAME has the format of a directory.
+
+See also `file-name-sans-extension'."
+  (let ((extn (string-trim-left extension "[.]")))
+    (cond ((string-empty-p filename)
+           (error "Empty filename: %s" filename))
+          ((string-empty-p extn)
+           (error "Malformed extension: %s" extension))
+          ((directory-name-p filename)
+           (error "Filename is a directory: %s" filename))
+          (t
+           (concat (file-name-sans-extension filename) "." extn)))))
+
 (defun file-name-base (&optional filename)
   "Return the base name of the FILENAME: no directory, no extension."
   (declare (advertised-calling-convention (filename) "27.1"))
@@ -4918,7 +5016,7 @@ See also `backup-directory-alist'."
 		 (function :tag "Function")))
 
 (defcustom backup-directory-alist nil
-  "Alist of filename patterns and backup directory names.
+  "Alist of file name patterns and backup directory names.
 Each element looks like (REGEXP . DIRECTORY).  Backups of files with
 names matching REGEXP will be made in DIRECTORY.  DIRECTORY may be
 relative or absolute.  If it is absolute, so that all matching files
@@ -4931,7 +5029,7 @@ For the common case of all backups going into one directory, the alist
 should contain a single element pairing \".\" with the appropriate
 directory name.
 
-If this variable is nil, or it fails to match a filename, the backup
+If this variable is nil, or it fails to match a file name, the backup
 is made in the original file's directory.
 
 On MS-DOS filesystems without long names this variable is always
@@ -6641,67 +6739,15 @@ Does not consider `auto-save-visited-file-name' as that variable is checked
 before calling this function.
 See also `auto-save-file-name-p'."
   (if buffer-file-name
-      (let ((handler (find-file-name-handler buffer-file-name
-					     'make-auto-save-file-name)))
+      (let ((handler (find-file-name-handler
+                      buffer-file-name 'make-auto-save-file-name)))
 	(if handler
 	    (funcall handler 'make-auto-save-file-name)
-	  (let ((list auto-save-file-name-transforms)
-		(filename buffer-file-name)
-		result uniq)
-	    ;; Apply user-specified translations
-	    ;; to the file name.
-	    (while (and list (not result))
-	      (if (string-match (car (car list)) filename)
-		  (setq result (replace-match (cadr (car list)) t nil
-					      filename)
-			uniq (car (cddr (car list)))))
-	      (setq list (cdr list)))
-	    (if result
-                (setq filename
-                      (cond
-                       ((memq uniq (secure-hash-algorithms))
-                        (concat
-                         (file-name-directory result)
-                         (secure-hash uniq filename)))
-                       (uniq
-                        (concat
-			 (file-name-directory result)
-			 (subst-char-in-string
-			  ?/ ?!
-			  (replace-regexp-in-string
-                           "!" "!!" filename))))
-		       (t result))))
-	    (setq result
-		  (if (and (eq system-type 'ms-dos)
-			   (not (msdos-long-file-names)))
-		      ;; We truncate the file name to DOS 8+3 limits
-		      ;; before doing anything else, because the regexp
-		      ;; passed to string-match below cannot handle
-		      ;; extensions longer than 3 characters, multiple
-		      ;; dots, and other atrocities.
-		      (let ((fn (dos-8+3-filename
-				 (file-name-nondirectory buffer-file-name))))
-			(string-match
-			 "\\`\\([^.]+\\)\\(\\.\\(..?\\)?.?\\|\\)\\'"
-			 fn)
-			(concat (file-name-directory buffer-file-name)
-				"#" (match-string 1 fn)
-				"." (match-string 3 fn) "#"))
-		    (concat (file-name-directory filename)
-			    "#"
-			    (file-name-nondirectory filename)
-			    "#")))
-	    ;; Make sure auto-save file names don't contain characters
-	    ;; invalid for the underlying filesystem.
-	    (if (and (memq system-type '(ms-dos windows-nt cygwin))
-		     ;; Don't modify remote filenames
-                     (not (file-remote-p result)))
-		(convert-standard-filename result)
-	      result))))
-
+          (files--transform-file-name
+           buffer-file-name auto-save-file-name-transforms
+                                          "#" "#")))
     ;; Deal with buffers that don't have any associated files.  (Mail
     ;; mode tends to create a good number of these.)
-
     (let ((buffer-name (buffer-name))
 	  (limit 0)
 	  file-name)
@@ -6749,6 +6795,74 @@ See also `auto-save-file-name-p'."
 	(file-error nil))
       file-name)))
 
+(defun files--transform-file-name (filename transforms prefix suffix)
+  "Transform FILENAME according to TRANSFORMS.
+See `auto-save-file-name-transforms' for the format of
+TRANSFORMS.  PREFIX is prepended to the non-directory portion of
+the resulting file name, and SUFFIX is appended."
+  (save-match-data
+    (let (result uniq)
+      ;; Apply user-specified translations to the file name.
+      (while (and transforms (not result))
+        (if (string-match (car (car transforms)) filename)
+	    (setq result (replace-match (cadr (car transforms)) t nil
+				        filename)
+		  uniq (car (cddr (car transforms)))))
+        (setq transforms (cdr transforms)))
+      (when result
+        (setq filename
+              (cond
+               ((memq uniq (secure-hash-algorithms))
+                (concat
+                 (file-name-directory result)
+                 (secure-hash uniq filename)))
+               (uniq
+                (concat
+	         (file-name-directory result)
+	         (subst-char-in-string
+		  ?/ ?!
+		  (replace-regexp-in-string
+                   "!" "!!" filename))))
+	       (t result))))
+      (setq result
+	    (if (and (eq system-type 'ms-dos)
+		     (not (msdos-long-file-names)))
+	        ;; We truncate the file name to DOS 8+3 limits before
+	        ;; doing anything else, because the regexp passed to
+	        ;; string-match below cannot handle extensions longer
+	        ;; than 3 characters, multiple dots, and other
+	        ;; atrocities.
+	        (let ((fn (dos-8+3-filename
+			   (file-name-nondirectory buffer-file-name))))
+		  (string-match
+		   "\\`\\([^.]+\\)\\(\\.\\(..?\\)?.?\\|\\)\\'"
+		   fn)
+		  (concat (file-name-directory buffer-file-name)
+			  prefix (match-string 1 fn)
+			  "." (match-string 3 fn) suffix))
+	      (concat (file-name-directory filename)
+		      prefix
+		      (file-name-nondirectory filename)
+		      suffix)))
+      ;; Make sure auto-save file names don't contain characters
+      ;; invalid for the underlying filesystem.
+      (expand-file-name
+       (if (and (memq system-type '(ms-dos windows-nt cygwin))
+	        ;; Don't modify remote filenames
+                (not (file-remote-p result)))
+	   (convert-standard-filename result)
+         result)))))
+
+(defun make-lock-file-name (filename)
+  "Make a lock file name for FILENAME.
+By default, this just prepends \".#\" to the non-directory part
+of FILENAME, but the transforms in `lock-file-name-transforms'
+are done first."
+  (let ((handler (find-file-name-handler filename 'make-lock-file-name)))
+    (if handler
+	(funcall handler 'make-lock-file-name filename)
+      (files--transform-file-name filename lock-file-name-transforms ".#" ""))))
+
 (defun auto-save-file-name-p (filename)
   "Return non-nil if FILENAME can be yielded by `make-auto-save-file-name'.
 FILENAME should lack slashes.
@@ -6757,7 +6871,7 @@ See also `make-auto-save-file-name'."
 
 (defun wildcard-to-regexp (wildcard)
   "Given a shell file name pattern WILDCARD, return an equivalent regexp.
-The generated regexp will match a filename only if the filename
+The generated regexp will match a file name only if the file name
 matches that wildcard according to shell rules.  Only wildcards known
 by `sh' are supported."
   (let* ((i (string-match "[[.*+\\^$?]" wildcard))
@@ -7477,7 +7591,7 @@ If the current frame has no client, kill Emacs itself using
 
 With prefix ARG, silently save all file-visiting buffers, then kill.
 
-If emacsclient was started with a list of filenames to edit, then
+If emacsclient was started with a list of file names to edit, then
 only these files will be asked to be saved."
   (interactive "P")
   (if (frame-parameter nil 'client)

@@ -292,15 +292,26 @@ variables, so we check the Emacs version directly."
   "Check `expand-file-name'."
   (should
    (string-equal
-    (expand-file-name "/foo.tar/path/./file") "/foo.tar/path/file"))
+    (expand-file-name (concat tramp-archive-test-archive "path/./file"))
+    (concat tramp-archive-test-archive "path/file")))
   (should
-   (string-equal (expand-file-name "/foo.tar/path/../file") "/foo.tar/file"))
+   (string-equal
+    (expand-file-name (concat tramp-archive-test-archive "path/../file"))
+    (concat tramp-archive-test-archive "file")))
   ;; `expand-file-name' does not care "~/" in archive file names.
   (should
-   (string-equal (expand-file-name "/foo.tar/~/file") "/foo.tar/~/file"))
+   (string-equal
+    (expand-file-name (concat tramp-archive-test-archive "~/file"))
+    (concat tramp-archive-test-archive "~/file")))
   ;; `expand-file-name' does not care file archive boundaries.
-  (should (string-equal (expand-file-name "/foo.tar/./file") "/foo.tar/file"))
-  (should (string-equal (expand-file-name "/foo.tar/../file") "/file")))
+  (should
+   (string-equal
+    (expand-file-name (concat tramp-archive-test-archive "./file"))
+    (concat tramp-archive-test-archive "file")))
+  (should
+   (string-equal
+    (expand-file-name (concat tramp-archive-test-archive "../file"))
+    (concat (ert-resource-directory) "file"))))
 
 ;; This test is inspired by Bug#30293.
 (ert-deftest tramp-archive-test05-expand-file-name-non-archive-directory ()
@@ -325,38 +336,59 @@ This checks also `file-name-as-directory', `file-name-directory',
 
   (should
    (string-equal
-    (directory-file-name "/foo.tar/path/to/file") "/foo.tar/path/to/file"))
+    (directory-file-name (concat tramp-archive-test-archive "path/to/file"))
+    (concat tramp-archive-test-archive "path/to/file")))
   (should
    (string-equal
-    (directory-file-name "/foo.tar/path/to/file/") "/foo.tar/path/to/file"))
+    (directory-file-name (concat tramp-archive-test-archive "path/to/file/"))
+    (concat tramp-archive-test-archive "path/to/file")))
   ;; `directory-file-name' does not leave file archive boundaries.
-  (should (string-equal (directory-file-name "/foo.tar/") "/foo.tar/"))
+  (should
+   (string-equal
+    (directory-file-name tramp-archive-test-archive) tramp-archive-test-archive))
 
   (should
    (string-equal
-    (file-name-as-directory "/foo.tar/path/to/file") "/foo.tar/path/to/file/"))
+    (file-name-as-directory (concat tramp-archive-test-archive "path/to/file"))
+    (concat tramp-archive-test-archive "path/to/file/")))
   (should
    (string-equal
-    (file-name-as-directory "/foo.tar/path/to/file/") "/foo.tar/path/to/file/"))
-  (should (string-equal (file-name-as-directory "/foo.tar/") "/foo.tar/"))
-  (should (string-equal (file-name-as-directory "/foo.tar") "/foo.tar/"))
+    (file-name-as-directory (concat tramp-archive-test-archive "path/to/file/"))
+    (concat tramp-archive-test-archive "path/to/file/")))
+  (should
+   (string-equal
+    (file-name-as-directory tramp-archive-test-archive)
+    tramp-archive-test-archive))
+  (should
+   (string-equal
+    (file-name-as-directory tramp-archive-test-file-archive)
+    tramp-archive-test-archive))
 
   (should
    (string-equal
-    (file-name-directory "/foo.tar/path/to/file") "/foo.tar/path/to/"))
+    (file-name-directory (concat tramp-archive-test-archive "path/to/file"))
+    (concat tramp-archive-test-archive "path/to/")))
   (should
    (string-equal
-    (file-name-directory "/foo.tar/path/to/file/") "/foo.tar/path/to/file/"))
-  (should (string-equal (file-name-directory "/foo.tar/") "/foo.tar/"))
+    (file-name-directory (concat tramp-archive-test-archive "path/to/file/"))
+    (concat tramp-archive-test-archive "path/to/file/")))
+  (should
+   (string-equal
+    (file-name-directory tramp-archive-test-archive) tramp-archive-test-archive))
 
   (should
-   (string-equal (file-name-nondirectory "/foo.tar/path/to/file") "file"))
+   (string-equal
+    (file-name-nondirectory (concat tramp-archive-test-archive "path/to/file"))
+    "file"))
   (should
-   (string-equal (file-name-nondirectory "/foo.tar/path/to/file/") ""))
-  (should (string-equal (file-name-nondirectory "/foo.tar/") ""))
+   (string-equal
+    (file-name-nondirectory (concat tramp-archive-test-archive "path/to/file/"))
+    ""))
+  (should (string-equal (file-name-nondirectory tramp-archive-test-archive) ""))
 
   (should-not
-   (unhandled-file-name-directory "/foo.tar/path/to/file")))
+   (unhandled-file-name-directory
+    (concat tramp-archive-test-archive "path/to/file"))))
 
 (ert-deftest tramp-archive-test07-file-exists-p ()
   "Check `file-exist-p', `write-region' and `delete-file'."
@@ -824,7 +856,7 @@ This tests also `file-executable-p', `file-writable-p' and `set-file-modes'."
       (tramp-archive-cleanup-hash))))
 
 ;; The functions were introduced in Emacs 26.1.
-(ert-deftest tramp-archive-test39-make-nearby-temp-file ()
+(ert-deftest tramp-archive-test40-make-nearby-temp-file ()
   "Check `make-nearby-temp-file' and `temporary-file-directory'."
   (skip-unless tramp-archive-enabled)
   ;; Since Emacs 26.1.
@@ -861,7 +893,7 @@ This tests also `file-executable-p', `file-writable-p' and `set-file-modes'."
     (delete-directory tmp-file)
     (should-not (file-exists-p tmp-file))))
 
-(ert-deftest tramp-archive-test42-file-system-info ()
+(ert-deftest tramp-archive-test43-file-system-info ()
   "Check that `file-system-info' returns proper values."
   (skip-unless tramp-archive-enabled)
   ;; Since Emacs 27.1.

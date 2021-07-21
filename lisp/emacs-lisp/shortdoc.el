@@ -32,14 +32,6 @@
   "Short documentation."
   :group 'lisp)
 
-(defface shortdoc-separator
-  '((((class color) (background dark))
-     :height 0.1 :background "#505050" :extend t)
-    (((class color) (background light))
-     :height 0.1 :background "#a0a0a0" :extend t)
-    (t :height 0.1 :inverse-video t :extend t))
-  "Face used to separate sections.")
-
 (defface shortdoc-heading
   '((t :inherit variable-pitch :height 1.3 :weight bold))
   "Face used for a heading."
@@ -162,6 +154,10 @@ There can be any number of :example/:result elements."
    :eval (split-string "foo bar")
    :eval (split-string "|foo|bar|" "|")
    :eval (split-string "|foo|bar|" "|" t))
+  (split-string-and-unquote
+   :eval (split-string-and-unquote "foo \"bar zot\""))
+  (split-string-shell-command
+   :eval (split-string-shell-command "ls /tmp/'foo bar'"))
   (string-lines
    :eval (string-lines "foo\n\nbar")
    :eval (string-lines "foo\n\nbar" t))
@@ -268,6 +264,9 @@ There can be any number of :example/:result elements."
    :eval (file-name-extension "/tmp/foo.txt"))
   (file-name-sans-extension
    :eval (file-name-sans-extension "/tmp/foo.txt"))
+  (file-name-with-extension
+   :eval (file-name-with-extension "foo.txt" "bin")
+   :eval (file-name-with-extension "foo" "bin"))
   (file-name-base
    :eval (file-name-base "/tmp/foo.txt"))
   (file-relative-name
@@ -496,9 +495,13 @@ There can be any number of :example/:result elements."
   (flatten-tree
    :eval (flatten-tree '(1 (2 3) 4)))
   (car
-   :eval (car '(one two three)))
+   :eval (car '(one two three))
+   :eval (car '(one . two))
+   :eval (car nil))
   (cdr
-   :eval (cdr '(one two three)))
+   :eval (cdr '(one two three))
+   :eval (cdr '(one . two))
+   :eval (cdr nil))
   (last
    :eval (last '(one two three)))
   (butlast
@@ -887,7 +890,7 @@ There can be any number of :example/:result elements."
   (lock-buffer
    :no-value (lock-buffer "/tmp/foo"))
   (unlock-buffer
-   :no-value (lock-buffer)))
+   :no-value (unlock-buffer)))
 
 (define-short-documentation-group overlay
   "Predicates"
@@ -1134,8 +1137,9 @@ There can be any number of :example/:result elements."
    :eval (sqrt -1)))
 
 ;;;###autoload
-(defun shortdoc-display-group (group)
-  "Pop to a buffer with short documentation summary for functions in GROUP."
+(defun shortdoc-display-group (group &optional function)
+  "Pop to a buffer with short documentation summary for functions in GROUP.
+If FUNCTION is non-nil, place point on the entry for FUNCTION (if any)."
   (interactive (list (completing-read "Show summary for functions in: "
                                       (mapcar #'car shortdoc--groups))))
   (when (stringp group)
@@ -1162,19 +1166,21 @@ There can be any number of :example/:result elements."
         ;; There may be functions not yet defined in the data.
         ((fboundp (car data))
          (when prev
-           (insert (propertize "\n" 'face 'shortdoc-separator)))
+           (insert (make-separator-line)))
          (setq prev t)
          (shortdoc--display-function data))))
      (cdr (assq group shortdoc--groups))))
-  (goto-char (point-min)))
+  (goto-char (point-min))
+  (when function
+    (text-property-search-forward 'shortdoc-function function t)
+    (beginning-of-line)))
 
 (defun shortdoc--display-function (data)
   (let ((function (pop data))
         (start-section (point))
         arglist-start)
     ;; Function calling convention.
-    (insert (propertize "("
-                        'shortdoc-function t))
+    (insert (propertize "(" 'shortdoc-function function))
     (if (plist-get data :no-manual)
         (insert-text-button
          (symbol-name function)
@@ -1283,11 +1289,11 @@ Example:
   (let ((glist (assq group shortdoc--groups)))
     (unless glist
       (setq glist (list group))
-      (setq shortdoc--groups (append shortdoc--groups (list glist))))
+      (push glist shortdoc--groups))
     (let ((slist (member section glist)))
       (unless slist
         (setq slist (list section))
-        (setq slist (append glist slist)))
+        (nconc glist slist))
       (while (and (cdr slist)
                   (not (stringp (cadr slist))))
         (setq slist (cdr slist)))
@@ -1305,16 +1311,15 @@ Example:
 (define-derived-mode shortdoc-mode special-mode "shortdoc"
   "Mode for shortdoc.")
 
-(defmacro shortdoc--goto-section (arg sym &optional reverse)
-  `(progn
-     (unless (natnump ,arg)
-       (setq ,arg 1))
-     (while (< 0 ,arg)
-       (,(if reverse
-             'text-property-search-backward
-           'text-property-search-forward)
-        ,sym t)
-       (setq ,arg (1- ,arg)))))
+(defun shortdoc--goto-section (arg sym &optional reverse)
+  (unless (natnump arg)
+    (setq arg 1))
+  (while (> arg 0)
+    (funcall
+     (if reverse 'text-property-search-backward
+       'text-property-search-forward)
+     sym nil t t)
+    (setq arg (1- arg))))
 
 (defun shortdoc-next (&optional arg)
   "Move cursor to the next function.

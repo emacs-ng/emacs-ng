@@ -4557,11 +4557,13 @@ face_before_or_after_it_pos (struct it *it, bool before_p)
       ptrdiff_t bufpos, charpos;
       int base_face_id;
 
-      /* No face change past the end of the string (for the case
-	 we are padding with spaces).  No face change before the
-	 string start.  */
+      /* No face change past the end of the string (for the case we
+	 are padding with spaces).  No face change before the string
+	 start.  Ignore face changes before the first visible
+	 character on this display line.  */
       if (IT_STRING_CHARPOS (*it) >= SCHARS (it->string)
-	  || (IT_STRING_CHARPOS (*it) == 0 && before_p))
+	  || (IT_STRING_CHARPOS (*it) == 0 && before_p)
+	  || it->current_x <= it->first_visible_x)
 	return it->face_id;
 
       if (!it->bidi_p)
@@ -4580,51 +4582,47 @@ face_before_or_after_it_pos (struct it *it, bool before_p)
 	}
       else
 	{
-	  if (before_p)
+	  /* With bidi iteration, the character before the current in
+	     the visual order cannot be found by simple iteration,
+	     because "reverse" reordering is not supported.  Instead,
+	     we need to start from the string beginning and go all the
+	     way to the current string position, remembering the
+	     visually-previous position.  We need to start from the
+	     string beginning for the character after the current as
+	     well, since the iterator state in IT may have been
+	     pushed, and the bidi cache is no longer coherent with the
+	     string's text.  */
+	  SAVE_IT (it_copy, *it, it_copy_data);
+	  IT_STRING_CHARPOS (it_copy) = 0;
+	  bidi_init_it (0, 0, FRAME_WINDOW_P (it_copy.f), &it_copy.bidi_it);
+
+	  do
 	    {
-	      /* With bidi iteration, the character before the current
-		 in the visual order cannot be found by simple
-		 iteration, because "reverse" reordering is not
-		 supported.  Instead, we need to start from the string
-		 beginning and go all the way to the current string
-		 position, remembering the previous position.  */
-	      /* Ignore face changes before the first visible
-		 character on this display line.  */
-	      if (it->current_x <= it->first_visible_x)
-		return it->face_id;
-	      SAVE_IT (it_copy, *it, it_copy_data);
-	      IT_STRING_CHARPOS (it_copy) = 0;
-	      bidi_init_it (0, 0, FRAME_WINDOW_P (it_copy.f), &it_copy.bidi_it);
-
-	      do
-		{
-		  charpos = IT_STRING_CHARPOS (it_copy);
-		  if (charpos >= SCHARS (it->string))
-		    break;
-		  bidi_move_to_visually_next (&it_copy.bidi_it);
-		}
-	      while (IT_STRING_CHARPOS (it_copy) != IT_STRING_CHARPOS (*it));
-
-	      RESTORE_IT (it, it, it_copy_data);
+	      charpos = it_copy.bidi_it.charpos;
+	      if (charpos >= SCHARS (it->string))
+		break;
+	      bidi_move_to_visually_next (&it_copy.bidi_it);
 	    }
-	  else
+	  while (it_copy.bidi_it.charpos != IT_STRING_CHARPOS (*it));
+
+	  if (!before_p)
 	    {
 	      /* Set charpos to the string position of the character
 		 that comes after IT's current position in the visual
 		 order.  */
 	      int n = (it->what == IT_COMPOSITION ? it->cmp_it.nchars : 1);
-
-	      it_copy = *it;
-	      /* If this is the first display element,
+	      /* If this is the first string character,
 		 bidi_move_to_visually_next will deliver character at
 		 current position without moving, so we need to enlarge N.  */
-	      if (it->bidi_it.first_elt)
+	      if (it_copy.bidi_it.first_elt)
 		n++;
 	      while (n--)
 		bidi_move_to_visually_next (&it_copy.bidi_it);
 
 	      charpos = it_copy.bidi_it.charpos;
 	    }
+
+	  RESTORE_IT (it, it, it_copy_data);
 	}
       eassert (0 <= charpos && charpos <= SCHARS (it->string));
 
@@ -33236,7 +33234,8 @@ note_mode_line_or_margin_highlight (Lisp_Object window, int x, int y,
      of the mode line without any text (e.g. past the right edge of
      the mode line text), use that windows's mode line help echo if it
      has been set.  */
-  if (STRINGP (string) || area == ON_MODE_LINE)
+  if (STRINGP (string) || area == ON_MODE_LINE || area == ON_HEADER_LINE
+      || area == ON_TAB_LINE)
     {
       /* Arrange to display the help by setting the global variables
 	 help_echo_string, help_echo_object, and help_echo_pos.  */
@@ -33293,6 +33292,19 @@ note_mode_line_or_margin_highlight (Lisp_Object window, int x, int y,
 	    }
 	  else if (draggable && area == ON_MODE_LINE)
 	    cursor = FRAME_OUTPUT_DATA (f)->vertical_drag_cursor;
+	  else if ((area == ON_MODE_LINE
+		    && WINDOW_BOTTOMMOST_P (w)
+		    && !FRAME_HAS_MINIBUF_P (f)
+		    && !NILP (Fframe_parameter
+			      (w->frame, Qdrag_with_mode_line)))
+		   || (((area == ON_HEADER_LINE
+			 && !NILP (Fframe_parameter
+				   (w->frame, Qdrag_with_header_line)))
+			|| (area == ON_TAB_LINE
+			    && !NILP (Fframe_parameter
+				      (w->frame, Qdrag_with_tab_line))))
+		       && WINDOW_TOPMOST_P (w)))
+	    cursor = FRAME_OUTPUT_DATA (f)->hand_cursor;
 	  else
 	    cursor = FRAME_OUTPUT_DATA (f)->nontext_cursor;
 	}
@@ -34881,6 +34893,10 @@ be let-bound around code that needs to disable messages temporarily. */);
 
   DEFSYM (Qdragging, "dragging");
   DEFSYM (Qdropping, "dropping");
+
+  DEFSYM (Qdrag_with_mode_line, "drag-with-mode-line");
+  DEFSYM (Qdrag_with_header_line, "drag-with-header-line");
+  DEFSYM (Qdrag_with_tab_line, "drag-with-tab-line");
 
   DEFSYM (Qinhibit_free_realized_faces, "inhibit-free-realized-faces");
 
