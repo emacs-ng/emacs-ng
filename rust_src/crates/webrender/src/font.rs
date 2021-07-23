@@ -163,7 +163,8 @@ extern "C" fn match_(_f: *mut frame, spec: LispObject) -> LispObject {
         // set type
         entity.aset(font_property_index::FONT_TYPE_INDEX, Qwr);
 
-        let family_name: &str = &f.family;
+        let family_name = f.family.replace("\u{0}", "");
+        let family_name: &str = &family_name;
         // set family
         entity.aset(font_property_index::FONT_FAMILY_INDEX, unsafe {
             Fmake_symbol(LispObject::from(family_name))
@@ -212,7 +213,8 @@ extern "C" fn match_(_f: *mut frame, spec: LispObject) -> LispObject {
         // set registry
         entity.aset(font_property_index::FONT_REGISTRY_INDEX, Qiso10646_1);
 
-        let postscript_name: &str = &f.post_script_name;
+        let postscript_name = f.post_script_name.replace("\u{0}", "");
+        let postscript_name: &str = &postscript_name;
         // set name
         entity.aset(font_property_index::FONT_EXTRA_INDEX, unsafe {
             Fcons(
