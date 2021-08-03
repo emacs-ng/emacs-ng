@@ -818,7 +818,7 @@
                 
                 <h1 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">#</a></h1>
 <h2 id="running-tests">Running tests<a class="headerlink" href="#running-tests" title="Permanent link">#</a></h2>
-<p>Run elisp and Rust tests in toplevel directory. If run in a
+<p>Run elisp and Rust tests in top level directory. If run in a
 subdirectory, only run the tests in that directory.</p>
 <div class="codehilite"><pre><span></span><code><span class="nv">make</span> <span class="nv">check</span> <span class="nv">Run</span> <span class="nv">all</span> <span class="nv">tests</span> <span class="nv">as</span> <span class="nv">defined</span> <span class="nv">in</span> <span class="nv">the</span> <span class="nv">directory</span>. <span class="nv">Expensive</span> <span class="nv">tests</span> <span class="nv">are</span> <span class="nv">suppressed</span>. <span class="nv">The</span> <span class="nb">result</span> <span class="nv">of</span> <span class="nv">the</span> <span class="nv">tests</span> <span class="k">for</span> .<span class="nv">el</span> <span class="nv">is</span> <span class="nv">stored</span> <span class="nv">in</span> .<span class="nv">log</span>.
 
@@ -834,8 +834,8 @@ least one test function for each Rust function. This function should
 be a 'smoke' test. Does the Rust call succeed for common values? Does
 it fail for common values? More complex tests or tests that involve
 several lisp functions should be defined in a function named after
-what the test is trying to validate.</p>
-<p>As an example here is how the if function is tested:</p>
+what the test is testing.</p>
+<p>As an example here is how the <code>if</code> function is tested:</p>
 <div class="highlight"><pre><span></span><code><span class="p">(</span><span class="nb">ert-deftest</span> <span class="nv">eval-tests--if-base</span> <span class="p">()</span>
   <span class="s">&quot;Check (if) base cases&quot;</span>
   <span class="p">(</span><span class="nv">should-error</span> <span class="p">(</span><span class="nf">eval</span> <span class="o">&#39;</span><span class="p">(</span><span class="k">if</span><span class="p">))</span> <span class="nb">:type</span> <span class="ss">&#39;wrong-number-of-arguments</span><span class="p">)</span>
@@ -879,7 +879,7 @@ what the test is trying to validate.</p>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 24, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">August 3, 2021</span>
     
   </small>
 </div>

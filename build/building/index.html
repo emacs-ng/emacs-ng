@@ -774,7 +774,7 @@
                 
                   <h1>Build from source</h1>
                 
-                <p>These are instructions to build emacs-ng on your workstation.</p>
+                <p>These are instructions on how to build emacs-ng.</p>
 <h2 id="build-requirements">Build requirements<a class="headerlink" href="#build-requirements" title="Permanent link">#</a></h2>
 <p>You will need <a href="https://www.rust-lang.org/en-US/install.html">Rust installed</a>.
 The file <code>rust-toolchain</code> indicates the version that gets installed.  This
@@ -793,7 +793,7 @@ libncurses5-dev libxml2-dev libxt-dev
 
 <p>For native-comp you will also need <code>zlib1g-dev libgccjit-9-dev</code>.</p>
 <h3 id="macos">MacOS<a class="headerlink" href="#macos" title="Permanent link">#</a></h3>
-<p>On macOS, you'll need Xcode.</p>
+<p>On MacOS, you will need Xcode.</p>
 <div class="codehilite"><pre><span></span><code>brew install gnutls texinfo autoconf
 </code></pre></div>
 
@@ -807,9 +807,9 @@ is before <code>/usr/bin</code> in <code>PATH</code>.</p>
 <div class="codehilite"><pre><span></span><code>brew install zlib libgccjit
 </code></pre></div>
 
-<p>It seems to be more difficult to build native-comp on macOS than on linux.
+<p>It seems to be more difficult to build native-comp on macOS than on Linux.
 There are several tutorials that provide instructions on how to successfully
-compile it(no guarantee that they work):</p>
+compile it (no guarantee that they work):</p>
 <ul>
 <li>https://gist.github.com/mikroskeem/0a5c909c1880408adf732ceba6d3f9ab</li>
 <li>https://gist.github.com/AllenDang/f019593e65572a8e0aefc96058a2d23e</li>
@@ -817,7 +817,7 @@ compile it(no guarantee that they work):</p>
 <h2 id="compile-and-install">Compile and install<a class="headerlink" href="#compile-and-install" title="Permanent link">#</a></h2>
 <div class="highlight"><pre><span></span><code>$ ./autogen.sh
 $ ./configure --enable-rust-debug
-$ make -j 8 # or your number of cores
+$ make -j$(nproc) # proc for number of processors (cores)
 </code></pre></div>
 <p>For a release build, don't pass <code>--enable-rust-debug</code>.</p>
 <p>The Makefile obeys cargo's RUSTFLAGS variable and additional options can be
@@ -840,7 +840,7 @@ hitting enter.</p>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 24, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">August 3, 2021</span>
     
   </small>
 </div>

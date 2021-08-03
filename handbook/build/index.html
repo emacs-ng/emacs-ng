@@ -788,15 +788,15 @@ build system by including the rust code base as a library.</p>
 <li><code>Makefile.in</code></li>
 <li><code>src/Makefile.in</code></li>
 </ul>
-<p>These files contain several additions which allow us to dynamically
+<p>These files contain additions which allow us to dynamically
 enable the different emacs-ng features.</p>
-<p>In order to compile the lisp stuff that is defined in rust, we have to
+<p>In order to compile the lisp functionality defined in rust, we have to
 iterate the relevant rust code to find definitions of lisp globals.</p>
 <h2 id="cargo-build-script-buildrs">Cargo build script (build.rs)<a class="headerlink" href="#cargo-build-script-buildrs" title="Permanent link">#</a></h2>
 <p>This file is the build script of the main crate. In this script we
 check which features are enabled and create include files that hold
 bindings for functions and lisp globals.</p>
-<p>There is a main <code>c_exports.rs</code> file for each crate. This file will be
+<p>There is a main <code>c_exports.rs</code> file for each crate. This file is
 included in a crate's <code>lib.rs</code> file. It contains declarations for
 public rust functions so they can be used from C.</p>
 <p>Additionally it defines a *_init_syms function that is called by the
@@ -814,8 +814,8 @@ enabled:</p>
 </code></pre></div>
 <h2 id="generate-include-files">Generate include files<a class="headerlink" href="#generate-include-files" title="Permanent link">#</a></h2>
 <p>In the init_syms of a crate, we can find the lisp globals.</p>
-<p>Files that have <code>include!</code> macro calls at the end will have an exports
-file that is located in the <code>out</code> directory of a crate.</p>
+<p>Files that have <code>include!</code> macro calls at the end have an exports file
+that is located in the <code>out</code> directory of a crate.</p>
 <p>Example:</p>
 <div class="highlight"><pre><span></span><code><span class="fm">include!</span><span class="p">(</span><span class="fm">concat!</span><span class="p">(</span><span class="w"></span>
 <span class="w">    </span><span class="fm">env!</span><span class="p">(</span><span class="s">&quot;CARGO_MANIFEST_DIR&quot;</span><span class="p">),</span><span class="w"></span>
@@ -852,10 +852,10 @@ $(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE): $(filter-out ./macuvs.h,$(
     $(CARGO_RUN) --release --manifest-path=$(rust_srcdir)/ng-bindgen/Cargo.toml -- $(basename $(notdir $@)) $@
     touch $@
 </code></pre></div>
-<p>Only C functions will be considered that are listed in
-<code>rust_src/wrapper.h</code>.  We also blacklist several items and define them
-in rust(for different reasons).</p>
-<p>The bindings will be created in each build and can be found in the
+<p>Only C functions are listed in <code>rust_src/wrapper.h</code> are considered.
+We also blacklist several items and define them in rust(for different
+reasons).</p>
+<p>The bindings created in each build and can be found in the
 emacs crate. There are three files:</p>
 <ul>
 <li>bindings.rs: functions, structs, enums and more</li>
@@ -900,7 +900,7 @@ generate and add the lisp globals we defined in rust.</p>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 24, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">August 3, 2021</span>
     
   </small>
 </div>

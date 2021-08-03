@@ -820,17 +820,17 @@ community.</p>
 <p>This document is only supposed as an introduction but we will add more
 doc files that contain detailed information on important parts of the
 project. Advanced features like webrender or javascript support are
-documented seperately.</p>
+documented separately.</p>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">#</a></h2>
-<p>Most of the additional functionality of emacs-ng can be found in
+<p>Most of the additional functionality of emacs-ng are in
 <code>rust_src/</code>. This is the root of the main crate, however the actual
-code is located under <code>rust_src/crates/</code>, except the crates that are
+code is in <code>rust_src/crates/</code>, except the crates that are
 only used for the build.</p>
-<p>Some crates will only be built if you activate the related features
-when calling <code>./configure</code>. You can find the features that are used by
-emacs-ng in <code>Cargo.toml.in</code>. Some of them are turned on by
-default. Take a look at <code>configure.ac</code> to see how they will be
-activated during the build process.</p>
+<p>Some crates will only built if you activate the related features when
+calling <code>./configure</code>. You can find the features that are used by
+emacs-ng in <code>Cargo.toml.in</code>. Some of them on by default. Take a look
+at <code>configure.ac</code> to see how they are activated during the build
+process.</p>
 <p>We only apply changes to the emacs code if it's necessary for features
 that are defined in rust. This way there are less merge conflicts when
 we perform upstream merges.</p>
@@ -847,12 +847,12 @@ emacs in handbook/build.md.</p>
 <h2 id="ci">CI<a class="headerlink" href="#ci" title="Permanent link">#</a></h2>
 <p>Since we use github actions, the ci related files are located at
 <code>.github/workflow</code>. The main job(test.yml) is for building emacs-ng
-on Linux and osx(including formatting with rustfmt). There's also
+on Linux and osx (including formatting with rustfmt). There's also
 docs.yml that is responsible for generating and deploying our docs.
 The remaining files are used to test if the nix build works and to
 create the release build that runs once a week.</p>
 <h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">#</a></h2>
-<p>Currently we only run some js related tests. Because there are several
+<p>Currently we only run some JavaScript related tests. Because there are several
 failing native lisp tests, we haven't included them in our build.
 However there's an open issue that tracks the status. At this point
 there are no tests that are written in rust.</p>
@@ -873,8 +873,7 @@ We intend to use make use of
 <a href="https://github.com/rust-lang/git2-rs">git2-rs</a> to improve magit. It
 would also be cool if we would have a terminal emulator based on rust.</p>
 <p>If you have any idea for a new feature you want to work on, just add a
-configure option and create a new crate. You can always ask for help when
-you get stuck.</p>
+configure option and create a new crate. Do not hesitate to ask for help.</p>
                 
                   
                     
@@ -883,7 +882,7 @@ you get stuck.</p>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 24, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">August 3, 2021</span>
     
   </small>
 </div>

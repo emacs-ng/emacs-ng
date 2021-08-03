@@ -988,9 +988,9 @@ extend our .then chain, like so</p>
 <p>Wait for the network call to resolve, and navigate to "TypeScript Buffer" via
 C-x b and typing in "TypeScript Buffer", or pressing C-x C-b and selecting our
 buffer from the buffer list.</p>
-<p>By now, you may be wondering about this <code>lisp</code> object, and how we are able to
-get references to lisp objects from JavaScript. Our next example should
-illustrate this further.</p>
+<p>By now, you may be wondering about this <code>lisp</code> object, and how we are
+able to get references to lisp objects from JavaScript. Our next
+example illustrates this.</p>
 <h2 id="filewatching">Filewatching<a class="headerlink" href="#filewatching" title="Permanent link">#</a></h2>
 <p>Let's write an async filewatch that logs changes to a directory into a buffer,
 with a little extra data. In order to do this, we will use Deno's standard
@@ -1018,7 +1018,7 @@ library that you need to import. That will look like this:</p>
 </code></pre></div>
 <p>This example is built to only record 5 events prior to ending itself. You can
 write whatever logic you would like for ending your filewatcher.</p>
-<p>running <code>touch foo.ts</code> in your current directory should yield something like the
+<p>Running <code>touch foo.ts</code> in your current directory should yield something like the
 following in the "TypeScript Filewatching" buffer</p>
 <div class="highlight"><pre><span></span><code><span class="p">{</span><span class="nt">&quot;kind&quot;</span><span class="p">:</span><span class="s2">&quot;create&quot;</span><span class="p">,</span><span class="nt">&quot;paths&quot;</span><span class="p">:[</span><span class="s2">&quot;/home/user/./foo.ts&quot;</span><span class="p">]}</span>
 <span class="p">{</span><span class="nt">&quot;kind&quot;</span><span class="p">:</span><span class="s2">&quot;modify&quot;</span><span class="p">,</span><span class="nt">&quot;paths&quot;</span><span class="p">:[</span><span class="s2">&quot;/home/user/./foo.ts&quot;</span><span class="p">]}</span>
@@ -1027,10 +1027,10 @@ following in the "TypeScript Filewatching" buffer</p>
 <p><a href="https://deno.land/manual@v1.6.3/examples/file_system_events">Deno has further documentation on
 this</a>. Note that
 these events can differ per operating system.</p>
-<p>A few key take aways here - all of the TypeScript written above is executed on
+<p>Key takeaways here - all of the TypeScript written above is executed on
 the Main elisp thread - there are no race conditions with lisp here. Even though
-the filewatcher is async, it calls back onto the mainthread when it has
-data. Multithreaded scripting is possible and will be covered later on.</p>
+the filewatcher is async, it calls back onto the main thread when it has
+data. Multithreaded scripting is possible and will be covered later.</p>
 <h2 id="modules">Modules<a class="headerlink" href="#modules" title="Permanent link">#</a></h2>
 <p>Now let's look at our tools for importing code. emacs-ng supports <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules">ES6
 modules</a>. emacs-ng
@@ -1048,7 +1048,7 @@ information on modules.</p>
 <span class="nx">lisp</span><span class="p">.</span><span class="nx">print</span><span class="p">(</span><span class="nx">generateRandomNumber</span><span class="p">());</span>
 </code></pre></div>
 <p>Even though our module is TypeScript, we can still import plain old JavaScript.</p>
-<p>It's important to note that ES6 modules are supposed to be immutable. What does
+<p>It's important to note that ES6 modules supposed to be immutable. What does
 that mean? If we were to edit mod-js to include the following:</p>
 <div class="highlight"><pre><span></span><code><span class="k">export</span> <span class="kd">function</span> <span class="nx">generateRandomNumber</span><span class="p">()</span> <span class="p">{</span>
     <span class="k">return</span> <span class="mf">4</span><span class="p">;</span>
@@ -1059,7 +1059,7 @@ that mean? If we were to edit mod-js to include the following:</p>
 <p>We see that in addition to exporting a function, we execute code with
 side-effects (printing). Those side-effects only happen <em>once</em>. If I import
 mod-sub multiple times, I will only ever see "4" printed once. Another important
-note is that <strong>this rule does not apply to any toplevel module you
+note is that <strong>this rule does not apply to any top-level module you
 execute</strong>. Meaning that if you call (eval-js-file "./basic.ts") multiple times,
 your code is executed every single time, however your dependencies are only
 executed once. This is by design.</p>
@@ -1075,7 +1075,7 @@ so-called <em>dynamic importing</em>, like so:</p>
 <p>This can be useful if you are a module developer and you want to iterate on your
 modules within emacs-ng. It is recommended that you do not ship your modules
 using this pattern, as it will not cache results properly and lead to a
-susoptimal user experience. Your imports should aim to not have side effects,
+sub-optimal user experience. Your imports should aim to not have side effects,
 and instead should only export functions or variables to be used by your main
 module.</p>
 <p>The intended use of <em>Dynamic Importing</em> is to allow you to have condition
@@ -1173,7 +1173,7 @@ Threading and WebASM.</p>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 24, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">August 3, 2021</span>
     
   </small>
 </div>

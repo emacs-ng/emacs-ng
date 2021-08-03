@@ -439,16 +439,16 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#nix-flake-feature-alread-in-emacsng" class="md-nav__link">
-    Nix flake feature alread in emacsNg
+  <a href="#nix-flake-feature-already-in-emacsng" class="md-nav__link">
+    Nix flake feature already in emacsNg
   </a>
   
-    <nav class="md-nav" aria-label="Nix flake feature alread in emacsNg">
+    <nav class="md-nav" aria-label="Nix flake feature already in emacsNg">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#using-cachix-to-download-binary-cachespeed-up-build" class="md-nav__link">
-    using cachix to (download binary cache)speed up build
+  <a href="#using-cachix-to-download-binary-cache-speed-up-build" class="md-nav__link">
+    Using cachix to (download binary cache) speed up build
   </a>
   
 </li>
@@ -466,11 +466,11 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#setting-up-rust-develop-environment" class="md-nav__link">
-    Setting Up Rust Develop Environment
+  <a href="#setting-up-rust-development-environment" class="md-nav__link">
+    Setting Up Rust Development Environment
   </a>
   
-    <nav class="md-nav" aria-label="Setting Up Rust Develop Environment">
+    <nav class="md-nav" aria-label="Setting Up Rust Development Environment">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -521,11 +521,11 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#building-emacs-ng-in-develop-mode" class="md-nav__link">
-    Building Emacs-ng in develop mode
+  <a href="#building-emacs-ng-in-development-mode" class="md-nav__link">
+    Building Emacs-ng in development mode
   </a>
   
-    <nav class="md-nav" aria-label="Building Emacs-ng in develop mode">
+    <nav class="md-nav" aria-label="Building Emacs-ng in development mode">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -824,16 +824,16 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#nix-flake-feature-alread-in-emacsng" class="md-nav__link">
-    Nix flake feature alread in emacsNg
+  <a href="#nix-flake-feature-already-in-emacsng" class="md-nav__link">
+    Nix flake feature already in emacsNg
   </a>
   
-    <nav class="md-nav" aria-label="Nix flake feature alread in emacsNg">
+    <nav class="md-nav" aria-label="Nix flake feature already in emacsNg">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#using-cachix-to-download-binary-cachespeed-up-build" class="md-nav__link">
-    using cachix to (download binary cache)speed up build
+  <a href="#using-cachix-to-download-binary-cache-speed-up-build" class="md-nav__link">
+    Using cachix to (download binary cache) speed up build
   </a>
   
 </li>
@@ -851,11 +851,11 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#setting-up-rust-develop-environment" class="md-nav__link">
-    Setting Up Rust Develop Environment
+  <a href="#setting-up-rust-development-environment" class="md-nav__link">
+    Setting Up Rust Development Environment
   </a>
   
-    <nav class="md-nav" aria-label="Setting Up Rust Develop Environment">
+    <nav class="md-nav" aria-label="Setting Up Rust Development Environment">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -906,11 +906,11 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#building-emacs-ng-in-develop-mode" class="md-nav__link">
-    Building Emacs-ng in develop mode
+  <a href="#building-emacs-ng-in-development-mode" class="md-nav__link">
+    Building Emacs-ng in development mode
   </a>
   
-    <nav class="md-nav" aria-label="Building Emacs-ng in develop mode">
+    <nav class="md-nav" aria-label="Building Emacs-ng in development mode">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -959,20 +959,20 @@ sudo pkill nix-daemon
 nix (Nix) 2.4pre20210326_dd77f71
 </code></pre></div>
 
-<h2 id="nix-flake-feature-alread-in-emacsng">Nix flake feature alread in emacsNg<a class="headerlink" href="#nix-flake-feature-alread-in-emacsng" title="Permanent link">#</a></h2>
+<h2 id="nix-flake-feature-already-in-emacsng">Nix flake feature already in emacsNg<a class="headerlink" href="#nix-flake-feature-already-in-emacsng" title="Permanent link">#</a></h2>
 <div class="codehilite"><pre><span></span><code>nix run github:emacs-ng/emacs-ng (launch emacs locally )
 nix build github:emacs-ng/emacs-ng (build emacs locally)
 nix develop github:emacs-ng/emacs-ng (enter develop emacs environment locally)
 </code></pre></div>
 
-<p>Also, you can run native nix commands(Nix Stable Version) under <code>emacs-ng</code> repo such as</p>
+<p>Also, you can run native nix commands (Nix Stable Version) under <code>emacs-ng</code> repo, such as</p>
 <div class="codehilite"><pre><span></span><code>nix-shell
 nix-build
 </code></pre></div>
 
-<h4 id="using-cachix-to-download-binary-cachespeed-up-build">using <code>cachix</code> to (download binary cache)speed up build<a class="headerlink" href="#using-cachix-to-download-binary-cachespeed-up-build" title="Permanent link">#</a></h4>
+<h4 id="using-cachix-to-download-binary-cache-speed-up-build">Using <code>cachix</code> to (download binary cache) speed up build<a class="headerlink" href="#using-cachix-to-download-binary-cache-speed-up-build" title="Permanent link">#</a></h4>
 <ol>
-<li>without install cachix</li>
+<li>Without installing cachix</li>
 </ol>
 <div class="highlight"><pre><span></span><code>nix build github:emacs-ng/emacs-ng --option substituters <span class="s2">&quot;https://emacsng.cachix.org&quot;</span> --option trusted-public-keys <span class="s2">&quot;emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=&quot;</span> -o emacsNg
 ls -il emacs
@@ -980,7 +980,7 @@ ls -il emacs
 nix-build --option substituters <span class="s2">&quot;https://emacsng.cachix.org&quot;</span> --option trusted-public-keys <span class="s2">&quot;emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=&quot;</span>
 </code></pre></div>
 <ol>
-<li>Install cachix</li>
+<li>Installing cachix</li>
 </ol>
 <div class="highlight"><pre><span></span><code>nix-env -iA cachix -f https://cachix.org/api/v1/install <span class="c1">#install cachix</span>
 <span class="nb">exec</span> bash -l
@@ -997,7 +997,7 @@ ls -il emacsNg
 cachix use emacsng <span class="c1"># make sure you have saw the output like: Configured https://emacsng.cachix.org binary cache in /home/test/.config/nix/nix.conf</span>
 nix-shell -p git --command <span class="s2">&quot;git clone https://github.com/emacs-ng/emacs-ng.git &amp;&amp; cd emacs-ng &amp;&amp; nix-shell&quot;</span>
 </code></pre></div>
-<h2 id="setting-up-rust-develop-environment">Setting Up Rust Develop Environment<a class="headerlink" href="#setting-up-rust-develop-environment" title="Permanent link">#</a></h2>
+<h2 id="setting-up-rust-development-environment">Setting Up Rust Development Environment<a class="headerlink" href="#setting-up-rust-development-environment" title="Permanent link">#</a></h2>
 <h3 id="change-rust-version">Change Rust Version<a class="headerlink" href="#change-rust-version" title="Permanent link">#</a></h3>
 <ol>
 <li>Nightly Version</li>
@@ -1006,14 +1006,14 @@ nix-shell -p git --command <span class="s2">&quot;git clone https://github.com/e
      Example: <code>default = pkgs.rust-bin.nightly."2021-03-23";</code></p>
 </li>
 <li>
-<p>stable version</p>
+<p>Stable version</p>
 </li>
 <li>
 <p>example : <code>default = pkgs.rust-bin.stable."1.50.0";</code>
    (<a href="https://github.com/oxalica/rust-overlay/tree/master/manifests/stable/default.nix">rustOverlay-StableCheck</a>)</p>
 </li>
 <li>
-<p>beta version</p>
+<p>Beta version</p>
 </li>
 <li>
 <p>example : <code>default = pkgs.rust-bin.beta."2021-03-06";</code>
@@ -1021,7 +1021,7 @@ nix-shell -p git --command <span class="s2">&quot;git clone https://github.com/e
 </li>
 </ol>
 <h3 id="add-package-from-rustoverly">Add Package from RustOverly<a class="headerlink" href="#add-package-from-rustoverly" title="Permanent link">#</a></h3>
-<p>the RustOverly supported Packages list that you can find here (<a href="https://github.com/oxalica/rust-overlay/blob/master/manifests/profiles.nix">packages-list</a>)</p>
+<p>The RustOverly supported Packages list that you can find here (<a href="https://github.com/oxalica/rust-overlay/blob/master/manifests/profiles.nix">packages-list</a>)</p>
 <ul>
 <li>located <code>nix/rust.nix</code>
 <div class="highlight"><pre><span></span><code>    <span class="ss">rustOverlaySet =</span> mkOption <span class="p">{</span>
@@ -1056,7 +1056,7 @@ nix-shell -p git --command <span class="s2">&quot;git clone https://github.com/e
 <ul>
 <li>located <code>nix/rust.nix</code></li>
 </ul>
-<p>first, search package in <a href="https://search.nixos.org/packages?channel=unstable&amp;">search-package</a> then add the name of package to:</p>
+<p>first, search for package in <a href="https://search.nixos.org/packages?channel=unstable&amp;">search-package</a> then add the name of package to:</p>
 <div class="highlight"><pre><span></span><code>devshell<span class="o">.</span><span class="ss">packages =</span> <span class="nb">map</span> <span class="p">(</span>tool<span class="p">:</span> cfg<span class="o">.</span>rustPackages<span class="o">.</span><span class="err">$</span><span class="p">{</span>tool<span class="p">})</span> cfg<span class="o">.</span>rustPackagesSet
       <span class="o">++</span> <span class="nb">map</span> <span class="p">(</span>tool<span class="p">:</span> cfg<span class="o">.</span>rustOverlay<span class="o">.</span><span class="err">$</span><span class="p">{</span>tool<span class="p">})</span> cfg<span class="o">.</span>rustOverlaySet <span class="o">++</span> <span class="p">(</span><span class="k">with</span> pkgs<span class="p">;[</span>
       <span class="c1">#custom nixpkgs packages</span>
@@ -1065,9 +1065,9 @@ nix-shell -p git --command <span class="s2">&quot;git clone https://github.com/e
     <span class="p">]);</span>
  <span class="err">```</span>
 
-<span class="c1">## Reload all of envs when you changed something</span>
+<span class="c1">## Reload all of environments when you changed something</span>
 
-<span class="err">-</span> normally<span class="p">,</span> we can re-enter <span class="err">`</span>nix-shell<span class="err">`</span> to reload envrs<span class="o">.</span> But for this project<span class="p">,</span> we are using direnv to load <span class="ow">and</span> unload environment variables <span class="k">in</span> an convenient way<span class="o">.</span>
+<span class="err">-</span> normally<span class="p">,</span> we can re-enter <span class="err">`</span>nix-shell<span class="err">`</span> to reload environments<span class="o">.</span> But for this project<span class="p">,</span> we are using direnv to load <span class="ow">and</span> unload environment variables <span class="k">in</span> an convenient way<span class="o">.</span>
 
 <span class="c1">### Recommended Way -&gt; Direnv</span>
 
@@ -1126,7 +1126,7 @@ use_flake<span class="p">()</span> <span class="p">{</span>
 <span class="n">vale</span> <span class="o">=</span> <span class="s">&quot;/bin/test&quot;</span>
 <span class="c1">#prefix = &quot;$( cd &quot;$(dirname &quot;$\{\BASH_SOURCE [ 0 ]}&quot;)&quot;; pwd )&quot; can be prefix</span>
 </code></pre></div>
-<h2 id="building-emacs-ng-in-develop-mode">Building Emacs-ng in develop mode<a class="headerlink" href="#building-emacs-ng-in-develop-mode" title="Permanent link">#</a></h2>
+<h2 id="building-emacs-ng-in-development-mode">Building Emacs-ng in development mode<a class="headerlink" href="#building-emacs-ng-in-development-mode" title="Permanent link">#</a></h2>
 <ul>
 <li>located <code>flake.nix</code> commented <code>emacsNg-src</code> to <code>"./."</code></li>
 </ul>
@@ -1151,7 +1151,8 @@ use_flake<span class="p">()</span> <span class="p">{</span>
         <span class="s2">&quot;&lt;custom flags&gt;&quot;</span>
 <span class="p">];</span>
 </code></pre></div>
-<p>NOTICE :  <code>nix-build</code> action in sandbox mode. If you want to modify something or patch it, please put it this way to the corresponding step. For example:</p>
+<p>NOTICE:  <code>nix-build</code> action in sandbox mode. If you want to modify something or patch it, please put it this way to the corresponding step. </p>
+<p>For example:</p>
 <div class="highlight"><pre><span></span><code><span class="ss">preConfigure =</span> <span class="p">(</span>old<span class="o">.</span>preConfigure <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;&#39;</span>
 <span class="s1">  &lt;modify shell&gt;</span>
 <span class="s1">            &#39;&#39;</span><span class="p">;</span>
@@ -1160,7 +1161,7 @@ use_flake<span class="p">()</span> <span class="p">{</span>
 <span class="o">.</span><span class="l">/nix</span><span class="err">/</span><span class="l">&lt;your-pathc-file.patch&gt;</span>
 <span class="p">];</span>
 </code></pre></div>
-<p>if everything looks like good, run <code>nix-build</code> right now.</p>
+<p>if everything looks good, you can run <code>nix-build</code> right now.</p>
                 
                   
                     
@@ -1169,7 +1170,7 @@ use_flake<span class="p">()</span> <span class="p">{</span>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">July 24, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">August 3, 2021</span>
     
   </small>
 </div>
