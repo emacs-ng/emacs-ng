@@ -3,9 +3,9 @@
 To ease the job of building emacs-ng, we are preparing Docker images
 to allow a fully containerized build without installing any build dependencies.
 
-Bulding this will create a Docker image of about ~9 gb and will take
-quite some time (~45 minutes, depending on your workstation specs). Once the
-build is completed you can extract the artifact out of the container
+Building this will create a Docker image of about ~9 gb and will take
+quite some time (~45 minutes, depending on your specs). Once the
+build is completed, you can extract the artifact out of the container
 and install it.
 
 Usage example of the Dockerfile for building for Debian GNU/Linux:
