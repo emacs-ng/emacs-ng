@@ -11,10 +11,10 @@ The most important emacs files are:
 - `Makefile.in`
 - `src/Makefile.in`
 
-These files contain several additions which allow us to dynamically
+These files contain additions which allow us to dynamically
 enable the different emacs-ng features.
 
-In order to compile the lisp stuff that is defined in rust, we have to
+In order to compile the lisp functionality defined in rust, we have to
 iterate the relevant rust code to find definitions of lisp globals.
 
 ## Cargo build script (build.rs)
@@ -23,7 +23,7 @@ This file is the build script of the main crate. In this script we
 check which features are enabled and create include files that hold
 bindings for functions and lisp globals.
 
-There is a main `c_exports.rs` file for each crate. This file will be
+There is a main `c_exports.rs` file for each crate. This file is
 included in a crate's `lib.rs` file. It contains declarations for
 public rust functions so they can be used from C.
 
@@ -48,8 +48,8 @@ pub extern "C" fn rust_init_syms() {
 
 In the init_syms of a crate, we can find the lisp globals.
 
-Files that have `include!` macro calls at the end will have an exports
-file that is located in the `out` directory of a crate.
+Files that have `include!` macro calls at the end have an exports file
+that is located in the `out` directory of a crate.
 
 Example:
 
@@ -98,11 +98,11 @@ $(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE): $(filter-out ./macuvs.h,$(
 	touch $@
 ```
 
-Only C functions will be considered that are listed in
-`rust_src/wrapper.h`.  We also blacklist several items and define them
-in rust(for different reasons).
+Only C functions are listed in `rust_src/wrapper.h` are considered.
+We also blacklist several items and define them in rust(for different
+reasons).
 
-The bindings will be created in each build and can be found in the
+The bindings created in each build and can be found in the
 emacs crate. There are three files:
 
 - bindings.rs: functions, structs, enums and more
