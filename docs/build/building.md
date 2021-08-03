@@ -1,4 +1,4 @@
-These are instructions to build emacs-ng on your workstation.
+These are instructions on how to build emacs-ng.
 
 ## Build requirements
 
@@ -23,7 +23,7 @@ For native-comp you will also need `zlib1g-dev libgccjit-9-dev`.
 
 ### MacOS
 
-On macOS, you'll need Xcode.
+On MacOS, you will need Xcode.
 
     brew install gnutls texinfo autoconf
 
@@ -39,9 +39,9 @@ If you want to use native-comp, you will need to compile with `./configure
 
     brew install zlib libgccjit
 
-It seems to be more difficult to build native-comp on macOS than on linux.
+It seems to be more difficult to build native-comp on macOS than on Linux.
 There are several tutorials that provide instructions on how to successfully
-compile it(no guarantee that they work):
+compile it (no guarantee that they work):
 
 - https://gist.github.com/mikroskeem/0a5c909c1880408adf732ceba6d3f9ab
 - https://gist.github.com/AllenDang/f019593e65572a8e0aefc96058a2d23e
@@ -51,7 +51,7 @@ compile it(no guarantee that they work):
 ```
 $ ./autogen.sh
 $ ./configure --enable-rust-debug
-$ make -j 8 # or your number of cores
+$ make -j$(nproc) # proc for number of processors (cores)
 ```
 
 For a release build, don't pass `--enable-rust-debug`.
