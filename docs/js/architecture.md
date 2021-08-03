@@ -4,7 +4,7 @@ The purpose of this document is to outline how emacs-ng's native changes work.
 
 ## JavaScript
 
-The majority of JavaScript related code is located in rust_src/src/javascript.rs. There is a lot to unpack on this file, but I will attempt to unpack the core concepts:
+The majority of JavaScript related code is located in rust_src/src/javascript.rs. There is a lot to unpack on this file, but we will attempt to unpack the core concepts:
 
 ### EmacsMainJsRuntime
 
@@ -16,21 +16,23 @@ The Tokio runtime is what is driving all JavaScript Async I/O and timers. Tokio 
 
 #### MainWorker
 
-The "MainWorker" is a Deno concept. It encapsulates their module loader, file cache, and most importantly, the "JsRuntime". The JsRuntime encapsules the v8::Isolate, which can be described as the true, actual "JavaScript Runtime". Interfacing with the v8::Isolate is ultimately how JavaScript will be run. There are a few instances where we call execute using the isolate directly. The MainWorker has some key restrictions included by design - if you have a top level module promise rejection, the Worker will panic upon the next attempt to execute JavaScript. The worker cannot handle cases where execute is called "deep" within the callstack. Meaning that if I call lisp -> javascript -> lisp -> JavaScript, I cannot depend on the Worker's execute method. We will have an entire section dedicated to that fact.
+The "MainWorker" is a Deno concept. It encapsulates Deno's module loader, file cache, and most importantly, the "JsRuntime". The JsRuntime encapsules the v8::Isolate, which can be described as the true, actual "JavaScript Runtime". Interfacing with the v8::Isolate is ultimately how JavaScript will be run. There are few instances where we call execute using the isolate directly. The MainWorker has some key restrictions included by design - if you have a top level module promise rejection, the Worker will panic upon the next attempt to execute JavaScript. The worker cannot handle cases where execute is called "deep" within the callstack. Meaning that if I call lisp -> javascript -> lisp -> JavaScript, I cannot depend on the Worker's execute method. We will have an entire section dedicated to that fact.
 
 The EmacsMainJsRuntime is thread local because of the MainWorker - it is not Send nor Sync. The v8::Isolate, which is contained within the MainWorker, cannot be shared between threads by design. A quirk of this is that if you spawn a lisp thread, it has its own JavaScript runtime. This means that while the thread shares lisp globals, it does not share javaScript globals.
 
 ### Event Loop
 
-A core concept to JavaScript is the event loop. All JS invocations in emacs-ng start with a call to "run_module". run_module will eventually call into the MainWorkers execute method, which in turn calls into the v8::Isolate's execute method - are you starting to see the pattern?
+A core concept to JavaScript is the event loop. All JavaScript invocations in emacs-ng start with a call to "run_module". run_module will eventually call into the MainWorkers execute method, which in turn calls into the v8::Isolate's execute method - are you starting to see the pattern?
 
-Once you call run_module, you will begin to execute JavaScript. Doing so may enqueue async events, like setTimeout, fetch, etc. These are all things that Deno calls `async_ops` or `sync_ops`. They have a system to manage ops. We have a policy that emacs-ng will not add ops, or deal with the ops API. If you want to add native functionality to emacs-ng, you should directly bind the function, like with `lisp_callback` and friends.
+Once you call run_module, you will begin to execute JavaScript. Doing so may enqueue async events, like setTimeout, fetch, etc. These are all things that Deno calls `async_ops` or `sync_ops`. Deno provides a system to manage ops. We have a policy that emacs-ng will not add ops, or deal with the ops API. If you want to add native functionality to emacs-ng, you should directly bind the function, like with `lisp_callback` and friends.
 
 As these async events execute in the background, we will poll for their completion. In order to integrate with Emacs program loop, we set a timer, calling a function named `js-tick-event-loop`. This function is really just a wrapper around Deno's `poll_event_loop`. For performance reasons, `js-tick-event-loop` can call `poll_event_loop` multiple times. The user does have control of this behavior via `js_set_tick_rate`. In general, we want to give the user full control of emacs-ng, including how the JavaScript environment is configured.
 
 ### Proxies and Garbage Collector (GC) Interoperability
 
-JavaScript has a concept of a 'Proxy' object, which we use in emacs-ng, however this section is about our JS <--> elisp marshalling. We refer to that as 'proxying' within internal documentation. For example, we will discuss how this code actually works:
+JavaScript has a concept of a 'Proxy' object, which we use in emacs-ng, however this section is about our JS <--> elisp marshaling. We refer to that as 'proxying' within internal documentation. 
+
+For example, we will discuss how this code actually works:
 
 ```js
 const buffer = lisp.get_buffer_create('*foo*');

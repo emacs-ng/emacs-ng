@@ -31,7 +31,7 @@ painless. It has excellent support for C FFI.
 However, manually translating function and structure declarations into
 Rust can be quite painful. Worse, any tiny mistake will come back to
 haunt you later. Crashes and weird bugs that don't make sense are a
-very real problem. We had several itermittant bugs that were
+very real problem. We had several itermittent bugs that were
 introduced when a complicated struct was incorrectly translated into
 Rust, so that parts of the code were stepping on each other.
 

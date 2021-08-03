@@ -157,9 +157,9 @@ Wait for the network call to resolve, and navigate to "TypeScript Buffer" via
 C-x b and typing in "TypeScript Buffer", or pressing C-x C-b and selecting our
 buffer from the buffer list.
 
-By now, you may be wondering about this `lisp` object, and how we are able to
-get references to lisp objects from JavaScript. Our next example should
-illustrate this further.
+By now, you may be wondering about this `lisp` object, and how we are
+able to get references to lisp objects from JavaScript. Our next
+example illustrates this.
 
 ## Filewatching
 
@@ -193,7 +193,7 @@ watch('.')
 This example is built to only record 5 events prior to ending itself. You can
 write whatever logic you would like for ending your filewatcher.
 
-running `touch foo.ts` in your current directory should yield something like the
+Running `touch foo.ts` in your current directory should yield something like the
 following in the "TypeScript Filewatching" buffer
 
 ```json
@@ -206,10 +206,10 @@ following in the "TypeScript Filewatching" buffer
 this](https://deno.land/manual@v1.6.3/examples/file_system_events). Note that
 these events can differ per operating system.
 
-A few key take aways here - all of the TypeScript written above is executed on
+Key takeaways here - all of the TypeScript written above is executed on
 the Main elisp thread - there are no race conditions with lisp here. Even though
-the filewatcher is async, it calls back onto the mainthread when it has
-data. Multithreaded scripting is possible and will be covered later on.
+the filewatcher is async, it calls back onto the main thread when it has
+data. Multithreaded scripting is possible and will be covered later.
 
 ## Modules
 
@@ -237,7 +237,7 @@ lisp.print(generateRandomNumber());
 
 Even though our module is TypeScript, we can still import plain old JavaScript.
 
-It's important to note that ES6 modules are supposed to be immutable. What does
+It's important to note that ES6 modules supposed to be immutable. What does
 that mean? If we were to edit mod-js to include the following:
 
 ```js
@@ -251,7 +251,7 @@ lisp.print(generateRandomNumber());
 We see that in addition to exporting a function, we execute code with
 side-effects (printing). Those side-effects only happen *once*. If I import
 mod-sub multiple times, I will only ever see "4" printed once. Another important
-note is that **this rule does not apply to any toplevel module you
+note is that **this rule does not apply to any top-level module you
 execute**. Meaning that if you call (eval-js-file "./basic.ts") multiple times,
 your code is executed every single time, however your dependencies are only
 executed once. This is by design.
@@ -271,7 +271,7 @@ lisp.print(generateRandomNumber());
 This can be useful if you are a module developer and you want to iterate on your
 modules within emacs-ng. It is recommended that you do not ship your modules
 using this pattern, as it will not cache results properly and lead to a
-susoptimal user experience. Your imports should aim to not have side effects,
+sub-optimal user experience. Your imports should aim to not have side effects,
 and instead should only export functions or variables to be used by your main
 module.
 
@@ -395,6 +395,7 @@ JavaScript action, which is to insert whatever text we enter into our TypeScript
 Buffer.
 
 ## Conclusion
+
 This covers the basic of calling lisp functions and I/O using Deno. Together
 using these tools you can already build powerful apps, or allow emacs-ng to
 perform actions. In our next series we will cover more advanced topics like

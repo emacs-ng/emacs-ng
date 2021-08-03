@@ -1,13 +1,16 @@
 # Main Features
 
 ## Javascript
-This code is a strictly additive layer, it changes no elisp functionality, and should be able to merge upstream patches cleanly. JS tests can be run by building the editor and executing `cd test/js && ../../src/emacs --batch --eval '(deno "test" "--allow-read" "--allow-write" "main.js")'`.
 
-To learn more about JavaScript and TypeScript, it is recommended you check out [Getting Started](./getting-started.md), [Using Deno](./using-deno.md), and [Advanced Features](./adv-features.md)
+This code is a strictly additive layer, it changes no elisp functionality, and should be able to merge upstream patches cleanly. JavaScript tests can be run by building the editor and executing `cd test/js && ../../src/emacs --batch --eval '(deno "test" "--allow-read" "--allow-write" "main.js")'`.
+
+To learn more about JavaScript and TypeScript, check out [Getting Started](./getting-started.md), [Using Deno](./using-deno.md), and [Advanced Features](./adv-features.md)
 
 ### Using Async I/O
 
-We expose the async IO functionality included with deno. Users can fetch data async from their local file system, or the network. They can use that data to interact with the editor. An example would be:
+We expose the async IO functionality included with Deno. Users can fetch data async from their local file system, or the network. They can use that data to interact with the editor. 
+
+An example would be:
 
 ``` js
 const json = fetch("https://api.github.com/users/denoland")
@@ -30,7 +33,7 @@ This example assumes you have a json file named `test.json` in your current dire
 
 ### WebWorkers and Parallel Scripting
 
-We also support WebWorkers, meaning that you can run javascript in separate threads. Note that WebWorkers cannot interact with the lisp VM, however they can use Deno for async I/O. See [Advanced Features](./adv-features.md)
+We also support WebWorkers, meaning that you can run JavaScript in separate threads. Note that WebWorkers cannot interact with the lisp VM, however they can use Deno for async I/O. See [Advanced Features](./adv-features.md)
 
 Web Assembly allows you to perform things normally handled by native libraries with easy distribution. Want to manipulate sqlite3? Use the [deno sqlite wasm package](https://deno.land/x/sqlite@v2.3.2/mod.ts)
 

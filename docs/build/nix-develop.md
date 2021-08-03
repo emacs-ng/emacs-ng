@@ -12,25 +12,25 @@ then `exec bash -l` reload your bash to load the nix-env
     echo "experimental-features = nix-command flakes" | sudo tee -a /etc/nix/nix.conf
     sudo pkill nix-daemon
 
- NOTE: `reload bash` and check your nix-version first
+NOTE: `reload bash` and check your nix-version first
 
     nix --version
     nix (Nix) 2.4pre20210326_dd77f71
 
-## Nix flake feature alread in emacsNg
+## Nix flake feature already in emacsNg
 
     nix run github:emacs-ng/emacs-ng (launch emacs locally )
     nix build github:emacs-ng/emacs-ng (build emacs locally)
     nix develop github:emacs-ng/emacs-ng (enter develop emacs environment locally)
 
-Also, you can run native nix commands(Nix Stable Version) under `emacs-ng` repo such as
+Also, you can run native nix commands (Nix Stable Version) under `emacs-ng` repo, such as
 
     nix-shell
     nix-build
 
-#### using `cachix` to (download binary cache)speed up build
+#### Using `cachix` to (download binary cache) speed up build
 
-1. without install cachix
+1. Without installing cachix
 
 ```bash
 nix build github:emacs-ng/emacs-ng --option substituters "https://emacsng.cachix.org" --option trusted-public-keys "emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI=" -o emacsNg
@@ -39,7 +39,7 @@ ls -il emacs
 nix-build --option substituters "https://emacsng.cachix.org" --option trusted-public-keys "emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI="
 ```
 
-2. Install cachix
+2. Installing cachix
 
 ```bash
 nix-env -iA cachix -f https://cachix.org/api/v1/install #install cachix
@@ -61,26 +61,26 @@ cachix use emacsng # make sure you have saw the output like: Configured https://
 nix-shell -p git --command "git clone https://github.com/emacs-ng/emacs-ng.git && cd emacs-ng && nix-shell"
 ```
 
-## Setting Up Rust Develop Environment
+## Setting Up Rust Development Environment
 
 ### Change Rust Version
 1. Nightly Version
    - located `nix/rust.nix` modify the `2021-01-14`to which your want.([rustOverlay-NightlyCheck](https://github.com/oxalica/rust-overlay/tree/master/manifests/nightly/default.nix))
      Example: `default = pkgs.rust-bin.nightly."2021-03-23";`
 
-2. stable version
+2. Stable version
 
  - example : `default = pkgs.rust-bin.stable."1.50.0";`
    ([rustOverlay-StableCheck](https://github.com/oxalica/rust-overlay/tree/master/manifests/stable/default.nix))
 
-3. beta version
+3. Beta version
 
 - example : `default = pkgs.rust-bin.beta."2021-03-06";`
    ([rustOverlay-StableCheck](https://github.com/oxalica/rust-overlay/tree/master/manifests/beta/default.nix))
 
 ### Add Package from RustOverly
 
-the RustOverly supported Packages list that you can find here ([packages-list](https://github.com/oxalica/rust-overlay/blob/master/manifests/profiles.nix))
+The RustOverly supported Packages list that you can find here ([packages-list](https://github.com/oxalica/rust-overlay/blob/master/manifests/profiles.nix))
 
 - located `nix/rust.nix`
 ```nix
@@ -117,7 +117,7 @@ the RustOverly supported Packages list that you can find here ([packages-list](h
 
 - located `nix/rust.nix`
 
-first, search package in [search-package](https://search.nixos.org/packages?channel=unstable&) then add the name of package to:
+first, search for package in [search-package](https://search.nixos.org/packages?channel=unstable&) then add the name of package to:
 
 ```nix
 devshell.packages = map (tool: cfg.rustPackages.${tool}) cfg.rustPackagesSet
@@ -128,9 +128,9 @@ devshell.packages = map (tool: cfg.rustPackages.${tool}) cfg.rustPackagesSet
     ]);
  ```
 
-## Reload all of envs when you changed something
+## Reload all of environments when you changed something
 
-- normally, we can re-enter `nix-shell` to reload envrs. But for this project, we are using direnv to load and unload environment variables in an convenient way.
+- normally, we can re-enter `nix-shell` to reload environments. But for this project, we are using direnv to load and unload environment variables in an convenient way.
 
 ### Recommended Way -> Direnv
 
@@ -193,7 +193,7 @@ vale = "/bin/test"
 #prefix = "$( cd "$(dirname "$\{\BASH_SOURCE [ 0 ]}")"; pwd )" can be prefix
 ```
 
-## Building Emacs-ng in develop mode
+## Building Emacs-ng in development mode
 
 - located `flake.nix` commented `emacsNg-src` to `"./."`
 
@@ -225,7 +225,9 @@ configureFlags = (old.configureFlags or [ ]) ++ [
 ];
 ```
 
-NOTICE :  `nix-build` action in sandbox mode. If you want to modify something or patch it, please put it this way to the corresponding step. For example:
+NOTICE:  `nix-build` action in sandbox mode. If you want to modify something or patch it, please put it this way to the corresponding step. 
+
+For example:
 
 ```nix
 preConfigure = (old.preConfigure or "") + ''
@@ -237,4 +239,4 @@ patches = (old.patches or [ ]) ++ [
 ];
 ```
 
-if everything looks like good, run `nix-build` right now.
+if everything looks good, you can run `nix-build` right now.

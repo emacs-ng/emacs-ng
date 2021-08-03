@@ -16,20 +16,20 @@ community.
 This document is only supposed as an introduction but we will add more
 doc files that contain detailed information on important parts of the
 project. Advanced features like webrender or javascript support are
-documented seperately.
+documented separately.
 
 ## Overview
 
-Most of the additional functionality of emacs-ng can be found in
+Most of the additional functionality of emacs-ng are in
 `rust_src/`. This is the root of the main crate, however the actual
-code is located under `rust_src/crates/`, except the crates that are
+code is in `rust_src/crates/`, except the crates that are
 only used for the build.
 
-Some crates will only be built if you activate the related features
-when calling `./configure`. You can find the features that are used by
-emacs-ng in `Cargo.toml.in`. Some of them are turned on by
-default. Take a look at `configure.ac` to see how they will be
-activated during the build process.
+Some crates will only built if you activate the related features when
+calling `./configure`. You can find the features that are used by
+emacs-ng in `Cargo.toml.in`. Some of them on by default. Take a look
+at `configure.ac` to see how they are activated during the build
+process.
 
 We only apply changes to the emacs code if it's necessary for features
 that are defined in rust. This way there are less merge conflicts when
@@ -54,14 +54,14 @@ emacs in handbook/build.md.
 
 Since we use github actions, the ci related files are located at
 `.github/workflow`. The main job(test.yml) is for building emacs-ng
-on Linux and osx(including formatting with rustfmt). There's also
+on Linux and osx (including formatting with rustfmt). There's also
 docs.yml that is responsible for generating and deploying our docs.
 The remaining files are used to test if the nix build works and to
 create the release build that runs once a week.
 
 ## Tests
 
-Currently we only run some js related tests. Because there are several
+Currently we only run some JavaScript related tests. Because there are several
 failing native lisp tests, we haven't included them in our build.
 However there's an open issue that tracks the status. At this point
 there are no tests that are written in rust.
@@ -89,5 +89,4 @@ We intend to use make use of
 would also be cool if we would have a terminal emulator based on rust.
 
 If you have any idea for a new feature you want to work on, just add a
-configure option and create a new crate. You can always ask for help when
-you get stuck.
+configure option and create a new crate. Do not hesitate to ask for help.

@@ -2,7 +2,7 @@
 
 ## Running tests
 
-Run elisp and Rust tests in toplevel directory. If run in a
+Run elisp and Rust tests in top level directory. If run in a
 subdirectory, only run the tests in that directory.
 
     make check Run all tests as defined in the directory. Expensive tests are suppressed. The result of the tests for .el is stored in .log.
@@ -21,9 +21,9 @@ least one test function for each Rust function. This function should
 be a 'smoke' test. Does the Rust call succeed for common values? Does
 it fail for common values? More complex tests or tests that involve
 several lisp functions should be defined in a function named after
-what the test is trying to validate.
+what the test is testing.
 
-As an example here is how the if function is tested:
+As an example here is how the `if` function is tested:
 
 ```elisp
 (ert-deftest eval-tests--if-base ()
@@ -63,7 +63,6 @@ ptr_size)); }
 ## Running code formatters
 
 ### Rust
-
 
 Run `cargo fmt` in the `rust_src/` folder and format all crates in the workspace.
 
