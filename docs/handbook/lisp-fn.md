@@ -8,10 +8,11 @@ porting the C code base, this example is only intended to show the
 differences. However these features can be used by functions that are
 part of new features.
 
-The first thing to look at is . It takes an optional second argument,
-which makes it interesting. The complicated mathematical bits, on the
-other hand, are handled by the standard library. This allows us to
-focus on the porting process without getting distracted by the math.
+The first thing to look at is `atan`. It takes an optional second
+argument, which makes it interesting. The complicated mathematical
+bits, on the other hand, are handled by the standard library. This
+allows us to focus on the porting process without getting distracted
+by the math.
 
 The Lisp values we are given as arguments are tagged pointers; in this
 case they are pointers to doubles. The code has to check the tag and
@@ -43,7 +44,7 @@ and the x-axis.  */)
 }
 ```
 
-`extract_float` checks the tag (signalling an "invalid argument" error
+`extract_float` checks the tag (signaling an "invalid argument" error
 if it's not the tag for a double), and returns the actual
 value. `NILP` checks to see if the tag indicates that this is a null
 value, indicating that the user didn't supply a second argument at
