@@ -1,4 +1,4 @@
-use std::mem::ManuallyDrop;
+use std::{mem::ManuallyDrop, rc::Rc};
 
 use fontdb::{Family, Query, Stretch, Style, Weight};
 use lazy_static::lazy_static;
@@ -21,7 +21,7 @@ use emacs::{
     symbol::LispSymbolRef,
 };
 
-use crate::{font_db::FontDB, frame::LispFrameExt, output::OutputRef};
+use crate::{font_db::FontDB, frame::LispFrameExt};
 
 pub type FontRef = ExternalPtr<font>;
 
@@ -242,53 +242,40 @@ extern "C" fn list_family(_f: *mut frame) -> LispObject {
 }
 
 #[repr(C)]
-pub struct WRFont {
+pub struct WRFont<'a> {
     // extend basic font
     pub font: font,
 
-    pub font_id: fontdb::ID,
-
     pub font_instance_key: FontInstanceKey,
 
-    pub font_bytes: ManuallyDrop<Vec<u8>>,
+    pub font_bytes: ManuallyDrop<Rc<Vec<u8>>>,
 
-    pub font_index: u32,
-
-    pub output: OutputRef,
+    pub face: ttf_parser::Face<'a>,
 }
 
-impl WRFont {
+impl<'a> WRFont<'a> {
     pub fn glyph_for_char(&self, character: char) -> Option<u32> {
-        let face = ttf_parser::Face::from_slice(&self.font_bytes, self.font_index).ok()?;
-
-        face.glyph_index(character).map(|c| c.0 as u32)
+        self.face.glyph_index(character).map(|c| c.0 as u32)
     }
 
     pub fn get_glyph_advance_width(&self, glyph_indices: Vec<GlyphIndex>) -> Vec<Option<i32>> {
-        let face = ttf_parser::Face::from_slice(&self.font_bytes, self.font_index);
-
-        if face.is_err() {
-            return Vec::new();
-        }
-
-        let face = face.unwrap();
-
         let pixel_size = self.font.pixel_size;
-        let units_per_em = face.units_per_em().unwrap();
+        let units_per_em = self.face.units_per_em().unwrap();
 
         let scale = pixel_size as f32 / units_per_em as f32;
 
         glyph_indices
             .into_iter()
             .map(|i| {
-                face.glyph_hor_advance(ttf_parser::GlyphId(i as u16))
+                self.face
+                    .glyph_hor_advance(ttf_parser::GlyphId(i as u16))
                     .map(|a| (a as f32 * scale).round() as i32)
             })
             .collect()
     }
 }
 
-pub type WRFontRef = ExternalPtr<WRFont>;
+pub type WRFontRef<'a> = ExternalPtr<WRFont<'a>>;
 
 extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: i32) -> LispObject {
     let font_entity: LispFontLike = font_entity.into();
@@ -364,45 +351,46 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
             .as_font_mut() as *mut WRFont,
     );
 
-    wr_font.output = output;
-    wr_font.font_id = font.id;
-
     // Create font key in webrender.
     let font_key = output.add_font(font);
     wr_font.font_instance_key = output.add_font_instance(font_key, pixel_size as i32);
 
-    FONT_DB
+    let (font_bytes, face_index) = FONT_DB
         .db
         .with_face_data(font.id, |font_data, face_index| {
-            wr_font.font_bytes = ManuallyDrop::new(font_data.to_vec());
-            wr_font.font_index = face_index;
-
-            let face = ttf_parser::Face::from_slice(font_data, face_index).unwrap();
-
-            let units_per_em = face.units_per_em().unwrap();
-
-            let underline_metrics = face.underline_metrics().unwrap();
-
-            let ascent = face.ascender();
-            let descent = face.descender();
-
-            let average_width = face.glyph_hor_advance(ttf_parser::GlyphId(0)).unwrap();
-
-            let scale = pixel_size as f32 / units_per_em as f32;
-
-            wr_font.font.pixel_size = pixel_size as i32;
-            wr_font.font.average_width = (average_width as f32 * scale) as i32;
-            wr_font.font.ascent = (scale * ascent as f32).round() as i32;
-            wr_font.font.descent = (-scale * descent as f32).round() as i32;
-            wr_font.font.space_width = wr_font.font.average_width;
-            wr_font.font.max_width = wr_font.font.average_width;
-            wr_font.font.underline_thickness = (scale * underline_metrics.thickness as f32) as i32;
-            wr_font.font.underline_position = (scale * underline_metrics.position as f32) as i32;
-
-            wr_font.font.height = (scale * (ascent - descent) as f32).round() as i32;
+            let font_bytes = Rc::new(font_data.to_vec());
+            (font_bytes, face_index)
         })
         .unwrap();
 
+    wr_font.font_bytes = ManuallyDrop::new(font_bytes.clone());
+
+    let font_bytes = wr_font.font_bytes.clone();
+    wr_font.face = ttf_parser::Face::from_slice(&font_bytes, face_index).unwrap();
+
+    let face = &wr_font.face;
+
+    let units_per_em = face.units_per_em().unwrap();
+
+    let underline_metrics = face.underline_metrics().unwrap();
+
+    let ascent = face.ascender();
+    let descent = face.descender();
+
+    let average_width = face.glyph_hor_advance(ttf_parser::GlyphId(0)).unwrap();
+
+    let scale = pixel_size as f32 / units_per_em as f32;
+
+    wr_font.font.pixel_size = pixel_size as i32;
+    wr_font.font.average_width = (average_width as f32 * scale) as i32;
+    wr_font.font.ascent = (scale * ascent as f32).round() as i32;
+    wr_font.font.descent = (-scale * descent as f32).round() as i32;
+    wr_font.font.space_width = wr_font.font.average_width;
+    wr_font.font.max_width = wr_font.font.average_width;
+    wr_font.font.underline_thickness = (scale * underline_metrics.thickness as f32) as i32;
+    wr_font.font.underline_position = (scale * underline_metrics.position as f32) as i32;
+
+    wr_font.font.height = (scale * (ascent - descent) as f32).round() as i32;
     wr_font.font.baseline_offset = 0;
 
     wr_font.font.driver = &FONT_DRIVER.0;
