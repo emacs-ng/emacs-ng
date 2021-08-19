@@ -11,7 +11,7 @@
 
     devshell-flake.url = "github:numtide/devshell";
     nvfetcher = {
-      url = "github:berberman/nvfetcher/ba3366421ff66a06f4176780dff5e8373512bfba";
+      url = "github:berberman/nvfetcher";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     emacsNg-src = { url = "github:emacs-ng/emacs-ng"; flake = false; };
@@ -20,92 +20,104 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, emacs-overlay, emacsNg-src, flake-compat, rust-overlay, flake-utils, devshell-flake, nvfetcher }:
+  outputs =
+    { self
+    , nixpkgs
+    , emacs-overlay
+    , emacsNg-src
+    , flake-compat
+    , rust-overlay
+    , flake-utils
+    , devshell-flake
+    , nvfetcher
+    }:
     { }
     //
     (flake-utils.lib.eachSystem [ "x86_64-linux" "x86_64-darwin" ]
       (system:
-        let
-          pkgs = import nixpkgs {
-            inherit system;
-            overlays = [
-              self.overlay
-              emacs-overlay.overlay
-              rust-overlay.overlay
-              devshell-flake.overlay
-              (final: prev: { nvfetcher-bin = nvfetcher.defaultPackage."${prev.system}"; })
-            ];
-            config = { };
-          };
+      let
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [
+            self.overlay
+            emacs-overlay.overlay
+            rust-overlay.overlay
+            devshell-flake.overlay
+            (final: prev: {
+              nvfetcher-bin = nvfetcher.defaultPackage."${prev.system}";
+            })
+          ];
+          config = { };
+        };
+      in
+      rec {
+        devShell = with pkgs; let
+          custom-llvmPackages = llvmPackages_latest;
         in
-        rec {
-          devShell = with pkgs; let
-            custom-llvmPackages = llvmPackages_latest;
-          in
-          devshell.mkShell {
-            imports = [
-              ./nix/rust.nix
-              (devshell.importTOML ./nix/commands.toml)
-            ];
+        devshell.mkShell {
+          imports = [
+            ./nix/rust.nix
+            (devshell.importTOML ./nix/commands.toml)
+          ];
 
-            packages = [
-              custom-llvmPackages.clang
-            ];
-            env = [
-              {
-                name = "LIBCLANG_PATH";
-                value = "${custom-llvmPackages.libclang}/lib";
-              }
-              {
-                name = "CACHIX_AUTH_TOKEN";
-                value =
-                  let
-                    pwd = builtins.getEnv "PWD";
-                    key = pwd + "/nix/cachix-key.secrets";
-                  in
-                  if lib.pathExists key then
-                    lib.removeSuffix "\n" (builtins.readFile key) else "";
-              }
-            ];
-
-            commands = with pkgs; [
-              {
-                name = "copy-deps";
-                command = ''
-                  cp -rf --no-preserve=mode,ownership ${emacsNg-rust}/.cargo/ $@
-                '';
-                help = ''
-                  copy emacsNg rust deps path to where
-                '';
-              }
-              {
-                name = pkgs.nvfetcher-bin.pname;
-                help = pkgs.nvfetcher-bin.meta.description;
-                command = "cd $DEVSHELL_ROOT/nix; ${pkgs.nvfetcher-bin}/bin/nvfetcher -c ./sources.toml --no-output $@;";
-              }
-            ];
-          };
-
-
-          apps = {
-            emacsNg = flake-utils.lib.mkApp { drv = packages.emacsNg; exePath = "/bin/emacs"; };
-          };
-
-          defaultApp = apps.emacsNg;
-
-          defaultPackage = pkgs.emacsNg;
-          packages = flake-utils.lib.flattenTree
+          packages = [
+            custom-llvmPackages.clang
+          ];
+          env = [
             {
-              inherit (pkgs)
-                emacsNg-rust
-                emacsNg
-                ;
-            };
+              name = "LIBCLANG_PATH";
+              value = "${custom-llvmPackages.libclang}/lib";
+            }
+            {
+              name = "CACHIX_AUTH_TOKEN";
+              value =
+                let
+                  pwd = builtins.getEnv "PWD";
+                  key = pwd + "/nix/cachix-key.secrets";
+                in
+                if lib.pathExists key then
+                  lib.removeSuffix "\n" (builtins.readFile key) else "";
+            }
+          ];
 
-          hydraJobs = {
-            inherit packages;
+          commands = with pkgs; [
+            {
+              name = "copy-deps";
+              command = ''
+                cp -rf --no-preserve=mode,ownership ${emacsNg-rust}/.cargo/ $@
+              '';
+              help = ''
+                copy emacsNg rust deps path to where
+              '';
+            }
+            {
+              name = pkgs.nvfetcher-bin.pname;
+              help = pkgs.nvfetcher-bin.meta.description;
+              command = "cd $DEVSHELL_ROOT/nix; ${pkgs.nvfetcher-bin}/bin/nvfetcher -c ./sources.toml --no-output $@;";
+            }
+          ];
+        };
+
+
+        apps = {
+          emacsNg = flake-utils.lib.mkApp { drv = packages.emacsNg; exePath = "/bin/emacs"; };
+        };
+
+        defaultApp = apps.emacsNg;
+
+        defaultPackage = pkgs.emacsNg;
+        packages = flake-utils.lib.flattenTree
+          {
+            inherit (pkgs)
+              emacsNg-rust
+              emacsNg
+              ;
           };
-        }
+
+        hydraJobs = {
+          inherit packages;
+        };
+      }
       )
     )
     // {
@@ -142,7 +154,7 @@
                       cp -r ${pathDir} crates
                       sed -i 's|../crates/lisp_util|./crates/lisp_util|' Cargo.toml
                     '' + doVersionedUpdate;
-                  sha256 = "sha256-wD0KBHtjVDfP2WCmb6XLhO6vrP4CY4zzAHQs93nvtUo=";
+                  sha256 = "sha256-w49ROzIvgdQpSrWHomtg6eEmssZFmgLsJ/optFSuaEY=";
                   inherit installPhase;
                 };
 
