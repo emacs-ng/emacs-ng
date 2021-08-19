@@ -3,14 +3,14 @@
 {
   emacs-ng = {
     pname = "emacs-ng";
-    version = "19de7340d4782268b8c9ac4138167d013ed3d834";
+    version = "93f38491a060f06ae4b85c8546b624a00e4750dc";
     src = fetchgit {
       url = "https://github.com/emacs-ng/emacs-ng";
-      rev = "19de7340d4782268b8c9ac4138167d013ed3d834";
+      rev = "93f38491a060f06ae4b85c8546b624a00e4750dc";
       fetchSubmodules = true;
       deepClone = false;
       leaveDotGit = false;
-      sha256 = "0ym5sh6d8fmqz36wihq98gyvilzldjsi99s6a3cv8p50011qxvzd";
+      sha256 = "181gpfc4qlm9dcyj19gqhxlhrqnn9nqw5ypf6isv733dpb0gzf3v";
     };
   };
 }
