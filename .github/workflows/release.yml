@@ -3,6 +3,7 @@ name: Create Release Asset
 on:
   schedule:
     - cron: "0 0 * * 0" # weekly
+  workflow_dispatch:
   push:
     tags:
       'v*'
@@ -14,6 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Get latest release
+        continue-on-error: true
         id: cur_release
         uses: pozetroninc/github-action-get-latest-release@master
         with:
@@ -25,16 +27,21 @@ jobs:
           tag=${GITHUB_REF#refs/tags/*}
           sha=$(git rev-parse --short HEAD)
           version=$([[ $tag == v* ]] && echo ${tag:1} || echo 0.0.$sha)
+          cur_ver=$([[ ${{ steps.cur_release.outcome }} == failure ]] && echo v0 || echo ${{ steps.cur_release.outputs.release }})
+          [[ v$version == $cur_ver ]] && exit 1
           prerelease=$([[ $tag == v* ]] && echo false || echo true)
           rust_cache=${{ hashFiles('**/rust-toolchain', '**/Cargo.lock') }}
-          [[ v$version == ${{ steps.cur_release.outputs.release }} ]] && exit 1
           echo "version=$version" >> $GITHUB_ENV
+          echo "arch=$(dpkg-architecture -q DEB_BUILD_ARCH)" >> $GITHUB_ENV
           echo "prerelease=$prerelease" >> $GITHUB_ENV
           echo "rust_cache=$rust_cache" >> $GITHUB_ENV
+          echo "rust_toolchain=$(cat rust-toolchain)" >> $GITHUB_ENV
     outputs:
       version: ${{ env.version }}
+      arch: ${{ env.arch }}
       prerelease: ${{ env.prerelease }}
       rust_cache: ${{ env.rust_cache }}
+      rust_toolchain: ${{ env.rust_toolchain }}
 
   build:
     needs: prepare_env
@@ -49,6 +56,11 @@ jobs:
       CARGO_INCREMENTAL: 0
     steps:
       - uses: actions/checkout@v2
+      - name: rust setup
+        id: rust-setup
+        run: |
+          rustup install $(cat rust-toolchain)
+          rustup component add rustfmt-preview
       - name: Cache rust
         uses: actions/cache@v2
         with:
@@ -56,9 +68,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ./rust_src/target
-          key: ${{ runner.os }}-cargo-${{ needs.prepare_env.outputs.rust_cache }}
-          restore-keys:
-            ${{ runner.os }}-cargo
+          key: ${{ runner.os }}-${{ matrix.build }}-cargo-${{ needs.prepare_env.outputs.rust_cache }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.build }}-cargo
       - name: Build project
         if: ${{ matrix.build == 'general' }}
         run: |
@@ -66,7 +78,7 @@ jobs:
           bin_version=$version
           echo "version=$version" >> $GITHUB_ENV
           echo "bin_version=$bin_version" >> $GITHUB_ENV
-          ./build_emacs_ng.sh $version
+          ./build_emacs_ng.sh $bin_version
       - name: Build project with webrender
         if: ${{ matrix.build == 'webrender' }}
         run: |
@@ -74,7 +86,7 @@ jobs:
           bin_version=$version.webrender
           echo "version=$version" >> $GITHUB_ENV
           echo "bin_version=$bin_version" >> $GITHUB_ENV
-          ./build_emacs_ng.sh $version.webrender --with-webrender
+          ./build_emacs_ng.sh $bin_version --with-webrender
       - name: Reduce cache
         continue-on-error: true
         run: |
@@ -103,7 +115,7 @@ jobs:
           draft: false
           prerelease: ${{ needs.prepare_env.outputs.prerelease }}
           artifactErrorsFailBuild: true
-          artifacts: ./emacs-ng_${{ env.bin_version }}-1_amd64.deb
+          artifacts: ./emacs-ng_${{ env.bin_version }}_${{ needs.prepare_env.outputs.arch }}.deb
           artifactContentType: application/vnd.debian.binary-package
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Do upload to release
@@ -112,6 +124,6 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.get_release_by_tag.outputs.upload_url }}
-          asset_path: ./emacs-ng_${{ env.bin_version }}-1_amd64.deb
-          asset_name: emacs-ng_${{ env.bin_version }}-1_amd64.deb
+          asset_path: ./emacs-ng_${{ env.bin_version }}_${{ needs.prepare_env.outputs.arch }}.deb
+          asset_name: emacs-ng_${{ env.bin_version }}_${{ needs.prepare_env.outputs.arch }}.deb
           asset_content_type: application/vnd.debian.binary-package
