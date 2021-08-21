@@ -11,6 +11,7 @@ use lazy_static::lazy_static;
 use webrender::api::units::LayoutPoint;
 use webrender::api::{units::LayoutRect, *};
 
+use crate::event_loop::EVENT_BUFFER;
 use crate::frame::LispFrameExt;
 use crate::fringe::get_or_create_fringe_bitmap;
 use crate::{
@@ -560,155 +561,157 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
 
     let mut count = 0;
 
-    output.poll_events(|e| match e {
-        Event::WindowEvent {
-            event: WindowEvent::ReceivedCharacter(key_code),
-            ..
-        } => {
-            if let Some(mut iev) = dpyinfo.input_processor.receive_char(key_code, top_frame) {
-                unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
-                count += 1;
-            }
+    let mut events = EVENT_BUFFER.lock().unwrap();
+
+    for e in events.iter() {
+        let e = e.clone();
+
+        if top_frame.as_frame().is_none() {
+            continue;
         }
 
-        Event::WindowEvent {
-            event: WindowEvent::ModifiersChanged(state),
-            ..
-        } => {
-            dpyinfo.input_processor.change_modifiers(state);
-        }
-
-        Event::WindowEvent {
-            event:
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            state,
-                            virtual_keycode: Some(key_code),
-                            ..
-                        },
-                    ..
-                },
-            ..
-        } => match state {
-            ElementState::Pressed => {
-                if let Some(mut iev) = dpyinfo.input_processor.key_pressed(key_code, top_frame) {
+        match e {
+            Event::WindowEvent {
+                event: WindowEvent::ReceivedCharacter(key_code),
+                ..
+            } => {
+                if let Some(mut iev) = dpyinfo.input_processor.receive_char(key_code, top_frame) {
                     unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
                     count += 1;
                 }
             }
-            ElementState::Released => dpyinfo.input_processor.key_released(),
-        },
 
-        Event::WindowEvent {
-            event: WindowEvent::MouseInput { state, button, .. },
-            ..
-        } => {
-            if let Some(mut iev) = dpyinfo
-                .input_processor
-                .mouse_pressed(button, state, top_frame)
-            {
-                unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
+            Event::WindowEvent {
+                event: WindowEvent::ModifiersChanged(state),
+                ..
+            } => {
+                dpyinfo.input_processor.change_modifiers(state);
+            }
+
+            Event::WindowEvent {
+                event:
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state,
+                                virtual_keycode: Some(key_code),
+                                ..
+                            },
+                        ..
+                    },
+                ..
+            } => match state {
+                ElementState::Pressed => {
+                    if let Some(mut iev) = dpyinfo.input_processor.key_pressed(key_code, top_frame)
+                    {
+                        unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
+                        count += 1;
+                    }
+                }
+                ElementState::Released => dpyinfo.input_processor.key_released(),
+            },
+
+            Event::WindowEvent {
+                event: WindowEvent::MouseInput { state, button, .. },
+                ..
+            } => {
+                if let Some(mut iev) = dpyinfo
+                    .input_processor
+                    .mouse_pressed(button, state, top_frame)
+                {
+                    unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
+                    count += 1;
+                }
+            }
+
+            Event::WindowEvent {
+                event: WindowEvent::MouseWheel { delta, phase, .. },
+                ..
+            } => {
+                if let Some(mut iev) = dpyinfo
+                    .input_processor
+                    .mouse_wheel_scrolled(delta, phase, top_frame)
+                {
+                    unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
+                    count += 1;
+                }
+
+                let mut frame: LispFrameRef = top_frame.into();
+                frame.set_mouse_moved(false);
+            }
+
+            Event::WindowEvent {
+                event: WindowEvent::CursorMoved { position, .. },
+                ..
+            } => {
+                let mut frame: LispFrameRef = top_frame.into();
+
+                unsafe {
+                    note_mouse_highlight(frame.as_mut(), position.x as i32, position.y as i32)
+                };
+
+                dpyinfo.input_processor.cursor_move(position);
+
+                frame.set_mouse_moved(true);
+            }
+
+            Event::WindowEvent {
+                event: WindowEvent::Focused(is_focused),
+                ..
+            } => {
+                let mut dpyinfo =
+                    DisplayInfoRef::new(unsafe { terminal.display_info.wr } as *mut _);
+
+                let mut top_frame = top_frame.as_frame().unwrap();
+
+                let focus_frame = if !top_frame.focus_frame.eq(Qnil) {
+                    top_frame.focus_frame.as_frame().unwrap().as_mut()
+                } else {
+                    top_frame.as_mut()
+                };
+
+                dpyinfo.get_raw().highlight_frame = if is_focused {
+                    focus_frame
+                } else {
+                    ptr::null_mut()
+                };
+
+                let event_type = if is_focused {
+                    emacs::bindings::event_kind::FOCUS_IN_EVENT
+                } else {
+                    emacs::bindings::event_kind::FOCUS_OUT_EVENT
+                };
+
+                let mut event = create_emacs_event(event_type, top_frame.into());
+
+                unsafe { kbd_buffer_store_event_hold(&mut event, hold_quit) };
                 count += 1;
             }
-        }
 
-        Event::WindowEvent {
-            event: WindowEvent::MouseWheel { delta, phase, .. },
-            ..
-        } => {
-            if top_frame.as_frame().is_none() {
-                return;
+            Event::WindowEvent {
+                event: WindowEvent::Resized(size),
+                ..
+            } => {
+                let frame: LispFrameRef = top_frame.into();
+
+                output.resize(&size);
+
+                frame.change_size(
+                    size.width as i32,
+                    size.height as i32 - frame.menu_bar_height,
+                    false,
+                    true,
+                    false,
+                );
+
+                unsafe { do_pending_window_change(false) };
             }
 
-            if let Some(mut iev) = dpyinfo
-                .input_processor
-                .mouse_wheel_scrolled(delta, phase, top_frame)
-            {
-                unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
-                count += 1;
-            }
-
-            let mut frame: LispFrameRef = top_frame.into();
-            frame.set_mouse_moved(false);
+            _ => {}
         }
+    }
 
-        Event::WindowEvent {
-            event: WindowEvent::CursorMoved { position, .. },
-            ..
-        } => {
-            if top_frame.as_frame().is_none() {
-                return;
-            }
-
-            let mut frame: LispFrameRef = top_frame.into();
-
-            unsafe { note_mouse_highlight(frame.as_mut(), position.x as i32, position.y as i32) };
-
-            dpyinfo.input_processor.cursor_move(position);
-
-            frame.set_mouse_moved(true);
-        }
-
-        Event::WindowEvent {
-            event: WindowEvent::Focused(is_focused),
-            ..
-        } => {
-            let mut dpyinfo = DisplayInfoRef::new(unsafe { terminal.display_info.wr } as *mut _);
-
-            if top_frame.as_frame().is_none() {
-                return;
-            }
-
-            let mut top_frame = top_frame.as_frame().unwrap();
-
-            let focus_frame = if !top_frame.focus_frame.eq(Qnil) {
-                top_frame.focus_frame.as_frame().unwrap().as_mut()
-            } else {
-                top_frame.as_mut()
-            };
-
-            dpyinfo.get_raw().highlight_frame = if is_focused {
-                focus_frame
-            } else {
-                ptr::null_mut()
-            };
-
-            let event_type = if is_focused {
-                emacs::bindings::event_kind::FOCUS_IN_EVENT
-            } else {
-                emacs::bindings::event_kind::FOCUS_OUT_EVENT
-            };
-
-            let mut event = create_emacs_event(event_type, top_frame.into());
-
-            unsafe { kbd_buffer_store_event_hold(&mut event, hold_quit) };
-            count += 1;
-        }
-
-        Event::WindowEvent {
-            event: WindowEvent::Resized(size),
-            ..
-        } => {
-            if top_frame.as_frame().is_none() {
-                return;
-            }
-
-            let frame: LispFrameRef = top_frame.into();
-
-            frame.change_size(
-                size.width as i32,
-                size.height as i32 - frame.menu_bar_height,
-                false,
-                true,
-                false,
-            );
-
-            unsafe { do_pending_window_change(false) };
-        }
-
-        _ => {}
-    });
+    events.clear();
 
     count
 }

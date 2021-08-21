@@ -138,6 +138,10 @@ extern bool wr_can_use_native_image_api (Lisp_Object type);
 
 extern void wr_transform_image(struct frame *f, struct image *img, int width, int height, double rotation);
 
+extern int wr_select (int nfds, fd_set *readfds, fd_set *writefds,
+		      fd_set *exceptfds, struct timespec *timeout,
+		      sigset_t *sigmask);
+
 /* This is the `Display *' which frame F is on.  */
 #define FRAME_X_DISPLAY(f) (wr_get_display(FRAME_DISPLAY_INFO (f)))
 

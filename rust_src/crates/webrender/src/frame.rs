@@ -10,7 +10,7 @@ use emacs::{
 };
 use glutin::dpi::PhysicalPosition;
 
-use crate::output::OutputRef;
+use crate::{event_loop::EVENT_LOOP, output::OutputRef};
 
 use super::{display_info::DisplayInfoRef, output::Output};
 
@@ -35,7 +35,8 @@ pub fn create_frame(
     frame.terminal = dpyinfo.get_inner().terminal.as_mut();
     frame.set_output_method(output_method::output_wr);
 
-    let mut output = Box::new(Output::new());
+    let mut event_loop = EVENT_LOOP.lock().unwrap();
+    let mut output = Box::new(Output::build(&mut event_loop));
     output.set_display_info(dpyinfo);
 
     // Remeber to destory the Output object when frame destoried.

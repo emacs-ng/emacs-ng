@@ -1,21 +1,10 @@
-use std::{
-    cell::RefCell,
-    os::raw::c_void,
-    rc::Rc,
-    sync::{
-        mpsc::{channel, sync_channel, Receiver, SyncSender},
-        Arc,
-    },
-    thread::JoinHandle,
-};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use fontdb::{FaceInfo, Source};
 use gleam::gl::{self, Gl};
 use glutin::{
     self,
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoopProxy, EventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{CursorIcon, Window},
     ContextWrapper, PossiblyCurrent,
@@ -25,17 +14,10 @@ use std::{
     ptr,
 };
 
-#[cfg(unix)]
-use glutin::platform::unix::EventLoopExtUnix;
 #[cfg(not(any(target_os = "macos", windows)))]
 use glutin::platform::unix::WindowBuilderExtUnix;
-#[cfg(windows)]
-use glutin::platform::windows::EventLoopExtUnix;
 
-#[cfg(unix)]
-use glutin::platform::unix::EventLoopWindowTargetExtUnix;
-
-use webrender::{self, api::units::*, api::*, RenderApi, Transaction};
+use webrender::{self, api::units::*, api::*, RenderApi, Renderer, Transaction};
 
 use emacs::bindings::{wr_output, Emacs_Cursor};
 
@@ -51,27 +33,12 @@ use copypasta::{
 
 use copypasta::ClipboardProvider;
 
+use crate::event_loop::{Platform, WrEventLoop};
+
 use super::texture::TextureResourceManager;
 use super::util::{get_exec_name, HandyDandyRectBuilder};
 use super::{cursor::emacs_to_winit_cursor, display_info::DisplayInfoRef};
 use super::{cursor::winit_to_emacs_cursor, font::FontRef};
-
-pub enum EmacsGUIEvent {
-    Flush(SyncSender<ImageKey>),
-}
-
-#[allow(dead_code)]
-#[derive(Clone, Copy)]
-pub enum Platform {
-    X11,
-    Wayland(*mut c_void),
-    MacOS,
-    Windows,
-}
-
-unsafe impl Send for Platform {}
-
-pub type GUIEvent = Event<'static, EmacsGUIEvent>;
 
 pub struct Output {
     // Extend `wr_output` struct defined in `wrterm.h`
@@ -81,7 +48,6 @@ pub struct Output {
     pub fontset: i32,
 
     pub render_api: RenderApi,
-    pub loop_thread: JoinHandle<()>,
     pub document_id: DocumentId,
 
     display_list_builder: Option<DisplayListBuilder>,
@@ -91,48 +57,99 @@ pub struct Output {
     pub cursor_color: ColorF,
     pub cursor_foreground_color: ColorF,
 
-    window: Window,
-
-    event_loop_proxy: EventLoopProxy<EmacsGUIEvent>,
     color_bits: u8,
 
-    event_rx: Receiver<GUIEvent>,
-
     clipboard: Box<dyn ClipboardProvider>,
+
+    renderer: Renderer,
+
+    window_context: ContextWrapper<PossiblyCurrent, Window>,
+
+    texture_resources: Rc<RefCell<TextureResourceManager>>,
 }
 
 impl Output {
-    pub fn new() -> Self {
-        let (
-            api,
-            window,
-            document_id,
-            loop_thread,
-            event_loop_proxy,
-            color_bits,
-            event_rx,
-            platform,
-        ) = Self::create_webrender_window();
+    pub fn build(event_loop: &mut WrEventLoop) -> Self {
+        let window_builder = glutin::window::WindowBuilder::new()
+            .with_visible(true)
+            .with_maximized(true);
 
+        #[cfg(all(feature = "wayland", not(any(target_os = "macos", windows))))]
+        let window_builder =
+            window_builder.with_app_id(get_exec_name().unwrap_or("emacs".to_owned()));
+
+        let context_builder = glutin::ContextBuilder::new();
+
+        let window_context = event_loop
+            .build_window(window_builder, context_builder)
+            .unwrap();
+
+        let window_id = window_context.window().id();
+
+        event_loop.wait_for_window_resize(window_id);
+
+        let window_context = unsafe { window_context.make_current() }.unwrap();
+
+        let window = window_context.window();
+
+        window_context.resize(window.inner_size());
+
+        let gl = Self::get_gl_api(&window_context);
+
+        let webrender_opts = webrender::RendererOptions {
+            clear_color: None,
+            ..webrender::RendererOptions::default()
+        };
+
+        let notifier = Box::new(Notifier::new());
+
+        let (mut renderer, sender) =
+            webrender::Renderer::new(gl.clone(), notifier, webrender_opts, None).unwrap();
+
+        let color_bits = window_context.get_pixel_format().color_bits;
+
+        let texture_resources = Rc::new(RefCell::new(TextureResourceManager::new(
+            gl.clone(),
+            sender.create_api(),
+        )));
+
+        let external_image_handler = texture_resources.borrow_mut().new_external_image_handler();
+
+        renderer.set_external_image_handler(external_image_handler);
+
+        let platform = event_loop.detect_platform();
         let clipboard = Self::build_clipboard(platform);
+
+        let pipeline_id = PipelineId(0, 0);
+        let mut txn = Transaction::new();
+        txn.set_root_pipeline(pipeline_id);
+
+        let device_size = {
+            let size = window.inner_size();
+            DeviceIntSize::new(size.width as i32, size.height as i32)
+        };
+
+        let mut api = sender.create_api();
+
+        let document_id = api.add_document(device_size);
+        api.send_transaction(document_id, txn);
 
         let mut output = Self {
             output: wr_output::default(),
             font: FontRef::new(ptr::null_mut()),
             fontset: 0,
             render_api: api,
-            loop_thread,
             document_id,
             display_list_builder: None,
             previous_frame_image: None,
             background_color: ColorF::WHITE,
             cursor_color: ColorF::BLACK,
             cursor_foreground_color: ColorF::WHITE,
-            window,
-            event_loop_proxy,
             color_bits,
-            event_rx,
             clipboard,
+            renderer,
+            window_context,
+            texture_resources,
         };
 
         Self::build_mouse_cursors(&mut output);
@@ -140,231 +157,48 @@ impl Output {
         output
     }
 
-    fn create_webrender_window() -> (
-        RenderApi,
-        Window,
-        DocumentId,
-        JoinHandle<()>,
-        EventLoopProxy<EmacsGUIEvent>,
-        u8,
-        std::sync::mpsc::Receiver<GUIEvent>,
-        Platform,
-    ) {
-        let (webrender_tx, webrender_rx) = sync_channel(1);
+    fn copy_framebuffer_to_texture(&self, device_rect: DeviceIntRect) -> ImageKey {
+        let mut origin = device_rect.min;
 
-        let (event_tx, event_rx) = channel::<GUIEvent>();
+        let device_size = self.get_deivce_size();
 
-        let window_loop_thread = std::thread::spawn(move || {
-            let events_loop = glutin::event_loop::EventLoop::new_any_thread();
-            let window_builder = glutin::window::WindowBuilder::new()
-                .with_visible(true)
-                .with_maximized(true);
+        if !self.renderer.device.surface_origin_is_top_left() {
+            origin.y = device_size.height - origin.y - device_rect.height();
+        }
 
-            #[cfg(all(feature = "wayland", not(any(target_os = "macos", windows))))]
-            let window_builder =
-                window_builder.with_app_id(get_exec_name().unwrap_or("emacs".to_owned()));
+        let fb_rect = FramebufferIntRect::from_origin_and_size(
+            FramebufferIntPoint::from_untyped(origin.to_untyped()),
+            FramebufferIntSize::from_untyped(device_rect.size().to_untyped()),
+        );
 
-            let window_context = glutin::ContextBuilder::new()
-                .build_windowed(window_builder, &events_loop)
-                .unwrap();
+        let need_flip = !self.renderer.device.surface_origin_is_top_left();
 
-            let current_context = unsafe { window_context.make_current() }.unwrap();
-            let (current_context, window) = unsafe { current_context.split() };
+        let (image_key, texture_id) = self.texture_resources.borrow_mut().new_image(
+            self.document_id,
+            fb_rect.size(),
+            need_flip,
+        );
 
-            let gl = Self::get_gl_api(&current_context);
+        let gl = Self::get_gl_api(&self.window_context);
+        gl.bind_texture(gl::TEXTURE_2D, texture_id);
 
-            let events_loop_proxy = events_loop.create_proxy();
+        gl.copy_tex_sub_image_2d(
+            gl::TEXTURE_2D,
+            0,
+            0,
+            0,
+            fb_rect.min.x,
+            fb_rect.min.y,
+            fb_rect.size().width,
+            fb_rect.size().height,
+        );
 
-            let mut device_size = {
-                let size = window.inner_size();
-                DeviceIntSize::new(size.width as i32, size.height as i32)
-            };
+        gl.bind_texture(gl::TEXTURE_2D, 0);
 
-            let webrender_opts = webrender::RendererOptions {
-                clear_color: None,
-                ..webrender::RendererOptions::default()
-            };
-
-            let notifier = Box::new(Notifier::new(events_loop_proxy.clone()));
-
-            let (mut renderer, sender) =
-                webrender::Renderer::new(gl.clone(), notifier, webrender_opts, None).unwrap();
-
-            let texture_resources = Rc::new(RefCell::new(TextureResourceManager::new(
-                gl.clone(),
-                sender.create_api(),
-            )));
-
-            let external_image_handler =
-                texture_resources.borrow_mut().new_external_image_handler();
-
-            renderer.set_external_image_handler(external_image_handler);
-
-            let api = sender.create_api();
-
-            let document_id = api.add_document(device_size);
-
-            let color_bits = current_context.get_pixel_format().color_bits;
-
-            let platform = Self::detect_platform(&events_loop);
-
-            webrender_tx
-                .send((
-                    api,
-                    window,
-                    document_id,
-                    color_bits,
-                    events_loop_proxy,
-                    platform,
-                ))
-                .unwrap();
-
-            let mut api = sender.create_api();
-
-            events_loop.run(move |e, _, control_flow| {
-                *control_flow = ControlFlow::Wait;
-
-                let copy_framebuffer_to_texture =
-                    |device_rect: DeviceIntRect,
-                     sender: SyncSender<ImageKey>,
-                     renderer: &webrender::Renderer| {
-                        let mut origin = device_rect.min;
-
-                        if !renderer.device.surface_origin_is_top_left() {
-                            origin.y = device_size.height - origin.y - device_rect.height();
-                        }
-
-                        let fb_rect = FramebufferIntRect::from_origin_and_size(
-                            FramebufferIntPoint::from_untyped(origin.to_untyped()),
-                            FramebufferIntSize::from_untyped(device_rect.size().to_untyped()),
-                        );
-
-                        let need_flip = !renderer.device.surface_origin_is_top_left();
-
-                        let (image_key, texture_id) = texture_resources.borrow_mut().new_image(
-                            document_id,
-                            fb_rect.size(),
-                            need_flip,
-                        );
-
-                        sender.send(image_key).unwrap();
-
-                        gl.bind_texture(gl::TEXTURE_2D, texture_id);
-
-                        gl.copy_tex_sub_image_2d(
-                            gl::TEXTURE_2D,
-                            0,
-                            0,
-                            0,
-                            fb_rect.min.x,
-                            fb_rect.min.y,
-                            fb_rect.size().width,
-                            fb_rect.size().height,
-                        );
-
-                        gl.bind_texture(gl::TEXTURE_2D, 0);
-                    };
-
-                match e {
-                    Event::WindowEvent {
-                        event: WindowEvent::Resized(size),
-                        ..
-                    } => {
-                        device_size = DeviceIntSize::new(size.width as i32, size.height as i32);
-
-                        let device_rect = DeviceIntRect::from_origin_and_size(
-                            DeviceIntPoint::new(0, 0),
-                            device_size,
-                        );
-
-                        let mut txn = Transaction::new();
-                        txn.set_document_view(device_rect);
-                        api.send_transaction(document_id, txn);
-
-                        current_context.resize(size);
-
-                        gl.clear_color(1.0, 1.0, 1.0, 1.0);
-                        gl.clear(self::gl::COLOR_BUFFER_BIT);
-                        gl.flush();
-                        current_context.swap_buffers().ok();
-
-                        event_tx.send(e.to_static().unwrap()).unwrap();
-
-                        unsafe { libc::raise(libc::SIGIO) };
-                    }
-
-                    Event::WindowEvent {
-                        event: WindowEvent::KeyboardInput { .. },
-                        ..
-                    }
-                    | Event::WindowEvent {
-                        event: WindowEvent::ReceivedCharacter(_),
-                        ..
-                    }
-                    | Event::WindowEvent {
-                        event: WindowEvent::ModifiersChanged(_),
-                        ..
-                    }
-                    | Event::WindowEvent {
-                        event: WindowEvent::MouseInput { .. },
-                        ..
-                    }
-                    | Event::WindowEvent {
-                        event: WindowEvent::CursorMoved { .. },
-                        ..
-                    }
-                    | Event::WindowEvent {
-                        event: WindowEvent::Focused(_),
-                        ..
-                    }
-                    | Event::WindowEvent {
-                        event: WindowEvent::MouseWheel { .. },
-                        ..
-                    } => {
-                        event_tx.send(e.to_static().unwrap()).unwrap();
-                        unsafe { libc::raise(libc::SIGIO) };
-                    }
-                    Event::UserEvent(EmacsGUIEvent::Flush(sender)) => {
-                        renderer.update();
-                        renderer.render(device_size, 0).unwrap();
-                        let _ = renderer.flush_pipeline_info();
-                        current_context.swap_buffers().ok();
-
-                        texture_resources.borrow_mut().clear();
-
-                        copy_framebuffer_to_texture(
-                            DeviceIntRect::from_size(device_size),
-                            sender,
-                            &renderer,
-                        );
-                    }
-                    _ => {}
-                };
-            })
-        });
-
-        let (mut api, window, document_id, color_bits, event_loop_proxy, platform) =
-            webrender_rx.recv().unwrap();
-
-        let pipeline_id = PipelineId(0, 0);
-
-        let mut txn = Transaction::new();
-        txn.set_root_pipeline(pipeline_id);
-        api.send_transaction(document_id, txn);
-
-        (
-            api,
-            window,
-            document_id,
-            window_loop_thread,
-            event_loop_proxy,
-            color_bits,
-            event_rx,
-            platform,
-        )
+        image_key
     }
 
-    fn get_gl_api(window_context: &ContextWrapper<PossiblyCurrent, ()>) -> Rc<dyn Gl> {
+    fn get_gl_api(window_context: &ContextWrapper<PossiblyCurrent, Window>) -> Rc<dyn Gl> {
         match window_context.get_api() {
             glutin::Api::OpenGl => unsafe {
                 gl::GlFns::load_with(|symbol| window_context.get_proc_address(symbol) as *const _)
@@ -382,33 +216,10 @@ impl Output {
         device_size
     }
 
-    fn detect_platform<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Platform {
-        #[cfg(unix)]
-        {
-            if event_loop.is_wayland() {
-                return Platform::Wayland(
-                    event_loop
-                        .wayland_display()
-                        .expect("Fetch Wayland display failed"),
-                );
-            } else {
-                return Platform::X11;
-            }
-        }
-        #[cfg(macos)]
-        {
-            return Platform::MacOS;
-        }
-        #[cfg(windows)]
-        {
-            return Platform::Windows;
-        }
-    }
-
     fn new_builder(&mut self, image: Option<(ImageKey, LayoutRect)>) -> DisplayListBuilder {
         let pipeline_id = PipelineId(0, 0);
 
-        let layout_size = Self::get_size(&self.window);
+        let layout_size = Self::get_size(&self.get_window());
         let mut builder = DisplayListBuilder::new(pipeline_id);
 
         if let Some((image_key, image_rect)) = image {
@@ -430,18 +241,18 @@ impl Output {
     }
 
     pub fn show_window(&self) {
-        self.window.set_visible(true);
+        self.get_window().set_visible(true);
     }
     pub fn hide_window(&self) {
-        self.window.set_visible(false);
+        self.get_window().set_visible(false);
     }
 
     pub fn maximize(&self) {
-        self.window.set_maximized(true);
+        self.get_window().set_maximized(true);
     }
 
     pub fn set_title(&self, title: &str) {
-        self.window.set_title(title);
+        self.get_window().set_title(title);
     }
 
     pub fn set_display_info(&mut self, mut dpyinfo: DisplayInfoRef) {
@@ -453,11 +264,12 @@ impl Output {
     }
 
     pub fn get_inner_size(&self) -> PhysicalSize<u32> {
-        self.window.inner_size()
+        self.get_window().inner_size()
     }
 
-    pub fn get_physical_size(&self) -> PhysicalSize<u32> {
-        self.window.inner_size()
+    fn get_deivce_size(&self) -> DeviceIntSize {
+        let size = self.get_window().inner_size();
+        DeviceIntSize::new(size.width as i32, size.height as i32)
     }
 
     pub fn display<F>(&mut self, f: F)
@@ -465,7 +277,7 @@ impl Output {
         F: Fn(&mut DisplayListBuilder, SpaceAndClipInfo),
     {
         if self.display_list_builder.is_none() {
-            let layout_size = Self::get_size(&self.window);
+            let layout_size = Self::get_size(&self.get_window());
 
             let image_and_pos = self
                 .previous_frame_image
@@ -487,7 +299,7 @@ impl Output {
         let builder = std::mem::replace(&mut self.display_list_builder, None);
 
         if let Some(builder) = builder {
-            let layout_size = Self::get_size(&self.window);
+            let layout_size = Self::get_size(&self.get_window());
 
             let epoch = Epoch(0);
             let mut txn = Transaction::new();
@@ -500,13 +312,17 @@ impl Output {
 
             self.render_api.flush_scene_builder();
 
-            let (sender, receiver) = sync_channel(1);
+            let device_size = self.get_deivce_size();
 
-            let _ = self
-                .event_loop_proxy
-                .send_event(EmacsGUIEvent::Flush(sender));
+            self.renderer.update();
+            self.renderer.render(device_size, 0).unwrap();
+            let _ = self.renderer.flush_pipeline_info();
+            self.window_context.swap_buffers().ok();
 
-            self.previous_frame_image = Some(receiver.recv().unwrap());
+            self.texture_resources.borrow_mut().clear();
+
+            let image_key = self.copy_framebuffer_to_texture(DeviceIntRect::from_size(device_size));
+            self.previous_frame_image = Some(image_key);
         }
     }
 
@@ -565,30 +381,21 @@ impl Output {
     }
 
     pub fn get_available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        self.window.available_monitors()
+        self.get_window().available_monitors()
     }
 
     pub fn get_primary_monitor(&self) -> MonitorHandle {
-        self.window
+        self.get_window()
             .primary_monitor()
-            .unwrap_or_else(|| -> MonitorHandle { self.window.current_monitor().unwrap() })
+            .unwrap_or_else(|| -> MonitorHandle { self.get_window().current_monitor().unwrap() })
     }
 
     pub fn get_position(&self) -> Option<PhysicalPosition<i32>> {
-        self.window.outer_position().ok()
+        self.get_window().outer_position().ok()
     }
 
     pub fn get_window(&self) -> &Window {
-        &self.window
-    }
-
-    pub fn poll_events<F>(&mut self, mut f: F)
-    where
-        F: FnMut(GUIEvent),
-    {
-        for e in self.event_rx.try_iter() {
-            f(e);
-        }
+        self.window_context.window()
     }
 
     fn build_clipboard(platform: Platform) -> Box<dyn ClipboardProvider> {
@@ -642,7 +449,7 @@ impl Output {
     pub fn set_mouse_cursor(&self, cursor: Emacs_Cursor) {
         let cursor = emacs_to_winit_cursor(cursor);
 
-        self.window.set_cursor_icon(cursor)
+        self.get_window().set_cursor_icon(cursor)
     }
 
     pub fn add_image(&mut self, width: i32, height: i32, image_data: Arc<Vec<u8>>) -> ImageKey {
@@ -683,6 +490,19 @@ impl Output {
         txn.delete_image(image_key);
 
         self.render_api.send_transaction(self.document_id, txn);
+    }
+
+    pub fn resize(&mut self, size: &PhysicalSize<u32>) {
+        let device_size = DeviceIntSize::new(size.width as i32, size.height as i32);
+
+        let device_rect =
+            DeviceIntRect::from_origin_and_size(DeviceIntPoint::new(0, 0), device_size);
+
+        let mut txn = Transaction::new();
+        txn.set_document_view(device_rect);
+        self.render_api.send_transaction(self.document_id, txn);
+
+        self.window_context.resize(size.clone());
     }
 }
 
@@ -728,21 +548,17 @@ impl From<*mut wr_output> for OutputRef {
     }
 }
 
-struct Notifier {
-    event_loop_proxy: EventLoopProxy<EmacsGUIEvent>,
-}
+struct Notifier;
 
 impl Notifier {
-    fn new(event_loop_proxy: EventLoopProxy<EmacsGUIEvent>) -> Notifier {
-        Notifier { event_loop_proxy }
+    fn new() -> Notifier {
+        Notifier
     }
 }
 
 impl RenderNotifier for Notifier {
     fn clone(&self) -> Box<dyn RenderNotifier> {
-        Box::new(Notifier {
-            event_loop_proxy: self.event_loop_proxy.clone(),
-        })
+        Box::new(Notifier)
     }
 
     fn wake_up(&self, _composite_needed: bool) {}
