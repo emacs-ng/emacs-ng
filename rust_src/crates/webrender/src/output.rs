@@ -1,6 +1,5 @@
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-use fontdb::{FaceInfo, Source};
 use gleam::gl::{self, Gl};
 use glutin::{
     self,
@@ -352,24 +351,12 @@ impl Output {
         font_instance_key
     }
 
-    pub fn add_font(&mut self, font_handle: &FaceInfo) -> FontKey {
+    pub fn add_font(&mut self, font_bytes: Rc<Vec<u8>>, font_index: u32) -> FontKey {
         let mut txn = Transaction::new();
 
         let font_key = self.render_api.generate_font_key();
 
-        let font_index = font_handle.index;
-        match font_handle.source.as_ref() {
-            Source::File(path) => {
-                let font = NativeFontHandle {
-                    path: path.clone().into_os_string().into(),
-                    index: font_index,
-                };
-                txn.add_native_font(font_key, font);
-            }
-            Source::Binary(bytes) => {
-                txn.add_raw_font(font_key, bytes.to_vec(), font_index);
-            }
-        }
+        txn.add_raw_font(font_key, font_bytes.to_vec(), font_index);
 
         self.render_api.send_transaction(self.document_id, txn);
 

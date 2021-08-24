@@ -351,10 +351,6 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
             .as_font_mut() as *mut WRFont,
     );
 
-    // Create font key in webrender.
-    let font_key = output.add_font(font);
-    wr_font.font_instance_key = output.add_font_instance(font_key, pixel_size as i32);
-
     let (font_bytes, face_index) = FONT_DB
         .db
         .with_face_data(font.id, |font_data, face_index| {
@@ -362,6 +358,10 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
             (font_bytes, face_index)
         })
         .unwrap();
+
+    // Create font key in webrender.
+    let font_key = output.add_font(font_bytes.clone(), face_index);
+    wr_font.font_instance_key = output.add_font_instance(font_key, pixel_size as i32);
 
     wr_font.font_bytes = ManuallyDrop::new(font_bytes.clone());
 
