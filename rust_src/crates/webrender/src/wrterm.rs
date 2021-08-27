@@ -8,6 +8,7 @@ use glutin::{event::VirtualKeyCode, monitor::MonitorHandle};
 
 use lisp_macros::lisp_fn;
 
+use crate::event_loop::EVENT_LOOP;
 use crate::frame::frame_edges;
 use crate::frame::LispFrameExt;
 use crate::{
@@ -619,13 +620,11 @@ pub fn webrender_monitor_to_emacs_monitor(m: MonitorHandle) -> (MonitorInfo, Opt
 ///
 /// Internal use only, use `display-monitor-attributes-list' instead.
 #[lisp_fn(min = "0")]
-pub fn x_display_monitor_attributes_list(terminal: LispObject) -> LispObject {
-    let dpyinfo = check_x_display_info(terminal);
+pub fn x_display_monitor_attributes_list(_terminal: LispObject) -> LispObject {
+    let event_loop = EVENT_LOOP.lock().unwrap();
 
-    let output = dpyinfo.get_inner().output;
-
-    let monitors: Vec<_> = output.get_available_monitors().collect();
-    let primary_monitor = output.get_primary_monitor();
+    let monitors: Vec<_> = event_loop.get_available_monitors().collect();
+    let primary_monitor = event_loop.get_primary_monitor();
 
     let mut primary_monitor_index = 0;
 
@@ -693,12 +692,10 @@ pub fn x_display_monitor_attributes_list(terminal: LispObject) -> LispObject {
 /// physical monitors associated with TERMINAL.  To get information for
 /// each physical monitor, use `display-monitor-attributes-list'.
 #[lisp_fn(min = "0")]
-pub fn x_display_pixel_width(terminal: LispObject) -> i32 {
-    let dpyinfo = check_x_display_info(terminal);
+pub fn x_display_pixel_width(_terminal: LispObject) -> i32 {
+    let event_loop = EVENT_LOOP.lock().unwrap();
 
-    let output = dpyinfo.get_inner().output;
-
-    let primary_monitor = output.get_primary_monitor();
+    let primary_monitor = event_loop.get_primary_monitor();
 
     let dpi_factor = primary_monitor.scale_factor();
 
@@ -718,12 +715,10 @@ pub fn x_display_pixel_width(terminal: LispObject) -> i32 {
 /// physical monitors associated with TERMINAL.  To get information for
 /// each physical monitor, use `display-monitor-attributes-list'.
 #[lisp_fn(min = "0")]
-pub fn x_display_pixel_height(terminal: LispObject) -> i32 {
-    let dpyinfo = check_x_display_info(terminal);
+pub fn x_display_pixel_height(_terminal: LispObject) -> i32 {
+    let event_loop = EVENT_LOOP.lock().unwrap();
 
-    let output = dpyinfo.get_inner().output;
-
-    let primary_monitor = output.get_primary_monitor();
+    let primary_monitor = event_loop.get_primary_monitor();
 
     let dpi_factor = primary_monitor.scale_factor();
 

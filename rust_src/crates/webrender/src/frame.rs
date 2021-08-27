@@ -36,14 +36,20 @@ pub fn create_frame(
     frame.set_output_method(output_method::output_wr);
 
     let mut event_loop = EVENT_LOOP.lock().unwrap();
-    let mut output = Box::new(Output::build(&mut event_loop));
+    let mut output = Box::new(Output::build(&mut event_loop, frame));
+
+    let window_id = output.get_window().id();
+
     output.set_display_info(dpyinfo);
 
     // Remeber to destory the Output object when frame destoried.
     let output = Box::into_raw(output);
     frame.output_data.wr = output as *mut wr_output;
 
-    dpyinfo.get_inner().output = frame.wr_output();
+    dpyinfo
+        .get_inner()
+        .outputs
+        .insert(window_id, frame.wr_output());
 
     frame
 }

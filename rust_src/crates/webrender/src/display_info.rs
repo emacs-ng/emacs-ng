@@ -1,3 +1,4 @@
+use glutin::window::WindowId;
 use libc;
 use std::{collections::HashMap, ptr};
 
@@ -13,7 +14,7 @@ pub struct DisplayInfoInner {
     pub terminal: TerminalRef,
     pub focus_frame: LispFrameRef,
 
-    pub output: OutputRef,
+    pub outputs: HashMap<WindowId, OutputRef>,
 
     pub input_processor: InputProcessor,
 
@@ -27,7 +28,7 @@ impl Default for DisplayInfoInner {
         DisplayInfoInner {
             terminal: TerminalRef::new(ptr::null_mut()),
             focus_frame: LispFrameRef::new(ptr::null_mut()),
-            output: OutputRef::new(ptr::null_mut()),
+            outputs: HashMap::new(),
             input_processor: InputProcessor::new(),
             scratch_cursor_gc: Box::new(Emacs_GC {
                 foreground: 0,

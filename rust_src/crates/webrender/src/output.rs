@@ -1,10 +1,9 @@
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, mem::MaybeUninit, rc::Rc, sync::Arc};
 
 use gleam::gl::{self, Gl};
 use glutin::{
     self,
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::MonitorHandle,
     window::{CursorIcon, Window},
     ContextWrapper, PossiblyCurrent,
 };
@@ -18,7 +17,10 @@ use glutin::platform::unix::WindowBuilderExtUnix;
 
 use webrender::{self, api::units::*, api::*, RenderApi, Renderer, Transaction};
 
-use emacs::bindings::{wr_output, Emacs_Cursor};
+use emacs::{
+    bindings::{wr_output, Emacs_Cursor},
+    frame::LispFrameRef,
+};
 
 #[cfg(macos)]
 use copypasta::osx_clipboard::OSXClipboardContext;
@@ -65,10 +67,12 @@ pub struct Output {
     window_context: ContextWrapper<PossiblyCurrent, Window>,
 
     texture_resources: Rc<RefCell<TextureResourceManager>>,
+
+    frame: LispFrameRef,
 }
 
 impl Output {
-    pub fn build(event_loop: &mut WrEventLoop) -> Self {
+    pub fn build(event_loop: &mut WrEventLoop, frame: LispFrameRef) -> Self {
         let window_builder = glutin::window::WindowBuilder::new()
             .with_visible(true)
             .with_maximized(true);
@@ -149,6 +153,7 @@ impl Output {
             renderer,
             window_context,
             texture_resources,
+            frame,
         };
 
         Self::build_mouse_cursors(&mut output);
@@ -258,6 +263,10 @@ impl Output {
         self.output.display_info = dpyinfo.get_raw().as_mut();
     }
 
+    pub fn get_frame(&self) -> LispFrameRef {
+        self.frame
+    }
+
     pub fn display_info(&self) -> DisplayInfoRef {
         DisplayInfoRef::new(self.output.display_info as *mut _)
     }
@@ -294,6 +303,16 @@ impl Output {
         }
     }
 
+    fn ensure_context_is_current(&mut self) {
+        let window_context = std::mem::replace(&mut self.window_context, unsafe {
+            MaybeUninit::uninit().assume_init()
+        });
+        let window_context = unsafe { window_context.make_current() }.unwrap();
+
+        let temp_context = std::mem::replace(&mut self.window_context, window_context);
+        std::mem::forget(temp_context);
+    }
+
     pub fn flush(&mut self) {
         let builder = std::mem::replace(&mut self.display_list_builder, None);
 
@@ -314,8 +333,12 @@ impl Output {
             let device_size = self.get_deivce_size();
 
             self.renderer.update();
+
+            self.ensure_context_is_current();
+
             self.renderer.render(device_size, 0).unwrap();
             let _ = self.renderer.flush_pipeline_info();
+
             self.window_context.swap_buffers().ok();
 
             self.texture_resources.borrow_mut().clear();
@@ -365,16 +388,6 @@ impl Output {
 
     pub fn get_color_bits(&self) -> u8 {
         self.color_bits
-    }
-
-    pub fn get_available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        self.get_window().available_monitors()
-    }
-
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        self.get_window()
-            .primary_monitor()
-            .unwrap_or_else(|| -> MonitorHandle { self.get_window().current_monitor().unwrap() })
     }
 
     pub fn get_position(&self) -> Option<PhysicalPosition<i32>> {
