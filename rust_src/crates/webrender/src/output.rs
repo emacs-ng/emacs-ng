@@ -527,6 +527,10 @@ impl OutputRef {
     pub fn as_mut(&mut self) -> *mut wr_output {
         self.0 as *mut wr_output
     }
+
+    pub fn as_rust_ptr(&mut self) -> *mut Output {
+        self.0 as *mut Output
+    }
 }
 
 impl Deref for OutputRef {
