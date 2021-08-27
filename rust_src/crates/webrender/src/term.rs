@@ -558,7 +558,13 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
 
         match e {
             Event::WindowEvent { window_id, event } => {
-                let output = dpyinfo.outputs.get_mut(&window_id).unwrap();
+                let output = dpyinfo.outputs.get_mut(&window_id);
+
+                if output.is_none() {
+                    continue;
+                }
+
+                let output = output.unwrap();
 
                 let frame: LispObject = output.get_frame().into();
 
@@ -818,6 +824,19 @@ extern "C" fn free_pixmap(f: *mut Lisp_Frame, pixmap: Emacs_Pixmap) {
     frame.wr_output().delete_image(image_key);
 }
 
+extern "C" fn delete_frame(f: *mut Lisp_Frame) {
+    let frame: LispFrameRef = f.into();
+    let mut output = frame.wr_output();
+
+    let display_info = output.display_info();
+    let window_id = output.get_window().id();
+
+    display_info.get_inner().outputs.remove(&window_id);
+
+    // Take back output ownership and destroy it
+    let _ = unsafe { Box::from_raw(output.as_rust_ptr()) };
+}
+
 fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     let terminal_ptr = unsafe {
         create_terminal(
@@ -849,6 +868,7 @@ fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     terminal.mouse_position_hook = Some(mouse_position);
     terminal.update_end_hook = Some(update_end);
     terminal.free_pixmap = Some(free_pixmap);
+    terminal.delete_frame_hook = Some(delete_frame);
 
     terminal
 }
