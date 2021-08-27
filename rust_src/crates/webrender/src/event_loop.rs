@@ -6,6 +6,7 @@ use glutin::platform::unix::EventLoopWindowTargetExtUnix;
 use glutin::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopProxy},
+    monitor::MonitorHandle,
     platform::run_return::EventLoopExtRunReturn,
     window::{WindowBuilder, WindowId},
     ContextBuilder, ContextCurrentState, CreationError, NotCurrent, WindowedContext,
@@ -92,6 +93,16 @@ impl WrEventLoop {
         {
             return Platform::Windows;
         }
+    }
+
+    pub fn get_available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        self.el.available_monitors()
+    }
+
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
+        self.el
+            .primary_monitor()
+            .unwrap_or_else(|| -> MonitorHandle { self.get_available_monitors().next().unwrap() })
     }
 }
 
