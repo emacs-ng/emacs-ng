@@ -154,7 +154,7 @@
                       cp -r ${pathDir} crates
                       sed -i 's|../crates/lisp_util|./crates/lisp_util|' Cargo.toml
                     '' + doVersionedUpdate;
-                  sha256 = "sha256-w49ROzIvgdQpSrWHomtg6eEmssZFmgLsJ/optFSuaEY=";
+                  sha256 = "sha256-XvGLnzh5GKiiVeWPiIxrnV2eDr6LvRe5UvnIGlkQk6w=";
                   inherit installPhase;
                 };
 
