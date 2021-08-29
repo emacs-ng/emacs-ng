@@ -196,7 +196,8 @@ pub extern "C" fn wr_select(
                 | WindowEvent::MouseInput { .. }
                 | WindowEvent::CursorMoved { .. }
                 | WindowEvent::Focused(_)
-                | WindowEvent::MouseWheel { .. } => {
+                | WindowEvent::MouseWheel { .. }
+                | WindowEvent::CloseRequested => {
                     EVENT_BUFFER.lock().unwrap().push(e.to_static().unwrap());
 
                     // notify emacs's code that a keyboard event arrived.

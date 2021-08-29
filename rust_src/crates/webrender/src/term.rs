@@ -684,6 +684,16 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
                         unsafe { do_pending_window_change(false) };
                     }
 
+                    WindowEvent::CloseRequested => {
+                        let mut event = create_emacs_event(
+                            emacs::bindings::event_kind::DELETE_WINDOW_EVENT,
+                            frame,
+                        );
+
+                        unsafe { kbd_buffer_store_event_hold(&mut event, hold_quit) };
+                        count += 1;
+                    }
+
                     _ => {}
                 }
             }
