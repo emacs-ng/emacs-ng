@@ -739,12 +739,11 @@ pub fn x_display_pixel_height(_terminal: LispObject) -> i32 {
 pub fn x_own_selection_internal(
     _selection: LispObject,
     value: LispObject,
-    frame: LispObject,
+    _frame: LispObject,
 ) -> LispObject {
-    let frame = window_frame_live_or_selected(frame);
-    let mut output = frame.wr_output();
+    let mut event_loop = EVENT_LOOP.lock().unwrap();
 
-    let clipboard = output.get_clipboard();
+    let clipboard = event_loop.get_clipboard();
 
     let content = value.force_string().to_utf8();
 
@@ -771,12 +770,11 @@ pub fn x_get_selection_internal(
     _selection_symbol: LispObject,
     _target_type: LispObject,
     _time_stamp: LispObject,
-    terminal: LispObject,
+    _terminal: LispObject,
 ) -> LispObject {
-    let frame = window_frame_live_or_selected(terminal);
-    let mut output = frame.wr_output();
+    let mut event_loop = EVENT_LOOP.lock().unwrap();
 
-    let clipboard = output.get_clipboard();
+    let clipboard = event_loop.get_clipboard();
 
     let contents: &str = &clipboard.get_contents().unwrap();
 

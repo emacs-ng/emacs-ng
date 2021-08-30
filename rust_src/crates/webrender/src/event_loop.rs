@@ -1,5 +1,15 @@
 use std::{cell::RefCell, os::unix::prelude::AsRawFd, ptr, sync::Mutex, time::Instant};
 
+#[cfg(macos)]
+use copypasta::osx_clipboard::OSXClipboardContext;
+#[cfg(windows)]
+use copypasta::windows_clipboard::WindowsClipboardContext;
+use copypasta::ClipboardProvider;
+#[cfg(unix)]
+use copypasta::{
+    wayland_clipboard::create_clipboards_from_external,
+    x11_clipboard::{Clipboard, X11ClipboardContext},
+};
 use futures::future::FutureExt;
 #[cfg(unix)]
 use glutin::platform::unix::EventLoopWindowTargetExtUnix;
@@ -31,6 +41,7 @@ pub enum Platform {
 unsafe impl Send for Platform {}
 
 pub struct WrEventLoop {
+    clipboard: Box<dyn ClipboardProvider>,
     el: EventLoop<i32>,
 }
 
@@ -72,29 +83,6 @@ impl WrEventLoop {
         });
     }
 
-    pub fn detect_platform(&mut self) -> Platform {
-        #[cfg(unix)]
-        {
-            if self.el.is_wayland() {
-                return Platform::Wayland(
-                    self.el
-                        .wayland_display()
-                        .expect("Fetch Wayland display failed"),
-                );
-            } else {
-                return Platform::X11;
-            }
-        }
-        #[cfg(macos)]
-        {
-            return Platform::MacOS;
-        }
-        #[cfg(windows)]
-        {
-            return Platform::Windows;
-        }
-    }
-
     pub fn get_available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
         self.el.available_monitors()
     }
@@ -104,12 +92,40 @@ impl WrEventLoop {
             .primary_monitor()
             .unwrap_or_else(|| -> MonitorHandle { self.get_available_monitors().next().unwrap() })
     }
+
+    pub fn get_clipboard(&mut self) -> &mut Box<dyn ClipboardProvider> {
+        &mut self.clipboard
+    }
+}
+
+fn build_clipboard(event_loop: &EventLoop<i32>) -> Box<dyn ClipboardProvider> {
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if event_loop.is_wayland() {
+            let wayland_display = event_loop
+                .wayland_display()
+                .expect("Fetch Wayland display failed");
+            let (_, clipboard) = unsafe { create_clipboards_from_external(wayland_display) };
+            Box::new(clipboard)
+        } else {
+            Box::new(X11ClipboardContext::<Clipboard>::new().unwrap())
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        return Box::new(WindowsClipboardContext::new().unwrap());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        return Box::new(OSXClipboardContext::new().unwrap());
+    }
 }
 
 pub static EVENT_LOOP: Lazy<Mutex<WrEventLoop>> = Lazy::new(|| {
-    Mutex::new(WrEventLoop {
-        el: glutin::event_loop::EventLoop::with_user_event(),
-    })
+    let el = glutin::event_loop::EventLoop::with_user_event();
+    let clipboard = build_clipboard(&el);
+
+    Mutex::new(WrEventLoop { clipboard, el })
 });
 
 pub static TOKIO_RUNTIME: Lazy<Mutex<Runtime>> =

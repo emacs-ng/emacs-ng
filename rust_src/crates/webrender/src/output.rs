@@ -22,19 +22,7 @@ use emacs::{
     frame::LispFrameRef,
 };
 
-#[cfg(macos)]
-use copypasta::osx_clipboard::OSXClipboardContext;
-#[cfg(windows)]
-use copypasta::windows_clipboard::WindowsClipboardContext;
-#[cfg(unix)]
-use copypasta::{
-    wayland_clipboard::create_clipboards_from_external,
-    x11_clipboard::{Clipboard, X11ClipboardContext},
-};
-
-use copypasta::ClipboardProvider;
-
-use crate::event_loop::{Platform, WrEventLoop};
+use crate::event_loop::WrEventLoop;
 
 use super::texture::TextureResourceManager;
 use super::util::{get_exec_name, HandyDandyRectBuilder};
@@ -60,13 +48,15 @@ pub struct Output {
 
     color_bits: u8,
 
-    clipboard: Box<dyn ClipboardProvider>,
+    // The drop order is important here.
 
+    // Need to dropped before window context
+    texture_resources: Rc<RefCell<TextureResourceManager>>,
+
+    // Need to droppend before window context
     renderer: Renderer,
 
     window_context: ContextWrapper<PossiblyCurrent, Window>,
-
-    texture_resources: Rc<RefCell<TextureResourceManager>>,
 
     frame: LispFrameRef,
 }
@@ -120,9 +110,6 @@ impl Output {
 
         renderer.set_external_image_handler(external_image_handler);
 
-        let platform = event_loop.detect_platform();
-        let clipboard = Self::build_clipboard(platform);
-
         let pipeline_id = PipelineId(0, 0);
         let mut txn = Transaction::new();
         txn.set_root_pipeline(pipeline_id);
@@ -149,7 +136,6 @@ impl Output {
             cursor_color: ColorF::BLACK,
             cursor_foreground_color: ColorF::WHITE,
             color_bits,
-            clipboard,
             renderer,
             window_context,
             texture_resources,
@@ -392,32 +378,6 @@ impl Output {
 
     pub fn get_window(&self) -> &Window {
         self.window_context.window()
-    }
-
-    fn build_clipboard(platform: Platform) -> Box<dyn ClipboardProvider> {
-        #[cfg(unix)]
-        {
-            return match platform {
-                Platform::Wayland(wayland_display) => {
-                    let (_, clipboard) =
-                        unsafe { create_clipboards_from_external(wayland_display) };
-                    Box::new(clipboard)
-                }
-                _ => Box::new(X11ClipboardContext::<Clipboard>::new().unwrap()),
-            };
-        }
-        #[cfg(windows)]
-        {
-            return Box::new(WindowsClipboardContext::new().unwrap());
-        }
-        #[cfg(macos)]
-        {
-            return Box::new(OSXClipboardContext::new().unwrap());
-        }
-    }
-
-    pub fn get_clipboard(&mut self) -> &mut Box<dyn ClipboardProvider> {
-        &mut self.clipboard
     }
 
     fn build_mouse_cursors(output: &mut Output) {
