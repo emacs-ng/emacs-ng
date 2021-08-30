@@ -37,9 +37,12 @@ use copypasta::ClipboardProvider;
 use crate::event_loop::{Platform, WrEventLoop};
 
 use super::texture::TextureResourceManager;
-use super::util::{get_exec_name, HandyDandyRectBuilder};
+use super::util::HandyDandyRectBuilder;
 use super::{cursor::emacs_to_winit_cursor, display_info::DisplayInfoRef};
 use super::{cursor::winit_to_emacs_cursor, font::FontRef};
+
+#[cfg(all(feature = "wayland", not(any(target_os = "macos", windows))))]
+use emacs::{bindings::globals, multibyte::LispStringRef};
 
 pub struct Output {
     // Extend `wr_output` struct defined in `wrterm.h`
@@ -78,8 +81,11 @@ impl Output {
             .with_maximized(true);
 
         #[cfg(all(feature = "wayland", not(any(target_os = "macos", windows))))]
-        let window_builder =
-            window_builder.with_app_id(get_exec_name().unwrap_or("emacs".to_owned()));
+        let window_builder = {
+            let invocation_name_ref: LispStringRef = unsafe { globals.Vinvocation_name.into() };
+            let invocation_name = invocation_name_ref.to_utf8();
+            window_builder.with_app_id(invocation_name)
+        };
 
         let context_builder = glutin::ContextBuilder::new();
 
