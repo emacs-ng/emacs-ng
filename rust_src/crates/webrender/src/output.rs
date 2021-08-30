@@ -3,7 +3,7 @@ use std::{cell::RefCell, mem::MaybeUninit, rc::Rc, sync::Arc};
 use gleam::gl::{self, Gl};
 use glutin::{
     self,
-    dpi::{PhysicalPosition, PhysicalSize},
+    dpi::PhysicalSize,
     window::{CursorIcon, Window},
     ContextWrapper, PossiblyCurrent,
 };
@@ -388,10 +388,6 @@ impl Output {
 
     pub fn get_color_bits(&self) -> u8 {
         self.color_bits
-    }
-
-    pub fn get_position(&self) -> Option<PhysicalPosition<i32>> {
-        self.get_window().outer_position().ok()
     }
 
     pub fn get_window(&self) -> &Window {

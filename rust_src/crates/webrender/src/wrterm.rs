@@ -648,25 +648,22 @@ pub fn x_display_monitor_attributes_list(_terminal: LispObject) -> LispObject {
     for frame in all_frames() {
         let output = frame.wr_output();
 
-        let output_pos = output.get_position().unwrap();
+        let current_monitor = output.get_window().current_monitor();
 
-        let mut window_at_monitor_index = 0;
-
-        for (i, m) in monitors.iter().enumerate() {
-            let monitor_pos = m.position();
-            let monitor_size = m.size();
-
-            if (output_pos.x - monitor_pos.x) < monitor_size.width as i32
-                && (output_pos.y - monitor_pos.y) < monitor_size.height as i32
-            {
-                window_at_monitor_index = i;
-                break;
-            }
+        if current_monitor.is_none() {
+            continue;
         }
 
-        monitor_frames.set(window_at_monitor_index, unsafe {
-            Fcons(frame.into(), monitor_frames.get(window_at_monitor_index))
-        });
+        let current_monitor = current_monitor.unwrap();
+
+        if let Some(index) = monitors
+            .iter()
+            .position(|m| m.name() == current_monitor.name())
+        {
+            monitor_frames.set(index, unsafe {
+                Fcons(frame.into(), monitor_frames.get(index))
+            });
+        }
     }
 
     let source = CString::new("fallback").unwrap();
