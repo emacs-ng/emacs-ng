@@ -233,7 +233,7 @@ LOCATION is an `xref-location'."
   ((summary :type string :initarg :summary
             :reader xref-item-summary)
    (location :initarg :location
-             :type xref-file-location
+             :type xref-location
              :reader xref-item-location)
    (length :initarg :length :reader xref-match-length))
   :comment "A match xref item describes a search result.")
@@ -290,7 +290,11 @@ find a search tool; by default, this uses \"find | grep\" in the
 current project's main and external roots."
   (mapcan
    (lambda (dir)
-     (xref-references-in-directory identifier dir))
+     (message "Searching %s..." dir)
+     (redisplay)
+     (prog1
+         (xref-references-in-directory identifier dir)
+       (message "Searching %s... done" dir)))
    (let ((pr (project-current t)))
      (cons
       (xref--project-root pr)
@@ -596,12 +600,19 @@ SELECT is `quit', also quit the *xref* window."
                   (xref--show-pos-in-buf marker buf))))))
     (user-error (message (error-message-string err)))))
 
+(defun xref--set-arrow ()
+  "Set the overlay arrow at the line at point."
+  (setq overlay-arrow-position
+        (set-marker (or overlay-arrow-position (make-marker))
+                    (line-beginning-position))))
+
 (defun xref-show-location-at-point ()
   "Display the source of xref at point in the appropriate window, if any."
   (interactive)
   (let* ((xref (xref--item-at-point))
          (xref--current-item xref))
     (when xref
+      (xref--set-arrow)
       (xref--show-location (xref-item-location xref)))))
 
 (defun xref-next-line-no-show ()
@@ -657,8 +668,9 @@ quit the *xref* buffer."
   (interactive "P")
   (let* ((buffer (current-buffer))
          (xref (or (xref--item-at-point)
-                   (user-error "No reference at point")))
+                   (user-error "Choose a reference to visit")))
          (xref--current-item xref))
+    (xref--set-arrow)
     (xref--show-location (xref-item-location xref) (if quit 'quit t))
     (if (fboundp 'next-error-found)
         (next-error-found buffer (current-buffer))
@@ -877,7 +889,9 @@ beginning of the line."
            ;; it gets reset to that window's point from time to time).
            (let ((win (get-buffer-window (current-buffer))))
              (and win (set-window-point win (point))))
-           (xref--show-location (xref-item-location xref) t))
+           (xref--set-arrow)
+           (let ((xref--current-item xref))
+             (xref--show-location (xref-item-location xref) t)))
           (t
            (error "No %s xref" (if backward "previous" "next"))))))
 
@@ -966,7 +980,8 @@ GROUP is a string for decoration purposes and XREF is an
                                               'face 'xref-line-number)))))
                         ;; Render multiple matches on the same line, together.
                         (when (and (equal prev-group group)
-                                   (not (equal prev-line line)))
+                                   (or (null line)
+                                       (not (equal prev-line line))))
                           (insert "\n"))
                         (xref--insert-propertized
                          (list 'xref-item xref
@@ -1020,6 +1035,7 @@ Return an alist of the form ((FILENAME . (XREF ...)) ...)."
   (let ((inhibit-read-only t)
         (buffer-undo-list t))
     (erase-buffer)
+    (setq overlay-arrow-position nil)
     (xref--insert-xrefs xref-alist)
     (add-hook 'post-command-hook 'xref--apply-truncation nil t)
     (goto-char (point-min))
@@ -1307,7 +1323,9 @@ prompt for it.
 If sufficient information is available to determine a unique
 definition for IDENTIFIER, display it in the selected window.
 Otherwise, display the list of the possible definitions in a
-buffer where the user can select from the list."
+buffer where the user can select from the list.
+
+Use \\[xref-pop-marker-stack] to return back to where you invoked this command."
   (interactive (list (xref--read-identifier "Find definitions of: ")))
   (xref--find-definitions identifier nil))
 
@@ -1347,6 +1365,20 @@ This command is intended to be bound to a mouse event."
         (xref-find-definitions identifier)
       (user-error "No identifier here"))))
 
+;;;###autoload
+(defun xref-find-references-at-mouse (event)
+  "Find references to the identifier at or around mouse click.
+This command is intended to be bound to a mouse event."
+  (interactive "e")
+  (let ((identifier
+         (save-excursion
+           (mouse-set-point event)
+           (xref-backend-identifier-at-point (xref-find-backend)))))
+    (if identifier
+        (let ((xref-prompt-for-identifier nil))
+          (xref-find-references identifier))
+      (user-error "No identifier here"))))
+
 (declare-function apropos-parse-pattern "apropos" (pattern))
 
 ;;;###autoload
@@ -1355,7 +1387,9 @@ This command is intended to be bound to a mouse event."
 The argument has the same meaning as in `apropos'."
   (interactive (list (read-string
                       "Search for pattern (word list or regexp): "
-                      nil 'xref--read-pattern-history)))
+                      nil 'xref--read-pattern-history
+                      (xref-backend-identifier-at-point
+                       (xref-find-backend)))))
   (require 'apropos)
   (let* ((newpat
           (if (and (version< emacs-version "28.0.50")
@@ -1726,12 +1760,14 @@ Such as the current syntax table and the applied syntax properties."
     (if buf
         (with-current-buffer buf
           (save-excursion
-            (goto-char (point-min))
-            (forward-line (1- line))
-            (xref--collect-matches-1 regexp file line
-                                     (line-beginning-position)
-                                     (line-end-position)
-                                     syntax-needed)))
+            (save-restriction
+              (widen)
+              (goto-char (point-min))
+              (forward-line (1- line))
+              (xref--collect-matches-1 regexp file line
+                                       (line-beginning-position)
+                                       (line-end-position)
+                                       syntax-needed))))
       ;; Using the temporary buffer is both a performance and a buffer
       ;; management optimization.
       (with-current-buffer tmp-buffer

@@ -2157,9 +2157,9 @@ Make backspaces delete the previous character."
 		 'comint-highlight-prompt))
 	      (setq comint-last-prompt
 		    (cons (copy-marker prompt-start) (point-marker)))
-	      (font-lock-prepend-text-property prompt-start (point)
-					       'font-lock-face
-					       'comint-highlight-prompt)
+	      (font-lock-append-text-property prompt-start (point)
+					      'font-lock-face
+					      'comint-highlight-prompt)
 	      (add-text-properties prompt-start (point)
 	                           `(rear-nonsticky
 	                             ,comint--prompt-rear-nonsticky)))
@@ -2439,7 +2439,7 @@ carriage returns (\\r) in STRING.
 This function could be in the list `comint-output-filter-functions'."
   (when (let ((case-fold-search t))
 	  (string-match comint-password-prompt-regexp
-                        (replace-regexp-in-string "\r" "" string)))
+                        (string-replace "\r" "" string)))
     (let ((comint--prompt-recursion-depth (1+ comint--prompt-recursion-depth)))
       (if (> comint--prompt-recursion-depth 10)
           (message "Password prompt recursion too deep")

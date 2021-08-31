@@ -31,7 +31,8 @@
   "Tell the byte-compiler that function FN is defined, in FILE.
 The FILE argument is not used by the byte-compiler, but by the
 `check-declare' package, which checks that FILE contains a
-definition for FN.
+definition for FN.  (FILE can be nil, and that disables this
+check.)
 
 FILE can be either a Lisp file (in which case the \".el\"
 extension is optional), or a C file.  C files are expanded
@@ -2000,10 +2001,10 @@ all symbols are bound before any of the VALUEFORMs are evalled."
        (t `(let* ,(nreverse seqbinds) ,nbody))))))
 
 (defmacro dlet (binders &rest body)
-  "Like `let*' but using dynamic scoping."
+  "Like `let' but using dynamic scoping."
   (declare (indent 1) (debug let))
   ;; (defvar FOO) only affects the current scope, but in order for
-  ;; this not to affect code after the `let*' we need to create a new scope,
+  ;; this not to affect code after the main `let' we need to create a new scope,
   ;; which is what the surrounding `let' is for.
   ;; FIXME: (let () ...) currently doesn't actually create a new scope,
   ;; which is why we use (let (_) ...).
@@ -2011,7 +2012,7 @@ all symbols are bound before any of the VALUEFORMs are evalled."
      ,@(mapcar (lambda (binder)
                  `(defvar ,(if (consp binder) (car binder) binder)))
                binders)
-     (let* ,binders ,@body)))
+     (let ,binders ,@body)))
 
 
 (defmacro with-wrapper-hook (hook args &rest body)
@@ -3680,7 +3681,7 @@ See Info node `(elisp)Security Considerations'."
         "''"
       ;; Quote everything except POSIX filename characters.
       ;; This should be safe enough even for really weird shells.
-      (replace-regexp-in-string
+      (string-replace
        "\n" "'\n'"
        (replace-regexp-in-string "[^-0-9a-zA-Z_./\n]" "\\\\\\&" argument))))
    ))
@@ -3857,6 +3858,67 @@ Point in BUFFER will be placed after the inserted text."
   (let ((current (current-buffer)))
     (with-current-buffer buffer
       (insert-buffer-substring current start end))))
+
+(defun replace-string-in-region (string replacement &optional start end)
+  "Replace STRING with REPLACEMENT in the region from START to END.
+The number of replaced occurrences are returned, or nil if STRING
+doesn't exist in the region.
+
+If START is nil, use the current point.  If END is nil, use `point-max'.
+
+Comparisons and replacements are done with fixed case."
+  (if start
+      (when (< start (point-min))
+        (error "Start before start of buffer"))
+    (setq start (point)))
+  (if end
+      (when (> end (point-max))
+        (error "End after end of buffer"))
+    (setq end (point-max)))
+  (save-excursion
+    (let ((matches 0)
+          (case-fold-search nil))
+      (goto-char start)
+      (while (search-forward string end t)
+        (delete-region (match-beginning 0) (match-end 0))
+        (insert replacement)
+        (setq matches (1+ matches)))
+      (and (not (zerop matches))
+           matches))))
+
+(defun replace-regexp-in-region (regexp replacement &optional start end)
+  "Replace REGEXP with REPLACEMENT in the region from START to END.
+The number of replaced occurrences are returned, or nil if REGEXP
+doesn't exist in the region.
+
+If START is nil, use the current point.  If END is nil, use `point-max'.
+
+Comparisons and replacements are done with fixed case.
+
+REPLACEMENT can use the following special elements:
+
+  `\\&' in NEWTEXT means substitute original matched text.
+  `\\N' means substitute what matched the Nth `\\(...\\)'.
+       If Nth parens didn't match, substitute nothing.
+  `\\\\' means insert one `\\'.
+  `\\?' is treated literally."
+  (if start
+      (when (< start (point-min))
+        (error "Start before start of buffer"))
+    (setq start (point)))
+  (if end
+      (when (> end (point-max))
+        (error "End after end of buffer"))
+    (setq end (point-max)))
+  (save-excursion
+    (let ((matches 0)
+          (case-fold-search nil))
+      (goto-char start)
+      (while (re-search-forward regexp end t)
+        (replace-match replacement t)
+        (setq matches (1+ matches)))
+      (and (not (zerop matches))
+           matches))))
 
 (defun yank-handle-font-lock-face-property (face start end)
   "If `font-lock-defaults' is nil, apply FACE as a `face' property.
@@ -4807,7 +4869,7 @@ It understands Emacs Lisp quoting within STRING, such that
   (split-string-and-unquote (combine-and-quote-strings strs)) == strs
 The SEPARATOR regexp defaults to \"\\s-+\"."
   (let ((sep (or separator "\\s-+"))
-	(i (string-match "\"" string)))
+	(i (string-search "\"" string)))
     (if (null i)
 	(split-string string sep t)	; no quoting:  easy
       (append (unless (eq i 0) (split-string (substring string 0 i) sep t))
@@ -6310,5 +6372,13 @@ of fill.el (for example `fill-region')."
   "Format a documentation string out of STRING and OBJECTS.
 This is intended for internal use only."
   (internal--fill-string-single-line (apply #'format string objects)))
+
+(defun json-available-p ()
+  "Return non-nil if Emacs has libjansson support."
+  (and (fboundp 'json-serialize)
+       (condition-case nil
+           (json-serialize t)
+         (:success t)
+         (json-unavailable nil))))
 
 ;;; subr.el ends here

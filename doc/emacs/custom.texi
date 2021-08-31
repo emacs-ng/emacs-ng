@@ -1415,6 +1415,16 @@ meanings as they would have in file local variables.  @code{coding}
 cannot be specified as a directory local variable.  @xref{File
 Variables}.
 
+The special key @code{auto-mode-alist} in a @file{.dir-locals.el} lets
+you set a file's major mode.  It works much like the variable
+@code{auto-mode-alist} (@pxref{Choosing Modes}).  For example, here is
+how you can tell Emacs that @file{.def} source files in this directory
+should be in C mode:
+
+@example
+((auto-mode-alist . (("\\.def\\'" . c-mode))))
+@end example
+
 @findex add-dir-local-variable
 @findex delete-dir-local-variable
 @findex copy-file-locals-to-dir-locals
@@ -1710,6 +1720,17 @@ for cautious completion.
 previous ones, but they are specifically for file name completion.
 They do not bind @key{SPC}.
 @end itemize
+
+By default, @key{TAB}, @key{SPC} and @key{?} do completion in
+@code{minibuffer-local-completion-map}.  If you commonly complete over
+collections that have elements with space or question mark characters in
+them, it may be convenient to disable completion on those keys by
+putting this in your init file:
+
+@lisp
+(define-key minibuffer-local-completion-map " " 'self-insert-command)
+(define-key minibuffer-local-completion-map "?" 'self-insert-command)
+@end lisp
 
 @node Rebinding
 @subsection Changing Key Bindings Interactively
