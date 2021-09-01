@@ -423,6 +423,46 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#built-in-emacs-lisp-packages" class="md-nav__link">
+    Built-in Emacs Lisp packages
+  </a>
+  
+    <nav class="md-nav" aria-label="Built-in Emacs Lisp packages">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#straightel" class="md-nav__link">
+    straight.el
+  </a>
+  
+    <nav class="md-nav" aria-label="straight.el">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    Usage
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-package" class="md-nav__link">
+    use-package
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -836,6 +876,46 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#built-in-emacs-lisp-packages" class="md-nav__link">
+    Built-in Emacs Lisp packages
+  </a>
+  
+    <nav class="md-nav" aria-label="Built-in Emacs Lisp packages">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#straightel" class="md-nav__link">
+    straight.el
+  </a>
+  
+    <nav class="md-nav" aria-label="straight.el">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    Usage
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-package" class="md-nav__link">
+    use-package
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -949,6 +1029,44 @@ gains. Async I/O from Deno, WebWorkers, and WebAsm, gives you the
 tools to make Emacs a smoother and faster experience without having to
 install additional tools to launch as background processes or worry
 about shared library versions.</p>
+<h3 id="built-in-emacs-lisp-packages">Built-in Emacs Lisp packages<a class="headerlink" href="#built-in-emacs-lisp-packages" title="Permanent link">#</a></h3>
+<p>emacs-ng distributed with more built-in Emacs Lisp packages than upstream GNU Emacs.
+For now, we have <a href="https://github.com/raxod502/straight.el/tree/develop">straight.el</a>
+<code>08b0ecf</code> and <a href="https://github.com/jwiegley/use-package">use-package</a> <code>a7422fb</code>
+included.</p>
+<h4 id="straightel"><code>straight.el</code><a class="headerlink" href="#straightel" title="Permanent link">#</a></h4>
+<p>We are kind of using <code>straight.el</code> as an alternative of <code>package.el</code>, providing
+<code>ng-straight-bootstrap-at-startup</code>, <code>ng-bootstrap-straight</code> (as equipment of
+<code>package-enable-at-startup</code> and <code>package-initialize</code>).</p>
+<h5 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">#</a></h5>
+<p>Emacs NG automatically bootstraps <code>straight.el</code> at
+startup if <code>ng-straight-bootstrap-at-startup</code> is set to <code>t</code>, the default value is <code>nil</code></p>
+<p>You must configure the built-in <code>straight.el</code> in the early init file,
+as the variable <code>ng-straight-bootstrap-at-startup</code> is read before
+loading the regular init file. There are some variables you may be interested in
+(some of them must be set <strong>before</strong> the bootstrap process, if they might affect how
+<code>straight.el</code> itself is loaded). You can find the details from <a href="https://github.com/raxod502/straight.el/tree/develop#getting-started">this section</a>
+of the <code>straight.el</code>'s documentation.</p>
+<p>To be compatible with upstream Emacs, you can place the following in your init-file:</p>
+<div class="highlight"><pre><span></span><code>(unless (fboundp &#39;ng-bootstrap-straight)
+  (defvar bootstrap-version)
+  (let ((bootstrap-file
+         (expand-file-name &quot;straight/repos/straight.el/bootstrap.el&quot; user-emacs-directory))
+        (bootstrap-version 5))
+    (unless (file-exists-p bootstrap-file)
+      (with-current-buffer
+          (url-retrieve-synchronously
+           &quot;https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el&quot;
+           &#39;silent &#39;inhibit-cookies)
+        (goto-char (point-max))
+        (eval-print-last-sexp)))
+    (load bootstrap-file nil &#39;nomessage)))
+</code></pre></div>
+<p>For more detailed guide, please refer <a href="https://github.com/raxod502/straight.el/blob/develop/README.md">straight.el's READMD.md</a>.</p>
+<h4 id="use-package"><code>use-package</code><a class="headerlink" href="#use-package" title="Permanent link">#</a></h4>
+<p>There are also <a href="https://github.com/jwiegley/use-package/issues/282">discussions/efforts</a> to
+include <code>use-package</code> into upstream. Until then, we temporally included it with
+<code>emacs-ng</code>.</p>
                 
                   
                     
@@ -957,7 +1075,7 @@ about shared library versions.</p>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">August 31, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">September 1, 2021</span>
     
   </small>
 </div>
