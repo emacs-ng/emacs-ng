@@ -1896,6 +1896,11 @@ fi
 
 NATIVE_IMAGE_API=no
 
+HAVE_JAVASCRIPT=no
+if test "${with_javascript}" != no; then
+  HAVE_JAVASCRIPT=yes
+fi
+
 test "${with_ns}" = maybe && test "${opsys}" != darwin && with_ns=no
 HAVE_NS=no
 NS_GNUSTEP_CONFIG=no
@@ -5749,7 +5754,7 @@ case "${opsys}" in
   darwin) RUST_DEPS="-ldl -lm -lresolv -lstdc++"
         REMACSLIB_NAME="libremacs_lib.a"
         EMACSNGLIB_NAME="libemacsng.a"
-        REMACSLIB_CFLAGS="-pthread -DEMACS_EXTERN_INLINE -Wl,-framework -Wl,Metal" ;;
+        REMACSLIB_CFLAGS="-pthread -DEMACS_EXTERN_INLINE" ;;
   gnu*) RUST_DEPS="-ldl -lm -lrt -lstdc++"
         REMACSLIB_NAME="libremacs_lib.a"
         EMACSNGLIB_NAME="libemacsng.a"
@@ -5806,6 +5811,10 @@ case "$opsys" in
      if test "$NS_IMPL_COCOA" = "yes"; then
         libs_nsgui="$libs_nsgui -framework IOKit -framework Carbon \
                     -framework IOSurface -framework QuartzCore"
+     fi
+     if test "$HAVE_JAVASCRIPT" = "yes"; then
+        # Deno webgpu has Metal requirement
+        libs_nsgui="$libs_nsgui -framework Metal"
      fi
    else
      libs_nsgui=
@@ -6202,7 +6211,7 @@ esac
 if test "$HAVE_LIBGIT" = "yes"; then
    CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"libgit\", "
 fi
-if test "${with_javascript}" = "yes"; then
+if test "$HAVE_JAVASCRIPT" = "yes"; then
   AC_DEFINE(USE_JAVASCRIPT, 1, [Define to 1 if you want to use deno/javascript.])
   CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"javascript\", "
 fi
