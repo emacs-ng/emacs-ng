@@ -32,7 +32,7 @@ echo arch=$arch
 echo deb_dir=$deb_dir
 echo pkg_name=$pkg_name
 
-./configure CFLAGS="-Wl,-rpath,shared -Wl,--disable-new-dtags" \
+./configure CFLAGS="-Wl,-rpath,shared,--disable-new-dtags -g -O2" \
             --prefix=/usr/local/ \
             --with-json --with-modules --with-harfbuzz --with-compress-install \
             --with-threads --with-included-regex --with-zlib --with-cairo --with-libsystemd \
