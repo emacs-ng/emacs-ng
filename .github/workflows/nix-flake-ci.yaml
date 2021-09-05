@@ -18,14 +18,16 @@ jobs:
     # Configure Nix to enable flakes
     - run: echo "experimental-features = nix-command flakes" | sudo tee -a /etc/nix/nix.conf
 
-    - uses: cachix/cachix-action@v10
-      with:
-        name: emacsng
-        authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
 
     - name: Nix Flake Check
       run: nix -Lv flake check
     - name: Build emacsNg Rust Dependency
       run: nix -Lv build .#emacsNg-rust
+
+    - uses: cachix/cachix-action@v10
+      with:
+        name: emacsng
+        authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+
     - name: Run Emacsng Exec
-      run: nix-shell --command "emacs --version"
+      run: nix -Lv develop -c -- emacs --version
