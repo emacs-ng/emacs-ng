@@ -2,7 +2,7 @@
   description = "emacsNg Nix flake";
 
   inputs = {
-    nixpkgs.url = "nixpkgs/release-21.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/release-21.05";
     emacs-overlay = {
       type = "github";
       owner = "nix-community";
@@ -14,7 +14,6 @@
       url = "github:berberman/nvfetcher";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    emacsNg-src = { url = "github:emacs-ng/emacs-ng"; flake = false; };
     flake-compat = { url = "github:edolstra/flake-compat"; flake = false; };
     rust-overlay = { url = "github:oxalica/rust-overlay"; inputs.nixpkgs.follows = "nixpkgs"; };
     flake-utils.url = "github:numtide/flake-utils";
@@ -24,7 +23,6 @@
     { self
     , nixpkgs
     , emacs-overlay
-    , emacsNg-src
     , flake-compat
     , rust-overlay
     , flake-utils
