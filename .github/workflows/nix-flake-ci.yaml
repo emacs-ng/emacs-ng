@@ -13,19 +13,21 @@ jobs:
         fetch-depth: 0
     - uses: cachix/install-nix-action@v13
       with:
-        install_url: https://github.com/numtide/nix-flakes-installer/releases/download/nix-2.4pre20210604_8e6ee1b/install
+        install_url: https://github.com/numtide/nix-flakes-installer/releases/download/nix-2.4pre20210823_af94b54/install
 
     # Configure Nix to enable flakes
     - run: echo "experimental-features = nix-command flakes" | sudo tee -a /etc/nix/nix.conf
+
+
+    - name: Nix Flake Check
+      run: nix -Lv flake check
+    - name: Build emacsNg Rust Dependency
+      run: nix -Lv build .#emacsNg-rust
 
     - uses: cachix/cachix-action@v10
       with:
         name: emacsng
         authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
 
-    - name: Nix Flake Check
-      run: nix -Lv flake check
-    - name: Build emacsNg Rust Dependency
-      run: nix -Lv build .#emacsNg-rust
     - name: Run Emacsng Exec
-      run: nix-shell --command "emacs --version"
+      run: nix -Lv develop -c -- emacs --version
