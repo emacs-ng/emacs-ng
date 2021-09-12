@@ -24,10 +24,11 @@ use emacs::{
     bindings::globals,
     bindings::resource_types::{RES_TYPE_NUMBER, RES_TYPE_STRING, RES_TYPE_SYMBOL},
     bindings::{
-        block_input, gui_display_get_arg, hashtest_eql, image as Emacs_Image, list3i, make_fixnum,
-        make_hash_table, make_monitor_attribute_list, register_font_driver, unblock_input, Display,
-        Emacs_Pixmap, Emacs_Rectangle, Fcons, Fcopy_alist, Fmake_vector, Fprovide, MonitorInfo,
-        Vframe_list, Window, DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
+        block_input, build_string, gui_display_get_arg, hashtest_eql, image as Emacs_Image, list3i,
+        make_fixnum, make_hash_table, make_monitor_attribute_list, register_font_driver,
+        unblock_input, Display, Emacs_Pixmap, Emacs_Rectangle, Fcons, Fcopy_alist, Fmake_vector,
+        Fprovide, MonitorInfo, Vframe_list, Window, CHECK_STRING, DEFAULT_REHASH_SIZE,
+        DEFAULT_REHASH_THRESHOLD,
     },
     definitions::EmacsInt,
     frame::{all_frames, window_frame_live_or_selected, LispFrameRef},
@@ -423,6 +424,14 @@ pub fn x_open_connection(
     _xrm_string: LispObject,
     _must_succeed: LispObject,
 ) -> LispObject {
+    let display = if display.is_nil() {
+        unsafe { build_string("".as_ptr() as *const ::libc::c_char) }
+    } else {
+        display
+    };
+
+    unsafe { CHECK_STRING(display) };
+
     let mut display_info = wr_term_init(display);
 
     // Put this display on the chain.

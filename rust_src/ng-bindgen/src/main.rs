@@ -275,6 +275,9 @@ fn run_bindgen(path: &str) {
                 // .blacklist_item("Lisp_.*fwd")
                 // these are defined in remacs_lib
                 .blacklist_item("timespec")
+                .blacklist_item("fd_set")
+                .blacklist_item("pselect")
+                .blacklist_item("sigset_t")
                 .blacklist_item("timex")
                 .blacklist_item("clock_adjtime")
                 // by default we want C enums to be converted into a Rust module with constants in it
@@ -315,7 +318,7 @@ fn run_bindgen(path: &str) {
             );
             let munged = re.unwrap().replace_all(&source, "");
             let mut file = File::create(out_path).unwrap();
-            write!(file, "use crate::{{\n    globals::emacs_globals,\n    sys::Lisp_Object,\n}};\n\nuse libc::timespec;\n").expect("Write error!");
+            write!(file, "use crate::{{\n    globals::emacs_globals,\n    sys::Lisp_Object,\n}};\n\nuse libc::{{timespec, fd_set, sigset_t}};\n").expect("Write error!");
             file.write_all(munged.into_owned().as_bytes()).unwrap();
         }
     }
