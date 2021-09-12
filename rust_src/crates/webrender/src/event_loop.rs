@@ -21,11 +21,13 @@ use glutin::{
     window::{WindowBuilder, WindowId},
     ContextBuilder, ContextCurrentState, CreationError, NotCurrent, WindowedContext,
 };
-use libc::{c_void, fd_set, sigset_t, timespec};
+use libc::{c_void, fd_set, pselect, sigset_t, timespec};
 use once_cell::sync::Lazy;
 use tokio::{io::unix::AsyncFd, runtime::Runtime, time::Duration};
 
 use crate::future::batch_select;
+
+use emacs::bindings::{inhibit_window_system, thread_select};
 
 pub type GUIEvent = Event<'static, i32>;
 
@@ -155,6 +157,20 @@ pub extern "C" fn wr_select(
     timeout: *mut timespec,
     _sigmask: *mut sigset_t,
 ) -> i32 {
+    if unsafe { inhibit_window_system } {
+        return unsafe {
+            thread_select(
+                Some(pselect),
+                nfds,
+                readfds,
+                writefds,
+                _exceptfds,
+                timeout,
+                _sigmask,
+            )
+        };
+    }
+
     let mut event_loop = EVENT_LOOP.lock().unwrap();
 
     let event_loop_proxy = event_loop.create_proxy();

@@ -72,8 +72,8 @@ impl Output {
 
         #[cfg(all(feature = "wayland", not(any(target_os = "macos", windows))))]
         let window_builder = {
-            let invocation_name_ref: LispStringRef = unsafe { globals.Vinvocation_name.into() };
-            let invocation_name = invocation_name_ref.to_utf8();
+            let invocation_name: LispStringRef = unsafe { globals.Vinvocation_name.into() };
+            let invocation_name = invocation_name.to_utf8();
             window_builder.with_app_id(invocation_name)
         };
 
