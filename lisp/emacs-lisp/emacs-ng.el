@@ -48,6 +48,7 @@ call (ng-bootstrap-straight) in your init-file."
   (interactive)
 
   (require 'straight)
+  (require 'use-package)
 
   (setq ng--straight-bootstrapped t)
 
