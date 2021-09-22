@@ -13,6 +13,7 @@ nav:
       - Build with Docker: build/docker.md
       - Release .deb package: build/release.md
       - Nix Build / Develop: build/nix-develop.md
+    - Package management: package-management.md
   - Deno/Javascript:
     - Using Deno: js/using-deno.md
     - Getting started: js/getting-started.md
