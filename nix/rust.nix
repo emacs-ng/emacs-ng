@@ -1,7 +1,7 @@
 { lib, config, pkgs, ... }:
 let
   cfg = config.language.rust;
-  date = "2021-04-25";
+  date = lib.removePrefix "nightly-" (lib.removeSuffix "\n" (builtins.readFile ../rust-toolchain));
 in
 with pkgs;
 with lib;
