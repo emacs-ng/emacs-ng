@@ -4,6 +4,8 @@ use std::ffi::CString;
 use std::ptr;
 
 use emacs::bindings::output_method;
+#[cfg(debug_assertions)]
+use emacs::bindings::Fmessage;
 use glutin::{event::VirtualKeyCode, monitor::MonitorHandle};
 
 use lisp_macros::lisp_fn;
@@ -785,7 +787,16 @@ pub fn x_get_selection_internal(
 
     let clipboard = event_loop.get_clipboard();
 
-    let contents: &str = &clipboard.get_contents().unwrap();
+    let contents: &str = &clipboard.get_contents().unwrap_or_else(|_e| {
+        #[cfg(debug_assertions)]
+        unsafe {
+            let error_message = format!("x_get_selection_internal: {}\n", _e);
+            let mut error_message =
+                build_string(error_message.to_string().as_ptr() as *const ::libc::c_char);
+            Fmessage(1, &mut error_message);
+        };
+        "".to_owned()
+    });
 
     contents.into()
 }
