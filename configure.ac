@@ -1213,6 +1213,13 @@ if test "$enable_silent_rules" = no; then
 else
   AM_DEFAULT_VERBOSITY=0
 fi
+
+AC_ARG_ENABLE(rust-debug,
+[AS_HELP_STRING([--enable-rust-debug],
+[build rust-src in debug mode
+Useful for debugging rust component of emacs-ng.])],
+[ac_enable_rust_debug="${enableval}"],[])
+
 AC_SUBST([AM_DEFAULT_VERBOSITY])
 AC_CONFIG_FILES([src/verbose.mk])
 
@@ -3533,6 +3540,13 @@ if test "${HAVE_X11}" = "yes"; then
   fi
 fi
 
+if test "${window_system}" = "webrender" ; then
+  if test "x$ac_enable_rust_debug" != "x" && test "$opsys" = "gnu-linux"; then
+    XCB_LIBS="-lxcb -lxcb-xfixes -lxcb-shape -lxcb-render"
+    AC_SUBST(XCB_LIBS)
+  fi
+fi
+
 ### Use -lXpm if available, unless '--with-xpm=no'.
 ### mingw32 doesn't use -lXpm, since it loads the library dynamically.
 ### The Cygwin-w32 build uses <noX/xpm.h> instead of <X11/xpm.h>, so
@@ -5737,17 +5751,11 @@ AC_SUBST(CARGO_CLIPPY)
 AC_SUBST(CARGO_RUN)
 AC_SUBST(CARGO_DOC)
 
-AC_ARG_ENABLE(rust-debug,
-[AS_HELP_STRING([--enable-rust-debug],
-[build rust-src in debug mode
-Useful for debugging rust component of Remacs.])],
-[ac_enable_rust_debug="${enableval}"],[])
 if test x$ac_enable_rust_debug != x ; then
 CARGO_FLAGS="$CARGO_FLAGS"
 else
 CARGO_FLAGS="$CARGO_FLAGS --release"
 fi
-
 AC_SUBST(CARGO_FLAGS)
 
 case "${opsys}" in
