@@ -11,21 +11,21 @@
       
       
       
-        <link rel="canonical" href="https://emacs-ng.github.io/emacs-ng/build/release/">
+        <link rel="canonical" href="https://emacs-ng.github.io/emacs-ng/package-management/">
       
-      <link rel="shortcut icon" href="../../images/logo.png">
+      <link rel="shortcut icon" href="../images/logo.png">
       <meta name="generator" content="mkdocs-1.1.2, mkdocs-material-7.0.5">
     
     
       
-        <title>Release .deb package - Emacs NG - A new approach to Emacs</title>
+        <title>Package management - Emacs NG - A new approach to Emacs</title>
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.77f3fd56.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.77f3fd56.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.7fa14f5b.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.7fa14f5b.min.css">
         
       
     
@@ -40,7 +40,7 @@
     
     
     
-      <link rel="stylesheet" href="../../stylesheets/layout.css">
+      <link rel="stylesheet" href="../stylesheets/layout.css">
     
     
       
@@ -63,6 +63,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#built-in-emacs-lisp-packages" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -74,7 +79,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="https://emacs-ng.github.io/emacs-ng" title="Emacs NG - A new approach to Emacs" class="md-header__button md-logo" aria-label="Emacs NG - A new approach to Emacs">
       
-  <img src="../../images/logo.png" alt="logo">
+  <img src="../images/logo.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -90,7 +95,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Release .deb package
+              Package management
             
           </span>
         </div>
@@ -167,7 +172,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../.." class="md-tabs__link md-tabs__link--active">
+      <a href=".." class="md-tabs__link md-tabs__link--active">
         Home
       </a>
     </li>
@@ -183,7 +188,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../js/using-deno/" class="md-tabs__link">
+      <a href="../js/using-deno/" class="md-tabs__link">
         Deno/Javascript
       </a>
     </li>
@@ -196,7 +201,7 @@
 
 
   <li class="md-tabs__item">
-    <a href="../../webrender/" class="md-tabs__link">
+    <a href="../webrender/" class="md-tabs__link">
       Webrender
     </a>
   </li>
@@ -208,7 +213,7 @@
 
 
   <li class="md-tabs__item">
-    <a href="../../ng-module/" class="md-tabs__link">
+    <a href="../ng-module/" class="md-tabs__link">
       Dynamic modules
     </a>
   </li>
@@ -220,7 +225,7 @@
 
 
   <li class="md-tabs__item">
-    <a href="../../faq/" class="md-tabs__link">
+    <a href="../faq/" class="md-tabs__link">
       FAQ
     </a>
   </li>
@@ -235,7 +240,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../handbook/getting-started/" class="md-tabs__link">
+      <a href="../handbook/getting-started/" class="md-tabs__link">
         Native Hackers Handbook
       </a>
     </li>
@@ -266,7 +271,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="https://emacs-ng.github.io/emacs-ng" title="Emacs NG - A new approach to Emacs" class="md-nav__button md-logo" aria-label="Emacs NG - A new approach to Emacs">
       
-  <img src="../../images/logo.png" alt="logo">
+  <img src="../images/logo.png" alt="logo">
 
     </a>
     Emacs NG - A new approach to Emacs
@@ -318,7 +323,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../.." class="md-nav__link">
+      <a href=".." class="md-nav__link">
         Overview
       </a>
     </li>
@@ -328,14 +333,12 @@
             
   
   
-    
-  
   
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_1_2" type="checkbox" id="__nav_1_2" checked>
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_1_2" type="checkbox" id="__nav_1_2" >
       
       <label class="md-nav__link" for="__nav_1_2">
         Setup
@@ -353,7 +356,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../building/" class="md-nav__link">
+      <a href="../build/building/" class="md-nav__link">
         Build from source
       </a>
     </li>
@@ -365,7 +368,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../docker/" class="md-nav__link">
+      <a href="../build/docker/" class="md-nav__link">
         Build with Docker
       </a>
     </li>
@@ -375,18 +378,11 @@
             
   
   
-    
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../build/release/" class="md-nav__link">
         Release .deb package
       </a>
-      
     </li>
   
 
@@ -396,7 +392,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nix-develop/" class="md-nav__link">
+      <a href="../build/nix-develop/" class="md-nav__link">
         Nix Build / Develop
       </a>
     </li>
@@ -412,11 +408,69 @@
             
   
   
+    
   
-    <li class="md-nav__item">
-      <a href="../../package-management/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Package management
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         Package management
       </a>
+      
+        
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#straightel" class="md-nav__link">
+    straight.el
+  </a>
+  
+    <nav class="md-nav" aria-label="straight.el">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    Usage
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-package" class="md-nav__link">
+    use-package
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -456,7 +510,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../js/using-deno/" class="md-nav__link">
+      <a href="../js/using-deno/" class="md-nav__link">
         Using Deno
       </a>
     </li>
@@ -468,7 +522,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../js/getting-started/" class="md-nav__link">
+      <a href="../js/getting-started/" class="md-nav__link">
         Getting started
       </a>
     </li>
@@ -480,7 +534,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../js/main-features/" class="md-nav__link">
+      <a href="../js/main-features/" class="md-nav__link">
         Basic features
       </a>
     </li>
@@ -492,7 +546,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../js/adv-features/" class="md-nav__link">
+      <a href="../js/adv-features/" class="md-nav__link">
         Advanced features
       </a>
     </li>
@@ -504,7 +558,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../js/architecture/" class="md-nav__link">
+      <a href="../js/architecture/" class="md-nav__link">
         Architecture
       </a>
     </li>
@@ -525,7 +579,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../webrender/" class="md-nav__link">
+      <a href="../webrender/" class="md-nav__link">
         Webrender
       </a>
     </li>
@@ -540,7 +594,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ng-module/" class="md-nav__link">
+      <a href="../ng-module/" class="md-nav__link">
         Dynamic modules
       </a>
     </li>
@@ -555,7 +609,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../faq/" class="md-nav__link">
+      <a href="../faq/" class="md-nav__link">
         FAQ
       </a>
     </li>
@@ -591,7 +645,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../handbook/getting-started/" class="md-nav__link">
+      <a href="../handbook/getting-started/" class="md-nav__link">
         Getting started
       </a>
     </li>
@@ -603,7 +657,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../handbook/build/" class="md-nav__link">
+      <a href="../handbook/build/" class="md-nav__link">
         Build
       </a>
     </li>
@@ -615,7 +669,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../handbook/tests/" class="md-nav__link">
+      <a href="../handbook/tests/" class="md-nav__link">
         Tests
       </a>
     </li>
@@ -627,7 +681,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../handbook/lisp-fn/" class="md-nav__link">
+      <a href="../handbook/lisp-fn/" class="md-nav__link">
         lisp-fn
       </a>
     </li>
@@ -639,7 +693,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../handbook/types/" class="md-nav__link">
+      <a href="../handbook/types/" class="md-nav__link">
         Types
       </a>
     </li>
@@ -659,19 +713,113 @@
               </div>
             
             
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#straightel" class="md-nav__link">
+    straight.el
+  </a>
+  
+    <nav class="md-nav" aria-label="straight.el">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    Usage
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-package" class="md-nav__link">
+    use-package
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
           
           <div class="md-content" data-md-component="content">
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/emacs-ng/emacs-ng/edit/master/docs/build/release.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/emacs-ng/emacs-ng/edit/master/docs/package-management.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
                 
-                  <h1>Release .deb package</h1>
-                
-                <p>Our CI currently builds <a href="https://github.com/emacs-ng/emacs-ng/releases">binary releases for Ubuntu</a>. Expect more to come: contributions are welcome!</p>
+                <h1 id="built-in-emacs-lisp-packages">Built-in Emacs Lisp packages<a class="headerlink" href="#built-in-emacs-lisp-packages" title="Permanent link">#</a></h1>
+<p>emacs-ng distributed with more built-in Emacs Lisp packages than
+upstream GNU Emacs.  For now, we have
+<a href="https://github.com/raxod502/straight.el/tree/develop">straight.el</a>
+<code>08b0ecf</code> and <a href="https://github.com/jwiegley/use-package">use-package</a>
+<code>a7422fb</code> included.</p>
+<h2 id="straightel"><code>straight.el</code><a class="headerlink" href="#straightel" title="Permanent link">#</a></h2>
+<p>We are kind of using <code>straight.el</code> as an alternative of <code>package.el</code>,
+providing <code>ng-straight-bootstrap-at-startup</code>, <code>ng-bootstrap-straight</code>
+(as equipment of <code>package-enable-at-startup</code> and
+<code>package-initialize</code>).</p>
+<h3 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">#</a></h3>
+<p>Emacs NG automatically bootstraps <code>straight.el</code> at startup if
+<code>ng-straight-bootstrap-at-startup</code> is set to <code>t</code>, the default value is
+<code>nil</code></p>
+<p>You must configure the built-in <code>straight.el</code> in the early init file,
+as the variable <code>ng-straight-bootstrap-at-startup</code> is read before
+loading the regular init file. There are some variables you may be
+interested in (some of them must be set <strong>before</strong> the bootstrap
+process, if they might affect how <code>straight.el</code> itself is loaded). You
+can find the details from <a href="https://github.com/raxod502/straight.el/tree/develop#getting-started">this
+section</a>
+of the <code>straight.el</code>'s documentation.</p>
+<p>To be compatible with upstream Emacs, you can place the following in
+your init-file:</p>
+<div class="highlight"><pre><span></span><code>(unless (fboundp &#39;ng-bootstrap-straight)
+  (defvar bootstrap-version)
+  (let ((bootstrap-file
+         (expand-file-name &quot;straight/repos/straight.el/bootstrap.el&quot; user-emacs-directory))
+        (bootstrap-version 5))
+    (unless (file-exists-p bootstrap-file)
+      (with-current-buffer
+          (url-retrieve-synchronously
+           &quot;https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el&quot;
+           &#39;silent &#39;inhibit-cookies)
+        (goto-char (point-max))
+        (eval-print-last-sexp)))
+    (load bootstrap-file nil &#39;nomessage)))
+</code></pre></div>
+<p>For more detailed guide, please refer <a href="https://github.com/raxod502/straight.el/blob/develop/README.md">straight.el's
+READMD.md</a>.</p>
+<h2 id="use-package"><code>use-package</code><a class="headerlink" href="#use-package" title="Permanent link">#</a></h2>
+<p>There are also
+<a href="https://github.com/jwiegley/use-package/issues/282">discussions/efforts</a>
+to include <code>use-package</code> into upstream. Until then, we temporally
+included it with <code>emacs-ng</code>.</p>
                 
                   
                     
@@ -702,7 +850,7 @@
   
     <nav class="md-footer__inner md-grid" aria-label="Footer">
       
-        <a href="../docker/" class="md-footer__link md-footer__link--prev" rel="prev">
+        <a href="../build/nix-develop/" class="md-footer__link md-footer__link--prev" rel="prev">
           <div class="md-footer__button md-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
           </div>
@@ -711,19 +859,19 @@
               <span class="md-footer__direction">
                 Previous
               </span>
-              Build with Docker
+              Nix Build / Develop
             </div>
           </div>
         </a>
       
       
-        <a href="../nix-develop/" class="md-footer__link md-footer__link--next" rel="next">
+        <a href="../js/using-deno/" class="md-footer__link md-footer__link--next" rel="next">
           <div class="md-footer__title">
             <div class="md-ellipsis">
               <span class="md-footer__direction">
                 Next
               </span>
-              Nix Build / Develop
+              Using Deno
             </div>
           </div>
           <div class="md-footer__button md-icon">
@@ -765,10 +913,10 @@
     <div class="md-dialog" data-md-component="dialog">
       <div class="md-dialog__inner md-typeset"></div>
     </div>
-    <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs"], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing"}, "search": "../../assets/javascripts/workers/search.fb4a9340.min.js", "version": null}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs"], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing"}, "search": "../assets/javascripts/workers/search.fb4a9340.min.js", "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.5cf3e710.min.js"></script>
+      <script src="../assets/javascripts/bundle.5cf3e710.min.js"></script>
       
     
   </body>
