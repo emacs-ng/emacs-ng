@@ -33,7 +33,7 @@ macro_rules! xsignal {
 #[macro_export]
 macro_rules! wrong_type {
     ($pred:expr, $arg:expr) => {
-        xsignal!($crate::globals::Qwrong_type_argument, $pred, $arg);
+        xsignal!($crate::globals::Qwrong_type_argument, $pred, $arg)
     };
 }
 
