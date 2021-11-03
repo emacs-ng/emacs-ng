@@ -22,6 +22,8 @@ jobs:
     - name: Nix Flake Check
       run: nix -Lv flake check
     - name: Build emacsNg Rust Dependency
+      # remove when nix build is fixed
+      continue-on-error: true
       run: nix -Lv build .#emacsNg-rust
 
     - uses: cachix/cachix-action@v10
