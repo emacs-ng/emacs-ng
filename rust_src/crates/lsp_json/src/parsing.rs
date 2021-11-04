@@ -4,7 +4,7 @@ use std::io::{BufReader, BufWriter, Result};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 
-use lsp_server::{Message, Request, RequestId, Response, Notification};
+use lsp_server::{Message, Notification, Request, RequestId, Response};
 use serde_json::{map::Map, Value};
 
 use ng_async::ng_async::{to_owned_userdata, EmacsPipe, PipeDataOption, UserData};
@@ -606,7 +606,7 @@ pub fn lsp_async_send_notification(
     let value = lisp_to_serde(params, &config);
     let request = Message::Notification(Notification::new(method_s.to_utf8(), value.unwrap()));
     if let Err(e) = emacs_pipe.message_rust_worker(UserData::new(request)) {
-        error!("Failed to send request to server, reason {:?}", e);
+        error!("Failed to send notification to server, reason {:?}", e);
     }
 
     true
