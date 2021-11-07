@@ -172,7 +172,7 @@
                     sed -e 's/@CARGO_.*@//' Cargo.toml.in > Cargo.toml
                   '' + doVersionedUpdate;
                   name = "remacsSrc";
-                  sha256 = "sha256-McGugFJUwgpw9bK/sIlzryBNz7y0quo+oQSBET2+Pc4=";
+                  sha256 = "sha256-ice5d4a6vyaxCO4mRjxGJsEvtdX7NKvFmoJK5CiE3TA=";
                   inherit installPhase;
                 };
 
