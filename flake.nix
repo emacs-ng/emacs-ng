@@ -91,7 +91,7 @@
             {
               name = pkgs.nvfetcher-bin.pname;
               help = pkgs.nvfetcher-bin.meta.description;
-              command = "cd $DEVSHELL_ROOT/nix; ${pkgs.nvfetcher-bin}/bin/nvfetcher -c ./sources.toml --no-output $@;";
+              command = "export NIX_PATH=nixpkgs=${pkgs.path}; cd $PRJ_ROOT/nix; ${pkgs.nvfetcher-bin}/bin/nvfetcher -c ./sources.toml $@";
             }
           ];
         };
@@ -99,6 +99,7 @@
 
         apps = {
           emacsNg = flake-utils.lib.mkApp { drv = packages.emacsNg; exePath = "/bin/emacs"; };
+          emacsclient = flake-utils.lib.mkApp { drv = packages.emacsNg; exePath = "/bin/emacsclient"; };
         };
 
         defaultApp = apps.emacsNg;
@@ -152,7 +153,7 @@
                       cp -r ${pathDir} crates
                       sed -i 's|../crates/lisp_util|./crates/lisp_util|' Cargo.toml
                     '' + doVersionedUpdate;
-                  sha256 = "sha256-2g+nfnEtrp2oxy/wd0+G8dfR/tufkMLAfoFzxO+jv3g=";
+                  sha256 = "sha256-NL4fSYdlifV15h7/mCFTHlWgBJ6r9AXqiFnBnelyab0=";
                   inherit installPhase;
                 };
 
@@ -171,7 +172,7 @@
                     sed -e 's/@CARGO_.*@//' Cargo.toml.in > Cargo.toml
                   '' + doVersionedUpdate;
                   name = "remacsSrc";
-                  sha256 = "sha256-McGugFJUwgpw9bK/sIlzryBNz7y0quo+oQSBET2+Pc4=";
+                  sha256 = "sha256-ice5d4a6vyaxCO4mRjxGJsEvtdX7NKvFmoJK5CiE3TA=";
                   inherit installPhase;
                 };
 

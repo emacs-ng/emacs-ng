@@ -41,17 +41,6 @@ with lib;
   };
 
   config = {
-    env = [{
-      # Used by tools like rust-analyzer
-      name = "RUST_SRC_PATH";
-      value =
-        let rust-src = rust-bin.nightly."${date}".default.override {
-          extensions = [ "rust-src" ];
-        };
-        in
-        (toString rust-src) + "/lib/rustlib/src/rust/library";
-    }];
-
     devshell.packages = map (tool: cfg.rustPackages.${tool}) cfg.rustPackagesSet
       ++ map (tool: cfg.rustOverlay.${tool}) cfg.rustOverlaySet ++ (with pkgs;[
       #custom nixpkgs packages
