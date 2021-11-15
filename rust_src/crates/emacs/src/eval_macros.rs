@@ -29,6 +29,22 @@ macro_rules! xsignal {
     };
 }
 
+/// Macro to call Lisp functions with any number of arguments.
+/// Replaces call0, call1, etc. in the C layer.
+#[macro_export]
+macro_rules! call {
+    ($func:expr, $($arg:expr),*) => {
+        use std::convert::TryInto;
+        let call = &mut [$func, $($arg),*];
+        unsafe {
+            emacs::bindings::Ffuncall(call.len().try_into().unwrap(), call.as_mut_ptr())
+    }};
+    ($func:expr) => {
+        let func = &mut [$func];
+        unsafe { emacs::bindings::Ffuncall(0 as isize, func.as_mut_ptr()) }
+    }
+}
+
 /// Macro to format a "wrong argument type" error message.
 #[macro_export]
 macro_rules! wrong_type {
