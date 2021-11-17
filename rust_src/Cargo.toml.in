@@ -70,7 +70,7 @@ window-system-w32 = []
 # Build with git2rs support
 libgit = ["git"]
 # Use the webrender window system
-window-system-webrender = ["webrender"]
+window-system-webrender = [@WEBRENDER_DEFAULT_FEATURES@]
 # Treat warnings as a build error on Travis.
 strict = []
 # Use JavaScript and Deno
