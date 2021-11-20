@@ -128,9 +128,9 @@
                   cargo vendor --versioned-dirs $name-versioned
                 '';
 
-                remacsLibDeps = prev.rustPlatform.fetchCargoTarball {
+                emacsNGLibDeps = prev.rustPlatform.fetchCargoTarball {
                   src = emacsNG-source + "/rust_src/remacs-lib";
-                  name = "remacsLibDeps";
+                  name = "emacsNGLibDeps";
                   cargoUpdateHook =
                     let
                       pathDir = emacsNG-source + "/rust_src/crates";
@@ -139,7 +139,7 @@
                       cp -r ${pathDir} crates
                       sed -i 's|../crates/lisp_util|./crates/lisp_util|' Cargo.toml
                     '' + doVersionedUpdate;
-                  sha256 = "sha256-NL4fSYdlifV15h7/mCFTHlWgBJ6r9AXqiFnBnelyab0=";
+                  sha256 = "sha256-WlHKVsCm5cd367lgxfH4+/8mr3g3V5Eft/Ma7jn1r+A=";
                   inherit installPhase;
                 };
 
@@ -152,32 +152,32 @@
                   inherit installPhase;
                 };
 
-                remacsSrc = prev.rustPlatform.fetchCargoTarball {
+                emacsNGSrc = prev.rustPlatform.fetchCargoTarball {
                   src = emacsNG-source + "/rust_src";
                   cargoUpdateHook = ''
                     sed -e 's/@CARGO_.*@//' Cargo.toml.in > Cargo.toml
                   '' + doVersionedUpdate;
-                  name = "remacsSrc";
-                  sha256 = "sha256-ice5d4a6vyaxCO4mRjxGJsEvtdX7NKvFmoJK5CiE3TA=";
+                  name = "emacsNGSrc";
+                  sha256 = "sha256-1MsxNyYreSPqNm9aLvp8xPiExNv0Vlu3aD1TD/6OjFs=";
                   inherit installPhase;
                 };
 
-                remacsHashdir = prev.rustPlatform.fetchCargoTarball {
+                emacsNGHashdir = prev.rustPlatform.fetchCargoTarball {
                   src = emacsNG-source + "/lib-src/hashdir";
                   sourceRoot = null;
-                  name = "remacsHashdir";
+                  name = "emacsNGHashdir";
                   cargoUpdateHook = doVersionedUpdate;
-                  sha256 = "sha256-UseR96MO9J+g/G+MUTkoxF95Y4r53xbY/5iBNyJajgA=";
+                  sha256 = "sha256-2rnEtFZ4bUJegd0vOjZLZyx4Sv66oywkKfCzVsA9neQ=";
                   inherit installPhase;
                 };
               in
               stdenv.mkDerivation {
                 name = "emacsNG-rust";
                 srcs = [
-                  remacsLibDeps
+                  emacsNGLibDeps
                   ngBindgen
-                  remacsHashdir
-                  remacsSrc
+                  emacsNGHashdir
+                  emacsNGSrc
                 ];
                 sourceRoot = ".";
                 phases = [ "unpackPhase" "installPhase" ];
@@ -190,10 +190,10 @@
                     [source.vendored-sources]
                     directory = "$out/.cargo/registry"
                   EOF
-                  cp -R remacsLibDeps-vendor.tar.gz-versioned/* $out/.cargo/registry
+                  cp -R emacsNGLibDeps-vendor.tar.gz-versioned/* $out/.cargo/registry
                   cp -R ngBindgen-vendor.tar.gz-versioned/* $out/.cargo/registry
-                  cp -R remacsHashdir-vendor.tar.gz-versioned/* $out/.cargo/registry
-                  cp -R remacsSrc-vendor.tar.gz-versioned/* $out/.cargo/registry
+                  cp -R emacsNGHashdir-vendor.tar.gz-versioned/* $out/.cargo/registry
+                  cp -R emacsNGSrc-vendor.tar.gz-versioned/* $out/.cargo/registry
                 '';
               }
             );
