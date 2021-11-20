@@ -1000,8 +1000,8 @@ cachix use emacsng <span class="c1"># make sure you have saw the output like: Co
 <span class="c1">#then</span>
 nix-build
 <span class="c1">#or</span>
-nix build github:emacs-ng/emacs-ng -o emacsNg
-ls -il emacsNg
+nix build github:emacs-ng/emacs-ng -o emacsNG
+ls -il emacsNG
 </code></pre></div>
 <h2 id="clone-emacs-ng-by-nix-shell-and-enable-emacs-cachix">Clone Emacs Ng By Nix-Shell And Enable Emacs Cachix<a class="headerlink" href="#clone-emacs-ng-by-nix-shell-and-enable-emacs-cachix" title="Permanent link">#</a></h2>
 <div class="highlight"><pre><span></span><code>nix-env -iA cachix -f https://cachix.org/api/v1/install
@@ -1140,11 +1140,11 @@ use_flake<span class="p">()</span> <span class="p">{</span>
 </code></pre></div>
 <h2 id="building-emacs-ng-in-development-mode">Building Emacs-ng in development mode<a class="headerlink" href="#building-emacs-ng-in-development-mode" title="Permanent link">#</a></h2>
 <ul>
-<li>located <code>flake.nix</code> commented <code>emacsNg-src</code> to <code>"./."</code></li>
+<li>located <code>flake.nix</code> commented <code>emacsNG-src</code> to <code>"./."</code></li>
 </ul>
 <p>Example:</p>
 <div class="highlight"><pre><span></span><code>        <span class="k">let</span>
-          <span class="c1">#emacsNgSource = emacsNg-src;</span>
+          <span class="c1">#emacsNgSource = emacsNG-src;</span>
           <span class="ss">emacsNgSource =</span> <span class="s2">&quot;./.&quot;</span><span class="p">;</span>
         <span class="k">in</span>
 </code></pre></div>
@@ -1163,7 +1163,7 @@ use_flake<span class="p">()</span> <span class="p">{</span>
         <span class="s2">&quot;&lt;custom flags&gt;&quot;</span>
 <span class="p">];</span>
 </code></pre></div>
-<p>NOTICE:  <code>nix-build</code> action in sandbox mode. If you want to modify something or patch it, please put it this way to the corresponding step. </p>
+<p>NOTICE:  <code>nix-build</code> action in sandbox mode. If you want to modify something or patch it, please put it this way to the corresponding step.</p>
 <p>For example:</p>
 <div class="highlight"><pre><span></span><code><span class="ss">preConfigure =</span> <span class="p">(</span>old<span class="o">.</span>preConfigure <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;&#39;</span>
 <span class="s1">  &lt;modify shell&gt;</span>
@@ -1182,7 +1182,7 @@ use_flake<span class="p">()</span> <span class="p">{</span>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">October 2, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">November 20, 2021</span>
     
   </small>
 </div>
