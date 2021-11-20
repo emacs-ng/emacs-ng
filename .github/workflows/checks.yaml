@@ -24,7 +24,7 @@ jobs:
     - name: Build emacsNg Rust Dependency
       # remove when nix build is fixed
       continue-on-error: true
-      run: nix -Lv build .#emacsNg-rust
+      run: nix -Lv build .#emacsNG-rust
 
     - uses: cachix/cachix-action@v10
       with:

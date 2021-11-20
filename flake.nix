@@ -1,5 +1,5 @@
 {
-  description = "emacsNg Nix flake";
+  description = "emacsNG Nix flake";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/release-21.05";
@@ -8,15 +8,13 @@
       owner = "nix-community";
       repo = "emacs-overlay";
     };
-
-    devshell-flake.url = "github:numtide/devshell";
-    nvfetcher = {
-      url = "github:berberman/nvfetcher";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    devshell.url = "github:numtide/devshell";
     flake-compat = { url = "github:edolstra/flake-compat"; flake = false; };
     rust-overlay = { url = "github:oxalica/rust-overlay"; inputs.nixpkgs.follows = "nixpkgs"; };
     flake-utils.url = "github:numtide/flake-utils";
+    emacsNG-source = {
+      url = "git+https://github.com/emacs-ng/emacs-ng?submodule=1";
+    };
   };
 
   outputs =
@@ -26,8 +24,8 @@
     , flake-compat
     , rust-overlay
     , flake-utils
-    , devshell-flake
-    , nvfetcher
+    , devshell
+    , emacsNG-source
     }:
     { }
     //
@@ -40,10 +38,7 @@
             self.overlay
             emacs-overlay.overlay
             rust-overlay.overlay
-            devshell-flake.overlay
-            (final: prev: {
-              nvfetcher-bin = nvfetcher.defaultPackage."${prev.system}";
-            })
+            devshell.overlay
           ];
           config = { };
         };
@@ -52,10 +47,10 @@
         devShell = with pkgs; let
           custom-llvmPackages = llvmPackages_latest;
         in
-        devshell.mkShell {
+        pkgs.devshell.mkShell {
           imports = [
             ./nix/rust.nix
-            (devshell.importTOML ./nix/commands.toml)
+            (pkgs.devshell.importTOML ./nix/commands.toml)
           ];
 
           packages = [
@@ -82,34 +77,29 @@
             {
               name = "copy-deps";
               command = ''
-                cp -rf --no-preserve=mode,ownership ${emacsNg-rust}/.cargo/ $@
+                cp -rf --no-preserve=mode,ownership ${emacsNG-rust}/.cargo/ $@
               '';
               help = ''
-                copy emacsNg rust deps path to where
+                copy emacsNG rust deps path to where
               '';
-            }
-            {
-              name = pkgs.nvfetcher-bin.pname;
-              help = pkgs.nvfetcher-bin.meta.description;
-              command = "export NIX_PATH=nixpkgs=${pkgs.path}; cd $PRJ_ROOT/nix; ${pkgs.nvfetcher-bin}/bin/nvfetcher -c ./sources.toml $@";
             }
           ];
         };
 
 
         apps = {
-          emacsNg = flake-utils.lib.mkApp { drv = packages.emacsNg; exePath = "/bin/emacs"; };
-          emacsclient = flake-utils.lib.mkApp { drv = packages.emacsNg; exePath = "/bin/emacsclient"; };
+          emacsNG = flake-utils.lib.mkApp { drv = packages.emacsNG; exePath = "/bin/emacs"; };
+          emacsclient = flake-utils.lib.mkApp { drv = packages.emacsNG; exePath = "/bin/emacsclient"; };
         };
 
-        defaultApp = apps.emacsNg;
+        defaultApp = apps.emacsNG;
 
-        defaultPackage = pkgs.emacsNg;
+        defaultPackage = pkgs.emacsNG;
         packages = flake-utils.lib.flattenTree
           {
             inherit (pkgs)
-              emacsNg-rust
-              emacsNg
+              emacsNG-rust
+              emacsNG
               ;
           };
 
@@ -122,15 +112,11 @@
     // {
       overlay = final: prev:
         let
-          #emacsNgSource = ./.;
           #rust nightly date
           locked-date = prev.lib.removePrefix "nightly-" (prev.lib.removeSuffix "\n" (builtins.readFile ./rust-toolchain));
-          emacs-ng-sources = prev.callPackage ./nix/_sources/generated.nix { };
-          emacsNgSource = final.emacs-ng-sources.emacs-ng.src;
         in
         {
-          inherit emacs-ng-sources;
-          emacsNg-rust = with final;
+          emacsNG-rust = with final;
             (
               let
                 installPhase = ''
@@ -143,11 +129,11 @@
                 '';
 
                 remacsLibDeps = prev.rustPlatform.fetchCargoTarball {
-                  src = emacsNgSource + "/rust_src/remacs-lib";
+                  src = emacsNG-source + "/rust_src/remacs-lib";
                   name = "remacsLibDeps";
                   cargoUpdateHook =
                     let
-                      pathDir = emacsNgSource + "/rust_src/crates";
+                      pathDir = emacsNG-source + "/rust_src/crates";
                     in
                     ''
                       cp -r ${pathDir} crates
@@ -158,7 +144,7 @@
                 };
 
                 ngBindgen = prev.rustPlatform.fetchCargoTarball {
-                  src = emacsNgSource + "/rust_src/ng-bindgen";
+                  src = emacsNG-source + "/rust_src/ng-bindgen";
                   sourceRoot = null;
                   cargoUpdateHook = doVersionedUpdate;
                   name = "ngBindgen";
@@ -167,7 +153,7 @@
                 };
 
                 remacsSrc = prev.rustPlatform.fetchCargoTarball {
-                  src = emacsNgSource + "/rust_src";
+                  src = emacsNG-source + "/rust_src";
                   cargoUpdateHook = ''
                     sed -e 's/@CARGO_.*@//' Cargo.toml.in > Cargo.toml
                   '' + doVersionedUpdate;
@@ -177,7 +163,7 @@
                 };
 
                 remacsHashdir = prev.rustPlatform.fetchCargoTarball {
-                  src = emacsNgSource + "/lib-src/hashdir";
+                  src = emacsNG-source + "/lib-src/hashdir";
                   sourceRoot = null;
                   name = "remacsHashdir";
                   cargoUpdateHook = doVersionedUpdate;
@@ -186,7 +172,7 @@
                 };
               in
               stdenv.mkDerivation {
-                name = "emacsNg-rust";
+                name = "emacsNG-rust";
                 srcs = [
                   remacsLibDeps
                   ngBindgen
@@ -214,7 +200,7 @@
 
           librusty_v8 = prev.callPackage ./nix/librusty_v8.nix { };
 
-          emacsNg = with prev; let
+          emacsNG = with prev; let
             withWebrender = false;
           in
           (
@@ -242,10 +228,9 @@
                   ]);
               in
               rec {
-                name = "emacsNg-" + version;
-                src = emacsNgSource;
-                version = builtins.substring 0 7 final.emacs-ng-sources.emacs-ng.version;
-                #version = "develop";
+                name = "emacsNG-" + version;
+                src = emacsNG-source;
+                version = builtins.substring 0 7 emacsNG-source.rev;
 
                 preConfigure = (old.preConfigure or "") + ''
 
@@ -301,7 +286,7 @@
                         sed -i 's|deno_core = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng"|deno_core = { version = "0.86.0"|' rust_src/crates/js/Cargo.toml
 
                         sed -i 's|git = "https://github.com/servo/webrender.git", rev = ".*."|version = "0.61.0"|' rust_src/crates/webrender/Cargo.toml
-                      export HOME=${final.emacsNg-rust}
+                      export HOME=${final.emacsNG-rust}
                   '';
 
                 postPatch = (old.postPatch or "") + ''

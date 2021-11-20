@@ -48,8 +48,8 @@ cachix use emacsng # make sure you have saw the output like: Configured https://
 #then
 nix-build
 #or
-nix build github:emacs-ng/emacs-ng -o emacsNg
-ls -il emacsNg
+nix build github:emacs-ng/emacs-ng -o emacsNG
+ls -il emacsNG
 ```
 
 ## Clone Emacs Ng By Nix-Shell And Enable Emacs Cachix
@@ -195,13 +195,13 @@ vale = "/bin/test"
 
 ## Building Emacs-ng in development mode
 
-- located `flake.nix` commented `emacsNg-src` to `"./."`
+- located `flake.nix` commented `emacsNG-src` to `"./."`
 
   Example:
 
 ```nix
         let
-          #emacsNgSource = emacsNg-src;
+          #emacsNgSource = emacsNG-src;
           emacsNgSource = "./.";
         in
 ```
@@ -225,7 +225,7 @@ configureFlags = (old.configureFlags or [ ]) ++ [
 ];
 ```
 
-NOTICE:  `nix-build` action in sandbox mode. If you want to modify something or patch it, please put it this way to the corresponding step. 
+NOTICE:  `nix-build` action in sandbox mode. If you want to modify something or patch it, please put it this way to the corresponding step.
 
 For example:
 
