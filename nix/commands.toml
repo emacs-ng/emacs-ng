@@ -1,7 +1,7 @@
 [[commands]]
-name = "update-emacsNg"
+name = "update-emacsNG"
 category = "Update"
-command = "nix flake lock --update-input emacsNg-src"
+command = "nix flake lock --update-input emacsNG-source"
 help = "update EmacsNg src"
 
 [[commands]]
@@ -28,19 +28,19 @@ name = "emacs"
 command = '''
         $(nix-build . --option substituters "https://cache.nixos.org https://emacsng.cachix.org" --option trusted-public-keys "emacsng.cachix.org-1:i7wOr4YpdRpWWtShI8bT6V7lOTnPeI7Ho6HaZegFWMI= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" --no-out-link)/bin/emacs $@
         '''
-help = "launch emacsNg"
-category = "emacsNg"
+help = "launch emacsNG"
+category = "emacsNG"
 
 [[commands]]
 name = "push-cachix"
 command = '''
-          nix-shell --command "cachix-emacsNg"
+          nix-shell --command "cachix-emacsNG"
         '''
-help = "push emacsNg binary cache to Cachix | -> nix/cachix-key.secrets"
+help = "push emacsNG binary cache to Cachix | -> nix/cachix-key.secrets"
 category = "update"
 
 [[commands]]
-name = "cachix-emacsNg"
+name = "cachix-emacsNG"
 category = "update"
 command = "nix-build | cachix push emacsng"
 help = "nix-build localy then push to cachix"
@@ -52,25 +52,20 @@ help = "cargo build ng-bindgen"
 category = "rust-build"
 
 [[commands]]
-name = "lock-emacsng"
-category = "emacsNg"
+name = "emacsng-lock"
+category = "develop"
 command = '''
-        sed -i 's|version = "develop|\#version = "develop|' flake.nix
-        sed -i 's|\#version = builtins|version = builtins|' flake.nix
-        sed -i 's|emacsNgSource = ./|\#emacsNgSource = ./|' flake.nix
-        sed -i 's|\#emacsNgSource = emacs|emacsNgSource = emacs|' flake.nix
-        nix flake lock --update-input emacsNg-src
+        sed -i 's|\#emacsNGSource = emacs|emacsNGSource = emacs|' flake.nix
+        nix flake lock --update-input emacsNG-source
         '''
 help = "lock rev for bindary cache build"
 
 [[commands]]
-name = "dev-emacsng"
-category = "emacsNg"
+name = "emacsng-develop"
+category = "emacsNG"
 command = '''
-        sed -i 's|\#version = "develop|version = "develop|' flake.nix
-        sed -i 's|version = builtins|\#version = builtins|' flake.nix
-        sed -i 's|\#emacsNgSource = ./|emacsNgSource = ./|' flake.nix
-        sed -i 's|emacsNgSource = emacs|\#emacsNgSource = emacs|' flake.nix
+        sed -i 's|git+https://github.com/emacs-ng/emacs-ng?submodule=1|path:./.|' flake.nix
+        nix flake lock --update-input emacsNG-source
         '''
 help = "using src = ./. for develop mode"
 # [[env]]
