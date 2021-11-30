@@ -513,6 +513,9 @@ OPTION_DEFAULT_OFF([webrender],
   [enable use of webrender(written in Rust) as GUI backend on
 multiple platforms(Linux, Windows and MacOS) (experimental)])
 
+OPTION_DEFAULT_OFF([webrender-capture],
+  [enable use of Webrender capture infrastructure])
+
 ## Based on Deno 1.9.1
 ## Update the above when upgrading Deno
 OPTION_DEFAULT_ON([javascript],
@@ -6196,6 +6199,7 @@ fi || AC_MSG_ERROR(['src/epaths.h' could not be made.])
 
 
 CARGO_DEFAULT_FEATURES=""
+WEBRENDER_DEFAULT_FEATURES="\"webrender\""
 if test "$HAVE_LIBXML2" = "yes"; then
     CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"use-xml2\", "
 fi
@@ -6214,6 +6218,9 @@ case "$window_system" in
     ;;
     webrender)
         CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-webrender\", "
+        if test "${with_webrender_capture}" = "yes"; then
+            WEBRENDER_DEFAULT_FEATURES="${WEBRENDER_DEFAULT_FEATURES}, \"webrender/capture\""
+        fi
     ;;
 esac
 if test "$HAVE_LIBGIT" = "yes"; then
@@ -6227,6 +6234,7 @@ if test "${HAVE_MODULES}" = "yes"; then
   CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"ng-module\", "
 fi
 AC_SUBST(CARGO_DEFAULT_FEATURES)
+AC_SUBST(WEBRENDER_DEFAULT_FEATURES)
 AC_CONFIG_FILES([rust_src/Cargo.toml])
 
 dnl NB we have to cheat and use the ac_... version because abs_top_srcdir

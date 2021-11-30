@@ -373,6 +373,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "cargo_toml"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6d613611c914a7db07f28526941ce1e956d2f977b0c5e2014fbfa42230d420f"
+dependencies = [
+ "serde",
+ "serde_derive",
+ "toml",
+]
+
+[[package]]
 name = "cc"
 version = "1.0.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1457,6 +1468,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "520d7de540904fd09b11c03a47d50a7ce4ff37d1aa763f454fa60d9088ef8356"
 dependencies = [
  "euclid",
+ "serde",
  "svg_fmt",
 ]
 
@@ -2053,6 +2065,23 @@ dependencies = [
  "slotmap",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "glsl"
+version = "4.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05b734216bb31c65d063e0264c8bbc688be12441bce2363a179c05a5f63c8fb1"
+dependencies = [
+ "nom 5.1.2",
+]
+
+[[package]]
+name = "glsl-to-cxx"
+version = "0.1.0"
+source = "git+https://github.com/servo/webrender.git?rev=ecbe93f7df289db2823c3c1fb748af5f3e4827ea#ecbe93f7df289db2823c3c1fb748af5f3e4827ea"
+dependencies = [
+ "glsl",
 ]
 
 [[package]]
@@ -3061,6 +3090,16 @@ dependencies = [
  "cc",
  "cfg-if 1.0.0",
  "libc",
+]
+
+[[package]]
+name = "nom"
+version = "5.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffb4262d26ed83a1c0a33a38fe2bb15797329c85770da05e6b828ddb782627af"
+dependencies = [
+ "memchr",
+ "version_check",
 ]
 
 [[package]]
@@ -4262,9 +4301,9 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.125"
+version = "1.0.130"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "558dc50e1a5a5fa7112ca2ce4effcb321b0300c0d4ccf0776a9f60cd89031171"
+checksum = "f12d06de37cf59146fbdecab66aa99f9fe4f78722e3607577a5375d66bd0c913"
 dependencies = [
  "serde_derive",
 ]
@@ -4280,9 +4319,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.125"
+version = "1.0.130"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b093b7a2bb58203b5da3056c05b4ec1fed827dcfdb37347a8841695263b3d06d"
+checksum = "d7bc1a1ab1961464eae040d96713baa5a724a8152c1222492465b54322ec508b"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.8",
@@ -4415,6 +4454,9 @@ name = "smallvec"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe0f37c9e8f3c5a4a66ad655a93c74daac4ad00c441533bf5c6e7990bb42604e"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "smithay-client-toolkit"
@@ -4926,6 +4968,17 @@ dependencies = [
  "quote 1.0.8",
  "swc_macros_common",
  "syn 1.0.60",
+]
+
+[[package]]
+name = "swgl"
+version = "0.1.0"
+source = "git+https://github.com/servo/webrender.git?rev=ecbe93f7df289db2823c3c1fb748af5f3e4827ea#ecbe93f7df289db2823c3c1fb748af5f3e4827ea"
+dependencies = [
+ "cc",
+ "gleam",
+ "glsl-to-cxx",
+ "webrender_build",
 ]
 
 [[package]]
@@ -5731,6 +5784,7 @@ version = "0.1.0"
 dependencies = [
  "app_units",
  "bit-vec",
+ "cargo_toml",
  "copypasta",
  "emacs",
  "font-kit",
@@ -5778,8 +5832,11 @@ dependencies = [
  "objc",
  "plane-split",
  "rayon",
+ "ron",
+ "serde",
  "smallvec",
  "svg_fmt",
+ "swgl",
  "time",
  "tracy-rs",
  "webrender_api",
@@ -5816,6 +5873,7 @@ source = "git+https://github.com/servo/webrender.git?rev=ecbe93f7df289db2823c3c1
 dependencies = [
  "bitflags",
  "lazy_static",
+ "serde",
 ]
 
 [[package]]
@@ -6046,7 +6104,7 @@ version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a9a231574ae78801646617cefd13bfe94be907c0e4fa979cfd8b770aa3c5d08"
 dependencies = [
- "nom",
+ "nom 6.0.1",
 ]
 
 [[package]]

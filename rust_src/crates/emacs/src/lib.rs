@@ -47,3 +47,4 @@ pub mod symbol;
 pub mod terminal;
 pub mod vector;
 pub mod window;
+pub mod xdisp;

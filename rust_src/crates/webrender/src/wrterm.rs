@@ -1,11 +1,12 @@
 //! wrterm.rs
 
+include!(concat!(env!("OUT_DIR"), "/webrender_revision.rs"));
+
+use emacs::multibyte::LispStringRef;
 use std::ffi::CString;
 use std::ptr;
 
 use emacs::bindings::output_method;
-#[cfg(debug_assertions)]
-use emacs::bindings::Fmessage;
 use glutin::{event::VirtualKeyCode, monitor::MonitorHandle};
 
 use lisp_macros::lisp_fn;
@@ -789,12 +790,7 @@ pub fn x_get_selection_internal(
 
     let contents: &str = &clipboard.get_contents().unwrap_or_else(|_e| {
         #[cfg(debug_assertions)]
-        unsafe {
-            let error_message = format!("x_get_selection_internal: {}\n", _e);
-            let mut error_message =
-                build_string(error_message.to_string().as_ptr() as *const ::libc::c_char);
-            Fmessage(1, &mut error_message);
-        };
+        message!("x_get_selection_internal: {}", _e);
         "".to_owned()
     });
 
@@ -854,6 +850,79 @@ pub fn x_frame_edges(frame: LispObject, type_: LispObject) -> LispObject {
     frame_edges(frame, type_)
 }
 
+/// Capture the contents of the current WebRender frame and
+/// save them to a folder relative to the current working directory.
+///
+/// If START-SEQUENCE is not nil, start capturing each WebRender frame to disk.
+/// If there is already a sequence capture in progress, stop it and start a new
+/// one, with the new path and flags.
+#[allow(unused_variables)]
+#[lisp_fn(min = "2")]
+pub fn wr_api_capture(path: LispStringRef, bits_raw: LispObject, start_sequence: LispObject) {
+    #[cfg(not(feature = "capture"))]
+    error!("Webrender capture not avaiable");
+    #[cfg(feature = "capture")]
+    {
+        use std::fs::{create_dir_all, File};
+        use std::io::Write;
+
+        let path = std::path::PathBuf::from(path.to_utf8());
+        match create_dir_all(&path) {
+            Ok(_) => {}
+            Err(err) => {
+                error!("Unable to create path '{:?}' for capture: {:?}", &path, err);
+            }
+        };
+        let bits_raw = unsafe {
+            emacs::bindings::check_integer_range(
+                bits_raw,
+                webrender::CaptureBits::SCENE.bits() as i64,
+                webrender::CaptureBits::all().bits() as i64,
+            )
+        };
+
+        let frame = window_frame_live_or_selected(Qnil);
+        let output = frame.wr_output();
+        let bits = webrender::CaptureBits::from_bits(bits_raw as _).unwrap();
+        let revision_file_path = path.join("wr.txt");
+        message!("Trying to save webrender capture under {:?}", &path);
+
+        // api call here can possibly make Emacs panic. For example there isn't
+        // enough disk space left. `panic::catch_unwind` isn't support here.
+        if start_sequence.is_nil() {
+            output.render_api.save_capture(path, bits);
+        } else {
+            output.render_api.start_capture_sequence(path, bits);
+        }
+
+        match File::create(revision_file_path) {
+            Ok(mut file) => {
+                if let Err(err) = write!(&mut file, "{}", WEBRENDER_HEAD_REV.unwrap_or("")) {
+                    error!("Unable to write webrender revision: {:?}", err)
+                }
+            }
+            Err(err) => error!(
+                "Capture triggered, creating webrender revision info skipped: {:?}",
+                err
+            ),
+        }
+    }
+}
+
+/// Stop a capture begun with `wr--capture'.
+#[lisp_fn(min = "0")]
+pub fn wr_api_stop_capture_sequence() {
+    #[cfg(not(feature = "capture"))]
+    error!("Webrender capture not avaiable");
+    #[cfg(feature = "capture")]
+    {
+        message!("Stop capturing WR state");
+        let frame = window_frame_live_or_selected(Qnil);
+        let output = frame.wr_output();
+        output.render_api.stop_capture_sequence();
+    }
+}
+
 fn syms_of_wrfont() {
     unsafe {
         register_font_driver(&FONT_DRIVER.0, ptr::null_mut());
@@ -871,6 +940,19 @@ pub extern "C" fn syms_of_wrterm() {
         Fprovide(Qwr, Qnil);
     }
 
+    #[cfg(feature = "capture")]
+    {
+        let wr_capture_sym =
+            CString::new("wr-capture").expect("Failed to create string for intern function call");
+        def_lisp_sym!(Qwr_capture, "wr-capture");
+        unsafe {
+            Fprovide(
+                emacs::bindings::intern_c_string(wr_capture_sym.as_ptr()),
+                Qnil,
+            );
+        }
+    }
+
     let x_keysym_table = unsafe {
         make_hash_table(
             hashtest_eql.clone(),
@@ -881,6 +963,14 @@ pub extern "C" fn syms_of_wrterm() {
             false,
         )
     };
+
+    if let Some(webrender_head_rev) = WEBRENDER_HEAD_REV {
+        let webrender_head_rev = CString::new(webrender_head_rev).unwrap();
+        let webrender_head_rev = unsafe { build_string(webrender_head_rev.as_ptr()) };
+
+        #[rustfmt::skip]
+        defvar_lisp!(Vwebrender_head_rev, "webrender-head-rev", webrender_head_rev);
+    }
 
     // Hash table of character codes indexed by X keysym codes.
     #[rustfmt::skip]

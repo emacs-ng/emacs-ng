@@ -81,6 +81,23 @@ macro_rules! error {
     }};
 }
 
+#[macro_export]
+macro_rules! message {
+    ($message:expr) => {{
+        #[allow(unused_unsafe)]
+        unsafe {
+            $crate::xdisp::message1($message.to_string().as_ptr() as *const ::libc::c_char);
+        };
+    }};
+    ($message:expr, $($arg:expr),*) => {{
+        let message = format!($message, $($arg),*);
+        #[allow(unused_unsafe)]
+        unsafe {
+            $crate::xdisp::message1(message.to_string().as_ptr() as *const ::libc::c_char);
+        };
+    }};
+}
+
 /// Macro that expands to nothing, but is used at build time to
 /// generate the starting symbol table. Equivalent to the DEFSYM
 /// macro. See also lib-src/make-docfile.c
