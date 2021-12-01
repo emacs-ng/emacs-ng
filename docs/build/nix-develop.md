@@ -6,16 +6,15 @@
 
 then `exec bash -l` reload your bash to load the nix-env
 
-## Install Flake Feature Of Nix
+## Enable Flake Feature Of Nix
 
-    nix-env -iA nixpkgs.nixUnstable
     echo "experimental-features = nix-command flakes" | sudo tee -a /etc/nix/nix.conf
     sudo pkill nix-daemon
 
 NOTE: `reload bash` and check your nix-version first
 
     nix --version
-    nix (Nix) 2.4pre20210326_dd77f71
+    nix (Nix) 2.4
 
 ## Nix flake feature already in emacsNg
 
