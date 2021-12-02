@@ -432,8 +432,8 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#install-flake-feature-of-nix" class="md-nav__link">
-    Install Flake Feature Of Nix
+  <a href="#enable-flake-feature-of-nix" class="md-nav__link">
+    Enable Flake Feature Of Nix
   </a>
   
 </li>
@@ -829,8 +829,8 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#install-flake-feature-of-nix" class="md-nav__link">
-    Install Flake Feature Of Nix
+  <a href="#enable-flake-feature-of-nix" class="md-nav__link">
+    Enable Flake Feature Of Nix
   </a>
   
 </li>
@@ -960,15 +960,14 @@
 </code></pre></div>
 
 <p>then <code>exec bash -l</code> reload your bash to load the nix-env</p>
-<h2 id="install-flake-feature-of-nix">Install Flake Feature Of Nix<a class="headerlink" href="#install-flake-feature-of-nix" title="Permanent link">#</a></h2>
-<div class="codehilite"><pre><span></span><code>nix-env -iA nixpkgs.nixUnstable
-echo &quot;experimental-features = nix-command flakes&quot; | sudo tee -a /etc/nix/nix.conf
+<h2 id="enable-flake-feature-of-nix">Enable Flake Feature Of Nix<a class="headerlink" href="#enable-flake-feature-of-nix" title="Permanent link">#</a></h2>
+<div class="codehilite"><pre><span></span><code>echo &quot;experimental-features = nix-command flakes&quot; | sudo tee -a /etc/nix/nix.conf
 sudo pkill nix-daemon
 </code></pre></div>
 
 <p>NOTE: <code>reload bash</code> and check your nix-version first</p>
 <div class="codehilite"><pre><span></span><code>nix --version
-nix (Nix) 2.4pre20210326_dd77f71
+nix (Nix) 2.4
 </code></pre></div>
 
 <h2 id="nix-flake-feature-already-in-emacsng">Nix flake feature already in emacsNg<a class="headerlink" href="#nix-flake-feature-already-in-emacsng" title="Permanent link">#</a></h2>
@@ -1182,7 +1181,7 @@ use_flake<span class="p">()</span> <span class="p">{</span>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">November 30, 2021</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">December 2, 2021</span>
     
   </small>
 </div>
