@@ -253,3 +253,9 @@ impl LispObject {
         }
     }
 }
+
+impl From<isize> for LispObject {
+    fn from(v: isize) -> Self {
+        Self::from_fixnum(v as EmacsInt)
+    }
+}

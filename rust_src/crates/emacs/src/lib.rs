@@ -48,3 +48,4 @@ pub mod terminal;
 pub mod vector;
 pub mod window;
 pub mod xdisp;
+pub mod buffer;

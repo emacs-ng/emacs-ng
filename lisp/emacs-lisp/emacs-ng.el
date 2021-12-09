@@ -107,4 +107,9 @@ call (ng-bootstrap-straight) in your init-file."
       (straight-use-package-mode +1)
     (straight-use-package-mode -1)))
 
+(when (fboundp 'git-make-process)
+  (eval-after-load 'magit
+    '(progn
+       (require 'ng-magit))))
+
 (provide 'emacs-ng)

@@ -10,8 +10,10 @@ path = "src/lib.rs"
 emacs = { version = "0.1.0", path = "../emacs" }
 lisp-macros = { version = "0.1.0", path = "../lisp_macros" }
 lisp-util = { version = "0.1.0", path = "../lisp_util" }
-openssl = { version = "0.10", features = ["vendored"] }
-openssl-sys = { version = "0.9" }
-git2 = "0.13"
+ng_async = { version = "0.1.0", path = "../ng_async" }
 libc = "0.2.95"
 lazy_static = "1.2"
+regex = "*"
+# openssl = { version = "0.10", features = ["vendored"] }
+# openssl-sys = { version = "0.9" }
+# git2 = "0.13"
