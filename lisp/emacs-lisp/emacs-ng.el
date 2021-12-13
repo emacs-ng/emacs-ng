@@ -107,4 +107,9 @@ call (ng-bootstrap-straight) in your init-file."
       (straight-use-package-mode +1)
     (straight-use-package-mode -1)))
 
+(when (fboundp 'lsp-make-connection)
+ (eval-after-load 'ng-lsp
+   '(progn
+      (require 'ng-lsp-mode))))
+
 (provide 'emacs-ng)

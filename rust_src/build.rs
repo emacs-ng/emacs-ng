@@ -470,6 +470,9 @@ fn build_ignored_crates(path: &PathBuf) -> bool {
     #[cfg(not(feature = "libgit"))]
     ignored_crates.push("git");
 
+    #[cfg(not(feature = "lsp"))]
+    ignored_crates.push("lsp_client");
+
     #[cfg(not(feature = "javascript"))]
     ignored_crates.push("js");
 

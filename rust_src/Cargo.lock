@@ -1379,6 +1379,7 @@ dependencies = [
  "libc",
  "lisp-macros",
  "lisp-util",
+ "lsp_client",
  "lsp_json",
  "ng_async",
  "ng_module",
@@ -2727,6 +2728,21 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "url",
+]
+
+[[package]]
+name = "lsp_client"
+version = "0.1.0"
+dependencies = [
+ "emacs",
+ "lazy_static",
+ "libc",
+ "lisp-macros",
+ "lisp-util",
+ "lsp-server",
+ "lsp_json",
+ "ng_async",
+ "serde_json",
 ]
 
 [[package]]
