@@ -13,11 +13,9 @@ use emacs::list::{LispCons, LispConsCircularChecks, LispConsEndChecks};
 use emacs::multibyte::LispStringRef;
 use lisp_macros::lisp_fn;
 
-use emacs::bindings::{
-    find_newline_no_quit, Fintern,
-};
+use emacs::bindings::{find_newline_no_quit, Fintern};
 
-use emacs::globals::{Qnil, Qt} ;
+use emacs::globals::{Qnil, Qt};
 
 #[derive(Clone)]
 pub struct GitBlameChunkInfo {
@@ -166,7 +164,8 @@ pub fn git_async_create_process(
             }
         }
 
-        if let Err(e) = out_pipe.message_lisp(&sender, UserData::new(GitBlameChunkInfo::default())) {
+        if let Err(e) = out_pipe.message_lisp(&sender, UserData::new(GitBlameChunkInfo::default()))
+        {
             error!("{:?}", e);
         }
     });

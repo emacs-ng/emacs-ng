@@ -31,6 +31,7 @@ pub mod eval_macros;
 pub mod vector_macros;
 pub mod lisp;
 
+pub mod buffer;
 pub mod eval;
 pub mod font;
 pub mod frame;
@@ -48,4 +49,3 @@ pub mod terminal;
 pub mod vector;
 pub mod window;
 pub mod xdisp;
-pub mod buffer;

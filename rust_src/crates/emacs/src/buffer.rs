@@ -3,7 +3,7 @@
 use libc::ptrdiff_t;
 
 use crate::{
-    bindings::{pvec_type, buffer, Lisp_Type},
+    bindings::{buffer, pvec_type, Lisp_Type},
     globals::Qbufferp,
     lisp::{ExternalPtr, LispObject},
     vector::LispVectorlikeRef,
