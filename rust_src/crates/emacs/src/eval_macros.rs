@@ -33,16 +33,15 @@ macro_rules! xsignal {
 /// Replaces call0, call1, etc. in the C layer.
 #[macro_export]
 macro_rules! call {
-    ($func:expr, $($arg:expr),*) => {
+    ($func:expr, $($arg:expr),*) => { unsafe {
         use std::convert::TryInto;
         let call = &mut [$func, $($arg),*];
-        unsafe {
-            emacs::bindings::Ffuncall(call.len().try_into().unwrap(), call.as_mut_ptr())
+        emacs::bindings::Ffuncall(call.len().try_into().unwrap(), call.as_mut_ptr())
     }};
-    ($func:expr) => {
+    ($func:expr) => { unsafe {
         let func = &mut [$func];
-        unsafe { emacs::bindings::Ffuncall(0 as isize, func.as_mut_ptr()) }
-    }
+        emacs::bindings::Ffuncall(0 as isize, func.as_mut_ptr())
+    }};
 }
 
 /// Macro to format a "wrong argument type" error message.
