@@ -12,9 +12,7 @@
     flake-compat = { url = "github:edolstra/flake-compat"; flake = false; };
     rust-overlay = { url = "github:oxalica/rust-overlay"; inputs.nixpkgs.follows = "nixpkgs"; };
     flake-utils.url = "github:numtide/flake-utils";
-    emacsNG-source = {
-      url = "git+https://github.com/emacs-ng/emacs-ng?submodule=1";
-    };
+    # emacsNG-source = { url = "git+https://github.com/emacs-ng/?submodule=1"; };
   };
 
   outputs =
@@ -25,7 +23,7 @@
     , rust-overlay
     , flake-utils
     , devshell
-    , emacsNG-source
+      #, emacsNG-source
     }:
     { }
     //
@@ -75,12 +73,9 @@
 
           commands = with pkgs; [
             {
-              name = "copy-deps";
+              name = "update-emacs-ng";
               command = ''
-                cp -rf --no-preserve=mode,ownership ${emacsNG-rust}/.cargo/ $@
-              '';
-              help = ''
-                copy emacsNG rust deps path to where
+                nix develop --no-write-lock-file github:hardenedlinux/nixpkgs-hardenedlinux -c cd PRJ_ROOT;update nvfetcher
               '';
             }
           ];
@@ -113,6 +108,8 @@
       overlay = final: prev:
         let
           #rust nightly date
+          emacsNG-sources = prev.callPackages ./nix/_sources/generated.nix { };
+          emacsNG-source = emacsNG-sources.emacs-ng.src;
           locked-date = prev.lib.removePrefix "nightly-" (prev.lib.removeSuffix "\n" (builtins.readFile ./rust-toolchain));
         in
         {
@@ -121,8 +118,8 @@
               let
                 installPhase = ''
                   tar --owner=0 --group=0 --numeric-owner --format=gnu \
-                      --sort=name --mtime="@$SOURCE_DATE_EPOCH" \
-                      -czf $out $name-versioned
+                    --sort=name --mtime="@$SOURCE_DATE_EPOCH" \
+                    -czf $out $name-versioned
                 '';
                 doVersionedUpdate = ''
                   cargo vendor --versioned-dirs $name-versioned
@@ -156,9 +153,10 @@
                   src = emacsNG-source + "/rust_src";
                   cargoUpdateHook = ''
                     sed -e 's/@CARGO_.*@//' Cargo.toml.in > Cargo.toml
+                    sed -i 's|@WEBRENDER_DEFAULT_FEATURES@|"webrender"|' Cargo.toml
                   '' + doVersionedUpdate;
                   name = "emacsNGSrc";
-                  sha256 = "sha256-1MsxNyYreSPqNm9aLvp8xPiExNv0Vlu3aD1TD/6OjFs=";
+                  sha256 = "sha256-jlAP+56hcOzFq6+d5N2NfYHgy8w9fZds2Y83tLxos30=";
                   inherit installPhase;
                 };
 
@@ -184,11 +182,11 @@
                 installPhase = ''
                   mkdir -p $out/.cargo/registry
                   cat > $out/.cargo/config.toml << EOF
-                    [source.crates-io]
-                    registry = "https://github.com/rust-lang/crates.io-index"
-                    replace-with = "vendored-sources"
-                    [source.vendored-sources]
-                    directory = "$out/.cargo/registry"
+                  [source.crates-io]
+                  registry = "https://github.com/rust-lang/crates.io-index"
+                  replace-with = "vendored-sources"
+                  [source.vendored-sources]
+                  directory = "$out/.cargo/registry"
                   EOF
                   cp -R emacsNGLibDeps-vendor.tar.gz-versioned/* $out/.cargo/registry
                   cp -R ngBindgen-vendor.tar.gz-versioned/* $out/.cargo/registry
@@ -205,16 +203,16 @@
           in
           (
             final.emacsGcc.override
-              ({
+              {
                 withImageMagick = true;
-                imagemagick = prev.imagemagick;
-              })).overrideAttrs
+                inherit (prev) imagemagick;
+              }).overrideAttrs
             (old:
               let
                 custom-llvmPackages = prev.llvmPackages_latest;
                 #withGLX
                 rpathLibs =
-                  (with xorg; lib.optionals (stdenv.isLinux && withWebrender) [
+                  with xorg; lib.optionals (stdenv.isLinux && withWebrender) [
                     libX11
                     libGLU
                     libGL
@@ -225,7 +223,7 @@
                     libxkbcommon
                     wayland
                     libxcb
-                  ]);
+                  ];
               in
               rec {
                 name = "emacsNG-" + version;
