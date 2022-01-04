@@ -11,8 +11,8 @@ ng_async = { version = "0.1.0", path = "../ng_async" }
 emacs = { version = "0.1.0", path = "../emacs" }
 lisp-macros = { version = "0.1.0", path = "../lisp_macros" }
 lisp-util = { version = "0.1.0", path = "../lisp_util" }
-libc = "0.2.95"
-lazy_static = "1.2"
-lsp-server = "0.5.0"
-serde_json = { version = "1.0", features = ["preserve_order"] }
+libc = "0.2.101"
+lazy_static = "1.4.0"
+lsp-server = "0.5.2"
+serde_json = { version = "1.0.67", features = ["preserve_order"] }
 

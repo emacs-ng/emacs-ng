@@ -13,6 +13,6 @@ quote = "0.6"
 syn = { version = "0.15.26", features = ["full"] }
 lisp-util = { version = "0.1.0", path = "../lisp_util" }
 emacs = { version = "0.1.0", path = "../emacs" }
-regex = "0.2"
-lazy_static = "1.0"
+regex = "1.4.3"
+lazy_static = "1.4.0"
 proc-macro2 = "0.4"

@@ -460,7 +460,7 @@ extern "C" fn defined_color(
         .and_then(|color| lookup_color_by_name_or_hex(color));
 
     // throw back the c pointer
-    c_color.into_raw();
+    let _ = c_color.into_raw();
 
     match color {
         Some(c) => {

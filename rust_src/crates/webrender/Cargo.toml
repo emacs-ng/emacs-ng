@@ -11,21 +11,21 @@ path = "src/lib.rs"
 emacs = { version = "0.1.0", path = "../emacs", features = ["window-system-webrender"] }
 lisp-macros = { version = "0.1.0", path = "../lisp_macros" }
 lisp-util = { version = "0.1.0", path = "../lisp_util" }
-libc = "0.2.95"
-lazy_static = "1.2"
+libc = "0.2.101"
+lazy_static = "1.4.0"
 webrender = { git = "https://github.com/servo/webrender.git", rev = "ecbe93f7df289db2823c3c1fb748af5f3e4827ea" }
-font-kit = "0.10.0"
-glutin = "0.26"
-gleam = "0.13"
+font-kit = "0.10.1"
+glutin = "0.27.0"
+gleam = "0.13.1"
 copypasta = "0.7.1"
 image = "0.23.14"
 app_units = "0.7.1"
 bit-vec = "0.6.3"
-fontdb = "0.5.4"
+fontdb = "0.6.0"
 ttf-parser = "0.12.3"
 once_cell = "1.8.0"
-tokio = { version = "1.10.0", features = ["rt-multi-thread", "sync", "net", "macros", "time"] }
-futures = "0.3.16"
+tokio = { version = "1.10.1", features = ["rt-multi-thread", "sync", "net", "macros", "time"] }
+futures = "0.3.17"
 
 [build-dependencies]
 cargo_toml = "0.10.1"

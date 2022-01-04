@@ -7,7 +7,7 @@ edition = "2018"
 path = "src/lib.rs"
 
 [dependencies]
-libc = "0.2.95"
+libc = "0.2.101"
 lazy_static = "1.4.0"
 memoffset = "0.6.4"
 
