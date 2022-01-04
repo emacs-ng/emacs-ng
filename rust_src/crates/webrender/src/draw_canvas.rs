@@ -225,10 +225,6 @@ impl DrawCanvas {
     }
 
     fn draw_image_glyph(&mut self, mut s: GlyphStringRef) {
-        let wr_pixmap = unsafe { (*s.img).pixmap } as *mut WrPixmap;
-
-        let image_key = unsafe { (*wr_pixmap).image_key };
-
         let mut clip_rect = Emacs_Rectangle {
             x: 0,
             y: 0,
@@ -258,15 +254,21 @@ impl DrawCanvas {
                 );
             }
 
-            // render image
-            builder.push_image(
-                &CommonItemProperties::new(clip_bounds, space_and_clip),
-                bounds,
-                ImageRendering::Auto,
-                AlphaType::Alpha,
-                image_key,
-                ColorF::WHITE,
-            );
+            let wr_pixmap = unsafe { (*s.img).pixmap } as *mut WrPixmap;
+
+            if !wr_pixmap.is_null() {
+                let image_key = unsafe { (*wr_pixmap).image_key };
+
+                // render image
+                builder.push_image(
+                    &CommonItemProperties::new(clip_bounds, space_and_clip),
+                    bounds,
+                    ImageRendering::Auto,
+                    AlphaType::Alpha,
+                    image_key,
+                    ColorF::WHITE,
+                );
+            }
         });
     }
 
