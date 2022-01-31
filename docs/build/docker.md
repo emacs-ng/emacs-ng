@@ -34,6 +34,6 @@ At the end you should read this output:
 Copy the .deb out of the container, then destroy the container:
 ``` sh
 $ docker run -d --rm --name delete-me emacs-ng:builder bash -c 'tail -f /dev/null' --stop-signal SIGKILL
-$ docker cp delete-me:/emacs-ng/emacs-ng_0.1-1_amd64.deb ~/tmp/
+$ docker cp delete-me:/src/emacs-ng_0.1-1_amd64.deb ~/tmp/
 $ docker stop delete-me
 ```
