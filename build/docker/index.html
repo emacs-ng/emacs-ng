@@ -718,9 +718,9 @@ $ docker build -t emacs-ng:builder -f docker/Dockerfile.debian .
 **********************************************************************
 </code></pre></div></p>
 <p>Copy the .deb out of the container, then destroy the container:
-<div class="highlight"><pre><span></span><code>$ <span class="nv">container_id</span><span class="o">=</span><span class="k">$(</span> docker run -d --name delete-me emacs-ng:builder <span class="k">)</span>
-$ docker cp <span class="nv">$container_id</span>:/emacs-ng/emacs-ng_0.1-1_amd64.deb ~/tmp/
-$ docker rm delete-me
+<div class="highlight"><pre><span></span><code>$ docker run -d --rm --name delete-me emacs-ng:builder bash -c <span class="s1">&#39;tail -f /dev/null&#39;</span> --stop-signal SIGKILL
+$ docker cp delete-me:/src/emacs-ng_0.1-1_amd64.deb ~/tmp/
+$ docker stop delete-me
 </code></pre></div></p>
                 
                   
@@ -730,7 +730,7 @@ $ docker rm delete-me
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">January 4, 2022</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">January 31, 2022</span>
     
   </small>
 </div>
