@@ -118,7 +118,7 @@ use-package and straight are really great so we decided to make them
 built-in packages. But since we don't want to break configs, this is
 an [optional feature](https://emacs-ng.github.io/emacs-ng/package-management).
 
-Just put this line into your `~./emacs.d/early-init.el`:
+Just put this line into your `~/.emacs.d/early-init.el`:
 
 ```elisp
 (setq ng-straight-bootstrap-at-startup t)
