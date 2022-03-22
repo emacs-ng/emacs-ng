@@ -1,4 +1,4 @@
-use std::slice;
+use std::{cmp::min, slice};
 
 use crate::{
     bindings::{composition_hash_table, composition_method, glyph, glyph_string, XHASH_TABLE},
@@ -28,14 +28,14 @@ impl GlyphStringRef {
         let offsets = unsafe { slice::from_raw_parts((*self.cmp).offsets, len) };
 
         let from = (self.cmp_from * 2) as usize;
-        let to = (self.cmp_to * 2) as usize;
+        let to = min((self.cmp_to * 2) as usize, len);
 
         &offsets[from..to]
     }
 
     pub fn composite_chars(&self) -> &[XChar2b] {
         let from = self.cmp_from as usize;
-        let to = self.cmp_to as usize;
+        let to = min(self.cmp_to, self.nchars) as usize;
 
         &self.get_chars()[from..to]
     }
