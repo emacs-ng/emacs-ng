@@ -1,0 +1,22 @@
+{
+    "emacsng": {
+        "pinned": false,
+        "cargoLock": null,
+        "name": "emacsng",
+        "src": {
+            "deepClone": false,
+            "owner": "emacs-ng",
+            "name": null,
+            "repo": "emacs-ng",
+            "type": "github",
+            "sha256": "sha256-6J8qsl+fQExCY6oV4E/uko23YHAK1YNPQxdINANMrEk=",
+            "rev": "1e465792a8337d6c12df06304cbc72677f78d090",
+            "leaveDotGit": false,
+            "fetchSubmodules": true
+        },
+        "version": "1e465792a8337d6c12df06304cbc72677f78d090",
+        "passthru": null,
+        "extract": null,
+        "rustGitDeps": null
+    }
+}
