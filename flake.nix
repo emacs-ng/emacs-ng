@@ -36,7 +36,7 @@
           pkgs = import nixpkgs {
             inherit system;
             overlays = [
-              self.overlay
+              self.overlays.default
               emacs-overlay.overlay
               rust-overlay.overlay
               devshell.overlay
@@ -44,7 +44,7 @@
             config = {};
           };
         in rec {
-          devShell = with pkgs; let
+          devShells.default = with pkgs; let
             custom-llvmPackages = llvmPackages_latest;
           in
             pkgs.devshell.mkShell {
@@ -87,7 +87,6 @@
 
           defaultApp = apps.emacsng;
 
-          defaultPackage = pkgs.emacsng;
           packages =
             flake-utils.lib.flattenTree
             {
@@ -96,6 +95,7 @@
                 emacsng-rust
                 emacsng
                 ;
+              default = pkgs.emacsng;
             };
 
           hydraJobs = {
@@ -105,7 +105,7 @@
       )
     )
     // {
-      overlay = final: prev: let
+      overlays.default = final: prev: let
         #rust nightly date
         emacsng-sources = prev.callPackages ./nix/_sources/generated.nix {};
         emacsng-source = emacsng-sources.emacsng.src;

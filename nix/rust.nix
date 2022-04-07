@@ -52,7 +52,6 @@ in
         ++ map (tool: cfg.rustOverlay.${tool}) cfg.rustOverlaySet
         ++ (with pkgs; [
           #custom nixpkgs packages
-          rustracer
         ]);
     };
   }
