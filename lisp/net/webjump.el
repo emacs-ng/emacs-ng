@@ -1,6 +1,6 @@
 ;;; webjump.el --- programmable Web hotlist  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996-1997, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1996-1997, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author:     Neil W. Van Dyke <nwv@acm.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -79,10 +79,10 @@
      ;; GNU FTP Mirror List from https://www.gnu.org/order/ftp.html
      [mirrors "https://ftp.gnu.org/pub/gnu/"
               "https://ftpmirror.gnu.org"])
-    ("GNU Project Home Page" . "www.gnu.org")
+    ("GNU Project Website" . "www.gnu.org")
 
     ;; Emacs.
-    ("Emacs Home Page" .
+    ("Emacs Website" .
      "www.gnu.org/software/emacs/emacs.html")
     ("Savannah Emacs page" .
      "savannah.gnu.org/projects/emacs")

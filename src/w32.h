@@ -2,7 +2,7 @@
 #define EMACS_W32_H
 
 /* Support routines for the NT version of Emacs.
-   Copyright (C) 1994, 2001-2021 Free Software Foundation, Inc.
+   Copyright (C) 1994, 2001-2022 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -155,11 +155,11 @@ extern unsigned int w32_get_short_filename (const char *, char *, int);
 
 /* Prepare our standard handles for proper inheritance by child processes.  */
 extern void prepare_standard_handles (int in, int out,
-				      int err, HANDLE handles[4]);
+				      int err, HANDLE handles[3]);
 
 /* Reset our standard handles to their original state.  */
 extern void reset_standard_handles (int in, int out,
-				    int err, HANDLE handles[4]);
+				    int err, HANDLE handles[3]);
 
 /* Return the string resource associated with KEY of type TYPE.  */
 extern LPBYTE w32_get_resource (const char * key, LPDWORD type);

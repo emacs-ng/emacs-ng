@@ -1,6 +1,6 @@
 ;;; icomplete.el --- minibuffer completion incremental feedback -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-1994, 1997, 1999, 2001-2021 Free Software
+;; Copyright (C) 1992-1994, 1997, 1999, 2001-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Ken Manheimer <ken dot manheimer at gmail...>
@@ -165,7 +165,7 @@ icompletion is occurring."
   "Overlay used to display the list of completions.")
 
 (defvar icomplete--initial-input nil
-  "Initial input in the minibuffer when icomplete-mode was activated.
+  "Initial input in the minibuffer when `icomplete-mode' was activated.
 Used to implement the option `icomplete-show-matches-on-no-input'.")
 
 (defun icomplete-post-command-hook ()

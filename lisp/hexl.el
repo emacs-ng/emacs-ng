@@ -1,6 +1,6 @@
 ;;; hexl.el --- edit a file in a hex dump format using the hexl filter -*- lexical-binding: t -*-
 
-;; Copyright (C) 1989, 1994, 1998, 2001-2021 Free Software Foundation,
+;; Copyright (C) 1989, 1994, 1998, 2001-2022 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Keith Gabryelski <ag@wheaties.ai.mit.edu>
@@ -93,7 +93,7 @@ as that will override any bit grouping options set here."
   "Face used in address area of Hexl mode buffer.")
 
 (defface hexl-ascii-region
-  ;; Copied from `header-line`.  We used to inherit from it, but that
+  ;; Copied from 'header-line'.  We used to inherit from it, but that
   ;; looks awful when the headerline is given a variable-pitch font or
   ;; (even worse) a 3D look.
   '((((class color grayscale) (background light))
@@ -539,7 +539,7 @@ This function is intended to be used as eldoc callback."
        (+ N (/ N (/ hexl-bits 4))) )) ) ; char offset into hexl display line
 
 (defun hexl-goto-address (address)
-  "Go to hexl-mode (decimal) address ADDRESS.
+  "Go to `hexl-mode' (decimal) address ADDRESS.
 Signal error if ADDRESS is out of range."
   (interactive "nAddress: ")
   (if (or (< address 0) (> address hexl-max-address))
@@ -1165,7 +1165,7 @@ This function is assumed to be used as callback function for `hl-line-mode'."
 
 ;; startup stuff.
 
-(easy-menu-define hexl-menu hexl-mode-map "Hexl Mode menu"
+(easy-menu-define hexl-menu hexl-mode-map "Hexl Mode menu."
   '("Hexl"
     :help "Hexl-specific Features"
 

@@ -1,6 +1,6 @@
 ;;; message-tests.el --- Tests for message-mode  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
 
 ;; Author: João Távora <joaotavora@gmail.com>
 
@@ -185,4 +185,4 @@ Hello.
 
 (provide 'message-mode-tests)
 
-;;; message-mode-tests.el ends here
+;;; message-tests.el ends here

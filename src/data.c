@@ -1,5 +1,5 @@
 /* Primitive operations on Lisp data types for GNU Emacs Lisp interpreter.
-   Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2021 Free Software
+   Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2022 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -682,7 +682,7 @@ global value outside of any lexical scope.  */)
 /* It has been previously suggested to make this function an alias for
    symbol-function, but upon discussion at Bug#23957, there is a risk
    breaking backward compatibility, as some users of fboundp may
-   expect `t' in particular, rather than any true value.  */
+   expect t in particular, rather than any true value.  */
 DEFUN ("fboundp", Ffboundp, Sfboundp, 1, 1, 0,
        doc: /* Return t if SYMBOL's function definition is not void.  */)
   (Lisp_Object symbol)
@@ -892,9 +892,11 @@ function or t otherwise.  */)
 {
   CHECK_SUBR (subr);
 
-  return SUBR_NATIVE_COMPILED_DYNP (subr)
-    ? XSUBR (subr)->lambda_list[0]
-    : Qt;
+#ifdef HAVE_NATIVE_COMP
+  if (SUBR_NATIVE_COMPILED_DYNP (subr))
+    return XSUBR (subr)->lambda_list;
+#endif
+  return Qt;
 }
 
 DEFUN ("subr-type", Fsubr_type,
@@ -918,7 +920,7 @@ DEFUN ("subr-native-comp-unit", Fsubr_native_comp_unit,
   (Lisp_Object subr)
 {
   CHECK_SUBR (subr);
-  return XSUBR (subr)->native_comp_u[0];
+  return XSUBR (subr)->native_comp_u;
 }
 
 DEFUN ("native-comp-unit-file", Fnative_comp_unit_file,
@@ -1021,6 +1023,9 @@ Value, if non-nil, is a list (interactive SPEC).  */)
   return Qnil;
 }
 
+/* Note that this doesn't work for native-compiled functions in Emacs
+   28.1, but it's fixed in later Emacs versions. */
+
 DEFUN ("command-modes", Fcommand_modes, Scommand_modes, 1, 1, 0,
        doc: /* Return the modes COMMAND is defined for.
 If COMMAND is not a command, the return value is nil.
@@ -1046,6 +1051,8 @@ The value, if non-nil, is a list of mode name symbols.  */)
 
   if (COMPILEDP (fun))
     {
+      if (PVSIZE (fun) <= COMPILED_INTERACTIVE)
+	return Qnil;
       Lisp_Object form = AREF (fun, COMPILED_INTERACTIVE);
       if (VECTORP (form))
 	/* New form -- the second element is the command modes. */

@@ -1,6 +1,6 @@
 ;;; winner.el --- Restore old window configurations  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1997-1998, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1997-1998, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Ivar Rummelhoff <ivarru@math.uio.no>
 ;; Created: 27 Feb 1997
@@ -131,8 +131,7 @@ You may want to include buffer names such as *Help*, *Apropos*,
 
 
 (defsubst winner-equal (a b)
-  "Check whether two Winner configurations (as produced by
-`winner-conf') are equal."
+  "Return t if two Winner configurations (as produced by `winner-conf') are equal."
   (equal (cdr a) (cdr b)))
 
 

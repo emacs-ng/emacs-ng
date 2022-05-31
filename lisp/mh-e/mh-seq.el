@@ -1,6 +1,6 @@
 ;;; mh-seq.el --- MH-E sequences support  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1993, 1995, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1993, 1995, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Bill Wohler <wohler@newt.com>
 ;; Keywords: mail
@@ -187,7 +187,7 @@ MESSAGE appears."
     (message "Message %d%s is in sequences: %s"
              message
              (cond (dest-folder (format " (to be refiled to %s)" dest-folder))
-                   (deleted-flag (format " (to be deleted)"))
+                   (deleted-flag " (to be deleted)")
                    (t ""))
              (mapconcat #'concat
                         (mh-list-to-string (mh-seq-containing-msg message t))

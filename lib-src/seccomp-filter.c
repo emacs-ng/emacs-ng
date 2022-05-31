@@ -1,6 +1,6 @@
 /* Generate a Secure Computing filter definition file.
 
-Copyright (C) 2020-2021 Free Software Foundation, Inc.
+Copyright (C) 2020-2022 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -131,9 +131,12 @@ export_filter (const char *file,
                int (*function) (const scmp_filter_ctx, int),
                const char *name)
 {
-  int fd = TEMP_FAILURE_RETRY (
-    open (file, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_CLOEXEC,
-          0644));
+  int fd;
+  do
+    fd = open (file,
+               O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_CLOEXEC,
+               0644);
+  while (fd < 0 && errno == EINTR);
   if (fd < 0)
     fail (errno, "open %s", file);
   int status = function (ctx, fd);
@@ -225,6 +228,7 @@ main (int argc, char **argv)
      capabilities, and operating on them shouldn't cause security
      issues.  */
   RULE (SCMP_ACT_ALLOW, SCMP_SYS (read));
+  RULE (SCMP_ACT_ALLOW, SCMP_SYS (pread64));
   RULE (SCMP_ACT_ALLOW, SCMP_SYS (write));
   RULE (SCMP_ACT_ALLOW, SCMP_SYS (close));
   RULE (SCMP_ACT_ALLOW, SCMP_SYS (lseek));
@@ -236,6 +240,9 @@ main (int argc, char **argv)
      should be further restricted using mount namespaces.  */
   RULE (SCMP_ACT_ALLOW, SCMP_SYS (access));
   RULE (SCMP_ACT_ALLOW, SCMP_SYS (faccessat));
+#ifdef __NR_faccessat2
+  RULE (SCMP_ACT_ALLOW, SCMP_SYS (faccessat2));
+#endif
   RULE (SCMP_ACT_ALLOW, SCMP_SYS (stat));
   RULE (SCMP_ACT_ALLOW, SCMP_SYS (stat64));
   RULE (SCMP_ACT_ALLOW, SCMP_SYS (lstat));
@@ -348,6 +355,8 @@ main (int argc, char **argv)
      calls at startup time to set up thread-local storage.  */
   RULE (SCMP_ACT_ALLOW, SCMP_SYS (execve));
   RULE (SCMP_ACT_ALLOW, SCMP_SYS (set_tid_address));
+  RULE (SCMP_ACT_ERRNO (EINVAL), SCMP_SYS (prctl),
+	SCMP_A0_32 (SCMP_CMP_EQ, PR_CAPBSET_READ));
   RULE (SCMP_ACT_ALLOW, SCMP_SYS (arch_prctl),
         SCMP_A0_32 (SCMP_CMP_EQ, ARCH_SET_FS));
   RULE (SCMP_ACT_ERRNO (EINVAL), SCMP_SYS (arch_prctl),

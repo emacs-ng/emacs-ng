@@ -1,6 +1,6 @@
 ### @configure_input@
 
-# Copyright (C) 1992-2021 Free Software Foundation, Inc.
+# Copyright (C) 1992-2022 Free Software Foundation, Inc.
 
 # This file is part of GNU Emacs.
 
@@ -296,10 +296,16 @@ use_gamedir=$(gameuser)$(gamegroup)
 # not use an absolute path.  So we must take care to always run
 # INSTALL-type commands from the directory containing the Makefile.
 # This explains (I think) the cd thisdir seen in several install rules.
+SYSTEM_TYPE = @SYSTEM_TYPE@
 INSTALL = @INSTALL@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_INFO = @INSTALL_INFO@
+ifeq ($(SYSTEM_TYPE),cygwin)
+  INSTALL_ELN = $(INSTALL)
+else
+  INSTALL_ELN = $(INSTALL_DATA)
+endif
 # By default, we uphold the dignity of our programs.
 INSTALL_STRIP =
 MKDIR_P = @MKDIR_P@
@@ -802,7 +808,7 @@ install-eln: lisp
 ifeq ($(HAVE_NATIVE_COMP),yes)
 	umask 022 ; \
 	find native-lisp -type d -exec $(MKDIR_P) "$(ELN_DESTDIR){}" \; ; \
-	find native-lisp -type f -exec ${INSTALL_DATA} "{}" "$(ELN_DESTDIR){}" \;
+	find native-lisp -type f -exec ${INSTALL_ELN} "{}" "$(ELN_DESTDIR){}" \;
 endif
 
 ### Build Emacs and install it, stripping binaries while installing them.
@@ -1180,7 +1186,7 @@ ChangeLog:
 	  ./$(emacslog) -o $(CHANGELOG) -n $(CHANGELOG_HISTORY_INDEX_MAX)
 
 # Check that we are in a good state for changing history.
-PREFERRED_BRANCH = emacs-27
+PREFERRED_BRANCH = emacs-28
 preferred-branch-is-current:
 	git branch | grep -q '^\* $(PREFERRED_BRANCH)$$'
 unchanged-history-files:

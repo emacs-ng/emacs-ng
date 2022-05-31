@@ -1,6 +1,6 @@
 ;;; gnus-group.el --- group mode commands for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2022 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -118,7 +118,9 @@ If nil, only list groups that have unread articles."
 
 (defcustom gnus-group-default-list-level gnus-level-subscribed
   "Default listing level.
-Ignored if `gnus-group-use-permanent-levels' is non-nil."
+When `gnus-group-use-permanent-levels' is non-nil, this level is
+used as the starting level until the user sets a different level,
+and is ignored afterwards."
   :group 'gnus-group-listing
   :type '(choice (integer :tag "Level")
                  (function :tag "Function returning level")))
@@ -1176,11 +1178,11 @@ The following commands are available:
 (defun gnus-group-default-level (&optional level number-or-nil)
   (cond
    (gnus-group-use-permanent-levels
-    (or (setq gnus-group-use-permanent-levels
-	      (or level (if (numberp gnus-group-use-permanent-levels)
-			    gnus-group-use-permanent-levels
-			  (or (gnus-group-default-list-level)
-			      gnus-level-subscribed))))
+    (or level
+        (if (numberp gnus-group-use-permanent-levels)
+	    gnus-group-use-permanent-levels
+	  (or (gnus-group-default-list-level)
+	      gnus-level-subscribed))
 	(gnus-group-default-list-level) gnus-level-subscribed))
    (number-or-nil
     level)
@@ -1228,20 +1230,23 @@ The following commands are available:
   (let ((charset (gnus-group-name-charset nil string)))
     (gnus-group-name-decode string charset)))
 
-(defun gnus-group-list-groups (&optional level unread lowest)
+(defun gnus-group-list-groups (&optional level unread lowest update-level)
   "List newsgroups with level LEVEL or lower that have unread articles.
 Default is all subscribed groups.
 If argument UNREAD is non-nil, groups with no unread articles are also
 listed.
 
-Also see the `gnus-group-use-permanent-levels' variable."
+Also see the `gnus-group-use-permanent-levels' variable.  If this
+variable is non-nil, and UPDATE-LEVEL is non-nil (which is the
+case interactively), the level will be updated by this command."
   (interactive
    (list (if current-prefix-arg
 	     (prefix-numeric-value current-prefix-arg)
 	   (or
 	    (gnus-group-default-level nil t)
 	    (gnus-group-default-list-level)
-	    gnus-level-subscribed)))
+	    gnus-level-subscribed))
+         nil nil t)
    gnus-group-mode)
   (unless level
     (setq level (car gnus-group-list-mode)
@@ -1288,7 +1293,9 @@ Also see the `gnus-group-use-permanent-levels' variable."
 	      (goto-char (point-max))
 	      (forward-line -1)))))))
     ;; Adjust cursor point.
-    (gnus-group-position-point)))
+    (gnus-group-position-point)
+    (when (and update-level gnus-group-use-permanent-levels)
+      (setq gnus-group-use-permanent-levels level))))
 
 (defun gnus-group-list-level (level &optional all)
   "List groups on LEVEL.
@@ -4055,7 +4062,8 @@ of groups killed."
     (if (< (length out) 2) (car out) (nreverse out))))
 
 (defun gnus-group-yank-group (&optional arg)
-  "Yank the last newsgroups killed with \\[gnus-group-kill-group], inserting it before the current newsgroup.
+  "Yank the last newsgroups killed with \\[gnus-group-kill-group], inserting it
+before the current newsgroup.
 The numeric ARG specifies how many newsgroups are to be yanked.  The
 name of the newsgroup yanked is returned, or (if several groups are
 yanked) a list of yanked groups is returned."
@@ -4205,8 +4213,9 @@ otherwise all levels below ARG will be scanned too."
 
     (gnus-check-reasonable-setup)
     (gnus-run-hooks 'gnus-after-getting-new-news-hook)
-    (gnus-group-list-groups (and (numberp arg)
-				 (max (car gnus-group-list-mode) arg)))))
+    (gnus-group-list-groups (and (numberp arg) arg))
+    (when gnus-group-use-permanent-levels
+      (setq gnus-group-use-permanent-levels (gnus-group-default-level arg)))))
 
 (defun gnus-group-get-new-news-this-group (&optional n dont-scan)
   "Check for newly arrived news in the current group (and the N-1 next groups).
@@ -4390,8 +4399,7 @@ If FORCE, force saving whether it is necessary or not."
 (defun gnus-group-restart (&optional _arg)
   "Force Gnus to read the .newsrc file."
   (interactive nil gnus-group-mode)
-  (when (gnus-yes-or-no-p
-	 (format "Are you sure you want to restart Gnus? "))
+  (when (gnus-yes-or-no-p "Are you sure you want to restart Gnus? ")
     (gnus-save-newsrc-file)
     (gnus-clear-system)
     (gnus)))
@@ -4413,9 +4421,9 @@ group."
 (defun gnus-group-find-new-groups (&optional arg)
   "Search for new groups and add them.
 Each new group will be treated with `gnus-subscribe-newsgroup-method'.
-With 1 C-u, use the `ask-server' method to query the server for new
+With 1 \\[universal-argument], use the `ask-server' method to query the server for new
 groups.
-With 2 C-u's, use most complete method possible to query the server
+With 2 \\[universal-argument]'s, use most complete method possible to query the server
 for new groups, and subscribe the new groups as zombies."
   (interactive "p" gnus-group-mode)
   (let ((new-groups (gnus-find-new-newsgroups (or arg 1)))
@@ -4466,7 +4474,7 @@ The hook `gnus-suspend-gnus-hook' is called before actually suspending."
 	(gnus-kill-buffer buf)))
     (setq gnus-backlog-articles nil)
     (gnus-kill-gnus-frames)
-    ;; Closing all the backends is useful (for instance) when when the
+    ;; Closing all the backends is useful (for instance) when the
     ;; IP addresses have changed and you need to reconnect.
     (dolist (elem gnus-opened-servers)
       (gnus-close-server (car elem)))
@@ -4709,7 +4717,8 @@ or `gnus-group-catchup-group-hook'."
   (gnus-group-get-parameter group 'timestamp t))
 
 (defun gnus-group-timestamp-delta (group)
-  "Return the offset in seconds from the timestamp for GROUP to the current time, as a floating point number."
+  "Return the offset in seconds from the timestamp for GROUP to the current time.
+Return value is a floating point number."
   ;; FIXME: This should return a Lisp integer, not a Lisp float,
   ;; since it is always an integer.
   (let* ((time (or (gnus-group-timestamp group) 0))

@@ -1,6 +1,6 @@
 ;;; cua-rect.el --- CUA unified rectangle support  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
 
 ;; Author: Kim F. Storm <storm@cua.dk>
 ;; Keywords: keyboard emulations convenience CUA
@@ -710,9 +710,11 @@ Mark is kept if keep-clear is 'keep and cleared if keep-clear is 'clear."
     (nreverse rect)))
 
 (defun cua--insert-rectangle (rect &optional below paste-column line-count)
-  "Insert rectangle as insert-rectangle, but don't set mark and exit with
+  "Insert rectangle RECT similarly to `insert-rectangle'.
+In contrast to `insert-rectangle', don't set mark and exit with
 point at either next to top right or below bottom left corner
-Notice: In overwrite mode, the rectangle is inserted as separate text lines."
+
+Note: In overwrite mode, the rectangle is inserted as separate text lines."
   (if (eq below 'auto)
       (setq below (and (bolp)
                        (or (eolp) (eobp) (= (1+ (point)) (point-max))))))

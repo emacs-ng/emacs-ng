@@ -1,6 +1,6 @@
 ;;; ruby-mode-tests.el --- Test suite for ruby-mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2012-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -357,7 +357,7 @@ VALUES-PLIST is a list with alternating index and value elements."
   (let ((ruby-align-chained-calls t))
     (ruby-should-indent-buffer
      "one.two.three
-     |       .four
+     |   .four
      |
      |my_array.select { |str| str.size > 5 }
      |        .map    { |str| str.downcase }"
@@ -907,6 +907,33 @@ VALUES-PLIST is a list with alternating index and value elements."
             (indent-region (point-min) (point-max))
             (should (equal (buffer-string) orig))))
       (kill-buffer buf))))
+
+(ert-deftest ruby--test-chained-indentation ()
+  (with-temp-buffer
+    (ruby-mode)
+    (setq-local ruby-align-chained-calls t)
+    (insert "some_variable.where
+.not(x: nil)
+.where(y: 2)
+")
+    (indent-region (point-min) (point-max))
+    (should (equal (buffer-string)
+                   "some_variable.where
+             .not(x: nil)
+             .where(y: 2)
+")))
+
+  (with-temp-buffer
+    (ruby-mode)
+    (setq-local ruby-align-chained-calls t)
+    (insert "some_variable.where.not(x: nil)
+.where(y: 2)
+")
+    (indent-region (point-min) (point-max))
+    (should (equal (buffer-string)
+                   "some_variable.where.not(x: nil)
+             .where(y: 2)
+"))))
 
 (provide 'ruby-mode-tests)
 

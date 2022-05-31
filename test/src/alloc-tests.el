@@ -1,6 +1,6 @@
 ;;; alloc-tests.el --- alloc tests -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
 
 ;; Author: Daniel Colascione <dancol@dancol.org>
 ;; Keywords:
@@ -58,3 +58,5 @@
     (dolist (c (list 10003 ?b 128 ?c ?d (max-char) ?e))
       (aset s 0 c)
       (should (equal s (make-string 1 c))))))
+
+;;; alloc-tests.el ends here

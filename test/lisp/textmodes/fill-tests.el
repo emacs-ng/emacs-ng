@@ -1,6 +1,6 @@
 ;;; fill-tests.el --- ERT tests for fill.el -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
 
 ;; Author:     Marcin Borkowski <mbork@mbork.pl>
 ;; Keywords:   text, wp
@@ -45,6 +45,8 @@
     (should (string= (buffer-string) "Abc\nd efg\n(h ijk)."))))
 
 (ert-deftest fill-test-unbreakable-paragraph ()
+  ;; See bug#45720 and bug#53537.
+  :expected-result :failed
   (with-temp-buffer
     (let ((string "aaa =   baaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"))
       (insert string)
@@ -54,7 +56,7 @@
              (beg (line-beginning-position))
              (end (line-end-position))
              (fill-prefix (make-string (- pos beg) ?\s))
-             ;; `fill-column' is too small to accomodate the current line
+             ;; `fill-column' is too small to accommodate the current line
              (fill-column (- end beg 10)))
         (fill-region-as-paragraph beg end nil nil pos))
       (should (equal (buffer-string) string)))))
@@ -69,12 +71,33 @@
              (beg (line-beginning-position))
              (end (line-end-position))
              (fill-prefix (make-string (- pos beg) ?\s))
-             ;; `fill-column' is too small to accomodate the current line
+             ;; `fill-column' is too small to accommodate the current line
              (fill-column (- end beg 10)))
         (fill-region-as-paragraph beg end nil nil pos))
       (should (equal
                (buffer-string)
                "aaa =   baaaaaaaa aaaaaaaaaa\n         aaaaaaaaaa\n")))))
+
+(ert-deftest test-fill-haskell ()
+  (should
+   (equal
+    (with-temp-buffer
+      (asm-mode)
+      (dolist (line '("  ;; a b c"
+                      "  ;; d e f"
+                      "  ;; x y z"
+                      "  ;; w"))
+        (insert line "\n"))
+      (goto-char (point-min))
+      (end-of-line)
+      (setf fill-column 10)
+      (fill-paragraph nil)
+      (buffer-string))
+    "  ;; a b c
+  ;; d e f
+  ;; x y z
+  ;; w
+")))
 
 (provide 'fill-tests)
 

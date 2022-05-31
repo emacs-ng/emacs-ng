@@ -1,6 +1,6 @@
 ;;; url-handlers.el --- file-name-handler stuff for URL loading  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1996-1999, 2004-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1996-1999, 2004-2022 Free Software Foundation, Inc.
 
 ;; Keywords: comm, data, processes, hypermedia
 
@@ -102,6 +102,7 @@
 
 ;;;###autoload
 (define-minor-mode url-handler-mode
+  ;; Can't use "\\[find-file]" below as it produces "[open]":
   "Handle URLs as if they were file names throughout Emacs.
 After switching on this minor mode, Emacs file primitives handle
 URLs.  For instance:

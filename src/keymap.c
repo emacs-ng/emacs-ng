@@ -1,5 +1,5 @@
 /* Manipulation of keymaps
-   Copyright (C) 1985-1988, 1993-1995, 1998-2021 Free Software
+   Copyright (C) 1985-1988, 1993-1995, 1998-2022 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -629,6 +629,9 @@ the definition it is bound to.  The event may be a character range.
 If KEYMAP has a parent, the parent's bindings are included as well.
 This works recursively: if the parent has itself a parent, then the
 grandparent's bindings are also included and so on.
+
+For more information, see Info node `(elisp) Keymaps'.
+
 usage: (map-keymap FUNCTION KEYMAP)  */)
   (Lisp_Object function, Lisp_Object keymap, Lisp_Object sort_first)
 {
@@ -1180,27 +1183,8 @@ remapping in all currently active keymaps.  */)
   return FIXNUMP (command) ? Qnil : command;
 }
 
-/* Value is number if KEY is too long; nil if valid but has no definition.  */
-/* GC is possible in this function.  */
-
-DEFUN ("lookup-key", Flookup_key, Slookup_key, 2, 3, 0,
-       doc: /* Look up key sequence KEY in KEYMAP.  Return the definition.
-A value of nil means undefined.  See doc of `define-key'
-for kinds of definitions.
-
-A number as value means KEY is "too long";
-that is, characters or symbols in it except for the last one
-fail to be a valid sequence of prefix characters in KEYMAP.
-The number is how many characters at the front of KEY
-it takes to reach a non-prefix key.
-KEYMAP can also be a list of keymaps.
-
-Normally, `lookup-key' ignores bindings for t, which act as default
-bindings, used when nothing else in the keymap applies; this makes it
-usable as a general function for probing keymaps.  However, if the
-third optional argument ACCEPT-DEFAULT is non-nil, `lookup-key' will
-recognize the default bindings, just as `read-key-sequence' does.  */)
-  (Lisp_Object keymap, Lisp_Object key, Lisp_Object accept_default)
+static Lisp_Object
+lookup_key_1 (Lisp_Object keymap, Lisp_Object key, Lisp_Object accept_default)
 {
   bool t_ok = !NILP (accept_default);
 
@@ -1238,6 +1222,69 @@ recognize the default bindings, just as `read-key-sequence' does.  */)
 
       maybe_quit ();
     }
+}
+
+/* Value is number if KEY is too long; nil if valid but has no definition.  */
+/* GC is possible in this function.  */
+
+DEFUN ("lookup-key", Flookup_key, Slookup_key, 2, 3, 0,
+       doc: /* Look up key sequence KEY in KEYMAP.  Return the definition.
+A value of nil means undefined.  See doc of `define-key'
+for kinds of definitions.
+
+A number as value means KEY is "too long";
+that is, characters or symbols in it except for the last one
+fail to be a valid sequence of prefix characters in KEYMAP.
+The number is how many characters at the front of KEY
+it takes to reach a non-prefix key.
+KEYMAP can also be a list of keymaps.
+
+Normally, `lookup-key' ignores bindings for t, which act as default
+bindings, used when nothing else in the keymap applies; this makes it
+usable as a general function for probing keymaps.  However, if the
+third optional argument ACCEPT-DEFAULT is non-nil, `lookup-key' will
+recognize the default bindings, just as `read-key-sequence' does.  */)
+  (Lisp_Object keymap, Lisp_Object key, Lisp_Object accept_default)
+{
+  Lisp_Object found = lookup_key_1 (keymap, key, accept_default);
+  if (!NILP (found) && !NUMBERP (found))
+    return found;
+
+  /* Menu definitions might use mixed case symbols (notably in old
+     versions of `easy-menu-define').  We accept this variation for
+     backwards-compatibility.  (Bug#50752)  */
+  ptrdiff_t key_len = VECTORP (key) ? ASIZE (key) : 0;
+  if (key_len > 0 && EQ (AREF (key, 0), Qmenu_bar))
+    {
+      Lisp_Object new_key = make_vector (key_len, Qnil);
+      for (int i = 0; i < key_len; ++i)
+	{
+	  Lisp_Object item = AREF (key, i);
+	  if (!SYMBOLP (item))
+	    ASET (new_key, i, item);
+	  else
+	    {
+	      Lisp_Object sym = Fsymbol_name (item);
+	      USE_SAFE_ALLOCA;
+	      unsigned char *dst = SAFE_ALLOCA (SBYTES (sym) + 1);
+	      memcpy (dst, SSDATA (sym), SBYTES (sym));
+	      /* We can walk the string data byte by byte, because
+		 UTF-8 encoding ensures that no other byte of any
+		 multibyte sequence will ever include a 7-bit byte
+		 equal to an ASCII single-byte character.  */
+	      for (int j = 0; j < SBYTES (sym); ++j)
+		if (dst[j] >= 'A' && dst[j] <= 'Z')
+		  dst[j] += 'a' - 'A';  /* Convert to lower case.  */
+	      ASET (new_key, i, Fintern (make_multibyte_string ((char *) dst,
+								SCHARS (sym),
+								SBYTES (sym)),
+					 Qnil));
+	      SAFE_FREE ();
+	    }
+	}
+      found = lookup_key_1 (keymap, new_key, accept_default);
+    }
+  return found;
 }
 
 /* Make KEYMAP define event C as a keymap (i.e., as a prefix).
@@ -2935,7 +2982,7 @@ describe_vector (Lisp_Object vector, Lisp_Object prefix, Lisp_Object args,
   Lisp_Object suppress = Qnil;
   bool first = true;
   /* Range of elements to be handled.  */
-  int from, to, stop;
+  int to, stop;
 
   if (!keymap_p)
     {
@@ -2955,17 +3002,19 @@ describe_vector (Lisp_Object vector, Lisp_Object prefix, Lisp_Object args,
   if (partial)
     suppress = intern ("suppress-keymap");
 
-  from = 0;
+  /* STOP is a boundary between normal characters (-#x3FFF7F) and
+     8-bit characters (#x3FFF80-), used below when VECTOR is a
+     char-table.  */
   if (CHAR_TABLE_P (vector))
     stop = MAX_5_BYTE_CHAR + 1, to = MAX_CHAR + 1;
   else
     stop = to = ASIZE (vector);
 
-  for (int i = from; ; i++)
+  for (int i = 0; ; i++)
     {
       bool this_shadowed = false;
       Lisp_Object shadowed_by = Qnil;
-      int range_beg, range_end;
+      int range_beg;
       Lisp_Object val, tem2;
 
       maybe_quit ();
@@ -2981,6 +3030,10 @@ describe_vector (Lisp_Object vector, Lisp_Object prefix, Lisp_Object args,
 
       if (CHAR_TABLE_P (vector))
 	{
+	  /* Find the value in VECTOR for the first character in the
+	     range [RANGE_BEG..STOP), and update the range to include
+	     only the characters whose value is the same as that of
+	     the first in the range.  */
 	  range_beg = i;
 	  i = stop - 1;
 	  val = char_table_ref_and_range (vector, range_beg, &range_beg, &i);
@@ -3039,33 +3092,26 @@ describe_vector (Lisp_Object vector, Lisp_Object prefix, Lisp_Object args,
       insert1 (describe_key_maybe_fontify (kludge, prefix, keymap_p));
 
       /* Find all consecutive characters or rows that have the same
-	 definition.  But, if VECTOR is a char-table, we had better
-	 put a boundary between normal characters (-#x3FFF7F) and
-	 8-bit characters (#x3FFF80-).  */
-      if (CHAR_TABLE_P (vector))
+	 definition.  */
+      if (!CHAR_TABLE_P (vector))
 	{
 	  while (i + 1 < stop
-		 && (range_beg = i + 1, range_end = stop - 1,
-		   val = char_table_ref_and_range (vector, range_beg,
-						   &range_beg, &range_end),
-		   tem2 = get_keyelt (val, 0),
-		   !NILP (tem2))
+		 && (tem2 = get_keyelt (AREF (vector, i + 1), 0),
+		     !NILP (tem2))
 		 && !NILP (Fequal (tem2, definition)))
-	    i = range_end;
+	    i++;
 	}
-      else
-	while (i + 1 < stop
-	       && (tem2 = get_keyelt (AREF (vector, i + 1), 0),
-		   !NILP (tem2))
-	       && !NILP (Fequal (tem2, definition)))
-	  i++;
 
       /* Make sure found consecutive keys are either not shadowed or,
 	 if they are, that they are shadowed by the same command.  */
-      if (CHAR_TABLE_P (vector) && i != starting_i)
+      if (!NILP (Vdescribe_bindings_check_shadowing_in_ranges)
+	  && CHAR_TABLE_P (vector) && i != starting_i
+	  && (!EQ (Vdescribe_bindings_check_shadowing_in_ranges,
+		   Qignore_self_insert)
+	      || !EQ (definition, Qself_insert_command)))
 	{
 	  Lisp_Object key = make_nil_vector (1);
-	  for (int j = starting_i + 1; j <= i; j++)
+	  for (int j = range_beg + 1; j <= i; j++)
 	    {
 	      ASET (key, 0, make_fixnum (j));
 	      Lisp_Object tem = shadow_lookup (shadow, key, Qt, 0);
@@ -3180,6 +3226,24 @@ exists, bindings using keys without modifiers (or only with meta) will
 be preferred.  */);
   Vwhere_is_preferred_modifier = Qnil;
   where_is_preferred_modifier = 0;
+
+  DEFVAR_LISP ("describe-bindings-check-shadowing-in-ranges",
+	       Vdescribe_bindings_check_shadowing_in_ranges,
+	       doc: /* If non-nil, consider command shadowing when describing ranges of keys.
+If the value is t, describing bindings of consecutive keys will not
+report them as a single range if they are shadowed by different
+minor-mode commands.
+If the value is `ignore-self-insert', assume that consecutive keys
+bound to `self-insert-command' are not all shadowed; this speeds up
+commands such as \\[describe-bindings] and \\[describe-mode], but could miss some shadowing.
+Any other non-nil value is treated is t.
+
+Beware: setting this non-nil could potentially slow down commands
+that describe key bindings.  That is why the default is nil.  */);
+  Vdescribe_bindings_check_shadowing_in_ranges = Qnil;
+
+  DEFSYM (Qself_insert_command, "self-insert-command");
+  DEFSYM (Qignore_self_insert, "ignore-self-insert");
 
   DEFSYM (Qmenu_bar, "menu-bar");
   DEFSYM (Qmode_line, "mode-line");

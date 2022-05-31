@@ -1,6 +1,6 @@
 ;;; gnus-bookmark.el --- Bookmarks in Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2006-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2022 Free Software Foundation, Inc.
 
 ;; Author: Bastien Guerry <bzg AT altern DOT org>
 ;; Keywords: news
@@ -198,7 +198,9 @@ So the cdr of each bookmark is an alist too.")
 
 (defun gnus-bookmark-make-record
   (group message-id author date subject annotation)
-  "Return the record part of a new bookmark, given GROUP MESSAGE-ID AUTHOR DATE SUBJECT and ANNOTATION."
+  "Return the record part of a new bookmark.
+Arguments GROUP MESSAGE-ID AUTHOR DATE SUBJECT and ANNOTATION
+will be saved in the bookmark."
   (let ((the-record
 	 `((group . ,(substring-no-properties group))
 	   (message-id . ,(substring-no-properties message-id))

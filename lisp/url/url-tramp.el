@@ -1,6 +1,6 @@
 ;;; url-tramp.el --- file-name-handler magic invoking Tramp for some protocols  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2014-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2022 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, data, processes, hypermedia
@@ -48,12 +48,14 @@ In case URL is not convertible, nil is returned."
       (when (url-password obj)
 	(password-cache-add
 	 (tramp-make-tramp-file-name
-	  (url-type obj) (url-user obj) nil
-          (url-host obj) port "")
+          (make-tramp-file-name
+	   :method (url-type obj) :user (url-user obj)
+           :host (url-host obj)))
 	 (url-password obj)))
       (tramp-make-tramp-file-name
-       (url-type obj) (url-user obj) nil
-       (url-host obj) port (url-filename obj)))))
+       (make-tramp-file-name
+        :method (url-type obj) :user (url-user obj)
+        :host (url-host obj) :port port :localname (url-filename obj))))))
 
 (defun url-tramp-convert-tramp-to-url (file)
   "Convert FILE, a Tramp file name, to a URL.

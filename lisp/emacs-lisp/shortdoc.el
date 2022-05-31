@@ -1,6 +1,6 @@
 ;;; shortdoc.el --- Short function summaries  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
 
 ;; Keywords: lisp, help
 ;; Package: emacs
@@ -495,6 +495,9 @@ There can be any number of :example/:result elements."
    :eval (list 1 2 3))
   (number-sequence
    :eval (number-sequence 5 8))
+  (ensure-list
+   :eval (ensure-list "foo")
+   :eval (ensure-list '(1 2 3)))
   "Operations on Lists"
   (append
    :eval (append '("foo" "bar") '("zot")))
@@ -644,10 +647,12 @@ There can be any number of :example/:result elements."
 
 
 (define-short-documentation-group vector
+  "Making Vectors"
   (make-vector
    :eval (make-vector 5 "foo"))
   (vector
    :eval (vector 1 "b" 3))
+  "Operations on Vectors"
   (vectorp
    :eval (vectorp [1])
    :eval (vectorp "1"))
@@ -657,13 +662,16 @@ There can be any number of :example/:result elements."
    :eval (append [1 2] nil))
   (length
    :eval (length [1 2 3]))
-  (mapcar
-   :eval (mapcar #'identity [1 2 3]))
-  (reduce
-   :eval (reduce #'+ [1 2 3]))
+  (seq-reduce
+   :eval (seq-reduce #'+ [1 2 3] 0))
   (seq-subseq
    :eval (seq-subseq [1 2 3 4 5] 1 3)
-   :eval (seq-subseq [1 2 3 4 5] 1)))
+   :eval (seq-subseq [1 2 3 4 5] 1))
+  "Mapping Over Vectors"
+  (mapcar
+   :eval (mapcar #'identity [1 2 3]))
+  (mapc
+   :eval (mapc #'insert ["1" "2" "3"])))
 
 (define-short-documentation-group regexp
   "Matching Strings"
@@ -809,6 +817,8 @@ There can be any number of :example/:result elements."
    :eval (seq-remove #'numberp '(1 2 c d 5)))
   (seq-group-by
    :eval (seq-group-by #'cl-plusp '(-1 2 3 -4 -5 6)))
+  (seq-union
+   :eval (seq-union '(1 2 3) '(3 5)))
   (seq-difference
    :eval (seq-difference '(1 2 3) '(2 3 4)))
   (seq-intersection
@@ -889,6 +899,9 @@ There can be any number of :example/:result elements."
    :eg-result 67)
   (char-after
    :eval (char-after 45))
+  (get-byte
+   :no-eval (get-byte 45)
+   :eg-result-string "#xff")
   "Altering Buffers"
   (delete-region
    :no-value (delete-region (point-min) (point-max)))
@@ -1150,6 +1163,49 @@ There can be any number of :example/:result elements."
   (sqrt
    :eval (sqrt -1)))
 
+(define-short-documentation-group text-properties
+  "Examining Text Properties"
+  (get-text-property
+   :eval (get-text-property 0 'foo (propertize "x" 'foo t)))
+  (get-char-property
+   :eval (get-char-property 0 'foo (propertize "x" 'foo t)))
+  (get-pos-property
+   :eval (get-pos-property 0 'foo (propertize "x" 'foo t)))
+  (get-char-property-and-overlay
+   :eval (get-char-property-and-overlay 0 'foo (propertize "x" 'foo t)))
+  (text-properties-at
+   :eval (text-properties-at (point)))
+  "Changing Text Properties"
+  (put-text-property
+   :eval (let ((s "abc")) (put-text-property 0 1 'foo t s) s)
+   :no-eval (put-text-property (point) (1+ (point)) 'face 'error))
+  (add-text-properties
+   :no-eval (add-text-properties (point) (1+ (point)) '(face error)))
+  (remove-text-properties
+   :no-eval (remove-text-properties (point) (1+ (point)) '(face nil)))
+  (remove-list-of-text-properties
+   :no-eval (remove-list-of-text-properties (point) (1+ (point)) '(face font-lock-face)))
+  (set-text-properties
+   :no-eval (set-text-properties (point) (1+ (point)) '(face error)))
+  (add-face-text-property
+   (add-face-text-property START END '(:foreground "green")))
+  (propertize
+   :eval (propertize "foo" 'face 'italic 'mouse-face 'bold-italic))
+  "Searching for Text Properties"
+  (next-property-change
+   :no-eval (next-property-change (point) (current-buffer)))
+  (previous-property-change
+   :no-eval (previous-property-change (point) (current-buffer)))
+  (next-single-property-change
+   :no-eval (next-single-property-change (point) 'face (current-buffer)))
+  (previous-single-property-change
+   :no-eval (previous-single-property-change (point) 'face (current-buffer)))
+  ;; TODO: There are some more that could be added here.
+  (text-property-search-forward
+   :no-eval (text-property-search-forward 'face nil t))
+  (text-property-search-backward
+   :no-eval (text-property-search-backward 'face nil t)))
+
 ;;;###autoload
 (defun shortdoc-display-group (group &optional function)
   "Pop to a buffer with short documentation summary for functions in GROUP.
@@ -1268,11 +1324,11 @@ function's documentation in the Info manual")))
                   (princ value (current-buffer))
                   (insert "\n"))
                  (:eg-result
-                  (insert "    eg. " double-arrow " ")
+                  (insert "    e.g. " double-arrow " ")
                   (prin1 value (current-buffer))
                   (insert "\n"))
                  (:eg-result-string
-                  (insert "    eg. " double-arrow " ")
+                  (insert "    e.g. " double-arrow " ")
                   (princ value (current-buffer))
                   (insert "\n")))))
     ;; Insert the arglist after doing the evals, in case that's pulled

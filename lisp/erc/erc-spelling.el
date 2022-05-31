@@ -1,6 +1,6 @@
 ;;; erc-spelling.el --- use flyspell in ERC  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2005-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2022 Free Software Foundation, Inc.
 
 ;; Author: Jorgen Schaefer <forcer@forcix.cx>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>
@@ -24,7 +24,7 @@
 
 ;;; Commentary:
 
-;; This is an ERC module to enable flyspell mode in ERC buffers. This
+;; This is an ERC module to enable flyspell mode in ERC buffers.  This
 ;; ensures correct behavior of flyspell, and even sets up a
 ;; channel-local dictionary if so required.
 

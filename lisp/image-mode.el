@@ -1,6 +1,6 @@
 ;;; image-mode.el --- support for visiting image files  -*- lexical-binding: t -*-
 ;;
-;; Copyright (C) 2005-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2022 Free Software Foundation, Inc.
 ;;
 ;; Author: Richard Stallman <rms@gnu.org>
 ;; Keywords: multimedia
@@ -621,9 +621,11 @@ Key bindings:
   ;; Bail out early if we have no image data.
   (if (zerop (buffer-size))
       (funcall (if (called-interactively-p 'any) 'error 'message)
-               (if (file-exists-p buffer-file-name)
-                   "Empty file"
-                 "(New file)"))
+               (if (stringp buffer-file-name)
+                   (if (file-exists-p buffer-file-name)
+                       "Empty file"
+                     "(New file)")
+                 "Empty buffer"))
     (image-mode--display)))
 
 (defun image-mode--display ()
@@ -1241,7 +1243,7 @@ will have the line where the image appears (if any) marked.
 If no such buffer exists, it will be opened."
   (interactive)
   (unless buffer-file-name
-    (error "The current buffer doesn't visit a file."))
+    (error "Current buffer is not visiting a file"))
   (image-mode--mark-file buffer-file-name #'dired-mark "marked"))
 
 (defun image-mode-unmark-file ()
@@ -1253,7 +1255,7 @@ any).
 If no such buffer exists, it will be opened."
   (interactive)
   (unless buffer-file-name
-    (error "The current buffer doesn't visit a file."))
+    (error "Current buffer is not visiting a file"))
   (image-mode--mark-file buffer-file-name #'dired-unmark "unmarked"))
 
 (declare-function dired-mark "dired" (arg &optional interactive))

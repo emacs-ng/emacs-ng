@@ -1,6 +1,6 @@
 ;;; map-tests.el --- Tests for map.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Petton <nicolas@petton.fr>
 ;; Maintainer: emacs-devel@gnu.org
@@ -85,11 +85,13 @@ Evaluate BODY for each created map."
     (should (= 5 (map-elt map 0 5)))))
 
 (ert-deftest test-map-elt-testfn ()
-  (let ((map (list (cons "a" 1) (cons "b" 2)))
-        ;; Make sure to use a non-eq "a", even when compiled.
-        (noneq-key (string ?a)))
-    (should-not (map-elt map noneq-key))
-    (should (map-elt map noneq-key nil #'equal))))
+  (let* ((a (string ?a))
+         (map `((,a . 0) (,(string ?b) . 1))))
+    (should (= (map-elt map a) 0))
+    (should (= (map-elt map "a") 0))
+    (should (= (map-elt map (string ?a)) 0))
+    (should (= (map-elt map "b") 1))
+    (should (= (map-elt map (string ?b)) 1))))
 
 (ert-deftest test-map-elt-with-nil-value ()
   (should-not (map-elt '((a . 1) (b)) 'b 2)))
@@ -128,6 +130,19 @@ Evaluate BODY for each created map."
         (should (eq (map-elt map 'k) 'v))
         (setf (map-elt map size) 'v)
         (should (eq (map-elt map size) 'v))))))
+
+(ert-deftest test-map-put!-alist ()
+  "Test `map-put!' test function on alists."
+  (let ((key (string ?a))
+        (val 0)
+        map)
+    (should-error (map-put! map key val) :type 'map-not-inplace)
+    (setq map (list (cons key val)))
+    (map-put! map key (1- val))
+    (should (equal map '(("a" . -1))))
+    (map-put! map (string ?a) (1+ val))
+    (should (equal map '(("a" . 1))))
+    (should-error (map-put! map (string ?a) val #'eq) :type 'map-not-inplace)))
 
 (ert-deftest test-map-put-alist-new-key ()
   "Regression test for Bug#23105."
@@ -196,6 +211,15 @@ Evaluate BODY for each created map."
 (ert-deftest test-map-delete-empty ()
   (with-empty-maps-do map
     (should (eq map (map-delete map t)))))
+
+(ert-deftest test-map-delete-alist ()
+  "Test `map-delete' test function on alists."
+  (let* ((a (string ?a))
+         (map `((,a) (,(string ?b)))))
+    (setq map (map-delete map a))
+    (should (equal map '(("b"))))
+    (setq map (map-delete map (string ?b)))
+    (should-not map)))
 
 (ert-deftest test-map-nested-elt ()
   (let ((vec [a b [c d [e f]]]))
@@ -398,6 +422,9 @@ Evaluate BODY for each created map."
     (should (map-every-p (lambda (k _v) (zerop k)) map))))
 
 (ert-deftest test-map-into ()
+  ;; This test is unstable in Emacs 28, but the problem has been fixed
+  ;; in Emacs 29 (bug#46722).
+  :tags '(:unstable)
   (let* ((plist '(a 1 b 2))
          (alist '((a . 1) (b . 2)))
          (ht (map-into alist 'hash-table))
@@ -416,6 +443,9 @@ Evaluate BODY for each created map."
 
 (ert-deftest test-map-into-hash-test ()
   "Test `map-into' with different hash-table test functions."
+  ;; This test is unstable in Emacs 28, but the problem has been fixed
+  ;; in Emacs 29 (bug#46722).
+  :tags '(:unstable)
   (should (eq (hash-table-test (map-into () 'hash-table)) #'equal))
   (should (eq (hash-table-test (map-into () '(hash-table))) #'eql))
   (should (eq (hash-table-test (map-into () '(hash-table :test eq))) #'eq))
@@ -446,6 +476,9 @@ Evaluate BODY for each created map."
 
 (ert-deftest test-map-merge ()
   "Test `map-merge'."
+  ;; This test is unstable in Emacs 28, but the problem has been fixed
+  ;; in Emacs 29 (bug#46722).
+  :tags '(:unstable)
   (should (equal (sort (map-merge 'list '(a 1) '((b . 2) (c . 3))
                                   #s(hash-table data (c 4)))
                        (lambda (x y) (string< (car x) (car y))))
@@ -455,6 +488,9 @@ Evaluate BODY for each created map."
   (should (equal (map-merge 'plist () '(:a 1)) '(:a 1))))
 
 (ert-deftest test-map-merge-with ()
+  ;; This test is unstable in Emacs 28, but the problem has been fixed
+  ;; in Emacs 29 (bug#46722).
+  :tags '(:unstable)
   (should (equal (sort (map-merge-with 'list #'+
                                        '((1 . 2))
                                        '((1 . 3) (2 . 4))
@@ -467,6 +503,9 @@ Evaluate BODY for each created map."
 
 (ert-deftest test-map-merge-empty ()
   "Test merging of empty maps."
+  ;; This test is unstable in Emacs 28, but the problem has been fixed
+  ;; in Emacs 29 (bug#46722).
+  :tags '(:unstable)
   (should-not (map-merge 'list))
   (should-not (map-merge 'alist))
   (should-not (map-merge 'plist))
@@ -520,6 +559,15 @@ Evaluate BODY for each created map."
     (should (equal (setf (map-elt ht 'key) 'value2)
 		   'value2))
     (should (equal (map-elt ht 'key) 'value2))))
+
+(ert-deftest test-setf-map-with-function ()
+  (let ((num 0)
+        (map nil))
+    (setf (map-elt map 'foo)
+          (funcall (lambda ()
+                     (cl-incf num))))
+    ;; Check that the function is only called once.
+    (should (= num 1))))
 
 (provide 'map-tests)
 ;;; map-tests.el ends here

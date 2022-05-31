@@ -1,6 +1,6 @@
 ;;; eudc-hotlist.el --- hotlist management for EUDC  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2022 Free Software Foundation, Inc.
 
 ;; Author: Oscar Figueiredo <oscar@cpe.fr>
 ;;         Pavel Janík <Pavel@Janik.cz>
@@ -174,9 +174,8 @@ These are the special commands of this mode:
     ["Save and Quit" eudc-hotlist-quit-edit t]
     ["Exit without Saving" kill-this-buffer t]))
 
-(easy-menu-define eudc-hotlist-emacs-menu
-    eudc-hotlist-mode-map
-    ""
+(easy-menu-define eudc-hotlist-emacs-menu eudc-hotlist-mode-map
+    "EUDC hotlist Menu."
     eudc-hotlist-menu)
 
 ;;; eudc-hotlist.el ends here

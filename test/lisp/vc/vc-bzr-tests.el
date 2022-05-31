@@ -1,6 +1,6 @@
 ;;; vc-bzr-tests.el --- tests for vc/vc-bzr.el  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2011-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2022 Free Software Foundation, Inc.
 
 ;; Author: Glenn Morris <rgm@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -153,4 +153,4 @@
                          t)))
       (delete-directory homedir t))))
 
-;;; vc-bzr.el ends here
+;;; vc-bzr-tests.el ends here

@@ -1,7 +1,7 @@
 ;;; project.el --- Operations on the current project  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
-;; Version: 0.6.1
+;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
+;; Version: 0.8.1
 ;; Package-Requires: ((emacs "26.1") (xref "1.0.2"))
 
 ;; This is a GNU ELPA :core package.  Avoid using functionality that
@@ -302,11 +302,10 @@ to find the list of ignores for each directory."
          ;; expanded and not left for the shell command
          ;; to interpret.
          (localdir (file-name-unquote (file-local-name (expand-file-name dir))))
-         (command (format "%s -H %s %s -type f %s -print0"
+         (dfn (directory-file-name localdir))
+         (command (format "%s -H . %s -type f %s -print0"
                           find-program
-                          (shell-quote-argument
-                           (directory-file-name localdir)) ; Bug#48471
-                          (xref--find-ignores-arguments ignores localdir)
+                          (xref--find-ignores-arguments ignores "./")
                           (if files
                               (concat (shell-quote-argument "(")
                                       " " find-name-arg " "
@@ -317,15 +316,21 @@ to find the list of ignores for each directory."
                                       " "
                                       (shell-quote-argument ")"))
                             "")))
-         (output (with-output-to-string
-                   (with-current-buffer standard-output
-                     (let ((status
-                            (process-file-shell-command command nil t)))
-                       (unless (zerop status)
-                         (error "File listing failed: %s" (buffer-string))))))))
+         res)
+    (with-temp-buffer
+      (let ((status
+             (process-file-shell-command command nil t))
+            (pt (point-min)))
+        (unless (zerop status)
+          (error "File listing failed: %s" (buffer-string)))
+        (goto-char pt)
+        (while (search-forward "\0" nil t)
+          (push (buffer-substring-no-properties (1+ pt) (1- (point)))
+                res)
+          (setq pt (point)))))
     (project--remote-file-names
-     (sort (split-string output "\0" t)
-           #'string<))))
+     (mapcar (lambda (s) (concat dfn s))
+             (sort res #'string<)))))
 
 (defun project--remote-file-names (local-files)
   "Return LOCAL-FILES as if they were on the system of `default-directory'.
@@ -489,10 +494,12 @@ backend implementation of `project-external-roots'.")
 (declare-function vc-hg-command "vc-hg")
 
 (defun project--vc-list-files (dir backend extra-ignores)
+  (defvar vc-git-use-literal-pathspecs)
   (pcase backend
     (`Git
      (let ((default-directory (expand-file-name (file-name-as-directory dir)))
            (args '("-z"))
+           (vc-git-use-literal-pathspecs nil)
            files)
        ;; Include unregistered.
        (setq args (append args '("-c" "-o" "--exclude-standard")))
@@ -604,7 +611,9 @@ backend implementation of `project-external-roots'.")
                  (replace-match "./" t t entry 1)
                (concat "./" entry)))
             (t entry)))
-         (vc-call-backend backend 'ignore-completion-table root))))
+         (condition-case nil
+             (vc-call-backend backend 'ignore-completion-table root)
+           (vc-not-supported () nil)))))
      (project--value-in-dir 'project-vc-ignores root)
      (mapcar
       (lambda (dir)
@@ -672,7 +681,8 @@ DIRS must contain directory names."
     (define-key map "F" 'project-or-external-find-file)
     (define-key map "b" 'project-switch-to-buffer)
     (define-key map "s" 'project-shell)
-    (define-key map "d" 'project-dired)
+    (define-key map "d" 'project-find-dir)
+    (define-key map "D" 'project-dired)
     (define-key map "v" 'project-vc-dir)
     (define-key map "c" 'project-compile)
     (define-key map "e" 'project-eshell)
@@ -835,8 +845,8 @@ pattern to search for."
 (defun project-find-file ()
   "Visit a file (with completion) in the current project.
 
-The completion default is the filename at point, determined by
-`thing-at-point' (whether such file exists or not)."
+The filename at point (determined by `thing-at-point'), if any,
+is available as part of \"future history\"."
   (interactive)
   (let* ((pr (project-current t))
          (dirs (list (project-root pr))))
@@ -846,8 +856,8 @@ The completion default is the filename at point, determined by
 (defun project-or-external-find-file ()
   "Visit a file (with completion) in the current project or external roots.
 
-The completion default is the filename at point, determined by
-`thing-at-point' (whether such file exists or not)."
+The filename at point (determined by `thing-at-point'), if any,
+is available as part of \"future history\"."
   (interactive)
   (let* ((pr (project-current t))
          (dirs (cons
@@ -868,11 +878,14 @@ For the arguments list, see `project--read-file-cpd-relative'."
 
 (defun project--read-file-cpd-relative (prompt
                                         all-files &optional predicate
-                                        hist default)
+                                        hist mb-default)
   "Read a file name, prompting with PROMPT.
 ALL-FILES is a list of possible file name completions.
-PREDICATE, HIST, and DEFAULT have the same meaning as in
-`completing-read'."
+
+PREDICATE and HIST have the same meaning as in `completing-read'.
+
+MB-DEFAULT is used as part of \"future history\", to be inserted
+by the user at will."
   (let* ((common-parent-directory
           (let ((common-prefix (try-completion "" all-files)))
             (if (> (length common-prefix) 0)
@@ -881,46 +894,75 @@ PREDICATE, HIST, and DEFAULT have the same meaning as in
          (prompt (if (zerop cpd-length)
                      prompt
                    (concat prompt (format " in %s" common-parent-directory))))
+         (included-cpd (when (member common-parent-directory all-files)
+                         (setq all-files
+                               (delete common-parent-directory all-files))
+                         t))
          (substrings (mapcar (lambda (s) (substring s cpd-length)) all-files))
+         (_ (when included-cpd
+              (setq substrings (cons "./" substrings))))
          (new-collection (project--file-completion-table substrings))
          (res (project--completing-read-strict prompt
                                                new-collection
                                                predicate
-                                               hist default)))
+                                               hist mb-default)))
     (concat common-parent-directory res)))
 
 (defun project--read-file-absolute (prompt
                                     all-files &optional predicate
-                                    hist default)
+                                    hist mb-default)
   (project--completing-read-strict prompt
                                    (project--file-completion-table all-files)
                                    predicate
-                                   hist default))
+                                   hist mb-default))
 
-(defun project-find-file-in (filename dirs project)
-  "Complete FILENAME in DIRS in PROJECT and visit the result."
+(defun project-find-file-in (suggested-filename dirs project)
+  "Complete a file name in DIRS in PROJECT and visit the result.
+
+SUGGESTED-FILENAME is a relative file name, or part of it, which
+is used as part of \"future history\"."
   (let* ((all-files (project-files project dirs))
          (completion-ignore-case read-file-name-completion-ignore-case)
          (file (funcall project-read-file-name-function
                         "Find file" all-files nil nil
-                        filename)))
+                        suggested-filename)))
     (if (string= file "")
         (user-error "You didn't specify the file")
       (find-file file))))
 
 (defun project--completing-read-strict (prompt
                                         collection &optional predicate
-                                        hist default)
+                                        hist mb-default)
   (minibuffer-with-setup-hook
       (lambda ()
         (setq-local minibuffer-default-add-function
                     (lambda ()
-                      (let ((minibuffer-default default))
+                      (let ((minibuffer-default mb-default))
                         (minibuffer-default-add-completions)))))
     (completing-read (format "%s: " prompt)
                      collection predicate 'confirm
                      nil
                      hist)))
+
+;;;###autoload
+(defun project-find-dir ()
+  "Start Dired in a directory inside the current project."
+  (interactive)
+  (let* ((project (project-current t))
+         (all-files (project-files project))
+         (completion-ignore-case read-file-name-completion-ignore-case)
+         ;; FIXME: This misses directories without any files directly
+         ;; inside.  Consider DIRS-ONLY as an argument for
+         ;; `project-files-filtered', and see
+         ;; https://stackoverflow.com/a/50685235/615245 for possible
+         ;; implementation.
+         (all-dirs (mapcar #'file-name-directory all-files))
+         (dir (funcall project-read-file-name-function
+                       "Dired"
+                       ;; Some completion UIs show duplicates.
+                       (delete-dups all-dirs)
+                       nil nil)))
+    (dired dir)))
 
 ;;;###autoload
 (defun project-dired ()
@@ -998,8 +1040,12 @@ command \\[fileloop-continue]."
 (defun project-query-replace-regexp (from to)
   "Query-replace REGEXP in all the files of the project.
 Stops when a match is found and prompts for whether to replace it.
-If you exit the query-replace, you can later continue the query-replace
-loop using the command \\[fileloop-continue]."
+At that prompt, the user must type a character saying what to do
+with the match.  Type SPC or `y' to replace the match,
+DEL or `n' to skip and go to the next match.  For more directions,
+type \\[help-command] at that time.
+If you exit the `query-replace', you can later continue the
+`query-replace' loop using the command \\[fileloop-continue]."
   (interactive
    (pcase-let ((`(,from ,to)
                 (query-replace-read-args "Query replace (regexp)" t t)))
@@ -1261,9 +1307,10 @@ With some possible metadata (to be decided).")
       (write-region nil nil filename nil 'silent))))
 
 ;;;###autoload
-(defun project-remember-project (pr)
+(defun project-remember-project (pr &optional no-write)
   "Add project PR to the front of the project list.
-Save the result in `project-list-file' if the list of projects has changed."
+Save the result in `project-list-file' if the list of projects
+has changed, and NO-WRITE is nil."
   (project--ensure-read-project-list)
   (let ((dir (project-root pr)))
     (unless (equal (caar project--list) dir)
@@ -1271,7 +1318,8 @@ Save the result in `project-list-file' if the list of projects has changed."
         (when (equal dir (car ent))
           (setq project--list (delq ent project--list))))
       (push (list dir) project--list)
-      (project--write-project-list))))
+      (unless no-write
+        (project--write-project-list)))))
 
 (defun project--remove-from-project-list (project-root report-message)
   "Remove directory PROJECT-ROOT of a missing project from the project list.
@@ -1286,7 +1334,7 @@ passed to `message' as its first argument."
     (project--write-project-list)))
 
 ;;;###autoload
-(defun project-remove-known-project (project-root)
+(defun project-forget-project (project-root)
   "Remove directory PROJECT-ROOT from the project list.
 PROJECT-ROOT is the root directory of a known project listed in
 the project list."
@@ -1306,7 +1354,10 @@ It's also possible to enter an arbitrary directory not in the list."
           ;; completion style).
           (project--file-completion-table
            (append project--list `(,dir-choice))))
-         (pr-dir (completing-read "Select project: " choices nil t)))
+         (pr-dir ""))
+    (while (equal pr-dir "")
+      ;; If the user simply pressed RET, do this again until they don't.
+      (setq pr-dir (completing-read "Select project: " choices nil t)))
     (if (equal pr-dir dir-choice)
         (read-directory-name "Select directory: " default-directory nil t)
       pr-dir)))
@@ -1325,13 +1376,77 @@ It's also possible to enter an arbitrary directory not in the list."
   (let ((default-directory (project-root (project-current t))))
     (call-interactively #'execute-extended-command)))
 
+(defun project-remember-projects-under (dir &optional recursive)
+  "Index all projects below a directory DIR.
+If RECURSIVE is non-nil, recurse into all subdirectories to find
+more projects.  After finishing, a message is printed summarizing
+the progress.  The function returns the number of detected
+projects."
+  (interactive "DDirectory: \nP")
+  (project--ensure-read-project-list)
+  (let ((queue (directory-files dir t nil t)) (count 0)
+        (known (make-hash-table
+                :size (* 2 (length project--list))
+                :test #'equal )))
+    (dolist (project (mapcar #'car project--list))
+      (puthash project t known))
+    (while queue
+      (when-let ((subdir (pop queue))
+                 ((file-directory-p subdir))
+                 ((not (gethash subdir known))))
+        (when-let (pr (project--find-in-directory subdir))
+          (project-remember-project pr t)
+          (message "Found %s..." (project-root pr))
+          (setq count (1+ count)))
+        (when (and recursive (file-symlink-p subdir))
+          (setq queue (nconc (directory-files subdir t nil t) queue))
+          (puthash subdir t known))))
+    (unless (eq recursive 'in-progress)
+      (if (zerop count)
+          (message "No projects were found")
+        (project--write-project-list)
+        (message "%d project%s were found"
+                 count (if (= count 1) "" "s"))))
+    count))
+
+(defun project-forget-zombie-projects ()
+  "Forget all known projects that don't exist any more."
+  (interactive)
+  (dolist (proj (project-known-project-roots))
+    (unless (file-exists-p proj)
+      (project-forget-project proj))))
+
+(defun project-forget-projects-under (dir &optional recursive)
+  "Forget all known projects below a directory DIR.
+If RECURSIVE is non-nil, recurse into all subdirectories to
+remove all known projects.  After finishing, a message is printed
+summarizing the progress.  The function returns the number of
+forgotten projects."
+  (interactive "DDirectory: \nP")
+  (let ((count 0))
+    (if recursive
+        (dolist (proj (project-known-project-roots))
+          (when (file-in-directory-p proj dir)
+            (project-forget-project proj)
+            (setq count (1+ count))))
+      (dolist (proj (project-known-project-roots))
+        (when (file-equal-p (file-name-directory proj) dir)
+          (project-forget-project proj)
+          (setq count (1+ count)))))
+    (if (zerop count)
+        (message "No projects were forgotten")
+      (project--write-project-list)
+      (message "%d project%s were forgotten"
+               count (if (= count 1) "" "s")))
+    count))
+
 
 ;;; Project switching
 
 (defcustom project-switch-commands
   '((project-find-file "Find file")
     (project-find-regexp "Find regexp")
-    (project-dired "Dired")
+    (project-find-dir "Find directory")
     (project-vc-dir "VC-Dir")
     (project-eshell "Eshell"))
   "Alist mapping commands to descriptions.
@@ -1342,17 +1457,22 @@ Each element is of the form (COMMAND LABEL &optional KEY) where
 COMMAND is the command to run when KEY is pressed.  LABEL is used
 to distinguish the menu entries in the dispatch menu.  If KEY is
 absent, COMMAND must be bound in `project-prefix-map', and the
-key is looked up in that map."
+key is looked up in that map.
+
+The value can also be a symbol, the name of the command to be
+invoked immediately without any dispatch menu."
   :version "28.1"
   :group 'project
   :package-version '(project . "0.6.0")
-  :type '(repeat
-          (list
-           (symbol :tag "Command")
-           (string :tag "Label")
-           (choice :tag "Key to press"
-            (const :tag "Infer from the keymap" nil)
-            (character :tag "Explicit key")))))
+  :type '(choice
+          (repeat :tag "Commands menu"
+           (list
+            (symbol :tag "Command")
+            (string :tag "Label")
+            (choice :tag "Key to press"
+                    (const :tag "Infer from the keymap" nil)
+                    (character :tag "Explicit key"))))
+          (symbol :tag "Single command")))
 
 (defcustom project-switch-use-entire-map nil
   "Make `project-switch-project' use entire `project-prefix-map'.
@@ -1382,15 +1502,7 @@ are legal even if they aren't listed in the dispatch menu."
    project-switch-commands
    "  "))
 
-;;;###autoload
-(defun project-switch-project (dir)
-  "\"Switch\" to another project by running an Emacs command.
-The available commands are presented as a dispatch menu
-made from `project-switch-commands'.
-
-When called in a program, it will use the project corresponding
-to directory DIR."
-  (interactive (list (project-prompt-project-dir)))
+(defun project--switch-project-command ()
   (let* ((commands-menu
           (mapcar
            (lambda (row)
@@ -1421,6 +1533,20 @@ to directory DIR."
           (when (memq global-command
                       '(keyboard-quit keyboard-escape-quit))
             (call-interactively global-command)))))
+    command))
+
+;;;###autoload
+(defun project-switch-project (dir)
+  "\"Switch\" to another project by running an Emacs command.
+The available commands are presented as a dispatch menu
+made from `project-switch-commands'.
+
+When called in a program, it will use the project corresponding
+to directory DIR."
+  (interactive (list (project-prompt-project-dir)))
+  (let ((command (if (symbolp project-switch-commands)
+                     project-switch-commands
+                   (project--switch-project-command))))
     (let ((default-directory dir)
           (project-current-inhibit-prompt t))
       (call-interactively command))))

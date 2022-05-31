@@ -1,10 +1,10 @@
 ;;; seq.el --- Sequence manipulation functions  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2014-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2022 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Petton <nicolas@petton.fr>
 ;; Keywords: sequences
-;; Version: 2.22
+;; Version: 2.23
 ;; Package: seq
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -468,6 +468,18 @@ negative integer or 0, nil is returned."
       (nreverse result))))
 
 ;;;###autoload
+(cl-defgeneric seq-union (sequence1 sequence2 &optional testfn)
+  "Return a list of all elements that appear in either SEQUENCE1 or SEQUENCE2.
+Equality is defined by TESTFN if non-nil or by `equal' if nil."
+  (let* ((accum (lambda (acc elt)
+                  (if (seq-contains-p acc elt testfn)
+                      acc
+                    (cons elt acc))))
+         (result (seq-reduce accum sequence2
+                          (seq-reduce accum sequence1 '()))))
+    (nreverse result)))
+
+;;;###autoload
 (cl-defgeneric seq-intersection (sequence1 sequence2 &optional testfn)
   "Return a list of the elements that appear in both SEQUENCE1 and SEQUENCE2.
 Equality is defined by TESTFN if non-nil or by `equal' if nil."
@@ -478,7 +490,6 @@ Equality is defined by TESTFN if non-nil or by `equal' if nil."
               (seq-reverse sequence1)
               '()))
 
-;;;###autoload
 (cl-defgeneric seq-difference (sequence1 sequence2 &optional testfn)
   "Return a list of the elements that appear in SEQUENCE1 but not in SEQUENCE2.
 Equality is defined by TESTFN if non-nil or by `equal' if nil."
@@ -517,7 +528,7 @@ SEQUENCE must be a sequence of numbers or markers."
   (apply #'max (seq-into sequence 'list)))
 
 (defun seq--count-successive (pred sequence)
-  "Return the number of successive elements for which (PRED element) is non-nil in SEQUENCE."
+  "Count successive elements for which (PRED element) is non-nil in SEQUENCE."
   (let ((n 0)
         (len (seq-length sequence)))
     (while (and (< n len)
@@ -526,7 +537,7 @@ SEQUENCE must be a sequence of numbers or markers."
     n))
 
 (defun seq--make-pcase-bindings (args)
-  "Return a list of bindings of the variables in ARGS to the elements of a sequence."
+  "Return list of bindings of the variables in ARGS to the elements of a sequence."
   (let ((bindings '())
         (index 0)
         (rest-marker nil))
@@ -558,6 +569,7 @@ SEQUENCE must be a sequence of numbers or markers."
 If no element is found, return nil."
   (ignore-errors (seq-elt sequence n)))
 
+;;;###autoload
 (cl-defgeneric seq-random-elt (sequence)
   "Return a random element from SEQUENCE.
 Signal an error if SEQUENCE is empty."

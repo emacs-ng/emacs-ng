@@ -1,6 +1,6 @@
 /* Utility and Unix shadow routines for GNU Emacs on the Microsoft Windows API.
 
-Copyright (C) 1994-1995, 2000-2021 Free Software Foundation, Inc.
+Copyright (C) 1994-1995, 2000-2022 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -39,6 +39,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <sys/time.h>
 #include <sys/utime.h>
 #include <math.h>
+#include <nproc.h>
 
 /* Include (most) CRT headers *before* ms-w32.h.  */
 #include <ms-w32.h>
@@ -1960,6 +1961,16 @@ w32_get_nproc (void)
 	num_of_processors = 1;
     }
   return num_of_processors;
+}
+
+/* Emulate Gnulib's 'num_processors'.  We cannot use the Gnulib
+   version because it unconditionally calls APIs that aren't available
+   on old MS-Windows versions.  */
+unsigned long
+num_processors (enum nproc_query query)
+{
+  /* We ignore QUERY.  */
+  return w32_get_nproc ();
 }
 
 static void
@@ -6584,7 +6595,8 @@ acl_get_file (const char *fname, acl_type_t type)
 		  xfree (psd);
 		  err = GetLastError ();
 		  if (err == ERROR_NOT_SUPPORTED
-		      || err == ERROR_ACCESS_DENIED)
+		      || err == ERROR_ACCESS_DENIED
+		      || err == ERROR_INVALID_FUNCTION)
 		    errno = ENOTSUP;
 		  else if (err == ERROR_FILE_NOT_FOUND
 			   || err == ERROR_PATH_NOT_FOUND
@@ -6603,10 +6615,11 @@ acl_get_file (const char *fname, acl_type_t type)
 		   || err == ERROR_INVALID_NAME)
 	    errno = ENOENT;
 	  else if (err == ERROR_NOT_SUPPORTED
-		   /* ERROR_ACCESS_DENIED is what we get for a volume
-		      mounted by WebDAV, which evidently doesn't
-		      support ACLs.  */
-		   || err == ERROR_ACCESS_DENIED)
+		   /* ERROR_ACCESS_DENIED or ERROR_INVALID_FUNCTION is
+		      what we get for a volume mounted by WebDAV,
+		      which evidently doesn't support ACLs.  */
+		   || err == ERROR_ACCESS_DENIED
+		   || err == ERROR_INVALID_FUNCTION)
 	    errno = ENOTSUP;
 	  else
 	    errno = EIO;

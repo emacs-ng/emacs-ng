@@ -1,6 +1,6 @@
 ;;; find-dired.el --- run a `find' command and dired the output  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992, 1994-1995, 2000-2021 Free Software Foundation,
+;; Copyright (C) 1992, 1994-1995, 2000-2022 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Roland McGrath <roland@gnu.org>,
@@ -266,7 +266,7 @@ it finishes, type \\[kill-find]."
 
 ;;;###autoload
 (defun find-name-dired (dir pattern)
-  "Search DIR recursively for files matching the globbing pattern PATTERN,
+  "Search DIR recursively for files matching the globbing PATTERN,
 and run Dired on those files.
 PATTERN is a shell wildcard (not an Emacs regexp) and need not be quoted.
 The default command run (after changing into DIR) is

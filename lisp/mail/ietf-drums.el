@@ -1,6 +1,6 @@
 ;;; ietf-drums.el --- Functions for parsing RFC 2822 headers  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2022 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; This file is part of GNU Emacs.
@@ -150,7 +150,7 @@ backslash and doublequote.")
       (buffer-string))))
 
 (defun ietf-drums-get-comment (string)
-  "Return the first comment in STRING."
+  "Return the last comment in STRING."
   (with-temp-buffer
     (ietf-drums-init string)
     (let (result c)

@@ -1,6 +1,6 @@
 ;;; semantic/analyze/complete.el --- Smart Completions  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -70,7 +70,8 @@ context.  Passing in a context is useful if the caller also needs
 to access parts of the analysis.
 The remaining FLAGS arguments are passed to the mode specific completion engine.
 Bad flags should be ignored by modes that don't use them.
-See `semantic-analyze-possible-completions-default' for details on the default FLAGS.
+See `semantic-analyze-possible-completions-default' for details
+on the default FLAGS.
 
 Completions run through the following filters:
   * Elements currently in scope
@@ -107,7 +108,7 @@ in a buffer."
     ;; Buffer was not parsed by Semantic.
     ;; Raise error if called interactively.
     (when (called-interactively-p 'any)
-      (error "Buffer was not parsed by Semantic."))))
+      (error "Buffer was not parsed by Semantic"))))
 
 (defvar semantic--prefixtypes)
 

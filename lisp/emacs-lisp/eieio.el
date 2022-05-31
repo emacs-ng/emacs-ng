@@ -1,7 +1,7 @@
 ;;; eieio.el --- Enhanced Implementation of Emacs Interpreted Objects  -*- lexical-binding:t -*-
 ;;;              or maybe Eric's Implementation of Emacs Interpreted Objects
 
-;; Copyright (C) 1995-1996, 1998-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1995-1996, 1998-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Version: 1.4
@@ -205,7 +205,7 @@ and reference them using the function `class-option'."
                    (eieio-oset this ',sname value))
                 accessors)
           (push `(cl-defmethod ,acces ((this ,name))
-                   ,(format
+                   ,(internal--format-docstring-line
                      "Retrieve the slot `%S' from an object of class `%S'."
                      sname name)
                    ;; FIXME: Why is this different from the :reader case?
@@ -285,7 +285,8 @@ This method is obsolete."
 
           ;; Non-abstract classes need a constructor.
           `(defun ,name (&rest slots)
-             ,(format "Create a new object of class type `%S'." name)
+             ,(internal--format-docstring-line
+               "Create a new object of class type `%S'." name)
              (declare (compiler-macro
                        (lambda (whole)
                          (if (not (stringp (car slots)))

@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1997--2021 Free Software Foundation, Inc.
+@c Copyright (C) 1997--2022 Free Software Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Customization
 @chapter Customization Settings
@@ -593,6 +593,9 @@ want to take the time to work out a more specific type to use.
 
 @item integer
 The value must be an integer.
+
+@item natnum
+The value must be a nonnegative integer.
 
 @item number
 The value must be a number (floating point or integer).

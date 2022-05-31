@@ -1,6 +1,6 @@
 ;;; tcl.el --- Tcl code editing commands for Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1994, 1998-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1994, 1998-2022 Free Software Foundation, Inc.
 
 ;; Author: Tom Tromey <tromey@redhat.com>
 ;;    Chris Lindblad <cjl@lcs.mit.edu>
@@ -288,7 +288,7 @@ quoted for Tcl."
     ["Tcl help" tcl-help-on-word tcl-help-directory-list]))
 
 (defvar inferior-tcl-buffer nil
-  "The current inferior-tcl process buffer.
+  "The current `inferior-tcl' process buffer.
 
 MULTIPLE PROCESS SUPPORT
 ===========================================================================

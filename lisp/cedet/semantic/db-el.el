@@ -1,6 +1,6 @@
 ;;; semantic/db-el.el --- Semantic database extensions for Emacs Lisp  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2021  Free Software Foundation, Inc.
+;; Copyright (C) 2002-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: tags
@@ -328,7 +328,7 @@ Like `semanticdb-find-tags-for-completion-method' for Emacs Lisp."
 ;;
 (cl-defmethod semanticdb-find-tags-external-children-of-type-method
   ((_table semanticdb-table-emacs-lisp) type &optional tags)
-  "Find all nonterminals which are child elements of TYPE
+  "Find all nonterminals which are child elements of TYPE.
 Optional argument TAGS is a list of tags to search.
 Return a list of tags."
   (if tags (cl-call-next-method)

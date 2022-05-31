@@ -1,6 +1,6 @@
 ;;; cc-styles.el --- support for styles in CC Mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985, 1987, 1992-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1987, 1992-2022 Free Software Foundation, Inc.
 
 ;; Authors:    2004- Alan Mackenzie
 ;;             1998- Martin Stjernholm
@@ -406,7 +406,7 @@ a null operation."
 
 ;;;###autoload
 (defun c-add-style (style description &optional set-p)
-  "Adds a style to `c-style-alist', or updates an existing one.
+  "Add a style to `c-style-alist', or update an existing one.
 STYLE is a string identifying the style to add or update.  DESCRIPTION
 is an association list describing the style and must be of the form:
 

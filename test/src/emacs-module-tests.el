@@ -1,6 +1,6 @@
 ;;; emacs-module-tests.el --- Test GNU Emacs modules.  -*- lexical-binding: t; -*-
 
-;; Copyright 2015-2021 Free Software Foundation, Inc.
+;; Copyright 2015-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -324,7 +324,9 @@ local reference."
 
 (mod-test-sum a b)
 
-Return A + B"
+Return A + B
+
+"
                        module-file-suffix))))))
 
 (ert-deftest module/load-history ()

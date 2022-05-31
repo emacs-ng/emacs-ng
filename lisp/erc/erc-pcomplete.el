@@ -1,6 +1,6 @@
 ;;; erc-pcomplete.el --- Provides programmable completion for ERC  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2004, 2006-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2004, 2006-2022 Free Software Foundation, Inc.
 
 ;; Author: Sacha Chua <sacha@free.net.ph>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>
@@ -44,7 +44,7 @@
 (require 'time-date)
 
 (defgroup erc-pcomplete nil
-  "Programmable completion for ERC"
+  "Programmable completion for ERC."
   :group 'erc)
 
 (defcustom erc-pcomplete-nick-postfix ":"
@@ -53,8 +53,7 @@ add this string to nicks completed."
   :type 'string)
 
 (defcustom erc-pcomplete-order-nickname-completions t
-  "If t, channel nickname completions will be ordered such that
-the most recent speakers are listed first."
+  "If t, order nickname completions with the most recent speakers first."
   :type 'boolean)
 
 ;;;###autoload(autoload 'erc-completion-mode "erc-pcomplete" nil t)

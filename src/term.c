@@ -1,5 +1,5 @@
 /* Terminal control module for terminals described by TERMCAP
-   Copyright (C) 1985-1987, 1993-1995, 1998, 2000-2021 Free Software
+   Copyright (C) 1985-1987, 1993-1995, 1998, 2000-2022 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -549,13 +549,14 @@ encode_terminal_code (struct glyph *src, int src_len,
     {
       if (src->type == COMPOSITE_GLYPH)
 	{
-	  struct composition *cmp UNINIT;
+	  struct composition *cmp;
 	  Lisp_Object gstring UNINIT;
 	  int i;
 
 	  nbytes = buf - encode_terminal_src;
 	  if (src->u.cmp.automatic)
 	    {
+	      cmp = NULL;
 	      gstring = composition_gstring_from_id (src->u.cmp.id);
 	      required = src->slice.cmp.to - src->slice.cmp.from + 1;
 	    }
@@ -575,7 +576,7 @@ encode_terminal_code (struct glyph *src, int src_len,
 	      buf = encode_terminal_src + nbytes;
 	    }
 
-	  if (src->u.cmp.automatic)
+	  if (!cmp)
 	    for (i = src->slice.cmp.from; i <= src->slice.cmp.to; i++)
 	      {
 		Lisp_Object g = LGSTRING_GLYPH (gstring, i);
@@ -2575,21 +2576,8 @@ handle_one_term_event (struct tty_display_info *tty, Gpm_Event *event)
     {
       f->mouse_moved = 0;
       term_mouse_click (&ie, event, f);
-      /* eassert (ie.kind == MOUSE_CLICK_EVENT); */
-      if (tty_handle_tab_bar_click (f, event->x, event->y,
-                                    (ie.modifiers & down_modifier) != 0, &ie))
-        {
-          /* eassert (ie.kind == MOUSE_CLICK_EVENT
-           *          || ie.kind == TAB_BAR_EVENT); */
-          /* tty_handle_tab_bar_click stores 2 events in the event
-             queue, so we are done here.  */
-          /* FIXME: Actually, `tty_handle_tab_bar_click` returns true
-             without storing any events, when
-             (ie.modifiers & down_modifier) != 0  */
-          count += 2;
-          return count;
-        }
-      /* eassert (ie.kind == MOUSE_CLICK_EVENT); */
+      ie.arg = tty_handle_tab_bar_click (f, event->x, event->y,
+					 (ie.modifiers & down_modifier) != 0, &ie);
       kbd_buffer_store_event (&ie);
       count++;
     }

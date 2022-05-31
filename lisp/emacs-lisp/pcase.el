@@ -1,6 +1,6 @@
 ;;; pcase.el --- ML-style pattern-matching macro for Elisp -*- lexical-binding: t -*-
 
-;; Copyright (C) 2010-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: extensions
@@ -86,7 +86,7 @@
         (funcall pf (and me (symbolp me) (edebug-get-spec me))))))
 
 (defun pcase--get-macroexpander (s)
-  "Return the macroexpander for pcase pattern head S, or nil"
+  "Return the macroexpander for pcase pattern head S, or nil."
   (get s 'pcase-macroexpander))
 
 ;;;###autoload
@@ -201,7 +201,11 @@ Emacs Lisp manual for more information and examples."
 ;;;###autoload
 (defmacro pcase-exhaustive (exp &rest cases)
   "The exhaustive version of `pcase' (which see).
-If EXP fails to match any of the patterns in CASES, an error is signaled."
+If EXP fails to match any of the patterns in CASES, an error is
+signaled.
+
+In contrast, `pcase' will return nil if there is no match, but
+not signal an error."
   (declare (indent 1) (debug pcase))
   (let* ((x (gensym "x"))
          (pcase--dontwarn-upats (cons x pcase--dontwarn-upats)))

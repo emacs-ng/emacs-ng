@@ -1,6 +1,6 @@
 /* conf_post.h --- configure.ac includes this via AH_BOTTOM
 
-Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2021 Free Software
+Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2022 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -293,7 +293,6 @@ extern int emacs_setenv_TZ (char const *);
   ATTRIBUTE_FORMAT ((PRINTF_ARCHETYPE, string_index, first_to_check))
 
 #define ARG_NONNULL ATTRIBUTE_NONNULL
-#define ATTRIBUTE_UNUSED MAYBE_UNUSED
 
 /* Declare NAME to be a pointer to an object of type TYPE, initialized
    to the address ADDR, which may be of a different type.  Accesses

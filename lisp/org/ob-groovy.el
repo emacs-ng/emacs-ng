@@ -1,8 +1,9 @@
 ;;; ob-groovy.el --- Babel Functions for Groovy      -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2013-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
 
 ;; Author: Miro Bezjak
+;; Maintainer: Palak Mathur
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: https://orgmode.org
 
@@ -25,7 +26,7 @@
 ;; Currently only supports the external execution.  No session support yet.
 
 ;;; Requirements:
-;; - Groovy language :: http://groovy.codehaus.org
+;; - Groovy language :: https://groovy-lang.org
 ;; - Groovy major mode :: Can be installed from MELPA or
 ;;   https://github.com/russel/Emacs-Groovy-Mode
 

@@ -1,6 +1,6 @@
 ;;; ede/auto.el --- Autoload features for EDE  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -69,7 +69,7 @@ into memory.")
   (let* ((fc (oref dirmatch fromconfig))
 	 (found (cond ((stringp fc) fc)
 		      ((functionp fc) (funcall fc))
-		      (t (error "Unknown dirmatch object match style.")))))
+                      (t (error "Unknown dirmatch object match style")))))
     (expand-file-name found)
     ))
 
@@ -129,7 +129,7 @@ into memory.")
 
      ;; Error if none others known
      (t
-      (error "Unknown dirmatch object match style.")))
+      (error "Unknown dirmatch object match style")))
     ))
 
 (declare-function ede-directory-safe-p "ede")

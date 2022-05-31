@@ -1,6 +1,6 @@
 ;;; eldoc.el --- Show function arglist or variable docstring in echo area  -*- lexical-binding:t; -*-
 
-;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2022 Free Software Foundation, Inc.
 
 ;; Author: Noah Friedman <friedman@splode.com>
 ;; Keywords: extensions
@@ -437,7 +437,7 @@ return any documentation.")
 (defvar eldoc-display-functions
   '(eldoc-display-in-echo-area eldoc-display-in-buffer)
   "Hook of functions tasked with displaying ElDoc results.
-Each function is passed two arguments: DOCS and INTERACTIVE. DOCS
+Each function is passed two arguments: DOCS and INTERACTIVE.  DOCS
 is a list (DOC ...) where DOC looks like (STRING :KEY VALUE :KEY2
 VALUE2 ...).  STRING is a string containing the documentation's
 text and the remainder of DOC is an optional list of
@@ -477,6 +477,7 @@ This holds the results of the last documentation request."
       (let ((inhibit-read-only t)
             (things-reported-on))
         (erase-buffer) (setq buffer-read-only t)
+        (setq-local nobreak-char-display nil)
         (local-set-key "q" 'quit-window)
         (cl-loop for (docs . rest) on docs
                  for (this-doc . plist) = docs

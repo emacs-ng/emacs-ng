@@ -1,6 +1,6 @@
 ;;; tibet-util.el --- utilities for Tibetan   -*- coding: utf-8-emacs; lexical-binding: t; -*-
 
-;; Copyright (C) 1997, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2001-2022 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -281,8 +281,9 @@ The returned string has no composition information."
 ;;;###autoload
 (defun tibetan-decompose-region (from to)
   "Decompose Tibetan text in the region FROM and TO.
-This is different from decompose-region because precomposed Tibetan characters
-are decomposed into normal Tibetan character sequences."
+This is different from `decompose-region' because precomposed
+Tibetan characters are decomposed into normal Tibetan character
+sequences."
   (interactive "r")
   (save-restriction
     (narrow-to-region from to)
@@ -301,8 +302,9 @@ are decomposed into normal Tibetan character sequences."
 ;;;###autoload
 (defun tibetan-decompose-string (str)
   "Decompose Tibetan string STR.
-This is different from decompose-string because precomposed Tibetan characters
-are decomposed into normal Tibetan character sequences."
+This is different from `decompose-string' because precomposed
+Tibetan characters are decomposed into normal Tibetan character
+sequences."
   (let ((new "")
 	(len (length str))
 	(idx 0)
@@ -332,7 +334,7 @@ See also the documentation of the function `tibetan-decompose-region'."
 ;;;###autoload
 (defun tibetan-compose-buffer ()
   "Composes Tibetan character components in the buffer.
-See also docstring of the function tibetan-compose-region."
+See also docstring of the function `tibetan-compose-region'."
   (interactive)
   (make-local-variable 'tibetan-decomposed)
   (tibetan-compose-region (point-min) (point-max))

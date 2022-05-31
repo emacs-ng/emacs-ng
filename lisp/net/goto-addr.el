@@ -1,6 +1,6 @@
 ;;; goto-addr.el --- click to browse URL or to send to e-mail address  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995, 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1995, 2000-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric Ding <ericding@alum.mit.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -124,8 +124,9 @@ will have no effect.")
     m)
   "Keymap to hold goto-addr's mouse key defs under highlighted URLs.")
 
-(defun goto-address-context-menu (menu)
-  (when (mouse-posn-property (event-start last-input-event) 'goto-address)
+(defun goto-address-context-menu (menu click)
+  "Populate MENU with `goto-address' commands at CLICK."
+  (when (mouse-posn-property (event-start click) 'goto-address)
     (define-key menu [goto-address-separator] menu-bar-separator)
     (define-key menu [goto-address-at-mouse]
       '(menu-item "Follow Link" goto-address-at-mouse

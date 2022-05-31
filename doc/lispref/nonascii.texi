@@ -1,6 +1,6 @@
 @c -*- mode: texinfo; coding: utf-8 -*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1998--1999, 2001--2021 Free Software Foundation, Inc.
+@c Copyright (C) 1998--1999, 2001--2022 Free Software Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Non-ASCII Characters
 @chapter Non-@acronym{ASCII} Characters
@@ -459,7 +459,7 @@ of character properties.  In particular, Emacs supports the
 @uref{https://www.unicode.org/reports/tr23/, Unicode Character Property
 Model}, and the Emacs character property database is derived from the
 Unicode Character Database (@acronym{UCD}).  See the
-@uref{https://www.unicode.org/versions/Unicode12.1.0/ch04.pdf, Character
+@uref{https://www.unicode.org/versions/Unicode14.0.0/ch04.pdf, Character
 Properties chapter of the Unicode Standard}, for a detailed
 description of Unicode character properties and their meaning.  This
 section assumes you are already familiar with that chapter of the
@@ -855,15 +855,24 @@ function to all or part of the characters in a charset:
 Call @var{function} for characters in @var{charset}.  @var{function}
 is called with two arguments.  The first one is a cons cell
 @code{(@var{from} .  @var{to})}, where @var{from} and @var{to}
-indicate a range of characters contained in charset.  The second
-argument passed to @var{function} is @var{arg}.
+indicate a range of characters contained in @var{charset}.  The second
+argument passed to @var{function} is @var{arg}, or @code{nil} if
+@var{arg} is omitted.
 
 By default, the range of codepoints passed to @var{function} includes
 all the characters in @var{charset}, but optional arguments
 @var{from-code} and @var{to-code} limit that to the range of
 characters between these two codepoints of @var{charset}.  If either
 of them is @code{nil}, it defaults to the first or last codepoint of
-@var{charset}, respectively.
+@var{charset}, respectively.  Note that @var{from-code} and
+@var{to-code} are @var{charset}'s codepoints, not the Emacs codes of
+characters; by contrast, the values @var{from} and @var{to} in the
+cons cell passed to @var{function} @emph{are} Emacs character codes.
+Those Emacs character codes are either Unicode code points, or Emacs
+internal code points that extend Unicode and are beyond the Unicode
+range of characters @code{0..#x10FFFF} (@pxref{Text Representations}).
+The latter happens rarely, with legacy CJK charsets for codepoints of
+@var{charset} which specify characters not yet unified with Unicode.
 @end defun
 
 @node Scanning Charsets
@@ -1048,9 +1057,9 @@ Alternativnyj, and KOI8.
   Every coding system specifies a particular set of character code
 conversions, but the coding system @code{undecided} is special: it
 leaves the choice unspecified, to be chosen heuristically for each
-file, based on the file's data.  The coding system @code{prefer-utf-8}
-is like @code{undecided}, but it prefers to choose @code{utf-8} when
-possible.
+file or string, based on the file's or string's data, when they are
+decoded or encoded.  The coding system @code{prefer-utf-8} is like
+@code{undecided}, but it prefers to choose @code{utf-8} when possible.
 
   In general, a coding system doesn't guarantee roundtrip identity:
 decoding a byte sequence using a coding system, then encoding the
@@ -1921,9 +1930,24 @@ length of the decoded text.  If that buffer is a unibyte buffer
 the decoded text (@pxref{Text Representations}) is inserted into the
 buffer as individual bytes.
 
+@cindex @code{charset}, text property on buffer text
 This command puts a @code{charset} text property on the decoded text.
 The value of the property states the character set used to decode the
 original text.
+
+@cindex undecided coding-system, when decoding
+This command detects the encoding of the text if necessary.  If
+@var{coding-system} is @code{undecided}, the command detects the
+encoding of the text based on the byte sequences it finds in the text,
+and also detects the type of end-of-line convention used by the text
+(@pxref{Lisp and Coding Systems, eol type}).  If @var{coding-system}
+is @code{undecided-@var{eol-type}}, where @var{eol-type} is
+@code{unix}, @code{dos}, or @code{mac}, then the command detects only
+the encoding of the text.  Any @var{coding-system} that doesn't
+specify @var{eol-type}, as in @code{utf-8}, causes the command to
+detect the end-of-line convention; specify the encoding completely, as
+in @code{utf-8-unix}, if the EOL convention used by the text is known
+in advance, to prevent any automatic detection.
 @end deffn
 
 @defun decode-coding-string string coding-system &optional nocopy buffer
@@ -1936,13 +1960,16 @@ trivial.  To make explicit decoding useful, the contents of
 values, but a multibyte string is also acceptable (assuming it
 contains 8-bit bytes in their multibyte form).
 
+This function detects the encoding of the string if needed, like
+@code{decode-coding-region} does.
+
 If optional argument @var{buffer} specifies a buffer, the decoded text
 is inserted in that buffer after point (point does not move).  In this
 case, the return value is the length of the decoded text.  If that
 buffer is a unibyte buffer, the internal representation of the decoded
 text is inserted into it as individual bytes.
 
-@cindex @code{charset}, text property
+@cindex @code{charset}, text property on strings
 This function puts a @code{charset} text property on the decoded text.
 The value of the property states the character set used to decode the
 original text:

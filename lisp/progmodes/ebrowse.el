@@ -1,6 +1,6 @@
 ;;; ebrowse.el --- Emacs C++ class browser & tags facility  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2022 Free Software Foundation, Inc.
 
 ;; Author: Gerd Moellmann <gerd@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -3062,7 +3062,7 @@ the first derived class."
 
 (easy-menu-define
  ebrowse-member-name-object-menu ebrowse-member-mode-map
- "Object menu for member names"
+ "Object menu for member names."
  '("Ebrowse"
    ["Find Definition" ebrowse-find-member-definition
     :help "Find this member's definition in the source files"
@@ -3633,7 +3633,12 @@ If regular expression is nil, repeat last search."
 ;;;###autoload
 (defun ebrowse-tags-query-replace (from to)
   "Query replace FROM with TO in all files of a class tree.
-With prefix arg, process files of marked classes only."
+With prefix arg, process files of marked classes only.
+
+As each match is found, the user must type a character saying
+what to do with it.  Type SPC or `y' to replace the match,
+DEL or `n' to skip and go to the next match.  For more directions,
+type \\[help-command] at that time."
   (interactive
    "sTree query replace (regexp): \nsTree query replace %s by: ")
   (setq ebrowse-tags-loop-call
@@ -4200,7 +4205,7 @@ EVENT is the mouse event."
 
 (easy-menu-define
  ebrowse-tree-buffer-class-object-menu ebrowse-tree-mode-map
- "Object menu for classes in the tree buffer"
+ "Object menu for classes in the tree buffer."
  '("Class"
    ["Functions" ebrowse-tree-command:show-member-functions
     :help "Display a list of member functions"
@@ -4242,7 +4247,7 @@ EVENT is the mouse event."
 
 (easy-menu-define
  ebrowse-tree-buffer-object-menu ebrowse-tree-mode-map
- "Object menu for tree buffers"
+ "Object menu for tree buffers."
  '("Ebrowse"
    ["Filename Display" ebrowse-toggle-file-name-display
     :help "Toggle display of source files names"

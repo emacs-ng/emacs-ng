@@ -1,6 +1,6 @@
 ;;; iimage.el --- Inline image minor mode.  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2004-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2022 Free Software Foundation, Inc.
 
 ;; Author: KOSEKI Yoshinori <kose@meadowy.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -50,7 +50,7 @@
   :group 'image)
 
 (defcustom iimage-mode-image-search-path nil
-  "List of directories to search for image files for iimage-mode."
+  "List of directories to search for image files for `iimage-mode'."
   :type '(choice (const nil) (repeat directory)))
 
 (defvar iimage-mode-image-filename-regex

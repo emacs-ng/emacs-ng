@@ -1,6 +1,6 @@
 ;;; fortune.el --- use fortune to create signatures  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Holger Schauer <Holger.Schauer@gmx.de>
 ;; Keywords: games utils mail
@@ -142,7 +142,7 @@ No need to add an `in'."
 ;;; **************
 ;;; Inserting a new fortune
 (defun fortune-append (string &optional interactive file)
-  "Appends STRING to the fortune FILE.
+  "Append STRING to the fortune FILE.
 
 If INTERACTIVE is non-nil, don't compile the fortune file afterwards."
   (setq file (expand-file-name

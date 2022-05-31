@@ -1,6 +1,6 @@
 ;;; proced.el --- operate on system processes like dired  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2008-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
 
 ;; Author: Roland Winkler <winkler@gnu.org>
 ;; Keywords: Processes, Unix
@@ -32,7 +32,7 @@
 ;; - Allow "sudo kill PID", "sudo renice PID"
 ;;   `proced-send-signal' operates on multiple processes one by one.
 ;;   With "sudo" we want to execute one "kill" or "renice" command
-;;   for all marked processes. Is there a `sudo-call-process'?
+;;   for all marked processes.  Is there a `sudo-call-process'?
 ;;
 ;; Thoughts and Ideas
 ;; - Currently, `process-attributes' returns the list of
@@ -497,8 +497,8 @@ Important: the match ends just after the marker.")
     km)
   "Keymap for Proced commands.")
 
-(easy-menu-define
-  proced-menu proced-mode-map "Proced Menu"
+(easy-menu-define proced-menu proced-mode-map
+  "Proced Menu."
   `("Proced"
     ["Mark" proced-mark
      :help "Mark Current Process"]
@@ -1330,11 +1330,12 @@ It is converted to the corresponding attribute key.
 This command updates the variable `proced-sort'.
 Prefix ARG controls sort order, see `proced-sort-interactive'."
   (interactive (list last-input-event (or last-prefix-arg 'no-arg)))
-  (let ((start (event-start event))
-        col key)
+  (let* ((start (event-start event))
+         (obj (posn-object start))
+         col key)
     (save-selected-window
       (select-window (posn-window start))
-      (setq col (+ (1- (car (posn-actual-col-row start)))
+      (setq col (+ (if obj (cdr obj) (posn-point start))
                    (window-hscroll)))
       (when (and (<= 0 col) (< col (length proced-header-line)))
         (setq key (get-text-property col 'proced-key proced-header-line))

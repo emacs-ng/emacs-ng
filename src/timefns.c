@@ -1,6 +1,6 @@
 /* Timestamp functions for Emacs
 
-Copyright (C) 1985-1987, 1989, 1993-2021 Free Software Foundation, Inc.
+Copyright (C) 1985-1987, 1989, 1993-2022 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -18,6 +18,11 @@ You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
+
+/* Work around GCC bug 102671.  */
+#if 10 <= __GNUC__
+# pragma GCC diagnostic ignored "-Wanalyzer-null-dereference"
+#endif
 
 #include "systime.h"
 
@@ -1417,8 +1422,9 @@ without consideration for daylight saving time.
 The value is a copy of FORMAT-STRING, but with certain constructs replaced
 by text that describes the specified date and time in TIME:
 
-%Y is the year, %y within the century, %C the century.
-%G is the year corresponding to the ISO week, %g within the century.
+%Y is the year, %y year without century, %C the century.
+%G is the year corresponding to the ISO week, %g year corresponding
+ to the ISO week, without century.
 %m is the numeric month.
 %b and %h are the locale's abbreviated month name, %B the full name.
  (%h is not supported on MS-Windows.)
@@ -1426,7 +1432,7 @@ by text that describes the specified date and time in TIME:
 %u is the numeric day of week from 1 (Monday) to 7, %w from 0 (Sunday) to 6.
 %a is the locale's abbreviated name of the day of week, %A the full name.
 %U is the week number starting on Sunday, %W starting on Monday,
- %V according to ISO 8601.
+ %V the week number according to ISO 8601.
 %j is the day of the year.
 
 %H is the hour on a 24-hour clock, %I is on a 12-hour clock, %k is like %H

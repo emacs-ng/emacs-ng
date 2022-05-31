@@ -1,6 +1,6 @@
 ;;; solar-tests.el --- tests for solar.el            -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -16,6 +16,8 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Code:
 
 (require 'ert)
 (require 'solar)
@@ -42,3 +44,5 @@
       (should (< (abs (- sunset 17.72)) epsilon)))))
 
 (provide 'solar-tests)
+
+;;; solar-tests.el ends here

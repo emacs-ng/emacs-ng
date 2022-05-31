@@ -1,6 +1,6 @@
 ;;; gdb-mi-tests.el --- tests for gdb-mi.el    -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -16,6 +16,8 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Code:
 
 (require 'ert)
 (require 'gdb-mi)
@@ -44,3 +46,5 @@
   )
 
 (provide 'gdb-mi-tests)
+
+;;; gdb-mi-tests.el ends here

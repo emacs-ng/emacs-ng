@@ -1,6 +1,6 @@
 ;;; erc-xdcc.el --- XDCC file-server support for ERC  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2003-2004, 2006-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2004, 2006-2022 Free Software Foundation, Inc.
 
 ;; Author: Mario Lang <mlang@delysid.org>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>
@@ -68,7 +68,7 @@ being evaluated and should return strings."
 
 ;;;###autoload
 (defun erc-xdcc-add-file (file)
-  "Add a file to `erc-xdcc-files'."
+  "Add FILE to `erc-xdcc-files'."
   (interactive "fFilename to add to XDCC: ")
   (if (file-exists-p file)
       (add-to-list 'erc-xdcc-files file)))

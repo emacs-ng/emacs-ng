@@ -1,6 +1,6 @@
 ;;; nadvice-tests.el --- Test suite for the new advice thingy.  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2012-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -208,4 +208,4 @@ function being an around advice."
 ;; no-byte-compile: t
 ;; End:
 
-;;; advice-tests.el ends here.
+;;; nadvice-tests.el ends here

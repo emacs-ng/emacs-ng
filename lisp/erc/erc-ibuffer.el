@@ -1,6 +1,6 @@
 ;;; erc-ibuffer.el --- ibuffer integration with ERC  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002, 2004, 2006-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2002, 2004, 2006-2022 Free Software Foundation, Inc.
 
 ;; Author: Mario Lang <mlang@delysid.org>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>
@@ -38,17 +38,16 @@
   :group 'erc)
 
 (defcustom erc-ibuffer-keyword-char ?k
-  "Char used to indicate a channel which had keyword traffic lately (hidden)."
+  "Char indicating a channel which had keyword traffic lately (hidden)."
   :type 'character)
 (defcustom erc-ibuffer-pal-char ?p
-  "Char used to indicate a channel which had pal traffic lately (hidden)."
+  "Char indicating a channel which had pal traffic lately (hidden)."
   :type 'character)
 (defcustom erc-ibuffer-fool-char ?f
-  "Char used to indicate a channel which had fool traffic lately (hidden)."
+  "Char indicating a channel which had fool traffic lately (hidden)."
   :type 'character)
 (defcustom erc-ibuffer-dangerous-host-char ?d
-  "Char used to indicate a channel which had dangerous-host traffic lately
-\(hidden)."
+  "Char indicating a channel which had dangerous-host traffic lately (hidden)."
   :type 'character)
 
 (define-ibuffer-filter erc-server

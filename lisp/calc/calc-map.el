@@ -1,6 +1,6 @@
 ;;; calc-map.el --- higher-order functions for Calc  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -139,7 +139,7 @@
 
 (defvar calc-verify-arglist t)
 (defun calc-map-stack ()
-  "This is meant to be called by calc-keypad mode."
+  "This is meant to be called by `calc-keypad' mode."
   (interactive)
   (let ((calc-verify-arglist nil))
     (calc-unread-command ?\$)

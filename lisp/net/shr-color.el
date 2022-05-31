@@ -1,6 +1,6 @@
 ;;; shr-color.el --- Simple HTML Renderer color management  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2010-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
 
 ;; Author: Julien Danjou <julien@danjou.info>
 ;; Keywords: html
@@ -30,7 +30,7 @@
 (eval-when-compile (require 'cl-lib))
 
 (defgroup shr-color nil
-  "Simple HTML Renderer colors"
+  "Simple HTML Renderer colors."
   :group 'shr)
 
 (defcustom shr-color-visible-luminance-min 40

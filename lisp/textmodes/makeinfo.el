@@ -1,6 +1,6 @@
 ;;; makeinfo.el --- run makeinfo conveniently  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1991, 1993, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1991, 1993, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Robert J. Chassell
 ;; Maintainer: emacs-devel@gnu.org
@@ -175,10 +175,9 @@ command to gain use of `next-error'."
              'makeinfo-compilation-sentinel-region)))))))
 
 (defun makeinfo-next-error (_arg _reset)
-  "This function is used to disable `next-error' if the user has
-used `makeinfo-region'.  Since the compilation process is used on
-a temporary file in that case, calling `next-error' would give
-nonsensical results."
+  "This is used to disable `next-error' if the user has used `makeinfo-region'.
+Since the compilation process is used on a temporary file in that
+case, calling `next-error' would give nonsensical results."
   (error "Use `makeinfo-buffer' to gain use of the `next-error' command"))
 
 ;; Actually run makeinfo.  COMMAND is the command to run.  If

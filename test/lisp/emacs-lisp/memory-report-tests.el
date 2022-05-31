@@ -1,6 +1,6 @@
 ;;; memory-report-tests.el --- tests for memory-report.el -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -16,6 +16,8 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Code:
 
 (require 'ert)
 (require 'memory-report)
@@ -67,6 +69,14 @@
                 (make-hash-table :test #'eq)
                 (vector string string))
                124))))
+
+(ert-deftest memory-report-sizes-structs ()
+  (cl-defstruct memory-report-test-struct
+    (item0 nil)
+    (item1 nil))
+  (let ((s (make-memory-report-test-struct :item0 "hello" :item1 "world")))
+    (should (= (memory-report-object-size s)
+               90))))
 
 (provide 'memory-report-tests)
 

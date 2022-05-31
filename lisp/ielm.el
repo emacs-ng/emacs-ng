@@ -1,6 +1,6 @@
 ;;; ielm.el --- interaction mode for Emacs Lisp  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1994, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: David Smith <maa036@lancaster.ac.uk>
 ;; Maintainer: emacs-devel@gnu.org
@@ -440,8 +440,7 @@ nonempty, then flushes the buffer."
                                  (concat (buffer-string) aux))))))
           (error
            (setq error-type "IELM Error")
-           (setq result (format "Error during pretty-printing (bug in pp): %S"
-                                err)))
+           (setq result (format "Error during pretty-printing: %S" err)))
           (quit  (setq error-type "IELM Error")
                  (setq result "Quit during pretty-printing"))))
       (if error-type

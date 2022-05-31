@@ -1,6 +1,6 @@
 ;;; esh-mode.el --- user interface  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -315,6 +315,8 @@ and the hook `eshell-exit-hook'."
   (setq-local bookmark-make-record-function #'eshell-bookmark-make-record)
   (setq local-abbrev-table eshell-mode-abbrev-table)
 
+  (setq-local window-point-insertion-type t)
+
   (setq-local list-buffers-directory (expand-file-name default-directory))
 
   ;; always set the tab width to 8 in Eshell buffers, since external
@@ -499,7 +501,7 @@ and the hook `eshell-exit-hook'."
     (yank)))
 
 (defun eshell-bol ()
-  "Goes to the beginning of line, then skips past the prompt, if any."
+  "Go to the beginning of line, then skip past the prompt, if any."
   (interactive)
   (beginning-of-line)
   (and eshell-skip-prompt-function
@@ -696,13 +698,10 @@ This is done after all necessary filtering has been done."
                   (setq oend (+ oend nchars)))
               ;; Let the ansi-color overlay hooks run.
               (let ((inhibit-modification-hooks nil))
-                (insert-before-markers string))
+                (insert string))
               (if (= (window-start) (point))
                   (set-window-start (selected-window)
                                     (- (point) nchars)))
-              (if (= (point) eshell-last-input-end)
-                  (set-marker eshell-last-input-end
-                              (- eshell-last-input-end nchars)))
               (set-marker eshell-last-output-start ostart)
               (set-marker eshell-last-output-end (point))
               (force-mode-line-update))
@@ -993,8 +992,6 @@ This function could be in the list `eshell-output-filter-functions'."
 
 ;;; Bookmark support:
 
-(declare-function bookmark-make-record-default
-                  "bookmark" (&optional no-file no-context posn))
 (declare-function bookmark-prop-get "bookmark" (bookmark prop))
 
 (defun eshell-bookmark-name ()

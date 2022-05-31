@@ -1,6 +1,6 @@
 ;;; rmail.el --- main code of "RMAIL" mail reader for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1988, 1993-1998, 2000-2021 Free Software
+;; Copyright (C) 1985-1988, 1993-1998, 2000-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -207,8 +207,7 @@ or `-k' to enable Kerberos authentication."
 
 (defvar rmail-remote-password-error "invalid usercode or password\\|
 unknown user name or bad password\\|Authentication failed\\|MU_ERR_AUTH_FAILURE"
-  "Regular expression matching incorrect-password POP or IMAP server error
-messages.
+  "Regexp matching incorrect-password POP or IMAP server error messages.
 If you get an incorrect-password error that this expression does not match,
 please report it with \\[report-emacs-bug].")
 
@@ -3357,12 +3356,12 @@ removing prefixes such as Re:, Fwd: and so on and mailing list
 tags such as [tag]."
   (let ((subject (or (rmail-get-header "Subject" msgnum) ""))
 	(regexp "\\`[ \t\n]*\\(\\(\\w\\{1,4\\}\u00a0*[:：]\\|\\[[^]]+]\\)[ \t\n]+\\)*"))
+    (setq subject (rfc2047-decode-string subject))
     ;; Corporate mailing systems sometimes add `[External] :'; if that happened,
     ;; delete everything up thru there.  Empirically, that deletion makes
     ;; the Subject match the other messages in the thread.
     (if (string-match "\\[external][ \t\n]*:" subject)
         (setq subject (substring subject (match-end 0))))
-    (setq subject (rfc2047-decode-string subject))
     (setq subject (replace-regexp-in-string regexp "" subject))
     (replace-regexp-in-string "[ \t\n]+" " " subject)))
 
@@ -4483,7 +4482,7 @@ TEXT and INDENT are not used."
 
 (defun rmail-get-remote-password (imap user host)
   "Get the password for retrieving mail from a POP or IMAP server.
-If none has been set, the password is found via auth-source. If
+If none has been set, the password is found via auth-source.  If
 you use ~/.authinfo as your auth-source backend, then put
 something like the following in that file:
 

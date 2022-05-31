@@ -1,10 +1,10 @@
 ;;; python.el --- Python's flying circus support for Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 2003-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2022 Free Software Foundation, Inc.
 
 ;; Author: Fabián E. Gallina <fgallina@gnu.org>
 ;; URL: https://github.com/fgallina/python.el
-;; Version: 0.27.1
+;; Version: 0.28
 ;; Package-Requires: ((emacs "24.2") (cl-lib "1.0"))
 ;; Maintainer: emacs-devel@gnu.org
 ;; Created: Jul 2010
@@ -542,7 +542,7 @@ the {...} holes that appear within f-strings."
      (1 font-lock-function-name-face))
     (,(rx symbol-start "class" (1+ space) (group (1+ (or word ?_))))
      (1 font-lock-type-face)))
-  "Font lock keywords to use in python-mode for level 1 decoration.
+  "Font lock keywords to use in `python-mode' for level 1 decoration.
 
 This is the minimum decoration level, including function and
 class declarations.")
@@ -555,9 +555,6 @@ class declarations.")
           "assert" "else" "if" "pass" "yield" "break" "except" "import" "class"
           "in" "raise" "continue" "finally" "is" "return" "def" "for" "lambda"
           "try"
-          ;; Python 2:
-          "print" "exec"
-          ;; Python 3:
           ;; False, None, and True are listed as keywords on the Python 3
           ;; documentation, but since they also qualify as constants they are
           ;; fontified like that in order to keep font-lock consistent between
@@ -596,7 +593,7 @@ class declarations.")
            ;; Extras:
            "__all__")
           symbol-end) . font-lock-builtin-face))
-  "Font lock keywords to use in python-mode for level 2 decoration.
+  "Font lock keywords to use in `python-mode' for level 2 decoration.
 
 This is the medium decoration level, including everything in
 `python-font-lock-keywords-level-1', as well as keywords and
@@ -712,7 +709,7 @@ avoid '==' being treated as an assignment."
                   (or ")" "]") (* space)
                   assignment-operator))
      (1 font-lock-variable-name-face)))
-  "Font lock keywords to use in python-mode for maximum decoration.
+  "Font lock keywords to use in `python-mode' for maximum decoration.
 
 This decoration level includes everything in
 `python-font-lock-keywords-level-2', as well as constants,
@@ -726,7 +723,7 @@ decorators, exceptions, and assignments.")
                                                  ; is more than 1, or t (which it is,
                                                  ; by default).
     )
-  "List of font lock keyword specifications to use in python-mode.
+  "List of font lock keyword specifications to use in `python-mode'.
 
 Which one will be chosen depends on the value of
 `font-lock-maximum-decoration'.")
@@ -775,12 +772,21 @@ is used to limit the scan."
            ;; The first quote is escaped, so it's not part of a triple quote!
            (goto-char (1+ quote-starting-pos)))
           ((null string-start)
-           ;; This set of quotes delimit the start of a string.
-           (put-text-property quote-starting-pos (1+ quote-starting-pos)
+           ;; This set of quotes delimit the start of a string.  Put
+           ;; string fence syntax on last quote. (bug#49518)
+           ;; FIXME: This makes sexp-movement a bit suboptimal since """a"""
+           ;; is now treated as 3 strings.
+           ;; We could probably have our cake and eat it too by
+           ;; putting the string fence on the first quote and then
+           ;; convincing `syntax-ppss-flush-cache' to flush to before
+           ;; that fence when any char of the 3-char delimiter
+           ;; is modified.
+           (put-text-property (1- quote-ending-pos) quote-ending-pos
                               'syntax-table (string-to-syntax "|")))
           (t
-           ;; This set of quotes delimit the end of a string.
-           (put-text-property (1- quote-ending-pos) quote-ending-pos
+           ;; This set of quotes delimit the end of a string.  Put
+           ;; string fence syntax on first quote. (bug#49518)
+           (put-text-property quote-starting-pos (1+ quote-starting-pos)
                               'syntax-table (string-to-syntax "|"))))))
 
 (defvar python-mode-syntax-table
@@ -1614,23 +1620,20 @@ of the statement."
                        ;; are somehow out of whack.  This has been
                        ;; observed when using `syntax-ppss' during
                        ;; narrowing.
-                       (cl-assert (>= string-start last-string-end)
-                                  :show-args
-                                  "\
-Overlapping strings detected (start=%d, last-end=%d)")
-                       (goto-char string-start)
-                       (if (python-syntax-context 'paren)
-                           ;; Ended up inside a paren, roll again.
-                           (python-nav-end-of-statement t)
-                         ;; This is not inside a paren, move to the
-                         ;; end of this string.
-                         (goto-char (+ (point)
-                                       (python-syntax-count-quotes
-                                        (char-after (point)) (point))))
-                         (setq last-string-end
-                               (or (re-search-forward
-                                    (rx (syntax string-delimiter)) nil t)
-                                   (goto-char (point-max))))))
+                       (when (>= string-start last-string-end)
+                         (goto-char string-start)
+                         (if (python-syntax-context 'paren)
+                             ;; Ended up inside a paren, roll again.
+                             (python-nav-end-of-statement t)
+                           ;; This is not inside a paren, move to the
+                           ;; end of this string.
+                           (goto-char (+ (point)
+                                         (python-syntax-count-quotes
+                                          (char-after (point)) (point))))
+                           (setq last-string-end
+                                 (or (re-search-forward
+                                      (rx (syntax string-delimiter)) nil t)
+                                     (goto-char (point-max)))))))
                       ((python-syntax-context 'paren)
                        ;; The statement won't end before we've escaped
                        ;; at least one level of parenthesis.
@@ -2022,7 +2025,12 @@ position, else returns nil."
   (cond ((executable-find "python3") "python3")
         ((executable-find "python") "python")
         (t "python3"))
-  "Default Python interpreter for shell."
+  "Default Python interpreter for shell.
+
+Some Python interpreters also require changes to
+`python-shell-interpreter-args'.  In particular, setting
+`python-shell-interpreter' to \"ipython3\" requires setting
+`python-shell-interpreter-args' to \"--simple-prompt\"."
   :version "28.1"
   :type 'string
   :group 'python)
@@ -2183,6 +2191,9 @@ virtualenv."
   "`compilation-error-regexp-alist' for inferior Python."
   :type '(alist regexp)
   :group 'python)
+
+(defvar python-shell-output-filter-in-progress nil)
+(defvar python-shell-output-filter-buffer nil)
 
 (defmacro python-shell--add-to-path-with-priority (pathvar paths)
   "Modify PATHVAR and ensure PATHS are added only once at beginning."
@@ -2566,10 +2577,12 @@ the `buffer-name'."
    (format
     (concat
      "import os.path;import sys;"
-     "sys.path.append(os.path.dirname(os.path.dirname('''%s''')));"
-     "__package__ = '''%s''';"
+     "sys.path.append(os.path.dirname(os.path.dirname(%s)));"
+     "__package__ = %s;"
      "import %s")
-    directory package package)
+    (python-shell--encode-string directory)
+    (python-shell--encode-string package)
+    package)
    (python-shell-get-process)))
 
 (defun python-shell-accept-process-output (process &optional timeout regexp)
@@ -2806,6 +2819,49 @@ eventually provide a shell."
   :type 'hook
   :group 'python)
 
+(defconst python-shell-eval-setup-code
+  "\
+def __PYTHON_EL_eval(source, filename):
+    import ast, sys
+    if sys.version_info[0] == 2:
+        from __builtin__ import compile, eval, globals
+    else:
+        from builtins import compile, eval, globals
+    try:
+        p, e = ast.parse(source, filename), None
+    except SyntaxError:
+        t, v, tb = sys.exc_info()
+        sys.excepthook(t, v, tb.tb_next)
+        return
+    if p.body and isinstance(p.body[-1], ast.Expr):
+        e = p.body.pop()
+    try:
+        g = globals()
+        exec(compile(p, filename, 'exec'), g, g)
+        if e:
+            return eval(compile(ast.Expression(e.value), filename, 'eval'), g, g)
+    except Exception:
+        t, v, tb = sys.exc_info()
+        sys.excepthook(t, v, tb.tb_next)"
+  "Code used to evaluate statements in inferior Python processes.")
+
+(defconst python-shell-eval-file-setup-code
+  "\
+def __PYTHON_EL_eval_file(filename, tempname, delete):
+    import codecs, os, re
+    pattern = r'^[ \t\f]*#.*?coding[:=][ \t]*([-_.a-zA-Z0-9]+)'
+    with codecs.open(tempname or filename, encoding='latin-1') as file:
+        match = re.match(pattern, file.readline())
+        match = match or re.match(pattern, file.readline())
+        encoding = match.group(1) if match else 'utf-8'
+    with codecs.open(tempname or filename, encoding=encoding) as file:
+        source = file.read().encode(encoding)
+    if delete and tempname:
+        os.remove(tempname)
+    return __PYTHON_EL_eval(source, filename)"
+  "Code used to evaluate files in inferior Python processes.
+The coding cookie regexp is specified in PEP 263.")
+
 (defun python-shell-comint-watch-for-first-prompt-output-filter (output)
   "Run `python-shell-first-prompt-hook' when first prompt is found in OUTPUT."
   (when (not python-shell--first-prompt-received)
@@ -2821,6 +2877,15 @@ eventually provide a shell."
           (setq python-shell--first-prompt-received-output-buffer nil)
         (setq-local python-shell--first-prompt-received t)
         (setq python-shell--first-prompt-received-output-buffer nil)
+        (cl-letf (((symbol-function 'python-shell-send-string)
+                   (lambda (string process)
+                     (comint-send-string
+                      process
+                      (format "exec(%s)\n" (python-shell--encode-string string))))))
+          ;; Bootstrap: the normal definition of `python-shell-send-string'
+          ;; depends on the Python code sent here.
+          (python-shell-send-string-no-output python-shell-eval-setup-code)
+          (python-shell-send-string-no-output python-shell-eval-file-setup-code))
         (with-current-buffer (current-buffer)
           (let ((inhibit-quit nil))
             (run-hooks 'python-shell-first-prompt-hook))))))
@@ -2926,8 +2991,9 @@ killed."
                   (mapconcat #'identity args " ")))
             (with-current-buffer buffer
               (inferior-python-mode))
-            (when show (display-buffer buffer))
             (and internal (set-process-query-on-exit-flag process nil))))
+        (when show
+          (pop-to-buffer proc-buffer-name))
         proc-buffer-name))))
 
 ;;;###autoload
@@ -2959,7 +3025,6 @@ process buffer for a list of commands.)"
          (python-shell-make-comint
           (or cmd (python-shell-calculate-command))
           (python-shell-get-process-name dedicated) show)))
-    (set-buffer buffer)
     (get-buffer-process buffer)))
 
 (defun run-python-internal ()
@@ -3010,13 +3075,12 @@ of `error' with a user-friendly message."
   (or (python-shell-get-process)
       (if interactivep
           (user-error
-           "Start a Python process first with `M-x run-python' or `%s'."
+           "Start a Python process first with `M-x run-python' or `%s'"
            ;; Get the binding.
            (key-description
             (where-is-internal
              #'run-python overriding-local-map t)))
-        (error
-         "No inferior Python process running."))))
+        (error "No inferior Python process running"))))
 
 (defun python-shell-get-or-create-process (&optional cmd dedicated show)
   "Get or create an inferior Python process for current buffer and return it.
@@ -3072,9 +3136,23 @@ there for compatibility with CEDET.")
          (temp-file-name (make-temp-file "py"))
          (coding-system-for-write (python-info-encoding)))
     (with-temp-file temp-file-name
-      (insert string)
+      (if (bufferp string)
+          (insert-buffer-substring string)
+        (insert string))
       (delete-trailing-whitespace))
     temp-file-name))
+
+(defalias 'python-shell--encode-string
+  (let ((fun (if (and (fboundp 'json-serialize)
+                      (>= emacs-major-version 28))
+                 'json-serialize
+               (require 'json)
+               'json-encode-string)))
+    (lambda (text)
+      (if (stringp text)
+          (funcall fun text)
+        (signal 'wrong-type-argument (list 'stringp text)))))
+  "Encode TEXT as a valid Python string.")
 
 (defun python-shell-send-string (string &optional process msg)
   "Send STRING to inferior Python PROCESS.
@@ -3083,19 +3161,25 @@ user-friendly message if there's no process running; defaults to
 t when called interactively."
   (interactive
    (list (read-string "Python command: ") nil t))
-  (let ((process (or process (python-shell-get-process-or-error msg))))
-    (if (string-match ".\n+." string)   ;Multiline.
-        (let* ((temp-file-name (with-current-buffer (process-buffer process)
-                                 (python-shell--save-temp-file string)))
-               (file-name (or (buffer-file-name) temp-file-name)))
-          (python-shell-send-file file-name process temp-file-name t))
-      (comint-send-string process string)
-      (when (or (not (string-match "\n\\'" string))
-                (string-match "\n[ \t].*\n?\\'" string))
-        (comint-send-string process "\n")))))
-
-(defvar python-shell-output-filter-in-progress nil)
-(defvar python-shell-output-filter-buffer nil)
+  (let ((process (or process (python-shell-get-process-or-error msg)))
+        (code (format "__PYTHON_EL_eval(%s, %s)\n"
+                      (python-shell--encode-string string)
+                      (python-shell--encode-string (or (buffer-file-name)
+                                                       "<string>")))))
+    (unless python-shell-output-filter-in-progress
+      (with-current-buffer (process-buffer process)
+        (save-excursion
+          (goto-char (process-mark process))
+          (insert-before-markers "\n"))))
+    (if (or (null (process-tty-name process))
+            (<= (string-bytes code)
+                (or (bound-and-true-p comint-max-line-length)
+                    1024))) ;; For Emacs < 28
+        (comint-send-string process code)
+      (let* ((temp-file-name (with-current-buffer (process-buffer process)
+                               (python-shell--save-temp-file string)))
+             (file-name (or (buffer-file-name) temp-file-name)))
+        (python-shell-send-file file-name process temp-file-name t)))))
 
 (defun python-shell-output-filter (string)
   "Filter used in `python-shell-send-string-no-output' to grab output.
@@ -3334,11 +3418,15 @@ t when called interactively."
 (defun python-shell-send-file (file-name &optional process temp-file-name
                                          delete msg)
   "Send FILE-NAME to inferior Python PROCESS.
+
 If TEMP-FILE-NAME is passed then that file is used for processing
 instead, while internally the shell will continue to use
-FILE-NAME.  If TEMP-FILE-NAME and DELETE are non-nil, then
-TEMP-FILE-NAME is deleted after evaluation is performed.  When
-optional argument MSG is non-nil, forces display of a
+FILE-NAME.  FILE-NAME can be remote, but TEMP-FILE-NAME must be
+in the same host as PROCESS.  If TEMP-FILE-NAME and DELETE are
+non-nil, then TEMP-FILE-NAME is deleted after evaluation is
+performed.
+
+When optional argument MSG is non-nil, forces display of a
 user-friendly message if there's no process running; defaults to
 t when called interactively."
   (interactive
@@ -3348,27 +3436,26 @@ t when called interactively."
     nil                                 ; temp-file-name
     nil                                 ; delete
     t))                                 ; msg
-  (let* ((process (or process (python-shell-get-process-or-error msg)))
-         (encoding (with-temp-buffer
-                     (insert-file-contents
-                      (or temp-file-name file-name))
-                     (python-info-encoding)))
-         (file-name (file-local-name (expand-file-name file-name)))
+  (setq process (or process (python-shell-get-process-or-error msg)))
+  (with-current-buffer (process-buffer process)
+    (unless (or temp-file-name
+                (string= (file-remote-p file-name)
+                         (file-remote-p default-directory)))
+      (setq delete t
+            temp-file-name (with-temp-buffer
+                             (insert-file-contents file-name)
+                             (python-shell--save-temp-file (current-buffer))))))
+  (let* ((file-name (file-local-name (expand-file-name file-name)))
          (temp-file-name (when temp-file-name
                            (file-local-name (expand-file-name
                                              temp-file-name)))))
-    (python-shell-send-string
+    (comint-send-string
+     process
      (format
-      (concat
-       "import codecs, os;"
-       "__pyfile = codecs.open('''%s''', encoding='''%s''');"
-       "__code = __pyfile.read().encode('''%s''');"
-       "__pyfile.close();"
-       (when (and delete temp-file-name)
-         (format "os.remove('''%s''');" temp-file-name))
-       "exec(compile(__code, '''%s''', 'exec'));")
-      (or temp-file-name file-name) encoding encoding file-name)
-     process)))
+      "__PYTHON_EL_eval_file(%s, %s, %s)\n"
+      (python-shell--encode-string file-name)
+      (python-shell--encode-string (or temp-file-name ""))
+      (if delete "True" "False")))))
 
 (defun python-shell-switch-to-shell (&optional msg)
   "Switch to inferior Python process buffer.
@@ -3470,23 +3557,14 @@ def __PYTHON_EL_get_completions(text):
   "25.1"
   "Completion string code must work for (i)pdb.")
 
-(defcustom python-shell-completion-string-code
-  "';'.join(__PYTHON_EL_get_completions('''%s'''))"
-  "Python code used to get a string of completions separated by semicolons.
-The string passed to the function is the current python name or
-the full statement in the case of imports."
-  :type 'string
-  :group 'python)
-
 (defcustom python-shell-completion-native-disabled-interpreters
   ;; PyPy's readline cannot handle some escape sequences yet.  Native
-  ;; completion was found to be non-functional for IPython (see
-  ;; Bug#25067).  Native completion doesn't work on w32 (Bug#28580).
+  ;; completion doesn't work on w32 (Bug#28580).
   (if (eq system-type 'windows-nt) '("")
-    '("pypy" "ipython"))
+    '("pypy"))
   "List of disabled interpreters.
 When a match is found, native completion is disabled."
-  :version "25.1"
+  :version "28.1"
   :type '(repeat string))
 
 (defcustom python-shell-completion-native-enable t
@@ -3522,13 +3600,12 @@ When a match is found, native completion is disabled."
          python-shell-completion-native-try-output-timeout))
     (python-shell-completion-native-get-completions
      (get-buffer-process (current-buffer))
-     nil "_")))
+     "_")))
 
 (defun python-shell-completion-native-setup ()
   "Try to setup native completion, return non-nil on success."
-  (let ((process (python-shell-get-process)))
-    (with-current-buffer (process-buffer process)
-      (python-shell-send-string "
+  (let* ((process (python-shell-get-process))
+         (output (python-shell-send-string-no-output "
 def __PYTHON_EL_native_completion_setup():
     try:
         import readline
@@ -3631,6 +3708,8 @@ def __PYTHON_EL_native_completion_setup():
             readline.parse_and_bind('tab: complete')
             # Require just one tab to send output.
             readline.parse_and_bind('set show-all-if-ambiguous on')
+            # Avoid replacing common prefix with ellipsis.
+            readline.parse_and_bind('set completion-prefix-display-length 0')
 
         print ('python.el: native completion setup loaded')
     except:
@@ -3638,14 +3717,10 @@ def __PYTHON_EL_native_completion_setup():
         print ('python.el: native completion setup failed, %s: %s'
                % sys.exc_info()[:2])
 
-__PYTHON_EL_native_completion_setup()" process)
-      (when (and
-             (python-shell-accept-process-output
-              process python-shell-completion-native-try-output-timeout)
-             (save-excursion
-               (re-search-backward
-                (regexp-quote "python.el: native completion setup loaded") nil t 1)))
-        (python-shell-completion-native-try)))))
+__PYTHON_EL_native_completion_setup()" process)))
+    (when (string-match-p "python\\.el: native completion setup loaded"
+                          output)
+      (python-shell-completion-native-try))))
 
 (defun python-shell-completion-native-turn-off (&optional msg)
   "Turn off shell native completions.
@@ -3705,13 +3780,10 @@ With argument MSG show activation/deactivation message."
       (python-shell-completion-native-turn-on msg))
     python-shell-completion-native-enable))
 
-(defun python-shell-completion-native-get-completions (process import input)
-  "Get completions using native readline for PROCESS.
-When IMPORT is non-nil takes precedence over INPUT for
-completion."
+(defun python-shell-completion-native-get-completions (process input)
+  "Get completions of INPUT using native readline for PROCESS."
   (with-current-buffer (process-buffer process)
-    (let* ((input (or import input))
-           (original-filter-fn (process-filter process))
+    (let* ((original-filter-fn (process-filter process))
            (redirect-buffer (get-buffer-create
                              python-shell-completion-native-redirect-buffer))
            (trigger "\t")
@@ -3763,22 +3835,23 @@ completion."
                  :test #'string=))))
         (set-process-filter process original-filter-fn)))))
 
-(defun python-shell-completion-get-completions (process import input)
-  "Do completion at point using PROCESS for IMPORT or INPUT.
-When IMPORT is non-nil takes precedence over INPUT for
-completion."
-  (setq input (or import input))
+(defun python-shell-completion-get-completions (process input)
+  "Get completions of INPUT using PROCESS."
   (with-current-buffer (process-buffer process)
     (let ((completions
            (python-util-strip-string
             (python-shell-send-string-no-output
              (format
-              (concat python-shell-completion-setup-code
-                      "\nprint (" python-shell-completion-string-code ")")
-              input) process))))
+              "%s\nprint(';'.join(__PYTHON_EL_get_completions(%s)))"
+              python-shell-completion-setup-code
+              (python-shell--encode-string input))
+             process))))
       (when (> (length completions) 2)
         (split-string completions
                       "^'\\|^\"\\|;\\|'$\\|\"$" t)))))
+
+(defvar-local python-shell--capf-cache nil
+  "Variable to store cached completions and invalidation keys.")
 
 (defun python-shell-completion-at-point (&optional process)
   "Function for `completion-at-point-functions' in `inferior-python-mode'.
@@ -3833,12 +3906,21 @@ using that one instead of current buffer's process."
                        ;; it during a multiline statement (Bug#28051).
                        #'ignore
                      #'python-shell-completion-get-completions))
-                  (t #'python-shell-completion-native-get-completions)))))
-    (list start end
-          (completion-table-dynamic
-           (apply-partially
-            completion-fn
-            process import-statement)))))
+                  (t #'python-shell-completion-native-get-completions))))
+         (prev-prompt (car python-shell--capf-cache))
+         (re (or (cadr python-shell--capf-cache) regexp-unmatchable))
+         (prefix (buffer-substring-no-properties start end)))
+    ;; To invalidate the cache, we check if the prompt position or the
+    ;; completion prefix changed.
+    (unless (and (equal prev-prompt (car prompt-boundaries))
+                 (string-match re prefix))
+      (setq python-shell--capf-cache
+            `(,(car prompt-boundaries)
+              ,(if (string-empty-p prefix)
+                   regexp-unmatchable
+                 (concat "\\`" (regexp-quote prefix) "\\(?:\\sw\\|\\s_\\)*\\'"))
+              ,@(funcall completion-fn process (or import-statement prefix)))))
+    (list start end (cddr python-shell--capf-cache))))
 
 (define-obsolete-function-alias
   'python-shell-completion-complete-at-point
@@ -4231,6 +4313,7 @@ JUSTIFY should be used (if applicable) as in `fill-paragraph'."
                (and (equal (string-to-syntax "|")
                            (syntax-after (point)))
                     (point)))))
+         ;; JT@2021-09-21: Since bug#49518's fix this will always be 1
          (num-quotes (python-syntax-count-quotes
                       (char-after str-start-pos) str-start-pos))
          (str-line-start-pos
@@ -4498,28 +4581,16 @@ def __FFAP_get_module_path(objstr):
   :type 'string
   :group 'python)
 
-(defcustom python-ffap-string-code
-  "__FFAP_get_module_path('''%s''')"
-  "Python code used to get a string with the path of a module."
-  :type 'string
-  :group 'python)
-
 (defun python-ffap-module-path (module)
   "Function for `ffap-alist' to return path for MODULE."
-  (let ((process (or
-                  (and (derived-mode-p 'inferior-python-mode)
-                       (get-buffer-process (current-buffer)))
-                  (python-shell-get-process))))
-    (if (not process)
-        nil
-      (let ((module-file
-             (python-shell-send-string-no-output
-              (concat
-               python-ffap-setup-code
-               "\nprint (" (format python-ffap-string-code module) ")")
-              process)))
-        (unless (zerop (length module-file))
-          (python-util-strip-string module-file))))))
+  (when-let ((process (python-shell-get-process))
+             (module-file
+              (python-shell-send-string-no-output
+               (format "%s\nprint(__FFAP_get_module_path(%s))"
+                       python-ffap-setup-code
+                       (python-shell--encode-string module)))))
+    (unless (string-empty-p module-file)
+      (python-util-strip-string module-file))))
 
 (defvar ffap-alist)
 
@@ -4610,12 +4681,6 @@ See `python-check-command' for the default."
   :type 'string
   :group 'python)
 
-(defcustom python-eldoc-string-code
-  "__PYDOC_get_help('''%s''')"
-  "Python code used to get a string with the documentation of an object."
-  :type 'string
-  :group 'python)
-
 (defun python-eldoc--get-symbol-at-point ()
   "Get the current symbol for eldoc.
 Returns the current symbol handling point within arguments."
@@ -4645,18 +4710,19 @@ returns will be used.  If not FORCE-PROCESS is passed what
                 ;; enabled.  Bug#18794.
                 (python-util-strip-string
                  (python-shell-send-string-no-output
-                  (concat
+                  (format
+                   "%s\nprint(__PYDOC_get_help(%s))"
                    python-eldoc-setup-code
-                   "\nprint(" (format python-eldoc-string-code input) ")")
+                   (python-shell--encode-string input))
                   process)))))
-        (unless (zerop (length docstring))
+        (unless (string-empty-p docstring)
           docstring)))))
 
 (defvar-local python-eldoc-get-doc t
-  "Non-nil means eldoc should fetch the documentation
-  automatically.  Set to nil by `python-eldoc-function' if
-  `python-eldoc-function-timeout-permanent' is non-nil and
-  `python-eldoc-function' times out.")
+  "Non-nil means eldoc should fetch the documentation automatically.
+Set to nil by `python-eldoc-function' if
+`python-eldoc-function-timeout-permanent' is non-nil and
+`python-eldoc-function' times out.")
 
 (defcustom python-eldoc-function-timeout 1
   "Timeout for `python-eldoc-function' in seconds."
@@ -4700,7 +4766,9 @@ Interactively, prompt for symbol."
   (interactive
    (let ((symbol (python-eldoc--get-symbol-at-point))
          (enable-recursive-minibuffers t))
-     (list (read-string (format-prompt "Describe symbol" symbol)
+     (list (read-string (if symbol
+                            (format "Describe symbol (default %s): " symbol)
+                          "Describe symbol: ")
                         nil nil symbol))))
   (message (python-eldoc--get-doc-at-point symbol)))
 
@@ -4712,10 +4780,9 @@ Interactively, prompt for symbol."
 
 ;;; Hideshow
 
-(defun python-hideshow-forward-sexp-function (arg)
+(defun python-hideshow-forward-sexp-function (_arg)
   "Python specific `forward-sexp' function for `hs-minor-mode'.
 Argument ARG is ignored."
-  arg  ; Shut up, byte compiler.
   (python-nav-end-of-defun)
   (unless (python-info-current-line-empty-p)
     (backward-char)))
@@ -5502,6 +5569,8 @@ By default messages are considered errors."
 (defcustom python-forward-sexp-function #'python-nav-forward-sexp
   "Function to use when navigating between expressions."
   :version "28.1"
+  :group 'python
+  :group 'python-flymake
   :type '(choice (const :tag "Python blocks" python-nav-forward-sexp)
                  (const :tag "CC-mode like" nil)
                  function))

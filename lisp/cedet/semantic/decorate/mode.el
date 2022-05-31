@@ -1,6 +1,6 @@
 ;;; semantic/decorate/mode.el --- Minor mode for decorating tags  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2005, 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2005, 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: syntax
@@ -409,8 +409,11 @@ decoration API found in this library."
        ;; Create an override method to specify if a given tag belongs
        ;; to this type of decoration
        (define-overloadable-function ,predicate (tag)
-         ,(format "Return non-nil to decorate TAG with `%s' style.\n%s"
-                  name doc))
+         ,(concat
+           (internal--format-docstring-line
+            "Return non-nil to decorate TAG with `%s' style."
+            name)
+           "\n" doc))
        ;; Create an override method that will perform the highlight
        ;; operation if the -p method returns non-nil.
        (define-overloadable-function ,highlighter (tag)

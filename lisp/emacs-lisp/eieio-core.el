@@ -1,6 +1,6 @@
 ;;; eieio-core.el --- Core implementation for eieio  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1995-1996, 1998-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1995-1996, 1998-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Version: 1.4
@@ -953,7 +953,7 @@ need be... May remove that later...)"
        class))
 
 (defun eieio--c3-merge-lists (reversed-partial-result remaining-inputs)
-  "Merge REVERSED-PARTIAL-RESULT REMAINING-INPUTS in a consistent order, if possible.
+  "Try to merge REVERSED-PARTIAL-RESULT REMAINING-INPUTS in a consistent order.
 If a consistent order does not exist, signal an error."
   (setq remaining-inputs (delq nil remaining-inputs))
   (if (null remaining-inputs)

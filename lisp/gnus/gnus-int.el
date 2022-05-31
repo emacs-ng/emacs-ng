@@ -1,6 +1,6 @@
 ;;; gnus-int.el --- backend interface functions for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2022 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -613,8 +613,7 @@ If BUFFER, insert the article in that group."
 Returns the article number of the message.
 
 If GROUP is not already selected, the message will be the only one in
-the group's summary.
-"
+the group's summary."
   ;; TODO: is there a way to know at this point whether the group will
   ;; be newly-selected?  If so we could clean up the logic at the end
   ;;

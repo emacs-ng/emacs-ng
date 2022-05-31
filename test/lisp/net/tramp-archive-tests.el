@@ -1,6 +1,6 @@
 ;;; tramp-archive-tests.el --- Tests of file archive access  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 
@@ -265,21 +265,20 @@ variables, so we check the Emacs version directly."
 	       (concat
 		(tramp-gvfs-url-file-name
 		 (tramp-make-tramp-file-name
-		  tramp-archive-method
-		  ;; User and Domain.
-		  nil nil
-		  ;; Host.
-		  (url-hexify-string
-		   (concat
-		    "file://"
-		    ;; `directory-file-name' does not leave file
-		    ;; archive boundaries.  So we must cut the
-		    ;; trailing slash ourselves.
-		    (substring
-		     (file-name-directory
-		      (tramp-archive-test-file-archive-hexlified))
-		     0 -1)))
-		  nil "/"))
+		  (make-tramp-file-name
+		   :method tramp-archive-method
+		   :host
+		   (url-hexify-string
+		    (concat
+		     "file://"
+		     ;; `directory-file-name' does not leave file
+		     ;; archive boundaries.  So we must cut the
+		     ;; trailing slash ourselves.
+		     (substring
+		      (file-name-directory
+		       (tramp-archive-test-file-archive-hexlified))
+		      0 -1)))
+		   :localname "/")))
 		(file-name-nondirectory tramp-archive-test-file-archive)))))
 	    (should-not port)
 	    (should (string-equal localname "/bar"))
@@ -923,31 +922,35 @@ This tests also `file-executable-p', `file-writable-p' and `set-file-modes'."
 	 "(progn \
 	    (message \"tramp-archive loaded: %%s\" \
               (featurep 'tramp-archive)) \
-	    (file-attributes %S \"/\") \
+	    (let ((inhibit-message t)) \
+              (file-attributes %S \"/\")) \
 	    (message \"tramp-archive loaded: %%s\" \
-              (featurep 'tramp-archive)))"))
-    (dolist (default-directory
-              `(,temporary-file-directory
-		;;  Starting Emacs in a directory which has
-		;; `tramp-archive-file-name-regexp' syntax is
-		;; supported only with Emacs > 27.2 (sigh!).
-		;; (Bug#48476)
-                ,(file-name-as-directory tramp-archive-test-directory)))
-      (dolist (file `("/mock::foo" ,(concat tramp-archive-test-archive "foo")))
-        (should
-         (string-match
-	  (format
-	   "tramp-archive loaded: %s[[:ascii:]]+tramp-archive loaded: %s"
-	   (tramp-archive-file-name-p default-directory)
-	   (or (tramp-archive-file-name-p default-directory)
-               (tramp-archive-file-name-p file)))
-	  (shell-command-to-string
-	   (format
-	    "%s -batch -Q -L %s --eval %s"
-	    (shell-quote-argument
-	     (expand-file-name invocation-name invocation-directory))
-	    (mapconcat #'shell-quote-argument load-path " -L ")
-	    (shell-quote-argument (format code file))))))))))
+              (featurep 'tramp-archive))))"))
+    (dolist (enabled '(t nil))
+      (dolist (default-directory
+               `(,temporary-file-directory
+		 ;;  Starting Emacs in a directory which has
+		 ;; `tramp-archive-file-name-regexp' syntax is
+		 ;; supported only with Emacs > 27.2 (sigh!).
+		 ;; (Bug#48476)
+                 ,(file-name-as-directory tramp-archive-test-directory)))
+	(dolist (file `("/mock::foo" ,(concat tramp-archive-test-archive "foo")))
+          (should
+           (string-match
+	    (format
+	     "tramp-archive loaded: %s[[:ascii:]]+tramp-archive loaded: %s"
+	     (tramp-archive-file-name-p default-directory)
+	     (or (tramp-archive-file-name-p default-directory)
+		 (and enabled (tramp-archive-file-name-p file))))
+	    (shell-command-to-string
+	     (format
+	      "%s -batch -Q -L %s --eval %s --eval %s"
+	      (shell-quote-argument
+	       (expand-file-name invocation-name invocation-directory))
+	      (mapconcat #'shell-quote-argument load-path " -L ")
+	      (shell-quote-argument
+	       (format "(setq tramp-archive-enabled %s)" enabled))
+	      (shell-quote-argument (format code file)))))))))))
 
 (ert-deftest tramp-archive-test45-delay-load ()
   "Check that `tramp-archive' is loaded lazily, only when needed."

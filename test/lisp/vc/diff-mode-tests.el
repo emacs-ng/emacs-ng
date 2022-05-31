@@ -1,6 +1,6 @@
 ;;; diff-mode-tests.el --- Tests for diff-mode.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
 
 ;; Author: Dima Kogan <dima@secretsauce.net>
 ;; Maintainer: emacs-devel@gnu.org
@@ -481,3 +481,4 @@ baz"))))
                    '("/tmp/ange-ftp1351895K.el" "/tmp/ange-ftp13518wvE.el")))))
 
 (provide 'diff-mode-tests)
+;;; diff-mode-tests.el ends here

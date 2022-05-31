@@ -1,6 +1,6 @@
 ;;; ses-tests.el --- Tests for ses.el              -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
 
 ;; Author: Vincent Belaïche <vincentb1@users.sourceforge.net>
 
@@ -175,3 +175,5 @@ to `ses--bar' and inserting a row, makes A2 value empty, and `ses--bar' equal to
 
 
 (provide 'ses-tests)
+
+;;; ses-tests.el ends here

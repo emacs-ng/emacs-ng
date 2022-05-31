@@ -1,6 +1,6 @@
 ;;; emacsbug.el --- command to report Emacs bugs to appropriate mailing list  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985, 1994, 1997-1998, 2000-2021 Free Software
+;; Copyright (C) 1985, 1994, 1997-1998, 2000-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Author: K. Shane Hartman
@@ -304,6 +304,9 @@ usually do not have translators for other languages.\n\n")))
     (emacs-bug--system-description)
     (insert "Configured features:\n" system-configuration-features "\n\n")
     (fill-region (line-beginning-position -1) (point))
+    (when (and (featurep 'native-compile)
+               (null (native-comp-available-p)))
+      (insert "(NATIVE_COMP present but libgccjit not available)\n\n"))
     (insert "Important settings:\n")
     (mapc
      (lambda (var)
@@ -340,7 +343,7 @@ usually do not have translators for other languages.\n\n")))
     (insert (format "\nFeatures:\n%s\n" features))
     (fill-region (line-beginning-position 0) (point))
 
-    (insert (format "\nMemory information:\n"))
+    (insert "\nMemory information:\n")
     (pp (garbage-collect) (current-buffer))
 
     ;; This is so the user has to type something in order to send easily.
@@ -426,7 +429,7 @@ usually do not have translators for other languages.\n\n")))
     (with-output-to-temp-buffer "*Bug Help*"
       (princ (substitute-command-keys
               (format "\
-You invoked the command M-x report-emacs-bug,
+You invoked the command \\[report-emacs-bug],
 but you decided not to mail the bug report to the Emacs maintainers.
 
 If you want to mail it to someone else instead,

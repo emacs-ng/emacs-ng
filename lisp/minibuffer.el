@@ -1,6 +1,6 @@
 ;;; minibuffer.el --- Minibuffer completion functions -*- lexical-binding: t -*-
 
-;; Copyright (C) 2008-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Package: emacs
@@ -283,8 +283,9 @@ the form (concat S2 S)."
          ((eq (car-safe action) 'boundaries)
           (let ((beg (or (and (eq (car-safe res) 'boundaries) (cadr res)) 0)))
             `(boundaries
-              ,(max (length s1)
-                    (+ beg (- (length s1) (length s2))))
+              ,(min (length string)
+                    (max (length s1)
+                         (+ beg (- (length s1) (length s2)))))
               . ,(and (eq (car-safe res) 'boundaries) (cddr res)))))
          ((stringp res)
           (if (string-prefix-p s2 res completion-ignore-case)
@@ -848,7 +849,7 @@ via `set-message-function'."
                 (run-with-timer minibuffer-message-clear-timeout nil
                                 #'clear-minibuffer-message)))
 
-        ;; Return `t' telling the caller that the message
+        ;; Return t telling the caller that the message
         ;; was handled specially by this function.
         t))))
 
@@ -943,7 +944,12 @@ When completing \"foo\" the glob \"*f*o*o*\" is used, so that
      completion-initials-try-completion completion-initials-all-completions
      "Completion of acronyms and initialisms.
 E.g. can complete M-x lch to list-command-history
-and C-x C-f ~/sew to ~/src/emacs/work."))
+and C-x C-f ~/sew to ~/src/emacs/work.")
+    (shorthand
+     completion-shorthand-try-completion completion-shorthand-all-completions
+     "Completion of symbol shorthands setup in `read-symbol-shorthands'.
+E.g. can complete \"x-foo\" to \"xavier-foo\" if the shorthand
+((\"x-\" . \"xavier-\")) is set up in the buffer of origin."))
   "List of available completion styles.
 Each element has the form (NAME TRY-COMPLETION ALL-COMPLETIONS DOC):
 where NAME is the name that should be used in `completion-styles',
@@ -979,7 +985,11 @@ and DOC describes the way this style of completion works.")
 The available styles are listed in `completion-styles-alist'.
 
 Note that `completion-category-overrides' may override these
-styles for specific categories, such as files, buffers, etc."
+styles for specific categories, such as files, buffers, etc.
+
+Note that Tramp host name completion (e.g., \"/ssh:ho<TAB>\")
+currently doesn't work if this list doesn't contain at least one
+of `basic', `emacs22' or `emacs21'."
   :type completion--styles-type
   :version "23.1")
 
@@ -990,7 +1000,8 @@ styles for specific categories, such as files, buffers, etc."
     ;; e.g. one that does not anchor to bos.
     (project-file (styles . (substring)))
     (xref-location (styles . (substring)))
-    (info-menu (styles . (basic substring))))
+    (info-menu (styles . (basic substring)))
+    (symbol-help (styles . (basic shorthand substring))))
   "Default settings for specific completion categories.
 Each entry has the shape (CATEGORY . ALIST) where ALIST is
 an association list that can specify properties such as:
@@ -1618,6 +1629,9 @@ DONT-CYCLE tells the function not to setup cycling."
 (defvar minibuffer--require-match nil
   "Value of REQUIRE-MATCH passed to `completing-read'.")
 
+(defvar minibuffer--original-buffer nil
+  "Buffer that was current when `completing-read' was called.")
+
 (defun minibuffer-complete-and-exit ()
   "Exit if the minibuffer contains a valid completion.
 Otherwise, try to complete the minibuffer contents.  If
@@ -1807,7 +1821,9 @@ Return nil if there is no valid completion, else t."
     (_     t)))
 
 (defface completions-annotations '((t :inherit (italic shadow)))
-  "Face to use for annotations in the *Completions* buffer.")
+  "Face to use for annotations in the *Completions* buffer.
+This face is only used if the strings used for completions
+doesn't already specify a face.")
 
 (defcustom completions-format 'horizontal
   "Define the appearance and sorting of completions.
@@ -1822,8 +1838,9 @@ in one column."
 
 (defcustom completions-detailed nil
   "When non-nil, display completions with details added as prefix/suffix.
-Some commands might provide a detailed view with more information prepended
-or appended to completions."
+This makes some commands (for instance, \\[describe-symbol]) provide a
+detailed view with more information prepended or appended to
+completions."
   :type 'boolean
   :version "28.1")
 
@@ -2347,14 +2364,18 @@ that displays the \"*Completions*\" buffer."
 
 (add-hook 'minibuffer-exit-hook 'minibuffer-restore-windows)
 
-(defun minibuffer-quit-recursive-edit ()
-  "Quit the command that requested this recursive edit without error.
-Like `abort-recursive-edit' without aborting keyboard macro
-execution."
-  ;; See Info node `(elisp)Recursive Editing' for an explanation of
-  ;; throwing a function to `exit'.
-  (throw 'exit (lambda ()
-                 (signal 'minibuffer-quit nil))))
+(defun minibuffer-quit-recursive-edit (&optional levels)
+  "Quit the command that requested this recursive edit or minibuffer input.
+Do so without terminating keyboard macro recording or execution.
+LEVELS specifies the number of nested recursive edits to quit.
+If nil, it defaults to 1."
+  (unless levels
+    (setq levels 1))
+  (if (> levels 1)
+      ;; See Info node `(elisp)Recursive Editing' for an explanation
+      ;; of throwing a function to `exit'.
+      (throw 'exit (lambda () (minibuffer-quit-recursive-edit (1- levels))))
+    (throw 'exit (lambda () (signal 'minibuffer-quit nil)))))
 
 (defun self-insert-and-exit ()
   "Terminate minibuffer input."
@@ -2683,12 +2704,12 @@ Such values are treated as in `read-from-minibuffer', but are normally
 not useful in this function.)
 
 Third arg INHERIT-INPUT-METHOD, if non-nil, means the minibuffer inherits
-the current input method and the setting of`enable-multibyte-characters'.
+the current input method and the setting of `enable-multibyte-characters'.
 
 If `inhibit-interaction' is non-nil, this function will signal an
 `inhibited-interaction' error."
   (read-from-minibuffer prompt initial minibuffer-local-ns-map
-		        nil minibuffer-history nil inherit-input-method))
+		        nil 'minibuffer-history nil inherit-input-method))
 
 ;;; Major modes for the minibuffer
 
@@ -3198,7 +3219,6 @@ See `read-file-name' for the meaning of the arguments."
         (unless val (error "No file name specified"))
 
         (if (and default-filename
-		 (not (file-remote-p dir))
                  (string-equal val (if (consp insdef) (car insdef) insdef)))
             (setq val default-filename))
         (setq val (substitute-in-file-name val))
@@ -3529,7 +3549,8 @@ string in COMPLETIONS.  Return a deep copy of COMPLETIONS where
 each string is propertized with `completion-score', a number
 between 0 and 1, and with faces `completions-common-part',
 `completions-first-difference' in the relevant segments."
-  (when completions
+  (cond
+   ((and completions (cl-loop for e in pattern thereis (stringp e)))
     (let* ((re (completion-pcm--pattern->regex pattern 'group))
            (point-idx (completion-pcm--pattern-point-idx pattern))
            (case-fold-search completion-ignore-case)
@@ -3563,12 +3584,13 @@ between 0 and 1, and with faces `completions-common-part',
                 ;; "hole" in the middle of the string is indicated by
                 ;; "-".  Note that there are no "holes" near the edges
                 ;; of the string.  The completion score is a number
-                ;; bound by ]0..1]: the higher the better and only a
-                ;; perfect match (pattern equals string) will have
-                ;; score 1.  The formula takes the form of a quotient.
-                ;; For the numerator, we use the number of +, i.e. the
-                ;; length of the pattern.  For the denominator, it
-                ;; first computes
+                ;; bound by (0..1] (i.e., larger than (but not equal
+                ;; to) zero, and smaller or equal to one): the higher
+                ;; the better and only a perfect match (pattern equals
+                ;; string) will have score 1.  The formula takes the
+                ;; form of a quotient.  For the numerator, we use the
+                ;; number of +, i.e. the length of the pattern.  For
+                ;; the denominator, it first computes
                 ;;
                 ;;     hole_i_contrib = 1 + (Li-1)^(1/tightness)
                 ;;
@@ -3620,7 +3642,8 @@ between 0 and 1, and with faces `completions-common-part',
               0 1 'completion-score
               (/ score-numerator (* end (1+ score-denominator)) 1.0) str)))
          str)
-       completions))))
+       completions)))
+   (t completions)))
 
 (defun completion-pcm--find-all-completions (string table pred point
                                                     &optional filter)
@@ -4071,6 +4094,40 @@ which is at the core of flex logic.  The extra
   (let ((newstr (completion-initials-expand string table pred)))
     (when newstr
       (completion-pcm-try-completion newstr table pred (length newstr)))))
+
+;; Shorthand completion
+;;
+;; Iff there is a (("x-" . "string-library-")) shorthand setup and
+;; string-library-foo is in candidates, complete x-foo to it.
+
+(defun completion-shorthand-try-completion (string table pred point)
+  "Try completion with `read-symbol-shorthands' of original buffer."
+  (cl-loop with expanded
+           for (short . long) in
+           (with-current-buffer minibuffer--original-buffer
+             read-symbol-shorthands)
+           for probe =
+           (and (> point (length short))
+                (string-prefix-p short string)
+                (try-completion (setq expanded
+                                      (concat long
+                                              (substring
+                                               string
+                                               (length short))))
+                                table pred))
+           when probe
+           do (message "Shorthand expansion")
+           and return (cons expanded (max (length long)
+                                          (+ (- point (length short))
+                                             (length long))))))
+
+(defun completion-shorthand-all-completions (_string _table _pred _point)
+  ;; no-op: For now, we don't want shorthands to list all the possible
+  ;; locally active longhands.  For the completion categories where
+  ;; this style is active, it could hide other more interesting
+  ;; matches from subsequent styles.
+  nil)
+
 
 (defvar completing-read-function #'completing-read-default
   "The function called by `completing-read' to do its work.
@@ -4102,6 +4159,7 @@ See `completing-read' for the meaning of the arguments."
                     ;; in minibuffer-local-filename-completion-map can
                     ;; override bindings in base-keymap.
                     base-keymap)))
+         (buffer (current-buffer))
          (result
           (minibuffer-with-setup-hook
               (lambda ()
@@ -4110,7 +4168,8 @@ See `completing-read' for the meaning of the arguments."
                 ;; FIXME: Remove/rename this var, see the next one.
                 (setq-local minibuffer-completion-confirm
                             (unless (eq require-match t) require-match))
-                (setq-local minibuffer--require-match require-match))
+                (setq-local minibuffer--require-match require-match)
+                (setq-local minibuffer--original-buffer buffer))
             (read-from-minibuffer prompt initial-input keymap
                                   nil hist def inherit-input-method))))
     (when (and (equal result "") def)

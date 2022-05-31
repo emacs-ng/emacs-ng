@@ -1,6 +1,6 @@
 ;;; calc-units.el --- unit conversion functions for Calc  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -529,7 +529,7 @@ If COMP or STD is non-nil, put that in the units table instead."
   (calc-slow-wrapper
    (let* ((expr (calc-top-n 1)))
      (unless (math-units-in-expr-p expr t)
-       (error "No units in expression."))
+       (error "No units in expression"))
      (let* ((old-units (math-extract-units expr))
             (defunits (math-get-default-units expr))
             units

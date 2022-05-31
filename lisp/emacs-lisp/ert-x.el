@@ -1,6 +1,6 @@
 ;;; ert-x.el --- Staging area for experimental extensions to ERT  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2008, 2010-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2008, 2010-2022 Free Software Foundation, Inc.
 
 ;; Author: Lennart Borgman (lennart O borgman A gmail O com)
 ;;         Christian Ohler <ohler@gnu.org>
@@ -96,7 +96,7 @@ ERT--THUNK with that buffer as current."
 
 To be used in ERT tests.  If BODY finishes successfully, the test
 buffer is killed; if there is an error, the test buffer is kept
-around on error for further inspection.  Its name is derived from
+around for further inspection.  Its name is derived from
 the name of the test and the result of NAME-FORM."
   (declare (debug ((":name" form) def-body))
            (indent 1))
@@ -361,10 +361,11 @@ in the same directory as the test file this is called from.
 
 If that directory doesn't exist, find a directory based on the
 test file name.  If the file is named \"foo-tests.el\", return
-the absolute file name for \"foo-resources\".  If you want a
-different resource directory naming scheme, set the variable
-`ert-resource-directory-format'.  Before formatting, the file
-name will be trimmed using `string-trim' with arguments
+the absolute file name for \"foo-resources\".
+
+If you want a different resource directory naming scheme, set the
+variable `ert-resource-directory-format'.  Before formatting, the
+file name will be trimmed using `string-trim' with arguments
 `ert-resource-directory-trim-left-regexp' and
 `ert-resource-directory-trim-right-regexp'."
   `(let* ((testfile ,(or (macroexp-file-name)
@@ -380,9 +381,9 @@ name will be trimmed using `string-trim' with arguments
                               ert-resource-directory-trim-right-regexp)))))))
 
 (defmacro ert-resource-file (file)
-  "Return file name of resource file named FILE.
-A resource file is in the resource directory as per
-`ert-resource-directory'."
+  "Return absolute file name of resource (test data) file named FILE.
+A resource file is defined as any file placed in the resource
+directory as returned by `ert-resource-directory'."
   `(expand-file-name ,file (ert-resource-directory)))
 
 (provide 'ert-x)

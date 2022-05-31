@@ -1,6 +1,6 @@
 ;;; snmp-mode.el --- SNMP & SNMPv2 MIB major mode  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1995, 1998, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1995, 1998, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Paul D. Smith <psmith@BayNetworks.com>
 ;; Keywords: data
@@ -328,7 +328,7 @@ Tab indents for C code.
 Comments start with -- and end with newline or another --.
 Delete converts tabs to spaces as it moves back.
 \\{snmp-mode-map}
-Turning on snmp-mode runs the hooks in `snmp-common-mode-hook', then
+Turning on `snmp-mode' runs the hooks in `snmp-common-mode-hook', then
 `snmp-mode-hook'."
   (interactive)
 
@@ -361,7 +361,7 @@ Tab indents for C code.
 Comments start with -- and end with newline or another --.
 Delete converts tabs to spaces as it moves back.
 \\{snmp-mode-map}
-Turning on snmp-mode runs the hooks in `snmp-common-mode-hook',
+Turning on `snmp-mode' runs the hooks in `snmp-common-mode-hook',
 then `snmpv2-mode-hook'."
   (interactive)
 

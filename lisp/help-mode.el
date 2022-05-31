@@ -1,6 +1,6 @@
 ;;; help-mode.el --- `help-mode' used by *Help* buffers  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985-1986, 1993-1994, 1998-2021 Free Software
+;; Copyright (C) 1985-1986, 1993-1994, 1998-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -70,7 +70,8 @@
     ["Customize" help-customize
      :help "Customize variable or face"]))
 
-(defun help-mode-context-menu (menu)
+(defun help-mode-context-menu (menu click)
+  "Populate MENU with Help mode commands at CLICK."
   (define-key menu [help-mode-separator] menu-bar-separator)
   (let ((easy-menu (make-sparse-keymap "Help-Mode")))
     (easy-menu-define nil easy-menu nil
@@ -85,12 +86,7 @@
       (when (consp item)
         (define-key menu (vector (car item)) (cdr item)))))
 
-  (when (and
-         ;; First check if `help-fns--list-local-commands'
-         ;; used `where-is-internal' to call this function
-         ;; with wrong `last-input-event'.
-         (eq (current-buffer) (window-buffer (posn-window (event-start last-input-event))))
-         (mouse-posn-property (event-start last-input-event) 'mouse-face))
+  (when (mouse-posn-property (event-start click) 'mouse-face)
     (define-key menu [help-mode-push-button]
       '(menu-item "Follow Link" (lambda (event)
                                   (interactive "e")
@@ -227,6 +223,16 @@ The format is (FUNCTION ARGS...).")
   :supertype 'help-xref
   'help-function #'info
   'help-echo (purecopy "mouse-2, RET: read this Info node"))
+
+(define-button-type 'help-man
+  :supertype 'help-xref
+  'help-function #'man
+  'help-echo (purecopy "mouse-2, RET: read this man page"))
+
+(define-button-type 'help-customization-group
+  :supertype 'help-xref
+  'help-function #'customize-group
+  'help-echo (purecopy "mouse-2, RET: display this customization group"))
 
 (define-button-type 'help-url
   :supertype 'help-xref
@@ -437,6 +443,15 @@ when help commands related to multilingual environment (e.g.,
    "\\<[Ii]nfo[ \t\n]+\\(node\\|anchor\\)[ \t\n]+['`‘]\\([^'’]+\\)['’]")
   "Regexp matching doc string references to an Info node.")
 
+(defconst help-xref-man-regexp
+  (purecopy
+   "\\<[Mm]an[ \t\n]+page[ \t\n]+\\(?:for[ \t\n]+\\)?['`‘\"]\\([^'’\"]+\\)['’\"]")
+  "Regexp matching doc string references to a man page.")
+
+(defconst help-xref-customization-group-regexp
+  (purecopy "\\<[Cc]ustomization[ \t\n]+[Gg]roup[ \t\n]+['`‘]\\([^'’]+\\)['’]")
+  "Regexp matching doc string references to a customization group.")
+
 (defconst help-xref-url-regexp
   (purecopy "\\<[Uu][Rr][Ll][ \t\n]+['`‘]\\([^'’]+\\)['’]")
   "Regexp matching doc string references to a URL.")
@@ -543,6 +558,16 @@ that."
 			(setq data ;; possible newlines if para filled
 			      (replace-regexp-in-string "[ \t\n]+" " " data t t)))
                       (help-xref-button 2 'help-info data))))
+                ;; Man references
+                (save-excursion
+                  (while (re-search-forward help-xref-man-regexp nil t)
+                    (help-xref-button 1 'help-man (match-string 1))))
+                ;; Customization groups.
+                (save-excursion
+                  (while (re-search-forward
+                          help-xref-customization-group-regexp nil t)
+                    (help-xref-button 1 'help-customization-group
+                                      (intern (match-string 1)))))
                 ;; URLs
                 (save-excursion
                   (while (re-search-forward help-xref-url-regexp nil t)
@@ -800,7 +825,7 @@ See `help-make-xrefs'."
 
 (defun help-do-xref (_pos function args)
   "Call the help cross-reference function FUNCTION with args ARGS.
-Things are set up properly so that the resulting help-buffer has
+Things are set up properly so that the resulting help buffer has
 a proper [back] button."
   ;; There is a reference at point.  Follow it.
   (let ((help-xref-following t))

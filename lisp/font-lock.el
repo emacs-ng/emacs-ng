@@ -1,6 +1,6 @@
 ;;; font-lock.el --- Electric font lock mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2022 Free Software Foundation, Inc.
 
 ;; Author: Jamie Zawinski
 ;;	Richard Stallman
@@ -349,7 +349,7 @@ This can be an \"!\" or the \"n\" in \"ifndef\".")
 ;; Fontification variables:
 
 (defvar font-lock-keywords nil
-  "A list of the keywords to highlight.
+  "A list of keywords and corresponding font-lock highlighting rules.
 There are two kinds of values: user-level, and compiled.
 
 A user-level keywords list is what a major mode or the user would
@@ -374,10 +374,10 @@ point, and set `match-data' appropriately if it succeeds; like
 `re-search-forward' would).  MATCHER regexps can be generated via
 the function `regexp-opt'.
 
-FORM is an expression, whose value should be a keyword element,
-evaluated when the keyword is (first) used in a buffer.  This
-feature can be used to provide a keyword that can only be
-generated when Font Lock mode is actually turned on.
+FORM is an expression, whose value should be a keyword element
+of one of the above forms, evaluated when the keyword is (first)
+used in a buffer.  This feature can be used to provide a keyword
+that can only be generated when Font Lock mode is actually turned on.
 
 HIGHLIGHT should be either MATCH-HIGHLIGHT or MATCH-ANCHORED.
 
@@ -697,7 +697,7 @@ comments, and to fontify `and', `or' and `not' words as keywords.
 
 The above procedure will only add the keywords for C mode, not
 for modes derived from C mode.  To add them for derived modes too,
-pass nil for MODE and add the call to c-mode-hook.
+pass nil for MODE and add the call to `c-mode-hook'.
 
 For example:
 
@@ -1039,7 +1039,7 @@ The function is given three parameters, the standard BEG, END, and OLD-LEN
 from `after-change-functions'.  It should return either a cons of the beginning
 and end buffer positions \(in that order) of the region to refontify, or nil
 \(which directs the caller to fontify a default region).
-This function should preserve the match-data.
+This function should preserve the match data.
 The region it returns may start or end in the middle of a line.")
 
 (defun font-lock-fontify-buffer (&optional interactively)
@@ -1103,7 +1103,7 @@ Called with two arguments BEG and END.")
 (defun font-lock-debug-fontify ()
   "Reinitialize the font-lock machinery and (re-)fontify the buffer.
 This functions is a convenience functions when developing font
-locking for a mode, and is not meant to be called from lisp functions."
+locking for a mode, and is not meant to be called from Lisp functions."
   (declare (interactive-only t))
   (interactive)
   ;; Make font-lock recalculate all the mode-specific data.
@@ -1124,7 +1124,7 @@ portion of the buffer."
              (or beg (point-min)) (or end (point-max)))))
 
 (defun font-lock-update (&optional arg)
-  "Updates the syntax highlighting in this buffer.
+  "Update the syntax highlighting in this buffer.
 Refontify the accessible portion of this buffer, or enable Font Lock mode
 in this buffer if it is currently disabled.  With prefix ARG, toggle Font
 Lock mode."
@@ -2341,7 +2341,7 @@ This should be an integer.  Used in `cpp-font-lock-keywords'.")
   "Font lock keywords for C preprocessor directives.
 `c-mode', `c++-mode' and `objc-mode' have their own font lock keywords
 for C preprocessor directives.  This definition is for the other modes
-in which C preprocessor directives are used. e.g. `asm-mode' and
+in which C preprocessor directives are used, e.g. `asm-mode' and
 `ld-script-mode'.")
 
 (provide 'font-lock)

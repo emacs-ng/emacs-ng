@@ -1,6 +1,6 @@
 ### @configure_input@
 
-# Copyright (C) 1985, 1987-1988, 1993-1994, 2001-2021 Free Software
+# Copyright (C) 1985, 1987-1988, 1993-1994, 2001-2022 Free Software
 # Foundation, Inc.
 
 # This file is part of GNU Emacs.
@@ -65,6 +65,7 @@ top_builddir = @top_builddir@
 # Location to install Emacs.app under GNUstep / macOS.
 # Later values may use this.
 ns_appbindir=@ns_appbindir@
+ns_applibexecdir=@ns_applibexecdir@
 
 # The default location for installation.  Everything is placed in
 # subdirectories of this directory.  The default values for many of
@@ -203,6 +204,8 @@ LIB_CLOCK_GETTIME = @LIB_CLOCK_GETTIME@
 LIB_GETRANDOM = @LIB_GETRANDOM@
 ## Whatever libraries are needed for euidaccess
 LIB_EACCESS=@LIB_EACCESS@
+## Libraries needed for file_has_acl
+LIB_HAS_ACL=@LIB_HAS_ACL@
 ## empty or -lwsock2 for MinGW
 LIB_WSOCK32=@LIB_WSOCK32@
 
@@ -439,7 +442,7 @@ pop.o: ${srcdir}/pop.c ${srcdir}/pop.h ${srcdir}/../lib/min-max.h $(config_h)
 emacsclient${EXEEXT}: ${srcdir}/emacsclient.c $(NTLIB) $(config_h)
 	$(AM_V_CCLD)$(CC) ${ALL_CFLAGS} $< \
 	   $(NTLIB) $(LOADLIBES) \
-	   $(LIB_WSOCK32) $(LIB_EACCESS) $(LIBS_ECLIENT) -o $@
+	   $(LIB_WSOCK32) $(LIB_EACCESS) $(LIB_HAS_ACL) $(LIBS_ECLIENT) -o $@
 
 emacsclientw${EXEEXT}: ${srcdir}/emacsclient.c $(NTLIB) $(CLIENTRES) $(config_h)
 	$(AM_V_CCLD)$(CC) ${ALL_CFLAGS} $(CLIENTRES) -mwindows $< \

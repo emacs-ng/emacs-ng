@@ -1,6 +1,6 @@
 ;;; ob-makefile.el --- Babel Functions for Makefile  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;; 	   Thomas S. Dye
@@ -37,8 +37,7 @@ This function is called by `org-babel-execute-src-block'."
   body)
 
 (defun org-babel-prep-session:makefile (_session _params)
-  "Return an error if the :session header argument is set.  Make
-does not support sessions."
+  "Signal error; Make does not support sessions."
   (error "Makefile sessions are nonsensical"))
 
 (provide 'ob-makefile)

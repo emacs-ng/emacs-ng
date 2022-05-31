@@ -1,6 +1,6 @@
 /* Window creation, deletion and examination for GNU Emacs.
    Does not include redisplay.
-   Copyright (C) 1985-1987, 1993-1998, 2000-2021 Free Software
+   Copyright (C) 1985-1987, 1993-1998, 2000-2022 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -19,6 +19,11 @@ You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
+
+/* Work around GCC bug 102671.  */
+#if 10 <= __GNUC__
+# pragma GCC diagnostic ignored "-Wanalyzer-null-dereference"
+#endif
 
 #include "lisp.h"
 #include "buffer.h"
@@ -759,6 +764,19 @@ selected one.  */)
   (Lisp_Object window)
 {
   return make_fixnum (decode_live_window (window)->use_time);
+}
+
+DEFUN ("window-bump-use-time", Fwindow_bump_use_time,
+       Swindow_bump_use_time, 0, 1, 0,
+       doc: /* Mark WINDOW as having been most recently used.
+WINDOW must be a live window and defaults to the selected one.  */)
+  (Lisp_Object window)
+{
+  struct window *w = decode_live_window (window);
+
+  w->use_time = ++window_select_count;
+
+  return Qnil;
 }
 
 DEFUN ("window-pixel-width", Fwindow_pixel_width, Swindow_pixel_width, 0, 1, 0,
@@ -1832,13 +1850,24 @@ Return POS.  */)
 DEFUN ("set-window-start", Fset_window_start, Sset_window_start, 2, 3, 0,
        doc: /* Make display in WINDOW start at position POS in WINDOW's buffer.
 WINDOW must be a live window and defaults to the selected one.  Return
-POS.  Optional third arg NOFORCE non-nil inhibits next redisplay from
-overriding motion of point in order to display at this exact start.
+POS.
+
+Optional third arg NOFORCE non-nil prevents next redisplay from
+moving point if displaying the window at POS makes point invisible;
+redisplay will then choose the WINDOW's start position by itself in
+that case, i.e. it will disregard POS if adhering to it will make
+point not visible in the window.
 
 For reliable setting of WINDOW start position, make sure point is
 at a position that will be visible when that start is in effect,
 otherwise there's a chance POS will be disregarded, e.g., if point
-winds up in a partially-visible line.  */)
+winds up in a partially-visible line.
+
+The setting of the WINDOW's start position takes effect during the
+next redisplay cycle, not immediately.  If NOFORCE is nil or
+omitted, forcing the display of WINDOW to start at POS cancels
+any setting of WINDOW's vertical scroll (\"vscroll\") amount
+set by `set-window-vscroll' and by scrolling functions.  */)
   (Lisp_Object window, Lisp_Object pos, Lisp_Object noforce)
 {
   register struct window *w = decode_live_window (window);
@@ -3196,8 +3225,10 @@ function in a program gives strange scrolling, make sure the
 window-start value is reasonable when this function is called.  */)
      (Lisp_Object window, Lisp_Object root)
 {
-  struct window *w, *r, *s;
-  struct frame *f;
+  struct window *w = decode_valid_window (window);
+  struct window *r, *s;
+  Lisp_Object frame = w->frame;
+  struct frame *f = XFRAME (frame);
   Lisp_Object sibling, pwindow, delta;
   Lisp_Object swindow UNINIT;
   ptrdiff_t startpos UNINIT, startbyte UNINIT;
@@ -3205,9 +3236,7 @@ window-start value is reasonable when this function is called.  */)
   int new_top;
   bool resize_failed = false;
 
-  w = decode_valid_window (window);
   XSETWINDOW (window, w);
-  f = XFRAME (w->frame);
 
   if (NILP (root))
     /* ROOT is the frame's root window.  */
@@ -3247,7 +3276,7 @@ window-start value is reasonable when this function is called.  */)
       /* Make sure WINDOW is the frame's selected window.  */
       if (!EQ (window, FRAME_SELECTED_WINDOW (f)))
 	{
-	  if (EQ (selected_frame, w->frame))
+	  if (EQ (selected_frame, frame))
 	    Fselect_window (window, Qnil);
 	  else
 	    /* Do not clear f->select_mini_window_flag here.  If the
@@ -3280,7 +3309,7 @@ window-start value is reasonable when this function is called.  */)
 
       if (!EQ (swindow, FRAME_SELECTED_WINDOW (f)))
 	{
-	  if (EQ (selected_frame, w->frame))
+	  if (EQ (selected_frame, frame))
 	    Fselect_window (swindow, Qnil);
 	  else
 	    fset_selected_window (f, swindow);
@@ -3315,18 +3344,12 @@ window-start value is reasonable when this function is called.  */)
       w->top_line = r->top_line;
       resize_root_window (window, delta, Qnil, Qnil, Qt);
       if (window_resize_check (w, false))
-	{
-	  window_resize_apply (w, false);
-	  window_pixel_to_total (w->frame, Qnil);
-	}
+	window_resize_apply (w, false);
       else
 	{
 	  resize_root_window (window, delta, Qnil, Qt, Qt);
 	  if (window_resize_check (w, false))
-	    {
-	      window_resize_apply (w, false);
-	      window_pixel_to_total (w->frame, Qnil);
-	    }
+	    window_resize_apply (w, false);
 	  else
 	    resize_failed = true;
 	}
@@ -3339,18 +3362,12 @@ window-start value is reasonable when this function is called.  */)
 	  XSETINT (delta, r->pixel_width - w->pixel_width);
 	  resize_root_window (window, delta, Qt, Qnil, Qt);
 	  if (window_resize_check (w, true))
-	    {
-	      window_resize_apply (w, true);
-	      window_pixel_to_total (w->frame, Qt);
-	    }
+	    window_resize_apply (w, true);
 	  else
 	    {
 	      resize_root_window (window, delta, Qt, Qt, Qt);
 	      if (window_resize_check (w, true))
-		{
-		  window_resize_apply (w, true);
-		  window_pixel_to_total (w->frame, Qt);
-		}
+		window_resize_apply (w, true);
 	      else
 		resize_failed = true;
 	    }
@@ -3392,6 +3409,12 @@ window-start value is reasonable when this function is called.  */)
     }
 
   replace_window (root, window, true);
+  /* Assign new total sizes to all windows on FRAME.  We can't do that
+     _before_ WINDOW replaces ROOT since 'window--pixel-to-total' works
+     on the whole frame and thus would work on the frame's old window
+     configuration (Bug#51007).  */
+  window_pixel_to_total (frame, Qnil);
+  window_pixel_to_total (frame, Qt);
 
   /* This must become SWINDOW anyway .......  */
   if (BUFFERP (w->contents) && !resize_failed)
@@ -8125,18 +8148,6 @@ and scrolling positions.  */)
     return Qt;
   return Qnil;
 }
-
-DEFUN ("window-bump-use-time", Fwindow_bump_use_time,
-       Swindow_bump_use_time, 1, 1, 0,
-       doc: /* Mark WINDOW as having been recently used.  */)
-  (Lisp_Object window)
-{
-  struct window *w = decode_valid_window (window);
-
-  w->use_time = ++window_select_count;
-  return Qnil;
-}
-
 
 
 static void init_window_once_for_pdumper (void);

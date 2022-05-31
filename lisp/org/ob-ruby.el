@@ -1,6 +1,6 @@
 ;;; ob-ruby.el --- Babel Functions for Ruby          -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;; Keywords: literate programming, reproducible research
@@ -27,7 +27,7 @@
 
 ;;; Requirements:
 
-;; - ruby and irb executables :: http://www.ruby-lang.org/
+;; - ruby and irb executables :: https://www.ruby-lang.org/
 ;;
 ;; - ruby-mode :: Can be installed through ELPA, or from
 ;;   https://github.com/eschulte/rinari/raw/master/util/ruby-mode.el

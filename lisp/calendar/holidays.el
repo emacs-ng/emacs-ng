@@ -1,6 +1,6 @@
 ;;; holidays.el --- holiday functions for the calendar package  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1989-1990, 1992-1994, 1997, 2001-2021 Free Software
+;; Copyright (C) 1989-1990, 1992-1994, 1997, 2001-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Edward M. Reingold <reingold@cs.uiuc.edu>
@@ -482,7 +482,7 @@ The optional LABEL is used to label the buffer created."
       (calendar-increment-month displayed-month displayed-year 3)
       (setq s (calendar-absolute-from-gregorian
                (list displayed-month 1 displayed-year))))
-    (save-excursion
+    (save-current-buffer
       (calendar-in-read-only-buffer holiday-buffer
         (calendar-set-mode-line
          (if (= y1 y2)

@@ -1,6 +1,6 @@
 ;;; gnutls.el --- Support SSL/TLS connections through GnuTLS  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
 
 ;; Author: Ted Zlatanov <tzz@lifelogs.com>
 ;; Keywords: comm, tls, ssl, encryption
@@ -226,7 +226,7 @@ trust and key files, and priority string."
            trustfiles crlfiles keylist min-prime-bits
            verify-flags verify-error verify-hostname-error
            &allow-other-keys)
-  "Negotiate a SSL/TLS connection.  Returns proc.  Signals gnutls-error.
+  "Negotiate a SSL/TLS connection.  Return proc.  Signal gnutls-error.
 
 Note that arguments are passed CL style, :type TYPE instead of just TYPE.
 

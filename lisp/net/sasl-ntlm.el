@@ -1,6 +1,6 @@
 ;;; sasl-ntlm.el --- NTLM (NT Lan Manager) module for the SASL client framework  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2000, 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2000, 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: Taro Kawagishi <tarok@transpulse.org>
 ;; Keywords: SASL, NTLM
@@ -37,8 +37,8 @@
   '(ignore				;nothing to do before making
     sasl-ntlm-request			;authentication request
     sasl-ntlm-response)			;response to challenge
-  "A list of functions to be called in sequence for the NTLM
-authentication steps.  They are called by `sasl-next-step'.")
+  "List of functions to call in sequence for the NTLM authentication steps.
+They are called by `sasl-next-step'.")
 
 (defun sasl-ntlm-request (client _step)
   "SASL step function to generate a NTLM authentication request to the server.

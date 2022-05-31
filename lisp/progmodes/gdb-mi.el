@@ -1,14 +1,13 @@
 ;;; gdb-mi.el --- User Interface for running GDB  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: Nick Roberts <nickrob@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: unix, tools
+;; URL: https://www.emacswiki.org/emacs/GDB-MI
 
 ;; This file is part of GNU Emacs.
-
-;; Homepage: https://www.emacswiki.org/emacs/GDB-MI
 
 ;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -468,8 +467,8 @@ GDB session needs to be restarted for this setting to take effect."
 ;; TODO Some commands can't be called with --all (give a notice about
 ;; it in setting doc)
 (defcustom gdb-gud-control-all-threads t
-  "When non-nil, GUD execution commands affect all threads when
-in non-stop mode.  Otherwise, only current thread is affected."
+  "When non-nil, GUD execution commands affect all threads when in non-stop mode.
+Otherwise, only current thread is affected."
   :type 'boolean
   :group 'gdb-non-stop
   :version "23.2")
@@ -767,7 +766,9 @@ NOARG must be t when this macro is used outside `gud-def'."
       ;; Apparently we're not running with -i=mi (or we're, for
       ;; instance, debugging something inside a Docker instance with
       ;; Emacs on the outside).
-      (let ((msg "Error: Either -i=mi wasn't specified on the GDB command line, or the extra socket couldn't be established.  Consider using `M-x gud-gdb' instead."))
+      (let ((msg (substitute-command-keys
+                  "Error: Either -i=mi wasn't specified on the GDB command line,\
+ or the extra socket couldn't be established.  Consider using \\[gud-gdb] instead.")))
         (message msg)
         (setq string (concat (propertize msg 'font-lock-face 'error)
                              "\n" string)))
@@ -789,7 +790,7 @@ becomes the initial working directory and source-file directory
 for your debugger.
 If COMMAND-LINE requests that gdb attaches to a process PID, gdb
 will run in *gud-PID*, otherwise it will run in *gud*; in these
-cases the initial working directory is the default-directory of
+cases the initial working directory is the `default-directory' of
 the buffer in which this command was invoked.
 
 COMMAND-LINE should include \"-i=mi\" to use gdb's MI text interface.
@@ -1484,7 +1485,7 @@ INDENT is the current indentation depth."
 		(expr (nth 1 var)) (children (nth 2 var)))
 	   (if (or (<= (string-to-number children) gdb-max-children)
 		   (y-or-n-p
-		    (format "%s has %s children. Continue? " expr children)))
+                    (format "%s has %s children.  Continue?" expr children)))
 	       (gdb-var-list-children token))))
 	((string-search "-" text)	;contract this node
 	 (dolist (var gdb-var-list)
@@ -4599,7 +4600,9 @@ overlay arrow in source buffer."
   (let ((frame (gdb-mi--field (gdb-mi--partial-output) 'frame)))
     (when frame
       (setq gdb-selected-frame (gdb-mi--field frame 'func))
-      (setq gdb-selected-file (file-local-name (gdb-mi--field frame 'fullname)))
+      (setq gdb-selected-file
+            (when-let ((full (gdb-mi--field frame 'fullname)))
+              (file-local-name full)))
       (setq gdb-frame-number (gdb-mi--field frame 'level))
       (setq gdb-frame-address (gdb-mi--field frame 'addr))
       (let ((line (gdb-mi--field frame 'line)))

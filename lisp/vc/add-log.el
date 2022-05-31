@@ -1,6 +1,6 @@
 ;;; add-log.el --- change log maintenance commands for Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985-1986, 1988, 1993-1994, 1997-1998, 2000-2021 Free
+;; Copyright (C) 1985-1986, 1988, 1993-1994, 1997-1998, 2000-2022 Free
 ;; Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -930,8 +930,7 @@ non-nil, otherwise in local time."
 			    (not (looking-at "[ \t]+.*<.*>$")))
 			  (setq hit t)))))
             (forward-line 1)
-          (insert (nth (random (length new-entries))
-                       new-entries)
+          (insert (and new-entries (seq-random-elt new-entries))
                   (if use-hard-newlines hard-newline "\n")
                   (if use-hard-newlines hard-newline "\n"))
           (forward-line -1))))

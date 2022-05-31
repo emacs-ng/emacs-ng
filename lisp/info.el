@@ -1,6 +1,6 @@
 ;;; info.el --- Info package for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1992-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 1992-2022 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: help
@@ -1455,6 +1455,7 @@ is non-nil)."
 (defvar Info-streamline-headings
   '(("Emacs" . "Emacs")
     ("Software development\\|Programming" . "Software development")
+    ("Compression\\|Data Compression" . "Compression")
     ("Libraries" . "Libraries")
     ("Network applications\\|World Wide Web\\|Net Utilities"
      . "Network applications"))
@@ -1731,22 +1732,26 @@ escaped (\\\",\\\\)."
 	       (list
 		(concat
 		 " ("
-		 (if (stringp Info-current-file)
-		     (string-replace
-		      "%" "%%"
-		      (file-name-sans-extension
-		       (file-name-nondirectory Info-current-file)))
-		   (format "*%S*" Info-current-file))
-		 ") "
-		 (if Info-current-node
-		     (propertize (string-replace
-				  "%" "%%" Info-current-node)
-				 'face 'mode-line-buffer-id
-				 'help-echo
-				 "mouse-1: scroll forward, mouse-3: scroll back"
-				 'mouse-face 'mode-line-highlight
-				 'local-map Info-mode-line-node-keymap)
-		   ""))))))
+                 (propertize
+		  (if (stringp Info-current-file)
+                      (string-replace
+		       "%" "%%"
+                       ;; Remove trailing ".info" and ".info.gz", etc.
+		       (replace-regexp-in-string
+                        "\\..*\\'" ""
+                        (file-name-nondirectory Info-current-file)))
+		    (format "*%S*" Info-current-file))
+                  'help-echo "Manual name")
+		 ") ")
+		(if Info-current-node
+		    (propertize (string-replace
+				 "%" "%%" Info-current-node)
+				'face 'mode-line-buffer-id
+				'help-echo
+				"mouse-1: scroll forward, mouse-3: scroll back"
+				'mouse-face 'mode-line-highlight
+				'local-map Info-mode-line-node-keymap)
+		  "")))))
 
 ;; Go to an Info node specified with a filename-and-nodename string
 ;; of the sort that is found in pointers in nodes.
@@ -4146,7 +4151,8 @@ If FORK is non-nil, it is passed to `Info-goto-node'."
    "---"
    ["Exit" quit-window :help "Stop reading Info"]))
 
-(defun Info-context-menu (menu)
+(defun Info-context-menu (menu click)
+  "Populate MENU with Info commands at CLICK."
   (define-key menu [Info-separator] menu-bar-separator)
   (let ((easy-menu (make-sparse-keymap "Info")))
     (easy-menu-define nil easy-menu nil
@@ -4159,7 +4165,7 @@ If FORK is non-nil, it is passed to `Info-goto-node'."
       (when (consp item)
         (define-key menu (vector (car item)) (cdr item)))))
 
-  (when (mouse-posn-property (event-start last-input-event) 'mouse-face)
+  (when (mouse-posn-property (event-start click) 'mouse-face)
     (define-key menu [Info-mouse-follow-nearest-node]
       '(menu-item "Follow Link" Info-mouse-follow-nearest-node
                   :help "Follow a link where you click")))

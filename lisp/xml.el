@@ -1,6 +1,6 @@
 ;;; xml.el --- XML parser -*- lexical-binding: t -*-
 
-;; Copyright (C) 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
 
 ;; Author: Emmanuel Briot <briot@gnat.com>
 ;; Maintainer: Mark A. Hershberger <mah@everybody.org>
@@ -83,7 +83,7 @@
 ;;;  Macros to parse the list
 
 (defconst xml-undefined-entity "?"
-  "What to substitute for undefined entities")
+  "What to substitute for undefined entities.")
 
 (defconst xml-default-ns '(("" . "")
 			   ("xml" . "http://www.w3.org/XML/1998/namespace")

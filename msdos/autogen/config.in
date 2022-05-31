@@ -2,7 +2,7 @@
 
 /* GNU Emacs site configuration template file.
 
-Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2021 Free Software
+Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2022 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -1712,7 +1712,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
   /* Suppress GCC's bogus "no previous prototype for 'FOO'"
      and "no previous declaration for 'FOO'"  diagnostics,
      when FOO is an inline function in the header; see
-     <http://gcc.gnu.org/bugzilla/show_bug.cgi?id=54113>.  */
+     <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=54113>.  */
 # define _GL_INLINE_HEADER_BEGIN \
     _Pragma ("GCC diagnostic push") \
     _Pragma ("GCC diagnostic ignored \"-Wmissing-prototypes\"") \

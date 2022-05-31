@@ -1,6 +1,6 @@
 ;;; uce.el --- facilitate reply to unsolicited commercial email  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996, 1998, 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1996, 1998, 2000-2022 Free Software Foundation, Inc.
 
 ;; Author: stanislav shalunov <shalunov@mccme.ru>
 ;; Created: 10 Dec 1996
@@ -29,6 +29,27 @@
 ;; with other mail readers, see the mail-client dependent section of
 ;; uce-reply-to-uce.  Please let me know about your changes so I can
 ;; incorporate them.  I'd appreciate it.
+
+;; -- !!! NOTE !!! ---------------------------------------------
+;;
+;; Replying to spam is at best pointless, but most likely actively
+;; harmful.
+;;
+;; - You will confirm that your email address is valid, thus ensuring
+;;   you get more spam.
+;;
+;; - You will leak information and open yourself up for further
+;;   attack.  For example, they could use your \"geolocation\" to find
+;;   your home address and phone number.
+;;
+;; - The sender address is likely fake.
+;;
+;; - You help them refine their methods of spamming.
+;;
+;; Therefore, we strongly recommend that you do not use this package.
+;; Use a spam filter instead, or just delete the spam.
+;;
+;; -------------------------------------------------------------
 
 ;; The command uce-reply-to-uce, if called when the current message
 ;; buffer is a UCE, will setup a reply *mail* buffer as follows.  It

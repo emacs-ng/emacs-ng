@@ -1,6 +1,6 @@
 ;;; gnus-salt.el --- alternate summary mode interfaces for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996-1999, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1996-1999, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -51,7 +51,7 @@
 
 (defcustom gnus-pick-elegant-flow t
   "If non-nil, `gnus-pick-start-reading' runs
- `gnus-summary-next-group' when no articles have been picked."
+`gnus-summary-next-group' when no articles have been picked."
   :type 'boolean
   :group 'gnus-summary-pick)
 

@@ -1,6 +1,6 @@
 ;;; vc-src.el --- support for SRC version-control  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2022 Free Software Foundation, Inc.
 
 ;; Author: FSF (see vc.el for full credits)
 ;; Maintainer: emacs-devel@gnu.org
@@ -238,15 +238,17 @@ This function differs from vc-do-command in that it invokes `vc-src-program'."
 (autoload 'vc-switches "vc")
 
 (defun vc-src-register (files &optional _comment)
-  "Register FILES under src. COMMENT is ignored."
+  "Register FILES under src.  COMMENT is ignored."
   (vc-src-command nil files "add"))
 
 (defun vc-src-responsible-p (file)
-  "Return non-nil if SRC thinks it would be responsible for registering FILE."
-  (file-directory-p (expand-file-name ".src"
-                                      (if (file-directory-p file)
-                                          file
-                                        (file-name-directory file)))))
+  "Return the directory if SRC thinks it would be responsible for FILE."
+  (let ((dir (expand-file-name ".src"
+                               (if (file-directory-p file)
+                                   file
+                                 (file-name-directory file)))))
+    (and (file-directory-p dir)
+         dir)))
 
 (defun vc-src-checkin (files comment &optional _rev)
   "SRC-specific version of `vc-backend-checkin'.
@@ -268,15 +270,16 @@ REV is the revision to check out into WORKFILE."
     (vc-src-command nil file "co")))
 
 (defun vc-src-revert (file &optional _contents-done)
-  "Revert FILE to the version it was based on.  If FILE is a directory,
-revert all registered files beneath it."
+  "Revert FILE to the version it was based on.
+If FILE is a directory, revert all registered files beneath it."
   (if (file-directory-p file)
       (mapc #'vc-src-revert (vc-expand-dirs (list file) 'SRC))
     (vc-src-command nil file "co")))
 
 (defun vc-src-modify-change-comment (files rev comment)
-  "Modify the change comments change on FILES on a specified REV.  If FILE is a
-directory the operation is applied to all registered files beneath it."
+  "Modify the change comments change on FILES on a specified REV.
+If FILE is a directory the operation is applied to all registered
+files beneath it."
   (dolist (file (vc-expand-dirs files 'SRC))
     (vc-src-command nil file "amend" "-m" comment rev)))
 

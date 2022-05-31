@@ -1,6 +1,6 @@
 ;;; em-cmpl.el --- completion using the TAB key  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -72,6 +72,7 @@
 
 (require 'esh-mode)
 (require 'esh-util)
+(require 'em-dirs)
 
 (eval-when-compile
   (require 'cl-lib)
@@ -377,8 +378,12 @@ to writing a completion function."
                           (cl-assert (eq (car result) 'quote))
                           (cadr result))
                       arg)))
-               (if (numberp val)
-                   (setq val (number-to-string val)))
+               (cond ((numberp val)
+                      (setq val (number-to-string val)))
+                     ;; expand .../ etc that only eshell understands to
+                     ;; standard ../../
+                     ((and (stringp val)) (string-match "\\.\\.\\.+/" val)
+                      (setq val (eshell-expand-multiple-dots val))))
                (or val "")))
 	   args)
 	  posns)))

@@ -1,6 +1,6 @@
 ;;; autoconf.el --- mode for editing Autoconf configure.ac files  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
 
 ;; Author: Dave Love <fx@gnu.org>
 ;; Keywords: languages
@@ -44,7 +44,7 @@
   "A\\(?:H_TEMPLATE\\|C_\\(?:SUBST\\|DEFINE\\(?:_UNQUOTED\\)?\\)\\)(\\[*\\(\\(?:\\sw\\|\\s_\\)+\\)\\]*")
 
 (defvar autoconf-font-lock-keywords
-  `(("\\_<A[CHMS]_\\(?:\\sw\\|\\s_\\)+" . font-lock-keyword-face)
+  `(("\\_<\\(?:A[CHMS]\\|LT\\)_\\(?:\\sw\\|\\s_\\)+" . font-lock-keyword-face)
     (,autoconf-definition-regexp
      1 font-lock-function-name-face)
     ;; Are any other M4 keywords really appropriate for configure.ac,

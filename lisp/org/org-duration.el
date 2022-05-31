@@ -1,6 +1,6 @@
 ;;; org-duration.el --- Library handling durations   -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <mail@nicolasgoaziou.fr>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -97,7 +97,11 @@ sure to call the following command:
   :group 'org-agenda
   :version "26.1"
   :package-version '(Org . "9.1")
-  :set (lambda (var val) (set-default var val) (org-duration-set-regexps))
+  :set (lambda (var val)
+         (set-default var val)
+         ;; Avoid recursive load at startup.
+	 (when (featurep 'org-duration)
+           (org-duration-set-regexps)))
   :initialize 'custom-initialize-changed
   :type '(choice
 	  (const :tag "H:MM" h:mm)

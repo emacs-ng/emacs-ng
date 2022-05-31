@@ -1,6 +1,6 @@
 ;;; gnus-start.el --- startup functions for Gnus -*- lexical-binding:t -*-
 
-;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2022 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -715,6 +715,9 @@ the first newsgroup."
        (kill-buffer (get-file-buffer gnus-current-startup-file)))
   ;; Clear the dribble buffer.
   (gnus-dribble-clear)
+  ;; Reset the level when Gnus is restarted.
+  (when (numberp gnus-group-use-permanent-levels)
+    (setq gnus-group-use-permanent-levels t))
   ;; Kill global KILL file buffer.
   (when (get-file-buffer (gnus-newsgroup-kill-file nil))
     (kill-buffer (get-file-buffer (gnus-newsgroup-kill-file nil))))
@@ -1065,9 +1068,9 @@ If no function returns `non-nil', call `gnus-subscribe-zombies'."
 Each new newsgroup will be treated with `gnus-subscribe-newsgroup-method'.
 The `-n' option line from .newsrc is respected.
 
-With 1 C-u, use the `ask-server' method to query the server for new
+With 1 \\[universal-argument], use the `ask-server' method to query the server for new
 groups.
-With 2 C-u's, use most complete method possible to query the server
+With 2 \\[universal-argument]'s, use most complete method possible to query the server
 for new groups, and subscribe the new groups as zombies."
   (interactive "p" gnus-group-mode)
   (let* ((gnus-subscribe-newsgroup-method
@@ -2337,9 +2340,9 @@ If FORCE is non-nil, the .newsrc file is read."
 
 (defun gnus-convert-mark-converter-prompt (converter no-prompt)
   "Indicate whether CONVERTER requires `gnus-convert-old-newsrc' to
-  display the conversion prompt.  NO-PROMPT may be nil (prompt),
-  t (no prompt), or any form that can be called as a function.
-  The form should return either t or nil."
+display the conversion prompt.  NO-PROMPT may be nil (prompt),
+t (no prompt), or any form that can be called as a function.
+The form should return either t or nil."
   (put converter 'gnus-convert-no-prompt no-prompt))
 
 (defun gnus-convert-converter-needs-prompt (converter)
@@ -2865,12 +2868,6 @@ SPECIFIC-VARIABLES, or those in `gnus-variable-list'."
       (princ "(setq gnus-newsrc-file-version ")
       (princ (gnus-prin1-to-string gnus-version))
       (princ ")\n"))
-    ;; Sort `gnus-newsrc-alist' according to order in
-    ;; `gnus-group-list'.
-    (setq gnus-newsrc-alist
-	  (mapcar (lambda (g)
-		    (nth 1 (gethash g gnus-newsrc-hashtb)))
-		  (delete "dummy.group" gnus-group-list)))
     (let* ((print-quoted t)
            (print-escape-multibyte nil)
            (print-escape-nonascii t)
@@ -2889,17 +2886,20 @@ SPECIFIC-VARIABLES, or those in `gnus-variable-list'."
 		  ;; Remove the `gnus-killed-list' from the list of variables
 		  ;; to be saved, if required.
 		  (delq 'gnus-killed-list (copy-sequence gnus-variable-list)))))
-	   ;; Encode group names in `gnus-newsrc-alist' and
-	   ;; `gnus-topic-alist' in order to keep newsrc.eld files
-	   ;; compatible with older versions of Gnus.  At some point,
-	   ;; if/when a new version of Gnus is released, stop doing
-	   ;; this and move the corresponding decode in
-	   ;; `gnus-read-newsrc-el-file' into a conversion routine.
+           ;; Sort `gnus-newsrc-alist' according to order in
+           ;; `gnus-group-list'.  Encode group names in
+           ;; `gnus-newsrc-alist' and `gnus-topic-alist' in order to
+           ;; keep newsrc.eld files compatible with older versions of
+           ;; Gnus.  At some point, if/when a new version of Gnus is
+           ;; released, stop doing this and move the corresponding
+           ;; decode in `gnus-read-newsrc-el-file' into a conversion
+           ;; routine.
 	   (gnus-newsrc-alist
-	    (mapcar (lambda (info)
-		      (cons (encode-coding-string (car info) 'utf-8-emacs)
-			    (cdr info)))
-		    gnus-newsrc-alist))
+	    (mapcar (lambda (group)
+		      (cons (encode-coding-string group 'utf-8-emacs)
+			    (cdadr (gethash group
+			    gnus-newsrc-hashtb))))
+		    (remove "dummy.group" gnus-group-list)))
 	   (gnus-topic-alist
 	    (when (memq 'gnus-topic-alist variables)
 	     (mapcar (lambda (elt)
@@ -2931,7 +2931,7 @@ SPECIFIC-VARIABLES, or those in `gnus-variable-list'."
     (nreverse olist)))
 
 (defun gnus-gnus-to-newsrc-format (&optional foreign-ok)
-  (interactive (list (gnus-y-or-n-p "write foreign groups too? ")))
+  (interactive (list (gnus-y-or-n-p "Write foreign groups too?")))
   ;; Generate and save the .newsrc file.
   (with-current-buffer (create-file-buffer gnus-current-startup-file)
     (let ((standard-output (current-buffer))

@@ -1,6 +1,6 @@
 @c -*- mode: texinfo; coding: utf-8 -*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--2021 Free Software Foundation, Inc.
+@c Copyright (C) 1990--1995, 1998--2022 Free Software Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Display
 @chapter Emacs Display
@@ -151,6 +151,9 @@ terminal, a @samp{$} in the rightmost column of the window indicates
 truncation; a @samp{\} on the rightmost column indicates a line that
 wraps.  (The display table can specify alternate characters to use
 for this; @pxref{Display Tables}).
+
+   Since wrapping and truncation of text contradict each other, Emacs
+turns off line truncation when wrapping is requested, and vice versa.
 
 @defopt truncate-lines
 If this buffer-local variable is non-@code{nil}, lines that extend
@@ -1994,11 +1997,11 @@ If a multi-column character in @var{string} exceeds the goal
 result can sometimes fall short of @var{width}, but cannot go beyond
 it.
 
-The optional argument @var{start-column} specifies the starting column.
-If this is non-@code{nil}, then the first @var{start-column} columns of
-the string are omitted from the result.  If one multi-column character in
-@var{string} extends across the column @var{start-column}, that
-character is omitted.
+The optional argument @var{start-column} specifies the starting
+column; it defaults to zero.  If this is non-@code{nil}, then the
+first @var{start-column} columns of the string are omitted from the
+result.  If one multi-column character in @var{string} extends across
+the column @var{start-column}, that character is omitted.
 
 The optional argument @var{padding}, if non-@code{nil}, is a padding
 character added at the beginning and end of the result string, to
@@ -2024,11 +2027,21 @@ property (@pxref{Display Property}) showing the ellipsis, instead of
 actually truncating the string.
 
 @example
+@group
 (truncate-string-to-width "\tab\t" 12 4)
      @result{} "ab"
 (truncate-string-to-width "\tab\t" 12 4 ?\s)
      @result{} "    ab  "
+@end group
 @end example
+
+This function uses @code{string-width} and @code{char-width} to find
+the suitable truncation point when @var{string} is too wide, so it
+suffers from the same basic issues as @code{string-width} does.  In
+particular, when character composition happens within @var{string},
+the display width of a string could be smaller than the sum of widths
+of the constituent characters, and this function might return
+inaccurate results.
 @end defun
 
 @defun truncate-string-ellipsis
@@ -2047,7 +2060,7 @@ displayed in a given window.  This function is used by
 (@pxref{Resizing Windows}) to make a window exactly as large as the text
 it contains.
 
-@defun window-text-pixel-size &optional window from to x-limit y-limit mode-and-header-line
+@defun window-text-pixel-size &optional window from to x-limit y-limit mode-lines
 This function returns the size of the text of @var{window}'s buffer in
 pixels.  @var{window} must be a live window and defaults to the
 selected one.  The return value is a cons of the maximum pixel-width
@@ -2089,12 +2102,12 @@ calculating the pixel-height of a large buffer can take some time, it
 makes sense to specify this argument; in particular, if the caller
 does not know the size of the buffer.
 
-The optional argument @var{mode-and-header-line} @code{nil} or omitted
-means to not include the height of the mode- or header-line of
-@var{window} in the return value.  If it is either the symbol
-@code{mode-line} or @code{header-line}, include only the height of that
+The optional argument @var{mode-lines} @code{nil} or omitted means to
+not include the height of the mode-, tab- or header-line of @var{window}
+in the return value.  If it is either the symbol @code{mode-line},
+@code{tab-line} or @code{header-line}, include only the height of that
 line, if present, in the return value.  If it is @code{t}, include the
-height of both, if present, in the return value.
+height of all of these lines, if present, in the return value.
 @end defun
 
 @code{window-text-pixel-size} treats the text displayed in a window as a
@@ -2536,9 +2549,10 @@ used automatically to handle certain shades of gray.
 
 @item :font
 The font used to display the face.  Its value should be a font object
-or a fontset.  @xref{Low-Level Font}, for information about font
-objects, font specs, and font entities.  @xref{Fontsets}, for
-information about fontsets.
+or a fontset.  If it is a font object, it specifies the font to be
+used by the face for displaying ASCII characters.  @xref{Low-Level
+Font}, for information about font objects, font specs, and font
+entities.  @xref{Fontsets}, for information about fontsets.
 
 @anchor{face-font-attribute}
 When specifying this attribute using @code{set-face-attribute} or
@@ -2747,6 +2761,11 @@ terminal must match one of the @var{value}s specified for it in
   :group 'basic-faces)
 @end example
 
+@kindex face-defface-spec @r{(face symbol property)}
+@kindex saved-face @r{(face symbol property)}
+@kindex customized-face @r{(face symbol property)}
+@kindex theme-face @r{(face symbol property)}
+@kindex face-documentation @r{(face symbol property)}
   Internally, Emacs stores each face's default spec in its
 @code{face-defface-spec} symbol property (@pxref{Symbol Properties}).
 The @code{saved-face} property stores any face spec saved by the user
@@ -2799,13 +2818,17 @@ modifying the attributes of a named face.
 
 @defun face-attribute face attribute &optional frame inherit
 This function returns the value of the @var{attribute} attribute for
-@var{face} on @var{frame}.
+@var{face} on @var{frame}.  @xref{Face Attributes}, for the supported
+attributes.
 
 If @var{frame} is omitted or @code{nil}, that means the selected frame
 (@pxref{Input Focus}).  If @var{frame} is @code{t}, this function
-returns the value of the specified attribute for newly-created frames
-(this is normally @code{unspecified}, unless you have specified some
-value using @code{set-face-attribute}; see below).
+returns the value of the specified attribute for newly-created frames,
+i.e.@: the value of the attribute before applying the face spec in the
+face's @code{defface} definition (@pxref{Defining Faces}) or the spec
+set by @code{face-spec-set}.  This default value of @var{attribute} is
+normally @code{unspecified}, unless you have specified some other
+value using @code{set-face-attribute}; see below.
 
 If @var{inherit} is @code{nil}, only attributes directly defined by
 @var{face} are considered, so the return value may be
@@ -2855,7 +2878,12 @@ elements of the result are name-value pairs of the form
 @w{@code{(@var{attr-name} . @var{attr-value})}}.  Optional argument
 @var{frame} specifies the frame whose definition of @var{face} to
 return; if omitted or @code{nil}, the returned value describes the
-default attributes of @var{face} for newly created frames.
+default attributes of @var{face} for newly created frames, i.e.@: the
+values these attributes have before applying the face spec in the
+face's @code{defface} definition or the spec set by
+@code{face-spec-set}.  These default values of the attributes are
+normally @code{unspecified}, unless you have specified some other
+value using @code{set-face-attribute}; see below.
 @end defun
 
 @defun merge-face-attribute attribute value1 value2
@@ -2873,8 +2901,9 @@ for all frames.  This function is mostly intended for internal usage.
 
 @defun set-face-attribute face frame &rest arguments
 This function sets one or more attributes of @var{face} for
-@var{frame}.  The attributes specifies in this way override the face
-spec(s) belonging to @var{face}.
+@var{frame}.  The attributes specified in this way override the face
+spec(s) belonging to @var{face}.  @xref{Face Attributes}, for the
+supported attributes.
 
 The extra arguments @var{arguments} specify the attributes to set, and
 the values for them.  They should consist of alternating attribute
@@ -2888,11 +2917,21 @@ names (such as @code{:family} or @code{:underline}) and values.  Thus,
 sets the attribute @code{:weight} to @code{bold} and the attribute
 @code{:slant} to @code{italic}.
 
-
 If @var{frame} is @code{t}, this function sets the default attributes
-for newly created frames.  If @var{frame} is @code{nil}, this function
-sets the attributes for all existing frames, as well as for newly
-created frames.
+for newly created frames; they will effectively override the attribute
+values specified by @code{defface}.  If @var{frame} is @code{nil},
+this function sets the attributes for all existing frames, as well as
+for newly created frames.  However, if you want to @emph{reset} the
+value of an attribute to @code{unspecified} in a way that also affects
+newly created frames, you @emph{must} explicitly call this function
+with @var{frame} set to @code{t} and the value of the attribute set to
+@code{unspecified} (@emph{not} @code{nil}!@:), in addition to the call
+with @var{frame} set to @code{nil}.  This is because the default
+attributes for newly created frames are merged with the face's spec in
+@code{defface} when a new frame is created, and so having
+@code{unspecified} in the default attributes for new frames will be
+unable to override @code{defface}; the special call to this function
+as described above will arrange for @code{defface} to be overridden.
 @end defun
 
   The following commands and functions mostly provide compatibility
@@ -2967,13 +3006,19 @@ return value is always specified, use a value of @code{default} for
 @var{inherit}.
 
 @defun face-font face &optional frame character
-This function returns the name of the font of face @var{face}.
+This function returns the name of the font used by the specified
+@var{face}.
 
 If the optional argument @var{frame} is specified, it returns the name
-of the font of @var{face} for that frame.  If @var{frame} is omitted or
-@code{nil}, the selected frame is used.  In the latter case, if the
-optional third argument @var{character} is supplied, it returns the font
-name used for @var{character}.
+of the font of @var{face} for that frame; @var{frame} defaults to the
+selected frame if it is @code{nil} or omitted.  If @var{frame} is
+@code{t}, the function reports on the font defaults for @var{face} to
+be used for new frames.
+
+By default, the returned font is for displaying ASCII characters, but
+if @var{frame} is anything but @code{t}, and the optional third
+argument @var{character} is supplied, the function returns the font
+name used by @var{face} for that character.
 @end defun
 
 @defun face-foreground face &optional frame inherit
@@ -3163,10 +3208,10 @@ and @code{face-remap-reset-base} functions; it is intended for major
 modes to remap faces in the buffers they control.
 
 @defun face-remap-add-relative face &rest specs
-This function adds the face spec in @var{specs} as relative
-remappings for face @var{face} in the current buffer.  The remaining
-arguments, @var{specs}, should form either a list of face names, or a
-property list of attribute/value pairs.
+This function adds @var{specs} as relative remappings for face
+@var{face} in the current buffer.  @var{specs} should be a list where
+each element is either a face name, or a property list of
+attribute/value pairs.
 
 The return value is a Lisp object that serves as a cookie; you can
 pass this object as an argument to @code{face-remap-remove-relative}
@@ -3626,57 +3671,62 @@ Then, the font specifications for all but Chinese GB2312 characters have
 Chinese GB2312 characters has a wild card @samp{*} in the @var{family}
 field.
 
-@defun set-fontset-font name character font-spec &optional frame add
-This function modifies the existing fontset @var{name} to use the font
-matching with @var{font-spec} for the specified @var{character}.
+@defun set-fontset-font fontset characters font-spec &optional frame add
+This function modifies the existing @var{fontset} to use the font
+specified by @var{font-spec} for displaying the specified
+@var{characters}.
 
-If @var{name} is @code{nil}, this function modifies the fontset of the
-selected frame or that of @var{frame} if @var{frame} is not
+If @var{fontset} is @code{nil}, this function modifies the fontset of
+the selected frame or that of @var{frame} if @var{frame} is not
 @code{nil}.
 
-If @var{name} is @code{t}, this function modifies the default
-fontset, whose short name is @samp{fontset-default}.
+If @var{fontset} is @code{t}, this function modifies the default
+fontset, whose short name as a string is @samp{fontset-default}.
 
-In addition to specifying a single codepoint, @var{character} may be a
-cons @code{(@var{from} . @var{to})}, where @var{from} and @var{to} are
-character codepoints.  In that case, use @var{font-spec} for all the
-characters in the range @var{from} and @var{to} (inclusive).
+The @var{characters} argument can be a single character which should
+be displayed using @var{font-spec}.  It can also be a cons cell
+@w{@code{(@var{from} . @var{to})}}, where @var{from} and @var{to} are
+characters.  In that case, use @var{font-spec} for all the characters
+in the range @var{from} and @var{to} (inclusive).
 
-@var{character} may be a charset (@pxref{Character Sets}).  In that
-case, use @var{font-spec} for all the characters in the charset.
+@var{characters} may be a charset symbol (@pxref{Character Sets}).  In
+that case, use @var{font-spec} for all the characters in the charset.
 
-@var{character} may be a script name (@pxref{Character Properties,
+@var{characters} may be a script symbol (@pxref{Character Properties,
 char-script-table}).  In that case, use @var{font-spec} for all the
 characters belonging to the script.
 
-@var{character} may be @code{nil}, which means to use @var{font-spec}
-for any character which no font-spec is specified.
+@var{characters} may be @code{nil}, which means to use @var{font-spec}
+for any character in @var{fontset} for which no font-spec is
+specified.
 
 @var{font-spec} may be a font-spec object created by the function
 @code{font-spec} (@pxref{Low-Level Font}).
 
-@var{font-spec} may be a cons; @code{(@var{family} . @var{registry})},
-where @var{family} is a family name of a font (possibly including a
-foundry name at the head), @var{registry} is a registry name of a font
-(possibly including an encoding name at the tail).
+@var{font-spec} may be a cons cell @w{@code{(@var{family}
+. @var{registry})}}, where @var{family} is a family name of a font
+(possibly including a foundry name at the head), and @var{registry} is
+a registry name of a font (possibly including an encoding name at the
+tail).
 
 @var{font-spec} may be a font name, a string.
 
 @var{font-spec} may be @code{nil}, which explicitly specifies that
-there's no font for the specified @var{character}.  This is useful,
+there's no font for the specified @var{characters}.  This is useful,
 for example, to avoid expensive system-wide search for fonts for
 characters that have no glyphs, like those from the Unicode Private
 Use Area (PUA).
 
 The optional argument @var{add}, if non-@code{nil}, specifies how to
-add @var{font-spec} to the font specifications previously set.  If it
-is @code{prepend}, @var{font-spec} is prepended.  If it is
-@code{append}, @var{font-spec} is appended.  By default,
-@var{font-spec} overrides the previous settings.
+add @var{font-spec} to the font specifications previously set for
+@var{characters}.  If it is @code{prepend}, @var{font-spec} is
+prepended to the existing specs.  If it is @code{append},
+@var{font-spec} is appended.  By default, @var{font-spec} overwrites
+the previously set font specs.
 
-For instance, this changes the default fontset to use a font of which
+For instance, this changes the default fontset to use a font whose
 family name is @samp{Kochi Gothic} for all characters belonging to
-the charset @code{japanese-jisx0208}.
+the charset @code{japanese-jisx0208}:
 
 @smallexample
 (set-fontset-font t 'japanese-jisx0208
@@ -3816,13 +3866,26 @@ required; and @code{gpos} is a list of OpenType GPOS feature tag
 symbols, or @code{nil} if none is required.  If @code{gsub} or
 @code{gpos} is a list, a @code{nil} element in that list means that
 the font must not match any of the remaining tag symbols.  The
-@code{gpos} element may be omitted.
+@code{gpos} element may be omitted.  For the list of OpenType script,
+language, and feature tags, see
+@uref{https://docs.microsoft.com/en-us/typography/opentype/spec/ttoreg,
+the list of registered OTF tags}.
+
+@item :type
+@cindex font backend
+The symbol that specifies the @dfn{font backend} used to draw the
+characters.  The possible values depend on the platform and on how
+Emacs was configured at build time.  Typical values include
+@code{ftcrhb} and @code{xfthb} on X, @code{harfbuzz} on MS-Windows,
+@code{ns} on GNUstep, etc.  It can also be @code{nil} if left
+unspecified, typically in a font-spec.
 @end table
 @end defun
 
 @defun font-put font-spec property value
 Set the font property @var{property} in the font-spec @var{font-spec}
-to @var{value}.
+to @var{value}.  The @var{property} can any of the ones described
+above.
 @end defun
 
 @cindex font entity
@@ -3866,12 +3929,28 @@ object, a font entity, or a font spec.
 
 @defun font-get font property
 This function returns the value of the font property @var{property}
-for @var{font}.
+for @var{font}.  The @var{property} can any of the ones that
+@code{font-spec} supports.
 
 If @var{font} is a font spec and the font spec does not specify
 @var{property}, the return value is @code{nil}.  If @var{font} is a
 font object or font entity, the value for the @var{:script} property
-may be a list of scripts supported by the font.
+may be a list of scripts supported by the font, and the value of the
+@code{:otf} property is a cons of the form @w{@code{(@var{gsub}
+. @var{gpos})}}, where @var{gsub} and @var{gpos} are lists
+representing OpenType features  supported by the font, of the form
+
+@smallexample
+((@var{script-tag} (@var{langsys-tag} @var{feature}@dots{}) @dots{}) @dots{})
+@end smallexample
+
+@noindent where @var{script-tag}, @var{langsys-tag}, and @var{feature}
+are symbols representing OpenType layout tags.
+
+If @var{font} is a font object, the special property
+@code{:combining-capability} is non-@code{nil} if the font backend of
+@var{font} supports rendering of combining characters for non-OpenType
+fonts.
 @end defun
 
 @defun font-face-attributes font &optional frame
@@ -4461,14 +4540,15 @@ about to be executed.  This feature has nothing to do with
 @defvar overlay-arrow-string
 This variable holds the string to display to call attention to a
 particular line, or @code{nil} if the arrow feature is not in use.
-On a graphical display the contents of the string are ignored; instead a
-glyph is displayed in the fringe area to the left of the display area.
+On a graphical display the contents of the string are ignored if the
+left fringe is shown; instead a glyph is displayed in the fringe area
+to the left of the display area.
 @end defvar
 
 @defvar overlay-arrow-position
 This variable holds a marker that indicates where to display the overlay
 arrow.  It should point at the beginning of a line.  On a non-graphical
-display the arrow text
+display, or when the left fringe is not shown, the arrow text
 appears at the beginning of that line, overlaying any text that would
 otherwise appear.  Since the arrow is usually short, and the line
 usually begins with indentation, normally nothing significant is
@@ -4500,11 +4580,12 @@ this list.
 
 Each variable on this list can have properties
 @code{overlay-arrow-string} and @code{overlay-arrow-bitmap} that
-specify an overlay arrow string (for text terminals) or fringe bitmap
-(for graphical terminals) to display at the corresponding overlay
-arrow position.  If either property is not set, the default
-@code{overlay-arrow-string} or @code{overlay-arrow} fringe indicator
-is used.
+specify an overlay arrow string (for text terminals or graphical
+terminals without the left fringe shown) or fringe bitmap
+(for graphical terminals with a left fringe) to display at the
+corresponding overlay arrow position.  If either property is not set,
+the default @code{overlay-arrow-string} or @code{overlay-arrow} fringe
+indicator is used.
 
 
 @node Scroll Bars
@@ -5970,7 +6051,7 @@ To @var{svg} add an embedded (raster) image placed at
 @code{:base-uri} specifies a (possibly non-existing) file name of the
 svg image to be created, thus all the embedded files are searched
 relatively to the @code{:base-uri} filename's directory.  If
-@code{:base-uri} is ommited, then filename from where svg image is
+@code{:base-uri} is omitted, then filename from where svg image is
 loaded is used.  Using @code{:base-uri} improves the performance of
 embedding large images, comparing to @code{svg-embed}, because all the
 work is done directly by librsvg.
@@ -6433,7 +6514,9 @@ buffer's text.
 
 The argument @var{slice} specifies a slice of the image to insert.  If
 @var{slice} is @code{nil} or omitted the whole image is inserted.
-Otherwise, @var{slice} is a list @code{(@var{x} @var{y} @var{width}
+(However, note that images are chopped on display at the window's
+right edge, because wrapping images is not supported.)  Otherwise,
+@var{slice} is a list @code{(@var{x} @var{y} @var{width}
 @var{height})} which specifies the @var{x} and @var{y} positions and
 @var{width} and @var{height} of the image area to insert.  Integer
 values are in units of pixels.  A floating-point number in the range
@@ -6954,7 +7037,7 @@ current buffer, and returns it.
 @end defun
 
 @defun insert-button label &rest properties
-This insert a button with the label @var{label} at point,
+This inserts a button with the label @var{label} at point,
 and returns it.
 @end defun
 
@@ -7948,6 +8031,11 @@ Non-@acronym{ASCII}, non-printing characters @code{U+0080} to
 Characters of Unicode General Category [Cf], such as U+200E
 @sc{left-to-right mark}, but excluding characters that have graphic
 images, such as U+00AD @sc{soft hyphen}.
+
+@item variation-selectors
+Unicode VS-1 through VS-16 (U+FE00 through U+FE0F), which are used to
+select between different glyphs for the same codepoints (typically
+emojis).
 
 @item no-font
 Characters for which there is no suitable font, or which cannot be

@@ -1,6 +1,6 @@
 ;;; lisp-mnt-tests.el --- Tests for lisp-mnt  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021  2020-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2022 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 
@@ -31,6 +31,14 @@
                   "Bob Weiner <rsw@gnu.org>, Mats Lidell <matsl@gnu.org>")
                  '(("Bob Weiner" . "rsw@gnu.org")
                    ("Mats Lidell" . "matsl@gnu.org")))))
+
+(ert-deftest lm--tests-lm-website ()
+  (with-temp-buffer
+    (insert ";; URL: https://example.org/foo")
+    (should (string= (lm-website) "https://example.org/foo")))
+  (with-temp-buffer
+    (insert  ";; X-URL: <https://example.org/foo>")
+    (should (string= (lm-website) "https://example.org/foo"))))
 
 (provide 'lisp-mnt-tests)
 ;;; lisp-mnt-tests.el ends here

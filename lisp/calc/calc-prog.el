@@ -1,6 +1,6 @@
 ;;; calc-prog.el --- user programmability functions for Calc  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -124,7 +124,7 @@
 	(or (memq (car-safe (car-safe place)) '(error xxxerror))
 	    (setq place (aref (nth 2 (nth 2 (symbol-function 'calc-do))) 27)))
 	(or (memq (car (car place)) '(error xxxerror))
-	    (error "foo"))
+            (error "Foo"))
 	(setcar (car place) 'xxxerror))
     (error (error "The calc-do function has been modified; unable to patch"))))
 

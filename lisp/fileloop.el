@@ -1,6 +1,6 @@
 ;;; fileloop.el --- Operations on multiple files  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2018-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2022 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 
@@ -44,6 +44,7 @@
 
 (defcustom fileloop-revert-buffers 'silent
   "Whether to revert files during fileloop operation.
+This can be one of:
   `silent' means to only do it if `revert-without-query' is applicable;
   t        means to offer to do it for all applicable files;
   nil      means never to do it"

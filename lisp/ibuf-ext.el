@@ -1,6 +1,6 @@
 ;;; ibuf-ext.el --- extensions for ibuffer  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
 
 ;; Author: Colin Walters <walters@verbum.org>
 ;; Maintainer: John Paul Wallington <jpw@gnu.org>
@@ -693,7 +693,7 @@ To evaluate a form without viewing the buffer, see `ibuffer-do-eval'."
 (defun ibuffer-included-in-filters-p (buf filters)
   "Return non-nil if BUF passes all FILTERS.
 
-BUF is a lisp buffer object, and FILTERS is a list of filter
+BUF is a Lisp buffer object, and FILTERS is a list of filter
 specifications with the same structure as
 `ibuffer-filtering-qualifiers'."
   (not
@@ -714,7 +714,7 @@ where operand d is itself a cons cell, or nil.  Returns d."
 (defun ibuffer-included-in-filter-p (buf filter)
   "Return non-nil if BUF pass FILTER.
 
-BUF is a lisp buffer object, and FILTER is a filter
+BUF is a Lisp buffer object, and FILTER is a filter
 specification, with the same structure as an element of the list
 `ibuffer-filtering-qualifiers'."
   (if (eq (car filter) 'not)
@@ -1210,7 +1210,7 @@ Interactively, prompt for NAME, and use the current filters."
     (_
      (let ((type (assq (car qualifier) ibuffer-filtering-alist)))
        (unless qualifier
-         (error "Ibuffer: bad qualifier %s" qualifier))
+         (error "Ibuffer: Bad qualifier %s" qualifier))
        (concat " [" (cadr type) ": " (format "%s]" (cdr qualifier)))))))
 
 (defun ibuffer-list-buffer-modes (&optional include-parents)

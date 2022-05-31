@@ -1,6 +1,6 @@
 ;;; mule-tests.el --- unit tests for mule.el         -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -23,7 +23,7 @@
 
 ;;; Code:
 
-(require 'ert-x)                        ;For `ert-run-keys'.
+(require 'ert-x)                        ;For `ert-simulate-keys'.
 
 (ert-deftest find-auto-coding--bug27391 ()
   "Check that Bug#27391 is fixed."

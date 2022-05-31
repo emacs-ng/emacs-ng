@@ -1,6 +1,6 @@
 ;;; ede/proj.el --- EDE Generic Project file driver  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2003, 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2003, 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: project, make
@@ -562,7 +562,7 @@ Converts all symbols into the objects to be used."
 	  ;; Provide a good error msg.
 	  (unless comp
 	    (error "Could not find compiler match for source code extension \"%s\".
-You may need to add support for this type of file."
+You may need to add support for this type of file"
 		   (if sources
 		       (file-name-extension (car sources))
 		     "")))

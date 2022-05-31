@@ -1,6 +1,6 @@
 ;;; rect.el --- rectangle functions for GNU Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985, 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1999-2022 Free Software Foundation, Inc.
 
 ;; Maintainer: Didier Verna <didier@didierverna.net>
 ;; Keywords: internal
@@ -202,8 +202,8 @@ rectangles, as conses of the form (WIDTH . HEIGHT)."
              (<= (+ y2 h2) y1)))))
 
 (defun rectangle-dimensions (start end)
-  "Return the dimensions of the rectangle with corners at START
-and END. The returned value has the form of (WIDTH . HEIGHT)."
+  "Return the dimensions of the rectangle with corners at START and END.
+The returned value has the form of (WIDTH . HEIGHT)."
   (save-excursion
     (let* ((height (1+ (abs (- (line-number-at-pos end)
                                (line-number-at-pos start)))))
@@ -651,7 +651,8 @@ with a prefix argument, prompt for START-AT and FORMAT."
 (define-minor-mode rectangle-mark-mode
   "Toggle the region as rectangular.
 
-Activates the region if needed.  Only lasts until the region is deactivated."
+Activates the region if it's inactive and Transient Mark mode is
+on.  Only lasts until the region is next deactivated."
   :lighter nil
   (rectangle--reset-crutches)
   (when rectangle-mark-mode

@@ -1,6 +1,6 @@
 ;;; array.el --- array editing commands for GNU Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1987, 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1987, 2000-2022 Free Software Foundation, Inc.
 
 ;; Author: David M. Brown
 ;; Maintainer: emacs-devel@gnu.org
@@ -805,8 +805,9 @@ NOT recognized as integers or real numbers.
   The array MUST reside at the top of the buffer.
 
   TABs are not respected, and may be converted into spaces at any time.
-Setting the variable `array-respect-tabs' to non-nil will prevent TAB conversion,
-but will cause many functions to give errors if they encounter one.
+Setting the variable `array-respect-tabs' to non-nil will prevent
+TAB conversion, but will cause many functions to give errors if
+they encounter one.
 
   Upon entering array mode, you will be prompted for the values of
 several variables.  Others will be calculated based on the values you

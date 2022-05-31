@@ -1,6 +1,6 @@
 ;;; xfaces-tests.el --- tests for xfaces.c           -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -16,6 +16,8 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Code:
 
 (require 'ert)
 
@@ -48,3 +50,5 @@
   (should (equal (color-values-from-color-spec "rgbi:0/0.5/10") nil)))
 
 (provide 'xfaces-tests)
+
+;;; xfaces-tests.el ends here

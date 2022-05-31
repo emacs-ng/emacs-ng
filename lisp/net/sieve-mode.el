@@ -1,6 +1,6 @@
 ;;; sieve-mode.el --- Sieve code editing commands for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Simon Josefsson <simon@josefsson.org>
 
@@ -132,7 +132,7 @@
     (modify-syntax-entry ?\} "){" st)
     (modify-syntax-entry ?\" "\"" st)
     st)
-  "Syntax table in use in sieve-mode buffers.")
+  "Syntax table in use in `sieve-mode' buffers.")
 
 
 ;; Key map definition

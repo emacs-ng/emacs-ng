@@ -1,6 +1,6 @@
 ;;; avl-tree.el --- balanced binary trees, AVL-trees  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1995, 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1995, 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: Per Cederqvist <ceder@lysator.liu.se>
 ;;         Inge Wallin <inge@lysator.liu.se>
@@ -330,8 +330,7 @@ inserted data."
 	       data)))
 	(if (or (funcall cmpfun newdata data)
 		(funcall cmpfun data newdata))
-	    (error "avl-tree-enter:\
- updated data does not match existing data"))
+            (error "avl-tree-enter: Updated data does not match existing data"))
 	(setf (avl-tree--node-data br) newdata)
 	(cons nil newdata))  ; return value
       ))))

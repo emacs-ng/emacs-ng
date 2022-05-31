@@ -1,6 +1,6 @@
 ;;; x-dnd.el --- drag and drop support for X  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2022 Free Software Foundation, Inc.
 
 ;; Author: Jan Djärv <jan.h.d@swipnet.se>
 ;; Maintainer: emacs-devel@gnu.org
@@ -377,7 +377,7 @@ Currently XDND, Motif and old KDE 1.x protocols are recognized."
     ("XdndActionMove" . move)
     ("XdndActionLink" . link)
     ("XdndActionAsk" . ask))
-  "Mapping from XDND action types to lisp symbols.")
+  "Mapping from XDND action types to Lisp symbols.")
 
 (declare-function x-change-window-property "xfns.c"
 		  (prop value &optional frame type format outer-P))

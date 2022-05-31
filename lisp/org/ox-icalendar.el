@@ -1,9 +1,10 @@
 ;;; ox-icalendar.el --- iCalendar Back-End for Org Export Engine -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2022 Free Software Foundation, Inc.
 
-;; Author: Carsten Dominik <carsten at orgmode dot org>
+;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;;      Nicolas Goaziou <n dot goaziou at gmail dot com>
+;; Maintainer: Nicolas Goaziou <n.goaziou at gmail dot com>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: https://orgmode.org
 
@@ -32,6 +33,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'org-agenda)
 (require 'ox-ascii)
 (declare-function org-bbdb-anniv-export-ical "ol-bbdb" nil)
 
@@ -278,10 +280,10 @@ re-read the iCalendar file.")
 		     (footnote-definition . ignore)
 		     (footnote-reference . ignore)
 		     (headline . org-icalendar-entry)
+                     (inner-template . org-icalendar-inner-template)
 		     (inlinetask . ignore)
 		     (planning . ignore)
 		     (section . ignore)
-		     (inner-template . (lambda (c i) c))
 		     (template . org-icalendar-template))
   :options-alist
   '((:exclude-tags
@@ -370,7 +372,6 @@ A headline is blocked when either
 		   (1- (length org-icalendar-date-time-format)))
 	      ?Z))
 
-(defvar org-agenda-default-appointment-duration) ; From org-agenda.el.
 (defun org-icalendar-convert-timestamp (timestamp keyword &optional end tz)
   "Convert TIMESTAMP to iCalendar format.
 
@@ -722,7 +723,7 @@ Return VEVENT component as a string."
 	     "END:VEVENT"))))
 
 (defun org-icalendar--vtodo
-  (entry uid summary location description categories timezone class)
+    (entry uid summary location description categories timezone class)
   "Create a VTODO component.
 
 ENTRY is either a headline or an inlinetask element.  UID is the
@@ -805,6 +806,11 @@ END:VALARM\n"
 
 ;;;; Template
 
+(defun org-icalendar-inner-template (contents _)
+  "Return document body string after iCalendar conversion.
+CONTENTS is the transcoded contents string."
+  contents)
+
 (defun org-icalendar-template (contents info)
   "Return complete document string after iCalendar conversion.
 CONTENTS is the transcoded contents string.  INFO is a plist used
@@ -849,7 +855,7 @@ CALSCALE:GREGORIAN\n"
 
 ;;;###autoload
 (defun org-icalendar-export-to-ics
-  (&optional async subtreep visible-only body-only)
+    (&optional async subtreep visible-only body-only)
   "Export current buffer to an iCalendar file.
 
 If narrowing is active in the current buffer, only export its
@@ -882,8 +888,8 @@ Return ICS file name."
     (org-export-to-file 'icalendar outfile
       async subtreep visible-only body-only
       '(:ascii-charset utf-8 :ascii-links-to-notes nil)
-      (lambda (file)
-	(run-hook-with-args 'org-icalendar-after-save-hook file) nil))))
+      '(lambda (file)
+	 (run-hook-with-args 'org-icalendar-after-save-hook file) nil))))
 
 ;;;###autoload
 (defun org-icalendar-export-agenda-files (&optional async)

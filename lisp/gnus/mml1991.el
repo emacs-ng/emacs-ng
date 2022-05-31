@@ -1,6 +1,6 @@
 ;;; mml1991.el --- Old PGP message format (RFC 1991) support for MML  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2022 Free Software Foundation, Inc.
 
 ;; Author: Sascha Lüdecke <sascha@meta-x.de>,
 ;;	Simon Josefsson <simon@josefsson.org> (Mailcrypt interface, Gnus glue)
@@ -259,8 +259,7 @@ Whether the passphrase is cached at all is controlled by
 (autoload 'epg-expand-group "epg-config")
 
 (defun mml1991-epg-sign (_cont)
-  (let ((inhibit-redisplay t)
-	headers cte)
+  (let (headers cte)
     ;; Don't sign headers.
     (goto-char (point-min))
     (when (re-search-forward "^$" nil t)

@@ -1,6 +1,6 @@
 ;;; calculator-tests.el --- Test suite for calculator. -*- lexical-binding: t -*-
 
-;; Copyright (C) 2021 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -48,4 +48,4 @@
          (should (equal (calculator-string-to-number str) expected)))))))
 
 (provide 'calculator-tests)
-;; calculator-tests.el ends here
+;;; calculator-tests.el ends here

@@ -1,6 +1,6 @@
 ;;; generator-tests.el --- Testing generators -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
 
 ;; Author: Daniel Colascione <dancol@dancol.org>
 ;; Keywords:
@@ -271,7 +271,7 @@ identical output."
                      (unwind-protect
                           (progn
                             (iter-yield 1)
-                            (error "test")
+                            (error "Test")
                             (iter-yield 2))
                        (cl-incf nr-unwound))))))
     (should (equal (iter-next iter) 1))

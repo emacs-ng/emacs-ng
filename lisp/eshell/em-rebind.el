@@ -1,6 +1,6 @@
 ;;; em-rebind.el --- rebind keys when point is at current input  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -168,7 +168,7 @@ This is default behavior of shells like bash."
 
 (defun eshell-lock-local-map (&optional arg)
   "Lock or unlock the current local keymap.
-Within a prefix arg, set the local keymap to its normal value, and
+With prefix ARG, set the local keymap to its normal value, and
 lock it at that."
   (interactive "P")
   (if (or arg (not eshell-lock-keymap))

@@ -1,6 +1,6 @@
 ;;; faces-tests.el --- Tests for faces.el            -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2013-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
 
 ;; Author: Artur Malabarba <bruce.connor.am@gmail.com>
 ;; Keywords:
@@ -25,7 +25,7 @@
 (require 'ert)
 (require 'ert-x)
 
-(defgroup faces--test nil ""
+(defgroup faces--test nil "Group to test faces."
   :group 'faces--test)
 
 (defface faces--test1

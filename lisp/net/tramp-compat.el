@@ -1,6 +1,6 @@
 ;;; tramp-compat.el --- Tramp compatibility functions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -63,25 +63,24 @@
   `(when (functionp ,function)
      (with-no-warnings (funcall ,function ,@arguments))))
 
-(defsubst tramp-compat-temporary-file-directory ()
-  "Return name of directory for temporary files.
-It is the default value of `temporary-file-directory'."
-  ;; We must return a local directory.  If it is remote, we could run
-  ;; into an infloop.
-  (eval (car (get 'temporary-file-directory 'standard-value)) t))
+;; We must use a local directory.  If it is remote, we could run into
+;; an infloop.
+(defconst tramp-compat-temporary-file-directory
+  (eval (car (get 'temporary-file-directory 'standard-value)) t)
+  "The default value of `temporary-file-directory'.")
 
 (defsubst tramp-compat-make-temp-name ()
   "Generate a local temporary file name (compat function)."
   (make-temp-name
    (expand-file-name
-    tramp-temp-name-prefix (tramp-compat-temporary-file-directory))))
+    tramp-temp-name-prefix tramp-compat-temporary-file-directory)))
 
 (defsubst tramp-compat-make-temp-file (f &optional dir-flag)
   "Create a local temporary file (compat function).
 Add the extension of F, if existing."
   (make-temp-file
    (expand-file-name
-    tramp-temp-name-prefix (tramp-compat-temporary-file-directory))
+    tramp-temp-name-prefix tramp-compat-temporary-file-directory)
    dir-flag (file-name-extension f t)))
 
 ;; `temporary-file-directory' as function is introduced with Emacs 26.1.
@@ -359,10 +358,10 @@ CONDITION can also be a list of error conditions."
 (defalias 'tramp-compat-string-replace
   (if (fboundp 'string-replace)
       #'string-replace
-    (lambda (fromstring tostring instring)
+    (lambda (from-string to-string in-string)
       (let ((case-fold-search nil))
         (replace-regexp-in-string
-         (regexp-quote fromstring) tostring instring t t)))))
+         (regexp-quote from-string) to-string in-string t t)))))
 
 ;; Function `string-search' is new in Emacs 28.1.
 (defalias 'tramp-compat-string-search
@@ -387,14 +386,17 @@ CONDITION can also be a list of error conditions."
   (if (fboundp 'file-name-concat)
       #'file-name-concat
     (lambda (directory &rest components)
-      (unless (null directory)
-	(let ((components (delq nil components))
-	      file-name-handler-alist)
-	  (if (null components)
-	      directory
-	    (tramp-compat-file-name-concat
-	     (concat (file-name-as-directory directory) (car components))
-	     (cdr components))))))))
+      (let ((components (cl-remove-if (lambda (el)
+                                        (or (null el) (equal "" el)))
+                                      components))
+	    file-name-handler-alist)
+        (if (null components)
+	    directory
+          (apply #'tramp-compat-file-name-concat
+	         (concat (unless (or (equal "" directory) (null directory))
+                           (file-name-as-directory directory))
+                         (car components))
+	         (cdr components)))))))
 
 (dolist (elt (all-completions "tramp-compat-" obarray 'functionp))
   (put (intern elt) 'tramp-suppress-trace t))

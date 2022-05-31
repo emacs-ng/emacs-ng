@@ -1,6 +1,6 @@
 /* Process support for GNU Emacs on the Microsoft Windows API.
 
-Copyright (C) 1992, 1995, 1999-2021 Free Software Foundation, Inc.
+Copyright (C) 1992, 1995, 1999-2022 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -3878,14 +3878,6 @@ w32_compare_strings (const char *s1, const char *s2, char *locname,
   return val - 2;
 }
 
-DEFUN ("w32-get-nproc", Fw32_get_nproc,
-       Sw32_get_nproc, 0, 0, 0,
-       doc: /* Return the number of system's processor execution units.  */)
-  (void)
-{
-  return make_fixnum (w32_get_nproc ());
-}
-
 
 void
 syms_of_ntproc (void)
@@ -3919,8 +3911,6 @@ syms_of_ntproc (void)
   defsubr (&Sw32_get_valid_keyboard_layouts);
   defsubr (&Sw32_get_keyboard_layout);
   defsubr (&Sw32_set_keyboard_layout);
-
-  defsubr (&Sw32_get_nproc);
 
   DEFVAR_LISP ("w32-quote-process-args", Vw32_quote_process_args,
 	       doc: /* Non-nil enables quoting of process arguments to ensure correct parsing.

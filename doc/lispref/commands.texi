@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2021 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2022 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Command Loop
@@ -630,17 +630,26 @@ any modes that are derived from @code{dired-mode}).  Any number of
 modes can be added to the @code{interactive} form.
 
 @vindex read-extended-command-predicate
-Specifying modes may affect completion in @kbd{M-x}, depending on the
+Specifying modes affects command completion in @kbd{M-S-x}
+(@code{execute-extended-command-for-buffer}, @pxref{Interactive
+Call}).  It may also affect completion in @kbd{M-x}, depending on the
 value of @code{read-extended-command-predicate}.
 
 For instance, when using the
-@code{command-completion-default-include-p} predicate, @kbd{M-x} won't
-list commands that have been marked as being applicable to a specific
-mode (unless you are in a buffer that uses that mode, of course).
-This goes for both major and minor modes.
+@code{command-completion-default-include-p} predicate as the value of
+@code{read-extended-command-predicate}, @kbd{M-x} won't list commands
+that have been marked as being applicable to a specific mode (unless
+you are in a buffer that uses that mode, of course).  This goes for
+both major and minor modes.  (By contrast, @kbd{M-S-x} always omits
+inapplicable commands from the completion candidates.)
 
-Marking commands this way will also make @kbd{C-h m} list these
-commands (if they aren't bound to any keys).
+By default, @code{read-extended-command-predicate} is @code{nil}, and
+completion in @kbd{M-x} lists all the commands that match what the
+user has typed, whether those commands are or aren't marked as
+applicable to the current buffer's mode.
+
+Marking commands to be applicable to a mode will also make @kbd{C-h m}
+list these commands (if they aren't bound to any keys).
 
 If using this extended @code{interactive} form isn't convenient
 (because the code is supposed to work in older versions of Emacs that
@@ -672,6 +681,11 @@ different ways (e.g., @code{eww-open-in-new-buffer} and
 @code{eww-open-file}).  Commands like that should never be tagged as
 mode-specific, as they can be issued by the user from pretty much any
 context.
+
+Note that specifying command modes is not supported in native-compiled
+functions in Emacs 28.1 (but this is fixed in later Emacs versions).
+This means that @code{read-extended-command-predicate} isn't supported
+in native-compile builds, either.
 
 @node Generic Commands
 @subsection Select among Command Alternatives
@@ -857,13 +871,16 @@ non-@code{nil} if the command is to be included when completing in
 that buffer.
 @end deffn
 
+@kindex @kbd{M-X}
+@kindex @kbd{M-S-x}
 @deffn Command execute-extended-command-for-buffer prefix-argument
 This is like @code{execute-extended-command}, but limits the commands
 offered for completion to those commands that are of particular
 relevance to the current major mode (and enabled minor modes).  This
 includes commands that are tagged with the modes (@pxref{Using
 Interactive}), and also commands that are bound to locally active
-keymaps.
+keymaps.  This command is the normal definition of @kbd{M-S-x}
+(that's ``meta shift x'').
 @end deffn
 
 @node Distinguish Interactive
@@ -1424,9 +1441,12 @@ binding of the key sequence.
 @subsection Click Events
 @cindex click event
 @cindex mouse click event
+@cindex mouse wheel event
 
 When the user presses a mouse button and releases it at the same
-location, that generates a @dfn{click} event.  All mouse click event
+location, that generates a @dfn{click} event.  Depending on how your
+window-system reports mouse-wheel events, turning the mouse wheel can
+generate either a mouse click or a mouse-wheel event.  All mouse event
 share the same format:
 
 @example
@@ -1437,7 +1457,8 @@ share the same format:
 @item @var{event-type}
 This is a symbol that indicates which mouse button was used.  It is
 one of the symbols @code{mouse-1}, @code{mouse-2}, @dots{}, where the
-buttons are numbered left to right.
+buttons are numbered left to right.  For mouse-wheel event, it can be
+@code{wheel-up} or @code{wheel-down}.
 
 You can also use prefixes @samp{A-}, @samp{C-}, @samp{H-}, @samp{M-},
 @samp{S-} and @samp{s-} for modifiers alt, control, hyper, meta, shift
@@ -1450,19 +1471,20 @@ describe events by their types; thus, if there is a key binding for
 
 @item @var{position}
 @cindex mouse position list
-This is a @dfn{mouse position list} specifying where the mouse click
+This is a @dfn{mouse position list} specifying where the mouse event
 occurred; see below for details.
 
 @item @var{click-count}
 This is the number of rapid repeated presses so far of the same mouse
-button.  @xref{Repeat Events}.
+button or the number of repeated turns of the wheel.  @xref{Repeat
+Events}.
 @end table
 
   To access the contents of a mouse position list in the
-@var{position} slot of a click event, you should typically use the
+@var{position} slot of a mouse event, you should typically use the
 functions documented in @ref{Accessing Mouse}.
 
-The explicit format of the list depends on where the click occurred.
+The explicit format of the list depends on where the event occurred.
 For clicks in the text area, mode line, header line, tab line, or in
 the fringe or marginal areas, the mouse position list has the form
 
@@ -1477,11 +1499,11 @@ The meanings of these list elements are as follows:
 
 @table @asis
 @item @var{window}
-The window in which the click occurred.
+The window in which the mouse event occurred.
 
 @item @var{pos-or-area}
 The buffer position of the character clicked on in the text area; or,
-if the click was outside the text area, the window area where it
+if the event was outside the text area, the window area where it
 occurred.  It is one of the symbols @code{mode-line},
 @code{header-line}, @code{tab-line}, @code{vertical-line},
 @code{left-margin}, @code{right-margin}, @code{left-fringe}, or
@@ -1493,10 +1515,10 @@ happens after the imaginary prefix keys for the event are registered
 by Emacs.  @xref{Key Sequence Input}.
 
 @item @var{x}, @var{y}
-The relative pixel coordinates of the click.  For clicks in the text
+The relative pixel coordinates of the event.  For events in the text
 area of a window, the coordinate origin @code{(0 . 0)} is taken to be
 the top left corner of the text area.  @xref{Window Sizes}.  For
-clicks in a mode line, header line or tab line, the coordinate origin
+events in a mode line, header line or tab line, the coordinate origin
 is the top left corner of the window itself.  For fringes, margins,
 and the vertical border, @var{x} does not have meaningful data.
 For fringes and margins, @var{y} is relative to the bottom edge of the
@@ -1508,9 +1530,9 @@ The time at which the event occurred, as an integer number of
 milliseconds since a system-dependent initial time.
 
 @item @var{object}
-Either @code{nil}, which means the click occurred on buffer text, or a
+Either @code{nil}, which means the event occurred on buffer text, or a
 cons cell of the form @w{(@var{string} . @var{string-pos})} if there
-is a string from a text property or an overlay at the click position.
+is a string from a text property or an overlay at the event position.
 
 @table @asis
 @item @var{string}
@@ -1553,8 +1575,10 @@ corner of @var{object}, which is @code{(0 . 0)}.  If @var{object} is
 the top left corner of the character glyph clicked on.
 
 @item @var{width}, @var{height}
-These are the pixel width and height of @var{object} or, if this is
-@code{nil}, those of the character glyph clicked on.
+If the click is on a character, either from buffer text or from
+overlay or display string, these are the pixel width and height of
+that character's glyph; otherwise they are dimensions of @var{object}
+clicked on.
 @end table
 
 For clicks on a scroll bar, @var{position} has this form:
@@ -1595,7 +1619,8 @@ handle), @code{up} (the up arrow at one end of the scroll bar), or
 @end table
 
 For clicks on the frame's internal border (@pxref{Frame Layout}),
-@var{position} has this form:
+the frame's tool bar (@pxref{Tool Bar}) or tab bar, @var{position}
+has this form:
 
 @example
  (@var{frame} @var{part} (@var{X} . @var{Y}) @var{timestamp})
@@ -1603,19 +1628,20 @@ For clicks on the frame's internal border (@pxref{Frame Layout}),
 
 @table @asis
 @item @var{frame}
-The frame whose internal border was clicked on.
+The frame whose internal border or tool bar or tab bar was clicked on.
 
 @item @var{part}
-The part of the internal border which was clicked on.  This can be one
+The part of the frame which was clicked on.  This can be one
 of the following:
 
 @table @code
-@item nil
-The frame does not have an internal border.  This usually happens on
-text-mode frames.  This can also happen on GUI frames with internal
-border if the frame doesn't have its @code{drag-internal-border}
-parameter (@pxref{Mouse Dragging Parameters}) set to a non-@code{nil}
-value.
+@cindex tool-bar mouse events
+@item tool-bar
+The frame has a tool bar, and the event was in the tool-bar area.
+
+@cindex tab-bar mouse events
+@item tab-bar
+The frame has a tab bar, and the event was in the tab-bar area.
 
 @item left-edge
 @itemx top-edge
@@ -1629,6 +1655,13 @@ canonical character from the border's nearest corner.
 @itemx bottom-right-corner
 @itemx bottom-left-corner
 The click was on the corresponding corner of the internal border.
+
+@item nil
+The frame does not have an internal border, and the event was not on
+the tab bar or the tool bar.  This usually happens on text-mode
+frames.  This can also happen on GUI frames with internal border if
+the frame doesn't have its @code{drag-internal-border} parameter
+(@pxref{Mouse Dragging Parameters}) set to a non-@code{nil} value.
 @end table
 
 @end table
@@ -2340,10 +2373,9 @@ This function returns position information corresponding to pixel
 coordinates @var{x} and @var{y} in a specified frame or window,
 @var{frame-or-window}, which defaults to the selected window.
 The coordinates @var{x} and @var{y} are relative to the
-frame or window used.
-If @var{whole} is @code{nil}, the coordinates are relative
-to the window text area, otherwise they are relative to
-the entire window area including scroll bars, margins and fringes.
+text area of the selected window.
+If @var{whole} is @code{non-nil}, the @var{x} coordinate is relative
+to the entire window area including scroll bars, margins and fringes.
 @end defun
 
 @node Accessing Scroll
@@ -2839,7 +2871,7 @@ causes it to evaluate @code{help-form} and display the result.  It
 then continues to wait for a valid input character, or keyboard-quit.
 @end defun
 
-@defun read-multiple-choice prompt choices
+@defun read-multiple-choice prompt choices &optional help-string
 Ask user a multiple choice question.  @var{prompt} should be a string
 that will be displayed as the prompt.
 
@@ -2848,6 +2880,11 @@ character to be entered, the second element is a short name for the
 entry to be displayed while prompting (if there's room, it might be
 shortened), and the third, optional entry is a longer explanation that
 will be displayed in a help buffer if the user requests more help.
+
+If optional argument @var{help-string} is non-@code{nil}, it should be
+a string with a more detailed description of all choices.  It will be
+displayed in a help buffer instead of the default auto-generated
+description when the user types @kbd{?}.
 
 The return value is the matching value from @var{choices}.
 
@@ -3571,17 +3608,19 @@ commands.
 @cindex exit recursive editing
 @cindex aborting
   To invoke a recursive editing level, call the function
-@code{recursive-edit}.  This function contains the command loop; it also
-contains a call to @code{catch} with tag @code{exit}, which makes it
-possible to exit the recursive editing level by throwing to @code{exit}
-(@pxref{Catch and Throw}).  If you throw a @code{nil} value, then
-@code{recursive-edit} returns normally to the function that called it.
-The command @kbd{C-M-c} (@code{exit-recursive-edit}) does this.
-Throwing a @code{t} value causes @code{recursive-edit} to quit, so that
-control returns to the command loop one level up.  This is called
-@dfn{aborting}, and is done by @kbd{C-]} (@code{abort-recursive-edit}).
-You can also throw a function value.  In that case,
+@code{recursive-edit}.  This function contains the command loop; it
+also contains a call to @code{catch} with tag @code{exit}, which makes
+it possible to exit the recursive editing level by throwing to
+@code{exit} (@pxref{Catch and Throw}).  Throwing a @code{t} value
+causes @code{recursive-edit} to quit, so that control returns to the
+command loop one level up.  This is called @dfn{aborting}, and is done
+by @kbd{C-]} (@code{abort-recursive-edit}).  Similarly, you can throw
+a string value to make @code{recursive-edit} signal an error, printing
+this string as the message.  If you throw a function,
 @code{recursive-edit} will call it without arguments before returning.
+Throwing any other value, will make @code{recursive-edit} return
+normally to the function that called it.  The command @kbd{C-M-c}
+(@code{exit-recursive-edit}) does this.
 
   Most applications should not use recursive editing, except as part of
 using the minibuffer.  Usually it is more convenient for the user if you

@@ -1,6 +1,6 @@
 ;;; em-hist.el --- history list management  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -402,7 +402,7 @@ variable `eshell-input-filter' returns non-nil when called on the
 command.
 
 This function is supposed to be called from the minibuffer, presumably
-as a minibuffer-exit-hook."
+as a `minibuffer-exit-hook'."
   (eshell-add-input-to-history
    (buffer-substring (minibuffer-prompt-end) (point-max))))
 

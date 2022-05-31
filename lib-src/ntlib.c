@@ -1,6 +1,6 @@
 /* Utility and Unix shadow routines for GNU Emacs support programs on NT.
 
-Copyright (C) 1994, 2001-2021 Free Software Foundation, Inc.
+Copyright (C) 1994, 2001-2022 Free Software Foundation, Inc.
 
 Author: Geoff Voelker (voelker@cs.washington.edu)
 Created: 10-8-94
@@ -19,6 +19,15 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
+
+/* Temporary workaround for compilation problems with MinGW64 GCC 11.
+   The funky #ifdef's are to avoid warnings about unused macros.  */
+#define _GL_ATTRIBUTE_MALLOC
+#define _GL_ATTRIBUTE_DEALLOC_FREE
+#ifdef _GL_ATTRIBUTE_MALLOC
+#endif
+#ifdef _GL_ATTRIBUTE_DEALLOC_FREE
+#endif
 
 #include <windows.h>
 #include <stdlib.h>

@@ -1,6 +1,6 @@
 ;;; mh-xface-tests.el --- tests for mh-xface.el -*- lexical-binding: t -*-
 
-;; Copyright (C) 2021 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -33,3 +33,18 @@
   (should (equal (mh-x-image-url-sane-p "https:") t))
   (should (equal (mh-x-image-url-sane-p "https://www.example.com/me.png") t))
   (should (equal (mh-x-image-url-sane-p "abcde:") nil)))
+
+(ert-deftest mh-x-image-url-cache-canonicalize ()
+  "Test `mh-x-image-url-cache-canonicalize'."
+  (should (equal (format "%s/%s" mh-x-image-cache-directory "%21foo%21bar.png")
+                 (mh-x-image-url-cache-canonicalize "/foo/bar")))
+  (should (equal (format "%s/%s" mh-x-image-cache-directory
+                         "http%3A%21%21domain.com%21foo%21bar.png")
+                 (mh-x-image-url-cache-canonicalize
+                  "http://domain.com/foo/bar")))
+  ;; All Windows invalid characters.
+  (should (equal (format "%s/%s" mh-x-image-cache-directory
+                         "%21%3C%3E%3A%2A%3F%22%5C%7C%21bar.png")
+                 (mh-x-image-url-cache-canonicalize "/<>:*?\"\\|/bar"))))
+
+;;; mh-xface-tests.el ends here

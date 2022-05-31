@@ -1,5 +1,5 @@
 ;;; gnus-util-tests.el --- Selectived tests only.  -*- lexical-binding:t -*-
-;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
 
 ;; Author: Jens Lechtenbörger <jens.lechtenboerger@fsfe.org>
 
@@ -132,4 +132,4 @@
   (should (equal '("1") (gnus-setdiff '(2 "1" 2) '(2))))
   (should (equal '("1" "1") (gnus-setdiff '(2 "1" 2 "1") '(2)))))
 
-;;; gnustest-gnus-util.el ends here
+;;; gnus-util-tests.el ends here

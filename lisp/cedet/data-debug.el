@@ -1,6 +1,6 @@
 ;;; data-debug.el --- Data structure debugger  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Old-Version: 0.2
@@ -413,7 +413,9 @@ PREBUTTONTEXT is some text between prefix and the stuff list button."
   )
 
 (defun data-debug-insert-hash-table-button (hash-table prefix prebuttontext)
-  "Insert HASH-TABLE as expandable button with recursive prefix PREFIX and PREBUTTONTEXT in front of the button text."
+  "Insert HASH-TABLE as expandable button, using PREFIX and PREBUTTONTEXT.
+PREFIX is a recursive prefix and PREBUTTONTEXT is text to be inserted
+in front of the button text."
   (let ((string (propertize (format "%s" hash-table)
 			    'face 'font-lock-keyword-face)))
     (insert (propertize

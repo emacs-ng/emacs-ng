@@ -1,6 +1,6 @@
 /* Functions for creating and updating GTK widgets.
 
-Copyright (C) 2003-2021 Free Software Foundation, Inc.
+Copyright (C) 2003-2022 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -2932,8 +2932,9 @@ xg_item_label_same_p (GtkMenuItem *witem, const char *label)
   char *utf8_label = get_utf8_string (label);
   const char *old_label = witem ? xg_get_menu_item_label (witem) : 0;
 
-  bool is_same = (!old_label == !utf8_label
-		  && (!old_label || strcmp (utf8_label, old_label) == 0));
+  bool is_same = (old_label
+		  ? utf8_label && strcmp (utf8_label, old_label) == 0
+		  : !utf8_label);
 
   if (utf8_label) g_free (utf8_label);
 

@@ -1,6 +1,6 @@
 ;;; rmailout.el --- "RMAIL" mail reader for Emacs: output message to a file  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985, 1987, 1993-1994, 2001-2021 Free Software
+;; Copyright (C) 1985, 1987, 1993-1994, 2001-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -434,7 +434,7 @@ AS-SEEN is non-nil if we are copying the message \"as seen\"."
 
 (defun rmail-output-to-rmail-buffer (tembuf msg)
   "Copy message in TEMBUF into the current Rmail buffer.
-Do what is necessary to make Rmail know about the new message. then
+Do what is necessary to make Rmail know about the new message, then
 display message number MSG."
   (save-excursion
     (rmail-swap-buffers-maybe)

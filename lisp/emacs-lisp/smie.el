@@ -1,6 +1,6 @@
 ;;; smie.el --- Simple Minded Indentation Engine -*- lexical-binding: t -*-
 
-;; Copyright (C) 2010-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: languages, lisp, internal, parsing, indentation
@@ -1302,7 +1302,7 @@ Only meaningful when called from within `smie-rules-function'."
                     (let ((tok (funcall smie-forward-token-function)))
                       (unless tok
                         (with-demoted-errors
-                          (error "smie-rule-separator: can't skip token %s"
+                          (error "smie-rule-separator: Can't skip token %s"
                                  smie--token))))
                     (skip-chars-forward " ")
                     (unless (eolp) (point)))))

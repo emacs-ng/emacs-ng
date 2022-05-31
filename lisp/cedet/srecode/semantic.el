@@ -1,6 +1,6 @@
 ;;; srecode/semantic.el --- Semantic specific extensions to SRecode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -201,7 +201,7 @@ variable default values, and other things."
   (let ((tag (or srecode-semantic-selected-tag
 		 (srecode-semantic-tag-from-kill-ring))))
     (when (not tag)
-      (error "No tag for current template.  Use the semantic kill-ring."))
+      (error "No tag for current template.  Use the semantic kill-ring"))
     (srecode-semantic-apply-tag-to-dict
      (srecode-semantic-tag (semantic-tag-name tag)
 			   :prime tag)

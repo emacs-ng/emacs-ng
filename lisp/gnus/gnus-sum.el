@@ -1,6 +1,6 @@
 ;;; gnus-sum.el --- summary mode commands for Gnus  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2022 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -1723,8 +1723,7 @@ For example:
 \(setq gnus-newsgroup-variables
      \\='(message-use-followup-to
        (gnus-visible-headers .
-	 \"^From:\\\\|^Newsgroups:\\\\|^Subject:\\\\|^Date:\\\\|^To:\")))
-")
+         \"^From:\\\\|^Newsgroups:\\\\|^Subject:\\\\|^Date:\\\\|^To:\")))")
 
 (eval-when-compile
   ;; Bind features so that require will believe that gnus-sum has
@@ -2252,6 +2251,7 @@ increase the score of each group you read."
   "s" gnus-treat-smiley
   "D" gnus-article-remove-images
   "W" gnus-article-show-images
+  "F" gnus-article-toggle-fonts
   "f" gnus-treat-from-picon
   "m" gnus-treat-mail-picon
   "n" gnus-treat-newsgroups-picon
@@ -2561,6 +2561,7 @@ gnus-summary-show-article-from-menu-as-charset-%s" cs))))
 	      ["Unfold headers" gnus-article-treat-unfold-headers t]
 	      ["Fold newsgroups" gnus-article-treat-fold-newsgroups t]
 	      ["Html" gnus-article-wash-html t]
+	      ["Toggle HTML fonts" gnus-article-toggle-fonts t]
 	      ["Unsplit URLs" gnus-article-unsplit-urls t]
 	      ["Verify X-PGP-Sig" gnus-article-verify-x-pgp-sig t]
 	      ["Decode HZ" gnus-article-decode-HZ t]
@@ -3144,8 +3145,9 @@ You can also post articles and send mail from this buffer.  To
 follow up an article, type `\\[gnus-summary-followup]'.  To mail a reply to the author
 of an article, type `\\[gnus-summary-reply]'.
 
-There are approx. one gazillion commands you can execute in this
-buffer; read the Info manual for more information (`\\[gnus-info-find-node]').
+There are approximately one gazillion commands you can execute in
+this buffer; read the Info manual for more
+information (`\\[gnus-info-find-node]').
 
 The following commands are available:
 
@@ -4355,7 +4357,8 @@ If SELECT-ARTICLES, only select those articles from GROUP."
     result))
 
 (defun gnus-sort-gathered-threads (threads)
-  "Sort subthreads inside each gathered thread by `gnus-sort-gathered-threads-function'."
+  "Sort subthreads inside each gathered thread.
+Sorting is done by `gnus-sort-gathered-threads-function'."
   (let ((result threads))
     (while threads
       (when (stringp (caar threads))
@@ -5171,7 +5174,7 @@ Unscored articles will be counted as having a score of zero."
   (gnus-article-sort-by-number h1 h2))
 
 (defun gnus-thread-sort-by-most-recent-number (h1 h2)
-  "Sort threads such that the thread with the most recently arrived article comes first."
+  "Sort threads such that the thread with most recently arrived article is first."
   (> (gnus-thread-highest-number h1) (gnus-thread-highest-number h2)))
 
 (defun gnus-thread-highest-number (thread)
@@ -5185,7 +5188,7 @@ Unscored articles will be counted as having a score of zero."
   (gnus-article-sort-by-date h1 h2))
 
 (defun gnus-thread-sort-by-most-recent-date (h1 h2)
-  "Sort threads such that the thread with the most recently dated article comes first."
+  "Sort threads such that the thread with most recently dated article is first."
   (> (gnus-thread-latest-date h1) (gnus-thread-latest-date h2)))
 
 (defsubst gnus-article-sort-by-newsgroups (h1 h2)
@@ -5649,7 +5652,7 @@ or a straight list of headers."
         gnus-list-identifiers)))
 
 (defun gnus-summary-remove-list-identifiers ()
-  "Remove list identifiers in `gnus-list-identifiers' from articles in the current group."
+  "Remove identifiers in `gnus-list-identifiers' from articles in current group."
   (let ((regexp (gnus-group-get-list-identifiers gnus-newsgroup-name))
         changed subject)
     (when regexp
@@ -6841,7 +6844,7 @@ Also do horizontal recentering."
 
 (defun gnus-forward-line-ignore-invisible (n)
   "Move N lines forward (backward if N is negative).
-Like forward-line, but skip over (and don't count) invisible lines."
+Like `forward-line', but skip over (and don't count) invisible lines."
   (let (done)
     (while (and (> n 0) (not done))
       ;; If the following character is currently invisible,
@@ -8587,9 +8590,8 @@ If UNREPLIED (the prefix), limit to unreplied articles."
   (interactive "P" gnus-summary-mode)
   (if unreplied
       (gnus-summary-limit
-       (seq-difference gnus-newsgroup-articles
-                       gnus-newsgroup-replied
-                       #'eq))
+       (gnus-set-difference gnus-newsgroup-articles
+	gnus-newsgroup-replied))
     (gnus-summary-limit gnus-newsgroup-replied))
   (gnus-summary-position-point))
 
@@ -9837,11 +9839,11 @@ article currently."
   "Force redisplaying of the current article.
 If ARG (the prefix) is a number, show the article with the charset
 defined in `gnus-summary-show-article-charset-alist', or the charset
-input.
+input.\\<gnus-summary-mode-map>
 If ARG (the prefix) is non-nil and not a number, show the article,
 but without running any of the article treatment functions
-article.  Normally, the keystroke is `C-u g'.  When using `C-u
-C-u g', show the raw article."
+article.  Normally, the keystroke is `\\[universal-argument] \\[gnus-summary-show-article]'.  When using `\\[universal-argument]
+\\[universal-argument] \\[gnus-summary-show-article]', show the raw article."
   (interactive "P" gnus-summary-mode)
   (cond
    ((numberp arg)

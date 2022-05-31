@@ -1,6 +1,6 @@
 ;;; semantic/dep.el --- Methods for tracking dependencies (include files)  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2006-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: syntax
@@ -133,7 +133,7 @@ Changes made by this function are not persistent."
 ;;;###autoload
 (defun semantic-remove-system-include (dir &optional mode)
   "Add a system include DIR to path for MODE.
-Modifies a mode-local version of`semantic-dependency-system-include-path'.
+Modifies a mode-local version of `semantic-dependency-system-include-path'.
 
 Changes made by this function are not persistent."
   (interactive (list

@@ -1,6 +1,6 @@
 ;;; eudcb-bbdb.el --- Emacs Unified Directory Client - BBDB Backend  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2022 Free Software Foundation, Inc.
 
 ;; Author: Oscar Figueiredo <oscar@cpe.fr>
 ;;         Pavel Janík <Pavel@Janik.cz>
@@ -233,7 +233,7 @@ RETURN-ATTRS is a list of attributes to return, defaulting to
       (setq bbdb-attrs (append bbdb-attrs (list (car query-attrs))))
       (if (car query-attrs)
 	  ;; BEWARE: `bbdb-search' is a macro!
-	  (setq records (eval `(bbdb-search records ,@bbdb-attrs) t)))
+	  (setq records (eval `(bbdb-search (quote ,records) ,@bbdb-attrs) t)))
       (setq query-attrs (cdr query-attrs)))
     (mapc (lambda (record)
             (setq filtered (eudc-filter-duplicate-attributes record))

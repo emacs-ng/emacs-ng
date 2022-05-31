@@ -1,9 +1,10 @@
 ;;; ob-perl.el --- Babel Functions for Perl          -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2022 Free Software Foundation, Inc.
 
 ;; Authors: Dan Davison
 ;;	 Eric Schulte
+;; Maintainer: Corwin Brust
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: https://orgmode.org
 

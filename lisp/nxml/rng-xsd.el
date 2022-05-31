@@ -1,6 +1,6 @@
 ;;; rng-xsd.el --- W3C XML Schema datatypes library for RELAX NG  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003, 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2003, 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: James Clark
 ;; Keywords: wp, hypermedia, languages, XML, RelaxNG
@@ -22,7 +22,7 @@
 
 ;;; Commentary:
 
-;; The main entry point is `rng-xsd-compile'. The validator
+;; The main entry point is `rng-xsd-compile'.  The validator
 ;; knows to use this for the datatype library with URI
 ;; https://www.w3.org/2001/XMLSchema-datatypes because it
 ;; is the value of the rng-dt-compile property on that URI

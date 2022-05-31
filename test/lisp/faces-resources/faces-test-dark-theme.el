@@ -1,6 +1,6 @@
 ;;; faces-test-dark-theme.el --- A dark theme from tests ;;; -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2019-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -22,7 +22,7 @@
 ;;; Code:
 
 (deftheme faces-test-dark
-  "")
+  "Dark test theme.")
 
 (custom-theme-set-faces
  'faces-test-dark

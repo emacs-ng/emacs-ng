@@ -1,6 +1,6 @@
 ;;; comp-cstr.el --- native compiler constraint library -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
 
 ;; Author: Andrea Corallo <akrl@sdf.com>
 ;; Keywords: lisp
@@ -134,7 +134,7 @@ Integer values are handled in the `range' slot.")
                     :neg (neg cstr))))
 
 (defsubst comp-cstr-empty-p (cstr)
-  "Return t if CSTR is equivalent to the `nil' type specifier or nil otherwise."
+  "Return t if CSTR is equivalent to the nil type specifier or nil otherwise."
   (with-comp-cstr-accessors
     (and (null (typeset cstr))
          (null (valset cstr))
@@ -152,7 +152,7 @@ Integer values are handled in the `range' slot.")
 (defun comp-cstrs-homogeneous (cstrs)
   "Check if constraints CSTRS are all homogeneously negated or non-negated.
 Return `pos' if they are all positive, `neg' if they are all
-negated or nil othewise."
+negated or nil otherwise."
   (cl-loop
    for cstr in cstrs
    unless (comp-cstr-neg cstr)
@@ -449,18 +449,20 @@ Return them as multiple value."
   (declare (debug (range-body))
            (indent defun))
   `(with-comp-cstr-accessors
-     (when-let ((r1 (range ,src1))
-                (r2 (range ,src2)))
-       (let* ((l1 (comp-cstr-smallest-in-range r1))
-              (l2 (comp-cstr-smallest-in-range r2))
-              (h1 (comp-cstr-greatest-in-range r1))
-              (h2 (comp-cstr-greatest-in-range r2)))
-         (setf (typeset ,dst) (when (cl-some (lambda (x)
-                                               (comp-subtype-p 'float x))
-                                             (append (typeset src1)
-                                                     (typeset src2)))
-                                '(float))
-               (range ,dst) ,@range-body)))))
+     (if (or (neg src1) (neg src2))
+         (setf (typeset ,dst) '(number))
+       (when-let ((r1 (range ,src1))
+                  (r2 (range ,src2)))
+         (let* ((l1 (comp-cstr-smallest-in-range r1))
+                (l2 (comp-cstr-smallest-in-range r2))
+                (h1 (comp-cstr-greatest-in-range r1))
+                (h2 (comp-cstr-greatest-in-range r2)))
+           (setf (typeset ,dst) (when (cl-some (lambda (x)
+                                                 (comp-subtype-p 'float x))
+                                               (append (typeset src1)
+                                                       (typeset src2)))
+                                  '(float))
+                 (range ,dst) ,@range-body))))))
 
 (defun comp-cstr-add-2 (dst src1 src2)
   "Sum SRC1 and SRC2 into DST."

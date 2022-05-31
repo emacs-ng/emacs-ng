@@ -1,6 +1,6 @@
 ;;; esh-ext.el --- commands external to Eshell  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -110,7 +110,7 @@ wholly ignored."
 (autoload 'eshell-parse-command "esh-cmd")
 
 (defsubst eshell-invoke-batch-file (&rest args)
-  "Invoke a .BAT or .CMD file on DOS/Windows systems."
+  "Invoke a .BAT or .CMD file on MS-DOS/MS-Windows systems."
   ;; since CMD.EXE can't handle forward slashes in the initial
   ;; argument...
   (setcar args (subst-char-in-string ?/ ?\\ (car args)))
@@ -163,7 +163,7 @@ by the user on the command line."
 
 (defcustom eshell-explicit-command-char ?*
   "If this char occurs before a command name, call it externally.
-That is, although `vi' may be an alias, `\vi' will always call the
+That is, although `vi' may be an alias, `*vi' will always call the
 external version."
   :type 'character
   :group 'eshell-ext)

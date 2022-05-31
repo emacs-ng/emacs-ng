@@ -1,6 +1,6 @@
 ;;; ps-mode.el --- PostScript mode for GNU Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author:     Peter Kleiweg <p.c.j.kleiweg@rug.nl>
 ;; Created:    20 Aug 1997
@@ -446,7 +446,7 @@ If nil, use `temporary-file-directory'."
      ps-mode-submit-bug-report
      t]))
 
-(easy-menu-define ps-mode-main ps-mode-map "PostScript" ps-mode-menu-main)
+(easy-menu-define ps-mode-main ps-mode-map "PostScript Menu." ps-mode-menu-main)
 
 
 

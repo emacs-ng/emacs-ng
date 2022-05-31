@@ -99,7 +99,7 @@ This is the @cite{GNU Emacs Lisp Reference Manual}
 @end ifclear
 corresponding to Emacs version @value{EMACSVER}.
 
-Copyright @copyright{} 1990--1996, 1998--2021 Free Software Foundation,
+Copyright @copyright{} 1990--1996, 1998--2022 Free Software Foundation,
 Inc.
 
 @quotation
@@ -161,7 +161,7 @@ Cover art by Etienne Suvasa.
 
 @ifset WWW_GNU_ORG
 @html
-<p>The homepage for GNU Emacs is at
+<p>The GNU Emacs website is at
 <a href="/software/emacs/">https://www.gnu.org/software/emacs/</a>.<br>
 For information on using Emacs, refer to the
 <a href="/software/emacs/manual/emacs.html">Emacs Manual</a>.<br>
@@ -234,7 +234,7 @@ To view this manual in other formats, click
 
 Appendices
 
-* Antinews::                Info for users downgrading to Emacs 26.
+* Antinews::                Info for users downgrading to Emacs 27.
 * GNU Free Documentation License:: The license for this documentation.
 * GPL::                     Conditions for copying and changing GNU Emacs.
 * Tips::                    Advice and coding conventions for Emacs Lisp.
@@ -1048,6 +1048,7 @@ Windows
 
 * Basic Windows::           Basic information on using windows.
 * Windows and Frames::      Relating windows to the frame they appear on.
+* Selecting Windows::       The selected window is the one that you edit in.
 * Window Sizes::            Accessing a window's size.
 * Resizing Windows::        Changing the sizes of windows.
 * Preserving Window Sizes:: Preserving the size of windows.
@@ -1055,7 +1056,6 @@ Windows
 * Deleting Windows::        Deleting a window gives its space to other windows.
 * Recombining Windows::     Preserving the frame layout when splitting and
                               deleting windows.
-* Selecting Windows::       The selected window is the one that you edit in.
 * Cyclic Window Ordering::  Moving around the existing windows.
 * Buffers and Windows::     Each window displays the contents of a buffer.
 * Switching Buffers::       Higher-level functions for switching to a buffer.
@@ -1316,6 +1316,7 @@ Regular Expressions
 * Rx Notation::             An alternative, structured regexp notation.
 @end ifnottex
 * Regexp Functions::        Functions for operating on regular expressions.
+* Regexp Problems::         Some problems and how they may be avoided.
 
 Syntax of Regular Expressions
 

@@ -1,6 +1,6 @@
 ;;; autoarg.el --- make digit keys supply prefix args -*- lexical-binding: t -*-
 
-;; Copyright (C) 1998, 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1998, 2000-2022 Free Software Foundation, Inc.
 
 ;; Author:  Dave Love <fx@gnu.org>
 ;; Created: 1998-09-04
@@ -104,7 +104,7 @@ For example:
 `6 9 a' inserts 69 `a's into the buffer.
 `6 9 \\[autoarg-terminate] \\[autoarg-terminate]' inserts `69' into the buffer and
 then invokes the normal binding of \\[autoarg-terminate].
-`C-u \\[autoarg-terminate]' invokes the normal binding of \\[autoarg-terminate] four times.
+`\\[universal-argument] \\[autoarg-terminate]' invokes the normal binding of \\[autoarg-terminate] four times.
 
 \\{autoarg-mode-map}"
   :lighter" Aarg" :global t :group 'keyboard)

@@ -1,6 +1,6 @@
 ;;; erc-status-sidebar.el --- HexChat-like activity overview for ERC  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2017, 2020-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2017, 2020-2022 Free Software Foundation, Inc.
 
 ;; Author: Andrew Barbarello
 ;; Maintainer: Amin Bandali <bandali@gnu.org>
@@ -274,7 +274,7 @@ to the `window-configuration-change-hook'."
       (apply #'window-preserve-size (selected-window) t t nil))))
 
 (define-derived-mode erc-status-sidebar-mode special-mode "ERC Sidebar"
-  "Major mode for ERC status sidebar"
+  "Major mode for ERC status sidebar."
   ;; Don't scroll the buffer horizontally, if a channel name is
   ;; obscured then the window can be resized.
   (setq-local auto-hscroll-mode nil)

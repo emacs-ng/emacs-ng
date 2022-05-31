@@ -1,6 +1,6 @@
 ;;; minibuf-eldef.el --- Only show defaults in prompts when applicable  -*- lexical-binding: t -*-
 ;;
-;; Copyright (C) 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
 ;;
 ;; Author: Miles Bader <miles@gnu.org>
 ;; Keywords: convenience
@@ -160,7 +160,7 @@ The prompt and initial input should already have been inserted."
 ;; post-command-hook to swap prompts when necessary
 (defun minibuf-eldef-update-minibuffer ()
   "Update a minibuffer's prompt to include a default only when applicable.
-This is intended to be used as a minibuffer post-command-hook for
+This is intended to be used as a minibuffer `post-command-hook' for
 `minibuffer-electric-default-mode'; the minibuffer should have already
 been set up by `minibuf-eldef-setup-minibuffer'."
   (unless (eq minibuf-eldef-showing-default-in-prompt
