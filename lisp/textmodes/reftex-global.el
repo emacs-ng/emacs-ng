@@ -1,6 +1,6 @@
 ;;; reftex-global.el --- operations on entire documents with RefTeX  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <dominik@science.uva.nl>
 ;; Maintainer: auctex-devel@gnu.org
@@ -88,6 +88,12 @@ No active TAGS table is required."
 (defun reftex-query-replace-document (&optional from to delimited)
   "Do `query-replace-regexp' of FROM with TO over the entire document.
 Third arg DELIMITED (prefix arg) means replace only word-delimited matches.
+
+As each match is found, the user must type a character saying
+what to do with it.  Type SPC or `y' to replace the match,
+DEL or `n' to skip and go to the next match.  For more directions,
+type \\[help-command] at that time.
+
 If you exit (\\[keyboard-quit], RET or q), you can resume the query replace
 with the command \\[tags-loop-continue].
 No active TAGS table is required."
@@ -338,17 +344,17 @@ Also checks if buffers visiting the files are in read-only mode."
     (while (setq file (pop files))
       (unless (file-exists-p file)
         (ding)
-        (or (y-or-n-p (format "No such file %s. Continue? " file))
+        (or (y-or-n-p (format "No such file %s. Continue?" file))
             (error "Abort")))
       (unless (file-writable-p file)
         (ding)
-        (or (y-or-n-p (format "No write access to %s. Continue? " file))
+        (or (y-or-n-p (format "No write access to %s. Continue?" file))
             (error "Abort")))
       (when (and (setq buf (find-buffer-visiting file))
                  (with-current-buffer buf
                    buffer-read-only))
         (ding)
-        (or (y-or-n-p (format "Buffer %s is read-only. Continue? "
+        (or (y-or-n-p (format "Buffer %s is read-only.  Continue?"
                               (buffer-name buf)))
             (error "Abort"))))))
 

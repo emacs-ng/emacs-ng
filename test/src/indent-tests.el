@@ -1,6 +1,6 @@
 ;;; indent-tests.el --- tests for src/indent.c  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -57,3 +57,5 @@
       (move-to-column 12 t)
       (buffer-substring-no-properties 1 14))
     "\txxx    \tLine")))
+
+;;; indent-tests.el ends here

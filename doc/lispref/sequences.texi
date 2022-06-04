@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2021 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2022 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Sequences Arrays Vectors
@@ -949,6 +949,24 @@ contain less elements than @var{n}.  @var{n} must be an integer.  If
 @group
 (seq-partition '(0 1 2 3 4 5 6 7) 3)
 @result{} ((0 1 2) (3 4 5) (6 7))
+@end group
+@end example
+@end defun
+
+@defun seq-union sequence1 sequence2 &optional function
+@cindex sequences, union of
+@cindex union of sequences
+  This function returns a list of the elements that appear either in
+@var{sequence1} or @var{sequence2}.  The elements of the returned list
+are all unique, in the sense that no two elements there will compare
+equal.  If the optional argument @var{function} is non-@code{nil}, it
+should be a function of two arguments to use to compare elements,
+instead of the default @code{equal}.
+
+@example
+@group
+(seq-union [1 2 3] [3 5])
+@result{} (1 2 3 5)
 @end group
 @end example
 @end defun

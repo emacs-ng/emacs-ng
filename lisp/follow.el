@@ -1,6 +1,6 @@
 ;;; follow.el --- synchronize windows showing the same buffer  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1995-1997, 1999, 2001-2021 Free Software Foundation,
+;; Copyright (C) 1995-1997, 1999, 2001-2022 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Anders Lindgren
@@ -667,22 +667,32 @@ Works like `scroll-down' when not in Follow mode."
 	 (scroll-down-command arg))
 	(arg (follow-scroll-down-arg arg))
         (t
-	 (let* ((windows (follow-all-followers))
-		(win (car (reverse windows)))
-		(start (window-start (car windows))))
+	 (let* ((orig-point (point))
+                (windows (follow-all-followers))
+		(start (window-start (car windows)))
+                (lines 0))
 	   (if (eq start (point-min))
 	       (if (or (null scroll-error-top-bottom)
 		       (bobp))
 		   (signal 'beginning-of-buffer nil)
 		 (goto-char (point-min)))
-	     (select-window win)
-	     (goto-char start)
-	     (vertical-motion (- (- (window-height win)
-				    (if header-line-format 2 1)
-				    next-screen-context-lines)))
-	     (set-window-start win (point))
-	     (goto-char start)
-	     (vertical-motion (- next-screen-context-lines 1))
+             (select-window (car windows))
+             (dolist (win windows)
+               (setq lines
+                     (+ lines
+                        (- (window-height win)
+                           (if header-line-format 2 1) ; Count mode-line, too.
+                           (if tab-line-format 1 0)))))
+             (setq lines (- lines next-screen-context-lines))
+             (goto-char start)
+             (let ((at-top (> (vertical-motion (- lines)) (- lines))))
+               (set-window-start (car windows) (point))
+               (if at-top
+                   (goto-char orig-point)
+                 (goto-char start)
+                 (vertical-motion (- next-screen-context-lines 1))
+                 (if (< orig-point (point))
+                     (goto-char orig-point))))
 	     (setq follow-internal-force-redisplay t))))))
 (put 'follow-scroll-down 'scroll-command t)
 
@@ -858,8 +868,11 @@ from the bottom."
 	   (windows (follow-all-followers))
 	   (win (nth (/ (- (length windows) 1) 2) windows)))
       (select-window win)
-      (goto-char dest)
-      (recenter))))
+      (let ((win-s (window-start)))
+        (goto-char dest)
+        (recenter)
+        (when (< dest win-s)
+          (setq follow-internal-force-redisplay t))))))
 
 
 (defun follow-redraw ()
@@ -944,7 +957,11 @@ used."
   (let* ((win (or win (selected-window)))
 	 (edges (window-inside-pixel-edges win))
 	 (ht (- (nth 3 edges) (nth 1 edges)))
-	 (last-line-pos (posn-point (posn-at-x-y 0 (1- ht) win))))
+	 (last-line-pos (posn-point
+                         (posn-at-x-y 0 (+ (window-header-line-height win)
+                                           (window-tab-line-height win)
+                                           (1- ht))
+                                      win))))
     (if (pos-visible-in-window-p last-line-pos win)
 	(let ((end (window-end win t)))
 	  (list end (pos-visible-in-window-p (point-max) win)))

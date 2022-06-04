@@ -1,6 +1,6 @@
 /* Generic frame functions.
 
-Copyright (C) 1993-1995, 1997, 1999-2021 Free Software Foundation, Inc.
+Copyright (C) 1993-1995, 1997, 1999-2022 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -731,7 +731,7 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
 	  && (f->new_width >= 0 || f->new_height >= 0))
 	/* For implied resizes with inhibit 2 (external menu and tool
 	   bar) pick up any new sizes the display engine has not
-	   processed yet.  Otherwsie, we would request the old sizes
+	   processed yet.  Otherwise, we would request the old sizes
 	   which will make this request appear as a request to set new
 	   sizes and have the WM react accordingly which is not TRT.
 
@@ -1408,11 +1408,6 @@ affects all frames on the same terminal device.  */)
 		  (t->display_info.tty->name
 		   ? build_string (t->display_info.tty->name)
 		   : Qnil));
-  /* On terminal frames the `minibuffer' frame parameter is always
-     virtually t.  Avoid that a different value in parms causes
-     complaints, see Bug#24758.  */
-  store_in_alist (&parms, Qminibuffer, Qt);
-  Fmodify_frame_parameters (frame, parms);
 
   /* Make the frame face hash be frame-specific, so that each
      frame could change its face definitions independently.  */
@@ -1424,6 +1419,12 @@ affects all frames on the same terminal device.  */)
   struct Lisp_Hash_Table *table = XHASH_TABLE (f->face_hash_table);
   for (idx = 0; idx < table->count; ++idx)
     set_hash_value_slot (table, idx, Fcopy_sequence (HASH_VALUE (table, idx)));
+
+  /* On terminal frames the `minibuffer' frame parameter is always
+     virtually t.  Avoid that a different value in parms causes
+     complaints, see Bug#24758.  */
+  store_in_alist (&parms, Qminibuffer, Qt);
+  Fmodify_frame_parameters (frame, parms);
 
   f->can_set_window_size = true;
   f->after_make_frame = true;
@@ -1564,6 +1565,13 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
 
   if (! FRAME_MINIBUF_ONLY_P (XFRAME (selected_frame)))
     last_nonminibuf_frame = XFRAME (selected_frame);
+
+  /* If the selected window in the target frame is its mini-window, we move
+     to a different window, the most recently used one, unless there is a
+     valid active minibuffer in the mini-window.  */
+  if (EQ (f->selected_window, f->minibuffer_window)
+      && NILP (Fminibufferp (XWINDOW (f->minibuffer_window)->contents, Qt)))
+    Fset_frame_selected_window (frame, call1 (Qget_mru_window, frame), Qnil);
 
   Fselect_window (f->selected_window, norecord);
 
@@ -6239,7 +6247,10 @@ when the mouse is over clickable text.  */);
 
   DEFVAR_LISP ("make-pointer-invisible", Vmake_pointer_invisible,
                doc: /* If non-nil, make mouse pointer invisible while typing.
-The pointer becomes visible again when the mouse is moved.  */);
+The pointer becomes visible again when the mouse is moved.
+
+When using this, you might also want to disable highlighting of
+clickable text.  See `mouse-highlight'.  */);
   Vmake_pointer_invisible = Qt;
 
   DEFVAR_LISP ("move-frame-functions", Vmove_frame_functions,

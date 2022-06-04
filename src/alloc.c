@@ -1,6 +1,6 @@
 /* Storage allocation and gc for GNU Emacs Lisp interpreter.
 
-Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2021 Free Software
+Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2022 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -988,7 +988,8 @@ record_xmalloc (size_t size)
 
 /* Like malloc but used for allocating Lisp data.  NBYTES is the
    number of bytes to allocate, TYPE describes the intended use of the
-   allocated memory block (for strings, for conses, ...).  */
+   allocated memory block (for strings, for conses, ...).
+   NBYTES must be positive.  */
 
 #if ! USE_LSB_TAG
 void *lisp_malloc_loser EXTERNALLY_VISIBLE;
@@ -1030,7 +1031,7 @@ lisp_malloc (size_t nbytes, bool clearit, enum mem_type type)
 #endif
 
   MALLOC_UNBLOCK_INPUT;
-  if (!val && nbytes)
+  if (!val)
     memory_full (nbytes);
   MALLOC_PROBE (nbytes);
   return val;
@@ -1929,8 +1930,7 @@ allocate_string_data (struct Lisp_String *s,
    The character is at byte offset CIDX_BYTE in the string.
    The character being replaced is CLEN bytes long,
    and the character that will replace it is NEW_CLEN bytes long.
-   Return the address of where the caller should store the
-   the new character.  */
+   Return the address where the caller should store the new character.  */
 
 unsigned char *
 resize_string_data (Lisp_Object string, ptrdiff_t cidx_byte,
@@ -3152,26 +3152,26 @@ cleanup_vector (struct Lisp_Vector *vector)
       module_finalize_function (function);
     }
 #endif
-  else if (NATIVE_COMP_FLAG
-	   && PSEUDOVECTOR_TYPEP (&vector->header, PVEC_NATIVE_COMP_UNIT))
+#ifdef HAVE_NATIVE_COMP
+  else if (PSEUDOVECTOR_TYPEP (&vector->header, PVEC_NATIVE_COMP_UNIT))
     {
       struct Lisp_Native_Comp_Unit *cu =
 	PSEUDOVEC_STRUCT (vector, Lisp_Native_Comp_Unit);
       unload_comp_unit (cu);
     }
-  else if (NATIVE_COMP_FLAG
-	   && PSEUDOVECTOR_TYPEP (&vector->header, PVEC_SUBR))
+  else if (PSEUDOVECTOR_TYPEP (&vector->header, PVEC_SUBR))
     {
       struct Lisp_Subr *subr =
 	PSEUDOVEC_STRUCT (vector, Lisp_Subr);
-      if (!NILP (subr->native_comp_u[0]))
+      if (!NILP (subr->native_comp_u))
 	{
 	  /* FIXME Alternative and non invasive solution to this
 	     cast?  */
 	  xfree ((char *)subr->symbol_name);
-	  xfree (subr->native_c_name[0]);
+	  xfree (subr->native_c_name);
 	}
     }
+#endif
 }
 
 /* Reclaim space used by unmarked vectors.  */
@@ -6775,15 +6775,17 @@ mark_object (Lisp_Object arg)
 	    break;
 
 	  case PVEC_SUBR:
+#ifdef HAVE_NATIVE_COMP
 	    if (SUBR_NATIVE_COMPILEDP (obj))
 	      {
 		set_vector_marked (ptr);
 		struct Lisp_Subr *subr = XSUBR (obj);
 		mark_object (subr->native_intspec);
-		mark_object (subr->native_comp_u[0]);
-		mark_object (subr->lambda_list[0]);
-		mark_object (subr->type[0]);
+		mark_object (subr->native_comp_u);
+		mark_object (subr->lambda_list);
+		mark_object (subr->type);
 	      }
+#endif
 	    break;
 
 	  case PVEC_FREE:

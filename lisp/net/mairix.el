@@ -1,6 +1,6 @@
 ;;; mairix.el --- Mairix interface for Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2008-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
 
 ;; Author: David Engster <dengste@eml.cc>
 ;; Keywords: mail searching
@@ -24,7 +24,7 @@
 
 ;; This is an interface to the mairix mail search engine.  Mairix is
 ;; written by Richard Curnow and is licensed under the GPL.  See the
-;; home page for details:
+;; Mairix website for details:
 ;;
 ;; http://www.rpcurnow.force9.co.uk/mairix/
 ;;

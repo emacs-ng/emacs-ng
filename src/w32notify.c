@@ -1,6 +1,6 @@
 /* Filesystem notifications support for GNU Emacs on the Microsoft Windows API.
 
-Copyright (C) 2012-2021 Free Software Foundation, Inc.
+Copyright (C) 2012-2022 Free Software Foundation, Inc.
 
 Author: Eli Zaretskii <eliz@gnu.org>
 
@@ -40,8 +40,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    and returns.  That causes the WaitForSingleObjectEx function call
    inside watch_worker to return, but the thread won't terminate until
    the event telling to do so will be signaled.  The completion
-   routine issued another call to ReadDirectoryChangesW as quickly as
-   possible.  (Except when it does not, see below.)
+   routine then issues another call to ReadDirectoryChangesW as quickly
+   as possible.  (Except when it does not, see below.)
 
    In a GUI session, the WM_EMACS_FILENOTIFY message posted to the
    message queue gets dispatched to the main Emacs window procedure,

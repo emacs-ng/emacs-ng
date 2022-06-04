@@ -1,6 +1,6 @@
 ;;; erc-identd.el --- RFC1413 (identd authentication protocol) server  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2003, 2006-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2003, 2006-2022 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>
@@ -46,7 +46,8 @@
   :group 'erc)
 
 (defcustom erc-identd-port 8113
-  "Port to run the identd server on if not specified in the argument for
+  "Port to run the identd server on.
+This can be overridden by specifying an argument for
 `erc-identd-start'.
 
 This can be either a string or a number."

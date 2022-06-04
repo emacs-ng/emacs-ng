@@ -1,6 +1,6 @@
 ;;; ede-tests.el --- Some tests for the Emacs Development Environment  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2008-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -80,4 +80,4 @@ The search is done with the current EDE root."
     (ede-locate-file-in-project loc file)
     (data-debug-insert-object-slots loc "]")))
 
-;;; ede-test.el ends here
+;;; ede-tests.el ends here

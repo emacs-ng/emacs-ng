@@ -1,6 +1,6 @@
 ;;; gnus-undo.el --- minor mode for undoing in Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2022 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -81,7 +81,7 @@
       "\M-\C-_"     gnus-undo
       "\C-_"        gnus-undo
       "\C-xu"       gnus-undo
-      ;; many people are used to type `C-/' on X terminals and get `C-_'.
+      ;; Many people are used to type `C-/' on GUI frames and get `C-_'.
       [(control /)] gnus-undo)
     map))
 

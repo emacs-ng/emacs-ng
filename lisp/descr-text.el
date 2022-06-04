@@ -1,6 +1,6 @@
 ;;; descr-text.el --- describe text mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1994-1996, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1994-1996, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Boris Goldowsky <boris@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -97,7 +97,7 @@ into help buttons that call `describe-text-category' or
 ;;; Describe-Text Commands.
 
 (defun describe-text-category (category)
-  "Describe a text property category."
+  "Describe a text property CATEGORY."
   (interactive "SCategory: ")
   (help-setup-xref (list #'describe-text-category category)
 		   (called-interactively-p 'interactive))
@@ -677,7 +677,7 @@ The character information includes:
                   (let ((display (describe-char-display pos char)))
                     (if (display-graphic-p (selected-frame))
                         (if display
-                            (concat "by this font (glyph code)\n    " display)
+                            (concat "by this font (glyph code):\n    " display)
                           "no font available")
                       (if display
                           (format "terminal code %s" display)

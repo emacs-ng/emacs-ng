@@ -1,6 +1,6 @@
 ;;; gnus-search-tests.el --- Tests for Gnus' search routines  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2017, 2021 Free Software Foundation, Inc.
+;; Copyright (C) 2017, 2021-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric Abrahamsen <eric@ericabrahamsen.net>
 ;; Keywords:
@@ -97,4 +97,4 @@
                      "more bits"))))
 
 (provide 'gnus-search-tests)
-;;; search-tests.el ends here
+;;; gnus-search-tests.el ends here

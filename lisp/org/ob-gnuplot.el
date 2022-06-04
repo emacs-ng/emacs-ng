@@ -1,8 +1,9 @@
 ;;; ob-gnuplot.el --- Babel Functions for Gnuplot    -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
+;; Maintainer: Ihor Radchenko <yantar92@gmail.com>
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: https://orgmode.org
 
@@ -33,7 +34,7 @@
 
 ;;; Requirements:
 
-;; - gnuplot :: http://www.gnuplot.info/
+;; - gnuplot :: https://www.gnuplot.info/
 ;;
 ;; - gnuplot-mode :: you can search the web for the latest active one.
 
@@ -46,6 +47,8 @@
 (declare-function gnuplot-mode "ext:gnuplot-mode" ())
 (declare-function gnuplot-send-string-to-gnuplot "ext:gnuplot-mode" (str txt))
 (declare-function gnuplot-send-buffer-to-gnuplot "ext:gnuplot-mode" ())
+
+(defvar org-babel-temporary-directory)
 
 (defvar org-babel-default-header-args:gnuplot
   '((:results . "file") (:exports . "results") (:session . nil))
@@ -85,14 +88,29 @@ code."
        (cons
 	(car pair) ;; variable name
 	(let* ((val (cdr pair)) ;; variable value
-	       (lp  (listp val)))
+	       (lp  (proper-list-p val)))
 	  (if lp
 	      (org-babel-gnuplot-table-to-data
 	       (let* ((first  (car val))
 		      (tablep (or (listp first) (symbolp first))))
 		 (if tablep val (mapcar 'list val)))
 	       (org-babel-temp-file "gnuplot-") params)
-	  val))))
+	    (if (and (stringp val)
+		     (file-remote-p val)  ;; check if val is a remote file
+		     (file-exists-p val)) ;; call to file-exists-p is slow, maybe remove it
+		(let* ((local-name (concat ;; create a unique filename to avoid multiple downloads
+				    org-babel-temporary-directory
+				    "/gnuplot/"
+				    (file-remote-p val 'host)
+				    (org-babel-local-file-name val))))
+		  (if (and (file-exists-p local-name) ;; only download file if remote is newer
+			   (file-newer-than-file-p local-name val))
+		      local-name
+		    (make-directory (file-name-directory local-name) t)
+		    (copy-file val local-name t)
+		    ))
+	      val
+	      )))))
      (org-babel--get-vars params))))
 
 (defun org-babel-expand-body:gnuplot (body params)
@@ -111,6 +129,7 @@ code."
            (title (cdr (assq :title params)))
            (lines (cdr (assq :line params)))
            (sets (cdr (assq :set params)))
+           (missing (cdr (assq :missing params)))
            (x-labels (cdr (assq :xlabels params)))
            (y-labels (cdr (assq :ylabels params)))
            (timefmt (cdr (assq :timefmt params)))
@@ -120,6 +139,7 @@ code."
 			   (file-name-directory (buffer-file-name))))
 	   (add-to-body (lambda (text) (setq body (concat text "\n" body)))))
       ;; append header argument settings to body
+      (when missing (funcall add-to-body (format "set datafile missing '%s'" missing)))
       (when title (funcall add-to-body (format "set title '%s'" title)))
       (when lines (mapc (lambda (el) (funcall add-to-body el)) lines))
       (when sets
@@ -266,13 +286,17 @@ then create one.  Return the initialized session.  The current
 (defun org-babel-gnuplot-table-to-data (table data-file params)
   "Export TABLE to DATA-FILE in a format readable by gnuplot.
 Pass PARAMS through to `orgtbl-to-generic' when exporting TABLE."
+  (require 'ox-org)
   (with-temp-file data-file
     (insert (let ((org-babel-gnuplot-timestamp-fmt
 		   (or (plist-get params :timefmt) "%Y-%m-%d-%H:%M:%S")))
 	      (orgtbl-to-generic
 	       table
 	       (org-combine-plists
-		'(:sep "\t" :fmt org-babel-gnuplot-quote-tsv-field)
+		'( :sep "\t" :fmt org-babel-gnuplot-quote-tsv-field
+                   ;; Two setting below are needed to make :fmt work.
+                   :raw t
+                   :backend ascii)
 		params)))))
   data-file)
 

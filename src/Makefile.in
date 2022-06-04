@@ -1,6 +1,6 @@
 ### @configure_input@
 
-# Copyright (C) 1985, 1987-1988, 1993-1995, 1999-2021 Free Software
+# Copyright (C) 1985, 1987-1988, 1993-1995, 1999-2022 Free Software
 # Foundation, Inc.
 
 # This file is part of GNU Emacs.
@@ -66,6 +66,8 @@ lwlibdir = ../lwlib
 
 # Configuration files for .o files to depend on.
 config_h = config.h $(srcdir)/conf_post.h
+
+HAVE_NATIVE_COMP = @HAVE_NATIVE_COMP@
 
 ## ns-app if NS self contained app, else empty.
 OTHER_FILES = @OTHER_FILES@
@@ -504,6 +506,9 @@ ALLOBJS = $(FIRSTFILE_OBJ) $(VMLIMIT_OBJ) $(obj) -lemacsng $(otherobj)
 
 # Must be first, before dep inclusion!
 all: emacs$(EXEEXT) $(pdmp) $(OTHER_FILES)
+ifeq ($(HAVE_NATIVE_COMP):$(NATIVE_DISABLED),yes:)
+all: ../native-lisp
+endif
 .PHONY: all
 
 dmpstruct_headers=$(srcdir)/lisp.h $(srcdir)/buffer.h \
@@ -602,7 +607,13 @@ charscript = ${lispintdir}/charscript.el
 ${charscript}: FORCE
 	$(MAKE) -C ../admin/unidata $(notdir $@)
 
-${lispintdir}/characters.elc: ${charscript:.el=.elc}
+emoji-zwj = ${lispintdir}/emoji-zwj.el
+${emoji-zwj}: FORCE
+	$(MAKE) -C ../admin/unidata $(notdir $@)
+
+${lispintdir}/characters.elc: ${charscript:.el=.elc} ${emoji-zwj:.el=.elc}
+
+SYSTEM_TYPE = @SYSTEM_TYPE@
 
 ## The dumped Emacs is as functional and more efficient than
 ## bootstrap-emacs, so we replace the latter with the former.
@@ -612,6 +623,9 @@ ${lispintdir}/characters.elc: ${charscript:.el=.elc}
 emacs$(EXEEXT): temacs$(EXEEXT) \
                 lisp.mk $(etc)/DOC $(lisp) \
                 $(lispsource)/international/charprop.el ${charsets}
+ifeq ($(SYSTEM_TYPE),cygwin)
+	find ${top_builddir} -name '*.eln' | rebase -v -O -T -
+endif
 ifeq ($(DUMPING),unexec)
 	LC_ALL=C $(RUN_TEMACS) -batch $(BUILD_DETAILS) -l loadup --temacs=dump
   ifneq ($(PAXCTL_dumped),)
@@ -756,7 +770,7 @@ endif
 ## This goes on to affect various things, and the emacs binary fails
 ## to start if Vinstallation_directory has the wrong value.
 temacs$(EXEEXT): $(LIBXMENU) $(ALLOBJS) $(LIBEMACSNG_ARCHIVE) $(RUSTFLAGS_FILE) $(LIBEGNU_ARCHIVE) $(EMACSRES) \
-  $(charsets) $(charscript) $(MAKE_PDUMPER_FINGERPRINT)
+  $(charsets) $(charscript) ${emoji-zwj} $(MAKE_PDUMPER_FINGERPRINT)
 	$(AM_V_CCLD)$(CC) -o $@.tmp \
 	  $(ALL_CFLAGS) $(TEMACS_LDFLAGS) $(LDFLAGS) \
 	  $(ALLOBJS) $(LIBEGNU_ARCHIVE) $(W32_RES_LINK) $(LIBES)
@@ -892,6 +906,61 @@ tags: TAGS ../lisp/TAGS $(lwlibdir)/TAGS
 %.elc: %.el | bootstrap-emacs$(EXEEXT) $(bootstrap_pdmp)
 	@$(MAKE) $(AM_V_NO_PD) -C ../lisp EMACS="$(bootstrap_exe)"\
 		THEFILE=$< $<c
+
+ifeq ($(HAVE_NATIVE_COMP):$(NATIVE_DISABLED),yes:)
+## The following rules are used only when building a source tarball
+## for the first time, when the native-lisp/ directory doesn't yet
+## exist and needs to be created and populated with the preloaded
+## *.eln files.
+
+## List of *.eln files we need to produce in addition to the preloaded
+## ones in $(lisp).
+elnlisp := \
+	emacs-lisp/autoload.eln \
+	emacs-lisp/byte-opt.eln \
+	emacs-lisp/bytecomp.eln \
+	emacs-lisp/cconv.eln \
+	international/charscript.eln \
+	emacs-lisp/comp.eln \
+	emacs-lisp/comp-cstr.eln \
+	emacs-lisp/cl-macs.eln \
+	emacs-lisp/rx.eln \
+	emacs-lisp/cl-seq.eln \
+	help-mode.eln \
+	emacs-lisp/cl-extra.eln \
+	emacs-lisp/gv.eln \
+	emacs-lisp/seq.eln \
+	emacs-lisp/cl-lib.eln \
+	emacs-lisp/warnings.eln \
+	emacs-lisp/subr-x.eln \
+	international/emoji-zwj.eln
+elnlisp := $(addprefix ${lispsource}/,${elnlisp}) $(lisp:.elc=.eln)
+
+%.eln: %.el | emacs$(EXEEXT) $(pdmp)
+	@$(MAKE) $(AM_V_NO_PD) -C ../lisp EMACS="../src/emacs$(EXEEXT)"\
+		THEFILE=$< $<n
+
+## FIXME: this is fragile!  We lie to Make about the files produced by
+## this rule, and we rely on the absence of the native-lisp directory
+## to trigger it.  This means that if anything goes wrong during
+## native compilation, the only way to trigger it again is to remove
+## the directory and re-native-compile everything.  The main
+## underlying problem is that the name of the subdirectory of
+## native-lisp where the *.eln files will be produced, and the exact
+## names of those *.eln files, cannot be known in advance; we must ask
+## Emacs to produce them.
+../native-lisp: | $(pdmp)
+	@if test ! -d $@; then \
+	  mkdir $@ && $(MAKE) $(AM_V_NO_PD) $(elnlisp); \
+	  if test $(SYSTEM_TYPE) = cygwin; then \
+	    find $@ -name '*.eln' | rebase -v -O -T -; \
+	  fi; \
+	  LC_ALL=C $(RUN_TEMACS) -batch $(BUILD_DETAILS) -l loadup --temacs=pdump \
+		--bin-dest $(BIN_DESTDIR) --eln-dest $(ELN_DESTDIR) \
+	  && cp -f emacs$(EXEEXT) bootstrap-emacs$(EXEEXT) \
+	  && cp -f $(pdmp) $(bootstrap_pdmp); \
+	fi
+endif
 
 ## VCSWITNESS points to the file that holds info about the current checkout.
 ## We use it as a heuristic to decide when to rebuild loaddefs.el.

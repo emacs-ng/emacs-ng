@@ -1,6 +1,6 @@
 ;;; plstore.el --- secure plist store -*- lexical-binding: t -*-
 
-;; Copyright (C) 2011-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2022 Free Software Foundation, Inc.
 
 ;; Author: Daiki Ueno <ueno@gnu.org>
 ;; Keywords: PGP, GnuPG
@@ -83,7 +83,7 @@
 (require 'epg)
 
 (defgroup plstore nil
-  "Searchable, partially encrypted, persistent plist store"
+  "Searchable, partially encrypted, persistent plist store."
   :version "24.1"
   :group 'files)
 

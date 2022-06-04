@@ -1,6 +1,6 @@
 @c -*- coding: utf-8 -*-
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2021 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2022 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Search
@@ -222,6 +222,15 @@ going past the original starting point of the search, it changes to
 @samp{Overwrapped}, which means that you are revisiting matches that
 you have already seen.
 
+@vindex isearch-wrap-pause
+  You can control what happens when there are no more matches by
+customizing the @code{isearch-wrap-pause} user option.  If it is
+@code{t} (the default), signal an error.  (Repeating the search will
+wrap around.)  If @code{no}, issue a @code{ding} and wrap immediately
+after reaching the last match.  If @code{no-ding}, wrap immediately,
+but don't @code{ding}.  Finally, if @code{nil}, never wrap, but just
+stop at the last match.
+
 @cindex search ring
 @findex isearch-ring-advance
 @findex isearch-ring-retreat
@@ -327,6 +336,16 @@ case-insensitive (@pxref{Lax Search, case folding}).  However, if the
 value of the variable @code{search-upper-case} (@pxref{Lax Search,
 search-upper-case}) is other than @code{not-yanks}, that disables this
 down-casing.
+
+@kindex M-s M-.
+@findex isearch-forward-thing-at-point
+  To begin a new incremental search with the text near point yanked
+into the initial search string, type @kbd{M-s M-.} that runs the
+command @code{isearch-forward-thing-at-point}.  If the region was
+active, then it yanks the text from the region into the search string.
+Otherwise, it tries to yank a URL, a symbol or an expression found
+near point.  What to yank is defined by the user option
+@code{isearch-forward-thing-at-point}.
 
 @node Error in Isearch
 @subsection Errors in Incremental Search
@@ -592,6 +611,19 @@ change point, the buffer contents, the match data, the current buffer,
 or the selected window and frame.  The command must not itself attempt
 an incremental search.  This feature is disabled if
 @code{isearch-allow-scroll} is @code{nil} (which it is by default).
+
+@vindex isearch-allow-motion
+@vindex isearch-motion-changes-direction
+  Likewise, if you change the variable @code{isearch-allow-motion}
+to a non-@code{nil} value, this enables the use of the keyboard motion
+commands @kbd{M-<}, @kbd{M->}, @kbd{C-v} and @kbd{M-v}, to move
+respectively to the first occurrence of the current search string in
+the buffer, the last one, the first one after the current window,
+and the last one before the current window.  The search direction
+does not change when these motion commands are used, unless you change
+the variable @code{isearch-motion-changes-direction} to a non-@code{nil}
+value, in which case the search direction is forward after @kbd{M-<} and
+@kbd{C-v}, and backward after @kbd{M->} and @kbd{M-v}.
 
 @item Motion Commands
 @cindex motion commands, during incremental search
@@ -1309,10 +1341,9 @@ matches @w{@samp{foo bar}}, @w{@samp{foo@ @ bar}},
 precisely, Emacs matches each sequence of space characters in the
 search string to a regular expression specified by the variable
 @code{search-whitespace-regexp}.  For example, to make spaces match
-sequences of newlines as well as spaces, set it to
-@samp{"[[:space:]\n]+"}.  The default value of this variable depends
-on the buffer's major mode; most major modes classify spaces, tabs,
-and formfeed characters as whitespace.
+sequences of newlines as well as spaces, set it to the regular expression
+@samp{[[:space:]\n]+}.  The default value of this variable considers
+any sequence of spaces and tab characters as whitespace.
 
   If you want whitespace characters to match exactly, you can turn lax
 space matching off by typing @kbd{M-s @key{SPC}}
@@ -1829,12 +1860,12 @@ replacing regexp matches in file names.
 @node Other Repeating Search
 @section Other Search-and-Loop Commands
 
-  Here are some other commands that find matches for a regular
-expression.  They all ignore case in matching, if the pattern contains
+  Here are some other commands that find matches for regular
+expressions.  They all ignore case in matching, if the pattern contains
 no upper-case letters and @code{case-fold-search} is non-@code{nil}.
 Aside from @code{multi-occur} and @code{multi-occur-in-matching-buffers},
-which always search the whole buffer, all operate on the text from point
-to the end of the buffer, or on the region if it is active.
+which always search the whole buffer, all of the commands operate on the
+text from point to the end of the buffer, or on the region if it is active.
 
 @table @kbd
 @findex multi-isearch-buffers
@@ -1908,19 +1939,27 @@ is not considered a match.
 @kindex RET @r{(Occur mode)}
 @kindex o @r{(Occur mode)}
 @kindex C-o @r{(Occur mode)}
-In the @file{*Occur*} buffer, you can click on each entry, or move
-point there and type @key{RET}, to visit the corresponding position in
-the buffer that was searched.  @kbd{o} and @kbd{C-o} display the match
-in another window; @kbd{C-o} does not select it.  Alternatively, you
-can use the @kbd{M-g M-n} (@code{next-error}) command to visit the
-occurrences one by one (@pxref{Compilation Mode}).
+The @file{*Occur*} buffer uses the Occur mode as its major mode.  You
+can use the @kbd{n} and @kbd{p} keys to move to the next or previous
+match; with prefix numeric argument, these commands move that many
+matches.  Digit keys are bound to @code{digit-argument}, so @kbd{5 n}
+moves to the fifth next match (you don't have to type @kbd{C-u}).
+@key{SPC} and @key{DEL} scroll the @file{*Occur*} buffer up and down.
+Clicking on a match or moving point there and typing @key{RET} visits
+the corresponding position in the original buffer that was searched.
+@kbd{o} and @kbd{C-o} display the match in another window; @kbd{C-o}
+does not select that window.  Alternatively, you can use the @kbd{M-g
+M-n} (@code{next-error}) command to visit the occurrences one by one
+(@pxref{Compilation Mode}).  Finally, @kbd{q} quits the window showing
+the @file{*Occur*} buffer and buries the buffer.
 
 @cindex Occur Edit mode
 @cindex mode, Occur Edit
-Typing @kbd{e} in the @file{*Occur*} buffer switches to Occur Edit
-mode, in which edits made to the entries are also applied to the text
-in the originating buffer.  Type @kbd{C-c C-c} to return to Occur
-mode.
+Typing @kbd{e} in the @file{*Occur*} buffer makes the buffer writable
+and enters the Occur Edit mode, in which you can edit the matching
+lines and have those edits reflected in the text in the originating
+buffer.  Type @kbd{C-c C-c} to leave the Occur Edit mode and return to
+the Occur mode.
 
 @findex list-matching-lines
 The command @kbd{M-x list-matching-lines} is a synonym for @kbd{M-x

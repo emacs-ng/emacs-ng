@@ -1,6 +1,6 @@
 ;;; erc-notify.el --- Online status change notification  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2004, 2006-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2004, 2006-2022 Free Software Foundation, Inc.
 
 ;; Author: Mario Lang <mlang@lexx.delysid.org>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>
@@ -40,13 +40,11 @@
   :group 'erc)
 
 (defcustom erc-notify-list nil
-  "List of nicknames you want to be notified about online/offline
-status change."
+  "List of nicknames you want to be notified about online/offline status change."
   :type '(repeat string))
 
 (defcustom erc-notify-interval 60
-  "Time interval (in seconds) for checking online status of notified
-people."
+  "Time interval (in seconds) for checking online status of notified people."
   :type 'integer)
 
 (defcustom erc-notify-signon-hook nil

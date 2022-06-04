@@ -1,6 +1,6 @@
 ;;; quail.el --- provides simple input method for multilingual text  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-1998, 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1997-1998, 2000-2022 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -471,7 +471,8 @@ conversion region is active.  It is an alist of single key character
 vs. corresponding command to be called.
 
 If SIMPLE is non-nil, then we do not alter the meanings of
-commands such as C-f, C-b, C-n, C-p and TAB; they are treated as
+commands such as \\[forward-char], \\[backward-char], \\[next-line], \
+\\[previous-line] and \\[indent-for-tab-command]; they are treated as
 non-Quail commands."
   (let (translation-keymap conversion-keymap)
     (if deterministic (setq forget-last-selection t))
@@ -1381,6 +1382,8 @@ a cons cell of the form (no-record . KEY).
 If KEY is a vector of events, the events in the vector are prepended
 to `unread-command-events', after converting each event to a cons cell
 of the form (no-record . EVENT).
+If KEY is an event, it is prepended to `unread-command-events' as a cons
+cell of the form (no-record . EVENT).
 If RESET is non-nil, the events in `unread-command-events' are first
 discarded, i.e. in this case KEY will end up being the only key
 in `unread-command-events'."
@@ -1389,7 +1392,7 @@ in `unread-command-events'."
         (if (characterp key)
             (cons (cons 'no-record key) unread-command-events)
           (append (mapcan (lambda (e) (list (cons 'no-record e)))
-                          (append key nil))
+                          (append (if (vectorp key) key (vector key)) nil))
                   unread-command-events))))
 
 (defun quail-start-translation (key)
@@ -2020,7 +2023,7 @@ minibuffer and the selected frame has no other windows)."
   (bury-buffer quail-completion-buf)
 
   ;; Then, show the guidance.
-  (when (and 
+  (when (and
          ;; Don't try to display guidance on an expired minibuffer.  This
          ;; would go into an infinite wait rather than executing the user's
          ;; command.  Bug #45792.

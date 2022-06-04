@@ -1,6 +1,6 @@
 ;;; hippie-exp.el --- expand text trying various ways to find its expansion  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1992, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1992, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Anders Holst <aho@sans.kth.se>
 ;; Maintainer: emacs-devel@gnu.org
@@ -38,7 +38,7 @@
 ;;
 ;;  If the variable `hippie-expand-verbose' is non-nil, `hippie-expand'
 ;;  outputs in a message which try-function in the list that is used
-;;  currently (ie. was used currently and will be tried first the next
+;;  currently (i.e. was used currently and will be tried first the next
 ;;  time).
 ;;  The variable `hippie-expand-max-buffers' determines in how many
 ;;  buffers, apart from the current, to search for expansions in.  It

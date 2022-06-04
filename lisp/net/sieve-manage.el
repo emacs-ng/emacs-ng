@@ -1,6 +1,6 @@
 ;;; sieve-manage.el --- Implementation of the managesieve protocol in elisp  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Simon Josefsson <simon@josefsson.org>
 ;;         Albert Krewinkel <tarleb@moltkeplatz.de>
@@ -410,7 +410,7 @@ If BUFFER is nil, the current buffer is used."
 
 (defun sieve-manage-capability (&optional name value buffer)
   "Check if capability NAME of server BUFFER match VALUE.
-If it does, return the server value of NAME. If not returns nil.
+If it does, return the server value of NAME.  If not return nil.
 If VALUE is nil, do not check VALUE and return server value.
 If NAME is nil, return the full server list of capabilities."
   (with-current-buffer (or buffer (current-buffer))

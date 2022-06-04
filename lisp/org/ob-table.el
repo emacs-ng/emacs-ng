@@ -1,6 +1,6 @@
 ;;; ob-table.el --- Support for Calling Babel Functions from Tables -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;; Keywords: literate programming, reproducible research
@@ -78,7 +78,8 @@ So this `org-sbe' construct
 
 is the equivalent of the following source code block:
 
- #+begin_src emacs-lisp :var results=source-block(n=val_at_col_2, m=3) :results silent
+ #+begin_src emacs-lisp :var results=source-block(n=val_at_col_2, m=3) \\
+     :results silent
  results
  #+end_src
 

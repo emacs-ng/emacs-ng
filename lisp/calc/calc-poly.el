@@ -1,6 +1,6 @@
 ;;; calc-poly.el --- polynomial functions for Calc  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -454,7 +454,7 @@ This returns only the remainder from the pseudo-division."
 
 
 (defun math-atomic-factorp (expr)
-  "Return true if is a factor containing no sums or quotients."
+  "Return non-nil if is a factor containing no sums or quotients."
   (cond ((eq (car-safe expr) '*)
 	 (and (math-atomic-factorp (nth 1 expr))
 	      (math-atomic-factorp (nth 2 expr))))

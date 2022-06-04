@@ -1,6 +1,6 @@
 ;;; arc-mode.el --- simple editing of archives  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995, 1997-1998, 2001-2021 Free Software Foundation,
+;; Copyright (C) 1995, 1997-1998, 2001-2022 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Morten Welinder <terra@gnu.org>
@@ -1759,7 +1759,7 @@ This doesn't recover lost files, it just undoes changes in the buffer itself."
 	     neh	;beginning of next extension header (level 1 and 2)
 	     mode uid gid dir prname
 	     gname uname modtime moddate)
-	(if (= hdrlvl 3) (error "can't handle lzh level 3 header type"))
+        (if (= hdrlvl 3) (error "Can't handle lzh level 3 header type"))
 	(when (or (= hdrlvl 0) (= hdrlvl 1))
 	  (setq fnlen   (get-byte (+ p 21))) ;filename length
 	  (setq efnname (let ((str (buffer-substring (+ p 22) (+ p 22 fnlen))))	;filename from offset 22

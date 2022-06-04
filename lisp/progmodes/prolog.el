@@ -1,6 +1,6 @@
 ;;; prolog.el --- major mode for Prolog (and Mercury) -*- lexical-binding:t -*-
 
-;; Copyright (C) 1986-1987, 1997-1999, 2002-2003, 2011-2021 Free
+;; Copyright (C) 1986-1987, 1997-1999, 2002-2003, 2011-2022 Free
 ;; Software Foundation, Inc.
 
 ;; Authors: Emil Åström <emil_astrom(at)hotmail(dot)com>
@@ -512,7 +512,7 @@ to automatically indent if-then-else constructs."
   :type 'boolean)
 
 (defcustom prolog-electric-colon-flag nil
-  "Makes `:' electric (inserts `:-' on a new line).
+  "Non-nil means make `:' electric (inserts `:-' on a new line).
 If non-nil, pressing `:' at the end of a line that starts in
 the first column (i.e., clause heads) inserts ` :-' and newline."
   :version "24.1"
@@ -520,7 +520,7 @@ the first column (i.e., clause heads) inserts ` :-' and newline."
   :type 'boolean)
 
 (defcustom prolog-electric-dash-flag nil
-  "Makes `-' electric (inserts a `-->' on a new line).
+  "Non-nil means make `-' electric (inserts a `-->' on a new line).
 If non-nil, pressing `-' at the end of a line that starts in
 the first column (i.e., DCG heads) inserts ` -->' and newline."
   :version "24.1"
@@ -1272,7 +1272,7 @@ using the commands `send-region', `send-string' and \\[prolog-consult-region].
 Commands:
 Tab indents for Prolog; with argument, shifts rest
  of expression rigidly with the current line.
-Paragraphs are separated only by blank lines and `%%'. `%'s start comments.
+Paragraphs are separated only by blank lines and `%%'.  `%'s start comments.
 
 Return at end of buffer sends line as input.
 Return not at end copies rest of line to end and sends it.
@@ -1352,7 +1352,7 @@ the variable `prolog-prompt-regexp'."
   (let ((pname (prolog-program-name))
         (pswitches (prolog-program-switches)))
     (if (null pname)
-        (error "This Prolog system has defined no interpreter."))
+        (error "This Prolog system has defined no interpreter"))
     (unless (comint-check-proc "*prolog*")
       (with-current-buffer (get-buffer-create "*prolog*")
         (prolog-inferior-mode)
@@ -1641,7 +1641,7 @@ region.
 
 This function must be called from the source code buffer."
   (if prolog-process-flag
-      (error "Another Prolog task is running."))
+      (error "Another Prolog task is running"))
   (prolog-ensure-process t)
   (let* ((buffer (get-buffer-create prolog-compilation-buffer))
          (real-file buffer-file-name)
@@ -2136,7 +2136,8 @@ A return value of N means N more left parentheses than right ones."
                              (line-end-position)))))
 
 (defun prolog-electric--if-then-else ()
-  "Insert spaces after the opening parenthesis, \"then\" (->) and \"else\" (;) branches.
+  "Insert spaces after the opening parenthesis.
+\"then\" (->) and \"else\" (;) branches.
 Spaces are inserted if all preceding objects on the line are
 whitespace characters, parentheses, or then/else branches."
   (when prolog-electric-if-then-else-flag
@@ -2355,7 +2356,7 @@ In effect it sets the `fill-prefix' when inside comments and then calls
            )
       (if prolog-help-function-i
           (funcall prolog-help-function-i predicate)
-        (error "Sorry, no help method defined for this Prolog system."))))
+        (error "Sorry, no help method defined for this Prolog system"))))
    ))
 
 
@@ -2369,7 +2370,7 @@ In effect it sets the `fill-prefix' when inside comments and then calls
     (pop-to-buffer nil)
     (Info-goto-node prolog-info-predicate-index)
     (if (not (re-search-forward str nil t))
-        (error "Help on predicate `%s' not found." predicate))
+        (error "Help on predicate `%s' not found" predicate))
 
     (setq oldp (point))
     (if (re-search-forward str nil t)
@@ -2413,7 +2414,7 @@ This function is only available when `prolog-system' is set to `swi'."
     (process-send-string "prolog" (concat "apropos(" string ").\n"))
     (display-buffer "*prolog*"))
    (t
-    (error "Sorry, no Prolog apropos available for this Prolog system."))))
+    (error "Sorry, no Prolog apropos available for this Prolog system"))))
 
 (defun prolog-atom-under-point ()
   "Return the atom under or left to the point."
@@ -3289,7 +3290,7 @@ PREFIX is the prefix of the search regexp."
 
 (easy-menu-define
   prolog-edit-menu-runtime prolog-mode-map
-  "Runtime Prolog commands available from the editing buffer"
+  "Runtime Prolog commands available from the editing buffer."
   ;; FIXME: Don't use a whole menu for just "Run Mercury".  --Stef
   `("System"
     ;; Runtime menu name.

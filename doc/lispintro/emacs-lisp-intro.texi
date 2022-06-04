@@ -117,7 +117,7 @@ Edition @value{edition-number}, @value{update-date}
 @sp 1
 Distributed with Emacs version @value{EMACSVER}.
 @sp 1
-Copyright @copyright{} 1990--1995, 1997, 2001--2021 Free Software
+Copyright @copyright{} 1990--1995, 1997, 2001--2022 Free Software
 Foundation, Inc.
 @sp 1
 
@@ -238,7 +238,7 @@ supports it in developing GNU and promoting software freedom.''
 
 @ifset WWW_GNU_ORG
 @html
-<p>The homepage for GNU Emacs is at
+<p>The GNU Emacs website is at
 <a href="/software/emacs/">https://www.gnu.org/software/emacs/</a>.<br>
 To view this manual in other formats, click
 <a href="/software/emacs/manual/eintr.html">here</a>.
@@ -1162,6 +1162,10 @@ computer.  Often, people use the term @dfn{expression}
 indiscriminately.  (Also, in many texts, the word @dfn{form} is used
 as a synonym for expression.)
 
+@c This and the next paragraph say ``kinds of atom'', but that is not
+@c a typo, just slightly ``old-fashioned wording which adds a fillip
+@c of interest to it'', and ``is more elegant writing'', according to
+@c RMS.
 Incidentally, the atoms that make up our universe were named such when
 they were thought to be indivisible; but it has been found that physical
 atoms are not indivisible.  Parts can split off an atom or it can
@@ -2142,9 +2146,10 @@ number---the number of characters the location is from the beginning
 of the buffer.)  In Emacs Lisp, @code{+} can be used to add the
 numeric value of marker positions as numbers.
 
+@cindex @samp{predicate} defined
 The @samp{p} of @code{number-or-marker-p} is the embodiment of a
 practice started in the early days of Lisp programming.  The @samp{p}
-stands for ``predicate''.  In the jargon used by the early Lisp
+stands for @dfn{predicate}.  In the jargon used by the early Lisp
 researchers, a predicate refers to a function to determine whether some
 property is true or false.  So the @samp{p} tells us that
 @code{number-or-marker-p} is the name of a function that determines
@@ -4201,7 +4206,7 @@ times.
 
 The part of the buffer between point and mark is called @dfn{the
 region}.  Numerous commands work on the region, including
-@code{center-region}, @code{count-lines-region}, @code{kill-region}, and
+@code{center-region}, @code{count-words-region}, @code{kill-region}, and
 @code{print-region}.
 
 The @code{save-excursion} special form saves the location of point and
@@ -4214,7 +4219,7 @@ evaluated.
 
 In Emacs, a function frequently moves point as part of its internal
 workings even though a user would not expect this.  For example,
-@code{count-lines-region} moves point.  To prevent the user from being
+@code{count-words-region} moves point.  To prevent the user from being
 bothered by jumps that are both unexpected and (from the user's point of
 view) unnecessary, @code{save-excursion} is often used to keep point in
 the location expected by the user.  The use of
@@ -5797,7 +5802,7 @@ written like this:
 @subsection The @code{let} Expression in @code{insert-buffer}
 
 After ensuring that the variable @code{buffer} refers to a buffer itself
-and not just to the name of a buffer, the @code{insert-buffer function}
+and not just to the name of a buffer, the @code{insert-buffer} function
 continues with a @code{let} expression.  This specifies three local
 variables, @code{start}, @code{end}, and @code{newmark} and binds them
 to the initial value @code{nil}.  These variables are used inside the
@@ -13473,10 +13478,9 @@ The template for an interactive function definition is, as always:
 
 What we need to do is fill in the slots.
 
-The name of the function should be self-explanatory and similar to the
-existing @code{count-lines-region} name.  This makes the name easier
+The name of the function should be self-explanatory and easy
 to remember.  @code{count-words-region} is the obvious choice.  Since
-that name is now used for the standard Emacs command to count words, we
+that name is used for the standard Emacs command to count words, we
 will name our implementation @code{@value{COUNT-WORDS}}.
 
 The function counts words within a region.  This means that the
@@ -17457,9 +17461,9 @@ Manual}, for more information.
 @findex line-to-top-of-window
 @cindex Simple extension in @file{.emacs} file
 
-Here is a simple extension to Emacs that moves the line point is on to
-the top of the window.  I use this all the time, to make text easier
-to read.
+Here is a simple extension to Emacs that moves the line that point is
+on to the top of the window.  I use this all the time, to make text
+easier to read.
 
 You can put the following code into a separate file and then load it
 from your @file{.emacs} file, or you can include it within your
@@ -17840,7 +17844,7 @@ xmodmap -e "keysym Alt_L = Meta_L Alt_L"
 Finally, a feature I really like: a modified mode line.
 
 When I work over a network, I forget which machine I am using.  Also,
-I tend to I lose track of where I am, and which line point is on.
+I tend to lose track of where I am, and which line point is on.
 
 So I reset my mode line to look like this:
 

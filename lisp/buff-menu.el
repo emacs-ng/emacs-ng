@@ -1,6 +1,6 @@
 ;;; buff-menu.el --- Interface for viewing and manipulating buffers -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1993-1995, 2000-2021 Free Software
+;; Copyright (C) 1985-1987, 1993-1995, 2000-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -222,7 +222,7 @@ In Buffer Menu mode, the following commands are defined:
      so the Buffer Menu remains visible in its window.
 \\[Buffer-menu-view]    Select current line's buffer, in View mode.
 \\[Buffer-menu-view-other-window]  Select that buffer in
-     another window, in view-mode.
+     another window, in `view-mode'.
 \\[Buffer-menu-switch-other-window]  Make another window display that buffer.
 \\[Buffer-menu-mark]    Mark current line's buffer to be displayed.
 \\[Buffer-menu-select]    Select current line's buffer.
@@ -233,7 +233,7 @@ In Buffer Menu mode, the following commands are defined:
 \\[Buffer-menu-isearch-buffers]    Incremental search in the marked buffers.
 \\[Buffer-menu-isearch-buffers-regexp]  Isearch for regexp in the marked buffers.
 \\[Buffer-menu-multi-occur] Show lines matching regexp in the marked buffers.
-\\[Buffer-menu-visit-tags-table]    visit-tags-table this buffer.
+\\[Buffer-menu-visit-tags-table]    `visit-tags-table' this buffer.
 \\[Buffer-menu-not-modified]    Clear modified-flag on that buffer.
 \\[Buffer-menu-save]    Mark that buffer to be saved, and move down.
 \\[Buffer-menu-delete]  Mark that buffer to be deleted, and move down.
@@ -306,7 +306,7 @@ ARG, show only buffers that are visiting files."
   (display-buffer (list-buffers-noselect arg)))
 
 (defun Buffer-menu-toggle-files-only (arg)
-  "Toggle whether the current buffer-menu displays only file buffers.
+  "Toggle whether the current `buffer-menu' displays only file buffers.
 With a positive ARG, display only file buffers.  With zero or
 negative ARG, display other buffers as well."
   (interactive "P" Buffer-menu-mode)

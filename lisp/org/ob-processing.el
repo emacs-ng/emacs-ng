@@ -1,6 +1,6 @@
 ;;; ob-processing.el --- Babel functions for processing -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
 
 ;; Author: Jarmo Hurri (adapted from ob-asymptote.el written by Eric Schulte)
 ;; Keywords: literate programming, reproducible research
@@ -47,7 +47,7 @@
 ;;; Requirements:
 
 ;; - processing2-emacs mode :: https://github.com/ptrv/processing2-emacs
-;; - Processing.js module :: http://processingjs.org/
+;; - Processing.js module :: https://processingjs.org/
 
 ;;; Code:
 (require 'ob)

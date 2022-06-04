@@ -1,6 +1,6 @@
 ;;; etags.el --- etags facility for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1988-1989, 1992-1996, 1998, 2000-2021 Free
+;; Copyright (C) 1985-1986, 1988-1989, 1992-1996, 1998, 2000-2022 Free
 ;; Software Foundation, Inc.
 
 ;; Author: Roland McGrath <roland@gnu.org>
@@ -158,11 +158,12 @@ Otherwise, `find-tag-default' is used."
   :version "21.1")
 
 (defcustom tags-apropos-additional-actions nil
-  "Specify additional actions for `tags-apropos'.
+  "Specify additional actions for `tags-apropos' and `xref-find-apropos'.
 
 If non-nil, value should be a list of triples (TITLE FUNCTION
-TO-SEARCH).  For each triple, `tags-apropos' processes TO-SEARCH and
-lists tags from it.  TO-SEARCH should be an alist, obarray, or symbol.
+TO-SEARCH).  For each triple, `tags-apropos' and `xref-find-apropos'
+process TO-SEARCH and list tags from it.  TO-SEARCH should be an alist,
+obarray, or symbol.
 If it is a symbol, the symbol's value is used.
 TITLE, a string, is a title used to label the additional list of tags.
 FUNCTION is a function to call when a symbol is selected in the
@@ -748,7 +749,7 @@ Returns t if it visits a tags table, or nil if there are no more in the list."
   "Return the file name of the file whose tags point is within.
 Assumes the tags table is the current buffer.
 If RELATIVE is non-nil, file name returned is relative to tags
-table file's directory. If RELATIVE is nil, file name returned
+table file's directory.  If RELATIVE is nil, file name returned
 is complete."
   (funcall file-of-tag-function relative))
 
@@ -1835,7 +1836,13 @@ Also see the documentation of the `tags-file-name' variable."
 Third arg DELIMITED (prefix arg) means replace only word-delimited matches.
 If you exit (\\[keyboard-quit], RET or q), you can resume the query replace
 with the command \\[fileloop-continue].
-For non-interactive use, superseded by `fileloop-initialize-replace'."
+
+As each match is found, the user must type a character saying
+what to do with it.  Type SPC or `y' to replace the match,
+DEL or `n' to skip and go to the next match.  For more directions,
+type \\[help-command] at that time.
+
+For non-interactive use, this is superseded by `fileloop-initialize-replace'."
   (declare (advertised-calling-convention (from to &optional delimited) "27.1"))
   (interactive (query-replace-read-args "Tags query replace (regexp)" t t))
   (fileloop-initialize-replace
@@ -2083,20 +2090,24 @@ file name, add `tag-partial-file-name-match-p' to the list value.")
         (definitions (etags--xref-find-definitions symbol))
         same-file-definitions)
     (when (and etags-xref-prefer-current-file file)
-      (cl-delete-if
-       (lambda (definition)
-         (when (equal file
-                      (xref-location-group
-                       (xref-item-location definition)))
-           (push definition same-file-definitions)
-           t))
-       definitions)
+      (setq definitions
+            (cl-delete-if
+             (lambda (definition)
+               (when (equal file
+                            (xref-location-group
+                             (xref-item-location definition)))
+                 (push definition same-file-definitions)
+                 t))
+             definitions))
       (setq definitions (nconc (nreverse same-file-definitions)
                                definitions)))
     definitions))
 
 (cl-defmethod xref-backend-apropos ((_backend (eql 'etags)) pattern)
-  (etags--xref-find-definitions (xref-apropos-regexp pattern) t))
+  (let ((regexp (xref-apropos-regexp pattern)))
+    (nconc
+     (etags--xref-find-definitions regexp t)
+     (etags--xref-apropos-additional regexp))))
 
 (defun etags--xref-find-definitions (pattern &optional regexp?)
   ;; This emulates the behavior of `find-tag-in-order' but instead of
@@ -2131,18 +2142,42 @@ file name, add `tag-partial-file-name-match-p' to the list value.")
                       (puthash mark-key t marks))))))))))
     (nreverse xrefs)))
 
-(defclass xref-etags-location (xref-location)
-  ((tag-info :type list   :initarg :tag-info)
-   (file     :type string :initarg :file
-             :reader xref-location-group))
-  :documentation "Location of an etags tag.")
+(defun etags--xref-apropos-additional (regexp)
+  (cl-mapcan
+   (lambda (oba)
+     (pcase-let* ((`(,group ,goto-fun ,symbs) oba)
+                  (res nil)
+                  (add-xref (lambda (sym)
+                              (let ((sn (symbol-name sym)))
+                                (when (string-match-p regexp sn)
+                                  (push
+                                   (xref-make
+                                    sn
+                                    (xref-make-etags-apropos-location
+                                     sym goto-fun group))
+                                   res))))))
+       (when (symbolp symbs)
+         (if (boundp symbs)
+             (setq symbs (symbol-value symbs))
+           (warn "symbol `%s' has no value" symbs)
+           (setq symbs nil))
+         (if (vectorp symbs)
+             (mapatoms add-xref symbs)
+           (dolist (sy symbs)
+             (funcall add-xref (car sy))))
+         (nreverse res))))
+   tags-apropos-additional-actions))
 
-(defun xref-make-etags-location (tag-info file)
-  (make-instance 'xref-etags-location :tag-info tag-info
-                 :file (expand-file-name file)))
+(cl-defstruct (xref-etags-location
+               (:constructor xref-make-etags-location (tag-info file)))
+  "Location of an etags tag."
+  tag-info file)
+
+(cl-defmethod xref-location-group ((l xref-etags-location))
+  (xref-etags-location-file l))
 
 (cl-defmethod xref-location-marker ((l xref-etags-location))
-  (with-slots (tag-info file) l
+  (pcase-let (((cl-struct xref-etags-location tag-info file) l))
     (let ((buffer (find-file-noselect file)))
       (with-current-buffer buffer
         (save-excursion
@@ -2152,8 +2187,22 @@ file name, add `tag-partial-file-name-match-p' to the list value.")
             (point-marker)))))))
 
 (cl-defmethod xref-location-line ((l xref-etags-location))
-  (with-slots (tag-info) l
+  (pcase-let (((cl-struct xref-etags-location tag-info) l))
     (nth 1 tag-info)))
+
+(cl-defstruct (xref-etags-apropos-location
+               (:constructor xref-make-etags-apropos-location (symbol goto-fun group)))
+  "Location of an additional apropos etags symbol."
+  symbol goto-fun group)
+
+(cl-defmethod xref-location-group ((l xref-etags-apropos-location))
+  (xref-etags-apropos-location-group l))
+
+(cl-defmethod xref-location-marker ((l xref-etags-apropos-location))
+  (save-window-excursion
+    (pcase-let (((cl-struct xref-etags-apropos-location goto-fun symbol) l))
+      (funcall goto-fun symbol)
+      (point-marker))))
 
 
 (provide 'etags)

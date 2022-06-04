@@ -1,6 +1,6 @@
 ;;; eshell-tests.el --- Eshell test suite  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -129,6 +129,10 @@ e.g. \"{(+ 1 2)} 3\" => 3"
 (ert-deftest eshell-test/interp-lisp ()
   "Interpolate Lisp form evaluation"
   (should (equal (eshell-test-command-result "+ $(+ 1 2) 3") 6)))
+
+(ert-deftest eshell-test/interp-temp-cmd ()
+  "Interpolate command result redirected to temp file"
+  (should (equal (eshell-test-command-result "cat $<echo hi>") "hi")))
 
 (ert-deftest eshell-test/interp-concat ()
   "Interpolate and concat command"
@@ -262,4 +266,4 @@ chars"
 
 (provide 'eshell-tests)
 
-;;; tests/eshell-tests.el ends here
+;;; eshell-tests.el ends here

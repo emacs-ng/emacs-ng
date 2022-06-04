@@ -1,6 +1,6 @@
 ;;; viper-mous.el --- mouse support for Viper  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1994-1997, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1994-1997, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Michael Kifer <kifer@cs.stonybrook.edu>
 ;; Package: viper
@@ -65,8 +65,7 @@ or a triple-click."
 (defcustom viper-multiclick-timeout (if (viper-window-display-p)
                                         double-click-time
 				    500)
-  "Time interval in millisecond within which successive mouse clicks are
-considered related."
+  "Time interval in milliseconds for mouse clicks to be considered related."
   :type 'integer)
 
 ;; Local variable used to toggle wraparound search on click.
@@ -116,7 +115,7 @@ considered related."
   (buffer-name (viper-mouse-click-window-buffer click)))
 
 (defsubst viper-mouse-click-posn (click)
-  "Returns position of a click."
+  "Return position of a click."
   (declare (obsolete nil "27.1"))
   (posn-point (event-start click)))
 

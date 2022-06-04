@@ -1,6 +1,6 @@
 ;;; ede/cpp-root.el --- A simple way to wrap a C++ project with a single root  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -103,7 +103,7 @@
 ;;
 ;; If the cpp-root project style is right for you, but you want a
 ;; dynamic loader, instead of hard-coding values in your .emacs, you
-;; can do that too, but you will need to write some lisp code.
+;; can do that too, but you will need to write some Lisp code.
 ;;
 ;; To do that, you need to add an entry to the
 ;; `ede-project-class-files' list, and also provide two functions to

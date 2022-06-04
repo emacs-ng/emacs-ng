@@ -1,6 +1,6 @@
 ;;; org-crypt.el --- Public Key Encryption for Org Entries -*- lexical-binding: t; -*-
 ;;
-;; Copyright (C) 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -185,10 +185,10 @@ See `org-crypt-disable-auto-save'."
      ((eq org-crypt-disable-auto-save 'encrypt)
       (message "org-decrypt: Enabling re-encryption on auto-save.")
       (add-hook 'auto-save-hook
-		    (lambda ()
-		      (message "org-crypt: Re-encrypting all decrypted entries due to auto-save.")
-		      (org-encrypt-entries))
-		    nil t))
+		(lambda ()
+		  (message "org-crypt: Re-encrypting all decrypted entries due to auto-save.")
+		  (org-encrypt-entries))
+		nil t))
      (t nil))))
 
 (defun org-crypt-key-for-heading ()

@@ -1,6 +1,6 @@
 ;;; macros.el --- non-primitive commands for keyboard macros -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1987, 1992, 1994-1995, 2001-2021 Free Software
+;; Copyright (C) 1985-1987, 1992, 1994-1995, 2001-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -26,7 +26,7 @@
 
 ;; Extension commands for keyboard macros.  These permit you to assign
 ;; a name to the last-defined keyboard macro, expand and insert the
-;; lisp corresponding to a macro, query the user from within a macro,
+;; Lisp corresponding to a macro, query the user from within a macro,
 ;; or apply a macro to each line in the reason.
 
 ;;; Code:
@@ -148,11 +148,16 @@ use this command, and then save the file."
 ;;;###autoload
 (defun kbd-macro-query (flag)
   "Query user during kbd macro execution.
-  With prefix argument, enters recursive edit, reading keyboard
-commands even within a kbd macro.  You can give different commands
-each time the macro executes.
-  Without prefix argument, asks whether to continue running the macro.
+
+With prefix argument FLAG, enter recursive edit, reading
+keyboard commands even within a kbd macro.  You can give
+different commands each time the macro executes.
+
+Without prefix argument, ask whether to continue running the
+macro.
+
 Your options are: \\<query-replace-map>
+
 \\[act]	Finish this iteration normally and continue with the next.
 \\[skip]	Skip the rest of this iteration, and start the next.
 \\[exit]	Stop the macro entirely right now.

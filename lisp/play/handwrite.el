@@ -1,6 +1,6 @@
 ;;; handwrite.el --- turns your emacs buffer into a handwritten document  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1996, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1996, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Danny Roozendaal (was: <danny@tvs.kun.nl>)
 ;; Maintainer: emacs-devel@gnu.org
@@ -139,7 +139,7 @@
 
 ;;;###autoload
 (defun handwrite ()
-  "Turns the buffer into a \"handwritten\" document.
+  "Turn the buffer into a \"handwritten\" document.
 The functions `handwrite-10pt', `handwrite-11pt', `handwrite-12pt'
 and `handwrite-13pt' set up for various sizes of output.
 

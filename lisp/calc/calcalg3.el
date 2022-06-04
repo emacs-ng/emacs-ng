@@ -1,6 +1,6 @@
 ;;; calcalg3.el --- more algebraic functions for Calc  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -1484,7 +1484,7 @@
 		      h (cdr h)))
 	    (setq curh (math-div-float curh '(float 9 0))))
 	  ss
-	  (math-reject-arg nil (format "*Integral failed to converge"))))))
+	  (math-reject-arg nil "*Integral failed to converge")))))
 
 
 (defun math-ninteg-evaluate (expr x mode)

@@ -1,6 +1,6 @@
 ;;; tex-mode.el --- TeX, LaTeX, and SliTeX mode commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1989, 1992, 1994-1999, 2001-2021 Free
+;; Copyright (C) 1985-1986, 1989, 1992, 1994-1999, 2001-2022 Free
 ;; Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -1014,15 +1014,17 @@ says which mode to use."
   (tex-common-initialization))
 
 (advice-add 'tex-mode :around #'tex--redirect-to-submode)
+(defvar tex-mode--recursing nil)
 (defun tex--redirect-to-submode (orig-fun)
   "Redirect to one of the submodes when called directly."
   ;; The file may have "mode: tex" in the local variable
   ;; block, in which case we'll be called recursively
   ;; infinitely.  Inhibit that.
-  (let ((enable-local-variables nil))
-    (funcall (if delay-mode-hooks
+  (let ((tex-mode--recursing tex-mode--recursing))
+    (funcall (if (or delay-mode-hooks tex-mode--recursing)
                  ;; We're called from one of the children already.
                  orig-fun
+               (setq tex-mode--recursing t)
                (tex--guess-mode)))))
 
 ;; The following three autoloaded aliases appear to conflict with
@@ -2351,7 +2353,7 @@ FILE is typically the output DVI or PDF file."
            collect (cons char (shell-quote-argument file))))
 
 (defun tex-format-cmd (format fspec)
-  "Like `format-spec' but adds user-specified args to the command.
+  "Like `format-spec' but add user-specified args to the command.
 Only applies the FSPEC to the args part of FORMAT."
   (setq fspec (tex--quote-spec fspec))
   (if (not (string-match "\\([^ /\\]+\\) " format))
@@ -3452,7 +3454,7 @@ There might be text before point."
     ("\\varprime" . ?′)
     ("\\varpropto" . ?∝)
     ("\\varrho" . ?ϱ)
-    ("\\varsigma" ?ς)
+    ("\\varsigma" . ?ς)
     ("\\vartriangleleft" . ?⊲)
     ("\\vartriangleright" . ?⊳)
     ("\\vdash" . ?⊢)
@@ -3467,7 +3469,97 @@ There might be text before point."
     ("\\Bbb{P}" . ?ℙ)			; Also sometimes \mathbb.
     ("\\Bbb{Q}" . ?ℚ)
     ("\\Bbb{R}" . ?ℝ)
+    ("\\Bbb{T}" . ?𝕋)
     ("\\Bbb{Z}" . ?ℤ)
+    ("\\mathbb{N}" . ?ℕ)			; AMS commands for blackboard bold
+    ("\\mathbb{P}" . ?ℙ)			; Also sometimes \mathbb.
+    ("\\mathbb{Q}" . ?ℚ)
+    ("\\mathbb{R}" . ?ℝ)
+    ("\\mathbb{T}" . ?𝕋)
+    ("\\mathbb{Z}" . ?ℤ)
+    ("\\pm" . ?±)
+    ("\\|" . ?‖)
+    ("\\varkappa" . ?ϰ)
+    ;; caligraphic
+    ("\\mathcal{A}" . ?𝒜)
+    ("\\mathcal{B}" . ?ℬ)
+    ("\\mathcal{C}" . ?𝒞)
+    ("\\mathcal{D}" . ?𝒟)
+    ("\\mathcal{E}" . ?ℰ)
+    ("\\mathcal{F}" . ?ℱ)
+    ("\\mathcal{G}" . ?𝒢)
+    ("\\mathcal{H}" . ?ℋ)
+    ("\\mathcal{I}" . ?ℐ)
+    ("\\mathcal{J}" . ?𝒥)
+    ("\\mathcal{K}" . ?𝒦)
+    ("\\mathcal{L}" . ?ℒ)
+    ("\\mathcal{M}" . ?ℳ)
+    ("\\mathcal{N}" . ?𝒩)
+    ("\\mathcal{O}" . ?𝒪)
+    ("\\mathcal{P}" . ?𝒫)
+    ("\\mathcal{Q}" . ?𝒬)
+    ("\\mathcal{R}" . ?ℛ)
+    ("\\mathcal{S}" . ?𝒮)
+    ("\\mathcal{T}" . ?𝒯)
+    ("\\mathcal{U}" . ?𝒰)
+    ("\\mathcal{V}" . ?𝒱)
+    ("\\mathcal{W}" . ?𝒲)
+    ("\\mathcal{X}" . ?𝒳)
+    ("\\mathcal{Y}" . ?𝒴)
+    ("\\mathcal{Z}" . ?𝒵)
+    ;; fractur
+    ("\\mathfrak{A}" . ?𝔄)
+    ("\\mathfrak{B}" . ?𝔅)
+    ("\\mathfrak{C}" . ?ℭ)
+    ("\\mathfrak{D}" . ?𝔇)
+    ("\\mathfrak{E}" . ?𝔈)
+    ("\\mathfrak{F}" . ?𝔉)
+    ("\\mathfrak{G}" . ?𝔊)
+    ("\\mathfrak{H}" . ?ℌ)
+    ("\\mathfrak{I}" . ?ℑ)
+    ("\\mathfrak{J}" . ?𝔍)
+    ("\\mathfrak{K}" . ?𝔎)
+    ("\\mathfrak{L}" . ?𝔏)
+    ("\\mathfrak{M}" . ?𝔐)
+    ("\\mathfrak{N}" . ?𝔑)
+    ("\\mathfrak{O}" . ?𝔒)
+    ("\\mathfrak{P}" . ?𝔓)
+    ("\\mathfrak{Q}" . ?𝔔)
+    ("\\mathfrak{R}" . ?ℜ)
+    ("\\mathfrak{S}" . ?𝔖)
+    ("\\mathfrak{T}" . ?𝔗)
+    ("\\mathfrak{U}" . ?𝔘)
+    ("\\mathfrak{V}" . ?𝔙)
+    ("\\mathfrak{W}" . ?𝔚)
+    ("\\mathfrak{X}" . ?𝔛)
+    ("\\mathfrak{Y}" . ?𝔜)
+    ("\\mathfrak{Z}" . ?ℨ)
+    ("\\mathfrak{a}" . ?𝔞)
+    ("\\mathfrak{b}" . ?𝔟)
+    ("\\mathfrak{c}" . ?𝔠)
+    ("\\mathfrak{d}" . ?𝔡)
+    ("\\mathfrak{e}" . ?𝔢)
+    ("\\mathfrak{f}" . ?𝔣)
+    ("\\mathfrak{g}" . ?𝔤)
+    ("\\mathfrak{h}" . ?𝔥)
+    ("\\mathfrak{i}" . ?𝔦)
+    ("\\mathfrak{j}" . ?𝔧)
+    ("\\mathfrak{k}" . ?𝔨)
+    ("\\mathfrak{l}" . ?𝔩)
+    ("\\mathfrak{m}" . ?𝔪)
+    ("\\mathfrak{n}" . ?𝔫)
+    ("\\mathfrak{o}" . ?𝔬)
+    ("\\mathfrak{p}" . ?𝔭)
+    ("\\mathfrak{q}" . ?𝔮)
+    ("\\mathfrak{r}" . ?𝔯)
+    ("\\mathfrak{s}" . ?𝔰)
+    ("\\mathfrak{t}" . ?𝔱)
+    ("\\mathfrak{u}" . ?𝔲)
+    ("\\mathfrak{v}" . ?𝔳)
+    ("\\mathfrak{w}" . ?𝔴)
+    ("\\mathfrak{x}" . ?𝔵)
+    ("\\mathfrak{y}" . ?𝔶)
+    ("\\mathfrak{z}" . ?𝔷)
     ("--" . ?–)
     ("---" . ?—)
     ("\\ordfeminine" . ?ª)

@@ -1,6 +1,6 @@
 @c -*- coding: utf-8 -*-
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2021 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2022 Free Software
 @c Foundation, Inc.
 
 @c See file emacs.texi for copying conditions.
@@ -149,6 +149,14 @@ positive number such as 0.25, or even 0.1 if you type quickly.  This
 gives you less jerky scrolling when you hold down @kbd{C-v}, but the
 window contents after any action which scrolls into a fresh portion of
 the buffer will be momentarily unfontified.
+
+@vindex redisplay-skip-fontification-on-input
+Finally, a third alternative to these variables is
+@code{redisplay-skip-fontification-on-input}.  If this variable is
+non-@code{nil}, skip some fontifications is there's input pending.
+This usually does not affect the display because redisplay is
+completely skipped anyway if input was pending, but it can make
+scrolling smoother by avoiding unnecessary fontification.
 
 @vindex scroll-up
 @vindex scroll-down
@@ -1767,6 +1775,10 @@ multiple screen lines.  Setting the variable @code{truncate-lines} in
 any way makes it local to the current buffer; until that time, the
 default value, which is normally @code{nil}, is in effect.
 
+  Since line truncation and word wrap (described in the next section)
+are contradictory, @code{toggle-truncate-lines} disables word wrap
+when it turns on line truncation.
+
   If a split window becomes too narrow, Emacs may automatically enable
 line truncation.  @xref{Split Window}, for the variable
 @code{truncate-partial-width-windows} which controls this.
@@ -1796,6 +1808,10 @@ the @samp{Word Wrap (Visual Line mode)} menu item.  While Visual Line
 mode is enabled, the mode line shows the string @samp{wrap} in the
 mode display.  The command @kbd{M-x global-visual-line-mode} toggles
 Visual Line mode in all buffers.
+
+  Since word wrap and line truncation (described in the previous
+section) are contradictory, turning on @code{visual-line-mode}
+disables line truncation.
 
 @findex beginning-of-visual-line
 @findex end-of-visual-line
@@ -1892,7 +1908,7 @@ The command @kbd{M-x display-line-numbers-mode} provides a
 convenient way to turn on display of line numbers.  This mode has a globalized
 variant, @code{global-display-line-numbers-mode}.  The user option
 @code{display-line-numbers-type} controls which sub-mode of
-line-number display, described above, will these modes activate.
+line-number display, described above, these modes will activate.
 
 @noindent
 Note that line numbers are not displayed in the minibuffer and in the

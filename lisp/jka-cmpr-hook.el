@@ -1,6 +1,6 @@
 ;;; jka-cmpr-hook.el --- preloaded code to enable jka-compr.el  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1993-1995, 1997, 1999-2000, 2002-2021 Free Software
+;; Copyright (C) 1993-1995, 1997, 1999-2000, 2002-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Jay K. Adams <jka@ece.cmu.edu>
@@ -203,7 +203,7 @@ options through Custom does this automatically."
   ;; can-append strip-extension-flag file-magic-bytes
   ;; uncompress-function]
   (mapcar 'purecopy
-  '(["\\.Z\\'"
+  `(["\\.Z\\'"
      "compressing"    "compress"     ("-c")
      ;; gzip is more common than uncompress. It can only read, not write.
      "uncompressing"  "gzip"   ("-c" "-q" "-d")
@@ -239,7 +239,8 @@ options through Custom does this automatically."
      "LZMA uncompressing" "lzma"         ("-c" "-q" "-d")
      t t ""]
     ["\\.xz\\'"
-     "XZ compressing"     "xz"           ("-c" "-q")
+     ;; On MacOS, gzip can uncompress xz files.
+     "XZ compressing" ,(if (featurep 'ns) "gzip" "xz") ("-c" "-q")
      "XZ uncompressing"   "xz"           ("-c" "-q" "-d")
      t t "\3757zXZ\0"]
     ["\\.txz\\'"

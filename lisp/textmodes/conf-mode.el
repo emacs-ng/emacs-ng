@@ -1,6 +1,6 @@
 ;;; conf-mode.el --- Simple major mode for editing conf/ini/properties files  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2022 Free Software Foundation, Inc.
 
 ;; Author: Daniel Pfeiffer <occitan@esperanto.org>
 ;; Keywords: conf ini windows java
@@ -417,16 +417,18 @@ See also `conf-space-mode', `conf-colon-mode', `conf-javaprop-mode',
 ;; To tell the difference between those two cases where the function
 ;; might be called, we check `delay-mode-hooks'.
 ;; (inspired from tex-mode.el)
+(defvar conf-mode--recursing nil)
 (advice-add 'conf-mode :around
             (lambda (orig-fun)
               "Redirect to one of the submodes when called directly."
               ;; The file may have "mode: conf" in the local variable
               ;; block, in which case we'll be called recursively
               ;; infinitely.  Inhibit that.
-              (let ((enable-local-variables nil))
-                (funcall (if delay-mode-hooks orig-fun (conf--guess-mode))))))
-
-
+              (let ((conf-mode--recursing conf-mode--recursing))
+                (funcall (if (or delay-mode-hooks conf-mode--recursing)
+                             orig-fun
+                           (setq conf-mode--recursing t)
+                           (conf--guess-mode))))))
 
 (defun conf-mode-initialize (comment &optional font-lock)
   "Initializations for sub-modes of `conf-mode'.
@@ -613,7 +615,7 @@ For details see `conf-mode'.  Example:
   (conf-mode-initialize "!"))
 
 (defun conf-toml-recognize-section (limit)
-  "Font-lock helper function for conf-toml-mode.
+  "Font-lock helper function for `conf-toml-mode'.
 Handles recognizing TOML section names, like [section],
 \[[section]], or [something.\"else\".section]."
   (save-excursion

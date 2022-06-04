@@ -1,6 +1,6 @@
 ;;; process-tests.el --- Testing the process facilities -*- lexical-binding: t -*-
 
-;; Copyright (C) 2013-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -745,7 +745,7 @@ Return nil if that can't be determined."
   process-tests--EMFILE-message)
 
 (ert-deftest process-tests/sentinel-called ()
-  "Check that sentinels are called after processes finish"
+  "Check that sentinels are called after processes finish."
   (let ((command (process-tests--emacs-command)))
     (skip-unless command)
     (dolist (conn-type '(pipe pty))
@@ -945,6 +945,12 @@ Return nil if FILENAME doesn't exist."
           )
       (when buf
         (kill-buffer buf)))))
+
+(ert-deftest process-num-processors ()
+  "Sanity checks for num-processors."
+  (should (equal (num-processors) (num-processors)))
+  (should (integerp (num-processors)))
+  (should (< 0 (num-processors))))
 
 (provide 'process-tests)
 ;;; process-tests.el ends here

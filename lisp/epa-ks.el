@@ -1,6 +1,6 @@
 ;;; epa-ks.el --- EasyPG Key Server Client -*- lexical-binding: t -*-
 
-;; Copyright (C) 2021 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2022 Free Software Foundation, Inc.
 
 ;; Author: Philip K. <philipk@posteo.net>
 ;; Keywords: PGP, GnuPG
@@ -149,8 +149,7 @@ If EXACT is non-nil, don't accept approximate matches."
           (cond ((null epa-keyserver)
                  (user-error "Empty keyserver pool"))
                 ((listp epa-keyserver)
-                 (nth (random (length epa-keyserver))
-                      epa-keyserver))
+                 (seq-random-elt epa-keyserver))
                 ((stringp epa-keyserver)
                  epa-keyserver)
                 ((error "Invalid type for `epa-keyserver'")))

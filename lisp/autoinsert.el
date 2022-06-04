@@ -1,6 +1,6 @@
 ;;; autoinsert.el --- automatic mode-dependent insertion of text into new files  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1994-1995, 1998, 2000-2021 Free Software
+;; Copyright (C) 1985-1987, 1994-1995, 1998, 2000-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Charlie Martin <crm@cs.duke.edu>
@@ -83,10 +83,11 @@ When this is `function', only ask when called non-interactively."
                  (const :tag "Ask if called non-interactively" function)
                  (other :tag "Ask" t)))
 
-(defcustom auto-insert-prompt "Perform %s auto-insertion? "
-  "Prompt to use when querying whether to auto-insert.
+(defcustom auto-insert-prompt "Perform %s auto-insertion?"
+  "Prompt to use when querying whether to `auto-insert'.
 If this contains a %s, that will be replaced by the matching rule."
-  :type 'string)
+  :type 'string
+  :version "28.1")
 
 
 (defcustom auto-insert-alist

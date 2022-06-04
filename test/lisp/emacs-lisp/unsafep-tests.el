@@ -2,7 +2,7 @@
 
 ;; Author: Jonathan Yavner <jyavner@member.fsf.org>
 
-;; Copyright (C) 2002-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -105,7 +105,7 @@
       . (variable (x)))
     ( (let (1) 2)
       . (variable 1))
-    ( (error "asdf")
+    ( (error "Asdf")
       . #'error)
     ( (signal 'error "asdf")
       . #'signal)

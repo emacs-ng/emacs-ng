@@ -1,6 +1,6 @@
 ;;; ebnf-yac.el --- parser for Yacc/Bison  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: Vinicius Jose Latorre <viniciusjl.gnu@gmail.com>
 ;; Keywords: wp, ebnf, PostScript
@@ -113,7 +113,7 @@
 ;;; YACC-Code = "any C definition".
 
 (defun ebnf-yac-parser (start)
-  "yacc/Bison parser."
+  "Yacc/Bison parser."
   (let ((total (+ (- ebnf-limit start) 1))
 	(bias (1- start))
 	(origin (point))

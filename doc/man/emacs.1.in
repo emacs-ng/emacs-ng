@@ -1,5 +1,5 @@
 .\" See section COPYING for copyright and redistribution information.
-.TH EMACS 1 "2020-04-05" "GNU Emacs @version@" "GNU"
+.TH EMACS 1 "2021-09-28" "GNU Emacs @version@" "GNU"
 .
 .
 .SH NAME
@@ -214,6 +214,9 @@ Specify the name which should be assigned to the initial
 .I Emacs
 window.
 This controls looking up X resources as well as the window title.
+.TP
+.BR \-\-no\-x\-resources
+Do not load X resources.
 .TP
 .BI \-T " name\fR,\fP " \-\-title= "name"
 Specify the title for the initial X window.
@@ -657,7 +660,7 @@ For detailed credits and acknowledgments, see the GNU Emacs manual.
 .
 .
 .SH COPYING
-Copyright 1995, 1999-2021 Free Software Foundation, Inc.
+Copyright 1995, 1999-2022 Free Software Foundation, Inc.
 .PP
 Permission is granted to make and distribute verbatim copies of this
 document provided the copyright notice and this permission notice are

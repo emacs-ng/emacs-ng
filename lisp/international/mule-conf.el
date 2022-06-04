@@ -1,6 +1,6 @@
 ;;; mule-conf.el --- configure multilingual environment  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
 ;; Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
 ;;   Registration Number H14PRO021
@@ -1679,6 +1679,7 @@ for decoding and encoding files, process I/O, etc."
 
 (defcustom password-word-equivalents
   '("password" "passcode" "passphrase" "pass phrase" "pin"
+    "decryption key" "encryption key" ; From ccrypt.
     ; These are sorted according to the GNU en_US locale.
     "암호"		; ko
     "パスワード"	; ja

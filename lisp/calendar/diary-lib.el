@@ -1,6 +1,6 @@
 ;;; diary-lib.el --- diary functions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1989-1990, 1992-1995, 2001-2021 Free Software
+;; Copyright (C) 1989-1990, 1992-1995, 2001-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Edward M. Reingold <reingold@cs.uiuc.edu>
@@ -1223,8 +1223,7 @@ ensure that all relevant variables are set.
 
 \(diary-mail-entries)
 
-# diary-rem.el ends here
-"
+# diary-rem.el ends here"
   (interactive "P")
   (if (string-equal diary-mail-addr "")
       (user-error "You must set `diary-mail-addr' to use this command")
@@ -1254,10 +1253,10 @@ the regexp with parentheses."
               paren))
 
 (defvar diary-marking-entries-flag nil
-  "True during the marking of diary entries, nil otherwise.")
+  "Non-nil during the marking of diary entries, nil otherwise.")
 
 (defvar diary-marking-entry-flag nil
-  "True during the marking of diary entries, if current entry is marking.")
+  "Non-nil during the marking of diary entries, if current entry is marking.")
 
 ;; file-glob-attrs bound in diary-mark-entries.
 (defun diary-mark-entries-1 (markfunc &optional months symbol absfunc)
@@ -2013,6 +2012,17 @@ string to use when highlighting the day in the calendar."
          (cycle (/ diff n)))
     (and (>= diff 0) (zerop (% diff n))
          (cons mark (format entry cycle (diary-ordinal-suffix cycle))))))
+
+;; To be called from diary-sexp-entry, where DATE, ENTRY are bound.
+(defun diary-offset (sexp days)
+  "Offsetted diary entry.  Offsets SEXP by DAYS days.
+Entry applies if the date is DAYS days after another diary-sexp SEXP."
+  (with-no-warnings (defvar date))
+  (unless (integerp days)
+    (user-error "Days must be an integer"))
+  (let ((date (calendar-gregorian-from-absolute
+	       (- (calendar-absolute-from-gregorian date) days))))
+    (eval sexp)))
 
 (defun diary-day-of-year ()
   "Day of year and number of days remaining in the year of date diary entry."

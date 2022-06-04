@@ -1,6 +1,6 @@
 ;;; wid-edit.el --- Functions for creating and using widgets -*- lexical-binding:t -*-
 ;;
-;; Copyright (C) 1996-1997, 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1996-1997, 1999-2022 Free Software Foundation, Inc.
 ;;
 ;; Author: Per Abrahamsen <abraham@dina.kvl.dk>
 ;; Maintainer: emacs-devel@gnu.org
@@ -131,21 +131,16 @@ This exists as a variable so it can be set locally in certain buffers.")
 			(((class grayscale color)
 			  (background light))
 			 :background "gray85"
-                         ;; We use negative thickness of the horizontal box border line to
-                         ;; avoid making lines taller when fields become visible.
-                         :box (:line-width (1 . -1) :color "gray80")
 			 :extend t)
 			(((class grayscale color)
 			  (background dark))
 			 :background "dim gray"
-                         :box (:line-width (1 . -1) :color "gray46")
 			 :extend t)
 			(t
 			 :slant italic
 			 :extend t))
   "Face used for editable fields."
-  :group 'widget-faces
-  :version "28.1")
+  :group 'widget-faces)
 
 (defface widget-single-line-field '((((type tty))
 				     :background "green3"
@@ -190,7 +185,7 @@ the contents of strings."
   (buffer-enable-undo))
 
 (defcustom widget-menu-max-size 40
-  "Largest number of items allowed in a popup-menu.
+  "Largest number of items allowed in a popup menu.
 Larger menus are read through the minibuffer."
   :group 'widgets
   :type 'integer)
@@ -202,9 +197,8 @@ For a larger number of items, the minibuffer is used."
   :type 'integer)
 
 (defcustom widget-menu-minibuffer-flag nil
-  "Control how to ask for a choice from the keyboard.
-Non-nil means use the minibuffer;
-nil means read a single character."
+  "Non-nil means use the minibuffer; to ask for a choice from the keyboard.
+If nil, read a single character."
   :group 'widgets
   :type 'boolean)
 
@@ -3644,6 +3638,13 @@ match-alternatives: %S"
   :value 0
   :type-error "This field should contain an integer"
   :match-alternatives '(integerp))
+
+(define-widget 'natnum 'restricted-sexp
+  "A nonnegative integer."
+  :tag "Integer (positive or zero)"
+  :value 0
+  :type-error "This field should contain a nonnegative integer"
+  :match-alternatives '(natnump))
 
 (define-widget 'number 'restricted-sexp
   "A number (floating point or integer)."

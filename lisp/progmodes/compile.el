@@ -1,6 +1,6 @@
 ;;; compile.el --- run compiler as inferior of Emacs, parse error messages  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1987, 1993-1999, 2001-2021 Free Software
+;; Copyright (C) 1985-1987, 1993-1999, 2001-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Authors: Roland McGrath <roland@gnu.org>,
@@ -86,7 +86,7 @@ This is bound before running `compilation-filter-hook'.")
   "This is how compilers number the first column, usually 1 or 0.
 If this is buffer-local in the destination buffer, Emacs obeys
 that value, otherwise it uses the value in the *compilation*
-buffer.  This enables a major-mode to specify its own value.")
+buffer.  This enables a major mode to specify its own value.")
 
 (defvar compilation-parse-errors-filename-function #'identity
   "Function to call to post-process filenames while parsing error messages.
@@ -662,7 +662,8 @@ has just been matched, and should correspondingly preserve this match data.
 TYPE is 2 or nil for a real error or 1 for warning or 0 for info.
 TYPE can also be of the form (WARNING . INFO).  In that case this
 will be equivalent to 1 if the WARNING'th subexpression matched
-or else equivalent to 0 if the INFO'th subexpression matched.
+or else equivalent to 0 if the INFO'th subexpression matched,
+or else equivalent to 2 if neither of them matched.
 See `compilation-error-face', `compilation-warning-face',
 `compilation-info-face' and `compilation-skip-threshold'.
 
@@ -687,10 +688,12 @@ matched file names, and weeding out false positives."
 		    ,(expand-file-name "compilation.txt" data-directory)))
 
 (defvar compilation-error-case-fold-search nil
-  "If non-nil, use case-insensitive matching of compilation errors
-by the regexps of `compilation-error-regexp-alist' and
-`compilation-error-regexp-alist-alist'.
+  "If non-nil, use case-insensitive matching of compilation errors.
 If nil, matching is case-sensitive.
+
+Compilation errors are given by the regexps in
+`compilation-error-regexp-alist' and
+`compilation-error-regexp-alist-alist'.
 
 This variable should only be set for backward compatibility as a temporary
 measure.  The proper solution is to use a regexp that matches the
@@ -752,7 +755,7 @@ program and Emacs agree about the display width of the characters,
 especially the TAB character.
 If this is buffer-local in the destination buffer, Emacs obeys
 that value, otherwise it uses the value in the *compilation*
-buffer.  This enables a major-mode to specify its own value."
+buffer.  This enables a major mode to specify its own value."
   :type 'boolean
   :version "20.4")
 
@@ -1783,6 +1786,9 @@ Returns the compilation buffer created."
 	    (replace-regexp-in-string "-mode\\'" "" (symbol-name mode))))
 	 (thisdir default-directory)
 	 (thisenv compilation-environment)
+         (buffer-path (and (local-variable-p 'exec-path) exec-path))
+         (buffer-env (and (local-variable-p 'process-environment)
+                          process-environment))
 	 outwin outbuf)
     (with-current-buffer
 	(setq outbuf
@@ -1850,6 +1856,12 @@ Returns the compilation buffer created."
         ;; NB: must be done after (funcall mode) as that resets local variables
         (setq-local compilation-directory thisdir)
         (setq-local compilation-environment thisenv)
+        (if buffer-path
+            (setq-local exec-path buffer-path)
+          (kill-local-variable 'exec-path))
+        (if buffer-env
+            (setq-local process-environment buffer-env)
+          (kill-local-variable 'process-environment))
 	(if highlight-regexp
             (setq-local compilation-highlight-regexp highlight-regexp))
         (if (or compilation-auto-jump-to-first-error
@@ -2251,7 +2263,7 @@ by replacing the first word, e.g., `compilation-scroll-output' from
   (if buffer-file-name
       (let (revert-buffer-function)
 	(revert-buffer ignore-auto noconfirm))
-    (if (or noconfirm (yes-or-no-p (format "Restart compilation? ")))
+    (if (or noconfirm (yes-or-no-p "Restart compilation? "))
 	(apply #'compilation-start compilation-arguments))))
 
 (defvar compilation-current-error nil
@@ -2767,7 +2779,7 @@ Actual value is never used, only the text property.")
     (set-window-margins w (- (car (window-margins w)) 2))))
 
 (defun compilation--set-up-arrow-spec-in-margins ()
-  "Set up compilation-arrow-overlay to display as an arrow in margins."
+  "Set up `compilation-arrow-overlay' to display as an arrow in margins."
   (setq overlay-arrow-string "")
   (setq compilation-arrow-overlay
 	(make-overlay overlay-arrow-position overlay-arrow-position))
@@ -2780,7 +2792,7 @@ Actual value is never used, only the text property.")
             #'compilation--tear-down-arrow-spec-in-margins nil t))
 
 (defun compilation--tear-down-arrow-spec-in-margins ()
-  "Restore compilation-arrow-overlay to not using the margins, which are removed."
+  "Restore `compilation-arrow-overlay' to not using the margins, which are removed."
   (when (overlayp compilation-arrow-overlay)
     (overlay-put compilation-arrow-overlay 'before-string nil)
     (delete-overlay compilation-arrow-overlay)
@@ -2951,7 +2963,8 @@ attempts to find a file whose name is produced by (format FMT FILENAME)."
             fmts formats)
       ;; For each directory, try each format string.
       (while (and fmts (null buffer))
-        (setq name (expand-file-name (format (car fmts) filename) thisdir)
+        (setq name (file-truename
+                    (file-name-concat thisdir (format (car fmts) filename)))
               buffer (and (file-exists-p name)
                           (find-file-noselect name))
               fmts (cdr fmts)))
@@ -2973,7 +2986,8 @@ attempts to find a file whose name is produced by (format FMT FILENAME)."
         (setq thisdir (car dirs)
               fmts formats)
         (while (and fmts (null buffer))
-          (setq name (expand-file-name (format (car fmts) filename) thisdir)
+          (setq name (file-truename
+                      (file-name-concat thisdir (format (car fmts) filename)))
                 buffer (and (file-exists-p name)
                             (find-file-noselect name))
                 fmts (cdr fmts)))
@@ -3016,7 +3030,8 @@ attempts to find a file whose name is produced by (format FMT FILENAME)."
               (ding) (sit-for 2))
              ((and (file-directory-p name)
                    (not (file-exists-p
-                         (setq name (expand-file-name filename name)))))
+                         (setq name (file-truename
+                                     (file-name-concat name filename))))))
               (message "No `%s' in directory %s" filename origname)
               (ding) (sit-for 2))
              (t

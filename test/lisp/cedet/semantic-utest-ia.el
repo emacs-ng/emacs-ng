@@ -1,6 +1,6 @@
 ;;; semantic-utest-ia.el --- Analyzer unit tests  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2008-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -489,4 +489,4 @@ tag that contains point, and return that."
 
 (provide 'semantic-ia-utest)
 
-;;; semantic-ia-utest.el ends here
+;;; semantic-utest-ia.el ends here

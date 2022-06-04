@@ -1,6 +1,6 @@
 ;;; faceup.el --- Markup language for faces and font-lock regression testing  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2013-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
 
 ;; Author: Anders Lindgren
 ;; Version: 0.0.6
@@ -795,7 +795,7 @@ See `faceup-properties' for a list of tracked properties."
       nil
     (if (and (null pos)
              (faceup-has-any-text-property (point-min)))
-        ;; `pos' is `nil' and the character at `point-min' contains a
+        ;; `pos' is nil and the character at `point-min' contains a
         ;; tracked property, return `point-min'.
         (point-min)
       (unless pos

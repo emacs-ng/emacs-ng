@@ -1,6 +1,6 @@
 ;;; quickurl.el --- insert a URL based on text at point in buffer  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: Dave Pearson <davep@davep.org>
 ;; Created: 1999-05-28
@@ -24,19 +24,19 @@
 ;;; Commentary:
 ;;
 ;; This package provides a simple method of inserting a URL based on the
-;; text at point in the current buffer. This is part of an on-going effort
+;; text at point in the current buffer.  This is part of an on-going effort
 ;; to increase the information I provide people while reducing the amount
-;; of typing I need to do. No-doubt there are undiscovered Emacs packages
+;; of typing I need to do.  No-doubt there are undiscovered Emacs packages
 ;; out there that do all of this and do it better, feel free to point me to
 ;; them, in the mean time I'm having fun playing with Emacs Lisp.
 ;;
 ;; The URLs are stored in an external file as a list of either cons cells,
-;; or lists. A cons cell entry looks like this:
+;; or lists.  A cons cell entry looks like this:
 ;;
 ;;    (<Lookup> . <URL>)
 ;;
 ;; where <Lookup> is a string that acts as the keyword lookup and <URL> is
-;; the URL associated with it. An example might be:
+;; the URL associated with it.  An example might be:
 ;;
 ;;    ("GNU" . "https://www.gnu.org/")
 ;;
@@ -45,8 +45,8 @@
 ;;    (<Lookup> <URL> <Comment>)
 ;;
 ;; where <Lookup> and <URL> are the same as with the cons cell and <Comment>
-;; is any text you like that describes the URL. This description will be
-;; used when presenting a list of URLS using `quickurl-list'. An example
+;; is any text you like that describes the URL.  This description will be
+;; used when presenting a list of URLS using `quickurl-list'.  An example
 ;; might be:
 ;;
 ;;    ("FSF" "https://www.fsf.org/" "The Free Software Foundation")
@@ -55,7 +55,7 @@
 ;;
 ;; (("GNU"    . "https://www.gnu.org/")
 ;;  ("FSF"      "https://www.fsf.org/" "The Free Software Foundation")
-;;  ("emacs"  . "http://www.emacs.org/")
+;;  ("emacs"  . "https://www.emacs.org/")
 ;;  ("davep"    "http://www.davep.org/" "Dave's homepage"))
 ;;
 ;; In case you're wondering about the mixture of cons cells and lists,
@@ -215,8 +215,8 @@ Note that this function is a setfable place."
 (defun quickurl-url-comment (url)
   "Get the comment from a URL.
 
-If the URL has no comment an empty string is returned. Also note that this
-function is a setfable place."
+If the URL has no comment an empty string is returned.  Also note
+that this function is a setfable place."
   (declare
    (gv-setter (lambda (store)
                 `(if (quickurl-url-commented-p ,url)
@@ -284,7 +284,7 @@ It also restores point after the `read'."
   "Return URL associated with key LOOKUP.
 
 The lookup is done by looking in the alist `quickurl-urls' and the `cons'
-for the URL is returned. The actual method used to look into the alist
+for the URL is returned.  The actual method used to look into the alist
 depends on the setting of the variable `quickurl-assoc-function'."
   (funcall quickurl-assoc-function lookup quickurl-urls))
 

@@ -1,6 +1,6 @@
 ;;; elint.el --- Lint Emacs Lisp -*- lexical-binding: t -*-
 
-;; Copyright (C) 1997, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Peter Liljenberg <petli@lysator.liu.se>
 ;; Created: May 1997
@@ -1035,7 +1035,7 @@ Insert HEADER followed by a blank line if non-nil."
     (sit-for 0)))
 
 (defun elint-set-mode-line (&optional on)
-  "Set the mode-line-process of the Elint log buffer."
+  "Set the `mode-line-process' of the Elint log buffer."
   (with-current-buffer (elint-get-log-buffer)
     (and (eq major-mode 'compilation-mode)
 	 (setq mode-line-process

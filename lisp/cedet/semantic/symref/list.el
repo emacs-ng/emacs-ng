@@ -1,6 +1,6 @@
 ;;; semantic/symref/list.el --- Symref Output List UI  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2008-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -152,7 +152,7 @@ Display the references in `semantic-symref-results-mode'."
 
 (easy-menu-define semantic-symref-list-menu
   semantic-symref-results-mode-map
-  "Symref Mode Menu"
+  "Symref Mode Menu."
   semantic-symref-list-menu-entries)
 
 (defcustom semantic-symref-auto-expand-results nil

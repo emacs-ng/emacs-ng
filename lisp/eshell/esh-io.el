@@ -1,6 +1,6 @@
 ;;; esh-io.el --- I/O management  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -34,7 +34,7 @@
 ;;;_* Redirect to a Buffer or Process
 ;;
 ;; Buffers and processes can be named with '#<buffer buffer-name>' and
-;; '#<process process-name>', respectively. As a shorthand,
+;; '#<process process-name>', respectively.  As a shorthand,
 ;; '#<buffer-name>' without the explicit "buffer" arg is equivalent to
 ;; '#<buffer buffer-name>'.
 ;;
@@ -94,7 +94,7 @@ though they were files."
 Currently this is standard input, output and error.  But even all of
 these Emacs does not currently support with asynchronous processes
 \(which is what eshell uses so that you can continue doing work in
-other buffers) ."
+other buffers)."
   :type 'integer
   :group 'eshell-io)
 

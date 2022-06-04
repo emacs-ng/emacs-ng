@@ -1,6 +1,6 @@
 ;;; indent.el --- indentation commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985, 1995, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1995, 2001-2022 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Package: emacs
@@ -77,11 +77,12 @@ This variable has no effect unless `tab-always-indent' is `complete'."
   :group 'indent
   :type '(choice
           (const :tag "Always complete" nil)
-          (const :tag "Unless at the end of a line" 'eol)
-          (const :tag "Unless looking at a word" 'word)
-          (const :tag "Unless at a word or parenthesis" 'word-or-paren)
-          (const :tag "Unless at a word, parenthesis, or punctuation." 'word-or-paren-or-punct))
-  :version "27.1")
+          (const :tag "Only complete at the end of a line" eol)
+          (const :tag "Unless looking at a word" word)
+          (const :tag "Unless at a word or parenthesis" word-or-paren)
+          (const :tag "Unless at a word, parenthesis, or punctuation."
+                 word-or-paren-or-punct))
+  :version "28.1")
 
 (defvar indent-line-ignored-functions '(indent-relative
                                         indent-relative-maybe
@@ -463,7 +464,7 @@ Optional fifth argument OBJECT specifies the string or buffer to operate on."
 	(put-text-property begin to prop (funcall func val) object))))
 
 (defun increase-left-margin (from to inc)
-  "Increase or decrease the left-margin of the region.
+  "Increase or decrease the `left-margin' of the region.
 With no prefix argument, this adds `standard-indent' of indentation.
 A prefix arg (optional third arg INC noninteractively) specifies the amount
 to change the margin by, in characters.
@@ -520,11 +521,14 @@ If `auto-fill-mode' is active, re-fills region to fit in new margin."
 
 (defun beginning-of-line-text (&optional n)
   "Move to the beginning of the text on this line.
-With optional argument, move forward N-1 lines first.
-From the beginning of the line, moves past the left-margin indentation, the
-fill-prefix, and any indentation used for centering or right-justifying the
-line, but does not move past any whitespace that was explicitly inserted
-\(such as a tab used to indent the first line of a paragraph)."
+
+With optional argument N, move forward N-1 lines first.
+
+From the beginning of the line, moves past the `left-margin'
+indentation, the `fill-prefix', and any indentation used for
+centering or right-justifying the line, but does not move past
+any whitespace that was explicitly inserted (such as a tab used
+to indent the first line of a paragraph)."
   (interactive "^p")
   (beginning-of-line n)
   (skip-chars-forward " \t")

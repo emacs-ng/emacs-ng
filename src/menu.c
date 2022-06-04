@@ -1,6 +1,6 @@
 /* Platform-independent code for terminal communications.
 
-Copyright (C) 1986, 1988, 1993-1994, 1996, 1999-2021 Free Software
+Copyright (C) 1986, 1988, 1993-1994, 1996, 1999-2022 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -1127,9 +1127,12 @@ x_popup_menu_1 (Lisp_Object position, Lisp_Object menu)
 
     /* Decode the first argument: find the window and the coordinates.  */
     if (EQ (position, Qt)
-	|| (CONSP (position) && (EQ (XCAR (position), Qmenu_bar)
-				 || EQ (XCAR (position), Qtab_bar)
-				 || EQ (XCAR (position), Qtool_bar))))
+	|| (CONSP (position)
+	    && (EQ (XCAR (position), Qmenu_bar)
+		|| EQ (XCAR (position), Qtab_bar)
+		|| (CONSP (XCDR (position))
+		    && EQ (XCAR (XCDR (position)), Qtab_bar))
+		|| EQ (XCAR (position), Qtool_bar))))
       {
 	get_current_pos_p = 1;
       }

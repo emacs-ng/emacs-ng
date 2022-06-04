@@ -1,6 +1,6 @@
 ;;; spook.el --- spook phrase utility for overloading the NSA line eater  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1988, 1993, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1988, 1993, 2001-2022 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: games
@@ -53,7 +53,7 @@
 
 ;;;###autoload
 (defun spook ()
-  "Adds that special touch of class to your outgoing mail."
+  "Add that special touch of class to your outgoing mail."
   (interactive)
   (cookie-insert spook-phrases-file
 		 spook-phrase-default-count

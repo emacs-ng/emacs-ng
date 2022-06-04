@@ -1,6 +1,6 @@
 ;;; bib-mode.el --- major mode for editing bib files  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1989, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1989, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Henry Kautz
 ;; (according to authors.el)
@@ -137,7 +137,7 @@ with the cdr.")
 
 
 (defcustom bib-auto-capitalize t
-  "True to automatically capitalize appropriate fields in Bib mode."
+  "Non-nil to automatically capitalize appropriate fields in Bib mode."
   :type 'boolean)
 
 (defconst bib-capitalized-fields "%[AETCBIJR]")

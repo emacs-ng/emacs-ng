@@ -1,6 +1,6 @@
 ;;; nnrss.el --- interfacing with RSS  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Shenghuo Zhu <zsh@cs.rochester.edu>
 ;; Keywords: RSS
@@ -715,7 +715,7 @@ Read the file and attempt to subscribe to each Feed in the file."
        (when (and xmlurl
 		  (not (string-match "\\`[\t ]*\\'" xmlurl))
 		  (prog1
-		      (y-or-n-p (format "Subscribe to %s " xmlurl))
+                      (y-or-n-p (format "Subscribe to %s?" xmlurl))
 		    (message "")))
 	 (condition-case err
 	     (progn

@@ -1,6 +1,6 @@
 ;;; calc-bin.el --- binary functions for Calc  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -202,7 +202,7 @@
 (defun math-power-of-2 (n)    ;  [I I] [Public]
   (if (natnump n)
       (ash 1 n)
-    (error "argument must be a natural number")))
+    (error "Argument must be a natural number")))
 
 (defun math-integer-log2 (n)    ; [I I] [Public]
   (and (natnump n)

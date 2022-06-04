@@ -1,6 +1,6 @@
 ;;; find-func-tests.el --- Unit tests for find-func.el  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords:
@@ -26,7 +26,7 @@
 
 ;;; Code:
 
-(require 'ert-x)                        ;For `ert-run-keys'.
+(require 'ert-x)                        ;For `ert-simulate-keys'.
 (require 'find-func)
 
 (ert-deftest find-func-tests--library-completion () ;bug#43393

@@ -1,6 +1,6 @@
 ;;; mouse-drag.el --- use mouse-2 to do a new style of scrolling  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1996-1997, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1996-1997, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: John Heidemann <johnh@ISI.EDU>
 ;; Keywords: mouse
@@ -147,7 +147,7 @@ Keep the cursor on the screen as needed."
      (= (cdr start-col-row) (cdr end-col-row)))))
 
 (defvar mouse-drag-electric-col-scrolling t
-  "If non-nil, mouse-drag on a long line enables truncate-lines.")
+  "If non-nil, mouse-drag on a long line enables `truncate-lines'.")
 
 (defun mouse-drag-should-do-col-scrolling ()
   "Determine if it's wise to enable col-scrolling for the current window.
@@ -282,6 +282,8 @@ To test this function, evaluate:
     (setq window-last-row (- (window-height) 2)
 	  window-last-col (- (window-width) 2))
     (track-mouse
+      ;; Set 'track-mouse' to something neither nil nor t (Bug#51794).
+      (setq track-mouse 'drag-dragging)
       (while (progn
 	       (setq event (read--potential-mouse-event)
 		     end (event-end event)

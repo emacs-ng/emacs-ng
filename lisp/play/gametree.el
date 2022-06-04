@@ -1,6 +1,6 @@
 ;;; gametree.el --- manage game analysis trees in Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1997, 1999, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 1999, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Ian T Zimmerman <itz@rahul.net>
 ;; Created: Wed Dec 10 07:41:46 PST 1997
@@ -508,7 +508,7 @@ being entered automatically (and thus should lack the manual mark)."
         (insert (int-to-string (prefix-numeric-value score))))))
 
 (defun gametree-compute-and-insert-score ()
-  "Compute current node score, maybe recursively from subnodes. Insert it.
+  "Compute current node score, maybe recursively from subnodes.  Insert it.
 Subnodes which have been manually scored are honored."
   (interactive "*")
   (let ((auto (not (and (looking-at gametree-score-regexp)

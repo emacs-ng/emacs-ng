@@ -1,6 +1,6 @@
 ;;; mule-diag.el --- show diagnosis of multilingual environment (Mule)  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-1998, 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1997-1998, 2000-2022 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -882,7 +882,7 @@ The IGNORED argument is ignored."
   ;; the current line.
   (beginning-of-line)
   (let ((from (mule--kbd-at (point)))
-	(to (if (looking-at "[^.]*[.]* ")
+	(to (if (looking-at "[^.]+[.][.] ")
 		(mule--kbd-at (match-end 0)))))
     (if (re-search-forward "[ \t]*$" nil t)
 	(delete-region (match-beginning 0) (match-end 0)))

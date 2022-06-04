@@ -1,6 +1,6 @@
 ;;; mule-cmds.el --- commands for multilingual environment  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -662,6 +662,26 @@ overrides that argument.")
                   (delq 'no-conversion (copy-sequence codings))))
       codings))
 
+(defun select-safe-coding-system--format-list (list)
+  (let ((spec1 "  %-20s %6s  %-10s %s\n")
+        (spec2 "  %-20s %6s  #x%-8X %c\n")
+        (nmax 5))
+    (insert (format spec1 "Coding System" "Pos" "Codepoint" "Char"))
+    (cl-loop for (coding . pairs) in list
+             do (cl-loop for pair in pairs
+                         ;; If there's a lot, only do the first five.
+                         for i from 1 upto nmax
+                         do (insert
+                             (format spec2
+                                     (if (= i 1) coding "")
+                                     (car pair)
+                                     (cdr pair)
+                                     (cdr pair))))
+             (if (> (length pairs) nmax)
+                 (insert (format spec1 "" "..." "" "")))))
+
+  (insert "\n"))
+
 (defun select-safe-coding-system-interactively (from to codings unsafe
 						&optional rejected default)
   "Select interactively a coding system for the region FROM ... TO.
@@ -720,21 +740,18 @@ DEFAULT is the coding system to use by default in the query."
 		 (concat " \"" (if (> (length from) 10)
 				   (concat (substring from 0 10) "...\"")
 				 (concat from "\"")))
-	       (format-message " text\nin the buffer `%s'" bufname))
+	       (format-message
+                " the following\nproblematic characters in the buffer `%s'"
+                bufname))
 	     ":\n")
-	    (let ((pos (point))
-		  (fill-prefix "  "))
-	      (dolist (x (append rejected unsafe))
-		(princ "  ") (princ x))
-	      (insert "\n")
-	      (fill-region-as-paragraph pos (point)))
+            (select-safe-coding-system--format-list unsafe)
 	    (when rejected
 	      (insert "These safely encode the text in the buffer,
 but are not recommended for encoding text in this context,
 e.g., for sending an email message.\n ")
-	      (dolist (x rejected)
-		(princ " ") (princ x))
-	      (insert "\n"))
+              (dolist (x rejected)
+                (princ " ") (princ x))
+              (insert "\n"))
 	    (when unsafe
 	      (insert (if rejected "The other coding systems"
 			"However, each of them")
@@ -1856,7 +1873,7 @@ The default status is as follows:
   (set-default-coding-systems nil)
   (setq default-sendmail-coding-system 'utf-8)
   (setq default-file-name-coding-system (if (memq system-type
-                                                  '(window-nt ms-dos))
+                                                  '(windows-nt ms-dos))
                                             'iso-latin-1-unix
                                           'utf-8-unix))
   ;; Preserve eol-type from existing default-process-coding-systems.
@@ -1875,9 +1892,9 @@ The default status is as follows:
 	 (condition-case nil
 	     (coding-system-change-text-conversion
 	      (cdr default-process-coding-system)
-	      (if (memq system-type '(window-nt ms-dos)) 'iso-latin-1 'utf-8))
+	      (if (memq system-type '(windows-nt ms-dos)) 'iso-latin-1 'utf-8))
 	   (coding-system-error
-	    (if (memq system-type '(window-nt ms-dos)) 'iso-latin-1 'utf-8)))))
+	    (if (memq system-type '(windows-nt ms-dos)) 'iso-latin-1 'utf-8)))))
     (setq default-process-coding-system
 	  (cons output-coding input-coding)))
 
@@ -2610,6 +2627,31 @@ is returned.  Thus, for instance, if charset \"ISO8859-2\",
 (declare-function w32-get-console-codepage "w32proc.c" ())
 (declare-function w32-get-console-output-codepage "w32proc.c" ())
 
+(defun get-locale-names ()
+  "Return a list of locale names."
+  (cond
+   ;; On Windows we have a built-in method to get the names.
+   ((and (fboundp 'w32-get-locale-info)
+         (fboundp 'w32-get-valid-locale-ids))
+    (delete-dups (mapcar #'w32-get-locale-info (w32-get-valid-locale-ids))))
+   ;; Unix-ey hosts should have a command to output locales currently
+   ;; defined by the OS.
+   ((executable-find "locale")
+    (split-string (shell-command-to-string "locale -a")))
+   ;; Fall back on the list of all defined locales.
+   ((and locale-translation-file-name
+         (file-exists-p locale-translation-file-name))
+    (with-temp-buffer
+      (insert-file-contents locale-translation-file-name)
+      (let ((locales nil))
+        (while (not (eobp))
+          (unless (looking-at-p "#")
+            (push (cadr (split-string (buffer-substring
+                                       (point) (line-end-position))))
+                  locales))
+          (forward-line 1))
+        (nreverse locales))))))
+
 (defun locale-translate (locale)
   "Expand LOCALE according to `locale-translation-file-name', if possible.
 For example, translate \"swedish\" into \"sv_SE.ISO8859-1\"."
@@ -2650,8 +2692,8 @@ touch session-global parameters like the language environment.
 
 See also `locale-charset-language-names', `locale-language-names',
 `locale-preferred-coding-systems' and `locale-coding-system'."
-  (interactive "sSet environment for locale: ")
-
+  (interactive (list (completing-read "Set environment for locale: "
+                                      (get-locale-names))))
   ;; Do this at runtime for the sake of binaries possibly transported
   ;; to a system without X.
   (setq locale-translation-file-name
@@ -2894,8 +2936,14 @@ See also the documentation of `get-char-code-property' and
     (or (stringp table)
 	(error "Not a char-table nor a file name: %s" table)))
   (if (stringp table) (setq table (purecopy table)))
-  (setf (alist-get name char-code-property-alist) table)
-  (put name 'char-code-property-documentation (purecopy docstring)))
+  (if (and (stringp table)
+           (char-table-p (alist-get name char-code-property-alist)))
+      ;; The table is already setup and we're apparently trying to
+      ;; undo that, probably because `charprop.el' is being re-loaded.
+      ;; Just skip it, in order to work around a recursive load (bug#52945).
+      nil
+    (setf (alist-get name char-code-property-alist) table)
+    (put name 'char-code-property-documentation (purecopy docstring))))
 
 (defvar char-code-property-table
   (make-char-table 'char-code-property-table)
@@ -3052,15 +3100,15 @@ on encoding."
                ;; (#x18800 . #x18AFF) Tangut Components
                ;; (#x18B00 . #x18CFF) Khitan Small Script
                ;; (#x18D00 . #x18D0F) Tangut Ideograph Supplement
-	       ;; (#x18D10 . #x1AFFF) unused
-	       (#x1B000 . #x1B11F)
-               ;; (#x1B120 . #x1B14F) unused
+	       ;; (#x18D10 . #x1AFEF) unused
+	       (#x1AFF0 . #x1B12F)
+               ;; (#x1B130 . #x1B14F) unused
                (#x1B150 . #x1B16F)
                (#x1B170 . #x1B2FF)
 	       ;; (#x1B300 . #x1BBFF) unused
                (#x1BC00 . #x1BCAF)
-	       ;; (#x1BCB0 . #x1CFFF) unused
-	       (#x1D000 . #x1FFFF)
+	       ;; (#x1BCB0 . #x1CEFF) unused
+	       (#x1CF00 . #x1FFFF)
 	       ;; (#x20000 . #xDFFFF) CJK Ideograph Extension A, B, etc, unused
 	       (#xE0000 . #xE01FF)))
             (gc-cons-threshold (max gc-cons-threshold 10000000))

@@ -1,6 +1,6 @@
 /* font.c -- "Font" primitives.
 
-Copyright (C) 2006-2021 Free Software Foundation, Inc.
+Copyright (C) 2006-2022 Free Software Foundation, Inc.
 Copyright (C) 2006, 2007, 2008, 2009, 2010, 2011
   National Institute of Advanced Industrial Science and Technology (AIST)
   Registration Number H13PRO009
@@ -2170,7 +2170,9 @@ font_score (Lisp_Object entity, Lisp_Object *spec_prop)
 
   /* Score three style numeric fields.  Maximum difference is 127. */
   for (i = FONT_WEIGHT_INDEX; i <= FONT_WIDTH_INDEX; i++)
-    if (! NILP (spec_prop[i]) && ! EQ (AREF (entity, i), spec_prop[i]))
+    if (! NILP (spec_prop[i])
+	&& ! EQ (AREF (entity, i), spec_prop[i])
+	&& FIXNUMP (AREF (entity, i)))
       {
 	EMACS_INT diff = ((XFIXNUM (AREF (entity, i)) >> 8)
 			  - (XFIXNUM (spec_prop[i]) >> 8));
@@ -2749,8 +2751,9 @@ font_delete_unmatched (Lisp_Object vec, Lisp_Object spec, int size)
 	}
       for (prop = FONT_WEIGHT_INDEX; prop < FONT_SIZE_INDEX; prop++)
 	if (FIXNUMP (AREF (spec, prop))
-	    && ((XFIXNUM (AREF (spec, prop)) >> 8)
-		!= (XFIXNUM (AREF (entity, prop)) >> 8)))
+	    && ! (FIXNUMP (AREF (entity, prop))
+		  && ((XFIXNUM (AREF (spec, prop)) >> 8)
+		      == (XFIXNUM (AREF (entity, prop)) >> 8))))
 	  prop = FONT_SPEC_MAX;
       if (prop < FONT_SPEC_MAX
 	  && size
@@ -3151,8 +3154,9 @@ font_clear_prop (Lisp_Object *attrs, enum font_property_index prop)
   attrs[LFACE_FONT_INDEX] = font;
 }
 
-/* Select a font from ENTITIES (list of font-entity vectors) that
-   supports C and is the best match for ATTRS and PIXEL_SIZE.  */
+/* Select a font from ENTITIES (list of one or more font-entity
+   vectors) that supports the character C (if non-negative) and is the
+   best match for ATTRS and PIXEL_SIZE.  */
 
 static Lisp_Object
 font_select_entity (struct frame *f, Lisp_Object entities,
@@ -3162,6 +3166,7 @@ font_select_entity (struct frame *f, Lisp_Object entities,
   Lisp_Object prefer;
   int i;
 
+  /* If we have a single candidate, return it if it supports C.  */
   if (NILP (XCDR (entities))
       && ASIZE (XCAR (entities)) == 1)
     {
@@ -3171,7 +3176,10 @@ font_select_entity (struct frame *f, Lisp_Object entities,
       return Qnil;
     }
 
-  /* Sort fonts by properties specified in ATTRS.  */
+  /* If we have several candidates, find the best match by sorting
+     them by properties specified in ATTRS.  Style attributes (weight,
+     slant, width, and size) are taken from the font spec in ATTRS (if
+     that is non-nil), or from ATTRS, or left as nil.  */
   prefer = scratch_font_prefer;
 
   for (i = FONT_WEIGHT_INDEX; i <= FONT_SIZE_INDEX; i++)
@@ -3208,6 +3216,8 @@ font_find_for_lface (struct frame *f, Lisp_Object *attrs, Lisp_Object spec, int 
   int i, j, k, l;
   USE_SAFE_ALLOCA;
 
+  /* Registry specification alternatives: from the most specific to
+     the least specific and finally an unspecified one.  */
   registry[0] = AREF (spec, FONT_REGISTRY_INDEX);
   if (NILP (registry[0]))
     {
@@ -3244,6 +3254,9 @@ font_find_for_lface (struct frame *f, Lisp_Object *attrs, Lisp_Object spec, int 
 	pixel_size = 1;
     }
   ASET (work, FONT_SIZE_INDEX, Qnil);
+
+  /* Foundry specification alternatives: from the most specific to the
+     least specific and finally an unspecified one.  */
   foundry[0] = AREF (work, FONT_FOUNDRY_INDEX);
   if (! NILP (foundry[0]))
     foundry[1] = zero_vector;
@@ -3257,6 +3270,8 @@ font_find_for_lface (struct frame *f, Lisp_Object *attrs, Lisp_Object spec, int 
   else
     foundry[0] = Qnil, foundry[1] = zero_vector;
 
+  /* Additional style specification alternatives: from the most
+     specific to the least specific and finally an unspecified one.  */
   adstyle[0] = AREF (work, FONT_ADSTYLE_INDEX);
   if (! NILP (adstyle[0]))
     adstyle[1] = zero_vector;
@@ -3277,6 +3292,8 @@ font_find_for_lface (struct frame *f, Lisp_Object *attrs, Lisp_Object spec, int 
     adstyle[0] = Qnil, adstyle[1] = zero_vector;
 
 
+  /* Family specification alternatives: from the most specific to
+     the least specific and finally an unspecified one.  */
   val = AREF (work, FONT_FAMILY_INDEX);
   if (NILP (val) && STRINGP (attrs[LFACE_FAMILY_INDEX]))
     {
@@ -3316,6 +3333,8 @@ font_find_for_lface (struct frame *f, Lisp_Object *attrs, Lisp_Object spec, int 
 	}
     }
 
+  /* Now look up suitable fonts, from the most specific spec to the
+     least specific spec.  Accept the first one that matches.  */
   for (i = 0; SYMBOLP (family[i]); i++)
     {
       ASET (work, FONT_FAMILY_INDEX, family[i]);
@@ -3328,9 +3347,12 @@ font_find_for_lface (struct frame *f, Lisp_Object *attrs, Lisp_Object spec, int 
 	      for (l = 0; SYMBOLP (adstyle[l]); l++)
 		{
 		  ASET (work, FONT_ADSTYLE_INDEX, adstyle[l]);
+		  /* Produce the list of candidates for the spec in WORK.  */
 		  entities = font_list_entities (f, work);
 		  if (! NILP (entities))
 		    {
+		      /* If there are several candidates, select the
+			 best match for PIXEL_SIZE and attributes in ATTRS.  */
 		      val = font_select_entity (f, entities,
 						attrs, pixel_size, c);
 		      if (! NILP (val))
@@ -3860,11 +3882,31 @@ font_at (int c, ptrdiff_t pos, struct face *face, struct window *w,
 
 #ifdef HAVE_WINDOW_SYSTEM
 
+/* Check if CH is a codepoint for which we should attempt to use the
+   emoji font, even if the codepoint itself has Emoji_Presentation =
+   No.  Vauto_composition_emoji_eligible_codepoints is filled in for
+   us by admin/unidata/emoji-zwj.awk.  */
+static bool
+codepoint_is_emoji_eligible (int ch)
+{
+  if (EQ (CHAR_TABLE_REF (Vchar_script_table, ch), Qemoji))
+    return true;
+
+  if (! NILP (Fmemq (make_fixnum (ch),
+		     Vauto_composition_emoji_eligible_codepoints)))
+    return true;
+
+  return false;
+}
+
 /* Check how many characters after character/byte position POS/POS_BYTE
    (at most to *LIMIT) can be displayed by the same font in the window W.
    FACE, if non-NULL, is the face selected for the character at POS.
    If STRING is not nil, it is the string to check instead of the current
    buffer.  In that case, FACE must be not NULL.
+
+   CH is the character that actually caused the composition
+   process to start, it may be different from the character at POS.
 
    The return value is the font-object for the character at POS.
    *LIMIT is set to the position where that font can't be used.
@@ -3873,15 +3915,16 @@ font_at (int c, ptrdiff_t pos, struct face *face, struct window *w,
 
 Lisp_Object
 font_range (ptrdiff_t pos, ptrdiff_t pos_byte, ptrdiff_t *limit,
-	    struct window *w, struct face *face, Lisp_Object string)
+	    struct window *w, struct face *face, Lisp_Object string,
+	    int ch)
 {
   ptrdiff_t ignore;
   int c;
   Lisp_Object font_object = Qnil;
+  struct frame *f = XFRAME (w->frame);
 
   if (!face)
     {
-      struct frame *f = XFRAME (w->frame);
       int face_id;
 
       if (NILP (string))
@@ -3898,6 +3941,23 @@ font_range (ptrdiff_t pos, ptrdiff_t pos_byte, ptrdiff_t *limit,
 	                                     face_id, false, 0);
 	}
       face = FACE_FROM_ID (f, face_id);
+    }
+
+  /* If the composition was triggered by an emoji, use a character
+     from 'script-representative-chars', rather than the first
+     character in the string, to determine the font to use.  */
+  if (codepoint_is_emoji_eligible (ch))
+    {
+      Lisp_Object val = assq_no_quit (Qemoji, Vscript_representative_chars);
+      if (CONSP (val))
+	{
+	  val = XCDR (val);
+	  if (CONSP (val))
+	    val = XCAR (val);
+	  else if (VECTORP (val))
+	    val = AREF (val, 0);
+	  font_object = font_for_char (face, XFIXNAT (val), pos, string);
+	}
     }
 
   while (pos < *limit)
@@ -4139,26 +4199,33 @@ merge_font_spec (Lisp_Object from, Lisp_Object to)
 DEFUN ("font-get", Ffont_get, Sfont_get, 2, 2, 0,
        doc: /* Return the value of FONT's property KEY.
 FONT is a font-spec, a font-entity, or a font-object.
-KEY is any symbol, but these are reserved for specific meanings:
-  :family, :weight, :slant, :width, :foundry, :adstyle, :registry,
-  :size, :name, :script, :otf
+KEY can be any symbol, but these are reserved for specific meanings:
+  :foundry, :family, :adstyle, :registry, :weight, :slant, :width,
+  :size, :dpi, :spacing, :avgwidth, :script, :lang, :otf
 See the documentation of `font-spec' for their meanings.
-In addition, if FONT is a font-entity or a font-object, values of
-:script and :otf are different from those of a font-spec as below:
 
-The value of :script may be a list of scripts that are supported by the font.
+If FONT is a font-entity or a font-object, then values of
+:script and :otf properties are different from those of a font-spec
+as below:
 
-The value of :otf is a cons (GSUB . GPOS) where GSUB and GPOS are lists
-representing the OpenType features supported by the font by this form:
-  ((SCRIPT (LANGSYS FEATURE ...) ...) ...)
-SCRIPT, LANGSYS, and FEATURE are all symbols representing OpenType
-Layout tags.
+  The value of :script may be a list of scripts that are supported by
+  the font.
+
+  The value of :otf is a cons (GSUB . GPOS) where GSUB and GPOS are
+  lists representing the OpenType features supported by the font, of
+  this form: ((SCRIPT (LANGSYS FEATURE ...) ...) ...), where
+  SCRIPT, LANGSYS, and FEATURE are all symbols representing OpenType
+  Layout tags.  See `otf-script-alist' for the OpenType script tags.
 
 In addition to the keys listed above, the following keys are reserved
 for the specific meanings as below:
 
-The value of :combining-capability is non-nil if the font-backend of
-FONT supports rendering of combining characters for non-OTF fonts.  */)
+  The value of :type is a symbol that identifies the font backend to be
+  used, such as `ftcrhb' or `xfthb' on X , `harfbuzz' or `uniscribe' on
+  MS-Windows, `ns' on Cocoa/GNUstep, etc.
+
+  The value of :combining-capability is non-nil if the font-backend of
+  FONT supports rendering of combining characters for non-OTF fonts.  */)
   (Lisp_Object font, Lisp_Object key)
 {
   int idx;
@@ -4286,7 +4353,9 @@ accepted by the function `font-spec' (which see), VAL must be what
 allowed in `font-spec'.
 
 If FONT is a font-entity or a font-object, KEY must not be the one
-accepted by `font-spec'.  */)
+accepted by `font-spec'.
+
+See also `font-get' for KEYs that have special meanings.  */)
   (Lisp_Object font, Lisp_Object prop, Lisp_Object val)
 {
   int idx;
@@ -5423,6 +5492,7 @@ syms_of_font (void)
   DEFSYM (Qiso8859_1, "iso8859-1");
   DEFSYM (Qiso10646_1, "iso10646-1");
   DEFSYM (Qunicode_bmp, "unicode-bmp");
+  DEFSYM (Qemoji, "emoji");
 
   /* Symbols representing keys of font extra info.  */
   DEFSYM (QCotf, ":otf");

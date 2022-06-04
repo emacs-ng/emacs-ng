@@ -1,6 +1,6 @@
 ;;; nnimap.el --- IMAP interface for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;;         Simon Josefsson <simon@josefsson.org>
@@ -1638,15 +1638,13 @@ If LIMIT, first try to limit the search to the N last articles."
 	      (setq start-article 1))
 	    (let* ((unread
 		    (gnus-compress-sequence
-                     (seq-difference
-                      (seq-difference
+		     (gnus-set-difference
+		      (gnus-set-difference
 		       existing
 		       (gnus-sorted-union
 			(cdr (assoc '%Seen flags))
-                        (cdr (assoc '%Deleted flags)))
-                       #'eq)
-                      (cdr (assoc '%Flagged flags))
-                      #'eq)))
+			(cdr (assoc '%Deleted flags))))
+		      (cdr (assoc '%Flagged flags)))))
 		   (read (gnus-range-difference
 			  (cons start-article high) unread)))
 	      (when (> start-article 1)
@@ -2289,7 +2287,7 @@ Return the server's response to the SELECT or EXAMINE command."
 	  nnimap-incoming-split-list)))
 
 (defun nnimap-make-thread-query (header)
-  (let* ((id  (mail-header-id header))
+  (let* ((id (substring-no-properties (mail-header-id header)))
 	 (refs (split-string
 		(or (mail-header-references header)
 		    "")))

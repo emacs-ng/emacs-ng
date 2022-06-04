@@ -1,6 +1,6 @@
 ;;; vc-arch.el --- VC backend for the Arch version-control system  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2004-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2022 Free Software Foundation, Inc.
 
 ;; Author:      FSF (see vc.el for full credits)
 ;; Maintainer:  Stefan Monnier <monnier@gnu.org>
@@ -24,7 +24,7 @@
 
 ;;; Commentary:
 
-;; The home page of the Arch version control system is at
+;; The Arch version control system website is at
 ;;
 ;;      https://www.gnu.org/software/gnu-arch/
 ;;

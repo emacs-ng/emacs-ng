@@ -1,6 +1,6 @@
 ;;; ert-tests.el --- ERT's self-tests  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2007-2008, 2010-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2008, 2010-2022 Free Software Foundation, Inc.
 
 ;; Author: Christian Ohler <ohler@gnu.org>
 
@@ -815,6 +815,10 @@ This macro is used to test if macroexpansion in `should' works."
     (should (ert-test-failed-p result))
     (should (equal (ert-test-failed-condition result)
                    '(ert-test-failed "Boo")))))
+
+(ert-deftest ert-test-deftest-lexical-binding-t ()
+  "Check that `lexical-binding' in `ert-deftest' has the file value."
+  (should (equal lexical-binding t)))
 
 
 (provide 'ert-tests)

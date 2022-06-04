@@ -1,6 +1,6 @@
 ;;; ind-util.el --- Transliteration and Misc. Tools for Indian Languages -*- coding: utf-8-emacs; lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
 
 ;; Keywords: multilingual, Indian, Devanagari
 
@@ -487,7 +487,7 @@
    c trans-c))
 
 (defun indian-make-hash (table trans-table)
-  "Indian Transliteration Hash for decode/encode"
+  "Indian Transliteration Hash for decode/encode."
   (let* ((encode-hash (make-hash-table :test 'equal))
 	 (decode-hash (make-hash-table :test 'equal))
 	 (hashtbls (cons encode-hash decode-hash))
@@ -809,11 +809,11 @@
   ;; only Devanagari is supported now.
   (concat "[" (char-to-string #x0900)
           "-" (char-to-string #x097f) "]")
-  "Regexp that matches to conversion")
+  "Regexp that matches to conversion.")
 
 (defun indian-ucs-to-iscii-region (from to)
-  "Converts the indian UCS characters in the region to ISCII.
-Returns new end position."
+  "Convert the indian UCS characters in the region to ISCII.
+Return new end position."
   (interactive "r")
   ;; only Devanagari is supported now.
   (save-excursion
@@ -828,8 +828,8 @@ Returns new end position."
       (point-max))))
 
 (defun indian-iscii-to-ucs-region (from to)
-  "Converts the ISCII characters in the region to UCS.
-Returns new end position."
+  "Convert the ISCII characters in the region to UCS.
+Return new end position."
   (interactive "r")
   ;; only Devanagari is supported now.
   (save-excursion

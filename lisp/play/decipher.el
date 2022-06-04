@@ -1,6 +1,6 @@
 ;;; decipher.el --- cryptanalyze monoalphabetic substitution ciphers  -*- lexical-binding: t; -*-
 ;;
-;; Copyright (C) 1995-1996, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1995-1996, 2001-2022 Free Software Foundation, Inc.
 ;;
 ;; Author: Christopher J. Madsen <chris_madsen@geocities.com>
 ;; Keywords: games
@@ -177,7 +177,7 @@ the tail of the list."
       (modify-syntax-entry c "_" table) ;Digits are not part of words
       (cl-incf c))
     table)
-  "Decipher mode syntax table")
+  "Decipher mode syntax table.")
 
 (defvar-local decipher-alphabet nil)
 ;; This is an alist containing entries (PLAIN-CHAR . CIPHER-CHAR),
@@ -769,8 +769,8 @@ TOTAL is the total number of letters in the ciphertext."
       (while temp-list
         (insert (caar temp-list)
                 (format "%4d%3d%%  "
-                        (cl-cadar temp-list)
-                        (floor (* 100.0 (cl-cadar temp-list)) total)))
+                        (cadar temp-list)
+                        (floor (* 100.0 (cadar temp-list)) total)))
         (setq temp-list (nthcdr 4 temp-list)))
       (insert ?\n)
       (setq freq-list (cdr freq-list)
@@ -983,13 +983,14 @@ if it can't, it signals an error."
     decipher-stats-buffer)
    ;; Create a new buffer if requested:
    (create
-    (let ((stats-name (concat "*" (buffer-name) "*")))
+    (let* ((stats-name (concat "*" (buffer-name) "*"))
+           (buf (get-buffer stats-name)))
       (setq decipher-stats-buffer
-            (if (eq 'decipher-stats-mode
-                    (buffer-local-value 'major-mode
-                                        (get-buffer stats-name)))
-                ;; We just lost track of the statistics buffer:
-                (get-buffer stats-name)
+            (if (and (bufferp buf)
+                     (eq 'decipher-stats-mode
+                         (buffer-local-value 'major-mode buf)))
+                buf
+              ;; We just lost track of the statistics buffer:
               (generate-new-buffer stats-name))))
     (with-current-buffer decipher-stats-buffer
       (decipher-stats-mode))

@@ -1,6 +1,6 @@
 ;;; help.el --- help commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1993-1994, 1998-2021 Free Software
+;; Copyright (C) 1985-1986, 1993-1994, 1998-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -597,7 +597,7 @@ or a buffer name."
           (let ((inhibit-read-only t))
             (goto-char (point-min))
             (insert (substitute-command-keys
-                     (concat "\\<outline-mode-cycle-map>Type "
+                     (concat "\\<outline-minor-mode-cycle-map>Type "
                              "\\[outline-cycle] or \\[outline-cycle-buffer] "
                              "on headings to cycle their visibility.\n\n")))
             ;; Hide the longest body
@@ -677,9 +677,11 @@ If INSERT (the prefix arg) is non-nil, insert the message in the buffer."
 (defun help--binding-undefined-p (defn)
   (or (null defn) (integerp defn) (equal defn 'undefined)))
 
-(defun help--analyze-key (key untranslated)
+(defun help--analyze-key (key untranslated &optional buffer)
   "Get information about KEY its corresponding UNTRANSLATED events.
-Returns a list of the form (BRIEF-DESC DEFN EVENT MOUSE-MSG)."
+Returns a list of the form (BRIEF-DESC DEFN EVENT MOUSE-MSG).
+When BUFFER is nil, it defaults to the buffer displayed
+in the selected window."
   (if (numberp untranslated)
       (error "Missing `untranslated'!"))
   (let* ((event (when (> (length key) 0)
@@ -695,7 +697,14 @@ Returns a list of the form (BRIEF-DESC DEFN EVENT MOUSE-MSG)."
 	 (mouse-msg (if (or (memq 'click modifiers) (memq 'down modifiers)
 			    (memq 'drag modifiers))
                         " at that spot" ""))
-	 (defn (key-binding key t)))
+         ;; Use `posn-set-point' to handle the case when a menu item
+         ;; is selected from the context menu that should describe KEY
+         ;; at the position of mouse click that opened the context menu.
+         ;; When no mouse was involved, don't use `posn-set-point'.
+         (defn (if buffer
+                   (key-binding key t)
+                 (save-excursion (posn-set-point (event-end event))
+                                 (key-binding key t)))))
     ;; Handle the case where we faked an entry in "Select and Paste" menu.
     (when (and (eq defn nil)
 	       (stringp (aref key (1- (length key))))
@@ -725,7 +734,7 @@ Returns a list of the form (BRIEF-DESC DEFN EVENT MOUSE-MSG)."
    ;; If nothing left, then keep one (the last one).
    (last info-list)))
 
-(defun describe-key-briefly (&optional key-list insert untranslated)
+(defun describe-key-briefly (&optional key-list insert buffer)
   "Print the name of the functions KEY-LIST invokes.
 KEY-LIST is a list of pairs (SEQ . RAW-SEQ) of key sequences, where
 RAW-SEQ is the untranslated form of the key sequence SEQ.
@@ -733,8 +742,10 @@ If INSERT (the prefix arg) is non-nil, insert the message in the buffer.
 
 While reading KEY-LIST interactively, this command temporarily enables
 menu items or tool-bar buttons that are disabled to allow getting help
-on them."
-  (declare (advertised-calling-convention (key-list &optional insert) "27.1"))
+on them.
+
+BUFFER is the buffer in which to lookup those keys; it defaults to the
+current buffer."
   (interactive
    ;; Ignore mouse movement events because it's too easy to miss the
    ;; message while moving the mouse.
@@ -742,15 +753,13 @@ on them."
      `(,key-list ,current-prefix-arg)))
   (when (arrayp key-list)
     ;; Old calling convention, changed
-    (setq key-list (list (cons key-list
-                               (if (numberp untranslated)
-                                   (this-single-command-raw-keys)
-                                 untranslated)))))
-  (let* ((info-list (mapcar (lambda (kr)
-                              (help--analyze-key (car kr) (cdr kr)))
-                            key-list))
-         (msg (mapconcat #'car (help--filter-info-list info-list 1) "\n")))
-    (if insert (insert msg) (message "%s" msg))))
+    (setq key-list (list (cons key-list nil))))
+  (with-current-buffer (if (buffer-live-p buffer) buffer (current-buffer))
+    (let* ((info-list (mapcar (lambda (kr)
+                                (help--analyze-key (car kr) (cdr kr) buffer))
+                              key-list))
+           (msg (mapconcat #'car (help--filter-info-list info-list 1) "\n")))
+      (if insert (insert msg) (message "%s" msg)))))
 
 (defun help--key-binding-keymap (key &optional accept-default no-remap position)
   "Return a keymap holding a binding for KEY within current keymaps.
@@ -910,7 +919,7 @@ current buffer."
              (mapcar (lambda (x)
                        (pcase-let* ((`(,seq . ,raw-seq) x)
                                     (`(,brief-desc ,defn ,event ,_mouse-msg)
-                                     (help--analyze-key seq raw-seq))
+                                     (help--analyze-key seq raw-seq buffer))
                                     (locus
                                      (help--binding-locus
                                       seq (event-start event))))
@@ -952,8 +961,11 @@ current buffer."
 	    (describe-function-1 defn)))))))
 
 (defun search-forward-help-for-help ()
-  "Search forward \"help window\"."
+  "Search forward in the help-for-help window.
+This command is meant to be used after issuing the `C-h C-h' command."
   (interactive)
+  (unless (get-buffer help-for-help-buffer-name)
+    (error "No %s buffer; use `C-h C-h' first" help-for-help-buffer-name))
   ;; Move cursor to the "help window".
   (pop-to-buffer help-for-help-buffer-name)
   ;; Do incremental search forward.
@@ -1048,11 +1060,12 @@ is currently activated with completion."
     result))
 
 
-(defun substitute-command-keys (string)
+(defun substitute-command-keys (string &optional no-face)
   "Substitute key descriptions for command names in STRING.
 Each substring of the form \\\\=[COMMAND] is replaced by either a
 keystroke sequence that invokes COMMAND, or \"M-x COMMAND\" if COMMAND
-is not on any keys.  Keybindings will use the face `help-key-binding'.
+is not on any keys.  Keybindings will use the face `help-key-binding',
+unless the optional argument NO-FACE is non-nil.
 
 Each substring of the form \\\\={MAPVAR} is replaced by a summary of
 the value of MAPVAR as a keymap.  This summary is similar to the one
@@ -1129,13 +1142,17 @@ Otherwise, return a new string."
                       (let ((op (point)))
                         (insert "M-x ")
                         (goto-char (+ end-point 3))
-                        (add-text-properties op (point)
-                                             '( face help-key-binding
-                                                font-lock-face help-key-binding))
+                        (or no-face
+                            (add-text-properties
+                             op (point)
+                             '( face help-key-binding
+                                font-lock-face help-key-binding)))
                         (delete-char 1))
                     ;; Function is on a key.
                     (delete-char (- end-point (point)))
-                    (insert (help--key-description-fontified key)))))
+                    (insert (if no-face
+                                (key-description key)
+                              (help--key-description-fontified key))))))
                ;; 1D. \{foo} is replaced with a summary of the keymap
                ;;            (symbol-value foo).
                ;;     \<foo> just sets the keymap used for \[cmd].
@@ -1217,10 +1234,10 @@ If NOMENU is non-nil, then omit menu-bar commands.
 If TRANSL is non-nil, the definitions are actually key
 translations so print strings and vectors differently.
 
-If ALWAYS_TITLE is non-nil, print the title even if there are no
+If ALWAYS-TITLE is non-nil, print the title even if there are no
 maps to look through.
 
-If MENTION_SHADOW is non-nil, then when something is shadowed by
+If MENTION-SHADOW is non-nil, then when something is shadowed by
 SHADOW, don't omit it; instead, mention it but say it is
 shadowed.
 
@@ -1786,8 +1803,8 @@ Return VALUE."
 ;;     window to an arbitrary buffer position.
 (defmacro with-help-window (buffer-or-name &rest body)
   "Evaluate BODY, send output to BUFFER-OR-NAME and show in a help window.
-This construct is like `with-temp-buffer-window' but unlike that
-puts the buffer specified by BUFFER-OR-NAME in `help-mode' and
+This construct is like `with-temp-buffer-window', which see, but unlike
+that, it puts the buffer specified by BUFFER-OR-NAME in `help-mode' and
 displays a message about how to delete the help window when it's no
 longer needed.  The help window will be selected if
 `help-window-select' is non-nil.

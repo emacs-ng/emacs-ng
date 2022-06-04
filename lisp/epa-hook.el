@@ -1,6 +1,6 @@
 ;;; epa-hook.el --- preloaded code to enable epa-file.el -*- lexical-binding: t -*-
 
-;; Copyright (C) 2006-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2022 Free Software Foundation, Inc.
 
 ;; Author: Daiki Ueno <ueno@unixuser.org>
 ;; Keywords: PGP, GnuPG
@@ -21,10 +21,12 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
+;;; Commentary:
+
 ;;; Code:
 
 (defgroup epa-file nil
-  "The EasyPG Assistant hooks for transparent file encryption"
+  "The EasyPG Assistant hooks for transparent file encryption."
   :version "23.1"
   :group 'epa)
 

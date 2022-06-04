@@ -1,6 +1,6 @@
 ;;; shortdoc-tests.el --- tests for shortdoc.el   -*- lexical-binding: t -*-
 
-;; Copyright (C) 2021 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -16,6 +16,8 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Code:
 
 (require 'ert)
 (require 'shortdoc)
@@ -43,3 +45,5 @@
             (setq props (cddr props))))))))
 
 (provide 'shortdoc-tests)
+
+;;; shortdoc-tests.el ends here

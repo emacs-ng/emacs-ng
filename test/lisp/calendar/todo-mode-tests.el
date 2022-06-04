@@ -1,6 +1,6 @@
 ;;; todo-mode-tests.el --- tests for todo-mode.el  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
 
 ;; Author: Stephen Berman <stephen.berman@gmx.net>
 ;; Keywords: calendar
@@ -35,7 +35,7 @@
   "Todo Archive mode test file.")
 
 (defmacro with-todo-test (&rest body)
-  "Set up an isolated todo-mode test environment."
+  "Set up an isolated `todo-mode' test environment."
   (declare (debug (body)))
   `(let* ((todo-test-home (make-temp-file "todo-test-home-" t))
           ;; Since we change HOME, clear this to avoid a conflict
@@ -567,7 +567,7 @@ The remaining arguments (except _ARG, which is ignored) specify
 item insertion parameters.  This provides a noninteractive API
 for todo-insert-item for use in automatic testing."
   (cl-letf (((symbol-function 'read-from-minibuffer)
-             (lambda (_prompt) item))
+             (lambda (_prompt &rest _) item))
             ((symbol-function 'read-number) ; For todo-set-item-priority
              (lambda (_prompt &optional _default) (or priority 1))))
     (todo-insert-item--basic nil diary-type date-type time where)))

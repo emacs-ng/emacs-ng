@@ -1,6 +1,6 @@
 ;;; em-basic.el --- basic shell builtin commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -164,7 +164,7 @@ or `eshell-printn' for display."
 	 (set-default-file-modes
 	  (- 511 (car (read-from-string
 		       (concat "?\\" (number-to-string (car args)))))))
-       (error "setting umask symbolically is not yet implemented"))
+       (error "Setting umask symbolically is not yet implemented"))
      (eshell-print
       "Warning: umask changed for all new files created by Emacs.\n"))
    nil))

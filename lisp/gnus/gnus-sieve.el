@@ -1,6 +1,6 @@
 ;;; gnus-sieve.el --- Utilities to manage sieve scripts for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: NAGY Andras <nagya@inf.elte.hu>,
 ;;	Simon Josefsson <simon@josefsson.org>
@@ -61,8 +61,9 @@ For example: \"nnimap:mailbox\""
   :type 'boolean)
 
 (defcustom gnus-sieve-update-shell-command "echo put %f | sieveshell %s"
-  "Shell command to execute after updating your Sieve script.  The following
-formatting characters are recognized:
+  "Shell command to execute after updating your Sieve script.
+
+The following formatting characters are recognized:
 
 %f    Script's file name (gnus-sieve-file)
 %s    Server name (from gnus-sieve-select-method)"

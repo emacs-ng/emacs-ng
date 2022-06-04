@@ -1,6 +1,6 @@
 ;;; gnus-registry.el --- article registry for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2022 Free Software Foundation, Inc.
 
 ;; Author: Ted Zlatanov <tzz@lifelogs.com>
 ;; Keywords: news registry
@@ -772,7 +772,7 @@ possible.  Uses `gnus-registry-split-strategy'."
         nil))))
 
 (defun gnus-registry-follow-group-p (group)
-  "Determines if a group name should be followed.
+  "Determine if a group name should be followed.
 Consults `gnus-registry-unfollowed-groups' and
 `nnmail-split-fancy-with-parent-ignore-groups'."
   (and group
@@ -789,7 +789,7 @@ Consults `gnus-registry-unfollowed-groups' and
 ;; we do special logic for ignoring to accept regular expressions and
 ;; nnmail-split-fancy-with-parent-ignore-groups as well
 (defun gnus-registry-ignore-group-p (group)
-  "Determines if a group name should be ignored.
+  "Determine if a group name should be ignored.
 Consults `gnus-registry-ignored-groups' and
 `nnmail-split-fancy-with-parent-ignore-groups'."
   (and group

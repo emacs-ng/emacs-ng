@@ -1,6 +1,6 @@
 ;;; ethio-util.el --- utilities for Ethiopic	-*- coding: utf-8-emacs; lexical-binding: t; -*-
 
-;; Copyright (C) 1997-1998, 2002-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1997-1998, 2002-2022 Free Software Foundation, Inc.
 ;; Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
 ;;   2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -2097,6 +2097,10 @@ mark."
 
 ;; The ethiopic-tex package is not used for keyboard input, therefore
 ;; not registered with the register-input-method function.
+
+;; Local Variables:
+;; checkdoc-symbol-words: ("-->")
+;; End:
 
 (provide 'ethio-util)
 

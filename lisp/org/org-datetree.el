@@ -1,8 +1,8 @@
 ;;; org-datetree.el --- Create date entries in a tree -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2022 Free Software Foundation, Inc.
 
-;; Author: Carsten Dominik <carsten at orgmode dot org>
+;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: https://orgmode.org
 ;;
@@ -72,8 +72,8 @@ will be built under the headline at point."
 (defun org-datetree--find-create-group
     (d time-grouping &optional keep-restriction)
   "Find or create an entry for date D.
-If time-period is day, group entries by day. If time-period is
-month, then group entries by month."
+If time-period is day, group entries by day.
+If time-period is month, then group entries by month."
   (setq-local org-datetree-base-level 1)
   (save-restriction
     (if (eq keep-restriction 'subtree-at-point)

@@ -1,4 +1,4 @@
-Copyright (C) 2008-2021 Free Software Foundation, Inc.
+Copyright (C) 2008-2022 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 This directory contains files intended to test various aspects of
@@ -21,6 +21,10 @@ following tags are recognized:
   The test needs a serious amount of time to run.  It is not intended
   to run on a regular basis by users.  Instead, it runs on demand
   only, or during regression tests.
+
+* :nativecomp
+  The test runs only if Emacs is configured with Lisp native compiler
+  support.
 
 * :unstable
   The test is under development.  It shall run on demand only.

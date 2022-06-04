@@ -1,6 +1,6 @@
 ;;; gcc-tests.el --- Tests for semantic/bovine/gcc.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003-2021  Free Software Foundation, Inc.
+;; Copyright (C) 2003-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -124,6 +124,12 @@ gcc version 2.95.2 19991024 (release)"
   "Test the output parser against the machine currently running Emacs."
   (skip-unless (executable-find "gcc"))
   (let ((semantic-gcc-test-strings (list (semantic-gcc-query "gcc" "-v"))))
-    (semantic-gcc-test-output-parser)))
+    ;; Some macOS machines run llvm when you type gcc.  (!)
+    ;; We can't even check if it's a symlink; it's a binary placed in
+    ;; "/usr/bin/gcc".  So check the output and just skip this test if
+    ;; it looks like that's the case.
+    (unless (string-match "Apple \\(LLVM\\|clang\\)\\|Xcode\\.app"
+                          (car semantic-gcc-test-strings))
+        (semantic-gcc-test-output-parser))))
 
 ;;; gcc-tests.el ends here

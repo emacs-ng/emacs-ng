@@ -1,6 +1,6 @@
 ;;; gnus-diary.el --- Wrapper around the NNDiary Gnus back end  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author:        Didier Verna <didier@didierverna.net>
 ;; Created:       Tue Jul 20 10:42:55 1999
@@ -21,15 +21,11 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
-
 ;;; Commentary:
 
 ;; Contents management by FCM version 0.1.
 
-;; Description:
-;; ===========
-
-;; gnus-diary is a utility toolkit used on top of the nndiary back end. It is
+;; gnus-diary is a utility toolkit used on top of the nndiary back end.  It is
 ;; now fully documented in the Gnus manual.
 
 ;;; Code:

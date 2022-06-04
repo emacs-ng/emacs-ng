@@ -1,5 +1,6 @@
 ;;; reftex.el --- minor mode for doing \label, \ref, \cite, \index in LaTeX  -*- lexical-binding: t; -*-
-;; Copyright (C) 1997-2000, 2003-2021 Free Software Foundation, Inc.
+
+;; Copyright (C) 1997-2000, 2003-2022 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <dominik@science.uva.nl>
 ;; Maintainer: auctex-devel@gnu.org
@@ -1207,7 +1208,7 @@ Valid actions are: readable, restore, read, kill, write."
         (if (file-writable-p file)
             (with-temp-file file
               (message "Writing parse file %s" (abbreviate-file-name file))
-              (insert (format ";; RefTeX parse info file\n"))
+              (insert ";; RefTeX parse info file\n")
               (insert (format ";; File: %s\n" master))
               (insert (format ";; User: %s (%s)\n\n"
                               (user-login-name) (user-full-name)))
@@ -1930,7 +1931,7 @@ When DIE is non-nil, throw an error if file not found."
 (defun reftex-convert-string (string split-re invalid-re dot keep-fp
                                      nwords maxchar invalid abbrev sep
                                      ignore-words &optional downcase)
-  "Convert a string (a sentence) to something shorter.
+  "Convert STRING (a sentence) to something shorter.
 SPLIT-RE     is the regular expression used to split the string into words.
 INVALID-RE   matches characters which are invalid in the final string.
 DOT          t means add dots to abbreviated words.
@@ -2139,7 +2140,7 @@ IGNORE-WORDS List of words which should be removed from the string."
 (make-variable-buffer-local 'reftex-isearch-minor-mode)
 
 (easy-menu-define reftex-mode-menu reftex-mode-map
- "Menu used in RefTeX mode"
+ "Menu used in RefTeX mode."
  `("Ref"
    ["Table of Contents"       reftex-toc t]
    ["Recenter TOC"            reftex-toc-recenter t]

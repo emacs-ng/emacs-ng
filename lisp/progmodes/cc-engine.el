@@ -1,6 +1,6 @@
 ;;; cc-engine.el --- core syntax guessing engine for CC mode -*- lexical-binding:t; coding: utf-8 -*-
 
-;; Copyright (C) 1985, 1987, 1992-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1987, 1992-2022 Free Software Foundation, Inc.
 
 ;; Authors:    2001- Alan Mackenzie
 ;;             1998- Martin Stjernholm
@@ -1545,7 +1545,7 @@ comment at the start of cc-engine.el for more info."
 	    nil))))))
 
 (defun c-at-statement-start-p ()
-  "Return non-nil if the point is at the first token in a statement
+  "Return non-nil if point is at the first token in a statement
 or somewhere in the syntactic whitespace before it.
 
 A \"statement\" here is not restricted to those inside code blocks.
@@ -1574,7 +1574,7 @@ comment at the start of cc-engine.el for more info."
 	  (c-crosses-statement-barrier-p (point) end)))))
 
 (defun c-at-expression-start-p ()
-  "Return non-nil if the point is at the first token in an expression or
+  "Return non-nil if point is at the first token in an expression or
 statement, or somewhere in the syntactic whitespace before it.
 
 An \"expression\" here is a bit different from the normal language
@@ -1731,7 +1731,7 @@ Line continuations, i.e. a backslashes followed by line breaks, are
 treated as whitespace.  The line breaks that end line comments are
 considered to be the comment enders, so the point cannot be at the end
 of the same line to move over a line comment.  Unlike
-c-backward-syntactic-ws, this function doesn't move back over
+`c-backward-syntactic-ws', this function doesn't move back over
 preprocessor directives.
 
 Note that this function might do hidden buffer changes.  See the
@@ -3210,7 +3210,7 @@ comment at the start of cc-engine.el for more info."
 This function should be added to the `before-change-functions'
 hook by major modes that use CC Mode's filling functionality
 without initializing CC Mode.  Currently (2020-06) these are
-js-mode and mhtml-mode."
+`js-mode' and `mhtml-mode'."
   (c-truncate-lit-pos-cache beg))
 
 (defun c-foreign-init-lit-pos-cache ()
@@ -3218,8 +3218,8 @@ js-mode and mhtml-mode."
 
 This function should be called from the mode functions of major
 modes which use CC Mode's filling functionality without
-initializing CC Mode.  Currently (2020-06) these are js-mode and
-mhtml-mode."
+initializing CC Mode.  Currently (2020-06) these are `js-mode' and
+`mhtml-mode'."
   (c-truncate-lit-pos-cache 1))
 
 
@@ -4969,7 +4969,7 @@ out of an enclosing paren."
 	     nil))))
 
 (defun c-forward-over-token-and-ws (&optional balanced)
-  "Move forward over a token and any following whitespace
+  "Move forward over a token and any following whitespace.
 Return t if we moved, nil otherwise (i.e. we were at EOB, or a
 non-token or BALANCED is non-nil and we can't move).  If we
 are at syntactic whitespace, move over this in place of a token.
@@ -5384,8 +5384,8 @@ comment at the start of cc-engine.el for more info."
 (defvar safe-pos-list)		  ; bound in c-syntactic-skip-backward
 
 (defun c-syntactic-skip-backward (skip-chars &optional limit paren-level)
-  "Like `skip-chars-backward' but only look at syntactically relevant chars,
-i.e. don't stop at positions inside syntactic whitespace or string
+  "Like `skip-chars-backward' but only look at syntactically relevant chars.
+This means don't stop at positions inside syntactic whitespace or string
 literals.  Preprocessor directives are also ignored, with the exception
 of the one that the point starts within, if any.  If LIMIT is given,
 it's assumed to be at a syntactically relevant position.
@@ -6135,7 +6135,7 @@ comment at the start of cc-engine.el for more info."
 	  (setq s (cons -1 (cdr s))))
 	 ((and (equal match ",")
 	       (eq (car s) -1)))	; at "," in "class foo : bar, ..."
-	 ((member match '(";" "," ")"))
+	 ((member match '(";" "*" "," "("))
 	  (when (and s (cdr s) (<= (car s) 0))
 	    (setq s (cdr s))))
 	 ((c-keyword-member kwd-sym 'c-flat-decl-block-kwds)
@@ -7223,7 +7223,7 @@ comment at the start of cc-engine.el for more info."
 ;;   the rest of the file is fontified normally.
 
 (defun c-ml-string-make-closer-re (_opener)
-  "Return c-ml-string-any-closer-re.
+  "Return `c-ml-string-any-closer-re'.
 
 This is a suitable language specific value of
 `c-make-ml-string-closer-re-function' for most languages with
@@ -7231,7 +7231,7 @@ multi-line strings (but not C++, for example)."
   c-ml-string-any-closer-re)
 
 (defun c-ml-string-make-opener-re (_closer)
-  "Return c-ml-string-opener-re.
+  "Return `c-ml-string-opener-re'.
 
 This is a suitable language specific value of
 `c-make-ml-string-opener-re-function' for most languages with
@@ -7422,7 +7422,7 @@ multi-line strings (but not C++, for example)."
 		     t)
 		    (save-excursion
 		      (goto-char (match-end 1))
-		      (if (c-in-literal) ; a psuedo closer.
+		      (if (c-in-literal) ; a pseudo closer.
 			  t
 			(setq saved-match-data (match-data))
 			(setq found t)
@@ -9978,7 +9978,12 @@ This function might do hidden buffer changes."
 		(save-excursion
 		  (goto-char type-start)
 		  (let ((c-promote-possible-types t))
-		    (c-forward-type)))))
+		    (c-forward-type))))
+
+	      ;; Signal a type declaration for "struct foo {".
+	      (when (and backup-at-type-decl
+			 (eq (char-after) ?{))
+		(setq at-type-decl t)))
 
 	    (setq backup-at-type at-type
 		  backup-type-start type-start
@@ -10409,6 +10414,7 @@ This function might do hidden buffer changes."
 			      ;; are directly inside a class (etc.) called "bar".
 			      (save-excursion
 				(and
+				 type-start
 				 (progn
 				   (goto-char name-start)
 				   (not (memq (c-forward-type) '(nil maybe))))
@@ -12288,12 +12294,15 @@ comment at the start of cc-engine.el for more info."
 	  pos2 in-paren parens-before-brace
 	  paren-state paren-pos)
 
-      (setq res (c-backward-token-2 1 t lim))
+      (setq res
+	    (or (progn (c-backward-syntactic-ws)
+		       (c-back-over-compound-identifier))
+		(c-backward-token-2 1 t lim)))
       ;; Checks to do only on the first sexp before the brace.
       ;; Have we a C++ initialization, without an "="?
       (if (and (c-major-mode-is 'c++-mode)
 	       (cond
-		((and (or (not (eq res 0))
+		((and (or (not (memq res '(t 0)))
 			  (eq (char-after) ?,))
 		      (setq paren-state (c-parse-state))
 		      (setq paren-pos (c-pull-open-brace paren-state))
@@ -12317,7 +12326,7 @@ comment at the start of cc-engine.el for more info."
 		(t nil))
 	       (save-excursion
 		 (cond
-		  ((or (not (eq res 0))
+		  ((or (not (memq res '(t 0)))
 		       (eq (char-after) ?,))
 		   (and (setq paren-state (c-parse-state))
 			(setq paren-pos (c-pull-open-brace paren-state))

@@ -1,6 +1,6 @@
 ;;; artist.el --- draw ascii graphics with your mouse -*- lexical-binding: t -*-
 
-;; Copyright (C) 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
 
 ;; Author:       Tomas Abrahamsson <tab@lysator.liu.se>
 ;; Keywords:     mouse
@@ -1277,7 +1277,7 @@ Drawing with keys
 
  \\[artist-key-set-point]		Does one of the following:
 		For lines/rectangles/squares: sets the first/second endpoint
-		For poly-lines: sets a point (use C-u \\[artist-key-set-point] to set last point)
+                For poly-lines: sets a point (use \\[universal-argument] \\[artist-key-set-point] to set last point)
 		When erase characters: toggles erasing
 		When cutting/copying: Sets first/last endpoint of rect/square
 		When pasting: Pastes
@@ -4891,7 +4891,7 @@ If optional argument STATE is positive, turn borders on."
 	    (+ window-y window-start-y))))
 
 (defun artist--adjust-x (x)
-  "Adjust the X position wrt. `display-line-numbers-mode'."
+  "Adjust the X position with regards to `display-line-numbers-mode'."
   (let ((adjust (line-number-display-width)))
     (if (= adjust 0)
         x

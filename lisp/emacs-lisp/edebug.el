@@ -1,6 +1,6 @@
 ;;; edebug.el --- a source-level debugger for Emacs Lisp  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1988-1995, 1997, 1999-2021 Free Software Foundation,
+;; Copyright (C) 1988-1995, 1997, 1999-2022 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Daniel LaLiberte <liberte@holonexus.org>
@@ -469,7 +469,7 @@ just FUNCTION is printed."
     (funcall orig-fun nil)))
 
 (defun edebug-eval-defun (edebug-it)
-  (declare (obsolete "use eval-defun or edebug--eval-defun instead" "28.1"))
+  (declare (obsolete "use `eval-defun' or `edebug--eval-defun' instead" "28.1"))
   (interactive "P")
   (if (advice-member-p #'edebug--eval-defun 'eval-defun)
       (eval-defun edebug-it)
@@ -3571,7 +3571,7 @@ This is useful for exiting even if `unwind-protect' code may be executed."
 (defun edebug-set-initial-mode ()
   "Set the initial execution mode of Edebug.
 The mode is requested via the key that would be used to set the mode in
-edebug-mode."
+`edebug-mode'."
   (interactive)
   (let* ((old-mode edebug-initial-mode)
 	 (key (read-key-sequence
@@ -3902,8 +3902,8 @@ Also see bindings for the eval list buffer *edebug* in `edebug-eval-mode'.
 The edebug buffer commands:
 \\{edebug-mode-map}
 
-Global commands prefixed by `global-edebug-prefix':
-\\{global-edebug-map}
+Global commands prefixed by `edebug-global-prefix':
+\\{edebug-global-map}
 
 Options:
 `edebug-setup-hook'
@@ -4070,8 +4070,8 @@ buffer and \\<global-map>\\[edebug-step-mode] in any buffer.
 Eval list buffer commands:
 \\{edebug-eval-mode-map}
 
-Global commands prefixed by `global-edebug-prefix':
-\\{global-edebug-map}")
+Global commands prefixed by `edebug-global-prefix':
+\\{edebug-global-map}")
 
 ;;; Interface with standard debugger.
 
@@ -4468,7 +4468,7 @@ With prefix argument, make it a temporary breakpoint."
 	       'read-expression-history)))))))
   (edebug-modify-breakpoint t condition arg))
 
-(easy-menu-define edebug-menu edebug-mode-map "Edebug menus" edebug-mode-menus)
+(easy-menu-define edebug-menu edebug-mode-map "Edebug menus." edebug-mode-menus)
 
 
 ;;; Finalize Loading

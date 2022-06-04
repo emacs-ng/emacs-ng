@@ -1,6 +1,6 @@
 ;;; server.el --- Lisp code for GNU Emacs running as server process -*- lexical-binding: t -*-
 
-;; Copyright (C) 1986-1987, 1992, 1994-2021 Free Software Foundation,
+;; Copyright (C) 1986-1987, 1992, 1994-2022 Free Software Foundation,
 ;; Inc.
 
 ;; Author: William Sommerfeld <wesommer@athena.mit.edu>
@@ -881,7 +881,7 @@ This handles splitting the command if it would be bigger than
 						  &optional parameters)
   (let* ((display (or display
                       (frame-parameter nil 'display)
-                      (error "Please specify display.")))
+                      (error "Please specify display")))
          (w (or (cdr (assq 'window-system parameters))
                 (window-system-for-display display))))
 
@@ -1078,7 +1078,7 @@ The following commands are accepted by the client:
 
 `-suspend'
   Suspend this terminal, i.e., stop the client process.
-  Sent when the user presses C-z."
+  Sent when the user presses \\[suspend-frame]."
   (server-log (concat "Received " string) proc)
   ;; First things first: let's check the authentication
   (unless (process-get proc :authenticated)

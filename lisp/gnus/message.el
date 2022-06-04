@@ -1,6 +1,6 @@
 ;;; message.el --- composing mail and news messages -*- lexical-binding: t -*-
 
-;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2022 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: mail, news
@@ -2395,6 +2395,8 @@ If VERBATIM, use slrn style verbatim marks (\"#v+\" and \"#v-\")."
   (save-excursion
     ;; add to the end of the region first, otherwise end would be invalid
     (goto-char end)
+    (unless (bolp)
+      (insert "\n"))
     (insert (if verbatim "#v-\n" message-mark-insert-end))
     (goto-char beg)
     (insert (if verbatim "#v+\n" message-mark-insert-begin))))
@@ -3572,8 +3574,18 @@ Prefix arg means justify as well."
     (when (looking-at message-cite-prefix-regexp)
       (setq quoted (match-string 0))
       (goto-char (match-end 0))
-      (looking-at "[ \t]*")
-      (setq leading-space (match-string 0)))
+      (let ((after (point)))
+        ;; This is a line with no text after the cite prefix.  In that
+        ;; case, the trailing space is commonly not present, so look
+        ;; around for other lines that have some data.
+        (when (looking-at-p "\n")
+          (let ((regexp (concat "^" message-cite-prefix-regexp "[ \t]")))
+            (when (or (re-search-backward regexp nil t)
+                      (re-search-forward regexp nil t))
+              (goto-char (1- (match-end 0))))))
+        (looking-at "[ \t]*")
+        (setq leading-space (match-string 0))
+        (goto-char after)))
     (if (and quoted
 	     (not not-break)
 	     (not bolp)
@@ -3590,7 +3602,7 @@ Prefix arg means justify as well."
 		      (equal quoted (match-string 0)))
 	    (goto-char (match-end 0))
 	    (looking-at "[ \t]*")
-	    (when (< (length leading-space) (length (match-string 0)))
+	    (when (> (length leading-space) (length (match-string 0)))
 	      (setq leading-space (match-string 0)))
 	    (forward-line 1))
 	  (setq end (point))
@@ -3841,7 +3853,7 @@ text was killed."
   "Caesar rotate all letters in the current buffer by 13 places.
 Used to encode/decode possibly offensive messages (commonly in rec.humor).
 With prefix arg, specifies the number of places to rotate each letter forward.
-Mail and USENET news headers are not rotated unless WIDE is non-nil."
+Mail and Usenet news headers are not rotated unless WIDE is non-nil."
   (interactive (if current-prefix-arg
 		   (list (prefix-numeric-value current-prefix-arg))
 		 (list nil))

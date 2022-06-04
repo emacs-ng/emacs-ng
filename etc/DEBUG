@@ -1,6 +1,6 @@
 Debugging GNU Emacs
 
-Copyright (C) 1985, 2000-2021 Free Software Foundation, Inc.
+Copyright (C) 1985, 2000-2022 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 ** Preliminaries
@@ -573,6 +573,32 @@ debugging did not (yet) happen.  Here are some useful techniques for that:
    GET_FROM_IMAGE for displaying an image, etc.  See 'enum it_method' in
    dispextern.h for the full list of values.
 
+** Debugging problems with native-compiled Lisp.
+
+When you encounter problems specific to native-compilation of Lisp, we
+recommend to follow the procedure below to try to identify the cause:
+
+ . Reduce the problematic .el file to the minimum by bisection, and
+   try identifying the function that causes the problem.
+
+ . Reduce the problematic function to the minimal code that still
+   reproduces the problem.
+
+ . Study the problem's artifacts, like Lisp or C backtraces, to try
+   identifying the cause of the problem.
+
+If you cannot figure out the cause for the problem using the above,
+native-compile the problematic file after setting the variable
+'comp-libgccjit-reproducer' to a non-nil value.  That should produce a
+file named ELNFILENAME_libgccjit_repro.c, where ELNFILENAME is the
+name of the problematic .eln file, either in the same directory where
+the .eln file is produced, or under your ~/.emacs.d/eln-cache (which
+one depends on how the native-compilation is invoked).  It is also
+possible that the reproducer file's name will be something like
+subr--trampoline-XXXXXXX_FUNCTION_libgccjit_repro.c, where XXXXXXX is
+a long string of hex digits and FUNCTION is some function from the
+compiled .el file.  Attach that reproducer C file to your bug report.
+
 ** Following longjmp call.
 
 Recent versions of glibc (2.4+?) encrypt stored values for setjmp/longjmp which
@@ -874,15 +900,6 @@ data that is modified only very rarely.)
 It is also useful to look at the corrupted object or data structure in
 a fresh Emacs session and compare its contents with a session that you
 are debugging.
-
-** Debugging problems with non-ASCII characters
-
-If you experience problems which seem to be related to non-ASCII
-characters, such as \201 characters appearing in the buffer or in your
-files, set the variable byte-debug-flag to t.  This causes Emacs to do
-some extra checks, such as look for broken relations between byte and
-character positions in buffers and strings; the resulting diagnostics
-might pinpoint the cause of the problem.
 
 ** Debugging the TTY (non-windowed) version
 

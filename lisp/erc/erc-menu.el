@@ -1,6 +1,6 @@
 ;;; erc-menu.el --- Menu-bar definitions for ERC  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2002, 2004-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2002, 2004-2022 Free Software Foundation, Inc.
 
 ;; Author: Mario Lang <mlang@delysid.org>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>
@@ -103,8 +103,7 @@
   "ERC menu definition.")
 
 (defvar erc-menu-defined nil
-  "Internal variable used to keep track of whether we've defined the
-ERC menu yet.")
+  "Internal variable used to keep track of whether we've defined the ERC menu yet.")
 
 ;;;###autoload(autoload 'erc-menu-mode "erc-menu" nil t)
 (define-erc-module menu nil

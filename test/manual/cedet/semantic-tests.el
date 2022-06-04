@@ -1,6 +1,6 @@
 ;;; semantic-tests.el --- Miscellaneous Semantic tests.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2003-2021  Free Software Foundation, Inc.
+;; Copyright (C) 2003-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -24,6 +24,8 @@
 ;; Originally, there are many test functions scattered among the
 ;; Semantic source files.  This file consolidates them.
 
+;;; Code:
+
 (require 'data-debug)
 
 ;;; From semantic-complete
@@ -46,7 +48,7 @@
 All systems are different.  Ask questions along the way."
   (interactive)
   (let ((doload nil))
-    (when (y-or-n-p "Create a system database to test with? ")
+    (when (y-or-n-p "Create a system database to test with?")
       (call-interactively 'semanticdb-create-ebrowse-database)
       (setq doload t))
     ;;  Should we load in caches
@@ -269,3 +271,5 @@ tag that contains point, and return that."
 		 Lcount (semantic-tag-name target)
 		 (semantic-elapsed-time start nil)))
       Lcount)))
+
+;;; semantic-tests.el ends here

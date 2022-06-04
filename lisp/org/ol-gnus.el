@@ -1,8 +1,8 @@
 ;;; ol-gnus.el --- Links to Gnus Groups and Messages -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2022 Free Software Foundation, Inc.
 
-;; Author: Carsten Dominik <carsten at orgmode dot org>
+;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;;         Tassilo Horn <tassilo at member dot fsf dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: https://orgmode.org
@@ -194,7 +194,7 @@ If `org-store-link' was called with a prefix arg the meaning of
 			       (message-tokenize-header
 				(mail-fetch-field "gcc" nil t) " ,"))))
 	       (id (org-unbracket-string "<" ">"
-					 (mail-fetch-field "Message-ID")))
+		     (mail-fetch-field "Message-ID")))
 	       (to (mail-fetch-field "To"))
 	       (from (mail-fetch-field "From"))
 	       (subject (mail-fetch-field "Subject"))

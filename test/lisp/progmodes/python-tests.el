@@ -1,6 +1,6 @@
 ;;; python-tests.el --- Test suite for python.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -193,7 +193,6 @@ aliqua."
 
 (ert-deftest python-syntax-after-python-backspace ()
   ;; `python-indent-dedent-line-backspace' garbles syntax
-  :expected-result :failed
   (python-tests-with-temp-buffer
       "\"\"\""
     (goto-char (point-max))
@@ -5283,7 +5282,7 @@ urlpatterns = patterns('',
            (should (= (current-indentation) 23))))
       (or eim (electric-indent-mode -1)))))
 
-(ert-deftest python-triple-quote-pairing ()
+(ert-deftest python-triple-double-quote-pairing ()
   (let ((epm electric-pair-mode))
     (unwind-protect
         (progn
@@ -5308,6 +5307,33 @@ urlpatterns = patterns('',
            (should (= (point) (1- (point-max))))
            (should (string= (buffer-string)
                             "\"\n\"\"\"\n"))))
+      (or epm (electric-pair-mode -1)))))
+
+(ert-deftest python-triple-single-quote-pairing ()
+  (let ((epm electric-pair-mode))
+    (unwind-protect
+        (progn
+          (python-tests-with-temp-buffer
+           "''\n"
+           (or epm (electric-pair-mode 1))
+           (goto-char (1- (point-max)))
+           (python-tests-self-insert ?')
+           (should (string= (buffer-string)
+                            "''''''\n"))
+           (should (= (point) 4)))
+          (python-tests-with-temp-buffer
+           "\n"
+           (python-tests-self-insert (list ?' ?' ?'))
+           (should (string= (buffer-string)
+                            "''''''\n"))
+           (should (= (point) 4)))
+          (python-tests-with-temp-buffer
+           "'\n''\n"
+           (goto-char (1- (point-max)))
+           (python-tests-self-insert ?')
+           (should (= (point) (1- (point-max))))
+           (should (string= (buffer-string)
+                            "'\n'''\n"))))
       (or epm (electric-pair-mode -1)))))
 
 
@@ -5422,15 +5448,21 @@ buffer with overlapping strings."
                     (python-nav-end-of-statement)))
     (should (eolp))))
 
-;; After call `run-python' the buffer running the python process is current.
-(ert-deftest python-tests--bug31398 ()
-  "Test for https://debbugs.gnu.org/31398 ."
+;; Interactively, `run-python' focuses the buffer running the
+;; interpreter.
+(ert-deftest python-tests--run-python-selects-window ()
+  "Test for bug#31398.  See also bug#44421 and bug#52380."
   (skip-unless (executable-find python-tests-shell-interpreter))
-  (let ((buffer (process-buffer (run-python nil nil 'show))))
-    (should (eq buffer (current-buffer)))
+  (let* ((buffer (process-buffer (run-python nil nil 'show)))
+         (window (get-buffer-window buffer)))
+    ;; We look at `selected-window' rather than `current-buffer'
+    ;; because as `(elisp)Current buffer' says, the latter will only
+    ;; be synchronized with the former when returning to the "command
+    ;; loop"; until then, `current-buffer' can change arbitrarily.
+    (should (eq window (selected-window)))
     (pop-to-buffer (other-buffer))
     (run-python nil nil 'show)
-    (should (eq buffer (current-buffer)))))
+    (should (eq window (selected-window)))))
 
 (ert-deftest python-tests--fill-long-first-line ()
   (should

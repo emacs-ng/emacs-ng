@@ -1,6 +1,6 @@
 ;;; vc-svn.el --- non-resident support for Subversion version-control  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2022 Free Software Foundation, Inc.
 
 ;; Author:      FSF (see vc.el for full credits)
 ;; Maintainer:  Stefan Monnier <monnier@gnu.org>
@@ -295,7 +295,7 @@ RESULT is a list of conses (FILE . STATE) for directory DIR."
 (autoload 'vc-switches "vc")
 
 (defun vc-svn-register (files &optional _comment)
-  "Register FILES into the SVN version-control system.
+  "Register FILES into the SVN version control system.
 The COMMENT argument is ignored  This does an add but not a commit.
 Passes either `vc-svn-register-switches' or `vc-register-switches'
 to the SVN command."

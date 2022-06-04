@@ -1,6 +1,6 @@
 ;;; memory-report.el --- Short function summaries  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
 
 ;; Keywords: lisp, help
 
@@ -29,7 +29,7 @@
 
 (require 'seq)
 (require 'subr-x)
-(eval-when-compile (require 'cl-lib))
+(require 'cl-lib)
 
 (defvar memory-report--type-size (make-hash-table))
 
@@ -75,7 +75,7 @@ by counted more than once."
 
 (defun memory-report-object-size (object)
   "Return the size of OBJECT in bytes."
-  (unless memory-report--type-size
+  (when (zerop (hash-table-count memory-report--type-size))
     (memory-report--garbage-collect))
   (memory-report--object-size (make-hash-table :test #'eq) object))
 
@@ -242,6 +242,19 @@ by counted more than once."
        (cl-incf total (memory-report--object-size counted elem)))
      value)
     total))
+
+;; All cl-defstruct types.
+(cl-defmethod memory-report--object-size-1 (counted (value cl-structure-object))
+  (let ((struct-type (type-of value)))
+    (apply #'+
+           (memory-report--size 'vector)
+           (mapcar (lambda (slot)
+                     (if (eq (car slot) 'cl-tag-slot)
+                         0
+                       (memory-report--object-size
+                        counted
+                        (cl-struct-slot-value struct-type (car slot) value))))
+                   (cl-struct-slot-info struct-type)))))
 
 (defun memory-report--format (bytes)
   (setq bytes (/ bytes 1024.0))

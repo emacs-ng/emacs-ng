@@ -1,6 +1,6 @@
 ;;; ruler-mode.el --- display a ruler in the header line  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: David Ponce <david@dponce.com>
 ;; Created: 24 Mar 2001
@@ -348,7 +348,7 @@ nothing is dragged.")
 (defun ruler-mode-text-scaled-width (width)
   "Compute scaled text width according to current font scaling.
 Convert a width of char units into a text-scaled char width units,
-Ex. `window-hscroll'."
+for example `window-hscroll'."
   (/ (* width (frame-char-width)) (default-font-width)))
 
 (defun ruler-mode-text-scaled-window-hscroll ()

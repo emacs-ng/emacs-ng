@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2001--2021 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2001--2022 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @iftex
@@ -393,7 +393,7 @@ this---saving them---updates the files themselves.
 associated with any files, or if the autosave was not recent enough to
 have recorded important changes, you can use the
 @file{etc/emacs-buffer.gdb} script with GDB (the GNU Debugger) to
-retrieve them from a core dump--provided that a core dump was saved,
+retrieve them from a core dump---provided that a core dump was saved,
 and that the Emacs executable was not stripped of its debugging
 symbols.
 
@@ -782,10 +782,12 @@ Emacs, so you will have to report the bug somewhere else.
 
 @item
 The type of machine you are using, and the operating system name and
-version number (again, automatically included by @kbd{M-x
-report-emacs-bug}).  @kbd{M-x emacs-version @key{RET}} provides this
-information too.  Copy its output from the @file{*Messages*} buffer,
-so that you get it all and get it accurately.
+version number (again, automatically included by @w{@kbd{M-x
+report-emacs-bug}}).  @w{@kbd{M-x emacs-version @key{RET}}} provides
+this information too.  Copy its output from the @file{*Messages*}
+buffer, so that you get it all and get it accurately, or use
+@w{@kbd{C-u M-x emacs-version @key{RET}}} to insert the version
+information into the current buffer.
 
 @item
 The operands given to the @code{configure} command when Emacs was
@@ -1352,8 +1354,13 @@ downloaded the repository source, you should read the file
 from a normal build).
 
 If you would like to make more extensive contributions, see the
-@file{CONTRIBUTE} file in the Emacs distribution for information on
-how to be an Emacs developer.
+@file{CONTRIBUTE} file in the Emacs source tree for information on how
+to be an Emacs developer.  That file is distributed as part of the source
+tarball of every released Emacs version, and can also be found on-line
+in the @url{https://git.savannah.gnu.org/cgit/emacs.git/tree/CONTRIBUTE,
+Emacs on-line source repository}.  If you cloned the Emacs repository,
+per the instructions in @url{https://savannah.gnu.org/projects/emacs/},
+you will find this file in the top directory of the source Emacs tree.
 
 For documentation on Emacs (to understand how to implement your
 desired change), refer to:

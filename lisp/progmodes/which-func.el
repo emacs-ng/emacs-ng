@@ -1,6 +1,6 @@
 ;;; which-func.el --- print current function in mode line  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1994-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1994-2022 Free Software Foundation, Inc.
 
 ;; Author:   Alex Rezinsky <alexr@msil.sps.mot.com>
 ;;           (doesn't seem to be responsive any more)
@@ -141,12 +141,14 @@ Zero means compute the Imenu menu regardless of size."
 		 local-map ,which-func-keymap
 		 face which-func
 		 mouse-face mode-line-highlight
-		 help-echo "mouse-1: go to beginning\n\
-mouse-2: toggle rest visibility\n\
-mouse-3: go to end")
+                 help-echo ,(concat
+                             "Current function\n"
+                             "mouse-1: go to beginning\n"
+                             "mouse-2: toggle rest visibility\n"
+                             "mouse-3: go to end"))
     "]")
   "Format for displaying the function in the mode line."
-  :version "24.2"                  ; added mouse-face; 24point2 is correct
+  :version "28.1"
   :type 'sexp)
 ;;;###autoload (put 'which-func-format 'risky-local-variable t)
 
@@ -183,7 +185,8 @@ and you want to simplify them for the mode line
 
 (defvar-local which-func-mode nil
   "Non-nil means display current function name in mode line.
-This makes a difference only if `which-function-mode' is non-nil.")
+This makes a difference only if variable `which-function-mode' is
+non-nil.")
 
 (add-hook 'after-change-major-mode-hook #'which-func-ff-hook t)
 
@@ -213,7 +216,7 @@ It creates the Imenu index for the buffer, if necessary."
      (setq which-func-mode nil))))
 
 (defun which-func-update ()
-  "Update the Which-Function mode display for all windows."
+  "Update the Which-Function mode display in the current window."
   ;; (walk-windows 'which-func-update-1 nil 'visible))
   (let ((non-essential t))
     (which-func-update-1 (selected-window))))

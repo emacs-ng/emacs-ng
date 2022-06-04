@@ -1,6 +1,6 @@
 ;;; semantic-utest.el --- Tests for semantic's parsing system. -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003-2021  Free Software Foundation, Inc.
+;; Copyright (C) 2003-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -28,6 +28,8 @@
 
 (require 'cedet)
 (require 'semantic)
+
+;;; Code:
 
 (defvar cedet-utest-directory
   (let* ((C (file-name-directory (locate-library "cedet")))
@@ -103,7 +105,7 @@ int calc_sv(int);
 (defvar semantic-utest-C-filename-h
   (concat (file-name-sans-extension semantic-utest-C-filename)
 	  ".h")
-  "Header file filename for C")
+  "Header file filename for C.")
 
 
 (defvar semantic-utest-C-name-contents
@@ -424,8 +426,7 @@ class aClass {
      nil
      (overlay 135 262 "phptest.php"))
     )
-  "Expected results from the PHP Unit test"
-  )
+  "Expected results from the PHP Unit test.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -1,6 +1,6 @@
 ;;; edmacro.el --- keyboard macro editor  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1993-1994, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1994, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Dave Gillespie <daveg@synaptics.com>
 ;; Keywords: abbrev
@@ -108,7 +108,7 @@ With a prefix argument, format the macro in a more concise way."
                  (memq cmd-noremap '(call-last-kbd-macro kmacro-call-macro kmacro-end-or-call-macro kmacro-end-and-call-macro))
 		 (member keys '("\r" [return])))
 	     (or last-kbd-macro
-		 (y-or-n-p "No keyboard macro defined.  Create one? ")
+                 (y-or-n-p "No keyboard macro defined.  Create one?")
 		 (keyboard-quit))
 	     (setq mac (or last-kbd-macro ""))
 	     (setq keys nil)
@@ -244,8 +244,9 @@ or nil, use a compact 80-column format."
 			(and (fboundp cmd) (not (arrayp (symbol-function cmd)))
 			     (not (get cmd 'kmacro))
 			     (not (y-or-n-p
-				   (format "Command %s is already defined; %s"
-					   cmd "proceed? ")))
+                                   (format
+                                    "Command %s is already defined; proceed?"
+                                    cmd)))
 			     (keyboard-quit))))
 		    t)
 		   ((looking-at "Key:\\(.*\\)$")
@@ -264,9 +265,9 @@ or nil, use a compact 80-column format."
 				     (not (or (arrayp (symbol-function b))
 					      (get b 'kmacro))))
 				 (not (y-or-n-p
-				       (format "Key %s is already defined; %s"
-					       (edmacro-format-keys key 1)
-					       "proceed? ")))
+                                       (format
+                                        "Key %s is already defined; proceed?"
+                                        (edmacro-format-keys key 1))))
 				 (keyboard-quit))))))
 		    t)
 		   ((looking-at "Counter:[ \t]*\\([^ \t\n]*\\)[ \t]*$")
@@ -337,7 +338,7 @@ or nil, use a compact 80-column format."
 	(funcall finish-hook)))))
 
 (defun edmacro-insert-key (key)
-  "Insert the written name of a key in the buffer."
+  "Insert the written name of a KEY in the buffer."
   (interactive "kKey to insert: ")
   (if (bolp)
       (insert (edmacro-format-keys key t) "\n")
@@ -600,6 +601,12 @@ This function assumes that the events can be stored in a string."
              (setf (aref seq i) (logand (aref seq i) 127))))
   seq)
 
+;; These are needed in a --without-x build.
+(defvar mouse-wheel-down-event)
+(defvar mouse-wheel-up-event)
+(defvar mouse-wheel-right-event)
+(defvar mouse-wheel-left-event)
+
 (defun edmacro-fix-menu-commands (macro &optional noerror)
   (if (vectorp macro)
       (let (result)
@@ -612,7 +619,7 @@ This function assumes that the events can be stored in a string."
 		((eq (car ev) 'switch-frame))
 		((equal ev '(menu-bar))
 		 (push 'menu-bar result))
-		((equal (cl-cadadr ev) '(menu-bar))
+                ((equal (cadadr ev) '(menu-bar))
 		 (push (vector 'menu-bar (car ev)) result))
 		;; It would be nice to do pop-up menus, too, but not enough
 		;; info is recorded in macros to make this possible.

@@ -1,6 +1,6 @@
 ;;; files-tests.el --- tests for files.el.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2012-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -154,12 +154,14 @@ form.")
 (ert-deftest files-tests-permanent-local-variables ()
   (let ((enable-local-variables nil))
     (with-temp-buffer
+      (setq lexical-binding nil)
       (insert ";;; test-test.el --- tests  -*- lexical-binding: t; -*-\n\n")
       (hack-local-variables)
       (should (eq lexical-binding t))))
   (let ((enable-local-variables nil)
         (permanently-enabled-local-variables nil))
     (with-temp-buffer
+      (setq lexical-binding nil)
       (insert ";;; test-test.el --- tests  -*- lexical-binding: t; -*-\n\n")
       (hack-local-variables)
       (should (eq lexical-binding nil)))))
@@ -1340,6 +1342,39 @@ name (Bug#28412)."
     (should (file-directory-p (concat (file-name-as-directory dest2) "a")))
     (delete-directory dir 'recursive)))
 
+(ert-deftest files-tests-abbreviate-file-name-homedir ()
+  ;; Check homedir abbreviation.
+  (let* ((homedir temporary-file-directory)
+         (process-environment (cons (format "HOME=%s" homedir)
+                                    process-environment))
+         (abbreviated-home-dir nil))
+    (should (equal "~/foo/bar"
+                   (abbreviate-file-name (concat homedir "foo/bar")))))
+  ;; Check that homedir abbreviation doesn't occur when homedir is just /.
+  (let* ((homedir "/")
+         (process-environment (cons (format "HOME=%s" homedir)
+                                    process-environment))
+         (abbreviated-home-dir nil))
+    (should (equal "/foo/bar"
+                   (abbreviate-file-name (concat homedir "foo/bar"))))))
+
+(ert-deftest files-tests-abbreviate-file-name-directory-abbrev-alist ()
+    ;; Check `directory-abbrev-alist' abbreviation.
+    (let ((directory-abbrev-alist '(("\\`/nowhere/special" . "/nw/sp"))))
+      (should (equal "/nw/sp/here"
+                     (abbreviate-file-name "/nowhere/special/here"))))
+    ;; Check homedir and `directory-abbrev-alist' abbreviation.
+    (let* ((homedir temporary-file-directory)
+           (process-environment (cons (format "HOME=%s" homedir)
+                                      process-environment))
+           (abbreviated-home-dir nil)
+           (directory-abbrev-alist
+            `((,(concat "\\`" (regexp-quote homedir) "nowhere/special")
+              . ,(concat homedir "nw/sp")))))
+      (should (equal "~/nw/sp/here"
+                     (abbreviate-file-name
+                      (concat homedir "nowhere/special/here"))))))
+
 (ert-deftest files-tests-abbreviated-home-dir ()
   "Test that changing HOME does not confuse `abbreviate-file-name'.
 See <https://debbugs.gnu.org/19657#20>."
@@ -1734,7 +1769,7 @@ PRED is nil."
     (files-tests-with-all-permutations
         buffers-offer
         buffers-offer-init
-      (dolist (pred `(nil t save-some-buffers-root))
+      (dolist (pred `(nil t))
         (dolist (callers-dir `(nil save-some-buffers-root))
           (let* ((head-offer (cadar buffers-offer))
                  (res (cond ((null pred)

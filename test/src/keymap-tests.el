@@ -1,6 +1,6 @@
 ;;; keymap-tests.el --- Test suite for src/keymap.c -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
 
 ;; Author: Juanma Barranquero <lekktu@gmail.com>
 ;;         Stefan Kangas <stefankangas@gmail.com>
@@ -123,6 +123,16 @@
 ;; TODO: Write test for the ACCEPT-DEFAULT argument.
 ;; (ert-deftest keymap-lookup-key/accept-default ()
 ;;   ...)
+
+(ert-deftest keymap-lookup-key/mixed-case ()
+  "Backwards compatibility behaviour (Bug#50752)."
+  (let ((map (make-keymap)))
+    (define-key map [menu-bar foo bar] 'foo)
+    (should (eq (lookup-key map [menu-bar foo bar]) 'foo))
+    (should (eq (lookup-key map [menu-bar Foo Bar]) 'foo)))
+  (let ((map (make-keymap)))
+    (define-key map [menu-bar i-bar] 'foo)
+    (should (eq (lookup-key map [menu-bar I-bar]) 'foo))))
 
 (ert-deftest describe-buffer-bindings/header-in-current-buffer ()
   "Header should be inserted into the current buffer.
@@ -269,7 +279,8 @@ commit 86c19714b097aa477d339ed99ffb5136c755a046."
         (shadow-map (let ((map (make-keymap)))
                       (define-key map "f" 'bar)
                       map))
-        (text-quoting-style 'grave))
+        (text-quoting-style 'grave)
+        (describe-bindings-check-shadowing-in-ranges 'ignore-self-insert))
     (with-temp-buffer
       (help--describe-vector (cadr orig-map) nil #'help--describe-command
                              t shadow-map orig-map t)

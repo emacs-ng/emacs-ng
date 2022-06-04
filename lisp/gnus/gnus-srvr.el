@@ -1,6 +1,6 @@
 ;;; gnus-srvr.el --- virtual server support for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2022 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -204,7 +204,7 @@ If nil, a faster, but more primitive, buffer is used instead."
   '((((class color) (background light)) (:foreground "ForestGreen" :inverse-video t :italic t))
     (((class color) (background dark)) (:foreground "PaleGreen" :inverse-video t :italic t))
     (t (:inverse-video t :italic t)))
-  "Face used for displaying the Cloud Host"
+  "Face used for displaying the Cloud Host."
   :group 'gnus-server-visual)
 
 (defface gnus-server-opened
@@ -570,7 +570,7 @@ The following commands are available:
   (when (assoc to gnus-server-alist)
     (error "%s already exists" to))
   (unless (gnus-server-to-method from)
-    (error "%s: no such server" from))
+    (error "%s: No such server" from))
   (let ((to-entry (cons from (copy-tree
 			      (gnus-server-to-method from)))))
     (setcar to-entry to)
@@ -1128,7 +1128,7 @@ Requesting compaction of %s... (this may take a long time)"
       (customize-set-variable 'gnus-cloud-method server)
       ;; Note we can't use `Custom-save' here.
       (when (gnus-yes-or-no-p
-             (format "The new cloud host server is %S now. Save it? " server))
+             (format "The new cloud host server is `%S' now.  Save it?" server))
         (customize-save-variable 'gnus-cloud-method server)))
     (when (gnus-yes-or-no-p (format "Upload Cloud data to %S now? " server))
       (gnus-message 1 "Uploading all data to Emacs Cloud server %S" server)

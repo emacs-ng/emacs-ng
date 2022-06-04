@@ -1,6 +1,6 @@
 ;;; so-long-tests.el --- Test suite for so-long.el  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2019-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2022 Free Software Foundation, Inc.
 
 ;; Author: Phil Sainty <psainty@orcon.net.nz>
 ;; Keywords: convenience
@@ -229,7 +229,7 @@
               ((obsolete run-window-configuration-change-hook))
             (run-window-configuration-change-hook)))))
     (so-long-tests-assert-and-revert 'so-long-mode))
-  ;; `so-long-invisible-buffer-function' is `nil'.
+  ;; `so-long-invisible-buffer-function' is nil.
   (with-temp-buffer
     (insert "#!emacs\n")
     (normal-mode)

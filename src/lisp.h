@@ -1,6 +1,6 @@
 /* Fundamental definitions for GNU Emacs Lisp interpreter. -*- coding: utf-8 -*-
 
-Copyright (C) 1985-1987, 1993-1995, 1997-2021 Free Software Foundation,
+Copyright (C) 1985-1987, 1993-1995, 1997-2022 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -1555,6 +1555,14 @@ STRING_MULTIBYTE (Lisp_Object str)
 
 /* Convenience functions for dealing with Lisp strings.  */
 
+/* WARNING: Use the 'char *' pointers to string data with care in code
+   that could GC: GC can relocate string data, invalidating such
+   pointers.  It is best to use string character or byte index
+   instead, delaying the access through SDATA/SSDATA pointers to the
+   latest possible moment.  If you must use the 'char *' pointers
+   (e.g., for speed), be sure to adjust them after any call that could
+   potentially GC.  */
+
 INLINE unsigned char *
 SDATA (Lisp_Object string)
 {
@@ -1613,6 +1621,13 @@ STRING_SET_CHARS (Lisp_Object string, ptrdiff_t newsize)
 	   ? 0 <= newsize && newsize <= SBYTES (string)
 	   : newsize == SCHARS (string));
   XSTRING (string)->u.s.size = newsize;
+}
+
+INLINE void
+CHECK_STRING_NULL_BYTES (Lisp_Object string)
+{
+  CHECK_TYPE (memchr (SSDATA (string), '\0', SBYTES (string)) == NULL,
+	      Qfilenamep, string);
 }
 
 /* A regular vector is just a header plus an array of Lisp_Objects.  */
@@ -2068,10 +2083,12 @@ struct Lisp_Subr
       Lisp_Object native_intspec;
     };
     EMACS_INT doc;
-    Lisp_Object native_comp_u[NATIVE_COMP_FLAG];
-    char *native_c_name[NATIVE_COMP_FLAG];
-    Lisp_Object lambda_list[NATIVE_COMP_FLAG];
-    Lisp_Object type[NATIVE_COMP_FLAG];
+#ifdef HAVE_NATIVE_COMP
+    Lisp_Object native_comp_u;
+    char *native_c_name;
+    Lisp_Object lambda_list;
+    Lisp_Object type;
+#endif
   } GCALIGNED_STRUCT;
 union Aligned_Lisp_Subr
   {
@@ -2812,9 +2829,8 @@ enum Lisp_Compiled
   };
 
 /* Flag bits in a character.  These also get used in termhooks.h.
-   Richard Stallman <rms@gnu.ai.mit.edu> thinks that MULE
-   (MUlti-Lingual Emacs) might need 22 bits for the character value
-   itself, so we probably shouldn't use any bits lower than 0x0400000.  */
+   Emacs needs 22 bits for the character value itself, see MAX_CHAR,
+   so we shouldn't use any bits lower than 0x0400000.  */
 enum char_bits
   {
     CHAR_ALT = 0x0400000,
@@ -4113,7 +4129,6 @@ intern_c_string (const char *str)
 }
 
 /* Defined in eval.c.  */
-extern EMACS_INT minibuffer_quit_level;
 extern Lisp_Object Vautoload_queue;
 extern Lisp_Object Vrun_hooks;
 extern Lisp_Object Vsignaling_function;
@@ -4765,19 +4780,19 @@ extern char *emacs_root_dir (void);
 INLINE bool
 SUBR_NATIVE_COMPILEDP (Lisp_Object a)
 {
-  return SUBRP (a) && !NILP (XSUBR (a)->native_comp_u[0]);
+  return SUBRP (a) && !NILP (XSUBR (a)->native_comp_u);
 }
 
 INLINE bool
 SUBR_NATIVE_COMPILED_DYNP (Lisp_Object a)
 {
-  return SUBR_NATIVE_COMPILEDP (a) && !NILP (XSUBR (a)->lambda_list[0]);
+  return SUBR_NATIVE_COMPILEDP (a) && !NILP (XSUBR (a)->lambda_list);
 }
 
 INLINE Lisp_Object
 SUBR_TYPE (Lisp_Object a)
 {
-  return XSUBR (a)->type[0];
+  return XSUBR (a)->type;
 }
 
 INLINE struct Lisp_Native_Comp_Unit *

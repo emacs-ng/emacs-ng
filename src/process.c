@@ -1,6 +1,6 @@
 /* Asynchronous subprocess control for GNU Emacs.
 
-Copyright (C) 1985-1988, 1993-1996, 1998-1999, 2001-2021 Free Software
+Copyright (C) 1985-1988, 1993-1996, 1998-1999, 2001-2022 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -40,7 +40,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#endif	/* subprocesses */
+#else
+#define PIPECONN_P(p) false
+#define PIPECONN1_P(p) false
+#endif
 
 #ifdef HAVE_SETRLIMIT
 # include <sys/resource.h>
@@ -90,6 +93,7 @@ static struct rlimit nofile_limit;
 
 #include <c-ctype.h>
 #include <flexmember.h>
+#include <nproc.h>
 #include <sig2str.h>
 #include <verify.h>
 
@@ -151,6 +155,7 @@ static bool kbd_is_on_hold;
    when exiting.  */
 bool inhibit_sentinels;
 
+#ifdef subprocesses
 union u_sockaddr
 {
   struct sockaddr sa;
@@ -162,8 +167,6 @@ union u_sockaddr
   struct sockaddr_un un;
 #endif
 };
-
-#ifdef subprocesses
 
 #ifndef SOCK_CLOEXEC
 # define SOCK_CLOEXEC 0
@@ -680,6 +683,22 @@ clear_waiting_thread_info (void)
       if (fd_callback_info[fd].waiting_thread == current_thread)
 	fd_callback_info[fd].waiting_thread = NULL;
     }
+}
+
+/* Return TRUE if the keyboard descriptor is being monitored by the
+   current thread, FALSE otherwise.  */
+static bool
+kbd_is_ours (void)
+{
+  for (int fd = 0; fd <= max_desc; ++fd)
+    {
+      if (fd_callback_info[fd].waiting_thread != current_thread)
+	continue;
+      if ((fd_callback_info[fd].flags & (FOR_READ | KEYBOARD_FD))
+	  == (FOR_READ | KEYBOARD_FD))
+	return true;
+    }
+  return false;
 }
 
 
@@ -4004,7 +4023,7 @@ usage: (make-network-process &rest ARGS)  */)
 
   if (!NILP (host))
     {
-      ptrdiff_t portstringlen ATTRIBUTE_UNUSED;
+      MAYBE_UNUSED ptrdiff_t portstringlen;
 
       /* SERVICE can either be a string or int.
 	 Convert to a C string for later use by getaddrinfo.  */
@@ -5311,13 +5330,13 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
               wait_reading_process_output_1 ();
         }
 
-      /* Cause C-g and alarm signals to take immediate action,
+      /* Cause C-g signals to take immediate action,
 	 and cause input available signals to zero out timeout.
 
 	 It is important that we do this before checking for process
 	 activity.  If we get a SIGCHLD after the explicit checks for
 	 process activity, timeout is the only way we will know.  */
-      if (read_kbd < 0)
+      if (read_kbd < 0 && kbd_is_ours ())
 	set_waiting_for_input (&timeout);
 
       /* If status of something has changed, and no input is
@@ -5447,7 +5466,7 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 	{
 	  clear_waiting_for_input ();
 	  redisplay_preserve_echo_area (11);
-	  if (read_kbd < 0)
+	  if (read_kbd < 0 && kbd_is_ours ())
 	    set_waiting_for_input (&timeout);
 	}
 
@@ -6505,6 +6524,9 @@ send_process (Lisp_Object proc, const char *buf, ptrdiff_t len,
 	  /* Send this batch, using one or more write calls.  */
 	  ptrdiff_t written = 0;
 	  int outfd = p->outfd;
+          if (outfd < 0)
+            error ("Output file descriptor of %s is closed",
+                   SDATA (p->name));
 	  eassert (0 <= outfd && outfd < FD_SETSIZE);
 #ifdef DATAGRAM_SOCKETS
 	  if (DATAGRAM_CHAN_P (outfd))
@@ -6891,7 +6913,7 @@ If CURRENT-GROUP is `lambda', and if the shell owns the terminal,
 don't send the signal.
 
 This function calls the functions of `interrupt-process-functions' in
-the order of the list, until one of them returns non-`nil'.  */)
+the order of the list, until one of them returns non-nil.  */)
   (Lisp_Object process, Lisp_Object current_group)
 {
   return CALLN (Frun_hook_with_args_until_success, Qinterrupt_process_functions,
@@ -8216,6 +8238,24 @@ integer or floating point values.
   return system_process_attributes (pid);
 }
 
+DEFUN ("num-processors", Fnum_processors, Snum_processors, 0, 1, 0,
+       doc: /* Return the number of processors, a positive integer.
+Each usable thread execution unit counts as a processor.
+By default, count the number of available processors,
+overridable via the OMP_NUM_THREADS environment variable.
+If optional argument QUERY is `current', ignore OMP_NUM_THREADS.
+If QUERY is `all', also count processors not available.  */)
+  (Lisp_Object query)
+{
+#ifndef MSDOS
+  return make_uint (num_processors (EQ (query, Qall) ? NPROC_ALL
+				    : EQ (query, Qcurrent) ? NPROC_CURRENT
+				    : NPROC_CURRENT_OVERRIDABLE));
+#else
+  return make_fixnum (1);
+#endif
+}
+
 #ifdef subprocesses
 /* Arrange to catch SIGCHLD if this hasn't already been arranged.
    Invoke this after init_process_emacs, and after glib and/or GNUstep
@@ -8258,10 +8298,15 @@ open_channel_for_module (Lisp_Object process)
 {
   CHECK_PROCESS (process);
   CHECK_TYPE (PIPECONN_P (process), Qpipe_process_p, process);
+#ifndef MSDOS
   int fd = dup (XPROCESS (process)->open_fd[SUBPROCESS_STDOUT]);
   if (fd == -1)
     report_file_error ("Cannot duplicate file descriptor", Qnil);
   return fd;
+#else
+  /* PIPECONN_P returning true shouldn't be possible on MSDOS.  */
+  emacs_abort ();
+#endif
 }
 
 
@@ -8476,6 +8521,8 @@ syms_of_process (void)
   DEFSYM (Qpcpu, "pcpu");
   DEFSYM (Qpmem, "pmem");
   DEFSYM (Qargs, "args");
+  DEFSYM (Qall, "all");
+  DEFSYM (Qcurrent, "current");
 
   DEFVAR_BOOL ("delete-exited-processes", delete_exited_processes,
 	       doc: /* Non-nil means delete processes immediately when they exit.
@@ -8518,7 +8565,7 @@ thus favoring processes with lower descriptors.  */);
 	       doc: /* List of functions to be called for `interrupt-process'.
 The arguments of the functions are the same as for `interrupt-process'.
 These functions are called in the order of the list, until one of them
-returns non-`nil'.  */);
+returns non-nil.  */);
   Vinterrupt_process_functions = list1 (Qinternal_default_interrupt_process);
 
   DEFVAR_LISP ("internal--daemon-sockname", Vinternal__daemon_sockname,
@@ -8637,4 +8684,5 @@ amounts of data in one go.  */);
   defsubr (&Sprocess_inherit_coding_system_flag);
   defsubr (&Slist_system_processes);
   defsubr (&Sprocess_attributes);
+  defsubr (&Snum_processors);
 }

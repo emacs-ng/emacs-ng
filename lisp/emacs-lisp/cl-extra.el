@@ -1,6 +1,6 @@
 ;;; cl-extra.el --- Common Lisp features, part 2  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993, 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1993, 2000-2022 Free Software Foundation, Inc.
 
 ;; Author: Dave Gillespie <daveg@synaptics.com>
 ;; Keywords: extensions
@@ -336,7 +336,7 @@ non-nil value.
 
 ;;;###autoload
 (defun cl-isqrt (x)
-  "Return the integer square root of the (integer) argument."
+  "Return the integer square root of the (integer) argument X."
   (if (and (integerp x) (> x 0))
       (let ((g (ash 2 (/ (logb x) 2)))
 	    g2)
@@ -455,7 +455,7 @@ as an integer unless JUNK-ALLOWED is non-nil."
 
 ;;;###autoload
 (defun cl-random (lim &optional state)
-  "Return a random nonnegative number less than LIM, an integer or float.
+  "Return a pseudo-random nonnegative number less than LIM, an integer or float.
 Optional second arg STATE is a random-state object."
   (or state (setq state cl--random-state))
   ;; Inspired by "ran3" from Numerical Recipes.  Additive congruential method.
@@ -553,10 +553,14 @@ too large if positive or too small if negative)."
 			,new)))))
   (seq-subseq seq start end))
 
+;;; This isn't a defalias because autoloading defalises doesn't work
+;;; very well.
+
 ;;;###autoload
-(defalias 'cl-concatenate #'seq-concatenate
+(defun cl-concatenate (type &rest sequences)
   "Concatenate, into a sequence of type TYPE, the argument SEQUENCEs.
-\n(fn TYPE SEQUENCE...)")
+\n(fn TYPE SEQUENCE...)"
+  (apply #'seq-concatenate type sequences))
 
 ;;; List functions.
 

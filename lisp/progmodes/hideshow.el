@@ -1,6 +1,6 @@
 ;;; hideshow.el --- minor mode cmds to selectively display code/comment blocks  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1994-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1994-2022 Free Software Foundation, Inc.
 
 ;; Author: Thien-Thi Nguyen <ttn@gnu.org>
 ;;      Dan Nicolaescu <dann@ics.uci.edu>
@@ -62,7 +62,7 @@
 ;; activated or deactivated, `hs-minor-mode-hook' is run w/ `run-hooks'.
 ;;
 ;; Additionally, Joseph Eydelnant writes:
-;;   I enjoy your package hideshow.el Ver. 5.24 2001/02/13
+;;   I enjoy your package hideshow.el Version 5.24 2001/02/13
 ;;   a lot and I've been looking for the following functionality:
 ;;   toggle hide/show all with a single key.
 ;;   Here are a few lines of code that lets me do just that.

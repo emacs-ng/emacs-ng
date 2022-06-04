@@ -1,6 +1,6 @@
 ;;; jit-lock.el --- just-in-time fontification  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1998, 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1998, 2000-2022 Free Software Foundation, Inc.
 
 ;; Author: Gerd Moellmann <gerd@gnu.org>
 ;; Keywords: faces files
@@ -44,10 +44,13 @@ Preserves the `buffer-modified-p' state of the current buffer."
   :version "21.1"
   :group 'font-lock)
 
-(defcustom jit-lock-chunk-size 500
+(defcustom jit-lock-chunk-size 1500
   "Jit-lock fontifies chunks of at most this many characters at a time.
 
-This variable controls both display-time and stealth fontification."
+This variable controls both `display-time' and stealth fontification.
+
+The optimum value is a little over the typical number of buffer
+characters which fit in a typical window."
   :type 'integer)
 
 

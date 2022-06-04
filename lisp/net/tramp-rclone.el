@@ -1,6 +1,6 @@
 ;;; tramp-rclone.el --- Tramp access functions to cloud storages  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2018-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2022 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -106,9 +106,9 @@
     (file-name-nondirectory . tramp-handle-file-name-nondirectory)
     ;; `file-name-sans-versions' performed by default handler.
     (file-newer-than-file-p . tramp-handle-file-newer-than-file-p)
-    (file-notify-add-watch . ignore)
-    (file-notify-rm-watch . ignore)
-    (file-notify-valid-p . ignore)
+    (file-notify-add-watch . tramp-handle-file-notify-add-watch)
+    (file-notify-rm-watch . tramp-handle-file-notify-rm-watch)
+    (file-notify-valid-p . tramp-handle-file-notify-valid-p)
     (file-ownership-preserved-p . ignore)
     (file-readable-p . tramp-fuse-handle-file-readable-p)
     (file-regular-p . tramp-handle-file-regular-p)
@@ -362,10 +362,6 @@ connection if a previous connection has died for some reason."
 	  (process-put p 'vector vec)
 	  (set-process-query-on-exit-flag p nil)
 
-	  ;; Mark process for filelock.
-	  (tramp-set-connection-property
-	   p "lock-pid" (truncate (time-to-seconds)))
-
 	  ;; Set connection-local variables.
 	  (tramp-set-connection-local-variables vec)))
 
@@ -386,6 +382,7 @@ connection if a previous connection has died for some reason."
 	  (tramp-cleanup-connection vec 'keep-debug 'keep-password))
 
 	;; Mark it as connected.
+	(add-to-list 'tramp-fuse-mount-points (tramp-file-name-unify vec))
 	(tramp-set-connection-property
 	 (tramp-get-connection-process vec) "connected" t))))
 

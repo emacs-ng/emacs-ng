@@ -1,6 +1,6 @@
 ;;; tramp-crypt.el --- Tramp crypt utilities  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -39,7 +39,7 @@
 ;; first time you access a crypted remote directory.  It is kept in
 ;; your user directory "~/.emacs.d/" with the url-encoded directory
 ;; name as part of the basename, and ".encfs6.xml" as suffix.  Do not
-;; loose this file and the corresponding password; otherwise there is
+;; lose this file and the corresponding password; otherwise there is
 ;; no way to decrypt your crypted files.
 
 ;; If the user option `tramp-crypt-save-encfs-config-remote' is
@@ -192,9 +192,9 @@ If NAME doesn't belong to a crypted remote directory, retun nil."
     ;; `file-name-nondirectory' performed by default handler.
     ;; `file-name-sans-versions' performed by default handler.
     (file-newer-than-file-p . tramp-handle-file-newer-than-file-p)
-    (file-notify-add-watch . ignore)
-    (file-notify-rm-watch . ignore)
-    (file-notify-valid-p . ignore)
+    (file-notify-add-watch . tramp-handle-file-notify-add-watch)
+    (file-notify-rm-watch . tramp-handle-file-notify-rm-watch)
+    (file-notify-valid-p . tramp-handle-file-notify-valid-p)
     (file-ownership-preserved-p . tramp-crypt-handle-file-ownership-preserved-p)
     (file-readable-p . tramp-crypt-handle-file-readable-p)
     (file-regular-p . tramp-handle-file-regular-p)
@@ -207,7 +207,7 @@ If NAME doesn't belong to a crypted remote directory, retun nil."
     (find-backup-file-name . tramp-handle-find-backup-file-name)
     ;; `get-file-buffer' performed by default handler.
     (insert-directory . tramp-crypt-handle-insert-directory)
-    ;; `insert-file-contents' performed by default handler.
+    (insert-file-contents . tramp-handle-insert-file-contents)
     (load . tramp-handle-load)
     (lock-file . tramp-crypt-handle-lock-file)
     (make-auto-save-file-name . tramp-handle-make-auto-save-file-name)
@@ -247,7 +247,7 @@ Operations not mentioned here will be handled by the default Emacs primitives.")
     (unless (tramp-crypt-file-name-p tfnfo)
       (setq tfnfo (apply
 		   #'tramp-file-name-for-operation operation
-		   (cons (tramp-compat-temporary-file-directory) (cdr args)))))
+		   (cons tramp-compat-temporary-file-directory (cdr args)))))
     tfnfo))
 
 (defun tramp-crypt-run-real-handler (operation args)
@@ -329,7 +329,7 @@ connection if a previous connection has died for some reason."
 	  (copy-file remote-config local-config 'ok 'keep)
 
 	;; Create local encfs6 config file otherwise.
-	(let* ((default-directory (tramp-compat-temporary-file-directory))
+	(let* ((default-directory tramp-compat-temporary-file-directory)
 	       (tmpdir1 (file-name-as-directory
 			 (tramp-compat-make-temp-file " .crypt" 'dir-flag)))
 	       (tmpdir2 (file-name-as-directory
@@ -383,7 +383,7 @@ ARGS are the arguments.  It returns t if ran successful, and nil otherwise."
   (with-temp-buffer
     (let* (;; Don't check for a proper method.
 	   (non-essential t)
-	   (default-directory (tramp-compat-temporary-file-directory))
+	   (default-directory tramp-compat-temporary-file-directory)
 	   ;; We cannot add it to `process-environment', because
 	   ;; `tramp-call-process-region' doesn't use it.
 	   (encfs-config
@@ -427,7 +427,7 @@ Otherwise, return NAME."
 	      crypt-vec localname (concat (symbol-name op) "-file-name")
 	    (unless (tramp-crypt-send-command
 		     crypt-vec (if (eq op 'encrypt) "encode" "decode")
-		     (tramp-compat-temporary-file-directory) localname)
+		     tramp-compat-temporary-file-directory localname)
 	      (tramp-error
 	       crypt-vec 'file-error "%s of file name %s failed."
 	       (if (eq op 'encrypt) "Encoding" "Decoding") name))
@@ -517,7 +517,7 @@ kept in their encrypted form."
 	      tramp-crypt-encfs-config
 	      (directory-files name nil directory-files-no-dot-files-regexp))
 	     (yes-or-no-p
-	      "There exist encrypted files, do you want to continue? "))
+	      "There exist encrypted files, do you want to continue?"))
     (setq tramp-crypt-directories (delete name tramp-crypt-directories))
     (tramp-register-file-name-handlers)))
 

@@ -1,6 +1,6 @@
 ;;; semantic/grammar.el --- Major mode framework for Semantic grammars  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2005, 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2005, 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: David Ponce <david@dponce.com>
 
@@ -840,7 +840,7 @@ If optional argument FORCE is non-nil, unconditionally re-generate the
 Lisp code."
   (interactive "P")
   (unless (semantic-active-p)
-    (error "You have to activate semantic-mode to create a package."))
+    (error "You have to activate semantic-mode to create a package"))
   (setq force (or force current-prefix-arg))
   (semantic-fetch-tags)
   (let* (

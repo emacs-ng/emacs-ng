@@ -1,6 +1,6 @@
 ;;; refbib.el --- convert refer-style references to ones usable by Latex bib  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1989, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1989, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Henry Kautz <kautz@research.att.com>
 ;; Maintainer: emacs-devel@gnu.org
@@ -195,7 +195,7 @@ This is in addition to the `r2b-capitalize-title-stop-words'.")
 	 (sit-for 0))))
 
 (defun r2b-match (exp)
-   "Returns string matched in current buffer."
+   "Return string matched in current buffer."
    (buffer-substring (match-beginning exp) (match-end exp)))
 
 (defcustom r2b-out-buf-name "*Out*"

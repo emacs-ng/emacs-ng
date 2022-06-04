@@ -1,11 +1,11 @@
 ;;; ebnf2ps.el --- translate an EBNF to a syntactic chart on PostScript  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: Vinicius Jose Latorre <viniciusjl.gnu@gmail.com>
 ;; Keywords: wp, ebnf, PostScript
 ;; Version: 4.4
-;; X-URL: https://www.emacswiki.org/cgi-bin/wiki/ViniciusJoseLatorre
+;; URL: https://www.emacswiki.org/cgi-bin/wiki/ViniciusJoseLatorre
 
 ;; This file is part of GNU Emacs.
 
@@ -1165,7 +1165,7 @@ Please send all bug fixes and enhancements to
 ;;; Interface to the command system
 
 (defgroup postscript nil
-  "Printing with PostScript"
+  "Printing with PostScript."
   :tag "PostScript"
   :version "20"
   :group 'environment)
@@ -2244,8 +2244,12 @@ the PostScript image in a file with that name.  If FILENAME is a
 number, prompt the user for the name of the file to save in."
   (interactive (list (ps-print-preprint current-prefix-arg)))
   (ebnf-log-header "(ebnf-print-buffer %S)" filename)
-  (ebnf-print-region (point-min) (point-max) filename))
-
+  (cl-letf (((symbol-function 'ps-output-string)
+             ;; Make non-ASCII work (sort of).
+             (lambda (string)
+               (ps-output t (and string
+                                 (encode-coding-string string 'iso-8859-1))))))
+    (ebnf-print-region (point-min) (point-max) filename)))
 
 ;;;###autoload
 (defun ebnf-print-region (from to &optional filename)

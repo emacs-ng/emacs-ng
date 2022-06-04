@@ -1,6 +1,6 @@
 ;;; display-fill-column-indicator.el --- interface for display-fill-column-indicator -*- lexical-binding: t -*-
 
-;; Copyright (C) 2019-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2022 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: convenience
@@ -45,7 +45,7 @@
 
 ;;;###autoload
 (define-minor-mode display-fill-column-indicator-mode
-  "Toggle display of fill-column indicator.
+  "Toggle display of `fill-column' indicator.
 This uses `display-fill-column-indicator' internally.
 
 To change the position of the column displayed by default

@@ -1,6 +1,6 @@
 ;;; mm-encode.el --- Functions for encoding MIME things  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2022 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;;	MORIOKA Tomohiko <morioka@jaist.ac.jp>
@@ -99,7 +99,7 @@ This variable should never be set directly, but bound before a call to
 
 ;;;###autoload
 (define-obsolete-function-alias 'mm-default-file-encoding
-  #'mm-default-file-type "future") ;Old bad name.
+  #'mm-default-file-type "28.1") ;Old bad name.
 ;;;###autoload
 (defun mm-default-file-type (file)
   "Return a default content type for FILE."

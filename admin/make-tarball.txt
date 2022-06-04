@@ -5,7 +5,7 @@ Instructions to create pretest or release tarballs. -*- coding: utf-8 -*-
 
 Steps to take before starting on the first pretest in any release sequence:
 
-0.  The release branch (e.g. emacs-26) should already have been made
+0.  The release branch (e.g. emacs-28) should already have been made
     and you should use it for all that follows.  Diffs from this
     branch should be going to the emacs-diffs mailing list.
 
@@ -14,12 +14,13 @@ Steps to take before starting on the first pretest in any release sequence:
 
 2.  Consider increasing the value of the variable
     'customize-changed-options-previous-release' in cus-edit.el to
-    refer to a newer version of Emacs.  (This is probably needed only
-    when preparing the first pretest for a major Emacs release.)
+    refer to a newer version of Emacs.  (This is now done when cutting
+    the release branch, see admin/release-branch.txt.)
     Commit cus-edit.el if changed.
 
 3.  Remove any old pretests from https://alpha.gnu.org/gnu/emacs/pretest.
     You can use 'gnupload --delete' (see below for more gnupload details).
+    (We currently don't bother with this.)
 
 General steps (for each step, check for possible errors):
 
@@ -42,11 +43,41 @@ General steps (for each step, check for possible errors):
     because some of the commands below run Make, so they need
     Makefiles to be present.
 
-2.  Regenerate the etc/AUTHORS file:
+    For Emacs 28 and later, as long as --with-native-compilation is
+    not the default, the tree needs to be configured with
+    native-compilation enabled, to ensure all the pertinent *.elc
+    files will end up in the tarball.  Otherwise, the *.eln files
+    might not build correctly on the user's system.
+
+    For a release (as opposed to pretest), delete any left-over "---"
+    and "+++" markers from etc/NEWS, as well as the "Temporary note"
+    section at the beginning of that file, and commit etc/NEWS if it
+    was modified.
+
+2.  Regenerate the versioned ChangeLog.N and etc/AUTHORS files.
+
+    The "M-x authors" command below will first update the current
+    versioned ChangeLog.N file.  For this to work correctly, make sure
+    the top-level Makefile says
+
+      PREFERRED_BRANCH = emacs-NN
+
+    where NN is the version on the release branch from which you are
+    producing the tarball.  If NN is incorrect, update Makefile.in and
+    re-run 'configure' to update Makefile.
+
+    If the versioned ChangeLog.N file is too large, start a new one
+    by bumping N, and also update the line in top-level Makefile.in
+    which says
+
+      CHANGELOG_HISTORY_INDEX_MAX = N
+
+    by incrementing the value of N by 1; then regenerate Makefile.
+
+    Now:
+
       M-: (require 'authors) RET
       M-x authors RET
-
-    (This first updates the current versioned ChangeLog.N)
 
     If this says "Problem updating ChangeLog", find the reason for the
     failure of the command it runs, viz.:
@@ -83,7 +114,7 @@ General steps (for each step, check for possible errors):
     admin/release-process must be completed.
 
     Set the version number to that of the actual release (commit in
-    one, as described above). Pick a date about a week from now when
+    one, as described above).  Pick a date about a week from now when
     you intend to make the release.  Use M-x add-release-logs to add
     entries to etc/HISTORY and the ChangeLog file.  It's best not to
     commit these files until the release is actually made.  Merge the
@@ -157,8 +188,15 @@ General steps (for each step, check for possible errors):
 
     If this is the first pretest of a major release, just comparing
     with the previous release may overlook many new files.  You can try
-    something like 'find . | sort' in a clean repository, and compare the
-    results against the new tar contents.
+    something like 'find . | sort' in a clean repository, and
+    compare the results against the new tar contents.  Another
+    alternative is using something like:
+
+     tar cf - emacs-NEW | tar t -C /tmp | grep -Ev "\.(o|d)$" | sort
+
+    Where emacs-NEW is the directory containing your clean repository.
+    The output of this command might be easier to compare to the
+    tarball than the one you get from find.
 
 7.   tar -xf emacs-NEW.tar; cd emacs-NEW
      ./configure --prefix=/tmp/emacs && make check && make install
@@ -188,6 +226,14 @@ General steps (for each step, check for possible errors):
      git tag -a TAG -m "Emacs TAG" SHA1
      git push --tags
 
+    In the past, we were not always consistent with the annotation
+    (i.e. -m "Emacs TAG").  The preferred format is like this for a
+    pretest, release candidate and final release:
+
+     git tag -a emacs-28.0.90  -m "Emacs 28.0.90 pretest"
+     git tag -a emacs-28.1-rc1 -m "Emacs 28.1 RC1"
+     git tag -a emacs-28.1     -m "Emacs 28.1 release"
+
 9. Decide what compression schemes to offer.
     For a release, at least gz and xz:
       gzip --best --no-name -c emacs-NEW.tar > emacs-NEW.tar.gz
@@ -210,7 +256,9 @@ General steps (for each step, check for possible errors):
        FILE.gz FILE.xz ...
 
     You only need the --user part if you have multiple GPG keys and do
-    not want to use the default.
+    not want to use the default.  Instead of "your@gpg.key.email" you
+    could also use the fingerprint of the key, a 40-digit hex number.
+    (Alternatively, define default-key in your ~/.gnupg/gpg.conf file.)
     Obviously, if you do not have a fast uplink, be prepared for the
     upload to take a while.
 
@@ -250,6 +298,11 @@ General steps (for each step, check for possible errors):
     because replies that invariably are not announcements also get
     sent out as if they were.)
 
+    To create the included SHA1 and SHA256 checksums, run:
+
+     sha1sum emacs-NEW.tar.xz
+     sha256sum emacs-NEW.tar.xz
+
 12. After a release, update the Emacs pages as described below.
 
 13. Bump the Emacs version on the release branch.
@@ -281,17 +334,77 @@ looks like this:
 	</div>
     </div>
 
-Regenerate the various manuals in manual/.
-The scripts admin/make-manuals and admin/upload-manuals summarize the process.
+Also, make sure the copyright years at the bottom of emacs.html are
+up-to-date.
 
-If you have Texinfo installed locally, make-manuals might fail if it
-cannot find epsf.tex.  In that case define in the environment
+The file download.html may need to be updated, for example if the
+MS-Windows binaries will be signed by a different person/key than
+those mentioned there.
 
-  TEXINPUTS=:/path/to/texinfo-tree/doc
+Next, regenerate the various manuals in HTML, PDF, and PS formats:
 
-where /path/to/texinfo-tree is the absolute file name of the top-level
-directory where you have the Texinfo source tree.  Then re-run
-make-manuals.
+  Invoke ./admin/make-manuals from the top-level directory of the
+  Emacs source tree that contains the manuals for which you want to
+  produce HTML docs.  This creates the 'manual' directory and
+  populates it with the necessary files.
+
+  If you have Texinfo installed locally, make-manuals might fail if it
+  cannot find epsf.tex.  In that case define in the environment
+
+    TEXINPUTS=:/path/to/texinfo-tree/doc
+
+  where /path/to/texinfo-tree is the absolute file name of the
+  top-level directory where you have the Texinfo source tree.  Then
+  re-run make-manuals.
+
+  make-manuals can also fail if the HTML manuals produced by Texinfo
+  violate some of the assumptions admin/admin.el makes about the
+  format of the produced HTML.  Debug these problems and resolve them,
+  then re-run make-manuals.  (Each time you run make-manuals, it
+  empties the manuals/ directory and regenerates the files there, but
+  if the files in manuals/ can be used without regeneration, i.e. if
+  the problem you solved doesn't affect the produced HTML, you can
+  invoke make-manuals with the -c switch, which will make the process
+  much faster.)
+
+Now change to the 'manual' directory and invoke upload-manuals:
+
+    ../admin/updload-manuals /path/to/webpages/cvs/checkout
+
+  where /path/to/webpages/cvs/checkout is the place where you have the
+  CVS checkout of the Emacs Web pages, with subdirectories 'manual'
+  and 'refcards'.  This moves the produced manuals to directories in
+  the Web pages CVS checkout tree, and also invokes CVS commands to
+  commit changed files, add new files, and remove stale files that are
+  no longer part of the manuals.
+
+  If upload-manuals fails, resolve the problems and re-invoke it.
+  This requires running make-manuals again, since upload-manuals
+  destructively modifies the 'manual' directory where you invoke it.
+  Also, upload-manuals invokes "cvs commit -f", so if you run it
+  several times, some files will be committed more than once even
+  though they were not changed in-between.  Suck it up.
+
+  All the added and removed files need to be committed, so next fire
+  up Emacs, type "C-x v d" to invoke vc-dir on the Web pages checkout,
+  and use "C-x v v" and other VC commands to commit all the files that
+  upload-manuals didn't automatically commit.  (You can also do that
+  with manual CVS commands, of course, but this is not recommended.)
+
+  Next, make sure that manual/index.html file is consistent with the
+  info/dir file in the branch for which you are producing the manuals,
+  in that it mentions all the manuals.  It could be outdated if
+  manuals were added or removed since the last release.
+
+  For each new manual, a file manual/MANUAL.html (where MANUAL is the
+  name of the manual) should be created from the template in
+  manual/eww.html, after editing the title and the Copyright years,
+  and the links in it changed to point to the appropriate files in the
+  manual/html_node/ and manual/html_mono/ subdirectories.
+
+  In addition, the file refcards/index.html should be audited to make
+  sure it includes the up-to-date list of refcards actually produced
+  and put under that subdirectory.
 
 Browsing <https://web.cvs.savannah.gnu.org/viewvc/?root=emacs> is one
 way to check for any files that still need updating.

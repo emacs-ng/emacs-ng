@@ -1,6 +1,6 @@
 ;;; so-long-tests-helpers.el --- Test suite for so-long.el  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2019-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2022 Free Software Foundation, Inc.
 
 ;; Author: Phil Sainty <psainty@orcon.net.nz>
 ;; Keywords: convenience
@@ -106,8 +106,8 @@
 (defun so-long-tests-remember ()
   "Remember the original states of modes and variables.
 
-Call this after setting up a buffer in the normal (not so-long)
-state for its major mode, so that after triggering a so-long
+Call this after setting up a buffer in the normal (not `so-long')
+state for its major mode, so that after triggering a `so-long'
 action we can call `so-long-revert' and compare the reverted
 state against this remembered state."
   (setq so-long-tests-memory nil)

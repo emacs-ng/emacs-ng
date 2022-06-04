@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2021 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2022 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Syntax Tables
@@ -770,7 +770,7 @@ This function returns the parser state that the parser would reach at
 position @var{pos} starting from the beginning of the visible portion
 of the buffer.
 @iftex
-See the next section for
+See the next section
 @end iftex
 @ifnottex
 @xref{Parser State},
@@ -900,6 +900,7 @@ arrived at a top level position.
 @defun syntax-ppss-context state
 Return @code{string} if the end position of the scan returning
 @var{state} is in a string, and @code{comment} if it's in a comment.
+Otherwise return @code{nil}.
 @end defun
 
 @node Low-Level Parsing

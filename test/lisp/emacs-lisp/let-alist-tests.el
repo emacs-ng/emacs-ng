@@ -1,6 +1,6 @@
 ;;; let-alist.el --- tests for file handling. -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2012-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -100,4 +100,4 @@ See Bug#24641."
                    `[,(+ .a) ,(+ .a .b .b)])
                  [1 5])))
 
-;;; let-alist.el ends here
+;;; let-alist-tests.el ends here

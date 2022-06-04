@@ -1,6 +1,6 @@
 ;;; ob-scheme.el --- Babel Functions for Scheme      -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
 
 ;; Authors: Eric Schulte
 ;;	    Michael Gauland
@@ -110,7 +110,7 @@
     geiser-impl--implementation))
 
 (defun org-babel-scheme-get-repl (impl name)
-  "Switch to a scheme REPL, creating it if it doesn't exist:"
+  "Switch to a scheme REPL, creating it if it doesn't exist."
   (let ((buffer (org-babel-scheme-get-session-buffer name)))
     (or buffer
 	(progn

@@ -1,6 +1,6 @@
 ;;; subr-tests.el --- Tests for subr.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
 
 ;; Author: Oleh Krehel <ohwoeowho@gmail.com>,
 ;;         Nicolas Petton <nicolas@petton.fr>
@@ -60,6 +60,25 @@
                            "\\<\\(?:\\(?:fals\\|tru\\)e\\)\\>")
                      (quote
                       (0 font-lock-keyword-face))))))))
+
+
+;;;; List functions.
+
+(ert-deftest subr-test-caaar ()
+  (should (null (caaar '())))
+  (should (null (caaar '(() (2)))))
+  (should (null (caaar '((() (2)) (a b)))))
+  (should-error (caaar '(1 2)) :type 'wrong-type-argument)
+  (should-error (caaar '((1 2))) :type 'wrong-type-argument)
+  (should (=  1 (caaar '(((1 2) (3 4))))))
+  (should (null (caaar '((() (3 4)))))))
+
+(ert-deftest subr-test-caadr ()
+  (should (null (caadr '())))
+  (should (null (caadr '(1))))
+  (should-error (caadr '(1 2)) :type 'wrong-type-argument)
+  (should (= 2 (caadr '(1 (2 3)))))
+  (should (equal '((2) (3)) (caadr '((1) (((2) (3))) (4))))))
 
 
 ;;;; Keymap support.
@@ -473,11 +492,11 @@ See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=19350."
   (should (equal subr-tests--hook '(f5 f2 f1 f4 f3)))
   (add-hook 'subr-tests--hook 'f6)
   (should (equal subr-tests--hook '(f5 f6 f2 f1 f4 f3)))
-  ;; Make sure `t' is equivalent to 90.
+  ;; Make sure t is equivalent to 90.
   (add-hook 'subr-tests--hook 'f7 90)
   (add-hook 'subr-tests--hook 'f8 t)
   (should (equal subr-tests--hook '(f5 f6 f2 f1 f4 f3 f7 f8)))
-  ;; Make sure `nil' is equivalent to 0.
+  ;; Make sure nil is equivalent to 0.
   (add-hook 'subr-tests--hook 'f9 0)
   (add-hook 'subr-tests--hook 'f10)
   (should (equal subr-tests--hook '(f5 f10 f9 f6 f2 f1 f4 f3 f7 f8)))
@@ -739,6 +758,30 @@ See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=19350."
     (should (= (replace-regexp-in-region "Fo+" "new" (point-min))
                1))
     (should (equal (buffer-string) "new bar zot foobar"))))
+
+(ert-deftest test-with-existing-directory ()
+  (let ((dir (make-temp-name "/tmp/not-exist-")))
+    (let ((default-directory dir))
+      (should-not (file-exists-p default-directory)))
+    (with-existing-directory
+      (should-not (equal dir default-directory))
+      (should (file-exists-p default-directory)))))
+
+(ert-deftest subr-test-internal--format-docstring-line ()
+  (should
+   (string= (let ((fill-column 70))
+              (internal--format-docstring-line
+               "In addition to any hooks its parent mode might have run, this \
+mode runs the hook ‘foo-bar-baz-very-long-name-indeed-mode-hook’, as the final \
+or penultimate step during initialization."))
+            "In addition to any hooks its parent mode might have run, this mode
+runs the hook ‘foo-bar-baz-very-long-name-indeed-mode-hook’, as the
+final or penultimate step during initialization.")))
+
+(ert-deftest test-ensure-list ()
+  (should (equal (ensure-list nil) nil))
+  (should (equal (ensure-list :foo) '(:foo)))
+  (should (equal (ensure-list '(1 2 3)) '(1 2 3))))
 
 (provide 'subr-tests)
 ;;; subr-tests.el ends here

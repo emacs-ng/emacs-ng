@@ -1,6 +1,6 @@
 ;;; indian.el --- Indian languages support -*- coding: utf-8; lexical-binding: t; -*-
 
-;; Copyright (C) 1997, 1999, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 1999, 2001-2022 Free Software Foundation, Inc.
 ;; Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
 ;;   Registration Number H14PRO021
@@ -354,14 +354,14 @@ South Indian language Malayalam is supported in this language environment."))
 	   ("X" . "[\u0D00-\u0D7F]"))))		  ; all coverage
     (indian-compose-regexp
      (concat
+      ;; any sequence of 2 or more Malayalam characters, or
+      "XX+\\|"
       ;; consonant-based syllables, or
       "C\\(?:J?HJ?C\\)*\\(?:H[NJ]?\\|v?A?\\)\\|"
       ;; syllables with an independent vowel, or
       "V\\(?:J?HY\\)?v*?A?\\|"
-      ;; special consonant form, or
-      "JHY\\|"
-      ;; any other singleton characters
-      "X")
+      ;; special consonant form
+      "JHY")
      table))
   "Regexp matching a composable sequence of Malayalam characters.")
 

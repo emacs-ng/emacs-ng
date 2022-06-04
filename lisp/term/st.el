@@ -1,6 +1,6 @@
 ;;; st.el --- terminal initialization for st  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
 
 ;;; Commentary:
 
@@ -11,8 +11,7 @@
 
 (require 'term/xterm)
 
-(defcustom xterm-st-extra-capabilities '( modifyOtherKeys getSelection
-                                          setSelection)
+(defcustom xterm-st-extra-capabilities '(modifyOtherKeys)
   "Extra capabilities supported under \"stterm\"."
   :version "28.1"
   :type xterm--extra-capabilities-type

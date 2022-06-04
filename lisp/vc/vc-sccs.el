@@ -1,6 +1,6 @@
 ;;; vc-sccs.el --- support for SCCS version-control  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2022 Free Software Foundation, Inc.
 
 ;; Author: FSF (see vc.el for full credits)
 ;; Maintainer: emacs-devel@gnu.org
@@ -191,7 +191,7 @@ Optional string REV is a revision."
 (autoload 'vc-switches "vc")
 
 (defun vc-sccs-register (files &optional comment)
-  "Register FILES into the SCCS version-control system.
+  "Register FILES into the SCCS version control system.
 Automatically retrieve a read-only version of the files with keywords expanded.
 COMMENT can be used to provide an initial description of FILES.
 Passes either `vc-sccs-register-switches' or `vc-register-switches'
@@ -212,11 +212,15 @@ to the SCCS command."
       (vc-sccs-do-command nil 0 "get" (vc-master-name file)))))
 
 (defun vc-sccs-responsible-p (file)
-  "Return non-nil if SCCS thinks it would be responsible for registering FILE."
+  "Return the directory if SCCS thinks it would be responsible for FILE."
   ;; TODO: check for all the patterns in vc-sccs-master-templates
-  (or (file-directory-p (expand-file-name "SCCS" (file-name-directory file)))
-      (stringp (vc-sccs-search-project-dir (or (file-name-directory file) "")
-					   (file-name-nondirectory file)))))
+  (or (and (file-directory-p
+            (expand-file-name "SCCS" (file-name-directory file)))
+           file)
+      (let ((dir (vc-sccs-search-project-dir (or (file-name-directory file) "")
+					     (file-name-nondirectory file))))
+        (and (stringp dir)
+             dir))))
 
 (defun vc-sccs-checkin (files comment &optional rev)
   "SCCS-specific version of `vc-backend-checkin'."
@@ -270,8 +274,8 @@ locked.  REV is the revision to check out."
       (message "Checking out %s...done" file))))
 
 (defun vc-sccs-revert (file &optional _contents-done)
-  "Revert FILE to the version it was based on. If FILE is a directory,
-revert all subfiles."
+  "Revert FILE to the version it was based on.
+If FILE is a directory, revert all subfiles."
   (if (file-directory-p file)
       (mapc #'vc-sccs-revert (vc-expand-dirs (list file) 'SCCS))
     (vc-sccs-do-command nil 0 "unget" (vc-master-name file))

@@ -1,6 +1,6 @@
 ;;; gnus-score.el --- scoring code for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2022 Free Software Foundation, Inc.
 
 ;; Author: Per Abrahamsen <amanda@iesd.auc.dk>
 ;;	Lars Magne Ingebrigtsen <larsi@gnus.org>
@@ -1093,7 +1093,7 @@ EXTRA is the possible non-standard header."
 
 (defun gnus-summary-current-score (arg)
   "Return the score of the current article.
-  With prefix ARG, return the total score of the current (sub)thread."
+With prefix ARG, return the total score of the current (sub)thread."
   (interactive "P" gnus-article-mode gnus-summary-mode)
   (message "%s" (if arg
 		    (gnus-thread-total-score
@@ -3115,7 +3115,9 @@ If ADAPT, return the home adaptive file instead."
 ;;;
 
 (defun gnus-decay-score (score)
-  "Decay SCORE according to `gnus-score-decay-constant' and `gnus-score-decay-scale'."
+  "Decay SCORE according to decay variables.
+The decay variables are `gnus-score-decay-constant' and
+`gnus-score-decay-scale'."
   (floor (- score
 	    (* (if (< score 0) -1 1)
 	       (min (abs score)

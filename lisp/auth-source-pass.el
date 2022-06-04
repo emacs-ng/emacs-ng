@@ -1,6 +1,6 @@
 ;;; auth-source-pass.el --- Integrate auth-source with password-store -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015, 2017-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2015, 2017-2022 Free Software Foundation, Inc.
 
 ;; Author: Damien Cassou <damien@cassou.me>,
 ;;         Nicolas Petton <nicolas@petton.fr>
@@ -176,7 +176,7 @@ CONTENTS is the contents of a password-store formatted file."
                         lines))))
 
 (defun auth-source-pass--do-debug (&rest msg)
-  "Call `auth-source-do-debug` with MSG and a prefix."
+  "Call `auth-source-do-debug' with MSG and a prefix."
   (apply #'auth-source-do-debug
          (cons (concat "auth-source-pass: " (car msg))
                (cdr msg))))

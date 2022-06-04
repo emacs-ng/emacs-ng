@@ -1,6 +1,6 @@
 ;;; ccl-tests.el --- unit tests for ccl.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2018-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -246,3 +246,5 @@ At EOF:
            (registers [17 0 0 0 0 0 0 0]))
       (ccl-execute compiled registers)
       (should (equal registers [2 16 0 0 0 0 0 1])))))
+
+;;; ccl-tests.el ends here

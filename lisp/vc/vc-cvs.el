@@ -1,6 +1,6 @@
 ;;; vc-cvs.el --- non-resident support for CVS version-control  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1995, 1998-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1995, 1998-2022 Free Software Foundation, Inc.
 
 ;; Author: FSF (see vc.el for full credits)
 ;; Package: vc
@@ -24,9 +24,9 @@
 
 ;;; Code:
 
+(require 'vc-rcs)
 (eval-when-compile (require 'vc))
 
-(declare-function vc-branch-p "vc" (rev))
 (declare-function vc-checkout "vc" (file &optional rev))
 (declare-function vc-expand-dirs "vc" (file-or-dir-list backend))
 (declare-function vc-read-revision "vc"
@@ -308,11 +308,12 @@ to the CVS command."
          (vc-switches 'CVS 'register)))
 
 (defun vc-cvs-responsible-p (file)
-  "Return non-nil if CVS thinks it is responsible for FILE."
-  (file-directory-p (expand-file-name "CVS"
-				      (if (file-directory-p file)
-					  file
-					(file-name-directory file)))))
+  "Return the directory if CVS thinks it is responsible for FILE."
+  (let ((dir (if (file-directory-p file)
+	         file
+	       (file-name-directory file))))
+    (and (file-directory-p (expand-file-name "CVS" dir))
+         (file-name-directory (expand-file-name "CVS" dir)))))
 
 (defun vc-cvs-could-register (file)
   "Return non-nil if FILE could be registered in CVS.
@@ -451,17 +452,17 @@ REV is the revision to check out."
      ((string= first-revision "")
       (setq status (vc-cvs-merge-news file)))
      (t
-      (if (not (vc-branch-p first-revision))
+      (if (not (vc-rcs-branch-p first-revision))
          (setq second-revision
                (vc-read-revision
                 "Second revision: "
                 (list file) 'CVS nil
-                (concat (vc-branch-part first-revision) ".")))
+                (concat (vc-rcs-branch-part first-revision) ".")))
        ;; We want to merge an entire branch.  Set revisions
        ;; accordingly, so that vc-cvs-merge understands us.
        (setq second-revision first-revision)
        ;; first-revision must be the starting point of the branch
-       (setq first-revision (vc-branch-part first-revision)))
+       (setq first-revision (vc-rcs-branch-part first-revision)))
       (setq status (vc-cvs-merge file first-revision second-revision))))
     status))
 
@@ -542,14 +543,12 @@ Will fail unless you have administrative privileges on the repo."
 ;;; History functions
 ;;;
 
-(declare-function vc-rcs-print-log-cleanup "vc-rcs" ())
 ;; Follows vc-cvs-command, which uses vc-do-command from vc-dispatcher.
 (declare-function vc-exec-after "vc-dispatcher" (code))
 
 (defun vc-cvs-print-log (files buffer &optional _shortlog _start-revision limit)
   "Print commit log associated with FILES into specified BUFFER.
 Remaining arguments are ignored."
-  (require 'vc-rcs)
   ;; It's just the catenation of the individual logs.
   (vc-cvs-command
    buffer
@@ -827,7 +826,7 @@ individually should stay local."
 				  (line-end-position))))))))
 
 (defun vc-cvs-parse-uhp (path)
-  "parse user@host/path into (user@host /path)"
+  "Parse user@host/path into (user@host /path)."
   (if (string-match "\\([^/]+\\)\\(/.*\\)" path)
       (list (match-string 1 path) (match-string 2 path))
       (list nil path)))

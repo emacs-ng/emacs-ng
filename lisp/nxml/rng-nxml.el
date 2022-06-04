@@ -1,6 +1,6 @@
 ;;; rng-nxml.el --- make nxml-mode take advantage of rng-validate-mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003, 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2003, 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: James Clark
 ;; Keywords: wp, hypermedia, languages, XML, RelaxNG
@@ -35,7 +35,7 @@
 (require 'sgml-mode)
 
 (defcustom rng-nxml-auto-validate-flag t
-  "Non-nil means automatically turn on validation with nxml-mode."
+  "Non-nil means automatically turn on validation with `nxml-mode'."
   :type 'boolean
   :group 'relax-ng)
 

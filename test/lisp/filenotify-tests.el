@@ -1,6 +1,6 @@
 ;;; filenotify-tests.el --- Tests of file notifications  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2013-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 
@@ -743,7 +743,7 @@ delivered."
 	     ;; the directory.  Except for
 	     ;; GFam{File,Directory}Monitor, GPollFileMonitor and
 	     ;; kqueue.  And GFam{File,Directory}Monitor and
-	     ;; GPollFileMonitordo not raise a `changed' event.
+	     ;; GPollFileMonitor do not raise a `changed' event.
 	     ((memq (file-notify--test-monitor)
                     '(GFamFileMonitor GFamDirectoryMonitor GPollFileMonitor))
 	      '(created deleted stopped))

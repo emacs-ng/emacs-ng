@@ -1,6 +1,6 @@
 ;;; timefns-tests.el --- tests for timefns.c -*- lexical-binding: t -*-
 
-;; Copyright (C) 2016-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2016-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -241,3 +241,5 @@ a fixed place on the right and are padded on the left."
         (let ((xdiv (/ x divisor)))
           (should (= xdiv (float-time (time-convert xdiv t))))))
       (setq x (* x 2)))))
+
+;;; timefns-tests.el ends here

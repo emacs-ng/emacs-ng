@@ -1,6 +1,6 @@
 ;;; ediff-vers.el --- version control interface to Ediff  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1995-1997, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1995-1997, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Michael Kifer <kifer@cs.stonybrook.edu>
 ;; Package: ediff
@@ -88,8 +88,8 @@ comparison or merge operations are being performed."
 
 ;; RCS.el support
 (defun rcs-ediff-view-revision (&optional rev)
-;; View previous RCS revision of current file.
-;; With prefix argument, prompts for a revision name.
+  "View previous RCS revision of current file.
+With prefix argument, prompts for a revision name."
   (interactive (list (if current-prefix-arg
 			 (read-string "Revision: "))))
   (let* ((filename (buffer-file-name (current-buffer)))

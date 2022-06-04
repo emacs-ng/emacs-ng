@@ -1,6 +1,6 @@
 ;;; ns-win.el --- lisp side of interface with NeXT/Open/GNUstep/macOS window system  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-1994, 2005-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1994, 2005-2022 Free Software Foundation, Inc.
 
 ;; Authors: Carl Edman
 ;;	Christian Limpach
@@ -586,8 +586,8 @@ string dropped into the current buffer."
 ;; Based on a function by David Reitter <dreitter@inf.ed.ac.uk> ;
 ;; see https://lists.gnu.org/r/emacs-devel/2005-09/msg00681.html .
 (defun ns-toggle-toolbar (&optional frame)
-  "Switches the tool bar on and off in frame FRAME.
- If FRAME is nil, the change applies to the selected frame."
+  "Switch the tool bar on and off in frame FRAME.
+If FRAME is nil, the change applies to the selected frame."
   (interactive)
   (modify-frame-parameters
    frame (list (cons 'tool-bar-lines

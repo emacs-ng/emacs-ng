@@ -1,6 +1,6 @@
 ;;; subr.el --- basic lisp subroutines for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994-1995, 1999-2021 Free Software
+;; Copyright (C) 1985-1986, 1992, 1994-1995, 1999-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -21,6 +21,8 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Commentary:
 
 ;;; Code:
 
@@ -166,8 +168,8 @@ variables are literal symbols and should not be quoted.
 
 The second VALUE is not computed until after the first VARIABLE
 is set, and so on; each VALUE can use the new value of variables
-set earlier in the ‘setq-local’.  The return value of the
-‘setq-local’ form is the value of the last VALUE.
+set earlier in the `setq-local'.  The return value of the
+`setq-local' form is the value of the last VALUE.
 
 \(fn [VARIABLE VALUE]...)"
   (declare (debug setq))
@@ -486,7 +488,7 @@ was called."
   "Return VALUE with its bits shifted left by COUNT.
 If COUNT is negative, shifting is actually to the right.
 In this case, if VALUE is a negative fixnum treat it as unsigned,
-i.e., subtract 2 * most-negative-fixnum from VALUE before shifting it."
+i.e., subtract 2 * `most-negative-fixnum' from VALUE before shifting it."
   (when (and (< value 0) (< count 0))
     (when (< value most-negative-fixnum)
       (signal 'args-out-of-range (list value count)))
@@ -694,7 +696,7 @@ If N is omitted or nil, remove the last element."
   "Destructively remove `equal' duplicates from LIST.
 Store the result in LIST and return it.  LIST must be a proper list.
 Of several `equal' occurrences of an element in LIST, the first
-one is kept."
+one is kept.  See `seq-uniq' for non-destructive operation."
   (let ((l (length list)))
     (if (> l 100)
         (let ((hash (make-hash-table :test #'equal :size l))
@@ -1509,18 +1511,22 @@ nil or (STRING . POSITION)'.
 `posn-timestamp': The time the event occurred, in milliseconds.
 
 For more information, see Info node `(elisp)Click Events'."
-  (if (consp event) (nth 1 event)
-    (or (posn-at-point)
-        (list (selected-window) (point) '(0 . 0) 0))))
+  (or (and (consp event) (nth 1 event))
+      ;; Use `window-point' for the case when the current buffer
+      ;; is temporarily switched to some other buffer (bug#50256)
+      (posn-at-point (window-point))
+      (list (selected-window) (window-point) '(0 . 0) 0)))
 
 (defun event-end (event)
   "Return the ending position of EVENT.
 EVENT should be a click, drag, or key press event.
 
 See `event-start' for a description of the value returned."
-  (if (consp event) (nth (if (consp (nth 2 event)) 2 1) event)
-    (or (posn-at-point)
-        (list (selected-window) (point) '(0 . 0) 0))))
+  (or (and (consp event) (nth (if (consp (nth 2 event)) 2 1) event))
+      ;; Use `window-point' for the case when the current buffer
+      ;; is temporarily switched to some other buffer (bug#50256)
+      (posn-at-point (window-point))
+      (list (selected-window) (window-point) '(0 . 0) 0)))
 
 (defsubst event-click-count (event)
   "Return the multi-click count of EVENT, a click or drag event.
@@ -2872,9 +2878,23 @@ This function is used by the `interactive' code letter `n'."
 
 (defvar read-char-choice-use-read-key nil
   "Prefer `read-key' when reading a character by `read-char-choice'.
-Otherwise, use the minibuffer.")
+Otherwise, use the minibuffer.
+
+When using the minibuffer, the user is less constrained, and can
+use the normal commands available in the minibuffer, and can, for
+instance, switch to another buffer, do things there, and then
+switch back again to the minibuffer before entering the
+character.  This is not possible when using `read-key', but using
+`read-key' may be less confusing to some users.")
 
 (defun read-char-choice (prompt chars &optional inhibit-keyboard-quit)
+  "Read and return one of CHARS, prompting for PROMPT.
+Any input that is not one of CHARS is ignored.
+
+By default, the minibuffer is used to read the key
+non-modally (see `read-char-from-minibuffer').  If
+`read-char-choice-use-read-key' is non-nil, the modal `read-key'
+function is used instead (see `read-char-choice-with-read-key')."
   (if (not read-char-choice-use-read-key)
       (read-char-from-minibuffer prompt chars)
     (read-char-choice-with-read-key prompt chars inhibit-keyboard-quit)))
@@ -2884,7 +2904,7 @@ Otherwise, use the minibuffer.")
 Any input that is not one of CHARS is ignored.
 
 If optional argument INHIBIT-KEYBOARD-QUIT is non-nil, ignore
-keyboard-quit events while waiting for a valid input.
+`keyboard-quit' events while waiting for a valid input.
 
 If you bind the variable `help-form' to a non-nil value
 while calling this function, then pressing `help-char'
@@ -3015,6 +3035,7 @@ If there is a natural number at point, use it as default."
     (set-keymap-parent map minibuffer-local-map)
 
     (define-key map [remap self-insert-command] #'read-char-from-minibuffer-insert-char)
+    (define-key map [remap exit-minibuffer] #'read-char-from-minibuffer-insert-other)
 
     (define-key map [remap recenter-top-bottom] #'minibuffer-recenter-top-bottom)
     (define-key map [remap scroll-up-command] #'minibuffer-scroll-up-command)
@@ -3029,7 +3050,7 @@ If there is a natural number at point, use it as default."
   (make-hash-table :test 'equal))
 
 (defun read-char-from-minibuffer-insert-char ()
-  "Insert the character you type in the minibuffer and exit.
+  "Insert the character you type into the minibuffer and exit minibuffer.
 Discard all previous input before inserting and exiting the minibuffer."
   (interactive)
   (when (minibufferp)
@@ -3038,9 +3059,11 @@ Discard all previous input before inserting and exiting the minibuffer."
     (exit-minibuffer)))
 
 (defun read-char-from-minibuffer-insert-other ()
-  "Handle inserting of a character other than allowed.
-Display an error on trying to insert a disallowed character.
-Also discard all previous input in the minibuffer."
+  "Reject a disallowed character typed into the minibuffer.
+This command is intended to be bound to keys that users are not
+allowed to type into the minibuffer.  When the user types any
+such key, this command discard all minibuffer input and displays
+an error message."
   (interactive)
   (when (minibufferp)
     (delete-minibuffer-contents)
@@ -3132,9 +3155,10 @@ There is no need to explicitly add `help-char' to CHARS;
     (define-key map [remap scroll-other-window] #'minibuffer-scroll-other-window)
     (define-key map [remap scroll-other-window-down] #'minibuffer-scroll-other-window-down)
 
-    (define-key map [escape] #'abort-recursive-edit)
-    (dolist (symbol '(quit exit exit-prefix))
+    (define-key map [remap exit] #'y-or-n-p-insert-other)
+    (dolist (symbol '(exit-prefix quit))
       (define-key map (vector 'remap symbol) #'abort-recursive-edit))
+    (define-key map [escape] #'abort-recursive-edit)
 
     ;; FIXME: try catch-all instead of explicit bindings:
     ;; (define-key map [remap t] #'y-or-n-p-insert-other)
@@ -3174,13 +3198,22 @@ Also discard all previous input in the minibuffer."
 
 (defvar y-or-n-p-use-read-key nil
   "Prefer `read-key' when answering a \"y or n\" question by `y-or-n-p'.
-Otherwise, use the minibuffer.")
+Otherwise, use the minibuffer.
+
+When using the minibuffer, the user is less constrained, and can
+use the normal commands available in the minibuffer, and can, for
+instance, switch to another buffer, do things there, and then
+switch back again to the minibuffer before entering the
+character.  This is not possible when using `read-key', but using
+`read-key' may be less confusing to some users.")
 
 (defun y-or-n-p (prompt)
   "Ask user a \"y or n\" question.
 Return t if answer is \"y\" and nil if it is \"n\".
-PROMPT is the string to display to ask the question.  It should
-end in a space; `y-or-n-p' adds \"(y or n) \" to it.
+
+PROMPT is the string to display to ask the question; `y-or-n-p'
+adds \" (y or n) \" to it.  It does not need to end in space, but
+if it does up to one space will be removed.
 
 If you bind the variable `help-form' to a non-nil value
 while calling this function, then pressing `help-char'
@@ -3203,7 +3236,12 @@ responses, perform the requested window recentering or scrolling
 and ask again.
 
 Under a windowing system a dialog box will be used if `last-nonmenu-event'
-is nil and `use-dialog-box' is non-nil."
+is nil and `use-dialog-box' is non-nil.
+
+By default, this function uses the minibuffer to read the key.
+If `y-or-n-p-use-read-key' is non-nil, `read-key' is used
+instead (which means that the user can't change buffers (and the
+like) while `y-or-n-p' is running)."
   (let ((answer 'recenter)
 	(padded (lambda (prompt &optional dialog)
 		  (let ((l (length prompt)))
@@ -4593,6 +4631,20 @@ MODES is as for `set-default-file-modes'."
              ,@body)
          (set-default-file-modes ,umask)))))
 
+(defmacro with-existing-directory (&rest body)
+  "Execute BODY with `default-directory' bound to an existing directory.
+If `default-directory' is already an existing directory, it's not changed."
+  (declare (indent 0) (debug t))
+  `(let ((default-directory (seq-find (lambda (dir)
+                                        (and dir
+                                             (file-exists-p dir)))
+                                      (list default-directory
+                                            (expand-file-name "~/")
+                                            temporary-file-directory
+                                            (getenv "TMPDIR")
+                                            "/tmp/")
+                                      "/")))
+     ,@body))
 
 ;;; Matching and match data.
 
@@ -4620,13 +4672,24 @@ rather than your caller's match data."
 	      '(set-match-data save-match-data-internal 'evaporate))))
 
 (defun match-string (num &optional string)
-  "Return string of text matched by last search.
-NUM specifies which parenthesized expression in the last regexp.
- Value is nil if NUMth pair didn't match, or there were less than NUM pairs.
-Zero means the entire text matched by the whole regexp or whole string.
-STRING should be given if the last search was by `string-match' on STRING.
-If STRING is nil, the current buffer should be the same buffer
-the search/match was performed in."
+  "Return the string of text matched by the previous search or regexp operation.
+NUM specifies the number of the parenthesized sub-expression in the last
+regexp whose match to return.  Zero means return the text matched by the
+entire regexp or the whole string.
+
+The return value is nil if NUMth pair didn't match anything, or if there
+were fewer than NUM sub-expressions in the regexp used in the search.
+
+STRING should be given if the last search was by `string-match'
+on STRING.  If STRING is nil, the current buffer should be the
+same buffer as the one in which the search/match was performed.
+
+Note that many functions in Emacs modify the match data, so this
+function should be called \"close\" to the function that did the
+regexp search.  In particular, saying (for instance)
+`M-: (looking-at \"[0-9]\") RET' followed by `M-: (match-string 0) RET'
+interactively is seldom meaningful, since the Emacs command loop
+may modify the match data."
   (declare (side-effect-free t))
   (if (match-beginning num)
       (if string
@@ -4892,25 +4955,25 @@ Unless optional argument INPLACE is non-nil, return a new string."
 	  (aset newstr i tochar)))
     newstr))
 
-(defun string-replace (fromstring tostring instring)
-  "Replace FROMSTRING with TOSTRING in INSTRING each time it occurs."
+(defun string-replace (from-string to-string in-string)
+  "Replace FROM-STRING with TO-STRING in IN-STRING each time it occurs."
   (declare (pure t) (side-effect-free t))
-  (when (equal fromstring "")
+  (when (equal from-string "")
     (signal 'wrong-length-argument '(0)))
   (let ((start 0)
         (result nil)
         pos)
-    (while (setq pos (string-search fromstring instring start))
+    (while (setq pos (string-search from-string in-string start))
       (unless (= start pos)
-        (push (substring instring start pos) result))
-      (push tostring result)
-      (setq start (+ pos (length fromstring))))
+        (push (substring in-string start pos) result))
+      (push to-string result)
+      (setq start (+ pos (length from-string))))
     (if (null result)
         ;; No replacements were done, so just return the original string.
-        instring
+        in-string
       ;; Get any remaining bit.
-      (unless (= start (length instring))
-        (push (substring instring start) result))
+      (unless (= start (length in-string))
+        (push (substring in-string start) result))
       (apply #'concat (nreverse result)))))
 
 (defun replace-regexp-in-string (regexp rep string &optional
@@ -5229,7 +5292,7 @@ that can be added.
 If `buffer-invisibility-spec' isn't a list before calling this
 function, `buffer-invisibility-spec' will afterwards be a list
 with the value `(t ELEMENT)'.  This means that if text exists
-that invisibility values that aren't either `t' or ELEMENT, that
+that invisibility values that aren't either t or ELEMENT, that
 text will become visible."
   (if (eq buffer-invisibility-spec t)
       (setq buffer-invisibility-spec (list t)))
@@ -5239,8 +5302,8 @@ text will become visible."
 (defun remove-from-invisibility-spec (element)
   "Remove ELEMENT from `buffer-invisibility-spec'.
 If `buffer-invisibility-spec' isn't a list before calling this
-function, it will be made into a list containing just `t' as the
-only list member.  This means that if text exists with non-`t'
+function, it will be made into a list containing just t as the
+only list member.  This means that if text exists with non-t
 invisibility values, that text will become visible."
   (setq buffer-invisibility-spec
         (if (consp buffer-invisibility-spec)
@@ -5950,7 +6013,7 @@ print the reporter message followed by the word \"done\".
            (,count 0)
            (,list ,(cadr spec)))
        (when (stringp ,prep)
-         (setq ,prep (make-progress-reporter ,prep 0 (1- (length ,list)))))
+         (setq ,prep (make-progress-reporter ,prep 0 (length ,list))))
        (dolist (,(car spec) ,list)
          ,@body
          (progress-reporter-update ,prep (setq ,count (1+ ,count))))
@@ -6360,17 +6423,29 @@ seconds."
 This is intended for very simple filling while bootstrapping
 Emacs itself, and does not support all the customization options
 of fill.el (for example `fill-region')."
-  (if (< (string-width str) fill-column)
+  (if (< (length str) fill-column)
       str
-    (let ((fst (substring str 0 fill-column))
-          (lst (substring str fill-column)))
-      (if (string-match ".*\\( \\(.+\\)\\)$" fst)
-          (setq fst (replace-match "\n\\2" nil nil fst 1)))
+    (let* ((limit (min fill-column (length str)))
+           (fst (substring str 0 limit))
+           (lst (substring str limit)))
+      (cond ((string-match "\\( \\)$" fst)
+             (setq fst (replace-match "\n" nil nil fst 1)))
+            ((string-match "^ \\(.*\\)" lst)
+             (setq fst (concat fst "\n"))
+             (setq lst (match-string 1 lst)))
+            ((string-match ".*\\( \\(.+\\)\\)$" fst)
+             (setq lst (concat (match-string 2 fst) lst))
+             (setq fst (replace-match "\n" nil nil fst 1))))
       (concat fst (internal--fill-string-single-line lst)))))
 
 (defun internal--format-docstring-line (string &rest objects)
-  "Format a documentation string out of STRING and OBJECTS.
-This is intended for internal use only."
+  "Format a single line from a documentation string out of STRING and OBJECTS.
+Signal an error if STRING contains a newline.
+This is intended for internal use only.  Avoid using this for the
+first line of a docstring; the first line should be a complete
+sentence (see Info node `(elisp) Documentation Tips')."
+  (when (string-match "\n" string)
+    (error "Unable to fill string containing newline: %S" string))
   (internal--fill-string-single-line (apply #'format string objects)))
 
 (defun json-available-p ()
@@ -6380,5 +6455,13 @@ This is intended for internal use only."
            (json-serialize t)
          (:success t)
          (json-unavailable nil))))
+
+(defun ensure-list (object)
+  "Return OBJECT as a list.
+If OBJECT is already a list, return OBJECT itself.  If it's
+not a list, return a one-element list containing OBJECT."
+  (if (listp object)
+      object
+    (list object)))
 
 ;;; subr.el ends here

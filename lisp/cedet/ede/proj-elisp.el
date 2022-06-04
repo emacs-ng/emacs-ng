@@ -1,6 +1,6 @@
 ;;; ede-proj-elisp.el --- EDE Generic Project Emacs Lisp support  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2005, 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2005, 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: project, make
@@ -54,8 +54,8 @@ load path."
 Each package name will be loaded with `require'.
 Each package's directory should also appear in :aux-packages via a package name.")
    )
-  "This target consists of a group of lisp files.
-A lisp target may be one general program with many separate lisp files in it.")
+  "This target consists of a group of Lisp files.
+A Lisp target may be one general program with many separate Lisp files in it.")
 
 (cl-defmethod ede-proj-makefile-insert-rules :after ((this ede-proj-target-elisp))
     "Insert rules needed by THIS target.

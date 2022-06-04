@@ -1,6 +1,6 @@
 ;;; informat.el --- info support functions package for Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1986, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1986, 2001-2022 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: help
@@ -446,7 +446,7 @@ Check that every node pointer points to an existing node."
 
 ;;;###autoload
 (defun batch-info-validate ()
-  "Runs `Info-validate' on the files remaining on the command line.
+  "Run `Info-validate' on the files remaining on the command line.
 Must be used only with -batch, and kills Emacs on completion.
 Each file will be processed even if an error occurred previously.
 For example, invoke \"emacs -batch -f batch-info-validate $info/ ~/*.info\""

@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2021 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2022 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Dired
@@ -113,11 +113,17 @@ a directory's name.
 @findex dired-jump-other-window
 @kindex C-x C-j
 @kindex C-x 4 C-j
-  Typing @kbd{C-x C-j} (@code{dired-jump}) in any buffer will open a
-Dired buffer and move point to the line corresponding to the current
-file.  In Dired, move up a level and go to the previous directory's
-line.  Typing @kbd{C-x 4 C-j} (@code{dired-jump-other-window} has the
-same effect but opens a new window for the Dired buffer.
+  You can ask Emacs to invoke Dired on the default-directory
+(@pxref{File Names, default-directory}) of any buffer, by typing
+@kbd{C-x C-j} (@code{dired-jump}).  If the buffer visits a file, this
+command will move point to that file's line in the Dired buffer it
+shows; otherwise, point will end up on the first file in the directory
+listing.  As an exception, if you type @kbd{C-x C-j} in a Dired
+buffer, Emacs displays the directory listing of the parent directory
+and places point on the line that corresponds to the directory where
+you invoked @code{dired-jump}.  Typing @kbd{C-x 4 C-j}
+(@code{dired-jump-other-window} has the same effect, but displays the
+Dired buffer in a new window.
 
   The variable @code{dired-listing-switches} specifies the options to
 give to @command{ls} for listing the directory; this string
@@ -852,8 +858,8 @@ different systems put @command{chown} in different places).
 @cindex changing file time (in Dired)
 @item T @var{timestamp} @key{RET}
 Touch the specified files (@code{dired-do-touch}).  This means
-updating their modification times to the present time.  This is like
-the shell command @code{touch}.
+updating their modification times to @var{timestamp}, which defaults
+to the present time.  This is like the shell command @command{touch}.
 
 @findex dired-do-print
 @kindex P @r{(Dired)}
@@ -1507,10 +1513,10 @@ buffer containing image-dired, corresponding to the marked files.
   You can also enter Image-Dired directly by typing @kbd{M-x
 image-dired}.  This prompts for a directory; specify one that has
 image files.  This creates thumbnails for all the images in that
-directory, and displays them all in the thumbnail buffer.  This
-takes a long time if the directory contains many image files, and it
-asks for confirmation if the number of image files exceeds
-@code{image-dired-show-all-from-dir-max-files}.
+directory, and displays them all in the thumbnail buffer.  The
+thumbnails are generated in the background and are loaded as they
+become available.  This command asks for confirmation if the number of
+image files exceeds @code{image-dired-show-all-from-dir-max-files}.
 
   With point in the thumbnail buffer, you can type @key{RET}
 (@code{image-dired-display-thumbnail-original-image}) to display a

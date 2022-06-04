@@ -1,6 +1,6 @@
 ;;; subr-x.el --- extra Lisp functions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: convenience
@@ -62,7 +62,7 @@ Is equivalent to:
     (+ (- (/ (+ 5 20) 25)) 40)
 Note how the single `-' got converted into a list before
 threading."
-  (declare (indent 1)
+  (declare (indent 0)
            (debug (form &rest [&or symbolp (sexp &rest form)])))
   `(internal--thread-argument t ,@forms))
 
@@ -79,7 +79,7 @@ Is equivalent to:
     (+ 40 (- (/ 25 (+ 20 5))))
 Note how the single `-' got converted into a list before
 threading."
-  (declare (indent 1) (debug thread-first))
+  (declare (indent 0) (debug thread-first))
   `(internal--thread-argument nil ,@forms))
 
 (defsubst internal--listify (elt)
@@ -107,7 +107,7 @@ If ELT is of the form ((EXPR)), listify (EXPR) with a dummy symbol."
 (defun internal--build-binding (binding prev-var)
   "Check and build a single BINDING with PREV-VAR."
   (thread-first
-      binding
+    binding
     internal--listify
     internal--check-binding
     (internal--build-binding-value-form prev-var)))
@@ -264,13 +264,13 @@ result will have lines that are longer than LENGTH."
     (buffer-string)))
 
 (defun string-limit (string length &optional end coding-system)
-  "Return (up to) a LENGTH substring of STRING.
-If STRING is shorter than or equal to LENGTH, the entire string
-is returned unchanged.
+  "Return a substring of STRING that is (up to) LENGTH characters long.
+If STRING is shorter than or equal to LENGTH characters, return the
+entire string unchanged.
 
-If STRING is longer than LENGTH, return a substring consisting of
-the first LENGTH characters of STRING.  If END is non-nil, return
-the last LENGTH characters instead.
+If STRING is longer than LENGTH characters, return a substring
+consisting of the first LENGTH characters of STRING.  If END is
+non-nil, return the last LENGTH characters instead.
 
 If CODING-SYSTEM is non-nil, STRING will be encoded before
 limiting, and LENGTH is interpreted as the number of bytes to

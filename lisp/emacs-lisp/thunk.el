@@ -1,6 +1,6 @@
 ;;; thunk.el --- Lazy form evaluation  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Petton <nicolas@petton.fr>
 ;; Keywords: sequences
@@ -30,7 +30,7 @@
 ;; forms.
 ;;
 ;; Use `thunk-delay' to delay the evaluation of a form (requires
-;; lexical-binding), and `thunk-force' to evaluate it. The result of
+;; lexical-binding), and `thunk-force' to evaluate it.  The result of
 ;; the evaluation is cached, and only happens once.
 ;;
 ;; Here is an example of a form which evaluation is delayed:

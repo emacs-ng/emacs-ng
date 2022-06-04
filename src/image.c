@@ -1,6 +1,6 @@
 /* Functions for image support on window system.
 
-Copyright (C) 1989, 1992-2021 Free Software Foundation, Inc.
+Copyright (C) 1989, 1992-2022 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -10018,10 +10018,16 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
   if (!STRINGP (lcss))
     {
       /* Generate the CSS for the SVG image.  */
-      const char *css_spec = "svg{font-family:\"%s\";font-size:%4dpx}";
-      int css_len = strlen (css_spec) + strlen (img->face_font_family);
+      /* FIXME: The below calculations leave enough space for a font
+	 size up to 9999, if it overflows we just throw an error but
+	 should probably increase the buffer size.  */
+      const char *css_spec = "svg{font-family:\"%s\";font-size:%dpx}";
+      int css_len = strlen (css_spec) + strlen (img->face_font_family) + 1;
       css = xmalloc (css_len);
-      snprintf (css, css_len, css_spec, img->face_font_family, img->face_font_size);
+      if (css_len <= snprintf (css, css_len, css_spec,
+			       img->face_font_family, img->face_font_size))
+	goto rsvg_error;
+
       rsvg_handle_set_stylesheet (rsvg_handle, (guint8 *)css, strlen (css), NULL);
     }
   else
@@ -10061,7 +10067,7 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
 #if LIBRSVG_CHECK_VERSION (2, 46, 0)
   RsvgRectangle zero_rect, viewbox, out_logical_rect;
 
-  /* Try the instrinsic dimensions first.  */
+  /* Try the intrinsic dimensions first.  */
   gboolean has_width, has_height, has_viewbox;
   RsvgLength iwidth, iheight;
   double dpi = FRAME_DISPLAY_INFO (f)->resx;
@@ -10096,7 +10102,7 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
     }
   else
     {
-      /* We haven't found a useable set of sizes, so try working out
+      /* We haven't found a usable set of sizes, so try working out
          the visible area.  */
       rsvg_handle_get_geometry_for_layer (rsvg_handle, NULL,
                                           &zero_rect, &viewbox,
@@ -10179,12 +10185,11 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
 
     wrapped_contents = xmalloc (buffer_size);
 
-    if (!wrapped_contents
-        || buffer_size <= snprintf (wrapped_contents, buffer_size, wrapper,
-                                    foreground & 0xFFFFFF, width, height,
-                                    viewbox_width, viewbox_height,
-                                    background & 0xFFFFFF,
-                                    SSDATA (encoded_contents)))
+    if (buffer_size <= snprintf (wrapped_contents, buffer_size, wrapper,
+				 foreground & 0xFFFFFF, width, height,
+				 viewbox_width, viewbox_height,
+				 background & 0xFFFFFF,
+				 SSDATA (encoded_contents)))
       goto rsvg_error;
 
     wrapped_size = strlen (wrapped_contents);

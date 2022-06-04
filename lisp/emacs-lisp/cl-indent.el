@@ -1,6 +1,6 @@
 ;;; cl-indent.el --- Enhanced lisp-indent mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1987, 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1987, 2000-2022 Free Software Foundation, Inc.
 
 ;; Author: Richard Mlynarik <mly@eddie.mit.edu>
 ;; Created: July 1987
@@ -162,9 +162,9 @@ is set to `defun'.")
     (error t)))
 
 (defun lisp-indent-find-method (symbol &optional no-compat)
-  "Find the lisp indentation function for SYMBOL.
+  "Find the Lisp indentation function for SYMBOL.
 If NO-COMPAT is non-nil, do not retrieve indenters intended for
-the standard lisp indent package."
+the standard Lisp indent package."
   (or (and (derived-mode-p 'emacs-lisp-mode)
            (get symbol 'common-lisp-indent-function-for-elisp))
       (get symbol 'common-lisp-indent-function)

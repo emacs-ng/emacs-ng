@@ -1,6 +1,6 @@
 ;;; ob-lisp.el --- Babel Functions for Common Lisp   -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2022 Free Software Foundation, Inc.
 
 ;; Authors: Joel Boehland
 ;;	 Eric Schulte
@@ -33,7 +33,7 @@
 ;; Requires SLY (Sylvester the Cat's Common Lisp IDE) or SLIME
 ;; (Superior Lisp Interaction Mode for Emacs).  See:
 ;; - https://github.com/capitaomorte/sly
-;; - http://common-lisp.net/project/slime/
+;; - https://common-lisp.net/project/slime/
 
 ;;; Code:
 (require 'ob)

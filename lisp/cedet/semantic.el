@@ -1,6 +1,6 @@
 ;;; semantic.el --- Semantic buffer evaluator.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: syntax tools
@@ -271,7 +271,7 @@ a parse of the buffer.")
 (defsubst semantic-error-if-unparsed ()
   "Raise an error if current buffer was not parsed by Semantic."
   (unless semantic-new-buffer-fcn-was-run
-    (error "Buffer was not parsed by Semantic.")))
+    (error "Buffer was not parsed by Semantic")))
 
 (defsubst semantic--umatched-syntax-needs-refresh-p  ()
   "Return non-nil if the unmatched syntax cache needs a refresh.

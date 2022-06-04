@@ -1,6 +1,6 @@
 ;;; bytecomp.el --- compilation of Lisp code into byte code -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1992, 1994, 1998, 2000-2021 Free Software
+;; Copyright (C) 1985-1987, 1992, 1994, 1998, 2000-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Jamie Zawinski <jwz@lucid.com>
@@ -26,7 +26,7 @@
 
 ;;; Commentary:
 
-;; The Emacs Lisp byte compiler.  This crunches lisp source into a sort
+;; The Emacs Lisp byte compiler.  This crunches Lisp source into a sort
 ;; of p-code (`lapcode') which takes up less space and can be interpreted
 ;; faster.  [`LAP' == `Lisp Assembly Program'.]
 ;; The user entry points are byte-compile-file and byte-recompile-directory.
@@ -319,7 +319,7 @@ Elements of the list may be:
   lexical     global/dynamic variables lacking a prefix.
   lexical-dynamic
               lexically bound variable declared dynamic elsewhere
-  make-local  calls to make-variable-buffer-local that may be incorrect.
+  make-local  calls to `make-variable-buffer-local' that may be incorrect.
   mapcar      mapcar called for effect.
   constants   let-binding of, or assignment to, constants/nonvariables.
   docstrings  docstrings that are too wide (longer than
@@ -551,7 +551,7 @@ has the form (autoload . FILENAME).")
   "Alist of undefined functions to which calls have been compiled.
 Each element in the list has the form (FUNCTION POSITION . CALLS)
 where CALLS is a list whose elements are integers (indicating the
-number of arguments passed in the function call) or the constant `t'
+number of arguments passed in the function call) or the constant t
 if the function is called indirectly.
 This variable is only significant whilst compiling an entire buffer.
 Used for warnings when a function is not known to be defined or is later
@@ -915,7 +915,7 @@ CONST2 may be evaluated multiple times."
 				,bytes ,pc))
 
 (defun byte-compile-lapcode (lap)
-  "Turns lapcode into bytecode.  The lapcode is destroyed."
+  "Turn lapcode LAP into bytecode.  The lapcode is destroyed."
   ;; Lapcode modifications: changes the ID of a tag to be the tag's PC.
   (let ((pc 0)			; Program counter
 	op off			; Operation & offset
@@ -1082,7 +1082,7 @@ If STR is something like \"Buffer foo.el\", return #<buffer foo.el>
 (defconst emacs-lisp-compilation-parse-errors-filename-function
   #'emacs-lisp-compilation-file-name-or-buffer
   "The value for `compilation-parse-errors-filename-function' for when
-we go into emacs-lisp-compilation-mode.")
+we go into `emacs-lisp-compilation-mode'.")
 
 (defcustom emacs-lisp-compilation-search-path '(nil)
   "Directories to search for files named in byte-compile error messages.
@@ -1649,16 +1649,27 @@ URLs."
    (replace-regexp-in-string
     (rx (or
          ;; Ignore some URLs.
-         (seq "http" (? "s") "://" (* anychar))
+         (seq "http" (? "s") "://" (* nonl))
          ;; Ignore these `substitute-command-keys' substitutions.
          (seq "\\" (or "="
                        (seq "<" (* (not ">")) ">")
                        (seq "{" (* (not "}")) "}")))
          ;; Ignore the function signature that's stashed at the end of
          ;; the doc string (in some circumstances).
-         (seq bol "(fn (" (* nonl))))
+         (seq bol "(" (+ (any word "-/:[]&"))
+              ;; One or more arguments.
+              (+ " " (or
+                      ;; Arguments.
+                      (+ (or (syntax symbol)
+                             (any word "-/:[]&=().?^\\#'")))
+                      ;; Argument that is a list.
+                      (seq "(" (* (not ")")) ")")))
+              ")")))
     ""
-    ;; Heuristic: assume these substitutions are of some length N.
+    ;; Heuristic: We can't reliably do `subsititute-command-keys'
+    ;; substitutions, since the value of a keymap in general can't be
+    ;; known at compile time.  So instead, we assume that these
+    ;; substitutions are of some length N.
     (replace-regexp-in-string
      (rx "\\" (or (seq "[" (* (not "]")) "]")))
      (make-string byte-compile--wide-docstring-substitution-len ?x)
@@ -1678,13 +1689,6 @@ value, it will override this variable."
   "Warn if documentation string of FORM is too wide.
 It is too wide if it has any lines longer than the largest of
 `fill-column' and `byte-compile-docstring-max-column'."
-  ;; This has some limitations that it would be nice to fix:
-  ;; 1. We don't try to handle defuns.  It is somewhat tricky to get
-  ;;    it right since `defun' is a macro.  Also, some macros
-  ;;    themselves produce defuns (e.g. `define-derived-mode').
-  ;; 2. We assume that any `subsititute-command-keys' command replacement has a
-  ;;    given length.  We can't reliably do these replacements, since the value
-  ;;    of the keymaps in general can't be known at compile time.
   (when (byte-compile-warning-enabled-p 'docstrings)
     (let ((col (max byte-compile-docstring-max-column fill-column))
           kind name docs)
@@ -1695,12 +1699,10 @@ It is too wide if it has any lines longer than the largest of
          (setq kind (nth 0 form))
          (setq name (nth 1 form))
          (setq docs (nth 3 form)))
-        ;; Here is how one could add lambda's here:
-        ;; ('lambda
-        ;;   (setq kind "")   ; can't be "function", unfortunately
-        ;;   (setq docs (and (stringp (nth 2 form))
-        ;;                   (nth 2 form))))
-        )
+        ('lambda
+          (setq kind "")          ; can't be "function", unfortunately
+          (setq docs (and (stringp (nth 2 form))
+                          (nth 2 form)))))
       (when (and (consp name) (eq (car name) 'quote))
         (setq name (cadr name)))
       (setq name (if name (format " `%s'" name) ""))
@@ -1899,7 +1901,7 @@ also be compiled."
   "Non-nil to prevent byte-compiling of Emacs Lisp code.
 This is normally set in local file variables at the end of the elisp file:
 
-\;; Local Variables:\n;; no-byte-compile: t\n;; End: ") ;Backslash for compile-main.
+\;; Local Variables:\n;; no-byte-compile: t\n;; End:") ;Backslash for compile-main.
 ;;;###autoload(put 'no-byte-compile 'safe-local-variable 'booleanp)
 
 (defun byte-recompile-file (filename &optional force arg load)
@@ -2257,6 +2259,9 @@ With argument ARG, insert value in current buffer after the form."
           (push `(native-comp-speed . ,native-comp-speed) byte-native-qualities)
           (defvar native-comp-debug)
           (push `(native-comp-debug . ,native-comp-debug) byte-native-qualities)
+          (defvar native-comp-compiler-options)
+          (push `(native-comp-compiler-options . ,native-comp-compiler-options)
+                byte-native-qualities)
           (defvar native-comp-driver-options)
           (push `(native-comp-driver-options . ,native-comp-driver-options)
                 byte-native-qualities)
@@ -2805,8 +2810,8 @@ not to take responsibility for the actual compilation of the code."
           t)))))
 
 (defun byte-compile-output-as-comment (exp quoted)
-  "Print Lisp object EXP in the output file, inside a comment,
-and return the file (byte) position it will have.
+  "Print Lisp object EXP in the output file, inside a comment.
+Return the file (byte) position it will have.
 If QUOTED is non-nil, print with quoting; otherwise, print without quoting."
   (with-current-buffer byte-compile--outbuffer
     (let ((position (point)))
@@ -2927,6 +2932,8 @@ If FORM is a lambda or a macro, byte-compile it as a function."
 		   (macroexp--const-symbol-p arg t))
 	       (error "Invalid lambda variable %s" arg))
 	      ((eq arg '&rest)
+               (unless (cdr list)
+                 (error "&rest without variable name"))
 	       (when (cddr list)
 		 (error "Garbage following &rest VAR in lambda-list"))
                (when (memq (cadr list) '(&optional &rest))
@@ -3559,7 +3566,7 @@ for symbols generated by the byte compiler itself."
   "Warn if symbol VAR refers to a free variable.
 VAR must not be lexically bound.
 If optional argument ASSIGNMENT is non-nil, this is treated as an
-assignment (i.e. `setq'). "
+assignment (i.e. `setq')."
   (unless (or (not (byte-compile-warning-enabled-p 'free-vars var))
               (boundp var)
               (memq var byte-compile-bound-variables)
@@ -4207,6 +4214,7 @@ discarding."
 (byte-defop-compiler-1 funcall)
 (byte-defop-compiler-1 let)
 (byte-defop-compiler-1 let* byte-compile-let)
+(byte-defop-compiler-1 ignore)
 
 (defun byte-compile-progn (form)
   (byte-compile-body-do-effect (cdr form)))
@@ -4221,6 +4229,11 @@ discarding."
 	(if ,discard 'byte-goto-if-not-nil 'byte-goto-if-not-nil-else-pop)
       (if ,discard 'byte-goto-if-nil 'byte-goto-if-nil-else-pop))
     ,tag))
+
+(defun byte-compile-ignore (form)
+  (dolist (arg (cdr form))
+    (byte-compile-form arg t))
+  (byte-compile-form nil))
 
 ;; Return the list of items in CONDITION-PARAM that match PRED-LIST.
 ;; Only return items that are not in ONLY-IF-NOT-PRESENT.
@@ -4326,7 +4339,7 @@ that suppresses all warnings during execution of BODY."
    (and (symbolp obj2) (macroexp-const-p obj1) (cons obj2 (eval obj1)))))
 
 (defun byte-compile--common-test (test-1 test-2)
-  "Most specific common test of `eq', `eql' and `equal'"
+  "Most specific common test of `eq', `eql' and `equal'."
   (cond ((or (eq test-1 'equal) (eq test-2 'equal)) 'equal)
         ((or (eq test-1 'eql)   (eq test-2 'eql))   'eql)
         (t                                          'eq)))
@@ -4408,7 +4421,7 @@ Return (TAIL VAR TEST CASES), where:
          (cases (nth 2 switch))
          jump-table test-objects body tag default-tag)
     ;; TODO: Once :linear-search is implemented for `make-hash-table'
-    ;; set it to `t' for cond forms with a small number of cases.
+    ;; set it to t for cond forms with a small number of cases.
     (let ((nvalues (apply #'+ (mapcar (lambda (case) (length (car case)))
                                       cases))))
       (setq jump-table (make-hash-table
@@ -4437,7 +4450,7 @@ Return (TAIL VAR TEST CASES), where:
     (byte-compile-out 'byte-switch)
 
     ;; When the opcode argument is `byte-goto', `byte-compile-goto' sets
-    ;; `byte-compile-depth' to `nil'. However, we need `byte-compile-depth'
+    ;; `byte-compile-depth' to nil. However, we need `byte-compile-depth'
     ;; to be non-nil for generating tags for all cases. Since
     ;; `byte-compile-depth' will increase by at most 1 after compiling
     ;; all of the clause (which is further enforced by cl-assert below)

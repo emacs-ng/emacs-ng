@@ -1,6 +1,6 @@
 ;;; sieve.el --- Utilities to manage sieve scripts  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Simon Josefsson <simon@josefsson.org>
 
@@ -224,7 +224,7 @@ require \"fileinto\";
              (substitute-command-keys "\\[sieve-upload]"))))
 
 (defmacro sieve-change-region (&rest body)
-  "Turns off sieve-region before executing BODY, then re-enables it after.
+  "Turn off sieve-region before executing BODY, then re-enables it after.
 Used to bracket operations which move point in the sieve-buffer."
   (declare (indent 0) (debug t))
   `(progn

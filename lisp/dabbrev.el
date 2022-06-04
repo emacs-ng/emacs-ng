@@ -1,6 +1,6 @@
 ;;; dabbrev.el --- dynamic abbreviation package  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994, 1996-1997, 2000-2021 Free
+;; Copyright (C) 1985-1986, 1992, 1994, 1996-1997, 2000-2022 Free
 ;; Software Foundation, Inc.
 
 ;; Author: Don Morrison
@@ -568,8 +568,7 @@ See also `dabbrev-abbrev-char-regexp' and \\[dabbrev-completion]."
 	major-mode)))
 
 (defun dabbrev--goto-start-of-abbrev ()
-  "Back over all abbrev type characters and then moves forward over
-all skip characters."
+  "Back over all abbrev type characters then move forward over all skip characters."
   ;; Move backwards over abbrev chars
   (save-match-data
     (when (> (point) (minibuffer-prompt-end))

@@ -1,6 +1,6 @@
 ;;; tramp.el --- Transparent Remote Access, Multiple Protocol  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2022 Free Software Foundation, Inc.
 
 ;; Author: Kai Großjohann <kai.grossjohann@gmx.net>
 ;;         Michael Albinus <michael.albinus@gmx.de>
@@ -183,9 +183,9 @@ See the variable `tramp-encoding-shell' for more information."
   :version "24.1"
   :type '(choice (const nil) string))
 
-;; Since Emacs 26.1, `system-name' can return `nil' at build time if
+;; Since Emacs 26.1, `system-name' can return nil at build time if
 ;; Emacs is compiled with "--no-build-details".  We do expect it to be
-;; a string.  (Bug#44481)
+;; a string.  (Bug#44481, Bug#54294)
 (defconst tramp-system-name (or (system-name) "")
   "The system name Tramp is running locally.")
 
@@ -254,6 +254,8 @@ pair of the form (KEY VALUE).  The following KEYs are defined:
       options for the first hop.
     - \"%n\" expands to \"2>/dev/null\".
     - \"%x\" is replaced by the `tramp-scp-strict-file-name-checking'
+      argument if it is supported.
+    - \"%y\" is replaced by the `tramp-scp-force-scp-protocol'
       argument if it is supported.
 
     The existence of `tramp-login-args', combined with the
@@ -861,7 +863,7 @@ Used in `tramp-make-tramp-file-name'.")
 
 (defvar tramp-prefix-regexp nil ;Initialized when defining `tramp-syntax'!
   "Regexp matching the very beginning of Tramp file names.
-Should always start with \"^\". Derived from `tramp-prefix-format'.")
+Should always start with \"^\".  Derived from `tramp-prefix-format'.")
 
 (defconst tramp-method-regexp-alist
   '((default    . "[[:alnum:]-]+")
@@ -1304,7 +1306,7 @@ let-bind this variable."
 ;; "getconf PATH" yields:
 ;; HP-UX: /usr/bin:/usr/ccs/bin:/opt/ansic/bin:/opt/langtools/bin:/opt/fortran/bin
 ;; Solaris: /usr/xpg4/bin:/usr/ccs/bin:/usr/bin:/opt/SUNWspro/bin
-;; GNU/Linux (Debian, Suse, RHEL): /bin:/usr/bin
+;; GNU/Linux (Debian, Suse, RHEL, Cygwin, MINGW64): /bin:/usr/bin
 ;; FreeBSD, DragonFly: /usr/bin:/bin:/usr/sbin:/sbin: - beware trailing ":"!
 ;; FreeBSD 12.1, Darwin: /usr/bin:/bin:/usr/sbin:/sbin
 ;; IRIX64: /usr/bin
@@ -1326,9 +1328,9 @@ tilde expansion, all directory names starting with \"~\" will be ignored.
 the command \"getconf PATH\".  It is recommended to use this
 entry on head of this list, because these are the default
 directories for POSIX compatible commands.  On remote hosts which
-do not offer the getconf command (like cygwin), the value
-\"/bin:/usr/bin\" is used instead.  This entry is represented in
-the list by the special value `tramp-default-remote-path'.
+do not offer the getconf command, the value \"/bin:/usr/bin\" is
+used instead.  This entry is represented in the list by the
+special value `tramp-default-remote-path'.
 
 `Private Directories' are the settings of the $PATH environment,
 as given in your `~/.profile'.  This entry is represented in
@@ -1409,8 +1411,11 @@ calling HANDLER.")
 ;; internal data structure.  Convenience functions for internal
 ;; data structure.
 
-;; The basic structure for remote file names.  We use a list :type,
-;; in order to be compatible with Emacs 25.
+;; The basic structure for remote file names.  We use a list :type, in
+;; order to be compatible with Emacs 25.  We must autoload it in
+;; tramp-loaddefs.el, because some functions, which need it, wouldn't
+;; work otherwise when unloading / reloading Tramp.  (Bug#50869)
+;;;###tramp-autoload
 (cl-defstruct (tramp-file-name (:type list) :named)
   method user domain host port localname hop)
 
@@ -1450,16 +1455,24 @@ If nil, return `tramp-default-port'."
 
 (put #'tramp-file-name-port-or-default 'tramp-suppress-trace t)
 
+(defun tramp-file-name-unify (vec)
+  "Unify VEC by removing localname and hop from `tramp-file-name' structure.
+Objects returned by this function compare `equal' if they refer to the
+same connection.  Make a copy in order to avoid side effects."
+  (when (tramp-file-name-p vec)
+    (setq vec (copy-tramp-file-name vec))
+    (setf (tramp-file-name-localname vec) nil
+	  (tramp-file-name-hop vec) nil))
+  vec)
+
+(put #'tramp-file-name-unify 'tramp-suppress-trace t)
+
 ;; Comparison of file names is performed by `tramp-equal-remote'.
 (defun tramp-file-name-equal-p (vec1 vec2)
   "Check, whether VEC1 and VEC2 denote the same `tramp-file-name'."
   (and (tramp-file-name-p vec1) (tramp-file-name-p vec2)
-       (string-equal (tramp-file-name-method vec1)
-		     (tramp-file-name-method vec2))
-       (string-equal (tramp-file-name-user-domain vec1)
-		     (tramp-file-name-user-domain vec2))
-       (string-equal (tramp-file-name-host-port vec1)
-		     (tramp-file-name-host-port vec2))))
+       (equal (tramp-file-name-unify vec1)
+	      (tramp-file-name-unify vec2))))
 
 (defun tramp-get-method-parameter (vec param)
   "Return the method parameter PARAM.
@@ -1750,6 +1763,9 @@ the form (METHOD USER DOMAIN HOST PORT LOCALNAME &optional HOP)."
 	    tramp-postfix-host-format
 	    localname)))
 
+(set-advertised-calling-convention
+ #'tramp-make-tramp-file-name '(vec &optional localname hop) "27.1")
+
 (defun tramp-make-tramp-hop-name (vec)
   "Construct a Tramp hop name from VEC."
   (replace-regexp-in-string
@@ -1899,7 +1915,7 @@ The outline level is equal to the verbosity of the Tramp message."
       ;; `(custom-declare-variable outline-minor-mode-prefix ...)'
       ;; raises on error in `(outline-mode)', we don't want to see it
       ;; in the traces.
-      (let ((default-directory (tramp-compat-temporary-file-directory)))
+      (let ((default-directory tramp-compat-temporary-file-directory))
 	(outline-mode))
       (setq-local outline-level 'tramp-debug-outline-level)
       (setq-local font-lock-keywords
@@ -1918,7 +1934,7 @@ The outline level is equal to the verbosity of the Tramp message."
   "Get the debug file name for VEC."
   (expand-file-name
    (tramp-compat-string-replace "/" " " (tramp-debug-buffer-name vec))
-   (tramp-compat-temporary-file-directory)))
+   tramp-compat-temporary-file-directory))
 
 (put #'tramp-get-debug-file-name 'tramp-suppress-trace t)
 
@@ -1929,7 +1945,7 @@ The outline level is equal to the verbosity of the Tramp message."
 (put #'tramp-trace-buffer-name 'tramp-suppress-trace t)
 
 (defvar tramp-trace-functions nil
-  "A list of non-Tramp functions to be traced with tramp-verbose > 10.")
+  "A list of non-Tramp functions to be traced with `tramp-verbose' > 10.")
 
 (defun tramp-debug-message (vec fmt-string &rest arguments)
   "Append message to debug buffer of VEC.
@@ -1960,7 +1976,8 @@ ARGUMENTS to actually emit the message (if applicable)."
 	    (dolist
 		(elt
 		 (append
-		  (mapcar #'intern (all-completions "tramp-" obarray 'functionp))
+		  (mapcar
+		   #'intern (all-completions "tramp-" obarray #'functionp))
 		  tramp-trace-functions))
 	      (unless (get elt 'tramp-suppress-trace)
 		(trace-function-background elt))))
@@ -2078,8 +2095,7 @@ VEC-OR-PROC identifies the connection to use, SIGNAL is the
 signal identifier to be raised, remaining arguments passed to
 `tramp-message'.  Finally, signal SIGNAL is raised with
 FMT-STRING and ARGUMENTS."
-  (let ((inhibit-message t)
-	signal-hook-function)
+  (let (signal-hook-function)
     (tramp-backtrace vec-or-proc)
     (unless arguments
       ;; FMT-STRING could be just a file name, as in
@@ -2175,10 +2191,14 @@ the resulting error message."
 
 (defun tramp-test-message (fmt-string &rest arguments)
   "Emit a Tramp message according `default-directory'."
-  (if (tramp-tramp-file-p default-directory)
-      (apply #'tramp-message
-	     (tramp-dissect-file-name default-directory) 0 fmt-string arguments)
-    (apply #'message fmt-string arguments)))
+  (cond
+   ((tramp-tramp-file-p default-directory)
+    (apply #'tramp-message
+	   (tramp-dissect-file-name default-directory) 0 fmt-string arguments))
+   ((tramp-file-name-p (car tramp-current-connection))
+    (apply #'tramp-message
+	   (car tramp-current-connection) 0 fmt-string arguments))
+   (t (apply #'message fmt-string arguments))))
 
 (put #'tramp-test-message 'tramp-suppress-trace t)
 
@@ -2189,9 +2209,10 @@ the resulting error message."
   ;; `custom-initialize-*' functions provoke `void-variable' errors.
   ;; We don't want to see them in the backtrace.
   (unless (eq error-symbol 'void-variable)
-    (tramp-error
-     (car tramp-current-connection) error-symbol
-     (mapconcat (lambda (x) (format "%s" x)) data " "))))
+    (let ((inhibit-message t))
+      (tramp-error
+       (car tramp-current-connection) error-symbol
+       (mapconcat (lambda (x) (format "%s" x)) data " ")))))
 
 (put #'tramp-signal-hook-function 'tramp-suppress-trace t)
 
@@ -2379,7 +2400,7 @@ For definition of that list see `tramp-set-completion-function'."
 
 ;; Inodes don't exist for some file systems.  Therefore we must
 ;; generate virtual ones.  Used in `find-buffer-visiting'.  The method
-;; applied might be not so efficient (Ange-FTP uses hashes). But
+;; applied might be not so efficient (Ange-FTP uses hashes).  But
 ;; performance isn't the major issue given that file transfer will
 ;; take time.
 (defvar tramp-inodes 0
@@ -2481,6 +2502,8 @@ Must be handled by the callers."
 	      file-system-info
 	      ;; Emacs 28+ only.
 	      file-locked-p lock-file make-lock-file-name unlock-file
+	      ;; Emacs 29+ only.
+	      abbreviate-file-name
 	      ;; Tramp internal magic file name function.
 	      tramp-set-file-uid-gid))
     (if (file-name-absolute-p (nth 0 args))
@@ -2586,7 +2609,7 @@ Fall back to normal file name handler if no Tramp file name handler exists."
                           ;; the bug#9114 for which it was added doesn't
                           ;; clarify the core of the problem.
 			  (let ((default-directory
-				  (tramp-compat-temporary-file-directory))
+                                  tramp-compat-temporary-file-directory)
 			        file-name-handler-alist)
 			    (autoload-do-load sf foreign)))
                         ;; (tramp-message
@@ -2662,17 +2685,21 @@ Falls back to normal file name handler if no Tramp file name handler exists."
       (load "tramp" 'noerror 'nomessage)))
   (apply operation args)))
 
+(put #'tramp-autoload-file-name-handler 'tramp-autoload t)
+
 ;; `tramp-autoload-file-name-handler' must be registered before
 ;; evaluation of site-start and init files, because there might exist
 ;; remote files already, f.e. files kept via recentf-mode.
 ;;;###autoload
 (progn (defun tramp-register-autoload-file-name-handlers ()
   "Add Tramp file name handlers to `file-name-handler-alist' during autoload."
-  (add-to-list 'file-name-handler-alist
-	       (cons tramp-autoload-file-name-regexp
-		     #'tramp-autoload-file-name-handler))
-  (put #'tramp-autoload-file-name-handler 'safe-magic t)))
+  (unless (rassq #'tramp-file-name-handler file-name-handler-alist)
+    (add-to-list 'file-name-handler-alist
+	         (cons tramp-autoload-file-name-regexp
+		       #'tramp-autoload-file-name-handler))
+    (put #'tramp-autoload-file-name-handler 'safe-magic t))))
 
+(put #'tramp-register-autoload-file-name-handlers 'tramp-autoload t)
 ;;;###autoload (tramp-register-autoload-file-name-handlers)
 
 (defun tramp-use-absolute-autoload-file-names ()
@@ -2785,6 +2812,7 @@ Add operations defined in `HANDLER-alist' to `tramp-file-name-handler'."
 	       (string-prefix-p "tramp-" (symbol-name (cdr fnh))))
       (setq file-name-handler-alist (delq fnh file-name-handler-alist))))))
 
+(put #'tramp-unload-file-name-handlers 'tramp-autoload t)
 (add-hook 'tramp-unload-hook #'tramp-unload-file-name-handlers)
 
 ;;; File name handler functions for completion mode:
@@ -2821,6 +2849,15 @@ not in completion mode."
   "Like `file-name-all-completions' for partial Tramp files."
   (let ((fullname
 	 (tramp-drop-volume-letter (expand-file-name filename directory)))
+	;; When `tramp-syntax' is `simplified', we need a default method.
+	(tramp-default-method
+	 (and (zerop (length tramp-postfix-method-format))
+	      tramp-default-method))
+	(tramp-default-method-alist
+	 (and (zerop (length tramp-postfix-method-format))
+	      tramp-default-method-alist))
+	tramp-default-user tramp-default-user-alist
+	tramp-default-host tramp-default-host-alist
 	hop result result1)
 
     ;; Suppress hop from completion.
@@ -2899,7 +2936,7 @@ not in completion mode."
 ;; I misuse a little bit the `tramp-file-name' structure in order to
 ;; handle completion possibilities for partial methods / user names /
 ;; host names.  Return value is a list of `tramp-file-name' structures
-;; according to possible completions. If "localname" is non-nil it
+;; according to possible completions.  If "localname" is non-nil it
 ;; means there shouldn't be a completion anymore.
 
 ;; Expected results:
@@ -3006,7 +3043,7 @@ remote host and localname (filename on remote host)."
   "Return all method completions for PARTIAL-METHOD."
   (mapcar
    (lambda (method)
-     (and method (string-prefix-p partial-method method)
+     (and method (string-prefix-p (or partial-method "") method)
 	  (tramp-completion-make-tramp-file-name method nil nil nil)))
    (mapcar #'car tramp-methods)))
 
@@ -3081,7 +3118,7 @@ User is always nil."
 User is always nil."
   ;; On Windows, there are problems in completion when
   ;; `default-directory' is remote.
-  (let ((default-directory (tramp-compat-temporary-file-directory)))
+  (let ((default-directory tramp-compat-temporary-file-directory))
     (when (file-readable-p filename)
       (with-temp-buffer
 	(insert-file-contents-literally filename)
@@ -3135,7 +3172,7 @@ User is always nil."
 User is always nil."
   ;; On Windows, there are problems in completion when
   ;; `default-directory' is remote.
-  (let* ((default-directory (tramp-compat-temporary-file-directory))
+  (let* ((default-directory tramp-compat-temporary-file-directory)
 	 (files (and (file-directory-p dirname) (directory-files dirname))))
     (cl-loop
      for f in files
@@ -3257,10 +3294,18 @@ User is always nil."
 
 (defun tramp-handle-access-file (filename string)
   "Like `access-file' for Tramp files."
-  (unless (file-readable-p (file-truename filename))
-    (tramp-compat-file-missing
-     (tramp-dissect-file-name filename)
-     (format "%s: %s" string filename))))
+  (setq filename (file-truename filename))
+  (with-parsed-tramp-file-name filename v
+    (if (file-exists-p filename)
+	(unless
+	    (funcall
+	     (if (file-directory-p filename)
+		 #'file-accessible-directory-p #'file-readable-p)
+	     filename)
+	  (tramp-error
+	   v 'file-error (format "%s: Permission denied, %s" string filename)))
+      (tramp-compat-file-missing
+       v (format "%s: No such file or directory, %s" string filename)))))
 
 (defun tramp-handle-add-name-to-file
   (filename newname &optional ok-if-already-exists)
@@ -3279,7 +3324,7 @@ User is always nil."
 	      (and (numberp ok-if-already-exists)
 		   (not (yes-or-no-p
 			 (format
-			  "File %s already exists; make it a link anyway? "
+			  "File %s already exists; make it a link anyway?"
 			  localname)))))
 	  (tramp-error v 'file-already-exists newname)
 	(delete-file newname)))
@@ -3347,6 +3392,10 @@ User is always nil."
       (if (file-directory-p dir) dir (file-name-directory dir)) nil
     (tramp-flush-directory-properties v localname)))
 
+(defvar tramp-tolerate-tilde nil
+  "Indicator, that not expandable tilde shall be tolerated.
+Let-bind it when necessary.")
+
 (defun tramp-handle-expand-file-name (name &optional dir)
   "Like `expand-file-name' for Tramp files."
   ;; If DIR is not given, use DEFAULT-DIRECTORY or "/".
@@ -3363,16 +3412,22 @@ User is always nil."
     (with-parsed-tramp-file-name name nil
       (unless (tramp-run-real-handler #'file-name-absolute-p (list localname))
 	(setq localname (concat "/" localname)))
+      ;; Tilde expansion is not possible.
+      (when (and (not tramp-tolerate-tilde)
+		 (string-match-p "\\`\\(~[^/]*\\)\\(.*\\)\\'" localname))
+	(tramp-error v 'file-error "Cannot expand tilde in file `%s'" name))
       ;; Do not keep "/..".
       (when (string-match-p "^/\\.\\.?$" localname)
 	(setq localname "/"))
       ;; Do normal `expand-file-name' (this does "/./" and "/../").
       ;; `default-directory' is bound, because on Windows there would
       ;; be problems with UNC shares or Cygwin mounts.
-      (let ((default-directory (tramp-compat-temporary-file-directory)))
+      (let ((default-directory tramp-compat-temporary-file-directory))
 	(tramp-make-tramp-file-name
 	 v (tramp-drop-volume-letter
-	    (tramp-run-real-handler #'expand-file-name (list localname))))))))
+	    (if (string-match-p "\\`\\(~[^/]*\\)\\(.*\\)\\'" localname)
+		localname
+	      (tramp-run-real-handler #'expand-file-name (list localname)))))))))
 
 (defun tramp-handle-file-accessible-directory-p (filename)
   "Like `file-accessible-directory-p' for Tramp files."
@@ -3454,7 +3509,7 @@ User is always nil."
     (or ;; Maybe there is a default value.
      (tramp-get-method-parameter v 'tramp-case-insensitive)
 
-     ;; There isn't. So we must check, in case there's a connection already.
+     ;; There isn't.  So we must check, in case there's a connection already.
      (and (file-remote-p filename nil 'connected)
           (with-tramp-connection-property v "case-insensitive"
 	    (ignore-errors
@@ -3549,6 +3604,17 @@ User is always nil."
        (tramp-compat-file-attribute-modification-time (file-attributes file2))
        (tramp-compat-file-attribute-modification-time
 	(file-attributes file1))))))
+
+(defun tramp-handle-file-readable-p (filename)
+  "Like `file-readable-p' for Tramp files."
+  (with-parsed-tramp-file-name filename nil
+    (with-tramp-file-property v localname "file-readable-p"
+      (or (tramp-check-cached-permissions v ?r)
+	  ;; `tramp-check-cached-permissions' doesn't handle symbolic
+	  ;; links.
+	  (when-let ((symlink (file-symlink-p filename)))
+	    (and (stringp symlink)
+		 (file-readable-p (concat (file-remote-p filename) symlink))))))))
 
 (defun tramp-handle-file-regular-p (filename)
   "Like `file-regular-p' for Tramp files."
@@ -3685,7 +3751,7 @@ User is always nil."
 			  (yes-or-no-p
 			   (concat
 			    "Backup file on local temporary directory, "
-			    "do you want to continue? ")))))
+			    "do you want to continue?")))))
 	  (tramp-error v 'file-error "Unsafe backup file name"))))))
 
 (defun tramp-handle-insert-directory
@@ -3733,7 +3799,8 @@ User is always nil."
     (with-parsed-tramp-file-name filename nil
       (unwind-protect
 	  (if (not (file-exists-p filename))
-	      (tramp-compat-file-missing v filename)
+              (let ((tramp-verbose (if visit 0 tramp-verbose)))
+	        (tramp-compat-file-missing v filename))
 
 	    (with-tramp-progress-reporter
 		v 3 (format-message "Inserting `%s'" filename)
@@ -3835,7 +3902,7 @@ User is always nil."
 	  (delete-file (tramp-make-tramp-file-name v remote-copy 'nohop))))
 
       ;; Result.
-      (cons (expand-file-name filename) (cdr result)))))
+      (cons filename (cdr result)))))
 
 (defun tramp-get-lock-file (file)
   "Read lockfile info of FILE.
@@ -3847,16 +3914,19 @@ Return nil when there is no lockfile."
 	       (insert-file-contents-literally lockname)
 	       (buffer-string))))))
 
+(defvar tramp-lock-pid nil
+  "A random nunber local for every connection.
+Do not set it manually, it is used buffer-local in `tramp-get-lock-pid'.")
+
 (defun tramp-get-lock-pid (file)
   "Determine pid for lockfile of FILE."
-  ;; Some Tramp methods do not offer a connection process, but just a
-  ;; network process as a place holder.  Those processes use the
-  ;; "lock-pid" connection property as fake pid, in fact it is the
-  ;; time stamp the process is created.
-  (let ((p (tramp-get-process  (tramp-dissect-file-name file))))
-    (number-to-string
-     (or (process-id p)
-	 (tramp-get-connection-property p "lock-pid" (emacs-pid))))))
+  ;; Not all Tramp methods use an own process.  So we use a random
+  ;; number, which is as good as a process id.
+  (with-current-buffer
+      (tramp-get-connection-buffer (tramp-dissect-file-name file))
+    (or tramp-lock-pid
+	(setq-local
+	 tramp-lock-pid (number-to-string (random most-positive-fixnum))))))
 
 (defconst tramp-lock-file-info-regexp
   ;; USER@HOST.PID[:BOOT_TIME]
@@ -3867,9 +3937,11 @@ Return nil when there is no lockfile."
   "Like `file-locked-p' for Tramp files."
   (when-let ((info (tramp-get-lock-file file))
 	     (match (string-match tramp-lock-file-info-regexp info)))
-    (or (and (string-equal (match-string 1 info) (user-login-name))
-	     (string-equal (match-string 2 info) (system-name))
+    (or ; Locked by me.
+        (and (string-equal (match-string 1 info) (user-login-name))
+	     (string-equal (match-string 2 info) tramp-system-name)
 	     (string-equal (match-string 3 info) (tramp-get-lock-pid file)))
+	; User name.
 	(match-string 1 info))))
 
 (defun tramp-handle-lock-file (file)
@@ -3878,6 +3950,14 @@ Return nil when there is no lockfile."
   ;; was visited.
   (catch 'dont-lock
     (unless (eq (file-locked-p file) t) ;; Locked by me.
+      (when (and buffer-file-truename
+		 (not (verify-visited-file-modtime))
+		 (file-exists-p file))
+	;; In filelock.c, `userlock--ask-user-about-supersession-threat'
+	;; is called, which also checks file contents.  This is unwise
+	;; for remote files.
+	(ask-user-about-supersession-threat file))
+
       (when-let ((info (tramp-get-lock-file file))
 		 (match (string-match tramp-lock-file-info-regexp info)))
 	(unless (ask-user-about-lock
@@ -3890,7 +3970,7 @@ Return nil when there is no lockfile."
 	         ;; USER@HOST.PID[:BOOT_TIME]
 	         (info
 	          (format
-	           "%s@%s.%s" (user-login-name) (system-name)
+	           "%s@%s.%s" (user-login-name) tramp-system-name
 	           (tramp-get-lock-pid file))))
 
 	;; Protect against security hole.
@@ -3906,11 +3986,12 @@ Return nil when there is no lockfile."
 			    (yes-or-no-p
 			     (concat
 			      "Lock file on local temporary directory, "
-			      "do you want to continue? ")))))
+			      "do you want to continue?")))))
 	    (tramp-error v 'file-error "Unsafe lock file name")))
 
 	;; Do the lock.
-        (let (create-lockfiles signal-hook-function)
+        (let ((tramp-verbose 0)
+              create-lockfiles signal-hook-function)
 	  (condition-case nil
 	      (make-symbolic-link info lockname 'ok-if-already-exists)
 	    (error
@@ -4094,7 +4175,7 @@ substitution.  SPEC-LIST is a list of char/value pairs used for
   "An alternative `make-process' implementation for Tramp files."
   (when args
     (with-parsed-tramp-file-name (expand-file-name default-directory) nil
-      (let ((default-directory (tramp-compat-temporary-file-directory))
+      (let ((default-directory tramp-compat-temporary-file-directory)
 	    (name (plist-get args :name))
 	    (buffer (plist-get args :buffer))
 	    (command (plist-get args :command))
@@ -4107,8 +4188,8 @@ substitution.  SPEC-LIST is a list of char/value pairs used for
 	    (stderr (plist-get args :stderr)))
 	(unless (stringp name)
 	  (signal 'wrong-type-argument (list #'stringp name)))
-	(unless (or (null buffer) (bufferp buffer) (stringp buffer))
-	  (signal 'wrong-type-argument (list #'stringp buffer)))
+	(unless (or (bufferp buffer) (string-or-null-p buffer))
+	  (signal 'wrong-type-argument (list #'bufferp buffer)))
 	(unless (consp command)
 	  (signal 'wrong-type-argument (list #'consp command)))
 	(unless (or (null coding)
@@ -4121,7 +4202,7 @@ substitution.  SPEC-LIST is a list of char/value pairs used for
 	  (setq connection-type 'pty))
 	(unless (memq connection-type '(nil pipe pty))
 	  (signal 'wrong-type-argument (list #'symbolp connection-type)))
-	(unless (or (null filter) (functionp filter))
+	(unless (or (null filter) (eq filter t) (functionp filter))
 	  (signal 'wrong-type-argument (list #'functionp filter)))
 	(unless (or (null sentinel) (functionp sentinel))
 	  (signal 'wrong-type-argument (list #'functionp sentinel)))
@@ -4154,7 +4235,9 @@ substitution.  SPEC-LIST is a list of char/value pairs used for
 	       (command (mapconcat #'tramp-shell-quote-argument command " "))
 	       ;; Set cwd and environment variables.
 	       (command
-	        (append `("cd" ,localname "&&" "(" "env") env `(,command ")"))))
+	        (append
+		 `("cd" ,(tramp-shell-quote-argument localname) "&&" "(" "env")
+		 env `(,command ")"))))
 
 	  ;; Check for `tramp-sh-file-name-handler', because something
 	  ;; is different between tramp-sh.el, and tramp-adb.el or
@@ -4200,7 +4283,12 @@ substitution.  SPEC-LIST is a list of char/value pairs used for
 		:name name :buffer buffer
 		:command (append `(,login-program) login-args command)
 		:coding coding :noquery noquery :connection-type connection-type
-		:filter filter :sentinel sentinel :stderr stderr))
+		:sentinel sentinel :stderr stderr))
+	    ;; Set filter.  Prior Emacs 29.1, it doesn't work reliable
+	    ;; to provide it as `make-process' argument when filter is
+	    ;; t.  See Bug#51177.
+	    (when filter
+	      (set-process-filter p filter))
 
 	    (tramp-message v 6 "%s" (string-join (process-command p) " "))
 	    p))))))
@@ -4265,13 +4353,13 @@ support symbolic links."
        ((eq async-shell-command-buffer 'confirm-kill-process)
 	;; If will kill a process, query first.
 	(if (yes-or-no-p
-	     "A command is running in the default buffer.  Kill it? ")
+	     "A command is running in the default buffer.  Kill it?")
 	    (kill-process p)
 	  (tramp-user-error p "Shell command in progress")))
        ((eq async-shell-command-buffer 'confirm-new-buffer)
 	;; If will create a new buffer, query first.
 	(if (yes-or-no-p
-	     "A command is running in the default buffer.  Use a new buffer? ")
+	     "A command is running in the default buffer.  Use a new buffer?")
             (setq output-buffer (generate-new-buffer bname))
 	  (tramp-user-error p "Shell command in progress")))
        ((eq async-shell-command-buffer 'new-buffer)
@@ -4280,7 +4368,7 @@ support symbolic links."
        ((eq async-shell-command-buffer 'confirm-rename-buffer)
 	;; If will rename the buffer, query first.
 	(if (yes-or-no-p
-	     "A command is running in the default buffer.  Rename it? ")
+	     "A command is running in the default buffer.  Rename it?")
 	    (progn
 	      (with-current-buffer output-buffer
 		(rename-uniquely))
@@ -4415,10 +4503,7 @@ BUFFER might be a list, in this case STDERR is separated."
 			   ;; We must disable cygwin-mount file name
 			   ;; handlers and alike.
 			   (tramp-run-real-handler
-			    #'substitute-in-file-name (list localname))))))))
-      ;; "/m:h:~" does not work for completion.  We use "/m:h:~/".
-      (if (and (stringp localname) (string-equal "~" localname))
-	  (concat filename "/")
+			    #'substitute-in-file-name (list localname)))))))
 	filename))))
 
 (defconst tramp-time-dont-know '(0 0 0 1000)
@@ -4483,7 +4568,7 @@ of."
 	       (or (eq mustbenew 'excl)
 		   (not
 		    (y-or-n-p
-		     (format "File %s exists; overwrite anyway? " filename)))))
+		     (format "File %s exists; overwrite anyway?" filename)))))
       (tramp-error v 'file-already-exists filename))
 
     (let ((file-locked (eq (file-locked-p lockname) t))
@@ -4544,7 +4629,7 @@ of."
 
       ;; The end.
       (when (and (null noninteractive)
-		 (or (eq visit t) (null visit) (stringp visit)))
+		 (or (eq visit t) (string-or-null-p visit)))
 	(tramp-message v 0 "Wrote %s" filename))
       (run-hooks 'tramp-handle-write-region-hook))))
 
@@ -4610,9 +4695,8 @@ of."
   (let ((user (or (tramp-file-name-user vec)
 		  (with-tramp-connection-property vec "login-as"
 		    (save-window-excursion
-		      (let ((enable-recursive-minibuffers t))
-			(pop-to-buffer (tramp-get-connection-buffer vec))
-			(read-string (match-string 0))))))))
+		      (pop-to-buffer (tramp-get-connection-buffer vec))
+		      (read-string (match-string 0)))))))
     (with-current-buffer (tramp-get-connection-buffer vec)
       (tramp-message vec 6 "\n%s" (buffer-string)))
     (tramp-message vec 3 "Sending login name `%s'" user)
@@ -4622,8 +4706,7 @@ of."
 (defun tramp-action-password (proc vec)
   "Query the user for a password."
   (with-current-buffer (process-buffer proc)
-    (let ((enable-recursive-minibuffers t)
-	  (case-fold-search t))
+    (let ((case-fold-search t))
       ;; Let's check whether a wrong password has been sent already.
       ;; Sometimes, the process returns a new password request
       ;; immediately after rejecting the previous (wrong) one.
@@ -4654,14 +4737,13 @@ of."
 Send \"yes\" to remote process on confirmation, abort otherwise.
 See also `tramp-action-yn'."
   (save-window-excursion
-    (let ((enable-recursive-minibuffers t))
-      (pop-to-buffer (tramp-get-connection-buffer vec))
-      (unless (yes-or-no-p (match-string 0))
-	(kill-process proc)
-	(throw 'tramp-action 'permission-denied))
-      (with-current-buffer (tramp-get-connection-buffer vec)
-	(tramp-message vec 6 "\n%s" (buffer-string)))
-      (tramp-send-string vec (concat "yes" tramp-local-end-of-line))))
+    (pop-to-buffer (tramp-get-connection-buffer vec))
+    (unless (yes-or-no-p (match-string 0))
+      (kill-process proc)
+      (throw 'tramp-action 'permission-denied))
+    (with-current-buffer (tramp-get-connection-buffer vec)
+      (tramp-message vec 6 "\n%s" (buffer-string)))
+    (tramp-send-string vec (concat "yes" tramp-local-end-of-line)))
   t)
 
 (defun tramp-action-yn (proc vec)
@@ -4669,14 +4751,13 @@ See also `tramp-action-yn'."
 Send \"y\" to remote process on confirmation, abort otherwise.
 See also `tramp-action-yesno'."
   (save-window-excursion
-    (let ((enable-recursive-minibuffers t))
-      (pop-to-buffer (tramp-get-connection-buffer vec))
-      (unless (y-or-n-p (match-string 0))
-	(kill-process proc)
-	(throw 'tramp-action 'permission-denied))
-      (with-current-buffer (tramp-get-connection-buffer vec)
-	(tramp-message vec 6 "\n%s" (buffer-string)))
-      (tramp-send-string vec (concat "y" tramp-local-end-of-line))))
+    (pop-to-buffer (tramp-get-connection-buffer vec))
+    (unless (y-or-n-p (match-string 0))
+      (kill-process proc)
+      (throw 'tramp-action 'permission-denied))
+    (with-current-buffer (tramp-get-connection-buffer vec)
+      (tramp-message vec 6 "\n%s" (buffer-string)))
+    (tramp-send-string vec (concat "y" tramp-local-end-of-line)))
   t)
 
 (defun tramp-action-terminal (_proc vec)
@@ -4810,7 +4891,8 @@ performed successfully.  Any other value means an error."
   (save-restriction
     (with-tramp-progress-reporter
 	proc 3 "Waiting for prompts from remote shell"
-      (let (exit)
+      (let ((enable-recursive-minibuffers t)
+	    exit)
 	(if timeout
 	    (with-timeout (timeout (setq exit 'timeout))
 	      (while (not exit)
@@ -4825,8 +4907,9 @@ performed successfully.  Any other value means an error."
 	  (tramp-message vec 6 "\n%s" (buffer-string)))
 	(if (eq exit 'ok)
 	    (ignore-errors
-	      (and (functionp tramp-password-save-function)
-		   (funcall tramp-password-save-function)))
+	      (when (functionp tramp-password-save-function)
+		(funcall tramp-password-save-function)
+                (setq tramp-password-save-function nil)))
 	  ;; Not successful.
 	  (tramp-clear-passwd vec)
 	  (delete-process proc)
@@ -5264,7 +5347,8 @@ be granted."
         (offset (cond
                  ((eq ?r access) 1)
                  ((eq ?w access) 2)
-                 ((eq ?x access) 3))))
+                 ((eq ?x access) 3)
+                 ((eq ?s access) 3))))
     (dolist (suffix '("string" "integer") result)
       (setq
        result
@@ -5297,7 +5381,8 @@ be granted."
             (and
              (eq access
 		 (aref (tramp-compat-file-attribute-modes file-attr) offset))
-	     (or (equal remote-uid
+	     (or (equal remote-uid unknown-id)
+		 (equal remote-uid
 			(tramp-compat-file-attribute-user-id file-attr))
 		 (equal unknown-id
 			(tramp-compat-file-attribute-user-id file-attr))))
@@ -5306,7 +5391,8 @@ be granted."
              (eq access
 		 (aref (tramp-compat-file-attribute-modes file-attr)
 		       (+ offset 3)))
-             (or (equal remote-gid
+             (or (equal remote-gid unknown-id)
+		 (equal remote-gid
 			(tramp-compat-file-attribute-group-id file-attr))
 		 (equal unknown-id
 			(tramp-compat-file-attribute-group-id
@@ -5357,7 +5443,7 @@ This handles also chrooted environments, which are not regarded as local."
      ;; The local temp directory must be writable for the other user.
      (file-writable-p
       (tramp-make-tramp-file-name
-       vec (tramp-compat-temporary-file-directory) 'nohop))
+       vec tramp-compat-temporary-file-directory 'nohop))
      ;; On some systems, chown runs only for root.
      (or (zerop (user-uid))
 	 (zerop (tramp-get-remote-uid vec 'integer))))))
@@ -5419,7 +5505,8 @@ this file, if that variable is non-nil."
     ;; Create directory.
     (unless (or (null tramp-auto-save-directory)
 		(file-exists-p tramp-auto-save-directory))
-      (make-directory tramp-auto-save-directory t))
+      (with-file-modes #o0700
+        (make-directory tramp-auto-save-directory t)))
 
     (let ((system-type
 	   (if (and (stringp tramp-auto-save-directory)
@@ -5458,7 +5545,7 @@ this file, if that variable is non-nil."
 			  (yes-or-no-p
 			   (concat
 			    "Autosave file on local temporary directory, "
-			    "do you want to continue? ")))))
+			    "do you want to continue?")))))
 	  (tramp-error v 'file-error "Unsafe autosave file name"))))))
 
 (defun tramp-subst-strs-in-string (alist string)
@@ -5498,7 +5585,7 @@ ALIST is of the form ((FROM . TO) ...)."
 It always returns a return code.  The Lisp error raised when
 PROGRAM is nil is trapped also, returning 1.  Furthermore, traces
 are written with verbosity of 6."
-  (let ((default-directory (tramp-compat-temporary-file-directory))
+  (let ((default-directory tramp-compat-temporary-file-directory)
 	(process-environment (default-toplevel-value 'process-environment))
 	(destination (if (eq destination t) (current-buffer) destination))
 	(vec (or vec (car tramp-current-connection)))
@@ -5532,7 +5619,7 @@ are written with verbosity of 6."
 It always returns a return code.  The Lisp error raised when
 PROGRAM is nil is trapped also, returning 1.  Furthermore, traces
 are written with verbosity of 6."
-  (let ((default-directory (tramp-compat-temporary-file-directory))
+  (let ((default-directory tramp-compat-temporary-file-directory)
 	(process-environment (default-toplevel-value 'process-environment))
 	(buffer (if (eq buffer t) (current-buffer) buffer))
 	result)
@@ -5562,7 +5649,7 @@ are written with verbosity of 6."
   "Call `process-lines' on the local host.
 If an error occurs, it returns nil.  Traces are written with
 verbosity of 6."
-  (let ((default-directory (tramp-compat-temporary-file-directory))
+  (let ((default-directory tramp-compat-temporary-file-directory)
 	(process-environment (default-toplevel-value 'process-environment))
 	(vec (or vec (car tramp-current-connection)))
 	result)
@@ -5581,15 +5668,19 @@ verbosity of 6."
   "Return t if system process PROCESS-NAME is running for `user-login-name'."
   (when (stringp process-name)
     (catch 'result
-      (dolist (pid (list-system-processes))
-	(when-let ((attributes (process-attributes pid))
-		   (comm (cdr (assoc 'comm attributes))))
-	  (and (string-equal (cdr (assoc 'user attributes)) (user-login-name))
-               ;; The returned command name could be truncated to 15
-               ;; characters.  Therefore, we cannot check for `string-equal'.
-	       (string-prefix-p comm process-name)
-	       (throw 'result t)))))))
+      (let ((default-directory temporary-file-directory))
+	(dolist (pid (list-system-processes))
+	  (when-let ((attributes (process-attributes pid))
+		     (comm (cdr (assoc 'comm attributes))))
+	    (and (string-equal (cdr (assoc 'user attributes)) (user-login-name))
+		 ;; The returned command name could be truncated to 15
+		 ;; characters.  Therefore, we cannot check for `string-equal'.
+		 (string-prefix-p comm process-name)
+		 (throw 'result t))))))))
 
+;; When calling "emacs -Q", `auth-source-search' won't be called.  If
+;; you want to debug exactly this case, call "emacs -Q --eval '(setq
+;; tramp-cache-read-persistent-data t)'" instead.
 (defun tramp-read-passwd (proc &optional prompt)
   "Read a password from user (compat function).
 Consults the auth-source package.
@@ -5598,7 +5689,7 @@ Invokes `password-read' if available, `read-passwd' else."
 	 ;; `exec-path' contains a relative file name like ".", it
 	 ;; could happen that the "gpg" command is not found.  So we
 	 ;; adapt `default-directory'.  (Bug#39389, Bug#39489)
-	 (default-directory (tramp-compat-temporary-file-directory))
+	 (default-directory tramp-compat-temporary-file-directory)
 	 (case-fold-search t)
 	 (key (tramp-make-tramp-file-name
 	       ;; In tramp-sh.el, we must use "password-vector" due to
@@ -5610,7 +5701,9 @@ Invokes `password-read' if available, `read-passwd' else."
 	  (or prompt
 	      (with-current-buffer (process-buffer proc)
 		(tramp-check-for-regexp proc tramp-password-prompt-regexp)
-		(format "%s for %s " (capitalize (match-string 1)) key))))
+		(if (string-match-p "passphrase" (match-string 1))
+		    (match-string 0)
+		  (format "%s for %s " (capitalize (match-string 1)) key)))))
 	 (auth-source-creation-prompts `((secret . ,pw-prompt)))
 	 ;; Use connection-local value.
 	 (auth-sources (with-current-buffer (process-buffer proc) auth-sources))
@@ -5664,6 +5757,10 @@ Invokes `password-read' if available, `read-passwd' else."
 	       ;; Else, get the password interactively w/o cache.
 	       (read-passwd pw-prompt))
 
+	    ;; Workaround.  Prior Emacs 28.1, auth-source has saved
+	    ;; empty passwords.  See discussion in Bug#50399.
+	    (when (zerop (length auth-passwd))
+	      (setq tramp-password-save-function nil))
 	    (tramp-set-connection-property v "first-password-request" nil)))
 
       ;; Reenable the timers.
@@ -5817,6 +5914,8 @@ BODY is the backend specific code."
   (interactive)
   ;; Maybe it's not loaded yet.
   (ignore-errors (unload-feature 'tramp 'force))))
+
+(put #'tramp-unload-tramp 'tramp-autoload t)
 
 (provide 'tramp)
 

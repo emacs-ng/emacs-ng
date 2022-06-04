@@ -1,6 +1,6 @@
 ;;; completion.el --- dynamic word-completion code  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1990-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1990-2022 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: abbrev convenience
@@ -178,7 +178,7 @@
 ;;    Inserts a completion at point
 ;;
 ;;  completion-initialize
-;;    Loads the completions file and sets up so that exiting emacs will
+;;    Loads the completions file and sets up so that exiting Emacs will
 ;;  save them.
 ;;
 ;;  save-completions-to-file &optional filename
@@ -207,7 +207,7 @@
 ;;   Add package prefix smarts (for Common Lisp)
 ;;   Add autoprompting of possible completions after every keystroke (fast
 ;;      terminals only !)
-;;   Add doc. to texinfo
+;;   Add documentation to texinfo
 ;;
 ;;
 ;;-----------------------------------------------
@@ -1088,7 +1088,8 @@ Must be called after `find-exact-completion'."
   #'completion-locate-db-error "27.1")
 (defun completion-locate-db-error ()
   ;; recursive error: really scrod
-  (error "Completion database corrupted.  Try M-x clear-all-completions.  Send bug report"))
+  (error (substitute-command-keys
+          "Completion database corrupted.  Try \\[clear-all-completions].  Send bug report")))
 
 ;; WRITES
 (defun add-completion-to-tail-if-new (string)

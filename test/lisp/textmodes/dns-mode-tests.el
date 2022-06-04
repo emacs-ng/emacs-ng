@@ -1,6 +1,6 @@
 ;;; dns-mode-tests.el --- Test suite for dns-mode  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
 
 ;; Author: Peder O. Klingenberg <peder@klingenberg.no>
 ;; Keywords: dns zone
@@ -77,3 +77,5 @@
       (insert " ")
       (dns-mode-ipv6-to-nibbles nil)
       (should (equal (buffer-string) "8.b.d.0.1.0.0.2.ip6.arpa.  ")))))
+
+;;; dns-mode-tests.el ends here

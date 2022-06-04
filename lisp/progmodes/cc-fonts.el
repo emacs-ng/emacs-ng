@@ -1,6 +1,6 @@
 ;;; cc-fonts.el --- font lock support for CC Mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2022 Free Software Foundation, Inc.
 
 ;; Authors:    2003- Alan Mackenzie
 ;;             2002- Martin Stjernholm
@@ -1765,7 +1765,7 @@ casts and declarations are fontified.  Used on level 2 and higher."
 		    (> (match-beginning 0) (point-min))
 		    (memq (c-get-char-property (1- (match-beginning 0)) 'face)
 			  '(font-lock-comment-face font-lock-string-face
-			    font-lock-comment-delimiter-face))))			   
+			    font-lock-comment-delimiter-face))))
 	(when found
 	  (setq open-delim (cons (match-beginning 1)
 				 (cons (match-end 1) (match-beginning 2)))

@@ -1,6 +1,6 @@
 ;;; byte-opt.el --- the optimization passes of the emacs-lisp byte compiler -*- lexical-binding: t -*-
 
-;; Copyright (C) 1991, 1994, 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1991, 1994, 2000-2022 Free Software Foundation, Inc.
 
 ;; Author: Jamie Zawinski <jwz@lucid.com>
 ;;	Hallvard Furuseth <hbf@ulrik.uio.no>
@@ -202,7 +202,7 @@
 			  (intern (substring (symbol-name arg) 5))
 			arg)
 		    (if (integerp (setq c (car arg)))
-			(error "non-symbolic byte-op %s" c))
+                        (error "Non-symbolic byte-op %s" c))
 		    (if (eq c 'TAG)
 			(setq c arg)
 		      (setq a (cond ((memq c byte-goto-ops)
@@ -310,13 +310,6 @@ Earlier variables shadow later ones with the same name.")
 
 ;;; implementing source-level optimizers
 
-(defvar byte-optimize--vars-outside-condition nil
-  "Alist of variables lexically bound outside conditionally executed code.
-Variables here are sensitive to mutation inside the conditional code,
-since their contents in sequentially later code depends on the path taken
-and may no longer be statically known.
-Same format as `byte-optimize--lexvars', with shared structure and contents.")
-
 (defvar byte-optimize--vars-outside-loop nil
   "Alist of variables lexically bound outside the innermost `while' loop.
 Variables here are sensitive to mutation inside the loop, since this can
@@ -324,8 +317,19 @@ occur an indeterminate number of times and thus have effect on code
 sequentially preceding the mutation itself.
 Same format as `byte-optimize--lexvars', with shared structure and contents.")
 
+(defvar byte-optimize--inhibit-outside-loop-constprop nil
+  "If t, don't propagate values for variables declared outside the inner loop.
+This indicates the loop discovery phase.")
+
 (defvar byte-optimize--dynamic-vars nil
   "List of variables declared as dynamic during optimisation.")
+
+(defvar byte-optimize--aliased-vars nil
+  "List of variables which may be aliased by other lexical variables.
+If an entry in `byte-optimize--lexvars' has another variable as its VALUE,
+then that other variable must be in this list.
+This variable thus carries no essential information but is maintained
+for speeding up processing.")
 
 (defun byte-optimize--substitutable-p (expr)
   "Whether EXPR is a constant that can be propagated."
@@ -402,15 +406,13 @@ Same format as `byte-optimize--lexvars', with shared structure and contents.")
            (cond
             ((not lexvar) form)
             (for-effect nil)
-            ((cddr lexvar)            ; Value available?
-             (if (assq form byte-optimize--vars-outside-loop)
-                 ;; Cannot substitute; mark for retention to avoid the
-                 ;; variable being eliminated.
-                 (progn
-                   (setcar (cdr lexvar) t)
-                   form)
-               ;; variable value to use
-               (caddr lexvar)))
+            ((and (cddr lexvar)         ; substitution available
+                  ;; Perform substitution, except during the loop mutation
+                  ;; discovery phase if the variable was bound outside the
+                  ;; innermost loop.
+                  (not (and byte-optimize--inhibit-outside-loop-constprop
+                            (assq form byte-optimize--vars-outside-loop))))
+             (caddr lexvar))
             (t form))))
         (t form)))
       (`(quote . ,v)
@@ -425,19 +427,19 @@ Same format as `byte-optimize--lexvars', with shared structure and contents.")
       (`(,(or 'let 'let*) . ,rest)
        (cons fn (byte-optimize-let-form fn rest for-effect)))
       (`(cond . ,clauses)
-       ;; The condition in the first clause is always executed, but
-       ;; right now we treat all of them as conditional for simplicity.
-       (let ((byte-optimize--vars-outside-condition byte-optimize--lexvars))
-         (cons fn
-               (mapcar (lambda (clause)
-                         (if (consp clause)
-                             (cons
-                              (byte-optimize-form (car clause) nil)
-                              (byte-optimize-body (cdr clause) for-effect))
-                           (byte-compile-warn "malformed cond form: `%s'"
-                                              (prin1-to-string clause))
-                           clause))
-                       clauses))))
+       ;; FIXME: The condition in the first clause is always executed, and
+       ;; clause bodies are mutually exclusive -- use this for improved
+       ;; optimisation (see comment about `if' below).
+       (cons fn
+             (mapcar (lambda (clause)
+                       (if (consp clause)
+                           (cons
+                            (byte-optimize-form (car clause) nil)
+                            (byte-optimize-body (cdr clause) for-effect))
+                         (byte-compile-warn "malformed cond form: `%s'"
+                                            (prin1-to-string clause))
+                         clause))
+                     clauses)))
       (`(progn . ,exps)
        ;; As an extra added bonus, this simplifies (progn <x>) --> <x>.
        (if (cdr exps)
@@ -463,22 +465,15 @@ Same format as `byte-optimize--lexvars', with shared structure and contents.")
        ;; FIXME: We are conservative here: any variable changed in the
        ;; THEN branch will be barred from substitution in the ELSE
        ;; branch, despite the branches being mutually exclusive.
-
-       ;; The test is always executed.
        (let* ((test-opt (byte-optimize-form test nil))
               (const (macroexp-const-p test-opt))
-              ;; The branches are traversed unconditionally when possible.
-              (byte-optimize--vars-outside-condition
-               (if const
-                   byte-optimize--vars-outside-condition
-                 byte-optimize--lexvars))
               ;; Avoid traversing dead branches.
               (then-opt (and test-opt (byte-optimize-form then for-effect)))
               (else-opt (and (not (and test-opt const))
                              (byte-optimize-body else for-effect))))
          `(if ,test-opt ,then-opt . ,else-opt)))
 
-      (`(,(or 'and 'or) . ,exps) ; Remember, and/or are control structures.
+      (`(,(or 'and 'or) . ,exps)
        ;; FIXME: We have to traverse the expressions in left-to-right
        ;; order (because that is the order of evaluation and variable
        ;; mutations must be found prior to their use), but doing so we miss
@@ -487,33 +482,35 @@ Same format as `byte-optimize--lexvars', with shared structure and contents.")
        ;; Then A could be optimised in a for-effect context too.
        (let ((tail exps)
              (args nil))
-         (when tail
-           ;; The first argument is always unconditional.
+         (while tail
            (push (byte-optimize-form
                   (car tail) (and for-effect (null (cdr tail))))
                  args)
-           (setq tail (cdr tail))
-           ;; Remaining arguments are conditional.
-           (let ((byte-optimize--vars-outside-condition byte-optimize--lexvars))
-             (while tail
-               (push (byte-optimize-form
-                      (car tail) (and for-effect (null (cdr tail))))
-                     args)
-               (setq tail (cdr tail)))))
+           (setq tail (cdr tail)))
          (cons fn (nreverse args))))
 
       (`(while ,exp . ,exps)
-       ;; FIXME: We conservatively prevent the substitution of any variable
-       ;; bound outside the loop in case it is mutated later in the loop,
-       ;; but this misses many opportunities: variables not mutated in the
-       ;; loop at all, and variables affecting the initial condition (which
-       ;; is always executed unconditionally).
-       (let* ((byte-optimize--vars-outside-condition byte-optimize--lexvars)
-              (byte-optimize--vars-outside-loop byte-optimize--lexvars)
-              (condition (byte-optimize-form exp nil))
-              (body (byte-optimize-body exps t)))
+       ;; FIXME: If the loop condition is statically nil after substitution
+       ;; of surrounding variables then we can eliminate the whole loop,
+       ;; even if those variables are mutated inside the loop.
+       ;; We currently don't perform this important optimisation.
+       (let* ((byte-optimize--vars-outside-loop byte-optimize--lexvars)
+              (condition-body
+               (if byte-optimize--inhibit-outside-loop-constprop
+                   ;; We are already inside the discovery phase of an outer
+                   ;; loop so there is no need for traversing this loop twice.
+                   (cons exp exps)
+                 ;; Discovery phase: run optimisation without substitution
+                 ;; of variables bound outside this loop.
+                 (let ((byte-optimize--inhibit-outside-loop-constprop t))
+                   (cons (byte-optimize-form exp nil)
+                         (byte-optimize-body exps t)))))
+              ;; Optimise again, this time with constprop enabled (unless
+              ;; we are in discovery of an outer loop),
+              ;; as mutated variables have been marked as non-substitutable.
+              (condition (byte-optimize-form (car condition-body) nil))
+              (body (byte-optimize-body (cdr condition-body) t)))
          `(while ,condition . ,body)))
-
 
       (`(interactive . ,_)
        (byte-compile-warn "misplaced interactive spec: `%s'"
@@ -526,19 +523,18 @@ Same format as `byte-optimize--lexvars', with shared structure and contents.")
        form)
 
       (`(condition-case ,var ,exp . ,clauses)
-       (let ((byte-optimize--vars-outside-condition byte-optimize--lexvars))
-         `(condition-case ,var          ;Not evaluated.
-              ,(byte-optimize-form exp for-effect)
-            ,@(mapcar (lambda (clause)
-                        (let ((byte-optimize--lexvars
-                               (and lexical-binding
-                                    (if var
-                                        (cons (list var t)
-                                              byte-optimize--lexvars)
-                                      byte-optimize--lexvars))))
-                          (cons (car clause)
-                                (byte-optimize-body (cdr clause) for-effect))))
-                      clauses))))
+       `(condition-case ,var          ;Not evaluated.
+            ,(byte-optimize-form exp for-effect)
+          ,@(mapcar (lambda (clause)
+                      (let ((byte-optimize--lexvars
+                             (and lexical-binding
+                                  (if var
+                                      (cons (list var t)
+                                            byte-optimize--lexvars)
+                                    byte-optimize--lexvars))))
+                        (cons (car clause)
+                              (byte-optimize-body (cdr clause) for-effect))))
+                    clauses)))
 
       (`(unwind-protect ,exp . ,exps)
        ;; The unwinding part of an unwind-protect is compiled (and thus
@@ -547,8 +543,7 @@ Same format as `byte-optimize--lexvars', with shared structure and contents.")
        ;; protected part has the same for-effect status as the
        ;; unwind-protect itself.  (The unwinding part is always for effect,
        ;; but that isn't handled properly yet.)
-       (let* ((byte-optimize--vars-outside-condition byte-optimize--lexvars)
-              (bodyform (byte-optimize-form exp for-effect)))
+       (let ((bodyform (byte-optimize-form exp for-effect)))
          (pcase exps
            (`(:fun-body ,f)
             `(unwind-protect ,bodyform
@@ -558,16 +553,8 @@ Same format as `byte-optimize--lexvars', with shared structure and contents.")
                . ,(byte-optimize-body exps t))))))
 
       (`(catch ,tag . ,exps)
-       (let ((byte-optimize--vars-outside-condition byte-optimize--lexvars))
-         `(catch ,(byte-optimize-form tag nil)
-            . ,(byte-optimize-body exps for-effect))))
-
-      (`(ignore . ,exps)
-       ;; Don't treat the args to `ignore' as being
-       ;; computed for effect.  We want to avoid the warnings
-       ;; that might occur if they were treated that way.
-       ;; However, don't actually bother calling `ignore'.
-       `(progn ,@(mapcar #'byte-optimize-form exps) nil))
+       `(catch ,(byte-optimize-form tag nil)
+          . ,(byte-optimize-body exps for-effect)))
 
       ;; Needed as long as we run byte-optimize-form after cconv.
       (`(internal-make-closure . ,_)
@@ -602,7 +589,15 @@ Same format as `byte-optimize--lexvars', with shared structure and contents.")
                   (value (byte-optimize-form expr nil)))
              (when lexvar
                (setcar (cdr lexvar) t)    ; Mark variable to be kept.
-               (setcdr (cdr lexvar) nil)) ; Inhibit further substitution.
+               (setcdr (cdr lexvar) nil)  ; Inhibit further substitution.
+
+               (when (memq var byte-optimize--aliased-vars)
+                 ;; Cancel aliasing of variables aliased to this one.
+                 (dolist (v byte-optimize--lexvars)
+                   (when (eq (nth 2 v) var)
+                     ;; V is bound to VAR but VAR is now mutated:
+                     ;; cancel aliasing.
+                     (setcdr (cdr v) nil)))))
 
              (push var var-expr-list)
              (push value var-expr-list))
@@ -673,39 +668,149 @@ Same format as `byte-optimize--lexvars', with shared structure and contents.")
                       (not (eq new old))))))))
   form)
 
+(defun byte-optimize--rename-var-body (var new-var body)
+  "Replace VAR with NEW-VAR in BODY."
+  (mapcar (lambda (form) (byte-optimize--rename-var var new-var form)) body))
+
+(defun byte-optimize--rename-var (var new-var form)
+  "Replace VAR with NEW-VAR in FORM."
+  (pcase form
+    ((pred symbolp) (if (eq form var) new-var form))
+    (`(setq . ,args)
+     (let ((new-args nil))
+       (while args
+         (push (byte-optimize--rename-var var new-var (car args)) new-args)
+         (push (byte-optimize--rename-var var new-var (cadr args)) new-args)
+         (setq args (cddr args)))
+       `(setq . ,(nreverse new-args))))
+    ;; In binding constructs like `let', `let*' and `condition-case' we
+    ;; rename everything for simplicity, even new bindings named VAR.
+    (`(,(and head (or 'let 'let*)) ,bindings . ,body)
+     `(,head
+       ,(mapcar (lambda (b) (byte-optimize--rename-var-body var new-var b))
+                bindings)
+       ,@(byte-optimize--rename-var-body var new-var body)))
+    (`(condition-case ,res-var ,protected-form . ,handlers)
+     `(condition-case ,(byte-optimize--rename-var var new-var res-var)
+          ,(byte-optimize--rename-var var new-var protected-form)
+        ,@(mapcar (lambda (h)
+                    (cons (car h)
+                          (byte-optimize--rename-var-body var new-var (cdr h))))
+                  handlers)))
+    (`(internal-make-closure ,vars ,env . ,rest)
+     `(internal-make-closure
+       ,vars ,(byte-optimize--rename-var-body var new-var env) . ,rest))
+    (`(defvar ,name . ,rest)
+     ;; NAME is not renamed here; we only care about lexical variables.
+     `(defvar ,name . ,(byte-optimize--rename-var-body var new-var rest)))
+
+    (`(cond . ,clauses)
+     `(cond ,@(mapcar (lambda (c)
+                        (byte-optimize--rename-var-body var new-var c))
+                      clauses)))
+
+    (`(function . ,_) form)
+    (`(quote . ,_) form)
+    (`(lambda . ,_) form)
+
+    ;; Function calls and special forms not handled above.
+    (`(,head . ,args)
+     `(,head . ,(byte-optimize--rename-var-body var new-var args)))
+    (_ form)))
+
 (defun byte-optimize-let-form (head form for-effect)
   ;; Recursively enter the optimizer for the bindings and body
   ;; of a let or let*.  This for depth-firstness: forms that
   ;; are more deeply nested are optimized first.
   (if lexical-binding
       (let* ((byte-optimize--lexvars byte-optimize--lexvars)
+             (byte-optimize--aliased-vars byte-optimize--aliased-vars)
              (new-lexvars nil)
-             (let-vars nil))
-        (dolist (binding (car form))
-          (let* ((name (car binding))
-                 (expr (byte-optimize-form (cadr binding) nil))
-                 (value (and (byte-optimize--substitutable-p expr)
-                             (list expr)))
-                 (lexical (not (or (special-variable-p name)
-                                   (memq name byte-compile-bound-variables)
-                                   (memq name byte-optimize--dynamic-vars))))
-                 (lexinfo (and lexical (cons name (cons nil value)))))
-            (push (cons name (cons expr (cdr lexinfo))) let-vars)
-            (when lexinfo
-              (push lexinfo (if (eq head 'let*)
-                                byte-optimize--lexvars
-                              new-lexvars)))))
+             (new-aliased-vars nil)
+             (let-vars nil)
+             (body (cdr form))
+             (bindings (car form)))
+        (while bindings
+          (let* ((binding (car bindings))
+                 (name (car binding))
+                 (expr (byte-optimize-form (cadr binding) nil)))
+            (setq bindings (cdr bindings))
+            (when (and (eq head 'let*)
+                       (memq name byte-optimize--aliased-vars))
+              ;; New variable shadows an aliased variable -- α-rename
+              ;; it in this and all subsequent bindings.
+              (let ((new-name (make-symbol (symbol-name name))))
+                (setq bindings
+                      (mapcar (lambda (b)
+                                (list (byte-optimize--rename-var
+                                       name new-name (car b))
+                                      (byte-optimize--rename-var
+                                       name new-name (cadr b))))
+                              bindings))
+                (setq body (byte-optimize--rename-var-body name new-name body))
+                (setq name new-name)))
+            (let* ((aliased nil)
+                   (value (and
+                           (or (byte-optimize--substitutable-p expr)
+                               ;; Aliasing another lexvar.
+                               (setq aliased
+                                     (and (symbolp expr)
+                                          (assq expr byte-optimize--lexvars))))
+                           (list expr)))
+                   (lexical (not (or (special-variable-p name)
+                                     (memq name byte-compile-bound-variables)
+                                     (memq name byte-optimize--dynamic-vars))))
+                   (lexinfo (and lexical (cons name (cons nil value)))))
+              (push (cons name (cons expr (cdr lexinfo))) let-vars)
+              (when lexinfo
+                (push lexinfo (if (eq head 'let*)
+                                  byte-optimize--lexvars
+                                new-lexvars)))
+              (when aliased
+                (push expr (if (eq head 'let*)
+                               byte-optimize--aliased-vars
+                             new-aliased-vars))))))
+
+        (setq byte-optimize--aliased-vars
+              (append new-aliased-vars byte-optimize--aliased-vars))
+        (when (and (eq head 'let) byte-optimize--aliased-vars)
+          ;; Find new variables that shadow aliased variables.
+          (let ((shadowing-vars nil))
+            (dolist (lexvar new-lexvars)
+              (let ((name (car lexvar)))
+                (when (and (memq name byte-optimize--aliased-vars)
+                           (not (memq name shadowing-vars)))
+                  (push name shadowing-vars))))
+            ;; α-rename them
+            (dolist (name shadowing-vars)
+              (let ((new-name (make-symbol (symbol-name name))))
+                (setq new-lexvars
+                      (mapcar (lambda (lexvar)
+                                (if (eq (car lexvar) name)
+                                    (cons new-name (cdr lexvar))
+                                  lexvar))
+                              new-lexvars))
+                (setq let-vars
+                      (mapcar (lambda (v)
+                                (if (eq (car v) name)
+                                    (cons new-name (cdr v))
+                                  v))
+                              let-vars))
+                (setq body (byte-optimize--rename-var-body
+                            name new-name body))))))
         (setq byte-optimize--lexvars
               (append new-lexvars byte-optimize--lexvars))
         ;; Walk the body expressions, which may mutate some of the records,
         ;; and generate new bindings that exclude unused variables.
         (let* ((byte-optimize--dynamic-vars byte-optimize--dynamic-vars)
-               (opt-body (byte-optimize-body (cdr form) for-effect))
+               (opt-body (byte-optimize-body body for-effect))
                (bindings nil))
           (dolist (var let-vars)
             ;; VAR is (NAME EXPR [KEEP [VALUE]])
-            (when (or (not (nthcdr 3 var)) (nth 2 var))
-              ;; Value not present, or variable marked to be kept.
+            (when (or (not (nthcdr 3 var)) (nth 2 var)
+                      byte-optimize--inhibit-outside-loop-constprop)
+              ;; Value not present, or variable marked to be kept,
+              ;; or we are in the loop discovery phase: keep the binding.
               (push (list (nth 0 var) (nth 1 var)) bindings)))
           (cons bindings opt-body)))
 
@@ -734,8 +839,12 @@ Same format as `byte-optimize--lexvars', with shared structure and contents.")
     (while rest
       (setq fe (or all-for-effect (cdr rest)))
       (setq new (and (car rest) (byte-optimize-form (car rest) fe)))
-      (if (or new (not fe))
-	  (setq result (cons new result)))
+      (when (and (consp new) (eq (car new) 'progn))
+        ;; Flatten `progn' form into the body.
+        (setq result (append (reverse (cdr new)) result))
+        (setq new (pop result)))
+      (when (or new (not fe))
+	(setq result (cons new result)))
       (setq rest (cdr rest)))
     (nreverse result)))
 
@@ -967,24 +1076,25 @@ See Info node `(elisp) Integer Basics'."
     (_ (byte-optimize-binary-predicate form))))
 
 (defun byte-optimize-member (form)
-  ;; Replace `member' or `memql' with `memq' if the first arg is a symbol,
-  ;; or the second arg is a list of symbols.  Same with fixnums.
-  (if (= (length (cdr form)) 2)
-      (if (or (byte-optimize--constant-symbol-p (nth 1 form))
-              (byte-optimize--fixnump (nth 1 form))
-              (let ((arg2 (nth 2 form)))
-                (and (macroexp-const-p arg2)
-                     (let ((listval (eval arg2)))
-                       (and (listp listval)
-                            (not (memq nil (mapcar
-                                            (lambda (o)
-                                              (or (symbolp o)
-                                                  (byte-optimize--fixnump o)))
-                                            listval))))))))
-          (cons 'memq (cdr form))
-        form)
-    ;; Arity errors reported elsewhere.
-    form))
+  (cond
+   ((/= (length (cdr form)) 2) form)    ; arity error
+   ((null (nth 2 form))                 ; empty list
+    `(progn ,(nth 1 form) nil))
+   ;; Replace `member' or `memql' with `memq' if the first arg is a symbol
+   ;; or fixnum, or the second arg is a list of symbols or fixnums.
+   ((or (byte-optimize--constant-symbol-p (nth 1 form))
+        (byte-optimize--fixnump (nth 1 form))
+        (let ((arg2 (nth 2 form)))
+          (and (macroexp-const-p arg2)
+               (let ((listval (eval arg2)))
+                 (and (listp listval)
+                      (not (memq nil (mapcar
+                                      (lambda (o)
+                                        (or (symbolp o)
+                                            (byte-optimize--fixnump o)))
+                                      listval))))))))
+    (cons 'memq (cdr form)))
+   (t form)))
 
 (defun byte-optimize-assoc (form)
   ;; Replace 2-argument `assoc' with `assq', `rassoc' with `rassq',
@@ -992,22 +1102,35 @@ See Info node `(elisp) Integer Basics'."
   (cond
    ((/= (length form) 3)
     form)
+   ((null (nth 2 form))                 ; empty list
+    `(progn ,(nth 1 form) nil))
    ((or (byte-optimize--constant-symbol-p (nth 1 form))
         (byte-optimize--fixnump (nth 1 form)))
     (cons (if (eq (car form) 'assoc) 'assq 'rassq)
           (cdr form)))
    (t (byte-optimize-constant-args form))))
 
+(defun byte-optimize-assq (form)
+  (cond
+   ((/= (length form) 3)
+    form)
+   ((null (nth 2 form))                 ; empty list
+    `(progn ,(nth 1 form) nil))
+   (t (byte-optimize-constant-args form))))
+
 (defun byte-optimize-memq (form)
-  ;; (memq foo '(bar)) => (and (eq foo 'bar) '(bar))
   (if (= (length (cdr form)) 2)
       (let ((list (nth 2 form)))
-        (if (and (eq (car-safe list) 'quote)
-                 (listp (setq list (cadr list)))
-                 (= (length list) 1))
-            `(and (eq ,(nth 1 form) ',(nth 0 list))
-                  ',list)
-          form))
+        (cond
+         ((null list)                   ; empty list
+          `(progn ,(nth 1 form) nil))
+         ;; (memq foo '(bar)) => (and (eq foo 'bar) '(bar))
+         ((and (eq (car-safe list) 'quote)
+               (listp (setq list (cadr list)))
+               (= (length list) 1))
+          `(and (eq ,(nth 1 form) ',(nth 0 list))
+                ',list))
+         (t form)))
     ;; Arity errors reported elsewhere.
     form))
 
@@ -1044,6 +1167,8 @@ See Info node `(elisp) Integer Basics'."
 (put 'member 'byte-optimizer #'byte-optimize-member)
 (put 'assoc 'byte-optimizer #'byte-optimize-assoc)
 (put 'rassoc 'byte-optimizer #'byte-optimize-assoc)
+(put 'assq 'byte-optimizer #'byte-optimize-assq)
+(put 'rassq 'byte-optimizer #'byte-optimize-assq)
 
 (put '+   'byte-optimizer #'byte-optimize-plus)
 (put '*   'byte-optimizer #'byte-optimize-multiply)
@@ -1242,17 +1367,24 @@ See Info node `(elisp) Integer Basics'."
                              (and (consp binding) (cadr binding)))
                            bindings)
                  ,const)
-       `(let* ,(butlast bindings) ,(cadar (last bindings)) ,const)))
+       `(let* ,(butlast bindings)
+          ,@(and (consp (car (last bindings)))
+                 (cdar (last bindings)))
+          ,const)))
 
     ;; Body is last variable.
-    (`(,head ,bindings ,(and var (pred symbolp) (pred (not keywordp))
-                             (pred (not booleanp))
-                             (guard (eq var (caar (last bindings))))))
+    (`(,head ,(and bindings
+                   (let last-var (let ((last (car (last bindings))))
+                                   (if (consp last) (car last) last))))
+             ,(and last-var             ; non-linear pattern
+                   (pred symbolp) (pred (not keywordp)) (pred (not booleanp))))
      (if (eq head 'let)
          `(progn ,@(mapcar (lambda (binding)
                              (and (consp binding) (cadr binding)))
                            bindings))
-       `(let* ,(butlast bindings) ,(cadar (last bindings)))))
+       `(let* ,(butlast bindings)
+          ,@(and (consp (car (last bindings)))
+                 (cdar (last bindings))))))
 
     (_ form)))
 
@@ -1403,7 +1535,9 @@ See Info node `(elisp) Integer Basics'."
 	 fixnump floatp following-char framep
 	 get-largest-window get-lru-window
 	 hash-table-p
-	 identity ignore integerp integer-or-marker-p interactive-p
+         ;; `ignore' isn't here because we don't want calls to it elided;
+         ;; see `byte-compile-ignore'.
+	 identity integerp integer-or-marker-p interactive-p
 	 invocation-directory invocation-name
 	 keymapp keywordp
 	 list listp
@@ -1642,7 +1776,7 @@ See Info node `(elisp) Integer Basics'."
 	       (setq tags (delq tmp tags))
 	       (setq rest (cdr rest))))
 	(setq rest (cdr rest))))
-    (if tags (error "optimizer error: missed tags %s" tags))
+    (if tags (error "Optimizer error: missed tags %s" tags))
     ;; Remove addrs, lap = ( [ (op . arg) | (TAG tagno) ]* )
     (mapcar (lambda (elt)
               (if (numberp elt)

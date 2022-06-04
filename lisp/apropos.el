@@ -1,6 +1,6 @@
 ;;; apropos.el --- apropos commands for users and programmers  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1989, 1994-1995, 2001-2021 Free Software Foundation,
+;; Copyright (C) 1989, 1994-1995, 2001-2022 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Joe Wells <jbw@bigbird.bu.edu>
@@ -78,7 +78,7 @@ This option only controls the default behavior.  Each of the above
 commands also has an optional argument to request a more extensive search.
 
 Additionally, this option makes the function `apropos-library'
-include key-binding information in its output."
+include keybinding information in its output."
   :type 'boolean)
 
 (defface apropos-symbol
@@ -1305,7 +1305,7 @@ as a heading."
        (error "There is nothing to follow here"))))
 
 (defun apropos-next-symbol ()
-  "Move cursor down to the next symbol in an apropos-mode buffer."
+  "Move cursor down to the next symbol in an `apropos-mode' buffer."
   (interactive)
   (forward-line)
   (while (and (not (eq (face-at-point) 'apropos-symbol))
@@ -1313,7 +1313,7 @@ as a heading."
     (forward-line)))
 
 (defun apropos-previous-symbol ()
-  "Move cursor back to the last symbol in an apropos-mode buffer."
+  "Move cursor back to the last symbol in an `apropos-mode' buffer."
   (interactive)
   (forward-line -1)
   (while (and (not (eq (face-at-point) 'apropos-symbol))

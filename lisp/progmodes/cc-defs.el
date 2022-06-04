@@ -1,6 +1,6 @@
 ;;; cc-defs.el --- compile time definitions for CC Mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985, 1987, 1992-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1987, 1992-2022 Free Software Foundation, Inc.
 
 ;; Authors:    2003- Alan Mackenzie
 ;;             1998- Martin Stjernholm
@@ -827,9 +827,9 @@ right side of it."
 ;; impossible to get a feel for how that function works.
 
 (defmacro c-go-list-forward (&optional pos limit)
-  "Move forward across one balanced group of parentheses starting at POS or
-point.  Return POINT when we succeed, NIL when we fail.  In the latter case,
-leave point unmoved.
+  "Move forward across one balanced group of parentheses starting at POS or point.
+Return POINT when we succeed, NIL when we fail.  In the latter
+case, leave point unmoved.
 
 A LIMIT for the search may be given.  The start position is assumed to be
 before it."
@@ -838,9 +838,9 @@ before it."
      (when dest (goto-char dest) dest)))
 
 (defmacro c-go-list-backward (&optional pos limit)
-  "Move backward across one balanced group of parentheses starting at POS or
-point.  Return POINT when we succeed, NIL when we fail.  In the latter case,
-leave point unmoved.
+  "Move backward across one balanced group of parentheses starting at POS or point.
+Return POINT when we succeed, NIL when we fail.  In the latter
+case, leave point unmoved.
 
 A LIMIT for the search may be given.  The start position is assumed to be
 after it."
@@ -1385,7 +1385,7 @@ point is then left undefined."
   "Remove all text-properties PROPERTY from the region (FROM, TO)
 which have the value VALUE, as tested by `equal'.  These
 properties are assumed to be over individual characters, having
-been put there by c-put-char-property.  POINT remains unchanged."
+been put there by `c-put-char-property'.  POINT remains unchanged."
   (let ((place from) end-place)
     (while			  ; loop round occurrences of (PROPERTY VALUE)
 	(progn
@@ -1406,7 +1406,7 @@ been put there by c-put-char-property.  POINT remains unchanged."
   "Remove all text-properties PROPERTY from the region [FROM, TO)
 which have the value VALUE, as tested by `equal'.  These
 properties are assumed to be over individual characters, having
-been put there by c-put-char-property.  POINT remains unchanged."
+been put there by `c-put-char-property'.  POINT remains unchanged."
   (declare (debug t))
   (if c-use-extents
     ;; XEmacs
@@ -2593,7 +2593,7 @@ quoted."
 (defvar c-lang-constants-under-evaluation nil
   "Alist of constants in the process of being evaluated.
 The `cdr' of each entry indicates how far we've looked in the list
-of definitions, so that the def for var FOO in c-mode can be defined in
+of definitions, so that the def for var FOO in `c-mode' can be defined in
 terms of the def for that same var FOO (which will then rely on the
 fallback definition for all modes, to break the cycle).")
 

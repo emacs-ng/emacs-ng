@@ -1,6 +1,6 @@
 ;;; nxml-mode.el --- a new XML mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003-2004, 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2004, 2007-2022 Free Software Foundation, Inc.
 
 ;; Author: James Clark
 ;; Keywords: wp, hypermedia, languages, XML
@@ -106,9 +106,10 @@ nor UTF-8."
 (defcustom nxml-prefer-utf-16-little-to-big-endian-flag (eq system-type
 							    'windows-nt)
   "Non-nil means prefer little-endian to big-endian byte-order for UTF-16.
-This is used only for saving a buffer; when reading the byte-order is
-auto-detected. It may be relevant both when there is no encoding declaration
-and when the encoding declaration specifies `UTF-16'."
+This is used only for saving a buffer; when reading the
+byte-order is auto-detected.  It may be relevant both when there
+is no encoding declaration and when the encoding declaration
+specifies `UTF-16'."
   :group 'nxml
   :type 'boolean
   :safe #'booleanp)
@@ -392,11 +393,11 @@ reference.")
     (define-key map "/" 'nxml-electric-slash)
     (define-key map "\M-\t" 'completion-at-point)
     map)
-  "Keymap for nxml-mode.")
+  "Keymap for `nxml-mode'.")
 
 (defvar nxml-font-lock-keywords
   '(nxml-fontify-matcher)
-  "Default font lock keywords for nxml-mode.")
+  "Default font lock keywords for `nxml-mode'.")
 
 (defsubst nxml-set-face (start end face)
   (when (and face (< start end))
@@ -454,8 +455,9 @@ reference.")
   ;; because Emacs turns C-c C-i into C-c TAB which is hard to type and
   ;; not mnemonic.
   "Major mode for editing XML.
-
+\\<nxml-mode-map>
 \\[nxml-finish-element] finishes the current element by inserting an end-tag.
+
 C-c C-i closes a start-tag with `>' and then inserts a balancing end-tag
 leaving point between the start-tag and end-tag.
 \\[nxml-balanced-close-start-tag-block] is similar but for block rather than inline elements:
@@ -576,7 +578,7 @@ Many aspects this mode can be customized using
     string)
 
 (defun nxml-cleanup ()
-  "Clean up after nxml-mode."
+  "Clean up after `nxml-mode'."
   ;; Disable associated minor modes.
   (rng-validate-mode -1)
   ;; Clean up fontification.
@@ -2269,7 +2271,7 @@ ENDP is t in the former case, nil in the latter."
 (defun nxml-dynamic-markup-word ()
   "Dynamically markup the word before point.
 This attempts to find a tag to put around the word before point based
-on the contents of the current buffer. The end-tag will be inserted at
+on the contents of the current buffer.  The end-tag will be inserted at
 point.  The start-tag will be inserted at or before the beginning of
 the word before point; the contents of the current buffer is used to
 decide where.

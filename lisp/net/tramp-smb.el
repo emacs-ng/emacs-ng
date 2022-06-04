@@ -1,6 +1,6 @@
 ;;; tramp-smb.el --- Tramp access functions for SMB servers  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2022 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -48,7 +48,7 @@
                   ;; Another guess.  We might implement a better check later on.
                   (tramp-case-insensitive t)))))
 
-;; Add a default for `tramp-default-user-alist'. Rule: For the SMB method,
+;; Add a default for `tramp-default-user-alist'.  Rule: For the SMB method,
 ;; the anonymous user is chosen.
 ;;;###tramp-autoload
 (tramp--with-startup
@@ -83,7 +83,7 @@ call, letting the SMB client use the default one."
 They are added to the `tramp-smb-program' call via \"--option '...'\".
 
 For example, if the deprecated SMB1 protocol shall be used, add to
-this variable (\"client min protocol=NT1\") ."
+this variable \"client min protocol=NT1\"."
   :group 'tramp
   :type '(repeat string)
   :version "28.1")
@@ -376,7 +376,7 @@ arguments to pass to the OPERATION."
 		(and (numberp ok-if-already-exists)
 		     (not (yes-or-no-p
 			   (format
-			    "File %s already exists; make it a link anyway? "
+			    "File %s already exists; make it a link anyway?"
 			    v2-localname)))))
 	    (tramp-error v2 'file-already-exists newname)
 	  (delete-file newname)))
@@ -1126,7 +1126,9 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 	  ;; Insert size information.
 	  (when full-directory-p
 	    (insert
-	     (if avail
+	     (if (and avail
+		      ;; Emacs 29.1 or later.
+		      (not (fboundp 'dired--insert-disk-space)))
 		 (format "total used in directory %s available %s\n" used avail)
 	       (format "total %s\n" used))))
 
@@ -1247,7 +1249,7 @@ component is used as the target of the symlink."
 		  (and (numberp ok-if-already-exists)
 		       (not (yes-or-no-p
 			     (format
-			      "File %s already exists; make it a link anyway? "
+			      "File %s already exists; make it a link anyway?"
 			      localname)))))
 	      (tramp-error v 'file-already-exists localname)
 	    (delete-file linkname)))
@@ -1284,10 +1286,10 @@ component is used as the target of the symlink."
 
       ;; Determine input.
       (when infile
-	(setq infile (expand-file-name infile))
+	(setq infile (tramp-compat-file-name-unquote (expand-file-name infile)))
 	(if (tramp-equal-remote default-directory infile)
 	    ;; INFILE is on the same remote host.
-	    (setq input (tramp-file-local-name infile))
+	    (setq input (tramp-unquote-file-local-name infile))
 	  ;; INFILE must be copied to remote host.
 	  (setq input (tramp-make-tramp-temp-file v)
 		tmpinput (tramp-make-tramp-file-name v input))
@@ -1376,8 +1378,7 @@ component is used as the target of the symlink."
       (when tmpinput (delete-file tmpinput))
       (unless outbuf
 	(kill-buffer (tramp-get-connection-property v "process-buffer" nil)))
-
-      (unless process-file-side-effects
+      (when process-file-side-effects
 	(tramp-flush-directory-properties v ""))
 
       ;; Return exit status.
@@ -1526,7 +1527,7 @@ component is used as the target of the symlink."
 	  (tramp-error
 	   v 'file-error "Error while changing file's mode %s" filename))))))
 
-;; We use BUFFER also as connection buffer during setup. Because of
+;; We use BUFFER also as connection buffer during setup.  Because of
 ;; this, its original contents must be saved, and restored once
 ;; connection has been setup.
 (defun tramp-smb-handle-start-file-process (name buffer program &rest args)
@@ -1603,7 +1604,7 @@ errors for shares like \"C$/\", which are common in Microsoft Windows."
 	       (or (eq mustbenew 'excl)
 		   (not
 		    (y-or-n-p
-		     (format "File %s exists; overwrite anyway? " filename)))))
+		     (format "File %s exists; overwrite anyway?" filename)))))
       (tramp-error v 'file-already-exists filename))
 
     (let ((file-locked (eq (file-locked-p lockname) t))
@@ -1658,7 +1659,7 @@ errors for shares like \"C$/\", which are common in Microsoft Windows."
 
       ;; The end.
       (when (and (null noninteractive)
-		 (or (eq visit t) (null visit) (stringp visit)))
+		 (or (eq visit t) (string-or-null-p visit)))
 	(tramp-message v 0 "Wrote %s" filename))
       (run-hooks 'tramp-handle-write-region-hook))))
 
@@ -1703,7 +1704,7 @@ If VEC has no cifs capabilities, exchange \"/\" by \"\\\\\"."
 
       localname)))
 
-;; Share names of a host are cached. It is very unlikely that the
+;; Share names of a host are cached.  It is very unlikely that the
 ;; shares do change during connection.
 (defun tramp-smb-get-file-entries (directory)
   "Read entries which match DIRECTORY.
@@ -1962,7 +1963,7 @@ If ARGUMENT is non-nil, use it as argument for
     ;; Otherwise, we must delete the connection cache, because
     ;; capabilities might have changed.
     (unless (or argument (processp p))
-      (let ((default-directory (tramp-compat-temporary-file-directory))
+      (let ((default-directory tramp-compat-temporary-file-directory)
 	    (command (concat tramp-smb-program " -V")))
 
 	(unless tramp-smb-version
@@ -2049,7 +2050,10 @@ If ARGUMENT is non-nil, use it as argument for
 	    (let* ((coding-system-for-read nil)
 		   (process-connection-type tramp-process-connection-type)
 		   (p (let ((default-directory
-			      (tramp-compat-temporary-file-directory)))
+			      tramp-compat-temporary-file-directory)
+			    (process-environment
+			     (cons (concat "TERM=" tramp-terminal-type)
+				   process-environment)))
 			(apply #'start-process
 			       (tramp-get-connection-name vec)
 			       (tramp-get-connection-buffer vec)
@@ -2200,5 +2204,7 @@ Removes smb prompt.  Returns nil if an error message has appeared."
 ;;
 ;; * Try to remove the inclusion of dummy "" directory.  Seems to be at
 ;;   several places, especially in `tramp-smb-handle-insert-directory'.
+;;
+;; * Keep a separate connection process per share.
 
 ;;; tramp-smb.el ends here

@@ -1,6 +1,6 @@
 ;;; ert.el --- Emacs Lisp Regression Testing  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2007-2008, 2010-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2008, 2010-2022 Free Software Foundation, Inc.
 
 ;; Author: Christian Ohler <ohler@gnu.org>
 ;; Keywords: lisp, tools
@@ -218,7 +218,11 @@ it has to be wrapped in `(eval (quote ...))'.
                             `(:expected-result-type ,expected-result))
                         ,@(when tags-supplied-p
                             `(:tags ,tags))
-                        :body (lambda () ,@body)))
+                        :body (lambda ()
+                                ;; Use the value of `lexical-binding' in
+                                ;; the source file when evaluating the body.
+                                (let ((lexical-binding ,lexical-binding))
+                                  ,@body))))
          ',name))))
 
 (defvar ert--find-test-regexp
@@ -258,7 +262,7 @@ DATA is displayed to the user and should state the reason for skipping."
 ;; See Bug#24402 for why this exists
 (defun ert--should-signal-hook (error-symbol data)
   "Stupid hack to stop `condition-case' from catching ert signals.
-It should only be stopped when ran from inside ert--run-test-internal."
+It should only be stopped when ran from inside `ert--run-test-internal'."
   (when (and (not (symbolp debugger))   ; only run on anonymous debugger
              (memq error-symbol '(ert-test-failed ert-test-skipped)))
     (funcall debugger 'error (cons error-symbol data))))
@@ -536,6 +540,16 @@ Returns nil if they are."
     (ert--explain-equal-rec a b)))
 (put 'equal 'ert-explainer 'ert--explain-equal)
 
+(defun ert--explain-string-equal (a b)
+  "Explainer function for `string-equal'."
+  ;; Convert if they are symbols.
+  (if (string-equal a b)
+      nil
+    (let ((as (if (symbolp a) (symbol-name a) a))
+          (bs (if (symbolp b) (symbol-name b) b)))
+      (ert--explain-equal-rec as bs))))
+(put 'string-equal 'ert-explainer 'ert--explain-string-equal)
+
 (defun ert--significant-plist-keys (plist)
   "Return the keys of PLIST that have non-null values, in order."
   (cl-assert (zerop (mod (length plist) 2)) t)
@@ -769,6 +783,10 @@ This mainly sets up debugger-related bindings."
                           (ert--run-test-debugger test-execution-info
                                                   args)))
               (debug-on-error t)
+              ;; Don't infloop if the error being called is erroring
+              ;; out, and we have `debug-on-error' bound to nil inside
+              ;; the test.
+              (backtrace-on-error-noninteractive nil)
               (debug-on-quit t)
               ;; FIXME: Do we need to store the old binding of this
               ;; and consider it in `ert--run-test-debugger'?
@@ -1958,9 +1976,9 @@ non-nil, returns the face for expected results.."
   nil)
 
 (defun ert--results-font-lock-function (enabledp)
-  "Redraw the ERT results buffer after font-lock-mode was switched on or off.
+  "Redraw the ERT results buffer after `font-lock-mode' was switched on or off.
 
-ENABLEDP is true if font-lock-mode is switched on, false
+ENABLEDP is true if `font-lock-mode' is switched on, false
 otherwise."
   (ert--results-update-ewoc-hf ert--results-ewoc ert--results-stats)
   (ewoc-refresh ert--results-ewoc)

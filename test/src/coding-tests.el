@@ -1,6 +1,6 @@
 ;;; coding-tests.el --- tests for text encoding and decoding -*- lexical-binding: t -*-
 
-;; Copyright (C) 2013-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
 
 ;; Author: Eli Zaretskii <eliz@gnu.org>
 ;; Author: Kenichi Handa <handa@gnu.org>
@@ -434,4 +434,4 @@
 ;; End:
 
 (provide 'coding-tests)
-;; coding-tests.el ends here
+;;; coding-tests.el ends here

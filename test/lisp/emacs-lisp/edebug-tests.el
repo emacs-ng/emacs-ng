@@ -1,6 +1,6 @@
 ;;; edebug-tests.el --- Edebug test suite   -*- lexical-binding:t -*-
 
-;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
 
 ;; Author: Gemini Lasswell
 
@@ -723,7 +723,7 @@ test and possibly others should be updated."
           (edebug-on-error nil)
           error-message
           (command-error-function (lambda (&rest args)
-                                    (setq error-message (cl-cadar args)))))
+                                    (setq error-message (cadar args)))))
      (edebug-tests-run-kbd-macro
       "@"    (edebug-tests-should-be-at "format-node" "start")
       "SPC"  (edebug-tests-should-be-at "format-node" "vectorp")
@@ -744,7 +744,7 @@ test and possibly others should be updated."
           (edebug-on-error nil)
           (error-message "")
           (command-error-function (lambda (&rest args)
-                                    (setq error-message (cl-cadar args)))))
+                                    (setq error-message (cadar args)))))
      (edebug-tests-run-kbd-macro
       "@ SPC SPC SPC SPC SPC"
       (edebug-tests-should-be-at "try-flavors" "macro")
@@ -1092,6 +1092,16 @@ This avoids potential duplicate definitions (Bug#41988)."
               (push name instrumented-names)
               (edebug-new-definition name))))
       (should-error (eval-buffer) :type 'invalid-read-syntax))))
+
+(ert-deftest edebug-tests-inline ()
+  "Check that Edebug can instrument inline functions (Bug#53068)."
+  (with-temp-buffer
+    (print '(define-inline edebug-tests-inline (arg)
+              (inline-quote ,arg))
+           (current-buffer))
+    (let ((edebug-all-defs t)
+          (edebug-initial-mode 'Go-nonstop))
+      (eval-buffer))))
 
 (provide 'edebug-tests)
 ;;; edebug-tests.el ends here

@@ -1,6 +1,6 @@
 ;;; dired-aux.el --- less commonly used parts of dired -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994, 1998, 2000-2021 Free Software
+;; Copyright (C) 1985-1986, 1992, 1994, 1998, 2000-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Sebastian Kremer <sk@thp.uni-koeln.de>.
@@ -493,8 +493,7 @@ are supported.  Type M-n to pull the file attributes of the file
 at point into the minibuffer.
 
 See Info node `(coreutils)File permissions' for more information.
-Alternatively, see the man page for \"chmod\", using the command
-\\[man] in Emacs.
+Alternatively, see the man page for \"chmod(1)\".
 
 Note that on MS-Windows only the `w' (write) bit is meaningful:
 resetting it makes the file read-only.  Changing any other bit
@@ -993,12 +992,14 @@ prompted for the shell command to use interactively."
 
 
 (defun dired-check-process (msg program &rest arguments)
-  "Display MSG while running PROGRAM, and check for output.
-Remaining arguments are strings passed as command arguments to PROGRAM.
-On error, insert output
-in a log buffer and return the offending ARGUMENTS or PROGRAM.
-Caller can cons up a list of failed args.
-Else returns nil for success."
+  "Display MSG, then run PROGRAM, and log any error messages from it.
+ARGUMENTS should be strings to be passed to PROGRAM as command-line
+arguments.
+
+If PROGRAM exits successfully, display \"MSG...done\" and return nil.
+If PROGRAM exits abnormally, save in `dired-log-buffer' the command
+that invoked PROGRAM and the messages it emitted, and return either
+the offending ARGUMENTS or PROGRAM if no ARGUMENTS were provided."
   (let (err-buffer err (dir default-directory))
     (message "%s..." msg)
     (save-excursion
@@ -1137,12 +1138,12 @@ present.  A FMT of \"\" will suppress the messaging."
     ("\\.tar\\.gz\\'" "" "gzip -dc %i | tar -xf -")
     ("\\.tar\\.xz\\'" "" "xz -dc %i | tar -xf -")
     ("\\.tgz\\'" "" "gzip -dc %i | tar -xf -")
-    ("\\.gz\\'" "" "gunzip")
+    ("\\.gz\\'" "" "gzip -d")
     ("\\.lz\\'" "" "lzip -d")
     ("\\.Z\\'" "" "uncompress")
     ;; For .z, try gunzip.  It might be an old gzip file,
     ;; or it might be from compact? pack? (which?) but gunzip handles both.
-    ("\\.z\\'" "" "gunzip")
+    ("\\.z\\'" "" "gzip -d")
     ("\\.dz\\'" "" "dictunzip")
     ("\\.tbz\\'" ".tar" "bunzip2")
     ("\\.bz2\\'" "" "bunzip2")
@@ -1241,11 +1242,12 @@ and `dired-compress-files-alist'."
            (when (zerop
                   (dired-shell-command
                    (format-spec (cdr rule)
-                                `((?o . ,(shell-quote-argument out-file))
+                                `((?o . ,(shell-quote-argument
+                                          (file-local-name out-file)))
                                   (?i . ,(mapconcat
                                           (lambda (in-file)
                                             (shell-quote-argument
-                                             (file-name-nondirectory in-file)))
+                                             (file-relative-name in-file)))
                                           in-files " "))))))
              (message (ngettext "Compressed %d file to %s"
 			        "Compressed %d files to %s"
@@ -1326,7 +1328,7 @@ Return nil if no change in files."
                        (user-error
                         "No compression rule found for \
 `dired-compress-directory-default-suffix' %s, see `dired-compress-files-alist' for\
- the supported suffixes list."
+ the supported suffixes list"
                         dired-compress-directory-default-suffix)))
                  (let* ((suffix (or dired-compress-file-default-suffix ".gz"))
                         (out-name (concat file suffix))
@@ -1335,7 +1337,7 @@ Return nil if no change in files."
                                dired-compress-file-alist)))
                    (if (not rule)
                        (user-error "No compression rule found for suffix %s, \
-see `dired-compress-file-alist' for the supported suffixes list."
+see `dired-compress-file-alist' for the supported suffixes list"
                                    dired-compress-file-default-suffix)
                      (and (file-exists-p file)
                           (or (not (file-exists-p out-name))
@@ -1837,22 +1839,23 @@ rename them using `vc-rename-file'."
   "Rename FILE to NEWNAME.
 Signal a `file-already-exists' error if a file NEWNAME already exists
 unless OK-IF-ALREADY-EXISTS is non-nil."
-  (dired-handle-overwrite newname)
-  (dired-maybe-create-dirs (file-name-directory newname))
-  (if (and dired-vc-rename-file
-           (vc-backend file)
-           (ignore-errors (vc-responsible-backend newname)))
-      (vc-rename-file file newname)
-    ;; error is caught in -create-files
-    (rename-file file newname ok-if-already-exists))
-  ;; Silently rename the visited file of any buffer visiting this file.
-  (and (get-file-buffer file)
-       (with-current-buffer (get-file-buffer file)
-	 (set-visited-file-name newname nil t)))
-  (dired-remove-file file)
-  ;; See if it's an inserted subdir, and rename that, too.
-  (when (file-directory-p file)
-    (dired-rename-subdir file newname)))
+  (let ((file-is-dir-p (file-directory-p file)))
+    (dired-handle-overwrite newname)
+    (dired-maybe-create-dirs (file-name-directory newname))
+    (if (and dired-vc-rename-file
+             (vc-backend file)
+             (ignore-errors (vc-responsible-backend newname)))
+        (vc-rename-file file newname)
+      ;; error is caught in -create-files
+      (rename-file file newname ok-if-already-exists))
+    ;; Silently rename the visited file of any buffer visiting this file.
+    (and (get-file-buffer file)
+         (with-current-buffer (get-file-buffer file)
+	   (set-visited-file-name newname nil t)))
+    (dired-remove-file file)
+    ;; See if it's an inserted subdir, and rename that, too.
+    (when file-is-dir-p
+      (dired-rename-subdir file newname))))
 
 (defun dired-rename-subdir (from-dir to-dir)
   (setq from-dir (file-name-as-directory from-dir)
@@ -1865,7 +1868,7 @@ unless OK-IF-ALREADY-EXISTS is non-nil."
     (while blist
       (with-current-buffer (car blist)
 	(if (and buffer-file-name
-		 (file-in-directory-p buffer-file-name expanded-from-dir))
+                 (dired-in-this-tree-p buffer-file-name expanded-from-dir))
 	    (let ((modflag (buffer-modified-p))
 		  (to-file (replace-regexp-in-string
 			    (concat "^" (regexp-quote from-dir))
@@ -1884,7 +1887,7 @@ unless OK-IF-ALREADY-EXISTS is non-nil."
     (while alist
       (setq elt (car alist)
 	    alist (cdr alist))
-      (if (file-in-directory-p (car elt) expanded-dir)
+      (if (dired-in-this-tree-p (car elt) expanded-dir)
 	  ;; ELT's subdir is affected by the rename
 	  (dired-rename-subdir-2 elt dir to)))
     (if (equal dir default-directory)
@@ -2340,9 +2343,9 @@ If DIRECTORY already exists, signal an error."
 ;;;###autoload
 (defun dired-create-empty-file (file)
   "Create an empty file called FILE.
- Add a new entry for the new file in the Dired buffer.
- Parent directories of FILE are created as needed.
- If FILE already exists, signal an error."
+Add a new entry for the new file in the Dired buffer.
+Parent directories of FILE are created as needed.
+If FILE already exists, signal an error."
   (interactive (list (read-file-name "Create empty file: ")))
   (let* ((expanded (expand-file-name file))
          new)
@@ -2399,7 +2402,9 @@ But if `dired-copy-dereference' is non-nil, the symbolic
 links are dereferenced and then copied, similar to the \"-L\"
 option for the \"cp\" shell command.  If ARG is a cons with
 element 4 (`\\[universal-argument]'), the inverted value of
-`dired-copy-dereference' will be used."
+`dired-copy-dereference' will be used.
+
+Also see `dired-do-revert-buffer'."
   (interactive "P")
   (let ((dired-recursive-copies dired-recursive-copies)
         (dired-copy-dereference (if (equal arg '(4))
@@ -2420,7 +2425,9 @@ with the same names that the files currently have.  The default
 suggested for the target directory depends on the value of
 `dired-dwim-target', which see.
 
-For relative symlinks, use \\[dired-do-relsymlink]."
+For relative symlinks, use \\[dired-do-relsymlink].
+
+Also see `dired-do-revert-buffer'."
   (interactive "P")
   (dired-do-create-files 'symlink #'make-symbolic-link
                          "Symlink" arg dired-keep-marker-symlink))
@@ -2433,7 +2440,9 @@ When operating on multiple or marked files, you specify a directory
 and new hard links are made in that directory
 with the same names that the files currently have.  The default
 suggested for the target directory depends on the value of
-`dired-dwim-target', which see."
+`dired-dwim-target', which see.
+
+Also see `dired-do-revert-buffer'."
   (interactive "P")
   (dired-do-create-files 'hardlink #'dired-hardlink
                          "Hardlink" arg dired-keep-marker-hardlink))
@@ -2452,7 +2461,9 @@ When renaming just the current file, you specify the new name.
 When renaming multiple or marked files, you specify a directory.
 This command also renames any buffers that are visiting the files.
 The default suggested for the target directory depends on the value
-of `dired-dwim-target', which see."
+of `dired-dwim-target', which see.
+
+Also see `dired-do-revert-buffer'."
   (interactive "P")
   (dired-do-create-files 'move #'dired-rename-file
 			 "Move" arg dired-keep-marker-rename "Rename"))
@@ -2729,7 +2740,7 @@ This function takes some pains to conform to `ls -lR' output."
   ;; Check that it is valid to insert DIRNAME with SWITCHES.
   ;; Signal an error if invalid (e.g. user typed `i' on `..').
   (or (file-in-directory-p dirname (expand-file-name default-directory))
-      (error  "%s: not in this directory tree" dirname))
+      (error  "%s: Not in this directory tree" dirname))
   (let ((real-switches (or switches dired-subdir-switches)))
     (when real-switches
       (let (case-fold-search)
@@ -3161,9 +3172,14 @@ To continue searching for next match, use command \\[fileloop-continue]."
 ;;;###autoload
 (defun dired-do-query-replace-regexp (from to &optional delimited)
   "Do `query-replace-regexp' of FROM with TO, on all marked files.
+As each match is found, the user must type a character saying
+what to do with it.  Type SPC or `y' to replace the match,
+DEL or `n' to skip and go to the next match.  For more directions,
+type \\[help-command] at that time.
+
 Third arg DELIMITED (prefix arg) means replace only word-delimited matches.
-If you exit (\\[keyboard-quit], RET or q), you can resume the query replace
-with the command \\[tags-loop-continue]."
+If you exit the query-replace loop (\\[keyboard-quit], RET or q), you can
+resume the query replace with the command \\[fileloop-continue]."
   (interactive
    (let ((common
 	  (query-replace-read-args
@@ -3230,6 +3246,11 @@ REGEXP should use constructs supported by your local `grep' command."
 (defun dired-do-find-regexp-and-replace (from to)
   "Replace matches of FROM with TO, in all marked files.
 
+As each match is found, the user must type a character saying
+what to do with it.  Type SPC or `y' to replace the match,
+DEL or `n' to skip and go to the next match.  For more directions,
+type \\[help-command] at that time.
+
 If no files are marked, use the file under point.
 
 For any marked directory, matches in all of its files are replaced,
@@ -3245,10 +3266,13 @@ REGEXP should use constructs supported by your local `grep' command."
      (list (nth 0 common) (nth 1 common))))
   (require 'xref)
   (defvar xref-show-xrefs-function)
+  (defvar xref-auto-jump-to-first-xref)
   (with-current-buffer
       (let ((xref-show-xrefs-function
              ;; Some future-proofing (bug#44905).
-             (custom--standard-value 'xref-show-xrefs-function)))
+             (custom--standard-value 'xref-show-xrefs-function))
+            ;; Disable auto-jumping, it will mess up replacement logic.
+            xref-auto-jump-to-first-xref)
         (dired-do-find-regexp from))
     (xref-query-replace-in-results from to)))
 

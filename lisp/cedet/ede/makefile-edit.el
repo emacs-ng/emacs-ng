@@ -1,6 +1,6 @@
 ;;; makefile-edit.el --- Makefile editing/scanning commands.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -30,7 +30,7 @@
 ;; Formatting of a makefile
 ;;
 ;; 1) Creating an automakefile, stick in a top level comment about
-;;    being created by emacs
+;;    being created by Emacs.
 ;; 2) Leave order of variable contents alone, except for SOURCE
 ;;    SOURCE always keep in the order of .c, .h, the other stuff.
 

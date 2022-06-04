@@ -1,6 +1,6 @@
 ;;; ffap.el --- find file (or url) at point  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1995-1997, 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1995-1997, 2000-2022 Free Software Foundation, Inc.
 
 ;; Author: Michelangelo Grigni <mic@mathcs.emory.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -465,11 +465,11 @@ Returned values:
 			     mesg) nil)
 	      ((string-match "not responding$" mesg) mesg)
 	      ;; v19:
-	      ;; (file-error "connection failed" "permission denied"
+              ;; (file-error "Connection failed" "permission denied"
 	      ;;             "nonesuch" "ffap-machine-p")
-	      ;; (file-error "connection failed" "host is unreachable"
+              ;; (file-error "Connection failed" "host is unreachable"
 	      ;;	     "gopher.house.gov" "ffap-machine-p")
-	      ;; (file-error "connection failed" "address already in use"
+              ;; (file-error "Connection failed" "address already in use"
 	      ;;	     "ftp.uu.net" "ffap-machine-p")
 	      ((equal mesg "connection failed")
 	       (if (string= (downcase (nth 2 error)) "permission denied")
@@ -1088,8 +1088,8 @@ If a given RFC isn't in these then `ffap-rfc-path' is offered."
     (latex-mode "--:\\\\$+<>@-Z_[:alpha:]~*?" "<@" "@>;.,!:")
     (tex-mode "--:\\\\$+<>@-Z_[:alpha:]~*?" "<@" "@>;.,!:")
     )
-  "Alist of (MODE CHARS BEG END), where MODE is a symbol,
-possibly a major-mode name, or one of the symbols
+  "Alist of (MODE CHARS BEG END), where MODE is a symbol.
+This is possibly a major-mode name, or one of the symbols
 `file', `url', `machine', and `nocolon'.
 Function `ffap-string-at-point' uses the data fields as follows:
 1. find a maximal string of CHARS around point,
@@ -1114,7 +1114,7 @@ like)."
 
 (defun ffap-search-backward-file-end (&optional dir-separator end)
   "Search backward position point where file would probably end.
-Optional DIR-SEPARATOR defaults to \"/\". The search maximum is
+Optional DIR-SEPARATOR defaults to \"/\".  The search maximum is
 `line-end-position' or optional END point.
 
 Suppose the cursor is somewhere that might be near end of file,
@@ -1190,7 +1190,7 @@ Call `ffap-search-backward-file-end' to refine the ending point."
 
 (defun ffap-dir-separator-near-point ()
   "Search backward and forward for closest slash or backlash in line.
-Return string slash or backslash. Point is moved to closest position."
+Return string slash or backslash.  Point is moved to closest position."
   (let ((point (point))
 	str pos)
     (when (looking-at ".*?/")
@@ -1639,8 +1639,9 @@ If `ffap-url-regexp' is not nil, the FILENAME may also be an URL.
 With a prefix, this command behaves exactly like `ffap-file-finder'.
 If `ffap-require-prefix' is set, the prefix meaning is reversed.
 See also the variables `ffap-dired-wildcards', `ffap-newfile-prompt',
-`ffap-url-unwrap-local', `ffap-url-unwrap-remote', and the functions
-`ffap-file-at-point' and `ffap-url-at-point'."
+`ffap-url-unwrap-local', `ffap-url-unwrap-remote',
+`ffap-file-name-with-spaces', and the functions `ffap-file-at-point'
+and `ffap-url-at-point'."
   (interactive)
   (if (and (called-interactively-p 'interactive)
 	   (if ffap-require-prefix (not current-prefix-arg)

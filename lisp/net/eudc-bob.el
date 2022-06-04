@@ -1,6 +1,6 @@
 ;;; eudc-bob.el --- Binary Objects Support for EUDC  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: Oscar Figueiredo <oscar@cpe.fr>
 ;;         Pavel Janík <Pavel@Janik.cz>
@@ -252,17 +252,14 @@ display a button."
 
 ;; If the first arguments can be nil here, then these 3 can be
 ;; defconsts once more.
-(easy-menu-define eudc-bob-generic-menu
-  eudc-bob-generic-keymap
-  ""
+(easy-menu-define eudc-bob-generic-menu eudc-bob-generic-keymap
+  "EUDC Binary Object Menu."
   eudc-bob-generic-menu)
-(easy-menu-define eudc-bob-image-menu
-  eudc-bob-image-keymap
-  ""
+(easy-menu-define eudc-bob-image-menu eudc-bob-image-keymap
+  "EUDC Image Menu."
   eudc-bob-image-menu)
-(easy-menu-define eudc-bob-sound-menu
-  eudc-bob-sound-keymap
-  ""
+(easy-menu-define eudc-bob-sound-menu eudc-bob-sound-keymap
+  "EUDC Sound Menu."
   eudc-bob-sound-menu)
 
 ;;;###autoload

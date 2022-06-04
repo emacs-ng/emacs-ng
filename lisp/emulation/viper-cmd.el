@@ -1,6 +1,6 @@
 ;;; viper-cmd.el --- Vi command support for Viper  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
 
 ;; Author: Michael Kifer <kifer@cs.stonybrook.edu>
 ;; Package: viper
@@ -91,7 +91,7 @@
 				     space return
 				     delete backspace
 				     )
-				     "Movement commands")
+                                     "Movement commands.")
 ;; define viper-movement-command-p
 (viper-test-com-defun viper-movement-command)
 
@@ -487,7 +487,7 @@
   (viper-change-state-to-vi))
 
 (defun viper-set-mode-vars-for (state)
-  "Sets Viper minor mode variables to put Viper's state STATE in effect."
+  "Set Viper minor mode variables to put Viper's state STATE in effect."
 
   ;; Emacs state
   (setq viper-vi-minibuffer-minor-mode	     nil
@@ -1197,7 +1197,7 @@ as a Meta key and any number of multiple escapes are allowed."
   )
 
 (defsubst viper-yank-last-insertion ()
-  "Inserts the text saved by the previous viper-save-last-insertion command."
+  "Insert the text saved by the previous viper-save-last-insertion command."
   (condition-case nil
       (insert viper-last-insertion)
     (error nil)))
@@ -1500,7 +1500,7 @@ Doesn't change viper-command-ring in any way, so `.' will work as before
 executing this command.
 This command is supposed to be bound to a two-character Vi macro where
 the second character is a digit 0 to 9.  The digit indicates which
-history command to execute. `<char>0' is equivalent to `.', `<char>1'
+history command to execute.  `<char>0' is equivalent to `.', `<char>1'
 invokes the command before that, etc."
   (interactive)
   (let* ((viper-intermediate-command 'repeating-display-destructive-command)
@@ -1786,7 +1786,7 @@ Undo previous insertion and inserts new."
 	(do-not-change-default t))
     (setq quote-str
 	  (viper-read-string-with-history
-	   "Quote string"
+	   "Quote string: "
 	   nil
 	   'viper-quote-region-history
            ;; FIXME: Use comment-region.
@@ -1995,17 +1995,24 @@ problems."
 	    #'viper-minibuffer-standard-hook
 	    (if (or (not (listp old)) (eq (car old) 'lambda))
 		(list old) old))))
-	(val ""))
+	(val "")
+	(padding "")
+	temp-msg)
 
     (setq keymap (or keymap minibuffer-local-map)
 	  initial (or initial "")
-	  viper-initial initial)
+	  viper-initial initial
+	  temp-msg (if default
+		       (format "(default %s) " default)
+		     ""))
 
     (setq viper-incomplete-ex-cmd nil)
-    (setq val (read-from-minibuffer (format-prompt prompt default)
-				    nil
-				    keymap nil history-var default))
-    (setq minibuffer-setup-hook nil)
+    (setq val (read-from-minibuffer prompt
+				    (concat temp-msg initial val padding)
+				    keymap nil history-var))
+    (setq minibuffer-setup-hook nil
+	  padding (viper-array-to-string (this-command-keys))
+	  temp-msg "")
     ;; the following tries to be smart about what to put in history
     (if (not (string= val (car (symbol-value history-var))))
 	(push val (symbol-value history-var)))
@@ -3546,10 +3553,11 @@ If MODE is set, set the macros only in that major mode."
 
 
 (defun viper-set-parsing-style-toggling-macro (unset)
-  "Set `%%%' to be a macro that toggles whether comment fields should be parsed for matching parentheses.
+  "Set or unset `%%%' as a macro that toggles comment parsing for parentheses.
 This is used in conjunction with the `%' command.
-
-With a prefix argument, unsets the macro."
+By default, sets the macro which will toggle whether comment fields should
+be parsed for matching parentheses.  With a prefix argument, unsets the
+macro instead."
   (interactive "P")
   (or noninteractive
       (if (not unset)
@@ -3766,7 +3774,7 @@ Null string will repeat previous search."
   (define-key viper-vi-basic-map
     (cond ((characterp viper-buffer-search-char)
 	   (char-to-string viper-buffer-search-char))
-	  (t (error "viper-buffer-search-char: wrong value type, %S"
+          (t (error "viper-buffer-search-char: Wrong value type, %S"
 		    viper-buffer-search-char)))
     #'viper-command-argument)
   (aset viper-exec-array viper-buffer-search-char #'viper-exec-buffer-search)
@@ -3818,7 +3826,7 @@ Null string will repeat previous search."
   (let (buffer buffer-name)
     (setq buffer-name
 	  (funcall viper-read-buffer-function
-		   (format-prompt "Kill buffer"
+		   (format "Kill buffer (%s): "
 			   (buffer-name (current-buffer)))))
     (setq buffer
 	  (if (null buffer-name)
@@ -3838,7 +3846,7 @@ Null string will repeat previous search."
 ;; yank and pop
 
 (defsubst viper-yank (text)
-  "Yank TEXT silently.  This works correctly with Emacs's yank-pop command."
+  "Yank TEXT silently.  This works correctly with Emacs's `yank-pop' command."
     (insert text)
     (setq this-command 'yank))
 
@@ -4160,12 +4168,17 @@ cursor move past the beginning of line."
   "Query replace.
 If a null string is supplied as the string to be replaced,
 the query replace mode will toggle between string replace
-and regexp replace."
+and regexp replace.
+
+As each match is found, the user must type a character saying
+what to do with it.  Type SPC or `y' to replace the match,
+DEL or `n' to skip and go to the next match.  For more directions,
+type \\[help-command] at that time."
   (interactive)
   (let (str)
     (setq str (viper-read-string-with-history
-	       (if viper-re-query-replace "Query replace regexp"
-		 "Query replace")
+	       (if viper-re-query-replace "Query replace regexp: "
+		 "Query replace: ")
 	       nil  ; no initial
 	       'viper-replace1-history
 	       (car viper-replace1-history) ; default
@@ -4180,7 +4193,7 @@ and regexp replace."
 	  (query-replace-regexp
 	   str
 	   (viper-read-string-with-history
-	    (format-message "Query replace regexp `%s' with" str)
+	    (format-message "Query replace regexp `%s' with: " str)
 	    nil  ; no initial
 	    'viper-replace1-history
 	    (car viper-replace1-history) ; default
@@ -4188,7 +4201,7 @@ and regexp replace."
 	(query-replace
 	 str
 	 (viper-read-string-with-history
-	  (format-message "Query replace `%s' with" str)
+	  (format-message "Query replace `%s' with: " str)
 	  nil  ; no initial
 	  'viper-replace1-history
 	  (car viper-replace1-history) ; default
@@ -4510,7 +4523,7 @@ One can use \\=`\\=` and \\='\\=' to temporarily jump 1 step back."
 
 
 (defun viper-set-expert-level (&optional dont-change-unless)
-  "Sets the expert level for a Viper user.
+  "Set the expert level for a Viper user.
 Can be called interactively to change (temporarily or permanently) the
 current expert level.
 

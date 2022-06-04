@@ -1,6 +1,6 @@
 ;;; cmacexp.el --- expand C macros in a region  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2022 Free Software Foundation, Inc.
 
 ;; Author: Francesco Potortì <pot@gnu.org>
 ;; Adapted-By: ESR
@@ -101,7 +101,7 @@
   :type 'boolean)
 
 (defcustom c-macro-prompt-flag nil
-  "Non-nil makes `c-macro-expand' prompt for preprocessor arguments."
+  "Non-nil means `c-macro-expand' will prompt for preprocessor arguments."
   :type 'boolean)
 
 (defcustom c-macro-preprocessor

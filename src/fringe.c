@@ -1,5 +1,5 @@
 /* Fringe handling (split from xdisp.c).
-   Copyright (C) 1985-1988, 1993-1995, 1997-2021 Free Software
+   Copyright (C) 1985-1988, 1993-1995, 1997-2022 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -1800,6 +1800,23 @@ gui_init_fringe (struct redisplay_interface *rif)
       if (fb)
 	rif->define_fringe_bitmap (bt, fb->bits, fb->height, fb->width);
     }
+}
+
+/* Call frame F's specific define_fringe_bitmap method for a fringe
+   bitmap number N.  Called by various *term.c functions when they
+   need to display a fringe bitmap whose terminal-specific data is not
+   available.  */
+void
+gui_define_fringe_bitmap (struct frame *f, int n)
+{
+  struct redisplay_interface *rif = FRAME_RIF (f);
+
+  if (!rif || !rif->define_fringe_bitmap || n >= max_used_fringe_bitmap)
+    return;
+
+  struct fringe_bitmap *fb = fringe_bitmaps[n];
+  if (fb)
+    rif->define_fringe_bitmap (n, fb->bits, fb->height, fb->width);
 }
 
 #ifdef HAVE_NTGUI

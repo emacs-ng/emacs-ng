@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2021 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2022 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node System Interface
@@ -813,7 +813,7 @@ Here is an example of how you could use these hooks:
 @smallexample
 @group
 (add-hook 'suspend-hook
-          (lambda () (or (y-or-n-p "Really suspend? ")
+          (lambda () (or (y-or-n-p "Really suspend?")
                          (error "Suspend canceled"))))
 @end group
 (add-hook 'suspend-resume-hook (lambda () (message "Resumed!")
@@ -1041,6 +1041,21 @@ that variable with @code{let} is also reasonable practice.
 @code{setenv} returns the new value of @var{variable}, or @code{nil}
 if it removed @var{variable} from the environment.
 @end deffn
+
+@defmac with-environment-variables variables body@dots{}
+This macro sets the environment variables according to @var{variables}
+temporarily when executing @var{body}.  The previous values are
+restored when the form finishes.  The argument @var{variables} should
+be a list of pairs of strings of the form
+@w{@code{(@var{var} @var{value})}}, where @var{var} is the name of the
+environment variable and @var{value} is that variable's value.
+
+@lisp
+(with-environment-variables (("LANG" "C")
+                             ("LANGUAGE" "en_US:en"))
+  (call-process "ls" nil t))
+@end lisp
+@end defmac
 
 @defvar process-environment
 This variable is a list of strings, each describing one environment
@@ -1778,9 +1793,16 @@ This stands for the ISO 8601 date format, which is like
 @samp{%+4Y-%m-%d} except that any flags or field width override the
 @samp{+} and (after subtracting 6) the @samp{4}.
 @item %g
-This stands for the year corresponding to the ISO week within the century.
+@cindex ISO week, in time formatting
+This stands for the year without century (00--99) corresponding to the
+current @dfn{ISO week} number.  ISO weeks start on Monday and end on
+Sunday.  If an ISO week begins in one year and ends in another, the
+rules regarding which year @samp{%g} will produce are complex and will
+not be described here; however, in general, if most of the week's days
+are in the ending year, @samp{%g} will produce that year.
 @item %G
-This stands for the year corresponding to the ISO week.
+This stands for the year with century corresponding to the current ISO
+week number.
 @item %h
 This is a synonym for @samp{%b}.
 @item %H
@@ -2262,7 +2284,8 @@ can use in calling @code{cancel-timer} (@pxref{Timers}).
 @end deffn
 
 @cindex idleness
-  Emacs becomes @dfn{idle} when it starts waiting for user input, and
+  Emacs becomes @dfn{idle} when it starts waiting for user input
+(unless it waits for input with a timeout, @pxref{Reading One Event}), and
 it remains idle until the user provides some input.  If a timer is set
 for five seconds of idleness, it runs approximately five seconds after
 Emacs first becomes idle.  Even if @var{repeat} is non-@code{nil},
@@ -3065,21 +3088,21 @@ This function removes the tray notification given by its unique
 @cindex watch, for filesystem events
 
 Several operating systems support watching of filesystems for changes
-of files.  If configured properly, Emacs links a respective library
-like @file{inotify}, @file{kqueue}, @file{gfilenotify}, or
-@file{w32notify} statically.  These libraries enable watching of
-filesystems on the local machine.
+to files or their attributes.  If configured properly, Emacs links a
+respective library like @file{inotify}, @file{kqueue},
+@file{gfilenotify}, or @file{w32notify} statically.  These libraries
+enable watching of filesystems on the local machine.
 
 It is also possible to watch filesystems on remote machines,
-@pxref{Remote Files,, Remote Files, emacs, The GNU Emacs Manual}
+@pxref{Remote Files,, Remote Files, emacs, The GNU Emacs Manual}.
 This does not depend on one of the libraries linked to Emacs.
 
-Since all these libraries emit different events on notified file
-changes, there is the Emacs library @code{filenotify} which provides a
-unified interface.  Lisp programs that want to receive file
-notifications should always use this library in preference to the
-native ones.
-
+Since all these libraries emit different events upon notified file
+changes, Emacs provides a special library @code{filenotify} which
+presents a unified interface to applications.  Lisp programs that want
+to receive file notifications should always use this library in
+preference to the native ones.  This section documents the
+@code{filenotify} library functions and variables.
 
 @defun file-notify-add-watch file flags callback
 Add a watch for filesystem events pertaining to @var{file}.  This
@@ -3087,30 +3110,33 @@ arranges for filesystem events pertaining to @var{file} to be reported
 to Emacs.
 
 The returned value is a descriptor for the added watch.  Its type
-depends on the underlying library, it cannot be assumed to be an
-integer as in the example below.  It should be used for comparison by
-@code{equal} only.
+depends on the underlying library, and in general cannot be assumed to
+be an integer as in the example below.  It should be used for
+comparison by @code{equal} only.
 
 If the @var{file} cannot be watched for some reason, this function
 signals a @code{file-notify-error} error.
 
 Sometimes, mounted filesystems cannot be watched for file changes.
-This is not detected by this function, a non-@code{nil} return value
-does not guarantee that changes on @var{file} will be notified.
+This is not detected by this function, and so a non-@code{nil} return
+value does not guarantee that changes on @var{file} will be actually
+notified.
 
 @var{flags} is a list of conditions to set what will be watched for.
 It can include the following symbols:
 
 @table @code
 @item change
-watch for file changes
+watch for changes in file's contents
 @item attribute-change
-watch for file attribute changes, like permissions or modification
+watch for changes in file attributes, like permissions or modification
 time
 @end table
 
-If @var{file} is a directory, changes for all files in that directory
-will be notified.  This does not work recursively.
+If @var{file} is a directory, @code{change} watches for file creation
+and deletion in that directory.  Some of the native file notification
+libraries also report file changes in that case.  This does not work
+recursively.
 
 When any event happens, Emacs will call the @var{callback} function
 passing it a single argument @var{event}, which is of the form
@@ -3136,19 +3162,20 @@ reports attribute changes as well
 @item attribute-changed
 a @var{file} attribute was changed
 @item stopped
-watching @var{file} has been stopped
+watching @var{file} has stopped
 @end table
 
 Note that the @file{w32notify} library does not report
 @code{attribute-changed} events.  When some file's attribute, like
 permissions or modification time, has changed, this library reports a
 @code{changed} event.  Likewise, the @file{kqueue} library does not
-report reliably file attribute changes when watching a directory.
+reliably report file attribute changes when watching a directory.
 
-The @code{stopped} event reports, that watching the file has been
-stopped.  This could be because @code{file-notify-rm-watch} was called
-(see below), or because the file being watched was deleted, or due to
-another error reported from the underlying library.
+The @code{stopped} event means that watching the file has been
+discontinued.  This could be because @code{file-notify-rm-watch} was
+called (see below), or because the file being watched was deleted, or
+due to another error reported from the underlying library which makes
+further watching impossible.
 
 @var{file} and @var{file1} are the name of the file(s) whose event is
 being reported.  For example:
@@ -3192,7 +3219,7 @@ being reported.  For example:
 @end group
 @end example
 
-Whether the action @code{renamed} is returned, depends on the used
+Whether the action @code{renamed} is returned depends on the used
 watch library.  Otherwise, the actions @code{deleted} and
 @code{created} could be returned in a random order.
 

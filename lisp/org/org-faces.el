@@ -1,8 +1,8 @@
 ;;; org-faces.el --- Face definitions -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2022 Free Software Foundation, Inc.
 
-;; Author: Carsten Dominik <carsten at orgmode dot org>
+;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;; Keywords: outlines, hypermedia, calendar, wp
 ;; Homepage: https://orgmode.org
 ;;
@@ -43,6 +43,20 @@
   "Face used to hide leading stars in headlines.
 The foreground color of this face should be equal to the background
 color of the frame."
+  :group 'org-faces)
+
+(defface org-dispatcher-highlight
+  '((default :weight bold)
+    (((class color) (min-colors 88) (background dark))
+     :background "gray20" :foreground "gold1")
+    (((class color) (min-colors 88) (background light))
+     :background "SlateGray1" :foreground "DarkBlue")
+    (((class color) (min-colors 16) (background dark))
+     :foreground "yellow")
+    (((class color) (min-colors 16) (background light))
+     :foreground "blue")
+    (t :inverse-video t))
+  "Face for highlighted keys in the dispatcher."
   :group 'org-faces)
 
 (defface org-level-1 '((t :inherit outline-1))
@@ -151,6 +165,14 @@ set the properties in the `org-column' face.  For example, set
 
 (defface org-archived '((t :inherit shadow))
   "Face for headline with the ARCHIVE tag."
+  :group 'org-faces)
+
+(defface org-cite '((t :inherit link))
+  "Face for citations."
+  :group 'org-faces)
+
+(defface org-cite-key '((t :inherit link))
+  "Face for citation keys."
   :group 'org-faces)
 
 (defface org-link '((t :inherit link))
@@ -400,12 +422,15 @@ changes."
   '((((class color) (background light)) (:foreground "midnight blue"))
     (((class color) (background dark)) (:foreground "pale turquoise"))
     (t nil))
-  "Face for document date, author and email; i.e. that which
-follows a #+DATE:, #+AUTHOR: or #+EMAIL: keyword."
+  "Face for document information such as the author and date.
+This applies to the text that follows a #+SUBTITLE:, #+DATE:,
+#+AUTHOR: or #+EMAIL: keyword."
   :group 'org-faces)
 
 (defface org-document-info-keyword '((t :inherit shadow))
-  "Face for #+TITLE:, #+AUTHOR:, #+EMAIL: and #+DATE: keywords."
+  "Face for document information keywords.
+This face applies to the #+TITLE:, #+SUBTITLE:, #+AUTHOR:,
+#+EMAIL: and #+DATE: keywords."
   :group 'org-faces)
 
 (defface org-block `((t :inherit shadow
@@ -478,6 +503,16 @@ content of these blocks will still be treated as Org syntax."
   "Face used in agenda for captions and dates."
   :group 'org-faces)
 
+(defface org-agenda-structure-secondary '((t (:inherit org-agenda-structure)))
+  "Face used for secondary information in agenda block headers."
+  :group 'org-faces)
+
+(defface org-agenda-structure-filter '((t (:inherit (org-warning org-agenda-structure))))
+  "Face used for the current type of task filter in the agenda.
+It inherits from `org-agenda-structure' so it can adapt to
+it (e.g. if that is assigned a diffent font height or family)."
+  :group 'org-faces)
+
 (defface org-agenda-date '((t (:inherit org-agenda-structure)))
   "Face used in agenda for normal days."
   :group 'org-faces)
@@ -485,6 +520,10 @@ content of these blocks will still be treated as Org syntax."
 (defface org-agenda-date-today
   '((t (:inherit org-agenda-date :weight bold :italic t)))
   "Face used in agenda for today."
+  :group 'org-faces)
+
+(defface org-agenda-date-weekend-today '((t (:inherit org-agenda-date-today)))
+  "Face used in agenda for today during weekends."
   :group 'org-faces)
 
 (defface org-agenda-clocking '((t (:inherit secondary-selection)))
@@ -529,6 +568,11 @@ which days belong to the weekend."
   "Face for items scheduled previously, and not yet done."
   :group 'org-faces)
 
+(defface org-imminent-deadline '((t :inherit org-warning))
+  "Face for current deadlines in the agenda.
+See also `org-agenda-deadline-faces'."
+  :group 'org-faces)
+
 (defface org-upcoming-deadline
   '((((class color) (min-colors 88) (background light)) (:foreground "Firebrick"))
     (((class color) (min-colors 88) (background dark)) (:foreground "chocolate1"))
@@ -544,7 +588,7 @@ See also `org-agenda-deadline-faces'."
 See also `org-agenda-deadline-faces'.")
 
 (defcustom org-agenda-deadline-faces
-  '((1.0 . org-warning)
+  '((1.0 . org-imminent-deadline)
     (0.5 . org-upcoming-deadline)
     (0.0 . org-upcoming-distant-deadline))
   "Faces for showing deadlines in the agenda.

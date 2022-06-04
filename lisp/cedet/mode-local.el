@@ -1,6 +1,6 @@
 ;;; mode-local.el --- Support for mode local facilities  -*- lexical-binding:t -*-
 ;;
-;; Copyright (C) 2004-2005, 2007-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2005, 2007-2022 Free Software Foundation, Inc.
 ;;
 ;; Author: David Ponce <david@dponce.com>
 ;; Created: 27 Apr 2004
@@ -600,16 +600,17 @@ BODY is the implementation of this function."
     `(progn
        (eval-and-compile
 	 (defun ,newname ,args
-	   ,(format "%s\n\nOverride %s in `%s' buffers."
-		    docstring name mode)
+           ,(concat docstring "\n"
+                    (internal--format-docstring-line
+                     "Override `%s' in `%s' buffers."
+                     name mode))
 	   ;; The body for this implementation
 	   ,@body)
          ;; For find-func to locate the definition of NEWNAME.
          (put ',newname 'definition-name ',name))
        (mode-local-bind '((,name . ,newname))
                         '(override-flag t)
-                        ',mode))
-    ))
+                        ',mode))))
 
 ;;; Read/Query Support
 (defun mode-local-read-function (prompt &optional initial hist default)
@@ -773,11 +774,11 @@ SYMBOL is a function that can be overridden."
 (defconst xref-mode-local-find-overloadable-regexp
   "(define-overload\\(able-function\\)? +%s"
   "Regexp used by `xref-find-definitions' when searching for a
-  mode-local overloadable function definition.")
+mode-local overloadable function definition.")
 
 (defun xref-mode-local-find-override (meta-name)
   "Function used by `xref-find-definitions' when searching for an
-  override of a mode-local overloadable function.
+override of a mode-local overloadable function.
 META-NAME is a cons (OVERLOADABLE-SYMBOL . MAJOR-MODE)."
   (let* ((override (car meta-name))
 	 (mode (cdr meta-name))

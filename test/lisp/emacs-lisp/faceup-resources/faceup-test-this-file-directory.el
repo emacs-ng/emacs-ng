@@ -1,6 +1,6 @@
 ;;; faceup-test-this-file-directory.el --- Support file for faceup tests  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2014-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2022 Free Software Foundation, Inc.
 
 ;; Author: Anders Lindgren
 ;; Keywords: languages, faces
@@ -22,7 +22,7 @@
 
 ;;; Commentary:
 
-;; Support file for `faceup-test-basics.el'. This file is used to test
+;; Support file for `faceup-test-basics.el'.  This file is used to test
 ;; `faceup-this-file-directory' in various contexts.
 
 ;;; Code:

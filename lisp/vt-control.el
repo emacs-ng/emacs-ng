@@ -1,6 +1,6 @@
 ;;; vt-control.el --- Common VTxxx control functions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1993-1994, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1994, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Rob Riepel <riepel@networking.stanford.edu>
 ;; Keywords: terminals
@@ -23,7 +23,7 @@
 ;;; Commentary:
 
 ;;  The functions contained in this file send various VT control codes
-;;  to the terminal where emacs is running.  The following functions are
+;;  to the terminal where Emacs is running.  The following functions are
 ;;  available.
 
 ;;    Function           Action

@@ -1,6 +1,6 @@
 ;;; dns-mode.el --- a mode for viewing/editing Domain Name System master files  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2000-2001, 2004-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2001, 2004-2022 Free Software Foundation, Inc.
 
 ;; Author: Simon Josefsson <simon@josefsson.org>
 ;; Keywords: DNS master zone file SOA comm
@@ -165,7 +165,7 @@ manually with \\[dns-mode-soa-increment-serial]."
 ;;;###autoload
 (define-derived-mode dns-mode text-mode "DNS"
   "Major mode for viewing and editing DNS master files.
-This mode is inherited from text mode.  It add syntax
+This mode is derived from text mode.  It adds syntax
 highlighting, and some commands for handling DNS master files.
 Its keymap inherits from `text-mode' and it has the same
 variables for customizing indentation.  It has its own abbrev

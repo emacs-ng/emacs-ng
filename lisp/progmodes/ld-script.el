@@ -1,6 +1,6 @@
 ;;; ld-script.el --- GNU linker script editing mode for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Masatake YAMATO <yamato@redhat.com>
 ;; Keywords: languages, faces
@@ -167,11 +167,11 @@
      ("\\W\\(\\.\\)\\W" 1 ld-script-location-counter-face)
      )
    cpp-font-lock-keywords)
-  "Default font-lock-keywords for `ld-script-mode'.")
+  "Default `font-lock-keywords' for `ld-script-mode'.")
 
 ;;;###autoload
 (define-derived-mode ld-script-mode prog-mode "LD-Script"
-   "A major mode to edit GNU ld script files"
+   "A major mode to edit GNU ld script files."
   (setq-local comment-start "/* ")
   (setq-local comment-end   " */")
   (setq-local font-lock-defaults '(ld-script-font-lock-keywords nil)))

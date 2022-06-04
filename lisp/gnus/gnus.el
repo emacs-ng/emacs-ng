@@ -1,6 +1,6 @@
 ;;; gnus.el --- a newsreader for GNU Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1987-1990, 1993-1998, 2000-2021 Free Software
+;; Copyright (C) 1987-1990, 1993-1998, 2000-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Masanobu UMEDA <umerin@flab.flab.fujitsu.junet>
@@ -798,7 +798,7 @@ be used directly.")
 	       (goto-char (point-min))
                t)))
     (insert
-     (format "
+     "
 	  _    ___ _             _
 	  _ ___ __ ___  __    _ ___
 	  __   _     ___    __  ___
@@ -817,7 +817,7 @@ be used directly.")
 	    _
 	  __
 
-"))
+")
     ;; And then hack it.
     (gnus-indent-rigidly (point-min) (point-max)
 			 (/ (max (- (window-width) (or x 46)) 0) 2))
@@ -1114,7 +1114,7 @@ that case, just return a fully prefixed name of the group --
 (defcustom gnus-secondary-servers nil
   "List of NNTP servers that the user can choose between interactively.
 To make Gnus query you for a server, you have to give `gnus' a
-non-numeric prefix - `C-u M-x gnus', in short."
+non-numeric prefix - `\\[universal-argument] \\[gnus]', in short."
   :group 'gnus-server
   :type '(repeat string))
 (make-obsolete-variable 'gnus-secondary-servers 'gnus-select-method "24.1")
@@ -2140,8 +2140,9 @@ instance, to switch off all visual things except menus, you can say:
 
 Valid elements include `summary-highlight', `group-highlight',
 `article-highlight', `mouse-face', `summary-menu', `group-menu',
-`article-menu', `tree-highlight', `menu', `highlight', `browse-menu',
-`server-menu', `page-marker', `tree-menu', `binary-menu', and`pick-menu'."
+`article-menu', `tree-highlight', `menu', `highlight',
+`browse-menu', `server-menu', `page-marker', `tree-menu',
+`binary-menu', and `pick-menu'."
   :group 'gnus-meta
   :group 'gnus-visual
   :type '(set (const summary-highlight)
@@ -2216,7 +2217,7 @@ covered by that variable."
 (defcustom gnus-agent t
   "Whether we want to use the Gnus agent or not.
 
-You may customize gnus-agent to disable its use.  However, some
+You may customize `gnus-agent' to disable its use.  However, some
 back ends have started to use the agent as a client-side cache.
 Disabling the agent may result in noticeable loss of performance."
   :version "22.1"
@@ -2716,7 +2717,7 @@ with some simple extensions.
 %F          Contents of the From: header (string)
 %f          Contents of the From: or To: headers (string)
 %x          Contents of the Xref: header (string)
-%D          Date of the article (string)
+%D          Contents of the Date: header article (string)
 %d          Date of the article (string) in DD-MMM format
 %o          Date of the article (string) in YYYYMMDD`T'HHMMSS
             format

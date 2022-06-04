@@ -1,6 +1,6 @@
 ;;; network-stream-tests.el --- tests for network processes       -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2016-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2016-2022 Free Software Foundation, Inc.
 
 ;; Author: Lars Ingebrigtsen <larsi@gnus.org>
 
@@ -611,7 +611,7 @@
   (skip-unless (gnutls-available-p))
   (let ((server (make-tls-server 44667))
         (times 0)
-        nowait
+        (nowait nil) ; Workaround Bug#47080
         proc status)
     (unwind-protect
         (progn

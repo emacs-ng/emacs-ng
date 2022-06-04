@@ -1,6 +1,6 @@
 ;;; url-proxy.el --- Proxy server support  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999, 2004-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999, 2004-2022 Free Software Foundation, Inc.
 
 ;; Keywords: comm, data, processes, hypermedia
 
@@ -18,6 +18,8 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Commentary:
 
 ;;; Code:
 

@@ -1,6 +1,6 @@
 ;;; vc-bzr.el --- VC backend for the bzr revision control system  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2006-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2022 Free Software Foundation, Inc.
 
 ;; Author: Dave Love <fx@gnu.org>
 ;; 	   Riccardo Murri <riccardo.murri@gmail.com>
@@ -634,13 +634,13 @@ Returns nil if unable to find this information."
     (error "Don't know how to compute the next revision of %s" rev)))
 
 (defun vc-bzr-register (files &optional _comment)
-  "Register FILES under bzr. COMMENT is ignored."
+  "Register FILES under bzr.  COMMENT is ignored."
   (vc-bzr-command "add" nil 0 files))
 
 ;; Could run `bzr status' in the directory and see if it succeeds, but
 ;; that's relatively expensive.
 (defalias 'vc-bzr-responsible-p #'vc-bzr-root
-  "Return non-nil if FILE is (potentially) controlled by bzr.
+  "Return the directory if FILE is (potentially) controlled by bzr.
 The criterion is that there is a `.bzr' directory in the same
 or a superior directory.")
 
@@ -1054,7 +1054,8 @@ stream.  Standard error output is discarded."
 	      (vc-bzr-command "info" t 0 dir)
 	      (buffer-string)))
        (shelve (vc-bzr-shelve-list))
-       (shelve-help-echo "Use M-x vc-bzr-shelve to create shelves")
+       (shelve-help-echo (substitute-command-keys
+                          "Use \\[vc-bzr-shelve] to create shelves"))
        (root-dir (vc-bzr-root dir))
        (pending-merge
 	;; FIXME: looking for .bzr/checkout/merge-hashes is not a
