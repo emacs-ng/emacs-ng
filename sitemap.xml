@@ -1,79 +1,79 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url>
      <loc>https://emacs-ng.github.io/emacs-ng/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/build/building/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/build/docker/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/build/release/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/build/nix-develop/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/package-management/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/js/using-deno/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/js/getting-started/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/js/main-features/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/js/adv-features/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/js/architecture/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/webrender/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/ng-module/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/faq/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/handbook/getting-started/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/handbook/build/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/handbook/tests/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/handbook/lisp-fn/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url><url>
      <loc>https://emacs-ng.github.io/emacs-ng/handbook/types/</loc>
-     <lastmod>2022-06-04</lastmod>
+     <lastmod>2022-07-23</lastmod>
      <changefreq>daily</changefreq>
     </url>
 </urlset>
