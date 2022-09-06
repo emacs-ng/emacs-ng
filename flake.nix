@@ -133,7 +133,7 @@
                   sed -i 's|../crates/lisp_util|./crates/lisp_util|' Cargo.toml
                 ''
                 + doVersionedUpdate;
-              sha256 = "sha256-+LZno11r6dD8At2/ZkKpWrX1L15PxodkaHNJBQaam4s=";
+              sha256 = "sha256-ITFwTAKZoTkGBquxxay20r/H5638ndKpIcvQra2t4cg=";
               inherit installPhase;
             };
 
