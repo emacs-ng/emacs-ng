@@ -4,7 +4,7 @@
 
 [Deno](https://deno.land) is a program that is similar to Node.js, except that it is written in Rust. Both Deno and Node.js were created by the same person: Ryan Dhal. While normally you would invoke Deno via the command line, the emacs-ng project has integrated the Deno runtime into the emacs-ng client directly. Deno is powered by v8, Chrome's Open Source JavaScript engine.
 
-A JavaScript engine is more limited then most users realize. For example, utilities like XMLHttpRequest are not provided directly by the JavaScript engine, but are instead provided by a runtime (like your browser). Deno provides interfaces for performing I/O operations like file reads/writes, network operations, and spawning subprocesses.
+A JavaScript engine is more limited than most users realize. For example, utilities like XMLHttpRequest are not provided directly by the JavaScript engine, but are instead provided by a runtime (like your browser). Deno provides interfaces for performing I/O operations like file reads/writes, network operations, and spawning subprocesses.
 
 By default, emacs-ng will allow reading, writing, network, and subprocess operations. In Deno's examples, you may see them advise you to pass flags like "--allow-net". These are not needed when executing emacs-ng code. If you want to globally disable any of the previously mentioned operations, you can run the following lisp prior to executing JavaScript:
 
