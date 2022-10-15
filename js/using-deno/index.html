@@ -737,7 +737,7 @@
                 <h1 id="using-the-power-of-deno">Using the power of Deno<a class="headerlink" href="#using-the-power-of-deno" title="Permanent link">#</a></h1>
 <h2 id="what-is-deno">What is Deno?<a class="headerlink" href="#what-is-deno" title="Permanent link">#</a></h2>
 <p><a href="https://deno.land">Deno</a> is a program that is similar to Node.js, except that it is written in Rust. Both Deno and Node.js were created by the same person: Ryan Dhal. While normally you would invoke Deno via the command line, the emacs-ng project has integrated the Deno runtime into the emacs-ng client directly. Deno is powered by v8, Chrome's Open Source JavaScript engine.</p>
-<p>A JavaScript engine is more limited then most users realize. For example, utilities like XMLHttpRequest are not provided directly by the JavaScript engine, but are instead provided by a runtime (like your browser). Deno provides interfaces for performing I/O operations like file reads/writes, network operations, and spawning subprocesses.</p>
+<p>A JavaScript engine is more limited than most users realize. For example, utilities like XMLHttpRequest are not provided directly by the JavaScript engine, but are instead provided by a runtime (like your browser). Deno provides interfaces for performing I/O operations like file reads/writes, network operations, and spawning subprocesses.</p>
 <p>By default, emacs-ng will allow reading, writing, network, and subprocess operations. In Deno's examples, you may see them advise you to pass flags like "--allow-net". These are not needed when executing emacs-ng code. If you want to globally disable any of the previously mentioned operations, you can run the following lisp prior to executing JavaScript:</p>
 <p><code>(js-initialize :allow-net nil :allow-read nil :allow-write nil :allow-run nil)</code></p>
 <p>You can define any combination of the above arguments. See js-initialize's documentation for more information.</p>
@@ -791,7 +791,7 @@
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">September 7, 2022</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">October 15, 2022</span>
     
   </small>
 </div>
