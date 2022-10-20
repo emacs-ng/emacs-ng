@@ -7,6 +7,7 @@ use lazy_static::lazy_static;
 
 use crate::{
     bindings::{pvec_type, Lisp_Type, Lisp_Vector, More_Lisp_Bits},
+    buffer::LispBufferRef,
     frame::LispFrameRef,
     lisp::{ExternalPtr, LispObject, LispSubrRef},
     process::LispProcessRef,
@@ -83,6 +84,14 @@ impl LispVectorlikeRef {
 
     pub fn as_process(self) -> Option<LispProcessRef> {
         if self.is_pseudovector(pvec_type::PVEC_PROCESS) {
+            Some(self.cast())
+        } else {
+            None
+        }
+    }
+
+    pub fn as_buffer(self) -> Option<LispBufferRef> {
+        if self.is_pseudovector(pvec_type::PVEC_BUFFER) {
             Some(self.cast())
         } else {
             None

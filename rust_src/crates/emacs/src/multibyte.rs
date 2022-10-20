@@ -37,7 +37,7 @@ use libc::{c_char, c_uchar, ptrdiff_t};
 use std::{fmt, slice};
 
 use crate::{
-    bindings::{encode_string_utf_8, Lisp_String, Lisp_Type},
+    bindings::{encode_string_utf_8, make_string_from_utf8, Lisp_String, Lisp_Type},
     globals::{Qnil, Qstringp, Qt},
     lisp::{ExternalPtr, LispObject},
     obarray::LispObarrayRef,
@@ -126,6 +126,16 @@ impl From<LispObject> for Option<LispStringRef> {
         } else {
             None
         }
+    }
+}
+
+use std::convert::TryInto;
+use std::ffi::CString;
+impl From<String> for LispObject {
+    fn from(s: String) -> Self {
+        let len = s.len() as isize;
+        let cstring = CString::new(s).expect("Failure to allocate CString");
+        unsafe { make_string_from_utf8(cstring.as_ptr(), len.try_into().unwrap()) }
     }
 }
 

@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 use std::ffi::CString;
-use std::io::{BufReader, BufWriter, Result};
+use std::io::{BufReader, BufWriter, Read, Result};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 
@@ -15,11 +15,11 @@ use emacs::multibyte::LispStringRef;
 use lisp_macros::lisp_fn;
 
 use emacs::bindings::{
-    check_integer_range, hash_lookup, hash_put, intmax_t, make_fixed_natnum, make_float, make_int,
-    make_string_from_utf8, make_uint, make_vector, Fcons, Fintern, Flist, Fmake_hash_table,
-    Fnreverse, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, AREF, ASET, ASIZE,
-    FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, STRINGP, SYMBOLP,
-    SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
+    call0, call1, call4, check_integer_range, hash_lookup, hash_put, intmax_t, make_fixed_natnum,
+    make_float, make_int, make_string_from_utf8, make_uint, make_vector, Fcons, Fintern, Flist,
+    Fmake_hash_table, Fnreverse, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, AREF,
+    ASET, ASIZE, FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, STRINGP,
+    SYMBOLP, SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
 };
 
 use emacs::globals::{
@@ -606,7 +606,7 @@ pub fn lsp_async_send_notification(
     let value = lisp_to_serde(params, &config);
     let request = Message::Notification(Notification::new(method_s.to_utf8(), value.unwrap()));
     if let Err(e) = emacs_pipe.message_rust_worker(UserData::new(request)) {
-        error!("Failed to send notification to server, reason {:?}", e);
+        error!("Failed to send request to server, reason {:?}", e);
     }
 
     true
