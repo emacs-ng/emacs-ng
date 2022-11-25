@@ -18,6 +18,7 @@ lisp-util = { version = "0.1.0", path = "crates/lisp_util" }
 lisp-macros = { version = "0.1.0", path = "crates/lisp_macros" }
 ng_async = { version = "0.1.0", path = "crates/ng_async" }
 lsp_json = { version = "0.1.0", path = "crates/lsp_json" }
+lsp_client = { version = "0.1.0", path = "crates/lsp_client", optional = true }
 git = { version = "0.1.0", path = "crates/git", optional = true }
 ng_module = { version = "0.1.0", path = "crates/ng_module", optional = true }
 js = { version = "0.1.0", path = "crates/js", optional = true }
@@ -69,6 +70,8 @@ window-system-nextstep = []
 window-system-w32 = []
 # Build with git2rs support
 libgit = ["git"]
+# lsp client extensions
+lsp = ["lsp_client"]
 # Use the webrender window system
 window-system-webrender = [@WEBRENDER_DEFAULT_FEATURES@]
 # Treat warnings as a build error on Travis.

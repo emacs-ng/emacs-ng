@@ -453,6 +453,7 @@ OPTION_DEFAULT_ON([libsystemd],[don't compile with libsystemd support])
 OPTION_DEFAULT_ON([cairo],[don't compile with Cairo drawing])
 OPTION_DEFAULT_ON([xml2],[don't compile with XML parsing support])
 OPTION_DEFAULT_OFF([libgit],[enable libgit2 and git2rs (experimental)])
+OPTION_DEFAULT_OFF([lsp],[enable lsp client extensions (experimental)])
 OPTION_DEFAULT_OFF([imagemagick],[compile with ImageMagick image support])
 OPTION_DEFAULT_ON([native-image-api], [don't use native image APIs (GDI+ on Windows)])
 OPTION_DEFAULT_IFAVAILABLE([json], [compile with native JSON support])
@@ -4331,6 +4332,12 @@ if test "${with_libgit}" = "yes"; then
   AC_DEFINE(HAVE_LIBGIT, 1, [Define to 1 if you want to use libgit2 and git2rs.])
 fi
 
+### lsp client
+if test "${with_lsp}" = "yes"; then
+  HAVE_LSP=yes
+  AC_DEFINE(HAVE_LSP, 1, [Define to 1 if you want to use lsp enhancements.])
+fi
+
 BLESSMAIL_TARGET=
 LIBS_MAIL=
 if test ! "$with_mailutils"; then
@@ -6264,6 +6271,9 @@ case "$window_system" in
 esac
 if test "$HAVE_LIBGIT" = "yes"; then
    CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"libgit\", "
+fi
+if test "$HAVE_LSP" = "yes"; then
+   CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"lsp\", "
 fi
 if test "$HAVE_JAVASCRIPT" = "yes"; then
   AC_DEFINE(USE_JAVASCRIPT, 1, [Define to 1 if you want to use deno/javascript.])
