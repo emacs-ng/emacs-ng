@@ -1327,12 +1327,6 @@ please check its value")
      (setq initial-window-system nil)
      (kill-emacs)))
 
-  ;; Bootstrap straight.el
-  ;; Make sure it's after window-system window-system initialization, straight.el's
-  ;; el-get recipes has some dependency on `create-default-fontset`
-  (and user-init-file
-       (load "emacs-lisp/emacs-ng-init" nil 'nomessage))
-
   (run-hooks 'before-init-hook)
 
   ;; Under X, create the X frame and delete the terminal frame.
