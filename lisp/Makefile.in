@@ -119,11 +119,7 @@ unexport EMACSDATA EMACSDOC EMACSPATH
 emacs = EMACSLOADPATH= '$(EMACS)' $(EMACSOPT)
 
 ## Subdirectories, relative to builddir.
-SUBDIRS = $(sort $(shell find ${srcdir} -type d ! -path '*/.*' \
-! -path '*/.*/*' \
-! -path './straight/*' \
-! -path './use-package/*' \
--print))
+SUBDIRS = $(sort $(shell find ${srcdir} -type d -print))
 ## Subdirectories, relative to srcdir.
 SUBDIRS_REL = $(patsubst ${srcdir}%,.%,${SUBDIRS})
 ## All subdirectories except 'obsolete' and 'term'.
@@ -563,8 +559,5 @@ $(lisp)/progmodes/cc-styles.elc: $(lisp)/progmodes/cc-vars.elc \
 # be compiled under the same version of CC Mode it will run with.
 $(lisp)/progmodes/js.elc: $(lisp)/progmodes/cc-defs.elc \
    $(lisp)/progmodes/cc-engine.elc $(lisp)/progmodes/cc-mode.elc
-
-# Always recompile straight.el due to it's emacs-version-changed logic
-$(lisp)/straight/straight.elc: ${EMACS}
 
 # Makefile ends here.
