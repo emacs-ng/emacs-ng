@@ -456,14 +456,6 @@ if test -n "$tailored_hooks$sample_hooks"; then
     fi
 fi
 
-if $do_git; then
-    echo "Updating git submodules..."
-    git submodule update --init --recursive
-    git submodule update --recursive
-else
-    git_was_ok=false
-fi
-
 if test ! -f configure; then
     echo "You can now run '$0 autoconf'."
 elif test -r .git && test $git_was_ok = false && test $do_git = false; then
