@@ -716,9 +716,10 @@ LIBEMACSNG_DEP-INFO=$(LIBEMACSNG_ARCHIVE:.a=.d)
 LIBEMACSNG_CARGO_FILES = $(sort $(shell find ${rust_srcdir} -type f \
 -name 'Cargo.*' -o -name "build.rs"))
 
-$(LIBEMACSNG_ARCHIVE): globals.h $(LIBEMACSNG_CARGO_FILES) \
+$(LIBEMACSNG_ARCHIVE) $(LIBEMACSNG_DEP-INFO): globals.h $(LIBEMACSNG_CARGO_FILES) \
 $(DEFINITIONS_FILE) $(GLOBALS_FILE) $(BINDINGS_FILE) \
 $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT)
+	touch $@
 	CARGO_BUILD_DEP_INFO_BASEDIR=$(realpath $(top_srcdir)) \
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
@@ -726,7 +727,7 @@ $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT)
 	$(CARGO_BUILD) $(CARGO_FLAGS) --manifest-path $(cargo_manifest)
 	sed -i~ 's/rust_src\//..\/rust_src\//g' $(LIBEMACSNG_DEP-INFO)
 
--include $(LIBEMACSNG_DEP-INFO)
+include $(LIBEMACSNG_DEP-INFO)
 
 clippy: $(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE)
 	RUSTFLAGS="$(RUSTFLAGS)" \

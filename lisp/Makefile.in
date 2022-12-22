@@ -567,6 +567,4 @@ $(lisp)/progmodes/js.elc: $(lisp)/progmodes/cc-defs.elc \
 # Always recompile straight.el due to it's emacs-version-changed logic
 $(lisp)/straight/straight.elc: ${EMACS}
 
-$(lisp)/emacs-lisp/emacs-ng.elc: $(lisp)/straight/straight.elc
-
 # Makefile ends here.

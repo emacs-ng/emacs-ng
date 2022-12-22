@@ -880,7 +880,7 @@ uninstall-nt:
 
 # ==================== Cleaning up and miscellanea ====================
 
-.PHONY: mostlyclean clean distclean bootstrap-clean maintainer-clean extraclean submodule
+.PHONY: mostlyclean clean distclean bootstrap-clean maintainer-clean extraclean
 
 ## Eg:
 ## src_clean:
@@ -915,10 +915,7 @@ clean_dirs = $(mostlyclean_dirs) nextstep admin/charsets admin/unidata
 
 $(foreach dir,$(clean_dirs),$(eval $(call submake_template,$(dir),clean)))
 
-submodule:
-	-git submodule update --recursive
-
-clean: $(clean_dirs:=_clean) submodule
+clean: $(clean_dirs:=_clean)
 	-rm -f ./*.tmp etc/*.tmp*
 	-rm -rf info-dir.*
 	-rm -rf native-lisp

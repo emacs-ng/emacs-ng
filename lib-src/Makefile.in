@@ -394,13 +394,13 @@ RUST_DEP-INFO=$(RUST_ARCHIVE:.a=.d)
 RUST_CARGO_FILES = $(sort $(shell find ${rust_srcdir}/remacs-lib -type f \
 -name 'Cargo.*' -o -name "build.rs"))
 
-$(RUST_ARCHIVE): $(RUST_CARGO_FILES)
+$(RUST_ARCHIVE) $(RUST_DEP-INFO): $(RUST_CARGO_FILES)
 	CARGO_BUILD_DEP_INFO_BASEDIR=$(realpath $(top_srcdir)) \
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	$(CARGO_BUILD) $(CARGO_FLAGS) --manifest-path=$(cargo_manifest)
 	sed -i~ 's/rust_src\//..\/rust_src\//g' $(RUST_DEP-INFO)
 
--include $(RUST_DEP-INFO)
+include $(RUST_DEP-INFO)
 
 remacs-libclean:
 	$(CARGO_CLEAN) --manifest-path=$(cargo_manifest)
