@@ -65,7 +65,7 @@ jobs:
                     - os: ubuntu-latest
                       build: webrender
                     - os: macos-latest
-                      build: general
+                      build: webrender
 
         steps:
             - uses: actions/checkout@v2
