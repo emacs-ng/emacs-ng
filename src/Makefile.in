@@ -683,7 +683,7 @@ gl-stamp: $(libsrc)/make-docfile$(EXEEXT) $(GLOBAL_SOURCES)
 globals.h: gl-stamp; @true
 
 rust_srcdir=$(top_srcdir)/rust_src
-RUSTFLAGS_FILE=$(rust_srcdir)/target/.rustflags
+RUSTFLAGS_FILE=$(top_srcdir)/target/.rustflags
 $(RUSTFLAGS_FILE) : FORCE
 	mkdir -p $(dir $@)
 	echo "$(CARGO_FLAGS) $(RUSTFLAGS)" > $@.tmp
@@ -692,24 +692,8 @@ $(RUSTFLAGS_FILE) : FORCE
 
 HEADERS=$(wildcard $(srcdir)/*.h)
 
-DEFINITIONS_FILE=$(rust_srcdir)/crates/emacs/src/definitions.rs
-BINDINGS_FILE=$(rust_srcdir)/crates/emacs/src/bindings.rs
-GLOBALS_FILE=$(rust_srcdir)/crates/emacs/src/globals.rs
-# macuvs.h has a rule to regenerate it which depends on emacs being
-# built. That creates a circular dependency which we can break by not
-# depending on it as this is not a file that changes under normal
-# operation.
-$(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE): $(filter-out ./macuvs.h,$(HEADERS)) $(rust_srcdir)/wrapper.h \
-							$(rust_srcdir)/ng-bindgen/Cargo.toml \
-							$(rust_srcdir)/ng-bindgen/src/main.rs
-	$(MKDIR_P) $(dir $@)
-	RUSTFLAGS="$(RUSTFLAGS)" \
-	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
-	$(CARGO_RUN) --release --manifest-path=$(rust_srcdir)/ng-bindgen/Cargo.toml -- $(basename $(notdir $@)) $@
-	touch $@
-
-cargo_manifest=$(rust_srcdir)/Cargo.toml
-LIBEMACSNG_ARCHIVE=$(rust_srcdir)/target/$(CARGO_BUILD_DIR)/$(EMACSNGLIB_NAME)
+cargo_manifest=$(top_srcdir)/Cargo.toml
+LIBEMACSNG_ARCHIVE=$(top_srcdir)/target/$(CARGO_BUILD_DIR)/$(EMACSNGLIB_NAME)
 # Cargo dep-info: https://doc.rust-lang.org/cargo/reference/config.html#builddep-info-basedir
 LIBEMACSNG_DEP-INFO=$(LIBEMACSNG_ARCHIVE:.a=.d)
 # Cargo.toml,Cargo.lock,build.rs
@@ -717,7 +701,6 @@ LIBEMACSNG_CARGO_FILES = $(sort $(shell find ${rust_srcdir} -type f \
 -name 'Cargo.*' -o -name "build.rs"))
 
 $(LIBEMACSNG_ARCHIVE) $(LIBEMACSNG_DEP-INFO): globals.h $(LIBEMACSNG_CARGO_FILES) \
-$(DEFINITIONS_FILE) $(GLOBALS_FILE) $(BINDINGS_FILE) \
 $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT)
 	touch $@
 	CARGO_BUILD_DEP_INFO_BASEDIR=$(realpath $(top_srcdir)) \
@@ -727,9 +710,7 @@ $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT)
 	$(CARGO_BUILD) $(CARGO_FLAGS) --manifest-path $(cargo_manifest)
 	sed -i~ 's/rust_src\//..\/rust_src\//g' $(LIBEMACSNG_DEP-INFO)
 
-include $(LIBEMACSNG_DEP-INFO)
-
-clippy: $(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE)
+clippy:
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
 	$(CARGO_CLIPPY) $(CARGO_FLAGS) --manifest-path $(cargo_manifest)

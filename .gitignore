@@ -309,7 +309,7 @@ src/gdb.ini
 /var/
 
 # emacs-ng
-rust_src/Cargo.toml
+target
 !nix/_sources
 nix/_sources/.shake*
 nix/cachix-key.secrets
@@ -321,3 +321,4 @@ lib-src/seccomp-filter.bpf
 lib-src/seccomp-filter.pfc
 lib-src/seccomp-filter-exec.bpf
 lib-src/seccomp-filter-exec.pfc
+/Cargo.toml

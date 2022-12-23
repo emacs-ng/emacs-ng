@@ -12,3 +12,6 @@ lisp-macros = { version = "0.1.0", path = "../lisp_macros" }
 lisp-util = { version = "0.1.0", path = "../lisp_util" }
 libc = "0.2.95"
 lazy_static = "1.2"
+
+[build-dependencies]
+ng-bindgen = { path = "../../ng-bindgen" }

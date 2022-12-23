@@ -147,11 +147,11 @@
             };
 
             emacsngSrc = prev.rustPlatform.fetchCargoTarball {
-              src = emacsng-source + "/rust_src";
+              src = emacsng-source;
               cargoUpdateHook =
                 ''
-                  sed -e 's/@CARGO_.*@//' Cargo.toml.in > Cargo.toml
-                  sed -i 's|@WEBRENDER_DEFAULT_FEATURES@|"webrender"|' Cargo.toml
+                  sed -e 's/@CARGO_.*@//' Cargo.in > Cargo.toml
+                  sed -e 's/@WEBRENDER_.*@//' rust_src/crates/webrender/Cargo.in > rust_src/crates/webrender/Cargo.toml
                 ''
                 + doVersionedUpdate;
               name = "emacsngSrc";
@@ -198,7 +198,7 @@
         librusty_v8 = prev.callPackage ./nix/librusty_v8.nix {};
 
         emacsng = with prev; let
-          withWebrender = false;
+          withWebrender = true;
         in
           (
             final.emacsGcc.override
@@ -289,7 +289,7 @@
               + ''
                 _librusty_v8_setup() {
                     for v in "$@"; do
-                      install -D ${final.librusty_v8} "rust_src/target/$v/gn_out/obj/librusty_v8.a"
+                      install -D ${final.librusty_v8} "target/$v/gn_out/obj/librusty_v8.a"
                     done
                   }
                   _librusty_v8_setup "debug" "release" "${arch}/release"

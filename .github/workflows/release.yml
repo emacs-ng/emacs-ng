@@ -67,7 +67,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ./rust_src/target
+            ./target
           key: ${{ runner.os }}-${{ matrix.build }}-cargo-${{ needs.prepare_env.outputs.rust_cache }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.build }}-cargo
@@ -93,9 +93,9 @@ jobs:
           ## Reduce Cache
           # https://bheisler.github.io/post/efficient-use-of-travis-ci-cache-for-rust/
           # Delete loose files in the release/debug directory
-          sudo find ./rust_src/target/release -maxdepth 1 -type f -delete
+          sudo find ./target/release -maxdepth 1 -type f -delete
           # Delete just meta data
-          sudo rm -f  ./rust_src/target/.rustc_info.json
+          sudo rm -f  ./target/.rustc_info.json
           # Also delete cargo's registry index. This is updated on every build, but it's
           # way cheaper to re-download than the whole cache is.
           sudo rm -rf ~/.cargo/registry/index/

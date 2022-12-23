@@ -25,6 +25,20 @@ AC_PREREQ(2.65)
 dnl Note this is parsed by (at least) make-dist and lisp/cedet/ede/emacs.el.
 AC_INIT(GNU Emacs, 28.1.50, bug-gnu-emacs@gnu.org, , https://www.gnu.org/software/emacs/)
 
+
+AC_CHECK_PROGS([RUSTC], [rustc])
+test -z "$RUSTC" &&
+   AC_MSG_ERROR([Rust is required])
+
+case `($RUSTC --version) 2>/dev/null` in
+  *nightly* ) ;;
+  *) AC_MSG_ERROR([Rust Nightly Channel is required]);;
+esac
+
+AC_CHECK_PROGS([CARGO], [cargo])
+test -z "$CARGO" &&
+      AC_MSG_ERROR([CARGO is required])
+
 dnl Set emacs_config_options to the options of 'configure', quoted for the shell,
 dnl and then quoted again for a C string.  Separate options with spaces.
 dnl Add some environment variables, if they were passed via the environment
@@ -5822,7 +5836,7 @@ fi
 
 LIB_REMACS="$RUST_DEPS"
 
-LDFLAGS_REMACS="-L../$srcdir/rust_src/target/\${CARGO_BUILD_DIR}"
+LDFLAGS_REMACS="-L../$srcdir/target/\${CARGO_BUILD_DIR}"
 
 # On macOS, rand crate needs '_SecRandomCopyBytes' symbol in Security framework.
 if test "${opsys}" = "darwin"; then
@@ -6238,7 +6252,7 @@ fi || AC_MSG_ERROR(['src/epaths.h' could not be made.])
 
 
 CARGO_DEFAULT_FEATURES=""
-WEBRENDER_DEFAULT_FEATURES="\"webrender\""
+WEBRENDER_DEFAULT_FEATURES=""
 if test "$HAVE_LIBXML2" = "yes"; then
     CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"use-xml2\", "
 fi
@@ -6257,9 +6271,12 @@ case "$window_system" in
     ;;
     webrender)
         CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-webrender\", "
-        if test "${with_webrender_capture}" = "yes"; then
-            WEBRENDER_DEFAULT_FEATURES="${WEBRENDER_DEFAULT_FEATURES}, \"webrender/capture\""
-        fi
+	if test x$ac_enable_webrender_capture != x ; then
+	   WEBRENDER_DEFAULT_FEATURES="\"capture\", ${WEBRENDER_DEFAULT_FEATURES}"
+	fi
+	if test x$ac_enable_webrender_x11 != x ; then
+	   WEBRENDER_DEFAULT_FEATURES="\"x11\", ${WEBRENDER_DEFAULT_FEATURES}"
+	fi
     ;;
 esac
 if test "$HAVE_LIBGIT" = "yes"; then
@@ -6274,7 +6291,10 @@ if test "${HAVE_MODULES}" = "yes"; then
 fi
 AC_SUBST(CARGO_DEFAULT_FEATURES)
 AC_SUBST(WEBRENDER_DEFAULT_FEATURES)
-AC_CONFIG_FILES([rust_src/Cargo.toml])
+AC_CONFIG_FILES([Cargo.toml:Cargo.in])
+webrender_src=$srcdir/rust_src/crates/webrender
+AC_CONFIG_FILES([$webrender_src/Cargo.toml:$webrender_src/Cargo.in])
+AC_CONFIG_FILES([$srcdir/rust_src/crates/emacs/build.rs])
 
 dnl NB we have to cheat and use the ac_... version because abs_top_srcdir
 dnl is not yet set, sigh.  Or we could use ../$srcdir/src/.gdbinit,

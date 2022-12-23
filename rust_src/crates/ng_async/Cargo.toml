@@ -14,3 +14,6 @@ libc = "0.2.95"
 lazy_static = "1.2"
 crossbeam = "0.8"
 futures = "0.3"
+
+[build-dependencies]
+ng-bindgen = { path = "../../ng-bindgen" }

@@ -30,11 +30,6 @@
 
 ### Code:
 
-## Rust tool chain required version path.
-## Assumes this script is run in emacs-ng root dir.
-## Future maybe: let an env var set/override this.
-rust_toolchain_vers_path="./rust-toolchain"
-
 ## Tools we need:
 ## Note that we respect the values of AUTOCONF etc, like autoreconf does.
 progs="autoconf"
@@ -144,65 +139,6 @@ case $do_autoconf,$do_git in
     do_autoconf=true
     test -r .git && do_git=true;;
 esac
-
-echo "Checking Rust toolchain install ..."
-command -v rustup >/dev/null 2>&1 || { echo >&2 "emacs-ng requires the rustup command to be installed in order to build. Please see https://www.rustup.rs/; Aborting."; exit 1; }
-
-## $1 = emacs-ng required version
-## Return 0 if emacs-ng Rust toolchain required version is installed and active
-## Return 1 if emacs-ng Rust toolchain required version is not installed
-## Return 2 if emacs-ng Rust toolchain required version is installed but not active (directory override)
-## Return 3 for unexpected error
-check_rust_version ()
-{
-    emacs_version=$1
-
-    rustup_active_version=$(rustup show | awk '/active toolchain/ {getline; getline; getline; print}')
-    echo $rustup_active_version | grep $emacs_version >/dev/null && return 0
-
-    if rustup show | grep -e "active\|installed toolchain" >/dev/null; then
-        rustup_installed=$(rustup show | awk '/installed/{flag=1; next} /active/{flag=0} flag')
-        echo $rustup_installed | grep $emacs_version >/dev/null || return 1
-    else
-        rustup_installed=$(rustup show | grep "overridden by")
-        if echo $rustup_installed | grep $emacs_version >/dev/null; then
-            return 0
-        else
-            return 1
-        fi
-    fi
-
-    echo $rustup_active_version | grep 'directory override'  >/dev/null && return 2
-
-    return 3
-}
-
-## If the rust toolchain version path is set then check the version
-if [ -n $rust_toolchain_vers_path ] ; then
-
-    if [ ! -r $rust_toolchain_vers_path ] ; then
-	echo >&2 "emacs-ng rust-toolchain file does not exist or is not readable: $rust_toolchain_vers_path."
-	exit 1
-    fi
-
-    check_rust_version $(cat $rust_toolchain_vers_path)
-    retval=$?
-
-    case $retval in
-        0) echo "Your system has the required Rust toolchain installed for building emacs-ng." ;;
-        1) echo >&2 "emacs-ng currently requires Rust toolchain version $emacs_version."
-	   echo >&2 "Run 'rustup install $emacs_version'."
-	   exit 1 ;;
-        2) echo >&2 "emacs-ng currently requires Rust toolchain version $emacs_version."
-	   echo >&2 -e "The active version is not the required one and is set via directory override:\n\t$rustup_active_version"
-	   echo >&2 "Run 'rustup override unset' in this directory."
-	   exit 1 ;;
-        *) # /should/ not happen
-	   echo >&2 "emacs-ng currently requires Rust toolchain version $emacs_version."
-	   exit 1 ;;
-    esac
-
-fi
 
 # Generate Autoconf-related files, if requested.
 
