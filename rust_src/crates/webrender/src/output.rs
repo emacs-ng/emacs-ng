@@ -66,9 +66,7 @@ pub struct Output {
 
 impl Output {
     pub fn build(event_loop: &mut WrEventLoop, frame: LispFrameRef) -> Self {
-        let window_builder = glutin::window::WindowBuilder::new()
-            .with_visible(true)
-            .with_maximized(true);
+        let window_builder = winit::window::WindowBuilder::new().with_visible(true);
 
         #[cfg(all(feature = "wayland", not(any(target_os = "macos", windows))))]
         let window_builder = {

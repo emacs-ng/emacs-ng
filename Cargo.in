@@ -1,0 +1,85 @@
+[workspace]
+members = ["rust_src/remacs-lib", "etc/colors", "rust_src/crates/*"]
+exclude = ["rust_src/ng-bindgen", "lib-src/hashdir"]
+
+# Allow unwinding in functions called from C. See
+# https://www.reddit.com/r/rust/comments/565q1f/wrote_a_blogpost_from_my_experiences_the_arduous/d8h053m/
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+# This reduces the binary size from 125M to 70M due
+# to Deno inclusion
+opt-level = 'z' # Optimize for size
+
+### Root package
+[package]
+authors = ["emacs-ng members"]
+name = "emacsng"
+description = "Experimental emacs fork"
+license = "GPL-3.0"
+version = "0.1.0"
+edition = "2018"
+build = "rust_src/build.rs"
+
+[dependencies]
+remacs-lib = { version = "0.1.0", path = "rust_src/remacs-lib" }
+emacs = { version = "0.1.0", path = "rust_src/crates/emacs" }
+lisp-util = { version = "0.1.0", path = "rust_src/crates/lisp_util" }
+lisp-macros = { version = "0.1.0", path = "rust_src/crates/lisp_macros" }
+ng_async = { version = "0.1.0", path = "rust_src/crates/ng_async" }
+lsp_json = { version = "0.1.0", path = "rust_src/crates/lsp_json" }
+git = { version = "0.1.0", path = "rust_src/crates/git", optional = true }
+ng_module = { version = "0.1.0", path = "rust_src/crates/ng_module", optional = true }
+js = { version = "0.1.0", path = "rust_src/crates/js", optional = true }
+webrender = { version = "0.1.0", path = "rust_src/crates/webrender", optional = true }
+clippy = { version = "*", optional = true }
+
+[build-dependencies]
+ng-bindgen = { path = "rust_src/ng-bindgen" }
+
+[lib]
+crate-type = ["staticlib"]
+path = "rust_src/lib.rs"
+
+[features]
+default = [
+  @CARGO_DEFAULT_FEATURES@
+  @CARGO_CHECKING_FEATURES@
+]
+
+# Compile with C xml2 library support.
+use-xml2 = []
+# Use a window system
+window-system = ["emacs/window-system"]
+# Use the x11 window system
+window-system-x11 = []
+# Use the nextstep window system
+window-system-nextstep = []
+# Use the w32 window system
+window-system-w32 = []
+# Build with git2rs support
+libgit = ["git", "ng-bindgen/libgit"]
+# Use the webrender window system
+window-system-webrender = ["ng-bindgen/window-system-webrender", "webrender"]
+# Treat warnings as a build error on Travis.
+strict = []
+# Use JavaScript and Deno
+javascript = ["dep:js", "ng-bindgen/javascript"]
+# Build with dynamic modules support's extensions.
+ng-module = ["dep:ng_module", "ng-bindgen/ng-module"]
+# Enable glyphs debugging code.
+glyph-debug = []
+
+### Patches
+
+# tmp ignore macOS alternative key characters.
+[patch.crates-io]
+winit = { git = "https://github.com/declantsien/winit", rev="d80de2ea150a36d078bd19b6c6ce1cc299304fc5" }
+
+[patch.crates-io.fontdb]
+git = "https://github.com/declantsien/fontdb.git"
+branch = "emacs-wr"

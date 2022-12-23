@@ -12,8 +12,6 @@
 #![feature(concat_idents)]
 #![feature(never_type)]
 #![feature(stmt_expr_attributes)]
-#![feature(untagged_unions)]
-#![feature(maybe_uninit_extra)]
 #![feature(async_closure)]
 
 #[rustfmt::skip]

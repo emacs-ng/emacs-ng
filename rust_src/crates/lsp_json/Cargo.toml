@@ -16,3 +16,5 @@ lazy_static = "1.2"
 lsp-server = "0.5.0"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 
+[build-dependencies]
+ng-bindgen = { path = "../../ng-bindgen" }

@@ -20,7 +20,7 @@ jobs:
                   path: |
                       ~/.cargo/registry/cache
                       ~/.cargo/git
-                      ./rust_src/target
+                      ./target
                   key: |
                       ${{ runner.os }}-${{ matrix.build }}-deno-v1.9.2-rust-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/rustfmt.toml') }}-${{ steps.rust-setup.outputs.week }}
                   restore-keys: |
@@ -82,7 +82,7 @@ jobs:
                   path: |
                       ~/.cargo/registry/cache
                       ~/.cargo/git
-                      ./rust_src/target
+                      ./target
                   key: |
                       ${{ runner.os }}-${{ matrix.build }}-rust-deno-v1.9.2-${{ hashFiles('**/test.yml', '**/rust-toolchain', '**/Cargo.toml*') }}-${{ steps.rust-setup.outputs.week }}
                   restore-keys: |
@@ -142,9 +142,6 @@ jobs:
                   echo "CPP=clang -E" >> $GITHUB_ENV
                   echo "CFLAGS= -g1 -O2" >> $GITHUB_ENV
                   echo "CXXFLAGS= -g1 -O2" >> $GITHUB_ENV
-                  echo "AR=llvm-ar" >> $GITHUB_ENV
-                  echo "AS=llvm-as" >> $GITHUB_ENV
-                  echo "RANLIB=llvm-ranlib" >> $GITHUB_ENV
 
                   # Other Flags
                   echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
@@ -194,9 +191,9 @@ jobs:
                   # `debug/` if your build script builds artifacts in release mode.
                   # https://bheisler.github.io/post/efficient-use-of-travis-ci-cache-for-rust/
                   # Delete loose files in the debug directory
-                  find ./rust_src/target/debug -maxdepth 1 -type f -delete
+                  find ./target/debug -maxdepth 1 -type f -delete
                   # Delete just meta data
-                  rm -f  ./rust_src/target/.rustc_info.json
+                  rm -f  ./target/.rustc_info.json
 
             - name: js fmt
               run: |

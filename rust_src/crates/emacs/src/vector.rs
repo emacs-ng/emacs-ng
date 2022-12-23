@@ -230,6 +230,6 @@ impl_vectorlike_ref! { LispVectorRef, LispVecIterator, ptrdiff_t::max_value() }
 
 lazy_static! {
     pub static ref HEADER_SIZE: usize =
-        unsafe { memoffset::offset_of!(crate::bindings::Lisp_Vector, contents) };
+        memoffset::offset_of!(crate::bindings::Lisp_Vector, contents);
     pub static ref WORD_SIZE: usize = ::std::mem::size_of::<crate::lisp::LispObject>();
 }

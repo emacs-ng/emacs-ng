@@ -1,10 +1,24 @@
 [package]
 name = "ng-bindgen"
+description = "Create c_exports.rs that holds a crate's generated bindings"
+license = "GPL-3.0"
 version = "0.1.0"
-description = "Tool to create emacs-ng C bindings."
 edition = "2018"
 
 [dependencies]
+clippy = { version = "*", optional = true }
+lazy_static = "1.2"
 libc = "0.2.95"
 regex = "1.1"
-bindgen = "0.46"
+
+[dev-dependencies]
+tempfile = "3.0"
+
+[lib]
+path = "lib.rs"
+
+[features]
+libgit = []
+javascript = []
+ng-module = []
+window-system-webrender = []
