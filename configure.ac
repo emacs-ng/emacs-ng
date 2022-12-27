@@ -531,7 +531,7 @@ multiple platforms(Linux, Windows and MacOS) (experimental)])
 
 ## Based on Deno 1.9.1
 ## Update the above when upgrading Deno
-OPTION_DEFAULT_ON([javascript],
+OPTION_DEFAULT_OFF([javascript],
   [enable use of JavaScript, TypeScript, and Deno within the emacs runtime(Linux, MacOs)])
 
 ## For the times when you want to build Emacs but don't have
