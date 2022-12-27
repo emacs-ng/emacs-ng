@@ -194,16 +194,3 @@ jobs:
                   find ./target/debug -maxdepth 1 -type f -delete
                   # Delete just meta data
                   rm -f  ./target/.rustc_info.json
-
-            - name: js fmt
-              run: |
-                  cd test/js/
-                  ../../src/emacs --batch --eval '(deno "fmt" "--check")'
-                  cd ../../rust_src/crates/js/src/
-                  ../../../../src/emacs --batch --eval '(deno "fmt" "--check")'
-                  cd ../../../../
-
-            - name: run js tests
-              run: |
-                  cd test/js/
-                  ../../src/emacs --batch --eval '(deno "test" "main.js" "--allow-read" "--allow-write")'
