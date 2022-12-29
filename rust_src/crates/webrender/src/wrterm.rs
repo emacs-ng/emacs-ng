@@ -1,13 +1,11 @@
 //! wrterm.rs
 
-include!(concat!(env!("OUT_DIR"), "/webrender_revision.rs"));
-
 use emacs::multibyte::LispStringRef;
 use std::ffi::CString;
 use std::ptr;
 
 use emacs::bindings::output_method;
-use glutin::{event::VirtualKeyCode, monitor::MonitorHandle};
+use winit::{event::VirtualKeyCode, monitor::MonitorHandle};
 
 use lisp_macros::lisp_fn;
 
@@ -37,8 +35,8 @@ use emacs::{
     frame::{all_frames, window_frame_live_or_selected, LispFrameRef},
     globals::{
         Qbackground_color, Qfont, Qfont_backend, Qforeground_color, Qleft_fringe, Qminibuffer,
-        Qname, Qnil, Qparent_id, Qright_fringe, Qt, Qterminal, Qunbound, Qwr, Qx,
-        Qx_create_frame_1, Qx_create_frame_2,
+        Qname, Qnil, Qparent_id, Qright_fringe, Qt, Qterminal, Qunbound, Qwr, Qx_create_frame_1,
+        Qx_create_frame_2,
     },
     lisp::{ExternalPtr, LispObject},
 };
@@ -221,8 +219,8 @@ pub extern "C" fn image_pixmap_draw_cross(
 /// Hide the current tooltip window, if there is any.
 /// Value is t if tooltip was open, nil otherwise.
 #[lisp_fn]
-pub fn x_hide_tip() -> bool {
-    false
+pub fn x_hide_tip() -> LispObject {
+    Qnil
 }
 
 /// Make a new X window, which is called a "frame" in Emacs terms.
@@ -234,7 +232,7 @@ pub fn x_hide_tip() -> bool {
 ///
 /// This function is an internal primitive--use `make-frame' instead.
 #[lisp_fn]
-pub fn x_create_frame(parms: LispObject) -> LispFrameRef {
+pub fn wr_create_frame(parms: LispObject) -> LispFrameRef {
     // x_get_arg modifies parms.
     let parms = unsafe { Fcopy_alist(parms) };
 
@@ -435,6 +433,9 @@ pub fn x_open_connection(
 
     unsafe { CHECK_STRING(display) };
 
+    let mut event_loop = EVENT_LOOP.lock().unwrap();
+    let _native_display = event_loop.open_native_display();
+
     let mut display_info = wr_term_init(display);
 
     // Put this display on the chain.
@@ -447,9 +448,9 @@ pub fn x_open_connection(
 
 /// Internal function called by `display-color-p', which see.
 #[lisp_fn(min = "0")]
-pub fn xw_display_color_p(_terminal: LispObject) -> bool {
+pub fn xw_display_color_p(_terminal: LispObject) -> LispObject {
     // webrender support color display
-    true
+    Qt
 }
 
 /// Return t if the X display supports shades of gray.
@@ -458,9 +459,9 @@ pub fn xw_display_color_p(_terminal: LispObject) -> bool {
 /// TERMINAL should be a terminal object, a frame or a display name (a string).
 /// If omitted or nil, that stands for the selected frame's display.
 #[lisp_fn(min = "0")]
-pub fn x_display_grayscale_p(_terminal: LispObject) -> bool {
+pub fn x_display_grayscale_p(_terminal: LispObject) -> LispObject {
     // webrender support shades of gray
-    true
+    Qt
 }
 
 /// Internal function called by `color-values', which see.
@@ -701,7 +702,7 @@ pub fn x_display_monitor_attributes_list(_terminal: LispObject) -> LispObject {
 /// physical monitors associated with TERMINAL.  To get information for
 /// each physical monitor, use `display-monitor-attributes-list'.
 #[lisp_fn(min = "0")]
-pub fn x_display_pixel_width(_terminal: LispObject) -> i32 {
+pub fn x_display_pixel_width(_terminal: LispObject) -> LispObject {
     let event_loop = EVENT_LOOP.lock().unwrap();
 
     let primary_monitor = event_loop.get_primary_monitor();
@@ -711,7 +712,7 @@ pub fn x_display_pixel_width(_terminal: LispObject) -> i32 {
     let physical_size = primary_monitor.size();
     let logical_size = physical_size.to_logical::<i32>(dpi_factor);
 
-    logical_size.width
+    unsafe { make_fixnum(logical_size.width as i64) }
 }
 
 /// Return the height in pixels of the X display TERMINAL.
@@ -724,7 +725,7 @@ pub fn x_display_pixel_width(_terminal: LispObject) -> i32 {
 /// physical monitors associated with TERMINAL.  To get information for
 /// each physical monitor, use `display-monitor-attributes-list'.
 #[lisp_fn(min = "0")]
-pub fn x_display_pixel_height(_terminal: LispObject) -> i32 {
+pub fn x_display_pixel_height(_terminal: LispObject) -> LispObject {
     let event_loop = EVENT_LOOP.lock().unwrap();
 
     let primary_monitor = event_loop.get_primary_monitor();
@@ -734,7 +735,7 @@ pub fn x_display_pixel_height(_terminal: LispObject) -> i32 {
     let physical_size = primary_monitor.size();
     let logical_size = physical_size.to_logical::<i32>(dpi_factor);
 
-    logical_size.height
+    unsafe { make_fixnum(logical_size.height as i64) }
 }
 
 /// Assert an X selection of type SELECTION and value VALUE.
@@ -897,7 +898,7 @@ pub fn wr_api_capture(path: LispStringRef, bits_raw: LispObject, start_sequence:
 
         match File::create(revision_file_path) {
             Ok(mut file) => {
-                if let Err(err) = write!(&mut file, "{}", WEBRENDER_HEAD_REV.unwrap_or("")) {
+                if let Err(err) = write!(&mut file, "{}", "") {
                     error!("Unable to write webrender revision: {:?}", err)
                 }
             }
@@ -933,10 +934,8 @@ fn syms_of_wrfont() {
 #[allow(unused_doc_comments)]
 pub extern "C" fn syms_of_wrterm() {
     // pretend webrender as a X gui backend, so we can reuse the x-win.el logic
-    def_lisp_sym!(Qx, "x");
     def_lisp_sym!(Qwr, "wr");
     unsafe {
-        Fprovide(Qx, Qnil);
         Fprovide(Qwr, Qnil);
     }
 
@@ -953,7 +952,7 @@ pub extern "C" fn syms_of_wrterm() {
         }
     }
 
-    let x_keysym_table = unsafe {
+    let wr_keysym_table = unsafe {
         make_hash_table(
             hashtest_eql.clone(),
             900,
@@ -964,17 +963,9 @@ pub extern "C" fn syms_of_wrterm() {
         )
     };
 
-    if let Some(webrender_head_rev) = WEBRENDER_HEAD_REV {
-        let webrender_head_rev = CString::new(webrender_head_rev).unwrap();
-        let webrender_head_rev = unsafe { build_string(webrender_head_rev.as_ptr()) };
-
-        #[rustfmt::skip]
-        defvar_lisp!(Vwebrender_head_rev, "webrender-head-rev", webrender_head_rev);
-    }
-
     // Hash table of character codes indexed by X keysym codes.
     #[rustfmt::skip]
-    defvar_lisp!(Vx_keysym_table, "x-keysym-table", x_keysym_table);
+    defvar_lisp!(Vwr_keysym_table, "wr-keysym-table", wr_keysym_table);
 
     // Which toolkit scroll bars Emacs uses, if any.
     // A value of nil means Emacs doesn't use toolkit scroll bars.

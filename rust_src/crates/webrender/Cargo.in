@@ -15,20 +15,33 @@ colors = {  path = "../../../etc/colors" }
 env_logger = "0.9.3"
 log = "0.4.17"
 libc = "0.2.95"
-lazy_static = "1.2"
-webrender = { git = "https://github.com/servo/webrender.git", rev = "ecbe93f7df289db2823c3c1fb748af5f3e4827ea" }
-font-kit = "0.10.0"
-glutin = "0.26"
+lazy_static = "1.4"
 gleam = "0.13"
-copypasta = "0.7.1"
+copypasta = "0.8.1"
 image = "0.23.14"
-app_units = "0.7.1"
+app_units = "0.7"
 bit-vec = "0.6.3"
-fontdb = "0.5.4"
-ttf-parser = "0.12.3"
-once_cell = "1.8.0"
-tokio = { version = "1.10.0", features = ["rt-multi-thread", "sync", "net", "macros", "time"] }
-futures = "0.3.16"
+ttf-parser = "0.17"
+once_cell = "1.16.0"
+tokio = { version = "1.23", features = ["rt-multi-thread", "sync", "net", "macros", "time"] }
+futures = "0.3.25"
+winit = "0.27.5"
+fontdb = "0.12"
+nix = "0.26"
+
+[dependencies.webrender]
+git = "https://github.com/servo/webrender.git"
+rev = "da3fba3c4751c0bf4098309ecb4329110b062146"
+default-features = false
+
+[dependencies.webrender_surfman]
+git = "https://github.com/declantsien/webrender_surfman.git"
+rev = "6d5c67923d85f12d3bf0f5e4fbee159772d49572"
+
+[dependencies.surfman]
+git = "https://github.com/declantsien/surfman.git"
+rev = "682fc7f787432de7b289e4caf4d8e248f85268c9"
+# features = ["sm-winit", "sm-x11"]
 
 [build-dependencies]
 ng-bindgen = { path = "../../ng-bindgen" }

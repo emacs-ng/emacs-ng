@@ -245,7 +245,7 @@ See also `frame-live-p'.  */)
     case output_ns:
       return Qns;
     case output_wr:
-      return Qx;		/*  Pretend that we are X while actually wr */
+      return Qwr;
     default:
       emacs_abort ();
     }
@@ -6033,6 +6033,7 @@ syms_of_frame (void)
   DEFSYM (Qw32, "w32");
   DEFSYM (Qpc, "pc");
   DEFSYM (Qns, "ns");
+  DEFSYM (Qwr, "wr");
   DEFSYM (Qvisible, "visible");
   DEFSYM (Qbuffer_predicate, "buffer-predicate");
   DEFSYM (Qbuffer_list, "buffer-list");

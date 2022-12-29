@@ -283,7 +283,7 @@
 (load "emacs-lisp/tabulated-list")
 (load "buff-menu")
 
-(if (fboundp 'x-create-frame)
+(if (or (fboundp 'x-create-frame) (fboundp 'wr-create-frame))
     (progn
       (load "fringe")
       ;; Needed by `imagemagick-register-types'
@@ -301,6 +301,12 @@
       (load "x-dnd")
       (load "term/common-win")
       (load "term/x-win")))
+
+(if (featurep 'wr)
+    (progn
+      (load "x-dnd")
+      (load "term/common-win")
+      (load "term/wr-win")))
 
 (if (or (eq system-type 'windows-nt)
         (featurep 'w32))

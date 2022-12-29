@@ -1,6 +1,6 @@
 use crate::{frame::LispFrameExt, util::HandyDandyRectBuilder};
 
-use glutin::window::CursorIcon;
+use winit::window::CursorIcon;
 
 use emacs::{
     bindings::{
@@ -132,7 +132,7 @@ pub fn draw_bar_cursor(
 
 pub fn winit_to_emacs_cursor(cursor: CursorIcon) -> Emacs_Cursor {
     // 0 for No_Cursor
-    match cursor {
+    let emacs_cursor = match cursor {
         CursorIcon::Default => 1,
         CursorIcon::Crosshair => 2,
         CursorIcon::Hand => 3,
@@ -168,10 +168,14 @@ pub fn winit_to_emacs_cursor(cursor: CursorIcon) -> Emacs_Cursor {
         CursorIcon::NwseResize => 33,
         CursorIcon::ColResize => 34,
         CursorIcon::RowResize => 35,
-    }
+    };
+
+    emacs_cursor as *mut ::libc::c_int
 }
 
 pub fn emacs_to_winit_cursor(cursor: Emacs_Cursor) -> CursorIcon {
+    let cursor = cursor as *const _ as usize;
+
     // 0 for No_Cursor
     match cursor {
         1 => CursorIcon::Default,

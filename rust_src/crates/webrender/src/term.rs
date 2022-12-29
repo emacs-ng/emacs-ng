@@ -2,11 +2,11 @@ use std::ptr;
 use std::{cmp::max, ffi::CString};
 
 use emacs::multibyte::LispStringRef;
-use glutin::{
+use lazy_static::lazy_static;
+use winit::{
     dpi::PhysicalPosition,
     event::{ElementState, Event, KeyboardInput, WindowEvent},
 };
-use lazy_static::lazy_static;
 
 use webrender::api::units::LayoutPoint;
 use webrender::api::{units::LayoutRect, *};
@@ -36,7 +36,7 @@ use emacs::{
         gui_set_right_divider_width, gui_set_right_fringe, gui_set_screen_gamma,
         gui_set_scroll_bar_height, gui_set_scroll_bar_width, gui_set_unsplittable,
         gui_set_vertical_scroll_bars, gui_set_visibility, gui_update_cursor, gui_write_glyphs,
-        input_event, kbd_buffer_store_event_hold, run, unblock_input, Time,
+        input_event, kbd_buffer_store_event_hold, run, unblock_input, Time, PT_PER_INCH,
     },
     bindings::{
         create_terminal, current_kboard, draw_fringe_bitmap_params, fontset_from_font,
@@ -47,7 +47,7 @@ use emacs::{
     },
     font::LispFontRef,
     frame::{all_frames, LispFrameRef, Lisp_Frame},
-    globals::{Qbackground_color, Qfullscreen, Qmaximized, Qnil, Qx},
+    globals::{Qbackground_color, Qfullscreen, Qmaximized, Qnil, Qwr},
     glyph::GlyphStringRef,
     keyboard::allocate_keyboard,
     lisp::{ExternalPtr, LispObject},
@@ -460,7 +460,7 @@ extern "C" fn defined_color(
         .and_then(|color| lookup_color_by_name_or_hex(color));
 
     // throw back the c pointer
-    c_color.into_raw();
+    let _ = c_color.into_raw();
 
     match color {
         Some(c) => {
@@ -834,8 +834,9 @@ extern "C" fn free_pixmap(f: *mut Lisp_Frame, pixmap: Emacs_Pixmap) {
     frame.wr_output().delete_image(image_key);
 }
 
-extern "C" fn delete_frame(f: *mut Lisp_Frame) {
-    let frame: LispFrameRef = f.into();
+// cleanup frame resource after frame is deleted
+extern "C" fn destroy_frame(f: *mut Lisp_Frame) {
+    let mut frame: LispFrameRef = f.into();
     let mut output = frame.wr_output();
 
     let display_info = output.display_info();
@@ -845,6 +846,7 @@ extern "C" fn delete_frame(f: *mut Lisp_Frame) {
 
     // Take back output ownership and destroy it
     let _ = unsafe { Box::from_raw(output.as_rust_ptr()) };
+    frame.output_data.wr = ptr::null_mut();
 }
 
 fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
@@ -878,7 +880,7 @@ fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     terminal.mouse_position_hook = Some(mouse_position);
     terminal.update_end_hook = Some(update_end);
     terminal.free_pixmap = Some(free_pixmap);
-    terminal.delete_frame_hook = Some(delete_frame);
+    terminal.delete_frame_hook = Some(destroy_frame);
 
     terminal
 }
@@ -889,8 +891,7 @@ pub fn wr_term_init(display_name: LispObject) -> DisplayInfoRef {
 
     let mut terminal = wr_create_terminal(dpyinfo_ref);
 
-    // Pretend that we are X while actually wr
-    let mut kboard = allocate_keyboard(Qx);
+    let mut kboard = allocate_keyboard(Qwr);
 
     terminal.kboard = kboard.as_mut();
 
@@ -913,8 +914,10 @@ pub fn wr_term_init(display_name: LispObject) -> DisplayInfoRef {
         dpyinfo_ref.smallest_font_height = 1;
         dpyinfo_ref.smallest_char_width = 1;
 
-        dpyinfo_ref.resx = 1.0;
-        dpyinfo_ref.resy = 1.0;
+        // we have https://docs.rs/winit/0.23.0/winit/dpi/index.html
+        // set to base DPI PT_PER_INCH to equal out POINT_TO_PIXEL/PIXEL_TO_POINT
+        dpyinfo_ref.resx = PT_PER_INCH;
+        dpyinfo_ref.resy = PT_PER_INCH;
     }
 
     // Set the name of the terminal.

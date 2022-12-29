@@ -1,33 +1,37 @@
-use std::{cell::RefCell, os::unix::prelude::AsRawFd, ptr, sync::Mutex, time::Instant};
+use std::{cell::RefCell, ptr, sync::Mutex, time::Instant};
 
-#[cfg(macos)]
+#[cfg(target_os = "macos")]
 use copypasta::osx_clipboard::OSXClipboardContext;
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 use copypasta::windows_clipboard::WindowsClipboardContext;
 use copypasta::ClipboardProvider;
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "macos")))]
 use copypasta::{
     wayland_clipboard::create_clipboards_from_external,
     x11_clipboard::{Clipboard, X11ClipboardContext},
 };
-use futures::future::FutureExt;
-#[cfg(unix)]
-use glutin::platform::unix::EventLoopWindowTargetExtUnix;
-use glutin::{
+
+use libc::{c_void, fd_set, pselect, sigset_t, timespec};
+use once_cell::sync::Lazy;
+use tokio::{runtime::Runtime, time::Duration};
+#[cfg(all(feature = "wayland", not(any(target_os = "macos", windows))))]
+use winit::platform::unix::EventLoopWindowTargetExtUnix;
+use winit::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopProxy},
     monitor::MonitorHandle,
     platform::run_return::EventLoopExtRunReturn,
-    window::{WindowBuilder, WindowId},
-    ContextBuilder, ContextCurrentState, CreationError, NotCurrent, WindowedContext,
+    window::Window,
+    window::WindowId,
 };
-use libc::{c_void, fd_set, pselect, sigset_t, timespec};
-use once_cell::sync::Lazy;
-use tokio::{io::unix::AsyncFd, runtime::Runtime, time::Duration};
 
-use crate::future::batch_select;
+use surfman::Connection;
+use surfman::SurfaceType;
+use webrender_surfman::WebrenderSurfman;
 
 use emacs::bindings::{inhibit_window_system, thread_select};
+
+use crate::future::tokio_select_fds;
 
 pub type GUIEvent = Event<'static, i32>;
 
@@ -45,22 +49,54 @@ unsafe impl Send for Platform {}
 pub struct WrEventLoop {
     clipboard: Box<dyn ClipboardProvider>,
     el: EventLoop<i32>,
+    pub connection: Option<Connection>,
 }
 
 unsafe impl Send for WrEventLoop {}
 unsafe impl Sync for WrEventLoop {}
 
 impl WrEventLoop {
-    pub fn build_window<'a, T: ContextCurrentState>(
-        &mut self,
-        window_builder: WindowBuilder,
-        context_builder: ContextBuilder<'a, T>,
-    ) -> Result<WindowedContext<NotCurrent>, CreationError> {
-        context_builder.build_windowed(window_builder, &self.el)
+    pub fn el(&self) -> &EventLoop<i32> {
+        &self.el
+    }
+
+    pub fn connection(&mut self) -> &Connection {
+        if self.connection.is_none() {
+            self.open_native_display();
+        }
+        self.connection.as_ref().unwrap()
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<i32> {
         self.el.create_proxy()
+    }
+
+    pub fn new_webrender_surfman(&mut self, window: &Window) -> WebrenderSurfman {
+        let connection = self.connection();
+        let adapter = connection
+            .create_adapter()
+            .expect("Failed to create adapter");
+        let native_widget = connection
+            .create_native_widget_from_winit_window(&window)
+            .expect("Failed to create native widget");
+        let surface_type = SurfaceType::Widget { native_widget };
+        let webrender_surfman = WebrenderSurfman::create(&connection, &adapter, surface_type)
+            .expect("Failed to create WR surfman");
+
+        webrender_surfman
+    }
+
+    pub fn open_native_display(&mut self) -> &Option<Connection> {
+        let window_builder = winit::window::WindowBuilder::new().with_visible(false);
+        let window = window_builder.build(&self.el).unwrap();
+
+        // Initialize surfman
+        let connection =
+            Connection::from_winit_window(&window).expect("Failed to create connection");
+
+        self.connection = Some(connection);
+
+        &self.connection
     }
 
     pub fn wait_for_window_resize(&mut self, target_window_id: WindowId) {
@@ -100,11 +136,11 @@ impl WrEventLoop {
     }
 }
 
-fn build_clipboard(event_loop: &EventLoop<i32>) -> Box<dyn ClipboardProvider> {
+fn build_clipboard(_event_loop: &EventLoop<i32>) -> Box<dyn ClipboardProvider> {
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        if event_loop.is_wayland() {
-            let wayland_display = event_loop
+        if _event_loop.is_wayland() {
+            let wayland_display = _event_loop
                 .wayland_display()
                 .expect("Fetch Wayland display failed");
             let (_, clipboard) = unsafe { create_clipboards_from_external(wayland_display) };
@@ -124,18 +160,32 @@ fn build_clipboard(event_loop: &EventLoop<i32>) -> Box<dyn ClipboardProvider> {
 }
 
 pub static EVENT_LOOP: Lazy<Mutex<WrEventLoop>> = Lazy::new(|| {
-    let el = glutin::event_loop::EventLoop::with_user_event();
+    let el = winit::event_loop::EventLoopBuilder::<i32>::with_user_event().build();
     let clipboard = build_clipboard(&el);
+    let connection = None;
 
-    Mutex::new(WrEventLoop { clipboard, el })
+    Mutex::new(WrEventLoop {
+        clipboard,
+        el,
+        connection,
+    })
 });
 
-pub static TOKIO_RUNTIME: Lazy<Mutex<Runtime>> =
-    Lazy::new(|| Mutex::new(tokio::runtime::Runtime::new().unwrap()));
+pub static TOKIO_RUNTIME: Lazy<Mutex<Runtime>> = Lazy::new(|| {
+    Mutex::new(
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .enable_time()
+            .worker_threads(2)
+            .max_blocking_threads(32)
+            .build()
+            .unwrap(),
+    )
+});
 
 pub static EVENT_BUFFER: Lazy<Mutex<Vec<GUIEvent>>> = Lazy::new(|| Mutex::new(Vec::new()));
 
-struct FdSet(*mut fd_set);
+pub struct FdSet(pub *mut fd_set);
 
 unsafe impl Send for FdSet {}
 unsafe impl Sync for FdSet {}
@@ -147,6 +197,11 @@ impl FdSet {
         }
     }
 }
+
+pub struct Timespec(pub *mut timespec);
+
+unsafe impl Send for Timespec {}
+unsafe impl Sync for Timespec {}
 
 #[no_mangle]
 pub extern "C" fn wr_select(
@@ -175,27 +230,24 @@ pub extern "C" fn wr_select(
 
     let event_loop_proxy = event_loop.create_proxy();
 
+    let deadline = unsafe { Duration::new((*timeout).tv_sec as u64, (*timeout).tv_nsec as u32) };
     let read_fds = FdSet(readfds);
     let write_fds = FdSet(writefds);
-
-    let timeout = unsafe { Duration::new((*timeout).tv_sec as u64, (*timeout).tv_nsec as u32) };
+    let timeout = Timespec(timeout);
 
     let (select_stop_sender, mut select_stop_receiver) = tokio::sync::mpsc::unbounded_channel();
 
     // use tokio to mimic the pselect because it has cross platform supporting.
-    TOKIO_RUNTIME.lock().unwrap().spawn(async move {
+    let tokio_runtime = TOKIO_RUNTIME.lock().unwrap();
+    tokio_runtime.spawn(async move {
         tokio::select! {
-            (readables, writables) = tokio_select_fds(nfds, &read_fds , &write_fds) => {
-                let nfds = readables.len() + writables.len();
 
-                async_fds_to_fd_set(readables, &read_fds);
-                async_fds_to_fd_set(writables, &write_fds);
-
-                let _ = event_loop_proxy.send_event(nfds as i32);
+            nfds = tokio_select_fds(nfds, &read_fds, &write_fds, &timeout) => {
+                let _ = event_loop_proxy.send_event(nfds);
             }
 
             // time out
-            _ = tokio::time::sleep(timeout) => {
+            _ = tokio::time::sleep(deadline) => {
                 read_fds.clear();
                 write_fds.clear();
 
@@ -250,70 +302,4 @@ pub extern "C" fn wr_select(
     });
 
     return nfds_result.into_inner();
-}
-
-fn fd_set_to_async_fds(nfds: i32, fds: &FdSet) -> Vec<AsyncFd<i32>> {
-    if fds.0 == ptr::null_mut() {
-        return Vec::new();
-    }
-
-    let mut async_fds = Vec::new();
-
-    for fd in 0..nfds {
-        unsafe {
-            if libc::FD_ISSET(fd, fds.0) {
-                async_fds.push(AsyncFd::new(fd).unwrap())
-            }
-        }
-    }
-
-    async_fds
-}
-
-fn async_fds_to_fd_set(fds: Vec<i32>, fd_set: &FdSet) {
-    if fd_set.0 == ptr::null_mut() {
-        return;
-    }
-
-    unsafe { libc::FD_ZERO(fd_set.0) }
-
-    for f in fds {
-        unsafe { libc::FD_SET(f, fd_set.0) }
-    }
-}
-
-async fn tokio_select_fds(nfds: i32, readfds: &FdSet, writefds: &FdSet) -> (Vec<i32>, Vec<i32>) {
-    let read_fds = fd_set_to_async_fds(nfds, readfds);
-    let write_fds = fd_set_to_async_fds(nfds, writefds);
-
-    let mut fd_futures = Vec::new();
-
-    for f in read_fds.iter() {
-        fd_futures.push(f.readable().boxed())
-    }
-
-    for f in write_fds.iter() {
-        fd_futures.push(f.writable().boxed())
-    }
-
-    let read_fds_count = read_fds.len();
-
-    let readliness = batch_select(fd_futures).await;
-
-    let mut readable_result = Vec::new();
-    let mut writable_result = Vec::new();
-
-    for (result, index) in readliness {
-        if result.is_err() {
-            continue;
-        }
-
-        if index < read_fds_count {
-            readable_result.push(read_fds[index].as_raw_fd())
-        } else {
-            writable_result.push(write_fds[index - read_fds_count].as_raw_fd())
-        }
-    }
-
-    (readable_result, writable_result)
 }

@@ -139,8 +139,8 @@ extern bool wr_can_use_native_image_api (Lisp_Object type);
 extern void wr_transform_image(struct frame *f, struct image *img, int width, int height, double rotation);
 
 extern int wr_select (int nfds, fd_set *readfds, fd_set *writefds,
-		      fd_set *exceptfds, struct timespec *timeout,
-		      sigset_t *sigmask);
+		       fd_set *exceptfds, struct timespec *timeout,
+		       sigset_t *sigmask);
 
 /* This is the `Display *' which frame F is on.  */
 #define FRAME_X_DISPLAY(f) (wr_get_display(FRAME_DISPLAY_INFO (f)))
@@ -168,5 +168,16 @@ extern int wr_select (int nfds, fd_set *readfds, fd_set *writefds,
 
 #define BLACK_PIX_DEFAULT(f) 0
 #define WHITE_PIX_DEFAULT(f) 65535
+
+extern const char *app_bundle_relocate (const char *);
+
+/* Symbol initializations implemented in each pgtk sources. */
+extern void syms_of_wrterm(void);
+extern void syms_of_wrterm_rust(void);
+extern void syms_of_wrfns (void);
+
+EXFUN (Fxw_display_color_p, 1);
+EXFUN (Fx_display_grayscale_p, 1);
+EXFUN (Fx_hide_tip, 0);
 
 #endif // __WRTERM_H_

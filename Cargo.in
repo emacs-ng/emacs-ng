@@ -81,5 +81,4 @@ glyph-debug = []
 winit = { git = "https://github.com/declantsien/winit", rev="d80de2ea150a36d078bd19b6c6ce1cc299304fc5" }
 
 [patch.crates-io.fontdb]
-git = "https://github.com/declantsien/fontdb.git"
-branch = "emacs-wr"
+git = "https://github.com/RazrFalcon/fontdb.git"

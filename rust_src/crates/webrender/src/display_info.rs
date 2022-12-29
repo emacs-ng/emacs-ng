@@ -1,6 +1,6 @@
-use glutin::window::WindowId;
 use libc;
 use std::{collections::HashMap, ptr};
+use winit::window::WindowId;
 
 use emacs::{
     bindings::{wr_display_info, Emacs_GC},
@@ -69,7 +69,7 @@ impl Drop for DisplayInfo {
     fn drop(&mut self) {
         if self.0.inner != ptr::null_mut() {
             unsafe {
-                Box::from_raw(self.0.inner as *mut DisplayInfoInner);
+                let _ = Box::from_raw(self.0.inner as *mut DisplayInfoInner);
             }
         }
     }

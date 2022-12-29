@@ -6,6 +6,7 @@ extern crate emacs;
 extern crate lisp_macros;
 #[macro_use]
 extern crate lisp_util;
+extern crate colors;
 
 pub mod color;
 pub mod display_info;
@@ -26,6 +27,14 @@ mod image;
 mod texture;
 mod util;
 mod wrterm;
+
+mod platform {
+    #[cfg(target_os = "macos")]
+    pub mod macos;
+}
+
+#[cfg(target_os = "macos")]
+pub use crate::platform::macos;
 
 pub use crate::wrterm::{tip_frame, wr_display_list};
 
