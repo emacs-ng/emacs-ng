@@ -225,6 +225,15 @@ impl DrawCanvas {
     }
 
     fn draw_image_glyph(&mut self, mut s: GlyphStringRef) {
+        let wr_pixmap = unsafe { (*s.img).pixmap } as *mut WrPixmap;
+
+        // TODO null pixmap? 0x0
+        if wr_pixmap.is_null() {
+            return;
+        }
+
+        let image_key = unsafe { (*wr_pixmap).image_key };
+
         let mut clip_rect = Emacs_Rectangle {
             x: 0,
             y: 0,
@@ -254,21 +263,15 @@ impl DrawCanvas {
                 );
             }
 
-            let wr_pixmap = unsafe { (*s.img).pixmap } as *mut WrPixmap;
-
-            if !wr_pixmap.is_null() {
-                let image_key = unsafe { (*wr_pixmap).image_key };
-
-                // render image
-                builder.push_image(
-                    &CommonItemProperties::new(clip_bounds, space_and_clip),
-                    bounds,
-                    ImageRendering::Auto,
-                    AlphaType::Alpha,
-                    image_key,
-                    ColorF::WHITE,
-                );
-            }
+            // render image
+            builder.push_image(
+                &CommonItemProperties::new(clip_bounds, space_and_clip),
+                bounds,
+                ImageRendering::Auto,
+                AlphaType::Alpha,
+                image_key,
+                ColorF::WHITE,
+            );
         });
     }
 
@@ -307,7 +310,7 @@ impl DrawCanvas {
                 .filter_map(|(n, glyph)| {
                     // TAB in a composition means display glyphs with padding
                     // space on the left or right.
-                    if s.composite_glyph(n as usize) == b'\t'.into() {
+                    if s.composite_glyph(n as usize) == <u8 as Into<i64>>::into(b'\t') {
                         return None;
                     }
 
@@ -378,7 +381,7 @@ impl DrawCanvas {
                 }
             });
         } else {
-            unimplemented!();
+            log::error!("TODO unimplemented! draw_composite_glyph_string.\n");
         }
     }
 
@@ -468,7 +471,7 @@ impl DrawCanvas {
             if let Some(image) = &image {
                 let image_display_rect = LayoutRect::new(
                     pos,
-                    LayoutSize::new(image.width as f32, image.height as f32),
+                    LayoutPoint::new(image.width as f32, image.height as f32),
                 );
                 // render image
                 builder.push_image(

@@ -149,7 +149,7 @@
    :if wr-capture--in-progress-p
    ("S" wr-stop-capture-sequence-suffix)]
   (interactive)
-  (unless (featurep 'wr-capture) (user-error "Webrender capture not available"))
+  (unless (featurep 'wr) (user-error "Webrender not available"))
   (transient-setup 'wr-capture))
 
 (transient-define-suffix wr-capture-suffix ()

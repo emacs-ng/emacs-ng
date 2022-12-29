@@ -48,6 +48,7 @@
 	  (pcase (or window-system 'tty)
 	    ('x "X11")
 	    ('ns "OpenStep")
+            ('wr "WebRender")
 	    ('tty "TTY")
 	    (_ nil)))))
 

@@ -529,9 +529,6 @@ OPTION_DEFAULT_OFF([webrender],
   [enable use of webrender(written in Rust) as GUI backend on
 multiple platforms(Linux, Windows and MacOS) (experimental)])
 
-OPTION_DEFAULT_OFF([webrender-capture],
-  [enable use of Webrender capture infrastructure])
-
 ## Based on Deno 1.9.1
 ## Update the above when upgrading Deno
 OPTION_DEFAULT_ON([javascript],
@@ -1239,6 +1236,22 @@ AC_ARG_ENABLE(rust-debug,
 Useful for debugging rust component of emacs-ng.])],
 [ac_enable_rust_debug="${enableval}"],[])
 
+AC_ARG_ENABLE(webrender-self-contained,
+[AS_HELP_STRING([--disable-webrender-self-contained],
+                [disable self contained Webrender build under NeXTstep])],
+   EN_NS_SELF_CONTAINED=$enableval,
+   EN_NS_SELF_CONTAINED=yes)
+
+AC_ARG_ENABLE(webrender-capture,
+[AS_HELP_STRING([--enable-webrender-capture],
+		[enable WebRender capture infrastructure.])],
+[ac_enable_webrender_capture="${enableval}"],[])
+
+AC_ARG_ENABLE(webrender-x11,
+[AS_HELP_STRING([--enable-webrender-x11],
+		[enable WebRender X11 support.])],
+[ac_enable_webrender_x11="${enableval}"],[])
+
 AC_SUBST([AM_DEFAULT_VERBOSITY])
 AC_CONFIG_FILES([src/verbose.mk])
 
@@ -1866,6 +1879,13 @@ AC_SUBST(AUTO_DEPEND)
 ## window-system-specific substs.
 
 window_system=none
+
+if test "${with_webrender}" = "yes"; then
+  no_x=yes
+  with_ns=no
+  window_system=webrender
+fi
+
 AC_PATH_X
 if test "$no_x" != yes; then
   window_system=x11
@@ -2245,10 +2265,6 @@ AC_SUBST(XARGS_LIMIT)
 if test "${HAVE_W32}" = "yes"; then
   window_system=w32
   with_xft=no
-fi
-
-if test "${with_webrender}" = "yes"; then
-  window_system=webrender
 fi
 
 ## $window_system is now set to the window system we will
@@ -3558,13 +3574,6 @@ if test "${HAVE_X11}" = "yes"; then
       XCB_LIBS="-lX11-xcb -lxcb"
       AC_SUBST(XCB_LIBS)
     fi
-  fi
-fi
-
-if test "${window_system}" = "webrender" ; then
-  if test "x$ac_enable_rust_debug" != "x" && test "$opsys" = "gnu-linux"; then
-    XCB_LIBS="-lxcb -lxcb-xfixes -lxcb-shape -lxcb-render"
-    AC_SUBST(XCB_LIBS)
   fi
 fi
 
@@ -5588,26 +5597,71 @@ fi
 if test "${HAVE_HARFBUZZ}" = "yes" ; then
   FONT_OBJ="$FONT_OBJ hbfont.o"
 fi
-AC_SUBST(FONT_OBJ)
-
-if test "${window_system}" = "webrender" ; then
-  AC_DEFINE(USE_WEBRENDER, 1,
-	    [Define to 1 if you want to use the webrender.])
-
-  EMACS_CHECK_MODULES([FONTCONFIG], [fontconfig >= 2.2.0])
-  test "$HAVE_FONTCONFIG" = "no" && AC_MSG_ERROR(webrender requires libfontconfig)
-
-  EMACS_CHECK_MODULES([XCB], [xcb >= 1.0.0])
-  test "$HAVE_XCB" = "no" && AC_MSG_ERROR(webrender requires libxcb)
-
-  AC_DEFINE(HAVE_NATIVE_IMAGE_API, 1, [Define to use native OS APIs for images.])
-  NATIVE_IMAGE_API="yes (webrender)"
-fi
-
 AC_SUBST(XMENU_OBJ)
 AC_SUBST(XOBJ)
 AC_SUBST(FONT_OBJ)
 
+WEBRENDER_LIBS=
+WEBRENDER_IMPL_COCOA=no
+if test "${window_system}" = "webrender" ; then
+
+  AC_DEFINE(USE_WEBRENDER, 1,
+	    [Define to 1 if you want to use the webrender.])
+
+  AC_DEFINE(HAVE_NATIVE_IMAGE_API, 1, [Define to use native OS APIs for images.])
+            NATIVE_IMAGE_API="yes (webrender)"
+
+  if test "${opsys}" = gnu-linux; then
+    EMACS_CHECK_MODULES([FREETYPE], [freetype2])
+    test "$HAVE_FREETYPE" = "no" && AC_MSG_ERROR(webrender requires libfreetype)
+
+    EMACS_CHECK_MODULES([FONTCONFIG], [fontconfig >= 2.2.0])
+    test "$HAVE_FONTCONFIG" = "no" && AC_MSG_ERROR(webrender requires libfontconfig)
+
+    EMACS_CHECK_MODULES([XCB], [xcb >= 1.0.0])
+    test "$HAVE_XCB" = "no" && AC_MSG_ERROR(WebRender Unix build requires libxcb)
+
+    WEBRENDER_LIBS="$WEBRENDER_LIBS -lxcb -lxcb-xfixes -lxcb-shape -lxcb-render"
+
+    if test x$ac_enable_webrender_x11 != x; then
+      WEBRENDER_LIBS="-lX11 -lX11-xcb $WEBRENDER_LIBS"
+    fi
+  fi
+
+  if test "${opsys}" = darwin; then
+     WEBRENDER_IMPL_COCOA=yes
+  fi
+
+  if test "${EN_NS_SELF_CONTAINED}" = yes && test "${opsys}" = darwin; then
+     AC_DEFINE(NS_SELF_CONTAINED, 1, [Build an Webrender NS bundled app])
+     ns_self_contained=yes
+     ns_appdir=`pwd`/nextstep/Emacs.app
+     ns_appbindir=${ns_appdir}/Contents/MacOS
+     ns_applibexecdir=${ns_appdir}/Contents/MacOS/libexec
+     ns_applibdir=${ns_appdir}/Contents/Frameworks
+     ns_appresdir=${ns_appdir}/Contents/Resources
+     OTHER_FILES=ns-app
+     ns_appsrc=Cocoa/Emacs.base
+     prefix=${ns_appresdir}
+     exec_prefix=${ns_appbindir}
+     dnl This one isn't really used, only archlibdir is.
+     libexecdir="\${ns_applibexecdir}"
+     archlibdir="\${ns_applibexecdir}"
+     etcdocdir="\${ns_appresdir}/etc"
+     etcdir="\${ns_appresdir}/etc"
+     dnl FIXME maybe set datarootdir instead.
+     dnl That would also get applications, icons, man.
+     infodir="\${ns_appresdir}/info"
+     mandir="\${ns_appresdir}/man"
+     lispdir="\${ns_appresdir}/lisp"
+     lispdirrel="\${ns_appresdir}/lisp"
+     test "$locallisppathset" = no && locallisppath="\${ns_appresdir}/site-lisp"
+     INSTALL_ARCH_INDEP_EXTRA=
+  fi
+
+fi
+AC_SUBST(WEBRENDER_LIBS)
+AC_SUBST(WEBRENDER_IMPL_COCOA)
 
 WIDGET_OBJ=
 MOTIF_LIBW=
@@ -5870,19 +5924,25 @@ case "$opsys" in
   cygwin) LD_SWITCH_SYSTEM_TEMACS="-Wl,-stack,0x00800000" ;;
 
   darwin)
-   if test "$HAVE_NS" = "yes"; then
+   if test "${with_webrender}" = "yes"; then
+     libs_nsgui="-framework AppKit -framework IOKit -framework Carbon \
+                 -framework IOSurface -framework QuartzCore -framework OpenGL \
+		 -framework Metal"
+   elif test "$HAVE_NS" = "yes"; then
      libs_nsgui="-framework AppKit"
      if test "$NS_IMPL_COCOA" = "yes"; then
         libs_nsgui="$libs_nsgui -framework IOKit -framework Carbon \
                     -framework IOSurface -framework QuartzCore"
      fi
-     if test "$HAVE_JAVASCRIPT" = "yes"; then
-        # Deno webgpu has Metal requirement
-        libs_nsgui="$libs_nsgui -framework Metal"
-     fi
    else
      libs_nsgui=
    fi
+
+   if test "$HAVE_JAVASCRIPT" = "yes"; then
+      # Deno webgpu has Metal requirement
+      libs_nsgui="$libs_nsgui -framework Metal"
+   fi
+
    LD_SWITCH_SYSTEM_TEMACS=$libs_nsgui
    ## The -headerpad option tells ld (see man page) to leave room at the
    ## end of the header for adding load commands.  Needed for dumping.
@@ -6151,7 +6211,7 @@ fi
 
 echo
 
-if test "$HAVE_NS" = "yes"; then
+if test "$HAVE_NS" = "yes" || test "${window_system}" = "webrender"; then
    echo
    AS_ECHO(["Run '${MAKE-make}' to build Emacs, then run 'src/emacs' to test it.
 Run '${MAKE-make} install' in order to build an application bundle.
@@ -6242,14 +6302,15 @@ dnl the use of force in the 'epaths-force' rule in Makefile.in.
 AC_CONFIG_COMMANDS([src/epaths.h], [
 if test "${opsys}" = "mingw32"; then
   ${MAKE-make} MAKEFILE_NAME=do-not-make-Makefile epaths-force-w32
-elif test "$HAVE_NS" = "yes" && test "$EN_NS_SELF_CONTAINED" = "yes"; then
+elif (test "$HAVE_NS" = "yes" || \
+     (test "${window_system}" = "webrender" && test "${opsys}" = darwin)) && \
+      test "$EN_NS_SELF_CONTAINED" = "yes"; then
   ${MAKE-make} MAKEFILE_NAME=do-not-make-Makefile epaths-force-ns-self-contained
 else
   ${MAKE-make} MAKEFILE_NAME=do-not-make-Makefile epaths-force
 fi || AC_MSG_ERROR(['src/epaths.h' could not be made.])
 ], [GCC="$GCC" CPPFLAGS="$CPPFLAGS" opsys="$opsys" HAVE_NS="$HAVE_NS"
-    EN_NS_SELF_CONTAINED="$EN_NS_SELF_CONTAINED"])
-
+    window_system="$window_system" EN_NS_SELF_CONTAINED="$EN_NS_SELF_CONTAINED"])
 
 CARGO_DEFAULT_FEATURES=""
 WEBRENDER_DEFAULT_FEATURES=""

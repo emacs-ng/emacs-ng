@@ -6463,7 +6463,7 @@ init_display_interactive (void)
 #ifdef USE_WEBRENDER
   if (!inhibit_window_system)
     {
-      Vinitial_window_system = Qx; /* pretend webrender as a X gui backend, so we can reuse the x-win.el logic */
+      Vinitial_window_system = Qwr;
       Vwindow_system_version = make_fixnum (1);
       return;
     }

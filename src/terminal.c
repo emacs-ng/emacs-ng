@@ -446,7 +446,7 @@ possible return values.  */)
     case output_ns:
       return Qns;
     case output_wr:
-      return Qx; /* pretend webrender as a X gui backend, so we can reuse the x-win.el logic */
+      return Qwr;
     default:
       emacs_abort ();
     }

@@ -922,6 +922,8 @@ load_pdump (int argc, char **argv)
   path_exec = w32_relocate (path_exec);
 #elif defined (HAVE_NS)
   path_exec = ns_relocate (path_exec);
+#elif defined (USE_WEBRENDER) && defined (DARWIN_OS)
+  path_exec = app_bundle_relocate (path_exec);
 #endif
 
   /* Look for "emacs.pdmp" in PATH_EXEC.  We hardcode "emacs" in
@@ -1914,10 +1916,9 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
   init_module_assertions (module_assertions);
 #endif
 
-#ifdef HAVE_NS
   if (!noninteractive)
     {
-#ifdef NS_IMPL_COCOA
+#if defined(NS_IMPL_COCOA) || defined(WEBRENDER_IMPL_COCOA)
       /* Started from GUI? */
       bool go_home = (!ch_to_dir && !inhibit_window_system
 		      && !isatty (STDIN_FILENO));
@@ -1942,7 +1943,6 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 	}
 #endif  /* COCOA */
     }
-#endif /* HAVE_NS */
 
 #ifdef HAVE_X_WINDOWS
   /* Stupid kludge to catch command-line display spec.  We can't
@@ -3022,7 +3022,11 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
   if (!path)
     {
 #ifdef NS_SELF_CONTAINED
+#ifdef USE_WEBRENDER
+      path = app_bundle_relocate (defalt);
+#else
       path = ns_relocate (defalt);
+#endif /*USE_WEBRENDER*/
 #else
       path = defalt;
 #endif

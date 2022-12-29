@@ -1,4 +1,4 @@
-use glutin::{
+use winit::{
     dpi::PhysicalPosition,
     event::{
         ElementState, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase, VirtualKeyCode,
