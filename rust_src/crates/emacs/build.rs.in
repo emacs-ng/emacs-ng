@@ -328,6 +328,8 @@ fn generate_bindings() {
 fn main() {
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=../../../src/globals.h");
+    println!("cargo:rerun-if-changed=../../wrapper.h");
 
     generate_definitions();
     generate_globals();

@@ -108,6 +108,9 @@ configuration=@configuration@
 ### The nt/ subdirectory gets built only for MinGW
 NTDIR=@NTDIR@
 
+srcdir = @srcdir@
+top_srcdir = @top_srcdir@
+
 top_builddir = @top_builddir@
 -include ${top_builddir}/src/verbose.mk
 

@@ -1,6 +1,6 @@
 [workspace]
 members = ["rust_src/remacs-lib", "etc/colors", "rust_src/crates/*"]
-exclude = ["rust_src/ng-bindgen", "lib-src/hashdir"]
+exclude = ["rust_src/ng-bindgen"]
 
 # Allow unwinding in functions called from C. See
 # https://www.reddit.com/r/rust/comments/565q1f/wrote_a_blogpost_from_my_experiences_the_arduous/d8h053m/
@@ -36,7 +36,7 @@ lsp_json = { version = "0.1.0", path = "rust_src/crates/lsp_json" }
 git = { version = "0.1.0", path = "rust_src/crates/git", optional = true }
 ng_module = { version = "0.1.0", path = "rust_src/crates/ng_module", optional = true }
 js = { version = "0.1.0", path = "rust_src/crates/js", optional = true }
-webrender = { version = "0.1.0", path = "rust_src/crates/webrender", optional = true }
+wrterm = { version = "0.1.0", path = "rust_src/crates/webrender", optional = true }
 clippy = { version = "*", optional = true }
 log = "0.4.17"
 tracing = "0.1"
@@ -68,6 +68,7 @@ window-system-w32 = []
 # Build with git2rs support
 libgit = ["git", "ng-bindgen/libgit"]
 # Use the webrender window system
+webrender = ["dep:wrterm"]
 window-system-webrender = ["ng-bindgen/window-system-webrender", "webrender"]
 # Treat warnings as a build error on Travis.
 strict = []
