@@ -11,6 +11,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::process;
 
+use cargo_toml::Manifest;
 use regex::Regex;
 
 static C_NAME: &str = "c_name = \"";
@@ -447,7 +448,7 @@ pub fn generate_include_files(crates_dir: PathBuf) -> Result<(), BuildError> {
             continue;
         };
         // generate_crate_exports(&crate_path)?;
-        let crate_name = path_as_str(crate_path.file_name()).to_string();
+        let crate_name = get_crate_name(&crate_path);
 
         // Call a crate's init_syms function in the main c_exports file
         let crate_init_syms = format!("{}::{}_init_syms();\n", crate_name, crate_name);
@@ -498,7 +499,7 @@ pub fn generate_crate_exports(path: &PathBuf) -> Result<(), BuildError> {
     let mut out_file = File::create(path.join("out").join("c_exports.rs"))?;
     generate_crate_c_export_file(&out_file, &modules)?;
 
-    let crate_name = path_as_str(path.file_name()).to_string();
+    let crate_name = get_crate_name(path);
     write!(
         out_file,
         "#[no_mangle]\npub extern \"C\" fn {}_init_syms() {{\n",
@@ -510,6 +511,14 @@ pub fn generate_crate_exports(path: &PathBuf) -> Result<(), BuildError> {
     write!(out_file, "}}\n")?;
 
     Ok(())
+}
+
+fn get_crate_name(path: &PathBuf) -> String {
+    let manifest = Manifest::from_path(path.join("Cargo.toml")).unwrap();
+    match manifest.package {
+        Some(package) => package.name,
+        None => path_as_str(path.file_name()).to_string(),
+    }
 }
 
 /// Export lisp functions defined in rust by using the macro `export_lisp_fns`

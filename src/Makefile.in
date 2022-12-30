@@ -754,13 +754,11 @@ LIBEMACSNG_DEP-INFO=$(LIBEMACSNG_ARCHIVE:.a=.d)
 LIBEMACSNG_CARGO_FILES = $(sort $(shell find ${rust_srcdir} -type f \
 -name 'Cargo.*' -o -name "build.rs"))
 
-$(LIBEMACSNG_ARCHIVE) $(LIBEMACSNG_DEP-INFO): globals.h $(LIBEMACSNG_CARGO_FILES) \
-$(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT)
+$(LIBEMACSNG_ARCHIVE) $(LIBEMACSNG_DEP-INFO): FORCE
 	touch $@
 	CARGO_BUILD_DEP_INFO_BASEDIR=$(realpath $(top_srcdir)) \
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
-	SRC_HASH="$(shell EMACS_CFLAGS="-I../rust_src $(EMACS_CFLAGS)" ../lib-src/hashdir/target/$(CARGO_BUILD_DIR)/hashdir)" \
 	$(CARGO_BUILD) $(CARGO_FLAGS) --manifest-path $(cargo_manifest)
 	sed -i~ 's/rust_src\//..\/rust_src\//g' $(LIBEMACSNG_DEP-INFO)
 
@@ -778,15 +776,12 @@ rustdoc:
 
 .PHONY: rustdoc
 
-
-check check-maybe check-expensive: $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT)
+check check-maybe check-expensive:
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
-	SRC_HASH="$(shell EMACS_CFLAGS="-I../rust_src $(EMACS_CFLAGS)" ../lib-src/hashdir)" \
 	$(CARGO_TEST) $(CARGO_FLAGS) --manifest-path $(cargo_manifest)
 
-$(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT): ${libsrc}/hashdir/Cargo.toml ${libsrc}/hashdir/src/main.rs
-	RUSTFLAGS="$(RUSTFLAGS)" $(CARGO_BUILD) $(CARGO_FLAGS) --manifest-path=${libsrc}/hashdir/Cargo.toml
+.PHONY: check check-maybe check-expensive
 
 $(ALLOBJS): globals.h
 

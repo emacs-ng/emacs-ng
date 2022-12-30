@@ -3,9 +3,8 @@ extern crate ng_bindgen;
 use ng_bindgen::{env_var, generate_include_files, BuildError};
 
 fn main() {
-    for varname in ["EMACS_CFLAGS", "SRC_HASH"].iter() {
-        println!("cargo:rerun-if-env-changed={}", varname);
-    }
+    // TODO watch relevent files to re rerun, rs files under crates?
+
     // generates include files for the crates from the directory "crates"
     let crates_dir: std::path::PathBuf = [&env_var("CARGO_MANIFEST_DIR"), "rust_src/crates"]
         .iter()

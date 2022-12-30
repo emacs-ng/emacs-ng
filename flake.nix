@@ -159,21 +159,12 @@
               inherit installPhase;
             };
 
-            emacsngHashdir = prev.rustPlatform.fetchCargoTarball {
-              src = emacsng-source + "/lib-src/hashdir";
-              sourceRoot = null;
-              name = "emacsngHashdir";
-              cargoUpdateHook = doVersionedUpdate;
-              sha256 = "sha256-pcIYKdlt/qfmnrr3q0pyD0F0RMl+ZPls5YbhJdlenRA=";
-              inherit installPhase;
-            };
           in
             stdenv.mkDerivation {
               name = "emacsng-rust";
               srcs = [
                 emacsngLibDeps
                 ngBindgen
-                emacsngHashdir
                 emacsngSrc
               ];
               sourceRoot = ".";
@@ -189,7 +180,6 @@
                 EOF
                 cp -R emacsngLibDeps-vendor.tar.gz-versioned/* $out/.cargo/registry
                 cp -R ngBindgen-vendor.tar.gz-versioned/* $out/.cargo/registry
-                cp -R emacsngHashdir-vendor.tar.gz-versioned/* $out/.cargo/registry
                 cp -R emacsngSrc-vendor.tar.gz-versioned/* $out/.cargo/registry
               '';
             }
