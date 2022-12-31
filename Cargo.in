@@ -26,6 +26,7 @@ edition = "2018"
 build = "rust_src/build.rs"
 
 [dependencies]
+libc = "0.2"
 remacs-lib = { version = "0.1.0", path = "rust_src/remacs-lib" }
 emacs = { version = "0.1.0", path = "rust_src/crates/emacs" }
 lisp-util = { version = "0.1.0", path = "rust_src/crates/lisp_util" }
@@ -37,6 +38,9 @@ ng_module = { version = "0.1.0", path = "rust_src/crates/ng_module", optional = 
 js = { version = "0.1.0", path = "rust_src/crates/js", optional = true }
 webrender = { version = "0.1.0", path = "rust_src/crates/webrender", optional = true }
 clippy = { version = "*", optional = true }
+log = "0.4.17"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["matchers", "regex", "once_cell", "tracing", "std", "thread_local", "env-filter"] }
 
 [build-dependencies]
 ng-bindgen = { path = "rust_src/ng-bindgen" }
