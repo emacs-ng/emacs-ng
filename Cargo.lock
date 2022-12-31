@@ -765,7 +765,7 @@ dependencies = [
  "const_fn",
  "crossbeam-utils",
  "lazy_static",
- "memoffset 0.6.4",
+ "memoffset",
  "scopeguard",
 ]
 
@@ -1030,12 +1030,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "easy-parallel"
-version = "3.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6907e25393cdcc1f4f3f513d9aac1e840eb1cc341a0fccb01171f7d14d10b946"
-
-[[package]]
 name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1048,7 +1042,7 @@ dependencies = [
  "bindgen",
  "lazy_static",
  "libc",
- "memoffset 0.6.4",
+ "memoffset",
  "regex 1.7.0",
 ]
 
@@ -2090,15 +2084,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "memoffset"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5de893c32cde5f383baa4c04c5d6dbdd735cfd4a794b0debdb2bb1b421da5ff4"
-dependencies = [
- "autocfg 1.1.0",
-]
-
-[[package]]
 name = "metal"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2290,7 +2275,7 @@ dependencies = [
  "bitflags",
  "cfg-if 1.0.0",
  "libc",
- "memoffset 0.6.4",
+ "memoffset",
 ]
 
 [[package]]
@@ -2303,7 +2288,7 @@ dependencies = [
  "bitflags",
  "cfg-if 1.0.0",
  "libc",
- "memoffset 0.6.4",
+ "memoffset",
 ]
 
 [[package]]
@@ -2315,8 +2300,6 @@ dependencies = [
  "bitflags",
  "cfg-if 1.0.0",
  "libc",
- "memoffset 0.7.1",
- "pin-utils",
  "static_assertions",
 ]
 
@@ -2671,20 +2654,6 @@ dependencies = [
  "crc32fast",
  "flate2",
  "miniz_oxide 0.6.2",
-]
-
-[[package]]
-name = "polling"
-version = "2.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22122d5ec4f9fe1b3916419b76be1e80bcb93f618d071d2edf841b137b2a2bd6"
-dependencies = [
- "autocfg 1.1.0",
- "cfg-if 1.0.0",
- "libc",
- "log",
- "wepoll-ffi",
- "windows-sys 0.42.0",
 ]
 
 [[package]]
@@ -3412,6 +3381,16 @@ name = "spin"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
+
+[[package]]
+name = "spin_sleep"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cafa7900db085f4354dbc7025e25d7a839a14360ea13b5fc4fd717f2d3b23134"
+dependencies = [
+ "once_cell",
+ "winapi",
+]
 
 [[package]]
 name = "static_assertions"
@@ -4382,15 +4361,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8b77fdfd5a253be4ab714e4ffa3c49caf146b4de743e97510c0656cf90f1e8e"
 
 [[package]]
-name = "wepoll-ffi"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d743fdedc5c64377b5fc2bc036b01c7fd642205a0d96356034ae3404d49eb7fb"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "whatsys"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4602,7 +4572,6 @@ dependencies = [
  "colors",
  "copypasta",
  "core-foundation 0.9.3",
- "easy-parallel",
  "emacs",
  "errno",
  "font-loader",
@@ -4618,10 +4587,9 @@ dependencies = [
  "ng-bindgen",
  "nix 0.26.1",
  "once_cell",
- "polling",
+ "spin_sleep",
  "surfman",
  "tokio",
- "tracing",
  "ttf-parser 0.17.1",
  "webrender",
  "webrender_surfman",

@@ -1323,13 +1323,19 @@ AC_ARG_ENABLE(webrender-self-contained,
 
 AC_ARG_ENABLE(webrender-capture,
 [AS_HELP_STRING([--enable-webrender-capture],
-		[enable WebRender capture infrastructure.])],
+		[enable Webrender capture infrastructure.])],
 [ac_enable_webrender_capture="${enableval}"],[])
 
 AC_ARG_ENABLE(webrender-x11,
 [AS_HELP_STRING([--disable-webrender-x11],
-		[disable WebRender X11 support.])],
+		[disable Webrender X11 support.])],
 [ac_enable_webrender_x11="${enableval}"],[])
+
+AC_ARG_ENABLE(wr-pselect,
+[AS_HELP_STRING([--enable-wr-pselect],
+		[enable plain select for WR synchronous I/O multiplexing.
+		On by default on macOS.])],
+[ac_enable_wr_pselect="${enableval}"],[])
 
 AC_SUBST([AM_DEFAULT_VERBOSITY])
 AC_CONFIG_FILES([src/verbose.mk])
@@ -7038,6 +7044,9 @@ case "$window_system" in
         CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-webrender\", "
 	if test x$ac_enable_webrender_capture != x ; then
 	   WEBRENDER_DEFAULT_FEATURES="\"capture\", ${WEBRENDER_DEFAULT_FEATURES}"
+	fi
+	if test x$ac_enable_wr_pselect != x || test $opsys = darwin; then
+	   WEBRENDER_DEFAULT_FEATURES="\"pselect\", ${WEBRENDER_DEFAULT_FEATURES}"
 	fi
 	if test X$ac_enable_webrender_x11 != Xno ; then
 	   WEBRENDER_DEFAULT_FEATURES="\"x11\", ${WEBRENDER_DEFAULT_FEATURES}"

@@ -1,4 +1,8 @@
-use std::{cell::RefCell, ptr, sync::Mutex, time::Instant};
+use crate::select::handle_select;
+use std::{
+    sync::Mutex,
+    time::{Duration, Instant},
+};
 
 #[cfg(target_os = "macos")]
 use copypasta::osx_clipboard::OSXClipboardContext;
@@ -13,7 +17,6 @@ use copypasta::{
 
 use libc::{c_void, fd_set, pselect, sigset_t, timespec};
 use once_cell::sync::Lazy;
-use tokio::{runtime::Runtime, time::Duration};
 #[cfg(all(feature = "wayland", not(any(target_os = "macos", windows))))]
 use winit::platform::unix::EventLoopWindowTargetExtUnix;
 use winit::{
@@ -31,8 +34,6 @@ use webrender_surfman::WebrenderSurfman;
 
 use emacs::bindings::{inhibit_window_system, thread_select};
 
-use crate::future::tokio_select_fds;
-
 pub type GUIEvent = Event<'static, i32>;
 
 #[allow(dead_code)]
@@ -48,7 +49,7 @@ unsafe impl Send for Platform {}
 
 pub struct WrEventLoop {
     clipboard: Box<dyn ClipboardProvider>,
-    el: EventLoop<i32>,
+    pub el: EventLoop<i32>,
     pub connection: Option<Connection>,
 }
 
@@ -171,37 +172,7 @@ pub static EVENT_LOOP: Lazy<Mutex<WrEventLoop>> = Lazy::new(|| {
     })
 });
 
-pub static TOKIO_RUNTIME: Lazy<Mutex<Runtime>> = Lazy::new(|| {
-    Mutex::new(
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_io()
-            .enable_time()
-            .worker_threads(2)
-            .max_blocking_threads(32)
-            .build()
-            .unwrap(),
-    )
-});
-
 pub static EVENT_BUFFER: Lazy<Mutex<Vec<GUIEvent>>> = Lazy::new(|| Mutex::new(Vec::new()));
-
-pub struct FdSet(pub *mut fd_set);
-
-unsafe impl Send for FdSet {}
-unsafe impl Sync for FdSet {}
-
-impl FdSet {
-    fn clear(&self) {
-        if self.0 != ptr::null_mut() {
-            unsafe { libc::FD_ZERO(self.0) };
-        }
-    }
-}
-
-pub struct Timespec(pub *mut timespec);
-
-unsafe impl Send for Timespec {}
-unsafe impl Sync for Timespec {}
 
 #[no_mangle]
 pub extern "C" fn wr_select(
@@ -226,80 +197,5 @@ pub extern "C" fn wr_select(
         };
     }
 
-    let mut event_loop = EVENT_LOOP.lock().unwrap();
-
-    let event_loop_proxy = event_loop.create_proxy();
-
-    let deadline = unsafe { Duration::new((*timeout).tv_sec as u64, (*timeout).tv_nsec as u32) };
-    let read_fds = FdSet(readfds);
-    let write_fds = FdSet(writefds);
-    let timeout = Timespec(timeout);
-
-    let (select_stop_sender, mut select_stop_receiver) = tokio::sync::mpsc::unbounded_channel();
-
-    // use tokio to mimic the pselect because it has cross platform supporting.
-    let tokio_runtime = TOKIO_RUNTIME.lock().unwrap();
-    tokio_runtime.spawn(async move {
-        tokio::select! {
-
-            nfds = tokio_select_fds(nfds, &read_fds, &write_fds, &timeout) => {
-                let _ = event_loop_proxy.send_event(nfds);
-            }
-
-            // time out
-            _ = tokio::time::sleep(deadline) => {
-                read_fds.clear();
-                write_fds.clear();
-
-                let _ = event_loop_proxy.send_event(0);
-            }
-
-            // received stop command from winit event_loop
-            _ = select_stop_receiver.recv() => {
-                read_fds.clear();
-                write_fds.clear();
-
-                let _ = event_loop_proxy.send_event(1);
-            }
-
-        }
-    });
-
-    let nfds_result = RefCell::new(0);
-
-    // We mush run winit in main thread, because the macOS platfrom limitation.
-    event_loop.el.run_return(|e, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
-
-        match e {
-            Event::WindowEvent { ref event, .. } => match event {
-                WindowEvent::Resized(_)
-                | WindowEvent::KeyboardInput { .. }
-                | WindowEvent::ReceivedCharacter(_)
-                | WindowEvent::ModifiersChanged(_)
-                | WindowEvent::MouseInput { .. }
-                | WindowEvent::CursorMoved { .. }
-                | WindowEvent::Focused(_)
-                | WindowEvent::MouseWheel { .. }
-                | WindowEvent::CloseRequested => {
-                    EVENT_BUFFER.lock().unwrap().push(e.to_static().unwrap());
-
-                    // notify emacs's code that a keyboard event arrived.
-                    unsafe { libc::raise(libc::SIGIO) };
-
-                    // stop tokio select
-                    let _ = select_stop_sender.send(());
-                }
-                _ => {}
-            },
-
-            Event::UserEvent(nfds) => {
-                nfds_result.replace(nfds);
-                *control_flow = ControlFlow::Exit;
-            }
-            _ => {}
-        };
-    });
-
-    return nfds_result.into_inner();
+    handle_select(nfds, readfds, writefds, _exceptfds, timeout, _sigmask)
 }
