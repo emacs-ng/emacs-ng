@@ -22,7 +22,6 @@ mod event;
 mod event_loop;
 mod font_db;
 mod fringe;
-mod future;
 mod image;
 mod texture;
 mod util;
@@ -31,6 +30,20 @@ mod wrterm;
 mod platform {
     #[cfg(target_os = "macos")]
     pub mod macos;
+}
+
+#[cfg(not(feature = "pselect"))]
+mod future;
+pub mod select {
+    #[cfg(feature = "pselect")]
+    pub use crate::select::plain::*;
+    #[cfg(not(feature = "pselect"))]
+    pub use crate::select::tokio::*;
+
+    #[cfg(feature = "pselect")]
+    pub mod plain;
+    #[cfg(not(feature = "pselect"))]
+    pub mod tokio;
 }
 
 #[cfg(target_os = "macos")]
