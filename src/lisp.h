@@ -3983,6 +3983,9 @@ extern Lisp_Object expt_integer (Lisp_Object, Lisp_Object);
 extern void syms_of_data (void);
 extern void swap_in_global_binding (struct Lisp_Symbol *);
 
+/* Defined in emacs.c */
+extern int main1 (int, char **);
+
 /* Defined in cmds.c */
 extern void syms_of_cmds (void);
 
