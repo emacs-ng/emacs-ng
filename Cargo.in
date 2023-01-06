@@ -84,5 +84,6 @@ glyph-debug = []
 [patch.crates-io]
 winit = { git = "https://github.com/declantsien/winit", rev="d80de2ea150a36d078bd19b6c6ce1cc299304fc5" }
 
-[patch.crates-io.fontdb]
-git = "https://github.com/RazrFalcon/fontdb.git"
+[patch.crates-io.font-loader]
+git = "https://github.com/declantsien/rust-font-loader.git"
+rev = "0a53c767463e13346221ad23fa6dd50cd787cd72"

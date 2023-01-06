@@ -1,3 +1,5 @@
+#[cfg(all(unix, not(target_os = "macos")))]
+use font_loader::system_fonts;
 use fontdb::{FaceInfo, Family, Query, Stretch, Style, Weight};
 
 use std::str;
@@ -21,7 +23,17 @@ impl FontDB {
     pub fn new() -> FontDB {
         let mut db = fontdb::Database::new();
 
+        #[cfg(not(all(unix, not(target_os = "macos"))))]
         db.load_system_fonts();
+
+        #[cfg(all(unix, not(target_os = "macos")))]
+        {
+            let dirs = system_fonts::get_font_dirs();
+            for dir in &dirs {
+                log::trace!("Load fonts dir: {:?}", dir);
+                db.load_fonts_dir(dir);
+            }
+        }
 
         FontDB { db }
     }
@@ -61,6 +73,7 @@ impl FontDB {
 
     pub fn family_name(family_name: &str) -> Family {
         match family_name.clone().to_lowercase().as_str() {
+            "default" => Family::Monospace, // emacs reports default
             "serif" => Family::Serif,
             "sans-serif" => Family::SansSerif,
             "sans serif" => Family::SansSerif,
@@ -85,6 +98,30 @@ impl FontDB {
                 weight,
                 style: slant,
             }),
+        }
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    pub fn fc_family_name(name: &str) -> String {
+        match name.clone().to_lowercase().as_str() {
+            "default" => {
+                let mut property = system_fonts::FontPropertyBuilder::new().monospace().build();
+                let sysfonts = system_fonts::query_specific(&mut property);
+                if let Some(family_name) = &sysfonts.get(0) {
+                    log::trace!("Query: {} Name: {}", name, family_name,);
+                    return family_name.to_string();
+                }
+                log::trace!("Query: {} monospace(default) not found", name);
+                return name.to_string();
+            }
+            _ => {
+                if let Some(family_name) = system_fonts::family_name(name) {
+                    log::trace!("Query: {} Name: {}", name, family_name,);
+                    return family_name;
+                }
+                log::trace!("Query: {} not found", name);
+                return name.to_string();
+            }
         }
     }
 }

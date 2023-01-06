@@ -70,7 +70,12 @@ impl LispFontLike {
         } else {
             let symbol_or_string = tem.as_symbol_or_string();
             let string: LispStringRef = symbol_or_string.into();
-            return Some(string.to_string().replace("-", "\\-"));
+            let family_name = string.to_string().replace("-", "\\-");
+
+            #[cfg(all(unix, not(target_os = "macos")))]
+            let family_name = FontDB::fc_family_name(&family_name);
+
+            return Some(family_name);
         }
     }
 
