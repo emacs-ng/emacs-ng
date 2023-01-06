@@ -1,7 +1,5 @@
 #[cfg(debug_assertions)]
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
-#[macro_use]
-extern crate emacs;
 
 use emacs::bindings::{main1, terminate_due_to_signal, will_dump_p};
 
@@ -20,7 +18,7 @@ pub extern "C" fn main(argc: ::libc::c_int, argv: *mut *mut ::libc::c_char) -> :
         }
     }
 
-    // install global collector configured based on RUST_LOG env var.
+    // install global collector configured based on EMACSNG_LOG env var.
     #[cfg(debug_assertions)]
     tracing_subscriber::registry()
         .with(fmt::layer())
@@ -29,9 +27,7 @@ pub extern "C" fn main(argc: ::libc::c_int, argv: *mut *mut ::libc::c_char) -> :
 
     log::trace!("Emacs NG");
 
-    // tokio::spawn(async move {
     unsafe { main1(argc, argv) };
-    // });
 
     // emacs abort
     unsafe { terminate_due_to_signal(libc::SIGABRT, 40) };

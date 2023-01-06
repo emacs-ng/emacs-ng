@@ -49,12 +49,15 @@ rev = "682fc7f787432de7b289e4caf4d8e248f85268c9"
 [build-dependencies]
 ng-bindgen = { path = "../../ng-bindgen" }
 
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+font-loader = "0.11"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.9.2"
 
 [features]
 default = ["wayland", @WEBRENDER_DEFAULT_FEATURES@]
-x11 = ["copypasta/x11", "surfman/sm-x11", "fontdb/fontconfig"]
-wayland = ["copypasta/wayland", "fontdb/fontconfig"]
+x11 = ["copypasta/x11", "surfman/sm-x11"]
+wayland = ["copypasta/wayland"]
 capture=["webrender/capture", "webrender/serialize_program"]
 sw_compositor=["webrender/sw_compositor"]
