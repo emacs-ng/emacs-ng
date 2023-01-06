@@ -6,6 +6,8 @@ use std::{
 };
 
 use libc::{fd_set, sigset_t, timespec};
+#[cfg(x11_platform)]
+use winit::platform::x11::EventLoopWindowTargetExtX11;
 use winit::{
     event::{Event, WindowEvent},
     platform::run_return::EventLoopExtRunReturn,
@@ -32,8 +34,13 @@ pub fn handle_select(
     let nfds_result = RefCell::new(0);
 
     // We mush run winit in main thread, because the macOS platfrom limitation.
-    event_loop.el.run_return(|e, _, control_flow| {
+    event_loop.el.run_return(|e, _target, control_flow| {
         control_flow.set_wait_until(deadline);
+
+        if let Event::WindowEvent { event, .. } = &e {
+            // Print only Window events to reduce noise
+            log::trace!("{:?}", event);
+        }
 
         match e {
             Event::WindowEvent { ref event, .. } => match event {
@@ -47,16 +54,26 @@ pub fn handle_select(
                 | WindowEvent::MouseWheel { .. }
                 | WindowEvent::CloseRequested => {
                     EVENT_BUFFER.lock().unwrap().push(e.to_static().unwrap());
-
                     // notify emacs's code that a keyboard event arrived.
                     match signal::raise(Signal::SIGIO) {
                         Ok(_) => {}
                         Err(err) => log::error!("sigio err: {err:?}"),
                     };
-                    /* Pretend that `select' is interrupted by a signal.  */
-                    set_errno(Errno(libc::EINTR));
-                    debug_assert_eq!(nix::errno::errno(), libc::EINTR);
-                    nfds_result.replace(-1);
+
+                    let _is_x11 = false;
+
+                    #[cfg(x11_platform)]
+                    let _is_x11 = _target.is_x11();
+
+                    if _is_x11 {
+                        nfds_result.replace(1);
+                    } else {
+                        /* Pretend that `select' is interrupted by a signal.  */
+                        set_errno(Errno(libc::EINTR));
+                        debug_assert_eq!(nix::errno::errno(), libc::EINTR);
+                        nfds_result.replace(-1);
+                    }
+
                     control_flow.set_exit();
                 }
                 _ => {}
@@ -75,7 +92,7 @@ pub fn handle_select(
     if ret == 0 {
         let timespec = unsafe { make_timespec(0, 0) };
         // Add some delay here avoding high cpu usage on macOS
-        #[cfg(target_os = "macos")]
+        #[cfg(macos_platform)]
         spin_sleep::sleep(Duration::from_millis(16));
         let nfds =
             unsafe { libc::pselect(nfds, readfds, writefds, _exceptfds, &timespec, _sigmask) };
