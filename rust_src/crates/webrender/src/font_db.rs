@@ -1,4 +1,4 @@
-#[cfg(all(unix, not(target_os = "macos")))]
+#[cfg(free_unix)]
 use font_loader::system_fonts;
 use fontdb::{FaceInfo, Family, Query, Stretch, Style, Weight};
 
@@ -23,10 +23,10 @@ impl FontDB {
     pub fn new() -> FontDB {
         let mut db = fontdb::Database::new();
 
-        #[cfg(not(all(unix, not(target_os = "macos"))))]
+        #[cfg(not(free_unix))]
         db.load_system_fonts();
 
-        #[cfg(all(unix, not(target_os = "macos")))]
+        #[cfg(free_unix)]
         {
             let dirs = system_fonts::get_font_dirs();
             for dir in &dirs {
@@ -101,7 +101,7 @@ impl FontDB {
         }
     }
 
-    #[cfg(all(unix, not(target_os = "macos")))]
+    #[cfg(free_unix)]
     pub fn fc_family_name(name: &str) -> String {
         match name.clone().to_lowercase().as_str() {
             "default" => {

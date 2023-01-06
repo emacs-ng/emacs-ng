@@ -28,6 +28,7 @@ winit = { version = "0.27.5", default-features = false }
 fontdb = "0.12"
 errno = "0.2"
 spin_sleep = { version = "1.1", optional = true }
+surfman = "0.4.4"
 
 [dependencies.nix]
 optional = true
@@ -42,15 +43,11 @@ default-features = false
 
 [dependencies.webrender_surfman]
 git = "https://github.com/declantsien/webrender_surfman.git"
-rev = "6d5c67923d85f12d3bf0f5e4fbee159772d49572"
-
-[dependencies.surfman]
-git = "https://github.com/declantsien/surfman.git"
-rev = "682fc7f787432de7b289e4caf4d8e248f85268c9"
-# features = ["sm-winit", "sm-x11"]
+rev = "e90a4e8696afe9b5301ad9cdeaf618801e0c2567"
 
 [build-dependencies]
 ng-bindgen = { path = "../../ng-bindgen" }
+cfg_aliases = "0.1"
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 font-loader = "0.11"

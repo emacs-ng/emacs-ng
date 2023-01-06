@@ -17,8 +17,8 @@ use winit::{
     window::{CursorIcon, Window},
 };
 
-#[cfg(not(any(target_os = "macos", windows)))]
-use winit::platform::unix::WindowBuilderExtUnix;
+#[cfg(wayland_platform)]
+use winit::platform::wayland::WindowBuilderExtWayland;
 
 use webrender::{self, api::units::*, api::*, RenderApi, Renderer, Transaction};
 
@@ -36,7 +36,7 @@ use super::{
     cursor::winit_to_emacs_cursor, font::FontRef, font_db::FontDB, font_db::FontDescriptor,
 };
 
-#[cfg(all(feature = "wayland", not(any(target_os = "macos", windows))))]
+#[cfg(wayland_platform)]
 use emacs::{bindings::globals, multibyte::LispStringRef};
 
 pub struct Output {
@@ -91,7 +91,7 @@ impl Output {
     pub fn build(event_loop: &mut WrEventLoop, frame: LispFrameRef) -> Self {
         let window_builder = winit::window::WindowBuilder::new().with_visible(true);
 
-        #[cfg(all(feature = "wayland", not(any(target_os = "macos", windows))))]
+        #[cfg(wayland_platform)]
         let window_builder = {
             let invocation_name: LispStringRef = unsafe { globals.Vinvocation_name.into() };
             let invocation_name = invocation_name.to_utf8();
@@ -491,7 +491,7 @@ impl Output {
         }
 
         let wr_font_key = {
-            #[cfg(target_os = "macos")]
+            #[cfg(macos_platform)]
             {
                 let app_locale = fontdb::Language::English_UnitedStates;
                 let family = font.families.iter().find(|family| family.1 == app_locale);
@@ -506,7 +506,7 @@ impl Output {
                 }
             }
 
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(not(macos_platform))]
             Some(self.wr_add_font(font_template_raw.clone()))
         };
 

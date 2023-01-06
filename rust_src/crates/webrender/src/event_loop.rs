@@ -4,12 +4,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[cfg(target_os = "macos")]
+#[cfg(macos_platform)]
 use copypasta::osx_clipboard::OSXClipboardContext;
-#[cfg(target_os = "windows")]
+#[cfg(windows_platform)]
 use copypasta::windows_clipboard::WindowsClipboardContext;
 use copypasta::ClipboardProvider;
-#[cfg(all(unix, not(target_os = "macos")))]
+#[cfg(free_unix)]
 use copypasta::{
     wayland_clipboard::create_clipboards_from_external,
     x11_clipboard::{Clipboard, X11ClipboardContext},
@@ -17,8 +17,8 @@ use copypasta::{
 
 use libc::{c_void, fd_set, pselect, sigset_t, timespec};
 use once_cell::sync::Lazy;
-#[cfg(all(feature = "wayland", not(any(target_os = "macos", windows))))]
-use winit::platform::unix::EventLoopWindowTargetExtUnix;
+#[cfg(wayland_platform)]
+use winit::platform::wayland::EventLoopWindowTargetExtWayland;
 use winit::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopProxy},
@@ -138,7 +138,7 @@ impl WrEventLoop {
 }
 
 fn build_clipboard(_event_loop: &EventLoop<i32>) -> Box<dyn ClipboardProvider> {
-    #[cfg(all(unix, not(target_os = "macos")))]
+    #[cfg(free_unix)]
     {
         if _event_loop.is_wayland() {
             let wayland_display = _event_loop
@@ -150,11 +150,11 @@ fn build_clipboard(_event_loop: &EventLoop<i32>) -> Box<dyn ClipboardProvider> {
             Box::new(X11ClipboardContext::<Clipboard>::new().unwrap())
         }
     }
-    #[cfg(target_os = "windows")]
+    #[cfg(windows_platform)]
     {
         return Box::new(WindowsClipboardContext::new().unwrap());
     }
-    #[cfg(target_os = "macos")]
+    #[cfg(macos_platform)]
     {
         return Box::new(OSXClipboardContext::new().unwrap());
     }
