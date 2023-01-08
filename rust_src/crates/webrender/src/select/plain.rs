@@ -4,6 +4,7 @@ use std::{
     cell::RefCell,
     time::{Duration, Instant},
 };
+use winit::event_loop::EventLoop;
 
 use libc::{fd_set, sigset_t, timespec};
 #[cfg(x11_platform)]
@@ -16,9 +17,9 @@ use winit::{
 use emacs::bindings::make_timespec;
 
 use crate::event_loop::EVENT_BUFFER;
-use crate::event_loop::EVENT_LOOP;
 
 pub fn handle_select(
+    event_loop: &mut EventLoop<i32>,
     nfds: i32,
     readfds: *mut fd_set,
     writefds: *mut fd_set,
@@ -26,15 +27,13 @@ pub fn handle_select(
     timeout: *mut timespec,
     _sigmask: *mut sigset_t,
 ) -> i32 {
-    let mut event_loop = EVENT_LOOP.lock().unwrap();
-
     let deadline = Instant::now()
         + unsafe { Duration::new((*timeout).tv_sec as u64, (*timeout).tv_nsec as u32) };
 
     let nfds_result = RefCell::new(0);
 
     // We mush run winit in main thread, because the macOS platfrom limitation.
-    event_loop.el.run_return(|e, _target, control_flow| {
+    event_loop.run_return(|e, _target, control_flow| {
         control_flow.set_wait_until(deadline);
 
         if let Event::WindowEvent { event, .. } = &e {
@@ -53,25 +52,28 @@ pub fn handle_select(
                 | WindowEvent::Focused(_)
                 | WindowEvent::MouseWheel { .. }
                 | WindowEvent::CloseRequested => {
-                    EVENT_BUFFER.lock().unwrap().push(e.to_static().unwrap());
-                    // notify emacs's code that a keyboard event arrived.
-                    match signal::raise(Signal::SIGIO) {
-                        Ok(_) => {}
-                        Err(err) => log::error!("sigio err: {err:?}"),
-                    };
+                    if let Ok(mut event_buffer) = EVENT_BUFFER.lock() {
+                        event_buffer.push(e.to_static().unwrap());
+                        // notify emacs's code that a keyboard event arrived.
+                        match signal::raise(Signal::SIGIO) {
+                            Ok(_) => {}
+                            Err(err) => log::error!("sigio err: {err:?}"),
+                        };
+                        let _is_x11 = false;
 
-                    let _is_x11 = false;
+                        #[cfg(x11_platform)]
+                        let _is_x11 = _target.is_x11();
 
-                    #[cfg(x11_platform)]
-                    let _is_x11 = _target.is_x11();
-
-                    if _is_x11 {
-                        nfds_result.replace(1);
+                        if _is_x11 {
+                            nfds_result.replace(1);
+                        } else {
+                            /* Pretend that `select' is interrupted by a signal.  */
+                            set_errno(Errno(libc::EINTR));
+                            debug_assert_eq!(nix::errno::errno(), libc::EINTR);
+                            nfds_result.replace(-1);
+                        }
                     } else {
-                        /* Pretend that `select' is interrupted by a signal.  */
-                        set_errno(Errno(libc::EINTR));
-                        debug_assert_eq!(nix::errno::errno(), libc::EINTR);
-                        nfds_result.replace(-1);
+                        log::debug!("Failed to grab a lock for EVENT_BUFFER");
                     }
 
                     control_flow.set_exit();

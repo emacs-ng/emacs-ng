@@ -1,8 +1,20 @@
 use std::ptr;
+use std::time::Duration;
 use std::{cmp::max, ffi::CString};
 
+use crate::event_loop::poll_a_event;
+use crate::event_loop::EVENT_LOOP;
+use emacs::bindings::{
+    add_keyboard_wait_descriptor, init_sigio, interrupt_input, Fwaiting_for_user_input_p,
+};
 use emacs::multibyte::LispStringRef;
 use lazy_static::lazy_static;
+#[cfg(wayland_platform)]
+use raw_window_handle::{RawDisplayHandle, WaylandDisplayHandle};
+#[cfg(x11_platform)]
+use raw_window_handle::{XcbDisplayHandle, XlibDisplayHandle};
+#[cfg(wayland_platform)]
+use wayland_sys::client::{wl_display, WAYLAND_CLIENT_HANDLE};
 use winit::{
     dpi::PhysicalPosition,
     event::{ElementState, Event, KeyboardInput, WindowEvent},
@@ -551,7 +563,24 @@ extern "C" fn read_input_event(terminal: *mut terminal, hold_quit: *mut input_ev
 
     let mut count = 0;
 
-    let mut events = EVENT_BUFFER.lock().unwrap();
+    let event_buffer = EVENT_BUFFER.try_lock();
+
+    if event_buffer.is_err() {
+        return 0;
+    }
+
+    let mut events = event_buffer.unwrap();
+    if events.len() == 0 && unsafe { Fwaiting_for_user_input_p() }.is_nil() {
+        if let Some(rwh) = dpyinfo.raw_display_handle {
+            match rwh {
+                _ => {
+                    if let Some(event) = poll_a_event(Duration::from_millis(1)) {
+                        events.push(event);
+                    }
+                }
+            }
+        }
+    }
 
     for e in events.iter() {
         let e = e.clone();
@@ -890,6 +919,42 @@ pub fn wr_term_init(display_name: LispObject) -> DisplayInfoRef {
 
     let dpyinfo = Box::new(DisplayInfo::new());
     let mut dpyinfo_ref = DisplayInfoRef::new(Box::into_raw(dpyinfo));
+
+    let mut event_loop = EVENT_LOOP.lock().unwrap();
+    let mut conn = None;
+    let raw_display_handle = event_loop.open_native_display();
+
+    dpyinfo_ref.get_inner().raw_display_handle = Some(raw_display_handle);
+    match raw_display_handle {
+        #[cfg(wayland_platform)]
+        RawDisplayHandle::Wayland(WaylandDisplayHandle { display, .. }) => {
+            log::trace!("wayland display {display:?}");
+            let fd =
+                unsafe { (WAYLAND_CLIENT_HANDLE.wl_display_get_fd)(display as *mut wl_display) };
+            log::trace!("wayland display fd {fd:?}");
+            conn = Some(fd);
+        }
+        #[cfg(x11_platform)]
+        RawDisplayHandle::Xlib(XlibDisplayHandle { display, .. }) => {
+            log::trace!("xlib display {display:?}");
+            let fd = unsafe { x11::xlib::XConnectionNumber(display as *mut x11::xlib::Display) };
+            log::trace!("xlib display fd {fd:?}");
+            conn = Some(fd);
+        }
+        #[cfg(x11_platform)]
+        RawDisplayHandle::Xcb(XcbDisplayHandle { .. }) => conn = None, // How does this differs from xlib?
+        _ => conn = None,
+    }
+
+    if let Some(fd) = conn {
+        unsafe {
+            add_keyboard_wait_descriptor(fd);
+            libc::fcntl(fd, libc::F_SETOWN, libc::getpid());
+            if interrupt_input {
+                init_sigio(fd);
+            }
+        };
+    }
 
     let mut terminal = wr_create_terminal(dpyinfo_ref);
 

@@ -433,9 +433,6 @@ pub fn x_open_connection(
 
     unsafe { CHECK_STRING(display) };
 
-    let mut event_loop = EVENT_LOOP.lock().unwrap();
-    let _native_display = event_loop.open_native_display();
-
     let mut display_info = wr_term_init(display);
 
     // Put this display on the chain.

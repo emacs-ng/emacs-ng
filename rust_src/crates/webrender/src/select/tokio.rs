@@ -3,6 +3,7 @@ use std::{cell::RefCell, ptr, sync::Mutex};
 use libc::{fd_set, sigset_t, timespec};
 use once_cell::sync::Lazy;
 use tokio::{runtime::Runtime, time::Duration};
+use winit::event_loop::EventLoop;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::ControlFlow,
@@ -10,7 +11,6 @@ use winit::{
 };
 
 use crate::event_loop::EVENT_BUFFER;
-use crate::event_loop::EVENT_LOOP;
 use crate::future::tokio_select_fds;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -52,6 +52,7 @@ pub static TOKIO_RUNTIME: Lazy<Mutex<Runtime>> = Lazy::new(|| {
 });
 
 pub fn handle_select(
+    event_loop: &mut EventLoop<i32>,
     nfds: i32,
     readfds: *mut fd_set,
     writefds: *mut fd_set,
@@ -59,8 +60,6 @@ pub fn handle_select(
     timeout: *mut timespec,
     _sigmask: *mut sigset_t,
 ) -> i32 {
-    let mut event_loop = EVENT_LOOP.lock().unwrap();
-
     let event_loop_proxy = event_loop.create_proxy();
 
     let deadline = unsafe { Duration::new((*timeout).tv_sec as u64, (*timeout).tv_nsec as u32) };
@@ -101,7 +100,7 @@ pub fn handle_select(
     let nfds_result = RefCell::new(0);
 
     // We mush run winit in main thread, because the macOS platfrom limitation.
-    event_loop.el.run_return(|e, _, control_flow| {
+    event_loop.run_return(|e, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
         match e {

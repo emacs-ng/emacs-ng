@@ -26,6 +26,7 @@ tokio = { version = "1.23", features = ["rt-multi-thread", "sync", "net", "macro
 futures = "0.3.25"
 winit = { version = "0.27.5", default-features = false }
 fontdb = "0.12"
+raw-window-handle = "0.5"
 errno = "0.2"
 spin_sleep = { version = "1.1", optional = true }
 surfman = "0.4.4"
@@ -51,13 +52,19 @@ cfg_aliases = "0.1"
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 font-loader = "0.11"
+wayland-sys = {version = "0.30", features = ["client", "dlopen"]}
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies.x11]
+features = ["xlib"]
+version = "2.20"
+optional = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.9.2"
 
 [features]
 default = ["wayland", @WEBRENDER_DEFAULT_FEATURES@]
-x11 = ["copypasta/x11", "surfman/sm-x11", "winit/x11"]
+x11 = ["dep:x11", "copypasta/x11", "surfman/sm-x11", "winit/x11"]
 wayland = ["copypasta/wayland", "winit/wayland"]
 capture=["webrender/capture", "webrender/serialize_program"]
 sw_compositor=["webrender/sw_compositor"]

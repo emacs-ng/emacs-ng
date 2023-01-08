@@ -92,7 +92,7 @@ rev = "0a53c767463e13346221ad23fa6dd50cd787cd72"
 
 [patch.crates-io.surfman]
 git ="https://github.com/declantsien/surfman.git"
-rev = "ad2bf7faacb5b240a47ce280f72e914d1590712f"
+rev = "caddee293e1f6ec8b33caec6170585a89c2674b8"
 
 [patch.crates-io.surfman-chains]
 git = "https://github.com/declantsien/surfman-chains.git"
