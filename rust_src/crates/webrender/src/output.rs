@@ -1,3 +1,4 @@
+use raw_window_handle::HasRawDisplayHandle;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use euclid::default::Size2D;
@@ -99,7 +100,14 @@ impl Output {
         };
 
         let window = window_builder.build(&event_loop.el()).unwrap();
-        let webrender_surfman = event_loop.new_webrender_surfman(&window);
+
+        let connection =
+            match surfman::Connection::from_raw_display_handle(window.raw_display_handle()) {
+                Ok(connection) => connection,
+                Err(error) => panic!("Device not open {:?}", error),
+            };
+
+        let webrender_surfman = event_loop.new_webrender_surfman(&window, Some(&connection));
 
         // Get GL bindings
         let gl = match webrender_surfman.connection().gl_api() {
