@@ -1,6 +1,6 @@
 ;;; epg-tests.el --- Test suite for epg.el -*- lexical-binding: t -*-
 
-;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -58,62 +58,58 @@
 (cl-defmacro with-epg-tests ((&optional &key require-passphrase
 					require-public-key
 					require-secret-key)
-			    &rest body)
+                             &rest body)
   "Set up temporary locations and variables for testing."
   (declare (indent 1) (debug (sexp body)))
-  `(let* ((epg-tests-home-directory (make-temp-file "epg-tests-homedir" t))
-	  (process-environment
-	   (append
-	    (list "GPG_AGENT_INFO"
-		  (format "GNUPGHOME=%s" epg-tests-home-directory))
-	    process-environment)))
-     (unwind-protect
-         ;; GNUPGHOME is needed to find a usable gpg, so we can't
-         ;; check whether to skip any earlier (Bug#23561).
-         (let ((epg-config (or (epg-tests-find-usable-gpg-configuration
-                                ,require-passphrase ,require-public-key)
-                               (ert-skip "No usable gpg config")))
-               (context (epg-make-context 'OpenPGP)))
-           (setf (epg-context-program context)
-                 (alist-get 'program epg-config))
-	   (setf (epg-context-home-directory context)
-		 epg-tests-home-directory)
-	   ,(if require-passphrase
-		'(with-temp-file (expand-file-name
-                                  "gpg-agent.conf" epg-tests-home-directory)
-                   (insert "pinentry-program "
-                           (ert-resource-file "dummy-pinentry")
-                           "\n")
-                   (epg-context-set-passphrase-callback
-                    context
-                    #'epg-tests-passphrase-callback)))
-	   ,(if require-public-key
-		'(epg-import-keys-from-file
-		  context
-                  (ert-resource-file "pubkey.asc")))
-	   ,(if require-secret-key
-		'(epg-import-keys-from-file
-		  context
-                  (ert-resource-file "seckey.asc")))
-	   (with-temp-buffer
-             (setq-local epg-tests-context context)
-	     ,@body))
-       (when (file-directory-p epg-tests-home-directory)
-	 (delete-directory epg-tests-home-directory t)))))
+  `(ert-with-temp-directory epg-tests-home-directory
+     (let* ((process-environment
+             (append
+              (list "GPG_AGENT_INFO"
+                    (format "GNUPGHOME=%s" epg-tests-home-directory))
+              process-environment)))
+       ;; GNUPGHOME is needed to find a usable gpg, so we can't
+       ;; check whether to skip any earlier (Bug#23561).
+       (let ((epg-config (or (epg-tests-find-usable-gpg-configuration
+                           ,require-passphrase ,require-public-key)
+                          (ert-skip "No usable gpg config")))
+             (context (epg-make-context 'OpenPGP)))
+         (setf (epg-context-program context)
+               (alist-get 'program epg-config))
+         (setf (epg-context-home-directory context)
+               epg-tests-home-directory)
+         ,(if require-passphrase
+              '(with-temp-file (expand-file-name
+                                "gpg-agent.conf" epg-tests-home-directory)
+                 (insert "pinentry-program "
+                         (ert-resource-file "dummy-pinentry")
+                         "\n")
+                 (epg-context-set-passphrase-callback
+                  context
+                  #'epg-tests-passphrase-callback)))
+         ,(if require-public-key
+              '(epg-import-keys-from-file
+                context
+                (ert-resource-file "pubkey.asc")))
+         ,(if require-secret-key
+              '(epg-import-keys-from-file
+                context
+                (ert-resource-file "seckey.asc")))
+         (with-temp-buffer
+           (setq-local epg-tests-context context)
+           ,@body)))))
 
 (ert-deftest epg-decrypt-1 ()
   :expected-result (if (getenv "EMACS_HYDRA_CI") :failed :passed) ; fixme
   (with-epg-tests (:require-passphrase t)
-    (with-temp-file (expand-file-name "gpg.conf" epg-tests-home-directory)
-      (insert "ignore-mdc-error"))
     (should (equal "test"
 		   (epg-decrypt-string epg-tests-context "\
 -----BEGIN PGP MESSAGE-----
-Version: GnuPG v2
 
-jA0EAwMCE19JBLTvvmhgyRrGGglRbnKkK9PJG8fDwO5ccjysrR7IcdNcnA==
-=U8z7
------END PGP MESSAGE-----")))))
+jA0ECQMCdW8+qtS9Tin/0jUBO1/9Oz69BWPmtFKEeBM62WpFP4o1+bNzdxogdyeg
++WTt292OD0yV85m5UqvLgp4ttVUmAw==
+=K5Eh
+-----END PGP MESSAGE-----
+")))))
 
 (ert-deftest epg-roundtrip-1 ()
  :expected-result (if (getenv "EMACS_HYDRA_CI") :failed :passed) ; fixme
@@ -126,7 +122,7 @@ jA0EAwMCE19JBLTvvmhgyRrGGglRbnKkK9PJG8fDwO5ccjysrR7IcdNcnA==
   (with-epg-tests (:require-passphrase t
 		   :require-public-key t
 		   :require-secret-key t)
-    (let* ((recipients (epg-list-keys epg-tests-context "joe@example.com"))
+    (let* ((recipients (epg-list-keys epg-tests-context "alice@openpgp.example"))
 	   (cipher (epg-encrypt-string epg-tests-context "public key"
 				       recipients nil t)))
       (should (equal "public key"
@@ -138,7 +134,7 @@ jA0EAwMCE19JBLTvvmhgyRrGGglRbnKkK9PJG8fDwO5ccjysrR7IcdNcnA==
 		   :require-secret-key t)
     (let (signature verify-result)
       (setf (epg-context-signers epg-tests-context)
-	    (epg-list-keys epg-tests-context "joe@example.com"))
+	    (epg-list-keys epg-tests-context "alice@openpgp.example"))
       (setq signature (epg-sign-string epg-tests-context "signed" t))
       (epg-verify-string epg-tests-context signature "signed")
       (setq verify-result (epg-context-result-for context 'verify))
@@ -151,7 +147,7 @@ jA0EAwMCE19JBLTvvmhgyRrGGglRbnKkK9PJG8fDwO5ccjysrR7IcdNcnA==
 		   :require-secret-key t)
     (let (signature verify-result)
       (setf (epg-context-signers epg-tests-context)
-	    (epg-list-keys epg-tests-context "joe@example.com"))
+	    (epg-list-keys epg-tests-context "alice@openpgp.example"))
       (setq signature (epg-sign-string epg-tests-context "clearsigned" 'clear))
       ;; Clearsign signature always ends with a new line.
       (should (equal "clearsigned\n"
@@ -166,7 +162,7 @@ jA0EAwMCE19JBLTvvmhgyRrGGglRbnKkK9PJG8fDwO5ccjysrR7IcdNcnA==
 		   :require-secret-key t)
     (let (signature verify-result)
       (setf (epg-context-signers epg-tests-context)
-	    (epg-list-keys epg-tests-context "joe@example.com"))
+	    (epg-list-keys epg-tests-context "alice@openpgp.example"))
       (setq signature (epg-sign-string epg-tests-context "normal signed"))
       (should (equal "normal signed"
 		     (epg-verify-string epg-tests-context signature)))

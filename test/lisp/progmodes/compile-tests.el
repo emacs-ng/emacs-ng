@@ -1,6 +1,6 @@
 ;;; compile-tests.el --- Test suite for compile.el.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2011-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2023 Free Software Foundation, Inc.
 
 ;; Author: Chong Yidong <cyd@stupidchicken.com>
 ;; Keywords:       internal
@@ -230,6 +230,7 @@
     (gnu "foo.c:8:23:information: message" 1 23 8 "foo.c")
     (gnu "foo.c:8.23-45: Informational: message" 1 (23 . 45) (8 . nil) "foo.c")
     (gnu "foo.c:8-23: message" 1 nil (8 . 23) "foo.c")
+    (gnu "   |foo.c:8: message" 1 nil 8 "foo.c")
     ;; The next one is not in the GNU standards AFAICS.
     ;; Here we seem to interpret it as LINE1-LINE2.COL2.
     (gnu "foo.c:8-45.3: message" 1 (nil . 3) (8 . 45) "foo.c")
@@ -259,6 +260,9 @@
      "e: e:\\src\\Test.kt: (34, 15): foo: bar" 4 15 34 "e:\\src\\Test.kt" 2)
     (gradle-kotlin
      "w: e:\\src\\Test.kt: (11, 98): foo: bar" 4 98 11 "e:\\src\\Test.kt" 1)
+    (gradle-android
+     "     ERROR:/Users/salutis/src/AndroidSchemeExperiment/app/build/intermediates/incremental/debug/mergeDebugResources/stripped.dir/layout/item.xml:3: AAPT: error: '16dpw' is incompatible with attribute padding (attr) dimension."
+     1 nil 3 "/Users/salutis/src/AndroidSchemeExperiment/app/build/intermediates/incremental/debug/mergeDebugResources/stripped.dir/layout/item.xml" 2)
     ;; Guile
     (guile-file "In foo.scm:\n" 1 nil nil "foo.scm")
     (guile-line "  63:4 [call-with-prompt prompt0 ...]" 1 4 63 nil)
@@ -378,6 +382,10 @@
     ;; sun-ada
     (sun-ada "/home3/xdhar/rcds_rc/main.a, line 361, char 6:syntax error: \",\" inserted"
      1 6 361 "/home3/xdhar/rcds_rc/main.a")
+    (typescript-tsc-plain "/home/foo/greeter.ts(30,12): error TS2339: Property 'foo' does not exist."
+     1 12 30 "/home/foo/greeter.ts")
+    (typescript-tsc-pretty "src/resources/document.ts:140:22 - error TS2362: something."
+     1 22 140 "src/resources/document.ts")
     ;; 4bsd
     (edg-1 "/usr/src/foo/foo.c(8): warning: w may be used before set"
      1 nil 8 "/usr/src/foo/foo.c")
@@ -491,7 +499,7 @@ The test data is in `compile-tests--test-regexps-data'."
           (compilation-num-warnings-found 0)
           (compilation-num-infos-found 0))
       (mapc #'compile--test-error-line compile-tests--test-regexps-data)
-      (should (eq compilation-num-errors-found 96))
+      (should (eq compilation-num-errors-found 100))
       (should (eq compilation-num-warnings-found 35))
       (should (eq compilation-num-infos-found 28)))))
 

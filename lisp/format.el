@@ -1,6 +1,6 @@
 ;;; format.el --- read and save files in multiple formats  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1994-1995, 1997, 1999, 2001-2022 Free Software
+;; Copyright (C) 1994-1995, 1997, 1999, 2001-2023 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Boris Goldowsky <boris@gnu.org>
@@ -139,6 +139,7 @@ MODE-FN, if specified, is called when visiting a file with that format.
 
 PRESERVE, if non-nil, means that `format-write-file' should not remove
           this format from `buffer-file-format'.")
+;; Autoload if this file no longer dumped.
 ;;;###autoload
 (put 'format-alist 'risky-local-variable t)
 
@@ -320,7 +321,7 @@ If the format is not specified, attempt a regexp-based guess.
 Set `buffer-file-format' to the format used, and call any
 format-specific mode functions."
   (interactive
-   (list (format-read "Translate buffer from format (default guess): ")))
+   (list (format-read (format-prompt "Translate buffer from format" "guess"))))
   (save-excursion
     (goto-char (point-min))
     (format-decode format (buffer-size) t)))
@@ -331,7 +332,7 @@ Arg FORMAT is optional; if omitted the format will be determined by looking
 for identifying regular expressions at the beginning of the region."
   (interactive
    (list (region-beginning) (region-end)
-	 (format-read "Translate region from format (default guess): ")))
+         (format-read (format-prompt "Translate region from format" "guess"))))
   (save-excursion
     (goto-char from)
     (format-decode format (- to from) nil)))
@@ -439,10 +440,9 @@ a list (ABSOLUTE-FILE-NAME SIZE)."
                                             (file-name-nondirectory file)))))
      (list file fmt)))
   (let (value size old-undo)
-    ;; Record only one undo entry for the insertion.  Inhibit point-motion and
-    ;; modification hooks as with `insert-file-contents'.
-    (let ((inhibit-point-motion-hooks t)
-	  (inhibit-modification-hooks t))
+    ;; Record only one undo entry for the insertion.
+    ;; Inhibit modification hooks as with `insert-file-contents'.
+    (let ((inhibit-modification-hooks t))
       ;; Don't bind `buffer-undo-list' to t here to assert that
       ;; `insert-file-contents' may record whether the buffer was unmodified
       ;; before.

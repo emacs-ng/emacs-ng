@@ -2,7 +2,7 @@
 # Configuration script for src/Makefile under DJGPP v2.x
 # ----------------------------------------------------------------------
 #
-# Copyright (C) 1996-1997, 1999-2022 Free Software Foundation, Inc.
+# Copyright (C) 1996-1997, 1999-2023 Free Software Foundation, Inc.
 #
 # This file is part of GNU Emacs.
 #
@@ -48,15 +48,17 @@ s/\.h\.in/.h-in/
 /^LIB_MATH *=/s/@LIB_MATH@/-lm/
 /^LIB_PTHREAD *=/s/@LIB_PTHREAD@//
 /^LIB_ACL *=/s/@LIB_ACL@//
-/^LIB_EACCESS *=/s/@LIB_EACCESS@//
-/^LIB_FDATASYNC *=/s/@LIB_FDATASYNC@//
+/^EUIDACCESS_LIBGEN *=/s/@EUIDACCESS_LIBGEN@//
+/^NANOSLEEP_LIB *=/s/@NANOSLEEP_LIB@//
 s/ *@LIBTIFF@//
 s/ *@LIBJPEG@//
 s/ *@LIBPNG@//
 s/ *@LIBGIF@//
 s/ *@LIBXPM@//
+s/ *@WEBP_LIBS@//
 /^HAVE_NATIVE_COMP *=/s/@HAVE_NATIVE_COMP@/no/
 /^HAVE_PDUMPER *=/s/@HAVE_PDUMPER@/no/
+/^HAVE_BE_APP *=/s/@HAVE_BE_APP@/no/
 /^CHECK_STRUCTS *=/s/@CHECK_STRUCTS@//
 /^RUN_TEMACS \=/s/temacs/temacs.exe/
 /^XFT_LIBS *=/s/@XFT_LIBS@//
@@ -78,6 +80,10 @@ s/ *@LIBXPM@//
 /^NOTIFY_LIBS *=/s/@NOTIFY_LIBS@//
 /^NOTIFY_CFLAGS *=/s/@NOTIFY_CFLAGS@//
 /^GTK_OBJ *=/s/@GTK_OBJ@//
+/^PGTK_OBJ *=/s/@PGTK_OBJ@//
+/^PGTK_LIBS *=/s/@PGTK_LIBS@//
+/^HAIKU_OBJ *=/s/@HAIKU_OBJ@//
+/^HAIKU_CXX_OBJ *=/s/@HAIKU_CXX_OBJ@//
 /^LIBS_TERMCAP *=/s/@LIBS_TERMCAP@//
 /^TERMCAP_OBJ *=/s/@TERMCAP_OBJ@/termcap.o tparam.o/
 /^LIBXMU *=/s/@LIBXMU@//
@@ -110,6 +116,18 @@ s/ *@LIBXPM@//
 /^XFIXES_CFLAGS *=/s/@XFIXES_CFLAGS@//
 /^XDBE_LIBS *=/s/@XDBE_LIBS@//
 /^XDBE_CFLAGS *=/s/@XDBE_CFLAGS@//
+/^XCOMPOSITE_LIBS *=/s/@XCOMPOSITE_LIBS@//
+/^XCOMPOSITE_CFLAGS *=/s/@XCOMPOSITE_CFLAGS@//
+/^XSHAPE_LIBS *=/s/@XSHAPE_LIBS@//
+/^XSHAPE_CFLAGS *=/s/@XSHAPE_CFLAGS@//
+/^XINPUT_LIBS *=/s/@XINPUT_LIBS@//
+/^XINPUT_CFLAGS *=/s/@XINPUT_CFLAGS@//
+/^XSYNC_LIBS *=/s/@XSYNC_LIBS@//
+/^XSYNC_CFLAGS *=/s/@XSYNC_CFLAGS@//
+/^WEBP_CFLAGS *=/s/@WEBP_CFLAGS@//
+/^SQLITE3_LIBS *=/s/@SQLITE3_LIBS@//
+/^HAIKU_LIBS *=/s/@HAIKU_LIBS@//
+/^HAIKU_CFLAGS *=/s/@HAIKU_CFLAGS@//
 /^CYGWIN_OBJ *=/s/@CYGWIN_OBJ@//
 /^WINDOW_SYSTEM_OBJ *=/s/@WINDOW_SYSTEM_OBJ@//
 /^MSDOS_OBJ *=/s/= */= dosfns.o msdos.o w16select.o/
@@ -121,7 +139,7 @@ s/ *@LIBXPM@//
 /^LIBSELINUX_LIBS *=/s/@LIBSELINUX_LIBS@//
 /^LIBSYSTEMD_LIBS *=/s/@LIBSYSTEMD_LIBS@//
 /^LIBSYSTEMD_CFLAGS *=/s/@LIBSYSTEMD_CFLAGS@//
-/^LIB_CLOCK_GETTIME *=/s/@[^@\n]*@//g
+/^CLOCK_TIME_LIB *=/s/@[^@\n]*@//g
 /^LIB_TIMER_TIME *=/s/@[^@\n]*@//g
 /^LIB_EXECINFO *=/s/@[^@\n]*@//g
 /^LIBGNUTLS_LIBS *=/s/@[^@\n]*@//
@@ -160,8 +178,11 @@ s/ *@LIBXPM@//
 /^LIBGCCJIT_OBJ *=/s/@LIBGCCJIT_OBJ@//
 /^LIBGCCJIT_CFLAGS *=/s/@LIBGCCJIT_CFLAGS@//
 /^LIBGCCJIT_LIBS *=/s/@LIBGCCJIT_LIBS@//
+/^TREE_SITTER_LIBS *=/s/@TREE_SITTER_LIBS@//
+/^TREE_SITTER_CFLAGS *=/s/@TREE_SITTER_CFLAGS@//
 /^HARFBUZZ_CFLAGS *=/s/@HARFBUZZ_CFLAGS@//
 /^HARFBUZZ_LIBS *=/s/@HARFBUZZ_LIBS@//
+/^QCOPY_ACL_LIB *=/s/@QCOPY_ACL_LIB@//
 /^LCMS2_CFLAGS *=/s/@LCMS2_CFLAGS@//
 /^LCMS2_LIBS *=/s/@LCMS2_LIBS@//
 /^LIBGMP *=/s/@LIBGMP@//

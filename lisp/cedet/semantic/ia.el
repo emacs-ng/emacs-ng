@@ -1,6 +1,6 @@
 ;;; semantic/ia.el --- Interactive Analysis functions  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: syntax
@@ -457,7 +457,7 @@ parts of the parent classes are displayed."
   ;; it.  The simple `semanticdb-find-tag-by-...' are simple, and
   ;; you need to pass it the exact name you want.
   ;;
-  ;; The analyzer function `semantic-analyze-tag-name' will take
+  ;; The analyzer function `semantic-analyze-find-tag' will take
   ;; more complex names, such as the cpp symbol foo::bar::baz,
   ;; and break it up, and dive through the namespaces.
   (let ((class (semantic-analyze-find-tag typename)))

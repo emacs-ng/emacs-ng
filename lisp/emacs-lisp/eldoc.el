@@ -1,11 +1,11 @@
 ;;; eldoc.el --- Show function arglist or variable docstring in echo area  -*- lexical-binding:t; -*-
 
-;; Copyright (C) 1996-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2023 Free Software Foundation, Inc.
 
 ;; Author: Noah Friedman <friedman@splode.com>
 ;; Keywords: extensions
 ;; Created: 1995-10-06
-;; Version: 1.11.0
+;; Version: 1.13.0
 ;; Package-Requires: ((emacs "26.3"))
 
 ;; This is a GNU ELPA :core package.  Avoid functionality that is not
@@ -55,21 +55,24 @@
   :group 'extensions)
 
 (defcustom eldoc-idle-delay 0.50
-  "Number of seconds of idle time to wait before printing.
+  "Number of seconds of idle time to wait before displaying documentation.
 If user input arrives before this interval of time has elapsed after the
-last input, no documentation will be printed.
+last input event, no documentation will be displayed.
 
-If this variable is set to 0, no idle time is required."
+If this variable is set to 0, display the documentation without any delay."
   :type 'number)
 
 (defcustom eldoc-print-after-edit nil
-  "If non-nil, eldoc info is only shown when editing.
+  "If non-nil, eldoc info is only shown after editing commands.
 Changing the value requires toggling `eldoc-mode'."
   :type 'boolean)
 
 (defcustom eldoc-echo-area-display-truncation-message t
   "If non-nil, provide verbose help when a message has been truncated.
-If nil, truncated messages will just have \"...\" appended."
+When this is non-nil, and the documentation string was truncated to
+fit in the echo-area, the documentation will be followed by an
+explanation of how to display the full documentation text.
+If nil, truncated messages will just have \"...\" to indicate truncation."
   :type 'boolean
   :version "28.1")
 
@@ -93,22 +96,24 @@ Note that this variable has no effect, unless
 
 (defcustom eldoc-echo-area-use-multiline-p 'truncate-sym-name-if-fit
   "Allow long ElDoc doc strings to resize echo area display.
-If value is t, never attempt to truncate messages, even if the
-echo area must be resized to fit.
+If the value is t, never attempt to truncate messages, even if the
+echo area must be resized to fit.  In that case, Emacs will resize
+the mini-window up to the limit set by `max-mini-window-height'.
 
 If the value is a positive number, it is used to calculate a
-number of logical lines of documentation that ElDoc is allowed to
-put in the echo area.  If a positive integer, the number is used
-directly, while a float specifies the number of lines as a
-proportion of the echo area frame's height.
+number of screen lines of documentation that ElDoc is allowed to
+put in the echo area.  A positive integer specifies the maximum
+number of lines directly, while a floating-point number specifies
+the number of screen lines as a fraction of the echo area frame's
+height.
 
-If value is the symbol `truncate-sym-name-if-fit' t, the part of
+If the value is the symbol `truncate-sym-name-if-fit', the part of
 the doc string that represents a symbol's name may be truncated
 if it will enable the rest of the doc string to fit on a single
 line, without resizing the echo area.
 
-If value is nil, a doc string is always truncated to fit in a
-single line of display in the echo area.
+If the value is nil, a doc string is always truncated to fit in a
+single screen line of echo-area display.
 
 Any resizing of the echo area additionally respects
 `max-mini-window-height'."
@@ -121,12 +126,12 @@ Any resizing of the echo area additionally respects
  line" truncate-sym-name-if-fit)))
 
 (defcustom eldoc-echo-area-prefer-doc-buffer nil
-  "Prefer ElDoc's documentation buffer if it is showing in some frame.
+  "Prefer ElDoc's documentation buffer if it is displayed in some window.
 If this variable's value is t, ElDoc will skip showing
 documentation in the echo area if the dedicated documentation
-buffer (given by `eldoc-doc-buffer') is being displayed in some
-window.  If the value is the symbol `maybe', then the echo area
-is only skipped if the documentation doesn't fit there."
+buffer (displayed by `eldoc-doc-buffer') is already displayed in
+some window.  If the value is the symbol `maybe', then the echo area
+is only skipped if the documentation needs to be truncated there."
   :type 'boolean)
 
 (defface eldoc-highlight-function-argument
@@ -287,8 +292,10 @@ reflect the change."
 (put 'eldoc-mode-line-string 'risky-local-variable t)
 
 (defun eldoc-minibuffer-message (format-string &rest args)
-  "Display messages in the mode-line when in the minibuffer.
-Otherwise work like `message'."
+  "Display message specified by FORMAT-STRING and ARGS on the mode-line as needed.
+This function displays the message produced by formatting ARGS
+with FORMAT-STRING on the mode line when the current buffer is a minibuffer.
+Otherwise, it displays the message like `message' would."
   (if (minibufferp)
       (progn
 	(add-hook 'minibuffer-exit-hook
@@ -380,7 +387,18 @@ Also store it in `eldoc-last-message' and return that value."
 ;; it undesirable to print eldoc messages right this instant.
 (defun eldoc-display-message-no-interference-p ()
   "Return nil if displaying a message would cause interference."
-  (not (or executing-kbd-macro (bound-and-true-p edebug-active))))
+  (not (or executing-kbd-macro
+           ;; The following configuration shows "Matches..." in the
+           ;; echo area when point is after a closing bracket, which
+           ;; conflicts with eldoc.
+           (and (boundp 'show-paren-context-when-offscreen)
+                show-paren-context-when-offscreen
+                ;; There's no conflict with the child-frame and
+                ;; overlay versions.
+                (not (memq show-paren-context-when-offscreen
+                           '(child-frame overlay)))
+                (not (pos-visible-in-window-p
+                      (overlay-end show-paren--overlay)))))))
 
 
 (defvar eldoc-documentation-functions nil
@@ -452,19 +470,22 @@ directly from the user or from ElDoc's automatic mechanisms'.")
 
 (defvar eldoc--doc-buffer-docs nil "Documentation items in `eldoc--doc-buffer'.")
 
-(defun eldoc-doc-buffer ()
-  "Display ElDoc documentation buffer.
+(defun eldoc-doc-buffer (&optional interactive)
+  "Get or display ElDoc documentation buffer.
 
-This holds the results of the last documentation request."
-  (interactive)
+The buffer holds the results of the last documentation request.
+If INTERACTIVE, display it.  Else, return said buffer."
+  (interactive (list t))
   (unless (buffer-live-p eldoc--doc-buffer)
     (user-error (format
                  "ElDoc buffer doesn't exist, maybe `%s' to produce one."
                  (substitute-command-keys "\\[eldoc]"))))
   (with-current-buffer eldoc--doc-buffer
-    (rename-buffer (replace-regexp-in-string "^ *" ""
-                                             (buffer-name)))
-    (display-buffer (current-buffer))))
+    (cond (interactive
+           (rename-buffer (replace-regexp-in-string "^ *" ""
+                                                    (buffer-name)))
+           (display-buffer (current-buffer)))
+          (t (current-buffer)))))
 
 (defun eldoc--format-doc-buffer (docs)
   "Ensure DOCS are displayed in an *eldoc* buffer."
@@ -476,9 +497,9 @@ This holds the results of the last documentation request."
       (setq-local eldoc--doc-buffer-docs docs)
       (let ((inhibit-read-only t)
             (things-reported-on))
-        (erase-buffer) (setq buffer-read-only t)
+        (special-mode)
+        (erase-buffer)
         (setq-local nobreak-char-display nil)
-        (local-set-key "q" 'quit-window)
         (cl-loop for (docs . rest) on docs
                  for (this-doc . plist) = docs
                  for thing = (plist-get plist :thing)
@@ -513,7 +534,8 @@ Helper for `eldoc-display-in-echo-area'."
                         (goto-char (point-min))
                         (skip-chars-forward " \t\n")
                         (point))
-                 (goto-char (line-end-position available))
+                 (forward-visible-line (1- available))
+                 (end-of-visible-line)
                  (skip-chars-backward " \t\n")))
         (truncated (save-excursion
                      (skip-chars-forward " \t\n")
@@ -523,7 +545,8 @@ Helper for `eldoc-display-in-echo-area'."
           ((and truncated
                 (> available 1)
                 eldoc-echo-area-display-truncation-message)
-           (goto-char (line-end-position 0))
+           (forward-visible-line -1)
+           (end-of-visible-line)
            (concat (buffer-substring start (point))
                    (format
                     "\n(Documentation truncated. Use `%s' to see rest)"
@@ -534,12 +557,13 @@ Helper for `eldoc-display-in-echo-area'."
 (defun eldoc--echo-area-prefer-doc-buffer-p (truncatedp)
   "Tell if display in the echo area should be skipped.
 Helper for `eldoc-display-in-echo-area'.  If TRUNCATEDP the
-documentation to potentially appear in the echo are is truncated."
+documentation to potentially appear in the echo area is
+known to be truncated."
   (and (or (eq eldoc-echo-area-prefer-doc-buffer t)
            (and truncatedp
                 (eq eldoc-echo-area-prefer-doc-buffer
                     'maybe)))
-       (get-buffer-window eldoc--doc-buffer 'visible)))
+       (get-buffer-window eldoc--doc-buffer t)))
 
 (defun eldoc-display-in-echo-area (docs _interactive)
   "Display DOCS in echo area.
@@ -598,7 +622,8 @@ Honor `eldoc-echo-area-use-multiline-p' and
                (let ((string
                       (with-current-buffer (eldoc--format-doc-buffer docs)
                         (buffer-substring (goto-char (point-min))
-                                          (line-end-position 1)))))
+                                          (progn (end-of-visible-line)
+                                                 (point))))))
                  (if (> (length string) width)  ; truncation to happen
                      (unless (eldoc--echo-area-prefer-doc-buffer-p t)
                        (truncate-string-to-width string width))
@@ -611,12 +636,11 @@ Honor `eldoc-echo-area-use-multiline-p' and
   "Display DOCS in a dedicated buffer.
 If INTERACTIVE is t, also display the buffer."
   (eldoc--format-doc-buffer docs)
-  (when interactive
-    (eldoc-doc-buffer)))
+  (when interactive (eldoc-doc-buffer t)))
 
 (defun eldoc-documentation-default ()
-  "Show first doc string for item at point.
-Default value for `eldoc-documentation-strategy'."
+  "Show the first non-nil documentation string for item at point.
+This is the default value for `eldoc-documentation-strategy'."
   (run-hook-with-args-until-success 'eldoc-documentation-functions
                                     (eldoc--make-callback :patient)))
 
@@ -634,18 +658,18 @@ else wait for all doc strings."
   t)
 
 (defun eldoc-documentation-compose ()
-  "Show multiple doc strings at once after waiting for all.
-Meant as a value for `eldoc-documentation-strategy'."
+  "Show multiple documentation strings together after waiting for all of them.
+This is meant to be used as a value for `eldoc-documentation-strategy'."
   (eldoc--documentation-compose-1 nil))
 
 (defun eldoc-documentation-compose-eagerly ()
-  "Show multiple doc strings at once as soon as possible.
-Meant as a value for `eldoc-documentation-strategy'."
+  "Show multiple documentation strings one by one as soon as possible.
+This is meant to be used as a value for `eldoc-documentation-strategy'."
   (eldoc--documentation-compose-1 t))
 
 (defun eldoc-documentation-enthusiast ()
-  "Show most important doc string produced so far.
-Meant as a value for `eldoc-documentation-strategy'."
+  "Show most important documentation string produced so far.
+This is meant to be used as a value for `eldoc-documentation-strategy'."
   (run-hook-wrapped 'eldoc-documentation-functions
                     (lambda (f)
                       (let* ((callback (eldoc--make-callback :enthusiast))
@@ -675,40 +699,42 @@ Meant as a value for `eldoc-documentation-strategy'."
 (eldoc--documentation-strategy-defcustom eldoc-documentation-strategy
     eldoc-documentation-function
   #'eldoc-documentation-default
-  "How to collect and organize results of `eldoc-documentation-functions'.
+  "How to collect and display results of `eldoc-documentation-functions'.
 
-This variable controls how `eldoc-documentation-functions', which
-specifies the sources of documentation, is queried and how its
-results are organized before being displayed to the user.  The
-following values are allowed:
+This variable controls how to call the functions in the special hook
+`eldoc-documentation-functions', and how to organize their results
+for display to the user.  The functions in `eldoc-documentation-functions'
+are the source of documentation, and act as back-end for ElDoc.
 
-- `eldoc-documentation-default': calls functions in the special
-  hook in order until one is found that produces a doc string
-  value.  Display only that value;
+The following values are supported:
 
-- `eldoc-documentation-compose': calls all functions in the
-  special hook and displays all of the resulting doc strings
-  together.  Wait for all strings to be ready, and preserve their
-  relative order as specified by the order of functions in the hook;
+- `eldoc-documentation-default': Call functions in the special
+  hook in order, until one of them returns a non-nil string
+  value.  Display only that string.
 
-- `eldoc-documentation-compose-eagerly': calls all functions in
-  the special hook and displays as many of the resulting doc
-  strings as possible, as soon as possible.  Preserves the
-  relative order of doc strings;
+- `eldoc-documentation-compose': Call all the functions in the
+  special hook and display all of the resulting strings together,
+  after all of the functions were called, and in the order of the
+  functions in the hook.
 
-- `eldoc-documentation-enthusiast': calls all functions in the
-  special hook and displays only the most important resulting
-  docstring one at any given time.  A function appearing first in
-  the special hook is considered more important.
+- `eldoc-documentation-compose-eagerly': Call all the functions in
+  the special hook, and display each non-nil string as soon as it
+  is returned by a function, before calling the next function.
 
-This variable can also be set to a function of no args that
-returns something other than a string or nil and allows for some
+- `eldoc-documentation-enthusiast': Call all the functions in the
+  special hook, and display only the most important resulting
+  string at any given time.  A function appearing first in
+  the special hook is considered more important than those which
+  appear after it.
+
+This variable can also be set to a function of no arguments that
+returns something other than a string or nil, and allows for some
 or all of the special hook `eldoc-documentation-functions' to be
 run.  In that case, the strategy function should follow that
-other variable's protocol closely and endeavor to display the
-resulting doc strings itself.
+other variable's protocol closely and display the resulting doc
+strings itself.
 
-For backward compatibility to the \"old\" protocol, this variable
+For backward compatibility with the \"old\" protocol, this variable
 can also be set to a function that returns nil or a doc string,
 depending whether or not there is documentation to display at
 all."
@@ -794,7 +820,7 @@ function passes responsibility to the functions in
 Other third-party values of `eldoc-documentation-strategy' should
 not use `eldoc--make-callback'.  They must find some alternate
 way to produce callbacks to feed to
-`eldoc-documentation-functions' and should endeavour to display
+`eldoc-documentation-functions' and should endeavor to display
 the docstrings eventually produced, using
 `eldoc-display-functions'."
   (let* (;; How many callbacks have been created by the strategy

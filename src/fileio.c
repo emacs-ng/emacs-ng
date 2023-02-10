@@ -1,6 +1,6 @@
 /* File IO for GNU Emacs.
 
-Copyright (C) 1985-1988, 1993-2022 Free Software Foundation, Inc.
+Copyright (C) 1985-1988, 1993-2023 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -134,6 +134,7 @@ static dev_t timestamp_file_system;
    is added here.  */
 static Lisp_Object Vwrite_region_annotation_buffers;
 
+static Lisp_Object emacs_readlinkat (int, char const *);
 static Lisp_Object file_name_directory (Lisp_Object);
 static bool a_write (int, Lisp_Object, ptrdiff_t, ptrdiff_t,
 		     Lisp_Object *, struct coding_system *);
@@ -195,7 +196,11 @@ get_file_errno_data (char const *string, Lisp_Object name, int errorno)
   if (errorno == EEXIST)
     return Fcons (Qfile_already_exists, errdata);
   else
-    return Fcons (errorno == ENOENT ? Qfile_missing : Qfile_error,
+    return Fcons (errorno == ENOENT
+		  ? Qfile_missing
+		  : (errorno == EACCES
+		     ? Qpermission_denied
+		     : Qfile_error),
 		  Fcons (build_string (string), errdata));
 }
 
@@ -704,20 +709,20 @@ This function does not grok magic file names.  */)
   memset (data + prefix_len, 'X', nX);
   memcpy (data + prefix_len + nX, SSDATA (encoded_suffix), suffix_len);
   int kind = (NILP (dir_flag) ? GT_FILE
-	      : EQ (dir_flag, make_fixnum (0)) ? GT_NOCREATE
+	      : BASE_EQ (dir_flag, make_fixnum (0)) ? GT_NOCREATE
 	      : GT_DIR);
   int fd = gen_tempname (data, suffix_len, O_BINARY | O_CLOEXEC, kind);
   bool failed = fd < 0;
   if (!failed)
     {
-      ptrdiff_t count = SPECPDL_INDEX ();
+      specpdl_ref count = SPECPDL_INDEX ();
       record_unwind_protect_int (close_file_unwind, fd);
       val = DECODE_FILE (val);
       if (STRINGP (text) && SBYTES (text) != 0)
 	write_region (text, Qnil, val, Qnil, Qnil, Qnil, Qnil, fd);
       failed = NILP (dir_flag) && emacs_close (fd) != 0;
       /* Discard the unwind protect.  */
-      specpdl_ptr = specpdl + count;
+      specpdl_ptr = specpdl_ref_to_ptr (count);
     }
   if (failed)
     {
@@ -2161,7 +2166,7 @@ permissions.  */)
    Lisp_Object preserve_permissions)
 {
   Lisp_Object handler;
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   Lisp_Object encoded_file, encoded_newname;
 #if HAVE_LIBSELINUX
   char *con;
@@ -2215,7 +2220,7 @@ permissions.  */)
       report_file_error ("Copying permissions to", newname);
     }
 #else /* not WINDOWSNT */
-  ifd = emacs_open (SSDATA (encoded_file), O_RDONLY, 0);
+  ifd = emacs_open (SSDATA (encoded_file), O_RDONLY | O_NONBLOCK, 0);
 
   if (ifd < 0)
     report_file_error ("Opening input file", file);
@@ -2412,7 +2417,7 @@ permissions.  */)
 #endif /* not WINDOWSNT */
 
   /* Discard the unwind protects.  */
-  specpdl_ptr = specpdl + count;
+  specpdl_ptr = specpdl_ref_to_ptr (count);
 
   return Qnil;
 }
@@ -2423,15 +2428,10 @@ DEFUN ("make-directory-internal", Fmake_directory_internal,
   (Lisp_Object directory)
 {
   const char *dir;
-  Lisp_Object handler;
   Lisp_Object encoded_dir;
 
   CHECK_STRING (directory);
   directory = Fexpand_file_name (directory, Qnil);
-
-  handler = Ffind_file_name_handler (directory, Qmake_directory_internal);
-  if (!NILP (handler))
-    return call2 (handler, Qmake_directory_internal, directory);
 
   encoded_dir = ENCODE_FILE (directory);
 
@@ -2501,6 +2501,8 @@ With a prefix argument, TRASH is nil.  */)
   return Qnil;
 }
 
+#if defined HAVE_NATIVE_COMP && defined WINDOWSNT
+
 static Lisp_Object
 internal_delete_file_1 (Lisp_Object ignore)
 {
@@ -2519,6 +2521,8 @@ internal_delete_file (Lisp_Object filename)
 				   Qt, internal_delete_file_1);
   return NILP (tem);
 }
+
+#endif
 
 /* Return -1 if FILE is a case-insensitive file name, 0 if not,
    and a positive errno value if the result cannot be determined.  */
@@ -2593,9 +2597,9 @@ is case-insensitive.  */)
       if (err <= 0)
 	return err < 0 ? Qt : Qnil;
       Lisp_Object parent = file_name_directory (filename);
-      /* Avoid infinite loop if the root has trouble
-	 (impossible?).  */
-      if (!NILP (Fstring_equal (parent, filename)))
+      /* Avoid infinite loop if the root has trouble (if that's even possible).
+	 Without a parent, we just don't know and return nil as well.  */
+      if (!STRINGP (parent) || !NILP (Fstring_equal (parent, filename)))
 	return Qnil;
       filename = parent;
     }
@@ -2702,19 +2706,21 @@ This is what happens in interactive use with M-x.  */)
     }
   if (dirp)
     call4 (Qcopy_directory, file, newname, Qt, Qnil);
-  else
+  else if (S_ISREG (file_st.st_mode))
+    Fcopy_file (file, newname, ok_if_already_exists, Qt, Qt, Qt);
+  else if (S_ISLNK (file_st.st_mode))
     {
-      Lisp_Object symlink_target
-	= (S_ISLNK (file_st.st_mode)
-	   ? check_emacs_readlinkat (AT_FDCWD, file, SSDATA (encoded_file))
-	   : Qnil);
-      if (!NILP (symlink_target))
-	Fmake_symbolic_link (symlink_target, newname, ok_if_already_exists);
+      Lisp_Object target = emacs_readlinkat (AT_FDCWD,
+					     SSDATA (encoded_file));
+      if (!NILP (target))
+	Fmake_symbolic_link (target, newname, ok_if_already_exists);
       else
-	Fcopy_file (file, newname, ok_if_already_exists, Qt, Qt, Qt);
+	report_file_error ("Renaming", list2 (file, newname));
     }
+  else
+    report_file_errno ("Renaming", list2 (file, newname), rename_errno);
 
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   specbind (Qdelete_by_moving_to_trash, Qnil);
   if (dirp)
     call2 (Qdelete_directory, file, Qt);
@@ -3510,8 +3516,9 @@ DEFUN ("set-file-modes", Fset_file_modes, Sset_file_modes, 2, 3,
 Only the 12 low bits of MODE are used.  If optional FLAG is `nofollow',
 do not follow FILENAME if it is a symbolic link.
 
-Interactively, mode bits are read by `read-file-modes', which accepts
-symbolic notation, like the `chmod' command from GNU Coreutils.  */)
+Interactively, prompt for FILENAME, and read MODE with
+`read-file-modes', which accepts symbolic notation, like the `chmod'
+command from GNU Coreutils.  */)
   (Lisp_Object filename, Lisp_Object mode, Lisp_Object flag)
 {
   CHECK_FIXNUM (mode);
@@ -3785,7 +3792,7 @@ file_offset (Lisp_Object val)
 	}
     }
 
-  wrong_type_argument (intern ("file-offset"), val);
+  wrong_type_argument (Qfile_offset, val);
 }
 
 /* Return a special time value indicating the error number ERRNUM.  */
@@ -3833,7 +3840,7 @@ restore_window_points (Lisp_Object window_markers, ptrdiff_t inserted,
 	Lisp_Object oldpos = XCDR (car);
 	if (MARKERP (marker) && FIXNUMP (oldpos)
 	    && XFIXNUM (oldpos) > same_at_start
-	    && XFIXNUM (oldpos) < same_at_end)
+	    && XFIXNUM (oldpos) <= same_at_end)
 	  {
 	    ptrdiff_t oldsize = same_at_end - same_at_start;
 	    ptrdiff_t newsize = inserted;
@@ -3876,6 +3883,10 @@ The optional third and fourth arguments BEG and END specify what portion
 of the file to insert.  These arguments count bytes in the file, not
 characters in the buffer.  If VISIT is non-nil, BEG and END must be nil.
 
+When inserting data from a special file (e.g., /dev/urandom), you
+can't specify VISIT or BEG, and END should be specified to avoid
+inserting unlimited data into the buffer.
+
 If optional fifth argument REPLACE is non-nil, replace the current
 buffer contents (in the accessible portion) with the file contents.
 This is better than simply deleting and inserting the whole thing
@@ -3899,11 +3910,11 @@ by calling `format-decode', which see.  */)
   ptrdiff_t how_much;
   off_t beg_offset, end_offset;
   int unprocessed;
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   Lisp_Object handler, val, insval, orig_filename, old_undo;
   Lisp_Object p;
   ptrdiff_t total = 0;
-  bool not_regular = 0;
+  bool regular = true;
   int save_errno = 0;
   char read_buf[READ_BUF_SIZE];
   struct coding_system coding;
@@ -3918,7 +3929,6 @@ by calling `format-decode', which see.  */)
        && BEG == Z);
   Lisp_Object old_Vdeactivate_mark = Vdeactivate_mark;
   bool we_locked_file = false;
-  ptrdiff_t fd_index;
   Lisp_Object window_markers = Qnil;
   /* same_at_start and same_at_end count bytes, because file access counts
      bytes and BEG and END count bytes.  */
@@ -3927,6 +3937,7 @@ by calling `format-decode', which see.  */)
   /* SAME_AT_END_CHARPOS counts characters, because
      restore_window_points needs the old character count.  */
   ptrdiff_t same_at_end_charpos = ZV;
+  bool seekable = true;
 
   if (current_buffer->base_buffer && ! NILP (visit))
     error ("Cannot do file visiting in an indirect buffer");
@@ -3980,7 +3991,7 @@ by calling `format-decode', which see.  */)
       goto notfound;
     }
 
-  fd_index = SPECPDL_INDEX ();
+  specpdl_ref fd_index = SPECPDL_INDEX ();
   record_unwind_protect_int (close_file_unwind, fd);
 
   /* Replacement should preserve point as it preserves markers.  */
@@ -4000,7 +4011,8 @@ by calling `format-decode', which see.  */)
      least signal an error.  */
   if (!S_ISREG (st.st_mode))
     {
-      not_regular = 1;
+      regular = false;
+      seekable = lseek (fd, 0, SEEK_CUR) < 0;
 
       if (! NILP (visit))
         {
@@ -4008,7 +4020,12 @@ by calling `format-decode', which see.  */)
 	  goto notfound;
         }
 
-      if (! NILP (replace) || ! NILP (beg) || ! NILP (end))
+      if (!NILP (beg) && !seekable)
+	xsignal2 (Qfile_error,
+		  build_string ("cannot use a start position in a non-seekable file/device"),
+		  orig_filename);
+
+      if (!NILP (replace))
 	xsignal2 (Qfile_error,
 		  build_string ("not a regular file"), orig_filename);
     }
@@ -4030,7 +4047,7 @@ by calling `format-decode', which see.  */)
     end_offset = file_offset (end);
   else
     {
-      if (not_regular)
+      if (!regular)
 	end_offset = TYPE_MAXIMUM (off_t);
       else
 	{
@@ -4052,7 +4069,7 @@ by calling `format-decode', which see.  */)
   /* Check now whether the buffer will become too large,
      in the likely case where the file's length is not changing.
      This saves a lot of needless work before a buffer overflow.  */
-  if (! not_regular)
+  if (regular)
     {
       /* The likely offset where we will stop reading.  We could read
 	 more (or less), if the file grows (or shrinks) as we read it.  */
@@ -4090,7 +4107,7 @@ by calling `format-decode', which see.  */)
 	{
 	  /* Don't try looking inside a file for a coding system
 	     specification if it is not seekable.  */
-	  if (! not_regular && ! NILP (Vset_auto_coding_function))
+	  if (regular && !NILP (Vset_auto_coding_function))
 	    {
 	      /* Find a coding system specified in the heading two
 		 lines or in the tailing several lines of the file.
@@ -4134,8 +4151,7 @@ by calling `format-decode', which see.  */)
 		  bset_read_only (buf, Qnil);
 		  bset_filename (buf, Qnil);
 		  bset_undo_list (buf, Qt);
-		  eassert (buf->overlays_before == NULL);
-		  eassert (buf->overlays_after == NULL);
+		  eassert (buf->overlays == NULL);
 
 		  set_buffer_internal (buf);
 		  Ferase_buffer ();
@@ -4323,7 +4339,7 @@ by calling `format-decode', which see.  */)
       if (! giveup_match_end)
 	{
 	  ptrdiff_t temp;
-          ptrdiff_t this_count = SPECPDL_INDEX ();
+          specpdl_ref this_count = SPECPDL_INDEX ();
 
 	  /* We win!  We can handle REPLACE the optimized way.  */
 
@@ -4394,7 +4410,7 @@ by calling `format-decode', which see.  */)
       unsigned char *decoded;
       ptrdiff_t temp;
       ptrdiff_t this = 0;
-      ptrdiff_t this_count = SPECPDL_INDEX ();
+      specpdl_ref this_count = SPECPDL_INDEX ();
       bool multibyte
 	= ! NILP (BVAR (current_buffer, enable_multibyte_characters));
       Lisp_Object conversion_buffer;
@@ -4552,7 +4568,7 @@ by calling `format-decode', which see.  */)
       goto handled;
     }
 
-  if (! not_regular)
+  if (seekable || !NILP (end))
     total = end_offset - beg_offset;
   else
     /* For a special file, all we can do is guess.  */
@@ -4598,7 +4614,7 @@ by calling `format-decode', which see.  */)
 	ptrdiff_t trytry = min (total - how_much, READ_BUF_SIZE);
 	ptrdiff_t this;
 
-	if (not_regular)
+	if (!seekable && NILP (end))
 	  {
 	    Lisp_Object nbytes;
 
@@ -4649,7 +4665,7 @@ by calling `format-decode', which see.  */)
 	   For a special file, where TOTAL is just a buffer size,
 	   so don't bother counting in HOW_MUCH.
 	   (INSERTED is where we count the number of characters inserted.)  */
-	if (! not_regular)
+	if (seekable || !NILP (end))
 	  how_much += this;
 	inserted += this;
       }
@@ -4700,7 +4716,7 @@ by calling `format-decode', which see.  */)
             = Fcons (multibyte,
                      Fcons (BVAR (current_buffer, undo_list),
 			    Fcurrent_buffer ()));
-	  ptrdiff_t count1 = SPECPDL_INDEX ();
+	  specpdl_ref count1 = SPECPDL_INDEX ();
 
 	  bset_enable_multibyte_characters (current_buffer, Qnil);
 	  bset_undo_list (current_buffer, Qt);
@@ -4827,7 +4843,7 @@ by calling `format-decode', which see.  */)
 	    Funlock_file (BVAR (current_buffer, file_truename));
 	  Funlock_file (filename);
 	}
-      if (not_regular)
+      if (!regular)
 	xsignal2 (Qfile_error,
 		  build_string ("not a regular file"), orig_filename);
     }
@@ -4842,7 +4858,7 @@ by calling `format-decode', which see.  */)
       if (! NILP (insval))
 	{
 	  if (! RANGED_FIXNUMP (0, insval, ZV - PT))
-	    wrong_type_argument (intern ("inserted-chars"), insval);
+	    wrong_type_argument (Qinserted_chars, insval);
 	  inserted = XFIXNAT (insval);
 	}
     }
@@ -4851,7 +4867,7 @@ by calling `format-decode', which see.  */)
   if (inserted > 0)
     {
       /* Don't run point motion or modification hooks when decoding.  */
-      ptrdiff_t count1 = SPECPDL_INDEX ();
+      specpdl_ref count1 = SPECPDL_INDEX ();
       ptrdiff_t old_inserted = inserted;
       specbind (Qinhibit_point_motion_hooks, Qt);
       specbind (Qinhibit_modification_hooks, Qt);
@@ -4865,7 +4881,7 @@ by calling `format-decode', which see.  */)
 	  insval = call3 (Qformat_decode,
 			  Qnil, make_fixnum (inserted), visit);
 	  if (! RANGED_FIXNUMP (0, insval, ZV - PT))
-	    wrong_type_argument (intern ("inserted-chars"), insval);
+	    wrong_type_argument (Qinserted_chars, insval);
 	  inserted = XFIXNAT (insval);
 	}
       else
@@ -4888,7 +4904,7 @@ by calling `format-decode', which see.  */)
 	  insval = call3 (Qformat_decode,
 			  Qnil, make_fixnum (oinserted), visit);
 	  if (! RANGED_FIXNUMP (0, insval, ZV - PT))
-	    wrong_type_argument (intern ("inserted-chars"), insval);
+	    wrong_type_argument (Qinserted_chars, insval);
 	  if (ochars_modiff == CHARS_MODIFF)
 	    /* format_decode didn't modify buffer's characters => move
 	       point back to position before inserted text and leave
@@ -4911,7 +4927,7 @@ by calling `format-decode', which see.  */)
 	      if (!NILP (insval))
 		{
 		  if (! RANGED_FIXNUMP (0, insval, ZV - PT))
-		    wrong_type_argument (intern ("inserted-chars"), insval);
+		    wrong_type_argument (Qinserted_chars, insval);
 		  inserted = XFIXNAT (insval);
 		}
 	    }
@@ -4929,7 +4945,7 @@ by calling `format-decode', which see.  */)
 	      if (!NILP (insval))
 		{
 		  if (! RANGED_FIXNUMP (0, insval, ZV - PT))
-		    wrong_type_argument (intern ("inserted-chars"), insval);
+		    wrong_type_argument (Qinserted_chars, insval);
 		  if (ochars_modiff == CHARS_MODIFF)
 		    /* after_insert_file_functions didn't modify
 		       buffer's characters => move point back to
@@ -4967,9 +4983,10 @@ by calling `format-decode', which see.  */)
       unbind_to (count1, Qnil);
     }
 
-  if (!NILP (visit) && current_buffer->modtime.tv_nsec < 0)
+  if (save_errno != 0)
     {
       /* Signal an error if visiting a file that could not be opened.  */
+      eassert (!NILP (visit) && NILP (handler));
       report_file_errno ("Opening input file", orig_filename, save_errno);
     }
 
@@ -5182,8 +5199,8 @@ write_region (Lisp_Object start, Lisp_Object end, Lisp_Object filename,
   const char *fn;
   struct stat st;
   struct timespec modtime;
-  ptrdiff_t count = SPECPDL_INDEX ();
-  ptrdiff_t count1 UNINIT;
+  specpdl_ref count = SPECPDL_INDEX ();
+  specpdl_ref count1 UNINIT;
   Lisp_Object handler;
   Lisp_Object visit_file;
   Lisp_Object annotations;
@@ -5359,12 +5376,16 @@ write_region (Lisp_Object start, Lisp_Object end, Lisp_Object filename,
     {
       /* Transfer data and metadata to disk, retrying if interrupted.
 	 fsync can report a write failure here, e.g., due to disk full
-	 under NFS.  But ignore EINVAL, which means fsync is not
-	 supported on this file.  */
+	 under NFS.  But ignore EINVAL (and EBADF on Windows), which
+	 means fsync is not supported on this file.  */
       while (fsync (desc) != 0)
 	if (errno != EINTR)
 	  {
-	    if (errno != EINVAL)
+	    if (errno != EINVAL
+#ifdef WINDOWSNT
+		&& errno != EBADF
+#endif
+		)
 	      ok = 0, save_errno = errno;
 	    break;
 	  }
@@ -5386,7 +5407,7 @@ write_region (Lisp_Object start, Lisp_Object end, Lisp_Object filename,
 	ok = 0, save_errno = errno;
 
       /* Discard the unwind protect for close_file_unwind.  */
-      specpdl_ptr = specpdl + count1;
+      specpdl_ptr = specpdl_ref_to_ptr (count1);
     }
 
   /* Some file systems have a bug where st_mtime is not updated
@@ -5516,7 +5537,10 @@ DEFUN ("car-less-than-car", Fcar_less_than_car, Scar_less_than_car, 2, 2, 0,
        doc: /* Return t if (car A) is numerically less than (car B).  */)
   (Lisp_Object a, Lisp_Object b)
 {
-  return arithcompare (Fcar (a), Fcar (b), ARITH_LESS);
+  Lisp_Object ca = Fcar (a), cb = Fcar (b);
+  if (FIXNUMP (ca) && FIXNUMP (cb))
+    return XFIXNUM (ca) < XFIXNUM (cb) ? Qt : Qnil;
+  return arithcompare (ca, cb, ARITH_LESS);
 }
 
 /* Build the complete list of annotations appropriate for writing out
@@ -5796,6 +5820,15 @@ See Info node `(elisp)Modification Time' for more details.  */)
   return Qnil;
 }
 
+Lisp_Object
+buffer_visited_file_modtime (struct buffer *buf)
+{
+  int ns = buf->modtime.tv_nsec;
+  if (ns < 0)
+    return make_fixnum (UNKNOWN_MODTIME_NSECS - ns);
+  return make_lisp_time (buf->modtime);
+}
+
 DEFUN ("visited-file-modtime", Fvisited_file_modtime,
        Svisited_file_modtime, 0, 0, 0,
        doc: /* Return the current buffer's recorded visited file modification time.
@@ -5805,10 +5838,7 @@ visited file doesn't exist.
 See Info node `(elisp)Modification Time' for more details.  */)
   (void)
 {
-  int ns = current_buffer->modtime.tv_nsec;
-  if (ns < 0)
-    return make_fixnum (UNKNOWN_MODTIME_NSECS - ns);
-  return make_lisp_time (current_buffer->modtime);
+  return buffer_visited_file_modtime (current_buffer);
 }
 
 DEFUN ("set-visited-file-modtime", Fset_visited_file_modtime,
@@ -5835,6 +5865,8 @@ in `current-time' or an integer flag as returned by `visited-file-modtime'.  */)
       current_buffer->modtime = mtime;
       current_buffer->modtime_size = -1;
     }
+  else if (current_buffer->base_buffer)
+    error ("An indirect buffer does not have a visited file");
   else
     {
       register Lisp_Object filename;
@@ -5948,14 +5980,19 @@ do_auto_save_eh (Lisp_Object ignore)
 
 DEFUN ("do-auto-save", Fdo_auto_save, Sdo_auto_save, 0, 2, "",
        doc: /* Auto-save all buffers that need it.
-This is all buffers that have auto-saving enabled
-and are changed since last auto-saved.
-Auto-saving writes the buffer into a file
-so that your editing is not lost if the system crashes.
-This file is not the file you visited; that changes only when you save.
+This auto-saves all buffers that have auto-saving enabled and
+were changed since last auto-saved.
+
+Auto-saving writes the buffer into a file so that your edits are
+not lost if the system crashes.
+
+The auto-save file is not the file you visited; that changes only
+when you save.
+
 Normally, run the normal hook `auto-save-hook' before saving.
 
 A non-nil NO-MESSAGE argument means do not print any message if successful.
+
 A non-nil CURRENT-ONLY argument means save only current buffer.  */)
   (Lisp_Object no_message, Lisp_Object current_only)
 {
@@ -5965,14 +6002,10 @@ A non-nil CURRENT-ONLY argument means save only current buffer.  */)
   int do_handled_files;
   Lisp_Object oquit;
   FILE *stream = NULL;
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   bool orig_minibuffer_auto_raise = minibuffer_auto_raise;
   bool old_message_p = 0;
   struct auto_save_unwind auto_save_unwind;
-
-  intmax_t sum = INT_ADD_WRAPV (specpdl_size, 40, &sum) ? INTMAX_MAX : sum;
-  if (max_specpdl_size < sum)
-    max_specpdl_size = sum;
 
   if (minibuf_level)
     no_message = Qt;
@@ -6194,7 +6227,7 @@ before any other event (mouse or keypress) is handled.  */)
   (void)
 {
 #if (defined USE_GTK || defined USE_MOTIF \
-     || defined HAVE_NS || defined HAVE_NTGUI)
+     || defined HAVE_NS || defined HAVE_NTGUI || defined HAVE_HAIKU)
   if ((NILP (last_nonmenu_event) || CONSP (last_nonmenu_event))
       && use_dialog_box
       && use_file_dialog
@@ -6301,24 +6334,6 @@ init_fileio (void)
   umask (realmask);
 
   valid_timestamp_file_system = 0;
-
-  /* fsync can be a significant performance hit.  Often it doesn't
-     suffice to make the file-save operation survive a crash.  For
-     batch scripts, which are typically part of larger shell commands
-     that don't fsync other files, its effect on performance can be
-     significant so its utility is particularly questionable.
-     Hence, for now by default fsync is used only when interactive.
-
-     For more on why fsync often fails to work on today's hardware, see:
-     Zheng M et al. Understanding the robustness of SSDs under power fault.
-     11th USENIX Conf. on File and Storage Technologies, 2013 (FAST '13), 271-84
-     https://www.usenix.org/system/files/conference/fast13/fast13-final80.pdf
-
-     For more on why fsync does not suffice even if it works properly, see:
-     Roche X. Necessary step(s) to synchronize filename operations on disk.
-     Austin Group Defect 672, 2013-03-19
-     http://austingroupbugs.net/view.php?id=672  */
-  write_region_inhibit_fsync = noninteractive;
 }
 
 void
@@ -6380,9 +6395,12 @@ syms_of_fileio (void)
   DEFSYM (Qfile_already_exists, "file-already-exists");
   DEFSYM (Qfile_date_error, "file-date-error");
   DEFSYM (Qfile_missing, "file-missing");
+  DEFSYM (Qpermission_denied, "permission-denied");
+  DEFSYM (Qfile_offset, "file-offset");
   DEFSYM (Qfile_notify_error, "file-notify-error");
   DEFSYM (Qremote_file_error, "remote-file-error");
   DEFSYM (Qexcl, "excl");
+  DEFSYM (Qinserted_chars, "inserted-chars");
 
   DEFVAR_LISP ("file-name-coding-system", Vfile_name_coding_system,
 	       doc: /* Coding system for encoding file names.
@@ -6437,6 +6455,11 @@ behaves as if file names were encoded in `utf-8'.  */);
 	Fpurecopy (list3 (Qfile_missing, Qfile_error, Qerror)));
   Fput (Qfile_missing, Qerror_message,
 	build_pure_c_string ("File is missing"));
+
+  Fput (Qpermission_denied, Qerror_conditions,
+	Fpurecopy (list3 (Qpermission_denied, Qfile_error, Qerror)));
+  Fput (Qpermission_denied, Qerror_message,
+	build_pure_c_string ("Cannot access file or directory"));
 
   Fput (Qfile_notify_error, Qerror_conditions,
 	Fpurecopy (list3 (Qfile_notify_error, Qfile_error, Qerror)));
@@ -6568,9 +6591,22 @@ file is usually more useful if it contains the deleted text.  */);
   DEFVAR_BOOL ("write-region-inhibit-fsync", write_region_inhibit_fsync,
 	       doc: /* Non-nil means don't call fsync in `write-region'.
 This variable affects calls to `write-region' as well as save commands.
-Setting this to nil may avoid data loss if the system loses power or
-the operating system crashes.  By default, it is non-nil in batch mode.  */);
-  write_region_inhibit_fsync = 0; /* See also `init_fileio' above.  */
+By default, it is non-nil.
+
+Although setting this to nil may avoid data loss if the system loses power,
+it can be a significant performance hit in the usual case, and it doesn't
+necessarily cause file-save operations to actually survive a crash.  */);
+
+  /* For more on why fsync often fails to work on today's hardware, see:
+     Zheng M et al. Understanding the robustness of SSDs under power fault.
+     11th USENIX Conf. on File and Storage Technologies, 2013 (FAST '13), 271-84
+     https://www.usenix.org/system/files/conference/fast13/fast13-final80.pdf
+
+     For more on why fsync does not suffice even if it works properly, see:
+     Roche X. Necessary step(s) to synchronize filename operations on disk.
+     Austin Group Defect 672, 2013-03-19
+     https://austingroupbugs.net/view.php?id=672  */
+  write_region_inhibit_fsync = true;
 
   DEFVAR_BOOL ("delete-by-moving-to-trash", delete_by_moving_to_trash,
                doc: /* Specifies whether to use the system's trash can.

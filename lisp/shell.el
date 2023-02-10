@@ -1,6 +1,6 @@
 ;;; shell.el --- specialized comint.el for running the shell -*- lexical-binding: t -*-
 
-;; Copyright (C) 1988, 1993-1997, 2000-2022 Free Software Foundation,
+;; Copyright (C) 1988, 1993-1997, 2000-2023 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Olin Shivers <shivers@cs.cmu.edu>
@@ -71,7 +71,7 @@
 ;; c-c c-o comint-delete-output		   Delete last batch of process output
 ;; c-c c-r comint-show-output		   Show last batch of process output
 ;; c-c c-l comint-dynamic-list-input-ring  List input history
-;;         comint-send-invisible           Read line w/o echo & send to proc
+;;         comint-send-invisible           Read line without echo & send to proc
 ;;         comint-continue-subjob	   Useful if you accidentally suspend
 ;;					        top-level job
 ;; comint-mode-hook is the comint mode hook.
@@ -98,6 +98,8 @@
 (require 'comint)
 (require 'pcomplete)
 (eval-when-compile (require 'files-x)) ;with-connection-local-variables
+(require 'subr-x)
+(eval-when-compile (require 'cl-lib))
 
 ;;; Customization and Buffer Variables
 
@@ -306,6 +308,40 @@ for Shell mode only."
 		 (const :tag "on" t))
   :group 'shell)
 
+(defcustom shell-fontify-input-enable t
+  "Enable fontification of input in shell buffers.
+This variable only has effect when the shell is started.  Use the
+command `comint-fontify-input-mode' to toggle fontification of
+input."
+  :type 'boolean
+  :group 'shell
+  :safe 'booleanp
+  :version "29.1")
+
+(defcustom shell-indirect-setup-hook nil
+  "Hook run in an indirect buffer for input fontification.
+Input fontification and indentation of a `shell-mode' buffer, if
+enabled, is performed in an indirect buffer, whose indentation
+and syntax highlighting is set up with `sh-mode'.  In addition to
+`comint-indirect-setup-hook', run this hook with the indirect
+buffer as the current buffer after its setup is done.  This can
+be used to further customize fontification and other behavior of
+the indirect buffer."
+  :type 'boolean
+  :group 'shell
+  :safe 'booleanp
+  :version "29.1")
+
+(defcustom shell-highlight-undef-enable nil
+  "Enable highlighting of undefined commands in shell buffers.
+This variable only has effect when the shell is started.  Use the
+command `shell-highlight-undef-mode' to toggle highlighting of
+undefined commands."
+  :type 'boolean
+  :group 'shell
+  :safe 'booleanp
+  :version "29.1")
+
 (defvar shell-dirstack nil
   "List of directories saved by pushd in this buffer's shell.
 Thus, this does not include the shell's current directory.")
@@ -330,6 +366,12 @@ Useful for shells like zsh that has this feature."
   :group 'shell-directories
   :version "28.1")
 
+(defcustom shell-kill-buffer-on-exit nil
+  "Kill a shell buffer after the shell process terminates."
+  :type 'boolean
+  :group 'shell
+  :version "29.1")
+
 (defvar shell-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\C-c\C-f" 'shell-forward-command)
@@ -350,6 +392,12 @@ Useful for shells like zsh that has this feature."
 			   shell-replace-by-expanded-directory)
       'complete-expand)
     map))
+
+(defvar-keymap shell-repeat-map
+  :doc "Keymap to repeat shell key sequences.  Used in `repeat-mode'."
+  :repeat t
+  "C-f" #'shell-forward-command
+  "C-b" #'shell-backward-command)
 
 (defcustom shell-mode-hook '()
   "Hook for customizing Shell mode."
@@ -433,12 +481,11 @@ Useful for shells like zsh that has this feature."
 	(push (point) begins)
         (let ((arg ()))
           (while (looking-at
-                  (eval-when-compile
-                    (concat
-                     "\\(?:[^\s\t\n\\\"';]+"
-                     "\\|'\\([^']*\\)'?"
-                     "\\|\"\\(\\(?:[^\"\\]\\|\\\\.\\)*\\)\"?"
-                     "\\|\\\\\\(\\(?:.\\|\n\\)?\\)\\)")))
+                  (concat
+                   "\\(?:[^\s\t\n\\\"';]+"
+                   "\\|'\\([^']*\\)'?"
+                   "\\|\"\\(\\(?:[^\"\\]\\|\\\\.\\)*\\)\"?"
+                   "\\|\\\\\\(\\(?:.\\|\n\\)?\\)\\)"))
             (goto-char (match-end 0))
             (cond
              ((match-beginning 3)       ;Backslash escape.
@@ -516,6 +563,8 @@ Shell buffers.  It implements `shell-completion-execonly' for
 
 (put 'shell-mode 'mode-class 'special)
 
+(defvar sh-shell-file)
+
 (define-derived-mode shell-mode comint-mode "Shell"
   "Major mode for interacting with an inferior shell.
 \\<shell-mode-map>
@@ -527,7 +576,7 @@ Shell buffers.  It implements `shell-completion-execonly' for
     the shell.  This is useful for entering passwords.  Or, add the function
     `comint-watch-for-password-prompt' to `comint-output-filter-functions'.
 
-If you want to make multiple shell buffers, rename the `*shell*' buffer
+If you want to make multiple shell buffers, rename the \"*shell*\" buffer
 using \\[rename-buffer] or \\[rename-uniquely] and start a new shell.
 
 If you want to make shell buffers limited in length, add the function
@@ -570,8 +619,22 @@ the initialization of the input ring history, and history expansion.
 Variables `comint-output-filter-functions', a hook, and
 `comint-scroll-to-bottom-on-input' and `comint-scroll-to-bottom-on-output'
 control whether input and output cause the window to scroll to the end of the
-buffer."
+buffer.
+
+By default, shell mode does nothing special when it receives a
+\"bell\" character (C-g or ^G).  If you
+  (add-hook \\='comint-output-filter-functions #\\='shell-filter-ring-bell nil t)
+from `shell-mode-hook', Emacs will call the `ding' function
+whenever it receives the bell character in output from a
+command."
   :interactive nil
+  :after-hook
+  (unless comint-use-prompt-regexp
+    (if shell-fontify-input-enable
+        (comint-fontify-input-mode))
+    (if shell-highlight-undef-enable
+        (shell-highlight-undef-mode)))
+
   (setq comint-prompt-regexp shell-prompt-pattern)
   (shell-completion-vars)
   (setq-local paragraph-separate "\\'")
@@ -590,6 +653,23 @@ buffer."
   ;; sequences into `font-lock-face' properties.
   (setq-local ansi-color-apply-face-function #'shell-apply-ansi-color)
   (shell-reapply-ansi-color)
+
+  (add-hook 'comint-indirect-setup-hook
+            #'shell-indirect-setup-hook 'append t)
+  (setq comint-indirect-setup-function
+        (let ((shell shell--start-prog))
+          (lambda ()
+            (require 'sh-script)
+            (cl-letf
+                (((default-value 'sh-shell-file)
+                  (or shell sh-shell-file))
+                 (inhibit-message t)
+                 (message-log-max nil))
+              (sh-mode)))))
+
+  (setq-local indent-line-function #'comint-indent-input-line-default)
+  (setq-local indent-region-function
+              #'comint-indent-input-region-default)
 
   ;; This is not really correct, since the shell buffer does not really
   ;; edit this directory.  But it is useful in the buffer list and menus.
@@ -645,6 +725,10 @@ buffer."
                     ": [[:digit:]]+:[[:digit:]]+;")))
     (comint-read-input-ring t)))
 
+(defun shell-indirect-setup-hook ()
+  "Run `shell-indirect-setup-hook'."
+  (run-hooks 'shell-indirect-setup-hook))
+
 (defun shell-apply-ansi-color (beg end face)
   "Apply FACE as the ansi-color face for the text between BEG and END."
   (when face
@@ -681,6 +765,13 @@ This function can be put on `comint-preoutput-filter-functions'."
       (replace-regexp-in-string "[\C-a\C-b]" "" string t t)
     string))
 
+(defun shell-filter-ring-bell (string)
+  "Call `ding' if STRING contains a \"^G\" character.
+This function can be put on `comint-output-filter-functions'."
+  (when (string-search "\a" string)
+    (ding))
+  string)
+
 (defun shell-write-history-on-exit (process event)
   "Called when the shell process is stopped.
 
@@ -698,7 +789,7 @@ Sentinels will always get the two parameters PROCESS and EVENT."
         (insert (format "\nProcess %s %s\n" process event))))))
 
 ;;;###autoload
-(defun shell (&optional buffer)
+(defun shell (&optional buffer file-name)
   "Run an inferior shell, with I/O through BUFFER (which defaults to `*shell*').
 Interactively, a prefix arg means to prompt for BUFFER.
 If `default-directory' is a remote file name, it is also prompted
@@ -709,6 +800,8 @@ If BUFFER exists and shell process is running, just switch to BUFFER.
 Program used comes from variable `explicit-shell-file-name',
  or (if that is nil) from the ESHELL environment variable,
  or (if that is nil) from `shell-file-name'.
+Non-interactively, it can also be specified via the FILE-NAME arg.
+
 If a file `~/.emacs_SHELLNAME' exists, or `~/.emacs.d/init_SHELLNAME.sh',
 it is given as initial input (but this may be lost, due to a timing
 error, if the shell discards input when it starts up).
@@ -732,25 +825,47 @@ Make the shell buffer the current buffer, and return it.
 
 \(Type \\[describe-mode] in the shell buffer for a list of commands.)"
   (interactive
-   (list
-    (and current-prefix-arg
-	 (prog1
-	     (read-buffer "Shell buffer: "
-			  ;; If the current buffer is an inactive
-			  ;; shell buffer, use it as the default.
-			  (if (and (eq major-mode 'shell-mode)
-				   (null (get-buffer-process (current-buffer))))
-			      (buffer-name)
-			    (generate-new-buffer-name "*shell*")))
-	   (if (file-remote-p default-directory)
-	       ;; It must be possible to declare a local default-directory.
-               ;; FIXME: This can't be right: it changes the default-directory
-               ;; of the current-buffer rather than of the *shell* buffer.
-	       (setq default-directory
-		     (expand-file-name
-		      (read-directory-name
-		       "Default directory: " default-directory default-directory
-		       t nil))))))))
+   (let* ((buffer
+           (and current-prefix-arg
+		(read-buffer "Shell buffer: "
+			     ;; If the current buffer is an inactive
+			     ;; shell buffer, use it as the default.
+			     (if (and (eq major-mode 'shell-mode)
+				      (null (get-buffer-process
+				             (current-buffer))))
+				 (buffer-name)
+			       (generate-new-buffer-name "*shell*")))))
+	  (buf (if (or buffer (not (derived-mode-p 'shell-mode))
+                       (comint-check-proc (current-buffer)))
+                   (get-buffer-create (or buffer "*shell*"))
+                 ;; If the current buffer is a dead shell buffer, use it.
+                 (current-buffer))))
+
+     (with-current-buffer buf
+       (when (and buffer (file-remote-p default-directory))
+	 ;; It must be possible to declare a local default-directory.
+	 (setq default-directory
+	       (expand-file-name
+		(read-directory-name
+		 "Default directory: " default-directory default-directory
+		 t nil))))
+       (list
+        buffer
+        ;; On remote hosts, the local `shell-file-name' might be useless.
+        (with-connection-local-variables
+         (when (and (file-remote-p default-directory)
+                    (null explicit-shell-file-name)
+                    (null (getenv "ESHELL")))
+           ;; `expand-file-name' shall not add the MS Windows volume letter
+           ;; (Bug#49229).
+           (replace-regexp-in-string
+            "^[[:alpha:]]:" ""
+            (file-local-name
+             (expand-file-name
+              (read-file-name "Remote shell path: " default-directory
+                              shell-file-name t shell-file-name
+                              #'file-remote-p))))))))))
+
   (setq buffer (if (or buffer (not (derived-mode-p 'shell-mode))
                        (comint-check-proc (current-buffer)))
                    (get-buffer-create (or buffer "*shell*"))
@@ -758,24 +873,11 @@ Make the shell buffer the current buffer, and return it.
                  (current-buffer)))
   ;; The buffer's window must be correctly set when we call comint
   ;; (so that comint sets the COLUMNS env var properly).
-  (pop-to-buffer-same-window buffer)
+  (pop-to-buffer buffer display-comint-buffer-action)
 
   (with-connection-local-variables
-   ;; On remote hosts, the local `shell-file-name' might be useless.
-   (when (and (file-remote-p default-directory)
-              (called-interactively-p 'any)
-              (null explicit-shell-file-name)
-              (null (getenv "ESHELL")))
-     ;; `expand-file-name' shall not add the MS Windows volume letter
-     ;; (Bug#49229).
-     (setq-local explicit-shell-file-name
-                 (replace-regexp-in-string
-                  "^[[:alpha:]]:" ""
-                  (file-local-name
-                   (expand-file-name
-                    (read-file-name "Remote shell path: " default-directory
-                                    shell-file-name t shell-file-name
-                                    #'file-remote-p))))))
+   (when file-name
+     (setq-local explicit-shell-file-name file-name))
 
    ;; Rain or shine, BUFFER must be current by now.
    (unless (comint-check-proc buffer)
@@ -783,16 +885,37 @@ Make the shell buffer the current buffer, and return it.
                       (getenv "ESHELL") shell-file-name))
             (name (file-name-nondirectory prog))
             (startfile (concat "~/.emacs_" name))
-            (xargs-name (intern-soft (concat "explicit-" name "-args"))))
+            (xargs-name (intern-soft (concat "explicit-" name "-args")))
+            (start-point (point)))
        (unless (file-exists-p startfile)
-         (setq startfile (concat user-emacs-directory "init_" name ".sh")))
+         (setq startfile (locate-user-emacs-file
+                          (concat "init_" name ".sh"))))
        (setq-local shell--start-prog (file-name-nondirectory prog))
        (apply #'make-comint-in-buffer "shell" buffer prog
-              (if (file-exists-p startfile) startfile)
+              nil
               (if (and xargs-name (boundp xargs-name))
                   (symbol-value xargs-name)
                 '("-i")))
-       (shell-mode))))
+       (shell-mode)
+       (when (file-exists-p startfile)
+         ;; Wait until the prompt has appeared.
+         (while (= start-point (point))
+           (sleep-for 0.1))
+         (shell-eval-command
+          (with-temp-buffer
+            (insert-file-contents startfile)
+            (buffer-string)))))))
+  (when shell-kill-buffer-on-exit
+    (let* ((buffer (current-buffer))
+           (process (get-buffer-process buffer))
+           (sentinel (process-sentinel process)))
+      (set-process-sentinel
+       process
+       (lambda (proc event)
+         (when sentinel
+           (funcall sentinel proc event))
+         (unless (buffer-live-p proc)
+           (kill-buffer buffer))))))
   buffer)
 
 ;;; Directory tracking
@@ -1008,7 +1131,9 @@ Environment variables are expanded, see function `substitute-in-file-name'."
   "Toggle directory tracking in this shell buffer (Shell Dirtrack mode).
 
 The `dirtrack' package provides an alternative implementation of
-this feature; see the function `dirtrack-mode'."
+this feature; see the function `dirtrack-mode'.  Also see
+`comint-osc-directory-tracker' for an escape-sequence based
+solution."
   :lighter nil
   (setq list-buffers-directory (if shell-dirtrack-mode default-directory))
   (if shell-dirtrack-mode
@@ -1025,61 +1150,46 @@ this feature; see the function `dirtrack-mode'."
   "Resync the buffer's idea of the current directory stack.
 This command queries the shell with the command bound to
 `shell-dirstack-query' (default \"dirs\"), reads the next
-line output and parses it to form the new directory stack.
-DON'T issue this command unless the buffer is at a shell prompt.
-Also, note that if some other subprocess decides to do output
-immediately after the query, its output will be taken as the
-new directory stack -- you lose.  If this happens, just do the
-command again."
+line output and parses it to form the new directory stack."
   (interactive)
-  (let* ((proc (get-buffer-process (current-buffer)))
-	 (pmark (process-mark proc))
-	 (started-at-pmark (= (point) (marker-position pmark))))
-    (save-excursion
-      (goto-char pmark)
-      ;; If the process echoes commands, don't insert a fake command in
-      ;; the buffer or it will appear twice.
-      (unless comint-process-echoes
-	(insert shell-dirstack-query) (insert "\n"))
-      (sit-for 0)			; force redisplay
-      (comint-send-string proc shell-dirstack-query)
-      (comint-send-string proc "\n")
-      (set-marker pmark (point))
-      (let ((pt (point))
-	    (regexp
-	     (concat
-	      (if comint-process-echoes
-		  ;; Skip command echo if the process echoes
-		  (concat "\\(" (regexp-quote shell-dirstack-query) "\n\\)")
-		"\\(\\)")
-	      "\\(.+\n\\)")))
-	;; This extra newline prevents the user's pending input from spoofing us.
-	(insert "\n") (backward-char 1)
-	;; Wait for one line.
-	(while (not (looking-at regexp))
-	  (accept-process-output proc)
-	  (goto-char pt)))
-      (goto-char pmark) (delete-char 1) ; remove the extra newline
-      ;; That's the dirlist. grab it & parse it.
-      (let* ((dl (buffer-substring (match-beginning 2) (1- (match-end 2))))
-	     (dl-len (length dl))
-	     (ds '())			; new dir stack
-	     (i 0))
-	(while (< i dl-len)
-	  ;; regexp = optional whitespace, (non-whitespace), optional whitespace
-	  (string-match "\\s *\\(\\S +\\)\\s *" dl i) ; pick off next dir
-	  (setq ds (cons (concat comint-file-name-prefix
-				 (substring dl (match-beginning 1)
-					    (match-end 1)))
-			 ds))
-	  (setq i (match-end 0)))
-	(let ((ds (nreverse ds)))
-	  (with-demoted-errors "Couldn't cd: %s"
-	    (shell-cd (car ds))
-	    (setq shell-dirstack (cdr ds)
-		  shell-last-dir (car shell-dirstack))
-	    (shell-dirstack-message)))))
-    (if started-at-pmark (goto-char (marker-position pmark)))))
+  (let* ((dls (car
+               (last
+                (string-lines
+                 (string-chop-newline
+                  (shell-eval-command (concat shell-dirstack-query "\n")))))))
+         (dlsl nil)
+         (pos 0)
+         (ds nil))
+    (setq dls (string-trim-right dls "[ ]+"))
+    ;; Split the dirlist into whitespace and non-whitespace chunks.
+    ;; dlsl will be a reversed list of tokens.
+    (while (string-match "\\(\\S-+\\|\\s-+\\)" dls pos)
+      (push (match-string 1 dls) dlsl)
+      (setq pos (match-end 1)))
+
+    ;; Prepend trailing entries until they form an existing directory,
+    ;; whitespace and all.  Discard the next whitespace and repeat.
+    (while dlsl
+      (let ((newelt "")
+            tem1 tem2)
+        (while newelt
+          ;; We need tem1 because we don't want to prepend
+          ;; `comint-file-name-prefix' repeatedly into newelt via tem2.
+          (setq tem1 (pop dlsl)
+                tem2 (concat comint-file-name-prefix tem1 newelt))
+          (cond ((file-directory-p tem2)
+                 (push tem2 ds)
+                 (when (string= " " (car dlsl))
+                   (pop dlsl))
+                 (setq newelt nil))
+                (t
+                 (setq newelt (concat tem1 newelt)))))))
+
+    (with-demoted-errors "Couldn't cd: %s"
+      (shell-cd (car ds))
+      (setq shell-dirstack (cdr ds)
+            shell-last-dir (car shell-dirstack))
+      (shell-dirstack-message))))
 
 ;; For your typing convenience:
 (defalias 'dirs 'shell-resync-dirs)
@@ -1413,6 +1523,252 @@ Returns t if successful."
        (if (= begin (shell--prompt-begin-position))
            (point-max)
          (shell--prompt-begin-position))))))
+
+(defun shell-eval-command (command)
+  "Eval COMMAND in the current shell process and return the result."
+  (let* ((proc (get-buffer-process (current-buffer)))
+         (old-filter (process-filter proc))
+         (result "")
+         prev)
+    (unwind-protect
+        (progn
+          (set-process-filter
+           proc
+           (lambda (_proc string)
+             (setq result (concat result string))))
+          (process-send-string proc command)
+          ;; Wait until we get a prompt (which will be a line without
+          ;; a newline).  This is far from fool-proof -- if something
+          ;; outputs incomplete data and then sleeps, we'll think
+          ;; we've received the prompt.
+          (while (not (let* ((lines (string-lines result))
+                             (last (car (last lines))))
+                        (and (length> lines 0)
+                             (not (equal last ""))
+                             (or (not prev)
+                                 (not (equal last prev)))
+                             (setq prev last))))
+            (accept-process-output proc 0 100)))
+      ;; Restore old filter.
+      (set-process-filter proc old-filter))
+    ;; Remove the prompt.
+    (replace-regexp-in-string "\n.*\\'" "\n" result)))
+
+;;; Highlight undefined commands
+;;
+;; To highlight non-existent shell commands, customize
+;; `shell-highlight-undef-enable' to t.  To highlight some shell
+;; commands as aliases, add them to `shell-highlight-undef-aliases'.
+
+(defcustom shell-highlight-undef-aliases nil
+  "List of shell commands to highlight as a command alias."
+  :group 'shell
+  :type '(repeat string)
+  :version "29.1")
+
+(defface shell-highlight-undef-defined-face
+  '((t :inherit 'font-lock-function-name-face))
+  "Face used for existing shell commands."
+  :group 'shell
+  :version "29.1")
+
+(defface shell-highlight-undef-undefined-face
+  '((t :inherit 'font-lock-warning-face))
+  "Face used for non-existent shell commands."
+  :group 'shell
+  :version "29.1")
+
+(defface shell-highlight-undef-alias-face
+  '((t :inherit 'font-lock-variable-name-face))
+  "Face used for shell command aliases."
+  :group 'shell
+  :version "29.1")
+
+(defcustom shell-highlight-undef-remote-file-name-inhibit-cache nil
+  "Whether to inhibit cache for fontifying shell commands in remote buffers.
+When fontification of non-existent commands is enabled in a
+remote shell buffer, use a cache to speed up searching for
+executable files on the remote machine.  This options is used to
+control expiry of this cache.  See `remote-file-name-inhibit-cache'
+for description."
+  :group 'faces
+  :type '(choice
+          (const :tag "Do not inhibit file name cache" nil)
+          (const :tag "Do not use file name cache" t)
+          (integer :tag "Do not use file name cache"
+                   :format "Do not use file name cache older than %v seconds"
+                   :value 10))
+  :version "29.1")
+
+(defvar shell--highlight-undef-exec-cache nil
+  "Cache of executable files found in `exec-path'.
+An alist, whose elements are of the form
+\(REMOTE TIME EXECUTABLES), where REMOTE is a string, returned by
+`file-remote-p', TIME is the return value of `float-time', and
+EXECUTABLES is a hash table with keys being the base-names of
+executable files.
+
+Cache expiry is controlled by the user option
+`remote-file-name-inhibit-cache'.")
+
+(defvar shell--highlight-undef-face 'shell-highlight-undef-defined-face)
+
+(defvar shell-highlight-undef-keywords
+  `((,#'shell-highlight-undef-matcher 6 shell--highlight-undef-face)))
+
+(defvar-local shell-highlight-undef-regexp regexp-unmatchable)
+
+(defun shell--highlight-undef-executable-find (command)
+  "Return non-nil if COMMAND is found in `exec-path'.
+Similar to `executable-find', but use cache stored in
+`shell--highlight-undef-exec-cache'."
+  (let ((remote (file-remote-p default-directory))
+        as ret found-in-cache delta-time)
+    (if (null remote)
+        (executable-find command)
+
+      (setq delta-time
+            shell-highlight-undef-remote-file-name-inhibit-cache)
+
+      (pcase (setq as (assoc remote shell--highlight-undef-exec-cache))
+        (`(,_ ,time ,hash)
+         (when (pcase delta-time
+                 ((pred numberp) (<= (float-time) (+ time delta-time)))
+                 ('t nil)
+                 ('nil t))
+           (setq ret (gethash command hash))
+           (setq found-in-cache t)))
+        (_ (setq as (list remote 0 (make-hash-table :test #'equal)))
+           (push as shell--highlight-undef-exec-cache)))
+
+      (if found-in-cache
+          ret
+        ;; Build cache
+        (setcar (cdr as) (float-time))
+        (let ((hash (clrhash (caddr as))))
+          (dolist (dir (exec-path))
+            (pcase-dolist (`(,f . ,attr)
+                           (condition-case nil
+                               (directory-files-and-attributes
+                                (concat remote dir) nil nil 'nosort 'integer)
+                             (file-error nil)))
+              ;; Approximation.  Assume every non-directory file in $PATH is an
+              ;; executable.  Alternatively, we could check
+              ;; `file-executable-p', but doing so for every file in $PATH is
+              ;; slow on remote machines.
+              (unless (eq t (file-attribute-type attr))
+                (puthash f t hash))))
+          (gethash command hash))))))
+
+(defun shell-highlight-undef-matcher (end)
+  "Matcher used to highlight shell commands up to END."
+  (when (re-search-forward shell-highlight-undef-regexp end t)
+    (save-match-data
+      (let ((cmd (match-string 6))
+            (beg (match-beginning 6)))
+        (setq shell--highlight-undef-face
+              (let* ((buf (buffer-base-buffer))
+                     (default-directory
+                      (if buf (buffer-local-value 'default-directory buf)
+                        default-directory)))
+                (cond
+                 ;; Don't fontify command output.  Mostly useful if
+                 ;; `comint-fontify-input-mode' is disabled.
+                 ((text-property-any beg (point) 'field 'output)
+                  nil)
+                 ((member cmd shell-highlight-undef-aliases)
+                  'shell-highlight-undef-alias-face)
+                 ;; Check if it contains a directory separator
+                 ((file-name-directory cmd)
+                  (when (file-name-absolute-p cmd)
+                    (setq cmd (concat
+                               (or (bound-and-true-p comint-file-name-prefix)
+                                   (file-remote-p default-directory))
+                               cmd)))
+                  (if (or (file-executable-p cmd)
+                          (file-directory-p cmd))
+                      'shell-highlight-undef-defined-face
+                    'shell-highlight-undef-undefined-face))
+                 ((shell--highlight-undef-executable-find cmd)
+                  'shell-highlight-undef-defined-face)
+                 (t 'shell-highlight-undef-undefined-face))))))
+    t))
+
+(defvar-local shell--highlight-undef-indirect nil
+  "Non-nil if shell commands are fontified in `comint-indirect-buffer'.")
+
+(declare-function sh-feature "sh-script" (alist &optional function))
+(defvar sh-leading-keywords)
+(defvar sh-other-keywords)
+
+(define-minor-mode shell-highlight-undef-mode
+  "Highlight undefined shell commands and aliases.
+This minor mode is mostly useful in `shell-mode' buffers and
+works better if `comint-fontify-input-mode' is enabled."
+  :init-value nil
+  (if shell--highlight-undef-indirect
+      (progn
+        (remove-hook 'comint-indirect-setup-hook shell--highlight-undef-indirect t)
+        (setq shell--highlight-undef-indirect nil)
+        (when-let ((buf (comint-indirect-buffer t)))
+          (with-current-buffer buf
+            (font-lock-remove-keywords nil shell-highlight-undef-keywords))))
+    (font-lock-remove-keywords nil shell-highlight-undef-keywords))
+  (remove-hook 'comint-fontify-input-mode-hook
+               #'shell-highlight-undef-mode-restart t)
+
+  (when shell-highlight-undef-mode
+    (when comint-use-prompt-regexp
+      (setq shell-highlight-undef-mode nil)
+      (error
+       "`shell-highlight-undef-mode' is incompatible with `comint-use-prompt-regexp'"))
+
+    (require 'sh-script)
+
+    (let* ((regexp
+            ;; Adapted from `sh-font-lock-keywords-1'
+            (concat
+             "\\("
+             "[;(){}`|&]"
+             (if comint-fontify-input-mode
+                 ;; `comint-fontify-input-mode' already puts
+                 ;; point-min on end of prompt
+                 ""
+               (concat "\\|" comint-prompt-regexp))
+             "\\|^"
+             "\\)"
+             "[ \t]*\\(\\("
+             (regexp-opt (sh-feature sh-leading-keywords) t)
+             "[ \t]+\\)?"
+             (regexp-opt (append (sh-feature sh-leading-keywords)
+                                 (sh-feature sh-other-keywords))
+                         t)
+             "[ \t]+\\)?\\_<\\(\\(?:\\s_\\|\\sw\\|/\\)+\\)\\_>"))
+           (setup
+            (lambda ()
+              (setq shell-highlight-undef-regexp regexp)
+              (font-lock-add-keywords nil shell-highlight-undef-keywords t))))
+      (cond (comint-fontify-input-mode
+             (setq shell--highlight-undef-indirect setup)
+             (if-let ((buf (comint-indirect-buffer t)))
+                 (with-current-buffer buf
+                   (funcall setup))
+               (add-hook 'comint-indirect-setup-hook setup nil t)))
+            (t (funcall setup))))
+
+    (add-hook 'comint-fontify-input-mode-hook
+              #'shell-highlight-undef-mode-restart nil t))
+
+  (font-lock-flush))
+
+(defun shell-highlight-undef-mode-restart ()
+  "If `shell-highlight-undef-mode' is on, restart it.
+`shell-highlight-undef-mode' performs its setup differently
+depending on `comint-fontify-input-mode'.  It's useful to call
+this function when switching `comint-fontify-input-mode' in order
+to make `shell-highlight-undef-mode' redo its setup."
+  (when shell-highlight-undef-mode
+    (shell-highlight-undef-mode 1)))
 
 (provide 'shell)
 

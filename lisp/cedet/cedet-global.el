@@ -1,6 +1,6 @@
 ;;; cedet-global.el --- GNU Global support for CEDET.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Package: cedet
@@ -133,7 +133,7 @@ DIR defaults to `default-directory'."
       (goto-char (point-min))
       (when (not (eobp))
 	(file-name-as-directory
-	 (buffer-substring (point) (point-at-eol)))))))
+         (buffer-substring (point) (line-end-position)))))))
 
 (defun cedet-gnu-global-version-check (&optional noerror)
   "Check the version of the installed GNU Global command.

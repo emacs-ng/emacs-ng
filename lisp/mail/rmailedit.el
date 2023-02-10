@@ -1,6 +1,6 @@
 ;;; rmailedit.el --- "RMAIL edit mode"  Edit the current message  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985, 1994, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1994, 2001-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: mail
@@ -34,13 +34,10 @@
   :group 'rmail-edit)
 
 
-(defvar rmail-edit-map
-  (let ((map (make-sparse-keymap)))
-    ;; Make a keymap that inherits text-mode-map.
-    (set-keymap-parent map text-mode-map)
-    (define-key map "\C-c\C-c" #'rmail-cease-edit)
-    (define-key map "\C-c\C-]" #'rmail-abort-edit)
-    map))
+(defvar-keymap rmail-edit-map
+  :parent text-mode-map
+  "C-c C-c" #'rmail-cease-edit
+  "C-c C-]" #'rmail-abort-edit)
 
 (declare-function rmail-summary-disable "rmailsum" ())
 
@@ -483,9 +480,5 @@ HEADER-DIFF should be a return value from `rmail-edit-diff-headers'."
       (set-marker (nth 2 hdr) nil))))
 
 (provide 'rmailedit)
-
-;; Local Variables:
-;; generated-autoload-file: "rmail-loaddefs.el"
-;; End:
 
 ;;; rmailedit.el ends here

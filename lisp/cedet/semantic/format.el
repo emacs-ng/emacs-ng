@@ -1,6 +1,6 @@
 ;;; semantic/format.el --- Routines for formatting tags  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2005, 2007-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2005, 2007-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: syntax
@@ -123,7 +123,7 @@ See that variable for details on adding new types."
 
 (defun semantic--format-colorize-merge-text (precoloredtext face-class)
   "Apply onto PRECOLOREDTEXT a color associated with FACE-CLASS.
-FACE-CLASS is a tag type found in `semantic-formatface-alist'.
+FACE-CLASS is a tag type found in `semantic-format-face-alist'.
 See that variable for details on adding new types."
   (let ((face (cdr-safe (assoc face-class semantic-format-face-alist)))
 	(newtext (concat precoloredtext)))

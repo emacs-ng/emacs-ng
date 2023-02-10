@@ -1,6 +1,6 @@
 /* emacs-module.c - Module loading and runtime implementation
 
-Copyright (C) 2015-2022 Free Software Foundation, Inc.
+Copyright (C) 2015-2023 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -78,7 +78,6 @@ To add a new module function, proceed as follows:
 #include "emacs-module.h"
 
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -411,7 +410,7 @@ module_global_reference_p (emacs_value v, ptrdiff_t *n)
      reference that's identical to some global reference.  */
   for (ptrdiff_t i = 0; i < HASH_TABLE_SIZE (h); ++i)
     {
-      if (!EQ (HASH_KEY (h, i), Qunbound)
+      if (!BASE_EQ (HASH_KEY (h, i), Qunbound)
           && &XMODULE_GLOBAL_REFERENCE (HASH_VALUE (h, i))->value == v)
         return true;
     }
@@ -562,7 +561,7 @@ static struct Lisp_Module_Function *
 allocate_module_function (void)
 {
   return ALLOCATE_PSEUDOVECTOR (struct Lisp_Module_Function,
-                                interactive_form, PVEC_MODULE_FUNCTION);
+                                command_modes, PVEC_MODULE_FUNCTION);
 }
 
 #define XSET_MODULE_FUNCTION(var, ptr) \
@@ -955,11 +954,9 @@ single memcpy to convert the magnitude.  This way we largely avoid the
 import/export overhead on most platforms.
 */
 
-enum
-{
-  /* Documented maximum count of magnitude elements. */
-  module_bignum_count_max = min (SIZE_MAX, PTRDIFF_MAX) / sizeof (emacs_limb_t)
-};
+/* Documented maximum count of magnitude elements. */
+#define module_bignum_count_max \
+  ((ptrdiff_t) min (SIZE_MAX, PTRDIFF_MAX) / sizeof (emacs_limb_t))
 
 /* Verify that emacs_limb_t indeed has unique object
    representations.  */
@@ -1137,7 +1134,7 @@ DEFUN ("module-load", Fmodule_load, Smodule_load, 1, 1, 0,
   rt->private_members = &rt_priv;
   rt->get_environment = module_get_environment;
 
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   record_unwind_protect_module (SPECPDL_MODULE_RUNTIME, rt);
   record_unwind_protect_module (SPECPDL_MODULE_ENVIRONMENT, rt_priv.env);
 
@@ -1166,7 +1163,7 @@ funcall_module (Lisp_Object function, ptrdiff_t nargs, Lisp_Object *arglist)
   emacs_env pub;
   struct emacs_env_private priv;
   emacs_env *env = initialize_environment (&pub, &priv);
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   record_unwind_protect_module (SPECPDL_MODULE_ENVIRONMENT, env);
 
   USE_SAFE_ALLOCA;

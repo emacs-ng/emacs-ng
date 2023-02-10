@@ -1,6 +1,6 @@
 ;;; org-mouse.el --- Better mouse support for Org -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2006-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2023 Free Software Foundation, Inc.
 
 ;; Author: Piotr Zielinski <piotr dot zielinski at gmail dot com>
 ;; Maintainer: Carsten Dominik <carsten.dominik@gmail.com>
@@ -136,6 +136,9 @@
 
 ;;; Code:
 
+(require 'org-macs)
+(org-assert-version)
+
 (require 'org)
 (require 'cl-lib)
 
@@ -184,7 +187,7 @@ Changing this variable requires a restart of Emacs to get activated."
 (defun org-mouse-re-search-line (regexp)
   "Search the current line for a given regular expression."
   (beginning-of-line)
-  (re-search-forward regexp (point-at-eol) t))
+  (re-search-forward regexp (line-end-position) t))
 
 (defun org-mouse-end-headline ()
   "Go to the end of current headline (ignoring tags)."
@@ -208,7 +211,11 @@ this function is called.  Otherwise, the current major mode menu is used."
   (interactive "@e \nP")
   (if (and (= (event-click-count event) 1)
 	   (or (not mark-active)
-	       (sit-for (/ double-click-time 1000.0))))
+               (sit-for
+                (/ (if (fboundp 'mouse-double-click-time) ; Emacs >= 29
+                       (mouse-double-click-time)
+                     double-click-time)
+                   1000.0))))
       (progn
 	(select-window (posn-window (event-start event)))
 	(when (not (org-mouse-mark-active))
@@ -217,10 +224,7 @@ this function is called.  Otherwise, the current major mode menu is used."
 	  (sit-for 0))
 	(if (functionp org-mouse-context-menu-function)
 	    (funcall org-mouse-context-menu-function event)
-	  (if (fboundp 'mouse-menu-major-mode-map)
-	      (popup-menu (mouse-menu-major-mode-map) event prefix)
-	    (with-no-warnings ; don't warn about fallback, obsolete since 23.1
-	      (mouse-major-mode-menu event prefix)))))
+          (popup-menu (mouse-menu-major-mode-map) event prefix)))
     (setq this-command 'mouse-save-then-kill)
     (mouse-save-then-kill event)))
 
@@ -237,7 +241,7 @@ return `:middle'."
    (t :middle)))
 
 (defun org-mouse-empty-line ()
-  "Return non-nil iff the line contains only white space."
+  "Return non-nil if the line contains only white space."
   (save-excursion (beginning-of-line) (looking-at "[ \t]*$")))
 
 (defun org-mouse-next-heading ()
@@ -279,7 +283,7 @@ keyword as the only argument.
 
 If SELECTED is nil, then all items are normal menu items.  If
 SELECTED is a function, then each item is a checkbox, which is
-enabled for a given keyword iff (funcall SELECTED keyword) return
+enabled for a given keyword if (funcall SELECTED keyword) return
 non-nil.  If SELECTED is neither nil nor a function, then the
 items are radio buttons.  A radio button is enabled for the
 keyword `equal' to SELECTED.
@@ -574,21 +578,23 @@ This means, between the beginning of line and the point."
      (insert "+ "))
     (:end				; insert text here
      (skip-chars-backward " \t")
-     (kill-region (point) (point-at-eol))
+     (kill-region (point) (line-end-position))
      (unless (looking-back org-mouse-punctuation (line-beginning-position))
        (insert (concat org-mouse-punctuation " ")))))
   (insert text)
   (beginning-of-line))
 
-(defadvice dnd-insert-text (around org-mouse-dnd-insert-text activate)
+(advice-add 'dnd-insert-text :around #'org--mouse-dnd-insert-text)
+(defun org--mouse-dnd-insert-text (orig-fun window action text &rest args)
   (if (derived-mode-p 'org-mode)
       (org-mouse-insert-item text)
-    ad-do-it))
+    (apply orig-fun window action text args)))
 
-(defadvice dnd-open-file (around org-mouse-dnd-open-file activate)
+(advice-add 'dnd-open-file :around #'org--mouse-dnd-open-file)
+(defun org--mouse-dnd-open-file (orig-fun uri &rest args)
   (if (derived-mode-p 'org-mode)
       (org-mouse-insert-item uri)
-    ad-do-it))
+    (apply orig-fun uri args)))
 
 (defun org-mouse-match-closure (function)
   (let ((match (match-data t)))
@@ -894,15 +900,17 @@ This means, between the beginning of line and the point."
                   (1 `(face nil keymap ,org-mouse-map mouse-face highlight) prepend)))
                t))
 
-            (defadvice org-open-at-point (around org-mouse-open-at-point activate)
-              (let ((context (org-context)))
-                (cond
-                 ((assq :headline-stars context) (org-cycle))
-                 ((assq :checkbox context) (org-toggle-checkbox))
-                 ((assq :item-bullet context)
-                  (let ((org-cycle-include-plain-lists t)) (org-cycle)))
-                 ((org-footnote-at-reference-p) nil)
-                 (t ad-do-it))))))
+            (advice-add 'org-open-at-point :around #'org--mouse-open-at-point)))
+
+(defun org--mouse-open-at-point (orig-fun &rest args)
+  (let ((context (org-context)))
+    (cond
+     ((assq :headline-stars context) (org-cycle))
+     ((assq :checkbox context) (org-toggle-checkbox))
+     ((assq :item-bullet context)
+      (let ((org-cycle-include-plain-lists t)) (org-cycle)))
+     ((org-footnote-at-reference-p) nil)
+     (t (apply orig-fun args)))))
 
 (defun org-mouse-move-tree-start (_event)
   (interactive "e")
@@ -985,7 +993,7 @@ This means, between the beginning of line and the point."
 (defun org-mouse-do-remotely (command)
   ;;  (org-agenda-check-no-diary)
   (when (get-text-property (point) 'org-marker)
-    (let* ((anticol (- (point-at-eol) (point)))
+    (let* ((anticol (- (line-end-position) (point)))
 	   (marker (get-text-property (point) 'org-marker))
 	   (buffer (marker-buffer marker))
 	   (pos (marker-position marker))
@@ -1003,13 +1011,13 @@ This means, between the beginning of line and the point."
 	    (with-current-buffer buffer
 	      (widen)
 	      (goto-char pos)
-	      (org-show-hidden-entry)
+	      (org-fold-show-hidden-entry)
 	      (save-excursion
 		(and (outline-next-heading)
-		     (org-flag-heading nil)))   ; show the next heading
+		     (org-fold-heading nil)))   ; show the next heading
 	      (org-back-to-heading)
 	      (setq marker (point-marker))
-	      (goto-char (max (point-at-bol) (- (point-at-eol) anticol)))
+              (goto-char (max (line-beginning-position) (- (line-end-position) anticol)))
 	      (funcall command)
 	      (message "_cmd: %S" org-mouse-cmd)
 	      (message "this-command: %S" this-command)

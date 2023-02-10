@@ -1,6 +1,6 @@
 // teststruct.cpp --- semantic-ia-utest completion engine unit tests
 
-// Copyright (C) 2008-2022 Free Software Foundation, Inc.
+// Copyright (C) 2008-2023 Free Software Foundation, Inc.
 
 // Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -20,7 +20,7 @@
 // along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 
-// Note: initially provided by by Alex Ott.
+// Note: initially provided by Alex Ott.
 
 template <typename DerivedT>
 struct grammar {

@@ -1,6 +1,6 @@
 ;;; mode-local.el --- Support for mode local facilities  -*- lexical-binding:t -*-
 ;;
-;; Copyright (C) 2004-2005, 2007-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2005, 2007-2023 Free Software Foundation, Inc.
 ;;
 ;; Author: David Ponce <david@dponce.com>
 ;; Created: 27 Apr 2004
@@ -156,7 +156,7 @@ local variables have been defined."
 DOCSTRING is optional and not used.
 To work properly, this should be put after PARENT mode local variables
 definition."
-  (declare (obsolete define-derived-mode "27.1"))
+  (declare (obsolete define-derived-mode "27.1") (indent 2))
   `(mode-local--set-parent ',mode ',parent))
 
 (defun mode-local-use-bindings-p (this-mode desired-mode)
@@ -567,6 +567,7 @@ appropriate arguments deduced from ARGS.
 OVERARGS is a list of arguments passed to the override and
 `NAME-default' function, in place of those deduced from ARGS."
   (declare (doc-string 3)
+           (indent defun)
            (debug (&define name lambda-list stringp def-body)))
   `(eval-and-compile
      (defun ,name ,args
@@ -595,6 +596,7 @@ DOCSTRING is the documentation string.
 BODY is the implementation of this function."
   ;; FIXME: Make this obsolete and use cl-defmethod with &context instead.
   (declare (doc-string 4)
+           (indent defun)
            (debug (&define name symbolp lambda-list stringp def-body)))
   (let ((newname (intern (format "%s-%s" name mode))))
     `(progn
@@ -875,10 +877,9 @@ META-NAME is a cons (OVERLOADABLE-SYMBOL . MAJOR-MODE)."
   "Display mode local bindings active in BUFFER-OR-MODE.
 Optional argument INTERACTIVE-P is non-nil if the calling command was
 invoked interactively."
-  (when (fboundp 'help-setup-xref)
-    (help-setup-xref
-     (list 'mode-local-describe-bindings-1 buffer-or-mode)
-     interactive-p))
+  (help-setup-xref
+   (list 'mode-local-describe-bindings-1 buffer-or-mode)
+   interactive-p)
   (with-output-to-temp-buffer (help-buffer) ; "*Help*"
     (with-current-buffer standard-output
       (mode-local-describe-bindings-2 buffer-or-mode))))

@@ -1,6 +1,6 @@
 ;;; newst-backend.el --- Retrieval backend for newsticker  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2023 Free Software Foundation, Inc.
 
 ;; Author:      Ulf Jasper <ulf.jasper@web.de>
 ;; Filename:    newst-backend.el
@@ -40,8 +40,6 @@
 
 ;; Silence warnings
 (defvar newsticker-groups)
-(defvar w3-mode-map)
-(defvar w3m-minor-mode-map)
 
 (defvar newsticker--retrieval-timer-list nil
   "List of timers for news retrieval.
@@ -401,13 +399,6 @@ headline after it has been retrieved for the first time."
 (defgroup newsticker-miscellaneous nil
   "Miscellaneous newsticker settings."
   :group 'newsticker)
-
-(defcustom newsticker-cache-filename
-  "~/.newsticker-cache"
-  "Name of the newsticker cache file."
-  :type 'string
-  :group 'newsticker-miscellaneous)
-(make-obsolete-variable 'newsticker-cache-filename 'newsticker-dir "23.1")
 
 (defcustom newsticker-dir
   (locate-user-emacs-file "newsticker/" ".newsticker/")
@@ -1560,12 +1551,8 @@ argument, which is one of the items in ITEMLIST."
 
 (defun newsticker--remove-whitespace (string)
   "Remove leading and trailing whitespace from STRING."
-  ;; we must have ...+ but not ...* in the regexps otherwise xemacs loops
-  ;; endlessly...
-  (when (and string (stringp string))
-    (replace-regexp-in-string
-     "[ \t\r\n]+$" ""
-     (replace-regexp-in-string "^[ \t\r\n]+" "" string))))
+  (when (stringp string)
+    (string-trim string)))
 
 (defun newsticker--do-forget-preformatted (item)
   "Forget pre-formatted data for ITEM.
@@ -1636,7 +1623,7 @@ Sat, 07 Sep 2002 00:00:01 GMT
               ":\\([0-9]\\{2\\}\\)"
               ;; second
               "\\(:\\([0-9]\\{2\\}\\)\\)?"
-              ;; zone -- fixme
+              ;; zone
               "\\(\\s-+\\("
               "UT\\|GMT\\|EST\\|EDT\\|CST\\|CDT\\|MST\\|MDT\\|PST\\|PDT"
               "\\|\\([-+]\\)\\([0-9]\\{2\\}\\)\\([0-9]\\{2\\}\\)"
@@ -1655,16 +1642,26 @@ Sat, 07 Sep 2002 00:00:01 GMT
               (offset-hour (read (or (match-string 14 rfc822-string)
                                      "0")))
               (offset-minute (read (or (match-string 15 rfc822-string)
-                                       "0")))
-              ;;FIXME
-              )
+                                       "0"))))
           (when zone
             (cond ((string= sign "+")
                    (setq hour (- hour offset-hour))
                    (setq minute (- minute offset-minute)))
                   ((string= sign "-")
                    (setq hour (+ hour offset-hour))
-                   (setq minute (+ minute offset-minute)))))
+                   (setq minute (+ minute offset-minute)))
+                  ((or (string= zone "UT") (string= zone "GMT"))
+                   nil)
+                  ((string= zone "EDT")
+                   (setq hour (+ hour 4)))
+                  ((or (string= zone "EST") (string= zone "CDT"))
+                   (setq hour (+ hour 5)))
+                  ((or (string= zone "CST") (string= zone "MDT"))
+                   (setq hour (+ hour 6)))
+                  ((or (string= zone "MST") (string= zone "PDT"))
+                   (setq hour (+ hour 7)))
+                  ((string= zone "PST")
+                   (setq hour (+ hour 8)))))
           (condition-case error-data
               (let ((i 1))
                 (dolist (m '("Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug"
@@ -1704,11 +1701,11 @@ Checks list of active processes against list of newsticker processes."
 ;; ======================================================================
 (defun newsticker--images-dir ()
   "Return directory where feed images are saved."
-  (concat newsticker-dir "/images/"))
+  (expand-file-name "images/" newsticker-dir))
 
 (defun newsticker--icons-dir ()
   "Return directory where feed icons are saved."
-  (concat newsticker-dir "/icons/"))
+  (expand-file-name "icons/" newsticker-dir))
 
 (defun newsticker--image-get (feed-name filename directory url)
   "Get image for FEED-NAME by returning FILENAME from DIRECTORY.
@@ -2114,28 +2111,6 @@ well."
                  (throw 'result t)))))
     (< (or (newsticker--pos item1) 0) (or (newsticker--pos item2) 0))))
 
-(defun newsticker--cache-save-version1 ()
-  "Update and save newsticker cache file."
-  (interactive)
-  (newsticker--cache-update t))
-
-(defun newsticker--cache-update (&optional save)
-  "Update newsticker cache file.
-If optional argument SAVE is not nil the cache file is saved to disk."
-  (save-excursion
-    (unless (file-directory-p newsticker-dir)
-      (make-directory newsticker-dir t))
-    (let ((coding-system-for-write 'utf-8)
-          (buf (find-file-noselect newsticker-cache-filename)))
-      (when buf
-        (set-buffer buf)
-        (setq buffer-undo-list t)
-        (erase-buffer)
-        (insert ";; -*- coding: utf-8 -*-\n")
-        (insert (prin1-to-string newsticker--cache))
-        (when save
-          (save-buffer))))))
-
 (defun newsticker--cache-get-feed (feed)
   "Return the cached data for the feed FEED.
 FEED is a symbol!"
@@ -2143,7 +2118,7 @@ FEED is a symbol!"
 
 (defun newsticker--cache-dir ()
   "Return directory for saving cache data."
-  (concat newsticker-dir "/feeds"))
+  (expand-file-name "feeds/" newsticker-dir))
 
 (defun newsticker--cache-save ()
   "Save cache data for all feeds."
@@ -2154,42 +2129,27 @@ FEED is a symbol!"
 
 (defun newsticker--cache-save-feed (feed)
   "Save cache data for FEED."
-  (let ((dir (concat (newsticker--cache-dir) "/" (symbol-name (car feed)))))
+  (let ((dir (file-name-as-directory
+              (expand-file-name (symbol-name (car feed))
+                                (newsticker--cache-dir)))))
     (unless (file-directory-p dir)
       (make-directory dir t))
     (let ((coding-system-for-write 'utf-8))
-      (with-temp-file (concat dir "/data")
+      (with-temp-file (expand-file-name "data" dir)
         (insert ";; -*- coding: utf-8 -*-\n")
-        (insert (prin1-to-string (cdr feed)))))))
-
-(defun newsticker--cache-read-version1 ()
-  "Read version1 cache data."
-  (let ((coding-system-for-read 'utf-8))
-    (when (file-exists-p newsticker-cache-filename)
-      (with-temp-buffer
-        (insert-file-contents newsticker-cache-filename)
-        (goto-char (point-min))
-        (condition-case nil
-            (setq newsticker--cache (read (current-buffer)))
-          (error
-           (message "Error while reading newsticker cache file!")
-           (setq newsticker--cache nil)))))))
+        (prin1 (cdr feed) (current-buffer) t)))))
 
 (defun newsticker--cache-read ()
   "Read cache data."
   (setq newsticker--cache nil)
-  (if (file-exists-p newsticker-cache-filename)
-      (progn
-        (when (y-or-n-p "Old newsticker cache file exists.  Read it? ")
-          (newsticker--cache-read-version1))
-        (when (y-or-n-p "Delete old newsticker cache file? ")
-          (delete-file newsticker-cache-filename)))
-    (dolist (f (append newsticker-url-list-defaults newsticker-url-list))
-      (newsticker--cache-read-feed (car f)))))
+  (dolist (f (append newsticker-url-list-defaults newsticker-url-list))
+    (newsticker--cache-read-feed (car f))))
 
 (defun newsticker--cache-read-feed (feed-name)
   "Read cache data for feed named FEED-NAME."
-  (let ((file-name (concat (newsticker--cache-dir) "/" feed-name "/data"))
+  (let ((file-name (expand-file-name
+                    "data" (expand-file-name
+                            feed-name (newsticker--cache-dir))))
         (coding-system-for-read 'utf-8))
     (when (file-exists-p file-name)
       (with-temp-buffer
@@ -2261,8 +2221,7 @@ Export subscriptions to a buffer in OPML Format."
           (newsticker--opml-insert-feed (car f) 4)))
       (insert "  </body>\n</opml>\n")))
   (pop-to-buffer "*OPML Export*")
-  (when (fboundp 'sgml-mode)
-    (sgml-mode)))
+  (sgml-mode))
 
 (defun newsticker--opml-insert-elt (elt depth)
   "Insert an OPML ELT with indentation level DEPTH."
@@ -2382,14 +2341,19 @@ This function just prints out the values of the FEEDNAME and title of the ITEM."
   "Download the first image.
 If FEEDNAME equals \"imagefeed\" download the first image URL
 found in the description=contents of ITEM to the directory
-\"~/tmp/newsticker/FEEDNAME/TITLE\" where TITLE is the title of
-the item."
+`temporary-file-directory'/newsticker/FEEDNAME/TITLE where TITLE
+is the title of the item."
   (when (string= feedname "imagefeed")
     (let ((title (newsticker--title item))
           (desc (newsticker--desc item)))
       (when (string-match "<img src=\"\\(http://[^ \"]+\\)\"" desc)
         (let ((url (substring desc (match-beginning 1) (match-end 1)))
-              (temp-dir (concat "~/tmp/newsticker/" feedname "/" title))
+		(temp-dir (file-name-as-directory
+                           (expand-file-name
+                            title (expand-file-name
+                                   feedname (expand-file-name
+                                             "newsticker"
+                                             temporary-file-directory)))))
               (org-dir default-directory))
           (unless (file-directory-p temp-dir)
             (make-directory temp-dir t))
@@ -2403,7 +2367,8 @@ the item."
 
 (defun newsticker-download-enclosures (feedname item)
   "In all feeds download the enclosed object of the news ITEM.
-The object is saved to the directory \"~/tmp/newsticker/FEEDNAME/TITLE\", which
+The object is saved to the directory
+`temporary-file-directory'/newsticker/FEEDNAME/TITLE, which
 is created if it does not exist.  TITLE is the title of the news
 item.  Argument FEEDNAME is ignored.
 This function is suited for adding it to `newsticker-new-item-functions'."
@@ -2411,7 +2376,12 @@ This function is suited for adding it to `newsticker-new-item-functions'."
         (enclosure (newsticker--enclosure item)))
     (when enclosure
       (let ((url (cdr (assoc 'url enclosure)))
-            (temp-dir (concat "~/tmp/newsticker/" feedname "/" title))
+            (temp-dir (file-name-as-directory
+                       (expand-file-name
+                        title (expand-file-name
+                               feedname (expand-file-name
+                                         "newsticker"
+                                         temporary-file-directory)))))
             (org-dir default-directory))
         (unless (file-directory-p temp-dir)
           (make-directory temp-dir t))

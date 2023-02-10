@@ -1,10 +1,10 @@
 ;;; org-id.el --- Global identifiers for Org entries -*- lexical-binding: t; -*-
 ;;
-;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
 ;;
 ;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;; Keywords: outlines, hypermedia, calendar, wp
-;; Homepage: https://orgmode.org
+;; URL: https://orgmode.org
 ;;
 ;; This file is part of GNU Emacs.
 ;;
@@ -70,12 +70,17 @@
 
 ;;; Code:
 
+(require 'org-macs)
+(org-assert-version)
+
 (require 'org)
 (require 'org-refile)
 (require 'ol)
 
 (declare-function message-make-fqdn "message" ())
 (declare-function org-goto-location "org-goto" (&optional _buf help))
+;; Declared inside `org-element-with-disabled-cache' macro.
+(declare-function org-element--cache-active-p "org-element.el" (&optional called-from-cache-change-func-p))
 
 ;;; Customization
 
@@ -196,8 +201,7 @@ the link."
   :group 'org-id
   :type 'boolean)
 
-(defcustom org-id-locations-file (convert-standard-filename
-				  (concat user-emacs-directory ".org-id-locations"))
+(defcustom org-id-locations-file (locate-user-emacs-file ".org-id-locations")
   "The file for remembering in which file an ID was defined.
 This variable is only relevant when `org-id-track-globally' is set."
   :group 'org-id
@@ -331,7 +335,7 @@ Move the cursor to that entry in that buffer."
     (pop-to-buffer-same-window (marker-buffer m))
     (goto-char m)
     (move-marker m nil)
-    (org-show-context)))
+    (org-fold-show-context)))
 
 ;;;###autoload
 (defun org-id-find (id &optional markerp)
@@ -489,8 +493,8 @@ and TIME is a Lisp time value (HI LO USEC)."
 (defun org-id-update-id-locations (&optional files silent)
   "Scan relevant files for IDs.
 Store the relation between files and corresponding IDs.
-This will scan all agenda files, all associated archives, and all
-files currently mentioned in `org-id-locations'.
+This will scan all agenda files, all associated archives, all open Org
+files, and all files currently mentioned in `org-id-locations'.
 When FILES is given, scan also these files.
 If SILENT is non-nil, messages are suppressed."
   (interactive)
@@ -513,6 +517,8 @@ If SILENT is non-nil, messages are suppressed."
 		       org-id-extra-files)
 		     ;; All files known to have IDs.
 		     org-id-files
+                     ;; All Org files open in Emacs.
+                     (mapcar #'buffer-file-name (org-buffer-list 'files t))
 		     ;; Additional files from function call.
 		     files)))))
          (nfiles (length files))
@@ -522,30 +528,31 @@ If SILENT is non-nil, messages are suppressed."
          (ndup 0)
          (i 0))
     (with-temp-buffer
-      (delay-mode-hooks
-	(org-mode)
-	(dolist (file files)
-	  (when (file-exists-p file)
-            (unless silent
-              (cl-incf i)
-              (message "Finding ID locations (%d/%d files): %s" i nfiles file))
-	    (insert-file-contents file nil nil nil 'replace)
-            (let ((ids nil)
-		  (case-fold-search t))
-              (org-with-point-at 1
-		(while (re-search-forward id-regexp nil t)
-		  (when (org-at-property-p)
-                    (push (org-entry-get (point) "ID") ids)))
-		(when ids
-		  (push (cons (abbreviate-file-name file) ids)
-			org-id-locations)
-		  (dolist (id ids)
-                    (cond
-                     ((not (member id seen-ids)) (push id seen-ids))
-                     (silent nil)
-                     (t
-                      (message "Duplicate ID %S" id)
-                      (cl-incf ndup)))))))))))
+      (org-element-with-disabled-cache
+        (delay-mode-hooks
+	  (org-mode)
+	  (dolist (file files)
+	    (when (file-exists-p file)
+              (unless silent
+                (cl-incf i)
+                (message "Finding ID locations (%d/%d files): %s" i nfiles file))
+	      (insert-file-contents file nil nil nil 'replace)
+              (let ((ids nil)
+		    (case-fold-search t))
+                (org-with-point-at 1
+		  (while (re-search-forward id-regexp nil t)
+		    (when (org-at-property-p)
+                      (push (org-entry-get (point) "ID") ids)))
+		  (when ids
+		    (push (cons (abbreviate-file-name file) ids)
+			  org-id-locations)
+		    (dolist (id ids)
+                      (cond
+                       ((not (member id seen-ids)) (push id seen-ids))
+                       (silent nil)
+                       (t
+                        (message "Duplicate ID %S" id)
+                        (cl-incf ndup))))))))))))
     (setq org-id-files (mapcar #'car org-id-locations))
     (org-id-locations-save)
     ;; Now convert to a hash table.
@@ -592,7 +599,7 @@ If SILENT is non-nil, messages are suppressed."
 			(setf (car item) (expand-file-name (car item) loc))))
 		    org-id-locations)))
 	(error
-	 (message "Could not read `org-id-values' from %s, setting it to nil"
+         (message "Could not read `org-id-locations' from %s, setting it to nil"
 		  org-id-locations-file))))
     (setq org-id-files (mapcar 'car org-id-locations))
     (setq org-id-locations (org-id-alist-to-hash org-id-locations))))
@@ -742,7 +749,7 @@ or filename if no title."
 	(funcall cmd (marker-buffer m)))
     (goto-char m)
     (move-marker m nil)
-    (org-show-context)))
+    (org-fold-show-context)))
 
 (org-link-set-parameters "id" :follow #'org-id-open)
 

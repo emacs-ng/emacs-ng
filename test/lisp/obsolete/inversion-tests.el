@@ -1,6 +1,6 @@
 ;;; inversion-tests.el --- Tests for inversion.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -30,7 +30,6 @@
 
 (ert-deftest inversion-unit-test ()
   "Test inversion to make sure it can identify different version strings."
-  (interactive)
   (let ((c1 (inversion-package-version 'inversion))
         (c1i (inversion-package-incompatibility-version 'inversion))
         (c2 (inversion-decode-version  "1.3alpha2"))

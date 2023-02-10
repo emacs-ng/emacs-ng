@@ -1,7 +1,6 @@
 ;;; vcursor.el --- manipulate an alternative ("virtual") cursor  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1994, 1996, 1998, 2001-2022 Free Software Foundation,
-;; Inc.
+;; Copyright (C) 1994-2023 Free Software Foundation, Inc.
 
 ;; Author: Peter Stephenson <pws@ibmth.df.unipi.it>
 ;; Maintainer: emacs-devel@gnu.org
@@ -39,7 +38,7 @@
 ;;   off after any operation not involving the vcursor, but the
 ;;   vcursor itself will be left alone.
 ;; - works on dumb terminals
-;; - new keymap vcursor-map for binding to a prefix key
+;; - new keymap `vcursor-map' for binding to a prefix key
 ;; - `vcursor-compare-windows' substantially improved
 ;; - `vcursor-execute-{key,command}' much better about using the
 ;;   right keymaps and arranging for the correct windows to be used
@@ -216,33 +215,26 @@
 ;; Key bindings
 ;; ============
 ;;
-;; There is an alternative set of key bindings which will be used
-;; automatically for a PC if Oemacs is detected.  This set uses separate
-;; control, shift and meta keys with function keys 1 to 10.  In
-;; particular, movement keys are concentrated on f5 to f8 with (in
-;; increasing order of distance traveled) C-, M- and S- as prefixes.
-;; See the actual bindings below (search for C-f1).  This is because the
-;; C-S- prefix is represented by weird key sequences and the set is
-;; incomplete; if you don't mind that, some hints are given in comments
-;; below.
+;; There is an alternative set of key bindings named "Oemacs" (for
+;; historical reasons).  This set uses separate control, shift and
+;; meta keys with function keys 1 to 10.  In particular, movement keys
+;; are concentrated on f5 to f8 with (in increasing order of distance
+;; traveled) C-, M- and S- as prefixes.  See the actual bindings below
+;; (search for C-f1).  This is because the C-S- prefix is represented
+;; by weird key sequences and the set is incomplete; if you don't mind
+;; that, some hints are given in comments below.
 ;;
-;; You can specify the usual or the Oemacs bindings by setting the
-;; variable vcursor-key-bindings to `xterm' or `oemacs'.  You can also set
-;; it to nil, in which case vcursor will not make any key bindings
-;; and you can define your own.  The default is t, which makes vcursor
-;; guess (it will use xterm unless it thinks Oemacs is running).  The
-;; oemacs set will work on an X terminal with function keys, but the
-;; xterm set will not work under Oemacs.
+;; You can specify which set of key bindings to use by customizing the
+;; user option `vcursor-key-bindings'.
 ;;
 ;; Usage on dumb terminals
 ;; =======================
 ;;
 ;; If Emacs has set the variable window-system to nil, vcursor will
-;; assume that overlays cannot be displayed in a different face,
-;; and will instead use a string (the variable vcursor-string, by
-;; default "**>") to show its position.  This was first implemented
-;; in Emacs 19.29.  Unlike the old-fashioned overlay arrow (as used
-;; by debuggers), this appears between existing text, which can
+;; assume that overlays cannot be displayed in a different face, and
+;; will instead use a string (the variable vcursor-string, by default "**>")
+;; to show its position.  Unlike the old-fashioned overlay arrow (as
+;; used by debuggers), this appears between existing text, which can
 ;; make it hard to read if you're not used to it.  (This seemed the
 ;; better option here.)  This means moving the vcursor up and down is
 ;; a very efficient way of locating it!
@@ -346,8 +338,6 @@ disable the vcursor."
 		(cons 'meta key)
 	      key))))
 
-;; (defvar vcursor)
-
 (defun vcursor-bind-keys (var value)
   "Alter the value of the variable VAR to VALUE, binding keys as required.
 VAR is usually `vcursor-key-bindings'.  Normally this function is called
@@ -355,8 +345,7 @@ on loading vcursor and from the customize package."
   (set var value)
   (cond
    ((not value)) ;; Don't set any key bindings.
-   ((or (eq value 'oemacs)
-	(and (eq value t) (fboundp 'oemacs-version)))
+   ((eq value 'oemacs)
     (global-set-key [C-f1] #'vcursor-toggle-copy)
     (global-set-key [C-f2] #'vcursor-copy)
     (global-set-key [C-f3] #'vcursor-copy-word)
@@ -386,33 +375,6 @@ on loading vcursor and from the customize package."
 
     (global-set-key [S-f9] #'vcursor-execute-key)
     (global-set-key [S-f10] #'vcursor-execute-command)
-
-    ;; Partial dictionary of Oemacs key sequences for you to roll your own,
-    ;; e.g C-S-up: (global-set-key "\M-[\C-f\M-\C-m" 'vcursor-previous-line)
-    ;;    Sequence:         Sends:
-    ;; "\M-[\C-f\M-\C-m"   C-S-up
-    ;; "\M-[\C-f\M-\C-q"   C-S-down
-    ;; "\M-[\C-fs"         C-S-left
-    ;; "\M-[\C-ft"         C-S-right
-    ;;
-    ;; "\M-[\C-fw"         C-S-home
-    ;; "\M-[\C-b\C-o"      S-tab
-    ;; "\M-[\C-f\M-\C-r"   C-S-insert
-    ;; "\M-[\C-fu"         C-S-end
-    ;; "\M-[\C-f\M-\C-s"   C-S-delete
-    ;; "\M-[\C-f\M-\C-d"   C-S-prior
-    ;; "\M-[\C-fv"         C-S-next
-    ;;
-    ;; "\M-[\C-f^"         C-S-f1
-    ;; "\M-[\C-f_"         C-S-f2
-    ;; "\M-[\C-f`"         C-S-f3
-    ;; "\M-[\C-fa"         C-S-f4
-    ;; "\M-[\C-fb"         C-S-f5
-    ;; "\M-[\C-fc"         C-S-f6
-    ;; "\M-[\C-fd"         C-S-f7
-    ;; "\M-[\C-fe"         C-S-f8
-    ;; "\M-[\C-ff"         C-S-f9
-    ;; "\M-[\C-fg"         C-S-f10
     )
    (t
     (global-set-key (vcursor-cs-binding "up") #'vcursor-previous-line)
@@ -456,11 +418,12 @@ on loading vcursor and from the customize package."
     (global-set-key (vcursor-cs-binding "f10") #'vcursor-execute-command)
     )))
 
+;; TODO: Get rid of references to "oemacs", which was an ancient
+;;       MS-DOS compatible release of Emacs 19.
 (defcustom vcursor-key-bindings nil
   "How to bind keys when vcursor is loaded.
-If t, guess; if `xterm', use bindings suitable for an X terminal; if
-`oemacs', use bindings which work on a PC with Oemacs.  If nil, don't
-define any key bindings.
+If t or `xterm', use the default bindings; if `oemacs', use
+alternative key bindings.  If nil, don't define any key bindings.
 
 Default is nil."
   :type '(choice (const t) (const nil) (const xterm) (const oemacs))
@@ -502,38 +465,36 @@ scrolling set this.  It is used by the `vcursor-auto-disable' code.")
 (defvar vcursor-temp-goal-column nil
   "Keeps track of temporary goal columns for the virtual cursor.")
 
-(defvar vcursor-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "t" #'vcursor-use-vcursor-map)
+(defvar-keymap vcursor-map
+  :doc "Keymap for vcursor command."
+  "t"   #'vcursor-use-vcursor-map
 
-    (define-key map "\C-p" #'vcursor-previous-line)
-    (define-key map "\C-n" #'vcursor-next-line)
-    (define-key map "\C-b" #'vcursor-backward-char)
-    (define-key map "\C-f" #'vcursor-forward-char)
+  "C-p" #'vcursor-previous-line
+  "C-n" #'vcursor-next-line
+  "C-b" #'vcursor-backward-char
+  "C-f" #'vcursor-forward-char
 
-    (define-key map "\r"   #'vcursor-disable)
-    (define-key map " "    #'vcursor-copy)
-    (define-key map "\C-y" #'vcursor-copy-word)
-    (define-key map "\C-i" #'vcursor-toggle-copy)
-    (define-key map "<"    #'vcursor-beginning-of-buffer)
-    (define-key map ">"    #'vcursor-end-of-buffer)
-    (define-key map "\M-v" #'vcursor-scroll-down)
-    (define-key map "\C-v" #'vcursor-scroll-up)
-    (define-key map "o"    #'vcursor-other-window)
-    (define-key map "g"    #'vcursor-goto)
-    (define-key map "x"    #'vcursor-swap-point)
-    (define-key map "\C-s" #'vcursor-isearch-forward)
-    (define-key map "\C-r" #'vcursor-isearch-backward)
-    (define-key map "\C-a" #'vcursor-beginning-of-line)
-    (define-key map "\C-e" #'vcursor-end-of-line)
-    (define-key map "\M-w" #'vcursor-forward-word)
-    (define-key map "\M-b" #'vcursor-backward-word)
-    (define-key map "\M-l" #'vcursor-copy-line)
-    (define-key map "c"    #'vcursor-compare-windows)
-    (define-key map "k"    #'vcursor-execute-key)
-    (define-key map "\M-x" #'vcursor-execute-command)
-    map)
-  "Keymap for vcursor command.")
+  "RET" #'vcursor-disable
+  "SPC" #'vcursor-copy
+  "C-y" #'vcursor-copy-word
+  "C-i" #'vcursor-toggle-copy
+  "<"   #'vcursor-beginning-of-buffer
+  ">"   #'vcursor-end-of-buffer
+  "M-v" #'vcursor-scroll-down
+  "C-v" #'vcursor-scroll-up
+  "o"   #'vcursor-other-window
+  "g"   #'vcursor-goto
+  "x"   #'vcursor-swap-point
+  "C-s" #'vcursor-isearch-forward
+  "C-r" #'vcursor-isearch-backward
+  "C-a" #'vcursor-beginning-of-line
+  "C-e" #'vcursor-end-of-line
+  "M-w" #'vcursor-forward-word
+  "M-b" #'vcursor-backward-word
+  "M-l" #'vcursor-copy-line
+  "c"   #'vcursor-compare-windows
+  "k"   #'vcursor-execute-key
+  "M-x" #'vcursor-execute-command)
 ;; This seems unused, but it was done as part of define-prefix-command,
 ;; so let's keep it for now.
 (fset 'vcursor-map vcursor-map)
@@ -549,7 +510,6 @@ scrolling set this.  It is used by the `vcursor-auto-disable' code.")
 If that's disabled, don't go anywhere but don't complain."
   ;; This is where we go off-mass-shell.  Assume there is a
   ;; save-excursion to get us back to the pole, er, point.
-
   (and (overlayp vcursor-overlay)
        (overlay-buffer vcursor-overlay)
        (set-buffer (overlay-buffer vcursor-overlay))
@@ -572,7 +532,6 @@ always considered, and the value of `pop-up-frames' is always respected).
 
 Returns nil if the virtual cursor is not visible anywhere suitable.
 Set `vcursor-window' to the returned value as a side effect."
-
   ;; The order of priorities (respecting NOT-THIS) is (1)
   ;; vcursor-window if the virtual cursor is visible there (2) any
   ;; window displaying the virtual cursor (3) vcursor-window provided
@@ -581,7 +540,6 @@ Set `vcursor-window' to the returned value as a side effect."
   ;; buffer (5) with NEW-WIN, a window selected by display-buffer (so
   ;; the variables pop-up-windows and pop-up-frames are significant)
   ;; (6) nil.
-
   (let ((thiswin (selected-window)) winok winbuf)
     (save-excursion
       (vcursor-locate)
@@ -686,7 +644,6 @@ This is called by most of the virtual-cursor motion commands."
 If the virtual cursor is (or was recently) visible in another window,
 switch to that first.  Without a prefix ARG, disable the virtual
 cursor as well."
-
   (interactive "P")
   (and (vcursor-find-window) (select-window vcursor-window))
   (let ((buf (and vcursor-overlay (overlay-buffer vcursor-overlay))))
@@ -701,7 +658,6 @@ cursor as well."
 The virtual cursor window becomes the selected window and the old
 window becomes the virtual cursor window.  If the virtual cursor would
 not be visible otherwise, display it in another window."
-
   (interactive)
   (let ((buf (current-buffer)) (here (point)) (win (selected-window)))
     (vcursor-goto) ; will disable the vcursor
@@ -713,14 +669,12 @@ not be visible otherwise, display it in another window."
 (defun vcursor-scroll-up (&optional n)
   "Scroll up the vcursor window ARG lines or near full screen if none.
 The vcursor will always appear in an unselected window."
-
   (interactive "P")
   (vcursor-window-funcall #'scroll-up n))
 
 (defun vcursor-scroll-down (&optional n)
   "Scroll down the vcursor window ARG lines or near full screen if none.
 The vcursor will always appear in an unselected window."
-
   (interactive "P")
   (vcursor-window-funcall #'scroll-down n))
 
@@ -728,7 +682,6 @@ The vcursor will always appear in an unselected window."
   "Perform forward incremental search in the virtual cursor window.
 The virtual cursor is moved to the resulting point; the ordinary
 cursor stays where it was."
-
   (interactive "P")
   (vcursor-window-funcall #'isearch-forward rep norecurs)
   )
@@ -737,7 +690,6 @@ cursor stays where it was."
   "Perform backward incremental search in the virtual cursor window.
 The virtual cursor is moved to the resulting point; the ordinary
 cursor stays where it was."
-
   (interactive "P")
   (vcursor-window-funcall #'isearch-backward rep norecurs)
   )
@@ -753,7 +705,6 @@ ARGS.  In this case, a new window will not be created if the vcursor
 is visible in the current one."
 ;; that's to avoid messing up compatibility with old versions
 ;; by introducing a new argument, which would have to come before ARGS.
-
   (vcursor-find-window (not (and (listp func) (vcursor-check t))) t)
   (save-excursion
     (let ((sw (selected-window)) text)
@@ -785,12 +736,11 @@ is called.
 
 This is called by most of the virtual-cursor copying commands to find
 out how much to copy."
-
   (vcursor-check)
   (with-current-buffer (overlay-buffer vcursor-overlay)
-    (let ((start (goto-char (overlay-start vcursor-overlay))))
-      (- (progn (apply func args) (point)) start)))
-  )
+    (save-excursion
+      (let ((start (goto-char (overlay-start vcursor-overlay))))
+        (- (progn (apply func args) (point)) start)))))
 
 ;; Make sure the virtual cursor is active.  Unless arg is non-nil,
 ;; report an error if it is not.
@@ -826,7 +776,6 @@ active at the same point as the real cursor.
 
 Copying mode is always turned off: the next use of the vcursor will
 not copy text until you turn it on again."
-
   (interactive "P")
   (if (overlayp vcursor-overlay)
       (progn
@@ -854,9 +803,7 @@ Arguments N and optional ALL-FRAMES are the same as with `other-window'.
 ALL-FRAMES is also used to decide whether to split the window."
 
   (interactive "p")
-  (if (if (fboundp 'oemacs-version)
-	  (one-window-p nil)
-	(one-window-p nil all-frames))
+  (if (one-window-p nil all-frames)
       (display-buffer (current-buffer) t))
   (save-excursion
     (save-window-excursion
@@ -1114,7 +1061,6 @@ With no argument, copy to the end of the current line.
 Behavior with regard to newlines is similar (but not identical) to
 `kill-line'; the main difference is that whitespace at the end of the
 line is treated like ordinary characters."
-
   (interactive "P")
   (let* ((num (prefix-numeric-value arg))
 	 (count (vcursor-get-char-count #'end-of-line num)))

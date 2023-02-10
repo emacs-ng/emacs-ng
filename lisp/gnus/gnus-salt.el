@@ -1,6 +1,6 @@
 ;;; gnus-salt.el --- alternate summary mode interfaces for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996-1999, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1996-1999, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -64,15 +64,12 @@ It accepts the same format specs that `gnus-summary-line-format' does."
 
 ;;; Internal variables.
 
-(defvar gnus-pick-mode-map
-  (let ((map (make-sparse-keymap)))
-    (gnus-define-keys map
-      " " gnus-pick-next-page
-      "u" gnus-pick-unmark-article-or-thread
-      "." gnus-pick-article-or-thread
-      [down-mouse-2] gnus-pick-mouse-pick-region
-      "\r" gnus-pick-start-reading)
-    map))
+(defvar-keymap gnus-pick-mode-map
+  "SPC" #'gnus-pick-next-page
+  "u" #'gnus-pick-unmark-article-or-thread
+  "." #'gnus-pick-article-or-thread
+  "<down-mouse-2>" #'gnus-pick-mouse-pick-region
+  "RET" #'gnus-pick-start-reading)
 
 (defun gnus-pick-make-menu-bar ()
   (unless (boundp 'gnus-pick-menu)
@@ -136,9 +133,7 @@ It accepts the same format specs that `gnus-summary-line-format' does."
 (defun gnus-pick-start-reading (&optional catch-up)
   "Start reading the picked articles.
 If given a prefix, mark all unpicked articles as read."
-  (interactive "P")
-  (declare (completion (lambda (s b)
-			 (completion-minor-mode-active-p s b 'gnus-pick-mode))))
+  (interactive "P" gnus-pick-mode)
   (if gnus-newsgroup-processable
       (progn
 	(gnus-summary-limit-to-articles nil)
@@ -315,11 +310,8 @@ This must be bound to a button-down mouse event."
 (defvar gnus-binary-mode-hook nil
   "Hook run in summary binary mode buffers.")
 
-(defvar gnus-binary-mode-map
-  (let ((map (make-sparse-keymap)))
-    (gnus-define-keys map
-      "g" gnus-binary-show-article)
-    map))
+(defvar-keymap gnus-binary-mode-map
+  "g" #'gnus-binary-show-article)
 
 (defun gnus-binary-make-menu-bar ()
   (unless (boundp 'gnus-binary-menu)
@@ -424,21 +416,17 @@ Two predefined functions are available:
 (defvar gnus-tree-displayed-thread nil)
 (defvar gnus-tree-inhibit nil)
 
-(defvar gnus-tree-mode-map
-  (let ((map (make-keymap)))
-    (suppress-keymap map)
-    (gnus-define-keys
-        map
-      "\r" gnus-tree-select-article
-      [mouse-2] gnus-tree-pick-article
-      "\C-?" gnus-tree-read-summary-keys
-      "h" gnus-tree-show-summary
+(defvar-keymap gnus-tree-mode-map
+  :full t :suppress t
+  "RET" #'gnus-tree-select-article
+  "<mouse-2>" #'gnus-tree-pick-article
+  "DEL" #'gnus-tree-read-summary-keys
+  "h" #'gnus-tree-show-summary
 
-      "\C-c\C-i" gnus-info-find-node)
+  "C-c C-i" #'gnus-info-find-node)
 
-    (substitute-key-definition
-     'undefined 'gnus-tree-read-summary-keys map)
-    map))
+(substitute-key-definition 'undefined #'gnus-tree-read-summary-keys
+                           gnus-tree-mode-map)
 
 (defun gnus-tree-make-menu-bar ()
   (unless (boundp 'gnus-tree-menu)
@@ -698,7 +686,7 @@ it in the environment specified by BINDINGS."
 	(unless (zerop level)
 	  (gnus-tree-indent level)
 	  (insert (cadr gnus-tree-parent-child-edges))
-	  (setq col (- (setq beg (point)) (point-at-bol) 1))
+          (setq col (- (setq beg (point)) (line-beginning-position) 1))
 	  ;; Draw "|" lines upwards.
 	  (while (progn
 		   (forward-line -1)
@@ -722,7 +710,7 @@ it in the environment specified by BINDINGS."
 
 (defsubst gnus-tree-indent-vertical ()
   (let ((len (- (* (1+ gnus-tree-node-length) gnus-tmp-indent)
-		(- (point) (point-at-bol)))))
+                (- (point) (line-beginning-position)))))
     (when (> len 0)
       (insert (make-string len ? )))))
 

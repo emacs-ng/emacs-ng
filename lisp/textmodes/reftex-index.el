@@ -1,6 +1,6 @@
 ;;; reftex-index.el --- index support with RefTeX  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <dominik@science.uva.nl>
 ;; Maintainer: auctex-devel@gnu.org
@@ -29,9 +29,7 @@
 
 (require 'reftex)
 
-;; START remove for XEmacs release
 (defvar TeX-master)
-;; END remove for XEmacs release
 
 ;;;###autoload
 (defun reftex-index-selection-or-word (&optional arg phrase)
@@ -271,18 +269,14 @@ will prompt for other arguments."
     (and newtag (cdr cell) (not (member newtag (cdr cell)))
          (push newtag (cdr cell)))))
 
-(define-obsolete-variable-alias
-  'reftex-index-map 'reftex-index-mode-map "24.1")
 (defvar reftex-index-mode-map
   (let ((map (make-sparse-keymap)))
     ;; Index map
     (define-key map [(mouse-2)] #'reftex-index-mouse-goto-line-and-hide)
     (define-key map [follow-link] 'mouse-face)
 
-    (substitute-key-definition
-     #'next-line #'reftex-index-next map global-map)
-    (substitute-key-definition
-     #'previous-line #'reftex-index-previous map global-map)
+    (define-key map [remap next-line] #'reftex-index-next)
+    (define-key map [remap previous-line] #'reftex-index-previous)
 
     (define-key map "n" #'reftex-index-next)
     (define-key map "p" #'reftex-index-previous)
@@ -1200,8 +1194,6 @@ This gets refreshed in every phrases command.")
   '((reftex-index-phrases-font-lock-keywords)
     nil t nil beginning-of-line)
   "Font lock defaults for `reftex-index-phrases-mode'.")
-(define-obsolete-variable-alias
-  'reftex-index-phrases-map 'reftex-index-phrases-mode-map "24.1")
 (defvar reftex-index-phrases-mode-map
   (let ((map (make-sparse-keymap)))
     ;; Keybindings and Menu for phrases buffer
@@ -1274,10 +1266,11 @@ This gets refreshed in every phrases command.")
 ;;;###autoload
 (defun reftex-index-phrase-selection-or-word (arg)
   "Add current selection or word at point to the phrases buffer.
+\\<reftex-index-phrases-mode-map>
 When you are in transient-mark-mode and the region is active, the
 selection will be used - otherwise the word at point.
 You get a chance to edit the entry in the phrases buffer - finish with
-`C-c C-c'."
+\\[reftex-index-phrases-save-and-return]."
   (interactive "P")
   (set-marker reftex-index-return-marker (point))
   (reftex-index-selection-or-word arg 'phrase)
@@ -1375,7 +1368,7 @@ If the buffer is non-empty, delete the old header first."
 ;;;###autoload
 (define-derived-mode reftex-index-phrases-mode fundamental-mode "Phrases"
   "Major mode for managing the Index phrases of a LaTeX document.
-This buffer was created with RefTeX.
+This buffer was created with RefTeX. \\<reftex-index-phrases-mode-map>
 
 To insert new phrases, use
  - `C-c \\' in the LaTeX document to copy selection or word
@@ -1686,8 +1679,8 @@ this function repeatedly."
 (defun reftex-index-phrases-set-macro-key ()
   "Change the macro key for the current line.
 Prompts for a macro key and insert is at the beginning of the line.
-If you reply with SPACE, the macro keyn will be removed, so that the
-default macro will be used.  If you reply with `RET', just prints
+If you reply with \\`SPC', the macro key will be removed, so that the
+default macro will be used.  If you reply with \\`RET', just prints
 information about the currently selected macro."
   (interactive)
   (reftex-index-phrases-parse-header)
@@ -1814,7 +1807,7 @@ With optional arg ALLOW-NEWLINE, allow single newline between words."
 (defun reftex-index-phrases-find-dup-re (phrase &optional sub)
   "Return a regexp which matches variations of PHRASE (with additional space).
 When SUB ins non-nil, the regexp will also match when PHRASE is a subphrase
-of another phrase.  The regexp works lonly in the phrase buffer."
+of another phrase.  The regexp works only in the phrase buffer."
   (concat (if sub "^\\S-?\t\\([^\t\n]*" "^\\S-?\t")
           (mapconcat #'regexp-quote (split-string phrase) " +")
           (if sub "[^\t\n]*\\)\\([\t\n]\\|$\\)" " *\\([\t\n]\\|$\\)")))

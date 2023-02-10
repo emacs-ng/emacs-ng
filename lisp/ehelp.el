@@ -1,6 +1,6 @@
 ;;; ehelp.el --- bindings for electric-help mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 1986, 1995, 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1986, 1995, 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: Richard Mlynarik
 ;; (according to ack.texi and authors.el)
@@ -76,7 +76,10 @@
     (define-key map [?\C-7] 'electric-help-undefined)
     (define-key map [?\C-8] 'electric-help-undefined)
     (define-key map [?\C-9] 'electric-help-undefined)
-    (define-key map (char-to-string help-char) 'electric-help-help)
+    (define-key map (if (characterp help-char)
+                        (char-to-string help-char)
+                      (vector help-char))
+                'electric-help-help)
     (define-key map "?" 'electric-help-help)
     (define-key map " " 'scroll-up)
     (define-key map [?\S-\ ] 'scroll-down)

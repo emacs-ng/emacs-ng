@@ -1,6 +1,6 @@
 ;;; lisp-mode.el --- Lisp mode, and its idiosyncratic commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 1999-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: lisp, languages
@@ -29,6 +29,7 @@
 ;;; Code:
 
 (eval-when-compile (require 'cl-lib))
+(eval-when-compile (require 'subr-x))
 
 (defvar font-lock-comment-face)
 (defvar font-lock-doc-face)
@@ -88,72 +89,87 @@
     table)
   "Syntax table used in `lisp-mode'.")
 
+(rx-define lisp-mode-symbol (+ (| (syntax word)
+                                  (syntax symbol)
+                                  (: "\\" nonl))))
+
 (eval-and-compile
-  (defconst lisp-mode-symbol-regexp "\\(?:\\sw\\|\\s_\\|\\\\.\\)+"))
+  (defconst lisp-mode-symbol-regexp (rx lisp-mode-symbol)))
 
 (defvar lisp-imenu-generic-expression
   (list
    (list nil
 	 (purecopy (concat "^\\s-*("
-			   (eval-when-compile
-			     (regexp-opt
-			      '("defun" "defmacro"
-                                ;; Elisp.
-                                "defun*" "defsubst" "define-inline"
-				"define-advice" "defadvice" "define-skeleton"
-				"define-compilation-mode" "define-minor-mode"
-				"define-global-minor-mode"
-				"define-globalized-minor-mode"
-				"define-derived-mode" "define-generic-mode"
-				"ert-deftest"
-				"cl-defun" "cl-defsubst" "cl-defmacro"
-				"cl-define-compiler-macro" "cl-defgeneric"
-				"cl-defmethod"
-                                ;; CL.
-				"define-compiler-macro" "define-modify-macro"
-				"defsetf" "define-setf-expander"
-				"define-method-combination"
-                                ;; CLOS and EIEIO
-				"defgeneric" "defmethod")
-                              t))
-			   "\\s-+\\(" lisp-mode-symbol-regexp "\\)"))
+			   (regexp-opt
+			    '("defun" "defmacro"
+                              ;; Elisp.
+                              "defun*" "defsubst" "define-inline"
+			      "define-advice" "defadvice" "define-skeleton"
+			      "define-compilation-mode" "define-minor-mode"
+			      "define-global-minor-mode"
+			      "define-globalized-minor-mode"
+			      "define-derived-mode" "define-generic-mode"
+			      "ert-deftest"
+			      "cl-defun" "cl-defsubst" "cl-defmacro"
+			      "cl-define-compiler-macro" "cl-defgeneric"
+			      "cl-defmethod"
+                              ;; CL.
+			      "define-compiler-macro" "define-modify-macro"
+			      "defsetf" "define-setf-expander"
+			      "define-method-combination"
+                              ;; CLOS and EIEIO
+			      "defgeneric" "defmethod")
+                            t)
+			   "\\s-+\\(" (rx lisp-mode-symbol) "\\)"))
+	 2)
+   ;; Like the previous, but uses a quoted symbol as the name.
+   (list nil
+	 (purecopy (concat "^\\s-*("
+			   (regexp-opt
+			    '("defalias" "define-obsolete-function-alias")
+                            t)
+			   "\\s-+'\\(" (rx lisp-mode-symbol) "\\)"))
 	 2)
    (list (purecopy "Variables")
 	 (purecopy (concat "^\\s-*("
-			   (eval-when-compile
-			     (regexp-opt
-			      '(;; Elisp
-                                "defconst" "defcustom"
-                                ;; CL
-                                "defconstant"
-				"defparameter" "define-symbol-macro")
-                              t))
-			   "\\s-+\\(" lisp-mode-symbol-regexp "\\)"))
+			   (regexp-opt
+			    '(;; Elisp
+                              "defconst" "defcustom"
+                              ;; CL
+                              "defconstant"
+			      "defparameter" "define-symbol-macro")
+                            t)
+			   "\\s-+\\(" (rx lisp-mode-symbol) "\\)"))
 	 2)
    ;; For `defvar'/`defvar-local', we ignore (defvar FOO) constructs.
    (list (purecopy "Variables")
 	 (purecopy (concat "^\\s-*(defvar\\(?:-local\\)?\\s-+\\("
-                           lisp-mode-symbol-regexp "\\)"
+                           (rx lisp-mode-symbol) "\\)"
 			   "[[:space:]\n]+[^)]"))
 	 1)
    (list (purecopy "Types")
 	 (purecopy (concat "^\\s-*("
-			   (eval-when-compile
-			     (regexp-opt
-			      '(;; Elisp
-                                "defgroup" "deftheme"
-                                "define-widget" "define-error"
-				"defface" "cl-deftype" "cl-defstruct"
-                                ;; CL
-                                "deftype" "defstruct"
-				"define-condition" "defpackage"
-                                ;; CLOS and EIEIO
-                                "defclass")
-                              t))
-			   "\\s-+'?\\(" lisp-mode-symbol-regexp "\\)"))
+			   (regexp-opt
+			    '(;; Elisp
+                              "defgroup" "deftheme"
+                              "define-widget" "define-error"
+			      "defface" "cl-deftype" "cl-defstruct"
+                              ;; CL
+                              "deftype" "defstruct"
+			      "define-condition" "defpackage"
+                              ;; CLOS and EIEIO
+                              "defclass")
+                            t)
+			   "\\s-+'?\\(" (rx lisp-mode-symbol) "\\)"))
 	 2))
 
   "Imenu generic expression for Lisp mode.  See `imenu-generic-expression'.")
+
+(defconst lisp-mode-autoload-regexp
+  "^;;;###\\(\\([-[:alnum:]]+?\\)-\\)?\\(autoload\\)"
+  "Regexp to match autoload cookies.
+The second group matches package names used to redirect autoloads
+to a package-local <package>-loaddefs.el file.")
 
 ;; This was originally in autoload.el and is still used there.
 (put 'autoload 'doc-string-elt 3)
@@ -166,6 +182,7 @@
 ;; CL
 (put 'defconstant 'doc-string-elt 3)
 (put 'defparameter 'doc-string-elt 3)
+(put 'defstruct 'doc-string-elt 2)
 
 (defvar lisp-doc-string-elt-property 'doc-string-elt
   "The symbol property that holds the docstring position info.")
@@ -234,6 +251,9 @@
               ('let
                 (forward-sexp 1)
                 (>= pos (point)))
+              ((or 'defun 'defmacro 'cl-defmethod 'cl-defun)
+                (forward-sexp 2)
+                (>= pos (point)))
               ('condition-case
                   ;; If (cdr paren-posns), then we're in the BODY
                   ;; of HANDLERS.
@@ -250,8 +270,7 @@
   ;; FIXME: Move to elisp-mode.el.
   (catch 'found
     (while (re-search-forward
-            (eval-when-compile
-              (concat "(\\(" lisp-mode-symbol-regexp "\\)\\_>"))
+            (concat "(\\(" (rx lisp-mode-symbol) "\\)\\_>")
             limit t)
       (let ((sym (intern-soft (match-string 1))))
 	(when (and (or (special-form-p sym) (macrop sym))
@@ -306,6 +325,20 @@ This will generate compile-time constants from BINDINGS."
                         (nth 8 (syntax-ppss)))
               (throw 'matched t)))
         (throw 'matched nil)))))
+
+(defun lisp-mode--search-key (char bound)
+  (catch 'found
+    (while (re-search-forward
+            (concat "\\_<" char (rx lisp-mode-symbol) "\\_>")
+            bound t)
+      (when (or (< (match-beginning 0) (+ (point-min) 2))
+                ;; A quoted white space before the &/: means that this
+                ;; is not the start of a :keyword or an &option.
+                (not (eql (char-after (- (match-beginning 0) 2))
+                          ?\\))
+                (not (memq (char-after (- (match-beginning 0) 1))
+                           '(?\s ?\n ?\t))))
+        (throw 'found t)))))
 
 (let-when-compile
     ((lisp-fdefs '("defmacro" "defun"))
@@ -400,8 +433,8 @@ This will generate compile-time constants from BINDINGS."
                   ;; Any whitespace and defined object.
                   "[ \t']*"
                   "\\(([ \t']*\\)?" ;; An opening paren.
-                  "\\(\\(setf\\)[ \t]+" lisp-mode-symbol-regexp
-                  "\\|" lisp-mode-symbol-regexp "\\)?")
+                  "\\(\\(setf\\)[ \t]+" (rx lisp-mode-symbol)
+                  "\\|" (rx lisp-mode-symbol) "\\)?")
           (1 font-lock-keyword-face)
           (3 (let ((type (get (intern-soft (match-string 1)) 'lisp-define-type)))
                (cond ((eq type 'var) font-lock-variable-name-face)
@@ -417,7 +450,8 @@ This will generate compile-time constants from BINDINGS."
              nil t))
         ;; Emacs Lisp autoload cookies.  Supports the slightly different
         ;; forms used by mh-e, calendar, etc.
-        ("^;;;###\\([-a-z]*autoload\\)" 1 font-lock-warning-face prepend))
+        (,lisp-mode-autoload-regexp (3 font-lock-warning-face prepend)
+                                    (2 font-lock-function-name-face prepend t)))
       "Subdued level highlighting for Emacs Lisp mode.")
 
     (defconst lisp-cl-font-lock-keywords-1
@@ -426,8 +460,8 @@ This will generate compile-time constants from BINDINGS."
                   ;; Any whitespace and defined object.
                   "[ \t']*"
                   "\\(([ \t']*\\)?" ;; An opening paren.
-                  "\\(\\(setf\\)[ \t]+" lisp-mode-symbol-regexp
-                  "\\|" lisp-mode-symbol-regexp "\\)?")
+                  "\\(\\(setf\\)[ \t]+" (rx lisp-mode-symbol)
+                  "\\|" (rx lisp-mode-symbol) "\\)?")
           (1 font-lock-keyword-face)
           (3 (let ((type (get (intern-soft (match-string 1)) 'lisp-define-type)))
                (cond ((eq type 'var) font-lock-variable-name-face)
@@ -453,24 +487,35 @@ This will generate compile-time constants from BINDINGS."
          (lisp--el-match-keyword . 1)
          ;; Exit/Feature symbols as constants.
          (,(concat "(\\(catch\\|throw\\|featurep\\|provide\\|require\\)\\_>"
-                   "[ \t']*\\(" lisp-mode-symbol-regexp "\\)?")
+                   "[ \t']*\\(" (rx lisp-mode-symbol) "\\)?")
            (1 font-lock-keyword-face)
            (2 font-lock-constant-face nil t))
-         ;; Words inside \\[] tend to be for `substitute-command-keys'.
-         (,(concat "\\\\\\\\\\[\\(" lisp-mode-symbol-regexp "\\)\\]")
+         ;; Words inside \\[], \\<>, \\{} or \\`' tend to be for
+         ;; `substitute-command-keys'.
+         (,(rx "\\\\" (or (seq "[" (group-n 1 lisp-mode-symbol) "]")
+                          (seq "`" (group-n 1
+                                     ;; allow multiple words, e.g. "C-x a"
+                                     lisp-mode-symbol (* " " lisp-mode-symbol))
+                               "'")))
           (1 font-lock-constant-face prepend))
+         (,(rx "\\\\" (or (seq "<" (group-n 1 lisp-mode-symbol) ">")
+                          (seq "{" (group-n 1 lisp-mode-symbol) "}")))
+          (1 font-lock-variable-name-face prepend))
          ;; Ineffective backslashes (typically in need of doubling).
          ("\\(\\\\\\)\\([^\"\\]\\)"
           (1 (elisp--font-lock-backslash) prepend))
          ;; Words inside ‘’, '' and `' tend to be symbol names.
-         (,(concat "[`‘']\\(" lisp-mode-symbol-regexp "\\)['’]")
+         (,(concat "[`‘']\\(" (rx lisp-mode-symbol) "\\)['’]")
           (1 font-lock-constant-face prepend))
+         ;; \\= tends to be an escape in doc strings.
+         (,(rx "\\\\=")
+          (0 font-lock-builtin-face prepend))
          ;; Constant values.
-         (,(concat "\\_<:" lisp-mode-symbol-regexp "\\_>")
+         (,(lambda (bound) (lisp-mode--search-key ":" bound))
           (0 font-lock-builtin-face))
          ;; ELisp and CLisp `&' keywords as types.
-         (,(concat "\\_<&" lisp-mode-symbol-regexp "\\_>")
-          . font-lock-type-face)
+         (,(lambda (bound) (lisp-mode--search-key "&" bound))
+          (0 font-lock-type-face))
          ;; ELisp regexp grouping constructs
          (,(lambda (bound)
              (catch 'found
@@ -506,30 +551,31 @@ This will generate compile-time constants from BINDINGS."
          (,(concat "(" cl-kws-re "\\_>") . 1)
          ;; Exit/Feature symbols as constants.
          (,(concat "(\\(catch\\|throw\\|provide\\|require\\)\\_>"
-                   "[ \t']*\\(" lisp-mode-symbol-regexp "\\)?")
+                   "[ \t']*\\(" (rx lisp-mode-symbol) "\\)?")
            (1 font-lock-keyword-face)
            (2 font-lock-constant-face nil t))
          ;; Erroneous structures.
          (,(concat "(" cl-errs-re "\\_>")
            (1 font-lock-warning-face))
          ;; Words inside ‘’ and `' tend to be symbol names.
-         (,(concat "[`‘]\\(" lisp-mode-symbol-regexp "\\)['’]")
+         (,(concat "[`‘]\\(" (rx lisp-mode-symbol) "\\)['’]")
           (1 font-lock-constant-face prepend))
          ;; Uninterned symbols, e.g., (defpackage #:my-package ...)
          ;; must come before keywords below to have effect
-         (,(concat "#:" lisp-mode-symbol-regexp "") 0 font-lock-builtin-face)
+         (,(concat "#:" (rx lisp-mode-symbol) "") 0 font-lock-builtin-face)
          ;; Constant values.
-         (,(concat "\\_<:" lisp-mode-symbol-regexp "\\_>")
+         (,(lambda (bound) (lisp-mode--search-key ":" bound))
           (0 font-lock-builtin-face))
          ;; ELisp and CLisp `&' keywords as types.
-         (,(concat "\\_<&" lisp-mode-symbol-regexp "\\_>")
-          . font-lock-type-face)
+         (,(lambda (bound) (lisp-mode--search-key "&" bound))
+          (0 font-lock-type-face))
+         ;; ELisp regexp grouping constructs
          ;; This is too general -- rms.
          ;; A user complained that he has functions whose names start with `do'
          ;; and that they get the wrong color.
          ;; That user has violated the https://www.cliki.net/Naming+conventions:
          ;; CL (but not EL!) `with-' (context) and `do-' (iteration)
-         (,(concat "(\\(\\(do-\\|with-\\)" lisp-mode-symbol-regexp "\\)")
+         (,(concat "(\\(\\(do-\\|with-\\)" (rx lisp-mode-symbol) "\\)")
            (1 font-lock-keyword-face))
          (lisp--match-hidden-arg
           (0 '(face font-lock-warning-face
@@ -556,16 +602,15 @@ This will generate compile-time constants from BINDINGS."
   "Gaudy highlighting from Emacs Lisp mode used in Backtrace mode.")
 
 (defun lisp-string-in-doc-position-p (listbeg startpos)
-   "Return non-nil if a doc string may occur at STARTPOS inside a list.
+  "Return non-nil if a doc string may occur at STARTPOS inside a list.
 LISTBEG is the position of the start of the innermost list
 containing STARTPOS."
   (let* ((firstsym (and listbeg
                         (save-excursion
                           (goto-char listbeg)
                           (and (looking-at
-                                (eval-when-compile
-                                  (concat "([ \t\n]*\\("
-                                          lisp-mode-symbol-regexp "\\)")))
+                                (concat "([ \t\n]*\\("
+                                        (rx lisp-mode-symbol) "\\)"))
                                (match-string 1)))))
          (docelt (and firstsym
                       (function-get (intern-soft firstsym)
@@ -590,6 +635,8 @@ containing STARTPOS."
 
 (defun lisp-string-after-doc-keyword-p (listbeg startpos)
   "Return non-nil if `:documentation' symbol ends at STARTPOS inside a list.
+`:doc' can also be used.
+
 LISTBEG is the position of the start of the innermost list
 containing STARTPOS."
   (and listbeg                          ; We are inside a Lisp form.
@@ -597,7 +644,7 @@ containing STARTPOS."
          (goto-char startpos)
          (ignore-errors
            (progn (backward-sexp 1)
-                  (looking-at ":documentation\\_>"))))))
+                  (looking-at ":documentation\\_>\\|:doc\\_>"))))))
 
 (defun lisp-font-lock-syntactic-face-function (state)
   "Return syntactic face function for the position represented by STATE.
@@ -645,7 +692,9 @@ font-lock keywords will not be case sensitive."
   (setq-local indent-line-function 'lisp-indent-line)
   (setq-local indent-region-function 'lisp-indent-region)
   (setq-local comment-indent-function #'lisp-comment-indent)
-  (setq-local outline-regexp ";;;\\(;* [^ \t\n]\\|###autoload\\)\\|(")
+  (setq-local outline-regexp (concat ";;;;* [^ \t\n]\\|(\\|\\("
+                                     lisp-mode-autoload-regexp
+                                     "\\)"))
   (setq-local outline-level 'lisp-outline-level)
   (setq-local add-log-current-defun-function #'lisp-current-defun-name)
   (setq-local comment-start ";")
@@ -685,7 +734,8 @@ font-lock keywords will not be case sensitive."
   ;; Expects outline-regexp is ";;;\\(;* [^ \t\n]\\|###autoload\\)\\|("
   ;; and point is at the beginning of a matching line.
   (let ((len (- (match-end 0) (match-beginning 0))))
-    (cond ((looking-at "(\\|;;;###autoload")
+    (cond ((or (looking-at-p "(")
+               (looking-at-p lisp-mode-autoload-regexp))
            1000)
           ((looking-at ";;\\(;+\\) ")
            (- (match-end 1) (match-beginning 1)))
@@ -719,17 +769,16 @@ font-lock keywords will not be case sensitive."
 					(progn (forward-sexp 1)
 					       (point)))))))
 
-(defvar lisp-mode-shared-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map prog-mode-map)
-    (define-key map "\e\C-q" 'indent-sexp)
-    (define-key map "\177" 'backward-delete-char-untabify)
-    ;; This gets in the way when viewing a Lisp file in view-mode.  As
-    ;; long as [backspace] is mapped into DEL via the
-    ;; function-key-map, this should remain disabled!!
-    ;;;(define-key map [backspace] 'backward-delete-char-untabify)
-    map)
-  "Keymap for commands shared by all sorts of Lisp modes.")
+(defvar-keymap lisp-mode-shared-map
+  :doc "Keymap for commands shared by all sorts of Lisp modes."
+  :parent prog-mode-map
+  "C-M-q" #'indent-sexp
+  "DEL"   #'backward-delete-char-untabify
+  ;; This gets in the way when viewing a Lisp file in view-mode.  As
+  ;; long as [backspace] is mapped into DEL via the
+  ;; function-key-map, this should remain disabled!!
+  ;;;"<backspace>" #'backward-delete-char-untabify
+  )
 
 (defcustom lisp-mode-hook nil
   "Hook run when entering Lisp mode."
@@ -745,14 +794,12 @@ font-lock keywords will not be case sensitive."
 
 ;;; Generic Lisp mode.
 
-(defvar lisp-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map lisp-mode-shared-map)
-    (define-key map "\e\C-x" 'lisp-eval-defun)
-    (define-key map "\C-c\C-z" 'run-lisp)
-    map)
-  "Keymap for ordinary Lisp mode.
-All commands in `lisp-mode-shared-map' are inherited by this map.")
+(defvar-keymap lisp-mode-map
+  :doc "Keymap for ordinary Lisp mode.
+All commands in `lisp-mode-shared-map' are inherited by this map."
+  :parent lisp-mode-shared-map
+  "C-M-x"   #'lisp-eval-defun
+  "C-c C-z" #'run-lisp)
 
 (easy-menu-define lisp-mode-menu lisp-mode-map
   "Menu for ordinary Lisp mode."
@@ -807,9 +854,8 @@ or to switch back to an existing one."
 (defcustom lisp-indent-offset nil
   "If non-nil, indent second line of expressions that many more columns."
   :group 'lisp
-  :type '(choice (const nil) integer))
-(put 'lisp-indent-offset 'safe-local-variable
-     (lambda (x) (or (null x) (integerp x))))
+  :type '(choice (const nil) integer)
+  :safe (lambda (x) (or (null x) (integerp x))))
 
 (defcustom lisp-indent-function 'lisp-indent-function
   "A function to be called by `calculate-lisp-indent'.
@@ -1106,6 +1152,53 @@ is the buffer position of the start of the containing expression."
               (t
                normal-indent))))))
 
+(defun lisp--local-defform-body-p (state)
+  "Return non-nil when at local definition body according to STATE.
+STATE is the `parse-partial-sexp' state for current position."
+  (when-let ((start-of-innermost-containing-list (nth 1 state)))
+    (let* ((parents (nth 9 state))
+           (first-cons-after (cdr parents))
+           (second-cons-after (cdr first-cons-after))
+           first-order-parent second-order-parent)
+      (while second-cons-after
+        (when (= start-of-innermost-containing-list
+                 (car second-cons-after))
+          (setq second-order-parent (pop parents)
+                first-order-parent (pop parents)
+                ;; Leave the loop.
+                second-cons-after nil))
+        (pop second-cons-after)
+        (pop parents))
+      (when second-order-parent
+        (let (local-definitions-starting-point)
+          (and (save-excursion
+                 (goto-char (1+ second-order-parent))
+                 (when-let ((head (ignore-errors
+                                    ;; FIXME: This does not distinguish
+                                    ;; between reading nil and a read error.
+                                    ;; We don't care but still, better fix this.
+                                    (read (current-buffer)))))
+                   (when (memq head '( cl-flet cl-labels cl-macrolet cl-flet*
+                                       cl-symbol-macrolet))
+                     ;; In what follows, we rely on (point) returning non-nil.
+                     (setq local-definitions-starting-point
+                           (progn
+                             (parse-partial-sexp
+                              (point) first-order-parent nil
+                              ;; From docstring of `parse-partial-sexp':
+                              ;; Fourth arg non-nil means stop
+                              ;; when we come to any character
+                              ;; that starts a sexp.
+                              t)
+                             (point))))))
+               (save-excursion
+                 (when (ignore-errors
+                         ;; We rely on `backward-up-list' working
+                         ;; even when sexp is incomplete “to the right”.
+                         (backward-up-list 2)
+                         t)
+                   (= local-definitions-starting-point (point))))))))))
+
 (defun lisp-indent-function (indent-point state)
   "This function is the normal value of the variable `lisp-indent-function'.
 The function `calculate-lisp-indent' calls this to determine
@@ -1139,16 +1232,19 @@ Lisp function does not specify a special indentation."
     (if (and (elt state 2)
              (not (looking-at "\\sw\\|\\s_")))
         ;; car of form doesn't seem to be a symbol
-        (progn
+        (if (lisp--local-defform-body-p state)
+            ;; We nevertheless check whether we are in flet-like form
+            ;; as we presume local function names could be non-symbols.
+            (lisp-indent-defform state indent-point)
           (if (not (> (save-excursion (forward-line 1) (point))
                       calculate-lisp-indent-last-sexp))
-		(progn (goto-char calculate-lisp-indent-last-sexp)
-		       (beginning-of-line)
-		       (parse-partial-sexp (point)
-					   calculate-lisp-indent-last-sexp 0 t)))
-	    ;; Indent under the list or under the first sexp on the same
-	    ;; line as calculate-lisp-indent-last-sexp.  Note that first
-	    ;; thing on that line has to be complete sexp since we are
+	      (progn (goto-char calculate-lisp-indent-last-sexp)
+		     (beginning-of-line)
+		     (parse-partial-sexp (point)
+					 calculate-lisp-indent-last-sexp 0 t)))
+	  ;; Indent under the list or under the first sexp on the same
+	  ;; line as calculate-lisp-indent-last-sexp.  Note that first
+	  ;; thing on that line has to be complete sexp since we are
           ;; inside the innermost containing sexp.
           (backward-prefix-chars)
           (current-column))
@@ -1159,21 +1255,20 @@ Lisp function does not specify a special indentation."
                                        'lisp-indent-function)
 			 (get (intern-soft function) 'lisp-indent-hook)))
 	(cond ((or (eq method 'defun)
-		   (and (null method)
-			(> (length function) 3)
-			(string-match "\\`def" function)))
+                   ;; Check whether we are in flet-like form.
+                   (lisp--local-defform-body-p state))
 	       (lisp-indent-defform state indent-point))
 	      ((integerp method)
 	       (lisp-indent-specform method state
 				     indent-point normal-indent))
 	      (method
-		(funcall method indent-point state)))))))
+	       (funcall method indent-point state)))))))
 
 (defcustom lisp-body-indent 2
   "Number of columns to indent the second line of a `(def...)' form."
   :group 'lisp
-  :type 'integer)
-(put 'lisp-body-indent 'safe-local-variable 'integerp)
+  :type 'integer
+  :safe #'integerp)
 
 (defun lisp-indent-specform (count state indent-point normal-indent)
   (let ((containing-form-start (elt state 1))
@@ -1235,6 +1330,13 @@ Lisp function does not specify a special indentation."
 
 (put 'autoload 'lisp-indent-function 'defun) ;Elisp
 (put 'progn 'lisp-indent-function 0)
+(put 'defvar 'lisp-indent-function 'defun)
+(put 'defalias 'lisp-indent-function 'defun)
+(put 'defvaralias 'lisp-indent-function 'defun)
+(put 'defconst 'lisp-indent-function 'defun)
+(put 'define-category 'lisp-indent-function 'defun)
+(put 'define-charset-internal 'lisp-indent-function 'defun)
+(put 'define-fringe-bitmap 'lisp-indent-function 'defun)
 (put 'prog1 'lisp-indent-function 1)
 (put 'save-excursion 'lisp-indent-function 0)      ;Elisp
 (put 'save-restriction 'lisp-indent-function 0)    ;Elisp
@@ -1249,6 +1351,7 @@ Lisp function does not specify a special indentation."
 (put 'handler-bind 'lisp-indent-function 1) ;CL
 (put 'unwind-protect 'lisp-indent-function 1)
 (put 'with-output-to-temp-buffer 'lisp-indent-function 1)
+(put 'closure 'lisp-indent-function 2)
 
 (defun indent-sexp (&optional endpos)
   "Indent each line of the list starting just after point.
@@ -1326,9 +1429,8 @@ Any non-integer value means do not use a different value of
 `fill-column' when filling docstrings."
   :type '(choice (integer)
                  (const :tag "Use the current `fill-column'" t))
+  :safe (lambda (x) (or (eq x t) (integerp x)))
   :group 'lisp)
-(put 'emacs-lisp-docstring-fill-column 'safe-local-variable
-     (lambda (x) (or (eq x t) (integerp x))))
 
 (defun lisp-fill-paragraph (&optional justify)
   "Like \\[fill-paragraph], but handle Emacs Lisp comments and docstrings.
@@ -1340,6 +1442,9 @@ and initial semicolons."
       ;; Since fill-comment-paragraph returned nil, that means we're not in
       ;; a comment: Point is on a program line; we are interested
       ;; particularly in docstring lines.
+      ;;
+      ;; FIXME: The below bindings are probably mostly irrelevant
+      ;; since we're now narrowing to a region before filling.
       ;;
       ;; We bind `paragraph-start' and `paragraph-separate' temporarily.  They
       ;; are buffer-local, but we avoid changing them so that they can be set
@@ -1376,29 +1481,61 @@ and initial semicolons."
                                   (derived-mode-p 'emacs-lisp-mode))
                              emacs-lisp-docstring-fill-column
                            fill-column)))
-        (save-restriction
+        (let ((ppss (syntax-ppss))
+              (start (point))
+              ;; Avoid recursion if we're being called directly with
+              ;; `M-x lisp-fill-paragraph' in an `emacs-lisp-mode' buffer.
+              (fill-paragraph-function t))
           (save-excursion
-          (let ((ppss (syntax-ppss))
-                (start (point)))
-            ;; If we're in a string, then narrow (roughly) to that
-            ;; string before filling.  This avoids filling Lisp
-            ;; statements that follow the string.
-            (when (ppss-string-terminator ppss)
-              (goto-char (ppss-comment-or-string-start ppss))
-              (beginning-of-line)
-              ;; The string may be unterminated -- in that case, don't
-              ;; narrow.
-              (when (ignore-errors
-                      (progn
-                        (forward-sexp 1)
-                        t))
-                (narrow-to-region (ppss-comment-or-string-start ppss)
-                                  (point))))
-            ;; Move back to where we were.
+            (save-restriction
+              ;; If we're not inside a string, then do very basic
+              ;; filling.  This avoids corrupting embedded strings in
+              ;; code.
+              (if (not (ppss-comment-or-string-start ppss))
+                  (lisp--fill-line-simple)
+                ;; If we're in a string, then narrow (roughly) to that
+                ;; string before filling.  This avoids filling Lisp
+                ;; statements that follow the string.
+                (when (ppss-string-terminator ppss)
+                  (goto-char (ppss-comment-or-string-start ppss))
+                  ;; The string may be unterminated -- in that case, don't
+                  ;; narrow.
+                  (when (ignore-errors
+                          (progn
+                            (forward-sexp 1)
+                            t))
+                    (narrow-to-region (1+ (ppss-comment-or-string-start ppss))
+                                      (1- (point)))))
+                ;; Move back to where we were.
+                (goto-char start)
+                ;; We should fill the first line of a string
+                ;; separately (since it's usually a doc string).
+                (if (= (line-number-at-pos) 1)
+                    (narrow-to-region (line-beginning-position)
+                                      (line-beginning-position 2))
+                  (save-excursion
+                    (goto-char (point-min))
+                    (forward-line 1)
+                    (narrow-to-region (point) (point-max))))
+	        (fill-paragraph justify)))))))
+  ;; Never return nil.
+  t)
+
+(defun lisp--fill-line-simple ()
+  (narrow-to-region (line-beginning-position) (line-end-position))
+  (goto-char (point-min))
+  (while (and (not (eobp))
+              (re-search-forward "\\_>" nil t))
+    (when (> (current-column) fill-column)
+      (let ((start (point)))
+        (backward-sexp)
+        (if (looking-back "[[(]" (point-min))
             (goto-char start)
-	    (fill-paragraph justify)))))
-      ;; Never return nil.
-      t))
+          (skip-chars-backward " \t")
+          (insert "\n")
+          (forward-sexp))))
+    (unless (eobp)
+      (forward-char 1))))
 
 (defun indent-code-rigidly (start end arg &optional nochange-regexp)
   "Indent all lines of code, starting in the region, sideways by ARG columns.

@@ -1,6 +1,6 @@
 ;;; ccl.el --- CCL (Code Conversion Language) compiler  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997-1998, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-1998, 2001-2023 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -577,7 +577,7 @@ Return register which holds a value of the expression."
     (ccl-check-register expr cmd)))
 
 (defun ccl-compile-branch-blocks (code rrr blocks)
-  "Compile BLOCKs of BRANCH statement.  CODE is 'branch or 'read-branch.
+  "Compile BLOCKs of BRANCH statement.  CODE is `branch' or `read-branch'.
 REG is a register which holds a value of EXPRESSION part.  BLOCKs
 is a list of CCL-BLOCKs."
   (let ((branches (length blocks))
@@ -1553,7 +1553,7 @@ MAP :=
 MAP-IDs := MAP-ID ...
 MAP-SET := MAP-IDs | (MAP-IDs) MAP-SET
 MAP-ID := integer"
-  (declare (doc-string 3))
+  (declare (doc-string 3) (indent defun))
   `(let ((prog ,(unwind-protect
 		    (progn
 		      ;; To make ,(charset-id CHARSET) works well.

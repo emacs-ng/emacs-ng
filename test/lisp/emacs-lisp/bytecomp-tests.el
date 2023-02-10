@@ -1,6 +1,6 @@
 ;;; bytecomp-tests.el --- Tests for bytecomp.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
 
 ;; Author: Shigeru Fukaya <shigeru.fukaya@gmail.com>
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
@@ -38,7 +38,7 @@
   bytecomp-test-var)
 
 (defun bytecomp-test-identity (x)
-  "Identity, but hidden from some optimisations."
+  "Identity, but hidden from some optimizations."
   x)
 
 (defmacro bytecomp-test-loop (outer1 outer2 inner1 inner2)
@@ -58,6 +58,8 @@ inner loops respectively."
          ,outer2)
        (setq i (1- i)))
      res))
+
+(defvar bytecomp-tests--xx nil)
 
 (defconst bytecomp-tests--test-cases
   '(
@@ -556,7 +558,7 @@ inner loops respectively."
                               ((not x) 3)))
             '("a" "b" "c" "d" nil))
 
-    ;; `let' and `let*' optimisations with body being constant or variable
+    ;; `let' and `let*' optimizations with body being constant or variable
     (let* (a
            (b (progn (setq a (cons 1 a)) 2))
            (c (1+ b))
@@ -582,7 +584,7 @@ inner loops respectively."
     (let* (x y)
       'a)
 
-    ;; Check empty-list optimisations.
+    ;; Check empty-list optimizations.
     (mapcar (lambda (x) (member x nil)) '("a" 2 nil))
     (mapcar (lambda (x) (memql x nil)) '(a 2 nil))
     (mapcar (lambda (x) (memq x nil)) '(a nil))
@@ -597,7 +599,7 @@ inner loops respectively."
       (list (mapcar (lambda (x) (assoc (setq n (1+ n)) nil)) '(a "nil"))
             n))
 
-    ;; Exercise variable-aliasing optimisations.
+    ;; Exercise variable-aliasing optimizations.
     (let ((a (list 1)))
       (let ((b a))
         (let ((a (list 2)))
@@ -640,6 +642,121 @@ inner loops respectively."
            (f (list (lambda (x) (setq a x)))))
       (funcall (car f) 3)
       (list a b))
+
+    (cond)
+    (mapcar (lambda (x) (cond ((= x 0)))) '(0 1))
+
+    ;; These expressions give different results in lexbind and dynbind modes,
+    ;; but in each the compiler and interpreter should agree!
+    ;; (They look much the same but come in pairs exercising both the
+    ;; `let' and `let*' paths.)
+    (let ((f (lambda (x)
+               (lambda ()
+                 (let ((g (lambda () x)))
+                   (let ((x 'a))
+                     (list x (funcall g))))))))
+      (funcall (funcall f 'b)))
+    (let ((f (lambda (x)
+               (lambda ()
+                 (let ((g (lambda () x)))
+                   (let* ((x 'a))
+                     (list x (funcall g))))))))
+      (funcall (funcall f 'b)))
+    (let ((f (lambda (x)
+               (lambda ()
+                 (let ((g (lambda () x)))
+                   (setq x (list x x))
+                   (let ((x 'a))
+                     (list x (funcall g))))))))
+      (funcall (funcall f 'b)))
+    (let ((f (lambda (x)
+               (lambda ()
+                 (let ((g (lambda () x)))
+                   (setq x (list x x))
+                   (let* ((x 'a))
+                     (list x (funcall g))))))))
+      (funcall (funcall f 'b)))
+    (let ((f (lambda (x)
+               (let ((g (lambda () x))
+                     (h (lambda () (setq x (list x x)))))
+                 (let ((x 'a))
+                   (list x (funcall g) (funcall h)))))))
+      (funcall (funcall f 'b)))
+    (let ((f (lambda (x)
+               (let ((g (lambda () x))
+                     (h (lambda () (setq x (list x x)))))
+                 (let* ((x 'a))
+                   (list x (funcall g) (funcall h)))))))
+      (funcall (funcall f 'b)))
+
+    ;; Test constant-propagation of access to captured variables.
+    (let* ((x 2)
+           (f (lambda ()
+                (let ((y x)) (list y 3 y)))))
+      (funcall f))
+
+    ;; Test rewriting of `set' to `setq' (only done on dynamic variables).
+    (let ((xx 1)) (set 'xx 2) xx)
+    (let ((bytecomp-tests--xx 1))
+      (set 'bytecomp-tests--xx 2)
+      bytecomp-tests--xx)
+    (let ((aaa 1)) (set (make-local-variable 'aaa) 2) aaa)
+    (let ((bytecomp-tests--xx 1))
+      (set (make-local-variable 'bytecomp-tests--xx) 2)
+      bytecomp-tests--xx)
+
+    ;; Check for-effect optimisation of `condition-case' body form.
+    ;; With `condition-case' in for-effect context:
+    (let ((x (bytecomp-test-identity ?A))
+          (r nil))
+      (condition-case e
+          (characterp x)                ; value (:success, var)
+        (error (setq r 'bad))
+        (:success (setq r (list 'good e))))
+      r)
+    (let ((x (bytecomp-test-identity ?B))
+          (r nil))
+      (condition-case nil
+          (characterp x)               ; for-effect (:success, no var)
+        (error (setq r 'bad))
+        (:success (setq r 'good)))
+      r)
+    (let ((x (bytecomp-test-identity ?C))
+          (r nil))
+      (condition-case e
+          (characterp x)               ; for-effect (no :success, var)
+        (error (setq r (list 'bad e))))
+      r)
+    (let ((x (bytecomp-test-identity ?D))
+          (r nil))
+      (condition-case nil
+          (characterp x)               ; for-effect (no :success, no var)
+        (error (setq r 'bad)))
+      r)
+    ;; With `condition-case' in value context:
+    (let ((x (bytecomp-test-identity ?E)))
+      (condition-case e
+          (characterp x)               ; for-effect (:success, var)
+        (error (list 'bad e))
+        (:success (list 'good e))))
+    (let ((x (bytecomp-test-identity ?F)))
+      (condition-case nil
+          (characterp x)               ; for-effect (:success, no var)
+        (error 'bad)
+        (:success 'good)))
+    (let ((x (bytecomp-test-identity ?G)))
+      (condition-case e
+          (characterp x)               ; value (no :success, var)
+        (error (list 'bad e))))
+    (let ((x (bytecomp-test-identity ?H)))
+      (condition-case nil
+          (characterp x)               ; value (no :success, no var)
+        (error 'bad)))
+
+    (condition-case nil
+        (bytecomp-test-identity 3)
+      (error 'bad)
+      (:success))                       ; empty handler
     )
   "List of expressions for cross-testing interpreted and compiled code.")
 
@@ -690,24 +807,20 @@ byte-compiled.  Run with dynamic binding."
 
 (defun test-byte-comp-compile-and-load (compile &rest forms)
   (declare (indent 1))
-  (let ((elfile nil)
-        (elcfile nil))
-    (unwind-protect
-         (progn
-           (setf elfile (make-temp-file "test-bytecomp" nil ".el"))
-           (when compile
-             (setf elcfile (make-temp-file "test-bytecomp" nil ".elc")))
-           (with-temp-buffer
-             (dolist (form forms)
-               (print form (current-buffer)))
-             (write-region (point-min) (point-max) elfile nil 'silent))
-           (if compile
-               (let ((byte-compile-dest-file-function
-                      (lambda (e) elcfile)))
-                 (byte-compile-file elfile)))
-           (load elfile nil 'nomessage))
-      (when elfile (delete-file elfile))
-      (when elcfile (delete-file elcfile)))))
+  (ert-with-temp-file elfile
+    :suffix ".el"
+    (ert-with-temp-file elcfile
+      :suffix ".elc"
+      (with-temp-buffer
+        (insert ";;; -*- lexical-binding: t -*-\n")
+        (dolist (form forms)
+          (print form (current-buffer)))
+        (write-region (point-min) (point-max) elfile nil 'silent))
+      (if compile
+          (let ((byte-compile-dest-file-function
+                 (lambda (e) elcfile)))
+            (byte-compile-file elfile)))
+      (load elfile nil 'nomessage))))
 
 (ert-deftest test-byte-comp-macro-expansion ()
   (test-byte-comp-compile-and-load t
@@ -773,13 +886,19 @@ byte-compiled.  Run with dynamic binding."
     ;; Should not warn that mt--test2 is not known to be defined.
     (should-not (re-search-forward "my--test2" nil t))))
 
-(defmacro bytecomp--with-warning-test (re-warning &rest form)
+(defmacro bytecomp--with-warning-test (re-warning form)
   (declare (indent 1))
   `(with-current-buffer (get-buffer-create "*Compile-Log*")
      (let ((inhibit-read-only t)) (erase-buffer))
-     (byte-compile ,@form)
-     (ert-info ((prin1-to-string (buffer-string)) :prefix "buffer: ")
-       (should (re-search-forward ,(string-replace " " "[ \n]+" re-warning))))))
+     (let ((text-quoting-style 'grave)
+           (macroexp--warned
+            (make-hash-table :test #'equal :weakness 'key))   ; oh dear
+           (form ,form))
+       (ert-info ((prin1-to-string form) :prefix "form: ")
+         (byte-compile form)
+         (ert-info ((prin1-to-string (buffer-string)) :prefix "buffer: ")
+           (should (re-search-forward
+                    (string-replace " " "[ \n]+" ,re-warning))))))))
 
 (ert-deftest bytecomp-warn-wrong-args ()
   (bytecomp--with-warning-test "remq.*3.*2"
@@ -803,6 +922,66 @@ byte-compiled.  Run with dynamic binding."
   (bytecomp--with-warning-test "defvar.*foo.*wider than.*characters"
     `(defvar foo t ,bytecomp-tests--docstring)))
 
+(ert-deftest bytecomp-warn-quoted-condition ()
+  (bytecomp--with-warning-test
+      "Warning: `condition-case' condition should not be quoted: 'arith-error"
+    '(condition-case nil
+         (abc)
+       ('arith-error "ugh")))
+  (bytecomp--with-warning-test
+      "Warning: `ignore-error' condition argument should not be quoted: 'error"
+    '(ignore-error 'error (abc))))
+
+(ert-deftest bytecomp-warn-dodgy-args-eq ()
+  (dolist (fn '(eq eql))
+    (cl-flet ((msg (type arg)
+                (format
+                 "`%s' called with literal %s that may never match (arg %d)"
+                 fn type arg)))
+      (bytecomp--with-warning-test (msg "list" 1)   `(,fn '(a) 'x))
+      (bytecomp--with-warning-test (msg "string" 2) `(,fn 'x "a"))
+      (bytecomp--with-warning-test (msg "vector" 2) `(,fn 'x [a]))
+      (bytecomp--with-warning-test (msg "function" 2) `(,fn 'x (lambda () 1)))
+      (bytecomp--with-warning-test (msg "function" 2) `(,fn 'x #'(lambda () 1)))
+      (unless (eq fn 'eql)
+        (bytecomp--with-warning-test (msg "integer" 2) `(,fn 'x #x10000000000))
+        (bytecomp--with-warning-test (msg "float" 2)   `(,fn 'x 1.0))))))
+
+(ert-deftest bytecomp-warn-dodgy-args-memq ()
+  (dolist (fn '(memq memql remq delq assq rassq))
+    (cl-labels
+        ((msg1 (type)
+           (format
+            "`%s' called with literal %s that may never match (arg 1)"
+            fn type))
+         (msg2 (type)
+           (format
+            "`%s' called with literal %s that may never match (element 2 of arg 2)"
+            fn type))
+         (lst (elt)
+           (cond ((eq fn 'assq)  `((a . 1) (,elt . 2) (c . 3)))
+                 ((eq fn 'rassq) `((1 . a) (2 . ,elt) (3 . c)))
+                 (t              `(a       ,elt       c))))
+         (form2 (elt)
+           `(,fn 'x ',(lst elt))))
+
+    (bytecomp--with-warning-test (msg1 "list")   `(,fn '(a) '(x)))
+    (bytecomp--with-warning-test (msg1 "string") `(,fn "a" '(x)))
+    (bytecomp--with-warning-test (msg1 "vector") `(,fn [a] '(x)))
+    (bytecomp--with-warning-test (msg1 "function") `(,fn (lambda () 1) '(x)))
+    (bytecomp--with-warning-test (msg1 "function") `(,fn #'(lambda () 1) '(x)))
+    (unless (eq fn 'memql)
+      (bytecomp--with-warning-test (msg1 "integer") `(,fn #x10000000000 '(x)))
+      (bytecomp--with-warning-test (msg1 "float")   `(,fn 1.0 '(x))))
+
+    (bytecomp--with-warning-test (msg2 "list")   (form2 '(b)))
+    (bytecomp--with-warning-test (msg2 "list")   (form2 ''b))
+    (bytecomp--with-warning-test (msg2 "string") (form2 "b"))
+    (bytecomp--with-warning-test (msg2 "vector") (form2 [b]))
+    (unless (eq fn 'memql)
+      (bytecomp--with-warning-test (msg2 "integer") (form2 #x10000000000))
+      (bytecomp--with-warning-test (msg2 "float")   (form2 1.0))))))
+
 (defmacro bytecomp--define-warning-file-test (file re-warning &optional reverse)
   `(ert-deftest ,(intern (format "bytecomp/%s" file)) ()
      (with-current-buffer (get-buffer-create "*Compile-Log*")
@@ -810,8 +989,7 @@ byte-compiled.  Run with dynamic binding."
        (byte-compile-file ,(ert-resource-file file))
        (ert-info ((buffer-string) :prefix "buffer: ")
          (,(if reverse 'should-not 'should)
-          (re-search-forward ,(string-replace " " "[ \n]+" re-warning)
-                             nil t))))))
+          (re-search-forward ,re-warning nil t))))))
 
 (bytecomp--define-warning-file-test "error-lexical-var-with-add-hook.el"
                             "add-hook.*lexical var")
@@ -865,7 +1043,7 @@ byte-compiled.  Run with dynamic binding."
                             "next-line.*interactive use only.*forward-line")
 
 (bytecomp--define-warning-file-test "warn-lambda-malformed-interactive-spec.el"
-                            "malformed interactive spec")
+                            "malformed .interactive. specification")
 
 (bytecomp--define-warning-file-test "warn-obsolete-defun.el"
   "foo-obsolete. is an obsolete function (as of 99.99)")
@@ -904,10 +1082,13 @@ byte-compiled.  Run with dynamic binding."
                             "let-bind nonvariable")
 
 (bytecomp--define-warning-file-test "warn-variable-set-constant.el"
-                            "variable reference to constant")
+                            "attempt to set constant")
 
-(bytecomp--define-warning-file-test "warn-variable-set-nonvariable.el"
-                            "variable reference to nonvariable")
+(bytecomp--define-warning-file-test "warn-variable-setq-nonvariable.el"
+                            "attempt to set non-variable")
+
+(bytecomp--define-warning-file-test "warn-variable-setq-odd.el"
+                            "odd number of arguments")
 
 (bytecomp--define-warning-file-test
  "warn-wide-docstring-autoload.el"
@@ -939,7 +1120,7 @@ byte-compiled.  Run with dynamic binding."
 
 (bytecomp--define-warning-file-test
  "warn-wide-docstring-defun.el"
- "wider than .* characters")
+ "Warning: docstring wider than .* characters")
 
 (bytecomp--define-warning-file-test
  "warn-wide-docstring-defvar.el"
@@ -954,7 +1135,15 @@ byte-compiled.  Run with dynamic binding."
  "defvar .foo-bar. docstring wider than .* characters" 'reverse)
 
 (bytecomp--define-warning-file-test
+ "warn-wide-docstring-ignore-function-signature.el"
+ "defvar .foo-bar. docstring wider than .* characters" 'reverse)
+
+(bytecomp--define-warning-file-test
  "warn-wide-docstring-ignore-override.el"
+ "defvar .foo-bar. docstring wider than .* characters" 'reverse)
+
+(bytecomp--define-warning-file-test
+ "warn-wide-docstring-ignore-substitutions.el"
  "defvar .foo-bar. docstring wider than .* characters" 'reverse)
 
 (bytecomp--define-warning-file-test
@@ -1013,10 +1202,9 @@ byte-compiled.  Run with dynamic binding."
 (defmacro bytecomp-tests--with-temp-file (file-name-var &rest body)
   (declare (indent 1))
   (cl-check-type file-name-var symbol)
-  `(let ((,file-name-var (make-temp-file "emacs")))
+  `(ert-with-temp-file ,file-name-var
      (unwind-protect
          (progn ,@body)
-       (delete-file ,file-name-var)
        (let ((elc (concat ,file-name-var ".elc")))
          (if (file-exists-p elc) (delete-file elc))))))
 
@@ -1178,12 +1366,19 @@ literals (Bug#20852)."
    '((lexical prefixless))
    "global/dynamic var .prefixless. lacks")
 
-  (test-suppression
-   '(defun foo()
-      (let ((nil t))
-        (message-mail)))
-   '((constants nil))
-   "Warning: attempt to let-bind constant .nil.")
+  ;; FIXME: These messages cannot be suppressed reliably right now,
+  ;; but attempting mutate `nil' or `5' is a rather daft thing to do
+  ;; in the first place.  Preventing mutation of constants such as
+  ;; `most-positive-fixnum' makes more sense but the compiler doesn't
+  ;; warn about that at all right now (it's caught at runtime, and we
+  ;; allow writing the same value).
+  ;;
+  ;; (test-suppression
+  ;;  '(defun foo()
+  ;;     (let ((nil t))
+  ;;       (message-mail)))
+  ;;  '((constants nil))
+  ;;  "Warning: attempt to let-bind constant .nil.")
 
   (test-suppression
    '(progn
@@ -1202,7 +1397,7 @@ literals (Bug#20852)."
       (defun zot ()
         (wrong-params 1 2 3)))
    '((callargs wrong-params))
-   "Warning: wrong-params called with")
+   "Warning: .wrong-params. called with")
 
   (test-byte-comp-compile-and-load nil
     (defvar obsolete-variable nil)
@@ -1238,30 +1433,73 @@ literals (Bug#20852)."
         (set-buffer (get-buffer-create "foo"))
         nil))
    '((suspicious set-buffer))
-   "Warning: Use .with-current-buffer. rather than"))
+   "Warning: Use .with-current-buffer. rather than")
+
+  (test-suppression
+   '(defun zot ()
+      (let ((_ 1))
+        ))
+   '((empty-body let))
+   "Warning: `let' with empty body")
+
+  (test-suppression
+   '(defun zot ()
+      (let* ((_ 1))
+        ))
+   '((empty-body let*))
+   "Warning: `let\\*' with empty body")
+
+  (test-suppression
+   '(defun zot (x)
+      (when x
+        ))
+   '((empty-body when))
+   "Warning: `when' with empty body")
+
+  (test-suppression
+   '(defun zot (x)
+      (unless x
+        ))
+   '((empty-body unless))
+   "Warning: `unless' with empty body")
+
+  (test-suppression
+   '(defun zot (x)
+      (ignore-error arith-error
+        ))
+   '((empty-body ignore-error))
+   "Warning: `ignore-error' with empty body")
+
+  (test-suppression
+   '(defun zot (x)
+      (with-suppressed-warnings ((suspicious eq))
+        ))
+   '((empty-body with-suppressed-warnings))
+   "Warning: `with-suppressed-warnings' with empty body")
+  )
 
 (ert-deftest bytecomp-tests--not-writable-directory ()
   "Test that byte compilation works if the output directory isn't
 writable (Bug#44631)."
-  (let ((directory (make-temp-file "bytecomp-tests-" :directory)))
-    (unwind-protect
-        (let* ((input-file (expand-file-name "test.el" directory))
-               (output-file (expand-file-name "test.elc" directory))
-               (byte-compile-dest-file-function
-                (lambda (_) output-file))
-               (byte-compile-error-on-warn t))
-          (write-region "" nil input-file nil nil nil 'excl)
-          (write-region "" nil output-file nil nil nil 'excl)
-          (set-file-modes input-file #o400)
-          (set-file-modes output-file #o200)
-          (set-file-modes directory #o500)
-          (should (byte-compile-file input-file))
-          (should (file-regular-p output-file))
-          (should (cl-plusp (file-attribute-size
-                             (file-attributes output-file)))))
-      (with-demoted-errors "Error cleaning up directory: %s"
-        (set-file-modes directory #o700)
-        (delete-directory directory :recursive)))))
+  (ert-with-temp-directory directory
+    (let* ((input-file (expand-file-name "test.el" directory))
+           (output-file (expand-file-name "test.elc" directory))
+           (byte-compile-dest-file-function
+            (lambda (_) output-file))
+           (byte-compile-error-on-warn t))
+      (unwind-protect
+          (progn
+            (write-region "" nil input-file nil nil nil 'excl)
+            (write-region "" nil output-file nil nil nil 'excl)
+            (set-file-modes input-file #o400)
+            (set-file-modes output-file #o200)
+            (set-file-modes directory #o500)
+            (should (byte-compile-file input-file))
+            (should (file-regular-p output-file))
+            (should (cl-plusp (file-attribute-size
+                               (file-attributes output-file)))))
+        ;; Allow the directory to be deleted.
+        (set-file-modes directory #o777)))))
 
 (ert-deftest bytecomp-tests--dest-mountpoint ()
   "Test that byte compilation works if the destination file is a
@@ -1273,56 +1511,53 @@ mountpoint (Bug#44631)."
     (skip-unless (not (file-remote-p bwrap)))
     (skip-unless (file-executable-p emacs))
     (skip-unless (not (file-remote-p emacs)))
-    (let ((directory (make-temp-file "bytecomp-tests-" :directory)))
-      (unwind-protect
-          (let* ((input-file (expand-file-name "test.el" directory))
-                 (output-file (expand-file-name "test.elc" directory))
-                 (unquoted-file (file-name-unquote output-file))
-                 (byte-compile-dest-file-function
-                  (lambda (_) output-file))
-                 (byte-compile-error-on-warn t))
-            (should-not (file-remote-p input-file))
-            (should-not (file-remote-p output-file))
-            (write-region "" nil input-file nil nil nil 'excl)
-            (write-region "" nil output-file nil nil nil 'excl)
-            (set-file-modes input-file #o400)
-            (set-file-modes output-file #o200)
-            (set-file-modes directory #o500)
-            (with-temp-buffer
-              (let ((status (call-process
-                             bwrap nil t nil
-                             "--ro-bind" "/" "/"
-                             "--bind" unquoted-file unquoted-file
-                             emacs "--quick" "--batch" "--load=bytecomp"
-                             (format "--eval=%S"
-                                     `(setq byte-compile-dest-file-function
-                                            (lambda (_) ,output-file)
-                                            byte-compile-error-on-warn t))
-                             "--funcall=batch-byte-compile" input-file)))
-                (unless (eql status 0)
-                  (ert-fail `((status . ,status)
-                              (output . ,(buffer-string)))))))
-            (should (file-regular-p output-file))
-            (should (cl-plusp (file-attribute-size
-                               (file-attributes output-file)))))
-        (with-demoted-errors "Error cleaning up directory: %s"
-          (set-file-modes directory #o700)
-          (delete-directory directory :recursive))))))
+    (ert-with-temp-directory directory
+      (let* ((input-file (expand-file-name "test.el" directory))
+             (output-file (expand-file-name "test.elc" directory))
+             (unquoted-file (file-name-unquote output-file))
+             (byte-compile-dest-file-function
+              (lambda (_) output-file))
+             (byte-compile-error-on-warn t))
+        (should-not (file-remote-p input-file))
+        (should-not (file-remote-p output-file))
+        (write-region "" nil input-file nil nil nil 'excl)
+        (write-region "" nil output-file nil nil nil 'excl)
+        (unwind-protect
+            (progn
+              (set-file-modes input-file #o400)
+              (set-file-modes output-file #o200)
+              (set-file-modes directory #o500)
+              (with-temp-buffer
+                (let ((status (call-process
+                               bwrap nil t nil
+                               "--ro-bind" "/" "/"
+                               "--bind" unquoted-file unquoted-file
+                               emacs "--quick" "--batch" "--load=bytecomp"
+                               (format "--eval=%S"
+                                       `(setq byte-compile-dest-file-function
+                                              (lambda (_) ,output-file)
+                                              byte-compile-error-on-warn t))
+                               "--funcall=batch-byte-compile" input-file)))
+                  (unless (eql status 0)
+                    (ert-fail `((status . ,status)
+                                (output . ,(buffer-string)))))))
+              (should (file-regular-p output-file))
+              (should (cl-plusp (file-attribute-size
+                                 (file-attributes output-file)))))
+          ;; Allow the directory to be deleted.
+          (set-file-modes directory #o777))))))
 
 (ert-deftest bytecomp-tests--target-file-no-directory ()
   "Check that Bug#45287 is fixed."
-  (let ((directory (make-temp-file "bytecomp-tests-" :directory)))
-    (unwind-protect
-        (let* ((default-directory directory)
-               (byte-compile-dest-file-function (lambda (_) "test.elc"))
-               (byte-compile-error-on-warn t))
-          (write-region "" nil "test.el" nil nil nil 'excl)
-          (should (byte-compile-file "test.el"))
-          (should (file-regular-p "test.elc"))
-          (should (cl-plusp (file-attribute-size
-                             (file-attributes "test.elc")))))
-      (with-demoted-errors "Error cleaning up directory: %s"
-        (delete-directory directory :recursive)))))
+  (ert-with-temp-directory directory
+    (let* ((default-directory directory)
+           (byte-compile-dest-file-function (lambda (_) "test.elc"))
+           (byte-compile-error-on-warn t))
+      (write-region "" nil "test.el" nil nil nil 'excl)
+      (should (byte-compile-file "test.el"))
+      (should (file-regular-p "test.elc"))
+      (should (cl-plusp (file-attribute-size
+                         (file-attributes "test.elc")))))))
 
 (defun bytecomp-tests--get-vars ()
   (list (ignore-errors (symbol-value 'bytecomp-tests--var1))
@@ -1491,6 +1726,103 @@ REFERENCE SUBSTITUTION-GROUP ALTERNATIVES IS-GROUP)" fill-column))
 EXPECTED-POINT BINDINGS (MODES \\='\\='(ruby-mode js-mode python-mode)) \
 (TEST-IN-COMMENTS t) (TEST-IN-STRINGS t) (TEST-IN-CODE t) \
 (FIXTURE-FN \\='#\\='electric-pair-mode))" fill-column)))
+
+(defun test-bytecomp-defgroup-choice ()
+  (should-not (byte-compile--suspicious-defcustom-choice 'integer))
+  (should-not (byte-compile--suspicious-defcustom-choice
+               '(choice (const :tag "foo" bar))))
+  (should (byte-compile--suspicious-defcustom-choice
+           '(choice (const :tag "foo" 'bar)))))
+
+(ert-deftest bytecomp-function-attributes ()
+  ;; Check that `byte-compile' keeps the declarations, interactive spec and
+  ;; doc string of the function (bug#55830).
+  (let ((fname 'bytecomp-test-fun))
+    (fset fname nil)
+    (put fname 'pure nil)
+    (put fname 'lisp-indent-function nil)
+    (eval `(defun ,fname (x)
+             "tata"
+             (declare (pure t) (indent 1))
+             (interactive "P")
+             (list 'toto x))
+          t)
+    (let ((bc (byte-compile fname)))
+      (should (byte-code-function-p bc))
+      (should (equal (funcall bc 'titi) '(toto titi)))
+      (should (equal (aref bc 5) "P"))
+      (should (equal (get fname 'pure) t))
+      (should (equal (get fname 'lisp-indent-function) 1))
+      (should (equal (aref bc 4) "tata\n\n(fn X)")))))
+
+(ert-deftest bytecomp-fun-attr-warn ()
+  ;; Check that warnings are emitted when doc strings, `declare' and
+  ;; `interactive' forms don't come in the proper order, or more than once.
+  (let* ((filename "fun-attr-warn.el")
+         (el (ert-resource-file filename))
+         (elc (concat el "c"))
+         (text-quoting-style 'grave))
+    (with-current-buffer (get-buffer-create "*Compile-Log*")
+      (let ((inhibit-read-only t))
+        (erase-buffer))
+      (byte-compile-file el)
+      (let ((expected
+             '("70:4: Warning: `declare' after `interactive'"
+               "74:4: Warning: Doc string after `interactive'"
+               "79:4: Warning: Doc string after `interactive'"
+               "84:4: Warning: Doc string after `declare'"
+               "89:4: Warning: Doc string after `declare'"
+               "96:4: Warning: `declare' after `interactive'"
+               "102:4: Warning: `declare' after `interactive'"
+               "108:4: Warning: `declare' after `interactive'"
+               "106:4: Warning: Doc string after `interactive'"
+               "114:4: Warning: `declare' after `interactive'"
+               "112:4: Warning: Doc string after `interactive'"
+               "118:4: Warning: Doc string after `interactive'"
+               "119:4: Warning: `declare' after `interactive'"
+               "124:4: Warning: Doc string after `interactive'"
+               "125:4: Warning: `declare' after `interactive'"
+               "130:4: Warning: Doc string after `declare'"
+               "136:4: Warning: Doc string after `declare'"
+               "142:4: Warning: Doc string after `declare'"
+               "148:4: Warning: Doc string after `declare'"
+               "159:4: Warning: More than one doc string"
+               "165:4: Warning: More than one doc string"
+               "171:4: Warning: More than one doc string"
+               "178:4: Warning: More than one doc string"
+               "186:4: Warning: More than one doc string"
+               "192:4: Warning: More than one doc string"
+               "200:4: Warning: More than one doc string"
+               "206:4: Warning: More than one doc string"
+               "215:4: Warning: More than one `declare' form"
+               "222:4: Warning: More than one `declare' form"
+               "230:4: Warning: More than one `declare' form"
+               "237:4: Warning: More than one `declare' form"
+               "244:4: Warning: More than one `interactive' form"
+               "251:4: Warning: More than one `interactive' form"
+               "258:4: Warning: More than one `interactive' form"
+               "257:4: Warning: `declare' after `interactive'"
+               "265:4: Warning: More than one `interactive' form"
+               "264:4: Warning: `declare' after `interactive'")))
+        (goto-char (point-min))
+        (let ((actual nil))
+          (while (re-search-forward
+                  (rx bol (* (not ":")) ":"
+                      (group (+ digit) ":" (+ digit) ": Warning: "
+                             (or "More than one " (+ nonl) " form"
+                                 (: (+ nonl) " after " (+ nonl))))
+                      eol)
+                  nil t)
+            (push (match-string 1) actual))
+          (setq actual (nreverse actual))
+          (should (equal actual expected)))))))
+
+(ert-deftest byte-compile-file/no-byte-compile ()
+  (let* ((src-file (ert-resource-file "no-byte-compile.el"))
+         (dest-file (make-temp-file "bytecomp-tests-" nil ".elc"))
+         (byte-compile-dest-file-function (lambda (_) dest-file)))
+    (should (eq (byte-compile-file src-file) 'no-byte-compile))
+    (should-not (file-exists-p dest-file))))
 
 
 ;; Local Variables:

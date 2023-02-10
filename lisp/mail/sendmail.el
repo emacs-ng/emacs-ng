@@ -1,6 +1,6 @@
 ;;; sendmail.el --- mail sending commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1992-1996, 1998, 2000-2022 Free Software
+;; Copyright (C) 1985-1986, 1992-1996, 1998, 2000-2023 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -49,7 +49,9 @@
        ((file-exists-p "/usr/lib/sendmail") "/usr/lib/sendmail")
        ((file-exists-p "/usr/ucblib/sendmail") "/usr/ucblib/sendmail")
        (t "sendmail")))
-  "Program used to send messages."
+  "Program used to send messages.
+If the program returns a non-zero error code, or outputs any
+text, sending is considered \"failed\" by Emacs."
   :version "24.1"		; add executable-find, remove fakemail
   :type 'file)
 
@@ -372,8 +374,8 @@ and should insert whatever you want to insert."
   :type '(choice (const :tag "None" nil)
 		 (const :tag "Use `.signature' file" t)
 		 (string :tag "String to insert")
-		 (sexp :tag "Expression to evaluate")))
-(put 'mail-signature 'risky-local-variable t)
+                 (sexp :tag "Expression to evaluate"))
+  :risky t)
 
 ;;;###autoload
 (defcustom mail-signature-file (purecopy "~/.signature")
@@ -429,20 +431,6 @@ support Delivery Status Notification."
 			(const :tag "Delay" delay)
 			(const :tag "Success" success)))
   :version "22.1")
-
-;; Note: could use /usr/ucb/mail instead of sendmail;
-;; options -t, and -v if not interactive.
-(defvar mail-mailer-swallows-blank-line nil
-  "Set this non-nil if the system's mailer runs the header and body together.
-The actual value should be an expression to evaluate that returns
-non-nil if the problem will actually occur.
-\(As far as we know, this is not an issue on any system still supported
-by Emacs.)")
-
-(put 'mail-mailer-swallows-blank-line 'risky-local-variable t) ; gets evalled
-(make-obsolete-variable 'mail-mailer-swallows-blank-line
-			"no need to set this on any modern system."
-                        "24.1" 'set)
 
 (defvar mail-mode-syntax-table
   ;; define-derived-mode will make it inherit from text-mode-syntax-table.
@@ -551,7 +539,7 @@ This also saves the value of `send-mail-function' via Customize."
   (when mail-personal-alias-file
     (let ((modtime (file-attribute-modification-time
 		    (file-attributes mail-personal-alias-file))))
-      (or (equal mail-alias-modtime modtime)
+      (or (time-equal-p mail-alias-modtime modtime)
 	  (setq mail-alias-modtime modtime
 		mail-aliases t)))))
 
@@ -562,10 +550,10 @@ This also saves the value of `send-mail-function' via Customize."
   #'mail-send-and-exit)
 
 ;;;###autoload
-(defun sendmail-user-agent-compose (&optional to subject other-headers
-				    continue switch-function yank-action
-				    send-actions return-action
-				    &rest ignored)
+(defun sendmail-user-agent-compose ( &optional to subject other-headers
+                                     continue switch-function yank-action
+                                     send-actions return-action
+                                     &rest _ignored )
   (if switch-function
       (funcall switch-function "*mail*"))
   (let ((cc (cdr (assoc-string "cc" other-headers t)))
@@ -834,6 +822,7 @@ If within the headers, this makes the new lines into continuation lines."
 
 ;; User-level commands for sending.
 
+;;;###autoload
 (defun mail-send-and-exit (&optional arg)
   "Send message like `mail-send', then, if no errors, exit from mail buffer.
 Prefix arg means don't delete this window."
@@ -877,7 +866,7 @@ The variable is used to trigger insertion of the \"Mail-Followup-To\"
 header when sending a message to a mailing list."
   :type '(repeat string))
 
-(declare-function mml-to-mime "mml" ())
+(declare-function mm-long-lines-p "mm-bodies" (length))
 
 (defun mail-send ()
   "Send the message in the current buffer.
@@ -955,7 +944,11 @@ the user from the mailer."
 	      (error "Invalid header line (maybe a continuation line lacks initial whitespace)"))
 	    (forward-line 1)))
 	(goto-char opoint)
-	(when mail-encode-mml
+        (require 'mml)
+	(when (or mail-encode-mml
+                  ;; When we have long lines, we have to MIME encode
+                  ;; to get line folding.
+                  (mm-long-lines-p 1000))
 	  (mml-to-mime)
 	  (setq mail-encode-mml nil))
 	(run-hooks 'mail-send-hook)
@@ -1300,13 +1293,11 @@ external program defined by `sendmail-program'."
 		   ;; should override any specified in the message itself.
 		     (when where-content-type
 		       (goto-char where-content-type)
-		       (delete-region (point-at-bol)
+                       (delete-region (line-beginning-position)
 				      (progn (forward-line 1) (point)))))))
 	    ;; Insert an extra newline if we need it to work around
 	    ;; Sun's bug that swallows newlines.
 	    (goto-char (1+ delimline))
-	    (if (eval mail-mailer-swallows-blank-line)
-		(newline))
 	    ;; Find and handle any Fcc fields.
 	    (goto-char (point-min))
 	    (if (re-search-forward "^Fcc:" delimline t)
@@ -1391,8 +1382,7 @@ just append to the file, in Babyl format if necessary."
   (unless (markerp header-end)
     (error "Value of `header-end' must be a marker"))
   (let (fcc-list
-	(mailbuf (current-buffer))
-	(time (current-time)))
+	(mailbuf (current-buffer)))
     (save-excursion
       (goto-char (point-min))
       (let ((case-fold-search t))
@@ -1408,14 +1398,11 @@ just append to the file, in Babyl format if necessary."
       (with-temp-buffer
 	;; This initial newline is not written out if we create a new
 	;; file (see below).
-	(insert "\nFrom " (user-login-name) " " (current-time-string time) "\n")
-	;; Insert the time zone before the year.
-	(forward-char -1)
-	(forward-word-strictly -1)
 	(require 'mail-utils)
-	(insert (mail-rfc822-time-zone time) " ")
-	(goto-char (point-max))
-	(insert "Date: " (message-make-date) "\n")
+	(insert "\nFrom " (user-login-name) " "
+		(let ((system-time-locale "C"))
+		  (format-time-string "%a %b %e %T %z %Y"))
+		"\nDate: " (message-make-date) "\n")
 	(insert-buffer-substring mailbuf)
 	;; Make sure messages are separated.
 	(goto-char (point-max))
@@ -1495,28 +1482,6 @@ just append to the file, in Babyl format if necessary."
 		 (with-current-buffer buffer
 		   (set-visited-file-modtime)))))))))
 
-(defun mail-sent-via ()
-  "Make a Sent-via header line from each To or Cc header line."
-  (declare (obsolete "nobody can remember what it is for." "24.1"))
-  (interactive)
-  (save-excursion
-    ;; put a marker at the end of the header
-    (let ((end (copy-marker (mail-header-end)))
-	  (case-fold-search t))
-      (goto-char (point-min))
-      ;; search for the To: lines and make Sent-via: lines from them
-      ;; search for the next To: line
-      (while (re-search-forward "^\\(to\\|cc\\):" end t)
-	;; Grab this line plus all its continuations, sans the `to:'.
-	(let ((to-line
-	       (buffer-substring (point)
-				 (progn
-				   (if (re-search-forward "^[^ \t\n]" end t)
-				       (backward-char 1)
-				     (goto-char end))
-				   (point)))))
-	  ;; Insert a copy, with altered header field name.
-	  (insert-before-markers "Sent-via:" to-line))))))
 
 (defun mail-to ()
   "Move point to end of To field, creating it if necessary."
@@ -1838,8 +1803,6 @@ If the current line has `mail-yank-prefix', insert it on the new line."
       (insert-file-contents file)
       (or (bolp) (newline))
       (goto-char start))))
-
-(define-obsolete-function-alias 'mail-attach-file #'mail-insert-file "24.1")
 
 (declare-function mml-attach-file "mml"
 		  (file &optional type description disposition))

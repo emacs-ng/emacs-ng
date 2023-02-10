@@ -1,6 +1,6 @@
 ;;; org-num.el --- Dynamic Headlines Numbering  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2018-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2023 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <mail@nicolasgoaziou.fr>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -60,6 +60,9 @@
 
 
 ;;; Code:
+
+(require 'org-macs)
+(org-assert-version)
 
 (require 'cl-lib)
 (require 'org-macs)
@@ -458,6 +461,7 @@ NUMBERING is a list of numbers."
    (org-num-mode
     (unless (derived-mode-p 'org-mode)
       (user-error "Cannot activate headline numbering outside Org mode"))
+    (org-num--clear)
     (setq org-num--numbering nil)
     (setq org-num--overlays (nreverse (org-num--number-region nil nil)))
     (add-hook 'after-change-functions #'org-num--verify nil t)

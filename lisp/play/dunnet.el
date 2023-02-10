@@ -1,6 +1,6 @@
 ;;; dunnet.el --- text adventure for Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-1993, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1993, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Ron Schnell <ronnie@driver-aces.com>
 ;; Created: 25 Jul 1992
@@ -898,7 +898,7 @@ Regular objects have whole numbers lower than 255.
 Objects that cannot be taken but might move and are
 described during room description are negative.
 Stuff that is described and might change are 255, and are
-handled specially by 'dun-describe-room.")
+handled specially by `dun-describe-room'.")
 
 (defconst dun-room-silents (list nil
         (list obj-tree obj-coconut)            ;; dead-end
@@ -2324,7 +2324,7 @@ Also prints current score to let user know he has scored."
 ;;;;
 
 (define-key dun-mode-map "\r" 'dun-parse)
-(defvar dungeon-batch-map (make-keymap))
+(defvar-keymap dungeon-batch-map :full t)
 (let (n)
   (setq n 32)
   (while (< 0 (setq n (- n 1)))

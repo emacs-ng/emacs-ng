@@ -1,6 +1,6 @@
 ;;; lisp-mnt.el --- utility functions for Emacs Lisp maintainers  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992, 1994, 1997, 2000-2022 Free Software Foundation,
+;; Copyright (C) 1992, 1994, 1997, 2000-2023 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Eric S. Raymond <esr@snark.thyrsus.com>
@@ -110,8 +110,6 @@
 ;; an expanded formfeed or the results of truncation.
 
 ;;; Code:
-
-(require 'mail-parse)
 
 ;;; Variables:
 
@@ -361,6 +359,8 @@ Return argument is of the form (\"HOLDER\" \"YEAR1\" ... \"YEARN\")"
 (defun lm-crack-address (x)
   "Split up email address(es) X into full name and real email address.
 The value is a list of elements of the form (FULLNAME . ADDRESS)."
+  (require 'mail-parse)
+  (declare-function mail-header-parse-addresses-lax "mail-parse" (string))
   (mapcar (lambda (elem)
             (cons (cdr elem) (car elem)))
           (mail-header-parse-addresses-lax x)))
@@ -505,7 +505,7 @@ absent, return nil."
     (if (and page (string-match (rx bol "<" (+ nonl) ">" eol) page))
         (substring page 1 -1)
       page)))
-(defalias 'lm-homepage 'lm-website) ; for backwards-compatibility
+(defalias 'lm-homepage #'lm-website) ; for backwards-compatibility
 
 ;;; Verification and synopses
 

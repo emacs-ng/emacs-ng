@@ -1,6 +1,6 @@
 ;;; vc-bzr.el --- VC backend for the bzr revision control system  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2006-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2023 Free Software Foundation, Inc.
 
 ;; Author: Dave Love <fx@gnu.org>
 ;; 	   Riccardo Murri <riccardo.murri@gmail.com>
@@ -64,9 +64,13 @@
   :version "22.2"
   :group 'vc)
 
-(defcustom vc-bzr-program "bzr"
+(defcustom vc-bzr-program
+  (or (executable-find "bzr")
+      (executable-find "brz")
+      "bzr")
   "Name of the bzr command (excluding any arguments)."
-  :type 'string)
+  :type 'string
+  :version "29.1")
 
 (defcustom vc-bzr-diff-switches nil
   "String or list of strings specifying switches for bzr diff under VC.
@@ -335,7 +339,7 @@ in the repository root directory of FILE."
   "Value of `compilation-error-regexp-alist' in *vc-bzr* buffers.")
 
 ;; To be called via vc-pull from vc.el, which requires vc-dispatcher.
-(declare-function vc-exec-after "vc-dispatcher" (code))
+(declare-function vc-exec-after "vc-dispatcher" (code &optional success))
 (declare-function vc-set-async-update "vc-dispatcher" (process-buffer))
 (declare-function vc-compilation-mode "vc-dispatcher" (backend))
 
@@ -377,7 +381,9 @@ If PROMPT is non-nil, prompt for the Bzr command to run."
           (setq-local compile-command
                       (concat vc-bzr-program " " command " "
                               (if args (mapconcat #'identity args " ") "")))))
-      (vc-set-async-update buf))))
+      (vc-set-async-update buf)
+      ;; Return the process for `vc-pull-and-push'
+      (get-buffer-process buf))))
 
 (defun vc-bzr-pull (prompt)
   "Pull changes into the current Bzr branch.
@@ -527,6 +533,12 @@ in the branch repository (or whose status not be determined)."
     (smerge-start-session)
     (add-hook 'after-save-hook #'vc-bzr-resolve-when-done nil t)
     (vc-message-unresolved-conflicts buffer-file-name)))
+
+(defun vc-bzr-clone (remote directory rev)
+  (if rev
+      (vc-bzr-command nil 0 '() "branch" "-r" rev remote directory)
+    (vc-bzr-command nil 0 '() "branch" remote directory))
+  directory)
 
 (defun vc-bzr-version-dirstate (dir)
   "Try to return as a string the bzr revision ID of directory DIR.
@@ -1004,19 +1016,17 @@ stream.  Standard error output is discarded."
                             ;; frob the results accordingly.
                             (file-relative-name dir (vc-bzr-root dir)))))
 
-(defvar vc-bzr-shelve-map
-  (let ((map (make-sparse-keymap)))
-    ;; Turn off vc-dir marking
-    (define-key map [mouse-2] #'ignore)
+(defvar-keymap vc-bzr-shelve-map
+  ;; Turn off vc-dir marking
+  "<mouse-2>"      #'ignore
 
-    (define-key map [down-mouse-3] #'vc-bzr-shelve-menu)
-    (define-key map "\C-k" #'vc-bzr-shelve-delete-at-point)
-    (define-key map "=" #'vc-bzr-shelve-show-at-point)
-    (define-key map "\C-m" #'vc-bzr-shelve-show-at-point)
-    (define-key map "A" #'vc-bzr-shelve-apply-and-keep-at-point)
-    (define-key map "P" #'vc-bzr-shelve-apply-at-point)
-    (define-key map "S" #'vc-bzr-shelve-snapshot)
-    map))
+  "<down-mouse-3>" #'vc-bzr-shelve-menu
+  "C-k"            #'vc-bzr-shelve-delete-at-point
+  "="              #'vc-bzr-shelve-show-at-point
+  "RET"            #'vc-bzr-shelve-show-at-point
+  "A"              #'vc-bzr-shelve-apply-and-keep-at-point
+  "P"              #'vc-bzr-shelve-apply-at-point
+  "S"              #'vc-bzr-shelve-snapshot)
 
 (defvar vc-bzr-shelve-menu-map
   (let ((map (make-sparse-keymap "Bzr Shelve")))
@@ -1321,6 +1331,20 @@ stream.  Standard error output is discarded."
       (if (re-search-forward "parent branch: \\(.*\\)$" nil t)
           (match-string 1)
         (error "Cannot determine Bzr repository URL")))))
+
+(defun vc-bzr-prepare-patch (rev)
+  (with-current-buffer (generate-new-buffer " *vc-bzr-prepare-patch*")
+    (vc-bzr-command
+     "send" t 0 '()
+     "--revision" (concat (vc-bzr-previous-revision nil rev) ".." rev)
+     "--output" "-")
+    (let (subject)
+      ;; Extract the subject line
+      (goto-char (point-min))
+      (search-forward-regexp "^[^#].*")
+      (setq subject (match-string 0))
+      ;; Return the extracted data
+      (list :subject subject :buffer (current-buffer)))))
 
 (provide 'vc-bzr)
 

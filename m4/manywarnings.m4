@@ -1,5 +1,5 @@
 # manywarnings.m4 serial 23
-dnl Copyright (C) 2008-2022 Free Software Foundation, Inc.
+dnl Copyright (C) 2008-2023 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
 dnl with or without modifications, as long as this notice is preserved.
@@ -167,11 +167,13 @@ AC_DEFUN([gl_MANYWARN_ALL_GCC(C)],
   # them here so that the above 'comm' command doesn't report a false match.
   gl_AS_VAR_APPEND([$1], [' -Warray-bounds=2'])
   gl_AS_VAR_APPEND([$1], [' -Wattribute-alias=2'])
+  gl_AS_VAR_APPEND([$1], [' -Wbidi-chars=any,ucn'])
   gl_AS_VAR_APPEND([$1], [' -Wformat-overflow=2'])
   gl_AS_VAR_APPEND([$1], [' -Wformat=2'])
   gl_AS_VAR_APPEND([$1], [' -Wformat-truncation=2'])
   gl_AS_VAR_APPEND([$1], [' -Wimplicit-fallthrough=5'])
   gl_AS_VAR_APPEND([$1], [' -Wshift-overflow=2'])
+  gl_AS_VAR_APPEND([$1], [' -Wuse-after-free=3'])
   gl_AS_VAR_APPEND([$1], [' -Wunused-const-variable=2'])
   gl_AS_VAR_APPEND([$1], [' -Wvla-larger-than=4031'])
 

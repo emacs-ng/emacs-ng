@@ -1,6 +1,6 @@
 /* A more-standard <time.h>.
 
-   Copyright (C) 2007-2022 Free Software Foundation, Inc.
+   Copyright (C) 2007-2023 Free Software Foundation, Inc.
 
    This file is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as
@@ -112,12 +112,35 @@ struct __time_t_must_be_integral {
 /* Set *TS to the current time, and return BASE.
    Upon failure, return 0.  */
 # if @GNULIB_TIMESPEC_GET@
-#  if ! @HAVE_TIMESPEC_GET@
+#  if @REPLACE_TIMESPEC_GET@
+#   if !(defined __cplusplus && defined GNULIB_NAMESPACE)
+#    undef timespec_get
+#    define timespec_get rpl_timespec_get
+#   endif
+_GL_FUNCDECL_RPL (timespec_get, int, (struct timespec *ts, int base)
+                                     _GL_ARG_NONNULL ((1)));
+_GL_CXXALIAS_RPL (timespec_get, int, (struct timespec *ts, int base));
+#  else
+#   if !@HAVE_TIMESPEC_GET@
 _GL_FUNCDECL_SYS (timespec_get, int, (struct timespec *ts, int base)
                                      _GL_ARG_NONNULL ((1)));
-#  endif
+#   endif
 _GL_CXXALIAS_SYS (timespec_get, int, (struct timespec *ts, int base));
+#  endif
+#  if __GLIBC__ >= 2
 _GL_CXXALIASWARN (timespec_get);
+#  endif
+# endif
+
+/* Set *TS to the current time resolution, and return BASE.
+   Upon failure, return 0.  */
+# if @GNULIB_TIMESPEC_GETRES@
+#  if ! @HAVE_TIMESPEC_GETRES@
+_GL_FUNCDECL_SYS (timespec_getres, int, (struct timespec *ts, int base)
+                                        _GL_ARG_NONNULL ((1)));
+#  endif
+_GL_CXXALIAS_SYS (timespec_getres, int, (struct timespec *ts, int base));
+_GL_CXXALIASWARN (timespec_getres);
 # endif
 
 /* Sleep for at least RQTP seconds unless interrupted,  If interrupted,
@@ -304,6 +327,7 @@ _GL_CXXALIASWARN (strptime);
 #   if !(defined __cplusplus && defined GNULIB_NAMESPACE)
 #    define ctime rpl_ctime
 #   endif
+_GL_ATTRIBUTE_DEPRECATED
 _GL_FUNCDECL_RPL (ctime, char *, (time_t const *__tp)
                                  _GL_ARG_NONNULL ((1)));
 _GL_CXXALIAS_RPL (ctime, char *, (time_t const *__tp));
@@ -411,7 +435,9 @@ _GL_FUNCDECL_SYS (timegm, time_t, (struct tm *__tm) _GL_ARG_NONNULL ((1)));
 #   endif
 _GL_CXXALIAS_SYS (timegm, time_t, (struct tm *__tm));
 #  endif
+#  if __GLIBC__ >= 2
 _GL_CXXALIASWARN (timegm);
+#  endif
 # endif
 
 /* Encourage applications to avoid unsafe functions that can overrun
@@ -424,8 +450,10 @@ _GL_WARN_ON_USE (asctime, "asctime can overrun buffers in some cases - "
 # endif
 # if defined GNULIB_POSIXCHECK
 #  undef asctime_r
+#  if HAVE_RAW_DECL_ASCTIME_R
 _GL_WARN_ON_USE (asctime_r, "asctime_r can overrun buffers in some cases - "
                  "better use strftime (or even sprintf) instead");
+#  endif
 # endif
 # if defined GNULIB_POSIXCHECK
 #  undef ctime
@@ -434,8 +462,10 @@ _GL_WARN_ON_USE (ctime, "ctime can overrun buffers in some cases - "
 # endif
 # if defined GNULIB_POSIXCHECK
 #  undef ctime_r
+#  if HAVE_RAW_DECL_CTIME_R
 _GL_WARN_ON_USE (ctime_r, "ctime_r can overrun buffers in some cases - "
                  "better use strftime (or even sprintf) instead");
+#  endif
 # endif
 
 #endif

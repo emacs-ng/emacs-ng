@@ -1,6 +1,6 @@
 ;;; manoj-dark-theme.el --- A dark theme from Manoj  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2011-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2023 Free Software Foundation, Inc.
 
 ;; Author: Manoj Srivastava <srivasta@ieee.org>
 ;; Keywords: lisp, faces
@@ -64,10 +64,13 @@
 
 ;;; Code:
 
+;;;###theme-autoload
 (deftheme manoj-dark
   "Very high contrast faces with a black background.
 This theme avoids subtle color variations, while avoiding the
-jarring angry fruit salad look to reduce eye fatigue.")
+jarring angry fruit salad look to reduce eye fatigue."
+  :background-mode 'dark
+  :kind 'color-scheme)
 
 (custom-theme-set-faces
  'manoj-dark
@@ -220,6 +223,9 @@ jarring angry fruit salad look to reduce eye fatigue.")
  '(gnus-group-news-low-face ((t (:bold t :foreground "DarkTurquoise" :weight bold))))
  '(gnus-group-news-low-empty ((t (:foreground "DarkTurquoise"))))
  '(gnus-group-news-low-empty-face ((t (:foreground "DarkTurquoise"))))
+
+ ;; '(image-dired-thumb-flagged ((t (:background "red"))))
+ ;; '(image-dired-thumb-mark ((t (:background "Pink"))))
 
  ;;message faces
  '(message-cited-text ((t (:foreground "red3"))))
@@ -377,7 +383,7 @@ jarring angry fruit salad look to reduce eye fatigue.")
                           :foreground "black" :background "grey"
                           :weight bold ))))
  '(calendar-today-face ((t (:underline t :bold t :foreground "cornsilk"))))
- '(change-log-acknowledgement-face ((t (:italic t :slant oblique :foreground "AntiqueWhite3"))))
+ '(change-log-acknowledgment ((t (:italic t :slant oblique :foreground "AntiqueWhite3"))))
  '(change-log-conditionals-face ((t (:foreground "Aquamarine"))))
  '(change-log-date-face ((t (:italic t :slant oblique :foreground "BurlyWood"))))
  '(change-log-email-face ((t (:foreground "Aquamarine"))))
@@ -397,7 +403,7 @@ jarring angry fruit salad look to reduce eye fatigue.")
  '(compilation-warning-face ((t (:bold t :foreground "Orange" :weight bold))))
  '(completions-common-part ((t (:width normal :weight normal
                                 :slant normal :foreground "WhiteSmoke"
-				:background "black" :height 81))))
+				:background "black" :height 0.9))))
  '(completions-first-difference ((t (:bold t :weight bold))))
 
  '(css-selector ((t (:foreground "LightSteelBlue"))))
@@ -538,7 +544,6 @@ jarring angry fruit salad look to reduce eye fatigue.")
  '(ido-indicator ((t (:background "red1" :foreground "yellow1" :width condensed))))
  '(ido-only-match ((t (:foreground "ForestGreen"))))
  '(ido-subdir ((t (:foreground "red1"))))
- '(info-menu-5 ((t (:underline t))))
  '(info-menu-header ((t (:bold t :weight bold))))
  '(info-node ((t (:bold t :italic t :foreground "yellow"))))
  '(info-node ((t (:italic t :bold t :foreground "white" :slant italic :weight bold))))

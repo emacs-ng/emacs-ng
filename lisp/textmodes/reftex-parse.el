@@ -1,6 +1,6 @@
 ;;; reftex-parse.el --- parser functions for RefTeX  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <dominik@science.uva.nl>
 ;; Maintainer: auctex-devel@gnu.org
@@ -345,7 +345,17 @@ of master file."
 
              ;; Find external document specifications
              (goto-char 1)
-             (while (re-search-forward "[\n\r][ \t]*\\\\externaldocument\\(\\[\\([^]]*\\)\\]\\)?{\\([^}]+\\)}" nil t)
+             (while (re-search-forward
+                     (concat "[\n\r][ \t]*"
+                             ;; Support \externalcitedocument macro
+                             "\\\\external\\(?:cite\\)?document"
+                             ;; The optional prefix
+                             "\\(\\[\\([^]]*\\)\\]\\)?"
+                             ;; The 2nd opt. arg can only be nocite
+                             "\\(?:\\[nocite\\]\\)?"
+                             ;; Mandatory file argument
+                             "{\\([^}]+\\)}")
+                     nil t)
                (push (list 'xr-doc (reftex-match-string 2)
                            (reftex-match-string 3))
                      docstruct))
@@ -360,13 +370,18 @@ of master file."
     docstruct))
 
 (defun reftex-using-biblatex-p ()
-  "Return non-nil if we are using biblatex rather than bibtex."
+  "Return non-nil if we are using biblatex or other specific cite package.
+biblatex and other similar packages like multibib allow multiple macro
+calls to load a bibliography file.  This function should be able to
+detect those packages."
   (if (boundp 'TeX-active-styles)
       ;; the sophisticated AUCTeX way
-      (member "biblatex" TeX-active-styles)
+      (or (member "biblatex" TeX-active-styles)
+          (member "multibib" TeX-active-styles))
     ;; poor-man's check...
     (save-excursion
-      (re-search-forward "^[^%\n]*?\\\\usepackage.*{biblatex}" nil t))))
+      (re-search-forward
+       "^[^%\n]*?\\\\usepackage\\(\\[[^]]*\\]\\)?{biblatex\\|multibib}" nil t))))
 
 ;;;###autoload
 (defun reftex-locate-bibliography-files (master-dir &optional files)
@@ -374,7 +389,7 @@ of master file."
   (unless files
     (save-excursion
       (goto-char (point-min))
-      ;; when biblatex is used, multiple \bibliography or
+      ;; when biblatex or multibib are used, multiple \bibliography or
       ;; \addbibresource macros are allowed.  With plain bibtex, only
       ;; the first is used.
       (let ((using-biblatex (reftex-using-biblatex-p))
@@ -382,7 +397,7 @@ of master file."
 	(while (and again
 		    (re-search-forward
 		     (concat
-		      ;;           "\\(\\`\\|[\n\r]\\)[^%]*\\\\\\("
+		      ;; "\\(\\`\\|[\n\r]\\)[^%]*\\\\\\("
 		      "\\(^\\)[^%\n\r]*\\\\\\("
 		      (mapconcat #'identity reftex-bibliography-commands "\\|")
 		      "\\)\\(\\[.+?\\]\\)?{[ \t]*\\([^}]+\\)")
@@ -405,7 +420,7 @@ of master file."
                ;; find the file
                (reftex-locate-file x "bib" master-dir)))
            files))
-    (delq nil files)))
+    (delq nil (delete-dups files))))
 
 (defun reftex-replace-label-list-segment (old insert &optional entirely)
   "Replace the segment in OLD which corresponds to INSERT.

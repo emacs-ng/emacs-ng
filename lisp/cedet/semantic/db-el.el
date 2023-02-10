@@ -1,6 +1,6 @@
 ;;; semantic/db-el.el --- Semantic database extensions for Emacs Lisp  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: tags
@@ -213,9 +213,7 @@ TOKTYPE is a hint to the type of tag desired."
 	      (symbol-name sym)
 	      nil	;; return type
 	      (semantic-elisp-desymbolify arglist)
-	      :user-visible-flag (condition-case nil
-				     (interactive-form sym)
-				   (error nil)))))
+	      :user-visible-flag (commandp sym))))
 	  ((and (eq toktype 'variable) (boundp sym))
 	   (semantic-tag-new-variable
 	    (symbol-name sym)
@@ -343,9 +341,6 @@ Return a list of tags."
 				     (cl-generic-all-functions class)))))
 	     )
 	taglst))))
-
-(define-obsolete-function-alias 'semanticdb-elisp-sym-function-arglist
-  #'help-function-arglist "24.3")
 
 (provide 'semantic/db-el)
 

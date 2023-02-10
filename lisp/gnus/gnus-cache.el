@@ -1,6 +1,6 @@
 ;;; gnus-cache.el --- cache interface for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -137,7 +137,7 @@ it's not cached."
 	      ;; If possible, remove group's cache subdirectory.
 	      (condition-case nil
 		  ;; FIXME: we can detect the error type and warn the user
-		  ;; of any inconsistencies (articles w/o nov entries?).
+		  ;; of any inconsistencies (articles without nov entries?).
 		  ;; for now, just be conservative...delete only if safe -- sj
 		  (delete-directory (file-name-directory overview-file))
 		(error))))
@@ -552,7 +552,7 @@ Returns the list of articles removed."
       (set-buffer cache-buf)
       (if (search-forward (concat "\n" (int-to-string (car cached)) "\t")
 			  nil t)
-	  (setq beg (point-at-bol)
+          (setq beg (line-beginning-position)
 		end (progn (end-of-line) (point)))
 	(setq beg nil))
       (set-buffer nntp-server-buffer)

@@ -1,6 +1,6 @@
 ;;; calc-units.el --- unit conversion functions for Calc  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -317,30 +317,35 @@ If you change this, be sure to set `math-units-table' to nil to ensure
 that the combined units table will be rebuilt.")
 
 (defvar math-unit-prefixes
-  '( ( ?Y  (^ 10 24)  "Yotta"  )
-     ( ?Z  (^ 10 21)  "Zetta"  )
-     ( ?E  (^ 10 18)  "Exa"    )
-     ( ?P  (^ 10 15)  "Peta"   )
-     ( ?T  (^ 10 12)  "Tera"   )
-     ( ?G  (^ 10 9)   "Giga"   )
-     ( ?M  (^ 10 6)   "Mega"   )
-     ( ?k  (^ 10 3)   "Kilo"   )
-     ( ?K  (^ 10 3)   "Kilo"   )
-     ( ?h  (^ 10 2)   "Hecto"  )
-     ( ?H  (^ 10 2)   "Hecto"  )
-     ( ?D  (^ 10 1)   "Deka"   )
+  '( ( ?Q  (^ 10 30)  "quetta"  )
+     ( ?R  (^ 10 27)  "ronna"  )
+     ( ?Y  (^ 10 24)  "yotta"  )
+     ( ?Z  (^ 10 21)  "zetta"  )
+     ( ?E  (^ 10 18)  "exa"    )
+     ( ?P  (^ 10 15)  "peta"   )
+     ( ?T  (^ 10 12)  "tera"   )
+     ( ?G  (^ 10 9)   "giga"   )
+     ( ?M  (^ 10 6)   "mega"   )
+     ( ?k  (^ 10 3)   "kilo"   )
+     ( ?K  (^ 10 3)   "kilo"   )
+     ( ?h  (^ 10 2)   "hecto"  )
+     ( ?H  (^ 10 2)   "hecto"  )
+     ( ?D  (^ 10 1)   "deka"   )
      ( 0   (^ 10 0)    nil     )
-     ( ?d  (^ 10 -1)  "Deci"   )
-     ( ?c  (^ 10 -2)  "Centi"  )
-     ( ?m  (^ 10 -3)  "Milli"  )
-     ( ?u  (^ 10 -6)  "Micro"  )
-     ( ?μ  (^ 10 -6)  "Micro"  )
-     ( ?n  (^ 10 -9)  "Nano"   )
-     ( ?p  (^ 10 -12) "Pico"   )
-     ( ?f  (^ 10 -15) "Femto"  )
-     ( ?a  (^ 10 -18) "Atto"   )
+     ( ?d  (^ 10 -1)  "deci"   )
+     ( ?c  (^ 10 -2)  "centi"  )
+     ( ?m  (^ 10 -3)  "milli"  )
+     ( ?u  (^ 10 -6)  "micro"  )
+     ( ?μ  (^ 10 -6)  "micro"  )
+     ( ?n  (^ 10 -9)  "nano"   )
+     ( ?p  (^ 10 -12) "pico"   )
+     ( ?f  (^ 10 -15) "femto"  )
+     ( ?a  (^ 10 -18) "atto"   )
      ( ?z  (^ 10 -21) "zepto"  )
-     ( ?y  (^ 10 -24) "yocto"  )))
+     ( ?y  (^ 10 -24) "yocto"  )
+     ( ?r  (^ 10 -27) "ronto"  )
+     ( ?q  (^ 10 -30) "quecto"  )
+     ))
 
 (defvar math-standard-units-systems
   '( ( base  nil )
@@ -486,18 +491,13 @@ If COMP or STD is non-nil, put that in the units table instead."
      (setq defunits (math-get-default-units expr))
      (unless new-units
        (setq new-units
-             (read-string (concat
+             (read-string (format-prompt
                            (if (and uoldname (not nouold))
                                (concat "Old units: "
                                        uoldname
                                        ", new units")
                              "New units")
-                           (if defunits
-                               (concat
-                                " (default "
-                                defunits
-                                "): ")
-                             ": "))))
+                           defunits)))
        (if (and
             (string= new-units "")
             defunits)
@@ -533,14 +533,7 @@ If COMP or STD is non-nil, put that in the units table instead."
      (let* ((old-units (math-extract-units expr))
             (defunits (math-get-default-units expr))
             units
-            (new-units
-             (read-string (concat "New units"
-                                  (if defunits
-                                     (concat
-                                      " (default "
-                                      defunits
-                                      "): ")
-                                   ": ")))))
+            (new-units (read-string (format-prompt "New units" defunits))))
        (if (and
             (string= new-units "")
             defunits)
@@ -596,19 +589,14 @@ If COMP or STD is non-nil, put that in the units table instead."
 	 (setq expr (math-mul expr uold)))
      (setq defunits (math-get-default-units expr))
      (setq unew (or new-units
-                    (completing-read
-                     (concat
-                      (if uoldname
-                          (concat "Old temperature units: "
-                                  uoldname
-                                  ", new units")
-                        "New temperature units")
-                      (if defunits
-                          (concat " (default "
-                                  defunits
-                                  "): ")
-                        ": "))
-                     tempunits)))
+                    (completing-read (format-prompt
+                                      (if uoldname
+                                          (concat "Old temperature units: "
+                                                  uoldname
+                                                  ", new units")
+                                        "New temperature units")
+                                      defunits)
+                                     tempunits)))
      (setq unew (math-read-expr (if (string= unew "") defunits unew)))
      (when (eq (car-safe unew) 'error)
        (error "Bad format in units expression: %s" (nth 2 unew)))

@@ -1,6 +1,6 @@
 ;;; url-handlers.el --- file-name-handler stuff for URL loading  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1996-1999, 2004-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1996-1999, 2004-2023 Free Software Foundation, Inc.
 
 ;; Keywords: comm, data, processes, hypermedia
 
@@ -302,11 +302,13 @@ accessible."
     filename))
 (put 'file-local-copy 'url-file-handlers #'url-file-local-copy)
 
-(defun url-insert (buffer &optional beg end)
+(defun url-insert (buffer &optional beg end inhibit-decode)
   "Insert the body of a URL object.
 BUFFER should be a complete URL buffer as returned by `url-retrieve'.
 If the headers specify a coding-system (and current buffer is multibyte),
-it is applied to the body before it is inserted.
+it is applied to the body before it is inserted.  If INHIBIT-DECODE is
+non-nil, don't do any coding system decoding even in multibyte buffers.
+
 Returns a list of the form (SIZE CHARSET), where SIZE is the size in bytes
 of the inserted text and CHARSET is the charset that was specified in the
 header, or nil if none was found.
@@ -318,7 +320,8 @@ They count bytes from the beginning of the body."
                      (buffer-substring (+ (point-min) beg)
                                        (if end (+ (point-min) end) (point-max)))
 		   (buffer-string))))
-         (charset (if enable-multibyte-characters
+         (charset (if (and enable-multibyte-characters
+                           (not inhibit-decode))
                       (mail-content-type-get (mm-handle-type handle)
                                              'charset))))
     (mm-destroy-parts handle)
@@ -362,6 +365,16 @@ if it had been inserted from a file named URL."
     (url-insert-buffer-contents buffer url visit beg end replace)))
 (put 'insert-file-contents 'url-file-handlers #'url-insert-file-contents)
 
+;;;###autoload
+(defun url-insert-file-contents-literally (url)
+  "Insert the data retrieved from URL literally in the current buffer."
+  (let ((buffer (url-retrieve-synchronously url)))
+    (unless buffer
+      (signal 'file-error (list url "No Data")))
+    (url-insert buffer nil nil t)
+    (kill-buffer buffer)
+    nil))
+
 (defun url-file-name-completion (url _directory &optional _predicate)
   ;; Even if it's not implemented, it's not an error to ask for completion,
   ;; in case it's available (bug#14806).
@@ -396,7 +409,8 @@ if it had been inserted from a file named URL."
 (url-handlers-create-wrapper file-writable-p (url))
 (url-handlers-create-wrapper file-directory-p (url))
 (url-handlers-create-wrapper file-executable-p (url))
-(url-handlers-create-wrapper directory-files (url &optional full match nosort))
+(url-handlers-create-wrapper
+ directory-files (url &optional full match nosort count))
 (url-handlers-create-wrapper file-truename (url &optional counter prev-dirs))
 
 (add-hook 'find-file-hook #'url-handlers-set-buffer-mode)

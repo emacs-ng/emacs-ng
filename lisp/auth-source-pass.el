@@ -1,6 +1,6 @@
 ;;; auth-source-pass.el --- Integrate auth-source with password-store -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015, 2017-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2015, 2017-2023 Free Software Foundation, Inc.
 
 ;; Author: Damien Cassou <damien@cassou.me>,
 ;;         Nicolas Petton <nicolas@petton.fr>
@@ -55,13 +55,28 @@
   :type 'string
   :version "27.1")
 
+(defcustom auth-source-pass-extra-query-keywords nil
+  "Whether to consider additional keywords when performing a query.
+Specifically, when the value is t, recognize the `:max' and
+`:require' keywords and accept lists of query parameters for
+certain keywords, such as `:host' and `:user'.  Beyond that, wrap
+all returned secrets in a function and don't bother considering
+subdomains when matching hosts.  Also, forgo any further results
+filtering unless given an applicable `:require' argument.  When
+this option is nil, do none of that, and enact the narrowing
+behavior described toward the bottom of the Info node `(auth) The
+Unix password store'."
+  :type 'boolean
+  :version "29.1")
+
 (cl-defun auth-source-pass-search (&rest spec
                                          &key backend type host user port
+                                         require max
                                          &allow-other-keys)
   "Given some search query, return matching credentials.
 
 See `auth-source-search' for details on the parameters SPEC, BACKEND, TYPE,
-HOST, USER and PORT."
+HOST, USER, PORT, REQUIRE, and MAX."
   (cl-assert (or (null type) (eq type (oref backend type)))
              t "Invalid password-store search: %s %s")
   (cond ((eq host t)
@@ -70,6 +85,8 @@ HOST, USER and PORT."
         ((null host)
          ;; Do not build a result, as none will match when HOST is nil
          nil)
+        (auth-source-pass-extra-query-keywords
+         (auth-source-pass--build-result-many host port user require max))
         (t
          (when-let ((result (auth-source-pass--build-result host port user)))
            (list result)))))
@@ -88,6 +105,39 @@ HOSTS can be a string or a list of strings."
         (auth-source-pass--do-debug "return %s as final result (plus hidden password)"
                                     (seq-subseq retval 0 -2)) ;; remove password
         retval))))
+
+(defvar auth-source-pass--match-regexp nil)
+
+(defun auth-source-pass--match-regexp (s)
+  (rx-to-string ; autoloaded
+   `(: (or bot "/")
+       (or (: (? (group-n 20 (+ (not (in ?/ ,s)))) "@")     ; user prefix
+              (group-n 10 (+ (not (in ?/ ?@ ,s))))          ; host
+              (? ,s (group-n 30 (+ (not (in ?\s ?/ ,s)))))) ; port
+           (: (group-n 11 (+ (not (in ?/ ?@ ,s))))          ; host
+              (? ,s (group-n 31 (+ (not (in ?\s ?/ ,s)))))  ; port
+              (? "/" (group-n 21 (+ (not (in ?/ ,s)))))))   ; user suffix
+       eot)
+   'no-group))
+
+(defun auth-source-pass--build-result-many (hosts ports users require max)
+  "Return multiple `auth-source-pass--build-result' values."
+  (unless (listp hosts) (setq hosts (list hosts)))
+  (unless (listp users) (setq users (list users)))
+  (unless (listp ports) (setq ports (list ports)))
+  (let* ((auth-source-pass--match-regexp (auth-source-pass--match-regexp
+                                          auth-source-pass-port-separator))
+         (rv (auth-source-pass--find-match-many hosts users ports
+                                                require (or max 1))))
+    (when auth-source-debug
+      (auth-source-pass--do-debug "final result: %S" rv))
+    (let (out)
+      (dolist (e rv out)
+        (when-let* ((s (plist-get e :secret)) ; not captured by closure in 29.1
+                    (v (auth-source--obfuscate s)))
+          (setf (plist-get e :secret)
+                (lambda () (auth-source--deobfuscate v))))
+        (push e out)))))
 
 ;;;###autoload
 (defun auth-source-pass-enable ()
@@ -206,6 +256,67 @@ HOSTS can be a string or a list of strings."
                 hosts
               (list hosts))))
 
+(defun auth-source-pass--retrieve-parsed (seen path port-number-p)
+  (when (string-match auth-source-pass--match-regexp path)
+    (puthash path
+             `( :host ,(or (match-string 10 path) (match-string 11 path))
+                ,@(if-let* ((tr (match-string 21 path)))
+                      (list :user tr :suffix t)
+                    (list :user (match-string 20 path)))
+                :port ,(and-let* ((p (or (match-string 30 path)
+                                         (match-string 31 path)))
+                                  (n (string-to-number p)))
+                         (if (or (zerop n) (not port-number-p))
+                             (format "%s" p)
+                           n)))
+             seen)))
+
+(defun auth-source-pass--match-parts (parts key value require)
+  (let ((mv (plist-get parts key)))
+    (if (memq key require)
+        (and value (equal mv value))
+      (or (not value) (not mv) (equal mv value)))))
+
+(defun auth-source-pass--find-match-many (hosts users ports require max)
+  "Return plists for valid combinations of HOSTS, USERS, PORTS."
+  (let ((seen (make-hash-table :test #'equal))
+        (entries (auth-source-pass-entries))
+        out suffixed suffixedp)
+    (catch 'done
+      (dolist (host hosts out)
+        (pcase-let ((`(,_ ,u ,p) (auth-source-pass--disambiguate host)))
+          (unless (or (not (equal "443" p)) (string-prefix-p "https://" host))
+            (setq p nil))
+          (dolist (user (or users (list u)))
+            (dolist (port (or ports (list p)))
+              (dolist (e entries)
+                (when-let*
+                    ((m (or (gethash e seen) (auth-source-pass--retrieve-parsed
+                                              seen e (integerp port))))
+                     ((equal host (plist-get m :host)))
+                     ((auth-source-pass--match-parts m :port port require))
+                     ((auth-source-pass--match-parts m :user user require))
+                     (parsed (auth-source-pass-parse-entry e))
+                     ;; For now, ignore body-content pairs, if any,
+                     ;; from `auth-source-pass--parse-data'.
+                     (secret (or (auth-source-pass--get-attr 'secret parsed)
+                                 (not (memq :secret require)))))
+                  (push
+                   `( :host ,host ; prefer user-provided :host over h
+                      ,@(and-let* ((u (plist-get m :user))) (list :user u))
+                      ,@(and-let* ((p (plist-get m :port))) (list :port p))
+                      ,@(and secret (not (eq secret t)) (list :secret secret)))
+                   (if (setq suffixedp (plist-get m :suffix)) suffixed out))
+                  (unless suffixedp
+                    (when (or (zerop (cl-decf max))
+                              (null (setq entries (delete e entries))))
+                      (throw 'done out)))))
+              (setq suffixed (nreverse suffixed))
+              (while suffixed
+                (push (pop suffixed) out)
+                (when (zerop (cl-decf max))
+                  (throw 'done out))))))))))
+
 (defun auth-source-pass--disambiguate (host &optional user port)
   "Return (HOST USER PORT) after disambiguation.
 Disambiguate between having user provided inside HOST (e.g.,
@@ -318,6 +429,16 @@ then NAME & USER, then NAME & PORT, then just NAME."
        (format "%s%s%s" name auth-source-pass-port-separator port)))
     (list
      (format "%s" name)))))
+
+(defun auth-source-pass-file-name-p (file)
+  "Say whether FILE is used by `auth-source-pass'."
+  (and (stringp file) (stringp auth-source-pass-filename)
+       (string-equal
+        (expand-file-name file) (expand-file-name auth-source-pass-filename))))
+
+(with-eval-after-load 'bookmark
+  (add-hook 'bookmark-inhibit-context-functions
+	    #'auth-source-pass-file-name-p))
 
 (provide 'auth-source-pass)
 ;;; auth-source-pass.el ends here

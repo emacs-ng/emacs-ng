@@ -1,6 +1,6 @@
 ;;; plstore.el --- secure plist store -*- lexical-binding: t -*-
 
-;; Copyright (C) 2011-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2023 Free Software Foundation, Inc.
 
 ;; Author: Daiki Ueno <ueno@gnu.org>
 ;; Keywords: PGP, GnuPG
@@ -107,6 +107,7 @@ symmetric encryption will be used."
   :type '(choice (const nil) (repeat :tag "Recipient(s)" string))
   :group 'plstore)
 
+;;;###autoload
 (put 'plstore-encrypt-to 'safe-local-variable
      (lambda (val)
        (or (stringp val)

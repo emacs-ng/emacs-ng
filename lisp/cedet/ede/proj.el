@@ -1,6 +1,6 @@
 ;;; ede/proj.el --- EDE Generic Project file driver  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2003, 2007-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2003, 2007-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: project, make
@@ -43,7 +43,7 @@
 (autoload 'ede-proj-target-scheme "ede/proj-scheme"
   "Target class for a group of lisp files." nil nil)
 (autoload 'ede-proj-target-makefile-miscelaneous "ede/proj-misc"
-  "Target class for a group of miscellaneous w/ a special makefile." nil nil)
+  "Target class for a group of miscellaneous with a special makefile." nil nil)
 (autoload 'ede-proj-target-makefile-program "ede/proj-prog"
   "Target class for building a program." nil nil)
 (autoload 'ede-proj-target-makefile-archive "ede/proj-archive"
@@ -67,7 +67,7 @@
   "Target class for a group of lisp files.")
 (eieio-defclass-autoload 'ede-proj-target-makefile-miscelaneous '(ede-proj-target-makefile)
   "ede/proj-misc"
-  "Target class for a group of miscellaneous w/ a special makefile.")
+  "Target class for a group of miscellaneous with a special makefile.")
 (eieio-defclass-autoload 'ede-proj-target-makefile-program '(ede-proj-target-makefile-objectcode)
   "ede/proj-prog"
   "Target class for building a program.")
@@ -543,7 +543,7 @@ Converts all symbols into the objects to be used."
   (when (slot-exists-p obj 'compiler)
     (let ((comp (oref obj compiler)))
       (if comp
-	  ;; Now that we have a pre-set compilers to use, convert tye symbols
+          ;; Now that we have a pre-set compilers to use, convert type symbols
 	  ;; into objects for ease of use
 	  (setq comp (if (listp comp)
 	                 (mapcar #'symbol-value comp)

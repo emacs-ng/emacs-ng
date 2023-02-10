@@ -1,5 +1,5 @@
 /* Call a Lisp function interactively.
-   Copyright (C) 1985-1986, 1993-1995, 1997, 2000-2022 Free Software
+   Copyright (C) 1985-1986, 1993-1995, 1997, 2000-2023 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -105,11 +105,13 @@ If the string begins with `^' and `shift-select-mode' is non-nil,
 You may use `@', `*', and `^' together.  They are processed in the
  order that they appear, before reading any arguments.
 
-If MODES is present, it should be a list of mode names (symbols) that
-this command is applicable for.  The main effect of this is that
-`M-x TAB' (by default) won't list this command if the current buffer's
-mode doesn't match the list.  That is, if either the major mode isn't
-derived from them, or (when it's a minor mode) the mode isn't in effect.
+If MODES is present, it should be one or more mode names (symbols)
+for which this command is applicable.  This is so that `M-x TAB'
+will be able to exclude this command from the list of completion
+candidates if the current buffer's mode doesn't match the list.
+Which commands are excluded from the list of completion
+candidates based on this information is controlled by the value
+of `read-extended-command-predicate', which see.
 
 usage: (interactive &optional ARG-DESCRIPTOR &rest MODES)  */
        attributes: const)
@@ -161,74 +163,62 @@ check_mark (bool for_region)
     xsignal0 (Qmark_inactive);
 }
 
-/* If the list of args INPUT was produced with an explicit call to
-   `list', look for elements that were computed with
-   (region-beginning) or (region-end), and put those expressions into
-   VALUES instead of the present values.
+/* If FUNCTION has an `interactive-args' spec, replace relevant
+   elements in VALUES with those forms instead.
 
    This function doesn't return a value because it modifies elements
    of VALUES to do its job.  */
 
 static void
-fix_command (Lisp_Object input, Lisp_Object values)
+fix_command (Lisp_Object function, Lisp_Object values)
 {
-  /* FIXME: Instead of this ugly hack, we should provide a way for an
-     interactive spec to return an expression/function that will re-build the
-     args without user intervention.  */
-  if (CONSP (input))
+  /* Quick exit if there's no values to alter.  */
+  if (!CONSP (values) || !SYMBOLP (function))
+    return;
+
+  Lisp_Object reps = Fget (function, Qinteractive_args);
+
+  if (CONSP (reps))
     {
-      Lisp_Object car;
+      int i = 0;
+      Lisp_Object vals = values;
 
-      car = XCAR (input);
-      /* Skip through certain special forms.  */
-      while (EQ (car, Qlet) || EQ (car, Qletx)
-	     || EQ (car, Qsave_excursion)
-	     || EQ (car, Qprogn))
+      while (!NILP (vals))
 	{
-	  while (CONSP (XCDR (input)))
-	    input = XCDR (input);
-	  input = XCAR (input);
-	  if (!CONSP (input))
-	    break;
-	  car = XCAR (input);
+	  Lisp_Object rep = Fassq (make_fixnum (i), reps);
+	  if (!NILP (rep))
+	    Fsetcar (vals, XCDR (rep));
+	  vals = XCDR (vals);
+	  ++i;
 	}
-      if (EQ (car, Qlist))
-	{
-	  Lisp_Object intail, valtail;
-	  for (intail = Fcdr (input), valtail = values;
-	       CONSP (valtail);
-	       intail = Fcdr (intail), valtail = XCDR (valtail))
-	    {
-	      Lisp_Object elt;
-	      elt = Fcar (intail);
-	      if (CONSP (elt))
-		{
-		  Lisp_Object presflag, carelt;
-		  carelt = XCAR (elt);
-		  /* If it is (if X Y), look at Y.  */
-		  if (EQ (carelt, Qif)
-		      && NILP (Fnthcdr (make_fixnum (3), elt)))
-		    elt = Fnth (make_fixnum (2), elt);
-		  /* If it is (when ... Y), look at Y.  */
-		  else if (EQ (carelt, Qwhen))
-		    {
-		      while (CONSP (XCDR (elt)))
-			elt = XCDR (elt);
-		      elt = Fcar (elt);
-		    }
+    }
 
-		  /* If the function call we're looking at
-		     is a special preserved one, copy the
-		     whole expression for this argument.  */
-		  if (CONSP (elt))
-		    {
-		      presflag = Fmemq (Fcar (elt), preserved_fns);
-		      if (!NILP (presflag))
-			Fsetcar (valtail, Fcar (intail));
-		    }
-		}
+  /* If the list contains a bunch of trailing nil values, and they are
+     optional, remove them from the list.  This makes navigating the
+     history less confusing, since it doesn't contain a lot of
+     parameters that aren't used.  */
+  Lisp_Object arity = Ffunc_arity (function);
+  /* We don't want to do this simplification if we have an &rest
+     function, because (cl-defun foo (a &optional (b 'zot)) ..)
+     etc.  */
+  if (FIXNUMP (XCAR (arity)) && FIXNUMP (XCDR (arity)))
+    {
+      Lisp_Object final = Qnil;
+      ptrdiff_t final_i = 0, i = 0;
+      for (Lisp_Object tail = values;
+	   CONSP (tail);
+	   tail = XCDR (tail), ++i)
+	{
+	  if (!NILP (XCAR (tail)))
+	    {
+	      final = tail;
+	      final_i = i;
 	    }
 	}
+
+      /* Chop the trailing optional values.  */
+      if (final_i > 0 && final_i >= XFIXNUM (XCAR (arity)) - 1)
+	XSETCDR (final,  Qnil);
     }
 }
 
@@ -251,7 +241,7 @@ return non-nil.
 usage: (funcall-interactively FUNCTION &rest ARGUMENTS)  */)
      (ptrdiff_t nargs, Lisp_Object *args)
 {
-  ptrdiff_t speccount = SPECPDL_INDEX ();
+  specpdl_ref speccount = SPECPDL_INDEX ();
   temporarily_switch_to_single_kboard (NULL);
 
   /* Nothing special to do here, all the work is inside
@@ -279,7 +269,7 @@ invoke it (via an `interactive' spec that contains, for instance, an
 `this-command-keys-vector' is used.  */)
   (Lisp_Object function, Lisp_Object record_flag, Lisp_Object keys)
 {
-  ptrdiff_t speccount = SPECPDL_INDEX ();
+  specpdl_ref speccount = SPECPDL_INDEX ();
 
   bool arg_from_tty = false;
   ptrdiff_t key_count;
@@ -315,7 +305,7 @@ invoke it (via an `interactive' spec that contains, for instance, an
   Lisp_Object up_event = Qnil;
 
   /* Set SPECS to the interactive form, or barf if not interactive.  */
-  Lisp_Object form = Finteractive_form (function);
+  Lisp_Object form = call1 (Qinteractive_form, function);
   if (! CONSP (form))
     wrong_type_argument (Qcommandp, function);
   Lisp_Object specs = Fcar (XCDR (form));
@@ -329,7 +319,6 @@ invoke it (via an `interactive' spec that contains, for instance, an
     {
       Lisp_Object funval = Findirect_function (function, Qt);
       uintmax_t events = num_input_events;
-      Lisp_Object input = specs;
       /* Compute the arg values using the user's expression.  */
       specs = Feval (specs,
  		     CONSP (funval) && EQ (Qclosure, XCAR (funval))
@@ -340,7 +329,7 @@ invoke it (via an `interactive' spec that contains, for instance, an
 	     Make a copy of the list of values, for the command history,
 	     and turn them into things we can eval.  */
 	  Lisp_Object values = quotify_args (Fcopy_sequence (specs));
-	  fix_command (input, values);
+	  fix_command (function, values);
           call4 (intern ("add-to-history"), intern ("command-history"),
                  Fcons (function, values), Qnil, Qt);
 	}
@@ -408,7 +397,7 @@ invoke it (via an `interactive' spec that contains, for instance, an
 	      && (w = XCAR (w), WINDOWP (w)))
 	    {
 	      if (MINI_WINDOW_P (XWINDOW (w))
-		  && ! (minibuf_level > 0 && EQ (w, minibuf_window)))
+		  && ! (minibuf_level > 0 && BASE_EQ (w, minibuf_window)))
 		error ("Attempt to select inactive minibuffer window");
 
 	      /* If the current buffer wants to clean up, let it.  */
@@ -478,7 +467,7 @@ invoke it (via an `interactive' spec that contains, for instance, an
 
 	case 'b':   		/* Name of existing buffer.  */
 	  args[i] = Fcurrent_buffer ();
-	  if (EQ (selected_window, minibuf_window))
+	  if (BASE_EQ (selected_window, minibuf_window))
 	    args[i] = Fother_buffer (args[i], Qnil, Qnil);
 	  args[i] = Fread_buffer (callint_message, args[i], Qt, Qnil);
 	  break;
@@ -541,7 +530,7 @@ invoke it (via an `interactive' spec that contains, for instance, an
 
 	case 'k':		/* Key sequence.  */
 	  {
-	    ptrdiff_t speccount1 = SPECPDL_INDEX ();
+	    specpdl_ref speccount1 = SPECPDL_INDEX ();
 	    specbind (Qcursor_in_echo_area, Qt);
 	    /* Prompt in `minibuffer-prompt' face.  */
 	    Fput_text_property (make_fixnum (0),
@@ -571,7 +560,7 @@ invoke it (via an `interactive' spec that contains, for instance, an
 
 	case 'K':		/* Key sequence to be defined.  */
 	  {
-	    ptrdiff_t speccount1 = SPECPDL_INDEX ();
+	    specpdl_ref speccount1 = SPECPDL_INDEX ();
 	    specbind (Qcursor_in_echo_area, Qt);
 	    /* Prompt in `minibuffer-prompt' face.  */
 	    Fput_text_property (make_fixnum (0),
@@ -919,4 +908,6 @@ use `event-start', `event-end', and `event-click-count'.  */);
   defsubr (&Scall_interactively);
   defsubr (&Sfuncall_interactively);
   defsubr (&Sprefix_numeric_value);
+
+  DEFSYM (Qinteractive_args, "interactive-args");
 }

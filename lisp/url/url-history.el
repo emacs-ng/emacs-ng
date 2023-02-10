@@ -1,6 +1,6 @@
 ;;; url-history.el --- Global history tracking for URL package  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1996-1999, 2004-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1996-1999, 2004-2023 Free Software Foundation, Inc.
 
 ;; Keywords: comm, data, processes, hypermedia
 
@@ -63,7 +63,7 @@ to run the `url-history-setup-save-timer' function manually."
          (set-default var val)
          (if (bound-and-true-p url-setup-done)
              (url-history-setup-save-timer)))
-  :type 'integer
+  :type 'natnum
   :group 'url-history)
 
 (defvar url-history-timer nil)

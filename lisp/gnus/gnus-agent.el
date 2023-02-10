@@ -1,6 +1,6 @@
 ;;; gnus-agent.el --- unplugged support for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; This file is part of GNU Emacs.
@@ -31,6 +31,7 @@
 (require 'gnus-srvr)
 (require 'gnus-util)
 (require 'timer)
+(require 'range)
 (eval-when-compile (require 'cl-lib))
 
 (autoload 'gnus-server-update-server "gnus-srvr")
@@ -475,17 +476,16 @@ manipulated as follows:
     (gnus-run-hooks 'gnus-agent-mode-hook
 		    (intern (format "gnus-agent-%s-mode-hook" buffer)))))
 
-(defvar gnus-agent-group-mode-map (make-sparse-keymap))
-(gnus-define-keys gnus-agent-group-mode-map
-  "Ju" gnus-agent-fetch-groups
-  "Jc" gnus-enter-category-buffer
-  "Jj" gnus-agent-toggle-plugged
-  "Js" gnus-agent-fetch-session
-  "JY" gnus-agent-synchronize-flags
-  "JS" gnus-group-send-queue
-  "Ja" gnus-agent-add-group
-  "Jr" gnus-agent-remove-group
-  "Jo" gnus-agent-toggle-group-plugged)
+(defvar-keymap gnus-agent-group-mode-map
+  "J u" #'gnus-agent-fetch-groups
+  "J c" #'gnus-enter-category-buffer
+  "J j" #'gnus-agent-toggle-plugged
+  "J s" #'gnus-agent-fetch-session
+  "J Y" #'gnus-agent-synchronize-flags
+  "J S" #'gnus-group-send-queue
+  "J a" #'gnus-agent-add-group
+  "J r" #'gnus-agent-remove-group
+  "J o" #'gnus-agent-toggle-group-plugged)
 
 (defun gnus-agent-group-make-menu-bar ()
   (unless (boundp 'gnus-agent-group-menu)
@@ -504,16 +504,15 @@ manipulated as follows:
        ["Synchronize flags" gnus-agent-synchronize-flags t]
        ))))
 
-(defvar gnus-agent-summary-mode-map (make-sparse-keymap))
-(gnus-define-keys gnus-agent-summary-mode-map
-  "Jj" gnus-agent-toggle-plugged
-  "Ju" gnus-agent-summary-fetch-group
-  "JS" gnus-agent-fetch-group
-  "Js" gnus-agent-summary-fetch-series
-  "J#" gnus-agent-mark-article
-  "J\M-#" gnus-agent-unmark-article
-  "@" gnus-agent-toggle-mark
-  "Jc" gnus-agent-catchup)
+(defvar-keymap gnus-agent-summary-mode-map
+  "J j" #'gnus-agent-toggle-plugged
+  "J u" #'gnus-agent-summary-fetch-group
+  "J S" #'gnus-agent-fetch-group
+  "J s" #'gnus-agent-summary-fetch-series
+  "J #" #'gnus-agent-mark-article
+  "J M-#" #'gnus-agent-unmark-article
+  "@" #'gnus-agent-toggle-mark
+  "J c" #'gnus-agent-catchup)
 
 (defun gnus-agent-summary-make-menu-bar ()
   (unless (boundp 'gnus-agent-summary-menu)
@@ -527,11 +526,10 @@ manipulated as follows:
        ["Fetch downloadable" gnus-agent-summary-fetch-group t]
        ["Catchup undownloaded" gnus-agent-catchup t]))))
 
-(defvar gnus-agent-server-mode-map (make-sparse-keymap))
-(gnus-define-keys gnus-agent-server-mode-map
-  "Jj" gnus-agent-toggle-plugged
-  "Ja" gnus-agent-add-server
-  "Jr" gnus-agent-remove-server)
+(defvar-keymap gnus-agent-server-mode-map
+  "J j" #'gnus-agent-toggle-plugged
+  "J a" #'gnus-agent-add-server
+  "J r" #'gnus-agent-remove-server)
 
 (defun gnus-agent-server-make-menu-bar ()
   (unless (boundp 'gnus-agent-server-menu)
@@ -1222,8 +1220,8 @@ This can be added to `gnus-select-article-hook' or
 	    (cond ((eq mark 'read)
 		   (setf (gnus-info-read info)
 			 (funcall (if (eq what 'add)
-				      #'gnus-range-add
-				    #'gnus-remove-from-range)
+				      #'range-concat
+				    #'range-remove)
 				  (gnus-info-read info)
 				  range))
 		   (gnus-get-unread-articles-in-group
@@ -1236,8 +1234,8 @@ This can be added to `gnus-select-article-hook' or
                              (gnus-info-marks info)))
                      (setcdr info-marks
                              (funcall (if (eq what 'add)
-                                          #'gnus-range-add
-                                        #'gnus-remove-from-range)
+                                          #'range-concat
+                                        #'range-remove)
                                       (cdr info-marks)
                                       range))))))))
 
@@ -1310,7 +1308,7 @@ downloaded into the agent."
 
           (let ((read (gnus-info-read info)))
             (setf (gnus-info-read info)
-                  (gnus-range-add
+                  (range-concat
                    read
                    (list (cons (1+ agent-max)
                                (1- active-min))))))
@@ -1683,7 +1681,7 @@ and that there are no duplicates."
 	      (gnus-message 1
 			    "Overview buffer contains garbage `%s'."
 			    (buffer-substring
-			     p (point-at-eol))))
+                             p (line-end-position))))
 	     ((= cur prev-num)
 	      (or backed-up
                   (setq backed-up (gnus-agent-backup-overview-buffer)))
@@ -1799,13 +1797,13 @@ article numbers will be returned."
          (articles (if fetch-all
 		       (if gnus-newsgroup-maximum-articles
 			   (let ((active (gnus-active group)))
-			     (gnus-uncompress-range
+			     (range-uncompress
 			      (cons (max (car active)
 					 (- (cdr active)
 					    gnus-newsgroup-maximum-articles
 					    -1))
 				    (cdr active))))
-			 (gnus-uncompress-range (gnus-active group)))
+			 (range-uncompress (gnus-active group)))
                      (gnus-list-of-unread-articles group)))
          (gnus-decode-encoded-word-function 'identity)
 	 (gnus-decode-encoded-address-function 'identity)
@@ -1820,7 +1818,7 @@ article numbers will be returned."
       ;; because otherwise the agent will remove their marks.)
       (dolist (arts (gnus-info-marks (gnus-get-info group)))
         (unless (memq (car arts) '(seen recent killed cache))
-          (setq articles (gnus-range-add articles (cdr arts)))))
+          (setq articles (range-concat articles (cdr arts)))))
       (setq articles (sort (gnus-uncompress-sequence articles) #'<)))
 
     ;; At this point, I have the list of articles to consider for
@@ -1854,15 +1852,15 @@ article numbers will be returned."
             ;; gnus-agent-article-alist) equals (cdr (gnus-active
             ;; group))}.  The addition of one(the 1+ above) then
             ;; forces Low to be greater than High.  When this happens,
-            ;; gnus-list-range-intersection returns nil which
+            ;; range-list-intersection returns nil which
             ;; indicates that no headers need to be fetched. -- Kevin
-            (setq articles (gnus-list-range-intersection
+            (setq articles (range-list-intersection
                             articles (list (cons low high)))))))
 
       (when articles
 	(gnus-message
 	 10 "gnus-agent-fetch-headers: undownloaded articles are `%s'"
-	 (gnus-compress-sequence articles t)))
+	 (range-compress-list articles)))
 
       (with-current-buffer nntp-server-buffer
         (if articles
@@ -2063,7 +2061,7 @@ doesn't exist, to valid the overview buffer."
 	      (let (state sequence uncomp)
 		(while alist
 		  (setq state (caar alist)
-			sequence (inline (gnus-uncompress-range (cdar alist)))
+			sequence (inline (range-uncompress (cdar alist)))
 			alist (cdr alist))
 		  (while sequence
 		    (push (cons (pop sequence) state) uncomp)))
@@ -2407,7 +2405,7 @@ contents, they are first saved to their own file."
             (let ((arts (cdr (assq mark (gnus-info-marks
                                          (setq info (gnus-get-info group)))))))
               (when arts
-                (setq marked-articles (nconc (gnus-uncompress-range arts)
+                (setq marked-articles (nconc (range-uncompress arts)
                                              marked-articles))
                 ))))
         (setq marked-articles (sort marked-articles #'<))
@@ -2547,7 +2545,7 @@ contents, they are first saved to their own file."
                     (let ((read (gnus-info-read
 				 (or info (setq info (gnus-get-info group))))))
                       (setf (gnus-info-read info)
-                            (gnus-add-to-range read unfetched-articles)))
+                            (range-add-list read unfetched-articles)))
 
                     (gnus-group-update-group group t)
                     (sit-for 0)
@@ -2597,25 +2595,20 @@ General format specifiers can also be used.  See Info node
 (defvar gnus-category-line-format-spec nil)
 (defvar gnus-category-mode-line-format-spec nil)
 
-(defvar gnus-category-mode-map nil)
+(defvar-keymap gnus-category-mode-map
+  :suppress t
+  "q" #'gnus-category-exit
+  "k" #'gnus-category-kill
+  "c" #'gnus-category-copy
+  "a" #'gnus-category-add
+  "e" #'gnus-agent-customize-category
+  "p" #'gnus-category-edit-predicate
+  "g" #'gnus-category-edit-groups
+  "s" #'gnus-category-edit-score
+  "l" #'gnus-category-list
 
-(unless gnus-category-mode-map
-  (setq gnus-category-mode-map (make-sparse-keymap))
-  (suppress-keymap gnus-category-mode-map)
-
-  (gnus-define-keys gnus-category-mode-map
-    "q" gnus-category-exit
-    "k" gnus-category-kill
-    "c" gnus-category-copy
-    "a" gnus-category-add
-    "e" gnus-agent-customize-category
-    "p" gnus-category-edit-predicate
-    "g" gnus-category-edit-groups
-    "s" gnus-category-edit-score
-    "l" gnus-category-list
-
-    "\C-c\C-i" gnus-info-find-node
-    "\C-c\C-b" gnus-bug))
+  "C-c C-i" #'gnus-info-find-node
+  "C-c C-b" #'gnus-bug)
 
 (defcustom gnus-category-menu-hook nil
   "Hook run after the creation of the menu."
@@ -2694,7 +2687,7 @@ The following commands are available:
     (gnus-category-position-point)))
 
 (defun gnus-category-name ()
-  (or (intern (get-text-property (point-at-bol) 'gnus-category))
+  (or (intern (get-text-property (line-beginning-position) 'gnus-category))
       (error "No category on the current line")))
 
 (defun gnus-category-read ()
@@ -2906,8 +2899,8 @@ The following commands are available:
 
 (defun gnus-agent-read-p ()
   "Say whether an article is read or not."
-  (gnus-member-of-range (mail-header-number gnus-headers)
-			(gnus-info-read (gnus-get-info gnus-newsgroup-name))))
+  (range-member-p (mail-header-number gnus-headers)
+		  (gnus-info-read (gnus-get-info gnus-newsgroup-name))))
 
 (defun gnus-category-make-function (predicate)
   "Make a function from PREDICATE."
@@ -3123,7 +3116,7 @@ FORCE is equivalent to setting the expiration predicates to true."
 		      ;; All articles EXCEPT those named by the caller
 		      ;; are protected from expiration
 		      (gnus-sorted-difference
-		       (gnus-uncompress-range
+		       (range-uncompress
 			(cons (caar alist)
 			      (caar (last alist))))
 		       (sort articles #'<)))))
@@ -3145,9 +3138,9 @@ FORCE is equivalent to setting the expiration predicates to true."
 		      ;; Ticked and/or dormant articles are excluded
 		      ;; from expiration
 		      (nconc
-		       (gnus-uncompress-range
+		       (range-uncompress
 			(cdr (assq 'tick (gnus-info-marks info))))
-		       (gnus-uncompress-range
+		       (range-uncompress
 			(cdr (assq 'dormant
 				   (gnus-info-marks info))))))))
 	      (nov-file (concat dir ".overview"))
@@ -3370,7 +3363,7 @@ missing NOV entry.  Run gnus-agent-regenerate-group to restore it.")))
 
 		     (cl-incf nov-entries-deleted)
 
-		     (let* ((from (point-at-bol))
+                     (let* ((from (line-beginning-position))
 			    (to (progn (forward-line 1) (point)))
 			    (freed (- to from)))
 		       (cl-incf bytes-freed freed)
@@ -3646,7 +3639,7 @@ has been fetched."
 			    (file-name-directory file) t))
 
       (when fetch-old
-	(setq articles (gnus-uncompress-range
+	(setq articles (range-uncompress
 			(cons (if (numberp fetch-old)
 				  (max 1 (- (car articles) fetch-old))
 				1)
@@ -3702,7 +3695,7 @@ has been fetched."
 
                      ;; Clip this list to the headers that will
                      ;; actually be returned
-                     (setq fetched-articles (gnus-list-range-intersection
+                     (setq fetched-articles (range-list-intersection
                                              (cdr fetched-articles)
                                              (cons min max)))
 
@@ -3711,7 +3704,7 @@ has been fetched."
                      ;; excluded IDs may be fetchable using HEAD.
                      (if (car tail-fetched-articles)
                          (setq uncached-articles
-                               (gnus-list-range-intersection
+                               (range-list-intersection
                                 uncached-articles
                                 (cons (car uncached-articles)
                                       (car tail-fetched-articles)))))

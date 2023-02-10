@@ -1,6 +1,6 @@
 ;;; calc-embed.el --- embed Calc in a buffer  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -207,9 +207,8 @@
 
 ;; The following is to take care of any minor modes which override
 ;; a Calc command.
-(defvar calc-override-minor-modes-map
-  (make-sparse-keymap)
-  "A list of keybindings that might be overwritten by minor modes.")
+(defvar-keymap calc-override-minor-modes-map
+  :doc "A list of keybindings that might be overwritten by minor modes.")
 
 ;; Add any keys that might be overwritten here.
 (define-key calc-override-minor-modes-map "`" 'calc-edit)
@@ -335,7 +334,8 @@
 	  (message (concat
                     "Embedded Calc mode enabled; "
                     (if calc-embedded-quiet
-                        "Type `C-x * x'"
+                        (substitute-command-keys
+                         "Type \\`C-x * x'")
                       "Give this command again")
                     " to return to normal")))))
   (scroll-down 0)))    ; fix a bug which occurs when truncate-lines is changed.

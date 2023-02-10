@@ -1,6 +1,6 @@
 ;;; button.el --- clickable buttons -*- lexical-binding: t -*-
 ;;
-;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2023 Free Software Foundation, Inc.
 ;;
 ;; Author: Miles Bader <miles@gnu.org>
 ;; Keywords: extensions, hypermedia
@@ -55,29 +55,24 @@
   "Default face used for buttons."
   :group 'basic-faces)
 
-(defvar button-map
-  (let ((map (make-sparse-keymap)))
-    ;; The following definition needs to avoid using escape sequences that
-    ;; might get converted to ^M when building loaddefs.el
-    (define-key map [(control ?m)] 'push-button)
-    (define-key map [mouse-2] 'push-button)
-    (define-key map [follow-link] 'mouse-face)
-    ;; FIXME: You'd think that for keymaps coming from text-properties on the
-    ;; mode-line or header-line, the `mode-line' or `header-line' prefix
-    ;; shouldn't be necessary!
-    (define-key map [mode-line mouse-2] 'push-button)
-    (define-key map [header-line mouse-2] 'push-button)
-    map)
-  "Keymap used by buttons.")
+(defvar-keymap button-buffer-map
+  :doc "Keymap useful for buffers containing buttons.
+Mode-specific keymaps may want to use this as their parent keymap."
+  "TAB" #'forward-button
+  "ESC TAB" #'backward-button
+  "<backtab>" #'backward-button)
 
-(defvar button-buffer-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [?\t] 'forward-button)
-    (define-key map "\e\t" 'backward-button)
-    (define-key map [backtab] 'backward-button)
-    map)
-  "Keymap useful for buffers containing buttons.
-Mode-specific keymaps may want to use this as their parent keymap.")
+(defvar-keymap button-map
+  :doc "Keymap used by buttons."
+  :parent button-buffer-map
+  "RET" #'push-button
+  "<mouse-2>" #'push-button
+  "<follow-link>" 'mouse-face
+  ;; FIXME: You'd think that for keymaps coming from text-properties on the
+  ;; mode-line or header-line, the `mode-line' or `header-line' prefix
+  ;; shouldn't be necessary!
+  "<mode-line> <mouse-2>" #'push-button
+  "<header-line> <mouse-2>" #'push-button)
 
 (define-minor-mode button-mode
   "A minor mode for navigating to buttons with the TAB key."
@@ -130,6 +125,7 @@ In addition, the keyword argument :supertype may be used to specify a
 `button-type' from which NAME inherits its default property values
 (however, the inheritance happens only when NAME is defined; subsequent
 changes to a supertype are not reflected in its subtypes)."
+  (declare (indent defun))
   (let ((catsym (make-symbol (concat (symbol-name name) "-button")))
 	(super-catsym
 	 (button-category-symbol
@@ -603,7 +599,8 @@ When called from Lisp, pass BUTTON-OR-POS as the button to describe, or a
 buffer position where a button is present.  If BUTTON-OR-POS is nil, the
 button at point is the button to describe."
   (interactive "d")
-  (let* ((button (cond ((integer-or-marker-p button-or-pos)
+  (let* ((help-buffer-under-preparation t)
+         (button (cond ((integer-or-marker-p button-or-pos)
                         (button-at button-or-pos))
                        ((null button-or-pos) (button-at (point)))
                        ((overlayp button-or-pos) button-or-pos)))
@@ -615,19 +612,46 @@ button at point is the button to describe."
       (button--describe props)
       t)))
 
-(defun button-buttonize (string callback &optional data)
+(define-obsolete-function-alias 'button-buttonize #'buttonize "29.1")
+
+(defun buttonize (string callback &optional data help-echo)
   "Make STRING into a button and return it.
 When clicked, CALLBACK will be called with the DATA as the
 function argument.  If DATA isn't present (or is nil), the button
-itself will be used instead as the function argument."
-  (propertize string
-              'face 'button
-              'button t
-              'follow-link t
-              'category t
-              'button-data data
-              'keymap button-map
-              'action callback))
+itself will be used instead as the function argument.
+
+If HELP-ECHO, use that as the `help-echo' property.
+
+Also see `buttonize-region'."
+  (let ((string
+         (apply #'propertize string
+                (button--properties callback data help-echo))))
+    ;; Add the face to the end so that it can be overridden.
+    (add-face-text-property 0 (length string) 'button t string)
+    string))
+
+(defun button--properties (callback data help-echo)
+  (list 'font-lock-face 'button
+        'mouse-face 'highlight
+        'help-echo help-echo
+        'button t
+        'follow-link t
+        'category t
+        'button-data data
+        'keymap button-map
+        'action callback))
+
+(defun buttonize-region (start end callback &optional data help-echo)
+  "Make the region between START and END into a button.
+When clicked, CALLBACK will be called with the DATA as the
+function argument.  If DATA isn't present (or is nil), the button
+itself will be used instead as the function argument.
+
+If HELP-ECHO, use that as the `help-echo' property.
+
+Also see `buttonize'."
+  (add-text-properties start end (button--properties callback data help-echo))
+  (add-face-text-property start end 'button t))
 
 (provide 'button)
 

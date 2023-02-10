@@ -1,6 +1,6 @@
 ;;; semantic/grammar.el --- Major mode framework for Semantic grammars  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2005, 2007-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2005, 2007-2023 Free Software Foundation, Inc.
 
 ;; Author: David Ponce <david@dponce.com>
 
@@ -252,7 +252,7 @@ That is tag names plus names defined in tag attribute `:rest'."
               (skip-chars-backward "\r\n\t")
               ;; If a grammar footer is found, skip it.
               (re-search-backward "^;;;\\s-+\\S-+\\s-+ends here"
-                                  (point-at-bol) t)
+                                  (line-beginning-position) t)
               (skip-chars-backward "\r\n\t")
               (point)))
            "\n"))
@@ -1009,7 +1009,6 @@ Return non-nil if there were no errors, nil if errors."
              packagename (byte-compile-dest-file packagename))
             (let (;; Some complex grammar table expressions need a few
                   ;; more resources than the default.
-                  (max-specpdl-size    (max 3000 max-specpdl-size))
                   (max-lisp-eval-depth (max 1000 max-lisp-eval-depth))
                   )
               ;; byte compile the resultant file
@@ -1123,8 +1122,6 @@ END is the limit of the search."
 ;;;; Define major mode
 ;;;;
 
-(define-obsolete-variable-alias 'semantic-grammar-syntax-table
-  'semantic-grammar-mode-syntax-table "24.1")
 (defvar semantic-grammar-mode-syntax-table
   (let ((table (make-syntax-table (standard-syntax-table))))
     (modify-syntax-entry ?\: "."     table) ;; COLON
@@ -1150,9 +1147,9 @@ END is the limit of the search."
 
 (defvar semantic-grammar-mode-keywords-1
   `(("\\(\\<%%\\>\\|\\<%[{}]\\)"
-     0 font-lock-reference-face)
+     0 font-lock-constant-face)
     ("\\(%\\)\\(\\(\\sw\\|\\s_\\)+\\)"
-     (1 font-lock-reference-face)
+     (1 font-lock-constant-face)
      (2 font-lock-keyword-face))
     ("\\<error\\>"
      0 (unless (semantic-grammar-in-lisp-p) 'bold))
@@ -1169,7 +1166,8 @@ END is the limit of the search."
     (,semantic-grammar-lex-c-char-re
      0 ,(if (boundp 'font-lock-constant-face)
             'font-lock-constant-face
-          'font-lock-string-face) t)
+          'font-lock-string-face)
+     t)
     ;; Must highlight :keyword here, because ':' is a punctuation in
     ;; grammar mode!
     ("[\r\n\t ]+:\\sw+\\>"
@@ -1197,8 +1195,6 @@ END is the limit of the search."
   semantic-grammar-mode-keywords-1
   "Font Lock keywords used to highlight Semantic grammar buffers.")
 
-(define-obsolete-variable-alias 'semantic-grammar-map
-  'semantic-grammar-mode-map "24.1")
 (defvar semantic-grammar-mode-map
   (let ((km (make-sparse-keymap)))
 

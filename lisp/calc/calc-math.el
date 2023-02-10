@@ -1,6 +1,6 @@
 ;;; calc-math.el --- mathematical functions for Calc  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -618,8 +618,9 @@ If this can't be done, return NIL."
 (defun math-nth-root-float (a nrf-n &optional guess)
   (math-inexact-result)
   (math-with-extra-prec 1
-    (let ((math-nrf-nf (math-float nrf-n))
-	  (math-nrf-nfm1 (math-float (1- nrf-n))))
+    (let ((math-nrf-n nrf-n)
+	  (math-nrf-nf (math-float nrf-n))
+          (math-nrf-nfm1 (math-float (1- nrf-n))))
       (math-nth-root-float-iter a (or guess
 				      (math-make-float
 				       1 (/ (+ (math-numdigs (nth 1 a))

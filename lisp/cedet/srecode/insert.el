@@ -1,6 +1,6 @@
 ;;; srecode/insert.el --- Insert srecode templates to an output stream  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2005, 2007-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2005, 2007-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -125,9 +125,7 @@ has set everything up already."
 	;; I tried `combine-after-change-calls', but it did not have
 	;; the effect I wanted.
 	(let ((start (point)))
-	  (let ((inhibit-point-motion-hooks t)
-		(inhibit-modification-hooks t)
-		)
+	  (let ((inhibit-modification-hooks t))
 	    (srecode--insert-into-buffer template dictionary)
 	    )
 	  ;; Now call those after change functions.
@@ -319,6 +317,10 @@ by themselves.")
 Specify the :indent argument to enable automatic indentation when newlines
 occur in your template.")
 
+(cl-defmethod srecord-compile-inserter-newline-p
+    ((_ srecode-template-inserter-newline))
+  t)
+
 (cl-defmethod srecode-insert-method ((sti srecode-template-inserter-newline)
 				  dictionary)
   "Insert the STI inserter."
@@ -402,7 +404,7 @@ Specify the :blank argument to enable this inserter.")
 	    ((eq (oref sti where) 'end)
 	     ;; If there is whitespace after pnt, then clear it out.
 	     (when (looking-at "\\s-*$")
-	       (delete-region (point) (point-at-eol)))
+               (delete-region (point) (line-end-position)))
 	     (when (not (eolp))
 	       (princ "\n")))
 	    )

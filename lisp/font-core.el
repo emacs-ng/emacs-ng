@@ -1,6 +1,6 @@
 ;;; font-core.el --- Core interface to font-lock  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1992-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: languages, faces
@@ -65,7 +65,8 @@ Other variables include that for syntactic keyword fontification,
 `font-lock-syntactic-keywords' and those for buffer-specialized fontification
 functions, `font-lock-fontify-buffer-function',
 `font-lock-unfontify-buffer-function', `font-lock-fontify-region-function',
-`font-lock-unfontify-region-function', and `font-lock-inhibit-thing-lock'.")
+`font-lock-unfontify-region-function'.")
+;; Autoload if this file no longer dumped.
 ;;;###autoload
 (put 'font-lock-defaults 'risky-local-variable t)
 
@@ -106,8 +107,7 @@ example, put in your ~/.emacs:
 Where major modes support different levels of fontification, you
 can use the variable `font-lock-maximum-decoration' to specify
 which level you generally prefer.  When you turn Font Lock mode
-on/off the buffer is fontified/defontified, though fontification
-occurs only if the buffer is less than `font-lock-maximum-size'.
+on/off the buffer is fontified/defontified.
 
 To add your own highlighting for some major mode, and modify the
 highlighting selected automatically via the variable

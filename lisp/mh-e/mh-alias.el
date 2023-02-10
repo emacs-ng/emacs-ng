@@ -1,6 +1,6 @@
 ;;; mh-alias.el --- MH-E mail alias completion and expansion  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1994-1997, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1994-1997, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Peter S. Galbraith <psg@debian.org>
 ;; Maintainer: Bill Wohler <wohler@newt.com>
@@ -67,8 +67,7 @@ Return t if any file listed in the Aliasfile MH profile component has
 been modified since the timestamp.
 If ARG is non-nil, set timestamp with the current time."
   (if arg
-      (let ((time (current-time)))
-        (setq mh-alias-tstamp (list (nth 0 time) (nth 1 time))))
+      (setq mh-alias-tstamp (current-time))
     (let ((stamp))
       (car (memq t (mapcar
                     (lambda (file)
@@ -112,10 +111,10 @@ COMMA-SEPARATOR is non-nil."
         (setq res (match-string 1 res)))
     ;; Replace "&" with capitalized username
     (if (string-search "&" res)
-        (setq res (mh-replace-regexp-in-string "&" (capitalize username) res)))
+        (setq res (replace-regexp-in-string "&" (capitalize username) res)))
     ;; Remove " character
     (if (string-search "\"" res)
-        (setq res (mh-replace-regexp-in-string "\"" "" res)))
+        (setq res (replace-regexp-in-string "\"" "" res)))
     ;; If empty string, use username instead
     (if (string-equal "" res)
         (setq res username))
@@ -155,7 +154,7 @@ Exclude all aliases already in `mh-alias-alist' from \"ali\""
                     (if (string-equal username realname)
                         (concat "<" username ">")
                       (concat realname " <" username ">"))))
-              (when (not (mh-assoc-string alias-name mh-alias-alist t))
+              (when (not (assoc-string alias-name mh-alias-alist t))
                 (setq passwd-alist (cons (list alias-name alias-translation)
                                          passwd-alist)))))))
         (forward-line 1)))
@@ -184,12 +183,12 @@ been loaded."
       (cond
        ((looking-at "^[ \t]"))          ;Continuation line
        ((looking-at "\\(.+\\): .+: .*$") ; A new -blind- MH alias
-        (when (not (mh-assoc-string (match-string 1) mh-alias-blind-alist t))
+        (when (not (assoc-string (match-string 1) mh-alias-blind-alist t))
           (setq mh-alias-blind-alist
                 (cons (list (match-string 1)) mh-alias-blind-alist))
           (setq mh-alias-alist (cons (list (match-string 1)) mh-alias-alist))))
        ((looking-at "\\(.+\\): .*$")    ; A new MH alias
-        (when (not (mh-assoc-string (match-string 1) mh-alias-alist t))
+        (when (not (assoc-string (match-string 1) mh-alias-alist t))
           (setq mh-alias-alist
                 (cons (list (match-string 1)) mh-alias-alist)))))
       (forward-line 1)))
@@ -200,7 +199,7 @@ been loaded."
           user)
       (while local-users
         (setq user (car local-users))
-        (if (not (mh-assoc-string (car user) mh-alias-alist t))
+        (if (not (assoc-string (car user) mh-alias-alist t))
             (setq mh-alias-alist (append mh-alias-alist (list user))))
         (setq local-users (cdr local-users)))))
   (run-hooks 'mh-alias-reloaded-hook)
@@ -239,16 +238,12 @@ done here."
   "Return expansion for ALIAS.
 Blind aliases or users from /etc/passwd are not expanded."
   (cond
-   ((mh-assoc-string alias mh-alias-blind-alist t)
+   ((assoc-string alias mh-alias-blind-alist t)
     alias)                              ; Don't expand a blind alias
-   ((mh-assoc-string alias mh-alias-passwd-alist t)
-    (cadr (mh-assoc-string alias mh-alias-passwd-alist t)))
+   ((assoc-string alias mh-alias-passwd-alist t)
+    (cadr (assoc-string alias mh-alias-passwd-alist t)))
    (t
     (mh-alias-ali alias))))
-
-(eval-and-compile
-  (mh-require 'crm nil t)                 ; completing-read-multiple
-  (mh-require 'multi-prompt nil t))
 
 ;;;###mh-autoload
 (defun mh-read-address (prompt)
@@ -258,15 +253,7 @@ Blind aliases or users from /etc/passwd are not expanded."
       (read-string prompt)
     (let* ((minibuffer-local-completion-map mh-alias-read-address-map)
            (completion-ignore-case mh-alias-completion-ignore-case-flag)
-           (the-answer
-            (cond ((fboundp 'completing-read-multiple)
-                   (mh-funcall-if-exists
-                    completing-read-multiple prompt mh-alias-alist nil nil))
-                  ((featurep 'multi-prompt)
-                   (mh-funcall-if-exists
-                    multi-prompt "," nil prompt mh-alias-alist nil nil))
-                  (t (split-string
-                      (completing-read prompt mh-alias-alist nil nil) ",")))))
+           (the-answer (completing-read-multiple prompt mh-alias-alist nil nil)))
       (if (not mh-alias-expand-aliases-flag)
           (mapconcat #'identity the-answer ", ")
         ;; Loop over all elements, checking if in passwd alias or blind first
@@ -281,7 +268,7 @@ Blind aliases or users from /etc/passwd are not expanded."
       (let* ((case-fold-search t)
              (beg (mh-beginning-of-word))
              (the-name (buffer-substring-no-properties beg (point))))
-        (if (mh-assoc-string the-name mh-alias-alist t)
+        (if (assoc-string the-name mh-alias-alist t)
             (message "%s -> %s" the-name (mh-alias-expand the-name))
           ;; Check if it was a single word likely to be an alias
           (if (and (equal mh-alias-flash-on-comma 1)
@@ -313,7 +300,7 @@ Blind aliases or users from /etc/passwd are not expanded."
                         res)
                   res)))
              ((t) (all-completions string mh-alias-alist pred))
-             ((lambda) (mh-test-completion string mh-alias-alist pred)))))))))
+             ((lambda) (test-completion string mh-alias-alist pred)))))))))
 
 
 ;;; Alias File Updating
@@ -671,7 +658,6 @@ show buffer, the message in the show buffer doesn't match."
 (provide 'mh-alias)
 
 ;; Local Variables:
-;; indent-tabs-mode: nil
 ;; sentence-end-double-space: nil
 ;; End:
 

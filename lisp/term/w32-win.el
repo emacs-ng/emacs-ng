@@ -1,6 +1,6 @@
 ;;; w32-win.el --- parse switches controlling interface with W32 window system -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-1994, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1994, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Kevin Gallo
 ;; Keywords: terminals
@@ -81,7 +81,6 @@
                   (&optional frame exclude-proportional))
 
 (defvar w32-color-map) ;; defined in w32fns.c
-(make-obsolete 'w32-default-color-map nil "24.1")
 
 (declare-function w32-send-sys-command "w32fns.c")
 (declare-function set-message-beep "w32fns.c")
@@ -274,6 +273,9 @@ See the documentation of `create-fontset-from-fontset-spec' for the format.")
 	     '(gif "libgif-6.dll" "giflib5.dll" "gif.dll")
 	 '(gif "libgif-5.dll" "giflib4.dll" "libungif4.dll" "libungif.dll")))
        '(svg "librsvg-2-2.dll")
+       '(webp "libwebp-7.dll" "libwebp.dll")
+       '(webpdemux "libwebpdemux-2.dll" "libwebpdemux.dll")
+       '(sqlite3 "libsqlite3-0.dll")
        '(gdk-pixbuf "libgdk_pixbuf-2.0-0.dll")
        '(glib "libglib-2.0-0.dll")
        '(gio "libgio-2.0-0.dll")
@@ -285,7 +287,10 @@ See the documentation of `create-fontset-from-fontset-spec' for the format.")
        '(zlib "zlib1.dll" "libz-1.dll")
        '(lcms2 "liblcms2-2.dll")
        '(json "libjansson-4.dll")
-       '(gccjit "libgccjit-0.dll")))
+       '(gccjit "libgccjit-0.dll")
+       ;; MSYS2 distributes libtree-sitter.dll, without API version
+       ;; number...
+       '(tree-sitter "libtree-sitter.dll" "libtree-sitter-0.dll")))
 
 ;;; multi-tty support
 (defvar w32-initialized nil

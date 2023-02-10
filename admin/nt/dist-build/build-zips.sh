@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## Copyright (C) 2017-2022 Free Software Foundation, Inc.
+## Copyright (C) 2017-2023 Free Software Foundation, Inc.
 
 ## This file is part of GNU Emacs.
 
@@ -148,7 +148,7 @@ done
 if [ -z $ACTUAL_VERSION ];
 then
     ACTUAL_VERSION=`
-  sed -n 's/^AC_INIT(GNU Emacs,[	 ]*\([^	 ,)]*\).*/\1/p' < ../../../configure.ac
+  sed -n 's/^AC_INIT(\[*GNU Emacs]*,[	 ]*\[*\([^]	 ,)]*\).*/\1/p' < ../../../configure.ac
 `
 fi
 

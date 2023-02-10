@@ -1,6 +1,6 @@
 ;;; format-spec-tests.el --- tests for format-spec.el -*- lexical-binding: t -*-
 
-;; Copyright (C) 2019-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -56,7 +56,7 @@
 
 (ert-deftest format-spec-do-flags-truncate ()
   "Test `format-spec--do-flags' truncation."
-  (let (flags)
+  (let ((flags nil))
     (should (equal (format-spec--do-flags "" flags nil 0) ""))
     (should (equal (format-spec--do-flags "" flags nil 1) ""))
     (should (equal (format-spec--do-flags "a" flags nil 0) ""))
@@ -75,7 +75,7 @@
 
 (ert-deftest format-spec-do-flags-pad ()
   "Test `format-spec--do-flags' padding."
-  (let (flags)
+  (let ((flags nil))
     (should (equal (format-spec--do-flags "" flags 0 nil) ""))
     (should (equal (format-spec--do-flags "" flags 1 nil) " "))
     (should (equal (format-spec--do-flags "a" flags 0 nil) "a"))
@@ -147,6 +147,17 @@
     (should (equal-including-properties
              (format-spec fmt '((?b . "asd") (?a . "fgh")))
              #("fgh%asdasd" 0 3 (a b) 3 4 (c d) 7 10 (e f))))))
+
+(ert-deftest format-spec/function ()
+  (let* (called
+         (spec `((?a . "foo")
+                 (?f . ,(lambda ()
+                          (setq called t)
+                          "bar")))))
+    (should (equal (format-spec "%a" spec) "foo"))
+    (should-not called)
+    (should (equal (format-spec "%f" spec) "bar"))
+    (should called)))
 
 (ert-deftest format-spec-unknown ()
   (should-error (format-spec "foo %b %z zot" '((?b . "bar"))))

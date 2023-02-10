@@ -1,6 +1,6 @@
 ;;; pcvs-util.el --- utility functions for PCL-CVS  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1991-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1991-2023 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: pcl-cvs
@@ -38,6 +38,7 @@
   (apply #'append (mapcar (lambda (x) (if (listp x) x (list x))) xs)))
 
 (defun cvs-first (l &optional n)
+  ;; FIXME: Replace this with `seq-take'?
   (if (null n) (car l)
     (when l
       (let* ((nl (list (pop l)))
@@ -53,10 +54,9 @@
 The function returns a `cons' cell where the `car' contains
 elements of L for which P is true while the `cdr' contains
 the other elements.  The ordering among elements is maintained."
-  (let (car cdr)
-    (dolist (x l)
-      (if (funcall p x) (push x car) (push x cdr)))
-    (cons (nreverse car) (nreverse cdr))))
+  (let ((res (seq-group-by p l)))
+    (cons (cdr (assq t res))
+          (cdr (assq nil res)))))
 
 ;;;
 ;;; frame, window, buffer handling
@@ -163,8 +163,6 @@ arguments.  If ARGS is not a list, no argument will be passed."
 	(buffer-substring (point)
 			  (if oneline (line-end-position) (point-max))))
     (file-error nil)))
-
-(define-obsolete-function-alias 'cvs-string-prefix-p #'string-prefix-p "24.3")
 
 ;;;;
 ;;;; file names

@@ -1,6 +1,6 @@
 ;;; semantic/symref/grep.el --- Symref implementation using find/grep  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -44,7 +44,9 @@ those hits returned.")
 
 (defvar semantic-symref-filepattern-alist
   '((c-mode "*.[ch]")
+    (c-ts-mode "*.[ch]")
     (c++-mode "*.[chCH]" "*.[ch]pp" "*.cc" "*.hh")
+    (c++-ts-mode "*.[chCH]" "*.[ch]pp" "*.cc" "*.hh")
     (html-mode "*.html" "*.shtml" "*.php")
     (mhtml-mode "*.html" "*.shtml" "*.php") ; FIXME: remove
                                             ; duplication of
@@ -53,7 +55,10 @@ those hits returned.")
                                             ; major mode definition?
     (ruby-mode "*.r[bu]" "*.rake" "*.gemspec" "*.erb" "*.haml"
                "Rakefile" "Thorfile" "Capfile" "Guardfile" "Vagrantfile")
+    (ruby-ts-mode "*.r[bu]" "*.rake" "*.gemspec" "*.erb" "*.haml"
+                  "Rakefile" "Thorfile" "Capfile" "Guardfile" "Vagrantfile")
     (python-mode "*.py" "*.pyi" "*.pyw")
+    (python-ts-mode "*.py" "*.pyi" "*.pyw")
     (perl-mode "*.pl" "*.PL")
     (cperl-mode "*.pl" "*.PL")
     (lisp-interaction-mode "*.el" "*.ede" ".emacs" "_emacs")
@@ -139,6 +144,8 @@ This shell should support pipe redirect syntax."
                             (lambda (s) (concat "\\" s))
                             string nil t))
 
+(defvar semantic-symref-grep--local-dir nil)
+
 (cl-defmethod semantic-symref-perform-search ((tool semantic-symref-tool-grep))
   "Perform a search with Grep."
   ;; Grep doesn't support some types of searches.
@@ -170,11 +177,12 @@ This shell should support pipe redirect syntax."
       (erase-buffer)
       (setq default-directory rootdir)
       (let ((cmd (semantic-symref-grep-use-template
-                  (directory-file-name (file-local-name rootdir))
+                  "."
                   filepattern grepflags greppat)))
         (process-file semantic-symref-grep-shell nil b nil
                       shell-command-switch cmd)))
-    (setq ans (semantic-symref-parse-tool-output tool b))
+    (let ((semantic-symref-grep--local-dir (directory-file-name (file-local-name rootdir))))
+      (setq ans (semantic-symref-parse-tool-output tool b)))
     ;; Return the answer
     ans))
 
@@ -190,12 +198,12 @@ Moves cursor to end of the match."
           ((eq (oref tool resulttype) 'line-and-text)
            (when (re-search-forward grep-re nil t)
              (list (string-to-number (match-string line-group))
-                   (match-string file-group)
+                   (concat semantic-symref-grep--local-dir (substring (match-string file-group) 1))
                    (buffer-substring-no-properties (point) (line-end-position)))))
 	  (t
 	   (when (re-search-forward grep-re nil t)
 	     (cons (string-to-number (match-string line-group))
-		   (match-string file-group))
+		   (concat semantic-symref-grep--local-dir (substring (match-string file-group) 1)))
 	     )))))
 
 (provide 'semantic/symref/grep)

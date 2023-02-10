@@ -1,6 +1,6 @@
 ;;; autoconf.el --- mode for editing Autoconf configure.ac files  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: Dave Love <fx@gnu.org>
 ;; Keywords: languages
@@ -35,7 +35,7 @@
 
 ;;; Code:
 
-(defvar autoconf-mode-map (make-sparse-keymap))
+(defvar-keymap autoconf-mode-map)
 
 (defvar autoconf-mode-hook nil
   "Hook run by `autoconf-mode'.")

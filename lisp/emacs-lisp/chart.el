@@ -1,7 +1,6 @@
 ;;; chart.el --- Draw charts (bar charts, etc)  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1996, 1998-1999, 2001, 2004-2005, 2007-2022 Free
-;; Software Foundation, Inc.
+;; Copyright (C) 1996-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Old-Version: 0.2
@@ -36,7 +35,7 @@
 ;; anything encapsulated in a nice eieio object.
 ;;
 ;;   Current example apps for chart can be accessed via these commands:
-;; `chart-file-count'     - count files w/ matching extensions
+;; `chart-file-count'     - count files with matching extensions
 ;; `chart-space-usage'    - display space used by files/directories
 ;; `chart-emacs-storage'  - Emacs storage units used/free (garbage-collect)
 ;; `chart-emacs-lists'    - length of Emacs lists
@@ -64,8 +63,7 @@
 (eval-when-compile (require 'cl-generic))
 
 ;;; Code:
-(define-obsolete-variable-alias 'chart-map 'chart-mode-map "24.1")
-(defvar chart-mode-map (make-sparse-keymap) "Keymap used in chart mode.")
+(defvar-keymap chart-mode-map :doc "Keymap used in chart mode.")
 
 (defvar-local chart-local-object nil
   "Local variable containing the locally displayed chart object.")
@@ -76,8 +74,7 @@
 Colors will be the background color.")
 
 (defvar chart-face-pixmap-list
-  (if (and (fboundp 'display-graphic-p)
-	   (display-graphic-p))
+  (if (display-graphic-p)
       '("dimple1" "scales" "dot" "cross_weave" "boxes" "dimple3"))
   "If pixmaps are allowed, display these background pixmaps.
 Useful if new Emacs is used on B&W display.")
@@ -115,7 +112,7 @@ too much in text characters anyways.")
        (set-face-foreground nf "black")
        (if (and chart-face-use-pixmaps pl)
            (condition-case nil
-               (set-face-background-pixmap nf (car pl))
+               (set-face-stipple nf (car pl))
              (error (message "Cannot set background pixmap %s" (car pl)))))
        (push nf faces)
        (setq cl (cdr cl)
@@ -520,7 +517,7 @@ cons cells of the form (NAME . NUM).  See `sort' for more details."
     (if (eobp) (newline num))
     (if (< x 0) (setq x 0))
     (if (< y 0) (setq y 0))
-    ;; Now, a quicky column moveto/forceto method.
+    ;; Now, a quickie column moveto/forceto method.
     (or (= (move-to-column x) x)
 	(let ((p (point)))
 	  (indent-to x)
@@ -529,9 +526,9 @@ cons cells of the form (NAME . NUM).  See `sort' for more details."
 (defun chart-zap-chars (n)
   "Zap up to N chars without deleting EOLs."
   (if (not (eobp))
-      (if (< n (- (point-at-eol) (point)))
+      (if (< n (- (line-end-position) (point)))
 	  (delete-char n)
-	(delete-region (point) (point-at-eol)))))
+        (delete-region (point) (line-end-position)))))
 
 (defun chart-display-label (label dir zone start end &optional face)
   "Display LABEL in direction DIR in column/row ZONE between START and END.

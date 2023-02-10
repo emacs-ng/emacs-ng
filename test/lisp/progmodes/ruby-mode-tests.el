@@ -1,6 +1,6 @@
 ;;; ruby-mode-tests.el --- Test suite for ruby-mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2012-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -407,6 +407,13 @@ VALUES-PLIST is a list with alternating index and value elements."
     (ruby-toggle-block)
     (should (string= "foo { \"#{bar}\" }" (buffer-string)))))
 
+(ert-deftest ruby-toggle-block-to-brace-no-space ()
+  (ruby-with-temp-buffer "foo do |b|\n  b + 2\nend"
+    (beginning-of-line)
+    (let (ruby-toggle-block-space-before-parameters)
+      (ruby-toggle-block))
+    (should (string= "foo {|b| b + 2 }" (buffer-string)))))
+
 (ert-deftest ruby-recognize-symbols-starting-with-at-character ()
   (ruby-assert-face ":@abc" 3 font-lock-constant-face))
 
@@ -530,9 +537,12 @@ VALUES-PLIST is a list with alternating index and value elements."
                           |    def foo
                           |    end
                           |    _
+                          |    def bar
+                          |    end
                           |  end
                           |end")
     (search-backward "_")
+    (delete-char 1)
     (should (string= (ruby-add-log-current-method)"M::C"))))
 
 (ert-deftest ruby-add-log-current-method-in-singleton-class ()
@@ -569,6 +579,45 @@ VALUES-PLIST is a list with alternating index and value elements."
                           |  end
                           |end")
     (search-backward "_")
+    (should (string= (ruby-add-log-current-method) "M::C#foo"))))
+
+(ert-deftest ruby-add-log-current-method-after-inner-class-outside-methods ()
+  (ruby-with-temp-buffer (ruby-test-string
+                          "module M
+                          |  class C
+                          |    class D
+                          |    end
+                          |
+                          |_
+                          |  end
+                          |end")
+    (search-backward "_")
+    (delete-char 1)
+    (should (string= (ruby-add-log-current-method) "M::C"))))
+
+(ert-deftest ruby-add-log-current-method-after-inner-class-outside-methods-with-text ()
+  (ruby-with-temp-buffer (ruby-test-string
+                          "module M
+                          |  class C
+                          |    class D
+                          |    end
+                          |
+                          |    FOO = 5
+                          |  end
+                          |end")
+    (search-backward "FOO")
+    (should (string= (ruby-add-log-current-method) "M::C"))))
+
+(ert-deftest ruby-add-log-current-method-after-endless-method ()
+  (ruby-with-temp-buffer (ruby-test-string
+                          "module M
+                          |  class C
+                          |    def foo =
+                          |      4_
+                          |  end
+                          |end")
+    (search-backward "_")
+    (delete-char 1)
     (should (string= (ruby-add-log-current-method) "M::C#foo"))))
 
 (defvar ruby-block-test-example
@@ -897,16 +946,24 @@ VALUES-PLIST is a list with alternating index and value elements."
                      "Blub#bye"
                      "Blub#hiding")))))
 
-(ert-deftest ruby--indent/converted-from-manual-test ()
-  :tags '(:expensive-test)
-  ;; Converted from manual test.
-  (let ((buf (find-file-noselect (ert-resource-file "ruby.rb"))))
-    (unwind-protect
-        (with-current-buffer buf
-          (let ((orig (buffer-string)))
-            (indent-region (point-min) (point-max))
-            (should (equal (buffer-string) orig))))
-      (kill-buffer buf))))
+(defmacro ruby-deftest-indent (file)
+  `(ert-deftest ,(intern (format "ruby-indent-test/%s" file)) ()
+     ;; :tags '(:expensive-test)
+     (let ((buf (find-file-noselect (ert-resource-file ,file))))
+       (unwind-protect
+           (with-current-buffer buf
+             (let ((orig (buffer-string)))
+               ;; Indent and check that we get the original text.
+               (indent-region (point-min) (point-max))
+               (should (equal (buffer-string) orig))))
+         (kill-buffer buf)))))
+
+(ruby-deftest-indent "ruby.rb")
+(ruby-deftest-indent "ruby-after-operator-indent.rb")
+(ruby-deftest-indent "ruby-block-indent.rb")
+(ruby-deftest-indent "ruby-method-call-indent.rb")
+(ruby-deftest-indent "ruby-method-params-indent.rb")
+(ruby-deftest-indent "ruby-parenless-call-arguments-indent.rb")
 
 (ert-deftest ruby--test-chained-indentation ()
   (with-temp-buffer

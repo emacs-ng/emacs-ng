@@ -1,6 +1,6 @@
 ;;; ox-man.el --- Man Back-End for Org Export Engine -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2011-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2023 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <n.goaziou at gmail dot com>
 ;;      Luis R Anaya <papoanaya aroba hot mail punto com>
@@ -36,6 +36,9 @@
 ;; "MAN_CLASS_OPTIONS".
 
 ;;; Code:
+
+(require 'org-macs)
+(org-assert-version)
 
 (require 'cl-lib)
 (require 'ox)
@@ -223,7 +226,6 @@ By default, Org uses 3 runs of to do the processing.
 Alternatively, this may be a Lisp function that does the
 processing.  This function should accept the file name as
 its single argument."
-  :group 'org-export-pdf
   :group 'org-export-man
   :version "24.4"
   :package-version '(Org . "8.0")

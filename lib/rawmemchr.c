@@ -1,5 +1,5 @@
 /* Searching in a string.
-   Copyright (C) 2008-2022 Free Software Foundation, Inc.
+   Copyright (C) 2008-2023 Free Software Foundation, Inc.
 
    This file is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as
@@ -23,10 +23,8 @@
 #if !HAVE_RAWMEMCHR
 
 # include <limits.h>
-# include <stdalign.h>
 # include <stdint.h>
 
-# include "verify.h"
 
 /* Find the first occurrence of C in S.  */
 void *
@@ -36,7 +34,7 @@ rawmemchr (const void *s, int c_in)
   typedef uintptr_t longword;
   /* If you change the "uintptr_t", you should change UINTPTR_WIDTH to match.
      This verifies that the type does not have padding bits.  */
-  verify (UINTPTR_WIDTH == UCHAR_WIDTH * sizeof (longword));
+  static_assert (UINTPTR_WIDTH == UCHAR_WIDTH * sizeof (longword));
 
   const unsigned char *char_ptr;
   unsigned char c = c_in;

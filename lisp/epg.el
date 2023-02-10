@@ -1,6 +1,6 @@
 ;;; epg.el --- the EasyPG Library -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999-2000, 2002-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2000, 2002-2023 Free Software Foundation, Inc.
 
 ;; Author: Daiki Ueno <ueno@unixuser.org>
 ;; Keywords: PGP, GnuPG
@@ -334,6 +334,7 @@ callback data (if any)."
 
 (cl-defstruct (epg-key
                (:constructor nil)
+               (:copier epg--copy-key)
                (:constructor epg-make-key (owner-trust))
                (:predicate nil))
   (owner-trust nil :read-only t)
@@ -481,7 +482,7 @@ callback data (if any)."
 	      (format "      skipped new keys: %d\n"
 		      (epg-import-result-not-imported import-result)))
 	  (if (> (epg-import-result-no-user-id import-result) 0)
-	      (format "          w/o user IDs: %d\n"
+	      (format "          without user IDs: %d\n"
 		      (epg-import-result-no-user-id import-result)))
 	  (if (> (epg-import-result-imported import-result) 0)
 	      (concat (format "              imported: %d"
@@ -605,7 +606,7 @@ callback data (if any)."
 	 process
 	 terminal-name
 	 agent-file
-	 (agent-mtime '(0 0 0 0)))
+	 (agent-mtime 0))
     ;; Set GPG_TTY and TERM for pinentry-curses.  Note that we can't
     ;; use `terminal-name' here to get the real pty name for the child
     ;; process, though /dev/fd/0" is not portable.
@@ -632,7 +633,7 @@ callback data (if any)."
       (setq agent-file (match-string 1 agent-info)
 	    agent-mtime (or (file-attribute-modification-time
 			     (file-attributes agent-file))
-			    '(0 0 0 0))))
+			    0)))
     (if epg-debug
 	(save-excursion
 	  (unless epg-debug-buffer
@@ -1389,7 +1390,7 @@ NAME is either a string or a list of strings."
      (if (seq-find (lambda (user)
                      (eq (epg-user-id-validity user) 'revoked))
                    (epg-key-user-id-list key))
-         (let ((copy (copy-epg-key key)))
+         (let ((copy (epg--copy-key key)))
            (setf (epg-key-user-id-list copy)
                  (seq-remove (lambda (user)
                                (eq (epg-user-id-validity user) 'revoked))
@@ -1518,12 +1519,8 @@ If you are unsure, use synchronous version of this function
 	    (process-send-eof (epg-context-process context))))
     ;; Normal (or cleartext) signature.
     (if (epg-data-file signature)
-	(epg--start context (if (eq (epg-context-protocol context) 'CMS)
-				(list "--verify" "--" (epg-data-file signature))
-			      (list "--" (epg-data-file signature))))
-      (epg--start context (if (eq (epg-context-protocol context) 'CMS)
-			      '("--verify" "-")
-			    '("-")))
+	(epg--start context (list "--verify" "--" (epg-data-file signature)))
+	(epg--start context '("--verify" "-"))
       (if (eq (process-status (epg-context-process context)) 'run)
 	  (process-send-string (epg-context-process context)
 			       (epg-data-string signature)))

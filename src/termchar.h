@@ -1,5 +1,5 @@
 /* Flags and parameters describing terminal's characteristics.
-   Copyright (C) 1985-1986, 2001-2022 Free Software Foundation, Inc.
+   Copyright (C) 1985-1986, 2001-2023 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -52,6 +52,11 @@ struct tty_display_info
                                    NULL if the terminal is suspended. */
   FILE *output;                 /* The stream to be used for terminal output.
                                    NULL if the terminal is suspended. */
+
+  /* Size of output buffer.  A value of zero means use the default of
+     BUFIZE.  If non-zero, also minimize writes to the tty by avoiding
+     calls to flush.  */
+  size_t output_buffer_size;
 
   FILE *termscript;             /* If nonzero, send all terminal output
                                    characters to this stream also.  */

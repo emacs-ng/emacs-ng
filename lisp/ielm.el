@@ -1,6 +1,6 @@
 ;;; ielm.el --- interaction mode for Emacs Lisp  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1994, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: David Smith <maa036@lancaster.ac.uk>
 ;; Maintainer: emacs-devel@gnu.org
@@ -148,28 +148,28 @@ such as `edebug-defun' to work with such inputs."
 This variable is buffer-local.")
 
 (defvar ielm-header
-  "*** Welcome to IELM ***  Type (describe-mode) for help.\n"
+  (substitute-command-keys
+   "*** Welcome to IELM ***  Type (describe-mode) or press \
+\\[describe-mode] for help.\n")
   "Message to display when IELM is started.")
 
 (defvaralias 'inferior-emacs-lisp-mode-map 'ielm-map)
-(defvar ielm-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\t" 'ielm-tab)
-    (define-key map "\C-m" 'ielm-return)
-    (define-key map "\e\C-m" 'ielm-return-for-effect)
-    (define-key map "\C-j" 'ielm-send-input)
-    (define-key map "\e\C-x" 'eval-defun)         ; for consistency with
-    (define-key map "\e\t" 'completion-at-point)  ; lisp-interaction-mode
-    ;; These bindings are from `lisp-mode-shared-map' -- can you inherit
-    ;; from more than one keymap??
-    (define-key map "\e\C-q" 'indent-sexp)
-    (define-key map "\177" 'backward-delete-char-untabify)
-    ;; Some convenience bindings for setting the working buffer
-    (define-key map "\C-c\C-b" 'ielm-change-working-buffer)
-    (define-key map "\C-c\C-f" 'ielm-display-working-buffer)
-    (define-key map "\C-c\C-v" 'ielm-print-working-buffer)
-    map)
-  "Keymap for IELM mode.")
+(defvar-keymap ielm-map
+  :doc "Keymap for IELM mode."
+  "TAB"     #'ielm-tab
+  "RET"     #'ielm-return
+  "M-RET"   #'ielm-return-for-effect
+  "C-j"     #'ielm-send-input
+  "C-M-x"   #'eval-defun                ; for consistency with
+  "M-TAB"   #'completion-at-point       ; lisp-interaction-mode
+  ;; These bindings are from `lisp-mode-shared-map' -- can you inherit
+  ;; from more than one keymap??
+  "C-M-q"   #'indent-sexp
+  "DEL"     #'backward-delete-char-untabify
+  ;; Some convenience bindings for setting the working buffer
+  "C-c C-b" #'ielm-change-working-buffer
+  "C-c C-f" #'ielm-display-working-buffer
+  "C-c C-v" #'ielm-print-working-buffer)
 
 (easy-menu-define ielm-menu ielm-map
   "IELM mode menu."
@@ -472,6 +472,34 @@ nonempty, then flushes the buffer."
   ;; Set the process mark in the current buffer to POS.
   (set-marker (process-mark (get-buffer-process (current-buffer))) pos))
 
+;;; Input fontification
+
+(defcustom ielm-fontify-input-enable t
+  "Enable fontification of input in ielm buffers.
+This variable only has effect when creating an ielm buffer.  Use
+the command `comint-fontify-input-mode' to toggle fontification
+of input in an already existing ielm buffer."
+  :type 'boolean
+  :safe 'booleanp
+  :version "29.1")
+
+(defcustom ielm-indirect-setup-hook nil
+  "Hook run in an indirect buffer for input fontification.
+Input fontification and indentation of an IELM buffer, if
+enabled, is performed in an indirect buffer, whose indentation
+and syntax highlighting are set up with `emacs-lisp-mode'.  In
+addition to `comint-indirect-setup-hook', run this hook with the
+indirect buffer as the current buffer after its setup is done.
+This can be used to further customize fontification and other
+behavior of the indirect buffer."
+  :type 'boolean
+  :safe 'booleanp
+  :version "29.1")
+
+(defun ielm-indirect-setup-hook ()
+  "Run `ielm-indirect-setup-hook'."
+  (run-hooks 'ielm-indirect-setup-hook))
+
 ;;; Major mode
 
 (define-derived-mode inferior-emacs-lisp-mode comint-mode "IELM"
@@ -526,6 +554,10 @@ The behavior of IELM may be customized with the following variables:
 Customized bindings may be defined in `ielm-map', which currently contains:
 \\{ielm-map}"
   :syntax-table emacs-lisp-mode-syntax-table
+  :after-hook
+  (and (null comint-use-prompt-regexp)
+       ielm-fontify-input-enable
+       (comint-fontify-input-mode))
 
   (setq comint-prompt-regexp (concat "^" (regexp-quote ielm-prompt)))
   (setq-local paragraph-separate "\\'")
@@ -563,6 +595,10 @@ Customized bindings may be defined in `ielm-map', which currently contains:
   ;; font-lock support
   (setq-local font-lock-defaults
        '(ielm-font-lock-keywords nil nil ((?: . "w") (?- . "w") (?* . "w"))))
+
+  (add-hook 'comint-indirect-setup-hook
+            #'ielm-indirect-setup-hook 'append t)
+  (setq comint-indirect-setup-function #'emacs-lisp-mode)
 
   ;; A dummy process to keep comint happy. It will never get any input
   (unless (comint-check-proc (current-buffer))

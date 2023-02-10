@@ -1,6 +1,6 @@
 ;;; lpr.el --- print Emacs buffer on line printer  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985, 1988, 1992, 1994, 2001-2022 Free Software
+;; Copyright (C) 1985, 1988, 1992, 1994, 2001-2023 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -125,7 +125,7 @@ and print the result."
 (defcustom print-region-function
   (if (memq system-type '(ms-dos windows-nt))
       (progn
-        (declare-function w32-direct-print-region-function "w32-fns")
+        (declare-function w32-direct-print-region-function "dos-w32")
         #'w32-direct-print-region-function)
     #'call-process-region)
   "Function to call to print the region on a printer.

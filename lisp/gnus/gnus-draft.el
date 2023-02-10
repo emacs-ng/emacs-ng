@@ -1,6 +1,6 @@
 ;;; gnus-draft.el --- draft message support for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -33,15 +33,12 @@
 
 ;;; Draft minor mode
 
-(defvar gnus-draft-mode-map
-  (let ((map (make-sparse-keymap)))
-    (gnus-define-keys map
-     "Dt" gnus-draft-toggle-sending
-     "e"  gnus-draft-edit-message ;; Use `B w' for `gnus-summary-edit-article'
-     "De" gnus-draft-edit-message
-     "Ds" gnus-draft-send-message
-     "DS" gnus-draft-send-all-messages)
-    map))
+(defvar-keymap gnus-draft-mode-map
+  "D t" #'gnus-draft-toggle-sending
+  "e" #' gnus-draft-edit-message ;; Use `B w' for `gnus-summary-edit-article'
+  "D e" #'gnus-draft-edit-message
+  "D s" #'gnus-draft-send-message
+  "D S" #'gnus-draft-send-all-messages)
 
 (defun gnus-draft-make-menu-bar ()
   (unless (boundp 'gnus-draft-menu)
@@ -153,7 +150,7 @@ Obeys the standard process/prefix convention."
 	     (concat "^" (regexp-quote gnus-agent-target-move-group-header)
 		     ":") nil t)
 	(skip-syntax-forward "-")
-	(setq move-to (buffer-substring (point) (point-at-eol)))
+        (setq move-to (buffer-substring (point) (line-end-position)))
 	(message-remove-header gnus-agent-target-move-group-header))
       (goto-char (point-min))
       (when (re-search-forward
@@ -203,7 +200,7 @@ Obeys the standard process/prefix convention."
     (gnus-activate-group "nndraft:queue")
     (save-excursion
       (let* ((articles (nndraft-articles))
-	     (unsendable (gnus-uncompress-range
+	     (unsendable (range-uncompress
 			  (cdr (assq 'unsend
 				     (gnus-info-marks
 				      (gnus-get-info "nndraft:queue"))))))

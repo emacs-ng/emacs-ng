@@ -1,6 +1,6 @@
 ;;; semantic/tag.el --- Tag creation and access  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2005, 2007-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2005, 2007-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -1176,7 +1176,7 @@ This function is for internal use only."
 (defsubst semantic--tag-expanded-p (tag)
   "Return non-nil if TAG is expanded.
 This function is for internal use only.
-See also the function `semantic--expand-tag'."
+See also the function `semantic--tag-expand'."
   ;; In fact a cooked tag is actually a list of cooked tags
   ;; because a raw tag can be expanded in several cooked ones!
   (when (consp tag)

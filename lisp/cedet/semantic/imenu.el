@@ -1,6 +1,6 @@
 ;;; semantic/imenu.el --- Use Semantic as an imenu tag generator  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2005, 2007-2008, 2010-2022 Free Software
+;; Copyright (C) 2000-2005, 2007-2008, 2010-2023 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
@@ -39,7 +39,8 @@
 (require 'semantic/sort)
 (require 'imenu)
 
-(declare-function pulse-momentary-highlight-one-line "pulse" (o &optional face))
+(declare-function pulse-momentary-highlight-one-line "pulse"
+                  (&optional point face))
 (declare-function semanticdb-semantic-init-hook-fcn "db-mode")
 
 ;; Because semantic imenu tags will hose the current imenu handling

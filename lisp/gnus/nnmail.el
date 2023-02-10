@@ -1,6 +1,6 @@
 ;;; nnmail.el --- mail support functions for the Gnus mail backends  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news, mail
@@ -661,7 +661,7 @@ nn*-request-list should have been called before calling this function."
     (while (not (eobp))
       (condition-case nil
 	  (progn
-	    (narrow-to-region (point) (point-at-eol))
+            (narrow-to-region (point) (line-end-position))
 	    (setq group (read buffer)
 		  group
 		  (cond ((symbolp group)
@@ -1116,7 +1116,7 @@ FUNC will be called with the group name to determine the article number."
 	(while (not (eobp))
 	  (unless (< (move-to-column nnmail-split-header-length-limit)
 		     nnmail-split-header-length-limit)
-	    (delete-region (point) (point-at-eol)))
+            (delete-region (point) (line-end-position)))
 	  (forward-line 1))
 	;; Allow washing.
 	(goto-char (point-min))
@@ -1650,7 +1650,7 @@ See the documentation for the variable `nnmail-split-fancy' for details."
 	(skip-chars-forward "^\n\r\t")
 	(unless (looking-at "[\r\n]")
 	  (forward-char 1)
-	  (buffer-substring (point) (point-at-eol)))))))
+          (buffer-substring (point) (line-end-position)))))))
 
 ;; Function for nnmail-split-fancy: look up all references in the
 ;; cache and if a match is found, return that group.
@@ -1937,9 +1937,7 @@ If TIME is nil, then return the cutoff time for oldness instead."
 		 (and (string-match (cadr regexp-target-pair) to)
 		      (let ((mail-dont-reply-to-names
 			     (message-dont-reply-to-names)))
-			(equal (if (fboundp 'rmail-dont-reply-to)
-				   (rmail-dont-reply-to from)
-				 (mail-dont-reply-to from)) "")))))
+                        (equal (mail-dont-reply-to from) "")))))
 	(setq target (format-time-string (caddr regexp-target-pair) date)))
        ((and (not (equal header 'to-from))
 	     (string-match (cadr regexp-target-pair)

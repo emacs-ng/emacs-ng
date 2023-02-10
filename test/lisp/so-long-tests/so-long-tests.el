@@ -1,6 +1,6 @@
 ;;; so-long-tests.el --- Test suite for so-long.el  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2019-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
 
 ;; Author: Phil Sainty <psainty@orcon.net.nz>
 ;; Keywords: convenience
@@ -32,7 +32,7 @@
 ;; Running manually:
 ;;
 ;; for test in lisp/so-long-tests/*-tests.el; do make ${test%.el}; done \
-;; 2>&1 | egrep -v '^(Loading|Source file|make|Changed to so-long-mode)'
+;; 2>&1 | grep -E -v '^(Loading|Source file|make|Changed to so-long-mode)'
 ;;
 ;; Which is equivalent to:
 ;;
@@ -41,7 +41,7 @@
 ;; "../src/emacs" --no-init-file --no-site-file --no-site-lisp \
 ;; -L ":." -l ert -l "$test" --batch --eval \
 ;; '(ert-run-tests-batch-and-exit (quote (not (tag :unstable))))'; \
-;; done 2>&1 | egrep -v '^(Loading|Source file|Changed to so-long-mode)'
+;; done 2>&1 | grep -E -v '^(Loading|Source file|Changed to so-long-mode)'
 ;;
 ;; See also `ert-run-tests-batch-and-exit'.
 
@@ -59,7 +59,7 @@
 (declare-function so-long-tests-assert-and-revert "so-long-tests-helpers")
 (declare-function so-long-tests-predicates "so-long-tests-helpers")
 
-;; Enable the automated behaviour for all tests.
+;; Enable the automated behavior for all tests.
 (global-so-long-mode 1)
 
 (ert-deftest so-long-tests-threshold-under ()
@@ -210,7 +210,7 @@
       ;; From Emacs 27 the `display-buffer' call is insufficient.
       ;; The various 'window change functions' are now invoked by the
       ;; redisplay, and redisplay does nothing at all in batch mode,
-      ;; so we cannot test under this revised behaviour.  Refer to:
+      ;; so we cannot test under this revised behavior.  Refer to:
       ;; https://lists.gnu.org/r/emacs-devel/2019-10/msg00971.html
       ;; For interactive (non-batch) test runs, calling `redisplay'
       ;; does do the trick; so do that first.

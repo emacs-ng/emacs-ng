@@ -1,6 +1,6 @@
 ;;; ol-doi.el --- DOI links support in Org           -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <mail@nicolasgoaziou.fr>
 
@@ -26,6 +26,9 @@
 
 ;;; Code:
 
+(require 'org-macs)
+(org-assert-version)
+
 (require 'ol)
 
 (defcustom org-link-doi-server-url "https://doi.org/"
@@ -44,7 +47,7 @@ PATH is a the path to search for, as a string."
   "Export a \"doi\" type link.
 PATH is the DOI name.  DESC is the description of the link, or
 nil.  BACKEND is a symbol representing the backend used for
-export.  INFO is a a plist containing the export parameters."
+export.  INFO is a plist containing the export parameters."
   (let ((uri (concat org-link-doi-server-url path)))
     (pcase backend
       (`html

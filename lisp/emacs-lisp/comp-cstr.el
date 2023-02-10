@@ -1,8 +1,8 @@
 ;;; comp-cstr.el --- native compiler constraint library -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
-;; Author: Andrea Corallo <akrl@sdf.com>
+;; Author: Andrea Corallo <akrl@sdf.org>
 ;; Keywords: lisp
 ;; Package: emacs
 
@@ -37,15 +37,11 @@
 
 (require 'cl-lib)
 
-(defconst comp--typeof-types (mapcar (lambda (x)
-                                       (append x '(t)))
-                                     cl--typeof-types)
+(defconst comp--typeof-builtin-types (mapcar (lambda (x)
+                                               (append x '(t)))
+                                             cl--typeof-types)
   ;; TODO can we just add t in `cl--typeof-types'?
   "Like `cl--typeof-types' but with t as common supertype.")
-
-(defconst comp--all-builtin-types
-  (append cl--all-builtin-types '(t))
-  "Likewise like `cl--all-builtin-types' but with t as common supertype.")
 
 (cl-defstruct (comp-cstr (:constructor comp-type-to-cstr
                                        (type &aux
@@ -70,7 +66,7 @@
                                        (irange &aux
                                                (range (list irange))
                                                (typeset ())))
-                         (:copier comp-cstr-shallow-copy))
+                         (:copier nil))
   "Internal representation of a type/value constraint."
   (typeset '(t) :type list
            :documentation "List of possible types the mvar can assume.
@@ -100,7 +96,7 @@ Integer values are handled in the `range' slot.")
 `comp-common-supertype'.")
   (subtype-p-mem (make-hash-table :test #'equal) :type hash-table
                  :documentation "Serve memoization for
-`comp-subtype-p-mem'.")
+`comp-cstr-ctxt-subtype-p-mem'.")
   (union-1-mem-no-range (make-hash-table :test #'equal) :type hash-table
                         :documentation "Serve memoization for
 `comp-cstr-union-1'.")
@@ -132,6 +128,14 @@ Integer values are handled in the `range' slot.")
                     :valset (copy-sequence (valset cstr))
                     :range (copy-tree (range cstr))
                     :neg (neg cstr))))
+
+(defsubst comp-cstr-shallow-copy (dst src)
+  "Copy the content of SRC into DST."
+  (with-comp-cstr-accessors
+    (setf (range dst) (range src)
+          (valset dst) (valset src)
+          (typeset dst) (typeset src)
+          (neg dst) (neg src))))
 
 (defsubst comp-cstr-empty-p (cstr)
   "Return t if CSTR is equivalent to the nil type specifier or nil otherwise."
@@ -226,7 +230,7 @@ Return them as multiple value."
   (cl-loop
    named outer
    with found = nil
-   for l in comp--typeof-types
+   for l in comp--typeof-builtin-types
    do (cl-loop
        for x in l
        for i from (length l) downto 0
@@ -269,7 +273,7 @@ Return them as multiple value."
                (cl-loop
                 with types = (apply #'append typesets)
                 with res = '()
-                for lane in comp--typeof-types
+                for lane in comp--typeof-builtin-types
                 do (cl-loop
                     with last = nil
                     for x in lane
@@ -438,10 +442,7 @@ Return them as multiple value."
                                                        ext-range)
                             ext-range)
               (neg dst) nil)
-      (setf (typeset dst) (typeset old-dst)
-            (valset dst) (valset old-dst)
-            (range dst) (range old-dst)
-            (neg dst) (neg old-dst)))))
+      (comp-cstr-shallow-copy dst old-dst))))
 
 (defmacro comp-cstr-set-range-for-arithm (dst src1 src2 &rest range-body)
   ;; Prevent some code duplication for `comp-cstr-add-2'
@@ -583,10 +584,8 @@ DST is returned."
                                                     (when (range pos)
                                                       '(integer)))))
                                  (typeset neg)))
-              (setf (typeset dst) (typeset pos)
-                    (valset dst) (valset pos)
-                    (range dst) (range pos)
-                    (neg dst) nil)
+              (comp-cstr-shallow-copy dst pos)
+              (setf (neg dst) nil)
               (cl-return-from comp-cstr-union-1-no-mem dst))
 
             ;; Verify disjoint condition between positive types and
@@ -633,15 +632,9 @@ DST is returned."
                         (comp-range-negation (range neg))
                         (range pos))))))
 
-            (if (comp-cstr-empty-p neg)
-                (setf (typeset dst) (typeset pos)
-                      (valset dst) (valset pos)
-                      (range dst) (range pos)
-                      (neg dst) nil)
-              (setf (typeset dst) (typeset neg)
-                    (valset dst) (valset neg)
-                    (range dst) (range neg)
-                    (neg dst) (neg neg)))))
+            (comp-cstr-shallow-copy dst (if (comp-cstr-empty-p neg)
+                                            pos
+                                          neg))))
 
         ;; (not null) => t
         (when (and (neg dst)
@@ -665,10 +658,7 @@ DST is returned."
                      (mapcar #'comp-cstr-copy srcs)
                      (apply #'comp-cstr-union-1-no-mem range srcs)
                      mem-h))))
-      (setf (typeset dst) (typeset res)
-            (valset dst) (valset res)
-            (range dst) (range res)
-            (neg dst) (neg res))
+      (comp-cstr-shallow-copy dst res)
       res)))
 
 (cl-defun comp-cstr-intersection-homogeneous (dst &rest srcs)
@@ -755,10 +745,8 @@ Non memoized version of `comp-cstr-intersection-no-mem'."
             ;; In case pos is not relevant return directly the content
             ;; of neg.
             (when (equal (typeset pos) '(t))
-              (setf (typeset dst) (typeset neg)
-                    (valset dst) (valset neg)
-                    (range dst) (range neg)
-                    (neg dst) t)
+              (comp-cstr-shallow-copy dst neg)
+              (setf (neg dst) t)
 
               ;; (not t) => nil
               (when (and (null (valset dst))
@@ -802,10 +790,8 @@ Non memoized version of `comp-cstr-intersection-no-mem'."
                   (cl-set-difference (valset pos) (valset neg)))
 
             ;; Return a non negated form.
-            (setf (typeset dst) (typeset pos)
-                  (valset dst) (valset pos)
-                  (range dst) (range pos)
-                  (neg dst) nil)))
+            (comp-cstr-shallow-copy dst pos)
+            (setf (neg dst) nil)))
         dst))))
 
 
@@ -885,7 +871,7 @@ Non memoized version of `comp-cstr-intersection-no-mem'."
   "Constraint OP1 being = OP2 setting the result into DST."
   (with-comp-cstr-accessors
     (cl-flet ((relax-cstr (cstr)
-                (setf cstr (comp-cstr-shallow-copy cstr))
+                (setf cstr (copy-sequence cstr))
                 ;; If can be any float extend it to all integers.
                 (when (memq 'float (typeset cstr))
                   (setf (range cstr) '((- . +))))
@@ -1010,10 +996,7 @@ DST is returned."
                      (mapcar #'comp-cstr-copy srcs)
                      (apply #'comp-cstr-intersection-no-mem srcs)
                      mem-h))))
-      (setf (typeset dst) (typeset res)
-            (valset dst) (valset res)
-            (range dst) (range res)
-            (neg dst) (neg res))
+      (comp-cstr-shallow-copy dst res)
       res)))
 
 (defun comp-cstr-intersection-no-hashcons (dst &rest srcs)
@@ -1069,10 +1052,9 @@ DST is returned."
             (valset dst) ()
             (range dst) nil
             (neg dst) nil))
-     (t (setf (typeset dst) (typeset src)
-              (valset dst) (valset src)
-              (range dst) (range src)
-              (neg dst) (not (neg src)))))
+     (t
+      (comp-cstr-shallow-copy dst src)
+      (setf (neg dst) (not (neg src)))))
     dst))
 
 (defun comp-cstr-value-negation (dst src)

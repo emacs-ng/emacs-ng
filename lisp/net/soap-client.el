@@ -1,16 +1,15 @@
 ;;; soap-client.el --- Access SOAP web services       -*- lexical-binding: t -*-
 
-;; Copyright (C) 2009-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2023 Free Software Foundation, Inc.
 
 ;; Author: Alexandru Harsanyi <AlexHarsanyi@gmail.com>
 ;; Author: Thomas Fitzsimmons <fitzsim@fitzsim.org>
 ;; Created: December, 2009
-;; Version: 3.2.0
+;; Version: 3.2.1
 ;; Keywords: soap, web-services, comm, hypermedia
 ;; Package: soap-client
 ;; URL: https://github.com/alex-hhh/emacs-soap-client
-;; Package-Requires: ((cl-lib "0.6.1"))
-;;FIXME: Put in `Package-Requires:' the Emacs version we expect.
+;; Package-Requires: ((emacs "24.1") (cl-lib "0.6.1"))
 
 ;; This file is part of GNU Emacs.
 
@@ -659,7 +658,7 @@ representing leap seconds."
             (if second
                 (if second-fraction
                     (let* ((second-fraction-significand
-                            (string-replace "." "" second-fraction))
+                            (replace-regexp-in-string "\\." "" second-fraction))
                            (hertz
                             (expt 10 (length second-fraction-significand)))
                            (ticks (+ (* hertz (string-to-number second))
@@ -718,10 +717,9 @@ representing leap seconds."
                 second)
               minute hour day month year second-fraction datatype time-zone)
       (let ((time
-             (apply
-              #'encode-time (list
-                             (if new-decode-time new-decode-time-second second)
-                             minute hour day month year nil nil time-zone))))
+	     (encode-time (list
+			   (if new-decode-time new-decode-time-second second)
+			   minute hour day month year nil nil time-zone))))
         (if new-decode-time
             (with-no-warnings (decode-time time nil t))
           (decode-time time))))))
@@ -1319,7 +1317,7 @@ See also `soap-wsdl-resolve-references'."
   "Validate VALUE against the basic type TYPE."
   (let* ((kind (soap-xs-basic-type-kind type)))
     (cl-case kind
-      ((anyType Array byte[])
+      ((anyType Array byte\[\])
        value)
       (t
        (let ((convert (get kind 'rng-xsd-convert)))
@@ -1938,7 +1936,7 @@ This is a specialization of `soap-decode-type' for
                   (e-name (soap-xs-element-name element))
                   ;; Heuristic: guess if we need to decode using local
                   ;; namespaces.
-                  (use-fq-names (string-search ":" (symbol-name (car node))))
+                  (use-fq-names (string-match ":" (symbol-name (car node))))
                   (children (if e-name
                                 (if use-fq-names
                                     ;; Find relevant children

@@ -1,6 +1,6 @@
 ;;; cedet-utests.el --- Run all unit tests in the CEDET suite.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -252,9 +252,7 @@ Optional argument TITLE is the title of this testing session."
 (defun cedet-utest-elapsed-time (start end)
   "Copied from elp.el.  Was elp-elapsed-time.
 Argument START and END bound the time being calculated."
-  (+ (* (- (car end) (car start)) 65536.0)
-     (- (car (cdr end)) (car (cdr start)))
-     (/ (- (car (cdr (cdr end))) (car (cdr (cdr start)))) 1000000.0)))
+  (float-time (time-subtract start end)))
 
 (defun cedet-utest-log-shutdown (title &optional _errorcondition)
   "Shut-down a larger test suite.
@@ -335,7 +333,8 @@ ERRORCONDITION is some error that may have occurred during testing."
   "Add into the log that the last item is done.
 Apply NOTES to the doneness of the log.
 Apply ERR if there was an error in previous item.
-Optional argument PRECR indicates to prefix the done msg w/ a newline."
+Optional argument PRECR indicates to prefix the done message with
+a newline."
   (if noninteractive
       ;; Non-interactive-mode - show a message.
       (if notes

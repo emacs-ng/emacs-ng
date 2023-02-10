@@ -1,11 +1,11 @@
 ;;; antlr-mode.el --- major mode for ANTLR grammar files  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: Christoph Wedler <Christoph.Wedler@sap.com>
 ;; Keywords: languages, ANTLR, code generator
 ;; Version: 2.2c
-;; URL: http://antlr-mode.sourceforge.net/
+;; URL: https://antlr-mode.sourceforge.net/
 
 ;; This file is part of GNU Emacs.
 
@@ -29,7 +29,7 @@
 ;; supported options and various other things like running ANTLR from within
 ;; Emacs.
 
-;; For details, check <http://antlr-mode.sourceforge.net/> or, if you prefer
+;; For details, check <https://antlr-mode.sourceforge.net/> or, if you prefer
 ;; the manual style, follow all commands mentioned in the documentation of
 ;; `antlr-mode'.  ANTLR is a LL(k)-based recognition tool which generates
 ;; lexers, parsers and tree transformers in Java, C++ or Sather and can be
@@ -66,17 +66,12 @@
 
 ;;; Installation:
 
-;; This file requires Emacs-20.3, XEmacs-20.4 or higher and package cc-mode.
-
 ;; If antlr-mode is not part of your distribution, put this file into your
 ;; load-path and the following into your init file:
 ;;   (autoload 'antlr-mode "antlr-mode" nil t)
 ;;   (setq auto-mode-alist (cons '("\\.g\\'" . antlr-mode) auto-mode-alist))
 ;;   (add-hook 'speedbar-load-hook  ; would be too late in antlr-mode.el
 ;;	       (lambda () (speedbar-add-supported-extension ".g")))
-
-;; I strongly recommend to use font-lock with a support mode like
-;; jit-lock (Emacs) / lazy-shot (XEmacs).
 
 ;; To customize, use menu item "Antlr" -> "Customize Antlr".
 
@@ -87,14 +82,6 @@
 (when (< emacs-major-version 28)  ; preloaded in Emacs 28
   (require 'easymenu))
 (require 'cc-mode)
-
-;; More compile-time-macros
-(eval-when-compile
-  (defmacro save-buffer-state-x (&rest body) ; similar to EMACS/lazy-lock.el
-    (declare (debug t) (indent 0))
-    `(let ((inhibit-point-motion-hooks t))
-       (with-silent-modifications
-         ,@body))))
 
 (defvar outline-level)
 (defvar imenu-use-markers)
@@ -119,12 +106,12 @@
   "Major mode for ANTLR grammar files."
   :group 'languages
   :link '(emacs-commentary-link "antlr-mode.el")
-  :link '(url-link "http://antlr-mode.sourceforge.net/")
+  :link '(url-link "https://antlr-mode.sourceforge.net/")
   :prefix "antlr-")
 
 (defconst antlr-version "2.2c"
   "ANTLR major mode version number.
-Check <http://antlr-mode.sourceforge.net/> for the newest.")
+Check <https://antlr-mode.sourceforge.net/> for the newest.")
 
 
 ;;;===========================================================================
@@ -182,7 +169,7 @@ greater than this number."
 (defcustom antlr-indent-comment 'tab
   "Non-nil, if the indentation should touch lines in block comments.
 If nil, no continuation line of a block comment is changed.  If t, they
-are changed according to `c-indentation-line'.  When not nil and not t,
+are changed according to `c-indent-line'.  When not nil and not t,
 they are only changed by \\[antlr-indent-command]."
   :type '(radio (const :tag "No" nil)
 		(const :tag "Always" t)
@@ -894,7 +881,7 @@ Used for `antlr-slow-syntactic-context'.")
 
 
 ;;;===========================================================================
-;;;  Syntax functions -- Emacs vs XEmacs dependent, part 1
+;;;  Syntax functions
 ;;;===========================================================================
 
 ;;;===========================================================================
@@ -1325,7 +1312,7 @@ actions if ARG is 0 or negative.  See `antlr-action-visibility'.
 
 Display a message unless optional argument SILENT is non-nil."
   (interactive "p")
-  (save-buffer-state-x
+  (with-silent-modifications
     (if (> arg 0)
 	(let ((regexp (if (= arg 1) "[]}]" "}"))
 	      (diff (and antlr-action-visibility
@@ -1790,7 +1777,7 @@ For AREA and OLD, see `antlr-insert-option-do'."
 	(skip-chars-forward " \t")
 
 	(if (looking-at "$\\|//")
-	    ;; just comment after point => skip (+ lines w/ same col comment)
+            ;; just comment after point => skip (+ lines with same col comment)
 	    (let ((same (if (> (match-end 0) (match-beginning 0))
 			    (current-column))))
 	      (beginning-of-line 2)
@@ -2431,13 +2418,10 @@ the default language."
 	comment-start-skip "/\\*+ *\\|// *")
   ;; various -----------------------------------------------------------------
   (set (make-local-variable 'font-lock-defaults) antlr-font-lock-defaults)
-  (when (featurep 'xemacs)
-    (easy-menu-add antlr-mode-menu))
   (set (make-local-variable 'imenu-create-index-function)
        #'antlr-imenu-create-index-function)
   (set (make-local-variable 'imenu-generic-expression) t) ; fool stupid test
   (and antlr-imenu-name			; there should be a global variable...
-       (fboundp 'imenu-add-to-menubar)
        (imenu-add-to-menubar
 	(if (stringp antlr-imenu-name) antlr-imenu-name "Index")))
   (antlr-set-tabs))

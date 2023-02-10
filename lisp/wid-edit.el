@@ -1,6 +1,6 @@
 ;;; wid-edit.el --- Functions for creating and using widgets -*- lexical-binding:t -*-
 ;;
-;; Copyright (C) 1996-1997, 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1996-1997, 1999-2023 Free Software Foundation, Inc.
 ;;
 ;; Author: Per Abrahamsen <abraham@dina.kvl.dk>
 ;; Maintainer: emacs-devel@gnu.org
@@ -131,16 +131,21 @@ This exists as a variable so it can be set locally in certain buffers.")
 			(((class grayscale color)
 			  (background light))
 			 :background "gray85"
+                         ;; We use negative thickness of the horizontal box border line to
+                         ;; avoid making lines taller when fields become visible.
+                         :box (:line-width (1 . -1) :color "gray80")
 			 :extend t)
 			(((class grayscale color)
 			  (background dark))
 			 :background "dim gray"
+                         :box (:line-width (1 . -1) :color "gray46")
 			 :extend t)
 			(t
 			 :slant italic
 			 :extend t))
   "Face used for editable fields."
-  :group 'widget-faces)
+  :group 'widget-faces
+  :version "28.1")
 
 (defface widget-single-line-field '((((type tty))
 				     :background "green3"
@@ -432,8 +437,9 @@ the :notify function can't know the new value.")
 	(follow-link (widget-get widget :follow-link))
 	(help-echo (widget-get widget :help-echo)))
     (widget-put widget :button-overlay overlay)
-    (if (functionp help-echo)
+    (when (functionp help-echo)
       (setq help-echo 'widget-mouse-help))
+    (overlay-put overlay 'before-string #(" " 0 1 (invisible t)))
     (overlay-put overlay 'button widget)
     (overlay-put overlay 'keymap (widget-get widget :keymap))
     (overlay-put overlay 'evaporate t)
@@ -874,6 +880,7 @@ The child is converted, using the keyword arguments ARGS."
   "Make a deep copy of WIDGET."
   (widget-apply (copy-sequence widget) :copy))
 
+;;;###autoload
 (defun widget-convert (type &rest args)
   "Convert TYPE to a widget without inserting it in the buffer.
 The optional ARGS are additional keyword arguments."
@@ -2213,7 +2220,9 @@ But if NO-TRUNCATE is non-nil, include them."
             (if (widget-get current :inline)
                 (setq val value
                       fun :match-inline)
-              (setq val (car value)
+              (setq val (if (consp value)
+                            (car value)
+                          value)
                     fun :match))
           (setq val value
                 fun :match))
@@ -2963,7 +2972,8 @@ Save CHILD into the :last-deleted list, so it can be inserted later."
   "A widget which groups other widgets inside."
   :convert-widget 'widget-types-convert-widget
   :copy 'widget-types-copy
-  :format ":\n%v"
+  :format (concat (propertize ":" 'display "")
+                  "\n%v")
   :value-create 'widget-group-value-create
   :value-get 'widget-editable-list-value-get
   :default-get 'widget-group-default-get
@@ -3035,11 +3045,9 @@ The following properties have special meanings for this widget:
   :on "Hide"
   :off-glyph "right"
   :off "Show"
-  :value-create 'widget-visibility-value-create
+  :value-create 'widget-toggle-value-create
   :action 'widget-toggle-action
   :match (lambda (_widget _value) t))
-
-(defalias 'widget-visibility-value-create 'widget-toggle-value-create)
 
 ;;; The `documentation-link' Widget.
 ;;
@@ -3320,7 +3328,7 @@ It reads a file name from an editable text field."
 ;;;	 (file (file-name-nondirectory value))
 ;;;	 (menu-tag (widget-apply widget :menu-tag-get))
 ;;;	 (must-match (widget-get widget :must-match))
-;;;	 (answer (read-file-name (concat menu-tag " (default " value "): ")
+;;;	 (answer (read-file-name (format-prompt menu-tag value)
 ;;;				 dir nil must-match file)))
 ;;;    (widget-value-set widget (abbreviate-file-name answer))
 ;;;    (widget-setup)
@@ -3446,14 +3454,12 @@ It reads a directory name from an editable text field."
 (defvar widget-key-sequence-default-value [ignore]
   "Default value for an empty key sequence.")
 
-(defvar widget-key-sequence-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map widget-field-keymap)
-    (define-key map [(control ?q)] 'widget-key-sequence-read-event)
-    map))
+(defvar-keymap widget-key-sequence-map
+  :parent widget-field-keymap
+  "C-q" #'widget-key-sequence-read-event)
 
 (define-widget 'key-sequence 'restricted-sexp
-  "A key sequence."
+  "A key sequence.  This is obsolete; use the `key' type instead."
   :prompt-value 'widget-field-prompt-value
   :prompt-internal 'widget-symbol-prompt-internal
 ; :prompt-match 'fboundp   ;; What was this good for?  KFS
@@ -3517,6 +3523,31 @@ It reads a directory name from an editable text field."
 	  widget-key-sequence-default-value
 	(read-kbd-macro value))
     value))
+
+
+(defvar widget-key-prompt-value-history nil
+  "History of input to `widget-key-prompt-value'.")
+
+(define-widget 'key 'editable-field
+  "A key sequence."
+  :prompt-value 'widget-field-prompt-value
+  :match #'widget-key-valid-p
+  :format "%{%t%}: %v"
+  :validate 'widget-key-validate
+  :keymap widget-key-sequence-map
+  :help-echo "C-q: insert KEY, EVENT, or CODE; RET: enter value"
+  :tag "Key")
+
+(defun widget-key-valid-p (_widget value)
+  "Non-nil if VALUE is a valid value for the key widget WIDGET."
+  (key-valid-p value))
+
+(defun widget-key-validate (widget)
+  (unless (and (stringp (widget-value widget))
+               (key-valid-p (widget-value widget)))
+    (widget-put widget :error (format "Invalid key: %S"
+                                      (widget-value widget)))
+    widget))
 
 
 (define-widget 'sexp 'editable-field
@@ -3787,7 +3818,7 @@ thus allowing recursive data structures to be described.
 The :type parameter takes the same arguments as the defcustom
 parameter with the same name.
 
-Most composite widgets, i.e. widgets containing other widgets, does
+Most composite widgets, i.e. widgets containing other widgets, do
 not allow recursion.  That is, when you define a new widget type, none
 of the inferior widgets may be of the same type you are currently
 defining.
@@ -4110,9 +4141,18 @@ is inline."
 	(setq help-echo (funcall help-echo widget)))
     (if help-echo (message "%s" (eval help-echo)))))
 
-;;; Obsolete.
-
 (define-obsolete-function-alias 'widget-sublist #'seq-subseq "28.1")
+(define-obsolete-function-alias 'widget-visibility-value-create
+  #'widget-toggle-value-create "29.1")
+
+;;; Buffer predicates.
+(define-widget 'buffer-predicate 'lazy
+  "A buffer predicate."
+  :tag "Buffer predicate"
+  :type '(choice (const :tag "All buffers" t)
+                 (const :tag "No buffers" nil)
+                 ;; FIXME: This should be expanded somehow.
+                 sexp))
 
 (provide 'wid-edit)
 

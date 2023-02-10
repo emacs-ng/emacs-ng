@@ -1,6 +1,6 @@
 ;;; tildify.el --- adding hard spaces into texts -*- lexical-binding: t -*-
 
-;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 
 ;; Author:     Milan Zamazal <pdm@zamazal.org>
 ;;             Michal Nazarewicz <mina86@mina86.com>
@@ -494,9 +494,8 @@ variable will be set to the representation."
       (if (not (string-equal " " (or space tildify-space-string)))
           (when space
             (setq tildify-space-string space))
-        (message (eval-when-compile
-                   (concat "Hard space is a single space character, tildify-"
-                           "mode won't have any effect, disabling.")))
+        (message (concat "Hard space is a single space character, tildify-"
+                         "mode won't have any effect, disabling."))
         (setq tildify-mode nil))))
   (if tildify-mode
       (add-hook 'post-self-insert-hook #'tildify-space nil t)

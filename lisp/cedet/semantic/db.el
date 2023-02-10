@@ -1,6 +1,6 @@
 ;;; semantic/db.el --- Semantic tag database manager  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: tags
@@ -115,11 +115,13 @@ for a new table not associated with a buffer."
   "Return a nil, meaning abstract table OBJ is not in a buffer."
   nil)
 
-(cl-defmethod semanticdb-get-buffer ((_obj semanticdb-abstract-table))
-  "Return a buffer associated with OBJ.
+(cl-defgeneric semanticdb-get-buffer (_obj)
+  "Return a buffer associated with semanticdb table OBJ.
 If the buffer is not in memory, load it with `find-file-noselect'."
   nil)
 
+;; FIXME: Should we merge `semanticdb-get-buffer' and
+;; `semantic-tag-parent-buffer'?
 ;; This generic method allows for sloppier coding.  Many
 ;; functions treat "table" as something that could be a buffer,
 ;; file name, or other.  This makes use of table more robust.
@@ -271,6 +273,9 @@ For C/C++, the C preprocessor macros can be saved here.")
    )
   "A single table of tags derived from file.")
 
+(cl-defmethod semantic-tag-parent-buffer ((parent semanticdb-table))
+  (semanticdb-get-buffer parent))       ;FIXME: η-redex!
+
 (cl-defmethod semanticdb-in-buffer-p ((obj semanticdb-table))
   "Return a buffer associated with OBJ.
 If the buffer is in memory, return that buffer."
@@ -346,7 +351,7 @@ Note: This index will not be saved in a persistent file.")
 	   ;; the tables without using the accessor.
 	   :accessor semanticdb-get-database-tables
 	   :protection :protected
-	   :documentation "List of `semantic-db-table' objects."))
+           :documentation "List of `semanticdb-table' objects."))
   "Database of file tables.")
 
 (cl-defmethod semanticdb-full-filename ((obj semanticdb-table))
@@ -609,7 +614,7 @@ The file associated with OBJ does not need to be in a buffer."
 	(or (not (slot-boundp obj 'tags))
 	    ;; (not (oref obj tags)) -->  not needed anymore?
 	    (/= (or (oref obj fsize) 0) actualsize)
-	    (not (equal (oref obj lastmodtime) actualmod))
+	    (not (time-equal-p (oref obj lastmodtime) actualmod))
 	    )
 	))))
 
@@ -729,7 +734,7 @@ Exit the save between databases if there is user input."
 (defvar semanticdb-project-predicate-functions nil
   "List of predicates to try that indicate a directory belongs to a project.
 This list is used when `semanticdb-persistent-path' contains the value
-'project.  If the predicate list is nil, then presume all paths are valid.
+`project'.  If the predicate list is nil, then presume all paths are valid.
 
 Project Management software (such as EDE and JDE) should add their own
 predicates with `add-hook' to this variable, and semanticdb will save tag

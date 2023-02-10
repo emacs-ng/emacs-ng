@@ -1,6 +1,6 @@
 ;;; xml-tests.el --- Test suite for XML parsing.  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2012-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2023 Free Software Foundation, Inc.
 
 ;; Author: Chong Yidong <cyd@stupidchicken.com>
 ;; Keywords:       internal
@@ -97,7 +97,7 @@
      ((("FOOBAR:" . "something") nil "hi there"))
      ((FOOBAR:something nil "hi there"))))
   "List of strings which are parsed using namespace expansion.
-Parser is called with and without 'symbol-qnames argument.")
+Parser is called with and without `symbol-qnames' argument.")
 
 (ert-deftest xml-parse-tests ()
   "Test XML parsing."
@@ -194,9 +194,5 @@ Parser is called with and without 'symbol-qnames argument.")
     (xml-remove-comments (point-min) (point-max))
     (should (equal (cdr test)
                    (xml-parse-region (point-min) (point-max))))))
-
-;; Local Variables:
-;; no-byte-compile: t
-;; End:
 
 ;;; xml-tests.el ends here

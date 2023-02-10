@@ -1,6 +1,6 @@
 ;;; url.el --- Uniform Resource Locator retrieval tool  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1996-1999, 2001, 2004-2022 Free Software Foundation,
+;; Copyright (C) 1996-1999, 2001, 2004-2023 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Bill Perry <wmperry@gnu.org>
@@ -158,7 +158,7 @@ If URL is a multibyte string, it will be encoded as utf-8 and
 URL-encoded before it's used."
   ;; XXX: There is code in Emacs that does dynamic binding
   ;; of the following variables around url-retrieve:
-  ;; url-standalone-mode, url-gateway-unplugged, w3-honor-stylesheets,
+  ;; url-standalone-mode, url-gateway-unplugged,
   ;; url-confirmation-func, url-cookie-multiple-line,
   ;; url-cookie-{{,secure-}storage,confirmation}
   ;; url-standalone-mode and url-gateway-unplugged should work as
@@ -280,7 +280,9 @@ how long to wait for a response before giving up."
               ;; Querying over consumer internet in the US takes 100
               ;; ms, so split the difference.
               (accept-process-output nil 0.05)))
-        (unless (eq data-buffer proc-buffer)
+        ;; Kill the process buffer on redirects.
+        (when (and data-buffer
+                   (not (eq data-buffer proc-buffer)))
           (let (kill-buffer-query-functions)
             (kill-buffer proc-buffer)))))
     data-buffer))
@@ -291,7 +293,7 @@ how long to wait for a response before giving up."
 (declare-function mm-display-part "mm-decode"
 		  (handle &optional no-default force))
 
-(defun url-mm-callback (&rest ignored)
+(defun url-mm-callback (&rest _ignored)
   (let ((handle (mm-dissect-buffer t)))
     (url-mark-buffer-as-dead (current-buffer))
     (with-current-buffer

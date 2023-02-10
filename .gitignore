@@ -1,6 +1,6 @@
 # Files that Git should ignore in the Emacs source directory.
 
-# Copyright 2009-2022 Free Software Foundation, Inc.
+# Copyright 2009-2023 Free Software Foundation, Inc.
 
 # This file is part of GNU Emacs.
 
@@ -25,6 +25,7 @@
 
 # Personal customization.
 .dir-locals-2.el
+.no-advice-on-failure
 
 # Built by 'autogen.sh'.
 /aclocal.m4
@@ -53,6 +54,7 @@ src/emacs-module.h
 
 # C-level sources built by 'make'.
 lib/alloca.h
+lib/assert.h
 lib/byteswap.h
 lib/dirent.h
 lib/errno.h
@@ -156,9 +158,11 @@ test/manual/etags/srclist
 test/manual/etags/regexfile
 test/manual/etags/ETAGS
 test/manual/etags/CTAGS
+test/manual/etags/CTAGS*.sorted
 test/manual/indent/*.new
 test/lisp/gnus/mml-sec-resources/random_seed
 test/lisp/play/fortune-resources/fortunes.dat
+test/**/*.xml
 
 # ctags, etags.
 TAGS
@@ -182,6 +186,7 @@ ID
 # Executables.
 *.exe
 a.out
+lib-src/be-resources
 lib-src/blessmail
 lib-src/ctags
 lib-src/ebrowse
@@ -203,6 +208,7 @@ nextstep/GNUstep/Emacs.base/Resources/Info-gnustep.plist
 src/bootstrap-emacs
 src/emacs
 src/emacs-[0-9]*
+src/Emacs
 src/temacs
 src/dmpstruct.h
 src/*.pdmp
@@ -215,8 +221,10 @@ lisp/international/charprop.el
 lisp/international/charscript.el
 lisp/international/cp51932.el
 lisp/international/emoji-zwj.el
+lisp/international/emoji-labels.el
 lisp/international/eucjp-ms.el
 lisp/international/uni-*.el
+lisp/international/idna-mapping.el
 lisp/language/pinyin.el
 
 # Documentation.
@@ -315,10 +323,27 @@ nix/_sources/.shake*
 nix/cachix-key.secrets
 build-aux/config.guess
 build-aux/config.sub
+/Cargo.toml
 
 # Seccomp filter files.
 lib-src/seccomp-filter.bpf
 lib-src/seccomp-filter.pfc
 lib-src/seccomp-filter-exec.bpf
 lib-src/seccomp-filter-exec.pfc
-/Cargo.toml
+
+# gsettings schema
+/etc/*.gschema.valid
+
+# Ignore directory made by admin/make-manuals.
+/manual/
+
+# Ignore Finder files on MacOS.
+.DS_Store
+
+# Ignore a directory used by dap-mode.
+.vscode
+/test/gmp.h
+
+# GDB history
+.gdb_history
+_gdb_history

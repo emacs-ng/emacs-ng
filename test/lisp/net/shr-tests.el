@@ -1,6 +1,6 @@
 ;;; shr-tests.el --- tests for shr.el  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2016-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2016-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Ingebrigtsen <larsi@gnus.org>
 
@@ -26,6 +26,8 @@
 (require 'ert)
 (require 'ert-x)
 (require 'shr)
+
+(declare-function libxml-parse-html-region "xml.c")
 
 (defun shr-test (name)
   (with-temp-buffer
@@ -64,6 +66,21 @@
      (shr--use-cookies-p "http://www.fsf.org" '("http://fsf.org")))
     (should-not
      (shr--use-cookies-p "http://www.gnu.org" '("http://www.fsf.org")))))
+
+(ert-deftest shr-srcset ()
+  (should (equal (shr--parse-srcset "") nil))
+
+  (should (equal (shr--parse-srcset "a 10w, b 20w")
+                 '(("b" 20) ("a" 10))))
+
+  (should (equal (shr--parse-srcset "a 10w b 20w")
+                 '(("a" 10))))
+
+  (should (equal (shr--parse-srcset "https://example.org/1\n\n 10w , https://example.org/2 20w      ")
+	         '(("https://example.org/2" 20) ("https://example.org/1" 10))))
+
+  (should (equal (shr--parse-srcset "https://example.org/1,2\n\n 10w , https://example.org/2 20w      ")
+	         '(("https://example.org/2" 20) ("https://example.org/1,2" 10)))))
 
 (require 'shr)
 

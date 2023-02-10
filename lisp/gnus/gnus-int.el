@@ -1,6 +1,6 @@
 ;;; gnus-int.el --- backend interface functions for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -114,10 +114,7 @@ If CONFIRM is non-nil, the user will be asked for an NNTP server."
 	;; Read server name with completion.
 	(setq gnus-nntp-server
 	      (gnus-completing-read "NNTP server"
-                                    (cons gnus-nntp-server
-					  (if (boundp 'gnus-secondary-servers)
-					      gnus-secondary-servers))
-                                    nil gnus-nntp-server)))
+                                    nil nil gnus-nntp-server)))
 
       (when (and gnus-nntp-server
 		 (stringp gnus-nntp-server)
@@ -802,7 +799,7 @@ If GROUP is nil, all groups on COMMAND-METHOD are scanned."
                (when (> min 1)
                  (let* ((range (if (= min 2) 1 (cons 1 (1- min))))
                         (read (gnus-info-read info))
-                        (new-read (gnus-range-add read (list range))))
+                        (new-read (range-concat read (list range))))
                    (setf (gnus-info-read info) new-read)))
                info))))))
 

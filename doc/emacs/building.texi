@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2022 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2023 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Building
@@ -138,6 +138,14 @@ of environment variable settings; each element should be a string of
 the form @code{"@var{envvarname}=@var{value}"}.  These environment
 variable settings override the usual ones.
 
+@vindex compilation-max-output-line-length
+  Displaying extremely long lines in compilation output can slow Emacs
+down.  Lines that are longer than
+@code{compilation-max-output-line-length} will have the portion that's
+exceeds that limit hidden behind a button that can be clicked on to
+reveal the hidden portion.  Set this variable to @code{nil} to never
+hide anything.
+
 @node Compilation Mode
 @section Compilation Mode
 
@@ -170,7 +178,9 @@ list of customization variables and faces.
   If you change the variable
 @code{compilation-auto-jump-to-first-error} to a non-@code{nil} value,
 Emacs automatically visits the locus of the first error message that
-appears in the @file{*compilation*} buffer.
+appears in the @file{*compilation*} buffer.  (This variable can also
+have the values @code{if-location-known} and @code{first-known}, which
+modify the conditions for automatically visiting the error locus.)
 
   Compilation mode provides the following additional commands.  These
 commands can also be used in @file{*grep*} buffers, where the
@@ -278,6 +288,19 @@ the variable to an integer value @var{n}, these commands scroll the
 window so that the current error message is @var{n} lines from the
 top, whether or not there is a fringe; the default value, @code{nil},
 gives the behavior described above.
+
+@vindex compilation-hidden-output
+  Compilation output can sometimes be very verbose, and much of it isn't
+of particular interest to a user.  The
+@code{compilation-hidden-output} user option should either be a regexp
+or a list of regexps, and output that matches will be made invisible.
+For instance, to hide the verbose output from recursive makefiles, you
+can say something like:
+
+@lisp
+(setq compilation-hidden-output
+      '("^make[^\n]+\n"))
+@end lisp
 
 @vindex compilation-error-regexp-alist
 @vindex grep-regexp-alist
@@ -514,10 +537,13 @@ C/C++ files this is usually the C compiler.  Flymake can also use
 build tools such as @code{make} for checking complicated projects.
 
   To enable Flymake mode, type @kbd{M-x flymake-mode}.  You can jump
-to the errors that it finds by using @kbd{M-x flymake-goto-next-error}
-and @kbd{M-x flymake-goto-prev-error}.  To display any error messages
-associated with the current line, type @kbd{M-x
-flymake-display-err-menu-for-current-line}.
+to the errors that it finds by using @w{@kbd{M-x
+flymake-goto-next-error}} and @w{@kbd{M-x flymake-goto-prev-error}}.
+To display a detailed overview of the diagnostics for the current
+buffer, use the command @w{@kbd{M-x flymake-show-buffer-diagnostics}};
+to display a similar overview of diagnostics for the entire project
+(@pxref{Projects}), use @w{@kbd{M-x
+flymake-show-project-diagnostics}}.
 
   For more details about using Flymake,
 @ifnottex
@@ -935,9 +961,7 @@ the fringe of a source buffer to set a breakpoint there.
 @vindex gud-gdb-command-name
   To run GDB using just the GUD interaction buffer interface, without
 these additional features, use @kbd{M-x gud-gdb} (@pxref{Starting
-GUD}).  You must use this if you want to debug multiple programs
-within one Emacs session, as that is currently unsupported by @kbd{M-x
-gdb}.
+GUD}).
 
   Internally, @kbd{M-x gdb} informs GDB that its screen size is
 unlimited; for correct operation, you must not change GDB's screen
@@ -1025,9 +1049,9 @@ to restore only when @code{gdb-show-main} is non-@code{nil}.
   You may also specify additional GDB-related buffers to display,
 either in the same frame or a different one.  Select the buffers you
 want by typing @kbd{M-x gdb-display-@var{buffertype}-buffer} or
-@kbd{M-x gdb-frame-@var{buffertype}-buffer}, where @var{buffertype}
-is the relevant buffer type, such as @samp{breakpoints}.  You can do
-the same with the menu bar, with the @samp{GDB-Windows} and
+@kbd{M-x gdb-frame-@var{buffertype}-buffer}, where @var{buffertype} is
+the relevant buffer type, such as @samp{breakpoints} or @samp{io}.
+You can do the same from the menu bar, with the @samp{GDB-Windows} and
 @samp{GDB-Frames} sub-menus of the @samp{GUD} menu.
 
 @vindex gdb-max-source-window-count
@@ -1247,10 +1271,14 @@ non-@code{nil} value.
 @node Other GDB Buffers
 @subsubsection Other GDB Buffers
 
+Other buffers provided by @kbd{M-x gdb} whose display you can
+optionally request include:
+
 @table @asis
+@findex gdb-display-locals-buffer
 @item Locals Buffer
 This buffer displays the values of local variables of the current
-frame for simple data types (@pxref{Frame Info, Frame Info,
+stack frame for simple data types (@pxref{Frame Info, Frame Info,
 Information on a frame, gdb, The GNU debugger}).  Press @key{RET} or
 click @kbd{mouse-2} on the value if you want to edit it.
 
@@ -1260,20 +1288,35 @@ you can examine the value of the local variable at point by typing
 GDB, use @key{RET} or @kbd{mouse-2} on the type description
 (@samp{[struct/union]} or @samp{[array]}).  @xref{Watch Expressions}.
 
-@item Registers Buffer
-@findex toggle-gdb-all-registers
-This buffer displays the values held by the registers
-(@pxref{Registers,,, gdb, The GNU debugger}).  Press @key{RET} or
-click @kbd{mouse-2} on a register if you want to edit its value.  With
-GDB 6.4 or later, recently changed register values display with
-@code{font-lock-warning-face}.
+To display the Locals buffer, type @kbd{M-x gdb-display-locals-buffer}.
 
+@findex gdb-display-io-buffer
+@item I/O Buffer
+If the program you are debugging uses standard input and output
+streams for interaction with the user, or emits a significant amount
+of output to its standard output, you may wish to separate its I/O
+from interaction with GDB.  Use the command @w{@kbd{M-x
+gdb-display-io-buffer}} to show a window with a buffer to which Emacs
+redirects the input and output from the program you are debugging.
+
+@findex gdb-display-registers-buffer
+@item Registers Buffer
+This buffer displays the values held by the registers
+(@pxref{Registers,,, gdb, The GNU debugger}).  Request the display of
+this buffer with the command @kbd{M-x gdb-display-registers-buffer}.
+Press @key{RET} or click @kbd{mouse-2} on a register if you want to
+edit its value.  With GDB 6.4 or later, recently changed register
+values display with @code{font-lock-warning-face}.
+
+@findex gdb-display-disassembly-buffer
 @item Assembler Buffer
 The assembler buffer displays the current frame as machine code.  An
 arrow points to the current instruction, and you can set and remove
 breakpoints as in a source buffer.  Breakpoint icons also appear in
-the fringe or margin.
+the fringe or margin.  To request the display of this buffer, use
+@kbd{M-x gdb-display-disassembly-buffer}.
 
+@findex gdb-display-memory-buffer
 @item Memory Buffer
 The memory buffer lets you examine sections of program memory
 (@pxref{Memory, Memory, Examining memory, gdb, The GNU debugger}).
@@ -1281,7 +1324,8 @@ Click @kbd{mouse-1} on the appropriate part of the header line to
 change the starting address or number of data items that the buffer
 displays.  Alternatively, use @kbd{S} or @kbd{N} respectively.  Click
 @kbd{mouse-3} on the header line to select the display format or unit
-size for these data items.
+size for these data items.  Use @w{@kbd{M-x
+gdb-display-memory-buffer}} to request display of this buffer.
 @end table
 
 When @code{gdb-many-windows} is non-@code{nil}, the locals buffer
@@ -1733,6 +1777,10 @@ are larger than it from being displayed as characters.
 which is provided for evaluating Emacs Lisp expressions interactively.
 Its major mode is Lisp Interaction mode.  You can also enable Lisp
 Interaction mode by typing @kbd{M-x lisp-interaction-mode}.
+
+@findex scratch-buffer
+  If you kill the @file{*scratch*} buffer, you can recreate it with
+the @kbd{M-x scratch-buffer} command.
 
 @findex eval-print-last-sexp
 @kindex C-j @r{(Lisp Interaction mode)}

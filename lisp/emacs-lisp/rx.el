@@ -1,6 +1,6 @@
 ;;; rx.el --- S-exp notation for regexps           --*- lexical-binding: t -*-
 
-;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -1110,6 +1110,15 @@ can expand to any number of values."
   (append rx--builtin-forms rx--builtin-symbols)
   "List of built-in rx names.  These cannot be redefined by the user.")
 
+;; Declare Lisp indentation rules for constructs that take 1 or 2
+;; parameters before a body of RX forms.
+;; (`>=' and `=' are omitted because they are more likely to be used
+;; as Lisp functions than RX constructs; `repeat' is a `defcustom' type.)
+(put 'group-n 'lisp-indent-function 1)
+(put 'submatch-n 'lisp-indent-function 1)
+(put '** 'lisp-indent-function 2)
+
+
 (defun rx--translate (item)
   "Translate the rx-expression ITEM.  Return (REGEXP . PRECEDENCE)."
   (cond
@@ -1143,7 +1152,12 @@ For extending the `rx' notation in FORM, use `rx-define' or `rx-let-eval'."
 
 (defun rx--to-expr (form)
   "Translate the rx-expression FORM to a Lisp expression yielding a regexp."
-  (let* ((rx--delayed-evaluation t)
+  (let* ((rx--local-definitions
+          ;; Retrieve local definitions from the macroexpansion environment.
+          ;; (It's unclear whether the previous value of `rx--local-definitions'
+          ;; should be included, and if so, in which order.)
+          (cdr (assq :rx-locals macroexpand-all-environment)))
+         (rx--delayed-evaluation t)
          (elems (car (rx--translate form)))
          (args nil))
     ;; Merge adjacent strings.
@@ -1273,12 +1287,7 @@ Additional constructs can be defined using `rx-define' and `rx-let',
 which see.
 
 \(fn REGEXPS...)"
-  ;; Retrieve local definitions from the macroexpansion environment.
-  ;; (It's unclear whether the previous value of `rx--local-definitions'
-  ;; should be included, and if so, in which order.)
-  (let ((rx--local-definitions
-         (cdr (assq :rx-locals macroexpand-all-environment))))
-    (rx--to-expr (cons 'seq regexps))))
+  (rx--to-expr (cons 'seq regexps)))
 
 (defun rx--make-binding (name tail)
   "Make a definitions entry out of TAIL.
@@ -1442,6 +1451,12 @@ following constructs:
                    REF can be a number, as usual, or a name
                    introduced by a previous (let REF ...)
                    construct."
+  (rx--pcase-expand regexps))
+
+;; Autoloaded because it's referred to by the pcase rx macro above,
+;; whose body ends up in loaddefs.el.
+;;;###autoload
+(defun rx--pcase-expand (regexps)
   (let* ((rx--pcase-vars nil)
          (regexp (rx--to-expr (rx--pcase-transform (cons 'seq regexps)))))
     `(and (pred stringp)

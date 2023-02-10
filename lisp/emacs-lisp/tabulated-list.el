@@ -1,6 +1,6 @@
 ;;; tabulated-list.el --- generic major mode for tabulated lists -*- lexical-binding: t -*-
 
-;; Copyright (C) 2011-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2023 Free Software Foundation, Inc.
 
 ;; Author: Chong Yidong <cyd@stupidchicken.com>
 ;; Keywords: extensions, lisp
@@ -115,16 +115,25 @@ where:
 This should be either a function, or a list.
 If a list, each element has the form (ID [DESC1 ... DESCN]),
 where:
+
  - ID is nil, or a Lisp object uniquely identifying this entry,
    which is used to keep the cursor on the \"same\" entry when
    rearranging the list.  Comparison is done with `equal'.
 
  - Each DESC is a column descriptor, one for each column
-   specified in `tabulated-list-format'.  A descriptor is either
-   a string, which is printed as-is, or a list (LABEL . PROPS),
-   which means to use `insert-text-button' to insert a text
-   button with label LABEL and button properties PROPS.
-   The string, or button label, must not contain any newline.
+   specified in `tabulated-list-format'.  The descriptor DESC is
+   one of:
+
+    - A string, which is printed as-is, and must not contain any
+      newlines.
+
+    - An image descriptor (a list), which is used to insert an
+      image (see Info node `(elisp) Image Descriptors').
+
+    - A list (LABEL . PROPS), which means to use
+      `insert-text-button' to insert a text button with label
+      LABEL and button properties PROPS.  LABEL must not contain
+      any newlines.
 
 If `tabulated-list-entries' is a function, it is called with no
 arguments and must return a list of the above form.")
@@ -207,33 +216,28 @@ If ADVANCE is non-nil, move forward by one line afterwards."
       (while (re-search-forward re nil 'noerror)
         (tabulated-list-put-tag empty)))))
 
-(defvar tabulated-list-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map (make-composed-keymap
-                            button-buffer-map
-                            special-mode-map))
-    (define-key map "n" 'next-line)
-    (define-key map "p" 'previous-line)
-    (define-key map (kbd "M-<left>") 'tabulated-list-previous-column)
-    (define-key map (kbd "M-<right>") 'tabulated-list-next-column)
-    (define-key map "S" 'tabulated-list-sort)
-    (define-key map "}" 'tabulated-list-widen-current-column)
-    (define-key map "{" 'tabulated-list-narrow-current-column)
-    (define-key map [follow-link] 'mouse-face)
-    (define-key map [mouse-2] 'mouse-select-window)
-    map)
-  "Local keymap for `tabulated-list-mode' buffers.")
+(defvar-keymap tabulated-list-mode-map
+  :doc "Local keymap for `tabulated-list-mode' buffers."
+  :parent (make-composed-keymap button-buffer-map
+                                special-mode-map)
+  "n"             #'next-line
+  "p"             #'previous-line
+  "M-<left>"      #'tabulated-list-previous-column
+  "M-<right>"     #'tabulated-list-next-column
+  "S"             #'tabulated-list-sort
+  "}"             #'tabulated-list-widen-current-column
+  "{"             #'tabulated-list-narrow-current-column
+  "<follow-link>" 'mouse-face
+  "<mouse-2>"     #'mouse-select-window)
 
-(defvar tabulated-list-sort-button-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [header-line mouse-1] 'tabulated-list-col-sort)
-    (define-key map [header-line mouse-2] 'tabulated-list-col-sort)
-    (define-key map [mouse-1] 'tabulated-list-col-sort)
-    (define-key map [mouse-2] 'tabulated-list-col-sort)
-    (define-key map "\C-m" 'tabulated-list-sort)
-    (define-key map [follow-link] 'mouse-face)
-    map)
-  "Local keymap for `tabulated-list-mode' sort buttons.")
+(defvar-keymap tabulated-list-sort-button-map
+  :doc "Local keymap for `tabulated-list-mode' sort buttons."
+  "<header-line> <mouse-1>" #'tabulated-list-col-sort
+  "<header-line> <mouse-2>" #'tabulated-list-col-sort
+  "<mouse-1>"               #'tabulated-list-col-sort
+  "<mouse-2>"               #'tabulated-list-col-sort
+  "RET"                     #'tabulated-list-sort
+  "<follow-link>"           'mouse-face)
 
 (defun tabulated-list-make-glyphless-char-display-table ()
   "Make the `glyphless-char-display' table used for text-mode frames.
@@ -255,18 +259,12 @@ variables `tabulated-list-tty-sort-indicator-asc' and
 Populated by `tabulated-list-init-header'.")
 (defvar tabulated-list--header-overlay nil)
 
-(defun tabulated-list-line-number-width ()
-  "Return the width taken by `display-line-numbers' in the current buffer."
-  ;; line-number-display-width returns the value for the selected
-  ;; window, which might not be the window in which the current buffer
-  ;; is displayed.
-  (if (not display-line-numbers)
-           0
-    (let ((cbuf-window (get-buffer-window (current-buffer) t)))
-      (if (window-live-p cbuf-window)
-          (with-selected-window cbuf-window
-            (line-number-display-width 'columns))
-        4))))
+(define-obsolete-function-alias 'tabulated-list-line-number-width
+  'header-line-indent--line-number-width "29.1")
+(define-obsolete-function-alias 'tabulated-list-watch-line-number-width
+  'header-line-indent--watch-line-number-width "29.1")
+(define-obsolete-function-alias 'tabulated-list-window-scroll-function
+  'header-line-indent--window-scroll-function "29.1")
 
 (defun tabulated-list-init-header ()
   "Set up header line for the Tabulated List buffer."
@@ -280,9 +278,9 @@ Populated by `tabulated-list-init-header'.")
          (hcols (mapcar #'car tabulated-list-format))
          (tabulated-list--near-rows (list hcols hcols))
 	 (cols nil))
-    (if display-line-numbers
-        (setq x (+ x (tabulated-list-line-number-width))))
-    (push (propertize " " 'display `(space :align-to ,x)) cols)
+    (push (propertize " " 'display
+                      `(space :align-to (+ header-line-indent-width ,x)))
+          cols)
     (dotimes (n len)
       (let* ((col (aref tabulated-list-format n))
              (not-last-col (< n (1- len)))
@@ -333,20 +331,25 @@ Populated by `tabulated-list-init-header'.")
             (when (> shift 0)
               (setq cols
                     (cons (car cols)
-                          (cons (propertize (make-string shift ?\s)
-                                            'display
-                                            `(space :align-to ,(+ x shift)))
-                                (cdr cols))))
+                          (cons
+                           (propertize
+                            (make-string shift ?\s)
+                            'display
+                            `(space :align-to
+                                    (+ header-line-indent-width ,(+ x shift))))
+                           (cdr cols))))
               (setq x (+ x shift)))))
 	(if (>= pad-right 0)
-	    (push (propertize " "
-			      'display `(space :align-to ,next-x)
-			      'face 'fixed-pitch)
+	    (push (propertize
+                   " "
+		   'display `(space :align-to
+                                    (+ header-line-indent-width ,next-x))
+		   'face 'fixed-pitch)
 		  cols))
         (setq x next-x)))
     (setq cols (apply 'concat (nreverse cols)))
     (if tabulated-list-use-header-line
-	(setq header-line-format cols)
+	(setq header-line-format (list "" 'header-line-indent cols))
       (setq-local tabulated-list--header-string cols))))
 
 (defun tabulated-list-print-fake-header ()
@@ -369,7 +372,7 @@ Optional arg POS is a buffer position where to look for a fake header;
 defaults to `point-min'."
   (overlays-at (or pos (point-min))))
 
-(defun tabulated-list-revert (&rest ignored)
+(defun tabulated-list-revert (&rest _ignored)
   "The `revert-buffer-function' for `tabulated-list-mode'.
 It runs `tabulated-list-revert-hook', then calls `tabulated-list-print'."
   (interactive)
@@ -460,7 +463,7 @@ changing `tabulated-list-sort-key'."
       (let* ((elt (car entries))
              (tabulated-list--near-rows
               (list
-               (or (tabulated-list-get-entry (point-at-bol 0)) (cadr elt))
+               (or (tabulated-list-get-entry (pos-bol 0)) (cadr elt))
                (cadr elt)
                (or (cadr (cadr entries)) (cadr elt))))
              (id (car elt)))
@@ -514,7 +517,7 @@ of column descriptors."
 	(insert (make-string x ?\s)))
     (let ((tabulated-list--near-rows ; Bind it if not bound yet (Bug#25506).
            (or (bound-and-true-p tabulated-list--near-rows)
-               (list (or (tabulated-list-get-entry (point-at-bol 0))
+               (list (or (tabulated-list-get-entry (pos-bol 0))
                          cols)
                      cols))))
       (dotimes (n ncols)
@@ -547,7 +550,9 @@ Return the column number after insertion."
 	 (props     (nthcdr 3 format))
 	 (pad-right (or (plist-get props :pad-right) 1))
          (right-align (plist-get props :right-align))
-	 (label     (if (stringp col-desc) col-desc (car col-desc)))
+         (label (cond ((stringp col-desc) col-desc)
+                      ((eq (car col-desc) 'image) " ")
+                      (t (car col-desc))))
          (label-width (string-width label))
 	 (help-echo (concat (car format) ": " label))
 	 (opoint (point))
@@ -571,11 +576,15 @@ Return the column number after insertion."
                             'display `(space :align-to ,(+ x shift))))
         (setq width (- width shift))
         (setq x (+ x shift))))
-    (if (stringp col-desc)
-	(insert (if (get-text-property 0 'help-echo label)
-		    label
-		  (propertize label 'help-echo help-echo)))
-      (apply 'insert-text-button label (cdr col-desc)))
+    (cond ((stringp col-desc)
+           (insert (if (get-text-property 0 'help-echo label)
+                       label
+                     (propertize label 'help-echo help-echo))))
+          ((eq (car col-desc) 'image)
+           (insert (propertize " "
+                               'display col-desc
+                               'help-echo help-echo)))
+          ((apply 'insert-text-button label (cdr col-desc))))
     (let ((next-x (+ x pad-right width)))
       ;; No need to append any spaces if this is the last column.
       (when not-last-col
@@ -600,7 +609,7 @@ This function only changes the buffer contents; it does not alter
 	 (cols (tabulated-list-get-entry))
 	 (inhibit-read-only t))
     (when cols
-      (delete-region (line-beginning-position) (1+ (line-end-position)))
+      (delete-region (pos-bol) (1+ (pos-eol)))
       (list id cols))))
 
 (defun tabulated-list-set-col (col desc &optional change-entry-data)
@@ -614,8 +623,8 @@ by setting the appropriate slot of the vector originally used to
 print this entry.  If `tabulated-list-entries' has a list value,
 this is the vector stored within it."
   (let* ((opoint (point))
-	 (eol    (line-end-position))
-	 (pos    (line-beginning-position))
+         (eol    (pos-eol))
+         (pos    (pos-bol))
 	 (id     (tabulated-list-get-id pos))
 	 (entry  (tabulated-list-get-entry pos))
 	 (prop 'tabulated-list-column-name)
@@ -640,9 +649,9 @@ this is the vector stored within it."
       (goto-char pos)
       (let ((tabulated-list--near-rows
              (list
-              (tabulated-list-get-entry (point-at-bol 0))
+              (tabulated-list-get-entry (pos-bol 0))
               entry
-              (or (tabulated-list-get-entry (point-at-bol 2)) entry))))
+              (or (tabulated-list-get-entry (pos-bol 2)) entry))))
         (tabulated-list-print-col col desc (current-column)))
       (if change-entry-data
 	  (aset entry col desc))
@@ -668,6 +677,10 @@ With a numeric prefix argument N, sort the Nth column.
 If the numeric prefix is -1, restore order the list was
 originally displayed in."
   (interactive "P")
+  (when (and n
+             (or (>= n (length tabulated-list-format))
+                 (< n -1)))
+    (user-error "Invalid column number"))
   (if (equal n -1)
       ;; Restore original order.
       (progn
@@ -712,6 +725,7 @@ Interactively, N is the prefix numeric argument, and defaults to
 1."
   (interactive "p")
   (let ((start (current-column))
+        (entry (tabulated-list-get-entry))
         (nb-cols (length tabulated-list-format))
         (col-nb 0)
         (total-width 0)
@@ -719,14 +733,25 @@ Interactively, N is the prefix numeric argument, and defaults to
         col-width)
     (while (and (not found)
                 (< col-nb nb-cols))
-      (if (> start
-             (setq total-width
-                   (+ total-width
-                      (setq col-width
-                            (cadr (aref tabulated-list-format
-                                        col-nb))))))
+      (if (>= start
+              (setq total-width
+                    (+ total-width
+                       (max (setq col-width
+                                  (cadr (aref tabulated-list-format
+                                              col-nb)))
+                            (let ((desc (aref entry col-nb)))
+                              (string-width (if (stringp desc)
+                                                desc
+                                              (car desc)))))
+                       (or (plist-get (nthcdr 3 (aref tabulated-list-format
+                                                      col-nb))
+                                      :pad-right)
+                           1))))
           (setq col-nb (1+ col-nb))
         (setq found t)
+        ;; `tabulated-list-format' may be a constant (sharing list
+        ;; structures), so copy it before mutating.
+        (setq tabulated-list-format (copy-tree tabulated-list-format t))
         (setf (cadr (aref tabulated-list-format col-nb))
               (max 1 (+ col-width n)))
         (tabulated-list-print t)
@@ -738,23 +763,6 @@ Interactively, N is the prefix numeric argument, and defaults to
 1."
   (interactive "p")
   (tabulated-list-widen-current-column (- n)))
-
-(defvar tabulated-list--current-lnum-width nil)
-(defun tabulated-list-watch-line-number-width (_window)
-  (if display-line-numbers
-      (let ((lnum-width (tabulated-list-line-number-width)))
-        (when (not (= tabulated-list--current-lnum-width lnum-width))
-          (setq-local tabulated-list--current-lnum-width lnum-width)
-          (tabulated-list-init-header)))))
-
-(defun tabulated-list-window-scroll-function (window _start)
-  (if display-line-numbers
-      (let ((lnum-width
-             (with-selected-window window
-               (line-number-display-width 'columns))))
-        (when (not (= tabulated-list--current-lnum-width lnum-width))
-          (setq-local tabulated-list--current-lnum-width lnum-width)
-          (tabulated-list-init-header)))))
 
 (defun tabulated-list-next-column (&optional arg)
   "Go to the start of the next column after point on the current line.
@@ -775,7 +783,7 @@ If ARG is provided, move that many columns."
     (let ((prev (or (previous-single-property-change
                      (point) 'tabulated-list-column-name)
                     1)))
-      (unless (< prev (line-beginning-position))
+      (unless (< prev (pos-bol))
         (goto-char prev)))))
 
 ;;; The mode definition:
@@ -826,15 +834,7 @@ as the ewoc pretty-printer."
   ;; Avoid messing up the entries' display just because the first
   ;; column of the first entry happens to begin with a R2L letter.
   (setq bidi-paragraph-direction 'left-to-right)
-  ;; This is for if/when they turn on display-line-numbers
-  (add-hook 'display-line-numbers-mode-hook #'tabulated-list-revert nil t)
-  ;; This is for if/when they customize the line-number face or when
-  ;; the line-number width needs to change due to scrolling.
-  (setq-local tabulated-list--current-lnum-width 0)
-  (add-hook 'pre-redisplay-functions
-            #'tabulated-list-watch-line-number-width nil t)
-  (add-hook 'window-scroll-functions
-            #'tabulated-list-window-scroll-function nil t))
+  (header-line-indent-mode))
 
 (put 'tabulated-list-mode 'mode-class 'special)
 

@@ -1,5 +1,5 @@
 /* The emacs frame widget.
-   Copyright (C) 1992-1993, 2000-2022 Free Software Foundation, Inc.
+   Copyright (C) 1992-1993, 2000-2023 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -42,11 +42,13 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <X11/ShellP.h>
 #include "../lwlib/lwlib.h"
 
-static void EmacsFrameInitialize (Widget request, Widget new, ArgList dum1, Cardinal *dum2);
-static void EmacsFrameDestroy (Widget widget);
-static void EmacsFrameRealize (Widget widget, XtValueMask *mask, XSetWindowAttributes *attrs);
-static void EmacsFrameResize (Widget widget);
-static XtGeometryResult EmacsFrameQueryGeometry (Widget widget, XtWidgetGeometry *request, XtWidgetGeometry *result);
+static void EmacsFrameInitialize (Widget, Widget, ArgList, Cardinal *);
+static void EmacsFrameDestroy (Widget);
+static void EmacsFrameRealize (Widget, XtValueMask *, XSetWindowAttributes *);
+static void EmacsFrameResize (Widget);
+static void EmacsFrameExpose (Widget, XEvent *, Region);
+static XtGeometryResult EmacsFrameQueryGeometry (Widget, XtWidgetGeometry *,
+						 XtWidgetGeometry *);
 
 
 #define offset(field) offsetof (EmacsFrameRec, emacs_frame.field)
@@ -118,12 +120,12 @@ static EmacsFrameClassRec emacsFrameClassRec = {
     /* resource_count		*/	XtNumber (resources),
     /* xrm_class		*/	NULLQUARK,
     /* compress_motion		*/	TRUE,
-    /* compress_exposure	*/	TRUE,
+    /* compress_exposure	*/	XtExposeNoCompress,
     /* compress_enterleave	*/	TRUE,
     /* visible_interest		*/	FALSE,
     /* destroy			*/	EmacsFrameDestroy,
     /* resize			*/	EmacsFrameResize,
-    /* expose			*/	XtInheritExpose,
+    /* expose			*/	EmacsFrameExpose,
 
     /* Emacs never does XtSetvalues on this widget, so we have no code
        for it. */
@@ -156,36 +158,44 @@ static void
 get_default_char_pixel_size (EmacsFrame ew, int *pixel_width, int *pixel_height)
 {
   struct frame *f = ew->emacs_frame.frame;
+
   *pixel_width = FRAME_COLUMN_WIDTH (f);
   *pixel_height = FRAME_LINE_HEIGHT (f);
 }
 
 static void
-pixel_to_char_size (EmacsFrame ew, Dimension pixel_width, Dimension pixel_height, int *char_width, int *char_height)
+pixel_to_char_size (EmacsFrame ew, Dimension pixel_width,
+		    Dimension pixel_height, int *char_width, int *char_height)
 {
   struct frame *f = ew->emacs_frame.frame;
+
   *char_width = FRAME_PIXEL_WIDTH_TO_TEXT_COLS (f, (int) pixel_width);
   *char_height = FRAME_PIXEL_HEIGHT_TO_TEXT_LINES (f, (int) pixel_height);
 }
 
 static void
-char_to_pixel_size (EmacsFrame ew, int char_width, int char_height, Dimension *pixel_width, Dimension *pixel_height)
+char_to_pixel_size (EmacsFrame ew, int char_width, int char_height,
+		    Dimension *pixel_width, Dimension *pixel_height)
 {
   struct frame *f = ew->emacs_frame.frame;
+
   *pixel_width = FRAME_TEXT_COLS_TO_PIXEL_WIDTH (f, char_width);
   *pixel_height = FRAME_TEXT_LINES_TO_PIXEL_HEIGHT (f, char_height);
 }
 
 static void
-round_size_to_char (EmacsFrame ew, Dimension in_width, Dimension in_height, Dimension *out_width, Dimension *out_height)
+round_size_to_char (EmacsFrame ew, Dimension in_width, Dimension in_height,
+		    Dimension *out_width, Dimension *out_height)
 {
   int char_width;
   int char_height;
-  pixel_to_char_size (ew, in_width, in_height, &char_width, &char_height);
-  char_to_pixel_size (ew, char_width, char_height, out_width, out_height);
+  pixel_to_char_size (ew, in_width, in_height,
+		      &char_width, &char_height);
+  char_to_pixel_size (ew, char_width, char_height,
+		      out_width, out_height);
 }
 
-static Widget
+static WMShellWidget
 get_wm_shell (Widget w)
 {
   Widget wmshell;
@@ -194,7 +204,7 @@ get_wm_shell (Widget w)
        wmshell && !XtIsWMShell (wmshell);
        wmshell = XtParent (wmshell));
 
-  return wmshell;
+  return (WMShellWidget) wmshell;
 }
 
 #if 0 /* Currently not used.  */
@@ -259,10 +269,9 @@ set_frame_size (EmacsFrame ew)
       (f, build_string ("set_frame_size"));
 }
 
-static void
-update_wm_hints (EmacsFrame ew)
+static bool
+update_wm_hints (WMShellWidget wmshell, EmacsFrame ew)
 {
-  Widget wmshell = get_wm_shell ((Widget) ew);
   int cw;
   int ch;
   Dimension rounded_width;
@@ -271,9 +280,12 @@ update_wm_hints (EmacsFrame ew)
   int char_height;
   int base_width;
   int base_height;
+  char buffer[sizeof wmshell->wm.size_hints];
+  char *hints_ptr;
 
-  /* This happens when the frame is just created.  */
-  if (! wmshell) return;
+  /* Copy the old size hints to the buffer.  */
+  memcpy (buffer, &wmshell->wm.size_hints,
+	  sizeof wmshell->wm.size_hints);
 
   pixel_to_char_size (ew, ew->core.width, ew->core.height,
 		      &char_width, &char_height);
@@ -286,12 +298,7 @@ update_wm_hints (EmacsFrame ew)
   base_height = (wmshell->core.height - ew->core.height
 		 + (rounded_height - (char_height * ch)));
 
-  /* This is kind of sleazy, but I can't see how else to tell it to
-     make it mark the WM_SIZE_HINTS size as user specified.
-   */
-/*  ((WMShellWidget) wmshell)->wm.size_hints.flags |= USSize;*/
-
-  XtVaSetValues (wmshell,
+  XtVaSetValues ((Widget) wmshell,
 		 XtNbaseWidth, (XtArgVal) base_width,
 		 XtNbaseHeight, (XtArgVal) base_height,
 		 XtNwidthInc, (XtArgVal) (frame_resize_pixelwise ? 1 : cw),
@@ -299,13 +306,21 @@ update_wm_hints (EmacsFrame ew)
 		 XtNminWidth, (XtArgVal) base_width,
 		 XtNminHeight, (XtArgVal) base_height,
 		 NULL);
+
+  /* Return if size hints really changed.  If they did not, then Xt
+     probably didn't set them either (or take the flags into
+     account.)  */
+  hints_ptr = (char *) &wmshell->wm.size_hints;
+
+  /* Skip flags, which is unsigned long.  */
+  return memcmp (hints_ptr + sizeof (long), buffer + sizeof (long),
+		 sizeof wmshell->wm.wm_hints - sizeof (long));
 }
 
-void
-widget_update_wm_size_hints (Widget widget)
+bool
+widget_update_wm_size_hints (Widget widget, Widget frame)
 {
-  EmacsFrame ew = (EmacsFrame) widget;
-  update_wm_hints (ew);
+  return update_wm_hints ((WMShellWidget) widget, (EmacsFrame) frame);
 }
 
 static void
@@ -339,7 +354,8 @@ update_from_various_frame_slots (EmacsFrame ew)
 }
 
 static void
-EmacsFrameInitialize (Widget request, Widget new, ArgList dum1, Cardinal *dum2)
+EmacsFrameInitialize (Widget request, Widget new,
+		      ArgList dum1, Cardinal *dum2)
 {
   EmacsFrame ew = (EmacsFrame) new;
 
@@ -364,7 +380,8 @@ resize_cb (Widget widget,
 
 
 static void
-EmacsFrameRealize (Widget widget, XtValueMask *mask, XSetWindowAttributes *attrs)
+EmacsFrameRealize (Widget widget, XtValueMask *mask,
+		   XSetWindowAttributes *attrs)
 {
   EmacsFrame ew = (EmacsFrame) widget;
   struct frame *f = ew->emacs_frame.frame;
@@ -386,7 +403,8 @@ EmacsFrameRealize (Widget widget, XtValueMask *mask, XSetWindowAttributes *attrs
     frame_size_history_plain
       (f, build_string ("EmacsFrameRealize"));
 
-  update_wm_hints (ew);
+  if (get_wm_shell (widget))
+    update_wm_hints (get_wm_shell (widget), ew);
 }
 
 static void
@@ -408,9 +426,11 @@ EmacsFrameResize (Widget widget)
        ew->core.width, ew->core.height,
        f->new_width, f->new_height);
 
-  change_frame_size (f, ew->core.width, ew->core.height, false, true, false);
+  change_frame_size (f, ew->core.width, ew->core.height,
+		     false, true, false);
 
-  update_wm_hints (ew);
+  if (get_wm_shell (widget))
+    update_wm_hints (get_wm_shell (widget), ew);
   update_various_frame_slots (ew);
 
   cancel_mouse_face (f);
@@ -463,6 +483,17 @@ EmacsFrameSetCharSize (Widget widget, int columns, int rows)
       && !frame_inhibit_resize (f, 1, Qfont))
     x_set_window_size (f, 0, columns * FRAME_COLUMN_WIDTH (f),
 		       rows * FRAME_LINE_HEIGHT (f));
+}
+
+static void
+EmacsFrameExpose (Widget widget, XEvent *event, Region region)
+{
+  EmacsFrame ew = (EmacsFrame) widget;
+  struct frame *f = ew->emacs_frame.frame;
+
+  expose_frame (f, event->xexpose.x, event->xexpose.y,
+		event->xexpose.width, event->xexpose.height);
+  flush_frame (f);
 }
 
 

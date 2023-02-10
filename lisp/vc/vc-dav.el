@@ -1,6 +1,6 @@
 ;;; vc-dav.el --- vc.el support for WebDAV  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001, 2004-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2001, 2004-2023 Free Software Foundation, Inc.
 
 ;; Author: Bill Perry <wmperry@gnu.org>
 ;; Keywords: url, vc
@@ -93,7 +93,7 @@ If EDITABLE is non-nil URL should be writable by the user and if
 locking is used for URL, a lock should also be set.
 
 If REV is non-nil, that is the revision to check out.  If REV is the
-empty string, that means to check ou tht ehead of the trunk.
+empty string, that means to check out the head of the trunk.
 
 If optional arg DESTFILE is given, it is an alternate filename to
 write the contents to."

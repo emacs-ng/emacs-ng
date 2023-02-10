@@ -1,19 +1,19 @@
 ;;; ol-man.el --- Links to man pages -*- lexical-binding: t; -*-
 ;;
-;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2023 Free Software Foundation, Inc.
 ;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;; Maintainer: Bastien Guerry <bzg@gnu.org>
 ;; Keywords: outlines, hypermedia, calendar, wp
-;; Homepage: https://orgmode.org
+;; URL: https://orgmode.org
 ;;
 ;; This file is part of GNU Emacs.
 ;;
-;; This program is free software; you can redistribute it and/or modify
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 3, or (at your option)
-;; any later version.
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
 
-;; This program is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
@@ -23,6 +23,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;;; Commentary:
+
+(require 'org-macs)
+(org-assert-version)
 
 (require 'ol)
 
@@ -43,12 +46,22 @@ If PATH contains extra ::STRING which will use `occur' to search
 matched strings in man buffer."
   (string-match "\\(.*?\\)\\(?:::\\(.*\\)\\)?$" path)
   (let* ((command (match-string 1 path))
-	 (search (match-string 2 path)))
-    (funcall org-man-command command)
+         (search (match-string 2 path))
+         (buffer (funcall org-man-command command)))
     (when search
-      (with-current-buffer (concat "*Man " command "*")
-	(goto-char (point-min))
-	(search-forward search)))))
+      (with-current-buffer buffer
+        (goto-char (point-min))
+        (unless (search-forward search nil t)
+          (let ((process (get-buffer-process buffer)))
+            (while (process-live-p process)
+              (accept-process-output process)))
+          (goto-char (point-min))
+          (search-forward search))
+        (forward-line -1)
+        (let ((point (point)))
+          (let ((window (get-buffer-window buffer)))
+            (set-window-point window point)
+            (set-window-start window point)))))))
 
 (defun org-man-store-link ()
   "Store a link to a README file."

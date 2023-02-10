@@ -1,6 +1,6 @@
 ;;; reftex-global.el --- operations on entire documents with RefTeX  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <dominik@science.uva.nl>
 ;; Maintainer: auctex-devel@gnu.org
@@ -154,8 +154,10 @@ No active TAGS table is required."
     (erase-buffer)
     (insert "                MULTIPLE LABELS IN CURRENT DOCUMENT:\n")
     (insert
-     " Move point to label and type `r' to run a query-replace on the label\n"
-     " and its references.  Type `q' to exit this buffer.\n\n")
+     (substitute-command-keys
+      " Move point to label and type \\`r' to run a query-replace on the label\n")
+     (substitute-command-keys
+      " and its references.  Type \\`q' to exit this buffer.\n\n"))
     (insert " LABEL               FILE\n")
     (insert " -------------------------------------------------------------\n")
     (use-local-map (make-sparse-keymap))
@@ -188,8 +190,8 @@ No active TAGS table is required."
                                       default))))
     (if (string= from "") (setq from default))
     (unless to
-      (setq to (read-string (format "Replace label %s with: "
-                                    from))))
+      (setq to (read-string (format "Replace label %s with: " from)
+                            nil nil from)))
     (reftex-query-replace-document
      (concat "{" (regexp-quote from) "}")
      (format "{%s}" to))))
@@ -274,7 +276,18 @@ one with the `xr' package."
   ;; to ignore the problematic string.
   ;; If TEST is nil, it is ignored without query.
   ;; Return the number of replacements.
-  (let ((n 0) file label match-data buf macro pos cell)
+  (let ((n 0)
+        (opt-re (concat "\\(?:{[^}{]*"
+                        "\\(?:{[^}{]*"
+                        "\\(?:{[^}{]*}[^}{]*\\)*"
+                        "}[^}{]*\\)*"
+                        "}[^][]*\\)*"))
+        (man-re (concat "\\(?:{[^}{]*"
+                        "\\(?:{[^}{]*"
+                        "\\(?:{[^}{]*}[^}{]*\\)*"
+                        "}[^}{]*\\)*"
+                        "}[^}{]*\\)*"))
+        file label match-data buf macro pos cell)
     (while (setq file (pop files))
       (setq buf (reftex-get-file-buffer-force file))
       (unless buf
@@ -299,7 +312,29 @@ one with the `xr' package."
                              (looking-at "\\\\ref[a-zA-Z]*[^a-zA-Z]")
                              (looking-at (format
                                           reftex-find-label-regexp-format
-                                          (regexp-quote label)))))
+                                          (regexp-quote label)))
+                             ;; In case the label-keyval is inside an
+                             ;; optional argument to \begin{env}
+                             (looking-at (concat
+                                          "\\\\begin[[:space:]]*{[^}]+}"
+                                          "[[:space:]]*"
+                                          "\\[[^][]*"
+                                          opt-re
+                                          (format
+                                           reftex-find-label-regexp-format
+                                           (regexp-quote label))
+                                          "[^]]*\\]"))
+                             ;; In case the label-keyval is inside the
+                             ;; first mandatory argument to \begin{env}
+                             (looking-at (concat
+                                          "\\\\begin[[:space:]]*{[^}]+}"
+                                          "[[:space:]]*"
+                                          "{[^}{]*"
+                                          man-re
+                                          (format
+                                           reftex-find-label-regexp-format
+                                           (regexp-quote label))
+                                          "[^}]*}"))))
                 ;; OK, we should replace it.
                 (set-match-data match-data)
                 (cond

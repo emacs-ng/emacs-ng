@@ -1,6 +1,6 @@
 ;;; tcover-ses.el --- Example use of `testcover' to test "SES"  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2023 Free Software Foundation, Inc.
 
 ;; Author: Jonathan Yavner <jyavner@member.fsf.org>
 ;; Keywords: spreadsheet lisp utility
@@ -569,7 +569,7 @@ spreadsheet files with invalid formatting."
 	  (signal 'singularity-error nil)) ;Shouldn't get here
       (singularity-error (error "No error from %s?" x))
       (error nil)))
-  ;;Test quit-handling in ses-update-cells.  Cant' use `eval' here.
+  ;; Test quit-handling in ses-update-cells.  Can't use `eval' here.
   (let ((inhibit-quit t))
     (setq quit-flag t)
     (condition-case nil

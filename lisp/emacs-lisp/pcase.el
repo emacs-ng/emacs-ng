@@ -1,6 +1,6 @@
 ;;; pcase.el --- ML-style pattern-matching macro for Elisp -*- lexical-binding: t -*-
 
-;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2023 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: extensions
@@ -328,7 +328,7 @@ PATTERNS are normal `pcase' patterns, and VALUES are expression.
 
 Evaluation happens sequentially as in `setq' (not in parallel).
 
-An example: (pcase-setq `((,a) [(,b)]) '((1) [(2)]))
+An example: (pcase-setq \\=`((,a) [(,b)]) \\='((1) [(2)]))
 
 VAL is presumed to match PAT.  Failure to match may signal an error or go
 undetected, binding variables to arbitrary values, such as nil.
@@ -395,7 +395,7 @@ how many time this CODEGEN is called."
                          (push (setq prev (list case)) seen))
                        ;; Put a counter in the cdr just so that not
                        ;; all branches look identical (to avoid things
-                       ;; like `macroexp--if' optimizing them too
+                       ;; like `macroexp-if' optimizing them too
                        ;; optimistically).
                        (let ((ph (cons 'pcase--placeholder
                                        (setq phcounter (1+ phcounter)))))
@@ -435,7 +435,7 @@ how many time this CODEGEN is called."
                 (macroexp-warn-and-return
                  (format "pcase pattern %S shadowed by previous pcase pattern"
                          (car case))
-                 main))))
+                 main nil nil (car case)))))
       main)))
 
 (defun pcase--expand (exp cases)
@@ -607,31 +607,38 @@ recording whether the var has been referenced by earlier parts of the match."
     (symbolp . vectorp)
     (symbolp . stringp)
     (symbolp . byte-code-function-p)
+    (symbolp . compiled-function-p)
     (symbolp . recordp)
     (integerp . consp)
     (integerp . arrayp)
     (integerp . vectorp)
     (integerp . stringp)
     (integerp . byte-code-function-p)
+    (integerp . compiled-function-p)
     (integerp . recordp)
     (numberp . consp)
     (numberp . arrayp)
     (numberp . vectorp)
     (numberp . stringp)
     (numberp . byte-code-function-p)
+    (numberp . compiled-function-p)
     (numberp . recordp)
     (consp . arrayp)
     (consp . atom)
     (consp . vectorp)
     (consp . stringp)
     (consp . byte-code-function-p)
+    (consp . compiled-function-p)
     (consp . recordp)
     (arrayp . byte-code-function-p)
+    (arrayp . compiled-function-p)
     (vectorp . byte-code-function-p)
+    (vectorp . compiled-function-p)
     (vectorp . recordp)
     (stringp . vectorp)
     (stringp . recordp)
-    (stringp . byte-code-function-p)))
+    (stringp . byte-code-function-p)
+    (stringp . compiled-function-p)))
 
 (defun pcase--mutually-exclusive-p (pred1 pred2)
   (or (member (cons pred1 pred2)
@@ -771,8 +778,8 @@ A and B can be one of:
                    ((consp (cadr pat)) #'consp)
                    ((stringp (cadr pat)) #'stringp)
                    ((vectorp (cadr pat)) #'vectorp)
-                   ((byte-code-function-p (cadr pat))
-                    #'byte-code-function-p))))
+                   ((compiled-function-p (cadr pat))
+                    #'compiled-function-p))))
         (pcase--mutually-exclusive-p (cadr upat) otherpred))
       '(:pcase--fail . nil))
      ;; Since we turn (or 'a 'b 'c) into (pred (pcase--flip (memq '(a b c))))
@@ -940,8 +947,8 @@ Otherwise, it defers to REST which is a list of branches of the form
         (let ((code (pcase--u1 matches code vars rest)))
           (if (eq upat '_) code
             (macroexp-warn-and-return
-             "Pattern t is deprecated.  Use `_' instead"
-             code))))
+             (format-message "Pattern t is deprecated.  Use `_' instead")
+             code nil nil upat))))
        ((eq upat 'pcase--dontcare) :pcase--dontcare)
        ((memq (car-safe upat) '(guard pred))
         (if (eq (car upat) 'pred) (pcase--mark-used sym))

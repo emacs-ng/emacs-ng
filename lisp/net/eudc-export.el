@@ -1,6 +1,6 @@
 ;;; eudc-export.el --- functions to export EUDC query results  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2023 Free Software Foundation, Inc.
 
 ;; Author: Oscar Figueiredo <oscar@cpe.fr>
 ;;         Pavel Janík <Pavel@Janik.cz>
@@ -210,7 +210,7 @@ LOCATION is used as the phone location for BBDB."
     (while (eudc-move-to-next-record)
       (and (overlays-at (point))
 	   (setq record (overlay-get (car (overlays-at (point))) 'eudc-record))
-	   (1+ nbrec)
+           (setq nbrec (1+ nbrec))
 	   (eudc-create-bbdb-record record t)))
     (message "%d records imported into BBDB" nbrec)))
 

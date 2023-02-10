@@ -1,6 +1,6 @@
 ;;; mh-junk.el --- MH-E interface to anti-spam measures  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2003-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2023 Free Software Foundation, Inc.
 
 ;; Author: Satyaki Das <satyaki@theforce.stanford.edu>,
 ;;         Bill Wohler <wohler@newt.com>
@@ -402,7 +402,7 @@ information can be used so that you can replace multiple
 
 Bogofilter is a Bayesian spam filtering program. Get it from your
 local distribution or from the bogofilter web site at URL
-`http://bogofilter.sourceforge.net/'.
+`https://bogofilter.sourceforge.io/'.
 
 Bogofilter is taught by running:
 
@@ -487,7 +487,7 @@ See `mh-bogofilter-blocklist' for more information."
 
 SpamProbe is a Bayesian spam filtering program. Get it from your
 local distribution or from the SpamProbe web site at URL
-`http://spamprobe.sourceforge.net'.
+`https://spamprobe.sourceforge.net'.
 
 To use SpamProbe, add the following recipes to \".procmailrc\":
 
@@ -540,7 +540,6 @@ See `mh-spamprobe-blocklist' for more information."
 (provide 'mh-junk)
 
 ;; Local Variables:
-;; indent-tabs-mode: nil
 ;; sentence-end-double-space: nil
 ;; End:
 

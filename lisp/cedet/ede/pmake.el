@@ -1,6 +1,6 @@
 ;;; ede-pmake.el --- EDE Generic Project Makefile code generator  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2005, 2007-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2005, 2007-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: project, make
@@ -566,7 +566,7 @@ Argument THIS is the target that should insert stuff."
 	    (cond ((eq (cdr sv) 'share)
 		   ;; This variable may be shared between multiple targets.
 		   (if (re-search-backward (concat "\\$(" (car sv) ")")
-					   (point-at-bol) t)
+                                           (line-beginning-position) t)
 		       ;; If its already in the dist target, then skip it.
 		       nil
 		     (setq sv (car sv))))

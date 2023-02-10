@@ -1,6 +1,6 @@
 ;;; f90.el --- Fortran-90 mode (free format)  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1995-1997, 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995-1997, 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: Torbjörn Einarsson <Torbjorn.Einarsson@era.ericsson.se>
 ;; Maintainer: emacs-devel@gnu.org
@@ -116,12 +116,11 @@
 ;;    non-nil, the line numbers are never touched.
 ;; 2) Multi-; statements like "do i=1,20 ; j=j+i ; end do" are not handled
 ;;    correctly, but I imagine them to be rare.
-;; 3) Regexps for hilit19 are no longer supported.
-;; 4) For FIXED FORMAT code, use fortran mode.
-;; 5) Preprocessor directives, i.e., lines starting with # are left-justified
+;; 3) For FIXED FORMAT code, use fortran mode.
+;; 4) Preprocessor directives, i.e., lines starting with # are left-justified
 ;;    and are untouched by all case-changing commands.  There is, at present, no
 ;;    mechanism for treating multi-line directives (continued by \ ).
-;; 6) f77 do-loops do 10 i=.. ; ; 10 continue are not correctly indented.
+;; 5) f77 do-loops do 10 i=.. ; ; 10 continue are not correctly indented.
 ;;    You are urged to use f90-do loops (with labels if you wish).
 
 ;; List of user commands
@@ -345,6 +344,7 @@ The options are `downcase-word', `upcase-word', `capitalize-word' and nil."
                  ;; there are spaces.
                  "contiguous" "submodule" "concurrent" "codimension"
                  "sync all" "sync memory" "critical" "image_index" "error stop"
+                 "impure"
                  ))
    "\\_>")
   "Regexp used by the function `f90-change-keywords'.")
@@ -599,6 +599,7 @@ and variable-name parts, respectively."
   (append
    f90-font-lock-keywords-1
    (list
+    '("\\(&\\)[ \t]*\\(!\\|$\\)"  (1 font-lock-keyword-face))
     ;; Variable declarations (avoid the real function call).
     ;; NB by accident (?), this correctly fontifies the "integer" in:
     ;; integer () function foo ()
@@ -610,8 +611,8 @@ and variable-name parts, respectively."
     '("^[ \t0-9]*\\(?:pure\\|elemental\\)?[ \t]*\
 \\(real\\|integer\\|c\\(haracter\\|omplex\\)\\|\
 enumerator\\|generic\\|procedure\\|logical\\|double[ \t]*precision\\)\
-\\(.*::\\|[ \t]*(.*)\\)?\\([^&!\n]*\\)"
-      (1 font-lock-type-face t) (4 font-lock-variable-name-face t))
+\\(.*::\\|[ \t]*(.*)\\)?\\([^&!\n]*\\(?:&\n[^&!\n]*\\)*\\)"
+      (1 font-lock-type-face t) (4 font-lock-variable-name-face append))
     ;; Derived type/class variables.
     ;; TODO ? If we just highlighted the "type" part, rather than
     ;; "type(...)", this could be in the previous expression. And this
@@ -646,18 +647,19 @@ do\\([ \t]*while\\)?\\|select[ \t]*\\(?:case\\|type\\)\\|where\\|\
 forall\\|block\\|critical\\)\\)\\_>"
       (2 font-lock-constant-face nil t) (3 font-lock-keyword-face))
     ;; Implicit declaration.
-    '("\\_<\\(implicit\\)[ \t]*\\(real\\|integer\\|c\\(haracter\\|omplex\\)\
+    '("\\_<\\(implicit\\)[ \t]+\\(real\\|integer\\|c\\(haracter\\|omplex\\)\
 \\|enumerator\\|procedure\\|\
 logical\\|double[ \t]*precision\\|type[ \t]*(\\(?:\\sw\\|\\s_\\)+)\\|none\\)[ \t]*"
       (1 font-lock-keyword-face) (2 font-lock-type-face))
     '("\\_<\\(namelist\\|common\\)[ \t]*/\\(\\(?:\\sw\\|\\s_\\)+\\)?/"
       (1 font-lock-keyword-face) (2 font-lock-constant-face nil t))
     "\\_<else\\([ \t]*if\\|where\\)?\\_>"
-    '("\\(&\\)[ \t]*\\(!\\|$\\)"  (1 font-lock-keyword-face))
     "\\_<\\(then\\|continue\\|format\\|include\\|\\(?:error[ \t]+\\)?stop\\|\
 return\\)\\_>"
-    '("\\_<\\(exit\\|cycle\\)[ \t]*\\(\\(?:\\sw\\|\\s_\\)+\\)?\\_>"
+    '("\\_<\\(exit\\|cycle\\)[ \t]+\\(\\(?:\\sw\\|\\s_\\)+\\)?\\_>"
       (1 font-lock-keyword-face) (2 font-lock-constant-face nil t))
+    '("\\_<\\(exit\\|cycle\\)\\_>"
+      (1 font-lock-keyword-face))
     '("\\_<\\(case\\)[ \t]*\\(default\\|(\\)" . 1)
     ;; F2003 "class default".
     '("\\_<\\(class\\)[ \t]*default" . 1)
@@ -822,9 +824,7 @@ Can be overridden by the value of `font-lock-maximum-decoration'.")
          :style toggle :help "Expand abbreviations while typing in this buffer"]
         ["Add Imenu Menu" f90-add-imenu-menu
          :active   (not (lookup-key (current-local-map) [menu-bar index]))
-         :included (fboundp 'imenu-add-to-menubar)
-         :help "Add an index menu to the menu-bar"
-         ]))
+         :help "Add an index menu to the menu-bar"]))
     map)
   "Keymap used in F90 mode.")
 

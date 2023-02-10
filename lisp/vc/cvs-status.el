@@ -1,6 +1,6 @@
 ;;; cvs-status.el --- major mode for browsing `cvs status' output -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: pcl-cvs cvs status tree vc tools
@@ -29,23 +29,21 @@
 ;;; Code:
 
 (require 'cl-lib)
-(require 'pcvs-util)
+(require 'pcvs)
 
 ;;;
 
-(easy-mmode-defmap cvs-status-mode-map
-  '(("n"	. next-line)
-    ("p"	. previous-line)
-    ("N"	. cvs-status-next)
-    ("P"	. cvs-status-prev)
-    ("\M-n"	. cvs-status-next)
-    ("\M-p"	. cvs-status-prev)
-    ("t"	. cvs-status-cvstrees)
-    ("T"	. cvs-status-trees)
-    (">"        . cvs-mode-checkout))
-  "CVS-Status' keymap."
-  :group 'cvs-status
-  :inherit 'cvs-mode-map)
+(defvar-keymap cvs-status-mode-map
+  :parent     cvs-mode-map
+  "n"         #'next-line
+  "p"         #'previous-line
+  "N"         #'cvs-status-next
+  "P"         #'cvs-status-prev
+  "M-n"       #'cvs-status-next
+  "M-p"       #'cvs-status-prev
+  "t"         #'cvs-status-cvstrees
+  "T"         #'cvs-status-trees
+  ">"         #'cvs-mode-checkout)
 
 ;;(easy-menu-define cvs-status-menu cvs-status-mode-map
 ;;  "Menu for `cvs-status-mode'."

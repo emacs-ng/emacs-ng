@@ -1,6 +1,6 @@
 ;;; gnus-kill.el --- kill commands for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2023 Free Software Foundation, Inc.
 
 ;; Author: Masanobu UMEDA <umerin@flab.flab.fujitsu.junet>
 ;;	Lars Magne Ingebrigtsen <larsi@gnus.org>
@@ -66,18 +66,15 @@ of time."
 ;;; Gnus Kill File Mode
 ;;;
 
-(defvar gnus-kill-file-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map emacs-lisp-mode-map)
-    (gnus-define-keymap map
-      "\C-c\C-k\C-s" gnus-kill-file-kill-by-subject
-      "\C-c\C-k\C-a" gnus-kill-file-kill-by-author
-      "\C-c\C-k\C-t" gnus-kill-file-kill-by-thread
-      "\C-c\C-k\C-x" gnus-kill-file-kill-by-xref
-      "\C-c\C-a" gnus-kill-file-apply-buffer
-      "\C-c\C-e" gnus-kill-file-apply-last-sexp
-      "\C-c\C-c" gnus-kill-file-exit)
-    map))
+(defvar-keymap gnus-kill-file-mode-map
+  :parent emacs-lisp-mode-map
+  "C-c C-k C-s" #'gnus-kill-file-kill-by-subject
+  "C-c C-k C-a" #'gnus-kill-file-kill-by-author
+  "C-c C-k C-t" #'gnus-kill-file-kill-by-thread
+  "C-c C-k C-x" #'gnus-kill-file-kill-by-xref
+  "C-c C-a" #'gnus-kill-file-apply-buffer
+  "C-c C-e" #'gnus-kill-file-apply-last-sexp
+  "C-c C-c" #'gnus-kill-file-exit)
 
 (define-derived-mode gnus-kill-file-mode emacs-lisp-mode "Kill"
   "Major mode for editing kill files.
@@ -352,7 +349,7 @@ Returns the number of articles marked as read."
 		  (setq gnus-newsgroup-kill-headers
 			(mapcar #'mail-header-number headers))
 		(while headers
-		  (unless (gnus-member-of-range
+		  (unless (range-member-p
 			   (mail-header-number (car headers))
 			   gnus-newsgroup-killed)
 		    (push (mail-header-number (car headers))

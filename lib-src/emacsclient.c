@@ -1,6 +1,6 @@
 /* Client process that communicates with GNU Emacs acting as server.
 
-Copyright (C) 1986-1987, 1994, 1999-2022 Free Software Foundation, Inc.
+Copyright (C) 1986-2023 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -66,6 +66,8 @@ char *w32_getenv (const char *);
 
 #endif /* !WINDOWSNT */
 
+#define DEFAULT_TIMEOUT (30)
+
 #include <ctype.h>
 #include <errno.h>
 #include <getopt.h>
@@ -80,6 +82,7 @@ char *w32_getenv (const char *);
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <attribute.h>
 #include <filename.h>
 #include <intprops.h>
 #include <min-max.h>
@@ -116,6 +119,9 @@ static bool eval;
 /* True means open a new frame.  --create-frame etc.  */
 static bool create_frame;
 
+/* True means reuse a frame if it already exists.  */
+static bool reuse_frame;
+
 /* The display on which Emacs should work.  --display.  */
 static char const *display;
 
@@ -139,6 +145,9 @@ static char const *socket_name;
 
 /* If non-NULL, the filename of the authentication file.  */
 static char const *server_file;
+
+/* Seconds to wait before timing out (0 means wait forever).  */
+static uintmax_t timeout;
 
 /* If non-NULL, the tramp prefix emacs must use to find the files.  */
 static char const *tramp_prefix;
@@ -165,6 +174,7 @@ static struct option const longopts[] =
   { "tty",	no_argument,       NULL, 't' },
   { "nw",	no_argument,       NULL, 't' },
   { "create-frame", no_argument,   NULL, 'c' },
+  { "reuse-frame", no_argument,   NULL, 'r' },
   { "alternate-editor", required_argument, NULL, 'a' },
   { "frame-parameters", required_argument, NULL, 'F' },
 #ifdef SOCKETS_IN_FILE_SYSTEM
@@ -173,6 +183,7 @@ static struct option const longopts[] =
   { "server-file",	required_argument, NULL, 'f' },
   { "display",	required_argument, NULL, 'd' },
   { "parent-id", required_argument, NULL, 'p' },
+  { "timeout",	required_argument, NULL, 'w' },
   { "tramp",	required_argument, NULL, 'T' },
   { 0, 0, 0, 0 }
 };
@@ -180,7 +191,7 @@ static struct option const longopts[] =
 /* Short options, in the same order as the corresponding long options.
    There is no '-p' short option.  */
 static char const shortopts[] =
-  "nqueHVtca:F:"
+  "nqueHVtca:F:w:"
 #ifdef SOCKETS_IN_FILE_SYSTEM
   "s:"
 #endif
@@ -492,6 +503,7 @@ decode_options (int argc, char **argv)
       if (opt < 0)
 	break;
 
+      char* endptr;
       switch (opt)
 	{
 	case 0:
@@ -525,6 +537,17 @@ decode_options (int argc, char **argv)
 	  nowait = true;
 	  break;
 
+	case 'w':
+	  timeout = strtoumax (optarg, &endptr, 10);
+	  if (timeout <= 0 ||
+	      ((timeout == INTMAX_MAX || timeout == INTMAX_MIN)
+	       && errno == ERANGE))
+	    {
+	      fprintf (stderr, "Invalid timeout: \"%s\"\n", optarg);
+	      exit (EXIT_FAILURE);
+	    }
+	  break;
+
 	case 'e':
 	  eval = true;
 	  break;
@@ -545,11 +568,18 @@ decode_options (int argc, char **argv)
         case 't':
 	  tty = true;
 	  create_frame = true;
+	  reuse_frame = false;
           break;
 
         case 'c':
 	  create_frame = true;
           break;
+
+	case 'r':
+	  create_frame = true;
+	  if (!tty)
+	    reuse_frame = true;
+	  break;
 
 	case 'p':
 	  parent_id = optarg;
@@ -594,9 +624,16 @@ decode_options (int argc, char **argv)
       alt_display = "ns";
 #elif defined (HAVE_NTGUI)
       alt_display = "w32";
+#elif defined (HAVE_HAIKU)
+      alt_display = "be";
 #endif
 
+#ifdef HAVE_PGTK
+      display = egetenv ("WAYLAND_DISPLAY");
+      alt_display = egetenv ("DISPLAY");
+#else
       display = egetenv ("DISPLAY");
+#endif
     }
 
   if (!display)
@@ -647,11 +684,14 @@ The following OPTIONS are accepted:\n\
 -nw, -t, --tty 		Open a new Emacs frame on the current terminal\n\
 -c, --create-frame    	Create a new frame instead of trying to\n\
 			use the current Emacs frame\n\
+-r, --reuse-frame	Create a new frame if none exists, otherwise\n\
+			use the current Emacs frame\n\
 ", "\
 -F ALIST, --frame-parameters=ALIST\n\
 			Set the parameters of a new frame\n\
 -e, --eval    		Evaluate the FILE arguments as ELisp expressions\n\
 -n, --no-wait		Don't wait for the server to return\n\
+-w, --timeout=SECONDS	Seconds to wait before timing out\n\
 -q, --quiet		Don't display messages on success\n\
 -u, --suppress-output   Don't display return values from the server\n\
 -d DISPLAY, --display=DISPLAY\n\
@@ -1040,7 +1080,9 @@ set_tcp_socket (const char *local_server_file)
 
   /* The cast to 'const char *' is to avoid a compiler warning when
      compiling for MS-Windows sockets.  */
-  setsockopt (s, SOL_SOCKET, SO_LINGER, (const char *) &l_arg, sizeof l_arg);
+  int ret = setsockopt (s, SOL_SOCKET, SO_LINGER, (const char *) &l_arg, sizeof l_arg);
+  if (ret < 0)
+    sock_err_message ("setsockopt");
 
   /* Send the authentication.  */
   auth_string[AUTH_KEY_LENGTH] = '\0';
@@ -1412,8 +1454,7 @@ local_sockname (int s, char sockname[socknamesize], int tmpdirlen,
   char *emacsdirend = sockname + tmpdirlen + suffixlen -
     strlen(server_name) - 1;
   *emacsdirend = '\0';
-  int dir = openat (AT_FDCWD, sockname,
-		    O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+  int dir = open (sockname, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
   *emacsdirend = '/';
   if (dir < 0)
     return errno;
@@ -1744,8 +1785,9 @@ start_daemon_and_retry_set_socket (void)
 	}
 
       /* Try connecting, the daemon should have started by now.  */
-      message (true,
-	       "Emacs daemon should have started, trying to connect again\n");
+      if (!quiet)
+        message (true,
+                 "Emacs daemon should have started, trying to connect again\n");
     }
   else if (dpid < 0)
     {
@@ -1836,7 +1878,7 @@ start_daemon_and_retry_set_socket (void)
   /* Try connecting, the daemon should have started by now.  */
   /* It's just a progress message, so don't pop a dialog if this is
      emacsclientw.  */
-  if (!w32_window_app ())
+  if (!quiet && !w32_window_app ())
     message (true,
 	     "Emacs daemon should have started, trying to connect again\n");
 #endif /* WINDOWSNT */
@@ -1849,6 +1891,43 @@ start_daemon_and_retry_set_socket (void)
       exit (EXIT_FAILURE);
     }
   return emacs_socket;
+}
+
+static void
+set_socket_timeout (HSOCKET socket, int seconds)
+{
+  int ret;
+
+#ifndef WINDOWSNT
+  struct timeval timeout;
+  timeout.tv_sec = seconds;
+  timeout.tv_usec = 0;
+  ret = setsockopt (socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout);
+#else
+  DWORD timeout;
+
+  if (seconds > INT_MAX / 1000)
+    timeout = INT_MAX;
+  else
+    timeout = seconds * 1000;
+  ret = setsockopt (socket, SOL_SOCKET, SO_RCVTIMEO, (char *) &timeout, sizeof timeout);
+#endif
+
+  if (ret < 0)
+    sock_err_message ("setsockopt");
+}
+
+static bool
+check_socket_timeout (int rl)
+{
+#ifndef WINDOWSNT
+  return (rl == -1)
+    && (errno == EAGAIN)
+    && (errno == EWOULDBLOCK);
+#else
+  return (rl == SOCKET_ERROR)
+    && (WSAGetLastError() == WSAETIMEDOUT);
+#endif
 }
 
 int
@@ -1940,7 +2019,7 @@ main (int argc, char **argv)
   if (nowait)
     send_to_emacs (emacs_socket, "-nowait ");
 
-  if (!create_frame)
+  if (!create_frame || reuse_frame)
     send_to_emacs (emacs_socket, "-current-frame ");
 
   if (display)
@@ -2067,19 +2146,40 @@ main (int argc, char **argv)
     }
   fflush (stdout);
 
+  set_socket_timeout (emacs_socket, timeout > 0 ? timeout : DEFAULT_TIMEOUT);
+  bool saw_response = false;
   /* Now, wait for an answer and print any messages.  */
   while (exit_status == EXIT_SUCCESS)
     {
+      bool retry = true;
+      bool msg_showed = quiet;
       do
 	{
 	  act_on_signals (emacs_socket);
 	  rl = recv (emacs_socket, string, BUFSIZ, 0);
+	  retry = check_socket_timeout (rl);
+	  if (retry && !saw_response)
+	    {
+	      if (timeout > 0)
+		{
+		  /* Don't retry if we were given a --timeout flag.  */
+		  fprintf (stderr, "\nServer not responding; timed out after %ju seconds",
+			   timeout);
+		  retry = false;
+		}
+	      else if (!msg_showed)
+		{
+		  msg_showed = true;
+		  fprintf (stderr, "\nServer not responding; use Ctrl+C to break");
+		}
+	    }
 	}
-      while (rl < 0 && errno == EINTR);
+      while ((rl < 0 && errno == EINTR) || retry);
 
       if (rl <= 0)
         break;
 
+      saw_response = true;
       string[rl] = '\0';
 
       /* Loop over all NL-terminated messages.  */
@@ -2142,7 +2242,7 @@ main (int argc, char **argv)
               char *str = unquote_argument (p + strlen ("-error "));
               if (!skiplf)
                 printf ("\n");
-              fprintf (stderr, "*ERROR*: %s", str);
+	      message (true, "*ERROR*: %s", str);
               if (str[0])
 	        skiplf = str[strlen (str) - 1] == '\n';
               exit_status = EXIT_FAILURE;

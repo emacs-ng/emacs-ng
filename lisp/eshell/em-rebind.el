@@ -1,6 +1,6 @@
 ;;; em-rebind.el --- rebind keys when point is at current input  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -50,9 +50,7 @@ the behavior of normal shells while the user editing new input text."
   :group 'eshell-rebind)
 
 (defcustom eshell-rebind-keys-alist
-  '(([(control ?a)] . eshell-bol)
-    ([home]         . eshell-bol)
-    ([(control ?d)] . eshell-delchar-or-maybe-eof)
+  '(([(control ?d)] . eshell-delchar-or-maybe-eof)
     ([backspace]    . eshell-delete-backward-char)
     ([delete]       . eshell-delete-backward-char)
     ([(control ?w)] . backward-kill-word)
@@ -136,10 +134,8 @@ This is default behavior of shells like bash."
   :type '(repeat function)
   :group 'eshell-rebind)
 
-(defvar eshell-rebind-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c M-l") #'eshell-lock-local-map)
-    map))
+(defvar-keymap eshell-rebind-mode-map
+  "C-c M-l" #'eshell-lock-local-map)
 
 ;; Internal Variables:
 
@@ -192,7 +188,7 @@ lock it at that."
 	(and eshell-remap-previous-input
 	     (setq begin
 		   (save-excursion
-		     (eshell-bol)
+		     (beginning-of-line)
 		     (and (not (bolp)) (point))))
 	     (>= pos begin)
 	     (<= pos (line-end-position))
@@ -240,7 +236,7 @@ lock it at that."
 Sends an EOF only if point is at the end of the buffer and there is no
 input."
   (interactive "p")
-  (let ((proc (eshell-interactive-process)))
+  (let ((proc (eshell-head-process)))
     (if (eobp)
 	(cond
 	 ((/= (point) eshell-last-output-end)

@@ -1,6 +1,6 @@
 ;;; eudcb-ldap.el --- Emacs Unified Directory Client - LDAP Backend  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2023 Free Software Foundation, Inc.
 
 ;; Author: Oscar Figueiredo <oscar@cpe.fr>
 ;;         Pavel Janík <Pavel@Janik.cz>
@@ -37,14 +37,6 @@
 
 
 ;;{{{      Internal cooking
-
-(defalias 'eudc-ldap-get-host-parameter
-  (if (fboundp 'ldap-get-host-parameter)
-      #'ldap-get-host-parameter
-    (lambda (host parameter)
-      "Get the value of PARAMETER for HOST in `ldap-host-parameters-alist'."
-      (plist-get (cdr (assoc host ldap-host-parameters-alist))
-		 parameter))))
 
 (defvar eudc-ldap-attributes-translation-alist
   '((name . sn)
@@ -151,16 +143,20 @@ attribute names are returned.  Default to `person'."
   (interactive)
   (or eudc-server
       (call-interactively 'eudc-set-server))
-  (let ((ldap-host-parameters-alist
-	 (list (cons eudc-server
-		     '(scope subtree sizelimit 1)))))
-    (mapcar #'eudc-ldap-cleanup-record-filtering-addresses
-	    (ldap-search
-	     (eudc-ldap-format-query-as-rfc1558
-	      (list (cons "objectclass"
-			  (or objectclass
-			      "person"))))
-	     eudc-server nil t))))
+  (let ((plist (copy-sequence
+                (alist-get eudc-server ldap-host-parameters-alist
+                           nil nil #'equal))))
+    (plist-put plist 'scope 'subtree)
+    (plist-put plist 'sizelimit '1)
+    (let ((ldap-host-parameters-alist
+           (list (cons eudc-server plist))))
+      (mapcar #'eudc-ldap-cleanup-record-filtering-addresses
+	      (ldap-search
+	       (eudc-ldap-format-query-as-rfc1558
+	        (list (cons 'objectclass
+			    (or objectclass
+			        "person"))))
+	       eudc-server nil t)))))
 
 (defun eudc-ldap-escape-query-special-chars (string)
   "Value is STRING with characters forbidden in LDAP queries escaped."
@@ -178,12 +174,17 @@ attribute names are returned.  Default to `person'."
 
 (defun eudc-ldap-format-query-as-rfc1558 (query)
   "Format the EUDC QUERY list as a RFC1558 LDAP search filter."
-  (let ((formatter (lambda (item &optional wildcard)
-		     (format "(%s=%s)"
-			     (car item)
-			     (concat
-			      (eudc-ldap-escape-query-special-chars
-			       (cdr item)) (if wildcard "*" ""))))))
+  (let ((formatter
+         (lambda (item &optional wildcard)
+	   (format "(%s=%s)"
+		   (car item)
+		   (concat
+		    (eudc-ldap-escape-query-special-chars
+		     (cdr item))
+                    (if (and wildcard
+                             (not (memq (car item)
+                                        eudc-ldap-no-wildcard-attributes)))
+                        "*" ""))))))
     (format "(&%s)"
 	    (concat
 	     (mapconcat formatter (butlast query) "")
@@ -200,7 +201,7 @@ attribute names are returned.  Default to `person'."
 
 (defun eudc-ldap-check-base ()
   "Check if the current LDAP server has a configured search base."
-  (unless (or (eudc-ldap-get-host-parameter eudc-server 'base)
+  (unless (or (ldap-get-host-parameter eudc-server 'base)
 	      ldap-default-base
               (null (y-or-n-p "No search base defined.  Configure it now?")))
     ;; If the server is not in ldap-host-parameters-alist we add it for the
@@ -214,6 +215,8 @@ attribute names are returned.  Default to `person'."
 
 
 (eudc-register-protocol 'ldap)
+
+(define-obsolete-function-alias 'eudc-ldap-get-host-parameter #'ldap-get-host-parameter "29.1")
 
 (provide 'eudcb-ldap)
 

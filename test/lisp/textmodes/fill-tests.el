@@ -1,6 +1,6 @@
 ;;; fill-tests.el --- ERT tests for fill.el -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2023 Free Software Foundation, Inc.
 
 ;; Author:     Marcin Borkowski <mbork@mbork.pl>
 ;; Keywords:   text, wp
@@ -53,8 +53,8 @@
       (goto-char (point-min))
       (search-forward "b")
       (let* ((pos (point))
-             (beg (line-beginning-position))
-             (end (line-end-position))
+             (beg (pos-bol))
+             (end (pos-eol))
              (fill-prefix (make-string (- pos beg) ?\s))
              ;; `fill-column' is too small to accommodate the current line
              (fill-column (- end beg 10)))
@@ -68,8 +68,8 @@
       (goto-char (point-min))
       (search-forward "b")
       (let* ((pos (point))
-             (beg (line-beginning-position))
-             (end (line-end-position))
+             (beg (pos-bol))
+             (end (pos-eol))
              (fill-prefix (make-string (- pos beg) ?\s))
              ;; `fill-column' is too small to accommodate the current line
              (fill-column (- end beg 10)))
@@ -77,6 +77,28 @@
       (should (equal
                (buffer-string)
                "aaa =   baaaaaaaa aaaaaaaaaa\n         aaaaaaaaaa\n")))))
+
+(ert-deftest test-fill-end-period ()
+  (should
+   (equal
+    (with-temp-buffer
+      (text-mode)
+      (auto-fill-mode)
+      (insert "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eius.")
+      (self-insert-command 1 ?\s)
+      (buffer-string))
+    "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eius. "))
+  (should
+   (equal
+    (with-temp-buffer
+      (text-mode)
+      (auto-fill-mode)
+      (insert "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eius.Foo")
+      (forward-char -3)
+      (self-insert-command 1 ?\s)
+      (buffer-string))
+    "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
+eius. Foo")))
 
 (ert-deftest test-fill-haskell ()
   (should

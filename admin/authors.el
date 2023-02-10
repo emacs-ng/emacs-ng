@@ -1,6 +1,6 @@
 ;;; authors.el --- utility for maintaining Emacs's AUTHORS file  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: Gerd Moellmann <gerd@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -163,6 +163,7 @@ files.")
     ("Michael R. Cook" "Michael Cook")
     ("Michael Sperber" "Mike Sperber" "Michael Sperber \\[Mr. Preprocessor\\]")
     ("Michalis V" "^mvar")
+    ("Miha Rihtaršič" "Miha Rihtarsic")
     ("Mikio Nakajima" "Nakajima Mikio")
     ("Nelson Jose dos Santos Ferreira" "Nelson Ferreira")
     ("Noorul Islam" "Noorul Islam K M")
@@ -396,6 +397,8 @@ Changes to files matching one of the regexps in this list are not listed.")
     "autogen/missing" "autogen"
     "autogen/copy_autogen" ; not generated, but trivial and now removed
     "dir_top"
+    ;; Imported into Emacs but externally maintained.
+    "publicsuffix.txt" "SKK-JISYO.L"
     ;; Only existed briefly, then renamed:
     "images/icons/allout-widgets-dark-bg"
     "images/icons/allout-widgets-light-bg"
@@ -987,7 +990,7 @@ in the repository.")
 ;; to how a file was mentioned in the respective ChangeLog.  It is
 ;; advisable to run a Grep command such as
 ;;
-;;   fgrep -R BASENAME . --include='ChangeLog*'
+;;   grep -F -R BASENAME . --include='ChangeLog*'
 ;;
 ;; where BASENAME is the old basename of the renamed file.  This will
 ;; show all the different reference forms of the file in the various
@@ -1880,7 +1883,7 @@ list of their contributions.\n")
 		(insert "\n "))
 	    (insert " " file))
 	  (insert "\n")))))
-    (insert "\nLocal" " Variables:\nmode: etc-authors\ncoding: "
+    (insert "\nLocal" " Variables:\nmode: emacs-authors\ncoding: "
 	    (symbol-name authors-coding-system) "\nEnd:\n")
     (message "Generating buffer %s... done" buffer-name)
     (unless noninteractive

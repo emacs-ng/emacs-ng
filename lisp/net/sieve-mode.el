@@ -1,6 +1,6 @@
 ;;; sieve-mode.el --- Sieve code editing commands for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Simon Josefsson <simon@josefsson.org>
 
@@ -137,13 +137,11 @@
 
 ;; Key map definition
 
-(defvar sieve-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\C-c\C-l" #'sieve-upload)
-    (define-key map "\C-c\C-c" #'sieve-upload-and-kill)
-    (define-key map "\C-c\C-m" #'sieve-manage)
-    map)
-  "Key map used in sieve mode.")
+(defvar-keymap sieve-mode-map
+  :doc "Keymap used in sieve mode."
+  "C-c C-l" #'sieve-upload
+  "C-c C-c" #'sieve-upload-and-kill
+  "C-c RET" #'sieve-manage)
 
 ;; Menu
 
@@ -202,7 +200,13 @@ Turning on Sieve mode runs `sieve-mode-hook'."
     (let ((depth (car (syntax-ppss))))
       (when (looking-at "[ \t]*}")
         (setq depth (1- depth)))
-      (indent-line-to (* 2 depth)))))
+      (indent-line-to (* 2 depth))))
+  ;; Skip to the end of the indentation if at the beginning of the
+  ;; line.
+  (when (save-excursion
+          (skip-chars-backward " \t")
+          (bolp))
+    (skip-chars-forward " \t")))
 
 (provide 'sieve-mode)
 

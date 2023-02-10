@@ -1,6 +1,6 @@
 #!/usr/bin/awk -f
 
-## Copyright (C) 2015-2022 Free Software Foundation, Inc.
+## Copyright (C) 2015-2023 Free Software Foundation, Inc.
 
 ## Author: Glenn Morris <rgm@gnu.org>
 ## Maintainer: emacs-devel@gnu.org
@@ -23,7 +23,7 @@
 ### Commentary:
 
 ## This script takes as input Unicode's Blocks.txt
-## (http://www.unicode.org/Public/UNIDATA/Blocks.txt)
+## (https://www.unicode.org/Public/UNIDATA/Blocks.txt)
 ## and produces output for Emacs's lisp/international/charscript.el.
 
 ## It lumps together all the blocks belonging to the same language.
@@ -98,7 +98,7 @@ function name2alias(name   , w, w2) {
     else if (name ~ /arabic/) return "arabic"
     else if (name ~ /^greek/) return "greek"
     else if (name ~ /^coptic/) return "coptic"
-    else if (name ~ /cuneiform number/) return "cuneiform-numbers-and-punctuation"
+    else if (name ~ /cuneiform number/) return "cuneiform"
     else if (name ~ /cuneiform/) return "cuneiform"
     else if (name ~ /mathematical alphanumeric symbol/) return "mathematical"
     else if (name ~ /punctuation|mathematical|arrows|currency|superscript|small form variants|geometric|dingbats|enclosed|alchemical|pictograph|emoticon|transport/) return "symbol"
@@ -113,9 +113,11 @@ function name2alias(name   , w, w2) {
     else if (name ~/^(specials|tags)$/) return 0
     else if (name ~ /linear b/) return "linear-b"
     else if (name ~ /aramaic/) return "aramaic"
-    else if (name ~ /rumi num/) return "rumi-number"
+    else if (name ~ /rumi num/) return "arabic"
     else if (name ~ /duployan|shorthand/) return "duployan-shorthand"
     else if (name ~ /sutton signwriting/) return "sutton-sign-writing"
+    else if (name ~ /sinhala archaic number/) return "sinhala"
+    else if (name ~ /tangut components/) return "tangut"
 
     sub(/^small /, "", name)
     sub(/ (extended|extensions*|supplement).*/, "", name)
@@ -222,9 +224,14 @@ FILENAME ~ "emoji-data.txt" && /^[0-9A-F].*; Emoji_Presentation / {
 
 END {
     idx = 0
-    # ## These are here so that font_range can choose Emoji presentation
-    # ## for the preceding codepoint when it encounters a VS
-    override_start[idx] = "FE00"
+    ## This is here so that font_range can choose Emoji presentation
+    ## for the preceding codepoint when it encounters a VS-16
+    ## (U+FE0F).  See also font_range and the comments in composite.el
+    ## around the setup of `composition-function-table' for
+    ## U+FE00..U+FE0E.
+    ## It originally covered the whole FE00-FE0F range, but that
+    ## turned out to be a mistake.
+    override_start[idx] = "FE0F"
     override_end[idx] = "FE0F"
 
     for (k in override_start)

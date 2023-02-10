@@ -1,5 +1,5 @@
 /* ftfont.c -- FreeType font driver.
-   Copyright (C) 2006-2022 Free Software Foundation, Inc.
+   Copyright (C) 2006-2023 Free Software Foundation, Inc.
    Copyright (C) 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
      Registration Number H13PRO009
@@ -189,6 +189,24 @@ ftfont_pattern_entity (FcPattern *p, Lisp_Object extra)
     return Qnil;
   if (FcPatternGetInteger (p, FC_INDEX, 0, &idx) != FcResultMatch)
     return Qnil;
+#ifdef FC_VARIABLE
+  /* This is a virtual/meta FcPattern for a variable weight font, from
+     which it is possible to extract an FcRange value specifying the
+     minimum and maximum weights available in this file.  We don't
+     need to know that information explicitly, so skip it.  We will be
+     called with an FcPattern for each actually available, non-virtual
+     weight.
+
+     Fontconfig started generating virtual/meta patterns for variable
+     weight fonts in the same release that FC_VARIABLE was added, so
+     we conditionalize on that constant.  This also ensures that
+     FcPatternGetRange is available.  */
+  FcRange *range;
+  if (FcPatternGetRange (p, FC_WEIGHT, 0, &range) == FcResultMatch
+      && FcPatternGetBool (p, FC_VARIABLE, 0, &b) == FcResultMatch
+      && b == FcTrue)
+    return Qnil;
+#endif	/* FC_VARIABLE */
 
   file = (char *) str;
   key = Fcons (build_unibyte_string (file), make_fixnum (idx));
@@ -225,8 +243,6 @@ ftfont_pattern_entity (FcPattern *p, Lisp_Object extra)
     }
   if (FcPatternGetInteger (p, FC_WEIGHT, 0, &numeric) == FcResultMatch)
     {
-      if (numeric >= FC_WEIGHT_REGULAR && numeric < FC_WEIGHT_MEDIUM)
-	numeric = FC_WEIGHT_MEDIUM;
       FONT_SET_STYLE (entity, FONT_WEIGHT_INDEX, make_fixnum (numeric));
     }
   if (FcPatternGetInteger (p, FC_SLANT, 0, &numeric) == FcResultMatch)
@@ -629,8 +645,29 @@ ftfont_get_open_type_spec (Lisp_Object otf_spec)
   return spec;
 }
 
+#if defined HAVE_XFT && defined FC_COLOR
+static bool
+xft_color_font_whitelisted_p (const char *family)
+{
+  Lisp_Object tem, name;
+
+  tem = Vxft_color_font_whitelist;
+
+  FOR_EACH_TAIL_SAFE (tem)
+    {
+      name = XCAR (tem);
+
+      if (STRINGP (name) && !strcmp (family, SSDATA (name)))
+	return true;
+    }
+
+  return false;
+}
+#endif
+
 static FcPattern *
-ftfont_spec_pattern (Lisp_Object spec, char *otlayout, struct OpenTypeSpec **otspec, const char **langname)
+ftfont_spec_pattern (Lisp_Object spec, char *otlayout,
+		     struct OpenTypeSpec **otspec, const char **langname)
 {
   Lisp_Object tmp, extra;
   FcPattern *pattern = NULL;
@@ -769,6 +806,8 @@ ftfont_spec_pattern (Lisp_Object spec, char *otlayout, struct OpenTypeSpec **ots
   /* We really don't like color fonts, they cause Xft crashes.  See
      Bug#30874.  */
   if (xft_ignore_color_fonts
+      && (NILP (AREF (spec, FONT_FAMILY_INDEX))
+	  || NILP (Vxft_color_font_whitelist))
       && ! FcPatternAddBool (pattern, FC_COLOR, FcFalse))
     goto err;
 #endif
@@ -865,6 +904,9 @@ ftfont_list (struct frame *f, Lisp_Object spec)
 #if defined HAVE_XFT && defined FC_COLOR
                              FC_COLOR,
 #endif
+#ifdef FC_VARIABLE
+			     FC_VARIABLE,
+#endif	/* FC_VARIABLE */
 			     NULL);
   if (! objset)
     goto err;
@@ -911,7 +953,12 @@ ftfont_list (struct frame *f, Lisp_Object spec)
            returns them even when it shouldn't really do so, so we
            need to manually skip them here (Bug#37786).  */
         FcBool b;
+	FcChar8 *str;
+
         if (xft_ignore_color_fonts
+	    && (FcPatternGetString (fontset->fonts[i], FC_FAMILY,
+				    0, &str) != FcResultMatch
+		|| !xft_color_font_whitelisted_p ((char *) str))
             && FcPatternGetBool (fontset->fonts[i], FC_COLOR, 0, &b)
             == FcResultMatch && b != FcFalse)
             continue;
@@ -3109,6 +3156,10 @@ syms_of_ftfont (void)
   DEFSYM (Qfreetypehb, "freetypehb");
   Fput (Qfreetype, Qfont_driver_superseded_by, Qfreetypehb);
 #endif	/* HAVE_HARFBUZZ */
+
+#ifdef HAVE_HAIKU
+  DEFSYM (Qmono, "mono");
+#endif
 
   /* Fontconfig's generic families and their aliases.  */
   DEFSYM (Qmonospace, "monospace");

@@ -1,6 +1,6 @@
 ;;; spam.el --- Identifying spam  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Maintainer: Ted Zlatanov <tzz@lifelogs.com>
@@ -43,13 +43,11 @@
 (require 'gnus-uu)                      ; because of key prefix issues
 ;;; for the definitions of group content classification and spam processors
 (require 'gnus)
+(require 'dig)
 
 (eval-when-compile
   (require 'cl-lib)
   (require 'hashcash))
-
-;; autoload query-dig
-(autoload 'query-dig "dig")
 
 ;; autoload spam-report
 (autoload 'spam-report-gmane "spam-report")
@@ -663,13 +661,13 @@ order for SpamAssassin to recognize the new registered spam."
 
 ;;; Key bindings for spam control.
 
-(gnus-define-keys gnus-summary-mode-map
-  "St" spam-generic-score
-  "Sx" gnus-summary-mark-as-spam
-  "Mst" spam-generic-score
-  "Msx" gnus-summary-mark-as-spam
-  "\M-d" gnus-summary-mark-as-spam
-  "$" gnus-summary-mark-as-spam)
+(define-keymap :keymap gnus-summary-mode-map
+  "S t" #'spam-generic-score
+  "S x" #'gnus-summary-mark-as-spam
+  "M s t" #'spam-generic-score
+  "M s x" #'gnus-summary-mark-as-spam
+  "M-d" #'gnus-summary-mark-as-spam
+  "$" #'gnus-summary-mark-as-spam)
 
 (defvar spam-cache-lookups t
   "Whether spam.el will try to cache lookups using `spam-caches'.")
@@ -852,7 +850,7 @@ The value nil means that the check does not yield a decision, and
 so, that further checks are needed.  The value t means that the
 message is definitely not spam, and that further spam checks
 should be inhibited.  Otherwise, a mailgroup name or the symbol
-'spam (depending on `spam-split-symbolic-return') is returned where
+`spam' (depending on `spam-split-symbolic-return') is returned where
 the mail should go, and further checks are also inhibited.  The
 usual mailgroup name is the value of `spam-split-group', meaning
 that the message is definitely a spam."
@@ -2008,7 +2006,7 @@ See the Info node `(gnus)Fancy Mail Splitting' for more details."
             (unless matches
               (let ((query-string (concat ip "." server)))
                 (if spam-use-dig
-                    (let ((query-result (query-dig query-string)))
+                    (let ((query-result (dig-query query-string)))
                       (when query-result
                         (gnus-message 6 "(DIG): positive blackhole check `%s'"
                                       query-result)
@@ -2134,7 +2132,7 @@ See `spam-ifile-database'."
         ;; check the return now (we're back in the temp buffer)
         (goto-char (point-min))
         (if (not (eobp))
-            (setq category (buffer-substring (point) (point-at-eol))))
+            (setq category (buffer-substring (point) (line-end-position))))
         (when (not (zerop (length category))) ; we need a category here
           (if spam-ifile-all-categories
               (setq return category)
@@ -2323,7 +2321,7 @@ With a non-nil REMOVE, remove the ADDRESSES."
       (with-temp-buffer
         (insert-file-contents file)
         (while (not (eobp))
-          (setq address (buffer-substring (point) (point-at-eol)))
+          (setq address (buffer-substring (point) (line-end-position)))
           (forward-line 1)
           ;; insert the e-mail address if detected, otherwise the raw data
           (unless (zerop (length address))

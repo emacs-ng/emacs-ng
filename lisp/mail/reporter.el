@@ -1,6 +1,6 @@
 ;;; reporter.el --- customizable bug reporting of lisp programs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1993-1998, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1998, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author:          1993-1998 Barry A. Warsaw
 ;; Maintainer: emacs-devel@gnu.org
@@ -357,7 +357,7 @@ mail-sending package is used for editing and sending the message."
 	  (goto-char final-resting-place))
       (set-marker final-resting-place nil))
 
-    ;; save initial text and set up the `no-empty-submission' hook.
+    ;; save initial text and set up the no empty submission hook.
     ;; This only works for mailers that support a pre-send hook, and
     ;; for which the paradigm has a non-nil value for the `hookvar'
     ;; key in its agent (i.e. sendmail.el's mail-send-hook).

@@ -1,6 +1,6 @@
 ;;; wid-browse.el --- functions for browsing widgets  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1997, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 
 ;; Author: Per Abrahamsen <abraham@dina.kvl.dk>
 ;; Keywords: extensions
@@ -35,12 +35,10 @@
 
 ;;; The Mode.
 
-(defvar widget-browse-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map widget-keymap)
-    (define-key map "q" #'bury-buffer)
-    map)
-  "Keymap for `widget-browse-mode'.")
+(defvar-keymap widget-browse-mode-map
+  :doc "Keymap for `widget-browse-mode'."
+  :parent widget-keymap
+  "q" #'bury-buffer)
 
 (easy-menu-define widget-browse-mode-customize-menu
     widget-browse-mode-map
@@ -117,13 +115,6 @@ The following commands are available:
     (kill-buffer (get-buffer-create "*Browse Widget*"))
     (switch-to-buffer (get-buffer-create "*Browse Widget*")))
   (widget-browse-mode)
-
-  ;; Quick way to get out.
-;;  (widget-create 'push-button
-;;		 :action (lambda (widget &optional event)
-;;			   (bury-buffer))
-;;		 "Quit")
-;;  (widget-insert "\n")
 
   ;; Top text indicating whether it is a class or object browser.
   (if (listp widget)
@@ -252,11 +243,9 @@ VALUE is assumed to be a list of widgets."
 
 ;;; Widget Minor Mode.
 
-(defvar widget-minor-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map widget-keymap)
-    map)
-  "Keymap used in Widget Minor Mode.")
+(defvar-keymap widget-minor-mode-map
+  :doc "Keymap used in Widget Minor Mode."
+  :parent widget-keymap)
 
 ;;;###autoload
 (define-minor-mode widget-minor-mode

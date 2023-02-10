@@ -1,6 +1,6 @@
 ;;; tutorial.el --- tutorial for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2006-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: help, internal
@@ -385,7 +385,7 @@ correspond to what the tutorial says.\n\n")
   "Find the key bindings used in the tutorial that have changed.
 Return a list with elements of the form
 
-  '(KEY DEF-FUN DEF-FUN-TXT WHERE REMARK QUIET)
+  (KEY DEF-FUN DEF-FUN-TXT WHERE REMARK QUIET)
 
 where
 
@@ -423,11 +423,9 @@ where
 	       ;; Handle prefix definitions specially
 	       ;; so that a mode that rebinds some subcommands
 	       ;; won't make it appear that the whole prefix is gone.
-	       (key-fun (if (eq def-fun 'ESC-prefix)
-			    (lookup-key global-map [27])
-			  (if (eq def-fun 'Control-X-prefix)
-			      (lookup-key global-map [24])
-			    (key-binding key))))
+               (key-fun (if (keymapp def-fun)
+                            (lookup-key global-map key)
+                          (key-binding key)))
 	       (where (where-is-internal (if rem-fun rem-fun def-fun)))
 	       cwhere)
 
@@ -651,13 +649,15 @@ with some explanatory links."
         (unless (eq prop-val 'key-sequence)
 	  (delete-region prop-start prop-end))))))
 
+(defvar tutorial--starting-point)
 (defun tutorial--save-on-kill ()
   "Query the user about saving the tutorial when killing Emacs."
   (when (buffer-live-p tutorial--buffer)
     (with-current-buffer tutorial--buffer
-      (if (y-or-n-p "Save your position in the tutorial? ")
-	  (tutorial--save-tutorial-to (tutorial--saved-file))
-	(message "Tutorial position not saved"))))
+      (unless (= (point) tutorial--starting-point)
+        (if (y-or-n-p "Save your position in the tutorial? ")
+	    (tutorial--save-tutorial-to (tutorial--saved-file))
+	  (message "Tutorial position not saved")))))
   t)
 
 (defun tutorial--save-tutorial ()
@@ -735,7 +735,6 @@ See `tutorial--save-tutorial' for more information."
               (message "Saved tutorial state.")))
         (message "Can't save tutorial: %s is not a directory"
                  tutorial-dir)))))
-
 
 ;;;###autoload
 (defun help-with-tutorial (&optional arg dont-ask-for-revert)
@@ -916,6 +915,7 @@ Run the Viper tutorial? "))
               (forward-line 1)
               (newline (- n (/ n 2)))))
           (goto-char (point-min)))
+        (setq-local tutorial--starting-point (point))
         (setq buffer-undo-list nil)
         (set-buffer-modified-p nil)))))
 

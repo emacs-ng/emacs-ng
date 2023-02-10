@@ -1,6 +1,6 @@
 ;;; exif.el --- parsing Exif data in JPEG images -*- lexical-binding: t -*-
 
-;; Copyright (C) 2019-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: images
@@ -58,6 +58,9 @@
 ;;  (:tag 306 :tag-name date-time :format 2 :format-type ascii
 ;;   :value "2019:09:21 16:22:13")
 ;;   ...)
+;;
+;; (exif-field 'date-time (exif-parse-file "test.jpg")) =>
+;; "2022:09:14 18:46:19"
 
 ;;; Code:
 
@@ -65,6 +68,7 @@
 
 (defvar exif-tag-alist
   '((11 processing-software)
+    (270 description)
     (271 make)
     (272 model)
     (274 orientation)
@@ -73,7 +77,8 @@
     (296 resolution-unit)
     (305 software)
     (306 date-time)
-    (315 artist))
+    (315 artist)
+    (33432 copyright))
   "Alist of tag values and their names.")
 
 (defconst exif--orientation
@@ -95,7 +100,10 @@ mirrored or not.")
   "Parse FILE (a JPEG file) and return the Exif data, if any.
 The return value is a list of Exif items.
 
-If the data is invalid, an `exif-error' is signaled."
+If the data is invalid, an `exif-error' is signaled.
+
+Also see the `exif-field' convenience function to extract data
+from the return value of this function."
   (with-temp-buffer
     (set-buffer-multibyte nil)
     (insert-file-contents-literally file)
@@ -105,7 +113,10 @@ If the data is invalid, an `exif-error' is signaled."
   "Parse BUFFER (which should be a JPEG file) and return the Exif data, if any.
 The return value is a list of Exif items.
 
-If the data is invalid, an `exif-error' is signaled."
+If the data is invalid, an `exif-error' is signaled.
+
+Also see the `exif-field' convenience function to extract data
+from the return value of this function."
   (setq buffer (or buffer (current-buffer)))
   (with-current-buffer buffer
     (if enable-multibyte-characters
@@ -122,18 +133,25 @@ If the data is invalid, an `exif-error' is signaled."
         (when-let ((app1 (cdr (assq #xffe1 (exif--parse-jpeg)))))
           (exif--parse-exif-chunk app1))))))
 
+(defun exif-field (field data)
+  "Return raw FIELD from EXIF.
+If FIELD is not present in the data, return nil.
+FIELD is a symbol in the cdr of `exif-tag-alist'.
+DATA is the result of calling `exif-parse-file'."
+  (plist-get (seq-find (lambda (e)
+                         (eq field (plist-get e :tag-name)))
+                       data)
+             :value))
+
 (defun exif-orientation (exif)
   "Return the orientation (in degrees) in EXIF.
 If the orientation isn't present in the data, return nil."
-  (let ((code (plist-get (cl-find 'orientation exif
-                                  :key (lambda (e)
-                                         (plist-get e :tag-name)))
-                         :value)))
+  (let ((code (exif-field 'orientation exif)))
     (cadr (assq code exif--orientation))))
 
 (defun exif--parse-jpeg ()
   (unless (= (exif--read-number-be 2) #xffd8) ; SOI (start of image)
-    (signal 'exif-error "Not a valid JPEG file"))
+    (signal 'exif-error '("Not a valid JPEG file")))
   (cl-loop for segment = (exif--read-number-be 2)
            for size = (exif--read-number-be 2)
            ;; Stop parsing when we get to SOS (start of stream);
@@ -150,7 +168,7 @@ If the orientation isn't present in the data, return nil."
     ;; The Exif data is in the APP1 JPEG chunk and starts with
     ;; "Exif\0\0".
     (unless (equal (exif--read-chunk 6) (string ?E ?x ?i ?f ?\0 ?\0))
-      (signal 'exif-error "Not a valid Exif chunk"))
+      (signal 'exif-error '("Not a valid Exif chunk")))
     (delete-region (point-min) (point))
     (let* ((endian-marker (exif--read-chunk 2))
            (le (cond
@@ -162,14 +180,15 @@ If the orientation isn't present in the data, return nil."
                  t)
                 (t
                  (signal 'exif-error
-                         (format "Invalid endian-ness %s" endian-marker))))))
+                         (list (format "Invalid endian-ness %s"
+                                       endian-marker)))))))
       ;; Another magical number.
       (unless (= (exif--read-number 2 le) #x002a)
-        (signal 'exif-error "Invalid TIFF header length"))
+        (signal 'exif-error '("Invalid TIFF header length")))
       (let ((offset (exif--read-number 4 le)))
         ;; Jump to where the IFD (directory) starts and parse it.
         (when (> (1+ offset) (point-max))
-          (signal 'exif-error "Invalid IFD (directory) offset"))
+          (signal 'exif-error '("Invalid IFD (directory) offset")))
         (goto-char (1+ offset))
         (exif--parse-directory le)))))
 
@@ -212,7 +231,7 @@ If the orientation isn't present in the data, return nil."
                                          (when (> (+ (1+ value) length)
                                                   (point-max))
                                            (signal 'exif-error
-                                                   "Premature end of file"))
+                                                   '("Premature end of file")))
                                          (buffer-substring
                                           (1+ value)
                                           (+ (1+ value) length)))
@@ -230,7 +249,7 @@ If the orientation isn't present in the data, return nil."
           ;; keep parsing.
           (progn
             (when (> (1+ next) (point-max))
-              (signal 'exif-error "Invalid IFD (directory) next-offset"))
+              (signal 'exif-error '("Invalid IFD (directory) next-offset")))
             (goto-char (1+ next))
             (nconc dir (exif--parse-directory le)))
         ;; We've reached the end of the directories.
@@ -243,9 +262,9 @@ VALUE is an integer representing BYTES characters."
     (set-buffer-multibyte nil)
     (if le
         (dotimes (i bytes)
-          (insert (logand (lsh value (* i -8)) 255)))
+          (insert (logand (ash value (* i -8)) 255)))
       (dotimes (i bytes)
-        (insert (logand (lsh value (* (- (1- bytes) i) -8)) 255))))
+        (insert (logand (ash value (* (- (1- bytes) i) -8)) 255))))
     (insert 0)
     (buffer-string)))
 
@@ -253,19 +272,19 @@ VALUE is an integer representing BYTES characters."
   "Do type-based post-processing of the value."
   (cl-case type
     ;; Chop off trailing zero byte.
-    ('ascii (substring value 0 (1- (length value))))
-    ('rational (with-temp-buffer
-                 (set-buffer-multibyte nil)
-                 (insert value)
-                 (goto-char (point-min))
-                 (cons (exif--read-number 4 le)
-                       (exif--read-number 4 le))))
+    (ascii (substring value 0 (1- (length value))))
+    (rational (with-temp-buffer
+                (set-buffer-multibyte nil)
+                (insert value)
+                (goto-char (point-min))
+                (cons (exif--read-number 4 le)
+                      (exif--read-number 4 le))))
     (otherwise value)))
 
 (defun exif--read-chunk (bytes)
   "Return BYTES octets from the buffer and advance point that much."
   (when (> (+ (point) bytes) (point-max))
-    (signal 'exif-error "Premature end of file"))
+    (signal 'exif-error '("Premature end of file")))
   (prog1
       (buffer-substring (point) (+ (point) bytes))
     (forward-char bytes)))
@@ -274,7 +293,7 @@ VALUE is an integer representing BYTES characters."
   "Read BYTES octets from the buffer as a chunk of big-endian bytes.
 Advance point to after the read bytes."
   (when (> (+ (point) bytes) (point-max))
-    (signal 'exif-error "Premature end of file"))
+    (signal 'exif-error '("Premature end of file")))
   (let ((sum 0))
     (dotimes (_ bytes)
       (setq sum (+ (* sum 256) (following-char)))
@@ -285,7 +304,7 @@ Advance point to after the read bytes."
   "Read BYTES octets from the buffer as a chunk of low-endian bytes.
 Advance point to after the read bytes."
   (when (> (+ (point) bytes) (point-max))
-    (signal 'exif-error "Premature end of file"))
+    (signal 'exif-error '("Premature end of file")))
   (let ((sum 0))
     (dotimes (i bytes)
       (setq sum (+ (* (following-char) (expt 256 i)) sum))

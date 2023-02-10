@@ -1,6 +1,6 @@
 ;;; shorthands.el --- Read code considering Elisp shorthands  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
 
 ;; Author: João Távora <joaotavora@gmail.com>
 ;; Keywords: lisp
@@ -61,8 +61,7 @@
 (defun shorthands-font-lock-shorthands (limit)
   (when read-symbol-shorthands
     (while (re-search-forward
-            (eval-when-compile
-              (concat "\\_<\\(" lisp-mode-symbol-regexp "\\)\\_>"))
+            (concat "\\_<\\(" (rx lisp-mode-symbol) "\\)\\_>")
             limit t)
       (let* ((existing (get-text-property (match-beginning 1) 'face))
              (probe (and (not (memq existing '(font-lock-comment-face

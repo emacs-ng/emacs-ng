@@ -1,7 +1,6 @@
 ;;; buff-menu.el --- Interface for viewing and manipulating buffers -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1993-1995, 2000-2022 Free Software
-;; Foundation, Inc.
+;; Copyright (C) 1985-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: convenience
@@ -25,8 +24,8 @@
 ;;; Commentary:
 
 ;; The Buffer Menu is used to view, edit, delete, or change attributes
-;; of buffers.  The entry points are C-x C-b (`list-buffers') and
-;; M-x buffer-menu.
+;; of buffers.  The entry points are `C-x C-b' (`list-buffers') and
+;; `M-x buffer-menu'.
 
 ;;; Code:
 
@@ -54,21 +53,6 @@
   :group 'Buffer-menu)
 (put 'Buffer-menu-buffer 'face-alias 'buffer-menu-buffer)
 
-(defcustom Buffer-menu-buffer+size-width nil
-  "Combined width of buffer name and size columns in Buffer Menu.
-If nil, use `Buffer-menu-name-width' and `Buffer-menu-size-width'.
-
-If non-nil, the value of `Buffer-menu-name-width' is overridden;
-the name column is assigned width `Buffer-menu-buffer+size-width'
-minus `Buffer-menu-size-width'.  This use is deprecated."
-  :type '(choice (const nil) number)
-  :group 'Buffer-menu
-  :version "24.3")
-
-(make-obsolete-variable 'Buffer-menu-buffer+size-width
-			"use `Buffer-menu-name-width' and `Buffer-menu-size-width' instead."
-			"24.3")
-
 (defun Buffer-menu--dynamic-name-width (buffers)
   "Return a name column width based on the current window width.
 The width will never exceed the actual width of the buffer names,
@@ -92,13 +76,13 @@ number."
 
 (defcustom Buffer-menu-size-width 7
   "Width of buffer size column in the Buffer Menu."
-  :type 'number
+  :type 'natnum
   :group 'Buffer-menu
   :version "24.3")
 
 (defcustom Buffer-menu-mode-width 16
   "Width of mode name column in the Buffer Menu."
-  :type 'number
+  :type 'natnum
   :group 'Buffer-menu)
 
 (defcustom Buffer-menu-use-frame-buffer-list t
@@ -116,43 +100,54 @@ as it is by default."
 This is set by the prefix argument to `buffer-menu' and related
 commands.")
 
-(defvar Buffer-menu-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map tabulated-list-mode-map)
-    (define-key map "v" 'Buffer-menu-select)
-    (define-key map "2" 'Buffer-menu-2-window)
-    (define-key map "1" 'Buffer-menu-1-window)
-    (define-key map "f" 'Buffer-menu-this-window)
-    (define-key map "e" 'Buffer-menu-this-window)
-    (define-key map "\C-m" 'Buffer-menu-this-window)
-    (define-key map "o" 'Buffer-menu-other-window)
-    (define-key map "\C-o" 'Buffer-menu-switch-other-window)
-    (define-key map "s" 'Buffer-menu-save)
-    (define-key map "d" 'Buffer-menu-delete)
-    (define-key map "k" 'Buffer-menu-delete)
-    (define-key map "\C-k" 'Buffer-menu-delete)
-    (define-key map "\C-d" 'Buffer-menu-delete-backwards)
-    (define-key map "x" 'Buffer-menu-execute)
-    (define-key map " " 'next-line)
-    (define-key map "\177" 'Buffer-menu-backup-unmark)
-    (define-key map "~" 'Buffer-menu-not-modified)
-    (define-key map "u" 'Buffer-menu-unmark)
-    (define-key map "\M-\177" 'Buffer-menu-unmark-all-buffers)
-    (define-key map "U" 'Buffer-menu-unmark-all)
-    (define-key map "m" 'Buffer-menu-mark)
-    (define-key map "t" 'Buffer-menu-visit-tags-table)
-    (define-key map "%" 'Buffer-menu-toggle-read-only)
-    (define-key map "b" 'Buffer-menu-bury)
-    (define-key map "V" 'Buffer-menu-view)
-    (define-key map "T" 'Buffer-menu-toggle-files-only)
-    (define-key map (kbd "M-s a C-s")   'Buffer-menu-isearch-buffers)
-    (define-key map (kbd "M-s a M-C-s") 'Buffer-menu-isearch-buffers-regexp)
-    (define-key map (kbd "M-s a C-o") 'Buffer-menu-multi-occur)
+(defvar-local Buffer-menu-filter-predicate nil
+  "Function to filter out buffers in the buffer list.
+Buffers that don't satisfy the predicate will be skipped.
+The value should be a function of one argument; it will be
+called with the buffer.  If this function returns non-nil,
+then the buffer will be displayed in the buffer list.")
 
-    (define-key map [mouse-2] 'Buffer-menu-mouse-select)
-    (define-key map [follow-link] 'mouse-face)
-    map)
-  "Local keymap for `Buffer-menu-mode' buffers.")
+(defvar-local Buffer-menu-buffer-list nil
+  "The current list of buffers or function to return buffers.")
+
+(defvar-keymap Buffer-menu-mode-map
+  :doc "Local keymap for `Buffer-menu-mode' buffers."
+  :parent tabulated-list-mode-map
+  "v"           #'Buffer-menu-select
+  "2"           #'Buffer-menu-2-window
+  "1"           #'Buffer-menu-1-window
+  "f"           #'Buffer-menu-this-window
+  "e"           #'Buffer-menu-this-window
+  "C-m"         #'Buffer-menu-this-window
+  "o"           #'Buffer-menu-other-window
+  "C-o"         #'Buffer-menu-switch-other-window
+  "s"           #'Buffer-menu-save
+  "d"           #'Buffer-menu-delete
+  "k"           #'Buffer-menu-delete
+  "C-k"         #'Buffer-menu-delete
+  "C-d"         #'Buffer-menu-delete-backwards
+  "x"           #'Buffer-menu-execute
+  "SPC"         #'next-line
+  "DEL"         #'Buffer-menu-backup-unmark
+  "~"           #'Buffer-menu-not-modified
+  "u"           #'Buffer-menu-unmark
+  "M-DEL"       #'Buffer-menu-unmark-all-buffers
+  "U"           #'Buffer-menu-unmark-all
+  "m"           #'Buffer-menu-mark
+  "t"           #'Buffer-menu-visit-tags-table
+  "%"           #'Buffer-menu-toggle-read-only
+  "b"           #'Buffer-menu-bury
+  "V"           #'Buffer-menu-view
+  "O"           #'Buffer-menu-view-other-window
+  "T"           #'Buffer-menu-toggle-files-only
+  "M-s a C-s"   #'Buffer-menu-isearch-buffers
+  "M-s a C-M-s" #'Buffer-menu-isearch-buffers-regexp
+  "M-s a C-o"   #'Buffer-menu-multi-occur
+  "<mouse-2>"     #'Buffer-menu-mouse-select
+  "<follow-link>" 'mouse-face)
+
+(put 'Buffer-menu-delete :advertised-binding "d")
+(put 'Buffer-menu-this-window :advertised-binding "f")
 
 (easy-menu-define Buffer-menu-mode-menu Buffer-menu-mode-map
   "Menu for `Buffer-menu-mode' buffers."
@@ -217,26 +212,25 @@ See `buffer-menu' for a description of its contents.
 In Buffer Menu mode, the following commands are defined:
 \\<Buffer-menu-mode-map>
 \\[quit-window]    Remove the Buffer Menu from the display.
-\\[Buffer-menu-this-window]  Select current line's buffer in place of the buffer menu.
+\\[Buffer-menu-this-window]    Select current line's buffer in place of the buffer menu.
 \\[Buffer-menu-other-window]    Select that buffer in another window,
      so the Buffer Menu remains visible in its window.
-\\[Buffer-menu-view]    Select current line's buffer, in View mode.
-\\[Buffer-menu-view-other-window]  Select that buffer in
-     another window, in `view-mode'.
+\\[Buffer-menu-view]    Select current line's buffer, in `view-mode'.
+\\[Buffer-menu-view-other-window]    Select that buffer in another window, in `view-mode'.
 \\[Buffer-menu-switch-other-window]  Make another window display that buffer.
 \\[Buffer-menu-mark]    Mark current line's buffer to be displayed.
 \\[Buffer-menu-select]    Select current line's buffer.
-     Also show buffers marked with m, in other windows.
+     Also show buffers marked with \"m\", in other windows.
 \\[Buffer-menu-1-window]    Select that buffer in full-frame window.
 \\[Buffer-menu-2-window]    Select that buffer in one window, together with the
      buffer selected before this one in another window.
 \\[Buffer-menu-isearch-buffers]    Incremental search in the marked buffers.
 \\[Buffer-menu-isearch-buffers-regexp]  Isearch for regexp in the marked buffers.
-\\[Buffer-menu-multi-occur] Show lines matching regexp in the marked buffers.
+\\[Buffer-menu-multi-occur]    Show lines matching regexp in the marked buffers.
 \\[Buffer-menu-visit-tags-table]    `visit-tags-table' this buffer.
 \\[Buffer-menu-not-modified]    Clear modified-flag on that buffer.
 \\[Buffer-menu-save]    Mark that buffer to be saved, and move down.
-\\[Buffer-menu-delete]  Mark that buffer to be deleted, and move down.
+\\[Buffer-menu-delete]    Mark that buffer to be deleted, and move down.
 \\[Buffer-menu-delete-backwards]  Mark that buffer to be deleted, and move up.
 \\[Buffer-menu-execute]    Delete or save marked buffers.
 \\[Buffer-menu-unmark]    Remove all marks from current line.
@@ -252,6 +246,26 @@ In Buffer Menu mode, the following commands are defined:
   (setq-local buffer-stale-function
               (lambda (&optional _noconfirm) 'fast))
   (add-hook 'tabulated-list-revert-hook 'list-buffers--refresh nil t))
+
+(defun buffer-menu--display-help ()
+  (message "%s"
+           (substitute-command-keys
+            (concat
+             "Commands: "
+             "\\<Buffer-menu-mode-map>"
+             "\\[Buffer-menu-delete], "
+             "\\[Buffer-menu-save], "
+             "\\[Buffer-menu-execute], "
+             "\\[Buffer-menu-unmark]; "
+             "\\[Buffer-menu-this-window], "
+             "\\[Buffer-menu-other-window], "
+             "\\[Buffer-menu-1-window], "
+             "\\[Buffer-menu-2-window], "
+             "\\[Buffer-menu-mark], "
+             "\\[Buffer-menu-select]; "
+             "\\[Buffer-menu-not-modified], "
+             "\\[Buffer-menu-toggle-read-only]; "
+             "\\[quit-window] to quit; \\[describe-mode] for help"))))
 
 (defun buffer-menu (&optional arg)
   "Switch to the Buffer Menu.
@@ -278,8 +292,7 @@ the `Buffer-menu-name-width', `Buffer-menu-size-width' and
 `Buffer-menu-mode-width' variables."
   (interactive "P")
   (switch-to-buffer (list-buffers-noselect arg))
-  (message
-   "Commands: d, s, x, u; f, o, 1, 2, m, v; ~, %%; q to quit; ? for help."))
+  (buffer-menu--display-help))
 
 (defun buffer-menu-other-window (&optional arg)
   "Display the Buffer Menu in another window.
@@ -290,8 +303,7 @@ with a space (which are for internal use).  With prefix argument
 ARG, show only buffers that are visiting files."
   (interactive "P")
   (switch-to-buffer-other-window (list-buffers-noselect arg))
-  (message
-   "Commands: d, s, x, u; f, o, 1, 2, m, v; ~, %%; q to quit; ? for help."))
+  (buffer-menu--display-help))
 
 ;;;###autoload
 (defun list-buffers (&optional arg)
@@ -529,13 +541,18 @@ If UNMARK is non-nil, unmark them."
   (multi-occur (Buffer-menu-marked-buffers) regexp nlines))
 
 
+(autoload 'etags-verify-tags-table "etags")
 (defun Buffer-menu-visit-tags-table ()
   "Visit the tags table in the buffer on this line.  See `visit-tags-table'."
   (interactive nil Buffer-menu-mode)
-  (let ((file (buffer-file-name (Buffer-menu-buffer t))))
-    (if file
-	(visit-tags-table file)
-      (error "Specified buffer has no file"))))
+  (let* ((buf (Buffer-menu-buffer t))
+         (file (buffer-file-name buf)))
+    (cond
+     ((not file) (error "Specified buffer has no file"))
+     ((and buf (with-current-buffer buf
+                 (etags-verify-tags-table)))
+      (visit-tags-table file))
+     (t (error "Specified buffer is not a tags-table")))))
 
 (defun Buffer-menu-1-window ()
   "Select this line's buffer, alone, in full frame."
@@ -609,19 +626,26 @@ This behaves like invoking \\[read-only-mode] in that buffer."
 ;;; Functions for populating the Buffer Menu.
 
 ;;;###autoload
-(defun list-buffers-noselect (&optional files-only buffer-list)
+(defun list-buffers-noselect (&optional files-only buffer-list filter-predicate)
   "Create and return a Buffer Menu buffer.
 This is called by `buffer-menu' and others as a subroutine.
 
 If FILES-ONLY is non-nil, show only file-visiting buffers.
-If BUFFER-LIST is non-nil, it should be a list of buffers; it
-means list those buffers and no others."
+If BUFFER-LIST is non-nil, it should be either a list of buffers
+or a function that returns a list of buffers; it means
+list those buffers and no others.
+See more at `Buffer-menu-buffer-list'.
+If FILTER-PREDICATE is non-nil, it should be a function
+that filters out buffers from the list of buffers.
+See more at `Buffer-menu-filter-predicate'."
   (let ((old-buffer (current-buffer))
 	(buffer (get-buffer-create "*Buffer List*")))
     (with-current-buffer buffer
       (Buffer-menu-mode)
       (setq Buffer-menu-files-only
 	    (and files-only (>= (prefix-numeric-value files-only) 0)))
+      (setq Buffer-menu-buffer-list buffer-list)
+      (setq Buffer-menu-filter-predicate filter-predicate)
       (list-buffers--refresh buffer-list old-buffer)
       (tabulated-list-print))
     buffer))
@@ -643,11 +667,20 @@ means list those buffers and no others."
         (marked-buffers (Buffer-menu-marked-buffers))
         (buffer-menu-buffer (current-buffer))
 	(show-non-file (not Buffer-menu-files-only))
+	(filter-predicate (and (functionp Buffer-menu-filter-predicate)
+			       Buffer-menu-filter-predicate))
 	entries name-width)
     ;; Collect info for each buffer we're interested in.
-    (dolist (buffer (or buffer-list
-			(buffer-list (if Buffer-menu-use-frame-buffer-list
-					 (selected-frame)))))
+    (dolist (buffer (cond
+                     ((functionp buffer-list)
+                      (funcall buffer-list))
+                     (buffer-list)
+                     ((functionp Buffer-menu-buffer-list)
+                      (funcall Buffer-menu-buffer-list))
+                     (Buffer-menu-buffer-list)
+                     (t (buffer-list
+                         (if Buffer-menu-use-frame-buffer-list
+                             (selected-frame))))))
       (with-current-buffer buffer
 	(let* ((name (buffer-name))
 	       (file buffer-file-name))
@@ -656,7 +689,9 @@ means list those buffers and no others."
 			 (and (or (not (string= (substring name 0 1) " "))
                                   file)
 			      (not (eq buffer buffer-menu-buffer))
-			      (or file show-non-file))))
+			      (or file show-non-file)
+			      (or (not filter-predicate)
+				  (funcall filter-predicate buffer)))))
 	    (push (list buffer
 			(vector (cond
                                  ((eq buffer old-buffer) ".")
@@ -676,9 +711,6 @@ means list those buffers and no others."
     (setq name-width (if (functionp Buffer-menu-name-width)
                          (funcall Buffer-menu-name-width (mapcar #'car entries))
                        Buffer-menu-name-width))
-    ;; Handle obsolete variable:
-    (if Buffer-menu-buffer+size-width
-	(setq name-width (- Buffer-menu-buffer+size-width size-width)))
     (setq tabulated-list-format
 	  (vector '("C" 1 t :pad-right 0)
 		  '("R" 1 t :pad-right 0)

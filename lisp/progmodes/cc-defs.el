@@ -1,6 +1,6 @@
 ;;; cc-defs.el --- compile time definitions for CC Mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985, 1987, 1992-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1987, 1992-2023 Free Software Foundation, Inc.
 
 ;; Authors:    2003- Alan Mackenzie
 ;;             1998- Martin Stjernholm
@@ -60,7 +60,6 @@
 (cc-bytecomp-defun region-active-p)	; XEmacs
 (cc-bytecomp-defvar mark-active)	; Emacs
 (cc-bytecomp-defvar deactivate-mark)	; Emacs
-(cc-bytecomp-defvar inhibit-point-motion-hooks) ; Emacs
 (cc-bytecomp-defvar parse-sexp-lookup-properties) ; Emacs
 (cc-bytecomp-defvar text-property-default-nonsticky) ; Emacs 21
 (cc-bytecomp-defun string-to-syntax)	; Emacs 21
@@ -87,7 +86,7 @@
 
 ;;; Variables also used at compile time.
 
-(defconst c-version "5.35.1"
+(defconst c-version "5.35.2"
   "CC Mode version number.")
 
 (defconst c-version-sym (intern c-version))
@@ -125,7 +124,7 @@ The result of the body appears to the compiler as a quoted constant.
 
 This variant works around bugs in `eval-when-compile' in various
 \(X)Emacs versions.  See cc-defs.el for details."
-    (declare (indent 0) (debug t))
+    (declare (indent 0) (debug (&rest def-form)))
     (if c-inside-eval-when-compile
 	;; XEmacs 21.4.6 has a bug in `eval-when-compile' in that it
 	;; evaluates its body at macro expansion time if it's nested
@@ -424,23 +423,6 @@ to it is returned.  This function does not modify the point or the mark."
        (point))))
 
 (defvar lookup-syntax-properties)       ;XEmacs.
-
-(eval-and-compile
-  ;; Constant to decide at compilation time whether to use category
-  ;; properties.  Currently (2010-03) they're available only on GNU Emacs.
-  (defconst c-use-category
-    (with-temp-buffer
-      (let ((parse-sexp-lookup-properties t)
-	    (lookup-syntax-properties t))
-        (set-syntax-table (make-syntax-table))
-        (insert "<()>")
-        (put-text-property (point-min) (1+ (point-min))
-			   'category 'c-<-as-paren-syntax)
-        (put-text-property (+ 3 (point-min)) (+ 4 (point-min))
-			   'category 'c->-as-paren-syntax)
-        (goto-char (point-min))
-        (forward-sexp)
-        (= (point) (+ 4 (point-min)))))))
 
 (defmacro c-is-escaped (pos)
   ;; Are there an odd number of backslashes before POS?
@@ -811,15 +793,16 @@ right side of it."
 	       `(c-safe (scan-lists ,from ,count ,depth)))))
     (if limit
 	`(save-restriction
-	   (when ,limit
-	     ,(if (numberp count)
-		  (if (< count 0)
-		      `(narrow-to-region ,limit (point-max))
-		    `(narrow-to-region (point-min) ,limit))
-		`(if (< ,count 0)
-		     (narrow-to-region ,limit (point-max))
-		   (narrow-to-region (point-min) ,limit))))
-	   ,res)
+	   (let ((-limit- ,limit))
+	     (when -limit-
+	       ,(if (numberp count)
+		    (if (< count 0)
+			`(narrow-to-region -limit- (point-max))
+		      `(narrow-to-region (point-min) -limit-))
+		  `(if (< ,count 0)
+		       (narrow-to-region -limit- (point-max))
+		     (narrow-to-region (point-min) -limit-))))
+	     ,res))
       res)))
 
 
@@ -1147,11 +1130,13 @@ MODE is either a mode symbol or a list of mode symbols."
 			       (cc-bytecomp-fboundp 'delete-extent)
 			       (cc-bytecomp-fboundp 'map-extents))))
 
-(defconst c-<-as-paren-syntax '(4 . ?>))
-(put 'c-<-as-paren-syntax 'syntax-table c-<-as-paren-syntax)
+(eval-and-compile
+  (defconst c-<-as-paren-syntax '(4 . ?>))
+  (put 'c-<-as-paren-syntax 'syntax-table c-<-as-paren-syntax))
 
-(defconst c->-as-paren-syntax '(5 . ?<))
-(put 'c->-as-paren-syntax 'syntax-table c->-as-paren-syntax)
+(eval-and-compile
+  (defconst c->-as-paren-syntax '(5 . ?<))
+  (put 'c->-as-paren-syntax 'syntax-table c->-as-paren-syntax))
 
 ;; `c-put-char-property' is complex enough in XEmacs and Emacs < 21 to
 ;; make it a function.
@@ -1209,6 +1194,26 @@ MODE is either a mode symbol or a list of mode symbols."
 		    (eq `,property 'syntax-table))
 	   `((setq c-syntax-table-hwm (min c-syntax-table-hwm -pos-))))
        (put-text-property -pos- (1+ -pos-) ',property ,value))))
+
+(eval-and-compile
+  ;; Constant to decide at compilation time whether to use category
+  ;; properties.  Currently (2010-03) they're available only on GNU
+  ;; Emacs.  This defconst must follow the declarations of
+  ;; `c-<-as-paren-syntax' and `c->-as-paren-syntax'.
+  (defconst c-use-category
+    (eval-when-compile
+      (with-temp-buffer
+	(let ((parse-sexp-lookup-properties t)
+	      (lookup-syntax-properties t))
+          (set-syntax-table (make-syntax-table))
+          (insert "<()>")
+          (put-text-property (point-min) (1+ (point-min))
+			     'category 'c-<-as-paren-syntax)
+          (put-text-property (+ 3 (point-min)) (+ 4 (point-min))
+			     'category 'c->-as-paren-syntax)
+          (goto-char (point-min))
+          (forward-sexp)
+          (= (point) (+ 4 (point-min))))))))
 
 (defmacro c-get-char-property (pos property)
   ;; Get the value of the given property on the character at POS if
@@ -1355,6 +1360,28 @@ nil; point is then left undefined."
        (goto-char place)
        (search-forward-regexp "\\(\n\\|.\\)")	; to set the match-data.
        (point))))
+
+(defmacro c-search-forward-non-nil-char-property (property &optional limit)
+  "Search forward for a text-property PROPERTY value non-nil.
+LIMIT bounds the search.
+
+Leave point just after the character.  The match data remain
+unchanged.  Return the value of PROPERTY.  If a non-nil value
+isn't found, return nil; point is then left undefined."
+  (declare (debug t))
+  `(let* ((-limit- (or ,limit (point-max)))
+	  (value (c-get-char-property (point) ,property)))
+     (cond
+      ((>= (point) -limit-)
+       nil)
+      (value
+       (forward-char)
+       value)
+      (t (let ((place (c-next-single-property-change
+		       (point) ,property nil -limit-)))
+	   (when place
+	     (goto-char (1+ place))
+	     (c-get-char-property place ,property)))))))
 
 (defmacro c-search-backward-char-property (property value &optional limit)
   "Search backward for a text-property PROPERTY having value VALUE.
@@ -1563,6 +1590,28 @@ with value CHAR in the region [FROM to)."
 	 (forward-char)))))
 
 
+;; Miscellaneous macro(s)
+(defvar c-string-fences-set-flag nil)
+;; Non-nil when we have set string fences with `c-restore-string-fences'.
+(defmacro c-with-string-fences (&rest forms)
+  ;; Restore the string fences, evaluate FORMS, then remove them again.  It
+  ;; should only be used at the top level of "boundary" functions in CC Mode,
+  ;; i.e. those called from outside CC Mode which directly or indirectly need
+  ;; unbalanced string markers to have their string-fence syntax-table text
+  ;; properties.  This includes all calls to `c-parse-state'.  This macro will
+  ;; be invoked recursively; however the `c-string-fences-set-flag' mechanism
+  ;; should ensure consistency, when this happens.
+  (declare (debug t))
+  `(unwind-protect
+       (progn
+	 (unless c-string-fences-set-flag
+	   (c-restore-string-fences))
+	 (let ((c-string-fences-set-flag t))
+	   ,@forms))
+     (unless c-string-fences-set-flag
+       (c-clear-string-fences))))
+
+
 ;; Macros to put overlays (Emacs) or extents (XEmacs) on buffer text.
 ;; For our purposes, these are characterized by being possible to
 ;; remove again without affecting the other text properties in the
@@ -1624,7 +1673,7 @@ with value CHAR in the region [FROM to)."
   ;; toggle the property in all template brackets simultaneously and
   ;; cheaply.  We use this, for instance, in `c-parse-state'.
   (declare (debug t))
-  (if c-use-category
+  (if (eval-when-compile c-use-category)
       `(c-put-char-property ,pos 'category 'c-<-as-paren-syntax)
     `(c-put-char-property ,pos 'syntax-table c-<-as-paren-syntax)))
 
@@ -1639,7 +1688,7 @@ with value CHAR in the region [FROM to)."
   ;; toggle the property in all template brackets simultaneously and
   ;; cheaply.  We use this, for instance, in `c-parse-state'.
   (declare (debug t))
-  (if c-use-category
+  (if (eval-when-compile c-use-category)
       `(c-put-char-property ,pos 'category 'c->-as-paren-syntax)
     `(c-put-char-property ,pos 'syntax-table c->-as-paren-syntax)))
 
@@ -1653,7 +1702,9 @@ with value CHAR in the region [FROM to)."
   ;; toggle the property in all template brackets simultaneously and
   ;; cheaply.  We use this, for instance, in `c-parse-state'.
   (declare (debug t))
-  `(c-clear-char-property ,pos ,(if c-use-category ''category ''syntax-table)))
+  `(c-clear-char-property ,pos ,(if (eval-when-compile c-use-category)
+				    ''category
+				  ''syntax-table)))
 
 (defsubst c-suppress-<->-as-parens ()
   ;; Suppress the syntactic effect of all marked < and > as parens.  Note
@@ -1733,7 +1784,7 @@ with value CHAR in the region [FROM to)."
 
 (defmacro c-sc-scan-lists (from count depth)
   (declare (debug t))
-  (if c-use-category
+  (if (eval-when-compile c-use-category)
       `(scan-lists ,from ,count ,depth)
     (cond
      ((and (eq count 1) (eq depth 1))
@@ -1781,7 +1832,7 @@ with value CHAR in the region [FROM to)."
 (defmacro c-sc-parse-partial-sexp (from to &optional targetdepth stopbefore
 					oldstate)
   (declare (debug t))
-  (if c-use-category
+  (if (eval-when-compile c-use-category)
       `(parse-partial-sexp ,from ,to ,targetdepth ,stopbefore ,oldstate)
     `(c-sc-parse-partial-sexp-no-category ,from ,to ,targetdepth ,stopbefore
 					  ,oldstate)))
@@ -1797,7 +1848,7 @@ with value CHAR in the region [FROM to)."
     '(or (looking-at
 	  "\\([;#]\\|\\'\\|\\s(\\|\\s)\\|\\s\"\\|\\s\\\\|\\s$\\|\\s<\\|\\s>\\)"
 	  (let ((prop (c-get-char-property (point) 'syntax-table)))
-	    (eq prop '(14)))))))		; '(14) is generic comment delimiter.
+	    (equal prop '(14))))))) ; '(14) is generic comment delimiter.
 
 
 (defsubst c-intersect-lists (list alist)
@@ -1943,7 +1994,7 @@ when it's needed.  The default is the current language taken from
 	    ;; doesn't occur in any word in LIST.  Append it to all
 	    ;; the alternatives where we want to add \>.  Run through
 	    ;; `regexp-opt' and then replace it with \>.
-	    (let ((unique "") pos)
+	    (let ((unique "") (list1 (copy-tree list)) pos)
 	      (while (let (found)
 		       (setq unique (concat unique "@")
 			     pos list)
@@ -1954,13 +2005,12 @@ when it's needed.  The default is the current language taken from
 				     t))
 			 (setq pos (cdr pos)))
 		       found))
-	      (setq pos (copy-tree list)
-		    )
+	      (setq pos list1)
 	      (while pos
 		(if (string-match "\\w\\'" (car pos))
 		    (setcar pos (concat (car pos) unique)))
 		(setq pos (cdr pos)))
-	      (setq re (regexp-opt list))
+	      (setq re (regexp-opt list1))
 	      (setq pos 0)
 	      (while (string-match unique re pos)
 		(setq pos (+ (match-beginning 0) 2)
@@ -2041,8 +2091,8 @@ non-nil, a caret is prepended to invert the set."
     str))
 
 ;; Leftovers from (X)Emacs 19 compatibility.
-(defalias 'c-regexp-opt 'regexp-opt)
-(defalias 'c-regexp-opt-depth 'regexp-opt-depth)
+(define-obsolete-function-alias 'c-regexp-opt #'regexp-opt "29.1")
+(define-obsolete-function-alias 'c-regexp-opt-depth #'regexp-opt-depth "29.1")
 
 
 ;; Figure out what features this Emacs has
@@ -2599,6 +2649,20 @@ fallback definition for all modes, to break the cycle).")
 
 (defconst c-lang--novalue "novalue")
 
+(defmacro c-let*-maybe-max-specpdl-size (varlist &rest body)
+  ;; Like let*, but doesn't bind `max-specpdl-size' if that variable
+  ;; is in the bindings list and either doesn't exist or is obsolete.
+  (declare (debug let*) (indent 1))
+  (let ((-varlist- (copy-sequence varlist)) msp-binding)
+    (if (or (not (boundp 'max-specpdl-size))
+	    (get 'max-specpdl-size 'byte-obsolete-variable))
+	(cond
+	 ((memq 'max-specpdl-size -varlist-)
+	  (setq -varlist- (delq 'max-specpdl-size -varlist-)))
+	 ((setq msp-binding (assq 'max-specpdl-size -varlist-))
+	  (setq -varlist- (delq msp-binding -varlist-)))))
+    `(let* ,-varlist- ,@body)))
+
 (defun c-get-lang-constant (name &optional source-files mode)
   ;; Used by `c-lang-const'.
 
@@ -2639,21 +2703,22 @@ fallback definition for all modes, to break the cycle).")
       ;; In that case we just continue with the "assignment" before
       ;; the one currently being evaluated, thereby creating the
       ;; illusion if a `setq'-like sequence of assignments.
-      (let* ((c-buffer-is-cc-mode mode)
-	     (source-pos
-	      (or (assq sym c-lang-constants-under-evaluation)
-		  (cons sym (vector source nil))))
-	     ;; Append `c-lang-constants-under-evaluation' even if an
-	     ;; earlier entry is found.  It's only necessary to get
-	     ;; the recording of dependencies above correct.
-	     (c-lang-constants-under-evaluation
-	      (cons source-pos c-lang-constants-under-evaluation))
-	     (fallback (get mode 'c-fallback-mode))
-	     value
-	     ;; Make sure the recursion limits aren't very low
-	     ;; since the `c-lang-const' dependencies can go deep.
-	     (max-specpdl-size (max max-specpdl-size 3000))
-	     (max-lisp-eval-depth (max max-lisp-eval-depth 1000)))
+      (c-let*-maybe-max-specpdl-size
+	  ((c-buffer-is-cc-mode mode)
+	   (source-pos
+	    (or (assq sym c-lang-constants-under-evaluation)
+		(cons sym (vector source nil))))
+	   ;; Append `c-lang-constants-under-evaluation' even if an
+	   ;; earlier entry is found.  It's only necessary to get
+	   ;; the recording of dependencies above correct.
+	   (c-lang-constants-under-evaluation
+	    (cons source-pos c-lang-constants-under-evaluation))
+	   (fallback (get mode 'c-fallback-mode))
+	   value
+	   ;; Make sure the recursion limits aren't very low
+	   ;; since the `c-lang-const' dependencies can go deep.
+	   (max-specpdl-size (max max-specpdl-size 3000))
+	   (max-lisp-eval-depth (max max-lisp-eval-depth 1000)))
 
 	(if (if fallback
 		(let ((backup-source-pos (copy-sequence (cdr source-pos))))

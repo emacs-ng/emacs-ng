@@ -1,6 +1,6 @@
 ;;; gnus-util.el --- utility functions for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -40,17 +40,14 @@
 
 (defcustom gnus-completing-read-function 'gnus-emacs-completing-read
   "Function use to do completing read."
-  :version "24.1"
+  :version "29.1"
   :group 'gnus-meta
   :type '(radio (function-item
                  :doc "Use Emacs standard `completing-read' function."
                  gnus-emacs-completing-read)
 		(function-item
 		 :doc "Use `ido-completing-read' function."
-		 gnus-ido-completing-read)
-		(function-item
-		 :doc "Use iswitchb based completing-read function."
-		 gnus-iswitchb-completing-read)))
+                 gnus-ido-completing-read)))
 
 (defcustom gnus-completion-styles
   (append (when (and (assq 'substring completion-styles-alist)
@@ -121,7 +118,7 @@ This is a compatibility function for different Emacsen."
 
 ;; Delete the current line (and the next N lines).
 (defmacro gnus-delete-line (&optional n)
-  `(delete-region (point-at-bol)
+  `(delete-region (line-beginning-position)
 		  (progn (forward-line ,(or n 1)) (point))))
 
 (defun gnus-extract-address-components (from)
@@ -169,9 +166,8 @@ is slower."
   (require 'message)
   (save-excursion
     (save-restriction
-      (let ((inhibit-point-motion-hooks t))
-	(nnheader-narrow-to-headers)
-	(message-fetch-field field)))))
+      (nnheader-narrow-to-headers)
+      (message-fetch-field field))))
 
 (defun gnus-fetch-original-field (field)
   "Fetch FIELD from the original version of the current article."
@@ -181,7 +177,7 @@ is slower."
 
 (defun gnus-goto-colon ()
   (move-beginning-of-line 1)
-  (let ((eol (point-at-eol)))
+  (let ((eol (line-end-position)))
     (goto-char (or (text-property-any (point) eol 'gnus-position t)
 		   (search-forward ":" eol t)
 		   (point)))))
@@ -300,25 +296,26 @@ Symbols are also allowed; their print names are used instead."
 
 (defmacro gnus-local-set-keys (&rest plist)
   "Set the keys in PLIST in the current keymap."
-  (declare (indent 1))
+  (declare (obsolete define-keymap "29.1") (indent 1))
   `(gnus-define-keys-1 (current-local-map) ',plist))
 
 (defmacro gnus-define-keys (keymap &rest plist)
   "Define all keys in PLIST in KEYMAP."
-  (declare (indent 1))
+  (declare (obsolete define-keymap "29.1") (indent 1))
   `(gnus-define-keys-1 ,(if (symbolp keymap) keymap `',keymap) (quote ,plist)))
 
 (defmacro gnus-define-keys-safe (keymap &rest plist)
   "Define all keys in PLIST in KEYMAP without overwriting previous definitions."
-  (declare (indent 1))
+  (declare (obsolete define-keymap "29.1") (indent 1))
   `(gnus-define-keys-1 (quote ,keymap) (quote ,plist) t))
 
 (defmacro gnus-define-keymap (keymap &rest plist)
   "Define all keys in PLIST in KEYMAP."
-  (declare (indent 1))
+  (declare (obsolete define-keymap "29.1") (indent 1))
   `(gnus-define-keys-1 ,keymap (quote ,plist)))
 
 (defun gnus-define-keys-1 (keymap plist &optional safe)
+  (declare (obsolete define-keymap "29.1"))
   (when (null keymap)
     (error "Can't set keys in a null keymap"))
   (cond ((symbolp keymap) (error "First arg should be a keymap object"))
@@ -382,7 +379,7 @@ Cache the result as a text property stored in DATE."
   ;; Either return the cached value...
   `(let ((d ,date))
      (if (equal "" d)
-	 '(0 0)
+	 0
        (or (get-text-property 0 'gnus-time d)
 	   ;; or compute the value...
 	   (let ((time (safe-date-to-time d)))
@@ -561,7 +558,7 @@ If N, return the Nth ancestor instead."
        buffer))
 
 (define-obsolete-function-alias 'gnus-buffer-exists-p
-  'gnus-buffer-live-p "27.1")
+  #'gnus-buffer-live-p "27.1")
 
 (defun gnus-horizontal-recenter ()
   "Recenter the current buffer horizontally."
@@ -679,7 +676,7 @@ yield \"nnimap:yxa\"."
 (defun gnus-turn-off-edit-menu (type)
   "Turn off edit menu in `gnus-TYPE-mode-map'."
   (define-key (symbol-value (intern (format "gnus-%s-mode-map" type)))
-    [menu-bar edit] 'undefined))
+    [menu-bar edit] #'undefined))
 
 (defvar print-string-length)
 
@@ -748,15 +745,6 @@ nil.  See also `gnus-bind-print-variables'."
   "Delete FILE if it exists."
   (when (file-exists-p file)
     (delete-file file)))
-
-(defun gnus-delete-duplicates (list)
-  "Remove duplicate entries from LIST."
-  (let ((result nil))
-    (while list
-      (unless (member (car list) result)
-	(push (car list) result))
-      (pop list))
-    (nreverse result)))
 
 (defun gnus-delete-directory (directory)
   "Delete files in DIRECTORY.  Subdirectories remain.
@@ -857,126 +845,9 @@ variables and then do only the assignment atomically."
   `(let ((inhibit-quit gnus-atomic-be-safe))
      ,@forms))
 
-;;; Functions for saving to babyl/mail files.
-
-(require 'rmail)
-(autoload 'rmail-update-summary "rmailsum")
-
 (defvar mm-text-coding-system)
-
 (declare-function mm-append-to-file "mm-util"
                   (start end filename &optional codesys inhibit))
-(declare-function rmail-swap-buffers-maybe "rmail" ())
-(declare-function rmail-maybe-set-message-counters "rmail" ())
-(declare-function rmail-count-new-messages "rmail" (&optional nomsg))
-(declare-function rmail-summary-exists "rmail" ())
-(declare-function rmail-show-message "rmail" (&optional n no-summary))
-;; Macroexpansion of rmail-select-summary:
-(declare-function rmail-summary-displayed "rmail" ())
-(declare-function rmail-pop-to-buffer "rmail" (&rest args))
-(declare-function rmail-maybe-display-summary "rmail" ())
-
-(defun gnus-output-to-rmail (filename &optional ask)
-  "Append the current article to an Rmail file named FILENAME.
-In Emacs 22 this writes Babyl format; in Emacs 23 it writes mbox unless
-FILENAME exists and is Babyl format."
-  (require 'rmail)
-  (require 'mm-util)
-  (require 'nnmail)
-  ;; Some of this codes is borrowed from rmailout.el.
-  (setq filename (expand-file-name filename))
-  ;; FIXME should we really be messing with this defcustom?
-  ;; It is not needed for the operation of this function.
-  (if (boundp 'rmail-default-rmail-file)
-      (setq rmail-default-rmail-file filename) ; 22
-    (setq rmail-default-file filename))        ; 23
-  (let ((artbuf (current-buffer))
-	(tmpbuf (gnus-get-buffer-create " *Gnus-output*"))
-        ;; Babyl rmail.el defines this, mbox does not.
-        (babyl (fboundp 'rmail-insert-rmail-file-header)))
-    (save-excursion
-      ;; Note that we ignore the possibility of visiting a Babyl
-      ;; format buffer in Emacs 23, since Rmail no longer supports that.
-     (or (get-file-buffer filename)
-         (progn
-           ;; In case someone wants to write to a Babyl file from Emacs 23.
-           (when (file-exists-p filename)
-             (setq babyl (mail-file-babyl-p filename))
-             t))
-	  (if (or (not ask)
-		  (gnus-yes-or-no-p
-		   (concat "\"" filename "\" does not exist, create it? ")))
-	      (let ((file-buffer (create-file-buffer filename)))
-		(with-current-buffer file-buffer
-                  (if (fboundp 'rmail-insert-rmail-file-header)
-                      (rmail-insert-rmail-file-header))
-		  (let ((require-final-newline nil)
-			(coding-system-for-write mm-text-coding-system))
-		    (gnus-write-buffer filename)))
-		(kill-buffer file-buffer))
-	    (error "Output file does not exist")))
-      (set-buffer tmpbuf)
-      (erase-buffer)
-      (insert-buffer-substring artbuf)
-      (if babyl
-          (gnus-convert-article-to-rmail)
-        ;; Non-Babyl case copied from gnus-output-to-mail.
-        (goto-char (point-min))
-        (if (looking-at "From ")
-            (forward-line 1)
-          (insert "From nobody " (current-time-string) "\n"))
-        (let (case-fold-search)
-          (while (re-search-forward "^From " nil t)
-            (beginning-of-line)
-            (insert ">"))))
-      ;; Decide whether to append to a file or to an Emacs buffer.
-      (let ((outbuf (get-file-buffer filename)))
-	(if (not outbuf)
-            (progn
-              (unless babyl             ; from gnus-output-to-mail
-                (let ((buffer-read-only nil))
-                  (goto-char (point-max))
-                  (forward-char -2)
-                  (unless (looking-at "\n\n")
-                    (goto-char (point-max))
-                    (unless (bolp)
-                      (insert "\n"))
-                    (insert "\n"))))
-              (let ((file-name-coding-system nnmail-pathname-coding-system))
-                (mm-append-to-file (point-min) (point-max) filename)))
-	  ;; File has been visited, in buffer OUTBUF.
-	  (set-buffer outbuf)
-	  (let ((buffer-read-only nil)
-		(msg (and (boundp 'rmail-current-message)
-			  (symbol-value 'rmail-current-message))))
-	    ;; If MSG is non-nil, buffer is in RMAIL mode.
-            ;; Compare this with rmail-output-to-rmail-buffer in Emacs 23.
-	    (when msg
-              (unless babyl
-                (rmail-swap-buffers-maybe)
-                (rmail-maybe-set-message-counters))
-              (widen)
-              (unless babyl
-		(goto-char (point-max))
-		;; Ensure we have a blank line before the next message.
-		(unless (bolp)
-		  (insert "\n"))
-		(insert "\n"))
-              (narrow-to-region (point-max) (point-max)))
-	    (insert-buffer-substring tmpbuf)
-	    (when msg
-              (when babyl
-                (goto-char (point-min))
-                (widen)
-                (search-backward "\n\^_")
-                (narrow-to-region (point) (point-max)))
-	      (rmail-count-new-messages t)
-	      (when (rmail-summary-exists)
-		(rmail-select-summary
-		 (rmail-update-summary)))
-	      (rmail-show-message msg))
-	    (save-buffer)))))
-    (kill-buffer tmpbuf)))
 
 (defun gnus-output-to-mail (filename &optional ask)
   "Append the current article to a mail file named FILENAME."
@@ -1034,17 +905,6 @@ FILENAME exists and is Babyl format."
 	    (insert-buffer-substring tmpbuf)))))
     (kill-buffer tmpbuf)))
 
-(defun gnus-convert-article-to-rmail ()
-  "Convert article in current buffer to Rmail message format."
-  (let ((buffer-read-only nil))
-    ;; Convert article directly into Babyl format.
-    (goto-char (point-min))
-    (insert "\^L\n0, unseen,,\n*** EOOH ***\n")
-    (while (search-forward "\n\^_" nil t) ;single char
-      (replace-match "\n^_" t t))	;2 chars: "^" and "_"
-    (goto-char (point-max))
-    (insert "\^_")))
-
 (defun gnus-map-function (funs arg)
   "Apply the result of the first function in FUNS to the second, and so on.
 ARG is passed to the first function."
@@ -1081,9 +941,9 @@ ARG is passed to the first function."
        (with-current-buffer gnus-group-buffer
 	 (eq major-mode 'gnus-group-mode))))
 
-(define-obsolete-function-alias 'gnus-remove-if 'seq-remove "27.1")
+(define-obsolete-function-alias 'gnus-remove-if #'seq-remove "27.1")
 
-(define-obsolete-function-alias 'gnus-remove-if-not 'seq-filter "27.1")
+(define-obsolete-function-alias 'gnus-remove-if-not #'seq-filter "27.1")
 
 (defun gnus-grep-in-list (word list)
   "Find if a WORD matches any regular expression in the given LIST."
@@ -1205,6 +1065,7 @@ ARG is passed to the first function."
 ;; (`string-equal' uses symbol print names.)
 (defun gnus-string-equal (x y)
   "Like `string-equal', except it compares case-insensitively."
+  (declare (obsolete string-equal-ignore-case "29.1"))
   (and (= (length x) (length y))
        (or (string-equal x y)
 	   (string-equal (downcase x) (downcase y)))))
@@ -1218,9 +1079,10 @@ ARG is passed to the first function."
 (defun gnus-byte-compile (form)
   "Byte-compile FORM if `gnus-use-byte-compile' is non-nil."
   (if gnus-use-byte-compile
-      (let ((byte-compile-warnings '(unresolved callargs redefine)))
+      (let ((byte-compile-warnings '(unresolved callargs redefine))
+	    (lexical-binding t))
 	(byte-compile form))
-    form))
+    (eval form t)))
 
 (defun gnus-remassoc (key alist)
   "Delete by side effect any elements of LIST whose car is `equal' to KEY.
@@ -1259,14 +1121,11 @@ sure of changing the value of `foo'."
 If you find some problem with the directory separator character, try
 \"[/\\\\]\" for some systems.")
 
-(defun gnus-url-unhex (x)
-  (if (> x ?9)
-      (if (>= x ?a)
-	  (+ 10 (- x ?a))
-	(+ 10 (- x ?A)))
-    (- x ?0)))
+(autoload 'url-unhex "url-util")
+(define-obsolete-function-alias 'gnus-url-unhex #'url-unhex "29.1")
 
-;; Fixme: Do it like QP.
+;; FIXME: Make obsolete in favor of `url-unhex-string', which is
+;;        identical except for the call to `char-to-string'.
 (defun gnus-url-unhex-string (str &optional allow-newlines)
   "Remove %XX, embedded spaces, etc in a url.
 If optional second argument ALLOW-NEWLINES is non-nil, then allow the
@@ -1276,9 +1135,9 @@ forbidden in URL encoding."
 	(case-fold-search t))
     (while (string-match "%[0-9a-f][0-9a-f]" str)
       (let* ((start (match-beginning 0))
-	     (ch1 (gnus-url-unhex (elt str (+ start 1))))
+             (ch1 (url-unhex (elt str (+ start 1))))
 	     (code (+ (* 16 ch1)
-		      (gnus-url-unhex (elt str (+ start 2))))))
+                      (url-unhex (elt str (+ start 2))))))
 	(setq tmp (concat
 		   tmp (substring str 0 start)
 		   (cond
@@ -1310,9 +1169,7 @@ SPEC is a predicate specifier that contains stuff like `or', `and',
                                     initial-input history def)
   "Call `gnus-completing-read-function'."
   (funcall gnus-completing-read-function
-           (concat prompt (when def
-                            (concat " (default " def ")"))
-                   ": ")
+           (format-prompt prompt def)
            collection require-match initial-input history def))
 
 (defun gnus-emacs-completing-read (prompt collection &optional require-match
@@ -1341,6 +1198,7 @@ SPEC is a predicate specifier that contains stuff like `or', `and',
 (defun gnus-iswitchb-completing-read (prompt collection &optional require-match
                                             initial-input history def)
   "`iswitchb' based completing-read function."
+  (declare (obsolete nil "29.1"))
   ;; Make sure iswitchb is loaded before we let-bind its variables.
   ;; If it is loaded inside the let, variables can become unbound afterwards.
   (require 'iswitchb)
@@ -1381,7 +1239,7 @@ SPEC is a predicate specifier that contains stuff like `or', `and',
 	contents value)
     (if (or (null (setq value (symbol-value variable)))
 	    (not (equal (car value) file))
-	    (not (equal (nth 1 value) time)))
+	    (not (time-equal-p (nth 1 value) time)))
 	(progn
 	  (setq contents (funcall function file))
 	  (set variable (list file time contents))
@@ -1515,8 +1373,7 @@ sequence, this is like `mapcar'.  With several, it is like the Common Lisp
 			  system-configuration)
 			 ((memq 'type lst)
 			  (symbol-name system-type))
-			 (t nil)))
-	 ) ;; codename
+                         (t nil))))
     (cond
      ((not (memq 'emacs lst))
       nil)
@@ -1675,6 +1532,13 @@ lists of strings."
 	 (overlays (delq nil (nconc (car overlayss) (cdr overlayss)))))
     (while overlays
       (delete-overlay (pop overlays)))))
+
+;; This function used to live in this file, but was moved to a
+;; separate file to avoid pulling in rmail.el when requiring
+;; gnus-util.
+(autoload 'gnus-output-to-rmail "gnus-rmail")
+
+(define-obsolete-function-alias 'gnus-delete-duplicates #'seq-uniq "29.1")
 
 (provide 'gnus-util)
 

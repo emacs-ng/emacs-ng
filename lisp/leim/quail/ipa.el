@@ -1,6 +1,6 @@
 ;;; ipa.el --- Quail package for inputting IPA characters  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2023 Free Software Foundation, Inc.
 ;; Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
 ;;   2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -269,7 +269,7 @@ QUAIL-KEYMAP is a cons that satisfies `quail-map-p'; TO-PREPEND is a
 string."
   (when (consp quail-keymap) (setq quail-keymap (cdr quail-keymap)))
   (if (or (integerp quail-keymap)
-	  (and (fboundp 'characterp) (characterp quail-keymap)))
+          (characterp quail-keymap))
       (setq quail-keymap (list (string quail-keymap)))
     (if (stringp quail-keymap)
 	(setq quail-keymap (list quail-keymap))
@@ -278,10 +278,10 @@ string."
   (list
    (apply #'vector
 	  (mapcar
-	   #'(lambda (entry)
-               (cl-assert (char-or-string-p entry) t)
-               (format "%s%s" to-prepend
-                       (if (integerp entry) (string entry) entry)))
+           (lambda (entry)
+             (cl-assert (char-or-string-p entry) t)
+             (format "%s%s" to-prepend
+                     (if (integerp entry) (string entry) entry)))
 	   quail-keymap))))
 
 (defun ipa-x-sampa-underscore-implosive (input-string length)

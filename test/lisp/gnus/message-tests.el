@@ -1,6 +1,6 @@
 ;;; message-tests.el --- Tests for message-mode  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2023 Free Software Foundation, Inc.
 
 ;; Author: João Távora <joaotavora@gmail.com>
 
@@ -47,14 +47,10 @@
           (setq-local parse-sexp-lookup-properties t)
           (backward-sexp)
           (should (string= "here's an opener "
-                           (buffer-substring-no-properties
-                            (line-beginning-position)
-                            (point))))
+                           (buffer-substring-no-properties (pos-bol) (point))))
           (forward-sexp)
           (should (string= "and here's a closer )"
-                           (buffer-substring-no-properties
-                            (line-beginning-position)
-                            (point)))))
+                           (buffer-substring-no-properties (pos-bol) (point)))))
       (set-buffer-modified-p nil))))
 
 

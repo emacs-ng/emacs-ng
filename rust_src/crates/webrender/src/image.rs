@@ -7,7 +7,7 @@ use std::{
 };
 
 use emacs::{
-    bindings::{add_to_log, image as Emacs_Image, make_float, Fplist_get},
+    bindings::{add_to_log, image as Emacs_Image, make_float, plist_get},
     definitions::EmacsInt,
     frame::LispFrameRef,
     globals::{
@@ -239,11 +239,11 @@ pub fn load_image(
     spec_data: LispObject,
 ) -> bool {
     let spec = unsafe { (*img).spec }.as_cons().unwrap().cdr();
-    let lisp_index = unsafe { Fplist_get(spec, QCindex) };
+    let lisp_index = unsafe { plist_get(spec, QCindex) };
     let frame_index = lisp_index.as_fixnum().unwrap_or(0) as usize;
 
-    let foreground_color = unsafe { Fplist_get(spec, QCforeground) };
-    let background_color = unsafe { Fplist_get(spec, QCbackground) };
+    let foreground_color = unsafe { plist_get(spec, QCforeground) };
+    let background_color = unsafe { plist_get(spec, QCbackground) };
 
     let foreground_color = foreground_color
         .as_string()

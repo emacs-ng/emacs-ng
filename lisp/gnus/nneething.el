@@ -1,6 +1,6 @@
 ;;; nneething.el --- arbitrary file access for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;;	Masanobu UMEDA <umerin@flab.flab.fujitsu.junet>
@@ -57,6 +57,7 @@ included.")
 
 (defconst nneething-version "nneething 1.0"
   "nneething version.")
+(make-obsolete-variable 'nneething-version 'emacs-version "29.1")
 
 (defvoo nneething-current-directory nil
   "Current news group directory.")
@@ -245,7 +246,8 @@ included.")
 	(while map
 	  (if (and (member (cadr (car map)) files)
 		  ;; We also remove files that have changed mod times.
-		   (equal (file-attribute-modification-time (file-attributes
+		   (time-equal-p
+			  (file-attribute-modification-time (file-attributes
 				  (nneething-file-name (cadr (car map)))))
 			  (cadr (cdar map))))
 	      (progn

@@ -1,6 +1,6 @@
 ;;; octave.el --- editing octave source files under emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 
 ;; Author: Kurt Hornik <Kurt.Hornik@wu-wien.ac.at>
 ;;	   John Eaton <jwe@octave.org>
@@ -65,43 +65,39 @@ The string `function' and its name are given by the first and third
 parenthetical grouping.")
 
 
-(defvar octave-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\M-."     'octave-find-definition)
-    (define-key map "\M-\C-j"  'octave-indent-new-comment-line)
-    (define-key map "\C-c\C-p" 'octave-previous-code-line)
-    (define-key map "\C-c\C-n" 'octave-next-code-line)
-    (define-key map "\C-c\C-a" 'octave-beginning-of-line)
-    (define-key map "\C-c\C-e" 'octave-end-of-line)
-    (define-key map [remap down-list] 'smie-down-list)
-    (define-key map "\C-c\M-\C-h" 'octave-mark-block)
-    (define-key map "\C-c]" 'smie-close-block)
-    (define-key map "\C-c/" 'smie-close-block)
-    (define-key map "\C-c;" 'octave-update-function-file-comment)
-    (define-key map "\C-hd" 'octave-help)
-    (define-key map "\C-ha" 'octave-lookfor)
-    (define-key map "\C-c\C-l" 'octave-source-file)
-    (define-key map "\C-c\C-f" 'octave-insert-defun)
-    (define-key map "\C-c\C-il" 'octave-send-line)
-    (define-key map "\C-c\C-ib" 'octave-send-block)
-    (define-key map "\C-c\C-if" 'octave-send-defun)
-    (define-key map "\C-c\C-ir" 'octave-send-region)
-    (define-key map "\C-c\C-ia" 'octave-send-buffer)
-    (define-key map "\C-c\C-is" 'octave-show-process-buffer)
-    (define-key map "\C-c\C-iq" 'octave-hide-process-buffer)
-    (define-key map "\C-c\C-ik" 'octave-kill-process)
-    (define-key map "\C-c\C-i\C-l" 'octave-send-line)
-    (define-key map "\C-c\C-i\C-b" 'octave-send-block)
-    (define-key map "\C-c\C-i\C-f" 'octave-send-defun)
-    (define-key map "\C-c\C-i\C-r" 'octave-send-region)
-    (define-key map "\C-c\C-i\C-a" 'octave-send-buffer)
-    (define-key map "\C-c\C-i\C-s" 'octave-show-process-buffer)
-    (define-key map "\C-c\C-i\C-q" 'octave-hide-process-buffer)
-    (define-key map "\C-c\C-i\C-k" 'octave-kill-process)
-    map)
-  "Keymap used in Octave mode.")
-
-
+(defvar-keymap octave-mode-map
+  :doc "Keymap used in Octave mode."
+  "M-."         #'octave-find-definition
+  "C-M-j"       #'octave-indent-new-comment-line
+  "C-c C-p"     #'octave-previous-code-line
+  "C-c C-n"     #'octave-next-code-line
+  "C-c C-a"     #'octave-beginning-of-line
+  "C-c C-e"     #'octave-end-of-line
+  "<remap> <down-list>" #'smie-down-list
+  "C-c C-M-h"   #'octave-mark-block
+  "C-c ]"       #'smie-close-block
+  "C-c /"       #'smie-close-block
+  "C-c ;"       #'octave-update-function-file-comment
+  "C-h d"       #'octave-help
+  "C-h a"       #'octave-lookfor
+  "C-c C-l"     #'octave-source-file
+  "C-c C-f"     #'octave-insert-defun
+  "C-c C-i l"   #'octave-send-line
+  "C-c C-i b"   #'octave-send-block
+  "C-c C-i f"   #'octave-send-defun
+  "C-c C-i r"   #'octave-send-region
+  "C-c C-i a"   #'octave-send-buffer
+  "C-c C-i s"   #'octave-show-process-buffer
+  "C-c C-i q"   #'octave-hide-process-buffer
+  "C-c C-i k"   #'octave-kill-process
+  "C-c C-i C-l" #'octave-send-line
+  "C-c C-i C-b" #'octave-send-block
+  "C-c C-i C-f" #'octave-send-defun
+  "C-c C-i C-r" #'octave-send-region
+  "C-c C-i C-a" #'octave-send-buffer
+  "C-c C-i C-s" #'octave-show-process-buffer
+  "C-c C-i C-q" #'octave-hide-process-buffer
+  "C-c C-i C-k" #'octave-kill-process)
 
 (easy-menu-define octave-mode-menu octave-mode-map
   "Menu for Octave mode."
@@ -197,8 +193,8 @@ newline or semicolon after an else or end keyword."
 
 (defcustom octave-block-offset 2
   "Extra indentation applied to statements in Octave block structures."
-  :type 'integer)
-(put 'octave-block-offset 'safe-local-variable 'integerp)
+  :type 'integer
+  :safe #'integerp)
 
 (defvar octave-block-comment-start
   (concat (make-string 2 octave-comment-char) " ")
@@ -879,7 +875,8 @@ startup file, `~/.emacs-octave'."
     (set-process-filter proc 'comint-output-filter)
     ;; Just in case, to be sure a cd in the startup file won't have
     ;; detrimental effects.
-    (with-demoted-errors (inferior-octave-resync-dirs))
+    (with-demoted-errors "Octave resync error: %S"
+      (inferior-octave-resync-dirs))
     ;; Generate a proper prompt, which is critical to
     ;; `comint-history-isearch-backward-regexp'.  Bug#14433.
     (comint-send-string proc "\n")))
@@ -1721,12 +1718,12 @@ code line."
                  (dir (file-name-directory
                        (directory-file-name (file-name-directory file)))))
             (replace-match "" nil nil nil 1)
-            (insert (substitute-command-keys "`"))
+            (insert (substitute-quotes "`"))
             ;; Include the parent directory which may be regarded as
             ;; the category for the FN.
             (help-insert-xref-button (file-relative-name file dir)
                                      'octave-help-file fn)
-            (insert (substitute-command-keys "'"))))
+            (insert (substitute-quotes "'"))))
         ;; Make 'See also' clickable.
         (with-syntax-table octave-mode-syntax-table
           (when (re-search-forward "^\\s-*See also:" nil t)
@@ -1814,18 +1811,18 @@ If the environment variable OCTAVE_SRCDIR is set, it is searched first."
        (user-error "Aborted")))
     (_ name)))
 
-(defvar find-tag-marker-ring)
+(declare-function xref-push-marker-stack "xref" (&optional m))
 
 (defun octave-find-definition (fn)
   "Find the definition of FN.
 Functions implemented in C++ can be found if
 variable `octave-source-directories' is set correctly."
   (interactive (list (octave-completing-read)))
-  (require 'etags)
+  (require 'xref)
   (let ((orig (point)))
     (if (and (derived-mode-p 'octave-mode)
              (octave-goto-function-definition fn))
-        (ring-insert find-tag-marker-ring (copy-marker orig))
+        (xref-push-marker-stack (copy-marker orig))
       (inferior-octave-send-list-and-digest
        ;; help NAME is more verbose
        (list (format "\
@@ -1840,7 +1837,7 @@ if iskeyword('%s') disp('`%s'' is a keyword') else which('%s') endif\n"
             (setq file (match-string 1 line))))
         (if (not file)
             (user-error "%s" (or line (format-message "`%s' not found" fn)))
-          (ring-insert find-tag-marker-ring (point-marker))
+          (xref-push-marker-stack)
           (setq file (funcall octave-find-definition-filename-function file))
           (when file
             (find-file file)

@@ -1,6 +1,6 @@
 ;;; nnagent.el --- offline backend for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news, mail
@@ -35,6 +35,7 @@
 
 
 (defconst nnagent-version "nnagent 1.0")
+(make-obsolete-variable 'nnagent-version 'emacs-version "29.1")
 
 (defvoo nnagent-directory nil
   "Internal variable."

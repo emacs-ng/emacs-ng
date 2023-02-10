@@ -1,10 +1,10 @@
 ;;; ob-lilypond.el --- Babel Functions for Lilypond  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2023 Free Software Foundation, Inc.
 
 ;; Author: Martyn Jago
 ;; Keywords: babel language, literate programming
-;; Homepage: https://orgmode.org/worg/org-contrib/babel/languages/ob-doc-lilypond.html
+;; URL: https://orgmode.org/worg/org-contrib/babel/languages/ob-doc-lilypond.html
 
 ;; This file is part of GNU Emacs.
 
@@ -32,10 +32,15 @@
 ;; This depends on epstopdf --- See https://www.ctan.org/pkg/epstopdf.
 
 ;;; Code:
+
+(require 'org-macs)
+(org-assert-version)
+
 (require 'ob)
 
-(declare-function org-show-all "org" (&optional types))
+(declare-function org-fold-show-all "org-fold" (&optional types))
 
+;; FIXME: Doesn't this rather belong in lilypond-mode.el?
 (defalias 'lilypond-mode 'LilyPond-mode)
 
 (add-to-list 'org-babel-tangle-lang-exts '("LilyPond" . "ly"))
@@ -107,7 +112,7 @@ you can leave the string empty on this case."
   :package-version '(Org . "8.2.7")
   :set
   (lambda (symbol value)
-    (set symbol value)
+    (set-default-toplevel-value symbol value)
     (setq
      org-babel-lilypond-ly-command   (nth 0 value)
      org-babel-lilypond-pdf-command  (nth 1 value)
@@ -279,7 +284,7 @@ LINE is the erroneous line."
     (setq case-fold-search nil)
     (if (search-forward line nil t)
         (progn
-          (org-show-all)
+          (org-fold-show-all)
           (set-mark (point))
           (goto-char (- (point) (length line))))
       (goto-char temp))))
@@ -311,7 +316,7 @@ LINENO is the number of the erroneous line."
 	(progn
 	  (goto-char (point-min))
 	  (forward-line (- lineNo 1))
-	  (buffer-substring (point) (point-at-eol)))
+          (buffer-substring (point) (line-end-position)))
       nil)))
 
 (defun org-babel-lilypond-attempt-to-open-pdf (file-name &optional test)

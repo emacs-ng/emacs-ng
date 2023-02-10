@@ -1,6 +1,6 @@
 ;;; ede-proj-elisp.el --- EDE Generic Project Emacs Lisp support  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2005, 2007-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2005, 2007-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: project, make
@@ -272,7 +272,8 @@ is found, such as a `-version' variable, or the standard header."
 	    (let ((path (match-string 1)))
 	      (if (string= path "nil")
 		  nil
-		(delete-region (point-at-bol) (point-at-bol 2)))))))))
+                (delete-region (line-beginning-position)
+                               (line-beginning-position 2)))))))))
 
 ;;;
 ;; Autoload generators
@@ -319,8 +320,7 @@ Lays claim to all .elc files that match .el files in this target."
 		("require" . "$(foreach r,$(1),(require (quote $(r))))"))
    :commands
    '("$(EMACS) $(EMACSFLAGS) $(addprefix -L ,$(LOADPATH)) \
---eval '(setq generated-autoload-file \"$(abspath $(LOADDEFS))\")' \
--f batch-update-autoloads $(abspath $(LOADDIRS))")
+-f loaddefs-generate-batch $(abspath $(LOADDEFS)) $(abspath $(LOADDIRS))")
    :rules (list (ede-makefile-rule :target "clean-autoloads" :phony t :rules '("rm -f $(LOADDEFS)")))
    :sourcetype '(ede-source-emacs)
    )

@@ -1,6 +1,6 @@
 ;;; vc-rcs.el --- support for RCS version-control  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2023 Free Software Foundation, Inc.
 
 ;; Author: FSF (see vc.el for full credits)
 ;; Maintainer: emacs-devel@gnu.org
@@ -40,6 +40,7 @@
 (eval-when-compile
   (require 'cl-lib)
   (require 'vc))
+(require 'log-view)
 
 (declare-function vc-read-revision "vc"
                   (prompt &optional files backend default initial-input))
@@ -99,7 +100,7 @@ to use --brief and sets this variable to remember whether it worked."
   "Where to look for RCS master files.
 For a description of possible values, see `vc-check-master-templates'."
   :type '(choice (const :tag "Use standard RCS file names"
-			'("%sRCS/%s,v" "%s%s,v" "%sRCS/%s"))
+			("%sRCS/%s,v" "%s%s,v" "%sRCS/%s"))
 		 (repeat :tag "User-specified"
 			 (choice string
 				 function)))
@@ -682,11 +683,11 @@ Optional arg REVISION is a revision to annotate from."
         ;; *BEFORE* editing occurs) to start from, but line numbers
         ;; change as a result of edits.  To DTRT, we apply edits in
         ;; order of descending buffer position so that edits further
-        ;; down in the buffer occur first w/o corrupting specified
+        ;; down in the buffer occur first without corrupting specified
         ;; buffer positions of edits occurring towards the beginning of
         ;; the buffer.  In this way we avoid using markers.  A pleasant
         ;; property of this approach is ability to push instructions
-        ;; onto `path' directly, w/o need to maintain rev boundaries.
+        ;; onto `path' directly, without need to maintain rev boundaries.
         (dolist (insn (cdr (assq :insn meta)))
           (goto-char (point-min))
           (forward-line (1- (pop insn)))
@@ -1062,9 +1063,9 @@ file."
 (defun vc-rcs-consult-headers (file)
   "Search for RCS headers in FILE, and set properties accordingly.
 
-Returns: nil            if no headers were found
-         'rev           if a workfile revision was found
-         'rev-and-lock  if revision and lock info was found"
+Returns: nil             if no headers were found
+         `rev'           if a workfile revision was found
+         `rev-and-lock'  if revision and lock info was found"
   (cond
    ((not (get-file-buffer file)) nil)
    ((let (status version)
@@ -1191,7 +1192,7 @@ variable `vc-rcs-release' is set to the returned value."
 (defun vc-rcs-parse (&optional buffer)
   "Parse current buffer, presumed to be in RCS-style masterfile format.
 Optional arg BUFFER specifies another buffer to parse.  Return an alist
-of two elements, w/ keys `headers' and `revisions' and values in turn
+of two elements, with keys `headers' and `revisions' and values in turn
 sub-alists.  For `headers', the values unless otherwise specified are
 strings and the keys are:
 
@@ -1455,6 +1456,14 @@ The `:insn' key is a keyword to distinguish it as a vc-rcs.el extension."
       ;; rv
       `((headers ,desc ,@headers)
         (revisions ,@revs)))))
+
+(defvar-keymap vc-rcs-log-view-mode-map
+  "N" #'log-view-file-next
+  "P" #'log-view-file-prev
+  "M-n" #'log-view-file-next
+  "M-p" #'log-view-file-prev)
+
+(define-derived-mode vc-rcs-log-view-mode log-view-mode "RCS-Log-View")
 
 (provide 'vc-rcs)
 

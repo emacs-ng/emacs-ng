@@ -1,6 +1,6 @@
 /* Utility and Unix shadow routines for GNU Emacs on the Microsoft Windows API.
 
-Copyright (C) 1994-1995, 2000-2022 Free Software Foundation, Inc.
+Copyright (C) 1994-1995, 2000-2023 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -71,6 +71,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #undef localtime
 
+#undef clock
+
 char *sys_ctime (const time_t *);
 int sys_chdir (const char *);
 int sys_creat (const char *, int);
@@ -87,6 +89,7 @@ struct tm *sys_localtime (const time_t *);
    compiler to emit a warning about sys_strerror having no
    prototype.  */
 char *sys_strerror (int);
+clock_t sys_clock (void);
 
 #ifdef HAVE_MODULES
 extern void dynlib_reset_last_error (void);
@@ -348,6 +351,7 @@ static BOOL g_b_init_reg_open_key_ex_w;
 static BOOL g_b_init_reg_query_value_ex_w;
 static BOOL g_b_init_expand_environment_strings_w;
 static BOOL g_b_init_get_user_default_ui_language;
+static BOOL g_b_init_get_console_font_size;
 
 BOOL g_b_init_compare_string_w;
 BOOL g_b_init_debug_break_process;
@@ -536,6 +540,22 @@ typedef LONG (WINAPI *RegOpenKeyExW_Proc) (HKEY,LPCWSTR,DWORD,REGSAM,PHKEY);
 typedef LONG (WINAPI *RegQueryValueExW_Proc) (HKEY,LPCWSTR,LPDWORD,LPDWORD,LPBYTE,LPDWORD);
 typedef DWORD (WINAPI *ExpandEnvironmentStringsW_Proc) (LPCWSTR,LPWSTR,DWORD);
 typedef LANGID (WINAPI *GetUserDefaultUILanguage_Proc) (void);
+
+typedef COORD (WINAPI *GetConsoleFontSize_Proc) (HANDLE, DWORD);
+
+#if _WIN32_WINNT < 0x0501
+typedef struct
+{
+  DWORD nFont;
+  COORD dwFontSize;
+} CONSOLE_FONT_INFO;
+#endif
+
+typedef BOOL (WINAPI *GetCurrentConsoleFont_Proc) (
+    HANDLE,
+    BOOL,
+    CONSOLE_FONT_INFO *);
+
 
   /* ** A utility function ** */
 static BOOL
@@ -2820,53 +2840,6 @@ sys_putenv (char *str)
 
 #define REG_ROOT "SOFTWARE\\GNU\\Emacs"
 
-LPBYTE
-w32_get_resource (const char *key, LPDWORD lpdwtype)
-{
-  LPBYTE lpvalue;
-  HKEY hrootkey = NULL;
-  DWORD cbData;
-
-  /* Check both the current user and the local machine to see if
-     we have any resources.  */
-
-  if (RegOpenKeyEx (HKEY_CURRENT_USER, REG_ROOT, 0, KEY_READ, &hrootkey) == ERROR_SUCCESS)
-    {
-      lpvalue = NULL;
-
-      if (RegQueryValueEx (hrootkey, key, NULL, NULL, NULL, &cbData) == ERROR_SUCCESS
-	  && (lpvalue = xmalloc (cbData)) != NULL
-	  && RegQueryValueEx (hrootkey, key, NULL, lpdwtype, lpvalue, &cbData) == ERROR_SUCCESS)
-	{
-          RegCloseKey (hrootkey);
-	  return (lpvalue);
-	}
-
-      xfree (lpvalue);
-
-      RegCloseKey (hrootkey);
-    }
-
-  if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, REG_ROOT, 0, KEY_READ, &hrootkey) == ERROR_SUCCESS)
-    {
-      lpvalue = NULL;
-
-      if (RegQueryValueEx (hrootkey, key, NULL, NULL, NULL, &cbData) == ERROR_SUCCESS
-	  && (lpvalue = xmalloc (cbData)) != NULL
-	  && RegQueryValueEx (hrootkey, key, NULL, lpdwtype, lpvalue, &cbData) == ERROR_SUCCESS)
-	{
-          RegCloseKey (hrootkey);
-	  return (lpvalue);
-	}
-
-      xfree (lpvalue);
-
-      RegCloseKey (hrootkey);
-    }
-
-  return (NULL);
-}
-
 /* The argv[] array holds ANSI-encoded strings, and so this function
    works with ANS_encoded strings.  */
 void
@@ -3077,7 +3050,7 @@ init_environment (char ** argv)
 	    int dont_free = 0;
 	    char bufc[SET_ENV_BUF_SIZE];
 
-	    if ((lpval = w32_get_resource (env_vars[i].name, &dwType)) == NULL
+	    if ((lpval = w32_get_resource (REG_ROOT, env_vars[i].name, &dwType)) == NULL
 		/* Also ignore empty environment variables.  */
 		|| *lpval == 0)
 	      {
@@ -4687,6 +4660,9 @@ sys_open (const char * path, int oflag, int mode)
   return res;
 }
 
+/* This is not currently used, but might be needed again at some
+   point; DO NOT DELETE!  */
+#if 0
 int
 openat (int fd, const char * path, int oflag, int mode)
 {
@@ -4707,6 +4683,7 @@ openat (int fd, const char * path, int oflag, int mode)
 
   return sys_open (path, oflag, mode);
 }
+#endif
 
 int
 fchmod (int fd, mode_t mode)
@@ -6015,12 +5992,22 @@ sys_umask (int mode)
 #ifndef SYMBOLIC_LINK_FLAG_DIRECTORY
 #define SYMBOLIC_LINK_FLAG_DIRECTORY 0x1
 #endif
+#ifndef SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE
+#define SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE 0x2
+#endif
 
 int
 symlink (char const *filename, char const *linkname)
 {
   char linkfn[MAX_UTF8_PATH], *tgtfn;
-  DWORD flags = 0;
+  /* The SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE flag is
+     supported from Windows 10 build 14972.  It is only supported if
+     Developer Mode is enabled, and is ignored if it isn't.  */
+  DWORD flags =
+    (os_subtype == OS_SUBTYPE_NT
+     && (w32_major_version > 10
+	 || (w32_major_version == 10 && w32_build_number >= 14972)))
+    ? SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE : 0;
   int dir_access, filename_ends_in_slash;
 
   /* Diagnostics follows Posix as much as possible.  */
@@ -6078,7 +6065,7 @@ symlink (char const *filename, char const *linkname)
      directory.  */
   filename_ends_in_slash = IS_DIRECTORY_SEP (filename[strlen (filename) - 1]);
   if (dir_access == 0 || filename_ends_in_slash)
-    flags = SYMBOLIC_LINK_FLAG_DIRECTORY;
+    flags |= SYMBOLIC_LINK_FLAG_DIRECTORY;
 
   tgtfn = (char *)map_w32_filename (filename, NULL);
   if (filename_ends_in_slash)
@@ -6491,6 +6478,17 @@ chase_symlinks (const char *file)
   if (target[0] == '\0') /* not a single call to readlink succeeded */
     return (char *)file;
   return target;
+}
+
+/* Return non-zero if FILE's filesystem supports symlinks.  */
+bool
+symlinks_supported (const char *file)
+{
+  if (is_windows_9x () != TRUE
+      && get_volume_info (file, NULL)
+      && (volume_info.flags & FILE_SUPPORTS_REPARSE_POINTS) != 0)
+    return true;
+  return false;
 }
 
 
@@ -8595,7 +8593,8 @@ fcntl (int s, int cmd, int options)
 int
 sys_close (int fd)
 {
-  int rc;
+  int rc = -1;
+  bool reader_thread_exited = false;
 
   if (fd < 0)
     {
@@ -8606,6 +8605,13 @@ sys_close (int fd)
   if (fd < MAXDESC && fd_info[fd].cp)
     {
       child_process * cp = fd_info[fd].cp;
+      DWORD thrd_status = STILL_ACTIVE;
+
+      /* Thread handle will be NULL if we already called delete_child.  */
+      if (cp->thrd != NULL
+	  && GetExitCodeThread (cp->thrd, &thrd_status)
+	  && thrd_status != STILL_ACTIVE)
+	reader_thread_exited = true;
 
       fd_info[fd].cp = NULL;
 
@@ -8650,14 +8656,36 @@ sys_close (int fd)
 	}
     }
 
-  if (fd >= 0 && fd < MAXDESC)
-    fd_info[fd].flags = 0;
-
   /* Note that sockets do not need special treatment here (at least on
      NT and Windows 95 using the standard tcp/ip stacks) - it appears that
      closesocket is equivalent to CloseHandle, which is to be expected
      because socket handles are fully fledged kernel handles. */
-  rc = _close (fd);
+  if (fd < MAXDESC)
+    {
+      if ((fd_info[fd].flags & FILE_DONT_CLOSE) == 0
+	  /* If the reader thread already exited, close the descriptor,
+	     since otherwise no one will close it, and we will be
+	     leaking descriptors.  */
+	  || reader_thread_exited)
+	{
+	  fd_info[fd].flags = 0;
+	  rc = _close (fd);
+	}
+      else
+	{
+	  /* We don't close here descriptors open by pipe processes
+	     for reading from the pipe when the reader thread might
+	     still be running, since that thread might be stuck in
+	     _sys_read_ahead, and then we will hang here.  If the
+	     reader thread exits normally, it will close the
+	     descriptor; otherwise we will leave a zombie thread
+	     hanging around.  */
+	  rc = 0;
+	  /* Leave the flag set for the reader thread to close the
+	     descriptor.  */
+	  fd_info[fd].flags = FILE_DONT_CLOSE;
+	}
+    }
 
   return rc;
 }
@@ -10164,6 +10192,32 @@ sys_localtime (const time_t *t)
   return localtime (t);
 }
 
+/* The Windows CRT implementation of 'clock' doesn't really return CPU
+   time of the process (it returns the elapsed time since the process
+   started), so we provide a better emulation here, if possible.  */
+clock_t
+sys_clock (void)
+{
+  if (get_process_times_fn)
+    {
+      FILETIME create, exit, kernel, user;
+      HANDLE proc = GetCurrentProcess ();
+      if ((*get_process_times_fn) (proc, &create, &exit, &kernel, &user))
+        {
+          LARGE_INTEGER user_int, kernel_int, total;
+          user_int.LowPart = user.dwLowDateTime;
+          user_int.HighPart = user.dwHighDateTime;
+          kernel_int.LowPart = kernel.dwLowDateTime;
+          kernel_int.HighPart = kernel.dwHighDateTime;
+          total.QuadPart = user_int.QuadPart + kernel_int.QuadPart;
+	  /* We could redefine CLOCKS_PER_SEC to provide a finer
+	     resolution, but with the basic 15.625 msec resolution of
+	     the Windows clock, it doesn't really sound worth the hassle.  */
+	  return total.QuadPart / (10000000 / CLOCKS_PER_SEC);
+        }
+    }
+  return clock ();
+}
 
 
 /* Try loading LIBRARY_ID from the file(s) specified in
@@ -10277,7 +10331,8 @@ check_windows_init_file (void)
 	openp (Vload_path, init_file, Fget_load_suffixes (), NULL, Qnil, 0, 0);
       if (fd < 0)
 	{
-	  Lisp_Object load_path_print = Fprin1_to_string (Vload_path, Qnil);
+	  Lisp_Object load_path_print = Fprin1_to_string (Vload_path,
+							  Qnil, Qnil);
 	  char *init_file_name = SSDATA (init_file);
 	  char *load_path = SSDATA (load_path_print);
 	  char *buffer = alloca (1024
@@ -10454,10 +10509,13 @@ init_ntproc (int dumping)
   }
 }
 
-/*
-        shutdown_handler ensures that buffers' autosave files are
-	up to date when the user logs off, or the system shuts down.
-*/
+/* shutdown_handler ensures that buffers' autosave files are up to
+   date when the user logs off, or the system shuts down.  It also
+   shuts down Emacs when we get killed by another Emacs process, in
+   which case we get the CTRL_CLOSE_EVENT.  */
+
+extern DWORD dwMainThreadId;
+
 static BOOL WINAPI
 shutdown_handler (DWORD type)
 {
@@ -10466,15 +10524,31 @@ shutdown_handler (DWORD type)
       || type == CTRL_LOGOFF_EVENT    /* User logs off.  */
       || type == CTRL_SHUTDOWN_EVENT) /* User shutsdown.  */
     {
-      /* If we are being shut down in noninteractive mode, we don't
-	 care about the message stack, so clear it to avoid abort in
-	 shut_down_emacs.  This happens when an noninteractive Emacs
-	 is invoked as a subprocess of Emacs, and the parent wants to
-	 kill us, e.g. because it's about to exit.  */
-      if (noninteractive)
-	clear_message_stack ();
-      /* Shut down cleanly, making sure autosave files are up to date.  */
-      shut_down_emacs (0, Qnil);
+      if (GetCurrentThreadId () == dwMainThreadId)
+	{
+	  /* If we are being shut down in noninteractive mode, we don't
+	     care about the message stack, so clear it to avoid abort in
+	     shut_down_emacs.  This happens when an noninteractive Emacs
+	     is invoked as a subprocess of Emacs, and the parent wants to
+	     kill us, e.g. because it's about to exit.  */
+	  if (noninteractive)
+	    clear_message_stack ();
+	  /* Shut down cleanly, making sure autosave files are up to date.  */
+	  shut_down_emacs (0, Qnil);
+	}
+      else
+	{
+	  /* This handler is run in a thread different from the main
+	     thread.  (This is the normal situation when we are killed
+	     by Emacs, for example, which sends us the WM_CLOSE
+	     message).  We cannot possibly call functions like
+	     shut_down_emacs or clear_message_stack in that case,
+	     since the main (a.k.a. "Lisp") thread could be in the
+	     middle of some Lisp program.  So instead we arrange for
+	     maybe_quit to kill Emacs.  */
+	  Vquit_flag = Qkill_emacs;
+	  Vinhibit_quit = Qnil;
+	}
     }
 
   /* Allow other handlers to handle this signal.  */
@@ -10644,6 +10718,120 @@ realpath (const char *file_name, char *resolved_name)
   return xstrdup (tgt);
 }
 
+static void
+get_console_font_size (HANDLE hscreen, int *font_width, int *font_height)
+{
+  static GetCurrentConsoleFont_Proc s_pfn_Get_Current_Console_Font = NULL;
+  static GetConsoleFontSize_Proc s_pfn_Get_Console_Font_Size = NULL;
+
+  /* Default guessed values, for when we cannot obtain the actual ones.  */
+  *font_width = 8;
+  *font_height = 12;
+
+  if (!is_windows_9x ())
+    {
+      if (g_b_init_get_console_font_size == 0)
+	{
+	  HMODULE hm_kernel32 = LoadLibrary ("Kernel32.dll");
+	  if (hm_kernel32)
+	    {
+	      s_pfn_Get_Current_Console_Font = (GetCurrentConsoleFont_Proc)
+		get_proc_addr (hm_kernel32, "GetCurrentConsoleFont");
+	      s_pfn_Get_Console_Font_Size = (GetConsoleFontSize_Proc)
+		get_proc_addr (hm_kernel32, "GetConsoleFontSize");
+	    }
+	  g_b_init_get_console_font_size = 1;
+	}
+    }
+  if (s_pfn_Get_Current_Console_Font && s_pfn_Get_Console_Font_Size)
+    {
+      CONSOLE_FONT_INFO font_info;
+
+      if (s_pfn_Get_Current_Console_Font (hscreen, FALSE, &font_info))
+	{
+	  COORD font_size = s_pfn_Get_Console_Font_Size (hscreen,
+							 font_info.nFont);
+	  if (font_size.X > 0)
+	    *font_width = font_size.X;
+	  if (font_size.Y > 0)
+	    *font_height = font_size.Y;
+	}
+    }
+}
+
+/* A replacement for Posix execvp, used to restart Emacs.  This is
+   needed because the low-level Windows API to start processes accepts
+   the command-line arguments as a single string, so we cannot safely
+   use the MSVCRT execvp emulation, because elements of argv[] that
+   have embedded blanks and tabs will not be passed correctly to the
+   restarted Emacs.  */
+int
+w32_reexec_emacs (char *cmd_line, const char *wdir)
+{
+  STARTUPINFO si;
+  BOOL status;
+  PROCESS_INFORMATION proc_info;
+  DWORD dwCreationFlags = NORMAL_PRIORITY_CLASS;
+
+  GetStartupInfo (&si);		/* Use the same startup info as the caller.  */
+  if (inhibit_window_system)
+    {
+      HANDLE screen_handle;
+      CONSOLE_SCREEN_BUFFER_INFO screen_info;
+
+      screen_handle = GetStdHandle (STD_OUTPUT_HANDLE);
+      if (screen_handle != INVALID_HANDLE_VALUE
+	  && GetConsoleScreenBufferInfo (screen_handle, &screen_info))
+	{
+	  int font_width, font_height;
+
+	  /* Make the restarted Emacs's console window the same
+	     dimensions as ours.  */
+	  si.dwXCountChars = screen_info.dwSize.X;
+	  si.dwYCountChars = screen_info.dwSize.Y;
+	  get_console_font_size (screen_handle, &font_width, &font_height);
+	  si.dwXSize =
+	    (screen_info.srWindow.Right - screen_info.srWindow.Left + 1)
+	    * font_width;
+	  si.dwYSize =
+	    (screen_info.srWindow.Bottom - screen_info.srWindow.Top + 1)
+	    * font_height;
+	  si.dwFlags |= STARTF_USESIZE | STARTF_USECOUNTCHARS;
+	}
+      /* This is a kludge: it causes the restarted "emacs -nw" to have
+	 a new console window created for it, and that new window
+	 might have different (default) properties, not the ones of
+	 the parent process's console window.  But without this,
+	 restarting Emacs in the -nw mode simply doesn't work,
+	 probably because the parent's console is still in use.
+	 FIXME!  */
+      dwCreationFlags = CREATE_NEW_CONSOLE;
+    }
+
+  /* Make sure we are in the original directory, in case the command
+     line specifies the program as a relative file name.  */
+  chdir (wdir);
+
+  status = CreateProcess (NULL,		/* no program, take from command line */
+			  cmd_line,	/* command line */
+			  NULL,
+			  NULL,		/* thread attributes */
+			  FALSE,	/* unherit handles? */
+			  dwCreationFlags,
+			  NULL,		/* environment */
+			  wdir,		/* initial directory */
+			  &si,		/* startup info */
+			  &proc_info);
+  if (status)
+    {
+      CloseHandle (proc_info.hThread);
+      CloseHandle (proc_info.hProcess);
+      exit (0);
+    }
+  errno = ENOEXEC;
+  return -1;
+}
+
 /*
 	globals_of_w32 is used to initialize those global variables that
 	must always be initialized on startup even when the global variable
@@ -10704,6 +10892,7 @@ globals_of_w32 (void)
   g_b_init_compare_string_w = 0;
   g_b_init_debug_break_process = 0;
   g_b_init_get_user_default_ui_language = 0;
+  g_b_init_get_console_font_size = 0;
   num_of_processors = 0;
   /* The following sets a handler for shutdown notifications for
      console apps. This actually applies to Emacs in both console and
@@ -10817,19 +11006,19 @@ serial_configure (struct Lisp_Process *p, Lisp_Object contact)
   dcb.EvtChar       = 0;
 
   /* Configure speed.  */
-  if (!NILP (Fplist_member (contact, QCspeed)))
-    tem = Fplist_get (contact, QCspeed);
+  if (!NILP (plist_member (contact, QCspeed)))
+    tem = plist_get (contact, QCspeed);
   else
-    tem = Fplist_get (p->childp, QCspeed);
+    tem = plist_get (p->childp, QCspeed);
   CHECK_FIXNUM (tem);
   dcb.BaudRate = XFIXNUM (tem);
-  childp2 = Fplist_put (childp2, QCspeed, tem);
+  childp2 = plist_put (childp2, QCspeed, tem);
 
   /* Configure bytesize.  */
-  if (!NILP (Fplist_member (contact, QCbytesize)))
-    tem = Fplist_get (contact, QCbytesize);
+  if (!NILP (plist_member (contact, QCbytesize)))
+    tem = plist_get (contact, QCbytesize);
   else
-    tem = Fplist_get (p->childp, QCbytesize);
+    tem = plist_get (p->childp, QCbytesize);
   if (NILP (tem))
     tem = make_fixnum (8);
   CHECK_FIXNUM (tem);
@@ -10837,13 +11026,13 @@ serial_configure (struct Lisp_Process *p, Lisp_Object contact)
     error (":bytesize must be nil (8), 7, or 8");
   dcb.ByteSize = XFIXNUM (tem);
   summary[0] = XFIXNUM (tem) + '0';
-  childp2 = Fplist_put (childp2, QCbytesize, tem);
+  childp2 = plist_put (childp2, QCbytesize, tem);
 
   /* Configure parity.  */
-  if (!NILP (Fplist_member (contact, QCparity)))
-    tem = Fplist_get (contact, QCparity);
+  if (!NILP (plist_member (contact, QCparity)))
+    tem = plist_get (contact, QCparity);
   else
-    tem = Fplist_get (p->childp, QCparity);
+    tem = plist_get (p->childp, QCparity);
   if (!NILP (tem) && !EQ (tem, Qeven) && !EQ (tem, Qodd))
     error (":parity must be nil (no parity), `even', or `odd'");
   dcb.fParity = FALSE;
@@ -10867,13 +11056,13 @@ serial_configure (struct Lisp_Process *p, Lisp_Object contact)
       dcb.Parity = ODDPARITY;
       dcb.fErrorChar = TRUE;
     }
-  childp2 = Fplist_put (childp2, QCparity, tem);
+  childp2 = plist_put (childp2, QCparity, tem);
 
   /* Configure stopbits.  */
-  if (!NILP (Fplist_member (contact, QCstopbits)))
-    tem = Fplist_get (contact, QCstopbits);
+  if (!NILP (plist_member (contact, QCstopbits)))
+    tem = plist_get (contact, QCstopbits);
   else
-    tem = Fplist_get (p->childp, QCstopbits);
+    tem = plist_get (p->childp, QCstopbits);
   if (NILP (tem))
     tem = make_fixnum (1);
   CHECK_FIXNUM (tem);
@@ -10884,13 +11073,13 @@ serial_configure (struct Lisp_Process *p, Lisp_Object contact)
     dcb.StopBits = ONESTOPBIT;
   else if (XFIXNUM (tem) == 2)
     dcb.StopBits = TWOSTOPBITS;
-  childp2 = Fplist_put (childp2, QCstopbits, tem);
+  childp2 = plist_put (childp2, QCstopbits, tem);
 
   /* Configure flowcontrol.  */
-  if (!NILP (Fplist_member (contact, QCflowcontrol)))
-    tem = Fplist_get (contact, QCflowcontrol);
+  if (!NILP (plist_member (contact, QCflowcontrol)))
+    tem = plist_get (contact, QCflowcontrol);
   else
-    tem = Fplist_get (p->childp, QCflowcontrol);
+    tem = plist_get (p->childp, QCflowcontrol);
   if (!NILP (tem) && !EQ (tem, Qhw) && !EQ (tem, Qsw))
     error (":flowcontrol must be nil (no flowcontrol), `hw', or `sw'");
   dcb.fOutxCtsFlow	= FALSE;
@@ -10917,13 +11106,13 @@ serial_configure (struct Lisp_Process *p, Lisp_Object contact)
       dcb.fOutX = TRUE;
       dcb.fInX = TRUE;
     }
-  childp2 = Fplist_put (childp2, QCflowcontrol, tem);
+  childp2 = plist_put (childp2, QCflowcontrol, tem);
 
   /* Activate configuration.  */
   if (!SetCommState (hnd, &dcb))
     error ("SetCommState() failed");
 
-  childp2 = Fplist_put (childp2, QCsummary, build_string (summary));
+  childp2 = plist_put (childp2, QCsummary, build_string (summary));
   pset_childp (p, childp2);
 }
 
@@ -10945,6 +11134,7 @@ register_aux_fd (int infd)
     }
   fd_info[ infd ].cp = cp;
   fd_info[ infd ].hnd = (HANDLE) _get_osfhandle (infd);
+  fd_info[ infd ].flags |= FILE_DONT_CLOSE;
 }
 
 #ifdef HAVE_GNUTLS

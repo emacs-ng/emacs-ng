@@ -62,6 +62,7 @@
   (require 'subr-x))
 
 (defconst nnmaildir-version "Gnus")
+(make-obsolete-variable 'nnmaildir-version 'emacs-version "29.1")
 
 (defconst nnmaildir-flag-mark-mapping
   '((?F . tick)
@@ -99,7 +100,7 @@ SUFFIX should start with \":2,\"."
   (let* ((flags (substring suffix 3))
 	 (flags-as-list (append flags nil))
 	 (new-flags
-	  (concat (gnus-delete-duplicates
+          (concat (seq-uniq
 		   ;; maildir flags must be sorted
 		   (sort (cons flag flags-as-list) #'<)))))
     (concat ":2," new-flags)))
@@ -295,7 +296,7 @@ This variable is set by `nnmaildir-request-article'.")
      (if (file-attributes file) (delete-file file))))
 (defun nnmaildir--mkdir (dir)
   (or (file-exists-p (file-name-as-directory dir))
-      (make-directory-internal (directory-file-name dir))))
+      (make-directory (directory-file-name dir))))
 (defun nnmaildir--mkfile (file)
   (write-region "" nil file nil 'no-message))
 (defun nnmaildir--delete-dir-files (dir ls)
@@ -463,7 +464,7 @@ This variable is set by `nnmaildir-request-article'.")
 	;; usable: if the message has been edited or if nnmail-extra-headers
 	;; has been augmented since this data was parsed from the message,
 	;; then we have to reparse.  Otherwise it's up-to-date.
-	(when (and nov (equal mtime (nnmaildir--nov-get-mtime nov)))
+	(when (and nov (time-equal-p mtime (nnmaildir--nov-get-mtime nov)))
 	  ;; The timestamp matches.  Now check nnmail-extra-headers.
 	  (setq old-extra (nnmaildir--nov-get-extra nov))
 	  (when (equal nnmaildir--extra old-extra) ;; common case
@@ -669,7 +670,7 @@ This variable is set by `nnmaildir-request-article'.")
 (defun nnmaildir-open-server (server-string &optional defs)
   (let ((server (alist-get server-string nnmaildir--servers
 			   nil nil #'equal))
-	dir size x)
+	dir size x prefix)
     (catch 'return
       (if server
 	  (and (nnmaildir--srv-groups server)
@@ -709,20 +710,11 @@ This variable is set by `nnmaildir-request-article'.")
 	   (car x)
 	   (setf (nnmaildir--srv-gnm server) t)
 	   (require 'nnmail))
-      (setq x (assq 'target-prefix defs))
-      (if x
-	  (progn
-	    (setq x (cadr x)
-		  x (eval x t))	;FIXME: Why `eval'?
-	    (setf (nnmaildir--srv-target-prefix server) x))
-	(setq x (assq 'create-directory defs))
-	(if x
-	    (progn
-	      (setq x (cadr x)
-		    x (eval x t) ;FIXME: Why `eval'?
-		    x (file-name-as-directory x))
-	      (setf (nnmaildir--srv-target-prefix server) x))
-	  (setf (nnmaildir--srv-target-prefix server) "")))
+      (setf prefix (cl-second (assq 'target-prefix defs))
+            (nnmaildir--srv-target-prefix server)
+            (if prefix
+                (eval prefix t)
+              ""))
       (setf (nnmaildir--srv-groups server)
 	    (gnus-make-hashtable size))
       (setq nnmaildir--cur-server server)
@@ -799,7 +791,7 @@ This variable is set by `nnmaildir-request-article'.")
 	  isnew
 	  (throw 'return t))
       (setq nattr (file-attribute-modification-time nattr))
-      (if (equal nattr (nnmaildir--grp-new group))
+      (if (time-equal-p nattr (nnmaildir--grp-new group))
 	  (setq nattr nil))
       (if read-only (setq dir (and (or isnew nattr) ndir))
 	(when (or isnew nattr)
@@ -811,7 +803,7 @@ This variable is set by `nnmaildir-request-article'.")
 		 (rename-file x (concat cdir (nnmaildir--ensure-suffix file)))))
 	  (setf (nnmaildir--grp-new group) nattr))
 	(setq cattr (file-attribute-modification-time (file-attributes cdir)))
-	(if (equal cattr (nnmaildir--grp-cur group))
+	(if (time-equal-p cattr (nnmaildir--grp-cur group))
 	    (setq cattr nil))
 	(setq dir (and (or isnew cattr) cdir)))
       (unless dir (throw 'return t))
@@ -899,7 +891,7 @@ This variable is set by `nnmaildir-request-article'.")
 	     (remhash scan-group groups))
 	 (setq x (file-attribute-modification-time (file-attributes srv-dir))
 	       scan-group (null scan-group))
-	 (if (equal x (nnmaildir--srv-mtime nnmaildir--cur-server))
+	 (if (time-equal-p x (nnmaildir--srv-mtime nnmaildir--cur-server))
 	     (when scan-group
 	       (maphash (lambda (group-name _group)
 			  (nnmaildir--scan group-name t groups
@@ -1006,16 +998,16 @@ This variable is set by `nnmaildir-request-article'.")
 	    existing (nnmaildir--grp-nlist group)
 	    existing (mapcar #'car existing)
 	    existing (nreverse existing)
-	    existing (gnus-compress-sequence existing 'always-list)
+	    existing (range-compress-list existing)
 	    missing (list (cons 1 (nnmaildir--group-maxnum
 				   nnmaildir--cur-server group)))
-	    missing (gnus-range-difference missing existing)
+	    missing (range-difference missing existing)
 	    dir (nnmaildir--srv-dir nnmaildir--cur-server)
 	    dir (nnmaildir--srvgrp-dir dir gname)
 	    dir (nnmaildir--nndir dir)
 	    dir (nnmaildir--marks-dir dir)
             ls (nnmaildir--group-ls nnmaildir--cur-server pgname)
-	    all-marks (gnus-delete-duplicates
+            all-marks (seq-uniq
 		       ;; get mark names from mark dirs and from flag
 		       ;; mappings
 		       (append
@@ -1049,7 +1041,7 @@ This variable is set by `nnmaildir-request-article'.")
 		   (t
 		    markdir-mtime))))
 	  (puthash mark mtime new-mmth)
-	  (when (equal mtime (gethash mark old-mmth))
+	  (when (time-equal-p mtime (gethash mark old-mmth))
 	    (setq ranges (assq mark old-marks))
 	    (if ranges (setq ranges (cdr ranges)))
 	    (throw 'got-ranges nil))
@@ -1076,10 +1068,10 @@ This variable is set by `nnmaildir-request-article'.")
 		 (let ((article (nnmaildir--flist-art flist prefix)))
 		   (when article
 		     (push (nnmaildir--art-num article) article-list))))))
-	    (setq ranges (gnus-add-to-range ranges (sort article-list #'<)))))
+	    (setq ranges (range-add-list ranges (sort article-list #'<)))))
 	(if (eq mark 'read) (setq read ranges)
 	  (if ranges (setq marks (cons (cons mark ranges) marks)))))
-      (setf (gnus-info-read info) (gnus-range-add read missing))
+      (setf (gnus-info-read info) (range-concat read missing))
       (gnus-info-set-marks info marks 'extend)
       (setf (nnmaildir--grp-mmth group) new-mmth)
       info)))
@@ -1548,11 +1540,11 @@ This variable is set by `nnmaildir-request-article'.")
       (unless group
 	(setf (nnmaildir--srv-error nnmaildir--cur-server)
 	      (if gname (concat "No such group: " gname) "No current group"))
-	(throw 'return (gnus-uncompress-range ranges)))
+	(throw 'return (range-uncompress ranges)))
       (setq gname (nnmaildir--grp-name group)
 	    pgname (nnmaildir--pgname nnmaildir--cur-server gname))
       (if (nnmaildir--param pgname 'read-only)
-	  (throw 'return (gnus-uncompress-range ranges)))
+	  (throw 'return (range-uncompress ranges)))
       (setq time (nnmaildir--param pgname 'expire-age))
       (unless time
 	(setq time (or (and nnmail-expiry-wait-function
@@ -1564,7 +1556,7 @@ This variable is set by `nnmaildir-request-article'.")
 	      (setq time (round (* time 86400))))))
       (when no-force
 	(unless (integerp time) ;; handle 'never
-	  (throw 'return (gnus-uncompress-range ranges)))
+	  (throw 'return (range-uncompress ranges)))
 	(setq boundary (time-since time)))
       (setq dir (nnmaildir--srv-dir nnmaildir--cur-server)
 	    dir (nnmaildir--srvgrp-dir dir gname)
@@ -1686,7 +1678,7 @@ This variable is set by `nnmaildir-request-article'.")
 	(setf (nnmaildir--srv-error nnmaildir--cur-server)
 	      (concat "No such group: " gname))
 	(dolist (action actions)
-	  (setq ranges (gnus-range-add ranges (car action))))
+	  (setq ranges (range-concat ranges (car action))))
 	(throw 'return ranges))
       (setq nlist (nnmaildir--grp-nlist group)
 	    marksdir (nnmaildir--srv-dir nnmaildir--cur-server)
@@ -1697,7 +1689,7 @@ This variable is set by `nnmaildir-request-article'.")
             pgname (nnmaildir--pgname nnmaildir--cur-server gname)
             ls (nnmaildir--group-ls nnmaildir--cur-server pgname)
 	    all-marks (funcall ls marksdir nil "\\`[^.]" 'nosort)
-	    all-marks (gnus-delete-duplicates
+            all-marks (seq-uniq
 		       ;; get mark names from mark dirs and from flag
 		       ;; mappings
 		       (append
@@ -1784,10 +1776,5 @@ This variable is set by `nnmaildir-request-article'.")
   t)
 
 (provide 'nnmaildir)
-
-;; Local Variables:
-;; indent-tabs-mode: t
-;; fill-column: 77
-;; End:
 
 ;;; nnmaildir.el ends here

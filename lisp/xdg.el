@@ -1,6 +1,6 @@
 ;;; xdg.el --- XDG specification and standard support -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2023 Free Software Foundation, Inc.
 
 ;; Author: Mark Oteiza <mvoteiza@udel.edu>
 ;; Created: 27 January 2017
@@ -30,6 +30,7 @@
 ;; - Thumbnail Managing Standard
 ;; - xdg-user-dirs configuration
 ;; - Desktop Entry Specification
+;; - Unofficial extension $XDG_SESSION_TYPE from systemd
 
 ;;; Code:
 
@@ -41,13 +42,11 @@
 ;; XDG Base Directory Specification
 ;; https://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html
 
-(defmacro xdg--dir-home (environ default-path)
-  (declare (debug (stringp stringp)))
-  (let ((env (make-symbol "env")))
-    `(let ((,env (getenv ,environ)))
-       (if (or (null ,env) (not (file-name-absolute-p ,env)))
-           (expand-file-name ,default-path)
-         ,env))))
+(defun xdg--dir-home (environ default-path)
+  (let ((env (getenv environ)))
+    (if (or (null env) (not (file-name-absolute-p env)))
+        (expand-file-name default-path)
+      env)))
 
 (defun xdg-config-home ()
   "Return the base directory for user specific configuration files.
@@ -84,6 +83,23 @@ According to the XDG Base Directory Specification version
     either not set or empty, a default equal to $HOME/.local/share
     should be used.\""
   (xdg--dir-home "XDG_DATA_HOME" "~/.local/share"))
+
+(defun xdg-state-home ()
+  "Return the base directory for user-specific state data.
+
+According to the XDG Base Directory Specification version
+0.8 (8th May 2021):
+
+  \"The $XDG_STATE_HOME contains state data that should persist
+  between (application) restarts, but that is not important or
+  portable enough to the user that it should be stored in
+  $XDG_DATA_HOME.  It may contain:
+
+  * actions history (logs, history, recently used files, …)
+
+  * current state of the application that can be reused on a
+    restart (view, layout, open files, undo history, …)\""
+  (xdg--dir-home "XDG_STATE_HOME" "~/.local/state"))
 
 (defun xdg-runtime-dir ()
   "Return the value of $XDG_RUNTIME_DIR.
@@ -156,13 +172,12 @@ file:///foo/bar.jpg"
 ;; https://www.freedesktop.org/wiki/Software/xdg-user-dirs/
 
 (defconst xdg-line-regexp
-  (eval-when-compile
-    (rx "XDG_"
-        (group-n 1 (or "DESKTOP" "DOWNLOAD" "TEMPLATES" "PUBLICSHARE"
-                       "DOCUMENTS" "MUSIC" "PICTURES" "VIDEOS"))
-        "_DIR=\""
-        (group-n 2 (or "/" "$HOME/") (*? (or (not (any "\"")) "\\\"")))
-        "\""))
+  (rx "XDG_"
+      (group-n 1 (or "DESKTOP" "DOWNLOAD" "TEMPLATES" "PUBLICSHARE"
+                     "DOCUMENTS" "MUSIC" "PICTURES" "VIDEOS"))
+      "_DIR=\""
+      (group-n 2 (or "/" "$HOME/") (*? (or (not (any "\"")) "\\\"")))
+      "\"")
   "Regexp matching non-comment lines in `xdg-user-dirs' config files.")
 
 (defvar xdg-user-dirs nil
@@ -236,7 +251,7 @@ This should be called at the beginning of a line."
        ;; Filter localized strings
        ((looking-at (rx (group-n 1 (+ (in alnum "-"))) (* blank) "[")))
        (t (error "Malformed line: %s"
-                 (buffer-substring (point) (point-at-eol)))))
+                 (buffer-substring (point) (line-end-position)))))
       (forward-line))
     res))
 
@@ -251,7 +266,7 @@ Optional argument GROUP defaults to the string \"Desktop Entry\"."
       (forward-line))
     (unless (looking-at xdg-desktop-group-regexp)
       (error "Expected group name!  Instead saw: %s"
-             (buffer-substring (point) (point-at-eol))))
+             (buffer-substring (point) (line-end-position))))
     (when group
       (while (and (re-search-forward xdg-desktop-group-regexp nil t)
                   (not (equal (match-string 1) group)))))
@@ -266,6 +281,18 @@ Optional argument GROUP defaults to the string \"Desktop Entry\"."
       (push (string-replace "\0" ";" x) res))
     (when (null (string-match-p "[^[:blank:]]" (car res))) (pop res))
     (nreverse res)))
+
+(defun xdg-current-desktop ()
+  "Return a list of strings identifying the current desktop environment.
+
+According to the XDG Desktop Entry Specification version 0.5:
+
+    If $XDG_CURRENT_DESKTOP is set then it contains a
+    colon-separated list of strings ... $XDG_CURRENT_DESKTOP
+    should have been set by the login manager, according to the
+    value of the DesktopNames found in the session file."
+  (when-let ((ret (getenv "XDG_CURRENT_DESKTOP")))
+    (string-split ret ":")))
 
 
 ;; MIME apps specification
@@ -370,6 +397,18 @@ Results are cached in `xdg-mime-table'."
         (when files
           (put 'xdg-mime-table 'mtime (current-time)))
         (puthash subtype (delq nil files) (cdr (assoc type xdg-mime-table)))))))
+
+
+;; Unofficial extension from systemd.
+
+(defun xdg-session-type ()
+  "Return the value of $XDG_SESSION_TYPE.
+Should be one of \"unspecified\", \"tty\", \"x11\", \"wayland\",
+or \"mir\".
+
+This is not part of any official Freedesktop.org standard, but is
+documented in the man page `pam_systemd'."
+  (getenv "XDG_SESSION_TYPE"))
 
 (provide 'xdg)
 

@@ -1,6 +1,6 @@
 ;;; tibetan.el --- Quail package for inputting Tibetan characters -*-coding: utf-8-emacs; lexical-binding: t; -*-
 
-;; Copyright (C) 1997, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2001-2023 Free Software Foundation, Inc.
 ;; Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
 ;;   2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -32,6 +32,13 @@
 ;;            (Only Ext. Wylie input)
 
 ;;; Commentary:
+
+;; Note: This file includes several codepoints outside of the Unicode
+;; 0..#x10FFFF range, which are characters that were not unified into
+;; Unicode.  Therefore, this file is encoded in utf-8-emacs, because
+;; UTF-8 cannot encode such codepoints.  We include these codepoints
+;; literally in the file to have them displayed by suitable fonts,
+;; which makes maintenance easier.
 
 ;;; Code:
 

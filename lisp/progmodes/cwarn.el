@@ -1,6 +1,6 @@
 ;;; cwarn.el --- highlight suspicious C and C++ constructions  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: Anders Lindgren
 ;; Keywords: c, languages, faces
@@ -179,9 +179,6 @@ C++ modes are included."
   :group 'cwarn :lighter cwarn-mode-text
   (cwarn-font-lock-keywords cwarn-mode)
   (font-lock-flush))
-
-;;;###autoload
-(define-obsolete-function-alias 'turn-on-cwarn-mode 'cwarn-mode "24.1")
 
 ;;}}}
 ;;{{{ Help functions

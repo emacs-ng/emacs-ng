@@ -1,6 +1,6 @@
 ;;; filenotify.el --- watch files for changes on disk  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2023 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 
@@ -339,6 +339,7 @@ DESC is the back-end descriptor.  ACTIONS is a list of:
   "Add a watch for FILE in DIR with FLAGS, using inotify."
   (inotify-add-watch dir
                      (append
+                      '(dont-follow)
                       (and (memq 'change flags)
                            '(create delete delete-self modify move-self move))
                       (and (memq 'attribute-change flags)
@@ -479,6 +480,14 @@ DESCRIPTOR should be an object returned by `file-notify-add-watch'."
           (file-notify-error nil)))
       ;; Modify `file-notify-descriptors' and send a `stopped' event.
       (file-notify--rm-descriptor descriptor))))
+
+(defun file-notify-rm-all-watches ()
+  "Remove all existing file notification watches from Emacs."
+  (interactive)
+  (maphash
+   (lambda (key _value)
+     (file-notify-rm-watch key))
+   file-notify-descriptors))
 
 (defun file-notify-valid-p (descriptor)
   "Check a watch specified by its DESCRIPTOR.

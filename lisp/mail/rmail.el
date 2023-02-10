@@ -1,6 +1,6 @@
 ;;; rmail.el --- main code of "RMAIL" mail reader for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1988, 1993-1998, 2000-2022 Free Software
+;; Copyright (C) 1985-1988, 1993-1998, 2000-2023 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -40,8 +40,6 @@
 (require 'mail-utils)
 (require 'rfc2047)
 (require 'auth-source)
-
-(require 'rmail-loaddefs)
 
 (declare-function compilation--message->loc "compile" (cl-x) t)
 (declare-function epa--find-coding-system-for-mime-charset "epa" (mime-charset))
@@ -317,20 +315,6 @@ Setting this variable has an effect only before reading a mail."
   :version "21.1")
 
 ;;;###autoload
-(define-obsolete-variable-alias 'rmail-dont-reply-to-names
-  'mail-dont-reply-to-names "24.1")
-
-;; Prior to 24.1, this used to contain "\\`info-".
-;;;###autoload
-(defvar rmail-default-dont-reply-to-names nil
-  "Regexp specifying part of the default value of `mail-dont-reply-to-names'.
-This is used when the user does not set `mail-dont-reply-to-names'
-explicitly.")
-;;;###autoload
-(make-obsolete-variable 'rmail-default-dont-reply-to-names
-                        'mail-dont-reply-to-names "24.1")
-
-;;;###autoload
 (defcustom rmail-ignored-headers
   (purecopy
   (concat "^via:\\|^mail-from:\\|^origin:\\|^references:\\|^sender:"
@@ -388,11 +372,17 @@ If nil, display all header fields except those matched by
   :group 'rmail-headers)
 
 ;;;###autoload
-(defcustom rmail-retry-ignored-headers (purecopy "^x-authentication-warning:\\|^x-detected-operating-system:\\|^x-spam[-a-z]*:\\|content-type:\\|content-transfer-encoding:\\|mime-version:\\|message-id:")
+(defcustom rmail-retry-ignored-headers
+  (concat "^x-authentication-warning:\\|^x-detected-operating-system:\\|"
+          "^x-spam[-a-z]*:\\|^arc-.*:\\|"
+          "^content-type:\\|^content-transfer-encoding:\\|"
+          "^mime-version:\\|^message-id:\\|^x-google-smtp-source:\\|"
+          "^x-received:\\|^received-spf:\\|"
+          "^authentication-results:\\|^dkim-signature:")
   "Headers that should be stripped when retrying a failed message."
-  :type '(choice regexp (const nil :tag "None"))
+  :type '(choice regexp (const :value nil :tag "None"))
   :group 'rmail-headers
-  :version "23.2")	   ; added x-detected-operating-system, x-spam
+  :version "29.1")
 
 ;;;###autoload
 (defcustom rmail-highlighted-headers (purecopy "^From:\\|^Subject:")
@@ -464,8 +454,8 @@ as argument, to ask the user that question."
 		 (const :tag "Confirm with y-or-n-p" y-or-n-p)
 		 (const :tag "Confirm with yes-or-no-p" yes-or-no-p))
   :version "21.1"
+  :risky t
   :group 'rmail-files)
-(put 'rmail-confirm-expunge 'risky-local-variable t)
 
 ;;;###autoload
 (defvar rmail-mode-hook nil
@@ -539,7 +529,7 @@ Examples:
 ;; Note: this is matched with case-fold-search bound to t.
 (defcustom rmail-re-abbrevs
   "\\(RE\\|رد\\|回复\\|回覆\\|SV\\|Antw\\|VS\\|REF\\|AW\\|ΑΠ\\|ΣΧΕΤ\\|השב\\|Vá\\|R\\|RIF\\|BLS\\|RES\\|Odp\\|YNT\\|ATB\\)"
-  "Regexp with localized 'Re:' abbreviations in various languages."
+  "Regexp with localized \"Re:\" abbreviations in various languages."
   :version "28.1"
   :type 'regexp)
 
@@ -1467,9 +1457,7 @@ If so restore the actual mbox message collection."
   (setq-local font-lock-defaults
               '(rmail-font-lock-keywords
                 t t nil nil
-                (font-lock-maximum-size . nil)
-                (font-lock-dont-widen . t)
-                (font-lock-inhibit-thing-lock . (lazy-lock-mode fast-lock-mode))))
+                (font-lock-dont-widen . t)))
   (setq-local require-final-newline nil)
   (setq-local version-control 'never)
   (add-hook 'kill-buffer-hook #'rmail-mode-kill-summary nil t)
@@ -1763,6 +1751,7 @@ not be a new one).  It returns non-nil if it got any new messages."
 	    (spam-filter-p (and (featurep 'rmail-spam-filter)
 				rmail-use-spam-filter))
 	    (blurb "")
+            (mod-p (buffer-modified-p))
 	    result success suffix)
 	(narrow-to-region (point) (point))
 	;; Read in the contents of the inbox files, renaming them as
@@ -1778,10 +1767,11 @@ not be a new one).  It returns non-nil if it got any new messages."
 		  (rmail-insert-inbox-text files nil)
 		(setq delete-files (rmail-insert-inbox-text files t))))
 	  ;; If there was no new mail, or we aborted before actually
-	  ;; trying to get any, mark buffer unmodified.  Otherwise the
-	  ;; buffer is correctly marked modified and the file locked
-	  ;; until we save out the new mail.
-	  (if (= (point-min) (point-max))
+	  ;; trying to get any, mark buffer unmodified, unless it was
+	  ;; modified originally.  Otherwise the buffer is correctly
+	  ;; marked modified and the file locked until we save out the
+	  ;; new mail.
+	  (if (and (null mod-p) (= (point-min) (point-max)))
 	      (set-buffer-modified-p nil)))
 	;; Scan the new text and convert each message to
 	;; Rmail/mbox format.
@@ -2609,7 +2599,7 @@ is greater than zero; otherwise, show it in full."
   "Handle a \"Mail-Followup-To\" header field with an unknown mailing list.
 Ask the user whether to add that list name to `mail-mailing-lists'."
   ;; FIXME s-r not needed?  Use rmail-get-header?
-  ;; We have not narrowed to the headers at ths point?
+  ;; We have not narrowed to the headers at this point?
    (save-restriction
      (let ((mail-followup-to (mail-fetch-field "mail-followup-to" nil t)))
        (when mail-followup-to
@@ -4125,10 +4115,8 @@ typically for purposes of moderating a list."
   "A regexp that matches the separator before the text of a failed message.")
 
 (defvar mail-mime-unsent-header "^Content-Type: message/rfc822 *$"
- "A regexp that matches the header of a MIME body part with a failed message.")
+  "A regexp that matches the header of a MIME body part with a failed message.")
 
-;; This is a cut-down version of rmail-clear-headers from Emacs 22.
-;; It doesn't have the same functionality, hence the name change.
 (defun rmail-delete-headers (regexp)
   "Delete any mail headers matching REGEXP.
 The message should be narrowed to just the headers."
@@ -4136,10 +4124,6 @@ The message should be narrowed to just the headers."
     (goto-char (point-min))
     (while (re-search-forward regexp nil t)
       (beginning-of-line)
-      ;; This code from Emacs 22 doesn't seem right, since r-n-h is
-      ;; just for display.
-;;;      (if (looking-at rmail-nonignored-headers)
-;;;	  (forward-line 1)
       (delete-region (point)
 		     (save-excursion
 		       (if (re-search-forward "\n[^ \t]" nil t)
@@ -4497,10 +4481,7 @@ password."
                                    :max 1 :user user :host host
                                    :require '(:secret)))))
                 (if found
-                    (let ((secret (plist-get found :secret)))
-                      (if (functionp secret)
-                          (funcall secret)
-                        secret))
+                    (auth-info-password found)
                   (read-passwd (if imap
                                    "IMAP password: "
                                  "POP password: "))))))
@@ -4599,11 +4580,12 @@ Argument MIME is non-nil if this is a mime message."
 	     (current-buffer))))
       (error nil))
 
+    ;; Decode any base64-encoded material in what we just decrypted.
+    (rmail-epa-decode armor-start after-end)
+
     (list armor-start (- (point-max) after-end) mime
           armor-end-regexp
           (buffer-substring armor-start (- (point-max) after-end)))))
-
-(declare-function rmail-mime-entity-truncated "rmailmm" (entity))
 
 ;; Should this have a key-binding, or be in a menu?
 ;; There doesn't really seem to be an appropriate menu.
@@ -4707,6 +4689,33 @@ Argument MIME is non-nil if this is a mime message."
       (unless decrypts
 	(error "Nothing to decrypt")))))
 
+;; Decode all base64-encoded mime sections from BEG to (Z - BACK-FROM-END),
+;; so that we save the decoding permanently in the Rmail buffer
+;; if we permanently save the decryption.
+(defun rmail-epa-decode (beg back-from-end)
+  (save-excursion
+    (goto-char beg)
+    (while (re-search-forward "--------------[0-9a-zA-Z]+\n"
+                              (- (point-max) back-from-end) t)
+      ;; The ending delimiter is a start delimiter if another section follows.
+      ;; Otherwise it is an end delimiter, with -- affixed.
+      (let ((delim (concat (substring (match-string 0) 0 -1) "\\(\\|--\\)\n")))
+        (when (looking-at "\
+Content-Type: text/[a-z]+; charset=UTF-8; format=flowed
+Content-Transfer-Encoding: base64\n")
+          (goto-char (match-end 0))
+          ;; Sometimes the attachment's headers are followed by blank lines
+          (while (eolp)
+            (forward-line 1))
+          (let ((start (point))
+                (inhibit-read-only t))
+            (re-search-forward delim)
+            (forward-line -1)
+            ;; Sometimes the attachment's contents are followed by blank lines
+            (while (save-excursion (forward-line -1) (eolp))
+              (forward-line -1))
+            (base64-decode-region start (point))
+            (forward-line 1)))))))
 
 ;;;;  Desktop support
 

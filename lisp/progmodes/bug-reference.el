@@ -1,6 +1,6 @@
 ;;; bug-reference.el --- buttonize bug references  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
 
 ;; Author: Tom Tromey <tromey@redhat.com>
 ;; Created: 21 Mar 2007
@@ -40,12 +40,10 @@
   ;; Somewhat arbitrary, by analogy with eg goto-address.
   :group 'comm)
 
-(defvar bug-reference-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [mouse-2] 'bug-reference-push-button)
-    (define-key map (kbd "C-c RET") 'bug-reference-push-button)
-    map)
-  "Keymap used by bug reference buttons.")
+(defvar-keymap bug-reference-map
+  :doc "Keymap used by bug reference buttons."
+  "<mouse-2>" #'bug-reference-push-button
+  "C-c RET"   #'bug-reference-push-button)
 
 ;; E.g., "https://gcc.gnu.org/PR%s"
 (defvar bug-reference-url-format nil
@@ -142,7 +140,7 @@ to the highlighted and clickable region."
                  t)))
         ;; All groups 2..10 are within bounds.
         (cons m-b1 m-e1)
-      ;; The regexp doesn't fulfil the contract of
+      ;; The regexp doesn't fulfill the contract of
       ;; bug-reference-bug-regexp, so fall back to the old behavior.
       (unless (member bug-reference-bug-regexp
                       bug-reference--nonconforming-regexps)
@@ -269,9 +267,9 @@ via the internet it might also be http.")
 ;; pull/17 page if 17 is a PR.  Explicit user/project#17 links to
 ;; possibly different projects are also supported.
 (cl-defmethod bug-reference--build-forge-setup-entry
-  (host-domain (_forge-type (eql github)) protocol)
+  (host-domain (_forge-type (eql 'github)) protocol)
   `(,(concat "[/@]" (regexp-quote host-domain)
-             "[/:]\\([.A-Za-z0-9_/-]+\\)\\.git")
+             "[/:]\\([.A-Za-z0-9_/-]+?\\)\\(?:\\.git\\)?/?\\'")
     "\\(\\([.A-Za-z0-9_/-]+\\)?\\(?:#\\)\\([0-9]+\\)\\)\\>"
     ,(lambda (groups)
        (let ((ns-project (nth 1 groups)))
@@ -285,9 +283,9 @@ via the internet it might also be http.")
 ;; namespace/project#18 or namespace/project!17 references to possibly
 ;; different projects are also supported.
 (cl-defmethod bug-reference--build-forge-setup-entry
-  (host-domain (_forge-type (eql gitlab)) protocol)
+  (host-domain (_forge-type (eql 'gitlab)) protocol)
   `(,(concat "[/@]" (regexp-quote host-domain)
-             "[/:]\\([.A-Za-z0-9_/-]+\\)\\.git")
+             "[/:]\\([.A-Za-z0-9_/-]+?\\)\\(?:\\.git\\)?/?\\'")
     "\\(\\([.A-Za-z0-9_/-]+\\)?\\([#!]\\)\\([0-9]+\\)\\)\\>"
     ,(lambda (groups)
        (let ((ns-project (nth 1 groups)))
@@ -302,9 +300,9 @@ via the internet it might also be http.")
 
 ;; Gitea: The systematics is exactly as for Github projects.
 (cl-defmethod bug-reference--build-forge-setup-entry
-  (host-domain (_forge-type (eql gitea)) protocol)
+  (host-domain (_forge-type (eql 'gitea)) protocol)
   `(,(concat "[/@]" (regexp-quote host-domain)
-             "[/:]\\([.A-Za-z0-9_/-]+\\)\\.git")
+             "[/:]\\([.A-Za-z0-9_/-]+?\\)\\(?:\\.git\\)?/?\\'")
     "\\(\\([.A-Za-z0-9_/-]+\\)?\\(?:#\\)\\([0-9]+\\)\\)\\>"
     ,(lambda (groups)
        (let ((ns-project (nth 1 groups)))
@@ -323,7 +321,7 @@ via the internet it might also be http.")
 ;; repo without tracker, or a repo with a tracker using a different
 ;; name, etc.  So we can only try to make a good guess.
 (cl-defmethod bug-reference--build-forge-setup-entry
-  (host-domain (_forge-type (eql sourcehut)) protocol)
+  (host-domain (_forge-type (eql 'sourcehut)) protocol)
   `(,(concat "[/@]\\(?:git\\|hg\\)." (regexp-quote host-domain)
              "[/:]\\(~[.A-Za-z0-9_/-]+\\)")
     "\\(\\(~[.A-Za-z0-9_/-]+\\)?\\(?:#\\)\\([0-9]+\\)\\)\\>"
@@ -601,12 +599,7 @@ and set it if applicable."
      (erc-format-target)
      (erc-network-name))))
 
-(defvar bug-reference-auto-setup-functions
-  (list #'bug-reference-try-setup-from-vc
-        #'bug-reference-try-setup-from-gnus
-        #'bug-reference-try-setup-from-rmail
-        #'bug-reference-try-setup-from-rcirc
-        #'bug-reference-try-setup-from-erc)
+(defvar bug-reference-auto-setup-functions nil
   "Functions trying to auto-setup `bug-reference-mode'.
 These functions are run after `bug-reference-mode' has been
 activated in a buffer and try to guess suitable values for
@@ -618,7 +611,36 @@ guesswork is based on these variables:
 - `bug-reference-setup-from-mail-alist' for guessing based on
   mail group names or mail header values.
 - `bug-reference-setup-from-irc-alist' for guessing based on IRC
-  channel or network names.")
+  channel or network names.
+
+Note: This variable's purpose is to allow packages to provide
+bug-reference auto-setup support in buffers managed by this
+package.  Therefore, such auto-setup function should check if the
+current buffer is \"their\" buffer and only act if that's the
+case, e.g., in terms of `derived-mode-p'.
+
+The variable is not intended for users.  Those are advised to set
+`bug-reference-bug-regexp' and `bug-reference-url-format' using
+other means such as file-local variable sections, a
+`.dir-locals.el' file, or compute and set their values in
+`bug-reference-mode-hook' or `bug-reference-prog-mode-hook'.  If
+the bug regexp and URL format are already set after those hooks
+have been run, the auto-setup is inhibited.")
+
+;; Add the default auto-setup functions.  We don't have them as
+;; init value of bug-reference-auto-setup-functions because then
+;; they wouldn't be added if some package uses
+;;
+;;   (add-hook 'bug-reference-auto-setup-functions
+;;             #'my-pkg--bug-reference-try-setup-from-my-pkg)
+;;
+;; before bug-reference.el is loaded.
+(dolist (fn (list #'bug-reference-try-setup-from-vc
+                  #'bug-reference-try-setup-from-gnus
+                  #'bug-reference-try-setup-from-rmail
+                  #'bug-reference-try-setup-from-rcirc
+                  #'bug-reference-try-setup-from-erc))
+  (add-hook 'bug-reference-auto-setup-functions fn))
 
 (defun bug-reference--run-auto-setup ()
   (when (or bug-reference-mode

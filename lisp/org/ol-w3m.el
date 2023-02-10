@@ -1,10 +1,10 @@
 ;;; ol-w3m.el --- Copy and Paste From W3M            -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
 
 ;; Author: Andy Stewart <lazycat dot manatee at gmail dot com>
 ;; Keywords: outlines, hypermedia, calendar, wp
-;; Homepage: https://orgmode.org
+;; URL: https://orgmode.org
 ;;
 ;; This file is part of GNU Emacs.
 
@@ -41,6 +41,9 @@
 
 ;;; Code:
 
+(require 'org-macs)
+(org-assert-version)
+
 (require 'ol)
 
 (defvar w3m-current-url)
@@ -72,7 +75,7 @@ so that it can be yanked into an Org  buffer with links working correctly."
       (setq transform-start (region-beginning))
       (setq transform-end (region-end))
       ;; Deactivate mark if current mark is activate.
-      (when (fboundp 'deactivate-mark) (deactivate-mark)))
+      (deactivate-mark))
     (message "Transforming links...")
     (save-excursion
       (goto-char transform-start)

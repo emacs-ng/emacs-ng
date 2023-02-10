@@ -1,6 +1,6 @@
 ;;; vc-arch.el --- VC backend for the Arch version-control system  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2004-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2023 Free Software Foundation, Inc.
 
 ;; Author:      FSF (see vc.el for full credits)
 ;; Maintainer:  Stefan Monnier <monnier@gnu.org>
@@ -82,8 +82,6 @@ If nil, use the value of `vc-diff-switches'.  If t, use no switches."
 		 (string :tag "Argument String")
 		 (repeat :tag "Argument List" :value ("") string))
   :version "23.1")
-
-(define-obsolete-variable-alias 'vc-arch-command 'vc-arch-program "23.1")
 
 (defcustom vc-arch-program
   (let ((candidates '("tla" "baz")))
@@ -313,7 +311,7 @@ Only the value `maybe' can be trusted :-(."
 
 ;; dir-status-files called from vc-dir, which loads vc,
 ;; which loads vc-dispatcher.
-(declare-function vc-exec-after "vc-dispatcher" (code))
+(declare-function vc-exec-after "vc-dispatcher" (code &optional success))
 
 (defun vc-arch-dir-status-files (dir _files callback)
   "Run `tla inventory' for DIR and pass results to CALLBACK.

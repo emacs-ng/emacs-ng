@@ -1,6 +1,6 @@
 ;;; subword.el --- Handling capitalized subwords in a nomenclature -*- lexical-binding: t -*-
 
-;; Copyright (C) 2004-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2023 Free Software Foundation, Inc.
 
 ;; Author: Masatake YAMATO
 
@@ -79,12 +79,11 @@
   "\\(\\(\\W\\|[[:lower:][:digit:]]\\)\\([[:upper:]]+\\W*\\)\\|\\W\\w+\\)"
   "Regexp used by `subword-backward-internal'.")
 
-(defvar subword-mode-map
+(defvar-keymap subword-mode-map
   ;; We originally remapped motion keys here, but now use Emacs core
   ;; hooks.  Leave this keymap around so that user additions to it
   ;; keep working.
-  (make-sparse-keymap)
-  "Keymap used in `subword-mode' minor mode.")
+  :doc "Keymap used in `subword-mode' minor mode.")
 
 ;;;###autoload
 (define-obsolete-function-alias

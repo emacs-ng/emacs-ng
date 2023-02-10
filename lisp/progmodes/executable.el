@@ -1,6 +1,6 @@
 ;;; executable.el --- base functionality for executable interpreter scripts  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994-1996, 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1994-1996, 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: Daniel Pfeiffer <occitan@esperanto.org>
 ;; Keywords: languages, unix
@@ -240,12 +240,13 @@ executable."
 		 (not (string= argument
 			       (buffer-substring (point) (match-end 1))))
 		 (if (or (not executable-query) no-query-flag
-			 (save-window-excursion
-			   ;; Make buffer visible before question.
-			   (switch-to-buffer (current-buffer))
-			   (y-or-n-p (format-message
-				      "Replace magic number by `#!%s'? "
-				      argument))))
+                         (save-match-data
+			   (save-window-excursion
+			     ;; Make buffer visible before question.
+			     (switch-to-buffer (current-buffer))
+			     (y-or-n-p (format-message
+				        "Replace magic number by `#!%s'? "
+				        argument)))))
 		     (progn
 		       (replace-match argument t t nil 1)
 		       (message "Magic number changed to `#!%s'" argument))))

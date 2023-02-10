@@ -1,6 +1,6 @@
 ;;; ind-util.el --- Transliteration and Misc. Tools for Indian Languages -*- coding: utf-8-emacs; lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2023 Free Software Foundation, Inc.
 
 ;; Keywords: multilingual, Indian, Devanagari
 
@@ -27,11 +27,18 @@
 ;; Finally, this program provides the compatibility support with
 ;; old implementation of Devanagari script.
 
+;; Note: This file includes several codepoints outside of the Unicode
+;; 0..#x10FFFF range, which are characters that were not unified into
+;; Unicode.  Therefore, this file is encoded in utf-8-emacs, because
+;; UTF-8 cannot encode such codepoints.  We include these codepoints
+;; literally in the file to have them displayed by suitable fonts,
+;; which makes maintenance easier.
+
 ;;; Code:
 
 ;;; Transliteration
 
-;; The followings provide the various transliteration schemes (such as
+;; The following provides the various transliteration schemes (such as
 ;; ITRANS, kyoto-harvard, and Aiba) of Indian scripts.  They are also
 ;; used in quail/indian.el for typing Indian script in Emacs.
 
@@ -267,11 +274,34 @@
      ?த nil nil nil ?ந ?ன              ;; DENTALS
      ?ப nil nil nil ?ம                  ;; LABIALS
      ?ய ?ர ?ற ?ல ?ள ?ழ ?வ          ;; SEMIVOWELS
-     nil ?ஷ ?ஸ ?ஹ                    ;; SIBILANTS
+     ?ஶ ?ஷ ?ஸ ?ஹ                    ;; SIBILANTS
      nil nil nil nil nil nil nil nil      ;; NUKTAS
-     "ஜ்ஞ" "க்ஷ")
+     "ஜ்ஞ" "க்ஷ" "க்‌ஷ")
     (;; Misc Symbols
-     nil ?ஂ ?ஃ nil ?் nil nil)
+     nil ?ஂ ?ஃ nil ?் ?ௐ nil)
+    (;; Digits
+     nil nil nil nil nil nil nil nil nil nil)
+    (;; Inscript-extra (4)  (#, $, ^, *, ])
+     "்ர" "ர்" "த்ர" nil nil)))
+
+(defvar indian-tml-base-digits-table
+  '(
+    (;; VOWELS
+     (?அ nil) (?ஆ ?ா) (?இ ?ி) (?ஈ ?ீ) (?உ ?ு) (?ஊ ?ூ)
+     nil nil nil (?ஏ ?ே) (?எ ?ெ) (?ஐ ?ை)
+     nil (?ஓ ?ோ) (?ஒ ?ொ) (?ஔ ?ௌ) nil nil)
+    (;; CONSONANTS
+     ?க nil nil nil ?ங                  ;; GUTTRULS
+     ?ச nil ?ஜ nil ?ஞ                  ;; PALATALS
+     ?ட nil nil nil ?ண                  ;; CEREBRALS
+     ?த nil nil nil ?ந ?ன              ;; DENTALS
+     ?ப nil nil nil ?ம                  ;; LABIALS
+     ?ய ?ர ?ற ?ல ?ள ?ழ ?வ          ;; SEMIVOWELS
+     ?ஶ ?ஷ ?ஸ ?ஹ                    ;; SIBILANTS
+     nil nil nil nil nil nil nil nil      ;; NUKTAS
+     "ஜ்ஞ" "க்ஷ" "க்‌ஷ")
+    (;; Misc Symbols
+     nil ?ஂ ?ஃ nil ?் ?ௐ nil)
     (;; Digits
      ?௦ ?௧ ?௨ ?௩ ?௪ ?௫ ?௬ ?௭ ?௮ ?௯)
     (;; Inscript-extra (4)  (#, $, ^, *, ])
@@ -292,8 +322,8 @@
   '(;; for encode/decode
     (;; vowels -- 18
      "a" ("aa" "A") "i" ("ii" "I") "u" ("uu" "U")
-     ("RRi" "R^i") ("LLi" "L^i") (".c" "e.c") "E" "e" "ai"
-     "o.c"  "O"   "o"   "au"  ("RRI" "R^I") ("LLI" "L^I"))
+     ("RRi" "R^i" "RRu" "R^u") ("LLi" "L^i") (".c" "e.c") "E" "e" "ai"
+     "o.c"  "O"   "o"   "au"  ("RRI" "R^I" "RRU" "R^U") ("LLI" "L^I"))
     (;; consonants -- 40
      "k"   "kh"  "g"   "gh"  ("~N" "N^")
      "ch" ("Ch" "chh") "j" "jh" ("~n" "JN")
@@ -557,6 +587,10 @@
 (defvar indian-tml-itrans-v5-hash
   (indian-make-hash indian-tml-base-table
 			  indian-itrans-v5-table-for-tamil))
+
+(defvar indian-tml-itrans-digits-v5-hash
+  (indian-make-hash indian-tml-base-digits-table
+			  indian-itrans-v5-table-for-tamil))
 )
 
 (defmacro indian-translate-region (from to hashtable encode-p)
@@ -611,7 +645,7 @@
 
 ;;; IS 13194 utilities
 
-;; The followings provide conversion between IS 13194 (ISCII) and UCS.
+;; The following provides conversion between IS 13194 (ISCII) and UCS.
 
 (dlet
     ;;Unicode vs IS13194  ;; only Devanagari is supported now.

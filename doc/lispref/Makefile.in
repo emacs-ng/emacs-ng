@@ -1,6 +1,6 @@
 ### @configure_input@
 
-# Copyright (C) 1990-1996, 1998-2022 Free Software Foundation, Inc.
+# Copyright (C) 1990-1996, 1998-2023 Free Software Foundation, Inc.
 
 # This file is part of GNU Emacs.
 
@@ -111,6 +111,7 @@ srcs = \
   $(srcdir)/objects.texi \
   $(srcdir)/os.texi \
   $(srcdir)/package.texi \
+  $(srcdir)/parsing.texi \
   $(srcdir)/positions.texi \
   $(srcdir)/processes.texi \
   $(srcdir)/records.texi \

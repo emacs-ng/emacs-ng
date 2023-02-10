@@ -1,6 +1,6 @@
 ;;; nndraft.el --- draft article access for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -56,6 +56,7 @@ are generated if and only if they are also in `message-draft-headers'."
 (defvoo nndraft-current-directory nil nil nnmh-current-directory)
 
 (defconst nndraft-version "nndraft 1.0")
+(make-obsolete-variable 'nndraft-version 'emacs-version "29.1")
 (defvoo nndraft-status-string "" nil nnmh-status-string)
 
 

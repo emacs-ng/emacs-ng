@@ -1,6 +1,6 @@
 ;;; vc-cvs.el --- non-resident support for CVS version-control  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1995, 1998-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995, 1998-2023 Free Software Foundation, Inc.
 
 ;; Author: FSF (see vc.el for full credits)
 ;; Package: vc
@@ -26,6 +26,7 @@
 
 (require 'vc-rcs)
 (eval-when-compile (require 'vc))
+(require 'log-view)
 
 (declare-function vc-checkout "vc" (file &optional rev))
 (declare-function vc-expand-dirs "vc" (file-or-dir-list backend))
@@ -249,7 +250,7 @@ See also variable `vc-cvs-sticky-date-format-string'."
   (let ((checkout-time (vc-file-getprop file 'vc-checkout-time))
         (lastmod (file-attribute-modification-time (file-attributes file))))
     (cond
-     ((equal checkout-time lastmod) 'up-to-date)
+     ((time-equal-p checkout-time lastmod) 'up-to-date)
      ((string= (vc-working-revision file) "0") 'added)
      ((null checkout-time) 'unregistered)
      (t 'edited))))
@@ -544,7 +545,7 @@ Will fail unless you have administrative privileges on the repo."
 ;;;
 
 ;; Follows vc-cvs-command, which uses vc-do-command from vc-dispatcher.
-(declare-function vc-exec-after "vc-dispatcher" (code))
+(declare-function vc-exec-after "vc-dispatcher" (code &optional success))
 
 (defun vc-cvs-print-log (files buffer &optional _shortlog _start-revision limit)
   "Print commit log associated with FILES into specified BUFFER.
@@ -1256,6 +1257,14 @@ ignore file."
         (insert str (if old-dir "/\n" "\n"))
         (if sort (sort-lines nil (point-min) (point-max)))
         (save-buffer)))))
+
+(defvar-keymap vc-cvs-log-view-mode-map
+  "N" #'log-view-file-next
+  "P" #'log-view-file-prev
+  "M-n" #'log-view-file-next
+  "M-p" #'log-view-file-prev)
+
+(define-derived-mode vc-cvs-log-view-mode log-view-mode "CVS-Log-View")
 
 (provide 'vc-cvs)
 

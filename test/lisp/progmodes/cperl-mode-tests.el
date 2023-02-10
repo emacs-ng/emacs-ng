@@ -1,11 +1,11 @@
 ;;; cperl-mode-tests.el --- Test for cperl-mode  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 ;; Author: Harald Jörg <haj@posteo.de>
 ;; Maintainer: Harald Jörg
 ;; Keywords: internal
-;; Homepage: https://github.com/HaraldJoerg/cperl-mode
+;; URL: https://github.com/HaraldJoerg/cperl-mode
 
 ;; This file is part of GNU Emacs.
 
@@ -64,7 +64,7 @@ The expected output from running BODY on the input goes here.
 # -------- NAME: end --------
 
 You can have many of these blocks in one test file.  You can
-chose a NAME for each block, which is passed to the 'should'
+chose a NAME for each block, which is passed to the `should'
 clause for easy identification of the first test case that
 failed (if any).  Text outside these the blocks is ignored by the
 tests, so you can use it to document the test cases if you wish."
@@ -114,7 +114,7 @@ end of the statement."
 ;;; Fontification tests
 
 (ert-deftest cperl-test-fontify-punct-vars ()
-  "Test fontification of Perl's punctiation variables.
+  "Test fontification of Perl's punctuation variables.
 Perl has variable names containing unbalanced quotes for the list
 separator $\" and pre- and postmatch $` and $'.  A reference to
 these variables, for example \\$\", should not cause the dollar
@@ -153,6 +153,55 @@ point in the distant past, and is still broken in perl-mode. "
     (search-forward "my")
     (should (equal (get-text-property (match-beginning 0) 'face)
                    'font-lock-keyword-face))))
+
+(ert-deftest cperl-test-fontify-attrs-and-signatures ()
+  "Test fontification of the various combinations of subroutine
+attributes, prototypes and signatures."
+  (skip-unless (eq cperl-test-mode #'cperl-mode))
+  (let ((file (ert-resource-file "proto-and-attrs.pl")))
+    (with-temp-buffer
+      (insert-file-contents file)
+      (goto-char (point-min))
+      (funcall cperl-test-mode)
+      (font-lock-ensure)
+
+      ;; Named subroutines
+      (while (search-forward-regexp "\\_<sub_[[:digit:]]+" nil t)
+        (should (equal (get-text-property (match-beginning 0) 'face)
+                       'font-lock-function-name-face))
+        (let ((start-of-sub (match-beginning 0))
+              (end-of-sub (save-excursion (search-forward "}") (point))))
+
+          ;; Prototypes are shown as strings
+          (when (search-forward-regexp " ([$%@*]*) " end-of-sub t)
+            (should (equal (get-text-property (1+ (match-beginning 0)) 'face)
+                           'font-lock-string-face)))
+          (goto-char start-of-sub)
+          (when (search-forward-regexp "\\(:[a-z]+\\)\\((.*?)\\)?" end-of-sub t)
+            (should (equal (get-text-property (match-beginning 1) 'face)
+                           'font-lock-constant-face))
+            (when (match-beginning 2)
+              (should (equal (get-text-property (match-beginning 2) 'face)
+                             'font-lock-string-face))))
+          (goto-char end-of-sub)))
+
+      ;; Anonymous subroutines
+      (while (search-forward-regexp "= sub" nil t)
+        (let ((start-of-sub (match-beginning 0))
+              (end-of-sub (save-excursion (search-forward "}") (point))))
+
+          ;; Prototypes are shown as strings
+          (when (search-forward-regexp " ([$%@*]*) " end-of-sub t)
+            (should (equal (get-text-property (1+ (match-beginning 0)) 'face)
+                           'font-lock-string-face)))
+          (goto-char start-of-sub)
+          (when (search-forward-regexp "\\(:[a-z]+\\)\\((.*?)\\)?" end-of-sub t)
+            (should (equal (get-text-property (match-beginning 1) 'face)
+                           'font-lock-constant-face))
+            (when (match-beginning 2)
+              (should (equal (get-text-property (match-beginning 2) 'face)
+                             'font-lock-string-face))))
+          (goto-char end-of-sub))))))
 
 (ert-deftest cperl-test-fontify-special-variables ()
   "Test fontification of variables like $^T or ${^ENCODING}.
@@ -674,6 +723,18 @@ created by CPerl mode, so skip it for Perl mode."
 
 ;;; Tests for issues reported in the Bug Tracker
 
+(ert-deftest cperl-test-bug-997 ()
+  "Test that we distinguish a regexp match when there's nothing before it."
+  (let ((code "# some comment\n\n/fontify me/;\n"))
+    (with-temp-buffer
+      (funcall cperl-test-mode)
+      (insert code)
+      (font-lock-ensure)
+      (goto-char (point-min))
+      (search-forward "/f")
+      (should (equal (get-text-property (point) 'face)
+                     'font-lock-string-face)))))
+
 (defun cperl-test--run-bug-10483 ()
   "Runs a short program, intended to be under timer scrutiny.
 This function is intended to be used by an Emacs subprocess in
@@ -698,7 +759,6 @@ without a statement terminator on the same line does not loop
 forever.  The test starts an asynchronous Emacs batch process
 under timeout control."
   :tags '(:expensive-test)
-  (interactive)
   (skip-unless (not (getenv "EMACS_HYDRA_CI"))) ; FIXME times out
   (skip-unless (not (< emacs-major-version 28))) ; times out in older Emacsen
   (skip-unless (eq cperl-test-mode #'cperl-mode))
@@ -727,6 +787,36 @@ under timeout control."
       ;; be rather robust with regard to indentation defaults
       (should (string-match
                "poop ('foo', \n      'bar')" (buffer-string))))))
+
+(ert-deftest cperl-test-bug-11996 ()
+  "Verify that we give the right syntax property to a backslash operator."
+  (with-temp-buffer
+    (insert-file-contents (ert-resource-file "cperl-bug-11996.pl"))
+    (funcall cperl-test-mode)
+    (font-lock-ensure)
+    (goto-char (point-min))
+    (re-search-forward "\\(\\\\(\\)")
+    (save-excursion
+      (goto-char (match-beginning 1))
+      (should (equal (syntax-after (point)) (string-to-syntax ".")))
+      ;; `forward-sexp' shouldn't complain.
+      (forward-sexp)
+      (should (char-equal (char-after) ?\;)))
+    (re-search-forward "\\(\\\\\"\\)")
+    (save-excursion
+      (goto-char (match-beginning 1))
+      (should (equal (syntax-after (point)) (string-to-syntax "\\")))
+      (should (equal (get-text-property (point) 'face) 'font-lock-string-face)))
+    (re-search-forward "\\(\\\\\"\\)")
+    (save-excursion
+      (goto-char (match-beginning 1))
+      (should (equal (syntax-after (point)) (string-to-syntax "\\"))))
+    (re-search-forward "\\(\\\\\"\\)")
+    (save-excursion
+      (goto-char (match-beginning 1))
+      (should (equal (syntax-after (point)) (string-to-syntax ".")))
+      (should (equal (get-text-property (1+ (point)) 'face)
+                     'font-lock-string-face)))))
 
 (ert-deftest cperl-test-bug-14343 ()
   "Verify that inserting text into a HERE-doc string with Elisp
@@ -1054,5 +1144,8 @@ as a regex."
     (insert " ?foo?;")
     (funcall cperl-test-mode)
     (should-not (nth 3 (syntax-ppss 3)))))
+
+(ert-deftest test-indentation ()
+  (ert-test-erts-file (ert-resource-file "cperl-indents.erts")))
 
 ;;; cperl-mode-tests.el ends here

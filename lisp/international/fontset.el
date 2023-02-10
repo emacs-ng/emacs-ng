@@ -1,6 +1,6 @@
 ;;; fontset.el --- commands for handling fontset  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -152,7 +152,7 @@
       '((latin ?A ?Z ?a ?z #x00C0 #x0100 #x0180 #x1e00)
 	(phonetic #x250 #x283)
 	(greek #x3A9)
-	(coptic #x3E2)
+	(coptic #x3E2 #x2C80 #x2CAE)
 	(cyrillic #x42F)
 	(armenian #x531)
 	(hebrew #x5D0)
@@ -182,8 +182,21 @@
 	(canadian-aboriginal #x14C0)
 	(ogham #x168F)
 	(runic #x16A0)
+        (tagalog #x1700)
+        (hanunoo #x1720)
+        (buhid #x1740)
+        (tagbanwa #x1760)
 	(khmer #x1780)
 	(mongolian #x1826)
+        (limbu #x1901 #x1920 #x1936)
+        (buginese #x1A00 #x1A1E)
+        (balinese #x1B13 #x1B35 #x1B5E)
+        (sundanese #x1B8A #x1BAB #x1CC4)
+        (batak #x1BC2 #x1BE7 #x1BFF)
+        (lepcha #x1C00 #x1C24 #x1C40)
+        (tai-le #x1950)
+        (tai-lue #x1980)
+        (tai-tham #x1A20 #x1A55 #x1A61 #x1A80)
 	(symbol . [#x201C #x2200 #x2500])
 	(braille #x2800)
 	(ideographic-description #x2FF0)
@@ -193,9 +206,12 @@
 	(kanbun #x319D)
 	(han #x5B57)
 	(yi #xA288)
-	(javanese #xA980)
+        (syloti-nagri #xA807 #xA823 #xA82C)
+        (rejang #xA930 #xA947 #xA95F)
+	(javanese #xA98F #xA9B4 #xA9CA)
 	(cham #xAA00)
 	(tai-viet #xAA80)
+        (meetei-mayek #xABC0 #xABE3 #xAAE0 #xAAF6)
 	(hangul #xAC00)
 	(linear-b #x10000)
 	(aegean-number #x10100)
@@ -205,6 +221,7 @@
 	(lycian #x10280)
 	(carian #x102A0)
 	(old-italic #x10300)
+        (gothic #x10330 #x10348)
 	(ugaritic #x10380)
 	(old-permic #x10350)
 	(old-persian #x103A0)
@@ -223,22 +240,24 @@
 	(lydian #x10920)
 	(kharoshthi #x10A00)
 	(manichaean #x10AC0)
-	(hanifi-rohingya #x10D00)
+	(hanifi-rohingya #x10D00 #x10D24 #x10D39)
 	(yezidi #x10E80)
 	(old-sogdian #x10F00)
 	(sogdian #x10F30)
 	(chorasmian #x10FB0)
 	(elymaic #x10FE0)
 	(old-uyghur #x10F70)
+        (brahmi #x11013 #x11045 #x11052 #x11065)
+        (kaithi #x1108D #x110B0 #x110BD)
 	(mahajani #x11150)
-	(sinhala-archaic-number #x111E1)
+        (sharada #x11191 #x111B3 #x111CD)
 	(khojki #x11200)
 	(khudawadi #x112B0)
-	(grantha #x11305)
+	(grantha #x11315 #x1133E #x11374)
 	(newa #x11400)
-	(tirhuta #x11481)
-	(siddham #x11580)
-	(modi #x11600)
+	(tirhuta #x11481 #x1148F #x114D0)
+	(siddham #x1158E #x115AF #x115D4)
+	(modi #x1160E #x11630 #x11655)
 	(takri #x11680)
 	(dogra #x11800)
 	(warang-citi #x118A1)
@@ -251,9 +270,9 @@
 	(marchen #x11C72)
 	(masaram-gondi #x11D00)
 	(gunjala-gondi #x11D60)
-	(makasar #x11EE0)
+	(makasar #x11EE0 #x11EF7)
+        (kawi #x11F04 #x11F41 #x11F4F)
 	(cuneiform #x12000)
-	(cuneiform-numbers-and-punctuation #x12400)
 	(cypro-minoan #x12F90)
 	(egyptian #x13000)
 	(mro #x16A40)
@@ -262,7 +281,6 @@
 	(pahawh-hmong #x16B11)
 	(medefaidrin #x16E40)
 	(tangut #x17000)
-	(tangut-components #x18800)
 	(khitan-small-script #x18B00)
 	(nushu #x1B170)
 	(duployan-shorthand #x1BC20)
@@ -270,22 +288,25 @@
 	(byzantine-musical-symbol #x1D000)
 	(musical-symbol #x1D100)
 	(ancient-greek-musical-notation #x1D200)
+        (kaktovik-numeral #x1D2C0)
 	(tai-xuan-jing-symbol #x1D300)
 	(counting-rod-numeral #x1D360)
 	(nyiakeng-puachue-hmong #x1e100)
-	(toto #x1E290)
-	(wancho #x1e2c0)
-	(mende-kikakui #x1E810)
-	(adlam #x1E900)
-	(indic-siyaq-number #x1ec71)
-	(ottoman-siyaq-number #x1ed01)
+	(toto #x1E290 #x1E295 #x1E2AD)
+	(wancho #x1E2C0 #x1E2E8 #x1E2EF)
+        (nag-mundari #x1E4D0 #x1E4EB #x1E4F0)
+	(mende-kikakui #x1E810 #x1E8A6)
+	(adlam #x1E900 #x1E943)
+	(indic-siyaq-number #x1EC71 #x1EC9F)
+	(ottoman-siyaq-number #x1ED01 #x1ED27)
 	(mahjong-tile #x1F000)
 	(domino-tile #x1F030)
-        (emoji #x1F300 #x1F600)))
+        (emoji #x1F300 #x1F600)
+        (chess-symbol . [#x1FA00 #x1FA67])))
 
 (defvar otf-script-alist)
 
-;; The below was synchronized with the latest Oct 8, 2020 version of
+;; The below was synchronized with the latest Sep 12, 2021 version of
 ;; https://docs.microsoft.com/en-us/typography/opentype/spec/scripttags
 (setq otf-script-alist
       '((adlm . adlam)
@@ -318,6 +339,7 @@
 	(copt . coptic)
 	(xsux . cuneiform)
 	(cprt . cypriot)
+        (cpmn . cypro-minoan)
 	(cyrl . cyrillic)
 	(dsrt . deseret)
 	(deva . devanagari)
@@ -341,7 +363,7 @@
 	(gur2 . gurmukhi)
 	(hani . han)
 	(hang . hangul)
-	(jamo . hangul)
+	(jamo . hangul) ; Not recommended; use 'hang' instead.
 	(rohg . hanifi-rohingya)
 	(hano . hanunoo)
 	(hatr . hatran)
@@ -354,6 +376,7 @@
 	(knda . kannada)
 	(knd2 . kannada)
 	(kana . kana)	; Hiragana
+        (kawi . kawi)
 	(kali . kayah-li)
 	(khar . kharoshthi)
 	(kits . khitan-small-script)
@@ -364,8 +387,8 @@
 	(latn . latin)
 	(lepc . lepcha)
 	(limb . limbu)
-	(lina . linear_a)
-	(linb . linear_b)
+	(lina . linear-a)
+	(linb . linear-b)
 	(lisu . lisu)
 	(lyci . lycian)
 	(lydi . lydian)
@@ -391,7 +414,9 @@
 	(musc . musical-symbol)
 	(mym2 . burmese)
 	(mymr . burmese)
+        (nand . nandinagari)
 	(nbat . nabataean)
+        (nagm . nag-mundari)
 	(newa . newa)
 	(nko\  . nko)
 	(nshu . nushu)
@@ -405,6 +430,7 @@
 	(sogo . old-sogdian)
 	(sarb . old-south-arabian)
 	(orkh . old-turkic)
+        (ougr . old-uyghur)
 	(orya . oriya)
 	(ory2 . oriya)
 	(osge . osage)
@@ -430,17 +456,18 @@
 	(sora . sora-sompeng)
 	(soyo . soyombo)
 	(sund . sundanese)
-	(sylo . syloti_nagri)
+	(sylo . syloti-nagri)
 	(syrc . syriac)
 	(tglg . tagalog)
 	(tagb . tagbanwa)
-	(tale . tai_le)
+	(tale . tai-le)
 	(talu . tai-lue)
 	(lana . tai-tham)
 	(tavt . tai-viet)
 	(takr . takri)
 	(taml . tamil)
 	(tml2 . tamil)
+        (tnsa . tangsa)
 	(tang . tangut)
 	(telu . telugu)
 	(tel2 . telugu)
@@ -449,7 +476,9 @@
 	(tibt . tibetan)
 	(tfng . tifinagh)
 	(tirh . tirhuta)
+        (toto . toto)
 	(ugar . ugaritic)
+        (vith . vithkuqi)
 	(vai\  . vai)
 	(wcho . wancho)
 	(wara . warang-citi)
@@ -738,11 +767,25 @@
                     cham
 		    ogham
 		    runic
+                    tagalog
+                    hanunoo
+                    buhid
+                    tagbanwa
+                    limbu
+                    buginese
+                    balinese
+                    sundanese
+                    batak
+                    lepcha
 		    symbol
 		    braille
+                    coptic
 		    yi
+                    syloti-nagri
+                    rejang
                     javanese
 		    tai-viet
+                    meetei-mayek
 		    aegean-number
 		    ancient-greek-number
 		    ancient-symbol
@@ -750,6 +793,7 @@
 		    lycian
 		    carian
 		    old-italic
+                    gothic
 		    ugaritic
 		    old-persian
 		    deseret
@@ -760,15 +804,23 @@
 		    cypriot-syllabary
 		    phoenician
 		    lydian
+                    hanifi-rohingya
                     yezidi
 		    kharoshthi
 		    manichaean
                     chorasmian
 		    elymaic
                     old-uyghur
+                    brahmi
+                    kaithi
+                    sharada
+                    grantha
+                    tirhuta
+                    siddham
+                    modi
 		    makasar
+                    kawi
                     dives-akuru
-		    cuneiform-numbers-and-punctuation
 		    cuneiform
 		    egyptian
                     tangsa
@@ -779,13 +831,21 @@
 		    byzantine-musical-symbol
 		    musical-symbol
 		    ancient-greek-musical-notation
+                    kaktovik-numeral
 		    tai-xuan-jing-symbol
 		    counting-rod-numeral
                     toto
+                    wancho
+                    nag-mundari
+                    mende-kikakui
 		    adlam
+                    tai-tham
+                    indic-siyaq-number
+                    ottoman-siyaq-number
 		    mahjong-tile
 		    domino-tile
-                    emoji))
+                    emoji
+                    chess-symbol))
     (set-fontset-font "fontset-default"
 		      script (font-spec :registry "iso10646-1" :script script)
 		      nil 'append))
@@ -816,11 +876,16 @@
 			   (#x1D7EC #x1D7F5 mathematical-sans-serif-bold)
 			   (#x1D7F6 #x1D7FF mathematical-monospace)))
     (let ((slot (assq (nth 2 math-subgroup) script-representative-chars)))
+      ;; Add both ends of each subgroup to help filter out some
+      ;; incomplete fonts, e.g. those that cover MATHEMATICAL SCRIPT
+      ;; CAPITAL glyphs but not MATHEMATICAL SCRIPT SMALL ones.
       (if slot
-	  (if (vectorp (cdr slot))
-	      (setcdr slot (vconcat (cdr slot) (vector (car math-subgroup))))
-	    (setcdr slot (vector (cadr slot) (car math-subgroup))))
-	(setq slot (list (nth 2 math-subgroup) (car math-subgroup)))
+          (setcdr slot (append (list (nth 0 math-subgroup)
+                                     (nth 1 math-subgroup))
+                               (cdr slot)))
+        (setq slot (list (nth 2 math-subgroup)
+                         (nth 0 math-subgroup)
+                         (nth 1 math-subgroup)))
 	(nconc script-representative-chars (list slot))))
     (set-fontset-font
      "fontset-default"
@@ -926,9 +991,20 @@
     (set-fontset-font "fontset-default" symbol-subgroup
                       "-*-fixed-medium-*-*-*-*-*-*-*-*-*-iso10646-1"
                       nil 'prepend))
-  ;; This sets up the Emoji codepoints to use prettier fonts.
+  ;; This sets up the Emoji codepoints to use prettier fonts:
+  ;;  this is fallback, if they don't have color Emoji capabilities...
+  (set-fontset-font "fontset-default" 'emoji
+                    '("Noto Emoji" . "iso10646-1") nil 'prepend)
+  ;;  ...and this is if they do
   (set-fontset-font "fontset-default" 'emoji
                     '("Noto Color Emoji" . "iso10646-1") nil 'prepend)
+
+  ;; This supports the display of Tamil Supplement characters.  As
+  ;; these characters are pretty simple and do not need reordering,
+  ;; ligatures, vowel signs, virama etc., neither tml2 nor other OTF
+  ;; features are needed here.
+  (set-fontset-font "fontset-default" '(#x11FC0 . #x11FFF)
+                    '("Noto Sans Tamil Supplement" . "iso10646-1") nil 'append)
 
   ;; Append CJK fonts for characters other than han, kana, cjk-misc.
   ;; Append fonts for scripts whose name is also a charset name.

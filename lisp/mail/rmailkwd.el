@@ -1,6 +1,6 @@
 ;;; rmailkwd.el --- part of the "RMAIL" mail reader for Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985, 1988, 1994, 2001-2022 Free Software Foundation,
+;; Copyright (C) 1985, 1988, 1994, 2001-2023 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -74,12 +74,9 @@ according to the choice made, and returns a symbol."
 		(rmail-summary-exists)
 		(and (setq old (rmail-get-keywords))
 		     (mapc #'rmail-make-label (split-string old ", "))))
-	    (completing-read (concat prompt
-				     (if rmail-last-label
-					 (concat " (default "
-						 (symbol-name rmail-last-label)
-						 "): ")
-				       ": "))
+            (completing-read (format-prompt prompt
+                                            (and rmail-last-label
+                                                 (symbol-name rmail-last-label)))
 			     rmail-label-obarray
 			     nil
 			     nil))))
@@ -190,9 +187,5 @@ With prefix argument N moves forward N messages with these labels."
 	(rmail-show-message-1 lastwin)))))
 
 (provide 'rmailkwd)
-
-;; Local Variables:
-;; generated-autoload-file: "rmail-loaddefs.el"
-;; End:
 
 ;;; rmailkwd.el ends here

@@ -1,6 +1,6 @@
 ;;; ebuff-menu.el --- electric-buffer-list mode  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1994, 2001-2022 Free Software Foundation,
+;; Copyright (C) 1985-1986, 1994, 2001-2023 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Richard Mlynarik <mly@ai.mit.edu>
@@ -48,6 +48,7 @@
     (define-key map "\C-m" #'Electric-buffer-menu-select)
     (define-key map "\C-l" #'recenter)
     (define-key map "s" #'Buffer-menu-save)
+    (define-key map "S" #'tabulated-list-sort)
     (define-key map "d" #'Buffer-menu-delete)
     (define-key map "k" #'Buffer-menu-delete)
     (define-key map "\C-d" #'Buffer-menu-delete-backwards)
@@ -201,9 +202,6 @@ enabled and disabled by the \\[electric-buffer-list] command.
 See the documentation of `electric-buffer-list' for details."
   (setq mode-line-buffer-identification "Electric Buffer List")
   (setq-local Helper-return-blurb "return to buffer editing"))
-
-(define-obsolete-function-alias 'Electric-buffer-menu-mode
-  #'electric-buffer-menu-mode "24.3")
 
 ;; generally the same as Buffer-menu-mode-map
 ;;  (except we don't indirect to global-map)

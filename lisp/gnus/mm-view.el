@@ -1,6 +1,6 @@
 ;;; mm-view.el --- functions for viewing MIME objects  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; This file is part of GNU Emacs.
@@ -86,7 +86,7 @@ This is only used if `mm-inline-large-images' is set to
 (defun mm-inline-image (handle)
   (let ((b (point-marker))
 	(inhibit-read-only t))
-    (put-image
+    (insert-image
      (let ((image (mm-get-image handle)))
        (if (eq mm-inline-large-images 'resize)
            (gnus-rescale-image
@@ -98,7 +98,7 @@ This is only used if `mm-inline-large-images' is set to
 		    (truncate (* mm-inline-large-images-proportion
 				 (- (nth 3 edges) (nth 1 edges)))))))
          image))
-     b)
+     " ")
     (insert "\n")
     (mm-handle-set-undisplayer
      handle
@@ -504,8 +504,6 @@ If MODE is not set, try to find mode automatically."
 	  (setq coding-system (mm-find-buffer-file-coding-system)))
 	(setq text (buffer-string))))
     (with-temp-buffer
-      (buffer-disable-undo)
-      (mm-enable-multibyte)
       (insert (cond ((eq charset 'gnus-decoded)
 		     (with-current-buffer (mm-handle-buffer handle)
 		       (buffer-string)))
@@ -521,17 +519,17 @@ If MODE is not set, try to find mode automatically."
         ;; setting now, but it seems harmless and potentially still useful.
 	(setq-local font-lock-mode-hook nil)
         (setq buffer-file-name (mm-handle-filename handle))
-	(with-demoted-errors
-	    (if mode
-                (save-window-excursion
-                  ;; According to Katsumi Yamaoka <yamaoka@jpl.org>, org-mode
-                  ;; requires the buffer to be temporarily displayed here, but
-                  ;; I could not reproduce this problem.  Furthermore, if
-                  ;; there's such a problem, we should fix org-mode rather than
-                  ;; use switch-to-buffer which can have undesirable
-                  ;; side-effects!
-                  ;;(switch-to-buffer (current-buffer))
-	          (funcall mode))
+	(with-demoted-errors "Error setting mode: %S"
+	  (if mode
+              (save-window-excursion
+                ;; According to Katsumi Yamaoka <yamaoka@jpl.org>, org-mode
+                ;; requires the buffer to be temporarily displayed here, but
+                ;; I could not reproduce this problem.  Furthermore, if
+                ;; there's such a problem, we should fix org-mode rather than
+                ;; use switch-to-buffer which can have undesirable
+                ;; side-effects!
+                ;;(switch-to-buffer (current-buffer))
+	        (funcall mode))
 	    (let ((auto-mode-alist
 		   (delq (rassq 'doc-view-mode-maybe auto-mode-alist)
 			 (copy-sequence auto-mode-alist))))
@@ -634,12 +632,9 @@ If MODE is not set, try to find mode automatically."
 		 (context (epg-make-context 'CMS)))
 	     (prog1
 		 (epg-verify-string context part)
-	       (let ((result (car (epg-context-result-for context 'verify))))
+	       (let ((result (epg-context-result-for context 'verify)))
 		 (mm-sec-status
-		  'gnus-info (epg-signature-status result)
-		  'gnus-details
-		  (format "%s:%s" (epg-signature-validity result)
-			  (epg-signature-key-id result))))))))
+		  'gnus-info (epg-verify-result-to-string result)))))))
       (with-temp-buffer
 	(insert "MIME-Version: 1.0\n")
 	(mm-insert-headers "application/pkcs7-mime" "base64" "smime.p7m")
@@ -659,7 +654,11 @@ If MODE is not set, try to find mode automatically."
       ;; Use EPG/gpgsm
       (let ((part (base64-decode-string (buffer-string))))
 	(erase-buffer)
-	(insert (epg-decrypt-string (epg-make-context 'CMS) part)))
+	(insert
+         (let ((context (epg-make-context 'CMS)))
+           (prog1
+               (epg-decrypt-string context part)
+             (mm-sec-status 'gnus-info "OK")))))
     ;; Use openssl
     (insert "MIME-Version: 1.0\n")
     (mm-insert-headers "application/pkcs7-mime" "base64" "smime.p7m")

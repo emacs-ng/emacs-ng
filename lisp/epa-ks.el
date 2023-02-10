@@ -1,6 +1,6 @@
 ;;; epa-ks.el --- EasyPG Key Server Client -*- lexical-binding: t -*-
 
-;; Copyright (C) 2021-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
 
 ;; Author: Philip K. <philipk@posteo.net>
 ;; Keywords: PGP, GnuPG
@@ -41,7 +41,7 @@
 (defcustom epa-keyserver "pgp.mit.edu"
   "Domain of keyserver.
 
-This is used by `epa-ks-lookup-key', for looking up public keys."
+This is used by `epa-search-keys', for looking up public keys."
   :type '(choice :tag "Keyserver"
                  (repeat :tag "Random pool"
                          (string :tag "Keyserver address"))
@@ -66,14 +66,12 @@ This is used by `epa-ks-lookup-key', for looking up public keys."
   "List of arguments to pass to `epa-search-keys'.
 This is used when reverting a buffer to restart search.")
 
-(defvar epa-ks-search-mode-map
-  (let ((map (make-sparse-keymap)))
-    (suppress-keymap map)
-    (define-key map (kbd "f") #'epa-ks-mark-key-to-fetch)
-    (define-key map (kbd "i") #'epa-ks-inspect-key-to-fetch)
-    (define-key map (kbd "u") #'epa-ks-unmark-key-to-fetch)
-    (define-key map (kbd "x") #'epa-ks-do-key-to-fetch)
-    map))
+(defvar-keymap epa-ks-search-mode-map
+  :suppress t
+  "f" #'epa-ks-mark-key-to-fetch
+  "i" #'epa-ks-inspect-key-to-fetch
+  "u" #'epa-ks-unmark-key-to-fetch
+  "x" #'epa-ks-do-key-to-fetch)
 
 (define-derived-mode epa-ks-search-mode tabulated-list-mode "Keyserver"
   "Major mode for listing public key search results."
@@ -111,7 +109,7 @@ When all keys have been selected, use \\[epa-ks-do-key-to-fetch] to
 actually import the keys.
 
 When called interactively, `epa-ks-mark-key-to-fetch' will always
-add a \"F\" tag.  Non-interactivly the tag must be specified by
+add a \"F\" tag.  Non-interactively the tag must be specified by
 setting the TAG parameter."
   (interactive (list "F"))
   (if (region-active-p)
@@ -137,9 +135,9 @@ Keys are marked using `epa-ks-mark-key-to-fetch'."
                 keys))
         (forward-line))
       (when (yes-or-no-p (format "Proceed with fetching all %d key(s)? "
-                                 (length keys))))
-      (dolist (id keys)
-        (epa-ks--fetch-key id))))
+                                 (length keys)))
+        (dolist (id keys)
+          (epa-ks--fetch-key id)))))
   (tabulated-list-clear-all-tags))
 
 (defun epa-ks--query-url (query exact)
@@ -182,7 +180,7 @@ If EXACT is non-nil, don't accept approximate matches."
   "Prepare KEYS for `tabulated-list-mode', for buffer BUF.
 
 KEYS is a list of `epa-ks-key' structures, as parsed by
-`epa-ks-parse-result'."
+`epa-ks--parse-buffer'."
   (when (buffer-live-p buf)
     (let (entries)
       (dolist (key keys)
@@ -210,7 +208,8 @@ KEYS is a list of `epa-ks-key' structures, as parsed by
       (with-current-buffer buf
         (setq tabulated-list-entries entries)
         (tabulated-list-print t t))
-      (message "Press `f' to mark a key, `x' to fetch all marked keys."))))
+      (message (substitute-command-keys
+                "Press \\`f' to mark a key, \\`x' to fetch all marked keys.")))))
 
 (defun epa-ks--restart-search ()
   (when epa-ks-last-query
@@ -294,13 +293,11 @@ enough, since keyservers have strict timeout settings."
                :created
                (and  (match-string 4)
                      (not (string-empty-p (match-string 4)))
-                     (seconds-to-time
-                      (string-to-number (match-string 4))))
+		     (time-convert (string-to-number (match-string 4)) t))
                :expires
                (and (match-string 5)
                     (not (string-empty-p (match-string 5)))
-                    (seconds-to-time
-                     (string-to-number (match-string 5))))
+		    (time-convert (string-to-number (match-string 5)) t))
                :flags
                (mapcar (lambda (flag)
                          (cdr (assq flag '((?r revoked)
@@ -318,15 +315,11 @@ enough, since keyservers have strict timeout settings."
                :created
                (and (match-string 2)
                     (not (string-empty-p (match-string 2)))
-                    (decode-time (seconds-to-time
-                                  (string-to-number
-                                   (match-string 2)))))
+		    (decode-time (string-to-number (match-string 2))))
                :expires
                (and (match-string 3)
                     (not (string-empty-p (match-string 3)))
-                    (decode-time (seconds-to-time
-                                  (string-to-number
-                                   (match-string 3)))))
+		    (decode-time (string-to-number (match-string 3))))
                :flags
                (mapcar (lambda (flag)
                          (cdr (assq flag '((?r revoked)
@@ -340,5 +333,7 @@ enough, since keyservers have strict timeout settings."
        (t (error "Invalid server response")))
       (forward-line))
     keys))
+
+(provide 'epa-ks)
 
 ;;; epa-ks.el ends here

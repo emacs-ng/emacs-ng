@@ -1,6 +1,6 @@
 ;;; calc-yank.el --- kill-ring functionality for Calc  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -47,6 +47,8 @@
          (calc-check-stack num)
 	 (let ((stuff (calc-top-list n (- num n -1))))
 	   (calc-cursor-stack-index num)
+           (unless calc-kill-line-numbering
+             (re-search-forward "\\=[0-9]+:\\s-+" (line-end-position) t))
 	   (let ((first (point)))
 	     (calc-cursor-stack-index (- num n))
 	     (if (null nn)
@@ -148,7 +150,6 @@
 
 ;; This function uses calc-last-kill if possible to get an exact result,
 ;; otherwise it just parses the yanked string.
-;; Modified to use Emacs 19 extended concept of kill-ring. -- daveg 12/15/96
 ;;;###autoload
 (defun calc-yank-internal (radix thing-raw)
   "Internal common implementation for yank functions.
@@ -264,14 +265,16 @@ as well as set the contents of the Emacs register REGISTER to TEXT."
   "Return the CALCVAL portion of the contents of the Calc register REG,
 unless the TEXT portion doesn't match the contents of the Emacs register REG,
 in which case either return the contents of the Emacs register (if it is
-text) or nil."
+text or a number) or nil."
   (let ((cval (cdr (assq reg calc-register-alist)))
         (val (cdr (assq reg register-alist))))
-    (if (stringp val)
-        (if (and (stringp (car cval))
-                 (string= (car cval) val))
-            (cdr cval)
-          val))))
+    (cond
+     ((stringp val)
+      (if (and (stringp (car cval))
+               (string= (car cval) val))
+          (cdr cval)
+        val))
+     ((numberp val) (number-to-string val)))))
 
 (defun calc-copy-to-register (register start end &optional delete-flag)
   "Copy the lines in the region into register REGISTER.
@@ -407,8 +410,8 @@ Interactively, reads the register using `register-read-with-preview'."
 	    (setq single t)
 	  (setq arg (prefix-numeric-value arg))
 	  (if (= arg 0)
-	      (setq top (point-at-bol)
-		    bot (point-at-eol))
+              (setq top (line-beginning-position)
+                    bot (line-end-position))
 	    (save-excursion
 	      (setq top (point))
 	      (forward-line arg)
@@ -665,13 +668,11 @@ Interactively, reads the register using `register-read-with-preview'."
   (backward-char 1)
   (calc-set-command-flag 'do-edit))
 
-(defvar calc-edit-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\n" #'calc-edit-finish)
-    (define-key map "\r" #'calc-edit-return)
-    (define-key map "\C-c\C-c" #'calc-edit-finish)
-    map)
-  "Keymap for use by the `calc-edit' command.")
+(defvar-keymap calc-edit-mode-map
+  :doc "Keymap for use by the `calc-edit' command."
+  "C-j"     #'calc-edit-finish
+  "RET"     #'calc-edit-return
+  "C-c C-c" #'calc-edit-finish)
 
 (defvar calc-original-buffer nil)
 (defvar calc-return-buffer nil)
@@ -711,9 +712,9 @@ To cancel the edit, simply kill the *Calc Edit* buffer."
     (insert (propertize
              (concat
               (or title title "Calc Edit Mode. ")
-              (format-message "Press `C-c C-c'")
+              (substitute-command-keys "Press \\`C-c C-c'")
               (if allow-ret "" " or RET")
-              (format-message " to finish, `C-x k RET' to cancel.\n\n"))
+              (substitute-command-keys " to finish, \\`C-x k RET' to cancel.\n\n"))
              'font-lock-face 'italic 'read-only t 'rear-nonsticky t 'front-sticky t))
     (setq-local calc-edit-top (point))))
 

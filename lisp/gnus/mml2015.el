@@ -1,6 +1,6 @@
 ;;; mml2015.el --- MIME Security with Pretty Good Privacy (PGP)  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: Shenghuo Zhu <zsh@cs.rochester.edu>
 ;; Keywords: PGP MIME MML
@@ -45,7 +45,7 @@
 ;; could be removed.
 (defvar mml2015-use 'epg
   "The package used for PGP/MIME.
-Valid packages include `epg', `pgg' and `mailcrypt'.")
+Valid packages include `epg', and `mailcrypt'.")
 
 ;; Something is not RFC2015.
 (defvar mml2015-function-alist

@@ -1,6 +1,6 @@
 /* Test GNU Emacs modules.
 
-Copyright 2015-2022 Free Software Foundation, Inc.
+Copyright 2015-2023 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -24,7 +24,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <limits.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,8 +45,6 @@ uintptr_t _beginthread (void (__cdecl *)(void *), unsigned, void *);
 
 #include <gmp.h>
 #include <emacs-module.h>
-
-#include "timespec.h"
 
 int plugin_is_GPL_compatible;
 
@@ -73,9 +70,6 @@ int plugin_is_GPL_compatible;
 #else
 # error "INTPTR_MAX too large"
 #endif
-
-/* Smoke test to verify that EMACS_LIMB_MAX is defined. */
-_Static_assert (0 < EMACS_LIMB_MAX, "EMACS_LIMB_MAX missing or incorrect");
 
 /* Always return symbol 't'.  */
 static emacs_value
@@ -422,6 +416,16 @@ signal_errno (emacs_env *env, const char *function)
   signal_system_error (env, errno, function);
 }
 
+#ifdef CLOCK_REALTIME
+
+/* Whether A <= B.  */
+static bool
+timespec_le (struct timespec a, struct timespec b)
+{
+  return (a.tv_sec < b.tv_sec
+	  || (a.tv_sec == b.tv_sec && a.tv_nsec <= b.tv_nsec));
+}
+
 /* A long-running operation that occasionally calls `should_quit' or
    `process_input'.  */
 
@@ -434,11 +438,13 @@ Fmod_test_sleep_until (emacs_env *env, ptrdiff_t nargs, emacs_value *args,
   if (env->non_local_exit_check (env))
     return NULL;
   const bool process_input = env->is_not_nil (env, args[1]);
-  const struct timespec amount = make_timespec(0,  10000000);
+  const struct timespec amount = { .tv_nsec = 10000000 };
   while (true)
     {
-      const struct timespec now = current_timespec ();
-      if (timespec_cmp (now, until) >= 0)
+      struct timespec now;
+      if (clock_gettime (CLOCK_REALTIME, &now) != 0)
+	return NULL;
+      if (timespec_le (until, now))
         break;
       if (nanosleep (&amount, NULL) && errno != EINTR)
         {
@@ -452,6 +458,7 @@ Fmod_test_sleep_until (emacs_env *env, ptrdiff_t nargs, emacs_value *args,
     }
   return env->intern (env, "finished");
 }
+#endif
 
 static emacs_value
 Fmod_test_add_nanosecond (emacs_env *env, ptrdiff_t nargs, emacs_value *args,
@@ -553,6 +560,7 @@ make_big_integer (emacs_env *env, const mpz_t value)
   return result;
 }
 
+#ifdef CLOCK_REALTIME
 static emacs_value
 Fmod_test_nanoseconds (emacs_env *env, ptrdiff_t nargs, emacs_value *args, void *data) {
   assert (nargs == 1);
@@ -560,11 +568,6 @@ Fmod_test_nanoseconds (emacs_env *env, ptrdiff_t nargs, emacs_value *args, void 
   mpz_t nanoseconds;
   assert (LONG_MIN <= time.tv_sec && time.tv_sec <= LONG_MAX);
   mpz_init_set_si (nanoseconds, time.tv_sec);
-#ifdef __MINGW32__
-  _Static_assert (1000000000 <= ULONG_MAX, "unsupported architecture");
-#else
-  static_assert (1000000000 <= ULONG_MAX, "unsupported architecture");
-#endif
   mpz_mul_ui (nanoseconds, nanoseconds, 1000000000);
   assert (0 <= time.tv_nsec && time.tv_nsec <= ULONG_MAX);
   mpz_add_ui (nanoseconds, nanoseconds, time.tv_nsec);
@@ -572,6 +575,7 @@ Fmod_test_nanoseconds (emacs_env *env, ptrdiff_t nargs, emacs_value *args, void 
   mpz_clear (nanoseconds);
   return result;
 }
+#endif
 
 static emacs_value
 Fmod_test_double (emacs_env *env, ptrdiff_t nargs, emacs_value *args,
@@ -631,7 +635,7 @@ sleep_for_half_second (void)
 #ifdef WINDOWSNT
   Sleep (500);
 #else
-  const struct timespec sleep = {0, 500000000};
+  const struct timespec sleep = { .tv_nsec = 500000000 };
   if (nanosleep (&sleep, NULL) != 0)
     perror ("nanosleep");
 #endif
@@ -763,6 +767,11 @@ bind_function (emacs_env *env, const char *name, emacs_value Sfun)
 int
 emacs_module_init (struct emacs_runtime *ert)
 {
+  /* These smoke tests don't use _Static_assert because too many
+     compilers lack support for _Static_assert.  */
+  assert (0 < EMACS_LIMB_MAX);
+  assert (1000000000 <= ULONG_MAX);
+
   /* Check that EMACS_MAJOR_VERSION is defined and an integral
      constant.  */
   char dummy[EMACS_MAJOR_VERSION];
@@ -815,9 +824,13 @@ emacs_module_init (struct emacs_runtime *ert)
   DEFUN ("mod-test-invalid-load", Fmod_test_invalid_load, 0, 0, NULL, NULL);
   DEFUN ("mod-test-invalid-finalizer", Fmod_test_invalid_finalizer, 0, 0,
          NULL, NULL);
+#ifdef CLOCK_REALTIME
   DEFUN ("mod-test-sleep-until", Fmod_test_sleep_until, 2, 2, NULL, NULL);
+#endif
   DEFUN ("mod-test-add-nanosecond", Fmod_test_add_nanosecond, 1, 1, NULL, NULL);
+#ifdef CLOCK_REALTIME
   DEFUN ("mod-test-nanoseconds", Fmod_test_nanoseconds, 1, 1, NULL, NULL);
+#endif
   DEFUN ("mod-test-double", Fmod_test_double, 1, 1, NULL, NULL);
   DEFUN ("mod-test-make-function-with-finalizer",
          Fmod_test_make_function_with_finalizer, 0, 0, NULL, NULL);

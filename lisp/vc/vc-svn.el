@@ -1,6 +1,6 @@
 ;;; vc-svn.el --- non-resident support for Subversion version-control  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2023 Free Software Foundation, Inc.
 
 ;; Author:      FSF (see vc.el for full credits)
 ;; Maintainer:  Stefan Monnier <monnier@gnu.org>
@@ -201,18 +201,18 @@ switches."
 	     ;; FIXME are there other possible combinations?
 	     (cond ((eq state 'edited) (setq state 'needs-merge))
 		   ((not state) (setq state 'needs-update))))
-	(when (and state (not (string= "." filename)))
-         (setq result (cons (list filename state) result)))))
+	(when state
+          (setq result (cons (list filename state) result)))))
     (funcall callback result)))
 
 ;; dir-status-files called from vc-dir, which loads vc,
 ;; which loads vc-dispatcher.
-(declare-function vc-exec-after "vc-dispatcher" (code))
+(declare-function vc-exec-after "vc-dispatcher" (code &optional success))
 
 (autoload 'vc-expand-dirs "vc")
 
 (defun vc-svn-dir-status-files (_dir files callback)
-  "Run 'svn status' for DIR and update BUFFER via CALLBACK.
+  "Run \"svn status\" for DIR and update BUFFER via CALLBACK.
 CALLBACK is called as (CALLBACK RESULT BUFFER), where
 RESULT is a list of conses (FILE . STATE) for directory DIR."
   ;; FIXME shouldn't this rather default to all the files in dir?
@@ -224,12 +224,10 @@ RESULT is a list of conses (FILE . STATE) for directory DIR."
   (let (process-file-side-effects)
     (vc-svn-command "*vc*" 0 nil "info"))
   (let ((repo
-	 (save-excursion
-	   (and (progn
-		  (set-buffer "*vc*")
-		  (goto-char (point-min))
-		  (re-search-forward "Repository Root: *\\(.*\\)" nil t))
-		(match-string 1)))))
+         (with-current-buffer "*vc*"
+           (goto-char (point-min))
+           (when (re-search-forward "Repository Root: *\\(.*\\)" nil t)
+             (match-string 1)))))
     (concat
      (cond (repo
 	    (concat
@@ -366,7 +364,7 @@ DIRECTORY or absolute."
   (with-temp-buffer
     (when (zerop (vc-svn-command
                   t t nil "propget" "svn:ignore" (expand-file-name directory)))
-      (split-string (buffer-string) "\n"))))
+      (split-string (buffer-string) "\n" t))))
 
 (defun vc-svn-find-admin-dir (file)
   "Return the administrative directory of FILE."
@@ -818,6 +816,13 @@ Set file properties accordingly.  If FILENAME is non-nil, return its status."
       (vc-svn-command (current-buffer) 0 nil
                       "info" "--show-item" "repos-root-url")
       (buffer-substring-no-properties (point-min) (1- (point-max))))))
+
+(defun vc-svn-clone (remote directory rev)
+  (if rev
+      (vc-svn-command nil 0 '() "checkout" "--revision" rev remote directory)
+    (vc-svn-command nil 0 '() "checkout" remote directory))
+
+  (file-name-concat directory "trunk"))
 
 (provide 'vc-svn)
 

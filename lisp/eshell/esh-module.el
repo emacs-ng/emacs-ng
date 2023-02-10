@@ -1,6 +1,6 @@
 ;;; esh-module.el --- Eshell modules  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2000, 2002-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2000, 2002-2023 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 ;; Keywords: processes
@@ -54,6 +54,7 @@ customizing the variable `eshell-modules-list'."
     eshell-basic
     eshell-cmpl
     eshell-dirs
+    eshell-extpipe
     eshell-glob
     eshell-hist
     eshell-ls

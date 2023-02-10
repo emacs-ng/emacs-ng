@@ -1,6 +1,6 @@
 ;;; em-smart.el --- smart display of output  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -197,8 +197,7 @@ The options are `begin', `after' or `end'."
 (defun eshell-smart-scroll-window (wind _start)
   "Scroll the given Eshell window WIND accordingly."
   (unless eshell-currently-handling-window
-    (let ((inhibit-point-motion-hooks t)
-	  (eshell-currently-handling-window t))
+    (let ((eshell-currently-handling-window t))
       (with-selected-window wind
 	(eshell-smart-redisplay)))))
 

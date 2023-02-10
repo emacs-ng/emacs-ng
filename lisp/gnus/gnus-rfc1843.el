@@ -1,6 +1,6 @@
 ;;; gnus-rfc1843.el --- HZ (rfc1843) decoding interface functions for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2023 Free Software Foundation, Inc.
 
 ;; Author: Shenghuo Zhu <zsh@cs.rochester.edu>
 ;; Keywords: news HZ HZ+ mail i18n
@@ -40,8 +40,7 @@
       (save-excursion
 	(save-restriction
 	  (message-narrow-to-head)
-	  (let* ((inhibit-point-motion-hooks t)
-		 (case-fold-search t)
+	  (let* ((case-fold-search t)
 		 (ct (message-fetch-field "Content-Type" t))
 		 (ctl (and ct (mail-header-parse-content-type ct))))
 	    (if (and ctl (not (string-search "/" (car ctl))))

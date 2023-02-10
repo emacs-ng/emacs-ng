@@ -1,6 +1,6 @@
 ;;; japanese.el --- Quail package for inputting Japanese  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2023 Free Software Foundation, Inc.
 ;; Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
 ;;   2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -359,7 +359,7 @@ input method.
 The input method `japanese-zenkaku' is used to enter full width
 JISX0208 characters corresponding to typed ASCII characters.
 
-List of the all key sequences for Roman-Kana transliteration is shown
+List of all the key sequences for Roman-Kana transliteration is shown
 at the tail.
 
 :: Kana-Kanji conversion ::

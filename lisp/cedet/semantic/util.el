@@ -1,6 +1,6 @@
 ;;; semantic/util.el --- Utilities for use with semantic tag tables  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: syntax
@@ -77,7 +77,6 @@ If FILE is not loaded, and semanticdb is not available, find the file
 	(with-current-buffer (find-file-noselect file)
 	  (semantic-fetch-tags))))))
 
-(declare-function semanticdb-abstract-table-child-p "semantic/db" (obj) t)
 (declare-function semanticdb-refresh-table "semantic/db")
 (declare-function semanticdb-get-tags "semantic/db" (arg &rest args) t)
 (declare-function semanticdb-find-results-p "semantic/db-find" (resultp))
@@ -115,8 +114,6 @@ buffer, or a filename.  If SOMETHING is nil return nil."
 	 (require 'semantic/db-mode)
 	 (semanticdb-minor-mode-p)
 	 (progn
-	   (declare-function semanticdb-abstract-table--eieio-childp
-	                     "semantic/db")
 	   (cl-typep something 'semanticdb-abstract-table)))
     (semanticdb-refresh-table something)
     (semanticdb-get-tags something))

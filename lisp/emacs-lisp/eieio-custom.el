@@ -1,6 +1,6 @@
 ;;; eieio-custom.el --- eieio object customization  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2001, 2005, 2007-2022 Free Software Foundation,
+;; Copyright (C) 1999-2001, 2005, 2007-2023 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
@@ -329,11 +329,9 @@ Argument OBJ is the object that has been customized."
 Optional argument GROUP is the sub-group of slots to display."
   (eieio-customize-object obj group))
 
-(defvar eieio-custom-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map widget-keymap)
-    map)
-  "Keymap for EIEIO Custom mode.")
+(defvar-keymap eieio-custom-mode-map
+  :doc "Keymap for EIEIO Custom mode."
+  :parent widget-keymap)
 
 (define-derived-mode eieio-custom-mode fundamental-mode "EIEIO Custom"
   "Major mode for customizing EIEIO objects.
@@ -468,9 +466,5 @@ Return the symbol for the group, or nil."
 	    g)))))
 
 (provide 'eieio-custom)
-
-;; Local variables:
-;; generated-autoload-file: "eieio-loaddefs.el"
-;; End:
 
 ;;; eieio-custom.el ends here

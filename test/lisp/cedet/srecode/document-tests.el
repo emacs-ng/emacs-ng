@@ -1,6 +1,6 @@
 ;;; document-tests.el --- Tests for srecode/document.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -35,8 +35,6 @@
   "Test old comment extraction.
 Dump out the extracted dictionary."
   :tags '(:unstable)
-  (interactive)
-
   (srecode-load-tables-for-mode major-mode)
   (srecode-load-tables-for-mode major-mode 'document)
 

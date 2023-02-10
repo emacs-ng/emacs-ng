@@ -1,6 +1,6 @@
 ;;; htmlfontify.el --- htmlize a buffer/source tree with optional hyperlinks -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2003, 2009-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2003, 2009-2023 Free Software Foundation, Inc.
 
 ;; Emacs Lisp Archive Entry
 ;; Package: htmlfontify
@@ -77,16 +77,13 @@
 ;; Changes: moved to changelog (CHANGES) file.
 
 ;;; Code:
-(eval-when-compile (require 'cl-lib))
+
+(require 'cl-lib)
 (require 'cus-edit)
 
-(require 'htmlfontify-loaddefs)
-
-(defconst htmlfontify-version 0.21)
-
 (defconst hfy-meta-tags
-  (format "<meta name=\"generator\" content=\"emacs %s; htmlfontify %0.2f\" />"
-          emacs-version htmlfontify-version)
+  (format "<meta name=\"generator\" content=\"emacs %s; htmlfontify\" />"
+          emacs-version)
   "The generator meta tag for this version of htmlfontify.")
 
 (defconst htmlfontify-manual "Htmlfontify Manual"
@@ -229,7 +226,6 @@ to make them safe."
   :tag   "html-quote-regex"
   :type  '(regexp))
 
-(define-obsolete-variable-alias 'hfy-post-html-hooks 'hfy-post-html-hook "24.3")
 (defcustom hfy-post-html-hook nil
   "List of functions to call after creating and filling the HTML buffer.
 These functions will be called with the HTML buffer as the current buffer."
@@ -363,7 +359,7 @@ the etags output on stdout.
 Two canned commands are provided - they drive Emacs's etags and
 exuberant-ctags' etags respectively."
   :tag   "etags-command"
-  :type (let ((clist (list '(string))))
+  :type (let ((clist (list '(string) '(const :tag "None" nil))))
           (dolist (C hfy-etags-cmd-alist)
             (push (list 'const :tag (car C) (cdr C)) clist))
           (cons 'choice clist)))
@@ -376,11 +372,15 @@ otherwise."
   :tag   "istext-command"
   :type  '(string))
 
-(defcustom hfy-find-cmd
-  "find . -type f \\! -name \\*~ \\! -name \\*.flc \\! -path \\*/CVS/\\*"
-  "Find command used to harvest a list of files to attempt to fontify."
-  :tag   "find-command"
-  :type  '(string))
+(defcustom hfy-exclude-file-rules
+  '("\\.flc\\'"
+    "/CVS/"
+    "~\\'"
+    "/\\.git\\(?:/\\|\\'\\)")
+  "Regular expressions matching files to exclude."
+  :tag "exclude-rules"
+  :type '(repeat regexp)
+  :version "29.1")
 
 (defcustom hfy-display-class nil
   "Display class to use to determine which display class to use when
@@ -1156,14 +1156,6 @@ The default handler is `hfy-face-to-css-default'.
 
 See also `hfy-face-to-style'.")
 
-(defalias 'hfy-prop-invisible-p
-  (if (fboundp 'invisible-p) #'invisible-p
-    (lambda (prop)
-      "Is text property PROP an active invisibility property?"
-      (or (and (eq buffer-invisibility-spec t) prop)
-          (or (memq prop buffer-invisibility-spec)
-              (assq prop buffer-invisibility-spec))))))
-
 (defun hfy-find-invisible-ranges ()
   "Return a list of (start-point . end-point) cons cells of invisible regions."
   (save-excursion
@@ -1253,8 +1245,8 @@ return a `defface' style list of face properties instead of a face symbol."
       (when face-name (setq base-face face-name))
       (dolist (P overlay-data)
         (let ((iprops (cadr (memq 'invisible P)))) ;FIXME: plist-get?
-          ;;(message "(hfy-prop-invisible-p %S)" iprops)
-          (when (and iprops (hfy-prop-invisible-p iprops))
+          ;;(message "(invisible-p %S)" iprops)
+          (when (and iprops (invisible-p iprops))
             (setq extra-props
                   (cons :invisible (cons t extra-props))) ))
         (let ((fprops (cadr (or (memq 'face P)
@@ -1551,33 +1543,13 @@ See also `hfy-html-enkludge-buffer'."
       (if (get-text-property (match-beginning 0) 'hfy-quoteme)
           (replace-match (hfy-html-quote (match-string 1))) )) ))
 
-;; Borrowed from font-lock.el
-(defmacro hfy-save-buffer-state (varlist &rest body)
-  "Bind variables according to VARLIST and eval BODY restoring buffer state.
-Do not record undo information during evaluation of BODY."
-  (declare (indent 1) (debug let))
-  (let ((modified (make-symbol "modified")))
-    `(let* ,(append varlist
-                    `((,modified (buffer-modified-p))
-                      (buffer-undo-list t)
-                      (inhibit-read-only t)
-                      (inhibit-point-motion-hooks t)
-                      (inhibit-modification-hooks t)
-                      deactivate-mark
-                      buffer-file-name
-                      buffer-file-truename))
-       (progn
-         ,@body)
-       (unless ,modified
-         (restore-buffer-modified-p nil)))))
-
 (defun hfy-mark-trailing-whitespace ()
   "Tag trailing whitespace with a hfy property if it is currently highlighted."
   (when show-trailing-whitespace
     (let ((inhibit-read-only t))
       (save-excursion
         (goto-char (point-min))
-        (hfy-save-buffer-state nil
+        (with-silent-modifications
           (while (re-search-forward "[ \t]+$" nil t)
             (put-text-property (match-beginning 0) (match-end 0)
                                    'hfy-show-trailing-whitespace t)))))))
@@ -1585,7 +1557,7 @@ Do not record undo information during evaluation of BODY."
 (defun hfy-unmark-trailing-whitespace ()
   "Undo the effect of `hfy-mark-trailing-whitespace'."
   (when show-trailing-whitespace
-    (hfy-save-buffer-state nil
+    (with-silent-modifications
       (remove-text-properties (point-min) (point-max)
                               '(hfy-show-trailing-whitespace nil)))))
 
@@ -1858,8 +1830,12 @@ Strips any leading \"./\" from each filename."
   ;;(message "hfy-list-files");;DBUG
   ;; FIXME: this changes the dir of the current buffer.  Is that right??
   (cd directory)
-  (mapcar (lambda (F) (if (string-match "^./\\(.*\\)" F) (match-string 1 F) F))
-          (split-string (shell-command-to-string hfy-find-cmd))) )
+  (cl-remove-if (lambda (f)
+                  (or (null (file-regular-p f))
+                      (seq-some (lambda (r)
+                                  (string-match r f))
+                                hfy-exclude-file-rules)))
+                (directory-files-recursively "." "" nil t)))
 
 ;; strip the filename off, return a directory name
 ;; not a particularly thorough implementation, but it will be
@@ -1882,8 +1858,9 @@ Hardly bombproof, but good enough in the context in which it is being used."
 
 (defun hfy-text-p (srcdir file)
   "Is SRCDIR/FILE text?  Use `hfy-istext-command' to determine this."
-  (let* ((cmd (format hfy-istext-command (expand-file-name file srcdir)))
-         (rsp (shell-command-to-string    cmd)))
+  (let* ((cmd (format hfy-istext-command
+                      (shell-quote-argument (expand-file-name file srcdir))))
+         (rsp (shell-command-to-string cmd)))
     (string-match "text" rsp)))
 
 ;; open a file, check fontification, if fontified, write a fontified copy
@@ -1969,7 +1946,7 @@ Otherwise, the link should be to the index file.
 We are not yet concerned with the file extensions/tag line number and so on at
 this point.
 
-If `hfy-split-index' is set, and the href wil be to an index file rather than
+If `hfy-split-index' is set, and the href will be to an index file rather than
 a source file, append a .X to `hfy-index-file', where X is the uppercased
 first character of TAG.
 
@@ -2307,10 +2284,6 @@ See also `hfy-load-tags-cache'."
   (interactive "D source directory: ")
   (hfy-load-tags-cache (directory-file-name srcdir)))
 
-;;(defun hfy-test-read-args (foo bar)
-;;  (interactive "D source directory: \nD target directory: ")
-;;  (message "foo: %S\nbar: %S" foo bar))
-
 (defun hfy-save-kill-buffers (buffer-list &optional dstdir)
   (dolist (B buffer-list)
     (set-buffer B)
@@ -2405,12 +2378,15 @@ You may also want to set `hfy-page-header' and `hfy-page-footer'."
   (let ((file (hfy-initfile)))
     (load file 'NOERROR nil nil) ))
 
-;; Obsolete.
-
 (defun hfy-interq (set-a set-b)
   "Return the intersection (using `eq') of two lists SET-A and SET-B."
   (declare (obsolete seq-intersection "28.1"))
   (nreverse (seq-intersection set-a set-b #'eq)))
+
+(defconst htmlfontify-version 0.21)
+(make-obsolete-variable 'htmlfontify-version 'emacs-version "29.1")
+
+(define-obsolete-function-alias 'hfy-prop-invisible-p #'invisible-p "29.1")
 
 (provide 'htmlfontify)
 

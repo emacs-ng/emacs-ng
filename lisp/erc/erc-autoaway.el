@@ -1,9 +1,9 @@
 ;;; erc-autoaway.el --- Provides autoaway for ERC  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2004, 2006-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2004, 2006-2023 Free Software Foundation, Inc.
 
 ;; Author: Jorgen Schaefer <forcer@forcix.cx>
-;; Maintainer: Amin Bandali <bandali@gnu.org>
+;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
 ;; URL: https://www.emacswiki.org/emacs/ErcAutoAway
 
 ;; This file is part of GNU Emacs.

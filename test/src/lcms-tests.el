@@ -1,6 +1,6 @@
 ;;; lcms-tests.el --- tests for Little CMS interface -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 
@@ -28,12 +28,19 @@
 ;; https://github.com/njsmith/colorspacious
 
 ;; Other references:
-;; http://www.babelcolor.com/index_htm_files/A%20review%20of%20RGB%20color%20spaces.pdf
+;; https://www.babelcolor.com/index_htm_files/A%20review%20of%20RGB%20color%20spaces.pdf
 
 ;;; Code:
 
 (require 'ert)
 (require 'color)
+
+(declare-function lcms-jab->jch "lcms.c")
+(declare-function lcms-jch->jab "lcms.c")
+(declare-function lcms-xyz->jch "lcms.c")
+(declare-function lcms-jch->xyz "lcms.c")
+(declare-function lcms-temp->white-point "lcms.c")
+(declare-function lcms-cam02-ucs "lcms.c")
 
 (defconst lcms-colorspacious-d65 '(0.95047 1.0 1.08883)
   "D65 white point from colorspacious.")

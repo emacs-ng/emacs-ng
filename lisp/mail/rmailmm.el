@@ -1,6 +1,6 @@
 ;;; rmailmm.el --- MIME decoding and display stuff for RMAIL  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2006-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2023 Free Software Foundation, Inc.
 
 ;; Author: Alexander Pohoyda
 ;;	Alex Schroeder
@@ -254,7 +254,7 @@ TRUNCATED is non-nil if the text of this entity was truncated."))
 	(unless (y-or-n-p "This entity is truncated; save anyway? ")
 	  (error "Aborted")))
     (setq filename (expand-file-name
-		    (read-file-name (format "Save as (default: %s): " filename)
+                    (read-file-name (format-prompt "Save as" filename)
 				    directory
 				    (expand-file-name filename directory))
 		    directory))
@@ -796,17 +796,15 @@ directly."
      ((string-match "text/" content-type)
       (setq type 'text))
      ((string-match "image/\\(.*\\)" content-type)
-      (setq type (image-type-from-file-name
-		  (concat "." (match-string 1 content-type))))
-      (if (and (boundp 'image-types)
-	       (memq type image-types)
-	       (image-type-available-p type))
-	  (if (and rmail-mime-show-images
-		   (not (eq rmail-mime-show-images 'button))
-		   (or (not (numberp rmail-mime-show-images))
-		       (< size rmail-mime-show-images)))
-	      (setq to-show t))
-	(setq type nil))))
+      (setq type (and (fboundp 'image-supported-file-p)
+                      (image-supported-file-p
+		       (concat "." (match-string 1 content-type)))))
+      (when (and type
+                 rmail-mime-show-images
+	         (not (eq rmail-mime-show-images 'button))
+	         (or (not (numberp rmail-mime-show-images))
+		     (< size rmail-mime-show-images)))
+	(setq to-show t))))
     (setcar bulk-data size)
     (setcdr bulk-data type)
     to-show))
@@ -1568,9 +1566,5 @@ This is the usual value of `rmail-insert-mime-forwarded-message-function'."
 (setq rmail-search-mime-message-function 'rmail-search-mime-message)
 
 (provide 'rmailmm)
-
-;; Local Variables:
-;; generated-autoload-file: "rmail-loaddefs.el"
-;; End:
 
 ;;; rmailmm.el ends here

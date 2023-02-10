@@ -1,6 +1,6 @@
 ;;; dframe.el --- dedicate frame support modes  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1996-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: file, tags, tools
@@ -120,9 +120,7 @@
   :prefix "dframe-"
   :group 'dframe)
 
-(defvar dframe-have-timer-flag (if (fboundp 'display-graphic-p)
-				   (display-graphic-p)
-				 window-system)
+(defvar dframe-have-timer-flag (display-graphic-p)
   "Non-nil means that timers are available for this Emacs.
 This is nil for terminals, since updating a frame in a terminal
 is not useful to the user.")

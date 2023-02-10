@@ -1,6 +1,6 @@
 ;;; cl-seq.el --- Common Lisp features, part 3  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1993, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Dave Gillespie <daveg@synaptics.com>
 ;; Old-Version: 2.02
@@ -138,6 +138,10 @@ only case where FUNCTION is called with fewer than two arguments.
 
 If SEQ contains exactly one element and no :INITIAL-VALUE is
 specified, then return that element and FUNCTION is not called.
+
+If :FROM-END is non-nil, the reduction occurs from the back of
+the SEQ moving forward, and the order of arguments to the
+FUNCTION is also reversed.
 
 \n(fn FUNCTION SEQ [KEYWORD VALUE]...)"
   (cl--parsing-keywords (:from-end (:start 0) :end :initial-value :key) ()

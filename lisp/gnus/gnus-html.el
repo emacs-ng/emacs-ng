@@ -1,6 +1,6 @@
 ;;; gnus-html.el --- Render HTML in a buffer.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: html, web
@@ -40,14 +40,11 @@
 (require 'help-fns)
 (require 'url-queue)
 
-(defcustom gnus-html-image-cache-ttl (days-to-time 7)
-  "Time used to determine if we should use images from the cache."
-  :version "24.1"
+(defcustom gnus-html-image-cache-ttl (time-convert (days-to-time 7) 'integer)
+  "Number of seconds used to determine if we should use images from the cache."
+  :version "29.1"
   :group 'gnus-art
-  ;; FIXME hardly the friendliest type.  The allowed value is actually
-  ;; any time value, but we are assuming no-one cares about USEC and
-  ;; PSEC here.  It would be better to eg make it a number of minutes.
-  :type '(list integer integer))
+  :type 'number)
 
 (defcustom gnus-html-image-automatic-caching t
   "Whether automatically cache retrieve images."
@@ -71,21 +68,17 @@ fit these criteria."
   :group 'gnus-art
   :type 'float)
 
-(defvar gnus-html-image-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "u" 'gnus-article-copy-string)
-    (define-key map "i" 'gnus-html-insert-image)
-    (define-key map "v" 'gnus-html-browse-url)
-    map))
+(defvar-keymap gnus-html-image-map
+  "u" #'gnus-article-copy-string
+  "i" #'gnus-html-insert-image
+  "v" #'gnus-html-browse-url)
 
-(defvar gnus-html-displayed-image-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "a" 'gnus-html-show-alt-text)
-    (define-key map "i" 'gnus-html-browse-image)
-    (define-key map "\r" 'gnus-html-browse-url)
-    (define-key map "u" 'gnus-article-copy-string)
-    (define-key map [tab] 'button-forward)
-    map))
+(defvar-keymap gnus-html-displayed-image-map
+  "a" #'gnus-html-show-alt-text
+  "i" #'gnus-html-browse-image
+  "RET" #'gnus-html-browse-url
+  "u" #'gnus-article-copy-string
+  "<tab>" #'forward-button)
 
 (defun gnus-html-encode-url (url)
   "Encode URL."

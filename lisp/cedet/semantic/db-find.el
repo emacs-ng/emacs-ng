@@ -1,6 +1,6 @@
 ;;; semantic/db-find.el --- Searching through semantic databases.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: tags
@@ -1277,7 +1277,7 @@ associated with that tag should be loaded into a buffer."
 ;;; Specialty Search Routines
 (defun semanticdb-find-tags-external-children-of-type
   (type &optional path find-file-match)
-  "Search for all tags defined outside of TYPE w/ TYPE as a parent.
+  "Search for all tags defined outside of TYPE with TYPE as a parent.
 See `semanticdb-find-translate-path' for details on PATH.
 FIND-FILE-MATCH indicates that any time a match is found, the file
 associated with that tag should be loaded into a buffer."

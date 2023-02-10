@@ -1,6 +1,6 @@
 use emacs::{
     bindings::{event_kind, input_event, scroll_bar_part},
-    globals::Qnil,
+    globals::{Qnil, Qt},
     lisp::LispObject,
 };
 
@@ -14,5 +14,6 @@ pub fn create_emacs_event(kind: event_kind::Type, top_frame: LispObject) -> inpu
         timestamp: 0,
         frame_or_window: top_frame,
         arg: Qnil,
+        device: Qt,
     }
 }

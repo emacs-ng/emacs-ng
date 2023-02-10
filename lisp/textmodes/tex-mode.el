@@ -1,6 +1,6 @@
 ;;; tex-mode.el --- TeX, LaTeX, and SliTeX mode commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1989, 1992, 1994-1999, 2001-2022 Free
+;; Copyright (C) 1985-1986, 1989, 1992, 1994-1999, 2001-2023 Free
 ;; Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -248,9 +248,9 @@ Normally set to either `plain-tex-mode' or `latex-mode'."
 (defcustom tex-fontify-script t
   "If non-nil, fontify subscript and superscript strings."
   :type 'boolean
+  :safe #'booleanp
   :group 'tex
   :version "23.1")
-(put 'tex-fontify-script 'safe-local-variable #'booleanp)
 
 (defcustom tex-font-script-display '(-0.2 0.2)
   "How much to lower and raise subscript and superscript content.
@@ -505,7 +505,9 @@ An alternative value is \" . \", if you use a font with a narrow period."
 			"documentstyle" "documentclass" "verbatiminput"
 			"includegraphics" "includegraphics*")
 		      t))
-           (verbish (regexp-opt '("url" "nolinkurl" "path") t))
+           (verbish (regexp-opt '("url" "nolinkurl" "path"
+                                  "href" "ProvidesFile")
+                                t))
 	   ;; Miscellany.
 	   (slash "\\\\")
 	   (opt " *\\(\\[[^]]*\\] *\\)*")
@@ -978,25 +980,23 @@ Inherits `shell-mode-map' with a few additions.")
 				  (save-excursion
 				    (beginning-of-line)
 				    (search-forward "%" search-end t))))))
-      (when (and slash (not comment))
-	(setq mode
-	      (if (looking-at
-		   (eval-when-compile
-		     (concat
-		      (regexp-opt '("documentstyle" "documentclass"
-				    "begin" "subsection" "section"
-				    "part" "chapter" "newcommand"
-				    "renewcommand" "RequirePackage")
-				  'words)
-		      "\\|NeedsTeXFormat{LaTeX")))
-		  (if (and (looking-at
-			    "document\\(style\\|class\\)\\(\\[.*\\]\\)?{slides}")
-			   ;; SliTeX is almost never used any more nowadays.
-			   (tex-executable-exists-p slitex-run-command))
-		      #'slitex-mode
-		    #'latex-mode)
-		#'plain-tex-mode))))
-    mode))
+      (if (not (and slash (not comment)))
+	  mode
+	(if (looking-at
+	     (concat
+	      (regexp-opt '("documentstyle" "documentclass"
+			    "begin" "subsection" "section"
+			    "part" "chapter" "newcommand"
+			    "renewcommand" "RequirePackage")
+			  'words)
+	      "\\|NeedsTeXFormat{LaTeX"))
+	    (if (and (looking-at
+		      "document\\(style\\|class\\)\\(\\[.*\\]\\)?{slides}")
+		     ;; SliTeX is almost never used any more nowadays.
+		     (tex-executable-exists-p slitex-run-command))
+		#'slitex-mode
+	      #'latex-mode)
+	  #'plain-tex-mode)))))
 
 ;; `tex-mode' plays two roles: it's the parent of several sub-modes
 ;; but it's also the function that chooses between those submodes.
@@ -1013,7 +1013,10 @@ such as if there are no commands in the file, the value of `tex-default-mode'
 says which mode to use."
   (tex-common-initialization))
 
-(advice-add 'tex-mode :around #'tex--redirect-to-submode)
+(advice-add 'tex-mode :around #'tex--redirect-to-submode
+            ;; Give it lower precedence than normal advice, so
+            ;; AUCTeX's advice takes precedence over it.
+            '((depth . 50)))
 (defvar tex-mode--recursing nil)
 (defun tex--redirect-to-submode (orig-fun)
   "Redirect to one of the submodes when called directly."
@@ -1025,26 +1028,21 @@ says which mode to use."
                  ;; We're called from one of the children already.
                  orig-fun
                (setq tex-mode--recursing t)
-               (tex--guess-mode)))))
+               (let ((mode (tex--guess-mode)))
+                 ;; `tex--guess-mode' really tries to guess the *type* of file,
+                 ;; so we still need to consult `major-mode-remap-alist'
+                 ;; to see which mode to use for that type.
+                 (alist-get mode major-mode-remap-alist mode))))))
 
 ;; The following three autoloaded aliases appear to conflict with
-;; AUCTeX.  However, even though AUCTeX uses the mixed case variants
-;; for all mode relevant variables and hooks, the invocation function
-;; and setting of `major-mode' themselves need to be lowercase for
-;; AUCTeX to provide a fully functional user-level replacement.  So
-;; these aliases should remain as they are, in particular since AUCTeX
-;; users are likely to use them.
-;; Note from Stef: I don't understand the above explanation, the only
-;; justification I can find to keep those confusing aliases is for those
-;; users who may have files annotated with -*- LaTeX -*- (e.g. because they
-;; received them from someone using AUCTeX).
-
-;;;###autoload
-(defalias 'TeX-mode #'tex-mode)
-;;;###autoload
-(defalias 'plain-TeX-mode #'plain-tex-mode)
-;;;###autoload
-(defalias 'LaTeX-mode #'latex-mode)
+;; AUCTeX.  We keep those confusing aliases for those users who may
+;; have files annotated with -*- LaTeX -*- (e.g. because they received
+;; them from someone using AUCTeX).
+;; FIXME: Turn them into autoloads so that AUCTeX can override them
+;; with its own autoloads?  Or maybe rely on `major-mode-remap-alist'?
+;;;###autoload (defalias 'TeX-mode #'tex-mode)
+;;;###autoload (defalias 'plain-TeX-mode #'plain-tex-mode)
+;;;###autoload (defalias 'LaTeX-mode #'latex-mode)
 
 ;;;###autoload
 (define-derived-mode plain-tex-mode tex-mode "TeX"
@@ -1176,12 +1174,7 @@ subshell is initiated, `tex-shell-hook' is run."
   (setq-local outline-regexp latex-outline-regexp)
   (setq-local outline-level #'latex-outline-level)
   (setq-local forward-sexp-function #'latex-forward-sexp)
-  (setq-local skeleton-end-hook nil)
-  (setq-local comment-region-function #'latex--comment-region)
-  (setq-local comment-style 'plain))
-
-(defun latex--comment-region (beg end &optional arg)
-  (comment-region-default-1 beg end arg t))
+  (setq-local skeleton-end-hook nil))
 
 ;;;###autoload
 (define-derived-mode slitex-mode latex-mode "SliTeX"
@@ -1245,11 +1238,10 @@ Entering SliTeX mode runs the hook `text-mode-hook', then the hook
               (apply-partially
                #'tildify-foreach-ignore-environments
                `(("\\\\\\\\" . "") ; do not remove this
-                 (,(eval-when-compile
-                     (concat "\\\\begin{\\("
-                             (regexp-opt '("verbatim" "math" "displaymath"
-                                           "equation" "eqnarray" "eqnarray*"))
-                             "\\)}"))
+                 (,(concat "\\\\begin{\\("
+                           (regexp-opt '("verbatim" "math" "displaymath"
+                                         "equation" "eqnarray" "eqnarray*"))
+                           "\\)}")
                   . ("\\\\end{" 1 "}"))
                  ("\\\\verb\\*?\\(.\\)" . (1))
                  ("\\$\\$?" . (0))
@@ -1565,7 +1557,7 @@ a skeleton (see `skeleton-insert').")
      '(if (and (boundp 'reftex-mode) reftex-mode) (reftex-label "table"))
      \n _)
     ("figure" nil  > _ \n "\\caption{" > (skeleton-read "Caption: ") "}" > \n
-     '(if (and (boundp 'reftex-mode) reftex-mode) (reftex-label "table"))))
+     '(if (and (boundp 'reftex-mode) reftex-mode) (reftex-label "figure"))))
   "Skeleton element to use for the body of particular environments.
 Every element of the list has the form (NAME . SKEL-ELEM) where NAME is
 the name of the environment and SKEL-ELEM is an element to use in
@@ -1601,10 +1593,6 @@ Puts point on a blank line between them."
 ;;;; LaTeX completion.
 
 (defvar latex-complete-bibtex-cache nil)
-
-(define-obsolete-function-alias 'latex-string-prefix-p
-  #'string-prefix-p "24.3")
-
 (defvar bibtex-reference-key)
 (declare-function reftex-get-bibfile-list "reftex-cite.el" ())
 
@@ -2037,7 +2025,7 @@ In the tex shell buffer this command behaves like `comint-send-input'."
 
 (defun tex-display-shell ()
   "Make the TeX shell buffer visible in a window."
-  (display-buffer (tex-shell-buf))
+  (display-buffer (tex-shell-buf) display-comint-buffer-action)
   (tex-recenter-output-buffer nil))
 
 (defun tex-shell-sentinel (proc _msg)
@@ -2129,11 +2117,10 @@ If NOT-ALL is non-nil, save the `.dvi' file."
 (defvar tex-compile-history nil)
 
 (defvar tex-input-files-re
-  (eval-when-compile
-    (concat "\\." (regexp-opt '("tex" "texi" "texinfo"
-				"bbl" "ind" "sty" "cls") t)
-	    ;; Include files with no dots (for directories).
-	    "\\'\\|\\`[^.]+\\'")))
+  (concat "\\." (regexp-opt '("tex" "texi" "texinfo"
+			      "bbl" "ind" "sty" "cls") t)
+	  ;; Include files with no dots (for directories).
+	  "\\'\\|\\`[^.]+\\'"))
 
 (defcustom tex-use-reftex t
   "If non-nil, use RefTeX's list of files to determine what command to use."
@@ -2179,8 +2166,6 @@ IN can be either a string (with the same % escapes in it) indicating
   the TeX files of the document, or nil if we don't know.
 OUT describes the output file and is either a %-escaped string
   or nil to indicate that there is no output file.")
-
-(define-obsolete-function-alias 'tex-string-prefix-p #'string-prefix-p "24.3")
 
 (defun tex-guess-main-file (&optional all)
   "Find a likely `tex-main-file'.
@@ -2253,7 +2238,7 @@ of the current buffer."
 	       "&")))
 
 (defun tex-uptodate-p (file)
-  "Return non-nil if FILE is not uptodate w.r.t the document source files.
+  "Return non-nil if FILE is not up-to-date w.r.t the document source files.
 FILE is typically the output DVI or PDF file."
   ;; We should check all the files included !!!
   (and
@@ -2390,7 +2375,7 @@ Only applies the FSPEC to the args part of FORMAT."
 	  (push cmd tmp)))
       ;; Only remove if there's something left.
       (if tmp (setq cmds (nreverse tmp))))
-    ;; Remove commands whose input is not uptodate either.
+    ;; Remove commands whose input is not up-to-date either.
     (let ((outs (delq nil (mapcar (lambda (x) (nth 2 x)) cmds)))
 	  (tmp nil))
       (dolist (cmd cmds)
@@ -2441,7 +2426,7 @@ Only applies the FSPEC to the args part of FORMAT."
 	(if cmds (tex-format-cmd (caar cmds) fspec))))))
 
 (defun tex-cmd-doc-view (file)
-  (pop-to-buffer (find-file-noselect file)))
+  (pop-to-buffer (find-file-noselect file) display-comint-buffer-action))
 
 (defun tex-compile (dir cmd)
   "Run a command CMD on current TeX buffer's file in DIR."
@@ -2457,7 +2442,7 @@ Only applies the FSPEC to the args part of FORMAT."
 	  (default (tex-compile-default fspec)))
      (list default-directory
 	   (completing-read
-	    (format "Command [%s]: " (tex-summarize-command default))
+            (format-prompt "Command" (tex-summarize-command default))
 	    (mapcar (lambda (x)
 		      (list (tex-format-cmd (eval (car x) t) fspec)))
 		    tex-compile-commands)
@@ -2502,10 +2487,8 @@ Only applies the FSPEC to the args part of FORMAT."
     (let (shell-dirtrack-verbose)
       (tex-send-command tex-shell-cd-command dir)))
   (with-current-buffer (process-buffer (tex-send-command cmd))
-    (setq compilation-last-buffer (current-buffer))
-    (compilation-forget-errors)
-    ;; Don't parse previous compilations.
-    (set-marker compilation-parsing-end (1- (point-max))))
+    (setq next-error-last-buffer (current-buffer))
+    (compilation-forget-errors))
   (tex-display-shell)
   (setq tex-last-buffer-texed (current-buffer)))
 
@@ -2698,7 +2681,7 @@ line LINE of the window, or centered if LINE is nil."
 	(window))
     (if (null tex-shell)
 	(message "No TeX output buffer")
-      (setq window (display-buffer tex-shell))
+      (setq window (display-buffer tex-shell display-comint-buffer-action))
       (with-selected-window window
 	(bury-buffer tex-shell)
 	(goto-char (point-max))
@@ -2987,13 +2970,7 @@ There might be text before point."
 	(put-text-property
 	 (1- (match-beginning 1)) (match-beginning 1)
 	 'syntax-table
-	 (if (= (1+ (line-beginning-position)) (match-beginning 1))
-	     ;; The `%' is a single-char comment, which Emacs
-	     ;; syntax-table can't deal with.  We could turn it
-	     ;; into a non-comment, or use `\n%' or `%^' as the comment.
-	     ;; Instead, we include it in the ^^A comment.
-             (string-to-syntax "< b")
-           (string-to-syntax ">")))
+         (string-to-syntax ">"))
 	(let ((end (line-end-position)))
 	  (if (< end (point-max))
 	      (put-text-property
@@ -3016,8 +2993,9 @@ There might be text before point."
   (defconst doctex-syntax-propertize-rules
     (syntax-propertize-precompile-rules
      latex-syntax-propertize-rules
-     ;; For DocTeX comment-in-doc.
-     ("\\(\\^\\)\\^A" (1 (doctex-font-lock-^^A))))))
+     ;; For DocTeX comment-in-doc (DocTeX ≥3 also allows ^^X).
+     ;; We make the comment start on the second char because of bug#35140.
+     ("\\^\\(\\^\\)[AX]" (1 (doctex-font-lock-^^A))))))
 
 (defvar doctex-font-lock-keywords
   (append tex-font-lock-keywords
@@ -3566,28 +3544,122 @@ There might be text before point."
     ("\\ordmasculine" . ?º)
     ("\\lambdabar" . ?ƛ)
     ("\\celsius" . ?℃)
+    ;; Text symbols formerly part of textcomp package:
+    ("\\textdollar" . ?$)
+    ("\\textborn" . ?*)
+    ("\\textless" . ?<)
+    ("\\textgreater" . ?>)
+    ("\\textbackslash" . ?\\)
+    ("\\textasciicircum" . ?^)
+    ("\\textunderscore" . ?_)
+    ("\\textbraceleft" . ?\{)
+    ("\\textbar" . ?|)
+    ("\\textbraceright" . ?\})
+    ("\\textasciitilde" . ?~)
+    ("\\textexclamdown" . ?¡)
+    ("\\textcent" . ?¢)
+    ("\\textsterling" . ?£)
+    ("\\textcurrency" . ?¤)
+    ("\\textyen" . ?¥)
+    ("\\textbrokenbar" . ?¦)
+    ("\\textsection" . ?§)
+    ("\\textasciidieresis" . ?¨)
+    ("\\textcopyright" . ?©)
+    ("\\textordfeminine" . ?ª)
+    ("\\guillemetleft" . ?«)
+    ("\\guillemotleft" . ?«)
+    ("\\textlnot" . ?¬)
+    ("\\textregistered" . ?®)
+    ("\\textasciimacron" . ?¯)
+    ("\\textdegree" . ?°)
+    ("\\textpm" . ?±)
+    ("\\texttwosuperior" . ?²)
+    ("\\textthreesuperior" . ?³)
+    ("\\textasciiacute" . ?´)
     ("\\textmu" . ?µ)
-    ("\\textfractionsolidus" . ?⁄)
-    ("\\textbigcircle" . ?⃝)
-    ("\\textmusicalnote" . ?♪)
-    ("\\textdied" . ?✝)
-    ("\\textcolonmonetary" . ?₡)
-    ("\\textwon" . ?₩)
-    ("\\textnaira" . ?₦)
-    ("\\textpeso" . ?₱)
-    ("\\textlira" . ?₤)
-    ("\\textrecipe" . ?℞)
-    ("\\textinterrobang" . ?‽)
-    ("\\textpertenthousand" . ?‱)
+    ("\\textparagraph" . ?¶)
+    ("\\textpilcrow" . ?¶)
+    ("\\textperiodcentered" . ?·)
+    ("\\textonesuperior" . ?¹)
+    ("\\textordmasculine" . ?º)
+    ("\\guillemetright" . ?»)
+    ("\\guillemotright" . ?»)
+    ("\\textonequarter" . ?¼)
+    ("\\textonehalf" . ?½)
+    ("\\textthreequarters" . ?¾)
+    ("\\textquestiondown" . ?¿)
+    ("\\texttimes" . ?×)
+    ("\\textdiv" . ?÷)
+    ("\\textflorin" . ?ƒ)
+    ("\\textasciicaron" . ?ˇ)
+    ("\\textasciibreve" . ?˘)
+    ("\\textacutedbl" . ?˝)
+    ("\\textgravedbl" . 757)
+    ("\\texttildelow" . 759)
     ("\\textbaht" . ?฿)
-    ("\\textnumero" . ?№)
+    ("\\textendash" . ?–)
+    ("\\textemdash" . ?—)
+    ("\\textbardbl" . ?‖)
+    ("\\textquoteleft" . 8216)
+    ("\\textquoteright" . 8217)
+    ("\\quotesinglbase" . 8218)
+    ("\\textquotedblleft" . 8220)
+    ("\\textquotedblright" . 8221)
+    ("\\quotedblbase" . 8222)
+    ;; \textdagger and \textdied are replaced with DAGGER (#x2020) and
+    ;; not with LATIN CROSS (#x271d)
+    ("\\textdagger" . ?†)
+    ("\\textdied" . ?†)
+    ("\\textdaggerdbl" . ?‡)
+    ("\\textbullet" . ?•)
+    ("\\textellipsis" . ?…)
+    ("\\textperthousand" . ?‰)
+    ("\\textpertenthousand" . ?‱)
+    ("\\guilsinglleft" . ?‹)
+    ("\\guilsinglright" . ?›)
+    ("\\textreferencemark" . ?※)
+    ("\\textinterrobang" . ?‽)
+    ("\\textfractionsolidus" . ?⁄)
+    ("\\textlquill" . 8261) ; Literal ?⁅ breaks indentation
+    ("\\textrquill" . 8262) ; Literal ?⁆ breaks indentation
     ("\\textdiscount" . ?⁒)
-    ("\\textestimated" . ?℮)
-    ("\\textopenbullet" . ?◦)
-    ("\\textlquill" . 8261)		; Literal ?⁅ breaks indentation.
-    ("\\textrquill" . 8262)             ; Literal ?⁆ breaks indentation.
+    ("\\textcolonmonetary" . ?₡)
+    ("\\textlira" . ?₤)
+    ("\\textnaira" . ?₦)
+    ("\\textwon" . ?₩)
+    ("\\textdong" . ?₫)
+    ("\\texteuro" . ?€)
+    ("\\textpeso" . ?₱)
+    ("\\textguarani" . ?₲)
+    ("\\textcelsius" . ?℃)
+    ("\\textnumero" . ?№)
     ("\\textcircledP" . ?℗)
-    ("\\textreferencemark" . ?※))
+    ("\\textrecipe" . ?℞)
+    ("\\textservicemark" . ?℠)
+    ("\\texttrademark" . ?™)
+    ("\\textohm" . ?Ω)
+    ("\\textmho" . ?℧)
+    ("\\textestimated" . ?℮)
+    ("\\textleftarrow" . ?←)
+    ("\\textuparrow" . ?↑)
+    ("\\textrightarrow" . ?→)
+    ("\\textdownarrow" . ?↓)
+    ("\\textminus" . ?−)
+    ("\\textsurd" . ?√)
+    ("\\textlangle" . 9001) ; Literal ?〈 breaks indentation
+    ("\\textrangle" . 9002) ; Literal ?〉 breaks indentation
+    ("\\textblank" . ?␢)
+    ("\\textvisiblespace" . ?␣)
+    ("\\textopenbullet" . ?◦)
+    ;; \textbigcircle is replaced with LARGE CIRCLE (#x25ef) and not
+    ;; with COMBINING ENCLOSING CIRCLE (#x20dd)
+    ("\\textbigcircle" . ?◯)
+    ("\\textmusicalnote" . ?♪)
+    ("\\textmarried" . ?⚭)
+    ("\\textdivorced" . ?⚮)
+    ("\\textlbrackdbl" . 10214) ; Literal ?⟦ breaks indentation
+    ("\\textrbrackdbl" . 10215) ; Literal ?⟧ breaks indentation
+    ("\\textinterrobangdown" . ?⸘))
   "A `prettify-symbols-alist' usable for (La)TeX modes.")
 
 (defun tex--prettify-symbols-compose-p (_start end _match)

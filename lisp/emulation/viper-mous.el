@@ -1,6 +1,6 @@
 ;;; viper-mous.el --- mouse support for Viper  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1994-1997, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1994-1997, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Michael Kifer <kifer@cs.stonybrook.edu>
 ;; Package: viper
@@ -26,7 +26,6 @@
 
 ;; compiler pacifier
 (defvar double-click-time)
-(defvar mouse-track-multi-click-time)
 (defvar viper-search-start-marker)
 (defvar viper-local-search-start-marker)
 (defvar viper-search-history)
@@ -63,8 +62,8 @@ or a triple-click."
 ;; time interval in millisecond within which successive clicks are
 ;; considered related
 (defcustom viper-multiclick-timeout (if (viper-window-display-p)
-                                        double-click-time
-				    500)
+                                        (mouse-double-click-time)
+				      500)
   "Time interval in milliseconds for mouse clicks to be considered related."
   :type 'integer)
 
@@ -76,8 +75,8 @@ or a triple-click."
 
 ;; remembers prefix argument to pass along to commands invoked by second
 ;; click.
-;; This is needed because in Emacs (not XEmacs), assigning to prefix-arg
-;; causes Emacs to count the second click as if it was a single click
+;; This is needed because assigning to prefix-arg causes Emacs to
+;; count the second click as if it was a single click
 (defvar viper-global-prefix-argument nil)
 
 
@@ -199,8 +198,7 @@ is ignored."
 
 	 (setq result (buffer-substring word-beg (point))))
        ) ; if
-     ;; XEmacs doesn't have set-text-properties, but there buffer-substring
-     ;; doesn't return properties together with the string, so it's not needed.
+     ;; FIXME: Use `buffer-substring-no-properties' above instead?
      (set-text-properties 0 (length result) nil result)
      result))
 

@@ -1,14 +1,14 @@
 /* Get the system load averages.
 
-   Copyright (C) 1985-1989, 1991-1995, 1997, 1999-2000, 2003-2022 Free
-   Software Foundation, Inc.
+   Copyright (C) 1985-1989, 1991-1995, 1997, 1999-2000, 2003-2023 Free Software
+   Foundation, Inc.
 
    NOTE: The canonical source of this file is maintained with gnulib.
    Bugs can be reported to bug-gnulib@gnu.org.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -82,7 +82,6 @@
 #include <stdlib.h>
 
 #include <errno.h>
-#include <stdbool.h>
 #include <stdio.h>
 
 # include <sys/types.h>

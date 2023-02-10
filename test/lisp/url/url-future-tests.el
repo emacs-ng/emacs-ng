@@ -1,6 +1,6 @@
 ;;; url-future-tests.el --- Test suite for url-future.  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2011-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2023 Free Software Foundation, Inc.
 
 ;; Author: Teodor Zlatanov <tzz@lifelogs.com>
 ;; Keywords: data
@@ -52,7 +52,7 @@
     (should (equal (url-future-cancel tocancel) tocancel))
     (should-error (url-future-call tocancel))
     (should (null url-future-tests--saver))
-    (should (url-future-cancelled-p tocancel))))
+    (should (url-future-canceled-p tocancel))))
 
 (provide 'url-future-tests)
 

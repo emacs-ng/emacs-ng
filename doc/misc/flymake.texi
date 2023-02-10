@@ -1,8 +1,8 @@
-\input texinfo   @c -*-texinfo; coding: utf-8 -*-
+\input texinfo   @c -*- mode: texinfo; coding: utf-8 -*-
 @comment %**start of header
 @setfilename ../../info/flymake.info
-@set VERSION 1.2
-@set UPDATED September 2021
+@set VERSION 1.2.2
+@set UPDATED November 2021
 @settitle GNU Flymake @value{VERSION}
 @include docstyle.texi
 @syncodeindex pg cp
@@ -13,7 +13,7 @@
 @copying
 This manual is for GNU Flymake (version @value{VERSION}, @value{UPDATED}).
 
-Copyright @copyright{} 2004--2022 Free Software Foundation, Inc.
+Copyright @copyright{} 2004--2023 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -265,6 +265,9 @@ This section summarizes customization variables used for the
 configuration of the Flymake user interface.
 
 @vtable @code
+@item flymake-mode-line-lighter
+The name of the mode.  Defaults to @samp{Flymake}.
+
 @item flymake-mode-line-format
 Format to use for the Flymake mode line indicator.
 
@@ -309,7 +312,7 @@ been reported.
 Which fringe (if any) should show the warning/error bitmaps.
 
 @item flymake-wrap-around
-If non-nil, moving to errors with @code{flymake-goto-next-error} and
+If non-@code{nil}, moving to errors with @code{flymake-goto-next-error} and
 @code{flymake-goto-prev-error} wraps around buffer boundaries.
 @end vtable
 
@@ -612,7 +615,7 @@ delimited by @var{beg} and @var{end}.  @var{type} is a diagnostic
 symbol (@pxref{Flymake error types}), and @var{text} is a description
 of the problem detected in this region.  Most commonly @var{locus} is
 the buffer object designating for the current buffer being
-syntax-checked.  However, it may be a string nameing a file relative
+syntax-checked.  However, it may be a string naming a file relative
 to the current working directory.  @xref{Foreign and list-only
 diagnostics}, for when this may be useful.  Depending on the type of
 @var{locus}, @var{beg} and @var{end} are both either buffer positions
@@ -798,6 +801,7 @@ Binding,,, elisp, The Emacs Lisp Reference Manual}) to be active.
                        for type = (if (string-match "^warning" msg)
                                       :warning
                                     :error)
+                       when (and beg end)
                        collect (flymake-make-diagnostic source
                                                         beg
                                                         end
@@ -840,10 +844,10 @@ Binding,,, elisp, The Emacs Lisp Reference Manual}) to be active.
 * Interaction with other modes::
 @end menu
 
-@findex flymake-proc-legacy-backend
-The backend @code{flymake-proc-legacy-backend} was originally designed
+@findex flymake-proc-legacy-flymake
+The backend @code{flymake-proc-legacy-flymake} was originally designed
 to be extended for supporting new syntax check tools and error message
-patterns.  It is also controlled by its own set of customization variables
+patterns.  It is also controlled by its own set of customization variables.
 
 @node Proc customization variables
 @section Customization variables for the Proc backend
@@ -874,7 +878,7 @@ line-idx col-idx err-text-idx)}.  @xref{Parsing the output}.
 @item flymake-proc-diagnostic-type-pred
 A function to classify a diagnostic text as particular type of error.
 Should be a function taking an error text and returning a diagnostic
-symbol (@pxref{Flymake error types}).  If non-nil is returned but
+symbol (@pxref{Flymake error types}).  If non-@code{nil} is returned but
 there is no such symbol in that table, a warning is assumed.  If nil
 is returned, an error is assumed.  Can also be a regular expression
 that should match only warnings.  This variable replaces the old
@@ -1049,7 +1053,7 @@ check-syntax:
 @cindex syntax check models
 @cindex master file
 
-@code{flymake-proc-legacy-backend} saves a copy of the buffer in a
+@code{flymake-proc-legacy-flymake} saves a copy of the buffer in a
 temporary file in the buffer's directory (or in the system temporary
 directory, for Java files), creates a syntax check command and
 launches a process with this command.  The output is parsed using a
@@ -1145,7 +1149,7 @@ file are parsed.
 For @file{file.h}, the include directives to look for are
 @code{#include "file.h"}, @code{#include "../file.h"}, etc.  Each
 include is checked against a list of include directories
-(see @ref{Getting the include directories}) to be sure it points to the
+(@pxref{Getting the include directories}) to be sure it points to the
 correct @file{file.h}.
 
 First matching master file found stops the search.  The master file is then

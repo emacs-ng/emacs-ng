@@ -1,6 +1,6 @@
 ;;; thread-tests.el --- tests for threads. -*- lexical-binding: t -*-
 
-;; Copyright (C) 2012-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -217,7 +217,7 @@
        (while (not threads-mutex-key)
 	 (thread-yield))
        (thread-signal thr 'quit nil)
-       ;; `quit' is not catched by `should-error'.  We must indicate it.
+       ;; `quit' is not caught by `should-error'.  We must indicate it.
        (condition-case nil
            (thread-join thr)
          (quit (signal 'error nil)))))))
@@ -389,7 +389,33 @@
     (should (equal (thread-last-error) '(error "Die, die, die!")))))
 
 (ert-deftest threads-test-bug33073 ()
+  (skip-unless (fboundp 'make-thread))
   (let ((th (make-thread 'ignore)))
     (should-not (equal th main-thread))))
+
+(defvar threads-test--var 'global)
+
+(ert-deftest threads-test-bug48990 ()
+  (skip-unless (fboundp 'make-thread))
+  (let ((buf1 (generate-new-buffer " thread-test"))
+        (buf2 (generate-new-buffer " thread-test")))
+    (with-current-buffer buf1
+      (setq-local threads-test--var 'local1))
+    (with-current-buffer buf2
+      (setq-local threads-test--var 'local2))
+    (let ((seen nil))
+      (with-current-buffer buf1
+        (should (eq threads-test--var 'local1))
+        (make-thread (lambda () (setq seen threads-test--var))))
+      (with-current-buffer buf2
+        (should (eq threads-test--var 'local2))
+        (let ((threads-test--var 'let2))
+          (should (eq threads-test--var 'let2))
+          (while (not seen)
+            (thread-yield))
+          (should (eq threads-test--var 'let2))
+          (should (eq seen 'local1)))
+        (should (eq threads-test--var 'local2)))
+      (should (eq threads-test--var 'global)))))
 
 ;;; thread-tests.el ends here

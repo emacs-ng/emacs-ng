@@ -1,9 +1,9 @@
 ;;; which-func.el --- print current function in mode line  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1994-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1994-2023 Free Software Foundation, Inc.
 
-;; Author:   Alex Rezinsky <alexr@msil.sps.mot.com>
-;;           (doesn't seem to be responsive any more)
+;; Author: Alex Rezinsky <alexr@msil.sps.mot.com>
+;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: mode-line, imenu, tools
 
 ;; This file is part of GNU Emacs.
@@ -27,16 +27,6 @@
 ;; located in mode line.  It assumes that you work with the imenu
 ;; package and `imenu--index-alist' is up to date.
 
-;; KNOWN BUGS
-;; ----------
-;; Really this package shows not "function where the current point is
-;; located now", but "nearest function which defined above the current
-;; point".  So if your current point is located after the end of
-;; function FOO but before the beginning of function BAR, FOO will be
-;; displayed in the mode line.
-;; - If two windows display the same buffer, both windows
-;;   show the same `which-func' information.
-
 ;; TODO LIST
 ;; ---------
 ;;     1. Dependence on imenu package should be removed.  Separate
@@ -50,8 +40,8 @@
 ;; THANKS TO
 ;; ---------
 ;; Per Abrahamsen   <abraham@iesd.auc.dk>
-;;     Some ideas (inserting  in mode-line,  using of post-command  hook
-;;     and toggling this  mode) have  been   borrowed from  his  package
+;;     Some ideas (inserting in mode-line, using of post-command hook
+;;     and toggling this mode) have been borrowed from his package
 ;;     column.el
 ;; Peter Eisenhauer <pipe@fzi.de>
 ;;     Bug fixing in case nested indexes.
@@ -64,7 +54,7 @@
 ;; Variables for customization
 ;; ---------------------------
 ;;
-(defvar which-func-unknown "???"
+(defvar which-func-unknown "n/a"
   "String to display in the mode line when current function is unknown.")
 
 (defgroup which-func nil
@@ -88,12 +78,22 @@ then Which Function mode is enabled in any major mode that supports it."
 This means that Which Function mode won't really do anything
 until you use Imenu, in these modes.  Note that files
 larger than `which-func-maxout' behave in this way too;
-Which Function mode doesn't do anything until you use Imenu."
+Which Function mode doesn't do anything until you use Imenu.
+
+If Which Function delays the initial display of buffers too much,
+e.g., when it is used with Eglot, and the language server takes a
+long time to send the information, you can use this option to delay
+activation of Which Function until Imenu is used for the first time."
   :type '(repeat (symbol :tag "Major mode")))
 
 (defcustom which-func-maxout 500000
   "Don't automatically compute the Imenu menu if buffer is this big or bigger.
-Zero means compute the Imenu menu regardless of size."
+Zero means compute the Imenu menu regardless of size.
+
+If Which Function delays the initial display of buffers too much,
+e.g., when it is used with Eglot, and the language server takes a
+long time to send the information, you can use this option to delay
+activation of Which Function until Imenu is used for the first time."
   :type 'integer)
 
 (defvar which-func-keymap
@@ -233,9 +233,6 @@ It creates the Imenu index for the buffer, if necessary."
 	(error
 	 (setq which-func-mode nil)
 	 (error "Error in which-func-update: %S" info))))))
-
-;;;###autoload
-(define-obsolete-function-alias 'which-func-mode 'which-function-mode "24.1")
 
 (defvar which-func-update-timer nil)
 

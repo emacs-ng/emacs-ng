@@ -174,14 +174,20 @@ qux :+,
     bar,
     :a
 
+zzz @abc,
+    4
+
+foo a = 5,
+    b
+
 b = $:
 c = ??
 
-# Example from http://www.ruby-doc.org/docs/ProgrammingRuby/html/language.html
+# Example from https://ruby-doc.com/docs/ProgrammingRuby/
 d = 4 + 5 +      # no '\' needed
     6 + 7
 
-# Example from http://www.ruby-doc.org/docs/ProgrammingRuby/html/language.html
+# Example from https://www.ruby-doc.org/docs/ProgrammingRuby/
 e = 8 + 9   \
     + 10         # '\' needed
 
@@ -220,6 +226,7 @@ desc "foo foo" \
 
 foo.
   bar
+  .baz
 
 # https://github.com/rails/rails/blob/17f5d8e062909f1fcae25351834d8e89967b645e/activesupport/lib/active_support/time_with_zone.rb#L206
 foo # comment intended to confuse the tokenizer
@@ -374,6 +381,18 @@ foo = [1, 2, 3].map do |i|
   i + 1
 end
 
+m1 = foo
+       .asdasd
+       .proc do |**args|
+  p(**args)
+end
+
+m2 = foo
+       .asdasd
+       .proc { |**args|
+  p(**args)
+}
+
 bar.foo do
   bar
 end
@@ -390,6 +409,12 @@ bar 1 do
   foo 2 do
     tee
   end
+end
+
+x.foo do
+  foo
+end.bar do
+  bar
 end
 
 foo |
@@ -483,3 +508,60 @@ foo bar, {
 2 = 3
 :foo= if true
 {:abc=>4} # not indented, and '=' is not highlighted
+
+# Pattern matching
+case translation
+in ['th', orig_text, 'en', trans_text]
+  puts "English translation: #{orig_text} => #{trans_text}"
+in {th: orig_text, ja: trans_text} => whole
+  puts "Japanese translation: #{orig_text} => #{trans_text}"
+end
+
+# Tokenizing "**" and "|" separately.
+def resolve(**args)
+  members = proc do |**args|
+    p(**args)
+  end
+
+  member.call(**args)
+end
+
+# Endless methods.
+class Bar
+  def foo(abc) = bar +
+                 baz
+
+  def self.bar =
+    123 +
+    4
+
+  def foo(...) = z
+
+  def request_params = {
+    headers: request_headers,
+    body: request_body
+  }
+
+  def self.foo(
+        baz,
+        bar
+      ) =
+    what
+
+  def foo=(
+        baz,
+        bar
+      )
+    def baz.full_name = "#{bar} 3"
+
+    baz
+  end
+end
+
+# Local Variables:
+# ruby-after-operator-indent: t
+# ruby-block-indent: t
+# ruby-method-call-indent: t
+# ruby-method-params-indent: t
+# ruby-parenless-call-arguments-indent: t
+# End:

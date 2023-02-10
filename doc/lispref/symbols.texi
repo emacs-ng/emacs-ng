@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2022 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2023 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Symbols
@@ -23,15 +23,15 @@ otherwise.
 @end defun
 
 @menu
-* Symbol Components::        Symbols have names, values, function definitions
+* Symbol Components::           Symbols have names, values, function definitions
                                and property lists.
-* Definitions::              A definition says how a symbol will be used.
-* Creating Symbols::         How symbols are kept unique.
-* Symbol Properties::        Each symbol has a property list
+* Definitions::                 A definition says how a symbol will be used.
+* Creating Symbols::            How symbols are kept unique.
+* Symbol Properties::           Each symbol has a property list
                                for recording miscellaneous information.
-* Shorthands::               Properly organize your symbol names but
+* Shorthands::                  Properly organize your symbol names but
                                type less of them.
-
+* Symbols with Position::       Symbol variants containing integer positions
 @end menu
 
 @node Symbol Components
@@ -432,8 +432,8 @@ symbol's property list cell (@pxref{Symbol Components}), in the form
 of a property list (@pxref{Property Lists}).
 
 @menu
-* Symbol Plists::        Accessing symbol properties.
-* Standard Properties::  Standard meanings of symbol properties.
+* Symbol Plists::               Accessing symbol properties.
+* Standard Properties::         Standard meanings of symbol properties.
 @end menu
 
 @node Symbol Plists
@@ -555,6 +555,23 @@ value, saved value, customized-but-unsaved value, and themed values.
 Do not set them directly; they are managed by @code{defcustom} and
 related functions.  @xref{Variable Definitions}.
 
+@item definition-name
+This property is used to find the definition of a symbol in the source
+code, when it might be hard to find the definition by textual search
+of the source file.  For example, a @code{define-derived-mode}
+(@pxref{Derived Modes}) might define a mode-specific function or a
+variable implicitly; or your Lisp program might generate a run-time
+call to @code{defun} to define a function (@pxref{Defining
+Functions}).  In these and similar cases, the @code{definition-name}
+property of the symbol should be another symbol whose definition can
+be found by textual search and whose code defines the original symbol.
+In the example with @code{define-derived-mode}, the value of this
+property of the functions and variables it defines should be the mode
+symbol.  The Emacs Help commands such as @kbd{C-h f} (@pxref{Help,,,
+emacs, The GNU Emacs Manual}) use this property to show the definition
+of a symbol via a button in the @file{*Help*} buffer where the
+symbol's documentation is shown.
+
 @item disabled
 If the value is non-@code{nil}, the named function is disabled as a
 command.  @xref{Disabling Commands}.
@@ -613,7 +630,10 @@ file-local evaluation forms.  @xref{File Local Variables}.
 
 @item safe-local-variable
 The value specifies a function for determining safe file-local values
-for the named variable.  @xref{File Local Variables}.
+for the named variable.  @xref{File Local Variables}.  Since this
+value is consulted when loading files, the function should be
+efficient and should ideally not lead to loading any libraries to
+determine the safeness (e.g., it should not be an autoloaded function).
 
 @item side-effect-free
 @cindex @code{side-effect-free} property
@@ -715,9 +735,9 @@ byte-compiling any of the two files has equivalent results.  The
 shorthands @code{snu-split} and @code{snu-lines} used in the second
 version are @emph{not} interned in the obarray.  This is easily seen
 by moving point to the location where the shorthands are used and
-waiting for ElDoc (@pxref{Lisp Doc, , Local Variables in Files, emacs,
-The GNU Emacs Manual}) to hint at the true full name of the symbol
-under point in the echo area.
+waiting for ElDoc (@pxref{Programming Language Doc, , Local Variables
+in Files, emacs, The GNU Emacs Manual}) to hint at the true full name
+of the symbol under point in the echo area.
 
 Since @code{read-symbol-shorthands} is a file-local variable, it is
 possible that multiple libraries depending on
@@ -751,3 +771,70 @@ those names.
 @item
 Symbol forms whose names start with @samp{#_} are not transformed.
 @end itemize
+
+@node Symbols with Position
+@section Symbols with Position
+@cindex symbol with position
+
+@cindex bare symbol
+A @dfn{symbol with position} is a symbol, the @dfn{bare symbol},
+together with an unsigned integer called the @dfn{position}.  These
+objects are intended for use by the byte compiler, which records in
+them the position of each symbol occurrence and uses those positions
+in warning and error messages.
+
+The printed representation of a symbol with position uses the hash
+notation outlined in @ref{Printed Representation}.  It looks like
+@samp{#<symbol foo at 12345>}.  It has no read syntax.  You can cause
+just the bare symbol to be printed by binding the variable
+@code{print-symbols-bare} to non-@code{nil} around the print
+operation.  The byte compiler does this before writing its output to
+the compiled Lisp file.
+
+For most purposes, when the flag variable
+@code{symbols-with-pos-enabled} is non-@code{nil}, symbols with
+positions behave just as bare symbols do.  For example, @samp{(eq
+#<symbol foo at 12345> foo)} has a value @code{t} when that variable
+is set (but @code{nil} when it isn't set).  Most of the time in Emacs this
+variable is @code{nil}, but the byte compiler binds it to @code{t}
+when it runs.
+
+Typically, symbols with position are created by the byte compiler
+calling the reader function @code{read-positioning-symbols}
+(@pxref{Input Functions}).  One can also be created with the function
+@code{position-symbol}.
+
+@defvar symbols-with-pos-enabled
+When this variable is non-@code{nil}, symbols with position behave
+like the contained bare symbol.  Emacs runs a little more slowly in
+this case.
+@end defvar
+
+@defvar print-symbols-bare
+When bound to non-@code{nil}, the Lisp printer prints only the bare symbol of
+a symbol with position, ignoring the position.
+@end defvar
+
+@defun symbol-with-pos-p symbol.
+This function returns @code{t} if @var{symbol} is a symbol with
+position, @code{nil} otherwise.
+@end defun
+
+@defun bare-symbol symbol
+This function returns the bare symbol contained in @var{symbol}, or
+@var{symbol} itself if it is already a bare symbol.  For any other
+type of object, it signals an error.
+@end defun
+
+@defun symbol-with-pos-pos symbol
+This function returns the position, a number, from a symbol with
+position.  For any other type of object, it signals an error.
+@end defun
+
+@defun position-symbol sym pos
+Make a new symbol with position.  @var{sym} is either a bare symbol or
+a symbol with position, and supplies the symbol part of the new
+object.  @var{pos} is either an integer which becomes the number part
+of the new object, or a symbol with position whose position is used.
+Emacs signals an error if either argument is invalid.
+@end defun

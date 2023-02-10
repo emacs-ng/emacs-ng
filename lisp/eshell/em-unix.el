@@ -1,6 +1,6 @@
 ;;; em-unix.el --- UNIX command aliases  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -372,12 +372,10 @@ Remove the DIRECTORY(ies), if they are empty.")
 	     (setq attr (eshell-file-attributes (car files)))
 	     (file-attribute-inode-number attr-target)
 	     (file-attribute-inode-number attr)
-	     (equal (file-attribute-inode-number attr-target)
-		    (file-attribute-inode-number attr))
 	     (file-attribute-device-number attr-target)
 	     (file-attribute-device-number attr)
-	     (equal (file-attribute-device-number attr-target)
-		    (file-attribute-device-number attr)))
+	     (equal (file-attribute-file-identifier attr-target)
+		    (file-attribute-file-identifier attr)))
 	(eshell-error (format-message "%s: `%s' and `%s' are the same file\n"
 				      command (car files) target)))
        (t
@@ -755,26 +753,21 @@ external command."
 				      (eshell-stringify-list
 				       (flatten-tree args)))
 			      " "))
-	     (cmd (format "%s -nH %s"
-			  (pcase command
-			    ("egrep" "grep -E")
-			    ("fgrep" "grep -F")
-			    (x x))
-			  args))
+	     (cmd (format "%s -n %s" command args))
 	     compilation-scroll-output)
 	(grep cmd)))))
 
 (defun eshell/grep (&rest args)
   "Use Emacs grep facility instead of calling external grep."
-  (eshell-grep "grep" args t))
+  (eshell-grep "grep" (append '("-H") args) t))
 
 (defun eshell/egrep (&rest args)
   "Use Emacs grep facility instead of calling external grep -E."
-  (eshell-grep "egrep" args t))
+  (eshell-grep "grep" (append '("-EH") args) t))
 
 (defun eshell/fgrep (&rest args)
   "Use Emacs grep facility instead of calling external grep -F."
-  (eshell-grep "fgrep" args t))
+  (eshell-grep "grep" (append '("-FH") args) t))
 
 (defun eshell/agrep (&rest args)
   "Use Emacs grep facility instead of calling external agrep."
@@ -793,10 +786,14 @@ external command."
 
 (defun eshell-complete-host-reference ()
   "If there is a host reference, complete it."
-  (let ((arg (pcomplete-actual-arg))
-	index)
-    (when (setq index (string-match "@[a-z.]*\\'" arg))
-      (setq pcomplete-stub (substring arg (1+ index))
+  (let ((arg (pcomplete-actual-arg)))
+    (when (string-match
+           (rx ;; Match an "@", but not immediately following a "$".
+               (or string-start (not "$")) "@"
+               (group (* (any "a-z.")))
+               string-end)
+           arg)
+      (setq pcomplete-stub (substring arg (match-beginning 1))
 	    pcomplete-last-completion-raw t)
       (throw 'pcomplete-completions (pcomplete-read-host-names)))))
 
@@ -968,7 +965,7 @@ Show wall-clock time elapsed during execution of COMMAND.")
   (if eshell-diff-window-config
       (set-window-configuration eshell-diff-window-config)))
 
-(defun nil-blank-string (string)
+(defun eshell-nil-blank-string (string)
   "Return STRING, or nil if STRING contains only blank characters."
   (cond
     ((string-match "[^[:blank:]]" string) string)
@@ -999,7 +996,7 @@ Show wall-clock time elapsed during execution of COMMAND.")
 	    (condition-case nil
 		(diff-no-select
 		 old new
-		 (nil-blank-string (eshell-flatten-and-stringify args)))
+                 (eshell-nil-blank-string (eshell-flatten-and-stringify args)))
 	      (error
 	       (throw 'eshell-replace-command
 		      (eshell-parse-command "*diff" orig-args))))
@@ -1048,6 +1045,8 @@ Show wall-clock time elapsed during execution of COMMAND.")
       (apply 'occur args))))
 
 (put 'eshell/occur 'eshell-no-numeric-conversions t)
+
+(define-obsolete-function-alias 'nil-blank-string #'eshell-nil-blank-string "29.1")
 
 (provide 'em-unix)
 

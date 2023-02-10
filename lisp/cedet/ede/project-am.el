@@ -1,6 +1,6 @@
 ;;; project-am.el --- A project management scheme based on automake files.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2000, 2003, 2005, 2007-2022 Free Software
+;; Copyright (C) 1998-2000, 2003, 2005, 2007-2023 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
@@ -191,10 +191,11 @@ other meta-variable based on this name.")
   "Encode one makefile.")
 
 ;;; Code:
-(cl-defmethod project-add-file ((ot project-am-target))
+(cl-defmethod project-add-file ((ot project-am-target) &optional _file)
   "Add the current buffer into a project.
+_FILE is ignored.
 OT is the object target.  DIR is the directory to start in."
-  (let* ((target (if ede-object (error "Already associated w/ a target")
+  (let* ((target (if ede-object (error "Already associated with a target")
 		   (let ((amf (project-am-load default-directory)))
 		     (if (not amf) (error "No project file"))
 		     (completing-read "Target: "
@@ -230,7 +231,7 @@ OT is the object target.  DIR is the directory to start in."
   (setq ede-object nil))
 
 (cl-defmethod project-edit-file-target ((obj project-am-target))
-  "Edit the target associated w/ this file."
+  "Edit the target associated with this file."
   (find-file (concat (oref obj path) "Makefile.am"))
   (goto-char (point-min))
   (makefile-move-to-macro (project-am-macro obj))
@@ -910,7 +911,7 @@ Kill the Configure buffer if it was not already in a buffer."
     (goto-char (point-min))
     (when (re-search-forward (concat "^" (regexp-quote var) "\\s-*=\\s-*")
 			     nil t)
-      (buffer-substring-no-properties (point) (point-at-eol)))))
+      (buffer-substring-no-properties (point) (line-end-position)))))
 
 (defun project-am-extract-package-info (dir)
   "Extract the package information for directory DIR."

@@ -1,6 +1,6 @@
 ;;; semantic/decorate/mode.el --- Minor mode for decorating tags  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2005, 2007-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2005, 2007-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: syntax
@@ -391,6 +391,7 @@ etc., found in the semantic-decorate library.
 To add other kind of decorations on a tag, `NAME-highlight' must use
 `semantic-decorate-tag', and other functions of the semantic
 decoration API found in this library."
+  (declare (indent 1))
   (let ((predicate   (semantic-decorate-style-predicate   name))
         (highlighter (semantic-decorate-style-highlighter name))
 	(predicatedef   (semantic-decorate-style-predicate-default   name))

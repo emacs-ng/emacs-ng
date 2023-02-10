@@ -1,6 +1,6 @@
 ;;; minibuf-eldef.el --- Only show defaults in prompts when applicable  -*- lexical-binding: t -*-
 ;;
-;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
 ;;
 ;; Author: Miles Bader <miles@gnu.org>
 ;; Keywords: convenience
@@ -64,6 +64,8 @@
   :type 'boolean
   :group 'minibuffer
   :version "24.3")
+(make-obsolete-variable 'minibuffer-eldef-shorten-default
+                        'minibuffer-default-prompt-format "29.1")
 
 (defvar minibuffer-default-in-prompt-regexps
   (minibuffer-default--in-prompt-regexps)
@@ -108,8 +110,7 @@ should be displayed in its place.")
   "Set up a minibuffer for `minibuffer-electric-default-mode'.
 The prompt and initial input should already have been inserted."
   (let ((regexps minibuffer-default-in-prompt-regexps)
-	(match nil)
-	(inhibit-point-motion-hooks t))
+	(match nil))
     (save-excursion
       (save-restriction
 	;; Narrow to only the prompt.

@@ -1,6 +1,6 @@
 ;;; epa.el --- the EasyPG Assistant -*- lexical-binding: t -*-
 
-;; Copyright (C) 2006-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2023 Free Software Foundation, Inc.
 
 ;; Author: Daiki Ueno <ueno@unixuser.org>
 ;; Keywords: PGP, GnuPG
@@ -183,28 +183,26 @@ You should bind this variable with `let', but do not set it globally.")
 (defvar epa-suppress-error-buffer nil)
 (defvar epa-last-coding-system-specified nil)
 
-(defvar epa-key-list-mode-map
-  (let ((keymap (make-sparse-keymap)))
-    (define-key keymap "\C-m" 'epa-show-key)
-    (define-key keymap [?\t] 'forward-button)
-    (define-key keymap [backtab] 'backward-button)
-    (define-key keymap "m" 'epa-mark-key)
-    (define-key keymap "u" 'epa-unmark-key)
-    (define-key keymap "d" 'epa-decrypt-file)
-    (define-key keymap "v" 'epa-verify-file)
-    (define-key keymap "s" 'epa-sign-file)
-    (define-key keymap "e" 'epa-encrypt-file)
-    (define-key keymap "r" 'epa-delete-keys)
-    (define-key keymap "i" 'epa-import-keys)
-    (define-key keymap "o" 'epa-export-keys)
-    (define-key keymap "g" 'revert-buffer)
-    (define-key keymap "n" 'next-line)
-    (define-key keymap "p" 'previous-line)
-    (define-key keymap " " 'scroll-up-command)
-    (define-key keymap [?\S-\ ] 'scroll-down-command)
-    (define-key keymap [delete] 'scroll-down-command)
-    (define-key keymap "q" 'epa-exit-buffer)
-    keymap))
+(defvar-keymap epa-key-list-mode-map
+  "RET"       #'epa-show-key
+  "TAB"       #'forward-button
+  "<backtab>" #'backward-button
+  "m"         #'epa-mark-key
+  "u"         #'epa-unmark-key
+  "d"         #'epa-decrypt-file
+  "v"         #'epa-verify-file
+  "s"         #'epa-sign-file
+  "e"         #'epa-encrypt-file
+  "r"         #'epa-delete-keys
+  "i"         #'epa-import-keys
+  "o"         #'epa-export-keys
+  "g"         #'revert-buffer
+  "n"         #'next-line
+  "p"         #'previous-line
+  "SPC"       #'scroll-up-command
+  "S-SPC"     #'scroll-down-command
+  "<delete>"  #'scroll-down-command
+  "q"         #'epa-exit-buffer)
 
 (easy-menu-define epa-key-list-mode-menu epa-key-list-mode-map
   "Menu for `epa-key-list-mode'."
@@ -230,15 +228,8 @@ You should bind this variable with `let', but do not set it globally.")
     ["Unmark Key" epa-unmark-key
      :help "Unmark a key"]))
 
-(defvar epa-key-mode-map
-  (let ((keymap (make-sparse-keymap)))
-    (define-key keymap "q" 'epa-exit-buffer)
-    keymap))
-
-(defvar epa-info-mode-map
-  (let ((keymap (make-sparse-keymap)))
-    (define-key keymap "q" 'delete-window)
-    keymap))
+(defvar-keymap epa-key-mode-map
+  "q" #'epa-exit-buffer)
 
 (defvar epa-exit-buffer-function #'quit-window)
 
@@ -422,7 +413,7 @@ q  trust status questionable.  -  trust status unspecified.
 					     'epa-key))
 		(setq keys (cons key keys))))
 	  (nreverse keys)))
-      (let ((key (get-text-property (point-at-bol) 'epa-key)))
+      (let ((key (get-text-property (line-beginning-position) 'epa-key)))
 	(if key
 	    (list key)))))
 
@@ -607,7 +598,11 @@ If SECRET is non-nil, list secret keys instead of public keys."
 		       (_ "Error while executing \"%s\":\n\n"))
 		     (epg-context-program context))
 		    "\n\n"
-		    (epg-context-error-output context)))
+		    (epg-context-error-output context)
+                    (if (string-search "Unexpected error"
+                                       (epg-context-error-output context))
+                        "\n(File possibly not an encrypted file, but is perhaps a key ring file?)\n"
+                      "")))
 	  (epa-info-mode)
 	  (goto-char (point-min)))
 	(display-buffer buffer)))))
@@ -648,7 +643,7 @@ If SECRET is non-nil, list secret keys instead of public keys."
   (setq input (file-name-sans-extension (expand-file-name input)))
   (expand-file-name
    (read-file-name
-    (concat "To file (default " (file-name-nondirectory input) ") ")
+    (format-prompt "To file" (file-name-nondirectory input))
     (file-name-directory input)
     input)))
 
@@ -1236,9 +1231,7 @@ If no one is selected, symmetric encryption will be performed.  ")
      (list keys
 	   (expand-file-name
 	    (read-file-name
-	     (concat "To file (default "
-		     (file-name-nondirectory default-name)
-		     ") ")
+             (format-prompt "To file" (file-name-nondirectory default-name))
 	     (file-name-directory default-name)
 	     default-name)))))
   (let ((context (epg-make-context epa-protocol)))

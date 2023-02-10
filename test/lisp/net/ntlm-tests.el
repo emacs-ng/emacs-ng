@@ -1,6 +1,6 @@
 ;;; ntlm-tests.el --- tests for ntlm.el            -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -227,13 +227,20 @@ This string will be returned from the NTLM server to the NTLM client."
 
 ;; Silence some byte-compiler warnings that occur when
 ;; web-server/web-server.el is not found.
+(eval-when-compile (cl-pushnew 'headers eieio--known-slot-names)
+                   (cl-pushnew 'process eieio--known-slot-names))
 (declare-function ws-send nil)
 (declare-function ws-parse-request nil)
 (declare-function ws-start nil)
 (declare-function ws-stop-all nil)
 
-(require 'web-server nil t)
-(require 'url-http-ntlm nil t)
+(eval-and-compile
+  (push (expand-file-name "../elpa/packages/web-server/" source-directory)
+        load-path)
+  (require 'web-server nil t)
+  (push (expand-file-name "../elpa/packages/url-http-ntlm/" source-directory)
+        load-path)
+  (require 'url-http-ntlm nil t))
 
 (defun ntlm-server-do-token (request _process)
   "Process an NTLM client's REQUEST.

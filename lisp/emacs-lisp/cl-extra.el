@@ -1,6 +1,6 @@
 ;;; cl-extra.el --- Common Lisp features, part 2  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993, 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1993, 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: Dave Gillespie <daveg@synaptics.com>
 ;; Keywords: extensions
@@ -71,8 +71,7 @@ numbers of different types (float vs. integer), and also compares
 strings case-insensitively."
   (cond ((eq x y) t)
 	((stringp x)
-	 (and (stringp y) (= (length x) (length y))
-              (eq (compare-strings x nil nil y nil nil t) t)))
+	 (and (stringp y) (string-equal-ignore-case x y)))
 	((numberp x)
 	 (and (numberp y) (= x y)))
 	((consp x)
@@ -553,7 +552,7 @@ too large if positive or too small if negative)."
 			,new)))))
   (seq-subseq seq start end))
 
-;;; This isn't a defalias because autoloading defalises doesn't work
+;;; This isn't a defalias because autoloading defaliases doesn't work
 ;;; very well.
 
 ;;;###autoload
@@ -616,12 +615,12 @@ PROPLIST is a list of the sort returned by `symbol-plist'.
 				  ,(funcall setter
 					    `(cl--set-getf ,getter ,k ,val))
 				  ,val)))))))))
-  (let ((val-tail (cdr-safe (plist-member plist tag))))
+  (let ((val-tail (cdr (plist-member plist tag))))
     (if val-tail (car val-tail) def)))
 
 ;;;###autoload
 (defun cl--set-getf (plist tag val)
-  (let ((val-tail (cdr-safe (plist-member plist tag))))
+  (let ((val-tail (cdr (plist-member plist tag))))
     (if val-tail (progn (setcar val-tail val) plist)
       (cl-list* tag val plist))))
 
@@ -773,7 +772,7 @@ PROPLIST is a list of the sort returned by `symbol-plist'.
       (help-insert-xref-button
        (help-fns-short-filename location)
        'cl-type-definition type location 'define-type)
-      (insert (substitute-command-keys "'")))
+      (insert (substitute-quotes "'")))
     (insert ".\n")
 
     ;; Parents.
@@ -783,7 +782,7 @@ PROPLIST is a list of the sort returned by `symbol-plist'.
         (insert " Inherits from ")
         (while (setq cur (pop pl))
           (setq cur (cl--class-name cur))
-          (insert (substitute-command-keys "`"))
+          (insert (substitute-quotes "`"))
           (help-insert-xref-button (symbol-name cur)
                                    'cl-help-type cur)
           (insert (substitute-command-keys (if pl "', " "'"))))
@@ -797,7 +796,7 @@ PROPLIST is a list of the sort returned by `symbol-plist'.
       (when ch
         (insert " Children ")
         (while (setq cur (pop ch))
-          (insert (substitute-command-keys "`"))
+          (insert (substitute-quotes "`"))
           (help-insert-xref-button (symbol-name cur)
                                    'cl-help-type cur)
           (insert (substitute-command-keys (if ch "', " "'"))))
@@ -816,10 +815,10 @@ PROPLIST is a list of the sort returned by `symbol-plist'.
       (when generics
         (insert (propertize "Specialized Methods:\n\n" 'face 'bold))
         (dolist (generic generics)
-          (insert (substitute-command-keys "`"))
+          (insert (substitute-quotes "`"))
           (help-insert-xref-button (symbol-name generic)
                                    'help-function generic)
-          (insert (substitute-command-keys "'"))
+          (insert (substitute-quotes "'"))
           (pcase-dolist (`(,qualifiers ,args ,doc)
                          (cl--generic-method-documentation generic type))
             (insert (format " %s%S\n" qualifiers args)

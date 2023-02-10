@@ -1,6 +1,6 @@
 ;;; notifications.el --- Client interface to desktop notifications.  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2023 Free Software Foundation, Inc.
 
 ;; Author: Julien Danjou <julien@danjou.info>
 ;; Keywords: comm desktop notifications
@@ -202,7 +202,7 @@ This function returns a notification id, an integer, which can be
 used to manipulate the notification item with
 `notifications-close-notification' or the `:replaces-id' argument
 of another `notifications-notify' call."
-  (with-demoted-errors
+  (with-demoted-errors "Notification error: %S"
     (let ((bus (or (plist-get params :bus) :session))
 	  (title (plist-get params :title))
 	  (body (plist-get params :body))

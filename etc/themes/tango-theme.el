@@ -1,6 +1,6 @@
 ;;; tango-theme.el --- Tango-based custom theme for faces  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2023 Free Software Foundation, Inc.
 
 ;; Authors: Chong Yidong <cyd@stupidchicken>
 ;;          Jan Moringen <jan.moringen@uni-bielefeld.de>
@@ -27,10 +27,14 @@
 
 ;;; Code:
 
+;;;###theme-autoload
 (deftheme tango
   "Face colors using the Tango palette (light background).
 Basic, Font Lock, Isearch, Gnus, Message, Ediff, Flyspell,
-Semantic, and Ansi-Color faces are included.")
+Semantic, and Ansi-Color faces are included."
+  :background-mode 'light
+  :kind 'color-scheme
+  :family 'tango)
 
 (let ((class '((class color) (min-colors 89)))
       ;; Tango palette colors.

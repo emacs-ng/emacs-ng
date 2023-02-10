@@ -1,6 +1,6 @@
 ;;; pulse.el --- Pulsing Overlays  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2007-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Version: 1.0
@@ -47,7 +47,7 @@
 ;; The original pulse code was written for semantic tag highlighting.
 ;; It has been extracted, and adapted for general purpose pulsing.
 ;;
-;; Pulse is a part of CEDET.  http://cedet.sf.net
+;; Pulse is a part of CEDET.  https://cedet.sourceforge.net
 
 (require 'color)
 
@@ -202,12 +202,8 @@ If POINT is nil or missing, the current point is used instead.
 Optional argument FACE specifies the face to do the highlighting."
   (save-excursion
     (goto-char (or point (point)))
-    (let ((start (point-at-bol))
-          (end (save-excursion
-                 (end-of-line)
-                 (when (not (eobp))
-                   (forward-char 1))
-                 (point))))
+    (let ((start (progn (vertical-motion 0) (point)))
+          (end (progn (vertical-motion 1) (point))))
       (pulse-momentary-highlight-region start end face))))
 
 ;;;###autoload

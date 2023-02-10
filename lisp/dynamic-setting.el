@@ -1,6 +1,6 @@
 ;;; dynamic-setting.el --- Support dynamic changes  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2009-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2023 Free Software Foundation, Inc.
 
 ;; Author: Jan Djärv <jan.h.d@swipnet.se>
 ;; Maintainer: emacs-devel@gnu.org
@@ -51,19 +51,11 @@ the current form for the frame (i.e. hinting or somesuch changed)."
 	  ;; Set the font on all current and future frames, as though
 	  ;; the `default' face had been "set for this session":
 	  (set-frame-font new-font nil frame-list)
-	;; Just redraw the existing fonts on all frames:
-	(dolist (f frame-list)
-	  (let ((frame-font
-		 (or (font-get (face-attribute 'default :font f 'default)
-			       :user-spec)
-		     (frame-parameter f 'font-parameter))))
-	    (when frame-font
-	      (set-frame-parameter f 'font-parameter frame-font)
-	      (set-face-attribute 'default f
-				  :width 'normal
-				  :weight 'normal
-				  :slant 'normal
-				  :font frame-font))))))))
+	;; Just reconsider the existing fonts on all frames on each
+	;; display, by clearing the font and face caches.  This will
+	;; cause all fonts to be recreated.
+        (dolist (frame frame-list)
+          (reconsider-frame-fonts frame))))))
 
 (defun dynamic-setting-handle-config-changed-event (event)
   "Handle config-changed-event on the display in EVENT.

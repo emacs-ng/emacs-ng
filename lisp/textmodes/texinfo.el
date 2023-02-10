@@ -1,10 +1,9 @@
 ;;; texinfo.el --- major mode for editing Texinfo files  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985, 1988-1993, 1996-1997, 2000-2022 Free Software
+;; Copyright (C) 1985, 1988-1993, 1996-1997, 2000-2023 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Robert J. Chassell
-;; Date:   [See date below for texinfo-version]
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: maint, tex, docs
 
@@ -31,6 +30,16 @@
 ;;; Commentary:
 
 ;;; Code:
+
+(eval-when-compile (require 'cl-lib)
+                   (require 'flymake)
+                   (require 'rx))
+(declare-function flymake-diag-region "flymake"
+                  (buffer line &optional col))
+(declare-function flymake-make-diagnostic "flymake"
+                  ( locus beg end type text
+                    &optional data overlay-properties))
+(declare-function flymake--log-1 "flymake" (level sublog msg &rest args))
 
 (eval-when-compile (require 'tex-mode))
 (declare-function tex-buffer "tex-mode" ())
@@ -226,9 +235,6 @@ Subexpression 1 is what goes into the corresponding `@end' statement.")
   (define-key keymap "\C-c\C-t\C-r"    #'texinfo-tex-region)
   (define-key keymap "\C-c\C-t\C-b"    #'texinfo-tex-buffer))
 
-;; Mode documentation displays commands in reverse order
-;; from how they are listed in the texinfo-mode-map.
-
 (defvar texinfo-mode-map
   (let ((map (make-sparse-keymap)))
 
@@ -336,6 +342,71 @@ Subexpression 1 is what goes into the corresponding `@end' statement.")
     (if (re-search-backward "^@node[ \t]+\\([^,\n]+\\)" nil t)
 	(match-string-no-properties 1))))
 
+;;; Flymake support
+(defvar-local texinfo--flymake-proc nil)
+(defun texinfo-flymake (report-fn &rest _)
+  "Texinfo checking for Flymake.
+
+It uses either \"makeinfo\" or \"texi2any\", in that order.
+
+REPORT-FN is the callback function."
+  (let ((executable (or (executable-find "makeinfo")
+                        (executable-find "texi2any")))
+        (source (current-buffer)))
+
+    (unless executable
+      (error "Flymake for Texinfo requires `makeinfo' or `texi2any'"))
+
+    (when (process-live-p texinfo--flymake-proc)
+      (kill-process texinfo--flymake-proc))
+
+    (save-restriction
+      (widen)
+      (setq texinfo--flymake-proc
+            (make-process
+             :name "texinfo-flymake"
+             :noquery t
+             :connection-type 'pipe
+             :buffer (generate-new-buffer " *texinfo-flymake*")
+             :command `(,executable "-o" ,null-device "-")
+             :sentinel
+             (lambda (proc _event)
+               (when (memq (process-status proc) '(exit signal))
+                 (unwind-protect
+                     (if (eq (buffer-local-value 'texinfo--flymake-proc
+                                                 source)
+                             proc)
+                         (with-current-buffer (process-buffer proc)
+                           (goto-char (point-min))
+                           (cl-loop
+                            while (search-forward-regexp
+                                   (rx line-start
+                                       "-:"
+                                       (group-n 1 (0+ digit)) ; Line
+                                       (optional ":" (group-n 2 (0+ digit))) ; col
+                                       ": "
+                                       (optional (group-n 3 "warning: ")) ; warn
+                                       (group-n 4 (0+ nonl)) ; Message
+                                       line-end)
+                                   nil t)
+                            for msg = (match-string 4)
+                            for (beg . end) = (flymake-diag-region
+                                               source
+                                               (string-to-number (match-string 1)))
+                            for type = (if (match-string 3)
+                                           :warning
+                                         :error)
+                            collect (flymake-make-diagnostic
+                                     source beg end type msg)
+                            into diags
+                            finally (funcall report-fn diags)))
+                       (flymake-log :warning "Canceling obsolete check %s"
+                                    proc))
+                   (kill-buffer (process-buffer proc)))))))
+      (process-send-region texinfo--flymake-proc (point-min) (point-max))
+      (process-send-eof texinfo--flymake-proc))))
+
+
 ;;; Texinfo mode
 
 ;;;###autoload
@@ -411,13 +482,13 @@ value of `texinfo-mode-hook'."
 		      "\\)\\>"))
   (setq-local require-final-newline mode-require-final-newline)
   (setq-local indent-tabs-mode nil)
-  (setq-local paragraph-separate
-	      (concat "@[a-zA-Z]*[ \n]\\|"
-		      paragraph-separate))
   (setq-local paragraph-start (concat "@[a-zA-Z]*[ \n]\\|"
 				      paragraph-start))
+  (setq-local fill-paragraph-function 'texinfo--fill-paragraph)
   (setq-local sentence-end-base "\\(@\\(end\\)?dots{}\\|[.?!]\\)[]\"'”)}]*")
   (setq-local fill-column 70)
+  (setq-local beginning-of-defun-function #'texinfo--beginning-of-defun)
+  (setq-local end-of-defun-function #'texinfo--end-of-defun)
   (setq-local comment-start "@c ")
   (setq-local comment-start-skip "@c +\\|@comment +")
   (setq-local words-include-escapes t)
@@ -455,8 +526,63 @@ value of `texinfo-mode-hook'."
 	      (let ((prevent-filling "^@\\(def\\|multitable\\)"))
 		(if (null auto-fill-inhibit-regexp)
 		    prevent-filling
-		  (concat auto-fill-inhibit-regexp "\\|" prevent-filling)))))
+		  (concat auto-fill-inhibit-regexp "\\|" prevent-filling))))
 
+  ;; Set up Flymake support.
+  (add-hook 'flymake-diagnostic-functions #'texinfo-flymake nil t))
+
+(defvar texinfo-fillable-commands '("@noindent")
+  "A list of commands that can be filled.")
+
+(defun texinfo--fill-paragraph (justify)
+  "Function to fill a paragraph in `texinfo-mode'."
+  (let ((command-re "\\(@[a-zA-Z]+\\)[ \t\n]"))
+    (catch 'no-fill
+      (save-restriction
+        ;; First check whether we're on a command line that can be
+        ;; filled by itself.
+        (or
+         (save-excursion
+           (beginning-of-line)
+           (when (looking-at command-re)
+             (let ((command (match-string 1)))
+               (if (member command texinfo-fillable-commands)
+                   (progn
+                     (narrow-to-region (point) (progn (forward-line 1) (point)))
+                     t)
+                 (throw 'no-fill nil)))))
+         ;; We're not on such a line, so fill the region.
+         (save-excursion
+           (let ((regexp (concat command-re "\\|^[ \t]*$\\|\f")))
+             (narrow-to-region
+              (if (re-search-backward regexp nil t)
+                  (progn
+                    (forward-line 1)
+                    (point))
+                (point-min))
+              (if (re-search-forward regexp nil t)
+                  (match-beginning 0)
+                (point-max)))
+             (goto-char (point-min)))))
+        ;; We've now narrowed to the region we want to fill.
+        (let ((fill-paragraph-function nil)
+              (adaptive-fill-mode nil))
+          (fill-paragraph justify))))
+    t))
+
+(defun texinfo--beginning-of-defun (&optional arg)
+  "Go to the previous @node line."
+  (while (and (> arg 0)
+              (re-search-backward "^@node " nil t))
+    (setq arg (1- arg))))
+
+(defun texinfo--end-of-defun ()
+  "Go to the start of the next @node line."
+  (when (looking-at-p "@node")
+    (forward-line))
+  (if (re-search-forward "^@node " nil t)
+      (goto-char (match-beginning 0))
+    (goto-char (point-max))))
 
 
 ;;; Insert string commands
@@ -655,10 +781,10 @@ braces."
   nil
   (cond
    ;; parenthesis
-   ((looking-back "([^)]*" (point-at-bol 0))
+   ((looking-back "([^)]*" (line-beginning-position 0))
     "@pxref{")
    ;; beginning of sentence or buffer
-   ((or (looking-back (sentence-end) (point-at-bol 0))
+   ((or (looking-back (sentence-end) (line-beginning-position 0))
         (= (point) (point-min)))
     "@xref{")
    ;; bol or eol
@@ -666,7 +792,7 @@ braces."
     "@ref{")
    ;; inside word
    ((not (eq (char-syntax (char-after)) ? ))
-    (skip-syntax-backward "^ " (point-at-bol))
+    (skip-syntax-backward "^ " (line-beginning-position))
     "@ref{")
    ;; everything else
    (t

@@ -1,6 +1,6 @@
 ;;; mh-scan.el --- MH-E scan line constants and utilities  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1993, 1995, 1997, 2000-2022 Free Software Foundation,
+;; Copyright (C) 1993, 1995, 1997, 2000-2023 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Bill Wohler <wohler@newt.com>
@@ -279,9 +279,9 @@ as in the default of
   ^ *[0-9]+.\\\\([bct]\\\\).....[ ]*\\\\(..................\\\\)
 
 If this regular expression is not correct, the notation hints
-will not be highlighted with the face
-`mh-mh-folder-sent-to-me-hint' and the sender will not be
-highlighted with the face `mh-folder-sent-to-me-sender'.")
+will not be highlighted with the face `mh-folder-sent-to-me-hint'
+and the sender will not be highlighted with the face
+`mh-folder-sent-to-me-sender'.")
 
 (defvar mh-scan-subject-regexp
   "^ *[0-9]+........[ ]*...................\\([Rr][Ee]\\(\\[[0-9]+\\]\\)?:\\s-*\\)*\\([^<\n]*\\)"
@@ -315,7 +315,7 @@ produced by \"inc\".")
 
 ;;; Widths, Offsets and Columns
 
-(defvar mh-cmd-note 4
+(defvar-local mh-cmd-note 4
   "Column for notations.
 
 This variable should be set with the function `mh-set-cmd-note'.
@@ -323,12 +323,15 @@ This variable may be updated dynamically if
 `mh-adaptive-cmd-note-flag' is on.
 
 Note that columns in Emacs start with 0.")
-(make-variable-buffer-local 'mh-cmd-note)
 
 (defvar mh-scan-cmd-note-width 1
   "Number of columns consumed by the cmd-note field in `mh-scan-format'.
 
-This column will have one of the values: \" \", \"^\", \"D\", \"B\", \"A\", \"+\", where
+This column will have one of the values:
+
+  \" \", \"^\", \"D\", \"B\", \"A\", \"+\"
+
+where
 
   \" \" is the default value,
   \"^\" is the `mh-note-refiled' character,
@@ -510,7 +513,7 @@ with `mh-scan-msg-format-string'."
 Note that columns in Emacs start with 0.
 
 If `mh-scan-format-file' is set to \"Use MH-E scan Format\" this
-means that either `mh-scan-format-mh' or `mh-scan-format-nmh' are
+means that either `mh-scan-format-mh' or `mh-scan-format-nmh' is
 in use.  This function therefore assumes that the first column is
 empty (to provide room for the cursor), the following WIDTH
 columns contain the message number, and the column for notations
@@ -523,7 +526,6 @@ comes after that."
 (provide 'mh-scan)
 
 ;; Local Variables:
-;; indent-tabs-mode: nil
 ;; sentence-end-double-space: nil
 ;; End:
 

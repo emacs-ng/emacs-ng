@@ -1,6 +1,6 @@
 ;;; nadvice-tests.el --- Test suite for the new advice thingy.  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2012-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -153,13 +153,13 @@ function being an around advice."
 
 (ert-deftest advice-test-call-interactively ()
   "Check interaction between advice on call-interactively and called-interactively-p."
-  (defun sm-test7.4 () (interactive) (cons 1 (called-interactively-p)))
-  (let ((old (symbol-function 'call-interactively)))
+  (let ((sm-test7.4 (lambda () (interactive) (cons 1 (called-interactively-p))))
+        (old (symbol-function 'call-interactively)))
     (unwind-protect
         (progn
           (advice-add 'call-interactively :before #'ignore)
-          (should (equal (sm-test7.4) '(1 . nil)))
-          (should (equal (call-interactively 'sm-test7.4) '(1 . t))))
+          (should (equal (funcall sm-test7.4) '(1 . nil)))
+          (should (equal (call-interactively sm-test7.4) '(1 . t))))
       (advice-remove 'call-interactively #'ignore)
       (should (eq (symbol-function 'call-interactively) old)))))
 
@@ -204,8 +204,25 @@ function being an around advice."
     (remove-function (var sm-test10) sm-advice)
     (should (equal (funcall sm-test10 5) 15))))
 
-;; Local Variables:
-;; no-byte-compile: t
-;; End:
+(ert-deftest advice-test-print ()
+  (let ((x (list 'cdr)))
+    (add-function :after (car x) 'car)
+    (should (equal (cl-prin1-to-string (car x))
+                   "#f(advice car :after cdr)"))
+    (add-function :before (car x) 'first)
+    (should (equal (cl-prin1-to-string (car x))
+                   "#f(advice first :before #f(advice car :after cdr))"))))
+
+(ert-deftest advice-test-bug61179 ()
+  (let* ((magic 42)
+         (ad (lambda (&rest _)
+               (interactive (lambda (is)
+                              (cons magic (advice-eval-interactive-spec is))))
+               nil))
+         (sym (make-symbol "adtest")))
+    (defalias sym (lambda (&rest args) (interactive (list 'main)) args))
+    (should (equal (call-interactively sym) '(main)))
+    (advice-add sym :before ad)
+    (should (equal (call-interactively sym) '(42 main)))))
 
 ;;; nadvice-tests.el ends here

@@ -1,6 +1,6 @@
 ;;; timeclock.el --- mode for keeping track of how much you work  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 ;; Created: 25 Mar 1999
@@ -86,7 +86,7 @@
 
 (defcustom timeclock-workday (* 8 60 60)
   "The length of a work period in seconds."
-  :type 'integer)
+  :type 'natnum)
 
 (defvar timeclock--previous-workday nil)
 
@@ -136,9 +136,6 @@ This variable only has effect if set with \\[customize]."
 
 (defvar timeclock-update-timer nil
   "The timer used to update `timeclock-mode-string'.")
-
-(define-obsolete-variable-alias 'timeclock-modeline-display
-  'timeclock-mode-line-display "24.3")
 
 ;; For byte-compiler.
 (defvar display-time-hook)
@@ -258,9 +255,6 @@ The time is bracketed by <> if you are clocked in, otherwise by [].")
   "The date of the last day when notified \"day over\" for.")
 
 ;;; User Functions:
-
-(define-obsolete-function-alias 'timeclock-modeline-display
-  'timeclock-mode-line-display "24.3")
 
 ;;;###autoload
 (define-minor-mode timeclock-mode-line-display
@@ -611,9 +605,6 @@ arguments of `completing-read'."
 (defun timeclock-ask-for-reason ()
   "Ask the user for the reason they are clocking out."
   (completing-read "Reason for clocking out: " timeclock-reason-list))
-
-(define-obsolete-function-alias 'timeclock-update-modeline
-  'timeclock-update-mode-line "24.3")
 
 (defun timeclock-update-mode-line ()
   "Update the `timeclock-mode-string' displayed in the mode line.
@@ -1247,7 +1238,7 @@ HTML-P is non-nil, HTML markup is added."
 	       (time-out (vector (list t) (list t) (list t) (list t) (list t)))
 	       (breaks   (vector (list t) (list t) (list t) (list t) (list t)))
 	       (workday  (vector (list t) (list t) (list t) (list t) (list t)))
-	       (lengths  (vector '(0 0) thirty-days-ago three-months-ago
+	       (lengths  (vector 0 thirty-days-ago three-months-ago
 				 six-months-ago one-year-ago)))
 	  ;; collect statistics from complete timelog
 	  (dolist (day day-list)

@@ -1,7 +1,6 @@
 ;;; bibtex.el --- BibTeX mode for GNU Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992, 1994-1999, 2001-2022 Free Software Foundation,
-;; Inc.
+;; Copyright (C) 1992-2023 Free Software Foundation, Inc.
 
 ;; Author: Stefan Schoef <schoef@offis.uni-oldenburg.de>
 ;;      Bengt Martensson <bengt@mathematik.uni-Bremen.de>
@@ -29,14 +28,13 @@
 
 ;;; Commentary:
 
-;;  Major mode for editing and validating BibTeX files.
+;; Major mode for editing and validating BibTeX files.
 
-;;  Usage:
-;;  See documentation for `bibtex-mode' or type "M-x describe-mode"
-;;  when you are in BibTeX mode.
+;; See documentation for `bibtex-mode' or type `M-x describe-mode'
+;; when you are in BibTeX mode.
 
-;;  Todo:
-;;  Distribute texinfo file.
+;; Todo:
+;; Distribute texinfo file.
 
 ;;; Code:
 
@@ -316,8 +314,6 @@ If parsing fails, try to set this variable to nil."
                                        (option (choice :tag "Alternative" :value nil
                                                        (const nil) integer)))))))
 
-(define-obsolete-variable-alias 'bibtex-entry-field-alist
-  'bibtex-BibTeX-entry-alist "24.1")
 (defcustom bibtex-BibTeX-entry-alist
   '(("Article" "Article in Journal"
      (("author")
@@ -764,6 +760,20 @@ for a new entry."
       ("eprint") ("eprintclass" nil nil 4) ("primaryclass" nil nil -4)
       ("eprinttype" nil nil 5) ("archiveprefix" nil nil -5)
       ("url") ("urldate")))
+    ("Conference" "Article in Conference Proceedings" ; same as InProceedings
+     (("author")
+      ("title" "Title of the article in proceedings (BibTeX converts it to lowercase)"))
+     (("booktitle" "Name of the conference proceedings")
+      ("year"))
+     (("editor")
+      ("volume" "Volume of the conference proceedings in the series")
+      ("number" "Number of the conference proceedings in a small series (overwritten by volume)")
+      ("series" "Series in which the conference proceedings appeared")
+      ("pages" "Pages in the conference proceedings")
+      ("month") ("address")
+      ("organization" "Sponsoring organization of the conference")
+      ("publisher" "Publishing company, its location")
+      ("note")))
     ("Reference" "Single-Volume Work of Reference" ; same as @collection
      (("editor") ("title") ("date" nil nil 1) ("year" nil nil -1))
      nil
@@ -839,6 +849,33 @@ for a new entry."
       ("eprint") ("eprintclass" nil nil 4) ("primaryclass" nil nil -4)
       ("eprinttype" nil nil 5) ("archiveprefix" nil nil -5)
       ("url") ("urldate")))
+    ("PhdThesis" "PhD Thesis"
+     (("author")
+      ("title" "Title of the PhD thesis")
+      ("school" "School where the PhD thesis was written")
+      ("year"))
+     nil
+     (("type" "Type of the PhD thesis")
+      ("address" "Address of the school (if not part of field \"school\") or country")
+      ("month") ("note")))
+    ("MastersThesis" "Master's Thesis"
+     (("author")
+      ("title" "Title of the master's thesis (BibTeX converts it to lowercase)")
+      ("school" "School where the master's thesis was written")
+      ("year"))
+     nil
+     (("type" "Type of the master's thesis (if other than \"Master's thesis\")")
+      ("address" "Address of the school (if not part of field \"school\") or country")
+      ("month") ("note")))
+    ("TechReport" "Technical Report"
+     (("author")
+      ("title" "Title of the technical report (BibTeX converts it to lowercase)")
+      ("institution" "Sponsoring institution of the report")
+      ("year"))
+     nil
+     (("type" "Type of the report (if other than \"technical report\")")
+      ("number" "Number of the technical report")
+      ("address") ("month") ("note")))
     ("Unpublished" "Unpublished"
      (("author") ("title") ("date" nil nil 1) ("year" nil nil -1))
      nil
@@ -1193,8 +1230,8 @@ See `bibtex-generate-autokey' for details."
   :type '(repeat (cons (regexp :tag "Old")
                        (string :tag "New"))))
 
-(defvaralias 'bibtex-autokey-name-case-convert
-  'bibtex-autokey-name-case-convert-function)
+(define-obsolete-variable-alias 'bibtex-autokey-name-case-convert
+  'bibtex-autokey-name-case-convert-function "29.1")
 
 (defcustom bibtex-autokey-name-case-convert-function #'downcase
   "Function called for each name to perform case conversion.
@@ -1268,8 +1305,8 @@ Case is significant.  See `bibtex-generate-autokey' for details."
   :group 'bibtex-autokey
   :type '(repeat regexp))
 
-(defvaralias 'bibtex-autokey-titleword-case-convert
-  'bibtex-autokey-titleword-case-convert-function)
+(define-obsolete-variable-alias 'bibtex-autokey-titleword-case-convert
+  'bibtex-autokey-titleword-case-convert-function "29.1")
 
 (defcustom bibtex-autokey-titleword-case-convert-function #'downcase
   "Function called for each titleword to perform case conversion.
@@ -1509,65 +1546,65 @@ Set this variable before loading BibTeX mode."
     st)
   "Syntax table used in BibTeX mode buffers.")
 
-(defvar bibtex-mode-map
-  (let ((km (make-sparse-keymap)))
-    ;; The Key `C-c&' is reserved for reftex.el
-    (define-key km "\t" 'bibtex-find-text)
-    (define-key km "\n" 'bibtex-next-field)
-    (define-key km [remap forward-paragraph] 'bibtex-next-entry)
-    (define-key km [remap backward-paragraph] 'bibtex-previous-entry)
-    (define-key km "\M-\t" 'completion-at-point)
-    (define-key km "\C-c\"" 'bibtex-remove-delimiters)
-    (define-key km "\C-c{" 'bibtex-remove-delimiters)
-    (define-key km "\C-c}" 'bibtex-remove-delimiters)
-    (define-key km "\C-c\C-c" 'bibtex-clean-entry)
-    (define-key km "\C-c\C-q" 'bibtex-fill-entry)
-    (define-key km "\C-c\C-s" 'bibtex-search-entry)
-    (define-key km "\C-c\C-x" 'bibtex-search-crossref)
-    (define-key km "\C-c\C-t" 'bibtex-copy-summary-as-kill)
-    (define-key km "\C-c?" 'bibtex-print-help-message)
-    (define-key km "\C-c\C-p" 'bibtex-pop-previous)
-    (define-key km "\C-c\C-n" 'bibtex-pop-next)
-    (define-key km "\C-c\C-k" 'bibtex-kill-field)
-    (define-key km "\C-c\M-k" 'bibtex-copy-field-as-kill)
-    (define-key km "\C-c\C-w" 'bibtex-kill-entry)
-    (define-key km "\C-c\M-w" 'bibtex-copy-entry-as-kill)
-    (define-key km "\C-c\C-y" 'bibtex-yank)
-    (define-key km "\C-c\M-y" 'bibtex-yank-pop)
-    (define-key km "\C-c\C-d" 'bibtex-empty-field)
-    (define-key km "\C-c\C-f" 'bibtex-make-field)
-    (define-key km "\C-c\C-u" 'bibtex-entry-update)
-    (define-key km "\C-c$" 'bibtex-ispell-abstract)
-    (define-key km "\M-\C-a" 'bibtex-beginning-of-entry)
-    (define-key km "\M-\C-e" 'bibtex-end-of-entry)
-    (define-key km "\C-\M-l" 'bibtex-reposition-window)
-    (define-key km "\C-\M-h" 'bibtex-mark-entry)
-    (define-key km "\C-c\C-b" 'bibtex-entry)
-    (define-key km "\C-c\C-rn" 'bibtex-narrow-to-entry)
-    (define-key km "\C-c\C-rw" 'widen)
-    (define-key km "\C-c\C-l" 'bibtex-url)
-    (define-key km "\C-c\C-a" 'bibtex-search-entries)
-    (define-key km "\C-c\C-o" 'bibtex-remove-OPT-or-ALT)
-    (define-key km "\C-c\C-e\C-i" 'bibtex-InProceedings)
-    (define-key km "\C-c\C-ei" 'bibtex-InCollection)
-    (define-key km "\C-c\C-eI" 'bibtex-InBook)
-    (define-key km "\C-c\C-e\C-a" 'bibtex-Article)
-    (define-key km "\C-c\C-e\C-b" 'bibtex-InBook)
-    (define-key km "\C-c\C-eb" 'bibtex-Book)
-    (define-key km "\C-c\C-eB" 'bibtex-Booklet)
-    (define-key km "\C-c\C-e\C-c" 'bibtex-InCollection)
-    (define-key km "\C-c\C-e\C-m" 'bibtex-Manual)
-    (define-key km "\C-c\C-em" 'bibtex-MastersThesis)
-    (define-key km "\C-c\C-eM" 'bibtex-Misc)
-    (define-key km "\C-c\C-e\C-p" 'bibtex-InProceedings)
-    (define-key km "\C-c\C-ep" 'bibtex-Proceedings)
-    (define-key km "\C-c\C-eP" 'bibtex-PhdThesis)
-    (define-key km "\C-c\C-e\M-p" 'bibtex-Preamble)
-    (define-key km "\C-c\C-e\C-s" 'bibtex-String)
-    (define-key km "\C-c\C-e\C-t" 'bibtex-TechReport)
-    (define-key km "\C-c\C-e\C-u" 'bibtex-Unpublished)
-    km)
-  "Keymap used in BibTeX mode.")
+(defvar-keymap bibtex-mode-map
+  :doc "Keymap used in BibTeX mode."
+  ;; The Key `C-c &' is reserved for reftex.el
+  "TAB"         #'bibtex-find-text
+  "C-j"         #'bibtex-next-field
+  "M-TAB"       #'completion-at-point
+  "C-c \""      #'bibtex-remove-delimiters
+  "C-c {"       #'bibtex-remove-delimiters
+  "C-c }"       #'bibtex-remove-delimiters
+  "C-c C-c"     #'bibtex-clean-entry
+  "C-c C-q"     #'bibtex-fill-entry
+  "C-c C-s"     #'bibtex-search-entry
+  "C-c C-x"     #'bibtex-search-crossref
+  "C-c C-t"     #'bibtex-copy-summary-as-kill
+  "C-c ?"       #'bibtex-print-help-message
+  "C-c C-p"     #'bibtex-pop-previous
+  "C-c C-n"     #'bibtex-pop-next
+  "C-c C-k"     #'bibtex-kill-field
+  "C-c M-k"     #'bibtex-copy-field-as-kill
+  "C-c C-w"     #'bibtex-kill-entry
+  "C-c M-w"     #'bibtex-copy-entry-as-kill
+  "C-c C-y"     #'bibtex-yank
+  "C-c M-y"     #'bibtex-yank-pop
+  "C-c C-d"     #'bibtex-empty-field
+  "C-c C-f"     #'bibtex-make-field
+  "C-c C-u"     #'bibtex-entry-update
+  "C-c $"       #'bibtex-ispell-abstract
+  "C-M-a"       #'bibtex-beginning-of-entry
+  "C-M-e"       #'bibtex-end-of-entry
+  "C-M-l"       #'bibtex-reposition-window
+  "C-M-h"       #'bibtex-mark-entry
+  "C-c C-b"     #'bibtex-entry
+  "C-c C-r n"   #'bibtex-narrow-to-entry
+  "C-c C-r w"   #'widen
+  "C-c C-l"     #'bibtex-url
+  "C-c C-a"     #'bibtex-search-entries
+  "C-c C-o"     #'bibtex-remove-OPT-or-ALT
+  ;; Most below functions seem to be undefined, which makes the
+  ;; byte-compiler warn if we quote them with #'.
+  "C-c C-e TAB" 'bibtex-InProceedings
+  "C-c C-e i"   'bibtex-InCollection
+  "C-c C-e I"   'bibtex-InBook
+  "C-c C-e C-a" 'bibtex-Article
+  "C-c C-e C-b" 'bibtex-InBook
+  "C-c C-e b"   'bibtex-Book
+  "C-c C-e B"   'bibtex-Booklet
+  "C-c C-e C-c" 'bibtex-InCollection
+  "C-c C-e RET" 'bibtex-Manual
+  "C-c C-e m"   'bibtex-MastersThesis
+  "C-c C-e M"   'bibtex-Misc
+  "C-c C-e C-p" 'bibtex-InProceedings
+  "C-c C-e p"   'bibtex-Proceedings
+  "C-c C-e P"   'bibtex-PhdThesis
+  "C-c C-e M-p" #'bibtex-Preamble
+  "C-c C-e C-s" #'bibtex-String
+  "C-c C-e C-t" 'bibtex-TechReport
+  "C-c C-e C-u" 'bibtex-Unpublished
+  "<remap> <forward-paragraph>"  #'bibtex-next-entry
+  "<remap> <backward-paragraph>" #'bibtex-previous-entry)
 
 (easy-menu-define bibtex-edit-menu bibtex-mode-map
   "BibTeX-Edit Menu in BibTeX mode."
@@ -1785,8 +1822,9 @@ Initialized by `bibtex-set-dialect'.")
      1 '(11))))
 
 (defvar bibtex-font-lock-keywords
-  ;; entry type and reference key
-  `((,bibtex-any-entry-maybe-empty-head
+  `(("\\$[^$\n]+\\$" . font-lock-string-face) ; bug#50202
+    ;; entry type and reference key
+    (,bibtex-any-entry-maybe-empty-head
      (,bibtex-type-in-head font-lock-function-name-face)
      (,bibtex-key-in-head font-lock-constant-face nil t))
     ;; optional field names (treated as comments)
@@ -2176,6 +2214,7 @@ Point must be at beginning of preamble.  Do not move point."
 
 (defsubst bibtex-string= (str1 str2)
   "Return t if STR1 and STR2 are equal, ignoring case."
+  (declare (obsolete string-equal-ignore-case "29.1"))
   (eq t (compare-strings str1 0 nil str2 0 nil t)))
 
 (defun bibtex-delete-whitespace ()
@@ -2257,11 +2296,17 @@ is non-nil, FUN is not called for @String entries."
     (set-marker-insertion-type end-marker t)
     (save-excursion
       (goto-char (point-min))
-      (while (setq found (bibtex-skip-to-valid-entry))
-        (set-marker end-marker (cdr found))
-        (looking-at bibtex-any-entry-maybe-empty-head)
-        (funcall fun (bibtex-key-in-head "") (car found) end-marker)
-        (goto-char end-marker)))))
+      (let ((prev nil))
+        (while (setq found (bibtex-skip-to-valid-entry))
+          ;; If we have invalid entries, ensure that we have forward
+          ;; progress so that we don't infloop.
+          (if (equal (point) prev)
+              (forward-line 1)
+            (setq prev (point))
+            (set-marker end-marker (cdr found))
+            (looking-at bibtex-any-entry-maybe-empty-head)
+            (funcall fun (bibtex-key-in-head "") (car found) end-marker)
+            (goto-char end-marker)))))))
 
 (defun bibtex-progress-message (&optional flag interval)
   "Echo a message about progress of current buffer.
@@ -2612,7 +2657,7 @@ Formats current entry according to variable `bibtex-entry-format'."
 
                     ;; update page dashes
                     (if (and (memq 'page-dashes format)
-                             (bibtex-string= field-name "pages")
+                             (string-equal-ignore-case field-name "pages")
                              (progn (goto-char beg-text)
                                     (looking-at
                                      "\\([\"{][0-9]+\\)[ \t\n]*--?[ \t\n]*\\([0-9]+[\"}]\\)")))
@@ -2665,7 +2710,7 @@ Formats current entry according to variable `bibtex-entry-format'."
                     ;; use book title of crossref'd entry
                     (if (and (memq 'inherit-booktitle format)
                              empty-field
-                             (bibtex-string= field-name "booktitle")
+                             (string-equal-ignore-case field-name "booktitle")
                              crossref-key)
                         (let ((title (save-excursion
                                        (save-restriction
@@ -3458,7 +3503,7 @@ If NO-BUTTON is non-nil do not generate buttons."
           (let ((lst bibtex-generate-url-list) url)
             (while (and (not found) (setq url (car (pop lst))))
               (goto-char start)
-              (setq found (and (bibtex-string= name (car url))
+              (setq found (and (string-equal-ignore-case name (car url))
                                (re-search-forward (cdr url) end t))))))
       (unless found (goto-char end)))
     (if (and found (not no-button))
@@ -3587,8 +3632,11 @@ if that value is non-nil.
   (setq-local fill-paragraph-function #'bibtex-fill-field)
   (setq-local font-lock-defaults
               '(bibtex-font-lock-keywords
-                nil t ((?$ . "\"")
-                       ;; Mathematical expressions should be fontified as strings
+                nil t ((?$ . ".")
+                       ;; Mathematical expressions should be fontified
+                       ;; as strings.  Yet `$' may also appear in certain
+                       ;; fields like `URL' when it does not delimit
+                       ;; a math expression (bug#50202).
                        (?\" . ".")
                        ;; Quotes are field delimiters and quote-delimited
                        ;; entries should be fontified in the same way as
@@ -3614,7 +3662,11 @@ if that value is non-nil.
                                         ?\s)))))
     (if (and buffer-file-name enable-local-variables)
         (add-hook 'hack-local-variables-hook fun nil t)
-      (funcall fun))))
+      (funcall fun)))
+  ;; We may be using the mode programmatically to extract data, and we
+  ;; then need this to be set up first so that sexp-based movement
+  ;; commands don't bug out.
+  (font-lock-set-defaults))
 
 (defun bibtex-entry-alist (dialect)
   "Return entry-alist for DIALECT."
@@ -3626,14 +3678,6 @@ if that value is non-nil.
     (if (not (consp (nth 1 (car entry-alist))))
         ;; new format
         entry-alist
-      ;; Convert old format of `bibtex-entry-field-alist'
-      (unless (get var 'entry-list-format)
-        (put var 'entry-list-format "pre-24")
-        (message "Old format of `%s' (pre GNU Emacs 24).
-Please convert to the new format."
-                 (if (eq (indirect-variable 'bibtex-entry-field-alist) var)
-                     'bibtex-entry-field-alist var))
-        (sit-for 3))
       (let (lst)
         (dolist (entry entry-alist)
           (let ((fl (nth 1 entry)) req xref opt)
@@ -3913,7 +3957,7 @@ entry (for example, the year parts of the keys)."
 	(goto-char (1- (match-beginning 0)))
 	(bibtex-beginning-of-entry)
 	(if (and (looking-at bibtex-entry-head)
-                 (bibtex-string= type (bibtex-type-in-head))
+                 (string-equal-ignore-case type (bibtex-type-in-head))
                  ;; In case we found ourselves :-(
                  (not (equal key (setq tmp (bibtex-key-in-head)))))
 	  (setq other-key tmp
@@ -3922,7 +3966,7 @@ entry (for example, the year parts of the keys)."
 	(bibtex-end-of-entry)
 	(bibtex-skip-to-valid-entry)
 	(if (and (looking-at bibtex-entry-head)
-                 (bibtex-string= type (bibtex-type-in-head))
+                 (string-equal-ignore-case type (bibtex-type-in-head))
                  ;; In case we found ourselves :-(
                  (not (equal key (setq tmp (bibtex-key-in-head))))
                  (or (not other-key)
@@ -3963,9 +4007,9 @@ interactive calls."
   (interactive (list nil t))
   (unless field (setq field (car (bibtex-find-text-internal nil nil comma))))
   (if (string-search "@" field)
-      (cond ((bibtex-string= field "@string")
+      (cond ((string-equal-ignore-case field "@string")
              (message "String definition"))
-            ((bibtex-string= field "@preamble")
+            ((string-equal-ignore-case field "@preamble")
              (message "Preamble definition"))
             (t (message "Entry key")))
     (let* ((case-fold-search t)
@@ -4039,11 +4083,19 @@ INIT is surrounded by field delimiters, unless NODELIM is non-nil."
 If inside an entry, move to the beginning of it, otherwise move to the
 beginning of the previous entry.  If point is ahead of all BibTeX entries
 move point to the beginning of buffer.  Return the new location of point."
+  ;; This command is similar to `beginning-of-defun', but with historical
+  ;; differences.
+  ;; - It does not move point to the previous entry if point is already
+  ;;   at the beginning of an entry
+  ;; - It does not take an optional ARG that moves backward to the beginning
+  ;;   of a defun ARG times.
+  ;; - It returns point and the code relies on this.
   (interactive)
-  (skip-chars-forward " \t")
-  (if (looking-at "@")
-      (forward-char))
-  (re-search-backward "^[ \t]*@" nil 'move)
+  (beginning-of-line)
+  ;; `bibtex-any-valid-entry-type' would fail if users "disable"
+  ;; an entry by choosing an invalid entry type.
+  (or (looking-at bibtex-any-entry-maybe-empty-head)
+      (re-search-backward bibtex-any-entry-maybe-empty-head nil 'move))
   (point))
 
 (defun bibtex-end-of-entry ()
@@ -4101,11 +4153,11 @@ Optional arg POS is the position of the BibTeX entry to use."
         (goto-char pnt)))))
 
 (defun bibtex-mark-entry ()
-  "Put mark at beginning, point at end of current BibTeX entry.
+  "Put mark at end, point at beginning of current BibTeX entry.
 Activate mark in Transient Mark mode."
   (interactive)
-  (push-mark (bibtex-beginning-of-entry) t t)
-  (bibtex-end-of-entry))
+  (push-mark (bibtex-end-of-entry) t t)
+  (bibtex-beginning-of-entry))
 
 (defun bibtex-count-entries (&optional count-string-entries)
   "Count number of entries in current buffer or region.
@@ -4317,8 +4369,6 @@ for a crossref key, t otherwise."
           (eqb (goto-char pos))
           (t (set-buffer buffer) (goto-char pos)))
     pos))
-;; backward compatibility
-(defalias 'bibtex-find-crossref 'bibtex-search-crossref)
 
 (defun bibtex-dist (pos beg end)
   "Return distance between POS and region delimited by BEG and END."
@@ -4381,8 +4431,6 @@ A prefix arg negates the value of `bibtex-search-entry-globally'."
              (if display (bibtex-reposition-window)))
             (display (message "Key `%s' not found" key)))
       pnt)))
-;; backward compatibility
-(defalias 'bibtex-find-entry 'bibtex-search-entry)
 
 (defun bibtex-prepare-new-entry (index)
   "Prepare a new BibTeX entry with index INDEX.
@@ -4551,7 +4599,7 @@ Return t if test was successful, nil otherwise."
                         bounds field idx)
                    (while (setq bounds (bibtex-parse-field))
                      (let ((field-name (bibtex-name-in-field bounds)))
-                       (if (and (bibtex-string= field-name "month")
+                       (if (and (string-equal-ignore-case field-name "month")
                                 ;; Check only abbreviated month fields.
                                 (let ((month (bibtex-text-in-field-bounds bounds)))
                                   (not (or (string-match "\\`[\"{].+[\"}]\\'" month)
@@ -4632,7 +4680,7 @@ Return t if test was successful, nil otherwise."
             (while (re-search-forward bibtex-entry-head nil t)
               (setq entry-type (bibtex-type-in-head)
                     key (bibtex-key-in-head))
-              (if (or (and strings (bibtex-string= entry-type "string"))
+              (if (or (and strings (string-equal-ignore-case entry-type "string"))
                       (assoc-string entry-type bibtex-entry-alist t))
                   (if (member key key-list)
                       (push (format-message
@@ -4996,7 +5044,7 @@ on the value of `bibtex-entry-format'.
 If the reference key of the entry is empty or a prefix argument is given,
 calculate a new reference key.  (Note: this works only if fields in entry
 begin on separate lines prior to calling `bibtex-clean-entry' or if
-'realign is contained in `bibtex-entry-format'.)
+`realign' is contained in `bibtex-entry-format'.)
 Don't call `bibtex-clean-entry' on @Preamble entries.
 At end of the cleaning process, the functions in
 `bibtex-clean-entry-hook' are called with region narrowed to entry."
@@ -5009,10 +5057,10 @@ At end of the cleaning process, the functions in
 	       (user-error "Not inside a BibTeX entry")))
         (entry-type (bibtex-type-in-head))
         (key (bibtex-key-in-head)))
-    (cond ((bibtex-string= entry-type "preamble")
+    (cond ((string-equal-ignore-case entry-type "preamble")
            ;; (bibtex-format-preamble)
            (user-error "No clean up of @Preamble entries"))
-          ((bibtex-string= entry-type "string")
+          ((string-equal-ignore-case entry-type "string")
            (setq entry-type 'string))
           ;; (bibtex-format-string)
           (t (bibtex-format-entry)))
@@ -5275,7 +5323,6 @@ entries from minibuffer."
     (goto-char (point-max))
     (message "Buffer is now parsable.  Please save it.")))
 
-(define-obsolete-function-alias 'bibtex-complete #'completion-at-point "24.1")
 (defun bibtex-completion-at-point-function ()
   (let ((pnt (point))
         (case-fold-search t)
@@ -5290,10 +5337,10 @@ entries from minibuffer."
                (>= pnt (bibtex-start-of-text-in-field bounds))
                (<= pnt (bibtex-end-of-text-in-field bounds)))
           (setq name (bibtex-name-in-field bounds t)
-                compl (cond ((bibtex-string= name "crossref")
+                compl (cond ((string-equal-ignore-case name "crossref")
                              ;; point is in crossref field
                              'crossref-key)
-                            ((bibtex-string= name "month")
+                            ((string-equal-ignore-case name "month")
                              ;; point is in month field
                              bibtex-predefined-month-strings)
                             ;; point is in other field
@@ -5452,7 +5499,7 @@ Return the URL or nil if none can be generated."
             (while (and (not url) (setq scheme (pop lst)))
               ;; Verify the match of `bibtex-font-lock-url' by
               ;; comparing with TEXT.
-              (when (and (bibtex-string= (caar scheme) name)
+              (when (and (string-equal-ignore-case (caar scheme) name)
                          (string-match (cdar scheme) text))
                 (setq url t scheme (cdr scheme)))))))
 
@@ -5607,6 +5654,9 @@ If APPEND is non-nil, append ENTRIES to those already displayed."
   (set-buffer-modified-p nil)
   (setq buffer-read-only t)
   (goto-char (point-min)))
+
+(define-obsolete-function-alias 'bibtex-find-crossref #'bibtex-search-crossref "29.1")
+(define-obsolete-function-alias 'bibtex-find-entry #'bibtex-search-entry "29.1")
 
 (provide 'bibtex)
 ;;; bibtex.el ends here

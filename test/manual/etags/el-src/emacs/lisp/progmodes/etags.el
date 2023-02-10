@@ -1,6 +1,6 @@
 ;;; etags.el --- etags facility for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1988-1989, 1992-1996, 1998, 2000-2022 Free
+;; Copyright (C) 1985-1986, 1988-1989, 1992-1996, 1998, 2000-2023 Free
 ;; Software Foundation, Inc.
 
 ;; Author: Roland McGrath <roland@gnu.org>
@@ -171,7 +171,7 @@ is the symbol being selected.
 
 Example value:
 
-  '((\"Emacs Lisp\" Info-goto-emacs-command-node obarray)
+  \\='((\"Emacs Lisp\" Info-goto-emacs-command-node obarray)
     (\"Common Lisp\" common-lisp-hyperspec common-lisp-hyperspec-obarray)
     (\"SCWM\" scwm-documentation scwm-obarray))"
   :group 'etags

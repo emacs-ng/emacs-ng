@@ -1,6 +1,6 @@
 ;;; imenu.el --- framework for mode-specific buffer indexes  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994-1998, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1994-1998, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Ake Stenhoff <etxaksf@aom.ericsson.se>
 ;;         Lars Lindberg <lli@sypro.cap.se>
@@ -87,7 +87,7 @@ This might not yet be honored by all index-building functions."
 (defcustom imenu-auto-rescan-maxout 600000
   "Imenu auto-rescan is disabled in buffers larger than this size (in bytes).
 Also see `imenu-max-index-time'."
-  :type 'integer
+  :type 'natnum
   :version "26.2")
 
 (defcustom imenu-use-popup-menu 'on-mouse
@@ -132,7 +132,7 @@ element should come before the second.  The arguments are cons cells;
 
 (defcustom imenu-max-items 25
   "Maximum number of elements in a mouse menu for Imenu."
-  :type 'integer)
+  :type 'natnum)
 
 (defcustom imenu-space-replacement "."
   "The replacement string for spaces in index names.
@@ -207,6 +207,13 @@ an index alist of the current buffer.  The function is
 called within a `save-excursion'.
 
 See `imenu--index-alist' for the format of the buffer index alist.")
+
+;;;###autoload
+(defvar-local imenu-submenus-on-top t
+  "Flag specifying whether items with sublists should be kept at top.
+
+For some indexes, such as those describing sections in a document, it
+makes sense to keep their original order even in the menubar.")
 
 ;;;###autoload
 (defvar-local imenu-prev-index-position-function 'beginning-of-defun
@@ -310,7 +317,7 @@ element recalculates the buffer's index alist.")
 
 (defvar imenu--history-list nil
   ;; Making this buffer local caused it not to work!
-  "History list for `jump-to-function-in-buffer'.")
+  "History list for `imenu-choose-buffer-index'.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -373,10 +380,11 @@ The returned alist DOES NOT share structure with MENULIST."
     (if (memq imenu--rescan-item menulist)
 	(setq keep-at-top (list imenu--rescan-item)
 	      menulist (delq imenu--rescan-item menulist)))
-    (dolist (item menulist)
-      (when (imenu--subalist-p item)
-	(push item keep-at-top)
-	(setq menulist (delq item menulist))))
+    (if imenu-submenus-on-top
+        (dolist (item menulist)
+          (when (imenu--subalist-p item)
+	    (push item keep-at-top)
+	    (setq menulist (delq item menulist)))))
     (if imenu-sort-function
 	(setq menulist (sort menulist imenu-sort-function)))
     (if (> (length menulist) imenu-max-items)
@@ -464,14 +472,14 @@ Non-nil arguments are in recursive calls."
   `(keymap ,title
            ,@(mapcar
               (lambda (item)
-                `(,(car item) ,(car item)
+                `(,(intern (car item)) ,(car item)
                   ,@(cond
                      ((imenu--subalist-p item)
                       (imenu--create-keymap (car item) (cdr item) cmd))
                      (t
                       (lambda () (interactive)
                         (if cmd (funcall cmd item) item))))))
-              alist)))
+              (seq-filter #'identity alist))))
 
 (defun imenu--in-alist (str alist)
   "Check whether the string STR is contained in multi-level ALIST."
@@ -898,6 +906,13 @@ for more information."
        (run-hooks 'imenu-after-jump-hook))
       (`(,name . ,pos) (imenu (list name pos imenu-default-goto-function)))
       (_ (error "Unknown imenu item: %S" index-item)))))
+
+(defun imenu-flush-cache ()
+  "Flush the current imenu cache.
+This forces a full rescan of the buffer to recreate the index alist
+next time `imenu' is invoked."
+  (imenu--cleanup)
+  (setq imenu--index-alist nil))
 
 (provide 'imenu)
 

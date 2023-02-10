@@ -1,10 +1,10 @@
 ;;; ol-rmail.el --- Links to Rmail Messages          -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2023 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;; Keywords: outlines, hypermedia, calendar, wp
-;; Homepage: https://orgmode.org
+;; URL: https://orgmode.org
 ;;
 ;; This file is part of GNU Emacs.
 ;;
@@ -29,6 +29,9 @@
 ;; want, configure the variable `org-modules'.
 
 ;;; Code:
+
+(require 'org-macs)
+(org-assert-version)
 
 (require 'ol)
 

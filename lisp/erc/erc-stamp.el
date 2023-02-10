@@ -1,9 +1,9 @@
 ;;; erc-stamp.el --- Timestamping for ERC messages  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2004, 2006-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2004, 2006-2023 Free Software Foundation, Inc.
 
 ;; Author: Mario Lang <mlang@delysid.org>
-;; Maintainer: Amin Bandali <bandali@gnu.org>
+;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
 ;; Keywords: comm, timestamp
 ;; URL: https://www.emacswiki.org/emacs/ErcStamp
 
@@ -303,7 +303,7 @@ printed just after each line's text (no alignment)."
       ;; to the next line before inserting a stamp.  It allows for
       ;; some margin of error if what is displayed on the line differs
       ;; from the number of characters on the line.
-      (setq col (+ col (ceiling (/ (- col (- (point) (point-at-bol))) 1.6))))
+      (setq col (+ col (ceiling (/ (- col (- (point) (line-beginning-position))) 1.6))))
       (if (< col pos)
 	  (erc-insert-aligned string pos)
 	(newline)

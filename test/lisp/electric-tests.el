@@ -1,6 +1,6 @@
 ;;; electric-tests.el --- tests for electric.el  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2023 Free Software Foundation, Inc.
 
 ;; Author: João Távora <joaotavora@gmail.com>
 ;; Keywords:
@@ -79,7 +79,7 @@
     (should (equal (point)
                    expected-point))))
 
-(eval-when-compile
+(eval-and-compile
   (defun electric-pair-define-test-form (name fixture
                                               char
                                               pos
@@ -97,8 +97,8 @@
                 (with-temp-buffer
                   (cl-progv
                       ;; FIXME: avoid `eval'
-                      (mapcar #'car (eval bindings))
-                      (mapcar #'cdr (eval bindings))
+                      (mapcar #'car (eval bindings t))
+                      (mapcar #'cdr (eval bindings t))
                     (dlet ((python-indent-guess-indent-offset-verbose nil))
                       (funcall mode)
                       (insert fixture)
@@ -176,7 +176,7 @@ The buffer's contents should %s:
           expected-string
           expected-point
           bindings
-          (modes '(quote (ruby-mode js-mode python-mode)))
+          (modes '(quote (ruby-mode js-mode python-mode c-mode)))
           (test-in-comments t)
           (test-in-strings t)
           (test-in-code t)
@@ -187,7 +187,7 @@ The buffer's contents should %s:
           (fixture-fn '#'electric-pair-mode))
   `(progn
      ,@(cl-loop
-        for mode in (eval modes) ;FIXME: avoid `eval'
+        for mode in (eval modes t) ;FIXME: avoid `eval'
         append
         (cl-loop
          for (prefix suffix extra-desc) in
@@ -428,7 +428,9 @@ baz\"\""
   :bindings '((electric-pair-skip-whitespace . chomp))
   :test-in-strings nil
   :test-in-code nil
-  :test-in-comments t)
+  :test-in-comments t
+  :fixture-fn (lambda () (when (eq major-mode 'c-mode)
+                           (c-toggle-comment-style -1))))
 
 (define-electric-pair-test whitespace-skipping-for-quotes-not-outside
   "  \"  \"" "\"-----" :expected-string "\"\"  \"  \""
@@ -537,16 +539,6 @@ baz\"\""
   :fixture-fn (lambda ()
                 (electric-layout-mode 1)
                 (electric-pair-mode 1)))
-
-(define-electric-pair-test js-mode-braces-with-layout-and-indent
-  "" "{" :expected-string "{\n    \n}" :expected-point 7
-  :modes '(js-mode)
-  :test-in-comments nil
-  :test-in-strings nil
-  :fixture-fn (lambda ()
-                (electric-pair-mode 1)
-                (electric-indent-mode 1)
-                (electric-layout-mode 1)))
 
 (define-electric-pair-test js-mode-braces-with-layout-and-indent
   "" "{" :expected-string "{\n    \n}" :expected-point 7
@@ -909,7 +901,7 @@ baz\"\""
     (should (equal (buffer-string) "int main () {\n  \n}"))))
 
 (ert-deftest electric-layout-control-reindentation ()
-  "Same as `emacs-lisp-int-main-kernel-style', but checking
+  "Same as `electric-layout-int-main-kernel-style', but checking
 Bug#35254."
   (ert-with-test-buffer ()
     (plainer-c-mode)

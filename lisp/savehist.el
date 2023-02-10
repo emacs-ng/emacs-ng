@@ -1,6 +1,6 @@
 ;;; savehist.el --- Save minibuffer history  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 2005-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 
 ;; Author: Hrvoje Nikšić <hrvoje.niksic@avl.com>
 ;; Maintainer: emacs-devel@gnu.org
@@ -41,10 +41,6 @@
 ;; You can also explicitly save history with `M-x savehist-save' and
 ;; load it by loading the `savehist-file' with `M-x load-file'.
 
-;; If you are using a version of Emacs that does not ship with this
-;; package, be sure to have `savehist.el' in a directory that is in
-;; your load-path, and to byte-compile it.
-
 ;;; Code:
 
 ;; User variables
@@ -60,14 +56,19 @@ If you want to save only specific histories, use `savehist-save-hook'
 to modify the value of `savehist-minibuffer-history-variables'."
   :type 'boolean)
 
-(defcustom savehist-additional-variables ()
+(defcustom savehist-additional-variables nil
   "List of additional variables to save.
-Each element is a symbol whose value will be persisted across Emacs
-sessions that use Savehist.  The contents of variables should be
-printable with the Lisp printer.  You don't need to add minibuffer
-history variables to this list, all minibuffer histories will be
-saved automatically as long as `savehist-save-minibuffer-history' is
-non-nil.
+Each element is a variable that will be persisted across Emacs
+sessions that use Savehist.
+
+An element may be variable name (a symbol) or a cons cell of the form
+\(VAR . MAX-SIZE), which means to truncate VAR's value to at most
+MAX-SIZE elements (if the value is a list) before saving the value.
+
+The contents of variables should be printable with the Lisp
+printer.  You don't need to add minibuffer history variables to
+this list, all minibuffer histories will be saved automatically
+as long as `savehist-save-minibuffer-history' is non-nil.
 
 User options should be saved with the Customize interface.  This
 list is useful for saving automatically updated variables that are not
@@ -92,7 +93,8 @@ This is decimal, not octal.  The default is 384 (0600 in octal).
 Set to nil to use the default permissions that Emacs uses, typically
 mandated by umask.  The default is a bit more restrictive to protect
 the user's privacy."
-  :type 'integer)
+  :type '(choice (natnum :tag "Specify")
+                 (const :tag "Use default" :value nil)))
 
 (defcustom savehist-autosave-interval (* 5 60)
   "The interval between autosaves of minibuffer history.
@@ -278,12 +280,21 @@ If AUTO-SAVE is non-nil, compare the saved contents to the one last saved,
 		      (delete-region (point) (1+ (point)))))
 		(insert "))\n"))))))
       ;; Save the additional variables.
-      (dolist (symbol savehist-additional-variables)
-	(when (boundp symbol)
-	  (let ((value (symbol-value symbol)))
-	    (when (savehist-printable value)
-	      (prin1 `(setq ,symbol ',value) (current-buffer))
-	      (insert ?\n))))))
+      (dolist (elem savehist-additional-variables)
+        (let ((symbol (if (consp elem)
+                          (car elem)
+                        elem)))
+	  (when (boundp symbol)
+	    (let ((value (symbol-value symbol)))
+	      (when (savehist-printable value)
+                ;; When we have a max-size, chop off the last elements.
+                (when (and (consp elem)
+                           (listp value)
+                           (length> value (cdr elem)))
+                  (setq value (copy-sequence value))
+                  (setcdr (nthcdr (cdr elem) value) nil))
+	        (prin1 `(setq ,symbol ',value) (current-buffer))
+	        (insert ?\n)))))))
     ;; If autosaving, avoid writing if nothing has changed since the
     ;; last write.
     (let ((checksum (md5 (current-buffer) nil nil savehist-coding-system)))

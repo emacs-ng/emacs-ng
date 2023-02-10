@@ -1,6 +1,6 @@
 /* Basic character set support.
 
-Copyright (C) 2001-2022 Free Software Foundation, Inc.
+Copyright (C) 2001-2023 Free Software Foundation, Inc.
 
 Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
   2005, 2006, 2007, 2008, 2009, 2010, 2011
@@ -483,7 +483,7 @@ load_charset_map_from_file (struct charset *charset, Lisp_Object mapfile,
   AUTO_STRING (map, ".map");
   AUTO_STRING (txt, ".txt");
   AUTO_LIST2 (suffixes, map, txt);
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   record_unwind_protect_nothing ();
   specbind (Qfile_name_handler_alist, Qnil);
   fd = openp (Vcharset_map_path, mapfile, suffixes, NULL, Qnil, false, false);
@@ -495,7 +495,7 @@ load_charset_map_from_file (struct charset *charset, Lisp_Object mapfile,
       report_file_errno ("Loading charset map", mapfile, open_errno);
     }
   set_unwind_protect_ptr (count, fclose_unwind, fp);
-  unbind_to (count + 1, Qnil);
+  unbind_to (specpdl_ref_add (count, 1), Qnil);
 
   /* Use record_xmalloc, as `charset_map_entries' is
      large (larger than MAX_ALLOCA).  */
@@ -1852,9 +1852,8 @@ although this usage is obsolescent.  */)
 
 DEFUN ("encode-char", Fencode_char, Sencode_char, 2, 2, 0,
        doc: /* Encode the character CH into a code-point of CHARSET.
-Return the encoded code-point, a fixnum if its value is small enough,
-otherwise a bignum.
-Return nil if CHARSET doesn't support CH.  */)
+Return the encoded code-point as an integer,
+or nil if CHARSET doesn't support CH.  */)
   (Lisp_Object ch, Lisp_Object charset)
 {
   int c, id;

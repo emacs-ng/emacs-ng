@@ -1,6 +1,6 @@
 ;;; simple-tests.el --- Tests for simple.el           -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2023 Free Software Foundation, Inc.
 
 ;; Author: Artur Malabarba <bruce.connor.am@gmail.com>
 
@@ -71,6 +71,30 @@
   (with-temp-buffer
     (insert "あ\nい\nう\nえ\nお\n")
     (should (= (count-lines (point) (point)) 0))))
+
+
+;;; `execute-extended-command'
+
+(ert-deftest simple-execute-extended-command--shorter ()
+  ;; This test can be flaky with completion frameworks other than the
+  ;; default, so just skip it in interactive sessions.
+  (skip-unless noninteractive)
+  (should (equal (execute-extended-command--shorter
+                  "display-line-numbers-mode"
+                  "display-line")
+                 "di-n")))
+
+(ert-deftest simple-execute-extended-command--describe-binding-msg ()
+  (let ((text-quoting-style 'grave))
+    (should (equal (execute-extended-command--describe-binding-msg
+                    'foo "m" nil)
+                   "You can run the command `foo' with m"))
+    (should (equal (execute-extended-command--describe-binding-msg
+                    'foo [14] nil)
+                   "You can run the command `foo' with C-n"))
+    (should (equal (execute-extended-command--describe-binding-msg
+                    'display-line-numbers-mode nil "di-n")
+                   "You can run the command `display-line-numbers-mode' with M-x di-n"))))
 
 
 ;;; `transpose-sexps'
@@ -321,7 +345,7 @@ See bug#35036."
     ;; Stay at BOB.
     (forward-line -1)
     (save-restriction
-      (narrow-to-region (point) (line-end-position))
+      (narrow-to-region (point) (pos-eol))
       (should-not (delete-indentation))
       (should (equal (simple-test--buffer-substrings)
                      '("" . " second ")))
@@ -344,27 +368,23 @@ See bug#35036."
     (should (equal (simple-test--buffer-substrings)
                    '(" first " . "")))
     ;; Single line.
-    (should-not (delete-indentation
-                 nil (line-beginning-position) (1- (point))))
+    (should-not (delete-indentation nil (pos-bol) (1- (point))))
     (should (equal (simple-test--buffer-substrings)
                    '("" . " first ")))
-    (should-not (delete-indentation nil (1+ (point)) (line-end-position)))
+    (should-not (delete-indentation nil (1+ (point)) (pos-eol)))
     (should (equal (simple-test--buffer-substrings)
                    '(" " . "first ")))
-    (should-not (delete-indentation
-                 nil (line-beginning-position) (line-end-position)))
+    (should-not (delete-indentation nil (pos-bol) (pos-eol)))
     (should (equal (simple-test--buffer-substrings)
                    '("" . " first ")))
     ;; Multiple lines.
     (goto-char (point-max))
     (insert "\n second \n third \n fourth ")
     (goto-char (point-min))
-    (should-not (delete-indentation
-                 nil (line-end-position) (line-beginning-position 2)))
+    (should-not (delete-indentation nil (pos-eol) (pos-bol 2)))
     (should (equal (simple-test--buffer-substrings)
                    '(" first" . " second \n third \n fourth ")))
-    (should-not (delete-indentation
-                 nil (point) (1+ (line-beginning-position 2))))
+    (should-not (delete-indentation nil (point) (1+ (pos-bol 2))))
     (should (equal (simple-test--buffer-substrings)
                    '(" first second" . " third \n fourth ")))
     ;; Prefix argument overrides region.
@@ -808,7 +828,7 @@ See Bug#21722."
       (insert "a\nb\nc\nd\n")
       (goto-char (point-min))
       (forward-line (1- target-line))
-      (narrow-to-region (line-beginning-position) (line-end-position))
+      (narrow-to-region (pos-bol) (pos-eol))
       (should (equal (line-number-at-pos) 1))
       (should (equal (line-number-at-pos nil t) target-line)))))
 
@@ -817,7 +837,7 @@ See Bug#21722."
     (insert "a\nb\nc\nd\n")
     (goto-char (point-min))
     (forward-line 2)
-    (narrow-to-region (line-beginning-position) (line-end-position))
+    (narrow-to-region (pos-bol) (pos-eol))
     (should (equal (line-number-at-pos) 1))
     (line-number-at-pos nil t)
     (should (equal (line-number-at-pos) 1))))
@@ -966,10 +986,65 @@ See Bug#21722."
     (setq buffer-undo-list nil)
     (downcase-word 1)
     (should (= (length (delq nil (undo-make-selective-list 1 9))) 2))
-    (should (= (length (delq nil (undo-make-selective-list 4 9))) 1))
-    ;; FIXME this is the off-by-one error case.
+    ;; FIXME: These should give 0, but currently give 1.
+    ;;(should (= (length (delq nil (undo-make-selective-list 4 9))) 0))
     ;;(should (= (length (delq nil (undo-make-selective-list 5 9))) 0))
     (should (= (length (delq nil (undo-make-selective-list 6 9))) 0))))
+
+(ert-deftest test-yank-in-context ()
+  (should
+   (equal
+    (with-temp-buffer
+      (sh-mode)
+      (insert "echo \"foo\"")
+      (kill-new "\"bar\"")
+      (goto-char 8)
+      (yank-in-context)
+      (buffer-string))
+    "echo \"f\\\"bar\\\"oo\""))
+
+  (should
+   (equal
+    (with-temp-buffer
+      (sh-mode)
+      (insert "echo \"foo\"")
+      (kill-new "'bar'")
+      (goto-char 8)
+      (yank-in-context)
+      (buffer-string))
+    "echo \"f'bar'oo\""))
+
+  (should
+   (equal
+    (with-temp-buffer
+      (sh-mode)
+      (insert "echo 'foo'")
+      (kill-new "'bar'")
+      (goto-char 8)
+      (yank-in-context)
+      (buffer-string))
+    "echo 'f'\\''bar'\\''oo'")))
+
+;;; Tests for `zap-to-char'
+
+(defmacro with-zap-to-char-test (original result &rest body)
+  (declare (indent 2) (debug (stringp stringp body)))
+  `(with-temp-buffer
+     (insert ,original)
+     (goto-char (point-min))
+     ,@body
+     (should (equal (buffer-string) ,result))))
+
+(ert-deftest simple-tests-zap-to-char ()
+  (with-zap-to-char-test "abcde" "de"
+    (zap-to-char 1 ?c))
+  (with-zap-to-char-test "abcde abc123" "123"
+    (zap-to-char 2 ?c))
+  (let ((case-fold-search t))
+    (with-zap-to-char-test "abcdeCXYZ" "deCXYZ"
+      (zap-to-char 1 ?C))
+    (with-zap-to-char-test "abcdeCXYZ" "XYZ"
+      (zap-to-char 1 ?C 'interactive))))
 
 (provide 'simple-test)
 ;;; simple-tests.el ends here

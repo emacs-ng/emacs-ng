@@ -1,6 +1,6 @@
 ;;; mail-source.el --- functions for fetching mail  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news, mail
@@ -31,6 +31,7 @@
 (autoload 'pop3-movemail "pop3")
 (autoload 'pop3-get-message-count "pop3")
 (require 'mm-util)
+(require 'gnus-range)
 (require 'message) ;; for `message-directory'
 
 (defvar display-time-mail-function)
@@ -224,12 +225,9 @@ Leave mails for this many days" :value 14)))))
 					   (const :format "" :value :plugged)
 					   (boolean :tag "Plugged"))))))))
 
-(defcustom mail-source-ignore-errors nil
-  "Ignore errors when querying mail sources.
-If nil, the user will be prompted when an error occurs.  If non-nil,
-the error will be ignored."
-  :version "22.1"
-  :type 'boolean)
+(make-obsolete-variable 'mail-source-ignore-errors
+                        "configure `gnus-verbose' instead"
+                        "29.1")
 
 (defcustom mail-source-primary-source nil
   "Primary source for incoming mail.
@@ -415,7 +413,7 @@ the `mail-source-keyword-map' variable."
   (let* ((type (pop source))
          (defaults (cdr (assq type mail-source-keyword-map)))
          (search '(:max 1))
-         found default value keyword user-auth pass-auth) ;; auth-info
+         found default keyword user-auth pass-auth) ;; auth-info
 
     ;; append to the search the useful info from the source and the defaults:
     ;; user, host, and port
@@ -442,22 +440,22 @@ the `mail-source-keyword-map' variable."
       ;; for each default :SYMBOL, set SYMBOL to the plist value for :SYMBOL
       ;; using `mail-source-value' to evaluate the plist value
       (set (mail-source-strip-keyword (setq keyword (car default)))
-           ;; note the following reasons for this structure:
+           ;; Note the following reasons for this structure:
            ;; 1) the auth-sources user and password override everything
            ;; 2) it avoids macros, so it's cleaner
            ;; 3) it falls through to the mail-sources and then default values
            (cond
             ((and
-             (eq keyword :user)
-             (setq user-auth
-                   (plist-get
-                    ;; cache the search result in `found'
-                    (or found
-                        (setq found (nth 0 (apply #'auth-source-search
-                                                  search))))
-                    :user)))
+              (eq keyword :user)
+              (setq user-auth
+                    (plist-get
+                     ;; cache the search result in `found'
+                     (or found
+                         (setq found (nth 0 (apply #'auth-source-search
+                                                   search))))
+                     :user)))
              user-auth)
-            ((and
+            ((and              ; cf. 'auth-source-pick-first-password'
               (eq keyword :password)
               (setq pass-auth
                     (plist-get
@@ -470,9 +468,8 @@ the `mail-source-keyword-map' variable."
              (if (functionp pass-auth)
                  (setq pass-auth (funcall pass-auth))
                pass-auth))
-            (t (if (setq value (plist-get source keyword))
-                 (mail-source-value value)
-               (mail-source-value (cadr default)))))))))
+            (t (mail-source-value (or (plist-get source keyword)
+                                      (cadr default)))))))))
 
 (eval-and-compile
   (defun mail-source-bind-common-1 ()
@@ -554,18 +551,16 @@ Return the number of files that were found."
 		 (condition-case err
 		     (funcall function source callback)
 		   (error
-		    (if (and (not mail-source-ignore-errors)
-			     (not
-			      (yes-or-no-p
-			       (format "Mail source %s error (%s).  Continue? "
+                    (gnus-error
+                     5
+                     (format "Mail source %s error (%s)"
 				       (if (memq ':password source)
 					   (let ((s (copy-sequence source)))
 					     (setcar (cdr (memq ':password s))
 						     "********")
 					     s)
 					 source)
-				       (cadr err)))))
-		      (error "Cannot get new mail"))
+				       (cadr err)))
 		    0)))))))))
 
 (declare-function gnus-message "gnus-util" (level &rest args))
@@ -1053,8 +1048,6 @@ This only works when `display-time' is enabled."
 (autoload 'imap-range-to-message-set "imap")
 (autoload 'nnheader-ms-strip-cr "nnheader")
 
-(autoload 'gnus-compress-sequence "gnus-range")
-
 (defvar mail-source-imap-file-coding-system 'binary
   "Coding system for the crashbox made by `mail-source-fetch-imap'.")
 
@@ -1072,9 +1065,7 @@ This only works when `display-time' is enabled."
     (let ((from (format "%s:%s:%s" server user port))
 	  (found 0)
 	  (buf (generate-new-buffer " *imap source*"))
-	  (mail-source-string (format "imap:%s:%s" server mailbox))
-	  (imap-shell-program (or (list program) imap-shell-program))
-	  remove)
+	  (imap-shell-program (or (list program) imap-shell-program)))
       (if (and (imap-open server port stream authentication buf)
 	       (imap-authenticate
 		user (or (cdr (assoc from mail-source-password-cache))
@@ -1083,8 +1074,10 @@ This only works when `display-time' is enabled."
           (let ((mailbox-list (if (listp mailbox) mailbox (list mailbox))))
             (dolist (mailbox mailbox-list)
               (when (imap-mailbox-select mailbox nil buf)
-	  (let ((coding-system-for-write mail-source-imap-file-coding-system)
-		str)
+	        (let ((coding-system-for-write
+                       mail-source-imap-file-coding-system)
+	              (mail-source-string (format "imap:%s:%s" server mailbox))
+	              str remove)
             (message "Fetching from %s..." mailbox)
 	    (with-temp-file mail-source-crash-box
 	      ;; Avoid converting 8-bit chars from inserted strings to

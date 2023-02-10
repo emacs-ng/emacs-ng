@@ -1,6 +1,6 @@
 /* 16-bit Windows Selection processing for emacs on MS-Windows
 
-Copyright (C) 1996-1997, 2001-2022 Free Software Foundation, Inc.
+Copyright (C) 1996-1997, 2001-2023 Free Software Foundation, Inc.
 
 Author: Dale P. Smith <dpsm@en.com>
 
@@ -651,7 +651,7 @@ frame's display, or the first available X display.  */)
      by the X interface code.  (On MSDOS, killed text is only put
      into the clipboard if we run under Windows, so we cannot check
      the clipboard alone.)  */
-  if ((EQ (selection, Qnil) || EQ (selection, QPRIMARY))
+  if ((NILP (selection) || EQ (selection, QPRIMARY))
       && ! NILP (Fsymbol_value (Fintern_soft (build_string ("kill-ring"),
 					      Qnil))))
     return Qt;

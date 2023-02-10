@@ -1,6 +1,6 @@
                                             -*-mode: text; coding: utf-8;-*-
 
-Copyright (C) 2002-2022 Free Software Foundation, Inc.
+Copyright (C) 2002-2023 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 Importing a new Unicode Standard version into Emacs
@@ -15,17 +15,32 @@ Emacs uses the following files from the Unicode Character Database
   . BidiMirroring.txt
   . IVD_Sequences.txt
   . NormalizationTest.txt
+  . PropertyValueAliases.txt
+  . ScriptExtensions.txt
+  . Scripts.txt
   . SpecialCasing.txt
+  . confusables.txt
   . emoji-data.txt
   . emoji-zwj-sequences.txt
   . emoji-sequences.txt
   . BidiCharacterTest.txt
 
-First, the first 10 files need to be copied into admin/unidata/, and
-the file https://www.unicode.org/copyright.html should be copied over
+Emacs also uses the file emoji-test.txt which should be imported from
+the Unicode's Public/emoji/ directory, and IdnaMappingTable.txt from
+the Public/idna/ directory.
+
+First, the first 14 files, emoji-test.txt and IdnaMappingTable.txt
+need to be copied into admin/unidata/, and the file
+https://www.unicode.org/copyright.html should be copied over
 copyright.html in admin/unidata (some of them might need trailing
 whitespace removed before they can be committed to the Emacs
 repository).
+
+Next, review the assignment of default values of the Bidi Class
+property to blocks in the file extracted/DerivedBidiClass.txt from the
+UCD (search for "unassigned" in that file).  Any changes should be
+reflected in the unidata-gen.el file, where it sets up the default
+values around line 210.
 
 Then Emacs should be rebuilt for them to take effect.  Rebuilding
 Emacs updates several derived files elsewhere in the Emacs source
@@ -87,6 +102,10 @@ if its format has changed, the file biditest.el there should be
 modified to follow suit.  If there's trailing whitespace in
 BidiCharacterTest.txt, it should be removed before committing the new
 version.
+
+src/macuvs.h is a generated file, but if it has changed as a result
+of the updates, please commit it as well (see
+admin/unidata/Makefile.in for an explanation).
 
 Visit "emoji-data.txt" with the rebuilt Emacs, and check that an
 appropriate font is being used for the emoji (by default Emacs uses

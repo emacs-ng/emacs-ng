@@ -1,6 +1,6 @@
 ;;; nnmairix.el --- Mairix back end for Gnus, the Emacs newsreader  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2007-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2023 Free Software Foundation, Inc.
 
 ;; Author: David Engster <deng@randomsample.de>
 ;; Keywords: mail searching
@@ -333,7 +333,7 @@ this might lead to problems, especially when used with marks propagation."
 (defvar nnmairix-widget-other
   '(threads flags)
   "Other editable mairix commands when using customization widgets.
-Currently there are 'threads and 'flags.")
+Currently there are `threads' and `flags'.")
 
 (defvar nnmairix-interactive-query-parameters
   '((?f "from" "f" "From") (?t "to" "t" "To") (?c "to" "tc" "To or Cc")
@@ -574,7 +574,7 @@ Other back ends might or might not work.")
 			      (gnus-group-get-parameter qualgroup 'folder)))
 		(progn
 		  (replace-match cur)
-		  (delete-region cpoint (point-at-bol))
+                  (delete-region cpoint (line-beginning-position))
 		  (forward-line)
 		  (setq cpoint (point)))
 	      (forward-line)))
@@ -597,7 +597,7 @@ Other back ends might or might not work.")
       (dolist (cur actions)
 	(let ((type (nth 1 cur))
 	      (cmdmarks (nth 2 cur))
-	      (range (gnus-uncompress-range (nth 0 cur)))
+	      (range (range-uncompress (nth 0 cur)))
 	      mid ogroup temp) ;; number method
 	  (when (and corr
 		     (not (zerop (cadr corr))))

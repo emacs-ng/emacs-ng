@@ -1,6 +1,6 @@
 ;;; idle.el --- Schedule parsing tasks in idle time  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2003-2006, 2008-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2006, 2008-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: syntax
@@ -347,7 +347,7 @@ Returns t if all processing succeeded."
   "Core handler for idle work processing of long running tasks.
 Visits Semantic controlled buffers, and makes sure all needed
 include files have been parsed, and that the typecache is up to date.
-Uses `semantic-idle-work-for-on-buffer' to do the work."
+Uses `semantic-idle-work-for-one-buffer' to do the work."
   (let*
       ((errbuf nil)
        (interrupted
@@ -396,7 +396,7 @@ Uses `semantic-idle-work-for-on-buffer' to do the work."
 	      (semanticdb-save-all-db-idle)
 	      )
 
-	    ;; Done w/ processing
+            ;; Done with processing
 	    nil))))
 
     ;; Done
@@ -818,13 +818,13 @@ visible, then highlight it."
 	       (goto-char (overlay-start region))
 	       (when (pos-visible-in-window-p
 		      (point) (get-buffer-window (current-buffer) 'visible))
-		 (if (< (overlay-end region) (point-at-eol))
+                 (if (< (overlay-end region) (line-end-position))
 		     (pulse-momentary-highlight-overlay
 		      region semantic-idle-symbol-highlight-face)
 		   ;; Not the same
 		   (pulse-momentary-highlight-region
 		    (overlay-start region)
-		    (point-at-eol)
+                    (line-end-position)
 		    semantic-idle-symbol-highlight-face))))
 	     ))
 	  ((vectorp region)
@@ -843,8 +843,8 @@ visible, then highlight it."
 			end t)
 		   ;; This is likely it, give it a try.
 		   (pulse-momentary-highlight-region
-		    start (if (<= end (point-at-eol)) end
-			    (point-at-eol))
+                    start (if (<= end (line-end-position)) end
+                            (line-end-position))
 		    semantic-idle-symbol-highlight-face)))
 	       ))))
     nil))

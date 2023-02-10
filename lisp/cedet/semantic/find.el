@@ -1,6 +1,6 @@
 ;;; semantic/find.el --- Search routines for Semantic  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2005, 2008-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2005, 2008-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: syntax
@@ -591,7 +591,7 @@ in the new list.
 If optional argument SEARCH-PARTS is non-nil, all sub-parts of tags
 are searched.  The overloadable function `semantic-tag-components' is
 used for the searching child lists.  If SEARCH-PARTS is the symbol
-'positiononly, then only children that have positional information are
+`positiononly', then only children that have positional information are
 searched.
 
 If SEARCH-INCLUDES has not been implemented.

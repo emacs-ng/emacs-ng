@@ -1,6 +1,6 @@
 ;;; gnus-demon.el --- daemonic Gnus behavior  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -222,7 +222,7 @@ minutes, the connection is closed."
 
 (defun gnus-demon-nntp-close-connection ()
   (save-window-excursion
-    (when (time-less-p '(0 300) (time-since nntp-last-command-time))
+    (when (time-less-p 300 (time-since nntp-last-command-time))
       (nntp-close-server))))
 
 (defun gnus-demon-add-scanmail ()

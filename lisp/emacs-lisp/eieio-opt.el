@@ -1,6 +1,6 @@
 ;;; eieio-opt.el --- eieio optional functions (debug, printing, speedbar)  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996, 1998-2003, 2005, 2008-2022 Free Software
+;; Copyright (C) 1996, 1998-2003, 2005, 2008-2023 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
@@ -130,6 +130,7 @@ are not abstract."
 ;;;###autoload
 (defun eieio-help-constructor (ctr)
   "Describe CTR if it is a class constructor."
+  (declare (obsolete "use `describe-function' or `cl--describe-class'." "29.1"))
   (when (class-p ctr)
     (erase-buffer)
     (let ((location (find-lisp-object-file-name ctr 'define-type))
@@ -152,7 +153,7 @@ are not abstract."
         (help-insert-xref-button
 	 (help-fns-short-filename location)
 	 'cl-type-definition ctr location 'define-type)
-	(insert (substitute-command-keys "'")))
+        (insert (substitute-quotes "'")))
       (insert ".\nCreates an object of class " (symbol-name ctr) ".")
       (goto-char (point-max))
       (if (autoloadp def)
@@ -346,9 +347,5 @@ INDENT is the current indentation level."
   (dframe-maybee-jump-to-attached-frame))
 
 (provide 'eieio-opt)
-
-;; Local variables:
-;; generated-autoload-file: "eieio-loaddefs.el"
-;; End:
 
 ;;; eieio-opt.el ends here

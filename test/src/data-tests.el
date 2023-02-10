@@ -1,6 +1,6 @@
 ;;; data-tests.el --- tests for src/data.c  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -200,8 +200,7 @@ this is exactly representable and is greater than
             nibbles)
       (setf v (nthcdr 4 v)))
     (mapconcat (lambda (n) (format "%X" n))
-               (nreverse nibbles)
-               "")))
+               (nreverse nibbles))))
 
 (defun test-bool-vector-count-consecutive-tc (desc)
   "Run a test case for `bool-vector-count-consecutive'.
@@ -419,7 +418,7 @@ comparing the subr with a much slower Lisp implementation."
   "Test setting a keyword constant."
   (with-no-warnings (should-error (setq :keyword 'bob) :type 'setting-constant)))
 
-(ert-deftest binding-test-set-constant-nil ()
+(ert-deftest binding-test-set-constant-itself ()
   "Test setting a keyword to itself."
   (with-no-warnings (should (setq :keyword :keyword))))
 
@@ -433,26 +432,27 @@ comparing the subr with a much slower Lisp implementation."
   ;; More specifically, test the problem seen in bug#41029 where setting
   ;; the default value of a variable takes time proportional to the
   ;; number of buffers.
-  (let* ((fun #'error)
-         (test (lambda ()
-                 (with-temp-buffer
-                   (let ((st (car (current-cpu-time))))
-                     (dotimes (_ 1000)
-                       (let ((case-fold-search 'data-test))
-                         ;; Use an indirection through a mutable var
-                         ;; to try and make sure the byte-compiler
-                         ;; doesn't optimize away the let bindings.
-                         (funcall fun)))
-                     ;; FIXME: Handle the wraparound, if any.
-                     (- (car (current-cpu-time)) st)))))
-         (_ (setq fun #'ignore))
-         (time1 (funcall test))
-         (bufs (mapcar (lambda (_) (generate-new-buffer " data-test"))
-                       (make-list 1000 nil)))
-         (time2 (funcall test)))
-    (mapc #'kill-buffer bufs)
-    ;; Don't divide one time by the other since they may be 0.
-    (should (< time2 (* time1 5)))))
+  (when (fboundp 'current-cpu-time)     ; silence byte-compiler
+    (let* ((fun #'error)
+           (test (lambda ()
+                   (with-temp-buffer
+                     (let ((st (car (current-cpu-time))))
+                       (dotimes (_ 1000)
+                         (let ((case-fold-search 'data-test))
+                           ;; Use an indirection through a mutable var
+                           ;; to try and make sure the byte-compiler
+                           ;; doesn't optimize away the let bindings.
+                           (funcall fun)))
+                       ;; FIXME: Handle the wraparound, if any.
+                       (- (car (current-cpu-time)) st)))))
+           (_ (setq fun #'ignore))
+           (time1 (funcall test))
+           (bufs (mapcar (lambda (_) (generate-new-buffer " data-test"))
+                         (make-list 1000 nil)))
+           (time2 (funcall test)))
+      (mapc #'kill-buffer bufs)
+      ;; Don't divide one time by the other since they may be 0.
+      (should (< time2 (* time1 5))))))
 
 ;; More tests to write -
 ;; kill-local-variable
@@ -690,7 +690,7 @@ comparing the subr with a much slower Lisp implementation."
   (let ((n (* 2 most-negative-fixnum)))
     (should (= (logand -1 n) n))))
 
-(ert-deftest data-tests-logcount ()
+(ert-deftest data-tests-logcount-2 ()
   (should (= (logcount (read "#xffffffffffffffffffffffffffffffff")) 128)))
 
 (ert-deftest data-tests-logior ()
@@ -740,14 +740,15 @@ comparing the subr with a much slower Lisp implementation."
   (should (= (ash 1000 (* 2 most-negative-fixnum)) 0))
   (should (= (ash -1000 (* 2 most-negative-fixnum)) -1))
   (should (= (ash (* 2 most-negative-fixnum) (* 2 most-negative-fixnum)) -1))
-  (should (= (lsh most-negative-fixnum 1)
-             (* most-negative-fixnum 2)))
   (should (= (ash (* 2 most-negative-fixnum) -1)
 	     most-negative-fixnum))
-  (should (= (lsh most-positive-fixnum -1) (/ most-positive-fixnum 2)))
-  (should (= (lsh most-negative-fixnum -1) (lsh (- most-negative-fixnum) -1)))
-  (should (= (lsh -1 -1) most-positive-fixnum))
-  (should-error (lsh (1- most-negative-fixnum) -1)))
+  (with-suppressed-warnings ((suspicious lsh))
+    (should (= (lsh most-negative-fixnum 1)
+               (* most-negative-fixnum 2)))
+    (should (= (lsh most-positive-fixnum -1) (/ most-positive-fixnum 2)))
+    (should (= (lsh most-negative-fixnum -1) (lsh (- most-negative-fixnum) -1)))
+    (should (= (lsh -1 -1) most-positive-fixnum))
+    (should-error (lsh (1- most-negative-fixnum) -1))))
 
 (ert-deftest data-tests-make-local-forwarded-var () ;bug#34318
   ;; Boy, this bug is tricky to trigger.  You need to:
@@ -766,5 +767,9 @@ comparing the subr with a much slower Lisp implementation."
     (should (equal (list last-coding-system-used
                          (default-value 'last-coding-system-used))
                    '(no-conversion bug34318)))))
+
+(ert-deftest data-tests-make_symbol_constant ()
+  "Can't set variable marked with 'make_symbol_constant'."
+  (should-error (setq most-positive-fixnum 1) :type 'setting-constant))
 
 ;;; data-tests.el ends here

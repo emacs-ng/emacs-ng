@@ -1,6 +1,6 @@
 ;;; time-stamp-tests.el --- tests for time-stamp.el -*- lexical-binding: t -*-
 
-;; Copyright (C) 2019-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -89,11 +89,11 @@
 (iter-defun time-stamp-test-pattern-sequential ()
   "Iterate through each possibility for a part of `time-stamp-pattern'."
   (let ((pattern-value-parts
-         '(("4/" "10/" "-4/" "0/" "")                     ;0: line limit
+         '(("4/" "10/" "-9/" "0/" "")                     ;0: line limit
            ("stamp<" "")                                  ;1: start
-           ("%-d" "%_H" "%^a" "%#Z" "%:A" "%02H" "%%" "") ;2: format part 1
+           ("%-d" "%_H" "%^a" "%#Z" "%:A" "%09z" "%%" "") ;2: format part 1
            (" " "x" ":" "\n" "")                          ;3: format part 2
-           ("%-d" "%_H" "%^a" "%#Z" "%:A" "%02H" "%%")    ;4: format part 3
+           ("%-d" "%_H" "%^a" "%#Z" "%:A" "%09z" "%%")    ;4: format part 3
            (">end" ""))))                                 ;5: end
     (dotimes (cur (length pattern-value-parts))
       (dotimes (cur-index (length (nth cur pattern-value-parts)))
@@ -118,7 +118,7 @@
 (iter-defun time-stamp-test-pattern-multiply ()
   "Iterate through every combination of parts of `time-stamp-pattern'."
   (let ((line-limit-values '("" "4/"))
-        (start-values '("" "stamp<"))
+        (start-values '("" "/stamp/"))
         (format-values '("%%" "%m"))
         (end-values '("" ">end")))
     ;; yield all combinations of the above
@@ -147,13 +147,11 @@
                                     (string-to-number line-limit1))))
                 (goto-char (point-min))
                 (if (> limit-number 0)
-                    (should (= search-limit (line-beginning-position
-                                             (1+ limit-number))))
+                    (should (= search-limit (pos-bol (1+ limit-number))))
                   (should (= search-limit (point-max))))
                 (goto-char (point-max))
                 (if (< limit-number 0)
-                    (should (= start (line-beginning-position
-                                      (1+ limit-number))))
+                    (should (= start (pos-bol (1+ limit-number))))
                   (should (= start (point-min)))))
               (if (equal start1 "")
                   (should (equal ts-start time-stamp-start))
@@ -271,7 +269,8 @@
      (should (equal (time-stamp-string "%3a" ref-time1) Mon))
      (should (equal (time-stamp-string "%#A" ref-time1) MONDAY))
      ;; documented 1997-2019
-     (should (equal (time-stamp-string "%3A" ref-time1) MON))
+     (should (equal (time-stamp-string "%3A" ref-time1)
+                    (substring MONDAY 0 3)))
      (should (equal (time-stamp-string "%:a" ref-time1) Monday))
      ;; implemented since 2001, documented since 2019
      (should (equal (time-stamp-string "%#a" ref-time1) MON))
@@ -291,10 +290,12 @@
          (January (format-time-string "%B" ref-time1 t))
          (JANUARY (format-time-string "%^B" ref-time1 t)))
      ;; implemented and documented since 1997
-     (should (equal (time-stamp-string "%3b" ref-time1) Jan))
+     (should (equal (time-stamp-string "%3b" ref-time1)
+                    (substring January 0 3)))
      (should (equal (time-stamp-string "%#B" ref-time1) JANUARY))
      ;; documented 1997-2019
-     (should (equal (time-stamp-string "%3B" ref-time1) JAN))
+     (should (equal (time-stamp-string "%3B" ref-time1)
+                    (substring JANUARY 0 3)))
      (should (equal (time-stamp-string "%:b" ref-time1) January))
      ;; implemented since 2001, documented since 2019
      (should (equal (time-stamp-string "%#b" ref-time1) JAN))
@@ -595,8 +596,12 @@
      ;; incorrectly nested parens do not crash us
      (should-not (equal (time-stamp-string "%(stuffB" ref-time3) May))
      (should-not (equal (time-stamp-string "%)B" ref-time3) May))
+     ;; unterminated format does not crash us
+     (should-not (equal (time-stamp-string "%" ref-time3) May))
      ;; not all punctuation is allowed
-     (should-not (equal (time-stamp-string "%&B" ref-time3) May)))))
+     (should-not (equal (time-stamp-string "%&B" ref-time3) May))
+     (should-not (equal (time-stamp-string "%/B" ref-time3) May))
+     (should-not (equal (time-stamp-string "%;B" ref-time3) May)))))
 
 (ert-deftest time-stamp-format-non-conversions ()
   "Test that without a %, the text is copied literally."
@@ -635,8 +640,8 @@
                      (concat Mon "." Monday "." Mon)))
       (should (equal (time-stamp-string "%5z.%5::z.%5z" ref-time1)
                      "+0000.+00:00:00.+0000"))
-      ;; format letter is independent
-      (should (equal (time-stamp-string "%H:%M" ref-time1) "15:04")))))
+      ;; format character is independent
+      (should (equal (time-stamp-string "%H:%M%%%S" ref-time1) "15:04%05")))))
 
 (ert-deftest time-stamp-format-string-width ()
   "Test time-stamp string width modifiers."
@@ -648,15 +653,17 @@
      (should (equal (time-stamp-string "%0b" ref-time3) ""))
      (should (equal (time-stamp-string "%1b" ref-time3) (substring May 0 1)))
      (should (equal (time-stamp-string "%2b" ref-time3) (substring May 0 2)))
-     (should (equal (time-stamp-string "%3b" ref-time3) May))
+     (should (equal (time-stamp-string "%3b" ref-time3) (substring May 0 3)))
      (should (equal (time-stamp-string "%4b" ref-time3) (concat " " May)))
      (should (equal (time-stamp-string "%0%" ref-time3) ""))
      (should (equal (time-stamp-string "%1%" ref-time3) "%"))
      (should (equal (time-stamp-string "%2%" ref-time3) " %"))
      (should (equal (time-stamp-string "%9%" ref-time3) "        %"))
      (should (equal (time-stamp-string "%10%" ref-time3) "         %"))
-     (should (equal (time-stamp-string "%#3a" ref-time3) SUN))
-     (should (equal (time-stamp-string "%#3b" ref-time2) NOV)))))
+     (should (equal (time-stamp-string "%#3a" ref-time3)
+                    (substring SUN 0 3)))
+     (should (equal (time-stamp-string "%#3b" ref-time2)
+                    (substring NOV 0 3))))))
 
 ;;; Tests of helper functions
 

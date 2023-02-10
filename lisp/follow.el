@@ -1,6 +1,6 @@
 ;;; follow.el --- synchronize windows showing the same buffer  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1995-1997, 1999, 2001-2022 Free Software Foundation,
+;; Copyright (C) 1995-1997, 1999, 2001-2023 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Anders Lindgren
@@ -1301,7 +1301,7 @@ non-first windows in Follow mode."
   "The buffer current at the last call to `follow-adjust-window' or nil.
 `follow-mode' is not necessarily enabled in this buffer.")
 
-;; This function is added to `pre-display-function' and is thus called
+;; This function is added to `pre-redisplay-function' and is thus called
 ;; before each redisplay operation.  It supersedes (2018-09) the
 ;; former use of the post command hook, and now does the right thing
 ;; when a program calls `redisplay' or `sit-for'.
@@ -1552,7 +1552,7 @@ non-first windows in Follow mode."
 (declare-function scroll-bar-drag "scroll-bar" (event))
 (declare-function scroll-bar-scroll-up "scroll-bar" (event))
 (declare-function scroll-bar-scroll-down "scroll-bar" (event))
-(declare-function mwheel-scroll "mwheel" (event))
+(declare-function mwheel-scroll "mwheel" (event &optional arg))
 
 (defun follow-scroll-bar-toolkit-scroll (event)
   (interactive "e")

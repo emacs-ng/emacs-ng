@@ -1,6 +1,6 @@
 /* ATTRIBUTE_* macros for using attributes in GCC and similar compilers
 
-   Copyright 2020-2022 Free Software Foundation, Inc.
+   Copyright 2020-2023 Free Software Foundation, Inc.
 
    This file is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as
@@ -32,7 +32,7 @@
 
 
 /* This file defines two types of attributes:
-   * C2x standard attributes.  These have macro names that do not begin with
+   * C23 standard attributes.  These have macro names that do not begin with
      'ATTRIBUTE_'.
    * Selected GCC attributes; see:
      https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html

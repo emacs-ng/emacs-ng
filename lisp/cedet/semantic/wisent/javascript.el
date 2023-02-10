@@ -1,6 +1,6 @@
 ;;; semantic/wisent/javascript.el --- javascript parser support  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2005, 2009-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2005, 2009-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: syntax
@@ -107,7 +107,7 @@ This is currently needed for the mozrepl omniscient database."
 	  (when (looking-at "\\w\\|\\s_")
 	    (forward-sexp 1))
 	  (setq end (point))
-	  (unless (re-search-backward "\\s-" (point-at-bol) t)
+          (unless (re-search-backward "\\s-" (line-beginning-position) t)
 	    (beginning-of-line))
 	  (setq tmp (buffer-substring-no-properties (point) end))
 	  ;; (setq symlist

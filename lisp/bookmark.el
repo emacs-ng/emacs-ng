@@ -1,6 +1,6 @@
 ;;; bookmark.el --- set bookmarks, maybe annotate them, jump to them later -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-1997, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1997, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Karl Fogel <kfogel@red-bean.com>
 ;; Created: July, 1993
@@ -35,6 +35,7 @@
 (require 'pp)
 (require 'tabulated-list)
 (require 'text-property-search)
+(require 'fringe) ; for builds --without-x
 (eval-when-compile (require 'cl-lib))
 
 ;;; Misc comments:
@@ -115,10 +116,18 @@ just use the value of `version-control'."
 
 
 (defcustom bookmark-sort-flag t
-  "Non-nil means that bookmarks will be displayed sorted by bookmark name.
-Otherwise they will be displayed in LIFO order (that is, most
-recently set ones come first, oldest ones come last)."
-  :type 'boolean)
+  "This controls the bookmark display sorting.
+nil means they will be displayed in LIFO order (that is, most
+recently created ones come first, oldest ones come last).
+
+`last-modified' means that bookmarks will be displayed sorted
+from most recently modified to least recently modified.
+
+Other values means that bookmarks will be displayed sorted by
+bookmark name."
+  :type '(choice (const :tag "By name" t)
+                 (const :tag "By modified time" last-modified)
+                 (const :tag "By creation time" nil)))
 
 
 (defcustom bookmark-menu-confirm-deletion nil
@@ -152,7 +161,7 @@ This includes the annotations column.")
 (defcustom bookmark-bmenu-file-column 30
   "Column at which to display filenames in a buffer listing bookmarks.
 You can toggle whether files are shown with \\<bookmark-bmenu-mode-map>\\[bookmark-bmenu-toggle-filenames]."
-  :type 'integer)
+  :type 'natnum)
 
 
 (defcustom bookmark-bmenu-toggle-filenames t
@@ -166,23 +175,32 @@ A non-nil value may result in truncated bookmark names."
 
 (defcustom bookmark-menu-length 70
   "Maximum length of a bookmark name displayed on a popup menu."
-  :type 'integer)
+  :type 'natnum)
 
 ;; FIXME: Is it really worth a customization option?
 (defcustom bookmark-search-delay 0.2
   "Time before `bookmark-bmenu-search' updates the display."
   :type  'number)
 
-(defcustom bookmark-set-fringe-mark t
-  "Whether to set a fringe mark at bookmarked lines."
-  :type  'boolean
-  :version "28.1")
+(define-fringe-bitmap 'bookmark-mark
+  [#b01111110
+   #b01111110
+   #b01111110
+   #b01111110
+   #b01111110
+   #b01111110
+   #b01100110
+   #b01000010])
 
-;; FIXME: No longer used.  Should be declared obsolete or removed.
-(defface bookmark-menu-heading
-  '((t (:inherit font-lock-type-face)))
-  "Face used to highlight the heading in bookmark menu buffers."
-  :version "22.1")
+(define-obsolete-variable-alias 'bookmark-set-fringe-mark
+  'bookmark-fringe-mark "29.1")
+
+(defcustom bookmark-fringe-mark 'bookmark-mark
+  "The fringe bitmap to mark bookmarked lines with.
+If nil, don't display a mark on the fringe."
+  :type '(choice (const nil) fringe-bitmap)
+  :set #'fringe-custom-set-bitmap
+  :version "29.1")
 
 (defface bookmark-face
   '((((class grayscale)
@@ -193,10 +211,10 @@ A non-nil value may result in truncated bookmark names."
      :foreground "LightGray")
     (((class color)
       (background light))
-     :background "White" :foreground "DarkOrange1")
+     :foreground "DarkOrange1" :distant-foreground "DarkOrange3")
     (((class color)
       (background dark))
-     :background "Black" :foreground "DarkOrange1"))
+     :foreground "DarkOrange1" :distant-foreground "Orange1"))
   "Face used to highlight current line."
   :version "28.1")
 
@@ -208,37 +226,34 @@ A non-nil value may result in truncated bookmark names."
 ;; Set up these bindings dumping time *only*;
 ;; if the user alters them, don't override the user when loading bookmark.el.
 
-;;;###autoload (define-key ctl-x-r-map "b" 'bookmark-jump)
-;;;###autoload (define-key ctl-x-r-map "m" 'bookmark-set)
-;;;###autoload (define-key ctl-x-r-map "M" 'bookmark-set-no-overwrite)
-;;;###autoload (define-key ctl-x-r-map "l" 'bookmark-bmenu-list)
+;;;###autoload (keymap-set ctl-x-r-map "b" #'bookmark-jump)
+;;;###autoload (keymap-set ctl-x-r-map "m" #'bookmark-set)
+;;;###autoload (keymap-set ctl-x-r-map "M" #'bookmark-set-no-overwrite)
+;;;###autoload (keymap-set ctl-x-r-map "l" #'bookmark-bmenu-list)
 
 ;;;###autoload
-(defvar bookmark-map
-  (let ((map (make-sparse-keymap)))
-    ;; Read the help on all of these functions for details...
-    (define-key map "x" 'bookmark-set)
-    (define-key map "m" 'bookmark-set) ;"m"ark
-    (define-key map "M" 'bookmark-set-no-overwrite) ;"M"aybe mark
-    (define-key map "j" 'bookmark-jump)
-    (define-key map "g" 'bookmark-jump) ;"g"o
-    (define-key map "o" 'bookmark-jump-other-window)
-    (define-key map "5" 'bookmark-jump-other-frame)
-    (define-key map "i" 'bookmark-insert)
-    (define-key map "e" 'edit-bookmarks)
-    (define-key map "f" 'bookmark-insert-location) ;"f"ind
-    (define-key map "r" 'bookmark-rename)
-    (define-key map "d" 'bookmark-delete)
-    (define-key map "D" 'bookmark-delete-all)
-    (define-key map "l" 'bookmark-load)
-    (define-key map "w" 'bookmark-write)
-    (define-key map "s" 'bookmark-save)
-    map)
-  "Keymap containing bindings to bookmark functions.
+(defvar-keymap bookmark-map
+  :doc "Keymap containing bindings to bookmark functions.
 It is not bound to any key by default: to bind it
 so that you have a bookmark prefix, just use `global-set-key' and bind a
 key of your choice to variable `bookmark-map'.  All interactive bookmark
-functions have a binding in this keymap.")
+functions have a binding in this keymap."
+  "x" #'bookmark-set
+  "m" #'bookmark-set                            ;"m"ark
+  "M" #'bookmark-set-no-overwrite               ;"M"aybe mark
+  "j" #'bookmark-jump
+  "g" #'bookmark-jump                           ;"g"o
+  "o" #'bookmark-jump-other-window
+  "5" #'bookmark-jump-other-frame
+  "i" #'bookmark-insert
+  "e" #'edit-bookmarks
+  "f" #'bookmark-insert-location                ;"f"ind
+  "r" #'bookmark-rename
+  "d" #'bookmark-delete
+  "D" #'bookmark-delete-all
+  "l" #'bookmark-load
+  "w" #'bookmark-write
+  "s" #'bookmark-save)
 
 ;;;###autoload (fset 'bookmark-map bookmark-map)
 
@@ -349,6 +364,17 @@ This point is in `bookmark-current-buffer'.")
 BOOKMARK-RECORD is, e.g., one element from `bookmark-alist'."
   (car bookmark-record))
 
+(defun bookmark-type-from-full-record (bookmark-record)
+  "Return the type of BOOKMARK-RECORD.
+BOOKMARK-RECORD is, e.g., one element from `bookmark-alist'.  Its
+type is read from the symbol property named
+`bookmark-handler-type' read on the record handler function."
+  (let ((handler (bookmark-get-handler bookmark-record)))
+    (when (autoloadp (symbol-function handler))
+      (autoload-do-load (symbol-function handler)))
+    (if (symbolp handler)
+        (get handler 'bookmark-handler-type)
+     "")))
 
 (defun bookmark-all-names ()
   "Return a list of all current bookmark names."
@@ -452,16 +478,24 @@ In other words, return all information but the name."
   "Return the handler function for BOOKMARK-NAME-OR-RECORD, or nil if none."
   (bookmark-prop-get bookmark-name-or-record 'handler))
 
+
+(defun bookmark-get-last-modified (bookmark-name-or-record)
+  "Return the last-modified for BOOKMARK-NAME-OR-RECORD, or nil if none."
+  (bookmark-prop-get bookmark-name-or-record 'last-modified))
+
+
+(defun bookmark-update-last-modified (bookmark-name-or-record)
+  "Update the last-modified date of BOOKMARK-NAME-OR-RECORD to the current time."
+  (bookmark-prop-set bookmark-name-or-record 'last-modified (current-time)))
+
+
 (defvar bookmark-history nil
   "The history list for bookmark functions.")
 
-(define-fringe-bitmap 'bookmark-fringe-mark
-  "\x3c\x7e\xff\xff\xff\xff\x7e\x3c")
-
 (defun bookmark--set-fringe-mark ()
   "Apply a colorized overlay to the bookmarked location.
-See user option `bookmark-set-fringe-mark'."
-  (let ((bm (make-overlay (point-at-bol) (1+ (point-at-bol)))))
+See user option `bookmark-fringe-mark'."
+  (let ((bm (make-overlay (pos-bol) (1+ (pos-bol)))))
     (overlay-put bm 'category 'bookmark)
     (overlay-put bm 'evaporate t)
     (overlay-put bm 'before-string
@@ -472,7 +506,7 @@ See user option `bookmark-set-fringe-mark'."
 (defun bookmark--remove-fringe-mark (bm)
   "Remove a bookmark's colorized overlay.
 BM is a bookmark as returned from function `bookmark-get-bookmark'.
-See user option `bookmark-set-fringe'."
+See user option `bookmark-fringe-mark'."
   (let ((filename (cdr (assq 'filename bm)))
         (pos (cdr (assq 'position bm)))
         overlays found temp)
@@ -484,10 +518,28 @@ See user option `bookmark-set-fringe'."
             (setq overlays
                   (save-excursion
                     (goto-char pos)
-                    (overlays-in (point-at-bol) (1+ (point-at-bol)))))
+                    (overlays-in (pos-bol) (1+ (pos-bol)))))
             (while (and (not found) (setq temp (pop overlays)))
               (when (eq 'bookmark (overlay-get temp 'category))
                 (delete-overlay (setq found temp))))))))))
+
+(defun bookmark-maybe-sort-alist ()
+  "Return `bookmark-alist' for display.
+If `bookmark-sort-flag' is T, then return a sorted by name copy of the alist.
+If `bookmark-sort-flag' is LAST-MODIFIED, then return a sorted by last modified
+copy of the alist.  Otherwise, just return `bookmark-alist', which by default
+is ordered from most recently created to least recently created bookmark."
+  (let ((copy (copy-alist bookmark-alist)))
+    (cond ((eq bookmark-sort-flag t)
+           (sort copy (lambda (x y) (string-lessp (car x) (car y)))))
+          ((eq bookmark-sort-flag 'last-modified)
+           (sort copy (lambda (x y)
+                        (let ((tx (bookmark-get-last-modified x))
+                              (ty (bookmark-get-last-modified y)))
+                          (cond ((null tx) nil)
+                                ((null ty) t)
+                                (t (time-less-p ty tx)))))))
+          (t copy))))
 
 (defun bookmark-completing-read (prompt &optional default)
   "Prompting with PROMPT, read a bookmark name in completion.
@@ -498,16 +550,11 @@ If DEFAULT is nil then return empty string for empty input."
   (bookmark-maybe-load-default-file) ; paranoia
   (if (listp last-nonmenu-event)
       (bookmark-menu-popup-paned-menu t prompt
-				      (if bookmark-sort-flag
-					  (sort (bookmark-all-names)
-						'string-lessp)
-					(bookmark-all-names)))
+                                      (mapcar 'bookmark-name-from-full-record
+                                              (bookmark-maybe-sort-alist)))
     (let* ((completion-ignore-case bookmark-completion-ignore-case)
-           (default (unless (equal "" default) default))
-	   (prompt (concat prompt (if default
-                                      (format " (%s): " default)
-                                    ": "))))
-      (completing-read prompt
+           (default (unless (equal "" default) default)))
+      (completing-read (format-prompt prompt default)
                        (lambda (string pred action)
                          (if (eq action 'metadata)
                              '(metadata (category . bookmark))
@@ -518,8 +565,9 @@ If DEFAULT is nil then return empty string for empty input."
 
 (defmacro bookmark-maybe-historicize-string (string)
   "Put STRING into the bookmark prompt history, if caller non-interactive.
-We need this because sometimes bookmark functions are invoked from
-menus, so `completing-read' never gets a chance to set `bookmark-history'."
+We need this because sometimes bookmark functions are invoked
+from other commands that pass in the bookmark name, so
+`completing-read' never gets a chance to set `bookmark-history'."
   `(or
     (called-interactively-p 'interactive)
     (setq bookmark-history (cons ,string bookmark-history))))
@@ -544,9 +592,26 @@ NAME is a suggested name for the constructed bookmark.  It can be nil
 in which case a default heuristic will be used.  The function can also
 equivalently just return ALIST without NAME.")
 
+(defcustom bookmark-inhibit-context-functions nil
+  "List of functions to call before making a bookmark record.
+The functions take `buffer-file-name' as argument.  If any of
+these functions returns non-nil, the bookmark does not record
+context strings from the current buffer."
+  :type 'hook
+  :version "29.1")
+
 (defun bookmark-make-record ()
   "Return a new bookmark record (NAME . ALIST) for the current location."
-  (let ((record (funcall bookmark-make-record-function)))
+  (let* ((bookmark-search-size
+          ;; If we're in a buffer that's visiting an encrypted file,
+          ;; don't include any context in the bookmark file, because
+          ;; that would leak (possibly secret) data.
+          (if (and buffer-file-name
+                   (run-hook-with-args-until-success
+                    'bookmark-inhibit-context-functions buffer-file-name))
+              0
+            bookmark-search-size))
+         (record (funcall bookmark-make-record-function)))
     ;; Set up default name if the function does not provide one.
     (unless (stringp (car record))
       (if (car record) (push nil record))
@@ -574,7 +639,7 @@ old one."
         ;; no prefix arg means just overwrite old bookmark.
         (let ((bm (bookmark-get-bookmark stripped-name)))
           ;; First clean up if previously location was fontified.
-          (when bookmark-set-fringe-mark
+          (when bookmark-fringe-mark
             (bookmark--remove-fringe-mark bm))
           ;; Modify using the new (NAME . ALIST) format.
           (setcdr bm alist))
@@ -624,7 +689,8 @@ If POSN is non-nil, record POSN as the point instead of `(point)'."
                                    (point)
                                    (- (point) bookmark-search-size))
                                   nil))))
-    (position . ,(or posn (point)))))
+    (position . ,(or posn (point)))
+    (last-modified . ,(current-time))))
 
 
 ;;; File format stuff
@@ -818,11 +884,9 @@ CODING is the symbol of the coding-system in which the file is encoded."
 
 (define-obsolete-function-alias 'bookmark-maybe-message 'message "27.1")
 
-(defvar bookmark-minibuffer-read-name-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map minibuffer-local-map)
-    (define-key map "\C-w" 'bookmark-yank-word)
-    map))
+(defvar-keymap bookmark-minibuffer-read-name-map
+  :parent minibuffer-local-map
+  "C-w" #'bookmark-yank-word)
 
 (defun bookmark-set-internal (prompt name overwrite-or-push)
   "Set a bookmark using specified NAME or prompting with PROMPT.
@@ -891,7 +955,7 @@ still there, in order, if the topmost one is ever deleted."
            ;; Ask for an annotation buffer for this bookmark
            (when bookmark-use-annotations
              (bookmark-edit-annotation str))
-           (when bookmark-set-fringe-mark
+           (when bookmark-fringe-mark
              (bookmark--set-fringe-mark))))
     (setq bookmark-yank-point nil)
     (setq bookmark-current-buffer nil)))
@@ -926,7 +990,7 @@ it removes only the first instance of a bookmark with that name from
 the list of bookmarks.)"
   (interactive (list nil current-prefix-arg))
   (let ((prompt
-         (if no-overwrite "Set bookmark" "Set bookmark unconditionally")))
+         (if no-overwrite "Add bookmark named" "Set bookmark named")))
     (bookmark-set-internal prompt name (if no-overwrite 'push 'overwrite))))
 
 ;;;###autoload
@@ -967,7 +1031,7 @@ the list of bookmarks.)"
   "Kill from point to end of line.
 If optional arg NEWLINE-TOO is non-nil, delete the newline too.
 Does not affect the kill ring."
-  (let ((eol (line-end-position)))
+  (let ((eol (pos-eol)))
     (delete-region (point) eol)
     (when (and newline-too (= (following-char) ?\n))
       (delete-char 1))))
@@ -987,22 +1051,24 @@ annotations."
            bookmark-name)
 	  (format-message
            "#  All lines which start with a `#' will be deleted.\n")
-	  "#  Type C-c C-c when done.\n#\n"
+          (substitute-command-keys
+           (concat
+            "#  Type \\[bookmark-edit-annotation-confirm] when done.  Type "
+            "\\[bookmark-edit-annotation-cancel] to cancel.\n#\n"))
 	  "#  Author: " (user-full-name) " <" (user-login-name) "@"
 	  (system-name) ">\n"
-	  "#  Date:    " (current-time-string) "\n"))
+          "#  Date:   " (current-time-string) "\n"))
 
 
 (defvar bookmark-edit-annotation-text-func 'bookmark-default-annotation-text
   "Function to return default text to use for a bookmark annotation.
 It takes one argument, the name of the bookmark, as a string.")
 
-(defvar bookmark-edit-annotation-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map text-mode-map)
-    (define-key map "\C-c\C-c" 'bookmark-send-edited-annotation)
-    map)
-  "Keymap for editing an annotation of a bookmark.")
+(defvar-keymap bookmark-edit-annotation-mode-map
+  :doc "Keymap for editing an annotation of a bookmark."
+  :parent text-mode-map
+  "C-c C-c" #'bookmark-edit-annotation-confirm
+  "C-c C-k" #'bookmark-edit-annotation-cancel)
 
 (defun bookmark-insert-annotation (bookmark-name-or-record)
   "Insert annotation for BOOKMARK-NAME-OR-RECORD at point."
@@ -1016,12 +1082,32 @@ It takes one argument, the name of the bookmark, as a string.")
 (define-derived-mode bookmark-edit-annotation-mode
   text-mode "Edit Bookmark Annotation"
   "Mode for editing the annotation of bookmarks.
-When you have finished composing, type \\[bookmark-send-edited-annotation].
+\\<bookmark-edit-annotation-mode-map>\
+When you have finished composing, type \\[bookmark-edit-annotation-confirm] \
+or \\[bookmark-edit-annotation-cancel] to cancel.
 
 \\{bookmark-edit-annotation-mode-map}")
 
+(defmacro bookmark-edit-annotation--maybe-display-list (&rest body)
+  "Display bookmark list after editing if appropriate."
+  `(let ((from-bookmark-list bookmark--annotation-from-bookmark-list)
+         (old-buffer (current-buffer)))
+     ,@body
+     (quit-window)
+     (bookmark-bmenu-surreptitiously-rebuild-list)
+     (when from-bookmark-list
+       (pop-to-buffer (get-buffer bookmark-bmenu-buffer))
+       (goto-char (point-min))
+       (bookmark-bmenu-bookmark))
+     (kill-buffer old-buffer)))
 
-(defun bookmark-send-edited-annotation ()
+(defun bookmark-edit-annotation-cancel ()
+  "Cancel the current annotation edit."
+  (interactive nil bookmark-edit-annotation-mode)
+  (bookmark-edit-annotation--maybe-display-list
+   (message "Canceled by user")))
+
+(defun bookmark-edit-annotation-confirm ()
   "Use buffer contents as annotation for a bookmark.
 Lines beginning with `#' are ignored."
   (interactive nil bookmark-edit-annotation-mode)
@@ -1033,21 +1119,14 @@ Lines beginning with `#' are ignored."
         (bookmark-kill-line t)
       (forward-line 1)))
   ;; Take no chances with text properties.
-  (let ((annotation (buffer-substring-no-properties (point-min) (point-max)))
-        (bookmark-name bookmark-annotation-name)
-        (from-bookmark-list bookmark--annotation-from-bookmark-list)
-        (old-buffer (current-buffer)))
-    (bookmark-set-annotation bookmark-name annotation)
-    (setq bookmark-alist-modification-count
-          (1+ bookmark-alist-modification-count))
-    (message "Annotation updated for \"%s\"" bookmark-name)
-    (quit-window)
-    (bookmark-bmenu-surreptitiously-rebuild-list)
-    (when from-bookmark-list
-      (pop-to-buffer (get-buffer bookmark-bmenu-buffer))
-      (goto-char (point-min))
-      (bookmark-bmenu-bookmark))
-    (kill-buffer old-buffer)))
+  (bookmark-edit-annotation--maybe-display-list
+   (let ((annotation (buffer-substring-no-properties (point-min) (point-max)))
+         (bookmark-name bookmark-annotation-name))
+     (bookmark-set-annotation bookmark-name annotation)
+     (bookmark-update-last-modified bookmark-name)
+     (setq bookmark-alist-modification-count
+           (1+ bookmark-alist-modification-count))
+     (message "Annotation updated for \"%s\"" bookmark-name))))
 
 
 (defun bookmark-edit-annotation (bookmark-name-or-record &optional from-bookmark-list)
@@ -1055,8 +1134,8 @@ Lines beginning with `#' are ignored."
 If optional argument FROM-BOOKMARK-LIST is non-nil, return to the
 bookmark list when editing is done."
   (pop-to-buffer (generate-new-buffer-name "*Bookmark Annotation Compose*"))
-  (bookmark-insert-annotation bookmark-name-or-record)
   (bookmark-edit-annotation-mode)
+  (bookmark-insert-annotation bookmark-name-or-record)
   (setq bookmark--annotation-from-bookmark-list from-bookmark-list)
   (setq bookmark-annotation-name bookmark-name-or-record))
 
@@ -1117,7 +1196,7 @@ it to the name of the bookmark currently being set, advancing
 (defun bookmark--watch-file-already-queried-p (new-mtime)
   ;; Don't ask repeatedly if user already said "no" to reloading a
   ;; file with this mtime:
-  (prog1 (equal new-mtime bookmark--watch-already-asked-mtime)
+  (prog1 (time-equal-p new-mtime bookmark--watch-already-asked-mtime)
     (setq bookmark--watch-already-asked-mtime new-mtime)))
 
 (defun bookmark-maybe-load-default-file ()
@@ -1130,7 +1209,7 @@ it to the name of the bookmark currently being set, advancing
               (let ((new-mtime (nth 5 (file-attributes
                                        (car bookmark-bookmarks-timestamp))))
                     (old-mtime (cdr bookmark-bookmarks-timestamp)))
-                (and (not (equal new-mtime old-mtime))
+		(and (not (time-equal-p new-mtime old-mtime))
                      (not (bookmark--watch-file-already-queried-p new-mtime))
                      (or (eq 'silent bookmark-watch-bookmark-file)
                          (yes-or-no-p
@@ -1138,15 +1217,6 @@ it to the name of the bookmark currently being set, advancing
                                   (car bookmark-bookmarks-timestamp)))))))
          (bookmark-load (car bookmark-bookmarks-timestamp) t t))))
 
-(defun bookmark-maybe-sort-alist ()
-  "Return `bookmark-alist' for display.
-If `bookmark-sort-flag' is non-nil, then return a sorted copy of the alist.
-Otherwise, just return `bookmark-alist', which by default is ordered
-from most recently created to least recently created bookmark."
-  (if bookmark-sort-flag
-      (sort (copy-alist bookmark-alist)
-            (lambda (x y) (string-lessp (car x) (car y))))
-    bookmark-alist))
 
 
 (defvar bookmark-after-jump-hook nil
@@ -1167,8 +1237,8 @@ and then show any annotations for this bookmark."
     (if win (set-window-point win (point))))
   ;; FIXME: we used to only run bookmark-after-jump-hook in
   ;; `bookmark-jump' itself, but in none of the other commands.
-  (when bookmark-set-fringe-mark
-    (let ((overlays (overlays-in (point-at-bol) (1+ (point-at-bol))))
+  (when bookmark-fringe-mark
+    (let ((overlays (overlays-in (pos-bol) (1+ (pos-bol))))
           temp found)
       (while (and (not found) (setq temp (pop overlays)))
         (when (eq 'bookmark (overlay-get temp 'category))
@@ -1287,7 +1357,10 @@ then offer interactively to relocate BOOKMARK-NAME-OR-RECORD."
 (defun bookmark-default-handler (bmk-record)
   "Default handler to jump to a particular bookmark location.
 BMK-RECORD is a bookmark record, not a bookmark name (i.e., not a string).
-Changes current buffer and point and returns nil, or signals a `file-error'."
+Changes current buffer and point and returns nil, or signals a `file-error'.
+
+If BMK-RECORD has a property called `buffer', it should be a live
+buffer object, and this buffer will be selected."
   (let ((file          (bookmark-get-filename bmk-record))
 	(buf           (bookmark-prop-get bmk-record 'buffer))
         (forward-str   (bookmark-get-front-context-string bmk-record))
@@ -1323,19 +1396,25 @@ after a bookmark was set in it."
   (interactive (list (bookmark-completing-read "Bookmark to relocate")))
   (bookmark-maybe-historicize-string bookmark-name)
   (bookmark-maybe-load-default-file)
-  (let* ((bmrk-filename (bookmark-get-filename bookmark-name))
-         (newloc (abbreviate-file-name
-                  (expand-file-name
-                   (read-file-name
-                    (format "Relocate %s to: " bookmark-name)
-                    (file-name-directory bmrk-filename))))))
-    (bookmark-set-filename bookmark-name newloc)
-    (setq bookmark-alist-modification-count
-          (1+ bookmark-alist-modification-count))
-    (if (bookmark-time-to-save-p)
+  (let ((bmrk-filename (bookmark-get-filename bookmark-name)))
+    ;; FIXME: Make `bookmark-relocate' support bookmark Types
+    ;; besides files and directories.
+    (unless bmrk-filename
+      (user-error "Cannot relocate bookmark of type \"%s\""
+                  (bookmark-type-from-full-record
+                   (bookmark-get-bookmark bookmark-name))))
+    (let ((newloc (abbreviate-file-name
+                   (expand-file-name
+                    (read-file-name
+                     (format "Relocate %s to: " bookmark-name)
+                     (file-name-directory bmrk-filename))))))
+      (bookmark-set-filename bookmark-name newloc)
+      (bookmark-update-last-modified bookmark-name)
+      (setq bookmark-alist-modification-count
+            (1+ bookmark-alist-modification-count))
+      (when (bookmark-time-to-save-p)
         (bookmark-save))
-    (bookmark-bmenu-surreptitiously-rebuild-list)))
-
+      (bookmark-bmenu-surreptitiously-rebuild-list))))
 
 ;;;###autoload
 (defun bookmark-insert-location (bookmark-name &optional no-history)
@@ -1361,7 +1440,6 @@ minibuffer history list `bookmark-history'."
       (bookmark-get-filename bookmark-name-or-record)
       "-- Unknown location --"))
 
-
 ;;;###autoload
 (defun bookmark-rename (old-name &optional new-name)
   "Change the name of OLD-NAME bookmark to NEW-NAME name.
@@ -1385,14 +1463,15 @@ name."
   (let ((final-new-name
          (or new-name   ; use second arg, if non-nil
              (read-from-minibuffer
-              "New name: "
+              (format-prompt "Rename \"%s\" to" nil old-name)
               nil
-              (let ((now-map (copy-keymap minibuffer-local-map)))
-                (define-key now-map "\C-w" 'bookmark-yank-word)
-                now-map)
+              (define-keymap
+                :parent minibuffer-local-map
+                "C-w" #'bookmark-yank-word)
               nil
               'bookmark-history))))
     (bookmark-set-name old-name final-new-name)
+    (bookmark-update-last-modified final-new-name)
     (setq bookmark-current-bookmark final-new-name)
     (bookmark-bmenu-surreptitiously-rebuild-list)
     (setq bookmark-alist-modification-count
@@ -1707,44 +1786,43 @@ unique numeric suffixes \"<2>\", \"<3>\", etc."
 
 (defvar bookmark-bmenu-hidden-bookmarks ())
 
-
-(defvar bookmark-bmenu-mode-map
-  (let ((map (make-keymap)))
-    (set-keymap-parent map tabulated-list-mode-map)
-    (define-key map "v" 'bookmark-bmenu-select)
-    (define-key map "w" 'bookmark-bmenu-locate)
-    (define-key map "5" 'bookmark-bmenu-other-frame)
-    (define-key map "2" 'bookmark-bmenu-2-window)
-    (define-key map "1" 'bookmark-bmenu-1-window)
-    (define-key map "j" 'bookmark-bmenu-this-window)
-    (define-key map "\C-c\C-c" 'bookmark-bmenu-this-window)
-    (define-key map "f" 'bookmark-bmenu-this-window)
-    (define-key map "\C-m" 'bookmark-bmenu-this-window)
-    (define-key map "o" 'bookmark-bmenu-other-window)
-    (define-key map "\C-o" 'bookmark-bmenu-switch-other-window)
-    (define-key map "s" 'bookmark-bmenu-save)
-    (define-key map "\C-x\C-s" 'bookmark-bmenu-save)
-    (define-key map "k" 'bookmark-bmenu-delete)
-    (define-key map "\C-d" 'bookmark-bmenu-delete-backwards)
-    (define-key map "x" 'bookmark-bmenu-execute-deletions)
-    (define-key map "d" 'bookmark-bmenu-delete)
-    (define-key map "D" 'bookmark-bmenu-delete-all)
-    (define-key map " " 'next-line)
-    (define-key map "\177" 'bookmark-bmenu-backup-unmark)
-    (define-key map "u" 'bookmark-bmenu-unmark)
-    (define-key map "U" 'bookmark-bmenu-unmark-all)
-    (define-key map "m" 'bookmark-bmenu-mark)
-    (define-key map "M" 'bookmark-bmenu-mark-all)
-    (define-key map "l" 'bookmark-bmenu-load)
-    (define-key map "r" 'bookmark-bmenu-rename)
-    (define-key map "R" 'bookmark-bmenu-relocate)
-    (define-key map "t" 'bookmark-bmenu-toggle-filenames)
-    (define-key map "a" 'bookmark-bmenu-show-annotation)
-    (define-key map "A" 'bookmark-bmenu-show-all-annotations)
-    (define-key map "e" 'bookmark-bmenu-edit-annotation)
-    (define-key map "/" 'bookmark-bmenu-search)
-    (define-key map [mouse-2] 'bookmark-bmenu-other-window-with-mouse)
-    map))
+(defvar-keymap bookmark-bmenu-mode-map
+  :doc "Keymap for `bookmark-bmenu-mode'."
+  :parent tabulated-list-mode-map
+  "v" #'bookmark-bmenu-select
+  "w" #'bookmark-bmenu-locate
+  "5" #'bookmark-bmenu-other-frame
+  "2" #'bookmark-bmenu-2-window
+  "1" #'bookmark-bmenu-1-window
+  "j" #'bookmark-bmenu-this-window
+  "C-c C-c" #'bookmark-bmenu-this-window
+  "f" #'bookmark-bmenu-this-window
+  "C-m" #'bookmark-bmenu-this-window
+  "o" #'bookmark-bmenu-other-window
+  "C-o" #'bookmark-bmenu-switch-other-window
+  "s" #'bookmark-bmenu-save
+  "C-x C-s" #'bookmark-bmenu-save
+  "k" #'bookmark-bmenu-delete
+  "C-d" #'bookmark-bmenu-delete-backwards
+  "x" #'bookmark-bmenu-execute-deletions
+  "d" #'bookmark-bmenu-delete
+  "D" #'bookmark-bmenu-delete-all
+  "S-SPC" #'previous-line
+  "SPC" #'next-line
+  "DEL" #'bookmark-bmenu-backup-unmark
+  "u" #'bookmark-bmenu-unmark
+  "U" #'bookmark-bmenu-unmark-all
+  "m" #'bookmark-bmenu-mark
+  "M" #'bookmark-bmenu-mark-all
+  "l" #'bookmark-bmenu-load
+  "r" #'bookmark-bmenu-rename
+  "R" #'bookmark-bmenu-relocate
+  "t" #'bookmark-bmenu-toggle-filenames
+  "a" #'bookmark-bmenu-show-annotation
+  "A" #'bookmark-bmenu-show-all-annotations
+  "e" #'bookmark-bmenu-edit-annotation
+  "/" #'bookmark-bmenu-search
+  "<mouse-2>" #'bookmark-bmenu-other-window-with-mouse)
 
 (easy-menu-define bookmark-menu bookmark-bmenu-mode-map
   "Menu for `bookmark-bmenu'."
@@ -1802,6 +1880,7 @@ Don't affect the buffer ring order."
   (let (entries)
     (dolist (full-record (bookmark-maybe-sort-alist))
       (let* ((name       (bookmark-name-from-full-record full-record))
+             (type       (bookmark-type-from-full-record full-record))
              (annotation (bookmark-get-annotation full-record))
              (location   (bookmark-location full-record)))
         (push (list
@@ -1815,11 +1894,39 @@ Don't affect the buffer ring order."
                                   'follow-link t
                                   'help-echo "mouse-2: go to this bookmark in other window")
                     name)
+                 ,(or type "")
                  ,@(if bookmark-bmenu-toggle-filenames
                        (list location))])
               entries)))
-    (tabulated-list-init-header)
-    (setq tabulated-list-entries entries))
+    ;; The value of `bookmark-sort-flag' might have changed since the
+    ;; last time the buffer contents were generated, so re-check it.
+    (cond ((eq bookmark-sort-flag t)
+           (setq tabulated-list-sort-key '("Bookmark Name" . nil)
+                 tabulated-list-entries entries))
+          ((or (null bookmark-sort-flag)
+               (eq bookmark-sort-flag 'last-modified))
+           (setq tabulated-list-sort-key nil)
+           ;; And since we're not sorting by bookmark name, show bookmarks
+           ;; according to order of creation, with the most recently
+           ;; created bookmarks at the top and the least recently created
+           ;; at the bottom.
+           ;;
+           ;; Note that clicking the column sort toggle for the bookmark
+           ;; name column will invoke the `tabulated-list-mode' sort, which
+           ;; uses `bookmark-bmenu--name-predicate' to sort lexically by
+           ;; bookmark name instead of by (reverse) creation order.
+           ;; Clicking the toggle again will reverse the lexical sort, but
+           ;; the sort will still be lexical not creation-order.  However,
+           ;; if the user reverts the buffer, then the above check of
+           ;; `bookmark-sort-flag' will happen again and the buffer will
+           ;; go back to a creation-order sort.  This is all expected
+           ;; behavior, as documented in `bookmark-bmenu-mode'.
+           (setq tabulated-list-entries (reverse entries))))
+    ;; Generate the header only after `tabulated-list-sort-key' is
+    ;; settled, because if that's non-nil then the sort-direction
+    ;; indicator will be shown in the named column, but if it's
+    ;; nil then the indicator will not be shown.
+    (tabulated-list-init-header))
   (tabulated-list-print t))
 
 ;;;###autoload
@@ -1863,6 +1970,18 @@ deletion, or > if it is flagged for displaying."
 Each line describes one of the bookmarks in Emacs.
 Letters do not insert themselves; instead, they are commands.
 Bookmark names preceded by a \"*\" have annotations.
+
+If `bookmark-sort-flag' is non-nil, then sort the list by
+bookmark name (case-insensitively, in collation order); the
+direction of that sort can be reversed by using the column sort
+toggle for the bookmark name column.
+
+If `bookmark-sort-flag' is nil, then sort the list by bookmark
+creation order, with most recently created bookmarks on top.
+However, the column sort toggle will still activate (and
+thereafter toggle the direction of) lexical sorting by bookmark name.
+At any time you may use \\[revert-buffer] to go back to sorting by creation order.
+
 \\<bookmark-bmenu-mode-map>
 \\[bookmark-bmenu-mark] -- mark bookmark to be displayed.
 \\[bookmark-bmenu-mark-all] -- mark all listed bookmarks to be displayed.
@@ -1895,18 +2014,24 @@ Bookmark names preceded by a \"*\" have annotations.
   in another buffer.
 \\[bookmark-bmenu-show-all-annotations] -- show the annotations of all bookmarks in another buffer.
 \\[bookmark-bmenu-edit-annotation] -- edit the annotation for the current bookmark.
-\\[bookmark-bmenu-search] -- incrementally search for bookmarks."
+\\[bookmark-bmenu-search] -- incrementally search for bookmarks.
+\\[revert-buffer] -- refresh the buffer, and thus refresh the sort order (useful
+  if `bookmark-sort-flag' is nil)."
   (setq truncate-lines t)
   (setq buffer-read-only t)
   ;; FIXME: The header could also display the current default bookmark file
   ;; according to `bookmark-bookmarks-timestamp'.
   (setq tabulated-list-format
         `[("" 1) ;; Space to add "*" for bookmark with annotation
-          ("Bookmark" ,bookmark-bmenu-file-column bookmark-bmenu--name-predicate)
+          ("Bookmark Name"
+           ,bookmark-bmenu-file-column bookmark-bmenu--name-predicate)
+          ("Type" 8 bookmark-bmenu--type-predicate)
           ,@(if bookmark-bmenu-toggle-filenames
                 '(("File" 0 bookmark-bmenu--file-predicate)))])
   (setq tabulated-list-padding bookmark-bmenu-marks-width)
-  (setq tabulated-list-sort-key '("Bookmark" . nil))
+  (when (and bookmark-sort-flag
+             (not (eq bookmark-sort-flag 'last-modified)))
+    (setq tabulated-list-sort-key '("Bookmark Name" . nil)))
   (add-hook 'tabulated-list-revert-hook #'bookmark-bmenu--revert nil t)'
   (setq revert-buffer-function 'bookmark-bmenu--revert)
   (tabulated-list-init-header))
@@ -1915,13 +2040,19 @@ Bookmark names preceded by a \"*\" have annotations.
 (defun bookmark-bmenu--name-predicate (a b)
   "Predicate to sort \"*Bookmark List*\" buffer by the name column.
 This is used for `tabulated-list-format' in `bookmark-bmenu-mode'."
-  (string< (caar a) (caar b)))
+  (string-collate-lessp (caar a) (caar b) nil t))
 
+(defun bookmark-bmenu--type-predicate (a b)
+  "Predicate to sort \"*Bookmark List*\" buffer by the type column.
+This is used for `tabulated-list-format' in `bookmark-bmenu-mode'."
+  (string-collate-lessp (elt (cadr a) 2) (elt (cadr b) 2) nil t))
 
 (defun bookmark-bmenu--file-predicate (a b)
   "Predicate to sort \"*Bookmark List*\" buffer by the file column.
 This is used for `tabulated-list-format' in `bookmark-bmenu-mode'."
-  (string< (bookmark-location (car a)) (bookmark-location (car b))))
+  (string-collate-lessp (bookmark-location (car a))
+                        (bookmark-location (car b))
+                        nil t))
 
 
 (defun bookmark-bmenu-toggle-filenames (&optional show)
@@ -2324,10 +2455,10 @@ Prompt with completion for the new path."
             (lambda ()
               (setq timer (run-with-idle-timer
                            bookmark-search-delay 'repeat
-                           #'(lambda (buf)
-                               (with-current-buffer buf
-                                 (bookmark-bmenu-filter-alist-by-regexp
-                                  (minibuffer-contents))))
+                           (lambda (buf)
+                             (with-current-buffer buf
+                               (bookmark-bmenu-filter-alist-by-regexp
+                                (minibuffer-contents))))
                            (current-buffer))))
           (read-string "Pattern: ")
           (when timer (cancel-timer timer) (setq timer nil)))
@@ -2468,6 +2599,12 @@ This also runs `bookmark-exit-hook'."
 
 
 (run-hooks 'bookmark-load-hook)
+
+
+;;; Obsolete:
+
+(define-obsolete-function-alias 'bookmark-send-edited-annotation
+  #'bookmark-edit-annotation-confirm "29.1")
 
 (provide 'bookmark)
 

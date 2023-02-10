@@ -1,6 +1,6 @@
 ;;; gravatar.el --- Get Gravatars -*- lexical-binding: t -*-
 
-;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2023 Free Software Foundation, Inc.
 
 ;; Author: Julien Danjou <julien@danjou.info>
 ;; Keywords: comm, multimedia
@@ -45,7 +45,7 @@
   "Time to live in seconds for gravatar cache entries.
 If a requested gravatar has been cached for longer than this, it
 is retrieved anew.  The default value is 30 days."
-  :type 'integer
+  :type 'natnum
   ;; Restricted :type to number of seconds.
   :version "27.1"
   :group 'gravatar)
@@ -277,7 +277,7 @@ where GRAVATAR is either an image descriptor, or the symbol
               ;; Store the image in the cache.
               (when image
                 (setf (gethash mail-address gravatar--cache)
-                      (cons (time-convert (current-time) 'integer)
+		      (cons (time-convert nil 'integer)
                             image)))
               (prog1
                   (apply callback (if data image 'error) cbargs)
@@ -286,7 +286,7 @@ where GRAVATAR is either an image descriptor, or the symbol
 
 (defun gravatar--prune-cache ()
   (let ((expired nil)
-        (time (- (time-convert (current-time) 'integer)
+	(time (- (time-convert nil 'integer)
                  ;; Twelve hours.
                  (* 12 60 60))))
     (maphash (lambda (key val)

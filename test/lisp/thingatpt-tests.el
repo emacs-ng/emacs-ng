@@ -1,6 +1,6 @@
 ;;; thingatpt-tests.el --- tests for thing-at-point.  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -44,6 +44,9 @@
     ;; Non alphanumeric characters can be found in URIs
     ("ftp://example.net/~foo!;#bar=baz&goo=bob" 3 url "ftp://example.net/~foo!;#bar=baz&goo=bob")
     ("bzr+ssh://user@example.net:5/a%20d,5" 34 url "bzr+ssh://user@example.net:5/a%20d,5")
+    ;; IPv6 brackets enclosed in [markup]
+    ("[http://[::1]:8000/foo]" 10 url "http://[::1]:8000/foo")
+    ("[http://[fe08::7:8%eth0]]" 10 url "http://[fe08::7:8%eth0]")
     ;; <url:...> markup
     ("Url: <url:foo://1.example.com>..." 8 url "foo://1.example.com")
     ("Url: <url:foo://2.example.com>..." 30 url "foo://2.example.com")
@@ -170,21 +173,13 @@ position to retrieve THING.")
     (forward-char -1)
     (should (eq (symbol-at-point) 'bar))))
 
-(ert-deftest test-symbol-thing-2 ()
-  (with-temp-buffer
-    (insert " bar ")
-    (goto-char (point-max))
-    (should (eq (symbol-at-point) nil))
-    (forward-char -1)
-    (should (eq (symbol-at-point) 'bar))))
-
 (ert-deftest test-symbol-thing-3 ()
   (with-temp-buffer
     (insert "bar")
     (goto-char 2)
     (should (eq (symbol-at-point) 'bar))))
 
-(ert-deftest test-symbol-thing-3 ()
+(ert-deftest test-symbol-thing-4 ()
   (with-temp-buffer
     (insert "`[[`(")
     (goto-char 2)

@@ -1,6 +1,6 @@
 ;;; check-declare.el --- Check declare-function statements  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2007-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2023 Free Software Foundation, Inc.
 
 ;; Author: Glenn Morris <rgm@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -319,10 +319,7 @@ Returns non-nil if any false statements are found."
   (setq root (directory-file-name (file-relative-name root)))
   (or (file-directory-p root)
       (error "Directory `%s' not found" root))
-  (let ((files (process-lines find-program root
-                              "-name" "*.el"
-                              "-exec" grep-program
-                              "-l" "^[ \t]*(declare-function" "{}" "+")))
+  (let ((files (directory-files-recursively root "\\.el\\'")))
     (when files
       (apply #'check-declare-files files))))
 

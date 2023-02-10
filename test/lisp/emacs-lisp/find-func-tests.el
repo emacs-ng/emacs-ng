@@ -1,6 +1,6 @@
 ;;; find-func-tests.el --- Unit tests for find-func.el  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords:
@@ -87,7 +87,7 @@ expected function symbol and function library, respectively."
   (test-locate-helper #'forward-char '(forward-char . "cmds.c"))
   (should-error (test-locate-helper 'wrong-function)))
 
-(ert-deftest find-func-tests--locate-adviced-symbols ()
+(ert-deftest find-func-tests--locate-advised-symbols ()
   (defun my-message ()
     (message "Hello!"))
   (advice-add #'mark-sexp :around 'my-message)
@@ -95,6 +95,13 @@ expected function symbol and function library, respectively."
   (advice-remove #'mark-sexp 'my-message))
 
 (ert-deftest find-func-tests--find-library-verbose ()
+  (unwind-protect
+      (progn
+        (advice-add 'dired :before #'ignore)
+        ;; bug#41104
+        (should (equal (find-function-library #'dired) '(dired . "dired"))))
+    (advice-remove 'dired #'ignore))
+
   (find-function-library #'join-line nil t)
   (with-current-buffer "*Messages*"
     (save-excursion
@@ -102,9 +109,7 @@ expected function symbol and function library, respectively."
       (skip-chars-backward "\n")
       (should (string-match-p
                ".join-line. is an alias for .delete-indentation."
-               (buffer-substring
-                (line-beginning-position)
-                (point)))))))
+               (buffer-substring (pos-bol) (point)))))))
 
 ;; Avoid a byte-compilation warning that may confuse people reading
 ;; the result of the following test.

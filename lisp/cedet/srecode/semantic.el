@@ -1,6 +1,6 @@
 ;;; srecode/semantic.el --- Semantic specific extensions to SRecode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2007-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -43,8 +43,8 @@
 
 ;;; The SEMANTIC TAG inserter
 ;;
-;; Put a tag into the dictionary that can be used w/ arbitrary
-;; lisp expressions.
+;; Put a tag into the dictionary that can be used with arbitrary
+;; Lisp expressions.
 
 (defclass srecode-semantic-tag (srecode-dictionary-compound-value)
   ((prime :initarg :prime

@@ -1,6 +1,6 @@
 ;;; text-property-search.el --- search for text properties  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2018-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: convenience
@@ -47,7 +47,7 @@ match if is not `equal' to VALUE.  Furthermore, a nil PREDICATE
 means that the match region is ended if the value changes.  For
 instance, this means that if you loop with
 
-  (while (setq prop (text-property-search-forward 'face))
+  (while (setq prop (text-property-search-forward \\='face))
     ...)
 
 you will get all distinct regions with non-nil `face' values in
@@ -166,7 +166,6 @@ and if a matching region is found, place point at the start of the region."
     (let ((origin (point))
           (ended nil)
           pos)
-      (forward-char -1)
       ;; Find the previous candidate.
       (while (not ended)
         (setq pos (previous-single-property-change (point) property))
@@ -209,8 +208,14 @@ and if a matching region is found, place point at the start of the region."
                 (goto-char end)
                 (setq ended t)))))
       ;; End this at the first place the property changes value.
-      (setq end (previous-single-property-change
-                 (point) property nil (point-min)))
+      (setq end
+            (if (and (> (point) (point-min))
+                     (text-property--match-p
+                      value (get-text-property (1- (point)) property)
+                      predicate))
+                (previous-single-property-change (point)
+                                                 property nil (point-min))
+              (point)))
       (goto-char end))
     (make-prop-match :beginning end
                      :end (1+ start)

@@ -1,6 +1,6 @@
 ;;; gnus-score.el --- scoring code for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2023 Free Software Foundation, Inc.
 
 ;; Author: Per Abrahamsen <amanda@iesd.auc.dk>
 ;;	Lars Magne Ingebrigtsen <larsi@gnus.org>
@@ -502,19 +502,20 @@ of the last successful match.")
 
 ;;; Summary mode score maps.
 
-(gnus-define-keys (gnus-summary-score-map "V" gnus-summary-mode-map)
-  "s" gnus-summary-set-score
-  "S" gnus-summary-current-score
-  "c" gnus-score-change-score-file
-  "C" gnus-score-customize
-  "m" gnus-score-set-mark-below
-  "x" gnus-score-set-expunge-below
-  "R" gnus-summary-rescore
-  "e" gnus-score-edit-current-scores
-  "f" gnus-score-edit-file
-  "F" gnus-score-flush-cache
-  "t" gnus-score-find-trace
-  "w" gnus-score-find-favorite-words)
+(define-key gnus-summary-mode-map "V"
+  (define-keymap :prefix 'gnus-summary-score-map
+    "s" #'gnus-summary-set-score
+    "S" #'gnus-summary-current-score
+    "c" #'gnus-score-change-score-file
+    "C" #'gnus-score-customize
+    "m" #'gnus-score-set-mark-below
+    "x" #'gnus-score-set-expunge-below
+    "R" #'gnus-summary-rescore
+    "e" #'gnus-score-edit-current-scores
+    "f" #'gnus-score-edit-file
+    "F" #'gnus-score-flush-cache
+    "t" #'gnus-score-find-trace
+    "w" #'gnus-score-find-favorite-words))
 
 ;; Summary score file commands
 
@@ -1167,9 +1168,9 @@ If FORMAT, also format the current score file."
 	 (reg " -> +")
 	 (file (save-excursion
 		 (end-of-line)
-		 (if (and (re-search-backward reg (point-at-bol) t)
-			  (re-search-forward  reg (point-at-eol) t))
-		     (buffer-substring (point) (point-at-eol))
+                 (if (and (re-search-backward reg (line-beginning-position) t)
+                          (re-search-forward  reg (line-end-position) t))
+                     (buffer-substring (point) (line-end-position))
 		   nil))))
     (if (or (not file)
 	    (string-match "\\<\\(non-file rule\\|A file\\)\\>" file)
@@ -1748,7 +1749,7 @@ score in `gnus-newsgroup-scored' by SCORE."
 	    (setq type 'after
 		  match-func 'string<
 		  match (gnus-time-iso8601
-			 (time-subtract (current-time)
+			 (time-subtract nil
 					(* 86400 (nth 0 kill))))))
 	   ((eq type 'before)
 	    (setq match-func 'gnus-string>
@@ -1757,7 +1758,7 @@ score in `gnus-newsgroup-scored' by SCORE."
 	    (setq type 'before
 		  match-func 'gnus-string>
 		  match (gnus-time-iso8601
-			 (time-subtract (current-time)
+			 (time-subtract nil
 					(* 86400 (nth 0 kill))))))
 	   ((eq type 'at)
 	    (setq match-func 'string=
@@ -1998,7 +1999,7 @@ score in `gnus-newsgroup-scored' by SCORE."
 	    (goto-char (point-min))
 	    (if (= dmt ?e)
 		(while (funcall search-func match nil t)
-		  (and (= (point-at-bol)
+                  (and (= (line-beginning-position)
 			  (match-beginning 0))
 		       (= (progn (end-of-line) (point))
 			  (match-end 0))
@@ -2169,7 +2170,7 @@ score in `gnus-newsgroup-scored' by SCORE."
 			(funcall search-func match nil t))
 	      ;; Is it really exact?
 	      (and (eolp)
-		   (= (point-at-bol) (match-beginning 0))
+                   (= (line-beginning-position) (match-beginning 0))
 		   ;; Yup.
 		   (progn
 		     (setq found (setq arts (get-text-property
@@ -2259,7 +2260,7 @@ score in `gnus-newsgroup-scored' by SCORE."
 	  (goto-char (point-min))
 	  (while (and (not (eobp))
 		      (search-forward match nil t))
-	    (when (and (= (point-at-bol) (match-beginning 0))
+            (when (and (= (line-beginning-position) (match-beginning 0))
 		       (eolp))
 	      (setq found (setq arts (get-text-property (point) 'articles)))
 	      (if trace
@@ -2343,7 +2344,7 @@ score in `gnus-newsgroup-scored' by SCORE."
 	       hashtb))
 	(puthash
 	 word
-	 (append (get-text-property (point-at-eol) 'articles) val)
+         (append (get-text-property (line-end-position) 'articles) val)
 	 hashtb)))
     ;; Make all the ignorable words ignored.
     (let ((ignored (append gnus-ignored-adaptive-words
@@ -2561,16 +2562,17 @@ score in `gnus-newsgroup-scored' by SCORE."
 			       (or (caddr s)
 				   gnus-score-interactive-default-score))
 			     trace))))
-	(insert
-	 "\n\nQuick help:
+        (insert
+         (substitute-command-keys
+          "\n\nQuick help:
 
-Type `e' to edit score file corresponding to the score rule on current line,
-`f' to format (pretty print) the score file and edit it,
-`t' toggle to truncate long lines in this buffer,
-`q' to quit, `k' to kill score trace buffer.
+Type \\`e' to edit score file corresponding to the score rule on current line,
+\\`f' to format (pretty print) the score file and edit it,
+\\`t' toggle to truncate long lines in this buffer,
+\\`q' to quit, \\`k' to kill score trace buffer.
 
 The first sexp on each line is the score rule, followed by the file name of
-the score file and its full name, including the directory.")
+the score file and its full name, including the directory."))
 	(goto-char (point-min))
 	(gnus-configure-windows 'score-trace)))
     (set-buffer gnus-summary-buffer)

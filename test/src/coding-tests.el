@@ -1,6 +1,6 @@
 ;;; coding-tests.el --- tests for text encoding and decoding -*- lexical-binding: t -*-
 
-;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2023 Free Software Foundation, Inc.
 
 ;; Author: Eli Zaretskii <eliz@gnu.org>
 ;; Author: Kenichi Handa <handa@gnu.org>
@@ -61,16 +61,17 @@
 ;; Return the contents (specified by CONTENT-TYPE; ascii, latin, or
 ;; binary) of a test file.
 (defun coding-tests-file-contents (content-type)
-  (let* ((ascii "ABCDEFGHIJKLMNOPQRSTUVWXYZ\n")
-	 (latin (concat ascii "ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏ\n"))
-	 (binary (string-to-multibyte
-		  (concat (string-as-unibyte latin)
-			  (unibyte-string #xC0 #xC1 ?\n)))))
-    (cond ((eq content-type 'ascii) ascii)
-	  ((eq content-type 'latin) latin)
-	  ((eq content-type 'binary) binary)
-	  (t
-	   (error "Invalid file content type: %s" content-type)))))
+  (with-suppressed-warnings ((obsolete string-as-unibyte))
+    (let* ((ascii "ABCDEFGHIJKLMNOPQRSTUVWXYZ\n")
+           (latin (concat ascii "ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏ\n"))
+           (binary (string-to-multibyte
+                    (concat (string-as-unibyte latin)
+                            (unibyte-string #xC0 #xC1 ?\n)))))
+      (cond ((eq content-type 'ascii) ascii)
+            ((eq content-type 'latin) latin)
+            ((eq content-type 'binary) binary)
+            (t
+             (error "Invalid file content type: %s" content-type))))))
 
 ;; Generate FILE with CONTENTS encoded by CODING-SYSTEM.
 ;; whose encoding specified by CODING-SYSTEM.
@@ -147,21 +148,21 @@
 
 (defun coding-tests (content-type write-coding read-coding detected-coding
 				   &optional translator)
-  (prefer-coding-system 'utf-8-auto)
-  (let ((filename (coding-tests-filename content-type write-coding)))
-    (with-temp-buffer
-      (let ((coding-system-for-read read-coding)
-	    (contents (coding-tests-file-contents content-type))
-	    (disable-ascii-optimization nil))
-	(if translator
-	    (setq contents (funcall translator contents)))
-	(insert-file-contents filename)
-	(if (and (coding-system-equal buffer-file-coding-system detected-coding)
-		 (string= (buffer-string) contents))
-	    nil
-	  (list buffer-file-coding-system
-		(string-to-list (buffer-string))
-		(string-to-list contents)))))))
+  (with-coding-priority '(utf-8-auto)
+    (let ((filename (coding-tests-filename content-type write-coding)))
+      (with-temp-buffer
+        (let ((coding-system-for-read read-coding)
+	      (contents (coding-tests-file-contents content-type))
+	      (disable-ascii-optimization nil))
+	  (if translator
+	      (setq contents (funcall translator contents)))
+	  (insert-file-contents filename)
+	  (if (and (coding-system-equal buffer-file-coding-system detected-coding)
+		   (string= (buffer-string) contents))
+	      nil
+	    (list buffer-file-coding-system
+		  (string-to-list (buffer-string))
+		  (string-to-list contents))))))))
 
 (ert-deftest ert-test-coding-ascii ()
   (unwind-protect
@@ -428,10 +429,6 @@
                                               '(utf-8 iso-latin-1 us-ascii))
                  '((iso-latin-1 3) (us-ascii 1 3))))
   (should-error (check-coding-systems-region "å" nil '(bad-coding-system))))
-
-;; Local Variables:
-;; byte-compile-warnings: (not obsolete)
-;; End:
 
 (provide 'coding-tests)
 ;;; coding-tests.el ends here

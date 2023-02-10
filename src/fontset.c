@@ -1,6 +1,6 @@
 /* Fontset handler.
 
-Copyright (C) 2001-2022 Free Software Foundation, Inc.
+Copyright (C) 2001-2023 Free Software Foundation, Inc.
 Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
   2005, 2006, 2007, 2008, 2009, 2010, 2011
   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -922,8 +922,6 @@ face_for_char (struct frame *f, struct face *face, int c,
   int face_id;
   int id;
 
-  eassert (fontset_id_valid_p (face->fontset));
-
   if (ASCII_CHAR_P (c) || CHAR_BYTE8_P (c))
     return face->ascii_face->id;
 
@@ -969,6 +967,7 @@ face_for_char (struct frame *f, struct face *face, int c,
 #endif
     }
 
+  eassert (fontset_id_valid_p (face->fontset));
   fontset = FONTSET_FROM_ID (face->fontset);
   eassert (!BASE_FONTSET_P (fontset));
 
@@ -1664,7 +1663,17 @@ overwrites the previous settings.  */)
 	    {
 	      update_auto_fontset_alist (font_object, fontset_obj);
 	      AUTO_FRAME_ARG (arg, Qfont, Fcons (fontset, font_object));
-	      Fmodify_frame_parameters (fr, arg);
+
+#ifdef HAVE_WINDOW_SYSTEM
+	      if (FRAME_WINDOW_P (f))
+		/* This is a window-system frame.  Prevent changes of
+		   the `font' parameter here from messing with the
+		   `font-parameter' frame property, as the frame
+		   parameter is not being changed by the user.  */
+	        gui_set_frame_parameters_1 (f, arg, true);
+	      else
+#endif
+		Fmodify_frame_parameters (fr, arg);
 	    }
 	}
     }

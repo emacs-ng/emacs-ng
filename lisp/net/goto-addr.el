@@ -1,6 +1,6 @@
 ;;; goto-addr.el --- click to browse URL or to send to e-mail address  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995, 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995, 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric Ding <ericding@alum.mit.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -164,52 +164,51 @@ and `goto-address-fontify-p'."
   ;; Clean up from any previous go.
   (goto-address-unfontify (or start (point-min)) (or end (point-max)))
   (save-excursion
-    (let ((inhibit-point-motion-hooks t))
+    (goto-char (or start (point-min)))
+    (when (or (eq t goto-address-fontify-maximum-size)
+	      (< (- (or end (point-max)) (point))
+                 goto-address-fontify-maximum-size))
+      (while (re-search-forward goto-address-url-regexp end t)
+	(let* ((s (match-beginning 0))
+	       (e (match-end 0))
+	       this-overlay)
+	  (when (or (not goto-address-prog-mode)
+		    ;; This tests for both comment and string
+		    ;; syntax.
+		    (nth 8 (syntax-ppss)))
+	    (setq this-overlay (make-overlay s e))
+	    (and goto-address-fontify-p
+		 (overlay-put this-overlay 'face goto-address-url-face))
+	    (overlay-put this-overlay 'evaporate t)
+	    (overlay-put this-overlay
+			 'mouse-face goto-address-url-mouse-face)
+	    (overlay-put this-overlay 'follow-link t)
+	    (overlay-put this-overlay
+			 'help-echo "mouse-2, C-c RET: follow URL")
+	    (overlay-put this-overlay
+			 'keymap goto-address-highlight-keymap)
+	    (overlay-put this-overlay 'goto-address t))))
       (goto-char (or start (point-min)))
-      (when (or (eq t goto-address-fontify-maximum-size)
-		(< (- (or end (point-max)) (point))
-                   goto-address-fontify-maximum-size))
-	(while (re-search-forward goto-address-url-regexp end t)
-	  (let* ((s (match-beginning 0))
-		 (e (match-end 0))
-		 this-overlay)
-	    (when (or (not goto-address-prog-mode)
-		      ;; This tests for both comment and string
-		      ;; syntax.
-		      (nth 8 (syntax-ppss)))
-	      (setq this-overlay (make-overlay s e))
-	      (and goto-address-fontify-p
-		   (overlay-put this-overlay 'face goto-address-url-face))
-	      (overlay-put this-overlay 'evaporate t)
-	      (overlay-put this-overlay
-			   'mouse-face goto-address-url-mouse-face)
-	      (overlay-put this-overlay 'follow-link t)
-	      (overlay-put this-overlay
-			   'help-echo "mouse-2, C-c RET: follow URL")
-	      (overlay-put this-overlay
-			   'keymap goto-address-highlight-keymap)
-	      (overlay-put this-overlay 'goto-address t))))
-	(goto-char (or start (point-min)))
-	(while (re-search-forward goto-address-mail-regexp end t)
-	  (let* ((s (match-beginning 0))
-		 (e (match-end 0))
-		 this-overlay)
-	    (when (or (not goto-address-prog-mode)
-		      ;; This tests for both comment and string
-		      ;; syntax.
-		      (nth 8 (syntax-ppss)))
-	      (setq this-overlay (make-overlay s e))
-	      (and goto-address-fontify-p
-		   (overlay-put this-overlay 'face goto-address-mail-face))
-	      (overlay-put this-overlay 'evaporate t)
-	      (overlay-put this-overlay 'mouse-face
-			   goto-address-mail-mouse-face)
-	      (overlay-put this-overlay 'follow-link t)
-	      (overlay-put this-overlay
-			   'help-echo "mouse-2, C-c RET: mail this address")
-	      (overlay-put this-overlay
-			   'keymap goto-address-highlight-keymap)
-	      (overlay-put this-overlay 'goto-address t))))))))
+      (while (re-search-forward goto-address-mail-regexp end t)
+	(let* ((s (match-beginning 0))
+	       (e (match-end 0))
+	       this-overlay)
+	  (when (or (not goto-address-prog-mode)
+		    ;; This tests for both comment and string
+		    ;; syntax.
+		    (nth 8 (syntax-ppss)))
+	    (setq this-overlay (make-overlay s e))
+	    (and goto-address-fontify-p
+		 (overlay-put this-overlay 'face goto-address-mail-face))
+	    (overlay-put this-overlay 'evaporate t)
+	    (overlay-put this-overlay 'mouse-face
+			 goto-address-mail-mouse-face)
+	    (overlay-put this-overlay 'follow-link t)
+	    (overlay-put this-overlay
+			 'help-echo "mouse-2, C-c RET: mail this address")
+	    (overlay-put this-overlay
+			 'keymap goto-address-highlight-keymap)
+	    (overlay-put this-overlay 'goto-address t)))))))
 
 (defun goto-address-fontify-region (start end)
   "Fontify URLs and e-mail addresses in the given region."
@@ -223,25 +222,28 @@ and `goto-address-fontify-p'."
 
 ;;;###autoload
 (defun goto-address-at-point (&optional event)
-  "Send to the e-mail address or load the URL at point.
-Send mail to address at point.  See documentation for
-`goto-address-find-address-at-point'.  If no address is found
-there, then load the URL at or before point."
+  "Compose a new message to the e-mail address or open URL at point.
+
+Compose message to address at point.  See documentation for
+`goto-address-find-address-at-point'.
+
+If no e-mail address is found at point, open the URL at or before
+point using `browse-url'.  With a prefix argument, open the URL
+using `browse-url-secondary-browser-function' instead."
   (interactive (list last-input-event))
   (save-excursion
     (if event (posn-set-point (event-end event)))
     (let ((address (save-excursion (goto-address-find-address-at-point))))
       (if (and address
-	       (save-excursion
-		 (goto-char (previous-single-char-property-change
-			     (point) 'goto-address nil
-			     (line-beginning-position)))
-		 (not (looking-at goto-address-url-regexp))))
-	  (compose-mail address)
-	(let ((url (browse-url-url-at-point)))
-	  (if url
-	      (browse-url url)
-	    (error "No e-mail address or URL found")))))))
+               (save-excursion
+                 (goto-char (previous-single-char-property-change
+                             (point) 'goto-address nil
+                             (line-beginning-position)))
+                 (not (looking-at goto-address-url-regexp))))
+          (compose-mail address)
+        (if-let ((url (browse-url-url-at-point)))
+            (browse-url-button-open-url url)
+          (error "No e-mail address or URL found"))))))
 
 (defun goto-address-find-address-at-point ()
   "Find e-mail address around or before point.

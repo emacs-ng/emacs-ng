@@ -11,9 +11,8 @@ use std::thread;
 use crossbeam::channel::{Receiver, Sender};
 
 use emacs::bindings::{
-    build_string, intern_c_string, make_string_from_utf8, make_user_ptr, Ffuncall,
-    Fmake_pipe_process, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, Fuser_ptrp,
-    XUSER_PTR,
+    build_string, intern_c_string, make_string_from_utf8, make_user_ptr, plist_get, plist_put,
+    Ffuncall, Fmake_pipe_process, Fprocess_plist, Fset_process_plist, Fuser_ptrp, XUSER_PTR,
 };
 use emacs::globals::{
     QCcoding, QCfilter, QCinchannel, QCname, QCoutchannel, QCplist, QCtype, Qcall, Qdata, Qnil,
@@ -229,13 +228,13 @@ impl EmacsPipe {
         let input_type = from_data_option(input);
         let output_type = from_data_option(output);
         let mut plist = unsafe { Fprocess_plist(proc) };
-        plist = unsafe { Fplist_put(plist, Qcall, handler) };
-        plist = unsafe { Fplist_put(plist, QCtype, input_type) };
-        plist = unsafe { Fplist_put(plist, Qreturn, output_type) };
+        plist = unsafe { plist_put(plist, Qcall, handler) };
+        plist = unsafe { plist_put(plist, QCtype, input_type) };
+        plist = unsafe { plist_put(plist, Qreturn, output_type) };
 
         let (s, r): (Sender<String>, Receiver<String>) = crossbeam::channel::unbounded();
-        plist = unsafe { Fplist_put(plist, QCinchannel, UserData::new(s).into()) };
-        plist = unsafe { Fplist_put(plist, QCoutchannel, UserData::new(r).into()) };
+        plist = unsafe { plist_put(plist, QCinchannel, UserData::new(s).into()) };
+        plist = unsafe { plist_put(plist, QCoutchannel, UserData::new(r).into()) };
 
         unsafe { Fset_process_plist(proc, plist) };
         // This should be safe due to the fact that we have created the process
@@ -257,13 +256,13 @@ impl EmacsPipe {
 
     pub fn get_sender(&self) -> Sender<String> {
         let plist = unsafe { Fprocess_plist(self.proc) };
-        let sender_obj = unsafe { Fplist_get(plist, QCinchannel) };
+        let sender_obj = unsafe { plist_get(plist, QCinchannel) };
         unsafe { sender_obj.as_userdata_ref::<Sender<String>>().clone() }
     }
 
     fn recv(&mut self) -> std::io::Result<String> {
         let plist = unsafe { Fprocess_plist(self.proc) };
-        let recv_obj = unsafe { Fplist_get(plist, QCoutchannel) };
+        let recv_obj = unsafe { plist_get(plist, QCoutchannel) };
         let recv: &Receiver<String> = unsafe { recv_obj.as_userdata_ref() };
         recv.recv()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
@@ -402,7 +401,7 @@ fn make_return_value(ptrval: usize, option: PipeDataOption) -> LispObject {
 #[lisp_fn]
 pub fn async_handler(proc: LispObject, data: LispStringRef) -> bool {
     let plist = unsafe { Fprocess_plist(proc) };
-    let orig_handler = unsafe { Fplist_get(plist, Qcall) };
+    let orig_handler = unsafe { plist_get(plist, Qcall) };
 
     let mut pipe = unsafe { EmacsPipe::with_process(proc) };
     // This code may seem odd. Since we are in the same process space as
@@ -417,7 +416,7 @@ pub fn async_handler(proc: LispObject, data: LispStringRef) -> bool {
     for _ in 0..data.len_bytes() {
         if let Ok(s) = pipe.recv() {
             let bin = s.parse::<usize>().unwrap();
-            let qtype = unsafe { Fplist_get(plist, Qreturn) };
+            let qtype = unsafe { plist_get(plist, Qreturn) };
             if let Some(quoted_type) = to_data_option(qtype) {
                 let retval = make_return_value(bin, quoted_type);
                 let mut buffer = vec![orig_handler, proc, retval];
@@ -478,7 +477,7 @@ fn internal_send_message(
 pub fn async_send_message(proc: LispObject, message: LispObject) -> bool {
     let mut pipe = unsafe { EmacsPipe::with_process(proc) };
     let plist = unsafe { Fprocess_plist(proc) };
-    let qtype = unsafe { Fplist_get(plist, QCtype) };
+    let qtype = unsafe { plist_get(plist, QCtype) };
     if let Some(option) = to_data_option(qtype) {
         internal_send_message(&mut pipe, message, option)
     } else {

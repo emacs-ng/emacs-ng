@@ -1,10 +1,10 @@
 ;;; erc-fill.el --- Filling IRC messages in various ways  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2004, 2006-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2004, 2006-2023 Free Software Foundation, Inc.
 
 ;; Author: Andreas Fuchs <asf@void.at>
 ;;         Mario Lang <mlang@delysid.org>
-;; Maintainer: Amin Bandali <bandali@gnu.org>
+;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
 ;; URL: https://www.emacswiki.org/emacs/ErcFilling
 
 ;; This file is part of GNU Emacs.

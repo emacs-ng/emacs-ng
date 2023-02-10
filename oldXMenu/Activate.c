@@ -21,7 +21,7 @@ without express or implied warranty.
 
 
 /*
-Copyright (C) 2001-2022 Free Software Foundation, Inc.
+Copyright (C) 2001-2023 Free Software Foundation, Inc.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -121,12 +121,19 @@ int x_menu_grab_keyboard = 1;
 
 static Wait_func wait_func;
 static void* wait_data;
+static Translate_func translate_func = NULL;
 
 void
 XMenuActivateSetWaitFunction (Wait_func func, void *data)
 {
   wait_func = func;
   wait_data = data;
+}
+
+void
+XMenuActivateSetTranslateFunction (Translate_func func)
+{
+  translate_func = func;
 }
 
 int
@@ -449,6 +456,9 @@ XMenuActivate(
 	     * If the current selection was activated then
 	     * deactivate it.
 	     */
+	    /* Emacs specific, HELP_STRING cannot be validly NULL
+	     * in the real XMenu library.  */
+	    help_callback (NULL, cur_p->serial, cur_s->serial);
 	    if (cur_s->activated) {
 		cur_s->activated = False;
 		_XMRefreshSelection(display, menu, cur_s);
@@ -515,6 +525,12 @@ XMenuActivate(
 		    feq = feq_tmp;
 		}
 		else if (_XMEventHandler) (*_XMEventHandler)(&event);
+		break;
+#ifdef HAVE_XINPUT2
+        case GenericEvent:
+	    if (translate_func)
+	      translate_func (&event);
+#endif
 	}
 	/*
 	 * If a selection has been made, break out of the event loop.

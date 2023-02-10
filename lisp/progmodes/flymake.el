@@ -1,6 +1,6 @@
 ;;; flymake.el --- A universal on-the-fly syntax checker  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2003-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2023 Free Software Foundation, Inc.
 
 ;; Author: Pavel Kobyakov <pk_at_work@yahoo.com>
 ;; Maintainer: João Távora <joaotavora@gmail.com>
@@ -54,9 +54,8 @@
 ;; (question mark) if no backends were even configured.
 ;;
 ;; For programmers interested in writing a new Flymake backend, the
-;; docstring of `flymake-diagnostic-functions', the Flymake manual,
-;; and the code of existing backends are probably a good starting
-;; point.
+;; docstring of `flymake-diagnostic-functions', the Flymake manual, and the
+;; code of existing backends are probably good starting points.
 ;;
 ;; The user wishing to customize the appearance of error types should
 ;; set properties on the symbols associated with each diagnostic type.
@@ -303,7 +302,7 @@ generated it."
 (defun flymake-error (text &rest args)
   "Format TEXT with ARGS and signal an error for Flymake."
   (let ((msg (apply #'format-message text args)))
-    (flymake-log :error msg)
+    (flymake-log :error "%s" msg)
     (error (concat "[Flymake] " msg))))
 
 (cl-defstruct (flymake--diag
@@ -1102,6 +1101,13 @@ The commands `flymake-goto-next-error' and
 `flymake-goto-prev-error' can be used to navigate among Flymake
 diagnostics annotated in the buffer.
 
+By default, `flymake-mode' doesn't override the \\[next-error] command, but
+if you're using Flymake a lot (and don't use the regular compilation
+mechanisms that often), it can be useful to put something like
+the following in your init file:
+
+  (setq next-error-function \\='flymake-goto-next-error)
+
 The visual appearance of each type of diagnostic can be changed
 by setting properties `flymake-overlay-control', `flymake-bitmap'
 and `flymake-severity' on the symbols of diagnostic types (like
@@ -1126,7 +1132,7 @@ special *Flymake log* buffer."  :group 'flymake :lighter
     (add-hook 'kill-buffer-hook 'flymake-kill-buffer-hook nil t)
     (add-hook 'eldoc-documentation-functions 'flymake-eldoc-function t t)
 
-    ;; If Flymake happened to be already already ON, we must cleanup
+    ;; If Flymake happened to be already ON, we must cleanup
     ;; existing diagnostic overlays, lest we forget them by blindly
     ;; reinitializing `flymake--state' in the next line.
     ;; See https://github.com/joaotavora/eglot/issues/223.
@@ -1353,10 +1359,16 @@ default) no filter is applied."
     flymake-mode-line-warning-counter
     flymake-mode-line-note-counter "]")
   "Mode-line construct for formatting Flymake diagnostic counters.
-This is a suitable place for placing the `flymake-error-counter',
-`flymake-warning-counter' and `flymake-note-counter' constructs.
+This is a suitable place for placing the `flymake-mode-line-error-counter',
+`flymake-mode-line-warning-counter' and `flymake-mode-line-note-counter'
+constructs.
 Separating each of these with space is not necessary."
   :type '(repeat (choice string symbol)))
+
+(defcustom flymake-mode-line-lighter "Flymake"
+  "The string to use in the Flymake mode line."
+  :type 'string
+  :version "29.1")
 
 (defvar flymake-mode-line-title '(:eval (flymake--mode-line-title))
   "Mode-line construct to show Flymake's mode name and menu.")
@@ -1386,7 +1398,7 @@ correctly.")
 
 (defun flymake--mode-line-title ()
   `(:propertize
-    "Flymake"
+    ,flymake-mode-line-lighter
     mouse-face mode-line-highlight
     help-echo
     ,(lambda (&rest _)
@@ -1526,7 +1538,7 @@ POS can be a buffer position or a button"
    (flymake-show-diagnostic (if (button-type pos) (button-start pos) pos))))
 
 (defun flymake--tabulated-entries-1 (diags project-root)
-  "Helper for `flymake--diagnostic-buffer-entries'.
+  "Helper for `flymake--diagnostics-buffer-entries'.
 PROJECT-ROOT indicates that each entry should be preceded by the
 filename of the diagnostic relative to that directory."
   (cl-loop
@@ -1623,6 +1635,7 @@ buffer."
 (define-derived-mode flymake-diagnostics-buffer-mode tabulated-list-mode
   "Flymake diagnostics"
   "A mode for listing Flymake diagnostics."
+  :interactive nil
   (setq tabulated-list-format flymake--diagnostics-base-tabulated-list-format)
   (setq tabulated-list-entries
         'flymake--diagnostics-buffer-entries)
@@ -1637,6 +1650,8 @@ buffer."
 (defun flymake-show-buffer-diagnostics ()
   "Show a list of Flymake diagnostics for current buffer."
   (interactive)
+  (unless flymake-mode
+    (user-error "Flymake mode is not enabled in the current buffer"))
   (let* ((name (flymake--diagnostics-buffer-name))
          (source (current-buffer))
          (target (or (get-buffer name)
@@ -1664,9 +1679,9 @@ the file they refer to is visited and `flymake-mode' is turned on
 in the resulting buffer.
 
 Flymake backends that somehow gain sporadic information about
-diagnostics in neighbouring files may freely modify this variable
+diagnostics in neighboring files may freely modify this variable
 by adding or removing entries to for those files.  If the
-information about those neighbouring files is acquired repeatedly
+information about those neighboring files is acquired repeatedly
 and reliably, it may be more sensible to report them as
 \"foreign\" diagnostics instead.
 
@@ -1678,6 +1693,7 @@ some of this variable's contents the diagnostic listings.")
 (define-derived-mode flymake-project-diagnostics-mode tabulated-list-mode
   "Flymake diagnostics"
   "A mode for listing Flymake diagnostics."
+  :interactive nil
   (setq tabulated-list-format
         (vconcat [("File" 25 t)]
                  flymake--diagnostics-base-tabulated-list-format))

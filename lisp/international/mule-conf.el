@@ -1,6 +1,6 @@
 ;;; mule-conf.el --- configure multilingual environment  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 ;; Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
 ;;   Registration Number H14PRO021
@@ -148,6 +148,7 @@
 (defmacro define-iso-single-byte-charset (symbol iso-symbol name nickname
 						 iso-ir iso-final
 						 emacs-mule-id map)
+  (declare (indent defun))
   `(progn
      (define-charset ,symbol
        ,name
@@ -1267,7 +1268,7 @@
   :short-name  "CNS11643-15"
   :long-name "CNS11643-15 (Chinese traditional)"
   :code-space [33 126 33 126]
-  :code-offset #x27A000
+  :code-offset #x28083A                 ; Right after 'big5-hkscs.
   :unify-map "CNS-F")
 
 (unify-charset 'chinese-gb2312)

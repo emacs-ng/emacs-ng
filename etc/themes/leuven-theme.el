@@ -1,10 +1,10 @@
 ;;; leuven-theme.el --- Awesome Emacs color theme on white background  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2023 Free Software Foundation, Inc.
 
 ;; Author: Fabrice Niessen <(concat "fniessen" at-sign "pirilampo.org")>
 ;; URL: https://github.com/fniessen/emacs-leuven-theme
-;; Version: 20200513.1928
+;; Version: 20221010.1209
 ;; Keywords: color theme
 
 ;; This file is part of GNU Emacs.
@@ -74,11 +74,15 @@ CONTROL can be a number, nil, or t.  When t, use DEFAULT-HEIGHT."
 
 ;;; Theme Faces.
 
+;;;###theme-autoload
 (deftheme leuven
   "Face colors with a light background.
 Basic, Font Lock, Isearch, Gnus, Message, Org mode, Diff, Ediff,
 Flyspell, Semantic, and Ansi-Color faces are included -- and much
-more...")
+more..."
+  :background-mode 'light
+  :kind 'color-scheme
+  :family 'leuven)
 
 (let ((class '((class color) (min-colors 89)))
 
@@ -632,6 +636,8 @@ more...")
    `(ilog-echo-face ((,class (:height 2.0 :foreground "#006FE0"))))
    `(ilog-load-face ((,class (:foreground "#BA36A5"))))
    `(ilog-message-face ((,class (:foreground "#808080"))))
+   `(image-dired-thumb-flagged ((,class (:background "red"))))
+   `(image-dired-thumb-mark ((,class :background "#FFAAAA")))
    `(indent-guide-face ((,class (:foreground "#D3D3D3"))))
    `(info-file ((,class (:family "Sans Serif" :height 1.8 :weight bold :box (:line-width 1 :color "#0000CC") :foreground "cornflower blue" :background "LightSteelBlue1"))))
    `(info-header-node ((,class (:underline t :foreground "orange")))) ; nodes in header

@@ -1,6 +1,6 @@
 ;;; idlw-shell.el --- run IDL as an inferior process of Emacs.  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Authors: JD Smith <jd.smith@utoledo.edu>
 ;;          Carsten Dominik <dominik@astro.uva.nl>
@@ -231,7 +231,7 @@ because these are used as separators by IDL."
 
 (defcustom idlwave-shell-graphics-window-size '(500 400)
   "Size of IDL graphics windows popped up by special IDLWAVE command.
-The command is `C-c C-d C-f' and accepts as a prefix the window nr.
+The command is \\`C-c C-d C-f' and accepts as a prefix the window nr.
 A command like `WINDOW,N,xsize=XX,ysize=YY' is sent to IDL."
   :group 'idlwave-shell-general-setup
   :type '(list
@@ -448,7 +448,7 @@ a face highlighting may be better."
 We use a single character by default, since the main block of IDL procedures
 often has no indentation.  Where possible, IDLWAVE will use overlays to
 display the stop-lines.  The arrow is only used on character-based terminals.
-See also `idlwave-shell-use-overlay-arrow'."
+See also `idlwave-shell-mark-stop-line'."
   :group 'idlwave-shell-highlighting-and-faces
   :type 'string)
 
@@ -817,7 +817,7 @@ IDL has currently stepped.")
 
    Command history, searching of previous commands, command line
    editing are available via the comint-mode key bindings, by default
-   mostly on the key `C-c'.  Command history is also available with
+   mostly on the key \\`C-c'.  Command history is also available with
    the arrow keys UP and DOWN.
 
 2. Completion
@@ -844,7 +844,7 @@ IDL has currently stepped.")
    ---------
    A complete set of commands for compiling and debugging IDL programs
    is available from the menu.  Also keybindings starting with a
-   `C-c C-d' prefix are available for most commands in the *idl* buffer
+   \\`C-c C-d' prefix are available for most commands in the *idl* buffer
    and also in source buffers.  The best place to learn about the
    keybindings is again the menu.
 
@@ -1327,7 +1327,7 @@ See also the variable `idlwave-shell-input-mode-spells'."
 Characters are sent one by one, without newlines.  The loop is blocking
 and intercepts all input events to Emacs.  You can use this command
 to interact with the IDL command GET_KBRD.
-The loop can be aborted by typing `C-g'.  The loop also exits automatically
+The loop can be aborted by typing \\[keyboard-quit].  The loop also exits automatically
 when the IDL prompt gets displayed again after the current IDL command."
   (interactive)
 
@@ -1342,7 +1342,8 @@ when the IDL prompt gets displayed again after the current IDL command."
 	(funcall errf "No IDL program seems to be waiting for input"))
 
     ;; OK, start the loop
-    (message "Character mode on:  Sending single chars (`C-g' to exit)")
+    (message (substitute-command-keys
+              "Character mode on:  Sending single chars (\\[keyboard-quit] to exit)"))
     (message
      (catch 'exit
        (while t
@@ -1380,7 +1381,7 @@ Otherwise just move the line.  Move down unless UP is non-nil."
 	 (arg (if up arg (- arg))))
     (if (eq t idlwave-shell-arrows-do-history) (goto-char proc-pos))
     (if (and idlwave-shell-arrows-do-history
-	     (>= (1+ (point-at-eol)) proc-pos))
+             (>= (1+ (line-end-position)) proc-pos))
 	(comint-previous-input arg)
       (forward-line (- arg)))))
 
@@ -2129,7 +2130,7 @@ args of an executive .run, .rnew or .compile."
 
 (defun idlwave-shell-filename-string ()
   "Return t if in a string and after what could be a file name."
-  (let ((limit (point-at-bol)))
+  (let ((limit (line-beginning-position)))
     (save-excursion
       ;; Skip backwards over file name chars
       (skip-chars-backward idlwave-shell-file-name-chars limit)
@@ -2138,7 +2139,7 @@ args of an executive .run, .rnew or .compile."
 
 (defun idlwave-shell-batch-command ()
   "Return t if we're in a batch command statement like \"@foo\"."
-  (let ((limit (point-at-bol)))
+  (let ((limit (line-beginning-position)))
     (save-excursion
       ;; Skip backwards over filename
       (skip-chars-backward idlwave-shell-file-name-chars limit)
@@ -2316,7 +2317,7 @@ matter what the settings of that variable."
                                    idlwave-shell-electric-stop-line-face
                                  idlwave-shell-stop-line-face))
 		  (move-overlay idlwave-shell-stop-line-overlay
-				(point) (point-at-eol)
+                                (point) (line-end-position)
 				(current-buffer)))
 	      ;; use the arrow instead, but only if marking is wanted.
 	      (if idlwave-shell-mark-stop-line
@@ -2509,7 +2510,7 @@ If in the IDL shell buffer, returns `idlwave-shell-pc-frame'."
     (list (idlwave-shell-file-name (buffer-file-name))
           (save-restriction
             (widen)
-	    (1+ (count-lines 1 (point-at-bol)))))))
+            (1+ (count-lines 1 (line-beginning-position)))))))
 
 (defun idlwave-shell-current-module ()
   "Return the name of the module for the current file.
@@ -3527,7 +3528,7 @@ Existing overlays are recycled, in order to minimize consumption."
       (while (setq bp (pop bp-list))
 	(save-excursion
 	  (idlwave-shell-goto-frame (car bp))
-	  (let* ((end (point-at-eol))
+          (let* ((end (line-end-position))
 		 (beg (progn (beginning-of-line 1) (point)))
 		 (condition (idlwave-shell-bp-get bp 'condition))
 		 (count (idlwave-shell-bp-get bp 'count))
@@ -3850,7 +3851,7 @@ of the form:
                   (append
                    ;; compiled procedures
                    (progn
-                     (narrow-to-region cpro (point-at-bol))
+                     (narrow-to-region cpro (line-beginning-position))
                      (goto-char (point-min))
                      (idlwave-shell-sources-grep))
                    ;; compiled functions

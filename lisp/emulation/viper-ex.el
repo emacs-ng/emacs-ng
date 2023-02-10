@@ -1,6 +1,6 @@
 ;;; viper-ex.el --- functions implementing the Ex commands for Viper  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1994-1998, 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1994-1998, 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: Michael Kifer <kifer@cs.stonybrook.edu>
 ;; Package: viper
@@ -25,7 +25,6 @@
 ;;; Code:
 
 ;; Compiler pacifier
-(defvar read-file-name-map)
 (defvar viper-use-register)
 (defvar viper-s-string)
 (defvar viper-shift-width)
@@ -1548,7 +1547,7 @@ reversed."
     (if skip-rest
 	()
       ;; setup buffer
-      (if (setq wind (viper-get-visible-buffer-window buf))
+      (if (setq wind (get-buffer-window buf 'visible))
 	  ()
 	(setq wind (get-lru-window 'visible))
 	(set-window-buffer wind buf))

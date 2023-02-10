@@ -1,6 +1,6 @@
 ;;; tramp-integration.el --- Tramp integration into other packages  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2019-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -39,6 +39,7 @@
 (declare-function info-lookup->topic-value "info-look")
 (declare-function info-lookup-maybe-add-help "info-look")
 (declare-function recentf-cleanup "recentf")
+(declare-function shortdoc-add-function "shortdoc")
 (declare-function tramp-dissect-file-name "tramp")
 (declare-function tramp-file-name-equal-p "tramp")
 (declare-function tramp-tramp-file-p "tramp")
@@ -49,6 +50,7 @@
 (defvar info-lookup-alist)
 (defvar ivy-completing-read-handlers-alist)
 (defvar recentf-exclude)
+(defvar shortdoc--groups)
 (defvar tramp-current-connection)
 (defvar tramp-postfix-host-format)
 (defvar tramp-use-ssh-controlmaster-options)
@@ -83,14 +85,8 @@ special handling of `substitute-in-file-name'."
 
 (defun tramp-rfn-eshadow-update-overlay-regexp ()
   "An overlay covering the shadowed part of the filename."
-  (format "[^%s/~]*\\(/\\|~\\)" tramp-postfix-host-format))
-
-;; Package rfn-eshadow is preloaded in Emacs, but for some reason,
-;; it only did (defvar rfn-eshadow-overlay) without giving it a global
-;; value, so it was only declared as dynamically-scoped within the
-;; rfn-eshadow.el file.  This is now fixed in Emacs>26.1 but we still need
-;; this defvar here for older releases.
-(defvar rfn-eshadow-overlay)
+  (rx-to-string
+   `(: (* (not (any ,tramp-postfix-host-format "/~"))) (| "/" "~"))))
 
 (defun tramp-rfn-eshadow-update-overlay ()
   "Update `rfn-eshadow-overlay' to cover shadowed part of minibuffer input.
@@ -113,7 +109,7 @@ been set up by `rfn-eshadow-setup-minibuffer'."
 		     end))
 	     (point-max))
 	    (let ((rfn-eshadow-overlay tramp-rfn-eshadow-overlay)
-		  (rfn-eshadow-update-overlay-hook nil)
+		  rfn-eshadow-update-overlay-hook
 		  file-name-handler-alist)
 	      (move-overlay rfn-eshadow-overlay (point-max) (point-max))
 	      (rfn-eshadow-update-overlay))))))))
@@ -129,25 +125,29 @@ been set up by `rfn-eshadow-setup-minibuffer'."
 
 ;; eshell.el keeps the path in `eshell-path-env'.  We must change it
 ;; when `default-directory' points to another host.
+;; This is fixed in Eshell with Emacs 29.1.
+
 (defun tramp-eshell-directory-change ()
   "Set `eshell-path-env' to $PATH of the host related to `default-directory'."
   ;; Remove last element of `(exec-path)', which is `exec-directory'.
   ;; Use `path-separator' as it does eshell.
   (setq eshell-path-env
-	(mapconcat
-	 #'identity (butlast (tramp-compat-exec-path)) path-separator)))
+        (if (file-remote-p default-directory)
+            (mapconcat #'identity (butlast (exec-path)) path-separator)
+          (getenv "PATH"))))
 
 (with-eval-after-load 'esh-util
-  (add-hook 'eshell-mode-hook
-	    #'tramp-eshell-directory-change)
-  (add-hook 'eshell-directory-change-hook
-	    #'tramp-eshell-directory-change)
-  (add-hook 'tramp-integration-unload-hook
-	    (lambda ()
-	      (remove-hook 'eshell-mode-hook
-			   #'tramp-eshell-directory-change)
-	      (remove-hook 'eshell-directory-change-hook
-			   #'tramp-eshell-directory-change))))
+  (unless (boundp 'eshell-path-env-list)
+    (add-hook 'eshell-mode-hook
+	      #'tramp-eshell-directory-change)
+    (add-hook 'eshell-directory-change-hook
+	      #'tramp-eshell-directory-change)
+    (add-hook 'tramp-integration-unload-hook
+	      (lambda ()
+	        (remove-hook 'eshell-mode-hook
+			     #'tramp-eshell-directory-change)
+	        (remove-hook 'eshell-directory-change-hook
+			     #'tramp-eshell-directory-change)))))
 
 ;;; Integration of recentf.el:
 
@@ -220,9 +220,13 @@ NAME must be equal to `tramp-current-connection'."
   ;; Create a pseudo mode `tramp-info-lookup-mode' for Tramp symbol lookup.
   (info-lookup-maybe-add-help
    :mode 'tramp-info-lookup-mode :topic 'symbol
-   :regexp "[^][()`'‘’,\" \t\n]+"
-   :doc-spec '(("(tramp)Function Index" nil "^ -+ .*: " "\\( \\|$\\)")
-	       ("(tramp)Variable Index" nil "^ -+ .*: " "\\( \\|$\\)")))
+   :regexp (rx (+ (not (any "\t\n \"'(),[]`‘’"))))
+   :doc-spec `(("(tramp)Function Index" nil
+		,(rx bol blank (+ "-") blank (* nonl) ":" blank)
+		,(rx (| blank eol)))
+	       ("(tramp)Variable Index" nil
+		,(rx bol blank (+ "-") blank (* nonl) ":" blank)
+		,(rx (| blank eol)))))
 
   (add-hook
    'tramp-integration-unload-hook
@@ -264,6 +268,33 @@ NAME must be equal to `tramp-current-connection'."
 		  (delete (info-lookup->mode-cache 'symbol ',mode)
 			  (info-lookup->topic-cache 'symbol))))))))
 
+;;; Integration of shortdoc.el:
+
+(with-eval-after-load 'shortdoc
+  (dolist (elem '((file-remote-p
+		   :eval (file-remote-p "/ssh:user@host:/tmp/foo")
+		   :eval (file-remote-p "/ssh:user@host:/tmp/foo" 'method))
+		  (file-local-name
+		   :eval (file-local-name "/ssh:user@host:/tmp/foo"))
+		  (file-local-copy
+		   :no-eval (file-local-copy "/ssh:user@host:/tmp/foo")
+		   :eg-result "/tmp/tramp.8ihLbO"
+		   :eval (file-local-copy "/tmp/foo"))))
+    (unless (assoc (car elem)
+		   (member "Remote Files" (assq 'file shortdoc--groups)))
+      (shortdoc-add-function 'file "Remote Files" elem)))
+
+  (add-hook
+   'tramp-integration-unload-hook
+   (lambda ()
+     (let ((glist (assq 'file shortdoc--groups)))
+       (while (and (consp glist)
+                   (not (and (stringp (cadr glist))
+                             (string-equal (cadr glist) "Remote Files"))))
+         (setq glist (cdr glist)))
+       (when (consp glist)
+         (setcdr glist nil))))))
+
 ;;; Integration of compile.el:
 
 ;; Compilation processes use `accept-process-output' such a way that
@@ -278,25 +309,21 @@ NAME must be equal to `tramp-current-connection'."
 	    #'tramp-compile-disable-ssh-controlmaster-options)
   (add-hook 'tramp-integration-unload-hook
 	    (lambda ()
-	      (remove-hook 'compilation-start-hook
+	      (remove-hook 'compilation-mode-hook
 			   #'tramp-compile-disable-ssh-controlmaster-options))))
 
-;;; Default connection-local variables for Tramp:
-;; `connection-local-set-profile-variables' and
-;; `connection-local-set-profiles' exists since Emacs 26.1.
+;;; Default connection-local variables for Tramp.
 
 (defconst tramp-connection-local-default-system-variables
   '((path-separator . ":")
     (null-device . "/dev/null"))
   "Default connection-local system variables for remote connections.")
 
-(tramp-compat-funcall
- 'connection-local-set-profile-variables
+(connection-local-set-profile-variables
  'tramp-connection-local-default-system-profile
  tramp-connection-local-default-system-variables)
 
-(tramp-compat-funcall
- 'connection-local-set-profiles
+(connection-local-set-profiles
  '(:application tramp)
  'tramp-connection-local-default-system-profile)
 
@@ -305,16 +332,228 @@ NAME must be equal to `tramp-current-connection'."
     (shell-command-switch . "-c"))
   "Default connection-local shell variables for remote connections.")
 
-(tramp-compat-funcall
- 'connection-local-set-profile-variables
+(connection-local-set-profile-variables
  'tramp-connection-local-default-shell-profile
  tramp-connection-local-default-shell-variables)
 
 (with-eval-after-load 'shell
-  (tramp-compat-funcall
-   'connection-local-set-profiles
+  (connection-local-set-profiles
    '(:application tramp)
    'tramp-connection-local-default-shell-profile))
+
+;; Tested with FreeBSD 12.2.
+(defconst tramp-bsd-process-attributes-ps-args
+  `("-acxww"
+    "-o"
+    ,(mapconcat
+      #'identity
+      '("pid"
+        "euid"
+        "user"
+        "egid"
+        "egroup"
+        "comm=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+      ",")
+    "-o"
+    ,(mapconcat
+      #'identity
+      '("state"
+        "ppid"
+        "pgid"
+        "sid"
+        "tty"
+        "tpgid"
+        "minflt"
+        "majflt"
+        "time"
+        "pri"
+        "nice"
+        "vsz"
+        "rss"
+        "etimes"
+        "pcpu"
+        "pmem"
+        "args")
+      ","))
+  "List of arguments for \"ps\".
+See `tramp-process-attributes-ps-args'.")
+
+(defconst tramp-bsd-process-attributes-ps-format
+  '((pid . number)
+    (euid . number)
+    (user . string)
+    (egid . number)
+    (group . string)
+    (comm . 52)
+    (state . string)
+    (ppid . number)
+    (pgrp . number)
+    (sess . number)
+    (ttname . string)
+    (tpgid . number)
+    (minflt . number)
+    (majflt . number)
+    (time . tramp-ps-time)
+    (pri . number)
+    (nice . number)
+    (vsize . number)
+    (rss . number)
+    (etime . number)
+    (pcpu . number)
+    (pmem . number)
+    (args . nil))
+  "Alist of formats for \"ps\".
+See `tramp-process-attributes-ps-format'.")
+
+(defconst tramp-connection-local-bsd-ps-variables
+  `((tramp-process-attributes-ps-args
+     . ,tramp-bsd-process-attributes-ps-args)
+    (tramp-process-attributes-ps-format
+     . ,tramp-bsd-process-attributes-ps-format))
+  "Default connection-local ps variables for remote BSD connections.")
+
+(connection-local-set-profile-variables
+ 'tramp-connection-local-bsd-ps-profile
+ tramp-connection-local-bsd-ps-variables)
+
+;; Tested with BusyBox v1.24.1.
+(defconst tramp-busybox-process-attributes-ps-args
+  `("-o"
+    ,(mapconcat
+      #'identity
+      '("pid"
+        "user"
+        "group"
+        "comm=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+      ",")
+    "-o" "stat=abcde"
+    "-o"
+    ,(mapconcat
+      #'identity
+      '("ppid"
+        "pgid"
+        "tty"
+        "time"
+        "nice"
+        "etime"
+        "args")
+      ","))
+  "List of arguments for \"ps\".
+See `tramp-process-attributes-ps-args'.")
+
+(defconst tramp-busybox-process-attributes-ps-format
+  '((pid . number)
+    (user . string)
+    (group . string)
+    (comm . 52)
+    (state . 5)
+    (ppid . number)
+    (pgrp . number)
+    (ttname . string)
+    (time . tramp-ps-time)
+    (nice . number)
+    (etime . tramp-ps-time)
+    (args . nil))
+  "Alist of formats for \"ps\".
+See `tramp-process-attributes-ps-format'.")
+
+(defconst tramp-connection-local-busybox-ps-variables
+  `((tramp-process-attributes-ps-args
+     . ,tramp-busybox-process-attributes-ps-args)
+    (tramp-process-attributes-ps-format
+     . ,tramp-busybox-process-attributes-ps-format))
+  "Default connection-local ps variables for remote Busybox connections.")
+
+(connection-local-set-profile-variables
+ 'tramp-connection-local-busybox-ps-profile
+ tramp-connection-local-busybox-ps-variables)
+
+;; Darwin (macOS).
+(defconst tramp-darwin-process-attributes-ps-args
+  `("-acxww"
+    "-o"
+    ,(mapconcat
+      #'identity
+      '("pid"
+        "uid"
+        "user"
+        "gid"
+        "comm=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+      ",")
+    "-o" "state=abcde"
+    "-o"
+    ,(mapconcat
+      #'identity
+      '("ppid"
+        "pgid"
+        "sess"
+        "tty"
+        "tpgid"
+        "minflt"
+        "majflt"
+        "time"
+        "pri"
+        "nice"
+        "vsz"
+        "rss"
+        "etime"
+        "pcpu"
+        "pmem"
+        "args")
+      ","))
+  "List of arguments for \"ps\".
+See `tramp-process-attributes-ps-args'.")
+
+(defconst tramp-darwin-process-attributes-ps-format
+  '((pid . number)
+    (euid . number)
+    (user . string)
+    (egid . number)
+    (comm . 52)
+    (state . 5)
+    (ppid . number)
+    (pgrp . number)
+    (sess . number)
+    (ttname . string)
+    (tpgid . number)
+    (minflt . number)
+    (majflt . number)
+    (time . tramp-ps-time)
+    (pri . number)
+    (nice . number)
+    (vsize . number)
+    (rss . number)
+    (etime . tramp-ps-time)
+    (pcpu . number)
+    (pmem . number)
+    (args . nil))
+  "Alist of formats for \"ps\".
+See `tramp-process-attributes-ps-format'.")
+
+(defconst tramp-connection-local-darwin-ps-variables
+  `((tramp-process-attributes-ps-args
+     . ,tramp-darwin-process-attributes-ps-args)
+    (tramp-process-attributes-ps-format
+     . ,tramp-darwin-process-attributes-ps-format))
+  "Default connection-local ps variables for remote Darwin connections.")
+
+(connection-local-set-profile-variables
+ 'tramp-connection-local-darwin-ps-profile
+ tramp-connection-local-darwin-ps-variables)
+
+;; Preset default "ps" profile for local hosts, based on system type.
+
+(when-let ((local-profile
+	    (cond ((eq system-type 'darwin)
+		   'tramp-connection-local-darwin-ps-profile)
+		  ;; ... Add other system types here.
+		  )))
+  (connection-local-set-profiles
+   `(:application tramp :machine ,(system-name))
+   local-profile)
+  (connection-local-set-profiles
+   '(:application tramp :machine "localhost")
+   local-profile))
 
 (add-hook 'tramp-unload-hook
 	  (lambda () (unload-feature 'tramp-integration 'force)))

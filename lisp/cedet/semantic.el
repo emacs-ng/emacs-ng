@@ -1,6 +1,6 @@
 ;;; semantic.el --- Semantic buffer evaluator.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: syntax tools
@@ -34,6 +34,8 @@
 ;; menu).  To enable it at startup, put (semantic-mode 1) in your init
 ;; file.
 
+;;; Code:
+
 (require 'cedet)
 (require 'semantic/tag)
 (require 'semantic/lex)
@@ -41,6 +43,7 @@
 
 (defvar semantic-version "2.2"
   "Current version of Semantic.")
+(make-obsolete-variable 'semantic-version 'emacs-version "29.1")
 
 (declare-function inversion-test "inversion")
 (declare-function semanticdb-load-ebrowse-caches "semantic/db-ebrowse")
@@ -72,9 +75,6 @@ introduced."
   :group 'semantic)
 
 (require 'semantic/fw)
-
-;;; Code:
-;;
 
 ;;; Variables and Configuration
 ;;
@@ -186,13 +186,13 @@ during a flush when the cache is given a new value of nil.")
   "State of the current parse tree.")
 
 (defmacro semantic-parse-tree-unparseable ()
-  "Indicate that the current buffer is unparseable.
+  "Indicate that the current buffer is unparsable.
 It is also true that the parse tree will need either updating or
 a rebuild.  This state will be changed when the user edits the buffer."
   '(setq semantic-parse-tree-state 'unparseable))
 
 (defmacro semantic-parse-tree-unparseable-p ()
-  "Return non-nil if the current buffer has been marked unparseable."
+  "Return non-nil if the current buffer has been marked unparsable."
   '(eq semantic-parse-tree-state 'unparseable))
 
 (defmacro semantic-parse-tree-set-needs-update ()
@@ -497,8 +497,8 @@ is requested."
 
 (defvar semantic-working-type 'percent
   "The type of working message to use when parsing.
-'percent means we are doing a linear parse through the buffer.
-'dynamic means we are reparsing specific tags.")
+`percent' means we are doing a linear parse through the buffer.
+`dynamic' means we are reparsing specific tags.")
 
 (defvar semantic-minimum-working-buffer-size (* 1024 5)
   "The minimum size of a buffer before working messages are displayed.
@@ -528,14 +528,14 @@ If the buffer cache is out of date, attempt an incremental reparse.
 If the buffer has not been parsed before, or if the incremental reparse
 fails, then parse the entire buffer.
 If a lexical error had been previously discovered and the buffer
-was marked unparseable, then do nothing, and return the cache."
+was marked unparsable, then do nothing, and return the cache."
   (and
    ;; Is this a semantic enabled buffer?
    (semantic-active-p)
    ;; Application hooks say the buffer is safe for parsing
    (run-hook-with-args-until-failure
     'semantic--before-fetch-tags-hook)
-   ;; If the buffer was previously marked unparseable,
+   ;; If the buffer was previously marked unparsable,
    ;; then don't waste our time.
    (not (semantic-parse-tree-unparseable-p))
    ;; The parse tree actually needs to be refreshed
@@ -606,7 +606,7 @@ Does nothing if the current buffer doesn't need reparsing."
   ;; do them here, then all the bovination hooks are not run, and
   ;; we save lots of time.
   (cond
-   ;; If the buffer was previously marked unparseable,
+   ;; If the buffer was previously marked unparsable,
    ;; then don't waste our time.
    ((semantic-parse-tree-unparseable-p)
     nil)

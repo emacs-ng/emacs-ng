@@ -1,6 +1,6 @@
 ;;; wdired.el --- Rename files editing their names in dired buffers -*- coding: utf-8; lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2023 Free Software Foundation, Inc.
 
 ;; Filename: wdired.el
 ;; Author: Juan León Lahoz García <juanleon1@gmail.com>
@@ -27,16 +27,16 @@
 ;; wdired.el (the "w" is for writable) provides an alternative way of
 ;; renaming files.
 ;;
-;; Have you ever wanted to use C-x r t (string-rectangle), M-%
-;; (query-replace), M-c (capitalize-word), etc... to change the name of
-;; the files in a "dired" buffer?  Now you can do this.  All the power
-;; of Emacs commands are available when renaming files!
+;; Have you ever wanted to use `C-x r t' (`string-rectangle'), `M-%'
+;; (`query-replace'), `M-c' (`capitalize-word'), etc... to change the
+;; name of the files in a Dired buffer?  Now you can do this.  All the
+;; power of Emacs commands are available when renaming files!
 ;;
 ;; This package provides a function that makes the filenames of a
-;; dired buffer editable, by changing the buffer mode (which inhibits
-;; all of the commands of dired mode).  Here you can edit the names of
-;; one or more files and directories, and when you press C-c C-c, the
-;; renaming takes effect and you are back to dired mode.
+;; Dired buffer editable, by changing the buffer mode (which inhibits
+;; all of the commands of Dired mode).  Here you can edit the names of
+;; one or more files and directories, and when you press `C-c C-c',
+;; the renaming takes effect and you are back to dired mode.
 ;;
 ;; Other things you can do with WDired:
 ;;
@@ -46,11 +46,11 @@
 ;; - Change the target of symbolic links.
 ;;
 ;; - Change the permission bits of the filenames (in systems with a
-;;   working unix-alike `dired-chmod-program').  See and customize the
-;;   variable `wdired-allow-to-change-permissions'.  To change a single
-;;   char (toggling between its two more usual values) you can press
-;;   the space bar over it or left-click the mouse.  To set any char to
-;;   an specific value (this includes the SUID, SGID and STI bits) you
+;;   working unix-alike "chmod").  See and customize the variable
+;;   `wdired-allow-to-change-permissions'.  To change a single char
+;;   (toggling between its two more usual values), you can press the
+;;   space bar over it or left-click the mouse.  To set any char to a
+;;   specific value (this includes the SUID, SGID and STI bits) you
 ;;   can use the key labeled as the letter you want.  Please note that
 ;;   permissions of the links cannot be changed in that way, because
 ;;   the change would affect to their targets, and this would not be
@@ -58,18 +58,14 @@
 ;;
 ;; - Mark files for deletion, by deleting their whole filename.
 
-;;; Usage:
+;; * Usage:
 
-;; You can edit the names of the files by typing C-x C-q or by
-;; executing M-x wdired-change-to-wdired-mode.  Use C-c C-c when
-;; finished or C-c C-k to abort.  While editing filenames, a new
-;; submenu "WDired" is available at top level.  You can customize the
-;; behavior of this package from this menu.
-
-;;; Change Log:
-
-;; Previous versions with complete changelogs were posted to
-;; gnu.emacs.sources.
+;; You can edit the names of the files by typing `C-x C-q' or
+;; `M-x wdired-change-to-wdired-mode'.  Use `C-c C-c' when
+;; finished or `C-c C-k' to abort.
+;;
+;; You can customize the behavior of this package from the "WDired"
+;; menu or with `M-x customize-group RET wdired RET'.
 
 ;;; Code:
 
@@ -127,8 +123,8 @@ If `advanced', the bits are freely editable.  You can use
 newlines), but if you want your changes to be useful, you better put a
 intelligible value.
 
-Anyway, the real change of the permissions is done by the external
-program `dired-chmod-program', which must exist."
+The real change of the permissions is done by the external
+program \"chmod\", which must exist."
   :type '(choice (const :tag "Not allowed" nil)
                  (const :tag "Toggle/set bits" t)
 		 (other :tag "Bits freely editable" advanced)))
@@ -155,26 +151,30 @@ nonexistent directory will fail."
   :version "26.1"
   :type 'boolean)
 
-(defvar wdired-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\C-x\C-s" #'wdired-finish-edit)
-    (define-key map "\C-c\C-c" #'wdired-finish-edit)
-    (define-key map "\C-c\C-k" #'wdired-abort-changes)
-    (define-key map "\C-c\C-[" #'wdired-abort-changes)
-    (define-key map "\C-x\C-q" #'wdired-exit)
-    (define-key map "\C-m"     #'undefined)
-    (define-key map "\C-j"     #'undefined)
-    (define-key map "\C-o"     #'undefined)
-    (define-key map [up]       #'wdired-previous-line)
-    (define-key map "\C-p"     #'wdired-previous-line)
-    (define-key map [down]     #'wdired-next-line)
-    (define-key map "\C-n"     #'wdired-next-line)
-    (define-key map [remap upcase-word] #'wdired-upcase-word)
-    (define-key map [remap capitalize-word] #'wdired-capitalize-word)
-    (define-key map [remap downcase-word] #'wdired-downcase-word)
-    (define-key map [remap self-insert-command] #'wdired--self-insert)
-    map)
-  "Keymap used in `wdired-mode'.")
+(defcustom wdired-search-replace-filenames t
+  "Non-nil to search and replace in file names only."
+  :version "29.1"
+  :type 'boolean)
+
+(defvar-keymap wdired-mode-map
+  :doc "Keymap used in `wdired-mode'."
+  "C-x C-s" #'wdired-finish-edit
+  "C-c C-c" #'wdired-finish-edit
+  "C-c C-k" #'wdired-abort-changes
+  "C-c C-[" #'wdired-abort-changes
+  "C-x C-q" #'wdired-exit
+  "RET"     #'undefined
+  "C-j"     #'undefined
+  "C-o"     #'undefined
+  "<up>"    #'wdired-previous-line
+  "C-p"     #'wdired-previous-line
+  "<down>"  #'wdired-next-line
+  "C-n"     #'wdired-next-line
+  "C-("     #'dired-hide-details-mode
+  "<remap> <upcase-word>"         #'wdired-upcase-word
+  "<remap> <capitalize-word>"     #'wdired-capitalize-word
+  "<remap> <downcase-word>"       #'wdired-downcase-word
+  "<remap> <self-insert-command>" #'wdired--self-insert)
 
 (easy-menu-define wdired-mode-menu wdired-mode-map
   "Menu for `wdired-mode'."
@@ -218,6 +218,7 @@ symbolic link targets, and filenames permission."
   (error "This mode can be enabled only by `wdired-change-to-wdired-mode'"))
 (put 'wdired-mode 'mode-class 'special)
 
+(declare-function dired-isearch-search-filenames "dired-aux")
 
 ;;;###autoload
 (defun wdired-change-to-wdired-mode ()
@@ -238,9 +239,16 @@ See `wdired-mode'."
               (dired-remember-marks (point-min) (point-max)))
   (setq-local wdired--old-point (point))
   (wdired--set-permission-bounds)
-  (setq-local query-replace-skip-read-only t)
-  (add-function :after-while (local 'isearch-filter-predicate)
-                #'wdired-isearch-filter-read-only)
+  (when wdired-search-replace-filenames
+    (add-function :around (local 'isearch-search-fun-function)
+                  #'dired-isearch-search-filenames
+                  '((isearch-message-prefix . "filename ")))
+    (setq-local replace-search-function
+                (setq-local replace-re-search-function
+                            (funcall isearch-search-fun-function)))
+    ;; Original dired hook removes dired-isearch-search-filenames that
+    ;; is needed outside isearch for lazy-highlighting in query-replace.
+    (remove-hook 'isearch-mode-hook #'dired-isearch-filenames-setup t))
   (use-local-map wdired-mode-map)
   (force-mode-line-update)
   (setq buffer-read-only nil)
@@ -319,11 +327,6 @@ or \\[wdired-abort-changes] to abort changes")))
           (with-silent-modifications
             ;; Is this good enough? Assumes no extra white lines from dired.
             (put-text-property (1- (point-max)) (point-max) 'read-only t)))))))
-
-(defun wdired-isearch-filter-read-only (beg end)
-  "Skip matches that have a read-only property."
-  (not (text-property-not-all (min beg end) (max beg end)
-			      'read-only nil)))
 
 ;; Protect the buffer so only the filenames can be changed, and put
 ;; properties so filenames (old and new) can be easily found.
@@ -439,8 +442,13 @@ non-nil means return old filename."
     (remove-text-properties
      (point-min) (point-max)
      '(front-sticky nil rear-nonsticky nil read-only nil keymap nil)))
-  (remove-function (local 'isearch-filter-predicate)
-                   #'wdired-isearch-filter-read-only)
+  (when wdired-search-replace-filenames
+    (remove-function (local 'isearch-search-fun-function)
+                     #'dired-isearch-search-filenames)
+    (kill-local-variable 'replace-search-function)
+    (kill-local-variable 'replace-re-search-function)
+    ;; Restore dired hook
+    (add-hook 'isearch-mode-hook #'dired-isearch-filenames-setup nil t))
   (use-local-map dired-mode-map)
   (force-mode-line-update)
   (setq buffer-read-only t)
@@ -509,7 +517,15 @@ non-nil means return old filename."
                     files-renamed))))
 	(forward-line -1)))
     (when files-renamed
-      (setq errors (+ errors (wdired-do-renames files-renamed))))
+      (pcase-let ((`(,errs . ,successful-renames)
+                   (wdired-do-renames files-renamed)))
+        (cl-incf errors errs)
+        ;; Some of the renames may fail -- in that case, don't mark an
+        ;; already-existing file with the same name as renamed.
+        (pcase-dolist (`(,file . _) wdired--old-marks)
+          (unless (member file successful-renames)
+            (setq wdired--old-marks
+                  (assoc-delete-all file wdired--old-marks #'equal))))))
     ;; We have to be in wdired-mode when wdired-do-renames is executed
     ;; so that wdired--restore-properties runs, but we have to change
     ;; back to dired-mode before reverting the buffer to avoid using
@@ -517,15 +533,28 @@ non-nil means return old filename."
     (wdired-change-to-dired-mode)
     (if changes
 	(progn
-	  ;; If we are displaying a single file (rather than the
-	  ;; contents of a directory), change dired-directory if that
-	  ;; file was renamed.  (This ought to be generalized to
-	  ;; handle the multiple files case, but that's less trivial).
-	  (when (and (stringp dired-directory)
-		     (not (file-directory-p dired-directory))
-		     (null some-file-names-unchanged)
-		     (= (length files-renamed) 1))
-	    (setq dired-directory (cdr (car files-renamed))))
+	  (cond
+           ((and (stringp dired-directory)
+                 (not (file-directory-p dired-directory))
+                 (null some-file-names-unchanged)
+                 (= (length files-renamed) 1))
+            ;; If we are displaying a single file (rather than the
+	    ;; contents of a directory), change dired-directory if that
+	    ;; file was renamed.
+            (setq dired-directory (cdr (car files-renamed))))
+           ((and (consp dired-directory)
+                 (cdr dired-directory)
+                 files-renamed)
+            ;; Fix dired buffers created with
+            ;; (dired '(foo f1 f2 f3)).
+            (setq dired-directory
+                  (cons (car dired-directory)
+                        ;; Replace in `dired-directory' files that have
+                        ;; been modified with their new name keeping
+                        ;; the ones that are unmodified at the same place.
+                        (cl-loop for f in (cdr dired-directory)
+                                 collect (or (assoc-default f files-renamed)
+                                             f))))))
 	  ;; Re-sort the buffer.
 	  (revert-buffer)
 	  (let ((inhibit-read-only t))
@@ -554,7 +583,8 @@ non-nil means return old filename."
          (errors 0)
          (total (1- (length renames)))
          (prep (make-progress-reporter "Renaming" 0 total))
-         (overwrite (or (not wdired-confirm-overwrite) 1)))
+         (overwrite (or (not wdired-confirm-overwrite) 1))
+         (successful-renames nil))
     (while (or renames
                ;; We've done one round through the renames, we have found
                ;; some residue, but we also made some progress, so maybe
@@ -605,13 +635,15 @@ non-nil means return old filename."
                          (wdired-create-parentdirs file-new))
                     (dired-rename-file file-ori file-new
                                        overwrite))
+                (:success
+                 (push file-new successful-renames))
                 (error
                  (setq errors (1+ errors))
                  (dired-log "Rename `%s' to `%s' failed:\n%s\n"
                             file-ori file-new
                             err)))))))))
     (progress-reporter-done prep)
-    errors))
+    (cons errors successful-renames)))
 
 (defun wdired-create-parentdirs (file-new)
   "Create parent directories for FILE-NEW if they don't exist."
@@ -872,21 +904,18 @@ Like original function but it skips read-only words."
 ;; The following code deals with changing the access bits (or
 ;; permissions) of the files.
 
-(defvar wdired-perm-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map " " #'wdired-toggle-bit)
-    (define-key map "r" #'wdired-set-bit)
-    (define-key map "w" #'wdired-set-bit)
-    (define-key map "x" #'wdired-set-bit)
-    (define-key map "-" #'wdired-set-bit)
-    (define-key map "S" #'wdired-set-bit)
-    (define-key map "s" #'wdired-set-bit)
-    (define-key map "T" #'wdired-set-bit)
-    (define-key map "t" #'wdired-set-bit)
-    (define-key map "s" #'wdired-set-bit)
-    (define-key map "l" #'wdired-set-bit)
-    (define-key map [mouse-1] #'wdired-mouse-toggle-bit)
-    map))
+(defvar-keymap wdired-perm-mode-map
+  "SPC" #'wdired-toggle-bit
+  "r"   #'wdired-set-bit
+  "w"   #'wdired-set-bit
+  "x"   #'wdired-set-bit
+  "-"   #'wdired-set-bit
+  "S"   #'wdired-set-bit
+  "T"   #'wdired-set-bit
+  "t"   #'wdired-set-bit
+  "s"   #'wdired-set-bit
+  "l"   #'wdired-set-bit
+  "<mouse-1>" #'wdired-mouse-toggle-bit)
 
 ;; Put a keymap property to the permission bits of the files, and store the
 ;; original name and permissions as a property
@@ -995,7 +1024,8 @@ Like original function but it skips read-only words."
         (setq filename (wdired-get-filename nil t))
         (if (= (length perms-new) 10)
             (condition-case nil
-                (set-file-modes filename (wdired-perms-to-number perms-new))
+		(set-file-modes filename (wdired-perms-to-number perms-new)
+				'nofollow)
               (error
                (setq errors (1+ errors))
                (dired-log "Setting mode of `%s' to `%s' failed\n\n"

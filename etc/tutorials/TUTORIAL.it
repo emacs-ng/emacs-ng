@@ -1178,6 +1178,19 @@ quei file.  Dired è descritta nel manuale Emacs nel nodo chiamato
 Il manuale descrive molte altre funzionalità di Emacs.
 
 
+* INSTALLAZIONE DI ULTERIORI PACCHETTI
+
+Ci sono tantissimi pacchetti che estendono le funzionalità di Emacs,
+scritti dalla comunità.  Questi pacchetti includono il supporto a
+nuovi linguaggi, aggiungono temi addizionali, rendono possibile
+interoperare con applicazioni esterne e molto, molto altro.
+
+Per vedere una lista di tutti i pacchetti disponibili, inserisci
+M-x list-packages.  Nell'elenco che viene mostrato, puoi installare o
+disinstallare pacchetti, o leggerne la descrizione.  Consulta il
+manuale per ulteriori informazioni sulla gestione dei pacchetti.
+
+
 * CONCLUSIONI
 -------------
 
@@ -1206,7 +1219,7 @@ distribuito con il permesso di farne copie a determinate condizioni:
    indicativo, restando comunque inteso il fatto che è quella
    originale a fare fede.
 
-Copyright (C) 2003-2022 Free Software Foundation, Inc.
+Copyright (C) 2003-2023 Free Software Foundation, Inc.
 
    È permesso a chiunque copiare e distribuire attraverso ogni mezzo
    copie fedeli di questo documento così come viene ricevuto, a

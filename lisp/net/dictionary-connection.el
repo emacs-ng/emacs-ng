@@ -1,6 +1,6 @@
 ;;; dictionary-connection.el --- TCP-based client connection for dictionary  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2021-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
 
 ;; Author: Torsten Hilbrich <torsten.hilbrich@gmx.net>
 ;; Keywords: network
@@ -83,10 +83,10 @@ Return a data structure identifying the connection."
   "Return the status of the CONNECTION.
 Possible return values are the symbols:
     nil:    argument is not a connection object
-    'none:  argument is not connected
-    'up:    connection is open and buffer is existing
-    'down:  connection is closed
-    'alone: connection is not associated with a buffer"
+    `none':  argument is not connected
+    `up':    connection is open and buffer is existing
+    `down':  connection is closed
+    `alone': connection is not associated with a buffer"
   (when (dictionary-connection-p connection)
     (let ((process (dictionary-connection-process connection))
           (buffer (dictionary-connection-buffer connection)))

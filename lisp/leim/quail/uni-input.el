@@ -1,6 +1,6 @@
 ;;; uni-input.el --- Hex Unicode input method  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2023 Free Software Foundation, Inc.
 ;; Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
 ;;   Registration Number H14PRO021
@@ -112,10 +112,6 @@ While this input method is active, the variable
   "Deactivate UCS input method."
   (interactive)
   (ucs-input-activate -1))
-
-(define-obsolete-function-alias
-  'ucs-input-inactivate
-  #'ucs-input-deactivate "24.3")
 
 (defun ucs-input-help ()
   (interactive)

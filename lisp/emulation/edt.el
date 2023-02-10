@@ -1,6 +1,6 @@
 ;;; edt.el --- enhanced EDT keypad mode emulation for GNU Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1986, 1992-1995, 2000-2022 Free Software Foundation,
+;; Copyright (C) 1986, 1992-1995, 2000-2023 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Kevin Gallagher <kevin.gal@verizon.net>
@@ -647,7 +647,7 @@ Argument NUM is the number of lines to move."
           (bottom (save-excursion (move-to-window-line bottom-margin) (point)))
           (far (save-excursion
                  (goto-char bottom)
-                 (point-at-bol (1- height)))))
+                 (line-beginning-position (1- height)))))
      (ignore top far)
      ,@body))
 

@@ -1,6 +1,6 @@
 ;;; gnus-start.el --- startup functions for Gnus -*- lexical-binding:t -*-
 
-;; Copyright (C) 1996-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -173,7 +173,7 @@ properly with all servers."
 
 Groups with levels less than `gnus-level-subscribed', which
 should be less than this variable, are subscribed.  Groups with
-levels from `gnus-level-subscribed' (exclusive) upto this
+levels from `gnus-level-subscribed' (exclusive) up to this
 variable (inclusive) are unsubscribed.  See also
 `gnus-level-zombie', `gnus-level-killed' and the Info node `(gnus)Group
 Levels' for details.")
@@ -294,8 +294,6 @@ claim them."
 		function
 		(repeat function)))
 
-(define-obsolete-variable-alias 'gnus-subscribe-newsgroup-hooks
-  'gnus-subscribe-newsgroup-functions "24.3")
 (defcustom gnus-subscribe-newsgroup-functions nil
   "Hooks run after you subscribe to a new group.
 The hooks will be called with new group's name as argument."
@@ -329,10 +327,10 @@ with the subscription method in this variable."
   "If non-nil, Gnus will offer to subscribe hierarchically.
 When a new hierarchy appears, Gnus will ask the user:
 
-'alt.binaries': Do you want to subscribe to this hierarchy? ([d]ys):
+Descend hierarchy alt.binaries? ([y]nsq):
 
-If the user pressed `d', Gnus will descend the hierarchy, `y' will
-subscribe to all newsgroups in the hierarchy and `s' will skip this
+If the user pressed `y', Gnus will descend the hierarchy, `s' will
+subscribe to all newsgroups in the hierarchy and `n' will skip this
 hierarchy in its entirety."
   :group 'gnus-group-new
   :type 'boolean)
@@ -663,6 +661,7 @@ the first newsgroup."
 (defvar mail-sources)
 (defvar nnmail-scan-directory-mail-source-once)
 (defvar nnmail-split-history)
+(defvar gnus-save-newsrc-file-last-timestamp nil)
 
 (defun gnus-close-all-servers ()
   "Close all servers."
@@ -707,6 +706,7 @@ the first newsgroup."
 	gnus-current-select-method nil
 	nnmail-split-history nil
 	gnus-extended-servers nil
+        gnus-save-newsrc-file-last-timestamp nil
 	gnus-ephemeral-servers nil)
   (gnus-shutdown 'gnus)
   ;; Kill the startup file.
@@ -853,7 +853,7 @@ If REGEXP is given, lines that match it will be deleted."
 	    (unless (bolp) (forward-line 1))
 	    (setq end (point))
 	    (goto-char (match-beginning 0))
-	    (delete-region (point-at-bol) end))))
+            (delete-region (line-beginning-position) end))))
       (goto-char (point-max))
       ;; Make sure that each dribble entry is a single line, so that
       ;; the "remove" code above works.
@@ -1810,7 +1810,7 @@ where unread is an integer count of calculated unread
 messages (or nil), and info is a regular gnus info entry.
 
 The info element is shared with the same element of
-`gnus-newrc-alist', so as to conserve space."
+`gnus-newsrc-alist', so as to conserve space."
   (let ((alist gnus-newsrc-alist)
 	(ohashtb gnus-newsrc-hashtb)
 	info method gname rest methods)
@@ -1882,13 +1882,12 @@ The info element is shared with the same element of
 	 (ranges (gnus-info-read info))
 	 news article)
     (while articles
-      (when (gnus-member-of-range
-	     (setq article (pop articles)) ranges)
+      (when (range-member-p (setq article (pop articles)) ranges)
 	(push article news)))
     (when news
       ;; Enter this list into the group info.
       (setf (gnus-info-read info)
-            (gnus-remove-from-range (gnus-info-read info) (nreverse news)))
+            (range-remove (gnus-info-read info) (nreverse news)))
 
       ;; Set the number of unread articles in gnus-newsrc-hashtb.
       (gnus-get-unread-articles-in-group info (gnus-active group))
@@ -2172,7 +2171,7 @@ The info element is shared with the same element of
 	   (unless ignore-errors
 	     (gnus-message 3 "Warning - invalid active: %s"
 			   (buffer-substring
-			    (point-at-bol) (point-at-eol))))))
+                            (line-beginning-position) (line-end-position))))))
 	(forward-line 1)))))
 
 (defun gnus-groups-to-gnus-format (method &optional hashtb real-active)
@@ -2360,10 +2359,10 @@ The form should return either t or nil."
 	      ticked (cdr (assq 'tick marks)))
 	(when (or dormant ticked)
 	  (setf (gnus-info-read info)
-	        (gnus-add-to-range
+	        (range-add-list
 	         (gnus-info-read info)
-	         (nconc (gnus-uncompress-range dormant)
-		        (gnus-uncompress-range ticked)))))))))
+	         (nconc (range-uncompress dormant)
+		        (range-uncompress ticked)))))))))
 
 (defun gnus-load (file)
   "Load FILE, but in such a way that read errors can be reported."
@@ -2455,8 +2454,7 @@ The form should return either t or nil."
 	  (unless (nthcdr 3 info)
 	    (nconc info (list nil)))
 	  (setf (gnus-info-marks info)
-		(list (cons 'tick (gnus-compress-sequence
-				   (sort (cdr m) #'<) t))))))
+		(list (cons 'tick (range-compress-list (sort (cdr m) #'<)))))))
       (setq newsrc killed)
       (while newsrc
 	(setcar newsrc (caar newsrc))
@@ -2527,10 +2525,10 @@ The form should return either t or nil."
 	      ;; don't give a damn, frankly, my dear.
 	      (concat gnus-newsrc-options
 		      (buffer-substring
-		       (point-at-bol)
+                       (line-beginning-position)
 		       ;; Options may continue on the next line.
 		       (or (and (re-search-forward "^[^ \t]" nil 'move)
-				(point-at-bol))
+                                (line-beginning-position))
 			   (point)))))
 	(forward-line -1))
        (group
@@ -2592,8 +2590,8 @@ The form should return either t or nil."
 		;; The line was buggy.
 		(setq group nil)
 		(gnus-error 3.1 "Mangled line: %s"
-			    (buffer-substring (point-at-bol)
-					      (point-at-eol))))
+                            (buffer-substring (line-beginning-position)
+                                              (line-end-position))))
 	      nil))
 	  ;; Skip past ", ".  Spaces are invalid in these ranges, but
 	  ;; we allow them, because it's a common mistake to put a
@@ -2702,9 +2700,9 @@ The form should return either t or nil."
       (while (re-search-forward "[ \t]-n" nil t)
 	(setq eol
 	      (or (save-excursion
-		    (and (re-search-forward "[ \t]-n" (point-at-eol) t)
+                    (and (re-search-forward "[ \t]-n" (line-end-position) t)
 			 (- (point) 2)))
-		  (point-at-eol)))
+                  (line-end-position)))
 	;; Search for all "words"...
 	(while (re-search-forward "[^ \t,\n]+" eol t)
 	  (if (eq (char-after (match-beginning 0)) ?!)
@@ -2731,7 +2729,6 @@ The form should return either t or nil."
       'msdos-long-file-names
       (lambda () t))))
 
-(defvar gnus-save-newsrc-file-last-timestamp nil)
 (defun gnus-save-newsrc-file (&optional force)
   "Save .newsrc file.
 Use the group string names in `gnus-group-list' to pull info

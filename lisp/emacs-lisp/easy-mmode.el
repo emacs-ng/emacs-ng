@@ -1,6 +1,6 @@
 ;;; easy-mmode.el --- easy definition for major and minor modes  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997, 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: Georges Brun-Cottan <Georges.Brun-Cottan@inria.fr>
 ;; Maintainer: Stefan Monnier <monnier@gnu.org>
@@ -82,11 +82,9 @@ replacing its case-insensitive matches with the literal string in LIGHTER."
       (replace-regexp-in-string (regexp-quote lighter) lighter name t t))))
 
 (defconst easy-mmode--arg-docstring
-  "
-
-This is a minor mode.  If called interactively, toggle the `%s'
-mode.  If the prefix argument is positive, enable the mode, and
-if it is zero or negative, disable the mode.
+  "This is a %sminor mode.  If called interactively, toggle the
+`%s' mode.  If the prefix argument is positive, enable the mode,
+and if it is zero or negative, disable the mode.
 
 If called from Lisp, toggle the mode if ARG is `toggle'.
 Enable the mode if ARG is nil, omitted, or is a positive number.
@@ -99,28 +97,50 @@ The mode's hook is called both when the mode is enabled and when
 it is disabled.")
 
 (defun easy-mmode--mode-docstring (doc mode-pretty-name keymap-sym
-                                       getter)
-  (let ((doc (or doc (format "Toggle %s on or off.
-
-\\{%s}" mode-pretty-name keymap-sym))))
-    (if (string-match-p "\\bARG\\b" doc)
-        doc
-      (let* ((fill-prefix nil)
-             (docs-fc (bound-and-true-p emacs-lisp-docstring-fill-column))
-             (fill-column (if (integerp docs-fc) docs-fc 65))
-             (argdoc (format easy-mmode--arg-docstring mode-pretty-name
-                             ;; Avoid having quotes turn into pretty quotes.
-                             (string-replace "'" "\\\\='"
-                                             (format "%S" getter))))
-             (filled (if (fboundp 'fill-region)
-                         (with-temp-buffer
-                           (insert argdoc)
-                           (fill-region (point-min) (point-max) 'left t)
-                           (buffer-string))
-                       argdoc)))
-        (replace-regexp-in-string "\\(\n\n\\|\\'\\)\\(.\\|\n\\)*\\'"
-                                  (concat filled "\\1")
-                                  doc nil nil 1)))))
+                                       getter global)
+  ;; If we have a doc string, and it's already complete (which we
+  ;; guess at with the simple heuristic below), then just return that
+  ;; as is.
+  (if (and doc (string-match-p "\\bARG\\b" doc))
+      doc
+    ;; Compose a new doc string.
+    (with-temp-buffer
+      (let ((lines (if doc
+                       (string-lines doc)
+                     (list (format "Toggle %s on or off." mode-pretty-name)))))
+        ;; Insert the first line from the doc string.
+        (insert (pop lines))
+        ;; Ensure that we have (only) one blank line after the first
+        ;; line.
+        (ensure-empty-lines)
+        (while (and lines
+                    (equal (car lines) ""))
+          (pop lines))
+        ;; Insert the doc string.
+        (dolist (line lines)
+          (insert line "\n"))
+        (ensure-empty-lines)
+        ;; Insert the boilerplate.
+        (let* ((fill-prefix nil)
+               (docs-fc (bound-and-true-p emacs-lisp-docstring-fill-column))
+               (fill-column (if (integerp docs-fc) docs-fc 65))
+               (argdoc (format
+                        easy-mmode--arg-docstring
+                        (if global "global " "")
+                        mode-pretty-name
+                        ;; Avoid having quotes turn into pretty quotes.
+                        (string-replace "'" "\\='" (format "%S" getter)))))
+          (let ((start (point)))
+            (insert argdoc)
+            (when (fboundp 'fill-region)
+              (fill-region start (point) 'left t))))
+        ;; Finally, insert the keymap.
+        (when (and (boundp keymap-sym)
+                   (or (not doc)
+                       (not (string-search "\\{" doc))))
+          (ensure-empty-lines)
+          (insert (format "\\{%s}" keymap-sym)))
+        (buffer-string)))))
 
 ;;;###autoload
 (defalias 'easy-mmode-define-minor-mode #'define-minor-mode)
@@ -198,6 +218,7 @@ INIT-VALUE LIGHTER KEYMAP.
 
 \(fn MODE DOC [KEYWORD VAL ... &rest BODY])"
   (declare (doc-string 2)
+           (indent defun)
            (debug (&define name string-or-null-p
 			   [&optional [&not keywordp] sexp
 			    &optional [&not keywordp] sexp
@@ -229,7 +250,8 @@ INIT-VALUE LIGHTER KEYMAP.
          (warnwrap (if (or (null body) (keywordp (car body))) #'identity
                      (lambda (exp)
                        (macroexp-warn-and-return
-                        "Use keywords rather than deprecated positional arguments to `define-minor-mode'"
+                        (format-message
+                         "Use keywords rather than deprecated positional arguments to `define-minor-mode'")
                         exp))))
 	 keyw keymap-sym tmp)
 
@@ -316,7 +338,7 @@ or call the function `%s'."))))
          warnwrap
          `(defun ,modefun (&optional arg ,@extra-args)
             ,(easy-mmode--mode-docstring doc pretty-name keymap-sym
-                                         getter)
+                                         getter globalp)
             ,(when interactive
 	       ;; Use `toggle' rather than (if ,mode 0 1) so that using
 	       ;; repeat-command still does the toggling correctly.
@@ -387,7 +409,7 @@ or call the function `%s'."))))
 No problems result if this variable is not bound.
 `add-hook' automatically binds it.  (This is true for all hook variables.)"
                        modefun)))
-       ;; Allow using using `M-x customize-variable' on the hook.
+       ;; Allow using `M-x customize-variable' on the hook.
        (put ',hook 'custom-type 'hook)
        (put ',hook 'standard-value (list nil))
 
@@ -396,7 +418,12 @@ No problems result if this variable is not bound.
 	  `(defvar ,keymap-sym
 	     (let ((m ,keymap))
 	       (cond ((keymapp m) m)
-		     ((listp m) (easy-mmode-define-keymap m))
+                     ;; FIXME: `easy-mmode-define-keymap' is obsolete,
+                     ;; so this form should also be obsolete somehow.
+		     ((listp m)
+                      (with-suppressed-warnings ((obsolete
+                                                  easy-mmode-define-keymap))
+                        (easy-mmode-define-keymap m)))
 		     (t (error "Invalid keymap %S" m))))
 	     ,(format "Keymap for `%s'." mode-name)))
 
@@ -450,7 +477,7 @@ after running the major mode's hook.  However, MODE is not turned
 on if the hook has explicitly disabled it.
 
 \(fn GLOBAL-MODE MODE TURN-ON [KEY VALUE]... BODY...)"
-  (declare (doc-string 2))
+  (declare (doc-string 2) (indent defun))
   (let* ((global-mode-name (symbol-name global-mode))
 	 (mode-name (symbol-name mode))
 	 (pretty-name (easy-mmode-pretty-mode-name mode))
@@ -555,7 +582,7 @@ and nil means \"don't use\".  There's an implicit nil at the end of the
 list."
                       mode)
              :type '(repeat sexp)
-             :group ,group))
+             ,@group))
 
        ;; Autoloading define-globalized-minor-mode autoloads everything
        ;; up-to-here.
@@ -658,6 +685,7 @@ Valid keywords and arguments are:
   :group     Ignored.
   :suppress  Non-nil to call `suppress-keymap' on keymap,
              `nodigits' to suppress digits as prefix arguments."
+  (declare (obsolete define-keymap "29.1"))
   (let (inherit dense suppress)
     (while args
       (let ((key (pop args))
@@ -695,8 +723,10 @@ Valid keywords and arguments are:
 (defmacro easy-mmode-defmap (m bs doc &rest args)
   "Define a constant M whose value is the result of `easy-mmode-define-keymap'.
 The M, BS, and ARGS arguments are as per that function.  DOC is
-the constant's documentation."
-  (declare (indent 1))
+the constant's documentation.
+
+This macro is deprecated; use `defvar-keymap' instead."
+  (declare (doc-string 3) (indent 1) (obsolete defvar-keymap "29.1"))
   `(defconst ,m
      (easy-mmode-define-keymap ,bs nil (if (boundp ',m) ,m) ,(cons 'list args))
      ,doc))
@@ -723,7 +753,7 @@ the constant's documentation."
 (defmacro easy-mmode-defsyntax (st css doc &rest args)
   "Define variable ST as a syntax-table.
 CSS contains a list of syntax specifications of the form (CHAR . SYNTAX)."
-  (declare (indent 1))
+  (declare (doc-string 3) (indent 1))
   `(progn
      (autoload 'easy-mmode-define-syntax "easy-mmode")
      (defconst ,st (easy-mmode-define-syntax ,css ,(cons 'list args)) ,doc)))
@@ -799,7 +829,6 @@ Interactively, COUNT is the prefix numeric argument, and defaults to 1."
                 (user-error "No previous %s" ,name)))
            ,@body))
        (put ',prev-sym 'definition-name ',base))))
-
 
 (provide 'easy-mmode)
 

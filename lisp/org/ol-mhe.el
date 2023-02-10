@@ -1,10 +1,10 @@
 ;;; ol-mhe.el --- Links to MH-E Messages             -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2023 Free Software Foundation, Inc.
 
 ;; Author: Thomas Baumann <thomas dot baumann at ch dot tum dot de>
 ;; Keywords: outlines, hypermedia, calendar, wp
-;; Homepage: https://orgmode.org
+;; URL: https://orgmode.org
 ;;
 ;; This file is part of GNU Emacs.
 ;;
@@ -29,6 +29,9 @@
 ;; configure the variable `org-modules'.
 
 ;;; Code:
+
+(require 'org-macs)
+(org-assert-version)
 
 (require 'org-macs)
 (require 'ol)

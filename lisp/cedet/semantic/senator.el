@@ -1,6 +1,6 @@
 ;;; semantic/senator.el --- SEmantic NAvigaTOR  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: David Ponce <david@dponce.com>
 ;; Maintainer: emacs-devel@gnu.org
@@ -735,12 +735,9 @@ yanked to."
 Optional argument KILL-FLAG will delete the text of the tag to the
 kill ring.
 
-Interactively, reads the register using `register-read-with-preview',
-if available."
-  (interactive (list (if (fboundp 'register-read-with-preview)
-			 (register-read-with-preview "Tag to register: ")
-		       (read-char "Tag to register: "))
-		     current-prefix-arg))
+Interactively, reads the register using `register-read-with-preview'."
+  (interactive (list (register-read-with-preview "Tag to register: ")
+                     current-prefix-arg))
   (semantic-fetch-tags)
   (let ((ft (semantic-obtain-foreign-tag)))
     (when ft

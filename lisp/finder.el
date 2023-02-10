@@ -1,7 +1,6 @@
 ;;; finder.el --- topic & keyword-based code finder  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992, 1997-1999, 2001-2022 Free Software Foundation,
-;; Inc.
+;; Copyright (C) 1992-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric S. Raymond <esr@snark.thyrsus.com>
 ;; Created: 16 Jun 1992
@@ -76,20 +75,19 @@
   "Association list of the standard \"Keywords:\" headers.
 Each element has the form (KEYWORD . DESCRIPTION).")
 
-(defvar finder-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map " "	'finder-select)
-    (define-key map "f"	'finder-select)
-    (define-key map [follow-link] 'mouse-face)
-    (define-key map [mouse-2]	'finder-mouse-select)
-    (define-key map "\C-m"	'finder-select)
-    (define-key map "?"	'finder-summary)
-    (define-key map "n" 'next-line)
-    (define-key map "p" 'previous-line)
-    (define-key map "q"	'finder-exit)
-    (define-key map "d"	'finder-list-keywords)
-    map)
-  "Keymap used in `finder-mode'.")
+(defvar-keymap finder-mode-map
+  :doc "Keymap used in `finder-mode'."
+  :parent special-mode-map
+  "SPC"           #'finder-select
+  "f"             #'finder-select
+  "<follow-link>" 'mouse-face
+  "<mouse-2>"     #'finder-mouse-select
+  "C-m"           #'finder-select
+  "?"             #'finder-summary
+  "n"             #'next-line
+  "p"             #'previous-line
+  "q"             #'finder-exit
+  "d"             #'finder-list-keywords)
 
 (easy-menu-define finder-mode-menu finder-mode-map
   "Menu for `finder-mode'."
@@ -129,8 +127,6 @@ Keywords and package names both should be symbols.")
 (defvar finder-no-scan-regexp "\\(^\\.#\\|\\(loaddefs\\|ldefs-boot\\|\
 cus-load\\|finder-inf\\|esh-groups\\|subdirs\\|leim-list\\)\\.el$\\)"
   "Regexp matching file names not to scan for keywords.")
-
-(autoload 'autoload-rubric "autoload")
 
 (defconst finder--builtins-descriptions
   ;; I have no idea whether these are supposed to be capitalized
@@ -267,9 +263,9 @@ from; the default is `load-path'."
       (find-file-noselect generated-finder-keywords-file)
     (setq buffer-undo-list t)
     (erase-buffer)
-    (insert (autoload-rubric generated-finder-keywords-file
-                             "keyword-to-package mapping" t))
-    (search-backward "")
+    (generate-lisp-file-heading
+     generated-finder-keywords-file 'finder-compile-keywords
+     :title "keyword-to-package mapping")
     ;; FIXME: Now that we have package--builtin-versions, package--builtins is
     ;; only needed to get the list of unversioned packages and to get the
     ;; summary description of each package.
@@ -283,6 +279,7 @@ from; the default is `load-path'."
     (insert "(setq finder-keywords-hash\n      ")
     (prin1 finder-keywords-hash (current-buffer))
     (insert ")\n")
+    (generate-lisp-file-trailer generated-finder-keywords-file)
     (basic-save-buffer)))
 
 (defun finder-compile-keywords-make-dist ()
@@ -362,19 +359,13 @@ not `finder-known-keywords'."
     (let ((package-list-unversioned t))
       (package-show-package-list packages))))
 
-(define-button-type 'finder-xref 'action #'finder-goto-xref)
-
-(defun finder-goto-xref (button)
-  "Jump to a Lisp file for the BUTTON at point."
-  (let* ((file (button-get button 'xref))
-         (lib (locate-library file)))
-    (if lib (finder-commentary lib)
-      (message "Unable to locate `%s'" file))))
-
 ;;;###autoload
 (defun finder-commentary (file)
   "Display FILE's commentary section.
 FILE should be in a form suitable for passing to `locate-library'."
+  ;; FIXME: Merge this function into `describe-package', which is
+  ;; strictly better as it has links to URLs and is in a proper help
+  ;; buffer with navigation forward and backward, etc.
   (interactive
    (list
     (completing-read "Library name: "
@@ -391,12 +382,7 @@ FILE should be in a form suitable for passing to `locate-library'."
     (erase-buffer)
     (insert str)
     (goto-char (point-min))
-    (while (re-search-forward "\\<\\([-[:alnum:]]+\\.el\\)\\>" nil t)
-      (if (locate-library (match-string 1))
-          (make-text-button (match-beginning 1) (match-end 1)
-                            'xref (match-string-no-properties 1)
-                            'help-echo "Read this file's commentary"
-                            :type 'finder-xref)))
+    (package--describe-add-library-links)
     (goto-char (point-min))
     (setq buffer-read-only t)
     (set-buffer-modified-p nil)
@@ -435,15 +421,14 @@ FILE should be in a form suitable for passing to `locate-library'."
   (interactive)
   (finder-list-keywords))
 
-(define-derived-mode finder-mode nil "Finder"
+(define-derived-mode finder-mode special-mode "Finder"
   "Major mode for browsing package documentation.
 \\<finder-mode-map>
 \\[finder-select]	more help for the item on the current line
-\\[finder-exit]	exit Finder mode and kill the Finder buffer."
-  :syntax-table finder-mode-syntax-table
+\\[finder-exit]	exit Finder mode and kill the Finder buffer.
+
+\\{finder-mode-map}"
   :interactive nil
-  (setq buffer-read-only t
-	buffer-undo-list t)
   (setq-local finder-headmark nil))
 
 (defun finder-summary ()
@@ -451,9 +436,9 @@ FILE should be in a form suitable for passing to `locate-library'."
   (interactive nil finder-mode)
   (message "%s"
    (substitute-command-keys
-    "\\<finder-mode-map>\\[finder-select] = select, \
-\\[finder-mouse-select] = select, \\[finder-list-keywords] = to \
-finder directory, \\[finder-exit] = quit, \\[finder-summary] = help")))
+    "\\<finder-mode-map>\\[finder-select] select, \
+\\[finder-mouse-select] select, \\[finder-list-keywords] go to \
+finder directory, \\[finder-exit] quit, \\[finder-summary] help")))
 
 (defun finder-exit ()
   "Exit Finder mode.
@@ -465,9 +450,13 @@ Quit the window and kill all Finder-related buffers."
 
 (defun finder-unload-function ()
   "Unload the Finder library."
-  (with-demoted-errors (unload-feature 'finder-inf t))
+  (with-demoted-errors "Error unloading finder: %S"
+    (unload-feature 'finder-inf t))
   ;; continue standard unloading
   nil)
+
+(define-obsolete-function-alias 'finder-goto-xref
+  #'package--finder-goto-xref "29.1")
 
 
 (provide 'finder)

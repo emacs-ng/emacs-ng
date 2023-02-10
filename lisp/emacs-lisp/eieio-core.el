@@ -1,6 +1,6 @@
 ;;; eieio-core.el --- Core implementation for eieio  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1995-1996, 1998-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995-1996, 1998-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Version: 1.4
@@ -24,15 +24,14 @@
 ;;; Commentary:
 ;;
 ;; The "core" part of EIEIO is the implementation for the object
-;; system (such as eieio-defclass, or eieio-defmethod) but not the
-;; base classes for the object system, which are defined in EIEIO.
+;; system (such as eieio-defclass-internal, or cl-defmethod) but not
+;; the base classes for the object system, which are defined in EIEIO.
 ;;
 ;; See the commentary for eieio.el for more about EIEIO itself.
 
 ;;; Code:
 
 (require 'cl-lib)
-(require 'eieio-loaddefs nil t)
 
 ;;;
 ;; A few functions that are better in the official EIEIO src, but
@@ -92,7 +91,7 @@ Currently under control of this var:
                (:copier nil))
   children
   initarg-tuples                  ;; initarg tuples list
-  (class-slots nil :type eieio--slot)
+  (class-slots nil :type (vector-of eieio--slot))
   class-allocation-values         ;; class allocated value vector
   default-object-cache ;; what a newly created object would look like.
                        ; This will speed up instantiation time as
@@ -130,15 +129,14 @@ Currently under control of this var:
     class))
 
 (defsubst eieio--object-class (obj)
-  (let ((tag (eieio--object-class-tag obj)))
-    (if eieio-backward-compatibility
-        (eieio--class-object tag)
-      tag)))
+  (eieio--class-object (eieio--object-class-tag obj)))
 
 (defun class-p (x)
   "Return non-nil if X is a valid class vector.
 X can also be is a symbol."
   (eieio--class-p (if (symbolp x) (cl--find-class x) x)))
+
+(cl-deftype class () `(satisfies class-p))
 
 (defun eieio--class-print-name (class)
   "Return a printed representation of CLASS."
@@ -167,6 +165,8 @@ Return nil if that option doesn't exist."
   "Return non-nil if OBJ is an EIEIO object."
   (and (recordp obj)
        (eieio--class-p (eieio--object-class obj))))
+
+(cl-deftype eieio-object () `(satisfies eieio-object-p))
 
 (define-obsolete-function-alias 'object-p #'eieio-object-p "25.1")
 
@@ -215,7 +215,7 @@ It creates an autoload function for CNAME's constructor."
       (when eieio-backward-compatibility
         (set cname cname)
         (make-obsolete-variable cname (format "\
-use \\='%s or turn off `eieio-backward-compatibility' instead" cname)
+use '%s or turn off `eieio-backward-compatibility' instead" cname)
                                 "25.1"))
 
       (setf (cl--find-class cname) newc)
@@ -249,21 +249,31 @@ use \\='%s or turn off `eieio-backward-compatibility' instead" cname)
 (defun eieio-make-class-predicate (class)
   (lambda (obj)
     (:documentation
-     (format "Return non-nil if OBJ is an object of type `%S'.\n\n(fn OBJ)"
-             class))
+     (concat
+      (internal--format-docstring-line
+       "Return non-nil if OBJ is an object of type `%S'."
+       class)
+      "\n\n(fn OBJ)"))
     (and (eieio-object-p obj)
          (same-class-p obj class))))
 
 (defun eieio-make-child-predicate (class)
   (lambda (obj)
     (:documentation
-     (format "Return non-nil if OBJ is an object of type `%S' or a subclass.
-\n(fn OBJ)" class))
+     (concat
+      (internal--format-docstring-line
+       "Return non-nil if OBJ is an object of type `%S' or a subclass."
+       class)
+      "\n\n(fn OBJ)"))
     (and (eieio-object-p obj)
          (object-of-class-p obj class))))
 
 (defvar eieio--known-slot-names nil)
 (defvar eieio--known-class-slot-names nil)
+
+(defun eieio--known-slot-name-p (name)
+  (or (memq name eieio--known-slot-names)
+      (get name 'slot-name)))
 
 (defun eieio-defclass-internal (cname superclasses slots options)
   "Define CNAME as a new subclass of SUPERCLASSES.
@@ -340,7 +350,7 @@ See `defclass' for more information."
     ;; turn this into a usable self-pointing symbol;  FIXME: Why?
     (when eieio-backward-compatibility
       (set cname cname)
-      (make-obsolete-variable cname (format "use \\='%s instead" cname)
+      (make-obsolete-variable cname (format "use '%s instead" cname)
                               "25.1"))
 
     ;; Create a handy list of the class test too
@@ -349,8 +359,8 @@ See `defclass' for more information."
         (defalias csym
           (lambda (obj)
             (:documentation
-             (format
-              "Test OBJ to see if it a list of objects which are a child of type %s"
+             (internal--format-docstring-line
+              "Test OBJ to see if it a list of objects which are a child of type `%s'."
               cname))
             (when (listp obj)
               (let ((ans t)) ;; nil is valid
@@ -362,7 +372,7 @@ See `defclass' for more information."
                   (setq obj (cdr obj)))
                 ans))))
         (make-obsolete csym (format
-                             "use (cl-typep ... \\='(list-of %s)) instead"
+                             "use (cl-typep ... '(list-of %s)) instead"
                              cname)
                        "25.1")))
 
@@ -420,7 +430,7 @@ See `defclass' for more information."
                  (progn
                    (set initarg initarg)
                    (make-obsolete-variable
-                    initarg (format "use \\='%s instead" initarg) "25.1"))))
+                    initarg (format "use '%s instead" initarg) "25.1"))))
 
 	;; The customgroup should be a list of symbols.
 	(cond ((and (null customg) custom)
@@ -450,7 +460,7 @@ See `defclass' for more information."
 	))
 
     ;; Now that everything has been loaded up, all our lists are backwards!
-    ;; Fix that up now and then them into vectors.
+    ;; Fix that up now and turn them into vectors.
     (cl-callf (lambda (slots) (apply #'vector (nreverse slots)))
         (eieio--class-slots newc))
     (cl-callf nreverse (eieio--class-initarg-tuples newc))
@@ -478,7 +488,8 @@ See `defclass' for more information."
       ;; (dotimes (cnt (length cslots))
       ;;   (setf (gethash (cl--slot-descriptor-name (aref cslots cnt)) oa) (- -1 cnt)))
       (dotimes (cnt (length slots))
-        (setf (gethash (cl--slot-descriptor-name (aref slots cnt)) oa) cnt))
+        (setf (gethash (cl--slot-descriptor-name (aref slots cnt)) oa)
+              (+ (eval-when-compile eieio--object-num-slots) cnt)))
       (setf (eieio--class-index-table newc) oa))
 
     ;; Set up a specialized doc string.
@@ -508,6 +519,7 @@ See `defclass' for more information."
     ;; Create the cached default object.
     (let ((cache (make-record newc
                               (+ (length (eieio--class-slots newc))
+                                 ;; FIXME: Why +1 -1 ?
                                  (eval-when-compile eieio--object-num-slots)
                                  -1)
                               nil)))
@@ -702,11 +714,15 @@ an error."
       nil
     ;; Trim off object IDX junk added in for the object index.
     (setq slot-idx (- slot-idx (eval-when-compile eieio--object-num-slots)))
-    (let ((st (cl--slot-descriptor-type (aref (eieio--class-slots class)
-                                              slot-idx))))
-      (if (not (eieio--perform-slot-validation st value))
-	  (signal 'invalid-slot-type
-                  (list (eieio--class-name class) slot st value))))))
+    (let* ((sd (aref (eieio--class-slots class)
+                     slot-idx))
+           (st (cl--slot-descriptor-type sd)))
+      (cond
+       ((not (eieio--perform-slot-validation st value))
+	(signal 'invalid-slot-type
+                (list (cl--class-name class) slot st value)))
+       ((alist-get :read-only (cl--slot-descriptor-props sd))
+        (signal 'eieio-read-only (list (cl--class-name class) slot)))))))
 
 (defun eieio--validate-class-slot-value (class slot-idx value slot)
   "Make sure that for CLASS referencing SLOT-IDX, VALUE is valid.
@@ -719,7 +735,7 @@ an error."
                                               slot-idx))))
       (if (not (eieio--perform-slot-validation st value))
 	  (signal 'invalid-slot-type
-                  (list (eieio--class-name class) slot st value))))))
+                  (list (cl--class-name class) slot st value))))))
 
 (defun eieio-barf-if-slot-unbound (value instance slotname fn)
   "Throw a signal if VALUE is a representation of an UNBOUND slot.
@@ -740,31 +756,35 @@ Argument FN is the function calling this verifier."
               (ignore obj)
               (pcase slot
                 ((and (or `',name (and name (pred keywordp)))
-                      (guard (not (memq name eieio--known-slot-names))))
+                      (guard (not (eieio--known-slot-name-p name))))
                  (macroexp-warn-and-return
                   (format-message "Unknown slot `%S'" name)
-                  exp nil 'compile-only))
+                  exp nil 'compile-only name))
                 (_ exp))))
+           ;; FIXME: Make it a gv-expander such that the hash-table lookup is
+           ;; only performed once when used in `push' and friends?
            (gv-setter eieio-oset))
   (cl-check-type slot symbol)
-  (cl-check-type obj (or eieio-object class))
-  (let* ((class (cond ((symbolp obj)
-                       (error "eieio-oref called on a class: %s" obj)
-                       (eieio--full-class-object obj))
-                      (t (eieio--object-class obj))))
-	 (c (eieio--slot-name-index class slot)))
-    (if (not c)
-	;; It might be missing because it is a :class allocated slot.
-	;; Let's check that info out.
-	(if (setq c (eieio--class-slot-name-index class slot))
-	    ;; Oref that slot.
-	    (aref (eieio--class-class-allocation-values class) c)
-	  ;; The slot-missing method is a cool way of allowing an object author
-	  ;; to intercept missing slot definitions.  Since it is also the LAST
-	  ;; thing called in this fn, its return value would be retrieved.
-	  (slot-missing obj slot 'oref))
-      (cl-check-type obj eieio-object)
-      (eieio-barf-if-slot-unbound (aref obj c) obj slot 'oref))))
+  (cond
+   ((cl-typep obj '(or eieio-object cl-structure-object))
+    (let* ((class (eieio--object-class obj))
+           (c (eieio--slot-name-index class slot)))
+      (if (not c)
+	  ;; It might be missing because it is a :class allocated slot.
+	  ;; Let's check that info out.
+	  (if (setq c (eieio--class-slot-name-index class slot))
+	      ;; Oref that slot.
+	      (aref (eieio--class-class-allocation-values class) c)
+	    ;; The slot-missing method is a cool way of allowing an object author
+	    ;; to intercept missing slot definitions.  Since it is also the LAST
+	    ;; thing called in this fn, its return value would be retrieved.
+	    (slot-missing obj slot 'oref))
+	(eieio-barf-if-slot-unbound (aref obj c) obj slot 'oref))))
+   ((cl-typep obj 'oclosure) (oclosure--slot-value obj slot))
+   (t
+    (signal 'wrong-type-argument
+            (list '(or eieio-object cl-structure-object oclosure) obj)))))
+
 
 
 (defun eieio-oref-default (class slot)
@@ -776,15 +796,15 @@ Fills in CLASS's SLOT with its default value."
               (ignore class)
               (pcase slot
                 ((and (or `',name (and name (pred keywordp)))
-                      (guard (not (memq name eieio--known-slot-names))))
+                      (guard (not (eieio--known-slot-name-p name))))
                  (macroexp-warn-and-return
                   (format-message "Unknown slot `%S'" name)
-                  exp nil 'compile-only))
+                  exp nil 'compile-only name))
                 ((and (or `',name (and name (pred keywordp)))
                       (guard (not (memq name eieio--known-class-slot-names))))
                  (macroexp-warn-and-return
                   (format-message "Slot `%S' is not class-allocated" name)
-                  exp nil 'compile-only))
+                  exp nil 'compile-only name))
                 (_ exp)))))
   (cl-check-type class (or eieio-object class))
   (cl-check-type slot symbol)
@@ -811,24 +831,29 @@ Fills in CLASS's SLOT with its default value."
 (defun eieio-oset (obj slot value)
   "Do the work for the macro `oset'.
 Fills in OBJ's SLOT with VALUE."
-  (cl-check-type obj eieio-object)
   (cl-check-type slot symbol)
-  (let* ((class (eieio--object-class obj))
-         (c (eieio--slot-name-index class slot)))
-    (if (not c)
-	;; It might be missing because it is a :class allocated slot.
-	;; Let's check that info out.
-	(if (setq c
-		  (eieio--class-slot-name-index class slot))
-	    ;; Oset that slot.
-	    (progn
-	      (eieio--validate-class-slot-value class c value slot)
-	      (aset (eieio--class-class-allocation-values class)
-		    c value))
-	  ;; See oref for comment on `slot-missing'
-	  (slot-missing obj slot 'oset value))
-      (eieio--validate-slot-value class c value slot)
-      (aset obj c value))))
+  (cond
+   ((cl-typep obj '(or eieio-object cl-structure-object))
+    (let* ((class (eieio--object-class obj))
+           (c (eieio--slot-name-index class slot)))
+      (if (not c)
+	  ;; It might be missing because it is a :class allocated slot.
+	  ;; Let's check that info out.
+	  (if (setq c
+		    (eieio--class-slot-name-index class slot))
+	      ;; Oset that slot.
+	      (progn
+	        (eieio--validate-class-slot-value class c value slot)
+	        (aset (eieio--class-class-allocation-values class)
+		      c value))
+	    ;; See oref for comment on `slot-missing'
+	    (slot-missing obj slot 'oset value))
+	(eieio--validate-slot-value class c value slot)
+	(aset obj c value))))
+   ((cl-typep obj 'oclosure) (oclosure--set-slot-value obj slot value))
+   (t
+    (signal 'wrong-type-argument
+            (list '(or eieio-object cl-structure-object oclosure) obj)))))
 
 (defun eieio-oset-default (class slot value)
   "Do the work for the macro `oset-default'.
@@ -838,15 +863,15 @@ Fills in the default value in CLASS' in SLOT with VALUE."
               (ignore class value)
               (pcase slot
                 ((and (or `',name (and name (pred keywordp)))
-                      (guard (not (memq name eieio--known-slot-names))))
+                      (guard (not (eieio--known-slot-name-p name))))
                  (macroexp-warn-and-return
                   (format-message "Unknown slot `%S'" name)
-                  exp nil 'compile-only))
+                  exp nil 'compile-only name))
                 ((and (or `',name (and name (pred keywordp)))
                       (guard (not (memq name eieio--known-class-slot-names))))
                  (macroexp-warn-and-return
                   (format-message "Slot `%S' is not class-allocated" name)
-                  exp nil 'compile-only))
+                  exp nil 'compile-only name))
                 (_ exp)))))
   (setq class (eieio--class-object class))
   (cl-check-type class eieio--class)
@@ -861,7 +886,7 @@ Fills in the default value in CLASS' in SLOT with VALUE."
               (eieio--validate-class-slot-value class c value slot)
               (aset (eieio--class-class-allocation-values class) c
                     value))
-          (signal 'invalid-slot-name (list (eieio--class-name class) slot)))
+          (signal 'invalid-slot-name (list (cl--class-name class) slot)))
       ;; `oset-default' on an instance-allocated slot is allowed by EIEIO but
       ;; not by CLOS and is mildly inconsistent with the :initform thingy, so
       ;; it'd be nice to get rid of it.
@@ -890,9 +915,9 @@ The slot is a symbol which is installed in CLASS by the `defclass' call.
 If SLOT is the value created with :initarg instead,
 reverse-lookup that name, and recurse with the associated slot value."
   ;; Removed checks to outside this call
-  (let* ((fsi (gethash slot (eieio--class-index-table class))))
+  (let* ((fsi (gethash slot (cl--class-index-table class))))
     (if (integerp fsi)
-        (+ (eval-when-compile eieio--object-num-slots) fsi)
+        fsi
       (let ((fn (eieio--initarg-to-attribute class slot)))
 	(if fn
             ;; Accessing a slot via its :initarg is accepted by EIEIO
@@ -1061,6 +1086,7 @@ method invocation orders of the involved classes."
 ;;
 (define-error 'invalid-slot-name "Invalid slot name")
 (define-error 'invalid-slot-type "Invalid slot type")
+(define-error 'eieio-read-only "Read-only slot")
 (define-error 'unbound-slot "Unbound slot")
 (define-error 'inconsistent-class-hierarchy "Inconsistent class hierarchy")
 

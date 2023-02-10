@@ -1,6 +1,6 @@
 ;;; ol-eshell.el --- Links to Working Directories in Eshell  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2011-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2023 Free Software Foundation, Inc.
 
 ;; Author: Konrad Hinsen <konrad.hinsen AT fastmail.net>
 
@@ -22,6 +22,9 @@
 ;;; Commentary:
 
 ;;; Code:
+
+(require 'org-macs)
+(org-assert-version)
 
 (require 'eshell)
 (require 'esh-mode)
@@ -46,7 +49,11 @@ followed by a colon."
          (eshell-buffer-name (car buffer-and-command))
          (command (cadr buffer-and-command)))
     (if (get-buffer eshell-buffer-name)
-	(pop-to-buffer-same-window eshell-buffer-name)
+        (pop-to-buffer
+         eshell-buffer-name
+         (if (boundp 'display-comint-buffer-action) ; Emacs >= 29
+             display-comint-buffer-action
+           '(display-buffer-same-window (inhibit-same-window))))
       (eshell))
     (goto-char (point-max))
     (eshell-kill-input)

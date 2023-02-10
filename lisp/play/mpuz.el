@@ -1,6 +1,6 @@
 ;;; mpuz.el --- multiplication puzzle for GNU Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1990, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1990, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Philippe Schnoebelen <phs@lsv.ens-cachan.fr>
 ;; Overhauled: Daniel Pfeiffer <occitan@esperanto.org>
@@ -76,17 +76,12 @@ The value t means never ding, and `error' means only ding on wrong input."
   "Hook to run upon entry to mpuz."
   :type 'hook)
 
-(defvar mpuz-mode-map
-  (let ((map (make-sparse-keymap)))
-    (mapc (lambda (ch)
-            (define-key map (char-to-string ch) 'mpuz-try-letter))
-          "abcdefghijABCDEFGHIJ")
-    (define-key map "\C-g" 'mpuz-offer-abort)
-    (define-key map "?" 'describe-mode)
-    map)
-  "Local keymap to use in Mult Puzzle.")
-
-
+(defvar-keymap mpuz-mode-map
+  :doc "Local keymap to use in Mult Puzzle."
+  "C-g" #'mpuz-offer-abort
+  "?"   #'describe-mode)
+(dolist (ch (mapcar #'char-to-string "abcdefghijABCDEFGHIJ"))
+  (keymap-set mpuz-mode-map ch #'mpuz-try-letter))
 
 (define-derived-mode mpuz-mode fundamental-mode "Mult Puzzle"
   :interactive nil
@@ -161,7 +156,7 @@ You may abort a game by typing \\<mpuz-mode-map>\\[mpuz-offer-abort]."
 
 
 ;; A puzzle also uses a board displaying a multiplication.
-;; Every digit appears in the board, crypted or not.
+;; Every digit appears in the board, encrypted or not.
 ;;------------------------------------------------------
 (defvar mpuz-board (make-vector 10 nil)
   "The board associates to any digit the list of squares where it appears.")

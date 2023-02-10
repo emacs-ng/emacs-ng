@@ -1,6 +1,6 @@
 ;;; bubbles.el --- Puzzle game for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2007-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2023 Free Software Foundation, Inc.
 
 ;; Author:      Ulf Jasper <ulf.jasper@web.de>
 ;; URL:         http://ulf.epplejasper.de/
@@ -29,6 +29,8 @@
 
 ;; Bubbles is an implementation of the "Same Game", similar to "Same
 ;; GNOME" and many others, see <https://en.wikipedia.org/wiki/SameGame>.
+
+;;; Code:
 
 ;; ======================================================================
 
@@ -69,8 +71,6 @@
 ;;     Initial release. Tested with GNU Emacs 22.0.93 and 21.4.1.
 
 ;; ======================================================================
-
-;;; Code:
 
 (require 'gamegrid)
 
@@ -809,22 +809,21 @@ static char * dot3d_xpm[] = {
   (bubbles--update-faces-or-images))
 
 
-(defvar bubbles-mode-map
-  (let ((map (make-sparse-keymap 'bubbles-mode-map)))
-    ;; (suppress-keymap map t)
-    (define-key map "q" 'bubbles-quit)
-    (define-key map "\n" 'bubbles-plop)
-    (define-key map " " 'bubbles-plop)
-    (define-key map [double-down-mouse-1] 'bubbles-plop)
-    (define-key map [mouse-2] 'bubbles-plop)
-    (define-key map "\C-m" 'bubbles-plop)
-    (define-key map "u" 'bubbles-undo)
-    (define-key map "p" 'previous-line)
-    (define-key map "n" 'next-line)
-    (define-key map "f" 'forward-char)
-    (define-key map "b" 'backward-char)
-    map)
-  "Mode map for `bubbles'.")
+(defvar-keymap bubbles-mode-map
+  :doc "Mode map for `bubbles'."
+  :name 'bubbles-mode-map
+  "q"   #'quit-window
+  "C-j" #'bubbles-plop
+  "SPC" #'bubbles-plop
+  "C-m" #'bubbles-plop
+  "u"   #'bubbles-undo
+  "p"   #'previous-line
+  "n"   #'next-line
+  "f"   #'forward-char
+  "b"   #'backward-char
+
+  "<double-down-mouse-1>" #'bubbles-plop
+  "<mouse-2>"             #'bubbles-plop)
 
 (easy-menu-define bubbles-menu bubbles-mode-map
   "Menu for `bubbles'."
@@ -872,7 +871,7 @@ static char * dot3d_xpm[] = {
     ["Save all settings" bubbles-save-settings]
     "---"
     ["New game" bubbles]
-    ["Quit" bubbles-quit]))
+    ["Quit" quit-window]))
 
 ;; bind menu to mouse
 (define-key bubbles-mode-map [down-mouse-3] bubbles-menu)
@@ -911,6 +910,7 @@ columns on its right towards the left.
 
 (defun bubbles-quit ()
   "Quit Bubbles."
+  (declare (obsolete quit-window "29.1"))
   (interactive nil bubbles-mode)
   (message "bubbles-quit")
   (bury-buffer))

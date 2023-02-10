@@ -1,6 +1,6 @@
 ;;; mule-cmds.el --- commands for multilingual environment  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -88,7 +88,7 @@
     (bindings--define-key map [separator-3] menu-bar-separator)
     (bindings--define-key map [set-terminal-coding-system]
       '(menu-item "For Terminal" set-terminal-coding-system
-        :enable (null (memq initial-window-system '(x w32 ns wr)))
+        :enable (null (memq initial-window-system '(x w32 ns haiku pgtk wr)))
         :help "How to encode terminal output"))
     (bindings--define-key map [set-keyboard-coding-system]
       '(menu-item "For Keyboard" set-keyboard-coding-system
@@ -1208,6 +1208,16 @@ Arguments are the same as `set-language-info'."
 			  (list 'const lang))
 			(sort (mapcar 'car language-info-alist) 'string<))))))
 
+(defun set-language-info-setup-keymap (lang-env alist describe-map setup-map)
+  "Setup menu items for LANG-ENV.
+See `set-language-info-alist' for details of other arguments."
+  (let ((doc (assq 'documentation alist)))
+    (when doc
+      (define-key-after describe-map (vector (intern lang-env))
+	(cons lang-env 'describe-specified-language-support))))
+  (define-key-after setup-map (vector (intern lang-env))
+    (cons lang-env 'setup-specified-language-environment)))
+
 (defun set-language-info-alist (lang-env alist &optional parents)
   "Store ALIST as the definition of language environment LANG-ENV.
 ALIST is an alist of KEY and INFO values.  See the documentation of
@@ -1222,51 +1232,44 @@ in the European submenu in each of those two menus."
 	 (setq lang-env (symbol-name lang-env)))
 	((stringp lang-env)
 	 (setq lang-env (purecopy lang-env))))
-  (let ((describe-map describe-language-environment-map)
-	(setup-map setup-language-environment-map))
-    (if parents
-	(let ((l parents)
-	      map parent-symbol parent prompt)
-	  (while l
-	    (if (symbolp (setq parent-symbol (car l)))
-		(setq parent (symbol-name parent))
-	      (setq parent parent-symbol parent-symbol (intern parent)))
-	    (setq map (lookup-key describe-map (vector parent-symbol)))
-	    ;; This prompt string is for define-prefix-command, so
-	    ;; that the map it creates will be suitable for a menu.
-	    (or map (setq prompt (format "%s Environment" parent)))
-	    (if (not map)
-		(progn
-		  (setq map (intern (format "describe-%s-environment-map"
-					    (downcase parent))))
-		  (define-prefix-command map nil prompt)
-		  (define-key-after describe-map (vector parent-symbol)
-		    (cons parent map))))
-	    (setq describe-map (symbol-value map))
-	    (setq map (lookup-key setup-map (vector parent-symbol)))
-	    (if (not map)
-		(progn
-		  (setq map (intern (format "setup-%s-environment-map"
-					    (downcase parent))))
-		  (define-prefix-command map nil prompt)
-		  (define-key-after setup-map (vector parent-symbol)
-		    (cons parent map))))
-	    (setq setup-map (symbol-value map))
-	    (setq l (cdr l)))))
-
-    ;; Set up menu items for this language env.
-    (let ((doc (assq 'documentation alist)))
-      (when doc
-	(define-key-after describe-map (vector (intern lang-env))
-	  (cons lang-env 'describe-specified-language-support))))
-    (define-key-after setup-map (vector (intern lang-env))
-      (cons lang-env 'setup-specified-language-environment))
-
-    (dolist (elt alist)
-      (set-language-info-internal lang-env (car elt) (cdr elt)))
-
-    (if (equal lang-env current-language-environment)
-	(set-language-environment lang-env))))
+  (if parents
+      (while parents
+	(let (describe-map setup-map parent-symbol parent prompt)
+	  (if (symbolp (setq parent-symbol (car parents)))
+	      (setq parent (symbol-name parent))
+	    (setq parent parent-symbol parent-symbol (intern parent)))
+	  (setq describe-map (lookup-key describe-language-environment-map
+                                         (vector parent-symbol)))
+	  ;; This prompt string is for define-prefix-command, so
+	  ;; that the map it creates will be suitable for a menu.
+	  (or describe-map (setq prompt (format "%s Environment" parent)))
+	  (unless describe-map
+	    (setq describe-map (intern (format "describe-%s-environment-map"
+					       (downcase parent))))
+	    (define-prefix-command describe-map nil prompt)
+	    (define-key-after
+              describe-language-environment-map
+              (vector parent-symbol) (cons parent describe-map)))
+	  (setq setup-map (lookup-key setup-language-environment-map
+                                      (vector parent-symbol)))
+	  (unless setup-map
+	    (setq setup-map (intern (format "setup-%s-environment-map"
+                                            (downcase parent))))
+	    (define-prefix-command setup-map nil prompt)
+	    (define-key-after
+              setup-language-environment-map
+              (vector parent-symbol) (cons parent setup-map)))
+	  (setq parents (cdr parents))
+          (set-language-info-setup-keymap
+           lang-env alist
+           (symbol-value describe-map) (symbol-value setup-map))))
+    (set-language-info-setup-keymap
+     lang-env alist
+     describe-language-environment-map setup-language-environment-map))
+  (dolist (elt alist)
+    (set-language-info-internal lang-env (car elt) (cdr elt)))
+  (if (equal lang-env current-language-environment)
+      (set-language-environment lang-env)))
 
 (defun read-language-name (key prompt &optional default)
   "Read a language environment name which has information for KEY.
@@ -1389,9 +1392,6 @@ Maximum length of the history list is determined by the value
 of `history-length', which see.")
 (put 'input-method-history 'permanent-local t)
 
-(define-obsolete-variable-alias
-  'inactivate-current-input-method-function
-  'deactivate-current-input-method-function "24.3")
 (defvar-local deactivate-current-input-method-function nil
   "Function to call for deactivating the current input method.
 Every input method should set this to an appropriate value when activated.
@@ -1411,6 +1411,7 @@ This function is called with no argument.")
 Each element has the form:
    (INPUT-METHOD LANGUAGE-ENV ACTIVATE-FUNC TITLE DESCRIPTION ARGS...)
 See the function `register-input-method' for the meanings of the elements.")
+;; Autoload if this file no longer dumped.
 ;;;###autoload
 (put 'input-method-alist 'risky-local-variable t)
 
@@ -1523,10 +1524,6 @@ If INPUT-METHOD is nil, deactivate any current input method."
 	(setq current-input-method nil)
 	(force-mode-line-update)))))
 
-(define-obsolete-function-alias
-  'inactivate-input-method
-  'deactivate-input-method "24.3")
-
 (defun set-input-method (input-method &optional interactive)
   "Select and activate input method INPUT-METHOD for the current buffer.
 This also sets the default input method to the one you specify.
@@ -1638,30 +1635,31 @@ If `default-transient-input-method' was not yet defined, prompt for it."
   (interactive
    (list (read-input-method-name
           (format-prompt "Describe input method" current-input-method))))
-  (if (and input-method (symbolp input-method))
-      (setq input-method (symbol-name input-method)))
-  (help-setup-xref (list #'describe-input-method
-			 (or input-method current-input-method))
-		   (called-interactively-p 'interactive))
+  (let ((help-buffer-under-preparation t))
+    (if (and input-method (symbolp input-method))
+	(setq input-method (symbol-name input-method)))
+    (help-setup-xref (list #'describe-input-method
+			   (or input-method current-input-method))
+		     (called-interactively-p 'interactive))
 
-  (if (null input-method)
-      (describe-current-input-method)
-    (let ((current current-input-method))
-      (condition-case nil
-	  (progn
-	    (save-excursion
-	      (activate-input-method input-method)
-	      (describe-current-input-method))
-	    (activate-input-method current))
-	(error
-	 (activate-input-method current)
-	 (help-setup-xref (list #'describe-input-method input-method)
-			  (called-interactively-p 'interactive))
-	 (with-output-to-temp-buffer (help-buffer)
-	   (let ((elt (assoc input-method input-method-alist)))
-	     (princ (format-message
-		     "Input method: %s (`%s' in mode line) for %s\n  %s\n"
-		     input-method (nth 3 elt) (nth 1 elt) (nth 4 elt))))))))))
+    (if (null input-method)
+	(describe-current-input-method)
+      (let ((current current-input-method))
+	(condition-case nil
+	    (progn
+	      (save-excursion
+		(activate-input-method input-method)
+		(describe-current-input-method))
+	      (activate-input-method current))
+	  (error
+	   (activate-input-method current)
+	   (help-setup-xref (list #'describe-input-method input-method)
+			    (called-interactively-p 'interactive))
+	   (with-output-to-temp-buffer (help-buffer)
+	     (let ((elt (assoc input-method input-method-alist)))
+	       (princ (format-message
+		       "Input method: %s (`%s' in mode line) for %s\n  %s\n"
+		       input-method (nth 3 elt) (nth 1 elt) (nth 4 elt)))))))))))
 
 (defun describe-current-input-method ()
   "Describe the input method currently in use.
@@ -1738,10 +1736,6 @@ The variable `current-input-method' keeps the input method name
 just activated."
   :type 'hook
   :group 'mule)
-
-(define-obsolete-variable-alias
-  'input-method-inactivate-hook
-  'input-method-deactivate-hook "24.3")
 
 (defcustom input-method-deactivate-hook nil
   "Normal hook run just after an input method is deactivated.
@@ -1918,8 +1912,11 @@ The default status is as follows:
 
 (reset-language-environment)
 
-(defun set-display-table-and-terminal-coding-system (language-name &optional coding-system display)
-  "Set up the display table and terminal coding system for LANGUAGE-NAME."
+(defun set-display-table-and-terminal-coding-system (language-name
+                                                     &optional coding-system
+                                                     display inhibit-refresh)
+  "Set up the display table and terminal coding system for LANGUAGE-NAME.
+If INHIBIT-REFRESH, don't redraw the current frame."
   (let ((coding (get-language-info language-name 'unibyte-display)))
     (if (and coding
 	     (or (not coding-system)
@@ -1932,7 +1929,8 @@ The default status is as follows:
       (when standard-display-table
 	(dotimes (i 128)
 	  (aset standard-display-table (+ i 128) nil))))
-    (set-terminal-coding-system (or coding-system coding) display)))
+    (set-terminal-coding-system (or coding-system coding) display
+                                inhibit-refresh)))
 
 (defun set-language-environment (language-name)
   "Set up multilingual environment for using LANGUAGE-NAME.
@@ -2162,89 +2160,89 @@ See `set-language-info-alist' for use in programs."
    (list (read-language-name
 	  'documentation
 	  (format-prompt "Describe language environment" current-language-environment))))
-  (if (null language-name)
-      (setq language-name current-language-environment))
-  (if (or (null language-name)
-	  (null (get-language-info language-name 'documentation)))
-      (error "No documentation for the specified language"))
-  (if (symbolp language-name)
-      (setq language-name (symbol-name language-name)))
-  (dolist (feature (get-language-info language-name 'features))
-    (require feature))
-  (let ((doc (get-language-info language-name 'documentation)))
-    (help-setup-xref (list #'describe-language-environment language-name)
-		     (called-interactively-p 'interactive))
-    (with-output-to-temp-buffer (help-buffer)
-      (with-current-buffer standard-output
-	(insert language-name " language environment\n\n")
-	(if (stringp doc)
-	    (insert (substitute-command-keys doc) "\n\n"))
-	(condition-case nil
-	    (let ((str (eval (get-language-info language-name 'sample-text))))
-	      (if (stringp str)
-		  (insert "Sample text:\n  "
-			  (string-replace "\n" "\n  " str)
-			  "\n\n")))
-	  (error nil))
-	(let ((input-method (get-language-info language-name 'input-method))
-	      (l (copy-sequence input-method-alist))
-	      (first t))
-	  (when (and input-method
-		     (setq input-method (assoc input-method l)))
-	    (insert "Input methods (default " (car input-method) ")\n")
-	    (setq l (cons input-method (delete input-method l))
-		  first nil))
-	  (dolist (elt l)
-	    (when (or (eq input-method elt)
-		      (eq t (compare-strings language-name nil nil
-					     (nth 1 elt) nil nil t)))
-	      (when first
-		(insert "Input methods:\n")
-		(setq first nil))
-	      (insert "  " (car elt))
-	      (search-backward (car elt))
-	      (help-xref-button 0 'help-input-method (car elt))
-	      (goto-char (point-max))
-	      (insert " (\""
-		      (if (stringp (nth 3 elt)) (nth 3 elt) (car (nth 3 elt)))
-		      "\" in mode line)\n")))
-	  (or first
-	      (insert "\n")))
-	(insert "Character sets:\n")
-	(let ((l (get-language-info language-name 'charset)))
-	  (if (null l)
-	      (insert "  nothing specific to " language-name "\n")
-	    (while l
-	      (insert "  " (symbol-name (car l)))
-	      (search-backward (symbol-name (car l)))
-	      (help-xref-button 0 'help-character-set (car l))
-	      (goto-char (point-max))
-	      (insert ": " (charset-description (car l)) "\n")
-	      (setq l (cdr l)))))
-	(insert "\n")
-	(insert "Coding systems:\n")
-	(let ((l (get-language-info language-name 'coding-system)))
-	  (if (null l)
-	      (insert "  nothing specific to " language-name "\n")
-	    (while l
-	      (insert "  " (symbol-name (car l)))
-	      (search-backward (symbol-name (car l)))
-	      (help-xref-button 0 'help-coding-system (car l))
-	      (goto-char (point-max))
-	      (insert (substitute-command-keys " (`")
-		      (coding-system-mnemonic (car l))
-		      (substitute-command-keys "' in mode line):\n\t")
-                      (substitute-command-keys
-                       (coding-system-doc-string (car l)))
-		      "\n")
-	      (let ((aliases (coding-system-aliases (car l))))
-		(when aliases
-		  (insert "\t(alias:")
-		  (while aliases
-		    (insert " " (symbol-name (car aliases)))
-		    (setq aliases (cdr aliases)))
-		  (insert ")\n")))
-	      (setq l (cdr l)))))))))
+  (let ((help-buffer-under-preparation t))
+    (if (null language-name)
+	(setq language-name current-language-environment))
+    (if (or (null language-name)
+	    (null (get-language-info language-name 'documentation)))
+	(error "No documentation for the specified language"))
+    (if (symbolp language-name)
+	(setq language-name (symbol-name language-name)))
+    (dolist (feature (get-language-info language-name 'features))
+      (require feature))
+    (let ((doc (get-language-info language-name 'documentation)))
+      (help-setup-xref (list #'describe-language-environment language-name)
+		       (called-interactively-p 'interactive))
+      (with-output-to-temp-buffer (help-buffer)
+	(with-current-buffer standard-output
+	  (insert language-name " language environment\n\n")
+	  (if (stringp doc)
+	      (insert (substitute-command-keys doc) "\n\n"))
+	  (condition-case nil
+	      (let ((str (eval (get-language-info language-name 'sample-text))))
+		(if (stringp str)
+		    (insert "Sample text:\n  "
+			    (string-replace "\n" "\n  " str)
+			    "\n\n")))
+	    (error nil))
+	  (let ((input-method (get-language-info language-name 'input-method))
+		(l (copy-sequence input-method-alist))
+		(first t))
+	    (when (and input-method
+		       (setq input-method (assoc input-method l)))
+	      (insert "Input methods (default " (car input-method) ")\n")
+	      (setq l (cons input-method (delete input-method l))
+		    first nil))
+	    (dolist (elt l)
+	      (when (or (eq input-method elt)
+			(string-equal-ignore-case language-name (nth 1 elt)))
+		(when first
+		  (insert "Input methods:\n")
+		  (setq first nil))
+		(insert "  " (car elt))
+		(search-backward (car elt))
+		(help-xref-button 0 'help-input-method (car elt))
+		(goto-char (point-max))
+		(insert " (\""
+			(if (stringp (nth 3 elt)) (nth 3 elt) (car (nth 3 elt)))
+			"\" in mode line)\n")))
+	    (or first
+		(insert "\n")))
+	  (insert "Character sets:\n")
+	  (let ((l (get-language-info language-name 'charset)))
+	    (if (null l)
+		(insert "  nothing specific to " language-name "\n")
+	      (while l
+		(insert "  " (symbol-name (car l)))
+		(search-backward (symbol-name (car l)))
+		(help-xref-button 0 'help-character-set (car l))
+		(goto-char (point-max))
+		(insert ": " (charset-description (car l)) "\n")
+		(setq l (cdr l)))))
+	  (insert "\n")
+	  (insert "Coding systems:\n")
+	  (let ((l (get-language-info language-name 'coding-system)))
+	    (if (null l)
+		(insert "  nothing specific to " language-name "\n")
+	      (while l
+		(insert "  " (symbol-name (car l)))
+		(search-backward (symbol-name (car l)))
+		(help-xref-button 0 'help-coding-system (car l))
+		(goto-char (point-max))
+		(insert (substitute-command-keys " (`")
+			(coding-system-mnemonic (car l))
+			(substitute-command-keys "' in mode line):\n\t")
+			(substitute-command-keys
+			 (coding-system-doc-string (car l)))
+			"\n")
+		(let ((aliases (coding-system-aliases (car l))))
+		  (when aliases
+		    (insert "\t(alias:")
+		    (while aliases
+		      (insert " " (symbol-name (car aliases)))
+		      (setq aliases (cdr aliases)))
+		    (insert ")\n")))
+		(setq l (cdr l))))))))))
 
 ;;; Locales.
 
@@ -2596,7 +2594,7 @@ Matching is done ignoring case and any hyphens and underscores in the
 names.  E.g. `ISO_8859-1' and `iso88591' both match `iso-8859-1'."
   (setq charset1 (replace-regexp-in-string "[-_]" "" charset1))
   (setq charset2 (replace-regexp-in-string "[-_]" "" charset2))
-  (eq t (compare-strings charset1 nil nil charset2 nil nil t)))
+  (string-equal-ignore-case charset1 charset2))
 
 (defvar locale-charset-alist nil
   "Coding system alist keyed on locale-style charset name.
@@ -2665,7 +2663,27 @@ For example, translate \"swedish\" into \"sv_SE.ISO8859-1\"."
           locale))
     locale))
 
-(defun set-locale-environment (&optional locale-name frame)
+(defvar current-locale-environment nil
+  "The currently set locale environment.")
+
+(defmacro with-locale-environment (locale-name &rest body)
+  "Execute BODY with the locale set to LOCALE-NAME.
+
+Note that changing the locale modifies settings that affect
+the display, such as `terminal-coding-system' and `standard-display-table',
+but this macro does not by itself perform redisplay.  If BODY needs to
+display something with LOCALE-NAME's settings, include a call
+to `redraw-frame' in BODY."
+  (declare (indent 1) (debug (sexp def-body)))
+  (let ((current (gensym)))
+    `(let ((,current current-locale-environment))
+       (unwind-protect
+           (progn
+             (set-locale-environment ,locale-name nil t)
+             ,@body)
+         (set-locale-environment ,current nil t)))))
+
+(defun set-locale-environment (&optional locale-name frame inhibit-refresh)
   "Set up multilingual environment for using LOCALE-NAME.
 This sets the language environment, the coding system priority,
 the default input method and sometimes other things.
@@ -2689,6 +2707,13 @@ will be translated according to the table specified by
 If FRAME is non-nil, only set the keyboard coding system and the
 terminal coding system for the terminal of that frame, and don't
 touch session-global parameters like the language environment.
+
+This function sets the `current-locale-environment' variable.  To
+change the locale temporarily, `with-locale-environment' can be
+used.
+
+By default, this function will redraw the current frame.  If
+INHIBIT-REFRESH is non-nil, this isn't done.
 
 See also `locale-charset-language-names', `locale-language-names',
 `locale-preferred-coding-systems' and `locale-coding-system'."
@@ -2723,6 +2748,7 @@ See also `locale-charset-language-names', `locale-language-names',
 
     (when locale
       (setq locale (locale-translate locale))
+      (setq current-locale-environment locale)
 
       ;; Leave the system locales alone if the caller did not specify
       ;; an explicit locale name, as their defaults are set from
@@ -2798,7 +2824,7 @@ See also `locale-charset-language-names', `locale-language-names',
 	    (set-language-environment language-name))
 
 	  (set-display-table-and-terminal-coding-system
-	   language-name coding-system frame)
+	   language-name coding-system frame inhibit-refresh)
 
 	  ;; Set the `keyboard-coding-system' if appropriate (tty
 	  ;; only).  At least X and MS Windows can generate
@@ -2855,7 +2881,7 @@ See also `locale-charset-language-names', `locale-language-names',
           (or output-coding (setq output-coding code-page-coding))
 	  (unless frame (setq locale-coding-system locale-coding))
 	  (set-keyboard-coding-system code-page-coding frame)
-	  (set-terminal-coding-system output-coding frame)
+	  (set-terminal-coding-system output-coding frame inhibit-refresh)
 	  (setq default-file-name-coding-system ansi-code-page-coding))))
 
     (when (eq system-type 'darwin)
@@ -2866,7 +2892,7 @@ See also `locale-charset-language-names', `locale-language-names',
       ;; the locale.
       (when (and (null window-system)
 		 (equal (getenv "TERM_PROGRAM" frame) "Apple_Terminal"))
-	(set-terminal-coding-system 'utf-8)
+	(set-terminal-coding-system 'utf-8 nil inhibit-refresh)
 	(set-keyboard-coding-system 'utf-8)))
 
     ;; Default to A4 paper if we're not in a C, POSIX or US locale.
@@ -2927,6 +2953,7 @@ Optional 3rd argument DOCSTRING is a documentation string of the property.
 
 See also the documentation of `get-char-code-property' and
 `put-char-code-property'."
+  (declare (indent defun))
   (or (symbolp name)
       (error "Not a symbol: %s" name))
   (if (char-table-p table)
@@ -3061,22 +3088,6 @@ on encoding."
                 0))
 	(substring enc2 i0 i2)))))
 
-;; Backwards compatibility.  These might be better with :init-value t,
-;; but that breaks loadup.
-(define-minor-mode unify-8859-on-encoding-mode
-  "Exists only for backwards compatibility."
-  :group 'mule
-  :global t)
-;; Doc said "obsolete" in 23.1, this statement only added in 24.1.
-(make-obsolete 'unify-8859-on-encoding-mode "don't use it." "23.1")
-
-(define-minor-mode unify-8859-on-decoding-mode
-  "Exists only for backwards compatibility."
-  :group 'mule
-  :global t)
-;; Doc said "obsolete" in 23.1, this statement only added in 24.1.
-(make-obsolete 'unify-8859-on-decoding-mode "don't use it." "23.1")
-
 (defvar ucs-names nil
   "Hash table of cached CHAR-NAME keys to CHAR-CODE values.")
 
@@ -3189,7 +3200,7 @@ Defines the sorting order either by character names or their codepoints."
   :group 'mule
   :version "28.1")
 
-(defun read-char-by-name (prompt)
+(defun read-char-by-name (prompt &optional allow-single)
   "Read a character by its Unicode name or hex number string.
 Display PROMPT and read a string that represents a character by its
 Unicode property `name' or `old-name'.
@@ -3210,7 +3221,10 @@ Accept a name like \"CIRCULATION FUNCTION\", a hexadecimal
 number like \"2A10\", or a number in hash notation (e.g.,
 \"#x2a10\" for hex, \"10r10768\" for decimal, or \"#o25020\" for
 octal).  Treat otherwise-ambiguous strings like \"BED\" (U+1F6CF)
-as names, not numbers."
+as names, not numbers.
+
+Optional arg ALLOW-SINGLE non-nil means to additionally allow
+single characters to be treated as standing for themselves."
   (let* ((enable-recursive-minibuffers t)
 	 (completion-ignore-case t)
 	 (completion-tab-width 4)
@@ -3233,6 +3247,9 @@ as names, not numbers."
 	 (char
           (cond
            ((char-from-name input t))
+           ((and allow-single
+                 (string-match-p "\\`.\\'" input)
+                 (ignore-errors (string-to-char input))))
            ((string-match-p "\\`[[:xdigit:]]+\\'" input)
             (ignore-errors (string-to-number input 16)))
            ((string-match-p "\\`#\\([bBoOxX]\\|[0-9]+[rR]\\)[0-9a-zA-Z]+\\'"
@@ -3242,7 +3259,119 @@ as names, not numbers."
       (error "Invalid character"))
     char))
 
-(define-obsolete-function-alias 'ucs-insert 'insert-char "24.3")
 (define-key ctl-x-map "8\r" 'insert-char)
+(define-key ctl-x-map "8e"
+            (define-keymap
+              "e" #'emoji-insert
+              "i" #'emoji-insert
+              "s" #'emoji-search
+              "d" #'emoji-describe
+              "r" #'emoji-recent
+              "l" #'emoji-list
+              "+" #'emoji-zoom-increase
+              "-" #'emoji-zoom-decrease))
+
+(defface confusingly-reordered
+  '((((supports :underline (:style wave)))
+     :underline (:style wave :color "Red1"))
+    (t
+     :inherit warning))
+  "Face for highlighting text that was bidi-reordered in confusing ways."
+  :version "29.1")
+
+(defvar reorder-starters "[\u202A\u202B\u202D\u202E\u2066-\u2068]+"
+  "Regular expression for characters that start forced-reordered text.")
+(defvar reorder-enders "[\u202C\u2069]+\\|\n"
+  "Regular expression for characters that end forced-reordered text.")
+
+(autoload 'text-property-search-forward "text-property-search")
+(autoload 'prop-match-beginning "text-property-search")
+(autoload 'prop-match-end "text-property-search")
+
+(defun highlight-confusing-reorderings (beg end &optional remove)
+  "Highlight text in region that might be bidi-reordered in suspicious ways.
+This command find and highlights segments of buffer text that could have
+been reordered on display by using directional control characters, such
+as RLO and LRI, in a way that their display is deliberately meant to
+confuse the reader.  These techniques can be used for obfuscating
+malicious source code.  The suspicious stretches of buffer text are
+highlighted using the `confusingly-reordered' face.
+
+If the region is active, check the text inside the region.  Otherwise
+check the entire buffer.  When called from Lisp, pass BEG and END to
+specify the portion of the buffer to check.
+
+Optional argument REMOVE, if non-nil (interactively, prefix argument),
+means remove the highlighting from the region between BEG and END,
+or the active region if that is set."
+  (interactive
+   (if (use-region-p)
+       (list (region-beginning) (region-end) current-prefix-arg)
+     (list (point-min) (point-max) current-prefix-arg)))
+  (save-excursion
+    (if remove
+        (let (prop-match)
+          (goto-char beg)
+          (while (and
+                  (setq prop-match
+                        (text-property-search-forward 'font-lock-face
+                                                      'confusingly-reordered t))
+                  (< (prop-match-beginning prop-match) end))
+            (with-silent-modifications
+              (remove-list-of-text-properties (prop-match-beginning prop-match)
+                                              (prop-match-end prop-match)
+                                              '(font-lock-face face mouse-face
+                                                               help-echo)))))
+      (let ((count 0)
+            next)
+        (goto-char beg)
+        (while (setq next
+                     (bidi-find-overridden-directionality
+                      (point) end nil
+                      (current-bidi-paragraph-direction)))
+          (goto-char next)
+          ;; We detect the problematic parts by watching directional
+          ;; properties of strong L2R and R2L characters.  But
+          ;; malicious reordering in source buffers can, and usuually
+          ;; does, include syntactically-important punctuation
+          ;; characters.  Those have "weak" directionality, so we
+          ;; cannot easily detect when they are affected in malicious
+          ;; ways.  Therefore, once we find a strong directional
+          ;; character whose directionality was tweaked, we highlight
+          ;; the text around it, between the first bidi control
+          ;; character we find before it that starts an
+          ;; override/embedding/isolate, and the first control after
+          ;; it that ends these.  This could sometimes highlight only
+          ;; part of the affected text.  An alternative would be to
+          ;; find the first "starter" following BOL and the last
+          ;; "ender" before EOL, and highlight everything in between
+          ;; them -- this could sometimes highlight too much.
+          (let ((start
+                 (save-excursion
+                   (re-search-backward reorder-starters nil t)))
+                (finish
+                 (save-excursion
+                   (let ((fin (re-search-forward reorder-enders nil t)))
+                     (if fin (1- fin)
+                       (point-max))))))
+            (with-silent-modifications
+              (add-text-properties start finish
+                                   '(font-lock-face
+                                     confusingly-reordered
+                                     face confusingly-reordered
+                                     mouse-face highlight
+                                     help-echo "\
+This text is reordered on display in a way that could change its semantics;
+use \\[forward-char] and \\[backward-char] to see the actual order of characters.")))
+            (goto-char finish)
+            (setq count (1+ count))))
+        (message
+         (if (> count 0)
+             (ngettext
+              "Highlighted %d confusingly-reordered text string"
+              "Highlighted %d confusingly-reordered text strings"
+              count)
+           "No confusingly-reordered text strings were found")
+         count)))))
 
 ;;; mule-cmds.el ends here

@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 1999--2022 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 1999--2023 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Files
@@ -215,6 +215,17 @@ by the integers that Emacs can represent (@pxref{Buffers}).  If you
 try, Emacs displays an error message saying that the maximum buffer
 size has been exceeded.
 
+@vindex treesit-max-buffer-size
+  If you try to visit a file whose major mode (@pxref{Major Modes})
+uses the tree-sitter parsing library, Emacs will display a warning if
+the file's size in bytes is larger than the value of the variable
+@code{treesit-max-buffer-size}.  The default value is 40 megabytes for
+64-bit Emacs and 15 megabytes for 32-bit Emacs.  This avoids the
+danger of having Emacs run out of memory by preventing the activation
+of major modes based on tree-sitter in such large buffers, because a
+typical tree-sitter parser needs about 10 times as much memory as the
+text it parses.
+
 @cindex wildcard characters in file names
 @vindex find-file-wildcards
   If the file name you specify contains shell-style wildcard
@@ -326,6 +337,48 @@ of @code{require-final-newline} (@pxref{Customize Save}).  If you have
 already visited the same file in the usual (non-literal) manner, this
 command asks you whether to visit it literally instead.
 
+@findex find-sibling-file
+@vindex find-sibling-rules
+Files are sometimes (loosely) tied to other files, and you could call
+these files @dfn{sibling files}.  For instance, when editing C files,
+if you have a file called @samp{"foo.c"}, you often also have a file
+called @samp{"foo.h"}, and that could be its sibling file.  Or you may
+have different versions of a file, for instance
+@samp{"src/emacs/emacs-27/lisp/allout.el"} and
+@samp{"src/emacs/emacs-28/lisp/allout.el"} might be considered
+siblings.  Emacs provides the @code{find-sibling-file} command to jump
+between sibling files, but it's impossible to guess at which files a
+user might want to be considered siblings, so Emacs lets you configure
+this freely by altering the @code{find-sibling-rules} user option.
+This is a list of match/expansion elements.
+
+For instance, to do the @samp{".c"} to @samp{".h"} mapping, you could
+say:
+
+@lisp
+(setq find-sibling-rules
+      '(("\\([^/]+\\)\\.c\\'" "\\1.h")))
+@end lisp
+
+(@code{ff-find-related-file} offers similar functionality especially
+geared towards C files, @pxref{Other C Commands}.)
+
+Or, if you want to consider all files under
+@samp{"src/emacs/DIR/file-name"} to be siblings of other @var{dir}s,
+you could say:
+
+@lisp
+(setq find-sibling-rules
+      '(("src/emacs/[^/]+/\\(.*\\)\\'" "src/emacs/.*/\\1")))
+@end lisp
+
+As you can see, this is a list of @var{(MATCH EXPANSION...)} elements.
+The @var{match} is a regular expression that matches the visited file
+name, and each @var{expansion} may refer to match groups by using
+@samp{\\1} and so on.  The resulting expansion string is then applied
+to the file system to see if any files match this expansion
+(interpreted as a regexp).
+
 @vindex find-file-hook
 @vindex find-file-not-found-functions
   Two special hook variables allow extensions to modify the operation
@@ -378,6 +431,9 @@ With prefix argument (@kbd{C-u}), mark the current buffer as changed.
 Save the current buffer with a specified file name (@code{write-file}).
 @item M-x set-visited-file-name
 Change the file name under which the current buffer will be saved.
+@item M-x rename-visited-file
+The same as @kbd{M-x set-visited-file-name}, but also rename the file
+the buffer is visiting (if any).
 @end table
 
 @kindex C-x C-s
@@ -610,10 +666,10 @@ Never make numbered backups; always make single backups.
 The usual way to set this variable is globally, through your init file
 or the customization buffer.  However, you can set
 @code{version-control} locally in an individual buffer to control the
-making of backups for that buffer's file (@pxref{Locals}).  You can
-have Emacs set @code{version-control} locally whenever you visit a
-given file (@pxref{File Variables}).  Some modes, such as Rmail mode,
-set this variable.
+making of backups for that buffer's file (@pxref{Locals}).  Some
+modes, such as Rmail mode, set this variable.  You can also have Emacs
+set @code{version-control} locally whenever you visit a given file
+(@pxref{File Variables}).
 
 @cindex @env{VERSION_CONTROL} environment variable
   If you set the environment variable @env{VERSION_CONTROL}, to tell
@@ -756,22 +812,21 @@ in these cases, customize the variable
 @vindex write-region-inhibit-fsync
   Normally, when a program writes a file, the operating system briefly
 caches the file's data in main memory before committing the data to
-disk.  This can greatly improve performance; for example, when running
-on laptops, it can avoid a disk spin-up each time a file is written.
-However, it risks data loss if the operating system crashes before
-committing the cache to disk.
+secondary storage.  Although this can greatly improve performance, it
+risks data loss if the system loses power before committing the cache,
+and on some platforms other processes might not immediately notice the
+file's change.
 
   To lessen this risk, Emacs can invoke the @code{fsync} system call
 after saving a file.  Using @code{fsync} does not eliminate the risk
-of data loss, partly because many systems do not implement
+of data loss or slow notification, partly because many systems do not support
 @code{fsync} properly, and partly because Emacs's file-saving
 procedure typically relies also on directory updates that might not
 survive a crash even if @code{fsync} works properly.
 
   The @code{write-region-inhibit-fsync} variable controls whether
 Emacs invokes @code{fsync} after saving a file.  The variable's
-default value is @code{nil} when Emacs is interactive, and @code{t}
-when Emacs runs in batch mode (@pxref{Initial Options, Batch Mode}).
+default value is @code{t}.
 
   Emacs never uses @code{fsync} when writing auto-save files, as these
 files might lose data anyway.
@@ -1476,8 +1531,8 @@ characters that don't match.  Then the command exits.
   If point in the two windows is followed by non-matching text when
 the command starts, @kbd{M-x compare-windows} tries heuristically to
 advance up to matching text in the two windows, and then exits.  So if
-you use @kbd{M-x compare-windows} repeatedly, each time it either
-skips one matching range or finds the start of another.
+you use @kbd{M-x compare-windows} repeatedly (@pxref{Repeating}), each
+time it either skips one matching range or finds the start of another.
 
 @vindex compare-ignore-case
 @vindex compare-ignore-whitespace
@@ -1828,6 +1883,27 @@ argument to @kbd{M-x delete-file} or @kbd{M-x delete-directory} makes
 them delete outright, instead of using the Trash, regardless of
 @code{delete-by-moving-to-trash}.
 
+  If you have @code{delete-by-moving-to-trash} set, and you want to
+delete files manually in Emacs from the Trash directory, using
+commands like @kbd{D} (@code{dired-do-delete}) doesn't work well in
+the Trash directory (it'll just give the file a new name, but won't
+delete anything).  If you want to be able to do this, you should
+create a @code{.dir-locals.el} file containing something like the
+following in the Trash directory:
+
+@example
+((dired-mode . ((delete-by-moving-to-trash . nil))))
+@end example
+
+  Note, however, if you use the system ``empty trash'' command, it's
+liable to also delete this @code{.dir-locals.el} file, so this should
+only be done if you delete files from the Trash directory manually.
+
+@vindex remote-file-name-inhibit-delete-by-moving-to-trash
+  If the variable @code{remote-file-name-inhibit-delete-by-moving-to-trash}
+is non-@code{nil}, remote files are never moved to the Trash.  They
+are deleted instead.
+
 @ifnottex
   If a file is under version control (@pxref{Version Control}), you
 should delete it using @kbd{M-x vc-delete-file} instead of @kbd{M-x
@@ -2164,13 +2240,16 @@ recently-opened files, reading file names from a buffer.
 
 @findex recentf-mode
 @vindex recentf-mode
+@findex recentf-open
 @findex recentf-save-list
 @findex recentf-edit-list
-  If you enable Recentf mode, with @kbd{M-x recentf-mode}, the
-@samp{File} menu includes a submenu containing a list of recently
-opened files.  @kbd{M-x recentf-save-list} saves the current
-@code{recentf-list} to a file, and @kbd{M-x recentf-edit-list} edits
-it.
+  If you enable Recentf mode, with @kbd{M-x recentf-mode}, Emacs
+maintains a list of recently opened files.  To open a file from this
+list, use the @kbd{M-x recentf-open} command.  When this mode is
+enabled, the @samp{File} menu will include a submenu that you can use
+to visit one of these files.  @kbd{M-x recentf-save-list} saves the
+current @code{recentf-list} to a file, and @kbd{M-x recentf-edit-list}
+edits it.
 
 @c FIXME partial-completion-mode (complete.el) is obsolete.
   The @kbd{M-x ffap} command generalizes @code{find-file} with more
@@ -2205,16 +2284,21 @@ window, so this is only necessary if you customize the default
 behavior by using the options @code{image-auto-resize} and
 @code{image-auto-resize-on-window-resize}.
 
-@findex image-transform-fit-both
+@findex image-transform-fit-to-window
+@findex image-transform-set-percent
 @findex image-transform-set-scale
-@findex image-transform-reset
+@findex image-transform-reset-to-initial
+@findex image-transform-reset-to-original
 To resize the image manually you can use the command
-@code{image-transform-fit-both} bound to @kbd{s b}
-that fits the image to both the window height and width.
-To scale the image specifying a scale factor, use the command
-@code{image-transform-set-scale} bound to @kbd{s s}.
-To reset all transformations to the initial state, use
-@code{image-transform-reset} bound to @kbd{s 0}.
+@code{image-transform-fit-to-window} bound to @kbd{s w} that fits the
+image to both the window height and width.  To scale the image to a
+percentage of its original size, use the command
+@code{image-transform-set-percent} bound to @kbd{s p}.  To scale the
+image specifying a scale factor, use the command
+@code{image-transform-set-scale} bound to @kbd{s s}.  To reset all
+transformations to the initial state, use
+@code{image-transform-reset-to-initial} bound to @kbd{s 0}, or
+@code{image-transform-reset-to-original} bound to @kbd{s o}.
 
 @findex image-next-file
 @findex image-previous-file
@@ -2290,6 +2374,29 @@ Emacs will try to determine whether there are external utilities that
 can be used to transform the image in question to @acronym{PNG} before
 displaying.  GraphicsMagick, ImageMagick and @command{ffmpeg} are
 currently supported for image conversions.
+
+@findex image-converter-add-handler
+  In addition, you may wish to add special handlers for certain image
+formats.  These can be added with the
+@code{image-converter-add-handler} function.  For instance, to allow
+viewing Krita files as simple images, you could say something like:
+
+@lisp
+(image-converter-add-handler
+ "kra"
+ (lambda (file data-p)
+   (if data-p
+       (error "Can't decode non-files")
+     (call-process "unzip" nil t nil
+                   "-qq" "-c" "-x" file "mergedimage.png"))))
+@end lisp
+
+The function takes two parameters, where the first is a file name
+suffix, and the second is a function to do the ``conversion''.  This
+function takes two parameters, where the first is the file name or a
+string with the data, and the second says whether the first parameter
+is data or not, and should output an image in
+@code{image-convert-to-format} format in the current buffer.
 
 @findex thumbs-mode
 @cindex mode, Thumbs

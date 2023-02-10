@@ -1,6 +1,6 @@
 ;;; em-hist.el --- history list management  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -55,7 +55,6 @@
 ;;; Code:
 
 (eval-when-compile (require 'cl-lib))
-(eval-when-compile (require 'subr-x)) ; `string-blank-p'
 
 (require 'ring)
 (require 'esh-opt)
@@ -104,7 +103,7 @@ in bash, and any other non-nil value mirrors the \"ignoredups\"
 value."
   :type '(choice (const :tag "Don't ignore anything" nil)
                  (const :tag "Ignore consecutive duplicates" t)
-                 (const :tag "Only keep last duplicate" 'erase)))
+                 (const :tag "Only keep last duplicate" erase)))
 
 (defcustom eshell-save-history-on-exit t
   "Determine if history should be automatically saved.
@@ -125,16 +124,34 @@ the input history list.  Default is to save anything that isn't all
 whitespace."
   :type '(radio (function-item eshell-input-filter-default)
                 (function-item eshell-input-filter-initial-space)
-                (function :tag "Other function")))
+                (function :tag "Other function"))
+  :risky t)
 
-(put 'eshell-input-filter 'risky-local-variable t)
+(defun eshell-hist--update-keymap (symbol value)
+  "Update `eshell-hist-mode-map' for `eshell-hist-match-partial'."
+  ;; Don't try to set this before it is bound.  See below.
+  (when (and (boundp 'eshell-hist-mode-map)
+             (eq symbol 'eshell-hist-match-partial))
+    (dolist (keyb
+             (if value
+                 `(("M-p"     . ,#'eshell-previous-matching-input-from-input)
+                   ("M-n"     . ,#'eshell-next-matching-input-from-input)
+                   ("C-c M-p" . ,#'eshell-previous-input)
+                   ("C-c M-n" . ,#'eshell-next-input))
+               `(("M-p"     . ,#'eshell-previous-input)
+                 ("M-n"     . ,#'eshell-next-input)
+                 ("C-c M-p" . ,#'eshell-previous-matching-input-from-input)
+                 ("C-c M-n" . ,#'eshell-next-matching-input-from-input))))
+      (keymap-set eshell-hist-mode-map (car keyb) (cdr keyb))))
+  (set-default symbol value))
 
 (defcustom eshell-hist-match-partial t
   "If non-nil, movement through history is constrained by current input.
-Otherwise, typing <M-p> and <M-n> will always go to the next history
+Otherwise, typing \\`M-p' and \\`M-n' will always go to the next history
 element, regardless of any text on the command line.  In that case,
-<C-c M-r> and <C-c M-s> still offer that functionality."
-  :type 'boolean)
+\\`C-c M-r' and \\`C-c M-s' still offer that functionality."
+  :type 'boolean
+  :set 'eshell-hist--update-keymap)
 
 (defcustom eshell-hist-move-to-end t
   "If non-nil, move to the end of the buffer before cycling history."
@@ -180,43 +197,31 @@ element, regardless of any text on the command line.  In that case,
 (defvar eshell-matching-input-from-input-string "")
 (defvar eshell-save-history-index nil)
 
-(defvar eshell-isearch-map
-  (let ((map (copy-keymap isearch-mode-map)))
-    (define-key map [(control ?m)] 'eshell-isearch-return)
-    (define-key map [(control ?r)] 'eshell-isearch-repeat-backward)
-    (define-key map [(control ?s)] 'eshell-isearch-repeat-forward)
-    (define-key map [(control ?g)] 'eshell-isearch-abort)
-    (define-key map [backspace] 'eshell-isearch-delete-char)
-    (define-key map [delete] 'eshell-isearch-delete-char)
-    (define-key map "\C-c\C-c" 'eshell-isearch-cancel)
-    map)
-  "Keymap used in isearch in Eshell.")
+(defvar-keymap eshell-isearch-map
+  :doc "Keymap used in isearch in Eshell."
+  :parent isearch-mode-map
+  "C-m"         #'eshell-isearch-return
+  "C-r"         #'eshell-isearch-repeat-backward
+  "C-s"         #'eshell-isearch-repeat-forward
+  "C-g"         #'eshell-isearch-abort
+  "<backspace>" #'eshell-isearch-delete-char
+  "<delete>"    #'eshell-isearch-delete-char
+  "C-c C-c"     #'eshell-isearch-cancel)
 
-(defvar eshell-hist-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [up] #'eshell-previous-matching-input-from-input)
-    (define-key map [down] #'eshell-next-matching-input-from-input)
-    (define-key map [(control up)] #'eshell-previous-input)
-    (define-key map [(control down)] #'eshell-next-input)
-    (define-key map [(meta ?r)] #'eshell-previous-matching-input)
-    (define-key map [(meta ?s)] #'eshell-next-matching-input)
-    (define-key map (kbd "C-c M-r") #'eshell-previous-matching-input-from-input)
-    (define-key map (kbd "C-c M-s") #'eshell-next-matching-input-from-input)
-    ;; FIXME: Relies on `eshell-hist-match-partial' being set _before_
-    ;; em-hist is loaded and won't respect changes.
-    (if eshell-hist-match-partial
-	(progn
-	  (define-key map [(meta ?p)] 'eshell-previous-matching-input-from-input)
-	  (define-key map [(meta ?n)] 'eshell-next-matching-input-from-input)
-	  (define-key map (kbd "C-c M-p") #'eshell-previous-input)
-	  (define-key map (kbd "C-c M-n") #'eshell-next-input))
-      (define-key map [(meta ?p)] #'eshell-previous-input)
-      (define-key map [(meta ?n)] #'eshell-next-input)
-      (define-key map (kbd "C-c M-p") #'eshell-previous-matching-input-from-input)
-      (define-key map (kbd "C-c M-n") #'eshell-next-matching-input-from-input))
-    (define-key map (kbd "C-c C-l") #'eshell-list-history)
-    (define-key map (kbd "C-c C-x") #'eshell-get-next-from-history)
-    map))
+(defvar-keymap eshell-hist-mode-map
+  "<up>"     #'eshell-previous-matching-input-from-input
+  "<down>"   #'eshell-next-matching-input-from-input
+  "C-<up>"   #'eshell-previous-input
+  "C-<down>" #'eshell-next-input
+  "M-r"      #'eshell-previous-matching-input
+  "M-s"      #'eshell-next-matching-input
+  "C-c M-r"  #'eshell-previous-matching-input-from-input
+  "C-c M-s"  #'eshell-next-matching-input-from-input
+  "C-c C-l"  #'eshell-list-history
+  "C-c C-x"  #'eshell-get-next-from-history)
+;; Update `eshell-hist-mode-map' for `eshell-hist-match-partial'.
+(eshell-hist--update-keymap 'eshell-hist-match-partial
+                            eshell-hist-match-partial)
 
 (defvar eshell-rebind-keys-alist)
 
@@ -335,7 +340,7 @@ unless a different file is specified on the command line.")
 	(error "No history"))
    (let (length file)
      (when (and args (string-match "^[0-9]+$" (car args)))
-       (setq length (min (eshell-convert (car args))
+       (setq length (min (string-to-number (car args))
 			 (ring-length eshell-history-ring))
 	     args (cdr args)))
      (and length
@@ -550,7 +555,7 @@ See also `eshell-read-history'."
 (defun eshell-hist-parse-arguments (&optional b e)
   "Parse current command arguments in a history-code-friendly way."
   (let ((end (or e (point)))
-	(begin (or b (save-excursion (eshell-bol) (point))))
+	(begin (or b (save-excursion (beginning-of-line) (point))))
 	(posb (list t))
 	(pose (list t))
 	(textargs (list t))
@@ -908,7 +913,7 @@ If N is negative, search forwards for the -Nth following match."
 				eshell-next-matching-input-from-input)))
       ;; Starting a new search
       (setq eshell-matching-input-from-input-string
-	    (buffer-substring (save-excursion (eshell-bol) (point))
+	    (buffer-substring (save-excursion (beginning-of-line) (point))
 			      (point))
 	    eshell-history-index nil))
   (eshell-previous-matching-input
@@ -928,7 +933,7 @@ If N is negative, search backwards for the -Nth previous match."
   (if (get-text-property (point) 'history)
       (progn (beginning-of-line) t)
     (let ((before (point)))
-      (eshell-bol)
+      (beginning-of-line)
       (if (and (not (bolp))
 	       (<= (point) before))
 	  t

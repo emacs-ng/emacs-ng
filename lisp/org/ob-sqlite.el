@@ -1,11 +1,11 @@
 ;;; ob-sqlite.el --- Babel Functions for SQLite Databases -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
-;; Maintainer: Nick Savage
+;; Maintainer: Nick Savage <nick@nicksavage.ca>
 ;; Keywords: literate programming, reproducible research
-;; Homepage: https://orgmode.org
+;; URL: https://orgmode.org
 
 ;; This file is part of GNU Emacs.
 
@@ -27,6 +27,10 @@
 ;; Org-Babel support for evaluating sqlite source code.
 
 ;;; Code:
+
+(require 'org-macs)
+(org-assert-version)
+
 (require 'ob)
 (require 'ob-sql)
 

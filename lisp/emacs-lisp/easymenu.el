@@ -1,6 +1,6 @@
 ;;; easymenu.el --- support the easymenu interface for defining a menu  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1994, 1996, 1998-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1994, 1996, 1998-2023 Free Software Foundation, Inc.
 
 ;; Keywords: emulations
 ;; Author: Richard Stallman <rms@gnu.org>
@@ -390,10 +390,13 @@ ITEM defines an item as in `easy-menu-define'."
     (let ((key (easy-menu-intern name)))
       (cons key
             (and (not remove)
-                 (cons 'menu-item
-                       (cons label
-                             (and name
-                                  (cons command prop)))))))))
+                 (if (and (stringp label)
+                          (seq-every-p (lambda (c) (char-equal c ?-)) label))
+                     menu-bar-separator
+                   (cons 'menu-item
+                         (cons label
+                               (and name
+                                    (cons command prop))))))))))
 
 (defun easy-menu-define-key (menu key item &optional before)
   "Add binding in MENU for KEY => ITEM.  Similar to `define-key-after'.
@@ -492,25 +495,11 @@ To implement dynamic menus, either call this from
 `menu-bar-update-hook' or use a menu filter."
   (easy-menu-add-item map path (easy-menu-create-menu name items) before))
 
-(defalias 'easy-menu-remove #'ignore
-  "Remove MENU from the current menu bar.
-Contrary to XEmacs, this is a nop on Emacs since menus are automatically
-\(de)activated when the corresponding keymap is (de)activated.
-
-\(fn MENU)")
+(defalias 'easy-menu-remove #'ignore)
 (make-obsolete 'easy-menu-remove "this was always a no-op in Emacs \
 and can be safely removed." "28.1")
 
-(defalias 'easy-menu-add #'ignore
-  "Add the menu to the menubar.
-On Emacs this is a nop, because menus are already automatically
-activated when the corresponding keymap is activated.  On XEmacs
-this is needed to actually add the menu to the current menubar.
-
-You should call this once the menu and keybindings are set up
-completely and menu filter functions can be expected to work.
-
-\(fn MENU &optional MAP)")
+(defalias 'easy-menu-add #'ignore)
 (make-obsolete 'easy-menu-add "this was always a no-op in Emacs \
 and can be safely removed." "28.1")
 

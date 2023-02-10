@@ -1,6 +1,6 @@
 ;;; mh-funcs.el --- MH-E functions not everyone will use right away  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1993, 1995, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1993, 1995, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Bill Wohler <wohler@newt.com>
 ;; Keywords: mail
@@ -95,13 +95,13 @@ RANGE is read in interactive use."
 Remove all of the messages (files) within the current folder, and
 then remove the folder (directory) itself.
 
-Run the abnormal hook `mh-kill-folder-suppress-prompt-hooks'. The
-hook functions are called with no arguments and should return a
-non-nil value to suppress the normal prompt when you remove a
+Run the abnormal hook `mh-kill-folder-suppress-prompt-functions'.
+The hook functions are called with no arguments and should return
+a non-nil value to suppress the normal prompt when you remove a
 folder. This is useful for folders that are easily regenerated."
   (interactive)
   (if (or (run-hook-with-args-until-success
-           'mh-kill-folder-suppress-prompt-hooks)
+           'mh-kill-folder-suppress-prompt-functions)
           (yes-or-no-p (format "Remove folder %s (and all included messages)? "
                                mh-current-folder)))
       (let ((folder mh-current-folder)
@@ -147,7 +147,7 @@ Display the results only if something went wrong."
                                             "-recurse"
                                           "-norecurse"))
         (goto-char (point-min))
-        (mh-view-mode-enter)
+        (view-mode-enter)
         (setq view-exit-action 'kill-buffer)
         (message "Listing folders...done")))))
 
@@ -366,7 +366,6 @@ Arguments are IGNORED (for `revert-buffer')."
 (provide 'mh-funcs)
 
 ;; Local Variables:
-;; indent-tabs-mode: nil
 ;; sentence-end-double-space: nil
 ;; End:
 

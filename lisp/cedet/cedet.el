@@ -1,6 +1,6 @@
 ;;; cedet.el --- Setup CEDET environment  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2023 Free Software Foundation, Inc.
 
 ;; Author: David Ponce <david@dponce.com>
 ;; Maintainer: Eric M. Ludlam <zappo@gnu.org>
@@ -25,15 +25,12 @@
 ;;; Commentary:
 
 ;;; Code:
-;;
-;; This file depends on the major components of CEDET, so that you can
-;; load them all by doing (require 'cedet).  This is mostly for
-;; compatibility with the upstream, stand-alone CEDET distribution.
 
 (declare-function inversion-find-version "inversion")
 
 (defconst cedet-version "2.0"
   "Current version of CEDET.")
+(make-obsolete-variable 'cedet-version 'emacs-version "29.1")
 
 (defconst cedet-packages
   `(
@@ -45,6 +42,7 @@
     (ede           "1.2"           nil       "ede"         )
     )
   "Table of CEDET packages to install.")
+(make-obsolete-variable 'cedet-packages 'package-built-in-p "29.1")
 
 (defvar cedet-menu-map ;(make-sparse-keymap "CEDET menu")
   (let ((map (make-sparse-keymap "CEDET menu")))

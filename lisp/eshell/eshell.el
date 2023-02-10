@@ -1,6 +1,6 @@
 ;;; eshell.el --- the Emacs command shell  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 ;; Version: 2.4.2
@@ -194,17 +194,6 @@ shells such as bash, zsh, rc, 4dos."
 ;; The following user options modify the behavior of Eshell overall.
 (defvar eshell-buffer-name)
 
-(defun eshell-add-to-window-buffer-names ()
-  "Add `eshell-buffer-name' to `same-window-buffer-names'."
-  (declare (obsolete nil "24.3"))
-  (add-to-list 'same-window-buffer-names eshell-buffer-name))
-
-(defun eshell-remove-from-window-buffer-names ()
-  "Remove `eshell-buffer-name' from `same-window-buffer-names'."
-  (declare (obsolete nil "24.3"))
-  (setq same-window-buffer-names
-	(delete eshell-buffer-name same-window-buffer-names)))
-
 (defcustom eshell-load-hook nil
   "A hook run once Eshell has been loaded."
   :type 'hook
@@ -260,7 +249,7 @@ information on Eshell, see Info node `(eshell)Top'."
 		   (t
 		    (get-buffer-create eshell-buffer-name)))))
     (cl-assert (and buf (buffer-live-p buf)))
-    (pop-to-buffer-same-window buf)
+    (pop-to-buffer buf display-comint-buffer-action)
     (unless (derived-mode-p 'eshell-mode)
       (eshell-mode))
     buf))
@@ -332,9 +321,9 @@ With prefix ARG, insert output into the current buffer at point."
 	;; make the output as attractive as possible, with no
 	;; extraneous newlines
 	(when intr
-	  (if (eshell-interactive-process)
-	      (eshell-wait-for-process (eshell-interactive-process)))
-	  (cl-assert (not (eshell-interactive-process)))
+	  (if (eshell-interactive-process-p)
+	      (eshell-wait-for-process (eshell-tail-process)))
+	  (cl-assert (not (eshell-interactive-process-p)))
 	  (goto-char (point-max))
 	  (while (and (bolp) (not (bobp)))
 	    (delete-char -1)))

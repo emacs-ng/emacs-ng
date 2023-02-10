@@ -1,6 +1,6 @@
 ;;; hideif.el --- hides selected code within ifdef  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1988, 1994, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1988, 1994, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Brian Marick
 ;;	Daniel LaLiberte <liberte@holonexus.org>
@@ -109,10 +109,11 @@
 ;;
 ;; Extensively modified by Luke Lee in 2013 to support complete C expression
 ;; evaluation and argumented macro expansion; C++11, C++14, C++17, GCC
-;; extension literals and gcc/clang matching behaviours are supported in 2021.
+;; extension literals and gcc/clang matching behaviors are supported in 2021.
 ;; Various floating point types and operations are also supported but the
 ;; actual precision is limited by the Emacs internal floating representation,
 ;; which is the C data type "double" or IEEE binary64 format.
+;; C99 and GNU style variadic arguments support is completed in 2022/E.
 
 ;;; Code:
 
@@ -181,30 +182,22 @@ Effective only if `hide-ifdef-expand-reinclusion-guard' is t."
   :type 'regexp
   :version "25.1")
 
-(defvar hide-ifdef-mode-submap
+(defvar-keymap hide-ifdef-mode-submap
+  :doc "Keymap used by `hide-ifdef-mode' under `hide-ifdef-mode-prefix-key'."
   ;; Set up the submap that goes after the prefix key.
-  (let ((map (make-sparse-keymap)))
-    (define-key map "d" 'hide-ifdef-define)
-    (define-key map "u" 'hide-ifdef-undef)
-    (define-key map "D" 'hide-ifdef-set-define-alist)
-    (define-key map "U" 'hide-ifdef-use-define-alist)
-
-    (define-key map "h" 'hide-ifdefs)
-    (define-key map "s" 'show-ifdefs)
-    (define-key map "\C-d" 'hide-ifdef-block)
-    (define-key map "\C-s" 'show-ifdef-block)
-    (define-key map "e" 'hif-evaluate-macro)
-    (define-key map "C" 'hif-clear-all-ifdef-defined)
-
-    (define-key map "\C-q" 'hide-ifdef-toggle-read-only)
-    (define-key map "\C-w" 'hide-ifdef-toggle-shadowing)
-    (substitute-key-definition
-     'read-only-mode 'hide-ifdef-toggle-outside-read-only map)
-    ;; `toggle-read-only' is obsoleted by `read-only-mode'.
-    (substitute-key-definition
-     'toggle-read-only 'hide-ifdef-toggle-outside-read-only map)
-    map)
-  "Keymap used by `hide-ifdef-mode' under `hide-ifdef-mode-prefix-key'.")
+  "d"   #'hide-ifdef-define
+  "u"   #'hide-ifdef-undef
+  "D"   #'hide-ifdef-set-define-alist
+  "U"   #'hide-ifdef-use-define-alist
+  "h"   #'hide-ifdefs
+  "s"   #'show-ifdefs
+  "C-d" #'hide-ifdef-block
+  "C-s" #'show-ifdef-block
+  "e"   #'hif-evaluate-macro
+  "C"   #'hif-clear-all-ifdef-defined
+  "C-q" #'hide-ifdef-toggle-read-only
+  "C-w" #'hide-ifdef-toggle-shadowing
+  "<remap> <read-only-mode>" #'hide-ifdef-toggle-outside-read-only)
 
 (defcustom hide-ifdef-mode-prefix-key "\C-c@"
   "Prefix key for all Hide-Ifdef mode commands."
@@ -400,8 +393,10 @@ If there is a marked region from START to END it only shows the symbols within."
 (add-hook 'after-revert-hook 'hif-after-revert-function)
 
 (defun hif-end-of-line ()
+  "Find the end-point of line concatenation."
   (end-of-line)
-  (while (= (logand 1 (skip-chars-backward "\\\\")) 1)
+  (while (progn (skip-chars-backward " \t" (line-beginning-position))
+                (= ?\\ (char-before)))
     (end-of-line 2)))
 
 (defun hif-merge-ifdef-region (start end)
@@ -413,7 +408,7 @@ overlays created."
   ;; hidden with `hide-ifdef-lines' equals to nil while another part with 't,
   ;; this case happens.
   ;; TODO: Should we merge? or just create a container overlay? -- this can
-  ;; prevent `hideif-show-ifdef' expanding too many hidden contents since there
+  ;; prevent `show-ifdefs' expanding too many hidden contents since there
   ;; is only a big overlay exists there without any smaller overlays.
   (save-restriction
     (widen) ; Otherwise `point-min' and `point-max' will be restricted and thus
@@ -544,10 +539,10 @@ that form should be displayed.")
 ;;===%%SF%% parsing (Start)  ===
 ;;;  The code that understands what ifs and ifdef in files look like.
 
-(defconst hif-cpp-prefix      "\\(^\\|\r\\)[ \t]*#[ \t]*")
+(defconst hif-cpp-prefix      "\\(^\\|\r\\)?[ \t]*#[ \t]*")
 (defconst hif-ifxdef-regexp   (concat hif-cpp-prefix "if\\(n\\)?def"))
 (defconst hif-ifndef-regexp   (concat hif-cpp-prefix "ifndef"))
-(defconst hif-ifx-regexp      (concat hif-cpp-prefix "if\\(n?def\\)?[ \t]+"))
+(defconst hif-ifx-regexp      (concat hif-cpp-prefix "if\\((\\|\\(n?def\\)?[ \t]+\\)"))
 (defconst hif-elif-regexp     (concat hif-cpp-prefix "elif"))
 (defconst hif-else-regexp     (concat hif-cpp-prefix "else"))
 (defconst hif-endif-regexp    (concat hif-cpp-prefix "endif"))
@@ -555,18 +550,23 @@ that form should be displayed.")
   (concat hif-ifx-regexp "\\|" hif-elif-regexp "\\|" hif-else-regexp "\\|"
           hif-endif-regexp))
 (defconst hif-macro-expr-prefix-regexp
-  (concat hif-cpp-prefix "\\(if\\(n?def\\)?\\|elif\\|define\\)[ \t]+"))
+  (concat hif-cpp-prefix "\\(if(\\|if\\(n?def\\)?[ \t]+\\|elif\\|define[ \t]+\\)"))
 
-(defconst hif-white-regexp    "[ \t]*")
+(defconst hif-line-concat     "\\\\[ \t]*[\n\r]")
+;; If `hif-white-regexp' is modified, `hif-tokenize' might need to be modified
+;; accordingly.
+(defconst hif-white-regexp    (concat "\\(?:[ \t]\\|/\\*.*?\\*/"
+                                      "\\|\\(?:" hif-line-concat "\\)\\)*"))
 (defconst hif-define-regexp   (concat hif-cpp-prefix "\\(define\\|undef\\)"))
 (defconst hif-id-regexp       (concat "[[:alpha:]_][[:alnum:]_]*"))
+(defconst hif-etc-regexp      "\\.\\.\\.")
 (defconst hif-macroref-regexp
   (concat hif-white-regexp "\\(" hif-id-regexp "\\)"
           "\\("
           "(" hif-white-regexp
           "\\(" hif-id-regexp "\\)?" hif-white-regexp
           "\\(" "," hif-white-regexp hif-id-regexp hif-white-regexp "\\)*"
-          "\\(\\.\\.\\.\\)?" hif-white-regexp
+          "\\(" "," hif-white-regexp "\\)?" "\\(" hif-etc-regexp "\\)?" hif-white-regexp
           ")"
           "\\)?" ))
 
@@ -733,7 +733,7 @@ Assuming we've just regexp-matched with `hif-decfloat-regexp' and it matched.
 if REMATCH is t, do a rematch."
   ;; In elisp `(string-to-number "01.e2")' will return 1 instead of the expected
   ;; 100.0; therefore we need to write our own.
-  ;; This function relies on the regexp groups of `hif-dexfloat-regexp'
+  ;; This function relies on the regexp groups of `hif-hexfloat-regexp'
   (if (or fix exp)
       (setq fix (hif-delete-char-in-string ?' fix)
             exp (hif-delete-char-in-string ?' exp))
@@ -944,7 +944,11 @@ Assuming we've just performed a `hif-token-regexp' lookup."
 (defun hif-tokenize (start end)
   "Separate string between START and END into a list of tokens."
   (let ((token-list nil)
-        (white-regexp "[ \t]+")
+        ;; Similar to `hif-white-regexp' but keep the spaces if there are
+        (white-regexp (concat "\\(?:"
+                              "\\([ \t]+\\)\\|/\\*.*?\\*/"
+                              "\\|\\(?:" hif-line-concat "\\)"
+                              "\\)*"))
         token)
     (setq hif-simple-token-only t)
     (with-syntax-table hide-ifdef-syntax-table
@@ -964,29 +968,31 @@ Assuming we've just performed a `hif-token-regexp' lookup."
               (forward-char 2))
 
              ((looking-at hif-string-literal-regexp)
-              (setq token (substring-no-properties (match-string 1)))
+              (setq token (match-string-no-properties 1))
               (goto-char (match-end 0))
               (when (looking-at white-regexp)
-                (add-text-properties 0 1 '(hif-space t) token)
+                (if (not (zerop (length (match-string-no-properties 1))))
+                    (add-text-properties 0 1 '(hif-space t) token))
                 (goto-char (match-end 0)))
               (push token token-list))
 
              ((looking-at hif-token-regexp)
               (goto-char (match-end 0))
-              (setq token (hif-strtok
-                           (substring-no-properties (match-string 0))))
+              (setq token (hif-strtok (match-string-no-properties 0)))
               (push token token-list)
               (when (looking-at white-regexp)
-                ;; We can't just append a space to the token string, otherwise
-                ;; `0xf0 ' ## `01' will become `0xf0 01' instead of the expected
-                ;; `0xf001', hence a standalone `hif-space' is placed instead.
-                (push 'hif-space token-list)
+                (if (not (zerop (length (match-string-no-properties 1))))
+                    ;; We can't just append a space to the token string,
+                    ;; otherwise `0xf0 ' ## `01' will become `0xf0 01' instead
+                    ;; of the expected `0xf001', hence a standalone `hif-space'
+                    ;; is placed instead.
+                    (push 'hif-space token-list))
                 (goto-char (match-end 0))))
 
              ((looking-at "\r") ; Sometimes MS-Windows user will leave CR in
               (forward-char 1)) ;  the source code. Let's not get stuck here.
 
-             (t (error "Bad #if expression: %s" (buffer-string)))))))
+             (t (error "Bad preprocessor expression: %s" (buffer-string)))))))
       (if (eq 'hif-space (car token-list))
           (setq token-list (cdr token-list))) ;; remove trailing white space
       (nreverse token-list))))
@@ -1134,7 +1140,7 @@ this is to emulate the stringification behavior of C++ preprocessor."
                                 (and (eq (car remains) 'hif-space)
                                      (eq (cadr remains) 'hif-lparen)
                                      (setq remains (cdr remains)))))
-                       ;; No argument, no invocation
+                       ;; No argument list, no invocation
                        tok
                      ;; Argumented macro, get arguments and invoke it.
                      ;; Dynamically bind `hif-token-list' and `hif-token'
@@ -1377,8 +1383,9 @@ factor : `!' factor | `~' factor | `(' exprlist `)' | `defined(' id `)' |
         (parmlist nil) ; A "token" list of parameters, will later be parsed
         (parm nil))
 
-    (while (or (not (eq (hif-nexttoken keep-space) 'hif-rparen))
-               (/= nest 0))
+    (while (and (or (not (eq (hif-nexttoken keep-space) 'hif-rparen))
+                    (/= nest 0))
+                hif-token)
       (if (eq (car (last parm)) 'hif-comma)
           (setq parm nil))
       (cond
@@ -1392,6 +1399,8 @@ factor : `!' factor | `~' factor | `(' exprlist `)' | `defined(' id `)' |
         (setq parm nil)))
       (push hif-token parm))
 
+    (if (equal parm '(hif-comma)) ;; missing the last argument
+        (setq parm '(nil)))
     (push (nreverse parm) parmlist) ; Okay even if PARM is nil
     (hif-nexttoken keep-space) ; Drop the `hif-rparen', get next token
     (nreverse parmlist)))
@@ -1617,10 +1626,20 @@ and `+='...)."
     ;; no need to reassemble the list if no `##' presents
     l))
 
-(defun hif-delimit (lis atom)
-  (nconc (mapcan (lambda (l) (list l atom))
+(defun hif-delimit (lis elem)
+  (nconc (mapcan (lambda (l) (list l elem))
                  (butlast lis))
          (last lis)))
+
+(defun hif-delete-nth (n lst)
+  "Non-destructively delete the nth item from a list."
+  (if (zerop n)
+      (cdr lst)
+    ;; non-destructive
+    (let* ((duplst (copy-sequence lst))
+           (node (nthcdr (1- n) duplst)))
+      (setcdr node (cddr node))
+      duplst)))
 
 ;; Perform token replacement:
 (defun hif-macro-supply-arguments (macro-name actual-parms)
@@ -1641,49 +1660,160 @@ and `+='...)."
       ;; For each actual parameter, evaluate each one and associate it
       ;; with an actual parameter, put it into local table and finally
       ;; evaluate the macro body.
-      (if (setq etc (eq (car formal-parms) 'hif-etc))
+      (if (setq etc (or (eq (car formal-parms) 'hif-etc)
+                        (and (eq (car formal-parms) 'hif-etc-c99) 'c99)))
           ;; Take care of `hif-etc' first. Prefix `hif-comma' back if needed.
           (setq formal-parms (cdr formal-parms)))
       (setq formal-count (length formal-parms)
             actual-count (length actual-parms))
 
-      (if (> formal-count actual-count)
-          (error "Too few parameters for macro %S" macro-name)
-        (if (< formal-count actual-count)
-            (or etc
-                (error "Too many parameters for macro %S" macro-name))))
+      ;; Fix empty arguments applied
+      (if (and (= formal-count 1)
+               (null (car formal-parms)))
+          (setq formal-parms nil
+                formal-count (1- formal-count)))
+      (if (and (= actual-count 1)
+               (or (null (car actual-parms))
+                   ;; white space as the only argument
+                   (equal '(hif-space) (car actual-parms))))
+          (setq actual-parms nil
+                actual-count (1- actual-count)))
+
+      ;; Basic error checking
+      (if etc
+          (if (eq etc 'c99)
+              (if (and (> formal-count 1) ; f(a,b,...)
+                       (< actual-count formal-count))
+                  (error "C99 variadic argument macro %S need at least %d arguments"
+                         macro-name formal-count))
+            ;; GNU style variadic argument
+            (if (and (> formal-count 1)
+                     (< actual-count (1- formal-count)))
+                (error "GNU variadic argument macro %S need at least %d arguments"
+                       macro-name (1- formal-count))))
+        (if (> formal-count actual-count)
+            (error "Too few parameters for macro %S; %d instead of %d"
+                   macro-name actual-count formal-count)
+          (if (< formal-count actual-count)
+              (error "Too many parameters for macro %S; %d instead of %d"
+                     macro-name actual-count formal-count))))
 
       ;; Perform token replacement on the MACRO-BODY with the parameters
-      (while (setq formal (pop formal-parms))
-        ;; Prevent repetitive substitution, thus cannot use `subst'
-        ;; for example:
-        ;; #define mac(a,b) (a+b)
-        ;; #define testmac mac(b,y)
-        ;; testmac should expand to (b+y): replace of argument a and b
-        ;; occurs simultaneously, not sequentially. If sequentially,
-        ;; according to the argument order, it will become:
-        ;; 1. formal parm #1 'a' replaced by actual parm 'b', thus (a+b)
-        ;;    becomes (b+b)
-        ;; 2. formal parm #2 'b' replaced by actual parm 'y', thus (b+b)
-        ;;    becomes (y+y).
-        (setq macro-body
-              ;; Unlike `subst', `substitute' replace only the top level
-              ;; instead of the whole tree; more importantly, it's not
-              ;; destructive.
-              (cl-substitute (if (and etc (null formal-parms))
-                                 (hif-delimit actual-parms 'hif-comma)
-                               (car actual-parms))
-                             formal macro-body))
-        (setq actual-parms (cdr actual-parms)))
 
-        ;; Replacement completed, stringifiy and concatenate the token list.
-        ;; Stringification happens must take place before flattening, otherwise
-        ;; only the first token will be stringified.
-        (setq macro-body
-              (flatten-tree (hif-token-stringification macro-body)))
+      ;; Every substituted argument in the macro-body must be in list form so
+      ;; that it won't again be substituted incorrectly in later iterations.
+      ;; Finally we will flatten the list to fix that.
+      (cl-loop
+       do
+       ;; Note that C99 '...' and GNU 'x...' allow empty match
+       (setq formal (pop formal-parms))
+       ;;
+       ;; Prevent repetitive substitution, thus cannot use `subst'
+       ;; for example:
+       ;;   #define mac(a,b) (a+b)
+       ;;   #define testmac mac(b,y)
+       ;;   testmac should expand to (b+y): replace of argument a and b
+       ;;   occurs simultaneously, not sequentially. If sequentially,
+       ;;   according to the argument order, it will become:
+       ;;   1. formal parm #1 'a' replaced by actual parm 'b', thus (a+b)
+       ;;      becomes (b+b)
+       ;;   2. formal parm #2 'b' replaced by actual parm 'y', thus (b+b)
+       ;;      becomes (y+y).
+       ;; Unlike `subst', `cl-substitute' replace only the top level
+       ;; instead of the whole tree; more importantly, it's not
+       ;; destructive.
+       ;;
+       (if (not (and (null formal-parms) etc))
+           ;; One formal with one actual
+           (setq macro-body
+                 (cl-substitute (car actual-parms) formal macro-body))
+         ;; `formal-parms' used up, now take care of '...'
+         (cond
 
-        ;; Token concatenation happens here, keep single 'hif-space
-        (hif-keep-single (hif-token-concatenation macro-body) 'hif-space))))
+          ((eq etc 'c99) ; C99 __VA_ARGS__ style '...'
+           (when formal
+             (setq macro-body
+                   (cl-substitute (car actual-parms) formal macro-body))
+             ;; Now the whole __VA_ARGS__ represents the whole
+             ;; remaining actual params
+             (pop actual-parms))
+           ;; Replace if __VA_ARGS__ presents:
+           ;;   if yes, see if it's prefixed with ", ##" or not,
+           ;;    if yes, remove the "##", then if actual-params is
+           ;;   exhausted, remove the prefixed ',' as well.
+           ;; Prepare for destructive operation
+           (let ((rem-body (copy-sequence macro-body))
+                 new-body va left part)
+             ;; Find each __VA_ARGS__ and remove its immediate prefixed '##'
+             ;; and comma if presents and if `formal_param' is exhausted
+             (while (setq va (cl-position '__VA_ARGS__ rem-body))
+               ;; Split REM-BODY @ __VA_ARGS__ into LEFT and right
+               (setq part nil)
+               (if (zerop va)
+                   (setq left nil ; __VA_ARGS__ trimed
+                         rem-body (cdr rem-body))
+                 (setq left rem-body
+                       rem-body (cdr (nthcdr va rem-body))) ; _V_ removed
+                 (setcdr (nthcdr va left) nil) ; now _V_ be the last in LEFT
+                 ;; now LEFT=(, w? ## w? _V_) rem=(W X Y) where w = white space
+                 (setq left (cdr (nreverse left)))) ; left=(w? ## w? ,)
+
+               ;; Try to recognize w?##w? and remove ", ##" if found
+               ;;   (remember head = __VA_ARGS__ is temporarily removed)
+               (while (and left (eq 'hif-space (car left))) ; skip whites
+                 (setq part (cons 'hif-space part)
+                       left (cdr left)))
+
+               (if (eq (car left) 'hif-token-concat) ; match '##'
+                   (if actual-parms
+                       ;; Keep everything
+                       (setq part (append part (cdr left)))
+                     ;; `actual-params' exhausted, delete ',' if presents
+                     (while (and left (eq 'hif-space (car left))) ; skip whites
+                       (setq part (cons 'hif-space part)
+                             left (cdr left)))
+                     (setq part
+                           (append part
+                                   (if (eq (car left) 'hif-comma) ; match ','
+                                       (cdr left)
+                                     left))))
+                 ;; No immediate '##' found
+                 (setq part (append part left)))
+
+               ;; Insert __VA_ARGS__ as a list
+               (push (hif-delimit actual-parms 'hif-comma) part)
+               ;; Reverse `left' back
+               (setq left (nreverse part)
+                     new-body (append new-body left)))
+
+             ;; Replacement of __VA_ARGS__ done here, add rem-body back
+             (setq macro-body (append new-body rem-body)
+                   actual-parms nil)))
+
+          (etc ; GNU style '...', substitute last argument
+           (if (null actual-parms)
+               ;; Must be non-destructive otherwise the original function
+               ;; definition defined in `hide-ifdef-env' will be destroyed.
+               (setq macro-body (remove formal macro-body))
+             (setq macro-body
+                   (cl-substitute (hif-delimit actual-parms 'hif-comma)
+                                  formal macro-body)
+                   actual-parms nil)))
+
+          (t
+           (error "Interal error: impossible case."))))
+
+       (pop actual-parms)
+       while actual-parms) ; end cl-loop
+
+      ;; Replacement completed, stringifiy and concatenate the token list.
+      ;; Stringification happens must take place before flattening, otherwise
+      ;; only the first token will be stringified.
+      (setq macro-body
+            (flatten-tree (hif-token-stringification macro-body))))
+
+    ;; Token concatenation happens here, keep single 'hif-space
+    (hif-keep-single (hif-token-concatenation macro-body) 'hif-space)))
 
 (defun hif-invoke (macro-name actual-parms)
   "Invoke a macro by expanding it, reparse macro-body and finally invoke it."
@@ -1718,7 +1848,9 @@ and `+='...)."
 Do this when cursor is at the beginning of `regexp' (i.e. #ifX)."
   (let ((case-fold-search nil))
     (save-excursion
-      (re-search-forward regexp)
+      (if (re-search-forward regexp)
+          (if (= ?\( (char-before)) ;; "#if(" found
+              (goto-char (1- (point)))))
       (let* ((curr-regexp (match-string 0))
              (defined (string-match hif-ifxdef-regexp curr-regexp))
              (negate (and defined
@@ -1732,29 +1864,48 @@ Do this when cursor is at the beginning of `regexp' (i.e. #ifX)."
             (setq tokens (list 'hif-not tokens)))
         (hif-parse-exp tokens)))))
 
+(defun hif-is-in-comment ()
+  "Check if we're currently within a C(++) comment."
+  (or (nth 4 (syntax-ppss))
+      (looking-at "/[/*]")))
+
+(defun hif-search-ifX-regexp (hif-regexp &optional backward)
+  "Search for a valid ifX regexp defined in hideif."
+  (let ((start (point))
+        (re-search-func (if backward
+                            #'re-search-backward
+                          #'re-search-forward))
+        (limit (if backward (point-min) (point-max)))
+        found)
+    (while (and (setq found
+                      (funcall re-search-func hif-regexp limit t))
+                (hif-is-in-comment)))
+    ;; Jump to the pattern if found
+    (if found
+        (unless backward
+          (setq found
+                (goto-char (- (point) (length (match-string 0))))))
+      (goto-char start))
+    found))
+
 (defun hif-find-any-ifX ()
   "Move to next #if..., or #ifndef, at point or after."
   ;; (message "find ifX at %d" (point))
-  (prog1
-      (re-search-forward hif-ifx-regexp (point-max) t)
-    (beginning-of-line)))
-
+  (hif-search-ifX-regexp hif-ifx-regexp))
 
 (defun hif-find-next-relevant ()
   "Move to next #if..., #elif..., #else, or #endif, after the current line."
   ;; (message "hif-find-next-relevant at %d" (point))
   (end-of-line)
-  ;; Avoid infinite recursion by only going to line-beginning if match found
-  (if (re-search-forward hif-ifx-else-endif-regexp (point-max) t)
-      (beginning-of-line)))
+  ;; Avoid infinite recursion by going to the pattern only if a match is found
+  (hif-search-ifX-regexp hif-ifx-else-endif-regexp))
 
 (defun hif-find-previous-relevant ()
   "Move to previous #if..., #else, or #endif, before the current line."
   ;; (message "hif-find-previous-relevant at %d" (point))
   (beginning-of-line)
-  ;; Avoid infinite recursion by only going to line-beginning if match found
-  (if (re-search-backward hif-ifx-else-endif-regexp (point-min) t)
-     (beginning-of-line)))
+  ;; Avoid infinite recursion by going to the pattern only if a match is found
+  (hif-search-ifX-regexp hif-ifx-else-endif-regexp 't))
 
 
 (defun hif-looking-at-ifX ()
@@ -1939,6 +2090,7 @@ Point is left unchanged."
               ((hif-looking-at-else)
                (setq else (point)))
               (t
+               (beginning-of-line)  ; otherwise #endif line will be hidden
                (setq end (point)))))
       ;; If found #else, look for #endif.
       (when else
@@ -1948,6 +2100,7 @@ Point is left unchanged."
           (hif-ifdef-to-endif))
         (if (hif-looking-at-else)
             (error "Found two elses in a row?  Broken!"))
+        (beginning-of-line) ; otherwise #endif line will be hidden
         (setq end (point)))            ; (line-end-position)
       (hif-make-range start end else elif))))
 
@@ -2093,16 +2246,20 @@ Refer to `hide-ifdef-expand-reinclusion-guard' for more details."
            (eq (car def) 'hif-define-macro))
       (let ((cdef (concat "#define " name))
             (parmlist (cadr def))
-            s)
+            p s etc)
         (setq def (caddr def))
         ;; parmlist
         (when parmlist
           (setq cdef (concat cdef "("))
-          (while (car parmlist)
-            (setq cdef (concat cdef (symbol-name (car parmlist))
-                               (if (cdr parmlist) ","))
+          (if (setq etc (or (eq (setq p (car parmlist)) 'hif-etc)
+                            (and (eq p 'hif-etc-c99) 'c99)))
+              (pop parmlist))
+          (while (setq p (car parmlist))
+            (setq cdef (concat cdef (symbol-name p) (if (cdr parmlist) ","))
                   parmlist (cdr parmlist)))
-          (setq cdef (concat cdef ")")))
+          (setq cdef (concat cdef
+                             (if etc (concat (if (eq etc 'c99) ",") "..."))
+                             ")")))
         (setq cdef (concat cdef " "))
         ;; body
         (while def
@@ -2229,25 +2386,38 @@ however, when this command is prefixed, it will display the error instead."
         result))))
 
 (defun hif-parse-macro-arglist (str)
-  "Parse argument list formatted as `( arg1 [ , argn] [...] )'.
+  "Parse argument list formatted as `( arg1 [ , argn] [,] [...] )'.
 The `...' is also included.  Return a list of the arguments, if `...' exists the
 first arg will be `hif-etc'."
   (let* ((hif-simple-token-only nil) ; Dynamic binding var for `hif-tokenize'
          (tokenlist
           (cdr (hif-tokenize
                 (- (point) (length str)) (point)))) ; Remove `hif-lparen'
-         etc result token)
-    (while (not (eq (setq token (pop tokenlist)) 'hif-rparen))
+         etc result token prevtok prev2tok)
+    (while (not (eq (setq prev2tok prevtok
+                          prevtok token
+                          token (pop tokenlist)) 'hif-rparen))
       (cond
        ((eq token 'hif-etc)
-        (setq etc t))
+        ;; GNU type "..." or C99 type
+        (setq etc (if (or (null prevtok)
+                          (eq prevtok 'hif-comma)
+                          (and (eq prevtok 'hif-space)
+                               (eq prev2tok 'hif-comma)))
+                      'c99 t)))
        ((eq token 'hif-comma)
-        t)
+        (if etc
+            (error "Syntax error: no comma allowed after `...'.")))
        (t
         (push token result))))
-    (if etc
-        (cons 'hif-etc (nreverse result))
-      (nreverse result))))
+    (setq result (nreverse result))
+    (cond
+     ((eq etc 'c99)
+      (cons 'hif-etc-c99 result))
+     ((eq etc t)
+      (cons 'hif-etc result))
+     (t
+      result))))
 
 ;; The original version of hideif evaluates the macro early and store the
 ;; final values for the defined macro into the symbol database (aka
@@ -2288,9 +2458,11 @@ first arg will be `hif-etc'."
         (let* ((defining (string= "define" (match-string 2)))
                (name (and (re-search-forward hif-macroref-regexp max t)
                           (match-string 1)))
-               (parmlist (or (and (match-string 3) ; First arg id found
+               (parmlist (or (and (or (match-string 3) ; First arg id found
+                                      (match-string 6)) ; '...' found
                                   (delq 'hif-space
-                                   (hif-parse-macro-arglist (match-string 2))))
+                                        (hif-parse-macro-arglist
+                                         (match-string 2))))
                              (and (match-string 2) ; empty arglist
                                   (list nil)))))
           (if defining
@@ -2333,7 +2505,8 @@ first arg will be `hif-etc'."
                          (expr (and tokens
                                     ;; `hif-simple-token-only' is checked only
                                     ;; here.
-                                    (or (and hif-simple-token-only
+                                    (or (and (null parmlist)
+                                             hif-simple-token-only
                                              (listp tokens)
                                              (= (length tokens) 1)
                                              (hif-parse-exp tokens))
@@ -2362,13 +2535,22 @@ first arg will be `hif-etc'."
   (save-excursion
     (save-restriction
       ;; (mark-region min max) ;; for debugging
+      (and min (goto-char min))
       (setq hif-verbose-define-count 0)
       (forward-comment (point-max))
-      (while (hif-find-define min max)
-        (forward-comment (point-max))
-        (setf min (point)))
+      (setq min (point))
+      (let ((breakloop nil))
+        (while (and (not breakloop)
+                    (hif-find-define min max))
+          (forward-comment (point-max))
+          (if (and max
+                   (> (point) max))
+              (setq max (point)
+                    breakloop t))
+          (setq min (point))))
       (if max (goto-char max)
-        (goto-char (point-max))))))
+        (goto-char (point-max))
+        nil))))
 
 (defun hide-ifdef-guts ()
   "Does most of the work of `hide-ifdefs'.
@@ -2384,7 +2566,7 @@ It does not do the work that's pointless to redo on a recursive entry."
            min max)
       (setq hif-__COUNTER__ 0)
       (goto-char (point-min))
-      (setf min (point))
+      (setq min (point))
       ;; Without this `condition-case' it would be easier to see which
       ;; operation went wrong thru the backtrace `iff' user realize
       ;; the underlying meaning of all hif-* operation; for example,
@@ -2392,11 +2574,11 @@ It does not do the work that's pointless to redo on a recursive entry."
       ;; operation arguments would be invalid.
       (condition-case err
           (cl-loop do
-                   (setf max (hif-find-any-ifX))
-                   (hif-add-new-defines min max)
+                   (setq max (hif-find-any-ifX))
+                   (setq max (hif-add-new-defines min max))
                    (if max
                        (hif-possibly-hide expand-header))
-                   (setf min (point))
+                   (setq min (point))
                    while max)
         (error (error "Error: failed at line %d %S"
                       (line-number-at-pos) err))))))
@@ -2456,7 +2638,7 @@ This allows #ifdef VAR to be hidden."
                            (t
                             nil))))
           (var (read-minibuffer "Define what? " default))
-          (val (read-from-minibuffer (format "Set %s to? (default 1): " var)
+          (val (read-from-minibuffer (format-prompt "Set %s to?" "1" var)
                                      nil nil t nil "1")))
      (list var val)))
   (hif-set-var var (or val 1))
@@ -2527,8 +2709,7 @@ Turn off hiding by calling `show-ifdefs'."
             (or hide-ifdef-read-only hif-outside-read-only))
       (and hide-ifdef-verbose
            (message "Hiding done, %.1f seconds elapsed"
-                    (float-time (time-subtract (current-time)
-                                               hide-start-time)))))))
+		    (float-time (time-subtract nil hide-start-time)))))))
 
 
 (defun show-ifdefs (&optional start end)

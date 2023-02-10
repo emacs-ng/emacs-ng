@@ -1,6 +1,6 @@
 ;;; nxml-mode.el --- a new XML mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003-2004, 2007-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2004, 2007-2023 Free Software Foundation, Inc.
 
 ;; Author: James Clark
 ;; Keywords: wp, hypermedia, languages, XML
@@ -195,7 +195,7 @@ This is not used directly, but only via inheritance by other faces."
 (defface nxml-char-ref-number
   '((t (:inherit nxml-ref)))
   "Face used for the number in character references.
-This includes ths `x' in hex references."
+This includes the `x' in hex references."
   :group 'nxml-faces)
 
 (defface nxml-char-ref-delimiter
@@ -369,31 +369,29 @@ and, if `nxml-char-ref-display-glyph-flag' is non-nil, a glyph
 corresponding to the referenced character following the character
 reference.")
 
-(defvar nxml-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\M-\C-u" 'nxml-backward-up-element)
-    (define-key map "\M-\C-d" 'nxml-down-element)
-    (define-key map "\M-\C-n" 'nxml-forward-element)
-    (define-key map "\M-\C-p" 'nxml-backward-element)
-    (define-key map "\M-{" 'nxml-backward-paragraph)
-    (define-key map "\M-}" 'nxml-forward-paragraph)
-    (define-key map "\M-h" 'nxml-mark-paragraph)
-    (define-key map "\C-c\C-f" 'nxml-finish-element)
-    (define-key map "\C-c]" 'nxml-finish-element)
-    (define-key map "\C-c/" 'nxml-finish-element)
-    (define-key map "\C-c\C-m" 'nxml-split-element)
-    (define-key map "\C-c\C-b" 'nxml-balanced-close-start-tag-block)
-    (define-key map "\C-c\C-i" 'nxml-balanced-close-start-tag-inline)
-    (define-key map "\C-c\C-x" 'nxml-insert-xml-declaration)
-    (define-key map "\C-c\C-d" 'nxml-dynamic-markup-word)
-    ;; u is for Unicode
-    (define-key map "\C-c\C-u" 'nxml-insert-named-char)
-    (define-key map "\C-c\C-o" nxml-outline-prefix-map)
-    (define-key map [S-mouse-2] 'nxml-mouse-hide-direct-text-content)
-    (define-key map "/" 'nxml-electric-slash)
-    (define-key map "\M-\t" 'completion-at-point)
-    map)
-  "Keymap for `nxml-mode'.")
+(defvar-keymap nxml-mode-map
+  :doc "Keymap for `nxml-mode'."
+  "C-M-u"   #'nxml-backward-up-element
+  "C-M-d"   #'nxml-down-element
+  "C-M-n"   #'nxml-forward-element
+  "C-M-p"   #'nxml-backward-element
+  "M-{"     #'nxml-backward-paragraph
+  "M-}"     #'nxml-forward-paragraph
+  "M-h"     #'nxml-mark-paragraph
+  "C-c C-f" #'nxml-finish-element
+  "C-c ]"   #'nxml-finish-element
+  "C-c /"   #'nxml-finish-element
+  "C-c C-m" #'nxml-split-element
+  "C-c C-b" #'nxml-balanced-close-start-tag-block
+  "C-c C-i" #'nxml-balanced-close-start-tag-inline
+  "C-c C-x" #'nxml-insert-xml-declaration
+  "C-c C-d" #'nxml-dynamic-markup-word
+  ;; u is for Unicode
+  "C-c C-u" #'nxml-insert-named-char
+  "C-c C-o" nxml-outline-prefix-map
+  "/"       #'nxml-electric-slash
+  "M-TAB"   #'completion-at-point
+  "S-<mouse-2>" #'nxml-mouse-hide-direct-text-content)
 
 (defvar nxml-font-lock-keywords
   '(nxml-fontify-matcher)
@@ -538,8 +536,7 @@ Many aspects this mode can be customized using
     (save-restriction
       (widen)
       (with-silent-modifications
-	(nxml-with-invisible-motion
-	  (nxml-scan-prolog)))))
+	(nxml-scan-prolog))))
   (setq-local syntax-ppss-table sgml-tag-syntax-table)
   (setq-local syntax-propertize-function #'nxml-syntax-propertize)
   (add-function :filter-return (local 'filter-buffer-substring-function)
@@ -566,7 +563,8 @@ Many aspects this mode can be customized using
           (font-lock-syntactic-face-function
            . sgml-font-lock-syntactic-face)))
 
-  (with-demoted-errors (rng-nxml-mode-init)))
+  (with-demoted-errors "RNG NXML error: %S"
+    (rng-nxml-mode-init)))
 
 (defun nxml--buffer-substring-filter (string)
   ;; The `rng-state' property is huge, so don't copy it to the kill ring.
@@ -585,8 +583,7 @@ Many aspects this mode can be customized using
   (save-excursion
     (widen)
     (with-silent-modifications
-      (nxml-with-invisible-motion
-       (remove-text-properties (point-min) (point-max) '(face nil)))))
+      (remove-text-properties (point-min) (point-max) '(face nil))))
   (remove-hook 'change-major-mode-hook #'nxml-cleanup t))
 
 (defun nxml-degrade (context err)

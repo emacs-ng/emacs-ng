@@ -1,6 +1,6 @@
 ;;; semantic/sort.el --- Utilities for sorting and re-arranging tag tables.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: syntax
@@ -310,7 +310,7 @@ may re-organize the list with side-effects."
 ;; class tag.
 ;;
 (defvar-local semantic-orphaned-member-metaparent-type "class"
-  "In `semantic-adopt-external-members', the type of 'type for metaparents.
+  "In `semantic-adopt-external-members', the type of `type' for metaparents.
 A metaparent is a made-up type semantic token used to hold the child list
 of orphaned members of a named type.")
 
@@ -474,7 +474,7 @@ The default behavior, if not overridden with
 the name of TAG.
 
 If this function is overridden, use
-`semantic-tag-external-member-children-p-default' to also
+`semantic-tag-external-member-children-default' to also
 include the default behavior, and merely extend your own."
   )
 

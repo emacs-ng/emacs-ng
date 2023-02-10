@@ -1,6 +1,6 @@
 ;;; indent.el --- indentation commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985, 1995, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1995, 2001-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Package: emacs
@@ -89,16 +89,20 @@ This variable has no effect unless `tab-always-indent' is `complete'."
                                         indent-relative-first-indent-point)
   "Values that are ignored by `indent-according-to-mode'.")
 
-(defun indent-according-to-mode ()
+(defun indent-according-to-mode (&optional inhibit-widen)
   "Indent line in proper way for current major mode.
 Normally, this is done by calling the function specified by the
 variable `indent-line-function'.  However, if the value of that
 variable is present in the `indent-line-ignored-functions' variable,
 handle it specially (since those functions are used for tabbing);
-in that case, indent by aligning to the previous non-blank line."
+in that case, indent by aligning to the previous non-blank line.
+
+Ignore restriction, unless the optional argument INHIBIT-WIDEN is
+non-nil."
   (interactive)
   (save-restriction
-    (widen)
+    (unless inhibit-widen
+      (widen))
   (syntax-propertize (line-end-position))
   (if (memq indent-line-function indent-line-ignored-functions)
       ;; These functions are used for tabbing, but can't be used for
@@ -167,7 +171,7 @@ prefix argument is ignored."
     (let ((old-tick (buffer-chars-modified-tick))
           (old-point (point))
 	  (old-indent (current-indentation))
-          (syn `(,(syntax-after (point)))))
+          (syn (syntax-after (point))))
 
       ;; Indent the line.
       (or (not (eq (indent--funcall-widened indent-line-function) 'noindent))
@@ -179,21 +183,21 @@ prefix argument is ignored."
       (cond
        ;; If the text was already indented right, try completion.
        ((and (eq tab-always-indent 'complete)
-             (eq old-point (point))
-             (eq old-tick (buffer-chars-modified-tick))
+             (eql old-point (point))
+             (eql old-tick (buffer-chars-modified-tick))
              (or (null tab-first-completion)
                  (eq last-command this-command)
-                 (and (equal tab-first-completion 'eol)
+                 (and (eq tab-first-completion 'eol)
                       (eolp))
-                 (and (member tab-first-completion
-                              '(word word-or-paren word-or-paren-or-punct))
-                      (not (member 2 syn)))
-                 (and (member tab-first-completion
-                              '(word-or-paren word-or-paren-or-punct))
-                      (not (or (member 4 syn)
-                               (member 5 syn))))
-                 (and (equal tab-first-completion 'word-or-paren-or-punct)
-                      (not (member 1 syn)))))
+                 (and (memq tab-first-completion
+                            '(word word-or-paren word-or-paren-or-punct))
+                      (not (eql 2 syn)))
+                 (and (memq tab-first-completion
+                            '(word-or-paren word-or-paren-or-punct))
+                      (not (or (eql 4 syn)
+                               (eql 5 syn))))
+                 (and (eq tab-first-completion 'word-or-paren-or-punct)
+                      (not (eql 1 syn)))))
         (completion-at-point))
 
        ;; If a prefix argument was given, rigidly indent the following
@@ -236,21 +240,23 @@ Blank lines are ignored."
                             (current-indentation))))
         indent))))
 
-(defvar indent-rigidly-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [left]  'indent-rigidly-left)
-    (define-key map [right] 'indent-rigidly-right)
-    (define-key map [S-left]  'indent-rigidly-left-to-tab-stop)
-    (define-key map [S-right] 'indent-rigidly-right-to-tab-stop)
-    map)
-  "Transient keymap for adjusting indentation interactively.
-It is activated by calling `indent-rigidly' interactively.")
+(defvar-keymap indent-rigidly-map
+  :doc   "Transient keymap for adjusting indentation interactively.
+It is activated by calling `indent-rigidly' interactively."
+  "TAB"       #'indent-rigidly-right
+  "<left>"    #'indent-rigidly-left
+  "<right>"   #'indent-rigidly-right
+  "S-<left>"  #'indent-rigidly-left-to-tab-stop
+  "S-<right>" #'indent-rigidly-right-to-tab-stop)
+(put 'indent-rigidly-right :advertised-binding (kbd "<right>"))
 
 (defun indent-rigidly (start end arg &optional interactive)
   "Indent all lines starting in the region.
 If called interactively with no prefix argument, activate a
 transient mode in which the indentation can be adjusted interactively
 by typing \\<indent-rigidly-map>\\[indent-rigidly-left], \\[indent-rigidly-right], \\[indent-rigidly-left-to-tab-stop], or \\[indent-rigidly-right-to-tab-stop].
+In addition, \\`TAB' is also bound (and calls `indent-rigidly-right').
+
 Typing any other key exits this mode, and this key is then
 acted upon as normally.  If `transient-mark-mode' is enabled,
 exiting also deactivates the mark.
@@ -264,11 +270,8 @@ Negative values of ARG indent backward, so you can remove all
 indentation by specifying a large negative ARG."
   (interactive "r\nP\np")
   (if (and (not arg) interactive)
-      (progn
-        (message
-	 (substitute-command-keys
-	  "Indent region with \\<indent-rigidly-map>\\[indent-rigidly-left], \\[indent-rigidly-right], \\[indent-rigidly-left-to-tab-stop], or \\[indent-rigidly-right-to-tab-stop]."))
-        (set-transient-map indent-rigidly-map t #'deactivate-mark))
+      (set-transient-map indent-rigidly-map t #'deactivate-mark
+                         "Indent region with %k")
     (save-excursion
       (goto-char end)
       (setq end (point-marker))
@@ -602,7 +605,10 @@ column to indent to; if it is nil, use one of the three methods above."
       (funcall indent-region-function start end)))
    ;; Else, use a default implementation that calls indent-line-function on
    ;; each line.
-   (t (indent-region-line-by-line start end)))
+   (t
+    (save-restriction
+      (widen)
+      (indent-region-line-by-line start end))))
   ;; In most cases, reindenting modifies the buffer, but it may also
   ;; leave it unmodified, in which case we have to deactivate the mark
   ;; by hand.
@@ -616,7 +622,7 @@ column to indent to; if it is nil, use one of the three methods above."
                 (make-progress-reporter "Indenting region..." (point) end))))
       (while (< (point) end)
         (or (and (bolp) (eolp))
-            (indent-according-to-mode))
+            (indent-according-to-mode t))
         (forward-line 1)
         (and pr (progress-reporter-update pr (point))))
       (and pr (progress-reporter-done pr))
@@ -689,12 +695,10 @@ A value of nil means a tab stop every `tab-width' columns."
   :safe 'listp
   :type '(repeat integer))
 
-(defvar edit-tab-stops-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\C-x\C-s" 'edit-tab-stops-note-changes)
-    (define-key map "\C-c\C-c" 'edit-tab-stops-note-changes)
-    map)
-  "Keymap used in `edit-tab-stops'.")
+(defvar-keymap edit-tab-stops-map
+  :doc "Keymap used in `edit-tab-stops'."
+  "C-x C-s" #'edit-tab-stops-note-changes
+  "C-c C-c" #'edit-tab-stops-note-changes)
 
 (defvar edit-tab-stops-buffer nil
   "Buffer whose tab stops are being edited.
@@ -728,7 +732,9 @@ You can add or remove colons and then do \\<edit-tab-stops-map>\\[edit-tab-stops
     (while (> count 0)
       (insert "0123456789")
       (setq count (1- count))))
-  (insert "\nTo install changes, type C-c C-c")
+  (insert (substitute-command-keys
+           (concat "\nTo install changes, type \\<edit-tab-stops-map>"
+                   "\\[edit-tab-stops-note-changes]")))
   (goto-char (point-min)))
 
 (defun edit-tab-stops-note-changes ()
@@ -778,7 +784,8 @@ If PREV is non-nil, return the previous one instead."
 (defun tab-to-tab-stop ()
   "Insert spaces or tabs to next defined tab-stop column.
 The variable `tab-stop-list' is a list of columns at which there are tab stops.
-Use \\[edit-tab-stops] to edit them interactively."
+Use \\[edit-tab-stops] to edit them interactively.
+Whether this inserts tabs or spaces depends on `indent-tabs-mode'."
   (interactive)
   (and abbrev-mode (= (char-syntax (preceding-char)) ?w)
        (expand-abbrev))

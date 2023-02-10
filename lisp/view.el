@@ -1,7 +1,6 @@
 ;;; view.el --- peruse file or buffer without editing  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985, 1989, 1994-1995, 1997, 2000-2022 Free Software
-;; Foundation, Inc.
+;; Copyright (C) 1985-2023 Free Software Foundation, Inc.
 
 ;; Author: K. Shane Hartman
 ;; Maintainer: emacs-devel@gnu.org
@@ -26,9 +25,11 @@
 
 ;; This package provides the `view' minor mode documented in the Emacs
 ;; user's manual.
+;;
 ;; View mode entry and exit is done through the functions `view-mode-enter'
 ;; and `view-mode-exit'.  Use these functions to enter or exit `view-mode' from
 ;; Emacs Lisp programs.
+;;
 ;; We use both view- and View- as prefix for symbols.  View- is used as
 ;; prefix for commands that have a key binding.  view- is used for commands
 ;; without key binding.  The purpose of this is to make it easier for a
@@ -36,8 +37,8 @@
 
 ;;; Suggested key bindings:
 ;;
-;; (define-key ctl-x-4-map "v" #'view-file-other-window)  ; ^x4v
-;; (define-key ctl-x-5-map "v" #'view-file-other-frame)   ; ^x5v
+;; (keymap-set ctl-x-4-map "v" #'view-file-other-window)  ; C-x 4 v
+;; (keymap-set ctl-x-5-map "v" #'view-file-other-frame)   ; C-x 5 v
 ;;
 ;; You could also bind `view-file', `view-buffer', `view-buffer-other-window' and
 ;; `view-buffer-other-frame' to keys.
@@ -67,13 +68,6 @@ the F command in `view-mode', but you can set it to t if you want the action
 for all scroll commands in view mode."
   :type 'boolean)
 
-;;;###autoload
-(defcustom view-remove-frame-by-deleting t
-  "Determine how View mode removes a frame no longer needed.
-If nil, make an icon of the frame.  If non-nil, delete the frame."
-  :type 'boolean
-  :version "23.1")
-
 (defcustom view-exits-all-viewing-windows nil
   "Non-nil means restore all windows used to view buffer.
 Commands that restore windows when finished viewing a buffer,
@@ -101,8 +95,6 @@ functions that enable or disable view mode.")
 
 (defvar-local view-old-buffer-read-only nil)
 
-(defvar-local view-old-Helper-return-blurb nil)
-
 (defvar-local view-page-size nil
   "Default number of lines to scroll by View page commands.
 If nil that means use the window size.")
@@ -112,18 +104,6 @@ If nil that means use the window size.")
 If nil that means use half the window size.")
 
 (defvar-local view-last-regexp nil) ; Global is better???
-
-(defvar-local view-return-to-alist nil
-  "What to do with used windows and where to go when finished viewing buffer.
-This is local in each buffer being viewed.
-It is added to by `view-mode-enter' when starting to view a buffer and
-subtracted from by `view-mode-exit' when finished viewing the buffer.
-
-See RETURN-TO-ALIST argument of function `view-mode-exit' for the format of
-`view-return-to-alist'.")
-(make-obsolete-variable
- 'view-return-to-alist "this variable is no longer used." "24.1")
-(put 'view-return-to-alist 'permanent-local t)
 
 (defvar-local view-exit-action nil
   "If non-nil, a function called when finished viewing.
@@ -142,68 +122,68 @@ that use View mode automatically.")
 (defvar-local view-overlay nil
   "Overlay used to display where a search operation found its match.
 This is local in each buffer, once it is used.")
+
 
-;; Define keymap inside defvar to make it easier to load changes.
 ;; Some redundant "less"-like key bindings below have been commented out.
-(defvar view-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "C" #'View-kill-and-leave)
-    (define-key map "c" #'View-leave)
-    (define-key map "Q" #'View-quit-all)
-    (define-key map "E" #'View-exit-and-edit)
-    ;; (define-key map "v" #'View-exit)
-    (define-key map "e" #'View-exit)
-    (define-key map "q" #'View-quit)
-    ;; (define-key map "N" #'View-search-last-regexp-backward)
-    (define-key map "p" #'View-search-last-regexp-backward)
-    (define-key map "n" #'View-search-last-regexp-forward)
-    ;; (define-key map "?" #'View-search-regexp-backward) ; Less does this.
-    (define-key map "\\" #'View-search-regexp-backward)
-    (define-key map "/" #'View-search-regexp-forward)
-    (define-key map "r" #'isearch-backward)
-    (define-key map "s" #'isearch-forward)
-    (define-key map "m" #'point-to-register)
-    (define-key map "'" #'register-to-point)
-    (define-key map "x" #'exchange-point-and-mark)
-    (define-key map "@" #'View-back-to-mark)
-    (define-key map "." #'set-mark-command)
-    (define-key map "%" #'View-goto-percent)
-    ;; (define-key map "G" #'View-goto-line-last)
-    (define-key map "g" #'View-goto-line)
-    (define-key map "=" #'what-line)
-    (define-key map "F" #'View-revert-buffer-scroll-page-forward)
-    ;; (define-key map "k" #'View-scroll-line-backward)
-    (define-key map "y" #'View-scroll-line-backward)
-    ;; (define-key map "j" #'View-scroll-line-forward)
-    (define-key map "\n" #'View-scroll-line-forward)
-    (define-key map "\r" #'View-scroll-line-forward)
-    (define-key map "u" #'View-scroll-half-page-backward)
-    (define-key map "d" #'View-scroll-half-page-forward)
-    (define-key map "z" #'View-scroll-page-forward-set-page-size)
-    (define-key map "w" #'View-scroll-page-backward-set-page-size)
-    ;; (define-key map "b" #'View-scroll-page-backward)
-    (define-key map "\C-?" #'View-scroll-page-backward)
-    ;; (define-key map "f" #'View-scroll-page-forward)
-    (define-key map " " #'View-scroll-page-forward)
-    (define-key map [?\S-\ ] #'View-scroll-page-backward)
-    (define-key map "o" #'View-scroll-to-buffer-end)
-    (define-key map ">" #'end-of-buffer)
-    (define-key map "<" #'beginning-of-buffer)
-    (define-key map "-" #'negative-argument)
-    (define-key map "9" #'digit-argument)
-    (define-key map "8" #'digit-argument)
-    (define-key map "7" #'digit-argument)
-    (define-key map "6" #'digit-argument)
-    (define-key map "5" #'digit-argument)
-    (define-key map "4" #'digit-argument)
-    (define-key map "3" #'digit-argument)
-    (define-key map "2" #'digit-argument)
-    (define-key map "1" #'digit-argument)
-    (define-key map "0" #'digit-argument)
-    (define-key map "H" #'describe-mode)
-    (define-key map "?" #'describe-mode)	; Maybe do as less instead? See above.
-    (define-key map "h" #'describe-mode)
-    map))
+(defvar-keymap view-mode-map
+  :doc "Keymap for `view-mode'."
+  "C"     #'View-kill-and-leave
+  "c"     #'View-leave
+  "Q"     #'View-quit-all
+  "E"     #'View-exit-and-edit
+  ;; "v"  #'View-exit
+  "e"     #'View-exit
+  "q"     #'View-quit
+  ;; "N"  #'View-search-last-regexp-backward
+  "p"     #'View-search-last-regexp-backward
+  "n"     #'View-search-last-regexp-forward
+  ;; "?"  #'View-search-regexp-backward ; Less does this.
+  "\\"    #'View-search-regexp-backward
+  "/"     #'View-search-regexp-forward
+  "r"     #'isearch-backward
+  "s"     #'isearch-forward
+  "m"     #'point-to-register
+  "'"     #'register-to-point
+  "x"     #'exchange-point-and-mark
+  "@"     #'View-back-to-mark
+  "."     #'set-mark-command
+  "%"     #'View-goto-percent
+  ;; "G"  #'View-goto-line-last
+  "g"     #'View-goto-line
+  "="     #'what-line
+  "F"     #'View-revert-buffer-scroll-page-forward
+  ;; "k"  #'View-scroll-line-backward
+  "y"     #'View-scroll-line-backward
+  ;; "j"  #'View-scroll-line-forward
+  "C-j"   #'View-scroll-line-forward
+  "RET"   #'View-scroll-line-forward
+  "u"     #'View-scroll-half-page-backward
+  "d"     #'View-scroll-half-page-forward
+  "z"     #'View-scroll-page-forward-set-page-size
+  "w"     #'View-scroll-page-backward-set-page-size
+  ;; "b"  #'View-scroll-page-backward
+  "DEL"   #'View-scroll-page-backward
+  ;; "f"  #'View-scroll-page-forward
+  "SPC"   #'View-scroll-page-forward
+  "S-SPC" #'View-scroll-page-backward
+  "o"     #'View-scroll-to-buffer-end
+  ">"     #'end-of-buffer
+  "<"     #'beginning-of-buffer
+  "-"     #'negative-argument
+  "9"     #'digit-argument
+  "8"     #'digit-argument
+  "7"     #'digit-argument
+  "6"     #'digit-argument
+  "5"     #'digit-argument
+  "4"     #'digit-argument
+  "3"     #'digit-argument
+  "2"     #'digit-argument
+  "1"     #'digit-argument
+  "0"     #'digit-argument
+  "H"     #'describe-mode
+  "?"     #'describe-mode	; Maybe do as less instead? See above.
+  "h"     #'describe-mode)
+
 
 ;;; Commands that enter or exit view mode.
 
@@ -454,15 +434,9 @@ Entry to view-mode runs the normal hook `view-mode-hook'."
   (setq view-page-size nil
 	view-half-page-size nil
 	view-old-buffer-read-only buffer-read-only
-	buffer-read-only t)
-  (if (boundp 'Helper-return-blurb)
-      (setq view-old-Helper-return-blurb (and (boundp 'Helper-return-blurb)
-					      Helper-return-blurb)
-	    Helper-return-blurb
-	    (format "continue viewing %s"
-		    (if (buffer-file-name)
-			(file-name-nondirectory (buffer-file-name))
-		      (buffer-name))))))
+        buffer-read-only t)
+  ;; Make reverting the buffer preserve unreadableness.
+  (setq-local read-only-mode--state t))
 
 
 (define-obsolete-function-alias 'view-mode-enable 'view-mode "24.4")
@@ -482,44 +456,8 @@ Entry to view-mode runs the normal hook `view-mode-hook'."
   ;; so that View mode stays off if read-only-mode is called.
   (if (local-variable-p 'view-read-only)
       (kill-local-variable 'view-read-only))
-  (if (boundp 'Helper-return-blurb)
-      (setq Helper-return-blurb view-old-Helper-return-blurb))
   (if buffer-read-only
       (setq buffer-read-only view-old-buffer-read-only)))
-
-;;;###autoload
-(defun view-return-to-alist-update (buffer &optional item)
-  "Update `view-return-to-alist' of buffer BUFFER.
-Remove from `view-return-to-alist' all entries referencing dead
-windows.  Optional argument ITEM non-nil means add ITEM to
-`view-return-to-alist' after purging.  For a description of items
-that can be added see the RETURN-TO-ALIST argument of the
-function `view-mode-exit'.  If `view-return-to-alist' contains an
-entry for the selected window, purge that entry from
-`view-return-to-alist' before adding ITEM."
-  (declare (obsolete "this function has no effect." "24.1"))
-  (with-current-buffer buffer
-    (when view-return-to-alist
-      (let* ((list view-return-to-alist)
-	     entry entry-window last)
-	(while list
-	  (setq entry (car list))
-	  (setq entry-window (car entry))
-	  (if (and (windowp entry-window)
-		   (or (and item (eq entry-window (selected-window)))
-		       (not (window-live-p entry-window))))
-	      ;; Remove that entry.
-	      (if last
-		  (setcdr last (cdr list))
-		(setq view-return-to-alist
-		      (cdr view-return-to-alist)))
-	    ;; Leave entry alone.
-	    (setq last entry))
-	  (setq list (cdr list)))))
-    ;; Add ITEM.
-    (when item
-      (setq view-return-to-alist
-	    (cons item view-return-to-alist)))))
 
 ;;;###autoload
 (defun view-mode-enter (&optional quit-restore exit-action)
@@ -987,6 +925,9 @@ If TIMES is negative, search backwards."
             (setq times (1- times))))))
   (and (zerop times)
        (looking-at ".*")))
+
+(defvar-local view-old-Helper-return-blurb nil)
+(make-obsolete 'view-old-Helper-return-blurb nil "29.1")
 
 (provide 'view)
 

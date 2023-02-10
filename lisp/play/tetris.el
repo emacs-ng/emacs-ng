@@ -1,6 +1,6 @@
 ;;; tetris.el --- implementation of Tetris for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Glynn Clements <glynn@sensei.co.uk>
 ;; Old-Version: 2.01
@@ -95,27 +95,34 @@ If the return value is a number, it is used as the timer period."
 
 (defcustom tetris-buffer-width 30
   "Width of used portion of buffer."
-  :type 'number)
+  :type 'natnum)
 
 (defcustom tetris-buffer-height 22
   "Height of used portion of buffer."
-  :type 'number)
+  :type 'natnum)
 
 (defcustom tetris-width 10
   "Width of playing area."
-  :type 'number)
+  :type 'natnum)
 
 (defcustom tetris-height 20
   "Height of playing area."
-  :type 'number)
+  :type 'natnum)
 
 (defcustom tetris-top-left-x 3
   "X position of top left of playing area."
-  :type 'number)
+  :type 'natnum)
 
 (defcustom tetris-top-left-y 1
   "Y position of top left of playing area."
-  :type 'number)
+  :type 'natnum)
+
+(defcustom tetris-allow-repetitions t
+  "If non-nil, use a random selection for each shape.
+If nil, put the shapes into a bag and select without putting
+back (until empty, when the bag is repopulated."
+  :type 'boolean
+  :version "29.1")
 
 (defvar tetris-next-x (+ (* 2 tetris-top-left-x) tetris-width)
   "X position of next shape.")
@@ -233,29 +240,28 @@ each one of its four blocks.")
 (defvar-local tetris-pos-x 0)
 (defvar-local tetris-pos-y 0)
 (defvar-local tetris-paused nil)
+(defvar-local tetris--bag nil)
 
 ;; ;;;;;;;;;;;;; keymaps ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defvar tetris-mode-map
-  (let ((map (make-sparse-keymap 'tetris-mode-map)))
-    (define-key map "n"		'tetris-start-game)
-    (define-key map "q"		'tetris-end-game)
-    (define-key map "p"		'tetris-pause-game)
+(defvar-keymap tetris-mode-map
+  :doc "Keymap for Tetris games."
+  :name 'tetris-mode-map
+  "n"       #'tetris-start-game
+  "q"       #'tetris-end-game
+  "p"       #'tetris-pause-game
 
-    (define-key map " "		'tetris-move-bottom)
-    (define-key map [left]	'tetris-move-left)
-    (define-key map [right]	'tetris-move-right)
-    (define-key map [up]	'tetris-rotate-prev)
-    (define-key map [down]	'tetris-move-down)
-    map)
-  "Keymap for Tetris games.")
+  "SPC"     #'tetris-move-bottom
+  "<left>"  #'tetris-move-left
+  "<right>" #'tetris-move-right
+  "<up>"    #'tetris-rotate-prev
+  "<down>"  #'tetris-move-down)
 
-(defvar tetris-null-map
-  (let ((map (make-sparse-keymap 'tetris-null-map)))
-    (define-key map "n"		'tetris-start-game)
-    (define-key map "q"         'quit-window)
-    map)
-  "Keymap for finished Tetris games.")
+(defvar-keymap tetris-null-map
+  :doc "Keymap for finished Tetris games."
+  :name 'tetris-null-map
+  "n"       #'tetris-start-game
+  "q"       #'quit-window)
 
 (defconst tetris--menu-def
   '("Tetris"
@@ -343,10 +349,23 @@ each one of its four blocks.")
   (let ((period (tetris-get-tick-period)))
     (if period (gamegrid-set-timer period))))
 
+(defun tetris--shuffle (sequence)
+  (cl-loop for i from (length sequence) downto 2
+           do (cl-rotatef (elt sequence (random i))
+                          (elt sequence (1- i))))
+  sequence)
+
+(defun tetris--seven-bag ()
+  (when (not tetris--bag)
+    (setq tetris--bag (tetris--shuffle (list 0 1 2 3 4 5 6))))
+  (pop tetris--bag))
+
 (defun tetris-new-shape ()
   (setq tetris-shape tetris-next-shape)
   (setq tetris-rot 0)
-  (setq tetris-next-shape (random 7))
+  (setq tetris-next-shape (if tetris-allow-repetitions
+                              (random 7)
+                            (tetris--seven-bag)))
   (setq tetris-pos-x (/ (- tetris-width (tetris-shape-width)) 2))
   (setq tetris-pos-y 0)
   (if (tetris-test-shape)

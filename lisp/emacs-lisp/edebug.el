@@ -1,6 +1,6 @@
 ;;; edebug.el --- a source-level debugger for Emacs Lisp  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1988-1995, 1997, 1999-2022 Free Software Foundation,
+;; Copyright (C) 1988-1995, 1997, 1999-2023 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Daniel LaLiberte <liberte@holonexus.org>
@@ -41,7 +41,7 @@
 ;; See the Emacs Lisp Reference Manual for more details.
 
 ;; If you wish to change the default edebug global command prefix, change:
-;; (setq global-edebug-prefix "\C-xX")
+;; (setq edebug-global-prefix "\C-xX")
 
 ;; Edebug was written by
 ;; Daniel LaLiberte
@@ -57,6 +57,7 @@
 (require 'cl-lib)
 (require 'seq)
 (eval-when-compile (require 'pcase))
+(require 'debug)
 
 ;;; Options
 
@@ -91,14 +92,18 @@ using, but only when you also use Edebug."
 ;;;###autoload
 (defcustom edebug-all-defs nil
   "If non-nil, evaluating defining forms instruments for Edebug.
-This applies to `eval-defun', `eval-region', `eval-buffer', and
-`eval-current-buffer'.  `eval-region' is also called by
-`eval-last-sexp', and `eval-print-last-sexp'.
+This applies to `eval-defun', `eval-region' and `eval-buffer'.
+`eval-region' is also called by `eval-last-sexp', and
+`eval-print-last-sexp'.
 
 You can use the command `edebug-all-defs' to toggle the value of this
 variable.  You may wish to make it local to each buffer with
 \(make-local-variable \\='edebug-all-defs) in your
-`emacs-lisp-mode-hook'."
+`emacs-lisp-mode-hook'.
+
+Note that this user option has no effect unless the edebug
+package has been loaded."
+  :require 'edebug
   :type 'boolean)
 
 ;;;###autoload
@@ -124,7 +129,7 @@ contains an infinite loop.  When Edebug is instrumenting code
 containing very large quoted lists, it may reach this limit and give
 the error message \"Too deep - perhaps infinite loop in spec?\".
 Make this limit larger to countermand that, but you may also need to
-increase `max-lisp-eval-depth' and `max-specpdl-size'."
+increase `max-lisp-eval-depth'."
   :type 'integer
   :version "26.1")
 
@@ -670,7 +675,7 @@ Maybe clear the markers and delete the symbol's edebug property?"
 	     (or (and (eq (aref edebug-read-syntax-table (following-char))
 			  'symbol)
 		      (not (= (following-char) ?\;)))
-		 (memq (following-char) '(?\, ?\.)))))
+		 (eq (following-char) ?.))))
       'symbol
     (aref edebug-read-syntax-table (following-char))))
 
@@ -859,7 +864,7 @@ marker.  The needed data will then come from property
 
 (defun edebug-read-special (stream)
   "Read from STREAM a Lisp object beginning with #.
-Turn #'thing into (function thing) and handle the read syntax for
+Turn #\\='thing into (function thing) and handle the read syntax for
 circular objects.  Let `read' read everything else."
   (catch 'return
     (forward-char 1)
@@ -1102,8 +1107,7 @@ purpose by adding an entry to this alist, and setting
 	edebug-best-error
 	edebug-error-point
 	;; Do this once here instead of several times.
-	(max-lisp-eval-depth (+ 800 max-lisp-eval-depth))
-	(max-specpdl-size (+ 2000 max-specpdl-size)))
+	(max-lisp-eval-depth (+ 800 max-lisp-eval-depth)))
     (let ((no-match
            (catch 'no-match
              (setq result (edebug-read-and-maybe-wrap-form1))
@@ -2312,7 +2316,6 @@ and run its entry function, and set up `edebug-before' and
               ;; but not inside an unwind-protect.
               ;; Doing it here also keeps it from growing too large.
               (max-lisp-eval-depth (+ 100 max-lisp-eval-depth)) ; too much??
-              (max-specpdl-size (+ 200 max-specpdl-size))
 
               (debugger edebug-debugger) ; only while edebug is active.
               (edebug-outside-debug-on-error debug-on-error)
@@ -2573,6 +2576,13 @@ See `edebug-behavior-alist' for implementations.")
     ;; Let's at least show a backtrace so the user can figure out
     ;; which function we're talking about.
     (debug))
+  ;; If we're in a `track-mouse' setting, then any previous mouse
+  ;; movements will make `input-pending-p' later return true.  So
+  ;; discard the inputs in that case.  (And `discard-input' doesn't
+  ;; work here.)
+  (when track-mouse
+    (while (input-pending-p)
+      (read-event)))
   ;; Setup windows for edebug, determine mode, maybe enter recursive-edit.
   ;; Uses local variables of edebug-enter, edebug-before, edebug-after
   ;; and edebug-debugger.
@@ -2849,7 +2859,6 @@ See `edebug-behavior-alist' for implementations.")
 	      (this-command this-command)
 	      (current-prefix-arg nil)
 
-	      ;; More for Emacs 19
 	      (last-input-event nil)
 	      (last-command-event nil)
 	      (last-event-frame nil)
@@ -3519,7 +3528,8 @@ The removes the effect of `edebug-on-entry'.  If FUNCTION is
 nil, remove `edebug-on-entry' on all functions."
   (interactive
    (list (let ((name (completing-read
-                      "Cancel edebug on entry to (default all functions): "
+                      (format-prompt "Cancel edebug on entry to"
+                                     "all functions")
                       (let ((functions (edebug--edebug-on-entry-functions)))
                         (unless functions
                           (user-error "No functions have `edebug-on-entry'"))
@@ -3694,33 +3704,64 @@ Return the result of the last expression."
 (defalias 'edebug-format #'format-message)
 (defalias 'edebug-message #'message)
 
-(defun edebug-eval-expression (expr)
+(defun edebug-eval-expression (expr &optional pp)
   "Evaluate an expression in the outside environment.
 If interactive, prompt for the expression.
-Print result in minibuffer."
-  (interactive (list (read--expression "Eval: ")))
-  (princ
-   (edebug-outside-excursion
-    (let ((result (edebug-eval expr)))
-      (values--store-value result)
-      (concat (edebug-safe-prin1-to-string result)
-              (eval-expression-print-format result))))))
 
-(defun edebug-eval-last-sexp (&optional no-truncate)
+Print result in minibuffer by default, but if PP is non-nil open
+a new window and pretty-print the result there.  (Interactively,
+this is the prefix key.)"
+  (interactive (list (read--expression "Edebug eval: ")
+                     current-prefix-arg))
+  (let* ((errored nil)
+         (value
+          (edebug-outside-excursion
+           (if debug-allow-recursive-debug
+               (edebug-eval expr)
+             (condition-case err
+                 (edebug-eval expr)
+               (error
+                (setq errored
+                      (format "%s: %s"
+		              (get (car err) 'error-message)
+		              (car (cdr err)))))))))
+         (result
+          (unless errored
+            (values--store-value value)
+            (concat (edebug-safe-prin1-to-string value)
+                    (eval-expression-print-format value)))))
+    (cond
+     (errored
+      (message "Error: %s" errored))
+     (pp
+      (save-selected-window
+        (pop-to-buffer "*Edebug Results*")
+        (erase-buffer)
+        (pp value (current-buffer))
+        (goto-char (point-min))
+        (lisp-data-mode)))
+     (t
+      (princ result)))))
+
+(defun edebug-eval-last-sexp (&optional display-type)
   "Evaluate sexp before point in the outside environment.
-Print value in minibuffer.
-
-If NO-TRUNCATE is non-nil (or interactively with a prefix
-argument of zero), show the full length of the expression, not
-limited by `edebug-print-length' or `edebug-print-level'."
+If DISPLAY-TYPE is `pretty-print' (interactively, a non-zero
+prefix argument), pretty-print the value in a separate buffer.
+Otherwise, print the value in minibuffer.  If DISPLAY-TYPE is any
+other non-nil value (or interactively with a prefix argument of
+zero), show the full length of the expression, not limited by
+`edebug-print-length' or `edebug-print-level'."
   (interactive
    (list (and current-prefix-arg
-              (zerop (prefix-numeric-value current-prefix-arg)))))
-  (if no-truncate
-      (let ((edebug-print-length nil)
-            (edebug-print-level nil))
-        (edebug-eval-expression (edebug-last-sexp)))
-    (edebug-eval-expression (edebug-last-sexp))))
+              (if (zerop (prefix-numeric-value current-prefix-arg))
+                  'no-truncate
+                'pretty-print))))
+  (if (or (null display-type)
+          (eq display-type 'pretty-print))
+      (edebug-eval-expression (edebug-last-sexp) display-type)
+    (let ((edebug-print-length nil)
+          (edebug-print-level nil))
+      (edebug-eval-expression (edebug-last-sexp)))))
 
 (defun edebug-eval-print-last-sexp (&optional no-truncate)
   "Evaluate sexp before point in outside environment; insert value.
@@ -3748,9 +3789,6 @@ limited by `edebug-print-length' or `edebug-print-level'."
 
 ;;; Edebug Minor Mode
 
-(define-obsolete-variable-alias 'gud-inhibit-global-bindings
-  'edebug-inhibit-emacs-lisp-mode-bindings "24.3")
-
 (defvar edebug-inhibit-emacs-lisp-mode-bindings nil
   "If non-nil, inhibit Edebug bindings on the C-x C-a key.
 By default, loading the `edebug' library causes these bindings to
@@ -3765,117 +3803,115 @@ be installed in `emacs-lisp-mode-map'.")
   ;; The following isn't a GUD binding.
   (define-key emacs-lisp-mode-map "\C-x\C-a\C-m" 'edebug-set-initial-mode))
 
-(defvar edebug-mode-map
-  (let ((map (copy-keymap emacs-lisp-mode-map)))
-    ;; control
-    (define-key map " " 'edebug-step-mode)
-    (define-key map "n" 'edebug-next-mode)
-    (define-key map "g" 'edebug-go-mode)
-    (define-key map "G" 'edebug-Go-nonstop-mode)
-    (define-key map "t" 'edebug-trace-mode)
-    (define-key map "T" 'edebug-Trace-fast-mode)
-    (define-key map "c" 'edebug-continue-mode)
-    (define-key map "C" 'edebug-Continue-fast-mode)
+(defvar-keymap edebug-mode-map
+  :parent emacs-lisp-mode-map
+  ;; control
+  "SPC"     #'edebug-step-mode
+  "n"       #'edebug-next-mode
+  "g"       #'edebug-go-mode
+  "G"       #'edebug-Go-nonstop-mode
+  "t"       #'edebug-trace-mode
+  "T"       #'edebug-Trace-fast-mode
+  "c"       #'edebug-continue-mode
+  "C"       #'edebug-Continue-fast-mode
 
-    ;;(define-key map "f" 'edebug-forward) not implemented
-    (define-key map "f" 'edebug-forward-sexp)
-    (define-key map "h" 'edebug-goto-here)
+  ;;"f"       #'edebug-forward ; not implemented
+  "f"       #'edebug-forward-sexp
+  "h"       #'edebug-goto-here
 
-    (define-key map "I" 'edebug-instrument-callee)
-    (define-key map "i" 'edebug-step-in)
-    (define-key map "o" 'edebug-step-out)
+  "I"       #'edebug-instrument-callee
+  "i"       #'edebug-step-in
+  "o"       #'edebug-step-out
 
-    ;; quitting and stopping
-    (define-key map "q" 'top-level)
-    (define-key map "Q" 'edebug-top-level-nonstop)
-    (define-key map "a" 'abort-recursive-edit)
-    (define-key map "S" 'edebug-stop)
+  ;; quitting and stopping
+  "q"       #'top-level
+  "Q"       #'edebug-top-level-nonstop
+  "a"       #'abort-recursive-edit
+  "S"       #'edebug-stop
 
-    ;; breakpoints
-    (define-key map "b" 'edebug-set-breakpoint)
-    (define-key map "u" 'edebug-unset-breakpoint)
-    (define-key map "U" 'edebug-unset-breakpoints)
-    (define-key map "B" 'edebug-next-breakpoint)
-    (define-key map "x" 'edebug-set-conditional-breakpoint)
-    (define-key map "X" 'edebug-set-global-break-condition)
-    (define-key map "D" 'edebug-toggle-disable-breakpoint)
+  ;; breakpoints
+  "b"       #'edebug-set-breakpoint
+  "u"       #'edebug-unset-breakpoint
+  "U"       #'edebug-unset-breakpoints
+  "B"       #'edebug-next-breakpoint
+  "x"       #'edebug-set-conditional-breakpoint
+  "X"       #'edebug-set-global-break-condition
+  "D"       #'edebug-toggle-disable-breakpoint
 
-    ;; evaluation
-    (define-key map "r" 'edebug-previous-result)
-    (define-key map "e" 'edebug-eval-expression)
-    (define-key map "\C-x\C-e" 'edebug-eval-last-sexp)
-    (define-key map "E" 'edebug-visit-eval-list)
+  ;; evaluation
+  "r"       #'edebug-previous-result
+  "e"       #'edebug-eval-expression
+  "C-x C-e" #'edebug-eval-last-sexp
+  "E"       #'edebug-visit-eval-list
 
-    ;; views
-    (define-key map "w" 'edebug-where)
-    (define-key map "v" 'edebug-view-outside) ;; maybe obsolete??
-    (define-key map "p" 'edebug-bounce-point)
-    (define-key map "P" 'edebug-view-outside) ;; same as v
-    (define-key map "W" 'edebug-toggle-save-windows)
+  ;; views
+  "w"       #'edebug-where
+  "v"       #'edebug-view-outside        ; maybe obsolete??
+  "p"       #'edebug-bounce-point
+  "P"       #'edebug-view-outside        ; same as v
+  "W"       #'edebug-toggle-save-windows
 
-    ;; misc
-    (define-key map "?" 'edebug-help)
-    (define-key map "d" 'edebug-pop-to-backtrace)
+  ;; misc
+  "?"       #'edebug-help
+  "d"       #'edebug-pop-to-backtrace
 
-    (define-key map "-" 'negative-argument)
+  "-"       #'negative-argument
 
-    ;; statistics
-    (define-key map "=" 'edebug-temp-display-freq-count)
+  ;; statistics
+  "="       #'edebug-temp-display-freq-count
 
-    ;; GUD bindings
-    (define-key map "\C-c\C-s" 'edebug-step-mode)
-    (define-key map "\C-c\C-n" 'edebug-next-mode)
-    (define-key map "\C-c\C-c" 'edebug-go-mode)
+  ;; GUD bindings
+  "C-c C-s" #'edebug-step-mode
+  "C-c C-n" #'edebug-next-mode
+  "C-c C-c" #'edebug-go-mode
 
-    (define-key map "\C-x " 'edebug-set-breakpoint)
-    (define-key map "\C-c\C-d" 'edebug-unset-breakpoint)
-    (define-key map "\C-c\C-t"
-      (lambda () (interactive) (edebug-set-breakpoint t)))
-    (define-key map "\C-c\C-l" 'edebug-where)
-    map))
+  "C-x SPC" #'edebug-set-breakpoint
+  "C-c C-d" #'edebug-unset-breakpoint
+  "C-c C-t" (lambda () (interactive) (edebug-set-breakpoint t))
+  "C-c C-l" #'edebug-where)
 
 ;; Autoloading these global bindings doesn't make sense because
 ;; they cannot be used anyway unless Edebug is already loaded and active.
 
 (define-obsolete-variable-alias 'global-edebug-prefix
   'edebug-global-prefix "28.1")
-(defvar edebug-global-prefix "\^XX"
+(defvar edebug-global-prefix
+  (when-let ((binding
+              (car (where-is-internal 'Control-X-prefix (list global-map)))))
+    (concat binding [?X]))
   "Prefix key for global edebug commands, available from any buffer.")
 
 (define-obsolete-variable-alias 'global-edebug-map
   'edebug-global-map "28.1")
-(defvar edebug-global-map
-  (let ((map (make-sparse-keymap)))
+(defvar-keymap edebug-global-map
+  :doc "Global map of edebug commands, available from any buffer."
+  "SPC" #'edebug-step-mode
+  "g"   #'edebug-go-mode
+  "G"   #'edebug-Go-nonstop-mode
+  "t"   #'edebug-trace-mode
+  "T"   #'edebug-Trace-fast-mode
+  "c"   #'edebug-continue-mode
+  "C"   #'edebug-Continue-fast-mode
 
-    (define-key map " " 'edebug-step-mode)
-    (define-key map "g" 'edebug-go-mode)
-    (define-key map "G" 'edebug-Go-nonstop-mode)
-    (define-key map "t" 'edebug-trace-mode)
-    (define-key map "T" 'edebug-Trace-fast-mode)
-    (define-key map "c" 'edebug-continue-mode)
-    (define-key map "C" 'edebug-Continue-fast-mode)
+  ;; breakpoints
+  "b"   #'edebug-set-breakpoint
+  "u"   #'edebug-unset-breakpoint
+  "U"   #'edebug-unset-breakpoints
+  "x"   #'edebug-set-conditional-breakpoint
+  "X"   #'edebug-set-global-break-condition
+  "D"   #'edebug-toggle-disable-breakpoint
 
-    ;; breakpoints
-    (define-key map "b" 'edebug-set-breakpoint)
-    (define-key map "u" 'edebug-unset-breakpoint)
-    (define-key map "U" 'edebug-unset-breakpoints)
-    (define-key map "x" 'edebug-set-conditional-breakpoint)
-    (define-key map "X" 'edebug-set-global-break-condition)
-    (define-key map "D" 'edebug-toggle-disable-breakpoint)
+  ;; views
+  "w"   #'edebug-where
+  "W"   #'edebug-toggle-save-windows
 
-    ;; views
-    (define-key map "w" 'edebug-where)
-    (define-key map "W" 'edebug-toggle-save-windows)
+  ;; quitting
+  "q"   #'top-level
+  "Q"   #'edebug-top-level-nonstop
+  "a"   #'abort-recursive-edit
 
-    ;; quitting
-    (define-key map "q" 'top-level)
-    (define-key map "Q" 'edebug-top-level-nonstop)
-    (define-key map "a" 'abort-recursive-edit)
-
-    ;; statistics
-    (define-key map "=" 'edebug-display-freq-count)
-    map)
-  "Global map of edebug commands, available from any buffer.")
+  ;; statistics
+  "="   #'edebug-display-freq-count)
 
 (when edebug-global-prefix
   (global-unset-key edebug-global-prefix)
@@ -4046,16 +4082,14 @@ May only be called from within `edebug--recursive-edit'."
 
 
 
-(defvar edebug-eval-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map lisp-interaction-mode-map)
-    (define-key map "\C-c\C-w" 'edebug-where)
-    (define-key map "\C-c\C-d" 'edebug-delete-eval-item)
-    (define-key map "\C-c\C-u" 'edebug-update-eval-list)
-    (define-key map "\C-x\C-e" 'edebug-eval-last-sexp)
-    (define-key map "\C-j" 'edebug-eval-print-last-sexp)
-    map)
-  "Keymap for Edebug Eval mode.  Superset of Lisp Interaction mode.")
+(defvar-keymap edebug-eval-mode-map
+  :doc "Keymap for Edebug Eval mode.  Superset of Lisp Interaction mode."
+  :parent lisp-interaction-mode-map
+  "C-c C-w" #'edebug-where
+  "C-c C-d" #'edebug-delete-eval-item
+  "C-c C-u" #'edebug-update-eval-list
+  "C-x C-e" #'edebug-eval-last-sexp
+  "C-j"     #'edebug-eval-print-last-sexp)
 
 (put 'edebug-eval-mode 'mode-class 'special)
 
@@ -4143,6 +4177,7 @@ from Edebug instrumentation found in the backtrace."
     (backtrace-mode)
     (add-hook 'backtrace-goto-source-functions
               #'edebug--backtrace-goto-source nil t))
+  (edebug-backtrace-mode)
   (setq edebug-instrumented-backtrace-frames
         (backtrace-get-frames 'edebug-debugger
                               :constructor #'edebug--make-frame)
@@ -4218,6 +4253,14 @@ Save DEF-NAME, BEFORE-INDEX and AFTER-INDEX in FRAME."
   (setf (edebug--frame-def-name frame) (and before-index def-name))
   (setf (edebug--frame-before-index frame) before-index)
   (setf (edebug--frame-after-index frame) after-index))
+
+(defvar-keymap edebug-backtrace-mode-map
+  "s" #'backtrace-goto-source)
+
+(define-minor-mode edebug-backtrace-mode
+  "Minor mode for showing backtraces from edebug."
+  :lighter nil
+  :interactive nil)
 
 (defun edebug--backtrace-goto-source ()
   (let* ((index (backtrace-get-index))
@@ -4528,6 +4571,12 @@ With prefix argument, make it a temporary breakpoint."
         (was-macro               `(macro . ,unwrapped))
         (t                       unwrapped))))))
 
+(defun edebug--strip-plist (symbol)
+  "Remove edebug related properties from plist for SYMBOL."
+  (dolist (prop '( edebug edebug-behavior edebug-coverage
+                   edebug-freq-count ghost-edebug))
+    (cl-remprop symbol prop)))
+
 (defun edebug-remove-instrumentation (functions)
   "Remove Edebug instrumentation from FUNCTIONS.
 Interactively, the user is prompted for the function to remove
@@ -4548,7 +4597,8 @@ instrumentation for, defaulting to all functions."
         (user-error "Found no functions to remove instrumentation from"))
       (let ((name
              (completing-read
-              "Remove instrumentation from (default all functions): "
+              (format-prompt "Remove instrumentation from"
+                             "all functions")
               functions)))
         (if (and name
                  (not (equal name "")))
@@ -4558,6 +4608,7 @@ instrumentation for, defaulting to all functions."
   (dolist (symbol functions)
     (when-let ((unwrapped
                 (edebug--unwrap*-symbol-function symbol)))
+      (edebug--strip-plist symbol)
       (defalias symbol unwrapped)))
   (message "Removed edebug instrumentation from %s"
            (mapconcat #'symbol-name functions ", ")))

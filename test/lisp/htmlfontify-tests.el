@@ -1,6 +1,6 @@
 ;;; htmlfontify-tests.el --- Test suite. -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -20,15 +20,6 @@
 ;;; Code:
 (require 'ert)
 (require 'htmlfontify)
-
-(ert-deftest htmlfontify-autoload ()
-  "Tests to see whether reftex-auc has been autoloaded"
-  (should
-   (fboundp 'htmlfontify-load-rgb-file))
-  (should
-   (autoloadp
-    (symbol-function
-     'htmlfontify-load-rgb-file))))
 
 (ert-deftest htmlfontify-bug25468 ()
   "Tests that htmlfontify can be loaded even if no shell is

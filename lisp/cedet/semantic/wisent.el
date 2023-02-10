@@ -1,6 +1,6 @@
 ;;; semantic/wisent.el --- Wisent - Semantic gateway  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2007, 2009-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2007, 2009-2023 Free Software Foundation, Inc.
 
 ;; Author: David Ponce <david@dponce.com>
 ;; Created: 30 Aug 2001
@@ -38,7 +38,7 @@
 
 (defvar wisent-lex-lookahead nil
   "Extra lookahead token.
-When non-nil it is directly returned by `wisent-lex-function'.")
+When non-nil it is directly returned by `wisent-lexer-function'.")
 
 (defmacro wisent-lex-eoi ()
   "Return an End-Of-Input lexical token.
@@ -66,7 +66,7 @@ Returned tokens must have the form:
   (TOKSYM VALUE START . END)
 
 where VALUE is the buffer substring between START and END positions."
-  (declare (debug (&define name stringp def-body)))
+  (declare (debug (&define name stringp def-body)) (indent 1))
   `(defun
      ,name () ,doc
      (cond

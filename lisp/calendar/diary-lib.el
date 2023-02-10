@@ -1,7 +1,6 @@
 ;;; diary-lib.el --- diary functions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1989-1990, 1992-1995, 2001-2022 Free Software
-;; Foundation, Inc.
+;; Copyright (C) 1989-2023 Free Software Foundation, Inc.
 
 ;; Author: Edward M. Reingold <reingold@cs.uiuc.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -93,7 +92,7 @@ are holidays."
 This is used by `diary-pull-attrs' to fontify certain diary
 elements.  REGEXP is a regular expression to for, and SUBEXP is
 the numbered sub-expression to extract.  `diary-glob-file-regexp-prefix'
-is pre-pended to REGEXP for file-wide specifiers.  ATTRIBUTE
+is prepended to REGEXP for file-wide specifiers.  ATTRIBUTE
 specifies which face attribute (e.g. `:foreground') to modify, or
 that this is a face (`:face') to apply.  TYPE is the type of
 attribute being applied.  Available TYPES (see `diary-attrtype-convert')
@@ -101,16 +100,16 @@ are: `string', `symbol', `int', `tnil', `stringtnil'."
   :type '(repeat (list (regexp :tag "Regular expression")
                        (integer :tag "Sub-expression")
                        (symbol :tag "Attribute (e.g. :foreground)")
-                       (choice (const string :tag "A string")
-                               (const symbol :tag "A symbol")
-                               (const int :tag "An integer")
-                               (const tnil :tag "t or nil")
-                               (const stringtnil
+                       (choice (const :value string :tag "A string")
+                               (const :value symbol :tag "A symbol")
+                               (const :value int    :tag "An integer")
+                               (const :value tnil   :tag "t or nil")
+                               (const :value stringtnil
                                       :tag "A string, t, or nil"))))
   :group 'diary)
 
 (defcustom diary-glob-file-regexp-prefix "^#"
-  "Regular expression pre-pended to `diary-face-attrs' for file-wide specifiers."
+  "Regular expression prepended to `diary-face-attrs' for file-wide specifiers."
   :type 'regexp
   :group 'diary)
 
@@ -340,7 +339,7 @@ Returns a string using match elements 1-5, where:
                     (t "\\1 \\2 \\3"))) ; MDY
             "\n \\4 %s, \\5")))
 ;; TODO Sometimes the time is in a different time-zone to the one you
-;; are in.  Eg in PST, you might still get an email referring to:
+;; are in.  E.g., in Los Angeles, you might still get an email referring to:
 ;; "7:00 PM-8:00 PM. Greenwich Standard Time".
 ;; Note that it doesn't use a standard abbreviation for the timezone,
 ;; or anything helpful like that.
@@ -881,7 +880,10 @@ LIST-ONLY is non-nil, in which case it just returns the list."
                                    (original-date original-date))
                     (run-hooks 'diary-hook))))))
         (and temp-buff (buffer-name temp-buff) (kill-buffer temp-buff)))
-      (or d-incp (message "Preparing diary...done"))
+      (or d-incp
+          ;; Don't clobber messages displayed while preparing the diary.
+          (not (equal (current-message) "Preparing diary..."))
+          (message "Preparing diary...done"))
       diary-entries-list)))
 
 (defun diary-unhide-everything ()
@@ -1770,7 +1772,7 @@ These functions give the date in alternative calendrical systems:
 `diary-islamic-date', `diary-julian-date', `diary-mayan-date',
 `diary-persian-date'
 
-Theses functions only produce output on certain dates:
+These functions only produce output on certain dates:
 
 `diary-lunar-phases'           - phases of moon (on the appropriate days)
 `diary-hebrew-omer'            - Omer count, within 50 days after Passover
@@ -2246,12 +2248,10 @@ Prefix argument ARG makes the entry nonmarking."
   ;; Return value suitable for `write-contents-functions'.
   nil)
 
-(defvar diary-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\C-c\C-s" 'diary-show-all-entries)
-    (define-key map "\C-c\C-q" 'quit-window)
-    map)
-  "Keymap for `diary-mode'.")
+(defvar-keymap diary-mode-map
+  :doc "Keymap for `diary-mode'."
+  "C-c C-s" #'diary-show-all-entries
+  "C-c C-q" #'quit-window)
 
 (defun diary-font-lock-sexps (limit)
   "Recognize sexp diary entry up to LIMIT for font-locking."
@@ -2468,8 +2468,8 @@ Fontify the region between BEG and END, quietly unless VERBOSE is non-nil."
       (setq end (line-beginning-position 2)))
   (font-lock-default-fontify-region beg end verbose))
 
-(defvar diary-fancy-overriding-map (make-sparse-keymap)
-  "Keymap overriding minor-mode maps in `diary-fancy-display-mode'.")
+(defvar-keymap diary-fancy-overriding-map
+  :doc "Keymap overriding minor-mode maps in `diary-fancy-display-mode'.")
 
 (define-derived-mode diary-fancy-display-mode special-mode
   "Diary"

@@ -1,6 +1,6 @@
 ;;; gnus-cus.el --- customization commands for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996, 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1996, 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: Per Abrahamsen <abraham@dina.kvl.dk>
 ;; Keywords: news
@@ -36,15 +36,12 @@
 (define-derived-mode gnus-custom-mode fundamental-mode "Gnus Customize"
   "Major mode for editing Gnus customization buffers.
 
-The following commands are available:
+The following commands are available:\\<widget-keymap>
 
 \\[widget-forward]		Move to next button or editable field.
 \\[widget-backward]		Move to previous button or editable field.
-\\[widget-button-click]		Activate button under the mouse pointer.
-\\[widget-button-press]		Activate button under point.
-
-Entry to this mode calls the value of `gnus-custom-mode-hook'
-if that value is non-nil."
+\\[widget-button-click]	Activate button under the mouse pointer.
+\\[widget-button-press]		Activate button under point."
   (use-local-map widget-keymap)
   ;; Emacs stuff:
   (when (and (facep 'custom-button-face)
@@ -273,7 +270,7 @@ DOC is a documentation string for the parameter.")
        gnus-agent-cat-predicate)
       (agent-score
        (choice :tag "Score File" :value nil
-               (const file :tag "Use group's score files")
+               (const :value file :tag "Use group's score files")
                (repeat (list (string :format "%v" :tag "File name"))))
        "Which score files to use when using score to select articles to fetch.
 

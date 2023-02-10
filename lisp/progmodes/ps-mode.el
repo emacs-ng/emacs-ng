@@ -1,6 +1,6 @@
 ;;; ps-mode.el --- PostScript mode for GNU Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author:     Peter Kleiweg <p.c.j.kleiweg@rug.nl>
 ;; Created:    20 Aug 1997
@@ -34,7 +34,6 @@
 
 ;;; Code:
 
-(defconst ps-mode-version "1.1i, 17 May 2008")
 (defconst ps-mode-maintainer-address
   "Peter Kleiweg <p.c.j.kleiweg@rug.nl>, bug-gnu-emacs@gnu.org")
 
@@ -279,24 +278,22 @@ If nil, use `temporary-file-directory'."
 
 ;; Variables.
 
-(defvar ps-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\C-c\C-v" #'ps-run-boundingbox)
-    (define-key map "\C-c\C-u" #'ps-mode-uncomment-region)
-    (define-key map "\C-c\C-t" #'ps-mode-epsf-rich)
-    (define-key map "\C-c\C-s" #'ps-run-start)
-    (define-key map "\C-c\C-r" #'ps-run-region)
-    (define-key map "\C-c\C-q" #'ps-run-quit)
-    (define-key map "\C-c\C-p" #'ps-mode-print-buffer)
-    (define-key map "\C-c\C-o" #'ps-mode-comment-out-region)
-    (define-key map "\C-c\C-k" #'ps-run-kill)
-    (define-key map "\C-c\C-j" #'ps-mode-other-newline)
-    (define-key map "\C-c\C-l" #'ps-run-clear)
-    (define-key map "\C-c\C-b" #'ps-run-buffer)
-    ;; FIXME: Add `indent' to backward-delete-char-untabify-method instead?
-    (define-key map "\177" #'ps-mode-backward-delete-char)
-    map)
-  "Local keymap to use in PostScript mode.")
+(defvar-keymap ps-mode-map
+  :doc "Local keymap to use in PostScript mode."
+  "C-c C-v" #'ps-run-boundingbox
+  "C-c C-u" #'ps-mode-uncomment-region
+  "C-c C-t" #'ps-mode-epsf-rich
+  "C-c C-s" #'ps-run-start
+  "C-c C-r" #'ps-run-region
+  "C-c C-q" #'ps-run-quit
+  "C-c C-p" #'ps-mode-print-buffer
+  "C-c C-o" #'ps-mode-comment-out-region
+  "C-c C-k" #'ps-run-kill
+  "C-c C-j" #'ps-mode-other-newline
+  "C-c C-l" #'ps-run-clear
+  "C-c C-b" #'ps-run-buffer
+  ;; FIXME: Add `indent' to backward-delete-char-untabify-method instead?
+  "DEL"     #'ps-mode-backward-delete-char)
 
 (defvar ps-mode-syntax-table
   (let ((st (make-syntax-table)))
@@ -333,15 +330,13 @@ If nil, use `temporary-file-directory'."
     st)
   "Syntax table used while in PostScript mode.")
 
-(defvar ps-run-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map comint-mode-map)
-    (define-key map "\C-c\C-q" #'ps-run-quit)
-    (define-key map "\C-c\C-k" #'ps-run-kill)
-    (define-key map "\C-c\C-e" #'ps-run-goto-error)
-    (define-key map [mouse-2] #'ps-run-mouse-goto-error)
-    map)
-  "Local keymap to use in PostScript run mode.")
+(defvar-keymap ps-run-mode-map
+  :doc "Local keymap to use in PostScript run mode."
+  :parent comint-mode-map
+  "C-c C-q"   #'ps-run-quit
+  "C-c C-k"   #'ps-run-kill
+  "C-c C-e"   #'ps-run-goto-error
+  "<mouse-2>" #'ps-run-mouse-goto-error)
 
 (defvar ps-mode-tmp-file nil
   "Name of temporary file, set by `ps-run'.")
@@ -519,7 +514,7 @@ Typing \\<ps-run-mode-map>\\[ps-run-goto-error] when the cursor is at the number
 (defun ps-mode-show-version ()
   "Show current version of PostScript mode."
   (interactive)
-  (message " *** PostScript Mode (ps-mode) Version %s *** " ps-mode-version))
+  (message " *** PostScript Mode (ps-mode) in GNU Emacs %s *** " emacs-version))
 
 ;; From reporter.el
 (defvar reporter-prompt-for-summary-p)
@@ -534,7 +529,7 @@ Typing \\<ps-run-mode-map>\\[ps-run-goto-error] when the cursor is at the number
 					ps-run-font-lock-keywords-2)))
       (reporter-submit-bug-report
        ps-mode-maintainer-address
-       (format "ps-mode.el %s [%s]" ps-mode-version system-type)
+       (format "ps-mode.el %s [%s]" emacs-version system-type)
        '(ps-mode-tab
 	 ps-mode-paper-size
 	 ps-mode-print-function
@@ -1093,6 +1088,9 @@ Use line numbers if `ps-run-error-line-numbers' is not nil."
 
 ;;
 (add-hook 'kill-emacs-hook #'ps-run-cleanup)
+
+(defconst ps-mode-version "1.1i, 17 May 2008")
+(make-obsolete-variable 'ps-mode-version 'emacs-version "29.1")
 
 (provide 'ps-mode)
 

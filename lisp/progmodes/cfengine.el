@@ -1,6 +1,6 @@
 ;;; cfengine.el --- mode for editing Cfengine files  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Dave Love <fx@gnu.org>
 ;; Maintainer: Ted Zlatanov <tzz@lifelogs.com>
@@ -793,14 +793,6 @@ bundle agent rcfiles
                       (cdr (assq 'functions cfengine3-fallback-syntax)))
               'symbols))
 
-(defcustom cfengine-mode-abbrevs nil
-  "Abbrevs for CFEngine2 mode."
-  :type '(repeat (list (string :tag "Name")
-		       (string :tag "Expansion")
-		       (choice  :tag "Hook" (const nil) function))))
-
-(make-obsolete-variable 'cfengine-mode-abbrevs 'edit-abbrevs "24.1")
-
 ;; Taken from the doc for pre-release 2.1.
 (eval-and-compile
   (defconst cfengine2-actions
@@ -989,13 +981,7 @@ Intended as the value of `indent-line-function'."
 (defun cfengine-fill-paragraph (&optional justify)
   "Fill `paragraphs' in Cfengine code."
   (interactive "P")
-  (or (if (fboundp 'fill-comment-paragraph)
-          (fill-comment-paragraph justify)
-	;; else do nothing in a comment
-	(nth 4 (parse-partial-sexp (save-excursion
-				     (beginning-of-defun)
-				     (point))
-				   (point))))
+  (or (fill-comment-paragraph justify)
       (let ((paragraph-start
 	     ;; Include start of parenthesized block.
 	     "\f\\|[ \t]*$\\|.*(")
@@ -1200,7 +1186,7 @@ Intended as the value of `indent-line-function'."
                  (skip-syntax-forward "w_")
                  (when (search-backward-regexp
                         cfengine-mode-syntax-functions-regex
-                        (point-at-bol)
+                        (line-beginning-position)
                         t)
                    (match-string 1)))))
         (and w (assq (intern w) flist))))))
@@ -1299,7 +1285,7 @@ see.  Use it by enabling `eldoc-mode'."
   "Return completions for function name around or before point."
   (let* ((bounds (save-excursion
                    (let ((p (point)))
-                     (skip-syntax-backward "w_" (point-at-bol))
+                     (skip-syntax-backward "w_" (line-beginning-position))
                      (list (point) p))))
          (syntax (cfengine3-make-syntax-cache))
          (flist (assq 'functions syntax)))
@@ -1415,7 +1401,6 @@ to the action header."
   (setq-local outline-regexp "[ \t]*\\(\\sw\\|\\s_\\)+:+")
   (setq-local outline-level #'cfengine2-outline-level)
   (setq-local fill-paragraph-function #'cfengine-fill-paragraph)
-  (define-abbrev-table 'cfengine2-mode-abbrev-table cfengine-mode-abbrevs)
   (setq font-lock-defaults
         '(cfengine2-font-lock-keywords nil nil nil beginning-of-line))
   ;; Fixme: set the args of functions in evaluated classes to string

@@ -1,6 +1,6 @@
 ;;; gnus-gravatar.el --- Gnus Gravatar support -*- lexical-binding: t -*-
 
-;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2023 Free Software Foundation, Inc.
 
 ;; Author: Julien Danjou <julien@danjou.info>
 ;; Keywords: multimedia, news
@@ -87,7 +87,6 @@ callback for `gravatar-retrieve'."
         (let ((real-name (car address))
               (mail-address (cadr address))
               (mark (point-marker))
-              (inhibit-point-motion-hooks t)
               (case-fold-search t))
           (save-restriction
             (article-narrow-to-head)

@@ -1,6 +1,6 @@
 ;;; gnus-cloud.el --- storing and retrieving data via IMAP  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2014-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: mail
@@ -30,6 +30,7 @@
 
 (require 'parse-time)
 (require 'nnimap)
+(require 'range)
 
 (eval-when-compile (require 'epg)) ;; setf-method for `epg-context-armor'
 (autoload 'epg-make-context "epg")
@@ -83,6 +84,7 @@ easy interactive way to set this from the Server buffer."
 
 (defun gnus-cloud-make-chunk (elems)
   (with-temp-buffer
+    (set-buffer-multibyte nil)
     (insert (format "Gnus-Cloud-Version %s\n" gnus-cloud-version))
     (insert (gnus-cloud-insert-data elems))
     (buffer-string)))
@@ -404,7 +406,7 @@ When FULL is t, upload everything, not just a difference from the last full."
   (let* ((group (gnus-group-full-name gnus-cloud-group-name gnus-cloud-method))
          (active (gnus-active group))
          headers head)
-    (when (gnus-retrieve-headers (gnus-uncompress-range active) group)
+    (when (gnus-retrieve-headers (range-uncompress active) group)
       (with-current-buffer nntp-server-buffer
         (goto-char (point-min))
 	(while (setq head (nnheader-parse-head))

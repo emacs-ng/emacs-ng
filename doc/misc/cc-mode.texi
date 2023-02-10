@@ -167,7 +167,7 @@ CC Mode
 @copying
 This manual is for CC Mode in Emacs.
 
-Copyright @copyright{} 1995--2022 Free Software Foundation, Inc.
+Copyright @copyright{} 1995--2023 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -283,6 +283,7 @@ Font Locking
 * Font Locking Preliminaries::
 * Faces::
 * Doc Comments::
+* Wrong Comment Style::
 * Misc Font Locking::
 * AWK Mode Font Locking::
 
@@ -579,7 +580,7 @@ you are going to be editing AWK files, @file{README} describes how to
 configure your (X)Emacs so that @ccmode{} will supersede the obsolete
 @code{awk-mode.el} which might have been supplied with your (X)Emacs.
 @ccmode{} might not work with older versions of Emacs or XEmacs.  See
-the @ccmode{} release notes at @uref{http://cc-mode.sourceforge.net}
+the @ccmode{} release notes at @uref{https://cc-mode.sourceforge.net}
 for the latest information on Emacs version and package compatibility
 (@pxref{Updating CC Mode}).
 
@@ -897,7 +898,7 @@ lines.
 @vindex defun-tactic @r{(c-)}
 
 Move to the beginning or end of the current or next function.  Other
-constructs (such as a structs or classes) which have a brace block
+constructs (such as structs or classes) which have a brace block
 also count as ``functions'' here.  To move over several functions, you
 can give these commands a repeat count.
 
@@ -2190,7 +2191,7 @@ foo& bar
 
 @defvar c-asymmetry-fontification-flag
 @vindex asymmetry-fontification-flag @r{(c-)}
-When @code{c-asymmetry-fontification-flag} is non-nil (which it is by
+When @code{c-asymmetry-fontification-flag} is non-@code{nil} (which it is by
 default), code like the above, with white space either before or after
 the operator, but not both, is fontified as a declaration.  When the
 variable is nil, such a construct gets the default face.
@@ -3169,7 +3170,7 @@ E. Jones' Filladapt package@footnote{It's available from
 lack a feature that makes it work suboptimally when
 @code{c-comment-prefix-regexp} matches the empty string (which it does
 by default).  A patch for that is available from
-@uref{http://cc-mode.sourceforge.net/,, the CC Mode web site}.},
+@uref{https://cc-mode.sourceforge.net/,, the CC Mode web site}.},
 @c 2005/11/22:  The above is still believed to be the case.
 which handles things like bulleted lists nicely.  There's a convenience
 function @code{c-setup-filladapt} that tunes the relevant variables in
@@ -6277,6 +6278,32 @@ expressions for the operands.
 
 @comment ------------------------------------------------------------
 
+@defun c-lineup-argcont-+
+@findex lineup-argcont-+ (c-)
+Indent a continued argument @code{c-basic-offset} spaces from the
+start of the first argument at the current level of nesting on a
+previous line.
+
+@example
+@group
+foo (xyz, uvw, aaa + bbb + ccc
+         + ddd + eee + fff);    <- c-lineup-argcont-+
+     <-->                          c-basic-offset
+@end group
+@end example
+
+Only continuation lines like this are touched, @code{nil} being
+returned on lines which are the start of an argument.
+
+Within a gcc @code{asm} block, @code{:} is recognized as an argument
+separator, but of course only between operand specifications, not in the
+expressions for the operands.
+
+@workswith @code{arglist-cont}, @code{arglist-cont-nonempty}.
+@end defun
+
+@comment ------------------------------------------------------------
+
 @defun c-lineup-arglist-operators
 @findex lineup-arglist-operators @r{(c-)}
 Line up lines starting with an infix operator under the open paren.
@@ -7122,7 +7149,7 @@ If you add more directives to this variable, or remove directives from
 it, whilst ``indent to body'' is active, you need to re-enable the
 feature by calling @code{c-toggle-cpp-indent-to-body} for these
 changes to take effect@footnote{Note that the removal of directives
-doesn't work satisfactorally on XEmacs or on very old versions of
+doesn't work satisfactorily on XEmacs or on very old versions of
 Emacs}.
 @end defopt
 
@@ -7556,7 +7583,7 @@ have old versions of @ccmode{} and so should be upgraded.  Access to the
 compatibility, etc.@: are all available on the web site:
 
 @quotation
-@uref{http://cc-mode.sourceforge.net/}
+@uref{https://cc-mode.sourceforge.net/}
 @end quotation
 
 
@@ -7590,7 +7617,7 @@ the GNU Bug Tracker at @url{https://debbugs.gnu.org}, then sends it on
 to @email{bug-cc-mode@@gnu.org}.  You can also send reports, other
 questions, and suggestions (kudos?@: @t{;-)} to that address.  It's a
 mailing list which you can join or browse an archive of; see the web site at
-@uref{http://cc-mode.sourceforge.net/} for further details.
+@uref{https://cc-mode.sourceforge.net/} for further details.
 
 @cindex announcement mailing list
 If you want to get announcements of new @ccmode{} releases, send the

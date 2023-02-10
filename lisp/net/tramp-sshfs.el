@@ -1,6 +1,6 @@
 ;;; tramp-sshfs.el --- Tramp access functions via sshfs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2021-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -47,6 +47,9 @@
   :type 'string)
 
 ;;;###tramp-autoload
+(defvar tramp-default-remote-shell) ;; Silence byte compiler.
+
+;;;###tramp-autoload
 (tramp--with-startup
  (add-to-list 'tramp-methods
 	      `(,tramp-sshfs-method
@@ -74,7 +77,8 @@
 ;; New handlers should be added here.
 ;;;###tramp-autoload
 (defconst tramp-sshfs-file-name-handler-alist
-  '((access-file . tramp-handle-access-file)
+  '(;; `abbreviate-file-name' performed by default handler.
+    (access-file . tramp-handle-access-file)
     (add-name-to-file . tramp-handle-add-name-to-file)
     ;; `byte-compiler-base-file-name' performed by default handler.
     (copy-directory . tramp-handle-copy-directory)
@@ -120,11 +124,13 @@
     (file-symlink-p . tramp-handle-file-symlink-p)
     (file-system-info . tramp-sshfs-handle-file-system-info)
     (file-truename . tramp-handle-file-truename)
+    (file-user-uid . tramp-handle-file-user-uid)
     (file-writable-p . tramp-sshfs-handle-file-writable-p)
     (find-backup-file-name . tramp-handle-find-backup-file-name)
     ;; `get-file-buffer' performed by default handler.
     (insert-directory . tramp-handle-insert-directory)
     (insert-file-contents . tramp-sshfs-handle-insert-file-contents)
+    (list-system-processes . tramp-handle-list-system-processes)
     (load . tramp-handle-load)
     (lock-file . tramp-handle-lock-file)
     (make-auto-save-file-name . tramp-handle-make-auto-save-file-name)
@@ -134,6 +140,8 @@
     (make-nearby-temp-file . tramp-handle-make-nearby-temp-file)
     (make-process . tramp-handle-make-process)
     (make-symbolic-link . tramp-handle-make-symbolic-link)
+    (memory-info . tramp-handle-memory-info)
+    (process-attributes . tramp-handle-process-attributes)
     (process-file . tramp-sshfs-handle-process-file)
     (rename-file . tramp-sshfs-handle-rename-file)
     (set-file-acl . ignore)
@@ -145,7 +153,9 @@
     (start-file-process . tramp-handle-start-file-process)
     (substitute-in-file-name . tramp-handle-substitute-in-file-name)
     (temporary-file-directory . tramp-handle-temporary-file-directory)
+    (tramp-get-home-directory . ignore)
     (tramp-get-remote-gid . ignore)
+    (tramp-get-remote-groups . ignore)
     (tramp-get-remote-uid . ignore)
     (tramp-set-file-uid-gid . ignore)
     (unhandled-file-name-directory . ignore)
@@ -159,11 +169,10 @@ Operations not mentioned here will be handled by the default Emacs primitives.")
 ;; It must be a `defsubst' in order to push the whole code into
 ;; tramp-loaddefs.el.  Otherwise, there would be recursive autoloading.
 ;;;###tramp-autoload
-(defsubst tramp-sshfs-file-name-p (filename)
-  "Check if it's a FILENAME for sshfs."
-  (and (tramp-tramp-file-p filename)
-       (string= (tramp-file-name-method (tramp-dissect-file-name filename))
-	        tramp-sshfs-method)))
+(defsubst tramp-sshfs-file-name-p (vec-or-filename)
+  "Check if it's a VEC-OR-FILENAME for sshfs."
+  (when-let* ((vec (tramp-ensure-dissected-file-name vec-or-filename)))
+    (string= (tramp-file-name-method vec) tramp-sshfs-method)))
 
 ;;;###tramp-autoload
 (defun tramp-sshfs-file-name-handler (operation &rest args)
@@ -207,20 +216,20 @@ arguments to pass to the OPERATION."
    (with-parsed-tramp-file-name default-directory nil
      (with-tramp-connection-property (tramp-get-process v) "remote-path"
        (with-temp-buffer
-	 (process-file "getconf" nil t nil "PATH")
+         (let (process-file-side-effects)
+	   (process-file "getconf" nil t nil "PATH"))
 	 (split-string
 	  (progn
 	    ;; Read the expression.
 	    (goto-char (point-min))
-	    (buffer-substring (point) (point-at-eol)))
+	    (buffer-substring (point) (line-end-position)))
 	  ":" 'omit))))
    ;; The equivalent to `exec-directory'.
    `(,(tramp-file-local-name (expand-file-name default-directory)))))
 
 (defun tramp-sshfs-handle-file-system-info (filename)
   "Like `file-system-info' for Tramp files."
-  ;;`file-system-info' exists since Emacs 27.1.
-  (tramp-compat-funcall 'file-system-info (tramp-fuse-local-file-name filename)))
+  (file-system-info (tramp-fuse-local-file-name filename)))
 
 (defun tramp-sshfs-handle-file-writable-p (filename)
   "Like `file-writable-p' for Tramp files."
@@ -257,13 +266,13 @@ arguments to pass to the OPERATION."
       ;; Determine input.
       (if (null infile)
 	  (setq input (tramp-get-remote-null-device v))
-	(setq infile (tramp-compat-file-name-unquote (expand-file-name infile)))
+	(setq infile (file-name-unquote (expand-file-name infile)))
 	(if (tramp-equal-remote default-directory infile)
 	    ;; INFILE is on the same remote host.
 	    (setq input (tramp-unquote-file-local-name infile))
 	  ;; INFILE must be copied to remote host.
 	  (setq input (tramp-make-tramp-temp-file v)
-		tmpinput (tramp-make-tramp-file-name v input 'nohop))
+		tmpinput (tramp-make-tramp-file-name v input))
 	  (copy-file infile tmpinput t)))
       (when input (setq command (format "%s <%s" command input)))
 
@@ -330,7 +339,7 @@ arguments to pass to the OPERATION."
 	;; them.
 	(when tmpinput (delete-file tmpinput))
 	(when process-file-side-effects
-          (tramp-flush-directory-properties v ""))))))
+          (tramp-flush-directory-properties v "/"))))))
 
 (defun tramp-sshfs-handle-rename-file
     (filename newname &optional ok-if-already-exists)
@@ -352,66 +361,25 @@ arguments to pass to the OPERATION."
 
 (defun tramp-sshfs-handle-set-file-modes (filename mode &optional flag)
   "Like `set-file-modes' for Tramp files."
-  (with-parsed-tramp-file-name filename nil
-    (unless (and (eq flag 'nofollow) (file-symlink-p filename))
-      (tramp-flush-file-properties v localname)
+  (unless (and (eq flag 'nofollow) (file-symlink-p filename))
+    (tramp-skeleton-set-file-modes-times-uid-gid filename
       (tramp-compat-set-file-modes
        (tramp-fuse-local-file-name filename) mode flag))))
 
 (defun tramp-sshfs-handle-set-file-times (filename &optional timestamp flag)
   "Like `set-file-times' for Tramp files."
-  (or (file-exists-p filename) (write-region "" nil filename nil 0))
-  (with-parsed-tramp-file-name filename nil
-    (unless (and (eq flag 'nofollow) (file-symlink-p filename))
-      (tramp-flush-file-properties v localname)
+  (unless (and (eq flag 'nofollow) (file-symlink-p filename))
+    (tramp-skeleton-set-file-modes-times-uid-gid filename
       (tramp-compat-set-file-times
        (tramp-fuse-local-file-name filename) timestamp flag))))
 
 (defun tramp-sshfs-handle-write-region
   (start end filename &optional append visit lockname mustbenew)
   "Like `write-region' for Tramp files."
-  (setq filename (expand-file-name filename)
-	lockname (file-truename (or lockname filename)))
-  (with-parsed-tramp-file-name filename nil
-    (when (and mustbenew (file-exists-p filename)
-	       (or (eq mustbenew 'excl)
-		   (not
-		    (y-or-n-p
-		     (format "File %s exists; overwrite anyway?" filename)))))
-      (tramp-error v 'file-already-exists filename))
-
-    (let ((file-locked (eq (file-locked-p lockname) t)))
-
-      ;; Lock file.
-      (when (and (not (auto-save-file-name-p (file-name-nondirectory filename)))
-		 (file-remote-p lockname)
-		 (not file-locked))
-	(setq file-locked t)
-	;; `lock-file' exists since Emacs 28.1.
-	(tramp-compat-funcall 'lock-file lockname))
-
-      (let (create-lockfiles)
-	(write-region
-	 start end (tramp-fuse-local-file-name filename) append 'nomessage)
-	(tramp-flush-file-properties v localname))
-
-      ;; Set file modification time.
-      (when (or (eq visit t) (stringp visit))
-	(set-visited-file-modtime
-	 (or (tramp-compat-file-attribute-modification-time
-	      (file-attributes filename))
-	     (current-time))))
-
-      ;; Unlock file.
-      (when file-locked
-	;; `unlock-file' exists since Emacs 28.1.
-	(tramp-compat-funcall 'unlock-file lockname))
-
-      ;; The end.
-      (when (and (null noninteractive)
-		 (or (eq visit t) (string-or-null-p visit)))
-	(tramp-message v 0 "Wrote %s" filename))
-      (run-hooks 'tramp-handle-write-region-hook))))
+  (tramp-skeleton-write-region start end filename append visit lockname mustbenew
+    (let (create-lockfiles)
+      (write-region
+       start end (tramp-fuse-local-file-name filename) append 'nomessage))))
 
 
 ;; File name conversions.
@@ -484,7 +452,7 @@ connection if a previous connection has died for some reason."
     (funcall orig-fun)))
 
 (add-function
- :around  (symbol-function #'shell-mode) #'tramp-sshfs-tolerate-tilde)
+ :around (symbol-function #'shell-mode) #'tramp-sshfs-tolerate-tilde)
 (add-hook 'tramp-sshfs-unload-hook
 	  (lambda ()
 	    (remove-function

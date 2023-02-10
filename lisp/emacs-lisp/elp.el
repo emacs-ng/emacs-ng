@@ -1,6 +1,6 @@
 ;;; elp.el --- Emacs Lisp Profiler  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1994-2023 Free Software Foundation, Inc.
 
 ;; Author: Barry A. Warsaw
 ;; Maintainer: emacs-devel@gnu.org
@@ -111,7 +111,7 @@
 ;; provide the functionality or interface that I wanted, so I wrote
 ;; this.
 
-;; Unlike previous profilers, elp uses Emacs 19's built-in function
+;; Unlike previous profilers, elp uses the built-in function
 ;; current-time to return interval times.  This obviates the need for
 ;; both an external C program and Emacs processes to communicate with
 ;; such a program, and thus simplifies the package as a whole.
@@ -202,14 +202,13 @@ This variable is set by the master function.")
 (defvar elp-not-profilable
   ;; First, the functions used inside each instrumented function:
   '(called-interactively-p
-    ;; Then the functions used by the above functions.  I used
-    ;; (delq nil (mapcar (lambda (x) (and (symbolp x) (fboundp x) x))
-    ;;                   (aref (symbol-function 'elp-wrapper) 2)))
-    ;; to help me find this list.
-    error call-interactively apply current-time
+    ;; (delq
+    ;;  nil (mapcar
+    ;;       (lambda (x) (and (symbolp x) (fboundp x) x))
+    ;;       (aref (aref (aref (symbol-function 'elp--make-wrapper) 2) 1) 2)))
+    error apply current-time float-time time-subtract
     ;; Andreas Politz reports problems profiling these (Bug#4233):
-    + byte-code-function-p functionp byte-code subrp
-    indirect-function fboundp)
+    + byte-code-function-p functionp byte-code subrp fboundp)
   "List of functions that cannot be profiled.
 Those functions are used internally by the profiling code and profiling
 them would thus lead to infinite recursion.")
@@ -288,7 +287,12 @@ type \"nil\" to use `elp-function-list'."
   "Instrument for profiling, all functions which start with PREFIX.
 For example, to instrument all ELP functions, do the following:
 
-    \\[elp-instrument-package] RET elp- RET"
+    \\[elp-instrument-package] RET elp- RET
+
+Note that only functions that are currently loaded will be
+instrumented.  If you run this function, and then later load
+further functions that start with PREFIX, they will not be
+instrumented automatically."
   (interactive
    (list (completing-read "Prefix of package to instrument: "
                           obarray 'elp-profilable-p)))
@@ -299,10 +303,18 @@ For example, to instrument all ELP functions, do the following:
     'intern
     (all-completions prefix obarray 'elp-profilable-p))))
 
+(defun elp-restore-package (prefix)
+  "Remove instrumentation from functions with names starting with PREFIX."
+  (interactive "SPrefix: ")
+  (elp-restore-list
+   (mapcar #'intern
+           (all-completions (symbol-name prefix)
+                            obarray 'elp-profilable-p))))
+
 (defun elp-restore-list (&optional list)
   "Restore the original definitions for all functions in `elp-function-list'.
 Use optional LIST if provided instead."
-  (interactive "PList of functions to restore: ") ;FIXME: Doesn't work!?
+  (interactive)
   (mapcar #'elp-restore-function (or list elp-function-list)))
 
 (defun elp-restore-all ()
@@ -324,7 +336,7 @@ Use optional LIST if provided instead."
 (defun elp-reset-list (&optional list)
   "Reset the profiling information for all functions in `elp-function-list'.
 Use optional LIST if provided instead."
-  (interactive "PList of functions to reset: ") ;FIXME: Doesn't work!?
+  (interactive)
   (let ((list (or list elp-function-list)))
     (mapcar 'elp-reset-function list)))
 
@@ -460,13 +472,11 @@ original definition, use \\[elp-restore-function] or \\[elp-restore-all]."
 	(insert atstr))
       (insert "\n"))))
 
-(defvar elp-results-symname-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [mouse-2] 'elp-results-jump-to-definition)
-    (define-key map [follow-link] 'mouse-face)
-    (define-key map "\C-m" 'elp-results-jump-to-definition)
-    map)
-  "Keymap used on the function name column." )
+(defvar-keymap elp-results-symname-map
+  :doc "Keymap used on the function name column."
+  "<mouse-2>"     #'elp-results-jump-to-definition
+  "<follow-link>" 'mouse-face
+  "RET"           #'elp-results-jump-to-definition)
 
 (defun elp-results-jump-to-definition (&optional event)
   "Jump to the definition of the function at point."

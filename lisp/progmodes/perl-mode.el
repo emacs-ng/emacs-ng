@@ -1,6 +1,6 @@
 ;;; perl-mode.el --- Perl code editing commands for GNU Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990, 1994, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1990, 1994, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: William F. Mann
 ;; Maintainer: emacs-devel@gnu.org
@@ -27,8 +27,8 @@
 
 ;;; Commentary:
 
-;; To enter perl-mode automatically, add (autoload 'perl-mode "perl-mode")
-;; to your init file and change the first line of your perl script to:
+;; To enter `perl-mode' automatically, change the first line of your
+;; perl script to:
 ;; #!/usr/bin/perl --	 # -*-Perl-*-
 ;; With arguments to perl:
 ;; #!/usr/bin/perl -P-	 # -*-Perl-*-
@@ -191,7 +191,9 @@
      ,(concat "\\<"
               (regexp-opt '("if" "until" "while" "elsif" "else" "unless"
                             "do" "dump" "for" "foreach" "exit" "die"
-                            "BEGIN" "END" "return" "exec" "eval") t)
+                            "BEGIN" "END" "return" "exec" "eval"
+                            "when" "given" "default")
+                          t)
               "\\>")
      ;;
      ;; Fontify declarators and prefixes as types.
@@ -212,12 +214,17 @@
 
 (eval-and-compile
   (defconst perl--syntax-exp-intro-keywords
-    '("split" "if" "unless" "until" "while" "print"
-      "grep" "map" "not" "or" "and" "for" "foreach" "return"))
+    '("split" "if" "unless" "until" "while" "print" "printf"
+      "grep" "map" "not" "or" "and" "for" "foreach" "return" "die"
+      "warn" "eval"))
 
   (defconst perl--syntax-exp-intro-regexp
     (concat "\\(?:\\(?:^\\|[^$@&%[:word:]]\\)"
             (regexp-opt perl--syntax-exp-intro-keywords)
+            ;; A HERE document as an argument to printf?
+            ;; when printing to a filehandle.
+            "\\|printf?[ \t]*\\$?[_[:alpha:]][_[:alnum:]]*"
+            "\\|=>"
             "\\|[?:.,;|&*=!~({[]"
             "\\|[^-+][-+]"    ;Bug#42168: `+' is intro but `++' isn't!
             "\\|\\(^\\)\\)[ \t\n]*")))
@@ -240,6 +247,12 @@
                                          (not (nth 3 (syntax-ppss
                                                       (match-beginning 0))))))
                             (string-to-syntax ". p"))))
+      ;; If "\" is acting as a backslash operator, it shouldn't start an
+      ;; escape sequence, so change its syntax.  This allows us to handle
+      ;; correctly the \() construct (Bug#11996) as well as references
+      ;; to string values.
+      ("\\(\\\\\\)['`\"($]" (1 (unless (nth 3 (syntax-ppss))
+                                       (string-to-syntax "."))))
       ;; Handle funny names like $DB'stop.
       ("\\$ ?{?\\^?[_[:alpha:]][_[:alnum:]]*\\('\\)[_[:alpha:]]" (1 "_"))
       ;; format statements
@@ -278,6 +291,7 @@
                                       (backward-sexp 1)
                                       (member (buffer-substring (point) end)
                                               perl--syntax-exp-intro-keywords)))
+                               (bobp)
                                (memq (char-before)
                                      '(?? ?: ?. ?, ?\; ?= ?! ?~ ?\( ?\[))))))
                nil ;; A division sign instead of a regexp-match.
@@ -326,7 +340,7 @@
         "<<\\(~\\)?[ \t]*\\('[^'\n]*'\\|\"[^\"\n]*\"\\|\\\\[[:alpha:]][[:alnum:]]*\\)"
         ;; The <<EOF case which needs perl--syntax-exp-intro-regexp, to
         ;; disambiguate with the left-bitshift operator.
-        "\\|" perl--syntax-exp-intro-regexp "<<\\(?2:\\sw+\\)\\)"
+        "\\|" perl--syntax-exp-intro-regexp "<<\\(?1:~\\)?\\(?2:\\sw+\\)\\)"
         ".*\\(\n\\)")
        (4 (let* ((eol (match-beginning 4))
                  (st (get-text-property eol 'syntax-table))
@@ -1118,7 +1132,6 @@ Returns (parse-state) if line starts inside a string."
         (t (forward-char -1) (forward-comment (- (point))) t)))))
 
 ;; note: this may be slower than the c-mode version, but I can understand it.
-(defalias 'indent-perl-exp 'perl-indent-exp)
 (defun perl-indent-exp ()
   "Indent each line of the Perl grouping following point."
   (interactive)
@@ -1218,7 +1231,6 @@ With argument, repeat that many times; negative args move backward."
 	      (goto-char (point-min)))))
       (setq arg (1+ arg)))))
 
-(defalias 'mark-perl-function 'perl-mark-function)
 (defun perl-mark-function ()
   "Put mark at end of Perl function, point at beginning."
   (interactive)
@@ -1227,6 +1239,9 @@ With argument, repeat that many times; negative args move backward."
   (push-mark)
   (perl-beginning-of-function)
   (backward-paragraph))
+
+(define-obsolete-function-alias 'indent-perl-exp #'perl-indent-exp "29.1")
+(define-obsolete-function-alias 'mark-perl-function #'perl-mark-function "29.1")
 
 (provide 'perl-mode)
 

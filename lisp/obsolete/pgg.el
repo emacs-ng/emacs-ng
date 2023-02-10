@@ -1,6 +1,6 @@
 ;;; pgg.el --- glue for the various PGP implementations.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2000, 2002-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2000, 2002-2023 Free Software Foundation, Inc.
 
 ;; Author: Daiki Ueno <ueno@unixuser.org>
 ;; Symmetric encryption added by: Sascha Wilde <wilde@sha-bang.de>
@@ -376,8 +376,7 @@ signer's public key from `pgg-default-keyserver-address'."
 	  (if (null signature) nil
 	    (with-temp-buffer
 	      (buffer-disable-undo)
-	      (unless (featurep 'xemacs)
-		(set-buffer-multibyte nil))
+              (set-buffer-multibyte nil)
 	      (insert-file-contents signature)
 	      (cdr (assq 2 (pgg-decode-armor-region
 			    (point-min)(point-max)))))))

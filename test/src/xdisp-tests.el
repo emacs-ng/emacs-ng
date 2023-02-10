@@ -1,6 +1,6 @@
 ;;; xdisp-tests.el --- tests for xdisp.c functions -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -98,5 +98,85 @@
            (size (window-text-pixel-size nil t t))
            (width-in-chars (/ (car size) char-width)))
       (should (equal width-in-chars 3)))))
+
+(ert-deftest xdisp-tests--find-directional-overrides-case-1 ()
+  (with-temp-buffer
+    (insert "\
+int main() {
+  bool isAdmin = false;
+  /*‮ }⁦if (isAdmin)⁩ ⁦ begin admins only */
+  printf(\"You are an admin.\\n\");
+  /* end admins only ‮ { ⁦*/
+  return 0;
+}")
+    (goto-char (point-min))
+    (should (eq (bidi-find-overridden-directionality (point-min) (point-max)
+                                                     nil)
+                46))))
+
+(ert-deftest xdisp-tests--find-directional-overrides-case-2 ()
+  (with-temp-buffer
+    (insert "\
+#define is_restricted_user(user)			\\
+  !strcmp (user, \"root\") ? 0 :			\\
+  !strcmp (user, \"admin\") ? 0 :			\\
+  !strcmp (user, \"superuser‮⁦? 0 : 1⁩ ⁦\")⁩‬
+
+int main () {
+  printf (\"root: %d\\n\", is_restricted_user (\"root\"));
+  printf (\"admin: %d\\n\", is_restricted_user (\"admin\"));
+  printf (\"superuser: %d\\n\", is_restricted_user (\"superuser\"));
+  printf (\"luser: %d\\n\", is_restricted_user (\"luser\"));
+  printf (\"nobody: %d\\n\", is_restricted_user (\"nobody\"));
+}")
+    (goto-char (point-min))
+    (should (eq (bidi-find-overridden-directionality (point-min) (point-max)
+                                                     nil)
+                138))))
+
+(ert-deftest xdisp-tests--find-directional-overrides-case-3 ()
+  (with-temp-buffer
+    (insert "\
+#define is_restricted_user(user)			\\
+  !strcmp (user, \"root\") ? 0 :			\\
+  !strcmp (user, \"admin\") ? 0 :			\\
+  !strcmp (user, \"superuser‮⁦? '#' : '!'⁩ ⁦\")⁩‬
+
+int main () {
+  printf (\"root: %d\\n\", is_restricted_user (\"root\"));
+  printf (\"admin: %d\\n\", is_restricted_user (\"admin\"));
+  printf (\"superuser: %d\\n\", is_restricted_user (\"superuser\"));
+  printf (\"luser: %d\\n\", is_restricted_user (\"luser\"));
+  printf (\"nobody: %d\\n\", is_restricted_user (\"nobody\"));
+}")
+    (goto-char (point-min))
+    (should (eq (bidi-find-overridden-directionality (point-min) (point-max)
+                                                     nil)
+                138))))
+
+(ert-deftest test-get-display-property ()
+  (with-temp-buffer
+    (insert (propertize "foo" 'face 'bold 'display '(height 2.0)))
+    (should (equal (get-display-property 2 'height) 2.0)))
+  (with-temp-buffer
+    (insert (propertize "foo" 'face 'bold 'display '((height 2.0)
+                                                     (space-width 2.0))))
+    (should (equal (get-display-property 2 'height) 2.0))
+    (should (equal (get-display-property 2 'space-width) 2.0)))
+  (with-temp-buffer
+    (insert (propertize "foo bar" 'face 'bold
+                        'display '[(height 2.0)
+                                   (space-width 20)]))
+    (should (equal (get-display-property 2 'height) 2.0))
+    (should (equal (get-display-property 2 'space-width) 20))))
+
+(ert-deftest test-messages-buffer-name ()
+  (should
+   (equal
+    (let ((messages-buffer-name "test-message"))
+      (message "foo")
+      (with-current-buffer messages-buffer-name
+        (buffer-string)))
+    "foo\n")))
 
 ;;; xdisp-tests.el ends here

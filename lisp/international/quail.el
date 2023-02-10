@@ -1,6 +1,6 @@
 ;;; quail.el --- provides simple input method for multilingual text  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-1998, 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-1998, 2000-2023 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -249,11 +249,9 @@ This activates input method defined by PACKAGE-NAME by running
 		  (princ (car libraries))
 		  (princ (substitute-command-keys "\" is not in `load-path'.
 
-The most common case is that you have not yet installed appropriate
-libraries in LEIM (Libraries of Emacs Input Method) which is
-distributed separately from Emacs.
-
-LEIM is available from the same ftp directory as Emacs.")))
+This might indicate a problem with your Emacs installation, as
+LEIM (Libraries of Emacs Input Method) should normally always be
+installed together with Emacs.")))
 		(error "Can't use the Quail package `%s'" package-name))
 	    (setq libraries (cdr libraries))))))
   (quail-select-package package-name)
@@ -412,8 +410,8 @@ If it is nil, the current key is shown.
 
 DOCSTRING is the documentation string of this package.  The command
 `describe-input-method' shows this string while replacing the form
-\\=\\<VAR> in the string by the value of VAR.  That value should be a
-string.  For instance, the form \\=\\<quail-translation-docstring> is
+\\=\\=\\=\\<VAR> in the string by the value of VAR.  That value should be a
+string.  For instance, the form \\=\\=\\=\\<quail-translation-docstring> is
 replaced by a description about how to select a translation from a
 list of candidates.
 
@@ -542,8 +540,6 @@ This function runs the normal hook `quail-deactivate-hook'."
   (interactive)
   (quail-activate -1))
 
-(define-obsolete-function-alias 'quail-inactivate 'quail-deactivate "24.3")
-
 (defun quail-activate (&optional arg)
   "Activate Quail input method.
 With ARG, activate Quail input method if and only if arg is positive.
@@ -584,10 +580,6 @@ While this input method is active, the variable
       (add-hook 'post-command-hook #'quail-show-guidance nil t))
     (run-hooks 'quail-activate-hook)
     (setq-local input-method-function #'quail-input-method)))
-
-(define-obsolete-variable-alias
-  'quail-inactivate-hook
-  'quail-deactivate-hook "24.3")
 
 (defun quail-exit-from-minibuffer ()
   (deactivate-input-method)
@@ -917,7 +909,7 @@ The format of KBD-LAYOUT is the same as `quail-keyboard-layout'."
 The variable `quail-keyboard-layout-type' holds the currently selected
 keyboard type."
   (interactive
-   (list (completing-read "Keyboard type (default current choice): "
+   (list (completing-read (format-prompt "Keyboard type" "current choice")
 			  quail-keyboard-layout-alist
 			  nil t)))
   (or (and keyboard-type (> (length keyboard-type) 0))

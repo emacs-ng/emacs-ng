@@ -1,6 +1,6 @@
 ;;; undo-tests.el --- Tests of primitive-undo -*- lexical-binding: t -*-
 
-;; Copyright (C) 2012-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2023 Free Software Foundation, Inc.
 
 ;; Author: Aaron S. Hawley <aaron.s.hawley@gmail.com>
 
@@ -46,6 +46,7 @@
 ;;; Code:
 
 (require 'ert)
+(require 'ert-x)
 (require 'facemenu)
 
 (ert-deftest undo-test0 ()
@@ -218,17 +219,14 @@
 
 (ert-deftest undo-test-file-modified ()
   "Test undoing marks buffer visiting file unmodified."
-  (let ((tempfile (make-temp-file "undo-test")))
-    (unwind-protect
-        (progn
-          (with-current-buffer (find-file-noselect tempfile)
-            (insert "1")
-            (undo-boundary)
-            (set-buffer-modified-p nil)
-            (insert "2")
-            (undo)
-            (should-not (buffer-modified-p))))
-      (delete-file tempfile))))
+  (ert-with-temp-file tempfile
+    (with-current-buffer (find-file-noselect tempfile)
+      (insert "1")
+      (undo-boundary)
+      (set-buffer-modified-p nil)
+      (insert "2")
+      (undo)
+      (should-not (buffer-modified-p)))))
 
 (ert-deftest undo-test-region-not-most-recent ()
   "Test undo in region of an edit not the most recent."
@@ -441,6 +439,78 @@ Demonstrates bug 16818."
 
     (should (string= (buffer-string) "aaaFirst line\nSecond line\nbbb"))))
 
+(ert-deftest undo-test-combine-change-calls-1 ()
+  "Test how `combine-change-calls' updates `buffer-undo-list'.
+Case 1: a file-visiting buffer with `buffer-undo-list' non-nil
+and `buffer-modified-p' non-nil when `combine-change-calls' is
+called."
+  (ert-with-temp-file tempfile
+    (with-current-buffer (find-file tempfile)
+      (insert "A")
+      (undo-boundary)
+      (insert "B")
+      (undo-boundary)
+      (insert "C")
+      (undo-boundary)
+      (insert " ")
+      (undo-boundary)
+      (insert "D")
+      (undo-boundary)
+      (insert "E")
+      (undo-boundary)
+      (insert "F")
+      (should (= (length buffer-undo-list) 14))
+      (goto-char (point-min))
+      (combine-change-calls (point-min) (point-max)
+        (re-search-forward "ABC ")
+        (replace-match "Z "))
+      (should (= (length buffer-undo-list) 15)))))
+
+(ert-deftest undo-test-combine-change-calls-2 ()
+  "Test how `combine-change-calls' updates `buffer-undo-list'.
+Case 2: a file-visiting buffer with `buffer-undo-list' non-nil
+and `buffer-modified-p' nil when `combine-change-calls' is
+called."
+  (ert-with-temp-file tempfile
+    (with-current-buffer (find-file tempfile)
+      (insert "A")
+      (undo-boundary)
+      (insert "B")
+      (undo-boundary)
+      (insert "C")
+      (undo-boundary)
+      (insert " ")
+      (undo-boundary)
+      (insert "D")
+      (undo-boundary)
+      (insert "E")
+      (undo-boundary)
+      (insert "F")
+      (should (= (length buffer-undo-list) 14))
+      (save-buffer)
+      (goto-char (point-min))
+      (combine-change-calls (point-min) (point-max)
+        (re-search-forward "ABC ")
+        (replace-match "Z "))
+      (should (= (length buffer-undo-list) 15)))))
+
+(ert-deftest undo-test-combine-change-calls-3 ()
+  "Test how `combine-change-calls' updates `buffer-undo-list'.
+Case 3: a file-visiting buffer with `buffer-undo-list' nil and
+`buffer-modified-p' nil when `combine-change-calls' is called."
+  (ert-with-temp-file tempfile
+    (with-current-buffer (find-file tempfile)
+      (insert "ABC DEF")
+      (save-buffer)
+      (kill-buffer))
+    (with-current-buffer (find-file tempfile)
+      (should (= (length buffer-undo-list) 0))
+      (goto-char (point-min))
+      (combine-change-calls (point-min) (point-max)
+        (re-search-forward "ABC ")
+        (replace-match "Z "))
+      (should (= (length buffer-undo-list) 1)))))
+
 (defun undo-test-all (&optional interactive)
   "Run all tests for \\[undo]."
   (interactive "p")
@@ -462,11 +532,10 @@ Demonstrates bug 25599."
                  (delete-overlay ov))))))
       (save-excursion
         (goto-char (point-min))
-        (let ((ov (make-overlay (line-beginning-position 2)
-                                (line-end-position 2))))
+        (let ((ov (make-overlay (pos-bol 2) (pos-eol 2))))
           (overlay-put ov 'insert-in-front-hooks
                        (list overlay-modified)))))
-    (kill-region (point-min) (line-beginning-position 2))
+    (kill-region (point-min) (pos-bol 2))
     (undo-boundary)
     (undo)))
 

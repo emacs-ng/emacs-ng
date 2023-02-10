@@ -1,6 +1,6 @@
 ;;; starttls.el --- STARTTLS functions  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: Daiki Ueno <ueno@unixuser.org>
 ;; Author: Simon Josefsson <simon@josefsson.org>
@@ -286,9 +286,6 @@ GnuTLS requires a port number."
        (executable-find (if starttls-use-gnutls
 			    starttls-gnutls-program
 			  starttls-program))))
-
-(define-obsolete-function-alias 'starttls-any-program-available
-  #'starttls-available-p "24.1")
 
 (provide 'starttls)
 

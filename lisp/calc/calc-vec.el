@@ -1,6 +1,6 @@
 ;;; calc-vec.el --- vector functions for Calc  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -647,9 +647,7 @@
 (defun calcFunc-rhead (vec)
   (if (and (Math-vectorp vec)
 	   (cdr vec))
-      (let ((vec (copy-sequence vec)))
-	(setcdr (nthcdr (- (length vec) 2) vec) nil)
-	vec)
+      (butlast vec)
     (calc-record-why 'vectorp vec)
     (list 'calcFunc-rhead vec)))
 

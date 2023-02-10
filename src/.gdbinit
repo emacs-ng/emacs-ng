@@ -1,4 +1,4 @@
-# Copyright (C) 1992-1998, 2000-2022 Free Software Foundation, Inc.
+# Copyright (C) 1992-1998, 2000-2023 Free Software Foundation, Inc.
 #
 # This file is part of GNU Emacs.
 #
@@ -40,6 +40,11 @@ handle SIGUSR2 noprint pass
 # Don't pass SIGALRM to Emacs.  This makes problems when
 # debugging.
 handle SIGALRM ignore
+
+# On selection send failed.
+if defined_HAVE_PGTK
+  handle SIGPIPE nostop noprint
+end
 
 # Use $bugfix so that the value isn't a constant.
 # Using a constant runs into GDB bugs sometimes.
@@ -746,6 +751,15 @@ Print $ as a overlay pointer.
 This command assumes that $ is an Emacs Lisp overlay value.
 end
 
+define xsymwithpos
+  xgetptr $
+  print (struct Lisp_Symbol_With_Pos *) $ptr
+end
+document xsymwithpos
+Print $ as a symbol with position.
+This command assumes that $ is an Emacs Lisp symbol with position value.
+end
+
 define xsymbol
   set $sym = $
   xgetsym $sym
@@ -1011,6 +1025,9 @@ define xpr
       if $vec == PVEC_OVERLAY
         xoverlay
       end
+      if $vec == PVEC_SYMBOL_WITH_POS
+        xsymwithpos
+      end
       if $vec == PVEC_PROCESS
 	xprocess
       end
@@ -1224,6 +1241,9 @@ set print pretty on
 set print sevenbit-strings
 
 show environment DISPLAY
+if defined_HAVE_PGTK
+  show environment WAYLAND_DISPLAY
+end
 show environment TERM
 
 # When debugging, it is handy to be able to "return" from

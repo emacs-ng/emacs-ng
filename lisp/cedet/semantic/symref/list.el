@@ -1,6 +1,6 @@
 ;;; semantic/symref/list.el --- Symref Output List UI  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -51,7 +51,7 @@ Display the references in `semantic-symref-results-mode'."
   (let ((ct (semantic-current-tag)))
     ;; Must have a tag...
     (when (not ct) (error "Place cursor inside tag to be searched for"))
-    ;; Check w/ user.
+    ;; Check with user.
     (when (not (y-or-n-p (format "Find references for %s? "
                                  (semantic-tag-name ct))))
       (error "Quit"))
@@ -234,7 +234,7 @@ Some useful functions are found in `semantic-format-tag-functions'."
   "Toggle showing the contents below the current line."
   (interactive)
   (beginning-of-line)
-  (when (re-search-forward "\\[[-+]\\]" (point-at-eol) t)
+  (when (re-search-forward "\\[[-+]\\]" (line-end-position) t)
     (forward-char -1)
     (push-button)))
 
@@ -255,7 +255,7 @@ BUTTON is the button that was clicked."
 	  (forward-line (1- H))
 	  (beginning-of-line)
 	  (back-to-indentation)
-	  (setq text (cons (buffer-substring (point) (point-at-eol)) text)))
+          (setq text (cons (buffer-substring (point) (line-end-position)) text)))
 	(setq text (nreverse text)))
       (goto-char (button-start button))
       (forward-char 1)
@@ -378,7 +378,8 @@ BUTTON is the button that was clicked."
 
 (defun semantic-symref-list-on-hit-p ()
   "Return the line number if the cursor is on a buffer line with a hit.
-Hits are the line of code from the buffer, not the tag summar or file lines."
+Hits are the line of code from the buffer, not the tag summary or
+file lines."
   (save-excursion
     (end-of-line)
     (let* ((ol (car (overlays-at (1- (point)))))) ;; trust this for now
@@ -409,7 +410,7 @@ cursor to the beginning of that symbol, then record a macro as if
     (switch-to-buffer-other-window (semantic-tag-buffer tag))
     (goto-char (point-min))
     (forward-line (1- line))
-    (when (not (re-search-forward (regexp-quote oldsym) (point-at-eol) t))
+    (when (not (re-search-forward (regexp-quote oldsym) (line-end-position) t))
       (error "Cannot find hit.  Cannot record macro"))
     (goto-char (match-beginning 0))
     ;; Cursor is now in the right location.  Start recording a macro.
@@ -479,7 +480,7 @@ Return the number of occurrences FUNCTION was operated upon."
 	      (goto-char (point-min))
 	      (forward-line (1- line))
 	      (beginning-of-line)
-	      (while (re-search-forward (regexp-quote oldsym) (point-at-eol) t)
+              (while (re-search-forward (regexp-quote oldsym) (line-end-position) t)
 		(setq count (1+ count))
 		(save-excursion ;; Leave cursor after the matched name.
 		  (goto-char (match-beginning 0)) ;; Go to beginning of that sym

@@ -1,6 +1,6 @@
 ;;; add-log.el --- change log maintenance commands for Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985-1986, 1988, 1993-1994, 1997-1998, 2000-2022 Free
+;; Copyright (C) 1985-1986, 1988, 1993-1994, 1997-1998, 2000-2023 Free
 ;; Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -208,8 +208,6 @@ a case simply use the directory containing the changed file."
   '((t (:inherit font-lock-comment-face)))
   "Face for highlighting acknowledgments."
   :version "21.1")
-(define-obsolete-face-alias 'change-log-acknowledgement
-  'change-log-acknowledgment "24.3")
 
 (defconst change-log-file-names-re "^\\( +\\|\t\\)\\* \\([^ ,:([\n]+\\)")
 (defconst change-log-start-entry-re "^\\sw.........[0-9:+ ]*")
@@ -568,14 +566,12 @@ Compatibility function for \\[next-error] invocations."
 	;; Select window displaying source file.
 	(select-window change-log-find-window)))))
 
-(defvar change-log-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [?\C-c ?\C-p] #'add-log-edit-prev-comment)
-    (define-key map [?\C-c ?\C-n] #'add-log-edit-next-comment)
-    (define-key map [?\C-c ?\C-f] #'change-log-find-file)
-    (define-key map [?\C-c ?\C-c] #'change-log-goto-source)
-    map)
-  "Keymap for Change Log major mode.")
+(defvar-keymap change-log-mode-map
+  :doc "Keymap for Change Log major mode."
+  "C-c C-p" #'add-log-edit-prev-comment
+  "C-c C-n" #'add-log-edit-next-comment
+  "C-c C-f" #'change-log-find-file
+  "C-c C-c" #'change-log-goto-source)
 
 (easy-menu-define change-log-mode-menu change-log-mode-map
   "Menu for Change Log major mode."
@@ -590,9 +586,8 @@ Compatibility function for \\[next-error] invocations."
     ["Go To Source" change-log-goto-source
      :help "Go to source location of ChangeLog tag near point"]))
 
-;; It used to be called change-log-time-zone-rule but really should be
-;; called add-log-time-zone-rule since it's only used from add-log-* code.
-(defvaralias 'change-log-time-zone-rule 'add-log-time-zone-rule)
+(define-obsolete-variable-alias 'change-log-time-zone-rule
+  'add-log-time-zone-rule "29.1")
 (defvar add-log-time-zone-rule nil
   "Time zone rule used for calculating change log time stamps.
 If nil, use local time.  If t, use Universal Time.
@@ -790,9 +785,8 @@ Optional arg BUFFER-FILE overrides `buffer-file-name'."
 If a ChangeLog file does not already exist, a non-nil value
 means to put log entries in a suitably named buffer."
   :type 'boolean
+  :safe #'booleanp
   :version "27.1")
-
-(put 'add-log-dont-create-changelog-file 'safe-local-variable #'booleanp)
 
 (defun add-log--pseudo-changelog-buffer-name (changelog-file-name)
   "Compute a suitable name for a non-file visiting ChangeLog buffer.
@@ -812,7 +806,7 @@ if it were to exist."
 
 (defun add-log-find-changelog-buffer (changelog-file-name)
   "Find a ChangeLog buffer for CHANGELOG-FILE-NAME.
-Respect `add-log-use-pseudo-changelog', which see."
+Respect `add-log--pseudo-changelog-buffer-name', which see."
   (if (or (file-exists-p changelog-file-name)
           (not add-log-dont-create-changelog-file))
       (find-file-noselect changelog-file-name)
@@ -1069,8 +1063,23 @@ the change log file in another window."
 	    (insert-before-markers "("))
 	(error nil)))))
 
+;; If we're filling a line that has a whole bunch of file names, and
+;; we're still in the file names, then transform this so that it'll
+;; still font-lock properly.
+(defun change-log-fill-file-list ()
+  (save-excursion
+    (unless (bobp)
+      (forward-line -1)
+      (when (looking-at change-log-file-names-re)
+        (goto-char (match-end 0))
+        (while (looking-at "\\=, \\([^ ,:([\n]+\\)")
+          (goto-char (match-end 0)))
+        (when (looking-at ", *\n")
+          (replace-match ":\n *" t t))))))
+
 (defun change-log-indent ()
   (change-log-fill-parenthesized-list)
+  (change-log-fill-file-list)
   (let* ((indent
 	  (save-excursion
 	    (beginning-of-line)
@@ -1179,7 +1188,7 @@ file were isearch was started."
      ((and wrap (null file))
       (current-buffer))
      ;; When there is no next file, file-exists-p raises the error to be
-     ;; catched by the search function that displays the error message.
+     ;; caught by the search function that displays the error message.
      ((file-exists-p file)
       (find-file-noselect file))
      (t

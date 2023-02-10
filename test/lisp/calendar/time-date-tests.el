@@ -1,6 +1,6 @@
 ;;; time-date-tests.el --- tests for calendar/time-date.el    -*- lexical-binding:t -*-
 
-;; Copyright (C) 2019-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -41,6 +41,13 @@
                    (encode-time-value 1 2 3 4 3))
                  '(1 2 3 4))))
 
+(ert-deftest test-date-to-time ()
+  (should (equal (format-time-string "%F %T" (date-to-time "2021-12-04"))
+                 "2021-12-04 00:00:00")))
+
+(ert-deftest test-days-between ()
+  (should (equal (days-between "2021-10-22" "2020-09-29") 388)))
+
 (ert-deftest test-leap-year ()
   (should-not (date-leap-year-p 1999))
   (should-not (date-leap-year-p 1900))
@@ -48,13 +55,13 @@
   (should (date-leap-year-p 2004)))
 
 (ert-deftest test-days-to-time ()
-  (should (equal (days-to-time 0) '(0 0)))
-  (should (equal (days-to-time 1) '(1 20864)))
-  (should (equal (days-to-time 999) '(1317 2688)))
-  (should (equal (days-to-time 0.0) '(0 0 0 0)))
-  (should (equal (days-to-time 0.5) '(0 43200 0 0)))
-  (should (equal (days-to-time 1.0) '(1 20864 0 0)))
-  (should (equal (days-to-time 999.0) '(1317 2688 0 0))))
+  (should (time-equal-p (days-to-time 0) '(0 0)))
+  (should (time-equal-p (days-to-time 1) '(1 20864)))
+  (should (time-equal-p (days-to-time 999) '(1317 2688)))
+  (should (time-equal-p (days-to-time 0.0) '(0 0 0 0)))
+  (should (time-equal-p (days-to-time 0.5) '(0 43200 0 0)))
+  (should (time-equal-p (days-to-time 1.0) '(1 20864 0 0)))
+  (should (time-equal-p (days-to-time 999.0) '(1317 2688 0 0))))
 
 (ert-deftest test-seconds-to-string ()
   (should (equal (seconds-to-string 0) "0s"))
@@ -81,14 +88,19 @@
 (ert-deftest test-format-seconds ()
   (should (equal (format-seconds "%y %d %h %m %s %%" 0) "0 0 0 0 0 %"))
   (should (equal (format-seconds "%y %d %h %m %s %%" 9999999) "0 115 17 46 39 %"))
-  (should (equal (format-seconds "%y %d %h %m %z %s %%" 1) " 1 %"))
+  (should (equal (format-seconds "%y %d %h %m %z %s %%" 1) "1 %"))
   (should (equal (format-seconds "%mm %ss" 66) "1m 6s"))
   (should (equal (format-seconds "%mm %5ss" 66) "1m     6s"))
   (should (equal (format-seconds "%mm %.5ss" 66.4) "1m 00006s"))
 
   (should (equal (format-seconds "%mm %,1ss" 66.4) "1m 6.4s"))
   (should (equal (format-seconds "%mm %5,1ss" 66.4) "1m   6.4s"))
-  (should (equal (format-seconds "%mm %.5,1ss" 66.4) "1m 006.4s")))
+  (should (equal (format-seconds "%mm %.5,1ss" 66.4) "1m 006.4s"))
+
+  (should (equal (format-seconds "%hh %z%x%mm %ss" (* 60 2)) "2m"))
+  (should (equal (format-seconds "%hh %z%mm %ss" (* 60 2)) "2m 0s"))
+  (should (equal (format-seconds "%hh %x%mm %ss" (* 60 2)) "0h 2m"))
+  (should (equal (format-seconds "%hh %x%mm %ss" 0) "0h 0m 0s")))
 
 (ert-deftest test-ordinal ()
   (should (equal (date-ordinal-to-time 2008 271)
@@ -163,7 +175,8 @@
 
 (ert-deftest test-time-since ()
   (should (time-equal-p 0 (time-since nil)))
-  (should (= (cadr (time-since (time-subtract (current-time) 1))) 1)))
+  (should (time-equal-p 1 (time-convert (time-since (time-subtract nil 1))
+                                        'integer))))
 
 (ert-deftest test-time-decoded-period ()
   (should (equal (decoded-time-period '(nil nil 1 nil nil nil nil nil nil))

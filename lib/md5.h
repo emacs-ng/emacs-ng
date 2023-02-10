@@ -1,7 +1,7 @@
 /* Declaration of functions and data types used for MD5 sum computing
    library functions.
-   Copyright (C) 1995-1997, 1999-2001, 2004-2006, 2008-2022 Free
-   Software Foundation, Inc.
+   Copyright (C) 1995-1997, 1999-2001, 2004-2006, 2008-2023 Free Software
+   Foundation, Inc.
    This file is part of the GNU C Library.
 
    This file is free software: you can redistribute it and/or modify
@@ -24,6 +24,9 @@
 #include <stdint.h>
 
 # if HAVE_OPENSSL_MD5
+#  ifndef OPENSSL_API_COMPAT
+#   define OPENSSL_API_COMPAT 0x10101000L /* FIXME: Use OpenSSL 1.1+ API.  */
+#  endif
 #  include <openssl/md5.h>
 # endif
 

@@ -1,5 +1,5 @@
 /* Definitions for asynchronous process control in GNU Emacs.
-   Copyright (C) 1985, 1994, 2001-2022 Free Software Foundation, Inc.
+   Copyright (C) 1985, 1994, 2001-2023 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -156,8 +156,9 @@ struct Lisp_Process
     /* True means kill silently if Emacs is exited.
        This is the inverse of the `query-on-exit' flag.  */
     bool_bf kill_without_query : 1;
-    /* True if communicating through a pty.  */
-    bool_bf pty_flag : 1;
+    /* True if communicating through a pty for input or output.  */
+    bool_bf pty_in : 1;
+    bool_bf pty_out : 1;
     /* Flag to set coding-system of the process buffer from the
        coding_system used to decode process output.  */
     bool_bf inherit_coding_system_flag : 1;

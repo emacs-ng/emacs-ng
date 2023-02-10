@@ -1,6 +1,6 @@
 ;;; completion.el --- dynamic word-completion code  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1990-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1990-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: abbrev convenience
@@ -492,7 +492,7 @@ Used to decide whether to save completions.")
     table))
 
 ;; Old name, non-namespace-clean.
-(defvaralias 'cmpl-syntax-table 'completion-syntax-table)
+(define-obsolete-variable-alias 'cmpl-syntax-table 'completion-syntax-table "29.1")
 
 (defvar-local completion-syntax-table completion-standard-syntax-table
   "This variable holds the current completion syntax table.")
@@ -925,10 +925,6 @@ Each symbol is bound to a single completion entry.")
 (defun make-completion (string)
   "Return a completion entry."
   (list string 0 nil current-completion-source))
-
-;; Obsolete
-;;(defmacro cmpl-prefix-entry-symbol (completion-entry)
-;;  (list 'car (list 'cdr completion-entry)))
 
 
 
@@ -2220,7 +2216,7 @@ TYPE is the type of the wrapper to be added.  Can be :before or :under."
 (completion-def-wrapper 'delete-backward-char-untabify :backward)
 
 ;; Old name, non-namespace-clean.
-(defalias 'initialize-completions #'completion-initialize)
+(define-obsolete-function-alias 'initialize-completions #'completion-initialize "29.1")
 
 (provide 'completion)
 

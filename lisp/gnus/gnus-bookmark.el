@@ -1,6 +1,6 @@
 ;;; gnus-bookmark.el --- Bookmarks in Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2006-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2023 Free Software Foundation, Inc.
 
 ;; Author: Bastien Guerry <bzg AT altern DOT org>
 ;; Keywords: news
@@ -65,7 +65,7 @@
 ;; http://thread.gmane.org/v9fxx9fkm4.fsf@marauder.physik.uni-ulm.de
 
 ;; FIXME: Check if `gnus-bookmark.el' should use
-;; `bookmark-make-cell-function'.
+;; `bookmark-make-record-function'.
 ;; Cf. http://article.gmane.org/gmane.emacs.gnus.general/66076
 
 (defgroup gnus-bookmark nil
@@ -418,32 +418,29 @@ That is, all information but the name."
 
 (defvar gnus-bookmark-bmenu-bookmark-column nil)
 (defvar gnus-bookmark-bmenu-hidden-bookmarks ())
-(defvar gnus-bookmark-bmenu-mode-map nil)
 
-(if gnus-bookmark-bmenu-mode-map
-    nil
-  (setq gnus-bookmark-bmenu-mode-map (make-keymap))
-  (suppress-keymap gnus-bookmark-bmenu-mode-map t)
-  (define-key gnus-bookmark-bmenu-mode-map "q" 'quit-window)
-  (define-key gnus-bookmark-bmenu-mode-map "\C-m" 'gnus-bookmark-bmenu-select)
-  (define-key gnus-bookmark-bmenu-mode-map "v" 'gnus-bookmark-bmenu-select)
-  (define-key gnus-bookmark-bmenu-mode-map "d" 'gnus-bookmark-bmenu-delete)
-  (define-key gnus-bookmark-bmenu-mode-map "k" 'gnus-bookmark-bmenu-delete)
-  (define-key gnus-bookmark-bmenu-mode-map "\C-d" 'gnus-bookmark-bmenu-delete-backwards)
-  (define-key gnus-bookmark-bmenu-mode-map "x" 'gnus-bookmark-bmenu-execute-deletions)
-  (define-key gnus-bookmark-bmenu-mode-map " " 'next-line)
-  (define-key gnus-bookmark-bmenu-mode-map "n" 'next-line)
-  (define-key gnus-bookmark-bmenu-mode-map "p" 'previous-line)
-  (define-key gnus-bookmark-bmenu-mode-map "\177" 'gnus-bookmark-bmenu-backup-unmark)
-  (define-key gnus-bookmark-bmenu-mode-map "?" 'describe-mode)
-  (define-key gnus-bookmark-bmenu-mode-map "u" 'gnus-bookmark-bmenu-unmark)
-  (define-key gnus-bookmark-bmenu-mode-map "m" 'gnus-bookmark-bmenu-mark)
-  (define-key gnus-bookmark-bmenu-mode-map "l" 'gnus-bookmark-bmenu-load)
-  (define-key gnus-bookmark-bmenu-mode-map "s" 'gnus-bookmark-bmenu-save)
-  (define-key gnus-bookmark-bmenu-mode-map "t" 'gnus-bookmark-bmenu-toggle-infos)
-  (define-key gnus-bookmark-bmenu-mode-map "a" 'gnus-bookmark-bmenu-show-details)
-  (define-key gnus-bookmark-bmenu-mode-map [mouse-2]
-    'gnus-bookmark-bmenu-select-by-mouse))
+(defvar-keymap gnus-bookmark-bmenu-mode-map
+  :full t
+  :suppress 'nodigits
+  "q" #'quit-window
+  "RET" #'gnus-bookmark-bmenu-select
+  "v" #'gnus-bookmark-bmenu-select
+  "d" #'gnus-bookmark-bmenu-delete
+  "k" #'gnus-bookmark-bmenu-delete
+  "C-d" #'gnus-bookmark-bmenu-delete-backwards
+  "x" #'gnus-bookmark-bmenu-execute-deletions
+  "SPC" #'next-line
+  "n" #'next-line
+  "p" #'previous-line
+  "DEL" #'gnus-bookmark-bmenu-backup-unmark
+  "?" #'describe-mode
+  "u" #'gnus-bookmark-bmenu-unmark
+  "m" #'gnus-bookmark-bmenu-mark
+  "l" #'gnus-bookmark-bmenu-load
+  "s" #'gnus-bookmark-bmenu-save
+  "t" #'gnus-bookmark-bmenu-toggle-infos
+  "a" #'gnus-bookmark-bmenu-show-details
+  "<mouse-2>" #'gnus-bookmark-bmenu-select-by-mouse)
 
 ;; Bookmark Buffer Menu mode is suitable only for specially formatted
 ;; data.
@@ -512,7 +509,7 @@ Optional argument SHOW means show them unconditionally."
             (let ((bmrk (gnus-bookmark-bmenu-bookmark)))
               (setq gnus-bookmark-bmenu-hidden-bookmarks
                     (cons bmrk gnus-bookmark-bmenu-hidden-bookmarks))
-	      (let ((start (point-at-eol)))
+              (let ((start (line-end-position)))
 		(move-to-column gnus-bookmark-bmenu-file-column t)
 		;; Strip off `mouse-face' from the white spaces region.
 		(if (display-mouse-p)
@@ -546,7 +543,7 @@ Optional argument SHOW means show them unconditionally."
   "Kill from point to end of line.
 If optional arg NEWLINE-TOO is non-nil, delete the newline too.
 Does not affect the kill ring."
-  (delete-region (point) (point-at-eol))
+  (delete-region (point) (line-end-position))
   (if (and newline-too (looking-at "\n"))
       (delete-char 1)))
 

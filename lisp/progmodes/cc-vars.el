@@ -1,6 +1,6 @@
 ;;; cc-vars.el --- user customization variables for CC Mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985, 1987, 1992-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1987, 1992-2023 Free Software Foundation, Inc.
 
 ;; Authors:    2002- Alan Mackenzie
 ;;             1998- Martin Stjernholm
@@ -179,7 +179,7 @@ STYLE stands for the choice where the value is taken from some
 style setting.  PREAMBLE is optionally prepended to FOO; that is,
 if FOO contains :tag or :value, the respective two-element list
 component is ignored."
-  (declare (debug (symbolp form stringp &rest)))
+  (declare (debug (symbolp form stringp &rest)) (indent defun))
   (let* ((expanded-doc (concat doc "
 
 This is a style variable.  Apart from the valid values described
@@ -1044,6 +1044,8 @@ can always override the use of `c-default-style' by making calls to
 	    (cons :format "%v"
 		  (const :format "AWK   " awk-mode) (string :format "%v"))
 	    (cons :format "%v"
+		  (const :format "C#   "  csharp-mode) (string :format "%v"))
+	    (cons :format "%v"
 		  (const :format "Other " other) (string :format "%v"))))
   :group 'c)
 
@@ -1607,8 +1609,7 @@ as a type name.")
   :type 'c-extra-types-widget
   :group 'c)
 
-(defcustom objc-font-lock-extra-types
-  (list (concat "[" c-upper "]\\sw*[" c-lower "]\\sw*"))
+(defcustom objc-font-lock-extra-types nil
   (c-make-font-lock-extra-types-blurb "ObjC" "objc-mode" (concat
 "For example, a value of (\"[" c-upper "]\\\\sw*[" c-lower "]\\\\sw*\") means
 capitalized words are treated as type names (the requirement for a

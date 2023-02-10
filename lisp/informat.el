@@ -1,6 +1,6 @@
 ;;; informat.el --- info support functions package for Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1986, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1986, 2001-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: help
@@ -158,7 +158,7 @@
 ;;;###autoload
 (defcustom Info-split-threshold 262144
   "The number of characters by which `Info-split' splits an info file."
-  :type 'integer
+  :type 'natnum
   :version "23.1"
   :group 'texinfo)
 

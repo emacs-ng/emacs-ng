@@ -1,6 +1,6 @@
 ;;; url-cache.el --- Uniform Resource Locator retrieval tool  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996-1999, 2004-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1996-1999, 2004-2023 Free Software Foundation, Inc.
 
 ;; Keywords: comm, data, processes, hypermedia
 
@@ -37,7 +37,7 @@
   "Default maximum time in seconds before cache files expire.
 Used by the function `url-cache-expired'."
   :version "24.1"
-  :type 'integer
+  :type 'natnum
   :group 'url-cache)
 
 ;; Cache manager

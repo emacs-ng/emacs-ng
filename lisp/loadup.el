@@ -1,6 +1,6 @@
 ;;; loadup.el --- load up standardly loaded Lisp files for Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994, 2001-2022 Free Software
+;; Copyright (C) 1985-1986, 1992, 1994, 2001-2023 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -32,9 +32,6 @@
 ;; If you add a file to be loaded here, keep the following points in mind:
 
 ;; i) If the file is no-byte-compile, explicitly load the .el version.
-;; Such files should (where possible) obey the doc-string conventions
-;; expected by make-docfile.  They should also be added to the
-;; uncompiled[] list in make-docfile.c.
 
 ;; ii) If the file is dumped with Emacs (on any platform), put the
 ;; load statement at the start of a line (leading whitespace is ok).
@@ -42,11 +39,9 @@
 ;; iii) If the file is _not_ dumped with Emacs, make sure the load
 ;; statement is _not_ at the start of a line.  See pcase for an example.
 
-;; These rules are so that src/Makefile can construct lisp.mk automatically.
-;; This ensures both that the Lisp files are compiled (if necessary)
-;; before the emacs executable is dumped, and that they are passed to
-;; make-docfile.  (Any that are not processed for DOC will not have
-;; doc strings in the dumped Emacs.)
+;; These rules are so that src/Makefile can construct lisp.mk
+;; automatically.  This ensures that the Lisp files are compiled (if
+;; necessary) before the emacs executable is dumped.
 
 ;;; Code:
 
@@ -128,16 +123,18 @@
 (set-buffer "*scratch*")
 (setq buffer-undo-list t)
 
+(load "emacs-lisp/debug-early")
 (load "emacs-lisp/byte-run")
 (load "emacs-lisp/backquote")
 (load "subr")
+(load "keymap")
 
 ;; Do it after subr, since both after-load-functions and add-hook are
 ;; implemented in subr.el.
 (add-hook 'after-load-functions (lambda (_) (garbage-collect)))
 
 (load "version")
-(load "emacs-lisp/emacs-ng")
+
 (load "widget")
 (load "custom")
 (load "emacs-lisp/map-ynp")
@@ -157,8 +154,7 @@
 ;; Load-time macro-expansion can only take effect after setting
 ;; load-source-file-function because of where it is called in lread.c.
 (load "emacs-lisp/macroexp")
-(if (or (byte-code-function-p (symbol-function 'macroexpand-all))
-        (subr-native-elisp-p (symbol-function 'macroexpand-all)))
+(if (compiled-function-p (symbol-function 'macroexpand-all))
     nil
   ;; Since loaddefs is not yet loaded, macroexp's uses of pcase will simply
   ;; fail until pcase is explicitly loaded.  This also means that we have to
@@ -183,9 +179,10 @@
 ;; should be updated by overwriting it with an up-to-date copy of
 ;; loaddefs.el that is not corrupted by local changes.
 ;; admin/update_autogen can be used to update ldefs-boot.el periodically.
-(condition-case nil (load "loaddefs.el")
-  ;; In case loaddefs hasn't been generated yet.
-  (file-error (load "ldefs-boot.el")))
+(condition-case nil
+    (load "loaddefs")
+  (file-error
+   (load "ldefs-boot.el")))
 
 (let ((new (make-hash-table :test #'equal)))
   ;; Now that loaddefs has populated definition-prefixes, purify its contents.
@@ -194,11 +191,10 @@
   (setq definition-prefixes new))
 
 (load "button")                  ;After loaddefs, because of define-minor-mode!
-(load "emacs-lisp/nadvice")
 (load "emacs-lisp/cl-preloaded")
+(load "emacs-lisp/oclosure")          ;Used by cl-generic
 (load "obarray")        ;abbrev.el is implemented in terms of obarrays.
 (load "abbrev")         ;lisp-mode.el and simple.el use define-abbrev-table.
-(load "simple")
 
 (load "help")
 
@@ -244,11 +240,14 @@
 (load "language/khmer")
 (load "language/burmese")
 (load "language/cham")
+(load "language/philippine")
+(load "language/indonesian")
 
 (load "indent")
-(let ((max-specpdl-size (max max-specpdl-size 1800)))
-  ;; A particularly demanding file to load; 1600 does not seem to be enough.
-  (load "emacs-lisp/cl-generic"))
+(load "emacs-lisp/cl-generic")
+(load "simple")
+(load "emacs-lisp/seq")
+(load "emacs-lisp/nadvice")
 (load "minibuffer") ;Needs cl-generic (and define-minor-mode).
 (load "frame")
 (load "startup")
@@ -302,11 +301,10 @@
       (load "term/common-win")
       (load "term/x-win")))
 
-(if (featurep 'wr)
+(if (featurep 'haiku)
     (progn
-      (load "x-dnd")
       (load "term/common-win")
-      (load "term/wr-win")))
+      (load "term/haiku-win")))
 
 (if (or (eq system-type 'windows-nt)
         (featurep 'w32))
@@ -340,6 +338,18 @@
         (load "international/mule-util")
         (load "international/ucs-normalize")
         (load "term/ns-win"))))
+(if (featurep 'pgtk)
+    (progn
+      (load "pgtk-dnd")
+      (load "term/common-win")
+      (load "term/pgtk-win")))
+
+(if (featurep 'wr)
+    (progn
+      ;; (load "x-dnd")
+      (load "term/common-win")
+      (load "term/wr-win")))
+
 (if (fboundp 'x-create-frame)
     ;; Do it after loading term/foo-win.el since the value of the
     ;; mouse-wheel-*-event vars depends on those files being loaded or not.
@@ -363,6 +373,11 @@
 (load "emacs-lisp/shorthands")
 
 (load "emacs-lisp/eldoc")
+(load "emacs-lisp/cconv")
+(when (and (compiled-function-p (symbol-function 'cconv-fv))
+           (compiled-function-p (symbol-function 'macroexpand-all)))
+  (setq internal-make-interpreted-closure-function
+        #'cconv-make-interpreted-closure))
 (load "cus-start") ;Late to reduce customize-rogue (needs loaddefs.el anyway)
 (if (not (eq system-type 'ms-dos))
     (load "tooltip"))
@@ -386,6 +401,9 @@
   (or (equal lp load-path)
       (message "Warning: Change in load-path due to site-load will be \
 lost after dumping")))
+
+;; Used by `kill-buffer', for instance.
+(load "emacs-lisp/rmc")
 
 ;; Make sure default-directory is unibyte when dumping.  This is
 ;; because we cannot decode and encode it correctly (since the locale
@@ -470,17 +488,12 @@ lost after dumping")))
   ;; installed or if the source directory got moved.  This is set to be
   ;; a pair in the form of:
   ;;     (rel-filename-from-install-bin . rel-filename-from-local-bin).
-  (let ((h (make-hash-table :test #'eq))
-        (bin-dest-dir (cadr (member "--bin-dest" command-line-args)))
+  (let ((bin-dest-dir (cadr (member "--bin-dest" command-line-args)))
         (eln-dest-dir (cadr (member "--eln-dest" command-line-args))))
     (when (and bin-dest-dir eln-dest-dir)
       (setq eln-dest-dir
             (concat eln-dest-dir "native-lisp/" comp-native-version-dir "/"))
-      (mapatoms (lambda (s)
-                  (let ((f (symbol-function s)))
-                    (when (subr-native-elisp-p f)
-                      (puthash (subr-native-comp-unit f) nil h)))))
-      (maphash (lambda (cu _)
+      (maphash (lambda (_ cu)
                  (let* ((file (native-comp-unit-file cu))
                         (preloaded (equal (substring (file-name-directory file)
                                                      -10 -1)
@@ -500,7 +513,10 @@ lost after dumping")))
                                          bin-dest-dir)
                      ;; Relative filename from the built uninstalled binary.
                      (file-relative-name file invocation-directory)))))
-	       h))))
+	       comp-loaded-comp-units-h)))
+  ;; Set up the mechanism to allow inhibiting native-comp via
+  ;; file-local variables.
+  (defvar comp--no-native-compile (make-hash-table :test #'equal)))
 
 (when (hash-table-p purify-flag)
   (let ((strings 0)
@@ -565,6 +581,7 @@ lost after dumping")))
               (delete-file output)))))
       ;; Recompute NAME now, so that it isn't set when we dump.
       (if (not (or (eq system-type 'ms-dos)
+                   (eq system-type 'haiku) ;; BFS doesn't support hard links
                    ;; Don't bother adding another name if we're just
                    ;; building bootstrap-emacs.
                    (member dump-mode '("pbootstrap" "bootstrap"))))

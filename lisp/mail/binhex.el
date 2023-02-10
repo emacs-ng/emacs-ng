@@ -1,6 +1,6 @@
 ;;; binhex.el --- decode BinHex-encoded text  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2023 Free Software Foundation, Inc.
 
 ;; Author: Shenghuo Zhu <zsh@cs.rochester.edu>
 ;; Keywords: binhex news
@@ -23,9 +23,13 @@
 ;;; Commentary:
 
 ;; BinHex is a binary-to-text encoding scheme similar to uuencode.
+;; It was used on the classic Mac OS, last released in 2001.
+;;
 ;; The command `binhex-decode-region' decodes BinHex-encoded text, via
 ;; the external program "hexbin" if that is available, or an Emacs
 ;; Lisp implementation if not.
+;;
+;; See also: https://en.wikipedia.org/wiki/BinHex
 
 ;;; Code:
 

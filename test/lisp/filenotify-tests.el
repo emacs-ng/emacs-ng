@@ -1,6 +1,6 @@
 ;;; filenotify-tests.el --- Tests of file notifications  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2023 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 
@@ -52,34 +52,9 @@
 
 ;;; Code:
 
-(require 'ert)
+(require 'tramp)
 (require 'ert-x)
 (require 'filenotify)
-(require 'tramp)
-
-;; There is no default value on w32 systems, which could work out of the box.
-(defconst file-notify-test-remote-temporary-file-directory
-  (cond
-   ((getenv "REMOTE_TEMPORARY_FILE_DIRECTORY"))
-   ((eq system-type 'windows-nt) null-device)
-   (t (add-to-list
-       'tramp-methods
-       '("mock"
-	 (tramp-login-program        "sh")
-	 (tramp-login-args           (("-i")))
-	 (tramp-remote-shell         "/bin/sh")
-	 (tramp-remote-shell-args    ("-c"))
-	 (tramp-connection-timeout   10)))
-      (add-to-list
-       'tramp-default-host-alist
-       `("\\`mock\\'" nil ,(system-name)))
-      ;; Emacs' Makefile sets $HOME to a nonexistent value.  Needed in
-      ;; batch mode only, therefore.  `temporary-file-directory' might
-      ;; be quoted, so we unquote it just in case.
-      (unless (and (null noninteractive) (file-directory-p "~/"))
-        (setenv "HOME" (file-name-unquote temporary-file-directory)))
-      (format "/mock::%s" temporary-file-directory)))
-  "Temporary directory for Tramp tests.")
 
 ;; Filter suppressed remote file-notify libraries.
 (when (stringp (getenv "REMOTE_FILE_NOTIFY_LIBRARY"))
@@ -162,9 +137,11 @@ Return nil when any other file notification watch is still active."
 
 (defun file-notify--test-cleanup ()
   "Cleanup after a test."
-  (file-notify-rm-watch file-notify--test-desc)
-  (file-notify-rm-watch file-notify--test-desc1)
-  (file-notify-rm-watch file-notify--test-desc2)
+  ;; (when (getenv "EMACS_EMBA_CI")
+  ;;   (dolist (buf (tramp-list-tramp-buffers))
+  ;;     (message ";; %s\n%s" buf (tramp-get-buffer-string buf))
+  ;;     (kill-buffer buf)))
+  (file-notify-rm-all-watches)
 
   (ignore-errors
     (delete-file (file-newest-backup file-notify--test-tmpfile)))
@@ -200,14 +177,11 @@ Return nil when any other file notification watch is still active."
 
 (setq file-notify-debug nil
       password-cache-expiry nil
+      ;; tramp-verbose (if (getenv "EMACS_EMBA_CI") 10 0)
       tramp-verbose 0
       ;; When the remote user id is 0, Tramp refuses unsafe temporary files.
       tramp-allow-unsafe-temporary-files
       (or tramp-allow-unsafe-temporary-files noninteractive))
-
-;; This should happen on hydra only.
-(when (getenv "EMACS_HYDRA_CI")
-  (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
 
 (defun file-notify--test-add-watch (file flags callback)
   "Like `file-notify-add-watch', but also passing FILE to CALLBACK."
@@ -234,12 +208,12 @@ being the result.")
     (let (desc)
       (ignore-errors
         (and
-         (file-remote-p file-notify-test-remote-temporary-file-directory)
-         (file-directory-p file-notify-test-remote-temporary-file-directory)
-         (file-writable-p file-notify-test-remote-temporary-file-directory)
+         (file-remote-p ert-remote-temporary-file-directory)
+         (file-directory-p ert-remote-temporary-file-directory)
+         (file-writable-p ert-remote-temporary-file-directory)
          (setq desc
                (file-notify-add-watch
-                file-notify-test-remote-temporary-file-directory
+                ert-remote-temporary-file-directory
                 '(change) #'ignore))))
       (setq file-notify--test-remote-enabled-checked (cons t desc))
       (when desc (file-notify-rm-watch desc))))
@@ -299,8 +273,7 @@ If UNSTABLE is non-nil, the test is tagged as `:unstable'."
   `(ert-deftest ,(intern (concat (symbol-name test) "-remote")) ()
      ,docstring
      :tags (if ,unstable '(:expensive-test :unstable) '(:expensive-test))
-     (let* ((temporary-file-directory
-	     file-notify-test-remote-temporary-file-directory)
+     (let* ((temporary-file-directory ert-remote-temporary-file-directory)
 	    (ert-test (ert-get-test ',test))
             vc-handled-backends)
        (skip-unless (file-notify--test-remote-enabled))
@@ -421,7 +394,7 @@ If UNSTABLE is non-nil, the test is tagged as `:unstable'."
 
 ;; This test is inspired by Bug#26126 and Bug#26127.
 (ert-deftest file-notify-test02-rm-watch ()
-  "Check `file-notify-rm-watch'."
+  "Check `file-notify-rm-watch' and `file-notify-rm-all-watches'."
   (skip-unless (file-notify--test-local-enabled))
 
   (unwind-protect
@@ -515,6 +488,31 @@ If UNSTABLE is non-nil, the test is tagged as `:unstable'."
 
             ;; The environment shall be cleaned up.
             (file-notify--test-cleanup-p))))
+
+    ;; Cleanup.
+    (file-notify--test-cleanup))
+
+  (unwind-protect
+      ;; Check `file-notify-rm-all-watches'.
+      (progn
+        (setq file-notify--test-tmpfile (file-notify--test-make-temp-name)
+              file-notify--test-tmpfile1 (file-notify--test-make-temp-name))
+        (write-region "any text" nil file-notify--test-tmpfile nil 'no-message)
+        (write-region "any text" nil file-notify--test-tmpfile1 nil 'no-message)
+        (should
+         (setq file-notify--test-desc
+               (file-notify-add-watch
+                file-notify--test-tmpfile '(change) #'ignore)))
+        (should
+         (setq file-notify--test-desc1
+               (file-notify-add-watch
+                file-notify--test-tmpfile1 '(change) #'ignore)))
+        (file-notify-rm-all-watches)
+        (delete-file file-notify--test-tmpfile)
+        (delete-file file-notify--test-tmpfile1)
+
+        ;; The environment shall be cleaned up.
+        (file-notify--test-cleanup-p))
 
     ;; Cleanup.
     (file-notify--test-cleanup)))
@@ -646,7 +644,9 @@ delivered."
 
 (ert-deftest file-notify-test03-events ()
   "Check file creation/change/removal notifications."
-  :tags '(:expensive-test)
+  :tags (if (getenv "EMACS_EMBA_CI")
+            '(:expensive-test :unstable)
+          '(:expensive-test))
   (skip-unless (file-notify--test-local-enabled))
 
   (unwind-protect
@@ -1389,7 +1389,9 @@ descriptors that were issued when registering the watches.  This
 test caters for the situation in bug#22736 where the callback for
 the directory received events for the file with the descriptor of
 the file watch."
-  :tags '(:expensive-test)
+  :tags (if (getenv "EMACS_EMBA_CI")
+            '(:expensive-test :unstable)
+          '(:expensive-test))
   (skip-unless (file-notify--test-local-enabled))
 
   ;; A directory to be watched.
@@ -1573,6 +1575,136 @@ the file watch."
 
 (file-notify--deftest-remote file-notify-test10-sufficient-resources
   "Check `file-notify-test10-sufficient-resources' for remote files.")
+
+(ert-deftest file-notify-test11-symlinks ()
+  "Check that file notification do not follow symbolic links."
+  :tags '(:expensive-test)
+  (skip-unless (file-notify--test-local-enabled))
+  ;; This test does not work for kqueue (yet).
+  (skip-unless (not (string-equal (file-notify--test-library) "kqueue")))
+
+  (setq file-notify--test-tmpfile (file-notify--test-make-temp-name)
+        file-notify--test-tmpfile1 (file-notify--test-make-temp-name))
+
+  ;; Symlink a file.
+  (unwind-protect
+      (progn
+	(write-region "any text" nil file-notify--test-tmpfile1 nil 'no-message)
+        ;; Some systems, like MS Windows without sufficient
+        ;; privileges, do not allow creation of symbolic links.
+        (condition-case nil
+            (make-symbolic-link
+             file-notify--test-tmpfile1 file-notify--test-tmpfile)
+	  (error (ert-skip "`make-symbolic-link' not supported")))
+	(should
+	 (setq file-notify--test-desc
+	       (file-notify--test-add-watch
+                file-notify--test-tmpfile
+                '(attribute-change change) #'file-notify--test-event-handler)))
+        (should (file-notify-valid-p file-notify--test-desc))
+
+        ;; Writing to either the symlink or the target should not
+        ;; raise any event.
+        (file-notify--test-with-actions nil
+          (write-region
+           "another text" nil file-notify--test-tmpfile nil 'no-message)
+          (write-region
+           "another text" nil file-notify--test-tmpfile1 nil 'no-message))
+        ;; Sanity check.
+        (file-notify--test-wait-for-events
+         (file-notify--test-timeout)
+         (not (input-pending-p)))
+        (should-not file-notify--test-events)
+
+        ;; Changing timestamp of the target should not raise any
+        ;; event.  We don't use `nofollow'.
+        (file-notify--test-with-actions nil
+          (set-file-times file-notify--test-tmpfile1 '(0 0))
+          (set-file-times file-notify--test-tmpfile '(0 0)))
+        ;; Sanity check.
+        (file-notify--test-wait-for-events
+         (file-notify--test-timeout)
+         (not (input-pending-p)))
+        (should-not file-notify--test-events)
+
+        ;; Changing timestamp of the symlink shows the event.
+        (file-notify--test-with-actions
+	 (cond
+	  ;; w32notify does not distinguish between `changed' and
+	  ;; `attribute-changed'.
+	  ((string-equal (file-notify--test-library) "w32notify")
+	   '(changed))
+	  ;; GFam{File,Directory}Monitor, GKqueueFileMonitor and
+	  ;; GPollFileMonitor do not report the `attribute-changed'
+	  ;; event.
+	  ((memq (file-notify--test-monitor)
+                 '(GFamFileMonitor GFamDirectoryMonitor
+                   GKqueueFileMonitor GPollFileMonitor))
+           '())
+          (t '(attribute-changed)))
+         (set-file-times file-notify--test-tmpfile '(0 0) 'nofollow))
+
+        ;; Deleting the target should not raise any event.
+        (file-notify--test-with-actions nil
+          (delete-file file-notify--test-tmpfile1)
+          (delete-file file-notify--test-tmpfile))
+        ;; Sanity check.
+        (file-notify--test-wait-for-events
+         (file-notify--test-timeout)
+         (not (input-pending-p)))
+        (should-not file-notify--test-events)
+
+        ;; The environment shall be cleaned up.
+	(file-notify-rm-watch file-notify--test-desc)
+        (file-notify--test-cleanup-p))
+
+    ;; Cleanup.
+    (file-notify--test-cleanup))
+
+  (setq file-notify--test-tmpfile1 (file-notify--test-make-temp-name)
+        file-notify--test-tmpfile (file-notify--test-make-temp-name))
+
+  ;; Symlink a directory.
+  (unwind-protect
+      (let ((tmpfile (expand-file-name "foo" file-notify--test-tmpfile))
+            (tmpfile1 (expand-file-name "foo" file-notify--test-tmpfile1)))
+	(make-directory file-notify--test-tmpfile1)
+        (make-symbolic-link file-notify--test-tmpfile1 file-notify--test-tmpfile)
+	(write-region "any text" nil tmpfile1 nil 'no-message)
+	(should
+	 (setq file-notify--test-desc
+	       (file-notify--test-add-watch
+                file-notify--test-tmpfile
+                '(attribute-change change) #'file-notify--test-event-handler)))
+        (should (file-notify-valid-p file-notify--test-desc))
+
+        ;; None of the actions on a file in the symlinked directory
+        ;; will be reported.
+        (file-notify--test-with-actions nil
+          (write-region "another text" nil tmpfile nil 'no-message)
+          (write-region "another text" nil tmpfile1 nil 'no-message)
+          (set-file-times tmpfile '(0 0))
+          (set-file-times tmpfile '(0 0) 'nofollow)
+          (set-file-times tmpfile1 '(0 0))
+          (set-file-times tmpfile1 '(0 0) 'nofollow)
+          (delete-file tmpfile)
+          (delete-file tmpfile1))
+        ;; Sanity check.
+        (file-notify--test-wait-for-events
+         (file-notify--test-timeout)
+         (not (input-pending-p)))
+        (should-not file-notify--test-events)
+
+        ;; The environment shall be cleaned up.
+        (delete-directory file-notify--test-tmpdir 'recursive)
+	(file-notify-rm-watch file-notify--test-desc)
+        (file-notify--test-cleanup-p))
+
+    ;; Cleanup.
+    (file-notify--test-cleanup)))
+
+(file-notify--deftest-remote file-notify-test11-symlinks
+  "Check `file-notify-test11-symlinks' for remote files.")
 
 (defun file-notify-test-all (&optional interactive)
   "Run all tests for \\[file-notify]."

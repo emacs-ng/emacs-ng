@@ -1,6 +1,6 @@
 ;;; hexl.el --- edit a file in a hex dump format using the hexl filter -*- lexical-binding: t -*-
 
-;; Copyright (C) 1989, 1994, 1998, 2001-2022 Free Software Foundation,
+;; Copyright (C) 1989, 1994, 1998, 2001-2023 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Keith Gabryelski <ag@wheaties.ai.mit.edu>
@@ -687,7 +687,7 @@ If there is no byte at the target address move to the last byte in that line."
 
 (defun hexl-beginning-of-buffer (arg)
   "Move to the beginning of the hexl buffer.
-Leaves `hexl-mark' at previous position.
+Leaves mark at previous position.
 With prefix arg N, puts point N bytes of the way from the true beginning."
   (interactive "p")
   (push-mark)

@@ -1,6 +1,6 @@
 ;;; faces.el --- Lisp faces -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-1996, 1998-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -46,7 +46,9 @@ the terminal-initialization file to be loaded."
     ("vt320" . "vt200")
     ("vt400" . "vt200")
     ("vt420" . "vt200")
-    ("alacritty" . "xterm"))
+    ("alacritty" . "xterm")
+    ("foot" . "xterm")
+    ("contour" . "xterm"))
   "Alist of terminal type aliases.
 Entries are of the form (TYPE . ALIAS), where both elements are strings.
 This means to treat a terminal of type TYPE as if it were of type ALIAS."
@@ -88,9 +90,9 @@ a font height that isn't optimal."
   :tag "Font selection order"
   :type '(list symbol symbol symbol symbol)
   :group 'font-selection
-  :set #'(lambda (symbol value)
-	   (set-default symbol value)
-	   (internal-set-font-selection-order value)))
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (internal-set-font-selection-order value)))
 
 
 ;; In the absence of Fontconfig support, Monospace and Sans Serif are
@@ -140,9 +142,9 @@ ALTERNATIVE2 etc."
   :tag "Alternative font families to try"
   :type '(repeat (repeat string))
   :group 'font-selection
-  :set #'(lambda (symbol value)
-	   (set-default symbol value)
-	   (internal-set-alternative-font-family-alist value)))
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (internal-set-alternative-font-family-alist value)))
 
 
 ;; This is defined originally in xfaces.c.
@@ -167,9 +169,9 @@ REGISTRY, ALTERNATIVE1, ALTERNATIVE2, and etc."
   :type '(repeat (repeat string))
   :version "21.1"
   :group 'font-selection
-  :set #'(lambda (symbol value)
-	   (set-default symbol value)
-	   (internal-set-alternative-font-registry-alist value)))
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (internal-set-alternative-font-registry-alist value)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -302,7 +304,16 @@ If the optional argument FRAME is given, report on face FACE in that frame.
 If FRAME is t, report on the defaults for face FACE (for new frames).
 If FRAME is omitted or nil, use the selected frame."
   (let ((attrs
-	 (delq :inherit (mapcar 'car face-attribute-name-alist)))
+         ;; The _value_ of :inherit teaches us nothing about how FACE
+         ;; looks compared to the default face.  Instead, we will ask
+         ;; `face-attribute' to take inheritance into account when
+         ;; examining other attributes.
+         (delq :inherit
+               ;; A difference in extension past EOL only matters when
+               ;; relevant attributes (such as :background) also
+               ;; differ from the default; otherwise this difference
+               ;; is a false positive.
+               (delq :extend (mapcar 'car face-attribute-name-alist))))
 	(differs nil))
     (while (and attrs (not differs))
       (let* ((attr (pop attrs))
@@ -515,6 +526,9 @@ FACES may be either a single face or a list of faces.
 
 (defun face-foreground (face &optional frame inherit)
   "Return the foreground color name of FACE, or nil if unspecified.
+On TTY frames, the returned color name can be \"unspecified-fg\",
+which stands for the unknown default foreground color of the display
+where the frame is displayed.
 If the optional argument FRAME is given, report on face FACE in that frame.
 If FRAME is t, report on the defaults for face FACE (for new frames).
 If FRAME is omitted or nil, use the selected frame.
@@ -536,6 +550,9 @@ merging with the `default' face (which is always completely specified)."
 
 (defun face-background (face &optional frame inherit)
   "Return the background color name of FACE, or nil if unspecified.
+On TTY frames, the returned color name can be \"unspecified-bg\",
+which stands for the unknown default background color of the display
+where the frame is displayed.
 If the optional argument FRAME is given, report on face FACE in that frame.
 If FRAME is t, report on the defaults for face FACE (for new frames).
 If FRAME is omitted or nil, use the selected frame.
@@ -574,9 +591,6 @@ To ensure that a valid stipple or nil is always returned, use a value of
 with the `default' face (which is always completely specified)."
   (face-attribute-specified-or (face-attribute face :stipple frame inherit)
 			       nil))
-
-
-(defalias 'face-background-pixmap 'face-stipple)
 
 
 (defun face-underline-p (face &optional frame inherit)
@@ -650,8 +664,8 @@ If FACE is a face-alias, get the documentation for the target face."
   (put face 'face-documentation (purecopy string)))
 
 
-(defalias 'face-doc-string 'face-documentation)
-(defalias 'set-face-doc-string 'set-face-documentation)
+(define-obsolete-function-alias 'face-doc-string #'face-documentation "29.1")
+(define-obsolete-function-alias 'set-face-doc-string #'set-face-documentation "29.1")
 
 
 
@@ -662,21 +676,32 @@ If FACE is a face-alias, get the documentation for the target face."
 
 (defun set-face-attribute (face frame &rest args)
   "Set attributes of FACE on FRAME from ARGS.
-This function overrides the face attributes specified by FACE's
-face spec.  It is mostly intended for internal use only.
+This function overrides the face attributes specified by FACE's face spec.
+It is mostly intended for internal use.
 
-If FRAME is nil, set the attributes for all existing frames, as
-well as the default for new frames.  If FRAME is t, change the
-default for new frames only.  As an exception, to reset the value
-of some attribute to `unspecified' in a way that overrides the
-non-`unspecified' value defined by the face's spec in `defface',
-for new frames, you must explicitly call this function with FRAME
-set to t and the attribute's value set to `unspecified'; just
-using FRAME of nil will not affect new frames in this case.
+If FRAME is a frame, set the FACE's attributes only for that frame.  If
+FRAME is nil, set attribute values for all existing frames, as well as
+the default for new frames.  If FRAME is t, change the default values
+of attributes for new frames.
 
-ARGS must come in pairs ATTRIBUTE VALUE.  ATTRIBUTE must be a
-valid face attribute name.  All attributes can be set to
-`unspecified'; this fact is not further mentioned below.
+ARGS must come in pairs ATTRIBUTE VALUE.  ATTRIBUTE must be a valid face
+attribute name and VALUE must be a value that is valid for ATTRIBUTE,
+as described below for each attribute.
+
+In addition to the attribute values listed below, all attributes can
+also be set to the special value `unspecified', which means the face
+doesn't by itself specify a value for the attribute.
+
+When a new frame is created, attribute values in the FACE's `defface'
+spec normally override the `unspecified' values in the FACE's
+default attributes.  To avoid that, i.e. to cause ATTRIBUTE's value
+be reset to `unspecified' when creating new frames, disregarding
+what the FACE's face spec says, call this function with FRAME set to
+t and the ATTRIBUTE's value set to `unspecified'.
+
+Note that the ATTRIBUTE VALUE pairs are evaluated in the order
+they are specified, except that the `:family' and `:foundry'
+attributes are evaluated first.
 
 The following attributes are recognized:
 
@@ -695,25 +720,30 @@ and `?' are allowed.
 
 VALUE specifies the relative proportionate width of the font to use.
 It must be one of the symbols `ultra-condensed', `extra-condensed',
-`condensed', `semi-condensed', `normal', `semi-expanded', `expanded',
-`extra-expanded', or `ultra-expanded'.
+`condensed' (a.k.a. `compressed', a.k.a. `narrow'),
+`semi-condensed' (a.k.a. `demi-condensed'), `normal' (a.k.a. `medium',
+a.k.a. `regular'), `semi-expanded' (a.k.a. `demi-expanded'),
+`expanded', `extra-expanded', or `ultra-expanded' (a.k.a. `wide').
 
 `:height'
 
-VALUE specifies the relative or absolute height of the font.  An
-absolute height is an integer, and specifies font height in units
-of 1/10 pt.  A relative height is either a floating point number,
-which specifies a scaling factor for the underlying face height;
-or a function that takes a single argument (the underlying face
-height) and returns the new height.  Note that for the `default'
-face, you must specify an absolute height (since there is nothing
-for it to be relative to).
+VALUE specifies the relative or absolute font size (height of the
+font).  An absolute height is an integer, and specifies font height in
+units of 1/10 pt.  A relative height is either a floating point
+number, which specifies a scaling factor for the underlying face
+height; or a function that takes a single argument (the underlying
+face height) and returns the new height.  Note that for the `default'
+face, you must specify an absolute height (since there is nothing for
+it to be relative to).
 
 `:weight'
 
-VALUE specifies the weight of the font to use.  It must be one of the
-symbols `ultra-bold', `extra-bold', `bold', `semi-bold', `normal',
-`semi-light', `light', `extra-light', `ultra-light'.
+VALUE specifies the weight of the font to use.  It must be one of
+the symbols `ultra-heavy', `heavy' (a.k.a. `black'),
+`ultra-bold' (a.k.a. `extra-bold'), `bold',
+`semi-bold' (a.k.a. `demi-bold'), `medium', `normal' (a.k.a. `regular',
+a.k.a. `book'), `semi-light' (a.k.a. `demi-light'),
+`light', `extra-light' (a.k.a. `ultra-light'), or `thin'.
 
 `:slant'
 
@@ -771,13 +801,12 @@ specified below.  WIDTH specifies the width of the lines to draw; it
 defaults to 1.  If WIDTH is negative, the absolute value is the width
 of the lines, and draw top/bottom lines inside the characters area,
 not around it.  COLOR is the name of the color to draw in, default is
-the foreground color of the face for simple boxes, and the background
-color of the face for 3D boxes.  STYLE specifies whether a 3D box
-should be draw.  If STYLE is `released-button', draw a box looking
-like a released 3D button.  If STYLE is `pressed-button' draw a box
-that appears like a pressed button.  If STYLE is nil, the default if
-the property list doesn't contain a style specification, draw a 2D
-box.
+the background color of the face for 3D boxes and `flat-button', and
+the foreground color of the face for other boxes.  STYLE specifies
+whether a 3D box should be draw.  If STYLE is `released-button', draw
+a box looking like a released 3D button.  If STYLE is `pressed-button'
+draw a box that appears like a pressed button.  If STYLE is nil,
+`flat-button' or omitted, draw a 2D box.
 
 `:inverse-video'
 
@@ -870,8 +899,8 @@ is specified, `:italic' is ignored."
 (defun make-face-bold (face &optional frame _noerror)
   "Make the font of FACE be bold, if possible.
 FRAME nil or not specified means change face on all frames.
-Argument NOERROR is ignored and retained for compatibility.
 Use `set-face-attribute' for finer control of the font weight."
+  (declare (advertised-calling-convention (face &optional frame) "29.1"))
   (interactive (list (read-face-name "Make which face bold"
                                      (face-at-point t))))
   (set-face-attribute face frame :weight 'bold))
@@ -879,8 +908,8 @@ Use `set-face-attribute' for finer control of the font weight."
 
 (defun make-face-unbold (face &optional frame _noerror)
   "Make the font of FACE be non-bold, if possible.
-FRAME nil or not specified means change face on all frames.
-Argument NOERROR is ignored and retained for compatibility."
+FRAME nil or not specified means change face on all frames."
+  (declare (advertised-calling-convention (face &optional frame) "29.1"))
   (interactive (list (read-face-name "Make which face non-bold"
                                      (face-at-point t))))
   (set-face-attribute face frame :weight 'normal))
@@ -889,8 +918,8 @@ Argument NOERROR is ignored and retained for compatibility."
 (defun make-face-italic (face &optional frame _noerror)
   "Make the font of FACE be italic, if possible.
 FRAME nil or not specified means change face on all frames.
-Argument NOERROR is ignored and retained for compatibility.
 Use `set-face-attribute' for finer control of the font slant."
+  (declare (advertised-calling-convention (face &optional frame) "29.1"))
   (interactive (list (read-face-name "Make which face italic"
                                      (face-at-point t))))
   (set-face-attribute face frame :slant 'italic))
@@ -898,8 +927,8 @@ Use `set-face-attribute' for finer control of the font slant."
 
 (defun make-face-unitalic (face &optional frame _noerror)
   "Make the font of FACE be non-italic, if possible.
-FRAME nil or not specified means change face on all frames.
-Argument NOERROR is ignored and retained for compatibility."
+FRAME nil or not specified means change face on all frames."
+  (declare (advertised-calling-convention (face &optional frame) "29.1"))
   (interactive (list (read-face-name "Make which face non-italic"
                                      (face-at-point t))))
   (set-face-attribute face frame :slant 'normal))
@@ -908,8 +937,8 @@ Argument NOERROR is ignored and retained for compatibility."
 (defun make-face-bold-italic (face &optional frame _noerror)
   "Make the font of FACE be bold and italic, if possible.
 FRAME nil or not specified means change face on all frames.
-Argument NOERROR is ignored and retained for compatibility.
 Use `set-face-attribute' for finer control of font weight and slant."
+  (declare (advertised-calling-convention (face &optional frame) "29.1"))
   (interactive (list (read-face-name "Make which face bold-italic"
                                      (face-at-point t))))
   (set-face-attribute face frame :weight 'bold :slant 'italic))
@@ -985,9 +1014,6 @@ Use `set-face-attribute' to \"unspecify\" underlining."
   (interactive (read-face-and-attribute :underline))
   (set-face-attribute face frame :underline underline))
 
-(define-obsolete-function-alias 'set-face-underline-p
-                                'set-face-underline "24.3")
-
 
 (defun set-face-inverse-video (face inverse-video-p &optional frame)
   "Specify whether face FACE is in inverse video.
@@ -1041,9 +1067,6 @@ Use `set-face-attribute' to \"unspecify\" underlining."
   (set-face-attribute face frame :extend extend-p))
 
 
-(defalias 'set-face-background-pixmap 'set-face-stipple)
-
-
 (defun invert-face (face &optional frame)
   "Swap the foreground and background colors of FACE.
 If FRAME is omitted or nil, it means change face on all frames.
@@ -1069,6 +1092,9 @@ of the default face.  Value is FACE."
 
 (defvar crm-separator) ; from crm.el
 
+(defconst read-face-name-sample-text "SAMPLE"
+  "Text string to display as the sample text for `read-face-name'.")
+
 (defun read-face-name (prompt &optional default multiple)
   "Read one or more face names, prompting with PROMPT.
 PROMPT should not end in a space or a colon.
@@ -1085,54 +1111,72 @@ That is, if DEFAULT is a list and MULTIPLE is nil, the first
 element of DEFAULT is returned.  If DEFAULT isn't a list, but
 MULTIPLE is non-nil, a one-element list containing DEFAULT is
 returned.  Otherwise, DEFAULT is returned verbatim."
-  (unless (listp default)
-    (setq default (list default)))
-  (when default
-    (setq default
-          (if multiple
-              (mapconcat (lambda (f) (if (symbolp f) (symbol-name f) f))
-                         default ", ")
-            ;; If we only want one, and the default is more than one,
-            ;; discard the unwanted ones.
-            (setq default (car default))
-            (if (symbolp default)
-                (symbol-name default)
-              default))))
-  (when (and default (not multiple))
-    (require 'crm)
-    ;; For compatibility with `completing-read-multiple' use `crm-separator'
-    ;; to define DEFAULT if MULTIPLE is nil.
-    (setq default (car (split-string default crm-separator t))))
+  (let (defaults)
+    (unless (listp default)
+      (setq default (list default)))
+    (when default
+      (setq default
+            (if multiple
+                (mapconcat (lambda (f) (if (symbolp f) (symbol-name f) f))
+                           default ", ")
+              ;; If we only want one, and the default is more than one,
+              ;; discard the unwanted ones and use them only in the
+              ;; "future history" retrieved via `M-n M-n ...'.
+              (setq defaults default default (car default))
+              (if (symbolp default)
+                  (symbol-name default)
+                default))))
+    (when (and default (not multiple))
+      (require 'crm)
+      ;; For compatibility with `completing-read-multiple' use `crm-separator'
+      ;; to define DEFAULT if MULTIPLE is nil.
+      (setq default (car (split-string default crm-separator t))))
 
-  ;; Older versions of `read-face-name' did not append ": " to the
-  ;; prompt, so there are third party libraries that have that in the
-  ;; prompt.  If so, remove it.
-  (setq prompt (replace-regexp-in-string ": ?\\'" "" prompt))
-  (let ((prompt (if default
-                    (format-message "%s (default `%s'): " prompt default)
-                  (format "%s: " prompt)))
-        aliasfaces nonaliasfaces faces)
-    ;; Build up the completion tables.
-    (mapatoms (lambda (s)
-                (if (facep s)
-                    (if (get s 'face-alias)
-                        (push (symbol-name s) aliasfaces)
-                      (push (symbol-name s) nonaliasfaces)))))
-    (if multiple
-        (progn
-          (dolist (face (completing-read-multiple
-                         prompt
-                         (completion-table-in-turn nonaliasfaces aliasfaces)
-                         nil t nil 'face-name-history default))
-            ;; Ignore elements that are not faces
-            ;; (for example, because DEFAULT was "all faces")
-            (if (facep face) (push (intern face) faces)))
-          (nreverse faces))
-      (let ((face (completing-read
-                   prompt
-                   (completion-table-in-turn nonaliasfaces aliasfaces)
-                   nil t nil 'face-name-history default)))
-        (if (facep face) (intern face))))))
+    ;; Older versions of `read-face-name' did not append ": " to the
+    ;; prompt, so there are third party libraries that have that in the
+    ;; prompt.  If so, remove it.
+    (setq prompt (replace-regexp-in-string ": ?\\'" "" prompt))
+    (let ((prompt (if default
+                      (format-prompt prompt default)
+                    (format "%s: " prompt)))
+          (completion-extra-properties
+           '(:affixation-function
+             (lambda (faces)
+               (mapcar
+                (lambda (face)
+                  (list face
+                        (concat (propertize read-face-name-sample-text
+                                            'face face)
+                                "\t")
+                        ""))
+                faces))))
+          aliasfaces nonaliasfaces faces)
+      ;; Build up the completion tables.
+      (mapatoms (lambda (s)
+                  (if (facep s)
+                      (if (get s 'face-alias)
+                          (push (symbol-name s) aliasfaces)
+                        (push (symbol-name s) nonaliasfaces)))))
+      (if multiple
+          (progn
+            (dolist (face (completing-read-multiple
+                           prompt
+                           (completion-table-in-turn nonaliasfaces aliasfaces)
+                           nil t nil 'face-name-history default))
+              ;; Ignore elements that are not faces
+              ;; (for example, because DEFAULT was "all faces")
+              (if (facep face) (push (if (stringp face)
+                                         (intern face)
+                                       face)
+                                     faces)))
+            (nreverse faces))
+        (let ((face (completing-read
+                     prompt
+                     (completion-table-in-turn nonaliasfaces aliasfaces)
+                     nil t nil 'face-name-history defaults)))
+          (when (facep face) (if (stringp face)
+                                 (intern face)
+                               face)))))))
 
 ;; Not defined without X, but behind window-system test.
 (defvar x-bitmap-file-path)
@@ -1155,42 +1199,43 @@ an integer value."
            (:foundry
 	    (list nil))
 	   (:width
-	    (mapcar #'(lambda (x) (cons (symbol-name (aref x 1)) (aref x 1)))
+            (mapcar (lambda (x) (cons (symbol-name (aref x 1)) (aref x 1)))
 		    font-width-table))
            (:weight
-	    (mapcar #'(lambda (x) (cons (symbol-name (aref x 1)) (aref x 1)))
+            (mapcar (lambda (x) (cons (symbol-name (aref x 1)) (aref x 1)))
 		    font-weight-table))
 	   (:slant
-	    (mapcar #'(lambda (x) (cons (symbol-name (aref x 1)) (aref x 1)))
+            (mapcar (lambda (x) (cons (symbol-name (aref x 1)) (aref x 1)))
 		    font-slant-table))
 	   ((or :inverse-video :extend)
-	    (mapcar #'(lambda (x) (cons (symbol-name x) x))
+            (mapcar (lambda (x) (cons (symbol-name x) x))
 		    (internal-lisp-face-attribute-values attribute)))
            ((or :underline :overline :strike-through :box)
             (if (window-system frame)
-                (nconc (mapcar #'(lambda (x) (cons (symbol-name x) x))
+                (nconc (mapcar (lambda (x) (cons (symbol-name x) x))
                                (internal-lisp-face-attribute-values attribute))
-                       (mapcar #'(lambda (c) (cons c c))
+                       (mapcar (lambda (c) (cons c c))
                                (defined-colors frame)))
-	      (mapcar #'(lambda (x) (cons (symbol-name x) x))
+              (mapcar (lambda (x) (cons (symbol-name x) x))
 		      (internal-lisp-face-attribute-values attribute))))
            ((or :foreground :background)
-            (mapcar #'(lambda (c) (cons c c))
+            (mapcar (lambda (c) (cons c c))
                     (defined-colors frame)))
            (:height
             'integerp)
            (:stipple
-            (and (memq (window-system frame) '(x ns wr)) ; No stipple on w32
-                 (mapcar #'list
+            (and (memq (window-system frame) '(x ns pgtk haiku wr)) ; No stipple on w32
+                 (mapcar (lambda (item)
+                           (cons item item))
                          (apply #'nconc
                                 (mapcar (lambda (dir)
                                           (and (file-readable-p dir)
                                                (file-directory-p dir)
-                                               (directory-files dir)))
+                                               (directory-files dir 'full)))
                                         x-bitmap-file-path)))))
            (:inherit
             (cons '("none" . nil)
-                  (mapcar #'(lambda (c) (cons (symbol-name c) c))
+                  (mapcar (lambda (c) (cons (symbol-name c) c))
                           (face-list))))
            (_
             (error "Internal error")))))
@@ -1524,7 +1569,7 @@ If FRAME is nil, the current FRAME is used."
 	    match (cond ((eq req 'type)
 			 (or (memq (window-system frame) options)
 			     (and (memq 'graphic options)
-				  (memq (window-system frame) '(x w32 ns wr)))
+				  (memq (window-system frame) '(x w32 ns pgtk wr)))
 			     ;; FIXME: This should be revisited to use
 			     ;; display-graphic-p, provided that the
 			     ;; color selection depends on the number
@@ -1726,7 +1771,15 @@ The following sources are applied in this order:
         (and tail (face-spec-set-2 face frame
                                    (list :extend (cadr tail))))))
     (setq face-attrs (face-spec-choose (get face 'face-override-spec) frame))
-    (face-spec-set-2 face frame face-attrs)))
+    (face-spec-set-2 face frame face-attrs)
+    (when (and (fboundp 'set-frame-parameter) ; This isn't available
+                                              ; during loadup.
+               (eq face 'scroll-bar))
+      ;; Set the `scroll-bar-foreground' and `scroll-bar-background'
+      ;; frame parameters, because the face is handled by setting
+      ;; those two parameters.  (bug#13476)
+      (set-frame-parameter frame 'scroll-bar-foreground (face-foreground face))
+      (set-frame-parameter frame 'scroll-bar-background (face-background face)))))
 
 (defun face-spec-set-2 (face frame face-attrs)
   "Set the face attributes of FACE on FRAME according to FACE-ATTRS.
@@ -1832,8 +1885,8 @@ on which one provides better contrast with COLOR."
       "#ffffff" "black"))
 
 (defconst color-luminance-dark-limit 0.325
-  "The relative luminance below which a color is considered 'dark'.
-A 'dark' color in this sense provides better contrast with white
+  "The relative luminance below which a color is considered \"dark\".
+A \"dark\" color in this sense provides better contrast with white
 than with black; see `color-dark-p'.
 This value was determined experimentally.")
 
@@ -1841,7 +1894,7 @@ This value was determined experimentally.")
   "Whether RGB is more readable against white than black.
 RGB is a 3-element list (R G B), each component in the range [0,1].
 This predicate can be used both for determining a suitable (black or white)
-contrast colour with RGB as background and as foreground."
+contrast color with RGB as background and as foreground."
   (unless (<= 0 (apply #'min rgb) (apply #'max rgb) 1)
     (error "RGB components %S not in [0,1]" rgb))
   ;; Compute the relative luminance after gamma-correcting (assuming sRGB),
@@ -1995,7 +2048,7 @@ as backgrounds."
 	     (setq color (background-color-at-point))))
       (when (and convert-to-RGB
 		 (not (string-equal color "")))
-	(let ((components (x-color-values color)))
+        (let ((components (color-values color)))
 	  (unless (string-match-p "^#\\(?:[[:xdigit:]][[:xdigit:]][[:xdigit:]]\\)+$" color)
 	    (setq color (format "#%04X%04X%04X"
 				(logand 65535 (nth 0 components))
@@ -2004,18 +2057,29 @@ as backgrounds."
     (when msg (message "Color: `%s'" color))
     color))
 
-(defun face-at-point (&optional thing multiple)
-  "Return the face of the character after point.
-If it has more than one face, return the first one.
-If THING is non-nil try first to get a face name from the buffer.
-IF MULTIPLE is non-nil, return a list of all faces.
-Return nil if there is no face."
+(defun face-at-point (&optional text multiple)
+  "Return a face name from point in the current buffer.
+This function is meant to be used as a conveniency function for
+providing defaults when prompting the user for a face name.
+
+If TEXT is non-nil, return the text at point if it names an
+existing face.
+
+Otherwise, look at the faces in effect at point as text
+properties or overlay properties, and return one of these face
+names.
+
+IF MULTIPLE is non-nil, return a list of faces.
+
+Return nil if there is no face at point.
+
+This function is not meant for handling faces programmatically; to
+do that, use `get-text-property' and `get-char-property'."
   (let (faces)
-    (if thing
-        ;; Try to get a face name from the buffer.
-        (let ((face (intern-soft (thing-at-point 'symbol))))
-          (if (facep face)
-              (push face faces))))
+    (when text
+      ;; Try to get a face name from the buffer.
+      (when-let ((face (thing-at-point 'face)))
+        (push face faces)))
     ;; Add the named faces that the `read-face-name' or `face' property uses.
     (let ((faceprop (or (get-char-property (point) 'read-face-name)
                         (get-char-property (point) 'face))))
@@ -2061,11 +2125,17 @@ unnamed faces (e.g, `foreground-color')."
         (face-attribute 'default attribute))))
 
 (defun foreground-color-at-point ()
-  "Return the foreground color of the character after point."
+  "Return the foreground color of the character after point.
+On TTY frames, the returned color name can be \"unspecified-fg\",
+which stands for the unknown default foreground color of the
+display where the frame is displayed."
   (faces--attribute-at-point :foreground 'foreground-color))
 
 (defun background-color-at-point ()
-  "Return the background color of the character after point."
+  "Return the background color of the character after point.
+On TTY frames, the returned color name can be \"unspecified-bg\",
+which stands for the unknown default background color of the
+display where the frame is displayed."
   (faces--attribute-at-point :background 'background-color))
 
 
@@ -2144,8 +2214,13 @@ the X resource \"reverseVideo\" is present, handle that."
 			   border-color cursor-color mouse-color
 			   visibility scroll-bar-foreground
 			   scroll-bar-background))
+         (delayed-font nil)
 	 frame success)
     (dolist (param delayed-params)
+      ;; Save the font used here.  Once the frame is created, set the
+      ;; `font-parameter' frame parameter.
+      (when (and (eq param 'font) (assq 'font parameters))
+        (setq delayed-font (cdr (assq 'font parameters))))
       (setq params (assq-delete-all param params)))
     (setq frame (x-create-frame `((visibility . nil) . ,params)))
     (unwind-protect
@@ -2156,6 +2231,11 @@ the X resource \"reverseVideo\" is present, handle that."
 	  (x-handle-reverse-video frame parameters)
 	  (frame-set-background-mode frame t)
 	  (face-set-after-frame-default frame parameters)
+          ;; The code above will not set the `font-parameter' frame
+          ;; property, which is used by dynamic-setting.el to respect
+          ;; fonts specified by the user via frame parameters (as
+          ;; opposed to face attributes).  Set the parameter manually.
+          (set-frame-parameter frame 'font-parameter delayed-font)
           ;; Mark frame as 'was-invisible' when it was created as
           ;; invisible or iconified and PARAMETERS contains either a
           ;; width or height specification.  This should be sufficient
@@ -2294,19 +2374,19 @@ If you set `term-file-prefix' to nil, this function does nothing."
       (let* (term-init-func)
 	;; First, load the terminal initialization file, if it is
 	;; available and it hasn't been loaded already.
-	(tty-find-type #'(lambda (type)
-			   (let ((file (locate-library (concat term-file-prefix type))))
-			     (and file
-				  (or (assoc file load-history)
-				      (load (replace-regexp-in-string
-                                             "\\.el\\(\\.gz\\)?\\'" ""
-                                             file)
-                                            t t)))))
-		       type)
+        (tty-find-type (lambda (type)
+                         (let ((file (locate-library (concat term-file-prefix type))))
+                           (and file
+                                (or (assoc file load-history)
+                                    (load (replace-regexp-in-string
+                                           "\\.el\\(\\.gz\\)?\\'" ""
+                                           file)
+                                          t t)))))
+                       type)
 	;; Next, try to find a matching initialization function, and call it.
-	(tty-find-type #'(lambda (type)
-			   (fboundp (setq term-init-func
-					  (intern (concat "terminal-init-" type)))))
+        (tty-find-type (lambda (type)
+                         (fboundp (setq term-init-func
+                                        (intern (concat "terminal-init-" type)))))
 		       type)
 	(when (fboundp term-init-func)
 	  (funcall term-init-func))
@@ -2389,6 +2469,15 @@ If you set `term-file-prefix' to nil, this function does nothing."
   "The basic variable-pitch face."
   :group 'basic-faces)
 
+(defface variable-pitch-text
+  '((t :inherit variable-pitch
+       :height 1.1))
+  "The proportional face used for longer texts.
+This is like the `variable-pitch' face, but is slightly bigger by
+default."
+  :version "29.1"
+  :group 'basic-faces)
+
 (defface shadow
   '((((class color grayscale) (min-colors 88) (background light))
      :foreground "grey50")
@@ -2439,18 +2528,9 @@ If you set `term-file-prefix' to nil, this function does nothing."
   "Basic face for highlighting."
   :group 'basic-faces)
 
-;; Region face: under NS, default to the system-defined selection
-;; color (optimized for the fixed white background of other apps),
-;; if background is light.
 (defface region
   '((((class color) (min-colors 88) (background dark))
      :background "blue3" :extend t)
-    (((class color) (min-colors 88) (background light) (type gtk))
-     :distant-foreground "gtk_selection_fg_color"
-     :background "gtk_selection_bg_color" :extend t)
-    (((class color) (min-colors 88) (background light) (type ns))
-     :distant-foreground "ns_selection_fg_color"
-     :background "ns_selection_bg_color" :extend t)
     (((class color) (min-colors 88) (background light))
      :background "lightgoldenrod2" :extend t)
     (((class color) (min-colors 16) (background dark))
@@ -2491,7 +2571,6 @@ If you set `term-file-prefix' to nil, this function does nothing."
   :version "21.1"
   :group 'basic-faces)
 
-;; Definition stolen from linum.el.
 (defface line-number
   '((t :inherit (shadow default)))
   "Face for displaying line numbers.
@@ -2622,8 +2701,18 @@ non-nil."
      :background "grey75" :foreground "black")
     (t
      :inverse-video t))
-  "Basic mode line face for selected window."
+  "Face for the mode lines as well as header lines.
+See `mode-line-active' and `mode-line-inactive' for the faces
+used on mode lines."
   :version "21.1"
+  :group 'mode-line-faces
+  :group 'basic-faces)
+
+(defface mode-line-active
+  '((t :inherit mode-line))
+  "Face for the selected mode line.
+This inherits from the `mode-line' face."
+  :version "29.1"
   :group 'mode-line-faces
   :group 'basic-faces)
 
@@ -2791,11 +2880,9 @@ used to display the prompt text."
   :group 'frames
   :group 'basic-faces)
 
-(defface scroll-bar
-  '((((background light)) :foreground "black")
-    (((background dark))  :foreground "white"))
+(defface scroll-bar '((t nil))
   "Basic face for the scroll bar colors under X."
-  :version "28.1"
+  :version "21.1"
   :group 'frames
   :group 'basic-faces)
 
@@ -2830,7 +2917,10 @@ Note: Other faces cannot inherit from the cursor face."
   '((default
      :box (:line-width 1 :style released-button)
      :foreground "black")
-    (((type x w32 ns wr) (class color))
+    (((type haiku))
+     :foreground "B_MENU_ITEM_TEXT_COLOR"
+     :background "B_MENU_BACKGROUND_COLOR")
+    (((type x w32 ns pgtk wr) (class color))
      :background "grey75")
     (((type x) (class mono))
      :background "grey"))
@@ -2886,14 +2976,22 @@ Note: Other faces cannot inherit from the cursor face."
      :background "grey96" :foreground "DarkBlue"
      ;; We use negative thickness of the horizontal box border line to
      ;; avoid enlarging the height of the echo-area display, which
-     ;; would then move the mode line a few pixels up.
-     :box (:line-width (1 . -1) :color "grey80"))
+     ;; would then move the mode line a few pixels up.  We use
+     ;; negative thickness for the vertical border line to avoid
+     ;; making the characters wider, which then would cause unpleasant
+     ;; horizontal shifts of the cursor during C-n/C-p movement
+     ;; through a line with this face.
+     :box (:line-width (-1 . -1) :color "grey80")
+     :inherit fixed-pitch)
     (((class color) (min-colors 88) (background dark))
      :background "grey19" :foreground "LightBlue"
-     :box (:line-width (1 . -1) :color "grey35"))
-    (((class color grayscale) (background light)) :background "grey90")
-    (((class color grayscale) (background dark)) :background "grey25")
-    (t :background "grey90"))
+     :box (:line-width (-1 . -1) :color "grey35")
+     :inherit fixed-pitch)
+    (((class color grayscale) (background light)) :background "grey90"
+     :inherit fixed-pitch)
+    (((class color grayscale) (background dark)) :background "grey25"
+     :inherit fixed-pitch)
+    (t :background "grey90" :inherit fixed-pitch))
   "Face for keybindings in *Help* buffers.
 
 This face is added by `substitute-command-keys', which see.
@@ -2906,7 +3004,7 @@ bindings.  See also the face `tooltip'."
   :group 'help)
 
 (defface glyphless-char
-  '((((type tty)) :inherit underline)
+  '((((type tty)) :inherit escape-glyph :underline t)
     (((type pc)) :inherit escape-glyph)
     (t :height 0.6))
   "Face for displaying non-graphic characters (e.g. U+202A (LRE)).
@@ -2945,7 +3043,7 @@ It is used for characters of no fonts too."
   :group 'basic-faces)
 
 (defface read-multiple-choice-face
-  '((t (:inherit underline
+  '((t (:inherit (help-key-binding underline)
         :weight bold)))
   "Face for the symbol name in `read-multiple-choice' output."
   :group 'basic-faces
@@ -3095,11 +3193,8 @@ also the same size as FACE on FRAME, or fail."
 	(car fonts))
     (frame-parameter nil 'font)))
 
-(defcustom font-list-limit 100
-  "This variable is obsolete and has no effect."
-  :type 'integer
-  :group 'display)
-(make-obsolete-variable 'font-list-limit nil "24.3")
+(define-obsolete-function-alias 'face-background-pixmap #'face-stipple "29.1")
+(define-obsolete-function-alias 'set-face-background-pixmap #'set-face-stipple "29.1")
 
 (provide 'faces)
 

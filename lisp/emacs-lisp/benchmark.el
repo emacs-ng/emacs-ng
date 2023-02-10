@@ -1,6 +1,6 @@
 ;;; benchmark.el --- support for benchmarking code  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2003-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2023 Free Software Foundation, Inc.
 
 ;; Author: Dave Love <fx@gnu.org>
 ;; Keywords: lisp, extensions
@@ -31,6 +31,7 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (eval-when-compile (require 'subr-x))   ;For `named-let'.
 
 (defmacro benchmark-elapse (&rest forms)
@@ -70,7 +71,7 @@ number of repetitions actually used."
 
 (defun benchmark--adaptive (func time)
   "Measure the run time of FUNC, calling it enough times to last TIME seconds.
-Result is (REPETITIONS . DATA) where DATA is as returned by `branchmark-call'."
+Result is (REPETITIONS . DATA) where DATA is as returned by `benchmark-call'."
   (named-let loop ((repetitions 1)
                    (data (let ((x (list 0))) (setcdr x x) x)))
     ;; (message "Running %d iteration" repetitions)
@@ -121,7 +122,11 @@ result.  The overhead of the `lambda's is accounted for."
   (unless (or (natnump repetitions) (and repetitions (symbolp repetitions)))
     (setq forms (cons repetitions forms)
 	  repetitions 1))
-  `(benchmark-call (byte-compile '(lambda () ,@forms)) ,repetitions))
+  `(benchmark-call (,(if (native-comp-available-p)
+                         'native-compile
+                       'byte-compile)
+                    '(lambda () ,@forms))
+                   ,repetitions))
 
 ;;;###autoload
 (defun benchmark (repetitions form)

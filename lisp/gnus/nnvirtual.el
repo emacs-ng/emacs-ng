@@ -1,6 +1,6 @@
 ;;; nnvirtual.el --- virtual newsgroups access for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1994-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1994-2023 Free Software Foundation, Inc.
 
 ;; Author: David Moore <dmoore@ucsd.edu>
 ;;	Lars Magne Ingebrigtsen <larsi@gnus.org>
@@ -57,6 +57,7 @@ component group will show up when you enter the virtual group.")
 
 
 (defconst nnvirtual-version "nnvirtual 1.1")
+(make-obsolete-variable 'nnvirtual-version 'emacs-version "29.1")
 
 (defvoo nnvirtual-current-group nil)
 
@@ -114,14 +115,9 @@ It is computed from the marks of individual component groups.")
 		       (gnus-check-server
 			(gnus-find-method-for-group cgroup) t)
 		       (gnus-request-group cgroup t)
-		       (setq prefix (gnus-group-real-prefix cgroup))
-		       ;; FIX FIX FIX we want to check the cache!
-		       ;; This is probably evil if people have set
-		       ;; gnus-use-cache to nil themselves, but I
-		       ;; have no way of finding the true value of it.
-		       (let ((gnus-use-cache t))
-			 (setq result (gnus-retrieve-headers
-				       articles cgroup nil))))
+		       (setq prefix (gnus-group-real-prefix cgroup)
+                             result (gnus-retrieve-headers
+				     articles cgroup nil)))
 	      (set-buffer nntp-server-buffer)
 	      ;; If we got HEAD headers, we convert them into NOV
 	      ;; headers.  This is slow, inefficient and, come to think
@@ -176,7 +172,7 @@ It is computed from the marks of individual component groups.")
 	      (with-current-buffer nntp-server-buffer
 		(erase-buffer)
 		(insert-buffer-substring vbuf)
-		;; FIX FIX FIX, we should be able to sort faster than
+                ;; FIXME: we should be able to sort faster than
 		;; this if needed, since each cgroup is sorted, we just
 		;; need to merge
 		(sort-numeric-fields 1 (point-min) (point-max))
@@ -365,7 +361,7 @@ It is computed from the marks of individual component groups.")
                               (lambda (article)
                                 (nnvirtual-reverse-map-article
                                  group article))
-			      (gnus-uncompress-range
+			      (range-uncompress
 			       (gnus-group-expire-articles-1 group))))))
     (sort (delq nil unexpired) #'<)))
 
@@ -391,7 +387,7 @@ lines have the correct component server prefix."
   (looking-at
    "[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t")
   (goto-char (match-end 0))
-  (unless (search-forward "\t" (point-at-eol) 'move)
+  (unless (search-forward "\t" (line-end-position) 'move)
     (insert "\t"))
 
   ;; Remove any spaces at the beginning of the Xref field.
@@ -407,8 +403,8 @@ lines have the correct component server prefix."
   ;; component server prefix.
   (save-restriction
     (narrow-to-region (point)
-		      (or (search-forward "\t" (point-at-eol) t)
-			  (point-at-eol)))
+                      (or (search-forward "\t" (line-end-position) t)
+                          (line-end-position)))
     (goto-char (point-min))
     (when (re-search-forward "Xref: *[^\n:0-9 ]+ *" nil t)
       (replace-match "" t t))

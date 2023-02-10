@@ -1,6 +1,6 @@
 ;;; cus-start.el --- define customization properties of builtins  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: Per Abrahamsen <abraham@dina.kvl.dk>
 ;; Keywords: internal
@@ -251,7 +251,6 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     ;; emacs.c
 	     (report-emacs-bug-address emacsbug string)
 	     ;; eval.c
-	     (max-specpdl-size limits integer)
 	     (max-lisp-eval-depth limits integer)
 	     (max-mini-window-height limits
 				     (choice (const :tag "quarter screen" nil)
@@ -311,6 +310,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
                       (const :tag "Off" :value nil)
                       (const :tag "On" :value t)
                       (const :tag "Auto-raise" :value auto-raise)) "26.1")
+             (yes-or-no-prompt menu string "30.1")
 	     ;; fontset.c
 	     ;; FIXME nil is the initial value, fontset.el setqs it.
 	     (vertical-centering-font-regexp display
@@ -356,6 +356,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
                                    (const :tag "Iconify" t))
 				  "26.1")
 	     (tooltip-reuse-hidden-frame tooltip boolean "26.1")
+             (use-system-tooltips tooltip boolean "29.1")
 	     ;; fringe.c
 	     (overflow-newline-into-fringe fringe boolean)
 	     ;; image.c
@@ -369,7 +370,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     (auto-save-timeout auto-save (choice (const :tag "off" nil)
 						  (integer :format "%v")))
 	     (echo-keystrokes minibuffer number)
-	     (polling-period keyboard integer)
+	     (polling-period keyboard float)
 	     (double-click-time mouse (restricted-sexp
 				       :match-alternatives (integerp 'nil 't)))
 	     (double-click-fuzz mouse integer "22.1")
@@ -386,7 +387,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
                                      (const :tag "When sent SIGUSR1" sigusr1)
                                      (const :tag "When sent SIGUSR2" sigusr2))
                              "24.1")
-
+             (translate-upper-case-key-bindings keyboard boolean "29.1")
              ;; This is not good news because it will use the wrong
              ;; version-specific directories when you upgrade.  We need
              ;; customization of the front of the list, maintaining the
@@ -397,6 +398,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     ;;    			(const :tag " current dir" nil)
 	     ;;    			(directory :format "%v"))))
 	     (load-prefer-newer lisp boolean "24.4")
+             (record-all-keys keyboard boolean)
 	     ;; minibuf.c
 	     (minibuffer-follows-selected-frame
               minibuffer (choice (const :tag "Always" t)
@@ -572,8 +574,10 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     (ns-use-native-fullscreen ns boolean "24.4")
              (ns-use-fullscreen-animation ns boolean "25.1")
              (ns-use-srgb-colorspace ns boolean "24.4")
+             (ns-scroll-event-delta-factor ns float "29.1")
 	     ;; process.c
 	     (delete-exited-processes processes-basics boolean)
+             (process-error-pause-time processes-basics integer "29.1")
 	     ;; syntax.c
 	     (parse-sexp-ignore-comments editing-basics boolean)
 	     (words-include-escapes editing-basics boolean)
@@ -808,6 +812,7 @@ since it could result in memory overflow and make Emacs crash."
                character)
               "27.1"
               :safe (lambda (value) (or (characterp value) (null value))))
+             (composition-break-at-point display boolean "29.1")
 	     ;; xfaces.c
 	     (scalable-fonts-allowed
               display (choice (const :tag "Don't allow scalable fonts" nil)
@@ -826,10 +831,21 @@ since it could result in memory overflow and make Emacs crash."
 	     (x-underline-at-descent-line display boolean "22.1")
 	     (x-stretch-cursor display boolean "21.1")
 	     (scroll-bar-adjust-thumb-portion windows boolean "24.4")
+             (x-scroll-event-delta-factor mouse float "29.1")
+             (x-gtk-use-native-input keyboard boolean "29.1")
+             (x-dnd-disable-motif-drag dnd boolean "29.1")
+             (x-auto-preserve-selections x
+                                         (choice (const :tag "Always preserve selections" t)
+                                                 (repeat symbol))
+                                         "29.1")
 	     ;; xselect.c
 	     (x-select-enable-clipboard-manager killing boolean "24.1")
 	     ;; xsettings.c
-	     (font-use-system-font font-selection boolean "23.2")))
+	     (font-use-system-font font-selection boolean "23.2")
+             ;; haikuterm.c
+             (haiku-debug-on-fatal-error debug boolean "29.1")
+             ;; haikufns.c
+             (haiku-use-system-tooltips tooltip boolean "29.1")))
     (setq ;; If we did not specify any standard value expression above,
 	  ;; use the current value as the standard value.
 	  standard (if (setq prop (memq :standard rest))
@@ -846,10 +862,26 @@ since it could result in memory overflow and make Emacs crash."
 		       (eq system-type 'windows-nt))
 		      ((string-match "\\`ns-" (symbol-name symbol))
 		       (featurep 'ns))
+                      ((string-match "\\`haiku-" (symbol-name symbol))
+                       (featurep 'haiku))
+                      ((eq symbol 'process-error-pause-time)
+                       (not (eq system-type 'ms-dos)))
+                      ((eq symbol 'x-gtk-use-native-input)
+                       (and (featurep 'x)
+                            (featurep 'gtk)))
 		      ((string-match "\\`x-.*gtk" (symbol-name symbol))
 		       (featurep 'gtk))
 		      ((string-match "clipboard-manager" (symbol-name symbol))
 		       (boundp 'x-select-enable-clipboard-manager))
+                      ((or (equal "scroll-bar-adjust-thumb-portion"
+			          (symbol-name symbol))
+                           (equal "x-scroll-event-delta-factor"
+                                  (symbol-name symbol))
+                           (equal "x-dnd-disable-motif-drag"
+                                  (symbol-name symbol))
+                           (equal "x-auto-preserve-selections"
+                                  (symbol-name symbol)))
+		       (featurep 'x))
 		      ((string-match "\\`x-" (symbol-name symbol))
 		       (fboundp 'x-create-frame))
 		      ((string-match "selection" (symbol-name symbol))
@@ -870,9 +902,6 @@ since it could result in memory overflow and make Emacs crash."
 			      (symbol-name symbol))
 		       ;; Any function from fontset.c will do.
 		       (fboundp 'new-fontset))
-		      ((equal "scroll-bar-adjust-thumb-portion"
-			      (symbol-name symbol))
-		       (featurep 'x))
 		      (t t))))
     (if (not (boundp symbol))
 	;; If variables are removed from C code, give an error here!

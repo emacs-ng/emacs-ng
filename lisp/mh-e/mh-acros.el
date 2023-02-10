@@ -1,6 +1,6 @@
 ;;; mh-acros.el --- macros used in MH-E  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004, 2006-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2004, 2006-2023 Free Software Foundation, Inc.
 
 ;; Author: Satyaki Das <satyaki@theforce.stanford.edu>
 ;; Maintainer: Bill Wohler <wohler@newt.com>
@@ -47,19 +47,20 @@
 ;;;###mh-autoload
 (defmacro mh-do-in-gnu-emacs (&rest body)
   "Execute BODY if in GNU Emacs."
-  (declare (debug t) (indent defun))
+  (declare (obsolete progn "29.1") (debug t) (indent defun))
   (unless (featurep 'xemacs) `(progn ,@body)))
 
 ;;;###mh-autoload
 (defmacro mh-do-in-xemacs (&rest body)
   "Execute BODY if in XEmacs."
-  (declare (debug t) (indent defun))
+  (declare (obsolete ignore "29.1") (debug t) (indent defun))
   (when (featurep 'xemacs) `(progn ,@body)))
 
 ;;;###mh-autoload
 (defmacro mh-funcall-if-exists (function &rest args)
   "Call FUNCTION with ARGS as parameters if it exists."
-  (declare (debug (symbolp body)))
+  (declare (obsolete "use `(when (fboundp 'foo) (foo))' instead." "29.1")
+           (debug (symbolp body)))
   ;; FIXME: Not clear when this should be used.  If the function happens
   ;; not to exist at compile-time (e.g. because the corresponding package
   ;; wasn't loaded), then it won't ever be used :-(
@@ -72,7 +73,8 @@
   "Create function NAME.
 If FUNCTION exists, then NAME becomes an alias for FUNCTION.
 Otherwise, create function NAME with ARG-LIST and BODY."
-  (declare (indent defun) (doc-string 4)
+  (declare (obsolete defun "29.1")
+           (indent defun) (doc-string 4)
            (debug (&define name symbolp sexp def-body)))
   `(defalias ',name
      (if (fboundp ',function)
@@ -84,7 +86,8 @@ Otherwise, create function NAME with ARG-LIST and BODY."
   "Create macro NAME.
 If MACRO exists, then NAME becomes an alias for MACRO.
 Otherwise, create macro NAME with ARG-LIST and BODY."
-  (declare (indent defun) (doc-string 4)
+  (declare (obsolete defmacro "29.1")
+           (indent defun) (doc-string 4)
            (debug (&define name symbolp sexp def-body)))
   (let ((defined-p (fboundp macro)))
     (if defined-p
@@ -99,22 +102,20 @@ Otherwise, create macro NAME with ARG-LIST and BODY."
   "Make HOOK local if needed.
 XEmacs and versions of GNU Emacs before 21.1 require
 `make-local-hook' to be called."
+  (declare (obsolete nil "29.1"))
   (when (and (fboundp 'make-local-hook)
              (not (get 'make-local-hook 'byte-obsolete-info)))
     `(make-local-hook ,hook)))
 
 ;;;###mh-autoload
 (defmacro mh-mark-active-p (check-transient-mark-mode-flag)
-  "A macro that expands into appropriate code in XEmacs and nil in GNU Emacs.
-In GNU Emacs if CHECK-TRANSIENT-MARK-MODE-FLAG is non-nil then
-check if variable `transient-mark-mode' is active."
-  (cond ((featurep 'xemacs)             ;XEmacs
-         '(and (boundp 'zmacs-regions) zmacs-regions (region-active-p)))
-        ((not check-transient-mark-mode-flag) ;GNU Emacs
-         '(and (boundp 'mark-active) mark-active))
-        (t                              ;GNU Emacs
-         '(and (boundp 'transient-mark-mode) transient-mark-mode
-               (boundp 'mark-active) mark-active))))
+  "If CHECK-TRANSIENT-MARK-MODE-FLAG is non-nil then check if
+variable `transient-mark-mode' is active."
+  (declare (obsolete nil "29.1"))
+  (cond ((not check-transient-mark-mode-flag)
+         'mark-active)
+        (t
+         '(and transient-mark-mode mark-active))))
 
 ;;;###mh-autoload
 (defmacro with-mh-folder-updating (save-modification-flag &rest body)
@@ -164,12 +165,8 @@ preserved."
         (original-position (make-symbol "original-position"))
         (modified-flag (make-symbol "modified-flag")))
     `(save-excursion
-       (let* ((,event-window
-               (or (mh-funcall-if-exists posn-window (event-start ,event))
-                   (mh-funcall-if-exists event-window ,event)))
-              (,event-position
-               (or (mh-funcall-if-exists posn-point (event-start ,event))
-                   (mh-funcall-if-exists event-closest-point ,event)))
+       (let* ((,event-window (posn-window (event-start ,event)))
+              (,event-position (posn-point (event-start ,event)))
               (,original-window (selected-window))
               (,original-position (progn
                                    (set-buffer (window-buffer ,event-window))
@@ -272,11 +269,25 @@ MH-E functions."
                  binders)
        (let* ,binders ,@body))))
 
+;; Emacs 24 made flet obsolete and suggested either cl-flet or
+;; cl-letf. This macro is based upon gmm-flet from Gnus.
+(defmacro mh-flet (bindings &rest body)
+  "Make temporary overriding function definitions.
+That is, temporarily rebind the functions listed in BINDINGS and then
+execute BODY.  BINDINGS is a list containing one or more lists of the
+form (FUNCNAME ARGLIST BODY...), similar to defun."
+  (declare (indent 1) (debug ((&rest (sexp sexp &rest form)) &rest form)))
+  (if (fboundp 'cl-letf)
+      `(cl-letf ,(mapcar (lambda (binding)
+                           `((symbol-function ',(car binding))
+                             (lambda ,@(cdr binding))))
+                         bindings)
+         ,@body)
+    `(flet ,bindings ,@body)))
+
 (provide 'mh-acros)
 
 ;; Local Variables:
-;; no-byte-compile: t
-;; indent-tabs-mode: nil
 ;; sentence-end-double-space: nil
 ;; End:
 

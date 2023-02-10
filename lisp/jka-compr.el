@@ -1,6 +1,6 @@
 ;;; jka-compr.el --- reading/writing/loading compressed files  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1993-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1993-2023 Free Software Foundation, Inc.
 
 ;; Author: Jay K. Adams <jka@ece.cmu.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -598,7 +598,7 @@ There should be no more than seven characters after the final `/'."
 
 
 ;; Support for loading compressed files.
-(defun jka-compr-load (file &optional noerror nomessage _nosuffix)
+(defun jka-compr-load (file &optional noerror nomessage _nosuffix _must-suffix)
   "Documented as original."
 
   (let* ((local-copy (jka-compr-file-local-copy file))

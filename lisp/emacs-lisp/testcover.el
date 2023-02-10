@@ -1,6 +1,6 @@
 ;;; testcover.el --- Visual code-coverage tool  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2023 Free Software Foundation, Inc.
 
 ;; Author: Jonathan Yavner <jyavner@member.fsf.org>
 ;; Keywords: lisp utility
@@ -65,7 +65,6 @@
 
 (eval-when-compile (require 'cl-lib))
 (require 'edebug)
-(provide 'testcover)
 
 
 ;;;==========================================================================
@@ -638,8 +637,7 @@ argument is maybe, return maybe.  Return 1value only if both arguments
 are 1value."
   (cl-case val
     (testcover-1value result)
-    (maybe (and result 'maybe))
-    (nil nil)))
+    (maybe (and result 'maybe))))
 
 (defun testcover-analyze-coverage-compose (forms func)
   "Analyze a list of FORMS for code coverage using FUNC.
@@ -676,5 +674,7 @@ The list is 1valued if all of its constituent elements are also 1valued."
    ((memq (car form) (list '\, '\,@))
     (testcover-analyze-coverage (cadr form)))
    (t (testcover-analyze-coverage-backquote form))))
+
+(provide 'testcover)
 
 ;;; testcover.el ends here

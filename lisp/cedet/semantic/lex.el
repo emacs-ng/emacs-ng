@@ -1,6 +1,6 @@
 ;;; semantic/lex.el --- Lexical Analyzer builder  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -574,25 +574,24 @@ may need to be overridden for some special languages.")
 (defvar-local semantic-lex-number-expression
   ;; This expression was written by David Ponce for Java, and copied
   ;; here for C and any other similar language.
-  (eval-when-compile
-    (concat "\\("
-            "\\<[0-9]+[.][0-9]+\\([eE][-+]?[0-9]+\\)?[fFdD]?\\>"
-            "\\|"
-            "\\<[0-9]+[.][eE][-+]?[0-9]+[fFdD]?\\>"
-            "\\|"
-            "\\<[0-9]+[.][fFdD]\\>"
-            "\\|"
-            "\\<[0-9]+[.]"
-            "\\|"
-            "[.][0-9]+\\([eE][-+]?[0-9]+\\)?[fFdD]?\\>"
-            "\\|"
-            "\\<[0-9]+[eE][-+]?[0-9]+[fFdD]?\\>"
-            "\\|"
-            "\\<0[xX][[:xdigit:]]+[lL]?\\>"
-            "\\|"
-            "\\<[0-9]+[lLfFdD]?\\>"
-            "\\)"
-            ))
+  (concat "\\("
+          "\\<[0-9]+[.][0-9]+\\([eE][-+]?[0-9]+\\)?[fFdD]?\\>"
+          "\\|"
+          "\\<[0-9]+[.][eE][-+]?[0-9]+[fFdD]?\\>"
+          "\\|"
+          "\\<[0-9]+[.][fFdD]\\>"
+          "\\|"
+          "\\<[0-9]+[.]"
+          "\\|"
+          "[.][0-9]+\\([eE][-+]?[0-9]+\\)?[fFdD]?\\>"
+          "\\|"
+          "\\<[0-9]+[eE][-+]?[0-9]+[fFdD]?\\>"
+          "\\|"
+          "\\<0[xX][[:xdigit:]]+[lL]?\\>"
+          "\\|"
+          "\\<[0-9]+[lLfFdD]?\\>"
+          "\\)"
+          )
   "Regular expression for matching a number.
 If this value is nil, no number extraction is done during lex.
 This expression tries to match C and Java like numbers.
@@ -719,8 +718,6 @@ This is an alist of (ANCHOR . STREAM) elements where ANCHOR is the
 start position of the block, and STREAM is the list of tokens in that
 block.")
 
-(define-obsolete-variable-alias 'semantic-lex-reset-hooks
-  'semantic-lex-reset-functions "24.3")
 (defvar semantic-lex-reset-functions nil
   "Abnormal hook used by major-modes to reset lexical analyzers.
 Hook functions are called with START and END values for the
@@ -760,7 +757,7 @@ If two analyzers can match the same text, it is important to order the
 analyzers so that the one you want to match first occurs first.  For
 example, it is good to put a number analyzer in front of a symbol
 analyzer which might mistake a number for a symbol."
-  (declare (debug (&define name stringp (&rest symbolp))))
+  (declare (debug (&define name stringp (&rest symbolp))) (indent 1))
   `(defun ,name  (start end &optional depth length)
      ,(concat doc "\nSee `semantic-lex' for more information.")
      ;; Make sure the state of block parsing starts over.
@@ -1096,7 +1093,7 @@ Proper action in FORMS is to move the value of `semantic-lex-end-point' to
 after the location of the analyzed entry, and to add any discovered tokens
 at the beginning of `semantic-lex-token-stream'.
 This can be done by using `semantic-lex-push-token'."
-  (declare (debug (&define name stringp form def-body)))
+  (declare (debug (&define name stringp form def-body)) (indent 1))
   `(eval-and-compile
      ;; This is the real info used by `define-lex' (via semantic-lex-one-token).
      (defconst ,name '(,condition ,@forms) ,doc)
@@ -1111,14 +1108,14 @@ This can be done by using `semantic-lex-push-token'."
 	     (semantic-lex-analysis-bounds (cons (point) (point-max)))
 	     (semantic-lex-current-depth 0)
 	     (semantic-lex-maximum-depth semantic-lex-depth))
-	 (when ,condition ,@forms)
+	 (when ,condition nil ,@forms)  ; `nil' avoids an empty-body warning.
 	 semantic-lex-token-stream))))
 
 (defmacro define-lex-regex-analyzer (name doc regexp &rest forms)
   "Create a lexical analyzer with NAME and DOC that will match REGEXP.
 FORMS are evaluated upon a successful match.
 See `define-lex-analyzer' for more about analyzers."
-  (declare (debug (&define name stringp form def-body)))
+  (declare (debug (&define name stringp form def-body)) (indent 1))
   `(define-lex-analyzer ,name
      ,doc
      (looking-at ,regexp)
@@ -1137,7 +1134,8 @@ FORMS are evaluated upon a successful match BEFORE the new token is
 created.  It is valid to ignore FORMS.
 See `define-lex-analyzer' for more about analyzers."
   (declare (debug
-            (&define name stringp form symbolp [ &optional form ] def-body)))
+            (&define name stringp form symbolp [ &optional form ] def-body))
+           (indent 1))
   `(define-lex-analyzer ,name
      ,doc
      (looking-at ,regexp)
@@ -1162,7 +1160,8 @@ where BLOCK-SYM is the symbol returned in a block token.  OPEN-DELIM
 and CLOSE-DELIM are respectively the open and close delimiters
 identifying a block.  OPEN-SYM and CLOSE-SYM are respectively the
 symbols returned in open and close tokens."
-  (declare (debug (&define name stringp form (&rest form))))
+  (declare (debug (&define name stringp form (&rest form)))
+           (indent 1))
   (let ((specs (cons spec1 specs))
         spec open olist clist)
     (while specs
@@ -1422,7 +1421,7 @@ Return either a paren token or a semantic list token depending on
 	;; to work properly.  Lets try and move over
 	;; whatever white space we matched to begin
 	;; with.
-	(skip-syntax-forward "-.'" (point-at-eol))
+        (skip-syntax-forward "-.'" (line-end-position))
       ;; We may need to back up so newlines or whitespace is generated.
       (if (bolp)
 	  (backward-char 1)))
@@ -1437,9 +1436,9 @@ Return either a paren token or a semantic list token depending on
 
 (define-lex semantic-comment-lexer
   "A simple lexical analyzer that handles comments.
-This lexer will only return comment tokens.  It is the default lexer
-used by `semantic-find-doc-snarf-comment' to snarf up the comment at
-point."
+This lexer will only return comment tokens.  It is the default
+lexer used by `semantic-doc-snarf-comment-for-tag' to snarf up
+the comment at point."
   semantic-lex-ignore-whitespace
   semantic-lex-ignore-newline
   semantic-lex-comments
@@ -1471,6 +1470,7 @@ syntax as specified by the syntax table."
 (defmacro define-lex-keyword-type-analyzer (name doc syntax)
   "Define a keyword type analyzer NAME with DOC string.
 SYNTAX is the regexp that matches a keyword syntactic expression."
+  (declare (indent 1))
   (let ((key (make-symbol "key")))
     `(define-lex-analyzer ,name
        ,doc
@@ -1486,6 +1486,7 @@ SYNTAX is the regexp that matches a keyword syntactic expression."
   "Define a sexp type analyzer NAME with DOC string.
 SYNTAX is the regexp that matches the beginning of the s-expression.
 TOKEN is the lexical token returned when SYNTAX matches."
+  (declare (indent 1))
   `(define-lex-regex-analyzer ,name
      ,doc
      ,syntax
@@ -1504,6 +1505,7 @@ SYNTAX is the regexp that matches a syntactic expression.
 MATCHES is an alist of lexical elements used to refine the syntactic
 expression.
 DEFAULT is the default lexical token returned when no MATCHES."
+  (declare (indent 1))
   (if matches
       (let* ((val (make-symbol "val"))
              (lst (make-symbol "lst"))
@@ -1536,6 +1538,7 @@ SYNTAX is the regexp that matches a syntactic expression.
 MATCHES is an alist of lexical elements used to refine the syntactic
 expression.
 DEFAULT is the default lexical token returned when no MATCHES."
+  (declare (indent 1))
   (if matches
       (let* ((val (make-symbol "val"))
              (lst (make-symbol "lst"))
@@ -1633,6 +1636,7 @@ When the lexer encounters the open-paren delimiter \"(\":
  - If the maximum depth of parenthesis tracking is reached (current
    depth >= max depth), it returns the whole parenthesis block as
    a (PAREN_BLOCK start . end) token."
+  (declare (indent 1))
   (let* ((val (make-symbol "val"))
          (lst (make-symbol "lst"))
          (elt (make-symbol "elt")))

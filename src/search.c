@@ -1,6 +1,6 @@
 /* String search routines for GNU Emacs.
 
-Copyright (C) 1985-1987, 1993-1994, 1997-1999, 2001-2022 Free Software
+Copyright (C) 1985-1987, 1993-1994, 1997-1999, 2001-2023 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -68,9 +68,6 @@ static EMACS_INT simple_search (EMACS_INT, unsigned char *, ptrdiff_t,
 static EMACS_INT boyer_moore (EMACS_INT, unsigned char *, ptrdiff_t,
                               Lisp_Object, Lisp_Object, ptrdiff_t,
                               ptrdiff_t, int);
-static EMACS_INT search_buffer (Lisp_Object, ptrdiff_t, ptrdiff_t,
-                                ptrdiff_t, ptrdiff_t, EMACS_INT, int,
-                                Lisp_Object, Lisp_Object, bool);
 
 Lisp_Object re_match_object;
 
@@ -260,7 +257,7 @@ compile_pattern (Lisp_Object pattern, struct re_registers *regp,
 
 
 static Lisp_Object
-looking_at_1 (Lisp_Object string, bool posix)
+looking_at_1 (Lisp_Object string, bool posix, bool modify_data)
 {
   Lisp_Object val;
   unsigned char *p1, *p2;
@@ -278,11 +275,11 @@ looking_at_1 (Lisp_Object string, bool posix)
   CHECK_STRING (string);
 
   /* Snapshot in case Lisp changes the value.  */
-  bool preserve_match_data = NILP (Vinhibit_changing_match_data);
+  bool modify_match_data = NILP (Vinhibit_changing_match_data) && modify_data;
 
   struct regexp_cache *cache_entry = compile_pattern (
     string,
-    preserve_match_data ? &search_regs : NULL,
+    modify_match_data ? &search_regs : NULL,
     (!NILP (BVAR (current_buffer, case_fold_search))
      ? BVAR (current_buffer, case_canon_table) : Qnil),
     posix,
@@ -310,13 +307,13 @@ looking_at_1 (Lisp_Object string, bool posix)
       s2 = 0;
     }
 
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   freeze_buffer_relocation ();
   freeze_pattern (cache_entry);
   re_match_object = Qnil;
   i = re_match_2 (&cache_entry->buf, (char *) p1, s1, (char *) p2, s2,
 		  PT_BYTE - BEGV_BYTE,
-		  preserve_match_data ? &search_regs : NULL,
+		  modify_match_data ? &search_regs : NULL,
 		  ZV_BYTE - BEGV_BYTE);
 
   if (i == -2)
@@ -326,7 +323,7 @@ looking_at_1 (Lisp_Object string, bool posix)
     }
 
   val = (i >= 0 ? Qt : Qnil);
-  if (preserve_match_data && i >= 0)
+  if (modify_match_data && i >= 0)
   {
     for (i = 0; i < search_regs.num_regs; i++)
       if (search_regs.start[i] >= 0)
@@ -343,35 +340,36 @@ looking_at_1 (Lisp_Object string, bool posix)
   return unbind_to (count, val);
 }
 
-DEFUN ("looking-at", Flooking_at, Slooking_at, 1, 1, 0,
+DEFUN ("looking-at", Flooking_at, Slooking_at, 1, 2, 0,
        doc: /* Return t if text after point matches regular expression REGEXP.
-This function modifies the match data that `match-beginning',
-`match-end' and `match-data' access; save and restore the match
-data if you want to preserve them.  */)
-  (Lisp_Object regexp)
+By default, this function modifies the match data that
+`match-beginning', `match-end' and `match-data' access.  If
+INHIBIT-MODIFY is non-nil, don't modify the match data.  */)
+  (Lisp_Object regexp, Lisp_Object inhibit_modify)
 {
-  return looking_at_1 (regexp, 0);
+  return looking_at_1 (regexp, 0, NILP (inhibit_modify));
 }
 
-DEFUN ("posix-looking-at", Fposix_looking_at, Sposix_looking_at, 1, 1, 0,
+DEFUN ("posix-looking-at", Fposix_looking_at, Sposix_looking_at, 1, 2, 0,
        doc: /* Return t if text after point matches REGEXP according to Posix rules.
 Find the longest match, in accordance with Posix regular expression rules.
-This function modifies the match data that `match-beginning',
-`match-end' and `match-data' access; save and restore the match
-data if you want to preserve them.  */)
-  (Lisp_Object regexp)
+
+By default, this function modifies the match data that
+`match-beginning', `match-end' and `match-data' access.  If
+INHIBIT-MODIFY is non-nil, don't modify the match data.  */)
+  (Lisp_Object regexp, Lisp_Object inhibit_modify)
 {
-  return looking_at_1 (regexp, 1);
+  return looking_at_1 (regexp, 1, NILP (inhibit_modify));
 }
 
 static Lisp_Object
 string_match_1 (Lisp_Object regexp, Lisp_Object string, Lisp_Object start,
-		bool posix)
+		bool posix, bool modify_data)
 {
   ptrdiff_t val;
-  struct re_pattern_buffer *bufp;
   EMACS_INT pos;
   ptrdiff_t pos_byte, i;
+  bool modify_match_data = NILP (Vinhibit_changing_match_data) && modify_data;
 
   if (running_asynch_code)
     save_search_regs ();
@@ -399,29 +397,32 @@ string_match_1 (Lisp_Object regexp, Lisp_Object string, Lisp_Object start,
   set_char_table_extras (BVAR (current_buffer, case_canon_table), 2,
 			 BVAR (current_buffer, case_eqv_table));
 
-  bufp = &compile_pattern (regexp,
-                           (NILP (Vinhibit_changing_match_data)
-                            ? &search_regs : NULL),
-                           (!NILP (BVAR (current_buffer, case_fold_search))
-                            ? BVAR (current_buffer, case_canon_table) : Qnil),
-                           posix,
-                           STRING_MULTIBYTE (string))->buf;
+  specpdl_ref count = SPECPDL_INDEX ();
+  struct regexp_cache *cache_entry
+    = compile_pattern (regexp,
+		       modify_match_data ? &search_regs : NULL,
+		       (!NILP (BVAR (current_buffer, case_fold_search))
+			? BVAR (current_buffer, case_canon_table)
+			: Qnil),
+		       posix,
+		       STRING_MULTIBYTE (string));
+  freeze_pattern (cache_entry);
   re_match_object = string;
-  val = re_search (bufp, SSDATA (string),
+  val = re_search (&cache_entry->buf, SSDATA (string),
 		   SBYTES (string), pos_byte,
 		   SBYTES (string) - pos_byte,
-		   (NILP (Vinhibit_changing_match_data)
-		    ? &search_regs : NULL));
+		   (modify_match_data ? &search_regs : NULL));
+  unbind_to (count, Qnil);
 
   /* Set last_thing_searched only when match data is changed.  */
-  if (NILP (Vinhibit_changing_match_data))
+  if (modify_match_data)
     last_thing_searched = Qt;
 
   if (val == -2)
     matcher_overflow ();
   if (val < 0) return Qnil;
 
-  if (NILP (Vinhibit_changing_match_data))
+  if (modify_match_data)
     for (i = 0; i < search_regs.num_regs; i++)
       if (search_regs.start[i] >= 0)
 	{
@@ -434,32 +435,42 @@ string_match_1 (Lisp_Object regexp, Lisp_Object string, Lisp_Object start,
   return make_fixnum (string_byte_to_char (string, val));
 }
 
-DEFUN ("string-match", Fstring_match, Sstring_match, 2, 3, 0,
+DEFUN ("string-match", Fstring_match, Sstring_match, 2, 4, 0,
        doc: /* Return index of start of first match for REGEXP in STRING, or nil.
 Matching ignores case if `case-fold-search' is non-nil.
 If third arg START is non-nil, start search at that index in STRING.
-For index of first char beyond the match, do (match-end 0).
-`match-end' and `match-beginning' also give indices of substrings
-matched by parenthesis constructs in the pattern.
 
-You can use the function `match-string' to extract the substrings
-matched by the parenthesis constructions in REGEXP. */)
-  (Lisp_Object regexp, Lisp_Object string, Lisp_Object start)
+If INHIBIT-MODIFY is non-nil, match data is not changed.
+
+If INHIBIT-MODIFY is nil or missing, match data is changed, and
+`match-end' and `match-beginning' give indices of substrings matched
+by parenthesis constructs in the pattern.  You can use the function
+`match-string' to extract the substrings matched by the parenthesis
+constructions in REGEXP.  For index of first char beyond the match, do
+(match-end 0).  */)
+  (Lisp_Object regexp, Lisp_Object string, Lisp_Object start,
+   Lisp_Object inhibit_modify)
 {
-  return string_match_1 (regexp, string, start, 0);
+  return string_match_1 (regexp, string, start, 0, NILP (inhibit_modify));
 }
 
-DEFUN ("posix-string-match", Fposix_string_match, Sposix_string_match, 2, 3, 0,
+DEFUN ("posix-string-match", Fposix_string_match, Sposix_string_match, 2, 4, 0,
        doc: /* Return index of start of first match for Posix REGEXP in STRING, or nil.
 Find the longest match, in accord with Posix regular expression rules.
 Case is ignored if `case-fold-search' is non-nil in the current buffer.
-If third arg START is non-nil, start search at that index in STRING.
-For index of first char beyond the match, do (match-end 0).
-`match-end' and `match-beginning' also give indices of substrings
-matched by parenthesis constructs in the pattern.  */)
-  (Lisp_Object regexp, Lisp_Object string, Lisp_Object start)
+
+If INHIBIT-MODIFY is non-nil, match data is not changed.
+
+If INHIBIT-MODIFY is nil or missing, match data is changed, and
+`match-end' and `match-beginning' give indices of substrings matched
+by parenthesis constructs in the pattern.  You can use the function
+`match-string' to extract the substrings matched by the parenthesis
+constructions in REGEXP.  For index of first char beyond the match, do
+(match-end 0).  */)
+  (Lisp_Object regexp, Lisp_Object string, Lisp_Object start,
+   Lisp_Object inhibit_modify)
 {
-  return string_match_1 (regexp, string, start, 1);
+  return string_match_1 (regexp, string, start, 1, NILP (inhibit_modify));
 }
 
 /* Match REGEXP against STRING using translation table TABLE,
@@ -470,36 +481,43 @@ ptrdiff_t
 fast_string_match_internal (Lisp_Object regexp, Lisp_Object string,
 			    Lisp_Object table)
 {
-  ptrdiff_t val;
-  struct re_pattern_buffer *bufp;
-
-  bufp = &compile_pattern (regexp, 0, table,
-                           0, STRING_MULTIBYTE (string))->buf;
   re_match_object = string;
-  val = re_search (bufp, SSDATA (string),
-		   SBYTES (string), 0,
-		   SBYTES (string), 0);
+  specpdl_ref count = SPECPDL_INDEX ();
+  struct regexp_cache *cache_entry
+    = compile_pattern (regexp, 0, table, 0, STRING_MULTIBYTE (string));
+  freeze_pattern (cache_entry);
+  ptrdiff_t val = re_search (&cache_entry->buf, SSDATA (string),
+			     SBYTES (string), 0,
+			     SBYTES (string), 0);
+  unbind_to (count, Qnil);
   return val;
 }
 
-/* Match REGEXP against STRING, searching all of STRING ignoring case,
-   and return the index of the match, or negative on failure.
-   This does not clobber the match data.
+/* Match REGEXP against STRING, searching all of STRING and return the
+   index of the match, or negative on failure.  This does not clobber
+   the match data.  Table is a canonicalize table for ignoring case,
+   or nil for none.
+
    We assume that STRING contains single-byte characters.  */
 
 ptrdiff_t
-fast_c_string_match_ignore_case (Lisp_Object regexp,
-				 const char *string, ptrdiff_t len)
+fast_c_string_match_internal (Lisp_Object regexp,
+			      const char *string, ptrdiff_t len,
+			      Lisp_Object table)
 {
-  ptrdiff_t val;
-  struct re_pattern_buffer *bufp;
-
+  /* FIXME: This is expensive and not obviously correct when it makes
+     a difference. I.e., no longer "fast", and may hide bugs.
+     Something should be done about this.  */
   regexp = string_make_unibyte (regexp);
-  bufp = &compile_pattern (regexp, 0,
-                           Vascii_canon_table, 0,
-                           0)->buf;
+  /* Record specpdl index because freeze_pattern pushes an
+     unwind-protect on the specpdl.  */
+  specpdl_ref count = SPECPDL_INDEX ();
+  struct regexp_cache *cache_entry
+    = compile_pattern (regexp, 0, table, 0, 0);
+  freeze_pattern (cache_entry);
   re_match_object = Qt;
-  val = re_search (bufp, string, len, 0, len, 0);
+  ptrdiff_t val = re_search (&cache_entry->buf, string, len, 0, len, 0);
+  unbind_to (count, Qnil);
   return val;
 }
 
@@ -558,7 +576,7 @@ fast_looking_at (Lisp_Object regexp, ptrdiff_t pos, ptrdiff_t pos_byte,
 
   struct regexp_cache *cache_entry =
     compile_pattern (regexp, 0, Qnil, 0, multibyte);
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   freeze_buffer_relocation ();
   freeze_pattern (cache_entry);
   re_match_object = STRINGP (string) ? string : Qnil;
@@ -1188,7 +1206,7 @@ search_buffer_re (Lisp_Object string, ptrdiff_t pos, ptrdiff_t pos_byte,
       s2 = 0;
     }
 
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   freeze_buffer_relocation ();
   freeze_pattern (cache_entry);
 
@@ -1489,7 +1507,7 @@ search_buffer_non_re (Lisp_Object string, ptrdiff_t pos,
   return result;
 }
 
-static EMACS_INT
+EMACS_INT
 search_buffer (Lisp_Object string, ptrdiff_t pos, ptrdiff_t pos_byte,
 	       ptrdiff_t lim, ptrdiff_t lim_byte, EMACS_INT n,
 	       int RE, Lisp_Object trt, Lisp_Object inverse_trt, bool posix)
@@ -1545,7 +1563,6 @@ simple_search (EMACS_INT n, unsigned char *pat,
 	while (1)
 	  {
 	    /* Try matching at position POS.  */
-	    ptrdiff_t this_pos = pos;
 	    ptrdiff_t this_pos_byte = pos_byte;
 	    ptrdiff_t this_len = len;
 	    unsigned char *p = pat;
@@ -1567,7 +1584,6 @@ simple_search (EMACS_INT n, unsigned char *pat,
 		p += charlen;
 
 		this_pos_byte += buf_charlen;
-		this_pos++;
 	      }
 
 	    if (this_len == 0)
@@ -2811,22 +2827,37 @@ Return value is undefined if the last search failed.  */)
 }
 
 DEFUN ("match-data", Fmatch_data, Smatch_data, 0, 3, 0,
-       doc: /* Return a list describing what the last search matched.
-Element 2N is `(match-beginning N)'; element 2N + 1 is `(match-end N)'.
-All the elements are markers or nil (nil if the Nth pair didn't match)
-if the last match was on a buffer; integers or nil if a string was matched.
-Use `set-match-data' to reinstate the data in this list.
+       doc: /* Return a list of positions that record text matched by the last search.
+Element 2N of the returned list is the position of the beginning of the
+match of the Nth subexpression; it corresponds to `(match-beginning N)';
+element 2N + 1 is the position of the end of the match of the Nth
+subexpression; it corresponds to `(match-end N)'.  See `match-beginning'
+and `match-end'.
+If the last search was on a buffer, all the elements are by default
+markers or nil (nil when the Nth pair didn't match); they are integers
+or nil if the search was on a string.  But if the optional argument
+INTEGERS is non-nil, the elements that represent buffer positions are
+always integers, not markers, and (if the search was on a buffer) the
+buffer itself is appended to the list as one additional element.
 
-If INTEGERS (the optional first argument) is non-nil, always use
-integers (rather than markers) to represent buffer positions.  In
-this case, and if the last match was in a buffer, the buffer will get
-stored as one additional element at the end of the list.
+Use `set-match-data' to reinstate the match data from the elements of
+this list.
 
-If REUSE is a list, reuse it as part of the value.  If REUSE is long
-enough to hold all the values, and if INTEGERS is non-nil, no consing
-is done.
+Note that non-matching optional groups at the end of the regexp are
+elided instead of being represented with two `nil's each.  For instance:
 
-If optional third arg RESEAT is non-nil, any previous markers on the
+  (progn
+    (string-match "^\\(a\\)?\\(b\\)\\(c\\)?$" "b")
+    (match-data))
+  => (0 1 nil nil 0 1)
+
+If REUSE is a list, store the value in REUSE by destructively modifying it.
+If REUSE is long enough to hold all the values, its length remains the
+same, and any unused elements are set to nil.  If REUSE is not long
+enough, it is extended.  Note that if REUSE is long enough and INTEGERS
+is non-nil, no consing is done to make the return value; this minimizes GC.
+
+If optional third argument RESEAT is non-nil, any previous markers on the
 REUSE list will be modified to point to nowhere.
 
 Return value is undefined if the last search failed.  */)
@@ -3171,7 +3202,7 @@ DEFUN ("regexp-quote", Fregexp_quote, Sregexp_quote, 1, 1, 0,
 }
 
 /* Like find_newline, but doesn't use the cache, and only searches forward.  */
-static ptrdiff_t
+ptrdiff_t
 find_newline1 (ptrdiff_t start, ptrdiff_t start_byte, ptrdiff_t end,
 	       ptrdiff_t end_byte, ptrdiff_t count, ptrdiff_t *counted,
 	       ptrdiff_t *bytepos, bool allow_quit)

@@ -1,6 +1,6 @@
 ;;; edebug-tests.el --- Edebug test suite   -*- lexical-binding:t -*-
 
-;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2023 Free Software Foundation, Inc.
 
 ;; Author: Gemini Lasswell
 
@@ -53,22 +53,20 @@ Since `should' failures which happen inside `post-command-hook' will
 be trapped by the command loop, this preserves them until we get
 back to the top level.")
 
-(defvar edebug-tests-keymap
-  (let ((map (make-sparse-keymap)))
-    (define-key map "@"     'edebug-tests-call-instrumented-func)
-    (define-key map "C-u"   'universal-argument)
-    (define-key map "C-p"   'previous-line)
-    (define-key map "C-n"   'next-line)
-    (define-key map "C-b"   'backward-char)
-    (define-key map "C-a"   'move-beginning-of-line)
-    (define-key map "C-e"   'move-end-of-line)
-    (define-key map "C-k"   'kill-line)
-    (define-key map "M-x"   'execute-extended-command)
-    (define-key map "C-M-x" 'eval-defun)
-    (define-key map "C-x X b" 'edebug-set-breakpoint)
-    (define-key map "C-x X w" 'edebug-where)
-    map)
-  "Keys used by the keyboard macros in Edebug's tests.")
+(defvar-keymap edebug-tests-keymap
+  :doc "Keys used by the keyboard macros in Edebug's tests."
+  "@"       'edebug-tests-call-instrumented-func
+  "C-u"     'universal-argument
+  "C-p"     'previous-line
+  "C-n"     'next-line
+  "C-b"     'backward-char
+  "C-a"     'move-beginning-of-line
+  "C-e"     'move-end-of-line
+  "C-k"     'kill-line
+  "M-x"     'execute-extended-command
+  "C-M-x"   'eval-defun
+  "C-x X b" 'edebug-set-breakpoint
+  "C-x X w" 'edebug-where)
 
 ;;; Macros for defining tests:
 
@@ -107,27 +105,27 @@ back to the top level.")
   "Set up the environment for an Edebug test BODY, run it, and clean up."
   (declare (debug (body)))
   `(edebug-tests-with-default-config
-    (let ((edebug-tests-failure-in-post-command nil)
-          (edebug-tests-temp-file (make-temp-file "edebug-tests-" nil ".el"))
-          (find-file-suppress-same-file-warnings t))
-      (edebug-tests-setup-code-file edebug-tests-temp-file)
-      (ert-with-message-capture
-       edebug-tests-messages
-       (unwind-protect
-           (with-current-buffer (find-file edebug-tests-temp-file)
-             (read-only-mode)
-             (setq lexical-binding t)
-             (eval-buffer)
-             ,@body
-             (when edebug-tests-failure-in-post-command
-               (signal (car edebug-tests-failure-in-post-command)
-                       (cdr edebug-tests-failure-in-post-command))))
-         (unload-feature 'edebug-test-code)
-         (with-current-buffer (find-file-noselect edebug-tests-temp-file)
-           (set-buffer-modified-p nil))
-         (ignore-errors (kill-buffer (find-file-noselect
-                                      edebug-tests-temp-file)))
-         (ignore-errors (delete-file edebug-tests-temp-file)))))))
+    (ert-with-temp-file edebug-tests-temp-file
+      :suffix ".el"
+      (let ((edebug-tests-failure-in-post-command nil)
+            (find-file-suppress-same-file-warnings t))
+        (edebug-tests-setup-code-file edebug-tests-temp-file)
+        (ert-with-message-capture
+            edebug-tests-messages
+          (unwind-protect
+              (with-current-buffer (find-file edebug-tests-temp-file)
+                (read-only-mode)
+                (setq lexical-binding t)
+                (eval-buffer)
+                ,@body
+                (when edebug-tests-failure-in-post-command
+                  (signal (car edebug-tests-failure-in-post-command)
+                          (cdr edebug-tests-failure-in-post-command))))
+            (unload-feature 'edebug-test-code)
+            (with-current-buffer (find-file-noselect edebug-tests-temp-file)
+              (set-buffer-modified-p nil))
+            (ignore-errors (kill-buffer (find-file-noselect
+                                         edebug-tests-temp-file)))))))))
 
 ;; The following macro and its support functions implement an extension
 ;; to keyboard macros to allow interleaving of keyboard macro
@@ -430,7 +428,8 @@ test and possibly others should be updated."
     (verify-keybinding "-" 'negative-argument)
     (verify-keybinding "=" 'edebug-temp-display-freq-count)
     (should (eq (lookup-key backtrace-mode-map "n") 'backtrace-forward-frame))
-    (should (eq (lookup-key backtrace-mode-map "s") 'backtrace-goto-source))))
+    (should (eq (lookup-key edebug-backtrace-mode-map "s")
+                'backtrace-goto-source))))
 
 (ert-deftest edebug-tests-stop-point-at-start-of-first-instrumented-function ()
   "Edebug stops at the beginning of an instrumented function."
@@ -860,7 +859,8 @@ test and possibly others should be updated."
    (let ((inhibit-read-only t))
      (delete-region (point-min) (point-max))
      (insert  "`1"))
-   (edebug-eval-defun nil)
+   (with-suppressed-warnings ((obsolete edebug-eval-defun))
+     (edebug-eval-defun nil))
    ;; `eval-defun' outputs its message to the echo area in a rather
    ;; funny way, so the "1" and the " (#o1, #x1, ?\C-a)" end up placed
    ;; there in separate pieces (via `print' rather than via `message').
@@ -870,7 +870,8 @@ test and possibly others should be updated."
 
    (setq edebug-initial-mode 'go)
    ;; In Bug#23651 Edebug would hang reading `1.
-   (edebug-eval-defun t)))
+   (with-suppressed-warnings ((obsolete edebug-eval-defun))
+     (edebug-eval-defun t))))
 
 (ert-deftest edebug-tests-trivial-comma ()
   "Edebug can read a trivial comma expression (Bug#23651)."
@@ -879,7 +880,8 @@ test and possibly others should be updated."
    (delete-region (point-min) (point-max))
    (insert  ",1")
    (read-only-mode)
-   (should-error (edebug-eval-defun t))))
+   (with-suppressed-warnings ((obsolete edebug-eval-defun))
+     (should-error (edebug-eval-defun t)))))
 
 (ert-deftest edebug-tests-circular-read-syntax ()
   "Edebug can instrument code using circular read object syntax (Bug#23660)."
@@ -1102,6 +1104,15 @@ This avoids potential duplicate definitions (Bug#41988)."
     (let ((edebug-all-defs t)
           (edebug-initial-mode 'Go-nonstop))
       (eval-buffer))))
+
+(ert-deftest edebug-test-dot-reader ()
+  (with-temp-buffer
+    (insert "(defun x () `(t .,t))")
+    (goto-char (point-min))
+    (should (equal (save-excursion
+                     (edebug-read-storing-offsets (current-buffer)))
+                   (save-excursion
+                     (read (current-buffer)))))))
 
 (provide 'edebug-tests)
 ;;; edebug-tests.el ends here

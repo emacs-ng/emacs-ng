@@ -1,6 +1,6 @@
 ;;; cl-compat.el --- Common Lisp extensions for GNU Emacs Lisp (compatibility)  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1993, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1993, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Dave Gillespie <daveg@synaptics.com>
 ;; Version: 2.02
@@ -52,6 +52,7 @@
 ;;; Keyword routines not supported by new package.
 
 (defmacro defkeyword (x &optional doc)
+  (declare (indent defun))
   (cl-list* 'defconst x (list 'quote x) (and doc (list doc))))
 
 (defun keyword-of (sym)

@@ -1,5 +1,5 @@
 /* Buffer insertion/deletion and gap motion for GNU Emacs. -*- coding: utf-8 -*-
-   Copyright (C) 1985-1986, 1993-1995, 1997-2022 Free Software
+   Copyright (C) 1985-1986, 1993-1995, 1997-2023 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -30,6 +30,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "window.h"
 #include "region-cache.h"
 #include "pdumper.h"
+
+#ifdef HAVE_TREE_SITTER
+#include "treesit.h"
+#endif
 
 static void insert_from_string_1 (Lisp_Object, ptrdiff_t, ptrdiff_t, ptrdiff_t,
 				  ptrdiff_t, bool, bool);
@@ -268,6 +272,7 @@ adjust_markers_for_delete (ptrdiff_t from, ptrdiff_t from_byte,
 	  m->bytepos = from_byte;
 	}
     }
+  adjust_overlays_for_delete (from, to - from);
 }
 
 
@@ -284,7 +289,6 @@ adjust_markers_for_insert (ptrdiff_t from, ptrdiff_t from_byte,
 			   ptrdiff_t to, ptrdiff_t to_byte, bool before_markers)
 {
   struct Lisp_Marker *m;
-  bool adjusted = 0;
   ptrdiff_t nchars = to - from;
   ptrdiff_t nbytes = to_byte - from_byte;
 
@@ -300,8 +304,6 @@ adjust_markers_for_insert (ptrdiff_t from, ptrdiff_t from_byte,
 	    {
 	      m->bytepos = to_byte;
 	      m->charpos = to;
-	      if (m->insertion_type)
-		adjusted = 1;
 	    }
 	}
       else if (m->bytepos > from_byte)
@@ -310,15 +312,7 @@ adjust_markers_for_insert (ptrdiff_t from, ptrdiff_t from_byte,
 	  m->charpos += nchars;
 	}
     }
-
-  /* Adjusting only markers whose insertion-type is t may result in
-     - disordered start and end in overlays, and
-     - disordered overlays in the slot `overlays_before' of current_buffer.  */
-  if (adjusted)
-    {
-      fix_start_end_in_overlays (from, to);
-      fix_overlays_before (current_buffer, from, to);
-    }
+  adjust_overlays_for_insert (from, to - from, before_markers);
 }
 
 /* Adjust point for an insertion of NBYTES bytes, which are NCHARS characters.
@@ -355,6 +349,11 @@ adjust_markers_for_replace (ptrdiff_t from, ptrdiff_t from_byte,
   ptrdiff_t diff_bytes = new_bytes - old_bytes;
 
   adjust_suspend_auto_hscroll (from, from + old_chars);
+
+  /* FIXME: When OLD_CHARS is 0, this "replacement" is really just an
+     insertion, but the behavior we provide here in that case is that of
+     `insert-before-markers` rather than that of `insert`.
+     Maybe not a bug, but not a feature either.  */
   for (m = BUF_MARKERS (current_buffer); m; m = m->next)
     {
       if (m->bytepos >= prev_to_byte)
@@ -370,6 +369,10 @@ adjust_markers_for_replace (ptrdiff_t from, ptrdiff_t from_byte,
     }
 
   check_markers ();
+
+  adjust_overlays_for_insert (from + old_chars, new_chars, true);
+  if (old_chars)
+    adjust_overlays_for_delete (from, old_chars);
 }
 
 /* Starting at POS (BYTEPOS), find the byte position corresponding to
@@ -909,7 +912,7 @@ insert_1_both (const char *string,
      the insertion.  This, together with recording the insertion,
      will add up to the right stuff in the undo list.  */
   record_insert (PT, nchars);
-  modiff_incr (&MODIFF);
+  modiff_incr (&MODIFF, nchars);
   CHARS_MODIFF = MODIFF;
 
   memcpy (GPT_ADDR, string, nbytes);
@@ -929,7 +932,6 @@ insert_1_both (const char *string,
   if (Z - GPT < END_UNCHANGED)
     END_UNCHANGED = Z - GPT;
 
-  adjust_overlays_for_insert (PT, nchars);
   adjust_markers_for_insert (PT, PT_BYTE,
 			     PT + nchars, PT_BYTE + nbytes,
 			     before_markers);
@@ -939,6 +941,12 @@ insert_1_both (const char *string,
   if (!inherit && buffer_intervals (current_buffer))
     set_text_properties (make_fixnum (PT), make_fixnum (PT + nchars),
 			 Qnil, Qnil, Qnil);
+
+#ifdef HAVE_TREE_SITTER
+  eassert (nbytes >= 0);
+  eassert (PT_BYTE >= 0);
+  treesit_record_change (PT_BYTE, PT_BYTE, PT_BYTE + nbytes);
+#endif
 
   adjust_point (nchars, nbytes);
 
@@ -1037,7 +1045,7 @@ insert_from_string_1 (Lisp_Object string, ptrdiff_t pos, ptrdiff_t pos_byte,
 #endif
 
   record_insert (PT, nchars);
-  modiff_incr (&MODIFF);
+  modiff_incr (&MODIFF, nchars);
   CHARS_MODIFF = MODIFF;
 
   GAP_SIZE -= outgoing_nbytes;
@@ -1055,7 +1063,6 @@ insert_from_string_1 (Lisp_Object string, ptrdiff_t pos, ptrdiff_t pos_byte,
   if (Z - GPT < END_UNCHANGED)
     END_UNCHANGED = Z - GPT;
 
-  adjust_overlays_for_insert (PT, nchars);
   adjust_markers_for_insert (PT, PT_BYTE, PT + nchars,
 			     PT_BYTE + outgoing_nbytes,
 			     before_markers);
@@ -1070,6 +1077,12 @@ insert_from_string_1 (Lisp_Object string, ptrdiff_t pos, ptrdiff_t pos_byte,
   /* Insert those intervals.  */
   graft_intervals_into_buffer (intervals, PT, nchars,
 			       current_buffer, inherit);
+
+#ifdef HAVE_TREE_SITTER
+  eassert (nbytes >= 0);
+  eassert (PT_BYTE >= 0);
+  treesit_record_change (PT_BYTE, PT_BYTE, PT_BYTE + nbytes);
+#endif
 
   adjust_point (nchars, outgoing_nbytes);
 
@@ -1088,6 +1101,10 @@ insert_from_gap_1 (ptrdiff_t nchars, ptrdiff_t nbytes, bool text_at_gap_tail)
   eassert (NILP (BVAR (current_buffer, enable_multibyte_characters))
            ? nchars == nbytes : nchars <= nbytes);
 
+#ifdef HAVE_TREE_SITTER
+  ptrdiff_t ins_bytepos = GPT_BYTE;
+#endif
+
   GAP_SIZE -= nbytes;
   if (! text_at_gap_tail)
     {
@@ -1102,6 +1119,12 @@ insert_from_gap_1 (ptrdiff_t nchars, ptrdiff_t nbytes, bool text_at_gap_tail)
   /* Put an anchor to ensure multi-byte form ends at gap.  */
   if (GAP_SIZE > 0) *(GPT_ADDR) = 0;
   eassert (GPT <= GPT_BYTE);
+
+#ifdef HAVE_TREE_SITTER
+  eassert (nbytes >= 0);
+  eassert (ins_bytepos >= 0);
+  treesit_record_change (ins_bytepos, ins_bytepos, ins_bytepos + nbytes);
+#endif
 }
 
 /* Insert a sequence of NCHARS chars which occupy NBYTES bytes
@@ -1122,13 +1145,13 @@ insert_from_gap (ptrdiff_t nchars, ptrdiff_t nbytes, bool text_at_gap_tail)
      of this dance.  */
   invalidate_buffer_caches (current_buffer, GPT, GPT);
   record_insert (GPT, nchars);
-  modiff_incr (&MODIFF);
+  modiff_incr (&MODIFF, nchars);
+  CHARS_MODIFF = MODIFF;
 
   insert_from_gap_1 (nchars, nbytes, text_at_gap_tail);
 
-  adjust_overlays_for_insert (ins_charpos, nchars);
   adjust_markers_for_insert (ins_charpos, ins_bytepos,
-			     ins_charpos + nchars, ins_bytepos + nbytes, 0);
+			     ins_charpos + nchars, ins_bytepos + nbytes, false);
 
   if (buffer_intervals (current_buffer))
     {
@@ -1156,10 +1179,24 @@ insert_from_buffer (struct buffer *buf,
 {
   ptrdiff_t opoint = PT;
 
+#ifdef HAVE_TREE_SITTER
+  ptrdiff_t obyte = PT_BYTE;
+#endif
+
   insert_from_buffer_1 (buf, charpos, nchars, inherit);
   signal_after_change (opoint, 0, PT - opoint);
   update_compositions (opoint, PT, CHECK_BORDER);
+
+#ifdef HAVE_TREE_SITTER
+  eassert (PT_BYTE >= BEG_BYTE);
+  eassert (obyte >= BEG_BYTE);
+  eassert (PT_BYTE >= obyte);
+  treesit_record_change (obyte, obyte, PT_BYTE);
+#endif
 }
+
+/* NOTE: If we ever make insert_from_buffer_1 public, make sure to
+   move the call to treesit_record_change into it.  */
 
 static void
 insert_from_buffer_1 (struct buffer *buf,
@@ -1250,7 +1287,7 @@ insert_from_buffer_1 (struct buffer *buf,
 #endif
 
   record_insert (PT, nchars);
-  modiff_incr (&MODIFF);
+  modiff_incr (&MODIFF, nchars);
   CHARS_MODIFF = MODIFF;
 
   GAP_SIZE -= outgoing_nbytes;
@@ -1268,10 +1305,9 @@ insert_from_buffer_1 (struct buffer *buf,
   if (Z - GPT < END_UNCHANGED)
     END_UNCHANGED = Z - GPT;
 
-  adjust_overlays_for_insert (PT, nchars);
   adjust_markers_for_insert (PT, PT_BYTE, PT + nchars,
 			     PT_BYTE + outgoing_nbytes,
-			     0);
+			     false);
 
   offset_intervals (current_buffer, PT, nchars);
 
@@ -1327,16 +1363,11 @@ adjust_after_replace (ptrdiff_t from, ptrdiff_t from_byte,
 				len, len_byte);
   else
     adjust_markers_for_insert (from, from_byte,
-			       from + len, from_byte + len_byte, 0);
+			       from + len, from_byte + len_byte, false);
 
   if (nchars_del > 0)
     record_delete (from, prev_text, false);
   record_insert (from, len);
-
-  if (len > nchars_del)
-    adjust_overlays_for_insert (from, len - nchars_del);
-  else if (len < nchars_del)
-    adjust_overlays_for_delete (from, nchars_del - len);
 
   offset_intervals (current_buffer, from, len - nchars_del);
 
@@ -1349,9 +1380,7 @@ adjust_after_replace (ptrdiff_t from, ptrdiff_t from_byte,
 
   check_markers ();
 
-  if (len == 0)
-    evaporate_overlays (from);
-  modiff_incr (&MODIFF);
+  modiff_incr (&MODIFF, nchars_del + len);
   CHARS_MODIFF = MODIFF;
 }
 
@@ -1518,13 +1547,8 @@ replace_range (ptrdiff_t from, ptrdiff_t to, Lisp_Object new,
 	 which make the original byte positions of the markers
 	 invalid.  */
       adjust_markers_bytepos (from, from_byte, from + inschars,
-			      from_byte + outgoing_insbytes, 1);
+			      from_byte + outgoing_insbytes, true);
     }
-
-  /* Adjust the overlay center as needed.  This must be done after
-     adjusting the markers that bound the overlays.  */
-  adjust_overlays_for_delete (from, nchars_del);
-  adjust_overlays_for_insert (from, inschars);
 
   offset_intervals (current_buffer, from, inschars - nchars_del);
 
@@ -1535,18 +1559,22 @@ replace_range (ptrdiff_t from, ptrdiff_t to, Lisp_Object new,
   graft_intervals_into_buffer (intervals, from, inschars,
 			       current_buffer, inherit);
 
+#ifdef HAVE_TREE_SITTER
+  eassert (to_byte >= from_byte);
+  eassert (outgoing_insbytes >= 0);
+  eassert (from_byte >= 0);
+  treesit_record_change (from_byte, to_byte, from_byte + outgoing_insbytes);
+#endif
+
   /* Relocate point as if it were a marker.  */
   if (from < PT)
     adjust_point ((from + inschars - (PT < to ? PT : to)),
 		  (from_byte + outgoing_insbytes
 		   - (PT_BYTE < to_byte ? PT_BYTE : to_byte)));
 
-  if (outgoing_insbytes == 0)
-    evaporate_overlays (from);
-
   check_markers ();
 
-  modiff_incr (&MODIFF);
+  modiff_incr (&MODIFF, nchars_del + inschars);
   CHARS_MODIFF = MODIFF;
 
   if (adjust_match_data)
@@ -1569,7 +1597,11 @@ replace_range (ptrdiff_t from, ptrdiff_t to, Lisp_Object new,
    If MARKERS, relocate markers.
 
    Unlike most functions at this level, never call
-   prepare_to_modify_buffer and never call signal_after_change.  */
+   prepare_to_modify_buffer and never call signal_after_change.
+   Because this function is called in a loop, one character at a time.
+   The caller of 'replace_range_2' calls these hooks for the entire
+   region once.  Apart from signal_after_change, any caller of this
+   function should also call treesit_record_change.  */
 
 void
 replace_range_2 (ptrdiff_t from, ptrdiff_t from_byte,
@@ -1651,16 +1683,8 @@ replace_range_2 (ptrdiff_t from, ptrdiff_t from_byte,
 	     sequences which make the original byte positions of the
 	     markers invalid.  */
 	  adjust_markers_bytepos (from, from_byte, from + inschars,
-				  from_byte + insbytes, 1);
+				  from_byte + insbytes, true);
 	}
-    }
-
-  /* Adjust the overlay center as needed.  This must be done after
-     adjusting the markers that bound the overlays.  */
-  if (nchars_del != inschars)
-    {
-      adjust_overlays_for_insert (from, inschars);
-      adjust_overlays_for_delete (from + inschars, nchars_del);
     }
 
   offset_intervals (current_buffer, from, inschars - nchars_del);
@@ -1675,12 +1699,9 @@ replace_range_2 (ptrdiff_t from, ptrdiff_t from_byte,
 	adjust_point (inschars - nchars_del, insbytes - nbytes_del);
     }
 
-  if (insbytes == 0)
-    evaporate_overlays (from);
-
   check_markers ();
 
-  modiff_incr (&MODIFF);
+  modiff_incr (&MODIFF, nchars_del + inschars);
   CHARS_MODIFF = MODIFF;
 }
 
@@ -1855,7 +1876,7 @@ del_range_2 (ptrdiff_t from, ptrdiff_t from_byte,
      at the end of the text before the gap.  */
   adjust_markers_for_delete (from, from_byte, to, to_byte);
 
-  modiff_incr (&MODIFF);
+  modiff_incr (&MODIFF, nchars_del);
   CHARS_MODIFF = MODIFF;
 
   /* Relocate point as if it were a marker.  */
@@ -1864,10 +1885,6 @@ del_range_2 (ptrdiff_t from, ptrdiff_t from_byte,
 		  from_byte - (PT_BYTE < to_byte ? PT_BYTE : to_byte));
 
   offset_intervals (current_buffer, from, - nchars_del);
-
-  /* Adjust the overlay center as needed.  This must be done after
-     adjusting the markers that bound the overlays.  */
-  adjust_overlays_for_delete (from, nchars_del);
 
   GAP_SIZE += nbytes_del;
   ZV_BYTE -= nbytes_del;
@@ -1890,7 +1907,11 @@ del_range_2 (ptrdiff_t from, ptrdiff_t from_byte,
 
   check_markers ();
 
-  evaporate_overlays (from);
+#ifdef HAVE_TREE_SITTER
+  eassert (from_byte <= to_byte);
+  eassert (from_byte >= 0);
+  treesit_record_change (from_byte, to_byte, from_byte);
+#endif
 
   return deletion;
 }
@@ -1909,7 +1930,7 @@ modify_text (ptrdiff_t start, ptrdiff_t end)
   BUF_COMPUTE_UNCHANGED (current_buffer, start - 1, end);
   if (MODIFF <= SAVE_MODIFF)
     record_first_change ();
-  modiff_incr (&MODIFF);
+  modiff_incr (&MODIFF, end - start);
   CHARS_MODIFF = MODIFF;
 
   bset_point_before_scroll (current_buffer, Qnil);
@@ -2134,7 +2155,7 @@ signal_before_change (ptrdiff_t start_int, ptrdiff_t end_int,
   Lisp_Object start, end;
   Lisp_Object start_marker, end_marker;
   Lisp_Object preserve_marker;
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   struct rvoe_arg rvoe_arg;
 
   start = make_fixnum (start_int);
@@ -2201,7 +2222,7 @@ signal_before_change (ptrdiff_t start_int, ptrdiff_t end_int,
 void
 signal_after_change (ptrdiff_t charpos, ptrdiff_t lendel, ptrdiff_t lenins)
 {
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   struct rvoe_arg rvoe_arg;
   Lisp_Object tmp, save_insert_behind_hooks, save_insert_in_from_hooks;
 
@@ -2298,7 +2319,7 @@ DEFUN ("combine-after-change-execute", Fcombine_after_change_execute,
        doc: /* This function is for use internally in the function `combine-after-change-calls'.  */)
   (void)
 {
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   ptrdiff_t beg, end, change;
   ptrdiff_t begpos, endpos;
   Lisp_Object tail;

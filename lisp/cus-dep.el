@@ -1,6 +1,6 @@
 ;;; cus-dep.el --- find customization dependencies  -*- lexical-binding: t; -*-
 ;;
-;; Copyright (C) 1997, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2001-2023 Free Software Foundation, Inc.
 ;;
 ;; Author: Per Abrahamsen <abraham@dina.kvl.dk>
 ;; Keywords: internal
@@ -37,7 +37,7 @@
 ldefs-boot\\|cus-load\\|finder-inf\\|esh-groups\\|subdirs\\)\\.el$\\)"
   "Regexp matching file names not to scan for `custom-make-dependencies'.")
 
-(require 'autoload)
+(require 'loaddefs-gen)
 
 ;; Hack workaround for bug#14384.
 ;; Define defcustom-mh as an alias for defcustom, etc.
@@ -156,9 +156,9 @@ Usage: emacs -batch -l ./cus-dep.el -f custom-make-dependencies DIRS"
   (set-buffer (find-file-noselect generated-custom-dependencies-file))
   (setq buffer-undo-list t)
   (erase-buffer)
-  (insert (autoload-rubric generated-custom-dependencies-file
-                           "custom dependencies" t))
-  (search-backward "")
+  (generate-lisp-file-heading
+   generated-custom-dependencies-file 'custom-make-dependencies
+   :title "custom dependencies")
   (let (alist)
     (mapatoms (lambda (symbol)
 		(let ((members (get symbol 'custom-group))
@@ -175,7 +175,7 @@ Usage: emacs -batch -l ./cus-dep.el -f custom-make-dependencies DIRS"
 				    (prin1 (sort found #'string<))))
 			    alist))))))
     (dolist (e (sort alist (lambda (e1 e2) (string< (car e1) (car e2)))))
-      (insert "(put '" (car e) " 'custom-loads '" (cdr e) ")\n")))
+      (insert "(custom--add-custom-loads '" (car e) " '" (cdr e) ")\n")))
   (insert "\
 
 ;; The remainder of this file is for handling :version.
@@ -241,6 +241,7 @@ This is an alist whose members have as car a version string, and as
 elements the files that have variables or faces that contain that
 version.  These files should be loaded before showing the customization
 buffer that `customize-changed' generates.\")\n\n"))
+  (generate-lisp-file-trailer generated-custom-dependencies-file)
   (save-buffer)
   (byte-compile-info
    (format "Generating %s...done" generated-custom-dependencies-file) t))

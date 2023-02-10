@@ -1,6 +1,6 @@
 ;;; mule.el --- basic commands for multilingual environment  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -218,6 +218,7 @@ corresponding Unicode character code.
 If it is a string, it is a name of file that contains the above
 information.  The file format is the same as what described for `:map'
 attribute."
+  (declare (indent defun))
   (when (vectorp (car props))
     ;; Old style code:
     ;;   (define-charset CHARSET-ID CHARSET-SYMBOL INFO-VECTOR)
@@ -297,13 +298,21 @@ attribute."
 (defvar hack-read-symbol-shorthands-function nil
   "Holds function to compute `read-symbol-shorthands'.")
 
-(defun load-with-code-conversion (fullname file &optional noerror nomessage)
+(defun load-with-code-conversion (fullname file &optional noerror nomessage
+                                           eval-function)
   "Execute a file of Lisp code named FILE whose absolute name is FULLNAME.
 The file contents are decoded before evaluation if necessary.
-If optional third arg NOERROR is non-nil,
- report no error if FILE doesn't exist.
-Print messages at start and end of loading unless
- optional fourth arg NOMESSAGE is non-nil.
+
+If optional third arg NOERROR is non-nil, report no error if FILE
+doesn't exist.
+
+Print messages at start and end of loading unless optional fourth
+arg NOMESSAGE is non-nil.
+
+If EVAL-FUNCTION, call that instead of calling `eval-buffer'
+directly.  It is called with two parameters: The buffer object
+and the file name.
+
 Return t if file exists."
   (if (null (file-readable-p fullname))
       (and (null noerror)
@@ -352,10 +361,13 @@ Return t if file exists."
 	    ;; Have the original buffer current while we eval,
             ;; but consider shorthands of the eval'ed one.
 	    (let ((read-symbol-shorthands shorthands))
-              (eval-buffer buffer nil
-			   ;; This is compatible with what `load' does.
-                           (if dump-mode file fullname)
-			   nil t)))
+              (if eval-function
+                  (funcall eval-function buffer
+                           (if dump-mode file fullname))
+                (eval-buffer buffer nil
+			     ;; This is compatible with what `load' does.
+                             (if dump-mode file fullname)
+			     nil t))))
 	(let (kill-buffer-hook kill-buffer-query-functions)
 	  (kill-buffer buffer)))
       (do-after-load-evaluation fullname)
@@ -755,7 +767,7 @@ VALUE must be a translation table to use on encoding.
 
 VALUE must be a function to call after some text is inserted and
 decoded by the coding system itself and before any functions in
-`after-insert-functions' are called.  This function is passed one
+`after-insert-file-functions' are called.  This function is passed one
 argument: the number of characters in the text to convert, with
 point at the start of the text.  The function should leave point
 and the match data unchanged, and should return the new character
@@ -851,7 +863,8 @@ This attribute is meaningful only when `:coding-type' is `utf-16' or
 VALUE must be `big' or `little' specifying big-endian and
 little-endian respectively.  The default value is `big'.
 
-This attribute is meaningful only when `:coding-type' is `utf-16'.
+Changing this attribute is only meaningful when `:coding-type'
+is `utf-16'.
 
 `:ccl-decoder' (required if :coding-type is `ccl')
 
@@ -890,6 +903,7 @@ non-nil.
 VALUE non-nil means Emacs prefers UTF-8 on code detection for
 non-ASCII files.  This attribute is meaningful only when
 `:coding-type' is `undecided'."
+  (declare (indent defun))
   (let* ((common-attrs (mapcar 'list
 			       '(:mnemonic
 				 :coding-type
@@ -1349,7 +1363,8 @@ to CODING-SYSTEM."
 This is normally set according to the selected language environment.
 See also the command `set-terminal-coding-system'.")
 
-(defun set-terminal-coding-system (coding-system &optional terminal)
+(defun set-terminal-coding-system (coding-system &optional terminal
+                                                 inhibit-refresh)
   "Set coding system of terminal output to CODING-SYSTEM.
 All text output to TERMINAL will be encoded
 with the specified coding system.
@@ -1358,9 +1373,12 @@ For a list of possible values of CODING-SYSTEM, use \\[list-coding-systems].
 The default is determined by the selected language environment
 or by the previous use of this command.
 
-TERMINAL may be a terminal object, a frame, or nil for the
-selected frame's terminal.  The setting has no effect on
-graphical terminals."
+Optional argument TERMINAL may be a terminal object or a frame,
+and defaults to the selected frame's terminal.  The setting has no
+effect on graphical terminals.
+
+By default, this function will redraw the current frame;
+optional argument INHIBIT-REFRESH, if non-nil, prevents that."
   (interactive
    (list (let ((default (if (and (not (terminal-coding-system))
 				 default-terminal-coding-system)
@@ -1374,7 +1392,8 @@ graphical terminals."
   (if coding-system
       (setq default-terminal-coding-system coding-system))
   (set-terminal-coding-system-internal coding-system terminal)
-  (redraw-frame))
+  (unless inhibit-refresh
+    (redraw-frame)))
 
 (defvar default-keyboard-coding-system nil
   "Default value of the keyboard coding system.
@@ -2320,6 +2339,7 @@ This function sets properties `translation-table' and
 `translation-table-id' of SYMBOL to the created table itself and the
 identification number of the table respectively.  It also registers
 the table in `translation-table-vector'."
+  (declare (indent defun))
   (let ((table (if (and (char-table-p (car args))
 			(eq (char-table-subtype (car args))
 			    'translation-table))
@@ -2394,6 +2414,7 @@ Value is what BODY returns."
 Analogous to `define-translation-table', but updates
 `translation-hash-table-vector' and the table is for use in the CCL
 `lookup-integer' and `lookup-character' functions."
+  (declare (indent defun))
   (unless (and (symbolp symbol)
 	       (hash-table-p table))
     (error "Bad args to define-translation-hash-table"))
@@ -2519,6 +2540,10 @@ This function is intended to be added to `auto-coding-functions'."
                   (bfcs-type
                    (coding-system-type buffer-file-coding-system)))
               (if (and enable-multibyte-characters
+                       ;; 'charset' will signal an error in
+                       ;; coding-system-equal, since it isn't a
+                       ;; coding-system.  So test that up front.
+                       (not (equal sym-type 'charset))
                        (coding-system-equal 'utf-8 sym-type)
                        (coding-system-equal 'utf-8 bfcs-type))
                   buffer-file-coding-system

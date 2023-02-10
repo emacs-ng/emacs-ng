@@ -1,11 +1,11 @@
 /* timespec -- System time interface
 
-   Copyright (C) 2000, 2002, 2004-2005, 2007, 2009-2022 Free Software
+   Copyright (C) 2000, 2002, 2004-2005, 2007, 2009-2023 Free Software
    Foundation, Inc.
 
    This file is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as
-   published by the Free Software Foundation; either version 3 of the
+   published by the Free Software Foundation, either version 3 of the
    License, or (at your option) any later version.
 
    This file is distributed in the hope that it will be useful,
@@ -88,6 +88,7 @@ timespectod (struct timespec a)
   return a.tv_sec + a.tv_nsec / 1e9;
 }
 
+long int gettime_res (void);
 struct timespec current_timespec (void);
 void gettime (struct timespec *) _GL_ARG_NONNULL ((1));
 int settime (struct timespec const *) _GL_ARG_NONNULL ((1));

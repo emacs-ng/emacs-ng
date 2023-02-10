@@ -9,7 +9,7 @@
 @copying
 This file documents Message, the Emacs message composition mode.
 
-Copyright @copyright{} 1996--2022 Free Software Foundation, Inc.
+Copyright @copyright{} 1996--2023 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -935,7 +935,7 @@ Manual}).
 @section IDNA
 @cindex IDNA
 @cindex internationalized domain names
-@cindex non-ascii domain names
+@cindex non-ASCII domain names
 
 @acronym{IDNA} is a standard way to encode non-@acronym{ASCII} domain
 names into a readable @acronym{ASCII} string.  The details can be
@@ -1005,7 +1005,7 @@ that they can deposit messages and lock the door, while your private
 key corresponds to the opening combination for the safe.)
 
 Thus, you need to perform the following steps for e-mail encryption,
-typically outside Emacs.  See, for example, the
+typically outside Emacs.  See, for example,
 @uref{https://www.gnupg.org/gph/en/manual.html, The GNU Privacy
 Handbook} for details covering the standard @acronym{OpenPGP} with
 @acronym{GnuPG}.
@@ -1152,12 +1152,11 @@ programs are required to make things work, and some small general hints.
 @uref{https://www.gnupg.org/, GNU Privacy Guard} or
 @uref{https://www.openssl.org/, OpenSSL}.  The default Emacs interface
 to the S/MIME implementation is EasyPG (@pxref{Top,,EasyPG Assistant
-User's Manual, epa, EasyPG Assistant User's Manual}), which has been
-included in Emacs since version 23 and which relies on the command
-line tool @command{gpgsm} provided by @acronym{GnuPG}.  That tool
-implements certificate management, including certificate revocation
-and expiry, while such tasks need to be performed manually, if OpenSSL
-is used.
+User's Manual, epa, EasyPG Assistant User's Manual}), which is
+included in Emacs and relies on the command line tool @command{gpgsm}
+provided by @acronym{GnuPG}.  That tool implements certificate
+management, including certificate revocation and expiry, while such
+tasks need to be performed manually, if OpenSSL is used.
 
 The choice between EasyPG and OpenSSL is controlled by the variable
 @code{mml-smime-use}, which needs to be set to the value @code{epg}
@@ -1250,8 +1249,8 @@ as @uref{https://www.gnupg.org/, GNU Privacy Guard}.  Pre-OpenPGP
 implementations such as PGP 2.x and PGP 5.x are also supported.  The
 default Emacs interface to the PGP implementation is EasyPG
 (@pxref{Top,,EasyPG Assistant User's Manual, epa, EasyPG Assistant
-User's Manual}), but PGG (@pxref{Top, ,PGG, pgg, PGG Manual}) and
-Mailcrypt are also supported.  @xref{PGP Compatibility}.
+User's Manual}), but Mailcrypt is also supported.  @xref{PGP
+Compatibility}.
 
 As stated earlier, messages encrypted with OpenPGP can be formatted
 according to two different standards, namely @acronym{PGP} or
@@ -1340,8 +1339,7 @@ your PGP implementation, so we refer to it.
 If you have imported your old PGP 2.x key into GnuPG, and want to send
 signed and encrypted messages to your fellow PGP 2.x users, you'll
 discover that the receiver cannot understand what you send. One
-solution is to use PGP 2.x instead (e.g., if you use @code{pgg}, set
-@code{pgg-default-scheme} to @code{pgp}). You could also convince your
+solution is to use PGP 2.x instead. You could also convince your
 fellow PGP 2.x users to convert to GnuPG@.
 @vindex mml-signencrypt-style-alist
 As a final workaround, you can make the sign and encryption work in
@@ -2552,6 +2550,22 @@ if @code{nil} let the mailer mail back a message to report errors.
 @vindex message-confirm-send
 When non-@code{nil}, Gnus will ask for confirmation when sending a
 message.
+
+@item message-server-alist
+@vindex message-server-alist
+An alist describing the rules for generating the
+@code{X-Message-SMTP-Method} header to insert before sending out a new
+message, if the message doesn't yet have such a header.  Each element
+of the alist should be of the form
+@w{@code{(@var{cond} . @var{method})}}.  If @var{cond} is a string, it
+will be compared with the @code{From} header, and if they compare
+equal, the corresponding @var{method} will be inserted as a string
+into the message headers as the SMTP Method.  If @var{cond} is a
+function, it will be called in the message buffer without any
+arguments, and the corresponding @var{method} will be inserted into
+the message headers as the SMTP Method if the function returns a
+non-@code{nil} value; if @var{method} is nil, the value returned by
+the function @code{cond} is used instead.
 
 @end table
 

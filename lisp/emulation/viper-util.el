@@ -1,6 +1,6 @@
 ;;; viper-util.el --- Utilities used by viper.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1994-1997, 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1994-2023 Free Software Foundation, Inc.
 
 ;; Author: Michael Kifer <kifer@cs.stonybrook.edu>
 ;; Package: viper
@@ -29,9 +29,6 @@
 
 ;; Compiler pacifier
 (defvar viper-minibuffer-current-face)
-(defvar viper-minibuffer-insert-face)
-(defvar viper-minibuffer-vi-face)
-(defvar viper-minibuffer-emacs-face)
 (defvar viper-replace-overlay-face)
 (defvar viper-fast-keyseq-timeout)
 (defvar ex-unix-type-shell)
@@ -60,26 +57,12 @@
 (define-obsolete-function-alias 'viper-int-to-char #'identity "27.1")
 (define-obsolete-function-alias 'viper-get-face #'facep "27.1")
 (define-obsolete-function-alias 'viper-color-defined-p
-  #'x-color-defined-p "27.1")
+  #'color-defined-p "27.1")
 (define-obsolete-function-alias 'viper-iconify
   #'iconify-or-deiconify-frame "27.1")
 
-
-;; CHAR is supposed to be a char or an integer (positive or negative)
-;; LIST is a list of chars, nil, and negative numbers
-;; Check if CHAR is a member by trying to convert in characters, if necessary.
-;; Introduced for compatibility with XEmacs, where integers are not the same as
-;; chars.
-(defun viper-memq-char (char list)
-  (cond ((and (integerp char) (>= char 0))
-	 (memq char list))
-	((memq char list))))
-
-;; Check if char-or-int and char are the same as characters
-(defun viper-char-equal (char-or-int char)
-  (cond ((and (integerp char-or-int) (>= char-or-int 0))
-	 (= char-or-int char))
-	((eq char-or-int char))))
+(define-obsolete-function-alias 'viper-memq-char #'memq "29.1")
+(define-obsolete-function-alias 'viper-char-equal #'eq "29.1")
 
 ;; Like =, but accommodates null and also is t for eq-objects
 (defun viper= (char char1)
@@ -88,8 +71,7 @@
 	 (= char char1))
 	(t nil)))
 
-(defsubst viper-color-display-p ()
-  (x-display-color-p))
+(define-obsolete-function-alias 'viper-color-display-p #'display-color-p "29.1")
 
 (defun viper-get-cursor-color (&optional _frame)
   (cdr (assoc 'cursor-color (frame-parameters))))
@@ -97,9 +79,6 @@
 (defmacro viper-frame-value (variable)
   "Return the value of VARIABLE local to the current frame, if there is one.
 Otherwise return the normal value."
-  ;; Frame-local variables are obsolete from Emacs 22.2 onwards,
-  ;; so we do it by hand instead.
-  ;; Buffer-local values take precedence over frame-local ones.
   `(if (local-variable-p ',variable)
        ,variable
      ;; Distinguish between no frame parameter and a frame parameter
@@ -110,8 +89,8 @@ Otherwise return the normal value."
 
 ;; cursor colors
 (defun viper-change-cursor-color (new-color &optional frame)
-  (if (and (viper-window-display-p) (viper-color-display-p)
-	   (stringp new-color) (x-color-defined-p new-color)
+  (if (and (viper-window-display-p) (display-color-p)
+           (stringp new-color) (color-defined-p new-color)
 	   (not (string= new-color (viper-get-cursor-color))))
       (modify-frame-parameters
        (or frame (selected-frame))
@@ -142,9 +121,9 @@ Otherwise return the normal value."
 
 ;; By default, saves current frame cursor color before changing viper state
 (defun viper-save-cursor-color (before-which-mode)
-  (if (and (viper-window-display-p) (viper-color-display-p))
+  (if (and (viper-window-display-p) (display-color-p))
       (let ((color (viper-get-cursor-color)))
-	(if (and (stringp color) (x-color-defined-p color)
+        (if (and (stringp color) (color-defined-p color)
 		 ;; there is something fishy in that the color is not saved if
 		 ;; it is the same as frames default cursor color. need to be
 		 ;; checked.
@@ -196,35 +175,23 @@ Otherwise return the normal value."
 
 
 ;; Check the current version against the major and minor version numbers
-;; using op: cur-vers op major.minor If emacs-major-version or
-;; emacs-minor-version are not defined, we assume that the current version
-;; is hopelessly outdated.  We assume that emacs-major-version and
-;; emacs-minor-version are defined.  Otherwise, for Emacs/XEmacs 19, if the
-;; current minor version is < 10 (xemacs) or < 23 (emacs) the return value
-;; will be nil (when op is =, >, or >=) and t (when op is <, <=), which may be
-;; incorrect.  However, this gives correct result in our cases, since we are
-;; testing for sufficiently high Emacs versions.
-(defun viper-check-version (op major minor &optional type-of-emacs)
+;; using op: cur-vers op major.minor
+(defun viper-check-version (op major minor &optional _type-of-emacs)
   (declare (obsolete nil "28.1"))
-  (if (and (boundp 'emacs-major-version) (boundp 'emacs-minor-version))
-      (and (cond ((eq type-of-emacs 'xemacs) (featurep 'xemacs))
-		 ((eq type-of-emacs 'emacs) (featurep 'emacs))
-		 (t t))
-	   (cond ((eq op '=) (and (= emacs-minor-version minor)
-				  (= emacs-major-version major)))
-		 ((memq op '(> >= < <=))
-		  (and (or (funcall op emacs-major-version major)
-			   (= emacs-major-version major))
-		       (if (= emacs-major-version major)
-			   (funcall op emacs-minor-version minor)
-			 t)))
-		 (t
-		  (error "%S: Invalid op in viper-check-version" op))))
-    (cond ((memq op '(= > >=)) nil)
-	  ((memq op '(< <=)) t))))
+  (cond ((eq op '=) (and (= emacs-minor-version minor)
+                         (= emacs-major-version major)))
+        ((memq op '(> >= < <=))
+         (and (or (funcall op emacs-major-version major)
+                  (= emacs-major-version major))
+              (if (= emacs-major-version major)
+                  (funcall op emacs-minor-version minor)
+                t)))
+        (t
+         (error "%S: Invalid op in viper-check-version" op))))
 
 
 (defun viper-get-visible-buffer-window (wind)
+  (declare (obsolete "use `(get-buffer-window wind 'visible)'." "29.1"))
   (get-buffer-window wind 'visible))
 
 ;; Return line position.
@@ -1026,6 +993,7 @@ Otherwise return the normal value."
 	  (t (prin1-to-string event-seq)))))
 
 (defun viper-key-press-events-to-chars (events)
+  (declare (obsolete nil "29.1"))
   (mapconcat #'char-to-string events ""))
 
 
@@ -1052,7 +1020,6 @@ Otherwise return the normal value."
 	 (string-to-char (symbol-name key)))
 	((and (listp key)
 	      (eq (car key) 'control)
-	      (symbol-name (nth 1 key))
 	      (= 1 (length (symbol-name (nth 1 key)))))
 	 (read (format "?\\C-%s" (symbol-name (nth 1 key)))))
 	(t key)))
@@ -1183,25 +1150,23 @@ This option is appropriate if you like Emacs-style words."
 	    (looking-at (concat "[" viper-strict-ALPHA-chars addl-chars "]"))
 	  (or
 	   ;; or one of the additional chars being asked to include
-	   (viper-memq-char char (viper-string-to-list addl-chars))
+           (memq char (viper-string-to-list addl-chars))
 	   (and
 	    ;; not one of the excluded word chars (note:
 	    ;; viper-non-word-characters is a list)
-	    (not (viper-memq-char char viper-non-word-characters))
+            (not (memq char viper-non-word-characters))
 	    ;; char of the Viper-word syntax class
-	    (viper-memq-char (char-syntax char)
-			     (viper-string-to-list viper-ALPHA-char-class))))))
-    ))
+            (memq (char-syntax char)
+                  (viper-string-to-list viper-ALPHA-char-class))))))))
 
 (defun viper-looking-at-separator ()
   (let ((char (char-after (point))))
     (if char
 	(if (eq viper-syntax-preference 'strict-vi)
-	    (viper-memq-char char (viper-string-to-list viper-strict-SEP-chars))
+            (memq char (viper-string-to-list viper-strict-SEP-chars))
 	  (or (eq char ?\n) ; RET is always a separator in Vi
-	      (viper-memq-char (char-syntax char)
-			       (viper-string-to-list viper-SEP-char-class)))))
-    ))
+              (memq (char-syntax char)
+                               (viper-string-to-list viper-SEP-char-class)))))))
 
 (defsubst viper-looking-at-alphasep (&optional addl-chars)
   (or (viper-looking-at-separator) (viper-looking-at-alpha addl-chars)))
@@ -1327,8 +1292,7 @@ This option is appropriate if you like Emacs-style words."
 		    ;; of the excluded characters
 		    (if (and (eq syntax-of-char-looked-at ?w)
 			     (not negated-syntax))
-			(not (viper-memq-char
-			      char-looked-at viper-non-word-characters))
+                        (not (memq char-looked-at viper-non-word-characters))
 		      t))
 		   (funcall skip-syntax-func 1)
 		 0)

@@ -1,6 +1,6 @@
 ;;; semantic/db-file.el --- Save a semanticdb to a cache file.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: tags
@@ -29,7 +29,7 @@
 (require 'cedet-files)
 (require 'data-debug)
 
-(defvar semanticdb-file-version semantic-version
+(defvar semanticdb-file-version "2.2"
   "Version of semanticdb we are writing files to disk with.")
 (defvar semanticdb-file-incompatible-version "1.4"
   "Version of semanticdb we are not reverse compatible with.")
@@ -70,8 +70,6 @@ passes a list of predicates in `semanticdb-project-predicate-functions'."
   :type '(repeat (choice (string :tag "Directory") (const never) (const always)
                          (const project))))
 
-(define-obsolete-variable-alias 'semanticdb-save-database-hooks
-  'semanticdb-save-database-functions "24.3")
 (defcustom semanticdb-save-database-functions nil
   "Abnormal hook run after a database is saved.
 Each function is called with one argument, the object representing

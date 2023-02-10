@@ -1,6 +1,6 @@
 ;;; easy-mmode-tests.el --- tests for easy-mmode.el  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -59,7 +59,5 @@
     (should (eq easy-mmode-test-mode nil))
     (easy-mmode-test-mode 'toggle)
     (should (eq easy-mmode-test-mode t))))
-
-(provide 'easy-mmode-tests)
 
 ;;; easy-mmode-tests.el ends here

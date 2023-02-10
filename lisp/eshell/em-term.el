@@ -1,6 +1,6 @@
 ;;; em-term.el --- running visual commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -56,7 +56,7 @@ which commands are considered visual in nature."
   :type 'hook)
 
 (defcustom eshell-visual-commands
-  '("vi"                                ; what is going on??
+  '("vi" "vim"                          ; what is going on??
     "screen" "tmux" "top" "htop"        ; ok, a valid program...
     "less" "more"                       ; M-x view-file
     "lynx" "links" "ncftp"              ; eww, ange-ftp
@@ -67,7 +67,7 @@ Commands listed here are run in a term buffer.
 
 See also `eshell-visual-subcommands' and `eshell-visual-options'."
   :type '(repeat string)
-  :version "27.1")
+  :version "29.1")
 
 (defcustom eshell-visual-subcommands
   nil
@@ -153,7 +153,7 @@ behavior for short-lived processes, see bug#18108."
 If either COMMAND or a subcommand in ARGS (e.g. git log) is a
 visual command, returns non-nil."
   (let ((command (file-name-nondirectory command)))
-    (and (eshell-interactive-output-p)
+    (and (eshell-interactive-output-p 'all)
          (or (member command eshell-visual-commands)
              (member (car args)
                      (cdr (assoc command eshell-visual-subcommands)))
@@ -186,8 +186,10 @@ allowed."
 	    (set-process-sentinel proc #'eshell-term-sentinel)
 	  (error "Failed to invoke visual command")))
       (term-char-mode)
-      (if eshell-escape-control-x
-	  (term-set-escape-char ?\C-x))))
+      (when eshell-escape-control-x
+        ;; Don't drop existing escape char.
+        (let (term-escape-char)
+          (term-set-escape-char ?\C-x)))))
   nil)
 
 ;; Process sentinels receive two arguments.
@@ -224,7 +226,7 @@ the buffer."
 
 ; (defun eshell-term-send-raw-string (chars)
 ;   (goto-char eshell-last-output-end)
-;   (process-send-string (eshell-interactive-process) chars))
+;   (process-send-string (eshell-head-process) chars))
 
 ; (defun eshell-term-send-raw ()
 ;   "Send the last character typed through the terminal-emulator

@@ -1,6 +1,6 @@
 ;;; semantic/lex-spp.el --- Semantic Lexical Pre-processor  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2006-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -726,7 +726,7 @@ Returns position with the end of that macro."
 	  (point))))))
 
 (defun semantic-lex-spp-get-overlay (&optional point)
-  "Return first overlay which has a 'semantic-spp property."
+  "Return first overlay which has a `semantic-spp' property."
   (let ((overlays (overlays-at (or point (point)))))
     (while (and overlays
 		(null (overlay-get (car overlays) 'semantic-spp)))
@@ -826,7 +826,7 @@ Argument BEG and END specify the bounds of SYM in the buffer."
 	  (goto-char end)
 	  (setq arg-parsed
 		(semantic-lex-spp-one-token-and-move-for-macro
-		 ;; NOTE: This used to be (point-at-eol), but
+                 ;; NOTE: This used to be (line-end-position), but
 		 ;;       that was too close for multi-line arguments
 		 ;;       to a macro.  Point max may be too far if there
 		 ;;       is a typo in the buffer.
@@ -1074,7 +1074,7 @@ and variable state from the current buffer."
 	    ))
 
 	;; Second Cheat: copy key variables regarding macro state from the
-	;; the originating buffer we are parsing.  We need to do this every time
+	;; originating buffer we are parsing.  We need to do this every time
 	;; since the state changes.
 	(dolist (V important-vars)
 	  (set V (buffer-local-value V origbuff)))
@@ -1165,7 +1165,8 @@ of type `spp-macro-def' is to be created.
 VALFORM are forms that return the value to be saved for this macro, or nil.
 When implementing a macro, you can use `semantic-lex-spp-stream-for-macro'
 to convert text into a lexical stream for storage in the macro."
-  (declare (debug (&define name stringp stringp form def-body)))
+  (declare (debug (&define name stringp stringp form def-body))
+           (indent 1))
   (let ((start (make-symbol "start"))
 	(end (make-symbol "end"))
 	(val (make-symbol "val"))
@@ -1199,7 +1200,8 @@ REGEXP is a regular expression for the analyzer to match.
 See `define-lex-regex-analyzer' for more on regexp.
 TOKIDX is an index into REGEXP for which a new lexical token
 of type `spp-macro-undef' is to be created."
-  (declare (debug (&define name stringp stringp form)))
+  (declare (debug (&define name stringp stringp form))
+           (indent 1))
   (let ((start (make-symbol "start"))
 	(end (make-symbol "end")))
     `(define-lex-regex-analyzer ,name
@@ -1241,7 +1243,7 @@ Finds the header file belonging to NAME, gets the macros
 from that file, and then merge the macros with our current
 symbol table."
   (when semantic-lex-spp-use-headers-flag
-    ;; @todo - do this someday, ok?
+    nil  ; @todo - do this someday, ok?
     ))
 
 (defmacro define-lex-spp-include-analyzer (name doc regexp tokidx
@@ -1254,13 +1256,14 @@ DOC is the documentation for the analyzer.
 REGEXP is a regular expression for the analyzer to match.
 See `define-lex-regex-analyzer' for more on regexp.
 TOKIDX is an index into REGEXP for which a new lexical token
-of type `spp-macro-include' is to be created.
+of type `spp-system-include' is to be created.
 VALFORM are forms that return the name of the thing being included, and the
 type of include.  The return value should be of the form:
   (NAME . TYPE)
 where NAME is the name of the include, and TYPE is the type of the include,
 where a valid symbol is `system', or nil."
-  (declare (debug (&define name stringp stringp form def-body)))
+  (declare (debug (&define name stringp stringp form def-body))
+           (indent 1))
   (let ((start (make-symbol "start"))
 	(end (make-symbol "end"))
 	(val (make-symbol "val"))

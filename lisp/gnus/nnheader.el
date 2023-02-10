@@ -1,6 +1,6 @@
 ;;; nnheader.el --- header access macros for Gnus and its backends  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1987-1990, 1993-1998, 2000-2022 Free Software
+;; Copyright (C) 1987-1990, 1993-1998, 2000-2023 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Masanobu UMEDA <umerin@flab.flab.fujitsu.junet>
@@ -27,6 +27,7 @@
 ;;; Code:
 
 (eval-when-compile (require 'cl-lib))
+(require 'range)
 
 (defvar gnus-decode-encoded-word-function)
 (defvar gnus-decode-encoded-address-function)
@@ -44,8 +45,6 @@
 (require 'mm-util)
 (require 'gnus-util)
 (autoload 'gnus-remove-odd-characters "gnus-sum")
-(autoload 'gnus-range-add "gnus-range")
-(autoload 'gnus-remove-from-range "gnus-range")
 ;; FIXME none of these are used explicitly in this file.
 (autoload 'gnus-sorted-intersection "gnus-range")
 (autoload 'gnus-intersection "gnus-range")
@@ -189,7 +188,7 @@ on your system, you could say something like:
 
 (defsubst nnheader-header-value ()
   (skip-chars-forward " \t")
-  (buffer-substring (point) (point-at-eol)))
+  (buffer-substring (point) (line-end-position)))
 
 (autoload 'ietf-drums-unfold-fws "ietf-drums")
 
@@ -398,7 +397,7 @@ leaving the original buffer untouched."
 (autoload 'gnus-extract-message-id-from-in-reply-to "gnus-sum")
 
 (defun nnheader-parse-nov (&optional number)
-  (let ((eol (point-at-eol))
+  (let ((eol (line-end-position))
 	references in-reply-to x header)
       (setq header
 	    (make-full-mail-header
@@ -633,7 +632,7 @@ the line could be found."
       ;; This is invalid, but not all articles have Message-IDs.
       ()
     (mail-position-on-field "References")
-    (let ((begin (point-at-bol))
+    (let ((begin (line-beginning-position))
 	  (fill-column 78)
 	  (fill-prefix "\t"))
       (when references
@@ -919,15 +918,11 @@ first.  Otherwise, find the newest one, though it may take a time."
       (car (sort results #'file-newer-than-file-p)))))
 
 (defvar ange-ftp-path-format)
-(defvar efs-path-regexp)
 (defun nnheader-re-read-dir (path)
   "Re-read directory PATH if PATH is on a remote system."
-  (if (and (fboundp 'efs-re-read-dir) (boundp 'efs-path-regexp))
-      (when (string-match efs-path-regexp path)
-	(efs-re-read-dir path))
-    (when (and (fboundp 'ange-ftp-re-read-dir) (boundp 'ange-ftp-path-format))
-      (when (string-match (car ange-ftp-path-format) path)
-	(ange-ftp-re-read-dir path)))))
+  (when (and (fboundp 'ange-ftp-reread-dir) (boundp 'ange-ftp-path-format))
+    (when (string-match (car ange-ftp-path-format) path)
+      (ange-ftp-reread-dir path))))
 
 (defun nnheader-insert-file-contents (filename &optional visit beg end replace)
   "Like `insert-file-contents', q.v., but only reads in the file.
@@ -1044,10 +1039,9 @@ See `find-file-noselect' for the arguments."
 	       mark
 	       (cond
 		((eq what 'add)
-		 (gnus-range-add (cdr (assoc mark backend-marks)) range))
+		 (range-concat (cdr (assoc mark backend-marks)) range))
 		((eq what 'del)
-		 (gnus-remove-from-range
-		  (cdr (assoc mark backend-marks)) range))
+		 (range-remove (cdr (assoc mark backend-marks)) range))
 		((eq what 'set)
 		 range))
 	       backend-marks)))))
@@ -1061,7 +1055,7 @@ See `find-file-noselect' for the arguments."
 				     (or ,end (point-max)))
 		'(buffer-string)))))
 
-(defvar nnheader-last-message-time '(0 0))
+(defvar nnheader-last-message-time 0)
 (defun nnheader-message-maybe (&rest args)
   (let ((now (current-time)))
     (when (time-less-p 1 (time-subtract now nnheader-last-message-time))

@@ -2,7 +2,7 @@
 # Configuration script for lib/Makefile under DJGPP v2.x
 # ----------------------------------------------------------------------
 #
-# Copyright (C) 2011-2022 Free Software Foundation, Inc.
+# Copyright (C) 2011-2023 Free Software Foundation, Inc.
 #
 # This file is part of GNU Emacs.
 #
@@ -182,6 +182,7 @@ s/@PACKAGE@/emacs/
 /^GL_GNULIB_GETLOADAVG *=/s/@GL_GNULIB_GETLOADAVG@/1/
 /^GL_GNULIB_GETRANDOM *=/s/@GL_GNULIB_GETRANDOM@/1/
 /^GL_GNULIB_UNISTD_H_GETOPT *=/s/@GL_GNULIB_UNISTD_H_GETOPT@/1/
+/^GL_GNULIB_LCHMOD *=/s/@GL_GNULIB_LCHMOD@/1/
 /^GL_GNULIB_MEMMEM *=/s/@GL_GNULIB_MEMMEM@/1/
 /^GL_GNULIB_MEMRCHR *=/s/@GL_GNULIB_MEMRCHR@/1/
 /^GL_GNULIB_MEMPCPY *=/s/@GL_GNULIB_MEMPCPY@/1/
@@ -192,6 +193,9 @@ s/@PACKAGE@/emacs/
 /^GL_GNULIB_TIMEGM *=/s/@GL_GNULIB_TIMEGM@/1/
 /^GL_GNULIB_TIME_RZ *=/s/@GL_GNULIB_TIME_RZ@/1/
 /^GL_GNULIB_UNSETENV *=/s/@GL_GNULIB_UNSETENV@/1/
+# Apparently without this `rawmemchr' isn't declared, so
+# we get warnings building canonicalize-lgpl.o
+/^GL_GNULIB_RAWMEMCHR *=/s/@GL_GNULIB_RAWMEMCHR@/1/
 /^GL_GNULIB_[^ =]* *= *@/s/@[^@\n]*@/0/
 /^GL_GSETTINGS_CFLAGS *=/s/@[^@\n]*@//
 /^GL_GSETTINGS_LIBS *=/s/@[^@\n]*@//
@@ -213,7 +217,8 @@ s/@PACKAGE@/emacs/
 /^HAVE_GETHOSTNAME *=/s/@HAVE_GETHOSTNAME@/1/
 /^HAVE_GETLOGIN *=/s/@HAVE_GETLOGIN@/1/
 /^HAVE_GETPAGESIZE *=/s/@HAVE_GETPAGESIZE@/1/
-/^HAVE_INTTYPES_H *=/s/@HAVE_INTTYPES_H@/HAVE_INTTYPES_H/
+/^HAVE_INTTYPES_H *=/s/@HAVE_INTTYPES_H@/1/
+/^HAVE_LCHMOD *=/s/@HAVE_LCHMOD@/0/
 /^HAVE_LINK *=/s/@HAVE_LINK@/1/
 /^HAVE_LONG_LONG_INT *=/s/@HAVE_LONG_LONG_INT@/1/
 /^HAVE_LSTAT *=/s/@HAVE_LSTAT@/HAVE_LSTAT/
@@ -265,12 +270,13 @@ s/@PACKAGE@/emacs/
 /^LDFLAGS *=/s/@[^@\n]*@//
 /^LD_FIRSTFLAG *=/s/@[^@\n]*@//
 /^LIB_PTHREAD *=/s/@[^@\n]*@//
-/^LIB_PTHREAD_SIGMASK *=/s/@[^@\n]*@//
 /^LIBS *=/s/@[^@\n]*@//
 /^MAKEINFO *=/s/@MAKEINFO@/makeinfo/
 # MKDIR_P lines are edited further below
 # MKDIR_P is only used to create lib/malloc, and the folder is
 # already present in the distribution, so this should work fine.
+# (No longer true as of Emacs 29, but the directories we need
+# are created in config.bat!)
 /^MKDIR_P *=/s/@MKDIR_P@/echo/
 /^NEXT_AS_FIRST_DIRECTIVE_DIRENT_H *=/s/@[^@\n]*@/<dirent.h>/
 /^NEXT_AS_FIRST_DIRECTIVE_ERRNO_H *=/s/@[^@\n]*@//
@@ -288,7 +294,8 @@ s/@PACKAGE@/emacs/
 /^NEXT_AS_FIRST_DIRECTIVE_SYS_TIME_H *=/s/@[^@\n]*@//
 /^NEXT_AS_FIRST_DIRECTIVE_SYS_TYPES_H *=/s!@[^@\n]*@!<sys/types.h>!
 /^NEXT_AS_FIRST_DIRECTIVE_TIME_H *=/s/@[^@\n]*@/<time.h>/
-/^NEXT_AS_FIRST_DIRECTIVE_UNISTD_H *=/s/@[^@\n]*@/<unistd.h>/
+/^NEXT_ASSERT_H *=/s/@[^@\n]*@/<assert.h>/
+/^NEXT_DIRENT_H *=/s/@[^@\n]*@/<dirent.h>/
 /^NEXT_DIRENT_H *=/s/@[^@\n]*@/<dirent.h>/
 /^NEXT_ERRNO_H *=/s/@[^@\n]*@//
 /^NEXT_FCNTL_H *=/s/@[^@\n]*@/<fcntl.h>/
@@ -315,9 +322,10 @@ s/@PACKAGE@/emacs/
 /^REPLACE_MKTIME *=/s/@[^@\n]*@/1/
 # We don't want any other gnulib replacement functions
 /^REPLACE_[^ =]* *= *@/s/@[^@\n]*@/0/
-/^LIB_GETRANDOM[^ =]* *= *@/s/@[^@\n]*@//
+/^GETRANDOM_LIB[^ =]* *= *@/s/@[^@\n]*@//
 /^SIG_ATOMIC_T_SUFFIX *=/s/@SIG_ATOMIC_T_SUFFIX@//
 /^SIZE_T_SUFFIX *=/s/@SIZE_T_SUFFIX@/u/
+/^ASSERT_H *=/s/@[^@\n]*@/assert.h/
 /^ALLOCA_H *=/s/@[^@\n]*@/alloca.h/
 /^BYTESWAP_H *=/s/@[^@\n]*@/byteswap.h/
 /^DIRENT_H *=/s/@[^@\n]*@//
@@ -328,6 +336,7 @@ s/@PACKAGE@/emacs/
 /^LIMITS_H *=/s/@[^@\n]*@/limits.h/
 /^IEEE754_H *=/s/@[^@\n]*@/ieee754.h/
 /^STDALIGN_H *=/s/@[^@\n]*@/stdalign.h/
+/^STDCKDINT_H *=/s/@[^@\n]*@/stdckdint.h/
 /^STDDEF_H *=/s/@[^@\n]*@/stddef.h/
 /^STDINT_H *=/s/@[^@\n]*@/stdint.h/
 /^SYS_TIME_H_DEFINES_STRUCT_TIMESPEC *=/s/@[^@\n]*@/0/
@@ -406,18 +415,25 @@ s/^	-*test -z.*|| rm/	 -rm/
 s/@echo /@djecho /
 #
 # Determine which headers to generate
-s/= @GL_GENERATE_ALLOCA_H_TRUE@/= 1/
-s/= @GL_GENERATE_BYTESWAP_H@/= 1/
-s/= @GL_GENERATE_EXECINFO_H@/= 1/
-s/= @GL_GENERATE_IEEE754_H@/= 1/
-s/= @GL_GENERATE_STDALIGN_H@/= 1/
-s/= @GL_GENERATE_STDDEF_H@/= 1/
-s/= @GL_GENERATE_STDINT_H@/= 1/
-s/= @GL_GENERATE_LIMITS_H@/= 1/
-s/= @GL_GENERATE_ERRNO_H@/= /
-s/= @GL_GENERATE_LIMITS_H@/= /
-s/= @GL_GENERATE_GMP_GMP_H@/= 1/
-s/= @GL_GENERATE_MINI_GMP_H@/= 1/
+# DJGPP assert.h lacks static_assert, so assert.h will have to be
+# generated
+s/= @GL_GENERATE_ASSERT_H_CONDITION@/= 1/
+s/= @GL_GENERATE_ALLOCA_H_CONDITION@/= 1/
+s/= @GL_GENERATE_BYTESWAP_H_CONDITION@/= 1/
+s/= @GL_GENERATE_EXECINFO_H_CONDITION@/= 1/
+s/= @GL_GENERATE_IEEE754_H_CONDITION@/= 1/
+s/= @GL_GENERATE_STDALIGN_H_CONDITION@/= 1/
+s/= @GL_GENERATE_STDDEF_H_CONDITION@/= 1/
+s/= @GL_GENERATE_STDINT_H_CONDITION@/= 1/
+s/= @GL_GENERATE_LIMITS_H_CONDITION@/= 1/
+s/= @GL_GENERATE_ERRNO_H_CONDITION@/= /
+s/= @GL_GENERATE_LIMITS_H_CONDITION@/= /
+s/= @GL_GENERATE_GMP_H_CONDITION@/= 1/
+s/= @GL_GENERATE_GMP_GMP_H_CONDITION@/= /
+s/= @GL_GENERATE_MINI_GMP_H_CONDITION@/= 1/
+s/= @GL_GENERATE_STDCKDINT_H_CONDITION@/= 1/
+s/= @GL_COND_OBJ_STDIO_READ_CONDITION@/= /
+s/= @GL_COND_OBJ_STDIO_WRITE_CONDITION@/= /
 s/\$\(MKDIR_P\) malloc//
 #
 # Determine which modules to build and which to omit
@@ -429,7 +445,6 @@ OMIT_GNULIB_MODULE_careadlinkat = true\
 OMIT_GNULIB_MODULE_cloexec = true\
 OMIT_GNULIB_MODULE_dirent = true\
 OMIT_GNULIB_MODULE_dirfd = true\
-OMIT_GNULIB_MODULE_scratch_buffer = true\
 OMIT_GNULIB_MODULE_dup2 = true\
 OMIT_GNULIB_MODULE_errno = true\
 OMIT_GNULIB_MODULE_euidaccess = true\
@@ -445,6 +460,7 @@ OMIT_GNULIB_MODULE_group-member = true\
 OMIT_GNULIB_MODULE_inttypes-incomplete = true\
 OMIT_GNULIB_MODULE_localtime-buffer = true\
 OMIT_GNULIB_MODULE_lstat = true\
+OMIT_GNULIB_MODULE_nanosleep = true\
 OMIT_GNULIB_MODULE_open = true\
 OMIT_GNULIB_MODULE_pipe2 = true\
 OMIT_GNULIB_MODULE_pselect = true\
@@ -486,6 +502,14 @@ s/\.in-h\;  *\\$/.in-h >> $@-t/
 /^string\.h:/,/^	[ 	]*mv /{
   s/'\; \\ *$/' >> $@-t/
   /< \$(srcdir)\/string\.in-h >>/d
+}
+/^assert\.h/,/^	\$(AM_V_AT)mv \$@-t \$@/{
+  s/\$(gl_V_at){/\$(gl_V_at)/
+  s/< \$(srcdir)\/assert\.in-h/& > $@-t/
+  s/	  sed/	\$(gl_V_at) \$(SED_HEADER_STDOUT)\\\
+	     /
+  s/\} > \$@-t/>> $@-t/
+  s/< \$(srcdir)\/verify\.h; \\/\$(srcdir)\/verify\.h >> \$@-t/
 }
 s!\$(MKDIR_P)[ 	][ 	]*sys!command.com /c "if not exist sys\\stat.h md sys"!
 /^	@for dir in/,/^[^	 ]/c\

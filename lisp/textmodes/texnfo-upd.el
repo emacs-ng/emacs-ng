@@ -1,6 +1,6 @@
 ;;; texnfo-upd.el --- utilities for updating nodes and menus in Texinfo files  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1989-1992, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1989-1992, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Robert J. Chassell
 ;; Maintainer: emacs-devel@gnu.org
@@ -1367,7 +1367,7 @@ left at the end of the node line."
 	    ;; There may be an @chapter or other such command between
 	    ;; the top node line and the next node line, as a title
 	    ;; for an `ifinfo' section. This @chapter command must
-	    ;; must be skipped.  So the procedure is to search for
+	    ;; be skipped.  So the procedure is to search for
 	    ;; the next `@node' line, and then copy its name.
 	    (if (re-search-forward "^@node" nil t)
 		(progn

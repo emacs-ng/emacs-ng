@@ -1,6 +1,6 @@
 ;;; lisp.el --- Lisp editing commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1994, 2000-2022 Free Software Foundation,
+;; Copyright (C) 1985-1986, 1994, 2000-2023 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -171,6 +171,8 @@ This command assumes point is not in a string or comment.
 If INTERACTIVE is non-nil, as it is interactively,
 report errors as appropriate for this kind of usage."
   (interactive "^p\nd")
+  (when (ppss-comment-or-string-start (syntax-ppss))
+    (user-error "This command doesn't work in strings or comments"))
   (if interactive
       (condition-case _
           (down-list arg nil)
@@ -373,7 +375,10 @@ does not move to the beginning of the line when `defun-prompt-regexp'
 is non-nil.
 
 If variable `beginning-of-defun-function' is non-nil, its value
-is called as a function to find the defun's beginning."
+is called as a function to find the defun's beginning.
+
+Return non-nil if this function successfully found the beginning
+of a defun, nil if it failed to find one."
   (interactive "^p")   ; change this to "P", maybe, if we ever come to pass ARG
                       ; to beginning-of-defun-function.
   (unless arg (setq arg 1))
@@ -505,6 +510,11 @@ It is called with no argument, right after calling `beginning-of-defun-raw'.
 So the function can assume that point is at the beginning of the defun body.
 It should move point to the first position after the defun.")
 
+(defvar end-of-defun-moves-to-eol t
+  "Whether `end-of-defun' moves to eol before doing anything else.
+Set this to nil if this movement adversely affects the buffer's
+major mode's decisions about context.")
+
 (defun buffer-end (arg)
   "Return the \"far end\" position of the buffer, in direction ARG.
 If ARG is positive, that's the end of the buffer.
@@ -536,7 +546,10 @@ report errors as appropriate for this kind of usage."
         (push-mark))
     (if (or (null arg) (= arg 0)) (setq arg 1))
     (let ((pos (point))
-          (beg (progn (end-of-line 1) (beginning-of-defun-raw 1) (point)))
+          (success nil)
+          (beg (progn (when end-of-defun-moves-to-eol
+                        (end-of-line 1))
+                      (beginning-of-defun-raw 1) (point)))
 	  (skip (lambda ()
 		  ;; When comparing point against pos, we want to consider that
 		  ;; if point was right after the end of the function, it's
@@ -558,9 +571,12 @@ report errors as appropriate for this kind of usage."
             (setq arg (1- arg))
           ;; We started from after the end of the previous function.
           (goto-char pos))
+        ;; At this point, point either didn't move (because we started
+        ;; in between two defun's), or is at the end of a defun
+        ;; (because we started in the middle of a defun).
         (unless (zerop arg)
-          (beginning-of-defun-raw (- arg))
-          (funcall end-of-defun-function)))
+          (when (setq success (beginning-of-defun-raw (- arg)))
+            (funcall end-of-defun-function))))
        ((< arg 0)
         ;; Moving backward.
         (if (< (point) pos)
@@ -570,16 +586,18 @@ report errors as appropriate for this kind of usage."
           ;; We started from inside a function.
           (goto-char beg))
         (unless (zerop arg)
-          (beginning-of-defun-raw (- arg))
-	  (setq beg (point))
-          (funcall end-of-defun-function))))
+          (when (setq success (beginning-of-defun-raw (- arg)))
+            (setq beg (point))
+            (funcall end-of-defun-function)))))
       (funcall skip)
-      (while (and (< arg 0) (>= (point) pos))
+      (while (and (< arg 0) (>= (point) pos) success)
         ;; We intended to move backward, but this ended up not doing so:
         ;; Try harder!
         (goto-char beg)
-        (beginning-of-defun-raw (- arg))
-        (if (>= (point) beg)
+        (setq success (beginning-of-defun-raw (- arg)))
+        ;; If we successfully moved pass point, or there is no further
+        ;; defun beginnings anymore, stop.
+        (if (or (>= (point) beg) (not success))
 	    (setq arg 0)
 	  (setq beg (point))
           (funcall end-of-defun-function)
@@ -855,14 +873,33 @@ The option `delete-pair-blink-delay' can disable blinking."
 	  (delete-char -1)))
       (delete-char 1))))
 
-(defun raise-sexp (&optional arg)
-  "Raise ARG sexps higher up the tree."
+(defun raise-sexp (&optional n)
+  "Raise N sexps one level higher up the tree.
+
+This function removes the sexp enclosing the form which follows
+point, and then re-inserts N sexps that originally followe point,
+thus raising those N sexps one level up.
+
+Interactively, N is the numeric prefix argument, and defaults to 1.
+
+For instance, if you have:
+
+  (let ((foo 2))
+    (progn
+      (setq foo 3)
+      (zot)
+      (+ foo 2)))
+
+and point is before (zot), \\[raise-sexp] will give you
+
+  (let ((foo 2))
+    (zot))"
   (interactive "p")
   (let ((s (if (and transient-mark-mode mark-active)
                (buffer-substring (region-beginning) (region-end))
              (buffer-substring
               (point)
-              (save-excursion (forward-sexp arg) (point))))))
+              (save-excursion (forward-sexp n) (point))))))
     (backward-up-list 1)
     (delete-region (point) (save-excursion (forward-sexp 1) (point)))
     (save-excursion (insert s))))
@@ -922,14 +959,7 @@ character."
 (defun field-complete (table &optional predicate)
   (declare (obsolete completion-in-region "24.4"))
   (let ((minibuffer-completion-table table)
-        (minibuffer-completion-predicate predicate)
-        ;; This made sense for lisp-complete-symbol, but for
-        ;; field-complete, this is out of place.  --Stef
-        ;; (completion-annotate-function
-        ;;  (unless (eq predicate 'fboundp)
-        ;;    (lambda (str)
-        ;;      (if (fboundp (intern-soft str)) " <f>"))))
-        )
+        (minibuffer-completion-predicate predicate))
     (call-interactively 'minibuffer-complete)))
 
 (defun lisp-complete-symbol (&optional _predicate)

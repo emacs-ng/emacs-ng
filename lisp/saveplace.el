@@ -1,6 +1,6 @@
 ;;; saveplace.el --- automatically save place in files  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1993-1994, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1994, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Karl Fogel <kfogel@red-bean.com>
 ;; Maintainer: emacs-devel@gnu.org
@@ -191,7 +191,7 @@ file names."
   ;; First check to make sure alist has been loaded in from the master
   ;; file.  If not, do so, then feel free to modify the alist.  It
   ;; will be saved again when Emacs is killed.
-  (or save-place-loaded (load-save-place-alist-from-file))
+  (or save-place-loaded (save-place-load-alist-from-file))
   (let* ((directory (and (derived-mode-p 'dired-mode)
                          (boundp 'dired-subdir-alist)
 			 dired-subdir-alist
@@ -278,7 +278,7 @@ may have changed) back to `save-place-alist'."
 	  (file-error (message "Saving places: can't write %s" file)))
         (kill-buffer (current-buffer))))))
 
-(defun load-save-place-alist-from-file ()
+(defun save-place-load-alist-from-file ()
   (if (not save-place-loaded)
       (progn
         (setq save-place-loaded t)
@@ -290,7 +290,11 @@ may have changed) back to `save-place-alist'."
               ;; adding hooks to it.
               (with-current-buffer (get-buffer-create " *Saved Places*")
                 (delete-region (point-min) (point-max))
-                (insert-file-contents file)
+                ;; Make sure our 'coding:' cookie in the save-place
+                ;; file will take effect, in case the caller binds
+                ;; coding-system-for-read.
+                (let (coding-system-for-read)
+                  (insert-file-contents file))
                 (goto-char (point-min))
                 (setq save-place-alist
                       (with-demoted-errors "Error reading save-place-file: %S"
@@ -328,15 +332,27 @@ may have changed) back to `save-place-alist'."
       (with-current-buffer (car buf-list)
 	;; save-place checks buffer-file-name too, but we can avoid
 	;; overhead of function call by checking here too.
-	(and (or buffer-file-name (and (derived-mode-p 'dired-mode)
-                                       (boundp 'dired-subdir-alist)
-				       dired-subdir-alist
-				       (dired-current-directory)))
-	     (save-place-to-alist))
+	(when (and (or buffer-file-name
+                       (and (derived-mode-p 'dired-mode)
+                            (boundp 'dired-subdir-alist)
+		            dired-subdir-alist
+		            (dired-current-directory)))
+                   ;; Don't save place in literally-visited file
+                   ;; because this will commonly differ from the place
+                   ;; when visiting literally (and
+                   ;; `find-file-literally' always places point at the
+                   ;; start of the buffer).
+                   (not find-file-literally))
+	  (save-place-to-alist))
 	(setq buf-list (cdr buf-list))))))
 
+(defvar save-place-after-find-file-hook nil
+  "Hook run at the end of `save-place-find-file-hook'.")
+
 (defun save-place-find-file-hook ()
-  (or save-place-loaded (load-save-place-alist-from-file))
+  "Function added to `find-file-hook' by `save-place-mode'.
+It runs the hook `save-place-after-find-file-hook'."
+  (or save-place-loaded (save-place-load-alist-from-file))
   (let ((cell (assoc buffer-file-name save-place-alist)))
     (if cell
 	(progn
@@ -344,13 +360,14 @@ may have changed) back to `save-place-alist'."
 	      (and (integerp (cdr cell))
 		   (goto-char (cdr cell))))
           ;; and make sure it will be saved again for later
-          (setq save-place-mode t)))))
+          (setq save-place-mode t))))
+  (run-hooks 'save-place-after-find-file-hook))
 
 (declare-function dired-goto-file "dired" (file))
 
 (defun save-place-dired-hook ()
   "Position the point in a Dired buffer."
-  (or save-place-loaded (load-save-place-alist-from-file))
+  (or save-place-loaded (save-place-load-alist-from-file))
   (let* ((directory (and (derived-mode-p 'dired-mode)
                          (boundp 'dired-subdir-alist)
 			 dired-subdir-alist
@@ -378,6 +395,9 @@ may have changed) back to `save-place-alist'."
   ;; (including just now).
   (if save-place-loaded
       (save-place-alist-to-file)))
+
+(define-obsolete-function-alias 'load-save-place-alist-from-file
+  #'save-place-load-alist-from-file "29.1")
 
 (provide 'saveplace)
 ;;; saveplace.el ends here

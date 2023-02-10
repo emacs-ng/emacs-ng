@@ -1,6 +1,6 @@
 ;;; cmuscheme.el --- Scheme process in a buffer. Adapted from tea.el  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1988-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1988-2023 Free Software Foundation, Inc.
 
 ;; Author: Olin Shivers <olin.shivers@cs.cmu.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -195,6 +195,7 @@ to continue it."
   (scheme-mode-variables)
   (setq mode-line-process '(":%s"))
   (setq comint-input-filter (function scheme-input-filter))
+  (setq-local comint-prompt-read-only t)
   (setq comint-get-old-input (function scheme-get-old-input)))
 
 (defcustom inferior-scheme-filter-regexp "\\`\\s *\\S ?\\S ?\\s *\\'"
@@ -237,7 +238,7 @@ is run).
 	(inferior-scheme-mode)))
   (setq scheme-program-name cmd)
   (setq scheme-buffer "*scheme*")
-  (pop-to-buffer-same-window "*scheme*"))
+  (pop-to-buffer "*scheme*" display-comint-buffer-action))
 
 (defun scheme-start-file (prog)
   "Return the name of the start file corresponding to PROG.
@@ -245,7 +246,8 @@ Search in the directories \"~\" and `user-emacs-directory',
 in this order.  Return nil if no start file found."
   (let* ((progname (file-name-nondirectory prog))
 	 (start-file (concat "~/.emacs_" progname))
-	 (alt-start-file (concat user-emacs-directory "init_" progname ".scm")))
+         (alt-start-file (locate-user-emacs-file
+                          (concat "init_" progname ".scm"))))
     (if (file-exists-p start-file)
         start-file
       (and (file-exists-p alt-start-file) alt-start-file))))
@@ -356,7 +358,7 @@ With argument, position cursor at end of buffer."
   (interactive "P")
   (if (or (and scheme-buffer (get-buffer scheme-buffer))
           (scheme-interactively-start-process))
-      (pop-to-buffer-same-window scheme-buffer)
+      (pop-to-buffer scheme-buffer display-comint-buffer-action)
     (error "No current process buffer.  See variable `scheme-buffer'"))
   (when eob-p
     (push-mark)

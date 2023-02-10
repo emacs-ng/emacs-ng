@@ -1,6 +1,6 @@
 ;;; nndiary.el --- A diary back end for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author:        Didier Verna <didier@didierverna.net>
 ;; Created:       Fri Jul 16 18:55:42 1999
@@ -165,22 +165,16 @@ In order to make this clear, here are some examples:
   :type 'boolean)
 
 
-(define-obsolete-variable-alias 'nndiary-request-create-group-hooks
-  'nndiary-request-create-group-functions "24.3")
 (defcustom nndiary-request-create-group-functions nil
   "Hook run after `nndiary-request-create-group' is executed.
 The hook functions will be called with the full group name as argument."
   :type 'hook)
 
-(define-obsolete-variable-alias 'nndiary-request-update-info-hooks
-  'nndiary-request-update-info-functions "24.3")
 (defcustom nndiary-request-update-info-functions nil
   "Hook run after `nndiary-request-update-info' is executed.
 The hook functions will be called with the full group name as argument."
   :type 'hook)
 
-(define-obsolete-variable-alias 'nndiary-request-accept-article-hooks
-  'nndiary-request-accept-article-functions "24.3")
 (defcustom nndiary-request-accept-article-functions nil
   "Hook run before accepting an article.
 Executed near the beginning of `nndiary-request-accept-article'.
@@ -234,9 +228,11 @@ all.  This may very well take some time.")
 
 (defconst nndiary-version "0.2-b14"
   "Current Diary back end version.")
+(make-obsolete-variable 'nndiary-version 'emacs-version "29.1")
 
 (defun nndiary-version ()
   "Current Diary back end version."
+  (declare (obsolete emacs-version "29.1"))
   (interactive)
   (message "NNDiary version %s" nndiary-version))
 
@@ -343,8 +339,15 @@ all.  This may very well take some time.")
   ;; for this header) or one list (specifying all the possible values for this
   ;; header). In the latter case, the list does NOT include the unspecified
   ;; spec (*).
+
   ;; For time zone values, we have symbolic time zone names associated with
   ;; the (relative) number of seconds ahead GMT.
+  ;; The list of time zone values is obsolescent, and new code should
+  ;; not rely on it.  Many of the time zone abbreviations are wrong;
+  ;; in particular, all single-letter abbreviations other than "Z" have
+  ;; been wrong since Internet RFC 2822 (2001).  However, the
+  ;; abbreviations have not been changed due to backward compatibility
+  ;; concerns.
   )
 
 (defsubst nndiary-schedule ()
@@ -860,7 +863,7 @@ all.  This may very well take some time.")
 		  (search-forward id nil t)) ; We find the ID.
 	;; And the id is in the fourth field.
 	(if (not (and (search-backward "\t" nil t 4)
-		      (not (search-backward"\t" (point-at-bol) t))))
+                      (not (search-backward"\t" (line-beginning-position) t))))
 	    (forward-line 1)
 	  (beginning-of-line)
 	  (setq found t)
@@ -1308,7 +1311,7 @@ all.  This may very well take some time.")
   (let ((minute (nndiary-max (nth 0 sched)))
 	(hour (nndiary-max (nth 1 sched)))
 	(year (nndiary-max (nth 4 sched)))
-	(time-zone (or (and (nth 6 sched) (car (nth 6 sched)))
+	(time-zone (or (car (nth 6 sched))
 		       (current-time-zone))))
     (when year
       (or minute (setq minute 59))
@@ -1405,7 +1408,7 @@ all.  This may very well take some time.")
 		  t))
 	 (dow-list (nth 5 sched))
 	 (year (1- this-year))
-	 (time-zone (or (and (nth 6 sched) (car (nth 6 sched)))
+	 (time-zone (or (car (nth 6 sched))
 			(current-time-zone))))
     ;; Special case: an asterisk in one of the days specifications means that
     ;; only the other should be taken into account. If both are unspecified,

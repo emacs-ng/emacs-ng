@@ -1,6 +1,6 @@
 ;;; spook.el --- spook phrase utility for overloading the NSA line eater  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1988, 1993, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1988, 1993, 2001-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: games
@@ -49,7 +49,7 @@
 
 (defcustom spook-phrase-default-count 15
   "Default number of phrases to insert."
-  :type 'integer)
+  :type 'natnum)
 
 ;;;###autoload
 (defun spook ()

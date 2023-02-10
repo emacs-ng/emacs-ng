@@ -1,9 +1,9 @@
 ;;; erc-truncate.el --- Functions for truncating ERC buffers  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2003-2004, 2006-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2004, 2006-2023 Free Software Foundation, Inc.
 
 ;; Author: Andreas Fuchs <asf@void.at>
-;; Maintainer: Amin Bandali <bandali@gnu.org>
+;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
 ;; URL: https://www.emacswiki.org/emacs/ErcTruncation
 ;; Keywords: IRC, chat, client, Internet, logging
 

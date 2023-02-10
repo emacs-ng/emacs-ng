@@ -1,7 +1,6 @@
 ;;; fortran.el --- Fortran mode for GNU Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 1986, 1993-1995, 1997-2022 Free Software Foundation,
-;; Inc.
+;; Copyright (C) 1986-2023 Free Software Foundation, Inc.
 
 ;; Author: Michael D. Prange <prange@erl.mit.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -624,34 +623,32 @@ Used in the Fortran entry in `hs-special-modes-alist'.")
     st)
   "Syntax table used to parse Fortran expressions for printing in GUD.")
 
-(defvar fortran-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map ";"        'fortran-abbrev-start)
-    (define-key map "\C-c;"    'fortran-comment-region)
-    ;; The default comment-dwim does at least as much as this.
-;;;    (define-key map "\M-;"     'fortran-indent-comment)
-    (define-key map "\M-\n"    'fortran-split-line)
-    (define-key map "\M-\C-n"  'fortran-end-of-block)
-    (define-key map "\M-\C-p"  'fortran-beginning-of-block)
-    (define-key map "\M-\C-q"  'fortran-indent-subprogram)
-    (define-key map "\C-c\C-w" 'fortran-window-create-momentarily)
-    (define-key map "\C-c\C-r" 'fortran-column-ruler)
-    (define-key map "\C-c\C-p" 'fortran-previous-statement)
-    (define-key map "\C-c\C-n" 'fortran-next-statement)
-    (define-key map "\C-c\C-d" 'fortran-join-line) ; like f90
-    (define-key map "\M-^"     'fortran-join-line) ; subvert delete-indentation
-    (define-key map "0" 'fortran-electric-line-number)
-    (define-key map "1" 'fortran-electric-line-number)
-    (define-key map "2" 'fortran-electric-line-number)
-    (define-key map "3" 'fortran-electric-line-number)
-    (define-key map "4" 'fortran-electric-line-number)
-    (define-key map "5" 'fortran-electric-line-number)
-    (define-key map "6" 'fortran-electric-line-number)
-    (define-key map "7" 'fortran-electric-line-number)
-    (define-key map "8" 'fortran-electric-line-number)
-    (define-key map "9" 'fortran-electric-line-number)
-    map)
-  "Keymap used in Fortran mode.")
+(defvar-keymap fortran-mode-map
+  :doc "Keymap used in Fortran mode."
+  ";"        #'fortran-abbrev-start
+  "C-c ;"    #'fortran-comment-region
+  ;; The default comment-dwim does at least as much as this.
+  ;; "M-;"   #'fortran-indent-comment
+  "C-M-j"    #'fortran-split-line
+  "C-M-n"    #'fortran-end-of-block
+  "C-M-p"    #'fortran-beginning-of-block
+  "C-M-q"    #'fortran-indent-subprogram
+  "C-c C-w"  #'fortran-window-create-momentarily
+  "C-c C-r"  #'fortran-column-ruler
+  "C-c C-p"  #'fortran-previous-statement
+  "C-c C-n"  #'fortran-next-statement
+  "C-c C-d"  #'fortran-join-line        ; like f90
+  "M-^"      #'fortran-join-line        ; subvert delete-indentation
+  "0"        #'fortran-electric-line-number
+  "1"        #'fortran-electric-line-number
+  "2"        #'fortran-electric-line-number
+  "3"        #'fortran-electric-line-number
+  "4"        #'fortran-electric-line-number
+  "5"        #'fortran-electric-line-number
+  "6"        #'fortran-electric-line-number
+  "7"        #'fortran-electric-line-number
+  "8"        #'fortran-electric-line-number
+  "9"        #'fortran-electric-line-number)
 
 
 (define-abbrev-table 'fortran-mode-abbrev-table
@@ -960,7 +957,7 @@ With non-nil ARG, uncomments the region."
     (set-marker save-point nil)))
 
 ;; uncomment-region calls this with 3 args.
-(defun fortran-uncomment-region (start end &optional ignored)
+(defun fortran-uncomment-region (start end &optional _ignored)
   "Uncomment every line in the region."
   (fortran-comment-region start end t))
 
@@ -1117,7 +1114,7 @@ Auto-indent does not happen if a numeric ARG is used."
                  (eq ?\t (char-after (line-beginning-position)))
                  (not (or (eq last-command 'fortran-indent-line)
                           (eq last-command
-                              'fortran-indent-new-line))))
+                              'reindent-then-newline-and-indent))))
             (save-excursion
               (re-search-backward "[^ \t0-9]"
                                   (line-beginning-position)
@@ -1586,10 +1583,6 @@ Return point or nil."
         (if (< (current-column) cfi)
             (move-to-column cfi)))))
 
-;; Historically this was a separate function which advertised itself
-;; as reindenting but only did so where `most likely to be necessary'.
-(defalias 'fortran-indent-new-line 'reindent-then-newline-and-indent)
-
 (defun fortran-indent-subprogram ()
   "Properly indent the Fortran subprogram containing point."
   (interactive "*")
@@ -1926,9 +1919,6 @@ If ALL is nil, only match comments that start in column > 0."
           ;; Result.
           (nth 3 parse-state))))))
 
-;; From old version.
-(defalias 'fortran-auto-fill-mode 'auto-fill-mode)
-
 (defun fortran-fill ()
   "Fill the current line at an appropriate point(s)."
   (let* ((auto-fill-function #'fortran-auto-fill)
@@ -2213,8 +2203,10 @@ arg DO-SPACE prevents stripping the whitespace."
      :style toggle :help "Expand abbreviations while typing in this buffer"]
     ["Add Imenu Menu" imenu-add-menubar-index
      :active   (not (lookup-key (current-local-map) [menu-bar index]))
-     :included (fboundp 'imenu-add-to-menubar)
      :help "Add an index menu to the menu-bar"]))
+
+(define-obsolete-function-alias 'fortran-indent-new-line #'reindent-then-newline-and-indent "29.1")
+(define-obsolete-function-alias 'fortran-auto-fill-mode #'auto-fill-mode "29.1")
 
 (provide 'fortran)
 

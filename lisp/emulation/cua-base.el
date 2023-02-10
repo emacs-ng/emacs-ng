@@ -1,6 +1,6 @@
 ;;; cua-base.el --- emulate CUA key bindings  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 
 ;; Author: Kim F. Storm <storm@cua.dk>
 ;; Keywords: keyboard emulations convenience cua
@@ -396,17 +396,17 @@ and after the region marked by the rectangle to search."
 
 (defcustom cua-rectangle-mark-key [(control return)]
   "Global key used to toggle the cua rectangle mark."
-  :set #'(lambda (symbol value)
-	   (set symbol value)
-	   (when (and (boundp 'cua--keymaps-initialized)
-		      cua--keymaps-initialized)
-	     (define-key cua-global-keymap value
-	       #'cua-set-rectangle-mark)
-	     (when (boundp 'cua--rectangle-keymap)
-	       (define-key cua--rectangle-keymap value
-		 #'cua-clear-rectangle-mark)
-	       (define-key cua--region-keymap value
-		 #'cua-toggle-rectangle-mark))))
+  :set (lambda (symbol value)
+         (set symbol value)
+         (when (and (boundp 'cua--keymaps-initialized)
+                    cua--keymaps-initialized)
+           (define-key cua-global-keymap value
+             #'cua-set-rectangle-mark)
+           (when (boundp 'cua--rectangle-keymap)
+             (define-key cua--rectangle-keymap value
+               #'cua-clear-rectangle-mark)
+             (define-key cua--region-keymap value
+               #'cua-toggle-rectangle-mark))))
   :type 'key-sequence)
 
 (defcustom cua-rectangle-modifier-key 'meta
@@ -698,6 +698,11 @@ a cons (TYPE . COLOR), then both properties are affected."
 Repeating prefix key when region is active works as a single prefix key."
   (interactive)
   (cua--prefix-override-replay 0))
+
+;; These aliases are so that we can look up the commands and find the
+;; correct keys when generating menus.
+(defalias 'cua-cut-handler #'cua--prefix-override-handler)
+(defalias 'cua-copy-handler #'cua--prefix-override-handler)
 
 (defun cua--prefix-repeat-handler ()
   "Repeating prefix key when region is active works as a single prefix key."
@@ -1139,15 +1144,15 @@ If ARG is the atom `-', scroll upward by nearly full screen."
 	    '(self-insert-command))
       def nil))
 
-(defvar cua-global-keymap (make-sparse-keymap)
-  "Global keymap for `cua-mode'; users may add to this keymap.")
+(defvar-keymap cua-global-keymap
+  :doc "Global keymap for `cua-mode'; users may add to this keymap.")
 
-(defvar cua--cua-keys-keymap (make-sparse-keymap))
-(defvar cua--prefix-override-keymap (make-sparse-keymap))
-(defvar cua--prefix-repeat-keymap (make-sparse-keymap))
-(defvar cua--global-mark-keymap (make-sparse-keymap)) ; Initialized when cua-gmrk.el is loaded
-(defvar cua--rectangle-keymap (make-sparse-keymap))   ; Initialized when cua-rect.el is loaded
-(defvar cua--region-keymap (make-sparse-keymap))
+(defvar-keymap cua--cua-keys-keymap)
+(defvar-keymap cua--prefix-override-keymap)
+(defvar-keymap cua--prefix-repeat-keymap)
+(defvar-keymap cua--global-mark-keymap) ; Initialized when cua-gmrk.el is loaded
+(defvar-keymap cua--rectangle-keymap)   ; Initialized when cua-rect.el is loaded
+(defvar-keymap cua--region-keymap)
 
 (defvar cua--ena-cua-keys-keymap nil)
 (defvar cua--ena-prefix-override-keymap nil)
@@ -1258,10 +1263,8 @@ If ARG is the atom `-', scroll upward by nearly full screen."
     (define-key cua--cua-keys-keymap [(meta v)]
       #'delete-selection-repeat-replace-region))
 
-  (define-key cua--prefix-override-keymap [(control x)]
-    #'cua--prefix-override-handler)
-  (define-key cua--prefix-override-keymap [(control c)]
-    #'cua--prefix-override-handler)
+  (define-key cua--prefix-override-keymap [(control x)] #'cua-cut-handler)
+  (define-key cua--prefix-override-keymap [(control c)] #'cua-copy-handler)
 
   (define-key cua--prefix-repeat-keymap [(control x) (control x)]
     #'cua--prefix-repeat-handler)

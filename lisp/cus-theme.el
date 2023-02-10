@@ -1,6 +1,6 @@
 ;;; cus-theme.el --- custom theme creation user interface  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Alex Schroeder <alex@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -32,17 +32,15 @@
 (eval-when-compile
   (require 'wid-edit))
 
-(defvar custom-new-theme-mode-map
-  (let ((map (make-keymap)))
-    (set-keymap-parent map (make-composed-keymap widget-keymap
-						 special-mode-map))
-    (suppress-keymap map)
-    (define-key map "\C-x\C-s" 'custom-theme-write)
-    (define-key map "q" 'Custom-buffer-done)
-    (define-key map "n" 'widget-forward)
-    (define-key map "p" 'widget-backward)
-    map)
-  "Keymap for `custom-new-theme-mode'.")
+(defvar-keymap custom-new-theme-mode-map
+  :doc "Keymap for `custom-new-theme-mode'."
+  :full t
+  :suppress t
+  :parent (make-composed-keymap widget-keymap special-mode-map)
+  "C-x C-s" #'custom-theme-write
+  "q"       #'Custom-buffer-done
+  "n"       #'widget-forward
+  "p"       #'widget-backward)
 
 (define-derived-mode custom-new-theme-mode nil "Custom-Theme"
   "Major mode for editing Custom themes.
@@ -66,13 +64,17 @@ Do not call this mode function yourself.  It is meant for internal use."
   variable-pitch escape-glyph homoglyph
   minibuffer-prompt highlight region
   shadow secondary-selection trailing-whitespace
-  font-lock-builtin-face font-lock-comment-delimiter-face
-  font-lock-comment-face font-lock-constant-face
-  font-lock-doc-face font-lock-doc-markup-face font-lock-function-name-face
+  font-lock-bracket-face font-lock-builtin-face
+  font-lock-comment-delimiter-face font-lock-comment-face
+  font-lock-constant-face font-lock-delimiter-face
+  font-lock-doc-face font-lock-doc-markup-face
+  font-lock-escape-face font-lock-function-name-face
   font-lock-keyword-face font-lock-negation-char-face
-  font-lock-preprocessor-face font-lock-regexp-grouping-backslash
-  font-lock-regexp-grouping-construct font-lock-string-face
-  font-lock-type-face font-lock-variable-name-face
+  font-lock-number-face font-lock-misc-punctuation-face
+  font-lock-operator-face font-lock-preprocessor-face
+  font-lock-property-face font-lock-punctuation-face
+  font-lock-regexp-grouping-backslash font-lock-regexp-grouping-construct
+  font-lock-string-face font-lock-type-face font-lock-variable-name-face
   font-lock-warning-face button link link-visited fringe
   header-line tooltip mode-line mode-line-buffer-id
   mode-line-emphasis mode-line-highlight mode-line-inactive
@@ -142,7 +144,7 @@ remove them from your saved Custom file.\n\n")
     (widget-create 'push-button
 		   :tag " Revert "
 		   :help-echo "Revert this buffer to its original state."
-		   :action (lambda (&rest ignored) (revert-buffer)))
+                   :action (lambda (&rest _ignored) (revert-buffer)))
 
     (widget-insert "\n\nTheme name : ")
     (setq custom-theme-name
@@ -496,7 +498,7 @@ It includes all faces in list FACES."
       (princ (substitute-command-keys " in `"))
       (help-insert-xref-button (file-name-nondirectory fn)
 			       'help-theme-def fn)
-      (princ (substitute-command-keys "'")))
+      (princ (substitute-quotes "'")))
     (princ ".\n")
     (if (custom-theme-p theme)
 	(progn
@@ -534,17 +536,15 @@ It includes all faces in list FACES."
   :type 'boolean
   :group 'custom-buffer)
 
-(defvar custom-theme-choose-mode-map
-  (let ((map (make-keymap)))
-    (set-keymap-parent map (make-composed-keymap widget-keymap
-						 special-mode-map))
-    (suppress-keymap map)
-    (define-key map "\C-x\C-s" 'custom-theme-save)
-    (define-key map "n" 'widget-forward)
-    (define-key map "p" 'widget-backward)
-    (define-key map "?" 'custom-describe-theme)
-    map)
-  "Keymap for `custom-theme-choose-mode'.")
+(defvar-keymap custom-theme-choose-mode-map
+  :doc "Keymap for `custom-theme-choose-mode'."
+  :full t
+  :suppress t
+  :parent (make-composed-keymap widget-keymap special-mode-map)
+  "C-x C-s" #'custom-theme-save
+  "n"       #'widget-forward
+  "p"       #'widget-backward
+  "?"       #'custom-describe-theme)
 
 (define-derived-mode custom-theme-choose-mode special-mode "Themes"
   "Major mode for selecting Custom themes.
@@ -627,22 +627,24 @@ Theme files are named *-theme.el in `"))
   (let ((help-echo "mouse-2: Enable this theme for this session")
 	widget)
     (dolist (theme (custom-available-themes))
-      (setq widget (widget-create 'checkbox
-				  :value (custom-theme-enabled-p theme)
-				  :theme-name theme
-				  :help-echo help-echo
-                                  :action #'custom-theme-checkbox-toggle))
-      (push (cons theme widget) custom--listed-themes)
-      (widget-create-child-and-convert widget 'push-button
-				       :button-face-get 'ignore
-				       :mouse-face-get 'ignore
-				       :value (format " %s" theme)
-                                       :action #'widget-parent-action
-				       :help-echo help-echo)
-      (widget-insert " -- "
-		     (propertize (custom-theme-summary theme)
-				 'face 'shadow)
-		     ?\n)))
+      ;; Don't list obsolete themes.
+      (unless (get theme 'byte-obsolete-info)
+        (setq widget (widget-create 'checkbox
+				    :value (custom-theme-enabled-p theme)
+				    :theme-name theme
+				    :help-echo help-echo
+                                    :action #'custom-theme-checkbox-toggle))
+        (push (cons theme widget) custom--listed-themes)
+        (widget-create-child-and-convert widget 'push-button
+				         :button-face-get 'ignore
+				         :mouse-face-get 'ignore
+				         :value (format " %s" theme)
+                                         :action #'widget-parent-action
+				         :help-echo help-echo)
+        (widget-insert " -- "
+		       (propertize (custom-theme-summary theme)
+				   'face 'shadow)
+		       ?\n))))
   (goto-char (point-min))
   (widget-setup))
 

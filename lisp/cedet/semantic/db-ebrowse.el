@@ -1,6 +1,6 @@
 ;;; semantic/db-ebrowse.el --- Semanticdb backend using ebrowse.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2005-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2023 Free Software Foundation, Inc.
 
 ;; Authors: Eric M. Ludlam <zappo@gnu.org>
 ;;	Joakim Verona
@@ -275,7 +275,7 @@ For instance: /home/<username>/.semanticdb/!usr!include!BROWSE"
       (let ((ans nil)
 	    (efcn (symbol-function 'ebrowse-show-progress)))
         (fset 'ebrowse-show-progress (lambda (&rest _junk) nil))
-	(unwind-protect ;; Protect against errors w/ ebrowse
+        (unwind-protect ; Protect against errors with ebrowse
 	    (setq ans (list B (ebrowse-read)))
 	  ;; These items must always happen
 	  (erase-buffer)

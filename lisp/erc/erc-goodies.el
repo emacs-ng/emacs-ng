@@ -1,9 +1,9 @@
 ;;; erc-goodies.el --- Collection of ERC modules  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Jorgen Schaefer <forcer@forcix.cx>
-;; Maintainer: Amin Bandali <bandali@gnu.org>
+;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
 
 ;; Most code is taken verbatim from erc.el, see there for the original
 ;; authors.
@@ -29,9 +29,23 @@
 
 ;;; Code:
 
-(require 'erc)
-
 ;;; Imenu support
+
+(eval-when-compile (require 'cl-lib))
+(require 'erc-common)
+
+(defvar erc-controls-highlight-regexp)
+(defvar erc-controls-remove-regexp)
+(defvar erc-input-marker)
+(defvar erc-insert-marker)
+(defvar erc-server-process)
+(defvar erc-modules)
+(defvar erc-log-p)
+
+(declare-function erc-buffer-list "erc" (&optional predicate proc))
+(declare-function erc-error "erc" (&rest args))
+(declare-function erc-extract-command-from-line "erc" (line))
+(declare-function erc-beg-of-input-line "erc" nil)
 
 (defun erc-imenu-setup ()
   "Setup Imenu support in an ERC buffer."
@@ -137,7 +151,7 @@ Put this function on `erc-insert-post-hook' and/or `erc-send-post-hook'."
     (goto-char (point-max))))
 
 (defun erc-move-to-prompt-setup ()
-  "Initialize the move-to-prompt module for XEmacs."
+  "Initialize the move-to-prompt module."
   (add-hook 'pre-command-hook #'erc-move-to-prompt nil t))
 
 ;;; Keep place in unvisited channels

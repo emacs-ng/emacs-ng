@@ -25,7 +25,7 @@
 This is version @value{VERSION}@value{EDITION} of @cite{The MH-E
 Manual}, last updated @value{UPDATED}.
 
-Copyright @copyright{} 1995, 2001--2003, 2005--2022 Free Software
+Copyright @copyright{} 1995, 2001--2003, 2005--2023 Free Software
 Foundation, Inc.
 
 @c This dual license has been agreed upon by the FSF.
@@ -213,15 +213,12 @@ more niceties about GNU Emacs and MH@. Now I'm fully hooked on both of
 them.
 
 The MH-E package is distributed with Emacs@footnote{Version
-@value{VERSION} of MH-E appeared in Emacs 24.4. It is supported in GNU
-Emacs 23 and higher, as well as XEmacs 21.4.22 and 21.5.31. MH-E is
-known not to work with GNU Emacs versions 20 and below, and XEmacs
-version 21.5.9--21.5.16. It is compatible with MH versions 6.8.4 and
-higher, all versions of nmh, and GNU mailutils 1.0 and higher}, so you
-shouldn't have to do anything special to use it. Gnus is also
-required; version 5.10 or higher is recommended. This manual covers
-MH-E version @value{VERSION}. To help you decide which version you
-have, see @ref{Getting Started}.
+@value{VERSION} of MH-E appeared in Emacs 24.4. It is compatible with
+MH versions 6.8.4 and higher, all versions of nmh, and GNU mailutils
+1.0 and higher}, so you shouldn't have to do anything special to use
+it. Gnus is also required; it is bundled with Emacs. This manual
+covers MH-E version @value{VERSION}. To help you decide which version
+you have, see @ref{Getting Started}.
 
 @findex help-with-tutorial
 @kindex C-h t
@@ -333,8 +330,7 @@ Press the @key{TAB} key.
 Press the @key{DELETE} key.
 @c -------------------------
 @item @key{BS}
-Press the @key{BACKSPACE} key@footnote{If you are using Version 20 or
-earlier of Emacs, you will need to use the @key{DEL} key.}.
+Press the @key{BACKSPACE} key.
 @end table
 
 @cindex Emacs, prefix argument
@@ -797,7 +793,7 @@ You should see the scan line for your message, and perhaps others. Use
 
 @cartouche
 @smallexample
-  3 t08/24 root       received fax files on Wed Aug 24 11:00:13 PDT 1
+  3 t08/24 root       received fax files on Wed Aug 24 11:00:13 -0700 1
 # 4+t08/24 To:wohler  Test<<This is a test message to get the wheels
 
 -:%%  @{+inbox/select@} 4 msgs (1-4)   Bot L4     (MH-Folder Show)---------
@@ -1018,16 +1014,16 @@ Send multimedia messages (@pxref{Adding Attachments}).
 Read HTML messages (@pxref{HTML}).
 @c -------------------------
 @item
-Use aliases and identities (see @ref{Aliases}, @pxref{Identities}).
+Use aliases and identities (@pxref{Aliases}, @pxref{Identities}).
 @c -------------------------
 @item
-Create different views of your mail (see @ref{Threading}, @pxref{Limits}).
+Create different views of your mail (@pxref{Threading}, @pxref{Limits}).
 @c -------------------------
 @item
 Deal with junk mail (@pxref{Junk}).
 @c -------------------------
 @item
-Handle signed and encrypted messages (see @ref{Reading PGP},
+Handle signed and encrypted messages (@pxref{Reading PGP},
 @pxref{Sending PGP}).
 @c -------------------------
 @item
@@ -1038,7 +1034,7 @@ Process mail that was sent with @command{shar} or @command{uuencode}
 Use sequences conveniently (@pxref{Sequences}).
 @c -------------------------
 @item
-Use the speedbar, tool bar, and menu bar (see @ref{Speedbar}, see @ref{Tool
+Use the speedbar, tool bar, and menu bar (@pxref{Speedbar}, @pxref{Tool
 Bar}, @pxref{Menu Bar}).
 @c -------------------------
 @item
@@ -1482,15 +1478,13 @@ and click on the @samp{INS} button. Enter a @samp{Spool File} of
 Binding} of @samp{m}.
 
 @cindex @command{emacsclient}
-@cindex @command{gnuclient}
 @cindex @command{xbuffy}
 @cindex @samp{gnuserv}
 @cindex Unix commands, @command{emacsclient}
-@cindex Unix commands, @command{gnuclient}
 @cindex Unix commands, @command{xbuffy}
 
 You can use @command{xbuffy} to automate the incorporation of this
-mail using the Emacs 23 command @command{emacsclient} as follows:
+mail using the Emacs command @command{emacsclient} as follows:
 
 @smallexample
 box ~/mail/mh-e
@@ -1500,9 +1494,6 @@ box ~/mail/mh-e
     headertime 0
     command emacsclient --eval '(mh-inc-spool-mh-e)'
 @end smallexample
-
-In XEmacs, the command @command{gnuclient} is used in a similar
-fashion.
 
 @findex mh-inc-folder
 @kindex i
@@ -2090,8 +2081,7 @@ and @samp{X-Image-URL:} will be used. The option
 This feature will be turned on by default if your system supports it.
 
 The first header field used, if present, is the Gnus-specific
-@samp{Face:} field@footnote{The @samp{Face:} field appeared in GNU
-Emacs 21 and XEmacs. For more information, see
+@samp{Face:} field@footnote{For more information, see
 @uref{https://quimby.gnus.org/circus/face/}.}.
 
 @cindex @command{uncompface}
@@ -2104,12 +2094,9 @@ Emacs 21 and XEmacs. For more information, see
 Next is the traditional @samp{X-Face:} header field@footnote{The
 display of this field requires the
 @uref{ftp://ftp.cs.indiana.edu/pub/faces/compface/compface.tar.Z,
-@command{uncompface} program}. Recent versions of XEmacs have internal
-support for @samp{X-Face:} images. If your version of XEmacs does not,
-then you'll need both @command{uncompface} and the
-@uref{http://www.jpl.org/ftp/pub/elisp/, @samp{x-face} package}.}. MH-E
-renders the foreground and background of the image using the
-associated attributes of the face @code{mh-show-xface}.
+@command{uncompface} program}.} MH-E renders the foreground and
+background of the image using the associated attributes of the face
+@code{mh-show-xface}.
 
 @cindex @command{convert}
 @cindex @command{wget}
@@ -2562,13 +2549,6 @@ produces pretty nice output, and it highlights links. It renders
 @samp{&ndash;} and @samp{&reg;} okay. It sometimes fails to wrap lines
 properly. It always downloads remote images.
 @c -------------------------
-@cindex browser, @samp{html2text}
-@cindex @samp{html2text}
-@item @samp{html2text}
-The @samp{html2text} browser requires an external program. Some users
-have reported problems with it, such as filling the entire message as
-if it were one paragraph, or displaying chunks of raw HTML.
-@c -------------------------
 @cindex browser, @samp{links}
 @cindex @samp{links}
 @item @samp{links}
@@ -2728,8 +2708,7 @@ Drafts}).
 @cindex signed messages
 
 You can read encrypted or signed PGP or GPG messages with
-MH-E@footnote{This feature depends on post-5.10 versions of Gnus.
-@cite{MIME Security with OpenPGP} is documented in
+MH-E@footnote{@cite{MIME Security with OpenPGP} is documented in
 @uref{https://www.rfc-editor.org/rfc/rfc3156.txt, RFC 3156}. However,
 MH-E can also decrypt old-style PGP messages that are not in MIME
 format.}. This section assumes that you already have a good
@@ -2829,24 +2808,6 @@ The appearance of the buttons is controlled by the faces
 @code{mh-show-pgg-good}, @code{mh-show-pgg-bad}, and
 @code{mh-show-pgg-unknown} depending on the validity of the signature.
 The latter is used whether the signature is unknown or untrusted.
-
-@cindex @samp{pgg} customization group
-@cindex PGG
-@cindex customization group, @samp{pgg}
-
-The @samp{pgg} customization group may have some settings which may
-interest you.
-@iftex
-See @cite{The PGG Manual}.
-@end iftex
-@ifinfo
-@xref{Top, , The PGG Manual, pgg, The PGG Manual}.
-@end ifinfo
-@ifhtml
-See
-@uref{https://www.gnu.org/software/emacs/manual/pgg.html,
-@cite{The PGG Manual}}.
-@end ifhtml
 
 @node Printing
 @section Printing Your Mail
@@ -3121,7 +3082,7 @@ retracted---without question@footnote{In previous versions of MH-E,
 this option suppressed the confirmation in @code{mh-kill-folder}.
 Since this kept most users from setting this option,
 @code{mh-kill-folder} was modified in version 6.0 to always ask for
-confirmation subject to @code{mh-kill-folder-suppress-prompt-hook}.
+confirmation subject to @code{mh-kill-folder-suppress-prompt-functions}.
 @xref{Folders}.}.
 
 @cindex MH-Folder mode
@@ -3403,7 +3364,7 @@ Hook run by q before quitting MH-E (default: @code{nil}).
 Hook run by @code{mh-folder-mode} when visiting a new folder (default:
 @code{nil}).
 @c -------------------------
-@item mh-kill-folder-suppress-prompt-hook
+@item mh-kill-folder-suppress-prompt-functions
 Abnormal hook run at the beginning of @code{mh-kill-folder} (default:
 @code{'mh-search-p}).
 @c -------------------------
@@ -5594,33 +5555,6 @@ variety of mail security mechanisms. The default is @samp{PGP (MIME)}
 if it is supported; otherwise, the default is @samp{None}. Other
 mechanisms include vanilla @samp{PGP} and @samp{S/MIME}.
 
-@cindex @samp{pgg} customization group
-@cindex PGG
-@cindex customization group, @samp{pgg}
-
-The @samp{pgg} customization group may have some settings which may
-interest you.
-@iftex
-See @cite{The PGG Manual}.
-@end iftex
-@ifinfo
-@xref{Top, , The PGG Manual, pgg, The PGG Manual}.
-@end ifinfo
-@ifhtml
-See
-@uref{https://www.gnu.org/software/emacs/manual/pgg.html,
-@cite{The PGG Manual}}.
-@end ifhtml
-
-@cindex header field, @samp{Fcc}
-@cindex @samp{Fcc} header field
-@vindex pgg-encrypt-for-me
-
-In particular, I turn on the option @code{pgg-encrypt-for-me} so that
-all messages I encrypt are encrypted with my public key as well. If
-you keep a copy of all of your outgoing mail with a @samp{Fcc:} header
-field, this setting is vital so that you can read the mail you write!
-
 @node Checking Recipients
 @section Checking Recipients
 
@@ -6448,17 +6382,9 @@ too long to list here).
 @item mh-tool-bar-search-function
 Function called by the tool bar search button (default:
 @code{mh-search}).
-@c -------------------------
-@item mh-xemacs-tool-bar-position
-Tool bar location (default: @samp{Same As Default Tool Bar}).
-@c -------------------------
-@item mh-xemacs-use-tool-bar-flag
-If @samp{on}, use tool bar (default: @samp{on}, if supported).
 @end vtable
 
-In GNU Emacs, icons for some of MH-E's functions are added to the tool
-bar. In XEmacs, you have the opportunity to create a separate tool bar for
-the MH-E icons.
+Icons for some of MH-E's functions are added to the tool bar.
 
 @vindex mh-tool-bar-folder-buttons
 @vindex mh-tool-bar-letter-buttons
@@ -6479,24 +6405,6 @@ option @code{mh-tool-bar-search-function}. By default, this is set to
 @code{mh-search}. @xref{Searching}. You can also choose @samp{Other
 Function} from the @samp{Value Menu} and enter a function of your own
 choosing.
-
-@vindex mh-xemacs-use-tool-bar-flag
-
-XEmacs provides a couple of extra options. The first,
-@code{mh-xemacs-use-tool-bar-flag}, controls whether to show the MH-E
-icons at all. By default, this option is turned on if the window
-system supports tool bars. If your system doesn't support tool bars,
-then you won't be able to turn on this option.
-
-@vindex mh-xemacs-tool-bar-position
-
-The second extra option is @code{mh-xemacs-tool-bar-position} which
-controls the placement of the tool bar along the four edges of the
-frame. You can choose from one of @samp{Same As Default Tool Bar},
-@samp{Top}, @samp{Bottom}, @samp{Left}, or @samp{Right}. If this
-variable is set to anything other than @samp{Same As Default Tool Bar}
-and the default tool bar is in a different location, then two tool
-bars will be displayed: the MH-E tool bar and the default tool bar.
 
 @node Searching
 @chapter Searching Through Messages
@@ -7632,8 +7540,8 @@ Allowlisted message face
 @cindex spam filters, bogofilter
 
 MH-E depends on @uref{https://spamassassin.apache.org/, SpamAssassin},
-@uref{http://bogofilter.sourceforge.net/, bogofilter}, or
-@uref{http://spamprobe.sourceforge.net/, SpamProbe} to throw the dreck
+@uref{https://bogofilter.sourceforge.net/, bogofilter}, or
+@uref{https://spamprobe.sourceforge.net/, SpamProbe} to throw the dreck
 away. This chapter describes briefly how to configure these programs
 to work well with MH-E and how to use MH-E's interface that provides
 continuing education for these programs.
@@ -7813,7 +7721,7 @@ done by adding the following to your @file{crontab}:
 
 Bogofilter is a Bayesian spam filtering program. Get it from your
 local distribution or from the
-@uref{http://bogofilter.sourceforge.net/, bogofilter web site}.
+@uref{https://bogofilter.sourceforge.net/, bogofilter web site}.
 
 Bogofilter is taught by running:
 
@@ -7883,7 +7791,7 @@ bogofilter.
 @cindex spam filters, SpamProbe
 
 SpamProbe is a Bayesian spam filtering program. Get it from your local
-distribution or from the @uref{http://spamprobe.sourceforge.net,
+distribution or from the @uref{https://spamprobe.sourceforge.net,
 SpamProbe web site}.
 
 To use SpamProbe, add the following recipes to @file{~/.procmailrc}:
@@ -8625,9 +8533,7 @@ If you're on a mailing list that is so voluminous that it is
 impossible to read every message, it usually better to read the
 mailing list like a newsgroup in a news reader. Emacs has a built-in
 newsreader called Gnus. The remainder of this appendix talks about how
-to use Gnus with an MH message store. The version of Gnus that was
-used to prepare this manual was 5.10. Versions 5.8 through 5.10 should
-work but versions prior to 5.8 use different options.
+to use Gnus with an MH message store.
 
 This table contains a list of Gnus options that you will have to
 modify. Note that for them to become accessible, you'll have to load
@@ -8727,7 +8633,7 @@ via SourceForge (@pxref{Bug Reports}).
 @cindex FAQ
 @cindex MH FAQ
 
-The article @uref{http://www.newt.com/faq/mh.html, @cite{MH Frequently
+The article @uref{https://www.newt.com/faq/mh.html, @cite{MH Frequently
 Asked Questions (FAQ) with Answers}} appears monthly in the newsgroup
 @samp{comp.mail.mh}. While very little is there that deals with MH-E
 specifically, there is an incredible wealth of material about MH
@@ -8747,28 +8653,11 @@ question, file a ticket and your question will become a new FAQ!
 @cindex getting MH-E
 @cindex obtaining MH-E
 
-Because MH-E is undergoing a phase of sustained growth, the version of
-MH-E in your Emacs is likely to be out of date although it is most
-likely to be more up to date than the copy that comes with the MH
-distribution in @file{miscellany/mh-e}.
-
-@cindex change log
-@cindex release notes
-
-New MH-E releases are always available for downloading at
-@uref{https://sourceforge.net/projects/mh-e/files/, SourceForge}
-before they appear in an Emacs release. You can read the release notes
-on that page to determine if the given release of MH-E is already
-installed in your version of Emacs. You can also read the change log
-to see if you are interested in what the given release of MH-E has to
-offer (although we have no doubt that you will be extremely interested
-in all new releases).
-
-@cindex Debian
-
-If you use Debian, you can install the Debian
-@uref{https://packages.debian.org/unstable/mail/mh-e, mh-e package}
-instead.
+Since MH-E 8.6 was released in 2016, its development migrated to the
+Emacs repository. MH-E is now only supported in the version of Emacs
+in which it appears. Old releases of MH-E are still available for
+download at @uref{https://sourceforge.net/projects/mh-e/files/,
+SourceForge}.
 
 @cindex files, @samp{MH-E-NEWS}
 @cindex files, @samp{README}

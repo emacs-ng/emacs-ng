@@ -1,6 +1,6 @@
 ;;; calc-tests.el --- tests for calc                 -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2014-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2023 Free Software Foundation, Inc.
 
 ;; Author: Leo Liu <sdl.web@gmail.com>
 ;; Keywords: maint
@@ -38,7 +38,7 @@
 ;; be used to compare such calc expressions.
 (defun calc-tests-equal (a b)
   "Like `equal' but allow for different representations of numbers.
-For example: (calc-tests-equal 10 '(float 1 1)) => t.
+For example: (calc-tests-equal 10 \\='(float 1 1)) => t.
 A and B should be calc expressions."
   (cond ((math-numberp a)
 	 (and (math-numberp b)
@@ -445,7 +445,7 @@ An existing calc stack is reused, otherwise a new one is created."
        (t  ; n<k<0
         0))))
    ((natnump k)
-    ;; Generalisation for any n, integral k≥0: use falling product
+    ;; Generalization for any n, integral k≥0: use falling product
     (/ (apply '* (number-sequence n (- n (1- k)) -1))
        (calc-tests--fac k)))
    (t (error "Case not covered"))))
@@ -810,9 +810,11 @@ An existing calc stack is reused, otherwise a new one is created."
   (should (equal (calcFunc-test6 3) (* (* 3 2) (- 3 1))))
   (should (equal (calcFunc-test7 3) (* 3 2))))
 
+(ert-deftest calc-nth-root ()
+  ;; bug#51209
+  (let* ((calc-display-working-message nil)
+         (x (calc-tests--calc-to-number (math-pow 8 '(frac 1 6)))))
+    (should (< (abs (- x (sqrt 2.0))) 1.0e-10))))
+
 (provide 'calc-tests)
 ;;; calc-tests.el ends here
-
-;; Local Variables:
-;; bug-reference-url-format: "https://debbugs.gnu.org/%s"
-;; End:

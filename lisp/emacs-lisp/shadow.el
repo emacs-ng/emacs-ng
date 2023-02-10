@@ -1,6 +1,6 @@
 ;;; shadow.el --- locate Emacs Lisp file shadowings  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Terry Jones <terry@santafe.edu>
 ;; Keywords: lisp
@@ -128,11 +128,8 @@ See the documentation for `list-load-path-shadows' for further information."
 
             (if (setq orig-dir
                       (assoc file files
-                             (when dir-case-insensitive
-                               (lambda (f1 f2)
-                                 (eq (compare-strings f1 nil nil
-                                                      f2 nil nil t)
-                                     t)))))
+                             (and dir-case-insensitive
+                                  #'string-equal-ignore-case)))
 		;; This file was seen before, we have a shadowing.
 		;; Report it unless the files are identical.
                 (let ((base1 (concat (cdr orig-dir) "/" (car orig-dir)))
@@ -150,9 +147,6 @@ See the documentation for `list-load-path-shadows' for further information."
 	      (push (cons file dir) files))))))
     ;; Return the list of shadowings.
     shadows))
-
-(define-obsolete-function-alias 'find-emacs-lisp-shadows
-  'load-path-shadows-find "23.3")
 
 ;; Return true if neither file exists, or if both exist and have identical
 ;; contents.
@@ -180,12 +174,11 @@ See the documentation for `list-load-path-shadows' for further information."
      . (1 font-lock-warning-face)))
   "Keywords to highlight in `load-path-shadows-mode'.")
 
-(define-derived-mode load-path-shadows-mode fundamental-mode "LP-Shadows"
+(define-derived-mode load-path-shadows-mode special-mode "LP-Shadows"
   "Major mode for `load-path' shadows buffer."
   (setq-local font-lock-defaults
               '((load-path-shadows-font-lock-keywords)))
-  (setq buffer-undo-list t
-	buffer-read-only t))
+  (setq buffer-undo-list t))
 
 ;; TODO use text-properties instead, a la dired.
 (define-button-type 'load-path-shadows-find-file

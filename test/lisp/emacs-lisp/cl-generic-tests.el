@@ -1,6 +1,6 @@
 ;;; cl-generic-tests.el --- Tests for cl-generic.el functionality  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2023 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 
@@ -27,7 +27,7 @@
 (require 'edebug)
 
 ;; Don't indirectly require `cl-lib' at run-time.
-(eval-when-compile (require 'ert))
+(require 'ert)
 (declare-function ert--should-signal-hook "ert")
 (declare-function ert--signal-should-execution "ert")
 (declare-function ert-fail "ert")
@@ -200,9 +200,14 @@
   (fmakunbound 'cl--generic-1)
   (cl-defgeneric cl--generic-1 (x y))
   (cl-defmethod cl--generic-1 ((x t) y)
-    (list x y (cl-next-method-p)))
+    (list x y
+          (with-suppressed-warnings ((obsolete cl-next-method-p))
+            (cl-next-method-p))))
   (cl-defmethod cl--generic-1 ((_x (eql 4)) _y)
-    (cl-list* "quatre" (cl-next-method-p) (cl-call-next-method)))
+    (cl-list* "quatre"
+              (with-suppressed-warnings ((obsolete cl-next-method-p))
+                (cl-next-method-p))
+              (cl-call-next-method)))
   (should (equal (cl--generic-1 4 5) '("quatre" t 4 5 nil))))
 
 (ert-deftest cl-generic-test-12-context ()
@@ -291,6 +296,28 @@ Edebug symbols (Bug#42672)."
                      'cl-defgeneric/edebug/method/1
                      (intern "cl-defgeneric/edebug/method/2 (number)")
                      'cl-defgeneric/edebug/method/2))))))
+
+(cl-defgeneric cl-generic-tests--acc (x &optional y)
+  (declare (advertised-calling-convention (x) "671.2")))
+
+(cl-defmethod cl-generic-tests--acc ((x float)) (+ x 5.0))
+
+(ert-deftest cl-generic-tests--advertised-calling-convention-bug58563 ()
+  (should (equal (get-advertised-calling-convention
+                  (indirect-function 'cl-generic-tests--acc))
+                 '(x)))
+  (should
+   (condition-case err
+       (let ((lexical-binding t)
+             (byte-compile-debug t)
+             (byte-compile-error-on-warn t))
+         (byte-compile '(cl-defmethod cl-generic-tests--acc ((x list))
+                          (declare (advertised-calling-convention (y) "1.1"))
+                          (cons x '(5 5 5 5 5))))
+         nil)
+     (error
+      (and (eq 'error (car err))
+           (string-match "Stray.*declare" (cadr err)))))))
 
 (provide 'cl-generic-tests)
 ;;; cl-generic-tests.el ends here

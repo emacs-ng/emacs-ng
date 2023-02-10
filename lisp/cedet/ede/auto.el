@@ -1,6 +1,6 @@
 ;;; ede/auto.el --- Autoload features for EDE  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -234,6 +234,7 @@ type is required and the load function used.")
     (display-buffer b)
  ))
 
+;;;###autoload
 (defun ede-add-project-autoload (projauto &optional flag)
   "Add PROJAUTO, an EDE autoload definition to `ede-project-class-files'.
 Optional argument FLAG indicates how this autoload should be

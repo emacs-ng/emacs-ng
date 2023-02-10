@@ -1,6 +1,6 @@
 ;;; log-view.el --- Major mode for browsing revision log histories -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: tools, vc
@@ -110,6 +110,7 @@
 ;;; Code:
 
 (require 'pcvs-util)
+(require 'easy-mmode)
 (autoload 'vc-find-revision "vc")
 (autoload 'vc-diff-internal "vc")
 
@@ -121,39 +122,19 @@
   :group 'pcl-cvs
   :prefix "log-view-")
 
-(easy-mmode-defmap log-view-mode-map
-  '(
-    ("-"	. 	negative-argument)
-    ("0"	.	digit-argument)
-    ("1"	.	digit-argument)
-    ("2"	.	digit-argument)
-    ("3"	.	digit-argument)
-    ("4"	.	digit-argument)
-    ("5"	.	digit-argument)
-    ("6"	.	digit-argument)
-    ("7"	.	digit-argument)
-    ("8"	.	digit-argument)
-    ("9"	.	digit-argument)
-
-    ("\C-m" . log-view-toggle-entry-display)
-    ("m" . log-view-toggle-mark-entry)
-    ("e" . log-view-modify-change-comment)
-    ("d" . log-view-diff)
-    ("=" . log-view-diff)
-    ("D" . log-view-diff-changeset)
-    ("a" . log-view-annotate-version)
-    ("f" . log-view-find-revision)
-    ("n" . log-view-msg-next)
-    ("p" . log-view-msg-prev)
-    ("\t" . log-view-msg-next)
-    ([backtab] . log-view-msg-prev)
-    ("N" . log-view-file-next)
-    ("P" . log-view-file-prev)
-    ("\M-n" . log-view-file-next)
-    ("\M-p" . log-view-file-prev))
-  "Log-View's keymap."
-  :inherit special-mode-map
-  :group 'log-view)
+(defvar-keymap log-view-mode-map
+  "RET" #'log-view-toggle-entry-display
+  "m" #'log-view-toggle-mark-entry
+  "e" #'log-view-modify-change-comment
+  "d" #'log-view-diff
+  "=" #'log-view-diff
+  "D" #'log-view-diff-changeset
+  "a" #'log-view-annotate-version
+  "f" #'log-view-find-revision
+  "n" #'log-view-msg-next
+  "p" #'log-view-msg-prev
+  "TAB" #'log-view-msg-next
+  "<backtab>" #'log-view-msg-prev)
 
 (easy-menu-define log-view-mode-menu log-view-mode-map
   "Log-View Display Menu."
@@ -181,9 +162,15 @@
     ["Previous Log Entry"  log-view-msg-prev
      :help "Go to the previous count'th log message"]
     ["Next File"  log-view-file-next
-     :help "Go to the next count'th file"]
+     :help "Go to the next count'th file"
+     :active (derived-mode-p vc-cvs-log-view-mode
+                             vc-rcs-log-view-mode
+                             vc-sccs-log-view-mode)]
     ["Previous File"  log-view-file-prev
-     :help "Go to the previous count'th file"]))
+     :help "Go to the previous count'th file"
+     :active (derived-mode-p vc-cvs-log-view-mode
+                             vc-rcs-log-view-mode
+                             vc-sccs-log-view-mode)]))
 
 (defvar log-view-mode-hook nil
   "Hook run at the end of `log-view-mode'.")
@@ -372,6 +359,7 @@ log entries."
 	    (overlay-put ov 'log-view-self ov)
 	    (overlay-put ov 'log-view-marked (nth 1 entry))))))))
 
+;;;###autoload
 (defun log-view-get-marked ()
   "Return the list of tags for the marked log entries."
   (save-excursion

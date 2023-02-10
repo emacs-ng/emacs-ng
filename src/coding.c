@@ -1,5 +1,5 @@
 /* Coding system handler (conversion, detection, etc).
-   Copyright (C) 2001-2022 Free Software Foundation, Inc.
+   Copyright (C) 2001-2023 Free Software Foundation, Inc.
    Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
      2005, 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
@@ -651,6 +651,12 @@ growable_destination (struct coding_system *coding)
     consumed_chars++;					\
   } while (0)
 
+/* Suppress clang warnings about consumed_chars never being used.
+   Although correct, the warnings are too much trouble to code around.  */
+#if 13 <= __clang_major__ - defined __apple_build_version__
+# pragma clang diagnostic ignored "-Wunused-but-set-variable"
+#endif
+
 /* Safely get two bytes from the source text pointed by SRC which ends
    at SRC_END, and set C1 and C2 to those bytes while skipping the
    heading multibyte characters.  If there are not enough bytes in the
@@ -1131,7 +1137,6 @@ detect_coding_utf_8 (struct coding_system *coding,
   ptrdiff_t consumed_chars = 0;
   bool bom_found = 0;
   ptrdiff_t nchars = coding->head_ascii;
-  int eol_seen = coding->eol_seen;
 
   detect_info->checked |= CATEGORY_MASK_UTF_8;
   /* A coding system of this category is always ASCII compatible.  */
@@ -1161,15 +1166,10 @@ detect_coding_utf_8 (struct coding_system *coding,
 	    {
 	      if (src < src_end && *src == '\n')
 		{
-		  eol_seen |= EOL_SEEN_CRLF;
 		  src++;
 		  nchars++;
 		}
-	      else
-		eol_seen |= EOL_SEEN_CR;
 	    }
-	  else if (c == '\n')
-	    eol_seen |= EOL_SEEN_LF;
 	  continue;
 	}
       ONE_MORE_BYTE (c1);
@@ -1437,7 +1437,7 @@ encode_coding_utf_8 (struct coding_system *coding)
   ptrdiff_t produced_chars = 0;
   int c;
 
-  if (CODING_UTF_8_BOM (coding) == utf_with_bom)
+  if (CODING_UTF_8_BOM (coding) != utf_without_bom)
     {
       ASSURE_DESTINATION (3);
       EMIT_THREE_BYTES (UTF_8_BOM_1, UTF_8_BOM_2, UTF_8_BOM_3);
@@ -6534,7 +6534,7 @@ detect_coding (struct coding_system *coding)
   if (EQ (CODING_ATTR_TYPE (CODING_ID_ATTRS (coding->id)), Qundecided))
     {
       int c, i;
-      struct coding_detection_info detect_info;
+      struct coding_detection_info detect_info = {0};
       bool null_byte_found = 0, eight_bit_found = 0;
       bool inhibit_nbd = inhibit_flag (coding->spec.undecided.inhibit_nbd,
 				       inhibit_null_byte_detection);
@@ -6543,7 +6543,6 @@ detect_coding (struct coding_system *coding)
       bool prefer_utf_8 = coding->spec.undecided.prefer_utf_8;
 
       coding->head_ascii = 0;
-      detect_info.checked = detect_info.found = detect_info.rejected = 0;
       for (src = coding->source; src < src_end; src++)
 	{
 	  c = *src;
@@ -6718,12 +6717,8 @@ detect_coding (struct coding_system *coding)
   else if (XFIXNUM (CODING_ATTR_CATEGORY (CODING_ID_ATTRS (coding->id)))
 	   == coding_category_utf_8_auto)
     {
-      Lisp_Object coding_systems;
-      struct coding_detection_info detect_info;
-
-      coding_systems
+      Lisp_Object coding_systems
 	= AREF (CODING_ID_ATTRS (coding->id), coding_attr_utf_bom);
-      detect_info.found = detect_info.rejected = 0;
       if (check_ascii (coding) == coding->src_bytes)
 	{
 	  if (CONSP (coding_systems))
@@ -6731,6 +6726,7 @@ detect_coding (struct coding_system *coding)
 	}
       else
 	{
+	  struct coding_detection_info detect_info = {0};
 	  if (CONSP (coding_systems)
 	      && detect_coding_utf_8 (coding, &detect_info))
 	    {
@@ -6744,20 +6740,19 @@ detect_coding (struct coding_system *coding)
   else if (XFIXNUM (CODING_ATTR_CATEGORY (CODING_ID_ATTRS (coding->id)))
 	   == coding_category_utf_16_auto)
     {
-      Lisp_Object coding_systems;
-      struct coding_detection_info detect_info;
-
-      coding_systems
+      Lisp_Object coding_systems
 	= AREF (CODING_ID_ATTRS (coding->id), coding_attr_utf_bom);
-      detect_info.found = detect_info.rejected = 0;
       coding->head_ascii = 0;
-      if (CONSP (coding_systems)
-	  && detect_coding_utf_16 (coding, &detect_info))
+      if (CONSP (coding_systems))
 	{
-	  if (detect_info.found & CATEGORY_MASK_UTF_16_LE)
-	    found = XCAR (coding_systems);
-	  else if (detect_info.found & CATEGORY_MASK_UTF_16_BE)
-	    found = XCDR (coding_systems);
+	  struct coding_detection_info detect_info = {0};
+	  if (detect_coding_utf_16 (coding, &detect_info))
+	    {
+	      if (detect_info.found & CATEGORY_MASK_UTF_16_LE)
+		found = XCAR (coding_systems);
+	      else if (detect_info.found & CATEGORY_MASK_UTF_16_BE)
+		found = XCDR (coding_systems);
+	    }
 	}
     }
 
@@ -7907,7 +7902,7 @@ coding_restore_undo_list (Lisp_Object arg)
 void
 decode_coding_gap (struct coding_system *coding, ptrdiff_t bytes)
 {
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   Lisp_Object attrs;
 
   eassert (GPT_BYTE == PT_BYTE);
@@ -8071,7 +8066,7 @@ decode_coding_object (struct coding_system *coding,
 		      ptrdiff_t to, ptrdiff_t to_byte,
 		      Lisp_Object dst_object)
 {
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   unsigned char *destination UNINIT;
   ptrdiff_t dst_bytes UNINIT;
   ptrdiff_t chars = to - from;
@@ -8170,7 +8165,7 @@ decode_coding_object (struct coding_system *coding,
       ptrdiff_t prev_Z = Z, prev_Z_BYTE = Z_BYTE;
       Lisp_Object val;
       Lisp_Object undo_list = BVAR (current_buffer, undo_list);
-      ptrdiff_t count1 = SPECPDL_INDEX ();
+      specpdl_ref count1 = SPECPDL_INDEX ();
 
       record_unwind_protect (coding_restore_undo_list,
 			     Fcons (undo_list, Fcurrent_buffer ()));
@@ -8205,7 +8200,7 @@ decode_coding_object (struct coding_system *coding,
   if (saved_pt >= 0)
     {
       /* This is the case of:
-	 (BUFFERP (src_object) && EQ (src_object, dst_object))
+	 (BUFFERP (src_object) && BASE_EQ (src_object, dst_object))
 	 As we have moved PT while replacing the original buffer
 	 contents, we must recover it now.  */
       set_buffer_internal (XBUFFER (src_object));
@@ -8290,11 +8285,11 @@ encode_coding_object (struct coding_system *coding,
 		      ptrdiff_t to, ptrdiff_t to_byte,
 		      Lisp_Object dst_object)
 {
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   ptrdiff_t chars = to - from;
   ptrdiff_t bytes = to_byte - from_byte;
   Lisp_Object attrs;
-  ptrdiff_t saved_pt = -1, saved_pt_byte;
+  ptrdiff_t saved_pt = -1, saved_pt_byte UNINIT;
   bool need_marker_adjustment = 0;
   bool kill_src_buffer = 0;
   Lisp_Object old_deactivate_mark;
@@ -8309,7 +8304,7 @@ encode_coding_object (struct coding_system *coding,
   attrs = CODING_ID_ATTRS (coding->id);
 
   bool same_buffer = false;
-  if (EQ (src_object, dst_object) && BUFFERP (src_object))
+  if (BASE_EQ (src_object, dst_object) && BUFFERP (src_object))
     {
       struct Lisp_Marker *tail;
 
@@ -8390,7 +8385,7 @@ encode_coding_object (struct coding_system *coding,
   if (BUFFERP (dst_object))
     {
       coding->dst_object = dst_object;
-      if (EQ (src_object, dst_object))
+      if (BASE_EQ (src_object, dst_object))
 	{
 	  coding->dst_pos = from;
 	  coding->dst_pos_byte = from_byte;
@@ -8445,7 +8440,7 @@ encode_coding_object (struct coding_system *coding,
   if (saved_pt >= 0)
     {
       /* This is the case of:
-	 (BUFFERP (src_object) && EQ (src_object, dst_object))
+	 (BUFFERP (src_object) && BASE_EQ (src_object, dst_object))
 	 As we have moved PT while replacing the original buffer
 	 contents, we must recover it now.  */
       set_buffer_internal (XBUFFER (src_object));
@@ -8584,7 +8579,7 @@ are lower-case).  */)
   (Lisp_Object prompt, Lisp_Object default_coding_system)
 {
   Lisp_Object val;
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
 
   if (SYMBOLP (default_coding_system))
     default_coding_system = SYMBOL_NAME (default_coding_system);
@@ -8645,7 +8640,7 @@ detect_coding_system (const unsigned char *src,
   Lisp_Object val = Qnil;
   struct coding_system coding;
   ptrdiff_t id;
-  struct coding_detection_info detect_info;
+  struct coding_detection_info detect_info = {0};
   enum coding_category base_category;
   bool null_byte_found = 0, eight_bit_found = 0;
 
@@ -8663,8 +8658,6 @@ detect_coding_system (const unsigned char *src,
   coding.consumed = 0;
   coding.mode |= CODING_MODE_LAST_BLOCK;
   coding.head_ascii = 0;
-
-  detect_info.checked = detect_info.found = detect_info.rejected = 0;
 
   /* At first, detect text-format if necessary.  */
   base_category = XFIXNUM (CODING_ATTR_CATEGORY (attrs));
@@ -9429,7 +9422,7 @@ code_convert_region (Lisp_Object start, Lisp_Object end,
   setup_coding_system (coding_system, &coding);
   coding.mode |= CODING_MODE_LAST_BLOCK;
 
-  if (BUFFERP (dst_object) && !EQ (dst_object, src_object))
+  if (BUFFERP (dst_object) && !BASE_EQ (dst_object, src_object))
     {
       struct buffer *buf = XBUFFER (dst_object);
       ptrdiff_t buf_pt = BUF_PT (buf);
@@ -10798,7 +10791,7 @@ usage: (find-operation-coding-system OPERATION ARGUMENTS...)  */)
 	  && ((STRINGP (target)
 	       && STRINGP (XCAR (elt))
 	       && fast_string_match (XCAR (elt), target) >= 0)
-	      || (FIXNUMP (target) && EQ (target, XCAR (elt)))))
+	      || (FIXNUMP (target) && BASE_EQ (target, XCAR (elt)))))
 	{
 	  val = XCDR (elt);
 	  /* Here, if VAL is both a valid coding system and a valid
@@ -11512,7 +11505,7 @@ DEFUN ("coding-system-put", Fcoding_system_put, Scoding_system_put,
     }
 
   ASET (attrs, coding_attr_plist,
-	Fplist_put (CODING_ATTR_PLIST (attrs), prop, val));
+	plist_put (CODING_ATTR_PLIST (attrs), prop, val));
   return val;
 }
 
@@ -12027,9 +12020,9 @@ See also the function `find-operation-coding-system'.  */);
   Vnetwork_coding_system_alist = Qnil;
 
   DEFVAR_LISP ("locale-coding-system", Vlocale_coding_system,
-	       doc: /* Coding system to use with system messages.
-Also used for decoding keyboard input on X Window system, and for
-encoding standard output and error streams.  */);
+    doc: /* Coding system to use with system messages.
+Potentially also used for decoding keyboard input on X Windows, and is
+used for encoding standard output and error streams.  */);
   Vlocale_coding_system = Qnil;
 
   /* The eol mnemonics are reset in startup.el system-dependently.  */

@@ -1,6 +1,6 @@
 ;;; icalendar-tests.el --- Test suite for icalendar.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2005, 2008-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2005, 2008-2023 Free Software Foundation, Inc.
 
 ;; Author:         Ulf Jasper <ulf.jasper@web.de>
 ;; Created:        March 2005
@@ -59,6 +59,16 @@
           (inhibit-eol-conversion t))
       (insert-file-contents-literally
        (ert-resource-file filename))
+      (buffer-string))))
+
+(defun icalendar-tests--get-error-string-for-export (diary-string)
+  "Call icalendar-export for DIARY-STRING and return resulting error-string."
+  (ert-with-temp-file file
+    :suffix "-export.ics"
+    (with-temp-buffer
+      (insert diary-string)
+      (icalendar-export-region (point-min) (point-max) file))
+    (with-current-buffer (get-buffer "*icalendar-errors*")
       (buffer-string))))
 
 ;; ======================================================================
@@ -651,8 +661,8 @@ Argument INPUT-AMERICAN american style diary string.
 Argument EXPECTED-OUTPUT expected iCalendar result string.
 Optional argument ALARMS the value of `icalendar-export-alarms' for this test.
 
-European style input data must use german month names.  American
-and ISO style input data must use english month names."
+European style input data must use German month names.  American
+and ISO style input data must use English month names."
   (let ((tz (getenv "TZ"))
 	(calendar-date-style 'iso)
 	(icalendar-recurring-start-year 2000)
@@ -698,17 +708,18 @@ and ISO style input data must use english month names."
   "Actually perform export test.
 Argument INPUT input diary string.
 Argument EXPECTED-OUTPUT expected iCalendar result string."
-  (let ((temp-file (make-temp-file "icalendar-tests-ics")))
+  (ert-with-temp-file temp-file
+    :suffix "icalendar-tests-ics"
     (unwind-protect
-	(progn
-	  (with-temp-buffer
-	    (insert input)
-	    (icalendar-export-region (point-min) (point-max) temp-file))
-	  (save-excursion
-	    (find-file temp-file)
-	    (goto-char (point-min))
-	    (cond (expected-output
-		   (should (re-search-forward "^\\s-*BEGIN:VCALENDAR
+        (progn
+          (with-temp-buffer
+            (insert input)
+            (icalendar-export-region (point-min) (point-max) temp-file))
+          (save-excursion
+            (find-file temp-file)
+            (goto-char (point-min))
+            (cond (expected-output
+                   (should (re-search-forward "^\\s-*BEGIN:VCALENDAR
 PRODID:-//Emacs//NONSGML icalendar.el//EN
 VERSION:2.0
 BEGIN:VEVENT
@@ -717,23 +728,22 @@ UID:emacs[0-9]+
 END:VEVENT
 END:VCALENDAR
 \\s-*$"
-					      nil t))
-		   (should (string-match
-			    (concat "^\\s-*"
-				    (regexp-quote (buffer-substring-no-properties
-						   (match-beginning 1) (match-end 1)))
-				    "\\s-*$")
-			    expected-output)))
-		  (t
-		   (should (re-search-forward "^\\s-*BEGIN:VCALENDAR
+                                              nil t))
+                   (should (string-match
+                            (concat "^\\s-*"
+                                    (regexp-quote (buffer-substring-no-properties
+                                                   (match-beginning 1) (match-end 1)))
+                                    "\\s-*$")
+                            expected-output)))
+                  (t
+                   (should (re-search-forward "^\\s-*BEGIN:VCALENDAR
 PRODID:-//Emacs//NONSGML icalendar.el//EN
 VERSION:2.0
 END:VCALENDAR
 \\s-*$"
-					      nil t))))))
+                                              nil t))))))
       ;; cleanup!!
-      (kill-buffer (find-buffer-visiting temp-file))
-      (delete-file temp-file))))
+      (kill-buffer (find-buffer-visiting temp-file)))))
 
 (ert-deftest icalendar-export-ordinary-no-time ()
   "Perform export test."
@@ -982,6 +992,40 @@ END:VALARM
    '(2 ((email ("att.one@email.com" "att.two@email.com")) (audio) (display)))))
 
 ;; ======================================================================
+;; #bug56241
+;; ======================================================================
+(defun icalendar-tests--diary-float (&rest args)
+  (apply #'diary-float args))
+
+(ert-deftest icalendar-export-bug-56241-dotted-pair ()
+  "See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=56241#5"
+  (let ((icalendar-export-sexp-enumeration-days 366))
+    (mapc (lambda (diary-string)
+            (should (string= "" (icalendar-tests--get-error-string-for-export
+                                 diary-string))))
+          '("%%(diary-float 7 0 1) First Sunday in July 1"
+            "%%(icalendar-tests--diary-float 7 0 1) First Sunday in July 2"))))
+
+
+;; (ert-deftest icalendar-export-bug-56241-sexp-does-not-match ()
+;;   "Reported in #bug56241 -- needs to be fixed!"
+;;   (let ((icalendar-export-sexp-enumeration-days 0))
+;;     (mapc (lambda (diary-string)
+;;             (should (string= "" (icalendar-tests--get-error-string-for-export
+;;                                  diary-string))))
+;;           '("%%(diary-float 7 0 1) First Sunday in July 1"
+;;             "%%(icalendar-tests--diary-float 7 0 1) First Sunday in July 2"))))
+
+(ert-deftest icalendar-export-bug-56241-nested-sexps ()
+  "Reported in #bug56241 -- needs to be fixed!"
+  (let ((icalendar-export-sexp-enumeration-days 366))
+    (mapc (lambda (diary-string)
+            (should (string= "" (icalendar-tests--get-error-string-for-export
+                                 diary-string))))
+          '("%%(= (calendar-day-of-week date) 0) Sunday 1"
+            "%%(= 0 (calendar-day-of-week date)) Sunday 2"))))
+
+;; ======================================================================
 ;; Import tests
 ;; ======================================================================
 
@@ -1031,7 +1075,8 @@ During import test the timezone is set to Central European Time."
 (defun icalendar-tests--do-test-import (expected-output)
   "Actually perform import test.
 Argument EXPECTED-OUTPUT file containing expected diary string."
-  (let ((temp-file (make-temp-file "icalendar-test-diary")))
+  (ert-with-temp-file temp-file
+    :suffix "icalendar-test-diary"
     ;; Test the Catch-the-mysterious-coding-header logic below.
     ;; Ruby-mode adds an after-save-hook which inserts the header!
     ;; (save-excursion
@@ -1061,8 +1106,7 @@ Argument EXPECTED-OUTPUT file containing expected diary string."
 
       (let ((result (buffer-substring-no-properties (point-min) (point-max))))
         (should (string= expected-output result)))
-      (kill-buffer (find-buffer-visiting temp-file))
-      (delete-file temp-file))))
+      (kill-buffer (find-buffer-visiting temp-file)))))
 
 (ert-deftest icalendar-import-non-recurring ()
   "Perform standard import tests."
@@ -1240,35 +1284,33 @@ Argument INPUT icalendar event string."
 
 (defun icalendar-tests--do-test-cycle ()
   "Actually perform import/export cycle test."
-  (let ((temp-diary (make-temp-file "icalendar-test-diary"))
-        (temp-ics (make-temp-file "icalendar-test-ics"))
-        (org-input (buffer-substring-no-properties (point-min) (point-max))))
+  (ert-with-temp-file temp-diary
+    (ert-with-temp-file temp-ics
+      (let ((org-input (buffer-substring-no-properties (point-min) (point-max))))
 
-    (unwind-protect
-	(progn
-	  ;; step 1: import
-	  (icalendar-import-buffer temp-diary t t)
+        (unwind-protect
+            (progn
+              ;; step 1: import
+              (icalendar-import-buffer temp-diary t t)
 
-	  ;; step 2: export what was just imported
-	  (save-excursion
-	    (find-file temp-diary)
-	    (icalendar-export-region (point-min) (point-max) temp-ics))
+              ;; step 2: export what was just imported
+              (save-excursion
+                (find-file temp-diary)
+                (icalendar-export-region (point-min) (point-max) temp-ics))
 
-	  ;; compare the output of step 2 with the input of step 1
-	  (save-excursion
-	    (find-file temp-ics)
-	    (goto-char (point-min))
-	    ;;(when (re-search-forward "\nUID:.*\n" nil t)
-	    ;;(replace-match "\n"))
-	    (let ((cycled (buffer-substring-no-properties (point-min) (point-max))))
-	      (should (string= org-input cycled)))))
-      ;; clean up
-      (kill-buffer (find-buffer-visiting temp-diary))
-      (with-current-buffer (find-buffer-visiting temp-ics)
-	(set-buffer-modified-p nil)
-	(kill-buffer (current-buffer)))
-      (delete-file temp-diary)
-      (delete-file temp-ics))))
+              ;; compare the output of step 2 with the input of step 1
+              (save-excursion
+                (find-file temp-ics)
+                (goto-char (point-min))
+                ;;(when (re-search-forward "\nUID:.*\n" nil t)
+                ;;(replace-match "\n"))
+                (let ((cycled (buffer-substring-no-properties (point-min) (point-max))))
+                  (should (string= org-input cycled)))))
+          ;; clean up
+          (kill-buffer (find-buffer-visiting temp-diary))
+          (with-current-buffer (find-buffer-visiting temp-ics)
+            (set-buffer-modified-p nil)
+            (kill-buffer (current-buffer))))))))
 
 (ert-deftest icalendar-cycle ()
   "Perform cycling tests.
@@ -1312,7 +1354,7 @@ SUMMARY:and diary-anniversary
                                 "import-real-world-2003-05-29.diary-european"
                                 "import-real-world-2003-05-29.diary-american")
 
-  ;; created with http://apps.marudot.com/ical/
+  ;; created with https://apps.marudot.com/ical/
   (icalendar-tests--test-import "import-real-world-no-dst.ics"
                                 nil
                                 "import-real-world-no-dst.diary-european"
@@ -1441,12 +1483,15 @@ DTEND;VALUE=DATE:19570922
 RRULE:FREQ=YEARLY;INTERVAL=1;BYMONTH=09;BYMONTHDAY=21
 SUMMARY:ff birthday (%d years old)")
 
-
-  (icalendar-tests--test-export
-   nil
-   nil
-   "%%(diary-offset '(diary-float t 3 4) 1) asdf"
-   nil)
+  ;; FIXME: this testcase verifies that icalendar-export fails to
+  ;; export the nested sexp. After repairing bug56241 icalendar-export
+  ;; works correctly for this sexp but now the testcase fails.
+  ;; Therefore this testcase is disabled for the time being.
+  ;;  (icalendar-tests--test-export
+  ;;   nil
+  ;;   nil
+  ;;   "%%(diary-offset '(diary-float t 3 4) 1) asdf"
+  ;;   nil)
 
 
   ;; FIXME!
@@ -1635,28 +1680,30 @@ SUMMARY:NNN Wwwwwwww Wwwww - Aaaaaa Pppppppp rrrrrr ddd oo Nnnnnnnn 30
   (let ((time (icalendar--decode-isodatetime string day zone)))
     (format-time-string "%FT%T%z" (encode-time time) 0)))
 
-(defun icalendar-tests--decode-isodatetime (_ical-string)
+(ert-deftest icalendar-tests--decode-isodatetime ()
   "Test `icalendar--decode-isodatetime'."
-  (should (equal (icalendar-test--format "20040917T050910-0200")
+  (should (equal (icalendar-test--format "20040917T050910-02:00")
                  "2004-09-17T03:09:10+0000"))
-  (should (equal (icalendar-test--format "20040917T050910")
-                 "2004-09-17T03:09:10+0000"))
+  (let ((orig (icalendar-test--format "20040917T050910")))
+    (unwind-protect
+	(let ((zone "XXX-02"))
+	  (should (equal (icalendar-test--format "20040917T050910" nil zone)
+                         "2004-09-17T03:09:10+0000"))
+	  (should (equal (icalendar-test--format "20040917T0509" nil zone)
+                         "2004-09-17T03:09:00+0000"))
+	  (should (equal (icalendar-test--format "20040917" nil zone)
+                         "2004-09-16T22:00:00+0000"))
+	  (should (equal (icalendar-test--format "20040917T050910" 1 zone)
+                         "2004-09-18T03:09:10+0000"))
+	  (should (equal (icalendar-test--format "20040917T050910" 30 zone)
+                         "2004-10-17T03:09:10+0000")))
+      (should (equal orig (icalendar-test--format "20040917T050910")))))
   (should (equal (icalendar-test--format "20040917T050910Z")
                  "2004-09-17T05:09:10+0000"))
-  (should (equal (icalendar-test--format "20040917T0509")
-                 "2004-09-17T03:09:00+0000"))
-  (should (equal (icalendar-test--format "20040917")
-                 "2004-09-16T22:00:00+0000"))
-  (should (equal (icalendar-test--format "20040917T050910" 1)
-                 "2004-09-18T03:09:10+0000"))
-  (should (equal (icalendar-test--format "20040917T050910" 30)
-                 "2004-10-17T03:09:10+0000"))
-  (should (equal (icalendar-test--format "20040917T050910" -1)
-                 "2004-09-16T03:09:10+0000"))
-
+  (should (equal (icalendar-test--format "20040917T050910" -1 0)
+                 "2004-09-16T05:09:10+0000"))
   (should (equal (icalendar-test--format "20040917T050910" nil -3600)
                  "2004-09-17T06:09:10+0000")))
-
 
 (provide 'icalendar-tests)
 ;;; icalendar-tests.el ends here

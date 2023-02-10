@@ -16,10 +16,10 @@ use lisp_macros::lisp_fn;
 
 use emacs::bindings::{
     check_integer_range, hash_lookup, hash_put, intmax_t, make_fixed_natnum, make_float, make_int,
-    make_string_from_utf8, make_uint, make_vector, Fcons, Fintern, Flist, Fmake_hash_table,
-    Fnreverse, Fplist_get, Fplist_put, Fprocess_plist, Fset_process_plist, AREF, ASET, ASIZE,
-    FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, STRINGP, SYMBOLP,
-    SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
+    make_string_from_utf8, make_uint, make_vector, plist_get, plist_put, Fcons, Fintern, Flist,
+    Fmake_hash_table, Fnreverse, Fprocess_plist, Fset_process_plist, AREF, ASET, ASIZE, FLOATP,
+    HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, STRINGP, SYMBOLP, SYMBOL_NAME,
+    VECTORP, XFLOAT_DATA, XHASH_TABLE,
 };
 
 use emacs::globals::{
@@ -154,7 +154,7 @@ pub fn lsp_handler(proc: LispObject, data: LispObject) -> LispObject {
 
 fn get_process_json_config(proc: LispObject) -> JSONConfiguration {
     let plist = unsafe { Fprocess_plist(proc) };
-    let config_obj = unsafe { Fplist_get(plist, QCjson_config) };
+    let config_obj = unsafe { plist_get(plist, QCjson_config) };
     if config_obj.is_nil() {
         JSONConfiguration::default()
     } else {
@@ -170,7 +170,7 @@ pub fn lsp_json_config(args: &[LispObject]) -> bool {
     let user_ptr: LispObject = UserData::new(config).into();
 
     let mut plist = unsafe { Fprocess_plist(proc) };
-    plist = unsafe { Fplist_put(plist, QCjson_config, user_ptr) };
+    plist = unsafe { plist_put(plist, QCjson_config, user_ptr) };
     unsafe { Fset_process_plist(proc, plist) };
 
     true

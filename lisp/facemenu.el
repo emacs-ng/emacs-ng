@@ -1,6 +1,6 @@
 ;;; facemenu.el --- create a face menu for interactively adding fonts to text  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1994-1996, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1994-1996, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Boris Goldowsky <boris@gnu.org>
 ;; Keywords: faces
@@ -551,8 +551,8 @@ If the optional argument CALLBACK is non-nil, it should be a
 function to call each time the user types RET or clicks on a
 color.  The function should accept a single argument, the color name."
   (interactive)
-  (when (and (null list) (> (display-color-cells) 0))
-    (setq list (list-colors-duplicates (defined-colors)))
+  (when (> (display-color-cells) 0)
+    (setq list (list-colors-duplicates (or list (defined-colors))))
     (when list-colors-sort
       ;; Schwartzian transform with `(color key1 key2 key3 ...)'.
       (setq list (mapcar

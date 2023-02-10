@@ -1,6 +1,6 @@
 ;;; ede/config.el --- Configuration Handler baseclass  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2014-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -65,7 +65,7 @@
 (defclass ede-extra-config (eieio-persistent)
   ((extension :initform ".ede")
    (file-header-line :initform ";; EDE Project Configuration")
-   (project :type ede-project-with-config-child
+   (project :type ede-project-with-config
 	    :documentation
 	    "The project this config is bound to.")
    (ignored-file :initform nil
@@ -102,7 +102,7 @@ initialize the :file slot of the persistent baseclass.")
     :documentation
     "The class of the configuration used by this project.")
    (config :initform nil
-	   :type (or null ede-extra-config-child)
+	   :type (or null ede-extra-config)
 	   :documentation
 	   "The configuration object for this project.")
    )

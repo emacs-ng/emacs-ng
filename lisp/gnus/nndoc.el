@@ -1,6 +1,6 @@
 ;;; nndoc.el --- single file access for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;;	Masanobu UMEDA <umerin@flab.flab.fujitsu.junet>
@@ -23,7 +23,7 @@
 
 ;;; Commentary:
 
-;; For Outlook mail boxes format, see http://mbx2mbox.sourceforge.net/
+;; For Outlook mail boxes format, see https://mbx2mbox.sourceforge.net/
 
 ;;; Code:
 
@@ -218,6 +218,7 @@ from the document.")
 
 (defconst nndoc-version "nndoc 1.0"
   "nndoc version.")
+(make-obsolete-variable 'nndoc-version 'emacs-version "29.1")
 
 
 

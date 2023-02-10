@@ -1,6 +1,6 @@
 ;;; pop3.el --- Post Office Protocol (RFC 1460) interface  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1996-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2023 Free Software Foundation, Inc.
 
 ;; Author: Richard L. Pieri <ratinox@peorth.gweep.net>
 ;; Maintainer: emacs-devel@gnu.org
@@ -23,6 +23,8 @@
 
 ;;; Commentary:
 
+;; Post Office Protocol version 3 (RFC 1460) interface.
+;;
 ;; Most of the standard Post Office Protocol version 3 (RFC 1460) commands
 ;; are implemented.  The LIST command has not been implemented due to lack
 ;; of actual usefulness.
@@ -59,7 +61,7 @@
 (defcustom pop3-port 110
   "POP3 port."
   :version "22.1" ;; Oort Gnus
-  :type 'number
+  :type 'natnum
   :group 'pop3)
 
 (defcustom pop3-password-required t
@@ -88,7 +90,7 @@ valid value is `apop'."
 The lower the number, the more latency-sensitive the fetching
 will be.  If your pop3 server doesn't support streaming at all,
 set this to 1."
-  :type 'number
+  :type 'natnum
   :version "24.1"
   :group 'pop3)
 
@@ -469,7 +471,7 @@ Return non-nil if it is necessary to update the local UIDL file."
 	      (delete-char -3)
 	      (if (eq (char-before) ?\))
 		  (insert ")\n ")
-		(goto-char (1+ (point-at-bol)))
+                (goto-char (1+ (line-beginning-position)))
 		(delete-region (point) (point-max)))))
 	  (when (eq (char-before) ? )
 	    (delete-char -2))

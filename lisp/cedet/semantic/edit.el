@@ -1,6 +1,6 @@
 ;;; semantic/edit.el --- Edit Management for Semantic  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -40,7 +40,7 @@
 ;;    of themselves that can be edited w/out affecting the definition of
 ;;    that tag.
 ;;
-;; 2. Tags w/ positioned children could have a property of an
+;; 2. Tags with positioned children could have a property of an
 ;;    overlay marking the region in themselves that contain the
 ;;    children.  This could be used to better improve splicing near
 ;;    the beginning and end of the child lists.
@@ -72,8 +72,6 @@ updated in the current buffer.
 
 For language specific hooks, make sure you define this as a local hook.")
 
-(define-obsolete-variable-alias 'semantic-change-hooks
-  'semantic-change-functions "24.3")
 (defvar semantic-change-functions
   '(semantic-edits-change-function-handle-changes)
   "Abnormal hook run when semantic detects a change in a buffer.
@@ -91,14 +89,10 @@ If the hook returns non-nil, then declare that a reparse is needed.
 For language specific hooks, make sure you define this as a local hook.
 Not used yet; part of the next generation reparse mechanism.")
 
-(define-obsolete-variable-alias 'semantic-edits-new-change-hooks
-  'semantic-edits-new-change-functions "24.3")
 (defvar semantic-edits-new-change-functions nil
   "Abnormal hook run when a new change is found.
 Functions must take one argument representing an overlay on that change.")
 
-(define-obsolete-variable-alias 'semantic-edits-delete-change-hooks
-  'semantic-edits-delete-change-functions "24.3")
 (defvar semantic-edits-delete-change-functions nil
   "Abnormal hook run before a change overlay is deleted.
 Deleted changes occur when multiple changes are merged.
@@ -110,8 +104,6 @@ Changes move when a new change overlaps an old change.  The old change
 will be moved.
 Functions must take one argument representing an overlay being moved.")
 
-(define-obsolete-variable-alias 'semantic-edits-reparse-change-hooks
-  'semantic-edits-reparse-change-functions "24.3")
 (defvar semantic-edits-reparse-change-functions nil
   "Abnormal hook run after a change results in a reparse.
 Functions are called before the overlay is deleted, and after the
@@ -136,11 +128,9 @@ If nil, errors are still displayed, but informative messages are not."
   "Provide a mechanism for semantic tag management.
 Argument START, END, and LENGTH specify the bounds of the change."
    (setq semantic-unmatched-syntax-cache-check t)
-   (let ((inhibit-point-motion-hooks t)
-	 )
-     (save-match-data
-       (run-hook-with-args 'semantic-change-functions start end length)
-       )))
+   (save-match-data
+     (run-hook-with-args 'semantic-change-functions start end length)
+     ))
 
 (defun semantic-changes-in-region (start end &optional buffer)
   "Find change overlays which exist in whole or in part between START and END.
@@ -610,7 +600,7 @@ This function is for internal use by `semantic-edits-incremental-parser'."
 		(setq last-cond "Beginning of buffer")
                 (setq parse-start
                       ;; Don't worry about parents since
-                      ;; there there would be an exact
+                      ;; there would be an exact
                       ;; match in the tag list otherwise
                       ;; and the routine would fail.
                       (point-min)

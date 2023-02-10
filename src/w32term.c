@@ -1,6 +1,6 @@
 /* Implementation of GUI terminal on the Microsoft Windows API.
 
-Copyright (C) 1989, 1993-2022 Free Software Foundation, Inc.
+Copyright (C) 1989, 1993-2023 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -164,6 +164,10 @@ int last_scroll_bar_drag_pos;
 /* Keyboard code page - may be changed by language-change events.  */
 int w32_keyboard_codepage;
 
+/* The number of screen lines to scroll for the default mouse-wheel
+   scroll amount, given by WHEEL_DELTA.  */
+static UINT w32_wheel_scroll_lines;
+
 #ifdef CYGWIN
 int w32_message_fd = -1;
 #endif /* CYGWIN */
@@ -270,6 +274,75 @@ XGetGCValues (void *ignore, XGCValues *gc,
   XChangeGC (ignore, xgcv, mask, gc);
 }
 #endif
+
+static void
+w32_show_back_buffer (struct frame *f)
+{
+  struct w32_output *output;
+  HDC raw_dc;
+
+  output = FRAME_OUTPUT_DATA (f);
+
+  if (!output->want_paint_buffer || w32_disable_double_buffering)
+    return;
+
+  enter_crit ();
+
+  if (output->paint_buffer)
+    {
+      raw_dc = GetDC (output->window_desc);
+
+      if (!raw_dc)
+	emacs_abort ();
+
+      BitBlt (raw_dc, 0, 0, FRAME_PIXEL_WIDTH (f),
+	      FRAME_PIXEL_HEIGHT (f),
+	      output->paint_dc, 0, 0, SRCCOPY);
+      ReleaseDC (output->window_desc, raw_dc);
+
+      output->paint_buffer_dirty = 0;
+    }
+
+  leave_crit ();
+}
+
+void
+w32_release_paint_buffer (struct frame *f)
+{
+  /* Delete the back buffer so it gets created
+     again the next time we ask for the DC.  */
+
+  enter_crit ();
+  if (FRAME_OUTPUT_DATA (f)->paint_buffer)
+    {
+      deselect_palette (f, FRAME_OUTPUT_DATA (f)->paint_buffer_handle);
+
+      SelectObject (FRAME_OUTPUT_DATA (f)->paint_dc,
+		    FRAME_OUTPUT_DATA (f)->paint_dc_object);
+      ReleaseDC (FRAME_OUTPUT_DATA (f)->window_desc,
+		 FRAME_OUTPUT_DATA (f)->paint_buffer_handle);
+      DeleteDC (FRAME_OUTPUT_DATA (f)->paint_dc);
+      DeleteObject (FRAME_OUTPUT_DATA (f)->paint_buffer);
+
+      FRAME_OUTPUT_DATA (f)->paint_buffer = NULL;
+      FRAME_OUTPUT_DATA (f)->paint_dc = NULL;
+      FRAME_OUTPUT_DATA (f)->paint_buffer_handle = NULL;
+    }
+  leave_crit ();
+}
+
+static void
+w32_get_mouse_wheel_vertical_delta (void)
+{
+  if (os_subtype != OS_SUBTYPE_NT)
+    return;
+
+  UINT scroll_lines;
+  BOOL ret = SystemParametersInfo (SPI_GETWHEELSCROLLLINES, 0,
+				   &scroll_lines, 0);
+  if (ret)
+    w32_wheel_scroll_lines = scroll_lines;
+}
 
 static void
 w32_set_clip_rectangle (HDC hdc, RECT *rect)
@@ -687,10 +760,32 @@ w32_update_end (struct frame *f)
 static void
 w32_frame_up_to_date (struct frame *f)
 {
-  if (FRAME_W32_P (f))
-    FRAME_MOUSE_UPDATE (f);
+  FRAME_MOUSE_UPDATE (f);
+
+  if (!buffer_flipping_blocked_p ()
+      && FRAME_OUTPUT_DATA (f)->paint_buffer_dirty)
+    w32_show_back_buffer (f);
 }
 
+static void
+w32_buffer_flipping_unblocked_hook (struct frame *f)
+{
+  if (FRAME_OUTPUT_DATA (f)->paint_buffer_dirty)
+    w32_show_back_buffer (f);
+}
+
+/* Flip buffers on F if drawing has happened.  This function is not
+   called to flush the display connection of a frame (which doesn't
+   exist on MS Windows), but also called in some situations in
+   minibuf.c to make the contents of the back buffer visible.  */
+void
+w32_flip_buffers_if_dirty (struct frame *f)
+{
+  if (FRAME_OUTPUT_DATA (f)->paint_buffer
+      && FRAME_OUTPUT_DATA (f)->paint_buffer_dirty
+      && !f->garbaged && !buffer_flipping_blocked_p ())
+    w32_show_back_buffer (f);
+}
 
 /* Draw truncation mark bitmaps, continuation mark bitmaps, overlay
    arrow bitmaps, or clear the fringes if no bitmaps are required
@@ -967,22 +1062,6 @@ w32_set_cursor_gc (struct glyph_string *s)
 static void
 w32_set_mouse_face_gc (struct glyph_string *s)
 {
-  int face_id;
-  struct face *face;
-
-  /* What face has to be used last for the mouse face?  */
-  face_id = MOUSE_HL_INFO (s->f)->mouse_face_face_id;
-  face = FACE_FROM_ID_OR_NULL (s->f, face_id);
-  if (face == NULL)
-    face = FACE_FROM_ID (s->f, MOUSE_FACE_ID);
-
-  if (s->first_glyph->type == CHAR_GLYPH)
-    face_id = FACE_FOR_CHAR (s->f, face, s->first_glyph->u.ch, -1, Qnil);
-  else
-    face_id = FACE_FOR_CHAR (s->f, face, 0, -1, Qnil);
-  s->face = FACE_FROM_ID (s->f, face_id);
-  prepare_face_for_display (s->f, s->face);
-
   /* If font in this face is same as S->font, use it.  */
   if (s->font == s->face->font)
     s->gc = s->face->gc;
@@ -1411,6 +1490,8 @@ w32_draw_glyphless_glyph_string_foreground (struct glyph_string *s)
 		   ? CHAR_TABLE_REF (Vglyphless_char_display,
 				     glyph->u.glyphless.ch)
 		   : XCHAR_TABLE (Vglyphless_char_display)->extras[0]);
+	      if (CONSP (acronym))
+		acronym = XCAR (acronym);
 	      if (STRINGP (acronym))
 		str = SSDATA (acronym);
 	    }
@@ -2552,6 +2633,10 @@ w32_draw_glyph_string (struct glyph_string *s)
 
   if (!s->for_overlaps)
     {
+      /* Draw relief if not yet drawn.  */
+      if (!relief_drawn_p && s->face->box != FACE_NO_BOX)
+        w32_draw_glyph_string_box (s);
+
       /* Draw underline.  */
       if (s->face->underline)
         {
@@ -2572,7 +2657,11 @@ w32_draw_glyph_string (struct glyph_string *s)
               int y;
 
               if (s->prev
-	          && s->prev->face->underline == FACE_UNDER_LINE)
+		  && s->prev->face->underline == FACE_UNDER_LINE
+		  && (s->prev->face->underline_at_descent_line_p
+		      == s->face->underline_at_descent_line_p)
+		  && (s->prev->face->underline_pixels_above_descent_line
+		      == s->face->underline_pixels_above_descent_line))
                 {
                   /* We use the same underline style as the previous one.  */
                   thickness = s->prev->underline_thickness;
@@ -2595,12 +2684,13 @@ w32_draw_glyph_string (struct glyph_string *s)
 		  val = (WINDOW_BUFFER_LOCAL_VALUE
 			 (Qx_underline_at_descent_line, s->w));
 		  underline_at_descent_line
-		    = !(NILP (val) || EQ (val, Qunbound));
+		    = (!(NILP (val) || BASE_EQ (val, Qunbound))
+		       || s->face->underline_at_descent_line_p);
 
 		  val = (WINDOW_BUFFER_LOCAL_VALUE
 			 (Qx_use_underline_position_properties, s->w));
 		  use_underline_position_properties
-		    = !(NILP (val) || EQ (val, Qunbound));
+		    = !(NILP (val) || BASE_EQ (val, Qunbound));
 
                   /* Get the underline thickness.  Default is 1 pixel.  */
                   if (font && font->underline_thickness > 0)
@@ -2609,7 +2699,9 @@ w32_draw_glyph_string (struct glyph_string *s)
                     thickness = 1;
                   if (underline_at_descent_line
                       || !font)
-                    position = (s->height - thickness) - (s->ybase - s->y);
+		    position = ((s->height - thickness)
+				- (s->ybase - s->y)
+				- s->face->underline_pixels_above_descent_line);
                   else
                     {
                       /* Get the underline position.  This is the
@@ -2627,7 +2719,12 @@ w32_draw_glyph_string (struct glyph_string *s)
                       else
                         position = (font->descent + 1) / 2;
                     }
-                  position = max (position, minimum_offset);
+
+		  if (!(s->face->underline_at_descent_line_p
+			/* Ignore minimum_offset if the amount of pixels
+			   was explicitly specified.  */
+			&& s->face->underline_pixels_above_descent_line))
+		    position = max (position, minimum_offset);
                 }
               /* Check the sanity of thickness and position.  We should
                  avoid drawing underline out of the current line area.  */
@@ -2694,10 +2791,6 @@ w32_draw_glyph_string (struct glyph_string *s)
                              glyph_y + dy, s->width, h);
             }
         }
-
-      /* Draw relief if not yet drawn.  */
-      if (!relief_drawn_p && s->face->box != FACE_NO_BOX)
-        w32_draw_glyph_string_box (s);
 
       if (s->prev)
         {
@@ -2859,8 +2952,9 @@ w32_scroll_run (struct window *w, struct run *run)
 {
   struct frame *f = XFRAME (w->frame);
   int x, y, width, height, from_y, to_y, bottom_y;
+  HDC hdc;
   HWND hwnd = FRAME_W32_WINDOW (f);
-  HRGN expect_dirty;
+  HRGN expect_dirty = NULL;
 
   /* Get frame-relative bounding box of the text display area of W,
      without mode lines.  Include in this box the left and right
@@ -2879,7 +2973,9 @@ w32_scroll_run (struct window *w, struct run *run)
 	height = bottom_y - from_y;
       else
 	height = run->height;
-      expect_dirty = CreateRectRgn (x, y + height, x + width, bottom_y);
+
+      if (w32_disable_double_buffering)
+	expect_dirty = CreateRectRgn (x, y + height, x + width, bottom_y);
     }
   else
     {
@@ -2889,44 +2985,55 @@ w32_scroll_run (struct window *w, struct run *run)
 	height = bottom_y - to_y;
       else
 	height = run->height;
-      expect_dirty = CreateRectRgn (x, y, x + width, to_y);
+
+      if (w32_disable_double_buffering)
+	expect_dirty = CreateRectRgn (x, y, x + width, to_y);
     }
 
   block_input ();
 
   /* Cursor off.  Will be switched on again in gui_update_window_end.  */
   gui_clear_cursor (w);
+  if (!w32_disable_double_buffering)
+    {
+      hdc = get_frame_dc (f);
+      BitBlt (hdc, x, to_y, width, height, hdc, x, from_y, SRCCOPY);
+      release_frame_dc (f, hdc);
+    }
+  else
+    {
+      RECT from;
+      RECT to;
+      HRGN dirty = CreateRectRgn (0, 0, 0, 0);
+      HRGN combined = CreateRectRgn (0, 0, 0, 0);
 
-  {
-    RECT from;
-    RECT to;
-    HRGN dirty = CreateRectRgn (0, 0, 0, 0);
-    HRGN combined = CreateRectRgn (0, 0, 0, 0);
+      from.left = to.left = x;
+      from.right = to.right = x + width;
+      from.top = from_y;
+      from.bottom = from_y + height;
+      to.top = y;
+      to.bottom = bottom_y;
 
-    from.left = to.left = x;
-    from.right = to.right = x + width;
-    from.top = from_y;
-    from.bottom = from_y + height;
-    to.top = y;
-    to.bottom = bottom_y;
+      ScrollWindowEx (hwnd, 0, to_y - from_y, &from, &to, dirty,
+		      NULL, SW_INVALIDATE);
 
-    ScrollWindowEx (hwnd, 0, to_y - from_y, &from, &to, dirty,
-		    NULL, SW_INVALIDATE);
+      /* Combine this with what we expect to be dirty. This covers the
+	 case where not all of the region we expect is actually dirty.  */
+      CombineRgn (combined, dirty, expect_dirty, RGN_OR);
 
-    /* Combine this with what we expect to be dirty. This covers the
-       case where not all of the region we expect is actually dirty.  */
-    CombineRgn (combined, dirty, expect_dirty, RGN_OR);
+      /* If the dirty region is not what we expected, redraw the entire frame.  */
+      if (!EqualRgn (combined, expect_dirty))
+	SET_FRAME_GARBAGED (f);
 
-    /* If the dirty region is not what we expected, redraw the entire frame.  */
-    if (!EqualRgn (combined, expect_dirty))
-      SET_FRAME_GARBAGED (f);
-
-    DeleteObject (dirty);
-    DeleteObject (combined);
-  }
+      DeleteObject (dirty);
+      DeleteObject (combined);
+    }
 
   unblock_input ();
-  DeleteObject (expect_dirty);
+
+  if (w32_disable_double_buffering
+      && expect_dirty)
+    DeleteObject (expect_dirty);
 }
 
 
@@ -3232,32 +3339,94 @@ w32_construct_mouse_wheel (struct input_event *result, W32Msg *msg,
 {
   POINT p;
   int delta;
+  static int sum_delta_y = 0;
 
   result->kind = msg->msg.message == WM_MOUSEHWHEEL ? HORIZ_WHEEL_EVENT
                                                     : WHEEL_EVENT;
   result->code = 0;
   result->timestamp = msg->msg.time;
+  result->arg = Qnil;
 
   /* A WHEEL_DELTA positive value indicates that the wheel was rotated
      forward, away from the user (up); a negative value indicates that
      the wheel was rotated backward, toward the user (down).  */
   delta = GET_WHEEL_DELTA_WPARAM (msg->msg.wParam);
+  if (delta == 0)
+    {
+      result->kind = NO_EVENT;
+      return Qnil;
+    }
+
+  /* With multiple monitors, we can legitimately get negative
+     coordinates, so cast to short to interpret them correctly.  */
+  p.x = (short) LOWORD (msg->msg.lParam);
+  p.y = (short) HIWORD (msg->msg.lParam);
+
+  if (eabs (delta) < WHEEL_DELTA)
+    {
+      /* This is high-precision mouse wheel, which sends
+	 fine-resolution wheel events.  Produce a wheel event only if
+	 the conditions for sending such an event are fulfilled.  */
+      int scroll_unit = max (w32_wheel_scroll_lines, 1), nlines;
+      double value_to_report;
+
+      /* w32_wheel_scroll_lines == UINT_MAX means the user asked for
+	 "entire page" to be the scroll unit.  We interpret that as
+	 the height of the window under the mouse pointer.  */
+      if (w32_wheel_scroll_lines == UINT_MAX)
+	{
+	  Lisp_Object window = window_from_coordinates (f, p.x, p.y, NULL,
+							false, false);
+	  if (!WINDOWP (window))
+	    {
+	      result->kind = NO_EVENT;
+	      return Qnil;
+	    }
+	  scroll_unit = XWINDOW (window)->pixel_height;
+	  if (scroll_unit < 1)	/* paranoia */
+	    scroll_unit = 1;
+	}
+
+      /* If mwheel-coalesce-scroll-events is non-nil, report a wheel event
+	 only when we have accumulated enough delta's for WHEEL_DELTA.  */
+      if (mwheel_coalesce_scroll_events)
+	{
+	  /* If the user changed the direction, reset the accumulated
+	     deltas. */
+	  if ((delta > 0) != (sum_delta_y > 0))
+	    sum_delta_y = 0;
+	  sum_delta_y += delta;
+	  /* https://docs.microsoft.com/en-us/previous-versions/ms997498(v=msdn.10) */
+	  if (eabs (sum_delta_y) < WHEEL_DELTA)
+	    {
+	      result->kind = NO_EVENT;
+	      return Qnil;
+	    }
+	  value_to_report =
+	    ((double)FRAME_LINE_HEIGHT (f) * scroll_unit)
+	    / ((double)WHEEL_DELTA / sum_delta_y);
+	  sum_delta_y = 0;
+	}
+      else
+	value_to_report =
+	    ((double)FRAME_LINE_HEIGHT (f) * scroll_unit)
+	    / ((double)WHEEL_DELTA / delta);
+      nlines = value_to_report / FRAME_LINE_HEIGHT (f) + 0.5;
+      result->arg = list3 (make_fixnum (nlines),
+			   make_float (0.0),
+			   make_float (value_to_report));
+    }
 
   /* The up and down modifiers indicate if the wheel was rotated up or
      down based on WHEEL_DELTA value.  */
   result->modifiers = (msg->dwModifiers
                        | ((delta < 0 ) ? down_modifier : up_modifier));
 
-  /* With multiple monitors, we can legitimately get negative
-     coordinates, so cast to short to interpret them correctly.  */
-  p.x = (short) LOWORD (msg->msg.lParam);
-  p.y = (short) HIWORD (msg->msg.lParam);
   /* For the case that F's w32 window is not msg->msg.hwnd.  */
   ScreenToClient (FRAME_W32_WINDOW (f), &p);
   XSETINT (result->x, p.x);
   XSETINT (result->y, p.y);
   XSETFRAME (result->frame_or_window, f);
-  result->arg = Qnil;
   return Qnil;
 }
 
@@ -4734,6 +4903,14 @@ w32_scroll_bar_clear (struct frame *f)
 {
   Lisp_Object bar;
 
+  /* Return if double buffering is enabled, since clearing a frame
+     actually clears just the back buffer, so avoid clearing all of
+     the scroll bars, since that causes the scroll bars to
+     flicker.  */
+  if (!w32_disable_double_buffering
+      && FRAME_OUTPUT_DATA (f)->want_paint_buffer)
+    return;
+
   /* We can have scroll bars even if this is 0,
      if we just turned off scroll bar mode.
      But in that case we should not clear them.  */
@@ -4849,9 +5026,16 @@ w32_read_socket (struct terminal *terminal,
       struct input_event inev;
       int do_help = 0;
 
+      /* WM_WINDOWPOSCHANGED makes the buffer dirty, but there's no
+	 reason to flush the back buffer after receiving such an
+	 event, and that also causes flicker.  */
+      bool ignore_dirty_back_buffer = false;
+
       /* DebPrint (("w32_read_socket: %s time:%u\n", */
       /*            w32_name_of_message (msg.msg.message), */
       /*            msg.msg.time)); */
+
+      f = NULL;
 
       EVENT_INIT (inev);
       inev.kind = NO_EVENT;
@@ -4894,24 +5078,32 @@ w32_read_socket (struct terminal *terminal,
 		}
 	      else
 		{
-		  /* Erase background again for safety.  But don't do
-		     that if the frame's 'garbaged' flag is set, since
-		     in that case expose_frame will do nothing, and if
-		     the various redisplay flags happen to be unset,
-		     we are left with a blank frame.  */
-		  if (!FRAME_GARBAGED_P (f) || FRAME_PARENT_FRAME (f))
+		  if (w32_disable_double_buffering
+		      || !FRAME_OUTPUT_DATA (f)->paint_buffer)
 		    {
-		      HDC hdc = get_frame_dc (f);
+		      /* Erase background again for safety.  But don't do
+			 that if the frame's 'garbaged' flag is set, since
+			 in that case expose_frame will do nothing, and if
+			 the various redisplay flags happen to be unset,
+			 we are left with a blank frame.  */
 
-		      w32_clear_rect (f, hdc, &msg.rect);
-		      release_frame_dc (f, hdc);
+		      if (!FRAME_GARBAGED_P (f) || FRAME_PARENT_FRAME (f))
+			{
+			  HDC hdc = get_frame_dc (f);
+
+			  w32_clear_rect (f, hdc, &msg.rect);
+			  release_frame_dc (f, hdc);
+			}
+
+		      expose_frame (f,
+				    msg.rect.left,
+				    msg.rect.top,
+				    msg.rect.right - msg.rect.left,
+				    msg.rect.bottom - msg.rect.top);
+		      w32_clear_under_internal_border (f);
 		    }
-		  expose_frame (f,
-				msg.rect.left,
-				msg.rect.top,
-				msg.rect.right - msg.rect.left,
-				msg.rect.bottom - msg.rect.top);
-		  w32_clear_under_internal_border (f);
+		  else
+		    w32_show_back_buffer (f);
 		}
 	    }
 	  break;
@@ -4932,6 +5124,14 @@ w32_read_socket (struct terminal *terminal,
 	      inev.code = w32_keyboard_codepage;
 	      inev.modifiers = msg.msg.lParam & 0xffff;
 	    }
+	  break;
+
+	case WM_SETTINGCHANGE:
+	  /* We are only interested in changes of the number of lines
+	     to scroll when the vertical mouse wheel is moved.  This
+	     is only supported on NT.  */
+	  if (msg.msg.wParam == SPI_SETWHEELSCROLLLINES)
+	    w32_get_mouse_wheel_vertical_delta ();
 	  break;
 
 	case WM_KEYDOWN:
@@ -5237,7 +5437,18 @@ w32_read_socket (struct terminal *terminal,
 
                     window = window_from_coordinates (f, x, y, 0, 1, 1);
 
-                    if (EQ (window, f->tool_bar_window))
+                    if (EQ (window, f->tool_bar_window)
+			/* Make sure the tool bar was previously
+			   pressed, otherwise an event that started
+			   outside of the tool bar will not be handled
+			   correctly when the mouse button is
+			   released.  For example, start dragging to
+			   select some buffer text, drag the mouse to
+			   the tool bar, and release the mouse button
+			   -- this should not consider the release
+			   event as a tool-bar click.  */
+			&& (inev.modifiers & down_modifier
+			    || f->last_tool_bar_item != -1))
                       {
                         w32_handle_tool_bar_click (f, &inev);
                         tool_bar_p = 1;
@@ -5354,6 +5565,7 @@ w32_read_socket (struct terminal *terminal,
 
 	case WM_WINDOWPOSCHANGED:
 	  f = w32_window_to_frame (dpyinfo, msg.msg.hwnd);
+	  ignore_dirty_back_buffer = true;
 
 	  if (f)
 	    {
@@ -5576,6 +5788,8 @@ w32_read_socket (struct terminal *terminal,
 		  if (width != FRAME_PIXEL_WIDTH (f)
 		      || height != FRAME_PIXEL_HEIGHT (f))
 		    {
+		      w32_release_paint_buffer (f);
+
 		      change_frame_size
 			(f, width, height, false, true, false);
 		      SET_FRAME_GARBAGED (f);
@@ -5700,6 +5914,29 @@ w32_read_socket (struct terminal *terminal,
 			 (short) HIWORD (msg.msg.lParam)));
 	    }
 
+	  /* According to the MS documentation, this message is sent
+	     to each window whenever a monitor is added, removed, or
+	     has its resolution change.  Detect duplicate events when
+	     there are multiple frames by ensuring only one event is
+	     put in the keyboard buffer at any given time.  */
+	  {
+	    union buffered_input_event *ev;
+
+	    ev = (kbd_store_ptr == kbd_buffer
+		  ? kbd_buffer + KBD_BUFFER_SIZE - 1
+		  : kbd_store_ptr - 1);
+
+	    if (kbd_store_ptr != kbd_fetch_ptr
+		&& ev->ie.kind == MONITORS_CHANGED_EVENT
+		&& XTERMINAL (ev->ie.arg) == dpyinfo->terminal)
+	      /* Don't store a MONITORS_CHANGED_EVENT if there is
+		 already an undelivered event on the queue.  */
+	      break;
+
+	    inev.kind = MONITORS_CHANGED_EVENT;
+	    XSETTERMINAL (inev.arg, dpyinfo->terminal);
+	  }
+
 	  check_visibility = 1;
 	  break;
 
@@ -5757,6 +5994,15 @@ w32_read_socket (struct terminal *terminal,
 	    }
 	  count++;
 	}
+
+      /* Event processing might have drawn to F outside redisplay.  If
+         that is the case, flush any changes that have been made to
+         the front buffer.  */
+
+      if (f && !w32_disable_double_buffering
+	  && FRAME_OUTPUT_DATA (f)->paint_buffer_dirty
+	  && !f->garbaged && !ignore_dirty_back_buffer)
+	w32_show_back_buffer (f);
     }
 
   /* If the focus was just given to an autoraising frame,
@@ -6971,6 +7217,9 @@ w32_free_frame_resources (struct frame *f)
      face.  */
   free_frame_faces (f);
 
+  /* Now release the back buffer if any exists.  */
+  w32_release_paint_buffer (f);
+
   if (FRAME_W32_WINDOW (f))
     my_destroy_window (f, FRAME_W32_WINDOW (f));
 
@@ -7267,6 +7516,7 @@ w32_create_terminal (struct w32_display_info *dpyinfo)
   terminal->update_end_hook = w32_update_end;
   terminal->read_socket_hook = w32_read_socket;
   terminal->frame_up_to_date_hook = w32_frame_up_to_date;
+  terminal->buffer_flipping_unblocked_hook = w32_buffer_flipping_unblocked_hook;
   terminal->defined_color_hook = w32_defined_color;
   terminal->query_frame_background_color = w32_query_frame_background_color;
   terminal->query_colors = w32_query_colors;
@@ -7422,6 +7672,7 @@ w32_delete_display (struct w32_display_info *dpyinfo)
     if (dpyinfo->palette)
       DeleteObject (dpyinfo->palette);
   }
+
   w32_reset_fringes ();
 }
 
@@ -7445,6 +7696,7 @@ static void
 w32_initialize (void)
 {
   HANDLE shell;
+  BOOL caret;
   HRESULT (WINAPI * set_user_model) (const wchar_t * id);
 
   baud_rate = 19200;
@@ -7481,8 +7733,9 @@ w32_initialize (void)
 
   /* Initialize w32_use_visible_system_caret based on whether a screen
      reader is in use.  */
-  if (!SystemParametersInfo (SPI_GETSCREENREADER, 0,
-			     &w32_use_visible_system_caret, 0))
+  if (SystemParametersInfo (SPI_GETSCREENREADER, 0, &caret, 0))
+    w32_use_visible_system_caret = caret == TRUE;
+  else
     w32_use_visible_system_caret = 0;
 
   any_help_event_p = 0;
@@ -7551,6 +7804,8 @@ w32_initialize (void)
     horizontal_scroll_bar_left_border = horizontal_scroll_bar_right_border
       = GetSystemMetrics (SM_CYHSCROLL);
   }
+
+  w32_get_mouse_wheel_vertical_delta ();
 }
 
 void
@@ -7659,15 +7914,21 @@ The native image API library used is GDI+ via GDIPLUS.DLL.  This
 library is available only since W2K, therefore this variable is
 unconditionally set to nil on older systems.  */);
 
-  /* For now, disabled by default, since this is an experimental feature.  */
-#if 0 && HAVE_NATIVE_IMAGE_API
-  if (os_subtype == OS_9X)
+  /* Disabled for Cygwin/w32 builds, since they don't link against
+     -lgdiplus, see configure.ac.  */
+#if defined WINDOWSNT && HAVE_NATIVE_IMAGE_API
+  if (os_subtype == OS_SUBTYPE_9X)
     w32_use_native_image_api = 0;
   else
     w32_use_native_image_api = 1;
 #else
   w32_use_native_image_api = 0;
 #endif
+
+  DEFVAR_BOOL ("w32-yes-no-dialog-show-cancel",
+	       w32_yes_no_dialog_show_cancel,
+     doc: /* If non-nil, show Cancel button in MS-Windows GUI Yes/No dialogs. */);
+  w32_yes_no_dialog_show_cancel = 1;
 
   /* FIXME: The following variable will be (hopefully) removed
      before Emacs 25.1 gets released.  */

@@ -1,6 +1,6 @@
 ;;; em-dirs.el --- directory navigation commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -168,9 +168,6 @@ Thus, this does not include the current directory.")
 (defvar eshell-last-dir-ring nil
   "The last directory that Eshell was in.")
 
-(defconst eshell-inside-emacs (format "%s,eshell" emacs-version)
-  "Value for the `INSIDE_EMACS' environment variable.")
-
 ;;; Functions:
 
 (defun eshell-dirs-initialize ()    ;Called from `eshell-mode' via intern-soft!
@@ -178,24 +175,26 @@ Thus, this does not include the current directory.")
   (setq-local eshell-variable-aliases-list
 	(append
 	 eshell-variable-aliases-list
-         `(("-" ,(lambda (indices)
-		   (if (not indices)
-		       (unless (ring-empty-p eshell-last-dir-ring)
-			 (expand-file-name
-			  (ring-ref eshell-last-dir-ring 0)))
-		     (expand-file-name
-		      (eshell-apply-indices eshell-last-dir-ring indices)))))
-	   ("+" "PWD")
-	   ("PWD" ,(lambda (_indices)
-		     (expand-file-name (eshell/pwd)))
-            t)
-	   ("OLDPWD" ,(lambda (_indices)
-		        (unless (ring-empty-p eshell-last-dir-ring)
-			  (expand-file-name
-			   (ring-ref eshell-last-dir-ring 0))))
-            t)
-           ("INSIDE_EMACS" eshell-inside-emacs
-            t))))
+         `(("-" ,(lambda (indices quoted)
+                   (if (not indices)
+                       (unless (ring-empty-p eshell-last-dir-ring)
+                         (expand-file-name
+                          (ring-ref eshell-last-dir-ring 0)))
+                     ;; Apply the first index, expand the file name,
+                     ;; and then apply the rest of the indices.
+                     (eshell-apply-indices
+                      (expand-file-name
+                       (eshell-apply-indices eshell-last-dir-ring
+                                             (list (car indices)) quoted))
+                      (cdr indices) quoted))))
+           ("+" "PWD")
+           ("PWD" ,(lambda () (expand-file-name (eshell/pwd)))
+            t t)
+           ("OLDPWD" ,(lambda ()
+                       (unless (ring-empty-p eshell-last-dir-ring)
+                         (expand-file-name
+                          (ring-ref eshell-last-dir-ring 0))))
+            t t))))
 
   (when eshell-cd-on-directory
     (setq-local eshell-interpreter-alist
@@ -313,7 +312,7 @@ With the following piece of advice, you can make this functionality
 available in most of Emacs, with the exception of filename completion
 in the minibuffer:
 
-    (advice-add 'expand-file-name :around #'my-expand-multiple-dots)
+    (advice-add \\='expand-file-name :around #\\='my-expand-multiple-dots)
     (defun my-expand-multiple-dots (orig-fun filename &rest args)
       (apply orig-fun (eshell-expand-multiple-dots filename) args))"
   (while (string-match "\\(?:\\`\\|/\\)\\.\\.\\(\\.+\\)\\(?:\\'\\|/\\)"
@@ -391,6 +390,10 @@ in the minibuffer:
 	(unless (equal curdir newdir)
 	  (eshell-add-to-dir-ring curdir))
 	(let ((result (cd newdir)))
+          ;; If we're in "/" and cd to ".." or the like, make things
+          ;; less confusing by changing "/.." to "/".
+          (when (equal (file-truename result) "/")
+            (setq result (cd "/")))
 	  (and eshell-cd-shows-directory
 	       (eshell-printn result)))
 	(run-hooks 'eshell-directory-change-hook)

@@ -1,5 +1,5 @@
 /* Define frame-object for GNU Emacs.
-   Copyright (C) 1993-1994, 1999-2022 Free Software Foundation, Inc.
+   Copyright (C) 1993-1994, 1999-2023 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -102,6 +102,10 @@ struct frame
   Lisp_Object parent_frame;
 #endif /* HAVE_WINDOW_SYSTEM */
 
+  /* Last device to move over this frame.  Any value that isn't a
+     string means the "Virtual core pointer".  */
+  Lisp_Object last_mouse_device;
+
   /* The frame which should receive keystrokes that occur in this
      frame, or nil if they should go to the frame itself.  This is
      usually nil, but if the frame is minibufferless, we can use this
@@ -177,7 +181,7 @@ struct frame
      most recently buried buffer is first.  For last-buffer.  */
   Lisp_Object buried_buffer_list;
 
-#if defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK) \
+#if (defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)) \
   || defined (USE_WEBRENDER)
   /* A dummy window used to display menu bars under X when no X
      toolkit support is available.  */
@@ -374,7 +378,7 @@ struct frame
   /* The output method says how the contents of this frame are
      displayed.  It could be using termcap, or using an X window.
      This must be the same as the terminal->type. */
-  ENUM_BF (output_method) output_method : 3;
+  ENUM_BF (output_method) output_method : 9;
 
 #ifdef HAVE_WINDOW_SYSTEM
   /* True if this frame is a tooltip frame.  */
@@ -583,11 +587,13 @@ struct frame
      well.  */
   union output_data
   {
-    struct tty_output *tty;     /* From termchar.h.  */
-    struct x_output *x;         /* From xterm.h.  */
-    struct w32_output *w32;     /* From w32term.h.  */
-    struct ns_output *ns;       /* From nsterm.h.  */
-    struct wr_output *wr;       /* From wrsterm.h.  */
+    struct tty_output *tty;	 /* From termchar.h.  */
+    struct x_output *x;	 /* From xterm.h.  */
+    struct w32_output *w32;	 /* From w32term.h.  */
+    struct ns_output *ns;	 /* From nsterm.h.  */
+    struct pgtk_output *pgtk;	 /* From pgtkterm.h. */
+    struct haiku_output *haiku; /* From haikuterm.h. */
+    struct wr_output *wr;	 /* From wrterm.h. */
   }
   output_data;
 
@@ -637,6 +643,9 @@ struct frame
      alpha[1]: alpha transparency of inactive frames
      Negative values mean not to change alpha.  */
   double alpha[2];
+
+  /* Background opacity */
+  double alpha_background;
 
   /* Exponent for gamma correction of colors.  1/(VIEWING_GAMMA *
      SCREEN_GAMMA) where viewing_gamma is 0.4545 and SCREEN_GAMMA is a
@@ -855,6 +864,16 @@ default_pixels_per_inch_y (void)
 #else
 #define FRAME_NS_P(f) ((f)->output_method == output_ns)
 #endif
+#ifndef HAVE_PGTK
+#define FRAME_PGTK_P(f) false
+#else
+#define FRAME_PGTK_P(f) ((f)->output_method == output_pgtk)
+#endif
+#ifndef HAVE_HAIKU
+#define FRAME_HAIKU_P(f) false
+#else
+#define FRAME_HAIKU_P(f) ((f)->output_method == output_haiku)
+#endif
 #ifndef USE_WEBRENDER
 #define FRAME_WR_P(f) false
 #else
@@ -871,6 +890,12 @@ default_pixels_per_inch_y (void)
 #endif
 #ifdef HAVE_NS
 #define FRAME_WINDOW_P(f) FRAME_NS_P(f)
+#endif
+#ifdef HAVE_PGTK
+#define FRAME_WINDOW_P(f) FRAME_PGTK_P(f)
+#endif
+#ifdef HAVE_HAIKU
+#define FRAME_WINDOW_P(f) FRAME_HAIKU_P (f)
 #endif
 #ifdef USE_WEBRENDER
 #define FRAME_WINDOW_P(f) FRAME_WR_P(f)
@@ -927,6 +952,8 @@ default_pixels_per_inch_y (void)
 /* Scale factor of frame F.  */
 #if defined HAVE_NS
 # define FRAME_SCALE_FACTOR(f) (FRAME_NS_P (f) ? ns_frame_scale_factor (f) : 1)
+#elif defined HAVE_PGTK
+# define FRAME_SCALE_FACTOR(f) (FRAME_PGTK_P (f) ? pgtk_frame_scale_factor (f) : 1)
 #else
 # define FRAME_SCALE_FACTOR(f) 1
 #endif
@@ -992,6 +1019,20 @@ default_pixels_per_inch_y (void)
 
 /* True if frame F is currently visible.  */
 #define FRAME_VISIBLE_P(f) (f)->visible
+
+/* True if frame F should be redisplayed.  This is normally the same
+   as FRAME_VISIBLE_P (f).  Under X, frames can continue to be
+   displayed to the user by the compositing manager even if they are
+   invisible, so this also checks whether or not the frame is reported
+   visible by the X server.  */
+
+#ifndef HAVE_X_WINDOWS
+#define FRAME_REDISPLAY_P(f) (FRAME_VISIBLE_P (f))
+#else
+#define FRAME_REDISPLAY_P(f) (FRAME_VISIBLE_P (f)		\
+			      || (FRAME_X_P (f)			\
+				  && FRAME_X_VISIBLE (f)))
+#endif
 
 /* True if frame F is currently visible but hidden.  */
 #define FRAME_OBSCURED_P(f) ((f)->visible > 1)
@@ -1276,8 +1317,28 @@ SET_FRAME_VISIBLE (struct frame *f, int v)
 }
 
 /* Set iconified status of frame F.  */
-#define SET_FRAME_ICONIFIED(f, i)				\
-  (f)->iconified = (eassert (0 <= (i) && (i) <= 1), (i))
+INLINE void
+SET_FRAME_ICONIFIED (struct frame *f, int i)
+{
+#ifdef HAVE_WINDOW_SYSTEM
+  Lisp_Object frame;
+#endif
+
+  eassert (0 <= (i) && (i) <= 1);
+
+  f->iconified = i;
+
+#ifdef HAVE_WINDOW_SYSTEM
+  /* Iconifying a frame might cause the frame title to change if no
+     title was explicitly specified.  Force the frame title to be
+     recomputed.  */
+
+  XSETFRAME (frame, f);
+
+  if (FRAME_WINDOW_P (f))
+    gui_consider_frame_title (frame);
+#endif
+}
 
 extern Lisp_Object selected_frame;
 extern Lisp_Object old_selected_frame;
@@ -1326,8 +1387,6 @@ extern bool frame_inhibit_resize (struct frame *, bool, Lisp_Object);
 extern void adjust_frame_size (struct frame *, int, int, int, bool,
 			       Lisp_Object);
 extern Lisp_Object mouse_position (bool);
-extern int frame_windows_min_size (Lisp_Object, Lisp_Object, Lisp_Object,
-				   Lisp_Object);
 extern void frame_size_history_plain (struct frame *, Lisp_Object);
 extern void frame_size_history_extra (struct frame *, Lisp_Object,
 				      int, int, int, int, int, int);
@@ -1635,6 +1694,7 @@ IMAGE_OPT_FROM_ID (struct frame *f, int id)
 /* The class of this X application.  */
 #define EMACS_CLASS "Emacs"
 
+extern void gui_set_frame_parameters_1 (struct frame *, Lisp_Object, bool);
 extern void gui_set_frame_parameters (struct frame *, Lisp_Object);
 extern void gui_set_fullscreen (struct frame *, Lisp_Object, Lisp_Object);
 extern void gui_set_line_spacing (struct frame *, Lisp_Object, Lisp_Object);
@@ -1660,6 +1720,7 @@ extern void gui_set_scroll_bar_height (struct frame *, Lisp_Object, Lisp_Object)
 extern long gui_figure_window_size (struct frame *, Lisp_Object, bool, bool);
 
 extern void gui_set_alpha (struct frame *, Lisp_Object, Lisp_Object);
+extern void gui_set_alpha_background (struct frame *, Lisp_Object, Lisp_Object);
 extern void gui_set_no_special_glyphs (struct frame *, Lisp_Object, Lisp_Object);
 
 extern void validate_x_resource_name (void);
@@ -1681,10 +1742,9 @@ extern void x_wm_set_icon_position (struct frame *, int, int);
 #if !defined USE_X_TOOLKIT
 extern const char *x_get_resource_string (const char *, const char *);
 #endif
-extern void x_sync (struct frame *);
 #endif /* HAVE_X_WINDOWS */
 
-#ifndef HAVE_NS
+#if !defined (HAVE_NS) && !defined (HAVE_PGTK)
 
 /* Set F's bitmap icon, if specified among F's parameters.  */
 
@@ -1720,6 +1780,9 @@ struct MonitorInfo {
   Emacs_Rectangle geom, work;
   int mm_width, mm_height;
   char *name;
+#ifdef HAVE_PGTK
+  double scale_factor;
+#endif
 };
 
 extern void free_monitors (struct MonitorInfo *monitors, int n_monitors);

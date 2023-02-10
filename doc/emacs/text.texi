@@ -1,6 +1,6 @@
 @c -*- coding: utf-8 -*-
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2022 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2023 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Text
@@ -253,6 +253,10 @@ value of @code{sentence-end-double-space}.
 of a sentence.  Set the variable @code{sentence-end-without-period} to
 @code{t} in such cases.
 
+  Even though the above mentioned sentence movement commands are based
+on human languages, other Emacs modes can set these command to get
+similar functionality (@pxref{Moving by Sentences}).
+
 @node Paragraphs
 @section Paragraphs
 @cindex paragraphs
@@ -460,7 +464,7 @@ variables.
 
 @vindex electric-quote-replace-double
   You can also set the option @code{electric-quote-replace-double} to
-a non-@code{nil} value.  Then, typing @kbd{"} insert an appropriate
+a non-@code{nil} value.  Then, typing @kbd{"} inserts an appropriate
 curved double quote depending on context: @t{“} at the beginning of
 the buffer or after a line break, whitespace, opening parenthesis, or
 quote character, and @t{”} otherwise.
@@ -474,8 +478,8 @@ insert a curved quote even when Electric Quote is disabled or
 inactive, you can type @kbd{C-x 8 [} for @t{‘}, @kbd{C-x 8 ]} for
 @t{’}, @kbd{C-x 8 @{} for @t{“}, and @kbd{C-x 8 @}} for @t{”}.
 @xref{Inserting Text}.  Note that the value of
-@code{electric-quote-chars} does not affect these keybindings, they
-are not keybindings of @code{electric-quote-mode} but bound in
+@code{electric-quote-chars} does not affect these key bindings, they
+are not key bindings of @code{electric-quote-mode} but bound in
 @code{global-map}.
 
 @node Filling
@@ -958,8 +962,6 @@ hooks.
 @cindex invisible lines
 
 @findex outline-mode
-@findex outline-minor-mode
-@vindex outline-minor-mode-prefix
 @vindex outline-mode-hook
   Outline mode is a major mode derived from Text mode, which is
 specialized for editing outlines.  It provides commands to navigate
@@ -982,6 +984,19 @@ previous visible line.  Killing the ellipsis at the end of a visible
 line really kills all the following invisible text associated with the
 ellipsis.
 
+@menu
+* Outline Minor Mode::  Outline mode to use with other major modes.
+* Outline Format::      What the text of an outline looks like.
+* Outline Motion::      Special commands for moving through outlines.
+* Outline Visibility::  Commands to control what is visible.
+* Outline Views::       Outlines and multiple views.
+* Foldout::             Folding means zooming in on outlines.
+@end menu
+
+@node Outline Minor Mode
+@subsection Outline Minor Mode
+
+@findex outline-minor-mode
   Outline minor mode is a buffer-local minor mode which provides the
 same commands as the major mode, Outline mode, but can be used in
 conjunction with other major modes.  You can type @kbd{M-x
@@ -990,26 +1005,32 @@ buffer, or use a file-local variable setting to enable it in a
 specific file (@pxref{File Variables}).
 
 @kindex C-c @@ @r{(Outline minor mode)}
+@vindex outline-minor-mode-prefix
   The major mode, Outline mode, provides special key bindings on the
 @kbd{C-c} prefix.  Outline minor mode provides similar bindings with
 @kbd{C-c @@} as the prefix; this is to reduce the conflicts with the
 major mode's special commands.  (The variable
 @code{outline-minor-mode-prefix} controls the prefix used.)
 
+@vindex outline-minor-mode-use-buttons
+  If @code{outline-minor-mode-use-buttons} is non-@code{nil}, Outline
+minor mode will use buttons at the beginning of the heading lines, in
+addition to ellipsis, to show that a section is hidden.  Clicking the
+mouse on the button toggles display of the section.  If the value of
+this variable is @code{insert}, the buttons are inserted directly into
+the buffer text, so @key{RET} on the button will also toggle display
+of the section, like a mouse click does.  If the value is
+@code{in-margins}, Outline minor mode will use the window margins to
+indicate that a section is hidden.  The buttons are customizable as icons
+(@pxref{Icons}).
+
 @vindex outline-minor-mode-cycle
   If the @code{outline-minor-mode-cycle} user option is
-non-@code{nil}, the @kbd{TAB} and @kbd{S-@key{TAB}} keys are enabled on the
-outline heading lines.  @kbd{TAB} cycles hiding, showing the
-sub-heading, and showing all for the current section.  @kbd{S-@key{TAB}}
-does the same for the entire buffer.
-
-@menu
-* Outline Format::      What the text of an outline looks like.
-* Outline Motion::      Special commands for moving through outlines.
-* Outline Visibility::  Commands to control what is visible.
-* Outline Views::       Outlines and multiple views.
-* Foldout::             Folding means zooming in on outlines.
-@end menu
+non-@code{nil}, the @kbd{TAB} and @kbd{S-@key{TAB}} keys that cycle
+the visibility are enabled on the outline heading lines
+(@pxref{Outline Visibility, outline-cycle}).  @kbd{TAB} cycles hiding,
+showing the sub-heading, and showing all for the current section.
+@kbd{S-@key{TAB}} does the same for the entire buffer.
 
 @node Outline Format
 @subsection Format of Outlines
@@ -1252,6 +1273,17 @@ and related functions treat hidden text, @pxref{Query Replace}.)
 You can also automatically make text visible as you navigate in it by
 using Reveal mode (@kbd{M-x reveal-mode}), a buffer-local minor mode.
 
+@vindex outline-default-state
+  The @code{outline-default-state} variable controls what headings
+will be visible after Outline mode is turned on.  If non-@code{nil},
+some headings are initially outlined.  If equal to a number, show only
+headings up to and including the corresponding level.  If equal to
+@code{outline-show-all}, all text of buffer is shown.  If equal to
+@code{outline-show-only-headings}, show only headings, whatever their
+level is.  If equal to a lambda function or function name, this
+function is expected to toggle headings visibility, and will be called
+without arguments after the mode is enabled.
+
 @node Outline Views
 @subsection Viewing One Outline in Multiple Views
 
@@ -1491,15 +1523,15 @@ etc.
 @subsection Org as an authoring system
 @cindex Org exporting
 
-@findex org-export
+@findex org-export-dispatch
 @kindex C-c C-e @r{(Org mode)}
   You may want to format your Org notes nicely and to prepare them for
 export and publication.  To export the current buffer, type @kbd{C-c
-C-e} (@code{org-export}) anywhere in an Org buffer.  This command
-prompts for an export format; currently supported formats include
-HTML, @LaTeX{}, Texinfo, OpenDocument (@file{.odt}), iCalendar,
-Markdown, man-page, and PDF@.  Some formats, such as PDF, require
-certain system tools to be installed.
+C-e} (@code{org-export-dispatch}) anywhere in an Org buffer.  This
+command prompts for an export format; currently supported formats
+include HTML, @LaTeX{}, Texinfo, OpenDocument (@file{.odt}),
+iCalendar, Markdown, man-page, and PDF@.  Some formats, such as PDF,
+require certain system tools to be installed.
 
 @vindex org-publish-project-alist
   To export several files at once to a specific directory, either
@@ -1695,17 +1727,17 @@ to work with them.
 @table @kbd
 @item C-c C-o
 Insert @samp{\begin} and @samp{\end} for @LaTeX{} block and position
-point on a line between them (@code{tex-latex-block}).
+point on a line between them (@code{latex-insert-block}).
 @item C-c C-e
 Close the innermost @LaTeX{} block not yet closed
-(@code{tex-close-latex-block}).
+(@code{latex-close-block}).
 @end table
 
-@findex tex-latex-block
+@findex latex-insert-block
 @kindex C-c C-o @r{(@LaTeX{} mode)}
   In @LaTeX{} input, @samp{\begin} and @samp{\end} tags are used to
 group blocks of text.  To insert a block, type @kbd{C-c C-o}
-(@code{tex-latex-block}).  This prompts for a block type, and inserts
+(@code{latex-insert-block}).  This prompts for a block type, and inserts
 the appropriate matching @samp{\begin} and @samp{\end} tags, leaving a
 blank line between the two and moving point there.
 
@@ -1716,11 +1748,11 @@ completion list contains the standard @LaTeX{} block types.  If you
 want additional block types for completion, customize the list
 variable @code{latex-block-names}.
 
-@findex tex-close-latex-block
+@findex latex-close-block
 @kindex C-c C-e @r{(@LaTeX{} mode)}
 @findex latex-electric-env-pair-mode
   In @LaTeX{} input, @samp{\begin} and @samp{\end} tags must balance.
-You can use @kbd{C-c C-e} (@code{tex-close-latex-block}) to insert an
+You can use @kbd{C-c C-e} (@code{latex-close-block}) to insert an
 @samp{\end} tag which matches the last unmatched @samp{\begin}.  It
 also indents the @samp{\end} to match the corresponding @samp{\begin},
 and inserts a newline after the @samp{\end} tag if point is at the

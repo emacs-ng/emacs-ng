@@ -1,6 +1,6 @@
 ;;; mm-uu.el --- Return uu stuff as mm handles  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2023 Free Software Foundation, Inc.
 
 ;; Author: Shenghuo Zhu <zsh@cs.rochester.edu>
 ;; Keywords: postscript uudecode binhex shar forward gnatsweb pgp
@@ -194,7 +194,7 @@ This can be either \"inline\" or \"attachment\".")
      nil)
     (verbatim-marks
      ;; slrn-style verbatim marks, see
-     ;; http://slrn.sourceforge.net/docs/slrn-manual-6.html#process_verbatim_marks
+     ;; https://slrn.sourceforge.net/docs/slrn-manual-6.html#process_verbatim_marks
      "^#v\\+"
      "^#v\\-$"
      ,(lambda () (mm-uu-verbatim-marks-extract 0 0))

@@ -1,6 +1,6 @@
 /* Record indices of function doc strings stored in a file. -*- coding: utf-8 -*-
 
-Copyright (C) 1985-1986, 1993-1995, 1997-2022 Free Software Foundation,
+Copyright (C) 1985-1986, 1993-1995, 1997-2023 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -83,17 +83,20 @@ get_doc_string (Lisp_Object filepos, bool unibyte, bool definition)
 {
   char *from, *to, *name, *p, *p1;
   Lisp_Object file, pos;
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
+  Lisp_Object dir;
   USE_SAFE_ALLOCA;
 
   if (FIXNUMP (filepos))
     {
       file = Vdoc_file_name;
+      dir = Vdoc_directory;
       pos = filepos;
     }
   else if (CONSP (filepos))
     {
       file = XCAR (filepos);
+      dir = Fsymbol_value (Qlisp_directory);
       pos = XCDR (filepos);
     }
   else
@@ -101,7 +104,7 @@ get_doc_string (Lisp_Object filepos, bool unibyte, bool definition)
 
   EMACS_INT position = eabs (XFIXNUM (pos));
 
-  if (!STRINGP (Vdoc_directory))
+  if (!STRINGP (dir))
     return Qnil;
 
   if (!STRINGP (file))
@@ -113,7 +116,7 @@ get_doc_string (Lisp_Object filepos, bool unibyte, bool definition)
   Lisp_Object tem = Ffile_name_absolute_p (file);
   file = ENCODE_FILE (file);
   Lisp_Object docdir
-    = NILP (tem) ? ENCODE_FILE (Vdoc_directory) : empty_unibyte_string;
+    = NILP (tem) ? ENCODE_FILE (dir) : empty_unibyte_string;
   ptrdiff_t docdir_sizemax = SBYTES (docdir) + 1;
   if (will_dump_p ())
     docdir_sizemax = max (docdir_sizemax, sizeof sibling_etc);
@@ -327,71 +330,11 @@ string is passed through `substitute-command-keys'.  */)
     xsignal1 (Qvoid_function, function);
   if (CONSP (fun) && EQ (XCAR (fun), Qmacro))
     fun = XCDR (fun);
-#ifdef HAVE_NATIVE_COMP
-  if (!NILP (Fsubr_native_elisp_p (fun)))
-    doc = native_function_doc (fun);
-  else
-#endif
-  if (SUBRP (fun))
-    doc = make_fixnum (XSUBR (fun)->doc);
-#ifdef HAVE_MODULES
-  else if (MODULE_FUNCTIONP (fun))
-    doc = module_function_documentation (XMODULE_FUNCTION (fun));
-#endif
-  else if (COMPILEDP (fun))
-    {
-      if (PVSIZE (fun) <= COMPILED_DOC_STRING)
-	return Qnil;
-      else
-	{
-	  Lisp_Object tem = AREF (fun, COMPILED_DOC_STRING);
-	  if (STRINGP (tem))
-	    doc = tem;
-	  else if (FIXNATP (tem) || CONSP (tem))
-	    doc = tem;
-	  else
-	    return Qnil;
-	}
-    }
-  else if (STRINGP (fun) || VECTORP (fun))
-    {
-      return build_string ("Keyboard macro.");
-    }
-  else if (CONSP (fun))
-    {
-      Lisp_Object funcar = XCAR (fun);
-      if (!SYMBOLP (funcar))
-	xsignal1 (Qinvalid_function, fun);
-      else if (EQ (funcar, Qkeymap))
-	return build_string ("Prefix command (definition is a keymap associating keystrokes with commands).");
-      else if (EQ (funcar, Qlambda)
-	       || (EQ (funcar, Qclosure) && (fun = XCDR (fun), 1))
-	       || EQ (funcar, Qautoload))
-	{
-	  Lisp_Object tem1 = Fcdr (Fcdr (fun));
-	  Lisp_Object tem = Fcar (tem1);
-	  if (STRINGP (tem))
-	    doc = tem;
-	  /* Handle a doc reference--but these never come last
-	     in the function body, so reject them if they are last.  */
-	  else if ((FIXNATP (tem) || (CONSP (tem) && FIXNUMP (XCDR (tem))))
-		   && !NILP (XCDR (tem1)))
-	    doc = tem;
-	  else
-	    return Qnil;
-	}
-      else
-	goto oops;
-    }
-  else
-    {
-    oops:
-      xsignal1 (Qinvalid_function, fun);
-    }
+  doc = call1 (Qfunction_documentation, fun);
 
   /* If DOC is 0, it's typically because of a dumped file missing
      from the DOC file (bug in src/Makefile.in).  */
-  if (EQ (doc, make_fixnum (0)))
+  if (BASE_EQ (doc, make_fixnum (0)))
     doc = Qnil;
   if (FIXNUMP (doc) || CONSP (doc))
     {
@@ -414,6 +357,25 @@ string is passed through `substitute-command-keys'.  */)
   if (NILP (raw))
     doc = call1 (Qsubstitute_command_keys, doc);
   return doc;
+}
+
+DEFUN ("internal-subr-documentation", Fsubr_documentation, Ssubr_documentation, 1, 1, 0,
+       doc: /* Return the raw documentation info of a C primitive.  */)
+  (Lisp_Object function)
+{
+#ifdef HAVE_NATIVE_COMP
+  if (!NILP (Fsubr_native_elisp_p (function)))
+    return native_function_doc (function);
+  else
+#endif
+  if (SUBRP (function))
+    return make_fixnum (XSUBR (function)->doc);
+#ifdef HAVE_MODULES
+  else if (MODULE_FUNCTIONP (function))
+    return module_function_documentation (XMODULE_FUNCTION (function));
+#endif
+  else
+    return Qt;
 }
 
 DEFUN ("documentation-property", Fdocumentation_property,
@@ -445,7 +407,7 @@ aren't strings.  */)
 	tem = Fget (indirect, prop);
     }
 
-  if (EQ (tem, make_fixnum (0)))
+  if (BASE_EQ (tem, make_fixnum (0)))
     tem = Qnil;
 
   /* See if we want to look for the string in the DOC file. */
@@ -511,11 +473,17 @@ store_function_docstring (Lisp_Object obj, EMACS_INT offset)
     {
       /* This bytecode object must have a slot for the
 	 docstring, since we've found a docstring for it.  */
-      if (PVSIZE (fun) > COMPILED_DOC_STRING)
+      if (PVSIZE (fun) > COMPILED_DOC_STRING
+	  /* Don't overwrite a non-docstring value placed there,
+           * such as the symbols used for Oclosures.  */
+	  && VALID_DOCSTRING_P (AREF (fun, COMPILED_DOC_STRING)))
 	ASET (fun, COMPILED_DOC_STRING, make_fixnum (offset));
       else
 	{
-	  AUTO_STRING (format, "No docstring slot for %s");
+	  AUTO_STRING (format,
+	               (PVSIZE (fun) > COMPILED_DOC_STRING
+	                ? "Docstring slot busy for %s"
+	                : "No docstring slot for %s"));
 	  CALLN (Fmessage, format,
 		 (SYMBOLP (obj)
 		  ? SYMBOL_NAME (obj)
@@ -542,7 +510,6 @@ the same file name is found in the `doc-directory'.  */)
   EMACS_INT pos;
   Lisp_Object sym;
   char *p, *name;
-  ptrdiff_t count;
   char const *dirname;
   ptrdiff_t dirlen;
   /* Preloaded defcustoms using custom-initialize-delay are added to
@@ -566,7 +533,7 @@ the same file name is found in the `doc-directory'.  */)
       dirlen = SBYTES (Vdoc_directory);
     }
 
-  count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   USE_SAFE_ALLOCA;
   name = SAFE_ALLOCA (dirlen + SBYTES (filename) + 1);
   lispstpcpy (stpcpy (name, dirname), filename); 	/*** Add this line ***/
@@ -609,6 +576,8 @@ the same file name is found in the `doc-directory'.  */)
       if (p)
 	{
 	  end = strchr (p, '\n');
+	  if (!end)
+	    error ("DOC file invalid at position %"pI"d", pos);
 
 	  /* We used to skip files not in build_files, so that when a
 	     function was defined several times in different files
@@ -675,13 +644,20 @@ default_to_grave_quoting_style (void)
   Lisp_Object dv = DISP_CHAR_VECTOR (XCHAR_TABLE (Vstandard_display_table),
 				     LEFT_SINGLE_QUOTATION_MARK);
   return (VECTORP (dv) && ASIZE (dv) == 1
-	  && EQ (AREF (dv, 0), make_fixnum ('`')));
+	  && BASE_EQ (AREF (dv, 0), make_fixnum ('`')));
 }
 
 DEFUN ("text-quoting-style", Ftext_quoting_style,
        Stext_quoting_style, 0, 0, 0,
        doc: /* Return the current effective text quoting style.
-See variable `text-quoting-style'.  */)
+If the variable `text-quoting-style' is `grave', `straight' or
+`curve', just return that value.  If it is nil (the default), return
+`grave' if curved quotes cannot be displayed (for instance, on a
+terminal with no support for these characters), otherwise return
+`quote'.  Any other value is treated as `grave'.
+
+Note that in contrast to the variable `text-quoting-style', this
+function will never return nil.  */)
   (void)
 {
   /* Use grave accent and apostrophe `like this'.  */
@@ -703,6 +679,7 @@ See variable `text-quoting-style'.  */)
 void
 syms_of_doc (void)
 {
+  DEFSYM (Qlisp_directory, "lisp-directory");
   DEFSYM (Qsubstitute_command_keys, "substitute-command-keys");
   DEFSYM (Qfunction_documentation, "function-documentation");
   DEFSYM (Qgrave, "grave");
@@ -731,7 +708,11 @@ The value should be one of these symbols:
   `grave':    quote with grave accent and apostrophe \\=`like this\\=';
 	      i.e., do not alter the original quote marks.
   nil:        like `curve' if curved single quotes are displayable,
-	      and like `grave' otherwise.  This is the default.  */);
+	      and like `grave' otherwise.  This is the default.
+
+You should never read the value of this variable directly from a Lisp
+program.  Use the function `text-quoting-style' instead, as that will
+compute the correct value for the current terminal in the nil case.  */);
   Vtext_quoting_style = Qnil;
 
   DEFVAR_BOOL ("internal--text-quoting-flag", text_quoting_flag,
@@ -739,6 +720,7 @@ The value should be one of these symbols:
   /* Initialized by ‘main’.  */
 
   defsubr (&Sdocumentation);
+  defsubr (&Ssubr_documentation);
   defsubr (&Sdocumentation_property);
   defsubr (&Ssnarf_documentation);
   defsubr (&Stext_quoting_style);

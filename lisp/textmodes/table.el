@@ -1,6 +1,6 @@
 ;;; table.el --- create and edit WYSIWYG text based embedded tables  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
 
 ;; Keywords: wp, convenience
 ;; Author: Takaaki Ota <Takaaki.Ota@am.sony.com>
@@ -125,9 +125,7 @@
 ;; are tired of guessing how it works come back to this document
 ;; again.
 ;;
-;; To use the package regularly place this file in the site library
-;; directory and add the next expression in your init file.  Make
-;; sure that directory is included in the `load-path'.
+;; To use the package regularly, add this to your init file:
 ;;
 ;;   (require 'table)
 ;;
@@ -265,11 +263,6 @@
 ;; columns can be copied and pasted through rectangle commands.  After
 ;; all a table is still a part of text in the buffer.  Only the
 ;; special behaviors exist inside each cell through text properties.
-;;
-;; `table-generate-html' which appeared in earlier releases is
-;; deprecated in favor of `table-generate-source'.  Now HTML is
-;; treated as one of the languages used for describing the table's
-;; logical structure.
 ;;
 ;;
 ;; -------
@@ -753,6 +746,18 @@ the cell contents dynamically."
   :type 'string
   :group 'table)
 
+(defcustom table-latex-environment "tabular"
+  "Tabular-compatible environment to use when generating latex.
+The value should be a string suitable for use as a LaTeX environment
+that's compatible with the \"tabular\" protocol, such as \"tabular\"
+and \"longtable\"."
+  :tag "Latex environment used to export tables"
+  :type '(choice
+	  (const :tag "tabular" "tabular")
+	  (const :tag "longtable"  "longtable")
+          string)
+  :version "29.1")
+
 (defcustom table-cals-thead-rows 1
   "Number of top rows to become header rows in CALS table."
   :tag "CALS Header Rows"
@@ -1195,6 +1200,21 @@ executing body forms.")
 (easy-menu-add-item (current-global-map)
                     '("menu-bar" "tools") table-global-menu-map)
 
+;;;###autoload
+(define-minor-mode table-fixed-width-mode
+  "Cell width is fixed when this is non-nil.
+Normally it should be nil for allowing automatic cell width expansion
+that widens a cell when it is necessary.  When non-nil, typing in a
+cell does not automatically expand the cell width.  A word that is too
+long to fit in a cell is chopped into multiple lines.  The chopped
+location is indicated by `table-word-continuation-char'.  This
+variable's value can be toggled by \\[table-fixed-width-mode] at
+run-time."
+  :tag "Fix Cell Width"
+  :group 'table
+  (table--finish-delayed-tasks)
+  (table--update-cell-face))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Macros
@@ -1219,43 +1239,49 @@ original buffer's point is moved to the location that corresponds to
 the last cache point coordinate."
   (declare (debug (body)) (indent 0))
   (let ((height-expansion (make-symbol "height-expansion-var-symbol"))
-	(width-expansion (make-symbol "width-expansion-var-symbol")))
-    `(let (,height-expansion ,width-expansion)
+	(width-expansion (make-symbol "width-expansion-var-symbol"))
+        (fixed-width (make-symbol "fixed-width")))
+    `(let ((,fixed-width table-fixed-width-mode)
+           ,height-expansion ,width-expansion)
        ;; make sure cache has valid data unless it is explicitly inhibited.
        (unless table-inhibit-update
 	 (table-recognize-cell))
        (with-current-buffer (get-buffer-create table-cache-buffer-name)
-	 ;; goto the cell coordinate based on `table-cell-cache-point-coordinate'.
-	 (set-mark (table--goto-coordinate table-cell-cache-mark-coordinate))
-	 (table--goto-coordinate table-cell-cache-point-coordinate)
-	 (table--untabify-line)
-	 ;; always reset before executing body forms because auto-fill behavior is the default.
-	 (setq table-inhibit-auto-fill-paragraph nil)
-	 ;; do the body
-	 ,@body
-	 ;; fill paragraph unless the body does not want to by setting `table-inhibit-auto-fill-paragraph'.
-	 (unless table-inhibit-auto-fill-paragraph
-	   (if (and table-cell-info-justify
-		    (not (eq table-cell-info-justify 'left)))
-	       (table--fill-region (point-min) (point-max))
-	     (table--fill-region
-	      (save-excursion (forward-paragraph -1) (point))
-	      (save-excursion (forward-paragraph 1) (point)))))
-	 ;; keep the updated cell coordinate.
-	 (setq table-cell-cache-point-coordinate (table--get-coordinate))
-	 ;; determine the cell width expansion.
-	 (setq ,width-expansion (table--measure-max-width))
-	 (if (<= ,width-expansion table-cell-info-width) nil
-	   (table--fill-region (point-min) (point-max) ,width-expansion)
-	   ;; keep the updated cell coordinate.
-	   (setq table-cell-cache-point-coordinate (table--get-coordinate)))
-	 (setq ,width-expansion (- ,width-expansion table-cell-info-width))
-	 ;; determine the cell height expansion.
-	 (if (looking-at "\\s *\\'") nil
-	   (goto-char (point-min))
-	   (if (re-search-forward "\\(\\s *\\)\\'" nil t)
-	       (goto-char (match-beginning 1))))
-	 (setq ,height-expansion (- (cdr (table--get-coordinate)) (1- table-cell-info-height))))
+         (let ((table-fixed-width-mode ,fixed-width))
+	   ;; Go to the cell coordinate based on
+	   ;; `table-cell-cache-point-coordinate'.
+	   (set-mark (table--goto-coordinate table-cell-cache-mark-coordinate))
+	   (table--goto-coordinate table-cell-cache-point-coordinate)
+	   (table--untabify-line)
+	   ;; Always reset before executing body forms because
+	   ;; auto-fill behavior is the default.
+	   (setq table-inhibit-auto-fill-paragraph nil)
+	   ;; Do the body
+	   ,@body
+	   ;; Fill paragraph unless the body does not want to by
+	   ;; setting `table-inhibit-auto-fill-paragraph'.
+	   (unless table-inhibit-auto-fill-paragraph
+	     (if (and table-cell-info-justify
+		      (not (eq table-cell-info-justify 'left)))
+	         (table--fill-region (point-min) (point-max))
+	       (table--fill-region
+	        (save-excursion (forward-paragraph -1) (point))
+	        (save-excursion (forward-paragraph 1) (point)))))
+	   ;; Keep the updated cell coordinate.
+	   (setq table-cell-cache-point-coordinate (table--get-coordinate))
+	   ;; Determine the cell width expansion.
+	   (setq ,width-expansion (table--measure-max-width))
+	   (if (<= ,width-expansion table-cell-info-width) nil
+	     (table--fill-region (point-min) (point-max) ,width-expansion)
+	     ;; Keep the updated cell coordinate.
+	     (setq table-cell-cache-point-coordinate (table--get-coordinate)))
+	   (setq ,width-expansion (- ,width-expansion table-cell-info-width))
+	   ;; Determine the cell height expansion.
+	   (if (looking-at "\\s *\\'") nil
+	     (goto-char (point-min))
+	     (if (re-search-forward "\\(\\s *\\)\\'" nil t)
+	         (goto-char (match-beginning 1))))
+	   (setq ,height-expansion (- (cdr (table--get-coordinate)) (1- table-cell-info-height)))))
        ;; now back to the table buffer.
        ;; expand the cell width in the table buffer if necessary.
        (if (> ,width-expansion 0)
@@ -2823,21 +2849,6 @@ or `top', `middle', `bottom' or `none' for vertical."
 	  (table--justify-cell-contents justify))))))
 
 ;;;###autoload
-(define-minor-mode table-fixed-width-mode
-  "Cell width is fixed when this is non-nil.
-Normally it should be nil for allowing automatic cell width expansion
-that widens a cell when it is necessary.  When non-nil, typing in a
-cell does not automatically expand the cell width.  A word that is too
-long to fit in a cell is chopped into multiple lines.  The chopped
-location is indicated by `table-word-continuation-char'.  This
-variable's value can be toggled by \\[table-fixed-width-mode] at
-run-time."
-  :tag "Fix Cell Width"
-  :group 'table
-  (table--finish-delayed-tasks)
-  (table--update-cell-face))
-
-;;;###autoload
 (defun table-query-dimension (&optional where)
   "Return the dimension of the current cell and the current table.
 The result is a list (cw ch tw th c r cells) where cw is the cell
@@ -3019,7 +3030,8 @@ CALS (DocBook DTD):
 		"")))
      ((eq language 'latex)
       (insert (format "%% This LaTeX table template is generated by emacs %s\n" emacs-version)
-	      "\\begin{tabular}{|" (apply #'concat (make-list (length col-list) "l|")) "}\n"
+	      "\\begin{" table-latex-environment "}{|"
+              (apply #'concat (make-list (length col-list) "l|")) "}\n"
 	      "\\hline\n"))
      ((eq language 'cals)
       (insert (format "<!-- This CALS table template is generated by emacs %s -->\n" emacs-version)
@@ -3045,7 +3057,7 @@ CALS (DocBook DTD):
      ((eq language 'html)
       (insert "</table>\n"))
      ((eq language 'latex)
-      (insert "\\end{tabular}\n"))
+      (insert "\\end{" table-latex-environment "}\n"))
      ((eq language 'cals)
       (set-marker-insertion-type (table-get-source-info 'colspec-marker) t) ;; insert before
       (save-excursion
@@ -5202,16 +5214,15 @@ instead of the current buffer and returns the OBJECT."
   "Point has entered a cell.
 Refresh the menu bar."
   ;; Avoid calling point-motion-hooks recursively.
-  (let ((inhibit-point-motion-hooks t))
-    (force-mode-line-update)
-    (pcase dir
-     ('left
-      (setq table-mode-indicator nil)
-      (run-hooks 'table-point-left-cell-hook))
-     ('entered
-      (setq table-mode-indicator t)
-      (table--warn-incompatibility)
-      (run-hooks 'table-point-entered-cell-hook)))))
+  (force-mode-line-update)
+  (pcase dir
+    ('left
+     (setq table-mode-indicator nil)
+     (run-hooks 'table-point-left-cell-hook))
+    ('entered
+     (setq table-mode-indicator t)
+     (table--warn-incompatibility)
+     (run-hooks 'table-point-entered-cell-hook))))
 
 (defun table--warn-incompatibility ()
   "If called from interactive operation warn the know incompatibilities.

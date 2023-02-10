@@ -1,6 +1,6 @@
 ;;; pcomplete.el --- programmable completion -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 ;; Keywords: processes abbrev
@@ -119,6 +119,9 @@
 ;;; Code:
 
 (require 'comint)
+(eval-when-compile
+  (require 'cl-lib)
+  (require 'rx))
 
 (defgroup pcomplete nil
   "Programmable completion."
@@ -155,9 +158,6 @@ This mirrors the optional behavior of tcsh.
 A non-nil value is useful if `pcomplete-autolist' is non-nil too."
   :type 'boolean)
 
-(define-obsolete-variable-alias
-  'pcomplete-arg-quote-list 'comint-file-name-quote-list "24.3")
-
 (defcustom pcomplete-man-function #'man
   "A function to that will be called to display a manual page.
 It will be passed the name of the command to document."
@@ -188,6 +188,16 @@ to be inserted in the buffer.  Note that exactly what gets expanded
 and how is entirely up to the behavior of the
 `pcomplete-parse-arguments-function'."
   :type 'boolean)
+
+(defvar pcomplete-allow-modifications nil
+  "If non-nil, allow effects in `pcomplete-parse-arguments-function'.
+For the `pcomplete' command, it was common for functions in
+`pcomplete-parse-arguments-function' to make modifications to the
+buffer, like expanding variables and such.
+For `completion-at-point-functions', this is not an option any more, so
+this variable is used to tell `pcomplete-parse-arguments-function'
+whether it can do the modifications like it used to, or whether
+it should refrain from doing so.")
 
 (defcustom pcomplete-parse-arguments-function
   #'pcomplete-parse-buffer-arguments
@@ -354,11 +364,10 @@ modified to be an empty string, or the desired separation string."
 
 ;;; Alternative front-end using the standard completion facilities.
 
-;; The way pcomplete-parse-arguments, pcomplete-stub, and
-;; pcomplete-quote-argument work only works because of some deep
-;; hypothesis about the way the completion work.  Basically, it makes
-;; it pretty much impossible to have completion other than
-;; prefix-completion.
+;; The way pcomplete-parse-arguments and pcomplete-stub work only
+;; works because of some deep hypothesis about the way the completion
+;; work.  Basically, it makes it pretty much impossible to have
+;; completion other than prefix-completion.
 ;;
 ;; pcomplete--common-suffix and completion-table-subvert try to work around
 ;; this difficulty with heuristics, but it's really a hack.
@@ -392,6 +401,9 @@ Same as `pcomplete' but using the standard completion UI."
   ;; imposing the pcomplete UI over the standard UI.
   (catch 'pcompleted
     (let* ((pcomplete-stub)
+           (buffer-read-only
+            ;; Make sure the function obeys `pcomplete-allow-modifications'.
+            (if pcomplete-allow-modifications buffer-read-only t))
            pcomplete-seen pcomplete-norm-func
            pcomplete-args pcomplete-last pcomplete-index
            (pcomplete-autolist pcomplete-autolist)
@@ -472,6 +484,14 @@ Same as `pcomplete' but using the standard completion UI."
           (when completion-ignore-case
             (setq table (completion-table-case-fold table)))
           (list beg (point) table
+                :annotation-function
+                (lambda (cand)
+                  (when (stringp cand)
+                    (get-text-property 0 'pcomplete-annotation cand)))
+                :company-docsig
+                (lambda (cand)
+                  (when (stringp cand)
+                    (get-text-property 0 'pcomplete-help cand)))
                 :predicate pred
                 :exit-function
 		;; If completion is finished, add a terminating space.
@@ -526,6 +546,7 @@ completion functions list (it should occur fairly early in the list)."
 	  pcomplete-last-completion-raw nil)
     (catch 'pcompleted
       (let* ((pcomplete-stub)
+	     (pcomplete-allow-modifications t)
 	     pcomplete-seen pcomplete-norm-func
 	     pcomplete-args pcomplete-last pcomplete-index
 	     (pcomplete-autolist pcomplete-autolist)
@@ -551,7 +572,8 @@ completion functions list (it should occur fairly early in the list)."
   "Expand the textual value of the current argument.
 This will modify the current buffer."
   (interactive)
-  (let ((pcomplete-expand-before-complete t))
+  (let ((pcomplete-expand-before-complete t)
+	(pcomplete-allow-modifications t))
     (with-suppressed-warnings ((obsolete pcomplete))
       (pcomplete))))
 
@@ -569,6 +591,7 @@ This will modify the current buffer."
 This will modify the current buffer."
   (interactive)
   (let ((pcomplete-expand-before-complete t)
+	(pcomplete-allow-modifications t)
 	(pcomplete-expand-only-p t))
     (with-suppressed-warnings ((obsolete pcomplete))
       (pcomplete))
@@ -609,6 +632,13 @@ This will modify the current buffer."
 ;;; Internal Functions:
 
 ;; argument handling
+(defsubst pcomplete-actual-arg (&optional index offset)
+  "Return the actual text representation of the last argument.
+This is different from `pcomplete-arg', which returns the textual value
+that the last argument evaluated to.  This function returns what the
+user actually typed in."
+  (buffer-substring (pcomplete-begin index offset) (point)))
+
 (defun pcomplete-arg (&optional index offset)
   "Return the textual content of the INDEXth argument.
 INDEX is based from the current processing position.  If INDEX is
@@ -622,16 +652,35 @@ parts of the list.
 
 The OFFSET argument is added to/taken away from the index that will be
 used.  This is really only useful with `first' and `last', for
-accessing absolute argument positions."
-  (setq index
-	(if (eq index 'first)
-	    0
-	  (if (eq index 'last)
-	      pcomplete-last
-	    (- pcomplete-index (or index 0)))))
-  (if offset
-      (setq index (+ index offset)))
-  (nth index pcomplete-args))
+accessing absolute argument positions.
+
+When the argument has been transformed into something that is not
+a string by `pcomplete-parse-arguments-function', the text
+representation of the argument, namely what the user actually
+typed in, is returned, and the value of the argument is stored in
+the pcomplete-arg-value text property of that string."
+  (let ((arg
+         (nth (+ (pcase index
+	           ('first 0)
+	           ('last  pcomplete-last)
+	           (_      (- pcomplete-index (or index 0))))
+	         (or offset 0))
+              pcomplete-args)))
+    (if (or (stringp arg)
+            ;; FIXME: 'last' is handled specially in Emacs 29, because
+            ;; 'pcomplete-parse-arguments' accepts a list of strings
+            ;; (which are completion candidates) as return value for
+            ;; (pcomplete-arg 'last).  See below: "it means it's a
+            ;; list of completions computed during parsing,
+            ;; e.g. Eshell uses that to turn globs into lists of
+            ;; completions".  This special case will be dealt with
+            ;; differently in Emacs 30: the pcomplete-arg-value
+            ;; property will be used by 'pcomplete-parse-arguments'.
+            (eq index 'last))
+        arg
+      (propertize
+       (car (split-string (pcomplete-actual-arg index offset)))
+       'pcomplete-arg-value arg))))
 
 (defun pcomplete-begin (&optional index offset)
   "Return the beginning position of the INDEXth argument.
@@ -645,13 +694,6 @@ See the documentation for `pcomplete-arg'."
   (if offset
       (setq index (+ index offset)))
   (nth index pcomplete-begins))
-
-(defsubst pcomplete-actual-arg (&optional index offset)
-  "Return the actual text representation of the last argument.
-This is different from `pcomplete-arg', which returns the textual value
-that the last argument evaluated to.  This function returns what the
-user actually typed in."
-  (buffer-substring (pcomplete-begin index offset) (point)))
 
 (defsubst pcomplete-next-arg ()
   "Move the various pointers to the next argument."
@@ -680,8 +722,8 @@ user actually typed in."
 	(match-string which arg)
       (throw 'pcompleted nil))))
 
-(defalias 'pcomplete-match-beginning 'match-beginning)
-(defalias 'pcomplete-match-end 'match-end)
+(define-obsolete-function-alias 'pcomplete-match-beginning #'match-beginning "29.1")
+(define-obsolete-function-alias 'pcomplete-match-end #'match-end "29.1")
 
 (defsubst pcomplete--test (pred arg)
   "Perform a programmable completion predicate match."
@@ -786,25 +828,30 @@ this is `comint-dynamic-complete-functions'."
       (let ((begin (pcomplete-begin 'last)))
 	(if (and (listp pcomplete-stub) ;??
 		 (not pcomplete-expand-only-p))
-	    (let* ((completions pcomplete-stub) ;??
-		   (common-stub (car completions))
-		   (c completions)
-		   (len (length common-stub)))
-	      (while (and c (> len 0))
-		(while (and (> len 0)
-			    (not (string=
-				  (substring common-stub 0 len)
-				  (substring (car c) 0
-					     (min (length (car c))
-						  len)))))
-		  (setq len (1- len)))
-		(setq c (cdr c)))
-	      (setq pcomplete-stub (substring common-stub 0 len)
-		    pcomplete-autolist t)
-	      (when (and begin (> len 0) (not pcomplete-show-list))
-		(delete-region begin (point))
-		(pcomplete-insert-entry "" pcomplete-stub))
-	      (throw 'pcomplete-completions completions))
+	    ;; If `pcomplete-stub' is a list, it means it's a list of
+            ;; completions computed during parsing, e.g. Eshell uses
+            ;; that to turn globs into lists of completions.
+	    (if (not pcomplete-allow-modifications)
+	        (let ((completions pcomplete-stub))
+	          ;; FIXME: The mapping from what's in the buffer to the list
+                  ;; of completions can be arbitrary and will often fail to be
+                  ;; understood by the completion style.  See bug#50470.
+                  ;; E.g. `pcomplete-stub' may end up being "~/Down*"
+                  ;; while the completions contain entries like
+                  ;; "/home/<foo>/Downloads" which will fail to match the
+                  ;; "~/Down*" completion pattern since the completion
+                  ;; is neither told that it's a file nor a global pattern.
+	          (setq pcomplete-stub (buffer-substring begin (point)))
+                  (throw 'pcomplete-completions completions))
+	      (let* ((completions pcomplete-stub)
+		     (common-prefix (try-completion "" completions))
+		     (len (length common-prefix)))
+		(setq pcomplete-stub common-prefix
+		      pcomplete-autolist t)
+		(when (and begin (> len 0) (not pcomplete-show-list))
+		  (delete-region begin (point))
+		  (pcomplete-insert-entry "" pcomplete-stub))
+		(throw 'pcomplete-completions completions)))
 	  (when expand-p
 	    (if (stringp pcomplete-stub)
 		(when begin
@@ -819,9 +866,6 @@ this is `comint-dynamic-complete-functions'."
 	  (if pcomplete-expand-only-p
 	      (throw 'pcompleted t)
 	    pcomplete-args))))))
-
-(define-obsolete-function-alias
-  'pcomplete-quote-argument #'comint-quote-filename "24.3")
 
 ;; file-system completion lists
 
@@ -1006,7 +1050,7 @@ Arguments NO-GANGING and ARGS-FOLLOW are currently ignored."
 			     ((eq arg-char ?*) (pcomplete-executables))
 			     ((eq arg-char ??) nil)
 			     ((eq arg-char ?.) (pcomplete-entries))
-			     ((eq arg-char ?\() (eval result))))))
+			     ((eq arg-char ?\() (eval result t))))))
 	    (setq index (1+ index))))))))
 
 (defun pcomplete--here (&optional form stub paring form-only)
@@ -1040,7 +1084,7 @@ See the documentation for `pcomplete-here'."
                (funcall form)
              ;; Old calling convention, might still be used by files
              ;; byte-compiled with the older code.
-             (eval form)))))
+             (eval form t)))))
 
 
 (defmacro pcomplete-here* (&optional form stub form-only)
@@ -1062,9 +1106,9 @@ See the documentation for `pcomplete-here'."
 	pcomplete-window-restore-timer nil))
 
 (define-obsolete-function-alias 'pcomplete-event-matches-key-specifier-p
-  'eq "27.1")
+  #'eq "27.1")
 
-(define-obsolete-function-alias 'pcomplete-read-event 'read-event "27.1")
+(define-obsolete-function-alias 'pcomplete-read-event #'read-event "27.1")
 
 (defun pcomplete-show-completions (completions)
   "List in help buffer sorted COMPLETIONS.
@@ -1188,9 +1232,7 @@ Returns nil if no completion was inserted.
 Returns `sole' if completed with the only completion match.
 Returns `shortest' if completed with the shortest of the matches.
 Returns `partial' if completed as far as possible with the matches.
-Returns `listed' if a completion listing was shown.
-
-See also `pcomplete-filename'."
+Returns `listed' if a completion listing was shown."
   (let* ((completion-ignore-case completion-ignore-case)
 	 (completions (all-completions stub candidates))
          (entry (try-completion stub candidates))
@@ -1244,7 +1286,7 @@ If specific documentation can't be given, be generic."
 		    (fboundp 'Info-goto-node))
 	       (listp pcomplete-help)))
       (if (listp pcomplete-help)
-	  (message "%s" (eval pcomplete-help))
+	  (message "%s" (eval pcomplete-help t))
 	(save-window-excursion (info))
 	(declare-function Info-goto-node
 	                  "info" (nodename &optional fork strict-case))
@@ -1310,6 +1352,133 @@ If specific documentation can't be given, be generic."
   (if pcomplete-hosts-file
       (pcomplete-read-hosts pcomplete-hosts-file 'pcomplete--host-name-cache
                    'pcomplete--host-name-cache-timestamp)))
+
+;;; Parsing help messages
+
+(defvar pcomplete-from-help (make-hash-table :test #'equal)
+  "Memoization table for function `pcomplete-from-help'.")
+
+(cl-defun pcomplete-from-help (command
+                               &rest args
+                               &key
+                               (margin (rx bol (+ " ")))
+                               (argument (rx "-" (+ (any "-" alnum)) (? "=")))
+                               (metavar (rx (? " ")
+                                            (or (+ (any alnum "_-"))
+                                                (seq "[" (+? nonl) "]")
+                                                (seq "<" (+? nonl) ">")
+                                                (seq "{" (+? nonl) "}"))))
+                               (separator (rx ", " symbol-start))
+                               (description (rx (* nonl)
+                                                (* "\n" (>= 9 " ") (* nonl))))
+                               narrow-start
+                               narrow-end)
+  "Parse output of COMMAND into a list of completion candidates.
+
+COMMAND can be a string to be executed in a shell or a list of
+strings (program name and arguments).  It should print a help
+message.
+
+A list of arguments is collected after each match of MARGIN.
+Each argument should match ARGUMENT, possibly followed by a match
+of METAVAR.  If a match of SEPARATOR follows, then more
+argument-metavar pairs are collected.  Finally, a match of
+DESCRIPTION is collected.
+
+Keyword ARGS:
+
+MARGIN: regular expression after which argument descriptions are
+  to be found.  Parsing continues at the end of the first match
+  group or, failing that, the entire match.
+
+ARGUMENT: regular expression matching an argument name.  The
+  first match group (failing that, the entire match) is collected
+  as the argument name.  Parsing continues at the end of the
+  second matching group (failing that, the first group or entire
+  match).
+
+METAVAR: regular expression matching an argument parameter name.
+  The first match group (failing that, the entire match) is
+  collected as the parameter name and used as completion
+  annotation.  Parsing continues at the end of the second
+  matching group (failing that, the first group or entire match).
+
+SEPARATOR: regular expression matching the separator between
+  arguments.  Parsing continues at the end of the first match
+  group (failing that, the entire match).
+
+DESCRIPTION: regular expression matching the description of an
+  argument.  The first match group (failing that, the entire
+  match) is collected as the parameter name and used as
+  completion help.  Parsing continues at the end of the first
+  matching group (failing that, the entire match).
+
+NARROW-START, NARROW-END: if non-nil, parsing of the help message
+  is narrowed to the region between the end of the first match
+  group (failing that, the entire match) of these regular
+  expressions."
+  (with-memoization (gethash (cons command args) pcomplete-from-help)
+    (with-temp-buffer
+      (let ((case-fold-search nil)
+            (default-directory (expand-file-name "~/"))
+            (command (if (stringp command)
+                         (list shell-file-name
+                               shell-command-switch
+                               command)
+                       command))
+            i result)
+        (apply #'call-process (car command) nil t nil (cdr command))
+        (goto-char (point-min))
+        (narrow-to-region (or (and narrow-start
+                                   (re-search-forward narrow-start nil t)
+                                   (or (match-beginning 1) (match-beginning 0)))
+                              (point-min))
+                          (or (and narrow-end
+                                   (re-search-forward narrow-end nil t)
+                                   (or (match-beginning 1) (match-beginning 0)))
+                              (point-max)))
+        (goto-char (point-min))
+        (while (re-search-forward margin nil t)
+          (goto-char (or (match-end 1) (match-end 0)))
+          (setq i 0)
+          (while (and (or (zerop i)
+                          (and (looking-at separator)
+                               (goto-char (or (match-end 1)
+                                              (match-end 0)))))
+                      (looking-at argument))
+            (setq i (1+ i))
+            (goto-char (seq-some #'match-end '(2 1 0)))
+            (push (or (match-string 1) (match-string 0)) result)
+            (when (looking-at metavar)
+              (goto-char (seq-some #'match-end '(2 1 0)))
+              (put-text-property 0 1
+                                 'pcomplete-annotation
+                                 (or (match-string 1) (match-string 0))
+                                 (car result))))
+          (when (looking-at description)
+            (goto-char (seq-some #'match-end '(2 1 0)))
+            (let ((help (string-clean-whitespace
+                         (or (match-string 1) (match-string 0))))
+                  (items (take i result)))
+              (while items
+                (put-text-property 0 1 'pcomplete-help help
+                                   (pop items))))))
+        (nreverse result)))))
+
+(defun pcomplete-here-using-help (command &rest args)
+  "Perform completion for a simple command.
+Offer switches and directory entries as completion candidates.
+The switches are obtained by calling `pcomplete-from-help' with
+COMMAND and ARGS as arguments."
+  (while (cond
+          ((string= "--" (pcomplete-arg 1))
+           (while (pcomplete-here (pcomplete-entries))))
+          ((pcomplete-match "\\`--[^=]+=\\(.*\\)" 0)
+           (pcomplete-here (pcomplete-entries)
+                           (pcomplete-match-string 1 0)))
+          ((string-prefix-p "-" (pcomplete-arg 0))
+           (pcomplete-here (apply #'pcomplete-from-help command args)))
+          (t (pcomplete-here* (pcomplete-entries))))))
 
 (provide 'pcomplete)
 

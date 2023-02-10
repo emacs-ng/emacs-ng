@@ -1,5 +1,5 @@
 /* Fringe handling (split from xdisp.c).
-   Copyright (C) 1985-1988, 1993-1995, 1997-2022 Free Software
+   Copyright (C) 1985-1988, 1993-1995, 1997-2023 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -29,6 +29,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "blockinput.h"
 #include "termhooks.h"
 #include "pdumper.h"
+
+#ifdef HAVE_PGTK
+# include "pgtkterm.h"
+#endif
 
 /* Fringe bitmaps are represented in three different ways:
 
@@ -204,6 +208,20 @@ static unsigned short left_curly_arrow_bits[] = {
 */
 static unsigned short right_curly_arrow_bits[] = {
    0x3c, 0x3e, 0x03, 0x27, 0x3f, 0x3e, 0x3c, 0x3e};
+
+/* Large circle bitmap.  */
+/*
+  ........
+  ..xxxx..
+  .xxxxxx.
+  xxxxxxxx
+  xxxxxxxx
+  .xxxxxx.
+  ..xxxx..
+  ........
+*/
+static unsigned short large_circle_bits[] = {
+  0x3c, 0x7e, 0xff, 0xff, 0xff, 0xff, 0x7e, 0x3c};
 
 /* Reverse Overlay arrow bitmap.  A triangular arrow.  */
 /*
@@ -450,6 +468,7 @@ static struct fringe_bitmap standard_bitmaps[] =
   { FRBITS (down_arrow_bits),         8, 0, ALIGN_BITMAP_BOTTOM, 0 },
   { FRBITS (left_curly_arrow_bits),   8, 0, ALIGN_BITMAP_CENTER, 0 },
   { FRBITS (right_curly_arrow_bits),  8, 0, ALIGN_BITMAP_CENTER, 0 },
+  { FRBITS (large_circle_bits),       8, 0, ALIGN_BITMAP_CENTER, 0 },
   { FRBITS (left_triangle_bits),      8, 0, ALIGN_BITMAP_CENTER, 0 },
   { FRBITS (right_triangle_bits),     8, 0, ALIGN_BITMAP_CENTER, 0 },
   { FRBITS (top_left_angle_bits),     8, 0, ALIGN_BITMAP_TOP,    0 },
@@ -969,7 +988,7 @@ update_window_fringes (struct window *w, bool keep_current_p)
   if (w->pseudo_window_p)
     return 0;
 
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
 
   /* This function could be called for redisplaying non-selected
      windows, in which case point has been temporarily moved to that
@@ -1408,7 +1427,7 @@ If BITMAP overrides a standard fringe bitmap, the original bitmap is restored.  
    On W32 and MAC (little endian), there's no need to do this.
 */
 
-#if defined (HAVE_X_WINDOWS)
+#if defined (HAVE_X_WINDOWS) || defined (HAVE_PGTK)
 static const unsigned char swap_nibble[16] = {
   0x0, 0x8, 0x4, 0xc,           /* 0000 1000 0100 1100 */
   0x2, 0xa, 0x6, 0xe,           /* 0010 1010 0110 1110 */
@@ -1470,6 +1489,25 @@ init_fringe_bitmap (int which, struct fringe_bitmap *fb, int once_p)
 	}
 #endif /* not USE_CAIRO */
 #endif /* HAVE_X_WINDOWS */
+
+#if !defined(HAVE_X_WINDOWS) && defined (HAVE_PGTK)
+      unsigned short *bits = fb->bits;
+      int j;
+
+      for (j = 0; j < fb->height; j++)
+	{
+	  unsigned short b = *bits;
+#ifdef WORDS_BIGENDIAN
+	  *bits++ = (b << (16 - fb->width));
+#else
+	  b = (unsigned short)((swap_nibble[b & 0xf] << 12)
+			       | (swap_nibble[(b>>4) & 0xf] << 8)
+			       | (swap_nibble[(b>>8) & 0xf] << 4)
+			       | (swap_nibble[(b>>12) & 0xf]));
+	  *bits++ = (b >> (16 - fb->width));
+#endif
+	}
+#endif /* !HAVE_X_WINDOWS && HAVE_PGTK */
 
 #ifdef HAVE_NTGUI
       unsigned short *bits = fb->bits;

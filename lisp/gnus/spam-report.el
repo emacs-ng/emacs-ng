@@ -1,6 +1,6 @@
 ;;; spam-report.el --- Reporting spam  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2023 Free Software Foundation, Inc.
 
 ;; Author: Ted Zlatanov <tzz@lifelogs.com>
 ;; Keywords: network, spam, mail, gmane, report
@@ -291,7 +291,7 @@ symbol `ask', query before flushing the queue file."
     (goto-char (point-min))
     (while (and (not (eobp))
 		(re-search-forward
-		 "http://\\([^/]+\\)\\(/.*\\) *$" (point-at-eol) t))
+                 "http://\\([^/]+\\)\\(/.*\\) *$" (line-end-position) t))
       (let ((spam-report-gmane-wait
 	     (zerop (% (line-number-at-pos) spam-report-gmane-max-requests))))
 	(gnus-message 6 "Reporting %s%s..."

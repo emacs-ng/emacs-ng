@@ -1,6 +1,6 @@
 ;;; faceup.el --- Markup language for faces and font-lock regression testing  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2023 Free Software Foundation, Inc.
 
 ;; Author: Anders Lindgren
 ;; Version: 0.0.6
@@ -1006,7 +1006,7 @@ which could be defined as:
     (defun my-test-explain (args...)
       (let ((faceup-test-explain t))
         (the-test args...)))
-    (put 'my-test 'ert-explainer 'my-test-explain)
+    (put \\='my-test \\='ert-explainer \\='my-test-explain)
 
 Alternative, you can use the macro `faceup-defexplainer' as follows:
 

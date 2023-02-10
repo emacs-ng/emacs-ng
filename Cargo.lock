@@ -1215,8 +1215,9 @@ dependencies = [
 
 [[package]]
 name = "fontdb"
-version = "0.11.0"
-source = "git+https://github.com/RazrFalcon/fontdb.git#b0a235dddbd8d44617aa5c2bdc1f8bcb38a0ebc6"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff20bef7942a72af07104346154a70a70b089c572e454b41bef6eb6cb10e9c06"
 dependencies = [
  "fontconfig-parser",
  "log",
@@ -4704,3 +4705,8 @@ dependencies = [
  "libc",
  "once_cell",
 ]
+
+[[patch.unused]]
+name = "fontdb"
+version = "0.11.0"
+source = "git+https://github.com/RazrFalcon/fontdb.git#b0a235dddbd8d44617aa5c2bdc1f8bcb38a0ebc6"

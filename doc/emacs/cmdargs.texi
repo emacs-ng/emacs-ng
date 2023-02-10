@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2001--2022 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2001--2023 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Emacs Invocation
@@ -185,6 +185,11 @@ successfully.
 @item --version
 @opindex --version
 Print Emacs version, then exit successfully.
+
+@item --fingerprint
+@opindex --fingerprint
+Print the Emacs ``fingerprint'', which is used to uniquely identify
+the compiled version of Emacs.
 @end table
 
 @node Initial Options
@@ -289,6 +294,22 @@ which will invoke Emacs with @samp{--script} and supply the name of
 the script file as @var{file}.  Emacs Lisp then treats the @samp{#!}
 on this first line as a comment delimiter.
 
+@item -x
+@opindex -x
+This option can only be used in executable script files, and should be
+invoked like this:
+
+@example
+#!/usr/bin/emacs -x
+@end example
+
+This is like @samp{--script}, but suppresses loading the init files
+(like @code{--quick}), and can't be used on a normal command line
+(since it doesn't specify the script to load).  In addition, when it
+reaches the end of the script, it exits Emacs and uses the value of
+the final form as the exit value from the script (if the final value
+is numerical).  Otherwise, it will always exit with a zero value.
+
 @item --no-build-details
 @opindex --no-build-details
 @cindex build details
@@ -323,6 +344,10 @@ option does this too, but other options like @samp{-q} do not.
 @cindex @file{site-lisp} files, not loading
 Do not include the @file{site-lisp} directories in @code{load-path}
 (@pxref{Init File}).  The @samp{-Q} option does this too.
+
+@item --init-directory
+@opindex --init-directory
+Specify the directory to use when looking for the Emacs init files.
 
 @item --no-splash
 @opindex --no-splash
@@ -750,6 +775,10 @@ actually used.
 On MS-Windows, if you set this variable, Emacs will load and initialize
 the network library at startup, instead of waiting until the first
 time it is required.
+
+@item WAYLAND_DISPLAY
+Pgtk Emacs (built with @option{--with-pgtk}) can run on Wayland natively.
+@env{WAYLAND_DISPLAY} specifies the connection to the compositor.
 
 @item emacs_dir
 On MS-Windows, @env{emacs_dir} is a special environment variable, which

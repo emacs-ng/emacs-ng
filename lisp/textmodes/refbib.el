@@ -1,6 +1,6 @@
 ;;; refbib.el --- convert refer-style references to ones usable by Latex bib  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1989, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1989, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Henry Kautz <kautz@research.att.com>
 ;; Maintainer: emacs-devel@gnu.org
@@ -163,12 +163,11 @@ This is in addition to the `r2b-capitalize-title-stop-words'.")
 
 
 (defun r2b-capitalize-title (s)
-   "Like `capitalize', but don't capitalize stop words, except the first."
-   (with-current-buffer (get-buffer-create "$$$Scratch$$$")
-     (erase-buffer)
-     (insert s)
-     (r2b-capitalize-title-region (point-min) (point-max))
-     (buffer-string)))
+  "Like `capitalize', but don't capitalize stop words, except the first."
+  (with-temp-buffer
+    (insert s)
+    (r2b-capitalize-title-region (point-min) (point-max))
+    (buffer-string)))
 
 ;*********************************************************
 (defun r2b-reset ()

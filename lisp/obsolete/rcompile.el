@@ -1,6 +1,6 @@
 ;;; rcompile.el --- run a compilation on a remote machine  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1993-1994, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1994, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Alon Albert <alon@milcse.rtsg.mot.com>
 ;; Maintainer: emacs-devel@gnu.org
@@ -167,7 +167,7 @@ See \\[compile]."
     (compilation-start compile-command)
     ;; Set comint-file-name-prefix in the compilation buffer so
     ;; compilation-parse-errors will find referenced files by Tramp.
-    (with-current-buffer compilation-last-buffer
+    (with-current-buffer next-error-last-buffer
       (when (fboundp 'tramp-make-tramp-file-name)
 	(set (make-local-variable 'comint-file-name-prefix)
 	     (funcall

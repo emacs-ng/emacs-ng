@@ -1,6 +1,6 @@
 ;;; prog-mode.el --- Generic major mode for programming  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -30,7 +30,12 @@
 ;;; Code:
 
 (eval-when-compile (require 'cl-lib)
-                   (require 'subr-x))
+                   (require 'subr-x)
+                   (require 'treesit))
+
+(declare-function treesit-available-p "treesit.c")
+(declare-function treesit-parser-list "treesit.c")
+(declare-function treesit-node-type "treesit.c")
 
 (defgroup prog-mode nil
   "Generic programming mode, from which others derive."
@@ -49,9 +54,15 @@
   (define-key-after menu [prog-separator] menu-bar-separator
     'middle-separator)
 
+  (unless (xref-forward-history-empty-p)
+    (define-key-after menu [xref-forward]
+      '(menu-item "Go Forward" xref-go-forward
+                  :help "Forward to the position gone Back from")
+      'prog-separator))
+
   (unless (xref-marker-stack-empty-p)
     (define-key-after menu [xref-pop]
-      '(menu-item "Go Back" xref-pop-marker-stack
+      '(menu-item "Go Back" xref-go-back
                   :help "Back to the position of the last search")
       'prog-separator))
 
@@ -94,11 +105,10 @@
 
   menu)
 
-(defvar prog-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [?\C-\M-q] 'prog-indent-sexp)
-    map)
-  "Keymap used for programming modes.")
+(defvar-keymap prog-mode-map
+  :doc "Keymap used for programming modes."
+  "C-M-q" #'prog-indent-sexp
+  "M-q" #'prog-fill-reindent-defun)
 
 (defvar prog-indentation-context nil
   "When non-nil, provides context for indenting embedded code chunks.
@@ -136,6 +146,31 @@ instead."
 	  (end (progn (forward-sexp 1) (point))))
       (indent-region start end nil))))
 
+(defun prog-fill-reindent-defun (&optional argument)
+  "Refill or reindent the paragraph or defun that contains point.
+
+If the point is in a string or a comment, fill the paragraph that
+contains point or follows point.
+
+Otherwise, reindent the function definition that contains point
+or follows point."
+  (interactive "P")
+  (save-excursion
+    (let ((treesit-text-node
+           (and (treesit-available-p)
+                (treesit-parser-list)
+                (string-match-p
+                 treesit-text-type-regexp
+                 (treesit-node-type (treesit-node-at (point)))))))
+      (if (or treesit-text-node
+              (nth 8 (syntax-ppss))
+              (re-search-forward "\\s-*\\s<" (line-end-position) t))
+          (fill-paragraph argument (region-active-p))
+        (beginning-of-defun)
+        (let ((start (point)))
+          (end-of-defun)
+          (indent-region start (point) nil))))))
+
 (defun prog-first-column ()
   "Return the indentation column normally used for top-level constructs."
   (or (car prog-indentation-context) 0))
@@ -151,7 +186,7 @@ which case it will be used to compose the new symbol as per the
 third argument of `compose-region'.")
 
 (defun prettify-symbols-default-compose-p (start end _match)
-  "Return non-nil iff the symbol MATCH should be composed.
+  "Return non-nil if the symbol MATCH should be composed.
 The symbol starts at position START and ends at position END.
 This is the default for `prettify-symbols-compose-predicate'
 which is suitable for most programming languages such as C or Lisp."

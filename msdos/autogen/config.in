@@ -2,7 +2,7 @@
 
 /* GNU Emacs site configuration template file.
 
-Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2022 Free Software
+Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2023 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -217,7 +217,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    whether the gnulib module scanf shall be considered present. */
 #undef GNULIB_SCANF
 
-/* Define if ths system is compatible with GNU/Linux. */
+/* Define if this system is compatible with GNU/Linux. */
 #undef GNU_LINUX
 
 /* Define to 1 if you want to use the GNU memory allocator. */

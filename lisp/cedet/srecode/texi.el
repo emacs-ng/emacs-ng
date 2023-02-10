@@ -1,6 +1,6 @@
 ;;; srecode/texi.el --- Srecode texinfo support.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -246,7 +246,7 @@ that class.
  class      => @code{class} @xref{class}
  unknown    => @code{unknown}
  \"text\"     => \\=`\\=`text\\='\\='
- 'quoteme   => @code{quoteme}
+ \\='quoteme   => @code{quoteme}
  non-nil    => non-@code{nil}
  t          => @code{t}
  :tag       => @code{:tag}

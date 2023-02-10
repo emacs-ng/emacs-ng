@@ -1,6 +1,6 @@
 ;;; rx-tests.el --- tests for rx.el              -*- lexical-binding: t -*-
 
-;; Copyright (C) 2016-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2016-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -206,6 +206,12 @@
   (should (equal (pcase-let* (((rx ?E (let z nonl)) "DEF"))
                    (list 'ok z))
                  '(ok "F"))))
+
+(ert-deftest rx-let-pcase ()
+  "Test `rx-let' around `pcase' with `rx' patterns (bug#59814)."
+  (should (equal (rx-let ((tata "ab"))
+                   (pcase "abc" ((rx tata) 'toto)))
+                 'toto)))
 
 (ert-deftest rx-kleene ()
   "Test greedy and non-greedy repetition operators."

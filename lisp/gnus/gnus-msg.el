@@ -1,6 +1,6 @@
 ;;; gnus-msg.el --- mail and post interface for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2023 Free Software Foundation, Inc.
 
 ;; Author: Masanobu UMEDA <umerin@flab.flab.fujitsu.junet>
 ;;	Lars Magne Ingebrigtsen <larsi@gnus.org>
@@ -51,24 +51,6 @@ method to use when posting."
   :type `(choice (const native)
 		 (const current)
 		 (sexp :tag "Methods" ,gnus-select-method)))
-
-(defcustom gnus-outgoing-message-group nil
-  "All outgoing messages will be put in this group.
-If you want to store all your outgoing mail and articles in the group
-\"nnml:archive\", you set this variable to that value.  This variable
-can also be a list of group names.
-
-If you want to have greater control over what group to put each
-message in, you can set this variable to a function that checks the
-current newsgroup name and then returns a suitable group name (or list
-of names)."
-  :group 'gnus-message
-  :type '(choice (const nil)
-		 (function)
-		 (string :tag "Group")
-		 (repeat :tag "List of groups" (string :tag "Group"))))
-
-(make-obsolete-variable 'gnus-outgoing-message-group 'gnus-message-archive-group "24.1")
 
 (defcustom gnus-mailing-list-groups nil
   "If non-nil a regexp matching groups that are really mailing lists.
@@ -215,30 +197,6 @@ use this option with care."
  :parameter-document       "\
 List of charsets that are permitted to be unencoded.")
 
-(defcustom gnus-debug-files
-  '("gnus.el" "gnus-sum.el" "gnus-group.el"
-    "gnus-art.el" "gnus-start.el" "gnus-async.el"
-    "gnus-msg.el" "gnus-score.el" "gnus-win.el" "gnus-topic.el"
-    "gnus-agent.el" "gnus-cache.el" "gnus-srvr.el"
-    "mm-util.el" "mm-decode.el" "nnmail.el" "message.el")
-  "Files whose variables will be reported in `gnus-bug'."
-  :version "22.1"
-  :group 'gnus-message
-  :type '(repeat file))
-
-(make-obsolete-variable 'gnus-debug-files "it is no longer used." "24.1")
-
-(defcustom gnus-debug-exclude-variables
-  '(mm-mime-mule-charset-alist
-    nnmail-split-fancy message-minibuffer-local-map)
-  "Variables that should not be reported in `gnus-bug'."
-  :version "22.1"
-  :group 'gnus-message
-  :type '(repeat variable))
-
-(make-obsolete-variable
- 'gnus-debug-exclude-variables "it is no longer used." "24.1")
-
 (defcustom gnus-discouraged-post-methods
   '(nndraft nnml nnimap nnmaildir nnmh nnfolder nndir)
   "A list of back ends that are not used in \"real\" newsgroups.
@@ -349,39 +307,39 @@ only affect the Gcc copy, but not the original message."
 ;;; Gnus Posting Functions
 ;;;
 
-(gnus-define-keys (gnus-summary-send-map "S" gnus-summary-mode-map)
-  "p" gnus-summary-post-news
-  "i" gnus-summary-news-other-window
-  "f" gnus-summary-followup
-  "F" gnus-summary-followup-with-original
-  "c" gnus-summary-cancel-article
-  "s" gnus-summary-supersede-article
-  "r" gnus-summary-reply
-  "y" gnus-summary-yank-message
-  "R" gnus-summary-reply-with-original
-  "L" gnus-summary-reply-to-list-with-original
-  "w" gnus-summary-wide-reply
-  "W" gnus-summary-wide-reply-with-original
-  "v" gnus-summary-very-wide-reply
-  "V" gnus-summary-very-wide-reply-with-original
-  "n" gnus-summary-followup-to-mail
-  "N" gnus-summary-followup-to-mail-with-original
-  "m" gnus-summary-mail-other-window
-  "u" gnus-uu-post-news
-  "A" gnus-summary-attach-article
-  "\M-c" gnus-summary-mail-crosspost-complaint
-  "Br" gnus-summary-reply-broken-reply-to
-  "BR" gnus-summary-reply-broken-reply-to-with-original
-  "om" gnus-summary-mail-forward
-  "op" gnus-summary-post-forward
-  "Om" gnus-uu-digest-mail-forward
-  "Op" gnus-uu-digest-post-forward)
+(define-keymap :prefix 'gnus-summary-send-map
+  "p" #'gnus-summary-post-news
+  "i" #'gnus-summary-news-other-window
+  "f" #'gnus-summary-followup
+  "F" #'gnus-summary-followup-with-original
+  "c" #'gnus-summary-cancel-article
+  "s" #'gnus-summary-supersede-article
+  "r" #'gnus-summary-reply
+  "y" #'gnus-summary-yank-message
+  "R" #'gnus-summary-reply-with-original
+  "L" #'gnus-summary-reply-to-list-with-original
+  "w" #'gnus-summary-wide-reply
+  "W" #'gnus-summary-wide-reply-with-original
+  "v" #'gnus-summary-very-wide-reply
+  "V" #'gnus-summary-very-wide-reply-with-original
+  "n" #'gnus-summary-followup-to-mail
+  "N" #'gnus-summary-followup-to-mail-with-original
+  "m" #'gnus-summary-mail-other-window
+  "u" #'gnus-uu-post-news
+  "A" #'gnus-summary-attach-article
+  "M-c" #'gnus-summary-mail-crosspost-complaint
+  "B r" #'gnus-summary-reply-broken-reply-to
+  "B R" #'gnus-summary-reply-broken-reply-to-with-original
+  "o m" #'gnus-summary-mail-forward
+  "o p" #'gnus-summary-post-forward
+  "O m" #'gnus-uu-digest-mail-forward
+  "O p" #'gnus-uu-digest-post-forward
 
-(gnus-define-keys (gnus-send-bounce-map "D" gnus-summary-send-map)
-  "b" gnus-summary-resend-bounced-mail
-  ;; "c" gnus-summary-send-draft
-  "r" gnus-summary-resend-message
-  "e" gnus-summary-resend-message-edit)
+  "D" (define-keymap :prefix 'gnus-send-bounce-map
+        "b" #'gnus-summary-resend-bounced-mail
+        ;; "c" gnus-summary-send-draft
+        "r" #'gnus-summary-resend-message
+        "e" #'gnus-summary-resend-message-edit))
 
 ;;; Internal functions.
 
@@ -1305,7 +1263,7 @@ For the \"inline\" alternatives, also see the variable
   (gnus-inews-insert-gcc)
   (let ((gcc (message-unquote-tokens
 	       (message-tokenize-header (mail-fetch-field "gcc" nil t)
-					" ,")))
+					",")))
 	(self (with-current-buffer gnus-summary-buffer
 		gnus-gcc-self-resent-messages)))
     (message-remove-header "gcc")
@@ -1571,8 +1529,9 @@ this is a reply."
 	(when gcc
 	  (message-remove-header "gcc")
 	  (widen)
-	  (setq groups (message-unquote-tokens
-			(message-tokenize-header gcc " ,\n\t")))
+	  (setq groups (mapcar #'string-trim
+                               (message-unquote-tokens
+			        (message-tokenize-header gcc))))
 	  ;; Copy the article over to some group(s).
 	  (while (setq group (pop groups))
 	    (setq method (gnus-inews-group-method group))
@@ -1593,9 +1552,10 @@ this is a reply."
 	      (nnheader-set-temp-buffer " *acc*")
 	      (setq message-options (with-current-buffer cur message-options))
 	      (insert-buffer-substring cur)
+              (restore-buffer-modified-p nil)
 	      (run-hooks 'gnus-gcc-pre-body-encode-hook)
 	      ;; Avoid re-doing things like GPG-encoding secret parts.
-	      (if (not encoded-cache)
+	      (if (or (buffer-modified-p) (not encoded-cache))
 		  (message-encode-message-body)
 		(erase-buffer)
 		(insert encoded-cache))
@@ -1663,7 +1623,7 @@ this is a reply."
 (defun gnus-inews-insert-gcc (&optional group)
   "Insert the Gcc to say where the article is to be archived."
   (let* ((group (or group gnus-newsgroup-name))
-         (var (or gnus-outgoing-message-group gnus-message-archive-group))
+         (var gnus-message-archive-group)
 	 (gcc-self-val
 	  (and group (not (gnus-virtual-group-p group))
 	       (gnus-group-find-parameter group 'gcc-self t)))
@@ -1748,7 +1708,7 @@ this is a reply."
 			    (concat "\"" str "\"")
 			  str)))
 	      (when groups
-		(insert " ")))
+		(insert ",")))
 	    (insert "\n")))))))
 
 (defun gnus-mailing-list-followup-to ()

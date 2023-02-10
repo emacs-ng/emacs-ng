@@ -1,6 +1,6 @@
 ;;; generic-x.el --- A collection of generic modes  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1997-1998, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-1998, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Peter Breton <pbreton@cs.umb.edu>
 ;; Created: Tue Oct 08 1996
@@ -193,7 +193,6 @@ This hook will be installed if the variable
     hosts-generic-mode
     java-manifest-generic-mode
     java-properties-generic-mode
-    javascript-generic-mode
     show-tabs-generic-mode
     vrml-generic-mode)
   "List of generic modes that are defined by default.")
@@ -488,12 +487,6 @@ like an INI file.  You can add this hook to `find-file-hook'."
   '("pkginfo\\'")
   nil
   "Generic mode for Sys V pkginfo files."))
-
-;; Javascript mode
-;; Obsolete; defer to js-mode from js.el.
-(when (memq 'javascript-generic-mode generic-extras-enable-list)
-  (define-obsolete-function-alias 'javascript-generic-mode 'js-mode "24.3")
-  (define-obsolete-variable-alias 'javascript-generic-mode-hook 'js-mode-hook "24.3"))
 
 ;; VRML files
 (when (memq 'vrml-generic-mode generic-extras-enable-list)
@@ -1846,5 +1839,9 @@ like an INI file.  You can add this hook to `find-file-hook'."
   nil))
 
 (provide 'generic-x)
+
+;; Local Variables:
+;; autoload-compute-prefixes: nil
+;; End:
 
 ;;; generic-x.el ends here

@@ -2,7 +2,7 @@
 #define EMACS_W32_H
 
 /* Support routines for the NT version of Emacs.
-   Copyright (C) 1994, 2001-2022 Free Software Foundation, Inc.
+   Copyright (C) 1994, 2001-2023 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -135,6 +135,7 @@ extern filedesc fd_info [ MAXDESC ];
 #define FILE_SOCKET             0x0200
 #define FILE_NDELAY             0x0400
 #define FILE_SERIAL             0x0800
+#define FILE_DONT_CLOSE         0x1000
 
 extern child_process * new_child (void);
 extern void delete_child (child_process *cp);
@@ -161,8 +162,9 @@ extern void prepare_standard_handles (int in, int out,
 extern void reset_standard_handles (int in, int out,
 				    int err, HANDLE handles[3]);
 
-/* Return the string resource associated with KEY of type TYPE.  */
-extern LPBYTE w32_get_resource (const char * key, LPDWORD type);
+/* Query Windows Registry and return the resource associated
+   associated with KEY and NAME of type TYPE.  */
+extern LPBYTE w32_get_resource (const char * key, const char * name, LPDWORD type);
 
 extern void release_listen_threads (void);
 extern void init_ntproc (int);
@@ -226,6 +228,8 @@ extern int sys_link (const char *, const char *);
 extern int openat (int, const char *, int, int);
 extern int fchmodat (int, char const *, mode_t, int);
 extern int lchmod (char const *, mode_t);
+extern bool symlinks_supported (const char *);
+
 
 /* Return total and free memory info.  */
 extern int w32_memory_info (unsigned long long *, unsigned long long *,
@@ -241,6 +245,9 @@ extern unsigned w32_get_nproc (void);
 extern int w32_init_random (void *, ptrdiff_t);
 
 extern Lisp_Object w32_read_registry (HKEY, Lisp_Object, Lisp_Object);
+
+/* Used instead of execvp to restart Emacs.  */
+extern int w32_reexec_emacs (char *, const char *);
 
 #ifdef HAVE_GNUTLS
 #include <gnutls/gnutls.h>

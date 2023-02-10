@@ -1,6 +1,6 @@
 ;;; viper-init.el --- some common definitions for Viper  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 
 ;; Author: Michael Kifer <kifer@cs.stonybrook.edu>
 ;; Package: viper
@@ -25,16 +25,12 @@
 ;;; Code:
 
 ;; compiler pacifier
-(defvar mark-even-if-inactive)
-(defvar quail-mode)
 (defvar iso-accents-mode)
 (defvar viper-current-state)
 (defvar viper-version)
 (defvar viper-expert-level)
 (defvar current-input-method)
 (defvar default-input-method)
-(defvar describe-current-input-method-function)
-(defvar bar-cursor)
 (defvar cursor-type)
 ;; end pacifier
 
@@ -48,12 +44,6 @@
 
 (define-obsolete-function-alias 'viper-device-type #'window-system "27.1")
 
-(defun viper-color-display-p ()
-  (condition-case nil
-      (display-color-p)
-    (error nil)))
-
-;; in XEmacs: device-type is tty on tty and stream in batch.
 (defun viper-window-display-p ()
   (and window-system (not (memq window-system '(tty stream pc)))))
 
@@ -81,7 +71,7 @@ In all likelihood, you don't need to bother with this setting."
 (defun viper-has-face-support-p ()
   (cond ((viper-window-display-p))
 	(viper-force-faces)
-	((viper-color-display-p))
+        ((display-color-p))
 	(t (memq window-system '(pc)))))
 
 
@@ -877,8 +867,8 @@ Should be set in `viper-custom-file-name'."
 (defvar-local viper-minibuffer-overlay nil)
 (put 'viper-minibuffer-overlay 'permanent-local t)
 
-;; Hook, specific to Viper, which is run just *before* exiting the minibuffer.
-;; This is needed because beginning with Emacs 19.26, the standard
+;; Hook, specific to Viper, which is run just *before* exiting the
+;; minibuffer.  This is needed because, the standard
 ;; `minibuffer-exit-hook' is run *after* exiting the minibuffer
 (defvar viper-minibuffer-exit-hook nil)
 

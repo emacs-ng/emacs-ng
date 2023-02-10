@@ -1,6 +1,6 @@
 ;;; strokes.el --- control Emacs through mouse strokes  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997, 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: David Bakhash <cadet@alum.mit.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -210,9 +210,6 @@ static char * stroke_xpm[] = {
   :link '(emacs-commentary-link "strokes")
   :group 'mouse)
 
-(define-obsolete-variable-alias 'strokes-modeline-string 'strokes-lighter
-  "24.3")
-
 (defcustom strokes-lighter " Strokes"
   "Mode line identifier for Strokes mode."
   :type 'string)
@@ -252,7 +249,7 @@ WARNING: Changing the value of this variable will gravely affect the
          figure out what it should be based on your needs and on how
          quick the particular platform(s) you're operating on, and
          only then start programming in your custom strokes."
-  :type 'integer)
+  :type 'natnum)
 
 (defcustom strokes-file (locate-user-emacs-file "strokes" ".strokes")
   "File containing saved strokes for Strokes mode."
@@ -1031,13 +1028,11 @@ o Strokes are a bit computer-dependent in that they depend somewhat on
     (help-mode)
     (help-print-return-message)))
 
-(define-obsolete-function-alias 'strokes-report-bug #'report-emacs-bug "24.1")
-
 (defun strokes-window-configuration-changed-p ()
   "Non-nil if the `strokes-window-configuration' frame properties changed.
 This is based on the last time `strokes-window-configuration' was updated."
-  (compare-window-configurations (current-window-configuration)
-				 strokes-window-configuration))
+  (window-configuration-equal-p (current-window-configuration)
+				strokes-window-configuration))
 
 (defun strokes-update-window-configuration ()
   "Ensure that `strokes-window-configuration' is up-to-date."
@@ -1156,7 +1151,7 @@ the stroke as a character in some language."
 						     strokes-last-stroke)
 						 31))))
 	  (lift-flag t)
-	  (rainbow-chars (list ?R ?O ?Y ?G ?B ?P))) ; ROYGBIV w/o indigo
+	  (rainbow-chars (list ?R ?O ?Y ?G ?B ?P))) ; ROYGBIV without indigo
       (set-buffer buf)
       (erase-buffer)
       (insert strokes-xpm-header)
@@ -1364,11 +1359,9 @@ If STROKES-MAP is not given, `strokes-global-map' will be used instead."
   "Return t if STROKE1's command name precedes STROKE2's in lexicographic order."
   (string-lessp (cdr stroke1) (cdr stroke2)))
 
-(defvar strokes-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [(shift down-mouse-2)] #'strokes-do-stroke)
-    (define-key map [(meta down-mouse-2)] #'strokes-do-complex-stroke)
-    map))
+(defvar-keymap strokes-mode-map
+  "S-<down-mouse-2>" #'strokes-do-stroke
+  "M-<down-mouse-2>" #'strokes-do-complex-stroke)
 
 ;;;###autoload
 (define-minor-mode strokes-mode
@@ -1395,14 +1388,19 @@ Encode/decode your strokes with \\[strokes-encode-buffer],
 	      (strokes-load-user-strokes))
 	 (add-hook 'kill-emacs-query-functions
 		   #'strokes-prompt-user-save-strokes)
-	 (add-hook 'select-frame-hook
-		   #'strokes-update-window-configuration)
+         ;; FIXME: Should this be something like `focus-in-hook'?
+         ;; That variable is obsolete, but `select-frame-hook' has
+         ;; never existed in Emacs.
+         ;;(add-hook 'select-frame-hook
+         ;;          #'strokes-update-window-configuration)
 	 (strokes-update-window-configuration))
 	(t				; turn off strokes
 	 (if (get-buffer strokes-buffer-name)
-	     (kill-buffer (get-buffer strokes-buffer-name)))
-	 (remove-hook 'select-frame-hook
-		      #'strokes-update-window-configuration))))
+             (kill-buffer (get-buffer strokes-buffer-name)))
+         ;; FIXME: Same as above.
+         ;;(remove-hook 'select-frame-hook
+         ;;             #'strokes-update-window-configuration)
+         )))
 
 
 ;;;; strokes-xpm stuff (later may be separate)...

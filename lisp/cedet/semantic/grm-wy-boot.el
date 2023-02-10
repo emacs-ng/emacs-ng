@@ -1,6 +1,6 @@
 ;;; semantic/grammar-wy.el --- Generated parser support file  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2023 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -149,10 +149,10 @@
      ((type_decl))
      ((use_macros_decl)))
     (default_prec_decl
-      ((DEFAULT-PREC)
-       `(wisent-raw-tag
-         (semantic-tag "default-prec" 'assoc :value
-		       '("t")))))
+     ((DEFAULT-PREC)
+      `(wisent-raw-tag
+        (semantic-tag "default-prec" 'assoc :value
+		      '("t")))))
     (no_default_prec_decl
      ((NO-DEFAULT-PREC)
       `(wisent-raw-tag

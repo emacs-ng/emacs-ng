@@ -1,6 +1,6 @@
 ;;; mml.el --- A package for parsing and validating MML documents  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; This file is part of GNU Emacs.
@@ -35,7 +35,6 @@
 (declare-function gnus-setup-posting-charset "gnus-msg" (group))
 (autoload 'gnus-completing-read "gnus-util")
 (autoload 'message-fetch-field "message")
-(autoload 'message-mark-active-p "message")
 (autoload 'message-info "message")
 (autoload 'fill-flowed-encode "flow-fill")
 (autoload 'message-posting-charset "message")
@@ -500,7 +499,8 @@ type detected."
       (when (and (consp (car cont))
 		 (= (length cont) 1)
 		 content-type)
-	(setcdr (assq 'type (cdr (car cont))) content-type))
+        (when-let ((spec (assq 'type (cdr (car cont)))))
+	  (setcdr spec content-type)))
       (when (fboundp 'libxml-parse-html-region)
 	(setq cont (mapcar #'mml-expand-all-html-into-multipart-related cont)))
       (prog1
@@ -979,13 +979,10 @@ type detected."
 	  (symbol-name type) value))))))
 
 (defvar ange-ftp-name-format)
-(defvar efs-path-regexp)
 
 (defun mml-parse-file-name (path)
-  (if (if (boundp 'efs-path-regexp)
-	  (string-match efs-path-regexp path)
-	(if (boundp 'ange-ftp-name-format)
-	    (string-match (car ange-ftp-name-format) path)))
+  (if (and (boundp 'ange-ftp-name-format)
+           (string-match (car ange-ftp-name-format) path))
       (list (match-string 1 path) (match-string 2 path)
 	    (substring path (1+ (match-end 2))))
     path))
@@ -1143,48 +1140,40 @@ If HANDLES is non-nil, use it instead reparsing the buffer."
 ;;; Mode for inserting and editing MML forms
 ;;;
 
-(defvar mml-mode-map
-  (let ((sign (make-sparse-keymap))
-	(encrypt (make-sparse-keymap))
-	(signpart (make-sparse-keymap))
-	(encryptpart (make-sparse-keymap))
-	(map (make-sparse-keymap))
-	(main (make-sparse-keymap)))
-    (define-key map "\C-s" 'mml-secure-message-sign)
-    (define-key map "\C-c" 'mml-secure-message-encrypt)
-    (define-key map "\C-e" 'mml-secure-message-sign-encrypt)
-    (define-key map "\C-p\C-s" 'mml-secure-sign)
-    (define-key map "\C-p\C-c" 'mml-secure-encrypt)
-    (define-key sign "p" 'mml-secure-message-sign-pgpmime)
-    (define-key sign "o" 'mml-secure-message-sign-pgp)
-    (define-key sign "s" 'mml-secure-message-sign-smime)
-    (define-key signpart "p" 'mml-secure-sign-pgpmime)
-    (define-key signpart "o" 'mml-secure-sign-pgp)
-    (define-key signpart "s" 'mml-secure-sign-smime)
-    (define-key encrypt "p" 'mml-secure-message-encrypt-pgpmime)
-    (define-key encrypt "o" 'mml-secure-message-encrypt-pgp)
-    (define-key encrypt "s" 'mml-secure-message-encrypt-smime)
-    (define-key encryptpart "p" 'mml-secure-encrypt-pgpmime)
-    (define-key encryptpart "o" 'mml-secure-encrypt-pgp)
-    (define-key encryptpart "s" 'mml-secure-encrypt-smime)
-    (define-key map "\C-n" 'mml-unsecure-message)
-    (define-key map "f" 'mml-attach-file)
-    (define-key map "b" 'mml-attach-buffer)
-    (define-key map "e" 'mml-attach-external)
-    (define-key map "q" 'mml-quote-region)
-    (define-key map "m" 'mml-insert-multipart)
-    (define-key map "p" 'mml-insert-part)
-    (define-key map "v" 'mml-validate)
-    (define-key map "P" 'mml-preview)
-    (define-key map "s" sign)
-    (define-key map "S" signpart)
-    (define-key map "c" encrypt)
-    (define-key map "C" encryptpart)
-    ;;(define-key map "n" 'mml-narrow-to-part)
-    ;; `M-m' conflicts with `back-to-indentation'.
-    ;; (define-key main "\M-m" map)
-    (define-key main "\C-c\C-m" map)
-    main))
+(defvar-keymap mml-mode-map
+  "C-c C-m"
+  (define-keymap
+    "C-s" #'mml-secure-message-sign
+    "C-c" #'mml-secure-message-encrypt
+    "C-e" #'mml-secure-message-sign-encrypt
+    "C-p C-s" #'mml-secure-sign
+    "C-p C-c" #'mml-secure-encrypt
+
+    "s" (define-keymap
+          "p" #'mml-secure-message-sign-pgpmime
+          "o" #'mml-secure-message-sign-pgp
+          "s" #'mml-secure-message-sign-smime)
+    "S" (define-keymap
+          "p" #'mml-secure-sign-pgpmime
+          "o" #'mml-secure-sign-pgp
+          "s" #'mml-secure-sign-smime)
+    "c" (define-keymap
+          "p" #'mml-secure-message-encrypt-pgpmime
+          "o" #'mml-secure-message-encrypt-pgp
+          "s" #'mml-secure-message-encrypt-smime)
+    "C" (define-keymap
+          "p" #'mml-secure-encrypt-pgpmime
+          "o" #'mml-secure-encrypt-pgp
+          "s" #'mml-secure-encrypt-smime)
+    "C-n" #'mml-unsecure-message
+    "f" #'mml-attach-file
+    "b" #'mml-attach-buffer
+    "e" #'mml-attach-external
+    "q" #'mml-quote-region
+    "m" #'mml-insert-multipart
+    "p" #'mml-insert-part
+    "v" #'mml-validate
+    "P" #'mml-preview))
 
 (easy-menu-define
   mml-menu mml-mode-map ""
@@ -1246,7 +1235,7 @@ If HANDLES is non-nil, use it instead reparsing the buffer."
     ;;
     ;;["Narrow" mml-narrow-to-part t]
     ["Quote MML in region" mml-quote-region
-     :active (message-mark-active-p)
+     :active mark-active
      :help "Quote MML tags in region"]
     ["Validate MML" mml-validate t]
     ["Preview" mml-preview t]
@@ -1409,6 +1398,13 @@ to specify options."
   :version "22.1" ;; Gnus 5.10.9
   :group 'message)
 
+(defcustom mml-attach-file-at-the-end nil
+  "If non-nil, \\[mml-attach-file] attaches files at the end of the message.
+If nil, files are attached at point."
+  :type 'boolean
+  :version "29.1"
+  :group 'message)
+
 ;;;###autoload
 (defun mml-attach-file (file &optional type description disposition)
   "Attach a file to the outgoing MIME message.
@@ -1422,6 +1418,8 @@ is a one-line description of the attachment.  The DISPOSITION
 specifies how the attachment is intended to be displayed.  It can
 be either \"inline\" (displayed automatically within the message
 body) or \"attachment\" (separate from the body).
+
+Also see the `mml-attach-file-at-the-end' variable.
 
 If given a prefix interactively, no prompting will be done for
 the TYPE, DESCRIPTION or DISPOSITION values.  Instead defaults
@@ -1440,24 +1438,27 @@ will be computed and used."
 			 (mml-minibuffer-read-disposition type nil file))))
      (list file type description disposition)))
   ;; If in the message header, attach at the end and leave point unchanged.
-  (let ((head (unless (message-in-body-p) (point))))
-    (if head (goto-char (point-max)))
+  (let ((at-end (and (or (not (message-in-body-p))
+                         mml-attach-file-at-the-end)
+                     (point))))
+    (when at-end
+      (goto-char (point-max)))
     (mml-insert-empty-tag 'part
 			  'type type
 			  ;; icicles redefines read-file-name and returns a
-			  ;; string w/ text properties :-/
+                          ;; string with text properties :-/
 			  'filename (substring-no-properties file)
 			  'disposition (or disposition "attachment")
 			  'description description)
     ;; When using Mail mode, make sure it does the mime encoding
     ;; when you send the message.
-    (or (eq mail-user-agent 'message-user-agent)
-	(setq mail-encode-mml t))
-    (when head
+    (unless (eq mail-user-agent 'message-user-agent)
+      (setq mail-encode-mml t))
+    (when at-end
       (unless (pos-visible-in-window-p)
 	(message "The file \"%s\" has been attached at the end of the message"
 		 (file-name-nondirectory file)))
-      (goto-char head))))
+      (goto-char at-end))))
 
 (defun mml-dnd-attach-file (uri _action)
   "Attach a drag and drop file.
@@ -1483,10 +1484,12 @@ Ask for type, description or disposition according to
 	  (setq disposition (mml-minibuffer-read-disposition type nil file)))
 	(mml-attach-file file type description disposition)))))
 
-(defun mml-attach-buffer (buffer &optional type description disposition)
+(defun mml-attach-buffer (buffer &optional type description disposition filename)
   "Attach a buffer to the outgoing MIME message.
 BUFFER is the name of the buffer to attach.  See
-`mml-attach-file' for details of operation."
+`mml-attach-file' regarding TYPE, DESCRIPTION and DISPOSITION.
+FILENAME is a suggested file name for the attachment should a
+recipient wish to save a copy separate from the message."
   (interactive
    (let* ((buffer (read-buffer "Attach buffer: "))
 	  (type (mml-minibuffer-read-type buffer "text/plain"))
@@ -1496,9 +1499,10 @@ BUFFER is the name of the buffer to attach.  See
   ;; If in the message header, attach at the end and leave point unchanged.
   (let ((head (unless (message-in-body-p) (point))))
     (if head (goto-char (point-max)))
-    (mml-insert-empty-tag 'part 'type type 'buffer buffer
-			  'disposition disposition
-			  'description description)
+    (apply #'mml-insert-empty-tag
+           'part 'type type 'buffer buffer
+	   'disposition disposition 'description description
+           (and filename `(filename ,filename)))
     ;; When using Mail mode, make sure it does the mime encoding
     ;; when you send the message.
     (or (eq mail-user-agent 'message-user-agent)
@@ -1512,7 +1516,7 @@ BUFFER is the name of the buffer to attach.  See
 
 (defun mml-attach-external (file &optional type description)
   "Attach an external file into the buffer.
-FILE is an ange-ftp/efs specification of the part location.
+FILE is an ange-ftp specification of the part location.
 TYPE is the MIME type to use."
   (interactive
    (let* ((file (mml-minibuffer-read-file "Attach external file: "))

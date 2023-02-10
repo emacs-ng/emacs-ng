@@ -1,6 +1,6 @@
 ;;; pcmpl-gnu.el --- completions for GNU project tools -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Package: pcomplete
 
@@ -134,7 +134,7 @@ Return the new list."
   "Add to TARGETS the list of target names in MAKEFILE and files it includes.
 Return the new list."
   (with-temp-buffer
-    (with-demoted-errors			;Could be a directory or something.
+    (with-demoted-errors "Error inserting makefile: %S"
         (insert-file-contents makefile))
 
     (let ((filenames (when pcmpl-gnu-makefile-includes (pcmpl-gnu-make-includes))))
@@ -394,6 +394,40 @@ Return the new list."
     (while (pcomplete-here (pcomplete-dirs) nil #'identity))))
 
 ;;;###autoload
-(defalias 'pcomplete/gdb 'pcomplete/xargs)
+(defun pcomplete/awk ()
+  "Completion for the `awk' command."
+  (pcomplete-here-using-help "awk --help"
+                             :margin "\t"
+                             :separator "  +"
+                             :description "\0"
+                             :metavar "[=a-z]+"))
+
+;;;###autoload
+(defun pcomplete/gpg ()
+  "Completion for the `gpg` command."
+  (pcomplete-here-using-help "gpg --help" :narrow-end "^ -se"))
+
+;;;###autoload
+(defun pcomplete/gdb ()
+  "Completion for the `gdb' command."
+  (while
+      (cond
+       ((string= "--args" (pcomplete-arg 1))
+        (funcall pcomplete-command-completion-function)
+        (funcall (or (pcomplete-find-completion-function (pcomplete-arg 1))
+	             pcomplete-default-completion-function)))
+       ((string-prefix-p "-" (pcomplete-arg 0))
+        (pcomplete-here (pcomplete-from-help "gdb --help")))
+       (t (pcomplete-here (pcomplete-entries))))))
+
+;;;###autoload
+(defun pcomplete/emacs ()
+  "Completion for the `emacs' command."
+  (pcomplete-here-using-help "emacs --help" :margin "^\\(\\)-"))
+
+;;;###autoload
+(defun pcomplete/emacsclient ()
+  "Completion for the `emacsclient' command."
+  (pcomplete-here-using-help "emacsclient --help" :margin "^\\(\\)-"))
 
 ;;; pcmpl-gnu.el ends here

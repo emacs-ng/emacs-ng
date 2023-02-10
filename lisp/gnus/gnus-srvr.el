@@ -1,6 +1,6 @@
 ;;; gnus-srvr.el --- virtual server support for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2023 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -103,7 +103,43 @@ If nil, a faster, but more primitive, buffer is used instead."
 (defvar gnus-server-mode-line-format-spec nil)
 (defvar gnus-server-killed-servers nil)
 
-(defvar gnus-server-mode-map nil)
+(defvar-keymap gnus-server-mode-map
+  :full t :suppress t
+  "SPC" #'gnus-server-read-server-in-server-buffer
+  "RET" #'gnus-server-read-server
+  "<mouse-2>" #'gnus-server-pick-server
+  "q" #'gnus-server-exit
+  "l" #'gnus-server-list-servers
+  "k" #'gnus-server-kill-server
+  "y" #'gnus-server-yank-server
+  "c" #'gnus-server-copy-server
+  "a" #'gnus-server-add-server
+  "e" #'gnus-server-edit-server
+  "S" #'gnus-server-show-server
+  "s" #'gnus-server-scan-server
+
+  "O" #'gnus-server-open-server
+  "M-o" #'gnus-server-open-all-servers
+  "C" #'gnus-server-close-server
+  "M-c" #'gnus-server-close-all-servers
+  "D" #'gnus-server-deny-server
+  "L" #'gnus-server-offline-server
+  "R" #'gnus-server-remove-denials
+
+  "n" #'next-line
+  "p" #'previous-line
+
+  "g" #'gnus-server-regenerate-server
+
+  "G" #'gnus-group-read-ephemeral-search-group
+
+  "z" #'gnus-server-compact-server
+
+  "i" #'gnus-server-toggle-cloud-server
+  "I" #'gnus-server-set-cloud-method-server
+
+  "C-c C-i" #'gnus-info-find-node
+  "C-c C-b" #'gnus-bug)
 
 (defcustom gnus-server-menu-hook nil
   "Hook run after the creation of the server mode menu."
@@ -144,47 +180,6 @@ If nil, a faster, but more primitive, buffer is used instead."
        ["Reset All" gnus-server-remove-denials t]))
 
     (gnus-run-hooks 'gnus-server-menu-hook)))
-
-(unless gnus-server-mode-map
-  (setq gnus-server-mode-map (make-keymap))
-  (suppress-keymap gnus-server-mode-map)
-
-  (gnus-define-keys gnus-server-mode-map
-    " " gnus-server-read-server-in-server-buffer
-    "\r" gnus-server-read-server
-    [mouse-2] gnus-server-pick-server
-    "q" gnus-server-exit
-    "l" gnus-server-list-servers
-    "k" gnus-server-kill-server
-    "y" gnus-server-yank-server
-    "c" gnus-server-copy-server
-    "a" gnus-server-add-server
-    "e" gnus-server-edit-server
-    "S" gnus-server-show-server
-    "s" gnus-server-scan-server
-
-    "O" gnus-server-open-server
-    "\M-o" gnus-server-open-all-servers
-    "C" gnus-server-close-server
-    "\M-c" gnus-server-close-all-servers
-    "D" gnus-server-deny-server
-    "L" gnus-server-offline-server
-    "R" gnus-server-remove-denials
-
-    "n" next-line
-    "p" previous-line
-
-    "g" gnus-server-regenerate-server
-
-    "G" gnus-group-read-ephemeral-search-group
-
-    "z" gnus-server-compact-server
-
-    "i" gnus-server-toggle-cloud-server
-    "I" gnus-server-set-cloud-method-server
-
-    "\C-c\C-i" gnus-info-find-node
-    "\C-c\C-b" gnus-bug))
 
 (defface gnus-server-agent
   '((((class color) (background light)) (:foreground "PaleTurquoise" :bold t))
@@ -344,13 +339,13 @@ The following commands are available:
   (gnus-server-position-point))
 
 (defun gnus-server-server-name ()
-  (let ((server (get-text-property (point-at-bol) 'gnus-server)))
+  (let ((server (get-text-property (line-beginning-position) 'gnus-server)))
     (and server (symbol-name server))))
 
 (defun gnus-server-named-server ()
   "Return a server name that matches one of the names returned by
 `gnus-method-to-server'."
-  (let ((server (get-text-property (point-at-bol) 'gnus-named-server)))
+  (let ((server (get-text-property (line-beginning-position) 'gnus-named-server)))
     (and server (symbol-name server))))
 
 (defalias 'gnus-server-position-point 'gnus-goto-colon)
@@ -697,37 +692,30 @@ claim them."
 		function
 		(repeat function)))
 
-(defvar gnus-browse-mode-map nil)
+(defvar-keymap gnus-browse-mode-map
+  :full t :suppress t
+  "SPC" #'gnus-browse-read-group
+  "=" #'gnus-browse-select-group
+  "n" #'gnus-browse-next-group
+  "p" #'gnus-browse-prev-group
+  "DEL" #'gnus-browse-prev-group
+  "N" #'gnus-browse-next-group
+  "P" #'gnus-browse-prev-group
+  "M-n" #'gnus-browse-next-group
+  "M-p" #'gnus-browse-prev-group
+  "RET" #'gnus-browse-select-group
+  "u" #'gnus-browse-toggle-subscription-at-point
+  "l" #'gnus-browse-exit
+  "L" #'gnus-browse-exit
+  "q" #'gnus-browse-exit
+  "Q" #'gnus-browse-exit
+  "d" #'gnus-browse-describe-group
+  "<delete>" #'gnus-browse-delete-group
+  "C-c C-c" #'gnus-browse-exit
+  "?" #'gnus-browse-describe-briefly
 
-(unless gnus-browse-mode-map
-  (setq gnus-browse-mode-map (make-keymap))
-  (suppress-keymap gnus-browse-mode-map)
-
-  (gnus-define-keys
-      gnus-browse-mode-map
-    " " gnus-browse-read-group
-    "=" gnus-browse-select-group
-    "n" gnus-browse-next-group
-    "p" gnus-browse-prev-group
-    "\177" gnus-browse-prev-group
-    [delete] gnus-browse-prev-group
-    "N" gnus-browse-next-group
-    "P" gnus-browse-prev-group
-    "\M-n" gnus-browse-next-group
-    "\M-p" gnus-browse-prev-group
-    "\r" gnus-browse-select-group
-    "u" gnus-browse-toggle-subscription-at-point
-    "l" gnus-browse-exit
-    "L" gnus-browse-exit
-    "q" gnus-browse-exit
-    "Q" gnus-browse-exit
-    "d" gnus-browse-describe-group
-    [delete] gnus-browse-delete-group
-    "\C-c\C-c" gnus-browse-exit
-    "?" gnus-browse-describe-briefly
-
-    "\C-c\C-i" gnus-info-find-node
-    "\C-c\C-b" gnus-bug))
+  "C-c C-i" #'gnus-info-find-node
+  "C-c C-b" #'gnus-bug)
 
 (defun gnus-browse-make-menu-bar ()
   (gnus-turn-off-edit-menu 'browse)
@@ -841,9 +829,10 @@ claim them."
 	  (erase-buffer))
 	(gnus-browse-mode)
 	(setq mode-line-buffer-identification
-	      (list
-	       (format
-		"Gnus: %%b {%s:%s}" (car method) (cadr method))))
+	      (gnus-mode-line-buffer-identification
+               (list
+	        (format
+		 "Gnus: %%b {%s:%s}" (car method) (cadr method)))))
 	(let ((buffer-read-only nil)
 	      name
 	      (prefix (let ((gnus-select-method orig-select-method))
@@ -961,7 +950,7 @@ how new groups will be entered into the group buffer."
   (save-excursion
     (beginning-of-line)
     (let ((name (get-text-property (point) 'gnus-group)))
-      (when (re-search-forward ": \\(.*\\)$" (point-at-eol) t)
+      (when (re-search-forward ": \\(.*\\)$" (line-end-position) t)
 	(concat (gnus-method-to-server-name gnus-browse-current-method) ":"
 		(or name
 		    (match-string-no-properties 1)))))))

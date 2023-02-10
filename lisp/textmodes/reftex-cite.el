@@ -1,6 +1,6 @@
 ;;; reftex-cite.el --- creating citations with RefTeX  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <dominik@science.uva.nl>
 ;; Maintainer: auctex-devel@gnu.org
@@ -96,7 +96,7 @@ Find the bof of the current file."
   "Return list of bibfiles for current document.
 When using the chapterbib or bibunits package you should either
 use the same database files everywhere, or separate parts using
-different databases into different files (included into the mater file).
+different databases into different files (included into the master file).
 Then this function will return the applicable database files."
 
   ;; Ensure access to scanning info
@@ -360,7 +360,7 @@ The name of the first different author/editor is used."
 
 ;; Parse the bibliography environment
 (defun reftex-extract-bib-entries-from-thebibliography (files)
-  "Extract bib-entries from the \begin{thebibliography} environment.
+  "Extract bib-entries from the \\begin{thebibliography} environment.
 Parsing is not as good as for the BibTeX database stuff.
 The environment should be located in FILES."
   (let* (start end buf entries re re-list file default)
@@ -580,7 +580,7 @@ If FORMAT is non-nil `format' entry accordingly."
     (concat key "\n     " authors " " year " " extra "\n     " title "\n\n")))
 
 (defun reftex-parse-bibitem (item)
-  "Parse a \bibitem entry in ITEM."
+  "Parse a \\bibitem entry in ITEM."
   (let ((key "") (text ""))
     (when (string-match "\\`{\\([^}]+\\)}\\([^\000]*\\)" item)
       (setq key (match-string 1 item)
@@ -596,7 +596,7 @@ If FORMAT is non-nil `format' entry accordingly."
      (cons "&entry" (concat key " " text)))))
 
 (defun reftex-format-bibitem (item)
-  "Format a \bibitem entry in ITEM so that it is (relatively) nice to look at."
+  "Format a \\bibitem entry in ITEM so that it is (relatively) nice to look at."
   (let ((text (reftex-get-bib-field "&text" item))
         (key  (reftex-get-bib-field "&key" item))
         (lines nil))
@@ -636,7 +636,7 @@ command, it will add another key, ignoring the value of
 
 The regular expression uses an expanded syntax: && is interpreted as `and'.
 Thus, `aaaa&&bbb' matches entries which contain both `aaaa' and `bbb'.
-While entering the regexp, completion on knows citation keys is possible.
+While entering the regexp, completion on known citation keys is possible.
 `=' is a good regular expression to match all entries in all files."
   (interactive)
 
@@ -1116,10 +1116,10 @@ recommended for follow mode.  It works OK for individual lookups."
         (setq bibtype (reftex-bib-or-thebib))
         (cond
          ((eq bibtype 'bib)
-;        ((assq 'bib (symbol-value reftex-docstruct-symbol))
+          ;; ((assq 'bib (symbol-value reftex-docstruct-symbol))
           (setq bibfile-list (reftex-get-bibfile-list)))
          ((eq bibtype 'thebib)
-;        ((assq 'thebib (symbol-value reftex-docstruct-symbol))
+          ;; ((assq 'thebib (symbol-value reftex-docstruct-symbol))
           (setq bibfile-list
                 (reftex-uniquify
                  (mapcar #'cdr
@@ -1142,8 +1142,35 @@ recommended for follow mode.  It works OK for individual lookups."
 
 ;;; Global BibTeX file
 (defun reftex-all-used-citation-keys ()
+  "Return a list of all citation keys used in document."
   (reftex-access-scan-info)
-  (let ((files (reftex-all-document-files)) file keys kk k)
+  ;; FIXME: multicites macros provided by biblatex
+  ;; are not covered in this function.
+  (let ((files (reftex-all-document-files))
+        (re (concat "\\\\"
+                    "\\(?:"
+                    ;; biblatex volcite macros take these args:
+                    ;; \volcite[prenote]{volume}[pages]{key}
+                    ;; so cater for the first 3 args:
+                    (regexp-opt '("volcite"  "Volcite"
+                                  "pvolcite" "Pvolcite"
+                                  "fvolcite" "ftvolcite"
+                                  "svolcite" "Svolcite"
+                                  "tvolcite" "Tvolcite"
+                                  "avolcite" "Avolcite"))
+                    "\\(?:\\[[^]]*\\]\\)?"
+                    "{[^}]*}"
+                    "\\(?:\\[[^]]*\\]\\)?"
+                    "\\|"
+                    ;; Other cite macros usually go like:
+                    ;; \cite[prenote][postnote]{key}
+                    ;; so cater for the optional args:
+                    "\\(?:bibentry\\|[a-zA-Z]*[Cc]ite[a-zA-Z*]*\\)"
+                    "\\(?:\\[[^]]*\\]\\)\\{0,2\\}"
+                    "\\)"
+                    ;; Now match the key:
+                    "{\\([^}]+\\)}"))
+        file keys kk k)
     (save-current-buffer
       (while (setq file (pop files))
         (set-buffer (reftex-get-file-buffer-force file 'mark))
@@ -1151,14 +1178,17 @@ recommended for follow mode.  It works OK for individual lookups."
           (save-restriction
             (widen)
             (goto-char (point-min))
-            (while (re-search-forward "\\(?:^\\|\\=\\)[^%\n\r]*?\\\\\\(bibentry\\|[a-zA-Z]*cite[a-zA-Z]*\\)\\(\\[[^]]*\\]\\)?{\\([^}]+\\)}" nil t)
-              (setq kk (match-string-no-properties 3))
-              (while (string-match "%.*\n?" kk)
-                (setq kk (replace-match "" t t kk)))
-              (setq kk (split-string kk "[, \t\r\n]+"))
-              (while (setq k (pop kk))
-                (or (member k keys)
-                    (setq keys (cons k keys)))))))))
+            (while (re-search-forward re nil t)
+              ;; Make sure we're not inside a comment:
+              (unless (save-match-data
+                        (nth 4 (syntax-ppss)))
+                (setq kk (match-string-no-properties 1))
+                (while (string-match "%.*\n?" kk)
+                  (setq kk (replace-match "" t t kk)))
+                (setq kk (split-string kk "[, \t\r\n]+"))
+                (while (setq k (pop kk))
+                  (or (member k keys)
+                      (setq keys (cons k keys))))))))))
     (reftex-kill-temporary-buffers)
     keys))
 

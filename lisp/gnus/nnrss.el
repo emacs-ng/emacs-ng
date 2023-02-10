@@ -1,6 +1,6 @@
 ;;; nnrss.el --- interfacing with RSS  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: Shenghuo Zhu <zsh@cs.rochester.edu>
 ;; Keywords: RSS
@@ -71,12 +71,13 @@ this variable to the list of fields to be ignored.")
 (defvoo nnrss-status-string "")
 
 (defconst nnrss-version "nnrss 1.0")
+(make-obsolete-variable 'nnrss-version 'emacs-version "29.1")
 
 (defvar nnrss-group-alist '()
   "List of RSS addresses.")
 
 (defvar nnrss-use-local nil
-  "If non-nil nnrss will read the feeds from local files in nnrss-directory.")
+  "If non-nil nnrss will read the feeds from local files in `nnrss-directory'.")
 
 (defvar nnrss-description-field 'X-Gnus-Description
   "Field name used for DESCRIPTION.
@@ -325,7 +326,7 @@ for decoding when the cdr that the data specify is not available.")
 	       (nnmail-expired-article-p
 		group
 		(if (listp (setq days (nth 1 e))) days
-		  (days-to-time (- days (time-to-days '(0 0)))))
+		  (days-to-time (- days (time-to-days 0))))
 		force))
 	  (setq nnrss-group-data (delq e nnrss-group-data)
 		changed t)
@@ -397,7 +398,7 @@ otherwise return nil."
 (declare-function libxml-parse-html-region "xml.c"
 		  (start end &optional base-url discard-comments))
 (defun nnrss-fetch (url &optional local)
-  "Fetch URL and put it in a the expected Lisp structure."
+  "Fetch URL and put it in the expected Lisp structure."
   (mm-with-unibyte-buffer
     ;;some versions of url.el need this to close the connection quickly
     (let (cs xmlform htmlform)
@@ -450,11 +451,11 @@ nnrss: %s: Not valid XML %s and libxml-parse-html-region doesn't work %s"
 This function handles the ISO 8601 date format described in
 URL `https://www.w3.org/TR/NOTE-datetime', and also the RFC 822 style
 which RSS 2.0 allows."
-  (let (case-fold-search vector year month day time zone cts given)
+  (let (case-fold-search vector year month day time zone given)
     (cond ((null date))			; do nothing for this case
 	  ;; if the date is just digits (unix time stamp):
-	  ((string-match "^[0-9]+$" date)
-	   (setq given (time-convert (string-to-number date))))
+	  ((string-match "\\`[0-9]+\\'" date)
+	   (setq given (time-convert (string-to-number date) t)))
 	  ;; RFC 822
 	  ((string-match " [0-9]+ " date)
 	   (setq vector (timezone-parse-date date)
@@ -481,13 +482,13 @@ which RSS 2.0 allows."
 			    0
 			  (decoded-time-zone decoded))))))
     (if month
-	(progn
-	  (setq cts (current-time-string (encode-time 0 0 0 day month year)))
-	  (format "%s, %02d %s %04d %s%s"
-		  (substring cts 0 3) day (substring cts 4 7) year time
-		  (if zone
-		      (concat " " (format-time-string "%z" nil zone))
-		    "")))
+	(concat (let ((system-time-locale "C"))
+		  (format-time-string "%a, %d %b %Y "
+				      (encode-time 0 0 0 day month year)))
+		time
+		(if zone
+		    (format-time-string " %z" nil zone)
+		  ""))
       (message-make-date given))))
 
 ;;; data functions
@@ -756,8 +757,7 @@ Export subscriptions to a buffer in OPML Format."
     (insert "  </body>\n"
 	    "</opml>\n"))
   (pop-to-buffer "*OPML Export*")
-  (when (fboundp 'sgml-mode)
-    (sgml-mode)))
+  (sgml-mode))
 
 (defun nnrss-generate-download-script ()
   "Generate a download script in the current buffer.
@@ -800,7 +800,7 @@ It is useful when `(setq nnrss-use-local t)'."
     node))
 
 (defun nnrss-find-el (tag data &optional found-list)
-  "Find the all matching elements in the data.
+  "Find all the matching elements in the data.
 Careful with this on large documents!"
   (when (consp data)
     (dolist (bit data)
