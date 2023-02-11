@@ -65,6 +65,9 @@ extern "C" {
 unsafe impl Sync for Lisp_Subr {}
 unsafe impl Sync for Aligned_Lisp_Subr {}
 unsafe impl Sync for crate::lisp::LispSubrRef {}
+unsafe impl Send for Lisp_Subr {}
+unsafe impl Send for Aligned_Lisp_Subr {}
+unsafe impl Send for crate::lisp::LispSubrRef {}
 
 #[repr(C)]
 pub struct Lisp_Vectorlike {
