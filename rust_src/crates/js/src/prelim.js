@@ -1,5 +1,8 @@
 (() => {
   let global = (1, eval)("this");
+  setInterval(() => {
+    recv_from_lisp();
+  }, 0);
   // let __weak = [];
   // let finalize = global.finalize;
   // delete global.finalize;
