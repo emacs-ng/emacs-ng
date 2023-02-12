@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use crate::futures::FutureExt;
 use deno::deno_core::anyhow::anyhow;
 use deno::deno_core::serde::de::Error;
+use emacs::bindings::Success;
 use futures::Future;
 use v8;
 use deno::deno_core as deno_core;
@@ -27,6 +28,15 @@ use std::sync::mpsc::{Sender, Receiver};
 
 pub type EmacsJsError = deno_core::error::AnyError;
 pub type EmacsJsResult<T> = Result<T, EmacsJsError>;
+
+macro_rules! inc_auto_id {
+    () => {{
+        let mut aid = auto_id.lock().unwrap();
+        let new_auto_id = *aid + 1;
+        *aid += 1;
+        new_auto_id
+    }};
+}
 
 // #[derive(Clone)]
 // struct EmacsJsOptions {
@@ -1321,52 +1331,127 @@ pub type EmacsJsResult<T> = Result<T, EmacsJsError>;
 //     ])
 // }
 
-// #[repr(transparent)]
-// #[derive(Copy, Clone, Default, Debug, Eq, PartialEq, Hash)]
-// struct DispatchHandle(u64);
+macro_rules! bind_global_fn {
+    ($scope:expr, $global: expr, $fnc:ident) => {{
+        let name = v8::String::new($scope, stringify!($fnc)).unwrap();
+        let func = v8::Function::new($scope, $fnc).unwrap();
+        $global.set($scope, name.into(), func.into());
+    }};
+}
 
-// #[derive(Debug)]
-// struct DispatchChannel<T: Sized> {
-//     pub sender: Sender<T>,
-//     pub recv: Receiver<T>,
-// }
+pub fn send_to_lisp(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut _retval: v8::ReturnValue,
+) {
+    let first_arg = args.get(0);
+    if first_arg.is_string() {
+        let rust_string = args.get(0).to_string(scope).unwrap().to_rust_string_lossy(scope);
+        println!("Sending {} to lisp...", rust_string);
+        {
+            let lock = js_to_lisp_worker_send_lock.lock().unwrap();
+            if let Some(chnl) = &*lock {
+                let id = inc_auto_id!();
+                chnl.send(RequestMsg {
+                    id: id,
+                    action: Action::Execute(rust_string),
+                }).expect("Failure to send");
+            }
+        }
+        // let chan = NATIVE_TO_JS.lock().unwrap();
 
-// #[derive(Debug)]
-// struct GrandCentralDispatch<T: Sized + Send + Sync> {
-//     dispatch: std::sync::Mutex<HashMap<DispatchHandle, DispatchChannel<T>>>,
-//     dispatchCount: u64,
-// }
+        // if let Some(tx) = &*chan {
+        //     tx.send(rust_string).expect("Failure to Sent");
+        // }
+    }
+}
 
-// impl<T: Sized + Send + Sync> GrandCentralDispatch<T> {
-//     pub fn send(&mut self, t: T) -> DispatchHandle {
-//         self.dispatchCount += 1;
-//         let (tx, rx): (Sender<T>, Receiver<T>) = std::sync::mpsc::channel();
-//         let chnl = DispatchChannel {
-//             sender: tx,
-//             recv: rx,
-//         };
+#[derive(Debug)]
+enum Action {
+    Execute(String),
+}
 
-//         let handle = DispatchHandle(self.dispatchCount);
-//         {
-//             let mut map = self.dispatch.lock().unwrap();
-//             map.insert(handle, chnl);
-//         }
+#[derive(Debug)]
+enum Response {
+    Success(String),
+}
 
-//         handle
-//     }
+#[derive(Debug)]
+struct RequestMsg {
+    pub id: usize,
+    pub action: Action,
+}
 
-//     pub fn recv(&mut self, id: DispatchHandle) -> Result<T, deno::AnyError> {
-//         let chnl_opt = {
-//             let mut map = self.dispatch.lock().unwrap();
-//             map.remove(&id)
-//         };
+#[derive(Debug)]
+struct ResponseMsg {
+    pub id: usize,
+    pub res: Result<Response, deno::AnyError>,
+}
 
-//         match chnl_opt {
-//             Some(chnl) => Ok(chnl.recv.recv()?),
-//             None => Err(anyhow!("Error"))?
-//         }
-//     }
-// }
+unsafe impl Send for ResponseMsg {}
+unsafe impl Send for RequestMsg {}
+
+lazy_static! {
+    static ref main_to_js_lock: std::sync::Mutex<Option<std::sync::mpsc::Sender<RequestMsg>>> = {
+        std::sync::Mutex::new(None)
+    };
+    static ref js_to_main_lock: std::sync::Mutex<Option<std::sync::mpsc::Receiver<ResponseMsg>>> = {
+        std::sync::Mutex::new(None)
+    };
+    static ref js_to_lisp_worker_send_lock: std::sync::Mutex<Option<std::sync::mpsc::Sender<RequestMsg>>> = {
+        std::sync::Mutex::new(None)
+    };
+    static ref js_to_lisp_worker_recv_lock: std::sync::Mutex<Option<std::sync::mpsc::Receiver<RequestMsg>>> = {
+        std::sync::Mutex::new(None)
+    };
+    // static ref lisp_worker_to_js_send_lock: std::sync::Mutex<Option<std::sync::mpsc::Sender<RequestMsg>>> = {
+    //     std::sync::Mutex::new(None)
+    // };
+    // static ref lisp_worker_to_js_recv_lock: std::sync::Mutex<Option<std::sync::mpsc::Receiver<ResponseMsg>>> = {
+    //     std::sync::Mutex::new(None)
+    // };
+
+    static ref auto_id: std::sync::Mutex<usize> = {
+        std::sync::Mutex::new(0)
+    };
+
+    // static ref JsToMain: std::sync::Mutex<Option<std::sync::mpsc::Receiver<String>>> = {
+    //     std::sync::Mutex::new(None)
+    // };
+
+    // static ref NATIVE_TO_JS: std::sync::Mutex<Option<std::sync::mpsc::Sender<String>>> = {
+    //     std::sync::Mutex::new(None)
+    // };
+
+    // static ref JS_TO_NATIVE: std::sync::Mutex<Option<std::sync::mpsc::Receiver<String>>> = {
+    //     std::sync::Mutex::new(None)
+    // };
+}
+
+
+
+#[lisp_fn]
+pub fn js_eval_string(content: LispObject) -> LispObject {
+    let js_content: LispStringRef = content.into();
+    let js_rust_string = js_content.to_utf8();
+    {
+        let gaurd = main_to_js_lock.lock().unwrap();
+        if let Some(chnl) = &*gaurd {
+            let id = inc_auto_id!();
+            // @TODO remove unwrap
+            chnl.send(RequestMsg { id: id, action: Action::Execute(js_rust_string) }).expect("Failure to send");
+
+            let recv_gaurd = js_to_main_lock.lock().unwrap();
+            if let Some(recv_chnl) = &*recv_gaurd {
+                let msg = recv_chnl.recv().expect("Failed to recieve");
+                println!("{:?}", msg);
+                return msg.id.into();
+            }
+        }
+    }
+
+    emacs::globals::Qnil
+}
 
 
 // /// Initalizes the JavaScript runtime. If this function is not
@@ -1417,17 +1502,58 @@ pub type EmacsJsResult<T> = Result<T, EmacsJsError>;
 // /// and execute callbacks.
 #[lisp_fn]
 pub fn js_initialize(args: &[LispObject]) -> LispObject {
+    // Main to JS (send/recv)
+    let (mtjs, mtjr) = std::sync::mpsc::channel::<RequestMsg>();
+    // JS to Main (send/recv)
+    let (jstms, jstmr) = std::sync::mpsc::channel::<ResponseMsg>();
+    // JS to Lisp Worker (send/recv)
+    let (jstolws, jstolwr) = std::sync::mpsc::channel::<RequestMsg>();
+    // Lisp Worker to JS (send/recv)
+    let (lwtojss, lwtojsr) = std::sync::mpsc::channel::<ResponseMsg>();
+
+    // main_to_js_lock
+    // js_to_lisp_worker_send_lock
+    // js_to_lisp_worker_recv_lock
+    // lisp_worker_to_js_send_lock
+    // lisp_worker_to_js_recv_lock
 
 
+    {
+        let mut chan = main_to_js_lock.lock().unwrap();
+        *chan = Some(mtjs);
+    }
 
+    {
+        let mut chan = js_to_main_lock.lock().unwrap();
+        *chan = Some(jstmr);
+    }
+
+    {
+        let mut chan = js_to_lisp_worker_send_lock.lock().unwrap();
+        *chan = Some(jstolws);
+    }
+
+    {
+        let mut chan = js_to_lisp_worker_recv_lock.lock().unwrap();
+        *chan = Some(jstolwr);
+    }
+
+    // {
+    //     let mut chan = JS_TO_NATIVE.lock().unwrap();
+    //     *chan = Some(nrx);
+    // }
 
     /*
-
+    Channels:
+        main -> js
+        js -> lisp worker
+        lisp worker -> js
 
 
     */
 
 
+    call!(emacs::globals::Qjs_init_lisp_thread);
     std::thread::spawn(move || {
         let _result: Result<(), deno::AnyError> = deno::deno_runtime::tokio_util::run_local(async move {
             let flags = deno::args::flags_from_vec(vec!["deno".to_owned()])?;
@@ -1444,31 +1570,38 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
 
             let mut main_worker = worker.into_main_worker();
             {
-            //     let runtime = &mut main_worker.js_runtime;
-            //     {
-            //         let context = runtime.global_context();
-            //         let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
-            //         let context = scope.get_current_context();
-            //         let global = context.global(scope);
+                let runtime = &mut main_worker.js_runtime;
+                {
+                    let context = runtime.global_context();
+                    let scope = &mut v8::HandleScope::with_context(runtime.v8_isolate(), context);
+                    let context = scope.get_current_context();
+                    let global = context.global(scope);
 
-            //         // bind_global_fn!(scope, global, send_to_lisp);
-            //     }
+                    bind_global_fn!(scope, global, send_to_lisp);
+                }
+
+                {
+                    runtime.execute_script("prelim.js", include_str!("prelim.js"))?;
+                }
             }
 
             let mut repl_session = deno::tools::repl::session::ReplSession::initialize(ps.clone(), main_worker).await?;
-            let res = repl_session.evaluate_line_and_get_output("'hello world'").await;
+            let res = repl_session.evaluate_line_and_get_output("console.log('ell'); 'hello world'").await;
             println!("{}", res.to_string());
             // let result = repl_session.evaluate_line_and_get_output(&msg).await?;
             // println!("Logging {}", result);
-            // loop {
-            //     let msg = rx.recv()?;
-            //     log!("Logging {}", msg);
-            //     let result = repl_session.evaluate_line_and_get_output(&msg).await?;
-            //     log!("Result {}", result);
-            //     jtx.send(result.to_string())?;
-            // }
-
-            Ok(())
+            loop {
+                let msg = mtjr.recv()?;
+                println!("Logging {:?}", msg);
+                let result = match msg.action {
+                    Action::Execute(cmd) => repl_session.evaluate_line_and_get_output(&cmd).await
+                };
+                println!("Result {}", result);
+                jstms.send(ResponseMsg {
+                    id: msg.id,
+                    res: Ok(Response::Success(result.to_string()))
+                })?;
+            }
         });
 
         // if let Err(e) = result {
@@ -1492,20 +1625,31 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
 pub fn js_lisp_thread(_args: &[LispObject]) -> LispObject {
     // Read from queue
     loop {
-        let msg = "(message \"hello world\")";
-        let len = msg.len();
-        let cstr = CString::new(msg).expect("Failed to allocate CString");
-        let lstring =
-            unsafe { emacs::bindings::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap()) };
-        let mut args = vec![
-            emacs::globals::Qjs_eval_string,
-            lstring,
-        ];
-        unsafe { Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr()) };
+        let result = {
+            let lock = js_to_lisp_worker_recv_lock.lock().unwrap();
+            if let Some(chnl) = &*lock {
+                chnl.try_recv().ok()
+            } else {
+                None
+            }
+        };
+
+
+        if let Some(request) = result {
+            let Action::Execute(msg) = request.action;
+            let len = msg.len();
+            let cstr = CString::new(msg).expect("Failed to allocate CString");
+            let lstring =
+                unsafe { emacs::bindings::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap()) };
+            let mut args = vec![
+                emacs::globals::Qjs_eval_lisp_string,
+                lstring,
+            ];
+            unsafe { Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr()) };
+        }
 
         // Ffuncall(args.len, arg2)
         // call!(emacs::globals::Qjs_eval_string, "(setq foo 3)".into()).unwrap();
-        println!("Looping.....");
         // emacs::eval_macros::eval!(`(print "hello")`);
         // std::thread::sleep(std::time::Duration::from_secs(5));
         unsafe { emacs::bindings::Fthread_yield() };
@@ -2226,7 +2370,7 @@ pub fn js__sweep() -> LispObject {
 #[allow(dead_code)]
 fn init_syms() {
     def_lisp_sym!(Qjs_init_lisp_thread, "js-init-lisp-thread");
-    def_lisp_sym!(Qjs_eval_string, "js-eval-string");
+    def_lisp_sym!(Qjs_eval_lisp_string, "js-eval-lisp-string");
 
 //     defvar_lisp!(Vjs_retain_map, "js-retain-map", emacs::globals::Qnil);
 
