@@ -1432,6 +1432,7 @@ dependencies = [
 [[package]]
 name = "deno"
 version = "1.30.3"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "atty",
  "base32",
@@ -1542,6 +1543,7 @@ dependencies = [
 [[package]]
 name = "deno_broadcast_channel"
 version = "0.83.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "async-trait",
  "deno_core",
@@ -1552,6 +1554,7 @@ dependencies = [
 [[package]]
 name = "deno_cache"
 version = "0.21.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "async-trait",
  "deno_core",
@@ -1564,6 +1567,7 @@ dependencies = [
 [[package]]
 name = "deno_console"
 version = "0.89.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "deno_core",
 ]
@@ -1571,6 +1575,7 @@ dependencies = [
 [[package]]
 name = "deno_core"
 version = "0.171.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1594,6 +1599,7 @@ dependencies = [
 [[package]]
 name = "deno_crypto"
 version = "0.103.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -1662,6 +1668,7 @@ dependencies = [
 [[package]]
 name = "deno_fetch"
 version = "0.113.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "bytes",
  "data-url",
@@ -1679,6 +1686,7 @@ dependencies = [
 [[package]]
 name = "deno_ffi"
 version = "0.76.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "deno_core",
  "dlopen",
@@ -1692,6 +1700,7 @@ dependencies = [
 [[package]]
 name = "deno_flash"
 version = "0.25.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "deno_core",
  "deno_tls",
@@ -1730,6 +1739,7 @@ dependencies = [
 [[package]]
 name = "deno_http"
 version = "0.84.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "async-compression",
  "base64 0.13.1",
@@ -1771,6 +1781,7 @@ dependencies = [
 [[package]]
 name = "deno_lockfile"
 version = "0.5.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "anyhow",
  "ring",
@@ -1781,6 +1792,7 @@ dependencies = [
 [[package]]
 name = "deno_napi"
 version = "0.19.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "deno_core",
  "libloading 0.7.4",
@@ -1789,6 +1801,7 @@ dependencies = [
 [[package]]
 name = "deno_net"
 version = "0.81.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "deno_core",
  "deno_tls",
@@ -1803,6 +1816,7 @@ dependencies = [
 [[package]]
 name = "deno_node"
 version = "0.26.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "deno_core",
  "once_cell",
@@ -1814,6 +1828,7 @@ dependencies = [
 [[package]]
 name = "deno_ops"
 version = "0.49.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "once_cell",
  "pmutil",
@@ -1827,6 +1842,7 @@ dependencies = [
 [[package]]
 name = "deno_runtime"
 version = "0.97.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "atty",
  "deno_ast",
@@ -1893,6 +1909,7 @@ dependencies = [
 [[package]]
 name = "deno_tls"
 version = "0.76.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "deno_core",
  "once_cell",
@@ -1907,6 +1924,7 @@ dependencies = [
 [[package]]
 name = "deno_url"
 version = "0.89.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "deno_core",
  "serde",
@@ -1917,6 +1935,7 @@ dependencies = [
 [[package]]
 name = "deno_web"
 version = "0.120.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "async-trait",
  "base64-simd",
@@ -1931,6 +1950,7 @@ dependencies = [
 [[package]]
 name = "deno_webgpu"
 version = "0.90.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "deno_core",
  "serde",
@@ -1942,6 +1962,7 @@ dependencies = [
 [[package]]
 name = "deno_webidl"
 version = "0.89.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "deno_core",
 ]
@@ -1949,6 +1970,7 @@ dependencies = [
 [[package]]
 name = "deno_websocket"
 version = "0.94.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "deno_core",
  "deno_tls",
@@ -1963,6 +1985,7 @@ dependencies = [
 [[package]]
 name = "deno_webstorage"
 version = "0.84.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "deno_core",
  "deno_web",
@@ -4261,6 +4284,7 @@ dependencies = [
 [[package]]
 name = "napi_sym"
 version = "0.19.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "proc-macro2 1.0.49",
  "quote 1.0.23",
@@ -6058,6 +6082,7 @@ dependencies = [
 [[package]]
 name = "serde_v8"
 version = "0.82.0"
+source = "git+https://github.com/DavidDeSimone/deno?branch=emacs-ng@1.30.3#f86b63f4afa69fcfb75bc94f140b3e07eb9c3d44"
 dependencies = [
  "bytes",
  "derive_more",

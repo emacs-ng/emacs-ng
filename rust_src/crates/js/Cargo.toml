@@ -14,7 +14,8 @@ lsp_json = { version = "0.1.0", path = "../lsp_json" }
 libc = "0.2.95"
 lazy_static = "1.2"
 futures = "0.3"
-deno = { path = "../../../../deno/cli" }
+deno = { git = "https://github.com/DavidDeSimone/deno", branch = "emacs-ng@1.30.3" }
+# deno = { path = "../../../../deno/cli" }
 # deno_core = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng" }
 # deno_runtime = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng" }
 # deno = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng" }
