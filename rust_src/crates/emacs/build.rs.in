@@ -246,42 +246,42 @@ fn generate_bindings() {
         .no_copy("wr_output")
         // .blocklist_file("gtk/gtk.h")
         // we define these ourselves, for various reasons
-        .blacklist_item("Lisp_Object")
-        .blacklist_item("emacs_globals")
-        .blacklist_item("Q.*") // symbols like Qnil and so on
-        .blacklist_item("USE_LSB_TAG")
-        .blacklist_item("VALMASK")
-        .blacklist_item("PSEUDOVECTOR_FLAG")
-        .blacklist_item("Fmapc")
+        .blocklist_item("Lisp_Object")
+        .blocklist_item("emacs_globals")
+        .blocklist_item("Q.*") // symbols like Qnil and so on
+        .blocklist_item("USE_LSB_TAG")
+        .blocklist_item("VALMASK")
+        .blocklist_item("PSEUDOVECTOR_FLAG")
+        .blocklist_item("Fmapc")
         // these two are found by bindgen on mac, but not linux
-        .blacklist_item("EMACS_INT_MAX")
-        .blacklist_item("VAL_MAX")
+        .blocklist_item("EMACS_INT_MAX")
+        .blocklist_item("VAL_MAX")
         // this is wallpaper for a bug in bindgen, we don't lose much by it
         // https://github.com/servo/rust-bindgen/issues/687
-        .blacklist_item("BOOL_VECTOR_BITS_PER_CHAR")
+        .blocklist_item("BOOL_VECTOR_BITS_PER_CHAR")
         // this is wallpaper for a function argument that shadows a static of the same name
         // https://github.com/servo/rust-bindgen/issues/804
-        .blacklist_item("face_change")
+        .blocklist_item("face_change")
         // these never return, and bindgen doesn't yet detect that, so we will do them manually
-        .blacklist_item("error")
-        .blacklist_item("circular_list")
-        .blacklist_item("wrong_type_argument")
-        .blacklist_item("nsberror")
-        .blacklist_item("emacs_abort")
-        .blacklist_item("Fsignal")
-        .blacklist_item("memory_full")
-        .blacklist_item("wrong_choice")
-        .blacklist_item("wrong_range")
+        .blocklist_item("error")
+        .blocklist_item("circular_list")
+        .blocklist_item("wrong_type_argument")
+        .blocklist_item("nsberror")
+        .blocklist_item("emacs_abort")
+        .blocklist_item("Fsignal")
+        .blocklist_item("memory_full")
+        .blocklist_item("wrong_choice")
+        .blocklist_item("wrong_range")
         // these are defined in data.rs
-        // .blacklist_item("Lisp_Fwd")
-        // .blacklist_item("Lisp_.*fwd")
+        // .blocklist_item("Lisp_Fwd")
+        // .blocklist_item("Lisp_.*fwd")
         // these are defined in remacs_lib
-        .blacklist_item("timespec")
-        .blacklist_item("fd_set")
-        .blacklist_item("pselect")
-        .blacklist_item("sigset_t")
-        .blacklist_item("timex")
-        .blacklist_item("clock_adjtime")
+        .blocklist_item("timespec")
+        .blocklist_item("fd_set")
+        .blocklist_item("pselect")
+        .blocklist_item("sigset_t")
+        .blocklist_item("timex")
+        .blocklist_item("clock_adjtime")
         // by default we want C enums to be converted into a Rust module with constants in it
         .default_enum_style(bindgen::EnumVariation::ModuleConsts)
         // enums with only one variant are better as simple constants

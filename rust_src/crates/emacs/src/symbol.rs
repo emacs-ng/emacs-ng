@@ -40,7 +40,7 @@ impl LispSymbolRef {
 
     pub unsafe fn get_value(self) -> LispObject {
         let s = self.u.s.as_ref();
-        s.val.value
+        *s.val.value.as_ref()
     }
 
     pub const fn iter(self) -> LispSymbolIter {

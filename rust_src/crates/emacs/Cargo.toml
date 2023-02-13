@@ -13,7 +13,7 @@ lazy_static = "1.4.0"
 memoffset = "0.6.4"
 
 [build-dependencies]
-bindgen = "0.46"
+bindgen = "0.64"
 regex = "1.6"
 libc = "0.2"
 
