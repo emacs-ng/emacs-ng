@@ -272,7 +272,7 @@ impl LispCons {
 
     /// Return the cdr (second cell).
     pub fn cdr(self) -> LispObject {
-        unsafe { (*self._extract()).u.s.as_ref().u.cdr }
+        unsafe { *(*self._extract()).u.s.as_ref().u.cdr.as_ref() }
     }
 
     /// Set the car of the cons cell.
@@ -285,7 +285,7 @@ impl LispCons {
     /// Set the cdr of the cons cell.
     pub fn set_cdr(self, n: impl Into<LispObject>) {
         unsafe {
-            (*self._extract()).u.s.as_mut().u.cdr = n.into();
+            *(*self._extract()).u.s.as_mut().u.cdr.as_mut() = n.into();
         }
     }
 

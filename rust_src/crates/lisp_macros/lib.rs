@@ -142,7 +142,7 @@ pub fn lisp_fn(attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
             subr_ref.min_args = #min_args;
             subr_ref.max_args = #max_args;
             subr_ref.symbol_name = (#symbol_name).as_ptr() as *const libc::c_char;
-            subr_ref.intspec.string = #intspec;
+            *subr_ref.intspec.string.as_mut() = #intspec;
             subr_ref.doc = 0;
 
                     std::ptr::copy_nonoverlapping(&subr, #srname.as_mut_ptr(), 1);

@@ -38,11 +38,9 @@ impl InputProcessor {
             return None;
         }
 
-        let iev = input_event {
-            _bitfield_1: input_event::new_bitfield_1(
-                event_kind::ASCII_KEYSTROKE_EVENT,
-                scroll_bar_part::scroll_bar_nowhere,
-            ),
+        let iev: input_event = InputEvent {
+            kind: event_kind::ASCII_KEYSTROKE_EVENT,
+            part: scroll_bar_part::scroll_bar_nowhere,
             code: Self::remove_control(c) as u32,
             modifiers: Self::to_emacs_modifiers(self.modifiers),
             x: 0.into(),
@@ -51,7 +49,8 @@ impl InputProcessor {
             frame_or_window: top_frame,
             arg: Qnil,
             device: Qt,
-        };
+        }
+        .into();
 
         Some(iev)
     }
@@ -67,11 +66,9 @@ impl InputProcessor {
 
         self.suppress_chars = true;
 
-        let iev = input_event {
-            _bitfield_1: input_event::new_bitfield_1(
-                event_kind::NON_ASCII_KEYSTROKE_EVENT,
-                scroll_bar_part::scroll_bar_nowhere,
-            ),
+        let iev: input_event = InputEvent {
+            kind: event_kind::NON_ASCII_KEYSTROKE_EVENT,
+            part: scroll_bar_part::scroll_bar_nowhere,
             code: key_code as u32,
             modifiers: Self::to_emacs_modifiers(self.modifiers),
             x: 0.into(),
@@ -80,7 +77,8 @@ impl InputProcessor {
             frame_or_window: top_frame,
             arg: Qnil,
             device: Qt,
-        };
+        }
+        .into();
 
         Some(iev)
     }
@@ -107,11 +105,9 @@ impl InputProcessor {
             ElementState::Released => up_modifier,
         };
 
-        let iev = input_event {
-            _bitfield_1: input_event::new_bitfield_1(
-                event_kind::MOUSE_CLICK_EVENT,
-                scroll_bar_part::scroll_bar_nowhere,
-            ),
+        let iev: input_event = InputEvent {
+            kind: event_kind::MOUSE_CLICK_EVENT,
+            part: scroll_bar_part::scroll_bar_nowhere,
             code: c as u32,
             modifiers: Self::to_emacs_modifiers(self.modifiers) | s,
             x: (self.cursor_positon.x as i32).into(),
@@ -120,7 +116,8 @@ impl InputProcessor {
             frame_or_window: top_frame,
             arg: Qnil,
             device: Qt,
-        };
+        }
+        .into();
 
         Some(iev)
     }
@@ -188,9 +185,9 @@ impl InputProcessor {
         let (kind, is_upper, lines) = event_meta.unwrap();
 
         let s = if is_upper { up_modifier } else { down_modifier };
-
-        let iev = input_event {
-            _bitfield_1: input_event::new_bitfield_1(kind, scroll_bar_part::scroll_bar_nowhere),
+        let iev: input_event = InputEvent {
+            kind,
+            part: scroll_bar_part::scroll_bar_nowhere,
             code: 0,
             modifiers: Self::to_emacs_modifiers(self.modifiers) | s,
             x: (self.cursor_positon.x as i32).into(),
@@ -199,7 +196,8 @@ impl InputProcessor {
             frame_or_window: top_frame,
             arg: lines.into(),
             device: Qt,
-        };
+        }
+        .into();
 
         Some(iev)
     }
@@ -304,5 +302,35 @@ pub fn winit_keycode_emacs_key_name(keycode: VirtualKeyCode) -> *const libc::c_c
         VirtualKeyCode::F24 => kn!("f24"),
 
         _ => std::ptr::null(), // null pointer
+    }
+}
+
+pub struct InputEvent {
+    pub kind: event_kind::Type,
+    pub part: scroll_bar_part::Type,
+    pub code: ::libc::c_uint,
+    pub modifiers: ::libc::c_uint,
+    pub x: LispObject,
+    pub y: LispObject,
+    pub timestamp: emacs::bindings::Time,
+    pub frame_or_window: LispObject,
+    pub arg: LispObject,
+    pub device: LispObject,
+}
+
+impl From<InputEvent> for input_event {
+    fn from(val: InputEvent) -> Self {
+        let mut iev = input_event::default();
+        iev.set_kind(val.kind);
+        iev.set_part(val.part);
+        iev.code = val.code;
+        iev.modifiers = val.modifiers;
+        iev.x = val.x;
+        iev.y = val.y;
+        iev.timestamp = val.timestamp;
+        iev.frame_or_window = val.frame_or_window;
+        iev.arg = val.arg;
+        iev.device = val.device;
+        iev
     }
 }
