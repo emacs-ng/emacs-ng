@@ -65,6 +65,8 @@ jobs:
                     - os: ubuntu-latest
                       build: webrender
                     - os: macos-latest
+                      build: general
+                    - os: macos-latest
                       build: webrender
 
         steps:
