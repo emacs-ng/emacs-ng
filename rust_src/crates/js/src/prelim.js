@@ -1,8 +1,50 @@
 (() => {
   let global = (1, eval)("this");
+  const callbackMap = {};
+
+
+
+  // @TODO this doesn't seem to be working?
+  // manually calling recv_from_lisp does get the value.
   setInterval(() => {
-    recv_from_lisp();
+    const ret = recv_from_lisp();
+    try {
+      if (ret) {
+        console.log(`Within JS ${ret}`);
+        if (callbackMap[ret] !== undefined) {
+          console.log("Attempting to resolve...")
+          callbackMap[ret]();
+        }
+      }
+    } catch (e) {
+      console.log(`Exception ${e}`);
+    }
   }, 0);
+
+  global.lisp = new Proxy({}, {
+    get: function (_object, key, _) {
+      if (typeof key === 'symbol') {
+        console.log("Early out for symbol.");
+        return Reflect.get(...arguments);
+      }
+
+      return function() {
+        let callarg = key;
+        for (let i = 0; i < arguments.length; ++i) {
+          callarg += ` ${arguments[i]} `;
+        }
+
+
+
+        const idx = send_to_lisp(`(${callarg})`);
+        return new Promise((resolve, reject) => {
+          callbackMap[idx] = resolve;
+        });
+      }
+    }
+  });
+
+
   // let __weak = [];
   // let finalize = global.finalize;
   // delete global.finalize;

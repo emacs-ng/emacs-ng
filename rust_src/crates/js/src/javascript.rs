@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use crate::futures::FutureExt;
 use deno::deno_core::anyhow::anyhow;
 use deno::deno_core::serde::de::Error;
+use emacs::bindings::Fthread_yield;
 use emacs::bindings::Success;
 use futures::Future;
 use v8;
@@ -1365,6 +1366,7 @@ pub fn send_to_lisp(
                     id: id,
                     action: Action::Execute(rust_string),
                 }).expect("Failure to send");
+                _retval.set_uint32(id as u32);
             }
         }
     }
@@ -1381,6 +1383,8 @@ pub fn recv_from_lisp(
             let result = chnl.try_recv();
             if let Ok(msg) = result {
                 println!("{:?}", msg);
+                // @TODO send msg and id;
+                _retval.set_uint32(msg.id as u32);
             }
         }
     }
@@ -1413,6 +1417,9 @@ unsafe impl Send for RequestMsg {}
 
 lazy_static! {
     static ref main_to_js_lock: std::sync::Mutex<Option<std::sync::mpsc::Sender<RequestMsg>>> = {
+        std::sync::Mutex::new(None)
+    };
+    static ref main_to_js_recv_lock: std::sync::Mutex<Option<std::sync::mpsc::Receiver<RequestMsg>>> = {
         std::sync::Mutex::new(None)
     };
     static ref js_to_main_lock: std::sync::Mutex<Option<std::sync::mpsc::Receiver<ResponseMsg>>> = {
@@ -1449,6 +1456,22 @@ lazy_static! {
 }
 
 
+#[lisp_fn]
+pub fn js_resolve(id: LispObject) -> LispObject {
+    let idx = id.as_natnum_or_error() as usize;
+
+    let recv_gaurd = js_to_main_lock.lock().unwrap();
+    if let Some(recv_chnl) = &*recv_gaurd {
+        if let Ok(msg) = recv_chnl.try_recv() {
+            println!("{:?}", msg);
+            return msg.id.into();
+        } else {
+            unsafe { Fthread_yield() };
+        }
+    }
+
+    emacs::globals::Qnil
+}
 
 #[lisp_fn]
 pub fn js_eval_string(content: LispObject) -> LispObject {
@@ -1461,18 +1484,29 @@ pub fn js_eval_string(content: LispObject) -> LispObject {
             // @TODO remove unwrap
             chnl.send(RequestMsg { id: id, action: Action::Execute(js_rust_string) }).expect("Failure to send");
 
-            let recv_gaurd = js_to_main_lock.lock().unwrap();
-            if let Some(recv_chnl) = &*recv_gaurd {
-                let msg = recv_chnl.recv().expect("Failed to recieve");
-                println!("{:?}", msg);
-                return msg.id.into();
-            }
+            // let recv_gaurd = js_to_main_lock.lock().unwrap();
+            // if let Some(recv_chnl) = &*recv_gaurd {
+            //     let msg = recv_chnl.recv().expect("Failed to recieve");
+            //     println!("{:?}", msg);
+            //     return msg.id.into();
+            // }
         }
     }
 
     emacs::globals::Qnil
 }
 
+// @TODO this needs to
+fn make_poll_fut() -> tokio::task::JoinHandle<Option<RequestMsg>> {
+    tokio::task::spawn_blocking(|| {
+        let lock = main_to_js_recv_lock.lock().unwrap();
+        if let Some(chnl) = &*lock {
+            chnl.recv().ok()
+        } else {
+            None
+        }
+    })
+}
 
 // /// Initalizes the JavaScript runtime. If this function is not
 // /// called prior to eval-js*, the runtime will be lazily initialized
@@ -1532,6 +1566,7 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
     let (lwtojss, lwtojsr) = std::sync::mpsc::channel::<ResponseMsg>();
 
     establish_channel!(mtjs, main_to_js_lock);
+    establish_channel!(mtjr, main_to_js_recv_lock);
     establish_channel!(jstmr, js_to_main_lock);
     establish_channel!(jstolws, js_to_lisp_worker_send_lock);
     establish_channel!(jstolwr, js_to_lisp_worker_recv_lock);
@@ -1576,18 +1611,47 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
             let res = repl_session.evaluate_line_and_get_output("console.log('ell'); 'hello world'").await;
             println!("{}", res.to_string());
 
+            let mut line_fut = make_poll_fut();
+            let mut poll_worker = true;
+
             loop {
-                let msg = mtjr.recv()?;
-                println!("Logging {:?}", msg);
-                let result = match msg.action {
-                    Action::Execute(cmd) => repl_session.evaluate_line_and_get_output(&cmd).await
-                };
-                println!("Result {}", result);
-                jstms.send(ResponseMsg {
-                    id: msg.id,
-                    res: Ok(Response::Success(result.to_string()))
-                })?;
+                tokio::select! {
+                  result = &mut line_fut => {
+                    let opt = result?;
+                    if let Some(msg) = opt {
+                        println!("JS Recv'd {:?}", msg);
+                        let result = match msg.action {
+                            Action::Execute(cmd) => repl_session.evaluate_line_and_get_output(&cmd).await
+                        };
+                        println!("Result {}", result);
+                        jstms.send(ResponseMsg {
+                            id: msg.id,
+                            res: Ok(Response::Success(result.to_string()))
+                        })?;
+                    }
+
+                    line_fut = make_poll_fut();
+                    poll_worker = true;
+                  },
+                  _ = repl_session.run_event_loop(), if poll_worker => {
+                    poll_worker = false;
+                  }
+                }
             }
+
+
+            // loop {
+            //     let msg = mtjr.recv()?;
+            //     println!("Logging {:?}", msg);
+            //     let result = match msg.action {
+            //         Action::Execute(cmd) => repl_session.evaluate_line_and_get_output(&cmd).await
+            //     };
+            //     println!("Result {}", result);
+            //     jstms.send(ResponseMsg {
+            //         id: msg.id,
+            //         res: Ok(Response::Success(result.to_string()))
+            //     })?;
+            // }
         });
 
     });
@@ -1621,6 +1685,7 @@ pub fn js_lisp_thread(_args: &[LispObject]) -> LispObject {
                 emacs::globals::Qjs_eval_lisp_string,
                 lstring,
             ];
+            // @TODO an error here puts the thread in a bad state. Need graceful restarting....
             let result = unsafe { Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr()) };
             let res_string: LispStringRef = lsp_json::parsing::json_se(&[result]).into();
             let rust_string = res_string.to_utf8();
