@@ -1327,8 +1327,8 @@ AC_ARG_ENABLE(webrender-capture,
 [ac_enable_webrender_capture="${enableval}"],[])
 
 AC_ARG_ENABLE(webrender-x11,
-[AS_HELP_STRING([--enable-webrender-x11],
-		[enable WebRender X11 support.])],
+[AS_HELP_STRING([--disable-webrender-x11],
+		[disable WebRender X11 support.])],
 [ac_enable_webrender_x11="${enableval}"],[])
 
 AC_SUBST([AM_DEFAULT_VERBOSITY])
@@ -6304,7 +6304,7 @@ if test "${window_system}" = "webrender" ; then
 
     WEBRENDER_LIBS="$WEBRENDER_LIBS -lxcb -lxcb-xfixes -lxcb-shape -lxcb-render"
 
-    if test x$ac_enable_webrender_x11 != x; then
+    if test X$ac_enable_webrender_x11 != Xno; then
       WEBRENDER_LIBS="-lX11 -lX11-xcb $WEBRENDER_LIBS"
     fi
   fi
@@ -7039,7 +7039,7 @@ case "$window_system" in
 	if test x$ac_enable_webrender_capture != x ; then
 	   WEBRENDER_DEFAULT_FEATURES="\"capture\", ${WEBRENDER_DEFAULT_FEATURES}"
 	fi
-	if test x$ac_enable_webrender_x11 != x ; then
+	if test X$ac_enable_webrender_x11 != Xno ; then
 	   WEBRENDER_DEFAULT_FEATURES="\"x11\", ${WEBRENDER_DEFAULT_FEATURES}"
 	fi
     ;;
