@@ -24,7 +24,7 @@ ttf-parser = "0.17"
 once_cell = "1.16.0"
 tokio = { version = "1.23", features = ["rt-multi-thread", "sync", "net", "macros", "time"] }
 futures = "0.3.25"
-winit = "0.27.5"
+winit = { version = "0.27.5", default-features = false }
 fontdb = "0.12"
 nix = "0.26"
 tracing = "0.1"
@@ -57,7 +57,7 @@ core-foundation = "0.9.2"
 
 [features]
 default = ["wayland", @WEBRENDER_DEFAULT_FEATURES@]
-x11 = ["copypasta/x11", "surfman/sm-x11"]
-wayland = ["copypasta/wayland"]
+x11 = ["copypasta/x11", "surfman/sm-x11", "winit/x11"]
+wayland = ["copypasta/wayland", "winit/wayland"]
 capture=["webrender/capture", "webrender/serialize_program"]
 sw_compositor=["webrender/sw_compositor"]
