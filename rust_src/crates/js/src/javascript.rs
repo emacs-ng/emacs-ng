@@ -48,6 +48,16 @@ macro_rules! establish_channel {
     };
 }
 
+macro_rules! make_lisp_string {
+    ($arg: expr) => {{
+        unsafe {
+            let len = $arg.len();
+            let cstr = CString::new($arg).expect("Failed to allocate CString");
+            emacs::bindings::make_string_from_utf8(cstr.as_ptr(), len.try_into().unwrap())
+        }
+    }}
+}
+
 // #[derive(Clone)]
 // struct EmacsJsOptions {
 //     tick_rate: f64,
@@ -1442,6 +1452,10 @@ lazy_static! {
         std::sync::Mutex::new(0)
     };
 
+    static ref resolve_map: std::sync::Mutex<std::collections::HashMap<usize, ResponseMsg>> = {
+        std::sync::Mutex::new(std::collections::HashMap::new())
+    };
+
     // static ref JsToMain: std::sync::Mutex<Option<std::sync::mpsc::Receiver<String>>> = {
     //     std::sync::Mutex::new(None)
     // };
@@ -1455,18 +1469,37 @@ lazy_static! {
     // };
 }
 
+fn process_response(msg: ResponseMsg) -> LispObject {
+    match msg.res {
+        Ok(res) => {
+            let Response::Success(result) = res;
+            return make_lisp_string!(result);
+        }
+        Err(e) => error!(e.to_string())
+    }
+}
 
 #[lisp_fn]
 pub fn js_resolve(id: LispObject) -> LispObject {
     let idx = id.as_natnum_or_error() as usize;
+    {
+        let mut lock = resolve_map.lock().unwrap();
+        if let Some(msg) = lock.remove(&idx) {
+            return process_response(msg);
+        }
+    }
 
-    let recv_gaurd = js_to_main_lock.lock().unwrap();
-    if let Some(recv_chnl) = &*recv_gaurd {
-        if let Ok(msg) = recv_chnl.try_recv() {
-            println!("{:?}", msg);
-            return msg.id.into();
-        } else {
-            unsafe { Fthread_yield() };
+    {
+        let recv_gaurd = js_to_main_lock.lock().unwrap();
+        if let Some(recv_chnl) = &*recv_gaurd {
+            if let Ok(msg) = recv_chnl.try_recv() {
+                if msg.id == idx {
+                    return process_response(msg);
+                } else {
+                    let mut lock = resolve_map.lock().unwrap();
+                    lock.insert(msg.id, msg);
+                }
+            }
         }
     }
 
@@ -1484,19 +1517,13 @@ pub fn js_eval_string(content: LispObject) -> LispObject {
             // @TODO remove unwrap
             chnl.send(RequestMsg { id: id, action: Action::Execute(js_rust_string) }).expect("Failure to send");
 
-            // let recv_gaurd = js_to_main_lock.lock().unwrap();
-            // if let Some(recv_chnl) = &*recv_gaurd {
-            //     let msg = recv_chnl.recv().expect("Failed to recieve");
-            //     println!("{:?}", msg);
-            //     return msg.id.into();
-            // }
+            return id.into();
         }
     }
 
     emacs::globals::Qnil
 }
 
-// @TODO this needs to
 fn make_poll_fut() -> tokio::task::JoinHandle<Option<RequestMsg>> {
     tokio::task::spawn_blocking(|| {
         let lock = main_to_js_recv_lock.lock().unwrap();
