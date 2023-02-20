@@ -1,5 +1,5 @@
 {
-  description = "emacsng Nix flake";
+  description = "Emacs NG Nix flake";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -38,7 +38,7 @@
             overlays = [
               self.overlays.default
               emacs-overlay.overlay
-              rust-overlay.overlay
+              (import rust-overlay)
               devshell.overlay
             ];
             config = {};
@@ -92,7 +92,6 @@
             {
               inherit
                 (pkgs)
-                emacsng-rust
                 emacsng
                 ;
               default = pkgs.emacsng;
@@ -107,93 +106,16 @@
     // {
       overlays.default = final: prev: let
         #rust nightly date
-        emacsng-sources = prev.callPackages ./nix/_sources/generated.nix {};
-        emacsng-source = emacsng-sources.emacsng.src;
         locked-date = prev.lib.removePrefix "nightly-" (prev.lib.removeSuffix "\n" (builtins.readFile ./rust-toolchain));
       in {
-        emacsng-rust = with final; (
-          let
-            installPhase = ''
-              tar --owner=0 --group=0 --numeric-owner --format=gnu \
-                --sort=name --mtime="@$SOURCE_DATE_EPOCH" \
-                -czf $out $name-versioned
-            '';
-            doVersionedUpdate = ''
-              cargo vendor --versioned-dirs $name-versioned
-            '';
-
-            emacsngLibDeps = prev.rustPlatform.fetchCargoTarball {
-              src = emacsng-source + "/rust_src/remacs-lib";
-              name = "emacsngLibDeps";
-              cargoUpdateHook = let
-                pathDir = emacsng-source + "/rust_src/crates";
-              in
-                ''
-                  cp -r ${pathDir} crates
-                  sed -i 's|../crates/lisp_util|./crates/lisp_util|' Cargo.toml
-                ''
-                + doVersionedUpdate;
-              sha256 = "sha256-ITFwTAKZoTkGBquxxay20r/H5638ndKpIcvQra2t4cg=";
-              inherit installPhase;
-            };
-
-            ngBindgen = prev.rustPlatform.fetchCargoTarball {
-              src = emacsng-source + "/rust_src/ng-bindgen";
-              sourceRoot = null;
-              cargoUpdateHook = doVersionedUpdate;
-              name = "ngBindgen";
-              sha256 = "sha256-MsMfcZ/Oni5dsOeuA37bSYscQLTZOJe5D4dB8KAgc5s=";
-              inherit installPhase;
-            };
-
-            emacsngSrc = prev.rustPlatform.fetchCargoTarball {
-              src = emacsng-source;
-              cargoUpdateHook =
-                ''
-                  sed -e 's/@CARGO_.*@//' Cargo.in > Cargo.toml
-                  sed -e 's/@WEBRENDER_.*@//' rust_src/crates/webrender/Cargo.in > rust_src/crates/webrender/Cargo.toml
-                ''
-                + doVersionedUpdate;
-              name = "emacsngSrc";
-              sha256 = "sha256-nlzELzshSJWmSaWt5tewSbklnqnvdfWJeWfkdjCX1mo=";
-              inherit installPhase;
-            };
-
-          in
-            stdenv.mkDerivation {
-              name = "emacsng-rust";
-              srcs = [
-                emacsngLibDeps
-                ngBindgen
-                emacsngSrc
-              ];
-              sourceRoot = ".";
-              phases = ["unpackPhase" "installPhase"];
-              installPhase = ''
-                mkdir -p $out/.cargo/registry
-                cat > $out/.cargo/config.toml << EOF
-                [source.crates-io]
-                registry = "https://github.com/rust-lang/crates.io-index"
-                replace-with = "vendored-sources"
-                [source.vendored-sources]
-                directory = "$out/.cargo/registry"
-                EOF
-                cp -R emacsngLibDeps-vendor.tar.gz-versioned/* $out/.cargo/registry
-                cp -R ngBindgen-vendor.tar.gz-versioned/* $out/.cargo/registry
-                cp -R emacsngSrc-vendor.tar.gz-versioned/* $out/.cargo/registry
-              '';
-            }
-        );
-
-        librusty_v8 = prev.callPackage ./nix/librusty_v8.nix {};
-
         emacsng = with prev; let
           withWebrender = true;
         in
           (
-            final.emacsGcc.override
+            final.emacsGit.override
             {
               withImageMagick = true;
+              withNS = false;
               inherit (prev) imagemagick;
             }
           )
@@ -204,6 +126,8 @@
             rpathLibs = with xorg;
               lib.optionals (stdenv.isLinux && withWebrender) [
                 libX11
+                libXrandr
+                libXi
                 libGLU
                 libGL
                 libXpm
@@ -215,9 +139,20 @@
                 libxcb
               ];
           in rec {
-            name = "emacsng-" + version;
-            src = emacsng-source;
-            version = builtins.substring 0 7 emacsng-source.rev;
+            name = "emacs-ng-" + version;
+            src = ./.;
+
+            # FIXME (@declantsien) Read it directly from configure.ac AC_INIT
+            emacsVersion = "30.0.50";
+            version = emacsVersion;
+
+            # Cargo build requires this, see:
+            # https://github.com/NixOS/nixpkgs/blob/22.11/pkgs/applications/networking/browsers/firefox/common.nix#L574
+            dontFixLibtool = true;
+            cargoDeps = prev.rustPlatform.importCargoLock {
+              lockFile = ./Cargo.lock;
+              allowBuiltinFetchGit = true;
+            };
 
             preConfigure =
               (old.preConfigure or "")
@@ -236,7 +171,8 @@
             makeFlags =
               (old.makeFlags or [])
               ++ [
-                "CARGO_FLAGS=--offline" #nightly channel
+                "CARGO_HOME=source/cargo-vendor-dir/.cargo/" # nightly channel
+                "CARGO_FLAGS=--offline" # nightly channel
               ];
 
             #custom configure Flags Setting
@@ -264,6 +200,10 @@
               ]
               ++ lib.optionals withWebrender [
                 "--with-webrender"
+                "--enable-webrender-x11"
+              ]
+              ++ lib.optionals (stdenv.isDarwin && withWebrender) [
+                "--disable-webrender-self-contained"
               ]
               ++ lib.optionals (! withWebrender) [
                 "--with-harfbuzz"
@@ -271,25 +211,6 @@
               ++ lib.optionals stdenv.isLinux [
                 "--with-dbus"
               ];
-
-            preBuild = let
-              arch = rust.toRustTarget stdenv.hostPlatform;
-            in
-              (old.preBuild or "")
-              + ''
-                _librusty_v8_setup() {
-                    for v in "$@"; do
-                      install -D ${final.librusty_v8} "target/$v/gn_out/obj/librusty_v8.a"
-                    done
-                  }
-                  _librusty_v8_setup "debug" "release" "${arch}/release"
-                    sed -i 's|deno = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng"|deno = { version = "1.9.2"|' rust_src/crates/js/Cargo.toml
-                    sed -i 's|deno_runtime = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng"|deno_runtime = { version = "0.13.0"|' rust_src/crates/js/Cargo.toml
-                    sed -i 's|deno_core = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng"|deno_core = { version = "0.86.0"|' rust_src/crates/js/Cargo.toml
-
-                    sed -i 's|git = "https://github.com/servo/webrender.git", rev = ".*."|version = "0.61.0"|' rust_src/crates/webrender/Cargo.toml
-                  export HOME=${final.emacsng-rust}
-              '';
 
             postPatch =
               (old.postPatch or "")
@@ -310,9 +231,14 @@
                 final.rust-bin.nightly."${locked-date}".default
                 git
               ]
-              ++ lib.optionals withWebrender (with xorg; [
-                python3
-                rpathLibs
+              ++ lib.optionals withWebrender ([
+                  python3
+                ]
+                ++ rpathLibs)
+              ++ (with rustPlatform; [
+                cargoSetupHook
+                rust.cargo
+                rust.rustc
               ])
               ++ lib.optionals
               stdenv.isDarwin
@@ -335,7 +261,7 @@
                     OpenGL
                   ]);
 
-            dontPatchShebangs = true; #straight_watch_callback.py: unsupported interpreter directive "#!/usr/bin/env -S python3 -u"
+            dontPatchShebangs = true; # straight_watch_callback.py: unsupported interpreter directive "#!/usr/bin/env -S python3 -u"
 
             postFixup =
               (old.postFixup or "")
@@ -345,9 +271,9 @@
                   lib.concatStringsSep "\n" [
                     (lib.optionalString stdenv.isLinux ''
                       patchelf --set-rpath \
-                        "$(patchelf --print-rpath "$out/bin/.emacs-28.0.50-wrapped"):${lib.makeLibraryPath rpathLibs}" \
-                        "$out/bin/.emacs-28.0.50-wrapped"
-                        patchelf --add-needed "libfontconfig.so" "$out/bin/.emacs-28.0.50-wrapped"
+                        "$(patchelf --print-rpath "$out/bin/emacs-$emacsVersion"):${lib.makeLibraryPath rpathLibs}" \
+                        "$out/bin/emacs-$emacsVersion"
+                        patchelf --add-needed "libfontconfig.so" "$out/bin/emacs-$emacsVersion"
                     '')
                   ]
                 else ""
