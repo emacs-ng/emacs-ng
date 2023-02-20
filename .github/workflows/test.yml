@@ -119,7 +119,7 @@ jobs:
               if: runner.os == 'macOS'
               run: |
                   ## Package Install
-                  brew install texinfo automake
+                  brew install texinfo automake pkg-config
                   # Already intalled: gnutls autoconf llvm
                   # Option: libx11 libxpm jpeg libpng giflib libtiff gtk+3 ncurses
                   # When use native-comp: libgccjit
