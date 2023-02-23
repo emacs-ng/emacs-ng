@@ -464,6 +464,16 @@ pub fn x_display_grayscale_p(_terminal: LispObject) -> LispObject {
     Qt
 }
 
+/// Internal function called by `color-defined-p', which see.
+#[lisp_fn(min = "1")]
+pub fn xw_color_defined_p(color: LispObject, _frame: LispObject) -> LispObject {
+    let color_str = format!("{}", color.force_string());
+    match lookup_color_by_name_or_hex(&color_str) {
+        Some(_) => Qt,
+        None => Qnil,
+    }
+}
+
 /// Internal function called by `color-values', which see.
 #[lisp_fn(min = "1")]
 pub fn xw_color_values(color: LispObject, _frame: Option<LispFrameRef>) -> LispObject {
