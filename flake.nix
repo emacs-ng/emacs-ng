@@ -79,6 +79,10 @@
               drv = packages.emacsng;
               exePath = "/bin/emacs";
             };
+            emacsng-noNativeComp = flake-utils.lib.mkApp {
+              drv = packages.emacsng-noNativeComp;
+              exePath = "/bin/emacs";
+            };
             emacsclient = flake-utils.lib.mkApp {
               drv = packages.emacsng;
               exePath = "/bin/emacsclient";
@@ -93,6 +97,7 @@
               inherit
                 (pkgs)
                 emacsng
+                emacsng-noNativeComp
                 ;
               default = pkgs.emacsng;
             };
@@ -107,7 +112,6 @@
       overlays.default = final: prev: let
         #rust nightly date
         locked-date = prev.lib.removePrefix "nightly-" (prev.lib.removeSuffix "\n" (builtins.readFile ./rust-toolchain));
-      in {
         emacsng = with prev; let
           withWebrender = true;
         in
@@ -279,6 +283,20 @@
                 else ""
               );
           });
+      in {
+        inherit emacsng;
+        emacsng-noNativeComp = (
+          (
+            emacsng.override {
+              nativeComp = false;
+            }
+          )
+          .overrideAttrs (
+            oa: {
+              name = "${oa.name}-no-native-comp";
+            }
+          )
+        );
       };
     };
 }
