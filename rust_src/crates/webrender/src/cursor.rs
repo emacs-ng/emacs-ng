@@ -213,6 +213,9 @@ pub fn emacs_to_winit_cursor(cursor: Emacs_Cursor) -> CursorIcon {
         33 => CursorIcon::NwseResize,
         34 => CursorIcon::ColResize,
         35 => CursorIcon::RowResize,
-        _ => panic!("Not invalie Emacs_Cursor"),
+        _ => {
+            log::error!("Unhandled Emacs_Cursor {cursor:?}");
+            CursorIcon::Default
+        }
     }
 }
