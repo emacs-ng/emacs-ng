@@ -46,6 +46,22 @@ pub mod select {
     pub mod tokio;
 }
 
+pub mod gl {
+    pub mod context;
+
+    pub mod context_impl {
+        #[cfg(feature = "glutin")]
+        pub use crate::gl::context_impl::glutin::*;
+        #[cfg(feature = "surfman")]
+        pub use crate::gl::context_impl::surfman::*;
+
+        #[cfg(feature = "glutin")]
+        pub mod glutin;
+        #[cfg(feature = "surfman")]
+        pub mod surfman;
+    }
+}
+
 #[cfg(macos_platform)]
 pub use crate::platform::macos;
 

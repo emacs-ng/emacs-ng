@@ -28,8 +28,10 @@ winit = { version = "0.27.5", default-features = false }
 fontdb = "0.12"
 raw-window-handle = "0.5"
 errno = "0.2"
+euclid = "0.22"
 spin_sleep = { version = "1.1", optional = true }
-surfman = "0.4.4"
+surfman = { version = "0.4.4", default-features = false, features = ["sm-raw-window-handle"], optional = true }
+glutin = { version = "0.30.6", optional = true }
 
 [dependencies.nix]
 optional = true
@@ -45,6 +47,7 @@ default-features = false
 [dependencies.webrender_surfman]
 git = "https://github.com/declantsien/webrender_surfman.git"
 rev = "e90a4e8696afe9b5301ad9cdeaf618801e0c2567"
+optional = true
 
 [build-dependencies]
 ng-bindgen = { path = "../../ng-bindgen" }
@@ -64,8 +67,10 @@ core-foundation = "0.9.2"
 
 [features]
 default = ["wayland", @WEBRENDER_DEFAULT_FEATURES@]
-x11 = ["dep:x11", "copypasta/x11", "surfman/sm-x11", "winit/x11"]
-wayland = ["copypasta/wayland", "winit/wayland"]
+x11 = ["dep:x11", "copypasta/x11", "surfman?/sm-x11", "winit/x11", "glutin?/glx", "glutin?/x11"]
+wayland = ["copypasta/wayland", "winit/wayland", "winit/wayland-dlopen", "winit/wayland-csd-adwaita", "glutin?/egl", "glutin?/wayland"]
 capture=["webrender/capture", "webrender/serialize_program"]
 sw_compositor=["webrender/sw_compositor"]
 pselect=["dep:spin_sleep", "dep:nix"]
+glutin=["dep:glutin"]
+surfman=["dep:surfman", "dep:webrender_surfman"]

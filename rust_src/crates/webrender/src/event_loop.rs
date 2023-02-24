@@ -26,13 +26,8 @@ use winit::{
     event_loop::{ControlFlow, EventLoop, EventLoopProxy},
     monitor::MonitorHandle,
     platform::run_return::EventLoopExtRunReturn,
-    window::Window,
     window::WindowId,
 };
-
-use surfman::Connection;
-use surfman::SurfaceType;
-use webrender_surfman::WebrenderSurfman;
 
 use emacs::bindings::{inhibit_window_system, thread_select};
 
@@ -64,25 +59,6 @@ impl WrEventLoop {
 
     pub fn create_proxy(&self) -> EventLoopProxy<i32> {
         self.el.create_proxy()
-    }
-
-    pub fn new_webrender_surfman(
-        &mut self,
-        window: &Window,
-        connection: Option<&Connection>,
-    ) -> WebrenderSurfman {
-        let connection = connection.expect("device not open");
-        let adapter = connection
-            .create_adapter()
-            .expect("Failed to create adapter");
-        let native_widget = connection
-            .create_native_widget_from_winit_window(&window)
-            .expect("Failed to create native widget");
-        let surface_type = SurfaceType::Widget { native_widget };
-        let webrender_surfman = WebrenderSurfman::create(&connection, &adapter, surface_type)
-            .expect("Failed to create WR surfman");
-
-        webrender_surfman
     }
 
     pub fn open_native_display(&mut self) -> RawDisplayHandle {

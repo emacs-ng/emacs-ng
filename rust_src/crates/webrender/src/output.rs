@@ -1,17 +1,13 @@
-use raw_window_handle::HasRawDisplayHandle;
+use crate::gl::context::ContextTrait;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-use euclid::default::Size2D;
 use gleam::gl;
-use log::warn;
 use std::collections::HashMap;
 
 use std::{
     ops::{Deref, DerefMut},
     ptr,
 };
-use surfman::GLApi;
-use webrender_surfman::WebrenderSurfman;
 use winit::{
     self,
     dpi::PhysicalSize,
@@ -82,7 +78,7 @@ pub struct Output {
     renderer: Renderer,
 
     window: winit::window::Window,
-    webrender_surfman: WebrenderSurfman,
+    context: crate::gl::context::Context,
     gl: Rc<dyn gl::Gl>,
 
     frame: LispFrameRef,
@@ -101,26 +97,10 @@ impl Output {
 
         let window = window_builder.build(&event_loop.el()).unwrap();
 
-        let connection =
-            match surfman::Connection::from_raw_display_handle(window.raw_display_handle()) {
-                Ok(connection) => connection,
-                Err(error) => panic!("Device not open {:?}", error),
-            };
+        let mut context = crate::gl::context::Context::from(&window);
+        let gl = context.load_gl();
 
-        let webrender_surfman = event_loop.new_webrender_surfman(&window, Some(&connection));
-
-        // Get GL bindings
-        let gl = match webrender_surfman.connection().gl_api() {
-            GLApi::GL => unsafe { gl::GlFns::load_with(|s| webrender_surfman.get_proc_address(s)) },
-            GLApi::GLES => unsafe {
-                gl::GlesFns::load_with(|s| webrender_surfman.get_proc_address(s))
-            },
-        };
-
-        let gl = gl::ErrorCheckingGl::wrap(gl);
-
-        // Make sure the gl context is made current.
-        webrender_surfman.make_gl_context_current().unwrap();
+        context.ensure_is_current();
 
         let webrender_opts = webrender::WebRenderOptions {
             clear_color: ColorF::new(1.0, 1.0, 1.0, 1.0),
@@ -166,6 +146,7 @@ impl Output {
             render_api: api,
             document_id,
             pipeline_id,
+            context,
             gl,
             epoch,
             display_list_builder: None,
@@ -174,7 +155,6 @@ impl Output {
             cursor_color: ColorF::BLACK,
             cursor_foreground_color: ColorF::WHITE,
             renderer,
-            webrender_surfman,
             texture_resources,
             frame,
         };
@@ -321,14 +301,6 @@ impl Output {
         self.assert_no_gl_error();
     }
 
-    fn ensure_context_is_current(&mut self) {
-        // Make sure the gl context is made current.
-        if let Err(err) = self.webrender_surfman.make_gl_context_current() {
-            warn!("Failed to make GL context current: {:?}", err);
-        }
-        self.assert_no_gl_error();
-    }
-
     pub fn flush(&mut self) {
         self.assert_no_gl_error();
 
@@ -353,17 +325,7 @@ impl Output {
             let device_size = self.get_deivce_size();
 
             // Bind the webrender framebuffer
-            self.ensure_context_is_current();
-
-            let framebuffer_object = self
-                .webrender_surfman
-                .context_surface_info()
-                .unwrap_or(None)
-                .map(|info| info.framebuffer_object)
-                .unwrap_or(0);
-            self.gl
-                .bind_framebuffer(gleam::gl::FRAMEBUFFER, framebuffer_object);
-            self.assert_gl_framebuffer_complete();
+            self.context.bind_framebuffer(&mut self.gl);
 
             self.renderer.update();
 
@@ -377,27 +339,13 @@ impl Output {
             let image_key = self.copy_framebuffer_to_texture(DeviceIntRect::from_size(device_size));
             self.previous_frame_image = Some(image_key);
 
-            // Perform the page flip. This will likely block for a while.
-            if let Err(err) = self.webrender_surfman.present() {
-                warn!("Failed to present surface: {:?}", err);
-            }
+            self.context.swap_buffers();
         }
     }
 
     #[track_caller]
     fn assert_no_gl_error(&self) {
         debug_assert_eq!(self.gl.get_error(), gleam::gl::NO_ERROR);
-    }
-
-    #[track_caller]
-    fn assert_gl_framebuffer_complete(&self) {
-        debug_assert_eq!(
-            (
-                self.gl.get_error(),
-                self.gl.check_frame_buffer_status(gleam::gl::FRAMEBUFFER)
-            ),
-            (gleam::gl::NO_ERROR, gleam::gl::FRAMEBUFFER_COMPLETE)
-        );
     }
 
     pub fn get_previous_frame(&self) -> Option<ImageKey> {
@@ -641,9 +589,7 @@ impl Output {
         txn.set_document_view(device_rect);
         self.render_api.send_transaction(self.document_id, txn);
 
-        self.webrender_surfman
-            .resize(Size2D::new(size.width as i32, size.height as i32))
-            .unwrap();
+        self.context.resize(size);
     }
 }
 

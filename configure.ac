@@ -1337,6 +1337,11 @@ AC_ARG_ENABLE(wr-pselect,
 		On by default on macOS.])],
 [ac_enable_wr_pselect="${enableval}"],[])
 
+AC_ARG_ENABLE(wr-glutin,
+[AS_HELP_STRING([--enable-wr-glutin],
+		[enable glutin for winit WR OpenGL context creation.])],
+[ac_enable_wr_glutin="${enableval}"],[])
+
 AC_SUBST([AM_DEFAULT_VERBOSITY])
 AC_CONFIG_FILES([src/verbose.mk])
 
@@ -7047,6 +7052,11 @@ case "$window_system" in
 	fi
 	if test x$ac_enable_wr_pselect != x || test $opsys = darwin; then
 	   WEBRENDER_DEFAULT_FEATURES="\"pselect\", ${WEBRENDER_DEFAULT_FEATURES}"
+	fi
+	if test x$ac_enable_wr_glutin != x ; then
+	   WEBRENDER_DEFAULT_FEATURES="\"glutin\", ${WEBRENDER_DEFAULT_FEATURES}"
+	else
+	   WEBRENDER_DEFAULT_FEATURES="\"surfman\", ${WEBRENDER_DEFAULT_FEATURES}"
 	fi
 	if test X$ac_enable_webrender_x11 != Xno ; then
 	   WEBRENDER_DEFAULT_FEATURES="\"x11\", ${WEBRENDER_DEFAULT_FEATURES}"
