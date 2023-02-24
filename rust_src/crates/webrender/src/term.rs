@@ -921,30 +921,29 @@ pub fn wr_term_init(display_name: LispObject) -> DisplayInfoRef {
     let mut dpyinfo_ref = DisplayInfoRef::new(Box::into_raw(dpyinfo));
 
     let mut event_loop = EVENT_LOOP.lock().unwrap();
-    let mut conn = None;
     let raw_display_handle = event_loop.open_native_display();
 
     dpyinfo_ref.get_inner().raw_display_handle = Some(raw_display_handle);
-    match raw_display_handle {
+    let conn = match raw_display_handle {
         #[cfg(wayland_platform)]
         RawDisplayHandle::Wayland(WaylandDisplayHandle { display, .. }) => {
             log::trace!("wayland display {display:?}");
             let fd =
                 unsafe { (WAYLAND_CLIENT_HANDLE.wl_display_get_fd)(display as *mut wl_display) };
             log::trace!("wayland display fd {fd:?}");
-            conn = Some(fd);
+            Some(fd)
         }
         #[cfg(x11_platform)]
         RawDisplayHandle::Xlib(XlibDisplayHandle { display, .. }) => {
             log::trace!("xlib display {display:?}");
             let fd = unsafe { x11::xlib::XConnectionNumber(display as *mut x11::xlib::Display) };
             log::trace!("xlib display fd {fd:?}");
-            conn = Some(fd);
+            Some(fd)
         }
         #[cfg(x11_platform)]
-        RawDisplayHandle::Xcb(XcbDisplayHandle { .. }) => conn = None, // How does this differs from xlib?
-        _ => conn = None,
-    }
+        RawDisplayHandle::Xcb(XcbDisplayHandle { .. }) => None, // How does this differs from xlib?
+        _ => None,
+    };
 
     if let Some(fd) = conn {
         unsafe {
