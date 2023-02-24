@@ -301,7 +301,13 @@ impl Output {
         self.assert_no_gl_error();
     }
 
+    fn ensure_context_is_current(&mut self) {
+        self.context.ensure_is_current();
+        self.assert_no_gl_error();
+    }
+
     pub fn flush(&mut self) {
+        self.ensure_context_is_current();
         self.assert_no_gl_error();
 
         let builder = std::mem::replace(&mut self.display_list_builder, None);

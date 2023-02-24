@@ -1,4 +1,5 @@
 use crate::gl::context::ContextTrait;
+use gleam::gl::ErrorCheckingGl;
 use glutin::{
     config::{Api, ConfigTemplateBuilder, GlConfig},
     context::{
@@ -138,7 +139,7 @@ impl ContextTrait for ContextImpl {
     }
 
     fn load_gl(&self) -> Rc<dyn Gl> {
-        self.gl.clone()
+        ErrorCheckingGl::wrap(self.gl.clone())
     }
 
     fn ensure_is_current(&mut self) {
