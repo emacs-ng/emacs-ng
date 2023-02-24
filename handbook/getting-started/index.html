@@ -666,6 +666,13 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#logs-and-debugging" class="md-nav__link">
+    Logs and debugging
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -801,6 +808,13 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#logs-and-debugging" class="md-nav__link">
+    Logs and debugging
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -886,6 +900,20 @@ We intend to use make use of
 would also be cool if we would have a terminal emulator based on rust.</p>
 <p>If you have any idea for a new feature you want to work on, just add a
 configure option and create a new crate. Do not hesitate to ask for help.</p>
+<h2 id="logs-and-debugging">Logs and debugging<a class="headerlink" href="#logs-and-debugging" title="Permanent link">#</a></h2>
+<p>If you configure with <code>--enable-rust-debug</code> cargo will build a debug
+build.  We use <a href="https://docs.rs/tracing/latest/tracing/">tracing</a> to
+collect log output, and a handler (subscriber) is installed in
+<code>main()</code> if cargo is building a debug build.  (The subscriber is not
+present in release builds, and hence logging is optimised out.  Be
+aware that emitting records can slow down emacs considerably.)</p>
+<p>The default handler is configured with the <code>EMACSNG_LOG</code> environment
+variable, in the format <code>target=level</code>.  Crate <em>names</em> are targets, so
+to log for the <code>webrender</code> crate (which is named <code>wrterm</code>) at the info
+level, use <code>EMACSNG_LOG=wrterm=info</code>.  Multiple filters can be
+separated with a comma, and filters are capable of advanced filtering
+with regexes.  See the documentation for
+<a href="https://docs.rs/env_logger/latest/env_logger/">env_logger</a> for more details.</p>
                 
                   
                     
