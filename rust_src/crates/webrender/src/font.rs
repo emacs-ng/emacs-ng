@@ -344,11 +344,17 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     let frame: LispFrameRef = frame.into();
     let mut output = frame.wr_output();
 
-    // pixel_size here reflects to DPR 1 for webrender display, we have scale_factor from winit.
-    // while pgtk/ns/w32 reflects to actual DPR on device by setting resx/resy to display
-    let pixel_size = if !output.font.is_null() {
-        output.font.pixel_size as i64
+    let pixel_size = if pixel_size == 0 {
+        // pixel_size here reflects to DPR 1 for webrender display, we have scale_factor from winit.
+        // while pgtk/ns/w32 reflects to actual DPR on device by setting resx/resy to display
+        if !output.font.is_null() {
+            output.font.pixel_size as i64
+        } else {
+            // fallback font size
+            16
+        }
     } else {
+        // prefer elisp specific font size
         pixel_size as i64
     };
 
