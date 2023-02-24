@@ -180,7 +180,7 @@ jobs:
             - name: configure(webrender)
               if: ${{ matrix.build == 'webrender' }}
               run: |
-                  ./configure --enable-checking=glyphs --enable-rust-debug --with-webrender
+                  ./configure --enable-checking=glyphs --enable-rust-debug --with-webrender --with-winit
 
             - name: build
               run: |

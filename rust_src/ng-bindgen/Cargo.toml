@@ -22,4 +22,4 @@ path = "lib.rs"
 libgit = []
 javascript = []
 ng-module = []
-window-system-webrender = []
+webrender = []

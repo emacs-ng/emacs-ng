@@ -1,29 +1,26 @@
+use crate::window_system::display_info::*;
 use libc;
 use raw_window_handle::RawDisplayHandle;
 use std::{collections::HashMap, ptr};
-use winit::window::WindowId;
 
-use emacs::{
-    bindings::{wr_display_info, Emacs_GC},
-    frame::LispFrameRef,
-    lisp::ExternalPtr,
-};
+use emacs::{bindings::Emacs_GC, frame::LispFrameRef, lisp::ExternalPtr};
 
-use crate::{fringe::FringeBitmap, input::InputProcessor, output::OutputRef, term::TerminalRef};
+use crate::window_system::frame::FrameId;
+use crate::{fringe::FringeBitmap, term::TerminalRef};
 
 pub struct DisplayInfoInner {
     pub terminal: TerminalRef,
     pub focus_frame: LispFrameRef,
 
-    pub outputs: HashMap<WindowId, OutputRef>,
-
-    pub input_processor: InputProcessor,
+    pub frames: HashMap<FrameId, LispFrameRef>,
 
     pub scratch_cursor_gc: Box<Emacs_GC>,
 
     pub fringe_bitmap_caches: HashMap<i32, FringeBitmap>,
 
     pub raw_display_handle: Option<RawDisplayHandle>,
+
+    pub scale_factor: f32,
 }
 
 impl Default for DisplayInfoInner {
@@ -31,8 +28,7 @@ impl Default for DisplayInfoInner {
         DisplayInfoInner {
             terminal: TerminalRef::new(ptr::null_mut()),
             focus_frame: LispFrameRef::new(ptr::null_mut()),
-            outputs: HashMap::new(),
-            input_processor: InputProcessor::new(),
+            frames: HashMap::new(),
             scratch_cursor_gc: Box::new(Emacs_GC {
                 foreground: 0,
                 background: 0,
@@ -40,6 +36,7 @@ impl Default for DisplayInfoInner {
 
             fringe_bitmap_caches: HashMap::new(),
             raw_display_handle: None,
+            scale_factor: 1.0,
         }
     }
 }
@@ -48,7 +45,8 @@ pub type DisplayInfoInnerRef = ExternalPtr<DisplayInfoInner>;
 
 #[derive(Default)]
 #[repr(transparent)]
-pub struct DisplayInfo(wr_display_info);
+pub struct DisplayInfo(display_info);
+pub type DisplayInfoRef = ExternalPtr<DisplayInfo>;
 
 impl DisplayInfo {
     pub fn new() -> Self {
@@ -60,12 +58,30 @@ impl DisplayInfo {
         df
     }
 
-    pub fn get_inner(&self) -> DisplayInfoInnerRef {
+    pub fn init_inner(&mut self) {
+        let inner = Box::new(DisplayInfoInner::default());
+        self.0.inner = Box::into_raw(inner) as *mut libc::c_void;
+    }
+
+    pub fn get_inner(&mut self) -> DisplayInfoInnerRef {
+        if self.0.inner.is_null() {
+            self.init_inner();
+        }
         DisplayInfoInnerRef::new(self.0.inner as *mut DisplayInfoInner)
     }
 
-    pub fn get_raw(&mut self) -> ExternalPtr<wr_display_info> {
-        (&mut self.0 as *mut wr_display_info).into()
+    pub fn get_raw(&mut self) -> ExternalPtr<display_info> {
+        (&mut self.0 as *mut display_info).into()
+    }
+
+    // TODO get dynamic scale factor from raw_display_handle
+    // or update scale factor when changed
+    pub fn scale_factor(&mut self) -> f32 {
+        self.get_inner().scale_factor
+    }
+
+    pub fn get_color_bits(&self) -> u8 {
+        24
     }
 }
 
@@ -78,5 +94,3 @@ impl Drop for DisplayInfo {
         }
     }
 }
-
-pub type DisplayInfoRef = ExternalPtr<DisplayInfo>;

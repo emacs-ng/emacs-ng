@@ -43,14 +43,18 @@ typedef struct _XGCValues
 #define GCGraphicsExposures 0
 
 typedef void *Pixmap;
-
+#ifdef HAVE_WINIT
 typedef char *XrmDatabase;
+#endif
 
 typedef Emacs_GC *GC;
 typedef int Color;
+
+#ifdef HAVE_WINIT
 typedef int Window;
 typedef int Display; /* HDC so it doesn't conflict with xpm lib.  */
 typedef int *Emacs_Cursor;
+#endif
 typedef int RGB_PIXEL_COLOR;
 
 typedef void *Emacs_Pixmap;
@@ -134,5 +138,13 @@ typedef struct
 #define PAspect (1L << 7) /* program specified min and max aspect ratios */
 #define PBaseSize (1L << 8) /* program specified base for incrementing */
 #define PWinGravity (1L << 9) /* program specified window gravity */
+
+struct wr_bitmap_record
+{
+  char *file;
+  int refcount;
+  int height, width, depth;
+};
+
 
 #endif /* EMACS_WRGUI_H */

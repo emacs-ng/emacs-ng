@@ -973,6 +973,10 @@ extern struct font_driver ftcrhbfont_driver;
 #endif	/* HAVE_HARFBUZZ */
 extern void syms_of_ftcrfont (void);
 #endif
+#ifdef USE_WEBRENDER
+extern void register_ttf_parser_font_driver(struct frame *);
+extern void syms_of_ttf_parser_font(void);
+#endif
 
 #ifndef FONT_DEBUG
 #define FONT_DEBUG

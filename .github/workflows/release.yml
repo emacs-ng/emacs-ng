@@ -86,7 +86,7 @@ jobs:
           bin_version=$version.webrender
           echo "version=$version" >> $GITHUB_ENV
           echo "bin_version=$bin_version" >> $GITHUB_ENV
-          ./build_emacs_ng.sh $bin_version --with-webrender
+          ./build_emacs_ng.sh $bin_version --with-webrender --with-winit
       - name: Reduce cache
         continue-on-error: true
         run: |

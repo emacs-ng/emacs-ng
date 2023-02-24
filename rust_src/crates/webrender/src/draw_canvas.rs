@@ -7,7 +7,6 @@ use crate::{frame::LispFrameExt, fringe::FringeBitmap, image::WrPixmap};
 use super::{
     color::{color_to_pixel, pixel_to_color},
     font::{WRFont, WRFontRef},
-    output::OutputRef,
     util::HandyDandyRectBuilder,
 };
 
@@ -20,22 +19,68 @@ use emacs::{
     glyph::GlyphStringRef,
 };
 
-impl OutputRef {
-    pub fn canvas(self) -> DrawCanvas {
-        DrawCanvas::new(self)
-    }
+pub trait Renderer {
+    fn draw_glyph_string(&mut self, s: GlyphStringRef);
+
+    fn draw_char_glyph_string(&mut self, s: GlyphStringRef);
+
+    fn draw_stretch_glyph_string(&mut self, s: GlyphStringRef);
+
+    fn draw_image_glyph(&mut self, s: GlyphStringRef);
+
+    fn draw_composite_glyph_string(&mut self, s: GlyphStringRef);
+
+    fn draw_underline(
+        builder: &mut DisplayListBuilder,
+        s: GlyphStringRef,
+        font: WRFontRef,
+        foreground_color: ColorF,
+        face: *mut Face,
+        space_and_clip: SpaceAndClipInfo,
+    );
+
+    fn draw_fringe_bitmap(
+        &mut self,
+        pos: LayoutPoint,
+        image: Option<FringeBitmap>,
+        bitmap_color: ColorF,
+        background_color: ColorF,
+        image_clip_rect: LayoutRect,
+        clear_rect: LayoutRect,
+        row_rect: LayoutRect,
+    );
+
+    fn draw_vertical_window_border(&mut self, face: Option<*mut Face>, x: i32, y0: i32, y1: i32);
+
+    fn draw_window_divider(
+        &mut self,
+        color: u64,
+        color_first: u64,
+        color_last: u64,
+        x0: i32,
+        x1: i32,
+        y0: i32,
+        y1: i32,
+    );
+
+    fn clear_area(&mut self, clear_color: ColorF, x: i32, y: i32, width: i32, height: i32);
+
+    fn scroll(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        from_y: i32,
+        to_y: i32,
+        scroll_height: i32,
+    );
+    fn draw_hollow_box_cursor(&mut self, cursor_rect: LayoutRect, clip_rect: LayoutRect);
+    fn draw_bar_cursor(&mut self, face: &Face, x: i32, y: i32, width: i32, height: i32);
 }
 
-pub struct DrawCanvas {
-    output: OutputRef,
-}
-
-impl DrawCanvas {
-    pub fn new(output: OutputRef) -> DrawCanvas {
-        DrawCanvas { output }
-    }
-
-    pub fn draw_glyph_string(&mut self, mut s: GlyphStringRef) {
+impl Renderer for LispFrameRef {
+    fn draw_glyph_string(&mut self, mut s: GlyphStringRef) {
         unsafe { prepare_face_for_display(s.f, s.face) };
 
         match s.hl {
@@ -52,11 +97,10 @@ impl DrawCanvas {
             draw_glyphs_face::DRAW_CURSOR => {
                 let face = unsafe { &*s.face };
                 let frame: LispFrameRef = (*s).f.into();
-                let output = frame.wr_output();
-                let dpyinfo = output.display_info();
+                let mut dpyinfo = frame.display_info();
 
                 let mut foreground = face.background;
-                let mut background = color_to_pixel(output.cursor_color);
+                let mut background = color_to_pixel(frame.cursor_color());
 
                 // If the glyph would be invisible, try a different foreground.
                 if foreground == background {
@@ -64,7 +108,7 @@ impl DrawCanvas {
                 }
 
                 if foreground == background {
-                    foreground = color_to_pixel(output.cursor_foreground_color);
+                    foreground = color_to_pixel(frame.cursor_foreground_color());
                 }
 
                 if foreground == background {
@@ -109,8 +153,11 @@ impl DrawCanvas {
         let to = s.nchars as usize;
 
         let gc = s.gc;
+        let font_instance_key = self
+            .canvas()
+            .get_or_create_font_instance(font, font.glyph_size as f32);
 
-        self.output.display(|builder, space_and_clip| {
+        self.canvas().display(|builder, space_and_clip| {
             let glyph_indices: Vec<u32> =
                 s.get_chars()[from..to].iter().map(|c| *c as u32).collect();
 
@@ -188,7 +235,7 @@ impl DrawCanvas {
                     &CommonItemProperties::new(visible_rect, space_and_clip),
                     visible_rect,
                     &glyph_instances,
-                    font.font_instance_key,
+                    font_instance_key,
                     foreground_color,
                     None,
                 );
@@ -213,7 +260,7 @@ impl DrawCanvas {
         let background_bounds = (s.x, s.y).by(background_width, visible_height);
         let background_color = pixel_to_color(unsafe { (*s.gc).background } as u64);
 
-        self.output.display(|builder, space_and_clip| {
+        self.canvas().display(|builder, space_and_clip| {
             builder.push_rect(
                 &CommonItemProperties::new(background_bounds, space_and_clip),
                 background_bounds,
@@ -253,7 +300,7 @@ impl DrawCanvas {
 
         let background_rect = bounds.intersection(&clip_bounds);
 
-        self.output.display(|builder, space_and_clip| {
+        self.canvas().display(|builder, space_and_clip| {
             if let Some(background_rect) = background_rect {
                 // render background
                 builder.push_rect(
@@ -285,7 +332,7 @@ impl DrawCanvas {
         // first character of the composition could not be loaded.
         if s.font_not_found_p() {
             if s.cmp_from == 0 {
-                self.clear_area(self.output.cursor_color, s.x, s.y, s.width, s.height);
+                self.clear_area(self.cursor_color(), s.x, s.y, s.width, s.height);
             }
         } else if !unsafe { (*s.first_glyph).u.cmp.automatic() } {
             let font = WRFontRef::new(s.font as *mut WRFont);
@@ -338,7 +385,7 @@ impl DrawCanvas {
                 }
             };
 
-            self.output.display(|builder, space_and_clip| {
+            self.canvas().display(|builder, space_and_clip| {
                 let mut s = s.clone();
 
                 let x = s.x;
@@ -368,13 +415,16 @@ impl DrawCanvas {
 
                 let visible_rect = (x, y).by(s.width, visible_height);
 
+                let font_instance_key = self
+                    .canvas()
+                    .get_or_create_font_instance(font, font.glyph_size as f32);
                 // draw foreground
                 if !glyph_instances.is_empty() {
                     builder.push_text(
                         &CommonItemProperties::new(visible_rect, space_and_clip),
                         visible_rect,
                         &glyph_instances,
-                        font.font_instance_key,
+                        font_instance_key,
                         foreground_color,
                         None,
                     );
@@ -439,7 +489,7 @@ impl DrawCanvas {
         );
     }
 
-    pub fn draw_fringe_bitmap(
+    fn draw_fringe_bitmap(
         &mut self,
         pos: LayoutPoint,
         image: Option<FringeBitmap>,
@@ -460,7 +510,7 @@ impl DrawCanvas {
             .intersection(&row_rect)
             .unwrap_or_else(|| LayoutRect::zero());
 
-        self.output.display(|builder, space_and_clip| {
+        self.canvas().display(|builder, space_and_clip| {
             // clear area
             builder.push_rect(
                 &CommonItemProperties::new(clear_rect, space_and_clip),
@@ -486,13 +536,7 @@ impl DrawCanvas {
         });
     }
 
-    pub fn draw_vertical_window_border(
-        &mut self,
-        face: Option<*mut Face>,
-        x: i32,
-        y0: i32,
-        y1: i32,
-    ) {
+    fn draw_vertical_window_border(&mut self, face: Option<*mut Face>, x: i32, y0: i32, y1: i32) {
         // Fix the border height
         // Don't known why the height is short than expected.
         let y1 = y1 + 1;
@@ -504,7 +548,7 @@ impl DrawCanvas {
             None => ColorF::BLACK,
         };
 
-        self.output.display(|builder, space_and_clip| {
+        self.canvas().display(|builder, space_and_clip| {
             builder.push_rect(
                 &CommonItemProperties::new(visible_rect, space_and_clip),
                 visible_rect,
@@ -513,7 +557,7 @@ impl DrawCanvas {
         });
     }
 
-    pub fn draw_window_divider(
+    fn draw_window_divider(
         &mut self,
         color: u64,
         color_first: u64,
@@ -523,7 +567,7 @@ impl DrawCanvas {
         y0: i32,
         y1: i32,
     ) {
-        self.output.display(|builder, space_and_clip| {
+        self.canvas().display(|builder, space_and_clip| {
             if (y1 - y0 > x1 - x0) && (x1 - x0 >= 3) {
                 // A vertical divider, at least three pixels wide: Draw first and
                 // last pixels differently.
@@ -583,10 +627,10 @@ impl DrawCanvas {
         });
     }
 
-    pub fn clear_area(&mut self, clear_color: ColorF, x: i32, y: i32, width: i32, height: i32) {
+    fn clear_area(&mut self, clear_color: ColorF, x: i32, y: i32, width: i32, height: i32) {
         let visible_rect = (x, y).by(width, height);
 
-        self.output.display(|builder, space_and_clip| {
+        self.canvas().display(|builder, space_and_clip| {
             builder.push_rect(
                 &CommonItemProperties::new(visible_rect, space_and_clip),
                 visible_rect,
@@ -595,7 +639,7 @@ impl DrawCanvas {
         });
     }
 
-    pub fn scroll(
+    fn scroll(
         &mut self,
         x: i32,
         y: i32,
@@ -626,18 +670,18 @@ impl DrawCanvas {
         };
 
         // flush all content to screen before coping screen pixels
-        self.output.flush();
+        self.canvas().flush();
 
         let viewport = (x, to_y).by(width, height);
 
         let diff_y = to_y - from_y;
-        let frame_size = self.output.get_inner_size();
+        let frame_size = self.canvas().device_size();
 
         let new_frame_position =
             (0, 0 + diff_y).by(frame_size.width as i32, frame_size.height as i32);
 
-        if let Some(image_key) = self.output.get_previous_frame() {
-            self.output.display(|builder, space_and_clip| {
+        if let Some(image_key) = self.canvas().get_previous_frame() {
+            self.canvas().display(|builder, space_and_clip| {
                 builder.push_image(
                     &CommonItemProperties::new(viewport, space_and_clip),
                     new_frame_position,
@@ -650,8 +694,8 @@ impl DrawCanvas {
         }
     }
 
-    pub fn draw_hollow_box_cursor(&mut self, cursor_rect: LayoutRect, clip_rect: LayoutRect) {
-        let cursor_color = self.output.cursor_color;
+    fn draw_hollow_box_cursor(&mut self, cursor_rect: LayoutRect, clip_rect: LayoutRect) {
+        let cursor_color = self.cursor_color();
 
         let border_widths = LayoutSideOffsets::new_all_same(1.0);
 
@@ -669,7 +713,7 @@ impl DrawCanvas {
             do_aa: true,
         });
 
-        self.output.display(|builder, space_and_clip| {
+        self.canvas().display(|builder, space_and_clip| {
             builder.push_border(
                 &CommonItemProperties::new(clip_rect, space_and_clip),
                 cursor_rect,
@@ -679,15 +723,15 @@ impl DrawCanvas {
         });
     }
 
-    pub fn draw_bar_cursor(&mut self, face: &Face, x: i32, y: i32, width: i32, height: i32) {
-        let cursor_color = if pixel_to_color(face.background) == self.output.cursor_color {
+    fn draw_bar_cursor(&mut self, face: &Face, x: i32, y: i32, width: i32, height: i32) {
+        let cursor_color = if pixel_to_color(face.background) == self.cursor_color() {
             pixel_to_color(face.foreground)
         } else {
-            self.output.cursor_color
+            self.cursor_color()
         };
 
         let bounds = (x, y).by(width, height);
-        self.output.display(|builder, space_and_clip| {
+        self.canvas().display(|builder, space_and_clip| {
             builder.push_rect(
                 &CommonItemProperties::new(bounds, space_and_clip),
                 bounds,

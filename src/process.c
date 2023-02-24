@@ -5684,11 +5684,11 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 	  nfds = xg_select (max_desc + 1,
 			    &Available, (check_write ? &Writeok : 0),
 			    NULL, &timeout, NULL);
-#elif defined USE_WEBRENDER
-	  nfds = wr_select (max_desc + 1,
+#elif defined HAVE_WINIT
+	  nfds = winit_select (max_desc + 1,
 			    &Available, (check_write ? &Writeok : 0),
 			    NULL, &timeout, NULL);
-#elif defined HAVE_NS && !defined USE_WEBRENDER
+#elif defined HAVE_NS && !defined HAVE_WINIT
           /* And NS builds call thread_select in ns_select. */
           nfds = ns_select (max_desc + 1,
 			    &Available, (check_write ? &Writeok : 0),

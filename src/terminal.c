@@ -451,8 +451,8 @@ return values.  */)
       return Qpgtk;
     case output_haiku:
       return Qhaiku;
-    case output_wr:
-      return Qwr;
+    case output_winit:
+      return Qwinit;
     default:
       emacs_abort ();
     }

@@ -474,7 +474,7 @@ fn build_ignored_crates(path: &PathBuf) -> bool {
     #[cfg(not(feature = "ng-module"))]
     ignored_crates.push("ng_module");
 
-    #[cfg(not(feature = "window-system-webrender"))]
+    #[cfg(not(feature = "webrender"))]
     ignored_crates.push("webrender");
 
     let crate_path = path_as_str(path.file_name()).to_string();

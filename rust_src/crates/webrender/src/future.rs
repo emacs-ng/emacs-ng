@@ -10,7 +10,7 @@ use futures::FutureExt;
 
 use tokio::io::{unix::AsyncFd, Interest};
 
-use crate::select::{FdSet, Timespec};
+use super::select::{FdSet, Timespec};
 
 pub struct SelectBatch<Fut> {
     inner: Vec<Fut>,

@@ -1,7 +1,7 @@
-use crate::gl::context::ContextTrait;
+use crate::gl::context::GLContextTrait;
 use raw_window_handle::RawDisplayHandle;
 use raw_window_handle::RawWindowHandle;
-use winit::dpi::PhysicalSize;
+use webrender::api::units::DeviceIntSize;
 
 use surfman::{Connection, GLApi, SurfaceType};
 
@@ -28,9 +28,9 @@ impl ContextImpl {
     }
 }
 
-impl ContextTrait for ContextImpl {
+impl GLContextTrait for ContextImpl {
     fn build(
-        size: PhysicalSize<u32>,
+        size: DeviceIntSize,
         display_handle: RawDisplayHandle,
         window_handle: RawWindowHandle,
     ) -> Self {
@@ -94,7 +94,7 @@ impl ContextTrait for ContextImpl {
         ErrorCheckingGl::wrap(gl)
     }
 
-    fn resize(&self, size: &PhysicalSize<u32>) {
+    fn resize(&self, size: &DeviceIntSize) {
         self.0
             .resize(Size2D::new(size.width as i32, size.height as i32))
             .unwrap();

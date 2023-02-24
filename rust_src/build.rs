@@ -4,6 +4,7 @@ use ng_bindgen::{env_var, generate_include_files, BuildError};
 
 fn main() {
     // TODO watch relevent files to re rerun, rs files under crates?
+    println!("cargo:rerun-if-changed=build.rs");
 
     // generates include files for the crates from the directory "crates"
     let crates_dir: std::path::PathBuf = [&env_var("CARGO_MANIFEST_DIR"), "rust_src/crates"]

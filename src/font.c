@@ -5754,6 +5754,9 @@ match.  */);
   query_all_font_backends = false;
 
 #ifdef HAVE_WINDOW_SYSTEM
+#ifdef USE_WEBRENDER
+  syms_of_ttf_parser_font();
+#else
 #ifdef HAVE_FREETYPE
   syms_of_ftfont ();
 #ifdef HAVE_X_WINDOWS
@@ -5784,6 +5787,7 @@ match.  */);
 #ifdef USE_BE_CAIRO
   syms_of_ftcrfont ();
 #endif
+#endif  /* USE_WEBRENDER */
 #endif	/* HAVE_WINDOW_SYSTEM */
 }
 

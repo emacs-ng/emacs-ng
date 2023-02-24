@@ -19,4 +19,4 @@ libc = "0.2"
 
 [features]
 window-system = []
-window-system-webrender = []
+window-system-winit = [ "window-system"]

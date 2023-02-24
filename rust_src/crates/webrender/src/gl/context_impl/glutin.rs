@@ -1,4 +1,4 @@
-use crate::gl::context::ContextTrait;
+use crate::gl::context::GLContextTrait;
 use gleam::gl::ErrorCheckingGl;
 use glutin::{
     config::{Api, ConfigTemplateBuilder, GlConfig},
@@ -12,7 +12,7 @@ use glutin::{
 };
 use raw_window_handle::RawDisplayHandle;
 use raw_window_handle::RawWindowHandle;
-use winit::dpi::PhysicalSize;
+use webrender::api::units::DeviceIntSize;
 
 use std::{ffi::CString, num::NonZeroU32};
 
@@ -26,9 +26,9 @@ pub struct ContextImpl {
     gl: Rc<dyn Gl>,
 }
 
-impl ContextTrait for ContextImpl {
+impl GLContextTrait for ContextImpl {
     fn build(
-        size: PhysicalSize<u32>,
+        size: DeviceIntSize,
         display_handle: RawDisplayHandle,
         window_handle: RawWindowHandle,
     ) -> Self {
@@ -130,7 +130,7 @@ impl ContextTrait for ContextImpl {
         self.surface.swap_buffers(&self.context).ok();
     }
 
-    fn resize(&self, size: &PhysicalSize<u32>) {
+    fn resize(&self, size: &DeviceIntSize) {
         self.surface.resize(
             &self.context,
             NonZeroU32::new(size.width as u32).unwrap(),

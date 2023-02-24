@@ -1,16 +1,15 @@
+use crate::event_loop::global_event_buffer;
 use std::{cell::RefCell, ptr, sync::Mutex};
 
+use crate::window_system::api::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    platform::run_return::EventLoopExtRunReturn,
+};
 use libc::{fd_set, sigset_t, timespec};
 use once_cell::sync::Lazy;
 use tokio::{runtime::Runtime, time::Duration};
-use winit::event_loop::EventLoop;
-use winit::{
-    event::{Event, WindowEvent},
-    event_loop::ControlFlow,
-    platform::run_return::EventLoopExtRunReturn,
-};
 
-use crate::event_loop::EVENT_BUFFER;
 use crate::future::tokio_select_fds;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -102,25 +101,36 @@ pub fn handle_select(
     // We mush run winit in main thread, because the macOS platfrom limitation.
     event_loop.run_return(|e, _, control_flow| {
         *control_flow = ControlFlow::Wait;
+        let mut event_buffer = global_event_buffer().lock().expect("whops..");
+        let mut keyboard_event = |e: Event<'_, i32>| {
+            event_buffer.push(e.to_static().unwrap());
+            // notify emacs's code that a keyboard event arrived.
+            unsafe { libc::raise(libc::SIGIO) };
+
+            // stop tokio select
+            let _ = select_stop_sender.send(());
+        };
 
         match e {
             Event::WindowEvent { ref event, .. } => match event {
                 WindowEvent::Resized(_)
                 | WindowEvent::KeyboardInput { .. }
-                | WindowEvent::ReceivedCharacter(_)
                 | WindowEvent::ModifiersChanged(_)
                 | WindowEvent::MouseInput { .. }
                 | WindowEvent::CursorMoved { .. }
                 | WindowEvent::Focused(_)
                 | WindowEvent::MouseWheel { .. }
                 | WindowEvent::CloseRequested => {
-                    EVENT_BUFFER.lock().unwrap().push(e.to_static().unwrap());
+                    keyboard_event(e);
+                }
+                #[cfg(use_winit)]
+                WindowEvent::ReceivedCharacter(_) => {
+                    keyboard_event(e);
+                }
 
-                    // notify emacs's code that a keyboard event arrived.
-                    unsafe { libc::raise(libc::SIGIO) };
-
-                    // stop tokio select
-                    let _ = select_stop_sender.send(());
+                #[cfg(use_tao)]
+                WindowEvent::ReceivedImeText(_) => {
+                    keyboard_event(e);
                 }
                 _ => {}
             },

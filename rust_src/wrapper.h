@@ -60,6 +60,6 @@
 #endif
 #include "window.h"
 #include "xgselect.h"
-#ifdef USE_WEBRENDER
+#ifdef HAVE_WINIT
 # include "wrterm.h"
 #endif

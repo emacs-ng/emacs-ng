@@ -6564,13 +6564,13 @@ init_display_interactive (void)
     }
 #endif
 
-#ifdef USE_WEBRENDER
+#ifdef HAVE_WINIT
   if (!inhibit_window_system)
     {
-      Vinitial_window_system = Qwr;
+      Vinitial_window_system = Qwinit;
       return;
     }
-#endif /* USE_WEBRENDER */
+#endif /* HAVE_WINIT */
 
   /* If no window system has been specified, try to use the terminal.  */
   if (! isatty (STDIN_FILENO))

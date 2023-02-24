@@ -64,7 +64,7 @@ enum output_method
   output_ns,
   output_pgtk,
   output_haiku,
-  output_wr
+  output_winit
 };
 
 /* Input queue declarations and hooks.  */
@@ -523,7 +523,7 @@ struct terminal
     struct ns_display_info *ns;	 /* nsterm.h */
     struct pgtk_display_info *pgtk;	 /* pgtkterm.h */
     struct haiku_display_info *haiku;	 /* haikuterm.h */
-    struct wr_display_info *wr;	 /* wrterm.h */
+    struct winit_display_info *winit;	 /* wrterm.h */
   } display_info;
 
 
@@ -935,7 +935,7 @@ extern struct terminal *terminal_list;
   (t->type == output_haiku ? t->display_info.haiku->name_list_element : Qnil)
 #elif defined (USE_WEBRENDER)
 #define TERMINAL_FONT_CACHE(t)						\
-  (t->type == output_wr ? t->display_info.wr ->name_list_element : Qnil)
+  (t->type == output_winit ? t->display_info.winit ->name_list_element : Qnil)
 #endif
 
 extern struct terminal *decode_live_terminal (Lisp_Object);

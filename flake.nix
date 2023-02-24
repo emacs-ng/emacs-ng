@@ -203,11 +203,11 @@
                 "--with-dumping=pdumper"
               ]
               ++ lib.optionals withWebrender [
+                "--with-winit"
                 "--with-webrender"
-                "--enable-webrender-x11"
               ]
               ++ lib.optionals (stdenv.isDarwin && withWebrender) [
-                "--disable-webrender-self-contained"
+                "--disable-ns-self-contained"
               ]
               ++ lib.optionals (! withWebrender) [
                 "--with-harfbuzz"

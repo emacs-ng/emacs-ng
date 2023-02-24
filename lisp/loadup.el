@@ -282,7 +282,7 @@
 (load "emacs-lisp/tabulated-list")
 (load "buff-menu")
 
-(if (or (fboundp 'x-create-frame) (fboundp 'wr-create-frame))
+(if (or (fboundp 'x-create-frame) (fboundp 'winit-create-frame))
     (progn
       (load "fringe")
       ;; Needed by `imagemagick-register-types'
@@ -344,11 +344,11 @@
       (load "term/common-win")
       (load "term/pgtk-win")))
 
-(if (featurep 'wr)
+(if (featurep 'winit)
     (progn
       ;; (load "x-dnd")
       (load "term/common-win")
-      (load "term/wr-win")))
+      (load "term/winit-win")))
 
 (if (fboundp 'x-create-frame)
     ;; Do it after loading term/foo-win.el since the value of the

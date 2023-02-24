@@ -63,6 +63,16 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include TERM_HEADER
 #endif /* HAVE_WINDOW_SYSTEM */
 
+#if defined HAVE_PGTK && defined USE_WEBRENDER
+#undef HAVE_PGTK
+#endif
+#if defined HAVE_NS && defined USE_WEBRENDER
+#undef HAVE_NS
+#endif
+#if defined USE_CAIRO && defined USE_WEBRENDER
+#undef USE_CAIRO
+#endif
+
 /* Work around GCC bug 54561.  */
 #if GNUC_PREREQ (4, 3, 0)
 # pragma GCC diagnostic ignored "-Wclobbered"

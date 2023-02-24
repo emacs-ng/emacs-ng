@@ -59,7 +59,7 @@
 (defcustom mouse-wheel-down-event
   (if (or (featurep 'w32-win) (featurep 'ns-win)
           (featurep 'haiku-win) (featurep 'pgtk-win)
-          (featurep 'wr-win))
+          (featurep 'winit-win))
       'wheel-up
     'mouse-4)
   "Event used for scrolling down."
@@ -81,7 +81,7 @@
 (defcustom mouse-wheel-up-event
   (if (or (featurep 'w32-win) (featurep 'ns-win)
           (featurep 'haiku-win) (featurep 'pgtk-win)
-          (featurep 'wr-win))
+          (featurep 'winit-win))
       'wheel-down
     'mouse-5)
   "Event used for scrolling up."
@@ -257,7 +257,7 @@ Also see `mouse-wheel-tilt-scroll'."
 (defvar mouse-wheel-left-event
   (if (or (featurep 'w32-win) (featurep 'ns-win)
           (featurep 'haiku-win) (featurep 'pgtk-win)
-          (featurep 'wr-win))
+          (featurep 'winit-win))
       'wheel-left
     'mouse-6)
   "Event used for scrolling left.")
@@ -272,7 +272,7 @@ Also see `mouse-wheel-tilt-scroll'."
 (defvar mouse-wheel-right-event
   (if (or (featurep 'w32-win) (featurep 'ns-win)
           (featurep 'haiku-win) (featurep 'pgtk-win)
-          (featurep 'wr-win))
+          (featurep 'winit-win))
       'wheel-right
     'mouse-7)
   "Event used for scrolling right.")

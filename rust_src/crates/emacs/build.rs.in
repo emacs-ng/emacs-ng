@@ -244,7 +244,7 @@ fn generate_bindings() {
         .generate_inline_functions(true)
         .derive_default(true)
         .ctypes_prefix("::libc")
-        .no_copy("wr_output")
+        .no_copy("winit_output")
         // .blocklist_file("gtk/gtk.h")
         // we define these ourselves, for various reasons
         .blocklist_item("Lisp_Object")

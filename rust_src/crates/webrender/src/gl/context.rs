@@ -1,18 +1,15 @@
 use crate::gl::context_impl::ContextImpl;
 use gleam::gl::Gl;
-use raw_window_handle::HasRawDisplayHandle;
-use raw_window_handle::HasRawWindowHandle;
 use raw_window_handle::RawDisplayHandle;
 use raw_window_handle::RawWindowHandle;
 use std::rc::Rc;
-use winit::dpi::PhysicalSize;
-use winit::window::Window;
+use webrender::{self, api::units::*};
 
-pub type Context = ContextImpl;
+pub type GLContext = ContextImpl;
 
-pub trait ContextTrait {
+pub trait GLContextTrait {
     fn build(
-        size: PhysicalSize<u32>,
+        size: DeviceIntSize,
         display_handle: RawDisplayHandle,
         window_handle: RawWindowHandle,
     ) -> Self;
@@ -23,16 +20,7 @@ pub trait ContextTrait {
 
     fn load_gl(&self) -> Rc<dyn Gl>;
 
-    fn resize(&self, size: &PhysicalSize<u32>);
+    fn resize(&self, size: &DeviceIntSize);
 
     fn ensure_is_current(&mut self);
-}
-
-impl From<&Window> for Context {
-    fn from(window: &Window) -> Self {
-        let display_handle = window.raw_display_handle();
-        let window_handle = window.raw_window_handle();
-        let size = window.inner_size();
-        Context::build(size, display_handle, window_handle)
-    }
 }

@@ -3,19 +3,12 @@
 
 #include "dispextern.h"
 
-struct wr_bitmap_record
-{
-  char *file;
-  int refcount;
-  int height, width, depth;
-};
-
 typedef int Screen;
 
-struct wr_display_info
+struct winit_display_info
 {
-  /* Chain of all wr_display_info structures.  */
-  struct wr_display_info *next;
+  /* Chain of all winit_display_info structures.  */
+  struct winit_display_info *next;
 
   /* The generic display parameters corresponding to this NS display.  */
   struct terminal *terminal;
@@ -87,10 +80,10 @@ struct wr_display_info
   void *inner;
 };
 
-extern struct wr_display_info *wr_display_list;
-#define x_display_list wr_display_list
+extern struct winit_display_info *winit_display_list;
+#define x_display_list winit_display_list
 
-struct wr_output
+struct winit_output
 {
 
   /* The X window that is the parent of this X window.
@@ -117,63 +110,58 @@ struct wr_output
   Emacs_Cursor bottom_left_corner_cursor;
 
   /* This is the Emacs structure for the X display this frame is on.  */
-  struct wr_display_info *display_info;
+  struct winit_display_info *display_info;
+
+  struct font *font;
+  int baseline_offset;
+
+  /* If a fontset is specified for this frame instead of font, this
+     value contains an ID of the fontset, else -1.  */
+  int fontset; /* only used with font_backend */
+
+  /* Inner perporty in Rust */
+  void *inner;
 };
 
-typedef struct wr_output wr_output;
-typedef struct wr_display_info wr_display_info;
+typedef struct winit_output winit_output;
+typedef struct winit_display_info winit_display_info;
 
-extern Window wr_get_window_desc(wr_output* output);
-extern int wr_get_fontset(wr_output* output);
-extern struct font *wr_get_font(wr_output* output);
-extern wr_display_info *wr_get_display_info(wr_output* output);
-extern Display *wr_get_display(wr_display_info* output);
-extern Screen wr_get_screen(wr_display_info* output);
-extern int wr_get_baseline_offset(wr_output* output);
-extern int wr_get_pixel(WRImage *ximg, int x, int y);
-extern int wr_put_pixel(WRImage *ximg, int x, int y, unsigned long pixel);
-extern bool wr_load_image (struct frame *f, struct image *img,
-			   Lisp_Object spec_file, Lisp_Object spec_data);
-extern bool wr_can_use_native_image_api (Lisp_Object type);
+extern Window winit_get_window_desc(winit_output* output);
+extern winit_display_info *winit_get_display_info(winit_output* output);
 
-extern void wr_transform_image(struct frame *f, struct image *img, int width, int height, double rotation);
 
-extern int wr_select (int nfds, fd_set *readfds, fd_set *writefds,
+extern Display *winit_get_display(winit_display_info* output);
+extern Screen winit_get_screen(winit_display_info* output);
+extern int winit_select (int nfds, fd_set *readfds, fd_set *writefds,
 		       fd_set *exceptfds, struct timespec *timeout,
 		       sigset_t *sigmask);
 
 /* This is the `Display *' which frame F is on.  */
-#define FRAME_X_DISPLAY(f) (wr_get_display(FRAME_DISPLAY_INFO (f)))
+#define FRAME_X_DISPLAY(f) (winit_get_display(FRAME_DISPLAY_INFO (f)))
 
 /* This gives the x_display_info structure for the display F is on.  */
-#define FRAME_DISPLAY_INFO(f) (wr_get_display_info(FRAME_X_OUTPUT (f)))
+#define FRAME_DISPLAY_INFO(f) (winit_get_display_info(FRAME_X_OUTPUT (f)))
 
 /* Return the X output data for frame F.  */
-#define FRAME_X_OUTPUT(f) ((f)->output_data.wr)
+#define FRAME_X_OUTPUT(f) ((f)->output_data.winit)
 
 #define FRAME_OUTPUT_DATA(f) FRAME_X_OUTPUT (f)
 
-#define FRAME_BASELINE_OFFSET(f) (wr_get_baseline_offset(FRAME_X_OUTPUT (f)))
-
 /* This is the `Screen *' which frame F is on.  */
-#define FRAME_X_SCREEN(f) (wr_get_display_info(FRAME_X_OUTPUT (f)))
+#define FRAME_X_SCREEN(f) (winit_get_display_info(FRAME_X_OUTPUT (f)))
 
 /* Return the X window used for displaying data in frame F.  */
-#define FRAME_X_WINDOW(f)  (wr_get_window_desc(FRAME_X_OUTPUT (f)))
+#define FRAME_X_WINDOW(f)  (winit_get_window_desc(FRAME_X_OUTPUT (f)))
 #define FRAME_NATIVE_WINDOW(f) FRAME_X_WINDOW (f)
-
-#define FRAME_FONTSET(f) (wr_get_fontset(FRAME_X_OUTPUT (f)))
-#define FRAME_FONT(f) (wr_get_font(FRAME_X_OUTPUT (f)))
-
-
-#define BLACK_PIX_DEFAULT(f) 0
-#define WHITE_PIX_DEFAULT(f) 65535
+#define FRAME_FONT(f)             (FRAME_X_OUTPUT (f)->font)
+#define FRAME_FONTSET(f) (FRAME_X_OUTPUT (f)->fontset)
+#define FRAME_BASELINE_OFFSET(f) (FRAME_X_OUTPUT (f)->baseline_offset)
 
 extern const char *app_bundle_relocate (const char *);
 
 /* Symbol initializations implemented in each pgtk sources. */
-extern void syms_of_wrterm(void);
-extern void syms_of_wrterm_rust(void);
-extern void syms_of_wrfns (void);
+extern void syms_of_winit_term(void);
+
+#include "webrender_ffi.h"
 
 #endif // __WRTERM_H_

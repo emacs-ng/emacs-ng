@@ -1,4 +1,4 @@
-use crate::input::InputEvent;
+use super::input::InputEvent;
 use emacs::{
     bindings::{event_kind, input_event, scroll_bar_part},
     globals::{Qnil, Qt},

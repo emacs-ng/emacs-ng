@@ -2138,7 +2138,7 @@ we put it on this frame."
 	(sit-for 0 t))
     (if (eq (window-system) 'pgtk)
 	(sit-for 0.1 t))
-    (if (eq (window-system) 'wr)
+    (if (eq (window-system) 'winit)
 	(sit-for 0.1 t))
     (dolist (frame (append (frame-list) (list (selected-frame))))
       (if (and (frame-visible-p frame)

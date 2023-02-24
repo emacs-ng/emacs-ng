@@ -1,7 +1,10 @@
-use std::{mem::ManuallyDrop, rc::Rc};
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
+use std::ffi::CString;
+use std::ptr;
 
 use fontdb::{Stretch, Style, Weight};
-use lazy_static::lazy_static;
 use std::str;
 
 use webrender::api::*;
@@ -9,13 +12,13 @@ use webrender::api::*;
 use emacs::{
     bindings::{
         font, font_driver, font_make_entity, font_make_object, font_metrics, font_property_index,
-        font_style_to_value, frame, glyph_string, intern, Fassoc, Fcdr, Fcons, Fmake_symbol,
-        Fnreverse, FONT_INVALID_CODE,
+        font_style_to_value, frame, glyph_string, intern, register_font_driver, Fassoc, Fcdr,
+        Fcons, Fmake_symbol, Fnreverse, Fprovide, FONT_INVALID_CODE,
     },
     frame::LispFrameRef,
     globals::{
         Qbold, Qextra_bold, Qextra_light, Qiso10646_1, Qitalic, Qlight, Qmedium, Qnil, Qnormal,
-        Qoblique, Qsemi_bold, Qthin, Qultra_bold, Qwr,
+        Qoblique, Qsemi_bold, Qthin, Qttf_parser, Qultra_bold,
     },
     lisp::{ExternalPtr, LispObject},
     multibyte::LispStringRef,
@@ -24,31 +27,44 @@ use emacs::{
 
 use crate::{font_db::FontDB, font_db::FontDescriptor, frame::LispFrameExt};
 
+static FONT_DB: OnceLock<FontDB> = OnceLock::new();
+impl FontDB {
+    fn global() -> &'static FontDB {
+        FONT_DB.get_or_init(|| {
+            log::trace!("font_db is being created...");
+
+            Self::new()
+        })
+    }
+}
 pub type FontRef = ExternalPtr<font>;
 
 pub struct FontDriver(pub font_driver);
 unsafe impl Sync for FontDriver {}
 
-lazy_static! {
-    pub static ref FONT_DRIVER: FontDriver = {
-        let mut font_driver = font_driver::default();
+static FONT_DRIVER: OnceLock<FontDriver> = OnceLock::new();
+impl FontDriver {
+    fn global() -> &'static FontDriver {
+        FONT_DRIVER.get_or_init(|| {
+            log::trace!("FONT_DRIVER is being created...");
+            let mut font_driver = font_driver::default();
 
-        font_driver.type_ = Qwr;
-        font_driver.case_sensitive = true;
-        font_driver.get_cache = Some(get_cache);
-        font_driver.list = Some(list);
-        font_driver.match_ = Some(match_);
-        font_driver.list_family = Some(list_family);
-        font_driver.open_font = Some(open_font);
-        font_driver.close_font = Some(close_font);
-        font_driver.encode_char = Some(encode_char);
-        font_driver.has_char = Some(has_char);
-        font_driver.text_extents = Some(text_extents);
-        font_driver.draw = Some(draw);
+            font_driver.type_ = Qttf_parser;
+            font_driver.case_sensitive = true;
+            font_driver.get_cache = Some(get_cache);
+            font_driver.list = Some(list);
+            font_driver.match_ = Some(match_);
+            font_driver.list_family = Some(list_family);
+            font_driver.open_font = Some(open_font);
+            font_driver.close_font = Some(close_font);
+            font_driver.encode_char = Some(encode_char);
+            font_driver.has_char = Some(has_char);
+            font_driver.text_extents = Some(text_extents);
+            font_driver.draw = Some(draw);
 
-        FontDriver(font_driver)
-    };
-    static ref FONT_DB: FontDB = FontDB::new();
+            FontDriver(font_driver)
+        })
+    }
 }
 
 /// A newtype for objects we know are font_spec.
@@ -159,7 +175,7 @@ impl From<LispObject> for LispFontLike {
 
 extern "C" fn get_cache(f: *mut frame) -> LispObject {
     let frame = LispFrameRef::new(f);
-    let mut dpyinfo = frame.wr_display_info();
+    let mut dpyinfo = frame.display_info();
 
     dpyinfo.get_raw().name_list_element
 }
@@ -186,12 +202,13 @@ extern "C" fn match_(_f: *mut frame, spec: LispObject) -> LispObject {
     let font_spec = LispFontLike(spec);
 
     let family = font_spec.get_family();
+    let font_db = FontDB::global();
 
     let fonts = if let Some(family) = family {
         let family = FontDB::family_name(&family);
-        FONT_DB.fonts_by_family(&family)
+        font_db.fonts_by_family(&family)
     } else {
-        FONT_DB.all_fonts()
+        font_db.all_fonts()
     };
 
     let mut list = Qnil;
@@ -200,7 +217,7 @@ extern "C" fn match_(_f: *mut frame, spec: LispObject) -> LispObject {
         let entity: LispFontLike = unsafe { font_make_entity() }.into();
 
         // set type
-        entity.aset(font_property_index::FONT_TYPE_INDEX, Qwr);
+        entity.aset(font_property_index::FONT_TYPE_INDEX, Qttf_parser);
 
         let family_name = f.families.get(0);
         if family_name.is_none() {
@@ -277,8 +294,9 @@ extern "C" fn match_(_f: *mut frame, spec: LispObject) -> LispObject {
 
 extern "C" fn list_family(_f: *mut frame) -> LispObject {
     let mut list = Qnil;
+    let font_db = FontDB::global();
 
-    for font in FONT_DB.all_fonts() {
+    for font in font_db.all_fonts() {
         let app_locale = fontdb::Language::English_UnitedStates;
         if let Some((family_name, _)) = &font
             .families
@@ -299,41 +317,49 @@ pub struct WRFont<'a> {
     // extend basic font
     pub font: font,
 
-    pub device_pixel_ratio: f32,
+    pub scale: f32,
 
-    pub font_instance_key: FontInstanceKey,
+    pub glyph_size: f32,
 
-    pub font_bytes: ManuallyDrop<Rc<Vec<u8>>>,
+    pub face_index: u32,
 
-    pub face: ttf_parser::Face<'a>,
+    pub face_info: &'a fontdb::FaceInfo,
+
+    pub instance_keys: HashMap<u64, FontInstanceKey>,
 }
 
 impl<'a> WRFont<'a> {
+    pub fn cache(&self) -> &FontDB {
+        let font_db = FontDB::global();
+        &font_db
+    }
+
     pub fn glyph_for_char(&self, character: char) -> Option<u32> {
-        self.face.glyph_index(character).map(|c| c.0 as u32)
+        if let Some(font) = self.cache().get_font(self.face_info.id) {
+            return font.face.glyph_index(character).map(|c| c.0 as u32);
+        }
+        None
     }
 
     pub fn get_glyph_advance_width(&self, glyph_indices: Vec<GlyphIndex>) -> Vec<Option<i32>> {
-        let pixel_size = self.font.pixel_size;
-        let glyph_size = pixel_size as f32 * self.device_pixel_ratio;
-        let units_per_em = self.face.units_per_em();
-
-        let scale = glyph_size / units_per_em as f32;
-
-        glyph_indices
-            .into_iter()
-            .map(|i| {
-                self.face
-                    .glyph_hor_advance(ttf_parser::GlyphId(i as u16))
-                    .map(|a| (a as f32 * scale).round() as i32)
-            })
-            .collect()
+        if let Some(font) = self.cache().get_font(self.face_info.id) {
+            return glyph_indices
+                .into_iter()
+                .map(|i| {
+                    font.face
+                        .glyph_hor_advance(ttf_parser::GlyphId(i as u16))
+                        .map(|a| (a as f32 * self.scale).round() as i32)
+                })
+                .collect();
+        }
+        Vec::new()
     }
 }
 
 pub type WRFontRef<'a> = ExternalPtr<WRFont<'a>>;
 
 extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: i32) -> LispObject {
+    log::trace!("open font: {:?}", pixel_size);
     let font_entity: LispFontLike = font_entity.into();
     let desc = font_entity.get_descriptor();
     if desc.is_none() {
@@ -342,13 +368,14 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     let desc = desc.unwrap();
 
     let frame: LispFrameRef = frame.into();
-    let mut output = frame.wr_output();
+
+    let mut dpyinfo = frame.display_info();
 
     let pixel_size = if pixel_size == 0 {
         // pixel_size here reflects to DPR 1 for webrender display, we have scale_factor from winit.
         // while pgtk/ns/w32 reflects to actual DPR on device by setting resx/resy to display
-        if !output.font.is_null() {
-            output.font.pixel_size as i64
+        if !frame.output().get_font().is_null() {
+            frame.output().get_font().pixel_size as i64
         } else {
             // fallback font size
             16
@@ -358,7 +385,7 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
         pixel_size as i64
     };
 
-    let device_pixel_ratio = output.device_pixel_ratio();
+    let device_pixel_ratio = dpyinfo.scale_factor();
     let glyph_size = pixel_size as f32 * device_pixel_ratio;
 
     let font_object: LispFontLike = unsafe {
@@ -371,7 +398,7 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     .into();
 
     // set type
-    font_object.aset(font_property_index::FONT_TYPE_INDEX, Qwr);
+    font_object.aset(font_property_index::FONT_TYPE_INDEX, Qttf_parser);
 
     // set name
     font_object.aset(
@@ -386,60 +413,26 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
             .unwrap()
             .as_font_mut() as *mut WRFont,
     );
-    wr_font.device_pixel_ratio = device_pixel_ratio;
+    let font_db = FontDB::global();
+    let font_result = font_db.get_font_matches(desc.clone());
 
-    let font_result = output.get_or_create_font(&FONT_DB, desc.clone());
     if font_result.is_none() {
         return Qnil;
     }
-    let (font_key, font_templete) = font_result.unwrap();
-    let font_data = match font_templete {
-        FontTemplate::Raw(ref bytes, index) => Some((bytes.to_vec(), index)),
-        FontTemplate::Native(_) => None,
-    };
 
-    if font_data.is_none() {
-        return Qnil;
-    }
+    let font_result = font_result.unwrap();
+    wr_font.face_info = font_result.info;
 
-    let (font_bytes, face_index) = font_data.unwrap();
-
-    let bg_color = None;
-    let flags = FontInstanceFlags::empty();
-    let synthetic_italics = SyntheticItalics::disabled();
-    let font_instance_key = output.get_or_create_font_instance(
-        font_key,
-        glyph_size,
-        bg_color,
-        flags,
-        synthetic_italics,
-    );
-    wr_font.font_instance_key = font_instance_key;
-
-    wr_font.font_bytes = ManuallyDrop::new(Rc::new(font_bytes.clone()));
-
-    let font_bytes = wr_font.font_bytes.clone();
-
-    let face_result = ttf_parser::Face::parse(&font_bytes, face_index as u32);
-    if face_result.is_err() {
-        return Qnil;
-    }
-    let face = face_result.ok().unwrap();
-
-    wr_font.face = face;
-
-    let face = &wr_font.face;
-
+    let face = &font_result.face;
     let units_per_em = face.units_per_em();
-
     let underline_metrics = face.underline_metrics().unwrap();
-
     let ascent = face.ascender();
     let descent = face.descender();
-
     let average_width = face.glyph_hor_advance(ttf_parser::GlyphId(0)).unwrap();
 
     let scale = glyph_size / units_per_em as f32;
+    wr_font.glyph_size = glyph_size;
+    wr_font.scale = scale;
 
     wr_font.font.pixel_size = pixel_size as i32;
     wr_font.font.average_width = (average_width as f32 * scale) as i32;
@@ -453,8 +446,10 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     wr_font.font.height = (scale * (ascent - descent) as f32).round() as i32;
     wr_font.font.baseline_offset = 0;
 
-    wr_font.font.driver = &FONT_DRIVER.0;
+    let driver = FontDriver::global();
+    wr_font.font.driver = &driver.0;
 
+    log::trace!("open font done: {:?}", pixel_size);
     font_object.as_lisp_object()
 }
 
@@ -486,23 +481,18 @@ extern "C" fn has_char(font: LispObject, c: i32) -> i32 {
         }
 
         let c = c.unwrap();
-
-        FONT_DB
+        let font_db = FontDB::global();
+        font_db
             .select_postscript(&postscript_name)
-            .and_then(|font| {
-                FONT_DB
-                    .db
-                    .with_face_data(font.id, |font_data, face_index| {
-                        ttf_parser::Face::parse(font_data, face_index)
-                            .ok()
-                            .and_then(|face| face.glyph_index(c))
-                    })
-                    .flatten()
+            .and_then(|face_info| {
+                if let Some(font) = font_db.get_font(face_info.id) {
+                    return font.face.glyph_index(c);
+                }
+                None
             })
             .is_some() as i32
     } else {
         let font = font.as_font().unwrap().as_font_mut();
-
         (encode_char(font, c) != FONT_INVALID_CODE) as i32
     }
 }
@@ -534,4 +524,29 @@ extern "C" fn text_extents(
         (*metrics).ascent = font.font.ascent as i16;
         (*metrics).descent = font.font.descent as i16;
     }
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn register_ttf_parser_font_driver(f: *mut frame) {
+    let driver = FontDriver::global();
+    unsafe {
+        register_font_driver(&driver.0, f);
+    }
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syms_of_ttf_parser_font() {
+    let ttf_parser_symbol =
+        CString::new("ttf-parser").expect("Failed to create string for intern function call");
+    def_lisp_sym!(Qttf_parser, "ttf-parser");
+    unsafe {
+        Fprovide(
+            emacs::bindings::intern_c_string(ttf_parser_symbol.as_ptr()),
+            Qnil,
+        );
+    }
+
+    register_ttf_parser_font_driver(ptr::null_mut());
 }

@@ -182,7 +182,7 @@ struct frame
   Lisp_Object buried_buffer_list;
 
 #if (defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)) \
-  || defined (USE_WEBRENDER)
+  || defined (HAVE_WINIT)
   /* A dummy window used to display menu bars under X when no X
      toolkit support is available.  */
   Lisp_Object menu_bar_window;
@@ -593,7 +593,7 @@ struct frame
     struct ns_output *ns;	 /* From nsterm.h.  */
     struct pgtk_output *pgtk;	 /* From pgtkterm.h. */
     struct haiku_output *haiku; /* From haikuterm.h. */
-    struct wr_output *wr;	 /* From wrterm.h. */
+    struct winit_output *winit;	 /* From wrterm.h. */
   }
   output_data;
 
@@ -874,10 +874,10 @@ default_pixels_per_inch_y (void)
 #else
 #define FRAME_HAIKU_P(f) ((f)->output_method == output_haiku)
 #endif
-#ifndef USE_WEBRENDER
-#define FRAME_WR_P(f) false
+#ifndef HAVE_WINIT
+#define FRAME_WINIT_P(f) false
 #else
-#define FRAME_WR_P(f) ((f)->output_method == output_wr)
+#define FRAME_WINIT_P(f) ((f)->output_method == output_winit)
 #endif
 
 /* FRAME_WINDOW_P tests whether the frame is a graphical window system
@@ -897,8 +897,8 @@ default_pixels_per_inch_y (void)
 #ifdef HAVE_HAIKU
 #define FRAME_WINDOW_P(f) FRAME_HAIKU_P (f)
 #endif
-#ifdef USE_WEBRENDER
-#define FRAME_WINDOW_P(f) FRAME_WR_P(f)
+#ifdef HAVE_WINIT
+#define FRAME_WINDOW_P(f) FRAME_WINIT_P(f)
 #endif
 #ifndef FRAME_WINDOW_P
 #define FRAME_WINDOW_P(f) ((void) (f), false)

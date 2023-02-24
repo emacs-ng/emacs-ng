@@ -956,7 +956,7 @@ load_pdump (int argc, char **argv)
 #elif defined (NS_SELF_CONTAINED)
 #ifdef HAVE_NS
   path_exec = ns_relocate (path_exec);
-#elif defined (USE_WEBRENDER) && defined (DARWIN_OS)
+#elif defined (HAVE_WINIT) && defined (DARWIN_OS)
   path_exec = app_bundle_relocate (path_exec);
 #endif
 #endif
@@ -1981,10 +1981,10 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
   init_module_assertions (module_assertions);
 #endif
 
-#if defined(HAVE_NS) || defined(USE_WEBRENDER)
+#if defined(HAVE_NS) || defined(HAVE_WINIT)
   if (!noninteractive)
     {
-#if defined(NS_IMPL_COCOA) || defined(WEBRENDER_IMPL_COCOA)
+#if defined(NS_IMPL_COCOA) || defined(WINIT_IMPL_COCOA)
       /* Started from GUI? */
       bool go_home = (!ch_to_dir && !inhibit_window_system
 		      && !isatty (STDIN_FILENO));
@@ -2380,11 +2380,14 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
       syms_of_fontset ();
 #endif /* HAVE_HAIKU */
 
-#ifdef USE_WEBRENDER
-      syms_of_wrterm ();
-      /* syms_of_wrfns (); */
+#ifdef HAVE_WINIT
+      syms_of_winit_term ();
       syms_of_fontset ();
-#endif /* USE_WEBRENDER */
+#endif /* HAVE_WINIT */
+
+#ifdef USE_WEBRENDER
+      syms_of_webrender();
+#endif /*USE_WEBRENDER*/
 
       syms_of_gnutls ();
 
@@ -3260,7 +3263,7 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
       /* ns_relocate needs a valid autorelease pool around it.  */
       autorelease = ns_alloc_autorelease_pool ();
       path = ns_relocate (defalt);
-#elif defined (USE_WEBRENDER)
+#elif defined (HAVE_WINIT)
       path = app_bundle_relocate (defalt);
 #endif
 
