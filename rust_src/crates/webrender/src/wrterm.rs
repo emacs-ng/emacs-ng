@@ -1009,7 +1009,4 @@ pub extern "C" fn syms_of_wrterm() {
     syms_of_wrfont();
 }
 
-include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/out/wrterm_exports.rs"
-));
+include!(concat!(env!("OUT_DIR"), "/wrterm_exports.rs"));

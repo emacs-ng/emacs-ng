@@ -74,7 +74,4 @@ unsafe extern "C" fn ng_module_access_current_buffer_contents(
     *after_gap_size = z_byte - gpt_byte;
 }
 
-include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/out/ng_module_exports.rs"
-));
+include!(concat!(env!("OUT_DIR"), "/ng_module_exports.rs"));

@@ -500,7 +500,4 @@ fn init_syms() {
     def_lisp_sym!(QCoutchannel, "outchannel");
 }
 
-include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/out/ng_async_exports.rs"
-));
+include!(concat!(env!("OUT_DIR"), "/ng_async_exports.rs"));

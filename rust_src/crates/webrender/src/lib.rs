@@ -68,4 +68,4 @@ pub use crate::platform::macos;
 pub use crate::wrterm::{tip_frame, wr_display_list};
 
 #[cfg(not(test))]
-include!(concat!(env!("CARGO_MANIFEST_DIR"), "/out/c_exports.rs"));
+include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));

@@ -737,12 +737,6 @@ gl-stamp: $(libsrc)/make-docfile$(EXEEXT) $(GLOBAL_SOURCES)
 globals.h: gl-stamp; @true
 
 rust_srcdir=$(top_srcdir)/rust_src
-RUSTFLAGS_FILE=$(top_srcdir)/target/.rustflags
-$(RUSTFLAGS_FILE) : FORCE
-	mkdir -p $(dir $@)
-	echo "$(CARGO_FLAGS) $(RUSTFLAGS)" > $@.tmp
-	diff -q $@ $@.tmp || cp $@.tmp $@
-	rm -f $@.tmp
 
 HEADERS=$(wildcard $(srcdir)/*.h)
 
@@ -755,12 +749,9 @@ LIBEMACSNG_CARGO_FILES = $(sort $(shell find ${rust_srcdir} -type f \
 -name 'Cargo.*' -o -name "build.rs"))
 
 $(LIBEMACSNG_ARCHIVE) $(LIBEMACSNG_DEP-INFO): FORCE
-	touch $@
-	CARGO_BUILD_DEP_INFO_BASEDIR=$(realpath $(top_srcdir)) \
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
 	$(CARGO_BUILD) $(CARGO_FLAGS) --manifest-path $(cargo_manifest)
-	sed -i~ 's/rust_src\//..\/rust_src\//g' $(LIBEMACSNG_DEP-INFO)
 
 clippy:
 	RUSTFLAGS="$(RUSTFLAGS)" \
@@ -800,7 +791,7 @@ endif
 ## existence when setting Vinstallation_directory (FIXME?).
 ## This goes on to affect various things, and the emacs binary fails
 ## to start if Vinstallation_directory has the wrong value.
-temacs$(EXEEXT): $(LIBXMENU) $(ALLOBJS) $(LIBEMACSNG_ARCHIVE) $(RUSTFLAGS_FILE) $(LIBEGNU_ARCHIVE) $(EMACSRES) \
+temacs$(EXEEXT): $(LIBXMENU) $(ALLOBJS) $(LIBEMACSNG_ARCHIVE) $(LIBEGNU_ARCHIVE) $(EMACSRES) \
   $(charsets) $(charscript) ${emoji-zwj} $(MAKE_PDUMPER_FINGERPRINT)
 ifeq ($(HAVE_BE_APP),yes)
 	$(AM_V_CXXLD)$(CXX) -o $@.tmp \

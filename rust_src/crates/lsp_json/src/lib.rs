@@ -13,4 +13,4 @@ extern crate lisp_util;
 pub mod parsing;
 
 #[cfg(not(test))]
-include!(concat!(env!("CARGO_MANIFEST_DIR"), "/out/c_exports.rs"));
+include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));

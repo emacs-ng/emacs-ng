@@ -683,7 +683,4 @@ fn init_syms() {
     def_lisp_sym!(Qarray, "array");
 }
 
-include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/out/parsing_exports.rs"
-));
+include!(concat!(env!("OUT_DIR"), "/parsing_exports.rs"));
