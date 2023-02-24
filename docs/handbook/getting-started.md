@@ -90,3 +90,20 @@ would also be cool if we would have a terminal emulator based on rust.
 
 If you have any idea for a new feature you want to work on, just add a
 configure option and create a new crate. Do not hesitate to ask for help.
+
+## Logs and debugging
+
+If you configure with `--enable-rust-debug` cargo will build a debug
+build.  We use [tracing](https://docs.rs/tracing/latest/tracing/) to
+collect log output, and a handler (subscriber) is installed in
+`main()` if cargo is building a debug build.  (The subscriber is not
+present in release builds, and hence logging is optimised out.  Be
+aware that emitting records can slow down emacs considerably.)
+
+The default handler is configured with the `EMACSNG_LOG` environment
+variable, in the format `target=level`.  Crate *names* are targets, so
+to log for the `webrender` crate (which is named `wrterm`) at the info
+level, use `EMACSNG_LOG=wrterm=info`.  Multiple filters can be
+separated with a comma, and filters are capable of advanced filtering
+with regexes.  See the documentation for
+[env_logger](https://docs.rs/env_logger/latest/env_logger/) for more details.
