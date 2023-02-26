@@ -1256,49 +1256,58 @@ macro_rules! lisp_yield {
 // /// reset and reinitalized lazily. If that happens, all
 // /// global state will be reset. This can be prevented by
 // /// implementing a top level Promise error handler.
-// #[lisp_fn(min = "1")]
-// pub fn eval_js_file(args: &[LispObject]) -> LispObject {
-//     let filename: LispStringRef = args[0].into();
-//     let ops = EmacsMainJsRuntime::get_options();
-//     let mut module = filename.to_utf8();
-//     let is_typescript = (args.len() == 3
-//         && args[1] == emacs::globals::QCtypescript
-//         && args[2] == emacs::globals::Qt)
-//         || is_typescript(&module);
+#[lisp_fn(min = "1")]
+pub fn js_eval_file(args: &[LispObject]) -> LispObject {
+    let filename: LispStringRef = args[0].into();
+    let module = filename.to_utf8();
 
-//     // This is a hack to allow for our behavior of
-//     // executing a module multiple times.
-//     let import = unique_module_import!(module);
-//     module = unique_module!("./$import${}{}.ts");
-//     run_module(&module, Some(import), &ops, is_typescript)
-// }
+    // @TODO have this be a thread pool, or just tokio.
+    let id = inc_auto_id!();
+    std::thread::spawn(move || {
+        let result = std::fs::read_to_string(module);//tokio::fs::read_to_string(module).await;
+        if let Ok(content) = result {
+            let gaurd = main_to_js_lock.lock().unwrap();
+            if let Some(chnl) = &*gaurd {
+                let id = inc_auto_id!();
+                chnl.send(RequestMsg { id: id, action: Action::Execute(content) }).expect("Failure to send");
+            }
+        }
+    });
+    // std::thread::spawn(move || {
+    //     content =
+    // });
 
-// fn get_buffer_contents(mut buffer: LispObject) -> LispObject {
-//     if buffer.is_nil() {
-//         buffer = unsafe { emacs::bindings::Fcurrent_buffer() };
-//     }
 
-//     unsafe {
-//         let current = emacs::bindings::Fcurrent_buffer();
-//         emacs::bindings::Fset_buffer(buffer);
-//         let lstring = emacs::bindings::Fbuffer_string();
-//         emacs::bindings::Fset_buffer(current);
-//         lstring
-//     }
-// }
+    // run_module(&module, Some(import), &ops, is_typescript)
+    id.into()
+}
 
-// /// Evaluate the contents of BUFFER as JavaScript.
-// ///
-// /// If the evaluated JavaScript generates a top-level
-// /// Promise rejection, the JavaScript environment will be
-// /// reset and reinitalized lazily. If that happens, all
-// /// global state will be reset. This can be prevented by
-// /// implementing a top level Promise error handler.
-// #[lisp_fn(min = "0", intspec = "")]
-// pub fn eval_js_buffer(buffer: LispObject) -> LispObject {
-//     let lisp_string = get_buffer_contents(buffer);
-//     eval_js(&[lisp_string])
-// }
+fn get_buffer_contents(mut buffer: LispObject) -> LispObject {
+    if buffer.is_nil() {
+        buffer = unsafe { emacs::bindings::Fcurrent_buffer() };
+    }
+
+    unsafe {
+        let current = emacs::bindings::Fcurrent_buffer();
+        emacs::bindings::Fset_buffer(buffer);
+        let lstring = emacs::bindings::Fbuffer_string();
+        emacs::bindings::Fset_buffer(current);
+        lstring
+    }
+}
+
+/// Evaluate the contents of BUFFER within the active Javascript Runtime.
+#[lisp_fn(min = "0", intspec = "")]
+pub fn js_eval_buffer(buffer: LispObject) -> LispObject {
+    let lisp_string = get_buffer_contents(buffer);
+    js_eval_string(lisp_string)
+}
+
+#[lisp_fn(min = "0", intspec = "")]
+pub fn js_eval_buffer_blocking(buffer: LispObject) -> LispObject {
+    let result = js_eval_buffer(buffer);
+    js_resolve_blocking(result)
+}
 
 // /// Evaluate the contents of BUFFER as TypeScript.
 // ///
@@ -1317,15 +1326,15 @@ macro_rules! lisp_yield {
 //     ])
 // }
 
-// fn get_region(start: LispObject, end: LispObject) -> LispObject {
-//     let saved = unsafe { emacs::bindings::save_restriction_save() };
-//     unsafe {
-//         emacs::bindings::Fnarrow_to_region(start, end);
-//         let lstring = emacs::bindings::Fbuffer_string();
-//         emacs::bindings::save_restriction_restore(saved);
-//         lstring
-//     }
-// }
+fn get_region(start: LispObject, end: LispObject) -> LispObject {
+    let saved = unsafe { emacs::bindings::save_restriction_save() };
+    unsafe {
+        emacs::bindings::Fnarrow_to_region(start, end);
+        let lstring = emacs::bindings::Fbuffer_string();
+        emacs::bindings::save_restriction_restore(saved);
+        lstring
+    }
+}
 
 // /// Evaluate the contents of REGION as JavaScript.
 // ///
