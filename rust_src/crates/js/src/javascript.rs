@@ -58,6 +58,12 @@ macro_rules! make_lisp_string {
     }}
 }
 
+macro_rules! lisp_yield {
+    () => {
+        unsafe { emacs::bindings::Fthread_yield() };
+    };
+}
+
 // #[derive(Clone)]
 // struct EmacsJsOptions {
 //     tick_rate: f64,
@@ -1473,10 +1479,26 @@ fn process_response(msg: ResponseMsg) -> LispObject {
     match msg.res {
         Ok(res) => {
             let Response::Success(result) = res;
-            return make_lisp_string!(result);
+            let response = lsp_json::parsing::deser(&result, None)
+                .map_or_else(|_| emacs::globals::Qnil, |v| v);
+            return response;
         }
         Err(e) => error!(e.to_string())
     }
+}
+
+#[lisp_fn]
+pub fn js_resolve_blocking(id: LispObject) -> LispObject {
+    loop {
+        let result = js_resolve(id);
+        if result != emacs::globals::Qjs_not_ready {
+            return result;
+        }
+
+        lisp_yield!();
+    }
+
+    emacs::globals::Qnil
 }
 
 #[lisp_fn]
@@ -1503,7 +1525,7 @@ pub fn js_resolve(id: LispObject) -> LispObject {
         }
     }
 
-    emacs::globals::Qnil
+    emacs::globals::Qjs_not_ready
 }
 
 #[lisp_fn]
@@ -1583,6 +1605,8 @@ fn make_poll_fut() -> tokio::task::JoinHandle<Option<RequestMsg>> {
 // /// and execute callbacks.
 #[lisp_fn]
 pub fn js_initialize(args: &[LispObject]) -> LispObject {
+    std::env::set_var("NO_COLOR", "1");
+
     // Main to JS (send/recv)
     let (mtjs, mtjr) = std::sync::mpsc::channel::<RequestMsg>();
     // JS to Main (send/recv)
@@ -1665,20 +1689,6 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
                   }
                 }
             }
-
-
-            // loop {
-            //     let msg = mtjr.recv()?;
-            //     println!("Logging {:?}", msg);
-            //     let result = match msg.action {
-            //         Action::Execute(cmd) => repl_session.evaluate_line_and_get_output(&cmd).await
-            //     };
-            //     println!("Result {}", result);
-            //     jstms.send(ResponseMsg {
-            //         id: msg.id,
-            //         res: Ok(Response::Success(result.to_string()))
-            //     })?;
-            // }
         });
 
     });
@@ -1730,7 +1740,7 @@ pub fn js_lisp_thread(_args: &[LispObject]) -> LispObject {
         // call!(emacs::globals::Qjs_eval_string, "(setq foo 3)".into()).unwrap();
         // emacs::eval_macros::eval!(`(print "hello")`);
         // std::thread::sleep(std::time::Duration::from_secs(5));
-        unsafe { emacs::bindings::Fthread_yield() };
+        lisp_yield!();
     }
     emacs::globals::Qnil
 }
@@ -2449,6 +2459,7 @@ pub fn js__sweep() -> LispObject {
 fn init_syms() {
     def_lisp_sym!(Qjs_init_lisp_thread, "js-init-lisp-thread");
     def_lisp_sym!(Qjs_eval_lisp_string, "js-eval-lisp-string");
+    def_lisp_sym!(Qjs_not_ready, "js-not-ready");
 
 //     defvar_lisp!(Vjs_retain_map, "js-retain-map", emacs::globals::Qnil);
 
