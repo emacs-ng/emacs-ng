@@ -4,4 +4,6 @@
     (make-thread '(lambda () (js-lisp-thread))))
 
 (defun js-eval-lisp-string (string)
-  (eval (car (read-from-string string))))
+  (condition-case err
+    (eval (car (read-from-string string)))
+    (error (cons 'js-error (prin1-to-string err)))))

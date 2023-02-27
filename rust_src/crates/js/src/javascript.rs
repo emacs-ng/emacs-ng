@@ -11,7 +11,6 @@ use crate::futures::FutureExt;
 use deno::deno_core::anyhow::anyhow;
 use deno::deno_core::serde::de::Error;
 use emacs::bindings::Fthread_yield;
-use emacs::bindings::Success;
 use futures::Future;
 use v8;
 use deno::deno_core as deno_core;
@@ -1263,16 +1262,12 @@ pub fn js_eval_file(args: &[LispObject]) -> LispObject {
 
     // @TODO have this be a thread pool, or just tokio.
     let id = inc_auto_id!();
-    std::thread::spawn(move || {
-        let result = std::fs::read_to_string(module);//tokio::fs::read_to_string(module).await;
-        if let Ok(content) = result {
-            let gaurd = main_to_js_lock.lock().unwrap();
-            if let Some(chnl) = &*gaurd {
-                let id = inc_auto_id!();
-                chnl.send(RequestMsg { id: id, action: Action::Execute(content) }).expect("Failure to send");
-            }
+    {
+        let gaurd = main_to_js_lock.lock().unwrap();
+        if let Some(chnl) = &*gaurd {
+            chnl.send(RequestMsg { id: id, action: Action::ExecuteFile(module) }).expect("Failure to send");
         }
-    });
+    }
     // std::thread::spawn(move || {
     //     content =
     // });
@@ -1418,6 +1413,7 @@ pub fn recv_from_lisp(
 #[derive(Debug)]
 enum Action {
     Execute(String),
+    ExecuteFile(String),
 }
 
 #[derive(Debug)]
@@ -1668,9 +1664,6 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
             }
 
             let mut repl_session = deno::tools::repl::session::ReplSession::initialize(ps.clone(), main_worker).await?;
-            let res = repl_session.evaluate_line_and_get_output("console.log('ell'); 'hello world'").await;
-            println!("{}", res.to_string());
-
             let mut line_fut = make_poll_fut();
             let mut poll_worker = true;
 
@@ -1681,12 +1674,27 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
                     if let Some(msg) = opt {
                         println!("JS Recv'd {:?}", msg);
                         let result = match msg.action {
-                            Action::Execute(cmd) => repl_session.evaluate_line_and_get_output(&cmd).await
+                            Action::Execute(cmd) => repl_session.evaluate_line_and_get_output(&cmd).await,
+                            Action::ExecuteFile(ref filepath) => {
+                                let result = tokio::fs::read_to_string(filepath).await;
+                                if let Ok(content) = result {
+                                    repl_session.evaluate_line_and_get_output(&content).await
+                                } else {
+                                    deno::tools::repl::session::EvaluationOutput::Error(format!("Failed to find file {}", filepath))
+                                }
+                            }
                         };
                         println!("Result {}", result);
+
+                        let msg_result = match result {
+                            deno::tools::repl::session::EvaluationOutput::Value(s) => Ok(Response::Success(s.to_string())),
+                            deno::tools::repl::session::EvaluationOutput::Error(s) => Err(anyhow!(s.to_string())),
+
+                        };
+
                         jstms.send(ResponseMsg {
                             id: msg.id,
-                            res: Ok(Response::Success(result.to_string()))
+                            res: msg_result,
                         })?;
                     }
 
@@ -1702,7 +1710,7 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
 
     });
 
-    emacs::globals::Qnil
+    emacs::globals::Qt
 }
 
 
@@ -1722,7 +1730,13 @@ pub fn js_lisp_thread(_args: &[LispObject]) -> LispObject {
 
         if let Some(request) = result {
             println!("Recv'd on lisp {:?}", request);
-            let Action::Execute(msg) = request.action;
+            let msg = if let Action::Execute(msg) = request.action {
+                msg
+            } else {
+                // @TODO implement
+                println!("Unsupported operation -> loading lisp by file...");
+                continue;
+            };
             let len = msg.len();
             let cstr = CString::new(msg).expect("Failed to allocate CString");
             let lstring =
@@ -1731,12 +1745,23 @@ pub fn js_lisp_thread(_args: &[LispObject]) -> LispObject {
                 emacs::globals::Qjs_eval_lisp_string,
                 lstring,
             ];
-            // @TODO an error here puts the thread in a bad state. Need graceful restarting....
             let result = unsafe { Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr()) };
-            let res_string: LispStringRef = lsp_json::parsing::json_se(&[result]).into();
+            let lisp_result = if let Some(cons) = result.as_cons() {
+                let car = cons.car();
+                if car == emacs::globals::Qjs_error {
+                    cons.cdr()
+                } else {
+                    result
+                }
+            } else {
+                result
+            };
+
+            let res_string: LispStringRef = lsp_json::parsing::json_se(&[lisp_result]).into();
             let rust_string = res_string.to_utf8();
             println!("Sending result to js {:?}", rust_string);
             let lock = lisp_worker_to_js_send_lock.lock().unwrap();
+            // @TODO in error case, send the err enum for res
             if let Some(chnl) = &*lock {
                 chnl.send(ResponseMsg {
                     id: request.id,
@@ -2469,6 +2494,7 @@ fn init_syms() {
     def_lisp_sym!(Qjs_init_lisp_thread, "js-init-lisp-thread");
     def_lisp_sym!(Qjs_eval_lisp_string, "js-eval-lisp-string");
     def_lisp_sym!(Qjs_not_ready, "js-not-ready");
+    def_lisp_sym!(Qjs_error, "js-error");
 
 //     defvar_lisp!(Vjs_retain_map, "js-retain-map", emacs::globals::Qnil);
 

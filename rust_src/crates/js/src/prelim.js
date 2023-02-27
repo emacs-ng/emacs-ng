@@ -6,9 +6,7 @@
     const ret = recv_from_lisp();
     try {
       if (ret) {
-        console.log(`Within JS ${ret}`);
         if (callbackMap[ret] !== undefined) {
-          console.log("Attempting to resolve...");
           callbackMap[ret]();
         }
       }
@@ -28,8 +26,6 @@
         for (let i = 0; i < arguments.length; ++i) {
           callarg += ` ${arguments[i]} `;
         }
-
-
 
         const idx = send_to_lisp(`(${callarg})`);
         return new Promise((resolve, reject) => {
