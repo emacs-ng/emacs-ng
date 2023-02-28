@@ -1,10 +1,9 @@
 use super::cursor::build_mouse_cursors;
 use super::cursor::emacs_to_winit_cursor;
 use crate::event_loop::WrEventLoop;
-use crate::output::Canvas;
-use crate::output::CanvasRef;
+use crate::frame::LispFrameExt;
+use crate::output::OutputRef;
 use crate::window_system::api::monitor::MonitorHandle;
-use crate::window_system::output::OutputRef;
 use emacs::globals::Qfullscreen;
 use emacs::globals::Qmaximized;
 use emacs::{
@@ -20,10 +19,9 @@ use emacs::{
 use raw_window_handle::RawDisplayHandle;
 use raw_window_handle::RawWindowHandle;
 use webrender::api::ColorF;
-use webrender::{self, api::units::*};
 
-use super::output::Output;
-use crate::frame::LispFrameExt;
+use crate::frame::LispFrameWindowSystemExt;
+use crate::output::Output;
 
 use crate::window_system::api::{
     dpi::{LogicalPosition, PhysicalPosition},
@@ -56,35 +54,21 @@ pub trait LispFrameWinitExt {
     fn cursor_position(&self) -> LogicalPosition<i32>;
 }
 
-impl LispFrameExt for LispFrameRef {
+impl LispFrameWindowSystemExt for LispFrameRef {
     fn output(&self) -> OutputRef {
         return OutputRef::new(unsafe { self.output_data.winit } as *mut Output);
     }
 
-    fn canvas(&self) -> CanvasRef {
-        if self.output().get_canvas().is_null() {
-            log::debug!("canvas_data empty");
-            let canvas = Box::new(Canvas::build(self.clone()));
-            self.output().get_inner().set_canvas(canvas);
-        }
-
-        self.output().get_canvas()
-    }
-
     fn cursor_color(&self) -> ColorF {
-        self.output().get_inner().cursor_color
+        self.output().inner().cursor_color
     }
 
     fn cursor_foreground_color(&self) -> ColorF {
-        self.output().get_inner().cursor_foreground_color
-    }
-
-    fn display_info(&self) -> DisplayInfoRef {
-        self.output().display_info()
+        self.output().inner().cursor_foreground_color
     }
 
     fn window_handle(&self) -> Option<RawWindowHandle> {
-        if let Some(window) = &self.output().get_inner().window {
+        if let Some(window) = &self.output().inner().window {
             use raw_window_handle::HasRawWindowHandle;
             return Some(window.raw_window_handle());
         } else {
@@ -96,13 +80,9 @@ impl LispFrameExt for LispFrameRef {
         return self.output().display_info().get_inner().raw_display_handle;
     }
 
-    fn size(&self) -> DeviceIntSize {
-        DeviceIntSize::new(self.pixel_width, self.pixel_height)
-    }
-
     fn unique_id(&self) -> FrameId {
         self.output()
-            .get_inner()
+            .inner()
             .window
             .as_ref()
             .expect("frame doesnt have associated winit window yet")
@@ -155,7 +135,6 @@ impl LispFrameWinitExt for LispFrameRef {
         #[cfg(use_winit)]
         window.set_title(&invocation_name);
         let mut output = Box::new(Output::default());
-        output.set_display_info(dpyinfo);
         build_mouse_cursors(&mut output.as_mut().as_raw());
 
         // TODO default frame size?
@@ -168,6 +147,7 @@ impl LispFrameWinitExt for LispFrameRef {
         // Remeber to destory the Output object when frame destoried.
         let output = Box::into_raw(output);
         frame.output_data.winit = output as *mut winit_output;
+        frame.set_display_info(dpyinfo);
 
         frame.set_window(window);
         dpyinfo.get_inner().frames.insert(frame.unique_id(), frame);
@@ -176,26 +156,26 @@ impl LispFrameWinitExt for LispFrameRef {
     }
 
     fn set_window(&self, window: crate::window_system::api::window::Window) {
-        self.output().get_inner().set_window(window);
+        self.output().inner().set_window(window);
     }
 
     #[cfg(use_winit)]
     fn set_cursor_position(&self, pos: PhysicalPosition<f64>) {
-        self.output().get_inner().set_cursor_position(pos);
+        self.output().inner().set_cursor_position(pos);
     }
 
     fn set_cursor_color(&self, color: ColorF) {
-        self.output().get_inner().set_cursor_color(color);
+        self.output().inner().set_cursor_color(color);
     }
 
     fn set_background_color(&self, color: ColorF) {
-        self.output().get_inner().set_background_color(color);
+        self.output().inner().set_background_color(color);
     }
 
     fn set_visible_(&mut self, is_visible: bool) {
         let _ = &self.set_visible(is_visible as u32);
 
-        let inner = self.output().get_inner();
+        let inner = self.output().inner();
         let window = inner
             .window
             .as_ref()
@@ -209,7 +189,7 @@ impl LispFrameWinitExt for LispFrameRef {
     }
 
     fn set_cursor_icon(&self, cursor: Emacs_Cursor) {
-        let inner = self.output().get_inner();
+        let inner = self.output().inner();
         let window = inner
             .window
             .as_ref()
@@ -219,7 +199,7 @@ impl LispFrameWinitExt for LispFrameRef {
     }
 
     fn edges(&self, type_: LispObject) -> LispObject {
-        let inner = self.output().get_inner();
+        let inner = self.output().inner();
         let window = inner
             .window
             .as_ref()
@@ -279,7 +259,7 @@ impl LispFrameWinitExt for LispFrameRef {
         }
 
         if self.want_fullscreen() == fullscreen_type::FULLSCREEN_MAXIMIZED {
-            let inner = self.output().get_inner();
+            let inner = self.output().inner();
             let window = inner
                 .window
                 .as_ref()
@@ -296,7 +276,7 @@ impl LispFrameWinitExt for LispFrameRef {
         self.name = arg;
 
         let title = format!("{}", arg.force_string());
-        let inner = self.output().get_inner();
+        let inner = self.output().inner();
         let window = inner
             .window
             .as_ref()
@@ -307,7 +287,7 @@ impl LispFrameWinitExt for LispFrameRef {
 
     fn iconify(&mut self) {
         self.set_iconified(true);
-        let inner = self.output().get_inner();
+        let inner = self.output().inner();
         let window = inner
             .window
             .as_ref()
@@ -316,7 +296,7 @@ impl LispFrameWinitExt for LispFrameRef {
     }
 
     fn current_monitor(&self) -> Option<MonitorHandle> {
-        let inner = self.output().get_inner();
+        let inner = self.output().inner();
         let window = inner
             .window
             .as_ref()
@@ -325,7 +305,7 @@ impl LispFrameWinitExt for LispFrameRef {
     }
 
     fn cursor_position(&self) -> LogicalPosition<i32> {
-        let inner = self.output().get_inner();
+        let inner = self.output().inner();
         let window = inner
             .window
             .as_ref()

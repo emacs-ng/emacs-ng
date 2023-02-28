@@ -1,4 +1,7 @@
+use crate::frame::LispFrameExt;
+use crate::frame::LispFrameWindowSystemExt;
 use crate::gl::context::GLContextTrait;
+use emacs::frame::LispFrameRef;
 use gleam::gl::ErrorCheckingGl;
 use glutin::{
     config::{Api, ConfigTemplateBuilder, GlConfig},
@@ -10,8 +13,6 @@ use glutin::{
     prelude::GlSurface,
     surface::{Surface, SurfaceAttributesBuilder, WindowSurface},
 };
-use raw_window_handle::RawDisplayHandle;
-use raw_window_handle::RawWindowHandle;
 use webrender::api::units::DeviceIntSize;
 
 use std::{ffi::CString, num::NonZeroU32};
@@ -27,12 +28,17 @@ pub struct ContextImpl {
 }
 
 impl GLContextTrait for ContextImpl {
-    fn build(
-        size: DeviceIntSize,
-        display_handle: RawDisplayHandle,
-        window_handle: RawWindowHandle,
-    ) -> Self {
+    fn build(frame: &LispFrameRef) -> Self {
         log::trace!("Initialize OpenGL context using Glutin");
+
+        let display_handle = frame
+            .display_handle()
+            .expect("Failed to raw display handle from frame");
+        let window_handle = frame
+            .window_handle()
+            .expect("Failed to get raw window handle from frame");
+        let size = frame.size();
+
         let width = NonZeroU32::new(size.width as u32).unwrap();
         let height = NonZeroU32::new(size.height as u32).unwrap();
 

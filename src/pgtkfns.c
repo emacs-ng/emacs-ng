@@ -524,8 +524,10 @@ pgtk_change_tab_bar_height (struct frame *f, int height)
      here.  */
   adjust_frame_glyphs (f);
   SET_FRAME_GARBAGED (f);
+#ifndef USE_WEBRENDER
   if (FRAME_X_WINDOW (f))
     pgtk_clear_under_internal_border (f);
+#endif /* USE_WEBRENDER */
 }
 
 /* Set the pixel height of the tool bar of frame F to HEIGHT.  */
@@ -1385,10 +1387,14 @@ This function is an internal primitive--use `make-frame' instead.  */ )
       specbind (Qx_resource_name, name);
     }
 
+#ifndef USE_WEBRENDER
   register_font_driver (&ftcrfont_driver, f);
 #ifdef HAVE_HARFBUZZ
   register_font_driver (&ftcrhbfont_driver, f);
 #endif	/* HAVE_HARFBUZZ */
+#else
+register_ttf_parser_font_driver(f);
+#endif  /* USE_WEBRENDER */
 
   image_cache_refcount =
     FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
@@ -2335,7 +2341,6 @@ DEFUN ("xw-color-defined-p", Fxw_color_defined_p, Sxw_color_defined_p, 1, 2, 0,
     return Qnil;
 }
 
-
 DEFUN ("xw-color-values", Fxw_color_values, Sxw_color_values, 1, 2, 0,
        doc: /* Internal function called by `color-values', which see.  */)
   (Lisp_Object color, Lisp_Object frame)
@@ -2742,10 +2747,14 @@ x_create_tip_frame (struct pgtk_display_info *dpyinfo, Lisp_Object parms, struct
       specbind (Qx_resource_name, name);
     }
 
+#ifndef USE_WEBRENDER
   register_font_driver (&ftcrfont_driver, f);
 #ifdef HAVE_HARFBUZZ
   register_font_driver (&ftcrhbfont_driver, f);
 #endif	/* HAVE_HARFBUZZ */
+#else
+register_ttf_parser_font_driver(f);
+#endif  /* USE_WEBRENDER */
 
   image_cache_refcount =
     FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;

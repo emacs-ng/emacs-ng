@@ -6,6 +6,7 @@
 #[macro_use]
 extern crate emacs;
 extern crate lisp_macros;
+#[cfg(window_system_winit)]
 #[macro_use]
 extern crate lisp_util;
 extern crate colors;
@@ -40,6 +41,8 @@ pub mod select {
 #[cfg(have_window_system)]
 pub mod window_system {
 
+    #[cfg(window_system_pgtk)]
+    pub use crate::window_system::pgtk::*;
     #[cfg(window_system_winit)]
     pub use crate::window_system::winit::*;
     #[cfg(window_system_winit)]
@@ -47,18 +50,31 @@ pub mod window_system {
 
     // frame
     pub mod frame {
+        #[cfg(window_system_pgtk)]
+        pub use crate::window_system::pgtk::frame::*;
         #[cfg(window_system_winit)]
         pub use crate::window_system::winit::frame::*;
     }
 
     pub mod display_info {
+        #[cfg(window_system_pgtk)]
+        pub use crate::window_system::pgtk::display_info::*;
         #[cfg(window_system_winit)]
         pub use crate::window_system::winit::display_info::*;
     }
 
     pub mod output {
+        #[cfg(window_system_pgtk)]
+        pub use crate::window_system::pgtk::output::*;
         #[cfg(window_system_winit)]
         pub use crate::window_system::winit::output::*;
+    }
+
+    #[cfg(window_system_pgtk)]
+    mod pgtk {
+        pub mod display_info;
+        pub mod frame;
+        pub mod output;
     }
 
     #[cfg(window_system_winit)]
@@ -120,11 +136,15 @@ pub mod gl {
     pub mod context_impl {
         #[cfg(use_glutin)]
         pub use crate::gl::context_impl::glutin::*;
+        #[cfg(use_gtk3)]
+        pub use crate::gl::context_impl::gtk3::*;
         #[cfg(use_surfman)]
         pub use crate::gl::context_impl::surfman::*;
 
         #[cfg(use_glutin)]
         pub mod glutin;
+        #[cfg(use_gtk3)]
+        pub mod gtk3;
         #[cfg(use_surfman)]
         pub mod surfman;
     }
@@ -137,6 +157,7 @@ mod platform {
 #[cfg(all(window_system_winit, macos_platform))]
 pub use crate::platform::macos;
 
+pub use crate::color::*;
 pub use crate::font::*;
 pub use crate::term::*;
 #[cfg(window_system_winit)]
@@ -145,4 +166,8 @@ pub use crate::window_system::term::*;
 pub use crate::wrterm::*;
 
 #[cfg(not(test))]
+#[cfg(window_system_winit)]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));
+#[no_mangle]
+#[cfg(not(window_system_winit))]
+pub extern "C" fn wrterm_init_syms() {}

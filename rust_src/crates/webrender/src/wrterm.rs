@@ -22,23 +22,24 @@ use lisp_macros::lisp_fn;
 
 use crate::color::lookup_color_by_name_or_hex;
 use crate::frame::LispFrameExt;
-use crate::window_system::output::OutputRef;
+use crate::frame::LispFrameWindowSystemExt;
+use crate::output::OutputRef;
 
 use emacs::{
     bindings::globals,
     bindings::resource_types::{RES_TYPE_NUMBER, RES_TYPE_STRING, RES_TYPE_SYMBOL},
     bindings::{
-        block_input, build_string, gui_display_get_arg, hashtest_eql, image as Emacs_Image, list3i,
-        make_fixnum, make_hash_table, make_monitor_attribute_list, unblock_input, Display,
-        Emacs_Pixmap, Emacs_Rectangle, Fcons, Fcopy_alist, Fmake_vector, Fprovide, MonitorInfo,
-        Vframe_list, Window, CHECK_STRING, DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
+        block_input, build_string, gui_display_get_arg, hashtest_eql, list3i, make_fixnum,
+        make_hash_table, make_monitor_attribute_list, unblock_input, Display, Emacs_Rectangle,
+        Fcons, Fcopy_alist, Fmake_vector, Fprovide, MonitorInfo, Vframe_list, Window, CHECK_STRING,
+        DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
     },
     definitions::EmacsInt,
     frame::{all_frames, window_frame_live_or_selected, LispFrameRef},
     globals::{
         Qbackground_color, Qfont, Qfont_backend, Qforeground_color, Qleft_fringe, Qminibuffer,
-        Qname, Qnil, Qparent_id, Qright_fringe, Qt, Qterminal, Qunbound, Qwinit, Qwr,
-        Qx_create_frame_1, Qx_create_frame_2,
+        Qname, Qnil, Qparent_id, Qright_fringe, Qt, Qterminal, Qunbound, Qwinit, Qx_create_frame_1,
+        Qx_create_frame_2,
     },
     lisp::{ExternalPtr, LispObject},
 };
@@ -117,49 +118,6 @@ pub extern "C" fn winit_set_cursor_color(
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn wr_get_baseline_offset(output: OutputRef) -> i32 {
-    0
-}
-
-#[allow(unused_variables)]
-#[no_mangle]
-pub extern "C" fn wr_get_pixel(ximg: *mut Emacs_Image, x: i32, y: i32) -> i32 {
-    unimplemented!();
-}
-
-#[allow(unused_variables)]
-#[no_mangle]
-pub extern "C" fn wr_put_pixel(ximg: *mut Emacs_Image, x: i32, y: i32, pixel: u64) {
-    unimplemented!();
-}
-
-#[no_mangle]
-pub extern "C" fn wr_can_use_native_image_api(image_type: LispObject) -> bool {
-    crate::image::can_use_native_image_api(image_type)
-}
-
-#[no_mangle]
-pub extern "C" fn wr_load_image(
-    frame: LispFrameRef,
-    img: *mut Emacs_Image,
-    spec_file: LispObject,
-    spec_data: LispObject,
-) -> bool {
-    crate::image::load_image(frame, img, spec_file, spec_data)
-}
-
-#[no_mangle]
-pub extern "C" fn wr_transform_image(
-    frame: LispFrameRef,
-    img: *mut Emacs_Image,
-    width: i32,
-    height: i32,
-    rotation: f64,
-) {
-    crate::image::transform_image(frame, img, width, height, rotation);
-}
-
-#[no_mangle]
 pub extern "C" fn get_keysym_name(keysym: i32) -> *mut libc::c_char {
     let name = keysym_to_emacs_key_name(keysym);
 
@@ -232,24 +190,6 @@ pub extern "C" fn frame_set_mouse_pixel_position(f: LispFrameRef, pix_x: i32, pi
     unsafe { block_input() };
     // set mouse
     unsafe { unblock_input() };
-}
-
-#[no_mangle]
-pub extern "C" fn image_sync_to_pixmaps(_frame: LispFrameRef, _img: *mut Emacs_Image) {
-    unimplemented!();
-}
-
-#[no_mangle]
-pub extern "C" fn image_pixmap_draw_cross(
-    _frame: LispFrameRef,
-    _pixmap: Emacs_Pixmap,
-    _x: i32,
-    _y: i32,
-    _width: i32,
-    _height: u32,
-    _color: u64,
-) {
-    unimplemented!();
 }
 
 /// Hide the current tooltip window, if there is any.
@@ -956,28 +896,6 @@ pub fn wr_api_stop_capture_sequence() {
         let frame = window_frame_live_or_selected(Qnil);
         let canvas = frame.canvas();
         canvas.render_api.stop_capture_sequence();
-    }
-}
-
-#[no_mangle]
-#[allow(unused_doc_comments)]
-pub extern "C" fn syms_of_webrender() {
-    def_lisp_sym!(Qwr, "wr");
-    unsafe {
-        Fprovide(Qwr, Qnil);
-    }
-
-    #[cfg(feature = "capture")]
-    {
-        let wr_capture_sym =
-            CString::new("wr-capture").expect("Failed to create string for intern function call");
-        def_lisp_sym!(Qwr_capture, "wr-capture");
-        unsafe {
-            Fprovide(
-                emacs::bindings::intern_c_string(wr_capture_sym.as_ptr()),
-                Qnil,
-            );
-        }
     }
 }
 

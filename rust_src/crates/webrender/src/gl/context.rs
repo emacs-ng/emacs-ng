@@ -1,18 +1,13 @@
 use crate::gl::context_impl::ContextImpl;
+use emacs::frame::LispFrameRef;
 use gleam::gl::Gl;
-use raw_window_handle::RawDisplayHandle;
-use raw_window_handle::RawWindowHandle;
 use std::rc::Rc;
 use webrender::{self, api::units::*};
 
 pub type GLContext = ContextImpl;
 
 pub trait GLContextTrait {
-    fn build(
-        size: DeviceIntSize,
-        display_handle: RawDisplayHandle,
-        window_handle: RawWindowHandle,
-    ) -> Self;
+    fn build(frame: &LispFrameRef) -> Self;
 
     fn bind_framebuffer(&mut self, gl: &mut Rc<dyn Gl>);
 

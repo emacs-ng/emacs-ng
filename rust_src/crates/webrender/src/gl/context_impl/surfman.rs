@@ -1,6 +1,7 @@
+use crate::frame::LispFrameExt;
+use crate::frame::LispFrameWindowSystemExt;
 use crate::gl::context::GLContextTrait;
-use raw_window_handle::RawDisplayHandle;
-use raw_window_handle::RawWindowHandle;
+use emacs::frame::LispFrameRef;
 use webrender::api::units::DeviceIntSize;
 
 use surfman::{Connection, GLApi, SurfaceType};
@@ -29,12 +30,16 @@ impl ContextImpl {
 }
 
 impl GLContextTrait for ContextImpl {
-    fn build(
-        size: DeviceIntSize,
-        display_handle: RawDisplayHandle,
-        window_handle: RawWindowHandle,
-    ) -> Self {
+    fn build(frame: &LispFrameRef) -> Self {
         log::trace!("Initialize OpenGL context using Surfman");
+
+        let display_handle = frame
+            .display_handle()
+            .expect("Failed to raw display handle from frame");
+        let window_handle = frame
+            .window_handle()
+            .expect("Failed to get raw window handle from frame");
+        let size = frame.size();
 
         let connection = match Connection::from_raw_display_handle(display_handle) {
             Ok(connection) => connection,

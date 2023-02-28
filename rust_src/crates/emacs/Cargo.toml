@@ -12,6 +12,9 @@ libc = "0.2.95"
 lazy_static = "1.4.0"
 memoffset = "0.6.4"
 
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+gtk-sys = { version = "0.16", optional = true }
+
 [build-dependencies]
 bindgen = "0.64"
 regex = "1.6"
@@ -20,3 +23,4 @@ libc = "0.2"
 [features]
 window-system = []
 window-system-winit = [ "window-system"]
+window-system-pgtk = [ "window-system", "dep:gtk-sys"]

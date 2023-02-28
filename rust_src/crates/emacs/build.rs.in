@@ -237,6 +237,11 @@ fn generate_bindings() {
         builder = builder.clang_arg("-Ic:\\Program Files\\LLVM\\lib\\clang\\6.0.0\\include");
     }
 
+    #[cfg(feature = "window-system-pgtk")]
+    {
+        builder = builder.blocklist_item("GtkWidget");
+    }
+
     builder = builder
         .clang_arg("-Demacs")
         .clang_arg("-DEMACS_EXTERN_INLINE")
@@ -321,7 +326,7 @@ fn generate_bindings() {
     );
     let munged = re.unwrap().replace_all(&source, "");
     let mut file = File::create(out_path).unwrap();
-    write!(file, "use crate::{{\n    globals::emacs_globals,\n    sys::Lisp_Object,\n}};\n\nuse libc::{{timespec, fd_set, sigset_t}};\n").expect("Write error!");
+    write!(file, "use crate::{{\n    globals::emacs_globals,\n    sys::Lisp_Object,\n}};\n\nuse libc::{{timespec, fd_set, sigset_t}};\n\n#[cfg(feature = \"window-system-pgtk\")]\nuse gtk_sys::GtkWidget;\n").expect("Write error!");
     file.write_all(munged.into_owned().as_bytes()).unwrap();
 }
 

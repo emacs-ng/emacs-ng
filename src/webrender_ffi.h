@@ -41,6 +41,13 @@ extern void
 wr_update_end (struct frame *f);
 extern Lisp_Object wr_new_font (struct frame *f, Lisp_Object font_object, int fontset);
 
+extern int
+wr_parse_color (struct frame *f, const char *color_name,
+		Emacs_Color * color);
+void
+wr_adjust_canvas_size (struct frame *f, int new_width, int new_height);
+
+
 extern void syms_of_webrender(void);
 
 #define BLACK_PIX_DEFAULT(f) 0

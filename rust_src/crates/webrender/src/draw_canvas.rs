@@ -1,3 +1,4 @@
+use crate::frame::LispFrameWindowSystemExt;
 use std::cmp::min;
 
 use webrender::{self, api::units::*, api::*};

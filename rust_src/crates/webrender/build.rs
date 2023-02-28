@@ -46,5 +46,6 @@ fn main() {
         use_pselect: { all(window_system_winit, feature = "pselect", not(use_tokio_select)) },
         use_surfman: { feature = "surfman" },
         use_glutin: { all(feature = "glutin", not(use_surfman)) },
+        use_gtk3: { all(feature = "gtk3", free_unix, not(use_surfman), not(use_glutin)) },
     }
 }

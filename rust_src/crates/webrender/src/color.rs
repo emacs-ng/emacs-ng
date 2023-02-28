@@ -1,3 +1,5 @@
+use emacs::frame::Lisp_Frame;
+use std::ffi::CStr;
 use webrender::api::ColorF;
 
 use emacs::bindings::Emacs_Color;
@@ -88,5 +90,21 @@ pub fn lookup_color_by_name_or_hex(color_string: &str) -> Option<ColorF> {
                     1.0,
                 )
             })
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn wr_parse_color(
+    _f: *mut Lisp_Frame,
+    color_name: *const ::libc::c_char,
+    xcolor: *mut Emacs_Color,
+) -> ::libc::c_int {
+    let color_name: &CStr = unsafe { CStr::from_ptr(color_name) };
+    let color_name: &str = color_name.to_str().unwrap();
+    if let Some(color) = lookup_color_by_name_or_hex(&format!("{}", color_name.to_owned())) {
+        color_to_xcolor(color, xcolor);
+        1
+    } else {
+        0
     }
 }

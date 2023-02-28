@@ -30,7 +30,7 @@ fontdb = "0.12"
 raw-window-handle = "0.5"
 errno = "0.2"
 euclid = "0.22"
-spin_sleep = { version = "1.1", optional = true }
+spin_sleep = { version = "1.1", optional = false }
 surfman = { version = "0.6", default-features = false, features = ["sm-raw-window-handle"], optional = true }
 glutin = { version = "0.30.6", optional = true }
 rustybuzz = "0.6"
@@ -59,6 +59,12 @@ cfg_aliases = "0.1"
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 font-loader = "0.11"
 wayland-sys = {version = "0.30", features = ["client", "dlopen"]}
+gtk = { version = "0.16", optional = true }
+gdk = { version = "0.16", optional = true }
+gtk-sys = { version = "0.16", optional = true }
+gdk-sys = { version = "0.16", optional = true }
+gdkwayland-sys = { version = "0.16", optional = true }
+gl_loader = { version = "0.1.2", optional = true }
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies.x11]
 features = ["xlib"]
@@ -87,13 +93,14 @@ wayland = [
 ]
 capture=["webrender/capture", "webrender/serialize_program"]
 sw_compositor=["webrender/sw_compositor"]
-pselect=["dep:spin_sleep", "dep:nix"]
+pselect=["dep:nix"]
 tokio=["dep:tokio"]
 glutin=["dep:glutin"]
 surfman=["dep:surfman", "dep:webrender_surfman"]
 winit=["dep:winit", "dep:copypasta", "emacs/window-system-winit"]
+gtk3=["dep:gtk", "dep:gdk", "dep:gl_loader"]
 tao=["dep:tao", "emacs/window-system-winit"]
-pgtk=[]
+pgtk=["dep:gtk", "dep:gtk-sys", "dep:gdkwayland-sys"]
 no_std = [
   "rustybuzz/libm",
 ]

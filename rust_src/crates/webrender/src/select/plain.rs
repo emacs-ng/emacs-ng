@@ -15,8 +15,6 @@ use crate::window_system::api::{
     platform::run_return::EventLoopExtRunReturn,
 };
 use libc::{fd_set, sigset_t, timespec};
-#[cfg(use_tao)]
-use tao::platform::unix::EventLoopWindowTargetExtUnix;
 
 use emacs::bindings::make_timespec;
 

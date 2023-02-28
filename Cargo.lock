@@ -980,6 +980,7 @@ name = "emacs"
 version = "0.1.0"
 dependencies = [
  "bindgen",
+ "gtk-sys",
  "lazy_static",
  "libc",
  "memoffset",
@@ -1496,6 +1497,16 @@ dependencies = [
  "khronos_api",
  "log",
  "xml-rs",
+]
+
+[[package]]
+name = "gl_loader"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e32d96dd5f881490e537041d5532320812ba096097f07fccb4626578da0b99d3"
+dependencies = [
+ "cc",
+ "libc",
 ]
 
 [[package]]
@@ -5063,8 +5074,14 @@ dependencies = [
  "font-loader",
  "fontdb",
  "futures",
+ "gdk",
+ "gdk-sys",
+ "gdkwayland-sys",
+ "gl_loader",
  "gleam",
  "glutin",
+ "gtk",
+ "gtk-sys",
  "image 0.23.14",
  "lazy_static",
  "libc",

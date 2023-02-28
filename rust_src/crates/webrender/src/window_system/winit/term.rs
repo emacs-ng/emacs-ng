@@ -2,6 +2,7 @@ use super::frame::LispFrameWinitExt;
 use crate::event_loop::flush_events;
 use crate::event_loop::poll_a_event;
 use crate::event_loop::WrEventLoop;
+use crate::frame::LispFrameWindowSystemExt;
 use crate::input::InputProcessor;
 use crate::term::*;
 #[cfg(use_winit)]
@@ -490,14 +491,10 @@ extern "C" fn winit_mouse_position(
 extern "C" fn winit_destroy_frame(f: *mut Lisp_Frame) {
     let frame: LispFrameRef = f.into();
     let mut output = frame.output();
-    let mut data = frame.canvas();
     let mut display_info = frame.display_info();
     let unique_id = frame.unique_id();
 
     display_info.get_inner().frames.remove(&unique_id);
-
-    // Take back output ownership and destroy it
-    let _ = unsafe { Box::from_raw(data.as_mut()).deinit() };
     output.empty_inner();
 }
 

@@ -63,3 +63,6 @@
 #ifdef HAVE_WINIT
 # include "wrterm.h"
 #endif
+#ifdef HAVE_PGTK
+# include "pgtkterm.h"
+#endif

@@ -374,8 +374,8 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     let pixel_size = if pixel_size == 0 {
         // pixel_size here reflects to DPR 1 for webrender display, we have scale_factor from winit.
         // while pgtk/ns/w32 reflects to actual DPR on device by setting resx/resy to display
-        if !frame.output().get_font().is_null() {
-            frame.output().get_font().pixel_size as i64
+        if !frame.font().is_null() {
+            frame.font().pixel_size as i64
         } else {
             // fallback font size
             16

@@ -1,3 +1,5 @@
+use crate::frame::LispFrameWindowSystemExt;
+use crate::output::OutputRef;
 use std::ptr;
 use std::{cmp::max, ffi::CString};
 
@@ -17,14 +19,17 @@ use crate::{
 use emacs::{
     bindings::{
         block_input, display_and_set_cursor, draw_window_fringes, face_id, glyph_row_area,
-        gui_clear_cursor, gui_draw_right_divider, gui_draw_vertical_border, run, unblock_input,
+        gui_clear_cursor, gui_draw_right_divider, gui_draw_vertical_border, image as Emacs_Image,
+        run, unblock_input,
     },
     bindings::{
         draw_fringe_bitmap_params, fontset_from_font, glyph_row, glyph_string, terminal,
-        text_cursor_kinds, Emacs_Color, Emacs_Pixmap,
+        text_cursor_kinds, Emacs_Color, Emacs_Pixmap, Fprovide, Fredisplay, Fredraw_display,
+        Fredraw_frame,
     },
     font::LispFontRef,
     frame::{LispFrameRef, Lisp_Frame},
+    globals::{Qnil, Qt, Qwr},
     glyph::GlyphStringRef,
     lisp::{ExternalPtr, LispObject},
     window::{LispWindowRef, Lisp_Window},
@@ -276,6 +281,7 @@ pub extern "C" fn wr_draw_window_cursor(
     }
 }
 
+#[no_mangle]
 pub extern "C" fn wr_get_string_resource(
     _rdb: *mut libc::c_void,
     _name: *const libc::c_char,
@@ -300,13 +306,13 @@ pub extern "C" fn wr_new_font(
         fontset
     };
 
-    frame.output().set_fontset(fontset);
+    frame.set_fontset(fontset);
 
-    if frame.output().get_font() == font.into() {
+    if frame.font() == font.into() {
         return font_object;
     }
 
-    frame.output().set_font(font.into());
+    frame.set_font(font.into());
 
     frame.line_height = unsafe { (*font).height };
     frame.column_width = unsafe { (*font).average_width };
@@ -392,4 +398,105 @@ pub extern "C" fn wr_free_pixmap(f: *mut Lisp_Frame, pixmap: Emacs_Pixmap) {
 
     let frame: LispFrameRef = f.into();
     frame.canvas().delete_image(image_key);
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn wr_get_baseline_offset(output: OutputRef) -> i32 {
+    0
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn wr_get_pixel(ximg: *mut Emacs_Image, x: i32, y: i32) -> i32 {
+    unimplemented!();
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn wr_put_pixel(ximg: *mut Emacs_Image, x: i32, y: i32, pixel: u64) {
+    unimplemented!();
+}
+
+#[no_mangle]
+pub extern "C" fn wr_can_use_native_image_api(image_type: LispObject) -> bool {
+    crate::image::can_use_native_image_api(image_type)
+}
+
+#[no_mangle]
+pub extern "C" fn wr_load_image(
+    frame: LispFrameRef,
+    img: *mut Emacs_Image,
+    spec_file: LispObject,
+    spec_data: LispObject,
+) -> bool {
+    crate::image::load_image(frame, img, spec_file, spec_data)
+}
+
+#[no_mangle]
+pub extern "C" fn wr_transform_image(
+    frame: LispFrameRef,
+    img: *mut Emacs_Image,
+    width: i32,
+    height: i32,
+    rotation: f64,
+) {
+    crate::image::transform_image(frame, img, width, height, rotation);
+}
+
+#[no_mangle]
+pub extern "C" fn image_pixmap_draw_cross(
+    _frame: LispFrameRef,
+    _pixmap: Emacs_Pixmap,
+    _x: i32,
+    _y: i32,
+    _width: i32,
+    _height: u32,
+    _color: u64,
+) {
+    unimplemented!();
+}
+
+#[no_mangle]
+pub extern "C" fn image_sync_to_pixmaps(_frame: LispFrameRef, _img: *mut Emacs_Image) {
+    unimplemented!();
+}
+
+#[no_mangle]
+pub extern "C" fn wr_adjust_canvas_size(
+    f: *mut Lisp_Frame,
+    _width: ::libc::c_int,
+    _height: ::libc::c_int,
+) {
+    let frame: LispFrameRef = f.into();
+    if frame.is_visible() && !frame.output().is_null() && frame.resized_p() {
+        let size = frame.canvas().device_size();
+        frame.canvas().resize(&size);
+        spin_sleep::sleep(std::time::Duration::from_millis(16));
+        unsafe { Fredisplay(Qt) };
+        unsafe { Fredraw_display() };
+        unsafe { Fredraw_frame(frame.into()) };
+    }
+}
+
+#[no_mangle]
+#[allow(unused_doc_comments)]
+pub extern "C" fn syms_of_webrender() {
+    def_lisp_sym!(Qwr, "wr");
+    unsafe {
+        Fprovide(Qwr, Qnil);
+    }
+
+    #[cfg(feature = "capture")]
+    {
+        let wr_capture_sym =
+            CString::new("wr-capture").expect("Failed to create string for intern function call");
+        def_lisp_sym!(Qwr_capture, "wr-capture");
+        unsafe {
+            Fprovide(
+                emacs::bindings::intern_c_string(wr_capture_sym.as_ptr()),
+                Qnil,
+            );
+        }
+    }
 }

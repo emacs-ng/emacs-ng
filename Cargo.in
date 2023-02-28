@@ -84,7 +84,7 @@ window-system-w32 = ["window-system"]
 # Use the haiku window system
 window-system-haiku = ["window-system"]
 # Use the pgtk window system
-window-system-pgtk = ["window-system"]
+window-system-pgtk = ["window-system", "emacs/window-system-pgtk",]
 # Build with git2rs support
 libgit = ["git", "ng-bindgen/libgit"]
 # Use the webrender

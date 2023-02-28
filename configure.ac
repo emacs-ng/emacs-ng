@@ -1350,9 +1350,10 @@ AC_ARG_WITH([wr-gl],[AS_HELP_STRING([--with-wr-gl=KIT],
 	    y | ye | yes )	val=surfman ;;
 	    s | su | sur | surf | surfm | surfma | surfman )	val=surfman ;;
 	    g | gl | glu | glut | gluti | glutin )	val=glutin ;;
+	        gt | gtk | gtk3  )	val=gtk3 ;;
 	    * )
 AC_MSG_ERROR(['--with-wr-gl=$withval' is invalid;
-this option's value should be 'yes', 'surfman' or 'glutin'.
+this option's value should be 'yes', 'surfman', 'glutin' or 'gtk3'.
 'yes' and 'surfman' are synonyms.])
 	    ;;
 	  esac
@@ -6373,8 +6374,8 @@ AC_SUBST(WINIT_LIBS)
 WEBRENDER_LIBS=
 if test "${with_webrender}" = "yes" ; then
 
-  if test "${window_system}" != "winit" ; then
-     AC_MSG_ERROR(Webrender currently only support winit window system
+  if test "${window_system}" != "winit" && test "${window_system}" != "pgtk" ; then
+     AC_MSG_ERROR(Webrender currently only supports winit and pgtk window system.
      Current window system detection is $window_system. Please explicitly
      provide --with-winit.)
   fi
@@ -7101,10 +7102,36 @@ case "${window_system}" in
     ;;
     pgtk)
         CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-pgtk\", "
+	if test "${with_webrender}" = "yes" ; then
+	   WEBRENDER_EXTRA_FEATURES="\"wrterm/pgtk\", ${WEBRENDER_EXTRA_FEATURES}"
+	fi
     ;;
 esac
 if test "${with_webrender}" = "yes" ; then
    CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"webrender\", "
+   if test "X${with_wr_gl}" = "X"; then
+	case "${window_system}" in
+	    winit)
+		if test "X$with_winit" = "Xtao"; then
+		   with_wr_gl=gtk3
+		else
+		   with_wr_gl=surfman
+		fi
+	    ;;
+	    pgtk)
+		with_wr_gl=gtk3
+	    ;;
+	esac
+   fi
+
+   if test "${window_system}" = "pgtk" && test "${with_wr_gl}" != "gtk3"; then
+      AC_MSG_ERROR(PGTK with webrender currently only supports --with-wr-gl=gtk3.)
+   fi
+
+   if test "X$with_winit" = "Xwinit" && test "${with_wr_gl}" == "gtk3"; then
+      AC_MSG_ERROR(Winit does not support --with-wr-gl=gtk3.)
+   fi
+
    case "${with_wr_gl}" in
       glutin ) WEBRENDER_EXTRA_FEATURES="\"wrterm/glutin\", ${WEBRENDER_EXTRA_FEATURES}";;
       gtk3 ) WEBRENDER_EXTRA_FEATURES="\"wrterm/gtk3\", ${WEBRENDER_EXTRA_FEATURES}";;
@@ -7206,7 +7233,8 @@ if test "${HAVE_XFT}" = yes; then
     relevant development headers are installed).])
 fi
 
-if test "${HAVE_CAIRO}" = "yes" && test "${HAVE_HARFBUZZ}" = no; then
+if test "${HAVE_CAIRO}" = "yes" && test "${HAVE_HARFBUZZ}" = no \
+   && test "${with_webrender}" != "yes"; then
   AC_MSG_WARN([This configuration uses the Cairo graphics library,
     but not the HarfBuzz font shaping library (minimum version $harfbuzz_required_ver).
     We recommend the use of HarfBuzz when using Cairo, please install
