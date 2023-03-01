@@ -2,18 +2,37 @@
   let global = (1, eval)("this");
   const callbackMap = {};
 
-  setInterval(() => {
-    const ret = recv_from_lisp();
+
+
+  const timer = () => {
+    const lispval = recv_from_lisp();
     try {
-      if (ret) {
-        if (callbackMap[ret] !== undefined) {
-          callbackMap[ret]();
+      if (lispval) {
+        if (callbackMap[lispval.id] !== undefined) {
+          callbackMap[lispval.id](lispval.result);
         }
       }
     } catch (e) {
       console.log(`Exception ${e}`);
     }
-  }, 0);
+
+    setTimeout(timer, 0);
+  }
+  setTimeout(timer, 0);
+
+  const camelToKebabCase = (str) => {
+    let result = "";
+    for (let i = 0; i < str.length; ++i) {
+      const char = str.charAt(i);
+      if (char === char.toUpperCase()) {
+        result += `-${char.toLowerCase()}`;
+      } else {
+        result += char;
+      }
+    }
+
+    return result;
+  };
 
   global.lisp = new Proxy({}, {
     get: function (_object, key, _) {
@@ -22,7 +41,7 @@
       }
 
       return function() {
-        let callarg = key;
+        let callarg = camelToKebabCase(key);
         for (let i = 0; i < arguments.length; ++i) {
           callarg += ` ${arguments[i]} `;
         }

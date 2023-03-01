@@ -1239,28 +1239,12 @@ macro_rules! lisp_yield {
 //     execute_function_may_throw(scope, &fnc, &v8_args)
 // }
 
-// /// Reads and evaluates FILENAME as a JavaScript module on
-// /// the main emacs thread.
-// ///
-// /// If the file does not end in '.js', it will be evaluated as TypeScript.
-// /// If :typescript t is passed, the file will be evaluated at TypeScript.
-// /// Repeated calls to eval-js-file will re-evaluate the
-// /// provided module for the same file. This is not how
-// /// ES6 modules normally work - they are designed to be
-// /// immutable. However this is not inline with user's
-// /// expectation of this function.
-// ///
-// /// If the evaluated JavaScript generates a top-level
-// /// Promise rejection, the JavaScript environment will be
-// /// reset and reinitalized lazily. If that happens, all
-// /// global state will be reset. This can be prevented by
-// /// implementing a top level Promise error handler.
+/// Reads and evaluates FILENAME as JavaScript
 #[lisp_fn(min = "1")]
 pub fn js_eval_file(args: &[LispObject]) -> LispObject {
     let filename: LispStringRef = args[0].into();
     let module = filename.to_utf8();
 
-    // @TODO have this be a thread pool, or just tokio.
     let id = inc_auto_id!();
     {
         let gaurd = main_to_js_lock.lock().unwrap();
@@ -1268,12 +1252,6 @@ pub fn js_eval_file(args: &[LispObject]) -> LispObject {
             chnl.send(RequestMsg { id: id, action: Action::ExecuteFile(module) }).expect("Failure to send");
         }
     }
-    // std::thread::spawn(move || {
-    //     content =
-    // });
-
-
-    // run_module(&module, Some(import), &ops, is_typescript)
     id.into()
 }
 
@@ -1331,18 +1309,12 @@ fn get_region(start: LispObject, end: LispObject) -> LispObject {
     }
 }
 
-// /// Evaluate the contents of REGION as JavaScript.
-// ///
-// /// If the evaluated JavaScript generates a top-level
-// /// Promise rejection, the JavaScript environment will be
-// /// reset and reinitalized lazily. If that happens, all
-// /// global state will be reset. This can be prevented by
-// /// implementing a top level Promise error handler.
-// #[lisp_fn(intspec = "r")]
-// pub fn eval_js_region(start: LispObject, end: LispObject) -> LispObject {
-//     let lisp_string = get_region(start, end);
-//     eval_js(&[lisp_string])
-// }
+/// Evaluate the contents of REGION.
+#[lisp_fn(intspec = "r")]
+pub fn js_eval_region(start: LispObject, end: LispObject) -> LispObject {
+    let lisp_string = get_region(start, end);
+    js_eval_string(lisp_string)
+}
 
 // /// Evaluate the contents of REGION as TypeScript.
 // ///
@@ -1392,6 +1364,7 @@ pub fn send_to_lisp(
     }
 }
 
+// @TODO this needs proper error signaling.
 pub fn recv_from_lisp(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
@@ -1400,12 +1373,36 @@ pub fn recv_from_lisp(
     {
         let lock = lisp_worker_to_js_recv_lock.lock().unwrap();
         if let Some(chnl) = &*lock {
-            let result = chnl.try_recv();
-            if let Ok(msg) = result {
-                println!("{:?}", msg);
-                // @TODO send msg and id;
-                _retval.set_uint32(msg.id as u32);
+            let recv_msg = chnl.try_recv();
+            if let Err(_) = recv_msg {
+                return;
             }
+
+            let msg = recv_msg.unwrap();
+            let result = msg.res;
+
+            // @TODO if this is an error, throw to JS
+            let response = result.map_or_else(
+                    |e| e.to_string(),
+                    |f| {
+                        let Response::Success(success_result) = f;
+                        success_result
+            });
+
+
+                let id_v8string = v8::String::new(scope, "id").unwrap();
+                let result_v8string = v8::String::new(scope, "result").unwrap();
+
+
+                let ret_object = v8::Object::new(scope);
+                let ret_id = v8::Integer::new(scope, msg.id as i32);
+                ret_object.set(scope, id_v8string.into(), ret_id.into());
+
+                let content = v8::String::new(scope, &response).unwrap();
+                ret_object.set(scope, result_v8string.into(), content.into());
+
+                println!("{:?}", response);
+                _retval.set(ret_object.into());
         }
     }
 }
@@ -1746,9 +1743,11 @@ pub fn js_lisp_thread(_args: &[LispObject]) -> LispObject {
                 lstring,
             ];
             let result = unsafe { Ffuncall(args.len().try_into().unwrap(), args.as_mut_ptr()) };
+            println!("Executed with result...");
             let lisp_result = if let Some(cons) = result.as_cons() {
                 let car = cons.car();
                 if car == emacs::globals::Qjs_error {
+                    println!("Error in lisp...");
                     cons.cdr()
                 } else {
                     result
@@ -1757,15 +1756,17 @@ pub fn js_lisp_thread(_args: &[LispObject]) -> LispObject {
                 result
             };
 
-            let res_string: LispStringRef = lsp_json::parsing::json_se(&[lisp_result]).into();
-            let rust_string = res_string.to_utf8();
-            println!("Sending result to js {:?}", rust_string);
+            println!("Performing ser...");
+            let ser_result = lsp_json::parsing::ser(lisp_result);
+            let res = ser_result.map(|s| Response::Success(s))
+                                .map_err(|e| anyhow!(e.to_string()));
+            // println!("Sending result to js {:?}", result_string);
             let lock = lisp_worker_to_js_send_lock.lock().unwrap();
             // @TODO in error case, send the err enum for res
             if let Some(chnl) = &*lock {
                 chnl.send(ResponseMsg {
                     id: request.id,
-                    res: Ok(Response::Success(rust_string))
+                    res: res
                 }).expect("Failed to send");
             }
         }
