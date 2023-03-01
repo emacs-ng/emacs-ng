@@ -79,6 +79,10 @@
               drv = packages.emacsng;
               exePath = "/bin/emacs";
             };
+            emacsngWRPgtk = flake-utils.lib.mkApp {
+              drv = packages.emacsngWRPgtk;
+              exePath = "/bin/emacs";
+            };
             emacsng-noNativeComp = flake-utils.lib.mkApp {
               drv = packages.emacsng-noNativeComp;
               exePath = "/bin/emacs";
@@ -98,6 +102,7 @@
                 (pkgs)
                 emacsng
                 emacsng-noNativeComp
+                emacsngWRPgtk
                 ;
               default = pkgs.emacsng;
             };
@@ -294,6 +299,25 @@
           .overrideAttrs (
             oa: {
               name = "${oa.name}-no-native-comp";
+            }
+          )
+        );
+        emacsngWRPgtk = (
+          (
+            emacsng.override {
+              withPgtk = true;
+            }
+          )
+          .overrideAttrs (
+            oa: {
+              name = "${oa.name}-wr-pgtk";
+              configureFlags =
+              (
+                  prev.lib.subtractLists [
+                    "--with-winit"
+                  ]
+                  oa.configureFlags
+              );
             }
           )
         );
