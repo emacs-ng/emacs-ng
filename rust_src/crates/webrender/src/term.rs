@@ -24,12 +24,11 @@ use emacs::{
     },
     bindings::{
         draw_fringe_bitmap_params, fontset_from_font, glyph_row, glyph_string, terminal,
-        text_cursor_kinds, Emacs_Color, Emacs_Pixmap, Fprovide, Fredisplay, Fredraw_display,
-        Fredraw_frame,
+        text_cursor_kinds, Emacs_Color, Emacs_Pixmap, Fprovide,
     },
     font::LispFontRef,
     frame::{LispFrameRef, Lisp_Frame},
-    globals::{Qnil, Qt, Qwr},
+    globals::{Qnil, Qwr},
     glyph::GlyphStringRef,
     lisp::{ExternalPtr, LispObject},
     window::{LispWindowRef, Lisp_Window},
@@ -464,18 +463,28 @@ pub extern "C" fn image_sync_to_pixmaps(_frame: LispFrameRef, _img: *mut Emacs_I
 
 #[no_mangle]
 pub extern "C" fn wr_adjust_canvas_size(
-    f: *mut Lisp_Frame,
+    _f: *mut Lisp_Frame,
     _width: ::libc::c_int,
     _height: ::libc::c_int,
 ) {
-    let frame: LispFrameRef = f.into();
-    if frame.is_visible() && !frame.output().is_null() && frame.resized_p() {
-        let size = frame.canvas().device_size();
-        frame.canvas().resize(&size);
-        spin_sleep::sleep(std::time::Duration::from_millis(16));
-        unsafe { Fredisplay(Qt) };
-        unsafe { Fredraw_display() };
-        unsafe { Fredraw_frame(frame.into()) };
+    if unsafe { emacs::bindings::inhibit_window_system } {
+        return;
+    }
+    #[cfg(window_system_pgtk)]
+    {
+        let frame: LispFrameRef = _f.into();
+
+        if frame.is_visible()
+            && frame.resized_p()
+            && frame.output_method() == emacs::bindings::output_method::output_pgtk
+        {
+            let size = frame.size();
+            frame.canvas().resize(&size);
+            spin_sleep::sleep(std::time::Duration::from_millis(16));
+            unsafe { emacs::bindings::Fredisplay(emacs::globals::Qt) };
+            unsafe { emacs::bindings::Fredraw_display() };
+            unsafe { emacs::bindings::Fredraw_frame(frame.into()) };
+        }
     }
 }
 

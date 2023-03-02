@@ -906,7 +906,7 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
 /**   f->resized_p = (new_native_width != old_native_width **/
 /** 		  || new_native_height != old_native_height); **/
 
-#if defined (USE_WEBRENDER) || defined (HAVE_PGTK)
+#if defined (USE_WEBRENDER) && defined (HAVE_PGTK)
   wr_adjust_canvas_size (f, new_native_width, new_native_height);
 #endif
 
