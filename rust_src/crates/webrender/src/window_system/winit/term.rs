@@ -376,7 +376,6 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
 
                     WindowEvent::Resized(size) => {
                         let size = DeviceIntSize::new(size.width as i32, size.height as i32);
-                        canvas.resize(&size);
 
                         let frame: LispFrameRef = frame.into();
                         frame.change_size(
@@ -386,6 +385,10 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                             true,
                             false,
                         );
+
+                        // resize after frame size been set
+                        // canvas read size from frame
+                        canvas.resize(&size);
 
                         unsafe { do_pending_window_change(false) };
                     }
