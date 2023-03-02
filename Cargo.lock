@@ -1628,7 +1628,7 @@ dependencies = [
 [[package]]
 name = "glsl-to-cxx"
 version = "0.1.0"
-source = "git+https://github.com/servo/webrender.git?rev=a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd#a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd"
+source = "git+https://github.com/servo/webrender.git?rev=23f5f305624bd00f450407180fdef74796bd3964#23f5f305624bd00f450407180fdef74796bd3964"
 dependencies = [
  "glsl",
 ]
@@ -2828,7 +2828,7 @@ checksum = "d01a5bd0424d00070b0098dd17ebca6f961a959dead1dbcbbbc1d1cd8d3deeba"
 [[package]]
 name = "peek-poke"
 version = "0.3.0"
-source = "git+https://github.com/servo/webrender.git?rev=a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd#a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd"
+source = "git+https://github.com/servo/webrender.git?rev=23f5f305624bd00f450407180fdef74796bd3964#23f5f305624bd00f450407180fdef74796bd3964"
 dependencies = [
  "euclid",
  "peek-poke-derive",
@@ -2837,7 +2837,7 @@ dependencies = [
 [[package]]
 name = "peek-poke-derive"
 version = "0.3.0"
-source = "git+https://github.com/servo/webrender.git?rev=a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd#a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd"
+source = "git+https://github.com/servo/webrender.git?rev=23f5f305624bd00f450407180fdef74796bd3964#23f5f305624bd00f450407180fdef74796bd3964"
 dependencies = [
  "proc-macro2 1.0.49",
  "quote 1.0.23",
@@ -3781,7 +3781,7 @@ checksum = "8fb1df15f412ee2e9dfc1c504260fa695c1c3f10fe9f4a6ee2d2184d7d6450e2"
 [[package]]
 name = "swgl"
 version = "0.1.0"
-source = "git+https://github.com/servo/webrender.git?rev=a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd#a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd"
+source = "git+https://github.com/servo/webrender.git?rev=23f5f305624bd00f450407180fdef74796bd3964#23f5f305624bd00f450407180fdef74796bd3964"
 dependencies = [
  "cc",
  "gleam",
@@ -4724,7 +4724,7 @@ dependencies = [
 [[package]]
 name = "webrender"
 version = "0.62.0"
-source = "git+https://github.com/servo/webrender.git?rev=a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd#a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd"
+source = "git+https://github.com/servo/webrender.git?rev=23f5f305624bd00f450407180fdef74796bd3964#23f5f305624bd00f450407180fdef74796bd3964"
 dependencies = [
  "bincode",
  "bitflags",
@@ -4741,6 +4741,7 @@ dependencies = [
  "log",
  "malloc_size_of_derive",
  "num-traits",
+ "peek-poke",
  "plane-split",
  "rayon",
  "ron",
@@ -4760,7 +4761,7 @@ dependencies = [
 [[package]]
 name = "webrender_api"
 version = "0.62.0"
-source = "git+https://github.com/servo/webrender.git?rev=a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd#a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd"
+source = "git+https://github.com/servo/webrender.git?rev=23f5f305624bd00f450407180fdef74796bd3964#23f5f305624bd00f450407180fdef74796bd3964"
 dependencies = [
  "app_units",
  "bitflags",
@@ -4779,7 +4780,7 @@ dependencies = [
 [[package]]
 name = "webrender_build"
 version = "0.0.2"
-source = "git+https://github.com/servo/webrender.git?rev=a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd#a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd"
+source = "git+https://github.com/servo/webrender.git?rev=23f5f305624bd00f450407180fdef74796bd3964#23f5f305624bd00f450407180fdef74796bd3964"
 dependencies = [
  "bitflags",
  "lazy_static",
@@ -5025,7 +5026,7 @@ dependencies = [
 [[package]]
 name = "wr_glyph_rasterizer"
 version = "0.1.0"
-source = "git+https://github.com/servo/webrender.git?rev=a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd#a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd"
+source = "git+https://github.com/servo/webrender.git?rev=23f5f305624bd00f450407180fdef74796bd3964#23f5f305624bd00f450407180fdef74796bd3964"
 dependencies = [
  "core-foundation",
  "core-graphics",
@@ -5050,7 +5051,7 @@ dependencies = [
 [[package]]
 name = "wr_malloc_size_of"
 version = "0.0.2"
-source = "git+https://github.com/servo/webrender.git?rev=a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd#a578ce7ebf7ae3f50948d1620c7a41d422cc3bfd"
+source = "git+https://github.com/servo/webrender.git?rev=23f5f305624bd00f450407180fdef74796bd3964#23f5f305624bd00f450407180fdef74796bd3964"
 dependencies = [
  "app_units",
  "euclid",
