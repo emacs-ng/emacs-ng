@@ -6,7 +6,7 @@ use crate::window_system::api::event::{ModifiersState, VirtualKeyCode};
 #[cfg(use_tao)]
 use crate::window_system::api::keyboard::{KeyCode as VirtualKeyCode, ModifiersState};
 use crate::window_system::api::{
-    dpi::{LogicalPosition, PhysicalPosition},
+    dpi::PhysicalPosition,
     event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase},
 };
 use emacs::{
@@ -200,7 +200,7 @@ impl InputProcessor {
             _ => todo!(),
         };
 
-        let mut pos = LogicalPosition::new(0, 0);
+        let mut pos = PhysicalPosition::new(0, 0);
 
         if let Some(frame) = top_frame.as_frame() {
             pos = frame.cursor_position();
@@ -289,7 +289,7 @@ impl InputProcessor {
 
         let (kind, is_upper, lines) = event_meta.unwrap();
 
-        let mut pos = LogicalPosition::new(0, 0);
+        let mut pos = PhysicalPosition::new(0, 0);
 
         if let Some(frame) = top_frame.as_frame() {
             pos = frame.cursor_position();

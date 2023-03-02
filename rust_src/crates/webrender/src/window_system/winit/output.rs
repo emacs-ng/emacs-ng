@@ -13,7 +13,6 @@ pub struct OutputInner {
     pub cursor_foreground_color: ColorF,
     pub window_handle: Option<RawWindowHandle>,
     pub window: Option<crate::window_system::api::window::Window>,
-    #[cfg(use_winit)]
     pub cursor_position: crate::window_system::api::dpi::PhysicalPosition<f64>,
     pub canvas: CanvasRef,
 }
@@ -25,9 +24,7 @@ impl Default for OutputInner {
             cursor_color: ColorF::BLACK,
             cursor_foreground_color: ColorF::WHITE,
             window_handle: None,
-            #[cfg(window_system_winit)]
             window: None,
-            #[cfg(all(window_system_winit, use_winit))]
             cursor_position: crate::window_system::api::dpi::PhysicalPosition::new(0.0, 0.0),
             canvas: CanvasRef::new(ptr::null_mut() as *mut _ as *mut Canvas),
         }
@@ -39,7 +36,6 @@ impl OutputInner {
         self.canvas = CanvasRef::new(Box::into_raw(canvas));
     }
 
-    #[cfg(window_system_winit)]
     pub fn set_window(&mut self, window: crate::window_system::api::window::Window) {
         self.window = Some(window);
     }
@@ -48,7 +44,6 @@ impl OutputInner {
         self.cursor_color = color;
     }
 
-    #[cfg(use_winit)]
     pub fn set_cursor_position(
         &mut self,
         pos: crate::window_system::api::dpi::PhysicalPosition<f64>,

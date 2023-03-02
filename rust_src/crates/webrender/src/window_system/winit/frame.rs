@@ -23,10 +23,7 @@ use webrender::api::ColorF;
 use crate::frame::LispFrameWindowSystemExt;
 use crate::output::Output;
 
-use crate::window_system::api::{
-    dpi::{LogicalPosition, PhysicalPosition},
-    window::WindowBuilder,
-};
+use crate::window_system::api::{dpi::PhysicalPosition, window::WindowBuilder};
 
 use crate::display_info::DisplayInfoRef;
 
@@ -42,7 +39,6 @@ pub trait LispFrameWinitExt {
     fn set_window(&self, handle: crate::window_system::api::window::Window);
     fn set_cursor_color(&self, color: ColorF);
     fn set_background_color(&self, color: ColorF);
-    #[cfg(use_winit)]
     fn set_cursor_position(&self, pos: PhysicalPosition<f64>);
     fn set_visible_(&mut self, visible: bool);
     fn set_cursor_icon(&self, cursor: Emacs_Cursor);
@@ -51,7 +47,7 @@ pub trait LispFrameWinitExt {
     fn implicitly_set_name(&mut self, arg: LispObject, _old_val: LispObject);
     fn iconify(&mut self);
     fn current_monitor(&self) -> Option<MonitorHandle>;
-    fn cursor_position(&self) -> LogicalPosition<i32>;
+    fn cursor_position(&self) -> PhysicalPosition<i32>;
 }
 
 impl LispFrameWindowSystemExt for LispFrameRef {
@@ -166,7 +162,6 @@ impl LispFrameWinitExt for LispFrameRef {
         self.output().inner().set_window(window);
     }
 
-    #[cfg(use_winit)]
     fn set_cursor_position(&self, pos: PhysicalPosition<f64>) {
         self.output().inner().set_cursor_position(pos);
     }
@@ -311,25 +306,7 @@ impl LispFrameWinitExt for LispFrameRef {
         window.current_monitor()
     }
 
-    fn cursor_position(&self) -> LogicalPosition<i32> {
-        let inner = self.output().inner();
-        let window = inner
-            .window
-            .as_ref()
-            .expect("frame doesnt have associated winit window yet");
-        #[cfg(use_tao)]
-        {
-            if let Ok(pos) = window.cursor_position() {
-                return LogicalPosition::<i32>::from_physical(pos, 1.0 / window.scale_factor());
-            }
-            LogicalPosition::new(0, 0)
-        }
-        #[cfg(use_winit)]
-        {
-            LogicalPosition::<i32>::from_physical(
-                inner.cursor_position,
-                1.0 / window.scale_factor(),
-            )
-        }
+    fn cursor_position(&self) -> PhysicalPosition<i32> {
+        self.output().inner().cursor_position.cast::<i32>()
     }
 }

@@ -338,7 +338,6 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                             )
                         };
 
-                        #[cfg(use_winit)]
                         frame.set_cursor_position(position);
 
                         frame.set_mouse_moved(true);
