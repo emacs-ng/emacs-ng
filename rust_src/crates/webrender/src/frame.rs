@@ -18,6 +18,7 @@ pub trait LispFrameWindowSystemExt {
     fn cursor_foreground_color(&self) -> ColorF;
     fn window_handle(&self) -> Option<RawWindowHandle>;
     fn display_handle(&self) -> Option<RawDisplayHandle>;
+    fn scale_factor(&mut self) -> f64;
     fn unique_id(&self) -> FrameId;
 }
 

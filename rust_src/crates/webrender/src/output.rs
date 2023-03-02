@@ -305,7 +305,7 @@ impl Canvas {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let elapsed = now.elapsed();
-            log::debug!("wr add font instance in {:?}", elapsed);
+            log::trace!("wr add font instance in {:?}", elapsed);
         }
         key
     }
@@ -333,7 +333,7 @@ impl Canvas {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let elapsed = now.elapsed();
-            log::debug!("wr add font in {:?}", elapsed);
+            log::trace!("wr add font in {:?}", elapsed);
         }
         font_key
     }
@@ -400,7 +400,7 @@ impl Canvas {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let elapsed = now.elapsed();
-            log::debug!("get_or_create_font in {:?}", elapsed);
+            log::trace!("get_or_create_font in {:?}", elapsed);
         }
 
         None
@@ -436,7 +436,7 @@ impl Canvas {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let elapsed = now.elapsed();
-            log::debug!("get_or_create_font_instance in {:?}", elapsed);
+            log::trace!("get_or_create_font_instance in {:?}", elapsed);
         }
         key
     }

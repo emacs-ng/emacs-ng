@@ -63,6 +63,13 @@ impl LispFrameWindowSystemExt for LispFrameRef {
         self.output().inner().cursor_color
     }
 
+    fn scale_factor(&mut self) -> f64 {
+        if let Some(monitor) = self.current_monitor() {
+            return monitor.scale_factor();
+        }
+        1.0
+    }
+
     fn cursor_foreground_color(&self) -> ColorF {
         self.output().inner().cursor_foreground_color
     }

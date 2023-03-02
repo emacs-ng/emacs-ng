@@ -545,10 +545,8 @@ pub fn winit_term_init(display_name: LispObject) -> DisplayInfoRef {
     let window_builder = WindowBuilder::new().with_visible(false);
     let window = window_builder.build(&event_loop.el()).unwrap();
     let raw_display_handle = window.raw_display_handle();
-    let scale_factor = window.scale_factor();
 
     dpyinfo_ref.get_inner().raw_display_handle = Some(raw_display_handle);
-    dpyinfo_ref.get_inner().scale_factor = scale_factor as f32;
 
     let conn = match raw_display_handle {
         #[cfg(free_unix)]

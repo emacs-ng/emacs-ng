@@ -1,3 +1,4 @@
+use crate::frame::LispFrameWindowSystemExt;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
@@ -367,9 +368,7 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     }
     let desc = desc.unwrap();
 
-    let frame: LispFrameRef = frame.into();
-
-    let mut dpyinfo = frame.display_info();
+    let mut frame: LispFrameRef = frame.into();
 
     let pixel_size = if pixel_size == 0 {
         // pixel_size here reflects to DPR 1 for webrender display, we have scale_factor from winit.
@@ -385,7 +384,7 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
         pixel_size as i64
     };
 
-    let device_pixel_ratio = dpyinfo.scale_factor();
+    let device_pixel_ratio = frame.scale_factor() as f32;
     let glyph_size = pixel_size as f32 * device_pixel_ratio;
 
     let font_object: LispFontLike = unsafe {

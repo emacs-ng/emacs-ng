@@ -19,8 +19,6 @@ pub struct DisplayInfoInner {
     pub fringe_bitmap_caches: HashMap<i32, FringeBitmap>,
 
     pub raw_display_handle: Option<RawDisplayHandle>,
-
-    pub scale_factor: f32,
 }
 
 impl Default for DisplayInfoInner {
@@ -36,7 +34,6 @@ impl Default for DisplayInfoInner {
 
             fringe_bitmap_caches: HashMap::new(),
             raw_display_handle: None,
-            scale_factor: 1.0,
         }
     }
 }
@@ -72,12 +69,6 @@ impl DisplayInfo {
 
     pub fn get_raw(&mut self) -> ExternalPtr<display_info> {
         (&mut self.0 as *mut display_info).into()
-    }
-
-    // TODO get dynamic scale factor from raw_display_handle
-    // or update scale factor when changed
-    pub fn scale_factor(&mut self) -> f32 {
-        self.get_inner().scale_factor
     }
 
     pub fn get_color_bits(&self) -> u8 {
