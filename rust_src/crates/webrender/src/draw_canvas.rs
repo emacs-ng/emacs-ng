@@ -145,7 +145,8 @@ impl Renderer for LispFrameRef {
     }
 
     fn draw_char_glyph_string(&mut self, s: GlyphStringRef) {
-        let font = WRFontRef::new(s.font as *mut WRFont);
+        let mut font = WRFontRef::new(s.font as *mut WRFont);
+        font.realize();
 
         let x_start = s.x;
         let y_start = s.y + (font.font.ascent + (s.height - font.font.height) / 2);
@@ -336,7 +337,8 @@ impl Renderer for LispFrameRef {
                 self.clear_area(self.cursor_color(), s.x, s.y, s.width, s.height);
             }
         } else if !unsafe { (*s.first_glyph).u.cmp.automatic() } {
-            let font = WRFontRef::new(s.font as *mut WRFont);
+            let mut font = WRFontRef::new(s.font as *mut WRFont);
+            font.realize();
 
             let x = if !s.face.is_null()
                 && unsafe { (*s.face).box_() } != FACE_NO_BOX
