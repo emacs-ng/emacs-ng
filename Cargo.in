@@ -126,3 +126,7 @@ rev = "258d5bb99c7285e3e1b0946cb8f6f4482067a7ff"
 [patch.crates-io.surfman-chains]
 git = "https://github.com/servo/surfman-chains.git"
 rev = "57cd1e290205a5459969bfe4cf0852d3bfec189c"
+
+[patch.crates-io.tao]
+git = "https://github.com/tauri-apps/tao"
+rev = "28b53f80c49bbf2ae8902b98a2e28f6451a5a8f1"
