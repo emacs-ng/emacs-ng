@@ -6,6 +6,7 @@ use ng_bindgen::{generate_crate_exports, BuildError};
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/wrterm.rs");
+    println!("cargo:rerun-if-changed=src/term.rs");
     println!("cargo:rerun-if-changed=src/event_loop.rs");
     // TODO watch relevent files to re rerun, rs files under src?
 

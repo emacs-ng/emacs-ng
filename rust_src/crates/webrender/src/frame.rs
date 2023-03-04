@@ -1,9 +1,11 @@
+use super::font::update_wrfonts;
 use super::font::FontRef;
 use crate::gl::context::GLContextTrait;
 use crate::output::Canvas;
 use crate::output::CanvasRef;
 use crate::output::OutputRef;
 use crate::window_system::frame::FrameId;
+use emacs::bindings::do_pending_window_change;
 use emacs::frame::LispFrameRef;
 use raw_window_handle::RawDisplayHandle;
 use raw_window_handle::RawWindowHandle;
@@ -18,7 +20,7 @@ pub trait LispFrameWindowSystemExt {
     fn cursor_foreground_color(&self) -> ColorF;
     fn window_handle(&self) -> Option<RawWindowHandle>;
     fn display_handle(&self) -> Option<RawDisplayHandle>;
-    fn scale_factor(&mut self) -> f64;
+    fn scale_factor(&self) -> f64;
     fn unique_id(&self) -> FrameId;
 }
 
@@ -31,6 +33,8 @@ pub trait LispFrameExt {
     fn set_fontset(&mut self, fontset: i32);
     fn display_info(&self) -> DisplayInfoRef;
     fn set_display_info(&mut self, dpyinfo: DisplayInfoRef);
+    fn handle_size_change(&mut self, size: DeviceIntSize, scale_factor: f64);
+    fn handle_scale_factor_change(&mut self, _scale_factor: f64);
     fn create_gl_context(&self) -> crate::gl::context::GLContext;
 }
 
@@ -61,6 +65,27 @@ impl LispFrameExt for LispFrameRef {
 
     fn size(&self) -> DeviceIntSize {
         DeviceIntSize::new(self.pixel_width, self.pixel_height)
+    }
+
+    fn handle_size_change(&mut self, size: DeviceIntSize, _scale_factor: f64) {
+        self.change_size(
+            size.width as i32,
+            size.height as i32 - self.menu_bar_height,
+            false,
+            true,
+            false,
+        );
+
+        unsafe { do_pending_window_change(false) };
+
+        // resize after frame size been set
+        // canvas read size from frame
+        self.canvas().resize(&size);
+    }
+
+    fn handle_scale_factor_change(&mut self, scale_factor: f64) {
+        log::trace!("frame handle_scale_factor_change...");
+        update_wrfonts(self.unique_id(), scale_factor as f32);
     }
 
     fn canvas(&self) -> CanvasRef {

@@ -19,7 +19,6 @@ use webrender::{self, api::units::*, api::*, RenderApi, Renderer, Transaction};
 use emacs::frame::LispFrameRef;
 
 use super::texture::TextureResourceManager;
-use super::util::HandyDandyRectBuilder;
 
 pub struct Canvas {
     fonts: HashMap<fontdb::ID, FontKey>,
@@ -56,7 +55,6 @@ impl fmt::Debug for Canvas {
 
 impl Canvas {
     pub fn build(frame: LispFrameRef) -> Self {
-        let size = frame.size();
         let mut gl_context = frame.create_gl_context();
         let gl = gl_context.load_gl();
         gl_context.ensure_is_current();
@@ -88,7 +86,7 @@ impl Canvas {
         let mut txn = Transaction::new();
         txn.set_root_pipeline(pipeline_id);
         let mut api = sender.create_api();
-        let device_size = DeviceIntSize::new(size.width as i32, size.height as i32);
+        let device_size = frame.size();
         let document_id = api.add_document(device_size);
         api.send_transaction(document_id, txn);
 
@@ -153,10 +151,8 @@ impl Canvas {
     }
 
     fn layout_size(&self) -> LayoutSize {
-        LayoutSize::new(
-            self.frame.pixel_width as f32,
-            self.frame.pixel_height as f32,
-        )
+        let device_size = self.device_size();
+        LayoutSize::new(device_size.width as f32, device_size.height as f32)
     }
 
     fn new_builder(&mut self, image: Option<(ImageKey, LayoutRect)>) -> DisplayListBuilder {
@@ -169,7 +165,7 @@ impl Canvas {
         if let Some((image_key, image_rect)) = image {
             let space_and_clip = SpaceAndClipInfo::root_scroll(pipeline_id);
 
-            let bounds = (0, 0).by(layout_size.width as i32, layout_size.height as i32);
+            let bounds = LayoutRect::from_size(layout_size);
 
             builder.push_image(
                 &CommonItemProperties::new(bounds, space_and_clip),
@@ -184,12 +180,8 @@ impl Canvas {
         builder
     }
 
-    pub fn get_frame(&self) -> LispFrameRef {
-        self.frame
-    }
-
     pub fn device_size(&self) -> DeviceIntSize {
-        DeviceIntSize::new(self.frame.pixel_width, self.frame.pixel_height)
+        self.frame.size()
     }
 
     pub fn display<F>(&mut self, f: F)
@@ -481,20 +473,16 @@ impl Canvas {
         self.render_api.send_transaction(self.document_id, txn);
     }
 
-    pub fn resize(&mut self, size: &DeviceIntSize) {
-        log::trace!("resize {size:?}");
-        let device_size = DeviceIntSize::new(size.width as i32, size.height as i32);
-        self.frame.pixel_width = size.width;
-        self.frame.pixel_height = size.height;
-
+    pub fn resize(&mut self, _size: &DeviceIntSize) {
+        let size = self.device_size();
         let device_rect =
-            DeviceIntRect::from_origin_and_size(DeviceIntPoint::new(0, 0), device_size);
-
+            DeviceIntRect::from_origin_and_size(DeviceIntPoint::new(0, 0), size.clone());
+        log::debug!("resize {size:?} rect {device_rect:?}");
         let mut txn = Transaction::new();
         txn.set_document_view(device_rect);
         self.render_api.send_transaction(self.document_id, txn);
 
-        self.gl_context.resize(size);
+        self.gl_context.resize(&size);
     }
 
     pub fn deinit(mut self) {

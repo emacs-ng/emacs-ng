@@ -1,6 +1,10 @@
 use crate::frame::LispFrameWindowSystemExt;
+use crate::window_system::frame::FrameId;
+use emacs::font::LispFontRef;
 use std::collections::HashMap;
+use std::sync::Mutex;
 use std::sync::OnceLock;
+use ttf_parser::LineMetrics;
 
 use std::ffi::CString;
 use std::ptr;
@@ -27,6 +31,24 @@ use emacs::{
 };
 
 use crate::{font_db::FontDB, font_db::FontDescriptor, frame::LispFrameExt};
+
+pub fn wrfonts() -> &'static Mutex<Vec<LispObject>> {
+    static WRFONTS: OnceLock<Mutex<Vec<LispObject>>> = OnceLock::new();
+    WRFONTS.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+pub fn update_wrfonts(id: FrameId, device_pixel_ratio: f32) {
+    let wr_fonts = wrfonts().lock().unwrap().clone();
+    log::debug!("update wrfonts {device_pixel_ratio:?} {:?}", wr_fonts.len());
+    for font in wr_fonts.iter() {
+        let font = LispFontRef::from_vectorlike(font.as_vectorlike().unwrap()).as_font_mut();
+        let mut wr_font = WRFontRef::new(font as *mut WRFont);
+        if wr_font.frame_id != id {
+            continue;
+        }
+        wr_font.update(device_pixel_ratio);
+    }
+}
 
 static FONT_DB: OnceLock<FontDB> = OnceLock::new();
 impl FontDB {
@@ -318,15 +340,20 @@ pub struct WRFont<'a> {
     // extend basic font
     pub font: font,
 
-    pub scale: f32,
-
-    pub glyph_size: f32,
-
     pub face_index: u32,
 
     pub face_info: &'a fontdb::FaceInfo,
 
     pub instance_keys: HashMap<u64, FontInstanceKey>,
+
+    pub frame_id: FrameId,
+    device_pixel_ratio: f32,
+
+    units_per_em: i32,
+    underline_metrics: LineMetrics,
+    ascent: i16,
+    descent: i16,
+    average_width: u16,
 }
 
 impl<'a> WRFont<'a> {
@@ -349,11 +376,74 @@ impl<'a> WRFont<'a> {
                 .map(|i| {
                     font.face
                         .glyph_hor_advance(ttf_parser::GlyphId(i as u16))
-                        .map(|a| (a as f32 * self.scale).round() as i32)
+                        .map(|a| (a as f32 * self.scale()).round() as i32)
                 })
                 .collect();
         }
         Vec::new()
+    }
+    pub fn device_pixel_ratio(&self) -> f32 {
+        self.device_pixel_ratio
+    }
+
+    pub fn glyph_size(&self) -> f32 {
+        self.font.pixel_size as f32 * self.device_pixel_ratio()
+    }
+
+    pub fn scale(&self) -> f32 {
+        self.glyph_size() / self.units_per_em as f32
+    }
+
+    pub fn average_width(&self) -> i32 {
+        (self.average_width as f32 * self.scale()) as i32
+    }
+
+    pub fn ascent(&self) -> i32 {
+        (self.scale() * self.ascent as f32).round() as i32
+    }
+
+    pub fn descent(&self) -> i32 {
+        (-self.scale() * self.descent as f32).round() as i32
+    }
+
+    pub fn space_width(&self) -> i32 {
+        self.average_width()
+    }
+
+    pub fn max_width(&self) -> i32 {
+        self.average_width()
+    }
+
+    pub fn underline_thickness(&self) -> i32 {
+        (self.scale() * self.underline_metrics.thickness as f32) as i32
+    }
+
+    pub fn underline_position(&self) -> i32 {
+        (self.scale() * self.underline_metrics.position as f32) as i32
+    }
+
+    pub fn height(&self) -> i32 {
+        (self.scale() * (self.ascent - self.descent) as f32).round() as i32
+    }
+
+    pub fn baseline_offset(&self) -> i32 {
+        0
+    }
+
+    pub fn update(&mut self, device_pixel_ratio: f32) {
+        if self.device_pixel_ratio == device_pixel_ratio {
+            return;
+        }
+        self.device_pixel_ratio = device_pixel_ratio;
+        self.font.average_width = self.average_width();
+        self.font.ascent = self.ascent();
+        self.font.descent = self.descent();
+        self.font.space_width = self.space_width();
+        self.font.max_width = self.max_width();
+        self.font.underline_thickness = self.underline_thickness();
+        self.font.underline_position = self.underline_position();
+        self.font.height = self.height();
+        self.font.baseline_offset = self.baseline_offset();
     }
 }
 
@@ -368,7 +458,7 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     }
     let desc = desc.unwrap();
 
-    let mut frame: LispFrameRef = frame.into();
+    let frame: LispFrameRef = frame.into();
 
     let pixel_size = if pixel_size == 0 {
         // pixel_size here reflects to DPR 1 for webrender display, we have scale_factor from winit.
@@ -383,9 +473,6 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
         // prefer elisp specific font size
         pixel_size as i64
     };
-
-    let device_pixel_ratio = frame.scale_factor() as f32;
-    let glyph_size = pixel_size as f32 * device_pixel_ratio;
 
     let font_object: LispFontLike = unsafe {
         font_make_object(
@@ -419,37 +506,30 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
         return Qnil;
     }
 
+    wr_font.font.pixel_size = pixel_size as i32;
+
     let font_result = font_result.unwrap();
     wr_font.face_info = font_result.info;
 
+    // store face info
     let face = &font_result.face;
-    let units_per_em = face.units_per_em();
-    let underline_metrics = face.underline_metrics().unwrap();
-    let ascent = face.ascender();
-    let descent = face.descender();
-    let average_width = face.glyph_hor_advance(ttf_parser::GlyphId(0)).unwrap();
-
-    let scale = glyph_size / units_per_em as f32;
-    wr_font.glyph_size = glyph_size;
-    wr_font.scale = scale;
-
-    wr_font.font.pixel_size = pixel_size as i32;
-    wr_font.font.average_width = (average_width as f32 * scale) as i32;
-    wr_font.font.ascent = (scale * ascent as f32).round() as i32;
-    wr_font.font.descent = (-scale * descent as f32).round() as i32;
-    wr_font.font.space_width = wr_font.font.average_width;
-    wr_font.font.max_width = wr_font.font.average_width;
-    wr_font.font.underline_thickness = (scale * underline_metrics.thickness as f32) as i32;
-    wr_font.font.underline_position = (scale * underline_metrics.position as f32) as i32;
-
-    wr_font.font.height = (scale * (ascent - descent) as f32).round() as i32;
-    wr_font.font.baseline_offset = 0;
+    wr_font.units_per_em = face.units_per_em();
+    wr_font.underline_metrics = face.underline_metrics().unwrap();
+    wr_font.ascent = face.ascender();
+    wr_font.descent = face.descender();
+    wr_font.average_width = face.glyph_hor_advance(ttf_parser::GlyphId(0)).unwrap();
+    wr_font.frame_id = frame.unique_id();
+    wr_font.update(frame.scale_factor() as f32);
 
     let driver = FontDriver::global();
     wr_font.font.driver = &driver.0;
 
+    let font = font_object.as_lisp_object();
+
+    wrfonts().lock().unwrap().push(font.clone());
+
     log::trace!("open font done: {:?}", pixel_size);
-    font_object.as_lisp_object()
+    font
 }
 
 extern "C" fn close_font(_font: *mut font) {}
@@ -520,8 +600,8 @@ extern "C" fn text_extents(
         (*metrics).lbearing = 0;
         (*metrics).rbearing = width as i16;
         (*metrics).width = width as i16;
-        (*metrics).ascent = font.font.ascent as i16;
-        (*metrics).descent = font.font.descent as i16;
+        (*metrics).ascent = font.ascent() as i16;
+        (*metrics).descent = font.descent() as i16;
     }
 }
 

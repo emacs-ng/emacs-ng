@@ -20,6 +20,18 @@ impl LispFrameWindowSystemExt for LispFrameRef {
         pixel_to_color(color)
     }
 
+    // PGTK compute glyphs using unscale font etc
+    // Then scale rediplay output all together?
+    // While winit/tao compute scaled glyphs
+    // then directly draw rediplay output with on scale needed
+    fn scale_factor(&self) -> f64 {
+        let scale_factor = unsafe { (*self.output_data.pgtk).watched_scale_factor };
+        if scale_factor != 0.0 {
+            return scale_factor;
+        }
+        1.0
+    }
+
     fn cursor_foreground_color(&self) -> ColorF {
         let color = self.output().as_raw().cursor_foreground_color;
         pixel_to_color(color)

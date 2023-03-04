@@ -42,10 +42,10 @@ use emacs::{
         Fcons,
     },
     bindings::{
-        do_pending_window_change, gui_clear_end_of_line, gui_clear_window_mouse_face,
-        gui_fix_overlapping_area, gui_get_glyph_overhangs, gui_produce_glyphs, gui_set_alpha,
-        gui_set_autolower, gui_set_autoraise, gui_set_border_width, gui_set_bottom_divider_width,
-        gui_set_font, gui_set_font_backend, gui_set_fullscreen, gui_set_horizontal_scroll_bars,
+        gui_clear_end_of_line, gui_clear_window_mouse_face, gui_fix_overlapping_area,
+        gui_get_glyph_overhangs, gui_produce_glyphs, gui_set_alpha, gui_set_autolower,
+        gui_set_autoraise, gui_set_border_width, gui_set_bottom_divider_width, gui_set_font,
+        gui_set_font_backend, gui_set_fullscreen, gui_set_horizontal_scroll_bars,
         gui_set_left_fringe, gui_set_line_spacing, gui_set_no_special_glyphs,
         gui_set_right_divider_width, gui_set_right_fringe, gui_set_screen_gamma,
         gui_set_scroll_bar_height, gui_set_scroll_bar_width, gui_set_unsplittable,
@@ -237,7 +237,6 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                 }
 
                 let frame: LispFrameRef = *frame.unwrap();
-                let mut canvas = frame.canvas();
                 let frame: LispObject = frame.into();
 
                 match event {
@@ -376,20 +375,20 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                     WindowEvent::Resized(size) => {
                         let size = DeviceIntSize::new(size.width as i32, size.height as i32);
 
-                        let frame: LispFrameRef = frame.into();
-                        frame.change_size(
-                            size.width as i32,
-                            size.height as i32 - frame.menu_bar_height,
-                            false,
-                            true,
-                            false,
-                        );
+                        let mut frame: LispFrameRef = frame.into();
+                        frame.handle_size_change(size, 1.0);
+                        frame.handle_scale_factor_change(frame.scale_factor());
+                    }
 
-                        // resize after frame size been set
-                        // canvas read size from frame
-                        canvas.resize(&size);
+                    WindowEvent::ScaleFactorChanged {
+                        scale_factor,
+                        new_inner_size: size,
+                    } => {
+                        let mut frame: LispFrameRef = frame.into();
+                        frame.handle_scale_factor_change(scale_factor);
 
-                        unsafe { do_pending_window_change(false) };
+                        let size = DeviceIntSize::new(size.width as i32, size.height as i32);
+                        frame.handle_size_change(size, scale_factor);
                     }
 
                     WindowEvent::CloseRequested => {

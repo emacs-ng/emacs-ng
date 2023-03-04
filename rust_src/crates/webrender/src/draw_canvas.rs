@@ -156,7 +156,7 @@ impl Renderer for LispFrameRef {
         let gc = s.gc;
         let font_instance_key = self
             .canvas()
-            .get_or_create_font_instance(font, font.glyph_size as f32);
+            .get_or_create_font_instance(font, font.glyph_size() as f32);
 
         self.canvas().display(|builder, space_and_clip| {
             let glyph_indices: Vec<u32> =
@@ -418,7 +418,7 @@ impl Renderer for LispFrameRef {
 
                 let font_instance_key = self
                     .canvas()
-                    .get_or_create_font_instance(font, font.glyph_size as f32);
+                    .get_or_create_font_instance(font, font.glyph_size() as f32);
                 // draw foreground
                 if !glyph_instances.is_empty() {
                     builder.push_text(

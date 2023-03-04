@@ -1142,6 +1142,9 @@ update_watched_scale_factor (struct atimer *timer)
 					   FRAME_CR_SURFACE_DESIRED_WIDTH (f),
 					   FRAME_CR_SURFACE_DESIRED_HEIGHT (f),
 					   true);
+#ifdef USE_WEBRENDER
+      wr_handle_scale_factor_change (f, scale_factor);
+#endif
     }
 }
 
