@@ -2,6 +2,9 @@ use crate::frame::LispFrameWindowSystemExt;
 use crate::output::OutputRef;
 use std::ptr;
 use std::{cmp::max, ffi::CString};
+use lisp_macros::lisp_fn;
+use emacs::multibyte::LispStringRef;
+use emacs::frame::window_frame_live_or_selected;
 
 use webrender::api::units::LayoutPoint;
 use webrender::api::units::LayoutRect;
@@ -461,6 +464,79 @@ pub extern "C" fn image_sync_to_pixmaps(_frame: LispFrameRef, _img: *mut Emacs_I
     unimplemented!();
 }
 
+/// Capture the contents of the current WebRender frame and
+/// save them to a folder relative to the current working directory.
+///
+/// If START-SEQUENCE is not nil, start capturing each WebRender frame to disk.
+/// If there is already a sequence capture in progress, stop it and start a new
+/// one, with the new path and flags.
+#[allow(unused_variables)]
+#[lisp_fn(min = "2")]
+pub fn wr_api_capture(path: LispStringRef, bits_raw: LispObject, start_sequence: LispObject) {
+    #[cfg(not(feature = "capture"))]
+    error!("Webrender capture not avaiable");
+    #[cfg(feature = "capture")]
+    {
+        use std::fs::{create_dir_all, File};
+        use std::io::Write;
+
+        let path = std::path::PathBuf::from(path.to_utf8());
+        match create_dir_all(&path) {
+            Ok(_) => {}
+            Err(err) => {
+                error!("Unable to create path '{:?}' for capture: {:?}", &path, err);
+            }
+        };
+        let bits_raw = unsafe {
+            emacs::bindings::check_integer_range(
+                bits_raw,
+                webrender::CaptureBits::SCENE.bits() as i64,
+                webrender::CaptureBits::all().bits() as i64,
+            )
+        };
+
+        let frame = window_frame_live_or_selected(Qnil);
+        let canvas = frame.canvas();
+        let bits = webrender::CaptureBits::from_bits(bits_raw as _).unwrap();
+        let revision_file_path = path.join("wr.txt");
+        message!("Trying to save webrender capture under {:?}", &path);
+
+        // api call here can possibly make Emacs panic. For example there isn't
+        // enough disk space left. `panic::catch_unwind` isn't support here.
+        if start_sequence.is_nil() {
+            canvas.render_api.save_capture(path, bits);
+        } else {
+            canvas.render_api.start_capture_sequence(path, bits);
+        }
+
+        match File::create(revision_file_path) {
+            Ok(mut file) => {
+                if let Err(err) = write!(&mut file, "{}", "") {
+                    error!("Unable to write webrender revision: {:?}", err)
+                }
+            }
+            Err(err) => error!(
+                "Capture triggered, creating webrender revision info skipped: {:?}",
+                err
+            ),
+        }
+    }
+}
+
+/// Stop a capture begun with `wr--capture'.
+#[lisp_fn(min = "0")]
+pub fn wr_api_stop_capture_sequence() {
+    #[cfg(not(feature = "capture"))]
+    error!("Webrender capture not avaiable");
+    #[cfg(feature = "capture")]
+    {
+        message!("Stop capturing WR state");
+        let frame = window_frame_live_or_selected(Qnil);
+        let canvas = frame.canvas();
+        canvas.render_api.stop_capture_sequence();
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn wr_adjust_canvas_size(
     _f: *mut Lisp_Frame,
@@ -509,3 +585,5 @@ pub extern "C" fn syms_of_webrender() {
         }
     }
 }
+
+include!(concat!(env!("OUT_DIR"), "/term_exports.rs"));

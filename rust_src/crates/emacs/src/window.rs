@@ -35,7 +35,7 @@ impl LispWindowRef {
         unimplemented!();
     }
 
-    #[cfg(feature = "window-system-pgtk")]
+    #[cfg(all(feature = "window-system-pgtk", not(feature = "window-system-winit")))]
     pub fn is_menu_bar(self) -> bool {
         false
     }
@@ -50,7 +50,7 @@ impl LispWindowRef {
         unimplemented!();
     }
 
-    #[cfg(feature = "window-system-pgtk")]
+    #[cfg(all(feature = "window-system-pgtk", not(feature = "window-system-winit")))]
     pub fn is_tool_bar(self) -> bool {
         false
     }

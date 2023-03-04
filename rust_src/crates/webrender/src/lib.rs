@@ -6,7 +6,6 @@
 #[macro_use]
 extern crate emacs;
 extern crate lisp_macros;
-#[cfg(window_system_winit)]
 #[macro_use]
 extern crate lisp_util;
 extern crate colors;
@@ -170,4 +169,6 @@ pub use crate::wrterm::*;
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));
 #[no_mangle]
 #[cfg(not(window_system_winit))]
-pub extern "C" fn wrterm_init_syms() {}
+pub extern "C" fn wrterm_init_syms() {
+    term::rust_init_syms();
+}
