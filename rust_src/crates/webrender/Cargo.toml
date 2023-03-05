@@ -30,7 +30,6 @@ fontdb = "0.12"
 raw-window-handle = "0.5"
 errno = "0.2"
 euclid = "0.22"
-spin_sleep = { version = "1.1", optional = false }
 surfman = { version = "0.6", default-features = false, features = ["sm-raw-window-handle"], optional = true }
 glutin = { version = "0.30.6", optional = true }
 rustybuzz = "0.6"

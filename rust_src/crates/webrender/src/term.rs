@@ -556,7 +556,7 @@ pub extern "C" fn wr_adjust_canvas_size(
         {
             let size = frame.size();
             frame.canvas().resize(&size);
-            spin_sleep::sleep(std::time::Duration::from_millis(16));
+            std::thread::sleep(std::time::Duration::from_millis(16));
             unsafe { emacs::bindings::Fredisplay(emacs::globals::Qt) };
             unsafe { emacs::bindings::Fredraw_display() };
             unsafe { emacs::bindings::Fredraw_frame(frame.into()) };

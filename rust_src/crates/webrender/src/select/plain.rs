@@ -3,6 +3,7 @@ use crate::window_system::api::event_loop::ControlFlow;
 use crate::window_system::api::event_loop::EventLoop;
 use errno::{set_errno, Errno};
 use nix::sys::signal::{self, Signal};
+use nix::sys::time::TimeSpec;
 use std::{
     cell::RefCell,
     time::{Duration, Instant},
@@ -15,8 +16,6 @@ use crate::window_system::api::{
     platform::run_return::EventLoopExtRunReturn,
 };
 use libc::{fd_set, sigset_t, timespec};
-
-use emacs::bindings::make_timespec;
 
 pub fn handle_select(
     event_loop: &mut EventLoop<i32>,
@@ -109,12 +108,17 @@ pub fn handle_select(
 
     let ret = nfds_result.into_inner();
     if ret == 0 {
-        let timespec = unsafe { make_timespec(0, 0) };
-        // Add some delay here avoding high cpu usage on macOS
-        #[cfg(any(macos_platform, use_tao))]
-        spin_sleep::sleep(Duration::from_millis(16));
-        let nfds =
-            unsafe { libc::pselect(nfds, readfds, writefds, _exceptfds, &timespec, _sigmask) };
+        let mut timespec = TimeSpec::from_duration(deadline - Instant::now());
+        let nfds = unsafe {
+            libc::pselect(
+                nfds,
+                readfds,
+                writefds,
+                _exceptfds,
+                timespec.as_mut(),
+                _sigmask,
+            )
+        };
         return nfds;
     }
 
