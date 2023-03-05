@@ -318,10 +318,6 @@ pub struct WRFont<'a> {
     // extend basic font
     pub font: font,
 
-    pub realized: bool,
-
-    pub scale_factor: f32,
-
     pub scale: f32,
 
     pub glyph_size: f32,
@@ -331,50 +327,12 @@ pub struct WRFont<'a> {
     pub face_info: &'a fontdb::FaceInfo,
 
     pub instance_keys: HashMap<u64, FontInstanceKey>,
-
-    pub frame: LispFrameRef,
 }
 
 impl<'a> WRFont<'a> {
     pub fn cache(&self) -> &FontDB {
         let font_db = FontDB::global();
         &font_db
-    }
-
-    pub fn realize(&mut self) {
-        let new_scale_factor = self.frame.scale_factor() as f32;
-        if self.realized && (self.frame.is_null() || (new_scale_factor == self.scale_factor)) {
-            return;
-        }
-        self.scale_factor = new_scale_factor;
-        if let Some(font) = self.cache().get_font(self.face_info.id) {
-            let face = &font.face;
-            let pixel_size = self.font.pixel_size;
-            let glyph_size = pixel_size as f32 * self.scale_factor;
-
-            let units_per_em = face.units_per_em();
-
-            let underline_metrics = face.underline_metrics().unwrap();
-            let ascent = face.ascender();
-            let descent = face.descender();
-            let average_width = face.glyph_hor_advance(ttf_parser::GlyphId(0)).unwrap();
-
-            let scale = glyph_size / units_per_em as f32;
-            self.glyph_size = glyph_size;
-            self.scale = scale;
-
-            self.font.average_width = (average_width as f32 * scale) as i32;
-            self.font.ascent = (scale * ascent as f32).round() as i32;
-            self.font.descent = (-scale * descent as f32).round() as i32;
-            self.font.space_width = self.font.average_width;
-            self.font.max_width = self.font.average_width;
-            self.font.underline_thickness = (scale * underline_metrics.thickness as f32) as i32;
-            self.font.underline_position = (scale * underline_metrics.position as f32) as i32;
-
-            self.font.height = (scale * (ascent - descent) as f32).round() as i32;
-            self.font.baseline_offset = 0;
-        }
-        self.realized = true;
     }
 
     pub fn glyph_for_char(&self, character: char) -> Option<u32> {
@@ -410,13 +368,6 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     }
     let desc = desc.unwrap();
 
-    let font_db = FontDB::global();
-    let font_result = font_db.get_font_matches(desc.clone());
-
-    if font_result.is_none() {
-        return Qnil;
-    }
-
     let mut frame: LispFrameRef = frame.into();
 
     let pixel_size = if pixel_size == 0 {
@@ -432,6 +383,9 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
         // prefer elisp specific font size
         pixel_size as i64
     };
+
+    let device_pixel_ratio = frame.scale_factor() as f32;
+    let glyph_size = pixel_size as f32 * device_pixel_ratio;
 
     let font_object: LispFontLike = unsafe {
         font_make_object(
@@ -458,12 +412,38 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
             .unwrap()
             .as_font_mut() as *mut WRFont,
     );
+    let font_db = FontDB::global();
+    let font_result = font_db.get_font_matches(desc.clone());
 
-    wr_font.face_info = font_result.unwrap().info;
-    wr_font.scale_factor = frame.scale_factor() as f32;
+    if font_result.is_none() {
+        return Qnil;
+    }
+
+    let font_result = font_result.unwrap();
+    wr_font.face_info = font_result.info;
+
+    let face = &font_result.face;
+    let units_per_em = face.units_per_em();
+    let underline_metrics = face.underline_metrics().unwrap();
+    let ascent = face.ascender();
+    let descent = face.descender();
+    let average_width = face.glyph_hor_advance(ttf_parser::GlyphId(0)).unwrap();
+
+    let scale = glyph_size / units_per_em as f32;
+    wr_font.glyph_size = glyph_size;
+    wr_font.scale = scale;
+
     wr_font.font.pixel_size = pixel_size as i32;
-    wr_font.frame = frame;
-    wr_font.realize();
+    wr_font.font.average_width = (average_width as f32 * scale) as i32;
+    wr_font.font.ascent = (scale * ascent as f32).round() as i32;
+    wr_font.font.descent = (-scale * descent as f32).round() as i32;
+    wr_font.font.space_width = wr_font.font.average_width;
+    wr_font.font.max_width = wr_font.font.average_width;
+    wr_font.font.underline_thickness = (scale * underline_metrics.thickness as f32) as i32;
+    wr_font.font.underline_position = (scale * underline_metrics.position as f32) as i32;
+
+    wr_font.font.height = (scale * (ascent - descent) as f32).round() as i32;
+    wr_font.font.baseline_offset = 0;
 
     let driver = FontDriver::global();
     wr_font.font.driver = &driver.0;
@@ -475,8 +455,7 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
 extern "C" fn close_font(_font: *mut font) {}
 
 extern "C" fn encode_char(font: *mut font, c: i32) -> u32 {
-    let mut font = WRFontRef::new(font as *mut WRFont);
-    font.realize();
+    let font = WRFontRef::new(font as *mut WRFont);
 
     std::char::from_u32(c as u32)
         .and_then(|c| font.glyph_for_char(c))
@@ -524,8 +503,7 @@ extern "C" fn text_extents(
     nglyphs: i32,
     metrics: *mut font_metrics,
 ) {
-    let mut font = WRFontRef::new(font as *mut WRFont);
-    font.realize();
+    let font = WRFontRef::new(font as *mut WRFont);
 
     let glyph_indices: Vec<u32> = unsafe { std::slice::from_raw_parts(code, nglyphs as usize) }
         .iter()
