@@ -5066,6 +5066,7 @@ dependencies = [
  "gdk",
  "gdk-sys",
  "gdkwayland-sys",
+ "gdkx11-sys",
  "gl_loader",
  "gleam",
  "glutin",
@@ -5092,6 +5093,7 @@ dependencies = [
  "webrender_surfman",
  "winit",
  "x11",
+ "x11-dl",
 ]
 
 [[package]]

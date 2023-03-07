@@ -63,6 +63,8 @@ gdk = { version = "0.16", optional = true }
 gtk-sys = { version = "0.16", optional = true }
 gdk-sys = { version = "0.16", optional = true }
 gdkwayland-sys = { version = "0.16", optional = true }
+gdkx11-sys = { version = "0.16", optional = true }
+x11-dl = { version = "2.21", optional = true }
 gl_loader = { version = "0.1.2", optional = true }
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies.x11]
@@ -99,7 +101,7 @@ surfman=["dep:surfman", "dep:webrender_surfman"]
 winit=["dep:winit", "dep:copypasta", "emacs/window-system-winit"]
 gtk3=["dep:gtk", "dep:gdk", "dep:gl_loader"]
 tao=["dep:tao", "emacs/window-system-winit"]
-pgtk=["dep:gtk", "dep:gtk-sys", "dep:gdkwayland-sys"]
+pgtk=["dep:gtk", "dep:gtk-sys", "dep:gdkwayland-sys", "dep:gdkx11-sys", "dep:x11-dl"]
 no_std = [
   "rustybuzz/libm",
 ]

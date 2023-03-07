@@ -1,5 +1,5 @@
-use crate::frame::LispFrameWindowSystemExt;
 use crate::gl::context::GLContextTrait;
+use crate::window_system::frame::LispFramePgtkExt;
 use emacs::frame::LispFrameRef;
 use gleam::gl::ErrorCheckingGl;
 use gleam::gl::Gl;
@@ -71,9 +71,7 @@ impl GLContextTrait for ContextImpl {
 
         #[cfg(window_system_pgtk)]
         let (fixed, area) = {
-            use gtk::glib::translate::FromGlibPtrNone;
-            let wfixed = frame.output().as_raw().edit_widget;
-            let fixed: gtk::Fixed = unsafe { gtk::Widget::from_glib_none(wfixed).unsafe_cast() };
+            let fixed = frame.fixed_widget().expect("no fixed widget");
 
             let area = GLAreaBuilder::new()
                 .width_request(fixed.allocated_width())
