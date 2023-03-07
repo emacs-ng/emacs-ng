@@ -25,19 +25,16 @@ pub struct Font<'a> {
     pub info: &'a fontdb::FaceInfo,
     pub data: &'a [u8],
     pub face: rustybuzz::Face<'a>,
-    // pub face: ttf_parser::Face<'a>,
 }
 
 impl<'a> Font<'a> {
     pub fn new(info: &'a fontdb::FaceInfo) -> Option<Self> {
         let data = match &info.source {
             fontdb::Source::Binary(data) => data.deref().as_ref(),
-            // #[cfg(feature = "std")]
             fontdb::Source::File(path) => {
                 log::warn!("Unsupported fontdb Source::File('{}')", path.display());
                 return None;
             }
-            // #[cfg(feature = "std")]
             fontdb::Source::SharedFile(_path, data) => data.deref().as_ref(),
         };
 
@@ -49,22 +46,17 @@ impl<'a> Font<'a> {
     }
 }
 
-#[ouroboros::self_referencing]
-pub struct FontDBInner {
+#[allow(dead_code)]
+pub struct FontDB<'a> {
     language: fontdb::Language,
     /// there should be a fontdb::Database::language
     db: fontdb::Database,
-    #[borrows(db)]
-    #[not_covariant]
-    font_cache: Mutex<HashMap<fontdb::ID, Option<Arc<Font<'this>>>>>,
+    font_cache: Mutex<HashMap<fontdb::ID, Option<Arc<Font<'a>>>>>,
     font_matches_cache: Mutex<HashMap<FontDescriptor, Option<fontdb::ID>>>,
 }
 
-/// Access system fonts
-pub struct FontDB(FontDBInner);
-
-impl FontDB {
-    pub fn new() -> FontDB {
+impl FontDB<'static> {
+    pub fn new() -> FontDB<'static> {
         let mut db = fontdb::Database::new();
         #[cfg(not(target_arch = "wasm32"))]
         let now = std::time::Instant::now();
@@ -87,37 +79,16 @@ impl FontDB {
             now.elapsed().as_millis()
         );
 
-        #[cfg(not(target_arch = "wasm32"))]
-        let now = std::time::Instant::now();
-
-        //TODO only do this on demand!
-        for i in 0..db.faces().len() {
-            let id = db.faces()[i].id;
-            unsafe {
-                db.make_shared_face_data(id);
-            }
+        Self {
+            language: fontdb::Language::English_UnitedStates,
+            db,
+            font_cache: Mutex::new(HashMap::new()),
+            font_matches_cache: Mutex::new(HashMap::new()),
         }
-
-        #[cfg(not(target_arch = "wasm32"))]
-        log::info!(
-            "Mapped {} font faces in {}ms.",
-            db.len(),
-            now.elapsed().as_millis()
-        );
-
-        Self(
-            FontDBInnerBuilder {
-                language: fontdb::Language::English_UnitedStates,
-                db,
-                font_cache_builder: |_| Mutex::new(HashMap::new()),
-                font_matches_cache: Mutex::new(HashMap::new()),
-            }
-            .build(),
-        )
     }
 
     pub fn db(&self) -> &fontdb::Database {
-        self.0.borrow_db()
+        &self.db
     }
 
     pub fn select_postscript(&self, postscript_name: &str) -> Option<&FaceInfo> {
@@ -209,13 +180,37 @@ impl FontDB {
 
     // Clippy false positive
     #[allow(clippy::needless_lifetimes)]
-    pub fn get_font<'a>(&'a self, id: fontdb::ID) -> Option<Arc<Font<'a>>> {
-        self.0.with(|fields| get_font(&fields, id))
+    pub fn get_font(&'static mut self, id: fontdb::ID) -> Option<Arc<Font<'static>>> {
+        let mut cache = self
+            .font_cache
+            .try_lock()
+            .expect("failed to lock font cache");
+
+        if cache.get(&id).is_none() {
+            unsafe {
+                self.db.make_shared_face_data(id);
+            }
+        }
+
+        cache
+            .entry(id)
+            .or_insert_with(|| {
+                let face = self.db.face(id)?;
+                let font = Font::new(face);
+                match font {
+                    Some(font) => Some(Arc::new(font)),
+                    None => {
+                        log::warn!("failed to load font '{}'", face.post_script_name);
+                        None
+                    }
+                }
+            })
+            .clone()
     }
 
-    pub fn get_font_matches<'a>(&'a self, desc: FontDescriptor) -> Option<Arc<Font<'a>>> {
-        let face_id = self.0.with(|fields| {
-            let mut font_matches_cache = fields
+    pub fn get_font_matches(&'static mut self, desc: FontDescriptor) -> Option<Arc<Font<'static>>> {
+        let face_id = {
+            let mut font_matches_cache = self
                 .font_matches_cache
                 .try_lock()
                 .expect("failed to lock font matches cache");
@@ -239,7 +234,7 @@ impl FontDB {
                     face_id
                 })
                 .clone()
-        });
+        };
 
         if let Some(id) = face_id {
             return self.get_font(id);
@@ -247,27 +242,4 @@ impl FontDB {
 
         None
     }
-}
-
-#[allow(dead_code)]
-fn get_font<'b>(
-    fields: &ouroboros_impl_font_db_inner::BorrowedFields<'_, 'b>,
-    id: fontdb::ID,
-) -> Option<Arc<Font<'b>>> {
-    fields
-        .font_cache
-        .try_lock()
-        .expect("failed to lock font cache")
-        .entry(id)
-        .or_insert_with(|| {
-            let face = fields.db.face(id)?;
-            match Font::new(face) {
-                Some(font) => Some(Arc::new(font)),
-                None => {
-                    log::warn!("failed to load font '{}'", face.post_script_name);
-                    None
-                }
-            }
-        })
-        .clone()
 }

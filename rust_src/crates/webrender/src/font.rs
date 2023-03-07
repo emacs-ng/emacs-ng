@@ -50,14 +50,20 @@ pub fn update_wrfonts(id: FrameId, device_pixel_ratio: f32) {
     }
 }
 
-static FONT_DB: OnceLock<FontDB> = OnceLock::new();
-impl FontDB {
-    fn global() -> &'static FontDB {
-        FONT_DB.get_or_init(|| {
-            log::trace!("font_db is being created...");
+static mut FONT_DB: OnceLock<FontDB> = OnceLock::new();
+impl FontDB<'static> {
+    pub fn ensure() -> &'static FontDB<'static> {
+        unsafe {
+            FONT_DB.get_or_init(|| {
+                log::trace!("font_db is being created...");
 
-            Self::new()
-        })
+                Self::new()
+            })
+        }
+    }
+    pub fn global() -> &'static mut FontDB<'static> {
+        let _ = Self::ensure();
+        unsafe { FONT_DB.get_mut().unwrap() }
     }
 }
 pub type FontRef = ExternalPtr<font>;
@@ -336,13 +342,13 @@ extern "C" fn list_family(_f: *mut frame) -> LispObject {
 }
 
 #[repr(C)]
-pub struct WRFont<'a> {
+pub struct WRFont {
     // extend basic font
     pub font: font,
 
     pub face_index: u32,
 
-    pub face_info: &'a fontdb::FaceInfo,
+    pub face_id: fontdb::ID,
 
     pub instance_keys: HashMap<u64, FontInstanceKey>,
 
@@ -356,21 +362,16 @@ pub struct WRFont<'a> {
     average_width: u16,
 }
 
-impl<'a> WRFont<'a> {
-    pub fn cache(&self) -> &FontDB {
-        let font_db = FontDB::global();
-        &font_db
-    }
-
+impl WRFont {
     pub fn glyph_for_char(&self, character: char) -> Option<u32> {
-        if let Some(font) = self.cache().get_font(self.face_info.id) {
+        if let Some(font) = FontDB::global().get_font(self.face_id) {
             return font.face.glyph_index(character).map(|c| c.0 as u32);
         }
         None
     }
 
     pub fn get_glyph_advance_width(&self, glyph_indices: Vec<GlyphIndex>) -> Vec<Option<i32>> {
-        if let Some(font) = self.cache().get_font(self.face_info.id) {
+        if let Some(font) = FontDB::global().get_font(self.face_id) {
             return glyph_indices
                 .into_iter()
                 .map(|i| {
@@ -447,7 +448,7 @@ impl<'a> WRFont<'a> {
     }
 }
 
-pub type WRFontRef<'a> = ExternalPtr<WRFont<'a>>;
+pub type WRFontRef<'a> = ExternalPtr<WRFont>;
 
 extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: i32) -> LispObject {
     log::trace!("open font: {:?}", pixel_size);
@@ -509,7 +510,7 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     wr_font.font.pixel_size = pixel_size as i32;
 
     let font_result = font_result.unwrap();
-    wr_font.face_info = font_result.info;
+    wr_font.face_id = font_result.info.id;
 
     // store face info
     let face = &font_result.face;
@@ -563,6 +564,7 @@ extern "C" fn has_char(font: LispObject, c: i32) -> i32 {
         let font_db = FontDB::global();
         font_db
             .select_postscript(&postscript_name)
+            .cloned()
             .and_then(|face_info| {
                 if let Some(font) = font_db.get_font(face_info.id) {
                     return font.face.glyph_index(c);

@@ -35,7 +35,7 @@ fn main() {
         free_unix: { all(unix, not(apple), not(android_platform)) },
 
         window_system_winit: { any(feature = "winit", feature = "tao") },
-        window_system_pgtk: { feature = "pgtk" },
+        window_system_pgtk: { all(feature = "pgtk", not(window_system_winit)) },
         have_window_system: { any(window_system_winit, window_system_pgtk) },
         use_winit: { feature = "winit" },
         use_tao: { all(feature = "tao", not(use_winit)) },

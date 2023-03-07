@@ -1,5 +1,6 @@
 use super::display_info::DisplayInfoRef;
 use super::font::FontRef;
+use crate::font_db::FontDB;
 use crate::gl::context::GLContextTrait;
 use crate::window_system::output::output;
 use crate::window_system::output::OutputInner;
@@ -341,7 +342,7 @@ impl Canvas {
     pub fn get_or_create_font(&mut self, font: WRFontRef) -> Option<FontKey> {
         #[cfg(not(target_arch = "wasm32"))]
         let now = std::time::Instant::now();
-        let font_id = font.face_info.id;
+        let font_id = font.face_id;
         let wr_font_key = self.fonts.get(&font_id);
 
         if let Some(key) = wr_font_key {
@@ -352,8 +353,11 @@ impl Canvas {
             #[cfg(macos_platform)]
             {
                 let app_locale = fontdb::Language::English_UnitedStates;
-                let family = font
-                    .face_info
+                let face_info = FontDB::global()
+                    .db()
+                    .face(font.face_id)
+                    .expect("Failed to find face info");
+                let family = face_info
                     .families
                     .iter()
                     .find(|family| family.1 == app_locale);
@@ -370,7 +374,7 @@ impl Canvas {
 
             #[cfg(not(macos_platform))]
             {
-                let font_result = font.cache().get_font(font.face_info.id);
+                let font_result = FontDB::global().get_font(font.face_id);
 
                 if font_result.is_none() {
                     return None;
