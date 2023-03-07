@@ -25,7 +25,7 @@ emacs-ng is based off of the `master` branch of emacs, and regularly
 merges in the latest changes (this branch includes the native
 compilation feature from Andrea Corallo).
 
-The last merged commit is `d6d25a3c22` (Fec 10 2023).
+The last merged commit is `fa83b23611` (Mar 07 2023).
 
 ## Motivation
 

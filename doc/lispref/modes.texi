@@ -3679,9 +3679,19 @@ in C.
 @vindex font-lock-function-name-face
 for the name of a function being defined or declared.
 
+@item font-lock-function-call-face
+@vindex font-lock-function-call-face
+for the name of a function being called.  This face inherits, by
+default, from @code{font-lock-function-name-face}.
+
 @item font-lock-variable-name-face
 @vindex font-lock-variable-name-face
 for the name of a variable being defined or declared.
+
+@item font-lock-variable-use-face
+@vindex font-lock-variable-use-face
+for the name of a variable being referenced.  This face inherits, by
+default, from @code{font-lock-variable-name-face}.
 
 @item font-lock-keyword-face
 @vindex font-lock-keyword-face
@@ -3756,11 +3766,16 @@ for numbers.
 @vindex font-lock-operator-face
 for operators.
 
-@item font-lock-property-face
-@vindex font-lock-property-face
-for properties of an object, such as the declaration and use of fields
-in a struct.
-This face inherits, by default, from @code{font-lock-variable-name-face}.
+@item font-lock-property-name-face
+@vindex font-lock-property-name-face
+for properties of an object, such as the declaration of fields in a
+struct.  This face inherits, by default, from
+@code{font-lock-variable-name-face}.
+
+@item font-lock-property-use-face
+@vindex font-lock-property-use-face
+for properties of an object, such as use of fields in a struct.  This
+face inherits, by default, from @code{font-lock-property-name-face}.
 
 For example,
 
@@ -5078,7 +5093,15 @@ This anchor is a function that is called with 3 arguments: @var{node},
 @item parent-bol
 This anchor is a function that is called with 3 arguments: @var{node},
 @var{parent}, and @var{bol}, and returns the first non-space character
-on the line of @var{parent}.
+on the line which @var{parent}'s start is on.
+
+@item parent-bol
+This anchor is a function that is called with 3 arguments: @var{node},
+@var{parent}, and @var{bol}.  It finds the first ancestor node
+(parent, grandparent, etc) of @var{node} that starts on its own line,
+and return the start of that node.  ``Starting on its own line'' means
+there is only whitespace character before the node on the line which
+the node's start is on.
 
 @item prev-sibling
 This anchor is a function that is called with 3 arguments: @var{node},
@@ -5094,10 +5117,10 @@ This anchor is a function that is called with 3 arguments: @var{node},
 @var{parent}, and @var{bol}, and returns the first non-whitespace
 character on the previous line.
 
-@item point-min
+@item column-0
 This anchor is a function that is called with 3 arguments: @var{node},
-@var{parent}, and @var{bol}, and returns the beginning of the buffer.
-This is useful as the beginning of the buffer is always at column 0.
+@var{parent}, and @var{bol}, and returns the beginning of the current
+line, which is at column 0.
 
 @item comment-start
 This anchor is a function that is called with 3 arguments: @var{node},
@@ -5111,8 +5134,11 @@ This anchor is a function that is called with 3 arguments: @var{node},
 @var{parent}, and @var{bol}.  It tries to go to the beginning of the
 previous non-empty line, and matches @code{adaptive-fill-regexp}.  If
 there is a match, this function returns the end of the match,
-otherwise it returns nil.  This anchor is useful for a
-@code{indent-relative}-like indent behavior for block comments.
+otherwise it returns nil.  However, if the current line begins with a
+prefix (e.g., ``-''), return the beginning of the prefix of the
+previous line instead, so that the two prefixes aligns.  This anchor
+is useful for a @code{indent-relative}-like indent behavior for block
+comments.
 
 @end ftable
 @end defvar

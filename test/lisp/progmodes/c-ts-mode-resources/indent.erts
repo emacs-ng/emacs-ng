@@ -84,14 +84,6 @@ int main()
 }
 =-=-=
 
-Name: Empty Line
-=-=
-int main()
-{
-  |
-}
-=-=-=
-
 Name: Concecutive blocks (GNU Style) (bug#60873)
 
 =-=
@@ -182,6 +174,20 @@ else if (false)
   return 3;
 =-=-=
 
+Name: Initializer List (Bug#61398)
+
+=-=
+int main()
+{
+  const char *emoticons[][2] =
+    {
+      {":-)", "SLIGHTLY SMILING FACE"},
+      {";-)", "WINKING FACE"},
+      {":-(", "SLIGHTLY FROWNING FACE"},
+    };
+}
+=-=-=
+
 Name: Multiline Block Comments 1 (bug#60270)
 
 =-=
@@ -228,6 +234,21 @@ line 2
  */
 =-=-=
 
+Name: Block Comment prefixes (Bug#61314)
+
+=-=-=
+/*
+- item1
+- item2
+- item3
+*/
+=-=-=
+/*
+  - item1
+  - item2
+  - item3
+ */
+=-=-=
 
 Code:
   (lambda ()
@@ -325,5 +346,75 @@ void foo(
                 && false)
               return 6;
     }
+}
+=-=-=
+
+Name: Initializer List (Linux Style) (Bug#61398)
+
+=-=
+int main()
+{
+  const char *emoticons[][2] = {
+    {":-)", "SLIGHTLY SMILING FACE"},
+    {";-)", "WINKING FACE"},
+    {":-(", "SLIGHTLY FROWNING FACE"},
+  };
+}
+=-=-=
+
+Code:
+  (lambda ()
+    (c++-ts-mode)
+    (setq-local indent-tabs-mode nil)
+    (setq-local c-ts-mode-indent-offset 2)
+    (indent-region (point-min) (point-max)))
+
+Name: Declaration List (Namespace) (Bug#61635)
+
+=-=
+namespace test {
+  class Name {
+  };
+}
+=-=-=
+
+Code:
+  (lambda ()
+    (c-ts-mode)
+    (setq-local indent-tabs-mode nil)
+    (setq-local c-ts-mode-indent-offset 2)
+    (c-ts-mode-set-style 'gnu)
+    (indent-for-tab-command))
+
+Name: Empty Line
+=-=
+int main()
+{
+  |
+}
+=-=-=
+
+Name: Empty Line Previous Sibling
+=-=
+int main()
+{
+  int a = 1;
+  |
+}
+=-=-=
+
+Name: Prev-Sibling But Not Trailing Comment
+
+=-=
+static int
+required_matrix_height (struct window *w)
+{
+#ifdef HAVE_WINDOW_SYSTEM
+  if (FRAME_WINDOW_P (f))
+    {
+      return 0;
+    }
+#endif /* Don't align to this comment.  */
+  |
 }
 =-=-=

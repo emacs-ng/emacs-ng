@@ -641,10 +641,11 @@ This regexp must match both `tramp-initial-end-of-output' and
   :type 'regexp)
 
 (defcustom tramp-password-prompt-regexp
-  (rx
-   bol (* nonl)
-   (group (regexp (regexp-opt password-word-equivalents)))
-   (* nonl) (any ":：៖") (? "\^@") (* blank))
+  (rx-to-string
+   `(: bol (* nonl)
+       (group (| . ,password-word-equivalents))
+       (* nonl) (any . ,tramp-compat-password-colon-equivalents)
+       (? "\^@") (* blank)))
   "Regexp matching password-like prompts.
 The regexp should match at end of buffer.
 
@@ -1211,9 +1212,12 @@ The `ftp' syntax does not support methods.")
      (? (regexp tramp-completion-method-regexp)
 	;; Method separator, user name and host name.
 	(? (regexp tramp-postfix-method-regexp)
-	   ;; This is a little bit lax, but it serves.
-	   (? (regexp tramp-host-regexp))))
-
+	   (? (regexp tramp-user-regexp)
+	      (regexp tramp-postfix-user-regexp))
+	   (? (| (regexp tramp-host-regexp) ;; This includes a user.
+                 (: (regexp tramp-prefix-ipv6-regexp)
+		    (? (regexp tramp-ipv6-regexp)
+		       (? (regexp tramp-postfix-ipv6-regexp))))))))
      eos)))
 
 (defvar tramp-completion-file-name-regexp
@@ -1366,7 +1370,9 @@ special value `tramp-default-remote-path'.
 
 `Private Directories' are the settings of the $PATH environment,
 as given in your `~/.profile'.  This entry is represented in
-the list by the special value `tramp-own-remote-path'."
+the list by the special value `tramp-own-remote-path'.
+
+For a full discussion, see Info node `(tramp) Remote programs'."
   :group 'tramp
   :type '(repeat (choice
 		  (const :tag "Default Directories" tramp-default-remote-path)
@@ -2943,22 +2949,38 @@ not in completion mode."
     (or ;; We check this for the process related to
 	;; `tramp-buffer-name'; otherwise `start-file-process'
 	;; wouldn't run ever when `non-essential' is non-nil.
-        (and vec (process-live-p (get-process (tramp-buffer-name vec))))
+        (process-live-p (tramp-get-process vec))
 	(not non-essential))))
 
 (defun tramp-completion-handle-expand-file-name (filename &optional directory)
   "Like `expand-file-name' for partial Tramp files."
-  (if (file-name-absolute-p filename)
-      filename
-    (concat (or directory default-directory "/") filename)))
+  ;; We need special handling only when a method is needed.  Then we
+  ;; check, whether DIRECTORY is "/method:" or "/[method/".
+  (let ((dir (or directory default-directory "/")))
+    (cond
+     ((file-name-absolute-p filename) filename)
+     ((and (eq tramp-syntax 'simplified)
+           (string-match-p (rx (regexp tramp-postfix-host-regexp) eos) dir))
+      (concat dir filename))
+     ((string-match-p
+       (rx bos (regexp tramp-prefix-regexp)
+	   (* (regexp tramp-remote-file-name-spec-regexp)
+	      (regexp tramp-postfix-hop-regexp))
+	   (? (regexp tramp-method-regexp) (regexp tramp-postfix-method-regexp)
+	      (? (regexp tramp-user-regexp) (regexp tramp-postfix-user-regexp)))
+	   eos)
+       dir)
+      (concat dir filename))
+     (t (tramp-run-real-handler #'expand-file-name (list filename directory))))))
 
 (defun tramp-completion-handle-file-exists-p (filename)
   "Like `file-exists-p' for partial Tramp files."
   ;; We need special handling only when a method is needed.  Then we
   ;; regard all files "/method:" or "/[method/" as existent, if
   ;; "method" is a valid Tramp method.  And we regard all files
-  ;; "/method:user@host" or "/[method/user@host" as existent, if
-  ;; "user@host" is a valid file name completion.
+  ;; "/method:user@", "/user@" or "/[method/user@" as existent, if
+  ;; "user@" is a valid file name completion.  Host completion is
+  ;; performed in the respective backen operation.
   (or (and (cond
             ;; Completion styles like `flex' and `substring' check for
             ;; the file name "/".  This does exist.
@@ -2968,25 +2990,32 @@ not in completion mode."
                   (string-match
 	           (rx
 	            (regexp tramp-prefix-regexp)
-	            (group (regexp tramp-method-regexp))
+		    (* (regexp tramp-remote-file-name-spec-regexp)
+		       (regexp tramp-postfix-hop-regexp))
+	            (group-n 9 (regexp tramp-method-regexp))
 	            (? (regexp tramp-postfix-method-regexp))
                     eos)
                    filename))
-             (assoc (match-string 1 filename) tramp-methods))
-            ;; Is it a valid user@host?
+             (assoc (match-string 9 filename) tramp-methods))
+            ;; Is it a valid user?
             ((string-match
 	      (rx
                (regexp tramp-prefix-regexp)
-               (group (regexp tramp-remote-file-name-spec-regexp))
+	       (* (regexp tramp-remote-file-name-spec-regexp)
+		  (regexp tramp-postfix-hop-regexp))
+               (group-n 10
+		 (regexp tramp-method-regexp)
+		 (regexp tramp-postfix-method-regexp))
+	       (group-n 11
+		 (regexp tramp-user-regexp)
+		 (regexp tramp-postfix-user-regexp))
                eos)
               filename)
-             (member
-              (concat
-               (file-name-nondirectory filename) tramp-postfix-host-format)
-              (file-name-all-completions
-               (file-name-nondirectory filename)
-               (file-name-directory filename)))))
-           t)
+	     (member
+	      (match-string 11 filename)
+	      (file-name-all-completions
+	       "" (concat tramp-prefix-format (match-string 10 filename))))))
+	   t)
 
       (tramp-run-real-handler #'file-exists-p (list filename))))
 
@@ -3233,20 +3262,31 @@ PARTIAL-USER must match USER, PARTIAL-HOST must match HOST."
   ;; method.  In the `separate' file name syntax, we return "/[" when
   ;; `filename' is "/[string" w/o a trailing method separator "/".
   (cond
-   ((and (not (string-empty-p tramp-method-regexp))
-         (string-match
+   ((string-match
+     (rx (group (regexp tramp-prefix-regexp)
+		(* (regexp tramp-remote-file-name-spec-regexp)
+		   (regexp tramp-postfix-hop-regexp)))
+         (? (regexp tramp-completion-method-regexp)) eos)
+     filename)
+    (match-string 1 filename))
+   ((and (string-match
           (rx (group
 	       (regexp tramp-prefix-regexp)
+	       (* (regexp tramp-remote-file-name-spec-regexp)
+		  (regexp tramp-postfix-hop-regexp))
                (group (regexp tramp-method-regexp))
-	       (regexp tramp-postfix-method-regexp)))
+	       (regexp tramp-postfix-method-regexp)
+	       (? (regexp tramp-user-regexp)
+	          (regexp tramp-postfix-user-regexp)))
+	      (? (| (regexp tramp-host-regexp)
+                    (: (regexp tramp-prefix-ipv6-regexp)
+		       (? (regexp tramp-ipv6-regexp)
+			  (? (regexp tramp-postfix-ipv6-regexp))))))
+	      eos)
           filename)
          ;; Is it a valid method?
-         (assoc (match-string 2 filename) tramp-methods))
-    (match-string 1 filename))
-   ((string-match
-     (rx (group (regexp tramp-prefix-regexp))
-         (regexp tramp-completion-method-regexp) eos)
-     filename)
+	 (or (tramp-string-empty-or-nil-p (match-string 2 filename))
+             (assoc (match-string 2 filename) tramp-methods)))
     (match-string 1 filename))
    (t (tramp-run-real-handler #'file-name-directory (list filename)))))
 
@@ -3594,6 +3634,25 @@ BODY is the backend specific code."
 	(tramp-error
 	 (tramp-dissect-file-name ,directory) 'file-missing ,directory)
       nil)))
+
+(defmacro tramp-skeleton-file-exists-p (filename &rest body)
+  "Skeleton for `tramp-*-handle-file-exists-p'.
+BODY is the backend specific code."
+  (declare (indent 1) (debug t))
+  ;; `file-exists-p' is used as predicate in file name completion.
+  `(or (and minibuffer-completing-file-name
+	    (file-name-absolute-p ,filename)
+	    (tramp-string-empty-or-nil-p
+	     (tramp-file-name-localname (tramp-dissect-file-name ,filename))))
+       ;; We don't want to run it when `non-essential' is t, or there
+       ;; is no connection process yet.
+       (when (tramp-connectable-p ,filename)
+	 (with-parsed-tramp-file-name (expand-file-name ,filename) nil
+	   (with-tramp-file-property v localname "file-exists-p"
+	     (if (tramp-file-property-p v localname "file-attributes")
+		 (not
+		  (null (tramp-get-file-property v localname "file-attributes")))
+	       ,@body))))))
 
 (defmacro tramp-skeleton-file-local-copy (filename &rest body)
   "Skeleton for `tramp-*-handle-file-local-copy'.
@@ -4032,13 +4091,8 @@ Let-bind it when necessary.")
 
 (defun tramp-handle-file-exists-p (filename)
   "Like `file-exists-p' for Tramp files."
-  ;; `file-exists-p' is used as predicate in file name completion.
-  ;; We don't want to run it when `non-essential' is t, or there is
-  ;; no connection process yet.
-  (when (tramp-connectable-p filename)
-    (with-parsed-tramp-file-name (expand-file-name filename) nil
-      (with-tramp-file-property v localname "file-exists-p"
-	(not (null (file-attributes filename)))))))
+  (tramp-skeleton-file-exists-p filename
+    (not (null (file-attributes filename)))))
 
 (defun tramp-handle-file-in-directory-p (filename directory)
   "Like `file-in-directory-p' for Tramp files."
@@ -4493,8 +4547,7 @@ Return it as number of seconds.  Used in `tramp-process-attributes-ps-format'."
 (defconst tramp-process-attributes-ps-args
   `("-eww"
     "-o"
-    ,(mapconcat
-     #'identity
+    ,(string-join
      '("pid"
        "euid"
        "euser"
@@ -4727,11 +4780,20 @@ Do not set it manually, it is used buffer-local in `tramp-get-lock-pid'.")
 
 (defun tramp-handle-unlock-file (file)
   "Like `unlock-file' for Tramp files."
-  (when-let ((lockname (tramp-compat-make-lock-file-name file)))
-    (condition-case err
-        (delete-file lockname)
-      ;; `userlock--handle-unlock-error' exists since Emacs 28.1.
-      (error (tramp-compat-funcall 'userlock--handle-unlock-error err)))))
+  (condition-case err
+      ;; When there is no connection, we don't do it.  Otherwise,
+      ;; functions like `kill-buffer' would try to reestablish the
+      ;; connection.  See Bug#61663.
+      (if-let ((v (tramp-dissect-file-name file))
+	       ((process-live-p (tramp-get-process v)))
+	       (lockname (tramp-compat-make-lock-file-name file)))
+          (delete-file lockname)
+	;; Trigger the unlock error.
+	(signal 'file-error `("Cannot remove lock file for" ,file)))
+    ;; `userlock--handle-unlock-error' exists since Emacs 28.1.
+    (error
+     (when create-lockfiles
+       (tramp-compat-funcall 'userlock--handle-unlock-error err)))))
 
 (defun tramp-handle-load (file &optional noerror nomessage nosuffix must-suffix)
   "Like `load' for Tramp files."
@@ -4968,7 +5030,7 @@ substitution.  SPEC-LIST is a list of char/value pairs used for
 		(if (consp (tramp-get-method-parameter v 'tramp-direct-async))
 		    (append
 		     (tramp-get-method-parameter v 'tramp-direct-async)
-                     `(,(mapconcat #'identity command " ")))
+                     `(,(string-join command " ")))
 		  command)))
 
 	  ;; Check for `tramp-sh-file-name-handler', because something
@@ -5864,8 +5926,7 @@ the remote host use line-endings as defined in the variable
       (let ((inhibit-read-only t)) (delete-region (point-min) (point-max)))
       ;; Replace "\n" by `tramp-rsh-end-of-line'.
       (setq string
-	    (mapconcat
-	     #'identity (split-string string "\n") tramp-rsh-end-of-line))
+	    (string-join (split-string string "\n") tramp-rsh-end-of-line))
       (unless (or (string-empty-p string)
 		  (string-equal (substring string -1) tramp-rsh-end-of-line))
 	(setq string (concat string tramp-rsh-end-of-line)))
@@ -6563,7 +6624,7 @@ verbosity of 6."
 	      (apply #'process-lines program args)
 	    (error
 	     (tramp-error vec (car err) (cdr err)))))
-    (tramp-message vec 6 "\n%s" (mapconcat #'identity result "\n"))
+    (tramp-message vec 6 "\n%s" (string-join result "\n"))
     result))
 
 (defun tramp-process-running-p (process-name)

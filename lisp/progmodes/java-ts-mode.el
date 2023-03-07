@@ -69,10 +69,10 @@
 
 (defvar java-ts-mode--indent-rules
   `((java
-     ((parent-is "program") point-min 0)
+     ((parent-is "program") column-0 0)
      ((match "}" "element_value_array_initializer")
       parent-bol 0)
-     ((node-is "}") point-min c-ts-common-statement-offset)
+     ((node-is "}") column-0 c-ts-common-statement-offset)
      ((node-is ")") parent-bol 0)
      ((node-is "else") parent-bol 0)
      ((node-is "]") parent-bol 0)
@@ -80,15 +80,15 @@
       c-ts-common-comment-start-after-first-star -1)
      ((parent-is "comment") prev-adaptive-prefix 0)
      ((parent-is "text_block") no-indent)
-     ((parent-is "class_body") point-min c-ts-common-statement-offset)
+     ((parent-is "class_body") column-0 c-ts-common-statement-offset)
      ((parent-is "array_initializer") parent-bol java-ts-mode-indent-offset)
-     ((parent-is "annotation_type_body") point-min c-ts-common-statement-offset)
-     ((parent-is "interface_body") point-min c-ts-common-statement-offset)
-     ((parent-is "constructor_body") point-min c-ts-common-statement-offset)
+     ((parent-is "annotation_type_body") column-0 c-ts-common-statement-offset)
+     ((parent-is "interface_body") column-0 c-ts-common-statement-offset)
+     ((parent-is "constructor_body") column-0 c-ts-common-statement-offset)
      ((parent-is "enum_body_declarations") parent-bol 0)
-     ((parent-is "enum_body") point-min c-ts-common-statement-offset)
-     ((parent-is "switch_block") point-min c-ts-common-statement-offset)
-     ((parent-is "record_declaration_body") point-min c-ts-common-statement-offset)
+     ((parent-is "enum_body") column-0 c-ts-common-statement-offset)
+     ((parent-is "switch_block") column-0 c-ts-common-statement-offset)
+     ((parent-is "record_declaration_body") column-0 c-ts-common-statement-offset)
      ((query "(method_declaration (block _ @indent))") parent-bol java-ts-mode-indent-offset)
      ((query "(method_declaration (block (_) @indent))") parent-bol java-ts-mode-indent-offset)
      ((parent-is "local_variable_declaration") parent-bol java-ts-mode-indent-offset)
@@ -121,7 +121,7 @@
      ((parent-is "case_statement") parent-bol java-ts-mode-indent-offset)
      ((parent-is "labeled_statement") parent-bol java-ts-mode-indent-offset)
      ((parent-is "do_statement") parent-bol java-ts-mode-indent-offset)
-     ((parent-is "block") point-min c-ts-common-statement-offset)))
+     ((parent-is "block") column-0 c-ts-common-statement-offset)))
   "Tree-sitter indent rules.")
 
 (defvar java-ts-mode--keywords
@@ -162,7 +162,8 @@
    :override t
    :feature 'keyword
    `([,@java-ts-mode--keywords
-      (this)] @font-lock-keyword-face
+      (this)
+      (super)] @font-lock-keyword-face
       (labeled_statement
        (identifier) @font-lock-keyword-face))
    :language 'java
@@ -219,7 +220,7 @@
 
      (method_reference (identifier) @font-lock-type-face)
 
-     (scoped_identifier (identifier) @font-lock-variable-name-face)
+     (scoped_identifier (identifier) @font-lock-constant-face)
 
      ((scoped_identifier name: (identifier) @font-lock-type-face)
       (:match "^[A-Z]" @font-lock-type-face))
@@ -243,7 +244,7 @@
       name: (identifier) @font-lock-variable-name-face)
 
      (element_value_pair
-      key: (identifier) @font-lock-property-face)
+      key: (identifier) @font-lock-property-use-face)
 
      (formal_parameter
       name: (identifier) @font-lock-variable-name-face)
@@ -254,14 +255,14 @@
    :override t
    :feature 'expression
    '((method_invocation
-      object: (identifier) @font-lock-variable-name-face)
+      object: (identifier) @font-lock-variable-use-face)
 
      (method_invocation
-      name: (identifier) @font-lock-function-name-face)
+      name: (identifier) @font-lock-function-call-face)
 
      (argument_list (identifier) @font-lock-variable-name-face)
 
-     (expression_statement (identifier) @font-lock-variable-name-face))
+     (expression_statement (identifier) @font-lock-variable-use-face))
 
    :language 'java
    :feature 'bracket
@@ -314,6 +315,7 @@ Return nil if there is no name or if NODE is not a defun node."
                                   "constructor_body"
                                   "annotation_type_body"
                                   "interface_body"
+                                  "lambda_expression"
                                   "enum_body"
                                   "switch_block"
                                   "record_declaration_body"

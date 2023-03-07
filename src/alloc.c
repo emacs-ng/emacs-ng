@@ -1083,7 +1083,11 @@ lisp_free (void *block)
    BLOCK_BYTES and guarantees they are aligned on a BLOCK_ALIGN boundary.  */
 
 /* Byte alignment of storage blocks.  */
-#define BLOCK_ALIGN (1 << 10)
+#ifdef HAVE_UNEXEC
+# define BLOCK_ALIGN (1 << 10)
+#else  /* !HAVE_UNEXEC */
+# define BLOCK_ALIGN (1 << 15)
+#endif
 verify (POWER_OF_2 (BLOCK_ALIGN));
 
 /* Use aligned_alloc if it or a simple substitute is available.
@@ -3729,7 +3733,8 @@ usage: (make-byte-code ARGLIST BYTE-CODE CONSTANTS DEPTH &optional DOCSTRING INT
 	 && FIXNATP (args[COMPILED_STACK_DEPTH])))
     error ("Invalid byte-code object");
 
-  pin_string (args[COMPILED_BYTECODE]);  // Bytecode must be immovable.
+  /* Bytecode must be immovable.  */
+  pin_string (args[COMPILED_BYTECODE]);
 
   /* We used to purecopy everything here, if purify-flag was set.  This worked
      OK for Emacs-23, but with Emacs-24's lexical binding code, it can be
@@ -5930,7 +5935,7 @@ purecopy (Lisp_Object obj)
       memcpy (vec, objp, nbytes);
       for (i = 0; i < size; i++)
 	vec->contents[i] = purecopy (vec->contents[i]);
-      // Byte code strings must be pinned.
+      /* Byte code strings must be pinned.  */
       if (COMPILEDP (obj) && size >= 2 && STRINGP (vec->contents[1])
 	  && !STRING_MULTIBYTE (vec->contents[1]))
 	pin_string (vec->contents[1]);
