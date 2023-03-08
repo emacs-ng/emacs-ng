@@ -563,8 +563,6 @@ pub extern "C" fn wr_handle_scale_factor_change(_f: *mut Lisp_Frame, _scale_fact
     {
         let mut frame: LispFrameRef = _f.into();
         frame.handle_scale_factor_change(_scale_factor);
-        std::thread::sleep(std::time::Duration::from_millis(16));
-        wr_adjust_canvas_size(_f, frame.pixel_width, frame.pixel_height);
     }
 }
 

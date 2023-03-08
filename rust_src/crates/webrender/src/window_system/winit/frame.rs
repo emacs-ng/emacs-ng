@@ -48,6 +48,7 @@ pub trait LispFrameWinitExt {
     fn iconify(&mut self);
     fn current_monitor(&self) -> Option<MonitorHandle>;
     fn cursor_position(&self) -> PhysicalPosition<i32>;
+    fn winit_scale_factor(&self) -> f64;
 }
 
 impl LispFrameWindowSystemExt for LispFrameRef {
@@ -60,10 +61,11 @@ impl LispFrameWindowSystemExt for LispFrameRef {
     }
 
     fn scale_factor(&self) -> f64 {
-        if let Some(monitor) = self.current_monitor() {
-            return monitor.scale_factor();
-        }
-        1.0
+        self.output().inner().scale_factor
+    }
+
+    fn set_scale_factor(&mut self, scale_factor: f64) {
+        self.output().inner().scale_factor = scale_factor;
     }
 
     fn cursor_foreground_color(&self) -> ColorF {
@@ -308,5 +310,12 @@ impl LispFrameWinitExt for LispFrameRef {
 
     fn cursor_position(&self) -> PhysicalPosition<i32> {
         self.output().inner().cursor_position.cast::<i32>()
+    }
+
+    fn winit_scale_factor(&self) -> f64 {
+        if let Some(monitor) = self.current_monitor() {
+            return monitor.scale_factor();
+        }
+        1.0
     }
 }

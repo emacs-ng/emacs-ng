@@ -1,6 +1,7 @@
 use crate::color::pixel_to_color;
 use crate::output::Output;
 use crate::output::OutputRef;
+use emacs::bindings::xg_frame_resized;
 use emacs::frame::LispFrameRef;
 use gtk::glib::translate::FromGlibPtrNone;
 use gtk::prelude::Cast;
@@ -40,6 +41,19 @@ impl LispFrameWindowSystemExt for LispFrameRef {
             return scale_factor;
         }
         1.0
+    }
+
+    fn set_scale_factor(&mut self, scale_factor: f64) {
+        unsafe { (*self.output_data.pgtk).watched_scale_factor = scale_factor };
+        if let Some(widget) = self.edit_widget() {
+            unsafe {
+                xg_frame_resized(
+                    self.as_mut(),
+                    (widget.allocated_width() as f64 * scale_factor).round() as i32,
+                    (widget.allocated_height() as f64 * scale_factor).round() as i32,
+                )
+            };
+        }
     }
 
     fn cursor_foreground_color(&self) -> ColorF {

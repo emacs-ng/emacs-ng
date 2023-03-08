@@ -376,8 +376,7 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                         let size = DeviceIntSize::new(size.width as i32, size.height as i32);
 
                         let mut frame: LispFrameRef = frame.into();
-                        frame.handle_size_change(size, 1.0);
-                        frame.handle_scale_factor_change(frame.scale_factor());
+                        frame.handle_size_change(size, frame.winit_scale_factor());
                     }
 
                     WindowEvent::ScaleFactorChanged {
@@ -385,8 +384,6 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                         new_inner_size: size,
                     } => {
                         let mut frame: LispFrameRef = frame.into();
-                        frame.handle_scale_factor_change(scale_factor);
-
                         let size = DeviceIntSize::new(size.width as i32, size.height as i32);
                         frame.handle_size_change(size, scale_factor);
                     }

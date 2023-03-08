@@ -65,4 +65,5 @@
 #endif
 #ifdef HAVE_PGTK
 # include "pgtkterm.h"
+# include "gtkutil.h"
 #endif

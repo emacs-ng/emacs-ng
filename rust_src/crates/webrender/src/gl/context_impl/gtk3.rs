@@ -1,4 +1,5 @@
 use crate::gl::context::GLContextTrait;
+#[cfg(window_system_pgtk)]
 use crate::window_system::frame::LispFramePgtkExt;
 use emacs::frame::LispFrameRef;
 use gleam::gl::ErrorCheckingGl;
@@ -49,6 +50,7 @@ impl GLContextTrait for ContextImpl {
     fn build(frame: &LispFrameRef) -> Self {
         #[cfg(use_tao)]
         let area = {
+            use crate::frame::LispFrameWindowSystemExt;
             use crate::window_system::api::platform::unix::WindowExtUnix;
             let frame_inner = frame.output().inner();
             let window = frame_inner.window.as_ref().expect("No window");
