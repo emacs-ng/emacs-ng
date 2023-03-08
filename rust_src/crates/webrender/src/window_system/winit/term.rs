@@ -413,6 +413,18 @@ extern "C" fn winit_fullscreen(f: *mut Lisp_Frame) {
     frame.fullscreen();
 }
 
+extern "C" fn winit_menu_show(
+    _f: *mut Lisp_Frame,
+    _x: ::libc::c_int,
+    _y: ::libc::c_int,
+    _menuflags: ::libc::c_int,
+    _title: LispObject,
+    _error_name: *mut *const ::libc::c_char,
+) -> LispObject {
+    message!("Menu functionalities currently is not available for Winit/Tao");
+    Qnil
+}
+
 // This function should be called by Emacs redisplay code to set the
 // name; names set this way will never override names set by the user's
 // lisp code.
@@ -521,6 +533,7 @@ fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     terminal.clear_frame_hook = Some(wr_clear_frame);
     terminal.read_socket_hook = Some(winit_read_input_event);
     terminal.fullscreen_hook = Some(winit_fullscreen);
+    terminal.menu_show_hook = Some(winit_menu_show);
     terminal.implicit_set_name_hook = Some(winit_implicitly_set_name);
     terminal.get_focus_frame = Some(winit_get_focus_frame);
     terminal.frame_visible_invisible_hook = Some(winit_make_frame_visible_invisible);
