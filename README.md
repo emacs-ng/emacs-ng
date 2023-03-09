@@ -22,8 +22,7 @@ A new approach to Emacs
 ## Intro
 
 emacs-ng is based off of the `master` branch of emacs, and regularly
-merges in the latest changes (this branch includes the native
-compilation feature from Andrea Corallo).
+merges using Github Actions(Runs at 00:00, only on Saturday).
 
 The last merged commit is `fa83b23611` (Mar 07 2023).
 

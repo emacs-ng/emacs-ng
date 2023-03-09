@@ -15,7 +15,7 @@ jobs:
     - name: checkout
       uses: actions/checkout@v1
     - name: Create PR to branch
-      uses: gorillio/github-action-sync@master
+      uses: emacs-ng/github-action-pull-upstream@master
       with:
         upstream: https://github.com/emacs-mirror/emacs.git
         upstream_branch: master
@@ -23,5 +23,5 @@ jobs:
         pr_labels: pull-upstream
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        GITBOT_EMAIL: declantsien@riseup.net
+        GITBOT_EMAIL: action@github.com
         DRY_RUN: false
