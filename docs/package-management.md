@@ -1,5 +1,8 @@
 # Built-in Emacs Lisp packages
 
+> **Warning**
+> **This feature has been removed in favor of upstream change**
+
 emacs-ng distributed with more built-in Emacs Lisp packages than
 upstream GNU Emacs.  For now, we have
 [straight.el](https://github.com/raxod502/straight.el/tree/develop)

@@ -72,12 +72,19 @@ it as a new experimental graphic backend to leverage GPU hardware.
 
 ### Dynamic modules
 
+> **Warning**
+> **This feature is currently unmaintained**
+
 Allow dynamic modules to access *more of Emacs's internals*. Dynamic
 modules can be written to take advantage of these extra
 functionalities when they are available, while at the same time being
 *fully compatible* with vanilla Emacs.
 
 ### Deno/Javascript
+
+> **Note**
+> **This feature is currently outdated and been disabled. However there is**
+> **[this](https://github.com/emacs-ng/emacs-ng/pull/463) to bring it back.**
 
 One of emacs-ng's primary features is integrating the [Deno
 Runtime](https://deno.land/), which allows execution of JavaScript and

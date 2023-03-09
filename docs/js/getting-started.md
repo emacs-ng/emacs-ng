@@ -1,5 +1,9 @@
 # Getting Started
 
+> **Note**
+> **This feature is currently outdated and been disabled. However there is**
+> **[this](https://github.com/emacs-ng/emacs-ng/pull/463) to bring it back.**
+
 This is an introduction for building applications and hacking on emacs-ng using
 JavaScript. emacs-ng supports both TypeScript and JavaScript, so these examples
 will feature both languages. This guide uses emacs terminology for key binds,

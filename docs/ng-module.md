@@ -1,5 +1,8 @@
 # Dynamic Modules
 
+> **Warning**
+> **This feature is currently unmaintained**
+
 Emacs-ng is always built with dynamic modules support enabled, and is
 *fully compatible* with dynamic modules written for "vanilla" Emacs.
 

@@ -1,5 +1,8 @@
 # Build emacs-ng using a Docker container
 
+> **Warning**
+> **Build emacs-ng using a Docker container is currently unmaintained**
+
 To ease the job of building emacs-ng, we are preparing Docker images
 to allow a fully containerized build without installing any build dependencies.
 
