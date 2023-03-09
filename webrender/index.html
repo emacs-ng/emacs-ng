@@ -547,8 +547,95 @@
       
         <li class="md-nav__item">
   <a href="#webrender" class="md-nav__link">
-    Webrender
+    WebRender
   </a>
+  
+    <nav class="md-nav" aria-label="WebRender">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    Usage
+  </a>
+  
+    <nav class="md-nav" aria-label="Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#webrender-with-pgtk" class="md-nav__link">
+    WebRender with PGTK
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#webrender-with-winittao" class="md-nav__link">
+    WebRender with winit(TAO)
+  </a>
+  
+    <nav class="md-nav" aria-label="WebRender with winit(TAO)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#using-winit" class="md-nav__link">
+    Using winit
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-tao" class="md-nav__link">
+    Using TAO
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opengl-context-creation" class="md-nav__link">
+    OpenGL context creation
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    Troubleshooting
+  </a>
+  
+    <nav class="md-nav" aria-label="Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#couldnt-find-any-available-vsync-extension" class="md-nav__link">
+    Couldn't find any available vsync extension
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#random-crashes-with-winittao" class="md-nav__link">
+    Random crashes with winit(TAO)
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -704,8 +791,95 @@
       
         <li class="md-nav__item">
   <a href="#webrender" class="md-nav__link">
-    Webrender
+    WebRender
   </a>
+  
+    <nav class="md-nav" aria-label="WebRender">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    Usage
+  </a>
+  
+    <nav class="md-nav" aria-label="Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#webrender-with-pgtk" class="md-nav__link">
+    WebRender with PGTK
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#webrender-with-winittao" class="md-nav__link">
+    WebRender with winit(TAO)
+  </a>
+  
+    <nav class="md-nav" aria-label="WebRender with winit(TAO)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#using-winit" class="md-nav__link">
+    Using winit
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-tao" class="md-nav__link">
+    Using TAO
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opengl-context-creation" class="md-nav__link">
+    OpenGL context creation
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    Troubleshooting
+  </a>
+  
+    <nav class="md-nav" aria-label="Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#couldnt-find-any-available-vsync-extension" class="md-nav__link">
+    Couldn't find any available vsync extension
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#random-crashes-with-winittao" class="md-nav__link">
+    Random crashes with winit(TAO)
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -728,11 +902,38 @@
                 
                   <h1>Webrender</h1>
                 
-                <h2 id="webrender">Webrender<a class="headerlink" href="#webrender" title="Permanent link">#</a></h2>
-<p>Webrender rendering is a opt-in feature. You can enable it by this.</p>
-<div class="highlight"><pre><span></span><code>$ ./configure --with-webrender
+                <h2 id="webrender">WebRender<a class="headerlink" href="#webrender" title="Permanent link">#</a></h2>
+<p>WebRender rendering is a opt-in feature.</p>
+<h3 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">#</a></h3>
+<h4 id="webrender-with-pgtk">WebRender with PGTK<a class="headerlink" href="#webrender-with-pgtk" title="Permanent link">#</a></h4>
+<p>Emacs WebRender now supports Emacs PGTK build. To use WebRender with PGTK:</p>
+<div class="highlight"><pre><span></span><code>$ ./configure --with-webrender --with-pgtk
 </code></pre></div>
+<h4 id="webrender-with-winittao">WebRender with winit(TAO)<a class="headerlink" href="#webrender-with-winittao" title="Permanent link">#</a></h4>
+<p><a href="https://github.com/rust-windowing/winit">Winit</a> is a cross-platform window creation and event loop management library. <a href="https://github.com/tauri-apps/tao">TAO</a> is is a fork of winit which replaces Linux's port to Gtk. Which also add support for webkit2gtk, and a lot of Desktop Environment features like menu bar, system tray, global shortcuts etc.</p>
+<p>We are only experimental with them to build a Emacs window system from scratch. It works to some
+extent. But more details need to be handled before using it in production environment. You've been warned.</p>
+<h5 id="using-winit">Using winit<a class="headerlink" href="#using-winit" title="Permanent link">#</a></h5>
+<div class="highlight"><pre><span></span><code>$ ./configure --with-webrender --with-winit
+</code></pre></div>
+<h5 id="using-tao">Using TAO<a class="headerlink" href="#using-tao" title="Permanent link">#</a></h5>
+<div class="highlight"><pre><span></span><code>$ ./configure --with-webrender --with-winit=tao
+</code></pre></div>
+<h3 id="opengl-context-creation">OpenGL context creation<a class="headerlink" href="#opengl-context-creation" title="Permanent link">#</a></h3>
+<p>We have implemented three means (Surfman/Glutin/Gtk3) to create a OpenGL context creation for WebRender. If the default one does not work for you. You can try with another one.
+<div class="highlight"><pre><span></span><code>--with-wr-gl=[surfman|glutin|gtk3]
+</code></pre></div></p>
+<ul>
+<li>Surfman is used by default with winit/TAO, Glutin can be used if Surfman does not work  on your device.</li>
+<li>Gtk3 is used by default with PGTK, and can be used with TAO on UNIX.</li>
+</ul>
+<h3 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">#</a></h3>
+<h4 id="couldnt-find-any-available-vsync-extension">Couldn't find any available vsync extension<a class="headerlink" href="#couldnt-find-any-available-vsync-extension" title="Permanent link">#</a></h4>
 <p>If you get "Couldn't find any available vsync extension" runtime panic, enabling 3D acceleration will fix it.</p>
+<h4 id="random-crashes-with-winittao">Random crashes with winit(TAO)<a class="headerlink" href="#random-crashes-with-winittao" title="Permanent link">#</a></h4>
+<p>Try build with <code>--enable-winit-pselect</code></p>
+<div class="highlight"><pre><span></span><code>$ ./configure --with-webrender --with-winit=tao --enable-winit-pselect
+</code></pre></div>
                 
                   
                     
@@ -741,7 +942,7 @@
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">March 8, 2023</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">March 9, 2023</span>
     
   </small>
 </div>
