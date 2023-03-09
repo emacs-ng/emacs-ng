@@ -507,6 +507,12 @@ pub fn js_lisp_thread(_args: &[LispObject]) -> LispObject {
     emacs::globals::Qnil
 }
 
+/// Internal function called by 'garbage-collect'. Do not call directly.
+#[lisp_fn]
+pub fn js__sweep() -> LispObject {
+    emacs::globals::Qnil
+}
+
 // Do NOT call this function, it is just used for macro purposes to
 // generate variables. The user should NOT have direct access to
 // 'js-retain-map' from the scripting engine.
