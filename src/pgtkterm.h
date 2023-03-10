@@ -666,6 +666,7 @@ extern double pgtk_frame_scale_factor (struct frame *);
 extern int pgtk_emacs_to_gtk_modifiers (struct pgtk_display_info *, int);
 
 #ifdef USE_WEBRENDER
+extern struct frame *pgtk_fixed_to_frame (GtkWidget *);
 #include "webrender_ffi.h"
 #endif  /* USE_WEBRENDER */
 

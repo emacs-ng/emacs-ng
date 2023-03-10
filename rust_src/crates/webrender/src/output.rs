@@ -2,6 +2,8 @@ use super::display_info::DisplayInfoRef;
 use super::font::FontRef;
 use crate::font_db::FontDB;
 use crate::gl::context::GLContextTrait;
+#[cfg(window_system_pgtk)]
+use crate::window_system::frame::LispFramePgtkExt;
 use crate::window_system::output::output;
 use crate::window_system::output::OutputInner;
 use crate::window_system::output::OutputInnerRef;
@@ -88,8 +90,12 @@ impl Canvas {
         txn.set_root_pipeline(pipeline_id);
         let mut api = sender.create_api();
         let device_size = frame.size();
+        gl_context.resize(&device_size);
         let document_id = api.add_document(device_size);
         api.send_transaction(document_id, txn);
+
+        #[cfg(window_system_pgtk)]
+        frame.dynamic_resize();
 
         Self {
             fonts: HashMap::new(),

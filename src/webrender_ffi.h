@@ -44,10 +44,6 @@ extern Lisp_Object wr_new_font (struct frame *f, Lisp_Object font_object, int fo
 extern int
 wr_parse_color (struct frame *f, const char *color_name,
 		Emacs_Color * color);
-void
-wr_adjust_canvas_size (struct frame *f, int new_width, int new_height);
-void
-wr_handle_scale_factor_change (struct frame *f, double scale_factor);
 
 extern void syms_of_webrender(void);
 

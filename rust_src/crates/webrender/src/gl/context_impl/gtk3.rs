@@ -109,13 +109,17 @@ impl GLContextTrait for ContextImpl {
     fn resize(&self, _size: &DeviceIntSize) {
         #[cfg(window_system_pgtk)]
         {
-            if self.fixed.allocated_width() != self.area.allocated_width()
-                && self.fixed.allocated_height() != self.area.allocated_height()
-            {
-                self.area.set_width_request(self.fixed.allocated_width());
-                self.area.set_height_request(self.fixed.allocated_height());
-                self.fixed.move_(&self.area, 0, 0);
-            }
+            let p_alloc = self.fixed.allocation();
+            let me_alloc = self.area.allocation();
+            let allocation = gtk::Allocation::new(
+                me_alloc.x(),
+                me_alloc.y(),
+                p_alloc.width(),
+                p_alloc.height(),
+            );
+            log::debug!("gl_area allocation {allocation:?} to match fixed parent {p_alloc:?}.");
+            self.area.size_allocate(&allocation);
+            self.fixed.move_(&self.area, 0, 0);
         }
     }
 

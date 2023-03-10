@@ -1,9 +1,11 @@
 use crate::color::pixel_to_color;
+use crate::frame::LispFrameExt;
 use crate::output::Output;
 use crate::output::OutputRef;
 use emacs::bindings::xg_frame_resized;
 use emacs::frame::LispFrameRef;
 use gtk::glib::translate::FromGlibPtrNone;
+use gtk::glib::translate::ToGlibPtr;
 use gtk::prelude::Cast;
 use gtk::prelude::DisplayExtManual;
 use gtk::prelude::ObjectType;
@@ -15,11 +17,12 @@ use raw_window_handle::WaylandWindowHandle;
 use raw_window_handle::XlibDisplayHandle;
 use raw_window_handle::XlibWindowHandle;
 use std::ptr;
+use webrender::api::units::DeviceIntSize;
 use webrender::api::ColorF;
 
 use crate::frame::LispFrameWindowSystemExt;
 
-pub type FrameId = u64;
+pub type FrameId = LispFrameRef;
 
 impl LispFrameWindowSystemExt for LispFrameRef {
     fn output(&self) -> OutputRef {
@@ -62,6 +65,9 @@ impl LispFrameWindowSystemExt for LispFrameRef {
     }
 
     fn window_handle(&self) -> Option<RawWindowHandle> {
+        if !self.parent_frame.is_nil() {
+            return None;
+        }
         if let Some(edit_widget) = self.edit_widget() {
             let window = unsafe { gtk_sys::gtk_widget_get_window(edit_widget.as_ptr()) };
             if self.is_wayland() {
@@ -86,6 +92,9 @@ impl LispFrameWindowSystemExt for LispFrameRef {
     }
 
     fn display_handle(&self) -> Option<RawDisplayHandle> {
+        if !self.parent_frame.is_nil() {
+            return None;
+        }
         if let Some(edit_widget) = self.edit_widget() {
             if self.is_wayland() {
                 let mut display_handle = WaylandDisplayHandle::empty();
@@ -111,14 +120,8 @@ impl LispFrameWindowSystemExt for LispFrameRef {
         None
     }
 
-    fn unique_id(&self) -> u64 {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::Hash;
-        use std::hash::Hasher;
-
-        let mut hasher = DefaultHasher::new();
-        self.window_handle().hash(&mut hasher);
-        hasher.finish()
+    fn unique_id(&self) -> FrameId {
+        self.clone()
     }
 }
 
@@ -126,6 +129,7 @@ pub trait LispFramePgtkExt {
     fn is_wayland(&self) -> bool;
     fn edit_widget(&self) -> Option<gtk::Widget>;
     fn fixed_widget(&self) -> Option<gtk::Fixed>;
+    fn dynamic_resize(&self);
 }
 
 impl LispFramePgtkExt for LispFrameRef {
@@ -151,4 +155,38 @@ impl LispFramePgtkExt for LispFrameRef {
             None => false,
         }
     }
+
+    fn dynamic_resize(&self) {
+        let fixed = self.fixed_widget().expect("no fixed widget");
+        fixed.connect_size_allocate({
+            move |widget, allocation| {
+                let scale_factor = widget.scale_factor() as f64;
+                let mut frame = fixed_wiget_to_frame(widget);
+                // Note: We scale up Emacs frame size here to match font
+                // Need to use allocation without scale when we remove
+                // scale from font
+                let size = DeviceIntSize::new(
+                    (allocation.width() as f64 * scale_factor).round() as i32,
+                    (allocation.height() as f64 * scale_factor).round() as i32,
+                );
+                log::debug!("Gtk fixed size allocated {size:?} scale_factor: {scale_factor:?}");
+                frame.handle_size_change(size, scale_factor);
+            }
+        });
+
+        fixed.connect_scale_factor_notify(move |widget| {
+            let mut frame = fixed_wiget_to_frame(widget);
+            let scale_factor = widget.scale_factor() as f64;
+            log::debug!("Gtk fixed scale_factor: {scale_factor:?}");
+            frame.handle_scale_factor_change(widget.scale_factor().into());
+        });
+    }
+}
+
+fn fixed_wiget_to_frame(widget: &gtk::Fixed) -> LispFrameRef {
+    let widget: *mut gtk_sys::GtkWidget = <gtk::Fixed as AsRef<gtk::Widget>>::as_ref(widget)
+        .to_glib_none()
+        .0;
+    let frame = unsafe { emacs::bindings::pgtk_fixed_to_frame(widget) };
+    frame.into()
 }

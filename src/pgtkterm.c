@@ -4906,6 +4906,16 @@ pgtk_window_is_of_frame (struct frame *f, GdkWindow *window)
   return data.result;
 }
 
+#ifdef USE_WEBRENDER
+struct frame *
+pgtk_fixed_to_frame (GtkWidget *fixed)
+{
+  struct frame *f;
+  f = pgtk_any_window_to_frame (gtk_widget_get_window (fixed));
+  return f;
+}
+#endif
+
 /* Like x_window_to_frame but also compares the window with the widget's
    windows.  */
 static struct frame *
@@ -4973,23 +4983,6 @@ pgtk_handle_event (GtkWidget *widget, GdkEvent *event, gpointer *data)
     }
   return FALSE;
 }
-
-#ifdef USE_WEBRENDER
-static gboolean
-pgtk_handle_scale_changed (GtkWidget *widget, GdkEvent *event, gpointer *data)
-{
-  struct frame *f;
-  GtkWidget *frame_widget;
-  double scale_factor;
-
-  f = pgtk_any_window_to_frame (gtk_widget_get_window (widget));
-  scale_factor = pgtk_frame_scale_factor(f);
-
-  wr_handle_scale_factor_change (f, scale_factor);
-
-  return TRUE;
-}
-#endif
 
 #ifndef USE_WEBRENDER
 static void
@@ -6623,10 +6616,6 @@ pgtk_set_event_handler (struct frame *f)
 		    G_CALLBACK (pgtk_selection_event), NULL);
   g_signal_connect (G_OBJECT (FRAME_GTK_WIDGET (f)), "event",
 		    G_CALLBACK (pgtk_handle_event), NULL);
-#ifdef USE_WEBRENDER
-  g_signal_connect (G_OBJECT (FRAME_GTK_WIDGET (f)), "notify::scale-factor",
-		    G_CALLBACK (pgtk_handle_scale_changed), NULL);
-#endif
 }
 
 static void
