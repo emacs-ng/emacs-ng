@@ -12,10 +12,15 @@ $ ./configure --with-webrender --with-pgtk
 ```
 
 #### WebRender with winit(TAO)
-[Winit](https://github.com/rust-windowing/winit) is a cross-platform window creation and event loop management library. [TAO](https://github.com/tauri-apps/tao) is is a fork of winit which replaces Linux's port to Gtk. Which also add support for webkit2gtk, and a lot of Desktop Environment features like menu bar, system tray, global shortcuts etc.
+[Winit](https://github.com/rust-windowing/winit) is a cross-platform
+window creation and event loop management
+library. [TAO](https://github.com/tauri-apps/tao) is is a fork of
+winit which replaces Linux's port to Gtk, adding support for
+webkit2gtk, and a lot of Desktop Environment features like a menu bar,
+system tray, global shortcuts etc.
 
-We are only experimental with them to build a Emacs window system from scratch. It works to some
-extent. But more details need to be handled before using it in production environment. You've been warned.
+We are only experimenting with them to build a Emacs window system from scratch. It works to some
+extent. But more details need to be handled before using it in production environment. You've been warned!
 
 ##### Using winit
 ```
@@ -40,8 +45,14 @@ If you get "Couldn't find any available vsync extension" runtime panic, enabling
 
 #### Random crashes with winit(TAO)
 
-Try build with `--enable-winit-pselect`
+Try building with `--enable-winit-pselect`
 
 ```
 $ ./configure --with-webrender --with-winit=tao --enable-winit-pselect
 ```
+
+#### Black screen/flickering with winit(TAO) and glutin on Linux
+
+TAO uses gtk under the hood on Linux, so you should build with
+`--with-wr-gl=gtk3` to use gtk's gl context creation and avoid the
+conflict.
