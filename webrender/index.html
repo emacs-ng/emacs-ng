@@ -629,6 +629,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#black-screenflickering-with-winittao-and-glutin-on-linux" class="md-nav__link">
+    Black screen/flickering with winit(TAO) and glutin on Linux
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -873,6 +880,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#black-screenflickering-with-winittao-and-glutin-on-linux" class="md-nav__link">
+    Black screen/flickering with winit(TAO) and glutin on Linux
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -910,9 +924,14 @@
 <div class="highlight"><pre><span></span><code>$ ./configure --with-webrender --with-pgtk
 </code></pre></div>
 <h4 id="webrender-with-winittao">WebRender with winit(TAO)<a class="headerlink" href="#webrender-with-winittao" title="Permanent link">#</a></h4>
-<p><a href="https://github.com/rust-windowing/winit">Winit</a> is a cross-platform window creation and event loop management library. <a href="https://github.com/tauri-apps/tao">TAO</a> is is a fork of winit which replaces Linux's port to Gtk. Which also add support for webkit2gtk, and a lot of Desktop Environment features like menu bar, system tray, global shortcuts etc.</p>
-<p>We are only experimental with them to build a Emacs window system from scratch. It works to some
-extent. But more details need to be handled before using it in production environment. You've been warned.</p>
+<p><a href="https://github.com/rust-windowing/winit">Winit</a> is a cross-platform
+window creation and event loop management
+library. <a href="https://github.com/tauri-apps/tao">TAO</a> is is a fork of
+winit which replaces Linux's port to Gtk, adding support for
+webkit2gtk, and a lot of Desktop Environment features like a menu bar,
+system tray, global shortcuts etc.</p>
+<p>We are only experimenting with them to build a Emacs window system from scratch. It works to some
+extent. But more details need to be handled before using it in production environment. You've been warned!</p>
 <h5 id="using-winit">Using winit<a class="headerlink" href="#using-winit" title="Permanent link">#</a></h5>
 <div class="highlight"><pre><span></span><code>$ ./configure --with-webrender --with-winit
 </code></pre></div>
@@ -931,9 +950,13 @@ extent. But more details need to be handled before using it in production enviro
 <h4 id="couldnt-find-any-available-vsync-extension">Couldn't find any available vsync extension<a class="headerlink" href="#couldnt-find-any-available-vsync-extension" title="Permanent link">#</a></h4>
 <p>If you get "Couldn't find any available vsync extension" runtime panic, enabling 3D acceleration will fix it.</p>
 <h4 id="random-crashes-with-winittao">Random crashes with winit(TAO)<a class="headerlink" href="#random-crashes-with-winittao" title="Permanent link">#</a></h4>
-<p>Try build with <code>--enable-winit-pselect</code></p>
+<p>Try building with <code>--enable-winit-pselect</code></p>
 <div class="highlight"><pre><span></span><code>$ ./configure --with-webrender --with-winit=tao --enable-winit-pselect
 </code></pre></div>
+<h4 id="black-screenflickering-with-winittao-and-glutin-on-linux">Black screen/flickering with winit(TAO) and glutin on Linux<a class="headerlink" href="#black-screenflickering-with-winittao-and-glutin-on-linux" title="Permanent link">#</a></h4>
+<p>TAO uses gtk under the hood on Linux, so you should build with
+<code>--with-wr-gl=gtk3</code> to use gtk's gl context creation and avoid the
+conflict.</p>
                 
                   
                     
@@ -942,7 +965,7 @@ extent. But more details need to be handled before using it in production enviro
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">March 9, 2023</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">March 10, 2023</span>
     
   </small>
 </div>
