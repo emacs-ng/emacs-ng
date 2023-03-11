@@ -3,6 +3,8 @@ use super::cursor::emacs_to_winit_cursor;
 use crate::event_loop::WrEventLoop;
 use crate::frame::LispFrameExt;
 use crate::output::OutputRef;
+use crate::window_system::api::dpi::LogicalPosition;
+use crate::window_system::api::dpi::PhysicalSize;
 use crate::window_system::api::monitor::MonitorHandle;
 use emacs::globals::Qfullscreen;
 use emacs::globals::Qmaximized;
@@ -37,6 +39,7 @@ pub trait LispFrameWinitExt {
         kb: KeyboardRef,
     ) -> Self;
     fn set_window(&self, handle: crate::window_system::api::window::Window);
+    fn set_inner_size(&self, size: PhysicalSize<u32>);
     fn set_cursor_color(&self, color: ColorF);
     fn set_background_color(&self, color: ColorF);
     fn set_cursor_position(&self, pos: PhysicalPosition<f64>);
@@ -47,7 +50,7 @@ pub trait LispFrameWinitExt {
     fn implicitly_set_name(&mut self, arg: LispObject, _old_val: LispObject);
     fn iconify(&mut self);
     fn current_monitor(&self) -> Option<MonitorHandle>;
-    fn cursor_position(&self) -> PhysicalPosition<i32>;
+    fn cursor_position(&self) -> LogicalPosition<i32>;
     fn winit_scale_factor(&self) -> f64;
 }
 
@@ -64,8 +67,12 @@ impl LispFrameWindowSystemExt for LispFrameRef {
         self.output().inner().scale_factor
     }
 
-    fn set_scale_factor(&mut self, scale_factor: f64) {
-        self.output().inner().scale_factor = scale_factor;
+    fn set_scale_factor(&mut self, scale_factor: f64) -> bool {
+        if self.output().inner().scale_factor != scale_factor {
+            self.output().inner().scale_factor = scale_factor;
+            return true;
+        }
+        false
     }
 
     fn cursor_foreground_color(&self) -> ColorF {
@@ -121,6 +128,8 @@ impl LispFrameWinitExt for LispFrameRef {
 
         let event_loop = WrEventLoop::global().try_lock().unwrap();
         let window_builder = WindowBuilder::new().with_visible(true);
+        let primary_monitor = event_loop.get_primary_monitor();
+        let scale_factor = primary_monitor.scale_factor();
 
         let invocation_name: emacs::multibyte::LispStringRef =
             unsafe { emacs::bindings::globals.Vinvocation_name.into() };
@@ -146,8 +155,8 @@ impl LispFrameWinitExt for LispFrameRef {
         log::trace!("frame total_cols {:?}", frame.total_cols);
         log::trace!("frame line_height {:?}", frame.line_height);
 
-        frame.pixel_width = window.inner_size().width as i32;
-        frame.pixel_height = window.inner_size().height as i32;
+        frame.pixel_width = (window.inner_size().width as f64 / scale_factor).round() as i32;
+        frame.pixel_height = (window.inner_size().height as f64 / scale_factor).round() as i32;
 
         // Remeber to destory the Output object when frame destoried.
         let output = Box::into_raw(output);
@@ -155,6 +164,7 @@ impl LispFrameWinitExt for LispFrameRef {
         frame.set_display_info(dpyinfo);
 
         frame.set_window(window);
+        frame.set_scale_factor(scale_factor);
         dpyinfo.get_inner().frames.insert(frame.unique_id(), frame);
         log::trace!("create_frame done");
         frame
@@ -162,6 +172,13 @@ impl LispFrameWinitExt for LispFrameRef {
 
     fn set_window(&self, window: crate::window_system::api::window::Window) {
         self.output().inner().set_window(window);
+    }
+
+    fn set_inner_size(&self, size: PhysicalSize<u32>) {
+        if let Some(ref window) = self.output().inner().window {
+            window.set_inner_size(size);
+            self.canvas().update();
+        }
     }
 
     fn set_cursor_position(&self, pos: PhysicalPosition<f64>) {
@@ -308,14 +325,23 @@ impl LispFrameWinitExt for LispFrameRef {
         window.current_monitor()
     }
 
-    fn cursor_position(&self) -> PhysicalPosition<i32> {
-        self.output().inner().cursor_position.cast::<i32>()
+    fn cursor_position(&self) -> LogicalPosition<i32> {
+        let pos = self.output().inner().cursor_position;
+        LogicalPosition::new(
+            (pos.x / self.scale_factor()).round() as i32,
+            (pos.y / self.scale_factor()).round() as i32,
+        )
     }
 
     fn winit_scale_factor(&self) -> f64 {
         if let Some(monitor) = self.current_monitor() {
             return monitor.scale_factor();
         }
+
+        if let Some(ref window) = self.output().inner().window {
+            return window.scale_factor();
+        }
+
         1.0
     }
 }

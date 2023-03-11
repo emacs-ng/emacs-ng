@@ -5088,12 +5088,7 @@ size_allocate (GtkWidget *widget, GtkAllocation *alloc,
 
   if (f)
     {
-#if defined USE_WEBRENDER
-      double scale = FRAME_SCALE_FACTOR (f);
-      xg_frame_resized (f, alloc->width * scale, alloc->height * scale);
-#else
       xg_frame_resized (f, alloc->width, alloc->height);
-#endif
       pgtk_cr_update_surface_desired_size (f, alloc->width, alloc->height, false);
     }
 }
@@ -5899,13 +5894,7 @@ note_mouse_movement (struct frame *frame,
     {
       frame->mouse_moved = true;
       dpyinfo->last_mouse_scroll_bar = NULL;
-#ifndef USE_WEBRENDER
       note_mouse_highlight (frame, event->x, event->y);
-#else
-      note_mouse_highlight (frame,
-			    event->x * FRAME_SCALE_FACTOR (frame),
-			    event->y * FRAME_SCALE_FACTOR (frame));
-#endif
       /* Remember which glyph we're now on.  */
       remember_mouse_glyph (frame, event->x, event->y, r);
       dpyinfo->last_mouse_glyph_frame = frame;
@@ -6043,13 +6032,8 @@ construct_mouse_click (struct input_event *result,
 		       | (event->type == GDK_BUTTON_RELEASE
 			  ? up_modifier : down_modifier));
 
-#ifndef USE_WEBRENDER
   XSETINT (result->x, event->x);
   XSETINT (result->y, event->y);
-#else
-  XSETINT (result->x, event->x * FRAME_SCALE_FACTOR (f));
-  XSETINT (result->y, event->y * FRAME_SCALE_FACTOR (f));
-#endif
   XSETFRAME (result->frame_or_window, f);
   result->arg = Qnil;
   result->device = pgtk_get_device_for_event (FRAME_DISPLAY_INFO (f),

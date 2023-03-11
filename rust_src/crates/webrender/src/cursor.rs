@@ -1,3 +1,4 @@
+use crate::frame::LispFrameExt;
 use crate::{renderer::Renderer, util::HandyDandyRectBuilder};
 
 use emacs::{
@@ -35,12 +36,12 @@ pub fn draw_hollow_box_cursor(mut window: LispWindowRef, row: *mut glyph_row) {
     let width = window.phys_cursor_width;
 
     let mut frame = window.get_frame();
-
-    let cursor_rect = (x, y).by(width, height);
+    let scale = frame.canvas().scale();
+    let cursor_rect = (x, y).by(width, height, scale);
 
     let window_rect = {
         let (x, y, width, height) = window.area_box(glyph_row_area::ANY_AREA);
-        (x, y).by(width, height)
+        (x, y).by(width, height, scale)
     };
 
     frame.draw_hollow_box_cursor(cursor_rect, window_rect);

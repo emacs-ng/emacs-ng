@@ -39,7 +39,7 @@ impl GLContextTrait for ContextImpl {
         let window_handle = frame
             .window_handle()
             .expect("Failed to get raw window handle from frame");
-        let size = frame.size();
+        let size = frame.physical_size();
 
         let connection = match Connection::from_raw_display_handle(display_handle) {
             Ok(connection) => connection,

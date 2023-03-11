@@ -84,6 +84,7 @@ impl GLContextTrait for ContextImpl {
 
             fixed.put(&area, 0, 0);
             area.grab_focus();
+            frame.dynamic_resize();
             (fixed, area)
         };
 

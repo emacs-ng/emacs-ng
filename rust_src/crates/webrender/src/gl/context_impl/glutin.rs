@@ -37,7 +37,7 @@ impl GLContextTrait for ContextImpl {
         let window_handle = frame
             .window_handle()
             .expect("Failed to get raw window handle from frame");
-        let size = frame.size();
+        let size = frame.physical_size();
 
         let width = NonZeroU32::new(size.width as u32).unwrap();
         let height = NonZeroU32::new(size.height as u32).unwrap();

@@ -1,4 +1,5 @@
 use crate::frame::LispFrameWindowSystemExt;
+use euclid::Scale;
 use std::cmp::min;
 
 use webrender::{self, api::units::*, api::*};
@@ -38,6 +39,7 @@ pub trait Renderer {
         foreground_color: ColorF,
         face: *mut Face,
         space_and_clip: SpaceAndClipInfo,
+        scale: f32,
     );
 
     fn draw_fringe_bitmap(
@@ -129,8 +131,7 @@ impl Renderer for LispFrameRef {
 
                 s.set_stippled_p(false);
             }
-
-            _ => panic!("invalid draw_glyphs_face"),
+            _ => log::error!("invalid draw_glyphs_face {:?}", s.hl),
         }
 
         let type_ = s.first_glyph().type_();
@@ -140,6 +141,12 @@ impl Renderer for LispFrameRef {
             glyph_type::STRETCH_GLYPH => self.draw_stretch_glyph_string(s),
             glyph_type::IMAGE_GLYPH => self.draw_image_glyph(s),
             glyph_type::COMPOSITE_GLYPH => self.draw_composite_glyph_string(s),
+            glyph_type::XWIDGET_GLYPH => {
+                log::error!("TODO unimplemented! glyph_type::XWIDGET_GLYPH\n")
+            }
+            glyph_type::GLYPHLESS_GLYPH => {
+                log::error!("TODO unimplemented! glyph_type::GLYPHLESS_GLYPH\n")
+            }
             _ => {}
         }
     }
@@ -154,11 +161,11 @@ impl Renderer for LispFrameRef {
         let to = s.nchars as usize;
 
         let gc = s.gc;
-        let font_instance_key = self
-            .canvas()
-            .get_or_create_font_instance(font, font.glyph_size() as f32);
+        self.canvas().display(|builder, space_and_clip, scale| {
+            let font_instance_key = self
+                .canvas()
+                .get_or_create_font_instance(font, font.font.pixel_size as f32 * scale);
 
-        self.canvas().display(|builder, space_and_clip| {
             let glyph_indices: Vec<u32> =
                 s.get_chars()[from..to].iter().map(|c| *c as u32).collect();
 
@@ -208,7 +215,7 @@ impl Renderer for LispFrameRef {
 
             // draw background
             if !s.background_filled_p() {
-                let background_bounds = (x, y).by(s.background_width as i32, visible_height);
+                let background_bounds = (x, y).by(s.background_width as i32, visible_height, scale);
 
                 let background_color = pixel_to_color(unsafe { (*gc).background } as u64);
 
@@ -225,12 +232,21 @@ impl Renderer for LispFrameRef {
 
             // draw underline
             if unsafe { (*face).underline() != face_underline_type::FACE_NO_UNDERLINE } {
-                Self::draw_underline(builder, s, font, foreground_color, face, space_and_clip);
+                Self::draw_underline(
+                    builder,
+                    s,
+                    font,
+                    foreground_color,
+                    face,
+                    space_and_clip,
+                    scale,
+                );
             }
 
             // draw foreground
             if !glyph_instances.is_empty() {
-                let visible_rect = (x, y).by(s.width as i32, visible_height);
+                let glyph_instances = scale_glyph_instances(glyph_instances, scale);
+                let visible_rect = (x, y).by(s.width as i32, visible_height, scale);
 
                 builder.push_text(
                     &CommonItemProperties::new(visible_rect, space_and_clip),
@@ -258,10 +274,10 @@ impl Renderer for LispFrameRef {
             s.background_width
         };
 
-        let background_bounds = (s.x, s.y).by(background_width, visible_height);
         let background_color = pixel_to_color(unsafe { (*s.gc).background } as u64);
 
-        self.canvas().display(|builder, space_and_clip| {
+        self.canvas().display(|builder, space_and_clip, scale| {
+            let background_bounds = (s.x, s.y).by(background_width, visible_height, scale);
             builder.push_rect(
                 &CommonItemProperties::new(background_bounds, space_and_clip),
                 background_bounds,
@@ -291,17 +307,20 @@ impl Renderer for LispFrameRef {
 
         unsafe { get_glyph_string_clip_rect(s.as_mut(), &mut clip_rect) };
 
-        let clip_bounds =
-            (clip_rect.x, clip_rect.y).by(clip_rect.width as i32, clip_rect.height as i32);
-        let bounds = (s.x, s.y).by(s.slice.width() as i32, s.slice.height() as i32);
-
         let face = unsafe { &*s.face };
 
         let background_color = pixel_to_color(face.background);
 
-        let background_rect = bounds.intersection(&clip_bounds);
+        self.canvas().display(|builder, space_and_clip, scale| {
+            let clip_bounds = (clip_rect.x, clip_rect.y).by(
+                clip_rect.width as i32,
+                clip_rect.height as i32,
+                scale,
+            );
 
-        self.canvas().display(|builder, space_and_clip| {
+            let bounds = (s.x, s.y).by(s.slice.width() as i32, s.slice.height() as i32, scale);
+            let background_rect = bounds.intersection(&clip_bounds);
+
             if let Some(background_rect) = background_rect {
                 // render background
                 builder.push_rect(
@@ -373,6 +392,7 @@ impl Renderer for LispFrameRef {
                     Some(glyph_instance)
                 })
                 .collect();
+            let glyph_instances = scale_glyph_instances(glyph_instances, self.canvas().scale());
 
             let face = s.face;
 
@@ -386,7 +406,7 @@ impl Renderer for LispFrameRef {
                 }
             };
 
-            self.canvas().display(|builder, space_and_clip| {
+            self.canvas().display(|builder, space_and_clip, scale| {
                 let mut s = s.clone();
 
                 let x = s.x;
@@ -394,7 +414,8 @@ impl Renderer for LispFrameRef {
 
                 // draw background
                 if !s.background_filled_p() {
-                    let background_bounds = (x, y).by(s.background_width as i32, visible_height);
+                    let background_bounds =
+                        (x, y).by(s.background_width as i32, visible_height, scale);
 
                     let background_color = pixel_to_color(unsafe { (*gc).background } as u64);
 
@@ -411,14 +432,22 @@ impl Renderer for LispFrameRef {
 
                 // draw underline
                 if unsafe { (*face).underline() != face_underline_type::FACE_NO_UNDERLINE } {
-                    Self::draw_underline(builder, s, font, foreground_color, face, space_and_clip);
+                    Self::draw_underline(
+                        builder,
+                        s,
+                        font,
+                        foreground_color,
+                        face,
+                        space_and_clip,
+                        scale,
+                    );
                 }
 
-                let visible_rect = (x, y).by(s.width, visible_height);
+                let visible_rect = (x, y).by(s.width, visible_height, scale);
 
                 let font_instance_key = self
                     .canvas()
-                    .get_or_create_font_instance(font, font.glyph_size() as f32);
+                    .get_or_create_font_instance(font, font.font.pixel_size as f32 * scale);
                 // draw foreground
                 if !glyph_instances.is_empty() {
                     builder.push_text(
@@ -443,6 +472,7 @@ impl Renderer for LispFrameRef {
         foreground_color: ColorF,
         face: *mut Face,
         space_and_clip: SpaceAndClipInfo,
+        scale: f32,
     ) {
         let x = s.x;
         let y = s.y;
@@ -475,10 +505,12 @@ impl Renderer for LispFrameRef {
 
         let visible_height = unsafe { (*s.row).visible_height };
 
-        let info =
-            CommonItemProperties::new((x, y).by(s.width as i32, visible_height), space_and_clip);
+        let info = CommonItemProperties::new(
+            (x, y).by(s.width as i32, visible_height, scale),
+            space_and_clip,
+        );
 
-        let visible_rect = (x, position).by(s.width as i32, thickness);
+        let visible_rect = (x, position).by(s.width as i32, thickness, scale);
 
         builder.push_line(
             &info,
@@ -500,18 +532,18 @@ impl Renderer for LispFrameRef {
         clear_rect: LayoutRect,
         row_rect: LayoutRect,
     ) {
-        // Fixed clear_rect
-        let clear_rect = clear_rect
-            .union(&image_clip_rect)
-            .intersection(&row_rect)
-            .unwrap_or_else(|| LayoutRect::zero());
+        self.canvas().display(|builder, space_and_clip, scale| {
+            // Fixed clear_rect
+            let clear_rect = clear_rect
+                .union(&image_clip_rect)
+                .intersection(&row_rect)
+                .unwrap_or_else(|| LayoutRect::zero());
 
-        // Fixed image_clip_rect
-        let image_clip_rect = image_clip_rect
-            .intersection(&row_rect)
-            .unwrap_or_else(|| LayoutRect::zero());
+            // Fixed image_clip_rect
+            let image_clip_rect = image_clip_rect
+                .intersection(&row_rect)
+                .unwrap_or_else(|| LayoutRect::zero());
 
-        self.canvas().display(|builder, space_and_clip| {
             // clear area
             builder.push_rect(
                 &CommonItemProperties::new(clear_rect, space_and_clip),
@@ -523,7 +555,7 @@ impl Renderer for LispFrameRef {
                 let image_display_rect = LayoutRect::new(
                     pos,
                     LayoutPoint::new(image.width as f32, image.height as f32),
-                );
+                ) * Scale::new(scale);
                 // render image
                 builder.push_image(
                     &CommonItemProperties::new(image_clip_rect, space_and_clip),
@@ -542,14 +574,13 @@ impl Renderer for LispFrameRef {
         // Don't known why the height is short than expected.
         let y1 = y1 + 1;
 
-        let visible_rect = (x, y0).by(1, y1 - y0);
-
         let color = match face {
             Some(f) => pixel_to_color(unsafe { (*f).foreground }),
             None => ColorF::BLACK,
         };
 
-        self.canvas().display(|builder, space_and_clip| {
+        self.canvas().display(|builder, space_and_clip, scale| {
+            let visible_rect = (x, y0).by(1, y1 - y0, scale);
             builder.push_rect(
                 &CommonItemProperties::new(visible_rect, space_and_clip),
                 visible_rect,
@@ -568,14 +599,14 @@ impl Renderer for LispFrameRef {
         y0: i32,
         y1: i32,
     ) {
-        self.canvas().display(|builder, space_and_clip| {
+        self.canvas().display(|builder, space_and_clip, scale| {
             if (y1 - y0 > x1 - x0) && (x1 - x0 >= 3) {
                 // A vertical divider, at least three pixels wide: Draw first and
                 // last pixels differently.
 
-                let first = (x0, y0).to(x0 + 1, y1);
-                let middle = (x0 + 1, y0).to(x1 - 1, y1);
-                let last = (x1 - 1, y0).to(x1, y1);
+                let first = (x0, y0).to(x0 + 1, y1, scale);
+                let middle = (x0 + 1, y0).to(x1 - 1, y1, scale);
+                let last = (x1 - 1, y0).to(x1, y1, scale);
 
                 builder.push_rect(
                     &CommonItemProperties::new(first, space_and_clip),
@@ -596,9 +627,9 @@ impl Renderer for LispFrameRef {
                 // A horizontal divider, at least three pixels high: Draw first and
                 // last pixels differently.
 
-                let first = (x0, y0).to(x1, 1);
-                let middle = (x0, y0 + 1).to(x1, y1 - 1);
-                let last = (x0, y1 - 1).to(x1, y1);
+                let first = (x0, y0).to(x1, 1, scale);
+                let middle = (x0, y0 + 1).to(x1, y1 - 1, scale);
+                let last = (x0, y1 - 1).to(x1, y1, scale);
 
                 builder.push_rect(
                     &CommonItemProperties::new(first, space_and_clip),
@@ -618,7 +649,7 @@ impl Renderer for LispFrameRef {
             } else {
                 // In any other case do not draw the first and last pixels
                 // differently.
-                let visible_rect = (x0, y0).to(x1, y1);
+                let visible_rect = (x0, y0).to(x1, y1, scale);
                 builder.push_rect(
                     &CommonItemProperties::new(visible_rect, space_and_clip),
                     visible_rect,
@@ -629,9 +660,8 @@ impl Renderer for LispFrameRef {
     }
 
     fn clear_area(&mut self, clear_color: ColorF, x: i32, y: i32, width: i32, height: i32) {
-        let visible_rect = (x, y).by(width, height);
-
-        self.canvas().display(|builder, space_and_clip| {
+        self.canvas().display(|builder, space_and_clip, scale| {
+            let visible_rect = (x, y).by(width, height, scale);
             builder.push_rect(
                 &CommonItemProperties::new(visible_rect, space_and_clip),
                 visible_rect,
@@ -673,16 +703,14 @@ impl Renderer for LispFrameRef {
         // flush all content to screen before coping screen pixels
         self.canvas().flush();
 
-        let viewport = (x, to_y).by(width, height);
-
         let diff_y = to_y - from_y;
-        let frame_size = self.canvas().device_size();
-
-        let new_frame_position =
-            (0, 0 + diff_y).by(frame_size.width as i32, frame_size.height as i32);
+        let frame_size = self.logical_size();
 
         if let Some(image_key) = self.canvas().get_previous_frame() {
-            self.canvas().display(|builder, space_and_clip| {
+            self.canvas().display(|builder, space_and_clip, scale| {
+                let viewport = (x, to_y).by(width, height, scale);
+                let new_frame_position =
+                    (0, 0 + diff_y).by(frame_size.width as i32, frame_size.height as i32, scale);
                 builder.push_image(
                     &CommonItemProperties::new(viewport, space_and_clip),
                     new_frame_position,
@@ -714,7 +742,7 @@ impl Renderer for LispFrameRef {
             do_aa: true,
         });
 
-        self.canvas().display(|builder, space_and_clip| {
+        self.canvas().display(|builder, space_and_clip, _scale| {
             builder.push_border(
                 &CommonItemProperties::new(clip_rect, space_and_clip),
                 cursor_rect,
@@ -731,8 +759,8 @@ impl Renderer for LispFrameRef {
             self.cursor_color()
         };
 
-        let bounds = (x, y).by(width, height);
-        self.canvas().display(|builder, space_and_clip| {
+        self.canvas().display(|builder, space_and_clip, scale| {
+            let bounds = (x, y).by(width, height, scale);
             builder.push_rect(
                 &CommonItemProperties::new(bounds, space_and_clip),
                 bounds,
@@ -740,4 +768,15 @@ impl Renderer for LispFrameRef {
             );
         });
     }
+}
+
+fn scale_glyph_instances(instances: Vec<GlyphInstance>, scale: f32) -> Vec<GlyphInstance> {
+    let mut scaled: Vec<GlyphInstance> = vec![];
+    for instance in instances.iter() {
+        scaled.push(GlyphInstance {
+            point: instance.point * Scale::new(scale),
+            ..*instance
+        })
+    }
+    scaled
 }

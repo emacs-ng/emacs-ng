@@ -1,3 +1,4 @@
+use crate::window_system::api::dpi::LogicalPosition;
 use crate::window_system::frame::LispFrameWinitExt;
 use crate::window_system::{keycode_to_emacs_key_name, to_emacs_modifiers, virtual_keycode};
 
@@ -200,7 +201,7 @@ impl InputProcessor {
             _ => todo!(),
         };
 
-        let mut pos = PhysicalPosition::new(0, 0);
+        let mut pos = LogicalPosition::new(0, 0);
 
         if let Some(frame) = top_frame.as_frame() {
             pos = frame.cursor_position();
@@ -289,7 +290,7 @@ impl InputProcessor {
 
         let (kind, is_upper, lines) = event_meta.unwrap();
 
-        let mut pos = PhysicalPosition::new(0, 0);
+        let mut pos = LogicalPosition::new(0, 0);
 
         if let Some(frame) = top_frame.as_frame() {
             pos = frame.cursor_position();

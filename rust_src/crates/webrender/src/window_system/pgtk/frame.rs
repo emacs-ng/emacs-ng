@@ -2,7 +2,6 @@ use crate::color::pixel_to_color;
 use crate::frame::LispFrameExt;
 use crate::output::Output;
 use crate::output::OutputRef;
-use emacs::bindings::xg_frame_resized;
 use emacs::frame::LispFrameRef;
 use gtk::glib::translate::FromGlibPtrNone;
 use gtk::glib::translate::ToGlibPtr;
@@ -34,29 +33,32 @@ impl LispFrameWindowSystemExt for LispFrameRef {
         pixel_to_color(color)
     }
 
-    // PGTK compute glyphs using unscale font etc
-    // Then scale rediplay output all together?
-    // While winit/tao compute scaled glyphs
-    // then directly draw rediplay output with on scale needed
     fn scale_factor(&self) -> f64 {
-        let scale_factor = unsafe { (*self.output_data.pgtk).watched_scale_factor };
+        let scale_factor = self.output().inner().scale_factor;
         if scale_factor != 0.0 {
             return scale_factor;
         }
+
+        // fallback using parent frame
+        if !self.parent_frame.is_nil() {
+            let parent: LispFrameRef = self.parent_frame.into();
+            return parent.scale_factor();
+        }
+
+        // fallback using widget
+        if let Some(widget) = self.edit_widget() {
+            return widget.scale_factor() as f64;
+        }
+
         1.0
     }
 
-    fn set_scale_factor(&mut self, scale_factor: f64) {
-        unsafe { (*self.output_data.pgtk).watched_scale_factor = scale_factor };
-        if let Some(widget) = self.edit_widget() {
-            unsafe {
-                xg_frame_resized(
-                    self.as_mut(),
-                    (widget.allocated_width() as f64 * scale_factor).round() as i32,
-                    (widget.allocated_height() as f64 * scale_factor).round() as i32,
-                )
-            };
+    fn set_scale_factor(&mut self, scale_factor: f64) -> bool {
+        if self.output().inner().scale_factor != scale_factor {
+            self.output().inner().scale_factor = scale_factor;
+            return true;
         }
+        false
     }
 
     fn cursor_foreground_color(&self) -> ColorF {
@@ -158,17 +160,17 @@ impl LispFramePgtkExt for LispFrameRef {
 
     fn dynamic_resize(&self) {
         let fixed = self.fixed_widget().expect("no fixed widget");
+        fixed.connect_realize(move |widget| {
+            let mut frame = fixed_wiget_to_frame(widget);
+            frame.set_scale_factor(widget.scale_factor() as f64);
+        });
+
         fixed.connect_size_allocate({
             move |widget, allocation| {
                 let scale_factor = widget.scale_factor() as f64;
                 let mut frame = fixed_wiget_to_frame(widget);
-                // Note: We scale up Emacs frame size here to match font
-                // Need to use allocation without scale when we remove
-                // scale from font
-                let size = DeviceIntSize::new(
-                    (allocation.width() as f64 * scale_factor).round() as i32,
-                    (allocation.height() as f64 * scale_factor).round() as i32,
-                );
+                let size =
+                    DeviceIntSize::new(allocation.width() as i32, allocation.height() as i32);
                 log::debug!("Gtk fixed size allocated {size:?} scale_factor: {scale_factor:?}");
                 frame.handle_size_change(size, scale_factor);
             }

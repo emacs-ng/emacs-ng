@@ -6,12 +6,14 @@ use crate::output::CanvasRef;
 use std::ptr;
 
 pub struct OutputInner {
+    pub scale_factor: f64,
     pub canvas: CanvasRef,
 }
 
 impl Default for OutputInner {
     fn default() -> Self {
         OutputInner {
+            scale_factor: 0.0,
             canvas: CanvasRef::new(ptr::null_mut() as *mut _ as *mut Canvas),
         }
     }
