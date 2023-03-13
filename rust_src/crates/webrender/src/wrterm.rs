@@ -609,7 +609,7 @@ pub fn webrender_monitor_to_emacs_monitor(m: MonitorHandle) -> (MonitorInfo, Opt
 ///
 /// Internal use only, use `display-monitor-attributes-list' instead.
 #[lisp_fn(min = "0")]
-pub fn x_display_monitor_attributes_list(_terminal: LispObject) -> LispObject {
+pub fn wr_display_monitor_attributes_list(_terminal: LispObject) -> LispObject {
     let event_loop = WrEventLoop::global().try_lock().unwrap();
 
     let monitors: Vec<_> = event_loop.get_available_monitors().collect();
