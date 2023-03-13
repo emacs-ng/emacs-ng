@@ -21,7 +21,6 @@ use emacs::{
         Qoblique, Qsemi_bold, Qthin, Qttf_parser, Qultra_bold,
     },
     lisp::{ExternalPtr, LispObject},
-    multibyte::LispStringRef,
     symbol::LispSymbolRef,
 };
 
@@ -90,8 +89,7 @@ impl LispFontLike {
         if tem.is_nil() {
             None
         } else {
-            let symbol_or_string = tem.as_symbol_or_string();
-            let string: LispStringRef = symbol_or_string.into();
+            let string: String = tem.into();
             let family_name = string.to_string().replace("-", "\\-");
 
             #[cfg(free_unix)]
@@ -121,9 +119,8 @@ impl LispFontLike {
         if slant.is_nil() {
             None
         } else {
-            let symbol_or_string = slant.as_symbol_or_string();
-            let string: LispStringRef = symbol_or_string.into();
-            match string.to_string().as_ref() {
+            let string: String = slant.into();
+            match string.as_ref() {
                 "Qnormal" => Some(Style::Normal),
                 "Qitalic" => Some(Style::Italic),
                 "Qoblique" => Some(Style::Oblique),

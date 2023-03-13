@@ -10,8 +10,8 @@ use libc::{c_void, intptr_t, uintptr_t};
 
 use crate::{
     bindings::Aligned_Lisp_Subr,
-    bindings::{build_string, pI, valid_lisp_object_p, Fprin1_to_string, XLI},
-    bindings::{Lisp_Bits, Lisp_Type, USER_PTRP, XUSER_PTR},
+    bindings::{build_string, make_string_from_utf8, valid_lisp_object_p, Fprin1_to_string},
+    bindings::{pI, Lisp_Bits, Lisp_Type, USER_PTRP, XLI, XUSER_PTR},
     definitions::{EmacsInt, EmacsUint, USE_LSB_TAG},
     globals::{Qexternal_debugging_output, Qnil, Qt, Quser_ptrp},
     multibyte::LispStringRef,
@@ -46,8 +46,8 @@ impl fmt::Debug for LispObject {
         let valid = unsafe { valid_lisp_object_p(*self) };
         if valid > 0 {
             let loutput = unsafe { Fprin1_to_string(*self, Qexternal_debugging_output, Qnil) };
-            let loutput: LispStringRef = loutput.into();
-            return write!(f, "{}", loutput.to_utf8());
+            let output: String = loutput.into();
+            return write!(f, "{}", output);
         } else {
             let n = unsafe { XLI(*self) };
             let prefix = {
@@ -279,5 +279,31 @@ impl LispObject {
         } else {
             wrong_type!(Quser_ptrp, *self);
         }
+    }
+}
+
+// extra Rust types conversation
+impl From<LispObject> for i32 {
+    fn from(o: LispObject) -> Self {
+        let val: EmacsInt = o.into();
+        val as i32
+    }
+}
+
+impl From<String> for LispObject {
+    fn from(s: String) -> Self {
+        let len = s.len();
+        let c_content = CString::new(s)
+            .map_err(|e| e.to_string())
+            .expect("Failed to create string for intern function call");
+        unsafe { make_string_from_utf8(c_content.as_ptr(), len.try_into().unwrap()) }
+    }
+}
+
+impl From<LispObject> for String {
+    fn from(val: LispObject) -> Self {
+        let val = val.as_symbol_or_string();
+        let string_ref: LispStringRef = val.into();
+        string_ref.to_utf8()
     }
 }

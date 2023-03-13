@@ -131,9 +131,7 @@ impl LispFrameWinitExt for LispFrameRef {
         let primary_monitor = event_loop.get_primary_monitor();
         let scale_factor = primary_monitor.scale_factor();
 
-        let invocation_name: emacs::multibyte::LispStringRef =
-            unsafe { emacs::bindings::globals.Vinvocation_name.into() };
-        let invocation_name = invocation_name.to_utf8();
+        let invocation_name: String = unsafe { emacs::bindings::globals.Vinvocation_name.into() };
 
         #[cfg(all(wayland_platform, use_winit))]
         let window_builder = {

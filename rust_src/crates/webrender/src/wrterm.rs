@@ -10,7 +10,6 @@ use crate::winit_term_init;
 use emacs::bindings::gui_update_cursor;
 use emacs::bindings::Fredraw_frame;
 use emacs::frame::Lisp_Frame;
-use emacs::multibyte::LispStringRef;
 use std::ffi::CString;
 use std::ptr;
 use webrender::api::*;
@@ -101,9 +100,9 @@ pub extern "C" fn winit_set_cursor_color(
     _old_val: LispObject,
 ) {
     let frame: LispFrameRef = f.into();
+    let color_str: String = arg.into();
 
-    let color_str: LispStringRef = arg.as_symbol_or_string().into();
-    let color_str = format!("{}", color_str.to_string());
+    let color_str = format!("{}", color_str);
     let color = lookup_color_by_name_or_hex(&color_str);
 
     if let Some(color) = color {
