@@ -33,7 +33,8 @@ pub fn keycode_to_emacs_key_name(keycode: VirtualKeyCode) -> *const libc::c_char
     match keycode {
         VirtualKeyCode::Escape => kn!("escape"),
         VirtualKeyCode::Back => kn!("backspace"),
-        VirtualKeyCode::Return => kn!("return"),
+        VirtualKeyCode::Delete => kn!("deletechar"),
+        VirtualKeyCode::Return | VirtualKeyCode::NumpadEnter => kn!("return"),
         VirtualKeyCode::Tab => kn!("tab"),
 
         VirtualKeyCode::Home => kn!("home"),
