@@ -2,17 +2,19 @@
 //! lisp.h.
 
 use std::ffi::CString;
+use std::fmt;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 
 use libc::{c_void, intptr_t, uintptr_t};
 
 use crate::{
-    bindings::build_string,
     bindings::Aligned_Lisp_Subr,
+    bindings::{build_string, pI, valid_lisp_object_p, Fprin1_to_string, XLI},
     bindings::{Lisp_Bits, Lisp_Type, USER_PTRP, XUSER_PTR},
     definitions::{EmacsInt, EmacsUint, USE_LSB_TAG},
-    globals::{Qnil, Qt, Quser_ptrp},
+    globals::{Qexternal_debugging_output, Qnil, Qt, Quser_ptrp},
+    multibyte::LispStringRef,
     sys::VALMASK,
 };
 
@@ -38,6 +40,32 @@ use crate::{
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct LispObject(pub EmacsInt);
+
+impl fmt::Debug for LispObject {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let valid = unsafe { valid_lisp_object_p(*self) };
+        if valid > 0 {
+            let loutput = unsafe { Fprin1_to_string(*self, Qexternal_debugging_output, Qnil) };
+            let loutput: LispStringRef = loutput.into();
+            return write!(f, "{}", loutput.to_utf8());
+        } else {
+            let n = unsafe { XLI(*self) };
+            let prefix = {
+                if valid == 0 {
+                    "INVALID"
+                } else {
+                    "SOME"
+                }
+            };
+            write!(
+                f,
+                "#<{prefix}_LISP_OBJECT 0x{:08}{}x>\r\n",
+                n,
+                std::str::from_utf8(pI).unwrap()
+            )
+        }
+    }
+}
 
 impl LispObject {
     pub const fn from_C(n: EmacsInt) -> Self {
