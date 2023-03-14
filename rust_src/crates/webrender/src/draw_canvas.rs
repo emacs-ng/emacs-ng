@@ -243,9 +243,10 @@ impl Renderer for LispFrameRef {
                 );
             }
 
+            let overstrike = unsafe { (*face).overstrike() };
             // draw foreground
             if !glyph_instances.is_empty() {
-                let glyph_instances = scale_glyph_instances(glyph_instances, scale);
+                let glyph_instances = scale_glyph_instances(glyph_instances, scale, overstrike);
                 let visible_rect = (x, y).by(s.width as i32, visible_height, scale);
 
                 builder.push_text(
@@ -392,9 +393,12 @@ impl Renderer for LispFrameRef {
                     Some(glyph_instance)
                 })
                 .collect();
-            let glyph_instances = scale_glyph_instances(glyph_instances, self.canvas().scale());
 
             let face = s.face;
+            let overstrike = unsafe { (*face).overstrike() };
+
+            let glyph_instances =
+                scale_glyph_instances(glyph_instances, self.canvas().scale(), overstrike);
 
             let gc = s.gc;
 
@@ -770,13 +774,24 @@ impl Renderer for LispFrameRef {
     }
 }
 
-fn scale_glyph_instances(instances: Vec<GlyphInstance>, scale: f32) -> Vec<GlyphInstance> {
+fn scale_glyph_instances(
+    instances: Vec<GlyphInstance>,
+    scale: f32,
+    overstrike: bool,
+) -> Vec<GlyphInstance> {
     let mut scaled: Vec<GlyphInstance> = vec![];
     for instance in instances.iter() {
+        let cur_point = instance.point;
         scaled.push(GlyphInstance {
-            point: instance.point * Scale::new(scale),
+            point: cur_point * Scale::new(scale),
             ..*instance
-        })
+        });
+        if overstrike {
+            scaled.push(GlyphInstance {
+                point: LayoutPoint::new(cur_point.x + 1.0, cur_point.y) * Scale::new(scale),
+                ..*instance
+            });
+        }
     }
     scaled
 }
