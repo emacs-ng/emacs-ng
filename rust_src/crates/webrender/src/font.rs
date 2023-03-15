@@ -18,7 +18,7 @@ use emacs::{
     frame::LispFrameRef,
     globals::{
         Qbold, Qextra_bold, Qextra_light, Qiso10646_1, Qitalic, Qlight, Qmedium, Qnil, Qnormal,
-        Qoblique, Qsemi_bold, Qthin, Qttf_parser, Qultra_bold,
+        Qoblique, Qsemi_bold, Qthin, Qttfp, Qultra_bold,
     },
     lisp::{ExternalPtr, LispObject},
     symbol::LispSymbolRef,
@@ -54,7 +54,7 @@ impl FontDriver {
             log::trace!("FONT_DRIVER is being created...");
             let mut font_driver = font_driver::default();
 
-            font_driver.type_ = Qttf_parser;
+            font_driver.type_ = Qttfp;
             font_driver.case_sensitive = true;
             font_driver.get_cache = Some(get_cache);
             font_driver.list = Some(list);
@@ -220,7 +220,7 @@ extern "C" fn match_(_f: *mut frame, spec: LispObject) -> LispObject {
         let entity: LispFontLike = unsafe { font_make_entity() }.into();
 
         // set type
-        entity.aset(font_property_index::FONT_TYPE_INDEX, Qttf_parser);
+        entity.aset(font_property_index::FONT_TYPE_INDEX, Qttfp);
 
         let family_name = f.families.get(0);
         if family_name.is_none() {
@@ -389,7 +389,7 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     .into();
 
     // set type
-    font_object.aset(font_property_index::FONT_TYPE_INDEX, Qttf_parser);
+    font_object.aset(font_property_index::FONT_TYPE_INDEX, Qttfp);
 
     // set name
     font_object.aset(
@@ -519,7 +519,7 @@ extern "C" fn text_extents(
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn register_ttf_parser_font_driver(f: *mut frame) {
+pub extern "C" fn register_ttfp_font_driver(f: *mut frame) {
     let driver = FontDriver::global();
     unsafe {
         register_font_driver(&driver.0, f);
@@ -528,16 +528,13 @@ pub extern "C" fn register_ttf_parser_font_driver(f: *mut frame) {
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn syms_of_ttf_parser_font() {
-    let ttf_parser_symbol =
-        CString::new("ttf-parser").expect("Failed to create string for intern function call");
-    def_lisp_sym!(Qttf_parser, "ttf-parser");
+pub extern "C" fn syms_of_ttfp_font() {
+    let ttfp_symbol =
+        CString::new("ttfp").expect("Failed to create string for intern function call");
+    def_lisp_sym!(Qttfp, "ttfp");
     unsafe {
-        Fprovide(
-            emacs::bindings::intern_c_string(ttf_parser_symbol.as_ptr()),
-            Qnil,
-        );
+        Fprovide(emacs::bindings::intern_c_string(ttfp_symbol.as_ptr()), Qnil);
     }
 
-    register_ttf_parser_font_driver(ptr::null_mut());
+    register_ttfp_font_driver(ptr::null_mut());
 }

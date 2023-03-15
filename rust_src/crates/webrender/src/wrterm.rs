@@ -2,7 +2,7 @@
 
 use crate::color::color_to_pixel;
 use crate::event_loop::WrEventLoop;
-use crate::font::register_ttf_parser_font_driver;
+use crate::font::register_ttfp_font_driver;
 use crate::window_system::{
     clipboard::ClipboardExt, frame::LispFrameWinitExt, keysym_to_emacs_key_name,
 };
@@ -293,7 +293,7 @@ pub fn winit_create_frame(parms: LispObject) -> LispFrameRef {
     #[cfg(use_tao)]
     crate::event_loop::ensure_window(frame.unique_id());
 
-    register_ttf_parser_font_driver(frame.as_mut());
+    register_ttfp_font_driver(frame.as_mut());
 
     frame.gui_default_parameter(
         parms,
