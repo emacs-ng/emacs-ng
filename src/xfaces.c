@@ -7337,8 +7337,10 @@ other font of the appropriate family and registry is available.  */);
 	       doc: /* List of ignored fonts.
 Each element is a regular expression that matches names of fonts to
 ignore.  */);
-#ifdef HAVE_XFT
+#if defined(HAVE_XFT) || defined(USE_WEBRENDER)
   /* This font causes libXft crashes, so ignore it by default.  Bug#37786.  */
+  /* WebRender currently has issue rendering Color Font.
+     See: https://bugzilla.mozilla.org/show_bug.cgi?id=1565588 */
   Vface_ignored_fonts = list1 (build_string ("Noto Color Emoji"));
 #else
   Vface_ignored_fonts = Qnil;
