@@ -1418,16 +1418,19 @@ If FILE-SYSTEM is non-nil, return file system attributes."
 (defun tramp-gvfs-handle-file-name-all-completions (filename directory)
   "Like `file-name-all-completions' for Tramp files."
   (unless (tramp-compat-string-search "/" filename)
-    (all-completions
-     filename
-     (with-parsed-tramp-file-name (expand-file-name directory) nil
-       (with-tramp-file-property v localname "file-name-all-completions"
-         (let ((result '("./" "../")))
-           ;; Get a list of directories and files.
-	   (dolist (item (tramp-gvfs-get-directory-attributes directory) result)
-	     (if (string-equal (cdr (assoc "type" item)) "directory")
-		 (push (file-name-as-directory (car item)) result)
-	       (push (car item) result)))))))))
+    (ignore-error file-missing
+      (all-completions
+       filename
+       (with-parsed-tramp-file-name (expand-file-name directory) nil
+	 (with-tramp-file-property v localname "file-name-all-completions"
+           (let ((result '("./" "../")))
+             ;; Get a list of directories and files.
+	     (dolist (item
+		      (tramp-gvfs-get-directory-attributes directory)
+		      result)
+	       (if (string-equal (cdr (assoc "type" item)) "directory")
+		   (push (file-name-as-directory (car item)) result)
+		 (push (car item) result))))))))))
 
 (defun tramp-gvfs-handle-file-notify-add-watch (file-name flags _callback)
   "Like `file-notify-add-watch' for Tramp files."
@@ -1466,7 +1469,7 @@ If FILE-SYSTEM is non-nil, return file system attributes."
 	(set-process-sentinel p #'tramp-file-notify-process-sentinel)
 	;; There might be an error if the monitor is not supported.
 	;; Give the filter a chance to read the output.
-	(while (tramp-accept-process-output p 0))
+	(while (tramp-accept-process-output p))
 	(unless (process-live-p p)
 	  (tramp-error
 	   p 'file-notify-error "Monitoring not supported for `%s'" file-name))

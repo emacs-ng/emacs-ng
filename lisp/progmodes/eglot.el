@@ -2,12 +2,12 @@
 
 ;; Copyright (C) 2018-2023 Free Software Foundation, Inc.
 
-;; Version: 1.11
+;; Version: 1.13
 ;; Author: João Távora <joaotavora@gmail.com>
 ;; Maintainer: João Távora <joaotavora@gmail.com>
 ;; URL: https://github.com/joaotavora/eglot
 ;; Keywords: convenience, languages
-;; Package-Requires: ((emacs "26.3") (jsonrpc "1.0.16") (flymake "1.2.1") (project "0.9.3") (xref "1.4.0") (eldoc "1.11.0") (seq "2.23") (external-completion "0.1"))
+;; Package-Requires: ((emacs "26.3") (jsonrpc "1.0.16") (flymake "1.2.1") (project "0.9.8") (xref "1.6.2") (eldoc "1.11.0") (seq "2.23") (external-completion "0.1"))
 
 ;; This is a GNU ELPA :core package.  Avoid adding functionality
 ;; that is not available in the version of Emacs recorded above or any
@@ -221,7 +221,7 @@ chosen (interactively or automatically)."
                                 ((java-mode java-ts-mode) . ("jdtls"))
                                 (dart-mode . ("dart" "language-server"
                                               "--client-id" "emacs.eglot-dart"))
-                                (elixir-mode . ("language_server.sh"))
+                                ((elixir-ts-mode elixir-mode) . ("language_server.sh"))
                                 (ada-mode . ("ada_language_server"))
                                 (scala-mode . ,(eglot-alternatives
                                                 '("metals" "metals-emacs")))
@@ -1155,12 +1155,12 @@ INTERACTIVE is t if called interactively."
     (cl-labels
         ((maybe-connect
            ()
-           (remove-hook 'post-command-hook #'maybe-connect nil)
            (eglot--when-live-buffer buffer
+             (remove-hook 'post-command-hook #'maybe-connect t)
              (unless eglot--managed-mode
                (apply #'eglot--connect (eglot--guess-contact))))))
       (when buffer-file-name
-        (add-hook 'post-command-hook #'maybe-connect 'append nil)))))
+        (add-hook 'post-command-hook #'maybe-connect 'append t)))))
 
 (defun eglot-events-buffer (server)
   "Display events buffer for SERVER.
@@ -2147,6 +2147,10 @@ COMMAND is a symbol naming the command."
   (_server (_method (eql telemetry/event)) &rest _any)
   "Handle notification telemetry/event.") ;; noop, use events buffer
 
+(defalias 'eglot--reporter-update
+  (if (> emacs-major-version 26) #'progress-reporter-update
+    (lambda (a b &optional _c) (progress-reporter-update a b))))
+
 (cl-defmethod eglot-handle-notification
   (server (_method (eql $/progress)) &key token value)
   "Handle $/progress notification identified by TOKEN from SERVER."
@@ -2162,10 +2166,10 @@ COMMAND is a symbol naming the command."
                            (make-progress-reporter prefix 0 100 percentage 1 0)
                          (make-progress-reporter prefix nil nil nil 1 0))
                        (eglot--progress-reporters server))))
-             (progress-reporter-update pr percentage (fmt title message))))
+             (eglot--reporter-update pr percentage (fmt title message))))
           ("report"
            (when-let ((pr (gethash token (eglot--progress-reporters server))))
-             (progress-reporter-update pr percentage (fmt title message))))
+             (eglot--reporter-update pr percentage (fmt title message))))
           ("end" (remhash token (eglot--progress-reporters server))))))))
 
 (cl-defmethod eglot-handle-notification
@@ -2183,7 +2187,7 @@ COMMAND is a symbol naming the command."
               (buffer (find-buffer-visiting path)))
         (with-current-buffer buffer
           (cl-loop
-           initially (assoc-delete-all path flymake-list-only-diagnostics #'string=)
+           initially (assoc-delete-all path flymake-list-only-diagnostics)
            for diag-spec across diagnostics
            collect (eglot--dbind ((Diagnostic) range code message severity source tags)
                        diag-spec
@@ -2237,7 +2241,7 @@ COMMAND is a symbol naming the command."
        into diags
        finally
        (setq flymake-list-only-diagnostics
-             (assoc-delete-all path flymake-list-only-diagnostics #'string=))
+             (assoc-delete-all path flymake-list-only-diagnostics))
        (push (cons path diags) flymake-list-only-diagnostics)))))
 
 (cl-defun eglot--register-unregister (server things how)
@@ -3666,13 +3670,14 @@ If NOERROR, return predicate, else erroring function."
 
 ;;; Misc
 ;;;
-(defun eglot--debbugs-or-github-bug-uri ()
-  (format (if (string= (match-string 2) "github")
-              "https://github.com/joaotavora/eglot/issues/%s"
-            "https://debbugs.gnu.org/%s")
-          (match-string 3)))
-(put 'eglot--debbugs-or-github-bug-uri 'bug-reference-url-format t)
-
+;;;###autoload
+(progn
+  (put 'eglot--debbugs-or-github-bug-uri 'bug-reference-url-format t)
+  (defun eglot--debbugs-or-github-bug-uri ()
+    (format (if (string= (match-string 2) "github")
+                "https://github.com/joaotavora/eglot/issues/%s"
+              "https://debbugs.gnu.org/%s")
+            (match-string 3))))
 ;;; Obsolete
 ;;;
 

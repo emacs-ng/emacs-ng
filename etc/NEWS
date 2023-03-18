@@ -220,6 +220,24 @@ asynchronously (which is the default behavior).
 *** New face 'doc-view-svg-face'.
 This replaces 'doc-view-svg-foreground' and 'doc-view-svg-background'.
 
+** Shortdoc
+
++++
+*** New function 'shortdoc-function-examples'.
+This function returns examples of use of a given Emacs Lisp function
+from the available shortdoc information.
+
++++
+*** New function 'shortdoc-help-fns-examples-function'.
+This function inserts into the current buffer examples of use of a
+given Emacs Lisp function, which it gleans from the shortdoc
+information.  If you want 'describe-function' ('C-h f') to insert
+examples of using the function into regular "*Help*" buffers, add the
+following to your init file:
+
+    (add-hook 'help-fns-describe-function-functions
+              #'shortdoc-help-fns-examples-function)
+
 
 * New Modes and Packages in Emacs 30.1
 
@@ -229,6 +247,15 @@ This replaces 'doc-view-svg-foreground' and 'doc-view-svg-background'.
 *** New major mode 'html-ts-mode'.
 An optional major mode based on the tree-sitter library for editing
 HTML files.
+
+---
+*** New major mode 'heex-ts-mode'.
+A major mode based on the tree-sitter library for editing HEEx files.
+
+---
+*** New major mode 'elixir-ts-mode'.
+A major mode based on the tree-sitter library for editing Elixir
+files.
 
 ---
 ** The highly accessible Modus themes collection has six items.
@@ -363,11 +390,6 @@ was to catch all errors, add an explicit handler for 'error', or use
 
 This warning can be suppressed using 'with-suppressed-warnings' with
 the warning name 'suspicious'.
-
-+++
-** New function 'safe-copy-tree'
-This function is a version of copy-tree which handles circular lists
-and circular vectors/records.
 
 +++
 ** New function 'file-user-uid'.
