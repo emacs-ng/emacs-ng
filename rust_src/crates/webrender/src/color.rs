@@ -1,6 +1,8 @@
 use emacs::frame::Lisp_Frame;
+use image_::Rgba;
 use std::ffi::CStr;
 use webrender::api::ColorF;
+use webrender::api::ColorU;
 
 use emacs::bindings::Emacs_Color;
 
@@ -107,4 +109,10 @@ pub extern "C" fn wr_parse_color(
     } else {
         0
     }
+}
+
+pub fn color_to_rgba(color: ColorF) -> Rgba<u8> {
+    let color: ColorU = color.into();
+
+    Rgba([color.r, color.g, color.b, color.a])
 }

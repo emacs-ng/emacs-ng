@@ -115,6 +115,7 @@ pub mod window_system {
 }
 
 pub mod image;
+mod image_cache;
 pub mod output;
 pub mod term;
 

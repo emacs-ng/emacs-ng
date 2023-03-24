@@ -61,7 +61,6 @@ impl FontDB<'static> {
         #[cfg(not(target_arch = "wasm32"))]
         let now = std::time::Instant::now();
 
-        #[cfg(not(free_unix))]
         db.load_system_fonts();
 
         #[cfg(free_unix)]
@@ -72,6 +71,7 @@ impl FontDB<'static> {
                 db.load_fonts_dir(dir);
             }
         }
+
         #[cfg(not(target_arch = "wasm32"))]
         log::info!(
             "Parsed {} font faces in {}ms.",

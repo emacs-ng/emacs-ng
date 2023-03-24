@@ -350,6 +350,13 @@ impl WRFont {
         }
         Vec::new()
     }
+    pub fn too_high_p(&self) -> bool {
+        let pixel_size = self.font.pixel_size;
+        let ascent = self.font.ascent;
+        let descent = self.font.descent;
+
+        pixel_size > 0 && (ascent + descent) > 3 * pixel_size
+    }
 }
 
 pub type WRFontRef = ExternalPtr<WRFont>;

@@ -290,6 +290,19 @@ impl From<LispObject> for i32 {
     }
 }
 
+impl From<LispObject> for u32 {
+    fn from(o: LispObject) -> Self {
+        let val: EmacsInt = o.into();
+        val as u32
+    }
+}
+
+impl From<u32> for LispObject {
+    fn from(v: u32) -> Self {
+        Self::from_fixnum(EmacsInt::from(v))
+    }
+}
+
 impl From<String> for LispObject {
     fn from(s: String) -> Self {
         let len = s.len();

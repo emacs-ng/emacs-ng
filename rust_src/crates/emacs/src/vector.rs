@@ -3,10 +3,11 @@
 use libc::ptrdiff_t;
 use std::mem;
 
+use crate::bindings::VECTORP;
 use lazy_static::lazy_static;
 
 use crate::{
-    bindings::{pvec_type, Lisp_Type, Lisp_Vector, More_Lisp_Bits},
+    bindings::{pvec_type, Lisp_Type, Lisp_Vector, More_Lisp_Bits, AREF, ASET, ASIZE},
     frame::LispFrameRef,
     lisp::{ExternalPtr, LispObject, LispSubrRef},
     process::LispProcessRef,
@@ -232,4 +233,26 @@ lazy_static! {
     pub static ref HEADER_SIZE: usize =
         memoffset::offset_of!(crate::bindings::Lisp_Vector, contents);
     pub static ref WORD_SIZE: usize = ::std::mem::size_of::<crate::lisp::LispObject>();
+}
+
+pub trait LVector {
+    fn vectorp(self) -> bool;
+    fn aref(self, idx: u32) -> LispObject;
+    fn aset(self, idx: u32, val: LispObject);
+    fn asize(self) -> u32;
+}
+
+impl LVector for LispObject {
+    fn vectorp(self) -> bool {
+        unsafe { VECTORP(self) }
+    }
+    fn aref(self, idx: u32) -> LispObject {
+        unsafe { AREF(self, idx.try_into().unwrap()) }
+    }
+    fn aset(self, idx: u32, val: LispObject) {
+        unsafe { ASET(self, idx.try_into().unwrap(), val) };
+    }
+    fn asize(self) -> u32 {
+        unsafe { ASIZE(self) as u32 }
+    }
 }

@@ -17,7 +17,7 @@ libc = "0.2.95"
 lazy_static = "1.4"
 gleam = "0.13"
 copypasta = { version = "0.8.1", default-features = false, optional = true }
-image = "0.23.14"
+image_ = { package = "image", version = "0.24" }
 app_units = "0.7"
 bit-vec = "0.6.3"
 ttf-parser = "0.17"
@@ -34,6 +34,10 @@ surfman = { version = "0.6", default-features = false, features = ["sm-raw-windo
 glutin = { version = "0.30.6", optional = true }
 rustybuzz = "0.6"
 ouroboros = "0.15.5"
+resvg = "0.29"
+usvg = "0.29"
+usvg-text-layout = "0.29"
+tiny-skia = "0.8"
 
 [dependencies.nix]
 optional = true
@@ -41,9 +45,10 @@ version = "0.26"
 default-features = false
 features = ["signal"]
 
+# Cargo.lock update patch
 [dependencies.webrender]
-git = "https://github.com/servo/webrender.git"
-rev = "23f5f305624bd00f450407180fdef74796bd3964"
+git = "https://github.com/declantsien/webrender.git"
+rev = "1732a483fe19466a4e2834017214ff3e30525f45"
 default-features = false
 
 [dependencies.webrender_surfman]
@@ -104,9 +109,11 @@ tao=["dep:tao", "emacs/window-system-winit"]
 pgtk=["dep:gtk", "dep:gtk-sys", "dep:gdkwayland-sys", "dep:gdkx11-sys", "dep:x11-dl"]
 no_std = [
   "rustybuzz/libm",
+  "usvg-text-layout/system-fonts"
 ]
 std = [
   "fontdb/memmap",
   "fontdb/std",
   "rustybuzz/std",
+  "usvg-text-layout/memmap-fonts"
 ]

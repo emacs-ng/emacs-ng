@@ -1,4 +1,6 @@
 use crate::frame::LispFrameWindowSystemExt;
+use crate::image::ImageExt;
+use crate::image::ImageRef;
 use crate::output::OutputRef;
 use emacs::multibyte::LispStringRef;
 use lisp_macros::lisp_fn;
@@ -22,8 +24,8 @@ use crate::{
 use emacs::{
     bindings::{
         block_input, display_and_set_cursor, draw_window_fringes, face_id, glyph_row_area,
-        gui_clear_cursor, gui_draw_right_divider, gui_draw_vertical_border, image as Emacs_Image,
-        run, unblock_input,
+        gui_clear_cursor, gui_draw_right_divider, gui_draw_vertical_border, image, run,
+        unblock_input,
     },
     bindings::{
         draw_fringe_bitmap_params, fontset_from_font, glyph_row, glyph_string, terminal,
@@ -412,13 +414,11 @@ pub extern "C" fn wr_update_end(f: *mut Lisp_Frame) {
 
 #[no_mangle]
 pub extern "C" fn wr_free_pixmap(f: *mut Lisp_Frame, pixmap: Emacs_Pixmap) {
-    // take back ownership and RAII will drop resource.
-    let pixmap = unsafe { Box::from_raw(pixmap as *mut WrPixmap) };
-
-    let image_key = pixmap.image_key;
-
     let frame: LispFrameRef = f.into();
-    frame.canvas().delete_image(image_key);
+    frame.canvas().delete_image_by_pixmap(pixmap);
+
+    // take back ownership and RAII will drop resource.
+    let _ = unsafe { Box::from_raw(pixmap as *mut WrPixmap) };
 }
 
 #[allow(unused_variables)]
@@ -429,13 +429,13 @@ pub extern "C" fn wr_get_baseline_offset(output: OutputRef) -> i32 {
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn wr_get_pixel(ximg: *mut Emacs_Image, x: i32, y: i32) -> i32 {
+pub extern "C" fn wr_get_pixel(ximg: *mut image, x: i32, y: i32) -> i32 {
     unimplemented!();
 }
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn wr_put_pixel(ximg: *mut Emacs_Image, x: i32, y: i32, pixel: u64) {
+pub extern "C" fn wr_put_pixel(ximg: *mut image, x: i32, y: i32, pixel: u64) {
     unimplemented!();
 }
 
@@ -447,22 +447,24 @@ pub extern "C" fn wr_can_use_native_image_api(image_type: LispObject) -> bool {
 #[no_mangle]
 pub extern "C" fn wr_load_image(
     frame: LispFrameRef,
-    img: *mut Emacs_Image,
-    spec_file: LispObject,
-    spec_data: LispObject,
+    img: *mut image,
+    _spec_file: LispObject,
+    _spec_data: LispObject,
 ) -> bool {
-    crate::image::load_image(frame, img, spec_file, spec_data)
+    let image: ImageRef = img.into();
+    image.load(frame)
 }
 
 #[no_mangle]
 pub extern "C" fn wr_transform_image(
     frame: LispFrameRef,
-    img: *mut Emacs_Image,
+    img: *mut image,
     width: i32,
     height: i32,
     rotation: f64,
 ) {
-    crate::image::transform_image(frame, img, width, height, rotation);
+    let image: ImageRef = img.into();
+    image.transform(frame, width, height, rotation);
 }
 
 #[no_mangle]
@@ -479,7 +481,7 @@ pub extern "C" fn image_pixmap_draw_cross(
 }
 
 #[no_mangle]
-pub extern "C" fn image_sync_to_pixmaps(_frame: LispFrameRef, _img: *mut Emacs_Image) {
+pub extern "C" fn image_sync_to_pixmaps(_frame: LispFrameRef, _img: *mut image) {
     unimplemented!();
 }
 

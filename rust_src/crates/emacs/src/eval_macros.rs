@@ -175,3 +175,22 @@ macro_rules! defvar_bool {
 macro_rules! args_out_of_range {
     ($($tt:tt)+) => { xsignal!(crate::globals::Qargs_out_of_range, $($tt)+); };
 }
+
+#[macro_export]
+macro_rules! image_error {
+    ($text:expr) => {{
+        #[allow(unused_unsafe)]
+        log::error!($text);
+        unsafe {
+            $crate::bindings::add_to_log($text.to_string().as_ptr() as *const ::libc::c_char);
+        };
+    }};
+    ($text:expr, $($arg:expr),*) => {{
+        let text = format!($text, $($arg),*);
+        log::error!($text, $($arg),*);
+        #[allow(unused_unsafe)]
+        unsafe {
+            $crate::bindings::add_to_log(text.to_string().as_ptr() as *const ::libc::c_char);
+        };
+    }};
+}

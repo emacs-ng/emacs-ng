@@ -1,5 +1,6 @@
 //! Functions operating on numbers.
-
+use crate::bindings::EMACS_INT;
+use crate::bindings::XFIXNUM;
 use crate::{
     bindings::{Lisp_Bits, Lisp_Type, INTTYPEBITS},
     definitions::{EmacsInt, EmacsUint, EMACS_INT_MAX, USE_LSB_TAG},
@@ -104,5 +105,15 @@ impl LispObject {
         } else {
             raw & INTMASK
         }
+    }
+}
+
+pub trait LNumber {
+    fn xfixnum(self) -> EMACS_INT;
+}
+
+impl LNumber for LispObject {
+    fn xfixnum(self) -> EMACS_INT {
+        unsafe { XFIXNUM(self) }
     }
 }

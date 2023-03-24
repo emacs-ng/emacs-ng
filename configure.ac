@@ -2059,6 +2059,14 @@ fi
 
 if test "${with_webrender}" = "yes" ; then
   with_cairo=no
+dnl WebRender support these images from native image support
+  with_xpm=no
+  with_jpeg=no
+  with_tiff=no
+  with_gif=no
+  with_png=no
+  with_rsvg=no
+  with_webp=no
 fi
 
 LD_SWITCH_X_SITE_RPATH=

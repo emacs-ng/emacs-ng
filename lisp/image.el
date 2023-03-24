@@ -35,6 +35,16 @@
 (declare-function clear-image-cache "image.c"
                   (&optional filter animation-cache))
 
+;; TODO Add header regexps for
+;; ("" . avif)
+;; ("" . ico)
+;; ("" . pnm)
+;; ("" . tga)
+;; ("". dds)
+;; ("" . ico)
+;; ("" . hdr)
+;; (""  . open_exr)
+;; ("" . farbfeld)
 (defconst image-type-header-regexps
   `(("\\`/[\t\n\r ]*\\*.*XPM.\\*/" . xpm)
     ("\\`P[1-6]\\(?:\
@@ -79,6 +89,15 @@ a non-nil value, TYPE is the image's type.")
     ("\\.ps\\'" . postscript)
     ("\\.tiff?\\'" . tiff)
     ("\\.svgz?\\'" . svg)
+    ("\\.avif\\'" . avif)
+    ("\\.ico\\'" . ico)
+    ("\\.pnm\\'" . pnm)
+    ("\\.tga\\'" . tga)
+    ("\\.dds\\'". dds)
+    ("\\.ico\\'" . ico)
+    ("\\.hdr\\'" . hdr)
+    ("\\.exr\\'"  . open_exr)
+    ("\\.ff\\'" . farbfeld)
     ("\\.hei[cf]s?\\'" . heic))
   "Alist of (REGEXP . IMAGE-TYPE) pairs used to identify image files.
 When the name of an image file match REGEXP, it is assumed to
@@ -98,6 +117,15 @@ be of image type IMAGE-TYPE.")
     (tiff . maybe)
     (svg . maybe)
     (webp . maybe)
+    (ico . maybe)
+    (avif . maybe)
+    (pnm . maybe)
+    (tga . maybe)
+    (dds. maybe)
+    (ico . maybe)
+    (hdr . maybe)
+    (open_exr . maybe)
+    (farbfeld . maybe)
     (postscript . nil)
     (heic . maybe))
   "Alist of (IMAGE-TYPE . AUTODETECT) pairs used to auto-detect image files.

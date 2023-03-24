@@ -35,6 +35,8 @@ pub mod frame;
 #[cfg(feature = "window-system")]
 pub mod glyph;
 pub mod keyboard;
+#[cfg(feature = "window-system")]
+pub mod lglyph;
 pub mod list;
 pub mod multibyte;
 pub mod number;

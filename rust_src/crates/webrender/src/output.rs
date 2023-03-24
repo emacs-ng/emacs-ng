@@ -1,11 +1,13 @@
 use super::display_info::DisplayInfoRef;
 use super::font::FontRef;
+use super::image_cache::ImageHash;
 use crate::font_db::FontDB;
 use crate::frame::LispFrameWindowSystemExt;
 use crate::gl::context::GLContextTrait;
 use crate::window_system::output::output;
 use crate::window_system::output::OutputInner;
 use crate::window_system::output::OutputInnerRef;
+use emacs::bindings::Emacs_Pixmap;
 use emacs::lisp::ExternalPtr;
 use std::fmt;
 use std::ptr;
@@ -34,6 +36,7 @@ pub struct Canvas {
         ),
         FontInstanceKey,
     >,
+    images: HashMap<ImageHash, ImageKey>,
     font_render_mode: Option<FontRenderMode>,
     allow_mipmaps: bool,
     pub render_api: RenderApi,
@@ -96,6 +99,7 @@ impl Canvas {
         Self {
             fonts: HashMap::new(),
             font_instances: HashMap::new(),
+            images: HashMap::new(),
             font_render_mode: None,
             allow_mipmaps: false,
             render_api: api,
@@ -445,34 +449,21 @@ impl Canvas {
         key
     }
 
-    pub fn add_image(&mut self, width: i32, height: i32, image_data: Arc<Vec<u8>>) -> ImageKey {
+    pub fn add_image(&mut self, descriptor: ImageDescriptor, data: ImageData) -> ImageKey {
         let image_key = self.render_api.generate_image_key();
+        let mut txn = Transaction::new();
 
-        self.update_image(image_key, width, height, image_data);
+        txn.add_image(image_key, descriptor, data, None);
+
+        self.render_api.send_transaction(self.document_id, txn);
 
         image_key
     }
 
-    pub fn update_image(
-        &mut self,
-        image_key: ImageKey,
-        width: i32,
-        height: i32,
-        image_data: Arc<Vec<u8>>,
-    ) {
+    pub fn update_image(&mut self, key: ImageKey, descriptor: ImageDescriptor, data: ImageData) {
         let mut txn = Transaction::new();
 
-        txn.add_image(
-            image_key,
-            ImageDescriptor::new(
-                width,
-                height,
-                ImageFormat::RGBA8,
-                ImageDescriptorFlags::empty(),
-            ),
-            ImageData::Raw(image_data),
-            None,
-        );
+        txn.update_image(key, descriptor, data, &DirtyRect::All);
 
         self.render_api.send_transaction(self.document_id, txn);
     }
@@ -483,6 +474,36 @@ impl Canvas {
         txn.delete_image(image_key);
 
         self.render_api.send_transaction(self.document_id, txn);
+    }
+
+    pub fn delete_image_by_pixmap(&mut self, _pixmap: Emacs_Pixmap) {
+        // We cache image by source from image_cache.rs
+        // transform(rotate, resize(scale)) on the fly
+        // loop images, compare pixmap,find image_key
+        log::warn!("TODO free pixmap");
+    }
+
+    // Create glyph raster image instance with scaled size
+    pub fn add_or_update_image(
+        &mut self,
+        hash: &ImageHash,
+        descriptor: ImageDescriptor,
+        data: ImageData,
+    ) -> ImageKey {
+        let image_key = self.image_key(&hash);
+
+        if let Some(key) = image_key {
+            self.update_image(key, descriptor, data);
+            return key;
+        }
+
+        let key = self.add_image(descriptor, data);
+        self.images.insert(*hash, key);
+        key
+    }
+
+    pub fn image_key(&self, hash: &ImageHash) -> Option<ImageKey> {
+        self.images.get(hash).copied()
     }
 
     pub fn update(&mut self) {

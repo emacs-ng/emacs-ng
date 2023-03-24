@@ -1,12 +1,11 @@
-use std::sync::Arc;
-
 use crate::frame::LispFrameExt;
 use bit_vec::BitVec;
 use emacs::frame::LispFrameRef;
-use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
+use image_::{DynamicImage, GenericImageView, Rgba, RgbaImage};
+use std::sync::Arc;
 
 use emacs::bindings::draw_fringe_bitmap_params;
-use webrender::api::ImageKey;
+use webrender::api::{ImageData, ImageDescriptor, ImageDescriptorFlags, ImageFormat, ImageKey};
 
 use crate::output::CanvasRef;
 
@@ -47,12 +46,16 @@ fn create_fringe_bitmap(mut canvas: CanvasRef, p: *mut draw_fringe_bitmap_params
     let image_buffer = create_fringe_bitmap_image_buffer(p);
 
     let (width, height) = image_buffer.dimensions();
-
-    let image_key = canvas.add_image(
+    let descriptor = ImageDescriptor::new(
         width as i32,
         height as i32,
-        Arc::new(image_buffer.to_rgba8().to_vec()),
+        ImageFormat::RGBA8,
+        ImageDescriptorFlags::empty(),
     );
+
+    let data = ImageData::Raw(Arc::new(image_buffer.to_rgba8().to_vec()));
+
+    let image_key = canvas.add_image(descriptor, data);
 
     FringeBitmap {
         image_key,

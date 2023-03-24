@@ -12247,11 +12247,30 @@ non-numeric, there is no explicit limit on the size of images.  */);
   add_image_type (Qpng);
 #endif
 
-#if defined (HAVE_WEBP) || (defined (HAVE_NATIVE_IMAGE_API) \
-			    && defined (HAVE_HAIKU))
+#if defined (HAVE_WEBP) || defined (USE_WEBRENDER) \
+    || (defined (HAVE_NATIVE_IMAGE_API) && defined (HAVE_HAIKU))
   DEFSYM (Qwebp, "webp");
   DEFSYM (Qwebpdemux, "webpdemux");
   add_image_type (Qwebp);
+#endif
+
+#if defined (USE_WEBRENDER)
+  DEFSYM (Qico, "ico");
+  add_image_type (Qico);
+  DEFSYM (Qpnm, "pnm");
+  add_image_type (Qpnm);
+  DEFSYM (Qtga, "tga");
+  add_image_type (Qtga);
+  DEFSYM (Qdds, "dds");
+  add_image_type (Qdds);
+  DEFSYM (Qhdr, "hdr");
+  add_image_type (Qhdr);
+  DEFSYM (Qopen_exr, "open_exr");
+  add_image_type (Qopen_exr);
+  DEFSYM (Qfarbfeld, "farbfeld");
+  add_image_type (Qfarbfeld);
+  DEFSYM (Qavif, "avif");
+  add_image_type (Qavif);
 #endif
 
 #if defined (HAVE_IMAGEMAGICK)
@@ -12275,7 +12294,7 @@ non-numeric, there is no explicit limit on the size of images.  */);
 #endif /* HAVE_NTGUI  */
 #elif defined HAVE_NATIVE_IMAGE_API			\
   && ((defined HAVE_NS && defined NS_IMPL_COCOA)	\
-      || defined HAVE_HAIKU)
+      || defined HAVE_HAIKU || USE_WEBRENDER)
   DEFSYM (Qsvg, "svg");
 
   /* On Haiku, the SVG translator may not be installed.  */
@@ -12291,7 +12310,7 @@ non-numeric, there is no explicit limit on the size of images.  */);
 #if HAVE_NATIVE_IMAGE_API
   DEFSYM (Qnative_image, "native-image");
 
-# if defined HAVE_NTGUI || defined HAVE_HAIKU
+# if defined HAVE_NTGUI || defined HAVE_HAIKU || defined USE_WEBRENDER
   DEFSYM (Qbmp, "bmp");
   add_image_type (Qbmp);
 # endif
