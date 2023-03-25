@@ -24,7 +24,7 @@
 # Maintainer: Ted Zlatanov <tzz@lifelogs.com>
 # URL: https://emba.gnu.org/emacs/emacs
 
-FROM debian:stretch as emacs-base
+FROM debian:bullseye as emacs-base
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 \
@@ -34,9 +34,10 @@ RUN apt-get update && \
 
 FROM emacs-base as emacs-inotify
 
+# We install clangd for Eglot tests.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 \
-      inotify-tools \
+      inotify-tools clangd \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . /checkout
@@ -59,6 +60,22 @@ RUN ./autogen.sh autoconf
 RUN ./configure --with-file-notification=gfile
 RUN make bootstrap
 
+FROM emacs-base as emacs-eglot
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 \
+      wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# We install a recent clangd for Eglot tests.
+RUN bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
+
+COPY . /checkout
+WORKDIR /checkout
+RUN ./autogen.sh autoconf
+RUN ./configure
+RUN make bootstrap
+
 FROM emacs-base as emacs-gnustep
 
 RUN apt-get update && \
@@ -74,9 +91,10 @@ RUN make bootstrap
 
 FROM emacs-base as emacs-native-comp
 
+# The libgccjit version must correspond to the gcc version.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 \
-      libgccjit-6-dev \
+      libgccjit-10-dev \
     && rm -rf /var/lib/apt/lists/*
 
 FROM emacs-native-comp as emacs-native-comp-speed0

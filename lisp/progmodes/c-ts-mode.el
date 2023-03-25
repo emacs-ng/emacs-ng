@@ -386,7 +386,7 @@ MODE is either `c' or `cpp'."
            ((parent-is "function_definition") parent-bol 0)
            ((parent-is "conditional_expression") first-sibling 0)
            ((parent-is "assignment_expression") parent-bol c-ts-mode-indent-offset)
-           ((parent-is "concatenated_string") parent-bol c-ts-mode-indent-offset)
+           ((parent-is "concatenated_string") first-sibling 0)
            ((parent-is "comma_expression") first-sibling 0)
            ((parent-is "init_declarator") parent-bol c-ts-mode-indent-offset)
            ((parent-is "parenthesized_expression") first-sibling 1)
@@ -433,6 +433,8 @@ MODE is either `c' or `cpp'."
            ((parent-is "for_statement") standalone-parent c-ts-mode-indent-offset)
            ((parent-is "while_statement") standalone-parent c-ts-mode-indent-offset)
            ((parent-is "do_statement") standalone-parent c-ts-mode-indent-offset)
+
+           ((parent-is "case_statement") standalone-parent c-ts-mode-indent-offset)
 
            ,@(when (eq mode 'cpp)
                `(((node-is "field_initializer_list") parent-bol ,(* c-ts-mode-indent-offset 2)))))))
@@ -1100,10 +1102,15 @@ the code is C or C++ and based on that chooses whether to enable
                  '("\\(\\.ii\\|\\.\\(CC?\\|HH?\\)\\|\\.[ch]\\(pp\\|xx\\|\\+\\+\\)\\|\\.\\(cc\\|hh\\)\\)\\'"
                    . c++-ts-mode)))
 
-(if (treesit-ready-p 'c)
-    (add-to-list 'auto-mode-alist
-                 '("\\(\\.[chi]\\|\\.lex\\|\\.y\\(acc\\)?\\|\\.x[bp]m\\)\\'"
-                   . c-ts-mode)))
+(when (treesit-ready-p 'c)
+  (add-to-list 'auto-mode-alist
+               '("\\(\\.[chi]\\|\\.lex\\|\\.y\\(acc\\)?\\)\\'" . c-ts-mode))
+  (add-to-list 'auto-mode-alist '("\\.x[pb]m\\'" . c-ts-mode))
+  ;; image-mode's association must be before the C mode, otherwise XPM
+  ;; images will be initially visited as C files.  Also note that the
+  ;; regexp must be different from what files.el does, or else
+  ;; add-to-list will not add the association where we want it.
+  (add-to-list 'auto-mode-alist '("\\.x[pb]m\\'" . image-mode)))
 
 (if (and (treesit-ready-p 'cpp)
          (treesit-ready-p 'c))

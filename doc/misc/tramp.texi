@@ -1247,6 +1247,7 @@ syntax requires a leading volume (share) name, for example:
 
 @item @option{dav}
 @item @option{davs}
+@cindex WebDAV
 @cindex method @option{dav}
 @cindex method @option{davs}
 @cindex @option{dav} method
@@ -2758,32 +2759,32 @@ allows you to set the @option{ControlPath} provided the variable
 Note how @samp{%r}, @samp{%h} and @samp{%p} must be encoded as
 @samp{%%r}, @samp{%%h} and @samp{%%p}.
 
-@vindex tramp-use-ssh-controlmaster-options
+@vindex tramp-use-connection-share
 Using a predefined string in @code{tramp-ssh-controlmaster-options},
 or puzzling an own string, happens only when user option
-@code{tramp-use-ssh-controlmaster-options} is set to @code{t}.  If the
+@code{tramp-use-connection-share} is set to @code{t}.  If the
 @file{~/.ssh/config} file is configured appropriately for the above
 behavior, then any changes to @command{ssh} can be suppressed with
 this @code{nil} setting:
 
 @lisp
-(customize-set-variable 'tramp-use-ssh-controlmaster-options nil)
+(customize-set-variable 'tramp-use-connection-share nil)
 @end lisp
 
 Sometimes, it is not possible to use OpenSSH's @option{ControlMaster}
 option for remote processes.  This could result in concurrent access
 to the OpenSSH socket when reading data by different processes, which
 could block Emacs.  In this case, setting
-@code{tramp-use-ssh-controlmaster-options} to @code{suppress} disables
-shared access.  It is not needed to set this user option permanently
-to @code{suppress}, binding the user option prior calling
+@code{tramp-use-connection-share} to @code{suppress} disables shared
+access.  It is not needed to set this user option permanently to
+@code{suppress}, binding the user option prior calling
 @code{make-process} is sufficient.  @value{tramp} does this for
 esxample for compilation processes on its own.
 
 @vindex ProxyCommand@r{, ssh option}
 @vindex ProxyJump@r{, ssh option}
-@code{tramp-use-ssh-controlmaster-options} should also be set to
-@code{nil} or @code{suppress} if you use the @option{ProxyCommand} or
+@code{tramp-use-connection-share} should also be set to @code{nil} or
+@code{suppress} if you use the @option{ProxyCommand} or
 @option{ProxyJump} options in your @command{ssh} configuration.
 
 In order to use the @option{ControlMaster} option, @value{tramp} must
@@ -2806,12 +2807,16 @@ Host *
 Check the @samp{ssh_config(5)} man page whether these options are
 supported on your proxy host.
 
-On MS Windows, @code{tramp-use-ssh-controlmaster-options} is set to
-@code{nil} by default, because the MS Windows and MSYS2
-implementations of @command{OpenSSH} do not support this option properly.
+On MS Windows, @code{tramp-use-connection-share} is set to @code{nil}
+by default, because the MS Windows and MSYS2 implementations of
+@command{OpenSSH} do not support this option properly.
 
-In PuTTY, you can achieve connection sharing in the @option{Connection/SSH}
-entry, enabling the @option{Share SSH connections if possible} option.
+In PuTTY, you can achieve connection sharing in the
+@option{Connection/SSH} entry, enabling the @option{Share SSH
+connections if possible} option.  @code{tramp-use-connection-share}
+must be set to @code{nil}.  If @code{tramp-use-connection-share} is
+set to @code{t} or @code{suppress}, @command{plink} is called with the
+option @option{-share} or @option{-noshare}, respectively.
 
 
 @subsection Configure direct copying between two remote servers
@@ -3184,6 +3189,11 @@ auto-saved files to the same directory as the original file.
 @vindex tramp-auto-save-directory
 Alternatively, set the user option @code{tramp-auto-save-directory}
 to direct all auto saves to that location.
+
+@c Since Emacs 30.
+@vindex remote-file-name-inhibit-auto-save
+If you want to suppress auto-saving of remote files at all, set user
+option @code{remote-file-name-inhibit-auto-save} to non-@code{nil}.
 
 @c Since Emacs 29.
 @vindex remote-file-name-inhibit-auto-save-visited
@@ -4300,9 +4310,9 @@ It does not use @code{tramp-remote-path}.
 In order to gain even more performance, it is recommended to bind
 @code{tramp-verbose} to 0 when running @code{make-process} or
 @code{start-file-process}.  Furthermore, you might set
-@code{tramp-use-ssh-controlmaster-options} to @code{nil} in order to
-bypass @value{tramp}'s handling of the @option{ControlMaster} options,
-and use your own settings in @file{~/.ssh/config}, @ref{Using ssh
+@code{tramp-use-connection-share} to @code{nil} in order to bypass
+@value{tramp}'s handling of the @option{ControlMaster} options, and
+use your own settings in @file{~/.ssh/config}, @ref{Using ssh
 connection sharing}.
 
 
@@ -4902,6 +4912,36 @@ Disable file locks.  Set @code{remote-file-name-inhibit-locks} to
 the same remote file.
 
 @item
+@vindex remote-file-name-inhibit-auto-save
+Keep auto-save files local.  This is already the default configuration
+in Emacs, don't change it.  If you want to disable auto-saving for
+remote files at all, set @code{remote-file-name-inhibit-auto-save} to
+@code{t}, but think about the consequences!
+
+If you want to disable auto-saving just for selected connections, for
+example due to security considerations, use connection-local variables
+in order to set @code{buffer-auto-save-file-name}.  If you, for
+example, want to disable auto-saving for all @option{sudo}
+connections, apply the following code.
+@ifinfo
+@xref{Connection Variables, , , emacs}.
+@end ifinfo
+
+@lisp
+@group
+(connection-local-set-profile-variables
+  'my-auto-save-profile
+  '((buffer-auto-save-file-name . nil)))
+@end group
+
+@group
+(connection-local-set-profiles
+ '(:application tramp :protocol "sudo")
+ 'my-auto-save-profile)
+@end group
+@end lisp
+
+@item
 Disable excessive traces.  Set @code{tramp-verbose} to 3 or lower,
 default being 3.  Increase trace levels temporarily when hunting for
 bugs.
@@ -5215,6 +5255,7 @@ HISTFILE=/dev/null
 @item
 Where are remote files trashed to?
 
+@vindex remote-file-name-inhibit-delete-by-moving-to-trash
 Emacs can trash file instead of deleting
 @ifinfo
 them, @ref{Misc File Ops, Trashing , , emacs}.

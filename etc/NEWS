@@ -50,6 +50,11 @@ as it has in batch mode since Emacs 24.
 When non-nil, this option suppresses moving remote files to the local
 trash when deleting.  Default is nil.
 
+---
+** New user option 'remote-file-name-inhibit-auto-save'.
+If this user option is non-nil, 'auto-save-mode' will not auto-save
+remote buffers.  The default is nil.
+
 +++
 ** New user option 'yes-or-no-prompt'.
 This allows the user to customize the prompt that is appended by
@@ -185,10 +190,12 @@ point is not in a comment or a string.  It is by default bound to
 This allows accessing system containers provided by Toolbox.
 
 +++
-*** New value 'suppress' for user option 'tramp-use-ssh-controlmaster-options'.
-This user option allows now the values t, nil, and 'suppress'.  The
-latter suppresses also "ControlMaster" settings in the user's
-"~/.ssh/config" file.
+*** Rename 'tramp-use-ssh-controlmaster-options' to 'tramp-use-connection-share.
+The old name still exists as defvaralias.  This user option controls
+now connection sharing for both ssh-based and plink-based methods.  It
+allows the values t, nil, and 'suppress'.  The latter suppresses
+also "ControlMaster" settings in the user's "~/.ssh/config" file,
+or connection share configuration in PuTTY sessions, respectively.
 
 ** EWW
 
@@ -270,6 +277,12 @@ their customization options.
 
 
 * Incompatible Lisp Changes in Emacs 30.1
+
+---
+** The escape sequence \x not followed by hex digits is now an error.
+Previously, \x without at least one hex digit denoted character code
+zero (NUL) but as this was neither intended nor documented or even
+known by anyone, it is now treated as an error by the Lisp reader.
 
 ** User option 'tramp-completion-reread-directory-timeout' has been removed.
 This user option has been obsoleted in Emacs 27, use
