@@ -42,8 +42,7 @@ pub trait Renderer {
 
     fn draw_image(
         &mut self,
-        image_key: Option<ImageKey>,
-        background_color: Option<ColorF>,
+        image_key: ImageKey,
         bounds: LayoutRect,
         clip_bounds: Option<LayoutRect>,
     );
@@ -304,10 +303,6 @@ impl Renderer for LispFrameRef {
     }
 
     fn draw_image_glyph(&mut self, mut s: GlyphStringRef) {
-        let image: ImageRef = s.img.into();
-        let frame: LispFrameRef = s.f.into();
-        let image_key = image.image_key(frame);
-
         // clear area
         let x = s.x;
         let y = s.y;
@@ -333,7 +328,24 @@ impl Renderer for LispFrameRef {
             (clip_rect.x, clip_rect.y).by(clip_rect.width as i32, clip_rect.height as i32, scale);
         let bounds = (s.x, s.y).by(s.slice.width() as i32, s.slice.height() as i32, scale);
 
-        self.draw_image(image_key, Some(background_color), bounds, Some(clip_bounds));
+        // render background
+        let background_rect = bounds.intersection(&clip_bounds);
+        if let Some(background_rect) = background_rect {
+            self.draw_rectangle(background_color, background_rect);
+        }
+
+        let image: ImageRef = s.img.into();
+        let frame: LispFrameRef = s.f.into();
+        if let Some((image_key, descriptor)) = image.meta(frame) {
+            //s.img viewbox is the layout size we draw to
+            //we don't crop image to fix into viewbox
+            //So the width of image uploaded to WebRender could be bigger than viewbox
+            //We do scaling here to avoid stretching
+            let dwidth = s.slice.height() as f32 / descriptor.size.height as f32
+                * descriptor.size.width as f32;
+            let bounds = (s.x, s.y).by(dwidth as i32, s.slice.height() as i32, scale);
+            self.draw_image(image_key, bounds, Some(clip_bounds));
+        }
     }
 
     fn draw_glyphless_glyph_string_foreground(&mut self, s: GlyphStringRef) {
@@ -343,35 +355,22 @@ impl Renderer for LispFrameRef {
 
     fn draw_image(
         &mut self,
-        image_key: Option<ImageKey>,
-        background_color: Option<ColorF>,
+        image_key: ImageKey,
         bounds: LayoutRect,
         clip_bounds: Option<LayoutRect>,
     ) {
         let clip_bounds = clip_bounds.unwrap_or(bounds);
-        let background_rect = bounds.intersection(&clip_bounds);
-
-        // render background
-        if let Some(background_rect) = background_rect {
-            let background_color = background_color.unwrap_or(ColorF::TRANSPARENT);
-            self.draw_rectangle(background_color, background_rect);
-        }
-
-        if let Some(image_key) = image_key {
-            self.canvas().display(|builder, space_and_clip, _scale| {
-                // render image
-                builder.push_image(
-                    &CommonItemProperties::new(clip_bounds, space_and_clip),
-                    bounds,
-                    ImageRendering::Auto,
-                    AlphaType::Alpha,
-                    image_key,
-                    ColorF::WHITE,
-                );
-            });
-        } else {
-            log::error!("image key {:?}", image_key);
-        }
+        self.canvas().display(|builder, space_and_clip, _scale| {
+            // render image
+            builder.push_image(
+                &CommonItemProperties::new(clip_bounds, space_and_clip),
+                bounds,
+                ImageRendering::Auto,
+                AlphaType::Alpha,
+                image_key,
+                ColorF::WHITE,
+            );
+        });
     }
 
     fn draw_composite_glyph_string_foreground(&mut self, s: GlyphStringRef) {

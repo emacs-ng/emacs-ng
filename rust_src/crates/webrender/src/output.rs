@@ -36,7 +36,7 @@ pub struct Canvas {
         ),
         FontInstanceKey,
     >,
-    images: FastHashMap<ImageHash, ImageKey>,
+    images: FastHashMap<ImageHash, (ImageKey, ImageDescriptor)>,
     font_render_mode: Option<FontRenderMode>,
     allow_mipmaps: bool,
     pub render_api: RenderApi,
@@ -490,7 +490,7 @@ impl Canvas {
         descriptor: ImageDescriptor,
         data: ImageData,
     ) -> ImageKey {
-        let image_key = self.image_key(&hash);
+        let image_key = self.image_key(&hash).map(|c| c.0);
 
         if let Some(key) = image_key {
             self.update_image(key, descriptor, data);
@@ -498,11 +498,11 @@ impl Canvas {
         }
 
         let key = self.add_image(descriptor, data);
-        self.images.insert(*hash, key);
+        self.images.insert(*hash, (key, descriptor));
         key
     }
 
-    pub fn image_key(&self, hash: &ImageHash) -> Option<ImageKey> {
+    pub fn image_key(&self, hash: &ImageHash) -> Option<(ImageKey, ImageDescriptor)> {
         self.images.get(hash).copied()
     }
 

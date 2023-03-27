@@ -44,7 +44,7 @@ pub trait ImageExt {
     fn transform(self, frame: LispFrameRef, width: i32, height: i32, rotation: f64);
     fn pixmap(self) -> WrPixmapRef;
     fn data(&self, wr_pixmap: WrPixmapRef) -> (ImageDescriptor, ImageData);
-    fn image_key(&self, frame: LispFrameRef) -> Option<ImageKey>;
+    fn meta(&self, frame: LispFrameRef) -> Option<(ImageKey, ImageDescriptor)>;
 }
 
 impl ImageExt for ImageRef {
@@ -181,7 +181,7 @@ impl ImageExt for ImageRef {
         ImageCache::with_image_data(&hash, frame_index, wr_pixmap, |(data, _)| data.unwrap())
             .unwrap()
     }
-    fn image_key(&self, frame: LispFrameRef) -> Option<ImageKey> {
+    fn meta(&self, frame: LispFrameRef) -> Option<(ImageKey, ImageDescriptor)> {
         let hash = self.hash();
         frame.canvas().image_key(&hash)
     }
