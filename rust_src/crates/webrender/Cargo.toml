@@ -38,6 +38,7 @@ resvg = "0.29"
 usvg = "0.29"
 usvg-text-layout = "0.29"
 tiny-skia = "0.8"
+parking_lot = "0.12"
 
 [dependencies.nix]
 optional = true

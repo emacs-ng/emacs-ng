@@ -19,17 +19,17 @@ use image_::{
     io::Reader,
     AnimationDecoder, DynamicImage, ImageError, ImageResult, Rgba,
 };
-use std::collections::HashMap;
+use parking_lot::Mutex;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::sync::OnceLock;
 use std::{
     io::{BufRead, Cursor, Seek},
     time::Duration,
 };
 use webrender::api::{ImageData, ImageDescriptor, ImageDescriptorFlags, ImageFormat};
+use webrender::FastHashMap;
 
 pub type ImageId = isize;
 pub type ImageHash = EMACS_UINT;
@@ -344,12 +344,12 @@ impl ImageSource {
 /// We cache image by its source while image.c caches image by its spec
 /// images with same source might have different spec
 /// TODO We plan implement spec(rotate/scale) using WebRender transform
-pub struct ImageCache(HashMap<ImageHash, ImageCacheResult>);
+pub struct ImageCache(FastHashMap<ImageHash, ImageCacheResult>);
 
 static mut IMAGE_CACHE: OnceLock<Arc<Mutex<ImageCache>>> = OnceLock::new();
 impl ImageCache {
     pub fn new() -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self(HashMap::new())))
+        Arc::new(Mutex::new(Self(FastHashMap::default())))
     }
     pub fn global() -> &'static Arc<Mutex<ImageCache>> {
         unsafe {
@@ -364,9 +364,9 @@ impl ImageCache {
         P: FnOnce(&mut ImageCache) -> T,
     {
         match Self::global().try_lock() {
-            Ok(mut cache) => Some(p(&mut cache)),
-            Err(e) => {
-                image_error!("Image cache not available... {e:?}");
+            Some(mut cache) => Some(p(&mut cache)),
+            None => {
+                image_error!("Image cache not available...");
                 None
             }
         }
@@ -377,9 +377,9 @@ impl ImageCache {
         P: FnOnce(&ImageCache) -> T,
     {
         match Self::global().try_lock() {
-            Ok(cache) => Some(p(&cache)),
-            Err(e) => {
-                image_error!("Image cache not available... {e:?}");
+            Some(cache) => Some(p(&cache)),
+            None => {
+                image_error!("Image cache not available...");
                 None
             }
         }

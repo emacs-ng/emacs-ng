@@ -5156,6 +5156,7 @@ dependencies = [
  "nix 0.26.2",
  "once_cell",
  "ouroboros",
+ "parking_lot",
  "raw-window-handle",
  "resvg",
  "rustybuzz 0.6.0",

@@ -16,7 +16,7 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 use crate::frame::LispFrameExt;
 use crate::WRFontRef;
 use gleam::gl;
-use std::collections::HashMap;
+use webrender::FastHashMap;
 
 use webrender::{self, api::units::*, api::*, RenderApi, Renderer, Transaction};
 
@@ -25,8 +25,8 @@ use emacs::frame::LispFrameRef;
 use super::texture::TextureResourceManager;
 
 pub struct Canvas {
-    fonts: HashMap<fontdb::ID, FontKey>,
-    font_instances: HashMap<
+    fonts: FastHashMap<fontdb::ID, FontKey>,
+    font_instances: FastHashMap<
         (
             FontKey,
             FontSize,
@@ -36,7 +36,7 @@ pub struct Canvas {
         ),
         FontInstanceKey,
     >,
-    images: HashMap<ImageHash, ImageKey>,
+    images: FastHashMap<ImageHash, ImageKey>,
     font_render_mode: Option<FontRenderMode>,
     allow_mipmaps: bool,
     pub render_api: RenderApi,
@@ -97,9 +97,9 @@ impl Canvas {
         api.send_transaction(document_id, txn);
 
         Self {
-            fonts: HashMap::new(),
-            font_instances: HashMap::new(),
-            images: HashMap::new(),
+            fonts: FastHashMap::default(),
+            font_instances: FastHashMap::default(),
+            images: FastHashMap::default(),
             font_render_mode: None,
             allow_mipmaps: false,
             render_api: api,

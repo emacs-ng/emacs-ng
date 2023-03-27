@@ -2,10 +2,9 @@ use core::ops::Deref;
 #[cfg(free_unix)]
 use font_loader::system_fonts;
 use fontdb::{FaceInfo, Family, Query, Stretch, Style, Weight};
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use parking_lot::Mutex;
+use std::sync::Arc;
+use webrender::FastHashMap;
 
 use std::str;
 
@@ -51,8 +50,8 @@ pub struct FontDB<'a> {
     language: fontdb::Language,
     /// there should be a fontdb::Database::language
     db: fontdb::Database,
-    font_cache: Mutex<HashMap<fontdb::ID, Option<Arc<Font<'a>>>>>,
-    font_matches_cache: Mutex<HashMap<FontDescriptor, Option<fontdb::ID>>>,
+    font_cache: Mutex<FastHashMap<fontdb::ID, Option<Arc<Font<'a>>>>>,
+    font_matches_cache: Mutex<FastHashMap<FontDescriptor, Option<fontdb::ID>>>,
 }
 
 impl FontDB<'static> {
@@ -82,8 +81,8 @@ impl FontDB<'static> {
         Self {
             language: fontdb::Language::English_UnitedStates,
             db,
-            font_cache: Mutex::new(HashMap::new()),
-            font_matches_cache: Mutex::new(HashMap::new()),
+            font_cache: Mutex::new(FastHashMap::default()),
+            font_matches_cache: Mutex::new(FastHashMap::default()),
         }
     }
 
