@@ -148,6 +148,57 @@ impl PartialEq for ImageSource {
 impl Eq for ImageSource {}
 
 impl ImageSource {
+    pub fn with_slice<P, T>(self, p: P) -> Option<T>
+    where
+        P: FnOnce(&[u8]) -> Option<T>,
+    {
+        match self {
+            Self::File(file) => {
+                let filename = String::from(file);
+                match std::fs::read(&filename) {
+                    Ok(result) => p(result.as_slice()),
+                    Err(e) => {
+                        image_error!("Error open image file {:?} {e:?}", file);
+                        return None;
+                    }
+                }
+            }
+            Self::Data(data) => {
+                let data = data.as_string().unwrap();
+                p(data.as_slice())
+            }
+        }
+    }
+
+    pub fn with_svg_slice<P, T>(self, ltype: LispObject, p: P) -> Option<T>
+    where
+        P: FnOnce(&[u8]) -> Option<T>,
+    {
+        if ltype != Qsvg {
+            return self.with_slice(|data| p(data));
+        }
+        self.with_slice(|data| {
+            let mut opt = usvg::Options::default();
+            match self {
+                Self::File(file) => {
+                    let filename = String::from(file);
+                    // Get file's absolute directory.
+                    opt.resources_dir = std::fs::canonicalize(&filename)
+                        .ok()
+                        .and_then(|p| p.parent().map(|p| p.to_path_buf()));
+                }
+                Self::Data(_) => {}
+            };
+
+            match Self::svg_to_png(data, &opt) {
+                Some(bytes) => p(bytes.as_slice()),
+                None => {
+                    image_error!("Error reading svg file {:?}", self);
+                    return None;
+                }
+            }
+        })
+    }
     fn decode(
         self,
         foreground_color: Rgba<u8>,
@@ -167,49 +218,11 @@ impl ImageSource {
                 }
             };
 
-        let bytes = match self {
-            Self::File(file) => {
-                let filename = String::from(file);
-                match std::fs::read(&filename) {
-                    Ok(result) => result,
-                    Err(e) => {
-                        image_error!("Error open image file {:?} {e:?}", file);
-                        return None;
-                    }
-                }
-            }
-            Self::Data(data) => {
-                let data: String = data.into();
-                data.as_bytes().to_vec()
-            }
-        };
-
-        let bytes = if ltype == Qsvg {
-            let mut opt = usvg::Options::default();
-            match self {
-                Self::File(file) => {
-                    let filename = String::from(file);
-                    // Get file's absolute directory.
-                    opt.resources_dir = std::fs::canonicalize(&filename)
-                        .ok()
-                        .and_then(|p| p.parent().map(|p| p.to_path_buf()));
-                }
-                Self::Data(_) => {}
-            };
-
-            match Self::svg_to_png(&bytes, &opt) {
-                Some(bytes) => bytes,
-                None => {
-                    return None;
-                }
-            }
-        } else {
-            bytes
-        };
-
-        let reader = Reader::new(Cursor::new(bytes.as_slice()));
-        let result = self.decode_from_reader(reader, foreground_color, background_color);
-        handle_result(result, Qnil)
+        self.with_svg_slice(ltype, |data| {
+            let reader = Reader::new(Cursor::new(data));
+            let result = self.decode_from_reader(reader, foreground_color, background_color);
+            handle_result(result, Qnil)
+        })
     }
 
     // directly draw svg using webrender
