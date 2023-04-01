@@ -106,7 +106,7 @@ indent, imenu, etc."
     ;; 40MB for 64-bit systems, 15 for 32-bit.
     (if (or (< most-positive-fixnum (* 2.0 1024 mb))
             ;; 32-bit system with wide ints.
-            (string-match-p "--with-wide-int" system-configuration-options))
+            (string-search "--with-wide-int" system-configuration-options))
         (* 15 mb)
       (* 40 mb)))
   "Maximum buffer size (in bytes) for enabling tree-sitter parsing.
@@ -362,6 +362,50 @@ If NAMED is non-nil, count named child only."
   (when-let ((parent (treesit-node-parent node))
              (idx (treesit-node-index node)))
     (treesit-node-field-name-for-child parent idx)))
+
+(defun treesit-node-get (node instructions)
+  "Get things from NODE by INSTRUCTIONS.
+
+This is a convenience function that chains together multiple node
+accessor functions together.  For example, to get NODE's parent's
+next sibling's second child's text, call
+
+   (treesit-node-get node
+     \\='((parent 1)
+       (sibling 1 nil)
+       (child 1 nil)
+       (text nil)))
+
+INSTRUCTION is a list of INSTRUCTIONs of the form (FN ARG...).
+The following FN's are supported:
+
+\(child IDX NAMED)    Get the IDX'th child
+\(parent N)           Go to parent N times
+\(field-name)         Get the field name of the current node
+\(type)               Get the type of the current node
+\(text NO-PROPERTY)   Get the text of the current node
+\(children NAMED)     Get a list of children
+\(sibling STEP NAMED) Get the nth prev/next sibling, negative STEP
+                     means prev sibling, positive means next
+
+Note that arguments like NAMED and NO-PROPERTY can't be omitted,
+unlike in their original functions."
+  (declare (indent 1))
+  (while (and node instructions)
+    (pcase (pop instructions)
+      ('(field-name) (setq node (treesit-node-field-name node)))
+      ('(type) (setq node (treesit-node-type node)))
+      (`(child ,idx ,named) (setq node (treesit-node-child node idx named)))
+      (`(parent ,n) (dotimes (_ n)
+                      (setq node (treesit-node-parent node))))
+      (`(text ,no-property) (setq node (treesit-node-text node no-property)))
+      (`(children ,named) (setq node (treesit-node-children node named)))
+      (`(sibling ,step ,named)
+       (dotimes (_ (abs step))
+         (setq node (if (> step 0)
+                        (treesit-node-next-sibling node named)
+                      (treesit-node-prev-sibling node named)))))))
+  node)
 
 ;;; Query API supplement
 
@@ -3056,11 +3100,17 @@ function signals an error."
           (apply #'treesit--call-process-signal
                  (if (file-exists-p "scanner.cc") c++ cc)
                  nil t nil
-                 `("-fPIC" "-shared"
-                   ,@(directory-files
-                      default-directory nil
-                      (rx bos (+ anychar) ".o" eos))
-                   "-o" ,lib-name))
+                 (if (eq system-type 'cygwin)
+                     `("-shared" "-Wl,-dynamicbase"
+                       ,@(directory-files
+                          default-directory nil
+                          (rx bos (+ anychar) ".o" eos))
+                       "-o" ,lib-name)
+                   `("-fPIC" "-shared"
+                     ,@(directory-files
+                        default-directory nil
+                        (rx bos (+ anychar) ".o" eos))
+                     "-o" ,lib-name)))
           ;; Copy out.
           (unless (file-exists-p out-dir)
             (make-directory out-dir t))
@@ -3090,7 +3140,7 @@ function signals an error."
          (with-temp-buffer
            (insert-file-contents (find-library-name "treesit"))
            (cl-remove-if
-            (lambda (name) (string-match "treesit--" name))
+            (lambda (name) (string-search "treesit--" name))
             (cl-sort
              (save-excursion
                (goto-char (point-min))

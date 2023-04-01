@@ -2180,8 +2180,8 @@ if test "${with_ns}" != no; then
        GNUSTEP_LOCAL_HEADERS="-I${GNUSTEP_LOCAL_HEADERS}"
      test "x${GNUSTEP_LOCAL_LIBRARIES}" != "x" && \
        GNUSTEP_LOCAL_LIBRARIES="-L${GNUSTEP_LOCAL_LIBRARIES}"
-     CPPFLAGS="$CPPFLAGS -I${GNUSTEP_SYSTEM_HEADERS} ${GNUSTEP_LOCAL_HEADERS}"
-     CFLAGS="$CFLAGS -I${GNUSTEP_SYSTEM_HEADERS} ${GNUSTEP_LOCAL_HEADERS}"
+     CPPFLAGS="$CPPFLAGS -isystem ${GNUSTEP_SYSTEM_HEADERS} ${GNUSTEP_LOCAL_HEADERS}"
+     CFLAGS="$CFLAGS -isystem ${GNUSTEP_SYSTEM_HEADERS} ${GNUSTEP_LOCAL_HEADERS}"
      LDFLAGS="$LDFLAGS -L${GNUSTEP_SYSTEM_LIBRARIES} ${GNUSTEP_LOCAL_LIBRARIES}"
      LIBS_GNUSTEP="-lgnustep-gui -lgnustep-base -lobjc -lpthread"
      dnl GNUstep defines BASE_NATIVE_OBJC_EXCEPTIONS to 0 or 1.
@@ -5767,7 +5767,7 @@ case $opsys in
 esac
 
 case $opsys in
-  gnu-* | solaris )
+  gnu-* | solaris | cygwin )
     dnl FIXME Can't we test if this exists (eg /proc/$$)?
     AC_DEFINE([HAVE_PROCFS], [1], [Define if you have the /proc filesystem.])
   ;;
