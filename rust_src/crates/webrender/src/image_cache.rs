@@ -4,6 +4,7 @@ use super::image::ImageRef;
 use super::image::WrPixmapRef;
 use crate::font_db::FontDB;
 use emacs::bindings::Fequal;
+use emacs::bindings::Fmake_temp_file_internal;
 use emacs::bindings::EMACS_UINT;
 use emacs::globals::Qnil;
 use emacs::globals::Qsvg;
@@ -154,16 +155,25 @@ impl ImageSource {
     {
         match self {
             Self::File(file) => {
+                let file: LispObject = unsafe { emacs::bindings::image_find_image_file(file) };
+                if !file.is_string() || file.is_nil() {
+                    image_error!("Cannot find image file: {:?}", file);
+                    return None;
+                }
                 let filename = String::from(file);
                 match std::fs::read(&filename) {
                     Ok(result) => p(result.as_slice()),
                     Err(e) => {
-                        image_error!("Error open image file {:?} {e:?}", file);
+                        image_error!("Error open image file: {:?} {e:?}", file);
                         return None;
                     }
                 }
             }
             Self::Data(data) => {
+                if !data.is_string() {
+                    image_error!("Invalid image data: {:?}", data);
+                    return None;
+                }
                 let data = data.as_string().unwrap();
                 p(data.as_slice())
             }
@@ -193,7 +203,18 @@ impl ImageSource {
             match Self::svg_to_png(data, &opt) {
                 Some(bytes) => p(bytes.as_slice()),
                 None => {
-                    image_error!("Error reading svg file {:?}", self);
+                    let file = match self {
+                        Self::File(file) => file,
+                        Self::Data(data) => unsafe {
+                            Fmake_temp_file_internal(
+                                "invalid_resvg".into(),
+                                Qnil,
+                                ".svg".into(),
+                                data,
+                            )
+                        },
+                    };
+                    image_error!("Error reading svg file: {:?}", file);
                     return None;
                 }
             }
@@ -212,7 +233,7 @@ impl ImageSource {
                 match result {
                     Ok(data) => Some(data),
                     Err(e) => {
-                        image_error!("Error decoding image {:?} {e:?}", def);
+                        image_error!("Error decoding image: {:?} {e:?}", def);
                         return None;
                     }
                 }
@@ -238,7 +259,7 @@ impl ImageSource {
         let mut tree = match result {
             Ok(result) => result,
             Err(e) => {
-                image_error!("Failed to parse svg {e:?}");
+                image_error!("Failed to parse svg: {e:?}");
                 return None;
             }
         };
@@ -452,7 +473,7 @@ impl ImageCache {
         let source = image.source();
 
         if source.is_none() {
-            image_error!("Invalid image source {:?}", image.spec());
+            image_error!("Invalid image source: {:?}", image.spec());
             return;
         }
 
