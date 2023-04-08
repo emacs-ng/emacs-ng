@@ -421,7 +421,8 @@ hooks should be run before and after the command."
                            (string= (car eshell--sep-terms) ";"))
                        (eshell-parse-pipeline cmd)
                      `(eshell-do-subjob
-                       (list ,(eshell-parse-pipeline cmd)))))
+                       (cons :eshell-background
+                             ,(eshell-parse-pipeline cmd)))))
              (setq eshell--sep-terms (cdr eshell--sep-terms))
              (if eshell-in-pipeline-p
                  cmd
@@ -542,9 +543,10 @@ of its argument (i.e., use of a Lisp special form), it must be
 implemented via rewriting, rather than as a function."
   (if (and (equal (car terms) "for")
 	   (equal (nth 2 terms) "in"))
-      (let ((body (car (last terms))))
+      (let ((for-items (make-symbol "for-items"))
+            (body (car (last terms))))
 	(setcdr (last terms 2) nil)
-        `(let ((for-items
+        `(let ((,for-items
                 (append
                  ,@(mapcar
                     (lambda (elem)
@@ -552,13 +554,13 @@ implemented via rewriting, rather than as a function."
                           elem
                         `(list ,elem)))
                     (nthcdr 3 terms)))))
-           (while for-items
-             (let ((,(intern (cadr terms)) (car for-items))
+           (while ,for-items
+             (let ((,(intern (cadr terms)) (car ,for-items))
 		   (eshell--local-vars (cons ',(intern (cadr terms))
                                              eshell--local-vars)))
 	       (eshell-protect
 	   	,(eshell-invokify-arg body t)))
-             (setq for-items (cdr for-items)))
+             (setq ,for-items (cdr ,for-items)))
            (eshell-close-handles)))))
 
 (defun eshell-structure-basic-command (func names keyword test body
@@ -892,7 +894,7 @@ This is used on systems where async subprocesses are not supported."
      (set headproc nil)
      (set tailproc nil)
      (progn
-       ,(if (fboundp 'make-process)
+       ,(if eshell-supports-asynchronous-processes
 	    `(eshell-do-pipelines ,pipeline)
           `(let ((tail-handles (eshell-duplicate-handles
                                 eshell-current-handles)))
@@ -901,28 +903,33 @@ This is used on systems where async subprocesses are not supported."
                                       (symbol-value tailproc))))))
 
 (defmacro eshell-as-subcommand (command)
-  "Execute COMMAND using a temp buffer.
-This is used so that certain Lisp commands, such as `cd', when
-executed in a subshell, do not disturb the environment of the main
-Eshell buffer."
+  "Execute COMMAND as a subcommand.
+A subcommand creates a local environment so that any changes to
+the environment don't propagate outside of the subcommand's
+scope.  This lets you use commands like `cd' within a subcommand
+without changing the current directory of the main Eshell
+buffer."
   `(let ,eshell-subcommand-bindings
      ,command))
 
 (defmacro eshell-do-command-to-value (object)
   "Run a subcommand prepared by `eshell-command-to-value'.
 This avoids the need to use `let*'."
+  (declare (obsolete nil "30.1"))
   `(let ((eshell-current-handles
 	  (eshell-create-handles value 'overwrite)))
      (progn
        ,object
        (symbol-value value))))
 
-(defmacro eshell-command-to-value (object)
-  "Run OBJECT synchronously, returning its result as a string.
-Returns a string comprising the output from the command."
-  `(let ((value (make-symbol "eshell-temp"))
-         (eshell-in-pipeline-p nil))
-     (eshell-do-command-to-value ,object)))
+(defmacro eshell-command-to-value (command)
+  "Run an Eshell COMMAND synchronously, returning its output."
+  (let ((value (make-symbol "eshell-temp")))
+    `(let ((eshell-in-pipeline-p nil)
+           (eshell-current-handles
+	    (eshell-create-handles ',value 'overwrite)))
+       ,command
+       ,value)))
 
 ;;;_* Iterative evaluation
 ;;
@@ -1030,7 +1037,12 @@ produced by `eshell-parse-command'."
     (cadr result)))
 
 (defun eshell-eval-command (command &optional input)
-  "Evaluate the given COMMAND iteratively."
+  "Evaluate the given COMMAND iteratively.
+Return the process (or head and tail processes) created by
+COMMAND, if any.  If COMMAND is a background command, return the
+process(es) in a cons cell like:
+
+  (:eshell-background . PROCESS)"
   (if eshell-current-command
       ;; We can just stick the new command at the end of the current
       ;; one, and everything will happen as it should.
@@ -1046,20 +1058,12 @@ produced by `eshell-parse-command'."
            (erase-buffer)
            (insert "command: \"" input "\"\n")))
     (setq eshell-current-command command)
-    (let* ((delim (catch 'eshell-incomplete
-                    (eshell-resume-eval)))
-           (val (car-safe delim)))
-      ;; If the return value of `eshell-resume-eval' is wrapped in a
-      ;; list, it indicates that the command was run asynchronously.
-      ;; In that case, unwrap the value before checking the delimiter
-      ;; value.
-      (if (and val
-               (not (eshell-processp val))
-               (not (eq val t)))
-          (error "Unmatched delimiter: %S" val)
-        ;; Eshell-command expect a list like (<process>) to know if the
-        ;; command should be async or not.
-        (or (and (eshell-processp val) delim) val)))))
+    (let* (result
+           (delim (catch 'eshell-incomplete
+                    (ignore (setq result (eshell-resume-eval))))))
+      (when delim
+        (error "Unmatched delimiter: %S" delim))
+      result)))
 
 (defun eshell-resume-command (proc status)
   "Resume the current command when a process ends."

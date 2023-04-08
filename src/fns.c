@@ -452,6 +452,9 @@ If string STR1 is greater, the value is a positive number N;
      || defined __s390__ || defined __s390x__)		\
   && defined __OPTIMIZE__
 #define HAVE_FAST_UNALIGNED_ACCESS 1
+#else
+#define HAVE_FAST_UNALIGNED_ACCESS 0
+#endif
 
 /* Load a word from a possibly unaligned address.  */
 static inline size_t
@@ -461,10 +464,6 @@ load_unaligned_size_t (const void *p)
   memcpy (&x, p, sizeof x);
   return x;
 }
-
-#else
-#define HAVE_FAST_UNALIGNED_ACCESS 0
-#endif
 
 DEFUN ("string-lessp", Fstring_lessp, Sstring_lessp, 2, 2, 0,
        doc: /* Return non-nil if STRING1 is less than STRING2 in lexicographic order.

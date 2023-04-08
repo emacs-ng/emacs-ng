@@ -146,11 +146,6 @@
 ;;   "typedef" keyword.  It's value is a list of the identifiers that
 ;;   the "typedef" declares as types.
 ;;
-;; 'c-<>-c-types-set
-;;   This property is set on an opening angle bracket, and indicates that
-;;   any "," separators within the template/generic expression have been
-;;   marked with a 'c-type property value 'c-<>-arg-sep (see above).
-;;
 ;; 'c-awk-NL-prop
 ;;   Used in AWK mode to mark the various kinds of newlines.  See
 ;;   cc-awk.el.
@@ -6172,12 +6167,18 @@ comment at the start of cc-engine.el for more info."
       (cons (point)
 	    (cons bound-<> s)))))
 
+(defvar c-record-type-identifiers)	; Specially for `c-brace-stack-at'.
+
 (defun c-brace-stack-at (here)
   ;; Given a buffer position HERE, Return the value of the brace stack there.
   (save-excursion
     (save-restriction
       (widen)
-      (let ((c c-bs-cache)
+      (let (c-record-type-identifiers 	; In case `c-forward-<>-arglist' would
+					; otherwise record identifiers outside
+					; of the restriction in force before
+					; this function.
+	    (c c-bs-cache)
 	    (can-use-prev (<= c-bs-prev-pos c-bs-cache-limit))
 	    elt stack pos npos high-elt)
 	;; Trim the cache to take account of buffer changes.
@@ -8630,11 +8631,9 @@ multi-line strings (but not C++, for example)."
 	;; List that collects the positions after the argument
 	;; separating ',' in the arglist.
 	arg-start-pos)
-    ;; If the '<' has paren open syntax then we've marked it as an angle
-    ;; bracket arglist before, so skip to the end.
-    (if (and syntax-table-prop-on-<
-	     (or (not c-parse-and-markup-<>-arglists)
-		 (c-get-char-property (point) 'c-<>-c-types-set)))
+    (if (and (not c-parse-and-markup-<>-arglists)
+	     syntax-table-prop-on-<)
+
 	(progn
 	  (forward-char)
 	  (if (and (c-go-up-list-forward)
@@ -8731,7 +8730,6 @@ multi-line strings (but not C++, for example)."
 			       (c-unmark-<->-as-paren (point)))))
 		      (c-mark-<-as-paren start)
 		      (c-mark->-as-paren (1- (point)))
-		      (c-put-char-property start 'c-<>-c-types-set t)
 		      (c-truncate-lit-pos-cache start))
 		    (setq res t)
 		    nil))		; Exit the loop.
@@ -9122,7 +9120,7 @@ multi-line strings (but not C++, for example)."
     (c-forward-syntactic-ws))
 
   (let ((start (point)) pos res name-res id-start id-end id-range
-	post-prefix-pos)
+	post-prefix-pos prefix-end-pos)
 
     ;; Skip leading type modifiers.  If any are found we know it's a
     ;; prefix of a type.
@@ -9132,6 +9130,7 @@ multi-line strings (but not C++, for example)."
 	  (when (looking-at c-no-type-key)
 	    (setq res 'no-id)))
 	(goto-char (match-end 1))
+	(setq prefix-end-pos (point))
 	(setq pos (point))
 	(c-forward-syntactic-ws)
 	(or (eq res 'no-id)
@@ -9283,7 +9282,10 @@ multi-line strings (but not C++, for example)."
 		  (not (looking-at c-type-decl-prefix-key)))))
       ;; A C specifier followed by an implicit int, e.g.
       ;; "register count;"
-      (goto-char id-start)
+      (goto-char prefix-end-pos)
+      (setq pos (point))
+      (unless stop-at-end
+	(c-forward-syntactic-ws))
       (setq res 'no-id))
 
      (name-res
@@ -9291,6 +9293,7 @@ multi-line strings (but not C++, for example)."
 	     ;; A normal identifier.
 	     (goto-char id-end)
 	     (setq pos (point))
+	     (c-forward-syntactic-ws)
 	     (if (or res c-promote-possible-types)
 		 (progn
 		   (when (not (eq c-promote-possible-types 'just-one))
@@ -9298,7 +9301,9 @@ multi-line strings (but not C++, for example)."
 		   (when (and c-record-type-identifiers id-range)
 		     (c-record-type-id id-range))
 		   (unless res
-		     (setq res 'found)))
+		     (setq res 'found))
+		   (when (eq res 'prefix)
+		     (setq res t)))
 	       (setq res (if (c-check-qualified-type id-start)
 			     ;; It's an identifier that has been used as
 			     ;; a type somewhere else.
@@ -11200,7 +11205,7 @@ This function might do hidden buffer changes."
 		 ;; declaration.
 		 (setq maybe-expression t)
 		 (when (or (not c-asymmetry-fontification-flag)
-			   (looking-at "=[^=]")
+			   (looking-at "=\\([^=]\\|$\\)\\|;")
 			   (c-fdoc-assymetric-space-about-asterisk))
 		   (when (eq at-type 'maybe)
 		     (setq unsafe-maybe t))
