@@ -202,6 +202,17 @@ CL struct.")
   "Value to use instead of `default-directory' when detecting the project.
 When it is non-nil, `project-current' will always skip prompting too.")
 
+(defcustom project-prompter #'project-prompt-project-dir
+  "Function to call to prompt for a project.
+Called with no arguments and should return a project root dir."
+  :type '(choice (const :tag "Prompt for a project directory"
+                        project-prompt-project-dir)
+                 (const :tag "Prompt for a project name"
+                        project-prompt-project-name)
+                 (function :tag "Custom function" nil))
+  :group 'project
+  :version "30.1")
+
 ;;;###autoload
 (defun project-current (&optional maybe-prompt directory)
   "Return the project instance in DIRECTORY, defaulting to `default-directory'.
@@ -226,7 +237,7 @@ of the project instance object."
      (pr)
      ((unless project-current-directory-override
         maybe-prompt)
-      (setq directory (project-prompt-project-dir)
+      (setq directory (funcall project-prompter)
             pr (project--find-in-directory directory))))
     (when maybe-prompt
       (if pr
@@ -1216,7 +1227,10 @@ To continue searching for the next match, use the
 command \\[fileloop-continue]."
   (interactive "sSearch (regexp): ")
   (fileloop-initialize-search
-   regexp (project-files (project-current t)) 'default)
+   regexp
+   ;; XXX: See the comment in project-query-replace-regexp.
+   (cl-delete-if-not #'file-regular-p (project-files (project-current t)))
+   'default)
   (fileloop-continue))
 
 ;;;###autoload
@@ -1248,8 +1262,10 @@ If you exit the `query-replace', you can later continue the
 
 (defun project-prefixed-buffer-name (mode)
   (concat "*"
-          (file-name-nondirectory
-           (directory-file-name default-directory))
+          (if-let ((proj (project-current nil)))
+              (project-name proj)
+            (file-name-nondirectory
+             (directory-file-name default-directory)))
           "-"
           (downcase mode)
           "*"))
@@ -1261,7 +1277,7 @@ If non-nil, it overrides `compilation-buffer-name-function' for
   :version "28.1"
   :group 'project
   :type '(choice (const :tag "Default" nil)
-                 (const :tag "Prefixed with root directory name"
+                 (const :tag "Prefixed with project name"
                         project-prefixed-buffer-name)
                  (function :tag "Custom function")))
 
@@ -1311,13 +1327,23 @@ general form of conditions."
             (and (memq (cdr buffer) buffers)
                  (not
                   (project--buffer-check
-                   (cdr buffer) project-ignore-buffer-conditions))))))
-    (read-buffer
-     "Switch to buffer: "
-     (when (funcall predicate (cons other-name other-buffer))
-       other-name)
-     nil
-     predicate)))
+                   (cdr buffer) project-ignore-buffer-conditions)))))
+         (buffer (read-buffer
+                  "Switch to buffer: "
+                  (when (funcall predicate (cons other-name other-buffer))
+                    other-name)
+                  nil
+                  predicate)))
+    ;; XXX: This check hardcodes the default buffer-belonging relation
+    ;; which `project-buffers' is allowed to override.  Straighten
+    ;; this up sometime later.  Or not.  Since we can add a method
+    ;; `project-contains-buffer-p', but a separate method to create a
+    ;; new project buffer seems too much.
+    (if (or (get-buffer buffer)
+            (file-in-directory-p default-directory (project-root pr)))
+        buffer
+      (let ((default-directory (project-root pr)))
+        (get-buffer-create buffer)))))
 
 ;;;###autoload
 (defun project-switch-to-buffer (buffer-or-name)
@@ -1613,7 +1639,7 @@ passed to `message' as its first argument."
   "Remove directory PROJECT-ROOT from the project list.
 PROJECT-ROOT is the root directory of a known project listed in
 the project list."
-  (interactive (list (project-prompt-project-dir)))
+  (interactive (list (funcall project-prompter)))
   (project--remove-from-project-list
    project-root "Project `%s' removed from known projects"))
 
@@ -1636,6 +1662,32 @@ It's also possible to enter an arbitrary directory not in the list."
     (if (equal pr-dir dir-choice)
         (read-directory-name "Select directory: " default-directory nil t)
       pr-dir)))
+
+(defun project-prompt-project-name ()
+  "Prompt the user for a project, by name, that is one of the known project roots.
+The project is chosen among projects known from the project list,
+see `project-list-file'.
+It's also possible to enter an arbitrary directory not in the list."
+  (let* ((dir-choice "... (choose a dir)")
+         (choices
+          (let (ret)
+            (dolist (dir (project-known-project-roots))
+              ;; we filter out directories that no longer map to a project,
+              ;; since they don't have a clean project-name.
+              (if-let (proj (project--find-in-directory dir))
+                  (push (cons (project-name proj) proj) ret)))
+            ret))
+         ;; XXX: Just using this for the category (for the substring
+         ;; completion style).
+         (table (project--file-completion-table (cons dir-choice choices)))
+         (pr-name ""))
+    (while (equal pr-name "")
+      ;; If the user simply pressed RET, do this again until they don't.
+      (setq pr-name (completing-read "Select project: " table nil t)))
+    (if (equal pr-name dir-choice)
+        (read-directory-name "Select directory: " default-directory nil t)
+      (let ((proj (assoc pr-name choices)))
+        (if (stringp proj) proj (project-root (cdr proj)))))))
 
 ;;;###autoload
 (defun project-known-project-roots ()
@@ -1824,7 +1876,7 @@ made from `project-switch-commands'.
 
 When called in a program, it will use the project corresponding
 to directory DIR."
-  (interactive (list (project-prompt-project-dir)))
+  (interactive (list (funcall project-prompter)))
   (let ((command (if (symbolp project-switch-commands)
                      project-switch-commands
                    (project--switch-project-command))))

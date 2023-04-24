@@ -41,9 +41,6 @@
 
 ;; - Allow maintaining patches that are ported back onto regular
 ;;   packages and maintained between versions.
-;;
-;; - Add a heuristic for guessing a `:lisp-dir' when cloning directly
-;;  from a URL.
 
 ;;; Code:
 
@@ -58,7 +55,7 @@
 (defgroup package-vc nil
   "Manage packages from VC checkouts."
   :group 'package
-  :link '(custom-manual "(emacs) Package from Source")
+  :link '(custom-manual "(emacs) Fetching Package Sources")
   :prefix "package-vc-"
   :version "29.1")
 
@@ -150,32 +147,9 @@ is a symbol designating the package and SPEC is one of:
 
 - nil, if any package version can be installed;
 - a version string, if that specific revision is to be installed;
-- a property list, describing a package specification.  Valid
-  key/value pairs are
-
-   `:url' (string)
-      The URL of the repository used to fetch the package source.
-
-   `:branch' (string)
-      If given, the name of the branch to checkout after cloning the directory.
-
-   `:lisp-dir' (string)
-      The repository-relative name of the directory to use for loading the Lisp
-      sources.  If not given, the value defaults to the root directory
-      of the repository.
-
-   `:main-file' (string)
-      The main file of the project, relevant to gather package metadata.
-      If not given, the assumed default is the package name with \".el\"
-      appended to it.
-
-   `:vc-backend' (symbol)
-      A symbol of the VC backend to use for cloning the package.  The
-      value ought to be a member of `vc-handled-backends'.  If omitted,
-      `vc-clone' will fall back onto the archive default or on
-      `package-vc-default-backend'.
-
-  All other keys are ignored.
+- a property list, describing a package specification.  For more
+  details, please consult the subsection \"Specifying Package
+  Sources\" in the Info node `(emacs)Fetching Package Sources'.
 
 This user option will be automatically updated to store package
 specifications for packages that are not specified in any
@@ -189,6 +163,7 @@ archive."
                                          (:branch string)
                                          (:lisp-dir string)
                                          (:main-file string)
+                                         (:doc string)
                                          (:vc-backend symbol)))))
   :version "29.1")
 

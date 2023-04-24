@@ -1594,7 +1594,7 @@ After check-out, runs the normal hook `vc-checkout-hook'."
        (vc-call make-version-backups-p file)
        (vc-up-to-date-p file)
        (vc-make-version-backup file))
-  (let ((backend (vc-backend file)))
+  (let ((backend (or (bound-and-true-p vc-dir-backend) (vc-backend file))))
     (with-vc-properties (list file)
       (condition-case err
           (vc-call-backend backend 'checkout file rev)
@@ -3604,7 +3604,8 @@ to provide the `find-revision' operation instead."
           (file-buffer (or (get-file-buffer file) (current-buffer))))
       (message "Checking out %s..." file)
       (let ((failed t)
-            (backup-name (car (find-backup-file-name file))))
+            (backup-name (when (file-exists-p file)
+                           (car (find-backup-file-name file)))))
         (when backup-name
           (copy-file file backup-name 'ok-if-already-exists 'keep-date)
           (unless (file-writable-p file)

@@ -810,24 +810,24 @@ typedef struct { void const *fwdptr; } lispfwd;
 
 enum symbol_interned
 {
-  SYMBOL_UNINTERNED = 0,
-  SYMBOL_INTERNED = 1,
-  SYMBOL_INTERNED_IN_INITIAL_OBARRAY = 2
+  SYMBOL_UNINTERNED,		      /* not interned anywhere */
+  SYMBOL_INTERNED,		      /* interned but not in initial obarray */
+  SYMBOL_INTERNED_IN_INITIAL_OBARRAY  /* interned in initial obarray */
 };
 
 enum symbol_redirect
 {
-  SYMBOL_PLAINVAL  = 4,
-  SYMBOL_VARALIAS  = 1,
-  SYMBOL_LOCALIZED = 2,
-  SYMBOL_FORWARDED = 3
+  SYMBOL_PLAINVAL,   /* plain var, value is in the `value' field */
+  SYMBOL_VARALIAS,   /* var alias, value is really in the `alias' symbol */
+  SYMBOL_LOCALIZED,  /* localized var, value is in the `blv' object */
+  SYMBOL_FORWARDED   /* forwarding var, value is in `forward' */
 };
 
 enum symbol_trapped_write
 {
-  SYMBOL_UNTRAPPED_WRITE = 0,
-  SYMBOL_NOWRITE = 1,
-  SYMBOL_TRAPPED_WRITE = 2
+  SYMBOL_UNTRAPPED_WRITE,  /* normal case, just set the value */
+  SYMBOL_NOWRITE,          /* constant, cannot set, e.g. nil, t, :keyword */
+  SYMBOL_TRAPPED_WRITE     /* trap the write, call watcher functions */
 };
 
 struct Lisp_Symbol
@@ -838,21 +838,13 @@ struct Lisp_Symbol
     {
       bool_bf gcmarkbit : 1;
 
-      /* Indicates where the value can be found:
-	 0 : it's a plain var, the value is in the `value' field.
-	 1 : it's a varalias, the value is really in the `alias' symbol.
-	 2 : it's a localized var, the value is in the `blv' object.
-	 3 : it's a forwarding variable, the value is in `forward'.  */
-      ENUM_BF (symbol_redirect) redirect : 3;
+      /* Indicates where the value can be found.  */
+      ENUM_BF (symbol_redirect) redirect : 2;
 
-      /* 0 : normal case, just set the value
-	 1 : constant, cannot set, e.g. nil, t, :keywords.
-	 2 : trap the write, call watcher functions.  */
       ENUM_BF (symbol_trapped_write) trapped_write : 2;
 
-      /* Interned state of the symbol.  This is an enumerator from
-	 enum symbol_interned.  */
-      unsigned interned : 2;
+      /* Interned state of the symbol.  */
+      ENUM_BF (symbol_interned) interned : 2;
 
       /* True means that this variable has been explicitly declared
 	 special (with `defvar' etc), and shouldn't be lexically bound.  */
@@ -3965,7 +3957,6 @@ extern Lisp_Object arithcompare (Lisp_Object num1, Lisp_Object num2,
 extern intmax_t cons_to_signed (Lisp_Object, intmax_t, intmax_t);
 extern uintmax_t cons_to_unsigned (Lisp_Object, uintmax_t);
 
-extern struct Lisp_Symbol *indirect_variable (struct Lisp_Symbol *);
 extern AVOID args_out_of_range (Lisp_Object, Lisp_Object);
 extern AVOID circular_list (Lisp_Object);
 extern Lisp_Object do_symval_forwarding (lispfwd);
@@ -4043,6 +4034,7 @@ extern Lisp_Object concat3 (Lisp_Object, Lisp_Object, Lisp_Object);
 extern bool equal_no_quit (Lisp_Object, Lisp_Object);
 extern Lisp_Object nconc2 (Lisp_Object, Lisp_Object);
 extern Lisp_Object assq_no_quit (Lisp_Object, Lisp_Object);
+extern Lisp_Object assq_no_signal (Lisp_Object, Lisp_Object);
 extern Lisp_Object assoc_no_quit (Lisp_Object, Lisp_Object);
 extern void clear_string_char_byte_cache (void);
 extern ptrdiff_t string_char_to_byte (Lisp_Object, ptrdiff_t);

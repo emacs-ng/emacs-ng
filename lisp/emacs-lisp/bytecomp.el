@@ -317,7 +317,9 @@ Elements of the list may be:
   lexical-dynamic
               lexically bound variable declared dynamic elsewhere
   make-local  calls to `make-variable-buffer-local' that may be incorrect.
-  mapcar      mapcar called for effect.
+  ignored-return-value
+              function called without using the return value where this
+              is likely to be a mistake
   not-unused  warning about using variables with symbol names starting with _.
   constants   let-binding of, or assignment to, constants/nonvariables.
   docstrings  docstrings that are too wide (longer than
@@ -330,7 +332,7 @@ Elements of the list may be:
   empty-body  body argument to a special form or macro is empty.
 
 If the list begins with `not', then the remaining elements specify warnings to
-suppress.  For example, (not mapcar) will suppress warnings about mapcar.
+suppress.  For example, (not free-vars) will suppress the `free-vars' warning.
 
 The t value means \"all non experimental warning types\", and
 excludes the types in `byte-compile--emacs-build-warning-types'.
@@ -3490,6 +3492,89 @@ lambda-expression."
             (byte-compile-report-error
              (format-message "`%s' defined after use in %S (missing `require' of a library file?)"
                      (car form) form)))
+
+        (when byte-compile--for-effect
+          (let ((sef (function-get (car form) 'side-effect-free)))
+            (cond
+             ((and sef (or (eq sef 'error-free)
+                           byte-compile-delete-errors))
+              ;; This transform is normally done in the Lisp optimiser,
+              ;; so maybe we don't need to bother about it here?
+              (setq form (cons 'progn (cdr form)))
+              (setq handler #'byte-compile-progn))
+             ((and (or sef
+                       (memq (car form)
+                             ;; FIXME: Use a function property (declaration)
+                             ;; instead of this list.
+                             '(
+                               ;; Functions that are side-effect-free
+                               ;; except for the behaviour of
+                               ;; functions passed as argument.
+                               mapcar mapcan mapconcat
+                               cl-mapcar cl-mapcan cl-maplist cl-map cl-mapcon
+                               cl-reduce
+                               assoc assoc-default plist-get plist-member
+                               cl-assoc cl-assoc-if cl-assoc-if-not
+                               cl-rassoc cl-rassoc-if cl-rassoc-if-not
+                               cl-member cl-member-if cl-member-if-not
+                               cl-adjoin
+                               cl-mismatch cl-search
+                               cl-find cl-find-if cl-find-if-not
+                               cl-position cl-position-if cl-position-if-not
+                               cl-count cl-count-if cl-count-if-not
+                               cl-remove cl-remove-if cl-remove-if-not
+                               cl-member cl-member-if cl-member-if-not
+                               cl-remove-duplicates
+                               cl-subst cl-subst-if cl-subst-if-not
+                               cl-substitute cl-substitute-if
+                               cl-substitute-if-not
+                               cl-sublis
+                               cl-union cl-intersection
+                               cl-set-difference cl-set-exclusive-or
+                               cl-subsetp
+                               cl-every cl-some cl-notevery cl-notany
+                               cl-tree-equal
+
+                               ;; Functions that mutate and return a list.
+                               cl-delete-if cl-delete-if-not
+                               ;; `delete-dups' and `delete-consecutive-dups'
+                               ;; never delete the first element so it's
+                               ;; safe to ignore their return value, but
+                               ;; this isn't the case with
+                               ;; `cl-delete-duplicates'.
+                               cl-delete-duplicates
+                               cl-nsubst cl-nsubst-if cl-nsubst-if-not
+                               cl-nsubstitute cl-nsubstitute-if
+                               cl-nsubstitute-if-not
+                               cl-nunion cl-nintersection
+                               cl-nset-difference cl-nset-exclusive-or
+                               cl-nreconc cl-nsublis
+                               cl-merge
+                               ;; It's safe to ignore the value of `sort'
+                               ;; and `nreverse' when used on arrays,
+                               ;; but most calls pass lists.
+                               nreverse
+                               sort cl-sort cl-stable-sort
+
+                               ;; Adding the following functions yields many
+                               ;; positives; evaluate how many of them are
+                               ;; false first.
+
+                               ;;delq delete cl-delete
+                               ;;nconc plist-put
+                               )))
+                   ;; Don't warn for arguments to `ignore'.
+                   (not (eq byte-compile--for-effect 'for-effect-no-warn))
+                   (byte-compile-warning-enabled-p
+                    'ignored-return-value (car form)))
+              (byte-compile-warn-x
+               (car form)
+               "value from call to `%s' is unused%s"
+               (car form)
+               (cond ((eq (car form) 'mapcar)
+                      "; use `mapc' or `dolist' instead")
+                     (t "")))))))
+
         (if (and handler
                  ;; Make sure that function exists.
                  (and (functionp handler)
@@ -3523,11 +3608,7 @@ lambda-expression."
     (byte-compile-callargs-warn form))
   (if byte-compile-generate-call-tree
       (byte-compile-annotate-call-tree form))
-  (when (and byte-compile--for-effect (eq (car form) 'mapcar)
-             (byte-compile-warning-enabled-p 'mapcar 'mapcar))
-    (byte-compile-warn-x
-     (car form)
-     "`mapcar' called for effect; use `mapc' or `dolist' instead"))
+
   (byte-compile-push-constant (car form))
   (mapc 'byte-compile-form (cdr form))	; wasteful, but faster.
   (byte-compile-out 'byte-call (length (cdr form))))
@@ -4367,7 +4448,8 @@ This function is never called when `lexical-binding' is nil."
 
 (defun byte-compile-ignore (form)
   (dolist (arg (cdr form))
-    (byte-compile-form arg t))
+    ;; Compile each argument for-effect but suppress unused-value warnings.
+    (byte-compile-form arg 'for-effect-no-warn))
   (byte-compile-form nil))
 
 ;; Return the list of items in CONDITION-PARAM that match PRED-LIST.

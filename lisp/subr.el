@@ -45,7 +45,8 @@ declaration.  A FILE with an \"ext:\" prefix is an external file.
 `check-declare' will check such files if they are found, and skip
 them without error if they are not.
 
-Optional ARGLIST specifies FN's arguments, or is t to not specify
+Optional ARGLIST specifies FN's arguments, in the same form as
+in `defun' (including the parentheses); or it is t to not specify
 FN's arguments.  An omitted ARGLIST defaults to t, not nil: a nil
 ARGLIST specifies an empty argument list, and an explicit t
 ARGLIST is a placeholder that allows supplying a later arg.
@@ -828,7 +829,7 @@ of course, also replace TO with a slightly larger value
 If TREE is a cons cell, this recursively copies both its car and its cdr.
 Contrast to `copy-sequence', which copies only along the cdrs.  With second
 argument VECP, this copies vectors as well as conses."
-  (declare (side-effect-free t))
+  (declare (side-effect-free error-free))
   (if (consp tree)
       (let (result)
 	(while (consp tree)
@@ -1554,31 +1555,32 @@ EVENT may be an event or an event type.  If EVENT is a symbol
 that has never been used in an event that has been read as input
 in the current Emacs session, then this function may fail to include
 the `click' modifier."
-  (let ((type event))
-    (if (listp type)
-	(setq type (car type)))
-    (if (symbolp type)
-        ;; Don't read event-symbol-elements directly since we're not
-        ;; sure the symbol has already been parsed.
-	(cdr (internal-event-symbol-parse-modifiers type))
-      (let ((list nil)
-	    (char (logand type (lognot (logior ?\M-\0 ?\C-\0 ?\S-\0
-					       ?\H-\0 ?\s-\0 ?\A-\0)))))
-	(if (not (zerop (logand type ?\M-\0)))
-	    (push 'meta list))
-	(if (or (not (zerop (logand type ?\C-\0)))
-		(< char 32))
-	    (push 'control list))
-	(if (or (not (zerop (logand type ?\S-\0)))
-		(/= char (downcase char)))
-	    (push 'shift list))
-	(or (zerop (logand type ?\H-\0))
-	    (push 'hyper list))
-	(or (zerop (logand type ?\s-\0))
-	    (push 'super list))
-	(or (zerop (logand type ?\A-\0))
-	    (push 'alt list))
-	list))))
+  (unless (stringp event)
+    (let ((type event))
+      (if (listp type)
+	  (setq type (car type)))
+      (if (symbolp type)
+          ;; Don't read event-symbol-elements directly since we're not
+          ;; sure the symbol has already been parsed.
+	  (cdr (internal-event-symbol-parse-modifiers type))
+        (let ((list nil)
+	      (char (logand type (lognot (logior ?\M-\0 ?\C-\0 ?\S-\0
+					         ?\H-\0 ?\s-\0 ?\A-\0)))))
+	  (if (not (zerop (logand type ?\M-\0)))
+	      (push 'meta list))
+	  (if (or (not (zerop (logand type ?\C-\0)))
+		  (< char 32))
+	      (push 'control list))
+	  (if (or (not (zerop (logand type ?\S-\0)))
+		  (/= char (downcase char)))
+	      (push 'shift list))
+	  (or (zerop (logand type ?\H-\0))
+	      (push 'hyper list))
+	  (or (zerop (logand type ?\s-\0))
+	      (push 'super list))
+	  (or (zerop (logand type ?\A-\0))
+	      (push 'alt list))
+	  list)))))
 
 (defun event-basic-type (event)
   "Return the basic type of the given event (all modifiers removed).
@@ -1586,17 +1588,18 @@ The value is a printing character (not upper case) or a symbol.
 EVENT may be an event or an event type.  If EVENT is a symbol
 that has never been used in an event that has been read as input
 in the current Emacs session, then this function may return nil."
-  (if (consp event)
-      (setq event (car event)))
-  (if (symbolp event)
-      (car (get event 'event-symbol-elements))
-    (let* ((base (logand event (1- ?\A-\0)))
-	   (uncontrolled (if (< base 32) (logior base 64) base)))
-      ;; There are some numbers that are invalid characters and
-      ;; cause `downcase' to get an error.
-      (condition-case ()
-	  (downcase uncontrolled)
-	(error uncontrolled)))))
+  (unless (stringp event)
+    (if (consp event)
+        (setq event (car event)))
+    (if (symbolp event)
+        (car (get event 'event-symbol-elements))
+      (let* ((base (logand event (1- ?\A-\0)))
+	     (uncontrolled (if (< base 32) (logior base 64) base)))
+        ;; There are some numbers that are invalid characters and
+        ;; cause `downcase' to get an error.
+        (condition-case ()
+	    (downcase uncontrolled)
+	  (error uncontrolled))))))
 
 (defsubst mouse-movement-p (object)
   "Return non-nil if OBJECT is a mouse movement event."
@@ -3575,9 +3578,9 @@ confusing to some users.")
 (defvar from--tty-menu-p nil
   "Non-nil means the current command was invoked from a TTY menu.")
 (defun use-dialog-box-p ()
-  "Say whether the current command should prompt the user via a dialog box."
+  "Return non-nil if the current command should prompt the user via a dialog box."
   (and last-input-event                 ; not during startup
-       (or (listp last-nonmenu-event)   ; invoked by a mouse event
+       (or (consp last-nonmenu-event)   ; invoked by a mouse event
            from--tty-menu-p)            ; invoked via TTY menu
        use-dialog-box))
 
@@ -7170,12 +7173,13 @@ CONDITION is either:
     (funcall match (list condition))))
 
 (defun match-buffers (condition &optional buffers arg)
-  "Return a list of buffers that match CONDITION.
-See `buffer-match-p' for details on CONDITION.  By default all
-buffers are checked, this can be restricted by passing an
-optional argument BUFFERS, set to a list of buffers to check.
-ARG is passed to `buffer-match', for predicate conditions in
-CONDITION."
+  "Return a list of buffers that match CONDITION, or nil if none match.
+See `buffer-match-p' for various supported CONDITIONs.
+By default all buffers are checked, but the optional
+argument BUFFERS can restrict that: its value should be
+an explicit list of buffers to check.
+Optional argument ARG is passed to `buffer-match-p', for
+predicate conditions in CONDITION."
   (let (bufs)
     (dolist (buf (or buffers (buffer-list)))
       (when (buffer-match-p condition (get-buffer buf) arg)

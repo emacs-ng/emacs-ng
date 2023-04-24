@@ -3750,14 +3750,18 @@ ns_maybe_dumpglyphs_background (struct glyph_string *s, char force_p)
 	{
           struct face *face = s->face;
           if (!face->stipple)
-	    {
-	      if (s->hl != DRAW_CURSOR)
-		[(NS_FACE_BACKGROUND (face) != 0
-		  ? [NSColor colorWithUnsignedLong:NS_FACE_BACKGROUND (face)]
-		  : FRAME_BACKGROUND_COLOR (s->f)) set];
-	      else
-		[FRAME_CURSOR_COLOR (s->f) set];
-	    }
+            {
+              if (s->hl != DRAW_CURSOR)
+                [(NS_FACE_BACKGROUND (face) != 0
+                  ? [NSColor colorWithUnsignedLong:NS_FACE_BACKGROUND (face)]
+                  : FRAME_BACKGROUND_COLOR (s->f)) set];
+              else if (face && (NS_FACE_BACKGROUND (face)
+                                == [(NSColor *) FRAME_CURSOR_COLOR (s->f)
+                                                unsignedLong]))
+                [[NSColor colorWithUnsignedLong:NS_FACE_FOREGROUND (face)] set];
+              else
+                [FRAME_CURSOR_COLOR (s->f) set];
+            }
           else
             {
               struct ns_display_info *dpyinfo = FRAME_DISPLAY_INFO (s->f);
@@ -4603,7 +4607,7 @@ ns_send_appdefined (int value)
 
 #if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
 static void
-check_native_fs ()
+check_native_fs (void)
 {
   Lisp_Object frame, tail;
 

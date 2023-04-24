@@ -5,7 +5,7 @@
 ;; Author: Noah Friedman <friedman@splode.com>
 ;; Keywords: extensions
 ;; Created: 1995-10-06
-;; Version: 1.13.0
+;; Version: 1.14.0
 ;; Package-Requires: ((emacs "26.3"))
 
 ;; This is a GNU ELPA :core package.  Avoid functionality that is not
@@ -448,16 +448,16 @@ documentation-displaying frontends.  For example, KEY can be:
   `eldoc-display-in-echo-area' and `eldoc-display-in-buffer' will
   use when displaying `:thing''s value.
 
-* `:origin', VALUE being the member of
-  `eldoc-documentation-functions' where DOCSTRING
-  originated. `eldoc-display-in-buffer' may use this organize the
-  documentation buffer accordingly.
-
 * `:echo', controlling how `eldoc-display-in-echo-area' should
   present this documentation item in the echo area, to save
   space.  If VALUE is a string, echo it instead of DOCSTRING.  If
   a number, only echo DOCSTRING up to that character position.
   If `skip', don't echo DOCSTRING at all.
+
+The additional KEY `:origin' is always added by ElDoc, its VALUE
+being the member of `eldoc-documentation-functions' where
+DOCSTRING originated. `eldoc-display-functions' may use this
+information to organize display of multiple docstrings.
 
 Finally, major modes should modify this hook locally, for
 example:
@@ -681,29 +681,34 @@ This is the default value for `eldoc-documentation-strategy'."
                     (lambda (f)
                       (funcall f (eldoc--make-callback :eager f)))))
 
-(defun eldoc--documentation-compose-1 (eagerlyp)
-  "Helper function for composing multiple doc strings.
-If EAGERLYP is non-nil show documentation as soon as possible,
-else wait for all doc strings."
-  (run-hook-wrapped 'eldoc-documentation-functions
-                    (lambda (f)
-                      (let* ((callback (eldoc--make-callback
-                                        (if eagerlyp :eager :patient)
-                                        f))
-                             (str (funcall f callback)))
-                        (if (or (null str) (stringp str)) (funcall callback str))
-                        nil)))
-  t)
-
 (defun eldoc-documentation-compose ()
   "Show multiple documentation strings together after waiting for all of them.
 This is meant to be used as a value for `eldoc-documentation-strategy'."
-  (eldoc--documentation-compose-1 nil))
+  (let (fns-and-callbacks)
+    ;; Make all the callbacks, setting up state inside
+    ;; `eldoc--invoke-strategy' to know how many callbacks to wait for
+    ;; before displaying the result (bug#62816).
+    (run-hook-wrapped 'eldoc-documentation-functions
+                      (lambda (f)
+                        (push (cons f (eldoc--make-callback :patient f))
+                              fns-and-callbacks)
+                        nil))
+    ;; Now call them.  The last one will trigger the display.
+    (cl-loop for (f . callback) in fns-and-callbacks
+             for str = (funcall f callback)
+             when (or (null str) (stringp str)) do (funcall callback str)))
+  t)
 
 (defun eldoc-documentation-compose-eagerly ()
   "Show multiple documentation strings one by one as soon as possible.
 This is meant to be used as a value for `eldoc-documentation-strategy'."
-  (eldoc--documentation-compose-1 t))
+  (run-hook-wrapped 'eldoc-documentation-functions
+                    (lambda (f)
+                      (let* ((callback (eldoc--make-callback :eager f))
+                             (str (funcall f callback)))
+                        (if (or (null str) (stringp str)) (funcall callback str))
+                        nil)))
+  t)
 
 (defun eldoc-documentation-enthusiast ()
   "Show most important documentation string produced so far.
