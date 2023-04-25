@@ -359,18 +359,16 @@ impl ImageSource {
 /// TODO We plan implement spec(rotate/scale) using WebRender transform
 pub struct ImageCache(FastHashMap<ImageHash, ImageCacheResult>);
 
-static mut IMAGE_CACHE: OnceLock<Arc<Mutex<ImageCache>>> = OnceLock::new();
+static IMAGE_CACHE: OnceLock<Arc<Mutex<ImageCache>>> = OnceLock::new();
 impl ImageCache {
     pub fn new() -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self(FastHashMap::default())))
     }
     pub fn global() -> &'static Arc<Mutex<ImageCache>> {
-        unsafe {
-            IMAGE_CACHE.get_or_init(|| {
-                log::trace!("image cache is being created...");
-                Self::new()
-            })
-        }
+        IMAGE_CACHE.get_or_init(|| {
+            log::trace!("image cache is being created...");
+            Self::new()
+        })
     }
     fn cache_mut<P, T>(p: P) -> Option<T>
     where

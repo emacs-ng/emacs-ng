@@ -159,11 +159,8 @@ pub use crate::platform::macos;
 
 pub use crate::color::*;
 pub use crate::font::*;
-pub use crate::term::*;
 #[cfg(window_system_winit)]
 pub use crate::window_system::term::*;
-#[cfg(window_system_winit)]
-pub use crate::wrterm::*;
 
 #[cfg(not(test))]
 #[cfg(window_system_winit)]

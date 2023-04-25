@@ -72,16 +72,13 @@ impl WrEventLoop {
                 let el = EventLoopBuilder::<i32>::with_user_event().build();
                 #[cfg(use_tao)]
                 let el = EventLoop::<i32>::with_user_event();
-
                 let clipboard = Clipboard::build(&el);
                 (el, clipboard)
             };
-
             Arc::new(Mutex::new(Self { clipboard, el }))
         })
     }
 }
-
 pub fn global_event_buffer() -> &'static Mutex<Vec<GUIEvent>> {
     static EVENT_BUFFER: OnceLock<Mutex<Vec<GUIEvent>>> = OnceLock::new();
     EVENT_BUFFER.get_or_init(|| Mutex::new(Vec::new()))
