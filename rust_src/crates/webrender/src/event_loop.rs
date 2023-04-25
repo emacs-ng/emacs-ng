@@ -78,6 +78,9 @@ impl WrEventLoop {
             Arc::new(Mutex::new(Self { clipboard, el }))
         })
     }
+    pub fn get() -> Option<&'static Arc<Mutex<WrEventLoop>>> {
+        EVENT_LOOP.get()
+    }
 }
 pub fn global_event_buffer() -> &'static Mutex<Vec<GUIEvent>> {
     static EVENT_BUFFER: OnceLock<Mutex<Vec<GUIEvent>>> = OnceLock::new();

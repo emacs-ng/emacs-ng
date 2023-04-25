@@ -609,7 +609,11 @@ pub fn webrender_monitor_to_emacs_monitor(m: MonitorHandle) -> (MonitorInfo, Opt
 /// Internal use only, use `display-monitor-attributes-list' instead.
 #[lisp_fn(min = "0")]
 pub fn wr_display_monitor_attributes_list(_terminal: LispObject) -> LispObject {
-    let event_loop = WrEventLoop::global().try_lock().unwrap();
+    let event_loop = WrEventLoop::get();
+    if event_loop.is_none() {
+        return Qnil;
+    }
+    let event_loop = event_loop.unwrap().try_lock().unwrap();
 
     let monitors: Vec<_> = event_loop.get_available_monitors().collect();
     let primary_monitor = event_loop.get_primary_monitor();
@@ -676,7 +680,11 @@ pub fn wr_display_monitor_attributes_list(_terminal: LispObject) -> LispObject {
 /// each physical monitor, use `display-monitor-attributes-list'.
 #[lisp_fn(min = "0")]
 pub fn x_display_pixel_width(_terminal: LispObject) -> LispObject {
-    let event_loop = WrEventLoop::global().try_lock().unwrap();
+    let event_loop = WrEventLoop::get();
+    if event_loop.is_none() {
+        return Qnil;
+    }
+    let event_loop = event_loop.unwrap().try_lock().unwrap();
 
     let primary_monitor = event_loop.get_primary_monitor();
 
@@ -699,7 +707,11 @@ pub fn x_display_pixel_width(_terminal: LispObject) -> LispObject {
 /// each physical monitor, use `display-monitor-attributes-list'.
 #[lisp_fn(min = "0")]
 pub fn x_display_pixel_height(_terminal: LispObject) -> LispObject {
-    let event_loop = WrEventLoop::global().try_lock().unwrap();
+    let event_loop = WrEventLoop::get();
+    if event_loop.is_none() {
+        return Qnil;
+    }
+    let event_loop = event_loop.unwrap().try_lock().unwrap();
 
     let primary_monitor = event_loop.get_primary_monitor();
 
@@ -727,7 +739,11 @@ pub fn x_own_selection_internal(
     value: LispObject,
     _frame: LispObject,
 ) -> LispObject {
-    let mut event_loop = WrEventLoop::global().try_lock().unwrap();
+    let event_loop = WrEventLoop::get();
+    if event_loop.is_none() {
+        return Qnil;
+    }
+    let mut event_loop = event_loop.unwrap().try_lock().unwrap();
 
     let clipboard = event_loop.get_clipboard();
 
@@ -758,7 +774,11 @@ pub fn x_get_selection_internal(
     _time_stamp: LispObject,
     _terminal: LispObject,
 ) -> LispObject {
-    let mut event_loop = WrEventLoop::global().try_lock().unwrap();
+    let event_loop = WrEventLoop::get();
+    if event_loop.is_none() {
+        return Qnil;
+    }
+    let mut event_loop = event_loop.unwrap().try_lock().unwrap();
 
     let clipboard = event_loop.get_clipboard();
     let contents: &str = &clipboard.read();
