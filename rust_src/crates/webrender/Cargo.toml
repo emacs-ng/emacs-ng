@@ -99,6 +99,7 @@ wayland = [
   "glutin?/wayland"
 ]
 capture=["webrender/capture", "webrender/serialize_program"]
+profiling=["webrender/profiler"]
 sw_compositor=["webrender/sw_compositor"]
 pselect=["dep:nix"]
 tokio=["dep:tokio"]

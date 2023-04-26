@@ -109,6 +109,7 @@ javascript = ["dep:js", "ng-bindgen/javascript"]
 ng-module = ["dep:ng_module", "ng-bindgen/ng-module"]
 # Enable glyphs debugging code.
 glyph-debug = ["wrterm?/capture"]
+profiling = ["wrterm?/profiling"]
 
 ### Patches
 

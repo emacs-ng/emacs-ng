@@ -689,6 +689,7 @@ AC_ARG_ENABLE([profiling],
 [ac_enable_profiling="${enableval}"],[])
 if test x$ac_enable_profiling != x ; then
    PROFILING_CFLAGS="-DPROFILING=1 -pg"
+   CARGO_CHECKING_FEATURES="${CARGO_CHECKING_FEATURES}\"profiling\", "
 else
    PROFILING_CFLAGS=
 fi
