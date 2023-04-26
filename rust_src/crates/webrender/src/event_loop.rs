@@ -18,7 +18,7 @@ use crate::window_system::api::{
     monitor::MonitorHandle,
     platform::run_return::EventLoopExtRunReturn,
 };
-use emacs::bindings::{inhibit_window_system, thread_select};
+use emacs::bindings::{inhibit_window_system, noninteractive, thread_select};
 use libc::{c_void, fd_set, pselect, sigset_t, timespec};
 
 pub type GUIEvent = Event<'static, i32>;
@@ -135,14 +135,12 @@ pub extern "C" fn winit_select(
     timeout: *mut timespec,
     _sigmask: *mut sigset_t,
 ) -> i32 {
-    log::trace!("winit select");
-    let lock_result = WrEventLoop::global().try_lock();
-
-    if lock_result.is_err() || unsafe { inhibit_window_system } {
-        if lock_result.is_err() {
-            log::debug!("Failed to grab a lock {:?}", lock_result.err());
-        }
-
+    log::trace!(
+        "winit select inhibit_window_system: {}, noninteractive: {}",
+        unsafe { inhibit_window_system },
+        unsafe { noninteractive }
+    );
+    if unsafe { inhibit_window_system || noninteractive } {
         return unsafe {
             thread_select(
                 Some(pselect),
@@ -156,6 +154,11 @@ pub extern "C" fn winit_select(
         };
     }
 
+    let lock_result = WrEventLoop::global().try_lock();
+    if lock_result.is_err() {
+        log::error!("Failed to grab a lock {:?}", lock_result.err());
+        return -1;
+    }
     let mut event_loop = lock_result.unwrap();
 
     handle_select(
