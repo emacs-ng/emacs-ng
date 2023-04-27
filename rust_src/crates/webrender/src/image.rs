@@ -58,18 +58,8 @@ impl ImageExt for ImageRef {
         let specified_data = self.specified_data();
         let specified_file = self.specified_file();
         if specified_data.is_nil() {
-            let file: LispObject =
-                unsafe { emacs::bindings::image_find_image_file(specified_file) };
-            if !file.is_string() || file.is_nil() {
-                image_error!("Cannot find image file {:?}", specified_file);
-                return None;
-            }
-            return Some(ImageSource::File(file));
+            return Some(ImageSource::File(specified_file));
         } else {
-            if !specified_data.is_string() {
-                image_error!("Invalid image data {:?}", specified_data);
-                return None;
-            }
             return Some(ImageSource::Data(specified_data));
         }
     }
