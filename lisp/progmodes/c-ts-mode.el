@@ -80,6 +80,8 @@
 (declare-function treesit-node-prev-sibling "treesit.c")
 (declare-function treesit-node-first-child-for-pos "treesit.c")
 (declare-function treesit-node-next-sibling "treesit.c")
+(declare-function treesit-parser-set-included-ranges "treesit.c")
+(declare-function treesit-query-compile "treesit.c")
 
 ;;; Custom variables
 
@@ -357,7 +359,9 @@ PARENT, BOL, ARGS are the same as other anchor functions."
   "Indent rules supported by `c-ts-mode'.
 MODE is either `c' or `cpp'."
   (let ((common
-         `(((parent-is "translation_unit") column-0 0)
+         `((c-ts-mode--for-each-tail-body-matcher prev-line c-ts-mode-indent-offset)
+
+           ((parent-is "translation_unit") column-0 0)
            ((query "(ERROR (ERROR)) @indent") column-0 0)
            ((node-is ")") parent 1)
            ((node-is "]") parent-bol 0)
@@ -969,6 +973,82 @@ if `c-ts-mode-emacs-sources-support' is non-nil."
   (or (treesit-add-log-current-defun)
       (c-ts-mode--defun-name (c-ts-mode--emacs-defun-at-point))))
 
+;;; Support for FOR_EACH_* macros
+;;
+;; FOR_EACH_TAIL, FOR_EACH_TAIL_SAFE, FOR_EACH_FRAME etc., followed by
+;; an unbracketed body will mess up the parser, which parses the thing
+;; as a function declaration.  We "fix" it by adding a shadow parser
+;; for a language 'emacs-c' (which is just 'c' but under a different
+;; name).  We use 'emacs-c' to find each FOR_EACH_* macro with a
+;; unbracketed body, and set the ranges of the C parser so that it
+;; skips those FOR_EACH_*'s.  Note that we only ignore FOR_EACH_*'s
+;; with a unbracketed body.  Those with a bracketed body parse more
+;; or less fine.
+
+(defvar c-ts-mode--for-each-tail-regexp
+  (rx "FOR_EACH_" (or "TAIL" "TAIL_SAFE" "ALIST_VALUE"
+                      "LIVE_BUFFER" "FRAME"))
+  "A regexp matching all the variants of the FOR_EACH_* macro.")
+
+(defun c-ts-mode--for-each-tail-body-matcher (_n _p bol &rest _)
+  "A matcher that matches the first line after a FOR_EACH_* macro.
+For BOL see `treesit-simple-indent-rules'."
+  (when c-ts-mode-emacs-sources-support
+    (save-excursion
+      (goto-char bol)
+      (forward-line -1)
+      (skip-chars-forward " \t")
+      (looking-at c-ts-mode--for-each-tail-regexp))))
+
+(defvar c-ts-mode--emacs-c-range-query
+  (treesit-query-compile
+   'emacs-c `(((declaration
+                type: (macro_type_specifier
+                       name: (identifier) @_name)
+                @for-each-tail)
+               (:match ,c-ts-mode--for-each-tail-regexp
+                       @_name))))
+  "Query that finds a FOR_EACH_* macro with an unbracketed body.")
+
+(defvar-local c-ts-mode--for-each-tail-ranges nil
+  "Ranges covering all the FOR_EACH_* macros in the buffer.")
+
+(defun c-ts-mode--reverse-ranges (ranges beg end)
+  "Reverse RANGES and return the new ranges between BEG and END.
+Positions that were included RANGES are not in the returned
+ranges, and vice versa.
+
+Return nil if RANGES is nil.  This way, passing the returned
+ranges to `treesit-parser-set-included-ranges' will make the
+parser parse the whole buffer."
+  (if (null ranges)
+      nil
+    (let ((new-ranges nil)
+          (prev-end beg))
+      (dolist (range ranges)
+        (when (< prev-end (car range))
+          (push (cons prev-end (car range)) new-ranges))
+        (setq prev-end (cdr range)))
+      (when (< prev-end end)
+        (push (cons prev-end end) new-ranges))
+      (nreverse new-ranges))))
+
+(defun c-ts-mode--emacs-set-ranges (beg end)
+  "Set ranges for the C parser to skip some FOR_EACH_* macros.
+BEG and END are described in `treesit-range-rules'."
+  (let* ((c-parser (treesit-parser-create 'c))
+         (old-ranges c-ts-mode--for-each-tail-ranges)
+         (new-ranges (treesit-query-range
+                      'emacs-c c-ts-mode--emacs-c-range-query beg end))
+         (set-ranges (treesit--clip-ranges
+                      (treesit--merge-ranges
+                       old-ranges new-ranges beg end)
+                      (point-min) (point-max)))
+         (reversed-ranges (c-ts-mode--reverse-ranges
+                           set-ranges (point-min) (point-max))))
+    (setq-local c-ts-mode--for-each-tail-ranges set-ranges)
+    (treesit-parser-set-included-ranges c-parser reversed-ranges)))
+
 ;;; Modes
 
 (defvar-keymap c-ts-base-mode-map
@@ -1081,6 +1161,8 @@ if `c-ts-mode-emacs-sources-support' is non-nil."
                 ( assignment constant escape-sequence label literal)
                 ( bracket delimiter error function operator property variable))))
 
+(defvar treesit-load-name-override-list)
+
 ;;;###autoload
 (define-derived-mode c-ts-mode c-ts-base-mode "C"
   "Major mode for editing C, powered by tree-sitter.
@@ -1101,6 +1183,17 @@ in your configuration."
   :after-hook (c-ts-mode-set-modeline)
 
   (when (treesit-ready-p 'c)
+    ;; Add a fake "emacs-c" language which is just C.  Used for
+    ;; skipping FOR_EACH_* macros, see `c-ts-mode--emacs-set-ranges'.
+    (setf (alist-get 'emacs-c treesit-load-name-override-list)
+          '("libtree-sitter-c" "tree_sitter_c"))
+    ;; If Emacs source support is enabled, make sure emacs-c parser is
+    ;; after c parser in the parser list. This way various tree-sitter
+    ;; functions will automatically use the c parser rather than the
+    ;; emacs-c parser.
+    (when c-ts-mode-emacs-sources-support
+      (treesit-parser-create 'emacs-c))
+
     (treesit-parser-create 'c)
     ;; Comments.
     (setq-local comment-start "/* ")
@@ -1114,9 +1207,16 @@ in your configuration."
     (setq-local treesit-defun-tactic 'top-level)
     (treesit-major-mode-setup)
 
+    ;; Emacs source support: handle DEFUN and FOR_EACH_* gracefully.
     (when c-ts-mode-emacs-sources-support
       (setq-local add-log-current-defun-function
-                  #'c-ts-mode--emacs-current-defun-name))))
+                  #'c-ts-mode--emacs-current-defun-name)
+
+      (setq-local treesit-range-settings
+                  (treesit-range-rules 'c-ts-mode--emacs-set-ranges))
+
+      (setq-local treesit-language-at-point-function
+                  (lambda (_pos) 'c)))))
 
 ;;;###autoload
 (define-derived-mode c++-ts-mode c-ts-base-mode "C++"

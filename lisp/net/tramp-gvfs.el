@@ -1498,15 +1498,11 @@ If FILE-SYSTEM is non-nil, return file system attributes."
       (if (not (processp p))
 	  (tramp-error
 	   v 'file-notify-error "Monitoring not supported for `%s'" file-name)
-	(tramp-message
-	 v 6 "Run `%s', %S" (string-join (process-command p) " ") p)
-	(process-put p 'tramp-vector v)
 	(process-put p 'tramp-events events)
 	(process-put p 'tramp-watch-name localname)
-	(process-put p 'adjust-window-size-function #'ignore)
-	(set-process-query-on-exit-flag p nil)
 	(set-process-filter p #'tramp-gvfs-monitor-process-filter)
 	(set-process-sentinel p #'tramp-file-notify-process-sentinel)
+	(tramp-post-process-creation p v)
 	;; There might be an error if the monitor is not supported.
 	;; Give the filter a chance to read the output.
 	(while (tramp-accept-process-output p))
@@ -2187,11 +2183,12 @@ connection if a previous connection has died for some reason."
   ;; Sanity check.
   (let ((method (tramp-file-name-method vec)))
     (unless (member
-	     (or (rassoc method '(("smb" . "smb-share")
-				  ("davs" . "dav")
-				  ("nextcloud" . "dav")
-				  ("afp". "afp-volume")
-				  ("gdrive" . "google-drive")))
+	     (or (assoc-default
+		  method '(("smb" . "smb-share")
+			   ("davs" . "dav")
+			   ("nextcloud" . "dav")
+			   ("afp". "afp-volume")
+			   ("gdrive" . "google-drive")))
 		 method)
 	     tramp-gvfs-mounttypes)
       (tramp-error vec 'file-error "Method `%s' not supported by GVFS" method)))
@@ -2204,8 +2201,7 @@ connection if a previous connection has died for some reason."
 	      :name (tramp-get-connection-name vec)
 	      :buffer (tramp-get-connection-buffer vec)
 	      :server t :host 'local :service t :noquery t)))
-      (process-put p 'tramp-vector vec)
-      (set-process-query-on-exit-flag p nil)
+      (tramp-post-process-creation p vec)
 
       ;; Set connection-local variables.
       (tramp-set-connection-local-variables vec)))

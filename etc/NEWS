@@ -30,6 +30,11 @@ applies, and please also update docstrings as needed.
 
 * Changes in Emacs 30.1
 
+---
+** New user option 'describe-bindings-outline-rules'.
+This user option controls outline visibility in the output buffer of
+'describe-bindings' when 'describe-bindings-outline' in non-nil.
+
 ** X selection requests are now handled much faster and asynchronously.
 This means it should be less necessary to disable the likes of
 'select-active-regions' when Emacs is running over a slow network
@@ -217,6 +222,11 @@ The latter suppresses also "ControlMaster" settings in the user's
 "~/.ssh/config" file, or connection share configuration in PuTTY
 sessions, respectively.
 
++++
+*** New command 'tramp-cleanup-some-buffers'.
+It allows to kill only selected remote buffers, controlled by user
+option 'tramp-cleanup-some-buffers-hook'.
+
 ** EWW
 
 +++
@@ -225,6 +235,17 @@ By default, the command reuses the "*eww*" buffer, but if called with
 the new argument NEW-BUFFER non-nil, it will use a new buffer instead.
 Interactively, invoke 'eww-open-file' with a prefix argument to
 activate this behavior.
+
+---
+*** 'eww' URL or keyword prompt now has tab completion.
+The interactive minibuffer prompt when invoking 'eww' now has support
+for tab completion.
+
++++
+*** 'eww' URL and keyword prompt now completes suggested URIs and bookmarks.
+The interactive minibuffer prompt when invoking 'eww' now provides
+completions from 'eww-suggest-uris'.  'eww-suggest-uris' now includes
+bookmark URIs.
 
 ** go-ts-mode
 
