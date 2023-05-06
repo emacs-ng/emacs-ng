@@ -1073,6 +1073,7 @@ Format specifiers \"%s\" are replaced before the script is used.")
     (file-equal-p . tramp-handle-file-equal-p)
     (file-executable-p . tramp-sh-handle-file-executable-p)
     (file-exists-p . tramp-sh-handle-file-exists-p)
+    (file-group-gid . tramp-handle-file-group-gid)
     (file-in-directory-p . tramp-handle-file-in-directory-p)
     (file-local-copy . tramp-sh-handle-file-local-copy)
     (file-locked-p . tramp-handle-file-locked-p)
@@ -2565,7 +2566,7 @@ The method used must be an out-of-band method."
       (setq switches
 	    (append switches (split-string (tramp-sh--quoting-style-options v))))
       (unless (tramp-get-ls-command-with v "--dired")
-	(setq switches (delete "--dired" switches)))
+	(setq switches (delete "-N" (delete "--dired" switches))))
       (when wildcard
         (setq wildcard (tramp-run-real-handler
 			#'file-name-nondirectory (list localname)))

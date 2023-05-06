@@ -2440,15 +2440,19 @@ This checks also `file-name-as-directory', `file-name-directory',
 		`(,(expand-file-name tmp-name) 0)))
 	      (should (string-equal (buffer-string) "foo"))
 	      (should (= point (point))))
-	    (let ((point (point)))
-	      (replace-string-in-region "foo" "bar" (point-min) (point-max))
-	      (goto-char point)
-	      (should
-	       (equal
-		(insert-file-contents tmp-name nil nil nil 'replace)
-		`(,(expand-file-name tmp-name) 3)))
-	      (should (string-equal (buffer-string) "foo"))
-	      (should (= point (point))))
+	    ;; Insert another string.
+	    ;; `replace-string-in-region' was introduced in Emacs 28.1.
+	    (when (tramp--test-emacs28-p)
+	      (let ((point (point)))
+		(with-no-warnings
+		  (replace-string-in-region "foo" "bar" (point-min) (point-max)))
+		(goto-char point)
+		(should
+		 (equal
+		  (insert-file-contents tmp-name nil nil nil 'replace)
+		  `(,(expand-file-name tmp-name) 3)))
+		(should (string-equal (buffer-string) "foo"))
+		(should (= point (point)))))
 	    ;; Error case.
 	    (delete-file tmp-name)
 	    (should-error
@@ -7367,16 +7371,20 @@ This requires restrictions of file name syntax."
     (dotimes (i (length fsi))
       (should (natnump (or (nth i fsi) 0))))))
 
-;; `file-user-uid' was introduced in Emacs 30.1.
-(ert-deftest tramp-test44-file-user-uid ()
-  "Check that `file-user-uid' and `tramp-get-remote-*' return proper values."
+;; `file-user-uid' and `file-group-gid' were introduced in Emacs 30.1.
+(ert-deftest tramp-test44-file-user-group-ids ()
+  "Check results of user/group functions.
+`file-user-uid', `file-group-gid', and `tramp-get-remote-*'
+should all return proper values."
   (skip-unless (tramp--test-enabled))
 
   (let ((default-directory ert-remote-temporary-file-directory))
-    ;; `file-user-uid' exists since Emacs 30.1.  We don't want to see
-    ;; compiler warnings for older Emacsen.
+    ;; `file-user-uid' and `file-group-gid' exist since Emacs 30.1.
+    ;; We don't want to see compiler warnings for older Emacsen.
     (when (fboundp 'file-user-uid)
       (should (integerp (with-no-warnings (file-user-uid)))))
+    (when (fboundp 'file-group-gid)
+      (should (integerp (with-no-warnings (file-group-gid)))))
 
     (with-parsed-tramp-file-name default-directory nil
       (should (or (integerp (tramp-get-remote-uid v 'integer))
@@ -7440,12 +7448,7 @@ This is needed in timer functions as well as process filters and sentinels."
   "Check parallel asynchronous requests.
 Such requests could arrive from timers, process filters and
 process sentinels.  They shall not disturb each other."
-  ;; :tags (append '(:expensive-test :tramp-asynchronous-processes)
-  ;;       	(and (or (getenv "EMACS_HYDRA_CI")
-  ;;                        (getenv "EMACS_EMBA_CI"))
-  ;;                    '(:unstable)))
-  ;; It doesn't work sufficiently.
-  :tags '(:expensive-test :tramp-asynchronous-processes :unstable)
+  :tags '(:expensive-test :tramp-asynchronous-processes)
   (skip-unless (tramp--test-enabled))
   (skip-unless (tramp--test-supports-processes-p))
   (skip-unless (not (tramp--test-container-p)))
@@ -7513,14 +7516,12 @@ process sentinels.  They shall not disturb each other."
                   (when buffers
                     (let ((time (float-time))
                           (default-directory tmp-name)
-                          (file (buffer-name (seq-random-elt buffers)))
-			  ;; A remote operation in a timer could
-			  ;; confuse Tramp heavily.  So we ignore this
-			  ;; error here.
-			  (debug-ignored-errors
-			   (cons 'remote-file-error debug-ignored-errors)))
+                          (file (buffer-name (seq-random-elt buffers))))
                       (tramp--test-message
                        "Start timer %s %s" file (current-time-string))
+		      (dired-uncache file)
+		      (tramp--test-message
+		       "Continue timer %s %s" file (file-attributes file))
 		      (vc-registered file)
                       (tramp--test-message
                        "Stop timer %s %s" file (current-time-string))

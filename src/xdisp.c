@@ -4056,7 +4056,7 @@ compute_stop_pos (struct it *it)
 {
   register INTERVAL iv, next_iv;
   Lisp_Object object, limit, position;
-  ptrdiff_t charpos, bytepos;
+  ptrdiff_t charpos, bytepos, cmp_limit_pos = -1;
 
   if (STRINGP (it->string))
     {
@@ -4126,7 +4126,10 @@ compute_stop_pos (struct it *it)
 		}
 	    }
 	  if (found)
-	    pos--;
+	    {
+	      pos--;
+	      cmp_limit_pos = pos;
+	    }
 	  else if (it->stop_charpos < endpos)
 	    pos = it->stop_charpos;
 	  else
@@ -4184,14 +4187,25 @@ compute_stop_pos (struct it *it)
 	}
     }
 
-  if (it->cmp_it.id < 0)
+  if (it->cmp_it.id < 0
+      && (STRINGP (it->string)
+	  || ((!it->bidi_p || it->bidi_it.scan_dir >= 0)
+	      && it->cmp_it.stop_pos <= IT_CHARPOS (*it))))
     {
       ptrdiff_t stoppos = it->end_charpos;
 
+      /* If we found, above, a buffer position that cannot be part of
+         an automatic composition, limit the search of composable
+         characters to that position.  */
       if (it->bidi_p && it->bidi_it.scan_dir < 0)
 	stoppos = -1;
+      else if (cmp_limit_pos > 0)
+	stoppos = cmp_limit_pos;
+      /* Force composition_compute_stop_pos avoid the costly search
+         for static compositions, since those were already found by
+         looking at text properties, above.  */
       composition_compute_stop_pos (&it->cmp_it, charpos, bytepos,
-				    stoppos, it->string);
+				    stoppos, it->string, false);
     }
 
   eassert (STRINGP (it->string)
@@ -7716,7 +7730,7 @@ reseat_to_string (struct it *it, const char *s, Lisp_Object string,
       if (endpos > it->end_charpos)
 	endpos = it->end_charpos;
       composition_compute_stop_pos (&it->cmp_it, charpos, -1, endpos,
-				    it->string);
+				    it->string, true);
     }
   CHECK_IT (it);
 }
@@ -8404,7 +8418,7 @@ set_iterator_to_next (struct it *it, bool reseat_p)
 		   where to stop.  */
 		stop = -1;
 	      composition_compute_stop_pos (&it->cmp_it, IT_CHARPOS (*it),
-					    IT_BYTEPOS (*it), stop, Qnil);
+					    IT_BYTEPOS (*it), stop, Qnil, true);
 	    }
 	}
       else
@@ -8435,7 +8449,8 @@ set_iterator_to_next (struct it *it, bool reseat_p)
 		  if (it->bidi_it.scan_dir < 0)
 		    stop = -1;
 		  composition_compute_stop_pos (&it->cmp_it, IT_CHARPOS (*it),
-						IT_BYTEPOS (*it), stop, Qnil);
+						IT_BYTEPOS (*it), stop, Qnil,
+						true);
 		}
 	    }
 	  eassert (IT_BYTEPOS (*it) == CHAR_TO_BYTE (IT_CHARPOS (*it)));
@@ -8591,7 +8606,7 @@ set_iterator_to_next (struct it *it, bool reseat_p)
 	      composition_compute_stop_pos (&it->cmp_it,
 					    IT_STRING_CHARPOS (*it),
 					    IT_STRING_BYTEPOS (*it), stop,
-					    it->string);
+					    it->string, true);
 	    }
 	}
       else
@@ -8628,7 +8643,7 @@ set_iterator_to_next (struct it *it, bool reseat_p)
 		  composition_compute_stop_pos (&it->cmp_it,
 						IT_STRING_CHARPOS (*it),
 						IT_STRING_BYTEPOS (*it), stop,
-						it->string);
+						it->string, true);
 		}
 	    }
 	}
@@ -8879,7 +8894,7 @@ get_visually_first_element (struct it *it)
       if (it->bidi_it.scan_dir < 0)
 	stop = -1;
       composition_compute_stop_pos (&it->cmp_it, charpos, bytepos, stop,
-				    it->string);
+				    it->string, true);
     }
 }
 
@@ -20600,6 +20615,8 @@ try_window (Lisp_Object window, struct text_pos pos, int flags)
       int bot_scroll_margin = top_scroll_margin;
       if (window_wants_header_line (w))
 	top_scroll_margin += CURRENT_HEADER_LINE_HEIGHT (w);
+      if (window_wants_tab_line (w))
+	top_scroll_margin += CURRENT_TAB_LINE_HEIGHT (w);
       start_display (&it, w, pos);
 
       if ((w->cursor.y >= 0
@@ -21944,17 +21961,23 @@ try_window_id (struct window *w)
 
   /* Don't let the cursor end in the scroll margins.  */
   {
-    int this_scroll_margin = window_scroll_margin (w, MARGIN_IN_PIXELS);
+    int top_scroll_margin = window_scroll_margin (w, MARGIN_IN_PIXELS);
+    int bot_scroll_margin = top_scroll_margin;
     int cursor_height = MATRIX_ROW (w->desired_matrix, w->cursor.vpos)->height;
 
-    if ((w->cursor.y < this_scroll_margin
+    if (window_wants_header_line (w))
+      top_scroll_margin += CURRENT_HEADER_LINE_HEIGHT (w);
+    if (window_wants_tab_line (w))
+      top_scroll_margin += CURRENT_TAB_LINE_HEIGHT (w);
+
+    if ((w->cursor.y < top_scroll_margin
 	 && CHARPOS (start) > BEGV)
 	/* Old redisplay didn't take scroll margin into account at the bottom,
 	   but then global-hl-line-mode doesn't scroll.  KFS 2004-06-14 */
 	|| (w->cursor.y
 	    + (cursor_row_fully_visible_p (w, false, true, true)
 	       ? 1
-	       : cursor_height + this_scroll_margin)) > it.last_visible_y)
+	       : cursor_height + bot_scroll_margin)) > it.last_visible_y)
       {
 	w->cursor.vpos = -1;
 	clear_glyph_matrix (w->desired_matrix);

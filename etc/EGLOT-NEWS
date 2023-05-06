@@ -18,6 +18,32 @@ to look up issue github#1234, go to
 https://github.com/joaotavora/eglot/issues/1234.
 
 
+* Changes in Eglot 1.15 (29/4/2023)
+
+** Fix LSP "languageId" detection
+
+Many servers today support multiple languages, meaning they can handle
+more than one file type in the same connection.  This relies on the
+client supplying a ':languageId' string.  Previously, Eglot calculated
+this string based on an imperfect heuristic and was often wrong.  See
+github#1206.
+
+** Fix problems with missing signature documentation (bug#62687)
+
+** Reworked 'eglot-imenu'
+
+Eglot's Imenu backend (used for M-x imenu among other extensions), has
+been reworked.  Most newer servers respond to
+'textDocument/documentSymbol' with a vector of 'DocumentSymbol', not
+'SymbolInformation'.  It's not worth it trying to make the two formats
+resemble each other.  This also lays groundwork supporting a
+forthcoming "breadcrumb" feature of bug#58431.
+
+** New command 'eglot-update'
+
+This allows users to easily update to the latest version of Eglot.
+
+
 * Changes in Eglot 1.14 (3/4/2023)
 
 ** Faster, more responsive completion
@@ -71,6 +97,16 @@ been added to 'eglot-stay-out-of'.
 ** ELPA installations on Emacs 26.3 are supported again.
 
 
+* Changes in Eglot 1.12.29 (Eglot bundled with Emacs 29.1)
+
+** Eglot can upgrade itself to the latest version.
+
+The new command 'eglot-upgrade-eglot' works around behaviour in the
+existing 'package-install' command and the new 'package-upgrade'
+command which would prevent the user from easily grabbing the latest
+version as usual.
+
+
 * Changes in Eglot 1.12 (13/03/2023)
 
 ** LSP inlay hints are now supported.
@@ -93,7 +129,7 @@ The position-encoding scheme (UTF-8, UTF-16 or UTF-32) can now
 be negotiated with the server.
 
 ** More of the user's Eldoc configuration is respected.
-This change addresses the problems reported in many Elglot reports
+This change addresses the problems reported in many Eglot reports
 dating back to early 2021 at least.
 
 (github#646, github#894, github#920, github#1031, github#1171).
@@ -139,7 +175,7 @@ systems (bug#58790).
 These modes are usually handled by the same server that handles the
 "classical mode".
 
-** New servers chsharp-ls and texlab added to 'eglot-server-programs'.
+** New servers csharp-ls and texlab added to 'eglot-server-programs'.
 
 ** Assorted bugfixes.
 (bug#59824, bug#59338)

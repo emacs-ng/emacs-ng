@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2018-2023 Free Software Foundation, Inc.
 
-;; Version: 1.14
+;; Version: 1.15
 ;; Author: João Távora <joaotavora@gmail.com>
 ;; Maintainer: João Távora <joaotavora@gmail.com>
 ;; URL: https://github.com/joaotavora/eglot
@@ -2003,7 +2003,7 @@ If it is activated, also signal textDocument/didOpen."
        (interactive) (info "(eglot)"))
 
 ;;;###autoload
-(defun eglot-update (&rest _) "Update Eglot."
+(defun eglot-upgrade-eglot (&rest _) "Update Eglot to latest version."
   (interactive)
   (with-no-warnings
     (require 'package)
@@ -2011,6 +2011,9 @@ If it is activated, also signal textDocument/didOpen."
     (when-let ((existing (cadr (assoc 'eglot package-alist))))
       (package-delete existing t))
     (package-install (cadr (assoc 'eglot package-archive-contents)))))
+
+;;;###autoload
+(define-obsolete-function-alias 'eglot-update 'eglot-upgrade-eglot "29.1")
 
 (easy-menu-define eglot-menu nil "Eglot"
   `("Eglot"
@@ -2237,7 +2240,7 @@ COMMAND is a symbol naming the command."
                   ((eq (car pr) 'eglot--mode-line-reporter)
                    (setcdr (cddr pr) (list msg pcnt))
                    (force-mode-line-update t))
-                  (pr (progress-reporter-update pr pcnt msg)))))
+                  (pr (eglot--reporter-update pr pcnt msg)))))
       (eglot--dbind ((WorkDoneProgress) kind title percentage message) value
         (pcase kind
           ("begin"
@@ -3341,7 +3344,7 @@ Returns a list as described in docstring of `imenu--index-alist'."
                         (save-restriction
                           (narrow-to-region beg end)
                           (replace-buffer-contents temp)))
-                      (progress-reporter-update reporter (cl-incf done)))))))
+                      (eglot--reporter-update reporter (cl-incf done)))))))
             (mapcar (eglot--lambda ((TextEdit) range newText)
                       (cons newText (eglot--range-region range 'markers)))
                     (reverse edits)))
