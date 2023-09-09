@@ -30,7 +30,8 @@ fontdb = "0.12"
 raw-window-handle = "0.5"
 errno = "0.2"
 euclid = "0.22"
-surfman = { version = "0.6", default-features = false, features = ["sm-raw-window-handle"], optional = true }
+# NOTE: the sm-angle feature only enables angle on windows, not other platforms!
+surfman = { version = "0.8", features = ["chains", "sm-angle", "sm-angle-default"] , optional = true}
 glutin = { version = "0.30.6", optional = true }
 rustybuzz = "0.6"
 ouroboros = "0.15.5"
@@ -54,7 +55,7 @@ default-features = false
 
 [dependencies.webrender_surfman]
 git = "https://github.com/declantsien/webrender_surfman.git"
-rev = "8b1f8a5e001c3cdabb49c7affda483343a2f792f"
+rev = "1750aa6275b9aaae137225675b48063d100b2a09"
 optional = true
 
 [build-dependencies]
