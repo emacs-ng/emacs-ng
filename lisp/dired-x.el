@@ -300,8 +300,7 @@ Interactively, ask for EXTENSION.
 Prefixed with one \\[universal-argument], unmark files instead.
 Prefixed with two \\[universal-argument]'s, prompt for MARKER-CHAR and mark files with it."
   (interactive (dired--mark-suffix-interactive-spec))
-  (unless (listp extension)
-    (setq extension (list extension)))
+  (setq extension (ensure-list extension))
   (dired-mark-files-regexp
    (concat ".";; don't match names with nothing but an extension
            "\\("
@@ -325,8 +324,7 @@ Interactively, ask for SUFFIX.
 Prefixed with one \\[universal-argument], unmark files instead.
 Prefixed with two \\[universal-argument]'s, prompt for MARKER-CHAR and mark files with it."
   (interactive (dired--mark-suffix-interactive-spec))
-  (unless (listp suffix)
-    (setq suffix (list suffix)))
+  (setq suffix (ensure-list suffix))
   (dired-mark-files-regexp
    (concat ".";; don't match names with nothing but an extension
            "\\("
@@ -493,7 +491,11 @@ status message."
               (setq count  (+ count
                               (dired-do-kill-lines
                                nil
-                               (if dired-omit-verbose "Omitted %d line%s" "")
+                               (if dired-omit-verbose
+                                   (format "Omitted %%d line%%s in %s"
+                                           (abbreviate-file-name
+                                            dired-directory))
+                                 "")
                                init-count)))
               (force-mode-line-update))))
         ;; Try to preserve modified state, so `%*' doesn't appear in

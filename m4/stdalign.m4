@@ -68,8 +68,10 @@ AC_DEFUN([gl_ALIGNASOF],
   dnl The "zz" puts this toward config.h's end, to avoid potential
   dnl collisions with other definitions.
   AH_VERBATIM([zzalignas],
-[#if !defined HAVE_C_ALIGNASOF && __cplusplus < 201103 && !defined alignof
-# if HAVE_STDALIGN_H
+[#if !defined HAVE_C_ALIGNASOF \
+    && !(defined __cplusplus && 201103 <= __cplusplus) \
+    && !defined alignof
+# if defined HAVE_STDALIGN_H
 #  include <stdalign.h>
 # endif
 
@@ -151,22 +153,22 @@ AC_DEFUN([gl_ALIGNASOF],
      - alignas (TYPE) is equivalent to alignas (alignof (TYPE)).
 
    */
-# if !HAVE_STDALIGN_H
-#  if !defined __STDC_VERSION__ || __STDC_VERSION__ < 201112
-#   if defined __cplusplus && (201103 <= __cplusplus || defined _MSC_VER)
-#    define _Alignas(a) alignas (a)
-#   elif (!defined __attribute__ \
-          && ((defined __APPLE__ && defined __MACH__ \
-               ? 4 < __GNUC__ + (1 <= __GNUC_MINOR__) \
-               : __GNUC__ && !defined __ibmxl__) \
-              || (4 <= __clang_major__) \
-              || (__ia64 && (61200 <= __HP_cc || 61200 <= __HP_aCC)) \
-              || __ICC || 0x590 <= __SUNPRO_C || 0x0600 <= __xlC__))
-#    define _Alignas(a) __attribute__ ((__aligned__ (a)))
-#   elif 1300 <= _MSC_VER
-#    define _Alignas(a) __declspec (align (a))
-#   endif
+# if !defined __STDC_VERSION__ || __STDC_VERSION__ < 201112
+#  if defined __cplusplus && (201103 <= __cplusplus || defined _MSC_VER)
+#   define _Alignas(a) alignas (a)
+#  elif (!defined __attribute__ \
+         && ((defined __APPLE__ && defined __MACH__ \
+              ? 4 < __GNUC__ + (1 <= __GNUC_MINOR__) \
+              : __GNUC__ && !defined __ibmxl__) \
+             || (4 <= __clang_major__) \
+             || (__ia64 && (61200 <= __HP_cc || 61200 <= __HP_aCC)) \
+             || __ICC || 0x590 <= __SUNPRO_C || 0x0600 <= __xlC__))
+#   define _Alignas(a) __attribute__ ((__aligned__ (a)))
+#  elif 1300 <= _MSC_VER
+#   define _Alignas(a) __declspec (align (a))
 #  endif
+# endif
+# if !defined HAVE_STDALIGN_H
 #  if ((defined _Alignas \
         && !(defined __cplusplus \
              && (201103 <= __cplusplus || defined _MSC_VER))) \
@@ -175,7 +177,7 @@ AC_DEFUN([gl_ALIGNASOF],
 #  endif
 # endif
 
-# if _GL_STDALIGN_NEEDS_STDDEF
+# if defined _GL_STDALIGN_NEEDS_STDDEF
 #  include <stddef.h>
 # endif
 #endif])

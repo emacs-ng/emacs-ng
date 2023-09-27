@@ -34,6 +34,7 @@
 (declare-function treesit-parser-buffer "treesit.c")
 (declare-function treesit-parser-language "treesit.c")
 
+(declare-function treesit-pattern-expand "treesit.c")
 (declare-function treesit-query-expand "treesit.c")
 (declare-function treesit-query-compile "treesit.c")
 (declare-function treesit-query-capture "treesit.c")
@@ -54,6 +55,9 @@
 (declare-function treesit-node-descendant-for-range "treesit.c")
 (declare-function treesit-node-eq "treesit.c")
 
+(declare-function treesit-search-forward "treesit.c")
+(declare-function treesit-search-subtree "treesit.c")
+
 ;;; Basic API
 
 (ert-deftest treesit-basic-parsing ()
@@ -66,7 +70,7 @@
       (should
        (equal (treesit-node-string
                (treesit-parser-root-node parser))
-              "(ERROR)"))
+              "(document)"))
 
       (insert "[1,2,3]")
       (should
@@ -422,14 +426,14 @@ BODY is the test body."
                ;; String query.
                '("(string) @string
 (pair key: (_) @keyword)
-((_) @bob (#match \"^B.b$\" @bob))
+((_) @bob (#match \"\\\\`B.b\\\\'\" @bob))
 (number) @number
 ((number) @n3 (#equal \"3\" @n3))
 ((number) @n3p (#pred treesit--ert-pred-last-sibling @n3p))"
                  ;; Sexp query.
                  ((string) @string
                   (pair key: (_) @keyword)
-                  ((_) @bob (:match "^B.b$" @bob))
+                  ((_) @bob (:match "\\`B.b\\'" @bob))
                   (number) @number
                   ((number) @n3 (:equal "3" @n3))
                   ((number) @n3p (:pred treesit--ert-pred-last-sibling
@@ -458,7 +462,12 @@ BODY is the test body."
         "(type field: (_) @capture .) ? * + \"return\""
         (treesit-query-expand
          '((type field: (_) @capture :anchor)
-           :? :* :+ "return")))))))
+           :? :* :+ "return"))))
+
+      ;; Test string conversion in `treesit-pattern-expand'.
+      (should (equal
+               (treesit-pattern-expand "a\nb\rc\td\0e\"f\1g\\h\fi")
+               "\"a\\nb\\rc\\td\\0e\\\"f\1g\\\\h\fi\"")))))
 
 ;;; Narrow
 
@@ -652,6 +661,20 @@ visible_end.)"
                        result)))
       ;; TODO: More tests.
       )))
+
+(ert-deftest treesit-range-offset ()
+  "Tests if range offsets work."
+  (skip-unless (treesit-language-available-p 'javascript))
+  (with-temp-buffer
+    (let ((query '(((call_expression (identifier) @_html_template_fn
+                                     (template_string) @capture)
+                    (:equal "html" @_html_template_fn)))))
+      (progn
+        (insert "const x = html`<p>Hello</p>`;")
+        (treesit-parser-create 'javascript))
+      (should (equal '((15 . 29)) (treesit-query-range 'javascript query)))
+      (should (equal '((16 . 28)) (treesit-query-range
+                                   'javascript query nil nil '(1 . -1)))))))
 
 ;;; Multiple language
 

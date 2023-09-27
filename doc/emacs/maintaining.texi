@@ -447,9 +447,10 @@ merge-based version control system, a @samp{-} character indicates
 that the work file is unmodified, and @samp{:} indicates that it has
 been modified.  @samp{!} indicates that the file contains conflicts as
 result of a recent merge operation (@pxref{Merging}), or that the file
-was removed from the version control.  Finally, @samp{?} means that
-the file is under version control, but is missing from the working
-tree.
+was removed from the version control, or that it is versioned but also
+@dfn{ignored}, something that usually should not happen (@pxref{VC
+Ignore}).  Finally, @samp{?} means that the file is under version
+control, but is missing from the working tree.
 
   In a lock-based system, @samp{-} indicates an unlocked file, and
 @samp{:} a locked file; if the file is locked by another user (for
@@ -716,7 +717,7 @@ started editing (@pxref{Old Revisions}), type @kbd{C-c C-d}
 (@code{log-edit-generate-changelog-from-diff}), to generate skeleton
 ChangeLog entries, listing all changed file and function names based
 on the diff of the VC fileset.  Consecutive entries left empty will be
-combined by @kbd{C-q} (@code{fill-paragraph}).  By default the
+combined by @kbd{M-q} (@code{fill-paragraph}).  By default the
 skeleton will just include the file name, without any leading
 directories.  If you wish to prepend the leading directories up to the
 VC root, customize @code{diff-add-log-use-relative-names}.
@@ -999,6 +1000,10 @@ Display the change history for the current fileset
 Display the change history for the current repository
 (@code{vc-print-root-log}).
 
+@item C-x v b l
+Display the change history for another branch
+(@code{vc-print-branch-log}).
+
 @item C-x v I
 Display the changes that a ``pull'' operation will retrieve
 (@code{vc-log-incoming}).
@@ -1062,6 +1067,14 @@ showing only the first line of each log entry.  However, you can type
 @key{RET} (@code{log-view-toggle-entry-display}) in the
 @file{*vc-change-log*} buffer to reveal the entire log entry for the
 revision at point.  A second @key{RET} hides it again.
+
+@kindex C-x v b l
+@findex vc-print-branch-log
+  @kbd{C-x v b l @var{branch-name} @key{RET}} (@code{vc-print-branch-log})
+displays a @file{*vc-change-log*} buffer showing the history of the
+version-controlled directory tree, like @code{vc-print-root-log} does,
+but it shows the history of a branch other than the current one; it
+prompts for the branch whose history to display.
 
 @kindex C-x v I
 @kindex C-x v O
@@ -1523,6 +1536,8 @@ switch to another branch using the @kbd{svn switch} command.  With
 Mercurial, command @kbd{hg update} is used to switch to another
 branch.
 
+@kindex C-x v b s
+@findex vc-switch-branch
   The VC command to switch to another branch in the current directory
 is @kbd{C-x v b s @var{branch-name} @key{RET}} (@code{vc-switch-branch}).
 
@@ -1673,9 +1688,12 @@ branch ID for a branch starting at the current revision.  For example,
 if the current revision is 2.5, the branch ID should be 2.5.1, 2.5.2,
 and so on, depending on the number of existing branches at that point.
 
+@kindex C-x v b c
+@findex vc-create-branch
   This procedure will not work for distributed version control systems
 like git or Mercurial.  For those systems you should use the command
-@code{vc-create-branch} (@kbd{C-x v b c}) instead.
+@code{vc-create-branch} (@w{@kbd{C-x v b c @var{branch-name} @key{RET}}})
+instead.
 
   To create a new branch at an older revision (one that is no longer
 the head of a branch), first select that revision (@pxref{Switching
@@ -1786,7 +1804,7 @@ prompt you for the project directory.
 @vindex vc-directory-exclusion-list
   The command @kbd{C-x p f} (@code{project-find-file}) is a convenient
 way of visiting files (@pxref{Visiting}) that belong to the current
-project.  Unlike @kbd{C-x C-f}, this command doesn't require to type
+project.  Unlike @kbd{C-x C-f}, this command doesn't require typing
 the full file name of the file to visit, you can type only the file's
 base name (i.e., omit the leading directories).  In addition, the
 completion candidates considered by the command include only the files
@@ -2640,8 +2658,8 @@ definitions have tag names like @samp{operator+}.  If you specify the
 @samp{--class-qualify} option, tags for variables and functions in
 classes are named @samp{@var{class}::@var{variable}} and
 @samp{@var{class}::@var{function}}.  By default, class methods and
-members are not class-qualified, which allows to identify their names in
-the sources more accurately.
+members are not class-qualified, which facilitates identifying their
+names in the sources more accurately.
 
 @item
 In Java code, tags include all the constructs recognized in C++, plus

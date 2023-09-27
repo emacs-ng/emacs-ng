@@ -250,7 +250,7 @@ char_width (int c, struct Lisp_Char_Table *dp)
 	    if (c >= 0)
 	      {
 		int w = CHARACTER_WIDTH (c);
-		if (INT_ADD_WRAPV (width, w, &width))
+		if (ckd_add (&width, width, w))
 		  string_overflow ();
 	      }
 	  }
@@ -260,8 +260,12 @@ char_width (int c, struct Lisp_Char_Table *dp)
 
 
 DEFUN ("char-width", Fchar_width, Schar_width, 1, 1, 0,
-       doc: /* Return width of CHAR when displayed in the current buffer.
-The width is measured by how many columns it occupies on the screen.
+       doc: /* Return width of CHAR in columns when displayed in the current buffer.
+The width of CHAR is measured by how many columns it will occupy on the screen.
+This is based on data in `char-width-table', and ignores the actual
+metrics of the character's glyph as determined by its font.
+If the display table in effect replaces CHAR on display with
+something else, the function returns the width of the replacement.
 Tab is taken to occupy `tab-width' columns.
 usage: (char-width CHAR)  */)
   (Lisp_Object ch)
@@ -301,7 +305,7 @@ c_string_width (const unsigned char *str, ptrdiff_t len, int precision,
 	  *nbytes = i_byte;
 	  return width;
 	}
-      if (INT_ADD_WRAPV (thiswidth, width, &width))
+      if (ckd_add (&width, width, thiswidth))
 	string_overflow ();
       i++;
       i_byte += bytes;
@@ -441,7 +445,7 @@ lisp_string_width (Lisp_Object string, ptrdiff_t from, ptrdiff_t to,
 	  *nbytes = i_byte - from_byte;
 	  return width;
 	}
-      if (INT_ADD_WRAPV (thiswidth, width, &width))
+      if (ckd_add (&width, width, thiswidth))
 	string_overflow ();
       i += chars;
       i_byte += bytes;
@@ -457,20 +461,26 @@ lisp_string_width (Lisp_Object string, ptrdiff_t from, ptrdiff_t to,
 }
 
 DEFUN ("string-width", Fstring_width, Sstring_width, 1, 3, 0,
-       doc: /* Return width of STRING when displayed in the current buffer.
-Width is measured by how many columns it occupies on the screen.
+       doc: /* Return width of STRING in columns when displayed in the current buffer.
+Width of STRING is measured by how many columns it will occupy on the screen.
+
 Optional arguments FROM and TO specify the substring of STRING to
 consider, and are interpreted as in `substring'.
 
-When calculating width of a multibyte character in STRING,
-only the base leading-code is considered; the validity of
-the following bytes is not checked.  Tabs in STRING are always
-taken to occupy `tab-width' columns.  The effect of faces and fonts
-used for non-Latin and other unusual characters (such as emoji) is
-ignored as well, as are display properties and invisible text.
-For these reasons, the results are not generally reliable;
-for accurate dimensions of text as it will be displayed,
-use `window-text-pixel-size' instead.
+Width of each character in STRING is generally taken according to
+`char-width', but character compositions and the display table in
+effect are taken into consideration.
+Tabs in STRING are always assumed to occupy `tab-width' columns,
+although they might take fewer columns depending on the column where
+they begin on display.
+The effect of faces and fonts, including fonts used for non-Latin and
+other unusual characters, such as emoji, is ignored, as are display
+properties and invisible text.
+
+For these reasons, the results are just an approximation, especially
+on GUI frames; for accurate dimensions of text as it will be
+displayed, use `string-pixel-width' or `window-text-pixel-size'
+instead.
 usage: (string-width STRING &optional FROM TO)  */)
   (Lisp_Object str, Lisp_Object from, Lisp_Object to)
 {
@@ -664,7 +674,7 @@ count_size_as_multibyte (const unsigned char *str, ptrdiff_t len)
   for (ptrdiff_t i = 0; i < len; i++)
     nonascii += str[i] >> 7;
   ptrdiff_t bytes;
-  if (INT_ADD_WRAPV (len, nonascii, &bytes))
+  if (ckd_add (&bytes, len, nonascii))
     string_overflow ();
   return bytes;
 }
@@ -780,21 +790,21 @@ string_escape_byte8 (Lisp_Object string)
   if (byte8_count == 0)
     return string;
 
-  if (INT_MULTIPLY_WRAPV (byte8_count, 3, &thrice_byte8_count))
+  if (ckd_mul (&thrice_byte8_count, byte8_count, 3))
     string_overflow ();
 
   if (multibyte)
     {
       /* Convert 2-byte sequence of byte8 chars to 4-byte octal.  */
-      if (INT_ADD_WRAPV (nchars, thrice_byte8_count, &uninit_nchars)
-	  || INT_ADD_WRAPV (nbytes, 2 * byte8_count, &uninit_nbytes))
+      if (ckd_add (&uninit_nchars, nchars, thrice_byte8_count)
+	  || ckd_add (&uninit_nbytes, nbytes, 2 * byte8_count))
 	string_overflow ();
       val = make_uninit_multibyte_string (uninit_nchars, uninit_nbytes);
     }
   else
     {
       /* Convert 1-byte sequence of byte8 chars to 4-byte octal.  */
-      if (INT_ADD_WRAPV (thrice_byte8_count, nbytes, &uninit_nbytes))
+      if (ckd_add (&uninit_nbytes, thrice_byte8_count, nbytes))
 	string_overflow ();
       val = make_uninit_string (uninit_nbytes);
     }
@@ -1106,6 +1116,14 @@ A char-table for width (columns) of each character.  */);
   char_table_set_range (Vchar_width_table, 0x80, 0x9F, make_fixnum (4));
   char_table_set_range (Vchar_width_table, MAX_5_BYTE_CHAR + 1, MAX_CHAR,
 			make_fixnum (4));
+
+  DEFVAR_LISP ("ambiguous-width-chars", Vambiguous_width_chars,
+	       doc: /*
+A char-table for characters whose width (columns) can be 1 or 2.
+
+The actual width depends on the language-environment and on the
+value of `cjk-ambiguous-chars-are-wide'.  */);
+  Vambiguous_width_chars = Fmake_char_table (Qnil, Qnil);
 
   DEFVAR_LISP ("printable-chars", Vprintable_chars,
 	       doc: /* A char-table for each printable character.  */);

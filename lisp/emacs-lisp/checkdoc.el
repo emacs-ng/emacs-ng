@@ -128,6 +128,14 @@
 ;; simple style rules to follow which checkdoc will auto-fix for you.
 ;; `y-or-n-p' and `yes-or-no-p' should also end in "?".
 ;;
+;; Lexical binding:
+;;
+;;   We recommend always using lexical binding in new code, and
+;; converting old code to use it.  Checkdoc warns if you don't have
+;; the recommended string "-*- lexical-binding: t -*-" at the top of
+;; the file.  You can disable this check with the user option
+;; `checkdoc-lexical-binding-flag'.
+;;
 ;; Adding your own checks:
 ;;
 ;;   You can experiment with adding your own checks by setting the
@@ -338,6 +346,12 @@ This backslash is no longer needed on Emacs 27.1 or later.
 See Info node `(elisp) Documentation Tips' for background."
   :type 'boolean
   :version "28.1")
+
+(defcustom checkdoc-lexical-binding-flag t
+  "Non-nil means generate warnings if file is not using lexical binding.
+See Info node `(elisp) Converting to Lexical Binding' for more."
+  :type 'boolean
+  :version "30.1")
 
 ;; This is how you can use checkdoc to make mass fixes on the Emacs
 ;; source tree:
@@ -1779,7 +1793,7 @@ function,command,variable,option or symbol." ms1))))))
 		   (order (and (nth 3 fp) (car (nth 3 fp))))
 		   (nocheck (append '("&optional" "&rest" "&key" "&aux"
                                       "&context" "&environment" "&whole"
-                                      "&body" "&allow-other-keys")
+                                      "&body" "&allow-other-keys" "nil")
                                     (nth 3 fp)))
 		   (inopts nil))
 	       (while (and args found (> found last-pos))
@@ -2042,8 +2056,7 @@ from the comment."
 			   (condition-case nil
 			       (setq lst (read (current-buffer)))
 			     (error (setq lst nil))) ; error in text
-                           (if (not (listp lst)) ; not a list of args
-                               (setq lst (list lst)))
+                           (setq lst (ensure-list lst))
 			   (if (and lst (not (symbolp (car lst)))) ;weird arg
 			       (setq lst nil))
 			   (while lst
@@ -2378,11 +2391,36 @@ Code:, and others referenced in the style guide."
 	      (point-min) (save-excursion (goto-char (point-min))
 					  (line-end-position))))
 	 nil))
+      (when checkdoc-lexical-binding-flag
+        (setq
+         err
+         ;; Lexical binding cookie.
+         (if (not (save-excursion
+                    (save-restriction
+                      (goto-char (point-min))
+                      (narrow-to-region (point) (pos-eol))
+                      (re-search-forward
+                       (rx "-*-" (* (* nonl) ";")
+                           (* space) "lexical-binding:" (* space) "t" (* space)
+                           (* ";" (* nonl))
+                           "-*-")
+                       nil t))))
+             (let ((pos (save-excursion (goto-char (point-min))
+                                        (goto-char (pos-eol))
+                                        (point))))
+               (if (checkdoc-y-or-n-p "There is no lexical-binding cookie!  Add one?")
+                   (progn
+                     (goto-char pos)
+                     (insert "  -*- lexical-binding: t -*-"))
+                 (checkdoc-create-error
+                  "The first line should end with \"-*- lexical-binding: t -*-\""
+                  pos (1+ pos) t)))
+           nil)))
       (setq
        err
        (or
 	;; * Commentary Section
-        (if (and (not (lm-commentary-mark))
+        (if (and (not (lm-commentary-start))
                  ;; No need for a commentary section in test files.
                  (not (string-match
                        (rx (or (seq (or "-test.el" "-tests.el") string-end)
@@ -2419,10 +2457,10 @@ Code:, and others referenced in the style guide."
 	(if (or (not checkdoc-force-history-flag)
 		(file-exists-p "ChangeLog")
 		(file-exists-p "../ChangeLog")
-                (lm-history-mark))
+                (lm-history-start))
 	    nil
 	  (progn
-	    (goto-char (or (lm-commentary-mark) (point-min)))
+            (goto-char (or (lm-commentary-start) (point-min)))
 	    (cond
 	     ((re-search-forward
 	       "write\\s-+to\\s-+the\\s-+Free Software Foundation, Inc."
@@ -2443,7 +2481,7 @@ Code:, and others referenced in the style guide."
        err
        (or
 	;; * Code section
-	(if (not (lm-code-mark))
+        (if (not (lm-code-start))
 	    (let ((cont t)
 		  pos)
 	      (goto-char (point-min))
@@ -2494,7 +2532,7 @@ Code:, and others referenced in the style guide."
       ;; Let's spellcheck the commentary section.  This is the only
       ;; section that is easy to pick out, and it is also the most
       ;; visible section (with the finder).
-      (let ((cm (lm-commentary-mark)))
+      (let ((cm (lm-commentary-start)))
         (when cm
           (save-excursion
             (goto-char cm)
@@ -2546,11 +2584,11 @@ Argument END is the maximum bounds to search in."
                  (rx "("
                      (* (syntax whitespace))
                      (group
-                      (or (seq (* (group (or wordchar (syntax symbol))))
+                      (or (seq (* (or wordchar (syntax symbol)))
                                "error")
-                          (seq (* (group (or wordchar (syntax symbol))))
+                          (seq (* (or wordchar (syntax symbol)))
                                (or "y-or-n-p" "yes-or-no-p")
-                               (? (group "-with-timeout")))
+                               (? "-with-timeout"))
                           "checkdoc-autofix-ask-replace"))
                      (+ (any "\n\t ")))
                  end t))

@@ -116,14 +116,14 @@ top_builddir = @top_builddir@
 
 FIND_DELETE = @FIND_DELETE@
 
-HAVE_NATIVE_COMP = @HAVE_NATIVE_COMP@
-
 USE_STARTUP_NOTIFICATION = @USE_STARTUP_NOTIFICATION@
 
+HAVE_NATIVE_COMP = @HAVE_NATIVE_COMP@
 HAVE_BE_APP = @HAVE_BE_APP@
-
 HAVE_PGTK = @HAVE_PGTK@
 HAVE_GSETTINGS = @HAVE_GSETTINGS@
+
+ANDROID = @ANDROID@
 
 # ==================== Where To Install Things ====================
 
@@ -353,6 +353,10 @@ EMACS_PDMP = `./src/emacs${EXEEXT} --fingerprint`.pdmp
 # Subdirectories to make recursively.
 SUBDIR = $(NTDIR) lib lib-src src lisp
 
+ifeq ($(ANDROID),yes)
+SUBDIR := $(SUBDIR) java
+endif
+
 # The subdir makefiles created by config.status.
 SUBDIR_MAKEFILES_IN = @SUBDIR_MAKEFILES_IN@
 SUBDIR_MAKEFILES = $(patsubst ${srcdir}/%,%,${SUBDIR_MAKEFILES_IN:.in=})
@@ -431,9 +435,9 @@ advice-on-failure:
 
 sanity-check:
 	@[ -f .no-advice-on-failure ] && exit 0; true
-	@v=$$(src/emacs${EXEEXT} --batch --eval \
+	@v=`src/emacs${EXEEXT} --batch --eval \
 	  '(progn (defun f (n) (if (= 0 n) 1 (* n (f (- n 1))))) (princ (f 10)))' \
-	  2> /dev/null); \
+	  2> /dev/null`; \
 	[ "X$$v" = "X3628800" ] && exit 0; \
 	echo >&2 '***'; \
 	echo >&2 '*** '"\"make ${make-target}\" succeeded, but Emacs is not functional."; \
@@ -481,20 +485,20 @@ epaths-force:
 	  esac; \
 	done
 	@(gamedir='${gamedir}'; \
-	  sed < ${srcdir}/src/epaths.in > epaths.h.$$$$		\
-	  -e 's;\(#.*PATH_LOADSEARCH\).*$$;\1 "${standardlisppath}";' \
-	  -e 's;\(#.*PATH_REL_LOADSEARCH\).*$$;\1 "${lispdirrel}";' 	\
-	  -e 's;\(#.*PATH_SITELOADSEARCH\).*$$;\1 "${locallisppath}";' \
-	  -e 's;\(#.*PATH_DUMPLOADSEARCH\).*$$;\1 "${buildlisppath}";' \
-	  -e '/^#define PATH_[^ ]*SEARCH /s/\([":]\):*/\1/g'		\
-	  -e '/^#define PATH_[^ ]*SEARCH /s/:"/"/'			\
-	  -e 's;\(#.*PATH_EXEC\).*$$;\1 "${archlibdir}";'		\
-	  -e 's;\(#.*PATH_INFO\).*$$;\1 "${infodir}";'			\
-	  -e 's;\(#.*PATH_DATA\).*$$;\1 "${etcdir}";'			\
-	  -e 's;\(#.*PATH_BITMAPS\).*$$;\1 "${bitmapdir}";'		\
-	  -e 's;\(#.*PATH_X_DEFAULTS\).*$$;\1 "${x_default_search_path}";' \
-	  -e 's;\(#.*PATH_GAME\).*$$;\1 $(PATH_GAME);'			\
-	  -e 's;\(#.*PATH_DOC\).*$$;\1 "${etcdocdir}";') &&		\
+	  sed < ${srcdir}/src/epaths.in > epaths.h.$$$$					\
+	  -e 's;\(#define.*PATH_LOADSEARCH\).*$$;\1 "${standardlisppath}";'		\
+	  -e 's;\(#define.*PATH_REL_LOADSEARCH\).*$$;\1 "${lispdirrel}";'		\
+	  -e 's;\(#define.*PATH_SITELOADSEARCH\).*$$;\1 "${locallisppath}";'		\
+	  -e 's;\(#define.*PATH_DUMPLOADSEARCH\).*$$;\1 "${buildlisppath}";'		\
+	  -e '/^#define PATH_[^ ]*SEARCH /s/\([":]\):*/\1/g'				\
+	  -e '/^#define PATH_[^ ]*SEARCH /s/:"/"/'					\
+	  -e 's;\(#define.*PATH_EXEC\).*$$;\1 "${archlibdir}";'				\
+	  -e 's;\(#define.*PATH_INFO\).*$$;\1 "${infodir}";'				\
+	  -e 's;\(#define.*PATH_DATA\).*$$;\1 "${etcdir}";'				\
+	  -e 's;\(#define.*PATH_BITMAPS\).*$$;\1 "${bitmapdir}";'			\
+	  -e 's;\(#define.*PATH_X_DEFAULTS\).*$$;\1 "${x_default_search_path}";'	\
+	  -e 's;\(#define.*PATH_GAME\).*$$;\1 $(PATH_GAME);'				\
+	  -e 's;\(#define.*PATH_DOC\).*$$;\1 "${etcdocdir}";') &&			\
 	${srcdir}/build-aux/move-if-change epaths.h.$$$$ src/epaths.h
 
 # The w32 build needs a slightly different editing, and it uses
@@ -546,6 +550,12 @@ lisp: src
 lib lib-src lisp nt: Makefile
 	$(MAKE) -C $@ all
 
+java: lisp info
+	$(MAKE) -C $@ all
+
+cross: src
+	$(MAKE) -C $@ all
+
 trampolines: src lisp
 ifeq ($(HAVE_NATIVE_COMP),yes)
 	$(MAKE) -C lisp trampolines
@@ -583,10 +593,13 @@ $(MAKEFILE_NAME): config.status $(srcdir)/configure \
 # Don't erase these files if make is interrupted while refreshing them.
 .PRECIOUS: Makefile config.status
 
+# Note that calling config.status --recheck is insufficient on Android
+# due to the recursive calls to configure.
+
 config.status: ${srcdir}/configure
-	if [ -x ./config.status ]; then	\
+	if [ -x ./config.status ]; then		\
 	    $(CFG) ./config.status --recheck;	\
-	else				\
+	else					\
 	    $(CFG) $(srcdir)/configure $(CONFIGURE_FLAGS); \
 	fi
 
@@ -644,6 +657,7 @@ ifndef NO_BIN_LINK
 	cd "$(DESTDIR)${bindir}" && $(LN_S_FILEONLY) "$(EMACSFULL)" "$(EMACS)"
 endif
 else
+	${INSTALL_DATA} src/emacs.pdmp "$(DESTDIR)${libexecdir}/Emacs.pdmp"
 	subdir=${ns_appresdir}/site-lisp && ${write_subdir}
 	rm -rf ${ns_appresdir}/share
 endif
@@ -844,6 +858,9 @@ EMACS_ICON=emacs
 ifeq (${USE_STARTUP_NOTIFICATION},no)
 USE_STARTUP_NOTIFICATION_SED_CMD=-e "/^StartupNotify=true$$/d"
 endif
+ifeq ($(HAVE_PGTK),yes)
+USE_WAYLAND_DISPLAY_SED_CMD=-e "s/display=[^ ]*/reuse-frame/"
+endif
 install-etc:
 	umask 022; ${MKDIR_P} "$(DESTDIR)${desktopdir}"
 	tmp=etc/emacs.tmpdesktop; rm -f $${tmp}; \
@@ -858,6 +875,7 @@ install-etc:
 	sed -e "/^Exec=/ s|emacsclient|${bindir}/$${client_name}|" \
 	  -e "/^Icon=emacs/ s/emacs/${EMACS_NAME}/" \
 	  $(USE_STARTUP_NOTIFICATION_SED_CMD) \
+	  $(USE_WAYLAND_DISPLAY_SED_CMD) \
 	  ${srcdir}/etc/emacsclient.desktop > $${tmp}; \
 	${INSTALL_DATA} $${tmp} "$(DESTDIR)${desktopdir}/$${client_name}.desktop"; \
 	rm -f $${tmp}
@@ -871,6 +889,7 @@ install-etc:
 	client_name=`echo emacsclient | sed '$(TRANSFORM)'`${EXEEXT}; \
 	sed -e "/^Exec=/ s|emacsclient|${bindir}/$${client_name}|" \
 	  -e "/^Icon=emacs/ s/emacs/${EMACS_NAME}/" \
+	  $(USE_WAYLAND_DISPLAY_SED_CMD) \
 	  ${srcdir}/etc/emacsclient-mail.desktop > $${tmp}; \
 	${INSTALL_DATA} $${tmp} "$(DESTDIR)${desktopdir}/$${client_name}-mail.desktop"; \
 	rm -f $${tmp}
@@ -1001,6 +1020,12 @@ endef
 mostlyclean_dirs = src oldXMenu lwlib lib lib-src nt doc/emacs doc/misc \
   doc/lispref doc/lispintro test
 
+### Add the libexec directory to mostlyclean_dirs if its Makefile has
+### been created.
+ifneq ($(wildcard exec/Makefile),)
+mostlyclean_dirs := $(mostlyclean_dirs) exec
+endif
+
 $(foreach dir,$(mostlyclean_dirs),$(eval $(call submake_template,$(dir),mostlyclean)))
 
 mostlyclean: $(mostlyclean_dirs:=_mostlyclean)
@@ -1013,7 +1038,8 @@ mostlyclean: $(mostlyclean_dirs:=_mostlyclean)
 ###      with them.
 ###
 ###      Delete '.dvi' files here if they are not part of the distribution.
-clean_dirs = $(mostlyclean_dirs) nextstep admin/charsets admin/unidata
+clean_dirs = $(mostlyclean_dirs) java cross nextstep admin/charsets \
+  admin/unidata
 
 $(foreach dir,$(clean_dirs),$(eval $(call submake_template,$(dir),clean)))
 
@@ -1096,6 +1122,8 @@ extraclean: maintainer-clean
 	-[ "${srcdir}" = "." ] || \
 	  find ${srcdir} '(' -name '*~' -o -name '#*' ')' ${FIND_DELETE}
 	-find . '(' -name '*~' -o -name '#*' ')' ${FIND_DELETE}
+	-rm -f ${srcdir}/exec/config-tmp-* ${srcdir}/exec/aclocal.m4 \
+	  ${srcdir}/src/config.in ${srcdir}/exec/configure
 
 # The src subdir knows how to do the right thing
 # even when the build directory and source dir are different.
@@ -1109,7 +1137,7 @@ TAGS tags: lib lib-src # src
 	$(MAKE) -C doc/lispref tags
 	$(MAKE) -C doc/misc tags
 
-CHECK_TARGETS = check check-maybe check-expensive check-all
+CHECK_TARGETS = check check-maybe check-expensive check-all check-byte-compile
 .PHONY: $(CHECK_TARGETS)
 $(CHECK_TARGETS): all
 	$(MAKE) -C test $@
@@ -1309,7 +1337,7 @@ PREFERRED_BRANCH = emacs-28
 preferred-branch-is-current:
 	git branch | grep -q '^\* $(PREFERRED_BRANCH)$$'
 unchanged-history-files:
-	x=$$(git diff-files --name-only $(CHANGELOG_N) $(emacslog)) && \
+	x=`git diff-files --name-only $(CHANGELOG_N) $(emacslog)` && \
 	  test -z "$$x"
 
 # Regular expression that matches the newest commit covered by a ChangeLog.

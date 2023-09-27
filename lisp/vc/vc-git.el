@@ -122,7 +122,10 @@ If nil, use the value of `vc-diff-switches'.  If t, use no switches."
 
 (defcustom vc-git-annotate-switches nil
   "String or list of strings specifying switches for Git blame under VC.
-If nil, use the value of `vc-annotate-switches'.  If t, use no switches."
+If nil, use the value of `vc-annotate-switches'.  If t, use no switches.
+
+Tip: Set this to \"-w\" to make Git blame ignore whitespace when
+comparing changes.  See Man page `git-blame' for more."
   :type '(choice (const :tag "Unspecified" nil)
 		 (const :tag "None" t)
 		 (string :tag "Argument String")
@@ -1058,7 +1061,8 @@ It is based on `log-edit-mode', and has Git-specific extensions."
           ;; might not support the non-ASCII characters in the log
           ;; message.  Handle also remote files.
           (if (eq system-type 'windows-nt)
-              (let ((default-directory (file-name-directory file1)))
+              (let ((default-directory (or (file-name-directory file1)
+                                           default-directory)))
                 (make-nearby-temp-file "git-msg"))))
          to-stash)
     (when vc-git-patch-string
@@ -1120,7 +1124,15 @@ It is based on `log-edit-mode', and has Git-specific extensions."
                     (t (push file-name to-stash)))
               (setq pos (point))))))
       (unless (string-empty-p vc-git-patch-string)
-        (let ((patch-file (make-nearby-temp-file "git-patch")))
+        (let ((patch-file (make-nearby-temp-file "git-patch"))
+              ;; Temporarily countermand the let-binding at the
+              ;; beginning of this function.
+              (coding-system-for-write
+               (coding-system-change-eol-conversion
+                ;; On DOS/Windows, it is important for the patch file
+                ;; to have the Unix EOL format, because Git expects
+                ;; that, even on Windows.
+                (or pcsw vc-git-commits-coding-system) 'unix)))
           (with-temp-file patch-file
             (insert vc-git-patch-string))
           (unwind-protect
@@ -1342,8 +1354,10 @@ This prompts for a branch to merge from."
 (defun vc-git-repository-url (file-or-dir &optional remote-name)
   (let ((default-directory (vc-git-root file-or-dir)))
     (with-temp-buffer
-      (vc-git-command (current-buffer) 0 nil "remote" "get-url"
-                      (or remote-name "origin"))
+      ;; The "get-url" subcommand of "git remote" was new in git 2.7.0;
+      ;; "git config" also works in older versions.  -- rgr, 15-Aug-23.
+      (let ((opt-name (concat "remote." (or remote-name "origin") ".url")))
+	(vc-git-command (current-buffer) 0 (list "config" "--get" opt-name)))
       (buffer-substring-no-properties (point-min) (1- (point-max))))))
 
 ;; Everywhere but here, follows vc-git-command, which uses vc-do-command
@@ -1629,7 +1643,6 @@ This requires git 1.8.4 or later, for the \"-L\" option of \"git log\"."
     map))
 
 (defvar vc-git--log-view-long-font-lock-keywords nil)
-(defvar font-lock-keywords)
 (defvar vc-git-region-history-font-lock-keywords
   '((vc-git-region-history-font-lock)))
 
@@ -1723,14 +1736,19 @@ This requires git 1.8.4 or later, for the \"-L\" option of \"git log\"."
 
 (declare-function vc-annotate-convert-time "vc-annotate" (&optional time))
 
+(autoload 'decoded-time-set-defaults "time-date")
+(autoload 'iso8601-parse "iso8601")
+
 (defun vc-git-annotate-time ()
-  (and (re-search-forward "^[0-9a-f^]+[^()]+(.*?\\([0-9]+\\)-\\([0-9]+\\)-\\([0-9]+\\) \\(:?\\([0-9]+\\):\\([0-9]+\\):\\([0-9]+\\) \\([-+0-9]+\\)\\)? *[0-9]+) " nil t)
-       (vc-annotate-convert-time
-        (apply #'encode-time (mapcar (lambda (match)
-                                       (if (match-beginning match)
-                                           (string-to-number (match-string match))
-                                         0))
-                                     '(6 5 4 3 2 1 7))))))
+  (and (re-search-forward "^[0-9a-f^]+[^()]+(.*?\\([0-9]+-[0-9]+-[0-9]+\\)\\(?: \\([0-9]+:[0-9]+:[0-9]+\\) \\([-+0-9]+\\)\\)? +[0-9]+) " nil t)
+       (let* ((dt (match-string 1))
+              (dt (if (not (match-beginning 2)) dt
+                    ;; Format as ISO 8601.
+                    (concat dt "T" (match-string 2) (match-string 3))))
+              (decoded (ignore-errors (iso8601-parse dt))))
+         (and decoded
+              (vc-annotate-convert-time
+               (encode-time (decoded-time-set-defaults decoded)))))))
 
 (defun vc-git-annotate-extract-revision-at-line ()
   (save-excursion

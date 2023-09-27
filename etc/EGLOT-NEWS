@@ -18,6 +18,65 @@ to look up issue github#1234, go to
 https://github.com/joaotavora/eglot/issues/1234.
 
 
+* Changes in upcoming Eglot
+
+** Diff previews of edits and new variable 'eglot-confirm-server-edits'
+
+The variable 'eglot-confirm-server-edits' replaces the obsolete
+'eglot-confirm-server-initiated-edits' and brings about a new
+confirmation model, making it possible to have only certain commands
+require user confirmation.  The type of confirmation has also been
+enhanced.  In particular it allows a temporary 'diff-mode' buffer to
+display the proposed changes, so the user can apply them one by one.
+See bug#60338.
+
+** Optimized file-watching capability
+
+Some servers, like the Pyright language server, issue too many file
+watching requests.  This change slightly reduces the number of file
+watcher objects requested from the operating system, which can be a
+problem, particularly on Mac OS.  See github#1228 and github#1226.
+
+** Fixed "onTypeFormatting" feature
+
+For 'newline' commands, Eglot sometimes sent the wrong character code
+to the server.  Also made this feature less chatty in the mode-line
+and messages buffer.
+
+** Improve mouse invocation of code actions
+
+When invoking code actions by middle clicking with the mouse on
+Flymake diagnostics, it was often the case that Eglot didn't request
+code actions correctly and thus no actions were offered to the user.
+This has been fixed. github#1295
+
+
+* Changes in Eglot 1.15 (29/4/2023)
+
+** Fix LSP "languageId" detection
+
+Many servers today support multiple languages, meaning they can handle
+more than one file type in the same connection.  This relies on the
+client supplying a ':languageId' string.  Previously, Eglot calculated
+this string based on an imperfect heuristic and was often wrong.  See
+github#1206.
+
+** Fix problems with missing signature documentation (bug#62687)
+
+** Reworked 'eglot-imenu'
+
+Eglot's Imenu backend (used for M-x imenu among other extensions), has
+been reworked.  Most newer servers respond to
+'textDocument/documentSymbol' with a vector of 'DocumentSymbol', not
+'SymbolInformation'.  It's not worth it trying to make the two formats
+resemble each other.  This also lays groundwork supporting a
+forthcoming "breadcrumb" feature of bug#58431.
+
+** New command 'eglot-update'
+
+This allows users to easily update to the latest version of Eglot.
+
+
 * Changes in Eglot 1.14 (3/4/2023)
 
 ** Faster, more responsive completion
@@ -71,6 +130,16 @@ been added to 'eglot-stay-out-of'.
 ** ELPA installations on Emacs 26.3 are supported again.
 
 
+* Changes in Eglot 1.12.29 (Eglot bundled with Emacs 29.1)
+
+** Eglot has a new command to upgrade to the latest version.
+
+The new command 'eglot-upgrade-eglot' allows easily grabbing the
+latest version of Eglot from ELPA.  This might be more convenient than
+using the more general command 'package-install', which by default
+will not upgrade "built-in" packages, those that come with Emacs.
+
+
 * Changes in Eglot 1.12 (13/03/2023)
 
 ** LSP inlay hints are now supported.
@@ -93,7 +162,7 @@ The position-encoding scheme (UTF-8, UTF-16 or UTF-32) can now
 be negotiated with the server.
 
 ** More of the user's Eldoc configuration is respected.
-This change addresses the problems reported in many Elglot reports
+This change addresses the problems reported in many Eglot reports
 dating back to early 2021 at least.
 
 (github#646, github#894, github#920, github#1031, github#1171).
@@ -139,7 +208,7 @@ systems (bug#58790).
 These modes are usually handled by the same server that handles the
 "classical mode".
 
-** New servers chsharp-ls and texlab added to 'eglot-server-programs'.
+** New servers csharp-ls and texlab added to 'eglot-server-programs'.
 
 ** Assorted bugfixes.
 (bug#59824, bug#59338)
@@ -217,12 +286,12 @@ may be disabled via 'eglot-ignored-server-capabilities'
 ** Basic LSP "workspace folders" support added.
 Eglot now advertises 'project-root' and 'project-external-roots' as
 workspace-folders.  (Configuring 'project-vc-external-roots-function'
-via Elisp or 'tags-table-list' via Custtomize are two ways to set the
+via Elisp or 'tags-table-list' via Customize are two ways to set the
 external roots of a simple git project.)
 
 (github#893)
 
-** Eglot can now show project wide diagnosics via Flymake.
+** Eglot can now show project wide diagnostics via Flymake.
 Some LSP servers report diagnostics for all files in the current
 workspace.  Flymake has (as of version 1.2.1) the option to show
 diagnostics from buffers other than the currently visited one.  The
@@ -440,7 +509,7 @@ these two domains.
 
 * Changes in Eglot 1.3 (10/12/2018)
 
-** Provide strict checking of incoming LSP messagesp.
+** Provide strict checking of incoming LSP messages.
 
 (github#144, github#156)
 
@@ -534,7 +603,7 @@ here.
 * Changes in Eglot 1.1 (9/7/2018)
 
 ** Implement TCP autostart/autoconnect (and support Ruby's Solargraph).
-The ':autoport' symbol in the server incovation is replaced
+The ':autoport' symbol in the server invocation is replaced
 dynamically by a local port believed to be vacant, so that the ensuing
 TCP connection finds a listening server.
 

@@ -125,6 +125,7 @@
             abbreviated-home-dir
             package--initialized
             package-alist
+            package-selected-packages
             ,@(if update-news
                   '(package-update-news-on-upload t)
                 (list (cl-gensym)))
@@ -219,9 +220,14 @@ Must called from within a `tar-mode' buffer."
 
 (ert-deftest package-test-desc-from-buffer ()
   "Parse an elisp buffer to get a `package-desc' object."
-  (with-package-test (:basedir (ert-resource-directory) :file "simple-single-1.3.el")
-    (should (package-test--compatible-p
-             (package-buffer-info) simple-single-desc 'kind)))
+  (with-package-test (:basedir (ert-resource-directory)
+                      :file "simple-single-1.3.el")
+    (let ((pi (package-buffer-info)))
+      (should (package-test--compatible-p pi simple-single-desc 'kind))
+      ;; The terminating line is not mandatory any more.
+      (re-search-forward "^;;; .* ends here")
+      (delete-region (match-beginning 0) (point-max))
+      (should (equal (package-buffer-info) pi))))
   (with-package-test (:basedir (ert-resource-directory) :file "simple-depend-1.0.el")
     (should (package-test--compatible-p
              (package-buffer-info) simple-depend-desc 'kind)))
@@ -301,6 +307,21 @@ Must called from within a `tar-mode' buffer."
       (should (package-installed-p 'v7-withsub))
       (package-delete (cadr (assq 'v7-withsub package-alist))))
     ))
+
+(ert-deftest package-test-bug65475 ()
+  "Deleting the last package clears `package-selected-packages'."
+  (with-package-test (:basedir (ert-resource-directory))
+    (package-initialize)
+    (let* ((pkg-el "simple-single-1.3.el")
+           (source-file (expand-file-name pkg-el (ert-resource-directory))))
+      (package-install-file source-file)
+      (should package-alist)
+      (should package-selected-packages)
+      (let ((desc (cadr (assq 'simple-single package-alist))))
+        (should desc)
+        (package-delete desc))
+      (should-not package-alist)
+      (should-not package-selected-packages))))
 
 (ert-deftest package-test-install-file-EOLs ()
   "Install same file multiple time with `package-install-file'

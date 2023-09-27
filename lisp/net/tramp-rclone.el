@@ -95,6 +95,7 @@
     (file-equal-p . tramp-handle-file-equal-p)
     (file-executable-p . tramp-fuse-handle-file-executable-p)
     (file-exists-p . tramp-handle-file-exists-p)
+    (file-group-gid . tramp-handle-file-group-gid)
     (file-in-directory-p . tramp-handle-file-in-directory-p)
     (file-local-copy . tramp-handle-file-local-copy)
     (file-locked-p . tramp-handle-file-locked-p)
@@ -174,8 +175,10 @@ Operations not mentioned here will be handled by the default Emacs primitives.")
 First arg specifies the OPERATION, second arg is a list of
 arguments to pass to the OPERATION."
   (if-let ((fn (assoc operation tramp-rclone-file-name-handler-alist)))
-      (save-match-data (apply (cdr fn) args))
-    (tramp-run-real-handler operation args)))
+      (prog1 (save-match-data (apply (cdr fn) args))
+	(setq tramp-debug-message-fnh-function (cdr fn)))
+    (prog1 (tramp-run-real-handler operation args)
+      (setq tramp-debug-message-fnh-function operation))))
 
 ;;;###tramp-autoload
 (tramp--with-startup
@@ -225,6 +228,7 @@ file names."
 
     (let ((t1 (tramp-tramp-file-p filename))
 	  (t2 (tramp-tramp-file-p newname))
+	  (equal-remote (tramp-equal-remote filename newname))
 	  (rclone-operation (if (eq op 'copy) "copyto" "moveto"))
 	  (msg-operation (if (eq op 'copy) "Copying" "Renaming")))
 
@@ -235,8 +239,12 @@ file names."
 	  (when (and (file-directory-p newname)
 		     (not (directory-name-p newname)))
 	    (tramp-error v 'file-error "File is a directory %s" newname))
+	  (when (file-regular-p newname)
+	    (delete-file newname))
 
-	  (if (or (and t1 (not (tramp-rclone-file-name-p filename)))
+	  (if (or (and equal-remote
+		       (tramp-get-connection-property v "direct-copy-failed"))
+		  (and t1 (not (tramp-rclone-file-name-p filename)))
 		  (and t2 (not (tramp-rclone-file-name-p newname))))
 
 	      ;; We cannot copy or rename directly.
@@ -256,9 +264,20 @@ file names."
 			v rclone-operation
 			(tramp-rclone-remote-file-name filename)
 			(tramp-rclone-remote-file-name newname)))
-		(tramp-error
-		 v 'file-error
-		 "Error %s `%s' `%s'" msg-operation filename newname)))
+		(if (or (not equal-remote)
+			(and equal-remote
+			     (tramp-get-connection-property
+			      v "direct-copy-failed")))
+		    (tramp-error
+		     v 'file-error
+		     "Error %s `%s' `%s'" msg-operation filename newname)
+
+		  ;; Some WebDAV server, like the one from QNAP, do
+		  ;; not support direct copy/move.  Try a fallback.
+		  (tramp-set-connection-property v "direct-copy-failed" t)
+		  (tramp-rclone-do-copy-or-rename-file
+		   op filename newname ok-if-already-exists keep-date
+		   preserve-uid-gid preserve-extended-attributes))))
 
 	    (when (and t1 (eq op 'rename))
 	      (while (file-exists-p filename)
@@ -299,25 +318,25 @@ file names."
       (setq filename (file-name-directory filename)))
     (with-parsed-tramp-file-name (expand-file-name filename) nil
       (tramp-message v 5 "file system info: %s" localname)
-      (tramp-rclone-send-command v "about" (concat host ":"))
-      (with-current-buffer (tramp-get-connection-buffer v)
-	(let (total used free)
-	  (goto-char (point-min))
-	  (while (not (eobp))
-	    (when (looking-at (rx "Total: " (+ blank) (group (+ digit))))
-	      (setq total (string-to-number (match-string 1))))
-	    (when (looking-at (rx "Used: " (+ blank) (group (+ digit))))
-	      (setq used (string-to-number (match-string 1))))
-	    (when (looking-at (rx "Free: " (+ blank) (group (+ digit))))
-	      (setq free (string-to-number (match-string 1))))
-	    (forward-line))
-	  (when used
-	    ;; The used number of bytes is not part of the result.  As
-	    ;; side effect, we store it as file property.
-	    (tramp-set-file-property v localname "used-bytes" used))
-	  ;; Result.
-	  (when (and total free)
-	    (list total free (- total free))))))))
+      (when (zerop (tramp-rclone-send-command v "about" (concat host ":")))
+        (with-current-buffer (tramp-get-connection-buffer v)
+	  (let (total used free)
+	    (goto-char (point-min))
+	    (while (not (eobp))
+	      (when (looking-at (rx "Total: " (+ blank) (group (+ digit))))
+	        (setq total (string-to-number (match-string 1))))
+	      (when (looking-at (rx "Used: " (+ blank) (group (+ digit))))
+	        (setq used (string-to-number (match-string 1))))
+	      (when (looking-at (rx "Free: " (+ blank) (group (+ digit))))
+	        (setq free (string-to-number (match-string 1))))
+	      (forward-line))
+	    (when used
+	      ;; The used number of bytes is not part of the result.
+	      ;; As side effect, we store it as file property.
+	      (tramp-set-file-property v localname "used-bytes" used))
+	    ;; Result.
+	    (when (and total free)
+	      (list total free (- total free)))))))))
 
 (defun tramp-rclone-handle-rename-file
   (filename newname &optional ok-if-already-exists)
@@ -360,53 +379,55 @@ connection if a previous connection has died for some reason."
   (unless (tramp-connectable-p vec)
     (throw 'non-essential 'non-essential))
 
-  (let ((host (tramp-file-name-host vec)))
-    (when (rassoc `(,host) (tramp-rclone-parse-device-names nil))
-      (if (tramp-string-empty-or-nil-p host)
-	  (tramp-error vec 'file-error "Storage %s not connected" host))
-      ;; We need a process bound to the connection buffer.  Therefore,
-      ;; we create a dummy process.  Maybe there is a better solution?
-      (unless (get-buffer-process (tramp-get-connection-buffer vec))
-	(let ((p (make-network-process
-		  :name (tramp-get-connection-name vec)
-		  :buffer (tramp-get-connection-buffer vec)
-		  :server t :host 'local :service t :noquery t)))
-	  (tramp-post-process-creation p vec)
+  (with-tramp-debug-message vec "Opening connection"
+    (let ((host (tramp-file-name-host vec)))
+      (when (rassoc `(,host) (tramp-rclone-parse-device-names nil))
+	(if (tramp-string-empty-or-nil-p host)
+	    (tramp-error vec 'file-error "Storage %s not connected" host))
+	;; We need a process bound to the connection buffer.
+	;; Therefore, we create a dummy process.  Maybe there is a
+	;; better solution?
+	(unless (get-buffer-process (tramp-get-connection-buffer vec))
+	  (let ((p (make-network-process
+		    :name (tramp-get-connection-name vec)
+		    :buffer (tramp-get-connection-buffer vec)
+		    :server t :host 'local :service t :noquery t)))
+	    (tramp-post-process-creation p vec)
 
-	  ;; Set connection-local variables.
-	  (tramp-set-connection-local-variables vec)))
+	    ;; Set connection-local variables.
+	    (tramp-set-connection-local-variables vec)))
 
-      ;; Create directory.
-      (unless (file-directory-p (tramp-fuse-mount-point vec))
-	(make-directory (tramp-fuse-mount-point vec) 'parents))
+	;; Create directory.
+	(unless (file-directory-p (tramp-fuse-mount-point vec))
+	  (make-directory (tramp-fuse-mount-point vec) 'parents))
 
-      ;; Mount.  This command does not return, so we use 0 as
-      ;; DESTINATION of `tramp-call-process'.
-      (unless (tramp-fuse-mounted-p vec)
-	(apply
-	 #'tramp-call-process
-	 vec tramp-rclone-program nil 0 nil
-	 "mount" (tramp-fuse-mount-spec vec)
-	 (tramp-fuse-mount-point vec)
-	 (tramp-get-method-parameter vec 'tramp-mount-args))
-	(while (not (file-exists-p (tramp-make-tramp-file-name vec 'noloc)))
-	  (tramp-cleanup-connection vec 'keep-debug 'keep-password))
+	;; Mount.  This command does not return, so we use 0 as
+	;; DESTINATION of `tramp-call-process'.
+	(unless (tramp-fuse-mounted-p vec)
+	  (apply
+	   #'tramp-call-process
+	   vec tramp-rclone-program nil 0 nil
+	   "mount" (tramp-fuse-mount-spec vec)
+	   (tramp-fuse-mount-point vec)
+	   (tramp-get-method-parameter vec 'tramp-mount-args))
+	  (while (not (file-exists-p (tramp-make-tramp-file-name vec 'noloc)))
+	    (tramp-cleanup-connection vec 'keep-debug 'keep-password))
 
-	;; Mark it as connected.
-	(add-to-list 'tramp-fuse-mount-points (tramp-file-name-unify vec))
-	(tramp-set-connection-property
-	 (tramp-get-connection-process vec) "connected" t))))
+	  ;; Mark it as connected.
+	  (add-to-list 'tramp-fuse-mount-points (tramp-file-name-unify vec))
+	  (tramp-set-connection-property
+	   (tramp-get-connection-process vec) "connected" t))))
 
-  ;; In `tramp-check-cached-permissions', the connection properties
-  ;; "{uid,gid}-{integer,string}" are used.  We set them to proper values.
-  (with-tramp-connection-property
-      vec "uid-integer" (tramp-get-local-uid 'integer))
-  (with-tramp-connection-property
-      vec "gid-integer" (tramp-get-local-gid 'integer))
-  (with-tramp-connection-property
-      vec "uid-string" (tramp-get-local-uid 'string))
-  (with-tramp-connection-property
-      vec "gid-string" (tramp-get-local-gid 'string)))
+    ;; In `tramp-check-cached-permissions', the connection properties
+    ;; "{uid,gid}-{integer,string}" are used.  We set them to proper values.
+    (with-tramp-connection-property
+	vec "uid-integer" (tramp-get-local-uid 'integer))
+    (with-tramp-connection-property
+	vec "gid-integer" (tramp-get-local-gid 'integer))
+    (with-tramp-connection-property
+	vec "uid-string" (tramp-get-local-uid 'string))
+    (with-tramp-connection-property
+	vec "gid-string" (tramp-get-local-gid 'string))))
 
 (defun tramp-rclone-send-command (vec &rest args)
   "Send a command to connection VEC.

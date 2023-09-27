@@ -87,6 +87,11 @@
   "Face for VC modeline state when the file is edited."
   :version "25.1")
 
+(defface vc-ignored-state
+  '((default :inherit vc-state-base))
+  "Face for VC modeline state when the file is registered, but ignored."
+  :version "30.1")
+
 ;; Customization Variables (the rest is in vc.el)
 
 (defcustom vc-ignore-dir-regexp
@@ -321,8 +326,7 @@ backend is tried first."
      ((and (file-name-directory file)
            (string-match vc-ignore-dir-regexp (file-name-directory file)))
       nil)
-     ((and (boundp 'file-name-handler-alist)
-          (setq handler (find-file-name-handler file 'vc-registered)))
+     ((setq handler (find-file-name-handler file 'vc-registered))
       ;; handler should set vc-backend and return t if registered
       (funcall handler 'vc-registered file))
      (t
@@ -744,6 +748,10 @@ This function assumes that the file is registered."
             (setq state-echo "File tracked by the VC system, but missing from the file system")
 	    (setq face 'vc-missing-state)
             (concat backend-name "?" rev))
+           ((eq state 'ignored)
+            (setq state-echo "File tracked by the VC system, but ignored")
+            (setq face 'vc-ignored-state)
+            (concat backend-name "!" rev))
 	   (t
 	    ;; Not just for the 'edited state, but also a fallback
 	    ;; for all other states.  Think about different symbols
@@ -897,6 +905,15 @@ In the latter case, VC mode is deactivated for this buffer."
     (bindings--define-key map [vc-create-tag]
       '(menu-item "Create Tag" vc-create-tag
 		  :help "Create version tag"))
+    (bindings--define-key map [vc-print-branch-log]
+      '(menu-item "Show Branch History..." vc-print-branch-log
+		  :help "List the change log for another branch"))
+    (bindings--define-key map [vc-switch-branch]
+      '(menu-item "Switch Branch..." vc-switch-branch
+		  :help "Switch to another branch"))
+    (bindings--define-key map [vc-create-branch]
+      '(menu-item "Create Branch..." vc-create-branch
+		  :help "Make a new branch"))
     (bindings--define-key map [separator1] menu-bar-separator)
     (bindings--define-key map [vc-annotate]
       '(menu-item "Annotate" vc-annotate

@@ -165,6 +165,8 @@ DOC is a string where \"FUNCTION\" and \"OLDFUN\" are expected.")
          (buffer-string))
        usage))))
 
+;; FIXME: How about renaming this to just `eval-interactive-spec'?
+;; It's not specific to the advice system.
 (defun advice-eval-interactive-spec (spec)
   "Evaluate the interactive spec SPEC."
   (cond
@@ -174,7 +176,9 @@ DOC is a string where \"FUNCTION\" and \"OLDFUN\" are expected.")
     ;; FIXME: Despite appearances, this is not faithful: SPEC and
     ;; (advice-eval-interactive-spec SPEC) will behave subtly differently w.r.t
     ;; command-history (and maybe a few other details).
-    (call-interactively `(lambda (&rest args) (interactive ,spec) args)))
+    (call-interactively
+     ;; Sadly (lambda (&rest args) (interactive spec) args) doesn't work :-(
+     (cconv--interactive-helper (lambda (&rest args) args) spec)))
    ;; ((functionp spec) (funcall spec))
    (t (eval spec))))
 

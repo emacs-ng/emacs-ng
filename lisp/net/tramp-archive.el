@@ -242,6 +242,7 @@ It must be supported by libarchive(3).")
     (file-equal-p . tramp-handle-file-equal-p)
     (file-executable-p . tramp-archive-handle-file-executable-p)
     (file-exists-p . tramp-archive-handle-file-exists-p)
+    (file-group-gid . tramp-archive-handle-file-group-gid)
     (file-in-directory-p . tramp-handle-file-in-directory-p)
     (file-local-copy . tramp-archive-handle-file-local-copy)
     (file-locked-p . ignore)
@@ -262,7 +263,7 @@ It must be supported by libarchive(3).")
     (file-regular-p . tramp-handle-file-regular-p)
     ;; `file-remote-p' performed by default handler.
     (file-selinux-context . tramp-handle-file-selinux-context)
-    (file-symlink-p . tramp-handle-file-symlink-p)
+    (file-symlink-p . tramp-archive-handle-file-symlink-p)
     (file-system-info . tramp-archive-handle-file-system-info)
     (file-truename . tramp-archive-handle-file-truename)
     (file-user-uid . tramp-archive-handle-file-user-uid)
@@ -644,6 +645,13 @@ offered."
   "Like `file-exists-p' for file archives."
   (file-exists-p (tramp-archive-gvfs-file-name filename)))
 
+(defun tramp-archive-handle-file-group-gid ()
+  "Like `file-group-gid' for file archives."
+  (with-parsed-tramp-archive-file-name default-directory nil
+    (let ((default-directory (file-name-directory archive)))
+      ;; `file-group-gid' exists since Emacs 30.1.
+      (tramp-compat-funcall 'file-group-gid))))
+
 (defun tramp-archive-handle-file-local-copy (filename)
   "Like `file-local-copy' for file archives."
   (file-local-copy (tramp-archive-gvfs-file-name filename)))
@@ -657,6 +665,10 @@ offered."
 (defun tramp-archive-handle-file-readable-p (filename)
   "Like `file-readable-p' for file archives."
   (file-readable-p (tramp-archive-gvfs-file-name filename)))
+
+(defun tramp-archive-handle-file-symlink-p (filename)
+  "Like `file-symlink-p' for file archives."
+  (file-symlink-p (tramp-archive-gvfs-file-name filename)))
 
 (defun tramp-archive-handle-file-system-info (filename)
   "Like `file-system-info' for file archives."
@@ -672,7 +684,7 @@ offered."
       (concat (file-truename archive) local))))
 
 (defun tramp-archive-handle-file-user-uid ()
-  "Like `user-uid' for file archives."
+  "Like `file-user-uid' for file archives."
   (with-parsed-tramp-archive-file-name default-directory nil
     (let ((default-directory (file-name-directory archive)))
       ;; `file-user-uid' exists since Emacs 30.1.

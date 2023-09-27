@@ -417,8 +417,9 @@ Replacement transfers the case pattern of the old text to the
 new text, if both `case-fold-search' and `case-replace' are
 non-nil and FROM-STRING has no uppercase letters.
 \(Transferring the case pattern means that if the old text
-matched is all caps, or capitalized, then its replacement is
-respectively upcased or capitalized.)
+matched is all caps, or all of its words are capitalized, then its
+replacement is respectively upcased or capitalized.  For more
+details about this, see `replace-match'.)
 
 Ignore read-only matches if `query-replace-skip-read-only' is non-nil,
 ignore hidden matches if `search-invisible' is nil, and ignore more
@@ -436,6 +437,8 @@ Fourth and fifth arg START and END specify the region to operate on.
 
 Arguments FROM-STRING, TO-STRING, DELIMITED, START, END, BACKWARD, and
 REGION-NONCONTIGUOUS-P are passed to `perform-replace' (which see).
+\(TO-STRING is passed to `perform-replace' as REPLACEMENTS and
+DELIMITED is passed as DELIMITED-FLAG.)
 
 To customize possible responses, change the bindings in `query-replace-map'."
   (declare (interactive-args
@@ -490,8 +493,9 @@ there are uppercase letters in REGEXP.
 Replacement transfers the case pattern of the old text to the new
 text, if both `case-fold-search' and `case-replace' are non-nil
 and REGEXP has no uppercase letters.  (Transferring the case pattern
-means that if the old text matched is all caps, or capitalized,
-then its replacement is respectively upcased or capitalized.)
+means that if the old text matched is all caps, or all of its words
+are capitalized, then its replacement is respectively upcased or
+capitalized.  For more details about this, see `replace-match'.)
 
 Ignore read-only matches if `query-replace-skip-read-only' is non-nil,
 ignore hidden matches if `search-invisible' is nil, and ignore more
@@ -533,7 +537,10 @@ text, TO-STRING is actually made a list instead of a string.
 Use \\[repeat-complex-command] after this command for details.
 
 Arguments REGEXP, TO-STRING, DELIMITED, START, END, BACKWARD, and
-REGION-NONCONTIGUOUS-P are passed to `perform-replace' (which see)."
+REGION-NONCONTIGUOUS-P are passed to `perform-replace' (which see).
+\(REGEXP is passed to `perform-replace' as FROM-STRING,
+TO-STRING is passed as REPLACEMENTS, and DELIMITED is passed
+as DELIMITED-FLAG.)"
   (declare (interactive-args
 	    (start (use-region-beginning))
 	    (end (use-region-end))
@@ -1660,13 +1667,15 @@ A positive number means to include that many lines both before and after."
 (defcustom list-matching-lines-face 'match
   "Face used by \\[list-matching-lines] to show the text that matches.
 If the value is nil, don't highlight the matching portions specially."
-  :type 'face
+  :type '(choice (const :tag "Don't highlight matching portions" nil)
+                 face)
   :group 'matching)
 
 (defcustom list-matching-lines-buffer-name-face 'underline
   "Face used by \\[list-matching-lines] to show the names of buffers.
 If the value is nil, don't highlight the buffer names specially."
-  :type 'face
+  :type '(choice (const :tag "Don't highlight buffer names" nil)
+                 face)
   :group 'matching)
 
 (defcustom list-matching-lines-current-line-face 'lazy-highlight

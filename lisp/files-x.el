@@ -136,7 +136,10 @@ Intended to be used in the `interactive' spec of
 	      (eq new-value not-value)
 	      (not (equal old-value new-value)))
       (message "%s" (substitute-command-keys
-		     "For this change to take effect revisit file using \\[revert-buffer]")))))
+                     (if (and (stringp buffer-file-name)
+                              (file-exists-p buffer-file-name))
+		         "For this change to take effect revisit file using \\[revert-buffer]"
+                       "For this change to take effect use \\[normal-mode]"))))))
 
 (defun modify-file-local-variable (variable value op &optional interactive)
   "Modify file-local VARIABLE in Local Variables depending on operation OP.
@@ -674,15 +677,21 @@ variables for a connection profile are defined using
   (dolist (profile profiles)
     (unless (assq profile connection-local-profile-alist)
       (error "No such connection profile `%s'" (symbol-name profile))))
-  (let* ((criteria (connection-local-normalize-criteria criteria))
+  ;; Avoid saving the changed user option to file unless triggered
+  ;; explicitly by user.  This workaround can be removed once there is
+  ;; a solution for bug#63891.
+  (let* ((saved-value (get 'connection-local-criteria-alist 'saved-value))
+         (criteria (connection-local-normalize-criteria criteria))
          (slot (assoc criteria connection-local-criteria-alist)))
     (if slot
         (setcdr slot (delete-dups (append (cdr slot) profiles)))
       (setq connection-local-criteria-alist
             (cons (cons criteria (delete-dups profiles))
-		  connection-local-criteria-alist))))
-  (custom-set-variables
-   `(connection-local-criteria-alist ',connection-local-criteria-alist now)))
+		  connection-local-criteria-alist)))
+    (custom-set-variables
+     `(connection-local-criteria-alist ',connection-local-criteria-alist now))
+    (unless saved-value
+      (put 'connection-local-criteria-alist 'saved-value nil))))
 
 (defsubst connection-local-get-profile-variables (profile)
   "Return the connection-local variable list for PROFILE."
@@ -701,9 +710,15 @@ connection profile using `connection-local-set-profiles'.  Then
 variables are set in the server's process buffer according to the
 VARIABLES list of the connection profile.  The list is processed
 in order."
-  (setf (alist-get profile connection-local-profile-alist) variables)
-  (custom-set-variables
-   `(connection-local-profile-alist ',connection-local-profile-alist now)))
+  ;; Avoid saving the changed user option to file unless triggered
+  ;; explicitly by user.  This workaround can be removed once there is
+  ;; a solution for bug#63891.
+  (let ((saved-value (get 'connection-local-profile-alist 'saved-value)))
+    (setf (alist-get profile connection-local-profile-alist) variables)
+    (custom-set-variables
+     `(connection-local-profile-alist ',connection-local-profile-alist now))
+    (unless saved-value
+      (put 'connection-local-profile-alist 'saved-value nil))))
 
 ;;;###autoload
 (defun connection-local-update-profile-variables (profile variables)

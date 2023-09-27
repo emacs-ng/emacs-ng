@@ -399,7 +399,7 @@ where FOO is one of CLOSE, GET, SEND, LIST, CHAT, etc."
     (if compat-args
         (setq cmd line
               args compat-args)
-      (setq args (delete "" (erc-compat--split-string-shell-command line))
+      (setq args (delete "" (erc--split-string-shell-cmd line))
             cmd (pop args)))
     (let ((fn (intern-soft (concat "erc-dcc-do-" (upcase cmd) "-command"))))
       (if fn
@@ -1213,9 +1213,8 @@ other client."
             erc-dcc-from nick
             erc-dcc-entry-data entry
             erc-dcc-unprocessed-output ""
-            erc-insert-marker (point-max-marker)
             erc-input-marker (make-marker))
-      (erc-display-prompt buffer (point-max))
+      (erc--initialize-markers (point) nil)
       (set-process-buffer proc buffer)
       (add-hook 'kill-buffer-hook #'erc-dcc-chat-buffer-killed nil t)
       (run-hook-with-args 'erc-dcc-chat-connect-hook proc))

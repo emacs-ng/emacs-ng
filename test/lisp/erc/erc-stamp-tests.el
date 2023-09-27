@@ -43,13 +43,10 @@
     (with-current-buffer (get-buffer-create "*erc-stamp-tests--insert-right*")
       (erc-mode)
       (erc-munge-invisibility-spec)
+      (erc--initialize-markers (point) nil)
       (setq erc-server-process (start-process "p" (current-buffer)
-                                              "sleep" "1")
-            erc-input-marker (make-marker)
-            erc-insert-marker (make-marker))
+                                              "sleep" "1"))
       (set-process-query-on-exit-flag erc-server-process nil)
-      (set-marker erc-insert-marker (point-max))
-      (erc-display-prompt)
 
       (funcall test)
 
@@ -59,7 +56,7 @@
     (advice-remove 'erc-format-timestamp
                    'ert-deftest--erc-timestamp-use-align-to)))
 
-(ert-deftest erc-timestamp-use-align-to--nil ()
+(defun erc-stamp-tests--use-align-to--nil (compat)
   (erc-stamp-tests--insert-right
    (lambda ()
 
@@ -86,12 +83,20 @@
          (erc-display-message nil 'notice (current-buffer)
                               "twenty characters"))
        (should (search-forward-regexp (rx bol (+ "\t") (* " ") "[") nil t))
-       ;; Field excludes leading whitespace (arguably undesirable).
-       (should (eql ?\[ (char-after (field-beginning (point)))))
+       ;; Field includes leading whitespace.
+       (should (eql (if compat ?\[ ?\n)
+                    (char-after (field-beginning (point)))))
        ;; Timestamp extends to the end of the line.
        (should (eql ?\n (char-after (field-end (point)))))))))
 
-(ert-deftest erc-timestamp-use-align-to--t ()
+(ert-deftest erc-timestamp-use-align-to--nil ()
+  (ert-info ("Field starts on stamp text (compat)")
+    (let ((erc-stamp--omit-properties-on-folded-lines t))
+      (erc-stamp-tests--use-align-to--nil 'compat)))
+  (ert-info ("Field includes leaidng white space")
+    (erc-stamp-tests--use-align-to--nil nil)))
+
+(defun erc-stamp-tests--use-align-to--t (compat)
   (erc-stamp-tests--insert-right
    (lambda ()
 
@@ -113,9 +118,16 @@
            (erc-display-message nil nil (current-buffer) msg)))
        ;; Indented to pos (this is arguably a bug).
        (should (search-forward-regexp (rx bol (+ "\t") (* " ") "[") nil t))
-       ;; Field starts *after* leading space (arguably bad).
-       (should (eql ?\[ (char-after (field-beginning (point)))))
+       ;; Field includes leading space.
+       (should (eql (if compat ?\[ ?\n) (char-after (field-beginning (point)))))
        (should (eql ?\n (char-after (field-end (point)))))))))
+
+(ert-deftest erc-timestamp-use-align-to--t ()
+  (ert-info ("Field starts on stamp text (compat)")
+    (let ((erc-stamp--omit-properties-on-folded-lines t))
+      (erc-stamp-tests--use-align-to--t 'compat)))
+  (ert-info ("Field includes leaidng white space")
+    (erc-stamp-tests--use-align-to--t nil)))
 
 (ert-deftest erc-timestamp-use-align-to--integer ()
   (erc-stamp-tests--insert-right
@@ -143,7 +155,7 @@
        (should (eql ?\s (char-after (field-beginning (point)))))
        (should (eql ?\n (char-after (field-end (point)))))))))
 
-(ert-deftest erc-timestamp-use-align-to--margin ()
+(ert-deftest erc-stamp--display-margin-mode--right ()
   (erc-stamp-tests--insert-right
    (lambda ()
      (erc-stamp--display-margin-mode +1)
@@ -261,5 +273,38 @@
 
       (when noninteractive
         (kill-buffer)))))
+
+(ert-deftest erc-echo-timestamp ()
+  :tags (and (null (getenv "CI")) '(:unstable))
+
+  (should-not erc-echo-timestamps)
+  (should-not erc-stamp--last-stamp)
+  (insert (propertize "abc" 'erc-timestamp 433483200))
+  (goto-char (point-min))
+  (let ((inhibit-message t)
+        (erc-echo-timestamp-format "%Y-%m-%d %H:%M:%S %Z")
+        (erc-echo-timestamp-zone (list (* 60 60 -4) "EDT")))
+
+    ;; No-op when non-interactive and option is nil
+    (should-not (erc--echo-ts-csf nil nil 'entered))
+    (should-not erc-stamp--last-stamp)
+
+    ;; Non-interactive (cursor sensor function)
+    (let ((erc-echo-timestamps t))
+      (should (equal (erc--echo-ts-csf nil nil 'entered)
+                     "1983-09-27 00:00:00 EDT")))
+    (should (= 433483200 erc-stamp--last-stamp))
+
+    ;; Interactive
+    (should (equal (call-interactively #'erc-echo-timestamp)
+                   "1983-09-27 00:00:00 EDT"))
+    ;; Interactive with zone
+    (let ((current-prefix-arg '(4)))
+      (should (member (call-interactively #'erc-echo-timestamp)
+                      '("1983-09-27 04:00:00 GMT"
+                        "1983-09-27 04:00:00 UTC"))))
+    (let ((current-prefix-arg -7))
+      (should (equal (call-interactively #'erc-echo-timestamp)
+                     "1983-09-26 21:00:00 -07")))))
 
 ;;; erc-stamp-tests.el ends here

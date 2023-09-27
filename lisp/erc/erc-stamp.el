@@ -136,14 +136,27 @@ hidden, they will still be present in the logs."
   "If non-nil, print timestamp in the minibuffer when point is moved.
 Using this variable, you can turn off normal timestamping,
 and simply move point to an irc message to see its timestamp
-printed in the minibuffer."
+printed in the minibuffer.  When attempting to enable this option
+after `erc-stamp-mode' is already active, you may need to run the
+command `erc-show-timestamps' (or `erc-hide-timestamps') in the
+appropriate ERC buffer before the change will take effect."
   :type 'boolean)
 
 (defcustom erc-echo-timestamp-format "Timestamped %A, %H:%M:%S"
   "Format string to be used when `erc-echo-timestamps' is non-nil.
 This string specifies the format of the timestamp being echoed in
 the minibuffer."
-  :type 'string)
+  :type '(choice (const "Timestamped %A, %H:%M:%S")
+                 (const  "%Y-%m-%d %H:%M:%S %Z")
+                 string))
+
+(defcustom erc-echo-timestamp-zone nil
+  "Default timezone for the option `erc-echo-timestamps'.
+Also affects the command `erc-echo-timestamp' (singular).  See
+the ZONE parameter of `format-time-string' for a description of
+acceptable value types."
+  :type '(choice boolean number (const wall) (list number string))
+  :package-version '(ERC . "5.6")) ; FIXME sync on release
 
 (defcustom erc-timestamp-intangible nil
   "Whether the timestamps should be intangible, i.e. prevent the point
@@ -163,13 +176,28 @@ from entering them and instead jump over them."
 (define-erc-module stamp timestamp
   "This mode timestamps messages in the channel buffers."
   ((add-hook 'erc-mode-hook #'erc-munge-invisibility-spec)
-   (add-hook 'erc-insert-modify-hook #'erc-add-timestamp t)
-   (add-hook 'erc-send-modify-hook #'erc-add-timestamp t)
-   (add-hook 'erc-mode-hook #'erc-stamp--recover-on-reconnect))
+   (add-hook 'erc-insert-modify-hook #'erc-add-timestamp 60)
+   (add-hook 'erc-send-modify-hook #'erc-add-timestamp 60)
+   (add-hook 'erc-mode-hook #'erc-stamp--recover-on-reconnect)
+   (add-hook 'erc--pre-clear-functions #'erc-stamp--reset-on-clear)
+   (unless erc--updating-modules-p (erc-buffer-do #'erc-stamp--setup)))
   ((remove-hook 'erc-mode-hook #'erc-munge-invisibility-spec)
    (remove-hook 'erc-insert-modify-hook #'erc-add-timestamp)
    (remove-hook 'erc-send-modify-hook #'erc-add-timestamp)
-   (remove-hook 'erc-mode-hook #'erc-stamp--recover-on-reconnect)))
+   (remove-hook 'erc-mode-hook #'erc-stamp--recover-on-reconnect)
+   (remove-hook 'erc--pre-clear-functions #'erc-stamp--reset-on-clear)
+   (erc-with-all-buffers-of-server nil nil
+     (erc-stamp--setup)
+     (kill-local-variable 'erc-stamp--last-stamp)
+     (kill-local-variable 'erc-timestamp-last-inserted)
+     (kill-local-variable 'erc-timestamp-last-inserted-left)
+     (kill-local-variable 'erc-timestamp-last-inserted-right))))
+
+(defvar erc-stamp--invisible-property nil
+  "Existing `invisible' property value and/or symbol `timestamp'.")
+
+(defvar erc-stamp--skip-when-invisible nil
+  "Escape hatch for omitting stamps when first char is invisible.")
 
 (defun erc-stamp--recover-on-reconnect ()
   (when-let ((priors (or erc--server-reconnecting erc--target-priors)))
@@ -186,9 +214,8 @@ the stamp passed to `erc-insert-timestamp-function'.")
 
 (cl-defgeneric erc-stamp--current-time ()
   "Return a lisp time object to associate with an IRC message.
-This becomes the message's `erc-timestamp' text property, which
-may not be unique, `equal'-wise."
-  (erc-current-time))
+This becomes the message's `erc-timestamp' text property."
+  (let (current-time-list) (current-time)))
 
 (cl-defmethod erc-stamp--current-time :around ()
   (or erc-stamp--current-time (cl-call-next-method)))
@@ -198,16 +225,23 @@ may not be unique, `equal'-wise."
 
 This function is meant to be called from `erc-insert-modify-hook'
 or `erc-send-modify-hook'."
-  (unless (get-text-property (point-min) 'invisible)
+  (progn ; remove this `progn' on next major refactor
     (let* ((ct (erc-stamp--current-time))
+           (invisible (get-text-property (point-min) 'invisible))
+           (erc-stamp--invisible-property
+            ;; FIXME on major version bump, make this `erc-' prefixed.
+            (if invisible `(timestamp ,@(ensure-list invisible)) 'timestamp))
+           (skipp (and erc-stamp--skip-when-invisible invisible))
            (erc-stamp--current-time ct))
-      (funcall erc-insert-timestamp-function
-               (erc-format-timestamp ct erc-timestamp-format))
-      ;; FIXME this will error when advice has been applied.
-      (when (and (fboundp erc-insert-away-timestamp-function)
-		 erc-away-timestamp-format
-		 (erc-away-time)
-		 (not erc-timestamp-format))
+      (unless skipp
+        (funcall erc-insert-timestamp-function
+                 (erc-format-timestamp ct erc-timestamp-format)))
+      ;; Check `erc-insert-away-timestamp-function' for historical
+      ;; reasons even though its Custom :type only allows functions.
+      (when (and (not (or skipp erc-timestamp-format))
+                 erc-away-timestamp-format
+                 (functionp erc-insert-away-timestamp-function)
+                 (erc-away-time))
 	(funcall erc-insert-away-timestamp-function
 		 (erc-format-timestamp ct erc-away-timestamp-format)))
       (add-text-properties (point-min) (1- (point-max))
@@ -262,49 +296,60 @@ This option only matters when `erc-insert-timestamp-function' is
 set to `erc-insert-timestamp-right' or that option's default,
 `erc-insert-timestamp-left-and-right'.  If the value is a
 positive integer, alignment occurs that many columns from the
-right edge.  If the value is `margin', the stamp appears in the
-right margin when visible.
+right edge.
 
 Enabling this option produces a side effect in that stamps aren't
 indented in saved logs.  When its value is an integer, this
 option adds a space after the end of a message if the stamp
 doesn't already start with one.  And when its value is t, it adds
-a single space, unconditionally.  And while this option never
-adds a space when its value is `margin', ERC does offer a
-workaround in `erc-stamp-prefix-log-filter', which strips
-trailing stamps from messages and puts them before every line."
-  :type '(choice boolean integer (const margin))
+a single space, unconditionally."
+  :type '(choice boolean integer)
   :package-version '(ERC . "5.6")) ; FIXME sync on release
 
-(defcustom erc-stamp-right-margin-width nil
-  "Width in columns of the right margin.
-When this option is nil, pretend its value is one column greater
-than the `string-width' of the formatted `erc-timestamp-format'.
-This option only matters when `erc-timestamp-use-align-to' is set
-to `margin'."
-  :package-version '(ERC . "5.6") ; FIXME sync on release
-  :type '(choice (const nil) integer))
+(defvar-local erc-stamp--margin-width nil
+  "Width in columns of margin for `erc-stamp--display-margin-mode'.
+Only consulted when resetting or initializing margin.")
 
-(defun erc-stamp--display-margin-force (orig &rest r)
-  (let ((erc-timestamp-use-align-to 'margin))
-    (apply orig r)))
+(defvar-local erc-stamp--margin-left-p nil
+  "Whether `erc-stamp--display-margin-mode' uses the left margin.
+During initialization, the mode respects this variable's existing
+value if it already has a local binding.  Otherwise, modules can
+bind this to any value while enabling the mode.  If it's nil, ERC
+will check to see if `erc-insert-timestamp-function' is
+`erc-insert-timestamp-left', interpreting the latter as a non-nil
+value.  It'll then coerce any non-nil value to t.")
 
-(defun erc-stamp--adjust-right-margin (cols)
-  "Adjust right margin by COLS.
-When COLS is zero, reset width to `erc-stamp-right-margin-width'
-or one col more than the `string-width' of
-`erc-timestamp-format'."
-  (let ((width
-         (if (zerop cols)
-             (or erc-stamp-right-margin-width
-                 (1+ (string-width (or erc-timestamp-last-inserted-right
-                                       (erc-format-timestamp
-                                        (current-time)
-                                        erc-timestamp-format)))))
-           (+ right-margin-width cols))))
-    (setq right-margin-width width)
+(defun erc-stamp--init-margins-on-connect (&rest _)
+  (let ((existing (if erc-stamp--margin-left-p
+                      left-margin-width
+                    right-margin-width)))
+    (erc-stamp--adjust-margin existing 'resetp)))
+
+(defun erc-stamp--adjust-margin (cols &optional resetp)
+  "Adjust managed margin by increment COLS.
+With RESETP, set margin's width to COLS.  However, if COLS is
+zero, set the width to a non-nil `erc-stamp--margin-width'.
+Otherwise, go with the `string-width' of `erc-timestamp-format'.
+However, when `erc-stamp--margin-left-p' is non-nil and the
+prompt is wider, use its width instead."
+  (let* ((leftp erc-stamp--margin-left-p)
+         (width
+          (if resetp
+              (or (and (not (zerop cols)) cols)
+                  erc-stamp--margin-width
+                  (max (if leftp (string-width (erc-prompt)) 0)
+                       (1+ (string-width
+                            (or (if leftp
+                                    erc-timestamp-last-inserted
+                                  erc-timestamp-last-inserted-right)
+                                (erc-format-timestamp
+                                 (current-time) erc-timestamp-format))))))
+            (+ (if leftp left-margin-width right-margin-width) cols))))
+    (set (if leftp 'left-margin-width 'right-margin-width) width)
     (when (eq (current-buffer) (window-buffer))
-      (set-window-margins nil left-margin-width width))))
+      (set-window-margins nil
+                          (if leftp width left-margin-width)
+                          (if leftp right-margin-width width)))))
 
 ;;;###autoload
 (defun erc-stamp-prefix-log-filter (text)
@@ -329,39 +374,100 @@ non-nil."
         (zerop (forward-line))))
   "")
 
+(defvar erc-stamp--inherited-props '(line-prefix wrap-prefix))
+
 (declare-function erc--remove-text-properties "erc" (string))
 
-;; If people want to use this directly, we can convert it into
-;; a local module.
+;; Currently, `erc-insert-timestamp-right' hard codes its display
+;; property to use `right-margin', and `erc-insert-timestamp-left'
+;; does the same for `left-margin'.  However, there's no reason a
+;; trailing stamp couldn't be displayed on the left and vice versa.
 (define-minor-mode erc-stamp--display-margin-mode
   "Internal minor mode for built-in modules integrating with `stamp'.
-It binds `erc-timestamp-use-align-to' to `margin' around calls to
-`erc-insert-timestamp-function' in the current buffer, and sets
-the right window margin to `erc-stamp-right-margin-width'.  It
-also arranges to remove most text properties when a user kills
-message text so that stamps will be visible when yanked."
+Arranges for displaying stamps in a single margin, with the
+variable `erc-stamp--margin-left-p' controlling which one.
+Provides `erc-stamp--margin-width' and `erc-stamp--adjust-margin'
+to help manage the chosen margin's width.  Also removes `display'
+properties in killed text to reveal stamps.  The invoking module
+should set controlling variables, like `erc-stamp--margin-width'
+and `erc-stamp--margin-left-p', before activating the mode."
   :interactive nil
   (if erc-stamp--display-margin-mode
       (progn
         (setq fringes-outside-margins t)
         (when (eq (current-buffer) (window-buffer))
           (set-window-buffer (selected-window) (current-buffer)))
-        (erc-stamp--adjust-right-margin 0)
+        (setq erc-stamp--margin-left-p (and erc-stamp--margin-left-p t))
+        (if (or erc-server-connected (not (functionp erc-prompt)))
+            (erc-stamp--init-margins-on-connect)
+          (add-hook 'erc-after-connect
+                    #'erc-stamp--init-margins-on-connect nil t))
         (add-function :filter-return (local 'filter-buffer-substring-function)
                       #'erc--remove-text-properties)
-        (add-function :around (local 'erc-insert-timestamp-function)
-                      #'erc-stamp--display-margin-force))
+        (add-hook 'erc--setup-buffer-hook
+                  #'erc-stamp--refresh-left-margin-prompt nil t)
+        (when erc-stamp--margin-left-p
+          (add-hook 'erc--refresh-prompt-hook
+                    #'erc-stamp--display-prompt-in-left-margin nil t)))
     (remove-function (local 'filter-buffer-substring-function)
                      #'erc--remove-text-properties)
-    (remove-function (local 'erc-insert-timestamp-function)
-                     #'erc-stamp--display-margin-force)
-    (kill-local-variable 'right-margin-width)
+    (remove-hook 'erc-after-connect
+                 #'erc-stamp--init-margins-on-connect t)
+    (remove-hook 'erc--refresh-prompt-hook
+                 #'erc-stamp--display-prompt-in-left-margin t)
+    (remove-hook 'erc--setup-buffer-hook
+                 #'erc-stamp--refresh-left-margin-prompt t)
+    (kill-local-variable (if erc-stamp--margin-left-p
+                             'left-margin-width
+                           'right-margin-width))
     (kill-local-variable 'fringes-outside-margins)
+    (kill-local-variable 'erc-stamp--margin-left-p)
+    (kill-local-variable 'erc-stamp--margin-width)
     (when (eq (current-buffer) (window-buffer))
       (set-window-margins nil left-margin-width nil)
       (set-window-buffer (selected-window) (current-buffer)))))
 
-(defun erc-insert-timestamp-left (string)
+(defvar-local erc-stamp--last-prompt nil)
+
+(defun erc-stamp--display-prompt-in-left-margin ()
+  "Show prompt in the left margin with padding."
+  (when (or (not erc-stamp--last-prompt) (functionp erc-prompt)
+            (> (string-width erc-stamp--last-prompt) left-margin-width))
+    (let ((s (buffer-substring erc-insert-marker (1- erc-input-marker))))
+      ;; Prevent #("abc" n m (display ((...) #("abc" p q (display...))))
+      (remove-text-properties 0 (length s) '(display nil) s)
+      (when (and erc-stamp--last-prompt
+                 (>= (string-width erc-stamp--last-prompt) left-margin-width))
+        (let ((sm (truncate-string-to-width s (1- left-margin-width) 0 nil t)))
+          ;; This papers over a subtle off-by-1 bug here.
+          (unless (equal sm s)
+            (setq s (concat sm (substring s -1))))))
+      (setq erc-stamp--last-prompt (string-pad s left-margin-width nil t))))
+  (put-text-property erc-insert-marker (1- erc-input-marker)
+                     'display `((margin left-margin) ,erc-stamp--last-prompt))
+  erc-stamp--last-prompt)
+
+(defun erc-stamp--refresh-left-margin-prompt ()
+  "Forcefully-recompute display property of prompt in left margin."
+  (with-silent-modifications
+    (unless (functionp erc-prompt)
+      (setq erc-stamp--last-prompt nil))
+    (erc--refresh-prompt)))
+
+(cl-defmethod erc--reveal-prompt
+  (&context (erc-stamp--display-margin-mode (eql t))
+            (erc-stamp--margin-left-p (eql t)))
+  (put-text-property erc-insert-marker (1- erc-input-marker)
+                     'display `((margin left-margin) ,erc-stamp--last-prompt)))
+
+(cl-defmethod erc--conceal-prompt
+  (&context (erc-stamp--display-margin-mode (eql t))
+            (erc-stamp--margin-left-p (eql t)))
+  (let ((prompt (string-pad erc-prompt-hidden left-margin-width nil 'start)))
+    (put-text-property erc-insert-marker (1- erc-input-marker)
+                       'display `((margin left-margin) ,prompt))))
+
+(cl-defmethod erc-insert-timestamp-left (string)
   "Insert timestamps at the beginning of the line."
   (goto-char (point-min))
   (let* ((ignore-p (and erc-timestamp-only-if-changed-flag
@@ -370,8 +476,24 @@ message text so that stamps will be visible when yanked."
 	 (s (if ignore-p (make-string len ? ) string)))
     (unless ignore-p (setq erc-timestamp-last-inserted string))
     (erc-put-text-property 0 len 'field 'erc-timestamp s)
-    (erc-put-text-property 0 len 'invisible 'timestamp s)
+    (erc-put-text-property 0 len 'invisible erc-stamp--invisible-property s)
     (insert s)))
+
+(cl-defmethod erc-insert-timestamp-left
+  (string &context (erc-stamp--display-margin-mode (eql t)))
+  (unless (and erc-timestamp-only-if-changed-flag
+               (string-equal string erc-timestamp-last-inserted))
+    (goto-char (point-min))
+    (insert-before-markers-and-inherit
+     (setq erc-timestamp-last-inserted string))
+    (dolist (p erc-stamp--inherited-props)
+      (when-let ((v (get-text-property (point) p)))
+        (put-text-property (point-min) (point) p v)))
+    (erc-put-text-property (point-min) (point) 'invisible
+                           erc-stamp--invisible-property)
+    (put-text-property (point-min) (point) 'field 'erc-timestamp)
+    (put-text-property (point-min) (point)
+                       'display `((margin left-margin) ,string))))
 
 (defun erc-insert-aligned (string pos)
   "Insert STRING at the POSth column.
@@ -389,7 +511,11 @@ property to get to the POSth column."
 ;; Silence byte-compiler
 (defvar erc-fill-column)
 
-(defvar erc-stamp--inherited-props '(line-prefix wrap-prefix))
+(defvar erc-stamp--omit-properties-on-folded-lines nil
+  "Skip properties before right stamps occupying their own line.
+This escape hatch restores pre-5.6 behavior that left leading
+white space alone (unpropertized) for right-sided stamps folded
+onto their own line.")
 
 (defun erc-insert-timestamp-right (string)
   "Insert timestamp on the right side of the screen.
@@ -418,6 +544,7 @@ printed just after each line's text (no alignment)."
     (goto-char (point-max))
     (forward-char -1)                   ; before the last newline
     (let* ((str-width (string-width string))
+           (buffer-invisibility-spec nil) ; `current-column' > 0
            window                  ; used in computation of `pos' only
 	   (pos (cond
 		 (erc-timestamp-right-column erc-timestamp-right-column)
@@ -445,6 +572,9 @@ printed just after each line's text (no alignment)."
       ;; For compatibility reasons, the `erc-timestamp' field includes
       ;; intervening white space unless a hard break is warranted.
       (pcase erc-timestamp-use-align-to
+        ((guard erc-stamp--display-margin-mode)
+         (put-text-property 0 (length string)
+                            'display `((margin right-margin) ,string) string))
         ((and 't (guard (< col pos)))
          (insert " ")
          (put-text-property from (point) 'display `(space :align-to ,pos)))
@@ -455,11 +585,8 @@ printed just after each line's text (no alignment)."
          (let ((s (+ erc-timestamp-use-align-to (string-width string))))
            (put-text-property from (point) 'display
                               `(space :align-to (- right ,s)))))
-        ('margin
-         (put-text-property 0 (length string)
-                            'display `((margin right-margin) ,string)
-                            string))
-        ((guard (>= col pos)) (newline) (indent-to pos) (setq from (point)))
+        ((guard (>= col pos)) (newline) (indent-to pos)
+         (when erc-stamp--omit-properties-on-folded-lines (setq from (point))))
         (_ (indent-to pos)))
       (insert string)
       (dolist (p erc-stamp--inherited-props)
@@ -467,6 +594,8 @@ printed just after each line's text (no alignment)."
           (put-text-property from (point) p v)))
       (erc-put-text-property from (point) 'field 'erc-timestamp)
       (erc-put-text-property from (point) 'rear-nonsticky t)
+      (erc-put-text-property from (point) 'invisible
+                             erc-stamp--invisible-property)
       (when erc-timestamp-intangible
 	(erc-put-text-property from (1+ (point)) 'cursor-intangible t)))))
 
@@ -510,9 +639,8 @@ Return the empty string if FORMAT is nil."
       (let ((ts (format-time-string format time erc-stamp--tz)))
 	(erc-put-text-property 0 (length ts)
 			       'font-lock-face 'erc-timestamp-face ts)
-	(erc-put-text-property 0 (length ts) 'invisible 'timestamp ts)
-	(erc-put-text-property 0 (length ts)
-			       'isearch-open-invisible 'timestamp ts)
+        (erc-put-text-property 0 (length ts) 'invisible
+                               erc-stamp--invisible-property ts)
 	;; N.B. Later use categories instead of this harmless, but
 	;; inelegant, hack. -- BPT
 	(and erc-timestamp-intangible
@@ -527,13 +655,30 @@ Return the empty string if FORMAT is nil."
 ;; please modify this function and move it to a more appropriate
 ;; location.
 (defun erc-munge-invisibility-spec ()
-  (and erc-timestamp-intangible (not (bound-and-true-p cursor-intangible-mode))
-       (cursor-intangible-mode 1))
-  (and erc-echo-timestamps (not (bound-and-true-p cursor-sensor-mode))
-       (cursor-sensor-mode 1))
+  (if erc-timestamp-intangible
+      (cursor-intangible-mode +1) ; idempotent
+    (when (bound-and-true-p cursor-intangible-mode)
+      (cursor-intangible-mode -1)))
+  (if erc-echo-timestamps
+      (progn
+        (cursor-sensor-mode +1) ; idempotent
+        (when (>= emacs-major-version 29)
+          (add-function :before-until (local 'clear-message-function)
+                        #'erc-stamp--on-clear-message)))
+    (when (bound-and-true-p cursor-sensor-mode)
+      (cursor-sensor-mode -1))
+    (remove-function (local 'clear-message-function)
+                     #'erc-stamp--on-clear-message))
   (if erc-hide-timestamps
       (add-to-invisibility-spec 'timestamp)
     (remove-from-invisibility-spec 'timestamp)))
+
+(defun erc-stamp--setup ()
+  "Enable or disable buffer-local `erc-stamp-mode' modifications."
+  (if erc-stamp-mode
+      (erc-munge-invisibility-spec)
+    (let (erc-echo-timestamps erc-hide-timestamps erc-timestamp-intangible)
+      (erc-munge-invisibility-spec))))
 
 (defun erc-hide-timestamps ()
   "Hide timestamp information from display."
@@ -564,17 +709,50 @@ enabled when the message was inserted."
 	    (erc-munge-invisibility-spec)))
 	(erc-buffer-list)))
 
-(defun erc-echo-timestamp (dir stamp)
-  "Print timestamp text-property of an IRC message."
-  ;; Could also pass an &optional `zone' arg to `format-time-string'.
-  (interactive (list 'entered (get-text-property (point) 'erc-timestamp)))
-  (when (eq 'entered dir)
-    (when stamp
-      (message "%s" (format-time-string erc-echo-timestamp-format
-					stamp)))))
+(defvar-local erc-stamp--last-stamp nil)
+
+(defun erc-stamp--on-clear-message (&rest _)
+  "Return `dont-clear-message' when operating inside the same stamp."
+  (and erc-stamp--last-stamp erc-echo-timestamps
+       (eq (get-text-property (point) 'erc-timestamp) erc-stamp--last-stamp)
+       'dont-clear-message))
+
+(defun erc-echo-timestamp (dir stamp &optional zone)
+  "Display timestamp of message at point in echo area.
+Interactively, interpret a numeric prefix as a ZONE offset in
+hours (or seconds, if its abs value is larger than 14), and
+interpret a \"raw\" prefix as UTC.  To specify a zone for use
+with the option `erc-echo-timestamps', see the companion option
+`erc-echo-timestamp-zone'."
+  (interactive (list nil (get-text-property (point) 'erc-timestamp)
+                     (pcase current-prefix-arg
+                       ((and (pred numberp) v)
+                        (if (<= (abs v) 14) (* v 3600) v))
+                       (`(,_) t))))
+  (if (and stamp (or (null dir) (and erc-echo-timestamps (eq 'entered dir))))
+      (progn
+        (setq erc-stamp--last-stamp stamp)
+        (message (format-time-string erc-echo-timestamp-format
+                                     stamp (or zone erc-echo-timestamp-zone))))
+    (when (and erc-echo-timestamps (eq 'left dir))
+      (setq erc-stamp--last-stamp nil))))
 
 (defun erc--echo-ts-csf (_window _before dir)
   (erc-echo-timestamp dir (get-text-property (point) 'erc-timestamp)))
+
+(defun erc-stamp--update-saved-position (&rest _)
+  (remove-function (local 'erc-stamp--insert-date-function)
+                   #'erc-stamp--update-saved-position)
+  (move-marker erc-last-saved-position (1- (point))))
+
+(defun erc-stamp--reset-on-clear (pos)
+  "Forget last-inserted stamps when POS is at insert marker."
+  (when (= pos (1- erc-insert-marker))
+    (add-function :after (local 'erc-stamp--insert-date-function)
+                  #'erc-stamp--update-saved-position)
+    (setq erc-timestamp-last-inserted nil
+          erc-timestamp-last-inserted-left nil
+          erc-timestamp-last-inserted-right nil)))
 
 (provide 'erc-stamp)
 

@@ -293,10 +293,13 @@ then the result will be:
               (append (list 'eshell-concat eshell-current-quoted)
                       eshell-current-argument)))
       (setq eshell-arg-listified nil))
-    (while eshell-current-modifiers
+    (when eshell-current-modifiers
+      (eshell-debug-command 'form
+        "applying modifiers %S\n\n%s" eshell-current-modifiers
+        (eshell-stringify eshell-current-argument)))
+    (dolist (modifier eshell-current-modifiers)
       (setq eshell-current-argument
-	    (list (car eshell-current-modifiers) eshell-current-argument)
-	    eshell-current-modifiers (cdr eshell-current-modifiers))))
+            (list modifier eshell-current-argument))))
   (setq eshell-current-modifiers nil))
 
 (defun eshell-finish-arg (&rest arguments)
@@ -541,7 +544,7 @@ If the form has no `type', the syntax is parsed as if `type' were
 (defun eshell-parse-delimiter ()
   "Parse an argument delimiter, which is essentially a command operator."
   ;; this `eshell-operator' keyword gets parsed out by
-  ;; `eshell-separate-commands'.  Right now the only possibility for
+  ;; `eshell-split-commands'.  Right now the only possibility for
   ;; error is an incorrect output redirection specifier.
   (when (looking-at "[&|;\n]\\s-*")
     (let ((end (match-end 0)))

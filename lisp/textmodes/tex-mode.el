@@ -1,7 +1,6 @@
 ;;; tex-mode.el --- TeX, LaTeX, and SliTeX mode commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1989, 1992, 1994-1999, 2001-2023 Free
-;; Software Foundation, Inc.
+;; Copyright (C) 1985-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: tex
@@ -32,9 +31,6 @@
   (require 'compare-w)
   (require 'cl-lib)
   (require 'skeleton))
-
-(defvar font-lock-comment-face)
-(defvar font-lock-doc-face)
 
 (require 'shell)
 (require 'compile)
@@ -2025,7 +2021,7 @@ In the tex shell buffer this command behaves like `comint-send-input'."
 
 (defun tex-display-shell ()
   "Make the TeX shell buffer visible in a window."
-  (display-buffer (tex-shell-buf) display-comint-buffer-action)
+  (display-buffer (tex-shell-buf) display-tex-shell-buffer-action)
   (tex-recenter-output-buffer nil))
 
 (defun tex-shell-sentinel (proc _msg)
@@ -2426,7 +2422,7 @@ Only applies the FSPEC to the args part of FORMAT."
 	(if cmds (tex-format-cmd (caar cmds) fspec))))))
 
 (defun tex-cmd-doc-view (file)
-  (pop-to-buffer (find-file-noselect file) display-comint-buffer-action))
+  (pop-to-buffer (find-file-noselect file)))
 
 (defun tex-compile (dir cmd)
   "Run a command CMD on current TeX buffer's file in DIR."
@@ -2677,17 +2673,17 @@ This function is more useful than \\[tex-buffer] when you need the
 The last line of the buffer is displayed on
 line LINE of the window, or centered if LINE is nil."
   (interactive "P")
-  (let ((tex-shell (get-buffer "*tex-shell*"))
-	(window))
+  (let ((tex-shell (get-buffer "*tex-shell*")))
     (if (null tex-shell)
 	(message "No TeX output buffer")
-      (setq window (display-buffer tex-shell display-comint-buffer-action))
-      (with-selected-window window
-	(bury-buffer tex-shell)
-	(goto-char (point-max))
-	(recenter (if linenum
-		      (prefix-numeric-value linenum)
-		    (/ (window-height) 2)))))))
+      (when-let ((window
+                  (display-buffer tex-shell display-tex-shell-buffer-action)))
+        (with-selected-window window
+	  (bury-buffer tex-shell)
+	  (goto-char (point-max))
+	  (recenter (if linenum
+		        (prefix-numeric-value linenum)
+		      (/ (window-height) 2))))))))
 
 (defcustom tex-print-file-extension ".dvi"
   "The TeX-compiled file extension for viewing and printing.

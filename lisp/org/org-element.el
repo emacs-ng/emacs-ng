@@ -2968,7 +2968,7 @@ CONTENTS is verse block contents."
 ;; object types they can contain will be specified in
 ;; `org-element-object-restrictions'.
 ;;
-;; Creating a new type of object requires to alter
+;; Creating a new type of object requires altering
 ;; `org-element--object-regexp' and `org-element--object-lex', add the
 ;; new type in `org-element-all-objects', and possibly add
 ;; restrictions in `org-element-object-restrictions'.
@@ -3523,7 +3523,7 @@ Assume point is at the beginning of the link."
 	;;
 	;; Also treat any newline character and associated
 	;; indentation as a single space character.  This is not
-	;; compatible with RFC 3986, which requires to ignore
+        ;; compatible with RFC 3986, which requires ignoring
 	;; them altogether.  However, doing so would require
 	;; users to encode spaces on the fly when writing links
 	;; (e.g., insert [[shell:ls%20*.org]] instead of
@@ -6567,7 +6567,9 @@ If you observe Emacs hangs frequently, please report this to Org mode mailing li
                  ;; Make sure that we return referenced element in cache
                  ;; that can be altered directly.
                  (if element
-                     (setq element (or (org-element--cache-put element) element))
+                     (progn
+                       (org-element-put-property element :granularity 'element)
+                       (setq element (or (org-element--cache-put element) element)))
                    ;; Nothing to parse (i.e. empty file).
                    (throw 'exit parent))
                  (unless (or (not (org-element--cache-active-p)) parent)
@@ -6703,20 +6705,8 @@ The function returns the new value of `org-element--cache-change-warning'."
        (setq org-element--cache-change-tic (buffer-chars-modified-tick))
        (setq org-element--cache-last-buffer-size (buffer-size))
        (goto-char beg)
-       (beginning-of-line)
-       (let ((bottom (save-excursion
-                       (goto-char end)
-                       (if (and (bolp)
-                                ;; When beg == end, still extent to eol.
-                                (> (point) beg))
-                           ;; FIXME: Potential pitfall.
-                           ;; We are appending to an element end.
-                           ;; Unless the last inserted char is not
-                           ;; newline, the next element is not broken
-                           ;; and does not need to be purged from the
-                           ;; cache.
-                           end
-                         (line-end-position)))))
+       (forward-line 0)
+       (let ((bottom (save-excursion (goto-char end) (line-end-position))))
          (prog1
              ;; Use the worst change warning to not miss important edits.
              ;; This function is called before edit and after edit by
@@ -6942,12 +6932,13 @@ known element in cache (it may start after END)."
                           (let ((current (org-with-point-at (org-element-property :begin up)
                                            (org-element-with-disabled-cache
                                              (and (looking-at-p org-element-headline-re)
-                                                  (org-element-headline-parser))))))
+                                                  (org-element-headline-parser nil 'fast))))))
                             (when (eq 'headline (org-element-type current))
                               (org-element--cache-log-message
                                "Found non-robust headline that can be updated individually: %S"
                                (org-element--format-element current))
                               (org-element-set-element up current)
+                              (org-element-put-property up :granularity 'element)
                               t)))
                      ;; If UP is org-data, the situation is similar to
                      ;; headline case.  We just need to re-parse the
@@ -7734,7 +7725,8 @@ the cache."
                               ;; it to real beginning then despite
                               ;; START being larger.
                               (setq start nil)
-                              (move-start-to-next-match nil)
+                              (let ((data nil)) ; data may not be valid. ignore it.
+                                (move-start-to-next-match nil))
                               ;; The new element may now start before
                               ;; or at already processed position.
                               ;; Make sure that we continue from an
@@ -7855,7 +7847,7 @@ element ending there."
     (setq cached-only nil))
   (let (element)
     (when (org-element--cache-active-p)
-      (if (not org-element--cache) (org-element-cache-reset)
+      (if (not (org-with-base-buffer nil org-element--cache)) (org-element-cache-reset)
         (unless cached-only (org-element--cache-sync (current-buffer) pom))))
     (setq element (if cached-only
                       (when (and (org-element--cache-active-p)

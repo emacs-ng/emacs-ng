@@ -29,14 +29,15 @@
 
 ;;; Code:
 
+(require 'tramp-loaddefs)
+(require 'ansi-color)
 (require 'auth-source)
 (require 'format-spec)
-(require 'ls-lisp) ;; Due to `tramp-handle-insert-directory'.
 (require 'parse-time)
 (require 'shell)
-(require 'subr-x)
+(require 'xdg)
 
-(declare-function tramp-error "tramp")
+(declare-function tramp-error "tramp-message")
 (declare-function tramp-tramp-file-p "tramp")
 (defvar tramp-temp-name-prefix)
 
@@ -64,10 +65,17 @@
      (with-no-warnings (funcall ,function ,@arguments))))
 
 ;; We must use a local directory.  If it is remote, we could run into
-;; an infloop.
+;; an infloop.  We try to follow the XDG specification, for security reasons.
 (defconst tramp-compat-temporary-file-directory
-  (eval (car (get 'temporary-file-directory 'standard-value)) t)
-  "The default value of `temporary-file-directory'.")
+  (file-name-as-directory
+   (if-let ((xdg (xdg-cache-home))
+	    ((file-directory-p xdg))
+	    ((file-writable-p xdg)))
+       ;; We can use `file-name-concat' starting with Emacs 28.1.
+       (prog1 (setq xdg (concat (file-name-as-directory xdg) "emacs"))
+	 (make-directory xdg t))
+     (eval (car (get 'temporary-file-directory 'standard-value)) t)))
+  "The default value of `temporary-file-directory' for Tramp.")
 
 (defsubst tramp-compat-make-temp-name ()
   "Generate a local temporary file name (compat function)."
@@ -194,7 +202,7 @@ Add the extension of F, if existing."
 	(let ((matches 0)
               (case-fold-search nil))
 	  (goto-char start)
-	  (while (re-search-forward regexp end t)
+	  (while (search-forward-regexp regexp end t)
             (replace-match replacement t)
             (setq matches (1+ matches)))
 	  (and (not (zerop matches))
@@ -299,7 +307,7 @@ Also see `ignore'."
     "List of characters equivalent to trailing colon in \"password\" prompts."))
 
 (dolist (elt (all-completions "tramp-compat-" obarray 'functionp))
-  (put (intern elt) 'tramp-suppress-trace t))
+  (function-put (intern elt) 'tramp-suppress-trace t))
 
 (add-hook 'tramp-unload-hook
 	  (lambda ()

@@ -504,8 +504,9 @@ ARG is the number of times to execute the item.")
 
 
 (defun kmacro-call-ring-2nd (arg)
-  "Execute second keyboard macro in macro ring."
-  (interactive "P")
+  "Execute second keyboard macro in macro ring.
+With numeric argument ARG, execute the macro that many times."
+  (interactive "p")
   (unless (kmacro-ring-empty-p)
     (funcall (car kmacro-ring) arg)))
 
@@ -514,7 +515,7 @@ ARG is the number of times to execute the item.")
   "Execute second keyboard macro in macro ring.
 This is like `kmacro-call-ring-2nd', but allows repeating macro commands
 without repeating the prefix."
-  (interactive "P")
+  (interactive "p")
   (let ((keys (kmacro-get-repeat-prefix)))
     (kmacro-call-ring-2nd arg)
     (if (and kmacro-ring keys)
@@ -650,10 +651,10 @@ The macro is now available for use via \\[kmacro-call-macro],
 or it can be given a name with \\[kmacro-name-last-macro] and then invoked
 under that name.
 
-With numeric arg, repeat macro now that many times,
+With numeric ARG, repeat the macro that many times,
 counting the definition just completed as the first repetition.
 An argument of zero means repeat until error."
-  (interactive "P")
+  (interactive "p")
    ;; Isearch may push the kmacro-end-macro key sequence onto the macro.
    ;; Just ignore it when executing the macro.
   (unless executing-kbd-macro
@@ -787,7 +788,7 @@ Zero argument means repeat until there is an error.
 
 To give a macro a name, so you can call it even after defining other
 macros, use \\[kmacro-name-last-macro]."
-  (interactive "P")
+  (interactive "p")
   (if defining-kbd-macro
       (kmacro-end-macro nil))
   (kmacro-call-macro arg no-repeat))
@@ -1188,7 +1189,10 @@ following additional answers: `insert', `insert-1', `replace', `replace-1',
 	(setq act (lookup-key kmacro-step-edit-map
 			      (vector (with-current-buffer (current-buffer) (read-event))))))))
 
-    ;; Resume macro execution and perform the action
+    ;; Resume macro execution and perform the action.
+    ;; Suffixing executing-kbd-macro with `dummy-event'
+    ;; is done when pre-command-hook must be called
+    ;; again as part of this keyboard macro's execution.
     (cond
      ((cond
        ((eq act 'act)
@@ -1219,18 +1223,21 @@ following additional answers: `insert', `insert-1', `replace', `replace-1',
        ((member act '(replace-1 replace))
 	(setq kmacro-step-edit-inserting (if (eq act 'replace-1) 1 t))
 	(if (= executing-kbd-macro-index (length executing-kbd-macro))
-	    (setq executing-kbd-macro (vconcat executing-kbd-macro [nil])
+	    (setq executing-kbd-macro (vconcat executing-kbd-macro
+                                               [dummy-event])
 		  kmacro-step-edit-appending t))
 	nil)
        ((eq act 'append)
 	(setq kmacro-step-edit-inserting t)
 	(if (= executing-kbd-macro-index (length executing-kbd-macro))
-	    (setq executing-kbd-macro (vconcat executing-kbd-macro [nil])
+	    (setq executing-kbd-macro (vconcat executing-kbd-macro
+                                               [dummy-event])
 		  kmacro-step-edit-appending t))
 	t)
        ((eq act 'append-end)
 	(if (= executing-kbd-macro-index (length executing-kbd-macro))
-	    (setq executing-kbd-macro (vconcat executing-kbd-macro [nil])
+	    (setq executing-kbd-macro (vconcat executing-kbd-macro
+                                               [dummy-event])
 		  kmacro-step-edit-inserting t
 		  kmacro-step-edit-appending t)
 	  (setq kmacro-step-edit-active 'append-end))
@@ -1313,7 +1320,8 @@ following additional answers: `insert', `insert-1', `replace', `replace-1',
       (setq this-command #'ignore))
      ((eq kmacro-step-edit-active 'append-end)
       (if (= executing-kbd-macro-index (length executing-kbd-macro))
-	  (setq executing-kbd-macro (vconcat executing-kbd-macro [nil])
+	  (setq executing-kbd-macro (vconcat executing-kbd-macro
+                                             [dummy-event])
 		kmacro-step-edit-inserting t
 		kmacro-step-edit-appending t
 		kmacro-step-edit-active t)))

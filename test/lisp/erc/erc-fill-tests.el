@@ -94,6 +94,8 @@
           ;; Defend against non-local exits from `ert-skip'
           (unwind-protect
               (funcall test)
+            (when set-transient-map-timer
+              (timer-event-handler set-transient-map-timer))
             (set-window-buffer (selected-window) original-window-buffer)
             (when noninteractive
               (while-let ((buf (pop erc-fill-tests--buffers)))
@@ -107,10 +109,12 @@
     (dolist (prefix prefixes)
       (should (search-forward prefix nil t))
       (should (get-text-property (pos-bol) 'line-prefix))
-      (should (get-text-property (pos-eol) 'line-prefix))
+      (should (get-text-property (1- (pos-eol)) 'line-prefix))
+      (should-not (get-text-property (pos-eol) 'line-prefix))
       (should (equal (get-text-property (pos-bol) 'wrap-prefix)
                      '(space :width erc-fill--wrap-value)))
-      (should (equal (get-text-property (pos-eol) 'wrap-prefix)
+      (should-not (get-text-property (pos-eol) 'wrap-prefix))
+      (should (equal (get-text-property (1- (pos-eol)) 'wrap-prefix)
                      '(space :width erc-fill--wrap-value))))))
 
 ;; Set this variable to t to generate new snapshots after carefully
@@ -118,10 +122,14 @@
 ;; Obviously, only run one test at a time.
 (defvar erc-fill-tests--save-p nil)
 
+;; On graphical displays, echo .graphic >> .git/info/exclude
+(defvar erc-fill-tests--graphic-dir "fill/snapshots/.graphic")
+
 (defun erc-fill-tests--compare (name)
-  (when (display-graphic-p)
-    (setq name (concat name "-graphic")))
-  (let* ((dir (expand-file-name "fill/snapshots/" (ert-resource-directory)))
+  (let* ((dir (expand-file-name (if (display-graphic-p)
+                                    erc-fill-tests--graphic-dir
+                                  "fill/snapshots/")
+                                (ert-resource-directory)))
          (expect-file (file-name-with-extension (expand-file-name name dir)
                                                 "eld"))
          (erc--own-property-names
@@ -145,7 +153,10 @@
         (with-temp-file expect-file
           (insert repr))
       (if (file-exists-p expect-file)
-          ;; Compare set-equal over intervals
+          ;; Compare set-equal over intervals.  This comparison is
+          ;; less useful for messages treated by other modules because
+          ;; it doesn't compare "nested" props belonging to
+          ;; string-valued properties, like timestamps.
           (should (equal-including-properties
                    (read repr)
                    (read (with-temp-buffer
@@ -203,18 +214,23 @@
   (erc-fill-tests--wrap-populate
 
    (lambda ()
+     (erc-update-channel-member
+      "#chan" "Dummy" "Dummy" t nil nil nil nil nil "fake" "~u" nil nil t)
+
      ;; Set this here so that the first few messages are from 1970
      (let ((erc-fill-tests--time-vals (lambda () 1680332400)))
        (erc-fill-tests--insert-privmsg "bob" "zero.")
        (erc-fill-tests--insert-privmsg "alice" "one.")
        (erc-fill-tests--insert-privmsg "alice" "two.")
        (erc-fill-tests--insert-privmsg "bob" "three.")
-       (erc-fill-tests--insert-privmsg "bob" "four."))
+       (erc-fill-tests--insert-privmsg "bob" "four.")
+       (erc-fill-tests--insert-privmsg "Dummy" "five.")
+       (erc-fill-tests--insert-privmsg "Dummy" "six."))
 
      (should (= erc-fill--wrap-value 27))
      (erc-fill-tests--wrap-check-prefixes
       "*** " "<alice> " "<bob> "
-      "<bob> " "<alice> " "<alice> " "<bob> " "<bob> ")
+      "<bob> " "<alice> " "<alice> " "<bob> " "<bob> " "<Dummy> " "<Dummy> ")
      (erc-fill-tests--compare "merge-01-start")
 
      (ert-info ("Shift right by one (plus)")
@@ -222,8 +238,62 @@
        (should (= erc-fill--wrap-value 29))
        (erc-fill-tests--wrap-check-prefixes
         "*** " "<alice> " "<bob> "
-        "<bob> " "<alice> " "<alice> " "<bob> " "<bob> ")
+        "<bob> " "<alice> " "<alice> " "<bob> " "<bob> " "<Dummy> " "<Dummy> ")
        (erc-fill-tests--compare "merge-02-right")))))
+
+(ert-deftest erc-fill-wrap--merge-action ()
+  :tags '(:unstable)
+  (unless (>= emacs-major-version 29)
+    (ert-skip "Emacs version too low, missing `buffer-text-pixel-size'"))
+
+  (erc-fill-tests--wrap-populate
+
+   (lambda ()
+     ;; Set this here so that the first few messages are from 1970
+     (let ((erc-fill-tests--time-vals (lambda () 1680332400)))
+       (erc-fill-tests--insert-privmsg "bob" "zero.")
+
+       (erc-process-ctcp-query
+        erc-server-process
+        (make-erc-response
+         :unparsed ":bob!~u@fake PRIVMSG #chan :\1ACTION one\1"
+         :sender "bob!~u@fake" :command "PRIVMSG"
+         :command-args '("#chan" "\1ACTION one\1") :contents "\1ACTION one\1")
+        "bob" "~u" "fake")
+
+       (erc-fill-tests--insert-privmsg "bob" "two.")
+
+       ;; Compat switch to opt out of overhanging speaker.
+       (let (erc-fill--wrap-action-dedent-p)
+         (erc-process-ctcp-query
+          erc-server-process
+          (make-erc-response
+           :unparsed ":bob!~u@fake PRIVMSG #chan :\1ACTION three\1"
+           :sender "bob!~u@fake" :command "PRIVMSG"
+           :command-args '("#chan" "\1ACTION three\1")
+           :contents "\1ACTION three\1")
+          "bob" "~u" "fake"))
+
+       (erc-fill-tests--insert-privmsg "bob" "four."))
+
+     (should (= erc-fill--wrap-value 27))
+     (erc-fill-tests--wrap-check-prefixes
+      "*** " "<alice> " "<bob> " "<bob> " "* bob " "<bob> " "* " "<bob> ")
+     (erc-fill-tests--compare "merge-wrap-01"))))
+
+(ert-deftest erc-fill-line-spacing ()
+  :tags '(:unstable)
+  (unless (>= emacs-major-version 29)
+    (ert-skip "Emacs version too low, missing `buffer-text-pixel-size'"))
+
+  (let ((erc-fill-line-spacing 0.5))
+    (erc-fill-tests--wrap-populate
+     (lambda ()
+       (erc-fill-tests--insert-privmsg "bob" "This buffer is for text.")
+       (erc-display-message nil 'notice (current-buffer) "one two three")
+       (erc-display-message nil 'notice (current-buffer) "four five six")
+       (erc-fill-tests--insert-privmsg "bob" "Somebody stop me")
+       (erc-fill-tests--compare "spacing-01-mono")))))
 
 (ert-deftest erc-fill-wrap-visual-keys--body ()
   :tags '(:unstable)
@@ -309,5 +379,42 @@
        (should (search-forward "its buffer." nil t))
        (should (search-backward "ERC> " nil t))
        (execute-kbd-macro "\C-a")))))
+
+(ert-deftest erc-fill--left-hand-stamps ()
+  :tags '(:unstable)
+  (unless (>= emacs-major-version 29)
+    (ert-skip "Emacs version too low, missing `buffer-text-pixel-size'"))
+
+  (let ((erc-timestamp-only-if-changed-flag nil)
+        (erc-insert-timestamp-function #'erc-insert-timestamp-left))
+    (erc-fill-tests--wrap-populate
+     (lambda ()
+       (should (= 8 left-margin-width))
+       (pcase-let ((`((margin left-margin) ,displayed)
+                    (get-text-property erc-insert-marker 'display)))
+         (should (equal-including-properties
+                  displayed #("    ERC>" 4 8
+                              ( read-only t
+                                front-sticky t
+                                field erc-prompt
+                                erc-prompt t
+                                rear-nonsticky t
+                                font-lock-face erc-prompt-face)))))
+       (erc-fill-tests--compare "stamps-left-01")
+
+       (ert-info ("Shrink left margin by 1 col")
+         (erc-stamp--adjust-margin -1)
+         (with-silent-modifications (erc--refresh-prompt))
+         (should (= 7 left-margin-width))
+         (pcase-let ((`((margin left-margin) ,displayed)
+                      (get-text-property erc-insert-marker 'display)))
+           (should (equal-including-properties
+                    displayed #("   ERC>" 3 7
+                                ( read-only t
+                                  front-sticky t
+                                  field erc-prompt
+                                  erc-prompt t
+                                  rear-nonsticky t
+                                  font-lock-face erc-prompt-face))))))))))
 
 ;;; erc-fill-tests.el ends here

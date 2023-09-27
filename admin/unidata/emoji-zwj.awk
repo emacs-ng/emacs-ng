@@ -83,32 +83,31 @@ END {
      trigger_codepoints[12] = "1F575"
      trigger_codepoints[13] = "1F590"
 
-     printf "(setq auto-composition-emoji-eligible-codepoints\n"
-     printf "'("
+     print "(setq auto-composition-emoji-eligible-codepoints"
+     print "'("
 
      for (trig in trigger_codepoints)
      {
-         printf("\n?\\N{U+%s}", trigger_codepoints[trig])
+         print "?\\N{U+" trigger_codepoints[trig] "}"
      }
-     printf "\n))\n\n"
+     print "))"
 
      #  We add entries for 'codepoint U+FE0F' here to ensure that the
      # code in font_range is triggered.
 
      for (trig in trigger_codepoints)
      {
-         codepoint = trigger_codepoints[trig]
-         c = sprintf("\\N{U+%s}", codepoint)
-         vec[codepoint] = vec[codepoint] "\n\"" c "\\N{U+FE0F}\""
+         vec[codepoint] = vec[codepoint] "\n\"\\N{U+" trigger_codepoints[trig] "}\\N{U+FE0F}\""
      }
 
-     print "(dolist (elt `("
+     print "(dolist (elt (eval-when-compile `("
 
      for (elt in ch)
     {
-        printf("(#x%s .\n,(eval-when-compile (regexp-opt\n'(\n%s\n))))\n", elt, vec[elt])
+        print "(#x" elt " .\n,(regexp-opt\n'(\n" vec[elt]
+        print "\"\\N{U+" elt "}\\N{U+FE0E}\"\n\"\\N{U+" elt "}\\N{U+FE0F}\"\n)))"
     }
-     print "))"
+     print ")))"
      print "  (set-char-table-range composition-function-table"
      print "                        (car elt)"
      print "                        (nconc (char-table-range composition-function-table (car elt))"

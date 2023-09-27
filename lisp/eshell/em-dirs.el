@@ -253,26 +253,19 @@ Thus, this does not include the current directory.")
     (throw 'eshell-replace-command
 	   (eshell-parse-command "cd" (flatten-tree args)))))
 
-(defun eshell-expand-user-reference-1 (file)
+(defun eshell-expand-user-reference (file)
   "Expand a user reference in FILE to its real directory name."
   (replace-regexp-in-string
    (rx bos (group "~" (*? anychar)) (or "/" eos))
    #'expand-file-name file))
 
-(defun eshell-expand-user-reference (file)
-  "Expand a user reference in FILE to its real directory name.
-FILE can be either a string or a list of strings to expand."
-  ;; If the argument was a glob pattern, then FILE is a list, so
-  ;; expand each element of the glob's resulting list.
-  (if (listp file)
-      (mapcar #'eshell-expand-user-reference-1 file)
-    (eshell-expand-user-reference-1 file)))
-
 (defun eshell-parse-user-reference ()
   "An argument beginning with ~ is a filename to be expanded."
   (when (and (not eshell-current-argument)
              (eq (char-after) ?~))
-    (add-to-list 'eshell-current-modifiers #'eshell-expand-user-reference)
+    ;; Apply this modifier fairly early so it happens before things
+    ;; like glob expansion.
+    (add-hook 'eshell-current-modifiers #'eshell-expand-user-reference -50)
     (forward-char)
     (char-to-string (char-before))))
 
@@ -429,9 +422,13 @@ in the minibuffer:
 	  (and eshell-cd-shows-directory
 	       (eshell-printn result)))
 	(run-hooks 'eshell-directory-change-hook)
-	(if eshell-list-files-after-cd
-	    ;; Let-bind eshell-last-command around this?
-	    (eshell-plain-command "ls" (cdr args)))
+        (when eshell-list-files-after-cd
+          ;; Call "ls", but don't update the last-command information.
+          (let ((eshell-last-command-name)
+                (eshell-last-command-status)
+                (eshell-last-arguments))
+            (eshell-protect
+             (eshell-plain-command "ls" (cdr args)))))
 	nil))))
 
 (put 'eshell/cd 'eshell-no-numeric-conversions t)

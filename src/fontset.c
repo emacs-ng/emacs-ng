@@ -667,8 +667,35 @@ fontset_find_font (Lisp_Object fontset, int c, struct face *face,
 	    }
 	  font_object = font_open_for_lface (f, font_entity, face->lface,
 					     FONT_DEF_SPEC (font_def));
+
+	  /* If the font registry is not the same as explicitly
+	     specified in the font spec, do not cache the font.
+	     TrueType fonts have contrived character map selection
+	     semantics which makes determining the repertory at font
+	     spec matching time unduly expensive.  */
+
+	  {
+	    Lisp_Object spec;
+
+	    spec = FONT_DEF_SPEC (font_def);
+
+	    if (!NILP (font_object)
+		&& !NILP (AREF (spec, FONT_REGISTRY_INDEX))
+		&& !NILP (AREF (font_object, FONT_REGISTRY_INDEX))
+		&& !EQ (AREF (spec, FONT_REGISTRY_INDEX),
+			AREF (font_object, FONT_REGISTRY_INDEX))
+		/* See sfntfont_registries_compatible_p in
+		   sfntfont.c.  */
+		&& !(EQ (AREF (spec, FONT_REGISTRY_INDEX),
+			 Qiso8859_1)
+		     && EQ (AREF (font_object, FONT_REGISTRY_INDEX),
+			    Qiso10646_1)))
+	      goto strangeness;
+	  }
+
 	  if (NILP (font_object))
 	    {
+	    strangeness:
 	      /* Something strange happened, perhaps because of a
 		 Font-backend problem.  To avoid crashing, record
 		 that this spec is unusable.  It may be better to find
@@ -966,6 +993,15 @@ face_for_char (struct frame *f, struct face *face, int c,
 	}
 #endif
     }
+
+  /* If the parent face has no fontset we could work with, and has no
+     font, just return that same face, so that the caller will
+     consider the character to have no font capable of displaying it,
+     and display it as "glyphless".  That is certainly better than
+     violating the assertion below or crashing when assertions are not
+     compiled in.  */
+  if (face->fontset < 0 && !face->font)
+    return face->id;
 
   eassert (fontset_id_valid_p (face->fontset));
   fontset = FONTSET_FROM_ID (face->fontset);
@@ -1510,7 +1546,7 @@ overwrites the previous settings.  */)
 
       font_parse_family_registry (XCAR (font_spec), XCDR (font_spec), spec);
       font_spec = spec;
-      fontname = Ffont_xlfd_name (font_spec, Qnil);
+      fontname = Ffont_xlfd_name (font_spec, Qnil, Qt);
     }
   else if (STRINGP (font_spec))
     {
@@ -1518,7 +1554,7 @@ overwrites the previous settings.  */)
       font_spec = CALLN (Ffont_spec, QCname, fontname);
     }
   else if (FONT_SPEC_P (font_spec))
-    fontname = Ffont_xlfd_name (font_spec, Qnil);
+    fontname = Ffont_xlfd_name (font_spec, Qnil, Qt);
   else if (! NILP (font_spec))
     Fsignal (Qfont, list2 (build_string ("Invalid font-spec"), font_spec));
 
@@ -1704,6 +1740,7 @@ FONT-SPEC is a vector, a cons, or a string.  See the documentation of
 {
   Lisp_Object fontset, tail;
   int id;
+  char *string;
 
   CHECK_STRING (name);
 
@@ -1713,8 +1750,6 @@ FONT-SPEC is a vector, a cons, or a string.  See the documentation of
     {
       Lisp_Object font_spec = Ffont_spec (0, NULL);
       Lisp_Object short_name;
-      char xlfd[256];
-      int len;
 
       if (font_parse_xlfd (SSDATA (name), SBYTES (name), font_spec) < 0)
 	error ("Fontset name must be in XLFD format");
@@ -1726,10 +1761,11 @@ FONT-SPEC is a vector, a cons, or a string.  See the documentation of
 				    Vfontset_alias_alist);
       ASET (font_spec, FONT_REGISTRY_INDEX, Qiso8859_1);
       fontset = make_fontset (Qnil, name, Qnil);
-      len = font_unparse_xlfd (font_spec, 0, xlfd, 256);
-      if (len < 0)
+      string = font_dynamic_unparse_xlfd (font_spec, 0);
+      if (!string)
 	error ("Invalid fontset name (perhaps too long): %s", SDATA (name));
-      set_fontset_ascii (fontset, make_unibyte_string (xlfd, len));
+      set_fontset_ascii (fontset, build_unibyte_string (string));
+      xfree (string);
     }
   else
     {
@@ -1780,7 +1816,7 @@ fontset_from_font (Lisp_Object font_object)
   Lisp_Object font_spec = copy_font_spec (font_object);
   Lisp_Object registry = AREF (font_spec, FONT_REGISTRY_INDEX);
   Lisp_Object fontset_spec, alias, name, fontset;
-  Lisp_Object val;
+  Lisp_Object val, xlfd;
 
   val = assoc_no_quit (font_spec, auto_fontset_alist);
   if (CONSP (val))
@@ -1796,14 +1832,19 @@ fontset_from_font (Lisp_Object font_object)
     }
   fontset_spec = copy_font_spec (font_spec);
   ASET (fontset_spec, FONT_REGISTRY_INDEX, alias);
-  name = Ffont_xlfd_name (fontset_spec, Qnil);
+  name = Ffont_xlfd_name (fontset_spec, Qnil, Qt);
   eassert (!NILP (name));
   fontset = make_fontset (Qnil, name, Qnil);
   Vfontset_alias_alist = Fcons (Fcons (name, SYMBOL_NAME (alias)),
 				Vfontset_alias_alist);
-  alias = Fdowncase (AREF (font_object, FONT_NAME_INDEX));
-  Vfontset_alias_alist = Fcons (Fcons (name, alias), Vfontset_alias_alist);
-  auto_fontset_alist = Fcons (Fcons (font_spec, fontset), auto_fontset_alist);
+
+  xlfd = AREF (font_object, FONT_NAME_INDEX);
+  alias = Fdowncase (xlfd);
+  Vfontset_alias_alist
+    = Fcons (Fcons (name, alias), Vfontset_alias_alist);
+  auto_fontset_alist
+    = Fcons (Fcons (font_spec, fontset), auto_fontset_alist);
+
   font_spec = Ffont_spec (0, NULL);
   ASET (font_spec, FONT_REGISTRY_INDEX, registry);
   {
@@ -1970,7 +2011,7 @@ format is the same as above.  */)
 	      for (; CONSP (alist); alist = XCDR (alist))
 		{
 		  elt = XCAR (alist);
-		  XSETCAR (elt, Ffont_xlfd_name (XCAR (elt), Qnil));
+		  XSETCAR (elt, Ffont_xlfd_name (XCAR (elt), Qnil, Qt));
 		}
 	    }
 	  c = to + 1;

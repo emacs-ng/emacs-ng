@@ -24,6 +24,31 @@
 
 ;; Plist based data store providing search and partial encryption.
 ;;
+;; By default, this library uses symmetric encryption, which means
+;; that you have to enter the password protecting your store more
+;; often than you probably expect to.  To use public key encryption
+;; with this library, create a GnuPG key and customize user option
+;; `plstore-encrypt-to' to use it.  You can then configure the GnuPG
+;; agent to adjust caching and expiration of the passphrase for your
+;; store.
+;;
+;; You can read more on these topics in the EasyPG Assistant user's
+;; manual (Info node `(epa)'), of which much information also applies
+;; to this library.  Most notably:
+;;
+;; - Info node `(epa)GnuPG version compatibility'
+;; - Info node `(epa)GnuPG Pinentry'
+;; - Info node `(epa)Caching Passphrases'
+;;
+;; Use only keyword symbols (starting with a colon) as property names
+;; in any plist stored with this library.  While this library does not
+;; actively enforce the use of keyword symbols, it silently assumes
+;; that the first character of all property names can be discarded
+;; without sacrificing uniqueness of names (FIXME).  Likewise, this
+;; library does not enforce that the plists provided as input are
+;; actually valid and can behave in undefined ways if they are not
+;; (FIXME).
+;;
 ;; Creating:
 ;;
 ;; ;; Open a new store associated with ~/.emacs.d/auth.plist.
@@ -43,12 +68,16 @@
 ;; ;; Kill the buffer visiting ~/.emacs.d/auth.plist.
 ;; (plstore-close store)
 ;;
+;; Avoid marking one property both as public *and* secret, as the
+;; behavior of this library with respect to such duplicate properties
+;; is not defined (FIXME).
+;;
 ;; Searching:
 ;;
 ;; (setq store (plstore-open (expand-file-name "~/.emacs.d/auth.plist")))
 ;;
 ;; ;; As the entry "foo" associated with "foo.example.org" has no
-;; ;; secret properties, no need to decryption.
+;; ;; secret properties, no need for decryption.
 ;; (plstore-find store '(:host ("foo.example.org")))
 ;;
 ;; ;; As the entry "bar" associated with "bar.example.org" has a
@@ -59,24 +88,126 @@
 ;; ;; While the entry "baz" associated with "baz.example.org" has also
 ;; ;; a secret property `:password', it is encrypted together with
 ;; ;; `:user' of "bar", so no need to decrypt the secret.
-;; (plstore-find store '(:host ("bar.example.org")))
+;; (plstore-find store '(:host ("baz.example.org")))
 ;;
 ;; (plstore-close store)
 ;;
 ;; Editing:
 ;;
 ;; This file also provides `plstore-mode', a major mode for editing
-;; the PLSTORE format file.  Visit a non-existing file and put the
+;; the plstore format file.  Visit a non-existing file and put the
 ;; following line:
 ;;
 ;; (("foo" :host "foo.example.org" :secret-user "user"))
 ;;
 ;; where the prefixing `:secret-' means the property (without
 ;; `:secret-' prefix) is marked as secret.  Thus, when you save the
-;; buffer, the `:secret-user' property is encrypted as `:user'.
+;; buffer, the `:secret-user' property is encrypted as `:user'.  Do
+;; not use a property consisting solely of the prefix, as the behavior
+;; of this library with respect to such properties is not defined
+;; (FIXME).
 ;;
 ;; You can toggle the view between encrypted form and the decrypted
 ;; form with C-c C-c.
+;;
+;; If you have opened a plstore with `plstore-open' you should not
+;; edit its underlying buffer in `plstore-mode' or in any other way at
+;; the same time, since your manual changes will be overwritten when
+;; `plstore-save' is called on that plstore.
+;;
+;; Internals:
+;;
+;; This is information on the internal data structure and functions of
+;; this library.  None of it should be necessary to actually use it.
+;; For easier reading, we usually do not distinguish in this internal
+;; documentation between a Lisp object and its printed representation.
+;;
+;; A plstore corresponds to an alist mapping strings to property
+;; lists.  Internally, that alist is organized as two alists, one
+;; mapping to the non-secret properties and placeholders for the
+;; secret properties (called "template alist" with identifier ALIST)
+;; and one mapping to the secret properties ("secret alist",
+;; SECRET-ALIST).  The secret alist is read from and written to file
+;; as pgp-encrypted printed representation of the alist ("encrypted
+;; data", ENCRYPTED-DATA).
+;;
+;; During the lifetime of a plstore, a third type of alist may pop up,
+;; which maps to the merged non-secret properties and plain-text
+;; secret properties ("merged alist", MERGED-ALIST).
+;;
+;; After executing the "foo", "bar", "baz" example from above the
+;; alists described above look like the following:
+;;
+;;   Template Alist:
+;;
+;;     (("foo" :host "foo.example.org" :port 80)
+;;      ("bar" :secret-user t :host "bar.example.org")
+;;      ("baz" :secret-password t :host "baz.example.org"))
+;;
+;;   Secret Alist:
+;;
+;;     (("bar" :user "test")
+;;      ("baz" :password "test"))
+;;
+;;   Merged Alist:
+;;
+;;     (("foo" :host "foo.example.org" :port 80)
+;;      ("bar" :user "test" :host "bar.example.org")
+;;      ("baz" :password "test" :host "baz.example.org"))
+;;
+;; Finally, a plstore requires a buffer ("plstore buffer", BUFFER) for
+;; conversion between its Lisp objects and its file representation.
+;; It is important to note that this buffer is *not* continuously
+;; synchronized as the plstore changes.  During the lifetime of a
+;; plstore, its buffer is read from in function `plstore-open' and
+;; (destructively) written to in `plstore-save', but not touched
+;; otherwise.  We call the file visited by the plstore buffer the
+;; associated file of the plstore.
+;;
+;; With the identifiers defined above a plstore is a vector with the
+;; following elements and accessor functions:
+;;
+;;   [
+;;     BUFFER           ; plstore--get/set-buffer
+;;     ALIST            ; plstore--get/set-alist
+;;     ENCRYPTED-DATA   ; plstore--get/set-encrypted-data
+;;     SECRET-ALIST     ; plstore--get/set-secret-alist
+;;     MERGED-ALIST     ; plstore--get/set-merged-alist
+;;   ]
+;;
+;; When a plstore is created through `plstore-open', its ALIST and
+;; ENCRYPTED-DATA are initialized from the contents of BUFFER without
+;; any decryption taking place, and MERGED-ALIST is initialized as a
+;; copy of ALIST.  (Which means that at that stage the merged alist
+;; still contains the secret property placeholders!)
+;;
+;; During on-demand decryption of a plstore through function
+;; `plstore--decrypt', SECRET-ALIST is populated from ENCRYPTED-DATA,
+;; which is in turn replaced by value nil.  (Which further serves as
+;; an indicator that the plstore has been decrypted already.)  In
+;; addition, MERGED-ALIST is recomputed by function
+;; `plstore--merge-secret' to replace the secret property placeholders
+;; by their plain-text secret property equivalents.
+;;
+;; The file representation of a plstore consists of two Lisp forms plus
+;; markers to introduce them:
+;;
+;;   ;;; public entries
+;;   ALIST
+;;   ;;; secret entries
+;;   ENCRYPTED-DATA
+;;
+;; Both of these are optional, but the first section must be present
+;; if the second one is.  If both sections are missing, the plstore is
+;; empty.  If the second section is missing, it contains only
+;; non-secret data.  If present, the printed representation of the
+;; encrypted data includes the delimiting double quotes.
+;;
+;; The plstore API (`plstore-open', `plstore-put', etc.) and the
+;; plstore mode implemented by `plstore-mode' are orthogonal to each
+;; other and should not be mixed up.  In particular, encoding and
+;; decoding a plstore mode buffer with `plstore-mode-toggle-display'
+;; is not related in any way to the state of the plstore buffer.
 
 ;;; Code:
 
@@ -121,9 +252,12 @@ symmetric encryption will be used."
 
 (put 'plstore-encrypt-to 'permanent-local t)
 
-(defvar plstore-encoded nil)
+(defvar plstore-encoded nil
+  "Non-nil if the current buffer shows the decoded alist.") ; [sic!]
 
 (put 'plstore-encoded 'permanent-local t)
+
+;;; EasyPG callback functions.
 
 (defvar plstore-cache-passphrase-for-symmetric-encryption nil)
 (defvar plstore-passphrase-alist nil)
@@ -141,11 +275,11 @@ symmetric encryption will be used."
 		      (cons entry
 			    plstore-passphrase-alist)))
 	      (setq passphrase
-		    (read-passwd (format "Passphrase for PLSTORE %s: "
+		    (read-passwd (format "Passphrase for plstore %s: "
 					 (plstore--get-buffer plstore))))
 	      (setcdr entry (copy-sequence passphrase))
 	      passphrase)))
-    (read-passwd (format "Passphrase for PLSTORE %s: "
+    (read-passwd (format "Passphrase for plstore %s: "
 			 (plstore--get-buffer plstore)))))
 
 (defun plstore-progress-callback-function (_context _what _char current total
@@ -154,6 +288,8 @@ symmetric encryption will be used."
       (message "%s...done" handback)
     (message "%s...%d%%" handback
 	     (if (> total 0) (floor (* (/ current (float total)) 100)) 0))))
+
+;;; Core functions.
 
 (defun plstore--get-buffer (arg)
   (aref arg 0))
@@ -193,6 +329,7 @@ symmetric encryption will be used."
   (vector buffer alist encrypted-data secret-alist merged-alist))
 
 (defun plstore--init-from-buffer (plstore)
+  "Parse current buffer and initialize PLSTORE from it."
   (goto-char (point-min))
   (when (looking-at ";;; public entries")
     (forward-line)
@@ -223,16 +360,20 @@ symmetric encryption will be used."
       store)))
 
 (defun plstore-revert (plstore)
-  "Replace current data in PLSTORE with the file on disk."
+  "Replace current data in PLSTORE from its associated file."
   (with-current-buffer (plstore--get-buffer plstore)
     (revert-buffer t t)
     (plstore--init-from-buffer plstore)))
 
 (defun plstore-close (plstore)
-  "Destroy a plstore instance PLSTORE."
+  "Destroy plstore instance PLSTORE."
   (kill-buffer (plstore--get-buffer plstore)))
 
 (defun plstore--merge-secret (plstore)
+  "Determine the merged alist of PLSTORE.
+Create the merged alist as a copy of the template alist with all
+placeholder properties that have corresponding properties in the
+secret alist replaced by their plain-text secret properties."
   (let ((alist (plstore--get-secret-alist plstore))
 	modified-alist
 	modified-plist
@@ -251,19 +392,26 @@ symmetric encryption will be used."
 	    modified-entry (assoc (car entry) modified-alist)
 	    modified-plist (cdr modified-entry))
       (while plist
+        ;; Search for a placeholder property in the merged alist
+        ;; corresponding to the current secret property.
 	(setq placeholder
 	      (plist-member
 	       modified-plist
 	       (intern (concat ":secret-"
 			       (substring (symbol-name (car plist)) 1)))))
+        ;; Replace its name with the real, secret property name.
 	(if placeholder
 	    (setcar placeholder (car plist)))
+        ;; Update its value to the plain-text secret property value.
 	(setq modified-plist
 	      (plist-put modified-plist (car plist) (car (cdr plist))))
 	(setq plist (nthcdr 2 plist)))
       (setcdr modified-entry modified-plist))))
 
 (defun plstore--decrypt (plstore)
+  "Decrypt the encrypted data of PLSTORE.
+Update its internal alists and other data structures
+accordingly."
   (if (plstore--get-encrypted-data plstore)
       (let ((context (epg-make-context 'OpenPGP))
 	    plain)
@@ -290,6 +438,11 @@ symmetric encryption will be used."
 	(plstore--set-encrypted-data plstore nil))))
 
 (defun plstore--match (entry keys skip-if-secret-found)
+  "Return whether plist KEYS matches ENTRY.
+ENTRY should be a key of the merged alist of a PLSTORE.  This
+function returns nil if KEYS do not match ENTRY, t if they match,
+and symbol `secret' if the secret alist needs to be consulted to
+perform a match."
   (let ((result t) key-name key-value prop-value secret-name)
     (while keys
       (setq key-name (car keys)
@@ -311,11 +464,10 @@ symmetric encryption will be used."
     result))
 
 (defun plstore-find (plstore keys)
-  "Perform search on PLSTORE with KEYS.
-KEYS is a plist."
+  "Return all PLSTORE entries matching plist KEYS."
   (let (entries alist entry match decrypt plist)
-    ;; First, go through the merged plist alist and collect entries
-    ;; matched with keys.
+    ;; First, go through the merged alist and collect entries matched
+    ;; by the keys.
     (setq alist (plstore--get-merged-alist plstore))
     (while alist
       (setq entry (car alist)
@@ -331,7 +483,7 @@ KEYS is a plist."
 		      plist nil))
 	    (setq plist (nthcdr 2 plist)))
 	  (setq entries (cons entry entries)))))
-    ;; Second, decrypt the encrypted plist and try again.
+    ;; Second, decrypt the plstore and try again.
     (when decrypt
       (setq entries nil)
       (plstore--decrypt plstore)
@@ -345,7 +497,8 @@ KEYS is a plist."
     (nreverse entries)))
 
 (defun plstore-get (plstore name)
-  "Get an entry with NAME in PLSTORE."
+  "Return the entry named NAME in PLSTORE.
+Return nil if there is none."
   (let ((entry (assoc name (plstore--get-merged-alist plstore)))
 	plist)
     (setq plist (cdr entry))
@@ -359,7 +512,7 @@ KEYS is a plist."
     entry))
 
 (defun plstore-put (plstore name keys secret-keys)
-  "Put an entry with NAME in PLSTORE.
+  "Put an entry named NAME in PLSTORE.
 KEYS is a plist containing non-secret data.
 SECRET-KEYS is a plist containing secret data."
   (let (entry
@@ -398,7 +551,7 @@ SECRET-KEYS is a plist containing secret data."
     (plstore--merge-secret plstore)))
 
 (defun plstore-delete (plstore name)
-  "Delete an entry with NAME from PLSTORE."
+  "Delete the first entry named NAME from PLSTORE."
   (let ((entry (assoc name (plstore--get-alist plstore))))
     (if entry
 	(plstore--set-alist
@@ -417,16 +570,23 @@ SECRET-KEYS is a plist containing secret data."
 
 (defvar pp-escape-newlines)
 (defun plstore--insert-buffer (plstore)
+  "Insert the file representation of PLSTORE at point."
   (insert ";;; public entries -*- mode: plstore -*- \n"
 	  (pp-to-string (plstore--get-alist plstore)))
-  (if (plstore--get-secret-alist plstore)
+  (let ((pp-escape-newlines nil)
+        (cipher nil))
+    (cond
+     ;; Reuse the encrypted data as cipher text if this store has not
+     ;; been decrypted yet.
+     ((plstore--get-encrypted-data plstore)
+      (setq cipher (plstore--get-encrypted-data plstore)))
+     ;; Encrypt the secret alist to generate the cipher text.
+     ((plstore--get-secret-alist plstore)
       (let ((context (epg-make-context 'OpenPGP))
-	    (pp-escape-newlines nil)
 	    (recipients
 	     (cond
 	      ((listp plstore-encrypt-to) plstore-encrypt-to)
-	      ((stringp plstore-encrypt-to) (list plstore-encrypt-to))))
-	    cipher)
+	      ((stringp plstore-encrypt-to) (list plstore-encrypt-to)))))
 	(setf (epg-context-armor context) t)
 	(epg-context-set-passphrase-callback
 	 context
@@ -446,18 +606,41 @@ SECRET-KEYS is a plist containing secret data."
 If no one is selected, symmetric encryption will be performed.  "
 			   recipients)
 			(if plstore-encrypt-to
-			    (epg-list-keys context recipients)))))
-	(goto-char (point-max))
-	(insert ";;; secret entries\n" (pp-to-string cipher)))))
+			    (epg-list-keys context recipients))))))))
+    (when cipher
+      (goto-char (point-max))
+      (insert ";;; secret entries\n" (pp-to-string cipher)))))
 
 (defun plstore-save (plstore)
-  "Save the contents of PLSTORE associated with a FILE."
+  "Save PLSTORE to its associated file.
+Save with symmetric encryption or public key encryption depending
+on `plstore-encrypt-to'.  If `plstore-encrypt-to' is non-nil but
+none of the recipients from `plstore-encrypt-to' matches any
+GnuPG key, silently save with symmetric encryption." ; (FIXME)
   (with-current-buffer (plstore--get-buffer plstore)
     (erase-buffer)
     (plstore--insert-buffer plstore)
     (save-buffer)))
 
+;;; plstore mode.
+
+;; The functions related to plstore mode unfortunately introduce yet
+;; another alist format ("decoded alist").  After executing the "foo",
+;; "bar", "baz" example from above the decoded alist of the plstore
+;; would look like the following:
+;;
+;;   (("foo" :host "foo.example.org" :port 80)
+;;    ("bar" :secret-user "test" :host "bar.example.org")
+;;    ("baz" :secret-password "test" :host "baz.example.org"))
+;;
+;; Even more unfortunately, variable and function names of the
+;; following are a bit mixed up IMHO: With the current names, the
+;; result of function `plstore--encode' is used to create what is
+;; presented as "decoded form of a plstore" to the user.  And variable
+;; `plstore-encoded' is non-nil if a buffer shows the decoded form.
+
 (defun plstore--encode (plstore)
+  "Return the printed representation of the decoded alist of PLSTORE."
   (plstore--decrypt plstore)
   (let ((merged-alist (plstore--get-merged-alist plstore)))
     (concat "("
@@ -482,6 +665,9 @@ If no one is selected, symmetric encryption will be performed.  "
 	    ")")))
 
 (defun plstore--decode (string)
+  "Create a plstore instance from STRING.
+STRING should be the printed representation of a decoded alist of
+some plstore."
   (let* ((alist (car (read-from-string string)))
 	 (pointer alist)
 	 secret-alist
@@ -489,7 +675,7 @@ If no one is selected, symmetric encryption will be performed.  "
 	 entry)
     (while pointer
       (unless (stringp (car (car pointer)))
-	(error "Invalid PLSTORE format %s" string))
+	(error "Invalid plstore format %s" string))
       (setq plist (cdr (car pointer)))
       (while plist
 	(when (string-match "\\`:secret-" (symbol-name (car plist)))
@@ -509,6 +695,10 @@ If no one is selected, symmetric encryption will be performed.  "
     (plstore--make nil alist nil secret-alist)))
 
 (defun plstore--write-contents-functions ()
+  "Convert the decoded form of a plstore in the current buffer.
+Convert it to the regular file representation of a plstore if
+needed.  This function is used on hook `write-contents-functions'
+in plstore mode buffers."
   (when plstore-encoded
     (let ((store (plstore--decode (buffer-string)))
 	  (file (buffer-file-name)))
@@ -546,7 +736,7 @@ If no one is selected, symmetric encryption will be performed.  "
       (erase-buffer)
       (insert
        (substitute-command-keys "\
-;;; You are looking at the decoded form of the PLSTORE file.\n\
+;;; You are looking at the decoded form of the plstore file.\n\
 ;;; To see the original form content, do \\[plstore-mode-toggle-display]\n\n"))
       (insert (plstore--encode store))
       (set-buffer-modified-p nil)
@@ -561,7 +751,7 @@ If no one is selected, symmetric encryption will be performed.  "
 
 ;;;###autoload
 (define-derived-mode plstore-mode emacs-lisp-mode "PLSTORE"
-  "Major mode for editing PLSTORE files."
+  "Major mode for editing plstore files."
   (make-local-variable 'plstore-encoded)
   (add-hook 'write-contents-functions #'plstore--write-contents-functions)
   (define-key plstore-mode-map "\C-c\C-c" #'plstore-mode-toggle-display)

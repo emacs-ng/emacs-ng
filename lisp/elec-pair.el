@@ -153,7 +153,7 @@ return value is considered instead."
   :type '(choice (set (const :tag "Space" ?\s)
                       (const :tag "Tab" ?\t)
                       (const :tag "Newline" ?\n))
-                 (list character)))
+                 (repeat (character :value " "))))
 
 (defvar-local electric-pair-skip-whitespace-function
   #'electric-pair--skip-whitespace
@@ -161,6 +161,20 @@ return value is considered instead."
 Before attempting a skip, if `electric-pair-skip-whitespace' is
 non-nil, this function is called.  It move point to a new buffer
 position, presumably skipping only whitespace in between.")
+
+(defun electric-pair-analyze-conversion (string)
+  "Notice that STRING has been deleted by an input method.
+If the last character of STRING is an electric pair character,
+and the character after point is too, then delete that other
+character."
+  (let* ((prev (aref string (1- (length string))))
+         (next (char-after))
+         (syntax-info (electric-pair-syntax-info prev))
+         (syntax (car syntax-info))
+         (pair (cadr syntax-info)))
+    (when (and next pair (memq syntax '(?\( ?\" ?\$))
+               (eq pair next))
+      (delete-char 1))))
 
 (defun electric-pair--skip-whitespace ()
   "Skip whitespace forward, not crossing comment or string boundaries."
@@ -439,7 +453,9 @@ happened."
        ;; position some markers.  The real fix would be to compute the
        ;; result without having to modify the buffer at all.
        (atomic-change-group
-         (delete-char -1)
+         ;; Don't use `delete-char'; that may modify the head of the
+         ;; undo list.
+         (delete-region (point) (1- (point)))
          (throw
           'done
           (cond ((eq ?\( syntax)

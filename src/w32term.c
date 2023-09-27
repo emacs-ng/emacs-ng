@@ -3412,7 +3412,7 @@ w32_construct_mouse_wheel (struct input_event *result, W32Msg *msg,
 	    ((double)FRAME_LINE_HEIGHT (f) * scroll_unit)
 	    / ((double)WHEEL_DELTA / delta);
       nlines = value_to_report / FRAME_LINE_HEIGHT (f) + 0.5;
-      result->arg = list3 (make_fixnum (nlines),
+      result->arg = list3 (make_fixnum (eabs (nlines)),
 			   make_float (0.0),
 			   make_float (value_to_report));
     }
@@ -7378,7 +7378,7 @@ w32_initialize_display_info (Lisp_Object display_name)
     {
       static char const at[] = " at ";
       ptrdiff_t nbytes = sizeof (title) + sizeof (at);
-      if (INT_ADD_WRAPV (nbytes, SCHARS (Vsystem_name), &nbytes))
+      if (ckd_add (&nbytes, nbytes, SCHARS (Vsystem_name)))
 	memory_full (SIZE_MAX);
       dpyinfo->w32_id_name = xmalloc (nbytes);
       sprintf (dpyinfo->w32_id_name, "%s%s%s", title, at, SDATA (Vsystem_name));

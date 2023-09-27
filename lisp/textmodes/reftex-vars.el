@@ -1156,7 +1156,7 @@ immediately offer the correct label menu - otherwise it will prompt you for
 a label type.  If you set this variable to nil, RefTeX will always prompt."
   :group 'reftex-referencing-labels
   :type 'boolean)
-;;;###autoload(put 'reftex-guess-label-type 'safe-local-variable (lambda (x) (memq x '(nil t))))
+;;;###autoload(put 'reftex-guess-label-type 'safe-local-variable #'booleanp)
 
 (defcustom reftex-format-ref-function nil
   "Function which produces the string to insert as a reference.
@@ -1933,7 +1933,6 @@ The value of this variable will only have any effect when
 
 (defcustom reftex-use-fonts t
   "Non-nil means, use fonts in *toc* and selection buffers.
-Font-lock must be loaded as well to actually get fontified display.
 When changing this option, a rescan may be necessary to activate the change."
   :group 'reftex-fontification-configurations
   :type 'boolean)

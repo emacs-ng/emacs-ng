@@ -51,6 +51,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #  define HAVE_GNUTLS_ETM_STATUS
 # endif
 
+# if GNUTLS_VERSION_NUMBER >= 0x030401
+#  define HAVE_GNUTLS_KEYID_USE_SHA256
+# endif
+
 # if GNUTLS_VERSION_NUMBER < 0x030600
 #  define HAVE_GNUTLS_COMPRESSION_GET
 # endif
@@ -1083,8 +1087,8 @@ gnutls_hex_string (unsigned char *buf, ptrdiff_t buf_size, const char *prefix)
 {
   ptrdiff_t prefix_length = strlen (prefix);
   ptrdiff_t retlen;
-  if (INT_MULTIPLY_WRAPV (buf_size, 3, &retlen)
-      || INT_ADD_WRAPV (prefix_length - (buf_size != 0), retlen, &retlen))
+  if (ckd_mul (&retlen, buf_size, 3)
+      || ckd_add (&retlen, retlen, prefix_length - (buf_size != 0)))
     string_overflow ();
   Lisp_Object ret = make_uninit_string (retlen);
   char *string = SSDATA (ret);
@@ -1277,6 +1281,23 @@ emacs_gnutls_certificate_details (gnutls_x509_crt_t cert)
 				  gnutls_hex_string (buf, buf_size, "sha1:")));
       xfree (buf);
     }
+
+#ifdef HAVE_GNUTLS_KEYID_USE_SHA256
+  /* Public key ID, SHA-256 version. */
+  buf_size = 0;
+  err = gnutls_x509_crt_get_key_id (cert, GNUTLS_KEYID_USE_SHA256, NULL, &buf_size);
+  check_memory_full (err);
+  if (err == GNUTLS_E_SHORT_MEMORY_BUFFER)
+    {
+      void *buf = xmalloc (buf_size);
+      err = gnutls_x509_crt_get_key_id (cert, GNUTLS_KEYID_USE_SHA256, buf, &buf_size);
+      check_memory_full (err);
+      if (err >= GNUTLS_E_SUCCESS)
+	res = nconc2 (res, list2 (intern (":public-key-id-sha256"),
+				  gnutls_hex_string (buf, buf_size, "sha256:")));
+      xfree (buf);
+    }
+#endif
 
   /* Certificate fingerprint. */
   buf_size = 0;
@@ -2378,7 +2399,7 @@ gnutls_symmetric_aead (bool encrypting, gnutls_cipher_algorithm_t gca,
 
   ptrdiff_t cipher_tag_size = gnutls_cipher_get_tag_size (gca);
   ptrdiff_t tagged_size;
-  if (INT_ADD_WRAPV (isize, cipher_tag_size, &tagged_size)
+  if (ckd_add (&tagged_size, isize, cipher_tag_size)
       || SIZE_MAX < tagged_size)
     memory_full (SIZE_MAX);
   size_t storage_length = tagged_size;

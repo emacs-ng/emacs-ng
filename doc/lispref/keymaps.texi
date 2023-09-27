@@ -90,7 +90,7 @@ Manual}.
 (kbd "C-x C-f") @result{} "\C-x\C-f"
 (kbd "C-x 4 C-f") @result{} "\C-x4\C-f"
 (kbd "X") @result{} "X"
-(kbd "RET") @result{} "\^M"
+(kbd "RET") @result{} "^M"
 (kbd "C-c SPC") @result{} "\C-c@ "
 (kbd "<f1> SPC") @result{} [f1 32]
 (kbd "C-M-<down>") @result{} [C-M-down]
@@ -1338,7 +1338,7 @@ Used in keymaps to undefine keys.  It calls @code{ding}, but does
 not cause an error.
 @end deffn
 
-@defun keymap-local-binding key &optional accept-defaults
+@defun keymap-local-lookup key &optional accept-defaults
 This function returns the binding for @var{key} in the current
 local keymap, or @code{nil} if it is undefined there.
 
@@ -1346,7 +1346,7 @@ The argument @var{accept-defaults} controls checking for default bindings,
 as in @code{keymap-lookup} (above).
 @end defun
 
-@defun keymap-global-binding key &optional accept-defaults
+@defun keymap-global-lookup key &optional accept-defaults
 This function returns the binding for command @var{key} in the
 current global keymap, or @code{nil} if it is undefined there.
 
@@ -2044,6 +2044,15 @@ to turn the character that follows into a Hyper character:
 @end group
 @end example
 
+@cindex accessing events within a key translation function
+@vindex current-key-remap-sequence
+A key translation function might want to adjust its behavior based on
+parameters to events within a key sequence containing non-key events
+(@pxref{Input Events}.)  This information is available from the
+variable @code{current-key-remap-sequence}, which is bound to the key
+sub-sequence being translated around calls to key translation
+functions.
+
 @subsection Interaction with normal keymaps
 
 The end of a key sequence is detected when that key sequence either is bound
@@ -2070,7 +2079,16 @@ problematic suffixes/prefixes are @kbd{@key{ESC}}, @kbd{M-O} (which is really
 @section Commands for Binding Keys
 
   This section describes some convenient interactive interfaces for
-changing key bindings.  They work by calling @code{keymap-set}.
+changing key bindings.  They work by calling @code{keymap-set}
+(@pxref{Changing Key Bindings}).  In interactive use, these commands
+prompt for the argument @var{key} and expect the user to type a valid
+key sequence; they also prompt for the @var{binding} of the key
+sequence, and expect the name of a command (i.e., a symbol that
+satisfies @code{commandp}, @pxref{Interactive Call}).  When called
+from Lisp, these commands expect @var{key} to be a string that
+satisfies @code{key-valid-p} (@pxref{Key Sequences}), and
+@var{binding} to be any Lisp object that is meaningful in a keymap
+(@pxref{Key Lookup}).
 
   People often use @code{keymap-global-set} in their init files
 (@pxref{Init File}) for simple customization.  For example,
@@ -2497,7 +2515,8 @@ get a non-selectable menu item.  This is mostly useful when creating
 separator lines and the like.
 
 The tail of the list, @var{item-property-list}, has the form of a
-property list which contains other information.
+property list (@pxref{Property Lists}) which contains other
+information.
 
   Here is a table of the properties that are supported:
 
@@ -2578,6 +2597,12 @@ function should return the binding to use instead.
 Emacs can call this function at any time that it does redisplay or
 operates on menu data structures, so you should write it so it can
 safely be called at any time.
+
+@item :wrap @var{wrap-p}
+If @var{wrap-p} is non-nil inside a tool bar, the menu item is not
+displayed, but instead causes subsequent items to be displayed on a
+new line.  This is not supported when Emacs uses the GTK+ or Nextstep
+toolkits.
 @end table
 
 @node Menu Separators
@@ -3084,6 +3109,16 @@ specifies the local map to make the definition in.  The argument
 @code{tool-bar-add-item-from-menu}.
 @end defun
 
+@vindex secondary-tool-bar-map
+In addition to the tool bar items defined in @code{tool-bar-map},
+Emacs also supports displaying an additional row of ``secondary'' tool
+bar items specified in the keymap @code{secondary-tool-bar-map}.
+These items are normally displayed below those defined within
+@code{tool-bar-map} if the tool bar is positioned at the top of its
+frame, but are displayed above them if the tool bar is positioned at
+the bottom (@pxref{Layout Parameters}.)  They are not displayed if the
+tool bar is positioned at the left or right of a frame.
+
 @defvar auto-resize-tool-bars
 If this variable is non-@code{nil}, the tool bar automatically resizes to
 show all defined tool bar items---but not larger than a quarter of the
@@ -3162,14 +3197,15 @@ the menu.  To put it elsewhere in the menu, use @code{keymap-set-after}:
 
 @defun keymap-set-after map key binding &optional after
 Define a binding in @var{map} for @var{key}, with value @var{binding},
-just like @code{define-key}, but position the binding in @var{map} after
-the binding for the event @var{after}.  The argument @var{key} should
-represent a single menu item or key, and @var{after} should be a
-single event type---a symbol or a character, not a sequence.  The new
-binding goes after the binding for @var{after}.  If @var{after} is
-@code{t} or is omitted, then the new binding goes last, at the end of
-the keymap.  However, new bindings are added before any inherited
-keymap.
+just like @code{keymap-set} (@pxref{Changing Key Bindings}), but
+position the binding in @var{map} after the binding for the event
+@var{after}.  The argument @var{key} should represent a single menu
+item or key, and should satisfy @code{key-valid-p} (@pxref{Key
+Sequences}).  @var{after} should be a single event type---a symbol or
+a character, not a sequence.  The new binding goes after the binding
+for @var{after}.  If @var{after} is @code{t} or is omitted, then the
+new binding goes last, at the end of the keymap.  However, new
+bindings are added before any inherited keymap.
 
 Here is an example:
 

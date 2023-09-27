@@ -798,13 +798,6 @@ typedef int (*Emacs_XIOErrorHandler) (Display *);
 #define USE_CAIRO_XCB_SURFACE
 #endif
 
-/* Default to using XIM if available.  */
-#ifdef USE_XIM
-bool use_xim = true;
-#else
-bool use_xim = false;  /* configure --without-xim */
-#endif
-
 #if XCB_SHAPE_MAJOR_VERSION > 1	      \
   || (XCB_SHAPE_MAJOR_VERSION == 1 && \
       XCB_SHAPE_MINOR_VERSION >= 1)
@@ -1174,7 +1167,7 @@ static struct terminal *x_create_terminal (struct x_display_info *);
 static void x_frame_rehighlight (struct x_display_info *);
 
 static void x_clip_to_row (struct window *, struct glyph_row *,
-			   enum glyph_row_area, GC);
+			   enum glyph_row_area, GC, XRectangle *);
 static struct scroll_bar *x_window_to_scroll_bar (Display *, Window, int);
 static struct frame *x_window_to_frame (struct x_display_info *, int);
 static void x_scroll_bar_report_motion (struct frame **, Lisp_Object *,
@@ -1221,6 +1214,8 @@ static void x_set_input_focus (struct x_display_info *, Window, Time);
 #ifndef USE_TOOLKIT_SCROLL_BARS
 static void x_scroll_bar_redraw (struct scroll_bar *);
 #endif
+
+
 
 /* Global state maintained during a drag-and-drop operation.  */
 
@@ -1549,6 +1544,8 @@ static struct x_client_list_window *x_dnd_toplevels;
 /* Whether or not the window manager supports the required features
    for `x_dnd_toplevels' to work.  */
 static bool x_dnd_use_toplevels;
+
+
 
 /* Motif drag-and-drop protocol support.  */
 
@@ -2322,13 +2319,10 @@ xm_setup_dnd_targets (struct x_display_info *dpyinfo,
 	  target_count = header.target_list_count;
 	  rc = false;
 
-	  if (INT_ADD_WRAPV (header.target_list_count, 1,
-			     &header.target_list_count)
-	      || INT_MULTIPLY_WRAPV (ntargets, 4, &size)
-	      || INT_ADD_WRAPV (header.total_data_size, size,
-				&header.total_data_size)
-	      || INT_ADD_WRAPV (header.total_data_size, 2,
-				&header.total_data_size))
+	  if (ckd_add (&header.target_list_count, header.target_list_count, 1)
+	      || ckd_mul (&size, ntargets, 4)
+	      || ckd_add (&header.total_data_size, header.total_data_size, size)
+	      || ckd_add (&header.total_data_size, header.total_data_size, 2))
 	    {
 	      /* Overflow, remove every entry from the targets table
 		 and add one for our current targets list.  This
@@ -2924,6 +2918,11 @@ x_dnd_send_xm_leave_for_drop (struct x_display_info *dpyinfo,
 				     wdesc, &lmsg);
 }
 
+
+
+/* Drag-and-drop and XDND protocol primitives employed by the event
+   loop.  */
+
 static void
 x_dnd_free_toplevels (bool display_alive)
 {
@@ -3269,9 +3268,10 @@ x_dnd_compute_toplevels (struct x_display_info *dpyinfo)
       if (!xm_property_reply)
 	free (error);
 
-      extent_property_reply = xcb_get_property_reply (dpyinfo->xcb_connection,
-						      extent_property_cookies[i],
-						      &error);
+      extent_property_reply
+	= xcb_get_property_reply (dpyinfo->xcb_connection,
+				  extent_property_cookies[i],
+				  &error);
 
       if (!extent_property_reply)
 	free (error);
@@ -3352,7 +3352,8 @@ x_dnd_compute_toplevels (struct x_display_info *dpyinfo)
 #else
 	  if (xm_property_reply
 	      && xm_property_reply->format == 8
-	      && xm_property_reply->type == dpyinfo->Xatom_MOTIF_DRAG_RECEIVER_INFO
+	      && (xm_property_reply->type
+		  == dpyinfo->Xatom_MOTIF_DRAG_RECEIVER_INFO)
 	      && xcb_get_property_value_length (xm_property_reply) >= 4)
 	    {
 	      xmdata = xcb_get_property_value (xm_property_reply);
@@ -3401,9 +3402,10 @@ x_dnd_compute_toplevels (struct x_display_info *dpyinfo)
 		  XFree (rects);
 		}
 #else
-	      bounding_rect_reply = xcb_shape_get_rectangles_reply (dpyinfo->xcb_connection,
-								    bounding_rect_cookies[i],
-								    &error);
+	      bounding_rect_reply
+		= xcb_shape_get_rectangles_reply (dpyinfo->xcb_connection,
+						  bounding_rect_cookies[i],
+						  &error);
 
 	      if (bounding_rect_reply)
 		{
@@ -3414,7 +3416,8 @@ x_dnd_compute_toplevels (struct x_display_info *dpyinfo)
 						 * sizeof *tem->bounding_rects);
 		  tem->n_bounding_rects = 0;
 
-		  for (; bounding_rect_iterator.rem; xcb_rectangle_next (&bounding_rect_iterator))
+		  for (; bounding_rect_iterator.rem;
+		       xcb_rectangle_next (&bounding_rect_iterator))
 		    {
 		      tem->bounding_rects[tem->n_bounding_rects].x
 			= bounding_rect_iterator.data->x;
@@ -3439,9 +3442,10 @@ x_dnd_compute_toplevels (struct x_display_info *dpyinfo)
 		  || (dpyinfo->xshape_major == 1
 		      && dpyinfo->xshape_minor >= 1))
 		{
-		  input_rect_reply = xcb_shape_get_rectangles_reply (dpyinfo->xcb_connection,
-								     input_rect_cookies[i],
-								     &error);
+		  input_rect_reply
+		    = xcb_shape_get_rectangles_reply (dpyinfo->xcb_connection,
+						      input_rect_cookies[i],
+						      &error);
 
 		  if (input_rect_reply)
 		    {
@@ -3452,7 +3456,8 @@ x_dnd_compute_toplevels (struct x_display_info *dpyinfo)
 						  * sizeof *tem->input_rects);
 		      tem->n_input_rects = 0;
 
-		      for (; input_rect_iterator.rem; xcb_rectangle_next (&input_rect_iterator))
+		      for (; input_rect_iterator.rem;
+			   xcb_rectangle_next (&input_rect_iterator))
 			{
 			  tem->input_rects[tem->n_input_rects].x
 			    = input_rect_iterator.data->x;
@@ -3519,17 +3524,25 @@ x_dnd_compute_toplevels (struct x_display_info *dpyinfo)
 	  if (tem->n_input_rects == -1
 	      && tem->n_bounding_rects == 1
 #ifdef USE_XCB
-	      && tem->bounding_rects[0].width == (geometry_reply->width
-						  + geometry_reply->border_width)
-	      && tem->bounding_rects[0].height == (geometry_reply->height
-						   + geometry_reply->border_width)
-	      && tem->bounding_rects[0].x == -geometry_reply->border_width
-	      && tem->bounding_rects[0].y == -geometry_reply->border_width
+	      && (tem->bounding_rects[0].width
+		  == (geometry_reply->width
+		      + geometry_reply->border_width))
+	      && (tem->bounding_rects[0].height
+		  == (geometry_reply->height
+		      + geometry_reply->border_width))
+	      && (tem->bounding_rects[0].x
+		  == -geometry_reply->border_width)
+	      && (tem->bounding_rects[0].y
+		  == -geometry_reply->border_width)
 #else
-	      && tem->bounding_rects[0].width == attrs.width + attrs.border_width
-	      && tem->bounding_rects[0].height == attrs.height + attrs.border_width
-	      && tem->bounding_rects[0].x == -attrs.border_width
-	      && tem->bounding_rects[0].y == -attrs.border_width
+	      && (tem->bounding_rects[0].width
+		  == attrs.width + attrs.border_width)
+	      && (tem->bounding_rects[0].height
+		  == attrs.height + attrs.border_width)
+	      && (tem->bounding_rects[0].x
+		  == -attrs.border_width)
+	      && (tem->bounding_rects[0].y
+		  == -attrs.border_width)
 #endif
 	      )
 	    {
@@ -3552,9 +3565,10 @@ x_dnd_compute_toplevels (struct x_display_info *dpyinfo)
 #ifdef HAVE_XCB_SHAPE
 	  if (dpyinfo->xshape_supported_p)
 	    {
-	      bounding_rect_reply = xcb_shape_get_rectangles_reply (dpyinfo->xcb_connection,
-								    bounding_rect_cookies[i],
-								    &error);
+	      bounding_rect_reply
+		= xcb_shape_get_rectangles_reply (dpyinfo->xcb_connection,
+						  bounding_rect_cookies[i],
+						  &error);
 
 	      if (bounding_rect_reply)
 		free (bounding_rect_reply);
@@ -3569,9 +3583,10 @@ x_dnd_compute_toplevels (struct x_display_info *dpyinfo)
 		  || (dpyinfo->xshape_major == 1
 		      && dpyinfo->xshape_minor >= 1)))
 	    {
-	      input_rect_reply = xcb_shape_get_rectangles_reply (dpyinfo->xcb_connection,
-								 input_rect_cookies[i],
-								 &error);
+	      input_rect_reply
+		= xcb_shape_get_rectangles_reply (dpyinfo->xcb_connection,
+						  input_rect_cookies[i],
+						  &error);
 
 	      if (input_rect_reply)
 		free (input_rect_reply);
@@ -3794,8 +3809,10 @@ x_dnd_get_target_window_1 (struct x_display_info *dpyinfo,
 	      if (tem->n_input_rects == -1
 		  || x_dnd_get_target_window_2 (tem->input_rects,
 						tem->n_input_rects,
-						tem->border_width + root_x - tem->x,
-						tem->border_width + root_y - tem->y))
+						(tem->border_width
+						 + root_x - tem->x),
+						(tem->border_width
+						 + root_y - tem->y)))
 		{
 		  chosen = tem;
 		  break;
@@ -3882,11 +3899,12 @@ x_dnd_get_wm_state_and_proto (struct x_display_info *dpyinfo,
 					(xcb_window_t) window,
 					(xcb_atom_t) dpyinfo->Xatom_XdndProxy,
 					XA_WINDOW, 0, 1);
-  xm_style_cookie = xcb_get_property (dpyinfo->xcb_connection, 0,
-				      (xcb_window_t) window,
-				      (xcb_atom_t) dpyinfo->Xatom_MOTIF_DRAG_RECEIVER_INFO,
-				      (xcb_atom_t) dpyinfo->Xatom_MOTIF_DRAG_RECEIVER_INFO,
-				      0, 4);
+  xm_style_cookie
+    = xcb_get_property (dpyinfo->xcb_connection, 0,
+			(xcb_window_t) window,
+			(xcb_atom_t) dpyinfo->Xatom_MOTIF_DRAG_RECEIVER_INFO,
+			(xcb_atom_t) dpyinfo->Xatom_MOTIF_DRAG_RECEIVER_INFO,
+			0, 4);
 
   reply = xcb_get_property_reply (dpyinfo->xcb_connection,
 				  wmstate_cookie, &error);
@@ -4930,6 +4948,11 @@ x_dnd_cleanup_drag_and_drop (void *frame)
   x_restore_events_after_dnd (f, &x_dnd_old_window_attrs);
 }
 
+
+
+/* Primitives for simplified drag-and-drop tracking when items are
+   being dragged between frames comprising the same Emacs session.  */
+
 static void
 x_dnd_note_self_position (struct x_display_info *dpyinfo, Window target,
 			  unsigned short root_x, unsigned short root_y)
@@ -5060,6 +5083,10 @@ x_dnd_note_self_drop (struct x_display_info *dpyinfo, Window target,
   kbd_buffer_store_event (&ie);
 }
 
+
+
+/* Miscellaneous X event and graphics extension functions.  */
+
 /* Flush display of frame F.  */
 
 static void
@@ -5144,28 +5171,9 @@ record_event (char *locus, int type)
 
 #endif
 
-#ifdef HAVE_XINPUT2
-bool
-xi_frame_selected_for (struct frame *f, unsigned long event)
-{
-  XIEventMask *masks;
-  int i;
+
 
-  masks = FRAME_X_OUTPUT (f)->xi_masks;
-
-  if (!masks)
-    return false;
-
-  for (i = 0; i < FRAME_X_OUTPUT (f)->num_xi_masks; ++i)
-    {
-      if (masks[i].mask_len >= XIMaskLen (event)
-	  && XIMaskIsSet (masks[i].mask, event))
-	return true;
-    }
-
-  return false;
-}
-#endif
+/* Miscelaneous event handling functions.  */
 
 static void
 x_toolkit_position (struct frame *f, int x, int y,
@@ -5310,10 +5318,36 @@ x_extension_initialize (struct x_display_info *dpyinfo)
 
 #endif /* HAVE_CAIRO */
 
+
+
+/* X input extension device and event mask management functions.  */
+
 #ifdef HAVE_XINPUT2
+
+bool
+xi_frame_selected_for (struct frame *f, unsigned long event)
+{
+  XIEventMask *masks;
+  int i;
+
+  masks = FRAME_X_OUTPUT (f)->xi_masks;
+
+  if (!masks)
+    return false;
+
+  for (i = 0; i < FRAME_X_OUTPUT (f)->num_xi_masks; ++i)
+    {
+      if (masks[i].mask_len >= XIMaskLen (event)
+	  && XIMaskIsSet (masks[i].mask, event))
+	return true;
+    }
+
+  return false;
+}
 
 /* Convert XI2 button state IN to a standard X button modifier
    mask, and place it in OUT.  */
+
 static void
 xi_convert_button_state (XIButtonState *in, unsigned int *out)
 {
@@ -5335,7 +5369,7 @@ xi_convert_button_state (XIButtonState *in, unsigned int *out)
 
 #ifdef USE_GTK
 static
-#endif
+#endif /* USE_GTK */
 unsigned int
 xi_convert_event_state (XIDeviceEvent *xev)
 {
@@ -5361,12 +5395,13 @@ xi_convert_event_keyboard_state (XIDeviceEvent *xev)
 }
 
 /* Free all XI2 devices on DPYINFO.  */
+
 static void
 x_free_xi_devices (struct x_display_info *dpyinfo)
 {
 #ifdef HAVE_XINPUT2_2
   struct xi_touch_point_t *tem, *last;
-#endif
+#endif /* HAVE_XINPUT2_2 */
 
   block_input ();
 
@@ -5376,7 +5411,7 @@ x_free_xi_devices (struct x_display_info *dpyinfo)
 	{
 #ifdef HAVE_XINPUT2_1
 	  xfree (dpyinfo->devices[i].valuators);
-#endif
+#endif /* HAVE_XINPUT2_1 */
 
 #ifdef HAVE_XINPUT2_2
 	  tem = dpyinfo->devices[i].touchpoints;
@@ -5386,7 +5421,7 @@ x_free_xi_devices (struct x_display_info *dpyinfo)
 	      tem = tem->next;
 	      xfree (last);
 	    }
-#endif
+#endif /* HAVE_XINPUT2_2 */
 	}
 
       xfree (dpyinfo->devices);
@@ -5451,7 +5486,7 @@ xi_populate_scroll_valuator (struct xi_device_t *device,
   valuator->number = info->number;
 }
 
-#endif
+#endif /* HAVE_XINPUT2_1 */
 
 static void
 xi_populate_device_from_info (struct x_display_info *dpyinfo,
@@ -5463,14 +5498,14 @@ xi_populate_device_from_info (struct x_display_info *dpyinfo,
   int actual_valuator_count, c;
   XIScrollClassInfo *info;
   XIValuatorClassInfo *valuator_info;
-#endif
+#endif /* HAVE_XINPUT2_1 */
 #ifdef HAVE_XINPUT2_2
   XITouchClassInfo *touch_info;
-#endif
+#endif /* HAVE_XINPUT2_2 */
 
 #ifdef HAVE_XINPUT2_1
   USE_SAFE_ALLOCA;
-#endif
+#endif /* HAVE_XINPUT2_1 */
 
   /* Initialize generic information about the device: its ID, which
      buttons are currently pressed and thus presumably actively
@@ -5507,12 +5542,24 @@ xi_populate_device_from_info (struct x_display_info *dpyinfo,
      no input.
 
      The device attachment is a device ID whose meaning varies
-     depending on the device use.  If the device is a master device,
-     then the attachment is the device ID of the other device in its
-     seat (the master keyboard for master pointer devices, and vice
-     versa).  Otherwise, it is the ID of the master device the slave
+     depending on the device's use.  If a device is a master device,
+     then its attachment is the device ID of the other device in its
+     seat (the master keyboard for master pointer devices and vice
+     versa.)  Otherwise, it is the ID of the master device the slave
      device is attached to.  For slave devices not attached to any
-     seat, its value is undefined.  */
+     seat, its value is undefined.
+
+     Emacs receives ordinary pointer and keyboard events from the
+     master devices associated with each seat, discarding events from
+     slave devices.  However, multiplexing events from touch devices
+     onto a master device poses problems: if both dependent and direct
+     touch devices are attached to the same master pointer device, the
+     coordinate space of touch events sent from that seat becomes
+     ambiguous.  In addition, the X server does not send TouchEnd
+     events to cancel ongoing touch sequences if the slave device that
+     is their source is detached.  As a result of these ambiguities,
+     touch events are processed from and recorded onto their slave
+     devices instead.  */
 
   xi_device->device_id = device->deviceid;
   xi_device->grab = 0;
@@ -5526,7 +5573,7 @@ xi_populate_device_from_info (struct x_display_info *dpyinfo,
 #ifdef HAVE_XINPUT2_2
   xi_device->touchpoints = NULL;
   xi_device->direct_p = false;
-#endif
+#endif /* HAVE_XINPUT2_1 */
 
 #ifdef HAVE_XINPUT2_1
   if (!dpyinfo->xi2_version)
@@ -5592,9 +5639,34 @@ xi_populate_device_from_info (struct x_display_info *dpyinfo,
 	case XITouchClass:
 	  {
 	    touch_info = (XITouchClassInfo *) device->classes[c];
-	    xi_device->direct_p = touch_info->mode == XIDirectTouch;
+
+	    /* touch_info->mode indicates the coordinate space that
+	       this device reports in its touch events.
+
+	       DirectTouch means that the device uses a coordinate
+	       space that corresponds to locations on the screen.  It
+	       is set by touch screen devices which are overlaid
+	       over the raster itself.
+
+	       The other value (DependentTouch) means that the device
+	       uses a separate abstract coordinate space corresponding
+	       to its own surface.  Emacs ignores events from these
+	       devices because it does not support recognizing touch
+	       gestures from surfaces other than the screen.
+
+	       Master devices may report multiple touch classes for
+	       attached slave devices, leaving the nature of touch
+	       events they send ambiguous.  The problem of
+	       discriminating between these events is bypassed
+	       entirely through only processing touch events from the
+	       slave devices where they originate.  */
+
+	    if (touch_info->mode == XIDirectTouch)
+	      xi_device->direct_p = true;
+	    else
+	      xi_device->direct_p = false;
 	  }
-#endif
+#endif /* HAVE_XINPUT2_2 */
 	default:
 	  break;
 	}
@@ -5621,7 +5693,7 @@ xi_populate_device_from_info (struct x_display_info *dpyinfo,
     }
 
   SAFE_FREE ();
-#endif
+#endif /* HAVE_XINPUT2_1 */
 }
 
 /* Populate our client-side record of all devices, which includes
@@ -5752,6 +5824,10 @@ xi_device_from_id (struct x_display_info *dpyinfo, int deviceid)
 
 #ifdef HAVE_XINPUT2_2
 
+/* Record a touch sequence with the identifier DETAIL from the given
+   FRAME on the specified DEVICE.  Round X and Y and record them as
+   its current position.  */
+
 static void
 xi_link_touch_point (struct xi_device_t *device,
 		     int detail, double x, double y,
@@ -5761,19 +5837,28 @@ xi_link_touch_point (struct xi_device_t *device,
 
   touchpoint = xmalloc (sizeof *touchpoint);
   touchpoint->next = device->touchpoints;
-  touchpoint->x = x;
-  touchpoint->y = y;
+  touchpoint->x = lrint (x);
+  touchpoint->y = lrint (y);
   touchpoint->number = detail;
   touchpoint->frame = frame;
+  touchpoint->ownership = TOUCH_OWNERSHIP_NONE;
 
   device->touchpoints = touchpoint;
 }
 
-static bool
-xi_unlink_touch_point (int detail,
-		       struct xi_device_t *device)
+/* Free and remove the touch sequence with the identifier DETAIL.
+   DEVICE is the device in which the touch sequence should be
+   recorded.
+
+   Value is 0 if no touch sequence by that identifier exists inside
+   DEVICE, 1 if a touch sequence has been found but is not owned by
+   Emacs, and 2 otherwise.  */
+
+static int
+xi_unlink_touch_point (int detail, struct xi_device_t *device)
 {
   struct xi_touch_point_t *last, *tem;
+  enum xi_touch_ownership ownership;
 
   for (last = NULL, tem = device->touchpoints; tem;
        last = tem, tem = tem->next)
@@ -5785,12 +5870,17 @@ xi_unlink_touch_point (int detail,
 	  else
 	    last->next = tem->next;
 
+	  ownership = tem->ownership;
 	  xfree (tem);
-	  return true;
+
+	  if (ownership == TOUCH_OWNERSHIP_SELF)
+	    return 2;
+
+	  return 1;
 	}
     }
 
-  return false;
+  return 0;
 }
 
 /* Unlink all touch points associated with the frame F.
@@ -5822,6 +5912,10 @@ xi_unlink_touch_points (struct frame *f)
 	}
     }
 }
+
+/* Return the data associated with a touch sequence DETAIL recorded by
+   `xi_link_touch_point' from DEVICE, or NULL if it can't be
+   found.  */
 
 static struct xi_touch_point_t *
 xi_find_touch_point (struct xi_device_t *device, int detail)
@@ -5868,8 +5962,12 @@ xi_reset_scroll_valuators_for_device_id (struct x_display_info *dpyinfo,
 }
 
 #endif /* HAVE_XINPUT2_1 */
+#endif /* HAVE_XINPUT2 */
 
-#endif
+
+
+/* Cairo context, X rendering extension, and GC auxiliary data
+   management functions.  */
 
 #ifdef USE_CAIRO
 
@@ -6355,6 +6453,7 @@ x_cr_export_frames (Lisp_Object frames, cairo_surface_type_t surface_type)
 #endif	/* USE_CAIRO */
 
 #if defined HAVE_XRENDER
+
 void
 x_xr_apply_ext_clip (struct frame *f, GC gc)
 {
@@ -6378,7 +6477,8 @@ x_xr_reset_ext_clip (struct frame *f)
 			FRAME_X_PICTURE (f),
 			CPClipMask, &attrs);
 }
-#endif
+
+#endif /* HAVE_XRENDER */
 
 static void
 x_set_clip_rectangles (struct frame *f, GC gc, XRectangle *rectangles, int n)
@@ -6582,6 +6682,9 @@ x_fill_rectangle (struct frame *f, GC gc, int x, int y, int width, int height,
 #endif
 }
 
+
+
+/* Graphics primitives.  */
 
 static void
 x_clear_rectangle (struct frame *f, GC gc, int x, int y, int width, int height,
@@ -6874,6 +6977,8 @@ x_set_frame_alpha (struct frame *f)
   x_stop_ignoring_errors (dpyinfo);
 }
 
+
+
 /***********************************************************************
 		    Starting and ending an update
  ***********************************************************************/
@@ -6949,8 +7054,7 @@ x_sync_get_monotonic_time (struct x_display_info *dpyinfo,
     return 0;
 
   uint_fast64_t t;
-  return (INT_SUBTRACT_WRAPV (timestamp, dpyinfo->server_time_offset, &t)
-	  ? 0 : t);
+  return ckd_sub (&t, timestamp, dpyinfo->server_time_offset) ? 0 : t;
 }
 
 # ifndef CLOCK_MONOTONIC
@@ -6968,8 +7072,8 @@ x_sync_current_monotonic_time (void)
   return (((clock_gettime (CLOCK_MONOTONIC, &time) != 0
 	    && (CLOCK_MONOTONIC == CLOCK_REALTIME
 		|| clock_gettime (CLOCK_REALTIME, &time) != 0))
-	   || INT_MULTIPLY_WRAPV (time.tv_sec, 1000000, &t)
-	   || INT_ADD_WRAPV (t, time.tv_nsec / 1000, &t))
+	   || ckd_mul (&t, time.tv_sec, 1000000)
+	   || ckd_add (&t, t, time.tv_nsec / 1000))
 	  ? 0 : t);
 }
 
@@ -6990,8 +7094,7 @@ x_sync_note_frame_times (struct x_display_info *dpyinfo,
   time = x_sync_get_monotonic_time (dpyinfo, low | (high << 32));
 
   if (!time || !output->temp_frame_time
-      || INT_SUBTRACT_WRAPV (time, output->temp_frame_time,
-			     &output->last_frame_time))
+      || ckd_sub (&output->last_frame_time, time, output->temp_frame_time))
     output->last_frame_time = 0;
 
 #ifdef FRAME_DEBUG
@@ -7571,6 +7674,8 @@ XTbuffer_flipping_unblocked_hook (struct frame *f)
 }
 #endif
 
+
+
 /**
  * x_clear_under_internal_border:
  *
@@ -7586,14 +7691,16 @@ x_clear_under_internal_border (struct frame *f)
       int width = FRAME_PIXEL_WIDTH (f);
       int height = FRAME_PIXEL_HEIGHT (f);
       int margin = FRAME_TOP_MARGIN_HEIGHT (f);
-      int face_id =
-	(FRAME_PARENT_FRAME (f)
-	 ? (!NILP (Vface_remapping_alist)
-	    ? lookup_basic_face (NULL, f, CHILD_FRAME_BORDER_FACE_ID)
-	    : CHILD_FRAME_BORDER_FACE_ID)
-	 : (!NILP (Vface_remapping_alist)
-	    ? lookup_basic_face (NULL, f, INTERNAL_BORDER_FACE_ID)
-	    : INTERNAL_BORDER_FACE_ID));
+      int bottom_margin = FRAME_BOTTOM_MARGIN_HEIGHT (f);
+      int face_id = (FRAME_PARENT_FRAME (f)
+		     ? (!NILP (Vface_remapping_alist)
+			? lookup_basic_face (NULL, f,
+					     CHILD_FRAME_BORDER_FACE_ID)
+			: CHILD_FRAME_BORDER_FACE_ID)
+		     : (!NILP (Vface_remapping_alist)
+			? lookup_basic_face (NULL, f,
+					     INTERNAL_BORDER_FACE_ID)
+			: INTERNAL_BORDER_FACE_ID));
       struct face *face = FACE_FROM_ID_OR_NULL (f, face_id);
 
       if (face)
@@ -7606,7 +7713,8 @@ x_clear_under_internal_border (struct frame *f)
 	  x_fill_rectangle (f, gc, 0, margin, width, border, false);
 	  x_fill_rectangle (f, gc, 0, 0, border, height, false);
 	  x_fill_rectangle (f, gc, width - border, 0, border, height, false);
-	  x_fill_rectangle (f, gc, 0, height - border, width, border, false);
+	  x_fill_rectangle (f, gc, 0, height - bottom_margin - border,
+			    width, border, false);
 	  XSetForeground (display, gc, FRAME_FOREGROUND_PIXEL (f));
 	}
       else
@@ -7614,7 +7722,8 @@ x_clear_under_internal_border (struct frame *f)
 	  x_clear_area (f, 0, 0, border, height);
 	  x_clear_area (f, 0, margin, width, border);
 	  x_clear_area (f, width - border, 0, border, height);
-	  x_clear_area (f, 0, height - border, width, border);
+	  x_clear_area (f, 0, height - bottom_margin - border,
+			width, border);
 	}
     }
 }
@@ -7733,9 +7842,10 @@ x_draw_fringe_bitmap (struct window *w, struct glyph_row *row,
   Display *display = FRAME_X_DISPLAY (f);
   GC gc = f->output_data.x->normal_gc;
   struct face *face = p->face;
+  XRectangle clip_rect;
 
   /* Must clip because of partially visible lines.  */
-  x_clip_to_row (w, row, ANY_AREA, gc);
+  x_clip_to_row (w, row, ANY_AREA, gc, &clip_rect);
 
   if (p->bx >= 0 && !p->overlay_p)
     {
@@ -7805,6 +7915,29 @@ x_draw_fringe_bitmap (struct window *w, struct glyph_row *row,
 
       memset (&attrs, 0, sizeof attrs);
 #endif
+      XRectangle image_rect, dest;
+      int px, py, pwidth, pheight;
+
+      /* Intersect the destination rectangle with that of the row.
+	 Setting a clip mask overrides the clip rectangles provided by
+	 x_clip_to_row, so clipping must be performed by hand.  */
+
+      image_rect.x = p->x;
+      image_rect.y = p->y;
+      image_rect.width = p->wd;
+      image_rect.height = p->h;
+
+      if (!gui_intersect_rectangles (&clip_rect, &image_rect, &dest))
+	/* The entire destination rectangle falls outside the row.  */
+	goto undo_clip;
+
+      /* Extrapolate the source rectangle from the difference between
+	 the destination and image rectangles.  */
+
+      px = dest.x - image_rect.x;
+      py = dest.y - image_rect.y;
+      pwidth = dest.width;
+      pheight = dest.height;
 
       if (p->wd > 8)
 	bits = (char *) (p->bits + p->dh);
@@ -7876,15 +8009,16 @@ x_draw_fringe_bitmap (struct window *w, struct glyph_row *row,
 	  x_xr_apply_ext_clip (f, gc);
 	  XRenderComposite (display, PictOpSrc, picture,
 			    None, FRAME_X_PICTURE (f),
-			    0, 0, 0, 0, p->x, p->y, p->wd, p->h);
+			    px, py, px, py, dest.x, dest.y,
+			    pwidth, pheight);
 	  x_xr_reset_ext_clip (f);
 
 	  XRenderFreePicture (display, picture);
 	}
       else
 #endif
-	XCopyArea (display, pixmap, drawable, gc, 0, 0,
-		   p->wd, p->h, p->x, p->y);
+	XCopyArea (display, pixmap, drawable, gc, px, py,
+		   pwidth, pheight, dest.x, dest.y);
       XFreePixmap (display, pixmap);
 
       if (p->overlay_p)
@@ -7894,6 +8028,8 @@ x_draw_fringe_bitmap (struct window *w, struct glyph_row *row,
 	  XFreePixmap (display, clipmask);
 	}
     }
+
+  undo_clip:
 #endif  /* not USE_CAIRO */
 
   x_reset_clip_rectangles (f, gc);
@@ -7967,7 +8103,7 @@ x_display_set_last_user_time (struct x_display_info *dpyinfo, Time time,
 
       dpyinfo->server_time_monotonic_p
 	= (monotonic_time != 0
-	   && !INT_SUBTRACT_WRAPV (time, monotonic_ms, &diff_ms)
+	   && !ckd_sub (&diff_ms, time, monotonic_ms)
 	   && -500 < diff_ms && diff_ms < 500);
 
       if (!dpyinfo->server_time_monotonic_p)
@@ -7976,10 +8112,9 @@ x_display_set_last_user_time (struct x_display_info *dpyinfo, Time time,
 	     time to estimate the monotonic time on the X server.  */
 
 	  if (!monotonic_time
-	      || INT_MULTIPLY_WRAPV (time, 1000, &dpyinfo->server_time_offset)
-	      || INT_SUBTRACT_WRAPV (dpyinfo->server_time_offset,
-				     monotonic_time,
-				     &dpyinfo->server_time_offset))
+	      || ckd_mul (&dpyinfo->server_time_offset, time, 1000)
+	      || ckd_sub (&dpyinfo->server_time_offset,
+			  dpyinfo->server_time_offset, monotonic_time))
 	    dpyinfo->server_time_offset = 0;
 
 	  /* If the server time is reasonably close to the monotonic
@@ -7988,18 +8123,18 @@ x_display_set_last_user_time (struct x_display_info *dpyinfo, Time time,
 	     actual time in ms.  */
 
 	  monotonic_ms = monotonic_ms & 0xffffffff;
-	  if (!INT_SUBTRACT_WRAPV (time, monotonic_ms, &diff_ms)
+	  if (!ckd_sub (&diff_ms, time, monotonic_ms)
 	      && -500 < diff_ms && diff_ms < 500)
 	    {
 	      /* The server timestamp overflowed.  Make the time
 		 offset exactly how much it overflowed by.  */
 
-	      if (INT_SUBTRACT_WRAPV (monotonic_time / 1000, monotonic_ms,
-				      &dpyinfo->server_time_offset)
-		  || INT_MULTIPLY_WRAPV (dpyinfo->server_time_offset,
-					 1000, &dpyinfo->server_time_offset)
-		  || INT_SUBTRACT_WRAPV (0, dpyinfo->server_time_offset,
-					 &dpyinfo->server_time_offset))
+	      if (ckd_sub (&dpyinfo->server_time_offset,
+			   monotonic_time / 1000, monotonic_ms)
+		  || ckd_mul (&dpyinfo->server_time_offset,
+			      dpyinfo->server_time_offset, 1000)
+		  || ckd_sub (&dpyinfo->server_time_offset,
+			      0, dpyinfo->server_time_offset))
 		dpyinfo->server_time_offset = 0;
 	    }
 	}
@@ -11331,7 +11466,8 @@ XTflash (struct frame *f)
       XFillRectangle (FRAME_X_DISPLAY (f), FRAME_X_WINDOW (f), gc,
 		      flash_left,
 		      (height - flash_height
-		       - FRAME_INTERNAL_BORDER_WIDTH (f)),
+		       - FRAME_INTERNAL_BORDER_WIDTH (f)
+		       - FRAME_BOTTOM_MARGIN_HEIGHT (f)),
 		      width, flash_height);
 
     }
@@ -11385,7 +11521,8 @@ XTflash (struct frame *f)
       XFillRectangle (FRAME_X_DISPLAY (f), FRAME_X_WINDOW (f), gc,
 		      flash_left,
 		      (height - flash_height
-		       - FRAME_INTERNAL_BORDER_WIDTH (f)),
+		       - FRAME_INTERNAL_BORDER_WIDTH (f)
+		       - FRAME_BOTTOM_MARGIN_HEIGHT (f)),
 		      width, flash_height);
     }
   else
@@ -13060,6 +13197,12 @@ x_dnd_begin_drag_and_drop (struct frame *f, Time time, Atom xaction,
 
 #ifdef HAVE_XINPUT2
 
+/* Disable per-device keyboard focus tracking within X toolkit and GTK
+   2.x builds, given that these builds receive updates to the keyboard
+   input focus as core events.  */
+
+#if !defined USE_X_TOOLKIT && (!defined USE_GTK || defined HAVE_GTK3)
+
 /* Since the input extension assigns a keyboard focus to each master
    device, there is no longer a 1:1 correspondence between the
    selected frame and the focus frame immediately after the keyboard
@@ -13271,6 +13414,8 @@ xi_focus_handle_for_device (struct x_display_info *dpyinfo,
   xi_handle_focus_change (dpyinfo);
 }
 
+#endif /* !USE_X_TOOLKIT && (!USE_GTK || HAVE_GTK3) */
+
 static void
 xi_handle_delete_frame (struct x_display_info *dpyinfo,
 			struct frame *f)
@@ -13299,6 +13444,7 @@ xi_handle_interaction (struct x_display_info *dpyinfo,
 		       struct frame *f, struct xi_device_t *device,
 		       Time time)
 {
+#if !defined USE_X_TOOLKIT && (!defined USE_GTK || defined HAVE_GTK3)
   bool change;
 
   /* If DEVICE is a pointer, use its attached keyboard device.  */
@@ -13325,6 +13471,7 @@ xi_handle_interaction (struct x_display_info *dpyinfo,
   /* If F isn't currently focused, update the focus state.  */
   if (change && f != dpyinfo->x_focus_frame)
     xi_handle_focus_change (dpyinfo);
+#endif /* !USE_X_TOOLKIT && (!USE_GTK || HAVE_GTK3) */
 }
 
 /* Return whether or not XEV actually represents a change in the
@@ -13428,7 +13575,7 @@ xi_handle_new_classes (struct x_display_info *dpyinfo, struct xi_device_t *devic
   device->scroll_valuator_count = 0;
 #ifdef HAVE_XINPUT2_2
   device->direct_p = false;
-#endif
+#endif /* HAVE_XINPUT2_2 */
 
   for (i = 0; i < num_classes; ++i)
     {
@@ -13446,10 +13593,34 @@ xi_handle_new_classes (struct x_display_info *dpyinfo, struct xi_device_t *devic
 	case XITouchClass:
 	  touch = (XITouchClassInfo *) classes[i];
 
+	  /* touch_info->mode indicates the coordinate space that this
+	     device reports in its touch events.
+
+	     DirectTouch means that the device uses a coordinate space
+	     that corresponds to locations on the screen.  It is set
+	     by touch screen devices which are overlaid over the
+	     raster itself.
+
+	     The other value (DependentTouch) means that the device
+	     uses a separate abstract coordinate space corresponding
+	     to its own surface.  Emacs ignores events from these
+	     devices because it does not support recognizing touch
+	     gestures from surfaces other than the screen.
+
+	     Master devices may report multiple touch classes for
+	     attached slave devices, leaving the nature of touch
+	     events they send ambiguous.  The problem of
+	     discriminating between these events is bypassed entirely
+	     through only processing touch events from the slave
+	     devices where they originate.  */
+
 	  if (touch->mode == XIDirectTouch)
 	    device->direct_p = true;
+	  else
+	    device->direct_p = false;
+
 	  break;
-#endif
+#endif /* HAVE_XINPUT2_2 */
 	}
     }
 
@@ -13487,7 +13658,7 @@ xi_handle_new_classes (struct x_display_info *dpyinfo, struct xi_device_t *devic
     }
 }
 
-#endif
+#endif /* HAVE_XINPUT2_1 */
 
 /* Handle EVENT, a DeviceChanged event.  Look up the device that
    changed, and update its information with the data in EVENT.  */
@@ -20064,15 +20235,24 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 #ifdef HAVE_XKB
 	      int overflow;
 	      unsigned int consumed;
+	      KeySym sym;
 
 	      if (dpyinfo->xkb_desc)
 		{
+		  /* Translate the keycode into the keysym it
+		     represents, using STATE.  CONSUMED is set to the
+		     modifier bits consumed while undertaking this
+		     translation and should be subsequently ignored
+		     during keysym translation.  */
+
 		  if (!XkbTranslateKeyCode (dpyinfo->xkb_desc,
 					    xkey.keycode, xkey.state,
 					    &consumed, &keysym))
 		    goto done_keysym;
 
-		  overflow = 0;
+		  /* Save the original keysym in case
+		     XkbTranslateKeysym overflows.  */
+		  sym = keysym, overflow = 0;
 
 		  nbytes = XkbTranslateKeySym (dpyinfo->display, &keysym,
 					       xkey.state & ~consumed,
@@ -20084,7 +20264,11 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		      copy_bufptr = SAFE_ALLOCA ((copy_bufsiz += overflow)
 						 * sizeof *copy_bufptr);
 		      overflow = 0;
-		      nbytes = XkbTranslateKeySym (dpyinfo->display, &keysym,
+
+		      /* Use the original keysym derived from the
+			 keycode translation in this second call to
+			 XkbTranslateKeysym.  */
+		      nbytes = XkbTranslateKeySym (dpyinfo->display, &sym,
 						   xkey.state & ~consumed,
 						   (char *) copy_bufptr,
 						   copy_bufsiz, &overflow);
@@ -20110,6 +20294,24 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	      goto done_keysym;
 	    }
 #endif
+
+	  /* See if keysym should make Emacs quit.  */
+
+	  if (keysym == dpyinfo->quit_keysym
+	      && (xkey.time - dpyinfo->quit_keysym_time
+		  <= 350))
+	    {
+	      Vquit_flag = Qt;
+	      goto done_keysym;
+	    }
+
+	  if (keysym == dpyinfo->quit_keysym)
+	    {
+	      /* Otherwise, set the last time that keysym was
+		 pressed.  */
+	      dpyinfo->quit_keysym_time = xkey.time;
+	      goto done_keysym;
+	    }
 
           /* If not using XIM/XIC, and a compose sequence is in progress,
              we break here.  Otherwise, chars_matched is always 0.  */
@@ -20410,6 +20612,14 @@ handle_one_xevent (struct x_display_info *dpyinfo,
       }
 #endif
 
+      /* Apply the fix for bug#57468 on GTK 3.x and no toolkit builds,
+	 but not GTK+ 2.x and X toolkit builds, where it is required
+	 to treat implicit focus correctly.  (bug#65919) */
+#if defined USE_X_TOOLKIT || (defined USE_GTK && !defined HAVE_GTK3)
+      if (x_top_window_to_frame (dpyinfo, event->xcrossing.window))
+	x_detect_focus_change (dpyinfo, any, event, &inev.ie);
+#endif /* defined USE_X_TOOLKIT || (defined USE_GTK && !defined HAVE_GTK3) */
+
 #ifdef HAVE_XINPUT2
       /* For whatever reason, the X server continues to deliver
 	 EnterNotify and LeaveNotify events despite us selecting for
@@ -20420,10 +20630,14 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
       if (dpyinfo->supports_xi2)
 	goto OTHER;
-#endif
+#endif /* HAVE_XINPUT2 */
 
+      /* Apply the fix for bug#57468 on GTK 3.x and no toolkit
+	 builds.  */
+#if !defined USE_X_TOOLKIT || (!defined USE_GTK || defined HAVE_GTK3)
       if (x_top_window_to_frame (dpyinfo, event->xcrossing.window))
 	x_detect_focus_change (dpyinfo, any, event, &inev.ie);
+#endif /* !defined USE_X_TOOLKIT || (!defined USE_GTK || defined HAVE_GTK3) */
 
       f = any;
 
@@ -20484,8 +20698,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	 https://lists.gnu.org/archive/html/emacs-devel/2017-02/msg00133.html.
 	 That is fixed above but bites us here again.
 
-	 The option x_set_frame_visibility_more_laxly allows to override
-	 the default behavior (Bug#49955, Bug#53298).  */
+	 The option x_set_frame_visibility_more_laxly enables
+	 overriding the default behavior (Bug#49955, Bug#53298).  */
       if (EQ (x_set_frame_visibility_more_laxly, Qfocus_in)
 	  || EQ (x_set_frame_visibility_more_laxly, Qt))
 #endif /* USE_GTK */
@@ -20508,6 +20722,14 @@ handle_one_xevent (struct x_display_info *dpyinfo,
       x_display_set_last_user_time (dpyinfo, event->xcrossing.time,
 				    event->xcrossing.send_event, false);
 
+      /* Apply the fix for bug#57468 on GTK 3.x and no toolkit builds,
+	 but not GTK+ 2.x and X toolkit builds, where it is required
+	 to treat implicit focus correctly.  */
+#if defined USE_X_TOOLKIT || (defined USE_GTK && !defined HAVE_GTK3)
+      if (x_top_window_to_frame (dpyinfo, event->xcrossing.window))
+	x_detect_focus_change (dpyinfo, any, event, &inev.ie);
+#endif /* defined USE_X_TOOLKIT || (defined USE_GTK && !defined HAVE_GTK3) */
+
 #ifdef HAVE_XINPUT2
       /* For whatever reason, the X server continues to deliver
 	 EnterNotify and LeaveNotify events despite us selecting for
@@ -20520,7 +20742,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	{
 #if !defined USE_X_TOOLKIT && (!defined USE_GTK || defined HAVE_GTK3)
 	  goto OTHER;
-#else
+#else /* USE_X_TOOLKIT || (USE_GTK && !HAVE_GTK3) */
 	  /* Unfortunately, X toolkit popups generate LeaveNotify
 	     events due to the core grabs they acquire (and our
 	     releasing of the device grab).  This leads to the mouse
@@ -20529,9 +20751,16 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	     outside the frame, in which case no XI_Enter event is
 	     generated for the grab.  */
 	  goto just_clear_mouse_face;
-#endif
+#endif /* !USE_X_TOOLKIT && (!USE_GTK || HAVE_GTK3) */
 	}
-#endif
+#endif /* HAVE_XINPUT2 */
+
+      /* Apply the fix for bug#57468 on GTK 3.x and no toolkit
+	 builds.  */
+#if !defined USE_X_TOOLKIT || (!defined USE_GTK || defined HAVE_GTK3)
+      if (x_top_window_to_frame (dpyinfo, event->xcrossing.window))
+	x_detect_focus_change (dpyinfo, any, event, &inev.ie);
+#endif /* !defined USE_X_TOOLKIT || (!defined USE_GTK || defined HAVE_GTK3) */
 
 #ifdef HAVE_XWIDGETS
       {
@@ -20546,9 +20775,6 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	  }
       }
 #endif
-
-      if (x_top_window_to_frame (dpyinfo, event->xcrossing.window))
-	x_detect_focus_change (dpyinfo, any, event, &inev.ie);
 
 #if defined HAVE_XINPUT2						\
   && (defined USE_X_TOOLKIT || (defined USE_GTK && !defined HAVE_GTK3))
@@ -21178,14 +21404,28 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	x_cr_update_surface_desired_size (any,
 					  configureEvent.xconfigure.width,
 					  configureEvent.xconfigure.height);
-      if (f || (any && configureEvent.xconfigure.window == FRAME_X_WINDOW (any)))
-	x_update_opaque_region (f ? f : any, &configureEvent);
 #endif
+
+#if !defined USE_X_TOOLKIT && !defined USE_GTK
+
+      /* Make the new size of the frame its opaque region.  This is a
+	 region describing areas of the window which are always
+	 guaranteed to be completely opaque and can be treated as such
+	 by the compositor.  It is set to the width and height of the
+	 only window in no-toolkit builds when `alpha_background' is
+	 not set, and is cleared otherwise.  */
+
+      if (f || (any && configureEvent.xconfigure.window
+		== FRAME_OUTER_WINDOW (any)))
+	x_update_opaque_region (f ? f : any, &configureEvent);
+
+#endif /* !defined USE_X_TOOLKIT && !defined USE_GTK */
+
 #ifdef USE_GTK
       if (!f
 	  && (f = any)
 	  && configureEvent.xconfigure.window == FRAME_X_WINDOW (f)
-	  && (FRAME_VISIBLE_P(f)
+	  && (FRAME_VISIBLE_P (f)
 	      || !(configureEvent.xconfigure.width <= 1
 		   && configureEvent.xconfigure.height <= 1)))
         {
@@ -21212,10 +21452,9 @@ handle_one_xevent (struct x_display_info *dpyinfo,
           f = 0;
 	}
 #endif
-      if (f
-	  && (FRAME_VISIBLE_P(f)
-	      || !(configureEvent.xconfigure.width <= 1
-		   && configureEvent.xconfigure.height <= 1)))
+      if (f && (FRAME_VISIBLE_P (f)
+		|| !(configureEvent.xconfigure.width <= 1
+		     && configureEvent.xconfigure.height <= 1)))
 	{
 #ifdef USE_GTK
 	  /* For GTK+ don't call x_net_wm_state for the scroll bar
@@ -21904,6 +22143,10 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
 	switch (event->xcookie.evtype)
 	  {
+	    /* XI focus events aren't employed under X toolkit or GTK+
+	       2.x because windows created by these two toolkits are
+	       incompatible with input extension focus events.  */
+#if !defined USE_X_TOOLKIT && (!defined USE_GTK || defined HAVE_GTK3)
 	  case XI_FocusIn:
 	    {
 	      XIFocusInEvent *focusin;
@@ -21913,17 +22156,19 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
 #ifdef USE_GTK
 	      /* Some WMs (e.g. Mutter in Gnome Shell), don't unmap
-		 minimized/iconified windows; thus, for those WMs we won't get
-		 a MapNotify when unminimizing/deiconifying.  Check here if we
-		 are deiconizing a window (Bug42655).
+		 minimized/iconified windows; thus, for those WMs we
+		 won't get a MapNotify when unminimizing/deiconifying.
+		 Check here if we are deiconizing a window (Bug42655).
 
-		 But don't do that by default on GTK since it may cause a plain
-		 invisible frame get reported as iconified, compare
+		 But don't do that by default on GTK since it may
+		 cause a plain invisible frame get reported as
+		 iconified, compare
 		 https://lists.gnu.org/archive/html/emacs-devel/2017-02/msg00133.html.
 		 That is fixed above but bites us here again.
 
-		 The option x_set_frame_visibility_more_laxly allows to override
-		 the default behavior (Bug#49955, Bug#53298).  */
+		 The option x_set_frame_visibility_more_laxly enables
+		 overriding the default behavior (Bug#49955,
+		 Bug#53298).  */
 	      if (EQ (x_set_frame_visibility_more_laxly, Qfocus_in)
 		  || EQ (x_set_frame_visibility_more_laxly, Qt))
 #endif /* USE_GTK */
@@ -21954,6 +22199,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
 	      goto XI_OTHER;
 	    }
+#endif /* !USE_X_TOOLKIT && (!USE_GTK || HAVE_GTK3) */
 
 	  case XI_Enter:
 	    {
@@ -21999,8 +22245,11 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		 passive focus from non-top windows at all, since they
 		 are an inferiors of the frame's top window, which will
 		 get virtual events.  */
+
+#if !defined USE_X_TOOLKIT && (!defined USE_GTK || defined HAVE_GTK3)
 	      if (any)
 		xi_focus_handle_for_device (dpyinfo, any, xi_event);
+#endif /* !USE_X_TOOLKIT && (!USE_GTK || HAVE_GTK3) */
 
 	      if (!any)
 		any = x_any_window_to_frame (dpyinfo, enter->event);
@@ -22180,8 +22429,10 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	      }
 #endif
 
+#if !defined USE_X_TOOLKIT && (!defined USE_GTK || defined HAVE_GTK3)
 	      if (any)
 		xi_focus_handle_for_device (dpyinfo, any, xi_event);
+#endif /* !USE_X_TOOLKIT && (!USE_GTK || HAVE_GTK3) */
 
 #ifndef USE_X_TOOLKIT
 	      f = x_top_window_to_frame (dpyinfo, leave->event);
@@ -23560,7 +23811,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	      Lisp_Object c;
 #ifdef HAVE_XKB
 	      unsigned int mods_rtrn;
-#endif
+#endif /* HAVE_XKB */
 	      int keycode = xev->detail;
 	      KeySym keysym;
 	      char copy_buffer[81];
@@ -23569,14 +23820,122 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	      ptrdiff_t i;
 	      unsigned int old_state;
 	      struct xi_device_t *device, *source;
+	      XKeyPressedEvent xkey;
 
 	      coding = Qlatin_1;
+
+	      /* The code under this label is quite desultory.  There
+		 are also several important discrepancies with the
+		 core KeyPress code to mind.
+
+		 There are three principal objectives:
+
+		 The first is to produce a core or GDK translation of
+	         this XI_KeyPress event, which is relayed to the
+	         toolkit.  This transpires by setting `copy' to a
+	         close copy of XEV, which is later copied or
+	         dispatched to the toolkit by the code beneath the
+	         OTHER label.
+
+	         The second objective is to filter the event through
+	         an input method, by generating a second copy of the
+	         event expressly tailored for such a purpose.  The
+	         core KeyPress code does not endeavor to do so;
+	         instead, this action is taken prior to calling
+	         handle_one_xevent.  Calls to `x_filter_event' or
+	         `xg_filter_key' serve to implement this objective.
+
+	         If the event is not removed by the input method's
+	         filter, the third objective is to establish either a
+	         keysym or a sequence of characters to insert, using
+	         the information supplied within the key event.
+
+	         When an input method connection is available, this
+	         responsibility is vested in the hands of the input
+	         method -- yet another copy of XEV as a core event is
+	         produced, and the input method is responsible for
+	         deriving a keysym or text to insert.
+
+	         Otherwise, if the XKB extension is available, calls
+	         are made to XkbTranslateKeyCode and
+	         XkbTranslateKeySym.
+
+	         And if all else fails, XEV is transformed into a core
+	         event and provided to XLookupString, in a manner
+	         analogous to the core event processing under the
+	         KeyPress label.
+
+	         A wide number of variables are employed during this
+	         translation process.  The most pertinent ones are:
+
+		 `copy'
+
+		   This variable is defined when an X toolkit
+		   incognizant of input extension events is being
+		   employed.  If a popup is active, Emacs copies
+		   fields of interest from the extension event to
+		   COPY, sets the `use_copy' flag, and jumps to the
+		   XI_OTHER label.  `copy' is then relayed to the
+		   toolkit.
+
+		 `xkey'
+
+		   This variable is defined to a copy of the event
+		   used by input methods or XLookupString at various
+		   points during the execution of this label.
+
+		 `coding'
+
+		   This variable is consulted at the conclusion of
+		   event generation, and holds the coding system
+		   for any generated string.
+
+		 `keysym'
+
+		   This variable is eventually set to the keysym tied
+		   to the event, which may be directly provided within
+		   a generated struct input_event, should it bear a
+		   direct relation to an ASCII or Unicode character,
+		   or if it is a control key.
+
+		 `copy_buffer', `copy_bufptr', `copy_bufsiz'
+
+		   These variables hold the buffer that incorporates
+		   characters generated during the keycode-to-keysym
+		   conversion process.
+
+		 `nbytes'
+
+		   Holds the number of characters within that buffer,
+		   in bytes.  These characters are encoded using the
+		   coding system in `coding'.
+
+		   If greater than 0 and KEYSYM does not immediately
+		   relate to a function key, control key or character,
+		   it is provided as the string to insert within a
+		   MULTIBYTE_CHAR_KEYSTROKE_EVENT.
+
+		 `state'
+
+		   Holds the keyboard and group (but not button)
+		   state.  After event filtering concludes, modifier
+		   bits within `extra_keyboard_modifiers' are also
+		   introduced.
+
+	         This illustration may reflect the treatment taken
+	         towards core key events to some degree.  */
 
 	      device = xi_device_from_id (dpyinfo, xev->deviceid);
 	      source = xi_device_from_id (dpyinfo, xev->sourceid);
 
 	      if (!device)
 		goto XI_OTHER;
+
+	      /* Convert the keyboard state within XEV to a core
+		 modifier mask, later supplied as arguments to XKB and
+		 core functions.  This encompasses the keyboard group
+		 and effective modifiers but not the button state.  */
+	      state = xi_convert_event_keyboard_state (xev);
 
 #if defined (USE_X_TOOLKIT) || defined (USE_GTK)
 	      /* Dispatch XI_KeyPress events when in menu.  */
@@ -23593,7 +23952,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		  copy.xkey.root = xev->root;
 		  copy.xkey.subwindow = xev->child;
 		  copy.xkey.time = xev->time;
-		  copy.xkey.state = xi_convert_event_keyboard_state (xev);
+		  copy.xkey.state = state;
 		  xi_convert_button_state (&xev->buttons, &copy.xkey.state);
 
 		  copy.xkey.x = lrint (xev->event_x);
@@ -23602,10 +23961,10 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		  copy.xkey.y_root = lrint (xev->root_y);
 		  copy.xkey.keycode = xev->detail;
 		  copy.xkey.same_screen = True;
-#endif
+#endif /* USE_LUCID */
 		  goto XI_OTHER;
 		}
-#endif
+#endif /* USE_X_TOOLKIT || USE_GTK */
 
 	      x_display_set_last_user_time (dpyinfo, xev->time,
 					    xev->send_event, true);
@@ -23625,7 +23984,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 #ifdef USE_GTK
 	      if (f)
 		x_set_gtk_user_time (f, xev->time);
-#endif
+#endif /* USE_GTK */
 
 	      if (f)
 		{
@@ -23637,7 +23996,9 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 					   xev->time);
 		}
 
-	      XKeyPressedEvent xkey;
+	      /* Convert the XI event into a core event structure
+		 provided to old Xlib functions and input method
+		 filter functions.  */
 
 	      memset (&xkey, 0, sizeof xkey);
 
@@ -23649,8 +24010,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	      xkey.root = xev->root;
 	      xkey.subwindow = xev->child;
 	      xkey.time = xev->time;
-	      xkey.state = xi_convert_event_keyboard_state (xev);
-
+	      xkey.state = state;
 	      xkey.x = lrint (xev->event_x);
 	      xkey.y = lrint (xev->event_y);
 	      xkey.x_root = lrint (xev->root_x);
@@ -23679,7 +24039,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		  *finish = X_EVENT_DROP;
 		  goto XI_OTHER;
 		}
-#else
+#else /* !USE_GTK */
 	      if (x_filter_event (dpyinfo, (XEvent *) &xkey))
 		{
 		  /* Try to attribute core key events from the input
@@ -23691,8 +24051,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		  *finish = X_EVENT_DROP;
 		  goto XI_OTHER;
 		}
-#endif
-#elif USE_GTK
+#endif /* HAVE_X_I18N */
+#elif USE_GTK /* && !HAVE_X_I18N */
 	      if ((x_gtk_use_native_input
 		   || dpyinfo->prefer_native_input)
 		  && xg_filter_key (any, event))
@@ -23706,40 +24066,9 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		  *finish = X_EVENT_DROP;
 		  goto XI_OTHER;
 		}
-#endif
+#endif /* HAVE_X_I18N || USE_GTK */
 
 	      state |= x_emacs_to_x_modifiers (dpyinfo, extra_keyboard_modifiers);
-
-#ifdef HAVE_XKB
-	      if (dpyinfo->xkb_desc)
-		{
-		  unsigned int xkb_state;
-
-		  xkb_state = state & ~(1 << 13 | 1 << 14);
-		  xkb_state |= xev->group.effective << 13;
-
-		  if (!XkbTranslateKeyCode (dpyinfo->xkb_desc, keycode,
-					    xkb_state, &mods_rtrn, &keysym))
-		    goto XI_OTHER;
-		}
-	      else
-		{
-#endif
-		  int keysyms_per_keycode_return;
-		  KeySym *ksms = XGetKeyboardMapping (dpyinfo->display, keycode, 1,
-						      &keysyms_per_keycode_return);
-		  if (!(keysym = ksms[0]))
-		    {
-		      XFree (ksms);
-		      goto XI_OTHER;
-		    }
-		  XFree (ksms);
-#ifdef HAVE_XKB
-		}
-#endif
-
-	      if (keysym == NoSymbol)
-		goto XI_OTHER;
 
 	      /* If mouse-highlight is an integer, input clears out
 		 mouse highlighting.  */
@@ -23747,7 +24076,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		  && (f == 0
 #if ! defined (USE_GTK)
 		      || !EQ (f->tool_bar_window, hlinfo->mouse_face_window)
-#endif
+#endif /* !USE_GTK */
 		      || !EQ (f->tab_bar_window, hlinfo->mouse_face_window))
 		  )
 		{
@@ -23768,7 +24097,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		     dialogs because in that case popup_activated is nonzero
 		     (see above).  */
 		  *finish = X_EVENT_DROP;
-#endif
+#endif /* USE_GTK */
 
 		  XSETFRAME (inev.ie.frame_or_window, f);
 		  inev.ie.timestamp = xev->time;
@@ -23805,25 +24134,54 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 			emacs_abort ();
 		    }
 		  else
-#endif
+#endif /* HAVE_X_I18N */
 		    {
 #ifdef HAVE_XKB
-		      int overflow = 0;
-		      KeySym sym = keysym;
-
 		      if (dpyinfo->xkb_desc)
 			{
-			  nbytes = XkbTranslateKeySym (dpyinfo->display, &sym,
-						       state & ~mods_rtrn, copy_bufptr,
-						       copy_bufsiz, &overflow);
+			  KeySym sym;
+			  int overflow;
+
+			  /* Translate the keycode into the keysym it
+			     represents, using STATE.  MODS_RTRN is
+			     set to the modifier bits consumed while
+			     undertaking this translation and should
+			     be subsequently ignored during keysym
+			     translation.  */
+
+			  if (!XkbTranslateKeyCode (dpyinfo->xkb_desc,
+						    keycode, state,
+						    &mods_rtrn, &keysym))
+			    goto xi_done_keysym;
+
+			  /* Save the original keysym in case
+			     XkbTranslateKeySym overflows.  */
+			  sym = keysym, overflow = 0;
+
+			  /* Translate this keysym and its modifier
+			     state into the actual symbol and string
+			     it represents.  */
+			  nbytes = XkbTranslateKeySym (dpyinfo->display,
+						       &keysym,
+						       state & ~mods_rtrn,
+						       copy_bufptr,
+						       copy_bufsiz,
+						       &overflow);
 			  if (overflow)
 			    {
-			      copy_bufptr = SAFE_ALLOCA ((copy_bufsiz += overflow)
-							 * sizeof *copy_bufptr);
+			      copy_bufptr
+				= SAFE_ALLOCA ((copy_bufsiz += overflow)
+					       * sizeof *copy_bufptr);
 			      overflow = 0;
-			      nbytes = XkbTranslateKeySym (dpyinfo->display, &sym,
-							   state & ~mods_rtrn, copy_bufptr,
-							   copy_bufsiz, &overflow);
+
+			      /* Use the original keysym derived from
+				 the keycode translation.  */
+			      nbytes = XkbTranslateKeySym (dpyinfo->display,
+							   &sym,
+							   state & ~mods_rtrn,
+							   copy_bufptr,
+							   copy_bufsiz,
+							   &overflow);
 
 			      if (overflow)
 				nbytes = 0;
@@ -23832,8 +24190,14 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 			  coding = Qnil;
 			}
 		      else
-#endif
+#endif /* HAVE_XKB */
 			{
+			  /* Save the state within XKEY, then remove
+			     all modifier keys Emacs understands from
+			     it, forestalling any attempt by
+			     XLookupString to introduce control
+			     characters.  */
+
 			  old_state = xkey.state;
 			  xkey.state &= ~ControlMask;
 			  xkey.state &= ~(dpyinfo->meta_mod_mask
@@ -23859,7 +24223,25 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		      x_dnd_xm_use_help = true;
 		      goto xi_done_keysym;
 		    }
-#endif
+#endif /* XK_F1 */
+
+		  /* See if keysym should make Emacs quit.  */
+
+		  if (keysym == dpyinfo->quit_keysym
+		      && (xev->time - dpyinfo->quit_keysym_time
+			  <= 350))
+		    {
+		      Vquit_flag = Qt;
+		      goto xi_done_keysym;
+		    }
+
+		  if (keysym == dpyinfo->quit_keysym)
+		    {
+		      /* Otherwise, set the last time that keysym was
+			 pressed.  */
+		      dpyinfo->quit_keysym_time = xev->time;
+		      goto xi_done_keysym;
+		    }
 
 		  /* First deal with keysyms which have defined
 		     translations to characters.  */
@@ -24121,9 +24503,11 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	      XIDeviceInfo *info;
 	      int i, ndevices, n_disabled, *disabled;
 	      struct xi_device_t *device;
+#if !defined USE_X_TOOLKIT && (!defined USE_GTK || defined HAVE_GTK3)
 	      bool any_changed;
 
 	      any_changed = false;
+#endif /* !USE_X_TOOLKIT && (!USE_GTK || HAVE_GTK3) */
 	      hev = (XIHierarchyEvent *) xi_event;
 	      disabled = SAFE_ALLOCA (sizeof *disabled * hev->num_info);
 	      n_disabled = 0;
@@ -24140,10 +24524,12 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 			  xi_disable_devices (dpyinfo, disabled, n_disabled);
 			  n_disabled = 0;
 
+#if !defined USE_X_TOOLKIT && (!defined USE_GTK || defined HAVE_GTK3)
 			  /* This flag really just means that disabled
 			     devices were handled early and should be
 			     used in conjunction with n_disabled.  */
 			  any_changed = true;
+#endif /* !USE_X_TOOLKIT && (!USE_GTK || HAVE_GTK3) */
 			}
 
 		      /* Under unknown circumstances, multiple
@@ -24210,12 +24596,14 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		 event.  */
 	      xi_disable_devices (dpyinfo, disabled, n_disabled);
 
+#if !defined USE_X_TOOLKIT && (!defined USE_GTK || defined HAVE_GTK3)
 	      /* If the device hierarchy has been changed, recompute
 		 focus.  This might seem like a micro-optimization but
 		 it actually keeps the focus from changing in some
 		 cases where it would be undesierable.  */
 	      if (any_changed || n_disabled)
 		xi_handle_focus_change (dpyinfo);
+#endif /* !USE_X_TOOLKIT && (!USE_GTK || HAVE_GTK3) */
 
 	      goto XI_OTHER;
 	    }
@@ -24253,7 +24641,13 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	      x_display_set_last_user_time (dpyinfo, xev->time,
 					    xev->send_event, true);
 
-	      if (!device)
+	      /* Don't process touch sequences from this device if
+	         it's a master pointer.  Touch sequences aren't
+	         canceled by the X server if a slave device is
+	         detached, and master pointers may also represent
+	         dependent touch devices.  */
+
+	      if (!device || device->use == XIMasterPointer)
 		goto XI_OTHER;
 
 	      if (xi_find_touch_point (device, xev->detail))
@@ -24410,27 +24804,75 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	      goto XI_OTHER;
 	    }
 
+	  case XI_TouchOwnership:
+	    {
+	      struct xi_device_t *device;
+	      struct xi_touch_point_t *touchpoint;
+	      XITouchOwnershipEvent *event;
+
+	      /* All grabbing clients have decided to reject ownership
+		 of this touch sequence.  */
+
+	      event  = (XITouchOwnershipEvent *) xi_event;
+	      device = xi_device_from_id (dpyinfo, event->deviceid);
+
+	      if (!device || device->use == XIMasterPointer)
+		goto XI_OTHER;
+
+	      touchpoint = xi_find_touch_point (device, event->touchid);
+
+	      if (!touchpoint)
+		goto XI_OTHER;
+
+	      /* As a result, Emacs should complete whatever editing
+		 operations result from this touch sequence.  */
+	      touchpoint->ownership = TOUCH_OWNERSHIP_SELF;
+
+	      goto XI_OTHER;
+	    }
+
 	  case XI_TouchUpdate:
 	    {
 	      struct xi_device_t *device, *source;
 	      struct xi_touch_point_t *touchpoint;
 	      Lisp_Object arg = Qnil;
 
+	      /* If flags & TouchPendingEnd, the touch sequence has
+		 already ended, but some grabbing clients remain
+		 undecided as to whether they will obtain ownership of
+		 the touch sequence.
+
+	         Wait for them to make their decision, resulting in
+	         TouchOwnership and TouchEnd events being sent.  */
+
+	      if (xev->flags & XITouchPendingEnd)
+		goto XI_OTHER;
+
 	      device = xi_device_from_id (dpyinfo, xev->deviceid);
 	      source = xi_device_from_id (dpyinfo, xev->sourceid);
 	      x_display_set_last_user_time (dpyinfo, xev->time,
 					    xev->send_event, true);
 
-	      if (!device)
+	      /* Don't process touch sequences from this device if
+	         it's a master pointer.  Touch sequences aren't
+	         canceled by the X server if a slave device is
+	         detached, and master pointers may also represent
+	         dependent touch devices.  */
+
+	      if (!device || device->use == XIMasterPointer)
 		goto XI_OTHER;
 
 	      touchpoint = xi_find_touch_point (device, xev->detail);
 
-	      if (!touchpoint)
+	      if (!touchpoint
+		  /* Don't send this event if nothing has changed
+		     either.  */
+		  || (touchpoint->x == lrint (xev->event_x)
+		      && touchpoint->y == lrint (xev->event_y)))
 		goto XI_OTHER;
 
-	      touchpoint->x = xev->event_x;
-	      touchpoint->y = xev->event_y;
+	      touchpoint->x = lrint (xev->event_x);
+	      touchpoint->y = lrint (xev->event_y);
 
 	      f = x_window_to_frame (dpyinfo, xev->event);
 
@@ -24444,8 +24886,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		       touchpoint; touchpoint = touchpoint->next)
 		    {
 		      if (touchpoint->frame == f)
-			arg = Fcons (list3i (lrint (touchpoint->x),
-					     lrint (touchpoint->y),
+			arg = Fcons (list3i (touchpoint->x, touchpoint->y,
 					     lrint (touchpoint->number)),
 				     arg);
 		    }
@@ -24462,19 +24903,25 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	  case XI_TouchEnd:
 	    {
 	      struct xi_device_t *device, *source;
-	      bool unlinked_p;
+	      int state;
 
 	      device = xi_device_from_id (dpyinfo, xev->deviceid);
 	      source = xi_device_from_id (dpyinfo, xev->sourceid);
 	      x_display_set_last_user_time (dpyinfo, xev->time,
 					    xev->send_event, true);
 
-	      if (!device)
+	      /* Don't process touch sequences from this device if
+	         it's a master pointer.  Touch sequences aren't
+	         canceled by the X server if a slave device is
+	         detached, and master pointers may also represent
+	         dependent touch devices.  */
+
+	      if (!device || device->use == XIMasterPointer)
 		goto XI_OTHER;
 
-	      unlinked_p = xi_unlink_touch_point (xev->detail, device);
+	      state = xi_unlink_touch_point (xev->detail, device);
 
-	      if (unlinked_p)
+	      if (state)
 		{
 		  f = x_window_to_frame (dpyinfo, xev->event);
 
@@ -24482,6 +24929,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		    {
 		      inev.ie.kind = TOUCHSCREEN_END_EVENT;
 		      inev.ie.timestamp = xev->time;
+		      inev.ie.modifiers = state != 2;
 
 		      XSETFRAME (inev.ie.frame_or_window, f);
 		      XSETINT (inev.ie.x, lrint (xev->event_x));
@@ -24537,7 +24985,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	      x_display_set_last_user_time (dpyinfo, pev->time,
 					    pev->send_event, true);
 
-	      if (!device)
+	      if (!device || device->use != XIMasterPointer)
 		goto XI_OTHER;
 
 #ifdef HAVE_XWIDGETS
@@ -25225,13 +25673,17 @@ XTread_socket (struct terminal *terminal, struct input_event *hold_quit)
 /* Set clipping for output in glyph row ROW.  W is the window in which
    we operate.  GC is the graphics context to set clipping in.
 
+   If RECT_RETURN is non-NULL, return the clip rectangle within
+   *RECT_RETURN.
+
    ROW may be a text row or, e.g., a mode line.  Text rows must be
    clipped to the interior of the window dedicated to text display,
    mode lines must be clipped to the whole window.  */
 
 static void
 x_clip_to_row (struct window *w, struct glyph_row *row,
-	       enum glyph_row_area area, GC gc)
+	       enum glyph_row_area area, GC gc,
+	       XRectangle *rect_return)
 {
   struct frame *f = XFRAME (WINDOW_FRAME (w));
   XRectangle clip_rect;
@@ -25246,6 +25698,9 @@ x_clip_to_row (struct window *w, struct glyph_row *row,
   clip_rect.height = row->visible_height;
 
   x_set_clip_rectangles (f, gc, &clip_rect, 1);
+
+  if (rect_return)
+    *rect_return = clip_rect;
 }
 
 
@@ -25294,7 +25749,7 @@ x_draw_hollow_cursor (struct window *w, struct glyph_row *row)
 	wd -= 1;
     }
   /* Set clipping, draw the rectangle, and reset clipping again.  */
-  x_clip_to_row (w, row, TEXT_AREA, gc);
+  x_clip_to_row (w, row, TEXT_AREA, gc, NULL);
   x_draw_rectangle (f, gc, x, y, wd, h - 1);
   x_reset_clip_rectangles (f, gc);
 }
@@ -25364,7 +25819,7 @@ x_draw_bar_cursor (struct window *w, struct glyph_row *row, int width, enum text
 	  FRAME_DISPLAY_INFO (f)->scratch_cursor_gc = gc;
 	}
 
-      x_clip_to_row (w, row, TEXT_AREA, gc);
+      x_clip_to_row (w, row, TEXT_AREA, gc, NULL);
 
       if (kind == BAR_CURSOR)
 	{
@@ -25842,10 +26297,12 @@ x_clean_failable_requests (struct x_display_info *dpyinfo)
 				    + (last - first));
 }
 
-/* Protect a section of X requests: ignore errors generated by X
-   requests made from now until `x_stop_ignoring_errors'.  Each call
-   must be paired with a call to `x_stop_ignoring_errors', and
-   recursive calls inside the protected section are not allowed.
+/* Protect a section of X requests.
+
+   Ignore errors generated by X requests made from now until
+   `x_stop_ignoring_errors'.  Each call must be paired with a call to
+   `x_stop_ignoring_errors', and recursive calls inside the protected
+   section are not allowed.
 
    The advantage over x_catch_errors followed by
    x_uncatch_errors_after_check is that this function does not sync to
@@ -25853,11 +26310,10 @@ x_clean_failable_requests (struct x_display_info *dpyinfo)
    those two functions for catching errors around requests that do not
    require a reply.
 
-   As a special feature intended to support xselect.c,
-   SELECTION_SERIAL may be an arbitrary number greater than zero: when
-   that is the case, x_select_handle_selection_error is called with
-   the specified number to delete the selection request that
-   encountered the error.  */
+   If SELECTION_SERIAL is an arbitrary number greater than zero,
+   x_select_handle_selection_error is called with the specified number
+   after any errors within the protected section are received to
+   delete the selection request that encountered errors.  */
 
 void
 x_ignore_errors_for_next_request (struct x_display_info *dpyinfo,
@@ -26139,7 +26595,7 @@ x_try_restore_frame (void)
 
   FOR_EACH_FRAME (tail, frame)
     {
-      if (!NILP (do_switch_frame (frame, 1, Qnil)))
+      if (!NILP (do_switch_frame (frame, 0, 1, Qnil)))
 	return;
     }
 }
@@ -26432,9 +26888,18 @@ x_error_handler (Display *display, XErrorEvent *event)
 
 	  /* If a selection transfer is the cause of this error,
 	     remove the selection transfer now.  */
+
 	  if (fail->selection_serial)
-	    x_handle_selection_error (fail->selection_serial,
-				      event);
+	    {
+	      x_handle_selection_error (fail->selection_serial,
+					event);
+
+	      /* Clear selection_serial to prevent
+		 x_handle_selection_error from being called again if
+		 any more requests within the protected section cause
+		 errors to be reported.  */
+	      fail->selection_serial = 0;
+	    }
 
 	  return 0;
 	}
@@ -26659,7 +27124,12 @@ xim_destroy_callback (XIM xim, XPointer client_data, XPointer call_data)
 
   /* No need to call XCloseIM.  */
   dpyinfo->xim = NULL;
-  XFree (dpyinfo->xim_styles);
+
+  /* Also free IM values; those are allocated separately upon
+     XGetIMValues.  */
+  if (dpyinfo->xim_styles)
+    XFree (dpyinfo->xim_styles);
+  dpyinfo->xim_styles = NULL;
   unblock_input ();
 }
 
@@ -26677,10 +27147,20 @@ xim_open_dpy (struct x_display_info *dpyinfo, char *resource_name)
   XIM xim;
   const char *locale;
 
-  if (use_xim)
+  if (dpyinfo->use_xim)
     {
       if (dpyinfo->xim)
-	XCloseIM (dpyinfo->xim);
+	{
+	  XCloseIM (dpyinfo->xim);
+
+	  /* Free values left over from the last time the IM
+	     connection was established.  */
+
+	  if (dpyinfo->xim_styles)
+	    XFree (dpyinfo->xim_styles);
+	  dpyinfo->xim_styles = NULL;
+	}
+
       xim = XOpenIM (dpyinfo->display, dpyinfo->rdb, resource_name,
 		     emacs_class);
       dpyinfo->xim = xim;
@@ -26709,7 +27189,6 @@ xim_open_dpy (struct x_display_info *dpyinfo, char *resource_name)
 					    build_string (locale));
 	}
     }
-
   else
 #endif /* HAVE_XIM */
     dpyinfo->xim = NULL;
@@ -26778,7 +27257,7 @@ xim_initialize (struct x_display_info *dpyinfo, char *resource_name)
 {
   dpyinfo->xim = NULL;
 #ifdef HAVE_XIM
-  if (use_xim)
+  if (dpyinfo->use_xim)
     {
 #ifdef HAVE_X11R6_XIM
       struct xim_inst_t *xim_inst = xmalloc (sizeof *xim_inst);
@@ -26787,15 +27266,19 @@ xim_initialize (struct x_display_info *dpyinfo, char *resource_name)
       dpyinfo->xim_callback_data = xim_inst;
       xim_inst->dpyinfo = dpyinfo;
       xim_inst->resource_name = xstrdup (resource_name);
-      ret = XRegisterIMInstantiateCallback
-	(dpyinfo->display, dpyinfo->rdb, xim_inst->resource_name,
-	 emacs_class, xim_instantiate_callback,
-	 /* This is XPointer in XFree86 but (XPointer *) on Tru64, at
-	    least, but the configure test doesn't work because
-	    xim_instantiate_callback can either be XIMProc or
-	    XIDProc, so just cast to void *.  */
-	 (void *) xim_inst);
-      eassert (ret == True);
+
+      /* The last argument is XPointer in XFree86 but (XPointer *) on
+	 Tru64, at least, but the configure test doesn't work because
+	 xim_instantiate_callback can either be XIMProc or XIDProc, so
+	 just cast to void *.  */
+
+      ret = XRegisterIMInstantiateCallback (dpyinfo->display,
+					    dpyinfo->rdb,
+					    xim_inst->resource_name,
+					    emacs_class,
+					    xim_instantiate_callback,
+					    (void *) xim_inst);
+      eassert (ret);
 #else /* not HAVE_X11R6_XIM */
       xim_open_dpy (dpyinfo, resource_name);
 #endif /* not HAVE_X11R6_XIM */
@@ -26804,32 +27287,56 @@ xim_initialize (struct x_display_info *dpyinfo, char *resource_name)
 }
 
 
-/* Close the connection to the XIM server on display DPYINFO. */
+/* Close the connection to the XIM server on display DPYINFO.
+   Unregister any IM instantiation callback previously installed,
+   close the connection to the IM server if possible, and free any
+   retrieved IM values.  */
 
 static void
 xim_close_dpy (struct x_display_info *dpyinfo)
 {
 #ifdef HAVE_XIM
-  if (use_xim)
-    {
 #ifdef HAVE_X11R6_XIM
-      struct xim_inst_t *xim_inst = dpyinfo->xim_callback_data;
+  struct xim_inst_t *xim_inst;
+  Bool rc;
+
+  /* If dpyinfo->xim_callback_data is not set, then IM support wasn't
+     initialized, which can happen if Xlib doesn't understand the C
+     locale being used.  */
+
+  if (dpyinfo->xim_callback_data)
+    {
+      xim_inst = dpyinfo->xim_callback_data;
 
       if (dpyinfo->display)
 	{
-	  Bool ret = XUnregisterIMInstantiateCallback
-	    (dpyinfo->display, dpyinfo->rdb, xim_inst->resource_name,
-	     emacs_class, xim_instantiate_callback, (void *) xim_inst);
-	  eassert (ret == True);
+	  rc = XUnregisterIMInstantiateCallback (dpyinfo->display,
+						 dpyinfo->rdb,
+						 xim_inst->resource_name,
+						 emacs_class,
+						 xim_instantiate_callback,
+						 (void *) xim_inst);
+	  eassert (rc);
 	}
+
       xfree (xim_inst->resource_name);
       xfree (xim_inst);
-#endif /* HAVE_X11R6_XIM */
-      if (dpyinfo->display)
-	XCloseIM (dpyinfo->xim);
-      dpyinfo->xim = NULL;
-      XFree (dpyinfo->xim_styles);
     }
+#endif /* HAVE_X11R6_XIM */
+
+  /* Now close the connection to the input method server.  This may
+     access the display connection, and isn't safe if the display has
+     already been closed.  */
+
+  if (dpyinfo->display && dpyinfo->xim)
+    XCloseIM (dpyinfo->xim);
+  dpyinfo->xim = NULL;
+
+  /* Free the list of XIM styles retrieved.  */
+
+  if (dpyinfo->xim_styles)
+    XFree (dpyinfo->xim_styles);
+  dpyinfo->xim_styles = NULL;
 #endif /* HAVE_XIM */
 }
 
@@ -29031,6 +29538,7 @@ x_free_frame_resources (struct frame *f)
     dpyinfo->last_mouse_frame = NULL;
 
 #ifdef HAVE_XINPUT2
+#if !defined USE_X_TOOLKIT && (!defined USE_GTK || defined HAVE_GTK3)
   /* Consider a frame being unfocused with no following FocusIn event
      while an older focus from another seat exists.  The client
      pointer should then revert to the other seat, so handle potential
@@ -29038,7 +29546,8 @@ x_free_frame_resources (struct frame *f)
 
   if (dpyinfo->supports_xi2)
     xi_handle_focus_change (dpyinfo);
-#endif
+#endif /* !USE_X_TOOLKIT && (!USE_GTK || HAVE_GTK3) */
+#endif /* HAVE_XINPUT2 */
 
   unblock_input ();
 }
@@ -29865,6 +30374,7 @@ x_term_init (Lisp_Object display_name, char *xrm_option, char *resource_name)
   struct terminal *terminal;
   struct x_display_info *dpyinfo;
   XrmDatabase xrdb;
+  Lisp_Object tem, quit_keysym;
 #ifdef USE_XCB
   xcb_connection_t *xcb_conn;
 #endif
@@ -29875,7 +30385,7 @@ x_term_init (Lisp_Object display_name, char *xrm_option, char *resource_name)
   GdkScreen *gscr;
 #endif
 #ifdef HAVE_XFIXES
-  Lisp_Object tem, lisp_name;
+  Lisp_Object lisp_name;
   int num_fast_selections;
   Atom selection_name;
 #ifdef USE_XCB
@@ -30152,6 +30662,28 @@ x_term_init (Lisp_Object display_name, char *xrm_option, char *resource_name)
     terminal->kboard->reference_count++;
   }
 
+  /* Now look through Vx_quit_keysym for the quit keysym associated
+     with this display.  */
+  tem = Vx_quit_keysym;
+  FOR_EACH_TAIL_SAFE (tem)
+    {
+      quit_keysym = XCAR (tem);
+
+      /* Check if its car is a string and its cdr a valid keysym.
+	 Skip if it is not.  */
+
+      if (!CONSP (quit_keysym) || !FIXNUMP (XCDR (quit_keysym))
+	  || !STRINGP (XCAR (quit_keysym)))
+	continue;
+
+      /* Check if this is the keysym to be used.  */
+
+      if (strcmp (SSDATA (XCAR (quit_keysym)), ServerVendor (dpy)))
+	continue;
+
+      dpyinfo->quit_keysym = XFIXNUM (XCDR (quit_keysym));
+    }
+
   /* Put this display on the chain.  */
   dpyinfo->next = x_display_list;
   x_display_list = dpyinfo;
@@ -30186,7 +30718,7 @@ x_term_init (Lisp_Object display_name, char *xrm_option, char *resource_name)
     {
       static char const at[] = " at ";
       ptrdiff_t nbytes = sizeof (title) + sizeof (at);
-      if (INT_ADD_WRAPV (nbytes, SBYTES (system_name), &nbytes))
+      if (ckd_add (&nbytes, nbytes, SBYTES (system_name)))
 	memory_full (SIZE_MAX);
       dpyinfo->x_id_name = xmalloc (nbytes);
       sprintf (dpyinfo->x_id_name, "%s%s%s", title, at, SDATA (system_name));
@@ -30655,7 +31187,17 @@ x_term_init (Lisp_Object display_name, char *xrm_option, char *resource_name)
 		       XkbNewKeyboardNotifyMask | XkbMapNotifyMask,
 		       XkbNewKeyboardNotifyMask | XkbMapNotifyMask);
     }
-#endif
+
+  /* XFree86 extends XKBlib with a new Xlib control `ControlFallback',
+     which enables a search for symbols designating ASCII characters
+     within inactive groups during keycode translation when
+     ControlMask is set.  Users find this behavior gratuitous, so
+     disable it if present.  */
+
+#ifdef XkbLC_ControlFallback
+  XkbSetXlibControls (dpyinfo->display, XkbLC_ControlFallback, 0);
+#endif /* XkbLC_ControlFallback */
+#endif /* HAVE_XKB */
 
 #ifdef HAVE_XFIXES
   int xfixes_error_base;
@@ -30759,14 +31301,6 @@ x_term_init (Lisp_Object display_name, char *xrm_option, char *resource_name)
   dpyinfo->fixes_pointer_blanking = (egetenv ("EMACS_XFIXES") != NULL);
 #endif
 
-#ifdef HAVE_X_I18N
-  /* Avoid initializing input methods if the X library does not
-     support Emacs's locale.  When the current locale is not
-     supported, decoding input method strings becomes undefined.  */
-  if (XSupportsLocale ())
-    xim_initialize (dpyinfo, resource_name);
-#endif
-
   xsettings_initialize (dpyinfo);
 
   /* This is only needed for distinguishing keyboard and process input.  */
@@ -30825,25 +31359,33 @@ x_term_init (Lisp_Object display_name, char *xrm_option, char *resource_name)
       XSynchronize (dpyinfo->display, True);
   }
 
+#ifdef HAVE_X_I18N
   {
     AUTO_STRING (useXIM, "useXIM");
     AUTO_STRING (UseXIM, "UseXIM");
     Lisp_Object value = gui_display_get_resource (dpyinfo, useXIM, UseXIM,
                                                   Qnil, Qnil);
+
+    /* `USE_XIM' controls whether Emacs should use X input methods by
+       default, not whether or not XIM is available.  */
+
 #ifdef USE_XIM
+    dpyinfo->use_xim = true;
+
     if (STRINGP (value)
 	&& (!strcmp (SSDATA (value), "false")
 	    || !strcmp (SSDATA (value), "off")))
-      use_xim = false;
-#else
+      dpyinfo->use_xim = false;
+#else /* !USE_XIM */
+    dpyinfo->use_xim = false;
+
     if (STRINGP (value)
 	&& (!strcmp (SSDATA (value), "true")
 	    || !strcmp (SSDATA (value), "on")))
-      use_xim = true;
-#endif
+      dpyinfo->use_xim = true;
+#endif /* USE_XIM */
   }
 
-#ifdef HAVE_X_I18N
   {
     AUTO_STRING (inputStyle, "inputStyle");
     AUTO_STRING (InputStyle, "InputStyle");
@@ -30865,10 +31407,19 @@ x_term_init (Lisp_Object display_name, char *xrm_option, char *resource_name)
 #ifdef USE_GTK
 	else if (!strcmp (SSDATA (value), "native"))
 	  dpyinfo->prefer_native_input = true;
-#endif
+#endif /* HAVE_GTK */
       }
   }
-#endif
+
+  /* Now that defaults have been set up, initialize input method
+     support.  */
+
+  /* Avoid initializing input methods if the X library does not
+     support Emacs's locale.  When the current locale is not
+     supported, decoding input method strings becomes undefined.  */
+  if (XSupportsLocale ())
+    xim_initialize (dpyinfo, resource_name);
+#endif /* HAVE_X_I18N */
 
 #ifdef HAVE_X_SM
   /* Only do this for the very first display in the Emacs session.
@@ -31261,14 +31812,22 @@ x_delete_terminal (struct terminal *terminal)
 #ifdef HAVE_X_I18N
   /* We must close our connection to the XIM server before closing the
      X display.  */
-  if (dpyinfo->xim)
-    xim_close_dpy (dpyinfo);
+  xim_close_dpy (dpyinfo);
 #endif
+
+  /* Destroy all bitmap images created on the display.  */
+  image_destroy_all_bitmaps (dpyinfo);
+
+  /* Free the storage allocated to hold bitmap records.  */
+  xfree (dpyinfo->bitmaps);
+
+  /* In case someone decides to use `bitmaps' again... */
+  dpyinfo->bitmaps = NULL;
+  dpyinfo->bitmaps_last = 0;
 
   /* Normally, the display is available...  */
   if (dpyinfo->display)
     {
-      image_destroy_all_bitmaps (dpyinfo);
       XSetCloseDownMode (dpyinfo->display, DestroyAll);
 
       /* Delete the scratch cursor GC, should it exist.  */
@@ -31562,7 +32121,7 @@ init_xterm (void)
 #endif
 
 #ifdef HAVE_X_I18N
-  register_texconv_interface (&text_conversion_interface);
+  register_textconv_interface (&text_conversion_interface);
 #endif
 }
 
@@ -31896,7 +32455,9 @@ adjusted if the default value does not work for whatever reason.  */);
 A value of nil means Emacs doesn't use toolkit scroll bars.
 With the X Window system, the value is a symbol describing the
 X toolkit.  Possible values are: gtk, motif, xaw, or xaw3d.
-With MS Windows, Haiku windowing or Nextstep, the value is t.  */);
+With MS Windows, Haiku windowing or Nextstep, the value is t.
+With Android, the value is nil, but that is because Emacs on
+Android does not support scroll bars at all.  */);
 #ifdef USE_TOOLKIT_SCROLL_BARS
 #ifdef USE_MOTIF
   Vx_toolkit_scroll_bars = intern_c_string ("motif");
@@ -32032,10 +32593,12 @@ reported as iconified.  */);
 
   DEFVAR_BOOL ("x-input-grab-touch-events", x_input_grab_touch_events,
 	       doc: /* Non-nil means to actively grab touch events.
-This means touch sequences that started on an Emacs frame will
-reliably continue to receive updates even if the finger moves off the
-frame, but may cause crashes with some window managers and/or external
-programs.  */);
+This means touch sequences that are obtained through a passive grab on
+an Emacs frame (or a parent window of such a frame) will reliably
+continue to receive updates, but may cause crashes with some window
+managers and/or external programs.  Changing this option is only
+useful when other programs are making their own X requests pertaining
+to the window hierarchy of an Emacs frame.  */);
   x_input_grab_touch_events = true;
 
   DEFVAR_BOOL ("x-dnd-fix-motif-leave", x_dnd_fix_motif_leave,
@@ -32243,4 +32806,23 @@ frame placement via frame parameters, `set-frame-position', and
 `set-frame-size', along with the actual state of a frame after
 `x_make_frame_invisible'.  */);
   Vx_lax_frame_positioning = Qnil;
+
+  DEFVAR_LISP ("x-quit-keysym", Vx_quit_keysym,
+    doc: /* Keysyms which will cause Emacs to quit if rapidly pressed twice.
+
+This is used to support quitting on devices that do not have any kind
+of physical keyboard, or where the physical keyboard is incapable of
+entering `C-g'.  It defaults to `XF86XK_AudioLowerVolume' on XFree86
+and X.Org servers, and is unset.
+
+The value is an alist associating between strings, describing X server
+vendor names, and a single number describing the keysym to use.  The
+keysym to use for each display connection is determined upon
+connection setup, and does not reflect further changes to this
+variable.  */);
+  Vx_quit_keysym
+    = list2 (Fcons (build_string ("The X.Org Foundation"),
+		    make_int (269025041)),
+	     Fcons (build_string ("The XFree86 Project, Inc."),
+		    make_int (269025041)));
 }

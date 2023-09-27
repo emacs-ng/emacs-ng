@@ -1,7 +1,7 @@
 /* Compile Emacs Lisp into native code.
    Copyright (C) 2019-2023 Free Software Foundation, Inc.
 
-Author: Andrea Corallo <akrl@sdf.org>
+Author: Andrea Corallo <acorallo@gnu.org>
 
 This file is part of GNU Emacs.
 
@@ -502,9 +502,11 @@ load_gccjit_if_necessary (bool mandatory)
 #define THIRD(x)				\
   XCAR (XCDR (XCDR (x)))
 
+#if 0	/* unused for now */
 /* Like call0 but stringify and intern.  */
 #define CALL0I(fun)				\
   CALLN (Ffuncall, intern_c_string (STR (fun)))
+#endif
 
 /* Like call1 but stringify and intern.  */
 #define CALL1I(fun, arg)				\
@@ -774,7 +776,7 @@ comp_hash_source_file (Lisp_Object filename)
 #else
   int res = md5_stream (f, SSDATA (digest));
 #endif
-  fclose (f);
+  emacs_fclose (f);
 
   if (res)
     xsignal2 (Qfile_notify_error, build_string ("hashing failed"), filename);
@@ -4747,7 +4749,7 @@ DEFUN ("comp--release-ctxt", Fcomp__release_ctxt, Scomp__release_ctxt,
     gcc_jit_context_release (comp.ctxt);
 
   if (logfile)
-    fclose (logfile);
+    emacs_fclose (logfile);
   comp.ctxt = NULL;
 
   return Qt;
@@ -5199,17 +5201,9 @@ maybe_defer_native_compilation (Lisp_Object function_name,
 
   Fputhash (function_name, definition, Vcomp_deferred_pending_h);
 
-  /* This is so deferred compilation is able to compile comp
-     dependencies breaking circularity.  */
-  if (comp__compilable)
-    {
-      /* Startup is done, comp is usable.  */
-      CALL0I (startup--require-comp-safely);
-      CALLN (Ffuncall, intern_c_string ("native--compile-async"),
-	     src, Qnil, Qlate);
-    }
-  else
-    Vcomp__delayed_sources = Fcons (src, Vcomp__delayed_sources);
+  pending_funcalls
+    = Fcons (list (Qnative__compile_async, src, Qnil, Qlate),
+             pending_funcalls);
 }
 
 
@@ -5674,13 +5668,6 @@ void
 syms_of_comp (void)
 {
 #ifdef HAVE_NATIVE_COMP
-  DEFVAR_LISP ("comp--delayed-sources", Vcomp__delayed_sources,
-    doc: /* List of sources to be native-compiled when startup is finished.
-For internal use.  */);
-  DEFVAR_BOOL ("comp--compilable", comp__compilable,
-    doc: /* Non-nil when comp.el can be native compiled.
-For internal use. */);
-  /* Compiler control customizes.  */
   DEFVAR_BOOL ("native-comp-jit-compilation", native_comp_jit_compilation,
     doc: /* If non-nil, compile loaded .elc files asynchronously.
 
@@ -5797,6 +5784,8 @@ natively-compiled one.  */);
   Fput (Qnative_lisp_file_inconsistent, Qerror_message,
         build_pure_c_string ("eln file inconsistent with current runtime "
 			     "configuration, please recompile"));
+
+  DEFSYM (Qnative__compile_async, "native--compile-async");
 
   defsubr (&Scomp__subr_signature);
   defsubr (&Scomp_el_to_eln_rel_filename);

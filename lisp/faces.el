@@ -794,19 +794,25 @@ around them.  If VALUE is nil, explicitly don't draw boxes.  If
 VALUE is t, draw a box with lines of width 1 in the foreground color
 of the face.  If VALUE is a string, the string must be a color name,
 and the box is drawn in that color with a line width of 1.  Otherwise,
-VALUE must be a property list of the form `(:line-width WIDTH
-:color COLOR :style STYLE)'.  If a keyword/value pair is missing from
-the property list, a default value will be used for the value, as
-specified below.  WIDTH specifies the width of the lines to draw; it
-defaults to 1.  If WIDTH is negative, the absolute value is the width
-of the lines, and draw top/bottom lines inside the characters area,
-not around it.  COLOR is the name of the color to draw in, default is
-the background color of the face for 3D boxes and `flat-button', and
-the foreground color of the face for other boxes.  STYLE specifies
-whether a 3D box should be draw.  If STYLE is `released-button', draw
-a box looking like a released 3D button.  If STYLE is `pressed-button'
-draw a box that appears like a pressed button.  If STYLE is nil,
-`flat-button' or omitted, draw a 2D box.
+VALUE must be a property list of the following form:
+
+ (:line-width WIDTH :color COLOR :style STYLE)
+
+If a keyword/value pair is missing from the property list, a default
+value will be used for the value, as specified below.
+
+WIDTH specifies the width of the lines to draw; it defaults to 1.
+If WIDTH is negative, the absolute value is the width of the lines,
+and draw top/bottom lines inside the characters area, not around it.
+WIDTH can also be a cons (VWIDTH . HWIDTH), which specifies different
+values for the vertical and the horizontal line width.
+COLOR is the name of the color to use for the box lines, default is
+the background color of the face for 3D and `flat-button' boxes, and
+the foreground color of the face for the other boxes.
+STYLE specifies whether a 3D box should be drawn.  If STYLE
+is `released-button', draw a box looking like a released 3D button.
+If STYLE is `pressed-button', draw a box that looks like a pressed
+button.  If STYLE is nil, `flat-button', or omitted, draw a 2D box.
 
 `:inverse-video'
 
@@ -1112,8 +1118,7 @@ element of DEFAULT is returned.  If DEFAULT isn't a list, but
 MULTIPLE is non-nil, a one-element list containing DEFAULT is
 returned.  Otherwise, DEFAULT is returned verbatim."
   (let (defaults)
-    (unless (listp default)
-      (setq default (list default)))
+    (setq default (ensure-list default))
     (when default
       (setq default
             (if multiple
@@ -1140,16 +1145,16 @@ returned.  Otherwise, DEFAULT is returned verbatim."
                       (format-prompt prompt default)
                     (format "%s: " prompt)))
           (completion-extra-properties
-           '(:affixation-function
-             (lambda (faces)
-               (mapcar
-                (lambda (face)
-                  (list face
-                        (concat (propertize read-face-name-sample-text
-                                            'face face)
-                                "\t")
-                        ""))
-                faces))))
+           `(:affixation-function
+             ,(lambda (faces)
+                (mapcar
+                 (lambda (face)
+                   (list face
+                         (concat (propertize read-face-name-sample-text
+                                             'face face)
+                                 "\t")
+                         ""))
+                 faces))))
           aliasfaces nonaliasfaces faces)
       ;; Build up the completion tables.
       (mapatoms (lambda (s)
@@ -1334,10 +1339,11 @@ of a global face.  Value is the new attribute value."
 		       (format "%s" old-value))))
 	     (setq new-value
                    (if (memq attribute '(:foreground :background))
-                       (let ((color
-                              (read-color
-                               (format-prompt "%s for face `%s'"
-                                              default attribute-name face))))
+                       (let* ((prompt (format-prompt
+                                       "%s for face `%s'"
+                                       default attribute-name face))
+                              (fg (eq attribute ':foreground))
+                              (color (read-color prompt nil nil nil fg face)))
                          (if (equal (string-trim color) "")
                              default
                            color))
@@ -1533,15 +1539,12 @@ argument, prompt for a regular expression using `read-regexp'."
 ;;; Face specifications (defface).
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Parameter FRAME Is kept for call compatibility to with previous
-;; face implementation.
-
 (defun face-attr-construct (face &optional _frame)
   "Return a `defface'-style attribute list for FACE.
 Value is a property list of pairs ATTRIBUTE VALUE for all specified
 face attributes of FACE where ATTRIBUTE is the attribute name and
-VALUE is the specified value of that attribute.
-Argument FRAME is ignored and retained for compatibility."
+VALUE is the specified value of that attribute."
+  (declare (advertised-calling-convention (face) "30.1"))
   (let (result)
     (dolist (entry face-attribute-name-alist result)
       (let* ((attribute (car entry))
@@ -1843,7 +1846,6 @@ If there is neither a user setting nor a default for FACE, return nil."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Frame-type independent color support.
-;;; We keep the old x-* names as aliases for back-compatibility.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun defined-colors (&optional frame)
@@ -1855,7 +1857,6 @@ If FRAME is nil, that stands for the selected frame."
   (if (display-graphic-p frame)
       (xw-defined-colors frame)
     (mapcar 'car (tty-color-alist frame))))
-(defalias 'x-defined-colors 'defined-colors)
 
 (defun defined-colors-with-face-attributes (&optional frame foreground)
   "Return a list of colors supported for a particular FRAME.
@@ -1864,15 +1865,26 @@ to `defined-colors' the elements of the returned list are color
 strings with text properties, that make the color names render
 with the color they represent as background color (if FOREGROUND
 is nil; otherwise use the foreground color)."
-  (mapcar
-   (lambda (color-name)
-     (let ((color (copy-sequence color-name)))
-       (propertize color 'face
-		   (if foreground
-		       (list :foreground color)
-		     (list :foreground (readable-foreground-color color-name)
-                           :background color)))))
-   (defined-colors frame)))
+  (mapcar (lambda (color-name)
+            (faces--string-with-color color-name color-name foreground))
+          (defined-colors frame)))
+
+(defun faces--string-with-color (string color &optional foreground face)
+  "Return a copy of STRING with face attributes for COLOR.
+Set the :background or :foreground attribute to COLOR, depending
+on the argument FOREGROUND.
+
+The optional FACE argument determines the values of other face
+attributes."
+  (let* ((defaults (if face (list face) '()))
+         (colors (cond (foreground
+                        (list :foreground color))
+                       (face
+                        (list :background color))
+                       (t
+                        (list :foreground (readable-foreground-color color)
+                              :background color)))))
+    (propertize string 'face (cons colors defaults))))
 
 (defun readable-foreground-color (color)
   "Return a readable foreground color for background COLOR.
@@ -1928,7 +1940,6 @@ If FRAME is omitted or nil, use the selected frame."
     (if (display-graphic-p frame)
 	(xw-color-defined-p color frame)
       (numberp (tty-color-translate color frame)))))
-(defalias 'x-color-defined-p 'color-defined-p)
 
 (declare-function xw-color-values "xfns.c" (color &optional frame))
 
@@ -1956,8 +1967,6 @@ return value is nil."
    (t
     (tty-color-values color frame))))
 
-(defalias 'x-color-values 'color-values)
-
 (declare-function xw-display-color-p "xfns.c" (&optional terminal))
 
 (defun display-color-p (&optional display)
@@ -1968,7 +1977,6 @@ If omitted or nil, that stands for the selected frame's display."
   (if (display-graphic-p display)
       (xw-display-color-p display)
     (tty-display-color-p display)))
-(defalias 'x-display-color-p 'display-color-p)
 
 (declare-function x-display-grayscale-p "xfns.c" (&optional terminal))
 
@@ -1981,7 +1989,7 @@ If omitted or nil, that stands for the selected frame's display."
     (> (tty-color-gray-shades display) 2)))
 
 (defun read-color (&optional prompt convert-to-RGB allow-empty-name msg
-			     foreground)
+			     foreground face)
   "Read a color name or RGB triplet.
 Completion is available for color names, but not for RGB triplets.
 
@@ -2010,17 +2018,25 @@ to enter an empty color name (the empty string).
 Interactively, or with optional arg MSG non-nil, print the
 resulting color name in the echo area.
 
-Interactively, displays a list of colored completions.  If optional
-argument FOREGROUND is non-nil, shows them as foregrounds, otherwise
-as backgrounds."
+Interactively, provides completion for selecting the color.  If
+the optional argument FOREGROUND is non-nil, shows the completion
+candidates with their foregound color changed to be the color of
+the candidate, otherwise changes the background color of the
+candidates.  The optional argument FACE determines the other
+face attributes of the candidates on display."
   (interactive "i\np\ni\np")    ; Always convert to RGB interactively.
   (let* ((completion-ignore-case t)
-	 (colors (append '("foreground at point" "background at point")
-			 (if allow-empty-name '(""))
-                         (if (display-color-p)
-                             (defined-colors-with-face-attributes
-                               nil foreground)
-                           (defined-colors))))
+	 (color-alist
+          `(("foreground at point" . ,(foreground-color-at-point))
+            ("background at point" . ,(background-color-at-point))
+            ,@(if allow-empty-name '(("" . unspecified)))
+            ,@(mapcar (lambda (c) (cons c c)) (defined-colors))))
+         (colors (mapcar (lambda (pair)
+                           (let* ((name (car pair))
+                                  (color (cdr pair)))
+                             (faces--string-with-color name color
+                                                       foreground face)))
+                         color-alist))
 	 (color (completing-read
 		 (or prompt "Color (name or #RGB triplet): ")
 		 ;; Completing function for reading colors, accepting
@@ -2920,7 +2936,7 @@ Note: Other faces cannot inherit from the cursor face."
     (((type haiku))
      :foreground "B_MENU_ITEM_TEXT_COLOR"
      :background "B_MENU_BACKGROUND_COLOR")
-    (((type x w32 ns pgtk winit) (class color))
+    (((type x w32 ns pgtk android winit) (class color))
      :background "grey75")
     (((type x) (class mono))
      :background "grey"))
@@ -3195,6 +3211,10 @@ also the same size as FACE on FRAME, or fail."
 
 (define-obsolete-function-alias 'face-background-pixmap #'face-stipple "29.1")
 (define-obsolete-function-alias 'set-face-background-pixmap #'set-face-stipple "29.1")
+(define-obsolete-function-alias 'x-defined-colors #'defined-colors "30.1")
+(define-obsolete-function-alias 'x-color-defined-p #'color-defined-p "30.1")
+(define-obsolete-function-alias 'x-color-values #'color-values "30.1")
+(define-obsolete-function-alias 'x-display-color-p #'display-color-p "30.1")
 
 (provide 'faces)
 

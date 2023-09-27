@@ -188,7 +188,7 @@ the end-points, e.g.:
 @emph{list} of values.  This allows for more complex possibilities.)
 
 Alternatively you can use the @code{!} modifier of @code{ses-range} to
-remove blank cells from the returned list, which allows to use
+remove blank cells from the returned list, which enables using
 @code{+} instead of @code{ses+}:
 
 @lisp
@@ -1007,7 +1007,7 @@ are some useful functions to call from your formulas:
 @item (ses-delete-blanks &rest @var{args})
 Returns a list from which all blank cells (value is either @code{nil}
 or '*skip*) have been deleted. Order of args is reverted. Please note
-that @code{ses-range} has a @code{!} modifier that allows to remove
+that @code{ses-range} has a @code{!} modifier that enables removing
 blanks, so it is possible to write:
 @lisp
 (ses-range A1 A5 !)
@@ -1166,7 +1166,7 @@ details-and-summary spreadsheet.
 * Nonrelocatable references::
 * The data area::
 * Buffer-local variables in spreadsheets::
-* Uses of defadvice in @acronym{SES}::
+* Uses of advice-add in @acronym{SES}::
 @end menu
 
 @node Deferred updates
@@ -1308,20 +1308,13 @@ avoid virus warnings, each function used in a formula needs
 (put 'your-function-name 'safe-function t)
 @end lisp
 
-@node Uses of defadvice in @acronym{SES}
-@section Uses of defadvice in @acronym{SES}
-@findex defadvice
-@findex undo-more
+@node Uses of advice-add in @acronym{SES}
+@section Uses of advice-add in @acronym{SES}
+@findex advice-add
 @findex copy-region-as-kill
 @findex yank
 
 @table @code
-@item undo-more
-Defines a new undo element format (@var{fun} . @var{args}), which
-means ``undo by applying @var{fun} to @var{args}''.  For spreadsheet
-buffers, it allows undos in the data area even though that's outside
-the narrowing.
-
 @item copy-region-as-kill
 When copying from the print area of a spreadsheet, treat the region as
 a rectangle and attach each cell's formula and printer as 'ses

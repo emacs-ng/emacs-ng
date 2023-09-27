@@ -302,6 +302,7 @@ usage: (defadvice FUNCTION (CLASS NAME [POSITION] [ARGLIST] FLAG...)
 (fn FUNCTION ARGS &rest BODY)" nil t)
 (function-put 'defadvice 'doc-string-elt 3)
 (function-put 'defadvice 'lisp-indent-function 2)
+(make-obsolete 'defadvice '"use advice-add or define-advice" "30.1")
 (register-definition-prefixes "advice" '("ad-"))
 
 
@@ -2428,7 +2429,12 @@ narrowed.
 
 (fn &optional BUFFER)" t)
 (autoload 'browse-url-of-dired-file "browse-url" "\
-In Dired, ask a WWW browser to display the file named on this line." t)
+In Dired, ask a WWW browser to display the file named on this line.
+With prefix arg, use the secondary browser instead (e.g. EWW if
+`browse-url-secondary-browser-function' is set to
+`eww-browse-url'.
+
+(fn &optional SECONDARY)" t)
 (autoload 'browse-url-of-region "browse-url" "\
 Use a web browser to display the current region.
 See `browse-url' for details.
@@ -2538,6 +2544,13 @@ The optional argument NEW-WINDOW is not used.
 (autoload 'browse-url-default-haiku-browser "browse-url" "\
 Browse URL with the system default browser.
 Default to the URL around or before point.
+
+(fn URL &optional NEW-WINDOW)" t)
+(autoload 'browse-url-default-android-browser "browse-url" "\
+Browse URL with the system default browser.
+If `browse-url-android-share' is non-nil, try to share URL using
+an external program instead.  Default to the URL around or before
+point.
 
 (fn URL &optional NEW-WINDOW)" t)
 (autoload 'browse-url-emacs "browse-url" "\
@@ -2917,6 +2930,11 @@ and corresponding effects.
 ;;; Generated autoloads from cedet/semantic/bovine/c.el
 
 (register-definition-prefixes "semantic/bovine/c" '("semantic"))
+
+
+;;; Generated autoloads from progmodes/c-ts-common.el
+
+(register-definition-prefixes "c-ts-common" '("c-ts-common-"))
 
 
 ;;; Generated autoloads from progmodes/c-ts-mode.el
@@ -4635,12 +4653,6 @@ But if you just want to print something, don't call this directly:
 call other entry points instead, such as `cl-prin1'.
 
 (fn OBJECT STREAM)")
-(autoload 'cl-print-expand-ellipsis "cl-print" "\
-Print the expansion of an ellipsis to STREAM.
-VALUE should be the value of the `cl-print-ellipsis' text property
-which was attached to the ellipsis by `cl-prin1'.
-
-(fn VALUE STREAM)")
 (autoload 'cl-prin1 "cl-print" "\
 Print OBJECT on STREAM according to its type.
 Output is further controlled by the variables
@@ -4661,13 +4673,12 @@ characters with appropriate settings of `print-level' and
 the arguments VALUE and STREAM and which should respect
 `print-length' and `print-level'.  LIMIT may be nil or zero in
 which case PRINT-FUNCTION will be called with `print-level' and
-`print-length' bound to nil.
+`print-length' bound to nil, and it can also be t in which case
+PRINT-FUNCTION will be called with the current values of `print-level'
+and `print-length'.
 
 Use this function with `cl-prin1' to print an object,
-abbreviating it with ellipses to fit within a size limit.  Use
-this function with `cl-prin1-expand-ellipsis' to expand an
-ellipsis, abbreviating the expansion to stay within a size
-limit.
+abbreviating it with ellipses to fit within a size limit.
 
 (fn PRINT-FUNCTION VALUE LIMIT)")
 (register-definition-prefixes "cl-print" '("cl-print-" "help-byte-code"))
@@ -4863,6 +4874,36 @@ The files to be removed are those produced from the original source
 filename (including FILE).
 
 (fn FILE)")
+(autoload 'native--compile-async "comp" "\
+Compile FILES asynchronously.
+FILES is one filename or a list of filenames or directories.
+
+If optional argument RECURSIVELY is non-nil, recurse into
+subdirectories of given directories.
+
+If optional argument LOAD is non-nil, request to load the file
+after compiling.
+
+The optional argument SELECTOR has the following valid values:
+
+nil -- Select all files.
+a string -- A regular expression selecting files with matching names.
+a function -- A function selecting files with matching names.
+
+The variable `native-comp-async-jobs-number' specifies the number
+of (commands) to run simultaneously.
+
+LOAD can also be the symbol `late'.  This is used internally if
+the byte code has already been loaded when this function is
+called.  It means that we request the special kind of load
+necessary in that situation, called \"late\" loading.
+
+During a \"late\" load, instead of executing all top-level forms
+of the original files, only function definitions are
+loaded (paying attention to have these effective only if the
+bytecode definition was not changed in the meantime).
+
+(fn FILES &optional RECURSIVELY LOAD SELECTOR)")
 (autoload 'comp-lookup-eln "comp" "\
 Given a Lisp source FILENAME return the corresponding .eln file if found.
 Search happens in `native-comp-eln-load-path'.
@@ -4919,7 +4960,17 @@ The variable `native-comp-async-jobs-number' specifies the number
 of (commands) to run simultaneously.
 
 (fn FILES &optional RECURSIVELY LOAD SELECTOR)")
-(register-definition-prefixes "comp" '("comp-" "make-comp-edge" "native-" "no-native-compile"))
+(autoload 'comp-function-type-spec "comp" "\
+Return the type specifier of FUNCTION.
+
+This function returns a cons cell whose car is the function
+specifier, and cdr is a symbol, either `inferred' or `know'.
+If the symbol is `inferred', the type specifier is automatically
+inferred from the code itself by the native compiler; if it is
+`know', the type specifier comes from `comp-known-type-specifiers'.
+
+(fn FUNCTION)")
+(register-definition-prefixes "comp" '("comp-" "make-comp-edge" "native-comp" "no-native-compile"))
 
 
 ;;; Generated autoloads from cedet/semantic/wisent/comp.el
@@ -5618,7 +5669,7 @@ Run `perldoc' on WORD.
 (fn WORD)" t)
 (autoload 'cperl-perldoc-at-point "cperl-mode" "\
 Run a `perldoc' on the word around point." t)
-(register-definition-prefixes "cperl-mode" '("cperl-"))
+(register-definition-prefixes "cperl-mode" '("cperl-" "imenu-max-items"))
 
 
 ;;; Generated autoloads from progmodes/cpp.el
@@ -7274,7 +7325,7 @@ the context menu will contain an item that searches
 the word at mouse click.
 
 (fn MENU CLICK)")
-(register-definition-prefixes "dictionary" '("dictionary-" "global-dictionary-tooltip-mode"))
+(register-definition-prefixes "dictionary" '("dictionary-" "global-dictionary-tooltip-mode" "help-word"))
 
 
 ;;; Generated autoloads from cedet/srecode/dictionary.el
@@ -8151,7 +8202,6 @@ Switch to *dungeon* buffer and start game." t)
 
 ;;; Generated autoloads from emacs-lisp/easy-mmode.el
 
-(defalias 'easy-mmode-define-minor-mode #'define-minor-mode)
 (autoload 'define-minor-mode "easy-mmode" "\
 Define a new minor mode MODE.
 This defines the toggle command MODE and (by default) a control variable
@@ -8226,7 +8276,6 @@ INIT-VALUE LIGHTER KEYMAP.
 (fn MODE DOC [KEYWORD VAL ... &rest BODY])" nil t)
 (function-put 'define-minor-mode 'doc-string-elt 2)
 (function-put 'define-minor-mode 'lisp-indent-function 'defun)
-(defalias 'easy-mmode-define-global-mode #'define-globalized-minor-mode)
 (defalias 'define-global-minor-mode #'define-globalized-minor-mode)
 (autoload 'define-globalized-minor-mode "easy-mmode" "\
 Make a global mode GLOBAL-MODE corresponding to buffer-local minor MODE.
@@ -8234,14 +8283,17 @@ TURN-ON is a function that will be called with no args in every buffer
 and that should try to turn MODE on if applicable for that buffer.
 
 Each of KEY VALUE is a pair of CL-style keyword arguments.
-The :predicate argument specifies in which major modes should the
+The :predicate key specifies in which major modes should the
 globalized minor mode be switched on.  The value should be t (meaning
 switch on the minor mode in all major modes), nil (meaning don't
 switch on in any major mode), a list of modes (meaning switch on only
 in those modes and their descendants), or a list (not MODES...),
 meaning switch on in any major mode except MODES.  The value can also
 mix all of these forms, see the info node `Defining Minor Modes' for
-details.
+details.  The :predicate key causes the macro to create a user option
+named the same as MODE, but ending with \"-modes\" instead of \"-mode\".
+That user option can then be used to customize in which modes this
+globalized minor mode will be switched on.
 As the minor mode defined by this function is always global, any
 :global keyword is ignored.
 Other keywords have the same meaning as in `define-minor-mode',
@@ -8305,6 +8357,8 @@ CSS contains a list of syntax specifications of the form (CHAR . SYNTAX).
 (fn ST CSS DOC &rest ARGS)" nil t)
 (function-put 'easy-mmode-defsyntax 'doc-string-elt 3)
 (function-put 'easy-mmode-defsyntax 'lisp-indent-function 1)
+(define-obsolete-function-alias 'easy-mmode-define-minor-mode #'define-minor-mode "30.1")
+(define-obsolete-function-alias 'easy-mmode-define-global-mode #'define-globalized-minor-mode "30.1")
 (register-definition-prefixes "easy-mmode" '("easy-mmode-"))
 
 
@@ -8613,7 +8667,7 @@ A second call of this function without changing point inserts the next match.
 A call with prefix PREFIX reads the symbol to insert from the minibuffer with
 completion.
 
-(fn PREFIX)" '("P"))
+(fn PREFIX)" t)
 (autoload 'ebrowse-tags-loop-continue "ebrowse" "\
 Repeat last operation on files in tree.
 FIRST-TIME non-nil means this is not a repetition, but the first time.
@@ -9225,7 +9279,7 @@ Turn on EDT Emulation." t)
 
 ;;; Generated autoloads from progmodes/eglot.el
 
-(push (purecopy '(eglot 1 14)) package--builtin-versions)
+(push (purecopy '(eglot 1 15)) package--builtin-versions)
 (autoload 'eglot "eglot" "\
 Start LSP server for PROJECT's buffers under MANAGED-MAJOR-MODES.
 
@@ -9269,6 +9323,11 @@ INTERACTIVE is ignored and provided for backward compatibility.
 (fn MANAGED-MAJOR-MODES PROJECT CLASS CONTACT LANGUAGE-IDS &optional INTERACTIVE)" t)
 (autoload 'eglot-ensure "eglot" "\
 Start Eglot session for current buffer if there isn't one.")
+(autoload 'eglot-upgrade-eglot "eglot" "\
+Update Eglot to latest version.
+
+(fn &rest _)" t)
+(define-obsolete-function-alias 'eglot-update 'eglot-upgrade-eglot "29.1")
 (put 'eglot-workspace-configuration 'safe-local-variable 'listp)
 (put 'eglot--debbugs-or-github-bug-uri 'bug-reference-url-format t)
 (defun eglot--debbugs-or-github-bug-uri nil (format (if (string= (match-string 2) "github") "https://github.com/joaotavora/eglot/issues/%s" "https://debbugs.gnu.org/%s") (match-string 3)))
@@ -9521,6 +9580,15 @@ optional prefix argument REINIT is non-nil.
 
 (fn &optional REINIT)" t)
 (register-definition-prefixes "elint" '("elint-"))
+
+
+;;; Generated autoloads from progmodes/elixir-ts-mode.el
+
+(autoload 'elixir-ts-mode "elixir-ts-mode" "\
+Major mode for editing Elixir, powered by tree-sitter.
+
+(fn)" t)
+(register-definition-prefixes "elixir-ts-mode" '("elixir-ts-"))
 
 
 ;;; Generated autoloads from emacs-lisp/elp.el
@@ -10200,6 +10268,9 @@ Look at CONFIG and try to expand GROUP.
 (autoload 'erc-select-read-args "erc" "\
 Prompt the user for values of nick, server, port, and password.
 With prefix arg, also prompt for user and full name.")
+(autoload 'erc-server-select "erc" "\
+Interactively connect to a server from `erc-server-alist'." t)
+(make-obsolete 'erc-server-select 'erc-tls "30.1")
 (autoload 'erc "erc" "\
 ERC is a powerful, modular, and extensible IRC client.
 This function is the main entry point for ERC.
@@ -10225,7 +10296,7 @@ for the values of the other parameters.
 
 See `erc-tls' for the meaning of ID.
 
-(fn &key SERVER PORT NICK USER PASSWORD FULL-NAME ID)" '((erc-select-read-args)))
+(fn &key SERVER PORT NICK USER PASSWORD FULL-NAME ID)" t)
 (defalias 'erc-select #'erc)
 (autoload 'erc-tls "erc" "\
 ERC is a powerful, modular, and extensible IRC client.
@@ -10273,7 +10344,7 @@ See Info node `(erc) Network Identifier' for details.  Like
 CLIENT-CERTIFICATE, this parameter cannot be specified
 interactively.
 
-(fn &key SERVER PORT NICK USER PASSWORD FULL-NAME CLIENT-CERTIFICATE ID)" '((let ((erc-default-port erc-default-port-tls)) (erc-select-read-args))))
+(fn &key SERVER PORT NICK USER PASSWORD FULL-NAME CLIENT-CERTIFICATE ID)" t)
 (autoload 'erc-handle-irc-url "erc" "\
 Use ERC to IRC on HOST:PORT in CHANNEL.
 If ERC is already connected to HOST:PORT, simply /join CHANNEL.
@@ -10398,9 +10469,12 @@ Return the name of the network or \"Unknown\" as a symbol.
 Use the server parameter NETWORK if provided, otherwise parse the
 server name and search for a match in `erc-networks-alist'.")
 (make-obsolete 'erc-determine-network '"maybe see `erc-networks--determine'" "29.1")
-(autoload 'erc-server-select "erc-networks" "\
-Interactively select a server to connect to using `erc-server-alist'." t)
 (register-definition-prefixes "erc-networks" '("erc-"))
+
+
+;;; Generated autoloads from erc/erc-nicks.el
+
+(register-definition-prefixes "erc-nicks" '("erc-nicks-"))
 
 
 ;;; Generated autoloads from erc/erc-notify.el
@@ -10502,7 +10576,9 @@ it has to be wrapped in `(eval (quote ...))'.
 If NAME is already defined as a test and Emacs is running
 in batch mode, an error is signaled.
 
-(fn NAME () [DOCSTRING] [:expected-result RESULT-TYPE] [:tags \\='(TAG...)] BODY...)" nil 'macro)
+(fn NAME () [DOCSTRING] [:expected-result RESULT-TYPE] [:tags \\='(TAG...)] BODY...)" nil t)
+(function-put 'ert-deftest 'doc-string-elt 3)
+(function-put 'ert-deftest 'lisp-indent-function 2)
 (autoload 'ert-run-tests-batch "ert" "\
 Run the tests specified by SELECTOR, printing results to the terminal.
 
@@ -11327,7 +11403,7 @@ fourth arg NOSEP non-nil inhibits this.
 
 ;;; Generated autoloads from net/eww.el
 
-(defvar eww-suggest-uris '(eww-links-at-point thing-at-point-url-at-point eww-current-url) "\
+(defvar eww-suggest-uris '(eww-links-at-point thing-at-point-url-at-point eww-current-url eww-bookmark-urls) "\
 List of functions called to form the list of default URIs for `eww'.
 Each of the elements is a function returning either a string or a list
 of strings.  The results will be joined into a single list with
@@ -14796,9 +14872,8 @@ to specify a command to run.
 If CONFIRM is non-nil, the user will be given an opportunity to edit the
 command before it's run.
 
-Interactively, the user can use the \\`M-c' command while entering
-the regexp to indicate whether the grep should be case sensitive
-or not.
+Interactively, the user can use \\<read-regexp-map>\\[read-regexp-toggle-case-fold] while entering the regexp
+to indicate whether the grep should be case sensitive or not.
 
 (fn REGEXP &optional FILES DIR CONFIRM)" t)
 (autoload 'zrgrep "grep" "\
@@ -15113,6 +15188,15 @@ Prefix arg sets default accept amount temporarily.
 
 (fn &optional ARG)" t)
 (register-definition-prefixes "hashcash" '("hashcash-"))
+
+
+;;; Generated autoloads from progmodes/heex-ts-mode.el
+
+(autoload 'heex-ts-mode "heex-ts-mode" "\
+Major mode for editing HEEx, powered by tree-sitter.
+
+(fn)" t)
+(register-definition-prefixes "heex-ts-mode" '("heex-ts-"))
 
 
 ;;; Generated autoloads from help-at-pt.el
@@ -16285,6 +16369,15 @@ values.
 (register-definition-prefixes "semantic/html" '("semantic-"))
 
 
+;;; Generated autoloads from textmodes/html-ts-mode.el
+
+(autoload 'html-ts-mode "html-ts-mode" "\
+Major mode for editing Html, powered by tree-sitter.
+
+(fn)" t)
+(register-definition-prefixes "html-ts-mode" '("html-ts-mode-"))
+
+
 ;;; Generated autoloads from htmlfontify.el
 
 (push (purecopy '(htmlfontify 0 21)) package--builtin-versions)
@@ -16357,7 +16450,8 @@ inlined into the compiled format versions.  This means that if you
 change its definition, you should explicitly call
 `ibuffer-recompile-formats'.
 
-(fn SYMBOL (&key NAME INLINE PROPS SUMMARIZER) &rest BODY)" nil 'macro)
+(fn SYMBOL (&key NAME INLINE PROPS SUMMARIZER) &rest BODY)" nil t)
+(function-put 'define-ibuffer-column 'lisp-indent-function 'defun)
 (autoload 'define-ibuffer-sorter "ibuf-macs" "\
 Define a method of sorting named NAME.
 DOCUMENTATION is the documentation of the function, which will be called
@@ -16368,7 +16462,9 @@ For sorting, the forms in BODY will be evaluated with `a' bound to one
 buffer object, and `b' bound to another.  BODY should return a non-nil
 value if and only if `a' is \"less than\" `b'.
 
-(fn NAME DOCUMENTATION (&key DESCRIPTION) &rest BODY)" nil 'macro)
+(fn NAME DOCUMENTATION (&key DESCRIPTION) &rest BODY)" nil t)
+(function-put 'define-ibuffer-sorter 'lisp-indent-function 1)
+(function-put 'define-ibuffer-sorter 'doc-string-elt 2)
 (autoload 'define-ibuffer-op "ibuf-macs" "\
 Generate a function which operates on a buffer.
 OP becomes the name of the function; if it doesn't begin with
@@ -16407,7 +16503,9 @@ BODY define the operation; they are forms to evaluate per each
 marked buffer.  BODY is evaluated with `buf' bound to the
 buffer object.
 
-(fn OP ARGS DOCUMENTATION (&key INTERACTIVE MARK MODIFIER-P DANGEROUS OPSTRING ACTIVE-OPSTRING BEFORE AFTER COMPLEX) &rest BODY)" nil 'macro)
+(fn OP ARGS DOCUMENTATION (&key INTERACTIVE MARK MODIFIER-P DANGEROUS OPSTRING ACTIVE-OPSTRING BEFORE AFTER COMPLEX) &rest BODY)" nil t)
+(function-put 'define-ibuffer-op 'lisp-indent-function 2)
+(function-put 'define-ibuffer-op 'doc-string-elt 3)
 (autoload 'define-ibuffer-filter "ibuf-macs" "\
 Define a filter named NAME.
 DOCUMENTATION is the documentation of the function.
@@ -16422,7 +16520,9 @@ not a particular buffer should be displayed or not.  The forms in BODY
 will be evaluated with BUF bound to the buffer object, and QUALIFIER
 bound to the current value of the filter.
 
-(fn NAME DOCUMENTATION (&key READER DESCRIPTION) &rest BODY)" nil 'macro)
+(fn NAME DOCUMENTATION (&key READER DESCRIPTION) &rest BODY)" nil t)
+(function-put 'define-ibuffer-filter 'lisp-indent-function 2)
+(function-put 'define-ibuffer-filter 'doc-string-elt 2)
 (register-definition-prefixes "ibuf-macs" '("ibuffer-"))
 
 
@@ -18902,7 +19002,7 @@ The macro is now available for use via \\[kmacro-call-macro],
 or it can be given a name with \\[kmacro-name-last-macro] and then invoked
 under that name.
 
-With numeric arg, repeat macro now that many times,
+With numeric ARG, repeat the macro that many times,
 counting the definition just completed as the first repetition.
 An argument of zero means repeat until error.
 
@@ -19127,7 +19227,7 @@ A major mode to edit GNU ld script files.
 (put 'less-css-input-file-name 'safe-local-variable #'stringp)
  (add-to-list 'auto-mode-alist '("\\.less\\'" . less-css-mode))
 (autoload 'less-css-mode "less-css-mode" "\
-Major mode for editing Less files (http://lesscss.org/).
+Major mode for editing Less files (https://lesscss.org/).
 Special commands:
 \\{less-css-mode-map}
 
@@ -20654,6 +20754,8 @@ Also see the `duplicate-line' command.
 (autoload 'duplicate-line "misc" "\
 Duplicate the current line N times.
 Interactively, N is the prefix numeric argument, and defaults to 1.
+The user option `duplicate-line-final-position' specifies where to
+move point after duplicating the line.
 Also see the `copy-from-above-command' command.
 
 (fn &optional N)" t)
@@ -20663,6 +20765,9 @@ If the region is inactive, duplicate the current line (like `duplicate-line').
 Otherwise, duplicate the region, which remains active afterwards.
 If the region is rectangular, duplicate on its right-hand side.
 Interactively, N is the prefix numeric argument, and defaults to 1.
+The variables `duplicate-line-final-position' and
+`duplicate-region-final-position' control the position of point
+and the region after the duplication.
 
 (fn &optional N)" t)
 (autoload 'zap-up-to-char "misc" "\
@@ -20684,15 +20789,17 @@ Uppercasify ARG chars starting from point.  Point doesn't move.
 
 (fn ARG)" t)
 (autoload 'forward-to-word "misc" "\
-Move forward until encountering the beginning of a word.
-With argument, do this that many times.
+Move forward until encountering the beginning of the ARGth word.
+ARG defaults to 1.  When called interactively, ARG is the prefix
+numeric argument.
 
-(fn ARG)" t)
+(fn &optional ARG)" t)
 (autoload 'backward-to-word "misc" "\
-Move backward until encountering the end of a word.
-With argument, do this that many times.
+Move backward until encountering the end of the ARGth word.
+ARG defaults to 1.  When called interactively, ARG is the prefix
+numeric argument.
 
-(fn ARG)" t)
+(fn &optional ARG)" t)
 (autoload 'butterfly "misc" "\
 Use butterflies to flip the desired bit on the drive platter.
 Open hands and let the delicate wings flap once.  The disturbance
@@ -20712,7 +20819,7 @@ Optional argument BUFFER specifies a buffer to use, instead of
 The return value is always nil.
 
 (fn &optional LOADED-ONLY-P BUFFER)" t)
-(register-definition-prefixes "misc" '("list-dynamic-libraries--"))
+(register-definition-prefixes "misc" '("duplicate-" "list-dynamic-libraries--"))
 
 
 ;;; Generated autoloads from misearch.el
@@ -22454,7 +22561,7 @@ Coloring:
 
 ;;; Generated autoloads from org/org.el
 
-(push (purecopy '(org 9 6 4)) package--builtin-versions)
+(push (purecopy '(org 9 6 7)) package--builtin-versions)
 (autoload 'org-babel-do-load-languages "org" "\
 Load the languages defined in `org-babel-load-languages'.
 
@@ -23463,14 +23570,20 @@ upgrading of built-in packages, as if `package-install-upgrade-built-in'
 had been enabled.
 
 (fn PKG &optional DONT-SELECT)" t)
-(autoload 'package-update "package" "\
-Update package NAME if a newer version exists.
+(autoload 'package-upgrade "package" "\
+Upgrade package NAME if a newer version exists.
 
 (fn NAME)" t)
-(autoload 'package-update-all "package" "\
+(autoload 'package-upgrade-all "package" "\
 Refresh package list and upgrade all packages.
-If QUERY, ask the user before updating packages.  When called
+If QUERY, ask the user before upgrading packages.  When called
 interactively, QUERY is always true.
+
+Currently, packages which are part of the Emacs distribution are
+not upgraded by this command.  To enable upgrading such a package
+using this command, first upgrade the package to a newer version
+from ELPA by either using `\\[package-upgrade]' or
+`\\<package-menu-mode-map>\\[package-menu-mark-install]' after `\\[list-packages]'.
 
 (fn &optional QUERY)" t)
 (autoload 'package-install-from-buffer "package" "\
@@ -23556,10 +23669,10 @@ DESC must be a `package-desc' object.
 
 (autoload 'package-vc-install-selected-packages "package-vc" "\
 Ensure packages specified in `package-vc-selected-packages' are installed." t)
-(autoload 'package-vc-update-all "package-vc" "\
-Attempt to update all installed VC packages." t)
-(autoload 'package-vc-update "package-vc" "\
-Attempt to update the package PKG-DESC.
+(autoload 'package-vc-upgrade-all "package-vc" "\
+Attempt to upgrade all installed VC packages." t)
+(autoload 'package-vc-upgrade "package-vc" "\
+Attempt to upgrade the package PKG-DESC.
 
 (fn PKG-DESC)" t)
 (autoload 'package-vc-install "package-vc" "\
@@ -23575,11 +23688,13 @@ indicating the package name and SPEC is a plist as described in
 symbol whose name is the package name, and the URL for the
 package will be taken from the package's metadata.
 
-By default, this function installs the last version of the package
-available from its repository, but if REV is given and non-nil, it
-specifies the revision to install.  If REV has the special value
-`:last-release' (interactively, the prefix argument), that stands
-for the last released version of the package.
+By default, this function installs the last revision of the
+package available from its repository.  If REV is a string, it
+describes the revision to install, as interpreted by the VC
+backend.  The special value `:last-release' (interactively, the
+prefix argument), will use the commit of the latest release, if
+it exists.  The last release is the latest revision which changed
+the \"Version:\" header of the package's main Lisp file.
 
 Optional argument BACKEND specifies the VC backend to use for cloning
 the package's repository; this is only possible if NAME-OR-URL is a URL,
@@ -23616,7 +23731,7 @@ Rebuilding an installation means scraping for new autoload
 cookies, re-compiling Emacs Lisp files, building and installing
 any documentation, downloading any missing dependencies.  This
 command does not fetch new revisions from a remote server.  That
-is the responsibility of `package-vc-update'.  Interactively,
+is the responsibility of `package-vc-upgrade'.  Interactively,
 prompt for the name of the package to rebuild.
 
 (fn PKG-DESC)" t)
@@ -23671,7 +23786,9 @@ The values returned are identical to those of `decode-time', but
 any unknown values other than DST are returned as nil, and an
 unknown DST value is returned as -1.
 
-(fn STRING)")
+See `decode-time' for the meaning of FORM.
+
+(fn STRING &optional FORM)")
 (register-definition-prefixes "parse-time" '("parse-"))
 
 
@@ -24425,11 +24542,6 @@ they are not by default assigned to keys." t)
 (register-definition-prefixes "picture" '("picture-"))
 
 
-;;; Generated autoloads from language/pinyin.el
-
-(register-definition-prefixes "pinyin" '("pinyin-character-map"))
-
-
 ;;; Generated autoloads from textmodes/pixel-fill.el
 
 (register-definition-prefixes "pixel-fill" '("pixel-fill-"))
@@ -24463,6 +24575,18 @@ The mode's hook is called both when the mode is enabled and when
 it is disabled.
 
 (fn &optional ARG)" t)
+(autoload 'pixel-scroll-precision-scroll-down-page "pixel-scroll" "\
+Scroll the current window down by DELTA pixels.
+Note that this function doesn't work if DELTA is larger than
+the height of the current window.
+
+(fn DELTA)")
+(autoload 'pixel-scroll-precision-scroll-up-page "pixel-scroll" "\
+Scroll the current window up by DELTA pixels.
+Note that this function doesn't work if DELTA is larger than
+the height of the current window.
+
+(fn DELTA)")
 (defvar pixel-scroll-precision-mode nil "\
 Non-nil if Pixel-Scroll-Precision mode is enabled.
 See the `pixel-scroll-precision-mode' command
@@ -24504,7 +24628,7 @@ Create a plstore instance associated with FILE.
 
 (fn FILE)")
 (autoload 'plstore-mode "plstore" "\
-Major mode for editing PLSTORE files.
+Major mode for editing plstore files.
 
 (fn)" t)
 (register-definition-prefixes "plstore" '("plstore-"))
@@ -24554,8 +24678,9 @@ Use streaming commands.
 Return a string containing the pretty-printed representation of OBJECT.
 OBJECT can be any Lisp object.  Quoting characters are used as needed
 to make output that `read' can handle, whenever this is possible.
+Optional argument PP-FUNCTION overrides `pp-default-function'.
 
-(fn OBJECT)")
+(fn OBJECT &optional PP-FUNCTION)")
 (autoload 'pp-buffer "pp" "\
 Prettify the current buffer with printed representation of a Lisp object." t)
 (autoload 'pp "pp" "\
@@ -24563,11 +24688,7 @@ Output the pretty-printed representation of OBJECT, any Lisp object.
 Quoting characters are printed as needed to make output that `read'
 can handle, whenever this is possible.
 
-This function does not apply special formatting rules for Emacs
-Lisp code.  See `pp-emacs-lisp-code' instead.
-
-By default, this function won't limit the line length of lists
-and vectors.  Bind `pp-use-max-width' to a non-nil value to do so.
+Uses the pretty-printing code specified in `pp-default-function'.
 
 Output stream is STREAM, or value of `standard-output' (which see).
 
@@ -24605,8 +24726,10 @@ Ignores leading comment characters.
 Insert SEXP into the current buffer, formatted as Emacs Lisp code.
 Use the `pp-max-width' variable to control the desired line length.
 Note that this could be slow for large SEXPs.
+Can also be called with two arguments, in which case they're taken to be
+the bounds of a region containing Lisp code to pretty-print.
 
-(fn SEXP)")
+(fn SEXP &optional END)")
 (register-definition-prefixes "pp" '("pp-"))
 
 
@@ -25197,8 +25320,10 @@ Return the project instance in DIRECTORY, defaulting to `default-directory'.
 
 When no project is found in that directory, the result depends on
 the value of MAYBE-PROMPT: if it is nil or omitted, return nil,
-else ask the user for a directory in which to look for the
-project, and if no project is found there, return a \"transient\"
+else prompt the user for the project to use.  To prompt for a
+project, call the function specified by `project-prompter', which
+returns the directory in which to look for the project.  If no
+project is found in that directory, return a \"transient\"
 project instance.
 
 The \"transient\" project instance is a special kind of value
@@ -25210,6 +25335,11 @@ See the doc string of `project-find-functions' for the general form
 of the project instance object.
 
 (fn &optional MAYBE-PROMPT DIRECTORY)")
+(put 'project-vc-ignores 'safe-local-variable #'listp)
+(put 'project-vc-merge-submodules 'safe-local-variable #'booleanp)
+(put 'project-vc-include-untracked 'safe-local-variable #'booleanp)
+(put 'project-vc-name 'safe-local-variable #'stringp)
+(put 'project-vc-extra-root-markers 'safe-local-variable (lambda (val) (and (listp val) (not (memq nil (mapcar #'stringp val))))))
 (defvar project-prefix-map (let ((map (make-sparse-keymap))) (define-key map "!" 'project-shell-command) (define-key map "&" 'project-async-shell-command) (define-key map "f" 'project-find-file) (define-key map "F" 'project-or-external-find-file) (define-key map "b" 'project-switch-to-buffer) (define-key map "s" 'project-shell) (define-key map "d" 'project-find-dir) (define-key map "D" 'project-dired) (define-key map "v" 'project-vc-dir) (define-key map "c" 'project-compile) (define-key map "e" 'project-eshell) (define-key map "k" 'project-kill-buffers) (define-key map "p" 'project-switch-project) (define-key map "g" 'project-find-regexp) (define-key map "G" 'project-or-external-find-regexp) (define-key map "r" 'project-query-replace-regexp) (define-key map "x" 'project-execute-extended-command) (define-key map "\2" 'project-list-buffers) map) "\
 Keymap for project commands.")
  (define-key ctl-x-map "p" project-prefix-map)
@@ -25359,6 +25489,7 @@ start with a space (which are for internal use).  With prefix argument
 ARG, show only buffers that are visiting files.
 
 (fn &optional ARG)" t)
+(put 'project-kill-buffers-display-buffer-list 'safe-local-variable #'booleanp)
 (autoload 'project-kill-buffers "project" "\
 Kill the buffers belonging to the current project.
 Two buffers belong to the same project if their project
@@ -25398,6 +25529,15 @@ When called in a program, it will use the project corresponding
 to directory DIR.
 
 (fn DIR)" t)
+(autoload 'project-uniquify-dirname-transform "project" "\
+Uniquify name of directory DIRNAME using `project-name', if in a project.
+
+If you set `uniquify-dirname-transform' to this function,
+slash-separated components from `project-name' will be appended to
+the buffer's directory name when buffers from two different projects
+would otherwise have the same name.
+
+(fn DIRNAME)")
 (register-definition-prefixes "project" '("project-"))
 
 
@@ -25762,6 +25902,7 @@ Major mode for editing Python files, using tree-sitter library.
 \\{python-ts-mode-map}
 
 (fn)" t)
+(add-to-list 'auto-mode-alist '("/\\(?:Pipfile\\|\\.?flake8\\)\\'" . conf-mode))
 (register-definition-prefixes "python" '("inferior-python-mode" "python-" "run-python-internal"))
 
 
@@ -26033,7 +26174,7 @@ ENCRYPTION, CERTFP, SERVER-ALIAS are interpreted as in
 `rcirc-server-alist'.  STARTUP-CHANNELS is a list of channels
 that are joined after authentication.
 
-(fn SERVER &optional PORT NICK USER-NAME FULL-NAME STARTUP-CHANNELS PASSWORD ENCRYPTION CERTFP SERVER-ALIAS)")
+(fn SERVER &optional PORT NICK USER-NAME FULL-NAME STARTUP-CHANNELS PASSWORD ENCRYPTION SERVER-ALIAS CERTFP)")
 (defvar rcirc-track-minor-mode nil "\
 Non-nil if Rcirc-Track minor mode is enabled.
 See the `rcirc-track-minor-mode' command
@@ -26497,6 +26638,8 @@ This means the number of non-shy regexp grouping constructs
 (parenthesized expressions) in REGEXP.
 
 (fn REGEXP)")
+(function-put 'regexp-opt-depth 'pure 't)
+(function-put 'regexp-opt-depth 'side-effect-free 't)
 (register-definition-prefixes "regexp-opt" '("regexp-opt-"))
 
 
@@ -27429,9 +27572,19 @@ Currently there are `ruby-mode' and `ruby-ts-mode'.
 Major mode for editing Ruby code.
 
 (fn)" t)
-(add-to-list 'auto-mode-alist (cons (purecopy (concat "\\(?:\\.\\(?:" "rbw?\\|ru\\|rake\\|thor" "\\|jbuilder\\|rabl\\|gemspec\\|podspec" "\\)" "\\|/" "\\(?:Gem\\|Rake\\|Cap\\|Thor" "\\|Puppet\\|Berks\\|Brew" "\\|Vagrant\\|Guard\\|Pod\\)file" "\\)\\'")) 'ruby-mode))
-(dolist (name (list "ruby" "rbx" "jruby" "ruby1.9" "ruby1.8")) (add-to-list 'interpreter-mode-alist (cons (purecopy name) 'ruby-mode)))
+(add-to-list 'auto-mode-alist (cons (purecopy (concat "\\(?:\\.\\(?:" "rbw?\\|ru\\|rake\\|thor\\|axlsx" "\\|jbuilder\\|rabl\\|gemspec\\|podspec" "\\)" "\\|/" "\\(?:Gem\\|Rake\\|Cap\\|Thor" "\\|Puppet\\|Berks\\|Brew\\|Fast" "\\|Vagrant\\|Guard\\|Pod\\)file" "\\)\\'")) 'ruby-mode))
+(dolist (name (list "ruby" "rbx" "jruby" "j?ruby\\(?:[0-9.]+\\)")) (add-to-list 'interpreter-mode-alist (cons (purecopy name) 'ruby-mode)))
 (register-definition-prefixes "ruby-mode" '("ruby-"))
+
+
+;;; Generated autoloads from progmodes/ruby-ts-mode.el
+
+(push (purecopy '(ruby-ts-mode 0 2)) package--builtin-versions)
+(autoload 'ruby-ts-mode "ruby-ts-mode" "\
+Major mode for editing Ruby, powered by tree-sitter.
+
+(fn)" t)
+(register-definition-prefixes "ruby-ts-mode" '("ruby-ts-"))
 
 
 ;;; Generated autoloads from ruler-mode.el
@@ -27481,6 +27634,7 @@ group.
 For extending the `rx' notation in FORM, use `rx-define' or `rx-let-eval'.
 
 (fn FORM &optional NO-GROUP)")
+(function-put 'rx-to-string 'important-return-value 't)
 (autoload 'rx "rx" "\
 Translate regular expressions REGEXPS in sexp form to a regexp string.
 Each argument is one of the forms below; RX is a subform, and RX... stands
@@ -29240,7 +29394,7 @@ it is disabled.
 
 ;;; Generated autoloads from net/soap-client.el
 
-(push (purecopy '(soap-client 3 2 1)) package--builtin-versions)
+(push (purecopy '(soap-client 3 2 3)) package--builtin-versions)
 (register-definition-prefixes "soap-client" '("soap-"))
 
 
@@ -30313,6 +30467,7 @@ single space character, and leading/trailing whitespace is
 removed.
 
 (fn STRING)")
+(function-put 'string-clean-whitespace 'important-return-value 't)
 (autoload 'named-let "subr-x" "\
 Looping construct taken from Scheme.
 Like `let', bind variables in BINDINGS and then evaluate BODY,
@@ -30326,6 +30481,7 @@ as the new values of the bound variables in the recursive invocation.
 Return the width of STRING in pixels.
 
 (fn STRING)")
+(function-put 'string-pixel-width 'important-return-value 't)
 (autoload 'string-glyph-split "subr-x" "\
 Split STRING into a list of strings representing separate glyphs.
 This takes into account combining characters and grapheme clusters:
@@ -30334,6 +30490,7 @@ on display into a single grapheme cluster is treated as a single
 indivisible unit.
 
 (fn STRING)")
+(function-put 'string-glyph-split 'side-effect-free 't)
 (autoload 'add-display-text-property "subr-x" "\
 Add display property PROP with VALUE to the text from START to END.
 If any text in the region has a non-nil `display' property, those
@@ -31221,7 +31378,7 @@ See also: variables `tar-update-datestamp' and `tar-anal-blocksize'.
 \\{tar-mode-map}
 
 (fn)" t)
-(register-definition-prefixes "tar-mode" '("tar-"))
+(register-definition-prefixes "tar-mode" '("pax-" "tar-"))
 
 
 ;;; Generated autoloads from progmodes/tcl.el
@@ -31762,7 +31919,7 @@ Entering Texinfo mode calls the value of `text-mode-hook', and then the
 value of `texinfo-mode-hook'.
 
 (fn)" t)
-(register-definition-prefixes "texinfo" '("texinfo-"))
+(register-definition-prefixes "texinfo" '("fill-paragraph-separate" "texinfo-"))
 
 
 ;;; Generated autoloads from textmodes/texnfo-upd.el
@@ -32584,7 +32741,7 @@ FROM-MAP must contain appropriate binding for `[menu-bar]' which
 holds a keymap.
 
 (fn COMMAND ICON IN-MAP &optional FROM-MAP &rest PROPS)")
-(register-definition-prefixes "tool-bar" '("toggle-tool-bar-mode-from-frame" "tool-bar-"))
+(register-definition-prefixes "tool-bar" '("modifier-bar-" "secondary-tool-bar-map" "toggle-tool-bar-mode-from-frame" "tool-bar-"))
 
 
 ;;; Generated autoloads from tooltip.el
@@ -32685,6 +32842,11 @@ Add Tramp file name handlers to `file-name-handler-alist' during autoload." (unl
  (tramp-register-autoload-file-name-handlers)
 (defun tramp-unload-file-name-handlers nil "\
 Unload Tramp file name handlers from `file-name-handler-alist'." (dolist (fnh file-name-handler-alist) (when (and (symbolp (cdr fnh)) (string-prefix-p "tramp-" (symbol-name (cdr fnh)))) (setq file-name-handler-alist (delq fnh file-name-handler-alist)))))
+(defun inhibit-remote-files nil "\
+Deactivate remote file names." (interactive) (when (fboundp 'tramp-cleanup-all-connections) (funcall 'tramp-cleanup-all-connections)) (tramp-unload-file-name-handlers) (setq tramp-mode nil))
+(defmacro without-remote-files (&rest body) "\
+Deactivate remote file names temporarily.
+Run BODY." (declare (indent 0) (debug ((form body) body))) `(let ((file-name-handler-alist (copy-tree file-name-handler-alist)) tramp-mode) (tramp-unload-file-name-handlers) ,@body))
 (defun tramp-unload-tramp nil "\
 Discard Tramp from loading remote files." (interactive) (ignore-errors (unload-feature 'tramp 'force)))
 (register-definition-prefixes "tramp" '("tramp-" "with-"))
@@ -32759,6 +32921,11 @@ Add archive file name handler to `file-name-handler-alist'." (when (and tramp-ar
 ;;; Generated autoloads from net/tramp-integration.el
 
 (register-definition-prefixes "tramp-integration" '("tramp-"))
+
+
+;;; Generated autoloads from net/tramp-message.el
+
+(register-definition-prefixes "tramp-message" '("tramp-" "with-tramp-debug-message"))
 
 
 ;;; Generated autoloads from net/tramp-rclone.el
@@ -32906,8 +33073,9 @@ Build and install the tree-sitter language grammar library for LANG.
 
 Interactively, if `treesit-language-source-alist' doesn't already
 have data for building the grammar for LANG, prompt for its
-repository URL and the C/C++ compiler to use.  Non-interactively,
-signal an error when there's no recipe for LANG.
+repository URL and the C/C++ compiler to use.  The recipe built
+by the prompts are saved for the current session if the
+installation is successful and the grammar is loadable.
 
 This command requires Git, a C compiler and (sometimes) a C++ compiler,
 and the linker to be installed and on PATH.  It also requires that the
@@ -33158,7 +33326,7 @@ The JSX-specific faces are used when `treesit-font-lock-level' is
 at least 3 (which is the default value).
 
 (fn)" t)
-(register-definition-prefixes "typescript-ts-mode" '("typescript-ts-mode-"))
+(register-definition-prefixes "typescript-ts-mode" '("tsx-ts-mode--" "typescript-ts-mode-"))
 
 
 ;;; Generated autoloads from international/ucs-normalize.el
@@ -33993,6 +34161,8 @@ Usage:
 :custom-face     Call `custom-set-faces' with each face definition.
 :ensure          Loads the package using package.el if necessary.
 :pin             Pin the package to an archive.
+:vc              Install the package directly from a version control system
+                 (using `package-vc.el').
 
 (fn NAME &rest ARGS)" nil t)
 (function-put 'use-package 'lisp-indent-function 'defun)
@@ -34362,35 +34532,58 @@ Visit the next conflicted file in the current project." t)
 (autoload 'vc-create-tag "vc" "\
 Descending recursively from DIR, make a tag called NAME.
 For each registered file, the working revision becomes part of
-the named configuration.  If the prefix argument BRANCHP is
-given, the tag is made as a new branch and the files are
-checked out in that new branch.
+the configuration identified by the tag.
+If BRANCHP is non-nil (interactively, the prefix argument), the
+tag NAME is a new branch, and the files are checked out and
+updated to reflect their revisions on that branch.
+In interactive use, DIR is `default-directory' for repository-granular
+VCSes (all the modern decentralized VCSes belong to this group),
+otherwise the command will prompt for DIR.
 
 (fn DIR NAME BRANCHP)" t)
 (autoload 'vc-create-branch "vc" "\
-Descending recursively from DIR, make a branch called NAME.
-After a new branch is made, the files are checked out in that new branch.
-Uses `vc-create-tag' with the non-nil arg `branchp'.
+Make a branch called NAME in directory DIR.
+After making the new branch, check out the branch, i.e. update the
+files in the tree to their revisions on the branch.
+
+Interactively, prompt for the NAME of the branch.
+
+With VCSes that maintain version information per file, this command also
+prompts for the directory DIR whose files, recursively, will be tagged
+with the NAME of new branch.  For VCSes that maintain version
+information for the entire repository (all the modern decentralized
+VCSes belong to this group), DIR is always the `default-directory'.
+
+Finally, this command might prompt for the branch or tag from which to
+start (\"fork\") the new branch, with completion candidates including
+all the known branches and tags in the repository.
+
+This command invokes `vc-create-tag' with the non-nil BRANCHP argument.
 
 (fn DIR NAME)" t)
 (autoload 'vc-retrieve-tag "vc" "\
-For each file in or below DIR, retrieve their tagged version NAME.
+For each file in or below DIR, retrieve their version identified by tag NAME.
 NAME can name a branch, in which case this command will switch to the
 named branch in the directory DIR.
 Interactively, prompt for DIR only for VCS that works at file level;
-otherwise use the repository root of the current buffer.
+otherwise use the root directory of the current buffer's VC tree.
 If NAME is empty, it refers to the latest revisions of the current branch.
 If locking is used for the files in DIR, then there must not be any
 locked files at or below DIR (but if NAME is empty, locked files are
 allowed and simply skipped).
-If the prefix argument BRANCHP is given, switch the branch
-and check out the files in that branch.
+If BRANCHP is non-nil (interactively, the prefix argument), switch to the
+branch and check out and update the files to their version on that branch.
 This function runs the hook `vc-retrieve-tag-hook' when finished.
 
 (fn DIR NAME &optional BRANCHP)" t)
 (autoload 'vc-switch-branch "vc" "\
 Switch to the branch NAME in the directory DIR.
-If NAME is empty, it refers to the latest revisions of the current branch.
+If NAME is empty, it refers to the latest revision of the current branch.
+Interactively, prompt for DIR only for VCS that works at file level;
+otherwise use the root directory of the current buffer's VC tree.
+Interactively, prompt for the NAME of the branch.
+After switching to the branch, check out and update the files to their
+version on that branch.
 Uses `vc-retrieve-tag' with the non-nil arg `branchp'.
 
 (fn DIR NAME)" t)
@@ -34423,7 +34616,8 @@ with its diffs (if the underlying VCS backend supports that).
 
 (fn &optional LIMIT REVISION)" t)
 (autoload 'vc-print-branch-log "vc" "\
-Show the change log for BRANCH root in a window.
+Show the change log for BRANCH in another window.
+The command prompts for the branch whose change log to show.
 
 (fn BRANCH)" t)
 (autoload 'vc-log-incoming "vc" "\
@@ -34844,7 +35038,7 @@ Key bindings:
 
 ;;; Generated autoloads from progmodes/verilog-mode.el
 
-(push (purecopy '(verilog-mode 2022 12 18 181110314)) package--builtin-versions)
+(push (purecopy '(verilog-mode 2023 6 6 141322628)) package--builtin-versions)
 (autoload 'verilog-mode "verilog-mode" "\
 Major mode for editing Verilog code.
 \\<verilog-mode-map>
@@ -36523,7 +36717,7 @@ The optional ARGS are additional keyword arguments.
 Call `insert' with ARGS even if surrounding text is read only.
 
 (fn &rest ARGS)")
-(defvar widget-keymap (let ((map (make-sparse-keymap))) (define-key map "\11" 'widget-forward) (define-key map "\33\11" 'widget-backward) (define-key map [(shift tab)] 'widget-backward) (put 'widget-backward :advertised-binding [(shift tab)]) (define-key map [backtab] 'widget-backward) (define-key map [down-mouse-2] 'widget-button-click) (define-key map [down-mouse-1] 'widget-button-click) (define-key map [(control 109)] 'widget-button-press) map) "\
+(defvar widget-keymap (let ((map (make-sparse-keymap))) (define-key map "\11" 'widget-forward) (define-key map "\33\11" 'widget-backward) (define-key map [(shift tab)] 'widget-backward) (put 'widget-backward :advertised-binding [(shift tab)]) (define-key map [backtab] 'widget-backward) (define-key map [down-mouse-2] 'widget-button-click) (define-key map [down-mouse-1] 'widget-button-click) (define-key map [touchscreen-begin] 'widget-button-click) (define-key map [(control 109)] 'widget-button-press) map) "\
 Keymap containing useful binding for buffers containing widgets.
 Recommended as a parent keymap for modes using widgets.
 Note that such modes will need to require wid-edit.")
@@ -37161,57 +37355,15 @@ run a specific program.  The program must be a member of
 
 (fn &optional PGM)" t)
 (register-definition-prefixes "zone" '("zone-"))
-
-
-;;; Generated autoloads from progmodes/ruby-ts-mode.el
-
-(push (purecopy '(ruby-ts-mode 0 2)) package--builtin-versions)
-(autoload 'ruby-ts-mode "ruby-ts-mode" "\
-Major mode for editing Ruby, powered by tree-sitter.
-
-(fn)" t)
-(register-definition-prefixes "ruby-ts-mode" '("ruby-ts-"))
-
-
-;;; Generated autoloads from textmodes/html-ts-mode.el
-
-(autoload 'html-ts-mode "html-ts-mode" "\
-Major mode for editing Html, powered by tree-sitter.
-
-(fn)" t)
-(register-definition-prefixes "html-ts-mode" '("html-ts-mode-"))
-
-
-;;; Generated autoloads from progmodes/c-ts-common.el
-
-(register-definition-prefixes "c-ts-common" '("c-ts-common-"))
-
-
-;;; Generated autoloads from progmodes/elixir-ts-mode.el
-
-(autoload 'elixir-ts-mode "elixir-ts-mode" "\
-Major mode for editing Elixir, powered by tree-sitter.
-
-(fn)" t)
-(register-definition-prefixes "elixir-ts-mode" '("elixir-ts-"))
-
-
-;;; Generated autoloads from progmodes/heex-ts-mode.el
-
-(autoload 'heex-ts-mode "heex-ts-mode" "\
-Major mode for editing HEEx, powered by tree-sitter.
-
-(fn)" t)
-(register-definition-prefixes "heex-ts-mode" '("heex-ts-"))
 
 ;;; End of scraped data
 
 (provide 'loaddefs)
 
 ;; Local Variables:
-;; no-byte-compile: t
 ;; version-control: never
 ;; no-update-autoloads: t
+;; no-byte-compile: t
 ;; no-native-compile: t
 ;; coding: utf-8-emacs-unix
 ;; End:

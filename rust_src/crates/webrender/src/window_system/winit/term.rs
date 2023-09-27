@@ -510,6 +510,11 @@ extern "C" fn winit_destroy_frame(f: *mut Lisp_Frame) {
     output.empty_inner();
 }
 
+#[no_mangle]
+pub extern "C" fn set_frame_menubar(f: *mut Lisp_Frame, deep_p: bool) {
+    todo!()
+}
+
 fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     let redisplay_interface = RedisplayInterface::global();
     let terminal_ptr = unsafe {

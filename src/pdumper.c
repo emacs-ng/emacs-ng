@@ -103,7 +103,6 @@ verify (sizeof (intptr_t) == sizeof (ptrdiff_t));
 verify (sizeof (void (*) (void)) == sizeof (void *));
 verify (sizeof (ptrdiff_t) <= sizeof (Lisp_Object));
 verify (sizeof (ptrdiff_t) <= sizeof (EMACS_INT));
-verify (CHAR_BIT == 8);
 
 static size_t
 divide_round_up (size_t x, size_t y)
@@ -133,6 +132,7 @@ static int nr_remembered_data = 0;
 typedef int_least32_t dump_off;
 #define DUMP_OFF_MIN INT_LEAST32_MIN
 #define DUMP_OFF_MAX INT_LEAST32_MAX
+#define DUMP_OFF_WIDTH INT_LEAST32_WIDTH
 #define PRIdDUMP_OFF PRIdLEAST32
 
 enum { EMACS_INT_XDIGITS = (EMACS_INT_WIDTH + 3) / 4 };
@@ -222,8 +222,7 @@ enum emacs_reloc_type
 enum
   {
    EMACS_RELOC_TYPE_BITS = 3,
-   EMACS_RELOC_LENGTH_BITS = (sizeof (dump_off) * CHAR_BIT
-			      - EMACS_RELOC_TYPE_BITS)
+   EMACS_RELOC_LENGTH_BITS = DUMP_OFF_WIDTH - EMACS_RELOC_TYPE_BITS
   };
 
 struct emacs_reloc
@@ -273,7 +272,7 @@ enum
       dump.  Always suitable for heap objects; may be more aligned.  */
    DUMP_ALIGNMENT = max (GCALIGNMENT, DUMP_RELOCATION_ALIGNMENT),
 
-   DUMP_RELOC_OFFSET_BITS = sizeof (dump_off) * CHAR_BIT - DUMP_RELOC_TYPE_BITS
+   DUMP_RELOC_OFFSET_BITS = DUMP_OFF_WIDTH - DUMP_RELOC_TYPE_BITS
   };
 
 verify (RELOC_DUMP_TO_EMACS_LV + 8 < (1 << DUMP_RELOC_TYPE_BITS));
@@ -2179,7 +2178,7 @@ dump_interval_node (struct dump_context *ctx, struct itree_node *node,
 static dump_off
 dump_overlay (struct dump_context *ctx, const struct Lisp_Overlay *overlay)
 {
-#if CHECK_STRUCTS && !defined (HASH_Lisp_Overlay_EB4C05D8D2)
+#if CHECK_STRUCTS && !defined (HASH_Lisp_Overlay_5F9D7E02FC)
 # error "Lisp_Overlay changed. See CHECK_STRUCTS comment in config.h."
 #endif
   START_DUMP_PVEC (ctx, &overlay->header, struct Lisp_Overlay, out);
@@ -2556,7 +2555,7 @@ static dump_off
 dump_vectorlike_generic (struct dump_context *ctx,
 			 const union vectorlike_header *header)
 {
-#if CHECK_STRUCTS && !defined (HASH_vectorlike_header_00A5A4BFB2)
+#if CHECK_STRUCTS && !defined (HASH_vectorlike_header_785E52047B)
 # error "vectorlike_header changed. See CHECK_STRUCTS comment in config.h."
 #endif
   const struct Lisp_Vector *v = (const struct Lisp_Vector *) header;
@@ -2748,7 +2747,7 @@ dump_hash_table (struct dump_context *ctx,
 static dump_off
 dump_buffer (struct dump_context *ctx, const struct buffer *in_buffer)
 {
-#if CHECK_STRUCTS && !defined HASH_buffer_85D317CE74
+#if CHECK_STRUCTS && !defined HASH_buffer_EB0A5191C5
 # error "buffer changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct buffer munged_buffer = *in_buffer;
@@ -2999,7 +2998,7 @@ dump_vectorlike (struct dump_context *ctx,
                  Lisp_Object lv,
                  dump_off offset)
 {
-#if CHECK_STRUCTS && !defined HASH_pvec_type_5F2059C47E
+#if CHECK_STRUCTS && !defined HASH_pvec_type_D8A254BC70
 # error "pvec_type changed. See CHECK_STRUCTS comment in config.h."
 #endif
   const struct Lisp_Vector *v = XVECTOR (lv);
@@ -4072,10 +4071,12 @@ types.  */)
 {
   eassert (initialized);
 
+#ifndef HAVE_ANDROID
   if (! noninteractive)
     error ("Dumping Emacs currently works only in batch mode.  "
            "If you'd like it to work interactively, please consider "
            "contributing a patch to Emacs.");
+#endif
 
   if (will_dump_with_unexec_p ())
     error ("This Emacs instance was started under the assumption "
@@ -4745,7 +4746,9 @@ dump_discard_mem (void *mem, size_t size)
 # ifdef HAVE_POSIX_MADVISE
       /* Discard COWed pages.  */
       (void) posix_madvise (mem, size, POSIX_MADV_DONTNEED);
-# endif
+# elif defined HAVE_MADVISE
+      (void) madvise (mem, size, MADV_DONTNEED);
+#endif
       /* Release the commit charge for the mapping.  */
       (void) mprotect (mem, size, PROT_NONE);
 #endif
@@ -4997,6 +5000,7 @@ dump_mmap_contiguous (struct dump_memory_map *maps, int nr_maps)
 }
 
 typedef uint_fast32_t dump_bitset_word;
+#define DUMP_BITSET_WORD_WIDTH UINT_FAST32_WIDTH
 
 struct dump_bitset
 {
@@ -5007,9 +5011,9 @@ struct dump_bitset
 static bool
 dump_bitsets_init (struct dump_bitset bitset[2], size_t number_bits)
 {
-  int xword_size = sizeof (bitset[0].bits[0]);
-  int bits_per_word = xword_size * CHAR_BIT;
-  ptrdiff_t words_needed = divide_round_up (number_bits, bits_per_word);
+  int xword_size = sizeof (dump_bitset_word);
+  ptrdiff_t words_needed = divide_round_up (number_bits,
+					    DUMP_BITSET_WORD_WIDTH);
   dump_bitset_word *bits = calloc (words_needed, 2 * xword_size);
   if (!bits)
     return false;
@@ -5024,9 +5028,7 @@ static dump_bitset_word *
 dump_bitset__bit_slot (const struct dump_bitset *bitset,
                        size_t bit_number)
 {
-  int xword_size = sizeof (bitset->bits[0]);
-  int bits_per_word = xword_size * CHAR_BIT;
-  ptrdiff_t word_number = bit_number / bits_per_word;
+  ptrdiff_t word_number = bit_number / DUMP_BITSET_WORD_WIDTH;
   eassert (word_number < bitset->number_words);
   return &bitset->bits[word_number];
 }
@@ -5035,10 +5037,8 @@ static bool
 dump_bitset_bit_set_p (const struct dump_bitset *bitset,
                        size_t bit_number)
 {
-  unsigned xword_size = sizeof (bitset->bits[0]);
-  unsigned bits_per_word = xword_size * CHAR_BIT;
   dump_bitset_word bit = 1;
-  bit <<= bit_number % bits_per_word;
+  bit <<= bit_number % DUMP_BITSET_WORD_WIDTH;
   return *dump_bitset__bit_slot (bitset, bit_number) & bit;
 }
 
@@ -5047,11 +5047,9 @@ dump_bitset__set_bit_value (struct dump_bitset *bitset,
                             size_t bit_number,
                             bool bit_is_set)
 {
-  int xword_size = sizeof (bitset->bits[0]);
-  int bits_per_word = xword_size * CHAR_BIT;
   dump_bitset_word *slot = dump_bitset__bit_slot (bitset, bit_number);
   dump_bitset_word bit = 1;
-  bit <<= bit_number % bits_per_word;
+  bit <<= bit_number % DUMP_BITSET_WORD_WIDTH;
   if (bit_is_set)
     *slot = *slot | bit;
   else
@@ -5620,7 +5618,7 @@ pdumper_load (const char *dump_filename, char *argv0)
     }
 
   err = PDUMPER_LOAD_FILE_NOT_FOUND;
-  if (fstat (dump_fd, &stat) < 0)
+  if (sys_fstat (dump_fd, &stat) < 0)
     goto out;
 
   err = PDUMPER_LOAD_BAD_FILE_TYPE;
@@ -5842,6 +5840,10 @@ void
 syms_of_pdumper (void)
 {
 #ifdef HAVE_PDUMPER
+  unsigned char desired[sizeof fingerprint];
+  int i;
+  char hexbuf[2 * sizeof fingerprint];
+
   defsubr (&Sdump_emacs_portable);
   defsubr (&Sdump_emacs_portable__sort_predicate);
   defsubr (&Sdump_emacs_portable__sort_predicate_copied);
@@ -5854,5 +5856,17 @@ syms_of_pdumper (void)
   DEFSYM (Qdump_file_name, "dump-file-name");
   DEFSYM (Qafter_pdump_load_hook, "after-pdump-load-hook");
   defsubr (&Spdumper_stats);
+
+  for (i = 0; i < sizeof fingerprint; i++)
+    desired[i] = fingerprint[i];
+
+  hexbuf_digest (hexbuf, desired, sizeof desired);
+
+  DEFVAR_LISP ("pdumper-fingerprint", Vpdumper_fingerprint,
+	       doc: /* The fingerprint of this Emacs binary.
+It is a string that is supposed to be unique to each build of
+Emacs.  */);
+  Vpdumper_fingerprint = make_unibyte_string ((char *) hexbuf,
+					      sizeof hexbuf);
 #endif /* HAVE_PDUMPER */
 }

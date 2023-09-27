@@ -1653,6 +1653,7 @@ live frame and defaults to the selected one."
 (declare-function ns-frame-geometry "nsfns.m" (&optional frame))
 (declare-function pgtk-frame-geometry "pgtkfns.c" (&optional frame))
 (declare-function haiku-frame-geometry "haikufns.c" (&optional frame))
+(declare-function android-frame-geometry "androidfns.c" (&optional frame))
 (declare-function winit-frame-geometry "wrfns.c" (&optional frame))
 
 (defun frame-geometry (&optional frame)
@@ -1707,6 +1708,8 @@ and width values are in pixels.
       (pgtk-frame-geometry frame))
      ((eq frame-type 'haiku)
       (haiku-frame-geometry frame))
+     ((eq frame-type 'android)
+      (android-frame-geometry frame))
      ((eq frame-type 'winit)
       (winit-frame-geometry frame))
      (t
@@ -1835,6 +1838,7 @@ of frames like calls to map a frame or change its visibility."
 (declare-function ns-frame-edges "nsfns.m" (&optional frame type))
 (declare-function pgtk-frame-edges "pgtkfns.c" (&optional frame type))
 (declare-function haiku-frame-edges "haikufns.c" (&optional frame type))
+(declare-function android-frame-edges "androidfns.c" (&optional frame type))
 (declare-function winit-frame-edges "wrfns.c" (&optional frame type))
 
 (defun frame-edges (&optional frame type)
@@ -1863,6 +1867,8 @@ FRAME."
       (pgtk-frame-edges frame type))
      ((eq frame-type 'haiku)
       (haiku-frame-edges frame type))
+     ((eq frame-type 'android)
+      (android-frame-edges frame type))
      ((eq frame-type 'winit)
       (winit-frame-edges frame type))
      (t
@@ -1873,6 +1879,7 @@ FRAME."
 (declare-function ns-mouse-absolute-pixel-position "nsfns.m")
 (declare-function pgtk-mouse-absolute-pixel-position "pgtkfns.c")
 (declare-function haiku-mouse-absolute-pixel-position "haikufns.c")
+(declare-function android-mouse-absolute-pixel-position "androidfns.c")
 (declare-function wr-mouse-absolute-pixel-position "wrfns.c")
 
 (defun mouse-absolute-pixel-position ()
@@ -1892,6 +1899,8 @@ position (0, 0) of the selected frame's terminal."
       (pgtk-mouse-absolute-pixel-position))
      ((eq frame-type 'haiku)
       (haiku-mouse-absolute-pixel-position))
+     ((eq frame-type 'android)
+      (android-mouse-absolute-pixel-position))
      ((eq frame-type 'winit)
       (wr-mouse-absolute-pixel-position))
      (t
@@ -1902,6 +1911,8 @@ position (0, 0) of the selected frame's terminal."
 (declare-function w32-set-mouse-absolute-pixel-position "w32fns.c" (x y))
 (declare-function x-set-mouse-absolute-pixel-position "xfns.c" (x y))
 (declare-function haiku-set-mouse-absolute-pixel-position "haikufns.c" (x y))
+(declare-function android-set-mouse-absolute-pixel-position
+                  "androidfns.c" (x y))
 (declare-function wr-set-mouse-absolute-pixel-position "wrfns.c" (x y))
 
 (defun set-mouse-absolute-pixel-position (x y)
@@ -1920,6 +1931,8 @@ position (0, 0) of the selected frame's terminal."
       (w32-set-mouse-absolute-pixel-position x y))
      ((eq frame-type 'haiku)
       (haiku-set-mouse-absolute-pixel-position x y))
+     ((eq frame-type 'android)
+      (android-set-mouse-absolute-pixel-position x y))
      ((eq frame-type 'winit)
       (wr-set-mouse-absolute-pixel-position x y)))))
 
@@ -2017,6 +2030,7 @@ workarea attribute."
 ;; TODO: implement this on PGTK.
 ;; (declare-function pgtk-frame-list-z-order "pgtkfns.c" (&optional display))
 (declare-function haiku-frame-list-z-order "haikufns.c" (&optional display))
+(declare-function android-frame-list-z-order "androidfns.c" (&optional display))
 (declare-function winit-frame-list-z-order "wrfns.c" (&optional display))
 
 (defun frame-list-z-order (&optional display)
@@ -2044,6 +2058,8 @@ Return nil if DISPLAY contains no Emacs frame."
       nil)
      ((eq frame-type 'haiku)
       (haiku-frame-list-z-order display))
+     ((eq frame-type 'android)
+      (android-frame-list-z-order display))
      ((eq frame-type 'winit)
       (winit-frame-list-z-order display)))))
 
@@ -2052,6 +2068,8 @@ Return nil if DISPLAY contains no Emacs frame."
 (declare-function ns-frame-restack "nsfns.m" (frame1 frame2 &optional above))
 (declare-function pgtk-frame-restack "pgtkfns.c" (frame1 frame2 &optional above))
 (declare-function haiku-frame-restack "haikufns.c" (frame1 frame2 &optional above))
+(declare-function android-frame-restack "androidfns.c" (frame1 frame2
+                                                               &optional above))
 (declare-function winit-frame-restack "wrfns.c" (frame1 frame2 &optional above))
 
 (defun frame-restack (frame1 frame2 &optional above)
@@ -2087,6 +2105,8 @@ Some window managers may refuse to restack windows."
           (haiku-frame-restack frame1 frame2 above))
          ((eq frame-type 'pgtk)
           (pgtk-frame-restack frame1 frame2 above))
+         ((eq frame-type 'android)
+          (android-frame-restack frame1 frame2 above))
          ((eq frame-type 'winit)
           (winit-frame-restack frame1 frame2 above))))
     (error "Cannot restack frames")))
@@ -2123,6 +2143,7 @@ for FRAME."
 ;; or in https://debbugs.gnu.org/cgi/bugreport.cgi?bug=35058#17.
 
 (declare-function msdos-mouse-p "dosfns.c")
+(declare-function android-detect-mouse "androidfns.c")
 
 (defun display-mouse-p (&optional display)
   "Return non-nil if DISPLAY has a mouse available.
@@ -2137,6 +2158,8 @@ frame's display)."
        (> w32-num-mouse-buttons 0)))
      ((memq frame-type '(x ns haiku pgtk winit))
       t)    ;; We assume X, NeXTstep, GTK, and Haiku *always* have a pointing device
+     ((eq frame-type 'android)
+      (android-detect-mouse))
      (t
       (or (and (featurep 'xt-mouse)
 	       xterm-mouse-mode)
@@ -2152,8 +2175,12 @@ frame's display)."
   "Return non-nil if popup menus are supported on DISPLAY.
 DISPLAY can be a display name, a frame, or nil (meaning the selected
 frame's display).
-Support for popup menus requires that the mouse be available."
-  (display-mouse-p display))
+Support for popup menus requires that a suitable pointing device
+be available."
+  ;; Android menus work fine with touch screens as well, and one must
+  ;; be present.
+  (or (eq (framep-on-display display) 'android)
+      (display-mouse-p display)))
 
 (defun display-graphic-p (&optional display)
   "Return non-nil if DISPLAY is a graphic display.
@@ -2162,7 +2189,8 @@ frames and several different fonts at once.  This is true for displays
 that use a window system such as X, and false for text-only terminals.
 DISPLAY can be a display name, a frame, or nil (meaning the selected
 frame's display)."
-  (not (null (memq (framep-on-display display) '(x w32 ns pgtk haiku winit)))))
+  (not (null (memq (framep-on-display display) '(x w32 ns pgtk haiku
+                                                   android winit)))))
 
 (defun display-images-p (&optional display)
   "Return non-nil if DISPLAY can display images.
@@ -2214,7 +2242,7 @@ frame's display)."
 This means that, for example, DISPLAY can differentiate between
 the keybinding RET and [return]."
   (let ((frame-type (framep-on-display display)))
-    (or (memq frame-type '(x w32 ns pc pgtk haiku winit))
+    (or (memq frame-type '(x w32 ns pc pgtk haiku android winit))
         ;; MS-DOS and MS-Windows terminals have built-in support for
         ;; function (symbol) keys
         (memq system-type '(ms-dos windows-nt)))))
@@ -2227,7 +2255,7 @@ DISPLAY should be either a frame or a display name (a string).
 If DISPLAY is omitted or nil, it defaults to the selected frame's display."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 ns haiku pgtk winit))
+     ((memq frame-type '(x w32 ns haiku pgtk android winit))
       (x-display-screens display))
      (t
       1))))
@@ -2247,7 +2275,7 @@ with DISPLAY.  To get information for each physical monitor, use
 `display-monitor-attributes-list'."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 ns haiku pgtk winit))
+     ((memq frame-type '(x w32 ns haiku pgtk android winit))
       (x-display-pixel-height display))
      (t
       (frame-height (if (framep display) display (selected-frame)))))))
@@ -2267,7 +2295,7 @@ with DISPLAY.  To get information for each physical monitor, use
 `display-monitor-attributes-list'."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 ns haiku pgtk winit))
+     ((memq frame-type '(x w32 ns haiku pgtk android winit))
       (x-display-pixel-width display))
      (t
       (frame-width (if (framep display) display (selected-frame)))))))
@@ -2305,7 +2333,7 @@ For graphical terminals, note that on \"multi-monitor\" setups this
 refers to the height in millimeters for all physical monitors
 associated with DISPLAY.  To get information for each physical
 monitor, use `display-monitor-attributes-list'."
-  (and (memq (framep-on-display display) '(x w32 ns haiku pgtk winit))
+  (and (memq (framep-on-display display) '(x w32 ns haiku pgtk android winit))
        (or (cddr (assoc (or display (frame-parameter nil 'display))
 			display-mm-dimensions-alist))
 	   (cddr (assoc t display-mm-dimensions-alist))
@@ -2326,7 +2354,7 @@ For graphical terminals, note that on \"multi-monitor\" setups this
 refers to the width in millimeters for all physical monitors
 associated with DISPLAY.  To get information for each physical
 monitor, use `display-monitor-attributes-list'."
-  (and (memq (framep-on-display display) '(x w32 ns haiku pgtk winit))
+  (and (memq (framep-on-display display) '(x w32 ns haiku pgtk android winit))
        (or (cadr (assoc (or display (frame-parameter nil 'display))
 			display-mm-dimensions-alist))
 	   (cadr (assoc t display-mm-dimensions-alist))
@@ -2344,7 +2372,7 @@ DISPLAY can be a display name or a frame.
 If DISPLAY is omitted or nil, it defaults to the selected frame's display."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 ns haiku pgtk winit))
+     ((memq frame-type '(x w32 ns haiku pgtk android winit))
       (x-display-backing-store display))
      (t
       'not-useful))))
@@ -2357,7 +2385,7 @@ DISPLAY can be a display name or a frame.
 If DISPLAY is omitted or nil, it defaults to the selected frame's display."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 ns haiku pgtk winit))
+     ((memq frame-type '(x w32 ns haiku pgtk android winit))
       (x-display-save-under display))
      (t
       'not-useful))))
@@ -2370,7 +2398,7 @@ DISPLAY can be a display name or a frame.
 If DISPLAY is omitted or nil, it defaults to the selected frame's display."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 ns haiku pgtk winit))
+     ((memq frame-type '(x w32 ns haiku pgtk android winit))
       (x-display-planes display))
      ((eq frame-type 'pc)
       4)
@@ -2385,7 +2413,7 @@ DISPLAY can be a display name or a frame.
 If DISPLAY is omitted or nil, it defaults to the selected frame's display."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 ns haiku pgtk winit))
+     ((memq frame-type '(x w32 ns haiku pgtk android winit))
       (x-display-color-cells display))
      ((eq frame-type 'pc)
       16)
@@ -2402,7 +2430,7 @@ DISPLAY can be a display name or a frame.
 If DISPLAY is omitted or nil, it defaults to the selected frame's display."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 ns haiku pgtk winit))
+     ((memq frame-type '(x w32 ns haiku pgtk android winit))
       (x-display-visual-class display))
      ((and (memq frame-type '(pc t))
 	   (tty-display-color-p display))
@@ -2420,6 +2448,8 @@ If DISPLAY is omitted or nil, it defaults to the selected frame's display."
 		  (&optional terminal))
 (declare-function haiku-display-monitor-attributes-list "haikufns.c"
 		  (&optional terminal))
+(declare-function android-display-monitor-attributes-list "androidfns.c"
+                  (&optional terminal))
 (declare-function wr-display-monitor-attributes-list "wrfns.c"
 		  (&optional terminal))
 
@@ -2475,6 +2505,8 @@ monitors."
       (pgtk-display-monitor-attributes-list display))
      ((eq frame-type 'haiku)
       (haiku-display-monitor-attributes-list display))
+     ((eq frame-type 'android)
+      (android-display-monitor-attributes-list display))
      ((eq frame-type 'winit)
       (wr-display-monitor-attributes-list display))
      (t
@@ -2553,6 +2585,28 @@ symbols."
                'core-pointer)
               ((string= name "Virtual core keyboard")
                'core-keyboard))))))
+
+
+;;;; On-screen keyboard management.
+
+(declare-function android-toggle-on-screen-keyboard "androidfns.c")
+
+(defun frame-toggle-on-screen-keyboard (frame hide)
+  "Display or hide the on-screen keyboard.
+On systems with an on-screen keyboard, display the on screen
+keyboard on behalf of the frame FRAME if HIDE is nil.  Else, hide
+the on screen keyboard.
+
+Return whether or not the on screen keyboard may have been
+displayed; that is, return t on systems with an on screen
+keyboard, and nil on those without.
+
+FRAME must already have the input focus for this to work
+ reliably."
+  (let ((frame-type (framep-on-display frame)))
+    (cond ((eq frame-type 'android)
+           (android-toggle-on-screen-keyboard frame hide) t)
+          (t nil))))
 
 
 ;;;; Frame geometry values
@@ -2877,7 +2931,7 @@ Values smaller than 0.2 sec are treated as 0.2 sec."
   "How many times to blink before using a solid cursor on NS, X, and MS-Windows.
 Use 0 or negative value to blink forever."
   :version "24.4"
-  :type 'natnum
+  :type 'integer
   :group 'cursor)
 
 (defvar blink-cursor-blinks-done 1

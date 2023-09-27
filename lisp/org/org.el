@@ -9,7 +9,7 @@
 ;; URL: https://orgmode.org
 ;; Package-Requires: ((emacs "26.1"))
 
-;; Version: 9.6.4
+;; Version: 9.6.9
 
 ;; This file is part of GNU Emacs.
 ;;
@@ -1021,7 +1021,7 @@ time."
 This is useful since some lines containing links can be very long and
 uninteresting.  Also tables look terrible when wrapped.
 
-The variable `org-startup-truncated' allows to configure
+The variable `org-startup-truncated' enables you to configure
 truncation for Org mode different to the other modes that use the
 variable `truncate-lines' and as a shortcut instead of putting
 the variable `truncate-lines' into the `org-mode-hook'.  If one
@@ -1321,14 +1321,15 @@ Possible values for the file identifier are:
                      to open [[file:document.pdf::5]] with evince at page 5.
 
                  Likely, you will need more entries: without page
-                 number; with search pattern; with cross-reference
-                 anchor; some combination of options.  Consider simple
-                 pattern here and a Lisp function to determine command
-                 line arguments instead.  Passing argument list to
-                 `call-process' or `make-process' directly allows to
-                 avoid treating some character in peculiar file names
-                 as shell specialls causing executing part of file
-                 name as a subcommand.
+                 number; with search pattern; with
+                 cross-reference anchor; some combination of
+                 options.  Consider simple pattern here and a
+                 Lisp function to determine command line
+                 arguments instead.  Passing an argument list to
+                 `call-process' or `make-process' directly avoids
+                 treating some character in peculiar file names
+                 as shell specials that prompt parts of said file
+                 names to be executed as subcommands.
 
  `directory'   Matches a directory
  `remote'      Matches a remote file, accessible through tramp.
@@ -3760,7 +3761,6 @@ This is needed for font-lock setup.")
 (defvar calc-embedded-close-formula)
 (defvar calc-embedded-open-formula)
 (defvar calc-embedded-open-mode)
-(defvar font-lock-unfontify-region-function)
 (defvar org-agenda-tags-todo-honor-ignore-options)
 (defvar remember-data-file)
 (defvar texmathp-why)
@@ -5374,7 +5374,7 @@ by a #."
 			  (zero-or-more (any " \t"))
 			  (group (group (zero-or-more (not (any " \t\n"))))
 				 (zero-or-more (any " \t"))
-				 (group (zero-or-more any)))))
+				 (group (zero-or-more nonl)))))
 	   limit t)
       (let ((beg (match-beginning 0))
 	    (end-of-beginline (match-end 0))
@@ -5400,7 +5400,7 @@ by a #."
 						    "#+end"
 						    ,(match-string 4)
 						    word-end
-						    (zero-or-more any)))))
+						    (zero-or-more nonl)))))
 		 ;; We look further than LIMIT on purpose.
 		 nil t)
 	    ;; We do have a matching #+end line.
@@ -5473,7 +5473,7 @@ by a #."
 	    (beginning-of-line)
 	    (looking-at (rx (group (zero-or-more (any " \t"))
 				   "#+caption"
-				   (optional "[" (zero-or-more any) "]")
+				   (optional "[" (zero-or-more nonl) "]")
 				   ":")
 			    (zero-or-more (any " \t")))))
 	  (add-text-properties (line-beginning-position) (match-end 1)
@@ -5691,7 +5691,7 @@ highlighting was done, nil otherwise."
 
 If this is called at a normal headline, the level is the number
 of stars.  Use `org-reduced-level' to remove the effect of
-`org-odd-levels'.  Unlike to `org-current-level', this function
+`org-odd-levels-only'.  Unlike `org-current-level', this function
 takes into consideration inlinetasks."
   (org-with-wide-buffer
    (end-of-line)
@@ -5893,6 +5893,8 @@ needs to be inserted at a specific position in the font-lock sequence.")
 
 (defvar-local org-custom-properties-overlays nil
   "List of overlays used for custom properties.")
+;; Preserve when switching modes or when restarting Org.
+(put 'org-custom-properties-overlays 'permanent-local t)
 
 (defun org-toggle-custom-properties-visibility ()
   "Display or hide properties in `org-custom-properties'."
@@ -6321,7 +6323,10 @@ unconditionally."
        (if (not level) (outline-next-heading) ;before first headline
 	 (org-back-to-heading invisible-ok)
 	 (when (equal arg '(16)) (org-up-heading-safe))
-	 (org-end-of-subtree)))
+	 (org-end-of-subtree invisible-ok 'to-heading)))
+      ;; At `point-max', if the file does not have ending newline,
+      ;; create one, so that we are not appending stars at non-empty
+      ;; line.
       (unless (bolp) (insert "\n"))
       (when (and blank? (save-excursion
                           (backward-char)
@@ -6333,7 +6338,9 @@ unconditionally."
         (backward-char))
       (unless (and blank? (org-previous-line-empty-p))
 	(org-N-empty-lines-before-current (if blank? 1 0)))
-      (insert stars " ")
+      (insert stars " " "\n")
+      ;; Move point after stars.
+      (backward-char)
       ;; When INVISIBLE-OK is non-nil, ensure newly created headline
       ;; is visible.
       (unless invisible-ok
@@ -6621,7 +6628,7 @@ headings in the region."
   "Return the level of the current entry, or nil if before the first headline.
 The level is the number of stars at the beginning of the
 headline.  Use `org-reduced-level' to remove the effect of
-`org-odd-levels'.  Unlike to `org-outline-level', this function
+`org-odd-levels-only'.  Unlike `org-outline-level', this function
 ignores inlinetasks."
   (let ((level (org-with-limited-levels (org-outline-level))))
     (and (> level 0) level)))
@@ -9709,7 +9716,7 @@ when there is a statistics cookie in the headline!
 
  (defun org-summary-todo (n-done n-not-done)
    \"Switch entry to DONE when all subentries are done, to TODO otherwise.\"
-   (let (org-log-done org-log-states)   ; turn off logging
+   (let (org-log-done org-todo-log-states)   ; turn off logging
      (org-todo (if (= n-not-done 0) \"DONE\" \"TODO\"))))")
 
 (defvar org-todo-statistics-hook nil
@@ -10673,6 +10680,7 @@ D      Show deadlines and scheduled items between a date range."
 
 (defvar-local org-occur-highlights nil
   "List of overlays used for occur matches.")
+(put 'org-occur-highlights 'permanent-local t)
 (defvar-local org-occur-parameters nil
   "Parameters of the active org-occur calls.
 This is a list, each call to org-occur pushes as cons cell,
@@ -13220,7 +13228,7 @@ Optional argument DEFAULT provides a default value for PROPERTY."
      nil nil nil nil default-prop)))
 
 (defun org-set-property-and-value (use-last)
-  "Allow to set [PROPERTY]: [value] direction from prompt.
+  "Allow setting [PROPERTY]: [value] direction from prompt.
 When use-default, don't even ask, just use the last
 \"[PROPERTY]: [value]\" string from the history."
   (interactive "P")
@@ -14751,12 +14759,12 @@ is considered `day' (i.e. only `bracket', `day', and `after' return
 values are possible).
 
 When matching, the match groups are the following:
-  group 1: year, if any
-  group 2: month, if any
-  group 3: day number, if any
-  group 4: day name, if any
-  group 5: hours, if any
-  group 6: minutes, if any"
+  group 2: year, if any
+  group 3: month, if any
+  group 4: day number, if any
+  group 5: day name, if any
+  group 7: hours, if any
+  group 8: minutes, if any"
   (let* ((regexp
           (if extended
               (if (eq extended 'agenda)
@@ -16159,6 +16167,10 @@ SNIPPETS-P indicates if this is run to create snippet images for HTML."
 ;; Image display
 
 (defvar-local org-inline-image-overlays nil)
+;; Preserve when switching modes or when restarting Org.
+;; If we clear the overlay list and later enable Or mode, the existing
+;; image overlays will never be cleared by `org-toggle-inline-images'.
+(put 'org-inline-image-overlays 'permanent-local t)
 
 (defun org--inline-image-overlays (&optional beg end)
   "Return image overlays between BEG and END."
@@ -16253,7 +16265,8 @@ conventions:
 
   2. Its description consists in a single link of the previous
      type.  In this case, that link must be a well-formed plain
-     or angle link, i.e., it must have an explicit \"file\" type.
+     or angle link, i.e., it must have an explicit \"file\" or
+     \"attachment\" type.
 
 Equip each image with the key-map `image-map'.
 
@@ -16284,7 +16297,7 @@ buffer boundaries with possible narrowing."
 	       ;; "file:" links.  Also check link abbreviations since
 	       ;; some might expand to "file" links.
 	       (file-types-re
-		(format "\\[\\[\\(?:file%s:\\|attachment:\\|[./~]\\)\\|\\]\\[\\(<?file:\\)"
+		(format "\\[\\[\\(?:file%s:\\|attachment:\\|[./~]\\)\\|\\]\\[\\(<?\\(?:file\\|attachment\\):\\)"
 			(if (not link-abbrevs) ""
 			  (concat "\\|" (regexp-opt link-abbrevs))))))
 	  (while (re-search-forward file-types-re end t)
@@ -16323,7 +16336,9 @@ buffer boundaries with possible narrowing."
 			     ;; description.
 			     (= (org-element-property :contents-end link)
 				(match-end 0))
-			     (match-string 2)))))))
+			     (progn
+                               (setq linktype (match-string 1))
+                               (match-string 2))))))))
 	      (when (and path (string-match-p file-extension-re path))
 		(let ((file (if (equal "attachment" linktype)
 				(progn
@@ -16422,7 +16437,7 @@ buffer boundaries with possible narrowing."
 (defun org-display-inline-remove-overlay (ov after _beg _end &optional _len)
   "Remove inline-display overlay if a corresponding region is modified."
   (when (and ov after)
-    (delete ov org-inline-image-overlays)
+    (setq org-inline-image-overlays (delete ov org-inline-image-overlays))
     ;; Clear image from cache to avoid image not updating upon
     ;; changing on disk.  See Emacs bug#59902.
     (when (overlay-get ov 'org-image-overlay)
@@ -17640,8 +17655,8 @@ region."
 (defun org-open-line (n)
   "Insert a new row in tables, call `open-line' elsewhere.
 If `org-special-ctrl-o' is nil, just call `open-line' everywhere.
-As a special case, when a document starts with a table, allow to
-call `open-line' on the very first character."
+As a special case, when a document starts with a table, allow
+calling `open-line' on the very first character."
   (interactive "*p")
   (if (and org-special-ctrl-o (/= (point) 1) (org-at-table-p))
       (org-table-insert-row)
@@ -17653,6 +17668,8 @@ If INDENT is non-nil, call `newline-and-indent' with ARG to
 indent unconditionally; otherwise, call `newline' with ARG and
 INTERACTIVE, which can trigger indentation if
 `electric-indent-mode' is enabled."
+  (when interactive
+    (org-fold-check-before-invisible-edit 'insert))
   (if indent
       (org-newline-and-indent arg)
     (newline arg interactive)))
@@ -18602,6 +18619,10 @@ block from point."
 	      (throw 'exit n)))))
       nil)))
 
+;; Defined in org-agenda.el
+(defvar org-agenda-restrict)
+(defvar org-agenda-restrict-begin)
+(defvar org-agenda-restrict-end)
 (defun org-occur-in-agenda-files (regexp &optional _nlines)
   "Call `multi-occur' with buffers for all agenda files."
   (interactive "sOrg-files matching: ")
@@ -18851,9 +18872,7 @@ ELEMENT."
 	     (goto-char start)
 	     (current-indentation)))
 	  ;; In any other case, indent like the current line.
-	  (t (current-indentation)))))
-      ;; Finally, no indentation is needed, fall back to 0.
-      (t (current-indentation))))))
+	  (t (current-indentation)))))))))
 
 (defun org--align-node-property ()
   "Align node property at point.
@@ -20652,7 +20671,7 @@ non-nil it will also look at invisible ones."
 	(if backward? (goto-char (point-min)) (outline-next-heading))
       (org-back-to-heading invisible-ok)
       (unless backward? (end-of-line))	;do not match current headline
-      (let ((level (- (match-end 0) (match-beginning 0) 1))
+      (let ((level (org-current-level))
 	    (f (if backward? #'re-search-backward #'re-search-forward))
 	    (count (if arg (abs arg) 1))
 	    (result (point)))

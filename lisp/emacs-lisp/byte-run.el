@@ -145,6 +145,11 @@ So far, FUNCTION can only be a symbol, not a lambda expression."
       (list 'function-put (list 'quote f)
             ''side-effect-free (list 'quote val))))
 
+(defalias 'byte-run--set-important-return-value
+  #'(lambda (f _args val)
+      (list 'function-put (list 'quote f)
+            ''important-return-value (list 'quote val))))
+
 (put 'compiler-macro 'edebug-declaration-spec
      '(&or symbolp ("lambda" &define lambda-list lambda-doc def-body)))
 
@@ -226,6 +231,8 @@ This may shift errors from run-time to compile-time.")
    (list 'side-effect-free #'byte-run--set-side-effect-free
          "If non-nil, calls can be ignored if their value is unused.
 If `error-free', drop calls even if `byte-compile-delete-errors' is nil.")
+   (list 'important-return-value #'byte-run--set-important-return-value
+         "If non-nil, warn about calls not using the returned value.")
    (list 'compiler-macro #'byte-run--set-compiler-macro)
    (list 'doc-string #'byte-run--set-doc-string)
    (list 'indent #'byte-run--set-indent)
@@ -487,6 +494,11 @@ convention was modified."
 Return t if there isn't any."
   (gethash function advertised-signature-table t))
 
+(defun byte-run--constant-obsolete-warning (obsolete-name)
+  (if (memq obsolete-name '(nil t))
+      (error "Can't make `%s' obsolete; did you forget a quote mark?"
+             obsolete-name)))
+
 (defun make-obsolete (obsolete-name current-name when)
   "Make the byte-compiler warn that function OBSOLETE-NAME is obsolete.
 OBSOLETE-NAME should be a function name or macro name (a symbol).
@@ -496,6 +508,7 @@ If CURRENT-NAME is a string, that is the `use instead' message
 \(it should end with a period, and not start with a capital).
 WHEN should be a string indicating when the function
 was first made obsolete, for example a date or a release number."
+  (byte-run--constant-obsolete-warning obsolete-name)
   (put obsolete-name 'byte-obsolete-info
        ;; The second entry used to hold the `byte-compile' handler, but
        ;; is not used any more nowadays.
@@ -532,6 +545,7 @@ WHEN should be a string indicating when the variable
 was first made obsolete, for example a date or a release number.
 ACCESS-TYPE if non-nil should specify the kind of access that will trigger
   obsolescence warnings; it can be either `get' or `set'."
+  (byte-run--constant-obsolete-warning obsolete-name)
   (put obsolete-name 'byte-obsolete-variable
        (purecopy (list current-name access-type when)))
   obsolete-name)
@@ -651,7 +665,7 @@ in `byte-compile-warning-types'; see the variable
 types.  The types that can be suppressed with this macro are
 `free-vars', `callargs', `redefine', `obsolete',
 `interactive-only', `lexical', `ignored-return-value', `constants',
-`suspicious' and `empty-body'."
+`suspicious', `empty-body' and `mutate-constant'."
   ;; Note: during compilation, this definition is overridden by the one in
   ;; byte-compile-initial-macro-environment.
   (declare (debug (sexp body)) (indent 1))

@@ -425,11 +425,14 @@ to it is returned.  This function does not modify the point or the mark."
 (defvar lookup-syntax-properties)       ;XEmacs.
 
 (defmacro c-is-escaped (pos)
-  ;; Are there an odd number of backslashes before POS?
+  ;; Is the character following POS escaped?
   (declare (debug t))
   `(save-excursion
      (goto-char ,pos)
-     (not (zerop (logand (skip-chars-backward "\\\\") 1)))))
+     (if (and c-escaped-newline-takes-precedence
+	      (memq (char-after) '(?\n ?\r)))
+	 (eq (char-before) ?\\)
+       (not (zerop (logand (skip-chars-backward "\\\\") 1))))))
 
 (defmacro c-will-be-escaped (pos beg end)
   ;; Will the character after POS be escaped after the removal of (BEG END)?
@@ -437,13 +440,23 @@ to it is returned.  This function does not modify the point or the mark."
   (declare (debug t))
   `(save-excursion
      (let ((-end- ,end)
+	   (-pos- ,pos)
 	   count)
-       (goto-char ,pos)
-       (setq count (skip-chars-backward "\\\\" -end-))
-       (when (eq (point) -end-)
-	 (goto-char ,beg)
-	 (setq count (+ count (skip-chars-backward "\\\\"))))
-       (not (zerop (logand count 1))))))
+       (if (and c-escaped-newline-takes-precedence
+		(memq (char-after -pos-) '(?\n ?\r)))
+	   (eq (char-before (if (eq -pos- -end-)
+				,beg
+			      -pos-))
+	       ?\\)
+	 (goto-char -pos-)
+	 (setq count
+	       (if (> -pos- -end-)
+		   (skip-chars-backward "\\\\" -end-)
+		 0))
+	 (when (eq (point) -end-)
+	   (goto-char ,beg)
+	   (setq count (+ count (skip-chars-backward "\\\\"))))
+	 (not (zerop (logand count 1)))))))
 
 (defmacro c-will-be-unescaped (beg)
   ;; Would the character after BEG be unescaped?
@@ -1284,6 +1297,21 @@ MODE is either a mode symbol or a list of mode symbols."
        pos)
       (most-positive-fixnum))))
 
+(defmacro c-put-char-properties (from to property value)
+  ;; Put the given PROPERTY with the given VALUE on the characters between
+  ;; FROM and TO.  PROPERTY is assumed to be constant.  The return value is
+  ;; undefined.
+  ;;
+  ;; This macro does hidden buffer changes.
+  (declare (debug t))
+  (setq property (eval property))
+  `(let ((-from- ,from))
+	 (progn
+	   ,@(when (and (fboundp 'syntax-ppss)
+			(eq `,property 'syntax-table))
+	       `((setq c-syntax-table-hwm (min c-syntax-table-hwm -from-))))
+	   (put-text-property -from- ,to ',property ,value))))
+
 (defmacro c-clear-char-properties (from to property)
   ;; Remove all the occurrences of the given property in the given
   ;; region that has been put with `c-put-char-property'.  PROPERTY is
@@ -1379,7 +1407,8 @@ isn't found, return nil; point is then left undefined."
        value)
       (t (let ((place (c-next-single-property-change
 		       (point) ,property nil -limit-)))
-	   (when place
+	   (when (and place
+		      (< place -limit-))
 	     (goto-char (1+ place))
 	     (c-get-char-property place ,property)))))))
 
@@ -1846,9 +1875,9 @@ with value CHAR in the region [FROM to)."
       '(looking-at
 	"\\([;#]\\|\\'\\|\\s(\\|\\s)\\|\\s\"\\|\\s\\\\|\\s$\\|\\s<\\|\\s>\\|\\s!\\)")
     '(or (looking-at
-	  "\\([;#]\\|\\'\\|\\s(\\|\\s)\\|\\s\"\\|\\s\\\\|\\s$\\|\\s<\\|\\s>\\)"
+	  "\\([;#]\\|\\'\\|\\s(\\|\\s)\\|\\s\"\\|\\s\\\\|\\s$\\|\\s<\\|\\s>\\)")
 	  (let ((prop (c-get-char-property (point) 'syntax-table)))
-	    (equal prop '(14))))))) ; '(14) is generic comment delimiter.
+	    (equal prop '(14)))))) ; '(14) is generic comment delimiter.
 
 
 (defsubst c-intersect-lists (list alist)

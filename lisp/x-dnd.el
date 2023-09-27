@@ -31,6 +31,9 @@
 ;;; Code:
 
 (require 'dnd)
+;; For when building a --without-x configuration, where this is not
+;; preloaded.
+(eval-when-compile (require 'mwheel))
 
 ;;; Customizable variables
 (defcustom x-dnd-test-function #'x-dnd-default-test-function
@@ -609,8 +612,9 @@ message (format 32) that caused EVENT to be generated."
 (defun x-dnd-after-move-frame (frame)
   "Handle FRAME moving to a different position.
 Clear any cached root window position."
-  (set-frame-parameter frame 'dnd-root-window-position
-                       nil))
+  (and (frame-live-p frame)
+       (set-frame-parameter frame 'dnd-root-window-position
+                            nil)))
 
 (add-hook 'move-frame-functions #'x-dnd-after-move-frame)
 

@@ -269,10 +269,11 @@ for example, (type-of 1) returns `integer'.  */)
 	  return Qtreesit_compiled_query;
         case PVEC_SQLITE:
           return Qsqlite;
+        case PVEC_SUB_CHAR_TABLE:
+          return Qsub_char_table;
         /* "Impossible" cases.  */
 	case PVEC_MISC_PTR:
         case PVEC_OTHER:
-        case PVEC_SUB_CHAR_TABLE:
         case PVEC_FREE: ;
         }
       emacs_abort ();
@@ -885,7 +886,7 @@ add_to_function_history (Lisp_Object symbol, Lisp_Object olddef)
   Lisp_Object past = Fget (symbol, Qfunction_history);
   Lisp_Object file = Qnil;
   /* FIXME: Sadly, `Vload_file_name` gives less precise information
-     (it's sometimes non-nil when it shoujld be nil).  */
+     (it's sometimes non-nil when it should be nil).  */
   Lisp_Object tail = Vcurrent_load_list;
   FOR_EACH_TAIL_SAFE (tail)
     if (NILP (XCDR (tail)) && STRINGP (XCAR (tail)))
@@ -1606,8 +1607,6 @@ set_internal (Lisp_Object symbol, Lisp_Object newval, Lisp_Object where,
   bool voide = BASE_EQ (newval, Qunbound);
 
   /* If restoring in a dead buffer, do nothing.  */
-  /* if (BUFFERP (where) && NILP (XBUFFER (where)->name))
-      return; */
 
   CHECK_SYMBOL (symbol);
   struct Lisp_Symbol *sym = XSYMBOL (symbol);
@@ -2212,17 +2211,18 @@ Instead, use `add-hook' and specify t for the LOCAL argument.  */)
   if (sym->u.s.trapped_write == SYMBOL_NOWRITE)
     xsignal1 (Qsetting_constant, variable);
 
-  if (blv ? blv->local_if_set
-      : (forwarded && BUFFER_OBJFWDP (valcontents.fwd)))
-    {
-      tem = Fboundp (variable);
-      /* Make sure the symbol has a local value in this particular buffer,
-	 by setting it to the same value it already has.  */
-      Fset (variable, (EQ (tem, Qt) ? Fsymbol_value (variable) : Qunbound));
-      return variable;
-    }
   if (!blv)
     {
+      if (forwarded && BUFFER_OBJFWDP (valcontents.fwd))
+        {
+          int offset = XBUFFER_OBJFWD (valcontents.fwd)->offset;
+          int idx = PER_BUFFER_IDX (offset);
+          eassert (idx);
+          if (idx > 0)
+            /* If idx < 0, it's always buffer local, like `mode-name`.  */
+            SET_PER_BUFFER_VALUE_P (current_buffer, idx, true);
+          return variable;
+        }
       blv = make_blv (sym, forwarded, valcontents);
       sym->u.s.redirect = SYMBOL_LOCALIZED;
       SET_SYMBOL_BLV (sym, blv);
@@ -3032,7 +3032,8 @@ If the base used is not 10, STRING is always parsed as an integer.  */)
     p++;
 
   Lisp_Object val = string_to_number (p, b, 0);
-  return NILP (val) ? make_fixnum (0) : val;
+  return ((IEEE_FLOATING_POINT ? NILP (val) : !NUMBERP (val))
+	  ? make_fixnum (0) : val);
 }
 
 enum arithop
@@ -3190,9 +3191,9 @@ arith_driver (enum arithop code, ptrdiff_t nargs, Lisp_Object *args,
 	intmax_t a;
 	switch (code)
 	  {
-	  case Aadd : overflow = INT_ADD_WRAPV (accum, next, &a); break;
-	  case Amult: overflow = INT_MULTIPLY_WRAPV (accum, next, &a); break;
-	  case Asub : overflow = INT_SUBTRACT_WRAPV (accum, next, &a); break;
+	  case Aadd : overflow = ckd_add (&a, accum, next); break;
+	  case Amult: overflow = ckd_mul (&a, accum, next); break;
+	  case Asub : overflow = ckd_sub (&a, accum, next); break;
 	  case Adiv:
 	    if (next == 0)
 	      xsignal0 (Qarith_error);
@@ -4112,7 +4113,14 @@ syms_of_data (void)
   DEFSYM (Qunevalled, "unevalled");
   DEFSYM (Qmany, "many");
 
+  DEFSYM (Qcar, "car");
   DEFSYM (Qcdr, "cdr");
+  DEFSYM (Qnth, "nth");
+  DEFSYM (Qelt, "elt");
+  DEFSYM (Qsetcar, "setcar");
+  DEFSYM (Qsetcdr, "setcdr");
+  DEFSYM (Qaref, "aref");
+  DEFSYM (Qaset, "aset");
 
   error_tail = pure_cons (Qerror, Qnil);
 
@@ -4219,6 +4227,7 @@ syms_of_data (void)
   DEFSYM (Qvector, "vector");
   DEFSYM (Qrecord, "record");
   DEFSYM (Qchar_table, "char-table");
+  DEFSYM (Qsub_char_table, "sub-char-table");
   DEFSYM (Qbool_vector, "bool-vector");
   DEFSYM (Qhash_table, "hash-table");
   DEFSYM (Qthread, "thread");
@@ -4361,8 +4370,6 @@ syms_of_data (void)
   defsubr (&Sbool_vector_subsetp);
   defsubr (&Sbool_vector_count_consecutive);
   defsubr (&Sbool_vector_count_population);
-
-  set_symbol_function (Qwholenump, XSYMBOL (Qnatnump)->u.s.function);
 
   DEFVAR_LISP ("most-positive-fixnum", Vmost_positive_fixnum,
 	       doc: /* The greatest integer that is represented efficiently.

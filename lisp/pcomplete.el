@@ -138,6 +138,11 @@
   "A regexp of names to be disregarded during directory completion."
   :type '(choice regexp (const :tag "None" nil)))
 
+(defcustom pcomplete-remote-file-ignore nil
+  "Whether to ignore remote file names."
+  :version "30.1"
+  :type 'boolean)
+
 (define-obsolete-variable-alias 'pcomplete-ignore-case 'completion-ignore-case
   "28.1")
 
@@ -465,6 +470,8 @@ Same as `pcomplete' but using the standard completion UI."
            ;; rely less on c-t-subvert.
            (beg (max (- (point) (length pcomplete-stub))
                      argbeg))
+           (end (point))
+           tmp
            buftext)
       ;; Try and improve our guess of `beg' in case the difference
       ;; between pcomplete-stub and the buffer's text is simply due to
@@ -472,11 +479,19 @@ Same as `pcomplete' but using the standard completion UI."
       ;; indispensable but reduces the reliance on c-t-subvert and
       ;; improves corner case behaviors.
       (while (progn (setq buftext (pcomplete-unquote-argument
-                                   (buffer-substring beg (point))))
+                                   (buffer-substring beg end)))
                     (and (> beg argbeg)
                          (> (length pcomplete-stub) (length buftext))))
         (setq beg (max argbeg (- beg (- (length pcomplete-stub)
                                         (length buftext))))))
+      ;; Try and improve our guess of `end' in case it's not point.
+      (while (and (< (length buftext) (length pcomplete-stub))
+                  (< end (point-max))
+                  (string-prefix-p (setq tmp (pcomplete-unquote-argument
+                                              (buffer-substring beg (1+ end))))
+                                   pcomplete-stub))
+        (setq end (1+ end))
+        (setq buftext tmp))
       (when completions
         (let ((table
                (completion-table-with-quoting
@@ -510,7 +525,7 @@ Same as `pcomplete' but using the standard completion UI."
                            seen)))))))
           (when completion-ignore-case
             (setq table (completion-table-case-fold table)))
-          (list beg (point) table
+          (list beg end table
                 :annotation-function
                 (lambda (cand)
                   (when (stringp cand)
@@ -924,7 +939,10 @@ this is `comint-dynamic-complete-functions'."
                            (sort comps pcomplete-compare-entry-function)))
                      ,@(cdr (completion-file-name-table s p a)))
         (let ((completion-ignored-extensions nil)
-	      (completion-ignore-case completion-ignore-case))
+	      (completion-ignore-case completion-ignore-case)
+              (tramp-mode (and tramp-mode (not pcomplete-remote-file-ignore)))
+              (non-essential (not (file-remote-p s)))
+              (minibuffer-completing-file-name (not (file-remote-p s))))
           (completion-table-with-predicate
            #'comint-completion-file-name-table pred 'strict s p a))))))
 
@@ -1318,11 +1336,12 @@ If specific documentation can't be given, be generic."
 
 ;; general utilities
 
-(defun pcomplete-uniquify-list (l)
-  "Sort and remove multiples in L."
-  (setq l (sort l #'string-lessp))
-  (seq-uniq l))
-(define-obsolete-function-alias 'pcomplete-uniqify-list #'pcomplete-uniquify-list "27.1")
+(defun pcomplete-uniquify-list (sequence)
+  "Sort and remove multiples in SEQUENCE.
+Sequence should be a vector or list of strings."
+  (sort (seq-uniq sequence) #'string-lessp))
+(define-obsolete-function-alias
+  'pcomplete-uniqify-list #'pcomplete-uniquify-list "27.1")
 
 (defun pcomplete-process-result (cmd &rest args)
   "Call CMD using `call-process' and return the simplest result."

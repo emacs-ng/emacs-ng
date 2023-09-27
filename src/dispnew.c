@@ -43,6 +43,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "xwidget.h"
 #include "pdumper.h"
 
+#ifdef HAVE_ANDROID
+#include "android.h"
+#endif
+
 #ifdef HAVE_WINDOW_SYSTEM
 #include TERM_HEADER
 #endif /* HAVE_WINDOW_SYSTEM */
@@ -788,7 +792,7 @@ clear_current_matrices (register struct frame *f)
   if (f->current_matrix)
     clear_glyph_matrix (f->current_matrix);
 
-#if defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)
+#if defined HAVE_WINDOW_SYSTEM && !defined HAVE_EXT_MENU_BAR
   /* Clear the matrix of the menu bar window, if such a window exists.
      The menu bar window is currently used to display menus on X when
      no toolkit support is compiled in.  */
@@ -822,7 +826,7 @@ clear_desired_matrices (register struct frame *f)
   if (f->desired_matrix)
     clear_glyph_matrix (f->desired_matrix);
 
-#if defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)
+#if defined HAVE_WINDOW_SYSTEM && !defined HAVE_EXT_MENU_BAR
   if (WINDOWP (f->menu_bar_window))
     clear_glyph_matrix (XWINDOW (f->menu_bar_window)->desired_matrix);
 #endif
@@ -1156,6 +1160,7 @@ prepare_desired_row (struct window *w, struct glyph_row *row, bool mode_line_p)
     }
 }
 
+#ifndef HAVE_ANDROID
 
 /* Return a hash code for glyph row ROW, which may
    be from current or desired matrix of frame F.  */
@@ -1248,6 +1253,7 @@ line_draw_cost (struct frame *f, struct glyph_matrix *matrix, int vpos)
   return len;
 }
 
+#endif
 
 /* Return true if the glyph rows A and B have equal contents.
    MOUSE_FACE_P means compare the mouse_face_p flags of A and B, too.  */
@@ -1385,7 +1391,7 @@ realloc_glyph_pool (struct glyph_pool *pool, struct dim matrix_dim)
 	       || matrix_dim.width != pool->ncolumns);
 
   /* Enlarge the glyph pool.  */
-  if (INT_MULTIPLY_WRAPV (matrix_dim.height, matrix_dim.width, &needed))
+  if (ckd_mul (&needed, matrix_dim.height, matrix_dim.width))
     memory_full (SIZE_MAX);
   if (needed > pool->nglyphs)
     {
@@ -2160,7 +2166,7 @@ adjust_frame_glyphs_for_window_redisplay (struct frame *f)
   /* Allocate/reallocate window matrices.  */
   allocate_matrices_for_window_redisplay (XWINDOW (FRAME_ROOT_WINDOW (f)));
 
-#if defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)
+#if defined HAVE_WINDOW_SYSTEM && !defined HAVE_EXT_MENU_BAR
   /* Allocate/ reallocate matrices of the dummy window used to display
      the menu bar under X when no X toolkit support is available.  */
   {
@@ -2212,10 +2218,16 @@ adjust_frame_glyphs_for_window_redisplay (struct frame *f)
 
     w->pixel_left = 0;
     w->left_col = 0;
-    w->pixel_top = FRAME_MENU_BAR_HEIGHT (f)
-      + (!NILP (Vtab_bar_position) ? FRAME_TOOL_BAR_HEIGHT (f) : 0);
-    w->top_line = FRAME_MENU_BAR_LINES (f)
-      + (!NILP (Vtab_bar_position) ? FRAME_TOOL_BAR_LINES (f) : 0);
+
+    /* Note that tab and tool bar windows appear above the internal
+       border, as enforced by WINDOW_TOP_EDGE_Y.  */
+
+    w->pixel_top = (FRAME_MENU_BAR_HEIGHT (f)
+		    + (!NILP (Vtab_bar_position)
+		       ? FRAME_TOOL_BAR_TOP_HEIGHT (f) : 0));
+    w->top_line = (FRAME_MENU_BAR_LINES (f)
+		   + (!NILP (Vtab_bar_position)
+		      ? FRAME_TOOL_BAR_TOP_LINES (f) : 0));
     w->total_cols = FRAME_TOTAL_COLS (f);
     w->pixel_width = (FRAME_PIXEL_WIDTH (f)
 		       - 2 * FRAME_INTERNAL_BORDER_WIDTH (f));
@@ -2244,10 +2256,29 @@ adjust_frame_glyphs_for_window_redisplay (struct frame *f)
 
     w->pixel_left = 0;
     w->left_col = 0;
-    w->pixel_top = FRAME_MENU_BAR_HEIGHT (f)
-      + (NILP (Vtab_bar_position) ? FRAME_TAB_BAR_HEIGHT (f) : 0);
-    w->top_line = FRAME_MENU_BAR_LINES (f)
-      + (NILP (Vtab_bar_position) ? FRAME_TAB_BAR_LINES (f) : 0);
+
+    /* If the tool bar should be placed at the bottom of the frame,
+       place it there instead, outside the internal border.  */
+
+    if (EQ (FRAME_TOOL_BAR_POSITION (f), Qbottom))
+      {
+	w->pixel_top = (FRAME_PIXEL_HEIGHT (f)
+			- FRAME_TOOL_BAR_HEIGHT (f));
+	w->top_line = (FRAME_LINES (f)
+		       - FRAME_TOOL_BAR_LINES (f));
+      }
+    else
+      {
+	/* Otherwise, place the window at the top of the frame.  */
+
+	w->pixel_top = (FRAME_MENU_BAR_HEIGHT (f)
+			+ (NILP (Vtab_bar_position)
+			   ? FRAME_TAB_BAR_HEIGHT (f) : 0));
+	w->top_line = (FRAME_MENU_BAR_LINES (f)
+		       + (NILP (Vtab_bar_position)
+			  ? FRAME_TAB_BAR_LINES (f) : 0));
+      }
+
     w->total_cols = FRAME_TOTAL_COLS (f);
     w->pixel_width = (FRAME_PIXEL_WIDTH (f)
 		       - 2 * FRAME_INTERNAL_BORDER_WIDTH (f));
@@ -2296,7 +2327,7 @@ free_glyphs (struct frame *f)
       if (!NILP (f->root_window))
         free_window_matrices (XWINDOW (f->root_window));
 
-#if defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)
+#if defined HAVE_WINDOW_SYSTEM && !defined HAVE_EXT_MENU_BAR
       /* Free the dummy window for menu bars without X toolkit and its
 	 glyph matrices.  */
       if (!NILP (f->menu_bar_window))
@@ -3169,6 +3200,7 @@ redraw_frame (struct frame *f)
      its redisplay done.  */
   mark_window_display_accurate (FRAME_ROOT_WINDOW (f), 0);
   set_window_update_flags (XWINDOW (FRAME_ROOT_WINDOW (f)), true);
+
   f->garbaged = false;
 }
 
@@ -3234,7 +3266,7 @@ update_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
 	 when pending input is detected.  */
       update_begin (f);
 
-#if defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)
+#if defined HAVE_WINDOW_SYSTEM && !defined HAVE_EXT_MENU_BAR
       /* Update the menu bar on X frames that don't have toolkit
 	 support.  */
       if (WINDOWP (f->menu_bar_window))
@@ -3747,6 +3779,14 @@ update_window (struct window *w, bool force_p)
 		invisible_rows_marked = true;
 	      }
 	  }
+
+      /* If the window doesn't display its mode line, make sure the
+         corresponding row of the current glyph matrix is disabled, so
+         that if and when the mode line is displayed again, it will be
+         cleared and completely redrawn.  */
+      if (!window_wants_mode_line (w))
+	SET_MATRIX_ROW_ENABLED_P (w->current_matrix,
+				  w->current_matrix->nrows - 1, false);
 
       /* Was display preempted?  */
       paused_p = row < end;
@@ -5063,6 +5103,10 @@ update_frame_1 (struct frame *f, bool force_p, bool inhibit_id_p,
 static bool
 scrolling (struct frame *frame)
 {
+  /* In fact this code should never be reached at all under
+     Android.  */
+
+#ifndef HAVE_ANDROID
   int unchanged_at_top, unchanged_at_bottom;
   int window_size;
   int changed_lines;
@@ -5153,6 +5197,7 @@ scrolling (struct frame *frame)
 		 free_at_end_vpos - unchanged_at_top);
 
   SAFE_FREE ();
+#endif
   return false;
 }
 
@@ -5194,7 +5239,9 @@ count_match (struct glyph *str1, struct glyph *end1, struct glyph *str2, struct 
 
 /* Char insertion/deletion cost vector, from term.c */
 
+#ifndef HAVE_ANDROID
 #define char_ins_del_cost(f) (&char_ins_del_vector[FRAME_TOTAL_COLS ((f))])
+#endif
 
 
 /* Perform a frame-based update on line VPOS in frame FRAME.  */
@@ -5399,7 +5446,10 @@ update_frame_line (struct frame *f, int vpos, bool updating_menu_p)
   tem = (nlen - nsp) - (olen - osp);
   if (endmatch && tem
       && (!FRAME_CHAR_INS_DEL_OK (f)
-          || endmatch <= char_ins_del_cost (f)[tem]))
+#ifndef HAVE_ANDROID
+          || endmatch <= char_ins_del_cost (f)[tem]
+#endif
+	  ))
     endmatch = 0;
 
   /* nsp - osp is the distance to insert or delete.
@@ -5409,7 +5459,10 @@ update_frame_line (struct frame *f, int vpos, bool updating_menu_p)
 
   if (nsp != osp
       && (!FRAME_CHAR_INS_DEL_OK (f)
-	  || begmatch + endmatch <= char_ins_del_cost (f)[nsp - osp]))
+#ifndef HAVE_ANDROID
+	  || begmatch + endmatch <= char_ins_del_cost (f)[nsp - osp]
+#endif
+	  ))
     {
       begmatch = 0;
       endmatch = 0;
@@ -5603,6 +5656,15 @@ buffer_posn_from_coords (struct window *w, int *x, int *y, struct display_pos *p
      argument is ZV to prevent move_it_in_display_line from matching
      based on buffer positions.  */
   move_it_in_display_line (&it, ZV, to_x, MOVE_TO_X);
+  if (mouse_prefer_closest_glyph)
+    {
+      int next_x = it.current_x + it.pixel_width;
+      int before_dx = to_x - it.current_x;
+      int after_dx = next_x - to_x;
+      if (before_dx > after_dx)
+        move_it_in_display_line (&it, ZV, next_x, MOVE_TO_X);
+    }
+
   bidi_unshelve_cache (itdata, 0);
 
   Fset_buffer (old_current_buffer);
@@ -6038,7 +6100,7 @@ FILE = nil means just close any termscript file currently open.  */)
   if (tty->termscript != 0)
     {
       block_input ();
-      fclose (tty->termscript);
+      emacs_fclose (tty->termscript);
       tty->termscript = 0;
       unblock_input ();
     }
@@ -6532,6 +6594,15 @@ init_display_interactive (void)
     }
 #endif /* HAVE_X_WINDOWS */
 
+#ifdef HAVE_ANDROID
+  if (!inhibit_window_system && android_init_gui)
+    {
+      Vinitial_window_system = Qandroid;
+      android_term_init ();
+      return;
+    }
+#endif
+
 #ifdef HAVE_NTGUI
   if (!inhibit_window_system)
     {
@@ -6594,6 +6665,7 @@ init_display_interactive (void)
       exit (1);
     }
 
+#ifndef HAVE_ANDROID
   {
     struct terminal *t;
     struct frame *f = XFRAME (selected_frame);
@@ -6636,6 +6708,11 @@ init_display_interactive (void)
 				    : Qnil));
     Fmodify_frame_parameters (selected_frame, tty_arg);
   }
+#else
+  fatal ("Could not establish a connection to the Android application.\n"
+	 "Emacs does not work on text terminals when built to run as"
+	 " part of an Android application package.");
+#endif
 
   {
     struct frame *sf = SELECTED_FRAME ();
@@ -6647,8 +6724,8 @@ init_display_interactive (void)
        change.  It's not clear what better we could do.  The rest of
        the code assumes that (width + 2) * height * sizeof (struct glyph)
        does not overflow and does not exceed PTRDIFF_MAX or SIZE_MAX.  */
-    if (INT_ADD_WRAPV (width, 2, &area)
-	|| INT_MULTIPLY_WRAPV (height, area, &area)
+    if (ckd_add (&area, width, 2)
+	|| ckd_mul (&area, area, height)
 	|| min (PTRDIFF_MAX, SIZE_MAX) / sizeof (struct glyph) < area)
       fatal ("screen size %dx%d too big", width, height);
   }
@@ -6780,6 +6857,7 @@ The value is a symbol:
  `pc' for a direct-write MS-DOS frame.
  `pgtk' for an Emacs frame using pure GTK facilities.
  `haiku' for an Emacs frame running in Haiku.
+ `android' for an Emacs frame running in Android.
 
 Use of this variable as a boolean is deprecated.  Instead,
 use `display-graphic-p' or any of the other `display-*-p'
@@ -6787,6 +6865,14 @@ predicates which report frame's specific UI-related capabilities.  */);
 
   DEFVAR_BOOL ("cursor-in-echo-area", cursor_in_echo_area,
 	       doc: /* Non-nil means put cursor in minibuffer, at end of any message there.  */);
+
+  DEFVAR_BOOL ("mouse-prefer-closest-glyph", mouse_prefer_closest_glyph,
+	       doc: /* Non-nil means mouse click position is taken from glyph closest to click.
+
+When non-nil, mouse position lists will report buffer position set to
+the position of the glyph that is the closest to the mouse pointer
+at the time of the click, instead of the glyph immediately under it.  */);
+  mouse_prefer_closest_glyph = false;
 
   DEFVAR_LISP ("glyph-table", Vglyph_table,
 	       doc: /* Table defining how to output a glyph code to the frame.

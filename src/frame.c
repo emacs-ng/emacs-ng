@@ -228,6 +228,8 @@ Value is:
  `pc' for a direct-write MS-DOS frame,
  `pgtk' for an Emacs frame running on pure GTK.
  `haiku' for an Emacs frame running in Haiku.
+ `android' for an Emacs frame running in Android.
+ `winit' for an Emacs frame running using Rust Winit.
 See also `frame-live-p'.  */)
   (Lisp_Object object)
 {
@@ -250,6 +252,8 @@ See also `frame-live-p'.  */)
       return Qpgtk;
     case output_haiku:
       return Qhaiku;
+    case output_android:
+      return Qandroid;
     case output_winit:
       return Qwinit;
     default:
@@ -281,6 +285,7 @@ The value is a symbol:
  `pc' for a direct-write MS-DOS frame.
  `pgtk' for an Emacs frame using pure GTK facilities.
  `haiku' for an Emacs frame running in Haiku.
+ `android' for an Emacs frame running in Android.
 
 FRAME defaults to the currently selected frame.
 
@@ -712,10 +717,10 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
 		       ? old_native_height
 		       : max (FRAME_TEXT_TO_PIXEL_HEIGHT (f, new_text_height),
 			      min_inner_height
-			      + FRAME_TOP_MARGIN_HEIGHT (f)
+			      + FRAME_MARGIN_HEIGHT (f)
 			      + 2 * FRAME_INTERNAL_BORDER_WIDTH (f)));
   new_inner_height = (new_native_height
-		      - FRAME_TOP_MARGIN_HEIGHT (f)
+		      - FRAME_MARGIN_HEIGHT (f)
 		      - 2 * FRAME_INTERNAL_BORDER_WIDTH (f));
   new_text_height = FRAME_PIXEL_TO_TEXT_HEIGHT (f, new_native_height);
   new_text_lines = new_text_height / unit_height;
@@ -942,11 +947,9 @@ make_frame (bool mini_p)
   f = allocate_frame ();
   XSETFRAME (frame, f);
 
-#ifdef USE_GTK
   /* Initialize Lisp data.  Note that allocate_frame initializes all
      Lisp data to nil, so do it only for slots which should not be nil.  */
   fset_tool_bar_position (f, Qtop);
-#endif
 
   /* Initialize non-Lisp data.  Note that allocate_frame zeroes out all
      non-Lisp data, so do it only for slots which should not be zero.
@@ -986,6 +989,7 @@ make_frame (bool mini_p)
   f->last_tab_bar_item = -1;
 #ifndef HAVE_EXT_TOOL_BAR
   f->last_tool_bar_item = -1;
+  f->tool_bar_wraps_p = false;
 #endif
 #ifdef NS_IMPL_COCOA
   f->ns_appearance = ns_appearance_system_default;
@@ -995,6 +999,16 @@ make_frame (bool mini_p)
   f->select_mini_window_flag = false;
   /* This one should never be zero.  */
   f->change_stamp = 1;
+
+#ifdef HAVE_TEXT_CONVERSION
+  f->conversion.compose_region_start = Qnil;
+  f->conversion.compose_region_end = Qnil;
+  f->conversion.compose_region_overlay = Qnil;
+  f->conversion.batch_edit_count = 0;
+  f->conversion.batch_edit_flags = 0;
+  f->conversion.actions = NULL;
+#endif
+
   root_window = make_window ();
   rw = XWINDOW (root_window);
   if (mini_p)
@@ -1230,6 +1244,7 @@ make_initial_frame (void)
   return f;
 }
 
+#ifndef HAVE_ANDROID
 
 static struct frame *
 make_terminal_frame (struct terminal *terminal)
@@ -1319,6 +1334,8 @@ get_future_frame_param (Lisp_Object parameter,
   return result;
 }
 
+#endif
+
 DEFUN ("make-terminal-frame", Fmake_terminal_frame, Smake_terminal_frame,
        1, 1, 0,
        doc: /* Create an additional terminal frame, possibly on another terminal.
@@ -1338,6 +1355,10 @@ Note that changing the size of one terminal frame automatically
 affects all frames on the same terminal device.  */)
   (Lisp_Object parms)
 {
+#ifdef HAVE_ANDROID
+  error ("Text terminals are not supported on this platform");
+  return Qnil;
+#else
   struct frame *f;
   struct terminal *t = NULL;
   Lisp_Object frame;
@@ -1438,6 +1459,7 @@ affects all frames on the same terminal device.  */)
   f->after_make_frame = true;
 
   return frame;
+#endif
 }
 
 
@@ -1446,6 +1468,10 @@ affects all frames on the same terminal device.  */)
    If FRAME is a switch-frame event `(switch-frame FRAME1)', use
    FRAME1 as frame.
 
+   If TRACK is non-zero and the frame that currently has the focus
+   redirects its focus to the selected frame, redirect that focused
+   frame's focus to FRAME instead.
+
    FOR_DELETION non-zero means that the selected frame is being
    deleted, which includes the possibility that the frame's terminal
    is dead.
@@ -1453,7 +1479,7 @@ affects all frames on the same terminal device.  */)
    The value of NORECORD is passed as argument to Fselect_window.  */
 
 Lisp_Object
-do_switch_frame (Lisp_Object frame, int for_deletion, Lisp_Object norecord)
+do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object norecord)
 {
   struct frame *sf = SELECTED_FRAME (), *f;
 
@@ -1474,6 +1500,44 @@ do_switch_frame (Lisp_Object frame, int for_deletion, Lisp_Object norecord)
     return Qnil;
   else if (f == sf)
     return frame;
+
+  /* If the frame with GUI focus has had it's Emacs focus redirected
+     toward the currently selected frame, we should change the
+     redirection to point to the newly selected frame.  This means
+     that if the focus is redirected from a minibufferless frame to a
+     surrogate minibuffer frame, we can use `other-window' to switch
+     between all the frames using that minibuffer frame, and the focus
+     redirection will follow us around.  This code is necessary when
+     we have a minibufferless frame using the MB in another (normal)
+     frame (bug#64152) (ACM, 2023-06-20).  */
+#ifdef HAVE_WINDOW_SYSTEM
+  if (track && FRAME_WINDOW_P (f) && FRAME_TERMINAL (f)->get_focus_frame)
+    {
+      Lisp_Object gfocus; /* The frame which still has focus on the
+			     current terminal, according to the GUI
+			     system. */
+      Lisp_Object focus;  /* The frame to which Emacs has redirected
+			     the focus from `gfocus'.  This might be a
+			     frame with a minibuffer when `gfocus'
+			     doesn't have a MB.  */
+
+      gfocus = FRAME_TERMINAL (f)->get_focus_frame (f);
+      if (FRAMEP (gfocus))
+	{
+	  focus = FRAME_FOCUS_FRAME (XFRAME (gfocus));
+	  if (FRAMEP (focus) && XFRAME (focus) == SELECTED_FRAME ())
+	      /* Redirect frame focus also when FRAME has its minibuffer
+		 window on the selected frame (see Bug#24500).
+
+		 Don't do that: It causes redirection problem with a
+		 separate minibuffer frame (Bug#24803) and problems
+		 when updating the cursor on such frames.
+	      || (NILP (focus)
+		  && EQ (FRAME_MINIBUF_WINDOW (f), sf->selected_window)))  */
+	    Fredirect_frame_focus (gfocus, frame);
+	}
+    }
+#endif /* HAVE_X_WINDOWS */
 
   if (!for_deletion && FRAME_HAS_MINIBUF_P (sf))
     resize_mini_window (XWINDOW (FRAME_MINIBUF_WINDOW (sf)), 1);
@@ -1576,7 +1640,7 @@ This function returns FRAME, or nil if FRAME has been deleted.  */)
     /* Do not select a tooltip frame (Bug#47207).  */
     error ("Cannot select a tooltip frame");
   else
-    return do_switch_frame (frame, 0, norecord);
+    return do_switch_frame (frame, 1, 0, norecord);
 }
 
 DEFUN ("handle-switch-frame", Fhandle_switch_frame,
@@ -1592,7 +1656,7 @@ necessarily represent user-visible input focus.  */)
   kset_prefix_arg (current_kboard, Vcurrent_prefix_arg);
   run_hook (Qmouse_leave_buffer_hook);
 
-  return do_switch_frame (event, 0, Qnil);
+  return do_switch_frame (event, 0, 0, Qnil);
 }
 
 DEFUN ("selected-frame", Fselected_frame, Sselected_frame, 0, 0, 0,
@@ -2151,15 +2215,18 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
 	}
 #ifdef NS_IMPL_COCOA
       else
-	/* Under NS, there is no system mechanism for choosing a new
-	   window to get focus -- it is left to application code.
-	   So the portion of THIS application interfacing with NS
-	   needs to know about it.  We call Fraise_frame, but the
-	   purpose is really to transfer focus.  */
-	Fraise_frame (frame1);
+	{
+	  /* Under NS, there is no system mechanism for choosing a new
+	     window to get focus -- it is left to application code.
+	     So the portion of THIS application interfacing with NS
+	     needs to make the frame we switch to the key window.  */
+	  struct frame *f1 = XFRAME (frame1);
+	  if (FRAME_NS_P (f1))
+	    ns_make_frame_key_window (f1);
+	}
 #endif
 
-      do_switch_frame (frame1, 1, Qnil);
+      do_switch_frame (frame1, 0, 1, Qnil);
       sf = SELECTED_FRAME ();
     }
   else
@@ -2253,6 +2320,13 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
     terminal = FRAME_TERMINAL (f);
     f->terminal = 0;             /* Now the frame is dead.  */
     unblock_input ();
+
+  /* Clear markers and overlays set by F on behalf of an input
+     method.  */
+#ifdef HAVE_TEXT_CONVERSION
+  if (FRAME_WINDOW_P (f))
+    reset_frame_state (f);
+#endif
 
     /* If needed, delete the terminal that this frame was on.
        (This must be done after the frame is killed.)  */
@@ -3731,7 +3805,7 @@ check_frame_pixels (Lisp_Object size, Lisp_Object pixelwise, int item_size)
     item_size = 1;
 
   if (!integer_to_intmax (size, &sz)
-      || INT_MULTIPLY_WRAPV (sz, item_size, &pixel_size))
+      || ckd_mul (&pixel_size, sz, item_size))
     args_out_of_range_3 (size, make_int (INT_MIN / item_size),
 			 make_int (INT_MAX / item_size));
 
@@ -5305,16 +5379,23 @@ gui_display_get_resource (Display_Info *dpyinfo, Lisp_Object attribute,
   *nz++ = '.';
   lispstpcpy (nz, attribute);
 
-  const char *value =
-    dpyinfo->terminal->get_string_resource_hook (&dpyinfo->rdb,
-                                                 name_key,
-                                                 class_key);
-  SAFE_FREE();
+#ifndef HAVE_ANDROID
+  const char *value
+    = dpyinfo->terminal->get_string_resource_hook (&dpyinfo->rdb,
+						   name_key,
+						   class_key);
+
+  SAFE_FREE ();
 
   if (value && *value)
     return build_string (value);
   else
     return Qnil;
+#else
+
+  SAFE_FREE ();
+  return Qnil;
+#endif
 }
 
 
@@ -5648,6 +5729,8 @@ On Nextstep, this just calls `ns-parse-geometry'.  */)
      a non-zero value.  */
   int x UNINIT, y UNINIT;
   unsigned int width, height;
+
+  width = height = 0;
 
   CHECK_STRING (string);
 
@@ -6121,8 +6204,11 @@ make_monitor_attribute_list (struct MonitorInfo *monitors,
 			 mi->work.width, mi->work.height);
       geometry = list4i (mi->geom.x, mi->geom.y,
 			 mi->geom.width, mi->geom.height);
-      attributes = Fcons (Fcons (Qsource, build_string (source)),
-                          attributes);
+
+      if (source)
+	attributes = Fcons (Fcons (Qsource, build_string (source)),
+			    attributes);
+
       attributes = Fcons (Fcons (Qframes, AREF (monitor_frames, i)),
 			  attributes);
 #ifdef HAVE_PGTK
@@ -6220,6 +6306,7 @@ syms_of_frame (void)
   DEFSYM (Qns, "ns");
   DEFSYM (Qpgtk, "pgtk");
   DEFSYM (Qhaiku, "haiku");
+  DEFSYM (Qandroid, "android");
   DEFSYM (Qwinit, "winit");
   DEFSYM (Qwr, "wr");
   DEFSYM (Qvisible, "visible");
@@ -6410,7 +6497,7 @@ Setting this variable does not affect existing frames, only new ones.  */);
 
   DEFVAR_LISP ("default-frame-scroll-bars", Vdefault_frame_scroll_bars,
 	       doc: /* Default position of vertical scroll bars on this window-system.  */);
-#ifdef HAVE_WINDOW_SYSTEM
+#if defined HAVE_WINDOW_SYSTEM && !defined HAVE_ANDROID
 #if defined (HAVE_NTGUI) || defined (NS_IMPL_COCOA) || (defined (USE_GTK) && defined (USE_TOOLKIT_SCROLL_BARS))
   /* MS-Windows, macOS, and GTK have scroll bars on the right by
      default.  */
@@ -6418,9 +6505,9 @@ Setting this variable does not affect existing frames, only new ones.  */);
 #else
   Vdefault_frame_scroll_bars = Qleft;
 #endif
-#else
+#else /* !HAVE_WINDOW_SYSTEM || HAVE_ANDROID */
   Vdefault_frame_scroll_bars = Qnil;
-#endif
+#endif /* HAVE_WINDOW_SYSTEM && !HAVE_ANDROID */
 
   DEFVAR_BOOL ("scroll-bar-adjust-thumb-portion",
                scroll_bar_adjust_thumb_portion_p,
@@ -6628,7 +6715,7 @@ implicitly when there's no window system support.
 Note that when a frame is not large enough to accommodate a change of
 any of the parameters listed above, Emacs may try to enlarge the frame
 even if this option is non-nil.  */);
-#if defined (HAVE_WINDOW_SYSTEM)
+#if defined (HAVE_WINDOW_SYSTEM) && !defined (HAVE_ANDROID)
 #if defined (USE_GTK) || defined (HAVE_NS)
   frame_inhibit_implied_resize = list1 (Qtab_bar_lines);
 #else
@@ -6773,4 +6860,17 @@ iconify the top level frame instead.  */);
   defsubr (&Sx_parse_geometry);
   defsubr (&Sreconsider_frame_fonts);
 #endif
+
+#ifdef HAVE_WINDOW_SYSTEM
+  DEFSYM (Qmove_toolbar, "move-toolbar");
+
+  /* The `tool-bar-position' frame parameter is supported on GTK and
+     builds using the internal tool bar.  Providing this feature
+     causes menu-bar.el to provide `tool-bar-position' as a user
+     option.  */
+
+#if !defined HAVE_EXT_TOOL_BAR || defined USE_GTK
+  Fprovide (Qmove_toolbar, Qnil);
+#endif /* !HAVE_EXT_TOOL_BAR || USE_GTK */
+#endif /* HAVE_WINDOW_SYSTEM */
 }

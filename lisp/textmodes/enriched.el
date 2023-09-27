@@ -146,7 +146,7 @@ them and their old values to `enriched-old-bindings'."
   :type 'hook)
 
 (defcustom enriched-allow-eval-in-display-props nil
-  "If non-nil allow to evaluate arbitrary forms in display properties.
+  "If non-nil, allow evaluating arbitrary forms in display properties.
 
 Enriched mode recognizes display properties of text stored using
 an extension command to the text/enriched format, \"x-display\".
@@ -192,6 +192,7 @@ The value is a list of \(VAR VALUE VAR VALUE...).")
     (define-key map "\C-c[" #'set-left-margin)
     (define-key map "\C-c]" #'set-right-margin)
     (define-key map "\M-o" #'facemenu-keymap)
+    (define-key map "\M-om" #'enriched-toggle-markup)
     map)
   "Keymap for Enriched mode.")
 

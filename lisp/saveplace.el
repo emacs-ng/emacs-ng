@@ -49,6 +49,17 @@
 Each element looks like (FILENAME . POSITION);
 visiting file FILENAME goes automatically to position POSITION
 rather than the beginning of the buffer.
+A list element can also have the form
+
+   (DIRECTORY (dired-filename . FILENAME))
+
+where DIRECTORY is the name of a directory ending in a slash,
+and FILENAME is the name of a file in that directory.  This
+format is used for saving places in Dired buffers, see the
+function `save-place-dired-hook'; the FILENAME is the file
+where point was located in the Dired listing of DIRECTORY
+when the place in that buffer was recorded.
+
 This alist is saved between Emacs sessions.")
 
 (defcustom save-place-file (locate-user-emacs-file "places" ".emacs-places")
@@ -185,12 +196,13 @@ removable and network volumes."
 
 (defcustom save-place-ignore-files-regexp
   "\\(?:COMMIT_EDITMSG\\|hg-editor-[[:alnum:]]+\\.txt\\|svn-commit\\.tmp\\|bzr_log\\.[[:alnum:]]+\\)$"
-  "Regexp matching files for which no position should be recorded.
-Useful for temporary file such as commit message files that are
-automatically created by the VCS.  If set to nil, this feature is
-disabled, i.e., the position is recorded for all files."
+  "Regexp matching files whose positions should not be recorded.
+Useful to exclude temporary files, such as commit message files that are
+automatically created by VCSes.  If set to nil, this feature is
+disabled, i.e., no files are excluded."
   :version "24.1"
-  :type 'regexp)
+  :type '(choice (const :tag "Don't exclude any files" nil)
+                 regexp))
 
 (declare-function dired-current-directory "dired" (&optional localp))
 
@@ -399,7 +411,8 @@ It runs the hook `save-place-after-find-file-hook'."
 (declare-function dired-goto-file "dired" (file))
 
 (defun save-place-dired-hook ()
-  "Position the point in a Dired buffer."
+  "Position point in a Dired buffer according to its saved place.
+This is run via `dired-initial-position-hook', which see."
   (or save-place-loaded (save-place-load-alist-from-file))
   (when-let ((directory (and (derived-mode-p 'dired-mode)
                              (boundp 'dired-subdir-alist)

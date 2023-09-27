@@ -2121,12 +2121,16 @@ remapped (see `face-remapping-alist'), the function returns the
 information for the remapped face."
    (with-selected-window (window-normalize-window window t)
      (if (display-multi-font-p)
-	 (let* ((face (if face face 'default))
-		(info (font-info (face-font face)))
-		(width (aref info 11)))
-	   (if (> width 0)
-	      width
-	     (aref info 10)))
+         ;; Opening the XLFD returned by `font-info' may be
+         ;; unsuccessful.  Use `frame-char-width' as a recourse if
+         ;; such a situation transpires.
+         (or (when-let* ((face (if face face 'default))
+		         (info (font-info (face-font face)))
+		         (width (aref info 11)))
+	       (if (> width 0)
+	           width
+	         (aref info 10)))
+             (frame-char-width))
        (frame-char-width))))
 
 (defun window-font-height (&optional window face)
@@ -2138,9 +2142,10 @@ remapped (see `face-remapping-alist'), the function returns the
 information for the remapped face."
    (with-selected-window (window-normalize-window window t)
      (if (display-multi-font-p)
-	 (let* ((face (if face face 'default))
-		(info (font-info (face-font face))))
-	   (aref info 3))
+	 (or (when-let* ((face (if face face 'default))
+		         (info (font-info (face-font face))))
+	       (aref info 3))
+             (frame-char-height))
        (frame-char-height))))
 
 (defvar overflow-newline-into-fringe)
@@ -4172,8 +4177,8 @@ a non-nil `no-other-window' parameter."
   "How to choose a frame's selected window after window deletion.
 When a frame's selected window gets deleted, Emacs has to choose
 another live window on that frame to serve as its selected
-window.  This option allows to control which window gets selected
-instead.
+window.  This option controls the window that is selected in such
+a situation.
 
 The possible choices are `mru' (the default) to select the most
 recently used window on that frame, and `pos' to choose the
@@ -6178,7 +6183,14 @@ value can be also stored on disk and read back in a new session."
       (let* ((horizontal (eq type 'hc))
 	     (total (window-size window horizontal pixelwise))
              (first t)
-             (window-combination-limit (cdr (assq 'combination-limit state)))
+	     ;; Make sure to make a new parent window for a horizontal
+	     ;; or vertical combination embedded in one of the same type
+	     ;; (see Bug#50867 and Bug#64405).
+	     (window-combination-limit
+	      (and (or (eq (cdr (assq 'combination-limit state)) t)
+		       (and horizontal (window-combined-p window t))
+		       (and (not horizontal) (window-combined-p window)))
+		   t))
 	     size new)
 	(dolist (item state)
 	  ;; Find the next child window.  WINDOW always points to the
@@ -6391,7 +6403,7 @@ windows can get as small as `window-safe-min-height' and
                      (selected-window)))
       (delete-other-windows-internal window root)
       ;; Create a new window to replace the existing one.
-      (setq window (prog1 (split-window window)
+      (setq window (prog1 (split-window window window-safe-min-width t)
                      (delete-window window)))))
 
   (set-window-dedicated-p window nil)
@@ -6418,7 +6430,10 @@ windows can get as small as `window-safe-min-height' and
 			   head)))
 	 (min-width (cdr (assq
 			  (if pixelwise 'min-pixel-width 'min-weight)
-			  head))))
+			  head)))
+	 ;; Bind the following two variables.  `window--state-put-1' has
+	 ;; to fully control them (see Bug#50867 and Bug#64405).
+	 window-combination-limit window-combination-resize)
     (if (and (not totals)
 	     (or (> min-height (window-size window nil pixelwise))
 		 (> min-width (window-size window t pixelwise)))
@@ -7975,8 +7990,7 @@ indirectly called by the latter."
                           buffer-mode))
          (curwin (selected-window))
          (curframe (selected-frame)))
-    (unless (listp allowed-modes)
-      (setq allowed-modes (list allowed-modes)))
+    (setq allowed-modes (ensure-list allowed-modes))
     (let (same-mode-same-frame
           same-mode-other-frame
           derived-mode-same-frame
@@ -8261,8 +8275,8 @@ This function tries to reuse or split a window such that the
 window produced this way is on the side of the reference window
 specified by the `direction' entry.
 
-Four special values for `direction' entries allow to implicitly
-specify the selected frame's main window as reference window:
+Four special values for `direction' entries allow implicitly
+specifying the selected frame's main window as reference window:
 `leftmost', `top', `rightmost' and `bottom'.  Hence, instead of
 `(direction . left) (window . main)' one can simply write
 `(direction . leftmost)'.
@@ -8784,6 +8798,15 @@ another window."
   :version "29.1"
   :group 'windows
   :group 'comint)
+
+(defcustom display-tex-shell-buffer-action '(display-buffer-in-previous-window
+                                             (inhibit-same-window . t))
+  "`display-buffer' action for displaying TeX shell buffers."
+  :type display-buffer--action-custom-type
+  :risky t
+  :version "29.1"
+  :group 'windows
+  :group 'tex-run)
 
 (defun read-buffer-to-switch (prompt)
   "Read the name of a buffer to switch to, prompting with PROMPT.

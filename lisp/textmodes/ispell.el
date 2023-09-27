@@ -1747,6 +1747,7 @@ Ispell is then restarted because the local words could conflict.")
 
 (defvar-local ispell-buffer-session-localwords nil
   "List of words accepted for session in this buffer.")
+(put 'ispell-buffer-session-localwords 'safe-local-variable #'list-of-strings-p)
 
 (defvar ispell-parser 'use-mode-name
   "Indicates whether ispell should parse the current buffer as TeX Code.
@@ -2523,9 +2524,9 @@ this function signals an error."
 
   (if lookup-dict
       (unless (file-readable-p lookup-dict)
-	(error "lookup-words error: Unreadable or missing plain word-list %s."
+        (error "ispell-lookup-words: Unreadable or missing plain word-list %s"
 	       lookup-dict))
-    (error (concat "lookup-words error: No plain word-list found at system"
+    (error (concat "ispell-lookup-words: No plain word-list found at system"
                    "default locations.  "
                    "Customize `ispell-alternate-dictionary' to set yours.")))
 

@@ -1121,14 +1121,8 @@ possible values of STATE are explained in `vc-state', and MODEL in
 the returned list.
 
 BEWARE: this function may change the current buffer."
-  (with-current-buffer (or (buffer-base-buffer) (current-buffer))
-    (vc-deduce-fileset-1 not-state-changing
-                         allow-unregistered
-                         state-model-only-files)))
-
-(defun vc-deduce-fileset-1 (not-state-changing
-                            allow-unregistered
-                            state-model-only-files)
+  (when (buffer-base-buffer)
+    (set-buffer (buffer-base-buffer)))
   (let (backend)
     (cond
      ((derived-mode-p 'vc-dir-mode)
@@ -1153,7 +1147,7 @@ BEWARE: this function may change the current buffer."
 				      (derived-mode-p 'diff-mode)))))
       (progn                  ;FIXME: Why not `with-current-buffer'? --Stef.
 	(set-buffer vc-parent-buffer)
-	(vc-deduce-fileset-1 not-state-changing allow-unregistered state-model-only-files)))
+        (vc-deduce-fileset not-state-changing allow-unregistered state-model-only-files)))
      ((and (not buffer-file-name)
 	   (setq backend (vc-responsible-backend default-directory)))
       (list backend nil))
@@ -1889,7 +1883,9 @@ in the output buffer."
     (vc-run-delayed (vc-diff-finish (current-buffer) nil))))
 
 (defun vc-diff-internal (async vc-fileset rev1 rev2 &optional verbose buffer)
-  "Report diffs between two revisions of a fileset.
+  "Report diffs between revisions REV1 and REV2 of a fileset in VC-FILESET.
+ASYNC non-nil means run the backend's commands asynchronously if possible.
+VC-FILESET should have the format described in `vc-deduce-fileset'.
 Output goes to the buffer BUFFER, which defaults to *vc-diff*.
 BUFFER, if non-nil, should be a buffer or a buffer name.
 Return t if the buffer had changes, nil otherwise."
@@ -1905,15 +1901,26 @@ Return t if the buffer had changes, nil otherwise."
 	 ;; but the only way to set it for each file included would
 	 ;; be to call the back end separately for each file.
 	 (coding-system-for-read
-	  (if files (vc-coding-system-for-diff (car files)) 'undecided))
+          ;; Force the EOL conversion to be -unix, in case the files
+          ;; to be compared have DOS EOLs.  In that case, EOL
+          ;; conversion will produce a patch file that will either
+          ;; fail to apply, or will change the EOL format of some of
+          ;; the lines in the patched file.
+          (coding-system-change-eol-conversion
+	   (if files (vc-coding-system-for-diff (car files)) 'undecided)
+           'unix))
          (orig-diff-buffer-clone
           (if revert-buffer-in-progress-p
               (clone-buffer
                (generate-new-buffer-name " *vc-diff-clone*") nil))))
     ;; On MS-Windows and MS-DOS, Diff is likely to produce DOS-style
     ;; EOLs, which will look ugly if (car files) happens to have Unix
-    ;; EOLs.
-    (if (memq system-type '(windows-nt ms-dos))
+    ;; EOLs.  But for Git, we must force Unix EOLs in the diffs, since
+    ;; Git always produces Unix EOLs in the parts that didn't come
+    ;; from the file, and wants to see any CR characters when applying
+    ;; patches.
+    (if (and (memq system-type '(windows-nt ms-dos))
+             (not (eq (car vc-fileset) 'Git)))
 	(setq coding-system-for-read
 	      (coding-system-change-eol-conversion coding-system-for-read
 						   'dos)))
@@ -2504,9 +2511,13 @@ Otherwise, return nil."
 (defun vc-create-tag (dir name branchp)
   "Descending recursively from DIR, make a tag called NAME.
 For each registered file, the working revision becomes part of
-the named configuration.  If the prefix argument BRANCHP is
-given, the tag is made as a new branch and the files are
-checked out in that new branch."
+the configuration identified by the tag.
+If BRANCHP is non-nil (interactively, the prefix argument), the
+tag NAME is a new branch, and the files are checked out and
+updated to reflect their revisions on that branch.
+In interactive use, DIR is `default-directory' for repository-granular
+VCSes (all the modern decentralized VCSes belong to this group),
+otherwise the command will prompt for DIR."
   (interactive
    (let ((granularity
 	  (vc-call-backend (vc-responsible-backend default-directory)
@@ -2529,9 +2540,23 @@ checked out in that new branch."
 
 ;;;###autoload
 (defun vc-create-branch (dir name)
-  "Descending recursively from DIR, make a branch called NAME.
-After a new branch is made, the files are checked out in that new branch.
-Uses `vc-create-tag' with the non-nil arg `branchp'."
+  "Make a branch called NAME in directory DIR.
+After making the new branch, check out the branch, i.e. update the
+files in the tree to their revisions on the branch.
+
+Interactively, prompt for the NAME of the branch.
+
+With VCSes that maintain version information per file, this command also
+prompts for the directory DIR whose files, recursively, will be tagged
+with the NAME of new branch.  For VCSes that maintain version
+information for the entire repository (all the modern decentralized
+VCSes belong to this group), DIR is always the `default-directory'.
+
+Finally, this command might prompt for the branch or tag from which to
+start (\"fork\") the new branch, with completion candidates including
+all the known branches and tags in the repository.
+
+This command invokes `vc-create-tag' with the non-nil BRANCHP argument."
   (interactive
    (let ((granularity
           (vc-call-backend (vc-responsible-backend default-directory)
@@ -2545,17 +2570,17 @@ Uses `vc-create-tag' with the non-nil arg `branchp'."
 
 ;;;###autoload
 (defun vc-retrieve-tag (dir name &optional branchp)
-  "For each file in or below DIR, retrieve their tagged version NAME.
+  "For each file in or below DIR, retrieve their version identified by tag NAME.
 NAME can name a branch, in which case this command will switch to the
 named branch in the directory DIR.
 Interactively, prompt for DIR only for VCS that works at file level;
-otherwise use the repository root of the current buffer.
+otherwise use the root directory of the current buffer's VC tree.
 If NAME is empty, it refers to the latest revisions of the current branch.
 If locking is used for the files in DIR, then there must not be any
 locked files at or below DIR (but if NAME is empty, locked files are
 allowed and simply skipped).
-If the prefix argument BRANCHP is given, switch the branch
-and check out the files in that branch.
+If BRANCHP is non-nil (interactively, the prefix argument), switch to the
+branch and check out and update the files to their version on that branch.
 This function runs the hook `vc-retrieve-tag-hook' when finished."
   (interactive
    (let* ((granularity
@@ -2596,7 +2621,12 @@ This function runs the hook `vc-retrieve-tag-hook' when finished."
 ;;;###autoload
 (defun vc-switch-branch (dir name)
   "Switch to the branch NAME in the directory DIR.
-If NAME is empty, it refers to the latest revisions of the current branch.
+If NAME is empty, it refers to the latest revision of the current branch.
+Interactively, prompt for DIR only for VCS that works at file level;
+otherwise use the root directory of the current buffer's VC tree.
+Interactively, prompt for the NAME of the branch.
+After switching to the branch, check out and update the files to their
+version on that branch.
 Uses `vc-retrieve-tag' with the non-nil arg `branchp'."
   (interactive
    (let* ((granularity
@@ -2851,7 +2881,8 @@ with its diffs (if the underlying VCS backend supports that)."
 
 ;;;###autoload
 (defun vc-print-branch-log (branch)
-  "Show the change log for BRANCH root in a window."
+  "Show the change log for BRANCH in another window.
+The command prompts for the branch whose change log to show."
   (interactive
    (let* ((backend (vc-responsible-backend default-directory))
           (rootdir (vc-call-backend backend 'root default-directory)))
@@ -3645,8 +3676,7 @@ If successful, returns the string with the directory of the
 checkout.  If BACKEND is nil, iterate through every known backend
 in `vc-handled-backends' until one succeeds.  If REV is non-nil,
 it indicates a specific revision to check out."
-  (unless directory
-    (setq directory default-directory))
+  (setq directory (expand-file-name (or directory default-directory)))
   (if backend
       (progn
         (unless (memq backend vc-handled-backends)

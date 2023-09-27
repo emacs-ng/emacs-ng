@@ -407,7 +407,7 @@ The search is done in the source for library LIBRARY."
       (setq library (substring library 0 (match-beginning 1))))
     ;; Strip extension from .emacs.el to make sure symbol is searched in
     ;; .emacs too.
-    (when (string-match "\\.emacs\\(.el\\)" library)
+    (when (string-match "\\.emacs\\(.el\\)\\'" library)
       (setq library (substring library 0 (match-beginning 1))))
     (let* ((filename (find-library-name library))
 	   (regexp-symbol (cdr (assq type find-function-regexp-alist))))
@@ -591,7 +591,7 @@ otherwise uses `variable-at-point'."
     (list (intern (completing-read
                    (format-prompt "Find %s" symb prompt-type)
                    obarray predicate
-                   t nil nil (and symb (symbol-name symb)))))))
+                   'lambda nil nil (and symb (symbol-name symb)))))))
 
 (defun find-function-do-it (symbol type switch-fn)
   "Find Emacs Lisp SYMBOL in a buffer and display it.

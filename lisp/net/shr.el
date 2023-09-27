@@ -216,15 +216,18 @@ temporarily blinks with this face."
   "Face for <h3> elements."
   :version "28.1")
 
-(defface shr-h4 nil
+(defface shr-h4
+  '((t (:inherit default)))
   "Face for <h4> elements."
   :version "28.1")
 
-(defface shr-h5 nil
+(defface shr-h5
+  '((t (:inherit default)))
   "Face for <h5> elements."
   :version "28.1")
 
-(defface shr-h6 nil
+(defface shr-h6
+  '((t (:inherit default)))
   "Face for <h6> elements."
   :version "28.1")
 
@@ -1215,7 +1218,6 @@ START, and END.  Note that START and END should be markers."
   (add-text-properties
    start (point)
    (list 'shr-url url
-         'shr-tab-stop t
          'button t
          'category 'shr                ; For button.el button buffers.
 	 'help-echo (let ((parsed (url-generic-parse-url
@@ -1240,6 +1242,8 @@ START, and END.  Note that START and END should be markers."
          ;; Make separate regions not `eq' so that they'll get
          ;; separate mouse highlights.
 	 'mouse-face (list 'highlight)))
+  (when (< start (point))
+    (add-text-properties start (1+ start) '(shr-tab-stop t)))
   ;; Don't overwrite any keymaps that are already in the buffer (i.e.,
   ;; image keymaps).
   (while (and start
@@ -2529,7 +2533,7 @@ flags that control whether to collect or render objects."
 	  (setq natural-width
 		(or (dom-attr dom 'shr-td-cache-natural)
 		    (let ((natural (max (shr-pixel-buffer-width)
-					(shr-dom-max-natural-width dom 0))))
+					(shr-dom-max-natural-width dom))))
 		      (dom-set-attribute dom 'shr-td-cache-natural natural)
 		      natural))))
 	(if (and natural-width
@@ -2558,22 +2562,18 @@ flags that control whether to collect or render objects."
 	    (cdr (assq 'color shr-stylesheet))
 	    (cdr (assq 'background-color shr-stylesheet))))))
 
-(defun shr-dom-max-natural-width (dom max)
-  (if (eq (dom-tag dom) 'table)
-      (max max (or
-		(cl-loop
-                 for line in (dom-attr dom 'shr-suggested-widths)
-		 maximize (+
-			   shr-table-separator-length
-			   (cl-loop for elem in line
-				    summing
-				    (+ (cdr elem)
-				       (* 2 shr-table-separator-length)))))
-		0))
-    (dolist (child (dom-children dom))
-      (unless (stringp child)
-	(setq max (max (shr-dom-max-natural-width child max)))))
-    max))
+(defun shr-dom-max-natural-width (dom)
+  (or (if (eq (dom-tag dom) 'table)
+          (cl-loop for line in (dom-attr dom 'shr-suggested-widths)
+	           maximize (+ shr-table-separator-length
+		               (cl-loop for elem in line
+			                summing
+			                (+ (cdr elem)
+			                   (* 2 shr-table-separator-length)))))
+        (cl-loop for child in (dom-children dom)
+                 unless (stringp child)
+                 maximize (shr-dom-max-natural-width child)))
+      0))
 
 (defun shr-buffer-width ()
   (goto-char (point-min))
@@ -2617,11 +2617,12 @@ flags that control whether to collect or render objects."
     columns))
 
 (defun shr-count (dom elem)
+  ;; This is faster than `seq-count', and shr can use it.
   (let ((i 0))
     (dolist (sub (dom-children dom))
       (when (and (not (stringp sub))
-		 (eq (dom-tag sub) elem))
-	(setq i (1+ i))))
+                 (eq (dom-tag sub) elem))
+        (setq i (1+ i))))
     i))
 
 (defun shr-max-columns (dom)

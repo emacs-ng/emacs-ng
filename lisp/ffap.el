@@ -174,7 +174,8 @@ Note this name may be omitted if it equals the default
   "\\`/\\(afs\\|net\\)/."
   ;; afs only: (and (file-exists-p "/afs") "\\`/afs/.")
   "Matching file names are treated as remote.  Use nil to disable."
-  :type 'regexp
+  :type '(choice (const :tag "Disable" nil)
+                 regexp)
   :group 'ffap)
 
 (defvar ffap-url-regexp
@@ -557,10 +558,6 @@ Looks at `ffap-ftp-default-user', returns \"\" for \"localhost\"."
    ;; More cases?
    (ffap-ftp-regexp (ffap-host-to-filename mach))
    ))
-
-(defvaralias 'ffap-newsgroup-regexp 'thing-at-point-newsgroup-regexp)
-(defvaralias 'ffap-newsgroup-heads  'thing-at-point-newsgroup-heads)
-(defalias 'ffap-newsgroup-p 'thing-at-point-newsgroup-p)
 
 (defun ffap-url-p (string)
   "If STRING looks like an URL, return it (maybe improved), else nil."
@@ -2143,6 +2140,10 @@ Of course if you do not like these bindings, just roll your own!")
   "Evaluate the forms in variable `ffap-bindings'."
   (interactive)
   (eval (cons 'progn ffap-bindings)))
+
+(define-obsolete-variable-alias 'ffap-newsgroup-regexp 'thing-at-point-newsgroup-regexp "30.1")
+(define-obsolete-variable-alias 'ffap-newsgroup-heads  'thing-at-point-newsgroup-heads "30.1")
+(define-obsolete-function-alias 'ffap-newsgroup-p #'thing-at-point-newsgroup-p "30.1")
 
 
 (provide 'ffap)

@@ -3,6 +3,7 @@
 ;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
+;; Package: emacs
 
 ;; This file is part of GNU Emacs.
 
@@ -50,7 +51,7 @@
 ;; - coercion wrappers, as in "Threesomes, with and without blame"
 ;;   https://dl.acm.org/doi/10.1145/1706299.1706342, or
 ;;   "On the Runtime Complexity of Type-Directed Unboxing"
-;;   http://sv.c.titech.ac.jp/minamide/papers.html
+;;   https://sv.c.titech.ac.jp/minamide/papers.html
 ;; - An efficient `negate' operation such that
 ;;   (negate (negate f)) returns just `f' and (negate #'<) returns #'>=.
 ;; - Autoloads (tho currently our bytecode functions (and hence OClosures)

@@ -144,6 +144,10 @@ This requires either the macOS \"open\" command, or the freedesktop
                (goto-char (point-min))
                (buffer-substring (line-beginning-position)
                                  (line-end-position))))))
+        ((eq system-type 'android)
+         ;; This is a short string containing the Android version,
+         ;; build number, and window system distributor.
+         (symbol-value 'android-build-fingerprint))
         ;; TODO Cygwin, Solaris (usg-unix-v).
         (t
          (or (let ((file "/etc/os-release"))
@@ -455,12 +459,16 @@ and send the mail again%s."
     (setq send-mail-function (sendmail-query-user-about-smtp))
     (when (derived-mode-p 'message-mode)
       (setq message-send-mail-function (message-default-send-mail-function))
-      (add-hook 'message-sent-hook
-                (lambda ()
-                  (when (y-or-n-p "Save this mail sending choice?")
-                    (customize-save-variable 'send-mail-function
-                                             send-mail-function)))
-                nil t)))
+      ;; Don't ask the question below if we are going to ignore it in
+      ;; 'customize-save-variable' anyway.
+      (unless (or (null user-init-file)
+                  (and (null custom-file) init-file-had-error))
+        (add-hook 'message-sent-hook
+                  (lambda ()
+                    (when (y-or-n-p "Save this mail sending choice?")
+                      (customize-save-variable 'send-mail-function
+                                               send-mail-function)))
+                  nil t))))
   (or report-emacs-bug-no-confirmation
       ;; mailclient.el does not need a valid From
       (eq send-mail-function 'mailclient-send-it)

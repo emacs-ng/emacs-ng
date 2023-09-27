@@ -134,7 +134,7 @@ but all the 3 primitives allow optionally to direct the standard error
 stream to a different destination.
 
 @cindex program arguments
-  All three of the subprocess-creating functions allow to specify
+  All three of the subprocess-creating functions allow specifying
 command-line arguments for the process to run. For @code{call-process}
 and @code{call-process-region}, these come in the form of a
 @code{&rest} argument, @var{args}.  For @code{make-process}, both the
@@ -184,6 +184,25 @@ returns a list of directories used for searching programs on the
 respective remote host.  In case of a local @code{default-directory},
 the function returns just the value of the variable @code{exec-path}.
 @end defun
+
+@cindex programs distributed with Emacs, starting
+@vindex ctags-program-name
+@vindex etags-program-name
+@vindex hexl-program-name
+@vindex emacsclient-program-name
+@vindex movemail-program-name
+@vindex ebrowse-program-name
+@vindex rcs2log-program-name
+  When starting a program that is part of the Emacs distribution, you
+must take into account that the program may have been renamed in order
+to comply with executable naming restrictions present on the system.
+
+  Instead of starting @command{ctags}, for example, you should specify
+the value of @code{ctags-program-name} instead.  Likewise, instead of
+starting @command{movemail}, you must start
+@code{movemail-program-name}, and the same goes for @command{etags},
+@command{hexl}, @command{emacsclient}, @code{rcs2log}, and
+@command{ebrowse}.
 
 @node Shell Arguments
 @section Shell Arguments
@@ -501,7 +520,7 @@ This user option indicates whether a call of @code{process-file}
 returns a string describing the signal interrupting a remote process.
 
 When a process returns an exit code greater than 128, it is
-interpreted as a signal.  @code{process-file} requires to return a
+interpreted as a signal.  @code{process-file} requires returning a
 string describing this signal.
 
 Since there are processes violating this rule, returning exit codes
@@ -662,7 +681,7 @@ This function is the basic low-level primitive for starting
 asynchronous subprocesses.  It returns a process object representing
 the subprocess.  Compared to the more high-level @code{start-process},
 described below, it takes keyword arguments, is more flexible, and
-allows to specify process filters and sentinels in a single call.
+enables you to specify process filters and sentinels in a single call.
 
 The arguments @var{args} are a list of keyword/argument pairs.
 Omitting a keyword is always equivalent to specifying it with value
@@ -1755,7 +1774,9 @@ caught automatically, so that it doesn't stop the execution of whatever
 program was running when the filter function was started.  However, if
 @code{debug-on-error} is non-@code{nil}, errors are not caught.
 This makes it possible to use the Lisp debugger to debug filter
-functions.  @xref{Debugger}.
+functions.  @xref{Debugger}.  If an error is caught, Emacs pauses for
+@code{process-error-pause-time} seconds so that the user sees the
+error.  @xref{Asynchronous Processes}.
 
   Many filter functions sometimes (or always) insert the output in the
 process's buffer, mimicking the actions of the default filter.
@@ -2159,7 +2180,9 @@ automatically, so that it doesn't stop the execution of whatever
 programs was running when the sentinel was started.  However, if
 @code{debug-on-error} is non-@code{nil},  errors are not caught.
 This makes it possible to use the Lisp debugger to debug the
-sentinel.  @xref{Debugger}.
+sentinel.  @xref{Debugger}.  If an error is caught, Emacs pauses for
+@code{process-error-pause-time} seconds so that the user sees the
+error.  @xref{Asynchronous Processes}.
 
   While a sentinel is running, the process sentinel is temporarily
 set to @code{nil} so that the sentinel won't run recursively.
@@ -2658,7 +2681,7 @@ naming the certificate key file and certificate file itself, or
 Library}).  Only used for @acronym{TLS} or @acronym{STARTTLS}.  To
 enable automatic queries of @code{auth-source} when
 @code{:client-certificate} is not specified customize
-@code{network-stream-use-client-certificates} to t.
+@code{network-stream-use-client-certificates} to @code{t}.
 
 @item :return-list @var{cons-or-nil}
 The return value of this function.  If omitted or @code{nil}, return a
@@ -3571,7 +3594,7 @@ and @code{#x1c} @code{#x28} to @w{@code{(3 5 10 11 12)}}.
 @item fill @var{len}
 @var{len} bytes used as a mere filler.  In packing, these bytes are
 left unchanged, which normally means they remain zero.
-When unpacking, this just returns nil.
+When unpacking, this just returns @code{nil}.
 
 @item align @var{len}
 Same as @code{fill} except the number of bytes is that needed to skip

@@ -566,6 +566,11 @@ struct buffer
   /* A list of tree-sitter parsers for this buffer.  */
   Lisp_Object ts_parser_list_;
 #endif
+
+  /* What type of text conversion the input method should apply to
+     this buffer.  */
+  Lisp_Object text_conversion_style_;
+
   /* Cursor type to display in non-selected windows.
      t means to use hollow box cursor.
      See `cursor-type' for other values.  */
@@ -651,9 +656,9 @@ struct buffer
   ptrdiff_t last_window_start;
 
   /* If the long line scan cache is enabled (i.e. the buffer-local
-     variable cache-long-line-scans is non-nil), newline_cache
-     points to the newline cache, and width_run_cache points to the
-     width run cache.
+     variable cache-long-scans is non-nil), newline_cache points to
+     the newline cache, and width_run_cache points to the width run
+     cache.
 
      The newline cache records which stretches of the buffer are
      known *not* to contain newlines, so that they can be skipped
@@ -840,6 +845,12 @@ INLINE void
 bset_width_table (struct buffer *b, Lisp_Object val)
 {
   b->width_table_ = val;
+}
+
+INLINE void
+bset_text_conversion_style (struct buffer *b, Lisp_Object val)
+{
+  b->text_conversion_style_ = val;
 }
 
 /* BUFFER_CEILING_OF (resp. BUFFER_FLOOR_OF), when applied to n, return

@@ -52,6 +52,7 @@
 ;; browse-url-xdg-open                freedesktop.org xdg-open
 ;; browse-url-kde                     KDE konqueror (kfm)
 ;; browse-url-elinks                  Elinks      Don't know (tried with 0.12.GIT)
+;; browse-url-default-android-browser Android     2.3.3 (should work on 2.2 too)
 ;; eww-browse-url                     Emacs Web Wowser
 
 ;; Browsers can cache web pages so it may be necessary to tell them to
@@ -173,6 +174,9 @@
     ,@(when (eq system-type 'darwin)
         (list '(function-item :tag "Default macOS browser"
                               :value browse-url-default-macosx-browser)))
+    ,@(when (eq system-type 'android)
+        (list '(function-item :tag "Default Android browser"
+                              :value browse-url-default-android-browser)))
     (function-item :tag "Default browser"
 		   :value browse-url-default-browser)
     (function :tag "Your own function")
@@ -232,7 +236,7 @@ be used instead."
 
 (defcustom browse-url-button-regexp
   (concat
-   "\\b\\(\\(www\\.\\|\\(s?https?\\|ftp\\|file\\|gopher\\|gemini\\|"
+   "\\b\\(\\(www\\.\\|\\(s?https?\\|ftps?\\|file\\|gophers?\\|gemini\\|"
    "nntp\\|news\\|telnet\\|wais\\|mailto\\|info\\):\\)"
    "\\(//[-a-z0-9_.]+:[0-9]*\\)?"
    (let ((chars "-a-z0-9_=#$@~%&*+\\/[:word:]")
@@ -825,10 +829,17 @@ If optional arg TEMP-FILE-NAME is non-nil, delete it instead."
 		  (&optional localp no-error-if-not-filep))
 
 ;;;###autoload
-(defun browse-url-of-dired-file ()
-  "In Dired, ask a WWW browser to display the file named on this line."
-  (interactive)
+(defun browse-url-of-dired-file (&optional secondary)
+  "In Dired, ask a WWW browser to display the file named on this line.
+With prefix arg, use the secondary browser instead (e.g. EWW if
+`browse-url-secondary-browser-function' is set to
+`eww-browse-url'."
+  (interactive "P")
   (let ((tem (dired-get-filename t t))
+        (browse-url-browser-function
+         (if secondary
+             browse-url-secondary-browser-function
+           browse-url-browser-function))
         ;; Some URL handlers open files in Emacs.  We want to always
         ;; open in a browser, so disable those.
         (browse-url-default-handlers nil))
@@ -903,6 +914,11 @@ If ARGS are omitted, the default is to pass
                 ;; (setenv "WAYLAND_DISPLAY" dpy)
                 )
             (setenv "DISPLAY" dpy)))
+         ((featurep 'android)
+          ;; Avoid modifying the DISPLAY environment variable here,
+          ;; which interferes with any X server the user may have
+          ;; expressly set.
+          nil)
          ((featurep 'winit)
           ;; TODO: browse-url winit display?
           (setenv "DISPLAY" dpy))
@@ -1061,6 +1077,8 @@ instead of `browse-url-new-window-flag'."
      'browse-url-default-macosx-browser)
     ((featurep 'haiku)
      'browse-url-default-haiku-browser)
+    ((eq system-type 'android)
+     'browse-url-default-android-browser)
     ((browse-url-can-use-xdg-open) 'browse-url-xdg-open)
 ;;;    ((executable-find browse-url-gnome-moz-program) 'browse-url-gnome-moz)
     ((executable-find browse-url-firefox-program) 'browse-url-firefox)
@@ -1298,6 +1316,35 @@ Default to the URL around or before point."
 (function-put 'browse-url-default-haiku-browser
               'browse-url-browser-kind 'external)
 
+(defcustom browse-url-android-share nil
+  "If non-nil, share URLs instead of opening them.
+When non-nil, `browse-url-default-android-browser' will try to
+share the URL being browsed through programs such as mail clients
+and instant messengers instead of opening it in a web browser."
+  :type 'boolean
+  :version "30.1")
+
+(declare-function android-browse-url "androidselect.c")
+
+;;;###autoload
+(defun browse-url-default-android-browser (url &optional _new-window)
+  "Browse URL with the system default browser.
+If `browse-url-android-share' is non-nil, try to share URL using
+an external program instead.  Default to the URL around or before
+point."
+  (interactive (browse-url-interactive-arg "URL: "))
+  (unless browse-url-android-share
+    ;; The URL shouldn't be encoded if it's being shared through
+    ;; another program.
+    (setq url (browse-url-encode-url url)))
+  ;; Make sure the URL starts with an appropriate scheme.
+  (unless (string-match "\\(.+\\):/" url)
+    (setq url (concat "http://" url)))
+  (android-browse-url url browse-url-android-share))
+
+(function-put 'browse-url-default-android-browser
+              'browse-url-browser-kind 'external)
+
 ;;;###autoload
 (defun browse-url-emacs (url &optional same-window)
   "Ask Emacs to load URL into a buffer and show it in another window.
@@ -1419,8 +1466,7 @@ used instead of `browse-url-new-window-flag'."
 
 ;;;###autoload
 (defun browse-url-w3-gnudoit (url &optional _new-window)
-  ;; new-window ignored
-  "Ask another Emacs running gnuserv to load the URL using the W3 browser.
+  "Ask another Emacs running emacsclient to load the URL using the W3 browser.
 The `browse-url-gnudoit-program' program is used with options given by
 `browse-url-gnudoit-args'.  Default to the URL around or before point."
   (declare (obsolete nil "25.1"))

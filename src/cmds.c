@@ -453,7 +453,7 @@ internal_self_insert (int c, EMACS_INT n)
 	}
 
       ptrdiff_t to;
-      if (INT_ADD_WRAPV (PT, chars_to_delete, &to))
+      if (ckd_add (&to, PT, chars_to_delete))
 	to = PTRDIFF_MAX;
       replace_range (PT, to, string, 1, 1, 1, 0, false);
       Fforward_char (make_fixnum (n));
@@ -518,7 +518,8 @@ syms_of_cmds (void)
 
   DEFVAR_LISP ("post-self-insert-hook", Vpost_self_insert_hook,
 	       doc: /* Hook run at the end of `self-insert-command'.
-This is run after inserting the character.  */);
+This is run after inserting a character.
+The hook can access the inserted character via `last-command-event'.  */);
   Vpost_self_insert_hook = Qnil;
 
   defsubr (&Sforward_char);

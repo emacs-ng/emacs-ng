@@ -31,11 +31,6 @@
 (eval-when-compile (require 'cl-lib))
 (eval-when-compile (require 'subr-x))
 
-(defvar font-lock-comment-face)
-(defvar font-lock-doc-face)
-(defvar font-lock-keywords-case-fold-search)
-(defvar font-lock-string-face)
-
 (define-abbrev-table 'lisp-mode-abbrev-table ()
   "Abbrev table for Lisp mode.")
 
@@ -134,7 +129,7 @@
 	 (purecopy (concat "^\\s-*("
 			   (regexp-opt
 			    '(;; Elisp
-                              "defconst" "defcustom"
+                              "defconst" "defcustom" "defvar-keymap"
                               ;; CL
                               "defconstant"
 			      "defparameter" "define-symbol-macro")
@@ -361,7 +356,7 @@ This will generate compile-time constants from BINDINGS."
                  "define-globalized-minor-mode" "define-skeleton"
                  "define-widget" "ert-deftest"))
      (el-vdefs '("defconst" "defcustom" "defvaralias" "defvar-local"
-                 "defface"))
+                 "defface" "define-error"))
      (el-tdefs '("defgroup" "deftheme"))
      (el-errs '("user-error"))
      ;; Common-Lisp constructs supported by EIEIO.  FIXME: namespace.
@@ -876,7 +871,7 @@ complete sexp in the innermost containing list at position
 2 (counting from 0).  This is important for Lisp indentation."
   (unless pos (setq pos (point)))
   (let ((pss (syntax-ppss pos)))
-    (if (nth 9 pss)
+    (if (and (not (nth 2 pss)) (nth 9 pss))
         (let ((sexp-start (car (last (nth 9 pss)))))
           (parse-partial-sexp sexp-start pos nil nil (syntax-ppss sexp-start)))
       pss)))
@@ -1453,7 +1448,7 @@ and initial semicolons."
       ;; are buffer-local, but we avoid changing them so that they can be set
       ;; to make `forward-paragraph' and friends do something the user wants.
       ;;
-      ;; `paragraph-start': The `(' in the character alternative and the
+      ;; `paragraph-start': The `(' in the bracket expression and the
       ;; left-singlequote plus `(' sequence after the \\| alternative prevent
       ;; sexps and backquoted sexps that follow a docstring from being filled
       ;; with the docstring.  This setting has the consequence of inhibiting

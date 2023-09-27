@@ -81,18 +81,22 @@ Note how the single `-' got converted into a list before
 threading."
   (declare (indent 0) (debug thread-first))
   `(internal--thread-argument nil ,@forms))
+
 (defsubst hash-table-empty-p (hash-table)
   "Check whether HASH-TABLE is empty (has 0 elements)."
+  (declare (side-effect-free t))
   (zerop (hash-table-count hash-table)))
 
 (defsubst hash-table-keys (hash-table)
   "Return a list of keys in HASH-TABLE."
+  (declare (side-effect-free t))
   (let ((keys nil))
     (maphash (lambda (k _) (push k keys)) hash-table)
     keys))
 
 (defsubst hash-table-values (hash-table)
   "Return a list of values in HASH-TABLE."
+  (declare (side-effect-free t))
   (let ((values nil))
     (maphash (lambda (_ v) (push v values)) hash-table)
     values))
@@ -149,6 +153,7 @@ carriage return."
 All sequences of whitespaces in STRING are collapsed into a
 single space character, and leading/trailing whitespace is
 removed."
+  (declare (important-return-value t))
   (let ((blank "[[:blank:]\r\n]+"))
     (string-trim (replace-regexp-in-string blank " " string t t)
                  blank blank)))
@@ -158,6 +163,7 @@ removed."
 Wrapping is done where there is whitespace.  If there are
 individual words in STRING that are longer than LENGTH, the
 result will have lines that are longer than LENGTH."
+  (declare (important-return-value t))
   (with-temp-buffer
     (insert string)
     (goto-char (point-min))
@@ -189,6 +195,7 @@ coding system that doesn't specify a BOM, like `utf-16le' or `utf-16be'.
 When shortening strings for display purposes,
 `truncate-string-to-width' is almost always a better alternative
 than this function."
+  (declare (important-return-value t))
   (unless (natnump length)
     (signal 'wrong-type-argument (list 'natnump length)))
   (if coding-system
@@ -305,9 +312,13 @@ it makes no sense to convert it to a string using
 Like `let', bind variables in BINDINGS and then evaluate BODY,
 but with the twist that BODY can evaluate itself recursively by
 calling NAME, where the arguments passed to NAME are used
-as the new values of the bound variables in the recursive invocation."
+as the new values of the bound variables in the recursive invocation.
+
+This construct can only be used with lexical binding."
   (declare (indent 2) (debug (symbolp (&rest (symbolp form)) body)))
   (require 'cl-lib)
+  (unless lexical-binding
+    (error "`named-let' requires lexical binding"))
   (let ((fargs (mapcar (lambda (b) (if (consp b) (car b) b)) bindings))
         (aargs (mapcar (lambda (b) (if (consp b) (cadr b))) bindings)))
     ;; According to the Scheme semantics of named let, `name' is not in scope
@@ -324,17 +335,21 @@ as the new values of the bound variables in the recursive invocation."
 ;;;###autoload
 (defun string-pixel-width (string)
   "Return the width of STRING in pixels."
+  (declare (important-return-value t))
   (if (zerop (length string))
       0
     ;; Keeping a work buffer around is more efficient than creating a
     ;; new temporary buffer.
     (with-current-buffer (get-buffer-create " *string-pixel-width*")
-      ;; `display-line-numbers-mode' is enabled in internal buffers
-      ;; that breaks width calculation, so need to disable (bug#59311)
+      ;; If `display-line-numbers-mode' is enabled in internal
+      ;; buffers, it breaks width calculation, so disable it (bug#59311)
       (when (bound-and-true-p display-line-numbers-mode)
         (display-line-numbers-mode -1))
       (delete-region (point-min) (point-max))
-      (insert string)
+      ;; Disable line-prefix and wrap-prefix, for the same reason.
+      (setq line-prefix nil
+	    wrap-prefix nil)
+      (insert (propertize string 'line-prefix nil 'wrap-prefix nil))
       (car (buffer-text-pixel-size nil nil t)))))
 
 ;;;###autoload
@@ -344,6 +359,7 @@ This takes into account combining characters and grapheme clusters:
 if compositions are enabled, each sequence of characters composed
 on display into a single grapheme cluster is treated as a single
 indivisible unit."
+  (declare (side-effect-free t))
   (let ((result nil)
         (start 0)
         comp)

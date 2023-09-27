@@ -33,14 +33,19 @@
 (require 'erc)
 (require 'flyspell)
 
+(defgroup erc-spelling nil
+  "Flyspell integration for ERC."
+  :group 'erc)
+
 ;;;###autoload(autoload 'erc-spelling-mode "erc-spelling" nil t)
 (define-erc-module spelling nil
   "Enable flyspell mode in ERC buffers."
   ;; Use erc-connect-pre-hook instead of erc-mode-hook as pre-hook is
   ;; called AFTER the server buffer is initialized.
   ((add-hook 'erc-connect-pre-hook #'erc-spelling-init)
-   (dolist (buffer (erc-buffer-list))
-     (erc-spelling-init buffer)))
+   (unless erc--updating-modules-p
+     (erc-with-all-buffers-of-server nil nil
+       (erc-spelling-init (current-buffer)))))
   ((remove-hook 'erc-connect-pre-hook #'erc-spelling-init)
    (dolist (buffer (erc-buffer-list))
      (with-current-buffer buffer (flyspell-mode 0)))))

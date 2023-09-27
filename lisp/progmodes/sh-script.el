@@ -1,7 +1,6 @@
 ;;; sh-script.el --- shell-script editing commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1993-1997, 1999, 2001-2023 Free Software Foundation,
-;; Inc.
+;; Copyright (C) 1993-2023 Free Software Foundation, Inc.
 
 ;; Author: Daniel Pfeiffer <occitan@esperanto.org>
 ;; Old-Version: 2.0f
@@ -157,10 +156,6 @@
 (autoload 'comint-send-string "comint")
 (autoload 'shell-command-completion "shell")
 (autoload 'shell-environment-variable-completion "shell")
-
-(defvar font-lock-comment-face)
-(defvar font-lock-set-defaults)
-(defvar font-lock-string-face)
 
 
 (defgroup sh nil
@@ -864,10 +859,13 @@ See `sh-feature'.")
 	   ("\\${?\\([[:alpha:]_][[:alnum:]_]*\\|[0-9]+\\|[$*_]\\)" 1
 	     font-lock-variable-name-face))
     (rpm sh-append rpm2
-	 ("%{?\\(\\sw+\\)"  1 font-lock-keyword-face))
+	 ("^\\s-*%\\(\\sw+\\)" 1 font-lock-keyword-face)
+	 ("%{?\\([!?]*[[:alpha:]_][[:alnum:]_]*\\|[0-9]+\\|[%*#]\\*?\\|!?-[[:alpha:]]\\*?\\)"
+	  1 font-lock-variable-name-face))
     (rpm2 sh-append shell
 	  ("^Summary:\\(.*\\)$" (1 font-lock-doc-face t))
-	  ("^\\(\\sw+\\):"  1 font-lock-variable-name-face)))
+	  ("^\\(\\sw+\\)\\((\\(\\sw+\\))\\)?:" (1 font-lock-variable-name-face)
+	   (3 font-lock-string-face nil t))))
   "Default expressions to highlight in Shell Script modes.  See `sh-feature'.")
 
 (defvar sh-font-lock-keywords-var-1
@@ -1489,6 +1487,7 @@ Return the name of the shell suitable for `sh-set-shell'."
         ((string-match "[.]t?csh\\(rc\\)?\\>" buffer-file-name) "csh")
         ((string-match "[.]zsh\\(rc\\|env\\)?\\>" buffer-file-name) "zsh")
 	((equal (file-name-nondirectory buffer-file-name) ".profile") "sh")
+	((equal (file-name-nondirectory buffer-file-name) "PKGBUILD") "bash")
         (t sh-shell-file)))
 
 ;;;###autoload
@@ -1630,10 +1629,11 @@ not written in Bash or sh."
                   ( bracket delimiter misc-punctuation operator)))
     (setq-local treesit-font-lock-settings
                 sh-mode--treesit-settings)
-    (setq-local treesit-text-type-regexp
-                (regexp-opt '("comment"
-                              "heredoc_start"
-                              "heredoc_body")))
+    (setq-local treesit-thing-settings
+                `((bash
+                   (sentence ,(regexp-opt '("comment"
+                                            "heredoc_start"
+                                            "heredoc_body"))))))
     (setq-local treesit-defun-type-regexp "function_definition")
     (treesit-major-mode-setup)))
 
@@ -3374,7 +3374,7 @@ See `sh-mode--treesit-other-keywords' and
    :feature 'number
    :language 'bash
    `(((word) @font-lock-number-face
-      (:match "^[0-9]+$" @font-lock-number-face)))
+      (:match "\\`[0-9]+\\'" @font-lock-number-face)))
 
    :feature 'bracket
    :language 'bash

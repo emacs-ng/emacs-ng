@@ -26,6 +26,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <intprops.h>
 #include <vla.h>
 #include <errno.h>
+#include <ctype.h>
 
 #include "lisp.h"
 #include "bignum.h"
@@ -140,6 +141,10 @@ efficient.  */)
 
   if (STRINGP (sequence))
     val = SCHARS (sequence);
+  else if (CONSP (sequence))
+    val = list_length (sequence);
+  else if (NILP (sequence))
+    val = 0;
   else if (VECTORP (sequence))
     val = ASIZE (sequence);
   else if (CHAR_TABLE_P (sequence))
@@ -148,10 +153,6 @@ efficient.  */)
     val = bool_vector_size (sequence);
   else if (COMPILEDP (sequence) || RECORDP (sequence))
     val = PVSIZE (sequence);
-  else if (CONSP (sequence))
-    val = list_length (sequence);
-  else if (NILP (sequence))
-    val = 0;
   else
     wrong_type_argument (Qsequencep, sequence);
 
@@ -745,7 +746,8 @@ usage: (vconcat &rest SEQUENCES)   */)
 DEFUN ("copy-sequence", Fcopy_sequence, Scopy_sequence, 1, 1, 0,
        doc: /* Return a copy of a list, vector, string, char-table or record.
 The elements of a list, vector or record are not copied; they are
-shared with the original.
+shared with the original.  See Info node `(elisp) Sequence Functions'
+for more details about this sharing and its effects.
 If the original sequence is empty, this function may return
 the same empty object instead of its copy.  */)
   (Lisp_Object arg)
@@ -2102,7 +2104,27 @@ changing the value of a sequence `foo'.  See also `remove', which
 does not modify the argument.  */)
   (Lisp_Object elt, Lisp_Object seq)
 {
-  if (VECTORP (seq))
+  if (NILP (seq))
+    ;
+  else if (CONSP (seq))
+    {
+      Lisp_Object prev = Qnil, tail = seq;
+
+      FOR_EACH_TAIL (tail)
+	{
+	  if (!NILP (Fequal (elt, XCAR (tail))))
+	    {
+	      if (NILP (prev))
+		seq = XCDR (tail);
+	      else
+		Fsetcdr (prev, XCDR (tail));
+	    }
+	  else
+	    prev = tail;
+	}
+      CHECK_LIST_END (tail, seq);
+    }
+  else if (VECTORP (seq))
     {
       ptrdiff_t n = 0;
       ptrdiff_t size = ASIZE (seq);
@@ -2191,23 +2213,7 @@ does not modify the argument.  */)
 	}
     }
   else
-    {
-      Lisp_Object prev = Qnil, tail = seq;
-
-      FOR_EACH_TAIL (tail)
-	{
-	  if (!NILP (Fequal (elt, XCAR (tail))))
-	    {
-	      if (NILP (prev))
-		seq = XCDR (tail);
-	      else
-		Fsetcdr (prev, XCDR (tail));
-	    }
-	  else
-	    prev = tail;
-	}
-      CHECK_LIST_END (tail, seq);
-    }
+    wrong_type_argument (Qsequencep, seq);
 
   return seq;
 }
@@ -2220,8 +2226,6 @@ This function may destructively modify SEQ to produce the value.  */)
 {
   if (NILP (seq))
     return seq;
-  else if (STRINGP (seq))
-    return Freverse (seq);
   else if (CONSP (seq))
     {
       Lisp_Object prev, tail, next;
@@ -2261,6 +2265,8 @@ This function may destructively modify SEQ to produce the value.  */)
 	  bool_vector_set (seq, size - i - 1, tem);
 	}
     }
+  else if (STRINGP (seq))
+    return Freverse (seq);
   else
     wrong_type_argument (Qarrayp, seq);
   return seq;
@@ -2332,9 +2338,9 @@ See also the function `nreverse', which is used more often.  */)
 
 
 /* Stably sort LIST ordered by PREDICATE using the TIMSORT
-   algorithm. This converts the list to a vector, sorts the vector,
-   and returns the result converted back to a list.  The input list is
-   destructively reused to hold the sorted result.  */
+   algorithm.  This converts the list to a vector, sorts the vector,
+   and returns the result converted back to a list.  The input list
+   is destructively reused to hold the sorted result.  */
 
 static Lisp_Object
 sort_list (Lisp_Object list, Lisp_Object predicate)
@@ -2772,10 +2778,13 @@ internal_equal (Lisp_Object o1, Lisp_Object o2, enum equal_kind equal_kind,
 
   /* A symbol with position compares the contained symbol, and is
      `equal' to the corresponding ordinary symbol.  */
-  if (SYMBOL_WITH_POS_P (o1))
-    o1 = SYMBOL_WITH_POS_SYM (o1);
-  if (SYMBOL_WITH_POS_P (o2))
-    o2 = SYMBOL_WITH_POS_SYM (o2);
+  if (symbols_with_pos_enabled)
+    {
+      if (SYMBOL_WITH_POS_P (o1))
+	o1 = SYMBOL_WITH_POS_SYM (o1);
+      if (SYMBOL_WITH_POS_P (o2))
+	o2 = SYMBOL_WITH_POS_SYM (o2);
+    }
 
   if (BASE_EQ (o1, o2))
     return true;
@@ -2823,8 +2832,8 @@ internal_equal (Lisp_Object o1, Lisp_Object o2, enum equal_kind equal_kind,
 	if (ASIZE (o2) != size)
 	  return false;
 
-	/* Compare bignums, overlays, markers, and boolvectors
-	   specially, by comparing their values.  */
+	/* Compare bignums, overlays, markers, boolvectors, and
+	   symbols with position specially, by comparing their values.  */
 	if (BIGNUMP (o1))
 	  return mpz_cmp (*xbignum_val (o1), *xbignum_val (o2)) == 0;
 	if (OVERLAYP (o1))
@@ -2856,6 +2865,11 @@ internal_equal (Lisp_Object o1, Lisp_Object o2, enum equal_kind equal_kind,
 	if (TS_NODEP (o1))
 	  return treesit_node_eq (o1, o2);
 #endif
+	if (SYMBOL_WITH_POS_P(o1)) /* symbols_with_pos_enabled is false.  */
+	  return (BASE_EQ (XSYMBOL_WITH_POS (o1)->sym,
+			   XSYMBOL_WITH_POS (o2)->sym)
+		  && BASE_EQ (XSYMBOL_WITH_POS (o1)->pos,
+			      XSYMBOL_WITH_POS (o2)->pos));
 
 	/* Aside from them, only true vectors, char-tables, compiled
 	   functions, and fonts (font-spec, font-entity, font-object)
@@ -2937,8 +2951,7 @@ ARRAY is a vector, string, char-table, or bool-vector.  */)
 	  else
 	    {
 	      ptrdiff_t product;
-	      if (INT_MULTIPLY_WRAPV (size, len, &product)
-		  || product != size_byte)
+	      if (ckd_mul (&product, size, len) || product != size_byte)
 		error ("Attempt to change byte length of a string");
 	      for (idx = 0; idx < size_byte; idx++)
 		*p++ = str[idx % len];
@@ -3202,7 +3215,9 @@ DEFUN ("yes-or-no-p", Fyes_or_no_p, Syes_or_no_p, 1, 1, 0,
 Return t if answer is yes, and nil if the answer is no.
 
 PROMPT is the string to display to ask the question; `yes-or-no-p'
-appends `yes-or-no-prompt' (default \"(yes or no) \") to it.
+appends `yes-or-no-prompt' (default \"(yes or no) \") to it.  If
+PROMPT is a non-empty string, and it ends with a non-space character,
+a space character will be appended to it.
 
 The user must confirm the answer with RET, and can edit it until it
 has been confirmed.
@@ -3211,16 +3226,21 @@ If the `use-short-answers' variable is non-nil, instead of asking for
 \"yes\" or \"no\", this function will ask for \"y\" or \"n\" (and
 ignore the value of `yes-or-no-prompt').
 
-If dialog boxes are supported, a dialog box will be used
-if `last-nonmenu-event' is nil, and `use-dialog-box' is non-nil.  */)
+If dialog boxes are supported, this function will use a dialog box
+if `use-dialog-box' is non-nil and the last input event was produced
+by a mouse, or by some window-system gesture, or via a menu.  */)
   (Lisp_Object prompt)
 {
-  Lisp_Object ans;
+  Lisp_Object ans, val;
 
   CHECK_STRING (prompt);
 
-  if ((NILP (last_nonmenu_event) || CONSP (last_nonmenu_event))
-      && use_dialog_box && ! NILP (last_input_event))
+  if (!NILP (last_input_event)
+      && (CONSP (last_nonmenu_event)
+	  || (NILP (last_nonmenu_event) && CONSP (last_input_event))
+	  || (val = find_symbol_value (Qfrom__tty_menu_p),
+	      (!NILP (val) && !EQ (val, Qunbound))))
+      && use_dialog_box)
     {
       Lisp_Object pane, menu, obj;
       redisplay_preserve_echo_area (4);
@@ -3234,6 +3254,12 @@ if `last-nonmenu-event' is nil, and `use-dialog-box' is non-nil.  */)
   if (use_short_answers)
     return call1 (intern ("y-or-n-p"), prompt);
 
+  {
+    char *s = SSDATA (prompt);
+    ptrdiff_t len = strlen (s);
+    if ((len > 0) && !isspace (s[len - 1]))
+      prompt = CALLN (Fconcat, prompt, build_string (" "));
+  }
   prompt = CALLN (Fconcat, prompt, Vyes_or_no_prompt);
 
   specpdl_ref count = SPECPDL_INDEX ();
@@ -3547,6 +3573,10 @@ The data read from the system are decoded using `locale-coding-system'.  */)
   (Lisp_Object item)
 {
   char *str = NULL;
+
+  /* STR is apparently unused on Android.  */
+  ((void) str);
+
 #ifdef HAVE_LANGINFO_CODESET
   if (EQ (item, Qcodeset))
     {
@@ -6143,6 +6173,9 @@ from the absolute start of the buffer, disregarding the narrowing.  */)
 {
   ptrdiff_t pos_byte, start_byte = BEGV_BYTE;
 
+  if (!BUFFER_LIVE_P (current_buffer))
+    error ("Attempt to count lines in a dead buffer");
+
   if (MARKERP (position))
     {
       /* We don't trust the byte position if the marker's buffer is
@@ -6389,4 +6422,5 @@ For best results this should end in a space.  */);
   defsubr (&Sbuffer_line_statistics);
 
   DEFSYM (Qreal_this_command, "real-this-command");
+  DEFSYM (Qfrom__tty_menu_p, "from--tty-menu-p");
 }

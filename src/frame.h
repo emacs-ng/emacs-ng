@@ -76,6 +76,65 @@ enum ns_appearance_type
 #endif
 #endif /* HAVE_WINDOW_SYSTEM */
 
+#ifdef HAVE_TEXT_CONVERSION
+
+enum text_conversion_operation
+  {
+    TEXTCONV_START_BATCH_EDIT,
+    TEXTCONV_END_BATCH_EDIT,
+    TEXTCONV_COMMIT_TEXT,
+    TEXTCONV_FINISH_COMPOSING_TEXT,
+    TEXTCONV_SET_COMPOSING_TEXT,
+    TEXTCONV_SET_COMPOSING_REGION,
+    TEXTCONV_SET_POINT_AND_MARK,
+    TEXTCONV_DELETE_SURROUNDING_TEXT,
+    TEXTCONV_REQUEST_POINT_UPDATE,
+    TEXTCONV_BARRIER,
+  };
+
+/* Structure describing a single edit being performed by the input
+   method that should be executed in the context of
+   kbd_buffer_get_event.  */
+
+struct text_conversion_action
+{
+  /* The next text conversion action.  */
+  struct text_conversion_action *next;
+
+  /* Any associated data.  */
+  Lisp_Object data;
+
+  /* The operation being performed.  */
+  enum text_conversion_operation operation;
+
+  /* Counter value.  */
+  unsigned long counter;
+};
+
+/* Structure describing the text conversion state associated with a
+   frame.  */
+
+struct text_conversion_state
+{
+  /* List of text conversion actions associated with this frame.  */
+  struct text_conversion_action *actions;
+
+  /* Markers representing the composing region.  */
+  Lisp_Object compose_region_start, compose_region_end;
+
+  /* Overlay representing the composing region.  */
+  Lisp_Object compose_region_overlay;
+
+  /* The number of ongoing ``batch edits'' that are causing point
+     reporting to be delayed.  */
+  int batch_edit_count;
+
+  /* Mask containing what must be updated after batch edits end.  */
+  int batch_edit_flags;
+};
+
+#endif
+
 /* The structure representing a frame.  */
 
 struct frame
@@ -181,8 +240,7 @@ struct frame
      most recently buried buffer is first.  For last-buffer.  */
   Lisp_Object buried_buffer_list;
 
-#if (defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)) \
-  || defined (HAVE_WINIT)
+#if defined HAVE_WINDOW_SYSTEM && !defined HAVE_EXT_MENU_BAR
   /* A dummy window used to display menu bars under X when no X
      toolkit support is available.  */
   Lisp_Object menu_bar_window;
@@ -206,11 +264,9 @@ struct frame
   Lisp_Object current_tool_bar_string;
 #endif
 
-#ifdef USE_GTK
   /* Where tool bar is, can be left, right, top or bottom.
      Except with GTK, the only supported position is `top'.  */
   Lisp_Object tool_bar_position;
-#endif
 
 #if defined (HAVE_XFT) || defined (HAVE_FREETYPE)
   /* List of data specific to font-driver and frame, but common to faces.  */
@@ -288,6 +344,10 @@ struct frame
   /* Set to true to minimize tool-bar height even when
      auto-resize-tool-bar is set to grow-only.  */
   bool_bf minimize_tool_bar_window_p : 1;
+
+  /* Whether or not the tool bar contains a ``new line'' item.  If
+     true, tool bar rows will be allowed to differ in height.  */
+  bool_bf tool_bar_wraps_p : 1;
 #endif
 
 #ifdef HAVE_EXT_TOOL_BAR
@@ -378,7 +438,7 @@ struct frame
   /* The output method says how the contents of this frame are
      displayed.  It could be using termcap, or using an X window.
      This must be the same as the terminal->type. */
-  ENUM_BF (output_method) output_method : 9;
+  ENUM_BF (output_method) output_method : 10;
 
 #ifdef HAVE_WINDOW_SYSTEM
   /* True if this frame is a tooltip frame.  */
@@ -587,21 +647,23 @@ struct frame
      well.  */
   union output_data
   {
-    struct tty_output *tty;	 /* From termchar.h.  */
-    struct x_output *x;	 /* From xterm.h.  */
-    struct w32_output *w32;	 /* From w32term.h.  */
-    struct ns_output *ns;	 /* From nsterm.h.  */
-    struct pgtk_output *pgtk;	 /* From pgtkterm.h. */
-    struct haiku_output *haiku; /* From haikuterm.h. */
-    struct winit_output *winit;	 /* From wrterm.h. */
+    struct tty_output *tty;		/* From termchar.h.  */
+    struct x_output *x;			/* From xterm.h.  */
+    struct w32_output *w32;		/* From w32term.h.  */
+    struct ns_output *ns;		/* From nsterm.h.  */
+    struct pgtk_output *pgtk;		/* From pgtkterm.h. */
+    struct haiku_output *haiku;		/* From haikuterm.h. */
+    struct android_output *android;	/* From androidterm.h.  */
+    struct winit_output *winit;	        /* From wrterm.h. */
   }
   output_data;
 
   /* List of font-drivers available on the frame.  */
   struct font_driver_list *font_driver_list;
 
-#if defined (HAVE_X_WINDOWS)
-  /* Used by x_wait_for_event when watching for an X event on this frame.  */
+#if defined HAVE_X_WINDOWS || defined HAVE_ANDROID
+  /* Used by x_wait_for_event when watching for an X event on this
+     frame.  */
   int wait_event_type;
 #endif
 
@@ -664,6 +726,11 @@ struct frame
   enum ns_appearance_type ns_appearance;
   bool_bf ns_transparent_titlebar;
 #endif
+
+#ifdef HAVE_TEXT_CONVERSION
+  /* Text conversion state used by certain input methods.  */
+  struct text_conversion_state conversion;
+#endif
 } GCALIGNED_STRUCT;
 
 /* Most code should use these functions to set Lisp fields in struct frame.  */
@@ -715,7 +782,7 @@ fset_menu_bar_vector (struct frame *f, Lisp_Object val)
 {
   f->menu_bar_vector = val;
 }
-#if defined (HAVE_X_WINDOWS) && ! defined (USE_X_TOOLKIT) && ! defined (USE_GTK)
+#if defined HAVE_WINDOW_SYSTEM && !defined HAVE_EXT_MENU_BAR
 INLINE void
 fset_menu_bar_window (struct frame *f, Lisp_Object val)
 {
@@ -784,14 +851,9 @@ fset_tool_bar_items (struct frame *f, Lisp_Object val)
 {
   f->tool_bar_items = val;
 }
-#ifdef USE_GTK
-INLINE void
-fset_tool_bar_position (struct frame *f, Lisp_Object val)
-{
-  f->tool_bar_position = val;
-}
-#endif /* USE_GTK */
+
 #if defined (HAVE_WINDOW_SYSTEM) && ! defined (HAVE_EXT_TOOL_BAR)
+
 INLINE void
 fset_tool_bar_window (struct frame *f, Lisp_Object val)
 {
@@ -807,7 +869,14 @@ fset_desired_tool_bar_string (struct frame *f, Lisp_Object val)
 {
   f->desired_tool_bar_string = val;
 }
-#endif /* HAVE_WINDOW_SYSTEM && !USE_GTK && !HAVE_NS */
+
+#endif /* HAVE_WINDOW_SYSTEM && !HAVE_EXT_TOOL_BAR */
+
+INLINE void
+fset_tool_bar_position (struct frame *f, Lisp_Object val)
+{
+  f->tool_bar_position = val;
+}
 
 INLINE double
 NUMVAL (Lisp_Object x)
@@ -874,6 +943,11 @@ default_pixels_per_inch_y (void)
 #else
 #define FRAME_HAIKU_P(f) ((f)->output_method == output_haiku)
 #endif
+#ifndef HAVE_ANDROID
+#define FRAME_ANDROID_P(f) false
+#else
+#define FRAME_ANDROID_P(f) ((f)->output_method == output_android)
+#endif
 #ifndef HAVE_WINIT
 #define FRAME_WINIT_P(f) false
 #else
@@ -897,6 +971,9 @@ default_pixels_per_inch_y (void)
 #ifdef HAVE_HAIKU
 #define FRAME_WINDOW_P(f) FRAME_HAIKU_P (f)
 #endif
+#ifdef HAVE_ANDROID
+#define FRAME_WINDOW_P(f) FRAME_ANDROID_P (f)
+#endif
 #ifdef HAVE_WINIT
 #define FRAME_WINDOW_P(f) FRAME_WINIT_P(f)
 #endif
@@ -913,12 +990,26 @@ default_pixels_per_inch_y (void)
 #define FRAME_RES_Y(f)						\
   (eassert (FRAME_WINDOW_P (f)), FRAME_DISPLAY_INFO (f)->resy)
 
+#ifdef HAVE_ANDROID
+
+/* Android systems use a font scaling factor independent from the
+   display DPI.  */
+
+#define FRAME_RES(f)						\
+  (eassert (FRAME_WINDOW_P (f)),				\
+   FRAME_DISPLAY_INFO (f)->font_resolution)
+
+#else /* !HAVE_ANDROID */
+#define FRAME_RES(f) (FRAME_RES_Y (f))
+#endif /* HAVE_ANDROID */
+
 #else /* !HAVE_WINDOW_SYSTEM */
 
 /* Defaults when no window system available.  */
 
-#define FRAME_RES_X(f) default_pixels_per_inch_x ()
-#define FRAME_RES_Y(f) default_pixels_per_inch_y ()
+#define FRAME_RES_X(f)	default_pixels_per_inch_x ()
+#define FRAME_RES_Y(f)	default_pixels_per_inch_y ()
+#define FRAME_RES(f)	default_pixels_per_inch_y ()
 
 #endif /* HAVE_WINDOW_SYSTEM */
 
@@ -927,10 +1018,16 @@ default_pixels_per_inch_y (void)
    frame F.  We need to define two versions because a TTY-only build
    does not have FRAME_DISPLAY_INFO.  */
 #ifdef HAVE_WINDOW_SYSTEM
+#ifndef HAVE_ANDROID
 # define MOUSE_HL_INFO(F)					\
-  (FRAME_WINDOW_P(F)						\
+  (FRAME_WINDOW_P (F)						\
    ? &FRAME_DISPLAY_INFO(F)->mouse_highlight			\
    : &(F)->output_data.tty->display_info->mouse_highlight)
+#else
+/* There is no "struct tty_output" on Android at all.  */
+# define MOUSE_HL_INFO(F)					\
+  (&FRAME_DISPLAY_INFO(F)->mouse_highlight)
+#endif
 #else
 # define MOUSE_HL_INFO(F)					\
   (&(F)->output_data.tty->display_info->mouse_highlight)
@@ -994,25 +1091,68 @@ default_pixels_per_inch_y (void)
 #define FRAME_EXTERNAL_TOOL_BAR(f) false
 #endif
 
-/* This is really supported only with GTK.  */
-#ifdef USE_GTK
+/* Position of F's tool bar; one of Qtop, Qleft, Qright, or
+   Qbottom.
+
+   Qleft and Qright are not supported outside GTK+.  */
 #define FRAME_TOOL_BAR_POSITION(f) (f)->tool_bar_position
-#else
-#define FRAME_TOOL_BAR_POSITION(f) ((void) (f), Qtop)
-#endif
 
 /* Size of frame F's internal tool bar in frame lines and pixels.  */
 #define FRAME_TOOL_BAR_LINES(f) (f)->tool_bar_lines
 #define FRAME_TOOL_BAR_HEIGHT(f) (f)->tool_bar_height
 
+/* Size of F's tool bar if it is placed at the top of the
+   frame, else 0.  */
+
+#define FRAME_TOOL_BAR_TOP_HEIGHT(f)			\
+  ((BASE_EQ ((f)->tool_bar_position, Qtop))		\
+   ? (f)->tool_bar_height : 0)
+
+#define FRAME_TOOL_BAR_TOP_LINES(f)			\
+  ((BASE_EQ ((f)->tool_bar_position, Qtop))		\
+   ? (f)->tool_bar_lines : 0)
+
+/* Size of F's tool bar if it is placed at the bottom of the
+   frame.  */
+#define FRAME_TOOL_BAR_BOTTOM_HEIGHT(f)			\
+  ((BASE_EQ ((f)->tool_bar_position, Qbottom))		\
+   ? (f)->tool_bar_height : 0)
+
+#define FRAME_TOOL_BAR_BOTTOM_LINES(f)			\
+  ((BASE_EQ ((f)->tool_bar_position, Qbottom))		\
+   ? (f)->tool_bar_lines : 0)
+
 /* Height of frame F's top margin in frame lines.  */
 #define FRAME_TOP_MARGIN(F)			\
   (FRAME_MENU_BAR_LINES (F)			\
    + FRAME_TAB_BAR_LINES (F)			\
-   + FRAME_TOOL_BAR_LINES (F))
+   + FRAME_TOOL_BAR_TOP_LINES (F))
 
 /* Pixel height of frame F's top margin.  */
+
 #define FRAME_TOP_MARGIN_HEIGHT(F)		\
+  (FRAME_MENU_BAR_HEIGHT (F)			\
+   + FRAME_TAB_BAR_HEIGHT (F)			\
+   + FRAME_TOOL_BAR_TOP_HEIGHT (F))
+
+/* Height of F's bottom margin in frame lines.  */
+
+#define FRAME_BOTTOM_MARGIN(f)			\
+  (FRAME_TOOL_BAR_BOTTOM_LINES (f))
+
+/* Pixel height of frame F's bottom margin.  */
+
+#define FRAME_BOTTOM_MARGIN_HEIGHT(f)		\
+  (FRAME_TOOL_BAR_BOTTOM_HEIGHT (f))
+
+/* Size of both vertical margins combined.  */
+
+#define FRAME_MARGINS(F)			\
+  (FRAME_MENU_BAR_LINES (F)			\
+   + FRAME_TAB_BAR_LINES (F)			\
+   + FRAME_TOOL_BAR_LINES (F))
+
+#define FRAME_MARGIN_HEIGHT(F)			\
   (FRAME_MENU_BAR_HEIGHT (F)			\
    + FRAME_TAB_BAR_HEIGHT (F)			\
    + FRAME_TOOL_BAR_HEIGHT (F))
@@ -1390,6 +1530,10 @@ extern Lisp_Object mouse_position (bool);
 extern void frame_size_history_plain (struct frame *, Lisp_Object);
 extern void frame_size_history_extra (struct frame *, Lisp_Object,
 				      int, int, int, int, int, int);
+#ifdef NS_IMPL_COCOA
+/* Implemented in nsfns.m.  */
+extern void ns_make_frame_key_window (struct frame *);
+#endif
 extern Lisp_Object Vframe_list;
 
 /* Value is a pointer to the selected frame.  If the selected frame
@@ -1635,7 +1779,7 @@ IMAGE_OPT_FROM_ID (struct frame *f, int id)
 
 #define FRAME_PIXEL_HEIGHT_TO_TEXT_LINES(f, height)			\
   (((height)								\
-    - FRAME_TOP_MARGIN_HEIGHT (f)					\
+    - FRAME_MARGIN_HEIGHT (f)						\
     - FRAME_SCROLL_BAR_AREA_HEIGHT (f)					\
     - 2 * FRAME_INTERNAL_BORDER_WIDTH (f))				\
    / FRAME_LINE_HEIGHT (f))
@@ -1650,7 +1794,7 @@ IMAGE_OPT_FROM_ID (struct frame *f, int id)
 
 #define FRAME_TEXT_TO_PIXEL_HEIGHT(f, height)	     \
   ((height)					     \
-   + FRAME_TOP_MARGIN_HEIGHT (f)		     \
+   + FRAME_MARGIN_HEIGHT (f)			     \
    + FRAME_SCROLL_BAR_AREA_HEIGHT (f)		     \
    + 2 * FRAME_INTERNAL_BORDER_WIDTH (f))
 
@@ -1664,7 +1808,7 @@ IMAGE_OPT_FROM_ID (struct frame *f, int id)
 
 #define FRAME_PIXEL_TO_TEXT_HEIGHT(f, height)		\
   ((height)						\
-   - FRAME_TOP_MARGIN_HEIGHT (f)			\
+   - FRAME_MARGIN_HEIGHT (f)				\
    - FRAME_SCROLL_BAR_AREA_HEIGHT (f)			\
    - 2 * FRAME_INTERNAL_BORDER_WIDTH (f))
 
@@ -1674,7 +1818,7 @@ IMAGE_OPT_FROM_ID (struct frame *f, int id)
 
 #define FRAME_INNER_HEIGHT(f)			\
   (FRAME_PIXEL_HEIGHT (f)			\
-   - FRAME_TOP_MARGIN_HEIGHT (f)		\
+   - FRAME_MARGIN_HEIGHT (f)			\
    - 2 * FRAME_INTERNAL_BORDER_WIDTH (f))
 
 /* Value is the smallest width of any character in any font on frame F.  */

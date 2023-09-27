@@ -260,6 +260,11 @@ struct font_entity
 {
   union vectorlike_header header;
   Lisp_Object props[FONT_ENTITY_MAX];
+
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+  /* Whether or not this is an Android font entity.  */
+  bool is_android;
+#endif
 };
 
 /* A value which may appear in the member `encoding' of struct font
@@ -298,10 +303,16 @@ struct font
      SPACE glyph, the value is 0.  */
   int space_width;
 
-  /* Average width of glyphs in the font.  If the font itself doesn't
-     have that information, but has glyphs of ASCII characters, the
-     value is the average width of those glyphs.  Otherwise, the value
-     is 0.  */
+  /* Average width of glyphs in the font.  Should be the average width
+     of the glyphs of ASCII characters.  The value for the default
+     face's font is used to determine the canonical character width of
+     the frame (see FRAME_COLUMN_WIDTH).  For fonts that are not
+     fixed-pitch, the font backend should actually calculate the value
+     from the glyphs of ASCII characters in the range 32..126
+     inclusively; relying on the average-width attribute recorded in
+     the font is unreliable in this case, especially in fonts that
+     support CJK scripts, where many characters are wide.  Value can
+     be zero if the font doesn't have glyphs for ASCII characters.  */
   int average_width;
 
   /* Ascent and descent of the font (in pixels).  */
@@ -547,8 +558,14 @@ CHECK_FONT_GET_OBJECT (Lisp_Object x)
   return XFONT_OBJECT (x);
 }
 
+#ifndef HAVE_ANDROID
 /* Number of pt per inch (from the TeXbook).  */
 #define PT_PER_INCH 72.27
+#else
+/* Android uses this value instead to compensate for different device
+   dimensions.  */
+#define PT_PER_INCH 160.00
+#endif
 
 /* Return a pixel size (integer) corresponding to POINT size (double)
    on resolution DPI.  */
@@ -823,6 +840,9 @@ extern Lisp_Object copy_font_spec (Lisp_Object);
 extern Lisp_Object merge_font_spec (Lisp_Object, Lisp_Object);
 
 extern Lisp_Object font_make_entity (void);
+#ifdef HAVE_ANDROID
+extern Lisp_Object font_make_entity_android (int);
+#endif
 extern Lisp_Object font_make_object (int, Lisp_Object, int);
 #if defined (HAVE_XFT) || defined (HAVE_FREETYPE) || defined (HAVE_NS)
 extern Lisp_Object font_build_object (int, Lisp_Object, Lisp_Object, double);
@@ -871,8 +891,8 @@ extern void font_parse_family_registry (Lisp_Object family,
                                         Lisp_Object spec);
 
 extern int font_parse_xlfd (char *name, ptrdiff_t len, Lisp_Object font);
-extern ptrdiff_t font_unparse_xlfd (Lisp_Object font, int pixel_size,
-				    char *name, int bytes);
+extern char *font_dynamic_unparse_xlfd (Lisp_Object, int);
+extern ptrdiff_t font_unparse_xlfd (Lisp_Object, int, char *, int);
 extern void register_font_driver (struct font_driver const *, struct frame *);
 extern void free_font_driver_list (struct frame *f);
 #ifdef ENABLE_CHECKING

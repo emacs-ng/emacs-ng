@@ -280,6 +280,14 @@ anchoring position to indent the line in that case."
   :type 'boolean
   :group 'c)
 
+(defcustom c-warn-ids-with-dollar nil
+  "Fontify identifiers with a dollar character in font-lock-warn-face.
+This has effect only for languages in which `c-dollar-in-ids' is
+non-nil, e.g.  C, C++, Objective C.  It covers languages where
+\"$\" is permitted in ids \"informally\", but only by some compilers."
+  :type 'boolean
+  :group 'c)
+
 (defcustom-c-stylevar c-basic-offset 4
   "Amount of basic offset used by + and - symbols in `c-offsets-alist'.
 Also used as the indentation step when `c-syntactic-indentation' is
@@ -1219,7 +1227,8 @@ can always override the use of `c-default-style' by making calls to
        (incomposition         . +)
        ;; Anchor pos: At the extern/namespace/etc block open brace if
        ;; it's at boi, otherwise boi at the keyword.
-       (template-args-cont    . (c-lineup-template-args +))
+       (template-args-cont    . (c-lineup-template-args
+				 c-lineup-template-args-indented-from-margin))
        ;; Anchor pos: Boi at the decl start.  This might be changed;
        ;; the logical position is clearly the opening '<'.
        (inlambda              . 0)

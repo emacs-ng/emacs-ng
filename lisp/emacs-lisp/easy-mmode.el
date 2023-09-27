@@ -143,8 +143,6 @@ it is disabled.")
         (buffer-string)))))
 
 ;;;###autoload
-(defalias 'easy-mmode-define-minor-mode #'define-minor-mode)
-;;;###autoload
 (defmacro define-minor-mode (mode doc &rest body)
   "Define a new minor mode MODE.
 This defines the toggle command MODE and (by default) a control variable
@@ -391,7 +389,7 @@ or call the function `%s'."))))
                                  (not (equal ,last-message
                                              (current-message))))
                       (let ((local ,(if globalp "" " in current buffer")))
-			(message ,(format "%s %%sabled%%s" pretty-name)
+			(message "%s %sabled%s" ,pretty-name
 			         (if ,getter "en" "dis") local)))))
 	      ,@(when after-hook `(,after-hook)))
 	    (force-mode-line-update)
@@ -443,8 +441,6 @@ No problems result if this variable is not bound.
 ;;;
 
 ;;;###autoload
-(defalias 'easy-mmode-define-global-mode #'define-globalized-minor-mode)
-;;;###autoload
 (defalias 'define-global-minor-mode #'define-globalized-minor-mode)
 ;;;###autoload
 (defmacro define-globalized-minor-mode (global-mode mode turn-on &rest body)
@@ -453,14 +449,17 @@ TURN-ON is a function that will be called with no args in every buffer
 and that should try to turn MODE on if applicable for that buffer.
 
 Each of KEY VALUE is a pair of CL-style keyword arguments.
-The :predicate argument specifies in which major modes should the
+The :predicate key specifies in which major modes should the
 globalized minor mode be switched on.  The value should be t (meaning
 switch on the minor mode in all major modes), nil (meaning don't
 switch on in any major mode), a list of modes (meaning switch on only
 in those modes and their descendants), or a list (not MODES...),
 meaning switch on in any major mode except MODES.  The value can also
 mix all of these forms, see the info node `Defining Minor Modes' for
-details.
+details.  The :predicate key causes the macro to create a user option
+named the same as MODE, but ending with \"-modes\" instead of \"-mode\".
+That user option can then be used to customize in which modes this
+globalized minor mode will be switched on.
 As the minor mode defined by this function is always global, any
 :global keyword is ignored.
 Other keywords have the same meaning as in `define-minor-mode',
@@ -837,6 +836,12 @@ Interactively, COUNT is the prefix numeric argument, and defaults to 1."
                 (user-error "No previous %s" ,name)))
            ,@body))
        (put ',prev-sym 'definition-name ',base))))
+
+;; When deleting these two, also delete them from loaddefs-gen.el.
+;;;###autoload
+(define-obsolete-function-alias 'easy-mmode-define-minor-mode #'define-minor-mode "30.1")
+;;;###autoload
+(define-obsolete-function-alias 'easy-mmode-define-global-mode #'define-globalized-minor-mode "30.1")
 
 (provide 'easy-mmode)
 

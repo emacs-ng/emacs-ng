@@ -50,6 +50,14 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "w32heap.h"		/* for mmap_* */
 #endif
 
+/* Work around GCC bug 109847
+   https://gcc.gnu.org/bugzilla/show_bug.cgi?id=109847
+   which causes GCC to mistakenly complain about
+   AUTO_STRING with "*scratch*".  */
+#if GNUC_PREREQ (13, 0, 0)
+# pragma GCC diagnostic ignored "-Wanalyzer-out-of-bounds"
+#endif
+
 /* This structure holds the default values of the buffer-local variables
    defined with DEFVAR_PER_BUFFER, that have special slots in each buffer.
    The default value occupies the same slot in this structure
@@ -2386,6 +2394,7 @@ Any narrowing restriction in effect (see `narrow-to-region') is removed,
 so the buffer is truly empty after this.  */)
   (void)
 {
+  labeled_restrictions_remove_in_current_buffer ();
   Fwiden ();
 
   del_range (BEG, Z);
@@ -3334,7 +3343,7 @@ record_overlay_string (struct sortstrlist *ssl, Lisp_Object str,
   else
     nbytes = SBYTES (str);
 
-  if (INT_ADD_WRAPV (ssl->bytes, nbytes, &nbytes))
+  if (ckd_add (&nbytes, nbytes, ssl->bytes))
     memory_full (SIZE_MAX);
   ssl->bytes = nbytes;
 
@@ -3348,7 +3357,7 @@ record_overlay_string (struct sortstrlist *ssl, Lisp_Object str,
       else
 	nbytes = SBYTES (str2);
 
-      if (INT_ADD_WRAPV (ssl->bytes, nbytes, &nbytes))
+      if (ckd_add (&nbytes, nbytes, ssl->bytes))
 	memory_full (SIZE_MAX);
       ssl->bytes = nbytes;
     }
@@ -3420,7 +3429,7 @@ overlay_strings (ptrdiff_t pos, struct window *w, unsigned char **pstr)
       unsigned char *p;
       ptrdiff_t total;
 
-      if (INT_ADD_WRAPV (overlay_heads.bytes, overlay_tails.bytes, &total))
+      if (ckd_add (&total, overlay_heads.bytes, overlay_tails.bytes))
 	memory_full (SIZE_MAX);
       if (total > overlay_str_len)
 	overlay_str_buf = xpalloc (overlay_str_buf, &overlay_str_len,
@@ -4090,7 +4099,7 @@ report_overlay_modification (Lisp_Object start, Lisp_Object end, bool after,
 	    }
 	  /* Test for intersecting intervals.  This does the right thing
 	     for both insertion and deletion.  */
-	  if (! insertion || (end_arg > obegin && begin_arg < oend))
+	  if (end_arg > obegin && begin_arg < oend)
 	    {
 	      Lisp_Object prop = Foverlay_get (overlay, Qmodification_hooks);
 	      if (!NILP (prop))
@@ -4710,6 +4719,7 @@ init_buffer_once (void)
 #ifdef HAVE_TREE_SITTER
   XSETFASTINT (BVAR (&buffer_local_flags, ts_parser_list), idx); ++idx;
 #endif
+  XSETFASTINT (BVAR (&buffer_local_flags, text_conversion_style), idx); ++idx;
   XSETFASTINT (BVAR (&buffer_local_flags, cursor_in_non_selected_windows), idx); ++idx;
 
   /* buffer_local_flags contains no pointers, so it's safe to treat it
@@ -4781,6 +4791,7 @@ init_buffer_once (void)
 #ifdef HAVE_TREE_SITTER
   bset_ts_parser_list (&buffer_defaults, Qnil);
 #endif
+  bset_text_conversion_style (&buffer_defaults, Qnil);
   bset_cursor_in_non_selected_windows (&buffer_defaults, Qt);
 
   bset_enable_multibyte_characters (&buffer_defaults, Qt);
@@ -5856,6 +5867,26 @@ If t, displays a cursor related to the usual cursor type
 \(a solid box becomes hollow, a bar becomes a narrower bar).
 You can also specify the cursor type as in the `cursor-type' variable.
 Use Custom to set this variable and update the display.  */);
+
+  /* While this is defined here, each *term.c module must implement
+     the logic itself.  */
+
+  DEFVAR_PER_BUFFER ("text-conversion-style", &BVAR (current_buffer,
+						     text_conversion_style),
+		     Qnil,
+    doc: /* How the on screen keyboard's input method should insert in this buffer.
+When nil, the input method will be disabled and an ordinary keyboard
+will be displayed in its place.
+When the symbol `action', the input method will insert text directly, but
+will send `return' key events instead of inserting new line characters.
+Any other value means that the input method will insert text directly.
+
+If you need to make non-buffer local changes to this variable, use
+`overriding-text-conversion-style', which see.
+
+This variable does not take immediate effect when set; rather, it
+takes effect upon the next redisplay after the selected window or
+buffer changes.  */);
 
   DEFVAR_LISP ("kill-buffer-query-functions", Vkill_buffer_query_functions,
 	       doc: /* List of functions called with no args to query before killing a buffer.

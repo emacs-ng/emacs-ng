@@ -199,9 +199,9 @@ calling FUNC with FILE as an argument."
   `(let ((owner (file-attribute-user-id ,attrs))
 	 (modes (file-attribute-modes ,attrs)))
      (cond ((cond ((numberp owner)
-		   (= owner (user-uid)))
+                   (= owner (file-user-uid)))
 		  ((stringp owner)
-		   (or (string-equal owner (user-login-name))
+                   (or (string-equal owner (eshell-user-login-name))
 		       (member owner (eshell-current-ange-uids)))))
 	    ;; The user owns this file.
 	    (not (eq (aref modes ,index) ?-)))
@@ -274,11 +274,7 @@ instead."
           ;; use the fancy highlighting in `eshell-ls' rather than font-lock
           (when eshell-ls-use-colors
             (font-lock-mode -1)
-            (setq font-lock-defaults nil)
-            (if (boundp 'font-lock-buffers)
-                (setq font-lock-buffers
-                      (delq (current-buffer)
-                            (symbol-value 'font-lock-buffers)))))
+            (setq font-lock-defaults nil))
           (require 'em-glob)
           (let* ((insert-func 'insert)
                  (error-func 'insert)
@@ -919,7 +915,7 @@ to use, and each member of which is the width of that column
 	      ((not (eshell-ls-filetype-p (cdr file) ?-))
 	       'eshell-ls-special)
 
-	      ((and (/= (user-uid) 0) ; root can execute anything
+              ((and (/= (file-user-uid) 0) ; root can execute anything
 		    (eshell-ls-applicable (cdr file) 3
 					  'file-executable-p (car file)))
 	       'eshell-ls-executable)

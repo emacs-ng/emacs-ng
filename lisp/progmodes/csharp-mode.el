@@ -45,6 +45,7 @@
 (declare-function treesit-node-start "treesit.c")
 (declare-function treesit-node-type "treesit.c")
 (declare-function treesit-node-child-by-field-name "treesit.c")
+(declare-function treesit-query-capture "treesit.c")
 
 (defgroup csharp nil
   "Major mode for editing C# code."
@@ -464,6 +465,15 @@ compilation and evaluation time conflicts."
 
 (defun csharp-guess-basic-syntax (orig-fun &rest args)
   (cond
+   (;; enum
+    (save-excursion
+      (goto-char (c-point 'boi))
+      (and
+       (eq (char-after) ?\{)
+       (save-excursion
+         (goto-char (c-point 'iopl))
+         (looking-at ".*enum.*"))))
+    `((class-open ,(c-point 'iopl))))
    (;; Attributes
     (save-excursion
       (goto-char (c-point 'iopl))
@@ -483,7 +493,7 @@ compilation and evaluation time conflicts."
        ;; Next non-whitespace character should be '{'
        (goto-char (c-point 'boi))
        (unless (eq (char-after) ?{)
-         (backward-up-list 1 t t))
+         (ignore-errors (backward-up-list 1 t t)))
        (save-excursion
          ;; 'new' should be part of the line
          (goto-char (c-point 'iopl))
@@ -807,7 +817,7 @@ compilation and evaluation time conflicts."
    :language 'c-sharp
    :feature 'definition
    :override t
-   '((qualified_name (identifier) @font-lock-type-face)
+   `((qualified_name (identifier) @font-lock-type-face)
      (using_directive (identifier) @font-lock-type-face)
      (using_directive (name_equals
                        (identifier) @font-lock-type-face))
@@ -834,8 +844,13 @@ compilation and evaluation time conflicts."
      (class_declaration (identifier) @font-lock-type-face)
 
      (constructor_declaration name: (_) @font-lock-type-face)
-
-     (method_declaration type: [(identifier) (void_keyword)] @font-lock-type-face)
+     ;;; Handle different releases of tree-sitter-c-sharp.
+     ;;; Check if keyword void_keyword is available, then return the correct rule."
+     ,@(condition-case nil
+           (progn (treesit-query-capture 'csharp '((void_keyword) @capture))
+                  `((method_declaration type: [(identifier) (void_keyword)] @font-lock-type-face)))
+         (error
+          `((method_declaration type: [(identifier) (predefined_type)] @font-lock-type-face))))
      (method_declaration type: (generic_name (identifier) @font-lock-type-face))
      (method_declaration name: (_) @font-lock-function-name-face)
 
@@ -911,7 +926,6 @@ Return nil if there is no name or if NODE is not a defun node."
          "struct_declaration"
          "enum_declaration"
          "interface_declaration"
-         "class_declaration"
          "class_declaration")
      (treesit-node-text
       (treesit-node-child-by-field-name
@@ -945,10 +959,12 @@ Key bindings:
   ;; Comments.
   (c-ts-common-comment-setup)
 
-  (setq-local treesit-text-type-regexp
-              (regexp-opt '("comment"
-                            "verbatim_string-literal"
-                            "interpolated_verbatim_string-text")))
+  (setq-local treesit-thing-settings
+              `((c-sharp
+                 (text
+                  ,(regexp-opt '("comment"
+                                 "verbatim_string-literal"
+                                 "interpolated_verbatim_string-text"))))))
 
   ;; Indent.
   (setq-local treesit-simple-indent-rules csharp-ts-mode--indent-rules)

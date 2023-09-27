@@ -372,12 +372,12 @@ you could say:
       '(("src/emacs/[^/]+/\\(.*\\)\\'" "src/emacs/.*/\\1")))
 @end lisp
 
-As you can see, this is a list of @var{(MATCH EXPANSION...)} elements.
-The @var{match} is a regular expression that matches the visited file
-name, and each @var{expansion} may refer to match groups by using
-@samp{\\1} and so on.  The resulting expansion string is then applied
-to the file system to see if any files match this expansion
-(interpreted as a regexp).
+As you can see, this is a list of @w{@code{(@var{MATCH}
+@var{EXPANSION}...)}} elements.  The @var{match} is a regular
+expression that matches the visited file name, and each
+@var{expansion} may refer to match groups by using @samp{\\1} and so
+on.  The resulting expansion string is then applied to the file system
+to see if any files match this expansion (interpreted as a regexp).
 
 @vindex find-file-hook
 @vindex find-file-not-found-functions
@@ -2093,10 +2093,11 @@ Otherwise, Emacs uses @command{ssh}.
 @end enumerate
 
 @cindex disabling remote files
+@cindex inhibit-remote-files
 @noindent
-You can entirely turn off the remote file name feature by setting the
-variable @code{tramp-mode} to @code{nil}.  You can turn off the
-feature in individual cases by quoting the file name with @samp{/:}
+You can entirely turn off the remote file name feature by running
+@kbd{M-x inhibit-remote-files}.  You can turn off the feature in
+individual cases by quoting the file name with @samp{/:}
 (@pxref{Quoted File Names}).
 
 @cindex @code{ange-ftp}
@@ -2254,6 +2255,12 @@ enabled, the @samp{File} menu will include a submenu that you can use
 to visit one of these files.  @kbd{M-x recentf-save-list} saves the
 current @code{recentf-list} to a file, and @kbd{M-x recentf-edit-list}
 edits it.
+
+@vindex remote-file-name-access-timeout
+  If you use remote files, you might also consider customizing
+@code{remote-file-name-access-timeout}, which is the number of
+seconds after which the check whether a remote file shall be used
+in Recentf is stopped.  This prevents Emacs being blocked.
 
 @c FIXME partial-completion-mode (complete.el) is obsolete.
   The @kbd{M-x ffap} command generalizes @code{find-file} with more

@@ -53,8 +53,14 @@ typedef struct
   unsigned short red, green, blue;
 } Emacs_Color;
 
+#ifndef HAVE_ANDROID
 /* Accommodate X's usage of None as a null resource ID.  */
 #define No_Cursor (NULL)
+#else
+#define No_Cursor 0
+#endif
+
+#ifndef HAVE_ANDROID
 
 /* XRectangle-like struct used by non-X GUI code.  */
 typedef struct
@@ -62,6 +68,12 @@ typedef struct
   int x, y;
   unsigned width, height;
 } Emacs_Rectangle;
+
+#else
+
+typedef struct android_rectangle Emacs_Rectangle;
+
+#endif
 
 /* XGCValues-like struct used by non-X GUI code.  */
 typedef struct
@@ -157,6 +169,13 @@ typedef Emacs_Pixmap Emacs_Pix_Container;
 typedef Emacs_Pixmap Emacs_Pix_Context;
 #endif /* USE_WEBRENDER */
 
+#ifdef HAVE_ANDROID
+#include "androidgui.h"
+typedef struct android_display_info Display_Info;
+typedef struct android_image *Emacs_Pix_Container;
+typedef struct android_image *Emacs_Pix_Context;
+#endif
+
 #ifdef HAVE_WINDOW_SYSTEM
 # include <time.h>
 # include "fontset.h"
@@ -168,6 +187,22 @@ typedef void *Emacs_Cursor;
 
 #ifndef NativeRectangle
 #define NativeRectangle int
+#endif
+
+#ifdef HAVE_WINDOW_SYSTEM
+
+/* ``box'' structure similar to that found in the X sample server,
+   meaning that X2 and Y2 are not actually the end of the box, but one
+   pixel past the end of the box, which makes checking for overlaps
+   less necessary.  This is convenient to use in every GUI port.  */
+
+struct gui_box
+{
+  /* Bounds of the box.  */
+  int x1, y1;
+  int x2, y2;
+};
+
 #endif
 
 /* Text cursor types.  */
@@ -1414,6 +1449,8 @@ struct glyph_string
   /* The GC to use for drawing this glyph string.  */
 #if defined (HAVE_X_WINDOWS)
   GC gc;
+#elif defined HAVE_ANDROID
+  struct android_gc *gc;
 #endif
 #if defined (HAVE_NTGUI)
   Emacs_GC *gc;
@@ -1697,6 +1734,8 @@ struct face
      drawing the characters in this face.  */
 # ifdef HAVE_X_WINDOWS
   GC gc;
+# elif defined HAVE_ANDROID
+  struct android_gc *gc;
 # else
   Emacs_GC *gc;
 # endif
@@ -2350,21 +2389,20 @@ struct it
      with which display_string was called.  */
   ptrdiff_t end_charpos;
 
-  /* Alternate begin position of the buffer that may be used to
-     optimize display (see the SET_WITH_NARROWED_BEGV macro).  */
-  ptrdiff_t narrowed_begv;
+  /* Alternate begin and end positions of the buffer that are used to
+     optimize display of buffers with long lines.  These two fields
+     hold the return value of the 'get_medium_narrowing_begv' and
+     'get_medium_narrowing_zv' functions.  */
+  ptrdiff_t medium_narrowing_begv;
+  ptrdiff_t medium_narrowing_zv;
 
-  /* Alternate end position of the buffer that may be used to
-     optimize display.  */
-  ptrdiff_t narrowed_zv;
-
-  /* Begin position of the buffer for the locked narrowing around
-     low-level hooks.  */
-  ptrdiff_t locked_narrowing_begv;
-
-  /* End position of the buffer for the locked narrowing around
-     low-level hooks.  */
-  ptrdiff_t locked_narrowing_zv;
+  /* Alternate begin and end positions of the buffer that are used for
+     labeled narrowings around low-level hooks in buffers with long
+     lines.  These two fields hold the return value of the
+     'get_large_narrowing_begv' and 'get_large_narrowing_zv'
+     functions.  */
+  ptrdiff_t large_narrowing_begv;
+  ptrdiff_t large_narrowing_zv;
 
   /* C string to iterate over.  Non-null means get characters from
      this string, otherwise characters are read from current_buffer
@@ -3074,9 +3112,10 @@ struct redisplay_interface
 
 #ifdef HAVE_WINDOW_SYSTEM
 
+
 # if (defined USE_CAIRO || defined HAVE_XRENDER \
       || defined HAVE_NS || defined HAVE_NTGUI || defined HAVE_HAIKU \
-      || defined USE_WEBRENDER)
+      || defined USE_WEBRENDER || defined HAVE_ANDROID)
 #  define HAVE_NATIVE_TRANSFORMS
 # endif
 
@@ -3112,6 +3151,13 @@ struct image
   int original_width, original_height;
 # endif
 #endif	/* HAVE_X_WINDOWS */
+#ifdef HAVE_ANDROID
+  /* Android images of the image, corresponding to the above Pixmaps.
+     Non-NULL means it and its Pixmap counterpart may be out of sync
+     and the latter is outdated.  NULL means the X image has been
+     synchronized to Pixmap.  */
+  struct android_image *ximg, *mask_img;
+#endif /* HAVE_ANDROID */
 #ifdef HAVE_NTGUI
   XFORM xform;
 #endif
@@ -3334,9 +3380,13 @@ enum tool_bar_item_idx
   /* If we shall show the label only below the icon and not beside it.  */
   TOOL_BAR_ITEM_VERT_ONLY,
 
+  /* Whether or not this tool bar item is hidden and should cause
+     subsequent items to be displayed on a new line.  */
+  TOOL_BAR_ITEM_WRAP,
+
   /* Sentinel = number of slots in tool_bar_items occupied by one
      tool-bar item.  */
-  TOOL_BAR_ITEM_NSLOTS
+  TOOL_BAR_ITEM_NSLOTS,
 };
 
 
@@ -3427,11 +3477,9 @@ void mark_window_display_accurate (Lisp_Object, bool);
 void redisplay_preserve_echo_area (int);
 void init_iterator (struct it *, struct window *, ptrdiff_t,
                     ptrdiff_t, struct glyph_row *, enum face_id);
-ptrdiff_t get_narrowed_begv (struct window *, ptrdiff_t);
-ptrdiff_t get_narrowed_zv (struct window *, ptrdiff_t);
-ptrdiff_t get_closer_narrowed_begv (struct window *, ptrdiff_t);
-ptrdiff_t get_locked_narrowing_begv (ptrdiff_t);
-ptrdiff_t get_locked_narrowing_zv (ptrdiff_t);
+ptrdiff_t get_small_narrowing_begv (struct window *, ptrdiff_t);
+ptrdiff_t get_large_narrowing_begv (ptrdiff_t);
+ptrdiff_t get_large_narrowing_zv (ptrdiff_t);
 void init_iterator_to_row_start (struct it *, struct window *,
                                  struct glyph_row *);
 void start_display (struct it *, struct window *, struct text_pos);
@@ -3500,6 +3548,7 @@ extern void get_glyph_string_clip_rect (struct glyph_string *,
                                         NativeRectangle *nr);
 extern Lisp_Object find_hot_spot (Lisp_Object, int, int);
 
+extern int get_tab_bar_item_kbd (struct frame *, int, int, int *, bool *);
 extern Lisp_Object handle_tab_bar_click (struct frame *,
 					 int, int, bool, int);
 extern void handle_tool_bar_click (struct frame *,
@@ -3511,6 +3560,9 @@ extern void expose_frame (struct frame *, int, int, int, int);
 extern bool gui_intersect_rectangles (const Emacs_Rectangle *,
                                       const Emacs_Rectangle *,
                                       Emacs_Rectangle *);
+extern void gui_union_rectangles (const Emacs_Rectangle *,
+				  const Emacs_Rectangle *,
+				  Emacs_Rectangle *);
 extern void gui_consider_frame_title (Lisp_Object);
 #endif	/* HAVE_WINDOW_SYSTEM */
 
@@ -3519,9 +3571,11 @@ extern void gui_clear_window_mouse_face (struct window *);
 extern void cancel_mouse_face (struct frame *);
 extern bool clear_mouse_face (Mouse_HLInfo *);
 extern bool cursor_in_mouse_face_p (struct window *w);
+#ifndef HAVE_ANDROID
 extern void tty_draw_row_with_mouse_face (struct window *, struct glyph_row *,
 					  int, int, enum draw_glyphs_face);
 extern void display_tty_menu_item (const char *, int, int, int, int, bool);
+#endif
 extern struct glyph *x_y_to_hpos_vpos (struct window *, int, int, int *, int *,
 				       int *, int *, int *);
 /* Flags passed to try_window.  */
@@ -3583,7 +3637,7 @@ void prepare_image_for_display (struct frame *, struct image *);
 ptrdiff_t lookup_image (struct frame *, Lisp_Object, int);
 
 #if defined HAVE_X_WINDOWS || defined USE_CAIRO || defined HAVE_NS \
-  || defined HAVE_HAIKU
+  || defined HAVE_HAIKU || defined HAVE_ANDROID
 #define RGB_PIXEL_COLOR unsigned long
 #endif
 
@@ -3663,6 +3717,9 @@ void gamma_correct (struct frame *, COLORREF *);
 #endif
 #ifdef HAVE_HAIKU
 void gamma_correct (struct frame *, Emacs_Color *);
+#endif
+#ifdef HAVE_ANDROID
+extern void gamma_correct (struct frame *, Emacs_Color *);
 #endif
 
 #ifdef HAVE_WINDOW_SYSTEM

@@ -535,7 +535,7 @@ collection clause."
    (eval '(let ((l (list 1))) (cl-symbol-macrolet ((x 1)) (setq (car l) 0))) t))
   ;; Make sure `gv-synthetic-place' isn't macro-expanded before `setf' gets to
   ;; see its `gv-expander'.
-  (should (equal (let ((l '(0)))
+  (should (equal (let ((l (list 0)))
                    (let ((cl (car l)))
                      (cl-symbol-macrolet
                          ((p (gv-synthetic-place cl (lambda (v) `(setcar l ,v)))))
@@ -708,6 +708,23 @@ collection clause."
                            (f lex-var)))))
       (should (equal (f nil) 'a)))))
 
+(ert-deftest cl-flet/edebug ()
+  "Check that we can instrument `cl-flet' forms (bug#65344)."
+  (with-temp-buffer
+    (print '(cl-flet (;; "Obscure" form of binding supported by cl-flet
+                      (x (progn (list 1 2) (lambda ())))
+                      ;; Destructuring lambda-list
+                      (y ((min max)) (list min max))
+                      ;; Regular binding plus shadowing.
+                      (z (a) a)
+                      (z (a) a))
+              (y '(1 2)))
+           (current-buffer))
+    (let ((edebug-all-forms t)
+          (edebug-initial-mode 'Go-nonstop))
+      ;; Just make sure the forms can be instrumented.
+      (eval-buffer))))
+
 (ert-deftest cl-macs--progv ()
   (defvar cl-macs--test)
   (defvar cl-macs--test1)
@@ -803,10 +820,30 @@ See Bug#57915."
             (macroexpand form)
             (should (string-empty-p messages))))))))
 
+(defvar cl--test-a)
+
 (ert-deftest cl-&key-arguments ()
   (cl-flet ((fn (&key x) x))
     (should-error (fn :x))
-    (should (eq (fn :x :a) :a))))
+    (should (eq (fn :x :a) :a)))
+  ;; In ELisp function arguments are always statically scoped (bug#47552).
+  (let ((cl--test-a 'dyn)
+        ;; FIXME: How do we silence the "Lexical argument shadows" warning?
+        (f
+         (with-suppressed-warnings ((lexical cl--test-a))
+           (cl-function (lambda (&key cl--test-a b)
+                          (list cl--test-a (symbol-value 'cl--test-a) b))))))
+    (should (equal (funcall f :cl--test-a 'lex :b 2) '(lex dyn 2)))))
 
+(cl-defstruct cl--test-s
+  cl--test-a b)
+
+(ert-deftest cl-defstruct-dynbound-label-47552 ()
+  "Check that labels can have the same name as dynbound vars."
+  (let ((cl--test-a 'dyn))
+    (let ((x (make-cl--test-s :cl--test-a 4 :b cl--test-a)))
+      (should (cl--test-s-p x))
+      (should (equal (cl--test-s-cl--test-a x) 4))
+      (should (equal (cl--test-s-b x) 'dyn)))))
 
 ;;; cl-macs-tests.el ends here

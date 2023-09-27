@@ -99,6 +99,8 @@
      ((parent-is "field_declaration") parent-bol java-ts-mode-indent-offset)
      ((parent-is "return_statement") parent-bol java-ts-mode-indent-offset)
      ((parent-is "variable_declarator") parent-bol java-ts-mode-indent-offset)
+     ((match ">" "type_arguments") parent-bol 0)
+     ((parent-is "type_arguments") parent-bol java-ts-mode-indent-offset)
      ((parent-is "method_invocation") parent-bol java-ts-mode-indent-offset)
      ((parent-is "switch_rule") parent-bol java-ts-mode-indent-offset)
      ((parent-is "switch_label") parent-bol java-ts-mode-indent-offset)
@@ -168,7 +170,7 @@ the available version of Tree-sitter for java."
    :override t
    :feature 'constant
    `(((identifier) @font-lock-constant-face
-      (:match "^[A-Z_][A-Z_\\d]*$" @font-lock-constant-face))
+      (:match "\\`[A-Z_][0-9A-Z_]*\\'" @font-lock-constant-face))
      [(true) (false)] @font-lock-constant-face)
    :language 'java
    :override t
@@ -226,6 +228,9 @@ the available version of Tree-sitter for java."
      (constructor_declaration
       name: (identifier) @font-lock-type-face)
 
+     (compact_constructor_declaration
+      name: (identifier) @font-lock-type-face)
+
      (field_access
       object: (identifier) @font-lock-type-face)
 
@@ -234,7 +239,7 @@ the available version of Tree-sitter for java."
      (scoped_identifier (identifier) @font-lock-constant-face)
 
      ((scoped_identifier name: (identifier) @font-lock-type-face)
-      (:match "^[A-Z]" @font-lock-type-face))
+      (:match "\\`[A-Z]" @font-lock-type-face))
 
      (type_identifier) @font-lock-type-face
 
@@ -314,11 +319,6 @@ Return nil if there is no name or if NODE is not a defun node."
   ;; Comments.
   (c-ts-common-comment-setup)
 
-  (setq-local treesit-text-type-regexp
-              (regexp-opt '("line_comment"
-                            "block_comment"
-                            "text_block")))
-
   ;; Indent.
   (setq-local c-ts-common-indent-type-regexp-alist
               `((block . ,(rx (or "class_body"
@@ -357,28 +357,30 @@ Return nil if there is no name or if NODE is not a defun node."
                             "constructor_declaration")))
   (setq-local treesit-defun-name-function #'java-ts-mode--defun-name)
 
-  (setq-local treesit-sentence-type-regexp
-              (regexp-opt '("statement"
-                            "local_variable_declaration"
-                            "field_declaration"
-                            "module_declaration"
-                            "package_declaration"
-                            "import_declaration")))
-
-  (setq-local treesit-sexp-type-regexp
-              (regexp-opt '("annotation"
-                            "parenthesized_expression"
-                            "argument_list"
-                            "identifier"
-                            "modifiers"
-                            "block"
-                            "body"
-                            "literal"
-                            "access"
-                            "reference"
-                            "_type"
-                            "true"
-                            "false")))
+  (setq-local treesit-thing-settings
+              `((java
+                (sexp ,(rx (or "annotation"
+                               "parenthesized_expression"
+                               "argument_list"
+                               "identifier"
+                               "modifiers"
+                               "block"
+                               "body"
+                               "literal"
+                               "access"
+                               "reference"
+                               "_type"
+                               "true"
+                               "false")))
+                (sentence ,(rx (or "statement"
+                                   "local_variable_declaration"
+                                   "field_declaration"
+                                   "module_declaration"
+                                   "package_declaration"
+                                   "import_declaration")))
+                (text ,(regexp-opt '("line_comment"
+                                     "block_comment"
+                                     "text_block"))))))
 
   ;; Font-lock.
   (setq-local treesit-font-lock-settings java-ts-mode--font-lock-settings)

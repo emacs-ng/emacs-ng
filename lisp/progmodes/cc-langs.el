@@ -455,19 +455,29 @@ so that all identifiers are recognized as words.")
   c++ '(c-extend-region-for-CPP
 	c-depropertize-CPP
 	c-before-change-check-ml-strings
+	c-unmark-<>-around-region
 	c-before-change-check-<>-operators
 	c-before-after-change-check-c++-modules
 	c-truncate-bs-cache
 	c-before-change-check-unbalanced-strings
 	c-parse-quotes-before-change
 	c-before-change-fix-comment-escapes)
-  (c objc) '(c-extend-region-for-CPP
-	     c-depropertize-CPP
-	     c-truncate-bs-cache
-	     c-before-change-check-unbalanced-strings
-	     c-parse-quotes-before-change
-	     c-before-change-fix-comment-escapes)
+  c '(c-extend-region-for-CPP
+      c-depropertize-CPP
+      c-truncate-bs-cache
+      c-before-change-check-unbalanced-strings
+      c-parse-quotes-before-change
+      c-before-change-fix-comment-escapes)
+  objc '(c-extend-region-for-CPP
+	 c-depropertize-CPP
+	 c-truncate-bs-cache
+	 c-before-change-check-unbalanced-strings
+	 c-unmark-<>-around-region
+	 c-before-change-check-<>-operators
+	 c-parse-quotes-before-change
+	 c-before-change-fix-comment-escapes)
   java '(c-parse-quotes-before-change
+	 c-unmark-<>-around-region
 	 c-before-change-check-unbalanced-strings
 	 c-before-change-check-<>-operators)
   pike '(c-before-change-check-ml-strings
@@ -502,20 +512,31 @@ parameters \(point-min) and \(point-max).")
       c-after-change-escape-NL-in-string
       c-after-change-mark-abnormal-strings
       c-change-expand-fl-region)
-  (c objc) '(c-depropertize-new-text
-	     c-after-change-fix-comment-escapes
-	     c-after-change-escape-NL-in-string
-	     c-parse-quotes-after-change
-	     c-after-change-mark-abnormal-strings
-	     c-extend-font-lock-region-for-macros
-	     c-neutralize-syntax-in-CPP
-	     c-change-expand-fl-region)
+  c '(c-depropertize-new-text
+      c-after-change-fix-comment-escapes
+      c-after-change-escape-NL-in-string
+      c-parse-quotes-after-change
+      c-after-change-mark-abnormal-strings
+      c-extend-font-lock-region-for-macros
+      c-neutralize-syntax-in-CPP
+      c-change-expand-fl-region)
+  objc '(c-depropertize-new-text
+	 c-after-change-fix-comment-escapes
+	 c-after-change-escape-NL-in-string
+	 c-parse-quotes-after-change
+	 c-after-change-mark-abnormal-strings
+	 c-unmark-<>-around-region
+	 c-extend-font-lock-region-for-macros
+	 c-neutralize-syntax-in-CPP
+	 c-restore-<>-properties
+	 c-change-expand-fl-region)
   c++ '(c-depropertize-new-text
 	c-after-change-fix-comment-escapes
 	c-after-change-escape-NL-in-string
 	c-after-change-unmark-ml-strings
 	c-parse-quotes-after-change
 	c-after-change-mark-abnormal-strings
+	c-unmark-<>-around-region
 	c-extend-font-lock-region-for-macros
 	c-before-after-change-check-c++-modules
 	c-neutralize-syntax-in-CPP
@@ -524,6 +545,7 @@ parameters \(point-min) and \(point-max).")
   java '(c-depropertize-new-text
 	 c-after-change-escape-NL-in-string
 	 c-parse-quotes-after-change
+	 c-unmark-<>-around-region
 	 c-after-change-mark-abnormal-strings
 	 c-restore-<>-properties
 	 c-change-expand-fl-region)
@@ -739,11 +761,11 @@ When non-nil, this variable should end in \"\\\\\\==\".  Note that
 such a backward search will match a minimal string, so a
 \"context character\" is probably needed at the start of the
 regexp.  The value for csharp-mode would be something like
-\"\\\\(:?\\\\`\\\\|[^\\\"]\\\\)\\\"*\\\\\\==\"."
+\"\\\\(?:\\\\`\\\\|[^\\\"]\\\\)\\\"*\\\\\\==\"."
   t nil
-  pike "\\(:?\\`\\|[^\\\"]\\)\\(:?\\\\.\\)*\\="
+  pike "\\(?:\\`\\|[^\\\"]\\)\\(?:\\\\.\\)*\\="
   ;;pike ;; 2
-  ;;    "\\(:?\\`\\|[^\"]\\)\"*\\="
+  ;;    "\\(?:\\`\\|[^\"]\\)\"*\\="
   )
 (c-lang-defvar c-ml-string-back-closer-re
 	       (c-lang-const c-ml-string-back-closer-re))
@@ -830,8 +852,9 @@ which `c-backward-sexp' needs to be called twice to move backwards over."
 keyword.  It's unspecified how far it matches.  Does not contain a \\|
 operator at the top level."
   t    (concat "[" c-alpha "_]")
+  (c c++) (concat "[" c-alpha "_$]")
   java (concat "[" c-alpha "_@]")
-  objc (concat "[" c-alpha "_@]")
+  objc (concat "[" c-alpha "_@$]")
   pike (concat "[" c-alpha "_`]"))
 (c-lang-defvar c-symbol-start (c-lang-const c-symbol-start))
 
@@ -844,6 +867,10 @@ This is of the form that fits inside [ ] in a regexp."
   objc (concat c-alnum "_$@"))
 (c-lang-defvar c-symbol-chars (c-lang-const c-symbol-chars))
 
+(c-lang-defconst c-dollar-in-ids
+  "Non-nil when a dollar (can be) a non-standard constituent of an identifier."
+  t (string-match (c-lang-const c-symbol-start) "$"))
+
 (c-lang-defconst c-symbol-char-key
   "Regexp matching a sequence of at least one identifier character."
   t (concat "[" (c-lang-const c-symbol-chars) "]+"))
@@ -855,9 +882,9 @@ to match if `c-symbol-start' matches on the same position."
   t    (concat (c-lang-const c-symbol-start)
 	       "[" (c-lang-const c-symbol-chars) "]\\{,1000\\}")
   pike (concat
-	;; Use the value from C here since the operator backquote is
+	;; Use the value from AWK here since the operator backquote is
 	;; covered by the other alternative.
-	(c-lang-const c-symbol-key c)
+	(c-lang-const c-symbol-key awk)
 	"\\|"
 	(c-make-keywords-re nil
 	  (c-lang-const c-overloadable-operators))))
@@ -1044,14 +1071,6 @@ Currently (2022-09) just C++ Mode uses this."
   ;; matched.
   t nil)
 
-(c-lang-defconst c-string-escaped-newlines
-  "Set if the language support backslash escaped newlines inside string
-literals."
-  t nil
-  (c c++ objc pike) t)
-(c-lang-defvar c-string-escaped-newlines
-  (c-lang-const c-string-escaped-newlines))
-
 (c-lang-defconst c-multiline-string-start-char
   "Set if the language supports multiline string literals without escaped
 newlines.  If t, all string literals are multiline.  If a character,
@@ -1068,6 +1087,18 @@ further directions."
 (c-lang-defvar c-multiline-string-start-char
   (c-lang-const c-multiline-string-start-char))
 
+(c-lang-defconst c-escaped-newline-takes-precedence
+  "Set if the language resolves escaped newlines first.
+This makes a difference in a string like \"...\\\\\n\".  When
+this variable is nil, the first backslash escapes the second,
+leaving an unterminated string.  When it's non-nil, the string is
+continued onto the next line, and the first backslash escapes
+whatever begins that next line."
+  t nil
+  (c c++ objc pike) t)
+(c-lang-defvar c-escaped-newline-takes-precedence
+  (c-lang-const c-escaped-newline-takes-precedence))
+
 (c-lang-defconst c-string-innards-re-alist
   ;; An alist of regexps matching the innards of a string, the key being the
   ;; string's delimiter.
@@ -1078,9 +1109,12 @@ further directions."
   t (mapcar (lambda (delim)
 	      (cons
 	       delim
-	       (concat "\\(\\\\\\(.\\|\n\\)\\|[^\\\n\r"
-		       (string delim)
-		       "]\\)*")))
+	       (concat
+		(if (c-lang-const c-escaped-newline-takes-precedence)
+		    "\\(\\\\\\(\\\\?\n\\|.\\)\\|[^\\\n\r"
+		  "\\(\\\\\\(\n\\|.\\)\\|[^\\\n\r")
+		(string delim)
+		"]\\)*")))
 	    (and
 	     (or (null (c-lang-const c-multiline-string-start-char))
 		 (c-characterp (c-lang-const c-multiline-string-start-char)))
@@ -2589,6 +2623,7 @@ will be handled."
   ;; {...}").
   t    (append (c-lang-const c-class-decl-kwds)
 	       (c-lang-const c-brace-list-decl-kwds))
+  c nil
   ;; Note: "manages" for CORBA CIDL clashes with its presence on
   ;; `c-type-list-kwds' for IDL.
   idl  (append (c-lang-const c-typeless-decl-kwds)

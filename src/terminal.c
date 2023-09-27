@@ -451,6 +451,8 @@ return values.  */)
       return Qpgtk;
     case output_haiku:
       return Qhaiku;
+    case output_android:
+      return Qandroid;
     case output_winit:
       return Qwinit;
     default:

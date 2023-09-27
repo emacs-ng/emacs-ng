@@ -222,7 +222,6 @@ address for root variables.")
 Only used for files that Emacs can't find.")
 (defvar gdb-active-process nil
   "GUD tooltips display variable values when t, and macro definitions otherwise.")
-(defvar gdb-error "Non-nil when GDB is reporting an error.")
 (defvar gdb-macro-info nil
   "Non-nil if GDB knows that the inferior includes preprocessor macro info.")
 (defvar gdb-register-names nil "List of register names.")
@@ -237,6 +236,7 @@ Only used for files that Emacs can't find.")
 (defvar gdb-source-file-list nil
   "List of source files for the current executable.")
 (defvar gdb-first-done-or-error t)
+(defvar gdb-target-async-checked nil)
 (defvar gdb-source-window-list nil
   "List of windows used for displaying source files.
 Sorted in most-recently-visited-first order.")
@@ -468,7 +468,7 @@ don't support the non-stop mode.
 GDB session needs to be restarted for this setting to take effect."
   :type 'boolean
   :group 'gdb-non-stop
-  :version "26.1")
+  :version "30.1")
 
 (defcustom gdb-debuginfod-enable-setting
   ;; debuginfod servers are only for ELF executables, and elfutils, of
@@ -716,6 +716,13 @@ that GDB starts to reuse existing source windows."
   :group 'gdb
   :version "28.1")
 
+(defcustom gdb-display-io-buffer t
+  "When non-nil, display the separate `gdb-inferior-io' buffer.
+Otherwise, send program output to the GDB buffer."
+  :type 'boolean
+  :group 'gdb-buffers
+  :version "30.1")
+
 (defvar gdbmi-debug-mode nil
   "When non-nil, print the messages sent/received from GDB/MI in *Messages*.")
 
@@ -927,7 +934,7 @@ detailed description of this mode.
           (setq-local comint-input-ring-file-name hfile))
       (comint-read-input-ring t)))
   (gud-def gud-tbreak "tbreak %f:%l" "\C-t"
-	   "Set temporary breakpoint at current line.")
+	   "Set temporary breakpoint at current line." t)
   (gud-def gud-jump
 	   (progn (gud-call "tbreak %f:%l" arg) (gud-call "jump %f:%l"))
 	   "\C-j" "Set execution address to current line.")
@@ -958,7 +965,7 @@ detailed description of this mode.
 	   "Finish executing current function.")
   (gud-def gud-run    "-exec-run"
            nil
-           "Run the program.")
+           "Run the program." t)
 
   (gud-def gud-break (if (not (string-match "Disassembly" mode-name))
 			 (gud-call "break %f:%l" arg)
@@ -966,7 +973,7 @@ detailed description of this mode.
 			 (beginning-of-line)
 			 (forward-char 2)
 			 (gud-call "break *%a" arg)))
-	   "\C-b" "Set breakpoint at current line or address.")
+	   "\C-b" "Set breakpoint at current line or address." t)
 
   (gud-def gud-remove (if (not (string-match "Disassembly" mode-name))
 			  (gud-call "clear %f:%l" arg)
@@ -974,7 +981,7 @@ detailed description of this mode.
 			  (beginning-of-line)
 			  (forward-char 2)
 			  (gud-call "clear *%a" arg)))
-	   "\C-d" "Remove breakpoint at current line or address.")
+	   "\C-d" "Remove breakpoint at current line or address." t)
 
   ;; -exec-until doesn't support --all yet
   (gud-def gud-until  (if (not (string-match "Disassembly" mode-name))
@@ -986,7 +993,7 @@ detailed description of this mode.
 	   "\C-u" "Continue to current line or address.")
   (gud-def
    gud-go (progn
-            (when arg
+            (when (and current-prefix-arg arg)
               (gud-call (concat "-exec-arguments "
                                 (read-string "Arguments to exec-run: "))))
             (gud-call
@@ -1043,6 +1050,7 @@ detailed description of this mode.
 
   (setq gdb-first-prompt t)
   (setq gud-running nil)
+  (setq gud-async-running nil)
 
   (gdb-update)
 
@@ -1067,6 +1075,7 @@ detailed description of this mode.
 	gdb-handler-list '()
 	gdb-prompt-name nil
 	gdb-first-done-or-error t
+	gdb-target-async-checked nil
 	gdb-buffer-fringe-width (car (window-fringes))
 	gdb-debug-log nil
 	gdb-source-window-list nil
@@ -1076,7 +1085,8 @@ detailed description of this mode.
         gdb-threads-list '()
         gdb-breakpoints-list '()
         gdb-register-names '()
-        gdb-non-stop gdb-non-stop-setting
+        gdb-supports-non-stop nil
+        gdb-non-stop nil
         gdb-debuginfod-enable gdb-debuginfod-enable-setting)
   ;;
   (gdbmi-bnf-init)
@@ -1095,9 +1105,10 @@ detailed description of this mode.
                      (if gdb-debuginfod-enable "on" "off"))
              'gdb-debuginfod-message)
 
-  (gdb-get-buffer-create 'gdb-inferior-io)
-  (gdb-clear-inferior-io)
-  (gdb-inferior-io--init-proc (get-process "gdb-inferior"))
+  (when gdb-display-io-buffer
+    (gdb-get-buffer-create 'gdb-inferior-io)
+    (gdb-clear-inferior-io)
+    (gdb-inferior-io--init-proc (get-process "gdb-inferior")))
 
   (when (eq system-type 'windows-nt)
     ;; Don't create a separate console window for the debuggee.
@@ -1108,7 +1119,7 @@ detailed description of this mode.
     (gdb-input "-gdb-set interactive-mode on" 'ignore))
   (gdb-input "-gdb-set height 0" 'ignore)
 
-  (when gdb-non-stop
+  (when gdb-non-stop-setting
     (gdb-input "-gdb-set non-stop 1" 'gdb-non-stop-handler))
 
   (gdb-input "-enable-pretty-printing" 'ignore)
@@ -1143,16 +1154,30 @@ detailed description of this mode.
 	(setq gdb-non-stop nil)
 	(setq gdb-supports-non-stop nil))
     (setq gdb-supports-non-stop t)
-    (gdb-input "-gdb-set target-async 1" 'ignore)
+    ;; Try to use "mi-async" first, needs GDB 7.7 onwards.  Note if
+    ;; "mi-async" is not available, GDB is still running in "sync"
+    ;; mode, "No symbol" for "mi-async" must appear before other
+    ;; commands.
+    (gdb-input "-gdb-set mi-async 1" 'gdb-set-mi-async-handler)))
+
+(defun gdb-set-mi-async-handler()
+  (goto-char (point-min))
+  (if (re-search-forward "No symbol" nil t)
+      (gdb-input "-gdb-set target-async 1" 'ignore)))
+
+(defun gdb-try-check-target-async-support()
+  (when (and gdb-non-stop-setting gdb-supports-non-stop
+             (not gdb-target-async-checked))
     (gdb-input "-list-target-features" 'gdb-check-target-async)))
 
 (defun gdb-check-target-async ()
   (goto-char (point-min))
-  (unless (re-search-forward "async" nil t)
+  (if (re-search-forward "async" nil t)
+      (setq gdb-non-stop t)
     (message
      "Target doesn't support non-stop mode.  Turning it off.")
-    (setq gdb-non-stop nil)
-    (gdb-input "-gdb-set non-stop 0" 'ignore)))
+    (gdb-input "-gdb-set non-stop 0" 'ignore))
+  (setq gdb-target-async-checked t))
 
 (defun gdb-delchar-or-quit (arg)
   "Delete ARG characters or send a quit command to GDB.
@@ -2650,6 +2675,16 @@ Sets `gdb-thread-number' to new id."
 (defun gdb-starting (_output-field _result)
   ;; CLI commands don't emit ^running at the moment so use gdb-running too.
   (setq gdb-inferior-status "running")
+
+  ;; Set `gdb-non-stop' when `gdb-last-command' is a CLI background
+  ;; running command e.g. "run &", attach &" or a MI command
+  ;; e.g. "-exec-run" or "-exec-attach".
+  (if (or (string-match "&\s*$" gdb-last-command)
+          (string-match "^-" gdb-last-command))
+      (progn (gdb-try-check-target-async-support)
+             (setq gud-async-running t))
+    (setq gud-async-running nil))
+
   (gdb-force-mode-line-update
    (propertize gdb-inferior-status 'face font-lock-type-face))
   (setq gdb-active-process t)
@@ -2720,6 +2755,10 @@ current thread and update GDB buffers."
 
     ;; Print "(gdb)" to GUD console
     (when gdb-first-done-or-error
+      ;; If running target with a non-background CLI command
+      ;; e.g. "run" (no trailing '&'), target async feature can only
+      ;; be checked when when the program stops for the first time
+      (gdb-try-check-target-async-support)
       (setq gdb-filter-output (concat gdb-filter-output gdb-prompt-name)))
 
     ;; In non-stop, we update information as soon as another thread gets
@@ -3244,7 +3283,8 @@ Place breakpoint icon in its buffer."
       (if (re-search-forward gdb-source-file-regexp nil t)
           (progn
             (setq source-file (gdb-mi--c-string-from-string (match-string 1)))
-            (delete (cons bptno "File not found") gdb-location-alist)
+            (setq gdb-location-alist
+                  (delete (cons bptno "File not found") gdb-location-alist))
             (push (cons bptno source-file) gdb-location-alist))
         (gdb-resync)
         (unless (assoc bptno gdb-location-alist)

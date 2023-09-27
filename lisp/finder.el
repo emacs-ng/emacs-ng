@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 1992-2023 Free Software Foundation, Inc.
 
-;; Author: Eric S. Raymond <esr@snark.thyrsus.com>
+;; Author: Eric S. Raymond <esr@thyrsus.com>
 ;; Created: 16 Jun 1992
 ;; Keywords: help
 
@@ -147,7 +147,11 @@ would otherwise be.")
     ("gnus" . gnus)
     ("international" . emacs)
     ("language" . emacs)
+    ("leim" . emacs)
+    ("ja-dic" . emacs)
+    ("quail" . emacs)
     ("mh-e" . mh-e)
+    ("obsolete" . emacs)
     ("semantic" . semantic)
     ("analyze" . semantic)
     ("bovine" . semantic)
@@ -162,6 +166,7 @@ would otherwise be.")
     ("org"  . org)
     ("srecode" . srecode)
     ("term" . emacs)
+    ("use-package" . use-package)
     ("url"  . url))
   "Alist of built-in package directories.
 Each element should have the form (DIR . PACKAGE), where DIR is a

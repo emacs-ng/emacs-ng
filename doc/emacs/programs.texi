@@ -396,8 +396,8 @@ The Speedbar can also use it (@pxref{Speedbar}).
 @cindex current function name in mode line
 
   Which Function mode is a global minor mode (@pxref{Minor Modes})
-which displays the current function name in the mode line, updating it
-as you move around in a buffer.
+which displays the current function name in the mode line or header
+line, updating it as you move around in a buffer.
 
 @findex which-function-mode
 @vindex which-func-modes
@@ -409,6 +409,12 @@ Imenu).  You can restrict it to a specific list of major modes by
 changing the value of the variable @code{which-func-modes} from
 @code{t} (which means to support all available major modes) to a list
 of major mode names.
+
+@vindex which-func-display
+  By default, Which Function mode displays the current function name
+using the mode line.  Customize @code{which-func-display} to
+@code{header}, @code{mode}, or @code{mode-and-header} to use the
+header line, mode line, or both, respectively.
 
 @node Program Indent
 @section Indentation for Programs
@@ -1174,14 +1180,17 @@ were negated.
 
 @findex comment-kill
 @kindex C-u M-;
-  @kbd{C-u M-;} (@code{comment-dwim} with a prefix argument) kills any
-comment on the current line, along with the whitespace before it.
-Since the comment is saved to the kill ring, you can reinsert it on
-another line by moving to the end of that line, doing @kbd{C-y}, and
-then @kbd{M-;} to realign the comment.  You can achieve the same
-effect as @kbd{C-u M-;} by typing @kbd{M-x comment-kill}
-(@code{comment-dwim} actually calls @code{comment-kill} as a
-subroutine when it is given a prefix argument).
+  @kbd{C-u M-;} (@code{comment-dwim} with a prefix argument) when the
+region is not active kills any comment on the current line, along with
+the whitespace before it.  Since the comment is saved to the kill
+ring, you can reinsert it on another line by moving to the end of that
+line, doing @kbd{C-y}, and then @kbd{M-;} to realign the comment.  You
+can achieve the same effect as @kbd{C-u M-;} by typing @kbd{M-x
+comment-kill} (@code{comment-dwim} actually calls @code{comment-kill}
+as a subroutine when it is given a prefix argument).  Invoking
+@code{comment-dwim} with a prefix numeric argument, as in @w{@kbd{C-u
+@var{n} M-;}}, when there's no active region, tells
+@code{comment-kill} to kill comments on @var{n} lines.
 
 @kindex C-c C-c @r{(C mode)}
 @findex comment-region

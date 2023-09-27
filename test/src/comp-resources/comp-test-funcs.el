@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
 
-;; Author: Andrea Corallo <akrl@sdf.org>
+;; Author: Andrea Corallo <acorallo@gnu.org>
 
 ;; This file is part of GNU Emacs.
 
@@ -22,6 +22,8 @@
 ;;; Commentary:
 
 ;;; Code:
+
+(require 'cl-lib)
 
 (defvar comp-tests-var1 3)
 
@@ -530,6 +532,12 @@
     (comp-test-62537-1-f))
   t)
 
+(cl-defstruct comp-test-struct)
+
+(defun comp-test-63674-1-f (x)
+  (or
+   (if (comp-test-struct-p pkg) x)
+   t))
 
 
 ;;;;;;;;;;;;;;;;;;;;

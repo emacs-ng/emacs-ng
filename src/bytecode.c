@@ -646,7 +646,10 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	  if (CONSP (TOP))
 	    TOP = XCAR (TOP);
 	  else if (!NILP (TOP))
-	    wrong_type_argument (Qlistp, TOP);
+	    {
+	      record_in_backtrace (Qcar, &TOP, 1);
+	      wrong_type_argument (Qlistp, TOP);
+	    }
 	  NEXT;
 
 	CASE (Beq):
@@ -668,7 +671,10 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	    if (CONSP (TOP))
 	      TOP = XCDR (TOP);
 	    else if (!NILP (TOP))
-	      wrong_type_argument (Qlistp, TOP);
+	      {
+		record_in_backtrace (Qcdr, &TOP, 1);
+		wrong_type_argument (Qlistp, TOP);
+	      }
 	    NEXT;
 	  }
 
@@ -1032,7 +1038,15 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	      {
 		for (EMACS_INT n = XFIXNUM (v1); 0 < n && CONSP (v2); n--)
 		  v2 = XCDR (v2);
-		TOP = CAR (v2);
+		if (CONSP (v2))
+		  TOP = XCAR (v2);
+		else if (NILP (v2))
+		  TOP = Qnil;
+		else
+		  {
+		    record_in_backtrace (Qnth, &TOP, 2);
+		    wrong_type_argument (Qlistp, v2);
+		  }
 	      }
 	    else
 	      TOP = Fnth (v1, v2);
@@ -1101,14 +1115,24 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	  {
 	    Lisp_Object idxval = POP;
 	    Lisp_Object arrayval = TOP;
+	    if (!FIXNUMP (idxval))
+	      {
+		record_in_backtrace (Qaref, &TOP, 2);
+		wrong_type_argument (Qfixnump, idxval);
+	      }
 	    ptrdiff_t size;
-	    ptrdiff_t idx;
 	    if (((VECTORP (arrayval) && (size = ASIZE (arrayval), true))
-		 || (RECORDP (arrayval) && (size = PVSIZE (arrayval), true)))
-		&& FIXNUMP (idxval)
-		&& (idx = XFIXNUM (idxval),
-		    idx >= 0 && idx < size))
-	      TOP = AREF (arrayval, idx);
+		 || (RECORDP (arrayval) && (size = PVSIZE (arrayval), true))))
+	      {
+		ptrdiff_t idx = XFIXNUM (idxval);
+		if (idx >= 0 && idx < size)
+		  TOP = AREF (arrayval, idx);
+		else
+		  {
+		    record_in_backtrace (Qaref, &TOP, 2);
+		    args_out_of_range (arrayval, idxval);
+		  }
+	      }
 	    else
 	      TOP = Faref (arrayval, idxval);
 	    NEXT;
@@ -1119,16 +1143,26 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	    Lisp_Object newelt = POP;
 	    Lisp_Object idxval = POP;
 	    Lisp_Object arrayval = TOP;
-	    ptrdiff_t size;
-	    ptrdiff_t idx;
-	    if (((VECTORP (arrayval) && (size = ASIZE (arrayval), true))
-		 || (RECORDP (arrayval) && (size = PVSIZE (arrayval), true)))
-		&& FIXNUMP (idxval)
-		&& (idx = XFIXNUM (idxval),
-		    idx >= 0 && idx < size))
+	    if (!FIXNUMP (idxval))
 	      {
-		ASET (arrayval, idx, newelt);
-		TOP = newelt;
+		record_in_backtrace (Qaset, &TOP, 3);
+		wrong_type_argument (Qfixnump, idxval);
+	      }
+	    ptrdiff_t size;
+	    if (((VECTORP (arrayval) && (size = ASIZE (arrayval), true))
+		 || (RECORDP (arrayval) && (size = PVSIZE (arrayval), true))))
+	      {
+		ptrdiff_t idx = XFIXNUM (idxval);
+		if (idx >= 0 && idx < size)
+		  {
+		    ASET (arrayval, idx, newelt);
+		    TOP = newelt;
+		  }
+		else
+		  {
+		    record_in_backtrace (Qaset, &TOP, 3);
+		    args_out_of_range (arrayval, idxval);
+		  }
 	      }
 	    else
 	      TOP = Faset (arrayval, idxval, newelt);
@@ -1327,7 +1361,7 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	    Lisp_Object v1 = TOP;
 	    intmax_t res;
 	    if (FIXNUMP (v1) && FIXNUMP (v2)
-		&& !INT_MULTIPLY_WRAPV (XFIXNUM (v1), XFIXNUM (v2), &res)
+		&& !ckd_mul (&res, XFIXNUM (v1), XFIXNUM (v2))
 		&& !FIXNUM_OVERFLOW_P (res))
 	      TOP = make_fixnum (res);
 	    else
@@ -1552,7 +1586,15 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 		/* Like the fast case for Bnth, but with args reversed.  */
 		for (EMACS_INT n = XFIXNUM (v2); 0 < n && CONSP (v1); n--)
 		  v1 = XCDR (v1);
-		TOP = CAR (v1);
+		if (CONSP (v1))
+		  TOP = XCAR (v1);
+		else if (NILP (v1))
+		  TOP = Qnil;
+		else
+		  {
+		    record_in_backtrace (Qelt, &TOP, 2);
+		    wrong_type_argument (Qlistp, v1);
+		  }
 	      }
 	    else
 	      TOP = Felt (v1, v2);
@@ -1581,7 +1623,11 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	  {
 	    Lisp_Object newval = POP;
 	    Lisp_Object cell = TOP;
-	    CHECK_CONS (cell);
+	    if (!CONSP (cell))
+	      {
+		record_in_backtrace (Qsetcar, &TOP, 2);
+		wrong_type_argument (Qconsp, cell);
+	      }
 	    CHECK_IMPURE (cell, XCONS (cell));
 	    XSETCAR (cell, newval);
 	    TOP = newval;
@@ -1592,7 +1638,11 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	  {
 	    Lisp_Object newval = POP;
 	    Lisp_Object cell = TOP;
-	    CHECK_CONS (cell);
+	    if (!CONSP (cell))
+	      {
+		record_in_backtrace (Qsetcdr, &TOP, 2);
+		wrong_type_argument (Qconsp, cell);
+	      }
 	    CHECK_IMPURE (cell, XCONS (cell));
 	    XSETCDR (cell, newval);
 	    TOP = newval;

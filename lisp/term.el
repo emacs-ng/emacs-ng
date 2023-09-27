@@ -948,6 +948,9 @@ underlying shell."
     (define-key map [next] 'term-send-next)
     (define-key map [xterm-paste] #'term--xterm-paste)
     (define-key map [?\C-/] #'term-send-C-_)
+    (define-key map [?\C- ] #'term-send-C-@)
+    (define-key map [?\C-\M-/] #'term-send-C-M-_)
+    (define-key map [?\C-\M- ] #'term-send-C-M-@)
 
     (when term-bind-function-keys
       (dotimes (key 21)
@@ -969,12 +972,7 @@ underlying shell."
 (defun term--update-term-menu (&optional force)
   (when (and (lookup-key term-mode-map [menu-bar terminal])
              (or force (frame-or-buffer-changed-p)))
-    (let ((buffer-list
-           (seq-filter
-            (lambda (buffer)
-              (provided-mode-derived-p (buffer-local-value 'major-mode buffer)
-                                       'term-mode))
-            (buffer-list))))
+    (let ((buffer-list (match-buffers '(derived-mode . term-mode))))
       (easy-menu-change
        nil
        "Terminal Buffers"
@@ -1126,6 +1124,7 @@ Commands in line mode:
 \\{term-mode-map}
 
 Entry to this mode runs the hooks on `term-mode-hook'."
+  :interactive nil
   ;; we do not want indent to sneak in any tabs
   (setq indent-tabs-mode nil)
   (setq buffer-display-table term-display-table)
@@ -1135,6 +1134,9 @@ Entry to this mode runs the hooks on `term-mode-hook'."
   (setq-local term-last-input-start (make-marker))
   (setq-local term-last-input-end (make-marker))
   (setq-local term-last-input-match "")
+
+  ;; Always display the onscreen keyboard.
+  (setq-local touch-screen-display-keyboard t)
 
   ;; These local variables are set to their local values:
   (make-local-variable 'term-saved-home-marker)
@@ -1411,6 +1413,9 @@ Entry to this mode runs the hooks on `term-mode-hook'."
 (defun term-send-del   () (interactive) (term-send-raw-string "\e[3~"))
 (defun term-send-backspace  () (interactive) (term-send-raw-string "\C-?"))
 (defun term-send-C-_  () (interactive) (term-send-raw-string "\C-_"))
+(defun term-send-C-@  () (interactive) (term-send-raw-string "\C-@"))
+(defun term-send-C-M-_  () (interactive) (term-send-raw-string "\e\C-_"))
+(defun term-send-C-M-@  () (interactive) (term-send-raw-string "\e\C-@"))
 
 (defun term-send-function-key ()
   "If bound to a function key, this will send that key to the underlying shell."
@@ -1723,7 +1728,12 @@ Nil if unknown.")
       (push (format "EMACS=%s (term:%s)" emacs-version term-protocol-version)
             process-environment))
     (apply #'start-process name buffer
-	   "/bin/sh" "-c"
+           ;; On Android, /bin doesn't exist, and the default shell is
+           ;; found as /system/bin/sh.
+	   (if (eq system-type 'android)
+               "/system/bin/sh"
+             "/bin/sh")
+           "-c"
 	   (format "stty -nl echo rows %d columns %d sane 2>%s;\
 if [ $1 = .. ]; then shift; fi; exec \"$@\""
 		   term-height term-width null-device)
@@ -2053,7 +2063,7 @@ See `term-replace-by-expanded-history'.  Returns t if successful."
 	       ;; We cannot know the interpreter's idea of input line numbers.
 	       (goto-char (match-end 0))
 	       (message "Absolute reference cannot be expanded"))
-	      ((looking-at "!-\\([0-9]+\\)\\(:?[0-9^$*-]+\\)?")
+	      ((looking-at "!-\\([0-9]+\\):?\\([0-9^$*-]+\\)?")
 	       ;; Just a number of args from `number' lines backward.
 	       (let ((number (1- (string-to-number
 				  (buffer-substring (match-beginning 1)
@@ -2076,7 +2086,7 @@ See `term-replace-by-expanded-history'.  Returns t if successful."
 		t t)
 	       (message "History item: previous"))
 	      ((looking-at
-		"!\\??\\({\\(.+\\)}\\|\\(\\sw+\\)\\)\\(:?[0-9^$*-]+\\)?")
+		"!\\??\\({\\(.+\\)}\\|\\(\\sw+\\)\\):?\\([0-9^$*-]+\\)?")
 	       ;; Most recent input starting with or containing (possibly
 	       ;; protected) string, maybe just a number of args.  Phew.
 	       (let* ((mb1 (match-beginning 1)) (me1 (match-end 1))
@@ -2955,7 +2965,7 @@ See `term-prompt-regexp'."
 ;; It emulates (most of the features of) a VT100/ANSI-style terminal.
 
 ;; References:
-;; [ctlseqs]: http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
+;; [ctlseqs]: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 ;; [ECMA-48]: https://www.ecma-international.org/publications/standards/Ecma-048.htm
 ;; [vt100]: https://vt100.net/docs/vt100-ug/chapter3.html
 

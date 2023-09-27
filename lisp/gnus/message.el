@@ -747,16 +747,14 @@ default is system dependent and determined by the function
 `message-send-mail-function'.
 
 See also `send-mail-function'."
-  :type '(radio (function-item message--default-send-mail-function
-		               :tag "Use send-mail-function")
+  :type '(radio (function-item message--default-send-mail-function)
 		(function-item message-send-mail-with-sendmail)
 		(function-item message-send-mail-with-mh)
 		(function-item message-send-mail-with-qmail)
 		(function-item message-smtpmail-send-it)
-		(function-item smtpmail-send-it)
+                (function-item :doc "Use SMTPmail package." smtpmail-send-it)
 		(function-item feedmail-send-it)
-		(function-item message-send-mail-with-mailclient
-			       :tag "Use Mailclient package")
+                (function-item message-send-mail-with-mailclient)
  		(function :tag "Other"))
   :group 'message-sending
   :version "27.1"
@@ -911,8 +909,10 @@ installations, which are rare these days."
 (defcustom message-sendmail-envelope-from
   'obey-mail-envelope-from
   "Envelope-from when sending mail with sendmail.
-If this is nil, use `user-mail-address'.  If it is the symbol
-`header', use the From: header of the message."
+If this is `obey-mail-envelope-from', then use
+`mail-envelope-from' to decide what to do.  If it is nil, use
+`user-mail-address'.  If it is the symbol `header', use the
+\"From:\" header of the message."
   :version "27.1"
   :type '(choice (string :tag "From name")
 		 (const :tag "Use From: header from message" header)
@@ -2838,11 +2838,11 @@ will not be inserted."
 			(const :tag "No ID" nil))
 		(choice (string :tag "Key")
 			(const :tag "No Key" nil))
-		(choice (other :tag "None" nil)
-			(const :tag "Unprotected" "unprotected")
+                (choice (const :tag "Unprotected" "unprotected")
 			(const :tag "Sign" "sign")
 			(const :tag "Encrypt" "encrypt")
-			(const :tag "Sign and Encrypt" "signencrypt"))))
+                        (const :tag "Sign and Encrypt" "signencrypt")
+                        (other :tag "None" nil))))
   :version "28.1")
 
 (defun message-add-openpgp-header ()
@@ -5009,30 +5009,34 @@ Each line should be no more than 79 characters long."
   "Send the current buffer to `message-send-mail-function'.
 Or, if there's a header that specifies a different method, use
 that instead."
-  (let ((method (message-field-value "X-Message-SMTP-Method")))
+  (let ((method (message-field-value "X-Message-SMTP-Method"))
+        send-function)
     (if (not method)
-	(funcall message-send-mail-function)
+        (funcall message-send-mail-function)
       (message-remove-header "X-Message-SMTP-Method")
       (setq method (split-string method))
+      (setq send-function
+            (symbol-function
+             (intern-soft (format "message-send-mail-with-%s" (car method)))))
       (cond
-       ((equal (car method) "sendmail")
-	(message-send-mail-with-sendmail))
        ((equal (car method) "smtp")
-	(require 'smtpmail)
-	(let* ((smtpmail-store-queue-variables t)
+        (require 'smtpmail)
+        (let* ((smtpmail-store-queue-variables t)
                (smtpmail-smtp-server (nth 1 method))
-	       (service (nth 2 method))
-	       (port (string-to-number service))
-	       ;; If we're talking to the TLS SMTP port, then force a
-	       ;; TLS connection.
-	       (smtpmail-stream-type (if (= port 465)
-					 'tls
-				       smtpmail-stream-type))
-	       (smtpmail-smtp-service (if (> port 0) port service))
-	       (smtpmail-smtp-user (or (nth 3 method) smtpmail-smtp-user)))
-	  (message-smtpmail-send-it)))
+               (service (nth 2 method))
+               (port (string-to-number service))
+               ;; If we're talking to the TLS SMTP port, then force a
+               ;; TLS connection.
+               (smtpmail-stream-type (if (= port 465)
+                                         'tls
+                                       smtpmail-stream-type))
+               (smtpmail-smtp-service (if (> port 0) port service))
+               (smtpmail-smtp-user (or (nth 3 method) smtpmail-smtp-user)))
+          (message-smtpmail-send-it)))
+       (send-function
+        (funcall send-function))
        (t
-	(error "Unknown method %s" method))))))
+        (error "Unknown mail method %s" method))))))
 
 (defun message-send-mail-with-sendmail ()
   "Send off the prepared buffer with sendmail."
@@ -6589,8 +6593,8 @@ they are."
     (widen)
     (forward-line 1)
     (unless (looking-at "$")
-      (forward-line 2)))
-   (sit-for 0)))
+      (forward-line 2))))
+  (sit-for 0))
 
 (defcustom message-beginning-of-line t
   "Whether \\<message-mode-map>\\[message-beginning-of-line]\
@@ -7703,10 +7707,7 @@ the message."
 		""))
 	(when message-wash-forwarded-subjects
 	  (setq subject (message-wash-subject subject)))
-	;; Make sure funcs is a list.
-	(and funcs
-	     (not (listp funcs))
-	     (setq funcs (list funcs)))
+        (setq funcs (ensure-list funcs))
 	;; Apply funcs in order, passing subject generated by previous
 	;; func to the next one.
 	(dolist (func funcs)
@@ -8207,7 +8208,6 @@ which specify the range to operate on."
 It can be either a list or a symbol referring to a list.  See
 `gmm-tool-bar-from-list' for the format of the list.  The
 default key map is `message-mode-map'."
-  :type '(repeat gmm-tool-bar-list-item)
   :type '(choice (repeat :tag "User defined list" gmm-tool-bar-item)
 		 (symbol))
   :version "29.1"

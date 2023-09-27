@@ -121,6 +121,12 @@ the origin of the temporary TMPFILE, have no write permissions."
      (directory-files tmpfile 'full directory-files-no-dot-files-regexp))
     (delete-directory tmpfile)))
 
+(defun tramp-archive--test-emacs28-p ()
+  "Check for Emacs version >= 28.1.
+Some semantics has been changed for there, without new functions or
+variables, so we check the Emacs version directly."
+  (>= emacs-major-version 28))
+
 (ert-deftest tramp-archive-test00-availability ()
   "Test availability of archive file name functions."
   :expected-result (if tramp-archive-enabled :passed :failed)
@@ -587,11 +593,11 @@ This checks also `file-name-as-directory', `file-name-directory',
 			 (mapcar (lambda (x) (concat tmp-name x)) files)))
 	  (should (equal (directory-files
 			  tmp-name nil directory-files-no-dot-files-regexp)
-			 (delete "." (delete ".." files))))
+			 (remove "." (remove ".." files))))
 	  (should (equal (directory-files
 			  tmp-name 'full directory-files-no-dot-files-regexp)
 			 (mapcar (lambda (x) (concat tmp-name x))
-				 (delete "." (delete ".." files))))))
+				 (remove "." (remove ".." files))))))
 
       ;; Cleanup.
       (tramp-archive-cleanup-hash))))
@@ -881,16 +887,24 @@ This tests also `file-executable-p', `file-writable-p' and `set-file-modes'."
 		 (zerop (nth 1 fsi))
 		 (zerop (nth 2 fsi))))))
 
-;; `file-user-uid' was introduced in Emacs 30.1.
-(ert-deftest tramp-archive-test44-file-user-uid ()
-  "Check that `file-user-uid' returns proper values."
+;; `file-user-uid' and `file-group-gid' were introduced in Emacs 30.1.
+(ert-deftest tramp-archive-test44-user-group-ids ()
+  "Check results of user/group functions.
+`file-user-uid' and `file-group-gid' should return proper values."
   (skip-unless tramp-archive-enabled)
-  (skip-unless (fboundp 'file-user-uid))
+  (skip-unless (and (fboundp 'file-user-uid)
+                    (fboundp 'file-group-gid)))
 
-  (let ((default-directory tramp-archive-test-archive))
-    ;; `file-user-uid' exists since Emacs 30.1.  We don't want to see
-    ;; compiler warnings for older Emacsen.
-    (should (integerp (with-no-warnings (file-user-uid))))))
+  ;; `file-user-uid' and `file-group-gid' exist since Emacs 30.1.
+  ;; We don't want to see compiler warnings for older Emacsen.
+  (let* ((default-directory tramp-archive-test-archive)
+	 (uid (with-no-warnings (file-user-uid)))
+	 (gid (with-no-warnings (file-group-gid))))
+    (should (integerp uid))
+    (should (integerp gid))
+    (let ((default-directory tramp-archive-test-file-archive))
+      (should (equal uid (with-no-warnings (file-user-uid))))
+      (should (equal gid (with-no-warnings (file-group-gid)))))))
 
 (ert-deftest tramp-archive-test48-auto-load ()
   "Check that `tramp-archive' autoloads properly."
@@ -909,12 +923,15 @@ This tests also `file-executable-p', `file-writable-p' and `set-file-modes'."
               (featurep 'tramp-archive))))"))
     (dolist (enabled '(t nil))
       (dolist (default-directory
-               `(,temporary-file-directory
+		(append
+		 `(,temporary-file-directory)
 		 ;;  Starting Emacs in a directory which has
 		 ;; `tramp-archive-file-name-regexp' syntax is
 		 ;; supported only with Emacs > 27.2 (sigh!).
 		 ;; (Bug#48476)
-                 ,(file-name-as-directory tramp-archive-test-directory)))
+                 (and (tramp-archive--test-emacs28-p)
+		      `(,(file-name-as-directory
+			  tramp-archive-test-directory)))))
 	(dolist (file `("/mock::foo" ,(concat tramp-archive-test-archive "foo")))
           (should
            (string-match
@@ -975,6 +992,20 @@ This tests also `file-executable-p', `file-writable-p' and `set-file-modes'."
            (format
             code tae tramp-archive-test-file-archive
             (concat tramp-archive-test-archive "foo"))))))))))
+
+(ert-deftest tramp-archive-test49-without-remote-files ()
+  "Check that Tramp can be suppressed."
+  (skip-unless tramp-archive-enabled)
+
+  (should (file-exists-p tramp-archive-test-archive))
+  (should-not (without-remote-files (file-exists-p tramp-archive-test-archive)))
+  (should (file-exists-p tramp-archive-test-archive))
+
+  (inhibit-remote-files)
+  (should-not (file-exists-p tramp-archive-test-archive))
+  (tramp-register-file-name-handlers)
+  (setq tramp-mode t)
+  (should (file-exists-p tramp-archive-test-archive)))
 
 (ert-deftest tramp-archive-test99-libarchive-tests ()
   "Run tests of libarchive test files."

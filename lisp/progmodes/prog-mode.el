@@ -36,6 +36,8 @@
 (declare-function treesit-available-p "treesit.c")
 (declare-function treesit-parser-list "treesit.c")
 (declare-function treesit-node-type "treesit.c")
+(declare-function treesit-node-at "treesit.c")
+(declare-function treesit-node-match-p "treesit.c")
 
 (defgroup prog-mode nil
   "Generic programming mode, from which others derive."
@@ -159,9 +161,8 @@ or follows point."
     (let ((treesit-text-node
            (and (treesit-available-p)
                 (treesit-parser-list)
-                (string-match-p
-                 treesit-text-type-regexp
-                 (treesit-node-type (treesit-node-at (point)))))))
+                (treesit-node-match-p
+                 (treesit-node-at (point)) 'text t))))
       (if (or treesit-text-node
               (nth 8 (syntax-ppss))
               (re-search-forward "\\s-*\\s<" (line-end-position) t))
@@ -247,7 +248,10 @@ If set to the symbol `right-edge', also unprettify if point
 is immediately after the symbol.  The prettification will be
 reapplied as soon as point moves away from the symbol.  If
 set to nil, the prettification persists even when point is
-on the symbol."
+on the symbol.
+
+This will only have an effect if it is set to a non-nil value
+before `prettify-symbols-mode' is activated."
   :version "25.1"
   :type '(choice (const :tag "Never unprettify" nil)
                  (const :tag "Unprettify when point is inside" t)
@@ -336,6 +340,8 @@ support it."
   (setq-local require-final-newline mode-require-final-newline)
   (setq-local parse-sexp-ignore-comments t)
   (add-hook 'context-menu-functions 'prog-context-menu 10 t)
+  ;; Enable text conversion in this buffer.
+  (setq-local text-conversion-style t)
   ;; Any programming language is always written left to right.
   (setq bidi-paragraph-direction 'left-to-right))
 

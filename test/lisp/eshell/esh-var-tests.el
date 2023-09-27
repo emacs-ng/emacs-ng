@@ -645,6 +645,14 @@ nil, use FUNCTION instead."
    (eshell-match-command-output "VAR=hello env" "VAR=hello\n")
    (should (equal (getenv "VAR") "value"))))
 
+(ert-deftest esh-var-test/local-variables/skip-nil ()
+  "Test that Eshell skips leading nil arguments after local variable setting."
+  (with-temp-eshell
+   (push "VAR=value" process-environment)
+   (eshell-match-command-output "VAR=hello $eshell-test-value env"
+                                "VAR=hello\n")
+   (should (equal (getenv "VAR") "value"))))
+
 
 ;; Variable aliases
 
@@ -766,6 +774,52 @@ it, since the setter is nil."
    (eshell-match-command-output "echo $INSIDE_EMACS[, 1]"
                                 "eshell")))
 
+(ert-deftest esh-var-test/pager-var/default ()
+  "Test that retrieving the default value of $PAGER works.
+This should be the value of `comint-pager' if non-nil, otherwise
+the value of the $PAGER env var."
+  (let ((comint-pager nil)
+        (process-environment (cons "PAGER=cat" process-environment)))
+    (eshell-command-result-equal "echo $PAGER" "cat")
+    (setq comint-pager "less")
+    (eshell-command-result-equal "echo $PAGER" "less")))
+
+(ert-deftest esh-var-test/pager-var/set ()
+  "Test that setting $PAGER in Eshell overrides the default value."
+  (let ((comint-pager nil)
+        (process-environment (cons "PAGER=cat" process-environment)))
+    (with-temp-eshell
+     (eshell-match-command-output "set PAGER bat" "bat")
+     (eshell-match-command-output "echo $PAGER" "bat"))
+    (setq comint-pager "less")
+    (with-temp-eshell
+     (eshell-match-command-output "set PAGER bat" "bat")
+     (eshell-match-command-output "echo $PAGER" "bat"))))
+
+(ert-deftest esh-var-test/pager-var/unset ()
+  "Test that unsetting $PAGER in Eshell overrides the default value."
+  (let ((comint-pager nil)
+        (process-environment (cons "PAGER=cat" process-environment)))
+    (with-temp-eshell
+     (eshell-insert-command "unset PAGER")
+     (eshell-match-command-output "echo $PAGER" "\\`\\'"))
+    (setq comint-pager "less")
+    (with-temp-eshell
+     (eshell-insert-command "unset PAGER")
+     (eshell-match-command-output "echo $PAGER" "\\`\\'"))))
+
+(ert-deftest esh-var-test/pager-var/set-locally ()
+  "Test setting $PAGER temporarily for a single command."
+  (let ((comint-pager nil)
+        (process-environment (cons "PAGER=cat" process-environment)))
+    (with-temp-eshell
+     (eshell-match-command-output "PAGER=bat env" "PAGER=bat\n")
+     (eshell-match-command-output "echo $PAGER" "cat"))
+    (setq comint-pager "less")
+    (with-temp-eshell
+     (eshell-match-command-output "PAGER=bat env" "PAGER=bat\n")
+     (eshell-match-command-output "echo $PAGER" "less"))))
+
 (ert-deftest esh-var-test/path-var/local-directory ()
   "Test using $PATH in a local directory."
   (let ((expected-path (string-join (eshell-get-path t) (path-separator))))
@@ -828,6 +882,10 @@ it, since the setter is nil."
 (ert-deftest esh-var-test/uid-var ()
   "Test that $UID is equivalent to (user-uid) for local directories."
   (eshell-command-result-equal "echo $UID" (user-uid)))
+
+(ert-deftest esh-var-test/gid-var ()
+  "Test that $GID is equivalent to (group-gid) for local directories."
+  (eshell-command-result-equal "echo $GID" (group-gid)))
 
 (ert-deftest esh-var-test/last-status-var-lisp-command ()
   "Test using the \"last exit status\" ($?) variable with a Lisp command."

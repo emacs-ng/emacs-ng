@@ -153,19 +153,6 @@ The metadata of a completion table should be constant between two boundaries."
 (defun completion-metadata-get (metadata prop)
   (cdr (assq prop metadata)))
 
-(defun completion--some (fun xs)
-  "Apply FUN to each element of XS in turn.
-Return the first non-nil returned value.
-Like CL's `some'."
-  (let ((firsterror nil)
-        res)
-    (while (and (not res) xs)
-      (condition-case-unless-debug err
-          (setq res (funcall fun (pop xs)))
-        (error (unless firsterror (setq firsterror err)) nil)))
-    (or res
-        (if firsterror (signal (car firsterror) (cdr firsterror))))))
-
 (defun complete-with-action (action collection string predicate)
   "Perform completion according to ACTION.
 STRING, COLLECTION and PREDICATE are used as in `try-completion'.
@@ -426,9 +413,9 @@ obeys predicates."
   ;; is returned by TABLE2 (because TABLE1 returned an empty list).
   ;; Same potential problem if any of the tables use quoting.
   (lambda (string pred action)
-    (completion--some (lambda (table)
-                        (complete-with-action action table string pred))
-                      tables)))
+    (seq-some (lambda (table)
+                (complete-with-action action table string pred))
+              tables)))
 
 (defun completion-table-merge (&rest tables)
   "Create a completion table that collects completions from all TABLES."
@@ -451,9 +438,9 @@ obeys predicates."
                                 (all-completions string table pred))
                               tables)))
      (t
-      (completion--some (lambda (table)
-                          (complete-with-action action table string pred))
-                        tables)))))
+      (seq-some (lambda (table)
+                  (complete-with-action action table string pred))
+                tables)))))
 
 (defun completion-table-with-quoting (table unquote requote)
   ;; A difficult part of completion-with-quoting is to map positions in the
@@ -715,11 +702,21 @@ for use at QPOS."
   "Text properties added to the text shown by `minibuffer-message'.")
 
 (defun minibuffer-message (message &rest args)
-  "Temporarily display MESSAGE at the end of the minibuffer.
-The text is displayed for `minibuffer-message-timeout' seconds,
-or until the next input event arrives, whichever comes first.
-Enclose MESSAGE in [...] if this is not yet the case.
-If ARGS are provided, then pass MESSAGE through `format-message'."
+  "Temporarily display MESSAGE at the end of minibuffer text.
+This function is designed to be called from the minibuffer, i.e.,
+when Emacs prompts the user for some input, and the user types
+into the minibuffer.  If called when the current buffer is not
+the minibuffer, this function just calls `message', and thus
+displays MESSAGE in the echo-area.
+When called from the minibuffer, this function displays MESSAGE
+at the end of minibuffer text for `minibuffer-message-timeout'
+seconds, or until the next input event arrives, whichever comes first.
+It encloses MESSAGE in [...] if it is not yet enclosed.
+The intent is to show the message without hiding what the user typed.
+If ARGS are provided, then the function first passes MESSAGE
+through `format-message'.
+If some of the minibuffer text has the `minibuffer-message' text
+property, MESSAGE is shown at that position instead of EOB."
   (if (not (minibufferp (current-buffer) t))
       (progn
         (if args
@@ -796,7 +793,7 @@ The minibuffer message functions include `minibuffer-message' and
       (next-single-property-change pt 'minibuffer-message nil (point-max)))))
 
 (defun set-minibuffer-message (message)
-  "Temporarily display MESSAGE at the end of the minibuffer.
+  "Temporarily display MESSAGE at the end of the active minibuffer window.
 If some part of the minibuffer text has the `minibuffer-message' property,
 the message will be displayed before the first such character, instead of
 at the end of the minibuffer.
@@ -954,7 +951,7 @@ is at its default value `grow-only'."
                multi-message-separator)))
 
 (defun clear-minibuffer-message ()
-  "Clear minibuffer message.
+  "Clear message temporarily shown in the minibuffer.
 Intended to be called via `clear-message-function'."
   (when (not noninteractive)
     (when (timerp minibuffer-message-timer)
@@ -963,10 +960,16 @@ Intended to be called via `clear-message-function'."
     (when (overlayp minibuffer-message-overlay)
       (delete-overlay minibuffer-message-overlay)
       (setq minibuffer-message-overlay nil)))
-
-  ;; Return nil telling the caller that the message
-  ;; should be also handled by the caller.
-  nil)
+  ;; Don't clear the message if touch screen drag-to-select is in
+  ;; progress, because a preview message might currently be displayed
+  ;; in the echo area.  FIXME: find some way to place this in
+  ;; touch-screen.el.
+  (if (and touch-screen-preview-select
+           (eq (nth 3 touch-screen-current-tool) 'drag))
+      'dont-clear-message
+    ;; Return nil telling the caller that the message
+    ;; should be also handled by the caller.
+    nil))
 
 (setq clear-message-function 'clear-minibuffer-message)
 
@@ -1200,7 +1203,7 @@ overrides the default specified in `completion-category-defaults'."
               (cl-assert (<= point (length string)))
               (pop new))))
          (result-and-style
-          (completion--some
+          (seq-some
            (lambda (style)
              (let ((probe (funcall
                            (or (nth n (assq style completion-styles-alist))
@@ -2021,11 +2024,14 @@ completions."
 
 (defcustom completions-header-format
   (propertize "%s possible completions:\n" 'face 'shadow)
-  "Format of completions header.
-It may contain one %s to show the total count of completions.
-When nil, no header is shown."
-  :type '(choice (const :tag "No header" nil)
-                 (string :tag "Header format string"))
+  "If non-nil, the format string for completions heading line.
+The heading line is inserted before the completions, and is intended
+to summarize the completions.
+The format string may include one %s, which will be replaced with
+the total count of possible completions.
+If this is nil, no heading line will be shown."
+  :type '(choice (const :tag "No heading line" nil)
+                 (string :tag "Format string for heading line"))
   :version "29.1")
 
 (defun completion--insert-strings (strings &optional group-fun)
@@ -2381,16 +2387,22 @@ These include:
           ;; If there are no completions, or if the current input is already
           ;; the sole completion, then hide (previous&stale) completions.
           (minibuffer-hide-completions)
-          (ding)
-          (completion--message
-           (if completions "Sole completion" "No completions")))
+          (if completions
+              (completion--message "Sole completion")
+            (unless completion-fail-discreetly
+	      (ding)
+	      (completion--message "No match"))))
 
       (let* ((last (last completions))
              (base-size (or (cdr last) 0))
              (prefix (unless (zerop base-size) (substring string 0 base-size)))
              (base-prefix (buffer-substring (minibuffer--completion-prompt-end)
                                             (+ start base-size)))
-             (base-suffix (buffer-substring (point) (point-max)))
+             (base-suffix
+              (if (eq (alist-get 'category (cdr md)) 'file)
+                  (buffer-substring (save-excursion (or (search-forward "/" nil t) (point-max)))
+                                    (point-max))
+                ""))
              (all-md (completion--metadata (buffer-substring-no-properties
                                             start (point))
                                            base-size md
@@ -2938,7 +2950,10 @@ For customizing this mode, it is better to use
 `minibuffer-setup-hook' and `minibuffer-exit-hook' rather than
 the mode hook of this mode."
   :syntax-table nil
-  :interactive nil)
+  :interactive nil
+  ;; Enable text conversion, but always make sure `RET' does
+  ;; something.
+  (setq text-conversion-style 'action))
 
 ;;; Completion tables.
 
@@ -4008,8 +4023,11 @@ the same set of elements."
               (setq ccs (nreverse ccs))
               (let* ((prefix (try-completion fixed comps))
                      (unique (or (and (eq prefix t) (setq prefix fixed))
-                                 (eq t (try-completion prefix comps)))))
-                (unless (or (eq elem 'prefix)
+                                 (and (stringp prefix)
+                                      (eq t (try-completion prefix comps))))))
+                ;; if the common prefix is unique, it also is a common
+                ;; suffix, so we should add it for `prefix' elements
+                (unless (or (and (eq elem 'prefix) (not unique))
                             (equal prefix ""))
                   (push prefix res))
                 ;; If there's only one completion, `elem' is not useful
@@ -4390,9 +4408,9 @@ after the end of the prompt, move to the end of the prompt.
 Otherwise move to the start of the buffer."
   (declare (interactive-only "use `(goto-char (point-min))' instead."))
   (interactive "^P")
-  (when (or (consp arg)
-            (region-active-p))
-    (push-mark))
+  (or (consp arg)
+      (region-active-p)
+      (push-mark))
   (goto-char (cond
               ;; We want to go N/10th of the way from the beginning.
               ((and arg (not (consp arg)))
@@ -4501,7 +4519,7 @@ of `completion-no-auto-exit'.
 If NO-QUIT is non-nil, insert the completion at point to the
 minibuffer, but don't quit the completions window."
   (interactive "P")
-  (with-minibuffer-completions-window
+    (with-minibuffer-completions-window
     (let ((completion-use-base-affixes t))
       (choose-completion nil no-exit no-quit))))
 
@@ -4591,6 +4609,232 @@ is included in the return value."
                     (car default)
                   default)))
    ": "))
+
+
+;;; On screen keyboard support.
+;; Try to display the on screen keyboard whenever entering the
+;; mini-buffer, and hide it whenever leaving.
+
+(defvar minibuffer-on-screen-keyboard-timer nil
+  "Timer run upon exiting the minibuffer.
+It will hide the on screen keyboard when necessary.")
+
+(defvar minibuffer-on-screen-keyboard-displayed nil
+  "Whether or not the on-screen keyboard has been displayed.
+Set inside `minibuffer-setup-on-screen-keyboard'.")
+
+(defun minibuffer-setup-on-screen-keyboard ()
+  "Maybe display the on-screen keyboard in the current frame.
+Display the on-screen keyboard in the current frame if the
+last device to have sent an input event is not a keyboard.
+This is run upon minibuffer setup."
+  ;; Don't hide the on screen keyboard later on.
+  (when minibuffer-on-screen-keyboard-timer
+    (cancel-timer minibuffer-on-screen-keyboard-timer)
+    (setq minibuffer-on-screen-keyboard-timer nil))
+  (setq minibuffer-on-screen-keyboard-displayed nil)
+  (when (and (framep last-event-frame)
+             (not (memq (device-class last-event-frame
+                                      last-event-device)
+                        '(keyboard core-keyboard))))
+    (setq minibuffer-on-screen-keyboard-displayed
+          (frame-toggle-on-screen-keyboard (selected-frame) nil))))
+
+(defun minibuffer-exit-on-screen-keyboard ()
+  "Hide the on-screen keyboard if it was displayed.
+Hide the on-screen keyboard in a timer set to run in 0.1 seconds.
+It will be cancelled if the minibuffer is displayed again within
+that timeframe.
+
+Do not hide the on screen keyboard inside a recursive edit.
+Likewise, do not hide the on screen keyboard if point in the
+window that will be selected after exiting the minibuffer is not
+on read-only text.
+
+The latter is implemented in `touch-screen.el'."
+  (unless (or (not minibuffer-on-screen-keyboard-displayed)
+              (> (recursion-depth) 1))
+    (when minibuffer-on-screen-keyboard-timer
+      (cancel-timer minibuffer-on-screen-keyboard-timer))
+    (setq minibuffer-on-screen-keyboard-timer
+          (run-with-timer 0.1 nil #'frame-toggle-on-screen-keyboard
+                          (selected-frame) t))))
+
+(add-hook 'minibuffer-setup-hook #'minibuffer-setup-on-screen-keyboard)
+(add-hook 'minibuffer-exit-hook #'minibuffer-exit-on-screen-keyboard)
+
+(defvar minibuffer-regexp-mode)
+
+(defun minibuffer--regexp-propertize ()
+  "In current minibuffer propertize parens and slashes in regexps.
+Put punctuation `syntax-table' property on selected paren and
+backslash characters in current buffer to make `show-paren-mode'
+and `blink-matching-paren' more user-friendly."
+  (let (in-char-alt-p)
+    (save-excursion
+      (with-silent-modifications
+        (remove-text-properties (point-min) (point-max) '(syntax-table nil))
+        (goto-char (point-min))
+        (while (re-search-forward
+                (rx (| (group "\\\\")
+                       (: "\\" (| (group (in "(){}"))
+                                  (group "[")
+                                  (group "]")))
+                       (group "[:" (+ (in "A-Za-z")) ":]")
+                       (group "[")
+                       (group "]")
+                       (group (in "(){}"))))
+	        (point-max) 'noerror)
+	  (cond
+           ((match-beginning 1))                ; \\, skip
+           ((match-beginning 2)			; \( \) \{ \}
+            (if in-char-alt-p
+	        ;; Within character alternative, set symbol syntax for
+	        ;; paren only.
+                (put-text-property (1- (point)) (point) 'syntax-table '(3))
+	      ;; Not within character alternative, set symbol syntax for
+	      ;; backslash only.
+              (put-text-property (- (point) 2) (1- (point)) 'syntax-table '(3))))
+	   ((match-beginning 3)			; \[
+            (if in-char-alt-p
+                (progn
+	          ;; Set symbol syntax for backslash.
+                  (put-text-property (- (point) 2) (1- (point)) 'syntax-table '(3))
+                  ;; Re-read bracket we might be before a character class.
+                  (backward-char))
+	      ;; Set symbol syntax for bracket.
+	      (put-text-property (1- (point)) (point) 'syntax-table '(3))))
+	   ((match-beginning 4)			; \]
+            (if in-char-alt-p
+                (progn
+                  ;; Within character alternative, set symbol syntax for
+	          ;; backslash, exit alternative.
+                  (put-text-property (- (point) 2) (1- (point)) 'syntax-table '(3))
+	          (setq in-char-alt-p nil))
+	      ;; Not within character alternative, set symbol syntax for
+	      ;; bracket.
+	      (put-text-property (1- (point)) (point) 'syntax-table '(3))))
+	   ((match-beginning 5))         ; POSIX character class, skip
+	   ((match-beginning 6)          ; [
+	    (if in-char-alt-p
+	        ;; Within character alternative, set symbol syntax.
+	        (put-text-property (1- (point)) (point) 'syntax-table '(3))
+	      ;; Start new character alternative.
+	      (setq in-char-alt-p t)
+              ;; Looking for immediately following non-closing ].
+	      (when (looking-at "\\^?\\]")
+	        ;; Non-special right bracket, set symbol syntax.
+	        (goto-char (match-end 0))
+	        (put-text-property (1- (point)) (point) 'syntax-table '(3)))))
+	   ((match-beginning 7)			; ]
+            (if in-char-alt-p
+                (setq in-char-alt-p nil)
+              ;; The only warning we can emit before RET.
+	      (message "Not in character alternative")))
+	   ((match-beginning 8)                 ; (){}
+	    ;; Plain parenthesis or brace, set symbol syntax.
+	    (put-text-property (1- (point)) (point) 'syntax-table '(3)))))))))
+
+;; The following variable is set by 'minibuffer--regexp-before-change'.
+;; If non-nil, either 'minibuffer--regexp-post-self-insert' or
+;; 'minibuffer--regexp-after-change', whichever comes next, will
+;; propertize the minibuffer via 'minibuffer--regexp-propertize' and
+;; reset this variable to nil, avoiding to propertize the buffer twice.
+(defvar-local minibuffer--regexp-primed nil
+  "Non-nil when minibuffer contents change.")
+
+(defun minibuffer--regexp-before-change (_a _b)
+  "`minibuffer-regexp-mode' function on `before-change-functions'."
+  (setq minibuffer--regexp-primed t))
+
+(defun minibuffer--regexp-after-change (_a _b _c)
+  "`minibuffer-regexp-mode' function on `after-change-functions'."
+  (when minibuffer--regexp-primed
+    (setq minibuffer--regexp-primed nil)
+    (minibuffer--regexp-propertize)))
+
+(defun minibuffer--regexp-post-self-insert ()
+  "`minibuffer-regexp-mode' function on `post-self-insert-hook'."
+  (when minibuffer--regexp-primed
+    (setq minibuffer--regexp-primed nil)
+    (minibuffer--regexp-propertize)))
+
+(defvar minibuffer--regexp-prompt-regexp
+  "\\(?:Posix search\\|RE search\\|Search for regexp\\|Query replace regexp\\)"
+  "Regular expression compiled from `minibuffer-regexp-prompts'.")
+
+(defcustom minibuffer-regexp-prompts
+  '("Posix search" "RE search" "Search for regexp" "Query replace regexp")
+  "List of regular expressions that trigger `minibuffer-regexp-mode' features.
+The features of `minibuffer-regexp-mode' will be activated in a minibuffer
+interaction if and only if a prompt matching some regexp in this list
+appears at the beginning of the minibuffer.
+
+Setting this variable directly with `setq' has no effect; instead,
+either use \\[customize-option] interactively or use `setopt'."
+  :type '(repeat (string :tag "Prompt"))
+  :set (lambda (sym val)
+	 (set-default sym val)
+         (when val
+           (setq minibuffer--regexp-prompt-regexp
+                 (concat "\\(?:" (mapconcat 'regexp-quote val "\\|") "\\)"))))
+  :version "30.1")
+
+(defun minibuffer--regexp-setup ()
+  "Function to activate`minibuffer-regexp-mode' in current buffer.
+Run by `minibuffer-setup-hook'."
+  (if (and minibuffer-regexp-mode
+           (save-excursion
+             (goto-char (point-min))
+             (looking-at minibuffer--regexp-prompt-regexp)))
+      (progn
+        (setq-local parse-sexp-lookup-properties t)
+        (add-hook 'before-change-functions #'minibuffer--regexp-before-change nil t)
+        (add-hook 'after-change-functions #'minibuffer--regexp-after-change nil t)
+        (add-hook 'post-self-insert-hook #'minibuffer--regexp-post-self-insert nil t))
+    ;; Make sure.
+    (minibuffer--regexp-exit)))
+
+(defun minibuffer--regexp-exit ()
+  "Function to deactivate `minibuffer-regexp-mode' in current buffer.
+Run by `minibuffer-exit-hook'."
+  (with-silent-modifications
+    (remove-text-properties (point-min) (point-max) '(syntax-table nil)))
+  (setq-local parse-sexp-lookup-properties nil)
+  (remove-hook 'before-change-functions #'minibuffer--regexp-before-change t)
+  (remove-hook 'after-change-functions #'minibuffer--regexp-after-change t)
+  (remove-hook 'post-self-insert-hook #'minibuffer--regexp-post-self-insert t))
+
+(define-minor-mode minibuffer-regexp-mode
+  "Minor mode for editing regular expressions in the minibuffer.
+Highlight parens via `show-paren-mode' and `blink-matching-paren'
+in a user-friendly way, avoid reporting alleged paren mismatches
+and make sexp navigation more intuitive.
+
+The list of prompts activating this mode in specific minibuffer
+interactions is customizable via `minibuffer-regexp-prompts'."
+  :global t
+  :initialize 'custom-initialize-delay
+  :init-value t
+  (if minibuffer-regexp-mode
+      (progn
+        (add-hook 'minibuffer-setup-hook #'minibuffer--regexp-setup)
+        (add-hook 'minibuffer-exit-hook #'minibuffer--regexp-exit))
+    ;; Clean up - why is Vminibuffer_list not available in Lisp?
+    (dolist (buffer (buffer-list))
+      (when (and (minibufferp)
+                 parse-sexp-lookup-properties
+                 (with-current-buffer buffer
+                   (save-excursion
+                     (goto-char (point-min))
+                     (looking-at minibuffer--regexp-prompt-regexp))))
+        (with-current-buffer buffer
+          (with-silent-modifications
+            (remove-text-properties
+             (point-min) (point-max) '(syntax-table nil)))
+          (setq-local parse-sexp-lookup-properties t))))
+    (remove-hook 'minibuffer-setup-hook #'minibuffer--regexp-setup)
+    (remove-hook 'minibuffer-exit-hook #'minibuffer--regexp-exit)))
 
 (provide 'minibuffer)
 

@@ -249,7 +249,7 @@ parameter, and should return the (possibly) transformed URL."
   :version "29.1")
 
 (defface eww-form-submit
-  '((((type x w32 ns haiku pgtk winit) (class color))	; Like default mode line
+  '((((type x w32 ns haiku pgtk android winit) (class color))	; Like default mode line
      :box (:line-width 2 :style released-button)
      :background "#808080" :foreground "black"))
   "Face for eww buffer buttons."
@@ -257,7 +257,7 @@ parameter, and should return the (possibly) transformed URL."
   :group 'eww)
 
 (defface eww-form-file
-  '((((type x w32 ns haiku pgtk winit) (class color))	; Like default mode line
+  '((((type x w32 ns haiku pgtk android winit) (class color))	; Like default mode line
      :box (:line-width 2 :style released-button)
      :background "#808080" :foreground "black"))
   "Face for eww buffer buttons."
@@ -265,7 +265,7 @@ parameter, and should return the (possibly) transformed URL."
   :group 'eww)
 
 (defface eww-form-checkbox
-  '((((type x w32 ns haiku pgtk winit) (class color))	; Like default mode line
+  '((((type x w32 ns haiku pgtk android winit) (class color))	; Like default mode line
      :box (:line-width 2 :style released-button)
      :background "lightgrey" :foreground "black"))
   "Face for eww buffer buttons."
@@ -273,7 +273,7 @@ parameter, and should return the (possibly) transformed URL."
   :group 'eww)
 
 (defface eww-form-select
-  '((((type x w32 ns haiku pgtk winit) (class color))	; Like default mode line
+  '((((type x w32 ns haiku pgtk android winit) (class color))	; Like default mode line
      :box (:line-width 2 :style released-button)
      :background "lightgrey" :foreground "black"))
   "Face for eww buffer buttons."
@@ -542,24 +542,35 @@ for the search engine used."
           (call-interactively #'eww)))
     (call-interactively #'eww)))
 
-(defun eww-open-in-new-buffer ()
-  "Fetch link at point in a new EWW buffer."
-  (interactive)
-  (let ((url (eww-suggested-uris)))
-    (if (null url) (user-error "No link at point")
-      (when (or (eq eww-browse-url-new-window-is-tab t)
-                (and (eq eww-browse-url-new-window-is-tab 'tab-bar)
-                     tab-bar-mode))
-        (let ((tab-bar-new-tab-choice t))
-          (tab-new)))
-      ;; clone useful to keep history, but
-      ;; should not clone from non-eww buffer
-      (with-current-buffer
-          (if (eq major-mode 'eww-mode) (clone-buffer)
-            (generate-new-buffer "*eww*"))
-        (unless (equal url (eww-current-url))
-          (eww-mode)
-          (eww (if (consp url) (car url) url)))))))
+(defun eww--open-url-in-new-buffer (url)
+  "Open the URL in a new EWW buffer."
+  ;; Clone is useful to keep history, but we
+  ;; should not clone from a non-eww buffer.
+  (with-current-buffer
+      (if (eq major-mode 'eww-mode) (clone-buffer)
+        (generate-new-buffer "*eww*"))
+    (unless (equal url (eww-current-url))
+      (eww-mode)
+      (eww (if (consp url) (car url) url)))))
+
+(defun eww-open-in-new-buffer (&optional no-select url)
+  "Fetch URL (interactively, the link at point) into a new EWW buffer.
+
+NO-SELECT non-nil means do not make the new buffer the current buffer."
+  (interactive "P")
+  (if-let ((url (or url (eww-suggested-uris))))
+      (if (or (eq eww-browse-url-new-window-is-tab t)
+              (and (eq eww-browse-url-new-window-is-tab 'tab-bar)
+                   tab-bar-mode))
+          (let ((tab-bar-new-tab-choice t))
+            (tab-new)
+            (eww--open-url-in-new-buffer url)
+            (when no-select
+              (tab-bar-switch-to-recent-tab)))
+        (if no-select
+            (save-window-excursion (eww--open-url-in-new-buffer url))
+          (eww--open-url-in-new-buffer url)))
+    (user-error "No link at point")))
 
 (defun eww-html-p (content-type)
   "Return non-nil if CONTENT-TYPE designates an HTML content type.
@@ -609,46 +620,49 @@ The renaming scheme is performed in accordance with
     (let ((redirect (plist-get status :redirect)))
       (when redirect
         (setq url redirect)))
-    (with-current-buffer buffer
-      ;; Save the https peer status.
-      (plist-put eww-data :peer (plist-get status :peer))
-      ;; Make buffer listings more informative.
-      (setq list-buffers-directory url)
-      ;; Let the URL library have a handle to the current URL for
-      ;; referer purposes.
-      (setq url-current-lastloc (url-generic-parse-url url)))
-    (unwind-protect
-	(progn
-	  (cond
-           ((and eww-use-external-browser-for-content-type
-                 (string-match-p eww-use-external-browser-for-content-type
-                                 (car content-type)))
-            (erase-buffer)
-            (insert "<title>Unsupported content type</title>")
-            (insert (format "<h1>Content-type %s is unsupported</h1>"
-                            (car content-type)))
-            (insert (format "<a href=%S>Direct link to the document</a>"
-                            url))
-            (goto-char (point-min))
-	    (eww-display-html charset url nil point buffer encode))
-	   ((eww-html-p (car content-type))
-	    (eww-display-html charset url nil point buffer encode))
-	   ((equal (car content-type) "application/pdf")
-	    (eww-display-pdf))
-	   ((string-match-p "\\`image/" (car content-type))
-	    (eww-display-image buffer))
-	   (t
-	    (eww-display-raw buffer (or encode charset 'utf-8))))
-	  (with-current-buffer buffer
-	    (plist-put eww-data :url url)
-	    (eww--after-page-change)
-	    (setq eww-history-position 0)
-	    (and last-coding-system-used
-		 (set-buffer-file-coding-system last-coding-system-used))
-	    (run-hooks 'eww-after-render-hook)
-            ;; Enable undo again so that undo works in text input
-            ;; boxes.
-            (setq buffer-undo-list nil)))
+    (when (buffer-live-p buffer)
+      (with-current-buffer buffer
+        ;; Save the https peer status.
+        (plist-put eww-data :peer (plist-get status :peer))
+        ;; Make buffer listings more informative.
+        (setq list-buffers-directory url)
+        ;; Let the URL library have a handle to the current URL for
+        ;; referer purposes.
+        (setq url-current-lastloc (url-generic-parse-url url)))
+      (unwind-protect
+	  (progn
+	    (cond
+             ((and eww-use-external-browser-for-content-type
+                   (string-match-p eww-use-external-browser-for-content-type
+                                   (car content-type)))
+              (erase-buffer)
+              (insert "<title>Unsupported content type</title>")
+              (insert (format "<h1>Content-type %s is unsupported</h1>"
+                              (car content-type)))
+              (insert (format "<a href=%S>Direct link to the document</a>"
+                              url))
+              (goto-char (point-min))
+	      (eww-display-html charset url nil point buffer encode))
+	     ((eww-html-p (car content-type))
+	      (eww-display-html charset url nil point buffer encode))
+	     ((equal (car content-type) "application/pdf")
+	      (eww-display-pdf))
+	     ((string-match-p "\\`image/" (car content-type))
+	      (eww-display-image buffer))
+	     (t
+	      (eww-display-raw buffer (or encode charset 'utf-8))))
+	    (with-current-buffer buffer
+	      (plist-put eww-data :url url)
+	      (eww--after-page-change)
+	      (setq eww-history-position 0)
+	      (and last-coding-system-used
+		   (set-buffer-file-coding-system last-coding-system-used))
+	      (run-hooks 'eww-after-render-hook)
+              ;; Enable undo again so that undo works in text input
+              ;; boxes.
+              (setq buffer-undo-list nil)))
+        (kill-buffer data-buffer)))
+    (unless (buffer-live-p buffer)
       (kill-buffer data-buffer))))
 
 (defun eww-parse-headers ()
@@ -1086,6 +1100,7 @@ the like."
   "&" #'eww-browse-with-external-browser
   "d" #'eww-download
   "w" #'eww-copy-page-url
+  "A" #'eww-copy-alternate-url
   "C" #'url-cookie-list
   "v" #'eww-view-source
   "R" #'eww-readable
@@ -2575,5 +2590,84 @@ Otherwise, the restored buffer will contain a prompt to do so by using
 (put 'eww-bookmark-jump 'bookmark-handler-type "EWW")
 
 (provide 'eww)
+
+;;; Alternate links (RSS and Atom feeds, etc.)
+
+(defun eww--alternate-urls (dom &optional base)
+  "Return an alist of alternate links in DOM.
+
+Each element is a list of the form (URL TYPE TITLE) where URL is
+the href attribute of the link expanded relative to BASE, TYPE is
+its type attribute, and TITLE is its title attribute.  If any of
+these attributes is absent, the corresponding element is nil."
+  (let ((alternates
+         (seq-filter
+          (lambda (attrs) (string= (alist-get 'rel attrs)
+                                   "alternate"))
+          (mapcar #'dom-attributes (dom-by-tag dom 'link)))))
+    (mapcar (lambda (alternate)
+              (list (url-expand-file-name (alist-get 'href alternate)
+                                          base)
+                    (alist-get 'type  alternate)
+                    (alist-get 'title alternate)))
+            alternates)))
+
+(defun eww-read-alternate-url ()
+  "Get the URL of an alternate link of this page.
+
+If there is just one alternate link, return its URL.  If there
+are multiple alternate links, prompt for one in the minibuffer
+with completion.  If there are none, return nil."
+  (when-let ((alternates (eww--alternate-urls
+                          (plist-get eww-data :dom)
+                          (plist-get eww-data :url))))
+    (let ((url-max-width
+           (seq-max (mapcar #'string-pixel-width
+                            (mapcar #'car alternates))))
+          (title-max-width
+           (seq-max (mapcar #'string-pixel-width
+                            (mapcar #'caddr alternates))))
+          (sep-width (string-pixel-width " ")))
+      (if (cdr alternates)
+          (let ((completion-extra-properties
+                 (list :annotation-function
+                       (lambda (feed)
+                         (let* ((attrs (alist-get feed
+                                                  alternates
+                                                  nil
+                                                  nil
+                                                  #'string=))
+                                (type (car attrs))
+                                (title (cadr attrs)))
+                           (concat
+                            (propertize " " 'display
+                                        `(space :align-to
+                                                (,(+ sep-width
+                                                     url-max-width))))
+                            title
+                            (when type
+                              (concat
+                               (propertize " " 'display
+                                           `(space :align-to
+                                                   (,(+ (* 2 sep-width)
+                                                        url-max-width
+                                                        title-max-width))))
+                               "[" type "]"))))))))
+            (completing-read "Alternate URL: " alternates nil t))
+        (caar alternates)))))
+
+(defun eww-copy-alternate-url ()
+  "Copy the alternate URL of the current page into the kill ring.
+If there are multiple alternate links on the current page, prompt
+for one in the minibuffer, with completion.
+Alternate links are references that an HTML page may include to
+point to its alternative representations, such as a translated
+version or an RSS feed."
+  (interactive nil eww-mode)
+  (if-let ((url (eww-read-alternate-url)))
+      (progn
+        (kill-new url)
+        (message "Copied %s to kill ring" url))
+    (user-error "No alternate links found on this page!")))
 
 ;;; eww.el ends here

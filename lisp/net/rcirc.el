@@ -584,7 +584,7 @@ If ARG is non-nil, instead prompt for connection parameters."
                   (condition-case nil
                       (let ((process (rcirc-connect server port nick user-name
                                                     full-name channels password encryption
-                                                    client-cert server-alias)))
+                                                    server-alias client-cert)))
                         (when rcirc-display-server-buffer
                           (pop-to-buffer-same-window (process-buffer process))))
                     (quit (message "Quit connecting to %s"
@@ -680,7 +680,7 @@ See `rcirc-connect' for more details on these variables.")
 ;;;###autoload
 (defun rcirc-connect (server &optional port nick user-name
                              full-name startup-channels password encryption
-                             certfp server-alias)
+                             server-alias certfp)
   "Connect to SERVER.
 The arguments PORT, NICK, USER-NAME, FULL-NAME, PASSWORD,
 ENCRYPTION, CERTFP, SERVER-ALIAS are interpreted as in
@@ -859,6 +859,7 @@ If QUIET is non-nil, no not emit a message."
       (if (rcirc--connection-open-p process)
           (throw 'exit (or quiet (message "Server process is alive")))
         (delete-process process))
+      (setq rcirc-user-authenticated nil)
       (let ((conn-info rcirc-connection-info))
         (setf (nth 5 conn-info)
               (cl-remove-if-not #'rcirc-channel-p
@@ -1233,9 +1234,9 @@ If SILENT is non-nil, do not print the message in any irc buffer."
   (let ((response (if noticep "NOTICE" "PRIVMSG")))
     (rcirc-get-buffer-create process target)
     (dolist (msg (rcirc-split-message message))
-      (rcirc-send-string process response target : msg)
       (unless silent
-        (rcirc-print process (rcirc-nick process) response target msg)))))
+        (rcirc-print process (rcirc-nick process) response target msg))
+      (rcirc-send-string process response target : msg))))
 
 (defvar-local rcirc-input-ring nil
   "Ring object for input.")
@@ -2034,7 +2035,7 @@ connection."
                (not (string= sender (rcirc-nick process))))
     (let* ((buffer (rcirc-target-buffer process sender response target text))
            (time (if-let ((time (rcirc-get-tag "time")))
-                     (parse-iso8601-time-string time)
+                     (parse-iso8601-time-string time t)
                    (current-time)))
            (inhibit-read-only t))
       (with-current-buffer buffer
@@ -2059,7 +2060,7 @@ connection."
                              (point-min)))
               (when (let ((then (get-text-property (point) 'rcirc-time)))
                       (and then (not (time-less-p time then))))
-                (next-single-property-change (point) 'hard)
+                (goto-char (next-single-property-change (point) 'hard))
                 (forward-char 1)
                 (throw 'exit nil))))
           (goto-char (line-beginning-position))
@@ -2204,7 +2205,7 @@ The message is logged in `rcirc-log', and is later written to
 disk.  PROCESS is the process object for the current connection."
   (let ((filename (funcall rcirc-log-filename-function process target))
         (time (and-let* ((time (rcirc-get-tag "time")))
-                (parse-iso8601-time-string time))))
+                (parse-iso8601-time-string time t))))
     (unless (null filename)
       (let ((cell (assoc-string filename rcirc-log-alist))
             (line (concat (format-time-string rcirc-time-format time)
@@ -2998,7 +2999,7 @@ If ARG is given, opens the URL in a new browser window."
   "Insert a timestamp."
   (goto-char (point-min))
   (let ((time (and-let* ((time (rcirc-get-tag "time")))
-                (parse-iso8601-time-string time))))
+                (parse-iso8601-time-string time t))))
     (insert (rcirc-facify (format-time-string rcirc-time-format time)
                           'rcirc-timestamp))))
 

@@ -415,7 +415,7 @@ directory hierarchy."
             (and (string= method "workspace/didChangeWatchedFiles")
                  (cl-destructuring-bind (&key uri type)
                      (elt (plist-get params :changes) 0)
-                   (and (string= (eglot--path-to-uri "Cargo.toml") uri)
+                   (and (string= (eglot-path-to-uri "Cargo.toml") uri)
                         (= type 3))))))))))
 
 (ert-deftest eglot-test-basic-diagnostics ()
@@ -927,7 +927,7 @@ int main() {
         (should-error (apply #'eglot--connect (eglot--guess-contact)))))))
 
 (ert-deftest eglot-test-capabilities ()
-  "Unit test for `eglot--server-capable'."
+  "Unit test for `eglot-server-capable'."
   (cl-letf (((symbol-function 'eglot--capabilities)
              (lambda (_dummy)
                ;; test data lifted from Golangserver example at
@@ -942,11 +942,11 @@ int main() {
                      :xdefinitionProvider t :xworkspaceSymbolByProperties t)))
             ((symbol-function 'eglot--current-server-or-lose)
              (lambda () nil)))
-    (should (eql 2 (eglot--server-capable :textDocumentSync)))
-    (should (eglot--server-capable :completionProvider :triggerCharacters))
-    (should (equal '(:triggerCharacters ["."]) (eglot--server-capable :completionProvider)))
-    (should-not (eglot--server-capable :foobarbaz))
-    (should-not (eglot--server-capable :textDocumentSync :foobarbaz))))
+    (should (eql 2 (eglot-server-capable :textDocumentSync)))
+    (should (eglot-server-capable :completionProvider :triggerCharacters))
+    (should (equal '(:triggerCharacters ["."]) (eglot-server-capable :completionProvider)))
+    (should-not (eglot-server-capable :foobarbaz))
+    (should-not (eglot-server-capable :textDocumentSync :foobarbaz))))
 
 (defmacro eglot--without-interface-warnings (&rest body)
   (let ((eglot-strict-mode nil))
@@ -1237,8 +1237,6 @@ GUESSED-MAJOR-MODES-SYM are bound to the useful return values of
 
 (defvar tramp-histfile-override)
 (defun eglot--call-with-tramp-test (fn)
-  (unless (>= emacs-major-version 27)
-    (ert-skip "Eglot Tramp support only on Emacs >= 27"))
   ;; Set up a Tramp method that’s just a shell so the remote host is
   ;; really just the local host.
   (let* ((tramp-remote-path (cons 'tramp-own-remote-path
@@ -1260,6 +1258,9 @@ GUESSED-MAJOR-MODES-SYM are bound to the useful return values of
                 (when (and noninteractive (not (file-directory-p "~/")))
                   (setenv "HOME" temporary-file-directory)))))
          (default-directory temporary-file-directory))
+    ;; We must check the remote LSP server.  So far, just "clangd" is used.
+    (unless (ignore-errors (executable-find "clangd" 'remote))
+      (ert-skip "Remote clangd not found"))
     (funcall fn)))
 
 (ert-deftest eglot-test-tramp-test ()
@@ -1275,9 +1276,9 @@ GUESSED-MAJOR-MODES-SYM are bound to the useful return values of
 (ert-deftest eglot-test-path-to-uri-windows ()
   (skip-unless (eq system-type 'windows-nt))
   (should (string-prefix-p "file:///"
-                           (eglot--path-to-uri "c:/Users/Foo/bar.lisp")))
+                           (eglot-path-to-uri "c:/Users/Foo/bar.lisp")))
   (should (string-suffix-p "c%3A/Users/Foo/bar.lisp"
-                           (eglot--path-to-uri "c:/Users/Foo/bar.lisp"))))
+                           (eglot-path-to-uri "c:/Users/Foo/bar.lisp"))))
 
 (ert-deftest eglot-test-same-server-multi-mode ()
   "Check single LSP instance manages multiple modes in same project."

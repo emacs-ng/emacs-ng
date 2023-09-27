@@ -327,9 +327,8 @@ and syntax highlighting is set up with `sh-mode'.  In addition to
 buffer as the current buffer after its setup is done.  This can
 be used to further customize fontification and other behavior of
 the indirect buffer."
-  :type 'boolean
+  :type 'hook
   :group 'shell
-  :safe 'booleanp
   :version "29.1")
 
 (defcustom shell-highlight-undef-enable nil
@@ -346,10 +345,10 @@ undefined commands."
   "List of directories saved by pushd in this buffer's shell.
 Thus, this does not include the shell's current directory.")
 
-(defvaralias 'shell-dirtrack-mode 'shell-dirtrackp)
-
-(defvar shell-dirtrackp t
-  "Non-nil in a shell buffer means directory tracking is enabled.")
+(defvaralias 'shell-dirtrackp 'shell-dirtrack-mode
+  "Non-nil in a shell buffer means directory tracking is enabled.
+Directory tracking (`shell-dirtrack-mode') is automatically enabled
+when `shell-mode' is activated.")
 
 (defvar shell-last-dir nil
   "Keep track of last directory for ksh `cd -' command.")
@@ -595,6 +594,9 @@ Shell buffers.  It implements `shell-completion-execonly' for
   ;; Don't use pcomplete's defaulting mechanism, rely on
   ;; shell-dynamic-complete-functions instead.
   (setq-local pcomplete-default-completion-function #'ignore)
+  ;; Do not expand remote file names.
+  (setq-local pcomplete-remote-file-ignore
+              (not (file-remote-p default-directory)))
   (setq-local comint-input-autoexpand shell-input-autoexpand)
   ;; Not needed in shell-mode because it's inherited from comint-mode, but
   ;; placed here for read-shell-command.
@@ -997,6 +999,21 @@ Make the shell buffer the current buffer, and return it.
 ;; replace it with a process filter that watches for and strips out
 ;; these messages.
 
+(define-minor-mode shell-dirtrack-mode
+  "Toggle directory tracking in this shell buffer (Shell Dirtrack mode).
+This assigns a buffer-local non-nil value to `shell-dirtrackp'.
+
+The `dirtrack' package provides an alternative implementation of
+this feature; see the function `dirtrack-mode'.  Also see
+`comint-osc-directory-tracker' for an escape-sequence based
+solution."
+  :lighter nil
+  :interactive (shell-mode)
+  (setq list-buffers-directory (if shell-dirtrack-mode default-directory))
+  (if shell-dirtrack-mode
+      (add-hook 'comint-input-filter-functions #'shell-directory-tracker nil t)
+    (remove-hook 'comint-input-filter-functions #'shell-directory-tracker t)))
+
 (defun shell-directory-tracker (str)
   "Tracks cd, pushd and popd commands issued to the shell.
 This function is called on each input passed to the shell.
@@ -1013,7 +1030,7 @@ and  `shell-popd-regexp', while `shell-pushd-tohome', `shell-pushd-dextract',
 and `shell-pushd-dunique' control the behavior of the relevant command.
 
 Environment variables are expanded, see function `substitute-in-file-name'."
-  (if shell-dirtrackp
+  (if shell-dirtrack-mode
       ;; We fail gracefully if we think the command will fail in the shell.
 ;;;      (with-demoted-errors "Directory tracker failure: %s"
       ;; This fails so often that it seems better to just ignore errors (?).
@@ -1167,23 +1184,10 @@ Environment variables are expanded, see function `substitute-in-file-name'."
   (and (string-match "^\\+[1-9][0-9]*$" str)
        (string-to-number str)))
 
-(define-minor-mode shell-dirtrack-mode
-  "Toggle directory tracking in this shell buffer (Shell Dirtrack mode).
-
-The `dirtrack' package provides an alternative implementation of
-this feature; see the function `dirtrack-mode'.  Also see
-`comint-osc-directory-tracker' for an escape-sequence based
-solution."
-  :lighter nil
-  (setq list-buffers-directory (if shell-dirtrack-mode default-directory))
-  (if shell-dirtrack-mode
-      (add-hook 'comint-input-filter-functions #'shell-directory-tracker nil t)
-    (remove-hook 'comint-input-filter-functions #'shell-directory-tracker t)))
-
 (defun shell-cd (dir)
   "Do normal `cd' to DIR, and set `list-buffers-directory'."
   (cd dir)
-  (if shell-dirtrackp
+  (if shell-dirtrack-mode
       (setq list-buffers-directory default-directory)))
 
 (defun shell-resync-dirs ()
@@ -1372,7 +1376,12 @@ Returns t if successful."
     (while path-dirs
       (setq dir (file-name-as-directory (comint-directory (or (car path-dirs) ".")))
 	    comps-in-dir (and (file-accessible-directory-p dir)
-			      (file-name-all-completions filenondir dir)))
+			      (condition-case nil
+                                  (file-name-all-completions filenondir dir)
+                                ;; Systems such as Android sometimes
+                                ;; put inaccessible directories in
+                                ;; PATH.
+                                (permission-denied nil))))
       ;; Go thru each completion found, to see whether it should be used.
       (while comps-in-dir
 	(setq file (car comps-in-dir)
@@ -1628,15 +1637,15 @@ Returns t if successful."
   "Whether to inhibit cache for fontifying shell commands in remote buffers.
 When fontification of non-existent commands is enabled in a
 remote shell buffer, use a cache to speed up searching for
-executable files on the remote machine.  This options is used to
-control expiry of this cache.  See `remote-file-name-inhibit-cache'
-for description."
+executable files on the remote machine.  This option controls
+expiry of the cache.  See `remote-file-name-inhibit-cache' for
+a description of the possible options."
   :group 'faces
   :type '(choice
-          (const :tag "Do not inhibit file name cache" nil)
-          (const :tag "Do not use file name cache" t)
-          (integer :tag "Do not use file name cache"
-                   :format "Do not use file name cache older than %v seconds"
+          (const :tag "Do not cache remote executables" t)
+          (const :tag "Cache remote executables" nil)
+          (integer :tag "Cache remote executables with expiration"
+                   :format "Cache expiry in seconds: %v"
                    :value 10))
   :version "29.1")
 
@@ -1649,7 +1658,7 @@ EXECUTABLES is a hash table with keys being the base-names of
 executable files.
 
 Cache expiry is controlled by the user option
-`remote-file-name-inhibit-cache'.")
+`shell-highlight-undef-remote-file-name-inhibit-cache'.")
 
 (defvar shell--highlight-undef-face 'shell-highlight-undef-defined-face)
 

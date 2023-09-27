@@ -254,6 +254,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #ifdef HAVE_HAIKU
 #define GCGraphicsExposures 0
 #endif /* HAVE_HAIKU */
+
+#ifdef HAVE_ANDROID
+#define GCGraphicsExposures 0
+#endif /* HAVE_ANDROID */
 #endif /* HAVE_WINDOW_SYSTEM */
 
 #include "buffer.h"
@@ -626,6 +630,39 @@ x_free_gc (struct frame *f, GC gc)
   free (gc);
 }
 #endif  /* USE_WEBRENDER */
+
+#ifdef HAVE_ANDROID
+
+/* Android real GCs.  */
+
+static struct android_gc *
+x_create_gc (struct frame *f, unsigned long value_mask,
+	     Emacs_GC *xgcv)
+{
+  struct android_gc_values gcv;
+  unsigned long mask;
+
+  gcv.foreground = xgcv->foreground;
+  gcv.background = xgcv->background;
+
+  mask = 0;
+
+  if (value_mask & GCForeground)
+    mask |= ANDROID_GC_FOREGROUND;
+
+  if (value_mask & GCBackground)
+    mask |= ANDROID_GC_BACKGROUND;
+
+  return android_create_gc (mask, &gcv);
+}
+
+static void
+x_free_gc (struct frame *f, struct android_gc *gc)
+{
+  android_free_gc (gc);
+}
+
+#endif
 
 /***********************************************************************
 			   Frames and faces
@@ -1595,7 +1632,7 @@ the face font sort order, see `face-font-selection-order'.  */)
     {
       Lisp_Object font = AREF (vec, i);
       int point = PIXEL_TO_POINT (XFIXNUM (AREF (font, FONT_SIZE_INDEX)) * 10,
-				  FRAME_RES_Y (f));
+				  FRAME_RES (f));
       Lisp_Object spacing = Ffont_get (font, QCspacing);
       Lisp_Object v = CALLN (Fvector,
 			     AREF (font, FONT_FAMILY_INDEX),
@@ -1612,7 +1649,7 @@ the face font sort order, see `face-font-selection-order'.  */)
 					  make_fixnum
 					  (FONT_SPACING_PROPORTIONAL)))
 			     ? Qnil : Qt,
-			     Ffont_xlfd_name (font, Qnil),
+			     Ffont_xlfd_name (font, Qnil, Qt),
 			     AREF (font, FONT_REGISTRY_INDEX));
       result = Fcons (v, result);
     }
@@ -1721,7 +1758,7 @@ the WIDTH times as wide as FACE on FRAME.  */)
 	  ASET (font_entity, FONT_SIZE_INDEX,
 		AREF (font_spec, FONT_SIZE_INDEX));
 	}
-      XSETCAR (tail, Ffont_xlfd_name (font_entity, Qnil));
+      XSETCAR (tail, Ffont_xlfd_name (font_entity, Qnil, Qt));
     }
   if (NILP (frame))
     /* We don't have to check fontsets.  */
@@ -2156,7 +2193,7 @@ set_lface_from_font (struct frame *f, Lisp_Object lface,
 
   if (force_p || UNSPECIFIEDP (LFACE_HEIGHT (lface)))
     {
-      int pt = PIXEL_TO_POINT (font->pixel_size * 10, FRAME_RES_Y (f));
+      int pt = PIXEL_TO_POINT (font->pixel_size * 10, FRAME_RES (f));
 
       eassert (pt > 0);
       ASET (lface, LFACE_HEIGHT_INDEX, make_fixnum (pt));
@@ -4001,7 +4038,8 @@ x_update_menu_appearance (struct frame *f)
 	      || !UNSPECIFIEDP (LFACE_SLANT (lface))
 	      || !UNSPECIFIEDP (LFACE_HEIGHT (lface))))
 	{
-	  Lisp_Object xlfd = Ffont_xlfd_name (LFACE_FONT (lface), Qnil);
+	  Lisp_Object xlfd = Ffont_xlfd_name (LFACE_FONT (lface), Qnil,
+					      Qnil);
 #ifdef USE_MOTIF
 	  const char *suffix = "List";
 	  bool motif = true;
@@ -6972,20 +7010,22 @@ where R,G,B are numbers between 0 and 255 and name is an arbitrary string.  */)
       int num;
 
       while (fgets (buf, sizeof (buf), fp) != NULL)
-	if (sscanf (buf, "%d %d %d %n", &red, &green, &blue, &num) == 3)
-	  {
+	{
+	  if (sscanf (buf, "%d %d %d %n", &red, &green, &blue, &num) == 3)
+	    {
 #ifdef HAVE_NTGUI
-	    int color = RGB (red, green, blue);
+	      int color = RGB (red, green, blue);
 #else
-	    int color = (red << 16) | (green << 8) | blue;
+	      int color = (red << 16) | (green << 8) | blue;
 #endif
-	    char *name = buf + num;
-	    ptrdiff_t len = strlen (name);
-	    len -= 0 < len && name[len - 1] == '\n';
-	    cmap = Fcons (Fcons (make_string (name, len), make_fixnum (color)),
-			  cmap);
-	  }
-      fclose (fp);
+	      char *name = buf + num;
+	      ptrdiff_t len = strlen (name);
+	      len -= 0 < len && name[len - 1] == '\n';
+	      cmap = Fcons (Fcons (make_string (name, len), make_fixnum (color)),
+			    cmap);
+	    }
+	}
+      emacs_fclose (fp);
     }
   unblock_input ();
   return cmap;

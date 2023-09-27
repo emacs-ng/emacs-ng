@@ -5,6 +5,7 @@
 ;; Author: Mathias Dahl <mathias.rem0veth1s.dahl@gmail.com>
 ;; Maintainer: Stefan Kangas <stefankangas@gmail.com>
 ;; Keywords: multimedia
+;; Package: image-dired
 
 ;; This file is part of GNU Emacs.
 
@@ -405,7 +406,8 @@ The new file will be named THUMBNAIL-FILE."
                 (not image-dired-rotate-original-ask-before-overwrite))
             (progn
               (copy-file image-dired-temp-rotate-image-file file t)
-              (image-dired-refresh-thumb))
+              (image-dired-refresh-thumb)
+              (image-dired-update-thumbnail-at-point))
           (image-dired-display-image file))))))
 
 

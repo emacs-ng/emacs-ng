@@ -142,6 +142,7 @@ on the remote host.
 * Ssh setup::                   Ssh setup hints.
 * FUSE setup::                  @acronym{FUSE} setup hints.
 * Android shell setup::         Android shell setup hints.
+* Kubernetes setup::            Kubernetes setup hints.
 * Auto-save File Lock and Backup::
                                 Auto-save, File Lock and Backup.
 * Keeping files encrypted::     Protect remote files by encryption.
@@ -162,6 +163,7 @@ Using @value{tramp}
 
 How file names, directories and localnames are mangled and managed
 
+* Temporary directory::         Where temporary files are kept.
 * Localname deconstruction::    Breaking a localname into its components.
 * External packages::           Integration with external Lisp packages.
 
@@ -289,11 +291,14 @@ accumulated in the buffer, then decodes that output to produce the
 file's contents.
 
 For external transfers, @value{tramp} sends a command as follows:
+
 @example
-$ rcp user@@host:/path/to/remote/file /tmp/tramp.4711
+$ scp user@@host:/path/to/remote/file <TMP>/tramp.4711
 @end example
-@value{tramp} reads the local temporary file @file{/tmp/tramp.4711}
-into a buffer, and then deletes the temporary file.
+
+@value{tramp} reads the local temporary file @file{<TMP>/tramp.4711}
+into a buffer, and then deletes the temporary
+file.@footnote{@ref{Temporary directory}}
 
 @item
 Edit, modify, change the buffer contents as normal, and then save the
@@ -370,7 +375,7 @@ From behind a proxy:
 
 @example
 @group
-$ git config --global http.proxy http://user:pwd@@proxy.server.com:8080
+$ git config --global http.proxy https://user:pwd@@proxy.server.com:8080
 $ git clone https://git.savannah.gnu.org/r/tramp.git
 @end group
 @end example
@@ -700,6 +705,7 @@ on the remote host.
 * Ssh setup::                   Ssh setup hints.
 * FUSE setup::                  @acronym{FUSE} setup hints.
 * Android shell setup::         Android shell setup hints.
+* Kubernetes setup::            Kubernetes setup hints.
 * Auto-save File Lock and Backup::
                                 Auto-save, File Lock and Backup.
 * Keeping files encrypted::     Protect remote files by encryption.
@@ -921,9 +927,10 @@ if desired.
 @cindex method @option{kubernetes}
 @cindex @option{kubernetes} method
 
-Integration for containers in Kubernetes pods.  The host name is a pod
-name returned by @samp{kubectl get pods}.  The first container in a
-pod is used.
+Integration for containers in Kubernetes pods.  The host name is
+@samp{@var{pod}}, or @samp{@var{container}.@var{pod}} if an
+explicit container name shall be used.  Otherwise, the first container
+in a pod is used.
 
 This method does not support user names.
 
@@ -1087,11 +1094,11 @@ decode programs.
 @cindex method @option{sudoedit}
 @cindex @option{sudoedit} method
 
-The @option{sudoedit} method allows to edit a file as a different user
-on the local host.  You could regard this as @value{tramp}'s
+The @option{sudoedit} method facilitates editing a file as a different
+user on the local host.  You could regard this as @value{tramp}'s
 implementation of the @command{sudoedit}.  Contrary to the
 @option{sudo} method, all magic file name functions are implemented by
-single @command{sudo @dots{}}  commands.  The purpose is to make
+single @command{sudo @dots{}} commands.  The purpose is to make
 editing such a file as secure as possible; there must be no session
 running in the Emacs background which could be attacked from inside
 Emacs.
@@ -1376,7 +1383,7 @@ possible, @value{tramp} emulates those operations otherwise.
 @cindex @option{rclone} method
 
 @vindex tramp-rclone-program
-The program @command{rclone} allows to access different system
+The program @command{rclone} enables accessing different system
 storages in the cloud, see @uref{https://rclone.org/} for a list of
 supported systems.  If the @command{rclone} program isn't found in
 your @env{PATH} environment variable, you can tell @value{tramp} its
@@ -1394,14 +1401,6 @@ access it via the remote file name
 User names are part of the @command{rclone} configuration, and not
 needed in the remote file name.  If a user name is contained in the
 remote file name, it is ignored.
-
-Internally, @value{tramp} mounts the remote system storage at location
-@file{/tmp/tramp.rclone.storage}, with @file{storage} being the name
-of the configured system storage.
-
-The mount point and optional flags to the different @option{rclone}
-operations could be passed as connection properties, @xref{Setup of
-rclone method}.
 
 Access via @option{rclone} is slow.  If you have an alternative method
 for accessing the system storage, you should use it.
@@ -2216,6 +2215,7 @@ to a remote home directory, like @option{adb}, @option{rclone} and
 The temporary directory on the remote host.  If not specified, the
 default value is @t{"/data/local/tmp"} for the @option{adb} method,
 @t{"/C$/Temp"} for the @option{smb} method, and @t{"/tmp"} otherwise.
+@ref{Temporary directory}.
 
 @item @t{"direct-async-process"}
 
@@ -2243,8 +2243,8 @@ this property has no effect.
 
 The directory file name an @acronym{FUSE}-based file system is mounted
 on.  The default value of this property is
-@t{"/tmp/tramp.method.user@@host#port"} (not specified in
-@code{tramp-methods}).
+@t{"<TMP>/tramp.method.user@@host#port"} (not specified in
+@code{tramp-methods}).  @ref{Temporary directory}.
 
 @item @t{"mount-args"}@*
 @t{"copyto-args"}@*
@@ -2366,7 +2366,7 @@ connection information}.  If you want, for example, use
 @end group
 @end lisp
 
-This works only for connection methods which allow to override the
+This works only for connection methods which allow overriding the
 remote login shell, like @option{sshx} or @option{plink}.  See
 @ref{Inline methods} and @ref{External methods} for connection methods
 which support this.
@@ -2436,8 +2436,10 @@ which may not be the same as the local login shell prompt,
 @value{tramp} sets a similar default value for both prompts.
 
 @item @code{tramp-password-prompt-regexp}
+@item @code{tramp-otp-password-prompt-regexp}
 @item @code{tramp-wrong-passwd-regexp}
 @vindex tramp-password-prompt-regexp
+@vindex tramp-otp-password-prompt-regexp
 @vindex tramp-wrong-passwd-regexp
 
 @value{tramp} uses @code{tramp-password-prompt-regexp} to
@@ -2470,6 +2472,10 @@ This user option is, by default, initialized from
 @code{password-word-equivalents} when @value{tramp} is loaded, and it
 is usually more convenient to add new passphrases to that user option
 instead of altering this user option.
+
+The user option @code{tramp-otp-password-prompt-regexp} has a similar
+purpose, but for one-time passwords.  Those passwords are not cached
+by @value{tramp} for reuse.
 
 Similar localization may be necessary for handling wrong password
 prompts, for which @value{tramp} uses @code{tramp-wrong-passwd-regexp}.
@@ -2948,10 +2954,11 @@ The fallback is to start Emacs from a shell.
 @section @acronym{FUSE} setup hints
 
 The @acronym{FUSE} file systems are mounted by default at
-@file{/tmp/tramp.method.user@@host#port}.  The user name and port
-number are optional.  If the file system is already mounted, it will
-be used as it is.  If the mount point does not exist yet,
-@value{tramp} creates this directory.
+@t{"<TMP>/tramp.method.user@@host#port"}.@footnote{@ref{Temporary
+directory}}  Method is either @t{"rclone"} or @t{"sshfs"}.  The user
+name and port number are optional.  If the file system is already
+mounted, it will be used as it is.  If the mount point does not exist
+yet, @value{tramp} creates this directory.
 
 The mount point can be overwritten by the connection property
 @t{"mount-point"}, @ref{Predefined connection information}.
@@ -3113,6 +3120,29 @@ the previous example, fix the connection properties as follows:
 Open a remote connection with the more concise command @kbd{C-x C-f
 @trampfn{ssh,android,} @key{RET}}.
 @end itemize
+
+
+@node Kubernetes setup
+@section Kubernetes setup hints
+
+With the @option{kubernetes} method, containers in Kubernetes pods can
+be accessed.  The host name is a pod name returned by @samp{kubectl
+get pods}, or @samp{@var{container}.@var{pod}} if an explicit
+container name shall be used.  Otherwise, the first container in a pod
+is used.
+
+Sometimes, asynchronous processes for a host without a dedicated
+container name show a warning like @samp{Defaulted container
+"container1" out of: container1, container2}.  This can be mitigated
+by setting the pod annotation
+@samp{kubectl.kubernetes.io/default-container} to a proper value
+(@samp{container1} in this example).
+
+@vindex tramp-kubernetes-context
+@vindex tramp-kubernetes-namespace
+@value{tramp} uses the default Kubernetes context and namespace.  If
+another context or namespace shall be used, configure the user options
+@code{tramp-kubernetes-context} and @code{tramp-kubernetes-namespace}.
 
 
 @node Auto-save File Lock and Backup
@@ -3589,7 +3619,7 @@ completion lists.  If you want to suppress this completion because
 there are invalid entries in the persistency file, for example if the
 host configuration changes often, or if you plug your laptop to
 different networks frequently, you can set the user option
-@code{tramp-completion-use-cache} to nil.
+@code{tramp-completion-use-cache} to @code{nil}.
 
 After remote host name completion comes completion of file names on
 the remote host.  It works the same as with local host file completion
@@ -3644,10 +3674,20 @@ Each involved method must be an inline method (@pxref{Inline methods}).
 @code{tramp-default-proxies-alist} and is available for re-use during
 that Emacs session.  Subsequent @value{tramp} connections to the same
 remote host can then use the shortcut form:
-@samp{@trampfn{ssh,you@@remotehost,/path}}.  Ad-hoc definitions are
-removed from @code{tramp-default-proxies-alist} via the command
-@kbd{M-x tramp-cleanup-all-connections @key{RET}} (@pxref{Cleanup
-remote connections}).
+@samp{@trampfn{ssh,you@@remotehost,/path}}.
+
+@defopt tramp-show-ad-hoc-proxies
+If this user option is non-@code{nil}, ad-hoc definitions are kept in
+remote file names instead of showing the shortcuts.
+
+@lisp
+(customize-set-variable 'tramp-show-ad-hoc-proxies t)
+@end lisp
+@end defopt
+
+Ad-hoc definitions are removed from @code{tramp-default-proxies-alist}
+via the command @kbd{M-x tramp-cleanup-all-connections @key{RET}}
+(@pxref{Cleanup remote connections}).
 
 @defopt tramp-save-ad-hoc-proxies
 For ad-hoc definitions to be saved automatically in
@@ -3669,6 +3709,47 @@ On the other hand, if a trailing hop does not specify a host name, the
 host name of the previous hop is reused.  Therefore, the following
 file name is equivalent to the previous example:
 @samp{@trampfn{ssh@value{postfixhop}remotehost|su,,}}.
+
+@defopt tramp-completion-multi-hop-methods
+When this list includes the last method in a multi-hop connection, the
+remote host will be queried for a list of completion candidates.  This
+can, for example, provide a list of running docker or podman
+containers on the remote host.
+
+@lisp
+(customize-set-variable 'tramp-completion-multi-hop-methods
+ `(,tramp-docker-method ,tramp-podman-method))
+@end lisp
+@end defopt
+
+A common use case for ad-hoc specifications is to visit a file or a
+directory with proper permissions, for example with the @option{sudo}
+method.  The command @code{tramp-revert-buffer-with-sudo} supports
+this.
+
+@deffn Command tramp-revert-buffer-with-sudo
+This command shows the current buffer with @option{sudo} permissions.
+The buffer must either visit a file, or a directory
+(@code{dired-mode}).
+@end deffn
+
+@defopt tramp-file-name-with-method
+The method @code{tramp-revert-buffer-with-sudo} shows an alternate
+buffer.  It defaults to @code{sudo}, other valid methods are
+@code{su}, @code{doas}, and @code{ksu}.
+
+@lisp
+(customize-set-variable 'tramp-file-name-with-method "doas")
+@end lisp
+@end defopt
+
+These methods apply the user @samp{root} as default.  If another user
+shall be taken, add a proper rule to the user option
+@code{tramp-default-user-alist} (@pxref{Default User}):
+
+@lisp
+(add-to-list 'tramp-default-user-alist '("sudo" "remotehost" "admin"))
+@end lisp
 
 
 @node Home directories
@@ -5118,6 +5199,41 @@ In order to disable those optimizations, set user option
 
 
 @item
+@value{tramp} blocks Emacs at startup
+
+@vindex remote-file-name-access-timeout
+Some packages, like @file{desktop.el} or @file{recentf.el}, access
+remote files when loaded.  If the requested file is not accessible,
+@value{tramp} could block.  In order to check whether this could
+happen, add a test via @code{access-file} with a proper timeout prior
+to loading these packages:
+
+@lisp
+@group
+(let ((remote-file-name-access-timeout 10))
+  (access-file "@file{@trampfn{method,user@@host,/path/to/file}}" "error"))
+@result{} nil
+@end group
+@end lisp
+
+The result @code{nil} means success.  If the file is not accessible,
+or if the underlying operations last too long, @code{access-file}
+returns with an error.
+
+The value of the timeout (10 seconds in the example) depends on your
+preference and on the quality of the connection to the remote host.
+If the connection to the remote host isn't established yet, and if
+this requires an interactive password, the timeout check doesn't work
+properly.
+
+@c Since Emacs 30.
+@strong{Note}: In recent versions of Emacs, both packages already
+apply this check.  You just need to customize
+@code{remote-file-name-access-timeout} to the desired timeout (in
+seconds).
+
+
+@item
 Does @value{tramp} support @acronym{SSH} security keys?
 
 Yes.  @command{OpenSSH} has added support for @acronym{FIDO} hardware
@@ -5183,30 +5299,11 @@ How to get notified after @value{tramp} completes file transfers?
 Make Emacs beep after reading from or writing to the remote host with
 the following code in @file{~/.emacs}.
 
+@vindex tramp-handle-write-region-hook
+@vindex tramp-handle-file-local-copy-hook
 @lisp
-@group
-(defadvice tramp-handle-write-region
-  (after tramp-write-beep-advice activate)
-  "Make @value{tramp} beep after writing a file."
-  (interactive)
-  (beep))
-@end group
-
-@group
-(defadvice tramp-handle-do-copy-or-rename-file
-  (after tramp-copy-beep-advice activate)
-  "Make @value{tramp} beep after copying a file."
-  (interactive)
-  (beep))
-@end group
-
-@group
-(defadvice tramp-handle-insert-file-contents
-  (after tramp-insert-beep-advice activate)
-  "Make @value{tramp} beep after inserting a file."
-  (interactive)
-  (beep))
-@end group
+(add-hook 'tramp-handle-write-region-hook 'beep)
+(add-hook 'tramp-handle-file-local-copy-hook 'beep)
 @end lisp
 
 
@@ -5309,26 +5406,6 @@ directory, remote files cannot be restored with the respective tools,
 because those conventions don't specify remote paths.  Such files must
 be restored by moving them manually from
 @file{$@{XDG_DATA_HOME@}/Trash/files/}, if needed.
-
-
-@item
-How to identify temporary files produced by @value{tramp}?
-
-@vindex tramp-temp-name-prefix
-Temporary files are kept in your @code{temporary-file-directory}
-directory, which is often @file{/tmp/}.  By default, they have the
-file name prefix @t{"tramp."}.  If you want to change this prefix, for
-example because you want to identify temporary files produced by
-@code{file-local-copy} in your package, you can bind the variable
-@code{tramp-temp-name-prefix} temporarily:
-
-@example
-@group
-(let ((tramp-temp-name-prefix "my-prefix."))
-  (file-local-copy "@trampfn{ssh,,.emacs}"))
-@result{} "/tmp/my-prefix.HDfgDZ"
-@end group
-@end example
 
 
 @item
@@ -5479,9 +5556,8 @@ minibuffer:
 @end group
 
 @group
-(defadvice minibuffer-complete
-  (before my-minibuffer-complete activate)
-  (expand-abbrev))
+(advice-add 'minibuffer-complete
+ :before 'expand-abbrev)
 @end group
 @end lisp
 
@@ -5678,6 +5754,8 @@ If you find the cleanup disturbing, because the file names in
 two forms in your @file{~/.emacs} after loading the @code{tramp} and
 @code{recentf} packages:
 
+@vindex tramp-cleanup-connection-hook
+@vindex tramp-cleanup-all-connections-hook
 @lisp
 @group
 (remove-hook
@@ -5803,16 +5881,6 @@ If you want to enable Ange FTP's syntax, add the following form:
 @end lisp
 
 @item
-@vindex tramp-mode
-To disable both @value{tramp} (and Ange FTP), set @code{tramp-mode} to
-@code{nil} in @file{.emacs}.  @strong{Note}, that we don't use
-@code{customize-set-variable}, in order to avoid loading @value{tramp}.
-
-@lisp
-(setq tramp-mode nil)
-@end lisp
-
-@item
 @vindex tramp-ignored-file-name-regexp
 To deactivate @value{tramp} for some look-alike remote file names, set
 @code{tramp-ignored-file-name-regexp} to a proper regexp in
@@ -5828,6 +5896,29 @@ This is needed, if you mount for example a virtual file system on your
 local host's root directory as @file{/ssh:example.com:}.
 
 @item
+@findex inhibit-remote-files
+To disable both @value{tramp} (and Ange FTP), type @kbd{M-x
+inhibit-remote-files @key{RET}}.  You can also add this to your
+@file{.emacs}.
+
+@lisp
+(inhibit-remote-files)
+@end lisp
+
+@item
+@findex without-remote-files
+If you write code, which is intended to run only for local files, you
+can use the @code{without-remote-files} macro.
+
+@lisp
+(without-remote-files @dots{})
+@end lisp
+
+This improves performance, because many primitive file name operations
+don't check any longer for Tramp file name regexps then.
+
+@item
+@findex tramp-unload-tramp
 To unload @value{tramp}, type @kbd{M-x tramp-unload-tramp @key{RET}}.
 Unloading @value{tramp} resets Ange FTP plugins also.
 @end itemize
@@ -5848,9 +5939,43 @@ programs.
 @chapter How file names, directories and localnames are mangled and managed
 
 @menu
+* Temporary directory::         Where temporary files are kept.
 * Localname deconstruction::    Splitting a localname into its component parts.
 * External packages::           Integrating with external Lisp packages.
 @end menu
+
+
+@node Temporary directory
+@section Where temporary files are kept
+
+@vindex temporary-file-directory
+Internally, @value{tramp} uses @t{"~/.cache/emacs"}
+as local temporary directory if it exists.  Otherwise, the value of
+@code{temporary-file-directory} is used, which is often @t{"/tmp"}.
+
+@vindex tramp-compat-temporary-file-directory
+@vindex <TMP>
+This local temporary directory is kept in the constant
+@code{tramp-compat-temporary-file-directory}.  In this manual, we use
+@t{"<TMP>"} for its value.
+
+The temporary directory on a remote host is @t{"/data/local/tmp"} for
+the @option{adb} method, @t{"/C$/Temp"} for the @option{smb} method,
+and @t{"/tmp"} otherwise.  For some methods, this can be customized.
+
+@vindex tramp-temp-name-prefix
+Temporary files have the file name prefix @t{"tramp."}.  If you want
+to change this prefix, for example because you want to identify
+temporary files produced by @code{file-local-copy} in your package,
+you can bind the variable @code{tramp-temp-name-prefix} temporarily:
+
+@example
+@group
+(let ((tramp-temp-name-prefix "my-prefix."))
+  (file-local-copy "@trampfn{ssh,,.emacs}"))
+@result{} "/tmp/my-prefix.HDfgDZ"
+@end group
+@end example
 
 
 @node Localname deconstruction
@@ -5958,6 +6083,7 @@ wrapping the timer function body as follows:
 @chapter How to Customize Traces
 @vindex tramp-verbose
 @vindex tramp-debug-to-file
+@vindex tramp-debug-command-messages
 
 @value{tramp} messages are raised with verbosity levels ranging from 0
 to 10.  @value{tramp} does not display all messages; only those with a
@@ -5979,9 +6105,10 @@ The verbosity levels are
 @*@indent @w{11}  call traces (maintainer only)
 
 With @code{tramp-verbose} greater than or equal to 4, messages are
-also written to a @value{tramp} debug buffer.  Such debug buffers are
-essential to bug and problem analyzes.  For @value{tramp} bug reports,
-set the @code{tramp-verbose} level to 6 (@pxref{Bug Reports}).
+also written to the @value{tramp} debug buffer @file{*debug
+tramp/foo*}.  Such debug buffers are essential to bug and problem
+analyzes.  For @value{tramp} bug reports, set the @code{tramp-verbose}
+level to 6 (@pxref{Bug Reports}).
 
 The debug buffer is in
 @ifinfo
@@ -6020,13 +6147,18 @@ a file:
 (customize-set-variable 'tramp-debug-to-file t)
 @end lisp
 
-The debug buffer is written as a file in your
-@code{temporary-file-directory}, which is usually @file{/tmp/}.  Use
-this option with care, because it could decrease the performance of
-@value{tramp} actions.
+The debug buffer is written as a file in your @ref{Temporary
+directory}.  Use this option with care, because it could decrease the
+performance of @value{tramp} actions.
 
 If @code{tramp-verbose} is greater than or equal to 11, @value{tramp}
-function call traces are written to the buffer @file{*trace-output*}.
+function call traces are written to the buffer @file{*trace tramp/foo*}.
+
+When @code{tramp-debug-command-messages} is non-@code{nil}, the debug
+buffer contains all messages with verbosity level 6 (sent and received
+strings), and the entry and exit messages for the function
+@code{tramp-file-name-handler}.  This is intended for @value{tramp}
+maintainers, analyzing the remote commands for performance analysis.
 
 
 @node GNU Free Documentation License

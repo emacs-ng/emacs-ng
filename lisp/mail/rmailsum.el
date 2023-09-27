@@ -52,7 +52,7 @@ Setting this option to nil might speed up the generation of summaries."
 
 (defcustom rmail-summary-progressively-narrow nil
   "Non-nil means progressively narrow the set of messages produced by summary.
-This allows to apply the summary criteria on top one another,
+This enables you to apply the summary criteria on top one another,
 thus progressively narrowing the selection of the messages produced
 by each summary criteria.
 For example, applying `rmail-summary-by-senders' on top
@@ -742,13 +742,14 @@ message."
 	  (setq rmail-summary-buffer nil)))
     (save-excursion
       (let ((rbuf (current-buffer))
-	    (total rmail-total-messages))
+	    (total 0))
 	(set-buffer sumbuf)
 	;; Set up the summary buffer's contents.
 	(let ((buffer-read-only nil))
 	  (erase-buffer)
 	  (while summary-msgs
 	    (princ (cdr (car summary-msgs)) sumbuf)
+            (setq total (1+ total))
 	    (setq summary-msgs (cdr summary-msgs)))
 	  (goto-char (point-min)))
 	;; Set up the rest of its state and local variables.

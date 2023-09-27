@@ -560,16 +560,23 @@ improve the performance of your code.  @xref{Truncation, cache-long-scans}.
 @defun vertical-motion count &optional window cur-col
 This function moves point to the start of the screen line @var{count}
 screen lines down from the screen line containing point.  If @var{count}
-is negative, it moves up instead.
+is negative, it moves up instead.  If @var{count} is zero, point moves
+to the visual start of the current screen line.
 
-The @var{count} argument can be a cons cell, @code{(@var{cols}
-. @var{lines})}, instead of an integer.  Then the function moves by
-@var{lines} screen lines, and puts point @var{cols} columns from the
-visual start of that screen line.  Note that @var{cols} are counted
-from the @emph{visual} start of the line; if the window is scrolled
-horizontally (@pxref{Horizontal Scrolling}), the column on which point
-will end is in addition to the number of columns by which the text is
-scrolled.
+The @var{count} argument can be a cons cell, @w{@code{(@var{cols}
+. @var{lines})}}, instead of an integer.  Then the function moves by
+@var{lines} screen lines, as described for @var{count} above, and puts
+point @var{cols} columns from the visual start of that screen line.
+The value of @var{cols} can be a float, and is interpreted in units of
+the frame's canonical character width (@pxref{Frame Font}); this
+allows specifying accurate horizontal position of point when the
+target screen line uses variable fonts.  Note that @var{cols} are
+counted from the @emph{visual} start of the line; if the window is
+scrolled horizontally (@pxref{Horizontal Scrolling}), the column where
+point will end is in addition to the number of columns by which the
+text is scrolled, and if the target line is a continuation line, its
+leftmost column is considered column zero (unlike column-oriented
+functions, @pxref{Columns}).
 
 The return value is the number of screen lines over which point was
 moved.  The value may be less in absolute value than @var{count} if
@@ -844,23 +851,25 @@ the mode can get navigation-by-defun functionality for free, by using
 @code{treesit-beginning-of-defun} and @code{treesit-end-of-defun}.
 
 @defvar treesit-defun-type-regexp
-The value of this variable is a regexp matching the node type of defun
-nodes.  (For ``node'' and ``node type'', @pxref{Parsing Program Source}.)
+This variable determines which nodes are considered defuns by Emacs.
+It can be a regexp that matches the type of defun nodes.  (For
+``node'' and ``node type'', @pxref{Parsing Program Source}.)
 
 For example, @code{python-mode} sets this variable to a regexp that
-matches either @code{"function_definition"} or @code{"class_definition"}.
+matches either @samp{function_definition} or @samp{class_definition}.
+
+Sometimes not all nodes matched by the regexp are valid defuns.
+Therefore, this variable can also be a cons cell of the form
+@w{(@var{regexp} . @var{pred})}, where @var{pred} should be a function
+that takes a node as its argument, and returns non-@code{nil} if the
+node is a valid defun, or @code{nil} if it is not valid.
 @end defvar
 
 @defvar treesit-defun-tactic
-This variable determines how Emacs treats nested defuns.  If the
-value is @code{top-level}, navigation functions only move across
-top-level defuns, if the value is @code{nested}, navigation functions
-recognize nested defuns.
-@end defvar
-
-@defvar treesit-sentence-type-regexp
-The value of this variable is a regexp matching the node type of sentence
-nodes.  (For ``node'' and ``node type'', @pxref{Parsing Program Source}.)
+This variable determines how Emacs treats nested defuns.  If the value
+is @code{top-level}, navigation functions only move across top-level
+defuns.  If the value is @code{nested}, navigation functions recognize
+nested defuns.
 @end defvar
 
 @findex treesit-forward-sentence
@@ -869,17 +878,11 @@ nodes.  (For ``node'' and ``node type'', @pxref{Parsing Program Source}.)
 If Emacs is compiled with tree-sitter, it can use the tree-sitter
 parser information to move across syntax constructs.  Since what
 exactly is considered a sentence varies between languages, a major
-mode should set @code{treesit-sentence-type-regexp} to determine that.
+mode should set @code{treesit-thing-settings} to determine that.
 Then the mode can get navigation-by-sentence functionality for free,
 by using @code{forward-sentence} and
 @code{backward-sentence}(@pxref{Moving by Sentences,,, emacs, The
 extensible self-documenting text editor}).
-
-@defvar treesit-sexp-type-regexp
-The value of this variable is a regexp matching the node type of sexp
-nodes.  (For ``node'' and ``node type'', @pxref{Parsing Program
-Source}.)
-@end defvar
 
 @findex treesit-forward-sexp
 @findex forward-sexp@r{, and tree-sitter}
@@ -887,7 +890,7 @@ Source}.)
 If Emacs is compiled with tree-sitter, it can use the tree-sitter
 parser information to move across syntax constructs.  Since what
 exactly is considered a sexp varies between languages, a major mode
-should set @code{treesit-sexp-type-regexp} to determine that.  Then
+should set @code{treesit-thing-settings} to determine that.  Then
 the mode can get navigation-by-sexp functionality for free, by using
 @code{forward-sexp} and @code{backward-sexp}(@pxref{Moving by
 Sentences,,, emacs, The extensible self-documenting text editor}).
@@ -1188,7 +1191,9 @@ saved bounds.  In that case it is equivalent to
 @end example
 
 @cindex labeled narrowing
-When the optional argument @var{label}, a symbol, is present, the
+@cindex labeled restriction
+When the optional argument @var{label}, which is evaluated to get the
+label to use and must yield a non-@code{nil} value, is present, the
 narrowing is @dfn{labeled}.  A labeled narrowing differs from a
 non-labeled one in several ways:
 

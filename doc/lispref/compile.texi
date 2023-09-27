@@ -422,7 +422,7 @@ execution of the compiled file.  For example,
 @lisp
 (eval-when-compile
   (unless (fboundp 'some-new-thing)
-    (defmacro 'some-new-thing ()
+    (defmacro some-new-thing ()
       (compatibility code))))
 @end lisp
 
@@ -801,9 +801,9 @@ Compilation, the previous chapter}, Emacs can also optionally compile
 Lisp function definitions into a true compiled code, known as
 @dfn{native code}.  This feature uses the @file{libgccjit} library,
 which is part of the GCC distribution, and requires that Emacs be
-built with support for using that library.  It also requires to have
-GCC and Binutils (the assembler and linker) available on your system
-for you to be able to native-compile Lisp code.
+built with support for using that library.  It also requires GCC and
+Binutils (the assembler and linker) to be available on your system for
+you to be able to native-compile Lisp code.
 
 @vindex native-compile@r{, a Lisp feature}
   To determine whether the current Emacs process can produce and load
@@ -831,9 +831,9 @@ produced by earlier or later Emacs versions; native compilation of the
 same Lisp code by a different Emacs version will usually produce a
 natively-compiled library under a unique file name that only that
 version of Emacs will be able to load.  However, the use of unique
-file names allows to have in the same directory several versions of
-the same Lisp library natively-compiled by several different versions
-of Emacs.
+file names enables several versions of the same Lisp library
+natively-compiled by several different versions of Emacs to be placed
+within the same directory.
 
 @vindex no-native-compile
   A non-@code{nil} file-local variable binding of
@@ -854,7 +854,10 @@ that the latter technique might still produce a small number of
 @file{*.eln} files if Emacs needs to generate @dfn{trampolines}, which
 are used if Lisp primitives are advised or redefined in your Lisp code
 that is being natively compiled.  @xref{Native-Compilation Variables,
-trampolines}.
+trampolines}.  Alternatively, you can specify that the @file{*.eln}
+files are written to a non-default directory using the
+@code{startup-redirect-eln-cache} function; @pxref{Native-Compilation
+Functions}.
 
 @menu
 * Native-Compilation Functions::  Functions to natively-compile Lisp.
@@ -979,6 +982,22 @@ available and can be loaded.  Lisp programs that need to know up front
 whether native-compilation is available should use this predicate.
 @end defun
 
+  By default, asynchronous native compilation writes the @file{*.eln}
+files it produces to a subdirectory of the first writable directory
+specified by the @code{native-comp-eln-load-path} variable
+(@pxref{Native-Compilation Variables}).  You can change this by using
+the following function in your startup files:
+
+@defun startup-redirect-eln-cache cache-directory
+This function arranges for the asynchronous native compilation to
+write the produced @file{*.eln} files to @var{cache-directory}, which
+must be a single directory, a string.  It also destructively modifies
+@code{native-comp-eln-load-path} such that its first element is
+@var{cache-directory}.  If @var{cache-directory} is not an absolute
+file name, it is interpreted relative to @code{user-emacs-directory}
+(@pxref{Init File}).
+@end defun
+
 @node Native-Compilation Variables
 @section Native-Compilation Variables
 @cindex native-compilation variables
@@ -1097,7 +1116,7 @@ functions provided by the @file{.elc} file.
 @end defvar
 
 @cindex trampolines, in native compilation
-  Setting the value of @code{native-comp-jit-compilation} to@code{nil}
+  Setting the value of @code{native-comp-jit-compilation} to @code{nil}
 disables JIT native compilation.  However, even when JIT native
 compilation is disabled, Emacs might still need to start asynchronous
 native compilation subprocesses to produce @dfn{trampolines}.  To

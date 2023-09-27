@@ -79,6 +79,14 @@
                   :help "Print current buffer with page headings"))
     menu))
 
+(defcustom menu-bar-close-window nil
+  "Whether or not to close the current window from the menu bar.
+If non-nil, selecting Close from the File menu or clicking Close
+in the tool bar will close the current window where possible."
+  :type 'boolean
+  :group 'menu
+  :version "30.1")
+
 (defvar menu-bar-file-menu
   (let ((menu (make-sparse-keymap "File")))
 
@@ -219,10 +227,18 @@
       '(menu-item "Insert File..." insert-file
                   :enable (menu-bar-non-minibuffer-window-p)
                   :help "Insert another file into current buffer"))
+    (bindings--define-key menu [project-dired]
+      '(menu-item "Open Project Directory" project-dired
+                  :enable (menu-bar-non-minibuffer-window-p)
+                  :help "Read the root directory of the current project, to operate on its files"))
     (bindings--define-key menu [dired]
       '(menu-item "Open Directory..." dired
                   :enable (menu-bar-non-minibuffer-window-p)
                   :help "Read a directory, to operate on its files"))
+    (bindings--define-key menu [project-open-file]
+      '(menu-item "Open File In Project..." project-find-file
+                  :enable (menu-bar-non-minibuffer-window-p)
+                  :help "Read existing file that belongs to current project into an Emacs buffer"))
     (bindings--define-key menu [open-file]
       '(menu-item "Open File..." menu-find-file-existing
                   :enable (menu-bar-non-minibuffer-window-p)
@@ -347,6 +363,9 @@
     (bindings--define-key menu [tags-srch]
       '(menu-item "Search Tagged Files..." tags-search
                   :help "Search for a regexp in all tagged files"))
+    (bindings--define-key menu [project-search]
+      '(menu-item "Search in Project Files..." project-find-regexp
+        :help "Search for a regexp in files belonging to current project"))
     (bindings--define-key menu [separator-tag-search] menu-bar-separator)
 
     (bindings--define-key menu [repeat-search-back]
@@ -398,6 +417,9 @@
     (bindings--define-key menu [tags-repl]
       '(menu-item "Replace in Tagged Files..." tags-query-replace
         :help "Interactively replace a regexp in all tagged files"))
+    (bindings--define-key menu [project-replace]
+      '(menu-item "Replace in Project Files..." project-query-replace-regexp
+        :help "Interactively replace a regexp in files belonging to current project"))
     (bindings--define-key menu [separator-replace-tags]
       menu-bar-separator)
 
@@ -471,6 +493,11 @@
 
 (defvar menu-bar-edit-menu
   (let ((menu (make-sparse-keymap "Edit")))
+
+    (bindings--define-key menu [execute-extended-command]
+      '(menu-item "Execute Command" execute-extended-command
+                  :enable t
+                  :help "Read a command name, its arguments, then call it."))
 
     ;; ns-win.el said: Add spell for platform consistency.
     (if (featurep 'ns)
@@ -672,10 +699,10 @@ Do the same for the keys of the same name."
       menu-bar-separator)
     (bindings--define-key menu [customize-browse]
       '(menu-item "Browse Customization Groups" customize-browse
-                  :help "Browse all customization groups"))
+                  :help "Tree-like browser of all the groups of customizable options"))
     (bindings--define-key menu [customize]
-      '(menu-item "Top-level Customization Group" customize
-                  :help "The master group called `Emacs'"))
+      '(menu-item "Top-level Emacs Customization Group" customize
+                  :help "Top-level groups of customizable options, and their descriptions"))
     (bindings--define-key menu [customize-themes]
       '(menu-item "Custom Themes" customize-themes
                   :help "Choose a pre-defined customization theme"))
@@ -1450,30 +1477,30 @@ mail status in mode line"))
                  (word-search-regexp "Whole Words" "Whole word")))
       (bindings--define-key menu (vector (nth 0 x))
         `(menu-item ,(nth 1 x)
-                    (lambda ()
-                      (interactive)
-                      (setq search-default-mode #',(nth 0 x))
-                      (message ,(format "%s search enabled" (nth 2 x))))
+                    ,(lambda ()
+                       (interactive)
+                       (setq search-default-mode (nth 0 x))
+                       (message "%s search enabled" (nth 2 x)))
                     :help ,(format "Enable %s search" (downcase (nth 2 x)))
                     :button (:radio . (eq search-default-mode #',(nth 0 x))))))
 
     (bindings--define-key menu [regexp-search]
-      '(menu-item "Regular Expression"
-                  (lambda ()
-                    (interactive)
-                    (setq search-default-mode t)
-                    (message "Regular-expression search enabled"))
+      `(menu-item "Regular Expression"
+                  ,(lambda ()
+                     (interactive)
+                     (setq search-default-mode t)
+                     (message "Regular-expression search enabled"))
                   :help "Enable regular-expression search"
                   :button (:radio . (eq search-default-mode t))))
 
     (bindings--define-key menu [regular-search]
-      '(menu-item "Literal Search"
-                  (lambda ()
-                    (interactive)
-                    (when search-default-mode
-                      (setq search-default-mode nil)
-                      (when (symbolp search-default-mode)
-                        (message "Literal search enabled"))))
+      `(menu-item "Literal Search"
+                  ,(lambda ()
+                     (interactive)
+                     (when search-default-mode
+                       (setq search-default-mode nil)
+                       (when (symbolp search-default-mode)
+                         (message "Literal search enabled"))))
                   :help "Disable special search modes"
                   :button (:radio . (not search-default-mode))))
 
@@ -1746,8 +1773,12 @@ mail status in mode line"))
 
 (defvar menu-bar-shell-commands-menu
   (let ((menu (make-sparse-keymap "Shell Commands")))
+    (bindings--define-key menu [project-interactive-shell]
+      '(menu-item "Run Shell In Project" project-shell
+                  :help "Run a subshell interactively, in the current project's root directory"))
+
     (bindings--define-key menu [interactive-shell]
-      '(menu-item "Run Shell Interactively" shell
+      '(menu-item "Run Shell" shell
                   :help "Run a subshell interactively"))
 
     (bindings--define-key menu [async-shell-command]
@@ -1763,6 +1794,31 @@ mail status in mode line"))
       '(menu-item "Shell Command..." shell-command
                   :help "Invoke a shell command and catch its output"))
 
+    menu))
+
+(defvar menu-bar-project-menu
+  (let ((menu (make-sparse-keymap "Project")))
+    (bindings--define-key menu [project-execute-extended-command] '(menu-item "Execute Extended Command..." project-execute-extended-command :help "Execute an extended command in project root directory"))
+    (bindings--define-key menu [project-query-replace-regexp] '(menu-item "Query Replace Regexp..." project-query-replace-regexp :help "Interactively replace a regexp in files belonging to current project"))
+    (bindings--define-key menu [project-or-external-find-regexp] '(menu-item "Find Regexp Including External Roots..." project-or-external-find-regexp :help "Search for a regexp in files belonging to current project or external files"))
+    (bindings--define-key menu [project-find-regexp] '(menu-item "Find Regexp..." project-find-regexp :help "Search for a regexp in files belonging to current project"))
+    (bindings--define-key menu [separator-project-search] menu-bar-separator)
+    (bindings--define-key menu [project-kill-buffers] '(menu-item "Kill Buffers..." project-kill-buffers :help "Kill the buffers belonging to the current project"))
+    (bindings--define-key menu [project-list-buffers] '(menu-item "List Buffers..." project-list-buffers :help "Pop up a window listing all Emacs buffers belonging to current project"))
+    (bindings--define-key menu [project-switch-to-buffer] '(menu-item "Switch To Buffer..." project-switch-to-buffer :help "Prompt for a buffer belonging to current project, and switch to it"))
+    (bindings--define-key menu [separator-project-buffers] menu-bar-separator)
+    (bindings--define-key menu [project-async-shell-command] '(menu-item "Async Shell Command..." project-async-shell-command :help "Invoke a shell command in project root asynchronously in background"))
+    (bindings--define-key menu [project-shell-command] '(menu-item "Shell Command..." project-shell-command :help "Invoke a shell command in project root and catch its output"))
+    (bindings--define-key menu [project-eshell] '(menu-item "Run Eshell" project-eshell :help "Run eshell for the current project"))
+    (bindings--define-key menu [project-shell] '(menu-item "Run Shell" project-shell :help "Run a subshell interactively, in the current project's root directory"))
+    (bindings--define-key menu [project-compile] '(menu-item "Compile..." project-compile :help "Invoke compiler or Make for current project, view errors"))
+    (bindings--define-key menu [separator-project-programs] menu-bar-separator)
+    (bindings--define-key menu [project-switch-project] '(menu-item "Switch Project..." project-switch-project :help "Switch to another project and then run a command"))
+    (bindings--define-key menu [project-vc-dir] '(menu-item "VC Dir..." project-vc-dir :help "Show the VC status of the project repository"))
+    (bindings--define-key menu [project-dired] '(menu-item "Open Project Root" project-dired :help "Read the root directory of the current project, to operate on its files"))
+    (bindings--define-key menu [project-find-dir] '(menu-item "Open Directory..." project-find-dir :help "Open existing directory that belongs to current project"))
+    (bindings--define-key menu [project-or-external-find-file] '(menu-item "Open File Including External Roots..." project-or-external-find-file :help "Open existing file that belongs to current project or its external roots"))
+    (bindings--define-key menu [project-open-file] '(menu-item "Open File..." project-find-file :help "Open an existing file that belongs to current project"))
     menu))
 
 (defun menu-bar-read-mail ()
@@ -1851,6 +1907,9 @@ mail status in mode line"))
       '(menu-item "Language Server Support (Eglot)" eglot
                   :help "Start language server suitable for this buffer's major-mode"))
 
+    (bindings--define-key menu [project]
+      `(menu-item "Project" ,menu-bar-project-menu))
+
     (bindings--define-key menu [ede]
       '(menu-item "Project Support (EDE)"
                   global-ede-mode
@@ -1860,9 +1919,13 @@ mail status in mode line"))
     (bindings--define-key menu [gdb]
       '(menu-item "Debugger (GDB)..." gdb
                   :help "Debug a program from within Emacs with GDB"))
+    (bindings--define-key menu [project-compile]
+      '(menu-item "Compile Project..." project-compile
+                  :help "Invoke compiler or Make for current project, view errors"))
+
     (bindings--define-key menu [compile]
       '(menu-item "Compile..." compile
-                  :help "Invoke compiler or Make, view compilation errors"))
+                  :help "Invoke compiler or Make in current buffer's directory, view errors"))
 
     (bindings--define-key menu [shell-commands]
       `(menu-item "Shell Commands"
@@ -2163,12 +2226,19 @@ otherwise it could decide to silently do nothing."
    ;; (Bug#8184).
    ((not (menu-bar-menu-frame-live-and-visible-p)))
    ((menu-bar-non-minibuffer-window-p)
-    (kill-buffer (current-buffer)))
+    (kill-buffer (current-buffer))
+    ;; Also close the current window if `menu-bar-close-windows' is
+    ;; set.
+    (when menu-bar-close-window
+      (ignore-errors (delete-window))))
    (t
     (abort-recursive-edit))))
 
 (defun kill-this-buffer-enabled-p ()
-  "Return non-nil if the `kill-this-buffer' menu item should be enabled."
+  "Return non-nil if the `kill-this-buffer' menu item should be enabled.
+It should be enabled there is at least one non-hidden buffer, or if
+`menu-bar-close-window' is non-nil and there is more than one window on
+this frame."
   (or (not (menu-bar-non-minibuffer-window-p))
       (let (found-1)
 	;; Instead of looping over entire buffer list, stop once we've
@@ -2178,7 +2248,9 @@ otherwise it could decide to silently do nothing."
 	    (unless (string-match-p "^ " (buffer-name buffer))
 	      (if (not found-1)
 		  (setq found-1 t)
-		(throw 'found-2 t))))))))
+		(throw 'found-2 t))))))
+      (and menu-bar-close-window
+           (window-parent (selected-window)))))
 
 (put 'dired 'menu-enable '(menu-bar-non-minibuffer-window-p))
 
@@ -2347,7 +2419,17 @@ Buffers menu is regenerated."
 	      'menu-item
 	      "List All Buffers"
 	      'list-buffers
-	      :help "Pop up a window listing all Emacs buffers"))
+	      :help "Pop up a window listing all Emacs buffers")
+	(list 'select-buffer-in-project
+	      'menu-item
+	      "Select Buffer In Project..."
+	      'project-switch-to-buffer
+	      :help "Prompt for a buffer belonging to current project, and switch to it")
+	(list 'list-buffers-in-project
+	      'menu-item
+	      "List Buffers In Project..."
+	      'project-list-buffers
+	      :help "Pop up a window listing all Emacs buffers belonging to current project"))
   "Entries to be included at the end of the \"Buffers\" menu.")
 
 (defvar menu-bar-select-buffer-function 'switch-to-buffer
@@ -2568,10 +2650,11 @@ See `menu-bar-mode' for more information."
       binding)))
 
 (defun popup-menu (menu &optional position prefix from-menu-bar)
-  "Popup the given menu and call the selected option.
+  "Popup MENU and call the selected option.
 MENU can be a keymap, an easymenu-style menu or a list of keymaps as for
 `x-popup-menu'.
-The menu is shown at the place where POSITION specifies.
+The menu is shown at the location specified by POSITION, which
+defaults to the place of the mouse click that popped the menu.
 For the form of POSITION, see `popup-menu-normalize-position'.
 PREFIX is the prefix argument (if any) to pass to the command.
 FROM-MENU-BAR, if non-nil, means we are dropping one of menu-bar's menus."
@@ -2648,20 +2731,25 @@ FROM-MENU-BAR, if non-nil, means we are dropping one of menu-bar's menus."
 POSITION can be an event, a posn- value, a value having the
 form ((XOFFSET YOFFSET) WINDOW), or nil.
 If nil, the current mouse position is used, or nil if there is no mouse."
-  (pcase position
+  (cond
     ;; nil -> mouse cursor position
-    ('nil
+    ((eq position nil)
      (let ((mp (mouse-pixel-position)))
        (list (list (cadr mp) (cddr mp)) (car mp))))
     ;; Value returned from `event-end' or `posn-at-point'.
-    ((pred posnp)
+    ((posnp position)
      (let ((xy (posn-x-y position)))
        (list (list (car xy) (cdr xy))
 	     (posn-window position))))
+    ;; `touchscreen-begin' or `touchscreen-end' event.
+    ((or (eq (car-safe position) 'touchscreen-begin)
+         (eq (car-safe position) 'touchscreen-end))
+     position)
     ;; Event.
-    ((pred eventp)
+    ((eventp position)
      (popup-menu-normalize-position (event-end position)))
-    (_ position)))
+    ;; Some other value.
+    (t position)))
 
 (defcustom tty-menu-open-use-tmm nil
   "If non-nil, \\[menu-bar-open] on a TTY will invoke `tmm-menubar'.

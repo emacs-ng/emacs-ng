@@ -41,6 +41,10 @@
 (require 'erc)
 (require 'imenu)
 
+(defgroup erc-imenu nil
+  "Imenu integration for ERC."
+  :group 'erc)
+
 (defun erc-unfill-notice ()
   "Return text from point to a computed end as a string unfilled.
 Don't rely on this function, read it first!"
@@ -138,9 +142,10 @@ Don't rely on this function, read it first!"
 ;;;###autoload(autoload 'erc-imenu-mode "erc-imenu" nil t)
 (define-erc-module imenu nil
   "Simple Imenu integration for ERC."
-  ((add-hook 'erc-mode-hook #'erc-imenu-setup))
+  ((add-hook 'erc-mode-hook #'erc-imenu-setup)
+   (unless erc--updating-modules-p (erc-buffer-do #'erc-imenu-setup)))
   ((remove-hook 'erc-mode-hook #'erc-imenu-setup)
-   (erc-with-all-buffers-of-server erc-server-process nil
+   (erc-with-all-buffers-of-server nil nil
      (when erc-imenu--create-index-function
        (setq imenu-create-index-function erc-imenu--create-index-function)
        (kill-local-variable 'erc-imenu--create-index-function)))))

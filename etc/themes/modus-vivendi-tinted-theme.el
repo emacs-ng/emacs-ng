@@ -1,4 +1,4 @@
-;;; modus-vivendi-tinted-theme.el --- Elegant, highly legible and customizable dark theme -*- lexical-binding:t -*-
+;;; modus-vivendi-tinted-theme.el --- Elegant, highly legible theme with a night sky background -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2019-2023  Free Software Foundation, Inc.
 
@@ -42,12 +42,16 @@
                (require-theme 'modus-themes t))
     (require 'modus-themes))
 
+;;;###theme-autoload
   (deftheme modus-vivendi-tinted
-    "Elegant, highly legible and customizable dark theme.
+    "Elegant, highly legible theme with a night sky background.
 Conforms with the highest legibility standard for color contrast
 between background and foreground in any given piece of text,
 which corresponds to a minimum contrast in relative luminance of
-7:1 (WCAG AAA standard).")
+7:1 (WCAG AAA standard)."
+    :background-mode 'dark
+    :kind 'color-scheme
+    :family 'modus)
 
   (defconst modus-vivendi-tinted-palette
     '(
@@ -132,10 +136,10 @@ which corresponds to a minimum contrast in relative luminance of
 
       (bg-graph-red-0     "#b52c2c")
       (bg-graph-red-1     "#702020")
-      (bg-graph-green-0   "#4fd100")
+      (bg-graph-green-0   "#0fed00")
       (bg-graph-green-1   "#007800")
       (bg-graph-yellow-0  "#f1e00a")
-      (bg-graph-yellow-1  "#b08600")
+      (bg-graph-yellow-1  "#b08940")
       (bg-graph-blue-0    "#2fafef")
       (bg-graph-blue-1    "#1f2f8f")
       (bg-graph-magenta-0 "#bf94fe")
@@ -146,7 +150,7 @@ which corresponds to a minimum contrast in relative luminance of
 ;;; Special purpose
 
       (bg-completion       "#483d8a")
-      (bg-hover            "#004f70")
+      (bg-hover            "#45605e")
       (bg-hover-secondary  "#654a39")
       (bg-hl-line          "#303a6f")
       (bg-region           "#555a66")
@@ -227,6 +231,13 @@ which corresponds to a minimum contrast in relative luminance of
       (underline-warning yellow)
       (underline-note cyan)
 
+      (bg-prominent-err bg-red-intense)
+      (fg-prominent-err fg-main)
+      (bg-prominent-warning bg-yellow-intense)
+      (fg-prominent-warning fg-main)
+      (bg-prominent-note bg-cyan-intense)
+      (fg-prominent-note fg-main)
+
 ;;;; Code mappings
 
       (builtin magenta-warmer)
@@ -273,8 +284,10 @@ which corresponds to a minimum contrast in relative luminance of
       (date-common cyan)
       (date-deadline red)
       (date-event fg-alt)
-      (date-holiday magenta)
+      (date-holiday red-cooler)
+      (date-holiday-other blue)
       (date-now fg-main)
+      (date-range fg-alt)
       (date-scheduled yellow-warmer)
       (date-weekday cyan)
       (date-weekend red-faint)
@@ -311,10 +324,20 @@ which corresponds to a minimum contrast in relative luminance of
       (mail-subject magenta-warmer)
       (mail-other magenta-faint)
 
+;;;; Mark mappings
+
+      (bg-mark-delete bg-red-subtle)
+      (fg-mark-delete red-cooler)
+      (bg-mark-select bg-cyan-subtle)
+      (fg-mark-select cyan)
+      (bg-mark-other bg-yellow-subtle)
+      (fg-mark-other yellow)
+
 ;;;; Prompt mappings
 
       (fg-prompt cyan-cooler)
       (bg-prompt unspecified)
+      (bg-space-err bg-red-intense)
 
 ;;;; Prose mappings
 
@@ -340,6 +363,53 @@ which corresponds to a minimum contrast in relative luminance of
       (rainbow-6 green-intense)
       (rainbow-7 blue-warmer)
       (rainbow-8 magenta-warmer)
+
+;;;; Space mappings
+
+      (bg-space unspecified)
+      (fg-space border)
+
+;;;; Terminal mappings
+
+      (bg-term-black           "black")
+      (fg-term-black           "black")
+      (bg-term-black-bright    "gray35")
+      (fg-term-black-bright    "gray35")
+
+      (bg-term-red             red)
+      (fg-term-red             red)
+      (bg-term-red-bright      red-warmer)
+      (fg-term-red-bright      red-warmer)
+
+      (bg-term-green           green)
+      (fg-term-green           green)
+      (bg-term-green-bright    green-cooler)
+      (fg-term-green-bright    green-cooler)
+
+      (bg-term-yellow          yellow)
+      (fg-term-yellow          yellow)
+      (bg-term-yellow-bright   yellow-warmer)
+      (fg-term-yellow-bright   yellow-warmer)
+
+      (bg-term-blue            blue)
+      (fg-term-blue            blue)
+      (bg-term-blue-bright     blue-warmer)
+      (fg-term-blue-bright     blue-warmer)
+
+      (bg-term-magenta         magenta)
+      (fg-term-magenta         magenta)
+      (bg-term-magenta-bright  magenta-cooler)
+      (fg-term-magenta-bright  magenta-cooler)
+
+      (bg-term-cyan            cyan)
+      (fg-term-cyan            cyan)
+      (bg-term-cyan-bright     cyan-cooler)
+      (fg-term-cyan-bright     cyan-cooler)
+
+      (bg-term-white           "gray65")
+      (fg-term-white           "gray65")
+      (bg-term-white-bright    "white")
+      (fg-term-white-bright    "white")
 
 ;;;; Heading mappings
 
@@ -409,8 +479,5 @@ represents."
                       modus-vivendi-tinted-palette-overrides)
 
   (provide-theme 'modus-vivendi-tinted))
-
-;;;###theme-autoload
-(put 'modus-vivendi-tinted 'theme-properties '(:background-mode dark :kind color-scheme :family modus))
 
 ;;; modus-vivendi-tinted-theme.el ends here

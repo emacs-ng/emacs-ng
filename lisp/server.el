@@ -182,8 +182,10 @@ space (this means characters from ! to ~; or from code 33 to
   :type 'hook)
 
 (defcustom server-after-make-frame-hook nil
-  "Hook run when the Emacs server creates a client frame.
-The created frame is selected when the hook is called."
+  "Hook run when the Emacs server starts using a client frame.
+The client frame is selected when the hook is called.
+The client frame could be a newly-created frame, or an
+existing frame reused for this purpose."
   :type 'hook
   :version "27.1")
 
@@ -328,6 +330,9 @@ ENV should be in the same format as `process-environment'."
 (defun server-delete-client (proc &optional noframe)
   "Delete PROC, including its buffers, terminals and frames.
 If NOFRAME is non-nil, let the frames live.
+If NOFRAME is the symbol \\='dont-kill-client, also don't
+delete PROC or its terminals, just kill its buffers: this is
+for when `find-alternate-file' calls this via `kill-buffer-hook'.
 Updates `server-clients'."
   (server-log (concat "server-delete-client" (if noframe " noframe")) proc)
   ;; Force a new lookup of client (prevents infinite recursion).
@@ -364,23 +369,28 @@ Updates `server-clients'."
 	    (set-frame-parameter frame 'client nil)
 	    (delete-frame frame))))
 
-      (setq server-clients (delq proc server-clients))
+      (or (eq noframe 'dont-kill-client)
+          (setq server-clients (delq proc server-clients)))
 
       ;; Delete the client's tty, except on Windows (both GUI and
       ;; console), where there's only one terminal and does not make
       ;; sense to delete it, or if we are explicitly told not.
       (unless (or (eq system-type 'windows-nt)
+                  ;; 'find-alternate-file' caused the last client
+                  ;; buffer to be killed, but we will reuse the client
+                  ;; for another buffer.
+                  (eq noframe 'dont-kill-client)
                   (process-get proc 'no-delete-terminal))
 	(let ((terminal (process-get proc 'terminal)))
 	  ;; Only delete the terminal if it is non-nil.
 	  (when (and terminal (eq (terminal-live-p terminal) t))
 	    (delete-terminal terminal))))
 
-      ;; Delete the client's process.
-      (if (eq (process-status proc) 'open)
-	  (delete-process proc))
-
-      (server-log "Deleted" proc))))
+      ;; Delete the client's process (or don't).
+      (unless (eq noframe 'dont-kill-client)
+        (if (eq (process-status proc) 'open)
+	    (delete-process proc))
+        (server-log "Deleted" proc)))))
 
 (defvar server-log-time-function #'current-time-string
   "Function to generate timestamps for `server-buffer'.")
@@ -1143,8 +1153,18 @@ The following commands are accepted by the client:
 	  (process-put proc :authenticated t)
 	  (server-log "Authentication successful" proc))
       (server-log "Authentication failed" proc)
+      ;; Display the error as a message and give the user time to see
+      ;; it, in case the error written by emacsclient to stderr is not
+      ;; visible for some reason.
+      (message "Authentication failed")
+      (sit-for 2)
       (server-send-string
        proc (concat "-error " (server-quote-arg "Authentication failed")))
+      (unless (eq system-type 'windows-nt)
+        (let ((terminal (process-get proc 'terminal)))
+          ;; Only delete the terminal if it is non-nil.
+          (when (and terminal (eq (terminal-live-p terminal) t))
+	    (delete-terminal terminal))))
       ;; Before calling `delete-process', give emacsclient time to
       ;; receive the error string and shut down on its own.
       (sit-for 1)
@@ -1267,9 +1287,12 @@ The following commands are accepted by the client:
                  ;; choice there.)  In daemon mode on Windows, we can't
                  ;; make tty frames, so force the frame type to GUI
                  ;; there too.
-                 (when (and (eq system-type 'windows-nt)
-                            (or (daemonp)
-                                (eq window-system 'w32)))
+                 (when (or (and (eq system-type 'windows-nt)
+                                (or (daemonp)
+                                    (eq window-system 'w32)))
+                           ;; Client runs on Windows, but the server
+                           ;; runs on a Posix host.
+                           (equal tty-name "CONOUT$"))
                    (push "-window-system" args-left)))
 
                 ;; -position +LINE[:COLUMN]:  Set point to the given
@@ -1462,10 +1485,20 @@ The following commands are accepted by the client:
 
 (defun server-return-error (proc err)
   (ignore-errors
+    ;; Display the error as a message and give the user time to see
+    ;; it, in case the error written by emacsclient to stderr is not
+    ;; visible for some reason.
+    (message (error-message-string err))
+    (sit-for 2)
     (server-send-string
      proc (concat "-error " (server-quote-arg
                              (error-message-string err))))
     (server-log (error-message-string err) proc)
+    (unless (eq system-type 'windows-nt)
+      (let ((terminal (process-get proc 'terminal)))
+        ;; Only delete the terminal if it is non-nil.
+        (when (and terminal (eq (terminal-live-p terminal) t))
+	  (delete-terminal terminal))))
     ;; Before calling `delete-process', give emacsclient time to
     ;; receive the error string and shut down on its own.
     (sit-for 5)
@@ -1568,7 +1601,8 @@ FOR-KILLING if non-nil indicates that we are called from `kill-buffer'."
 		;; frames, which might change the current buffer.  We
 		;; don't want that (bug#640).
 		(save-current-buffer
-		  (server-delete-client proc))
+		  (server-delete-client proc
+                                        find-alternate-file-dont-kill-client))
 	      (server-delete-client proc))))))
     (when (and (bufferp buffer) (buffer-name buffer))
       ;; We may or may not kill this buffer;

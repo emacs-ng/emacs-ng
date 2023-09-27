@@ -1484,7 +1484,7 @@ the symbol as a function, Emacs signals a @code{void-function} error.
   Note that void is not the same as @code{nil} or the symbol
 @code{void}.  The symbols @code{nil} and @code{void} are Lisp objects,
 and can be stored into a function cell just as any other object can be
-(and they can be valid functions if you define them in turn with
+(and @code{void} can be a valid function if you define it with
 @code{defun}).  A void function cell contains no object whatsoever.
 
   You can test the voidness of a symbol's function definition with
@@ -1994,9 +1994,16 @@ advice.  Advice can also cause confusion in debugging, if the person doing the
 debugging does not notice or remember that the function has been modified
 by advice.
 
-  For these reasons, advice should be reserved for the cases where you
-cannot modify a function's behavior in any other way.  If it is
-possible to do the same thing via a hook, that is preferable
+  Note that the problems are not due to advice per se, but to the act
+of modifying a named function.  It is even more problematic to modify
+a named function via lower-level primitives like @code{fset},
+@code{defalias}, or @code{cl-letf}.  From that point of view, advice
+is the better way to modify a named function because it keeps track of
+the modifications, so they can be listed and undone.
+
+  Modifying a named function should be reserved for
+the cases where you cannot modify Emacs' behavior in any other way.
+If it is possible to do the same thing via a hook, that is preferable
 (@pxref{Hooks}).  If you simply want to change what a particular key
 does, it may be better to write a new command, and remap the old
 command's key bindings to the new one (@pxref{Remapping Commands}).
@@ -2177,7 +2184,7 @@ More specifically, the composition of the two functions behaves like:
 @findex defadvice
 @findex ad-activate
 
-A lot of code uses the old @code{defadvice} mechanism, which is largely made
+A lot of code uses the old @code{defadvice} mechanism, which has been made
 obsolete by the new @code{advice-add}, whose implementation and semantics is
 significantly simpler.
 
@@ -2365,6 +2372,11 @@ this:
 (set-advertised-calling-convention
   'sit-for '(seconds &optional nodisp) "22.1")
 @end example
+
+@noindent
+The alternative to using this function is the
+@code{advertised-calling-convention} @code{declare} spec, see
+@ref{Declare Form}.
 @end defun
 
 @node Inline Functions
@@ -2541,6 +2553,7 @@ Each element in @var{specs} should have the form @code{(@var{property}
 following effects:
 
 @table @code
+@cindex @code{advertised-calling-convention} (@code{declare} spec)
 @item (advertised-calling-convention @var{signature} @var{when})
 This acts like a call to @code{set-advertised-calling-convention}
 (@pxref{Obsolete Functions}); @var{signature} specifies the correct
@@ -2566,6 +2579,7 @@ This is typically used for macros, though it works for functions too.
 Set the function's @code{interactive-only} property to @var{value}.
 @xref{The interactive-only property}.
 
+@cindex @code{obsolete} (@code{declare} spec)
 @item (obsolete @var{current-name} @var{when})
 Mark the function or macro as obsolete, similar to a call to
 @code{make-obsolete} (@pxref{Obsolete Functions}).  @var{current-name}
@@ -2607,14 +2621,18 @@ be passed to @code{gv-define-setter}.
 
 @item (completion @var{completion-predicate})
 Declare @var{completion-predicate} as a function to determine whether
-to include the symbol in the list of functions when asking for
-completions in @kbd{M-x}.  @var{completion-predicate} is called with
-two parameters: The first parameter is the symbol, and the second is
-the current buffer.
+to include a function's symbol in the list of functions when asking
+for completions in @kbd{M-x}.  This predicate function will only be
+called when @code{read-extended-command-predicate} is customized to
+@code{command-completion-default-include-p}; by default the value of
+@code{read-extended-command-predicate} is nil (@pxref{Interactive
+Call, execute-extended-command}).  The predicate
+@var{completion-predicate} is called with two arguments: the
+function's symbol and the current buffer.
 
 @item (modes @var{modes})
-Specify that this command is meant to be applicable for @var{modes}
-only.
+Specify that this command is meant to be applicable only to specified
+@var{modes}.  @xref{Command Modes}.
 
 @item (interactive-args @var{arg} ...)
 Specify the arguments that should be stored for @code{repeat-command}.
@@ -2629,6 +2647,12 @@ property of the function's symbol (@pxref{Standard Properties}).
 If @var{val} is non-@code{nil}, this function is free of side effects,
 so the byte compiler can ignore calls whose value is ignored.  This is
 the same as the @code{side-effect-free} property of the function's
+symbol, @pxref{Standard Properties}.
+
+@item (important-return-value @var{val})
+If @var{val} is non-@code{nil}, the byte compiler will warn about
+calls to this function that do not use the returned value.  This is the
+same as the @code{important-return-value} property of the function's
 symbol, @pxref{Standard Properties}.
 
 @item (speed @var{n})

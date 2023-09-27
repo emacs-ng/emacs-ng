@@ -123,8 +123,9 @@ continuation to the previous entry."
   (let* ((node (treesit-buffer-root-node))
          (stage-tree (treesit-induce-sparse-tree
                       node "from_instruction"
-                      nil 1000)))
-    `(("Stage" . ,(dockerfile-ts-mode--imenu-1 stage-tree)))))
+                      nil 1000))
+         (stage-index (dockerfile-ts-mode--imenu-1 stage-tree)))
+    (when stage-index `(("Stage" . ,stage-index)))))
 
 (defun dockerfile-ts-mode--imenu-1 (node)
   "Helper for `dockerfile-ts-mode--imenu'.
@@ -174,8 +175,9 @@ the subtrees."
                 dockerfile-ts-mode--indent-rules)
 
     ;; Navigation
-    (setq-local treesit-sentence-type-regexp
-                "instruction")
+    (setq-local treesit-thing-settings
+                `((dockerfile
+                   (sentence "instruction"))))
 
     ;; Font-lock.
     (setq-local treesit-font-lock-settings

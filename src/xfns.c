@@ -807,23 +807,45 @@ x_set_tool_bar_position (struct frame *f,
                          Lisp_Object new_value,
                          Lisp_Object old_value)
 {
-  Lisp_Object choice = list4 (Qleft, Qright, Qtop, Qbottom);
+#ifdef USE_GTK
+  Lisp_Object choice;
+
+  choice = list4 (Qleft, Qright, Qtop, Qbottom);
 
   if (!NILP (Fmemq (new_value, choice)))
     {
-#ifdef USE_GTK
       if (!EQ (new_value, old_value))
 	{
 	  xg_change_toolbar_position (f, new_value);
 	  fset_tool_bar_position (f, new_value);
 	}
-#else
-      if (!EQ (new_value, Qtop))
-	error ("The only supported tool bar position is top");
-#endif
+#else /* !USE_GTK */
+      if (!EQ (new_value, Qtop) && !EQ (new_value, Qbottom))
+	error ("Tool bar position must be either `top' or `bottom'");
+
+      if (EQ (new_value, old_value))
+	return;
+
+      /* Set the tool bar position.  */
+      fset_tool_bar_position (f, new_value);
+
+      /* Now reconfigure frame glyphs to place the tool bar at the
+	 bottom.  While the inner height has not changed, call
+	 `resize_frame_windows' to place each of the windows at its
+	 new position.  */
+
+      adjust_frame_size (f, -1, -1, 3, false, Qtool_bar_position);
+      adjust_frame_glyphs (f);
+      SET_FRAME_GARBAGED (f);
+
+      if (FRAME_X_WINDOW (f))
+	x_clear_under_internal_border (f);
+#endif /* USE_GTK */
+#ifdef USE_GTK
     }
   else
     wrong_choice (choice, new_value);
+#endif /* USE_GTK */
 }
 
 #ifdef HAVE_XDBE
@@ -3861,7 +3883,7 @@ xic_string_conversion_callback (XIC ic, XPointer client_data,
     request.operation = TEXTCONV_RETRIEVAL;
 
   /* Now perform the string conversion.  */
-  rc = textconv_query (f, &request);
+  rc = textconv_query (f, &request, 0);
 
   if (rc)
     {
@@ -3999,6 +4021,7 @@ initial_set_up_x_back_buffer (struct frame *f)
 }
 
 #if defined HAVE_XINPUT2
+
 static void
 setup_xi_event_mask (struct frame *f)
 {
@@ -4014,7 +4037,7 @@ setup_xi_event_mask (struct frame *f)
   selected->mask = ((unsigned char *) selected) + sizeof *selected;
   selected->mask_len = l;
   selected->deviceid = XIAllMasterDevices;
-#endif
+#endif /* !HAVE_XINPUT2_1 */
 
   mask.mask = m = alloca (l);
   memset (m, 0, l);
@@ -4034,16 +4057,27 @@ setup_xi_event_mask (struct frame *f)
   XISetMask (m, XI_FocusOut);
   XISetMask (m, XI_KeyPress);
   XISetMask (m, XI_KeyRelease);
-#endif
-  XISelectEvents (FRAME_X_DISPLAY (f),
-		  FRAME_X_WINDOW (f),
+#endif /* !USE_GTK */
+#if defined HAVE_XINPUT2_4
+  if (FRAME_DISPLAY_INFO (f)->xi2_version >= 4)
+    {
+      /* Select for gesture events.  Since this configuration doesn't
+	 use GTK 3, Emacs is the only code that can change the XI
+	 event mask, and can safely select for gesture events on
+	 master pointers only.  */
+      XISetMask (m, XI_GesturePinchBegin);
+      XISetMask (m, XI_GesturePinchUpdate);
+      XISetMask (m, XI_GesturePinchEnd);
+    }
+#endif /* HAVE_XINPUT2_4 */
+  XISelectEvents (FRAME_X_DISPLAY (f), FRAME_X_WINDOW (f),
 		  &mask, 1);
 
   /* Fortunately `xi_masks' isn't used on GTK 3, where we really have
      to get the event mask from the X server.  */
 #ifndef HAVE_XINPUT2_1
   memcpy (selected->mask, m, l);
-#endif
+#endif /* !HAVE_XINPUT2_1 */
 
   memset (m, 0, l);
 #endif /* !HAVE_GTK3 */
@@ -4051,45 +4085,54 @@ setup_xi_event_mask (struct frame *f)
 #ifdef USE_X_TOOLKIT
   XISetMask (m, XI_KeyPress);
   XISetMask (m, XI_KeyRelease);
-  XISetMask (m, XI_FocusIn);
-  XISetMask (m, XI_FocusOut);
 
-  XISelectEvents (FRAME_X_DISPLAY (f),
-		  FRAME_OUTER_WINDOW (f),
+  XISelectEvents (FRAME_X_DISPLAY (f), FRAME_OUTER_WINDOW (f),
 		  &mask, 1);
   memset (m, 0, l);
-#endif
+#endif /* USE_X_TOOLKIT */
 
 #ifdef HAVE_XINPUT2_2
   if (FRAME_DISPLAY_INFO (f)->xi2_version >= 2)
     {
+      /* Select for touch events from all devices.
+
+         Emacs will only process touch events originating
+         from slave devices, as master pointers may also
+         represent dependent touch devices.  */
       mask.deviceid = XIAllDevices;
 
       XISetMask (m, XI_TouchBegin);
       XISetMask (m, XI_TouchUpdate);
       XISetMask (m, XI_TouchEnd);
-#ifdef HAVE_XINPUT2_4
+      XISetMask (m, XI_TouchOwnership);
+
+#if defined HAVE_XINPUT2_4 && defined USE_GTK3
       if (FRAME_DISPLAY_INFO (f)->xi2_version >= 4)
 	{
+	  /* Now select for gesture events from all pointer devices.
+	     Emacs will only handle gesture events from the master
+	     pointer, but cannot afford to overwrite the event mask
+	     set by GDK.  */
+
 	  XISetMask (m, XI_GesturePinchBegin);
 	  XISetMask (m, XI_GesturePinchUpdate);
 	  XISetMask (m, XI_GesturePinchEnd);
 	}
-#endif
+#endif /* HAVE_XINPUT2_4 && USE_GTK3 */
 
-      XISelectEvents (FRAME_X_DISPLAY (f),
-		      FRAME_X_WINDOW (f),
+      XISelectEvents (FRAME_X_DISPLAY (f), FRAME_X_WINDOW (f),
 		      &mask, 1);
     }
-#endif
+#endif /* HAVE_XINPUT2_2 */
 
 #ifndef HAVE_XINPUT2_1
   FRAME_X_OUTPUT (f)->xi_masks = selected;
   FRAME_X_OUTPUT (f)->num_xi_masks = 1;
-#endif
+#endif /* HAVE_XINPUT2_1 */
 
   unblock_input ();
 }
+
 #endif
 
 #ifdef USE_X_TOOLKIT
@@ -4252,9 +4295,9 @@ x_window (struct frame *f, long window_prompting)
 
 #ifdef HAVE_X_I18N
   FRAME_XIC (f) = NULL;
-  if (use_xim)
+  if (FRAME_DISPLAY_INFO (f)->use_xim)
     create_frame_xic (f);
-#endif
+#endif /* HAVE_X_I18N */
 
   f->output_data.x->wm_hints.input = True;
   f->output_data.x->wm_hints.flags |= InputHint;
@@ -4355,32 +4398,32 @@ x_window (struct frame *f)
 
 #ifdef HAVE_X_I18N
   FRAME_XIC (f) = NULL;
-  if (use_xim)
-  {
-    block_input ();
-    create_frame_xic (f);
-    if (FRAME_XIC (f))
-      {
-	/* XIM server might require some X events. */
-	unsigned long fevent = NoEventMask;
-	XGetICValues (FRAME_XIC (f), XNFilterEvents, &fevent, NULL);
+  if (FRAME_DISPLAY_INFO (f)->use_xim)
+    {
+      block_input ();
+      create_frame_xic (f);
+      if (FRAME_XIC (f))
+	{
+	  /* XIM server might require some X events. */
+	  unsigned long fevent = NoEventMask;
+	  XGetICValues (FRAME_XIC (f), XNFilterEvents, &fevent, NULL);
 
-	if (fevent != NoEventMask)
-	  {
-	    XSetWindowAttributes attributes;
-	    XWindowAttributes wattr;
-	    unsigned long attribute_mask;
+	  if (fevent != NoEventMask)
+	    {
+	      XSetWindowAttributes attributes;
+	      XWindowAttributes wattr;
+	      unsigned long attribute_mask;
 
-	    XGetWindowAttributes (FRAME_X_DISPLAY (f), FRAME_X_WINDOW (f),
-				  &wattr);
-	    attributes.event_mask = wattr.your_event_mask | fevent;
-	    attribute_mask = CWEventMask;
-	    XChangeWindowAttributes (FRAME_X_DISPLAY (f), FRAME_X_WINDOW (f),
-				     attribute_mask, &attributes);
-	  }
-      }
-    unblock_input ();
-  }
+	      XGetWindowAttributes (FRAME_X_DISPLAY (f), FRAME_X_WINDOW (f),
+				    &wattr);
+	      attributes.event_mask = wattr.your_event_mask | fevent;
+	      attribute_mask = CWEventMask;
+	      XChangeWindowAttributes (FRAME_X_DISPLAY (f), FRAME_X_WINDOW (f),
+				       attribute_mask, &attributes);
+	    }
+	}
+      unblock_input ();
+    }
 #endif
 
   append_wm_protocols (FRAME_DISPLAY_INFO (f), f);
@@ -4427,7 +4470,7 @@ x_window (struct frame *f)
   initial_set_up_x_back_buffer (f);
 
 #ifdef HAVE_X_I18N
-  if (use_xim)
+  if (FRAME_DISPLAY_INFO (f)->use_xim)
     {
       create_frame_xic (f);
       if (FRAME_XIC (f))
@@ -5348,6 +5391,17 @@ This function is an internal primitive--use `make-frame' instead.  */)
   gui_default_parameter (f, parms, Qfullscreen, Qnil,
                          "fullscreen", "Fullscreen", RES_TYPE_SYMBOL);
 
+#ifdef USE_CAIRO
+  /* Set the initial size of the Cairo surface to the frame's current
+     width and height.  If the window manager doesn't resize the new
+     frame after it's first mapped, Emacs will create a surface with
+     empty dimensions in response to to the initial exposure event,
+     which will persist until the next time it's resized.
+     (bug#64923) */
+  x_cr_update_surface_desired_size (f, FRAME_PIXEL_WIDTH (f),
+				    FRAME_PIXEL_HEIGHT (f));
+#endif /* USE_CAIRO */
+
   /* Make the window appear on the frame and enable display, unless
      the caller says not to.  However, with explicit parent, Emacs
      cannot control visibility, so don't try.  */
@@ -5673,6 +5727,8 @@ that operating systems cannot be developed and distributed noncommercially.)
 The optional argument TERMINAL specifies which display to ask about.
 
 For GNU and Unix systems, this queries the X server software.
+For Android systems, value is the manufacturer who developed the Android
+system that is being used.
 For MS Windows and Nextstep the result is hard-coded.
 
 TERMINAL should be a terminal object, a frame or a display name (a string).
@@ -5696,7 +5752,8 @@ Protocol used on TERMINAL and the 3rd number is the distributor-specific
 release number.  For MS Windows, the 3 numbers report the OS major and
 minor version and build number.  For Nextstep, the first 2 numbers are
 hard-coded and the 3rd represents the OS version.  For Haiku, all 3
-numbers are hard-coded.
+numbers are hard-coded.  For Android, the first number represents the
+Android API level, and the next two numbers are all zero.
 
 See also the function `x-server-vendor'.
 
@@ -6673,10 +6730,11 @@ Internal use only, use `display-monitor-attributes-list' instead.  */)
 }
 
 /* Return geometric attributes of FRAME.  According to the value of
-   ATTRIBUTES return the outer edges of FRAME (Qouter_edges), the native
-   edges of FRAME (Qnative_edges), or the inner edges of frame
+   ATTRIBUTES return the outer edges of FRAME (Qouter_edges), the
+   native edges of FRAME (Qnative_edges), or the inner edges of frame
    (Qinner_edges).  Any other value means to return the geometry as
    returned by Fx_frame_geometry.  */
+
 static Lisp_Object
 frame_geometry (Lisp_Object frame, Lisp_Object attribute)
 {
@@ -6765,8 +6823,8 @@ frame_geometry (Lisp_Object frame, Lisp_Object attribute)
 
   tab_bar_height = FRAME_TAB_BAR_HEIGHT (f);
   tab_bar_width = (tab_bar_height
-		    ? native_width - 2 * internal_border_width
-		    : 0);
+		   ? native_width - 2 * internal_border_width
+		   : 0);
   inner_top += tab_bar_height;
 
 #ifdef HAVE_EXT_TOOL_BAR
@@ -6806,7 +6864,14 @@ frame_geometry (Lisp_Object frame, Lisp_Object attribute)
   tool_bar_width = (tool_bar_height
 		    ? native_width - 2 * internal_border_width
 		    : 0);
-  inner_top += tool_bar_height;
+
+  /* Subtract or add to the inner dimensions based on the tool bar
+     position.  */
+
+  if (EQ (FRAME_TOOL_BAR_POSITION (f), Qtop))
+    inner_top += tool_bar_height;
+  else
+    inner_bottom -= tool_bar_height;
 #endif
 
   /* Construct list.  */
@@ -10426,7 +10491,6 @@ eliminated in future versions of Emacs.  */);
      accepts --with-x-toolkit=gtk.  */
   Fprovide (intern_c_string ("x-toolkit"), Qnil);
   Fprovide (intern_c_string ("gtk"), Qnil);
-  Fprovide (intern_c_string ("move-toolbar"), Qnil);
 
   DEFVAR_LISP ("gtk-version-string", Vgtk_version_string,
                doc: /* Version info for GTK+.  */);

@@ -99,6 +99,11 @@
 # endif
 #endif
 
+/* Assume no multibyte character is longer than 16 bytes.  */
+#ifndef MB_LEN_MAX
+# define MB_LEN_MAX 16
+#endif
+
 /* Macros specified by C23 and by ISO/IEC TS 18661-1:2014.  */
 
 #if (! defined ULLONG_WIDTH                                             \
@@ -126,6 +131,18 @@
 #  define BOOL_MAX 1
 # elif ! defined BOOL_MAX
 #  define BOOL_MAX ((((1U << (BOOL_WIDTH - 1)) - 1) << 1) + 1)
+# endif
+#endif
+
+/* Macro specified by POSIX.  */
+
+/* The maximum ssize_t value.  Although it might not be of ssize_t type
+   as it should be, it's too much trouble to fix this minor detail.  */
+#ifndef SSIZE_MAX
+# ifdef _WIN64
+#  define SSIZE_MAX LLONG_MAX
+# else
+#  define SSIZE_MAX LONG_MAX
 # endif
 #endif
 

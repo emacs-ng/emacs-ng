@@ -520,27 +520,6 @@ DIRS are relative."
       xdg-dir)
      (t emacs-d-dir))))
 
-(defvar comp--compilable)
-(defvar comp--delayed-sources)
-(defun startup--require-comp-safely ()
-  "Require the native compiler avoiding circular dependencies."
-  (when (featurep 'native-compile)
-    ;; Require comp with `comp--compilable' set to nil to break
-    ;; circularity.
-    (let ((comp--compilable nil))
-      (require 'comp))
-    (native--compile-async comp--delayed-sources nil 'late)
-    (setq comp--delayed-sources nil)))
-
-(declare-function native--compile-async "comp.el"
-                  (files &optional recursively load selector))
-(defun startup--honor-delayed-native-compilations ()
-  "Honor pending delayed deferred native compilations."
-  (when (and (native-comp-available-p)
-             comp--delayed-sources)
-    (startup--require-comp-safely))
-  (setq comp--compilable t))
-
 (defvar native-comp-eln-load-path)
 (defvar native-comp-jit-compilation)
 (defvar native-comp-enable-subr-trampolines)
@@ -574,11 +553,24 @@ the updated value."
     (setq startup--original-eln-load-path
           (copy-sequence native-comp-eln-load-path))))
 
+(defvar android-fonts-enumerated nil
+  "Whether or not fonts have been enumerated already.
+On Android, Emacs uses this variable internally at startup.")
+
 (defun normal-top-level ()
   "Emacs calls this function when it first starts up.
 It sets `command-line-processed', processes the command-line,
 reads the initialization files, etc.
 It is the default value of the variable `top-level'."
+  ;; Initialize the Android font driver late.
+  ;; This is done here because it needs the `mac-roman' coding system
+  ;; to be loaded.
+  (when (and (featurep 'android)
+             (fboundp 'android-enumerate-fonts)
+             (not android-fonts-enumerated))
+    (funcall 'android-enumerate-fonts)
+    (setq android-fonts-enumerated t))
+
   (if command-line-processed
       (message internal--top-level-message)
     (setq command-line-processed t)
@@ -837,13 +829,16 @@ It is the default value of the variable `top-level'."
     (let ((display (frame-parameter nil 'display)))
       ;; Be careful which DISPLAY to remove from process-environment: follow
       ;; the logic of `callproc.c'.
-      (if (stringp display) (setq display (concat "DISPLAY=" display))
-        (dolist (varval initial-environment)
-          (if (string-match "\\`DISPLAY=" varval)
-              (setq display varval))))
+      (if (stringp display)
+          (setq display (concat "DISPLAY=" display))
+        (let ((env initial-environment))
+          (while (and env (or (not (string-match "\\`DISPLAY=" (car env)))
+                              (progn
+                                (setq display (car env))
+                                nil)))
+            (setq env (cdr env)))))
       (when display
-        (delete display process-environment))))
-  (startup--honor-delayed-native-compilations))
+        (setq process-environment (delete display process-environment))))))
 
 ;; Precompute the keyboard equivalents in the menu bar items.
 ;; Command-line options supported by tty's:
@@ -1021,13 +1016,22 @@ init-file, or to a default value if loading is not possible."
         (debug-on-error-should-be-set nil)
         (debug-on-error-initial
          (if (eq init-file-debug t)
-             'startup
+             'startup--witness  ;Dummy but recognizable non-nil value.
            init-file-debug))
+        (d-i-e-from-init-file nil)
+        (d-i-e-initial
+         ;; Use (startup--witness) instead of nil, so we can detect when the
+         ;; init files set `debug-ignored-errors' to nil.
+         (if init-file-debug '(startup--witness) debug-ignored-errors))
+        (d-i-e-standard debug-ignored-errors)
         ;; The init file might contain byte-code with embedded NULs,
         ;; which can cause problems when read back, so disable nul
         ;; byte detection.  (Bug#52554)
         (inhibit-null-byte-detection t))
-    (let ((debug-on-error debug-on-error-initial))
+    (let ((debug-on-error debug-on-error-initial)
+          ;; If they specified --debug-init, enter the debugger
+          ;; on any error whatsoever.
+          (debug-ignored-errors d-i-e-initial))
       (condition-case-unless-debug error
           (when init-file-user
             (let ((init-file-name (funcall filename-function)))
@@ -1108,10 +1112,22 @@ the `--debug-init' option to view a complete error backtrace."
 
       ;; If we can tell that the init file altered debug-on-error,
       ;; arrange to preserve the value that it set up.
+      (unless (eq debug-ignored-errors d-i-e-initial)
+        (if (memq 'startup--witness debug-ignored-errors)
+            ;; The init file wants to add errors to the standard
+            ;; value, so we need to emulate that.
+            (setq d-i-e-from-init-file
+                  (list (append d-i-e-standard
+                                (remq 'startup--witness
+                                      debug-ignored-errors))))
+          ;; The init file _replaces_ the standard value.
+          (setq d-i-e-from-init-file (list debug-ignored-errors))))
       (or (eq debug-on-error debug-on-error-initial)
           (setq debug-on-error-should-be-set t
                 debug-on-error-from-init-file debug-on-error)))
 
+    (when d-i-e-from-init-file
+      (setq debug-ignored-errors (car d-i-e-from-init-file)))
     (when debug-on-error-should-be-set
       (setq debug-on-error debug-on-error-from-init-file))))
 
@@ -1666,7 +1682,7 @@ Changed settings will be marked as \"CHANGED outside of Customize\"."
 
 (defcustom initial-scratch-message (purecopy "\
 ;; This buffer is for text that is not saved, and for Lisp evaluation.
-;; To create a file, visit it with \\[find-file] and enter text in its buffer.
+;; To create a file, visit it with `\\[find-file]' and enter text in its buffer.
 
 ")
   "Initial documentation displayed in *scratch* buffer at startup.

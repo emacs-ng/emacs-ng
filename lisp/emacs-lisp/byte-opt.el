@@ -167,8 +167,8 @@ Earlier variables shadow later ones with the same name.")
       ((or `(lambda . ,_) `(closure . ,_))
        ;; While byte-compile-unfold-bcf can inline dynbind byte-code into
        ;; letbind byte-code (or any other combination for that matter), we
-       ;; can only inline dynbind source into dynbind source or letbind
-       ;; source into letbind source.
+       ;; can only inline dynbind source into dynbind source or lexbind
+       ;; source into lexbind source.
        ;; When the function comes from another file, we byte-compile
        ;; the inlined function first, and then inline its byte-code.
        ;; This also has the advantage that the final code does not
@@ -176,7 +176,10 @@ Earlier variables shadow later ones with the same name.")
        ;; the build more reproducible.
        (if (eq fn localfn)
            ;; From the same file => same mode.
-           (macroexp--unfold-lambda `(,fn ,@(cdr form)))
+           (let* ((newform `(,fn ,@(cdr form)))
+                  (unfolded (macroexp--unfold-lambda newform)))
+             ;; Use the newform only if it could be optimized.
+             (if (eq unfolded newform) form unfolded))
          ;; Since we are called from inside the optimizer, we need to make
          ;; sure not to propagate lexvar values.
          (let ((byte-optimize--lexvars nil)
@@ -221,21 +224,17 @@ for speeding up processing.")
 
 (defun byte-optimize--substitutable-p (expr)
   "Whether EXPR is a constant that can be propagated."
-  ;; Only consider numbers, symbols and strings to be values for substitution
-  ;; purposes.  Numbers and symbols are immutable, and mutating string
-  ;; literals (or results from constant-evaluated string-returning functions)
-  ;; can be considered undefined.
-  ;; (What about other quoted values, like conses?)
   (or (booleanp expr)
       (numberp expr)
-      (stringp expr)
-      (and (consp expr)
-           (or (and (memq (car expr) '(quote function))
-                    (symbolp (cadr expr)))
-               ;; (internal-get-closed-var N) can be considered constant for
-               ;; const-prop purposes.
-               (and (eq (car expr) 'internal-get-closed-var)
-                    (integerp (cadr expr)))))
+      (arrayp expr)
+      (let ((head (car-safe expr)))
+        (cond ((eq head 'quote) t)
+              ;; Don't substitute #'(lambda ...) since that would enable
+              ;; uncontrolled inlining.
+              ((eq head 'function) (symbolp (cadr expr)))
+              ;; (internal-get-closed-var N) can be considered constant for
+              ;; const-prop purposes.
+              ((eq head 'internal-get-closed-var) (integerp (cadr expr)))))
       (keywordp expr)))
 
 (defmacro byte-optimize--pcase (exp &rest cases)
@@ -451,27 +450,10 @@ for speeding up processing.")
           . ,(byte-optimize-body exps for-effect)))
 
       ;; Needed as long as we run byte-optimize-form after cconv.
-      (`(internal-make-closure . ,_)
-       (and (not for-effect)
-            (progn
-       ;; Look up free vars and mark them to be kept, so that they
-       ;; won't be optimized away.
-       (dolist (var (caddr form))
-         (let ((lexvar (assq var byte-optimize--lexvars)))
-           (when lexvar
-             (setcar (cdr lexvar) t))))
-              form)))
-
-      (`((lambda . ,_) . ,_)
-       (let ((newform (macroexp--unfold-lambda form)))
-	 (if (eq newform form)
-	     ;; Some error occurred, avoid infinite recursion.
-	     form
-	   (byte-optimize-form newform for-effect))))
-
-      ;; FIXME: Strictly speaking, I think this is a bug: (closure...)
-      ;; is a *value* and shouldn't appear in the car.
-      (`((closure . ,_) . ,_) form)
+      (`(internal-make-closure ,vars ,env . ,rest)
+       (if for-effect
+           `(progn ,@(byte-optimize-body env t))
+         `(,fn ,vars ,(mapcar #'byte-optimize-form env) . ,rest)))
 
       (`(setq ,var ,expr)
        (let ((lexvar (assq var byte-optimize--lexvars))
@@ -500,7 +482,7 @@ for speeding up processing.")
        (cons fn (mapcar #'byte-optimize-form exps)))
 
       (`(,(pred (not symbolp)) . ,_)
-       (byte-compile-warn-x fn "`%s' is a malformed function" fn)
+       (byte-compile-warn-x form "`%s' is a malformed function" fn)
        form)
 
       ((guard (when for-effect
@@ -804,6 +786,17 @@ for speeding up processing.")
                            make-marker copy-marker point-marker mark-marker
                            set-marker
                            kbd key-description
+                           skip-chars-forward skip-chars-backward
+                           skip-syntax-forward skip-syntax-backward
+                           current-column current-indentation
+                           char-syntax syntax-class-to-char
+                           parse-partial-sexp goto-char forward-line
+                           next-window previous-window minibuffer-window
+                           selected-frame selected-window
+                           standard-case-table standard-syntax-table
+                           syntax-table
+                           frame-first-window frame-root-window
+                           frame-selected-window
                            always))
                   t)
                  ((eq head 'if)
@@ -887,7 +880,13 @@ for speeding up processing.")
   (cons accum args))
 
 (defun byte-optimize-plus (form)
-  (let ((args (remq 0 (byte-opt--arith-reduce #'+ 0 (cdr form)))))
+  (let* ((not-0 (remq 0 (byte-opt--arith-reduce #'+ 0 (cdr form))))
+         (args (if (and (= (length not-0) 1)
+                        (> (length form) 2))
+                   ;; We removed numbers and only one arg remains: add a 0
+                   ;; so that it isn't turned into (* X 1) later on.
+                   (append not-0 '(0))
+                 not-0)))
     (cond
      ;; (+) -> 0
      ((null args) 0)
@@ -985,7 +984,7 @@ for speeding up processing.")
   (let ((nargs (length (cdr form))))
     (cond
      ((= nargs 1)
-      `(progn (cadr form) t))
+      `(progn ,(cadr form) t))
      ((>= nargs 3)
       ;; At least 3 arguments: transform to N-1 binary comparisons,
       ;; since those have their own byte-ops which are particularly
@@ -1053,23 +1052,26 @@ See Info node `(elisp) Integer Basics'."
   (and (integerp o) (<= -536870912 o 536870911)))
 
 (defun byte-optimize-equal (form)
-  ;; Replace `equal' or `eql' with `eq' if at least one arg is a
-  ;; symbol or fixnum.
-  (byte-optimize-binary-predicate
-   (if (= (length (cdr form)) 2)
-       (if (or (byte-optimize--constant-symbol-p (nth 1 form))
-               (byte-optimize--constant-symbol-p (nth 2 form))
-               (byte-optimize--fixnump (nth 1 form))
-               (byte-optimize--fixnump (nth 2 form)))
-           (cons 'eq (cdr form))
-         form)
-     ;; Arity errors reported elsewhere.
-     form)))
+  (cond ((/= (length (cdr form)) 2) form)  ; Arity errors reported elsewhere.
+        ;; Anything is identical to itself.
+        ((and (eq (nth 1 form) (nth 2 form)) (symbolp (nth 1 form))) t)
+        ;; Replace `equal' or `eql' with `eq' if at least one arg is a
+        ;; symbol or fixnum.
+        ((or (byte-optimize--constant-symbol-p (nth 1 form))
+             (byte-optimize--constant-symbol-p (nth 2 form))
+             (byte-optimize--fixnump (nth 1 form))
+             (byte-optimize--fixnump (nth 2 form)))
+         (byte-optimize-binary-predicate (cons 'eq (cdr form))))
+        (t (byte-optimize-binary-predicate form))))
 
 (defun byte-optimize-eq (form)
-  (pcase (cdr form)
-    ((or `(,x nil) `(nil ,x)) `(not ,x))
-    (_ (byte-optimize-binary-predicate form))))
+  (cond ((/= (length (cdr form)) 2) form)  ; arity error
+        ;; Anything is identical to itself.
+        ((and (eq (nth 1 form) (nth 2 form)) (symbolp (nth 1 form))) t)
+        ;; Strength-reduce comparison with `nil'.
+        ((null (nth 1 form)) `(not ,(nth 2 form)))
+        ((null (nth 2 form)) `(not ,(nth 1 form)))
+        (t (byte-optimize-binary-predicate form))))
 
 (defun byte-optimize-member (form)
   (cond
@@ -1420,12 +1422,15 @@ See Info node `(elisp) Integer Basics'."
 
 
 (defun byte-optimize-funcall (form)
-  ;; (funcall (lambda ...) ...) ==> ((lambda ...) ...)
-  ;; (funcall foo ...) ==> (foo ...)
-  (let ((fn (nth 1 form)))
-    (if (memq (car-safe fn) '(quote function))
-	(cons (nth 1 fn) (cdr (cdr form)))
-      form)))
+  ;; (funcall #'(lambda ...) ...) -> (let ...)
+  ;; (funcall #'SYM ...) -> (SYM ...)
+  ;; (funcall 'SYM ...)  -> (SYM ...)
+  (pcase form
+    (`(,_ #'(lambda . ,_) . ,_)
+     (macroexp--unfold-lambda form))
+    (`(,_ ,(or `#',f `',(and f (pred symbolp))) . ,actuals)
+     `(,f ,@actuals))
+    (_ form)))
 
 (defun byte-optimize-apply (form)
   (let ((len (length form)))
@@ -1690,7 +1695,8 @@ See Info node `(elisp) Integer Basics'."
          category-docstring category-set-mnemonics char-category-set
          copy-category-table get-unused-category make-category-set
          ;; character.c
-         char-width multibyte-char-to-unibyte string unibyte-char-to-multibyte
+         char-width get-byte multibyte-char-to-unibyte string string-width
+         unibyte-char-to-multibyte unibyte-string
          ;; charset.c
          decode-char encode-char
          ;; chartab.c
@@ -1720,6 +1726,8 @@ See Info node `(elisp) Integer Basics'."
          line-beginning-position line-end-position ngettext pos-bol pos-eol
          propertize region-beginning region-end string-to-char
          user-full-name user-login-name
+         ;; eval.c
+         special-variable-p
          ;; fileio.c
          car-less-than-car directory-name-p file-directory-p file-exists-p
          file-name-absolute-p file-name-concat file-newer-than-file-p
@@ -1728,23 +1736,29 @@ See Info node `(elisp) Integer Basics'."
          file-locked-p
          ;; floatfns.c
          abs acos asin atan ceiling copysign cos exp expt fceiling ffloor
-         float floor fround ftruncate isnan ldexp log logb round sin sqrt tan
+         float floor frexp fround ftruncate isnan ldexp log logb round
+         sin sqrt tan
          truncate
          ;; fns.c
          append assq
          base64-decode-string base64-encode-string base64url-encode-string
+         buffer-hash buffer-line-statistics
          compare-strings concat copy-alist copy-hash-table copy-sequence elt
+         equal equal-including-properties
          featurep get
          gethash hash-table-count hash-table-rehash-size
          hash-table-rehash-threshold hash-table-size hash-table-test
          hash-table-weakness
          length length< length= length>
-         line-number-at-pos locale-info make-hash-table
+         line-number-at-pos load-average locale-info make-hash-table md5
          member memq memql nth nthcdr
-         object-intervals rassoc rassq reverse
-         string-as-multibyte string-as-unibyte string-bytes string-distance
+         object-intervals rassoc rassq reverse secure-hash
+         string-as-multibyte string-as-unibyte string-bytes
+         string-collate-equalp string-collate-lessp string-distance
          string-equal string-lessp string-make-multibyte string-make-unibyte
-         string-search string-to-multibyte substring substring-no-properties
+         string-search string-to-multibyte string-to-unibyte
+         string-version-lessp
+         substring substring-no-properties
          sxhash-eq sxhash-eql sxhash-equal sxhash-equal-including-properties
          take vconcat
          ;; frame.c
@@ -1804,6 +1818,7 @@ See Info node `(elisp) Integer Basics'."
          all-threads condition-mutex condition-name mutex-name thread-live-p
          thread-name
          ;; timefns.c
+         current-cpu-time
          current-time-string current-time-zone decode-time encode-time
          float-time format-time-string time-add time-convert time-equal-p
          time-less-p time-subtract
@@ -1863,7 +1878,8 @@ See Info node `(elisp) Integer Basics'."
          ;; fileio.c
          default-file-modes
          ;; fns.c
-         eql equal hash-table-p identity proper-list-p safe-length
+         eql
+         hash-table-p identity proper-list-p safe-length
          secure-hash-algorithms
          ;; frame.c
          frame-list frame-live-p framep last-nonminibuffer-frame
@@ -1923,7 +1939,7 @@ See Info node `(elisp) Integer Basics'."
 (let ((pure-fns
        '(
          ;; character.c
-         characterp
+         characterp max-char
          ;; data.c
          % * + - / /= 1+ 1- < <= = > >= aref arrayp ash atom bare-symbol
          bool-vector-count-consecutive bool-vector-count-population
@@ -1941,10 +1957,11 @@ See Info node `(elisp) Integer Basics'."
          isnan ldexp logb round sqrt truncate
          ;; fns.c
          assq base64-decode-string base64-encode-string base64url-encode-string
-         concat elt eql equal hash-table-p identity length length< length=
+         concat elt eql equal equal-including-properties
+         hash-table-p identity length length< length=
          length> member memq memql nth nthcdr proper-list-p rassoc rassq
          safe-length string-bytes string-distance string-equal string-lessp
-         string-search take
+         string-search string-version-lessp take
          ;; search.c
          regexp-quote
          ;; syntax.c
@@ -2128,7 +2145,7 @@ See Info node `(elisp) Integer Basics'."
    '(byte-constant byte-dup byte-stack-ref byte-stack-set byte-discard
      byte-discardN byte-discardN-preserve-tos
      byte-symbolp byte-consp byte-stringp byte-listp byte-numberp byte-integerp
-     byte-eq byte-not
+     byte-not
      byte-cons byte-list1 byte-list2 byte-list3 byte-list4 byte-listN
      byte-interactive-p)
    ;; How about other side-effect-free-ops?  Is it safe to move an
@@ -2136,11 +2153,16 @@ See Info node `(elisp) Integer Basics'."
    ;; No, it is not, because the unwind-protect forms can alter
    ;; the inside of the object to which nth would apply.
    ;; For the same reason, byte-equal was deleted from this list.
+   ;;
+   ;; In particular, `byte-eq' isn't here despite `eq' being nominally
+   ;; pure because it is currently affected by `symbols-with-pos-enabled'
+   ;; and so cannot be sunk past an unwind op that might end a binding of
+   ;; that variable.  Yes, this is unsatisfactory.
    "Byte-codes that can be moved past an unbind.")
 
 (defconst byte-compile-side-effect-and-error-free-ops
   '(byte-constant byte-dup byte-symbolp byte-consp byte-stringp byte-listp
-    byte-integerp byte-numberp byte-eq byte-equal byte-not byte-car-safe
+    byte-integerp byte-numberp byte-eq byte-not byte-car-safe
     byte-cdr-safe byte-cons byte-list1 byte-list2 byte-list3 byte-list4
     byte-listN byte-point byte-point-max
     byte-point-min byte-following-char byte-preceding-char
@@ -2151,10 +2173,11 @@ See Info node `(elisp) Integer Basics'."
   (append
    '(byte-varref byte-nth byte-memq byte-car byte-cdr byte-length byte-aref
      byte-symbol-value byte-get byte-concat2 byte-concat3 byte-sub1 byte-add1
-     byte-eqlsign byte-gtr byte-lss byte-leq byte-geq byte-diff byte-negate
-     byte-plus byte-max byte-min byte-mult byte-char-after byte-char-syntax
-     byte-buffer-substring byte-string= byte-string< byte-nthcdr byte-elt
-     byte-member byte-assq byte-quo byte-rem byte-substring)
+     byte-eqlsign byte-equal byte-gtr byte-lss byte-leq byte-geq byte-diff
+     byte-negate byte-plus byte-max byte-min byte-mult byte-char-after
+     byte-char-syntax byte-buffer-substring byte-string= byte-string<
+     byte-nthcdr byte-elt byte-member byte-assq byte-quo byte-rem
+     byte-substring)
    byte-compile-side-effect-and-error-free-ops))
 
 ;; This crock is because of the way DEFVAR_BOOL variables work.
