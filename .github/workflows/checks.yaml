@@ -11,18 +11,10 @@ jobs:
         include:
           - os: ubuntu-latest
           - os: macos-latest
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-    - uses: actions/checkout@v2.4.0
-      with:
-        fetch-depth: 0
-    - uses: cachix/install-nix-action@v16
-      with:
-        install_url: https://github.com/numtide/nix-unstable-installer/releases/download/nix-2.8.0pre20220311_d532269/install
 
-    # Configure Nix to enable flakes
-    - run: echo "experimental-features = nix-command flakes" | sudo tee -a /etc/nix/nix.conf
+    steps:
+    - uses: DeterminateSystems/nix-installer-action@main
+    - uses: DeterminateSystems/magic-nix-cache-action@main
 
     - name: Nix Flake Check
       run: nix -Lv flake check
