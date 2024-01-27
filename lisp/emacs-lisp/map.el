@@ -1,12 +1,15 @@
 ;;; map.el --- Map manipulation functions  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2024 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Petton <nicolas@petton.fr>
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: extensions, lisp
 ;; Version: 3.3.1
 ;; Package-Requires: ((emacs "26"))
+
+;; This is a GNU ELPA :core package.  Avoid functionality that is not
+;; compatible with the version of Emacs recorded above.
 
 ;; This file is part of GNU Emacs.
 

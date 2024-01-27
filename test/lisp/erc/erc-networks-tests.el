@@ -1,6 +1,6 @@
 ;;; erc-networks-tests.el --- Tests for erc-networks.  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2020-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 ;;
@@ -20,25 +20,21 @@
 ;;; Code:
 
 (require 'ert-x) ; cl-lib
-(require 'erc)
+(eval-and-compile
+  (let ((load-path (cons (ert-resource-directory) load-path)))
+    (require 'erc-tests-common)))
 
 (defun erc-networks-tests--create-dead-proc (&optional buf)
   (let ((p (start-process "true" (or buf (current-buffer)) "true")))
     (while (process-live-p p) (sit-for 0.1))
     p))
 
-(defun erc-networks-tests--create-live-proc (&optional buf)
-  (let ((proc (start-process "sleep" (or buf (current-buffer)) "sleep" "1")))
-    (set-process-query-on-exit-flag proc nil)
-    proc))
+(defun erc-networks-tests--create-live-proc ()
+  (erc-tests-common-init-server-proc "sleep" "1"))
 
 ;; When we drop 27, call `get-buffer-create with INHIBIT-BUFFER-HOOKS.
 (defun erc-networks-tests--clean-bufs ()
-  (let (erc-kill-channel-hook
-        erc-kill-server-hook
-        erc-kill-buffer-hook)
-    (dolist (buf (erc-buffer-list))
-      (kill-buffer buf))))
+  (erc-tests-common-kill-buffers))
 
 (defun erc-networks-tests--bufnames (prefix)
   (let* ((case-fold-search)
@@ -623,11 +619,6 @@
                                :symbol 'foonet/dummy
                                :parts [foonet "dummy"]
                                :len 2)
-             ;; `erc-kill-buffer-function' uses legacy target detection
-             ;; but falls back on buffer name, so no need for:
-             ;;
-             ;;   erc-default-recipients '("#a")
-             ;;
              erc--target (erc--target-from-string "#a")
              erc-server-process (with-temp-buffer
                                   (erc-networks-tests--create-dead-proc)))
@@ -1206,7 +1197,7 @@
           calls)
       (erc-mode)
 
-      (cl-letf (((symbol-function 'erc-display-line)
+      (cl-letf (((symbol-function 'erc--route-insertion)
                  (lambda (&rest r) (push r calls))))
 
         (ert-info ("Signals when `erc-server-announced-name' unset")
@@ -1447,10 +1438,12 @@
   (let* (erc-kill-server-hook
          erc-insert-modify-hook
          (old-buf (get-buffer-create "FooNet"))
-         (old-proc (erc-networks-tests--create-live-proc old-buf))) ; live
+         ;;
+         old-proc) ; live
 
     (with-current-buffer old-buf
       (erc-mode)
+      (setq old-proc (erc-networks-tests--create-live-proc))
       (erc--initialize-markers (point) nil)
       (insert "*** Old buf")
       (setq erc-network 'FooNet

@@ -1,6 +1,6 @@
 ;;; nsm.el --- Network Security Manager  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2014-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2024 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: encryption, security, network
@@ -149,10 +149,11 @@ unencrypted."
     (dhe-prime-kx           medium)
     (sha1-sig               medium)
     (ecdsa-cbc-cipher       medium)
+    ;; Deprecated by NIST from 2016/2023 (see also CVE-2016-2183).
+    (3des-cipher            medium)
     ;; Towards TLS 1.3
     (dhe-kx                 high)
     (rsa-kx                 high)
-    (3des-cipher            high)
     (cbc-cipher             high))
   "This variable specifies what TLS connection checks to perform.
 It's an alist where the key is the name of the check, and the
@@ -169,13 +170,13 @@ otherwise.
 
 See also: `nsm-check-tls-connection', `nsm-save-host-names',
 `nsm-settings-file'"
-  :version "27.1"
   :type '(repeat (list (symbol :tag "Check function")
                        (choice :tag "Level"
                                :value medium
                                (const :tag "Low" low)
                                (const :tag "Medium" medium)
-                               (const :tag "High" high)))))
+                               (const :tag "High" high))))
+  :version "30.1")
 
 (defun nsm-save-fingerprint-maybe (host port status &rest _)
   "Save the certificate's fingerprint.
@@ -386,12 +387,11 @@ between the user and the server, to downgrade vulnerable TLS
 connections to insecure 512-bit export grade cryptography.
 
 The Logjam paper suggests using 1024-bit prime on the client to
-mitigate some effects of this attack, and upgrade to 2048-bit as
-soon as server configurations allow.  According to SSLLabs' SSL
-Pulse tracker, only about 75% of server support 2048-bit key
-exchange in June 2018[2].  To provide a balance between
-compatibility and security, this function only checks for a
-minimum key strength of 1024-bit.
+mitigate some effects of this attack, and upgrading to 2048-bit
+as soon as server configurations allow.  According to SSLLabs'
+SSL Pulse tracker the overwhelming majority of servers support
+2048-bit key exchange in October 2023[2].  This function
+therefore checks for a minimum key strength of 2048 bits.
 
 See also: `nsm-protocol-check--dhe-kx'
 
@@ -403,10 +403,10 @@ Diffie-Hellman Fails in Practice\", `https://weakdh.org/'
 `https://www.ssllabs.com/ssl-pulse/'"
   (let ((prime-bits (plist-get status :diffie-hellman-prime-bits)))
     (if (and (string-match "^\\bDHE\\b" (plist-get status :key-exchange))
-             (< prime-bits 1024))
+             (< prime-bits 2048))
         (format-message
          "Diffie-Hellman key strength (%s bits) too weak (%s bits)"
-         prime-bits 1024))))
+         prime-bits 2048))))
 
 (defun nsm-protocol-check--dhe-kx (_host _port status &optional _settings)
   "Check for existence of DH key exchange based on integer factorization.
@@ -484,7 +484,7 @@ because of MAC-then-encrypt.  This construction is vulnerable to
 padding oracle attacks[1].
 
 Since GnuTLS 3.4.0, the TLS encrypt-then-MAC extension[2] has
-been enabled by default[3]. If encrypt-then-MAC is negotiated,
+been enabled by default[3].  If encrypt-then-MAC is negotiated,
 this check has no effect.
 
 Reference:
@@ -550,14 +550,14 @@ Due to its use of 64-bit block size, it is known that a
 ciphertext collision is highly likely when 2^32 blocks are
 encrypted with the same key bundle under 3-key 3DES.  Practical
 birthday attacks of this kind have been demonstrated by Sweet32[1].
-As such, NIST is in the process of disallowing its use in TLS[2].
+As such, NIST has disallowed its use after December 31, 2023[2].
 
 [1]: Bhargavan, Leurent (2016).  \"On the Practical (In-)Security of
 64-bit Block Ciphers — Collision Attacks on HTTP over TLS and
 OpenVPN\", `https://sweet32.info/'
-[2]: NIST Information Technology Laboratory (Jul 2017).  \"Update to
-Current Use and Deprecation of TDEA\",
-`https://csrc.nist.gov/News/2017/Update-to-Current-Use-and-Deprecation-of-TDEA'"
+[2]: National Institute of Standards and Technology (Mar 2019).
+\"Transitioning the Use of Cryptographic Algorithms and Key
+Lengths\", `https://doi.org/10.6028/NIST.SP.800-131Ar2'"
   (let ((cipher (plist-get status :cipher)))
     (and (string-match "\\b3DES\\b" cipher)
          (format-message

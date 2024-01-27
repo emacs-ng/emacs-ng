@@ -1,6 +1,6 @@
 ;;; search-tests.el --- tests for search.c functions -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015-2016, 2018-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2016, 2018-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -38,5 +38,43 @@
       (if (search-forward "bc")
 	  (replace-match "bcd"))
       (should (= (point) 10)))))
+
+(ert-deftest search-test--replace-match-update-data ()
+  (with-temp-buffer
+    (pcase-dolist (`(,pre ,post) '(("" "")
+                                   ("a" "")
+                                   ("" "b")
+                                   ("a" "b")))
+      (erase-buffer)
+      (insert "hello ")
+      (save-excursion (insert pre post " world"))
+      (should (looking-at
+               (concat "\\(\\)" pre "\\(\\)\\(\\(\\)\\)\\(\\)" post "\\(\\)")))
+      (let* ((beg0 (match-beginning 0))
+             (beg4 (+ beg0 (length pre)))
+             (end4 (+ beg4 (length "BOO")))
+             (end0 (+ end4 (length post))))
+        (replace-match "BOO" t t nil 4)
+        (should (equal (match-beginning 0) beg0))
+        (should (equal (match-beginning 1) beg0))
+        (should (equal (match-beginning 2) beg4))
+        (should (equal (match-beginning 3) beg4))
+        (should (equal (match-beginning 4) beg4))
+        (should (equal (match-end 6) end0))
+        (should (equal (match-end 5) end4))
+        (should (equal (match-end 4) end4))
+        (should (equal (match-end 3) end4))
+        (should (equal (match-end 0) end0))
+        ;; `update_search_regs' doesn't have enough information to get
+        ;; the ones below correctly in all cases.
+        (when (> (length post) 0)
+          (should (equal (match-beginning 6) end0)))
+        (when (> (length pre) 0)
+          (should (equal (match-end 1) beg0)))
+        ;; `update_search_regs' doesn't have enough information to get
+        ;; the ones below correctly at all.
+        ;;(should (equal (match-beginning 5) end4))
+        ;;(should (equal (match-end 2) beg4))
+        ))))
 
 ;;; search-tests.el ends here

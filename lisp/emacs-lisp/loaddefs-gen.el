@@ -1,6 +1,6 @@
 ;;; loaddefs-gen.el --- generate loaddefs.el files  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; Keywords: maint
 ;; Package: emacs
@@ -48,6 +48,7 @@ Standard prefixes won't be registered anyway.  I.e. if a file
 \"foo.el\" defines variables or functions that use \"foo-\" as
 prefix, that will not be registered.  But all other prefixes will
 be included.")
+;;;###autoload
 (put 'autoload-compute-prefixes 'safe-local-variable #'booleanp)
 
 (defvar no-update-autoloads nil

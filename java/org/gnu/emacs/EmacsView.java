@@ -1,6 +1,6 @@
 /* Communication module for Android terminals.  -*- c-file-style: "GNU" -*-
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -24,6 +24,7 @@ import android.content.Context;
 import android.text.InputType;
 
 import android.view.ContextMenu;
+import android.view.DragEvent;
 import android.view.View;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -387,7 +388,7 @@ public final class EmacsView extends ViewGroup
 		&& !rootWindowInsets.isVisible (WindowInsets.Type.ime ())
 		/* N.B. that the keyboard is dismissed during gesture
 		   navigation under Android 30, but the system is
-		   quite tempermental regarding whether the window is
+		   quite temperamental regarding whether the window is
 		   focused at that point.  Ideally
 		   isCurrentlyTextEditor shouldn't be reset in that
 		   case, but detecting that situation appears to be
@@ -455,7 +456,6 @@ public final class EmacsView extends ViewGroup
   {
     Canvas canvas;
     Rect damageRect;
-    Bitmap bitmap;
 
     /* Make sure this function is called only from the Emacs
        thread.  */
@@ -473,11 +473,12 @@ public final class EmacsView extends ViewGroup
     damageRect = damageRegion.getBounds ();
     damageRegion.setEmpty ();
 
-    bitmap = getBitmap ();
-
-    /* Transfer the bitmap to the surface view, then invalidate
-       it.  */
-    surfaceView.setBitmap (bitmap, damageRect);
+    synchronized (this)
+      {
+	/* Transfer the bitmap to the surface view, then invalidate
+	   it.  */
+	surfaceView.setBitmap (bitmap, damageRect);
+      }
   }
 
   @Override
@@ -566,6 +567,19 @@ public final class EmacsView extends ViewGroup
     return window.onTouchEvent (motion);
   }
 
+  @Override
+  public boolean
+  onDragEvent (DragEvent drag)
+  {
+    /* Inter-program drag and drop isn't supported under Android 23
+       and earlier.  */
+
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N)
+      return false;
+
+    return window.onDragEvent (drag);
+  }
+
 
 
   private void
@@ -581,12 +595,12 @@ public final class EmacsView extends ViewGroup
 
 	/* The view at 0 is the surface view.  */
 	attachViewToParent (child, 1,
-			    child.getLayoutParams());
+			    child.getLayoutParams ());
       }
   }
 
-  /* The following two functions must not be called if the view has no
-     parent, or is parented to an activity.  */
+  /* The following four functions must not be called if the view has
+     no parent, or is parented to an activity.  */
 
   public void
   raise ()
@@ -613,6 +627,40 @@ public final class EmacsView extends ViewGroup
       return;
 
     parent.moveChildToBack (this);
+  }
+
+  public void
+  moveAbove (EmacsView view)
+  {
+    EmacsView parent;
+    int index;
+
+    parent = (EmacsView) getParent ();
+
+    if (parent != view.getParent ())
+      throw new IllegalStateException ("Moving view above non-sibling");
+
+    index = parent.indexOfChild (this);
+    parent.detachViewFromParent (index);
+    index = parent.indexOfChild (view);
+    parent.attachViewToParent (this, index + 1, getLayoutParams ());
+  }
+
+  public void
+  moveBelow (EmacsView view)
+  {
+    EmacsView parent;
+    int index;
+
+    parent = (EmacsView) getParent ();
+
+    if (parent != view.getParent ())
+      throw new IllegalStateException ("Moving view above non-sibling");
+
+    index = parent.indexOfChild (this);
+    parent.detachViewFromParent (index);
+    index = parent.indexOfChild (view);
+    parent.attachViewToParent (this, index, getLayoutParams ());
   }
 
   @Override
@@ -676,16 +724,19 @@ public final class EmacsView extends ViewGroup
   public synchronized void
   onDetachedFromWindow ()
   {
+    Bitmap savedBitmap;
+
+    savedBitmap = bitmap;
     isAttachedToWindow = false;
+    bitmap = null;
+    canvas = null;
+
+    surfaceView.setBitmap (null, null);
 
     /* Recycle the bitmap and call GC.  */
 
-    if (bitmap != null)
-      bitmap.recycle ();
-
-    bitmap = null;
-    canvas = null;
-    surfaceView.setBitmap (null, null);
+    if (savedBitmap != null)
+      savedBitmap.recycle ();
 
     /* Collect the bitmap storage; it could be large.  */
     Runtime.getRuntime ().gc ();

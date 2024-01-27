@@ -1,6 +1,6 @@
 ;;; log-edit.el --- Major mode for editing CVS commit messages -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: pcl-cvs cvs commit log vc
@@ -61,12 +61,12 @@
   "C-c C-d" #'log-edit-show-diff
   "C-c C-f" #'log-edit-show-files
   "C-c C-k" #'log-edit-kill-buffer
-  "C-a"     #'log-edit-beginning-of-line
   "M-n"     #'log-edit-next-comment
   "M-p"     #'log-edit-previous-comment
   "M-r"     #'log-edit-comment-search-backward
   "M-s"     #'log-edit-comment-search-forward
-  "C-c ?"   #'log-edit-mode-help)
+  "C-c ?"   #'log-edit-mode-help
+  "<remap> <move-beginning-of-line>" #'log-edit-beginning-of-line)
 
 (easy-menu-define log-edit-menu log-edit-mode-map
   "Menu used for `log-edit-mode'."
@@ -76,6 +76,8 @@
     "--"
     ["Insert ChangeLog" log-edit-insert-changelog
      :help "Insert a log message by looking at the ChangeLog"]
+    ["Generate ChangeLog" log-edit-generate-changelog-from-diff
+     :help "Generate a log message from the diff and insert it into this buffer"]
     ["Add to ChangeLog" log-edit-add-to-changelog
      :help "Insert this log message into the appropriate ChangeLog file"]
     "--"
@@ -92,6 +94,60 @@
      :help "Search forwards through comment history for a substring match of str"]
     ["Search comment backward"	log-edit-comment-search-backward
      :help "Search backwards through comment history for substring match of str"]))
+
+(defvar log-edit-tool-bar-map
+  (let ((map (make-sparse-keymap)))
+    (tool-bar-local-item-from-menu 'find-file "new" map
+                                   nil :label "New File"
+			           :vert-only t)
+    (tool-bar-local-item-from-menu 'menu-find-file-existing "open" map
+                                   nil :label "Open" :vert-only t)
+    (tool-bar-local-item-from-menu 'dired "diropen" map nil :vert-only t)
+    (tool-bar-local-item-from-menu 'kill-this-buffer "close" map nil
+                                   :vert-only t)
+    (define-key-after map [separator-1] menu-bar-separator)
+    (tool-bar-local-item-from-menu 'log-edit-done "commit"
+                                   map log-edit-mode-map :vert-only t
+                                   :help
+                                   "Exit log buffer and commit the changes")
+    (define-key-after map [separator-2] menu-bar-separator)
+    (tool-bar-local-item-from-menu 'log-edit-insert-changelog
+                                   "load-changelog"
+                                   map log-edit-mode-map :vert-only t
+                                   :help
+                                   "Produce log message from ChangeLog file")
+    (tool-bar-local-item-from-menu 'log-edit-generate-changelog-from-diff
+                                   "gen-changelog"
+                                   map log-edit-mode-map :vert-only t
+                                   :help
+                                   "Generate log message skeleton from diffs")
+    (tool-bar-local-item-from-menu 'log-edit-add-to-changelog
+                                   "ins-changelog"
+                                   map log-edit-mode-map :vert-only t
+                                   :help
+                                   "Insert this log message into ChangeLog file")
+    (define-key-after map [separator-3] menu-bar-separator)
+    (tool-bar-local-item-from-menu 'log-edit-show-diff
+                                   "view-diff"
+                                   map log-edit-mode-map :vert-only t
+                                   :help
+                                   "View diffs for the files to be committed")
+    (tool-bar-local-item-from-menu 'log-edit-show-files
+                                   "info"
+                                   map log-edit-mode-map :vert-only t
+                                   :help
+                                   "View list of files to be committed")
+    (define-key-after map [separator-4] menu-bar-separator)
+    (tool-bar-local-item-from-menu 'undo "undo" map nil)
+    (define-key-after map [separator-5] menu-bar-separator)
+    (tool-bar-local-item-from-menu (lookup-key menu-bar-edit-menu [cut])
+                                   "cut" map nil)
+    (tool-bar-local-item-from-menu (lookup-key menu-bar-edit-menu [copy])
+                                   "copy" map nil)
+    (tool-bar-local-item-from-menu (lookup-key menu-bar-edit-menu [paste])
+                                   "paste" map nil)
+    map)
+  "Like the default `tool-bar-map', but with additions for Log-Edit mode.")
 
 (defcustom log-edit-confirm 'changed
   "If non-nil, `log-edit-done' will request confirmation.
@@ -511,7 +567,9 @@ the \\[vc-prefix-map] prefix for VC commands, for example).
   (setq-local fill-paragraph-function #'log-edit-fill-entry)
   (make-local-variable 'log-edit-comment-ring-index)
   (add-hook 'kill-buffer-hook 'log-edit-remember-comment nil t)
-  (hack-dir-local-variables-non-file-buffer))
+  (hack-dir-local-variables-non-file-buffer)
+  ;; Replace the tool bar map with `log-edit-tool-bar-map'.
+  (setq-local tool-bar-map log-edit-tool-bar-map))
 
 (defun log-edit--insert-filled-defuns (func-names)
   "Insert FUNC-NAMES, following ChangeLog formatting."
@@ -1219,7 +1277,10 @@ line of MSG."
       (let ((pt (point)))
         (and (zerop (forward-line 1))
              (looking-at "\n\\|\\'")
-             (let ((summary (buffer-substring-no-properties pt (1- (point)))))
+             (let ((summary (buffer-substring-no-properties pt
+                                                            (if (bolp)
+                                                                (1- (point))
+                                                              (point)))))
                (skip-chars-forward " \n")
                (delete-region pt (point))
                (log-edit-set-header "Summary" summary)))))))

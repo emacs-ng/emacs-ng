@@ -1,6 +1,6 @@
 ;;; eshell.el --- the Emacs command shell  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 ;; Version: 2.4.2
@@ -315,9 +315,8 @@ argument), then insert output into the current buffer at point."
 	;; make the output as attractive as possible, with no
 	;; extraneous newlines
 	(when intr
-	  (if (eshell-interactive-process-p)
-	      (eshell-wait-for-process (eshell-tail-process)))
-	  (cl-assert (not (eshell-interactive-process-p)))
+	  (apply #'eshell-wait-for-process (cadr eshell-foreground-command))
+	  (cl-assert (not eshell-foreground-command))
 	  (goto-char (point-max))
 	  (while (and (bolp) (not (bobp)))
 	    (delete-char -1)))

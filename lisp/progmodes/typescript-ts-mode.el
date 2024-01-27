@@ -1,6 +1,6 @@
 ;;; typescript-ts-mode.el --- tree sitter support for TypeScript  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; Author     : Theodor Thornhill <theo@thornhill.no>
 ;; Maintainer : Theodor Thornhill <theo@thornhill.no>
@@ -107,6 +107,9 @@ Argument LANGUAGE is either `typescript' or `tsx'."
      ((parent-is "member_expression") parent-bol typescript-ts-mode-indent-offset)
      ((parent-is "named_imports") parent-bol typescript-ts-mode-indent-offset)
      ((parent-is "statement_block") parent-bol typescript-ts-mode-indent-offset)
+     ((or (node-is "case")
+          (node-is "default"))
+      parent-bol typescript-ts-mode-indent-offset)
      ((parent-is "switch_case") parent-bol typescript-ts-mode-indent-offset)
      ((parent-is "switch_default") parent-bol typescript-ts-mode-indent-offset)
      ((parent-is "type_arguments") parent-bol typescript-ts-mode-indent-offset)
@@ -124,6 +127,11 @@ Argument LANGUAGE is either `typescript' or `tsx'."
      ((parent-is "arrow_function") parent-bol typescript-ts-mode-indent-offset)
      ((parent-is "parenthesized_expression") parent-bol typescript-ts-mode-indent-offset)
      ((parent-is "binary_expression") parent-bol typescript-ts-mode-indent-offset)
+     ((match "while" "do_statement") parent-bol 0)
+     ((match "else" "if_statement") parent-bol 0)
+     ((parent-is ,(rx (or (seq (or "if" "for" "for_in" "while" "do") "_statement")
+                          "else_clause")))
+      parent-bol typescript-ts-mode-indent-offset)
 
      ,@(when (eq language 'tsx)
 	 (append (tsx-ts-mode--indent-compatibility-b893426)
@@ -166,7 +174,7 @@ Argument LANGUAGE is either `typescript' or `tsx'."
   ;; but then raises an error if the wrong node type is used. So it is
   ;; important to check with the new node type (member_expression)
   (condition-case nil
-      (progn (treesit-query-capture language '(jsx_opening_element (member_expression) @capture))
+      (progn (treesit-query-capture language '((jsx_opening_element (member_expression) @capture)))
 	     '((jsx_opening_element
 		[(member_expression (identifier)) (identifier)]
 		@typescript-ts-jsx-tag-face)
@@ -197,7 +205,7 @@ Argument LANGUAGE is either `typescript' or `tsx'."
   (treesit-font-lock-rules
    :language language
    :feature 'comment
-   `((comment) @font-lock-comment-face)
+   `([(comment) (hash_bang_line)] @font-lock-comment-face)
 
    :language language
    :feature 'constant
@@ -478,7 +486,7 @@ This mode is intended to be inherited by concrete major modes."
                 '((comment declaration)
                   (keyword string escape-sequence)
                   (constant expression identifier number pattern property)
-                  (function bracket delimiter)))
+                  (operator function bracket delimiter)))
     (setq-local syntax-propertize-function #'typescript-ts--syntax-propertize)
 
     (treesit-major-mode-setup)))

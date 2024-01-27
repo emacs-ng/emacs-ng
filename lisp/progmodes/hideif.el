@@ -1,6 +1,6 @@
 ;;; hideif.el --- hides selected code within ifdef  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1988, 1994, 2001-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1988, 1994, 2001-2024 Free Software Foundation, Inc.
 
 ;; Author: Brian Marick
 ;;	Daniel LaLiberte <liberte@holonexus.org>
@@ -1801,7 +1801,7 @@ and `+='...)."
                    actual-parms nil)))
 
           (t
-           (error "Interal error: impossible case."))))
+           (error "Internal error: impossible case"))))
 
        (pop actual-parms)
        while actual-parms) ; end cl-loop

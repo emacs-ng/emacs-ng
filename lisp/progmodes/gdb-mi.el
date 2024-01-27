@@ -1,6 +1,6 @@
 ;;; gdb-mi.el --- User Interface for running GDB  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2007-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2024 Free Software Foundation, Inc.
 
 ;; Author: Nick Roberts <nickrob@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -817,6 +817,42 @@ NOARG must be t when this macro is used outside `gud-def'."
 
 (defvar gdb-control-level 0)
 
+(defun gdb-load-history ()
+  "Load GDB history from a history file.
+The name of the history file is given by environment variable GDBHISTFILE,
+falling back to \".gdb_history\" and \".gdbinit\"."
+  (when (ring-empty-p comint-input-ring) ; cf shell-mode
+    (let ((hfile (expand-file-name (or (getenv "GDBHISTFILE")
+				       (if (eq system-type 'ms-dos)
+					   "_gdb_history"
+					 ".gdb_history"))))
+	  ;; gdb defaults to 256, but we'll default to comint-input-ring-size.
+	  (hsize (getenv "HISTSIZE")))
+      (dolist (file (append '("~/.gdbinit")
+			    (unless (string-equal (expand-file-name ".")
+                                                  (expand-file-name "~"))
+			      '(".gdbinit"))))
+	(if (file-readable-p (setq file (expand-file-name file)))
+	    (with-temp-buffer
+	      (insert-file-contents file)
+	      ;; TODO? check for "set history save\\(  *on\\)?" and do
+	      ;; not use history otherwise?
+	      (while (re-search-forward
+		      "^ *set history \\(filename\\|size\\)  *\\(.*\\)" nil t)
+		(cond ((string-equal (match-string 1) "filename")
+		       (setq hfile (expand-file-name
+				    (match-string 2)
+				    (file-name-directory file))))
+		      ((string-equal (match-string 1) "size")
+		       (setq hsize (match-string 2))))))))
+      (and (stringp hsize)
+	   (integerp (setq hsize (string-to-number hsize)))
+	   (> hsize 0)
+           (setq-local comint-input-ring-size hsize))
+      (if (stringp hfile)
+          (setq-local comint-input-ring-file-name hfile))
+      (comint-read-input-ring t))))
+
 ;;;###autoload
 (defun gdb (command-line)
   "Run gdb passing it COMMAND-LINE as arguments.
@@ -902,37 +938,8 @@ detailed description of this mode.
   (setq-local gud-minor-mode 'gdbmi)
   (setq-local gdb-control-level 0)
   (setq comint-input-sender 'gdb-send)
-  (when (ring-empty-p comint-input-ring) ; cf shell-mode
-    (let ((hfile (expand-file-name (or (getenv "GDBHISTFILE")
-				       (if (eq system-type 'ms-dos)
-					   "_gdb_history"
-					 ".gdb_history"))))
-	  ;; gdb defaults to 256, but we'll default to comint-input-ring-size.
-	  (hsize (getenv "HISTSIZE")))
-      (dolist (file (append '("~/.gdbinit")
-			    (unless (string-equal (expand-file-name ".")
-                                                  (expand-file-name "~"))
-			      '(".gdbinit"))))
-	(if (file-readable-p (setq file (expand-file-name file)))
-	    (with-temp-buffer
-	      (insert-file-contents file)
-	      ;; TODO? check for "set history save\\(  *on\\)?" and do
-	      ;; not use history otherwise?
-	      (while (re-search-forward
-		      "^ *set history \\(filename\\|size\\)  *\\(.*\\)" nil t)
-		(cond ((string-equal (match-string 1) "filename")
-		       (setq hfile (expand-file-name
-				    (match-string 2)
-				    (file-name-directory file))))
-		      ((string-equal (match-string 1) "size")
-		       (setq hsize (match-string 2))))))))
-      (and (stringp hsize)
-	   (integerp (setq hsize (string-to-number hsize)))
-	   (> hsize 0)
-           (setq-local comint-input-ring-size hsize))
-      (if (stringp hfile)
-          (setq-local comint-input-ring-file-name hfile))
-      (comint-read-input-ring t)))
+  (gdb-load-history)
+
   (gud-def gud-tbreak "tbreak %f:%l" "\C-t"
 	   "Set temporary breakpoint at current line." t)
   (gud-def gud-jump
@@ -1006,9 +1013,10 @@ detailed description of this mode.
   (gud-def gud-pp
 	   (gud-call
 	    (concat
-	     "pp " (if (eq (buffer-local-value
-			    'major-mode (window-buffer)) 'speedbar-mode)
-		       (gdb-find-watch-expression) "%e")) arg)
+	     "pp " (if (eq (buffer-local-value 'major-mode (window-buffer))
+			   'speedbar-mode)
+		       (gdb-find-watch-expression) "%e"))
+	    arg)
 	   nil   "Print the Emacs s-expression.")
 
   (define-key gud-minor-mode-map [left-margin mouse-1]
@@ -1960,19 +1968,23 @@ static char *magick[] = {
   :group 'gdb)
 
 
-(defvar gdb-python-guile-commands-regexp
-  "python\\|python-interactive\\|pi\\|guile\\|guile-repl\\|gr"
-  "Regexp that matches Python and Guile commands supported by GDB.")
-
 (defvar gdb-control-commands-regexp
-  (concat
-   "^\\("
-   "comm\\(a\\(n\\(ds?\\)?\\)?\\)?\\|if\\|while"
-   "\\|def\\(i\\(ne?\\)?\\)?\\|doc\\(u\\(m\\(e\\(nt?\\)?\\)?\\)?\\)?\\|"
-   gdb-python-guile-commands-regexp
-   "\\|while-stepping\\|stepp\\(i\\(ng?\\)?\\)?\\|ws\\|actions"
-   "\\|expl\\(o\\(re?\\)?\\)?"
-   "\\)\\([[:blank:]]+\\([^[:blank:]]*\\)\\)*$")
+  (rx bol
+      (or
+       (or "comm" "comma" "comman" "command" "commands"
+           "if" "while"
+           "def" "defi" "defin" "define"
+           "doc" "docu" "docum" "docume" "documen" "document"
+           "while-stepping"
+           "stepp" "steppi" "steppin" "stepping"
+           "ws" "actions"
+           "expl" "explo" "explor" "explore")
+       (group         ; group 1: Python and Guile commands
+        (or "python" "python-interactive" "pi" "guile" "guile-repl" "gr")))
+      (? (+ blank)
+         (group       ; group 2: command arguments
+          (* nonl)))
+      eol)
   "Regexp matching GDB commands that enter a recursive reading loop.
 As long as GDB is in the recursive reading loop, it does not expect
 commands to be prefixed by \"-interpreter-exec console\".")
@@ -2032,15 +2044,13 @@ commands to be prefixed by \"-interpreter-exec console\".")
       (setq gdb-continuation nil)))
   ;; Python and Guile commands that have an argument don't enter the
   ;; recursive reading loop.
-  (let* ((control-command-p (string-match gdb-control-commands-regexp string))
-         (command-arg (and control-command-p (match-string 3 string)))
-         (python-or-guile-p (string-match gdb-python-guile-commands-regexp
-                                          string)))
-    (if (and control-command-p
-             (or (not python-or-guile-p)
-                 (null command-arg)
-                 (zerop (length command-arg))))
-        (setq gdb-control-level (1+ gdb-control-level)))))
+  (when (string-match gdb-control-commands-regexp string)
+    (let ((python-or-guile-p (match-beginning 1))
+          (command-arg (match-string 2 string)))
+      (when (or (not python-or-guile-p)
+                (null command-arg)
+                (zerop (length command-arg)))
+        (setq gdb-control-level (1+ gdb-control-level))))))
 
 (defun gdb-mi-quote (string)
   "Return STRING quoted properly as an MI argument.
@@ -4584,7 +4594,8 @@ left-to-right display order of the properties."
                            (gdb-set-window-buffer
                             (gdb-get-buffer-create
                              'gdb-registers-buffer
-                             gdb-thread-number) t)))
+                             gdb-thread-number)
+                            t)))
     map))
 
 (define-derived-mode gdb-locals-mode gdb-parent-mode "Locals"
@@ -4704,7 +4715,8 @@ executes FUNCTION."
                            (gdb-set-window-buffer
                             (gdb-get-buffer-create
                              'gdb-locals-buffer
-                             gdb-thread-number) t)))
+                             gdb-thread-number)
+                            t)))
     (define-key map "f" #'gdb-registers-toggle-filter)
     map))
 
@@ -5104,7 +5116,7 @@ Function buffers are locals buffer, registers buffer, etc, but
 not including main command buffer (the one where you type GDB
 commands) or source buffers (that display program source code)."
   (with-current-buffer buffer
-    (derived-mode-p 'gdb-parent-mode 'gdb-inferior-io-mode)))
+    (derived-mode-p '(gdb-parent-mode gdb-inferior-io-mode))))
 
 (defun gdb--buffer-type (buffer)
   "Return the type of BUFFER if it is a function buffer.

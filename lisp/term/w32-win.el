@@ -1,6 +1,6 @@
 ;;; w32-win.el --- parse switches controlling interface with W32 window system -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-1994, 2001-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1994, 2001-2024 Free Software Foundation, Inc.
 
 ;; Author: Kevin Gallo
 ;; Keywords: terminals
@@ -117,12 +117,14 @@
                      (split-string (encode-coding-string f coding)
                                    "/")
                      "/")))
-		(dnd-handle-one-url window 'private
-				    (concat
-				     (if (eq system-type 'cygwin)
-					 "file://"
-				       "file:")
-				     file-name)))
+  ;; FIXME: is the W32 build capable only of receiving a single file
+  ;; from each drop?
+  (dnd-handle-multiple-urls window (list (concat
+			                  (if (eq system-type 'cygwin)
+				              "file://"
+			                    "file:")
+			                  file-name))
+                            'private))
 
 (defun w32-drag-n-drop (event &optional new-frame)
   "Edit the files listed in the drag-n-drop EVENT.

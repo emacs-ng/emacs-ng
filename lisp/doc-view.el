@@ -1,6 +1,6 @@
 ;;; doc-view.el --- Document viewer for Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 2007-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2024 Free Software Foundation, Inc.
 ;;
 ;; Author: Tassilo Horn <tsdh@gnu.org>
 ;; Keywords: files, pdf, ps, dvi, djvu, epub, cbz, fb2, xps, openxps
@@ -661,7 +661,9 @@ Typically \"page-%s.png\".")
   '("DocView (edit)"
     ("Toggle edit/display"
      ["Edit document"           (lambda ()) ; ignore but show no keybinding
-      :style radio :selected    (eq major-mode 'doc-view--text-view-mode)]
+      ;; This is always selected since its menu is singular to the
+      ;; display minor mode.
+      :style radio :selected    t]
      ["Display document"        doc-view-toggle-display
       :style radio :selected    (eq major-mode 'doc-view-mode)])
     ["Exit DocView Mode" doc-view-minor-mode]))
@@ -696,12 +698,12 @@ Typically \"page-%s.png\".")
     (tool-bar-local-item-from-menu 'doc-view-previous-page "last-page"
                                    map doc-view-mode-map :vert-only t
                                    :enable '(> (doc-view-current-page) 1)
-                                   :help "Move to the next page.")
+                                   :help "Move to the previous page.")
     (tool-bar-local-item-from-menu 'doc-view-next-page "next-page"
                                    map doc-view-mode-map :vert-only t
                                    :enable '(< (doc-view-current-page)
                                                (doc-view-last-page-number))
-                                   :help "Move to the last page.")
+                                   :help "Move to the next page.")
     map)
   "Like the default `tool-bar-map', but with additions for DocView.")
 
@@ -1280,7 +1282,8 @@ The test is performed using `doc-view-pdfdraw-program'."
                                     (expand-file-name
                                      doc-view-epub-user-stylesheet)))))))
     (doc-view-start-process
-     "pdf->png" doc-view-pdfdraw-program
+     (concat "pdf->" (symbol-name doc-view--image-type))
+     doc-view-pdfdraw-program
      `(,@(doc-view-pdfdraw-program-subcommand)
        ,@options
        ,pdf
@@ -2130,7 +2133,7 @@ GOTO-PAGE-FN other than `doc-view-goto-page'."
             ;; zip-archives, so that this same association is used for
             ;; cbz files. This is fine, as cbz files should be handled
             ;; like epub anyway.
-            ((looking-at "PK") '(epub odf))))))
+            ((looking-at "PK") '(epub odf cbz))))))
     (setq-local
      doc-view-doc-type
      (car (or (nreverse (seq-intersection name-types content-types #'eq))

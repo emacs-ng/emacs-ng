@@ -1,6 +1,6 @@
 ;;; cl-preloaded.el --- Preloaded part of the CL library  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2023  Free Software Foundation, Inc
+;; Copyright (C) 2015-2024 Free Software Foundation, Inc
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Package: emacs
@@ -52,20 +52,20 @@
 
 (defconst cl--typeof-types
   ;; Hand made from the source code of `type-of'.
-  '((integer number number-or-marker atom)
+  '((integer number integer-or-marker number-or-marker atom)
     (symbol-with-pos symbol atom) (symbol atom) (string array sequence atom)
     (cons list sequence)
     ;; Markers aren't `numberp', yet they are accepted wherever integers are
     ;; accepted, pretty much.
-    (marker number-or-marker atom)
-    (overlay atom) (float number atom) (window-configuration atom)
-    (process atom) (window atom)
+    (marker integer-or-marker number-or-marker atom)
+    (overlay atom) (float number number-or-marker atom)
+    (window-configuration atom) (process atom) (window atom)
     ;; FIXME: We'd want to put `function' here, but that's only true
     ;; for those `subr's which aren't special forms!
     (subr atom)
     ;; FIXME: We should probably reverse the order between
     ;; `compiled-function' and `byte-code-function' since arguably
-    ;; `subr' and also "compiled functions" but not "byte code functions",
+    ;; `subr' is also "compiled functions" but not "byte code functions",
     ;; but it would require changing the value returned by `type-of' for
     ;; byte code objects, which risks breaking existing code, which doesn't
     ;; seem worth the trouble.
@@ -323,15 +323,12 @@ supertypes from the most specific to least specific.")
 (cl-assert (cl--class-p (cl--find-class 'cl-structure-object)))
 
 (defun cl--class-allparents (class)
-  (let ((parents ())
-        (classes (list class)))
-    ;; BFS precedence.  FIXME: Use a topological sort.
-    (while (let ((class (pop classes)))
-             (cl-pushnew (cl--class-name class) parents)
-             (setq classes
-                   (append classes
-                           (cl--class-parents class)))))
-    (nreverse parents)))
+  (cons (cl--class-name class)
+        (merge-ordered-lists (mapcar #'cl--class-allparents
+                                     (cl--class-parents class)))))
+
+(eval-and-compile
+  (cl-assert (null (cl--class-parents (cl--find-class 'cl-structure-object)))))
 
 ;; Make sure functions defined with cl-defsubst can be inlined even in
 ;; packages which do not require CL.  We don't put an autoload cookie

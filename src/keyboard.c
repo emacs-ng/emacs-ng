@@ -1,6 +1,6 @@
 /* Keyboard and mouse input; editor command loop.
 
-Copyright (C) 1985-1989, 1993-1997, 1999-2023 Free Software Foundation,
+Copyright (C) 1985-1989, 1993-1997, 1999-2024 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -1026,7 +1026,7 @@ cmd_error_internal (Lisp_Object data, const char *context)
 {
   /* The immediate context is not interesting for Quits,
      since they are asynchronous.  */
-  if (signal_quit_p (XCAR (data)))
+  if (signal_quit_p (data))
     Vsignaling_function = Qnil;
 
   Vquit_flag = Qnil;
@@ -1163,7 +1163,18 @@ command_loop_2 (Lisp_Object handlers)
 static Lisp_Object
 top_level_2 (void)
 {
-  return Feval (Vtop_level, Qnil);
+  /* If we're in batch mode, print a backtrace unconditionally when
+     encountering an error, to help with debugging.  */
+  bool setup_handler = noninteractive;
+  if (setup_handler)
+    /* FIXME: Should we (re)use `list_of_error` from `xdisp.c`? */
+    push_handler_bind (list1 (Qerror), Qdebug_early__handler, 0);
+
+  Lisp_Object res = Feval (Vtop_level, Qt);
+
+  if (setup_handler)
+    pop_handler ();
+  return res;
 }
 
 static Lisp_Object
@@ -1355,7 +1366,6 @@ command_loop_1 (void)
 	display_malloc_warning ();
 
       Vdeactivate_mark = Qnil;
-      backtrace_yet = false;
 
       /* Don't ignore mouse movements for more than a single command
 	 loop.  (This flag is set in xdisp.c whenever the tool bar is
@@ -1601,7 +1611,7 @@ command_loop_1 (void)
 	      if ((!NILP (Fwindow_system (Qnil))
 		   || ((symval =
 			find_symbol_value (Qtty_select_active_regions),
-			(!EQ (symval, Qunbound) && !NILP (symval)))
+			(!BASE_EQ (symval, Qunbound) && !NILP (symval)))
 		       && !NILP (Fterminal_parameter (Qnil,
 						      Qxterm__set_selection))))
 		  /* Even if mark_active is non-nil, the actual buffer
@@ -2226,7 +2236,7 @@ show_help_echo (Lisp_Object help, Lisp_Object window, Lisp_Object object,
   if (!NILP (help) && !STRINGP (help))
     {
       if (FUNCTIONP (help))
-	help = safe_call (4, help, window, object, pos);
+	help = safe_calln (help, window, object, pos);
       else
 	help = safe_eval (help);
 
@@ -3993,6 +4003,19 @@ kbd_buffer_get_event (KBOARD **kbp,
       if (CONSP (Vunread_command_events))
 	break;
 
+#ifdef HAVE_TEXT_CONVERSION
+      /* That text conversion events take priority over keyboard
+	 events, since input methods frequently send them immediately
+	 after edits, with the assumption that this order of events
+	 will be observed.  */
+
+      if (detect_conversion_events ())
+	{
+	  had_pending_conversion_events = true;
+	  break;
+	}
+#endif /* HAVE_TEXT_CONVERSION */
+
       if (kbd_fetch_ptr != kbd_store_ptr)
 	break;
       if (some_mouse_moved ())
@@ -4018,13 +4041,6 @@ kbd_buffer_get_event (KBOARD **kbp,
       if (x_detect_pending_selection_requests ())
 	{
 	  had_pending_selection_requests = true;
-	  break;
-	}
-#endif
-#ifdef HAVE_TEXT_CONVERSION
-      if (detect_conversion_events ())
-	{
-	  had_pending_conversion_events = true;
 	  break;
 	}
 #endif
@@ -4648,7 +4664,7 @@ timer_check_2 (Lisp_Object timers, Lisp_Object idle_timers)
     {
       Lisp_Object funcall = XCAR (pending_funcalls);
       pending_funcalls = XCDR (pending_funcalls);
-      safe_call2 (Qapply, XCAR (funcall), XCDR (funcall));
+      safe_calln (Qapply, XCAR (funcall), XCDR (funcall));
     }
 
   if (CONSP (timers) || CONSP (idle_timers))
@@ -4989,12 +5005,17 @@ static const char *const lispy_accent_keys[] =
 #ifdef HAVE_ANDROID
 #define FUNCTION_KEY_OFFSET 0
 
+/* Mind that Android designates 23 KEYCODE_DPAD_CENTER, but it is
+   merely abstruse terminology for the ``select'' key frequently
+   located in certain physical keyboards.  */
+
 const char *const lispy_function_keys[] =
   {
     /* All elements in this array default to 0, except for the few
        function keys that Emacs recognizes.  */
     [111] = "escape",
     [112] = "delete",
+    [116] = "scroll",
     [120] = "sysrq",
     [121] = "break",
     [122] = "home",
@@ -5015,21 +5036,27 @@ const char *const lispy_function_keys[] =
     [140] = "f10",
     [141] = "f11",
     [142] = "f12",
+    [143] = "kp-numlock",
     [160] = "kp-ret",
     [164] = "volume-mute",
+    [165] = "info",
     [19]  = "up",
     [20]  = "down",
+    [211] = "zenkaku-hankaku",
     [213] = "muhenkan",
     [214] = "henkan",
     [215] = "hiragana-katakana",
     [218] = "kana",
     [21]  = "left",
+    [223] = "sleep",
     [22]  = "right",
+    [23]  = "select",
     [24]  = "volume-up",
     [259] = "help",
     [25]  = "volume-down",
     [268] = "kp-up-left",
     [269] = "kp-down-left",
+    [26]  = "power",
     [270] = "kp-up-right",
     [271] = "kp-down-right",
     [272] = "media-skip-forward",
@@ -5037,7 +5064,9 @@ const char *const lispy_function_keys[] =
     [277] = "cut",
     [278] = "copy",
     [279] = "paste",
+    [285] = "browser-refresh",
     [28]  = "clear",
+    [300] = "XF86Forward",
     [4]	  = "XF86Back",
     [61]  = "tab",
     [66]  = "return",
@@ -5051,6 +5080,7 @@ const char *const lispy_function_keys[] =
     [89]  = "media-rewind",
     [92]  = "prior",
     [93]  = "next",
+    [95]  = "mode-change",
   };
 
 #elif defined HAVE_NTGUI
@@ -5517,6 +5547,10 @@ static Lisp_Object button_down_location;
    the down mouse event.  */
 static Lisp_Object frame_relative_event_pos;
 
+/* The line-number display width, in columns, at the time of most
+   recent down mouse event.  */
+static int down_mouse_line_number_width;
+
 /* Information about the most recent up-going button event:  Which
    button, what location, and what time.  */
 
@@ -5543,9 +5577,10 @@ make_lispy_position (struct frame *f, Lisp_Object x, Lisp_Object y,
   /* Coordinate pixel positions to return.  */
   int xret = 0, yret = 0;
   /* The window or frame under frame pixel coordinates (x,y)  */
-  Lisp_Object window_or_frame = f
-    ? window_from_coordinates (f, mx, my, &part, true, true)
-    : Qnil;
+  Lisp_Object window_or_frame = (f != NULL
+				 ? window_from_coordinates (f, mx, my, &part,
+							    false, true, true)
+				 : Qnil);
 #ifdef HAVE_WINDOW_SYSTEM
   bool tool_bar_p = false;
   bool menu_bar_p = false;
@@ -5912,6 +5947,57 @@ coords_in_tab_bar_window (struct frame *f, int x, int y)
 }
 
 #endif /* HAVE_WINDOW_SYSTEM */
+
+static void
+save_line_number_display_width (struct input_event *event)
+{
+  struct window *w;
+  int pixel_width;
+
+  if (WINDOWP (event->frame_or_window))
+    w = XWINDOW (event->frame_or_window);
+  else if (FRAMEP (event->frame_or_window))
+    w = XWINDOW (XFRAME (event->frame_or_window)->selected_window);
+  else
+    w = XWINDOW (selected_window);
+  line_number_display_width (w, &down_mouse_line_number_width, &pixel_width);
+}
+
+/* Return non-zero if the change of position from START_POS to END_POS
+   is likely to be the effect of horizontal scrolling due to a change
+   in line-number width produced by redisplay between two mouse
+   events, like mouse-down followed by mouse-up, at those positions.
+   This is used to decide whether to converts mouse-down followed by
+   mouse-up event into a mouse-drag event.  */
+static bool
+line_number_mode_hscroll (Lisp_Object start_pos, Lisp_Object end_pos)
+{
+  if (!EQ (Fcar (start_pos), Fcar (end_pos)) /* different window */
+      || list_length (start_pos) < 7	     /* no COL/ROW info */
+      || list_length (end_pos) < 7)
+    return false;
+
+  Lisp_Object start_col_row = Fnth (make_fixnum (6), start_pos);
+  Lisp_Object end_col_row = Fnth (make_fixnum (6), end_pos);
+  Lisp_Object window = Fcar (end_pos);
+  int col_width, pixel_width;
+  Lisp_Object start_col, end_col;
+  struct window *w;
+  if (!WINDOW_VALID_P (window))
+    {
+      if (WINDOW_LIVE_P (window))
+	window = XFRAME (window)->selected_window;
+      else
+	window = selected_window;
+    }
+  w = XWINDOW (window);
+  line_number_display_width (w, &col_width, &pixel_width);
+  start_col = Fcar (start_col_row);
+  end_col = Fcar (end_col_row);
+  return EQ (start_col, end_col)
+	 && down_mouse_line_number_width >= 0
+	 && col_width != down_mouse_line_number_width;
+}
 
 /* Given a struct input_event, build the lisp event which represents
    it.  If EVENT is 0, build a mouse movement event from the mouse
@@ -6315,6 +6401,8 @@ make_lispy_event (struct input_event *event)
 	    *start_pos_ptr = Fcopy_alist (position);
 	    frame_relative_event_pos = Fcons (event->x, event->y);
 	    ignore_mouse_drag_p = false;
+	    /* Squirrel away the line-number width, if any.  */
+	    save_line_number_display_width (event);
 	  }
 
 	/* Now we're releasing a button - check the coordinates to
@@ -6360,12 +6448,18 @@ make_lispy_event (struct input_event *event)
 			  it's probably OK to ignore it as well.  */
 		       && (EQ (Fcar (Fcdr (start_pos)),
 			       Fcar (Fcdr (position))) /* Same buffer pos */
+			   /* Redisplay hscrolled text between down- and
+                              up-events due to display-line-numbers-mode.  */
+			   || line_number_mode_hscroll (start_pos, position)
 			   || !EQ (Fcar (start_pos),
 				   Fcar (position))))) /* Different window */
+
 		  {
 		    /* Mouse has moved enough.  */
 		    button_down_time = 0;
 		    click_or_drag_modifier = drag_modifier;
+		    /* Reset the value for future clicks.  */
+		    down_mouse_line_number_width = -1;
 		  }
 		else if (((!EQ (Fcar (start_pos), Fcar (position)))
 			  || (!EQ (Fcar (Fcdr (start_pos)),
@@ -8525,7 +8619,7 @@ menu_item_eval_property_1 (Lisp_Object arg)
 {
   /* If we got a quit from within the menu computation,
      quit all the way out of it.  This takes care of C-] in the debugger.  */
-  if (CONSP (arg) && signal_quit_p (XCAR (arg)))
+  if (signal_quit_p (arg))
     quit ();
 
   return Qnil;
@@ -8988,7 +9082,7 @@ process_tab_bar_item (Lisp_Object key, Lisp_Object def, Lisp_Object data, void *
 }
 
 /* Access slot with index IDX of vector tab_bar_item_properties.  */
-#define PROP(IDX) AREF (tab_bar_item_properties, (IDX))
+#define PROP(IDX) AREF (tab_bar_item_properties, IDX)
 static void
 set_prop_tab_bar (ptrdiff_t idx, Lisp_Object val)
 {
@@ -9372,7 +9466,7 @@ process_tool_bar_item (Lisp_Object key, Lisp_Object def, Lisp_Object data, void 
 }
 
 /* Access slot with index IDX of vector tool_bar_item_properties.  */
-#define PROP(IDX) AREF (tool_bar_item_properties, (IDX))
+#define PROP(IDX) AREF (tool_bar_item_properties, IDX)
 static void
 set_prop (ptrdiff_t idx, Lisp_Object val)
 {

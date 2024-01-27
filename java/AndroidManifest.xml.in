@@ -1,6 +1,6 @@
 <!-- @configure_input@
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -73,8 +73,12 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. -->
 
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
+  <!-- Under Android 14 or later to run within the background.  -->
+
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+
   <uses-sdk android:minSdkVersion="@ANDROID_MIN_SDK@"
-	    android:targetSdkVersion="33"/>
+	    android:targetSdkVersion="34"/>
 
   <application android:name="org.gnu.emacs.EmacsApplication"
 	       android:label="Emacs"
@@ -90,7 +94,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. -->
 	      android:launchMode="singleInstance"
 	      android:windowSoftInputMode="adjustResize"
 	      android:exported="true"
-	      android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
+	      android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|locale|fontScale">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.DEFAULT" />
@@ -110,7 +114,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. -->
 	<action android:name="android.intent.action.EDIT"/>
 	<action android:name="android.intent.action.PICK"/>
         <category android:name="android.intent.category.DEFAULT"/>
-	<data android:mimeType="*/*"/>
+	<!-- Don't offer to start Emacs for URLs that designate
+	     resources other than files.  -->
+	<data android:mimeType="*/*" android:scheme="file"/>
+	<data android:mimeType="*/*" android:scheme="content"/>
       </intent-filter>
 
       <!-- Facilitate opening org-protocol:// URLs as well, the same
@@ -142,7 +149,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. -->
     <activity android:name="org.gnu.emacs.EmacsMultitaskActivity"
 	      android:windowSoftInputMode="adjustResize"
 	      android:exported="true"
-	      android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"/>
+	      android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|locale|fontScale"/>
 
     <activity android:autoRemoveFromRecents="true"
               android:label="Emacs options"
@@ -187,6 +194,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. -->
 	     android:directBootAware="false"
 	     android:enabled="true"
 	     android:exported="false"
+	     android:foregroundServiceType="specialUse"
 	     android:label="GNU Emacs service"/>
   </application>
 </manifest>

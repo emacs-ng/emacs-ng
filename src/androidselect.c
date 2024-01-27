@@ -1,6 +1,6 @@
 /* Communication module for Android terminals.
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -90,7 +90,7 @@ android_init_emacs_clipboard (void)
     = (*android_java_env)->GetMethodID (android_java_env,	\
 					clipboard_class.class,	\
 					name, signature);	\
-  assert (clipboard_class.c_name);
+  eassert (clipboard_class.c_name);
 
   FIND_METHOD (set_clipboard, "setClipboard", "([B)V");
   FIND_METHOD (owns_clipboard, "ownsClipboard", "()I");
@@ -107,7 +107,7 @@ android_init_emacs_clipboard (void)
 					      "makeClipboard",
 					      "()Lorg/gnu/emacs/"
 					      "EmacsClipboard;");
-  assert (clipboard_class.make_clipboard);
+  eassert (clipboard_class.make_clipboard);
 
 #undef FIND_METHOD
 }
@@ -299,7 +299,7 @@ data type available from the clipboard.  */)
 						bytes_array);
   for (i = 0; i < length; ++i)
     {
-      /* Retireve the MIME type.  */
+      /* Retrieve the MIME type.  */
       bytes
 	= (*android_java_env)->GetObjectArrayElement (android_java_env,
 						      bytes_array, i);
@@ -511,7 +511,7 @@ android_init_emacs_desktop_notification (void)
     = (*android_java_env)->GetMethodID (android_java_env,		\
 				        notification_class.class,	\
 					name, signature);		\
-  assert (notification_class.c_name);
+  eassert (notification_class.c_name);
 
   FIND_METHOD (init, "<init>", "(Ljava/lang/String;"
 	       "Ljava/lang/String;Ljava/lang/String;"
@@ -613,10 +613,12 @@ android_notifications_notify_1 (Lisp_Object title, Lisp_Object body,
 	   (long int) (boot_time.tv_sec / 2), id);
 
   /* Encode all strings into their Java counterparts.  */
-  title1 = android_build_string (title);
-  body1  = android_build_string (body);
-  group1 = android_build_string (group);
-  identifier1 = android_build_jstring (identifier);
+  title1 = android_build_string (title, NULL);
+  body1  = android_build_string (body, title1, NULL);
+  group1 = android_build_string (group, body1, title1, NULL);
+  identifier1
+    = (*android_java_env)->NewStringUTF (android_java_env, identifier);
+  android_exception_check_3 (title1, body1, group1);
 
   /* Create the notification.  */
   notification

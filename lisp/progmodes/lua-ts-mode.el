@@ -1,6 +1,6 @@
 ;;; lua-ts-mode.el --- Major mode for editing Lua files -*- lexical-binding: t -*-
 
-;; Copyright (C) 2023 Free Software Foundation, Inc.
+;; Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 ;; Author: John Muhl <jm@pub.pink>
 ;; Created: June 27, 2023
@@ -38,7 +38,13 @@
   (require 'cl-lib)
   (require 'rx))
 
+(declare-function treesit-induce-sparse-tree "treesit.c")
 (declare-function treesit-node-child-by-field-name "treesit.c")
+(declare-function treesit-node-child-count "treesit.c")
+(declare-function treesit-node-first-child-for-pos "treesit.c")
+(declare-function treesit-node-parent "treesit.c")
+(declare-function treesit-node-start "treesit.c")
+(declare-function treesit-node-end "treesit.c")
 (declare-function treesit-node-type "treesit.c")
 (declare-function treesit-parser-create "treesit.c")
 (declare-function treesit-search-subtree "treesit.c")
@@ -47,6 +53,15 @@
   "Major mode for editing Lua files."
   :prefix "lua-ts-"
   :group 'languages)
+
+(defcustom lua-ts-mode-hook nil
+  "Hook run after entering `lua-ts-mode'."
+  :type 'hook
+  :options '(flymake-mode
+             hs-minor-mode
+             outline-minor-mode)
+  :group 'lua-ts
+  :version "30.1")
 
 (defcustom lua-ts-indent-offset 4
   "Number of spaces for each indentation step in `lua-ts-mode'."
@@ -57,7 +72,7 @@
 
 (defcustom lua-ts-luacheck-program "luacheck"
   "Location of the Luacheck program."
-  :type '(choice (const nil) string)
+  :type '(choice (const :tag "None" nil) string)
   :group 'lua-ts
   :version "30.1")
 
@@ -70,7 +85,7 @@
 
 (defcustom lua-ts-inferior-program "lua"
   "Program to run in the inferior Lua process."
-  :type '(choice (const nil) string)
+  :type '(choice (const :tag "None" nil) string)
   :group 'lua-ts
   :version "30.1")
 
@@ -82,13 +97,50 @@
 
 (defcustom lua-ts-inferior-startfile nil
   "File to load into the inferior Lua process at startup."
-  :type '(choice (const nil) (file :must-match t))
+  :type '(choice (const :tag "None" nil) (file :must-match t))
   :group 'lua-ts
   :version "30.1")
 
-(defcustom lua-ts-inferior-prompt-regexp "^>>?[[:blank:]]"
-  "Regular expression matching the prompt of the inferior Lua process."
-  :type 'regexp
+(defcustom lua-ts-inferior-prompt ">"
+  "Prompt used by the inferior Lua process."
+  :type 'string
+  :safe 'stringp
+  :group 'lua-ts
+  :version "30.1")
+
+(defcustom lua-ts-inferior-prompt-continue ">>"
+  "Continuation prompt used by the inferior Lua process."
+  :type 'string
+  :safe 'stringp
+  :group 'lua-ts
+  :version "30.1")
+
+(defcustom lua-ts-inferior-history nil
+  "File used to save command history of the inferior Lua process."
+  :type '(choice (const :tag "None" nil) file)
+  :safe 'string-or-null-p
+  :group 'lua-ts
+  :version "30.1")
+
+(defcustom lua-ts-indent-continuation-lines t
+  "Controls how multi-line if/else statements are aligned.
+
+If t, then continuation lines are indented by `lua-ts-indent-offset':
+
+  if a
+      and b then
+      print(1)
+  end
+
+If nil, then continuation lines are aligned with the beginning of
+the statement:
+
+  if a
+  and b then
+      print(1)
+  end"
+  :type 'boolean
+  :safe 'booleanp
   :group 'lua-ts
   :version "30.1")
 
@@ -103,107 +155,142 @@
     "close" "flush" "lines" "read" "seek" "setvbuf" "write")
   "Lua built-in functions for tree-sitter font-locking.")
 
+(defvar lua-ts--keywords
+  '("and" "do" "else" "elseif" "end" "for" "function" "goto" "if"
+    "in" "local" "not" "or" "repeat" "return" "then" "until" "while")
+  "Lua keywords for tree-sitter font-locking and navigation.")
+
+(defun lua-ts--comment-font-lock (node override start end &rest _)
+  "Apply font lock to comment NODE within START and END.
+Applies `font-lock-comment-delimiter-face' and
+`font-lock-comment-face'.  See `treesit-fontify-with-override' for
+values of OVERRIDE."
+  (let* ((node-start (treesit-node-start node))
+         (node-end (treesit-node-end node))
+         (node-text (treesit-node-text node t))
+         (delimiter-end (+ 2 node-start)))
+    (when (and (>= node-start start)
+               (<= delimiter-end end)
+               (string-match "\\`--" node-text))
+      (treesit-fontify-with-override node-start
+                                     delimiter-end
+                                     font-lock-comment-delimiter-face
+                                     override))
+    (treesit-fontify-with-override (max delimiter-end start)
+                                   (min node-end end)
+                                   font-lock-comment-face
+                                   override)))
+
 (defvar lua-ts--font-lock-settings
   (treesit-font-lock-rules
-   :language 'lua
+   :default-language 'lua
    :feature 'bracket
    '(["(" ")" "[" "]" "{" "}"] @font-lock-bracket-face)
 
-   :language 'lua
    :feature 'delimiter
    '(["," ";"] @font-lock-delimiter-face)
 
-   :language 'lua
-   :feature 'escape
-   '((escape_sequence) @font-lock-escape-face)
-
-   :language 'lua
    :feature 'constant
-   '((variable_list
-      attribute: (attribute (["<" ">"] (identifier))))
+   '([(variable_list
+       attribute: (attribute (["<" ">"] (identifier))))
+      (label_statement)
+      (true) (false) (nil)]
      @font-lock-constant-face)
 
-   :language 'lua
    :feature 'operator
-   '(["and" "not" "or" "+" "-" "*" "/" "%" "^"
-      "#" "==" "~=" "<=" ">=" "<" ">" "=" "&"
-      "~" "|" "<<" ">>" "//" ".."]
-     @font-lock-operator-face
-     (vararg_expression) @font-lock-operator-face)
+   '(["+" "-" "*" "/" "%" "^" "#" "==" "~=" "<=" ">="
+      "<" ">" "=" "&" "~" "|" "<<" ">>" "//" ".."
+      (vararg_expression)]
+     @font-lock-operator-face)
 
-   :language 'lua
-   :feature 'property
-   '((field name: (identifier) @font-lock-property-name-face)
-     (dot_index_expression
-      field: (identifier) @font-lock-property-use-face))
-
-   :language 'lua
    :feature 'builtin
    `(((identifier) @font-lock-builtin-face
       (:match ,(regexp-opt lua-ts--builtins 'symbols)
               @font-lock-builtin-face)))
 
-   :language 'lua
    :feature 'function
    '((function_call name: (identifier) @font-lock-function-call-face)
      (function_call
-      name: (method_index_expression
-             method: (identifier) @font-lock-function-call-face))
+      (method_index_expression
+       method: (identifier) @font-lock-function-call-face))
      (function_call
-      name: (dot_index_expression
-             table: (identifier) @font-lock-function-call-face)))
+      (dot_index_expression
+       field: (identifier) @font-lock-function-call-face)))
 
-   :language 'lua
    :feature 'punctuation
    '(["." ":"] @font-lock-punctuation-face)
 
-   :language 'lua
    :feature 'variable
    '((function_call
-      arguments: (arguments (identifier))
-      @font-lock-variable-use-face)
+      (arguments (identifier) @font-lock-variable-use-face))
      (function_call
-      name: (method_index_expression
-             table: (identifier) @font-lock-variable-use-face))
-     (goto_statement (identifier) @font-lock-variable-use-face))
+      (arguments
+       (binary_expression (identifier) @font-lock-variable-use-face)))
+     (function_call
+      (arguments
+       (bracket_index_expression (identifier) @font-lock-variable-use-face)))
+     (function_declaration
+      (parameters name: (identifier) @font-lock-variable-name-face)))
 
-   :language 'lua
-   :feature 'assignment
-   '((variable_list (identifier) @font-lock-variable-name-face))
-
-   :language 'lua
    :feature 'number
    '((number) @font-lock-number-face)
 
-   :language 'lua
    :feature 'keyword
-   '((break_statement) @font-lock-keyword-face
-     (true) @font-lock-constant-face
-     (false) @font-lock-constant-face
-     (nil) @font-lock-constant-face
-     ["and" "do" "else" "elseif" "end" "for" "function"
-      "goto" "if" "in" "local" "not" "or" "repeat"
-      "return" "then" "until" "while"]
-     @font-lock-keyword-face)
+   `([(break_statement)
+      ,(vconcat lua-ts--keywords)]
+     @font-lock-keyword-face
+     (goto_statement ((identifier) @font-lock-constant-face)))
 
-   :language 'lua
    :feature 'string
    '((string) @font-lock-string-face)
 
-   :language 'lua
+   :feature 'escape
+   :override t
+   '((escape_sequence) @font-lock-escape-face)
+
    :feature 'comment
-   '((comment) @font-lock-comment-face
+   '((comment) @lua-ts--comment-font-lock
      (hash_bang_line) @font-lock-comment-face)
 
-   :language 'lua
    :feature 'definition
    '((function_declaration
-      name: (identifier) @font-lock-function-name-face)
-     (parameters
-      name: (identifier) @font-lock-variable-name-face)
-     (label_statement) @font-lock-variable-name-face)
+      (identifier) @font-lock-function-name-face)
+     (function_declaration
+      (dot_index_expression
+       field: (identifier) @font-lock-function-name-face))
+     (function_declaration
+      (method_index_expression
+       method: (identifier) @font-lock-function-name-face))
+     (assignment_statement
+      (variable_list
+       (identifier) @font-lock-function-name-face)
+      (expression_list value: (function_definition)))
+     (field
+      name: (identifier) @font-lock-function-name-face
+      value: (function_definition))
+     (assignment_statement
+      (variable_list
+       (dot_index_expression
+        field: (identifier) @font-lock-function-name-face))
+      (expression_list
+       value:
+       (function_definition))))
 
-   :language 'lua
+   :feature 'assignment
+   '((variable_list (identifier) @font-lock-variable-name-face)
+     (variable_list
+      (bracket_index_expression
+       field: (identifier) @font-lock-variable-name-face))
+     (variable_list
+      (dot_index_expression
+       field: (identifier) @font-lock-variable-name-face))
+     (for_numeric_clause name: (identifier) @font-lock-variable-name-face))
+
+   :feature 'property
+   '((field name: (identifier) @font-lock-property-name-face)
+     (dot_index_expression
+      field: (identifier) @font-lock-property-use-face))
+
    :feature 'error
    :override t
    '((ERROR) @font-lock-warning-face))
@@ -211,26 +298,171 @@
 
 (defvar lua-ts--simple-indent-rules
   `((lua
+     ((or (node-is "comment")
+          (parent-is "comment_content")
+          (parent-is "string_content")
+          (node-is "]]"))
+      no-indent 0)
+     ((and (n-p-gp "field" "table_constructor" "arguments")
+           lua-ts--multi-arg-function-call-matcher)
+      parent lua-ts-indent-offset)
+     ((and (n-p-gp "}" "table_constructor" "arguments")
+           lua-ts--multi-arg-function-call-matcher)
+      parent 0)
+     ((or (node-is "do")
+          (node-is "then")
+          (node-is "elseif_statement")
+          (node-is "else_statement")
+          (node-is "until")
+          (node-is ")")
+          (node-is "}"))
+      standalone-parent 0)
+     ((or (and (parent-is "arguments") lua-ts--first-child-matcher)
+          (and (parent-is "parameters") lua-ts--first-child-matcher)
+          (and (parent-is "table_constructor") lua-ts--first-child-matcher))
+      standalone-parent lua-ts-indent-offset)
+     ((or (parent-is "arguments")
+          (parent-is "parameters")
+          (parent-is "table_constructor"))
+      (nth-sibling 1) 0)
+     ((and (n-p-gp "block" "function_definition" "parenthesized_expression")
+           lua-ts--nested-function-block-matcher
+           lua-ts--nested-function-block-include-matcher)
+      parent lua-ts-indent-offset)
+     ((and (n-p-gp "block" "function_definition" "arguments")
+           lua-ts--nested-function-argument-matcher)
+      parent lua-ts-indent-offset)
+     ((match "function_definition" "parenthesized_expression")
+      standalone-parent lua-ts-indent-offset)
+     ((node-is "block") standalone-parent lua-ts-indent-offset)
+     ((parent-is "block") parent 0)
+     ((and (node-is "end") lua-ts--end-line-matcher)
+      standalone-parent lua-ts--end-indent-offset)
+     ((match "end" "function_declaration") parent 0)
+     ((and (n-p-gp "end" "function_definition" "parenthesized_expression")
+           lua-ts--nested-function-end-argument-matcher)
+      parent 0)
+     ((and (n-p-gp "end" "function_definition" "parenthesized_expression")
+           lua-ts--nested-function-block-matcher
+           lua-ts--nested-function-end-matcher
+           lua-ts--nested-function-last-function-matcher)
+      parent 0)
+     ((n-p-gp "end" "function_definition" "arguments") parent 0)
+     ((or (match "end" "function_definition")
+          (node-is "end"))
+      standalone-parent 0)
+     ((n-p-gp "expression_list" "assignment_statement" "variable_declaration")
+      lua-ts--variable-declaration-continuation-anchor
+      lua-ts-indent-offset)
+     ((and (parent-is "binary_expression")
+           lua-ts--variable-declaration-continuation)
+      lua-ts--variable-declaration-continuation-anchor
+      lua-ts-indent-offset)
+     ((and (lambda (&rest _) lua-ts-indent-continuation-lines)
+           (parent-is "binary_expression"))
+      standalone-parent lua-ts-indent-offset)
+     ((parent-is "binary_expression") standalone-parent 0)
+     ((or (parent-is "function_declaration")
+          (parent-is "function_definition")
+          (parent-is "do_statement")
+          (parent-is "for_statement")
+          (parent-is "repeat_statement")
+          (parent-is "while_statement")
+          (parent-is "if_statement")
+          (parent-is "else_statement")
+          (parent-is "elseif_statement"))
+      standalone-parent lua-ts-indent-offset)
      ((parent-is "chunk") column-0 0)
-     ((node-is "comment_end") column-0 0)
-     ((parent-is "block") parent-bol 0)
-     ((node-is "}") parent-bol 0)
-     ((node-is ")") parent-bol 0)
-     ((node-is "else_statement") parent-bol 0)
-     ((node-is "elseif_statement") parent-bol 0)
-     ((node-is "end") parent-bol 0)
-     ((node-is "until") parent-bol 0)
-     ((parent-is "for_statement") parent-bol lua-ts-indent-offset)
-     ((parent-is "function_declaration") parent-bol lua-ts-indent-offset)
-     ((parent-is "function_definition") parent-bol lua-ts-indent-offset)
-     ((parent-is "if_statement") parent-bol lua-ts-indent-offset)
-     ((parent-is "else_statement") parent-bol lua-ts-indent-offset)
-     ((parent-is "repeat_statement") parent-bol lua-ts-indent-offset)
-     ((parent-is "while_statement") parent-bol lua-ts-indent-offset)
-     ((parent-is "table_constructor") parent-bol lua-ts-indent-offset)
-     ((parent-is "arguments") parent-bol lua-ts-indent-offset)
-     ((parent-is "parameters") parent-bol lua-ts-indent-offset)
      ((parent-is "ERROR") no-indent 0))))
+
+(defun lua-ts--end-line-matcher (&rest _)
+  "Matches if there is more than one `end' on the current line."
+  (> (lua-ts--end-count) 1))
+
+(defun lua-ts--end-indent-offset (&rest _)
+  "Calculate indent offset based on `end' count."
+  (- (* (1- (lua-ts--end-count)) lua-ts-indent-offset)))
+
+(defun lua-ts--end-count ()
+  "Count the number of `end's on the current line."
+  (count-matches "end" (line-beginning-position) (line-end-position)))
+
+(defun lua-ts--first-child-matcher (node &rest _)
+  "Matches if NODE is the first among its siblings."
+  (= (treesit-node-index node) 1))
+
+(defun lua-ts--function-definition-p (node)
+  "Return t if NODE is a function_definition."
+  (equal "function_definition" (treesit-node-type node)))
+
+(defun lua-ts--g-g-g-parent (node)
+  "Return the great-great-grand-parent of NODE."
+  (let* ((parent (treesit-node-parent node))
+         (g-parent (treesit-node-parent parent))
+         (g-g-parent (treesit-node-parent g-parent)))
+    (treesit-node-parent g-g-parent)))
+
+(defun lua-ts--multi-arg-function-call-matcher (_n parent &rest _)
+  "Matches if PARENT has multiple arguments."
+  (> (treesit-node-child-count (treesit-node-parent parent)) 3))
+
+(defun lua-ts--nested-function-argument-matcher (node &rest _)
+  "Matches if NODE is in a nested function argument."
+  (save-excursion
+    (goto-char (treesit-node-start node))
+    (treesit-beginning-of-defun)
+    (backward-char 2)
+    (not (looking-at ")("))))
+
+(defun lua-ts--nested-function-block-matcher (node &rest _)
+  "Matches if NODE is in a nested function block."
+  (let* ((g-g-g-parent (lua-ts--g-g-g-parent node))
+         (g-g-g-type (treesit-node-type g-g-g-parent)))
+    (not (equal g-g-g-type "chunk"))))
+
+(defun lua-ts--nested-function-block-include-matcher (node _p bol &rest _)
+  "Matches if NODE's child at BOL is not another block."
+  (let* ((child (treesit-node-first-child-for-pos node bol))
+         (child-type (treesit-node-type child))
+         (g-g-g-type (treesit-node-type (lua-ts--g-g-g-parent node))))
+    (or (equal child-type "assignment_statement")
+        (and (equal child-type "return_statement")
+             (or (equal g-g-g-type "arguments")
+                 (and (equal g-g-g-type "expression_list")
+                      (not (treesit-search-subtree child "function_call"))))))))
+
+(defun lua-ts--nested-function-end-matcher (node &rest _)
+  "Matches if NODE is the `end' of a nested function."
+  (save-excursion
+    (goto-char (treesit-node-start node))
+    (treesit-beginning-of-defun)
+    (looking-at "function[[:space:]]*")))
+
+(defun lua-ts--nested-function-end-argument-matcher (node &rest _)
+  "Matches if great-great-grandparent of NODE is arguments."
+  (equal "arguments" (treesit-node-type (lua-ts--g-g-g-parent node))))
+
+(defun lua-ts--nested-function-last-function-matcher (_n parent &rest _)
+  "Matches if PARENT is the last nested function."
+  (let ((sparse-tree
+         (treesit-induce-sparse-tree parent #'lua-ts--function-definition-p)))
+    (= 1 (length (cadr sparse-tree)))))
+
+(defun lua-ts--variable-declaration-continuation (node &rest _)
+  "Matches if NODE is part of a multi-line variable declaration."
+  (treesit-parent-until node
+                        (lambda (p)
+                          (equal "variable_declaration"
+                                 (treesit-node-type p)))))
+
+(defun lua-ts--variable-declaration-continuation-anchor (node &rest _)
+  "Return the start position of the variable declaration for NODE."
+  (save-excursion
+    (goto-char (treesit-node-start
+                (lua-ts--variable-declaration-continuation node)))
+    (when (looking-back (rx bol (* whitespace))
+                        (line-beginning-position))
+      (point))))
 
 (defvar lua-ts--syntax-table
   (let ((table (make-syntax-table)))
@@ -268,6 +500,33 @@ Return nil if there is no name or if NODE is not a defun node."
        (and (treesit-search-subtree node "function_definition" nil nil 1)
             (treesit-node-text child t))))))
 
+(defun lua-ts--named-function-p (node)
+  "Matches if NODE is a named function."
+  (let ((type (treesit-node-type node)))
+    (or (equal "function_declaration" type)
+        (and (equal "field" type)
+             (equal "function_definition"
+                    (treesit-node-type
+                     (treesit-node-child-by-field-name
+                      node "value")))
+             (treesit-node-child-by-field-name node "name")))))
+
+(defun lua-ts--require-name-function (node)
+  "Return name of NODE to use for requires in imenu."
+  (when-let* (((lua-ts--require-p node))
+              (parent (treesit-node-parent node))
+              (parent-type (treesit-node-type parent)))
+    (if (equal "expression_list" parent-type)
+        (let* ((g-parent (treesit-node-parent parent))
+               (name (treesit-node-child-by-field-name g-parent "name")))
+          (treesit-node-text name t))
+      (treesit-node-text (treesit-search-subtree node "string_content") t))))
+
+(defun lua-ts--require-p (node)
+  "Matches if NODE is a require statement."
+  (let ((name (treesit-node-child-by-field-name node "name")))
+    (equal "require" (treesit-node-text name t))))
+
 (defvar-local lua-ts--flymake-process nil)
 
 (defun lua-ts-flymake-luacheck (report-fn &rest _args)
@@ -304,17 +563,18 @@ Calls REPORT-FN directly."
                                             (group (0+ nonl))
                                             eol))
                                    nil t)
-                            for line = (string-to-number (match-string 1))
-                            for beg = (string-to-number (match-string 2))
-                            for end = (string-to-number (match-string 3))
+                            for (beg . end) = (flymake-diag-region
+                                               source
+                                               (string-to-number (match-string 1))
+                                               (string-to-number (match-string 2)))
                             for msg = (match-string 4)
                             for type = (if (string-match "^(W" msg)
                                            :warning
                                          :error)
                             when (and beg end)
                             collect (flymake-make-diagnostic source
-                                                             (cons line beg)
-                                                             (cons line (1+ end))
+                                                             beg
+                                                             end
                                                              type
                                                              msg)
                             into diags
@@ -328,26 +588,124 @@ Calls REPORT-FN directly."
 (defun lua-ts-inferior-lua ()
   "Run a Lua interpreter in an inferior process."
   (interactive)
-  (let* ((buffer lua-ts-inferior-buffer)
-         (name (string-replace "*" "" buffer))
-         (program lua-ts-inferior-program)
-         (prompt-regexp lua-ts-inferior-prompt-regexp)
-         (switches lua-ts-inferior-options)
-         (startfile lua-ts-inferior-startfile))
-    (unless (comint-check-proc buffer)
-      (set-buffer (apply (function make-comint) name program startfile switches))
+  (unless (comint-check-proc lua-ts-inferior-buffer)
+    (apply #'make-comint-in-buffer
+           (string-replace "*" "" lua-ts-inferior-buffer)
+           lua-ts-inferior-buffer
+           lua-ts-inferior-program
+           lua-ts-inferior-startfile
+           lua-ts-inferior-options)
+    (when lua-ts-inferior-history
+        (set-process-sentinel (get-buffer-process lua-ts-inferior-buffer)
+                              'lua-ts-inferior--write-history))
+    (with-current-buffer lua-ts-inferior-buffer
       (setq-local comint-input-ignoredups t
+                  comint-input-ring-file-name lua-ts-inferior-history
                   comint-prompt-read-only t
-                  comint-prompt-regexp prompt-regexp
-                  comint-use-prompt-regexp t))
-    (select-window (display-buffer buffer '((display-buffer-reuse-window
-                                             display-buffer-pop-up-frame)
-                                            (reusable-frames . t))))))
+                  comint-prompt-regexp (rx-to-string `(: bol
+                                                         ,lua-ts-inferior-prompt
+                                                         (1+ space))))
+      (comint-read-input-ring t)
+      (add-hook 'comint-preoutput-filter-functions
+                (lambda (string)
+                  (if (equal string (concat lua-ts-inferior-prompt-continue " "))
+                      string
+                    (concat
+                     ;; Filter out the extra prompt characters that
+                     ;; accumulate in the output when sending regions
+                     ;; to the inferior process.
+                     (replace-regexp-in-string (rx-to-string
+                                                `(: bol
+                                                    (* ,lua-ts-inferior-prompt
+                                                       (? ,lua-ts-inferior-prompt)
+                                                       (1+ space))
+                                                    (group (* nonl))))
+                                               "\\1" string)
+                     ;; Re-add the prompt for the next line.
+                     lua-ts-inferior-prompt " ")))
+                nil t)))
+  (select-window (display-buffer lua-ts-inferior-buffer
+                                 '((display-buffer-reuse-window
+                                    display-buffer-pop-up-frame)
+                                   (reusable-frames . t))))
+  (get-buffer-process (current-buffer)))
+
+(defun lua-ts-send-buffer ()
+  "Send current buffer to the inferior Lua process."
+  (interactive)
+  (lua-ts-send-region (point-min) (point-max)))
+
+(defun lua-ts-send-file (file)
+  "Send contents of FILE to the inferior Lua process."
+  (interactive "f")
+  (with-temp-buffer
+    (insert-file-contents-literally file)
+    (lua-ts-send-region (point-min) (point-max))))
+
+(defun lua-ts-send-region (beg end)
+  "Send region between BEG and END to the inferior Lua process."
+  (interactive "r")
+  (let ((string (buffer-substring-no-properties beg end))
+        (proc-buffer (lua-ts-inferior-lua)))
+    (comint-send-string proc-buffer "print()") ; Prevent output from
+    (comint-send-string proc-buffer "\n")      ; appearing at prompt.
+    (comint-send-string proc-buffer string)
+    (comint-send-string proc-buffer "\n")))
+
+(defun lua-ts-show-process-buffer ()
+  "Show the inferior Lua process buffer."
+  (interactive)
+  (display-buffer lua-ts-inferior-buffer))
+
+(defun lua-ts-hide-process-buffer ()
+  "Hide the inferior Lua process buffer."
+  (interactive)
+  (delete-windows-on lua-ts-inferior-buffer))
+
+(defun lua-ts-kill-process ()
+  "Kill the inferior Lua process."
+  (interactive)
+  (with-current-buffer lua-ts-inferior-buffer
+    (kill-buffer-and-window)))
+
+(defun lua-ts-inferior--write-history (process _)
+  "Write history file for inferior Lua PROCESS."
+  ;; Depending on how the process is killed the buffer may not be
+  ;; around anymore; e.g. `kill-buffer'.
+  (when-let* ((buffer (process-buffer process))
+              ((buffer-live-p (process-buffer process))))
+    (with-current-buffer buffer (comint-write-input-ring))))
+
+(defvar lua-ts-mode-map
+  (let ((map (make-sparse-keymap "Lua")))
+    (define-key map "\C-c\C-n" 'lua-ts-inferior-lua)
+    (define-key map "\C-c\C-c" 'lua-ts-send-buffer)
+    (define-key map "\C-c\C-l" 'lua-ts-send-file)
+    (define-key map "\C-c\C-r" 'lua-ts-send-region)
+    map)
+  "Keymap for `lua-ts-mode' buffers.")
+
+(easy-menu-define lua-ts-mode-menu lua-ts-mode-map
+  "Menu bar entry for `lua-ts-mode'."
+  `("Lua"
+    ["Evaluate Buffer" lua-ts-send-buffer]
+    ["Evaluate File" lua-ts-send-file]
+    ["Evaluate Region" lua-ts-send-region]
+    "--"
+    ["Start Process" lua-ts-inferior-lua]
+    ["Show Process Buffer" lua-ts-show-process-buffer]
+    ["Hide Process Buffer" lua-ts-hide-process-buffer]
+    ["Kill Process" lua-ts-kill-process]
+    "--"
+    ["Customize" (lambda () (interactive) (customize-group "lua-ts"))]))
 
 ;;;###autoload
 (define-derived-mode lua-ts-mode prog-mode "Lua"
-  "Major mode for editing Lua files, powered by tree-sitter."
+  "Major mode for editing Lua files, powered by tree-sitter.
+
+\\{lua-ts-mode-map}"
   :syntax-table lua-ts--syntax-table
+  (use-local-map lua-ts-mode-map)
 
   (when (treesit-ready-p 'lua)
     (treesit-parser-create 'lua)
@@ -361,13 +719,14 @@ Calls REPORT-FN directly."
     (setq-local treesit-font-lock-settings lua-ts--font-lock-settings)
     (setq-local treesit-font-lock-feature-list
                 '((comment definition)
-                  (keyword property string)
+                  (keyword string)
                   (assignment builtin constant number)
                   (bracket
                    delimiter
                    escape
                    function
                    operator
+                   property
                    punctuation
                    variable)))
 
@@ -380,31 +739,52 @@ Calls REPORT-FN directly."
                 (rx (or "function_declaration" "function_definition")))
     (setq-local treesit-thing-settings
                 `((lua
-                   (sentence ,(rx (or "do_statement"
-                                      "field"
-                                      "for_statement"
-                                      "function_call"
-                                      "if_statement"
-                                      "repeat_statement"
-                                      "return_statement"
-                                      "variable_declaration"
-                                      "while_statement")))
-                   (sexp ,(rx (or "arguments"
-                                  "block"
-                                  "parameters"
-                                  "string"
-                                  "table_constructor")))
+                   (function ,(rx (or "function_declaration"
+                                      "function_definition")))
+                   (keyword ,(regexp-opt lua-ts--keywords
+                                         'symbols))
+                   (loop-statement ,(rx (or "do_statement"
+                                            "for_statement"
+                                            "repeat_statement"
+                                            "while_statement")))
+                   (sentence (or function
+                                 loop-statement
+                                 ,(rx (or "assignment_statement"
+                                          "comment"
+                                          "field"
+                                          "function_call"
+                                          "if_statement"
+                                          "return_statement"
+                                          "variable_declaration"))))
+                   (sexp (or function
+                             keyword
+                             loop-statement
+                             ,(rx (or "arguments"
+                                      "break_statement"
+                                      "expression_list"
+                                      "false"
+                                      "identifier"
+                                      "nil"
+                                      "number"
+                                      "parameters"
+                                      "parenthesized_expression"
+                                      "string"
+                                      "table_constructor"
+                                      "true"
+                                      "vararg_expression"))))
                    (text "comment"))))
 
     ;; Imenu.
     (setq-local treesit-simple-imenu-settings
-                `(("Variable" ,(rx bos "variable_declaration" eos) nil nil)
-                  ("Function" ,(rx bos
-                                   (or "function_declaration"
-                                       "function_definition"
-                                       "field")
-                                   eos)
-                   nil nil)))
+                `(("Requires"
+                   "\\`function_call\\'"
+                   lua-ts--require-p
+                   lua-ts--require-name-function)
+                  ("Variables" "\\`variable_declaration\\'" nil nil)
+                  (nil
+                   "\\`\\(?:f\\(?:ield\\|unction_declaration\\)\\)\\'"
+                   lua-ts--named-function-p
+                   nil)))
 
     ;; Which-function.
     (setq-local which-func-functions (treesit-defun-at-point))
@@ -418,6 +798,9 @@ Calls REPORT-FN directly."
                                       (seq (? (seq "local" (1+ space)))
                                            "function"))
                                   symbol-end)))))
+
+    ;; Align.
+    (setq-local align-indent-before-aligning t)
 
     (treesit-major-mode-setup))
 

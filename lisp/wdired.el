@@ -1,6 +1,6 @@
 ;;; wdired.el --- Rename files editing their names in dired buffers -*- coding: utf-8; lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2024 Free Software Foundation, Inc.
 
 ;; Filename: wdired.el
 ;; Author: Juan León Lahoz García <juanleon1@gmail.com>
@@ -261,6 +261,10 @@ See `wdired-mode'."
   (add-function :override (local 'revert-buffer-function) #'wdired-revert)
   (set-buffer-modified-p nil)
   (setq buffer-undo-list nil)
+  ;; Non-nil `dired-filename-display-length' may cause filenames to be
+  ;; hidden partly, so we remove filename invisibility spec
+  ;; temporarily to ensure filenames are visible for editing.
+  (dired-filename-update-invisibility-spec)
   (run-mode-hooks 'wdired-mode-hook)
   (message "%s" (substitute-command-keys
 		 "Press \\[wdired-finish-edit] when finished \
@@ -453,9 +457,12 @@ non-nil means return old filename."
   (force-mode-line-update)
   (setq buffer-read-only t)
   (setq major-mode 'dired-mode)
-  (setq mode-name "Dired")
+  (dired-sort-set-mode-line)
   (dired-advertise)
   (dired-hide-details-update-invisibility-spec)
+  ;; Restore filename invisibility spec that is removed in
+  ;; `wdired-change-to-wdired-mode'.
+  (dired-filename-update-invisibility-spec)
   (remove-hook 'kill-buffer-hook #'wdired-check-kill-buffer t)
   (remove-hook 'before-change-functions #'wdired--before-change-fn t)
   (remove-hook 'after-change-functions #'wdired--restore-properties t)

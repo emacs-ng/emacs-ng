@@ -1,9 +1,9 @@
 ;;; org-colview.el --- Column View in Org            -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2024 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten.dominik@gmail.com>
-;; Keywords: outlines, hypermedia, calendar, wp
+;; Keywords: outlines, hypermedia, calendar, text
 ;; URL: https://orgmode.org
 ;;
 ;; This file is part of GNU Emacs.
@@ -525,7 +525,8 @@ for the duration of the command.")
       (setq header-line-format org-previous-header-line-format)
       (kill-local-variable 'org-previous-header-line-format)
       (remove-hook 'post-command-hook #'org-columns-hscroll-title 'local))
-    (set-marker org-columns-begin-marker nil)
+    (when (markerp org-columns-begin-marker)
+      (set-marker org-columns-begin-marker nil))
     (when (markerp org-columns-top-level-marker)
       (set-marker org-columns-top-level-marker nil))
     (with-silent-modifications

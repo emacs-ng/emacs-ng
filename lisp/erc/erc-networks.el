@@ -1,6 +1,6 @@
 ;;; erc-networks.el --- IRC networks  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002, 2004-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2002, 2004-2024 Free Software Foundation, Inc.
 
 ;; Author: Mario Lang <mlang@lexx.delysid.org>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
@@ -42,26 +42,19 @@
 
 (defvar erc--target)
 (defvar erc-insert-marker)
-(defvar erc-kill-buffer-hook)
-(defvar erc-kill-server-hook)
 (defvar erc-modules)
 (defvar erc-rename-buffers)
 (defvar erc-reuse-buffers)
 (defvar erc-server-announced-name)
 (defvar erc-server-connected)
-(defvar erc-server-parameters)
 (defvar erc-server-process)
-(defvar erc-session-server)
 
-(declare-function erc--default-target "erc" nil)
 (declare-function erc--get-isupport-entry "erc-backend" (key &optional single))
 (declare-function erc-buffer-filter "erc" (predicate &optional proc))
 (declare-function erc-current-nick "erc" nil)
 (declare-function erc-display-error-notice "erc" (parsed string))
 (declare-function erc-display-message "erc" (parsed type buffer msg &rest args))
-(declare-function erc-error "erc" (&rest args))
 (declare-function erc-get-buffer "erc" (target &optional proc))
-(declare-function erc-server-buffer "erc" nil)
 (declare-function erc-server-process-alive "erc-backend" (&optional buffer))
 (declare-function erc-set-active-buffer "erc" (buffer))
 
@@ -479,7 +472,7 @@ NET is a symbol indicating to which network from `erc-networks-alist'
   this server corresponds,
 HOST is the server's hostname, and (TLS-)PORTS is either a
 number, a list of numbers, or a list of port ranges."
-  :package-version '(ERC . "5.6") ; FIXME sync on release
+  :package-version '(ERC . "5.6")
   :type '(alist :key-type (string :tag "Name")
 		:value-type
 		(group symbol (string :tag "Hostname")
@@ -756,9 +749,8 @@ number, a list of numbers, or a list of port ranges."
 Each network is a list (NET MATCHER) where
 NET is a symbol naming that IRC network and
 MATCHER is used to find a corresponding network to a server while
-  connected to it.  If it is regexp, it's used to match against
-  `erc-server-announced-name'.  It can also be a function (predicate).
-  Then it is executed with the server buffer as current buffer."
+connected to it.  If it is a regexp, it's used to match against
+`erc-server-announced-name'."
   :type '(repeat
 	  (list :tag "Network"
 		(symbol :tag "Network name")
@@ -992,12 +984,11 @@ object."
                                       (erc-networks--id-qualifying-len nid))
   (erc-networks--rename-server-buffer (or proc erc-server-process) parsed)
   (erc-networks--shrink-ids-and-buffer-names-any)
-  (erc-with-all-buffers-of-server
-      erc-server-process #'erc--default-target
-      (when-let* ((new-name (erc-networks--reconcile-buffer-names erc--target
-                                                                  nid))
-                  ((not (equal (buffer-name) new-name))))
-        (rename-buffer new-name 'unique))))
+  (erc-with-all-buffers-of-server erc-server-process #'erc-target
+    (when-let
+        ((new-name (erc-networks--reconcile-buffer-names erc--target nid))
+         ((not (equal (buffer-name) new-name))))
+      (rename-buffer new-name 'unique))))
 
 (cl-defgeneric erc-networks--id-ensure-comparable (self other)
   "Take measures to ensure two net identities are in comparable states.")
@@ -1232,6 +1223,8 @@ Use the server parameter NETWORK if provided, otherwise parse the
 server name and search for a match in `erc-networks-alist'."
   ;; The server made it easy for us and told us the name of the NETWORK
   (declare (obsolete "maybe see `erc-networks--determine'" "29.1"))
+  (defvar erc-server-parameters)
+  (defvar erc-session-server)
   (let ((network-name (cdr (assoc "NETWORK" erc-server-parameters))))
     (if network-name
 	(intern network-name)
@@ -1384,6 +1377,8 @@ already been copied over to the current, replacement buffer.")
 (defun erc-networks--copy-over-server-buffer-contents (existing name)
   "Kill off existing server buffer after copying its contents.
 Must be called from the replacement buffer."
+  (defvar erc-kill-buffer-hook)
+  (defvar erc-kill-server-hook)
   ;; ERC expects `erc-open' to be idempotent when setting up local
   ;; vars and other context properties for a new identity.  Thus, it's
   ;; unlikely we'll have to copy anything else over besides text.  And
@@ -1589,14 +1584,29 @@ return the host alone sans URL formatting (for compatibility)."
   '((pals Libera.Chat ("kensanata" "shapr" "anti\\(fuchs\\|gone\\)"))
     (format-nick-function (Libera.Chat "#emacs") erc-format-@nick))
   "Experimental: Alist of configuration options.
+
+WARNING: this variable is a vestige from a long-abandoned
+experiment.  ERC may redefine it using the same name for any
+purpose at any time.
+
 The format is (VARNAME SCOPE VALUE) where
 VARNAME is a symbol identifying the configuration option,
 SCOPE is either a symbol which identifies an entry from
   `erc-networks-alist' or a list (NET TARGET) where NET is a network symbol and
   TARGET is a string identifying the channel/query target.
 VALUE is the options value.")
+(make-obsolete-variable 'erc-settings
+                        "temporarily deprecated for later repurposing" "30.1")
 
 (defun erc-get (var &optional net target)
+  "Retrieve configuration values from `erc-settings'.
+
+WARNING: this function is a non-functioning remnant from a
+long-abandoned experiment.  ERC may redefine it using the same
+name for any purpose at any time.
+
+\(fn &rest UNKNOWN)"
+  (declare (obsolete "temporarily deprecated for later repurposing" "30.1"))
   (let ((items erc-settings)
 	elt val)
     (while items

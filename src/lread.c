@@ -1,6 +1,6 @@
 /* Lisp parsing and input streams.
 
-Copyright (C) 1985-1989, 1993-1995, 1997-2023 Free Software Foundation,
+Copyright (C) 1985-1989, 1993-1995, 1997-2024 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -124,7 +124,7 @@ static struct android_fd_or_asset invalid_file_stream =
 
 #define file_stream		struct android_fd_or_asset
 #define file_offset		off_t
-#define file_tell(n)		(android_asset_lseek ((n), 0, SEEK_CUR))
+#define file_tell(n)		android_asset_lseek (n, 0, SEEK_CUR)
 #define file_seek		android_asset_lseek
 #define file_stream_valid_p(p)	((p).asset || (p).fd >= 0)
 #define file_stream_close	android_close_asset
@@ -2544,15 +2544,11 @@ readevalloop (Lisp_Object readcharfun,
       if (! HASH_TABLE_P (read_objects_map)
 	  || XHASH_TABLE (read_objects_map)->count)
 	read_objects_map
-	  = make_hash_table (hashtest_eq, DEFAULT_HASH_SIZE,
-			     DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
-			     Qnil, false);
+	  = make_hash_table (&hashtest_eq, DEFAULT_HASH_SIZE, Weak_None, false);
       if (! HASH_TABLE_P (read_objects_completed)
 	  || XHASH_TABLE (read_objects_completed)->count)
 	read_objects_completed
-	  = make_hash_table (hashtest_eq, DEFAULT_HASH_SIZE,
-			     DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
-			     Qnil, false);
+	  = make_hash_table (&hashtest_eq, DEFAULT_HASH_SIZE, Weak_None, false);
       if (!NILP (Vpurify_flag) && c == '(')
 	val = read0 (readcharfun, false);
       else
@@ -2796,13 +2792,11 @@ read_internal_start (Lisp_Object stream, Lisp_Object start, Lisp_Object end,
   if (! HASH_TABLE_P (read_objects_map)
       || XHASH_TABLE (read_objects_map)->count)
     read_objects_map
-      = make_hash_table (hashtest_eq, DEFAULT_HASH_SIZE, DEFAULT_REHASH_SIZE,
-			 DEFAULT_REHASH_THRESHOLD, Qnil, false);
+      = make_hash_table (&hashtest_eq, DEFAULT_HASH_SIZE, Weak_None, false);
   if (! HASH_TABLE_P (read_objects_completed)
       || XHASH_TABLE (read_objects_completed)->count)
     read_objects_completed
-      = make_hash_table (hashtest_eq, DEFAULT_HASH_SIZE, DEFAULT_REHASH_SIZE,
-			 DEFAULT_REHASH_THRESHOLD, Qnil, false);
+      = make_hash_table (&hashtest_eq, DEFAULT_HASH_SIZE, Weak_None, false);
 
   if (STRINGP (stream)
       || ((CONSP (stream) && STRINGP (XCAR (stream)))))
@@ -3412,7 +3406,7 @@ read_string_literal (Lisp_Object readcharfun)
 static Lisp_Object
 hash_table_from_plist (Lisp_Object plist)
 {
-  Lisp_Object params[12];
+  Lisp_Object params[4 * 2];
   Lisp_Object *par = params;
 
   /* This is repetitive but fast and simple.  */
@@ -3426,31 +3420,30 @@ hash_table_from_plist (Lisp_Object plist)
       }							\
   } while (0)
 
-  ADDPARAM (size);
   ADDPARAM (test);
   ADDPARAM (weakness);
-  ADDPARAM (rehash_size);
-  ADDPARAM (rehash_threshold);
   ADDPARAM (purecopy);
 
   Lisp_Object data = plist_get (plist, Qdata);
+  if (!(NILP (data) || CONSP (data)))
+    error ("Hash table data is not a list");
+  ptrdiff_t data_len = list_length (data);
+  if (data_len & 1)
+    error ("Hash table data length is odd");
+  *par++ = QCsize;
+  *par++ = make_fixnum (data_len / 2);
 
   /* Now use params to make a new hash table and fill it.  */
   Lisp_Object ht = Fmake_hash_table (par - params, params);
 
-  Lisp_Object last = data;
-  FOR_EACH_TAIL_SAFE (data)
+  while (!NILP (data))
     {
       Lisp_Object key = XCAR (data);
       data = XCDR (data);
-      if (!CONSP (data))
-	break;
       Lisp_Object val = XCAR (data);
-      last = XCDR (data);
       Fputhash (key, val, ht);
+      data = XCDR (data);
     }
-  if (!NILP (last))
-    error ("Hash table data is not a list of even length");
 
   return ht;
 }
@@ -4262,8 +4255,8 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 			struct Lisp_Hash_Table *h
 			  = XHASH_TABLE (read_objects_map);
 			Lisp_Object number = make_fixnum (n);
-			Lisp_Object hash;
-			ptrdiff_t i = hash_lookup (h, number, &hash);
+			hash_hash_t hash;
+			ptrdiff_t i = hash_lookup_get_hash (h, number, &hash);
 			if (i >= 0)
 			  /* Not normal, but input could be malformed.  */
 			  set_hash_value_slot (h, i, placeholder);
@@ -4281,7 +4274,7 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 			/* #N# -- reference to numbered object */
 			struct Lisp_Hash_Table *h
 			  = XHASH_TABLE (read_objects_map);
-			ptrdiff_t i = hash_lookup (h, make_fixnum (n), NULL);
+			ptrdiff_t i = hash_lookup (h, make_fixnum (n));
 			if (i < 0)
 			  invalid_syntax ("#", readcharfun);
 			obj = HASH_VALUE (h, i);
@@ -4578,8 +4571,8 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 
 		struct Lisp_Hash_Table *h2
 		  = XHASH_TABLE (read_objects_completed);
-		Lisp_Object hash;
-		ptrdiff_t i = hash_lookup (h2, placeholder, &hash);
+		hash_hash_t hash;
+		ptrdiff_t i = hash_lookup_get_hash (h2, placeholder, &hash);
 		eassert (i < 0);
 		hash_put (h2, placeholder, Qnil, hash);
 		obj = placeholder;
@@ -4593,8 +4586,8 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 		  {
 		    struct Lisp_Hash_Table *h2
 		      = XHASH_TABLE (read_objects_completed);
-		    Lisp_Object hash;
-		    ptrdiff_t i = hash_lookup (h2, obj, &hash);
+		    hash_hash_t hash;
+		    ptrdiff_t i = hash_lookup_get_hash (h2, obj, &hash);
 		    eassert (i < 0);
 		    hash_put (h2, obj, Qnil, hash);
 		  }
@@ -4605,8 +4598,9 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 
 		/* ...and #n# will use the real value from now on.  */
 		struct Lisp_Hash_Table *h = XHASH_TABLE (read_objects_map);
-		Lisp_Object hash;
-		ptrdiff_t i = hash_lookup (h, e->u.numbered.number, &hash);
+		hash_hash_t hash;
+		ptrdiff_t i = hash_lookup_get_hash (h, e->u.numbered.number,
+						    &hash);
 		eassert (i >= 0);
 		set_hash_value_slot (h, i, obj);
 	      }
@@ -4660,7 +4654,7 @@ substitute_object_recurse (struct subst *subst, Lisp_Object subtree)
      by #n=, which means that we can find it as a value in
      COMPLETED.  */
   if (EQ (subst->completed, Qt)
-      || hash_lookup (XHASH_TABLE (subst->completed), subtree, NULL) >= 0)
+      || hash_lookup (XHASH_TABLE (subst->completed), subtree) >= 0)
     subst->seen = Fcons (subtree, subst->seen);
 
   /* Recurse according to subtree's type.
@@ -5997,8 +5991,6 @@ that are loaded before your customizations are read!  */);
   DEFSYM (Qsize, "size");
   DEFSYM (Qpurecopy, "purecopy");
   DEFSYM (Qweakness, "weakness");
-  DEFSYM (Qrehash_size, "rehash-size");
-  DEFSYM (Qrehash_threshold, "rehash-threshold");
 
   DEFSYM (Qchar_from_name, "char-from-name");
 

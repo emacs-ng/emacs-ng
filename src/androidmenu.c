@@ -1,6 +1,6 @@
 /* Communication module for Android terminals.
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -248,7 +248,6 @@ android_menu_show (struct frame *f, int x, int y, int menuflags,
   jobject title_string, help_string, temp;
   size_t i;
   Lisp_Object pane_name, prefix;
-  const char *pane_string;
   specpdl_ref count, count1;
   Lisp_Object item_name, enable, def, tem, entry, type, selected;
   Lisp_Object help;
@@ -279,7 +278,7 @@ android_menu_show (struct frame *f, int x, int y, int menuflags,
 
   title_string = NULL;
   if (STRINGP (title) && menu_items_n_panes < 2)
-    title_string = android_build_string (title);
+    title_string = android_build_string (title, NULL);
 
   /* Push the first local frame for the context menu.  */
   method = menu_class.create_context_menu;
@@ -357,13 +356,21 @@ android_menu_show (struct frame *f, int x, int y, int menuflags,
 	  /* Now figure out the title of this pane.  */
 	  pane_name = AREF (menu_items, i + MENU_ITEMS_PANE_NAME);
 	  prefix = AREF (menu_items, i + MENU_ITEMS_PANE_PREFIX);
-	  pane_string = (NILP (pane_name)
-			 ? "" : SSDATA (pane_name));
-	  if ((menuflags & MENU_KEYMAPS) && !NILP (prefix))
-	    pane_string++;
+
+	  /* PANE_NAME may be nil, in which case it must be set to an
+	     empty string.  */
+
+	  if (NILP (pane_name))
+	    pane_name = empty_unibyte_string;
+
+	  /* Remove the leading prefix character if need be.  */
+
+	  if ((menuflags & MENU_KEYMAPS) && !NILP (prefix)
+	      && SCHARS (prefix))
+	    pane_name = Fsubstring (pane_name, make_fixnum (1), Qnil);
 
 	  /* Add the pane.  */
-	  temp = (*env)->NewStringUTF (env, pane_string);
+	  temp = android_build_string (pane_name, NULL);
 	  android_exception_check ();
 
 	  (*env)->CallNonvirtualVoidMethod (env, current_context_menu,
@@ -392,7 +399,7 @@ android_menu_show (struct frame *f, int x, int y, int menuflags,
 	    {
 	      /* This is a submenu.  Add it.  */
 	      title_string = (!NILP (item_name)
-			      ? android_build_string (item_name)
+			      ? android_build_string (item_name, NULL)
 			      : NULL);
 	      help_string = NULL;
 
@@ -401,7 +408,7 @@ android_menu_show (struct frame *f, int x, int y, int menuflags,
 
 	      if (android_get_current_api_level () >= 26
 		  && STRINGP (help))
-		help_string = android_build_string (help);
+		help_string = android_build_string (help, NULL);
 
 	      store = current_context_menu;
 	      current_context_menu
@@ -436,7 +443,7 @@ android_menu_show (struct frame *f, int x, int y, int menuflags,
 	      /* Add this menu item with the appropriate state.  */
 
 	      title_string = (!NILP (item_name)
-			      ? android_build_string (item_name)
+			      ? android_build_string (item_name, NULL)
 			      : NULL);
 	      help_string = NULL;
 
@@ -445,7 +452,7 @@ android_menu_show (struct frame *f, int x, int y, int menuflags,
 
 	      if (android_get_current_api_level () >= 26
 		  && STRINGP (help))
-		help_string = android_build_string (help);
+		help_string = android_build_string (help, NULL);
 
 	      /* Determine whether or not to display a check box.  */
 
@@ -679,7 +686,7 @@ android_dialog_show (struct frame *f, Lisp_Object title,
 		 : android_build_jstring ("Question"));
 
   /* And the title.  */
-  java_title = android_build_string (title);
+  java_title = android_build_string (title, NULL);
 
   /* Now create the dialog.  */
   method = dialog_class.create_dialog;
@@ -731,7 +738,7 @@ android_dialog_show (struct frame *f, Lisp_Object title,
 	    }
 
 	  /* Add the button.  */
-	  temp = android_build_string (item_name);
+	  temp = android_build_string (item_name, NULL);
 	  (*env)->CallNonvirtualVoidMethod (env, dialog,
 					    dialog_class.class,
 					    dialog_class.add_button,

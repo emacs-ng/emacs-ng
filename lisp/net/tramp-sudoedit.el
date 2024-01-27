@@ -1,6 +1,6 @@
 ;;; tramp-sudoedit.el --- Functions for accessing under root permissions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2018-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2024 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -274,8 +274,8 @@ absolute file names."
 		     (not (directory-name-p newname)))
 	    (tramp-error v 'file-error "File is a directory %s" newname))
 
-	  (if (or (and (file-remote-p filename) (not t1))
-		  (and (file-remote-p newname)  (not t2)))
+	  (if (or (and (tramp-tramp-file-p filename) (not t1))
+		  (and (tramp-tramp-file-p newname)  (not t2)))
 	      ;; We cannot copy or rename directly.
 	      (let ((tmpfile (tramp-compat-make-temp-file filename)))
 		(if (eq op 'copy)
@@ -296,7 +296,7 @@ absolute file names."
 
 	  ;; When `newname' is local, we must change the ownership to
 	  ;; the local user.
-	  (unless (file-remote-p newname)
+	  (unless (tramp-tramp-file-p newname)
 	    (tramp-set-file-uid-gid
 	     (concat (file-remote-p filename) newname)
 	     (tramp-get-local-uid 'integer)
@@ -381,6 +381,9 @@ the result will be a local, non-Tramp, file name."
       ;; but to the root home directory.
       (when (tramp-string-empty-or-nil-p localname)
 	(setq localname "~"))
+      ;; Tilde expansion shall be possible also for quoted localname.
+      (when (string-prefix-p "~" (file-name-unquote localname))
+	(setq localname (file-name-unquote localname)))
       (unless (file-name-absolute-p localname)
 	(setq localname (format "~%s/%s" user localname)))
       (when (string-match
@@ -486,7 +489,7 @@ the result will be a local, non-Tramp, file name."
 
 (defun tramp-sudoedit-handle-file-name-all-completions (filename directory)
   "Like `file-name-all-completions' for Tramp files."
-  (ignore-error file-missing
+  (tramp-skeleton-file-name-all-completions filename directory
     (all-completions
      filename
      (with-parsed-tramp-file-name (expand-file-name directory) nil
@@ -500,13 +503,11 @@ the result will be a local, non-Tramp, file name."
 	    (if (ignore-errors (file-directory-p (expand-file-name f directory)))
 		(file-name-as-directory f)
 	      f))
-	  (delq
-	   nil
-	   (mapcar
-	    (lambda (l) (and (not (string-match-p (rx bol (* blank) eol) l)) l))
-	    (split-string
-	     (tramp-get-buffer-string (tramp-get-connection-buffer v))
-	     "\n" 'omit)))))))))
+	  (mapcar
+	   (lambda (l) (and (not (string-match-p (rx bol (* blank) eol) l)) l))
+	   (split-string
+	    (tramp-get-buffer-string (tramp-get-connection-buffer v))
+	    "\n" 'omit))))))))
 
 (defun tramp-sudoedit-handle-file-readable-p (filename)
   "Like `file-readable-p' for Tramp files."

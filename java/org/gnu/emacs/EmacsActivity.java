@@ -1,6 +1,6 @@
 /* Communication module for Android terminals.  -*- c-file-style: "GNU" -*-
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -89,8 +89,11 @@ public class EmacsActivity extends Activity
     if (window.view.isFocused ())
       focusedWindow = window;
 
-    for (EmacsWindow child : window.children)
-      invalidateFocus1 (child);
+    synchronized (window.children)
+      {
+	for (EmacsWindow child : window.children)
+	  invalidateFocus1 (child);
+      }
   }
 
   public static void

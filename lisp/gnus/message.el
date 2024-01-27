@@ -1,6 +1,6 @@
 ;;; message.el --- composing mail and news messages -*- lexical-binding: t -*-
 
-;; Copyright (C) 1996-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: mail, news
@@ -154,7 +154,7 @@ If this variable is nil, no such courtesy message will be added."
   :type '(radio string (const nil)))
 
 (defcustom message-ignored-bounced-headers
-  "^\\(Received\\|Return-Path\\|Delivered-To\\):"
+  "^\\(Received\\|Return-Path\\|Delivered-To\\|DKIM-Signature\\|X-Hashcash\\):"
   "Regexp that matches headers to be removed in resent bounced mail."
   :group 'message-interface
   :type 'regexp)
@@ -1145,7 +1145,8 @@ Note that these functions use `mail-citation-hook' if that is non-nil."
 This can also be a list of functions.  Each function can find the
 citation between (point) and (mark t).  And each function should leave
 point and mark around the citation text as modified."
-  :type 'function
+  :type '(choice function
+                 (repeat function))
   :link '(custom-manual "(message)Insertion Variables")
   :group 'message-insertion)
 
@@ -1406,8 +1407,9 @@ This can also be a list of values."
   :group 'message
   :link '(custom-manual "(message)Mail Aliases")
   :type '(choice (const :tag "Use Mailabbrev" abbrev)
-		 (const :tag "Use ecomplete" ecomplete)
-		 (const :tag "No expansion" nil)))
+                 (const :tag "Use ecomplete" ecomplete)
+                 (set (const :tag "Use Mailabbrev" abbrev)
+                      (const :tag "Use ecomplete" ecomplete))))
 
 (defcustom message-self-insert-commands '(self-insert-command)
   "List of `self-insert-command's used to trigger ecomplete.
@@ -1451,8 +1453,9 @@ If a function email is passed as the argument."
   :group 'message
   :link '(custom-manual "(message)Wide Reply")
   :type '(choice (const :tag "Yourself" nil)
-		 regexp
-		 (repeat :tag "Regexp List" regexp)))
+                 regexp
+                 (repeat :tag "Regexp List" regexp)
+                 function))
 
 (defsubst message-dont-reply-to-names ()
   (if (functionp message-dont-reply-to-names)
@@ -1873,9 +1876,13 @@ downcased."
   :type '(repeat (repeat string)))
 
 (defcustom message-mail-user-agent nil
-  "Like `mail-user-agent'.
-Except if it is nil, use Gnus native MUA; if it is t, use
-`mail-user-agent'."
+  "Your preferred package for composing and sending email when using message.el.
+Like `mail-user-agent' (which see), this specifies the package you prefer
+to use for composing and sending email messages.
+The value can be anything accepted by `mail-user-agent', and in addition
+it can be nil or t.  If the value is nil, use the Gnus native Mail User
+Agent (MUA); if it is t, use the value of `mail-user-agent'.
+For more about mail user agents, see Info node `(emacs)Mail Methods'"
   :version "22.1"
   :type '(radio (const :tag "Gnus native"
 		       :format "%t\n"
@@ -8971,32 +8978,61 @@ used to take the screenshot."
     retval))
 
 ;;;###autoload
-(defun message-mailto (&optional url)
+(defun message-mailto (&optional url subject body file-attachments)
   "Command to parse command line mailto: links.
 This is meant to be used for MIME handlers: Setting the handler
 for \"x-scheme-handler/mailto;\" to \"emacs -f message-mailto %u\"
 will then start up Emacs ready to compose mail.  For emacsclient use
-  emacsclient -e \\='(message-mailto \"%u\")'"
+  emacsclient -e \\='(message-mailto \"%u\")'
+
+To facilitate the use of this function within window systems that
+provide message subject, body and attachments independent of URL
+itself, the arguments SUBJECT, BODY and FILE-ATTACHMENTS may also
+provide alternative message subject and body text, which is
+inserted in lieu of nothing if URL does not incorporate such
+information itself, and a list of files to insert as attachments
+to the E-mail."
   (interactive)
   ;; <a href="mailto:someone@example.com?subject=This%20is%20the%20subject&cc=someone_else@example.com&body=This%20is%20the%20body">Send email</a>
   (message-mail)
-  (message-mailto-1 (or url (pop command-line-args-left))))
+  (message-mailto-1 (or url (pop command-line-args-left))
+                    subject body file-attachments))
 
-(defun message-mailto-1 (url)
-  (let ((args (message-parse-mailto-url url)))
+(defun message-mailto-1 (url &optional subject body file-attachments)
+  (let ((args (message-parse-mailto-url url))
+        (need-body nil) (need-subject nil))
     (dolist (arg args)
       (unless (equal (car arg) "body")
 	(message-position-on-field (capitalize (car arg)))
 	(insert (string-replace
 		 "\r\n" "\n"
 		 (mapconcat #'identity (reverse (cdr arg)) ", ")))))
-    (when (assoc "body" args)
-      (message-goto-body)
-      (dolist (body (cdr (assoc "body" args)))
-	(insert body "\n")))
+    (if (assoc "body" args)
+        (progn
+          (message-goto-body)
+          (dolist (body (cdr (assoc "body" args)))
+	    (insert body "\n")))
+
+      (setq need-body t))
     (if (assoc "subject" args)
 	(message-goto-body)
-      (message-goto-subject))))
+      (setq need-subject t)
+      (message-goto-subject))
+    ;; If either one of need-subject and need-body is non-nil then
+    ;; attempt to insert the absent information from an external
+    ;; SUBJECT or BODY.
+    (when (or need-body need-subject)
+      (when (and need-body body)
+        (message-goto-body)
+        (insert body))
+      (when (and need-subject subject)
+        (message-goto-subject)
+        (insert subject)
+        (message-goto-body)))
+    ;; Subsequently insert each attachment enumerated within
+    ;; FILE-ATTACHMENTS.
+    (dolist (file file-attachments)
+      (mml-attach-file file nil 'attachment))))
 
 (provide 'message)
 

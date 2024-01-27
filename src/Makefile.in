@@ -1,6 +1,6 @@
 ### @configure_input@
 
-# Copyright (C) 1985, 1987-1988, 1993-1995, 1999-2023 Free Software
+# Copyright (C) 1985, 1987-1988, 1993-1995, 1999-2024 Free Software
 # Foundation, Inc.
 
 # This file is part of GNU Emacs.
@@ -1043,6 +1043,8 @@ elnlisp := \
 	international/charscript.eln \
 	emacs-lisp/comp.eln \
 	emacs-lisp/comp-cstr.eln \
+	emacs-lisp/comp-common.eln \
+	emacs-lisp/comp-run.eln \
 	international/emoji-zwj.eln
 elnlisp := $(addprefix ${lispsource}/,${elnlisp}) $(lisp:.elc=.eln)
 

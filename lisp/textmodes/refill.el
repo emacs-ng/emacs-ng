@@ -1,10 +1,10 @@
 ;;; refill.el --- `auto-fill' by refilling paragraphs on changes  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2024 Free Software Foundation, Inc.
 
 ;; Author: Dave Love <fx@gnu.org>
 ;; Maintainer: Miles Bader <miles@gnu.org>
-;; Keywords: wp
+;; Keywords: text
 
 ;; This file is part of GNU Emacs.
 

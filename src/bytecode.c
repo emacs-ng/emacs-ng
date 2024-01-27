@@ -1,5 +1,5 @@
 /* Execution of byte code produced by bytecomp.el.
-   Copyright (C) 1985-1988, 1993, 2000-2023 Free Software Foundation,
+   Copyright (C) 1985-1988, 1993, 2000-2024 Free Software Foundation,
    Inc.
 
 This file is part of GNU Emacs.
@@ -1743,7 +1743,7 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 
             /* h->count is a faster approximation for HASH_TABLE_SIZE (h)
                here. */
-            if (h->count <= 5 && !h->test.cmpfn)
+            if (h->count <= 5 && !h->test->cmpfn)
               { /* Do a linear search if there are not many cases
                    FIXME: 5 is arbitrarily chosen.  */
 		for (i = h->count; 0 <= --i; )
@@ -1751,7 +1751,7 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 		    break;
               }
             else
-              i = hash_lookup (h, v1, NULL);
+              i = hash_lookup (h, v1);
 
 	    if (i >= 0)
 	      {

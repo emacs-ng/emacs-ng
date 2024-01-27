@@ -1,6 +1,6 @@
 ;;; vc-hg.el --- VC backend for the mercurial version control system  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2006-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2024 Free Software Foundation, Inc.
 
 ;; Author: Ivan Kanis
 ;; Maintainer: emacs-devel@gnu.org
@@ -77,6 +77,7 @@
 ;; - make-version-backups-p (file)             ??
 ;; - previous-revision (file rev)              OK
 ;; - next-revision (file rev)                  OK
+;; - file-name-changes (rev)                   OK
 ;; - check-headers ()                          ??
 ;; - delete-file (file)                        TEST IT
 ;; - rename-file (old new)                     OK
@@ -216,8 +217,9 @@ If `ask', you will be prompted for a branch type."
 
 (defun vc-hg-state (file)
   "Hg-specific version of `vc-state'."
-  (let ((state (vc-hg-state-fast file)))
-    (if (eq state 'unsupported) (vc-hg-state-slow file) state)))
+  (unless (file-directory-p file)
+    (let ((state (vc-hg-state-fast file)))
+      (if (eq state 'unsupported) (vc-hg-state-slow file) state))))
 
 (defun vc-hg-state-slow (file)
   "Determine status of FILE by running hg."
@@ -351,47 +353,24 @@ specific file to query."
 
 (defun vc-hg-mode-line-string (file)
   "Hg-specific version of `vc-mode-line-string'."
-  (let* ((backend-name "Hg")
-         (truename (file-truename file))
-         (state (vc-state truename))
-         (state-echo nil)
-         (face nil)
-         (rev (and state
-                   (let ((default-directory
-                          (expand-file-name (vc-hg-root truename))))
-                     (vc-hg--symbolic-revision
-                      "."
-                      (and vc-hg-use-file-version-for-mode-line-version
-                           truename)))))
-         (rev (or rev "???")))
-    (propertize
-     (cond ((or (eq state 'up-to-date)
-                (eq state 'needs-update))
-            (setq state-echo "Up to date file")
-            (setq face 'vc-up-to-date-state)
-            (concat backend-name "-" rev))
-           ((eq state 'added)
-            (setq state-echo "Locally added file")
-            (setq face 'vc-locally-added-state)
-            (concat backend-name "@" rev))
-           ((eq state 'conflict)
-            (setq state-echo "File contains conflicts after the last merge")
-            (setq face 'vc-conflict-state)
-            (concat backend-name "!" rev))
-           ((eq state 'removed)
-            (setq state-echo "File removed from the VC system")
-            (setq face 'vc-removed-state)
-            (concat backend-name "!" rev))
-           ((eq state 'missing)
-            (setq state-echo "File tracked by the VC system, but missing from the file system")
-            (setq face 'vc-missing-state)
-            (concat backend-name "?" rev))
-           (t
-            (setq state-echo "Locally modified file")
-            (setq face 'vc-edited-state)
-            (concat backend-name ":" rev)))
-     'face face
-     'help-echo (concat state-echo " under the " backend-name
+  (pcase-let* ((backend-name "Hg")
+               (truename (file-truename file))
+               (state (vc-state truename))
+               (`(,state-echo ,face ,indicator)
+                (vc-mode-line-state state))
+               (rev (and state
+                         (let ((default-directory
+                                (expand-file-name (vc-hg-root truename))))
+                           (vc-hg--symbolic-revision
+                            "."
+                            (and vc-hg-use-file-version-for-mode-line-version
+                                 truename)))))
+               (rev (or rev "???"))
+               (state-string (concat (unless (eq vc-display-status 'no-backend)
+                                       backend-name)
+                                     indicator rev)))
+    (propertize state-string 'face face 'help-echo
+                (concat state-echo " under the " backend-name
                         " version control system"))))
 
 ;;; History functions
@@ -605,8 +584,8 @@ Optional arg REVISION is a revision to annotate from."
     (vc-annotate-convert-time
      (let ((str (match-string-no-properties 2)))
        (encode-time 0 0 0
-                    (string-to-number (substring str 6 8))
-                    (string-to-number (substring str 4 6))
+                    (string-to-number (substring str 8 10))
+                    (string-to-number (substring str 5 7))
                     (string-to-number (substring str 0 4)))))))
 
 (defun vc-hg-annotate-extract-revision-at-line ()
@@ -1224,6 +1203,22 @@ REV is ignored."
     (if rev
         (vc-hg-command buffer 0 file "cat" "-r" rev)
       (vc-hg-command buffer 0 file "cat"))))
+
+(defun vc-hg-file-name-changes (rev)
+  (unless (member "--follow" vc-hg-log-switches)
+    (with-temp-buffer
+      (let ((root (vc-hg-root default-directory)))
+        (vc-hg-command (current-buffer) t nil
+                       "log" "-g" "-p" "-r" rev)
+        (let (res)
+          (goto-char (point-min))
+          (while (re-search-forward "^diff --git a/\\([^ \n]+\\) b/\\([^ \n]+\\)" nil t)
+            (when (not (equal (match-string 1) (match-string 2)))
+              (push (cons
+                     (expand-file-name (match-string 1) root)
+                     (expand-file-name (match-string 2) root))
+                    res)))
+          (nreverse res))))))
 
 (defun vc-hg-find-ignore-file (file)
   "Return the root directory of the repository of FILE."

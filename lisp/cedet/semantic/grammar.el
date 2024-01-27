@@ -1,6 +1,6 @@
 ;;; semantic/grammar.el --- Major mode framework for Semantic grammars  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2005, 2007-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2005, 2007-2024 Free Software Foundation, Inc.
 
 ;; Author: David Ponce <david@dponce.com>
 
@@ -644,7 +644,7 @@ The symbols in the list are local variables in
                    (cond
                     (x (cdr x))
                     ((symbolp S) (symbol-value S))))))
-             template ""))
+             template))
 
 (defun semantic-grammar-header ()
   "Return text of a generated standard header."

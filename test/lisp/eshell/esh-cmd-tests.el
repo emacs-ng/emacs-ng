@@ -1,6 +1,6 @@
 ;;; esh-cmd-tests.el --- esh-cmd test suite  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -102,6 +102,32 @@ bug#59469."
             "  echo \"$LOCAL\"; "
             "}")
     "value\nexternal\nvalue\n")))
+
+
+;; Background command invocation
+
+(ert-deftest esh-cmd-test/background/simple-command ()
+  "Test invocation with a simple background command."
+  (skip-unless (executable-find "echo"))
+  (eshell-with-temp-buffer bufname ""
+    (with-temp-eshell
+     (eshell-match-command-output
+      (format "*echo hi > #<%s> &" bufname)
+      (rx "[echo" (? ".exe") "] " (+ digit) "\n"))
+     (eshell-wait-for-subprocess t))
+    (should (equal (buffer-string) "hi\n"))))
+
+(ert-deftest esh-cmd-test/background/subcommand ()
+  "Test invocation with a background command containing subcommands."
+  (skip-unless (and (executable-find "echo")
+                    (executable-find "rev")))
+  (eshell-with-temp-buffer bufname ""
+    (with-temp-eshell
+     (eshell-match-command-output
+      (format "*echo ${*echo hello | rev} > #<%s> &" bufname)
+      (rx "[echo" (? ".exe") "] " (+ digit) "\n"))
+     (eshell-wait-for-subprocess t))
+    (should (equal (buffer-string) "olleh\n"))))
 
 
 ;; Lisp forms
@@ -443,6 +469,28 @@ This tests when `eshell-lisp-form-nil-is-failure' is nil."
                                "no"))
 
 
+;; Direct invocation
+
+(defmacro esh-cmd-test--deftest-invoke-directly (name command expected)
+  "Test `eshell-invoke-directly-p' returns EXPECTED for COMMAND.
+NAME is the name of the test case."
+  (declare (indent 2))
+  `(ert-deftest ,(intern (concat "esh-cmd-test/invoke-directly/"
+                                 (symbol-name name)))
+       ()
+     (with-temp-eshell
+      (should (equal (eshell-invoke-directly-p
+                      (eshell-parse-command ,command nil t))
+                     ,expected)))))
+
+(esh-cmd-test--deftest-invoke-directly no-args "echo" t)
+(esh-cmd-test--deftest-invoke-directly with-args "echo hi" t)
+(esh-cmd-test--deftest-invoke-directly multiple-cmds "echo hi; echo bye" nil)
+(esh-cmd-test--deftest-invoke-directly subcmd "echo ${echo hi}" t)
+(esh-cmd-test--deftest-invoke-directly complex "ls ." nil)
+(esh-cmd-test--deftest-invoke-directly complex-subcmd "echo {ls .}" nil)
+
+
 ;; Error handling
 
 (ert-deftest esh-cmd-test/throw ()
@@ -453,8 +501,7 @@ This tests when `eshell-lisp-form-nil-is-failure' is nil."
                  "echo hi; (throw 'tag 42); echo bye"))
               42))
    (should (eshell-match-output "\\`hi\n\\'"))
-   (should-not eshell-current-command)
-   (should-not eshell-last-async-procs)
+   (should-not eshell-foreground-command)
    ;; Make sure we can call another command after throwing.
    (eshell-match-command-output "echo again" "\\`again\n")))
 

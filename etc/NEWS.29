@@ -1,6 +1,6 @@
 GNU Emacs NEWS -- history of user-visible changes.
 
-Copyright (C) 2021-2023 Free Software Foundation, Inc.
+Copyright (C) 2021-2024 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 Please send Emacs bug reports to 'bug-gnu-emacs@gnu.org'.
@@ -15,11 +15,32 @@ in older Emacs versions.
 You can narrow news to a specific version by calling 'view-emacs-news'
 with a prefix argument or by typing 'C-u C-h C-n'.
 
-Temporary note:
-+++ indicates that all relevant manuals in doc/ have been updated.
---- means no change in the manuals is needed.
-When you add a new item, use the appropriate mark if you are sure it
-applies, and please also update docstrings as needed.
+
+* Installation Changes in Emacs 29.3
+
+
+* Startup Changes in Emacs 29.3
+
+
+* Changes in Emacs 29.3
+
+
+* Editing Changes in Emacs 29.3
+
+
+* Changes in Specialized Modes and Packages in Emacs 29.3
+
+
+* New Modes and Packages in Emacs 29.3
+
+
+* Incompatible Lisp Changes in Emacs 29.3
+
+
+* Lisp Changes in Emacs 29.3
+
+
+* Changes in Emacs 29.3 on Non-Free Operating Systems
 
 
 * Installation Changes in Emacs 29.2
@@ -27,33 +48,39 @@ applies, and please also update docstrings as needed.
 
 * Startup Changes in Emacs 29.2
 
+** On GNU/Linux, Emacs is now the default application for 'org-protocol'.
+Org mode provides a way to quickly capture bookmarks, notes, and links
+using 'emacsclient':
+
+    emacsclient "org-protocol://store-link?url=URL&title=TITLE"
+
+Previously, users had to manually configure their GNU/Linux desktop
+environment to open 'org-protocol' links in Emacs.  These links should
+now open in Emacs automatically, as the "emacsclient.desktop" file now
+arranges for Emacs to be the default application for the 'org-protocol'
+URI scheme.  See the Org mode manual, Info node "(org) Protocols" for
+more details.
+
 
 * Changes in Emacs 29.2
 
-
-* Editing Changes in Emacs 29.2
+This is a bug-fix release with no new features.
 
 
 * Changes in Specialized Modes and Packages in Emacs 29.2
 
 ** Tramp
 
-+++
 *** New user option 'tramp-show-ad-hoc-proxies'.
 When non-nil, ad-hoc definitions are kept in remote file names instead
 of showing the shortcuts.
 
 
-* New Modes and Packages in Emacs 29.2
-
-
 * Incompatible Lisp Changes in Emacs 29.2
 
-
-* Lisp Changes in Emacs 29.2
-
-
-* Changes in Emacs 29.2 on Non-Free Operating Systems
+** 'with-sqlite-transaction' rolls back changes if its BODY fails.
+If the BODY of the macro signals an error, or committing the results
+of the transaction fails, the changes will now be rolled back.
 
 
 * Installation Changes in Emacs 29.1
@@ -2004,7 +2031,7 @@ The intention is that this command can be used to access a wide
 variety of version control system-specific functionality from VC
 without complexifying either the VC command set or the backend API.
 
-*** 'C-x v v' in a diffs buffer allows committing only some of the changes.
+*** 'C-x v v' in a diffs buffer allows to commit only some of the changes.
 This command is intended to allow you to commit only some of the
 changes you have in your working tree.  Begin by creating a buffer
 with the changes against the last commit, e.g. with 'C-x v D'
@@ -3501,7 +3528,7 @@ The variables 'connection-local-profile-alist' and
 make it more convenient to inspect and modify them.
 
 *** New function 'connection-local-update-profile-variables'.
-This function allows modifying the settings of an existing
+This function allows to modify the settings of an existing
 connection-local profile.
 
 *** New macro 'with-connection-local-application-variables'.
@@ -4018,7 +4045,7 @@ measured will be counted for the purpose of calculating the text
 dimensions.
 
 ** 'window-text-pixel-size' understands a new meaning of FROM.
-Specifying a cons as the FROM argument allows measuring text starting
+Specifying a cons as the FROM argument allows to start measuring text
 from a specified amount of pixels above or below a position.
 
 ** 'window-body-width' and 'window-body-height' can use remapped faces.

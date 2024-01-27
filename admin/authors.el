@@ -1,6 +1,6 @@
 ;;; authors.el --- utility for maintaining Emacs's AUTHORS file  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2024 Free Software Foundation, Inc.
 
 ;; Author: Gerd Moellmann <gerd@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -78,7 +78,7 @@ files.")
     ("David M. Koppelman" "David Koppelman")
     ("David M. Smith" "David Smith" "David M Smith")
     ("David O'Toole" "David T. O'Toole")
-    (nil "dalanicolai")
+    ("Daniel Laurens Nicolai" "dalanicolai")
     (nil "deech@deech")
     ("Deepak Goel" "D. Goel")
     ("Earl Hyatt" "Earl" "ej32u@protonmail.com")
@@ -176,6 +176,7 @@ files.")
     ("Miha Rihtaršič" "Miha Rihtarsic")
     ("Mikio Nakajima" "Nakajima Mikio")
     ("Nelson Jose dos Santos Ferreira" "Nelson Ferreira")
+    ("Noah Peart" "noah\\.v\\.peart@gmail\\.com")
     ("Noorul Islam" "Noorul Islam K M")
 ;;;    ("Tetsurou Okazaki" "OKAZAKI Tetsurou") ; FIXME?
     ("Óscar Fuentes" "Oscar Fuentes")

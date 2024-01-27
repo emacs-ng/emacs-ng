@@ -1,6 +1,6 @@
 ;;; easy-mmode.el --- easy definition for major and minor modes  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997, 2000-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2000-2024 Free Software Foundation, Inc.
 
 ;; Author: Georges Brun-Cottan <Georges.Brun-Cottan@inria.fr>
 ;; Maintainer: Stefan Monnier <monnier@gnu.org>
@@ -661,7 +661,7 @@ list."
           (throw 'found nil))
          ((and (consp elem)
                (eq (car elem) 'not))
-          (when (apply #'derived-mode-p (cdr elem))
+          (when (derived-mode-p (cdr elem))
             (throw 'found nil)))
          ((symbolp elem)
           (when (derived-mode-p elem)

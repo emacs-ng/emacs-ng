@@ -12,7 +12,7 @@
 @footnotestyle end
 
 @copying
-Copyright @copyright{} 1999--2023 Free Software Foundation, Inc.
+Copyright @copyright{} 1999--2024 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -321,7 +321,7 @@ behind the scenes when you open a file with @value{tramp}.
 @cindex GNU ELPA
 @vindex tramp-version
 
-@value{tramp} is included as part of Emacs (since @w{Emacs 22.1}).
+@value{tramp} is included as part of Emacs.
 
 @value{tramp} is also freely packaged for download on the Internet at
 @uref{https://ftp.gnu.org/gnu/tramp/}.  The version number of
@@ -343,10 +343,12 @@ versions packaged with Emacs can be retrieved by
 @end lisp
 
 @value{tramp} is also available as @uref{https://elpa.gnu.org, GNU
-ELPA} package.  Besides the standalone releases, further minor versions
-of @value{tramp} will appear on GNU ELPA, until the next @value{tramp}
-release appears.  These minor versions have a four-number string, like
-``2.4.5.1''.
+ELPA} package.  Besides the standalone releases, further minor
+versions of @value{tramp} will appear on GNU ELPA, until the next
+@value{tramp} release appears.  These minor versions have a
+four-number string, like ``2.4.5.1''.  The manual of the latest
+@value{tramp} ELPA package is located at
+@uref{https://elpa.gnu.org/packages/doc/tramp.html}.
 
 @value{tramp} development versions are available on Git servers.
 Development versions contain new and incomplete features.  The
@@ -2984,7 +2986,7 @@ connection cleanup or on Emacs exiting.
 @cindex rclone setup
 
 The default arguments of the @command{rclone} operations
-@command{mount}, @command{coopyto}, @command{moveto} and
+@command{mount}, @command{copyto}, @command{moveto} and
 @command{about} are declared in the variable @code{tramp-methods} as
 method specific parameters.  Usually, they don't need to be overwritten.
 
@@ -3671,7 +3673,7 @@ ssh@value{postfixhop}you@@remotehost@value{postfix}/path @key{RET}}
 Each involved method must be an inline method (@pxref{Inline methods}).
 
 @value{tramp} adds the ad-hoc definitions on the fly to
-@code{tramp-default-proxies-alist} and is available for re-use during
+@code{tramp-default-proxies-alist} and is available for reuse during
 that Emacs session.  Subsequent @value{tramp} connections to the same
 remote host can then use the shortcut form:
 @samp{@trampfn{ssh,you@@remotehost,/path}}.
@@ -4201,7 +4203,7 @@ To open @command{powershell} as a remote shell, use this:
 
 @subsection Remote process connection type
 @vindex process-connection-type
-@cindex tramp-process-connection-type
+@vindex tramp-process-connection-type
 
 Asynchronous processes behave differently based on whether they use a
 pseudo tty or not.  This is controlled by the variable
@@ -4338,7 +4340,7 @@ called @code{tramp-connection-local-*-ps-profile} and
 @end group
 @end lisp
 
-@cindex proced
+@cindex @code{proced}
 @vindex proced-show-remote-processes
 If you want to see a listing of remote system processes when calling
 @code{proced}, set user option @code{proced-show-remote-processes} to
@@ -4406,9 +4408,6 @@ It does not report the remote terminal name via @code{process-tty-name}.
 
 @item
 It does not set process property @code{remote-pid}.
-
-@item
-It does not use @code{tramp-remote-path}.
 @end itemize
 
 In order to gain even more performance, it is recommended to bind
@@ -5240,7 +5239,7 @@ Yes.  @command{OpenSSH} has added support for @acronym{FIDO} hardware
 devices via special key types @option{*-sk}.  @value{tramp} supports
 the additional handshaking messages for them.  This requires at least
 @command{OpenSSH} 8.2, and a @acronym{FIDO} @acronym{U2F} compatible
-security key, like yubikey, solokey, or nitrokey.
+security key, like yubikey, solokey, nitrokey, or titankey.
 
 
 @item
@@ -5322,17 +5321,39 @@ customization is explained in user option
 @item
 Remote host does not understand default options for directory listing
 
-Emacs computes the @command{dired} options based on the local host but
-if the remote host cannot understand the same @command{ls} command,
-then set them with a hook as follows:
+@vindex dired-listing-switches
+Emacs computes the @command{dired} options based on the local host.
+Since @w{Emacs 30}, these options can be set connection-local.
+@ifinfo
+@xref{Connection Variables, , , emacs}.
+@end ifinfo
+
+@lisp
+@group
+(connection-local-set-profile-variables
+  'my-dired-profile
+  '((dired-listing-switches . "-ahl")))
+@end group
+
+@group
+(connection-local-set-profiles
+ '(:application tramp :machine "remotehost")
+ 'my-dired-profile)
+@end group
+@end lisp
+
+@vindex dired-actual-switches
+In older Emacsen, you can set the @command{dired} options with a hook
+as follows:
 
 @lisp
 @group
 (add-hook
  'dired-before-readin-hook
  (lambda ()
-   (when (file-remote-p default-directory)
-     (setq dired-actual-switches "-al"))))
+   (when (string-equal
+           (file-remote-p default-directory 'host) "remotehost")
+     (setq dired-actual-switches "-ahl"))))
 @end group
 @end lisp
 
@@ -6089,20 +6110,23 @@ wrapping the timer function body as follows:
 to 10.  @value{tramp} does not display all messages; only those with a
 verbosity level less than or equal to @code{tramp-verbose}.
 
+@noindent
 The verbosity levels are
 
-          @w{ 0}  silent (no @value{tramp} messages at all)
-@*@indent @w{ 1}  errors
-@*@indent @w{ 2}  warnings
-@*@indent @w{ 3}  connection to remote hosts (default verbosity)
-@*@indent @w{ 4}  activities
-@*@indent @w{ 5}  internal
-@*@indent @w{ 6}  sent and received strings
-@*@indent @w{ 7}  connection properties
-@*@indent @w{ 8}  file caching
-@*@indent @w{ 9}  test commands
-@*@indent @w{10}  traces (huge)
-@*@indent @w{11}  call traces (maintainer only)
+@itemize @w{}
+@item @w{ 0}  Silent (no @value{tramp} messages at all)
+@item @w{ 1}  Errors
+@item @w{ 2}  Warnings
+@item @w{ 3}  Connection to remote hosts (default verbosity)
+@item @w{ 4}  Activities
+@item @w{ 5}  Internal
+@item @w{ 6}  Sent and received strings
+@item @w{ 7}  Connection properties
+@item @w{ 8}  File caching
+@item @w{ 9}  Test commands
+@item @w{10}  Traces (huge)
+@item @w{11}  Call traces (maintainer only)
+@end itemize
 
 With @code{tramp-verbose} greater than or equal to 4, messages are
 also written to the @value{tramp} debug buffer @file{*debug

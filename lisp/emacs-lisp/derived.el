@@ -1,7 +1,7 @@
 ;;; derived.el --- allow inheritance of major modes  -*- lexical-binding: t; -*-
 ;; (formerly mode-clone.el)
 
-;; Copyright (C) 1993-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1993-2024 Free Software Foundation, Inc.
 
 ;; Author: David Megginson <dmeggins@aix1.uottawa.ca>
 ;; Maintainer: emacs-devel@gnu.org
@@ -211,10 +211,10 @@ See Info node `(elisp)Derived Modes' for more details.
        (defvar ,hook nil)
        (unless (get ',hook 'variable-documentation)
          (put ',hook 'variable-documentation
-              ,(format "Hook run after entering %s mode.
+              ,(format "Hook run after entering `%S'.
 No problems result if this variable is not bound.
 `add-hook' automatically binds it.  (This is true for all hook variables.)"
-                       name)))
+                       child)))
        (unless (boundp ',map)
 	 (put ',map 'definition-name ',child))
        (with-no-warnings (defvar ,map (make-sparse-keymap)))
@@ -240,7 +240,9 @@ No problems result if this variable is not bound.
 	       (unless (get ',abbrev 'variable-documentation)
 		 (put ',abbrev 'variable-documentation
 		      (purecopy ,(format "Abbrev table for `%s'." child))))))
-       (put ',child 'derived-mode-parent ',parent)
+       (if (fboundp 'derived-mode-set-parent) ;; Emacs≥30.1
+           (derived-mode-set-parent ',child ',parent)
+         (put ',child 'derived-mode-parent ',parent))
        ,(if group `(put ',child 'custom-mode-group ,group))
 
        (defun ,child ()

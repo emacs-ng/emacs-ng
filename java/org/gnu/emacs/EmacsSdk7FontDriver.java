@@ -1,6 +1,6 @@
 /* Font backend for Android terminals.  -*- c-file-style: "GNU" -*-
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -99,6 +99,7 @@ public class EmacsSdk7FontDriver extends EmacsFontDriver
     /* The typeface.  */
     public Sdk7Typeface typeface;
 
+    @SuppressWarnings ("deprecation")
     public
     Sdk7FontEntity (Sdk7Typeface typeface)
     {
@@ -120,6 +121,7 @@ public class EmacsSdk7FontDriver extends EmacsFontDriver
     /* The typeface.  */
     public Sdk7Typeface typeface;
 
+    @SuppressWarnings ("deprecation")
     public
     Sdk7FontObject (Sdk7Typeface typeface, int pixelSize)
     {

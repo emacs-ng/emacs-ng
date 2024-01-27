@@ -1,6 +1,6 @@
 /* Functions for the NeXT/Open/GNUstep and macOS window system.
 
-Copyright (C) 1989, 1992-1994, 2005-2006, 2008-2023 Free Software
+Copyright (C) 1989, 1992-1994, 2005-2006, 2008-2024 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -641,6 +641,11 @@ ns_change_tab_bar_height (struct frame *f, int height)
      leading to the tab bar height being incorrectly set upon the next
      call to x_set_font.  (bug#59285) */
   int lines = height / unit;
+
+  /* Even so, HEIGHT might be less than unit if the tab bar face is
+     not so tall as the frame's font height; which if true lines will
+     be set to 0 and the tab bar will thus vanish.  */
+
   if (lines == 0 && height != 0)
     lines = 1;
 
@@ -3987,7 +3992,12 @@ be used as the image of the icon representing the frame.  */);
 
   DEFVAR_BOOL ("ns-use-proxy-icon", ns_use_proxy_icon,
                doc: /* When non-nil display a proxy icon in the titlebar.
-Default is t.  */);
+The proxy icon can be used to drag the file associated with the
+current buffer to other applications, a printer, the desktop, etc., in
+the same way you can from Finder.  Note that you might have to disable
+`tool-bar-mode' to see the proxy icon.
+
+The default value is t.  */);
   ns_use_proxy_icon = true;
 
   DEFVAR_LISP ("x-max-tooltip-size", Vx_max_tooltip_size,

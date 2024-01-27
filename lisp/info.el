@@ -1,6 +1,6 @@
 ;;; info.el --- Info package for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1992-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 1992-2024 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: help
@@ -732,8 +732,53 @@ in `Info-file-supports-index-cookies-list'."
 		    (read-file-name "Info file name: " nil nil t))
 		(if (numberp current-prefix-arg)
 		    (format "*info*<%s>" current-prefix-arg))))
-  (info-setup file-or-node
-	      (switch-to-buffer-other-window (or buffer "*info*"))))
+  (info-pop-to-buffer file-or-node buffer t))
+
+(defun info-pop-to-buffer (&optional file-or-node buffer-or-name other-window)
+  "Put Info node FILE-OR-NODE in specified buffer and display it.
+Optional argument FILE-OR-NODE is as for `info'.
+
+If the optional argument BUFFER-OR-NAME is a buffer, use that
+buffer.  If it is a string, use that string as the name of the
+buffer, creating it if it does not exist.  Otherwise, use a
+buffer with the name `*info*', creating it if it does not exist.
+
+Optional argument OTHER-WINDOW nil means to prefer the selected
+window.  OTHER-WINDOW non-nil means to prefer another window.
+Select the window used, if it has been made."
+  (let ((buffer (cond
+		 ((bufferp buffer-or-name)
+		  buffer-or-name)
+		 ((stringp buffer-or-name)
+		  (get-buffer-create buffer-or-name))
+		 (t
+		  (get-buffer-create "*info*")))))
+    (with-current-buffer buffer
+      (unless (derived-mode-p 'Info-mode)
+	(Info-mode)))
+
+    (let* ((window
+	    (display-buffer buffer
+			    (if other-window
+				'(nil (inhibit-same-window . t))
+			      '(display-buffer-same-window)))))
+      (with-current-buffer buffer
+	(if file-or-node
+	    ;; If argument already contains parentheses, don't add another set
+	    ;; since the argument will then be parsed improperly.  This also
+	    ;; has the added benefit of allowing node names to be included
+	    ;; following the parenthesized filename.
+	    (Info-goto-node
+	     (if (and (stringp file-or-node) (string-match "(.*)" file-or-node))
+		 file-or-node
+               (concat "(" file-or-node ")")))
+	  (if (and (zerop (buffer-size))
+		   (null Info-history))
+	      ;; If we just created the Info buffer, go to the directory.
+	      (Info-directory))))
+
+      (when window
+	(select-window window)))))
 
 ;;;###autoload (put 'info 'info-file (purecopy "emacs"))
 ;;;###autoload
@@ -768,8 +813,8 @@ See a list of available Info commands in `Info-mode'."
     ;; of names that might have been wrapped (in emails, etc.).
     (setq file-or-node
           (string-replace "\n" " " file-or-node)))
-  (info-setup file-or-node
-	      (pop-to-buffer-same-window (or buffer "*info*"))))
+
+  (info-pop-to-buffer file-or-node buffer))
 
 (defun info-setup (file-or-node buffer)
   "Display Info node FILE-OR-NODE in BUFFER."
@@ -788,6 +833,8 @@ See a list of available Info commands in `Info-mode'."
 	     (null Info-history))
 	;; If we just created the Info buffer, go to the directory.
 	(Info-directory))))
+
+(make-obsolete 'info-setup "use `info-pop-to-buffer' instead" "30.1")
 
 ;;;###autoload
 (defun info-emacs-manual ()
@@ -927,7 +974,7 @@ If NOERROR, inhibit error messages when we can't find the node."
   (setq nodename (info--node-canonicalize-whitespace nodename))
   (setq filename (Info-find-file filename noerror))
   ;; Go into Info buffer.
-  (or (derived-mode-p 'Info-mode) (switch-to-buffer "*info*"))
+  (or (derived-mode-p 'Info-mode) (info-pop-to-buffer filename))
   ;; Record the node we are leaving, if we were in one.
   (and (not no-going-back)
        Info-current-file
@@ -957,7 +1004,7 @@ otherwise, that defaults to `Top'."
   "Go to an Info node FILENAME and NODENAME, re-reading disk contents.
 When *info* is already displaying FILENAME and NODENAME, the window position
 is preserved, if possible."
-  (or (derived-mode-p 'Info-mode) (switch-to-buffer "*info*"))
+  (or (derived-mode-p 'Info-mode) (info-pop-to-buffer filename))
   (let ((old-filename Info-current-file)
 	(old-nodename Info-current-node)
 	(window-selected (eq (selected-window) (get-buffer-window)))
@@ -1787,11 +1834,24 @@ By default, go to the current Info node."
   (interactive (list (Info-read-node-name
                       "Go to node (default current page): " Info-current-node))
                Info-mode)
-  (browse-url-button-open-url
-   (Info-url-for-node (format "(%s)%s" (file-name-sans-extension
-                                        (file-name-nondirectory
-                                         Info-current-file))
-                              node))))
+  (let (filename)
+    (string-match "\\s *\\((\\s *\\([^\t)]*\\)\\s *)\\s *\\|\\)\\(.*\\)"
+		  node)
+    (setq filename (if (= (match-beginning 1) (match-end 1))
+		       ""
+		     (match-string 2 node))
+	  node (match-string 3 node))
+    (let ((trim (string-match "\\s +\\'" filename)))
+      (if trim (setq filename (substring filename 0 trim))))
+    (let ((trim (string-match "\\s +\\'" node)))
+      (if trim (setq node (substring node 0 trim))))
+    (if (equal filename "")
+        (setq filename (file-name-sans-extension (file-name-nondirectory
+                                                  Info-current-file))))
+    (if (equal node "")
+        (setq node "Top"))
+    (browse-url-button-open-url
+     (Info-url-for-node (format "(%s)%s" filename node)))))
 
 (defun Info-url-for-node (node)
   "Return a URL for NODE, a node in the GNU Emacs or Elisp manual.
@@ -1817,8 +1877,10 @@ and elisp manuals are supported."
                      ""))
     (concat "https://www.gnu.org/software/emacs/manual/html_node/"
             manual "/"
-            (url-hexify-string (string-replace " " "-" node))
-            ".html")))
+            (and (not (equal node "Top"))
+                 (concat
+                  (url-hexify-string (string-replace " " "-" node))
+                  ".html")))))
 
 (defvar Info-read-node-completion-table)
 
@@ -2275,7 +2337,7 @@ This command doesn't descend into sub-nodes, like \\<Info-mode-map>\\[Info-forwa
   (interactive nil Info-mode)
   ;; In case another window is currently selected
   (save-window-excursion
-    (or (derived-mode-p 'Info-mode) (switch-to-buffer "*info*"))
+    (or (derived-mode-p 'Info-mode) (info-pop-to-buffer))
     (Info-goto-node (Info-extract-pointer "next"))))
 
 (defun Info-prev ()
@@ -2284,7 +2346,7 @@ This command doesn't go up to the parent node, like \\<Info-mode-map>\\[Info-bac
   (interactive nil Info-mode)
   ;; In case another window is currently selected
   (save-window-excursion
-    (or (derived-mode-p 'Info-mode) (switch-to-buffer "*info*"))
+    (or (derived-mode-p 'Info-mode) (info-pop-to-buffer))
     (Info-goto-node (Info-extract-pointer "prev[ious]*" "previous"))))
 
 (defun Info-up (&optional same-file)
@@ -2293,7 +2355,7 @@ If SAME-FILE is non-nil, do not move to a different Info file."
   (interactive nil Info-mode)
   ;; In case another window is currently selected
   (save-window-excursion
-    (or (derived-mode-p 'Info-mode) (switch-to-buffer "*info*"))
+    (or (derived-mode-p 'Info-mode) (info-pop-to-buffer))
     (let ((old-node Info-current-node)
 	  (old-file Info-current-file)
 	  (node (Info-extract-pointer "up")) p)
@@ -4671,8 +4733,14 @@ the variable `Info-file-list-for-emacs'."
 		(eq command 'execute-extended-command))
 	   (Info-goto-emacs-command-node
 	    (read-command "Find documentation for command: ")))
+          ((symbolp command)
+           (Info-goto-emacs-command-node command))
 	  (t
-	   (Info-goto-emacs-command-node command)))))
+	   (message
+            (substitute-command-keys
+             (format
+              "\\`%s' invokes an anonymous command defined with `lambda'"
+              (key-description key))))))))
 
 (defvar Info-link-keymap
   (let ((keymap (make-sparse-keymap)))
@@ -5470,7 +5538,7 @@ completion alternatives to currently visited manuals."
                 (raise-frame (window-frame window))
                 (select-frame-set-input-focus (window-frame window))
                 (select-window window))
-	    (switch-to-buffer found)))
+	    (info-pop-to-buffer nil found)))
       ;; The buffer doesn't exist; create it.
       (info-initialize)
       (info (Info-find-file manual)

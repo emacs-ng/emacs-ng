@@ -4,7 +4,7 @@ dnl	autoconf
 dnl in the directory containing this script.
 dnl If you changed any AC_DEFINES, also run autoheader.
 dnl
-dnl Copyright (C) 1994-1996, 1999-2023 Free Software Foundation, Inc.
+dnl Copyright (C) 1994-1996, 1999-2024 Free Software Foundation, Inc.
 dnl
 dnl  This file is part of GNU Emacs.
 dnl
@@ -322,7 +322,7 @@ AC_DEFUN([OPTION_DEFAULT_OFF], [dnl
 
 dnl OPTION_DEFAULT_IFAVAILABLE(NAME, HELP-STRING)
 dnl Create a new --with option that defaults to 'ifavailable',
-dnl unless it is overriden by $with_features being equal to 'no'.
+dnl unless it is overridden by $with_features being equal to 'no'.
 dnl NAME is the base name of the option.  The shell variable with_NAME
 dnl   will be set to either the user's value (if the option is
 dnl   specified; 'yes' for a plain --with-NAME) or to 'ifavailable' (if the
@@ -968,7 +968,7 @@ a valid path to android.jar.  See config.log for more details.])
   fi
 
   AC_CACHE_CHECK([whether android.jar is new enough],
-    [emacs_cv_android_s_or_later],
+    [emacs_cv_android_u_or_later],
     AS_IF([rm -f conftest.class
 cat << EOF > conftest.java
 
@@ -976,18 +976,18 @@ import android.os.Build;
 
 class conftest
 {
-  private static int test = Build.VERSION_CODES.TIRAMISU;
+  private static int test = Build.VERSION_CODES.UPSIDE_DOWN_CAKE;
 }
 
 EOF
 ("$JAVAC" -classpath "$with_android" -target 1.7 -source 1.7 conftest.java \
   -d . >&AS_MESSAGE_LOG_FD 2>&1) && test -s conftest.class && rm -f conftest.class],
-          [emacs_cv_android_s_or_later=yes],
-          [emacs_cv_android_s_or_later=no]))
+          [emacs_cv_android_u_or_later=yes],
+          [emacs_cv_android_u_or_later=no]))
 
-  if test "$emacs_cv_android_s_or_later" = "no"; then
+  if test "$emacs_cv_android_u_or_later" = "no"; then
     AC_MSG_ERROR([Emacs must be built with an android.jar file produced for \
-Android 13 (Tiramisu) or later.])
+Android 14 (Upside Down Cake) or later.])
   fi
 
   dnl See if the Java compiler supports the `--release' option which
@@ -1179,6 +1179,8 @@ main (void)
    foo = "emacs_api_32";
 #elif __ANDROID_API__ < 34
    foo = "emacs_api_33";
+#elif __ANDROID_API__ < 35
+   foo = "emacs_api_34";
 #else
    foo = "emacs_api_future";
 #endif
@@ -1345,6 +1347,7 @@ if test "$ANDROID" = "yes"; then
     with_mailutils=no
     with_pop=no
     with_harfbuzz=no
+    with_native_compilation=no
   fi
 
   with_rsvg=no
@@ -1691,13 +1694,13 @@ AC_ARG_ENABLE([gcc-warnings],
    # however, if there is also a .tarball-version file it is probably
    # just a release imported into Git for patch management.
    gl_gcc_warnings=no
-   if test -d "$srcdir"/.git && test ! -f "$srcdir"/.tarball-version; then
-      # Clang typically identifies itself as GCC 4.2 or something similar
-      # even if it is recent enough to accept the warnings we enable.
-      AS_IF([test "$emacs_cv_clang" = yes],
-         [gl_gcc_warnings=warn-only],
-         [gl_GCC_VERSION_IFELSE([5], [3], [gl_gcc_warnings=warn-only])])
-   fi])
+   AS_IF([test -d "$srcdir"/.git || test -f "$srcdir"/.git],
+     [AS_IF([test -f "$srcdir"/.tarball-version], [],
+	# Clang typically identifies itself as GCC 4.2 or something similar
+	# even if it is recent enough to accept the warnings we enable.
+	[AS_IF([test "$emacs_cv_clang" = yes],
+	   [gl_gcc_warnings=warn-only],
+	   [gl_GCC_VERSION_IFELSE([5], [3], [gl_gcc_warnings=warn-only])])])])])
 
 NATIVE_COMPILATION_AOT=no
 AC_ARG_WITH([native-compilation],
@@ -1718,7 +1721,7 @@ AC_ARG_WITH([native-compilation],
      *)      AC_MSG_ERROR([bad value $withval for native-compilation option]) ;;
    esac
    with_native_compilation=$withval],
-  [with_native_compilation=no]
+  [with_native_compilation=default]
 )
 AC_SUBST([NATIVE_COMPILATION_AOT])
 
@@ -5201,20 +5204,20 @@ AC_DEFUN([libgccjit_smoke_test], [
         return 0;
       }]])])
 
-AC_DEFUN([libgccjit_not_found], [
+AC_DEFUN([libgccjit_not_found_err], [
   AC_MSG_ERROR([ELisp native compiler was requested, but libgccjit was not found.
 Please try installing libgccjit or a similar package.
 If you are sure you want Emacs be compiled without ELisp native compiler,
 pass the --without-native-compilation option to configure.])])
 
-AC_DEFUN([libgccjit_dev_not_found], [
+AC_DEFUN([libgccjit_dev_not_found_err], [
   AC_MSG_ERROR([ELisp native compiler was requested, but libgccjit header files were
 not found.
 Please try installing libgccjit-dev or a similar package.
 If you are sure you want Emacs be compiled without ELisp native compiler,
 pass the --without-native-compilation option to configure.])])
 
-AC_DEFUN([libgccjit_broken], [
+AC_DEFUN([libgccjit_broken_err], [
   AC_MSG_ERROR([The installed libgccjit failed to compile and run a test program using
 the libgccjit library; see config.log for the details of the failure.
 The test program can be found here:
@@ -5237,6 +5240,58 @@ if test "$canonical" = i686-pc-cygwin; then
 If you really want to try it anyway, use the configure option
 '--with-cygwin32-native-compilation'.])
   fi
+fi
+
+AC_DEFUN([libgccjit_not_found], [
+  AC_MSG_WARN([Elisp native compiler can't be enabled as libgccjit was not
+found.
+Please try installing libgccjit or a similar package if you want to have it
+enabled.])
+
+  with_native_compilation=no
+])
+
+AC_DEFUN([libgccjit_dev_not_found], [
+  AC_MSG_WARN([Elisp native compiler can't be enabled as libgccjit header files
+were not found.
+Please try installing libgccjit-dev or a similar package if you want to have it
+enabled.])
+
+  with_native_compilation=no
+])
+
+AC_DEFUN([libgccjit_broken], [
+  AC_MSG_WARN([Elisp native compiler can't be enabled as the installed libgccjit
+failed to compile and run a test program using the libgccjit library; see
+config.log for the details of the failure.
+The test program can be found here:
+<https://gcc.gnu.org/onlinedocs/jit/intro/tutorial01.html>.
+You can try compiling it yourself to investigate the issues.
+Please report the issue to your distribution if libgccjit was installed
+through that.
+You can find the instructions on how to compile and install libgccjit from
+source on this site:
+<https://gcc.gnu.org/wiki/JIT>.])
+
+  with_native_compilation=no])
+
+if test "$with_features" = "no" \
+   && test "${with_native_compilation}" = "default"; then
+  with_native_compilation=no
+fi
+
+if test "${with_native_compilation}" = "default"; then
+    # Check if libgccjit is available.
+    AC_CHECK_LIB([gccjit], [gcc_jit_context_acquire],
+      [], [libgccjit_not_found])
+    AC_CHECK_HEADERS([libgccjit.h], [], [libgccjit_dev_not_found])
+    if test "${with_native_compilation}" != "no"; then
+      # Check if libgccjit really works.
+      AC_RUN_IFELSE([libgccjit_smoke_test], [], [libgccjit_broken])
+    fi
+    if test "$with_unexec" = yes; then
+      with_native_compilation=no
+    fi
 fi
 
 if test "${with_native_compilation}" != "no"; then
@@ -5286,12 +5341,15 @@ if test "${with_native_compilation}" != "no"; then
       fi
     fi
 
-    # Check if libgccjit is available.
-    AC_CHECK_LIB([gccjit], [gcc_jit_context_acquire],
-      [], [libgccjit_not_found])
-    AC_CHECK_HEADERS([libgccjit.h], [], [libgccjit_dev_not_found])
-    # Check if libgccjit really works.
-    AC_RUN_IFELSE([libgccjit_smoke_test], [], [libgccjit_broken])
+    # In the default case we already checked
+    if test "${with_native_compilation}" != "default"; then
+      # Check if libgccjit is available.
+      AC_CHECK_LIB([gccjit], [gcc_jit_context_acquire],
+        [], [libgccjit_not_found_err])
+      AC_CHECK_HEADERS([libgccjit.h], [], [libgccjit_dev_not_found_err])
+      # Check if libgccjit really works.
+      AC_RUN_IFELSE([libgccjit_smoke_test], [], [libgccjit_broken_err])
+    fi
     HAVE_NATIVE_COMP=yes
     case "${opsys}" in
       # mingw32 loads the library dynamically.
@@ -6395,7 +6453,7 @@ AC_FUNC_FORK
 
 dnl AC_CHECK_FUNCS_ONCE wouldn’t be right for snprintf, which needs
 dnl the current CFLAGS etc.
-AC_CHECK_FUNCS([snprintf])
+AC_CHECK_FUNCS([snprintf open_memstream])
 
 dnl posix_spawn.  The chdir and setsid functionality is relatively
 dnl recent, so we check for it specifically.
@@ -7166,13 +7224,10 @@ fi
 
 version=$PACKAGE_VERSION
 
-copyright="Copyright (C) 2023 Free Software Foundation, Inc."
+copyright="Copyright (C) 2024 Free Software Foundation, Inc."
 AC_DEFINE_UNQUOTED([COPYRIGHT], ["$copyright"],
   [Short copyright string for this version of Emacs.])
 AC_SUBST([copyright])
-
-# This is needed for gnulib's printf modules.
-CFLAGS="$CFLAGS -DHAVE_CONFIG_H"
 
 ### Specify what sort of things we'll be editing into Makefile and config.h.
 ### Use configuration here uncanonicalized to avoid exceeding size limits.
@@ -7675,6 +7730,8 @@ case "$opsys" in
 
   mingw32)
    ## Is it any better under MinGW64 to relocate emacs into higher addresses?
+   ## If the values of -image-base are modified, the corresponding
+   ## values of DEFAULT_IMAGE_BASE in w32fns.c should be kept in sync.
    case "$canonical" in
      x86_64-*-*) LD_SWITCH_SYSTEM_TEMACS="-Wl,-stack,0x00800000 -Wl,-heap,0x00100000 -Wl,-image-base,0x400000000 -Wl,-entry,__start -Wl,-Map,./temacs.map" ;;
      *) LD_SWITCH_SYSTEM_TEMACS="-Wl,-stack,0x00800000 -Wl,-heap,0x00100000 -Wl,-image-base,0x01000000 -Wl,-entry,__start -Wl,-Map,./temacs.map" ;;

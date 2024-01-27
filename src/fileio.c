@@ -1,6 +1,6 @@
 /* File IO for GNU Emacs.
 
-Copyright (C) 1985-1988, 1993-2023 Free Software Foundation, Inc.
+Copyright (C) 1985-1988, 1993-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -203,7 +203,7 @@ check_vfs_filename (Lisp_Object encoded, const char *reason)
 #ifdef HAVE_LIBSELINUX
 
 /* Return whether SELinux is enabled and pertinent to FILE.  Provide
-   for cases where FILE is or is a constitutent of a special
+   for cases where FILE is or is a constituent of a special
    directory, such as /assets or /content on Android.  */
 
 static bool
@@ -4778,7 +4778,7 @@ by calling `format-decode', which see.  */)
     make_gap (total - GAP_SIZE + 1);
 
   if (beg_offset != 0 || (!NILP (replace)
-			  && !EQ (replace, Qunbound)))
+			  && !BASE_EQ (replace, Qunbound)))
     {
       if (emacs_fd_lseek (fd, beg_offset, SEEK_SET) < 0)
 	report_file_error ("Setting file position", orig_filename);

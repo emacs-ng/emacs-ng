@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2023 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2024 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Command Loop
@@ -1854,20 +1854,19 @@ represented in Lisp as lists.  The lists record both the starting mouse
 position and the final position, like this:
 
 @example
-(@var{event-type}
- (@var{window1} START-POSITION)
- (@var{window2} END-POSITION))
+(@var{event-type} @var{start-position} @var{end-position})
 @end example
 
 For a drag event, the name of the symbol @var{event-type} contains the
 prefix @samp{drag-}.  For example, dragging the mouse with button 2
 held down generates a @code{drag-mouse-2} event.  The second and third
-elements of the event give the starting and ending position of the
-drag, as mouse position lists (@pxref{Click Events}).  You can access
-the second element of any mouse event in the same way.  However, the
-drag event may end outside the boundaries of the frame that was
-initially selected.  In that case, the third element's position list
-contains that frame in place of a window.
+elements of the event, @var{start-position} and @var{end-position} in
+the foregoing illustration, are set to the start and end positions of
+the drag as mouse position lists (@pxref{Click Events}).  You can
+access the second element of any mouse event in the same way.
+However, the drag event may end outside the boundaries of the frame
+that was initially selected.  In that case, the third element's
+position list contains that frame in place of a window.
 
 The @samp{drag-} prefix follows the modifier key prefixes such as
 @samp{C-} and @samp{M-}.
@@ -2107,8 +2106,9 @@ When no command is bound to @code{touchscreen-begin},
 translate key sequences containing touch screen events into ordinary
 mouse events (@pxref{Mouse Events}.)  Since Emacs doesn't support
 distinguishing events originating from separate mouse devices, it
-assumes that only one touchpoint is active while translation takes
-place; breaking this assumption may lead to unexpected behavior.
+assumes that a maximum of two touchpoints are active while translation
+takes place, and does not place any guarantees on the results of event
+translation when that restriction is overstepped.
 
 Emacs applies two different strategies for translating touch events
 into mouse events, contingent on factors such as the commands bound to
@@ -2151,7 +2151,7 @@ is dismissed (@pxref{Mouse Menus}), Emacs also avoids simple
 translation if @code{down-mouse-1} is bound to a keymap, making it a
 prefix key.  In lieu of simple translation, it translates the closing
 @code{touchscreen-end} to a @code{down-mouse-1} event with the
-starting position of the touch sequence, consequentially displaying
+starting position of the touch sequence, consequently displaying
 the mouse menu.
 
 @cindex @code{mouse-1-menu-command}, a symbol property
@@ -2159,6 +2159,15 @@ Since certain commands are also bound to @code{down-mouse-1} for the
 purpose of displaying pop-up menus, Emacs additionally behaves as
 illustrated in the last paragraph if @code{down-mouse-1} is bound to a
 command whose name has the property @code{mouse-1-menu-command}.
+
+@cindex pinch-to-zoom touchscreen gesture translation
+When a second touch point is registered as a touch point is already
+being translated, gesture translation is terminated, and the distance
+from the second touch point (the @dfn{ancillary tool}) to the first is
+measured.  Subsequent motion from either of those touch points will
+yield @code{touchscreen-pinch} events incorporating the ratio formed
+by the distance between their new positions and the distance measured
+at the outset, as illustrated in the following table.
 
 @cindex touchscreen gesture events
 If touch gestures are detected during translation, one of the
@@ -2196,8 +2205,36 @@ position of the touchpoint.
 @item (touchscreen-restart-drag @var{posn})
 This event is sent upon the start of a touch sequence resulting in the
 continuation of a ``drag-to-select'' gesture (subject to the
-aformentioned user option) with @var{posn} set to the position list of
+aforementioned user option) with @var{posn} set to the position list of
 the initial @code{touchscreen-begin} event within that touch sequence.
+
+@cindex @code{touchscreen-pinch} event
+@item (touchscreen-pinch @var{posn} @var{ratio} @var{pan-x} @var{pan-y} @var{ratio-diff})
+This event is delivered upon significant changes to the positions of
+either active touch point when an ancillary tool is active.
+
+@var{posn} is a mouse position list for the midpoint of a line drawn
+from the ancillary tool to the other touch point being observed.
+
+@var{ratio} is the distance between both touch points being observed
+divided by that distance when the ancillary point was first
+registered; which is to say, the scale of the ``pinch'' gesture.
+
+@var{pan-x} and @var{pan-y} are the difference between the pixel
+position of @var{posn} and this position within the last event
+delivered appertaining to this series of touch events, or in the case
+that no such event exists, the centerpoint between both touch points
+when the ancillary tool was first registered.
+
+@var{ratio-diff} is the difference between this event's ratio and
+@var{ratio} in the last event delivered; it is @var{ratio} if no such
+event exists.
+
+Such events are sent when the magnitude of the changes they represent
+will yield a @var{ratio} which differs by more than @code{0.2} from
+that in the previous event, or the sum of @var{pan-x} and @var{pan-y}
+will surpass half the frame's character width in pixels (@pxref{Frame
+Font}).
 @end table
 
 @cindex handling touch screen events
@@ -2208,7 +2245,7 @@ below is from commands bound directly to @code{touchscreen-begin}
 events; they allow responding to commonly used touch screen gestures
 separately from mouse event translation.
 
-@defun touch-screen-track-tap event &optional update data
+@defun touch-screen-track-tap event &optional update data threshold
 This function is used to track a single ``tap'' gesture originating
 from the @code{touchscreen-begin} event @var{event}, often used to
 set the point or to activate a button.  It waits for a
@@ -2220,6 +2257,14 @@ contains at least one touchpoint with the same identifier as in
 @var{event}, the function @var{update} is called with two arguments,
 the list of touchpoints in that @code{touchscreen-update} event, and
 @var{data}.
+
+If @var{threshold} is non-@code{nil} and such an event indicates that
+the touchpoint represented by @var{event} has moved beyond a threshold
+of either @var{threshold} or 10 pixels if it is not a number from the
+position of @var{event}, @code{nil} is returned and mouse event
+translation is resumed for that touchpoint, so as not to impede the
+recognition of any subsequent touchscreen gesture arising from its
+sequence.
 
 If any other event arrives in the mean time, @code{nil} is returned.
 The caller should not perform any action in that case.
@@ -2517,23 +2562,27 @@ non-@code{nil}.
 @vindex mouse-wheel-up-event
 @vindex mouse-wheel-down-event
 The @code{wheel-up} and @code{wheel-down} events are generated only on
-some kinds of systems.  On other systems, @code{mouse-4} and
-@code{mouse-5} are used instead.  For portable code, use the variables
-@code{mouse-wheel-up-event}, @code{mouse-wheel-up-alternate-event},
-@code{mouse-wheel-down-event} and
-@code{mouse-wheel-down-alternate-event} defined in @file{mwheel.el} to
-determine what event types to expect from the mouse wheel.
+some kinds of systems.  On other systems, other events like @code{mouse-4} and
+@code{mouse-5} are used instead.  Portable code should handle both
+@code{wheel-up} and @code{wheel-down} events as well as the events
+specified in the variables @code{mouse-wheel-up-event} and
+@code{mouse-wheel-down-event}, defined in @file{mwheel.el}.
+Beware that for historical reasons the @code{mouse-wheel-@emph{up}-event}
+is the variable that holds an event that should be handled similarly to
+@code{wheel-@emph{down}} and vice versa.
 
 @vindex mouse-wheel-left-event
 @vindex mouse-wheel-right-event
-Similarly, some mice can generate @code{mouse-wheel-left-event} and
-@code{mouse-wheel-right-event} and can be used to scroll if
-@code{mouse-wheel-tilt-scroll} is non-@code{nil}.  However, some mice
-also generate other events at the same time as they're generating
-these scroll events which may get in the way.  The way to fix this is
-generally to unbind these events (for instance, @code{mouse-6} or
-@code{mouse-7}, but this is very hardware and operating system
-dependent).
+The same holds for the  horizontal wheel movements which are usually
+represented by @code{wheel-left} and @code{wheel-right} events, but
+for which portable code should also obey the variables
+@code{mouse-wheel-left-event} and @code{mouse-wheel-right-event},
+defined in @file{mwheel.el}.
+However, some mice also generate other events at the same time as
+they're generating these scroll events which may get in the way.
+The way to fix this is generally to unbind these events (for instance,
+@code{mouse-6} or @code{mouse-7}, but this is very hardware and
+operating system dependent).
 
 @cindex @code{pinch} event
 @item (pinch @var{position} @var{dx} @var{dy} @var{scale} @var{angle})
@@ -3968,26 +4017,19 @@ the timeout elapses).
 In batch mode (@pxref{Batch Mode}), @code{sit-for} cannot be
 interrupted, even by input from the standard input descriptor.  It is
 thus equivalent to @code{sleep-for}, which is described below.
-
-It is also possible to call @code{sit-for} with three arguments,
-as @code{(sit-for @var{seconds} @var{millisec} @var{nodisp})},
-but that is considered obsolete.
 @end defun
 
-@defun sleep-for seconds &optional millisec
+@defun sleep-for seconds
 This function simply pauses for @var{seconds} seconds without updating
 the display.  It pays no attention to available input.  It returns
 @code{nil}.
 
 The argument @var{seconds} need not be an integer.  If it is floating
 point, @code{sleep-for} waits for a fractional number of seconds.
-Some systems support only a whole number of seconds; on these systems,
-@var{seconds} is rounded down.
 
-The optional argument @var{millisec} specifies an additional waiting
-period measured in milliseconds.  This adds to the period specified by
-@var{seconds}.  If the system doesn't support waiting fractions of a
-second, you get an error if you specify nonzero @var{millisec}.
+It is also possible to call @code{sleep-for} with two arguments,
+as @code{(sleep-for @var{seconds} @var{millisec})},
+but that is considered obsolete and will be removed in the future.
 
 Use @code{sleep-for} when you wish to guarantee a delay.
 @end defun

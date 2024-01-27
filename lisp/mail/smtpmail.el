@@ -1,6 +1,6 @@
 ;;; smtpmail.el --- simple SMTP protocol (RFC 821) for sending mail  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1995-1996, 2001-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1995-1996, 2001-2024 Free Software Foundation, Inc.
 
 ;; Author: Tomoji Kagatani <kagatani@rbc.ncl.omron.co.jp>
 ;; Maintainer: emacs-devel@gnu.org
@@ -1057,8 +1057,8 @@ Returns an error if the server cannot be contacted."
     (while data-continue
       (with-current-buffer buffer
         (progress-reporter-update pr (point))
-        (setq sending-data (buffer-substring (line-beginning-position)
-                                             (line-end-position)))
+        (setq sending-data (buffer-substring-no-properties (line-beginning-position)
+                                                           (line-end-position)))
 	(end-of-line 2)
         (setq data-continue (not (eobp))))
       (smtpmail-send-data-1 process sending-data))

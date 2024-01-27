@@ -1,6 +1,6 @@
 ;;; semantic/lex-spp.el --- Semantic Lexical Pre-processor  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2006-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2024 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -434,8 +434,7 @@ continue processing recursively."
 	       (symbolp (car (car val))))
 	  (mapconcat (lambda (subtok)
 		       (semantic-lex-spp-one-token-to-txt subtok))
-		     val
-		     ""))
+		     val))
 	 ;; If val is nil, that's probably wrong.
 	 ;; Found a system header case where this was true.
 	 ((null val) "")
@@ -699,8 +698,7 @@ be merged recursively."
 		 (message "Invalid merge macro encountered; \
 will return empty string instead.")
 		 "")))
-	     txt
-	     ""))
+	     txt))
 
 (defun semantic-lex-spp-find-closing-macro ()
   "Find next macro which closes a scope through a close-paren.

@@ -1,6 +1,6 @@
 ;;; bookmark.el --- set bookmarks, maybe annotate them, jump to them later -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-1997, 2001-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1997, 2001-2024 Free Software Foundation, Inc.
 
 ;; Author: Karl Fogel <kfogel@red-bean.com>
 ;; Created: July, 1993
@@ -142,7 +142,7 @@ Nil means don't prompt for confirmation."
   "Non-nil means show annotations when jumping to a bookmark."
   :type 'boolean)
 
-(defconst bookmark-bmenu-buffer "*Bookmark List*"
+(defvar bookmark-bmenu-buffer "*Bookmark List*"
   "Name of buffer used for Bookmark List.")
 
 (defvar bookmark-bmenu-use-header-line t
@@ -511,6 +511,8 @@ BM is a bookmark as returned from function `bookmark-get-bookmark'.
 See user option `bookmark-fringe-mark'."
   (let ((filename (cdr (assq 'filename bm)))
         (pos (cdr (assq 'position bm)))
+        ;; Don't expand file names for non-existing remote connections.
+        (non-essential t)
         overlays found temp)
     (when (and pos filename)
       (setq filename (expand-file-name filename))

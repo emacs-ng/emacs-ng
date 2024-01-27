@@ -1,6 +1,6 @@
 ;;; erc-scenarios-scrolltobottom.el --- erc-scrolltobottom-mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 2023 Free Software Foundation, Inc.
+;; Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -30,12 +30,13 @@
 ;; now to stay in sync with `erc-scenarios-scrolltobottom--relaxed'.
 
 (ert-deftest erc-scenarios-scrolltobottom--normal ()
-  :tags '(:expensive-test)
+  :tags `(:expensive-test ,@(and (getenv "ERC_TESTS_GRAPHICAL")
+                                 '(:erc--graphical)))
   (when (version< emacs-version "29") (ert-skip "Times out"))
 
   (should-not erc-scrolltobottom-all)
 
-  (erc-scenarios-scrolltobottom--normal
+  (erc-scenarios-common-scrolltobottom--normal
    (lambda ()
      (ert-info ("New insertion doesn't anchor prompt in other window")
        (let ((w (next-window)))
@@ -45,14 +46,15 @@
              (not (erc-scenarios-common--at-win-end-p w))))))))
 
 (ert-deftest erc-scenarios-scrolltobottom--all ()
-  :tags '(:expensive-test)
+  :tags `(:expensive-test ,@(and (getenv "ERC_TESTS_GRAPHICAL")
+                                 '(:erc--graphical)))
   (when (version< emacs-version "29") (ert-skip "Times out"))
 
   (should-not erc-scrolltobottom-all)
 
   (let ((erc-scrolltobottom-all t))
 
-    (erc-scenarios-scrolltobottom--normal
+    (erc-scenarios-common-scrolltobottom--normal
      (lambda ()
        (ert-info ("New insertion anchors prompt in other window")
          (let ((w (next-window)))

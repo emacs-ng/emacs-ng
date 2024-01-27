@@ -1,6 +1,6 @@
 ;;; em-hist.el --- history list management  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -116,6 +116,12 @@ If set to t, history will always be saved, silently."
 		 (const :tag "Ask" ask)
 		 (const :tag "Always save" t)))
 
+(defcustom eshell-history-append nil
+  "If non-nil, append new entries to the history file when saving history."
+  :type '(choice (const :tag "Overwrite history file" nil)
+		 (const :tag "Append new entries to file" t))
+  :version "30.1")
+
 (defcustom eshell-input-filter 'eshell-input-filter-default
   "Predicate for filtering additions to input history.
 Takes one argument, the input.  If non-nil, the input may be saved on
@@ -195,6 +201,9 @@ element, regardless of any text on the command line.  In that case,
 (defvar eshell-history-index nil)
 (defvar eshell-matching-input-from-input-string "")
 (defvar eshell-save-history-index nil)
+(defvar eshell-hist--new-items nil
+  "The number of new history items that have not been written to
+file.  This variable is local in each eshell buffer.")
 
 (defvar-keymap eshell-isearch-map
   :doc "Keymap used in isearch in Eshell."
@@ -283,6 +292,7 @@ Returns nil if INPUT is prepended by blank space, otherwise non-nil."
 
   (make-local-variable 'eshell-history-index)
   (make-local-variable 'eshell-save-history-index)
+  (setq-local eshell-hist--new-items 0)
 
   (if (minibuffer-window-active-p (selected-window))
       (setq-local eshell-save-history-on-exit nil)
@@ -290,16 +300,20 @@ Returns nil if INPUT is prepended by blank space, otherwise non-nil."
     (if eshell-history-file-name
 	(eshell-read-history nil t))
 
-    (add-hook 'eshell-exit-hook #'eshell-write-history nil t))
+    (add-hook 'eshell-exit-hook #'eshell--save-history nil t))
 
   (unless eshell-history-ring
     (setq eshell-history-ring (make-ring eshell-history-size)))
 
-  (add-hook 'eshell-exit-hook #'eshell-write-history nil t)
+  (add-hook 'eshell-exit-hook #'eshell--save-history nil t)
 
   (add-hook 'kill-emacs-query-functions #'eshell-save-some-history)
 
   (add-hook 'eshell-input-filter-functions #'eshell-add-to-history nil t))
+
+(defun eshell--save-history ()
+  "Save the history for current Eshell buffer."
+  (eshell-write-history nil eshell-history-append))
 
 (defun eshell-save-some-history ()
   "Save the history for any open Eshell buffers."
@@ -314,7 +328,7 @@ Returns nil if INPUT is prepended by blank space, otherwise non-nil."
 			(format-message
 			 "Save input history for Eshell buffer `%s'? "
 			 (buffer-name buf)))))
-	      (eshell-write-history)))))
+	      (eshell--save-history)))))
   t)
 
 (defun eshell/history (&rest args)
@@ -323,11 +337,11 @@ Returns nil if INPUT is prepended by blank space, otherwise non-nil."
   (eshell-eval-using-options
    "history" args
    '((?r "read" nil read-history
-	 "read from history file to current history list")
+	 "clear current history list and read from history file to it")
      (?w "write" nil write-history
 	 "write current history list to history file")
      (?a "append" nil append-history
-	 "append current history list to history file")
+	 "append new history in current buffer to history file")
      (?h "help" nil nil "display this usage message")
      :usage "[n] [-rwa [filename]]"
      :post-usage
@@ -385,7 +399,7 @@ input."
                ('nil t)                 ; Always add to history
                ('erase                  ; Add, removing any old occurrences
                 (when-let ((old-index (ring-member eshell-history-ring input)))
-                  ;; Remove the old occurence of this input so we can
+                  ;; Remove the old occurrence of this input so we can
                   ;; add it to the end.  FIXME: Should we try to
                   ;; remove multiple old occurrences, e.g. if the user
                   ;; recently changed to using `erase'?
@@ -394,6 +408,8 @@ input."
                (_                       ; Add if not already the latest entry
                 (or (ring-empty-p eshell-history-ring)
                     (not (string-equal (eshell-get-history 0) input))))))
+    (setq eshell-hist--new-items
+          (min eshell-history-size (1+ eshell-hist--new-items)))
     (eshell-put-history input))
   (setq eshell-save-history-index eshell-history-index)
   (setq eshell-history-index nil))
@@ -455,21 +471,30 @@ line, with the most recent command last.  See also
 		      (re-search-backward "^[ \t]*\\([^#\n].*\\)[ \t]*$"
 					  nil t))
 	    (let ((history (match-string 1)))
-	      (if (or (null ignore-dups)
-		      (ring-empty-p ring)
-		      (not (string-equal (ring-ref ring 0) history)))
-		  (ring-insert-at-beginning
-		   ring (subst-char-in-string ?\177 ?\n history))))
-	    (setq count (1+ count))))
+              (when (or (ring-empty-p ring)
+                        (null ignore-dups)
+                        (and (not (string-equal
+                                   (ring-ref ring (1- (ring-length ring)))
+                                   history))
+                             (not (and (eq ignore-dups 'erase)
+                                       (ring-member ring history)))))
+                (ring-insert-at-beginning
+		 ring (subst-char-in-string ?\177 ?\n history))
+                (setq count (1+ count))))))
 	(setq eshell-history-ring ring
-	      eshell-history-index nil))))))
+	      eshell-history-index nil
+              eshell-hist--new-items 0))))))
 
 (defun eshell-write-history (&optional filename append)
   "Writes the buffer's `eshell-history-ring' to a history file.
-The name of the file is given by the variable
-`eshell-history-file-name'.  The original contents of the file are
-lost if `eshell-history-ring' is not empty.  If
-`eshell-history-file-name' is nil this function does nothing.
+If the optional argument FILENAME is nil, the value of
+`eshell-history-file-name' is used.  This function does nothing
+if the value resolves to nil.
+
+If the optional argument APPEND is non-nil, then append new
+history items to the history file.  Otherwise, overwrite the
+contents of the file with `eshell-history-ring' (so long as it is
+not empty).
 
 Useful within process sentinels.
 
@@ -480,13 +505,14 @@ See also `eshell-read-history'."
      ((or (null file)
 	  (equal file "")
 	  (null eshell-history-ring)
-	  (ring-empty-p eshell-history-ring))
+	  (ring-empty-p eshell-history-ring)
+          (and append (= eshell-hist--new-items 0)))
       nil)
      ((not (file-writable-p resolved-file))
       (message "Cannot write history file %s" resolved-file))
      (t
       (let* ((ring eshell-history-ring)
-	     (index (ring-length ring)))
+	     (index (if append eshell-hist--new-items (ring-length ring))))
 	;; Write it all out into a buffer first.  Much faster, but
 	;; messier, than writing it one line at a time.
 	(with-temp-buffer
@@ -499,7 +525,8 @@ See also `eshell-read-history'."
 	      (subst-char-in-region start (1- (point)) ?\n ?\177)))
 	  (eshell-with-private-file-modes
 	   (write-region (point-min) (point-max) resolved-file append
-			 'no-message))))))))
+			 'no-message)))
+        (setq eshell-hist--new-items 0))))))
 
 (defun eshell-list-history ()
   "List in help buffer the buffer's input history."

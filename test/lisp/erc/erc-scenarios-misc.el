@@ -1,6 +1,6 @@
 ;;; erc-scenarios-misc.el --- Misc scenarios for ERC -*- lexical-binding: t -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -75,7 +75,7 @@
 
     (ert-info ("All output sent")
       (with-current-buffer "#chan/foonet"
-        (funcall expect 8 "Some man or other"))
+        (funcall expect 16 "Some man or other"))
       (with-current-buffer "#chan/barnet"
         (funcall expect 10 "That's he that was Othello")))))
 

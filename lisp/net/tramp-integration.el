@@ -1,6 +1,6 @@
 ;;; tramp-integration.el --- Tramp integration into other packages  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2024 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -136,7 +136,7 @@ been set up by `rfn-eshadow-setup-minibuffer'."
   ;; Remove last element of `(exec-path)', which is `exec-directory'.
   ;; Use `path-separator' as it does eshell.
   (setq eshell-path-env
-        (if (file-remote-p default-directory)
+        (if (tramp-tramp-file-p default-directory)
             (string-join (butlast (exec-path)) path-separator)
           (getenv "PATH"))))
 
@@ -158,7 +158,7 @@ been set up by `rfn-eshadow-setup-minibuffer'."
 (defun tramp-recentf-exclude-predicate (name)
   "Predicate to exclude a remote file name from recentf.
 NAME must be equal to `tramp-current-connection'."
-  (when (file-remote-p name)
+  (when (tramp-tramp-file-p name)
     (tramp-file-name-equal-p
      (tramp-dissect-file-name name) (car tramp-current-connection))))
 

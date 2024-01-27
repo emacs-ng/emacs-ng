@@ -1,6 +1,6 @@
 ;;; server.el --- Lisp code for GNU Emacs running as server process -*- lexical-binding: t -*-
 
-;; Copyright (C) 1986-1987, 1992, 1994-2023 Free Software Foundation,
+;; Copyright (C) 1986-1987, 1992, 1994-2024 Free Software Foundation,
 ;; Inc.
 
 ;; Author: William Sommerfeld <wesommer@athena.mit.edu>
@@ -729,7 +729,9 @@ the `server-process' variable."
         (concat "Unable to start the Emacs server.\n"
                 (cadr err)
                 (substitute-command-keys
-                 "\nTo start the server in this Emacs process, stop the existing server or call `\\[server-force-delete]' to forcibly disconnect it."))
+                 (concat "\nTo start the server in this Emacs process, stop "
+                         "the existing server or call \\[server-force-delete] "
+                         "to forcibly disconnect it.")))
         :warning)
        (setq leave-dead t)))
       ;; Now any previous server is properly stopped.
@@ -1199,6 +1201,7 @@ The following commands are accepted by the client:
 		parent-id  ; Window ID for XEmbed
 		dontkill   ; t if client should not be killed.
 		commands
+		evalexprs
 		dir
 		use-current-frame
 		frame-parameters  ;parameters for newly created frame
@@ -1332,8 +1335,7 @@ The following commands are accepted by the client:
                  (let ((expr (pop args-left)))
                    (if coding-system
                        (setq expr (decode-coding-string expr coding-system)))
-                   (push (lambda () (server-eval-and-print expr proc))
-                         commands)
+                   (push expr evalexprs)
                    (setq filepos nil)))
 
                 ;; -env NAME=VALUE:  An environment variable.
@@ -1358,7 +1360,7 @@ The following commands are accepted by the client:
 	    ;; arguments, use an existing frame.
 	    (and nowait
 		 (not (eq tty-name 'window-system))
-		 (or files commands)
+		 (or files commands evalexprs)
 		 (setq use-current-frame t))
 
 	    (setq frame
@@ -1407,7 +1409,7 @@ The following commands are accepted by the client:
                  (let ((default-directory
                          (if (and dir (file-directory-p dir))
                              dir default-directory)))
-                   (server-execute proc files nowait commands
+                   (server-execute proc files nowait commands evalexprs
                                    dontkill frame tty-name)))))
 
             (when (or frame files)
@@ -1417,22 +1419,35 @@ The following commands are accepted by the client:
     ;; condition-case
     (t (server-return-error proc err))))
 
-(defun server-execute (proc files nowait commands dontkill frame tty-name)
+(defvar server-eval-args-left nil
+  "List of eval args not yet processed.
+
+Adding or removing strings from this variable while the Emacs
+server is processing a series of eval requests will affect what
+Emacs evaluates.
+
+See also `argv' for a similar variable which works for
+invocations of \"emacs\".")
+
+(defun server-execute (proc files nowait commands evalexprs dontkill frame tty-name)
   ;; This is run from timers and process-filters, i.e. "asynchronously".
   ;; But w.r.t the user, this is not really asynchronous since the timer
   ;; is run after 0s and the process-filter is run in response to the
   ;; user running `emacsclient'.  So it is OK to override the
-  ;; inhibit-quit flag, which is good since `commands' (as well as
+  ;; inhibit-quit flag, which is good since `evalexprs' (as well as
   ;; find-file-noselect via the major-mode) can run arbitrary code,
   ;; including code that needs to wait.
   (with-local-quit
     (condition-case err
         (let ((buffers (server-visit-files files proc nowait)))
           (mapc 'funcall (nreverse commands))
+          (let ((server-eval-args-left (nreverse evalexprs)))
+            (while server-eval-args-left
+              (server-eval-and-print (pop server-eval-args-left) proc)))
 	  ;; If we were told only to open a new client, obey
 	  ;; `initial-buffer-choice' if it specifies a file
           ;; or a function.
-          (unless (or files commands)
+          (unless (or files commands evalexprs)
             (let ((buf
                    (cond ((stringp initial-buffer-choice)
 			  (find-file-noselect initial-buffer-choice))

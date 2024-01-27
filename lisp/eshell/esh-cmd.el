@@ -1,6 +1,6 @@
 ;;; esh-cmd.el --- command invocation  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -263,7 +263,24 @@ command line.")
 
 ;;; Internal Variables:
 
-(defvar eshell-current-command nil)
+;; These variables have been merged into `eshell-foreground-command'.
+;; Outside of this file, the most-common use for them is to check
+;; whether they're nil.
+(define-obsolete-variable-alias 'eshell-last-async-procs
+  'eshell-foreground-command "30.1")
+(define-obsolete-variable-alias 'eshell-current-command
+  'eshell-foreground-command "30.1")
+
+(defvar eshell-foreground-command nil
+  "The currently-running foreground command, if any.
+This is a list of the form (FORM PROCESSES).  FORM is the Eshell
+command form.  PROCESSES is a list of processes that deferred the
+command.")
+(defvar eshell-background-commands nil
+  "A list of currently-running deferred commands.
+Each element is of the form (FORM PROCESSES), as with
+`eshell-foreground-command' (which see).")
+
 (defvar eshell-command-name nil)
 (defvar eshell-command-arguments nil)
 (defvar eshell-in-pipeline-p nil
@@ -273,11 +290,6 @@ otherwise t.")
 (defvar eshell-in-subcommand-p nil)
 (defvar eshell-last-arguments nil)
 (defvar eshell-last-command-name nil)
-(defvar eshell-last-async-procs nil
-  "The currently-running foreground process(es).
-When executing a pipeline, this is a list of all the pipeline's
-processes, with the first usually reading from stdin and last
-usually writing to stdout.")
 
 (defvar eshell-allow-commands t
   "If non-nil, allow evaluating command forms (including Lisp forms).
@@ -294,29 +306,30 @@ also `eshell-complete-parse-arguments'.")
 
 (defsubst eshell-interactive-process-p ()
   "Return non-nil if there is a currently running command process."
-  eshell-last-async-procs)
+  (declare (obsolete 'eshell-foreground-command "30.1"))
+  eshell-foreground-command)
 
 (defsubst eshell-head-process ()
   "Return the currently running process at the head of any pipeline.
 This only returns external (non-Lisp) processes."
-  (car eshell-last-async-procs))
+  (caadr eshell-foreground-command))
 
 (defsubst eshell-tail-process ()
   "Return the currently running process at the tail of any pipeline.
 This only returns external (non-Lisp) processes."
-  (car (last eshell-last-async-procs)))
+  (car (last (cadr eshell-foreground-command))))
 
 (define-obsolete-function-alias 'eshell-interactive-process
   'eshell-tail-process "29.1")
 
 (defun eshell-cmd-initialize ()     ;Called from `eshell-mode' via intern-soft!
   "Initialize the Eshell command processing module."
-  (setq-local eshell-current-command nil)
+  (setq-local eshell-foreground-command nil)
+  (setq-local eshell-background-commands nil)
   (setq-local eshell-command-name nil)
   (setq-local eshell-command-arguments nil)
   (setq-local eshell-last-arguments nil)
   (setq-local eshell-last-command-name nil)
-  (setq-local eshell-last-async-procs nil)
 
   (add-hook 'eshell-kill-hook #'eshell-resume-command nil t)
   (add-hook 'eshell-parse-argument-hook
@@ -337,50 +350,48 @@ This only returns external (non-Lisp) processes."
       (throw 'pcomplete-completions
 	     (all-completions pcomplete-stub obarray 'boundp)))))
 
+;; Current command management
+
+(defun eshell-add-command (form &optional background)
+  "Add a command FORM to our list of known commands and return the new entry.
+If non-nil, BACKGROUND indicates that this is a command running
+in the background.  The result is a command entry in the
+form (BACKGROUND FORM PROCESSES), where PROCESSES is initially
+nil."
+  (cons (when background 'background)
+        (if background
+            (car (push (list form nil) eshell-background-commands))
+          (cl-assert (null eshell-foreground-command))
+          (setq eshell-foreground-command (list form nil)))))
+
+(defun eshell-remove-command (command)
+  "Remove COMMAND from our list of known commands.
+COMMAND should be a list of the form (BACKGROUND FORM PROCESSES),
+as returned by `eshell-add-command' (which see)."
+  (let ((background (car command))
+        (entry (cdr command)))
+    (if background
+        (setq eshell-background-commands
+              (delq entry eshell-background-commands))
+      (cl-assert (eq eshell-foreground-command entry))
+      (setq eshell-foreground-command nil))))
+
+(defun eshell-commands-for-process (process)
+  "Return all commands associated with a PROCESS.
+Each element will have the form (BACKGROUND FORM PROCESSES), as
+returned by `eshell-add-command' (which see).
+
+Usually, there should only be one element in this list, but it's
+theoretically possible to have more than one associated command
+for a given process."
+  (nconc (when (memq process (cadr eshell-foreground-command))
+           (list (cons nil eshell-foreground-command)))
+         (seq-keep (lambda (cmd)
+                     (when (memq process (cadr cmd))
+                       (cons 'background cmd)))
+                   eshell-background-commands)))
+
 ;; Command parsing
-
-(defsubst eshell--region-p (object)
-  "Return non-nil if OBJECT is a pair of numbers or markers."
-  (and (consp object)
-       (number-or-marker-p (car object))
-       (number-or-marker-p (cdr object))))
-
-(defmacro eshell-with-temp-command (command &rest body)
-  "Temporarily insert COMMAND into the buffer and execute the forms in BODY.
-
-COMMAND can be a string to insert, a cons cell (START . END)
-specifying a region in the current buffer, or (:file . FILENAME)
-to temporarily insert the contents of FILENAME.
-
-Before executing BODY, narrow the buffer to the text for COMMAND
-and and set point to the beginning of the narrowed region.
-
-The value returned is the last form in BODY."
-  (declare (indent 1))
-  (let ((command-sym (make-symbol "command"))
-        (begin-sym (make-symbol "begin"))
-        (end-sym (make-symbol "end")))
-    `(let ((,command-sym ,command))
-       (if (eshell--region-p ,command-sym)
-           (save-restriction
-             (narrow-to-region (car ,command-sym) (cdr ,command-sym))
-             (goto-char (car ,command-sym))
-             ,@body)
-         ;; Since parsing relies partly on buffer-local state
-         ;; (e.g. that of `eshell-parse-argument-hook'), we need to
-         ;; perform the parsing in the Eshell buffer.
-         (let ((,begin-sym (point)) ,end-sym)
-           (with-silent-modifications
-             (if (stringp ,command-sym)
-                 (insert ,command-sym)
-               (forward-char (cadr (insert-file-contents (cdr ,command-sym)))))
-             (setq ,end-sym (point))
-             (unwind-protect
-                 (save-restriction
-                   (narrow-to-region ,begin-sym ,end-sym)
-                   (goto-char ,begin-sym)
-                   ,@body)
-               (delete-region ,begin-sym ,end-sym))))))))
 
 (defun eshell-parse-command (command &optional args toplevel)
   "Parse the COMMAND, adding ARGS if given.
@@ -407,8 +418,6 @@ command hooks should be run before and after the command."
        (lambda (cmd)
          (let ((sep (pop sep-terms)))
            (setq cmd (eshell-parse-pipeline cmd))
-           (when (equal sep "&")
-             (setq cmd `(eshell-do-subjob (cons :eshell-background ,cmd))))
            (unless eshell-in-pipeline-p
              (setq cmd `(eshell-trap-errors ,cmd)))
            ;; Copy I/O handles so each full statement can manipulate
@@ -416,6 +425,8 @@ command hooks should be run before and after the command."
            ;; command in the list; we won't use the originals again
            ;; anyway.
            (setq cmd `(eshell-with-copied-handles ,cmd ,(not sep)))
+           (when (equal sep "&")
+             (setq cmd `(eshell-do-subjob ,cmd)))
            cmd))
        sub-chains)))
     (if toplevel
@@ -740,10 +751,13 @@ if none)."
 
 (defmacro eshell-do-subjob (object)
   "Evaluate a command OBJECT as a subjob.
-We indicate that the process was run in the background by returning it
-ensconced in a list."
-  `(let ((eshell-current-subjob-p t))
-     ,object))
+We indicate that the process was run in the background by
+returning it as (:eshell-background . PROCESSES)."
+  `(let ((eshell-current-subjob-p t)
+         ;; Print subjob messages.  This could have been cleared
+         ;; (e.g. by `eshell-source-file', which see).
+         (eshell-subjob-messages t))
+     (eshell-resume-eval (eshell-add-command ',object 'background))))
 
 (defmacro eshell-commands (object &optional silent)
   "Place a valid set of handles, and context, around command OBJECT."
@@ -920,48 +934,52 @@ This yields the SUBCOMMANDs when found in forms like
   (dolist (elem haystack)
     (cond
      ((eq (car-safe elem) 'eshell-as-subcommand)
-      (iter-yield (cdr elem)))
+      (iter-yield (cadr elem)))
      ((listp elem)
       (iter-yield-from (eshell--find-subcommands elem))))))
 
-(defun eshell--invoke-command-directly (command)
+(defun eshell--invoke-command-directly-p (command)
   "Determine whether the given COMMAND can be invoked directly.
 COMMAND should be a non-top-level Eshell command in parsed form.
 
 A command can be invoked directly if all of the following are true:
 
 * The command is of the form
-  \"(eshell-trap-errors (eshell-named-command NAME ARGS))\",
-  where ARGS is optional.
+  (eshell-with-copied-handles
+   (eshell-trap-errors (eshell-named-command NAME [ARGS])) _).
 
 * NAME is a string referring to an alias function and isn't a
   complex command (see `eshell-complex-commands').
 
 * Any subcommands in ARGS can also be invoked directly."
-  (when (and (eq (car command) 'eshell-trap-errors)
-             (eq (car (cadr command)) 'eshell-named-command))
-    (let ((name (cadr (cadr command)))
-          (args (cdr-safe (nth 2 (cadr command)))))
-      (and name (stringp name)
-	   (not (member name eshell-complex-commands))
-	   (catch 'simple
-	     (dolist (pred eshell-complex-commands t)
-	       (when (and (functionp pred)
-		          (funcall pred name))
-	         (throw 'simple nil))))
-	   (eshell-find-alias-function name)
-           (catch 'indirect-subcommand
-             (iter-do (subcommand (eshell--find-subcommands args))
-               (unless (eshell--invoke-command-directly subcommand)
-                 (throw 'indirect-subcommand nil)))
-             t)))))
+  (pcase command
+    (`(eshell-with-copied-handles
+       (eshell-trap-errors (eshell-named-command ,name . ,args))
+       ,_)
+     (and name (stringp name)
+	  (not (member name eshell-complex-commands))
+	  (catch 'simple
+	    (dolist (pred eshell-complex-commands t)
+	      (when (and (functionp pred)
+		         (funcall pred name))
+	        (throw 'simple nil))))
+	  (eshell-find-alias-function name)
+          (catch 'indirect-subcommand
+            (iter-do (subcommand (eshell--find-subcommands (car args)))
+              (unless (eshell--invoke-command-directly-p subcommand)
+                (throw 'indirect-subcommand nil)))
+            t)))))
 
-(defun eshell-invoke-directly (command)
+(defun eshell-invoke-directly-p (command)
   "Determine whether the given COMMAND can be invoked directly.
 COMMAND should be a top-level Eshell command in parsed form, as
 produced by `eshell-parse-command'."
-  (let ((base (cadr (nth 2 (nth 2 (cadr command))))))
-    (eshell--invoke-command-directly base)))
+  (pcase command
+    (`(eshell-commands (progn ,_ (unwind-protect (progn ,base) . ,_)))
+     (eshell--invoke-command-directly-p base))))
+
+(define-obsolete-function-alias 'eshell-invoke-directly
+  'eshell-invoke-directly-p "30.1")
 
 (defun eshell-eval-argument (argument)
   "Evaluate a single Eshell ARGUMENT and return the result."
@@ -977,12 +995,12 @@ Return the process (or head and tail processes) created by
 COMMAND, if any.  If COMMAND is a background command, return the
 process(es) in a cons cell like:
 
-  (:eshell-background . PROCESS)"
-  (if eshell-current-command
+  (:eshell-background . PROCESSES)"
+  (if eshell-foreground-command
       (progn
         ;; We can just stick the new command at the end of the current
         ;; one, and everything will happen as it should.
-        (setcdr (last (cdr eshell-current-command))
+        (setcdr (last (cdar eshell-foreground-command))
                 (list `(let ((here (and (eobp) (point))))
                          ,(and input
                                `(insert-and-inherit ,(concat input "\n")))
@@ -991,56 +1009,61 @@ process(es) in a cons cell like:
                          (eshell-do-eval ',command))))
         (eshell-debug-command 'form
           "enqueued command form for %S\n\n%s"
-          (or input "<no string>") (eshell-stringify eshell-current-command)))
+          (or input "<no string>")
+          (eshell-stringify (car eshell-foreground-command))))
     (eshell-debug-command-start input)
-    (setq eshell-current-command command)
     (let* (result
            (delim (catch 'eshell-incomplete
-                    (ignore (setq result (eshell-resume-eval))))))
+                    (ignore (setq result (eshell-resume-eval
+                                          (eshell-add-command command)))))))
       (when delim
         (error "Unmatched delimiter: %S" delim))
       result)))
 
 (defun eshell-resume-command (proc status)
-  "Resume the current command when a pipeline ends."
-  (when (and proc
-             ;; Make sure PROC is one of our foreground processes and
-             ;; that all of those processes are now dead.
-             (member proc eshell-last-async-procs)
-             (not (seq-some #'eshell-process-active-p eshell-last-async-procs)))
-    (if (and ;; Check STATUS to determine whether we want to resume or
-             ;; abort the command.
-             (stringp status)
-             (not (string= "stopped" status))
-             (not (string-match eshell-reset-signals status)))
-        (eshell-resume-eval)
-      (setq eshell-last-async-procs nil)
-      (setq eshell-current-command nil)
-      (declare-function eshell-reset "esh-mode" (&optional no-hooks))
-      (eshell-reset))))
+  "Resume the current command when a pipeline ends.
+PROC is the process that invoked this from its sentinel, and
+STATUS is its status."
+  (when proc
+    (dolist (command (eshell-commands-for-process proc))
+      (unless (seq-some #'eshell-process-active-p (nth 2 command))
+        (setf (nth 2 command) nil) ; Clear processes from command.
+        (if (and ;; Check STATUS to determine whether we want to resume or
+                 ;; abort the command.
+                 (stringp status)
+                 (not (string= "stopped" status))
+                 (not (string-match eshell-reset-signals status)))
+            (eshell-resume-eval command)
+          (eshell-remove-command command)
+          (declare-function eshell-reset "esh-mode" (&optional no-hooks))
+          (eshell-reset))))))
 
-(defun eshell-resume-eval ()
-  "Destructively evaluate a form which may need to be deferred."
-  (setq eshell-last-async-procs nil)
-  (when eshell-current-command
-    (eshell-condition-case err
-        (let (retval procs)
-          (unwind-protect
-              (progn
-                (setq procs (catch 'eshell-defer
-                              (ignore (setq retval
-                                            (eshell-do-eval
-                                             eshell-current-command)))))
-                (when retval
-                  (cadr retval)))
-            (setq eshell-last-async-procs procs)
+(defun eshell-resume-eval (command)
+  "Destructively evaluate a COMMAND which may need to be deferred.
+COMMAND is a command entry of the form (BACKGROUND FORM
+PROCESSES) (see `eshell-add-command').
+
+Return the result of COMMAND's FORM if it wasn't deferred.  If
+BACKGROUND is non-nil and Eshell defers COMMAND, return a list of
+the form (:eshell-background . PROCESSES)."
+  (eshell-condition-case err
+      (let (retval procs)
+        (unwind-protect
+            (progn
+              (setq procs
+                    (catch 'eshell-defer
+                      (ignore (setq retval (eshell-do-eval (cadr command))))))
+              (cond
+               (retval (cadr retval))
+               ((car command) (cons :eshell-background procs))))
+          (if procs
+              (setf (nth 2 command) procs)
             ;; If we didn't defer this command, clear it out.  This
             ;; applies both when the command has finished normally,
             ;; and when a signal or thrown value causes us to unwind.
-            (unless procs
-              (setq eshell-current-command nil))))
-      (error
-       (error (error-message-string err))))))
+            (eshell-remove-command command))))
+    (error
+     (error (error-message-string err)))))
 
 (defmacro eshell-manipulate (form tag &rest body)
   "Manipulate a command FORM with BODY, using TAG as a debug identifier."
@@ -1269,7 +1292,6 @@ have been replaced by constants."
 		    (setcdr form (cdr new-form)))
 		  (eshell-do-eval form synchronous-p))
               (if-let (((memq (car form) eshell-deferrable-commands))
-                       ((not eshell-current-subjob-p))
                        (procs (eshell-make-process-list result)))
                   (if synchronous-p
 		      (apply #'eshell/wait procs)

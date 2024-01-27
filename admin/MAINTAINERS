@@ -124,10 +124,6 @@ Ulf Jasper
 	    lisp/net/newsticker.el
 	    test/lisp/net/newsticker-tests.el
 
-	Icalendar
-	    lisp/calendar/icalendar.el
-	    test/lisp/calendar/icalendar-tests.el
-
 Amin Bandali
 	ERC
 	    lisp/erc/*
@@ -137,6 +133,8 @@ Andrea Corallo
 	Lisp native compiler
 	    src/comp.c
 	    lisp/emacs-lisp/comp.el
+	    lisp/emacs-lisp/comp-common.el
+	    lisp/emacs-lisp/comp-run.el
 	    lisp/emacs-lisp/comp-cstr.el
 	    test/src/comp-*.el
 

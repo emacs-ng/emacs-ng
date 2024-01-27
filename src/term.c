@@ -1,5 +1,5 @@
 /* Terminal control module for terminals described by TERMCAP
-   Copyright (C) 1985-1987, 1993-1995, 1998, 2000-2023 Free Software
+   Copyright (C) 1985-1987, 1993-1995, 1998, 2000-2024 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -86,12 +86,12 @@ static AVOID vfatal (const char *, va_list) ATTRIBUTE_FORMAT_PRINTF (1, 0);
 #ifndef HAVE_ANDROID
 
 #define OUTPUT(tty, a)                                          \
-  emacs_tputs ((tty), a,                                        \
+  emacs_tputs (tty, a,                                        \
                FRAME_TOTAL_LINES (XFRAME (selected_frame)) - curY (tty),	\
                cmputc)
 
-#define OUTPUT1(tty, a) emacs_tputs ((tty), a, 1, cmputc)
-#define OUTPUTL(tty, a, lines) emacs_tputs ((tty), a, lines, cmputc)
+#define OUTPUT1(tty, a) emacs_tputs (tty, a, 1, cmputc)
+#define OUTPUTL(tty, a, lines) emacs_tputs (tty, a, lines, cmputc)
 
 #define OUTPUT_IF(tty, a)                                               \
   do {                                                                  \
@@ -99,7 +99,8 @@ static AVOID vfatal (const char *, va_list) ATTRIBUTE_FORMAT_PRINTF (1, 0);
       OUTPUT (tty, a);							\
   } while (0)
 
-#define OUTPUT1_IF(tty, a) do { if (a) emacs_tputs ((tty), a, 1, cmputc); } while (0)
+#define OUTPUT1_IF(tty, a) \
+  do { if (a) emacs_tputs (tty, a, 1, cmputc); } while (0)
 
 #endif
 
@@ -1117,7 +1118,7 @@ per_line_cost (const char *str)
 
 int *char_ins_del_vector;
 
-#define char_ins_del_cost(f) (&char_ins_del_vector[FRAME_COLS ((f))])
+#define char_ins_del_cost(f) (&char_ins_del_vector[FRAME_COLS (f)])
 
 static void
 calculate_ins_del_char_costs (struct frame *f)
@@ -2235,7 +2236,7 @@ set_tty_color_mode (struct tty_display_info *tty, struct frame *f)
       tty->previous_color_mode = mode;
       tty_setup_colors (tty , mode);
       /*  This recomputes all the faces given the new color definitions.  */
-      safe_call (1, intern ("tty-set-up-initial-frame-faces"));
+      safe_calln (intern ("tty-set-up-initial-frame-faces"));
     }
 }
 

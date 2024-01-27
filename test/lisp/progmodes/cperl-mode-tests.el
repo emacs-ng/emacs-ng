@@ -1,6 +1,6 @@
 ;;; cperl-mode-tests.el --- Test for cperl-mode  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2024 Free Software Foundation, Inc.
 
 ;; Author: Harald Jörg <haj@posteo.de>
 ;; Maintainer: Harald Jörg
@@ -25,6 +25,10 @@
 ;;; Commentary:
 
 ;; This is a collection of tests for CPerl-mode.
+;; The maintainer would like to use this test file with cperl-mode.el
+;; also in older Emacs versions (currently: Emacs 26.1): Please don't
+;; use Emacs features which are not available in that version (unless
+;; they're already used in existing tests).
 
 ;;; Code:
 
@@ -107,9 +111,8 @@ end of the statement."
   (skip-unless (eq cperl-test-mode #'cperl-mode))
   (cperl--run-test-cases
    (ert-resource-file "cperl-indent-styles.pl")
-   (cperl-set-style "PBP")
-   (indent-region (point-min) (point-max)) ; here we go!
-   (cperl-set-style-back)))
+   (cperl-file-style "PBP")
+   (indent-region (point-min) (point-max)))) ; here we go!
 
 ;;; Fontification tests
 
@@ -892,8 +895,8 @@ without a statement terminator on the same line does not loop
 forever.  The test starts an asynchronous Emacs batch process
 under timeout control."
   :tags '(:expensive-test)
-  (skip-when (getenv "EMACS_HYDRA_CI")) ; FIXME times out
-  (skip-when (< emacs-major-version 28)) ; times out in older Emacsen
+  (skip-unless (not (getenv "EMACS_HYDRA_CI"))) ; FIXME times out
+  (skip-unless (not (< emacs-major-version 28))) ; times out in older Emacsen
   (skip-unless (eq cperl-test-mode #'cperl-mode))
   (let* ((emacs (concat invocation-directory invocation-name))
          (test-function 'cperl-test--run-bug-10483)
@@ -1139,6 +1142,19 @@ Perl is not Lisp: An open paren in column 0 does not start a function."
      (cperl-indent-command)
      (forward-line 1))))
 
+(ert-deftest cperl-test-bug-35925 ()
+  "Check that indentation is correct after a terminating format declaration."
+  (cperl--run-test-cases
+   (ert-resource-file "cperl-bug-35925.pl")
+   (cperl-file-style "PBP") ; Make cperl-mode use the same settings as perl-mode.
+   (let ((tab-function
+          (if (equal cperl-test-mode 'perl-mode)
+              #'indent-for-tab-command
+            #'cperl-indent-command)))
+     (goto-char (point-max))
+     (forward-line -2)
+     (funcall tab-function))))
+
 (ert-deftest cperl-test-bug-37127 ()
   "Verify that closing a paren in a regex goes without a message.
 Also check that the message is issued if the regex terminator is
@@ -1242,7 +1258,7 @@ however, must not happen when the keyword occurs in a variable
 \"$else\" or \"$continue\"."
   (skip-unless (eq cperl-test-mode #'cperl-mode))
   ;; `self-insert-command' takes a second argument only since Emacs 27
-  (skip-when (< emacs-major-version 27))
+  (skip-unless (not (< emacs-major-version 27)))
   (with-temp-buffer
     (setq cperl-electric-keywords t)
     (cperl-mode)
@@ -1345,12 +1361,13 @@ as a regex."
 
 (ert-deftest cperl-test-bug-64364 ()
   "Check that multi-line subroutine declarations indent correctly."
-  (cperl-set-style "PBP") ; make cperl-mode use the same settings as perl-mode
   (cperl--run-test-cases
    (ert-resource-file "cperl-bug-64364.pl")
+   (cperl-file-style "PBP") ; make cperl-mode use the same settings as perl-mode
    (indent-region (point-min) (point-max)))
   (cperl--run-test-cases
    (ert-resource-file "cperl-bug-64364.pl")
+   (cperl-file-style "PBP") ; make cperl-mode use the same settings as perl-mode
    (let ((tab-function
           (if (equal cperl-test-mode 'perl-mode)
               #'indent-for-tab-command
@@ -1358,9 +1375,61 @@ as a regex."
      (goto-char (point-min))
      (while (null (eobp))
        (funcall tab-function)
-       (forward-line 1))))
-  (cperl-set-style-back))
+       (forward-line 1)))))
 
+(ert-deftest cperl-test-bug-65834 ()
+  "Verify that CPerl mode identifies a left-shift operator.
+Left-shift and here-documents both use the \"<<\" operator.
+In the code provided by this bug report, it needs to be
+detected as left-shift operator."
+  (with-temp-buffer
+    (insert-file-contents (ert-resource-file "cperl-bug-65834.pl"))
+    (funcall cperl-test-mode)
+    (font-lock-ensure)
+    (search-forward "retur")             ; leaves point before the "n"
+    (should (equal (get-text-property (point) 'face)
+                   font-lock-keyword-face))
+    (search-forward "# comm")           ; leaves point before "ent"
+    (should (equal (get-text-property (point) 'face)
+                   font-lock-comment-face))))
+
+(ert-deftest cperl-test-bug-66145 ()
+  "Verify that hashes and arrays are only fontified in code.
+In strings, comments and POD the syntaxified faces should
+prevail.  The tests exercise all combinations of sigils $@% and
+parenthesess [{ for comments, POD, strings and HERE-documents.
+Fontification in code for `cperl-mode' is done in the tests
+beginning with `cperl-test-unicode`."
+  (let ((types '("array" "hash" "key"))
+        (faces `(("string"  . font-lock-string-face)
+                 ("comment" . font-lock-comment-face)
+                 ("here"    . ,(if (equal cperl-test-mode 'perl-mode)
+                                   'perl-heredoc
+                                 font-lock-string-face)))))
+    (with-temp-buffer
+      (insert-file-contents (ert-resource-file "cperl-bug-66145.pl"))
+      (funcall cperl-test-mode)
+      (font-lock-ensure)
+      (dolist (type types)
+        (goto-char (point-min))
+        (while (re-search-forward (concat type "_\\([a-z]+\\)") nil t)
+          (should (equal (get-text-property (match-beginning 1) 'face)
+                         (cdr (assoc (match-string-no-properties 1)
+                                     faces)))))))))
+
+(ert-deftest cperl-test-bug-66161 ()
+  "Verify that text after \"__END__\" is fontified as comment.
+For `cperl-mode', this needs the custom variable
+`cperl-fontify-trailer' to be set to `comment'.  Per default,
+cperl-mode fontifies text after the delimiter as Perl code."
+  (with-temp-buffer
+    (insert-file-contents (ert-resource-file "cperl-bug-66161.pl"))
+    (setq cperl-fontify-trailer 'comment)
+    (funcall cperl-test-mode)
+    (font-lock-ensure)
+    (search-forward "TODO")             ; leaves point before the colon
+    (should (equal (get-text-property (point) 'face)
+                   font-lock-comment-face))))
 
 (ert-deftest test-indentation ()
   (ert-test-erts-file (ert-resource-file "cperl-indents.erts")))

@@ -1,6 +1,6 @@
 /* Android initialization for GNU Emacs.
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -108,7 +108,7 @@ extern void android_set_dont_focus_on_map (android_window, bool);
 extern void android_set_dont_accept_focus (android_window, bool);
 
 extern int android_verify_jni_string (const char *);
-extern jstring android_build_string (Lisp_Object);
+extern jstring android_build_string (Lisp_Object, ...);
 extern jstring android_build_jstring (const char *);
 extern void android_exception_check (void);
 extern void android_exception_check_1 (jobject);
@@ -123,6 +123,8 @@ extern void android_wait_event (void);
 extern void android_toggle_on_screen_keyboard (android_window, bool);
 extern _Noreturn void android_restart_emacs (void);
 extern int android_request_directory_access (void);
+extern bool android_external_storage_available_p (void);
+extern void android_request_storage_access (void);
 extern int android_get_current_api_level (void)
   __attribute__ ((pure));
 
@@ -289,6 +291,8 @@ struct android_emacs_service
   jmethodID rename_document;
   jmethodID move_document;
   jmethodID valid_authority;
+  jmethodID external_storage_available;
+  jmethodID request_storage_access;
 };
 
 extern JNIEnv *android_java_env;
@@ -305,7 +309,7 @@ extern struct timespec emacs_installation_time;
 
 #define ANDROID_DELETE_LOCAL_REF(ref)				\
   ((*android_java_env)->DeleteLocalRef (android_java_env,	\
-					(ref)))
+					ref))
 
 #define NATIVE_NAME(name) Java_org_gnu_emacs_EmacsNative_##name
 

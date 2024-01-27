@@ -1,6 +1,6 @@
 ;;; esh-io.el --- I/O management  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -196,7 +196,8 @@ describing the mode, e.g. for using with `eshell-get-target'.")
 
 (defun eshell-parse-redirection ()
   "Parse an output redirection, such as `2>' or `>&'."
-  (when (not eshell-current-quoted)
+  (unless (or eshell-current-quoted
+              eshell-current-argument-plain)
     (cond
      ;; Copying a handle (e.g. `2>&1').
      ((looking-at (rx (? (group digit))
@@ -648,8 +649,11 @@ Returns what was actually sent, or nil if nothing was sent.")
       (process-send-string target object)
     (error
      ;; If `process-send-string' raises an error and the process has
-     ;; finished, treat it as a broken pipe.  Otherwise, just
-     ;; re-throw the signal.
+     ;; finished, treat it as a broken pipe.  Otherwise, just re-raise
+     ;; the signal.  NOTE: When running Emacs in batch mode
+     ;; (e.g. during regression tests), Emacs can abort due to SIGPIPE
+     ;; here.  Maybe `process-send-string' should handle SIGPIPE even
+     ;; in batch mode (bug#66186).
      (if (process-live-p target)
          (signal (car err) (cdr err))
        (signal 'eshell-pipe-broken (list target)))))

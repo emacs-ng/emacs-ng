@@ -1,6 +1,6 @@
 ;;; warnings.el --- log and display warnings  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2024 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -106,6 +106,7 @@ so only the element (FOO) will match it."
   :type '(repeat (repeat symbol))
   :version "22.1")
 
+;;;###autoload
 (defcustom warning-suppress-types nil
   "List of warning types not to display immediately.
 If any element of this list matches the TYPE argument to `display-warning',

@@ -1,7 +1,7 @@
 ;;; eieio.el --- Enhanced Implementation of Emacs Interpreted Objects  -*- lexical-binding:t -*-
 ;;;              or maybe Eric's Implementation of Emacs Interpreted Objects
 
-;; Copyright (C) 1995-1996, 1998-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1995-1996, 1998-2024 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Version: 1.4
@@ -213,9 +213,8 @@ and reference them using the function `class-option'."
                    ,(internal--format-docstring-line
                      "Retrieve the slot `%S' from an object of class `%S'."
                      sname name)
-                   ;; FIXME: Why is this different from the :reader case?
-                   (if (slot-boundp this ',sname) (eieio-oref this ',sname)))
-                accessors)
+                   (slot-value this ',sname))
+                  accessors)
           (when (and eieio-backward-compatibility (eq alloc :class))
             ;; FIXME: How could I declare this *method* as obsolete.
             (push `(cl-defmethod ,acces ((this (subclass ,name)))

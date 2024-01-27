@@ -1,6 +1,6 @@
 ;;; esh-proc-tests.el --- esh-proc test suite  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -174,23 +174,17 @@
 pipeline."
   (skip-unless (and (executable-find "sh")
                     (executable-find "cat")))
-  ;; An `eshell-pipe-broken' signal might occur internally; let Eshell
-  ;; handle it!
-  (let ((debug-on-error nil))
-    (eshell-command-result-equal
-     (concat "echo hi | " esh-proc-test--detect-pty-cmd " | cat")
-     nil)))
+  (eshell-command-result-equal
+   (concat "(ignore) | " esh-proc-test--detect-pty-cmd " | cat")
+   nil))
 
 (ert-deftest esh-proc-test/pipeline-connection-type/last ()
   "Test that only output streams are PTYs when a command ends a pipeline."
   (skip-unless (executable-find "sh"))
-  ;; An `eshell-pipe-broken' signal might occur internally; let Eshell
-  ;; handle it!
-  (let ((debug-on-error nil))
-    (eshell-command-result-equal
-     (concat "echo hi | " esh-proc-test--detect-pty-cmd)
-     (unless (eq system-type 'windows-nt)
-       "stdout\nstderr\n"))))
+  (eshell-command-result-equal
+   (concat "(ignore) | " esh-proc-test--detect-pty-cmd)
+   (unless (eq system-type 'windows-nt)
+     "stdout\nstderr\n")))
 
 
 ;; Synchronous processes

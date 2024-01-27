@@ -1,6 +1,6 @@
 ;;; tramp-cmds.el --- Interactive commands for Tramp  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2007-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2024 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -610,7 +610,7 @@ If the buffer runs `dired', the buffer is reverted."
   (interactive)
   (cond
    ((buffer-file-name)
-    (find-alternate-file (tramp-file-name-with-sudo (buffer-name))))
+    (find-alternate-file (tramp-file-name-with-sudo (buffer-file-name))))
    ((tramp-dired-buffer-p)
     (dired-unadvertise (expand-file-name default-directory))
     (setq default-directory (tramp-file-name-with-sudo default-directory)

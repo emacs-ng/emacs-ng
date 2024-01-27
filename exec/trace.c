@@ -1,6 +1,6 @@
 /* Program execution for Emacs.
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1028,7 +1028,7 @@ process_system_call (struct exec_tracee *tracee)
 	  break;
 
 	case 1:
-	  /* An error has occured; errno is set to the error.  */
+	  /* An error has occurred; errno is set to the error.  */
 	  goto report_syscall_error;
 	}
 

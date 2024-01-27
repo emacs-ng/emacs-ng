@@ -1,6 +1,6 @@
 ;;; gnus-art.el --- article mode commands for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -1622,7 +1622,8 @@ predicate.  See Info node `(gnus)Customizing Articles'."
   "The protocol used for encrypt articles.
 It is a string, such as \"PGP\".  If nil, ask user."
   :version "22.1"
-  :type 'string
+  :type '(choice (const :tag "Ask me" nil)
+                 string)
   :group 'mime-security)
 
 (defcustom gnus-use-idna t
@@ -2870,12 +2871,15 @@ Return file name relative to the parent of DIRECTORY."
 			      cid handle directory))
 	      (throw 'found file)))
 	   ((equal (concat "<" cid ">") (mm-handle-id handle))
-	    (setq file (or (mm-handle-filename handle)
-			   (concat
-			    (make-temp-name "cid")
-			    (car (rassoc (car (mm-handle-type handle))
-					 mailcap-mime-extensions))))
-		  afile (expand-file-name file directory))
+            ;; Randomize filenames: declared filenames may not be unique.
+            (setq file (format "cid-%d-%s"
+			       (random 99)
+			       (or (mm-handle-filename handle)
+				   (concat
+				    (make-temp-name "cid")
+				    (car (rassoc (car (mm-handle-type handle))
+						 mailcap-mime-extensions)))))
+                  afile (expand-file-name file directory))
 	    (mm-save-part-to-file handle afile)
 	    (throw 'found (concat (file-name-nondirectory
 				   (directory-file-name directory))
@@ -7560,10 +7564,11 @@ must return `mid', `mail', `invalid' or `ask'."
   :version "22.1"
   :group 'gnus-article-buttons
   :type '(choice (function-item :tag "Heuristic function"
-				gnus-button-mid-or-mail-heuristic)
-		 (const ask)
-		 (const mid)
-		 (const mail)))
+                                gnus-button-mid-or-mail-heuristic)
+                 (const :tag "Query me" ask)
+                 (const :tag "Assume it's a message ID" mid)
+                 (const :tag "Assume it's a mail address" mail)
+                 function))
 
 (defcustom gnus-button-mid-or-mail-heuristic-alist
   '((-10.0 . ".+\\$.+@")

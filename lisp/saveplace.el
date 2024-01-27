@@ -1,6 +1,6 @@
 ;;; saveplace.el --- automatically save place in files  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1993-1994, 2001-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1994, 2001-2024 Free Software Foundation, Inc.
 
 ;; Author: Karl Fogel <kfogel@red-bean.com>
 ;; Maintainer: emacs-devel@gnu.org
@@ -156,7 +156,9 @@ either `setopt' or M-x customize-variable to set this option."
   :set (lambda (sym val)
          (set-default sym val)
          (or save-place-loaded (save-place-load-alist-from-file))
-         (let ((fun (if val #'abbreviate-file-name #'expand-file-name)))
+         (let ((fun (if val #'abbreviate-file-name #'expand-file-name))
+               ;; Don't expand file names for non-existing remote connections.
+               (non-essential t))
            (setq save-place-alist
                  (cl-delete-duplicates
                   (cl-loop for (k . v) in save-place-alist

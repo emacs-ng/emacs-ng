@@ -1,6 +1,6 @@
 ;;; xt-mouse.el --- support the mouse when emacs run in an xterm -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994, 2000-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1994, 2000-2024 Free Software Foundation, Inc.
 
 ;; Author: Per Abrahamsen <abraham@dina.kvl.dk>
 ;; Keywords: mouse, terminals
@@ -63,9 +63,13 @@ https://invisible-island.net/xterm/ctlseqs/ctlseqs.html)."
 	   (is-move (eq 'mouse-movement ev-command))
 	   (is-down (string-match "down-" (symbol-name ev-command))))
 
-      ;; Mouse events symbols must have an 'event-kind property with
-      ;; the value 'mouse-click.
-      (when ev-command (put ev-command 'event-kind 'mouse-click))
+      ;; Mouse events symbols must have an 'event-kind property set.
+      ;; Most of them use the value 'mouse-click, but 'mouse-movement has
+      ;; a different value.  See head_table in keyboard.c. (bug#67457)
+      (when ev-command (put ev-command 'event-kind
+                            (if (eq ev-command 'mouse-movement)
+                                'mouse-movement
+                              'mouse-click)))
 
       (cond
        ((null event) nil)		;Unknown/bogus byte sequence!

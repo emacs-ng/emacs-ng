@@ -1,6 +1,6 @@
 ;;; thingatpt.el --- get the `thing' at point  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1991-1998, 2000-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1991-1998, 2000-2024 Free Software Foundation, Inc.
 
 ;; Author: Mike Williams <mikew@gopher.dosli.govt.nz>
 ;; Maintainer: emacs-devel@gnu.org
@@ -52,7 +52,6 @@
 
 ;;; Code:
 
-(require 'cl-lib)
 (provide 'thingatpt)
 
 (defvar thing-at-point-provider-alist nil
@@ -175,11 +174,14 @@ See the file `thingatpt.el' for documentation on how to define
 a symbol as a valid THING."
   (let ((text
          (cond
-          ((cl-loop for (pthing . function) in thing-at-point-provider-alist
-                    when (eq pthing thing)
-                    for result = (funcall function)
-                    when result
-                    return result))
+          ((let ((alist thing-at-point-provider-alist)
+                 elt result)
+             (while (and alist (null result))
+               (setq elt (car alist)
+                     alist (cdr alist))
+               (and (eq (car elt) thing)
+                    (setq result (funcall (cdr elt)))))
+             result))
           ((get thing 'thing-at-point)
            (funcall (get thing 'thing-at-point)))
           (t
@@ -565,9 +567,9 @@ looks like an email address, \"ftp://\" if it starts with
 	 ;; If it looks like ftp.example.com. treat it as ftp.
 	 (if (string-match "\\`ftp\\." str)
 	     (setq str (concat "ftp://" str)))
-	 ;; If it looks like www.example.com. treat it as http.
+         ;; If it looks like www.example.com. treat it as https.
 	 (if (string-match "\\`www\\." str)
-	     (setq str (concat "http://" str)))
+             (setq str (concat "https://" str)))
 	 ;; Otherwise, it just isn't a URI.
 	 (setq str nil)))
       str)))
@@ -650,7 +652,7 @@ back from point."
 
 ;;   Email addresses
 (defvar thing-at-point-email-regexp
-  "<?[-+_~a-zA-Z0-9][-+_.~:a-zA-Z0-9]*@[-a-zA-Z0-9]+[-.a-zA-Z0-9]*>?"
+  "<?[-+_~a-zA-Z0-9/][-+_.~:a-zA-Z0-9/]*@[-a-zA-Z0-9]+[-.a-zA-Z0-9]*>?"
   "A regular expression probably matching an email address.
 This does not match the real name portion, only the address, optionally
 with angle brackets.")

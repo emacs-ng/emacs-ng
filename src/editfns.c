@@ -1,6 +1,6 @@
 /* Lisp functions pertaining to editing.                 -*- coding: utf-8 -*-
 
-Copyright (C) 1985-2023 Free Software Foundation, Inc.
+Copyright (C) 1985-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -727,6 +727,7 @@ This function does not move point.  Also see `line-beginning-position'.  */)
 DEFUN ("line-beginning-position",
        Fline_beginning_position, Sline_beginning_position, 0, 1, 0,
        doc: /* Return the position of the first character in the current line/field.
+With optional argument N non-nil, move forward N - 1 lines first.
 This function is like `pos-bol' (which see), but respects fields.
 
 This function constrains the returned position to the current field
@@ -1784,7 +1785,7 @@ determines whether case is significant or ignored.  */)
   register EMACS_INT begp1, endp1, begp2, endp2, temp;
   register struct buffer *bp1, *bp2;
   register Lisp_Object trt
-    = (!NILP (BVAR (current_buffer, case_fold_search))
+    = (!NILP (Vcase_fold_search)
        ? BVAR (current_buffer, case_canon_table) : Qnil);
   ptrdiff_t chars = 0;
   ptrdiff_t i1, i2, i1_byte, i2_byte;
@@ -1907,7 +1908,7 @@ determines whether case is significant or ignored.  */)
 #define USE_HEURISTIC
 
 #define XVECREF_YVECREF_EQUAL(ctx, xoff, yoff)  \
-  buffer_chars_equal ((ctx), (xoff), (yoff))
+  buffer_chars_equal (ctx, xoff, yoff)
 
 #define OFFSET ptrdiff_t
 
@@ -2780,7 +2781,7 @@ labeled_restrictions_pop (Lisp_Object buf)
   Lisp_Object restrictions = assq_no_quit (buf, labeled_restrictions);
   if (NILP (restrictions))
     return;
-  if (EQ (labeled_restrictions_peek_label (buf), Qoutermost_restriction))
+  if (BASE_EQ (labeled_restrictions_peek_label (buf), Qoutermost_restriction))
     labeled_restrictions_remove (buf);
   else
     XSETCDR (restrictions, list1 (XCDR (XCAR (XCDR (restrictions)))));
@@ -2876,9 +2877,9 @@ void
 labeled_narrow_to_region (Lisp_Object begv, Lisp_Object zv,
 			  Lisp_Object label)
 {
-  Finternal__labeled_narrow_to_region (begv, zv, label);
   record_unwind_protect (restore_point_unwind, Fpoint_marker ());
   record_unwind_protect (unwind_labeled_narrow_to_region, label);
+  Finternal__labeled_narrow_to_region (begv, zv, label);
 }
 
 DEFUN ("widen", Fwiden, Swiden, 0, 0, "",
@@ -2920,7 +2921,7 @@ To gain access to other portions of the buffer, use
 	 current_buffer are the bounds that were set by the user, no
 	 labeled restriction is in effect in current_buffer anymore:
 	 remove it from the labeled_restrictions alist.  */
-      if (EQ (label, Qoutermost_restriction))
+      if (BASE_EQ (label, Qoutermost_restriction))
 	labeled_restrictions_pop (buf);
     }
   /* Changing the buffer bounds invalidates any recorded current column.  */
@@ -4366,7 +4367,7 @@ Case is ignored if `case-fold-search' is non-nil in the current buffer.  */)
 
   if (XFIXNUM (c1) == XFIXNUM (c2))
     return Qt;
-  if (NILP (BVAR (current_buffer, case_fold_search)))
+  if (NILP (Vcase_fold_search))
     return Qnil;
 
   i1 = XFIXNAT (c1);

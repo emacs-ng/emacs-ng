@@ -1,6 +1,6 @@
 ;;; wid-edit.el --- Functions for creating and using widgets -*- lexical-binding:t -*-
 ;;
-;; Copyright (C) 1996-1997, 1999-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1996-1997, 1999-2024 Free Software Foundation, Inc.
 ;;
 ;; Author: Per Abrahamsen <abraham@dina.kvl.dk>
 ;; Maintainer: emacs-devel@gnu.org
@@ -1127,7 +1127,7 @@ If nothing was called, return non-nil."
                       ;; This a touchscreen event and must be handled
                       ;; specially through `touch-screen-track-tap'.
                       (progn
-                        (unless (touch-screen-track-tap event)
+                        (unless (touch-screen-track-tap event nil nil t)
                           (throw 'button-press-cancelled t)))
                     (unless (widget-apply button :mouse-down-action event)
                       (let ((track-mouse t))

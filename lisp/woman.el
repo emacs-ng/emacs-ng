@@ -1,6 +1,6 @@
 ;;; woman.el --- browse UN*X manual pages `wo (without) man'  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2024 Free Software Foundation, Inc.
 
 ;; Author: Francis J. Wright <F.J.Wright@qmul.ac.uk>
 ;; Maintainer: emacs-devel@gnu.org
@@ -33,6 +33,10 @@
 ;; ?roff requests that are most commonly used in man pages.  However,
 ;; the emulation is modified to include the reformatting done by the
 ;; Emacs `man' command.  No hyphenation is performed.
+
+;; Note that `M-x woman' doesn’t yet support the latest features of
+;; modern man pages, so we recommend using `M-x man' if that is
+;; available on your system.
 
 ;; Advantages
 
@@ -1149,7 +1153,11 @@ speed.  With a prefix argument, force the caches to be
 updated (e.g. to re-interpret the current directory).
 
 Used non-interactively, arguments are optional: if given then TOPIC
-should be a topic string and non-nil RE-CACHE forces re-caching."
+should be a topic string and non-nil RE-CACHE forces re-caching.
+
+Note that `M-x woman' doesn’t yet support the latest features of
+modern man pages, so we recommend using `M-x man' if that is
+available on your system."
   (interactive (list nil current-prefix-arg))
   ;; The following test is for non-interactive calls via emacsclient, etc.
   (if (or (not (stringp topic)) (string-match-p "\\S " topic))

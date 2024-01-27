@@ -1,6 +1,6 @@
 ;;; android-win.el --- terminal set up for Android  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2023 Free Software Foundation, Inc.
+;; Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 ;; Author: FSF
 ;; Keywords: terminals, i18n, android
@@ -75,19 +75,28 @@ DISPLAY is ignored on Android."
 
 (defvar android-primary-selection nil
   "The last string placed in the primary selection.
-Nil if there was no such string.
+nil if there was no such string.
 
-Android does not have a primary selection of its own, so Emacs
-emulates one inside Lisp.")
+Android is not equipped with a primary selection of its own, so
+Emacs emulates one in Lisp.")
+
+(defvar android-secondary-selection nil
+  "The last string placed in the secondary selection.
+nil if there was no such string.
+
+Android is not equipped with a secondary selection of its own, so
+Emacs emulates one in Lisp.")
 
 (defun android-get-clipboard-1 (data-type)
-  "Return the clipboard data.
-DATA-TYPE is a selection conversion target.  `STRING' means to
-return the contents of the clipboard as a string.  `TARGETS'
-means to return supported data types as a vector.
+  "Return data saved from the clipboard.
+DATA-TYPE is a selection conversion target.
 
-Interpret any other symbol as a MIME type, and return its
-corresponding data."
+`STRING' means return the contents of the clipboard as a string,
+while `TARGETS' means return the types of all data present within
+the clipboard as a vector.
+
+Interpret any other symbol as a MIME type for which any clipboard
+data is returned"
   (or (and (eq data-type 'STRING)
            (android-get-clipboard))
       (and (eq data-type 'TARGETS)
@@ -95,7 +104,8 @@ corresponding data."
            (vconcat [TARGETS STRING]
                     (let ((i nil))
                       (dolist (type (android-get-clipboard-targets))
-                        ;; Don't report plain text as a valid target.
+                        ;; Don't report plain text as a valid target
+                        ;; since it is addressed by STRING.
                         (unless (equal type "text/plain")
                           (push (intern type) i)))
                       (nreverse i))))
@@ -109,7 +119,16 @@ Return nil if DATA-TYPE is anything other than STRING or TARGETS."
     (or (and (eq data-type 'STRING)
              android-primary-selection)
         (and (eq data-type 'TARGETS)
-             [TARGETS]))))
+             [TARGETS STRING]))))
+
+(defun android-get-secondary (data-type)
+  "Return the last string placed in the secondary selection, or nil.
+Return nil if DATA-TYPE is anything other than STRING or TARGETS."
+  (when android-secondary-selection
+    (or (and (eq data-type 'STRING)
+             android-secondary-selection)
+        (and (eq data-type 'TARGETS)
+             [TARGETS STRING]))))
 
 (defun android-selection-bounds (value)
   "Return bounds of selection value VALUE.
@@ -152,26 +171,34 @@ VALUE should be something suitable for passing to
   (cond ((eq type 'CLIPBOARD)
          (android-get-clipboard-1 data-type))
         ((eq type 'PRIMARY)
-         (android-get-primary data-type))))
+         (android-get-primary data-type))
+        ((eq type 'SECONDARY)
+         (android-get-secondary data-type))))
 
 (cl-defmethod gui-backend-selection-exists-p (selection
                                               &context (window-system android))
   (cond ((eq selection 'CLIPBOARD)
          (android-clipboard-exists-p))
         ((eq selection 'PRIMARY)
-         (not (null android-primary-selection)))))
+         (not (null android-primary-selection)))
+        ((eq selection 'SECONDARY)
+         (not (null android-secondary-selection)))))
 
 (cl-defmethod gui-backend-selection-owner-p (selection
                                              &context (window-system android))
   (cond ((eq selection 'CLIPBOARD)
          (let ((ownership (android-clipboard-owner-p)))
-           ;; If ownership is `lambda', then Emacs couldn't determine
+           ;; If ownership is `lambda', then Emacs couldn't establish
            ;; whether or not it owns the clipboard.
            (and (not (eq ownership 'lambda)) ownership)))
         ((eq selection 'PRIMARY)
          ;; Emacs always owns its own primary selection as long as it
          ;; exists.
-         (not (null android-primary-selection)))))
+         (not (null android-primary-selection)))
+        ((eq selection 'SECONDARY)
+         ;; Emacs always owns its own secondary selection as long as
+         ;; it exists.
+         (not (null android-secondary-selection)))))
 
 (cl-defmethod gui-backend-set-selection (type value
                                               &context (window-system android))
@@ -181,7 +208,9 @@ VALUE should be something suitable for passing to
     (cond ((eq type 'CLIPBOARD)
            (android-set-clipboard string))
           ((eq type 'PRIMARY)
-           (setq android-primary-selection string)))))
+           (setq android-primary-selection string))
+          ((eq type 'SECONDARY)
+           (setq android-secondary-selection string)))))
 
 ;;; Character composition display.
 
@@ -231,6 +260,224 @@ EVENT is a preedit-text event."
 (defconst x-pointer-watch 1004)
 (defconst x-pointer-xterm 1008)
 (defconst x-pointer-invisible 0)
+
+
+;; Drag-and-drop.  There are two formats of drag and drop event under
+;; Android.  The data field of the first is set to a cons of X and Y,
+;; which represent a position within a frame that something is being
+;; dragged over, whereas that of the second is a cons of either symbol
+;; `uri' or `text' and a list of URIs or text to insert.
+;;
+;; If a content:// URI is encountered, then it in turn designates a
+;; file within the special-purpose /content/by-authority directory,
+;; which facilitates accessing such atypical files.
+
+(declare-function url-type "url-parse")
+(declare-function url-host "url-parse")
+(declare-function url-filename "url-parse")
+
+(defun android-handle-dnd-event (event)
+  "Respond to a drag-and-drop event EVENT.
+If it reflects the motion of an item above a frame, call
+`dnd-handle-movement' to move the cursor or scroll the window
+under the item pursuant to the pertinent user options.
+
+If it reflects dropped text, insert such text within window at
+the location of the drop.
+
+If it reflects a list of URIs, then open each URI, converting
+content:// URIs into the special file names which represent them."
+  (interactive "e")
+  (let ((message (caddr event))
+        (posn (event-start event)))
+    (cond ((fixnump (car message))
+           (dnd-handle-movement posn))
+          ((eq (car message) 'text)
+           (let ((window (posn-window posn)))
+             (with-selected-window window
+               (unless mouse-yank-at-point
+                 (goto-char (posn-point (event-start event))))
+               (dnd-insert-text window 'copy (cdr message)))))
+          ((eq (car message) 'uri)
+           (let ((uri-list (split-string (cdr message)
+                                         "[\0\r\n]" t))
+                 (new-uri-list nil)
+                 (dnd-unescape-file-uris t))
+             (dolist (uri uri-list)
+               (ignore-errors
+                 (let ((url (url-generic-parse-url uri)))
+                   (when (equal (url-type url) "content")
+                     ;; Replace URI with a matching /content file
+                     ;; name.
+                     (setq uri (format "file:/content/by-authority/%s%s"
+                                       (url-host url)
+                                       (url-filename url))
+                           ;; And guarantee that this file URI is not
+                           ;; subject to URI decoding, for it must be
+                           ;; transformed back into a content URI.
+                           dnd-unescape-file-uris nil))))
+               (push uri new-uri-list))
+             (dnd-handle-multiple-urls (posn-window posn)
+                                       new-uri-list
+                                       'copy))))))
+
+(define-key special-event-map [drag-n-drop] 'android-handle-dnd-event)
+
+
+;; Bind keys sent by input methods to manipulate the state of the
+;; selection to commands which set or deactivate the mark.
+
+(defun android-deactivate-mark-command ()
+  "Deactivate the mark in this buffer.
+This command is generally invoked by input methods sending
+the `stop-selecting-text' editing key."
+  (interactive)
+  (deactivate-mark))
+
+(global-set-key [select-all] 'mark-whole-buffer)
+(global-set-key [start-selecting-text] 'set-mark-command)
+(global-set-key [stop-selecting-text] 'android-deactivate-mark-command)
+
+
+;; Splash screen notice.  Users are frequently left scratching their
+;; heads when they overlook the Android appendix in the Emacs manual
+;; and discover that external storage is not accessible; worse yet,
+;; Android 11 and later veil the settings panel controlling such
+;; permissions behind layer upon layer of largely immaterial settings
+;; panels, such that several modified copies of the Android Settings
+;; app have omitted them altogether after their developers conducted
+;; their own interface simplifications.  Display a button on the
+;; splash screen that instructs users on granting these permissions
+;; when they are denied.
+
+(declare-function android-external-storage-available-p "androidfns.c")
+(declare-function android-request-storage-access "androidfns.c")
+(declare-function android-request-directory-access "androidfns.c")
+
+(defun android-display-storage-permission-popup (&optional _ignored)
+  "Display a dialog regarding storage permissions.
+Display a buffer explaining the need for storage permissions and
+offering to grant them."
+  (interactive)
+  (with-current-buffer (get-buffer-create "*Android Permissions*")
+    (setq buffer-read-only nil)
+    (erase-buffer)
+    (insert (propertize "Storage Access Permissions"
+                        'face '(bold (:height 1.2))))
+    (insert "
+
+Before Emacs can access your device's external storage
+directories, such as /sdcard and /storage/emulated/0, you must
+grant it permission to do so.
+
+Alternatively, you can request access to a particular directory
+in external storage, whereafter it will be available under the
+directory /content/storage.
+
+")
+    (insert-button "Grant storage permissions"
+                   'action (lambda (_)
+                             (android-request-storage-access)
+                             (quit-window)))
+    (newline)
+    (newline)
+    (insert-button "Request access to directory"
+                   'action (lambda (_)
+                             (android-request-directory-access)))
+    (newline)
+    (special-mode)
+    (setq buffer-read-only t))
+  (let ((window (display-buffer "*Android Permissions*")))
+    (when (windowp window)
+      (with-selected-window window
+        ;; Fill the text to the width of this window in columns if it
+        ;; does not exceed 72, that the text might not be wrapped or
+        ;; truncated.
+        (when (<= (window-width window) 72)
+          (let ((fill-column (window-width window))
+                (inhibit-read-only t))
+            (fill-region (point-min) (point-max))))))))
+
+(defun android-after-splash-screen (fancy-p)
+  "Insert a brief notice on the absence of storage permissions.
+If storage permissions are as yet denied to Emacs, insert a short
+notice to that effect, followed by a button that enables the user
+to grant such permissions.
+
+FANCY-P non-nil means the notice will be displayed with faces, in
+the style appropriate for its incorporation within the fancy splash
+screen display; see `fancy-splash-insert'."
+  (unless (android-external-storage-available-p)
+    (if fancy-p
+        (fancy-splash-insert
+         :face '(variable-pitch
+                 font-lock-function-call-face)
+         "\nPermissions necessary to access external storage directories have
+been denied.  Click "
+         :link '("here" android-display-storage-permission-popup)
+         " to grant them.")
+      (insert
+       "\nPermissions necessary to access external storage directories have been
+denied.  ")
+      (insert-button "Click here to grant them."
+                     'action #'android-display-storage-permission-popup
+                     'follow-link t)
+      (newline))))
+
+
+;;; Locale preferences.
+
+(defvar android-os-language)
+
+(defun android-locale-for-system-language ()
+  "Return a locale representing the system language.
+This locale reflects the system's language preferences in its
+language name and country variant fields, and always specifies
+the UTF-8 coding system."
+  ;; android-os-language is a list comprising four elements LANGUAGE,
+  ;; COUNTRY, SCRIPT, and VARIANT.
+  ;;
+  ;; LANGUAGE and COUNTRY are ISO language and country codes identical
+  ;; to those stored within POSIX locales.
+  ;;
+  ;; SCRIPT is an ISO 15924 script tag, representing the script used
+  ;; if available, or if required to disambiguate between distinct
+  ;; writing systems for the same combination of language and country.
+  ;;
+  ;; VARIANT is an arbitrary string representing the variant of the
+  ;; LANGUAGE or SCRIPT represented.
+  ;;
+  ;; Each of these fields might be empty, but the locale is invalid if
+  ;; LANGUAGE is empty, which if true "en_US.UTF-8" is returned as a
+  ;; placeholder.
+  (let ((language (or (nth 0 android-os-language) ""))
+        (country (or (nth 1 android-os-language) ""))
+        (script (or (nth 2 android-os-language) ""))
+        (variant (or (nth 3 android-os-language) ""))
+        locale-base locale-modifier)
+    (if (string-empty-p language)
+        (setq locale-base "en_US.UTF-8")
+      (if (string-empty-p country)
+          (setq locale-base (concat language ".UTF-8"))
+        (setq locale-base (concat language "_" country
+                                  ".UTF-8"))))
+    ;; No straightforward relation between Java script and variant
+    ;; combinations exist: Java permits both a script and a variant to
+    ;; be supplied at once, whereas POSIX's closest analog "modifiers"
+    ;; permit only either an alternative script or a variant to be
+    ;; supplied.
+    ;;
+    ;; Emacs disregards variants besides "EURO" and scripts besides
+    ;; "Cyrl", for these two never coexist in existing locales, and
+    ;; their POSIX equivalents are the sole modifiers recognized by
+    ;; Emacs.
+    (if (string-equal script "Cyrl")
+        (setq locale-modifier "@cyrillic")
+      (if (string-equal variant "EURO")
+          (setq locale-modifier "@euro")
+        (setq locale-modifier "")))
+    ;; Return the concatenation of both these values.
+    (concat locale-base locale-modifier)))
 
 
 (provide 'android-win)

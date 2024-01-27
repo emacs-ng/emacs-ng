@@ -1,6 +1,6 @@
 ;;; cl-macs.el --- Common Lisp macros  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993, 2001-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1993, 2001-2024 Free Software Foundation, Inc.
 
 ;; Author: Dave Gillespie <daveg@synaptics.com>
 ;; Old-Version: 2.02
@@ -101,6 +101,7 @@
     (and (> size 0) (1- size))))
 
 (defun cl--simple-exprs-p (xs)
+  "Map `cl--simple-expr-p' to each element of list XS."
   (while (and xs (cl--simple-expr-p (car xs)))
     (setq xs (cdr xs)))
   (not xs))
@@ -116,8 +117,10 @@
 	     (while (and (setq x (cdr x)) (cl--safe-expr-p (car x))))
 	     (null x)))))
 
-;;; Check if constant (i.e., no side effects or dependencies).
 (defun cl--const-expr-p (x)
+  "Check if X is constant (i.e., no side effects or dependencies).
+
+See `macroexp-const-p' for similar functionality without cl-lib dependency."
   (cond ((consp x)
 	 (or (eq (car x) 'quote)
 	     (and (memq (car x) '(function cl-function))
@@ -3092,7 +3095,11 @@ To see the documentation for a defined struct type, use
 				  descs)))
 	      (t
 	       (error "Structure option %s unrecognized" opt)))))
-    (unless (or include-name type)
+    (unless (or include-name type
+                ;; Don't create a bogus parent to `cl-structure-object'
+                ;; while compiling the (cl-defstruct cl-structure-object ..)
+                ;; in `cl-preloaded.el'.
+                (eq name cl--struct-default-parent))
       (setq include-name cl--struct-default-parent))
     (when include-name (setq include (cl--struct-get-class include-name)))
     (if print-func
@@ -3200,8 +3207,8 @@ To see the documentation for a defined struct type, use
                            ;; choose to avoid the byte-compiler
                            ;; warnings.
                            (if (>= (length long-docstring)
-                                   (or (and (boundp 'byte-compile-docstring-max-column)
-                                            byte-compile-docstring-max-column)
+                                   (or (bound-and-true-p
+                                        byte-compile-docstring-max-column)
                                        80))
                                (concat
                                 (internal--format-docstring-line
@@ -3330,19 +3337,6 @@ To see the documentation for a defined struct type, use
 
 ;;; Add cl-struct support to pcase
 
-;;In use by comp.el
-(defun cl--struct-all-parents (class)
-  (when (cl--struct-class-p class)
-    (let ((res ())
-          (classes (list class)))
-      ;; BFS precedence.
-      (while (let ((class (pop classes)))
-               (push class res)
-               (setq classes
-                     (append classes
-                             (cl--class-parents class)))))
-      (nreverse res))))
-
 ;;;###autoload
 (pcase-defmacro cl-struct (type &rest fields)
   "Pcase patterns that match cl-struct EXPVAL of type TYPE.
@@ -3388,8 +3382,8 @@ the form NAME which is a shorthand for (NAME NAME)."
           (let ((c1 (cl--find-class t1))
                 (c2 (cl--find-class t2)))
             (and c1 c2
-                 (not (or (memq c1 (cl--struct-all-parents c2))
-                          (memq c2 (cl--struct-all-parents c1)))))))
+                 (not (or (memq t1 (cl--class-allparents c2))
+                          (memq t2 (cl--class-allparents c1)))))))
      (let ((c1 (and (symbolp t1) (cl--find-class t1))))
        (and c1 (cl--struct-class-p c1)
             (funcall orig (cl--defstruct-predicate t1)
@@ -3502,7 +3496,8 @@ Of course, we really can't know that for sure, so it's just a heuristic."
                  (symbol	. symbolp)
                  (vector	. vectorp)
                  (window	. windowp)
-                 ;; FIXME: Do we really want to consider this a type?
+                 ;; FIXME: Do we really want to consider these types?
+                 (number-or-marker . number-or-marker-p)
                  (integer-or-marker . integer-or-marker-p)
                  ))
   (put type 'cl-deftype-satisfies pred))
@@ -3727,7 +3722,7 @@ macro that returns its `&whole' argument."
 
 ;;; Things that are inline.
 (cl-proclaim '(inline cl-acons cl-map cl-notany cl-notevery cl-revappend
-                      cl-nreconc gethash))
+               cl-nreconc))
 
 ;;; Things that are side-effect-free.
 (mapc (lambda (x) (function-put x 'side-effect-free t))
@@ -3744,7 +3739,7 @@ macro that returns its `&whole' argument."
 (mapc (lambda (x) (function-put x 'important-return-value t))
        '(
          ;; Functions that are side-effect-free except for the
-         ;; behaviour of functions passed as argument.
+         ;; behavior of functions passed as argument.
          cl-mapcar cl-mapcan cl-maplist cl-map cl-mapcon
          cl-reduce
          cl-assoc cl-assoc-if cl-assoc-if-not

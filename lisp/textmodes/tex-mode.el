@@ -1,6 +1,7 @@
 ;;; tex-mode.el --- TeX, LaTeX, and SliTeX mode commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 1989, 1992, 1994-1999, 2001-2024 Free
+;; Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: tex
@@ -2133,6 +2134,7 @@ If NOT-ALL is non-nil, save the `.dvi' file."
                   t "%r.pdf"))
               '("pdf" "xe" "lua"))
     ((concat tex-command
+             " " tex-start-options
 	     " " (if (< 0 (length tex-start-commands))
 		     (shell-quote-argument tex-start-commands))
              " %f")
