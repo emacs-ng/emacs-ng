@@ -1,0 +1,19 @@
+# this name is currently not visible on GitHub due to https://github.com/actions/runner/issues/1877
+name: "Free disk space"
+description: "Frees up disk space on GitHub Ubuntu runners"
+runs:
+  using: "composite"
+  steps:
+    - uses: jlumbroso/free-disk-space@main
+      with:
+
+        # These 5 options give back ~32Gb. If that's not enough, the remaining flags can be set to `true` at the expense
+        # of this action taking longer to finish
+        android: true
+        dotnet: true
+        haskell: true
+        docker-images: true
+        swap-storage: true
+
+        large-packages: false
+        tool-cache: false

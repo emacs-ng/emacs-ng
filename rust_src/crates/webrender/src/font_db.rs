@@ -124,7 +124,7 @@ impl FontDB<'static> {
     }
 
     pub fn family_name(family_name: &str) -> Family {
-        match family_name.clone().to_lowercase().as_str() {
+        match family_name.to_lowercase().as_str() {
             "default" => Family::Monospace, // emacs reports default
             "serif" => Family::Serif,
             "sans-serif" => Family::SansSerif,
@@ -155,7 +155,7 @@ impl FontDB<'static> {
 
     #[cfg(free_unix)]
     pub fn fc_family_name(name: &str) -> String {
-        match name.clone().to_lowercase().as_str() {
+        match name.to_lowercase().as_str() {
             "default" => {
                 let mut property = system_fonts::FontPropertyBuilder::new().monospace().build();
                 let sysfonts = system_fonts::query_specific(&mut property);

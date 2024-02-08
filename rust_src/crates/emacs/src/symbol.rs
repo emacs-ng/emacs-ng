@@ -55,7 +55,7 @@ impl LispSymbolRef {
     }
 
     pub fn set_next(mut self, next: Option<Self>) {
-        let mut s = unsafe { self.u.s.as_mut() };
+        let s = unsafe { self.u.s.as_mut() };
         s.next = match next {
             Some(sym) => sym.as_ptr() as *mut Lisp_Symbol,
             None => ptr::null_mut(),
@@ -110,7 +110,7 @@ impl LispObject {
             self.get_untaggedptr() as EmacsInt
         };
 
-        let lispsym_offset = unsafe { &lispsym as *const _ as EmacsInt };
+        let lispsym_offset = unsafe { ptr::addr_of!(lispsym) as *const _ as EmacsInt };
         ptr_value + lispsym_offset
     }
 }

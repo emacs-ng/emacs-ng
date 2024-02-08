@@ -1,7 +1,6 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 #![feature(concat_idents)]
 #![allow(non_upper_case_globals)]
-#![feature(once_cell)]
 
 #[macro_use]
 extern crate emacs;

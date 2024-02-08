@@ -39,12 +39,12 @@
               self.overlays.default
               emacs-overlay.overlay
               (import rust-overlay)
-              devshell.overlay
+              devshell.overlays.default
             ];
             config = {};
           };
         in rec {
-          devShells.default = with pkgs; let
+          devshell = with pkgs; let
             custom-llvmPackages = llvmPackages_latest;
           in
             pkgs.devshell.mkShell {
@@ -121,7 +121,7 @@
           withWebrender = true;
         in
           (
-            final.emacsGit.override
+            final.emacs-unstable.override
             {
               withImageMagick = true;
               withNS = false;
@@ -219,6 +219,9 @@
               ]
               ++ lib.optionals stdenv.isLinux [
                 "--with-dbus"
+              ]
+              ++ lib.optionals stdenv.cc.isClang [
+                "RUSTFLAGS=-l${stdenv.cc.libcxx.cxxabi.libName}"
               ];
 
             postPatch =
@@ -244,10 +247,9 @@
                   python3
                 ]
                 ++ rpathLibs)
+              ++ [cargo rustc]
               ++ (with rustPlatform; [
                 cargoSetupHook
-                rust.cargo
-                rust.rustc
               ])
               ++ lib.optionals
               stdenv.isDarwin
@@ -293,7 +295,7 @@
         emacsng-noNativeComp = (
           (
             emacsng.override {
-              nativeComp = false;
+	      withNativeCompilation = false;
             }
           )
           .overrideAttrs (
