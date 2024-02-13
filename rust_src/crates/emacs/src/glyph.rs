@@ -1,7 +1,10 @@
 use std::{cmp::min, slice};
 
 use crate::{
-    bindings::{composition_hash_table, composition_method, glyph, glyph_string, XHASH_TABLE},
+    bindings::{
+        composition_hash_table, composition_method, glyph, glyph_string, hash_hash_t,
+        hash_lookup_get_hash, XHASH_TABLE,
+    },
     definitions::EmacsInt,
     lisp::ExternalPtr,
 };
@@ -45,9 +48,13 @@ impl GlyphStringRef {
 
         let hash_table = unsafe { XHASH_TABLE(composition_hash_table) };
 
-        let key_and_value = unsafe { (*hash_table).key_and_value }.as_vector().unwrap();
+        let key_and_value = unsafe { *(*hash_table).key_and_value }.as_vector().unwrap();
 
-        let composition_index = (unsafe { (*self.cmp).hash_index } * 2) as usize;
+        let key = unsafe { (*self.cmp).key };
+        let hash_code: Box<hash_hash_t> = Box::new(0);
+        let hash_index = unsafe { hash_lookup_get_hash(hash_table, key, Box::into_raw(hash_code)) };
+
+        let composition_index = (hash_index * 2) as usize;
         let composition =
             unsafe { key_and_value.contents.as_slice(composition_index + 1) }[composition_index];
         let composition = composition.as_vector().unwrap();

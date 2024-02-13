@@ -1,6 +1,6 @@
 ;;; newst-backend.el --- Retrieval backend for newsticker  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2024 Free Software Foundation, Inc.
 
 ;; Author:      Ulf Jasper <ulf.jasper@web.de>
 ;; Filename:    newst-backend.el
@@ -618,13 +618,13 @@ If URL is nil it is searched at point."
                    (end-of-line)
                    (and
                     (re-search-backward
-                     "http://"
+                     (rx "http" (? "s") "://")
                      (if (> (point) (+ (point-min) 100))
                          (- (point) 100)
                        (point-min))
                      t)
                     (re-search-forward
-                     "http://[-a-zA-Z0-9&/_.]*"
+                     (rx "http" (? "s") "://" (zero-or-more (any "-a-zA-Z0-9&/_.")))
                      (if (< (point) (- (point-max) 200))
                          (+ (point) 200)
                        (point-max))

@@ -1,6 +1,6 @@
 ;;; tmm.el --- text mode access to menu-bar  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994-1996, 2000-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1994-1996, 2000-2024 Free Software Foundation, Inc.
 
 ;; Author: Ilya Zakharevich <ilya@math.mps.ohio-state.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -79,7 +79,8 @@ See the documentation for `tmm-prompt'."
   "String to insert between shortcut and menu item.
 If nil, there will be no shortcuts.  It should not consist only of spaces,
 or else the correct item might not be found in the `*Completions*' buffer."
-  :type 'string)
+  :type '(choice (const :tag "No shortcuts" nil)
+                 string))
 
 (defvar tmm-mb-map nil
   "A place to store minibuffer map.")

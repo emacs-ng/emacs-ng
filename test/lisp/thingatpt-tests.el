@@ -1,6 +1,6 @@
 ;;; thingatpt-tests.el --- tests for thing-at-point.  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -85,16 +85,18 @@
     ("<foo@example.com>" 5 email "<foo@example.com>")
     ("<foo@example.com>" 16 email "<foo@example.com>")
     ("<foo@example.com>" 17 email "<foo@example.com>")
-    ;; email adresses containing numbers
+    ;; email addresses containing numbers
     ("foo1@example.com" 1 email "foo1@example.com")
     ("1foo@example.com" 1 email "1foo@example.com")
     ("11@example.com" 1 email "11@example.com")
     ("1@example.com" 1 email "1@example.com")
-    ;; email adresses user portion containing dots
+    ;; email addresses user portion containing dots
     ("foo.bar@example.com" 1 email "foo.bar@example.com")
+    ("foo.bar@example.com" 5 email "foo.bar@example.com")
+    ("  fo.ba@example.com" 6 email "fo.ba@example.com")
     (".foobar@example.com" 1 email nil)
     (".foobar@example.com" 2 email "foobar@example.com")
-    ;; email adresses domain portion containing dots and dashes
+    ;; email addresses domain portion containing dots and dashes
     ("foobar@.example.com" 1 email nil)
     ("foobar@-example.com" 1 email "foobar@-example.com")
     ;; These are illegal, but thingatpt doesn't yet handle them
@@ -179,6 +181,13 @@ position to retrieve THING.")
       (search-forward "2ab")
       (should (thing-at-point-looking-at "2abcd"))
       (should (equal (match-data) m2)))))
+
+(ert-deftest thing-at-point-looking-at-overlapping-matches ()
+  (with-temp-buffer
+    (insert "foo.bar.baz")
+    (goto-char (point-max))
+    (should (thing-at-point-looking-at "[a-z]+\\.[a-z]+"))
+    (should (string= "bar.baz" (match-string 0)))))
 
 (ert-deftest test-symbol-thing-1 ()
   (with-temp-buffer

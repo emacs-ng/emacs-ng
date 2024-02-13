@@ -1,6 +1,6 @@
 /* Asynchronous subprocess control for GNU Emacs.
 
-Copyright (C) 1985-1988, 1993-1996, 1998-1999, 2001-2023 Free Software
+Copyright (C) 1985-1988, 1993-1996, 1998-1999, 2001-2024 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -1279,7 +1279,8 @@ static void
 update_process_mark (struct Lisp_Process *p)
 {
   Lisp_Object buffer = p->buffer;
-  if (BUFFERP (buffer))
+  if (BUFFERP (buffer)
+      && XMARKER (p->mark)->buffer != XBUFFER (buffer))
     set_marker_both (p->mark, buffer,
 		     BUF_ZV (XBUFFER (buffer)),
 		     BUF_ZV_BYTE (XBUFFER (buffer)));
@@ -2206,10 +2207,15 @@ create_process (Lisp_Object process, char **new_argv, Lisp_Object current_dir)
       inchannel = p->open_fd[READ_FROM_SUBPROCESS];
       forkout = p->open_fd[SUBPROCESS_STDOUT];
 
-#if (defined (GNU_LINUX) || defined __ANDROID__)	\
-  && defined (F_SETPIPE_SZ)
-      fcntl (inchannel, F_SETPIPE_SZ, read_process_output_max);
-#endif /* (GNU_LINUX || __ANDROID__) && F_SETPIPE_SZ */
+#if defined(F_SETPIPE_SZ) && defined(F_GETPIPE_SZ)
+      /* If they requested larger reads than the default system pipe
+         capacity, try enlarging the capacity to match the request.  */
+      if (read_process_output_max > fcntl (inchannel, F_GETPIPE_SZ))
+	{
+	  int readmax = clip_to_bounds (1, read_process_output_max, INT_MAX);
+	  fcntl (inchannel, F_SETPIPE_SZ, readmax);
+	}
+#endif
     }
 
   if (!NILP (p->stderrproc))
@@ -5203,6 +5209,27 @@ wait_reading_process_output_1 (void)
 {
 }
 
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY	\
+  && defined THREADS_ENABLED
+
+/* Wrapper around `android_select' that exposes a calling interface with
+   an extra argument for compatibility with `thread_pselect'.  */
+
+static int
+android_select_wrapper (int nfds, fd_set *readfds, fd_set *writefds,
+			fd_set *exceptfds, const struct timespec *timeout,
+			const sigset_t *sigmask)
+{
+  /* sigmask is not supported.  */
+  if (sigmask)
+    emacs_abort ();
+
+  return android_select (nfds, readfds, writefds, exceptfds,
+			 (struct timespec *) timeout);
+}
+
+#endif /* HAVE_ANDROID && !ANDROID_STUBIFY && THREADS_ENABLED */
+
 /* Read and dispose of subprocess output while waiting for timeout to
    elapse and/or keyboard input to be available.
 
@@ -5695,13 +5722,19 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 	    timeout = short_timeout;
 #endif
 
-	  /* Android doesn't support threads and requires using a
-	     replacement for pselect in android.c to poll for
-	     events.  */
+	  /* Android requires using a replacement for pselect in
+	     android.c to poll for events.  */
 #if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+#ifndef THREADS_ENABLED
 	  nfds = android_select (max_desc + 1,
 				 &Available, (check_write ? &Writeok : 0),
 				 NULL, &timeout);
+#else /* THREADS_ENABLED */
+	  nfds = thread_select (android_select_wrapper,
+				max_desc + 1,
+				&Available, (check_write ? &Writeok : 0),
+				NULL, &timeout, NULL);
+#endif /* THREADS_ENABLED */
 #else
 
 	  /* Non-macOS HAVE_GLIB builds call thread_select in
@@ -7210,6 +7243,8 @@ If PROCESS is a process object which contains the property
 `remote-pid', or PROCESS is a number and REMOTE is a remote file name,
 PROCESS is interpreted as process on the respective remote host, which
 will be the process to signal.
+If PROCESS is a string, it is interpreted as process object with the
+respective process name, or as a number.
 SIGCODE may be an integer, or a symbol whose name is a signal name.  */)
   (Lisp_Object process, Lisp_Object sigcode, Lisp_Object remote)
 {
@@ -7516,7 +7551,7 @@ handle_child_signal (int sig)
 
 		   emacs_unlink is not async signal safe because
 		   deleting files from content providers must proceed
-		   through Java code.  Consequentially, if XCDR (head)
+		   through Java code.  Consequently, if XCDR (head)
 		   lies on a content provider it will not be removed,
 		   which is a bug.  */
 		unlink (SSDATA (XCDR (head)));

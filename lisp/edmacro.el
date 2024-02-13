@@ -1,6 +1,6 @@
 ;;; edmacro.el --- keyboard macro editor  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1993-1994, 2001-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1994, 2001-2024 Free Software Foundation, Inc.
 
 ;; Author: Dave Gillespie <daveg@synaptics.com>
 ;; Keywords: abbrev
@@ -124,9 +124,9 @@ from `kmacro-edit-lossage'."
 (defun edit-kbd-macro (keys &optional prefix finish-hook store-hook)
   "Edit a keyboard macro.
 At the prompt, type any key sequence which is bound to a keyboard macro.
-Or, type `\\[kmacro-end-and-call-macro]' or \\`RET' to edit the last
-keyboard macro, `\\[view-lossage]' to edit the last 300
-keystrokes as a keyboard macro, or `\\[execute-extended-command]'
+Or, type \\[kmacro-end-and-call-macro] or \\`RET' to edit the last
+keyboard macro, \\[view-lossage] to edit the last 300
+keystrokes as a keyboard macro, or \\[execute-extended-command]
 to edit a macro by its command name.
 With a prefix argument, format the macro in a more concise way."
   (interactive
@@ -252,14 +252,14 @@ With a prefix argument, format the macro in a more concise way."
 ;;;###autoload
 (defun read-kbd-macro (start &optional end)
   "Read the region as a keyboard macro definition.
-The region is interpreted as spelled-out keystrokes, e.g., \"M-x abc RET\".
-See documentation for `edmacro-mode' for details.
+The region between START and END is interpreted as spelled-out keystrokes,
+e.g., \"M-x abc RET\".  See documentation for `edmacro-mode' for details.
 Leading/trailing \"C-x (\" and \"C-x )\" in the text are allowed and ignored.
 The resulting macro is installed as the \"current\" keyboard macro.
 
 In Lisp, may also be called with a single STRING argument in which case
 the result is returned rather than being installed as the current macro.
-The result will be a string if possible, otherwise an event vector.
+The result is a vector of input events.
 Second argument NEED-VECTOR means to return an event vector always."
   (interactive "r")
   (if (stringp start)
@@ -720,17 +720,15 @@ This function assumes that the events can be stored in a string."
            (setf (aref seq i) (logand (aref seq i) 127)))
   seq)
 
-;; These are needed in a --without-x build.
-(defvar mouse-wheel-down-event)
-(defvar mouse-wheel-up-event)
-(defvar mouse-wheel-right-event)
-(defvar mouse-wheel-left-event)
-
 (defun edmacro-fix-menu-commands (macro &optional noerror)
   (if (vectorp macro)
       (let (result)
         ;; Not preloaded in a --without-x build.
         (require 'mwheel)
+        (defvar mouse-wheel-down-event)
+        (defvar mouse-wheel-up-event)
+        (defvar mouse-wheel-right-event)
+        (defvar mouse-wheel-left-event)
 	;; Make a list of the elements.
 	(setq macro (append macro nil))
 	(dolist (ev macro)
@@ -746,9 +744,9 @@ This function assumes that the events can be stored in a string."
 		;; info is recorded in macros to make this possible.
 		((or (mouse-event-p ev) (mouse-movement-p ev)
 		     (memq (event-basic-type ev)
-			   (list mouse-wheel-down-event mouse-wheel-up-event
-				 mouse-wheel-right-event
-				 mouse-wheel-left-event)))
+			   `( ,mouse-wheel-down-event ,mouse-wheel-up-event
+			      ,mouse-wheel-right-event ,mouse-wheel-left-event
+			      wheel-down wheel-up wheel-left wheel-right)))
 		 nil)
 		(noerror nil)
 		(t
@@ -763,6 +761,13 @@ This function assumes that the events can be stored in a string."
 
 (defun edmacro-parse-keys (string &optional _need-vector)
   (let ((result (kbd string)))
+    ;; Always return a vector.  Stefan Monnier <monnier@iro.umontreal.ca>
+    ;; writes: "I want to eliminate the use of strings that stand for a
+    ;; sequence of events because it does nothing more than leave latent
+    ;; bugs and create confusion (between the strings used as input to
+    ;; `read-kbd-macro' and the strings that used to be output by
+    ;; `read-kbd-macro'), while increasing the complexity of the rest of
+    ;; the code which has to handle both vectors and strings."
     (if (stringp result)
         (seq-into result 'vector)
       result)))

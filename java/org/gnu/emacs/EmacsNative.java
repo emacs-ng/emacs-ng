@@ -1,6 +1,6 @@
 /* Communication module for Android terminals.  -*- c-file-style: "GNU" -*-
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -26,6 +26,7 @@ import android.graphics.Bitmap;
 import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.SurroundingText;
+import android.view.inputmethod.TextAttribute;
 import android.view.inputmethod.TextSnapshot;
 
 public final class EmacsNative
@@ -37,6 +38,9 @@ public final class EmacsNative
 
   /* Like `dup' in C.  */
   public static native int dup (int fd);
+
+  /* Like `close' in C.  */
+  public static native int close (int fd);
 
   /* Obtain the fingerprint of this build of Emacs.  The fingerprint
      can be used to determine the dump file name.  */
@@ -87,6 +91,13 @@ public final class EmacsNative
      DUMPFILE is the dump file to use, or NULL if Emacs is to load
      loadup.el itself.  */
   public static native void initEmacs (String argv[], String dumpFile);
+
+  /* Call shut_down_emacs to auto-save and unlock files in the main
+     thread, then return.  */
+  public static native void shutDownEmacs ();
+
+  /* Garbage collect and clear each frame's image cache.  */
+  public static native void onLowMemory ();
 
   /* Abort and generate a native core dump.  */
   public static native void emacsAbort ();
@@ -174,6 +185,17 @@ public final class EmacsNative
   public static native long sendExpose (short window, int x, int y,
 					int width, int height);
 
+  /* Send an ANDROID_DND_DRAG event.  */
+  public static native long sendDndDrag (short window, int x, int y);
+
+  /* Send an ANDROID_DND_URI event.  */
+  public static native long sendDndUri (short window, int x, int y,
+					String text);
+
+  /* Send an ANDROID_DND_TEXT event.  */
+  public static native long sendDndText (short window, int x, int y,
+					 String text);
+
   /* Return the file name associated with the specified file
      descriptor, or NULL if there is none.  */
   public static native byte[] getProcName (int fd);
@@ -219,6 +241,9 @@ public final class EmacsNative
 						   int leftLength,
 						   int rightLength);
   public static native void finishComposingText (short window);
+  public static native void replaceText (short window, int start, int end,
+					 String text, int newCursorPosition,
+					 TextAttribute attributes);
   public static native String getSelectedText (short window, int flags);
   public static native String getTextAfterCursor (short window, int length,
 						  int flags);

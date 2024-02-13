@@ -20,8 +20,7 @@ This is the @cite{GNU Emacs Manual},
 @end ifclear
 updated for Emacs version @value{EMACSVER}.
 
-Copyright @copyright{} 1985--1987, 1993--2023 Free Software Foundation,
-Inc.
+Copyright @copyright{} 1985--2024 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -150,6 +149,7 @@ Important General Concepts
                           editing action.
 * Mouse Input::         Using the mouse and keypads.
 * Commands::            Named functions run by key sequences to do editing.
+* Other Input::         Input besides the mouse, keyboard and keypads.
 * Entering Emacs::      Starting Emacs from the shell.
 * Exiting::             Stopping or killing Emacs.
 
@@ -225,7 +225,6 @@ Appendices
 * Haiku::               Using Emacs on Haiku.
 * Android::             Using Emacs on Android.
 * Microsoft Windows::   Using Emacs on Microsoft Windows and MS-DOS.
-* Other Input Devices:: Using Emacs with other input devices.
 * Manifesto::           What's GNU?  Gnu's Not Unix!
 
 * Glossary::            Terms used in this manual.
@@ -258,6 +257,10 @@ The Organization of the Screen
 * Echo Area::           Short messages appear at the bottom of the screen.
 * Mode Line::           Interpreting the mode line.
 * Menu Bar::            How to use the menu bar.
+
+Touchscreen Input and Virtual Keyboards
+* Touchscreens::        Interacting with Emacs from touchscreens.
+* On-Screen Keyboards:: Text input with virtual keyboards.
 
 Basic Editing Commands
 
@@ -553,7 +556,7 @@ Frames and Graphical Displays
 * Dialog Boxes::        Controlling use of dialog boxes.
 * Tooltips::            Displaying information at the current mouse position.
 * Mouse Avoidance::     Preventing the mouse pointer from obscuring text.
-* Non-Window Terminals::  Multiple frames on terminals that show only one.
+* Text Terminals::      Multiple frames on terminals that show only one.
 * Text-Only Mouse::     Using the mouse in text terminals.
 
 International Character Set Support
@@ -595,6 +598,7 @@ Indentation
 * Tab Stops::             Stop points for indentation in Text modes.
 * Just Spaces::           Using only space characters for indentation.
 * Indent Convenience::    Optional indentation features.
+* Code Alignment::        Making common parts of lines start at the same column.
 
 Commands for Human Languages
 
@@ -1274,11 +1278,6 @@ Emacs and Android
 * Android Troubleshooting::     Dealing with problems.
 * Android Software::            Getting extra software.
 
-Emacs and Unconventional Input Devices
-
-* Touchscreens::        Using Emacs on touchscreens.
-* On-Screen Keyboards:: Using Emacs with virtual keyboards.
-
 Emacs and Microsoft Windows/MS-DOS
 
 * Windows Startup::     How to start Emacs on Windows.
@@ -1652,7 +1651,6 @@ Lisp programming.
 @include android.texi
 @c Includes msdos-xtra.
 @include msdos.texi
-@include input.texi
 @include gnu.texi
 @include glossary.texi
 @ifnottex

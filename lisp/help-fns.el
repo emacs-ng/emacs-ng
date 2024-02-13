@@ -1,6 +1,6 @@
 ;;; help-fns.el --- Complex help functions -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1993-1994, 1998-2023 Free Software
+;; Copyright (C) 1985-1986, 1993-1994, 1998-2024 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -741,17 +741,28 @@ the C sources, too."
 
 (defun help-fns--parent-mode (function)
   ;; If this is a derived mode, link to the parent.
-  (let ((parent-mode (and (symbolp function)
-                          (get function
-                               'derived-mode-parent))))
+  (when (symbolp function)
+    (let ((parent-mode (get function 'derived-mode-parent))
+          (extra-parents (get function 'derived-mode-extra-parents)))
     (when parent-mode
       (insert (substitute-quotes "  Parent mode: `"))
       (let ((beg (point)))
-        (insert (format "%s" parent-mode))
+        (insert (format "%S" parent-mode))
         (make-text-button beg (point)
                           'type 'help-function
                           'help-args (list parent-mode)))
-      (insert (substitute-quotes "'.\n")))))
+      (insert (substitute-quotes "'.\n")))
+    (when extra-parents
+      (insert (format "  Extra parent mode%s:" (if (cdr extra-parents) "s" "")))
+      (dolist (parent extra-parents)
+        (insert (substitute-quotes " `"))
+        (let ((beg (point)))
+          (insert (format "%S" parent))
+          (make-text-button beg (point)
+                            'type 'help-function
+                            'help-args (list parent)))
+        (insert (substitute-quotes "'")))
+      (insert ".\n")))))
 
 (defun help-fns--obsolete (function)
   ;; Ignore lambda constructs, keyboard macros, etc.
@@ -767,7 +778,7 @@ the C sources, too."
 	      " is obsolete")
       (when (nth 2 obsolete)
         (insert (format " since %s" (nth 2 obsolete))))
-      (insert (cond ((stringp use) (concat "; " use))
+      (insert (cond ((stringp use) (concat "; " (substitute-quotes use)))
                     (use (format-message "; use `%s' instead." use))
                     (t "."))
               "\n")
@@ -1788,9 +1799,8 @@ If FRAME is omitted or nil, use the selected frame."
                            alias)
                         ""))))
 		  (insert "\nDocumentation:\n"
-                          (substitute-command-keys
-                           (or (face-documentation face)
-                               "Not documented as a face."))
+                          (or (face-documentation face)
+                              "Not documented as a face.")
 			  "\n\n"))
 	        (with-current-buffer standard-output
 		  (save-excursion
@@ -2239,7 +2249,7 @@ documentation for the major and minor modes of that buffer."
                   (not (get sym 'byte-obsolete-info))
                   ;; Ignore everything bound.
                   (not (where-is-internal sym nil t))
-                  (apply #'derived-mode-p (command-modes sym)))
+                  (derived-mode-p (command-modes sym)))
          (push sym functions))))
     (with-temp-buffer
       (when functions

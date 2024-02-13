@@ -1,6 +1,6 @@
 ;;; bytecomp-tests.el --- Tests for bytecomp.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2024 Free Software Foundation, Inc.
 
 ;; Author: Shigeru Fukaya <shigeru.fukaya@gmail.com>
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
@@ -643,6 +643,16 @@ inner loops respectively."
       (funcall (car f) 3)
       (list a b))
 
+    (let ((x (list 1)))
+      (let ((y x)
+            (z (setq x (vector x))))
+        (list x y z)))
+
+    (let ((x (list 1)))
+      (let* ((y x)
+             (z (setq x (vector x))))
+        (list x y z)))
+
     (cond)
     (mapcar (lambda (x) (cond ((= x 0)))) '(0 1))
 
@@ -707,7 +717,7 @@ inner loops respectively."
       (set (make-local-variable 'bytecomp-tests--xx) 2)
       bytecomp-tests--xx)
 
-    ;; Check for-effect optimisation of `condition-case' body form.
+    ;; Check for-effect optimization of `condition-case' body form.
     ;; With `condition-case' in for-effect context:
     (let ((x (bytecomp-test-identity ?A))
           (r nil))
@@ -787,7 +797,7 @@ inner loops respectively."
     (let ((x 0))
       (list (= (setq x 1))
             x))
-    ;; Aristotelian identity optimisation
+    ;; Aristotelian identity optimization
     (let ((x (bytecomp-test-identity 1)))
       (list (eq x x) (eql x x) (equal x x)))
     )
@@ -837,6 +847,22 @@ byte-compiled.  Run with dynamic binding."
       (ert-info ((prin1-to-string form) :prefix "form: ")
         (should (equal (bytecomp-tests--eval-interpreted form)
                        (bytecomp-tests--eval-compiled form)))))))
+
+(ert-deftest bytecomp--fun-value-as-head ()
+  ;; Check that (FUN-VALUE ...) is a valid call, for compatibility (bug#68931).
+  ;; (There is also a warning but this test does not check that.)
+  (dolist (lb '(nil t))
+    (ert-info ((prin1-to-string lb) :prefix "lexical-binding: ")
+      (let* ((lexical-binding lb)
+             (s-int '(lambda (x) (1+ x)))
+             (s-comp (byte-compile s-int))
+             (v-int (lambda (x) (1+ x)))
+             (v-comp (byte-compile v-int))
+             (comp (lambda (f) (funcall (byte-compile `(lambda () (,f 3)))))))
+        (should (equal (funcall comp s-int) 4))
+        (should (equal (funcall comp s-comp) 4))
+        (should (equal (funcall comp v-int) 4))
+        (should (equal (funcall comp v-comp) 4))))))
 
 (defmacro bytecomp-tests--with-fresh-warnings (&rest body)
   `(let ((macroexp--warned            ; oh dear
@@ -1302,6 +1328,30 @@ byte-compiled.  Run with dynamic binding."
        (let ((elc (concat ,file-name-var ".elc")))
          (if (file-exists-p elc) (delete-file elc))))))
 
+(defun bytecomp-tests--log-from-compilation (source)
+  "Compile the string SOURCE and return the compilation log output."
+  (let ((text-quoting-style 'grave)
+        (byte-compile-log-buffer (generate-new-buffer " *Compile-Log*")))
+    (with-current-buffer byte-compile-log-buffer
+      (let ((inhibit-read-only t)) (erase-buffer)))
+    (bytecomp-tests--with-temp-file el-file
+      (write-region source nil el-file)
+      (byte-compile-file el-file))
+    (with-current-buffer byte-compile-log-buffer
+      (buffer-string))))
+
+(ert-deftest bytecomp-tests--lexical-binding-cookie ()
+  (cl-flet ((cookie-warning (source)
+              (string-search
+               "file has no `lexical-binding' directive on its first line"
+               (bytecomp-tests--log-from-compilation source))))
+    (let ((some-code "(defun my-fun () 12)\n"))
+      (should-not (cookie-warning
+                   (concat ";;; -*-lexical-binding:t-*-\n" some-code)))
+      (should-not (cookie-warning
+                   (concat ";;; -*-lexical-binding:nil-*-\n" some-code)))
+      (should (cookie-warning some-code)))))
+
 (ert-deftest bytecomp-tests--unescaped-char-literals ()
   "Check that byte compiling warns about unescaped character
 literals (Bug#20852)."
@@ -1310,7 +1360,9 @@ literals (Bug#20852)."
         (byte-compile-debug t)
         (text-quoting-style 'grave))
     (bytecomp-tests--with-temp-file source
-      (write-region "(list ?) ?( ?; ?\" ?[ ?])" nil source)
+      (write-region (concat ";;; -*-lexical-binding:t-*-\n"
+                            "(list ?) ?( ?; ?\" ?[ ?])")
+                    nil source)
       (bytecomp-tests--with-temp-file destination
         (let* ((byte-compile-dest-file-function (lambda (_) destination))
                (err (should-error (byte-compile-file source))))
@@ -1322,7 +1374,9 @@ literals (Bug#20852)."
                                     "`?\\]' expected!")))))))
     ;; But don't warn in subsequent compilations (Bug#36068).
     (bytecomp-tests--with-temp-file source
-      (write-region "(list 1 2 3)" nil source)
+      (write-region (concat ";;; -*-lexical-binding:t-*-\n"
+                            "(list 1 2 3)")
+                    nil source)
       (bytecomp-tests--with-temp-file destination
         (let ((byte-compile-dest-file-function (lambda (_) destination)))
           (should (byte-compile-file source)))))))
@@ -1330,6 +1384,7 @@ literals (Bug#20852)."
 (ert-deftest bytecomp-tests-function-put ()
   "Check `function-put' operates during compilation."
   (bytecomp-tests--with-temp-file source
+    (insert  ";;; -*-lexical-binding:t-*-\n")
     (dolist (form '((function-put 'bytecomp-tests--foo 'foo 1)
                     (function-put 'bytecomp-tests--foo 'bar 2)
                     (defmacro bytecomp-tests--foobar ()
@@ -1636,7 +1691,8 @@ writable (Bug#44631)."
            (byte-compile-error-on-warn t))
       (unwind-protect
           (progn
-            (write-region "" nil input-file nil nil nil 'excl)
+            (write-region ";;; -*-lexical-binding:t-*-\n"
+                          nil input-file nil nil nil 'excl)
             (write-region "" nil output-file nil nil nil 'excl)
             (set-file-modes input-file #o400)
             (set-file-modes output-file #o200)
@@ -1667,7 +1723,8 @@ mountpoint (Bug#44631)."
              (byte-compile-error-on-warn t))
         (should-not (file-remote-p input-file))
         (should-not (file-remote-p output-file))
-        (write-region "" nil input-file nil nil nil 'excl)
+        (write-region ";;; -*-lexical-binding:t-*-\n"
+                      nil input-file nil nil nil 'excl)
         (write-region "" nil output-file nil nil nil 'excl)
         (unwind-protect
             (progn
@@ -1700,7 +1757,8 @@ mountpoint (Bug#44631)."
     (let* ((default-directory directory)
            (byte-compile-dest-file-function (lambda (_) "test.elc"))
            (byte-compile-error-on-warn t))
-      (write-region "" nil "test.el" nil nil nil 'excl)
+      (write-region  ";;; -*-lexical-binding:t-*-\n"
+                     nil "test.el" nil nil nil 'excl)
       (should (byte-compile-file "test.el"))
       (should (file-regular-p "test.elc"))
       (should (cl-plusp (file-attribute-size
@@ -2045,18 +2103,12 @@ EXPECTED-POINT BINDINGS (MODES \\='\\='(ruby-mode js-mode python-mode)) \
 
 (defun bytecomp-tests--error-frame (fun args)
   "Call FUN with ARGS.  Return result or (ERROR . BACKTRACE-FRAME)."
-  (let* ((debugger
-          (lambda (&rest args)
-            ;; Make sure Emacs doesn't think our debugger is buggy.
-            (cl-incf num-nonmacro-input-events)
-            (throw 'bytecomp-tests--backtrace
-                   (cons args (cadr (backtrace-get-frames debugger))))))
-         (debug-on-error t)
-         (backtrace-on-error-noninteractive nil)
-         (debug-on-quit t)
-         (debug-ignored-errors nil))
+  (letrec ((handler (lambda (e)
+                      (throw 'bytecomp-tests--backtrace
+                             (cons e (cadr (backtrace-get-frames handler)))))))
     (catch 'bytecomp-tests--backtrace
-      (apply fun args))))
+      (handler-bind ((error handler))
+        (apply fun args)))))
 
 (defconst bytecomp-tests--byte-op-error-cases
   '(((car a) (wrong-type-argument listp a))
@@ -2078,7 +2130,7 @@ EXPECTED-POINT BINDINGS (MODES \\='\\='(ruby-mode js-mode python-mode)) \
     ))
 
 (ert-deftest bytecomp--byte-op-error-backtrace ()
-  "Check that signalling byte ops show up in the backtrace."
+  "Check that signaling byte ops show up in the backtrace."
   (dolist (case bytecomp-tests--byte-op-error-cases)
     (ert-info ((prin1-to-string case) :prefix "case: ")
       (let* ((call (nth 0 case))
@@ -2101,7 +2153,7 @@ EXPECTED-POINT BINDINGS (MODES \\='\\='(ruby-mode js-mode python-mode)) \
                               `(lambda ,formals (,fun-sym ,@formals)))))))
                    (error-frame (bytecomp-tests--error-frame fun actuals)))
               (should (consp error-frame))
-              (should (equal (car error-frame) (list 'error expected-error)))
+              (should (equal (car error-frame) expected-error))
               (let ((frame (cdr error-frame)))
                 (should (equal (type-of frame) 'backtrace-frame))
                 (should (equal (cons (backtrace-frame-fun frame)
@@ -2109,7 +2161,7 @@ EXPECTED-POINT BINDINGS (MODES \\='\\='(ruby-mode js-mode python-mode)) \
                                call))))))))))
 
 (ert-deftest bytecomp--eq-symbols-with-pos-enabled ()
-  ;; Verify that we don't optimise away a binding of
+  ;; Verify that we don't optimize away a binding of
   ;; `symbols-with-pos-enabled' around an application of `eq' (bug#65017).
   (let* ((sym-with-pos1 (read-positioning-symbols "sym"))
          (sym-with-pos2 (read-positioning-symbols " sym"))  ; <- space!

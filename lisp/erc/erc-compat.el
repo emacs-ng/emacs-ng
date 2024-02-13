@@ -1,6 +1,6 @@
 ;;; erc-compat.el --- ERC compatibility code for older Emacsen  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2003, 2005-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2003, 2005-2024 Free Software Foundation, Inc.
 
 ;; Author: Alex Schroeder <alex@gnu.org>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
@@ -102,7 +102,7 @@ See `erc-encoding-coding-alist'."
 
 (defun erc-set-write-file-functions (new-val)
   (declare (obsolete nil "28.1"))
-  (set (make-local-variable 'write-file-functions) new-val))
+  (setq-local write-file-functions new-val))
 
 (defvar erc-emacs-build-time
   (if (or (stringp emacs-build-time) (not emacs-build-time))
@@ -444,6 +444,41 @@ If START or END is negative, it counts from the end."
                  (cons '("\\`irc6?s?://" . erc-compat--29-browse-url-irc)
                        existing))))))
 
+;; We can't store (TICKS . HZ) style timestamps on 27 and 28 because
+;; `time-less-p' and friends do
+;;
+;;   message("obsolete timestamp with cdr ...", ...)
+;;   decode_lisp_time(_, WARN_OBSOLETE_TIMESTAMPS, ...)
+;;   lisp_time_struct(...)
+;;   time_cmp(...)
+;;
+;; which spams *Messages* (and stderr when running the test suite).
+(defmacro erc-compat--current-lisp-time ()
+  "Return `current-time' as a (TICKS . HZ) pair on 29+."
+  (if (>= emacs-major-version 29)
+      '(let (current-time-list) (current-time))
+    '(current-time)))
+
+(defmacro erc-compat--defer-format-spec-in-buffer (&rest spec)
+  "Transform SPEC forms into functions that run in the current buffer.
+For convenience, ensure function wrappers return \"\" as a
+fallback."
+  (cl-check-type (car spec) cons)
+  (let ((buffer (make-symbol "buffer")))
+    `(let ((,buffer (current-buffer)))
+       ,(list '\`
+              (mapcar
+               (pcase-lambda (`(,k . ,v))
+                 (cons k
+                       (list '\,(if (>= emacs-major-version 29)
+                                    `(lambda ()
+                                       (or (if (eq ,buffer (current-buffer))
+                                               ,v
+                                             (with-current-buffer ,buffer
+                                               ,v))
+                                           ""))
+                                  `(or ,v "")))))
+               spec)))))
 
 (provide 'erc-compat)
 

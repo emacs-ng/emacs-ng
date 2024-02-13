@@ -1,6 +1,6 @@
 ;;; comp-tests.el --- unit tests for src/comp.c      -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2024 Free Software Foundation, Inc.
 
 ;; Author: Andrea Corallo <acorallo@gnu.org>
 
@@ -28,6 +28,7 @@
 (require 'ert)
 (require 'ert-x)
 (require 'cl-lib)
+(require 'cl-seq)
 (require 'comp)
 (require 'comp-cstr)
 
@@ -327,6 +328,14 @@ Check that the resulting binaries do not differ."
     (should (subr-native-elisp-p f))
     (should (= (funcall f 3) 4))))
 
+(comp-deftest lambda-return2 ()
+  "Check a nested lambda function gets native compiled."
+  (let ((f (comp-tests-lambda-return-f2)))
+    (should (subr-native-elisp-p f))
+    (let ((f2 (funcall f)))
+      (should (subr-native-elisp-p f2))
+      (should (= (funcall f2 3) 4)))))
+
 (comp-deftest recursive ()
   (should (= (comp-tests-fib-f 10) 55)))
 
@@ -388,7 +397,27 @@ Check that the resulting binaries do not differ."
                    "Some doc."))
   (should (commandp #'comp-tests-free-fun-f))
   (should (equal (interactive-form #'comp-tests-free-fun-f)
-                 '(interactive))))
+                 '(interactive nil))))
+
+(declare-function comp-tests-free-fun-f2 nil)
+
+(comp-deftest free-fun2 ()
+  "Check compiling a symbol's function compiles contained lambdas."
+  (eval '(defun comp-tests-free-fun-f2 ()
+           (lambda (x)
+             "Some doc."
+             (interactive)
+             x)))
+  (native-compile #'comp-tests-free-fun-f2)
+
+  (let* ((f (symbol-function 'comp-tests-free-fun-f2))
+         (f2 (funcall f)))
+    (should (subr-native-elisp-p f))
+    (should (subr-native-elisp-p f2))
+    (should (string= (documentation f2) "Some doc."))
+    (should (commandp f2))
+    (should (equal (interactive-form f2) '(interactive nil)))
+    (should (= (funcall f2 3) 3))))
 
 (declare-function comp-tests/free\fun-f nil)
 
@@ -553,6 +582,10 @@ dedicated byte-op code."
       (funcall x)
       (advice-remove #'delete-region f)
       (should (equal comp-test-primitive-redefine-args '(1 2))))))
+
+(comp-deftest 67239-1 ()
+  "<https://lists.gnu.org/archive/html/bug-gnu-emacs/2023-11/msg00925.html>"
+  (should-not (comp-test-67239-1-f)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;
@@ -871,14 +904,33 @@ Return a list of results."
     (should (subr-native-elisp-p (symbol-function 'comp-tests-fw-prop-1-f)))
     (should (= (comp-tests-fw-prop-1-f) 6))))
 
+(defun comp-tests--type-lists-equal (l1 l2)
+  (and (= (length l1) (length l2))
+       (cl-every #'comp-tests--types-equal l1 l2)))
+
+(defun comp-tests--types-equal (t1 t2)
+ "Whether the types T1 and T2 are equal."
+ (or (equal t1 t2)   ; for atoms, and optimization for the common case
+     (and (consp t1) (consp t2)
+          (eq (car t1) (car t2))
+          (cond ((memq (car t1) '(and or member))
+                 ;; Order or duplicates don't matter.
+                 (null (cl-set-exclusive-or (cdr t1) (cdr t2)
+                                            :test #'comp-tests--types-equal)))
+                ((eq (car t1) 'function)
+                 (and (comp-tests--type-lists-equal (nth 1 t1) (nth 1 t2))
+                      (comp-tests--types-equal (nth 2 t1) (nth 2 t2))))
+                (t (comp-tests--type-lists-equal (cdr t1) (cdr t2)))))))
+
 (defun comp-tests-check-ret-type-spec (func-form ret-type)
   (let ((lexical-binding t)
         (native-comp-speed 2)
         (f-name (cl-second func-form)))
     (eval func-form t)
     (native-compile f-name)
-    (should (equal (cl-third (subr-type (symbol-function f-name)))
-                   ret-type))))
+    (should (comp-tests--types-equal
+             (cl-third (subr-type (symbol-function f-name)))
+             ret-type))))
 
 (cl-eval-when (compile eval load)
   (cl-defstruct comp-foo a b)
@@ -977,7 +1029,7 @@ Return a list of results."
          (if (= x y)
              x
            'foo))
-       '(or (member foo) marker number))
+       '(or (member foo) number-or-marker))
 
       ;; 14
       ((defun comp-tests-ret-type-spec-f (x)
@@ -1117,7 +1169,7 @@ Return a list of results."
       ((defun comp-tests-ret-type-spec-f (x)
 	 (when (> x 1.0)
 	   x))
-       '(or null marker number))
+       '(or null number-or-marker))
 
       ;; 36
       ((defun comp-tests-ret-type-spec-f (x y)

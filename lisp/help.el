@@ -1,6 +1,6 @@
 ;;; help.el --- help commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1993-1994, 1998-2023 Free Software
+;; Copyright (C) 1985-1986, 1993-1994, 1998-2024 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -171,7 +171,10 @@ buffer.")
 
 ;; Inspired by a mg fork (https://github.com/troglobit/mg)
 (defun help-quick ()
-  "Display a quick-help buffer."
+  "Display a quick-help buffer showing popular commands and their bindings.
+The window showing quick-help can be toggled using \\[help-quick-toggle].
+You can click on a key binding shown in the quick-help buffer to display
+the documentation of the command bound to that key sequence."
   (interactive)
   (with-current-buffer (get-buffer-create "*Quick Help*")
     (let ((inhibit-read-only t) (padding 2) blocks)
@@ -192,7 +195,7 @@ buffer.")
                       max-key-len (max (length key) max-key-len))
                 (push (list key (cdr ent) (car ent)) keys))))
           (when keys
-            (let ((fmt (format "%%-%ds %%-%ds%s" max-key-len max-cmd-len
+            (let ((fmt (format "%%s %%-%ds%s" max-cmd-len
                                (make-string padding ?\s)))
                   (width (+ max-key-len 1 max-cmd-len padding)))
               (push `(,width
@@ -203,10 +206,12 @@ buffer.")
                         'face 'bold)
                       ,@(mapcar (lambda (ent)
                                   (format fmt
-                                          (propertize
-                                           (car ent)
-                                           'quick-help-cmd
-                                           (caddr ent))
+                                          (concat
+                                           (propertize
+                                            (car ent)
+                                            'quick-help-cmd
+                                            (caddr ent))
+                                           (make-string (- max-key-len (length (car ent))) ?\s))
                                           (cadr ent)))
                                 keys))
                     blocks)))))
@@ -244,10 +249,14 @@ buffer.")
       ;; ... and shrink it immediately.
       (fit-window-to-buffer))
     (message
-     (substitute-command-keys "Toggle the quick help buffer using \\[help-quick-toggle]."))))
+     (substitute-command-keys "Toggle display of quick-help buffer using \\[help-quick-toggle]."))))
 
 (defun help-quick-toggle ()
-  "Toggle the quick-help window."
+  "Toggle display of a window showing popular commands and their bindings.
+This toggles on and off the display of the quick-help buffer, which shows
+popular commands and their bindings as produced by `help-quick'.
+You can click on a key binding shown in the quick-help buffer to display
+the documentation of the command bound to that key sequence."
   (interactive)
   (if (and-let* ((window (get-buffer-window "*Quick Help*")))
         (quit-window t window))
@@ -2243,6 +2252,27 @@ The `temp-buffer-window-setup-hook' hook is called."
     (if (stringp msg)
 	(with-output-to-temp-buffer " *Char Help*"
 	  (princ msg)))))
+
+(defun help--append-keystrokes-help (str)
+  (let* ((keys (this-single-command-keys))
+         (bindings (delete nil
+                           (mapcar (lambda (map) (lookup-key map keys t))
+                                   (current-active-maps t)))))
+    (catch 'res
+      (dolist (val help-event-list)
+        (let ((key (vector (if (eql val 'help)
+                               help-char
+                             val))))
+          (unless (seq-find (lambda (map) (and (keymapp map) (lookup-key map key)))
+                            bindings)
+            (throw 'res
+                   (concat
+                    str
+                    (substitute-command-keys
+                     (format
+                      " (\\`%s' for help)"
+                      (key-description key))))))))
+      str)))
 
 
 (defun help--docstring-quote (string)

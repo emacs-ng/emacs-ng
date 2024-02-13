@@ -1,6 +1,6 @@
 @c -*- coding: utf-8 -*-
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2023 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2024 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Text
@@ -943,12 +943,12 @@ situations where you shouldn't change the major mode---in mail
 composition, for instance.
 
 @kindex M-TAB @r{(Text mode)}
-  Text mode binds @kbd{M-@key{TAB}} to @code{ispell-complete-word}.
-This command performs completion of the partial word in the buffer
-before point, using the spelling dictionary as the space of possible
-words.  @xref{Spelling}.  If your window manager defines
-@kbd{M-@key{TAB}} to switch windows, you can type @kbd{@key{ESC}
-@key{TAB}} or @kbd{C-M-i} instead.
+  The command @kbd{M-@key{TAB}} (@code{completion-at-point}) performs
+completion of the partial word in the buffer before point, using the
+spelling dictionary as the space of possible words by default.
+@xref{Spelling}.  If your window manager defines @kbd{M-@key{TAB}} to
+switch windows, you can type @kbd{@key{ESC} @key{TAB}} or @kbd{C-M-i}
+instead.
 
 @vindex text-mode-hook
   Entering Text mode runs the mode hook @code{text-mode-hook}
@@ -1096,6 +1096,12 @@ that the length of the text matched on a chapter heading is shorter,
 so that Outline mode will know that sections are contained in
 chapters.  This works as long as no other command starts with
 @samp{@@chap}.
+
+@vindex outline-search-function
+  Instead of setting the variable @code{outline-regexp}, you can set
+the variable @code{outline-search-function} to a function that
+matches the current heading and searches for the next one
+(@pxref{Outline Minor Mode,,,elisp, the Emacs Lisp Reference Manual}).
 
 @vindex outline-level
   You can explicitly specify a rule for calculating the level of a

@@ -1,6 +1,6 @@
 ;;; isearch.el --- incremental search minor mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-1997, 1999-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1997, 1999-2024 Free Software Foundation, Inc.
 
 ;; Author: Daniel LaLiberte <liberte@cs.uiuc.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -282,13 +282,13 @@ Value is nil, t, or a function.
 
 If nil, default to literal searches (note that `case-fold-search'
 and `isearch-lax-whitespace' may still be applied).\\<isearch-mode-map>
-If t, default to regexp searches (as if typing `\\[isearch-toggle-regexp]' during
+If t, default to regexp searches (as if typing \\[isearch-toggle-regexp] during
 isearch).
 
 If a function, use that function as an `isearch-regexp-function'.
 Example functions (and the keys to toggle them during isearch)
-are `word-search-regexp' \(`\\[isearch-toggle-word]'), `isearch-symbol-regexp'
-\(`\\[isearch-toggle-symbol]'), and `char-fold-to-regexp' \(`\\[isearch-toggle-char-fold]')."
+are `word-search-regexp' \(\\[isearch-toggle-word]), `isearch-symbol-regexp'
+\(\\[isearch-toggle-symbol]), and `char-fold-to-regexp' \(\\[isearch-toggle-char-fold])."
   ;; :type is set below by `isearch-define-mode-toggle'.
   :type '(choice (const :tag "Literal search" nil)
                  (const :tag "Regexp search" t)
@@ -2875,7 +2875,8 @@ The command accepts Unicode names like \"smiling face\" or
       (isearch-search)
       (when (and (memq isearch-wrap-pause '(no no-ding))
                  (not isearch-success))
-        (isearch-repeat (if isearch-forward 'forward 'backward)))))
+        (let ((isearch-cmds isearch-cmds))
+          (isearch-repeat (if isearch-forward 'forward 'backward))))))
   (isearch-push-state)
   (if isearch-op-fun (funcall isearch-op-fun))
   (isearch-update))
@@ -4054,6 +4055,7 @@ since they have special meaning in a regexp."
 (defvar isearch-lazy-highlight-point-max nil)
 (defvar isearch-lazy-highlight-buffer nil)
 (defvar isearch-lazy-highlight-case-fold-search nil)
+(defvar isearch-lazy-highlight-invisible nil)
 (defvar isearch-lazy-highlight-regexp nil)
 (defvar isearch-lazy-highlight-lax-whitespace nil)
 (defvar isearch-lazy-highlight-regexp-lax-whitespace nil)
@@ -4099,6 +4101,8 @@ by other Emacs features."
                             isearch-lazy-highlight-window-group))
 		 (not (eq isearch-lazy-highlight-case-fold-search
 			  isearch-case-fold-search))
+		 (not (eq isearch-lazy-highlight-invisible
+		          isearch-invisible))
 		 (not (eq isearch-lazy-highlight-regexp
 			  isearch-regexp))
 		 (not (eq isearch-lazy-highlight-regexp-function
@@ -4177,6 +4181,7 @@ by other Emacs features."
 	  isearch-lazy-highlight-wrapped      nil
 	  isearch-lazy-highlight-last-string  isearch-string
 	  isearch-lazy-highlight-case-fold-search isearch-case-fold-search
+	  isearch-lazy-highlight-invisible isearch-invisible
 	  isearch-lazy-highlight-regexp       isearch-regexp
 	  isearch-lazy-highlight-lax-whitespace   isearch-lax-whitespace
 	  isearch-lazy-highlight-regexp-lax-whitespace isearch-regexp-lax-whitespace
@@ -4226,8 +4231,10 @@ Attempt to do the search exactly the way the pending Isearch would."
 	    (isearch-forward isearch-lazy-highlight-forward)
 	    ;; Count all invisible matches, but highlight only
 	    ;; matches that can be opened by visiting them later
-	    (search-invisible (or (not (null isearch-lazy-count))
-				  'can-be-opened))
+	    (search-invisible
+             (or (not (null isearch-lazy-count))
+		 (and (eq isearch-lazy-highlight-invisible 'open)
+                      'can-be-opened)))
 	    (retry t)
 	    (success nil))
 	;; Use a loop like in `isearch-search'.
@@ -4247,7 +4254,9 @@ Attempt to do the search exactly the way the pending Isearch would."
   (when (or (not isearch-lazy-count)
             ;; Recheck the match that possibly was intended
             ;; for counting only, but not for highlighting
-            (let ((search-invisible 'can-be-opened))
+            (let ((search-invisible
+                   (and (eq isearch-lazy-highlight-invisible 'open)
+                        'can-be-opened)))
               (funcall isearch-filter-predicate mb me)))
     (let ((ov (make-overlay mb me)))
       (push ov isearch-lazy-highlight-overlays)
@@ -4396,9 +4405,9 @@ Attempt to do the search exactly the way the pending Isearch would."
 			  ;; value `open' since then lazy-highlight
 			  ;; will open all overlays with matches.
 			  (if (not (let ((search-invisible
-					  (if (eq search-invisible 'open)
+					  (if (eq isearch-lazy-highlight-invisible 'open)
 					      'can-be-opened
-					    search-invisible)))
+					    isearch-lazy-highlight-invisible)))
 				     (funcall isearch-filter-predicate mb me)))
 			      (setq isearch-lazy-count-invisible
 				    (1+ (or isearch-lazy-count-invisible 0)))

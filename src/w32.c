@@ -1,6 +1,6 @@
 /* Utility and Unix shadow routines for GNU Emacs on the Microsoft Windows API.
 
-Copyright (C) 1994-1995, 2000-2023 Free Software Foundation, Inc.
+Copyright (C) 1994-1995, 2000-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -9387,7 +9387,7 @@ sys_write (int fd, const void * buffer, unsigned int count)
 	 break them into smaller chunks.  See the Comments section of
 	 the MSDN documentation of WriteFile for details behind the
 	 choice of the value of CHUNK below.  See also the thread
-	 http://thread.gmane.org/gmane.comp.version-control.git/145294
+	 http://thread.gmane.org/gmane.comp.version-control.git/145294 [dead link]
 	 in the git mailing list.  */
       const unsigned char *p = buffer;
       const bool is_pipe = (fd < MAXDESC
@@ -9414,7 +9414,7 @@ sys_write (int fd, const void * buffer, unsigned int count)
       errno = 0;
       while (count > 0)
 	{
-	  unsigned this_chunk = count < chunk ? count : chunk;
+	  unsigned this_chunk = min (count, chunk);
 	  int n = _write (fd, p, this_chunk);
 
 	  if (n > 0)

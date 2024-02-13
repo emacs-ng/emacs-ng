@@ -1,6 +1,6 @@
 ;;; tramp-fuse.el --- Tramp access functions for FUSE mounts  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -102,22 +102,12 @@
 
 (defun tramp-fuse-handle-file-name-all-completions (filename directory)
   "Like `file-name-all-completions' for Tramp files."
-  (tramp-fuse-remove-hidden-files
-   (ignore-error file-missing
+  (tramp-skeleton-file-name-all-completions filename directory
+    (tramp-fuse-remove-hidden-files
      (all-completions
       filename
-      (delete-dups
-       (append
-	(file-name-all-completions
-	 filename (tramp-fuse-local-file-name directory))
-	;; Some storage systems do not return "." and "..".
-	(let (result)
-	  (dolist (item '(".." ".") result)
-	    (when (string-prefix-p filename item)
-	      (catch 'match
-		(dolist (elt completion-regexp-list)
-		  (unless (string-match-p elt item) (throw 'match nil)))
-		(setq result (cons (concat item "/") result))))))))))))
+      (file-name-all-completions
+       filename (tramp-fuse-local-file-name directory))))))
 
 ;; This function isn't used.
 (defun tramp-fuse-handle-insert-directory

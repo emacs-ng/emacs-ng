@@ -1,6 +1,6 @@
 ;;; fortran.el --- Fortran mode for GNU Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 1986-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1986-2024 Free Software Foundation, Inc.
 
 ;; Author: Michael D. Prange <prange@erl.mit.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -37,7 +37,7 @@
 
 ;; We acknowledge many contributions and valuable suggestions by
 ;; Lawrence R. Dodd, Ralf Fassel, Ralph Finch, Stephen Gildea,
-;; Dr. Anil Gokhale, Ulrich Mueller, Mark Neale, Eric Prestemon,
+;; Dr. Anil Gokhale, Ulrich Müller, Mark Neale, Eric Prestemon,
 ;; Gary Sabot and Richard Stallman.
 
 ;;; Code:

@@ -1,6 +1,6 @@
 ;;; erc-scenarios-base-renick.el --- Re-nicking scenarios -*- lexical-binding: t -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -173,7 +173,7 @@
       (with-current-buffer erc-server-buffer-foo
         (should (string= (buffer-name) (format "127.0.0.1:%d" port)))))
 
-    (erc-d-t-wait-for 1 (get-buffer "foonet"))
+    (erc-d-t-wait-for 10 (get-buffer "foonet"))
 
     (ert-info ("Joined by bouncer to #foo, pal persent")
       (with-current-buffer (erc-d-t-wait-for 1 (get-buffer "#foo"))
@@ -267,7 +267,7 @@
 
     (ert-info ("Sync convo for rando@foonet")
       (with-current-buffer "rando@foonet"
-        (funcall expect 1 "u are dumb")
+        (funcall expect 10 "u are dumb")
         (erc-scenarios-common-say "not so")))
 
     (ert-info ("Sync convo for rando@barnet")

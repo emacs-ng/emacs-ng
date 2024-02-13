@@ -1,6 +1,6 @@
 /* Communication module for Android terminals.  -*- c-file-style: "GNU" -*-
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -137,7 +137,7 @@ public final class EmacsDesktopNotification
 	    priority = Notification.PRIORITY_HIGH;
 	    break;
 	  }
-	
+
 	notification = (new Notification.Builder (context)
 			.setContentTitle (title)
 			.setContentText (content)

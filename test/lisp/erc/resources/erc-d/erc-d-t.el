@@ -1,6 +1,6 @@
 ;;; erc-d-t.el --- ERT helpers for ERC test server -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -157,6 +157,7 @@ ON-SUCCESS, is nonexistent.  To reset, specify a FROM argument."
   (let (positions)
     (lambda (timeout text &optional reset-from)
       (let* ((pos (cdr (assq (current-buffer) positions)))
+             (erc-d-t--wait-message-prefix (and (< timeout 0) "Sustaining: "))
              (cb (lambda ()
                    (unless pos
                      (push (cons (current-buffer) (setq pos (make-marker)))

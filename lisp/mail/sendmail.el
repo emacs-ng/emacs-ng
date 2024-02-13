@@ -1,6 +1,6 @@
 ;;; sendmail.el --- mail sending commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1992-1996, 1998, 2000-2023 Free Software
+;; Copyright (C) 1985-1986, 1992-1996, 1998, 2000-2024 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -269,7 +269,6 @@ The default value matches citations like `foo-bar>' plus whitespace."
 (defvar mail-abbrevs-loaded nil)
 (defvar mail-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "\M-\t" 'completion-at-point)
     (define-key map "\C-c?" 'describe-mode)
     (define-key map "\C-c\C-f\C-t" 'mail-to)
     (define-key map "\C-c\C-f\C-b" 'mail-bcc)

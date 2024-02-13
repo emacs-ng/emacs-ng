@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2023 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2024 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Windows
@@ -287,7 +287,7 @@ Delete all windows in the selected frame except the selected window
 Delete the selected window and kill the buffer that was showing in it
 (@code{kill-buffer-and-window}).  The last character in this key
 sequence is a zero.
-@item M-x delete-windows-on @key{RET} @var{buffer} @key{RET}
+@item C-x w 0 @key{RET} @var{buffer} @key{RET}
 Delete windows showing the specified @var{buffer}.
 @item C-x ^
 Make selected window taller (@code{enlarge-window}).
@@ -410,6 +410,28 @@ key (@pxref{Pop Up Window}).
 selected window and (ii) prefer to either create a new frame or use a
 window on some other frame to display the desired buffer.  Several of
 these commands are bound in the @kbd{C-x 5} prefix key.
+
+@cindex dedicated window
+  Sometimes, a window is ``dedicated'' to its current buffer.
+@xref{Dedicated Windows,, elisp, The Emacs Lisp Reference Manual}.
+@code{display-buffer} will avoid reusing dedicated windows most of the
+time.  This is indicated by a @samp{d} in the mode line (@pxref{Mode
+Line}).  A window can also be strongly dedicated, which prevents any
+changes to the buffer displayed in the window.  This is indicated by a
+@samp{D} in the mode line.
+
+Usually, dedicated windows are used to display specialized buffers,
+but dedication can sometimes be useful interactively.  For example,
+when viewing errors with @kbd{M-g M-n} @code{next-error}, newly
+displayed source code may replace a buffer you want to refer to.  If
+you dedicate a window to that buffer, the command (through
+@code{display-buffer}) will prefer to use a different window instead.
+
+@kindex C-x w d
+@findex toggle-window-dedicated
+  Toggle whether the selected window is dedicated to the current
+buffer.  With a prefix argument, make the window strongly dedicated
+instead.
 
 @menu
 * Window Choice::   How @code{display-buffer} works.
@@ -642,7 +664,7 @@ to the window-local tab line of buffers, and clicking on the @kbd{x}
 icon of a tab deletes it.  The mouse wheel on the tab line scrolls
 the tabs horizontally.
 
-  Touch screen input (@pxref{Other Input Devices}) can also be used to
+  Touch screen input (@pxref{Other Input}) can also be used to
 interact with the ``tab line''.  Long-pressing (@pxref{Touchscreens})
 a tab will display a context menu with items that operate on the tab
 that was pressed; tapping a tab itself will result in switching to

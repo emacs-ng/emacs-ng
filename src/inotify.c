@@ -1,6 +1,6 @@
 /* Inotify support for Emacs
 
-Copyright (C) 2012-2023 Free Software Foundation, Inc.
+Copyright (C) 2012-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -147,6 +147,11 @@ symbol_to_inotifymask (Lisp_Object symb)
     return IN_DONT_FOLLOW;
   else if (EQ (symb, Qonlydir))
     return IN_ONLYDIR;
+
+  else if (EQ (symb, Qignored))
+    return IN_IGNORED;
+  else if (EQ (symb, Qunmount))
+    return IN_UNMOUNT;
 
   else if (EQ (symb, Qt) || EQ (symb, Qall_events))
     return IN_ALL_EVENTS;
@@ -512,12 +517,14 @@ it invalid.  */)
 #ifdef INOTIFY_DEBUG
 DEFUN ("inotify-watch-list", Finotify_watch_list, Sinotify_watch_list, 0, 0, 0,
        doc: /* Return a copy of the internal watch_list.  */)
+  (void)
 {
   return Fcopy_sequence (watch_list);
 }
 
 DEFUN ("inotify-allocated-p", Finotify_allocated_p, Sinotify_allocated_p, 0, 0, 0,
        doc: /* Return non-nil, if an inotify instance is allocated.  */)
+  (void)
 {
   return inotifyfd < 0 ? Qnil : Qt;
 }

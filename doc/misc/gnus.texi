@@ -8,7 +8,7 @@
 @syncodeindex pg cp
 
 @copying
-Copyright @copyright{} 1995--2023 Free Software Foundation, Inc.
+Copyright @copyright{} 1995--2024 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -3216,7 +3216,7 @@ if address "sender" "sieve-admin@@extundo.com" @{
 @end example
 
 To generate tests for multiple email-addresses use a group parameter
-like @code{(sieve address "sender" ("name@@one.org" else@@two.org"))}.
+like @code{(sieve address "sender" ("name@@one.org" "else@@two.org"))}.
 When generating a sieve script (@pxref{Sieve Commands}) Sieve code
 like the following is generated:
 
@@ -3372,7 +3372,7 @@ You can define different sorting to different groups via
 group by reverse date to see the latest news at the top and an
 @acronym{RSS} group by subject.  In this example, the first group is the
 Debian daily news group @code{gmane.linux.debian.user.news} from
-news.gmane.org.  The @acronym{RSS} group corresponds to the Debian
+news.gmane.io.  The @acronym{RSS} group corresponds to the Debian
 weekly news RSS feed
 @url{https://packages.debian.org/unstable/newpkg_main.en.rdf},
 @xref{RSS}.
@@ -4426,7 +4426,7 @@ A select method can be very long, like:
 
 @lisp
 (nntp "gmane"
-      (nntp-address "news.gmane.org")
+      (nntp-address "news.gmane.io")
       (nntp-end-of-line "\n")
       (nntp-open-connection-function
        nntp-open-via-rlogin-and-telnet)
@@ -5832,10 +5832,11 @@ message to the mailing list, and include the original message
 @kindex S v @r{(Summary)}
 @findex gnus-summary-very-wide-reply
 Mail a very wide reply to the author of the current article
-(@code{gnus-summary-wide-reply}).  A @dfn{very wide reply} is a reply
-that goes out to all people listed in the @code{To}, @code{From} (or
-@code{Reply-To}) and @code{Cc} headers in all the process/prefixed
-articles.  This command uses the process/prefix convention.
+(@code{gnus-summary-very-wide-reply}).  A @dfn{very wide reply} is a
+reply that goes out to all people listed in the @code{To}, @code{From}
+(or @code{Reply-To}) and @code{Cc} headers in all the process/prefixed
+articles. This command uses the process/prefix convention.  If given a
+prefix argument, the body of the current article will also be yanked.
 
 @item S V
 @kindex S V @r{(Summary)}
@@ -5868,15 +5869,23 @@ original message but ignore the @code{Reply-To} field
 @findex gnus-summary-mail-forward
 @c @icon{gnus-summary-mail-forward}
 Forward the current article to some other person
-(@code{gnus-summary-mail-forward}).  If no prefix is given, the message
-is forwarded according to the value of (@code{message-forward-as-mime})
-and (@code{message-forward-show-mml}); if the prefix is 1, decode the
-message and forward directly inline; if the prefix is 2, forward message
-as an rfc822 @acronym{MIME} section; if the prefix is 3, decode message and
-forward as an rfc822 @acronym{MIME} section; if the prefix is 4, forward message
-directly inline; otherwise, the message is forwarded as no prefix given
-but use the flipped value of (@code{message-forward-as-mime}).  By
-default, the forwarded message is inlined into the mail.
+(@code{gnus-summary-mail-forward}).  If no prefix is given, the
+message is forwarded according to the value of
+(@code{message-forward-as-mime}) and
+(@code{message-forward-show-mml}); if the prefix is 1, decode the
+message and forward directly inline; if the prefix is 2, forward
+message as an rfc822 @acronym{MIME} section; if the prefix is 3,
+decode message and forward as an rfc822 @acronym{MIME} section; if the
+prefix is 4, forward message directly inline; otherwise, the message
+is forwarded as no prefix given but use the negated value of
+(@code{message-forward-as-mime}).  By default, the forwarded message
+is inlined into the mail.
+
+Which headers from the original message are included in the forwarded
+message is determined by options specific to @code{message-mode},
+@pxref{Forwarding,,, message}.  In addition, this command can be given
+the symbolic prefix @samp{a}, using @kbd{M-i a}, to include most original
+headers.
 
 @item S m
 @itemx m
@@ -6234,13 +6243,6 @@ For example, @code{(gnus-delay-initialize nil t)} means to do nothing.
 Presumably, you want to use the demon for sending due delayed articles.
 Just don't forget to set that up :-)
 @end table
-
-When delaying an article with @kbd{C-c C-j}, Message mode will
-automatically add a @code{"Date"} header with the current time.  In
-many cases you probably want the @code{"Date"} header to reflect the
-time the message is sent instead.  To do this, you have to delete
-@code{Date} from @code{message-draft-headers}.
-
 
 @node Marking Articles
 @section Marking Articles
@@ -7279,7 +7281,7 @@ The server has to support @acronym{NOV} for any of this to work.
 @cindex Gmane, @code{gnus-fetch-old-headers}
 This feature can seriously impact performance it ignores all locally
 cached header entries.  Setting it to @code{t} for groups for a server
-that doesn't expire articles (such as news.gmane.org), leads to very
+that doesn't expire articles (such as news.gmane.io), leads to very
 slow summary generation.
 
 @item gnus-fetch-old-ephemeral-headers
@@ -18020,7 +18022,7 @@ Here is an example:
  (nnselect-args
   . [["nnimap+work:mail" 595 100]
      ["nnimap+home:sent" 223 100]
-     ["nntp+news.gmane.org:gmane.emacs.gnus.general" 23666 100]]))
+     ["nntp+news.gmane.io:gmane.emacs.gnus.general" 23666 100]]))
 @end lisp
 
 The function is the identity and the argument is just the list of
@@ -19805,7 +19807,7 @@ locally stored articles.
 @chapter Scoring
 @cindex scoring
 
-Other people use @dfn{kill files} (@pxref{Kill Files}, but we here at
+Other people use @dfn{kill files} (@pxref{Kill Files}), but we here at
 Gnus Towers like scoring better than killing, so we'd rather switch
 than fight.  Scoring and score files processing are more powerful and
 faster than processing of kill files.  Scoring also does something
@@ -21596,7 +21598,7 @@ Search Groups}).
 Search queries can be specified one of two ways: either using the
 syntax of the engine responsible for the group you're searching, or
 using Gnus' generalized search syntax.  Set the option
-@code{gnus-search-use-parsed-queries} to a non-@code{nil} value to used the
+@code{gnus-search-use-parsed-queries} to a non-@code{nil} value to use the
 generalized syntax.  The advantage of this syntax is that, if you have
 multiple backends indexed by different engines, you don't need to
 remember which one you're searching---it's also possible to issue the
@@ -24841,7 +24843,7 @@ ends such as Bogofilter (@pxref{Bogofilter}) and the Spam Statistics
 package (@pxref{Spam Statistics Filtering}).
 
 The spam and ham processors that apply to each group are determined by
-the group's@code{spam-process} group parameter.  If this group
+the group's @code{spam-process} group parameter.  If this group
 parameter is not defined, they are determined by the variable
 @code{gnus-spam-process-newsgroups}.
 
@@ -25155,9 +25157,9 @@ groups as spam and reports the to Gmane at group exit:
 @end lisp
 
 Additionally, I use @code{(setq spam-report-gmane-use-article-number nil)}
-because I don't read the groups directly from news.gmane.org, but
+because I don't read the groups directly from news.gmane.io, but
 through my local news server (leafnode).  I.e., the article numbers are
-not the same as on news.gmane.org, thus @code{spam-report.el} has to check
+not the same as on news.gmane.io, thus @code{spam-report.el} has to check
 the @code{X-Report-Spam} header to find the correct number.
 
 @node Spam Back Ends
@@ -25341,7 +25343,7 @@ added to a group's @code{spam-process} parameter, the spam-marked
 articles groups will be reported to the Gmane administrators via a
 HTTP request.
 
-Gmane was formerly found at @uref{http://gmane.org}.
+Gmane is at @uref{https://gmane.io}.
 
 @emph{WARNING}
 
@@ -26434,12 +26436,12 @@ lines:
 (setq gnus-refer-article-method
       '(current
         (nnregistry)
-        (nnweb "gmane" (nnweb-type gmane))))
+        (nnweb "google" (nnweb-type google))))
 @end example
 
 The example above instructs Gnus to first look up the article in the
 current group, or, alternatively, using the registry, and finally, if
-all else fails, using Gmane.
+all else fails, using Google.
 
 @node Fancy splitting to parent
 @subsection Fancy splitting to parent
@@ -28808,7 +28810,7 @@ be read correctly in Emacs 22 and below.  If you want to use Gnus across
 different Emacs versions, you may set @code{mm-auto-save-coding-system}
 to @code{emacs-mule}.
 @c FIXME: Untested.  (Or did anyone test it?)
-@c Cf. http://thread.gmane.org/gmane.emacs.gnus.general/66251/focus=66344
+@c Cf. http://thread.gmane.org/gmane.emacs.gnus.general/66251/focus=66344 [dead link]
 
 @item Lisp files are now installed in @file{.../site-lisp/gnus/} by default.
 It defaulted to @file{.../site-lisp/} formerly.  In addition to this,
@@ -29321,13 +29323,13 @@ have names like @samp{gnu.emacs.gnus}.
 You can also have any number of foreign groups active at the same
 time.  These are groups that use non-native non-secondary back ends
 for getting news.  Foreign groups have names like
-@samp{nntp+news.gmane.org:gmane.emacs.gnus.devel}.
+@samp{nntp+news.gmane.io:gmane.emacs.gnus.devel}.
 
 @item secondary
 @cindex secondary
 Secondary back ends are somewhere half-way between being native and
 being foreign, but they mostly act like they are native, but they, too
-have names like @samp{nntp+news.gmane.org:gmane.emacs.gnus.devel}.
+have names like @samp{nntp+news.gmane.io:gmane.emacs.gnus.devel}.
 
 @item article
 @cindex article

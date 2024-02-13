@@ -1,6 +1,6 @@
 ;;; ido.el --- interactively do things with buffers and files -*- lexical-binding: t -*-
 
-;; Copyright (C) 1996-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
 
 ;; Author: Kim F. Storm <storm@cua.dk>
 ;; Based on: iswitchb by Stephen Eglen <stephen@cns.ed.ac.uk>
@@ -1509,8 +1509,8 @@ Removes badly formatted data and ignored directories."
   (add-hook 'minibuffer-setup-hook #'ido-minibuffer-setup)
   (add-hook 'choose-completion-string-functions #'ido-choose-completion-string))
 
-(defun ido--ffap-find-file (file)
-  (find-file file))
+(defun ido--ffap-find-file (file &optional wildcard)
+  (find-file file wildcard))
 
 (define-minor-mode ido-everywhere
   "Toggle use of Ido for all buffer/file reading."
@@ -2326,7 +2326,7 @@ If cursor is not at the end of the user input, move to end of input."
 			  (if (eq ido-use-filename-at-point 'guess)
 			      (ffap-guesser)
 			    (ffap-string-at-point))))
-	       (not (string-match "\\`http:/" fn)))
+               (not (string-match (rx bos "http" (? "s") ":/") fn)))
           (let ((absolute-fn (expand-file-name fn)))
             (cond
              ((file-directory-p absolute-fn)

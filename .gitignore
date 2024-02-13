@@ -1,6 +1,6 @@
 # Files that Git should ignore in the Emacs source directory.
 
-# Copyright 2009-2023 Free Software Foundation, Inc.
+# Copyright 2009-2024 Free Software Foundation, Inc.
 
 # This file is part of GNU Emacs.
 
@@ -127,6 +127,7 @@ lisp/cedet/semantic/grammar-wy.el
 lisp/eshell/esh-groups.el
 lisp/finder-inf.el
 lisp/leim/ja-dic/
+leim/small-ja-dic-option
 lisp/leim/leim-list.el
 lisp/leim/quail/4Corner.el
 lisp/leim/quail/ARRAY30.el
@@ -384,7 +385,10 @@ _gdb_history
 
 # Files ignored in exec/.
 exec/aclocal.m4
+exec/config.guess
+exec/config.sub
 exec/config.status
+exec/install-sh
 exec/loader
 exec/test
 exec/exec1

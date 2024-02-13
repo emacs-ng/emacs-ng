@@ -1,6 +1,6 @@
 /* Functions for the X Window System.
 
-Copyright (C) 1989, 1992-2023 Free Software Foundation, Inc.
+Copyright (C) 1989, 1992-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1792,6 +1792,11 @@ x_change_tab_bar_height (struct frame *f, int height)
      leading to the tab bar height being incorrectly set upon the next
      call to x_set_font.  (bug#59285) */
   int lines = height / unit;
+
+  /* Even so, HEIGHT might be less than unit if the tab bar face is
+     not so tall as the frame's font height; which if true lines will
+     be set to 0 and the tab bar will thus vanish.  */
+
   if (lines == 0 && height != 0)
     lines = 1;
 

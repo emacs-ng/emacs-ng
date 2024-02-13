@@ -1,6 +1,6 @@
 /* Functions for image support on window system.
 
-Copyright (C) 1989-2023 Free Software Foundation, Inc.
+Copyright (C) 1989-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1575,7 +1575,7 @@ parse_image_spec (Lisp_Object spec, struct image_keyword *keywords,
    if KEY is not present in SPEC.  Set *FOUND depending on whether KEY
    was found in SPEC.  */
 
-static Lisp_Object
+Lisp_Object
 image_spec_value (Lisp_Object spec, Lisp_Object key, bool *found)
 {
   Lisp_Object tail;
@@ -2374,6 +2374,7 @@ evicted.  */)
 {
   if (!NILP (animation_cache))
     {
+      CHECK_CONS (animation_cache);
 #if defined (HAVE_WEBP) || defined (HAVE_GIF)
       anim_prune_animation_cache (XCDR (animation_cache));
 #endif
@@ -3600,7 +3601,7 @@ anim_prune_animation_cache (Lisp_Object clear)
     {
       struct anim_cache *cache = *pcache;
       if (EQ (clear, Qt)
-	  || (EQ (clear, Qnil) && timespec_cmp (old, cache->update_time) > 0)
+	  || (NILP (clear) && timespec_cmp (old, cache->update_time) > 0)
 	  || EQ (clear, cache->spec))
 	{
 	  if (cache->handle)
@@ -4401,6 +4402,27 @@ slurp_file (image_fd fd, ptrdiff_t *size)
   return buf;
 }
 
+/* Like slurp_file above, but with added error handling.  Value is
+   null if an error occurred.  Set SIZE to the size of the file.
+   IMAGE_TYPE describes the image type (e.g. "PNG").  */
+
+static char *
+slurp_image (Lisp_Object filename, ptrdiff_t *size, const char *image_type)
+{
+  image_fd fd;
+  Lisp_Object file = image_find_image_fd (filename, &fd);
+  if (!STRINGP (file))
+    {
+      image_not_found_error (filename);
+      return NULL;
+    }
+  char *result = slurp_file (fd, size);
+  if (result == NULL)
+    image_error ("Error loading %s image `%s'",
+		 build_unibyte_string (image_type),
+		 file);
+  return result;
+}
 
 
 /***********************************************************************
@@ -4899,7 +4921,7 @@ xbm_read_bitmap_data (struct frame *f, char *contents, char *end,
   while (0)
 
 #define expect_ident(IDENT)					\
-     if (LA1 == XBM_TK_IDENT && strcmp (buffer, (IDENT)) == 0)	\
+     if (LA1 == XBM_TK_IDENT && strcmp (buffer, IDENT) == 0)	\
        match ();						\
      else							\
        goto failure
@@ -5119,22 +5141,10 @@ xbm_load (struct frame *f, struct image *img)
   file_name = image_spec_value (img->spec, QCfile, NULL);
   if (STRINGP (file_name))
     {
-      image_fd fd;
-      Lisp_Object file = image_find_image_fd (file_name, &fd);
-      if (!STRINGP (file))
-	{
-	  image_not_found_error (file_name);
-	  return false;
-	}
-
       ptrdiff_t size;
-      char *contents = slurp_file (fd, &size);
+      char *contents = slurp_image (file_name, &size, "XBM");
       if (contents == NULL)
-	{
-	  image_error ("Error loading XBM image `%s'", file);
-	  return 0;
-	}
-
+	return false;
       success_p = xbm_load_image (f, img, contents, contents + size);
       xfree (contents);
     }
@@ -6105,9 +6115,7 @@ xpm_make_color_table_h (void (**put_func) (Lisp_Object, const char *, int,
 {
   *put_func = xpm_put_color_table_h;
   *get_func = xpm_get_color_table_h;
-  return make_hash_table (hashtest_equal, DEFAULT_HASH_SIZE,
-			  DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
-			  Qnil, false);
+  return make_hash_table (&hashtest_equal, DEFAULT_HASH_SIZE, Weak_None, false);
 }
 
 static void
@@ -6117,9 +6125,10 @@ xpm_put_color_table_h (Lisp_Object color_table,
                        Lisp_Object color)
 {
   struct Lisp_Hash_Table *table = XHASH_TABLE (color_table);
-  Lisp_Object chars = make_unibyte_string (chars_start, chars_len), hash_code;
+  Lisp_Object chars = make_unibyte_string (chars_start, chars_len);
 
-  hash_lookup (table, chars, &hash_code);
+  hash_hash_t hash_code;
+  hash_lookup_get_hash (table, chars, &hash_code);
   hash_put (table, chars, color, hash_code);
 }
 
@@ -6130,7 +6139,7 @@ xpm_get_color_table_h (Lisp_Object color_table,
 {
   struct Lisp_Hash_Table *table = XHASH_TABLE (color_table);
   ptrdiff_t i =
-    hash_lookup (table, make_unibyte_string (chars_start, chars_len), NULL);
+    hash_lookup (table, make_unibyte_string (chars_start, chars_len));
 
   return i >= 0 ? HASH_VALUE (table, i) : Qnil;
 }
@@ -6191,7 +6200,7 @@ xpm_load_image (struct frame *f,
 
 #define expect_ident(IDENT)					\
      if (LA1 == XPM_TK_IDENT \
-         && strlen ((IDENT)) == len && memcmp ((IDENT), beg, len) == 0)	\
+         && strlen (IDENT) == len && memcmp (IDENT, beg, len) == 0)	\
        match ();						\
      else							\
        goto failure
@@ -6415,21 +6424,10 @@ xpm_load (struct frame *f,
   file_name = image_spec_value (img->spec, QCfile, NULL);
   if (STRINGP (file_name))
     {
-      image_fd fd;
-      Lisp_Object file = image_find_image_fd (file_name, &fd);
-      if (!STRINGP (file))
-	{
-	  image_not_found_error (file_name);
-	  return false;
-	}
-
       ptrdiff_t size;
-      char *contents = slurp_file (fd, &size);
+      char *contents = slurp_image (file_name, &size, "XPM");
       if (contents == NULL)
-	{
-	  image_error ("Error loading XPM image `%s'", file);
-	  return 0;
-	}
+	return false;
 
       success_p = xpm_load_image (f, img, contents, contents + size);
       xfree (contents);
@@ -7444,21 +7442,10 @@ pbm_load (struct frame *f, struct image *img)
 
   if (STRINGP (specified_file))
     {
-      image_fd fd;
-      Lisp_Object file = image_find_image_fd (specified_file, &fd);
-      if (!STRINGP (file))
-	{
-	  image_not_found_error (specified_file);
-	  return false;
-	}
-
       ptrdiff_t size;
-      contents = slurp_file (fd, &size);
+      contents = slurp_image (specified_file, &size, "PBM");
       if (contents == NULL)
-	{
-	  image_error ("Error reading `%s'", file);
-	  return 0;
-	}
+	return false;
 
       p = contents;
       end = contents + size;
@@ -10353,20 +10340,9 @@ webp_load (struct frame *f, struct image *img)
 
   if (NILP (specified_data))
     {
-      image_fd fd;
-      file = image_find_image_fd (specified_file, &fd);
-      if (!STRINGP (file))
-	{
-	  image_not_found_error (specified_file);
-	  return false;
-	}
-
-      contents = (uint8_t *) slurp_file (fd, &size);
+      contents = (uint8_t *) slurp_image (specified_file, &size, "WebP");
       if (contents == NULL)
-	{
-	  image_error ("Error loading WebP image `%s'", file);
-	  return false;
-	}
+	return false;
     }
   else
     {
@@ -11773,7 +11749,7 @@ svg_load (struct frame *f, struct image *img)
       if (contents == NULL)
 	{
 	  image_error ("Error loading SVG image `%s'", file);
-	  return 0;
+	  return false;
 	}
       /* If the file was slurped into memory properly, parse it.  */
       if (!STRINGP (base_uri))
@@ -11859,7 +11835,7 @@ svg_css_length_to_pixels (RsvgLength length, double dpi, int font_size)
 
 	 If we do set explicit width and height values in the image
 	 spec, this will work out correctly as librsvg will still
-	 honour the percentage sizes in its final rendering no matter
+	 honor the percentage sizes in its final rendering no matter
 	 what size we make the image.  */
       value = 0;
       break;
@@ -11878,7 +11854,17 @@ svg_css_length_to_pixels (RsvgLength length, double dpi, int font_size)
 
    Use librsvg to do most of the image processing.
 
-   Return true when successful.  */
+   Return true when successful.
+
+   The basic process, which is used for all versions of librsvg, is to
+   load the SVG and parse it, then extract the image dimensions.  We
+   then use those image dimensions to calculate the final size and
+   wrap the SVG data inside another SVG we build on the fly. This
+   wrapper does the necessary resizing and setting of foreground and
+   background colors and is then parsed and rasterized.
+
+   It should also be noted that setting up the SVG prior to 2.32 was
+   done differently, but the overall process is the same.  */
 static bool
 svg_load_image (struct frame *f, struct image *img, char *contents,
 		ptrdiff_t size, char *filename)
@@ -11932,7 +11918,13 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
   Lisp_Object lcss = image_spec_value (img->spec, QCcss, NULL);
   if (!STRINGP (lcss))
     {
-      /* Generate the CSS for the SVG image.  */
+      /* Generate the CSS for the SVG image.
+
+         We use this to set the font (font-family in CSS lingo) and
+         the font size.  We can extend this to handle any CSS values
+         SVG supports, however it's only available in librsvg 2.48 and
+         above so some things we could set here are handled in the
+         wrapper below.  */
       /* FIXME: The below calculations leave enough space for a font
 	 size up to 9999, if it overflows we just throw an error but
 	 should probably increase the buffer size.  */
@@ -11978,7 +11970,23 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
   if (err) goto rsvg_error;
 #endif
 
-  /* Get the image dimensions.  */
+  /* Get the image dimensions.
+
+     There are a couple of approaches used here, depending on the
+     contents of the SVG, and which version of librsvg we're using.
+     With librsvg versions prior to 2.46 we ask librsvg for the size
+     of the image, however this may include pats of the image that are
+     outside of the viewbox.
+
+     librsvg 2.46 allows us to request the image's "intrinsic
+     dimensions", which are the sizes given in the SVG in CSS units.
+     So, for example, if the image defines it's width as "10mm", we
+     are given a struct that we need to translate into pixel values
+     ourself (see svg_css_length_to_pixels).
+
+     2.52 introduces a function that will give us the pixel sizes
+     directly, assuming we provide the correct screen DPI values.
+  */
 #if LIBRSVG_CHECK_VERSION (2, 46, 0)
   gdouble gviewbox_width = 0, gviewbox_height = 0;
   gboolean has_viewbox = FALSE;
@@ -12127,7 +12135,7 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
       }
 
 #if HAVE_NTGUI
-    /* Windows stores the image colours in BGR format, and SVG expects
+    /* Windows stores the image colors in BGR format, and SVG expects
        them in RGB.  */
     foreground = (foreground & 0x0000FF) << 16
       | (foreground & 0xFF0000) >> 16
@@ -12170,6 +12178,8 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
                            FRAME_DISPLAY_INFO (f)->resy);
 
 #if LIBRSVG_CHECK_VERSION (2, 48, 0)
+  /* Set the CSS for the wrapped SVG.  See the comment above the
+     previous use of 'css'.  */
   rsvg_handle_set_stylesheet (rsvg_handle, (guint8 *)css, strlen (css), NULL);
 #endif
 #else

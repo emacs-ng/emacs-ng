@@ -26,12 +26,12 @@ use crate::output::OutputRef;
 
 use emacs::{
     bindings::globals,
+    bindings::hash_table_weakness_t::Weak_None,
     bindings::resource_types::{RES_TYPE_NUMBER, RES_TYPE_STRING, RES_TYPE_SYMBOL},
     bindings::{
         block_input, build_string, gui_display_get_arg, hashtest_eql, list3i, make_fixnum,
         make_hash_table, make_monitor_attribute_list, unblock_input, Display, Emacs_Rectangle,
         Fcons, Fcopy_alist, Fmake_vector, Fprovide, MonitorInfo, Vframe_list, Window, CHECK_STRING,
-        DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
     },
     definitions::EmacsInt,
     frame::{all_frames, window_frame_live_or_selected, LispFrameRef},
@@ -853,16 +853,7 @@ pub extern "C" fn syms_of_winit_term() {
         Fprovide(Qwinit, Qnil);
     }
 
-    let winit_keysym_table = unsafe {
-        make_hash_table(
-            hashtest_eql.clone(),
-            900,
-            DEFAULT_REHASH_SIZE,
-            DEFAULT_REHASH_THRESHOLD,
-            Qnil,
-            false,
-        )
-    };
+    let winit_keysym_table = unsafe { make_hash_table(&hashtest_eql, 900, Weak_None, false) };
 
     // Hash table of character codes indexed by X keysym codes.
     #[rustfmt::skip]

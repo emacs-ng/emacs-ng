@@ -1,6 +1,6 @@
 ;;; vk.el --- test code for macroexp-tests    -*- lexical-binding: t -*-
 
-;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -25,7 +25,7 @@
   (if (macroexp--dynamic-variable-p var) ''dyn ''lex))
 
 (defvar vk-a 1)
-(defconst vk-b 2)
+(defvar vk-b 2)
 (defvar vk-c)
 
 (defun vk-f1 (x)

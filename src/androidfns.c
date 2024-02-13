@@ -1,6 +1,6 @@
 /* Communication module for Android terminals.
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -27,6 +27,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "keyboard.h"
 #include "buffer.h"
 #include "androidgui.h"
+#include "pdumper.h"
 
 #ifndef ANDROID_STUBIFY
 
@@ -367,7 +368,15 @@ android_change_tab_bar_height (struct frame *f, int height)
      the tab bar by even 1 pixel, FRAME_TAB_BAR_LINES will be changed,
      leading to the tab bar height being incorrectly set upon the next
      call to android_set_font.  (bug#59285) */
+
   lines = height / unit;
+
+  /* Even so, HEIGHT might be less than unit if the tab bar face is
+     not so tall as the frame's font height; which if true lines will
+     be set to 0 and the tab bar will thus vanish.  */
+
+  if (lines == 0 && height != 0)
+    lines = 1;
 
   /* Make sure we redisplay all windows in this frame.  */
   fset_redisplay (f);
@@ -1591,7 +1600,8 @@ and width values are in pixels.
 #endif
 }
 
-DEFUN ("android-frame-edges", Fandroid_frame_edges, Sandroid_frame_edges, 0, 2, 0,
+DEFUN ("android-frame-edges", Fandroid_frame_edges,
+       Sandroid_frame_edges, 0, 2, 0,
        doc: /* Return edge coordinates of FRAME.
 FRAME must be a live frame and defaults to the selected one.  The return
 value is a list of the form (LEFT, TOP, RIGHT, BOTTOM).  All values are
@@ -1693,6 +1703,28 @@ TERMINAL is a frame.  */)
 #endif
 }
 
+#ifndef ANDROID_STUBIFY
+
+static void
+android_frame_restack (struct frame *f1, struct frame *f2,
+		       bool above_flag)
+{
+  android_window window1;
+  struct android_window_changes wc;
+  unsigned long mask;
+
+  window1 = FRAME_ANDROID_WINDOW (f1);
+  wc.sibling = FRAME_ANDROID_WINDOW (f2);
+  wc.stack_mode = above_flag ? ANDROID_ABOVE : ANDROID_BELOW;
+  mask = ANDROID_CW_SIBLING | ANDROID_CW_STACK_MODE;
+
+  block_input ();
+  android_reconfigure_wm_window (window1, mask, &wc);
+  unblock_input ();
+}
+
+#endif /* !ANDROID_STUBIFY */
+
 DEFUN ("android-frame-restack", Fandroid_frame_restack,
        Sandroid_frame_restack, 2, 3, 0,
        doc: /* Restack FRAME1 below FRAME2.
@@ -1709,19 +1741,25 @@ that of FRAME2.  Hence the position of FRAME2 in its display's Z
 \(stacking) order relative to all other frames excluding FRAME1 remains
 unaltered.
 
-The Android system refuses to restack windows, so this does not
-work.  */)
-  (Lisp_Object frame1, Lisp_Object frame2, Lisp_Object frame3)
+Android does not facilitate restacking top-level windows managed by
+its own window manager; nor is it possible to restack frames that are
+children of different parents.  Consequently, this function only
+functions when FRAME1 and FRAME2 are both child frames subordinate to
+the same parent frame.  */)
+  (Lisp_Object frame1, Lisp_Object frame2, Lisp_Object above)
 {
 #ifdef ANDROID_STUBIFY
   error ("Android cross-compilation stub called!");
   return Qnil;
-#else
-  /* This is not supported on Android because of limitations in the
-     platform that prevent ViewGroups from restacking
-     SurfaceViews.  */
-  return Qnil;
-#endif
+#else /* !ANDROID_STUBIFY */
+  struct frame *f1 = decode_live_frame (frame1);
+  struct frame *f2 = decode_live_frame (frame2);
+
+  if (!(FRAME_ANDROID_WINDOW (f1) && FRAME_ANDROID_WINDOW (f2)))
+    error ("Cannot restack frames");
+  android_frame_restack (f1, f2, !NILP (above));
+  return Qt;
+#endif /* ANDROID_STUBIFY */
 }
 
 DEFUN ("android-mouse-absolute-pixel-position",
@@ -1893,9 +1931,6 @@ android_create_tip_frame (struct android_display_info *dpyinfo,
 
   image_cache_refcount
     = FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
-#ifdef GLYPH_DEBUG
-  dpyinfo_refcount = dpyinfo->reference_count;
-#endif /* GLYPH_DEBUG */
 
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
                          "fontBackend", "FontBackend", RES_TYPE_STRING);
@@ -2439,6 +2474,25 @@ there is no mouse.  */)
 #else
   return Qnil;
 #endif
+}
+
+DEFUN ("android-detect-keyboard", Fandroid_detect_keyboard,
+       Sandroid_detect_keyboard, 0, 0, 0,
+       doc: /* Return whether a keyboard is connected.
+Return non-nil if a key is connected to this computer, or nil
+if there is no keyboard.  */)
+  (void)
+{
+#ifndef ANDROID_STUBIFY
+  /* If no display connection is present, just return nil.  */
+
+  if (!android_init_gui)
+    return Qnil;
+
+  return android_detect_keyboard () ? Qt : Qnil;
+#else /* ANDROID_STUBIFY */
+  return Qt;
+#endif /* ANDROID_STUBIFY */
 }
 
 DEFUN ("android-toggle-on-screen-keyboard",
@@ -3067,6 +3121,42 @@ within the directory `/content/storage'.  */)
 
 
 
+/* Functions concerning storage permissions.  */
+
+DEFUN ("android-external-storage-available-p",
+       Fandroid_external_storage_available_p,
+       Sandroid_external_storage_available_p, 0, 0, 0,
+       doc: /* Return non-nil if Emacs is entitled to access external storage.
+Return nil if the requisite permissions for external storage access
+have not been granted to Emacs, t otherwise.  Such permissions can be
+requested by means of the `android-request-storage-access'
+command.
+
+External storage on Android encompasses the `/sdcard' and
+`/storage/emulated' directories, access to which is denied to programs
+absent these permissions.  */)
+  (void)
+{
+  return android_external_storage_available_p () ? Qt : Qnil;
+}
+
+DEFUN ("android-request-storage-access", Fandroid_request_storage_access,
+       Sandroid_request_storage_access, 0, 0, "",
+       doc: /* Request permissions to access external storage.
+
+Return nil regardless of whether access permissions are granted or not,
+immediately after displaying the permissions request dialog.
+
+Use `android-external-storage-available-p' (which see) to verify
+whether Emacs has actually received such access permissions.  */)
+  (void)
+{
+  android_request_storage_access ();
+  return Qnil;
+}
+
+
+
 /* Miscellaneous input method related stuff.  */
 
 /* Report X, Y, by the phys cursor width and height as the cursor
@@ -3093,9 +3183,245 @@ android_set_preeditarea (struct window *w, int x, int y)
 				     y + w->phys_cursor_height);
 }
 
+
+
+/* Debugging.  */
+
+DEFUN ("android-recreate-activity", Fandroid_recreate_activity,
+       Sandroid_recreate_activity, 0, 0, "",
+       doc: /* Recreate the activity attached to the current frame.
+This function exists for debugging purposes and is of no interest to
+users.  */)
+  (void)
+{
+  struct frame *f;
+
+  f = decode_window_system_frame (Qnil);
+  android_recreate_activity (FRAME_ANDROID_WINDOW (f));
+  return Qnil;
+}
+
 #endif /* !ANDROID_STUBIFY */
 
 
+
+#ifndef ANDROID_STUBIFY
+
+static void
+syms_of_androidfns_for_pdumper (void)
+{
+  jclass locale;
+  jmethodID method;
+  jobject object;
+  jstring string;
+  Lisp_Object language, country, script, variant;
+  const char *data;
+  FILE *fd;
+  char *line;
+  size_t size;
+  long pid;
+
+  /* Find the Locale class.  */
+
+  locale = (*android_java_env)->FindClass (android_java_env,
+					   "java/util/Locale");
+  if (!locale)
+    emacs_abort ();
+
+  /* And the method from which the default locale can be
+     extracted.  */
+
+  method = (*android_java_env)->GetStaticMethodID (android_java_env,
+						   locale,
+						   "getDefault",
+						   "()Ljava/util/Locale;");
+  if (!method)
+    emacs_abort ();
+
+  /* Retrieve the default locale.  */
+
+  object = (*android_java_env)->CallStaticObjectMethod (android_java_env,
+							locale, method);
+  android_exception_check_1 (locale);
+
+  if (!object)
+    emacs_abort ();
+
+  /* Retrieve its language field.  Each of these methods is liable to
+     return the empty string, though if language is empty, the locale
+     is malformed.  */
+
+  method = (*android_java_env)->GetMethodID (android_java_env, locale,
+					     "getLanguage",
+					     "()Ljava/lang/String;");
+  if (!method)
+    emacs_abort ();
+
+  string = (*android_java_env)->CallObjectMethod (android_java_env, object,
+						  method);
+  android_exception_check_2 (object, locale);
+
+  if (!string)
+    language = empty_unibyte_string;
+  else
+    {
+      data = (*android_java_env)->GetStringUTFChars (android_java_env,
+						     string, NULL);
+      android_exception_check_3 (object, locale, string);
+
+      if (!data)
+	language = empty_unibyte_string;
+      else
+	{
+	  language = build_unibyte_string (data);
+	  (*android_java_env)->ReleaseStringUTFChars (android_java_env,
+						      string, data);
+	}
+    }
+
+  /* Delete the reference to this string.  */
+  ANDROID_DELETE_LOCAL_REF (string);
+
+  /* Proceed to retrieve the country code.  */
+
+  method = (*android_java_env)->GetMethodID (android_java_env, locale,
+					     "getCountry",
+					     "()Ljava/lang/String;");
+  if (!method)
+    emacs_abort ();
+
+  string = (*android_java_env)->CallObjectMethod (android_java_env, object,
+						  method);
+  android_exception_check_2 (object, locale);
+
+  if (!string)
+    country = empty_unibyte_string;
+  else
+    {
+      data = (*android_java_env)->GetStringUTFChars (android_java_env,
+						     string, NULL);
+      android_exception_check_3 (object, locale, string);
+
+      if (!data)
+	country = empty_unibyte_string;
+      else
+	{
+	  country = build_unibyte_string (data);
+	  (*android_java_env)->ReleaseStringUTFChars (android_java_env,
+						      string, data);
+	}
+    }
+
+  ANDROID_DELETE_LOCAL_REF (string);
+
+  /* Proceed to retrieve the script.  */
+
+  if (android_get_current_api_level () < 21)
+    script = empty_unibyte_string;
+  else
+    {
+      method = (*android_java_env)->GetMethodID (android_java_env, locale,
+						 "getScript",
+						 "()Ljava/lang/String;");
+      if (!method)
+	emacs_abort ();
+
+      string = (*android_java_env)->CallObjectMethod (android_java_env,
+						      object, method);
+      android_exception_check_2 (object, locale);
+
+      if (!string)
+	script = empty_unibyte_string;
+      else
+	{
+	  data = (*android_java_env)->GetStringUTFChars (android_java_env,
+							 string, NULL);
+	  android_exception_check_3 (object, locale, string);
+
+	  if (!data)
+	    script = empty_unibyte_string;
+	  else
+	    {
+	      script = build_unibyte_string (data);
+	      (*android_java_env)->ReleaseStringUTFChars (android_java_env,
+							  string, data);
+	    }
+	}
+    }
+
+  ANDROID_DELETE_LOCAL_REF (string);
+
+  /* And variant.  */
+
+  method = (*android_java_env)->GetMethodID (android_java_env, locale,
+					     "getVariant",
+					     "()Ljava/lang/String;");
+  if (!method)
+    emacs_abort ();
+
+  string = (*android_java_env)->CallObjectMethod (android_java_env, object,
+						  method);
+  android_exception_check_2 (object, locale);
+
+  if (!string)
+    variant = empty_unibyte_string;
+  else
+    {
+      data = (*android_java_env)->GetStringUTFChars (android_java_env,
+						     string, NULL);
+      android_exception_check_3 (object, locale, string);
+
+      if (!data)
+        variant = empty_unibyte_string;
+      else
+	{
+	  variant = build_unibyte_string (data);
+	  (*android_java_env)->ReleaseStringUTFChars (android_java_env,
+						      string, data);
+	}
+    }
+
+  /* Delete the reference to this string.  */
+  ANDROID_DELETE_LOCAL_REF (string);
+
+  /* And other remaining local references.  */
+  ANDROID_DELETE_LOCAL_REF (object);
+  ANDROID_DELETE_LOCAL_REF (locale);
+
+  /* Set Vandroid_os_language.  */
+  Vandroid_os_language = list4 (language, country, script, variant);
+
+  /* Detect whether Emacs is running under libloader.so or another
+     process tracing mechanism, and disable `android_use_exec_loader' if
+     so, leaving subprocesses started by Emacs to the care of that
+     loader instance.  */
+
+  if (android_get_current_api_level () >= 29) /* Q */
+    {
+      fd = fopen ("/proc/self/status", "r");
+      if (!fd)
+	return;
+
+      line = NULL;
+      while (getline (&line, &size, fd) != -1)
+	{
+	  if (strncmp (line, "TracerPid:", sizeof "TracerPid:" - 1))
+	    continue;
+
+	  pid = atol (line + sizeof "TracerPid:" - 1);
+
+	  if (pid)
+	    android_use_exec_loader = false;
+
+	  break;
+	}
+
+      free (line);
+      fclose (fd);
+    }
+}
+
+#endif /* ANDROID_STUBIFY */
 
 void
 syms_of_androidfns (void)
@@ -3232,6 +3558,33 @@ restrictions.
 This option has no effect on Android 9 and earlier.  */);
   android_use_exec_loader = true;
 
+  DEFVAR_INT ("android-keyboard-bell-duration",
+	      android_keyboard_bell_duration,
+    doc: /* Number of milliseconds to vibrate after ringing the keyboard bell.
+The keyboard bell under Android systems takes the form of a vibrating
+element that is activated for a given number of milliseconds upon the
+bell being rung.  */);
+  android_keyboard_bell_duration = 50;
+
+  DEFVAR_LISP ("android-os-language", Vandroid_os_language,
+    doc: /* A list representing the configured system language on Android.
+This list has four elements: LANGUAGE, COUNTRY, SCRIPT and VARIANT, where:
+
+LANGUAGE and COUNTRY are ISO language and country codes identical to
+those found in POSIX locale specifications.
+
+SCRIPT is an ISO 15924 script tag, representing the script used
+if available, or if required to disambiguate between distinct
+writing systems for the same combination of language and country.
+
+VARIANT is an arbitrary string representing the variant of the
+LANGUAGE or SCRIPT.
+
+Each of these fields might be empty or nil, but the locale is invalid
+if LANGUAGE is empty.  Users of this variable should consider the
+language to be US English if LANGUAGE is empty.  */);
+  Vandroid_os_language = Qnil;
+
   /* Functions defined.  */
   defsubr (&Sx_create_frame);
   defsubr (&Sxw_color_defined_p);
@@ -3259,12 +3612,16 @@ This option has no effect on Android 9 and earlier.  */);
   defsubr (&Sx_show_tip);
   defsubr (&Sx_hide_tip);
   defsubr (&Sandroid_detect_mouse);
+  defsubr (&Sandroid_detect_keyboard);
   defsubr (&Sandroid_toggle_on_screen_keyboard);
   defsubr (&Sx_server_vendor);
   defsubr (&Sx_server_version);
 #ifndef ANDROID_STUBIFY
   defsubr (&Sandroid_query_battery);
   defsubr (&Sandroid_request_directory_access);
+  defsubr (&Sandroid_external_storage_available_p);
+  defsubr (&Sandroid_request_storage_access);
+  defsubr (&Sandroid_recreate_activity);
 
   tip_timer = Qnil;
   staticpro (&tip_timer);
@@ -3280,5 +3637,7 @@ This option has no effect on Android 9 and earlier.  */);
   staticpro (&tip_dx);
   tip_dy = Qnil;
   staticpro (&tip_dy);
+
+  pdumper_do_now_and_after_load (syms_of_androidfns_for_pdumper);
 #endif /* !ANDROID_STUBIFY */
 }

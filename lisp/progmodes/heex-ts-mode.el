@@ -1,6 +1,6 @@
 ;;; heex-ts-mode.el --- Major mode for Heex with tree-sitter support -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; Author: Wilhelm H Kirschbaum <wkirschbaum@gmail.com>
 ;; Created: November 2022
@@ -165,6 +165,16 @@ With ARG, do it many times.  Negative ARG means move backward."
                 '(("Component" "\\`component\\'" nil nil)
                   ("Slot" "\\`slot\\'" nil nil)
                   ("Tag" "\\`tag\\'" nil nil)))
+
+    ;; Outline minor mode
+    ;; `heex-ts-mode' inherits from `html-mode' that sets
+    ;; regexp-based outline variables.  So need to restore
+    ;; the default values of outline variables to be able
+    ;; to use `treesit-outline-predicate' derived
+    ;; from `treesit-simple-imenu-settings' above.
+    (kill-local-variable 'outline-heading-end-regexp)
+    (kill-local-variable 'outline-regexp)
+    (kill-local-variable 'outline-level)
 
     (setq-local treesit-font-lock-settings heex-ts--font-lock-settings)
 

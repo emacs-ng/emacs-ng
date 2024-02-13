@@ -1,6 +1,6 @@
 ;;; multisession.el --- Multisession storage for variables  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -137,8 +137,6 @@ DOC should be a doc string, and ARGS are keywords as applicable to
 (declare-function sqlite-select "sqlite.c")
 (declare-function sqlite-open "sqlite.c")
 (declare-function sqlite-pragma "sqlite.c")
-(declare-function sqlite-transaction "sqlite.c")
-(declare-function sqlite-commit "sqlite.c")
 
 (defvar multisession--db nil)
 

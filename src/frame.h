@@ -1,5 +1,5 @@
 /* Define frame-object for GNU Emacs.
-   Copyright (C) 1993-1994, 1999-2023 Free Software Foundation, Inc.
+   Copyright (C) 1993-1994, 1999-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -90,6 +90,7 @@ enum text_conversion_operation
     TEXTCONV_DELETE_SURROUNDING_TEXT,
     TEXTCONV_REQUEST_POINT_UPDATE,
     TEXTCONV_BARRIER,
+    TEXTCONV_REPLACE_TEXT,
   };
 
 /* Structure describing a single edit being performed by the input
@@ -909,7 +910,7 @@ default_pixels_per_inch_y (void)
 
 #define XFRAME(p) \
   (eassert (FRAMEP (p)), XUNTAG (p, Lisp_Vectorlike, struct frame))
-#define XSETFRAME(a, b) (XSETPSEUDOVECTOR (a, b, PVEC_FRAME))
+#define XSETFRAME(a, b) XSETPSEUDOVECTOR (a, b, PVEC_FRAME)
 
 /* Given a window, return its frame as a Lisp_Object.  */
 #define WINDOW_FRAME(w) ((w)->frame)
@@ -1000,7 +1001,7 @@ default_pixels_per_inch_y (void)
    FRAME_DISPLAY_INFO (f)->font_resolution)
 
 #else /* !HAVE_ANDROID */
-#define FRAME_RES(f) (FRAME_RES_Y (f))
+#define FRAME_RES(f) FRAME_RES_Y (f)
 #endif /* HAVE_ANDROID */
 
 #else /* !HAVE_WINDOW_SYSTEM */
@@ -1138,12 +1139,12 @@ default_pixels_per_inch_y (void)
 /* Height of F's bottom margin in frame lines.  */
 
 #define FRAME_BOTTOM_MARGIN(f)			\
-  (FRAME_TOOL_BAR_BOTTOM_LINES (f))
+  FRAME_TOOL_BAR_BOTTOM_LINES (f)
 
 /* Pixel height of frame F's bottom margin.  */
 
 #define FRAME_BOTTOM_MARGIN_HEIGHT(f)		\
-  (FRAME_TOOL_BAR_BOTTOM_HEIGHT (f))
+  FRAME_TOOL_BAR_BOTTOM_HEIGHT (f)
 
 /* Size of both vertical margins combined.  */
 
@@ -1167,7 +1168,7 @@ default_pixels_per_inch_y (void)
    visible by the X server.  */
 
 #ifndef HAVE_X_WINDOWS
-#define FRAME_REDISPLAY_P(f) (FRAME_VISIBLE_P (f))
+#define FRAME_REDISPLAY_P(f) FRAME_VISIBLE_P (f)
 #else
 #define FRAME_REDISPLAY_P(f) (FRAME_VISIBLE_P (f)		\
 			      || (FRAME_X_P (f)			\

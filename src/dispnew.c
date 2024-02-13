@@ -1,6 +1,6 @@
 /* Updating of data structures for redisplay.
 
-Copyright (C) 1985-1988, 1993-1995, 1997-2023 Free Software Foundation,
+Copyright (C) 1985-1988, 1993-1995, 1997-2024 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -134,8 +134,8 @@ static struct frame *frame_matrix_frame;
 
 static int window_to_frame_vpos (struct window *, int);
 static int window_to_frame_hpos (struct window *, int);
-#define WINDOW_TO_FRAME_VPOS(W, VPOS) window_to_frame_vpos ((W), (VPOS))
-#define WINDOW_TO_FRAME_HPOS(W, HPOS) window_to_frame_hpos ((W), (HPOS))
+#define WINDOW_TO_FRAME_VPOS(W, VPOS) window_to_frame_vpos (W, VPOS)
+#define WINDOW_TO_FRAME_HPOS(W, HPOS) window_to_frame_hpos (W, HPOS)
 
 /* One element of the ring buffer containing redisplay history
    information.  */
@@ -5240,7 +5240,7 @@ count_match (struct glyph *str1, struct glyph *end1, struct glyph *str2, struct 
 /* Char insertion/deletion cost vector, from term.c */
 
 #ifndef HAVE_ANDROID
-#define char_ins_del_cost(f) (&char_ins_del_vector[FRAME_TOTAL_COLS ((f))])
+#define char_ins_del_cost(f) (&char_ins_del_vector[FRAME_TOTAL_COLS (f)])
 #endif
 
 
@@ -6206,9 +6206,9 @@ bitch_at_user (void)
 DEFUN ("sleep-for", Fsleep_for, Ssleep_for, 1, 2, 0,
        doc: /* Pause, without updating display, for SECONDS seconds.
 SECONDS may be a floating-point value, meaning that you can wait for a
-fraction of a second.  Optional second arg MILLISECONDS specifies an
-additional wait period, in milliseconds; this is for backwards compatibility.
-\(Not all operating systems support waiting for a fraction of a second.)  */)
+fraction of a second.
+An optional second arg MILLISECONDS can be provided but is deprecated:
+it specifies an additional wait period, in milliseconds.  */)
   (Lisp_Object seconds, Lisp_Object milliseconds)
 {
   double duration = extract_float (seconds);

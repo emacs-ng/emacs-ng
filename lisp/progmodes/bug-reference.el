@@ -1,6 +1,6 @@
 ;;; bug-reference.el --- buttonize bug references  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2024 Free Software Foundation, Inc.
 
 ;; Author: Tom Tromey <tromey@redhat.com>
 ;; Created: 21 Mar 2007
@@ -34,6 +34,8 @@
 ;; URL link is followed by invoking C-c RET or mouse-2.
 
 ;;; Code:
+
+(require 'thingatpt)
 
 (defgroup bug-reference nil
   "Hyperlinking references to bug reports."
@@ -465,10 +467,10 @@ and set it if applicable."
 (defun bug-reference--try-setup-gnus-article ()
   (when (and bug-reference-mode ;; Only if enabled in article buffers.
              (derived-mode-p
-              'gnus-article-mode
-              ;; Apparently, gnus-article-prepare-hook is run in the
-              ;; summary buffer...
-              'gnus-summary-mode)
+              '(gnus-article-mode
+                ;; Apparently, `gnus-article-prepare-hook' is run in the
+                ;; summary buffer...
+                gnus-summary-mode))
              gnus-article-buffer
              gnus-original-article-buffer
              (buffer-live-p (get-buffer gnus-article-buffer))
@@ -654,16 +656,30 @@ have been run, the auto-setup is inhibited.")
         (run-hook-with-args-until-success
          'bug-reference-auto-setup-functions)))))
 
+(defun bug-reference--url-at-point ()
+  "`thing-at-point' provider function."
+  (get-char-property (point) 'bug-reference-url))
+
+(defun bug-reference--init (enable)
+  (if enable
+      (progn
+        (jit-lock-register #'bug-reference-fontify)
+        (setq-local thing-at-point-provider-alist
+                    (append thing-at-point-provider-alist
+                            '((url . bug-reference--url-at-point)))))
+    (jit-lock-unregister #'bug-reference-fontify)
+    (setq thing-at-point-provider-alist
+          (delete '((url . bug-reference--url-at-point))
+                  thing-at-point-provider-alist))
+    (save-restriction
+      (widen)
+      (bug-reference-unfontify (point-min) (point-max)))))
+
 ;;;###autoload
 (define-minor-mode bug-reference-mode
   "Toggle hyperlinking bug references in the buffer (Bug Reference mode)."
   :after-hook (bug-reference--run-auto-setup)
-  (if bug-reference-mode
-      (jit-lock-register #'bug-reference-fontify)
-    (jit-lock-unregister #'bug-reference-fontify)
-    (save-restriction
-      (widen)
-      (bug-reference-unfontify (point-min) (point-max)))))
+  (bug-reference--init bug-reference-mode))
 
 (defun bug-reference-mode-force-auto-setup ()
   "Enable `bug-reference-mode' and force auto-setup.
@@ -681,12 +697,7 @@ same buffer is re-used for different contexts."
 (define-minor-mode bug-reference-prog-mode
   "Like `bug-reference-mode', but only buttonize in comments and strings."
   :after-hook (bug-reference--run-auto-setup)
-  (if bug-reference-prog-mode
-      (jit-lock-register #'bug-reference-fontify)
-    (jit-lock-unregister #'bug-reference-fontify)
-    (save-restriction
-      (widen)
-      (bug-reference-unfontify (point-min) (point-max)))))
+  (bug-reference--init bug-reference-prog-mode))
 
 (provide 'bug-reference)
 ;;; bug-reference.el ends here

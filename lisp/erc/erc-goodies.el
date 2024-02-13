@@ -1,6 +1,6 @@
 ;;; erc-goodies.el --- Collection of ERC modules  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2024 Free Software Foundation, Inc.
 
 ;; Author: Jorgen Schaefer <forcer@forcix.cx>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
@@ -44,45 +44,46 @@
 This should be an integer specifying the line of the buffer on which
 the input line should stay.  A value of \"-1\" would keep the input
 line positioned on the last line in the buffer.  This is passed as an
-argument to `recenter', unless `erc-scrolltobottom-relaxed' is
-non-nil, in which case, ERC interprets it as additional lines to
-scroll down by per message insertion (minus one for the prompt)."
+argument to `recenter', unless `erc-scrolltobottom-all' is
+`relaxed', in which case, ERC interprets it as additional lines
+to scroll down by per message insertion (minus one for the
+prompt)."
   :group 'erc-display
   :type '(choice integer (const nil)))
 
 (defcustom erc-scrolltobottom-all nil
   "Whether to scroll all windows or just the selected one.
-A value of nil preserves pre-5.6 behavior, in which scrolling
-only affects the selected window.  Users should consider its
-non-nil behavior experimental for the time being.  Note also that
 ERC expects this option to be configured before module
-initialization."
-  :group 'erc-display
-  :package-version '(ERC . "5.6") ; FIXME sync on release
-  :type 'boolean)
+initialization.  A value of nil preserves pre-5.6 behavior, in
+which scrolling only affects the selected window.  A value of t
+means ERC attempts to recenter all visible windows whose point
+resides in the input area.
 
-(defcustom erc-scrolltobottom-relaxed nil
-  "Whether to forgo forcing prompt to the bottom of the window.
-When non-nil, and point is at the prompt, ERC scrolls the window
-up when inserting messages, making the prompt appear stationary.
-Users who find this effect too \"stagnant\" can adjust the option
-`erc-input-line-position', which ERC borrows to express a scroll
-step offset when this option is non-nil.  Setting that value to
-zero lets the prompt drift toward the bottom by one line per
-message, which is generally slow enough not to distract while
-composing input.  Of course, this doesn't apply when receiving a
-large influx of messages, such as after typing \"/msg NickServ
-help\".  Note that ERC only considers this option when the
-experimental companion option `erc-scrolltobottom-all' is enabled
-and, only then, during module setup."
+A value of `relaxed' tells ERC to forgo forcing prompt to the
+bottom of the window.  When point is at the prompt, ERC scrolls
+the window up when inserting messages, making the prompt appear
+stationary.  Users who find this effect too \"stagnant\" can
+adjust the option `erc-input-line-position', borrowed here to
+express a scroll step offset.  Setting that value to zero lets
+the prompt drift toward the bottom by one line per message, which
+is generally slow enough not to distract while composing input.
+Of course, this doesn't apply when receiving a large influx of
+messages, such as after typing \"/msg NickServ help\".
+
+Note that users should consider this option's non-nil behavior to
+be experimental.  It currently only works with Emacs 28+."
   :group 'erc-display
-  :package-version '(ERC . "5.6") ; FIXME sync on release
-  :type 'boolean)
+  :package-version '(ERC . "5.6")
+  :type '(choice boolean (const relaxed)))
 
 ;;;###autoload(autoload 'erc-scrolltobottom-mode "erc-goodies" nil t)
 (define-erc-module scrolltobottom nil
   "This mode causes the prompt to stay at the end of the window."
   ((add-hook 'erc-mode-hook #'erc--scrolltobottom-setup)
+   (when (and erc-scrolltobottom-all (< emacs-major-version 28))
+     (erc-button--display-error-notice-with-keys
+      "Option `erc-scrolltobottom-all' requires Emacs 28+. Disabling.")
+     (setq erc-scrolltobottom-all nil))
    (unless erc--updating-modules-p (erc-buffer-do #'erc--scrolltobottom-setup))
    (if erc-scrolltobottom-all
        (progn
@@ -93,24 +94,16 @@ and, only then, during module setup."
      (add-hook 'erc-insert-done-hook #'erc-possibly-scroll-to-bottom)))
   ((remove-hook 'erc-mode-hook #'erc--scrolltobottom-setup)
    (erc-buffer-do #'erc--scrolltobottom-setup)
-   (if erc-scrolltobottom-all
-       (progn
-         (remove-hook 'erc-insert-pre-hook #'erc--scrolltobottom-on-pre-insert)
-         (remove-hook 'erc-send-completed-hook #'erc--scrolltobottom-all)
-         (remove-hook 'erc-insert-done-hook #'erc--scrolltobottom-all)
-         (remove-hook 'erc-pre-send-functions
-                      #'erc--scrolltobottom-on-pre-insert))
-     (remove-hook 'erc-insert-done-hook #'erc-possibly-scroll-to-bottom))))
+   (remove-hook 'erc-insert-pre-hook #'erc--scrolltobottom-on-pre-insert)
+   (remove-hook 'erc-send-completed-hook #'erc--scrolltobottom-all)
+   (remove-hook 'erc-insert-done-hook #'erc--scrolltobottom-all)
+   (remove-hook 'erc-pre-send-functions #'erc--scrolltobottom-on-pre-insert)
+   (remove-hook 'erc-insert-done-hook #'erc-possibly-scroll-to-bottom)))
 
 (defun erc-possibly-scroll-to-bottom ()
   "Like `erc-add-scroll-to-bottom', but only if window is selected."
   (when (eq (selected-window) (get-buffer-window))
     (erc-scroll-to-bottom)))
-
-(defvar-local erc--scrolltobottom-relaxed-commands '(end-of-buffer)
-  "Commands triggering a forced scroll to prompt.
-Only applies with `erc-scrolltobottom-relaxed' while away from
-prompt.")
 
 (defvar-local erc--scrolltobottom-window-info nil
   "Alist with windows as keys and lists of window-related info as values.
@@ -119,98 +112,27 @@ the last \"window line\" of point.  The \"window line\", which
 may be nil, is the number of lines between `window-start' and
 `window-point', inclusive.")
 
-(defvar erc--scrolltobottom-post-force-commands
-  '(beginning-of-buffer
-    electric-newline-and-maybe-indent
-    newline
-    default-indent-new-line)
-  "Commands that force a scroll after execution at prompt.
-That is, ERC recalculates the window's start instead of blindly
-restoring it.")
-
-(defvar erc--scrolltobottom-relaxed-skip-commands
-  '(recenter-top-bottom scroll-down-command)
-  "Commands exempt from triggering a stash and restore of `window-start'.
-Only applies with `erc-scrolltobottom-relaxed' while in the input
-area.")
-
-(defun erc--scrolltobottom-on-pre-command ()
-  (when (and (eq (selected-window) (get-buffer-window))
-             (>= (point) erc-input-marker))
-    (setq erc--scrolltobottom-window-info
-          (list (list (selected-window)
-                      (window-start)
-                      (count-screen-lines (window-start) (point-max)))))))
+;; FIXME treat `end-of-buffer' specially and always recenter -1.
+;; FIXME make this work when `erc-scrolltobottom-all' is set to
+;; `relaxed'.
+(defvar erc--scrolltobottom-post-ignore-commands '(text-scale-adjust)
+  "Commands to skip instead of force-scroll on `post-command-hook'.")
 
 (defun erc--scrolltobottom-on-post-command ()
-  "Restore window start or scroll to prompt and recenter.
-When `erc--scrolltobottom-window-info' is non-nil and its first
-item is associated with the selected window, restore start of
-window so long as prompt hasn't moved.  Expect buffer to be
-unnarrowed."
+  "Scroll selected window unless `this-command' is exempted."
   (when (eq (selected-window) (get-buffer-window))
-    (if-let (((not (input-pending-p)))
-             (erc--scrolltobottom-window-info)
-             (found (car erc--scrolltobottom-window-info))
-             ((eq (car found) (selected-window)))
-             ((not (memq this-command
-                         erc--scrolltobottom-post-force-commands)))
-             ((= (nth 2 found)
-                 (count-screen-lines (window-start) (point-max)))))
-        (set-window-start (selected-window) (nth 1 found))
-      (erc--scrolltobottom-confirm))
-    (setq erc--scrolltobottom-window-info nil)))
-
-(defun erc--scrolltobottom-on-pre-command-relaxed ()
-  "Maybe scroll to bottom when away from prompt.
-When `erc-scrolltobottom-relaxed' is active, only scroll when
-prompt is past window's end and the command is `end-of-buffer' or
-`self-insert-command' (assuming `move-to-prompt' is active).
-When at prompt and current command does not appear in
-`erc--scrolltobottom-relaxed-skip-commands', stash
-`erc--scrolltobottom-window-info' for the selected window.
-Assume an unnarrowed buffer."
-  (when (eq (selected-window) (get-buffer-window))
-    (when (and (not (input-pending-p))
-               (< (point) erc-input-marker)
-               (memq this-command erc--scrolltobottom-relaxed-commands)
-               (< (window-end nil t) erc-input-marker))
-      (save-excursion
-        (goto-char (point-max))
-        (recenter (or erc-input-line-position -1))))
-    (when (and (>= (point) erc-input-marker)
-               (not (memq this-command
-                          erc--scrolltobottom-relaxed-skip-commands)))
-      (setq erc--scrolltobottom-window-info
-            (list (list (selected-window)
-                        (window-start)
-                        (count-screen-lines (window-start) (point-max))))))))
-
-(defun erc--scrolltobottom-on-post-command-relaxed ()
-  "Set window start or scroll when data was captured on pre-command."
-  (when-let (((eq (selected-window) (get-buffer-window)))
-             (erc--scrolltobottom-window-info)
-             (found (car erc--scrolltobottom-window-info))
-             ((eq (car found) (selected-window))))
-    (if (and (not (memq this-command erc--scrolltobottom-post-force-commands))
-             (= (nth 2 found)
-                (count-screen-lines (window-start) (point-max))))
-        (set-window-start (selected-window) (nth 1 found))
-      (recenter (nth 2 found)))
-    (setq erc--scrolltobottom-window-info nil)))
+    (unless (memq this-command erc--scrolltobottom-post-ignore-commands)
+      (setq erc--scrolltobottom-window-info nil)
+      (erc--scrolltobottom-confirm))))
 
 ;; It may be desirable to also restore the relative line position of
 ;; window point after changing dimensions.  Perhaps stashing the
 ;; previous ratio of window line to body height and later recentering
 ;; proportionally would achieve this.
-(defun erc--scrolltobottom-at-prompt-minibuffer-active ()
+(defun erc--scrolltobottom-on-win-conf-change ()
   "Scroll window to bottom when at prompt and using the minibuffer."
-  ;; This is redundant or ineffective in the selected window if at
-  ;; prompt or if only one window exists.
-  (unless (or (input-pending-p)
-              (and (minibuffer-window-active-p (minibuffer-window))
-                   (eq (old-selected-window) (minibuffer-window))))
-    (erc--scrolltobottom-confirm)))
+  (setq erc--scrolltobottom-window-info nil)
+  (erc--scrolltobottom-confirm))
 
 (defun erc--scrolltobottom-all (&rest _)
   "Maybe put prompt on last line in all windows displaying current buffer.
@@ -240,54 +162,36 @@ function used `window-scroll-functions', which was replaced by
   (declare (obsolete erc--scrolltobottom-setup "30.1"))
   (add-hook 'post-command-hook #'erc-scroll-to-bottom nil t))
 
-(cl-defgeneric erc--scrolltobottom-setup ()
-  "Arrange for scrolling to bottom on window configuration changes.
-Undo that arrangement when disabling `erc-scrolltobottom-mode'."
+(defun erc--scrolltobottom-setup ()
+  "Perform buffer-local setup for module `scrolltobottom'."
   (if erc-scrolltobottom-mode
-      (add-hook 'post-command-hook #'erc-scroll-to-bottom nil t)
-    (remove-hook 'post-command-hook #'erc-scroll-to-bottom t)))
-
-(cl-defmethod erc--scrolltobottom-setup (&context
-                                         (erc-scrolltobottom-all (eql t)))
-  "Add and remove local hooks specific to `erc-scrolltobottom-all'."
-  (if erc-scrolltobottom-mode
-      (if erc-scrolltobottom-relaxed
+      (if erc-scrolltobottom-all
           (progn
-            (when (or (bound-and-true-p erc-move-to-prompt-mode)
-                      (memq 'move-to-prompt erc-modules))
-              (cl-pushnew 'self-insert-command
-                          erc--scrolltobottom-relaxed-commands))
-            (add-hook 'post-command-hook
-                      #'erc--scrolltobottom-on-post-command-relaxed 60 t)
-            (add-hook 'pre-command-hook ; preempt `move-to-prompt'
-                      #'erc--scrolltobottom-on-pre-command-relaxed 60 t))
-        (add-hook 'window-configuration-change-hook
-                  #'erc--scrolltobottom-at-prompt-minibuffer-active nil t)
-        (add-hook 'pre-command-hook
-                  #'erc--scrolltobottom-on-pre-command 60 t)
-        (add-hook 'post-command-hook
-                  #'erc--scrolltobottom-on-post-command 60 t))
+            (setq-local read-minibuffer-restore-windows nil)
+            (when (zerop scroll-conservatively)
+              (setq-local scroll-step 1))
+            (unless (eq erc-scrolltobottom-all 'relaxed)
+              (add-hook 'window-configuration-change-hook
+                        #'erc--scrolltobottom-on-win-conf-change 50 t)
+              (add-hook 'post-command-hook
+                        #'erc--scrolltobottom-on-post-command 50 t)))
+        (add-hook 'post-command-hook #'erc-scroll-to-bottom nil t))
+    (remove-hook 'post-command-hook #'erc-scroll-to-bottom t)
+    (remove-hook 'post-command-hook #'erc--scrolltobottom-on-post-command t)
     (remove-hook 'window-configuration-change-hook
-                 #'erc--scrolltobottom-at-prompt-minibuffer-active t)
-    (remove-hook 'pre-command-hook
-                 #'erc--scrolltobottom-on-pre-command t)
-    (remove-hook 'post-command-hook
-                 #'erc--scrolltobottom-on-post-command t)
-    (remove-hook 'pre-command-hook
-                 #'erc--scrolltobottom-on-pre-command-relaxed t)
-    (remove-hook 'post-command-hook
-                 #'erc--scrolltobottom-on-post-command-relaxed t)
-    (kill-local-variable 'erc--scrolltobottom-relaxed-commands)
+                 #'erc--scrolltobottom-on-win-conf-change t)
+    (kill-local-variable 'read-minibuffer-restore-windows)
+    (kill-local-variable 'scroll-step)
     (kill-local-variable 'erc--scrolltobottom-window-info)))
 
 (defun erc--scrolltobottom-on-pre-insert (_)
-  "Remember the `window-start' before inserting a message."
+  "Remember `window-start' before inserting a message."
   (setq erc--scrolltobottom-window-info
         (mapcar (lambda (w)
                   (list w
                         (window-start w)
                         (and-let*
-                            ((erc-scrolltobottom-relaxed)
+                            (((eq erc-scrolltobottom-all 'relaxed))
                              (c (count-screen-lines (window-start w)
                                                     (point-max) nil w)))
                           (if (= ?\n (char-before (point-max))) (1+ c) c))))
@@ -333,8 +237,8 @@ variable `erc-input-line-position'."
 ;;;###autoload(autoload 'erc-readonly-mode "erc-goodies" nil t)
 (define-erc-module readonly nil
   "This mode causes all inserted text to be read-only."
-  ((add-hook 'erc-insert-post-hook #'erc-make-read-only)
-   (add-hook 'erc-send-post-hook #'erc-make-read-only))
+  ((add-hook 'erc-insert-post-hook #'erc-make-read-only 70)
+   (add-hook 'erc-send-post-hook #'erc-make-read-only 70))
   ((remove-hook 'erc-insert-post-hook #'erc-make-read-only)
    (remove-hook 'erc-send-post-hook #'erc-make-read-only)))
 
@@ -372,7 +276,7 @@ Put this function on `erc-insert-post-hook' and/or `erc-send-post-hook'."
 ;;;###autoload(autoload 'erc-keep-place-mode "erc-goodies" nil t)
 (define-erc-module keep-place nil
   "Leave point above un-viewed text in other channels."
-  ((add-hook 'erc-insert-pre-hook  #'erc-keep-place 85))
+  ((add-hook 'erc-insert-pre-hook  #'erc-keep-place 65))
   ((remove-hook 'erc-insert-pre-hook  #'erc-keep-place)))
 
 (defcustom erc-keep-place-indicator-style t
@@ -382,21 +286,26 @@ displays an arrow in the left fringe or margin.  When it's
 `face', ERC adds the face `erc-keep-place-indicator-line' to the
 appropriate line.  A value of t does both."
   :group 'erc
-  :package-version '(ERC . "5.6") ; FIXME sync on release
-  :type '(choice (const t) (const server) (const target)))
+  :package-version '(ERC . "5.6")
+  :type '(choice (const :tag "Use arrow" arrow)
+                 (const :tag "Use face" face)
+                 (const :tag "Use both arrow and face" t)))
 
 (defcustom erc-keep-place-indicator-buffer-type t
   "ERC buffer type in which to display `keep-place-indicator'.
 A value of t means \"all\" ERC buffers."
   :group 'erc
-  :package-version '(ERC . "5.6") ; FIXME sync on release
+  :package-version '(ERC . "5.6")
   :type '(choice (const t) (const server) (const target)))
 
 (defcustom erc-keep-place-indicator-follow nil
   "Whether to sync visual kept place to window's top when reading.
-For use with `erc-keep-place-indicator-mode'."
+For use with `erc-keep-place-indicator-mode'.  When enabled, the
+indicator updates when the last window displaying the same buffer
+switches away, but only if the indicator resides earlier in the
+buffer than the window's start."
   :group 'erc
-  :package-version '(ERC . "5.6") ; FIXME sync on release
+  :package-version '(ERC . "5.6")
   :type 'boolean)
 
 (defface erc-keep-place-indicator-line
@@ -422,42 +331,30 @@ For use with `erc-keep-place-indicator-mode'."
 (defvar-local erc--keep-place-indicator-overlay nil
   "Overlay for `erc-keep-place-indicator-mode'.")
 
-(defun erc--keep-place-indicator-on-window-configuration-change ()
+(defun erc--keep-place-indicator-on-window-buffer-change (_)
   "Maybe sync `erc--keep-place-indicator-overlay'.
-Specifically, do so unless switching to or from another window in
-the active frame."
-  (when erc-keep-place-indicator-follow
-    (unless (or (minibuffer-window-active-p (minibuffer-window))
-                (eq (window-old-buffer) (current-buffer)))
-      (when (< (overlay-end erc--keep-place-indicator-overlay)
-               (window-start)
-               erc-insert-marker)
-        (erc-keep-place-move (window-start))))))
-
-(defun erc--keep-place-indicator-setup ()
-  "Initialize buffer for maintaining `erc--keep-place-indicator-overlay'."
-  (require 'fringe)
-  (erc--restore-initialize-priors erc-keep-place-indicator-mode
-    erc--keep-place-indicator-overlay (make-overlay 0 0))
-  (add-hook 'erc-keep-place-mode-hook
-            #'erc--keep-place-indicator-on-global-module nil t)
-  (add-hook 'window-configuration-change-hook
-            #'erc--keep-place-indicator-on-window-configuration-change nil t)
-  (when-let* (((memq erc-keep-place-indicator-style '(t arrow)))
-              (ov-property (if (zerop (fringe-columns 'left))
-                               'after-string
-                             'before-string))
-              (display (if (zerop (fringe-columns 'left))
-                           `((margin left-margin) ,overlay-arrow-string)
-                         '(left-fringe right-triangle
-                                       erc-keep-place-indicator-arrow)))
-              (bef (propertize " " 'display display)))
-    (overlay-put erc--keep-place-indicator-overlay ov-property bef))
-  (when (memq erc-keep-place-indicator-style '(t face))
-    (overlay-put erc--keep-place-indicator-overlay 'face
-                 'erc-keep-place-indicator-line)))
+Do so only when switching to a new buffer in the same window if
+the replaced buffer is no longer visible in another window and
+its `window-start' at the time of switching is strictly greater
+than the indicator's position."
+  (when-let ((erc-keep-place-indicator-follow)
+             (window (selected-window))
+             ((not (eq window (active-minibuffer-window))))
+             (old-buffer (window-old-buffer window))
+             ((buffer-live-p old-buffer))
+             ((not (eq old-buffer (current-buffer))))
+             (ov (buffer-local-value 'erc--keep-place-indicator-overlay
+                                     old-buffer))
+             ((not (get-buffer-window old-buffer 'visible)))
+             (prev (assq old-buffer (window-prev-buffers window)))
+             (old-start (nth 1 prev))
+             (old-inmkr (buffer-local-value 'erc-insert-marker old-buffer))
+             ((< (overlay-end ov) old-start old-inmkr)))
+    (with-current-buffer old-buffer
+      (erc-keep-place-move old-start))))
 
 ;;;###autoload(put 'keep-place-indicator 'erc--feature 'erc-goodies)
+;;;###autoload(autoload 'erc-keep-place-indicator-mode "erc-goodies" nil t)
 (define-erc-module keep-place-indicator nil
   "Buffer-local `keep-place' with fringe arrow and/or highlighted face.
 Play nice with global module `keep-place' but don't depend on it.
@@ -467,30 +364,59 @@ and `keep-place-indicator' in different buffers."
          ((memq 'keep-place erc-modules)
           (erc-keep-place-mode +1))
          ;; Enable a local version of `keep-place-mode'.
-         (t (add-hook 'erc-insert-pre-hook  #'erc-keep-place 85 t)))
+         (t (add-hook 'erc-insert-pre-hook  #'erc-keep-place 65 t)))
+   (require 'fringe)
+   (add-hook 'window-buffer-change-functions
+             #'erc--keep-place-indicator-on-window-buffer-change 40)
+   (add-hook 'erc-keep-place-mode-hook
+             #'erc--keep-place-indicator-on-global-module 40)
    (if (pcase erc-keep-place-indicator-buffer-type
          ('target erc--target)
          ('server (not erc--target))
          ('t t))
-       (erc--keep-place-indicator-setup)
+       (progn
+         (erc--restore-initialize-priors erc-keep-place-indicator-mode
+           erc--keep-place-indicator-overlay (make-overlay 0 0))
+         (when-let (((memq erc-keep-place-indicator-style '(t arrow)))
+                    (ov-property (if (zerop (fringe-columns 'left))
+                                     'after-string
+                                   'before-string))
+                    (display (if (zerop (fringe-columns 'left))
+                                 `((margin left-margin) ,overlay-arrow-string)
+                               '(left-fringe right-triangle
+                                             erc-keep-place-indicator-arrow)))
+                    (bef (propertize " " 'display display)))
+           (overlay-put erc--keep-place-indicator-overlay ov-property bef))
+         (when (memq erc-keep-place-indicator-style '(t face))
+           (overlay-put erc--keep-place-indicator-overlay 'face
+                        'erc-keep-place-indicator-line)))
      (erc-keep-place-indicator-mode -1)))
   ((when erc--keep-place-indicator-overlay
      (delete-overlay erc--keep-place-indicator-overlay))
-   (remove-hook 'window-configuration-change-hook
-                #'erc--keep-place-indicator-on-window-configuration-change t)
+   (let ((buffer (current-buffer)))
+     ;; Remove global hooks unless others exist with mode enabled.
+     (unless (erc-buffer-filter (lambda ()
+                                  (and (not (eq buffer (current-buffer)))
+                                       erc-keep-place-indicator-mode)))
+       (remove-hook 'erc-keep-place-mode-hook
+                    #'erc--keep-place-indicator-on-global-module)
+       (remove-hook 'window-buffer-change-functions
+                    #'erc--keep-place-indicator-on-window-buffer-change)))
+   (when (local-variable-p 'erc-insert-pre-hook)
+     (remove-hook 'erc-insert-pre-hook  #'erc-keep-place t))
    (remove-hook 'erc-keep-place-mode-hook
                 #'erc--keep-place-indicator-on-global-module t)
-   (remove-hook 'erc-insert-pre-hook  #'erc-keep-place t)
    (kill-local-variable 'erc--keep-place-indicator-overlay))
   'local)
 
 (defun erc--keep-place-indicator-on-global-module ()
-  "Ensure `keep-place-indicator' can cope with `erc-keep-place-mode'.
-That is, ensure the local module can survive a user toggling the
-global one."
-  (if erc-keep-place-mode
-      (remove-hook 'erc-insert-pre-hook  #'erc-keep-place t)
-    (add-hook 'erc-insert-pre-hook  #'erc-keep-place 85 t)))
+  "Ensure `keep-place-indicator' survives toggling `erc-keep-place-mode'.
+Do this by simulating `keep-place' in all buffers where
+`keep-place-indicator' is enabled."
+  (erc-with-all-buffers-of-server nil (lambda () erc-keep-place-indicator-mode)
+    (if erc-keep-place-mode
+        (remove-hook 'erc-insert-pre-hook  #'erc-keep-place t)
+      (add-hook 'erc-insert-pre-hook  #'erc-keep-place 65 t))))
 
 (defun erc-keep-place-move (pos)
   "Move keep-place indicator to current line or POS.
@@ -544,8 +470,7 @@ For use with `keep-place-indicator' module."
     (forward-line -1)
     (when erc-keep-place-indicator-mode
       (unless (or (minibuffer-window-active-p (selected-window))
-                  (and (frame-visible-p (selected-frame))
-                       (get-buffer-window (current-buffer) (selected-frame))))
+                  (get-buffer-window nil 'visible))
         (erc-keep-place-move nil)))
     ;; if `switch-to-buffer-preserve-window-point' is set,
     ;; we cannot rely on point being saved, and must commit
@@ -565,21 +490,26 @@ For use with `keep-place-indicator' module."
                                erc-cmd-COUNTRY
                                erc-cmd-SV
                                erc-cmd-SM
-                               erc-cmd-SMV
+                               erc-cmd-SAY
                                erc-cmd-LASTLOG)
-  "List of commands that are aliases for CTCP ACTION or for ERC messages.
-
-If a command's function symbol is in this list, the typed command
-does not appear in the ERC buffer after the user presses ENTER.")
+  "List of client \"slash commands\" that perform their own buffer I/O.
+The `command-indicator' module forgoes echoing these commands,
+most of which aren't actual interactive lisp commands.")
 
 ;;;###autoload(autoload 'erc-noncommands-mode "erc-goodies" nil t)
 (define-erc-module noncommands nil
-  "This mode distinguishes non-commands.
-Commands listed in `erc-insert-this' know how to display
-themselves."
+  "Treat commands that display themselves specially.
+This module has been a no-op since ERC 5.3 and has likely only
+ever made sense in the context of `erc-command-indicator'.  It
+was deprecated in ERC 5.6."
   ((add-hook 'erc--input-review-functions #'erc-send-distinguish-noncommands))
   ((remove-hook 'erc--input-review-functions
                 #'erc-send-distinguish-noncommands)))
+(make-obsolete-variable 'erc-noncommand-mode
+                        'erc-command-indicator-mode "30.1")
+(make-obsolete 'erc-noncommand-mode 'erc-command-indicator-mode "30.1")
+(make-obsolete 'erc-noncommand-enable 'erc-command-indicator-enable "30.1")
+(make-obsolete 'erc-noncommand-disable 'erc-command-indicator-disable "30.1")
 
 (defun erc-send-distinguish-noncommands (state)
   "If STR is an ERC non-command, set `insertp' in STATE to nil."
@@ -592,6 +522,109 @@ themselves."
                (memq cmd-fun erc-noncommands-list))
       ;; Inhibit sending this string.
       (setf (erc-input-insertp state) nil))))
+
+
+;;; Command-indicator
+
+(defface erc-command-indicator-face
+  '((t :inherit (erc-input-face fixed-pitch-serif)))
+  "Face for echoed command lines, including the prompt.
+See option `erc-command-indicator'."
+  :package-version '(ERC . "5.6") ; standard value, from bold
+  :group 'erc-faces)
+
+(defcustom erc-command-indicator 'erc-prompt
+  "Pseudo prompt for echoed command lines.
+An analog of the option `erc-prompt' that replaces the \"speaker
+label\" for echoed \"slash\" commands submitted at the prompt.  A
+value of nil means ERC only inserts the command-line portion
+alone, without the prompt, which may trick certain modules, like
+`fill', into treating the leading slash command itself as the
+message's speaker."
+  :package-version '(ERC . "5.6")
+  :group 'erc-display
+  :type '(choice (const :tag "Defer to `erc-prompt'" erc-prompt)
+                 (const :tag "Print command lines without a prompt" nil)
+                 (string :tag "User-provided string")
+                 (function :tag "User-provided function")))
+
+;;;###autoload(autoload 'erc-command-indicator-mode "erc-goodies" nil t)
+(define-erc-module command-indicator nil
+  "Echo command lines for \"slash commands,\" like /JOIN, /HELP, etc.
+Skip those appearing in `erc-noncommands-list'.
+
+Users can run \\[erc-command-indicator-toggle-hidden] to hide and
+reveal echoed command lines after they've been inserted."
+  ((add-hook 'erc--input-review-functions
+             #'erc--command-indicator-permit-insertion 80 t)
+   (erc-command-indicator-toggle-hidden -1))
+  ((remove-hook 'erc--input-review-functions
+                #'erc--command-indicator-permit-insertion t)
+   (erc-command-indicator-toggle-hidden +1))
+  'local)
+
+(defun erc-command-indicator ()
+  "Return the command-indicator prompt as a string.
+Do nothing if the variable `erc-command-indicator' is nil."
+  (and erc-command-indicator
+       (let ((prompt (if (functionp erc-command-indicator)
+                         (funcall erc-command-indicator)
+                       erc-command-indicator)))
+         (concat prompt (and (not (string-empty-p prompt))
+                             (not (string-suffix-p " " prompt))
+                             " ")))))
+
+(defun erc-command-indicator-toggle-hidden (arg)
+  "Toggle whether echoed \"slash commands\" are visible."
+  (interactive "P")
+  (erc--toggle-hidden 'command-indicator arg))
+
+(defun erc--command-indicator-permit-insertion (state)
+  "Insert `erc-input' STATE's message if it's an echoed command."
+  (cl-assert erc-command-indicator-mode)
+  (when (erc--input-split-cmdp state)
+    (setf (erc--input-split-insertp state) t
+          (erc--input-split-substxt state) #'erc--command-indicator-display)
+    (erc-send-distinguish-noncommands state)))
+
+;; This function used to be called `erc-display-command'.  It was
+;; neutered in ERC 5.3.x (Emacs 24.5), commented out in 5.4, removed
+;; in 5.5, and restored in 5.6.
+(defun erc--command-indicator-display (line &rest rest)
+  "Insert command LINE as echoed input resembling that of REPLs and shells."
+  (when erc-insert-this
+    (when rest
+      (setq line (string-join (cons line rest) "\n")))
+    (save-excursion
+      (erc--assert-input-bounds)
+      (let ((insert-position (marker-position (goto-char erc-insert-marker)))
+            (erc--msg-props (or erc--msg-props
+                                (let ((ovs erc--msg-prop-overrides))
+                                  (map-into `((erc--msg . slash-cmd)
+                                              ,@(reverse ovs))
+                                            'hash-table)))))
+        (when-let ((string (erc-command-indicator))
+                   (erc-input-marker (copy-marker erc-input-marker)))
+          (erc-display-prompt nil nil string 'erc-command-indicator-face)
+          (remove-text-properties insert-position (point)
+                                  '(field nil erc-prompt nil))
+          (set-marker erc-input-marker nil))
+        (let ((beg (point)))
+          (insert line)
+          (erc-put-text-property beg (point)
+                                 'font-lock-face 'erc-command-indicator-face)
+          (insert "\n"))
+        (save-restriction
+          (narrow-to-region insert-position (point))
+          (run-hooks 'erc-send-modify-hook)
+          (run-hooks 'erc-send-post-hook)
+          (cl-assert (> (- (point-max) (point-min)) 1))
+          (erc--hide-message 'command-indicator)
+          (add-text-properties (point-min) (1+ (point-min))
+                               (erc--order-text-properties-from-hash
+                                erc--msg-props))))
+      (erc--refresh-prompt))))
+
 
 ;;; IRC control character processing.
 (defgroup erc-control-characters nil
@@ -792,7 +825,7 @@ The value `erc-interpret-controls-p' must also be t for this to work."
 ;;;###autoload(autoload 'erc-irccontrols-mode "erc-goodies" nil t)
 (define-erc-module irccontrols nil
   "This mode enables the interpretation of IRC control chars."
-  ((add-hook 'erc-insert-modify-hook #'erc-controls-highlight)
+  ((add-hook 'erc-insert-modify-hook #'erc-controls-highlight -50)
    (add-hook 'erc-send-modify-hook #'erc-controls-highlight)
    (erc--modify-local-map t "C-c C-c" #'erc-toggle-interpret-controls))
   ((remove-hook 'erc-insert-modify-hook #'erc-controls-highlight)

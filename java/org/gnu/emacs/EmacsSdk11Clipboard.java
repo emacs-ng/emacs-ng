@@ -1,6 +1,6 @@
 /* Communication module for Android terminals.  -*- c-file-style: "GNU" -*-
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -245,6 +245,8 @@ public final class EmacsSdk11Clipboard extends EmacsClipboard
     if (data == null || data.getItemCount () < 1)
       return null;
 
+    fd = -1;
+
     try
       {
 	uri = data.getItemAt (0).getUri ();
@@ -267,12 +269,34 @@ public final class EmacsSdk11Clipboard extends EmacsClipboard
 	/* Close the original offset.  */
 	assetFd.close ();
       }
+    catch (SecurityException e)
+      {
+	/* Guarantee a file descriptor duplicated or detached is
+	   ultimately closed if an error arises.  */
+
+	if (fd != -1)
+	  EmacsNative.close (fd);
+
+	return null;
+      }
     catch (FileNotFoundException e)
       {
+	/* Guarantee a file descriptor duplicated or detached is
+	   ultimately closed if an error arises.  */
+
+	if (fd != -1)
+	  EmacsNative.close (fd);
+
 	return null;
       }
     catch (IOException e)
       {
+	/* Guarantee a file descriptor duplicated or detached is
+	   ultimately closed if an error arises.  */
+
+	if (fd != -1)
+	  EmacsNative.close (fd);
+
 	return null;
       }
 

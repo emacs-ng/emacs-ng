@@ -1,6 +1,6 @@
 ;;; bindings.el --- define standard key bindings and some variables  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1985-2024 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -297,6 +297,35 @@ Value is used for `mode-line-frame-identification', which see."
   "Mode line construct to describe the current frame.")
 ;;;###autoload
 (put 'mode-line-frame-identification 'risky-local-variable t)
+
+(defvar mode-line-window-dedicated-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map [mode-line mouse-1] #'toggle-window-dedicated)
+    (purecopy map)) "\
+Keymap for what is displayed by `mode-line-window-dedicated'.")
+
+(defun mode-line-window-control ()
+  "Compute mode line construct for window dedicated state.
+Value is used for `mode-line-window-dedicated', which see."
+  (cond
+   ((eq (window-dedicated-p) t)
+    (propertize
+     "D"
+     'help-echo "Window strongly dedicated to its buffer\nmouse-1: Toggle"
+     'local-map mode-line-window-dedicated-keymap
+     'mouse-face 'mode-line-highlight))
+   ((window-dedicated-p)
+    (propertize
+     "d"
+     'help-echo "Window dedicated to its buffer\nmouse-1: Toggle"
+     'local-map mode-line-window-dedicated-keymap
+     'mouse-face 'mode-line-highlight))
+   (t "")))
+
+(defvar mode-line-window-dedicated '(:eval (mode-line-window-control))
+  "Mode line construct to describe the current window.")
+;;;###autoload
+(put 'mode-line-window-dedicated 'risky-local-variable t)
 
 (defvar-local mode-line-process nil
   "Mode line construct for displaying info on process status.
@@ -676,12 +705,14 @@ By default, this shows the information specified by `global-mode-string'.")
 	            'mode-line-mule-info
 	            'mode-line-client
 	            'mode-line-modified
-	            'mode-line-remote)
-              'display '(min-width (5.0)))
+		    'mode-line-remote
+		    'mode-line-window-dedicated)
+              'display '(min-width (6.0)))
 	     'mode-line-frame-identification
 	     'mode-line-buffer-identification
 	     "   "
 	     'mode-line-position
+	     '(project-mode-line project-mode-line-format)
 	     '(vc-mode vc-mode)
 	     "  "
 	     'mode-line-modes
@@ -1011,6 +1042,14 @@ or backward in the buffer.  This is in contrast with \\[forward-word]
 and \\[backward-word], which see.
 
 Value is normally t.
+
+The word boundaries are normally determined by the buffer's syntax
+table and character script (according to `char-script-table'), but
+`find-word-boundary-function-table', such as set up by `subword-mode',
+can change that.  If a Lisp program needs to move by words determined
+strictly by the syntax table, it should use `forward-word-strictly'
+instead.  See Info node `(elisp) Word Motion' for details.
+
 If an edge of the buffer or a field boundary is reached, point is left there
 and the function returns nil.  Field boundaries are not noticed
 if `inhibit-field-text-motion' is non-nil."
@@ -1027,6 +1066,14 @@ or forward in the buffer.  This is in contrast with \\[backward-word]
 and \\[forward-word], which see.
 
 Value is normally t.
+
+The word boundaries are normally determined by the buffer's syntax
+table and character script (according to `char-script-table'), but
+`find-word-boundary-function-table', such as set up by `subword-mode',
+can change that.  If a Lisp program needs to move by words determined
+strictly by the syntax table, it should use `forward-word-strictly'
+instead.  See Info node `(elisp) Word Motion' for details.
+
 If an edge of the buffer or a field boundary is reached, point is left there
 and the function returns nil.  Field boundaries are not noticed
 if `inhibit-field-text-motion' is non-nil."

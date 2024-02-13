@@ -1,6 +1,6 @@
 ;;; verilog-mode.el --- major mode for editing verilog source in Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
 
 ;; Author: Michael McNamara <mac@verilog.com>
 ;;    Wilson Snyder <wsnyder@wsnyder.org>
@@ -5374,10 +5374,7 @@ primitive or interface named NAME."
                                 (goto-char (match-end 0))
                                 (setq there (point))
                                 (setq err nil)
-                                (setq str (concat " // " cntx (verilog-get-expr))))
-
-                               (;-- otherwise...
-                                (setq str " // auto-endcomment confused "))))
+                                (setq str (concat " // " cntx (verilog-get-expr))))))
 
                              ((and
                                (verilog-in-case-region-p) ;-- handle case item differently

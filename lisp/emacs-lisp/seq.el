@@ -1,6 +1,6 @@
 ;;; seq.el --- Sequence manipulation functions  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2014-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2024 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Petton <nicolas@petton.fr>
 ;; Keywords: sequences
@@ -619,12 +619,12 @@ SEQUENCE must be a sequence of numbers or markers."
       (unless rest-marker
         (pcase name
           (`&rest
-           (progn (push `(app (pcase--flip seq-drop ,index)
+           (progn (push `(app (seq-drop _ ,index)
                               ,(seq--elt-safe args (1+ index)))
                         bindings)
                   (setq rest-marker t)))
           (_
-           (push `(app (pcase--flip seq--elt-safe ,index) ,name) bindings))))
+           (push `(app (seq--elt-safe _ ,index) ,name) bindings))))
       (setq index (1+ index)))
     bindings))
 

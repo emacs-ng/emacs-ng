@@ -1,6 +1,6 @@
 ;;; bind-key.el --- A simple way to manage personal keybindings  -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2012-2023 Free Software Foundation, Inc.
+;; Copyright (c) 2012-2024 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@newartisans.com>
 ;; Maintainer: John Wiegley <johnw@newartisans.com>
@@ -9,6 +9,9 @@
 ;; Package-Requires: ((emacs "24.3"))
 ;; Keywords: keys keybinding config dotemacs extensions
 ;; URL: https://github.com/jwiegley/use-package
+
+;; This is a GNU ELPA :core package.  Avoid functionality that is not
+;; compatible with the version of Emacs recorded above.
 
 ;; This file is part of GNU Emacs.
 
@@ -152,6 +155,7 @@ add keys to that keymap."
 (add-to-list 'emulation-mode-map-alists
              `((override-global-mode . ,override-global-map)))
 
+;;;###autoload
 (defvar personal-keybindings nil
   "List of bindings performed by `bind-key'.
 

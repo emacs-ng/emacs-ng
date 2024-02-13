@@ -1,6 +1,6 @@
 /* Android initialization for GNU Emacs.
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -40,6 +40,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <sys/param.h>
 #include <sys/stat.h>
+#include <sys/select.h>
 
 /* Old NDK versions lack MIN and MAX.  */
 #include <minmax.h>
@@ -104,12 +105,16 @@ struct android_emacs_window
   jmethodID make_input_focus;
   jmethodID raise;
   jmethodID lower;
+  jmethodID reconfigure;
   jmethodID get_window_geometry;
   jmethodID translate_coordinates;
   jmethodID set_dont_accept_focus;
   jmethodID set_dont_focus_on_map;
   jmethodID define_cursor;
   jmethodID damage_rect;
+  jmethodID recreate_activity;
+  jmethodID clear_window;
+  jmethodID clear_area;
 };
 
 struct android_emacs_cursor
@@ -149,6 +154,13 @@ static char *android_files_dir;
 
 /* The Java environment being used for the main thread.  */
 JNIEnv *android_java_env;
+
+#ifdef THREADS_ENABLED
+
+/* The Java VM new threads attach to.  */
+JavaVM *android_jvm;
+
+#endif /* THREADS_ENABLED */
 
 /* The EmacsGC class.  */
 static jclass emacs_gc_class;
@@ -494,6 +506,9 @@ android_handle_sigusr1 (int sig, siginfo_t *siginfo, void *arg)
    This should ideally be defined further down.  */
 static sem_t android_query_sem;
 
+/* ID of the Emacs thread.  */
+static pthread_t main_thread_id;
+
 /* Set up the global event queue by initializing the mutex and two
    condition variables, and the linked list of events.  This must be
    called before starting the Emacs thread.  Also, initialize the
@@ -528,6 +543,8 @@ android_init_events (void)
 
   event_queue.events.next = &event_queue.events;
   event_queue.events.last = &event_queue.events;
+
+  main_thread_id = pthread_self ();
 
 #if __ANDROID_API__ >= 16
 
@@ -576,10 +593,6 @@ android_pending (void)
 
   return i;
 }
-
-/* Forward declaration.  */
-
-static void android_check_query (void);
 
 /* Wait for events to become available synchronously.  Return once an
    event arrives.  Also, reply to the UI thread whenever it requires a
@@ -730,6 +743,12 @@ android_select (int nfds, fd_set *readfds, fd_set *writefds,
   static char byte;
 #endif
 
+#ifdef THREADS_ENABLED
+  if (!pthread_equal (pthread_self (), main_thread_id))
+    return pselect (nfds, readfds, writefds, exceptfds, timeout,
+		    NULL);
+#endif /* THREADS_ENABLED */
+
   /* Since Emacs is reading keyboard input again, signify that queries
      from input methods are no longer ``urgent''.  */
 
@@ -743,6 +762,19 @@ android_select (int nfds, fd_set *readfds, fd_set *writefds,
 
   if (event_queue.num_events)
     {
+      /* Zero READFDS, WRITEFDS and EXCEPTFDS, lest the caller
+	 mistakenly interpret this return value as indicating that an
+	 inotify file descriptor is readable, and try to poll an
+	 unready one.  */
+
+      if (readfds)
+	FD_ZERO (readfds);
+
+      if (writefds)
+	FD_ZERO (writefds);
+
+      if (exceptfds)
+	FD_ZERO (exceptfds);
       pthread_mutex_unlock (&event_queue.mutex);
       return 1;
     }
@@ -822,9 +854,11 @@ android_select (int nfds, fd_set *readfds, fd_set *writefds,
   if (nfds_return < 0)
     errno = EINTR;
 
+#ifndef THREADS_ENABLED
   /* Now check for and run anything the UI thread wants to run in the
      main thread.  */
   android_check_query ();
+#endif /* THREADS_ENABLED */
 
   return nfds_return;
 }
@@ -1259,6 +1293,14 @@ NATIVE_NAME (dup) (JNIEnv *env, jobject object, jint fd)
   return dup (fd);
 }
 
+JNIEXPORT jint JNICALL
+NATIVE_NAME (close) (JNIEnv *env, jobject object, jint fd)
+{
+  JNI_STACK_ALIGNMENT_PROLOGUE;
+
+  return close (fd);
+}
+
 JNIEXPORT jstring JNICALL
 NATIVE_NAME (getFingerprint) (JNIEnv *env, jobject object)
 {
@@ -1292,12 +1334,17 @@ NATIVE_NAME (setEmacsParams) (JNIEnv *env, jobject object,
   const char *java_string;
   struct stat statb;
 
+#ifdef THREADS_ENABLED
+  /* Save the Java VM.  */
+  if ((*env)->GetJavaVM (env, &android_jvm))
+    emacs_abort ();
+#endif /* THREADS_ENABLED */
+
   /* Set the Android API level early, as it is used by
      `android_vfs_init'.  */
   android_api_level = api_level;
 
   /* This function should only be called from the main thread.  */
-
   android_pixel_density_x = pixel_density_x;
   android_pixel_density_y = pixel_density_y;
   android_scaled_pixel_density = scaled_density;
@@ -1446,6 +1493,18 @@ NATIVE_NAME (setEmacsParams) (JNIEnv *env, jobject object,
      the possibility of Java locating libemacs later.  */
   setenv ("EMACS_LD_LIBRARY_PATH", android_lib_dir, 1);
 
+  /* If the system is Android 5.0 or later, set LANG to en_US.utf8,
+     which is understood by the C library.  In other instances set it
+     to C, a meaningless value, for good measure.  */
+
+  if (emacs_service_object)
+    {
+      if (api_level >= 21)
+	setenv ("LANG", "en_US.utf8", 1);
+      else
+	setenv ("LANG", "C", 1);
+    }
+
   /* Make a reference to the Emacs service.  */
 
   if (emacs_service_object)
@@ -1530,7 +1589,7 @@ android_init_emacs_service (void)
     = (*android_java_env)->GetMethodID (android_java_env,	\
 					service_class.class,	\
 					name, signature);	\
-  assert (service_class.c_name);
+  eassert (service_class.c_name);
 
   FIND_METHOD (fill_rectangle, "fillRectangle",
 	       "(Lorg/gnu/emacs/EmacsDrawable;"
@@ -1548,16 +1607,13 @@ android_init_emacs_service (void)
   FIND_METHOD (draw_point, "drawPoint",
 	       "(Lorg/gnu/emacs/EmacsDrawable;"
 	       "Lorg/gnu/emacs/EmacsGC;II)V");
-  FIND_METHOD (clear_window, "clearWindow",
-	       "(Lorg/gnu/emacs/EmacsWindow;)V");
-  FIND_METHOD (clear_area, "clearArea",
-	       "(Lorg/gnu/emacs/EmacsWindow;IIII)V");
-  FIND_METHOD (ring_bell, "ringBell", "()V");
+  FIND_METHOD (ring_bell, "ringBell", "(I)V");
   FIND_METHOD (query_tree, "queryTree",
 	       "(Lorg/gnu/emacs/EmacsWindow;)[S");
   FIND_METHOD (get_screen_width, "getScreenWidth", "(Z)I");
   FIND_METHOD (get_screen_height, "getScreenHeight", "(Z)I");
   FIND_METHOD (detect_mouse, "detectMouse", "()Z");
+  FIND_METHOD (detect_keyboard, "detectKeyboard", "()Z");
   FIND_METHOD (name_keysym, "nameKeysym", "(I)Ljava/lang/String;");
   FIND_METHOD (browse_url, "browseUrl", "(Ljava/lang/String;Z)"
 	       "Ljava/lang/String;");
@@ -1619,6 +1675,10 @@ android_init_emacs_service (void)
 	       "Ljava/lang/String;)Ljava/lang/String;");
   FIND_METHOD (valid_authority, "validAuthority",
 	       "(Ljava/lang/String;)Z");
+  FIND_METHOD (external_storage_available,
+	       "externalStorageAvailable", "()Z");
+  FIND_METHOD (request_storage_access,
+	       "requestStorageAccess", "()V");
 #undef FIND_METHOD
 }
 
@@ -1646,7 +1706,7 @@ android_init_emacs_pixmap (void)
     = (*android_java_env)->GetMethodID (android_java_env,	\
 					pixmap_class.class,	\
 					name, signature);	\
-  assert (pixmap_class.c_name);
+  eassert (pixmap_class.c_name);
 
   FIND_METHOD (constructor_mutable, "<init>", "(SIII)V");
 
@@ -1677,7 +1737,7 @@ android_init_graphics_point (void)
     = (*android_java_env)->GetMethodID (android_java_env,	\
 					point_class.class,	\
 					name, signature);	\
-  assert (point_class.c_name);
+  eassert (point_class.c_name);
 
   FIND_METHOD (constructor, "<init>", "(II)V");
 #undef FIND_METHOD
@@ -1707,7 +1767,7 @@ android_init_emacs_drawable (void)
     = (*android_java_env)->GetMethodID (android_java_env,	\
 					drawable_class.class,	\
 					name, signature);	\
-  assert (drawable_class.c_name);
+  eassert (drawable_class.c_name);
 
   FIND_METHOD (get_bitmap, "getBitmap", "()Landroid/graphics/Bitmap;");
 #undef FIND_METHOD
@@ -1737,7 +1797,7 @@ android_init_emacs_window (void)
     = (*android_java_env)->GetMethodID (android_java_env,	\
 					window_class.class,	\
 					name, signature);	\
-  assert (window_class.c_name);
+  eassert (window_class.c_name);
 
   FIND_METHOD (swap_buffers, "swapBuffers", "()V");
   FIND_METHOD (toggle_on_screen_keyboard,
@@ -1755,6 +1815,7 @@ android_init_emacs_window (void)
   FIND_METHOD (make_input_focus, "makeInputFocus", "(J)V");
   FIND_METHOD (raise, "raise", "()V");
   FIND_METHOD (lower, "lower", "()V");
+  FIND_METHOD (reconfigure, "reconfigure", "(Lorg/gnu/emacs/EmacsWindow;I)V");
   FIND_METHOD (get_window_geometry, "getWindowGeometry",
 	       "()[I");
   FIND_METHOD (translate_coordinates, "translateCoordinates",
@@ -1763,12 +1824,14 @@ android_init_emacs_window (void)
   FIND_METHOD (set_dont_accept_focus, "setDontAcceptFocus", "(Z)V");
   FIND_METHOD (define_cursor, "defineCursor",
 	       "(Lorg/gnu/emacs/EmacsCursor;)V");
-
   /* In spite of the declaration of this function being located within
      EmacsDrawable, the ID of the `damage_rect' method is retrieved
      from EmacsWindow, which avoids virtual function dispatch within
      android_damage_window.  */
   FIND_METHOD (damage_rect, "damageRect", "(IIII)V");
+  FIND_METHOD (recreate_activity, "recreateActivity", "()V");
+  FIND_METHOD (clear_window, "clearWindow", "()V");
+  FIND_METHOD (clear_area, "clearArea", "(IIII)V");
 #undef FIND_METHOD
 }
 
@@ -1796,7 +1859,7 @@ android_init_emacs_cursor (void)
     = (*android_java_env)->GetMethodID (android_java_env,	\
 					cursor_class.class,	\
 					name, signature);	\
-  assert (cursor_class.c_name);
+  eassert (cursor_class.c_name);
 
   FIND_METHOD (constructor, "<init>", "(SI)V");
 #undef FIND_METHOD
@@ -1824,7 +1887,7 @@ NATIVE_NAME (initEmacs) (JNIEnv *env, jobject object, jarray argv,
   android_java_env = env;
 
   nelements = (*env)->GetArrayLength (env, argv);
-  c_argv = alloca (sizeof *c_argv * nelements);
+  c_argv = alloca (sizeof *c_argv * (nelements + 1));
 
   for (i = 0; i < nelements; ++i)
     {
@@ -1841,6 +1904,8 @@ NATIVE_NAME (initEmacs) (JNIEnv *env, jobject object, jarray argv,
       strcpy (c_argv[i], c_argument);
       (*env)->ReleaseStringUTFChars (env, (jstring) argument, c_argument);
     }
+
+  c_argv[nelements] = NULL;
 
   android_init_emacs_service ();
   android_init_emacs_pixmap ();
@@ -1924,6 +1989,45 @@ NATIVE_NAME (quit) (JNIEnv *env, jobject object)
      input.  */
   Vquit_flag = Qt;
   kill (getpid (), SIGIO);
+}
+
+/* Call shut_down_emacs subsequent to a call to the service's
+   onDestroy callback.  CLOSURE is ignored.  */
+
+static void
+android_shut_down_emacs (void *closure)
+{
+  __android_log_print (ANDROID_LOG_INFO, __func__,
+		       "The Emacs service is being shut down");
+  shut_down_emacs (0, Qnil);
+}
+
+JNIEXPORT void JNICALL
+NATIVE_NAME (shutDownEmacs) (JNIEnv *env, jobject object)
+{
+  JNI_STACK_ALIGNMENT_PROLOGUE;
+
+  android_run_in_emacs_thread (android_shut_down_emacs, NULL);
+}
+
+/* Carry out garbage collection and clear all image caches on the
+   Android terminal.  Called when the system has depleted most of its
+   memory and desires that background processes release unused
+   core.  */
+
+static void
+android_on_low_memory (void *closure)
+{
+  Fclear_image_cache (Qt, Qnil);
+  garbage_collect ();
+}
+
+JNIEXPORT void JNICALL
+NATIVE_NAME (onLowMemory) (JNIEnv *env, jobject object)
+{
+  JNI_STACK_ALIGNMENT_PROLOGUE;
+
+  android_run_in_emacs_thread (android_on_low_memory, NULL);
 }
 
 JNIEXPORT jlong JNICALL
@@ -2318,6 +2422,100 @@ NATIVE_NAME (sendExpose) (JNIEnv *env, jobject object,
 }
 
 JNIEXPORT jboolean JNICALL
+NATIVE_NAME (sendDndDrag) (JNIEnv *env, jobject object,
+			   jshort window, jint x, jint y)
+{
+  JNI_STACK_ALIGNMENT_PROLOGUE;
+
+  union android_event event;
+
+  event.dnd.type = ANDROID_DND_DRAG_EVENT;
+  event.dnd.serial = ++event_serial;
+  event.dnd.window = window;
+  event.dnd.x = x;
+  event.dnd.y = y;
+  event.dnd.uri_or_string = NULL;
+  event.dnd.length = 0;
+
+  android_write_event (&event);
+  return event_serial;
+}
+
+JNIEXPORT jboolean JNICALL
+NATIVE_NAME (sendDndUri) (JNIEnv *env, jobject object,
+			  jshort window, jint x, jint y,
+			  jstring string)
+{
+  JNI_STACK_ALIGNMENT_PROLOGUE;
+
+  union android_event event;
+  const jchar *characters;
+  jsize length;
+  uint16_t *buffer;
+
+  event.dnd.type = ANDROID_DND_URI_EVENT;
+  event.dnd.serial = ++event_serial;
+  event.dnd.window = window;
+  event.dnd.x = x;
+  event.dnd.y = y;
+
+  length = (*env)->GetStringLength (env, string);
+  buffer = malloc (length * sizeof *buffer);
+  characters = (*env)->GetStringChars (env, string, NULL);
+
+  if (!characters)
+    /* The JVM has run out of memory; return and let the out of memory
+       error take its course.  */
+    return 0;
+
+  memcpy (buffer, characters, length * sizeof *buffer);
+  (*env)->ReleaseStringChars (env, string, characters);
+
+  event.dnd.uri_or_string = buffer;
+  event.dnd.length = length;
+
+  android_write_event (&event);
+  return event_serial;
+}
+
+JNIEXPORT jboolean JNICALL
+NATIVE_NAME (sendDndText) (JNIEnv *env, jobject object,
+			   jshort window, jint x, jint y,
+			   jstring string)
+{
+  JNI_STACK_ALIGNMENT_PROLOGUE;
+
+  union android_event event;
+  const jchar *characters;
+  jsize length;
+  uint16_t *buffer;
+
+  event.dnd.type = ANDROID_DND_TEXT_EVENT;
+  event.dnd.serial = ++event_serial;
+  event.dnd.window = window;
+  event.dnd.x = x;
+  event.dnd.y = y;
+
+  length = (*env)->GetStringLength (env, string);
+  buffer = malloc (length * sizeof *buffer);
+  characters = (*env)->GetStringChars (env, string, NULL);
+
+  if (!characters)
+    /* The JVM has run out of memory; return and let the out of memory
+       error take its course.  */
+    return 0;
+
+  memcpy (buffer, characters, length * sizeof *buffer);
+  (*env)->ReleaseStringChars (env, string, characters);
+
+  event.dnd.uri_or_string = buffer;
+  event.dnd.length = length;
+
+  android_write_event (&event);
+  return event_serial;
+}
+
+JNIEXPORT jboolean JNICALL
 NATIVE_NAME (shouldForwardMultimediaButtons) (JNIEnv *env,
 					      jobject object)
 {
@@ -2597,12 +2795,12 @@ android_destroy_handle (android_handle handle)
       class
 	= (*android_java_env)->FindClass (android_java_env,
 					  "org/gnu/emacs/EmacsHandleObject");
-      assert (class != NULL);
+      eassert (class != NULL);
 
       method
 	= (*android_java_env)->GetMethodID (android_java_env, class,
 					    "destroyHandle", "()V");
-      assert (method != NULL);
+      eassert (method != NULL);
 
       old = class;
       class
@@ -2618,7 +2816,7 @@ android_destroy_handle (android_handle handle)
 
   /* Just clear any exception thrown.  If destroying the handle
      fails from an out-of-memory error, then Emacs loses some
-     resources, but that is not as big deal as signalling.  */
+     resources, but that is not as big deal as signaling.  */
   (*android_java_env)->ExceptionClear (android_java_env);
 
   /* Delete the global reference regardless of any error.  */
@@ -2745,13 +2943,13 @@ android_create_window (android_window parent, int x, int y,
     {
       class = (*android_java_env)->FindClass (android_java_env,
 					      "org/gnu/emacs/EmacsWindow");
-      assert (class != NULL);
+      eassert (class != NULL);
 
       constructor
 	= (*android_java_env)->GetMethodID (android_java_env, class, "<init>",
 					    "(SLorg/gnu/emacs/EmacsWindow;"
 					    "IIIIZ)V");
-      assert (constructor != NULL);
+      eassert (constructor != NULL);
 
       old = class;
       class = (*android_java_env)->NewGlobalRef (android_java_env, class);
@@ -2827,12 +3025,12 @@ android_init_android_rect_class (void)
   android_rect_class
     = (*android_java_env)->FindClass (android_java_env,
 				      "android/graphics/Rect");
-  assert (android_rect_class);
+  eassert (android_rect_class);
 
   android_rect_constructor
     = (*android_java_env)->GetMethodID (android_java_env, android_rect_class,
 					"<init>", "(IIII)V");
-  assert (emacs_gc_constructor);
+  eassert (emacs_gc_constructor);
 
   old = android_rect_class;
   android_rect_class
@@ -2854,19 +3052,19 @@ android_init_emacs_gc_class (void)
   emacs_gc_class
     = (*android_java_env)->FindClass (android_java_env,
 				      "org/gnu/emacs/EmacsGC");
-  assert (emacs_gc_class);
+  eassert (emacs_gc_class);
 
   emacs_gc_constructor
     = (*android_java_env)->GetMethodID (android_java_env,
 					emacs_gc_class,
 					"<init>", "(S)V");
-  assert (emacs_gc_constructor);
+  eassert (emacs_gc_constructor);
 
   emacs_gc_mark_dirty
     = (*android_java_env)->GetMethodID (android_java_env,
 					emacs_gc_class,
 					"markDirty", "(Z)V");
-  assert (emacs_gc_mark_dirty);
+  eassert (emacs_gc_mark_dirty);
 
   old = emacs_gc_class;
   emacs_gc_class
@@ -3233,10 +3431,9 @@ android_clear_window (android_window handle)
   window = android_resolve_handle (handle, ANDROID_HANDLE_WINDOW);
 
   (*android_java_env)->CallNonvirtualVoidMethod (android_java_env,
-						 emacs_service,
-						 service_class.class,
-						 service_class.clear_window,
-						 window);
+						 window,
+						 window_class.class,
+						 window_class.clear_window);
   android_exception_check ();
 }
 
@@ -3788,10 +3985,10 @@ android_blit_copy (int src_x, int src_y, int width, int height,
 
 	  /* Turn both into offsets.  */
 
-	  if (INT_MULTIPLY_WRAPV (temp, pixel, &offset)
-	      || INT_MULTIPLY_WRAPV (i, mask_info->stride, &offset1)
-	      || INT_ADD_WRAPV (offset, offset1, &offset)
-	      || INT_ADD_WRAPV ((uintptr_t) mask, offset, &start))
+	  if (ckd_mul (&offset, temp, pixel)
+	      || ckd_mul (&offset1, i, mask_info->stride)
+	      || ckd_add (&offset, offset, offset1)
+	      || ckd_add (&start, (uintptr_t) mask, offset))
 	    return;
 
 	  if (height <= 0)
@@ -4096,10 +4293,10 @@ android_blit_xor (int src_x, int src_y, int width, int height,
 
 	  /* Turn both into offsets.  */
 
-	  if (INT_MULTIPLY_WRAPV (temp, pixel, &offset)
-	      || INT_MULTIPLY_WRAPV (i, mask_info->stride, &offset1)
-	      || INT_ADD_WRAPV (offset, offset1, &offset)
-	      || INT_ADD_WRAPV ((uintptr_t) mask, offset, &start))
+	  if (ckd_mul (&offset, temp, pixel)
+	      || ckd_mul (&offset1, i, mask_info->stride)
+	      || ckd_add (&offset, offset, offset1)
+	      || ckd_add (&start, (uintptr_t) mask, offset))
 	    return;
 
 	  mask = mask_current = (unsigned char *) start;
@@ -4407,6 +4604,7 @@ android_fill_polygon (android_drawable drawable, struct android_gc *gc,
 						 service_class.fill_polygon,
 						 drawable_object,
 						 gcontext, array);
+  android_exception_check_1 (array);
   ANDROID_DELETE_LOCAL_REF (array);
 }
 
@@ -4429,6 +4627,10 @@ android_draw_rectangle (android_drawable handle, struct android_gc *gc,
 						 drawable, gcontext,
 						 (jint) x, (jint) y,
 						 (jint) width, (jint) height);
+
+  /* In lieu of android_exception_check, clear all exceptions after
+     calling this frequently called graphics operation.  */
+  (*android_java_env)->ExceptionClear (android_java_env);
 }
 
 void
@@ -4449,6 +4651,10 @@ android_draw_point (android_drawable handle, struct android_gc *gc,
 						 service_class.draw_point,
 						 drawable, gcontext,
 						 (jint) x, (jint) y);
+
+  /* In lieu of android_exception_check, clear all exceptions after
+     calling this frequently called graphics operation.  */
+  (*android_java_env)->ExceptionClear (android_java_env);
 }
 
 void
@@ -4470,6 +4676,10 @@ android_draw_line (android_drawable handle, struct android_gc *gc,
 						 drawable, gcontext,
 						 (jint) x, (jint) y,
 						 (jint) x2, (jint) y2);
+
+  /* In lieu of android_exception_check, clear all exceptions after
+     calling this frequently called graphics operation.  */
+  (*android_java_env)->ExceptionClear (android_java_env);
 }
 
 android_pixmap
@@ -4534,10 +4744,10 @@ android_clear_area (android_window handle, int x, int y,
   window = android_resolve_handle (handle, ANDROID_HANDLE_WINDOW);
 
   (*android_java_env)->CallNonvirtualVoidMethod (android_java_env,
-						 emacs_service,
-						 service_class.class,
-						 service_class.clear_area,
-						 window, (jint) x, (jint) y,
+						 window,
+						 window_class.class,
+						 window_class.clear_area,
+						 (jint) x, (jint) y,
 						 (jint) width, (jint) height);
 }
 
@@ -4711,9 +4921,9 @@ android_get_image (android_drawable handle,
 
   if (bitmap_info.format != ANDROID_BITMAP_FORMAT_A_8)
     {
-      if (INT_MULTIPLY_WRAPV ((size_t) bitmap_info.stride,
-			      (size_t) bitmap_info.height,
-			      &byte_size))
+      if (ckd_mul (&byte_size,
+		   (size_t) bitmap_info.stride,
+		   (size_t) bitmap_info.height))
 	{
 	  ANDROID_DELETE_LOCAL_REF (bitmap);
 	  memory_full (0);
@@ -4900,10 +5110,17 @@ android_put_image (android_pixmap handle, struct android_image *image)
 void
 android_bell (void)
 {
+  jint duration;
+
+  /* Restrict android_keyboard_bell_duration to values between 10 and
+     1000.  */
+  duration = MIN (1000, MAX (0, android_keyboard_bell_duration));
+
   (*android_java_env)->CallNonvirtualVoidMethod (android_java_env,
 						 emacs_service,
 						 service_class.class,
-						 service_class.ring_bell);
+						 service_class.ring_bell,
+						 duration);
   android_exception_check ();
 }
 
@@ -4953,6 +5170,37 @@ android_lower_window (android_window handle)
 						 window,
 						 window_class.class,
 						 lower);
+  android_exception_check ();
+}
+
+void
+android_reconfigure_wm_window (android_window handle,
+			       enum android_wc_value_mask value_mask,
+			       struct android_window_changes *values)
+{
+  jobject sibling, window;
+
+  window = android_resolve_handle (handle, ANDROID_HANDLE_WINDOW);
+
+  if (!(value_mask & ANDROID_CW_STACK_MODE))
+    return;
+
+  /* If value_mask & ANDROID_CW_SIBLING, place HANDLE above or below
+     values->sibling pursuant to values->stack_mode; else, reposition
+     it at the top or the bottom of its parent.  */
+
+  sibling = NULL;
+
+  if (value_mask & ANDROID_CW_SIBLING)
+    sibling = android_resolve_handle (values->sibling,
+				      ANDROID_HANDLE_WINDOW);
+
+  (*android_java_env)->CallNonvirtualVoidMethod (android_java_env,
+						 window,
+						 window_class.class,
+						 window_class.reconfigure,
+						 sibling,
+						 (jint) values->stack_mode);
   android_exception_check ();
 }
 
@@ -5239,7 +5487,7 @@ android_wc_lookup_string (android_key_pressed_event *event,
    The caller must take care to unlock the bitmap data afterwards.  */
 
 unsigned char *
-android_lock_bitmap (android_window drawable,
+android_lock_bitmap (android_drawable drawable,
 		     AndroidBitmapInfo *bitmap_info,
 		     jobject *bitmap_return)
 {
@@ -5255,9 +5503,15 @@ android_lock_bitmap (android_window drawable,
 						  object,
 						  drawable_class.get_bitmap);
   if (!bitmap)
-    /* NULL is returned when the bitmap does not currently exist due
-       to ongoing reconfiguration on the main thread.  */
-    return NULL;
+    {
+      /* Report any exception signaled.  */
+      android_exception_check ();
+
+      /* If no exception was signaled, then NULL was returned as the
+	 bitmap does not presently exist due to window reconfiguration
+	 on the main thread.  */
+      return NULL;
+    }
 
   memset (bitmap_info, 0, sizeof *bitmap_info);
 
@@ -5394,6 +5648,21 @@ android_detect_mouse (void)
   return rc;
 }
 
+bool
+android_detect_keyboard (void)
+{
+  bool rc;
+  jmethodID method;
+
+  method = service_class.detect_keyboard;
+  rc = (*android_java_env)->CallNonvirtualBooleanMethod (android_java_env,
+							 emacs_service,
+							 service_class.class,
+							 method);
+  android_exception_check ();
+  return rc;
+}
+
 void
 android_set_dont_focus_on_map (android_window handle,
 			       bool no_focus_on_map)
@@ -5435,6 +5704,27 @@ android_get_keysym_name (int keysym, char *name_return, size_t size)
   const char *buffer;
   jmethodID method;
 
+  /* These keysyms are special editor actions sent by the input
+     method.  */
+
+  switch (keysym)
+    {
+    case 65536 + 1:
+      strncpy (name_return, "select-all", size - 1);
+      name_return[size] = '\0';
+      return;
+
+    case 65536 + 2:
+      strncpy (name_return, "start-selecting-text", size - 1);
+      name_return[size] = '\0';
+      return;
+
+    case 65536 + 3:
+      strncpy (name_return, "stop-selecting-text", size - 1);
+      name_return[size] = '\0';
+      return;
+    }
+
   method = service_class.name_keysym;
   string
     = (*android_java_env)->CallNonvirtualObjectMethod (android_java_env,
@@ -5443,6 +5733,13 @@ android_get_keysym_name (int keysym, char *name_return, size_t size)
 						       method,
 						       (jint) keysym);
   android_exception_check ();
+
+  if (!string)
+    {
+      strncpy (name_return, "stop-selecting-text", size - 1);
+      name_return[size] = '\0';
+      return;
+    }
 
   buffer = (*android_java_env)->GetStringUTFChars (android_java_env,
 						   (jstring) string,
@@ -5483,22 +5780,40 @@ android_toggle_on_screen_keyboard (android_window window, bool show)
 
 
 
+#if defined __clang_major__ && __clang_major__ < 5
+# define HAS_BUILTIN_TRAP 0
+#elif 3 < __GNUC__ + (3 < __GNUC_MINOR__ + (4 <= __GNUC_PATCHLEVEL__))
+# define HAS_BUILTIN_TRAP 1
+#elif defined __has_builtin
+# define HAS_BUILTIN_TRAP __has_builtin (__builtin_trap)
+#else /* !__has_builtin */
+# define HAS_BUILTIN_TRAP 0
+#endif /* defined __clang_major__ && __clang_major__ < 5 */
+
 /* emacs_abort implementation for Android.  This logs a stack
    trace.  */
 
 void
 emacs_abort (void)
 {
+#ifndef HAS_BUILTIN_TRAP
   volatile char *foo;
+#endif /* !HAS_BUILTIN_TRAP */
 
   __android_log_print (ANDROID_LOG_FATAL, __func__,
-		       "emacs_abort called, please review the ensuing"
+		       "emacs_abort called, please review the following"
 		       " stack trace");
 
-  /* Cause a NULL pointer dereference to make debuggerd generate a
+#ifndef HAS_BUILTIN_TRAP
+  /* Induce a NULL pointer dereference to make debuggerd generate a
      tombstone.  */
   foo = NULL;
   *foo = '\0';
+#else /* HAS_BUILTIN_TRAP */
+  /* Crash through __builtin_trap instead.  This appears to more
+     uniformly elicit crash reports from debuggerd.  */
+  __builtin_trap ();
+#endif /* !HAS_BUILTIN_TRAP */
 
   abort ();
 }
@@ -5533,7 +5848,7 @@ android_check_string (Lisp_Object text)
    better represent the UCS-16 based Java String format, and to let
    strings contain NULL characters while remaining valid C strings:
    NULL bytes are encoded as two-byte sequences, and Unicode surrogate
-   pairs encoded as two-byte sequences are prefered to four-byte
+   pairs encoded as two-byte sequences are preferred to four-byte
    sequences when encoding characters above the BMP.  */
 
 int
@@ -5586,15 +5901,20 @@ android_verify_jni_string (const char *name)
 }
 
 /* Given a Lisp string TEXT, return a local reference to an equivalent
-   Java string.  */
+   Java string.  Each argument following TEXT should be NULL or a
+   local reference that will be freed if creating the string fails,
+   whereupon memory_full will also be signaled.  */
 
 jstring
-android_build_string (Lisp_Object text)
+android_build_string (Lisp_Object text, ...)
 {
   Lisp_Object encoded;
   jstring string;
   size_t nchars;
   jchar *characters;
+  va_list ap;
+  jobject object;
+
   USE_SAFE_ALLOCA;
 
   /* Directly encode TEXT if it contains no non-ASCII characters, or
@@ -5612,9 +5932,11 @@ android_build_string (Lisp_Object text)
     {
       string = (*android_java_env)->NewStringUTF (android_java_env,
 						  SSDATA (text));
-      android_exception_check ();
-      SAFE_FREE ();
 
+      if ((*android_java_env)->ExceptionCheck (android_java_env))
+	goto error;
+
+      SAFE_FREE ();
       return string;
     }
 
@@ -5633,10 +5955,36 @@ android_build_string (Lisp_Object text)
   string
     = (*android_java_env)->NewString (android_java_env,
 				      characters, nchars);
-  android_exception_check ();
+
+  if ((*android_java_env)->ExceptionCheck (android_java_env))
+    goto error;
 
   SAFE_FREE ();
   return string;
+
+ error:
+  /* An exception arose while creating the string.  When this
+     transpires, an assumption is made that the error was induced by
+     running out of memory.  Delete each of the local references
+     within AP.  */
+
+  va_start (ap, text);
+
+  __android_log_print (ANDROID_LOG_WARN, __func__,
+		       "Possible out of memory error. "
+		       " The Java exception follows:  ");
+  /* Describe exactly what went wrong.  */
+  (*android_java_env)->ExceptionDescribe (android_java_env);
+  (*android_java_env)->ExceptionClear (android_java_env);
+
+  /* Now remove each and every local reference provided after
+     OBJECT.  */
+
+  while ((object = va_arg (ap, jobject)))
+    ANDROID_DELETE_LOCAL_REF (object);
+
+  va_end (ap);
+  memory_full (0);
 }
 
 /* Do the same, except TEXT is constant string data in ASCII or
@@ -5698,7 +6046,7 @@ android_build_jstring (const char *text)
    is created.  */
 
 #if __GNUC__ >= 3
-#define likely(cond)	__builtin_expect ((cond), 1)
+#define likely(cond)	__builtin_expect (cond, 1)
 #else /* __GNUC__ < 3 */
 #define likely(cond)	(cond)
 #endif /* __GNUC__ >= 3 */
@@ -6147,7 +6495,7 @@ android_browse_url (Lisp_Object url, Lisp_Object send)
   Lisp_Object tem;
   const char *buffer;
 
-  string = android_build_string (url);
+  string = android_build_string (url, NULL);
   value
     = (*android_java_env)->CallNonvirtualObjectMethod (android_java_env,
 						       emacs_service,
@@ -6198,7 +6546,7 @@ android_restart_emacs (void)
   exit (0);
 }
 
-/* Return a number from 1 to 33 describing the version of Android
+/* Return a number from 1 to 34 describing the version of Android
    Emacs is running on.
 
    This is different from __ANDROID_API__, as that describes the
@@ -6277,6 +6625,75 @@ android_request_directory_access (void)
   return rc;
 }
 
+/* Return whether Emacs is entitled to access external storage.
+
+   On Android 5.1 and earlier, such permissions as are declared within
+   an application's manifest are granted during installation and are
+   irrevocable.
+
+   On Android 6.0 through Android 10.0, the right to read external
+   storage is a regular permission granted from the Permissions
+   panel.
+
+   On Android 11.0 and later, that right must be granted through an
+   independent ``Special App Access'' settings panel.  */
+
+bool
+android_external_storage_available_p (void)
+{
+  jboolean rc;
+  jmethodID method;
+
+  if (android_api_level <= 22) /* LOLLIPOP_MR1 */
+    return true;
+
+  method = service_class.external_storage_available;
+  rc = (*android_java_env)->CallNonvirtualBooleanMethod (android_java_env,
+							 emacs_service,
+							 service_class.class,
+							 method);
+  android_exception_check ();
+
+  return rc;
+}
+
+/* Display a dialog from which the aforementioned rights can be
+   granted.  */
+
+void
+android_request_storage_access (void)
+{
+  jmethodID method;
+
+  if (android_api_level <= 22) /* LOLLIPOP_MR1 */
+    return;
+
+  method = service_class.request_storage_access;
+  (*android_java_env)->CallNonvirtualVoidMethod (android_java_env,
+						 emacs_service,
+						 service_class.class,
+						 method);
+  android_exception_check ();
+}
+
+/* Recreate the activity to which WINDOW is attached to debug graphics
+   code executed in response to window attachment.  */
+
+void
+android_recreate_activity (android_window window)
+{
+  jobject object;
+  jmethodID method;
+
+  object = android_resolve_handle (window, ANDROID_HANDLE_WINDOW);
+  method = window_class.recreate_activity;
+
+  (*android_java_env)->CallNonvirtualVoidMethod (android_java_env, object,
+						 window_class.class,
+						 method);
+  android_exception_check ();
+}
+
 
 
 /* The thread from which a query against a thread is currently being
@@ -6321,7 +6738,7 @@ static void *android_query_context;
 /* Run any function that the UI thread has asked to run, and then
    signal its completion.  */
 
-static void
+void
 android_check_query (void)
 {
   void (*proc) (void *);
@@ -6461,7 +6878,7 @@ android_begin_query (void)
   if (old == 1)
     {
       /* Answer the query that is currently being made.  */
-      assert (android_query_function != NULL);
+      eassert (android_query_function != NULL);
       android_answer_query ();
     }
 

@@ -1,6 +1,6 @@
 /* Fully extensible Emacs, running on Unix, intended for GNU.
 
-Copyright (C) 1985-1987, 1993-1995, 1997-1999, 2001-2023 Free Software
+Copyright (C) 1985-1987, 1993-1995, 1997-1999, 2001-2024 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -400,11 +400,6 @@ section of the Emacs manual or the file BUGS.\n"
 
 /* True if handling a fatal error already.  */
 bool fatal_error_in_progress;
-
-#ifdef HAVE_NS
-/* NS autorelease pool, for memory management.  */
-static void *ns_pool;
-#endif
 
 #if !HAVE_SETLOCALE
 static char *
@@ -1428,6 +1423,11 @@ main1 (int argc, char **argv)
   w32_init_main_thread ();
 #endif
 
+#ifdef HAVE_NS
+  /* Initialize the Obj C autorelease pool.  */
+  ns_init_pool ();
+#endif
+
 #ifdef HAVE_PDUMPER
   if (attempt_load_pdump)
     initial_emacs_executable = load_pdump (argc, argv, dump_file);
@@ -1647,7 +1647,6 @@ main1 (int argc, char **argv)
   if (! (lc_all && strcmp (lc_all, "C") == 0))
     {
       #ifdef HAVE_NS
-        ns_pool = ns_alloc_autorelease_pool ();
         ns_init_locale ();
       #endif
       setlocale (LC_ALL, "");
@@ -2914,7 +2913,7 @@ sort_args (int argc, char **argv)
 	    new[to++] = argv[best + i + 1];
 	}
 
-      incoming_used += 1 + (options[best] > 0 ? options[best] : 0);
+      incoming_used += 1 + max (options[best], 0);
 
       /* Clear out this option in ARGV.  */
       argv[best] = 0;
@@ -3005,10 +3004,6 @@ killed.  */
 #endif
 
   shut_down_emacs (0, (STRINGP (arg) && !feof (stdin)) ? arg : Qnil);
-
-#ifdef HAVE_NS
-  ns_release_autorelease_pool (ns_pool);
-#endif
 
   /* If we have an auto-save list file,
      kill it because we are exiting Emacs deliberately (not crashing).
@@ -3344,11 +3339,6 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
 {
   const char *path, *p;
   Lisp_Object lpath, element, tem;
-#ifdef HAVE_NS
-#ifdef NS_SELF_CONTAINED
-  void *autorelease = NULL;
-#endif
-#endif
   /* Default is to use "." for empty path elements.
      But if argument EMPTY is true, use nil instead.  */
   Lisp_Object empty_element = empty ? Qnil : build_string (".");
@@ -3377,8 +3367,6 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
     {
 #ifdef NS_SELF_CONTAINED
 #ifdef HAVE_NS
-      /* ns_relocate needs a valid autorelease pool around it.  */
-      autorelease = ns_alloc_autorelease_pool ();
       path = ns_relocate (defalt);
 #elif defined (HAVE_WINIT)
       path = app_bundle_relocate (defalt);
@@ -3485,12 +3473,7 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
       else
 	break;
     }
-#ifdef HAVE_NS
-#ifdef NS_SELF_CONTAINED
-  if (autorelease)
-    ns_release_autorelease_pool (autorelease);
-#endif
-#endif
+
   return Fnreverse (lpath);
 }
 

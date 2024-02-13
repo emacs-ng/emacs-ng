@@ -15,11 +15,11 @@ use emacs::multibyte::LispStringRef;
 use lisp_macros::lisp_fn;
 
 use emacs::bindings::{
-    check_integer_range, hash_lookup, hash_put, intmax_t, make_fixed_natnum, make_float, make_int,
-    make_string_from_utf8, make_uint, make_vector, plist_get, plist_put, Fcons, Fintern, Flist,
-    Fmake_hash_table, Fnreverse, Fprocess_plist, Fset_process_plist, AREF, ASET, ASIZE, FLOATP,
-    HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, STRINGP, SYMBOLP, SYMBOL_NAME,
-    VECTORP, XFLOAT_DATA, XHASH_TABLE,
+    check_integer_range, hash_hash_t, hash_lookup_get_hash, hash_put, intmax_t, make_fixed_natnum,
+    make_float, make_int, make_string_from_utf8, make_uint, make_vector, plist_get, plist_put,
+    Fcons, Fintern, Flist, Fmake_hash_table, Fnreverse, Fprocess_plist, Fset_process_plist, AREF,
+    ASET, ASIZE, FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, STRINGP,
+    SYMBOLP, SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
 };
 
 use emacs::globals::{
@@ -391,10 +391,13 @@ fn serde_to_lisp(
                             let lisp_key = unsafe {
                                 make_string_from_utf8(cstring.as_ptr(), len.try_into().unwrap())
                             };
-                            let mut lisp_hash: LispObject = LispObject::from(0);
-                            let i = unsafe { hash_lookup(h, lisp_key, &mut lisp_hash) };
-                            assert!(i < 0);
-                            unsafe { hash_put(h, lisp_key, serde_to_lisp(v, config)?, lisp_hash) };
+                            let hash_code: Box<hash_hash_t> = Box::new(0);
+                            let hash_index = unsafe {
+                                hash_lookup_get_hash(h, lisp_key, Box::into_raw(hash_code.clone()))
+                            };
+
+                            assert!(hash_index < 0);
+                            unsafe { hash_put(h, lisp_key, serde_to_lisp(v, config)?, *hash_code) };
                         } else {
                             return Err("Error in deserializing json value".to_string());
                         }

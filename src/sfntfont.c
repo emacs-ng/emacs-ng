@@ -1,6 +1,6 @@
 /* sfnt format font driver for GNU Emacs.
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -136,15 +136,15 @@ struct sfnt_font_desc
      present in the font.  */
   Lisp_Object char_cache;
 
-  /* Whether or not the character map can't be used by Emacs.  */
-  bool cmap_invalid;
-
   /* The header of the cmap being used.  May be invalid, in which case
      platform_id will be 500.  */
   struct sfnt_cmap_encoding_subtable subtable;
 
   /* The offset of the table directory within PATH.  */
   off_t offset;
+
+  /* List of font tables.  */
+  struct sfnt_font_tables *tables;
 
   /* The number of glyphs in this font.  Used to catch invalid cmap
      tables.  This is actually the number of glyphs - 1.  */
@@ -153,8 +153,15 @@ struct sfnt_font_desc
   /* The number of references to the font tables below.  */
   int refcount;
 
-  /* List of font tables.  */
-  struct sfnt_font_tables *tables;
+  /* The underline position and thickness if a post table supplies
+     this information.  */
+  sfnt_fword underline_position, underline_thickness;
+
+  /* Whether an underline position is available.  */
+  bool_bf underline_position_set : 1;
+
+  /* Whether or not the character map can't be used by Emacs.  */
+  bool cmap_invalid : 1;
 };
 
 /* List of fonts.  */
@@ -544,6 +551,11 @@ sfnt_parse_style (Lisp_Object style_name, struct sfnt_font_desc *desc)
     next:
       continue;
     }
+
+  /* The adstyle must be a symbol, so intern it if it is set.  */
+
+  if (!NILP (desc->adstyle))
+    desc->adstyle = Fintern (desc->adstyle, Qnil);
 
   SAFE_FREE ();
 }
@@ -957,6 +969,7 @@ sfnt_enum_font_1 (int fd, const char *file,
   struct sfnt_maxp_table *maxp;
   struct sfnt_fvar_table *fvar;
   struct sfnt_OS_2_table *OS_2;
+  struct sfnt_post_table *post;
   struct sfnt_font_desc temp;
   Lisp_Object family, style, instance, style1;
   int i;
@@ -1036,12 +1049,28 @@ sfnt_enum_font_1 (int fd, const char *file,
   if (meta)
     sfnt_parse_languages (meta, desc);
 
-  /* Figure out the spacing.  Some fancy test like what Fontconfig
-     does is probably in order but not really necessary.  */
-  if (!NILP (Fstring_search (Fdowncase (family),
-			     build_string ("mono"),
-			     Qnil)))
-    desc->spacing = 100; /* FC_MONO */
+  /* Check whether the font claims to be a fixed pitch font and forgo
+     the rudimentary detection below if so.  */
+
+  post = sfnt_read_post_table (fd, subtables);
+
+  if (post)
+    {
+      desc->spacing = (post->is_fixed_pitch ? 100 : 0);
+      desc->underline_position = post->underline_position;
+      desc->underline_thickness = post->underline_thickness;
+      desc->underline_position_set = true;
+      xfree (post);
+    }
+  else
+    {
+      /* Figure out the spacing.  Some fancy test like what Fontconfig
+	 does is probably in order but not really necessary.  */
+      if (!NILP (Fstring_search (Fdowncase (family),
+				 build_string ("mono"),
+				 Qnil)))
+	desc->spacing = 100; /* FC_MONO */
+    }
 
   /* Finally add mac-style flags.  Allow them to override styles that
      have not been found.  */
@@ -1319,7 +1348,7 @@ sfntfont_charset_for_cmap (struct sfnt_cmap_encoding_subtable subtable)
    subtable in *SUBTABLE upon success, NULL otherwise.
 
    If FORMAT14 is non-NULL, return any associated format 14 variation
-   selection context in *FORMAT14 should the selected charcter map be
+   selection context in *FORMAT14 should the selected character map be
    a Unicode character map.  */
 
 static struct sfnt_cmap_encoding_subtable_data *
@@ -1342,7 +1371,7 @@ sfntfont_select_cmap (struct sfnt_cmap_table *cmap,
 	  if (!format14)
 	    return data[i];
 
-	  /* Search for a correspoinding format 14 character map.
+	  /* Search for a corresponding format 14 character map.
 	     This is used in conjunction with the selected character
 	     map to map variation sequences.  */
 
@@ -1371,7 +1400,7 @@ sfntfont_select_cmap (struct sfnt_cmap_table *cmap,
 	  if (!format14)
 	    return data[i];
 
-	  /* Search for a correspoinding format 14 character map.
+	  /* Search for a corresponding format 14 character map.
 	     This is used in conjunction with the selected character
 	     map to map variation sequences.  */
 
@@ -1649,13 +1678,19 @@ sfntfont_list_1 (struct sfnt_font_desc *desc, Lisp_Object spec,
       && !sfntfont_registries_compatible_p (tem, desc->registry))
     return 0;
 
+  /* If the font spacings disagree, reject this font also.  */
+
+  tem = AREF (spec, FONT_SPACING_INDEX);
+  if (FIXNUMP (tem) && (XFIXNUM (tem) != desc->spacing))
+    return 0;
+
   /* Check the style.  If DESC is a fixed font, just check once.
      Otherwise, check each instance.  */
 
   if (NILP (desc->instances))
     {
       tem = AREF (spec, FONT_ADSTYLE_INDEX);
-      if (!NILP (tem) && NILP (Fequal (tem, desc->adstyle)))
+      if (!NILP (tem) && !EQ (tem, desc->adstyle))
 	return 0;
 
       if (FONT_WIDTH_NUMERIC (spec) != -1
@@ -1864,8 +1899,7 @@ sfntfont_desc_to_entity (struct sfnt_font_desc *desc, int instance)
   /* Size of 0 means the font is scalable.  */
   ASET (entity, FONT_SIZE_INDEX, make_fixnum (0));
   ASET (entity, FONT_AVGWIDTH_INDEX, make_fixnum (0));
-  ASET (entity, FONT_SPACING_INDEX,
-	make_fixnum (desc->spacing));
+  ASET (entity, FONT_SPACING_INDEX, make_fixnum (desc->spacing));
 
   if (instance >= 1)
     {
@@ -1905,13 +1939,51 @@ sfntfont_desc_to_entity (struct sfnt_font_desc *desc, int instance)
   return entity;
 }
 
+/* Return whether fewer fields inside the font entity A are set than
+   there are set inside the font entity B.  */
+
+static Lisp_Object
+sfntfont_compare_font_entities (Lisp_Object a, Lisp_Object b)
+{
+  ptrdiff_t count_a, count_b, i;
+
+  count_a = 0;
+  count_b = 0;
+
+  for (i = 0; i < FONT_ENTITY_MAX; ++i)
+    {
+      if (!NILP (AREF (a, i)))
+	count_a++;
+    }
+
+  for (i = 0; i < FONT_ENTITY_MAX; ++i)
+    {
+      if (!NILP (AREF (b, i)))
+	count_b++;
+    }
+
+  return count_a < count_b ? Qt : Qnil;
+}
+
+/* Function that compares two font entities to return whether fewer
+   fields are set within the first than in the second.  */
+
+static union Aligned_Lisp_Subr Scompare_font_entities =
+  {
+    {
+      { PSEUDOVECTOR_FLAG | (PVEC_SUBR << PSEUDOVECTOR_AREA_BITS), },
+      { .a2 = sfntfont_compare_font_entities, },
+      2, 2, "sfntfont_compare_font_entities", {0}, lisp_h_Qnil,
+    },
+  };
+
 /* Return a list of font-entities matching the specified
    FONT_SPEC.  */
 
 Lisp_Object
 sfntfont_list (struct frame *f, Lisp_Object font_spec)
 {
-  Lisp_Object matching, tem;
+  Lisp_Object matching, tem, compare_font_entities;
   struct sfnt_font_desc *desc;
   int i, rc, instances[100];
 
@@ -1948,9 +2020,16 @@ sfntfont_list (struct frame *f, Lisp_Object font_spec)
 			      matching);
 	}
     }
-
   unblock_input ();
 
+  /* Sort matching by the number of fields set inside each element, so
+     that values of FONT_SPECs that leave a number of fields
+     unspecified will yield a list with the closest matches (that is
+     to say, those whose fields are precisely as specified by the
+     caller) ordered first.  */
+
+  XSETSUBR (compare_font_entities, &Scompare_font_entities.s);
+  matching = Fsort (matching, compare_font_entities);
   return matching;
 }
 
@@ -2081,9 +2160,8 @@ sfntfont_get_metrics (sfnt_glyph glyph, struct sfnt_glyph_metrics *metrics,
   struct sfntfont_get_glyph_outline_dcontext *tables;
 
   tables = dcontext;
-  return sfnt_lookup_glyph_metrics (glyph, -1, metrics,
-				    tables->hmtx, tables->hhea,
-				    NULL, tables->maxp);
+  return sfnt_lookup_glyph_metrics (glyph, metrics, tables->hmtx,
+				    tables->hhea, tables->maxp);
 }
 
 /* Dereference the outline OUTLINE.  Free it once refcount reaches
@@ -2148,6 +2226,7 @@ sfntfont_get_glyph_outline (sfnt_glyph glyph_code,
   const char *error;
   struct sfnt_glyph_metrics temp;
   struct sfnt_metrics_distortion distortion;
+  sfnt_fixed advance;
 
   start = cache->next;
   distortion.advance = 0;
@@ -2218,12 +2297,8 @@ sfntfont_get_glyph_outline (sfnt_glyph glyph_code,
 
   /* Now load the glyph's unscaled metrics into TEMP.  */
 
-  if (sfnt_lookup_glyph_metrics (glyph_code, -1, &temp, hmtx, hhea,
-				 head, maxp))
+  if (sfnt_lookup_glyph_metrics (glyph_code, &temp, hmtx, hhea, maxp))
     goto fail;
-
-  /* Add the advance width distortion.  */
-  temp.advance += distortion.advance;
 
   if (interpreter)
     {
@@ -2250,33 +2325,49 @@ sfntfont_get_glyph_outline (sfnt_glyph glyph_code,
 
       if (!error)
 	{
-	  outline = sfnt_build_instructed_outline (value);
+	  /* Now record the advance with that measured from the
+	     phantom points within the instructed glyph outline, and
+	     subsequently replace it once metrics are scaled.  */
+
+	  outline = sfnt_build_instructed_outline (value,
+						   &advance);
 	  xfree (value);
+
+	  if (outline)
+	    {
+	      /* Save the new advance width.  This advance width is
+		 rounded again, as the instruction code executed might
+		 have moved both phantom points such that they no
+		 longer measure a fractional distance.  */
+	      temp.advance = SFNT_ROUND_FIXED (advance);
+
+	      /* Finally, adjust the left side bearing of the glyph
+		 metrics by the origin point of the outline, should a
+		 transformation have been applied by either
+		 instruction code or glyph variation.  The left side
+		 bearing is the distance from the origin point to the
+		 left most point on the X axis.  */
+	      temp.lbearing
+		= SFNT_FLOOR_FIXED (outline->xmin - outline->origin);
+	    }
 	}
     }
 
   if (!outline)
     {
-      if (!interpreter)
-	outline = sfnt_build_glyph_outline (glyph, scale,
-					    &temp,
-					    sfntfont_get_glyph,
-					    sfntfont_free_glyph,
-					    sfntfont_get_metrics,
-					    &dcontext);
-      else
-	outline = sfnt_build_glyph_outline (glyph, scale,
-					    &temp,
-					    sfntfont_get_glyph,
-					    sfntfont_free_glyph,
-					    sfntfont_get_metrics,
-					    &dcontext);
+      /* Build the outline.  This will apply GX offsets within *GLYPH
+	 to TEMP.  */
+      outline = sfnt_build_glyph_outline (glyph, scale,
+					  &temp,
+					  sfntfont_get_glyph,
+					  sfntfont_free_glyph,
+					  sfntfont_get_metrics,
+					  &dcontext);
+
+      /* At this point, the glyph metrics are unscaled.  Scale them
+	 up.  If INTERPRETER is set, use the scale placed within.  */
+      sfnt_scale_metrics (&temp, scale);
     }
-
-  /* At this point, the glyph metrics are unscaled.  Scale them up.
-     If INTERPRETER is set, use the scale placed within.  */
-
-  sfnt_scale_metrics (&temp, scale);
 
  fail:
 
@@ -2284,13 +2375,6 @@ sfntfont_get_glyph_outline (sfnt_glyph glyph_code,
 
   if (!outline)
     return NULL;
-
-  if (index != -1)
-    /* Finally, adjust the left side bearing of the glyph metrics by
-       the origin point of the outline, should a distortion have been
-       applied.  The left side bearing is the distance from the origin
-       point to the left most point on the X axis.  */
-    temp.lbearing = outline->xmin - outline->origin;
 
   start = xmalloc (sizeof *start);
   start->glyph = glyph_code;
@@ -2410,7 +2494,11 @@ sfntfont_get_glyph_raster (sfnt_glyph glyph_code,
     }
 
   /* Not already cached.  Raster the outline.  */
-  raster = sfnt_raster_glyph_outline (outline);
+
+  if (!sfnt_raster_glyphs_exactly)
+    raster = sfnt_raster_glyph_outline (outline);
+  else
+    raster = sfnt_raster_glyph_outline_exact (outline);
 
   if (!raster)
     return NULL;
@@ -2597,16 +2685,23 @@ sfntfont_lookup_glyph (struct sfnt_font_info *font_info, int c)
   return glyph;
 }
 
+static int sfntfont_measure_pcm (struct sfnt_font_info *, sfnt_glyph,
+				 struct font_metrics *);
+
 /* Probe and set FONT_INFO->font.average_width,
    FONT_INFO->font.space_width, and FONT_INFO->font.min_width
-   according to the tables contained therein.  */
+   according to the tables contained therein.
+
+   As this function generates outlines for all glyphs, outlines for
+   all ASCII characters will be entered into the outline cache as
+   well.  */
 
 static void
 sfntfont_probe_widths (struct sfnt_font_info *font_info)
 {
   int i, num_characters, total_width;
   sfnt_glyph glyph;
-  struct sfnt_glyph_metrics metrics;
+  struct font_metrics pcm;
 
   num_characters = 0;
   total_width = 0;
@@ -2625,29 +2720,27 @@ sfntfont_probe_widths (struct sfnt_font_info *font_info)
       if (!glyph)
 	continue;
 
-      /* Now look up the metrics of this glyph.  */
-      if (sfnt_lookup_glyph_metrics (glyph, font_info->font.pixel_size,
-				     &metrics, font_info->hmtx,
-				     font_info->hhea, font_info->head,
-				     font_info->maxp))
+      /* Now look up the metrics of this glyph.  Data from the metrics
+	 table doesn't fit the bill, since variations and instruction
+	 code is not applied to it.  */
+      if (sfntfont_measure_pcm (font_info, glyph, &pcm))
 	continue;
 
       /* Increase the number of characters.  */
       num_characters++;
 
       /* Add the advance to total_width.  */
-      total_width += SFNT_CEIL_FIXED (metrics.advance) / 65536;
+      total_width += pcm.width;
 
       /* Update min_width if it hasn't been set yet or is wider.  */
       if (font_info->font.min_width == 1
-	  || font_info->font.min_width > metrics.advance / 65536)
-	font_info->font.min_width = metrics.advance / 65536;
+	  || font_info->font.min_width > pcm.width)
+	font_info->font.min_width = pcm.width;
 
       /* If i is the space character, set the space width.  Make sure
 	 to round this up.  */
       if (i == 32)
-	font_info->font.space_width
-	  = SFNT_CEIL_FIXED (metrics.advance) / 65536;
+	font_info->font.space_width = pcm.width;
     }
 
   /* Now, if characters were found, set average_width.  */
@@ -2779,7 +2872,9 @@ sfntfont_setup_interpreter (struct sfnt_font_info *info,
 static void
 sfnt_close_tables (struct sfnt_font_tables *tables)
 {
+#ifdef HAVE_MMAP
   int rc;
+#endif /* HAVE_MMAP */
 
   xfree (tables->cmap);
   xfree (tables->hhea);
@@ -2834,7 +2929,10 @@ sfnt_open_tables (struct sfnt_font_desc *desc)
 {
   struct sfnt_font_tables *tables;
   struct sfnt_offset_subtable *subtable;
-  int fd, i, rc;
+  int fd, i;
+#ifdef HAVE_MMAP
+  int rc;
+#endif /* HAVE_MMAP */
   struct sfnt_cmap_encoding_subtable *subtables;
   struct sfnt_cmap_encoding_subtable_data **data;
   struct sfnt_cmap_format_14 *format14;
@@ -3210,15 +3308,14 @@ sfntfont_open (struct frame *f, Lisp_Object font_entity,
   ASET (font_object, FONT_TYPE_INDEX, sfnt_vendor_name);
   ASET (font_object, FONT_FOUNDRY_INDEX, desc->designer);
   ASET (font_object, FONT_FAMILY_INDEX, Fintern (desc->family, Qnil));
-  ASET (font_object, FONT_ADSTYLE_INDEX, Qnil);
+  ASET (font_object, FONT_ADSTYLE_INDEX, desc->adstyle);
   ASET (font_object, FONT_REGISTRY_INDEX,
 	sfntfont_registry_for_desc (desc));
 
   /* Size of 0 means the font is scalable.  */
   ASET (font_object, FONT_SIZE_INDEX, make_fixnum (0));
   ASET (font_object, FONT_AVGWIDTH_INDEX, make_fixnum (0));
-  ASET (font_object, FONT_SPACING_INDEX,
-	make_fixnum (desc->spacing));
+  ASET (font_object, FONT_SPACING_INDEX, make_fixnum (desc->spacing));
 
   /* Set the font style.  */
 
@@ -3229,18 +3326,26 @@ sfntfont_open (struct frame *f, Lisp_Object font_entity,
   FONT_SET_STYLE (font_object, FONT_SLANT_INDEX,
 		  make_fixnum (desc->slant));
 
-  ASET (font_object, FONT_ADSTYLE_INDEX, Qnil);
-
-  /* Find out the minimum, maximum and average widths.  */
-  sfntfont_probe_widths (font_info);
-
   /* Clear various offsets.  */
   font_info->font.baseline_offset = 0;
   font_info->font.relative_compose = 0;
   font_info->font.default_ascent = 0;
   font_info->font.vertical_centering = 0;
-  font_info->font.underline_position = -1;
-  font_info->font.underline_thickness = 0;
+
+  if (!desc->underline_position_set)
+    {
+      font_info->font.underline_position = -1;
+      font_info->font.underline_thickness = 0;
+    }
+  else
+    {
+      font_info->font.underline_position
+	= sfnt_coerce_fixed (-desc->underline_position
+			     * font_info->scale) + 0.5;
+      font_info->font.underline_thickness
+	= sfnt_coerce_fixed (desc->underline_thickness
+			     * font_info->scale) + 0.5;
+    }
 
   /* Now try to set up grid fitting for this font.  */
   dpyinfo = FRAME_DISPLAY_INFO (f);
@@ -3305,11 +3410,15 @@ sfntfont_open (struct frame *f, Lisp_Object font_entity,
 			  AREF (tem, 3));
 	  FONT_SET_STYLE (font_object, FONT_SLANT_INDEX,
 			  AREF (tem, 4));
-	  ASET (font_object, FONT_ADSTYLE_INDEX, Qnil);
+	  ASET (font_object, FONT_ADSTYLE_INDEX, AREF (tem, 1));
 	}
     }
 
  cancel_blend:
+
+  /* Find out the minimum, maximum and average widths.  */
+  sfntfont_probe_widths (font_info);
+
   /* Calculate the xfld name.  */
   font->props[FONT_NAME_INDEX] = Ffont_xlfd_name (font_object, Qnil, Qt);
 
@@ -3341,10 +3450,21 @@ sfntfont_open (struct frame *f, Lisp_Object font_entity,
 	     (Vvertical_centering_font_regexp,
 	      font->props[FONT_NAME_INDEX]) >= 0));
 
-  /* And set a reasonable full name, namely the name of the font
-     file.  */
-  font->props[FONT_FULLNAME_INDEX]
+  /* Set the name of the font file.  */
+  font->props[FONT_FILE_INDEX]
     = DECODE_FILE (build_unibyte_string (desc->path));
+
+  /* Encapsulate some information on the font useful while debugging
+     (along with being informative in general) in the font name.  */
+
+  AUTO_STRING (format, "%s %s interpreted: %s upem: %s charset: %s"
+	       " instance: %s");
+  font->props[FONT_FULLNAME_INDEX]
+    = CALLN (Fformat, format, desc->family, desc->style,
+	     font_info->interpreter ? Qt : Qnil,
+	     make_fixnum (font_info->head->units_per_em),
+	     CHARSET_NAME (charset),
+	     make_fixnum (instance));
 
   /* All done.  */
   unblock_input ();
@@ -3412,12 +3532,12 @@ sfntfont_measure_pcm (struct sfnt_font_info *font, sfnt_glyph glyph,
   if (!outline)
     return 1;
 
-  /* Round the left side bearing downwards.  */
-  pcm->lbearing = SFNT_FLOOR_FIXED (metrics.lbearing) / 65536;
+  /* The left side bearing has already been floored.  */
+  pcm->lbearing = metrics.lbearing / 65536;
   pcm->rbearing = SFNT_CEIL_FIXED (outline->xmax) / 65536;
 
-  /* Round the advance, ascent and descent upwards.  */
-  pcm->width = SFNT_CEIL_FIXED (metrics.advance) / 65536;
+  /* The advance is already rounded; ceil the ascent and descent.  */
+  pcm->width = metrics.advance / 65536;
   pcm->ascent = SFNT_CEIL_FIXED (outline->ymax) / 65536;
   pcm->descent = SFNT_CEIL_FIXED (-outline->ymin) / 65536;
 
@@ -3621,7 +3741,7 @@ sfntfont_draw (struct glyph_string *s, int from, int to,
       if (s->padding_p)
 	current_x += 1;
       else
-	current_x += SFNT_CEIL_FIXED (metrics.advance) / 65536;
+	current_x += metrics.advance / 65536;
     }
 
   /* Call the window system function to put the glyphs to the
@@ -3710,9 +3830,10 @@ sfntfont_get_variation_glyphs (struct font *font, int c,
 			       unsigned variations[256])
 {
   struct sfnt_font_info *info;
-  size_t i;
+  size_t i, index;
   int n;
   struct sfnt_mapped_variation_selector_record *record;
+  sfnt_glyph default_glyph;
 
   info = (struct sfnt_font_info *) font;
   n = 0;
@@ -3733,12 +3854,37 @@ sfntfont_get_variation_glyphs (struct font *font, int c,
 	 && info->uvs->records[i].selector < 0xfe00)
     ++i;
 
+  /* Get the glyph represented by C, used when C is present within a
+     default value table.  */
+
+  default_glyph = sfntfont_lookup_glyph (info, c);
+
   /* Fill in selectors 0 to 15.  */
 
   while (i < info->uvs->num_records
 	 && info->uvs->records[i].selector <= 0xfe0f)
     {
       record = &info->uvs->records[i];
+      index = info->uvs->records[i].selector - 0xfe00 + 16;
+
+      /* Handle invalid unsorted tables.  */
+
+      if (record->selector < 0xfe00)
+	return 0;
+
+      /* If there are default mappings in this record, ascertain if
+	 this glyph matches one of them.  */
+
+      if (record->default_uvs
+	  && sfnt_is_character_default (record->default_uvs, c))
+	{
+	  variations[index] = default_glyph;
+
+	  if (default_glyph)
+	    ++n;
+
+	  goto next_selector;
+	}
 
       /* If record has no non-default mappings, continue on to the
 	 next selector.  */
@@ -3746,18 +3892,13 @@ sfntfont_get_variation_glyphs (struct font *font, int c,
       if (!record->nondefault_uvs)
 	goto next_selector;
 
-      /* Handle invalid unsorted tables.  */
-
-      if (record->selector < 0xfe00)
-	return 0;
-
       /* Find the glyph ID associated with C and put it in
 	 VARIATIONS.  */
 
-      variations[info->uvs->records[i].selector - 0xfe00]
+      variations[index]
 	= sfnt_variation_glyph_for_char (record->nondefault_uvs, c);
 
-      if (variations[info->uvs->records[i].selector - 0xfe00])
+      if (variations[index])
 	++n;
 
     next_selector:
@@ -3777,6 +3918,26 @@ sfntfont_get_variation_glyphs (struct font *font, int c,
 	 && info->uvs->records[i].selector <= 0xe01ef)
     {
       record = &info->uvs->records[i];
+      index = info->uvs->records[i].selector - 0xe0100 + 16;
+
+      /* Handle invalid unsorted tables.  */
+
+      if (record->selector < 0xe0100)
+	return 0;
+
+      /* If there are default mappings in this record, ascertain if
+	 this glyph matches one of them.  */
+
+      if (record->default_uvs
+	  && sfnt_is_character_default (record->default_uvs, c))
+	{
+	  variations[index] = default_glyph;
+
+	  if (default_glyph)
+	    ++n;
+
+	  goto next_selector_1;
+	}
 
       /* If record has no non-default mappings, continue on to the
 	 next selector.  */
@@ -3784,18 +3945,13 @@ sfntfont_get_variation_glyphs (struct font *font, int c,
       if (!record->nondefault_uvs)
 	goto next_selector_1;
 
-      /* Handle invalid unsorted tables.  */
-
-      if (record->selector < 0xe0100)
-	return 0;
-
       /* Find the glyph ID associated with C and put it in
 	 VARIATIONS.  */
 
-      variations[info->uvs->records[i].selector - 0xe0100 + 16]
+      variations[index]
 	= sfnt_variation_glyph_for_char (record->nondefault_uvs, c);
 
-      if (variations[info->uvs->records[i].selector - 0xe0100 + 16])
+      if (variations[index])
 	++n;
 
     next_selector_1:
@@ -3831,7 +3987,7 @@ sfntfont_detect_sigbus (void *addr)
   return false;
 }
 
-#endif
+#endif /* HAVE_MMAP */
 
 
 
@@ -4018,6 +4174,13 @@ eliminating artifacts and chance effects consequent upon the direct
 upscaling of glyph outline data.  Instruction code is occasionally
 incompatible with Emacs and must be disregarded.  */);
   Vsfnt_uninstructable_family_regexp = Qnil;
+
+  DEFVAR_BOOL ("sfnt-raster-glyphs-exactly", sfnt_raster_glyphs_exactly,
+    doc: /* How font glyph outlines should be converted to graphics.
+If non-nil, glyphs will be displayed in a more precise manner, at the
+cost of performance on devices where floating-point math operations
+are slow.  */);
+  sfnt_raster_glyphs_exactly = true;
 }
 
 void

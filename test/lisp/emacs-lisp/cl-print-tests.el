@@ -1,6 +1,6 @@
 ;;; cl-print-tests.el --- Test suite for the cl-print facility.  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2017-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -57,6 +57,23 @@
      [0 1 2 3 4 5 6 7 8 9] "[0 1 2 3 ...]" "4 5 6 7 ...")
     (cl-print-tests-check-ellipsis-expansion
      [a [b [c [d [e]]]]] "[a [b [c ...]]]" "[d [e]]")))
+
+(ert-deftest cl-print-tests-ellipsis-string ()
+  "Ellipsis expansion works in strings."
+  (let ((cl-print-string-length 4))
+    (cl-print-tests-check-ellipsis-expansion
+     "abcdefg" "\"abcd...\"" "efg")
+    (cl-print-tests-check-ellipsis-expansion
+     "abcdefghijk" "\"abcd...\"" "efgh...")
+    (let ((print-length 4)
+          (print-level 3))
+      (cl-print-tests-check-ellipsis-expansion
+       '(1 (2 (3 #("abcde" 0 5 (test t)))))
+       "(1 (2 (3 ...)))" "#(\"abcd...\" 0 5 (test t))"))
+    (let ((print-length 4))
+      (cl-print-tests-check-ellipsis-expansion
+       #("abcd" 0 1 (bold t) 1 2 (invisible t) 3 4 (italic t))
+       "#(\"abcd\" 0 1 (bold t) ...)" "1 2 (invisible t) ..."))))
 
 (ert-deftest cl-print-tests-ellipsis-struct ()
   "Ellipsis expansion works in structures."
@@ -129,7 +146,7 @@
 
     ;; Print something which needs to be abbreviated and which can be.
     (should (< (length (cl-print-to-string-with-limit #'cl-prin1 thing100 100))
-               150 ;; 100.  The LIMIT argument is advisory rather than absolute.
+               100
                (length (cl-prin1-to-string thing100))))
 
     ;; Print something resistant to easy abbreviation.

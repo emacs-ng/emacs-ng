@@ -1,6 +1,6 @@
 ;;; tramp-gvfs.el --- Tramp access functions for GVFS daemon  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2009-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2024 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -888,7 +888,8 @@ Operations not mentioned here will be handled by the default Emacs primitives.")
   "Invoke the GVFS related OPERATION and ARGS.
 First arg specifies the OPERATION, second arg is a list of
 arguments to pass to the OPERATION."
-  (unless tramp-gvfs-enabled
+  ;; `file-remote-p' must not return an error.  (Bug#68976)
+  (unless (or tramp-gvfs-enabled (eq operation 'file-remote-p))
     (tramp-user-error nil "Package `tramp-gvfs' not supported"))
   (if-let ((filename (apply #'tramp-file-name-for-operation operation args))
            (tramp-gvfs-dbus-event-vector
@@ -1208,6 +1209,9 @@ file names."
       (tramp-run-real-handler #'expand-file-name (list name))
     ;; Dissect NAME.
     (with-parsed-tramp-file-name name nil
+      ;; Tilde expansion shall be possible also for quoted localname.
+      (when (string-prefix-p "~" (file-name-unquote localname))
+	(setq localname (file-name-unquote localname)))
       ;; If there is a default location, expand tilde.
       (when (string-match
 	     (rx bos "~" (group (* (not "/"))) (group (* nonl)) eos) localname)
@@ -1460,13 +1464,13 @@ If FILE-SYSTEM is non-nil, return file system attributes."
 
 (defun tramp-gvfs-handle-file-name-all-completions (filename directory)
   "Like `file-name-all-completions' for Tramp files."
-  (unless (tramp-compat-string-search "/" filename)
-    (ignore-error file-missing
+  (tramp-skeleton-file-name-all-completions filename directory
+    (unless (tramp-compat-string-search "/" filename)
       (all-completions
        filename
        (with-parsed-tramp-file-name (expand-file-name directory) nil
 	 (with-tramp-file-property v localname "file-name-all-completions"
-           (let ((result '("./" "../")))
+           (let (result)
              ;; Get a list of directories and files.
 	     (dolist (item
 		      (tramp-gvfs-get-directory-attributes directory)
@@ -1490,10 +1494,10 @@ If FILE-SYSTEM is non-nil, return file system attributes."
 	    (cond
 	     ((and (memq 'change flags) (memq 'attribute-change flags))
 	      '(created changed changes-done-hint moved deleted
-			attribute-changed))
+			attribute-changed unmounted))
 	     ((memq 'change flags)
-	      '(created changed changes-done-hint moved deleted))
-	     ((memq 'attribute-change flags) '(attribute-changed))))
+	      '(created changed changes-done-hint moved deleted unmounted))
+	     ((memq 'attribute-change flags) '(attribute-changed unmounted))))
 	   (p (apply
 	       #'start-process
 	       "gvfs-monitor" (generate-new-buffer " *gvfs-monitor*")

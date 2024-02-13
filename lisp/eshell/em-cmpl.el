@@ -1,6 +1,6 @@
 ;;; em-cmpl.el --- completion using the TAB key  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -343,7 +343,7 @@ to writing a completion function."
 (defun eshell-complete-parse-arguments ()
   "Parse the command line arguments for `pcomplete-argument'."
   (when (and eshell-no-completion-during-jobs
-	     (eshell-interactive-process-p))
+             eshell-foreground-command)
     (eshell--pcomplete-insert-tab))
   (let ((end (point-marker))
 	(begin (save-excursion (beginning-of-line) (point)))
@@ -377,7 +377,8 @@ to writing a completion function."
 	         (throw 'pcompleted (elisp-completion-at-point)))
 	        (t
 	         (eshell--pcomplete-insert-tab)))))
-    (when (get-text-property (1- end) 'comment)
+    (when (and (< begin end)
+               (get-text-property (1- end) 'comment))
       (eshell--pcomplete-insert-tab))
     (let ((pos (1- end)))
       (while (>= pos begin)

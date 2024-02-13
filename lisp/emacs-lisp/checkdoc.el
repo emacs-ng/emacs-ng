@@ -1,6 +1,6 @@
 ;;; checkdoc.el --- check documentation strings for style requirements  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2024 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Old-Version: 0.6.2
@@ -127,14 +127,6 @@
 ;; also checked.  The documentation for `error' clearly states some
 ;; simple style rules to follow which checkdoc will auto-fix for you.
 ;; `y-or-n-p' and `yes-or-no-p' should also end in "?".
-;;
-;; Lexical binding:
-;;
-;;   We recommend always using lexical binding in new code, and
-;; converting old code to use it.  Checkdoc warns if you don't have
-;; the recommended string "-*- lexical-binding: t -*-" at the top of
-;; the file.  You can disable this check with the user option
-;; `checkdoc-lexical-binding-flag'.
 ;;
 ;; Adding your own checks:
 ;;
@@ -346,12 +338,6 @@ This backslash is no longer needed on Emacs 27.1 or later.
 See Info node `(elisp) Documentation Tips' for background."
   :type 'boolean
   :version "28.1")
-
-(defcustom checkdoc-lexical-binding-flag t
-  "Non-nil means generate warnings if file is not using lexical binding.
-See Info node `(elisp) Converting to Lexical Binding' for more."
-  :type 'boolean
-  :version "30.1")
 
 ;; This is how you can use checkdoc to make mass fixes on the Emacs
 ;; source tree:
@@ -570,7 +556,8 @@ the users will view as each check is completed."
   "Display and update the status buffer for the current checkdoc mode.
 CHECK is a list of four strings stating the current status of each
 test; the nth string describes the status of the nth test."
-  (let (temp-buffer-setup-hook)
+  (let (temp-buffer-setup-hook
+        (temp-buffer-show-hook #'special-mode))
     (with-output-to-temp-buffer "*Checkdoc Status*"
       (mapc #'princ
             (list "Buffer comments and tags:  " (nth 0 check)
@@ -1625,8 +1612,11 @@ may require more formatting")
        (let ((f nil) (m nil) (start (point))
              ;; Ignore the "A-" modifier: it is uncommon in practice,
              ;; and leads to false positives in regexp ranges.
-             (re "[^`‘A-Za-z0-9_]\\([CMs]-[a-zA-Z]\\|\\(\\([CMs]-\\)?\
-mouse-[0-3]\\)\\)\\>"))
+             (re (rx (not (any "0-9A-Za-z_`‘-"))
+                     (group (or (seq (any "CMs") "-" (any "A-Za-z"))
+                                (group (opt (group (any "CMs") "-"))
+                                       "mouse-" (any "0-3"))))
+                     eow)))
 	 ;; Find the first key sequence not in a sample
 	 (while (and (not f) (setq m (re-search-forward re e t)))
 	   (setq f (not (checkdoc-in-sample-code-p start e))))
@@ -2391,31 +2381,6 @@ Code:, and others referenced in the style guide."
 	      (point-min) (save-excursion (goto-char (point-min))
 					  (line-end-position))))
 	 nil))
-      (when checkdoc-lexical-binding-flag
-        (setq
-         err
-         ;; Lexical binding cookie.
-         (if (not (save-excursion
-                    (save-restriction
-                      (goto-char (point-min))
-                      (narrow-to-region (point) (pos-eol))
-                      (re-search-forward
-                       (rx "-*-" (* (* nonl) ";")
-                           (* space) "lexical-binding:" (* space) "t" (* space)
-                           (* ";" (* nonl))
-                           "-*-")
-                       nil t))))
-             (let ((pos (save-excursion (goto-char (point-min))
-                                        (goto-char (pos-eol))
-                                        (point))))
-               (if (checkdoc-y-or-n-p "There is no lexical-binding cookie!  Add one?")
-                   (progn
-                     (goto-char pos)
-                     (insert "  -*- lexical-binding: t -*-"))
-                 (checkdoc-create-error
-                  "The first line should end with \"-*- lexical-binding: t -*-\""
-                  pos (1+ pos) t)))
-           nil)))
       (setq
        err
        (or

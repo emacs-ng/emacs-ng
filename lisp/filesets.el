@@ -1,6 +1,6 @@
 ;;; filesets.el --- handle group of files  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2024 Free Software Foundation, Inc.
 
 ;; Author: Thomas Link <sanobast-emacs@yahoo.de>
 ;; Maintainer: emacs-devel@gnu.org
@@ -161,18 +161,9 @@ COND-FN takes one argument: the current element."
 (define-obsolete-function-alias 'filesets-member #'cl-member "28.1")
 (define-obsolete-function-alias 'filesets-sublist #'seq-subseq "28.1")
 
-(defun filesets-select-command (cmd-list)
-  "Select one command from CMD-LIST -- a string with space separated names."
-  (let ((this (shell-command-to-string
-	       (format "which --skip-alias %s 2> %s | head -n 1"
-		       cmd-list null-device))))
-    (if (equal this "")
-	nil
-      (file-name-nondirectory (substring this 0 (- (length this) 1))))))
-
 (defun filesets-which-command (cmd)
   "Call \"which CMD\"."
-  (shell-command-to-string (format "which %s" cmd)))
+  (shell-command-to-string (format "which %s" (shell-quote-argument cmd))))
 
 (defun filesets-which-command-p (cmd)
   "Call \"which CMD\" and return non-nil if the command was found."
@@ -286,7 +277,7 @@ See `easy-menu-add-item' for documentation."
   )
 
 (defcustom filesets-menu-in-menu nil
-  "Use that instead of `current-menubar' as the menu to change.
+  "Use that instead of `current-global-map' as the menu to change.
 See `easy-menu-add-item' for documentation."
   :set #'filesets-set-default
   :type 'sexp)
@@ -547,16 +538,6 @@ the filename."
 
 (defcustom filesets-external-viewers
   (let
-      ;; ((ps-cmd  (or (and (boundp 'my-ps-viewer) my-ps-viewer)
-      ;;    	    (filesets-select-command "ggv gv")))
-      ;;  (pdf-cmd (or (and (boundp 'my-ps-viewer) my-pdf-viewer)
-      ;;    	    (filesets-select-command "xpdf acroread")))
-      ;;  (dvi-cmd (or (and (boundp 'my-ps-viewer) my-dvi-viewer)
-      ;;    	    (filesets-select-command "xdvi tkdvi")))
-      ;;  (doc-cmd (or (and (boundp 'my-ps-viewer) my-doc-viewer)
-      ;;    	    (filesets-select-command "antiword")))
-      ;;  (pic-cmd (or (and (boundp 'my-ps-viewer) my-pic-viewer)
-      ;;    	    (filesets-select-command "gqview ee display"))))
       ((ps-cmd  "ggv")
        (pdf-cmd "xpdf")
        (dvi-cmd "xdvi")
@@ -1084,10 +1065,6 @@ Return full path if FULL-FLAG is non-nil."
    (t
     (error "Filesets: %s does not exist" dir))))
 
-(defun filesets-quote (txt)
-  "Return TXT in quotes."
-  (concat "\"" txt "\""))
-
 (defun filesets-get-selection ()
   "Get the text between mark and point -- i.e. the selection or region."
   (let ((m (mark))
@@ -1098,7 +1075,7 @@ Return full path if FULL-FLAG is non-nil."
 
 (defun filesets-get-quoted-selection ()
   "Return the currently selected text in quotes."
-  (filesets-quote (filesets-get-selection)))
+  (shell-quote-argument (filesets-get-selection)))
 
 (defun filesets-get-shortcut (n)
   "Create menu shortcuts based on number N."
@@ -1245,12 +1222,13 @@ Use the viewer defined in EV-ENTRY (a valid element of
 		       (if fmt
 			   (mapconcat
 			    (lambda (this)
-			      (if (stringp this) (format this file)
-				(format "%S" (if (functionp this)
-				                 (funcall this)
-				               this))))
+			      (if (stringp this)
+                                  (format this (shell-quote-argument file))
+				(shell-quote-argument (if (functionp this)
+				                          (funcall this)
+				                        this))))
 			    fmt "")
-			 (format "%S" file))))
+			 (shell-quote-argument file))))
 	       (output
 		(cond
 		 ((and (functionp vwr) co-flag)
@@ -1259,7 +1237,7 @@ Use the viewer defined in EV-ENTRY (a valid element of
 		  (funcall vwr file)
 		  nil)
 		 (co-flag
-		  (shell-command-to-string (format "%s %s" vwr args)))
+                  (shell-command-to-string (format "%s %s" vwr args)))
 		 (t
 		  (shell-command (format "%s %s&" vwr args))
 		  nil))))
@@ -1648,7 +1626,17 @@ Assume MODE (see `filesets-entry-mode'), if provided."
 				(filesets-entry-get-master entry)))))
 		  (cons entry (filesets-ingroup-cache-get entry))))
 	       (:tree
-                (let* ((dirpatt (filesets-entry-get-tree entry))
+                ;; Warning: ENTRY here could be of at least two
+                ;; differente forms, either
+                ;;    (NAME (:tree DIRECTORY PATTERN))
+                ;; or
+                ;;    (DIRECTORY PATTERN)
+                ;; The latter happens when opening a tree fileset
+                ;; from the Filesets menu.  We need to support both
+                ;; of these forms!
+                (let* ((dirpatt (if (consp (nth 1 entry))
+                                    (filesets-entry-get-tree entry)
+                                  entry))
                        (dir (nth 0 dirpatt))
                        (patt (nth 1 dirpatt))
                        (depth (or (filesets-entry-get-tree-max-level entry)
@@ -1757,7 +1745,7 @@ If no fileset name is provided, prompt for NAME."
       (add-to-list 'filesets-data (list name '(:files)))
       (message
        (substitute-command-keys
-        "Fileset %s created.  Call `\\[filesets-save-config]' to save.")
+        "Fileset %s created.  Call \\[filesets-save-config] to save.")
        name)
       (car filesets-data))))))
     (if entry
@@ -2473,10 +2461,14 @@ Set up hooks, load the cache file -- if existing -- and build the menu."
 	    (setq filesets-menu-use-cached-flag t)))
     (filesets-build-menu)))
 
+;;; obsolete
+
 (defun filesets-error (_class &rest args)
   "`error' wrapper."
   (declare (obsolete error "28.1"))
   (error "%s" (mapconcat #'identity args " ")))
+
+(define-obsolete-function-alias 'filesets-quote #'shell-quote-argument "30.1")
 
 (provide 'filesets)
 

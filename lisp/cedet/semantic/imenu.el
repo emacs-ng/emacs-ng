@@ -1,6 +1,6 @@
 ;;; semantic/imenu.el --- Use Semantic as an imenu tag generator  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2005, 2007-2008, 2010-2023 Free Software
+;; Copyright (C) 2000-2005, 2007-2008, 2010-2024 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
@@ -31,6 +31,8 @@
 ;;           (lambda ()
 ;;             (setq imenu-create-index-function 'semantic-create-imenu-index)
 ;;             ))
+
+;;; Code:
 
 (require 'semantic)
 (require 'semantic/format)
@@ -134,7 +136,6 @@ Tags of those classes will be given submenu with children.
 By default, a `type' has interesting children.  In Texinfo, however, a
 `section' has interesting children.")
 
-;;; Code:
 (defun semantic-imenu-tag-overlay (tag)
   "Return the overlay belonging to tag.
 If TAG doesn't have an overlay, and instead as a vector of positions,
@@ -469,9 +470,8 @@ Clears all imenu menus that may be depending on the database."
 ;; buffer, there is a much more efficient way of doing this.
 ;; Advise `which-function' so that we optionally use semantic tags
 ;; instead, and get better stuff.
-(require 'advice)
 
-(defvar semantic-which-function 'semantic-default-which-function
+(defvar semantic-which-function #'semantic-default-which-function
   "Function to convert semantic tags into `which-function' text.")
 
 (defcustom semantic-which-function-use-color nil

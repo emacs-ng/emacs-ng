@@ -1,7 +1,6 @@
 ;;; subr.el --- basic lisp subroutines for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994-1995, 1999-2023 Free Software
-;; Foundation, Inc.
+;; Copyright (C) 1985-2024 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -459,6 +458,10 @@ Also see `ignore'."
   "Signal an error, making a message by passing ARGS to `format-message'.
 Errors cause entry to the debugger when `debug-on-error' is non-nil.
 This can be overridden by `debug-ignored-errors'.
+
+When `noninteractive' is non-nil (in particular, in batch mode), an
+unhandled error calls `kill-emacs', which terminates the Emacs
+session with a non-zero exit code.
 
 To signal with MESSAGE without interpreting format characters
 like `%', `\\=`' and `\\='', use (error \"%s\" MESSAGE).
@@ -1959,6 +1962,7 @@ be a list of the form returned by `event-start' and `event-end'."
 (set-advertised-calling-convention 'redirect-frame-focus '(frame focus-frame) "24.3")
 (set-advertised-calling-convention 'libxml-parse-xml-region '(&optional start end base-url) "27.1")
 (set-advertised-calling-convention 'libxml-parse-html-region '(&optional start end base-url) "27.1")
+(set-advertised-calling-convention 'sleep-for '(seconds) "30.1")
 (set-advertised-calling-convention 'time-convert '(time form) "29.1")
 
 ;;;; Obsolescence declarations for variables, and aliases.
@@ -2017,6 +2021,8 @@ instead; it will indirectly limit the specpdl stack size as well.")
                         "29.1")
 
 (defvaralias 'native-comp-deferred-compilation 'native-comp-jit-compilation)
+
+(define-obsolete-function-alias 'fetch-bytecode #'ignore "30.1")
 
 
 ;;;; Alternate names for functions - these are not being phased out.
@@ -2677,28 +2683,161 @@ The variable list SPEC is the same as in `if-let*'."
 
 ;; PUBLIC: find if the current mode derives from another.
 
-(defun provided-mode-derived-p (mode &rest modes)
-  "Non-nil if MODE is derived from one of MODES.
-Uses the `derived-mode-parent' property of the symbol to trace backwards.
-If you just want to check `major-mode', use `derived-mode-p'."
-  ;; If MODE is an alias, then look up the real mode function first.
-  (declare (side-effect-free t))
-  (when-let ((alias (symbol-function mode)))
-    (when (symbolp alias)
-      (setq mode alias)))
-  (while
-      (and
-       (not (memq mode modes))
-       (let* ((parent (get mode 'derived-mode-parent))
-              (parentfn (symbol-function parent)))
-         (setq mode (if (and parentfn (symbolp parentfn)) parentfn parent)))))
-  mode)
+(defun merge-ordered-lists (lists &optional error-function)
+  "Merge LISTS in a consistent order.
+LISTS is a list of lists of elements.
+Merge them into a single list containing the same elements (removing
+duplicates), obeying their relative positions in each list.
+The order of the (sub)lists determines the final order in those cases where
+the order within the sublists does not impose a unique choice.
+Equality of elements is tested with `eql'.
 
-(defun derived-mode-p (&rest modes)
-  "Non-nil if the current major mode is derived from one of MODES.
-Uses the `derived-mode-parent' property of the symbol to trace backwards."
-  (declare (side-effect-free t))
-  (apply #'provided-mode-derived-p major-mode modes))
+If a consistent order does not exist, call ERROR-FUNCTION with
+a remaining list of lists that we do not know how to merge.
+It should return the candidate to use to continue the merge, which
+has to be the head of one of the lists.
+By default we choose the head of the first list."
+  ;; Algorithm inspired from
+  ;; [C3](https://en.wikipedia.org/wiki/C3_linearization)
+  (let ((result '()))
+    (setq lists (remq nil lists)) ;Don't mutate the original `lists' argument.
+    (while (cdr (setq lists (delq nil lists)))
+      ;; Try to find the next element of the result. This
+      ;; is achieved by considering the first element of each
+      ;; (non-empty) input list and accepting a candidate if it is
+      ;; consistent with the rests of the input lists.
+      (let* ((next nil)
+	     (tail lists))
+	(while tail
+	  (let ((candidate (caar tail))
+	        (other-lists lists))
+	    ;; Ensure CANDIDATE is not in any position but the first
+	    ;; in any of the element lists of LISTS.
+	    (while other-lists
+	      (if (not (memql candidate (cdr (car other-lists))))
+	          (setq other-lists (cdr other-lists))
+	        (setq candidate nil)
+	        (setq other-lists nil)))
+	    (if (not candidate)
+	        (setq tail (cdr tail))
+	      (setq next candidate)
+	      (setq tail nil))))
+	(unless next ;; The graph is inconsistent.
+	  (setq next (funcall (or error-function #'caar) lists))
+	  (unless (assoc next lists #'eql)
+	    (error "Invalid candidate returned by error-function: %S" next)))
+	;; The graph is consistent so far, add NEXT to result and
+	;; merge input lists, dropping NEXT from their heads where
+	;; applicable.
+	(push next result)
+	(setq lists
+	      (mapcar (lambda (l) (if (eql (car l) next) (cdr l) l))
+		      lists))))
+    (if (null result) (car lists) ;; Common case.
+      (append (nreverse result) (car lists)))))
+
+(defun derived-mode-all-parents (mode &optional known-children)
+  "Return all the parents of MODE, starting with MODE.
+This includes the parents set by `define-derived-mode' and additional
+ones set by `derived-mode-add-parents'.
+The returned list is not fresh, don't modify it.
+\n(fn MODE)"               ;`known-children' is for internal use only.
+  ;; Can't use `with-memoization' :-(
+  (let ((ps (get mode 'derived-mode--all-parents)))
+    (cond
+     (ps ps)
+     ((memq mode known-children)
+      ;; These things happen, better not get all worked up about it.
+      ;;(error "Cycle in the major mode hierarchy: %S" mode)
+      ;; But do try to return something meaningful.
+      (memq mode (reverse known-children)))
+     (t
+      ;; The mode hierarchy (or DAG, actually), is very static, but we
+      ;; need to react to changes because `parent' may not be defined
+      ;; yet (e.g. it's still just an autoload), so the recursive call
+      ;; to `derived-mode-all-parents' may return an
+      ;; invalid/incomplete result which we'll need to update when the
+      ;; mode actually gets loaded.
+      (let* ((new-children (cons mode known-children))
+             (get-all-parents
+              (lambda (parent)
+                ;; Can't use `cl-lib' here (nor `gv') :-(
+                ;;(cl-assert (not (equal parent mode)))
+                ;;(cl-pushnew mode (get parent 'derived-mode--followers))
+                (let ((followers (get parent 'derived-mode--followers)))
+                  (unless (memq mode followers)
+                    (put parent 'derived-mode--followers
+                         (cons mode followers))))
+                (derived-mode-all-parents parent new-children)))
+             (parent (or (get mode 'derived-mode-parent)
+                         ;; If MODE is an alias, then follow the alias.
+                         (let ((alias (symbol-function mode)))
+                           (and (symbolp alias) alias))))
+             (extras (get mode 'derived-mode-extra-parents))
+             (all-parents
+              (merge-ordered-lists
+               (cons (if (and parent (not (memq parent extras)))
+                         (funcall get-all-parents parent))
+                     (mapcar get-all-parents extras)))))
+        ;; Cache the result unless it was affected by `known-children'
+        ;; because of a cycle.
+        (if (and (memq mode all-parents) known-children)
+            (cons mode (remq mode all-parents))
+          (put mode 'derived-mode--all-parents (cons mode all-parents))))))))
+
+(defun provided-mode-derived-p (mode &optional modes &rest old-modes)
+  "Non-nil if MODE is derived from a mode that is a member of the list MODES.
+MODES can also be a single mode instead of a list.
+This examines the parent modes set by `define-derived-mode' and also
+additional ones set by `derived-mode-add-parents'.
+If you just want to check the current `major-mode', use `derived-mode-p'.
+We also still support the deprecated calling convention:
+\(provided-mode-derived-p MODE &rest MODES)."
+  (declare (side-effect-free t)
+           (advertised-calling-convention (mode modes) "30.1"))
+  (cond
+   (old-modes (setq modes (cons modes old-modes)))
+   ((not (listp modes)) (setq modes (list modes))))
+  (let ((ps (derived-mode-all-parents mode)))
+    (while (and modes (not (memq (car modes) ps)))
+      (setq modes (cdr modes)))
+    (car modes)))
+
+(defun derived-mode-p (&optional modes &rest old-modes)
+ "Return non-nil if the current major mode is derived from one of MODES.
+MODES should be a list of symbols or a single mode symbol instead of a list.
+This examines the parent modes set by `define-derived-mode' and also
+additional ones set by `derived-mode-add-parents'.
+We also still support the deprecated calling convention:
+\(derived-mode-p &rest MODES)."
+ (declare (side-effect-free t)
+          ;; FIXME: It's cumbersome for external packages to write code which
+          ;; accommodates both the old and the new calling conventions *and*
+          ;; doesn't cause spurious warnings.  So let's be more lenient
+          ;; for now and maybe remove `deprecated-args' for Emacs-31.
+          (advertised-calling-convention (modes &rest deprecated-args) "30.1"))
+ (provided-mode-derived-p major-mode (if old-modes (cons modes old-modes)
+                                       modes)))
+
+(defun derived-mode-set-parent (mode parent)
+  "Declare PARENT to be the parent of MODE."
+  (put mode 'derived-mode-parent parent)
+  (derived-mode--flush mode))
+
+(defun derived-mode-add-parents (mode extra-parents)
+  "Add EXTRA-PARENTS to the parents of MODE.
+Declares the parents of MODE to be its main parent (as defined
+in `define-derived-mode') plus EXTRA-PARENTS, which should be a list
+of symbols."
+  (put mode 'derived-mode-extra-parents extra-parents)
+  (derived-mode--flush mode))
+
+(defun derived-mode--flush (mode)
+  (put mode 'derived-mode--all-parents nil)
+  (let ((followers (get mode 'derived-mode--followers)))
+    (when followers ;; Common case.
+      (put mode 'derived-mode--followers nil)
+      (mapc #'derived-mode--flush followers))))
 
 (defvar-local major-mode--suspended nil)
 (put 'major-mode--suspended 'permanent-local t)
@@ -2964,7 +3103,7 @@ instead."
 LIBRARY should be a relative file name of the library, a string.
 It can omit the suffix (a.k.a. file-name extension) if NOSUFFIX is
 nil (which is the default, see below).
-This command searches the directories in `load-path' like `\\[load-library]'
+This command searches the directories in `load-path' like \\[load-library]
 to find the file that `\\[load-library] RET LIBRARY RET' would load.
 Optional second arg NOSUFFIX non-nil means don't add suffixes `load-suffixes'
 to the specified name LIBRARY.
@@ -3205,22 +3344,30 @@ only unbound fallback disabled is downcasing of the last event."
       (message nil)
       (use-global-map old-global-map))))
 
+(defvar touch-screen-events-received nil
+  "Whether a touch screen event has ever been translated.
+The value of this variable governs whether
+`read--potential-mouse-event' calls read-key or read-event.")
+
 ;; FIXME: Once there's a safe way to transition away from read-event,
 ;; callers to this function should be updated to that way and this
 ;; function should be deleted.
 (defun read--potential-mouse-event ()
-    "Read an event that might be a mouse event.
+  "Read an event that might be a mouse event.
 
 This function exists for backward compatibility in code packaged
 with Emacs.  Do not call it directly in your own packages."
-    ;; `xterm-mouse-mode' events must go through `read-key' as they
-    ;; are decoded via `input-decode-map'.
-    (if xterm-mouse-mode
-        (read-key nil
-                  ;; Normally `read-key' discards all mouse button
-                  ;; down events.  However, we want them here.
-                  t)
-      (read-event)))
+  ;; `xterm-mouse-mode' events must go through `read-key' as they
+  ;; are decoded via `input-decode-map'.
+  (if (or xterm-mouse-mode
+          ;; If a touch screen is being employed, then mouse events
+          ;; are subject to translation as well.
+          touch-screen-events-received)
+      (read-key nil
+                ;; Normally `read-key' discards all mouse button
+                ;; down events.  However, we want them here.
+                t)
+    (read-event)))
 
 (defvar read-passwd-map
   ;; BEWARE: `defconst' would purecopy it, breaking the sharing with
@@ -3408,7 +3555,7 @@ causes it to evaluate `help-form' and display the result."
     (message "%s%s" prompt (char-to-string char))
     char))
 
-(defun sit-for (seconds &optional nodisp obsolete)
+(defun sit-for (seconds &optional nodisp)
   "Redisplay, then wait for SECONDS seconds.  Stop when input is available.
 SECONDS may be a floating-point value.
 \(On operating systems that do not support waiting for fractions of a
@@ -3417,29 +3564,11 @@ second, floating-point values are rounded down to the nearest integer.)
 If optional arg NODISP is t, don't redisplay, just wait for input.
 Redisplay does not happen if input is available before it starts.
 
-Value is t if waited the full time with no input arriving, and nil otherwise.
-
-An obsolete, but still supported form is
-\(sit-for SECONDS &optional MILLISECONDS NODISP)
-where the optional arg MILLISECONDS specifies an additional wait period,
-in milliseconds; this was useful when Emacs was built without
-floating point support."
-  (declare (advertised-calling-convention (seconds &optional nodisp) "22.1")
-           (compiler-macro
-            (lambda (form)
-              (if (not (or (numberp nodisp) obsolete)) form
-                (macroexp-warn-and-return
-                 (format-message "Obsolete calling convention for `sit-for'")
-                 `(,(car form) (+ ,seconds (/ (or ,nodisp 0) 1000.0)) ,obsolete)
-                 '(obsolete sit-for))))))
+Value is t if waited the full time with no input arriving, and nil otherwise."
   ;; This used to be implemented in C until the following discussion:
   ;; https://lists.gnu.org/r/emacs-devel/2006-07/msg00401.html
   ;; Then it was moved here using an implementation based on an idle timer,
   ;; which was then replaced by the use of read-event.
-  (if (numberp nodisp)
-      (setq seconds (+ seconds (* 1e-3 nodisp))
-            nodisp obsolete)
-    (if obsolete (setq nodisp obsolete)))
   (cond
    (noninteractive
     (sleep-for seconds)
@@ -3597,10 +3726,10 @@ There is no need to explicitly add `help-char' to CHARS;
          (this-command this-command)
          (result (minibuffer-with-setup-hook
 		     (lambda ()
+		       (setq-local post-self-insert-hook nil)
 		       (add-hook 'post-command-hook
 				 (lambda ()
-				   ;; FIXME: Should we use `<='?
-				   (if (= (1+ (minibuffer-prompt-end))
+				   (if (<= (1+ (minibuffer-prompt-end))
 					  (point-max))
                                        (exit-minibuffer)))
 				 nil 'local))
@@ -3700,13 +3829,17 @@ confusing to some users.")
 
 (defvar from--tty-menu-p nil
   "Non-nil means the current command was invoked from a TTY menu.")
+
+(declare-function android-detect-keyboard "androidfns.c")
+
 (defun use-dialog-box-p ()
   "Return non-nil if the current command should prompt the user via a dialog box."
   (and last-input-event                 ; not during startup
        (or (consp last-nonmenu-event)   ; invoked by a mouse event
            (and (null last-nonmenu-event)
                 (consp last-input-event))
-           (featurep 'android)		; Prefer dialog boxes on Android.
+           (and (featurep 'android)	; Prefer dialog boxes on Android.
+                (not (android-detect-keyboard))) ; If no keyboard is connected.
            from--tty-menu-p)            ; invoked via TTY menu
        use-dialog-box))
 
@@ -4886,7 +5019,7 @@ read-only, and scans it for function and variable names to make them into
 clickable cross-references.
 
 See the related form `with-temp-buffer-window'."
-  (declare (debug t))
+  (declare (debug t) (indent 1))
   (let ((old-dir (make-symbol "old-dir"))
         (buf (make-symbol "buf")))
     `(let* ((,old-dir default-directory)
@@ -6263,13 +6396,14 @@ If non-nil, BASE should be a function, and frames before its
 nearest activation frame are discarded."
   (let ((frames nil))
     (mapbacktrace (lambda (&rest frame) (push frame frames))
-                  (or base 'backtrace-frames))
+                  (or base #'backtrace-frames))
     (nreverse frames)))
 
 (defun backtrace-frame (nframes &optional base)
   "Return the function and arguments NFRAMES up from current execution point.
 If non-nil, BASE should be a function, and NFRAMES counts from its
-nearest activation frame.
+nearest activation frame.  BASE can also be of the form (OFFSET . FUNCTION)
+in which case OFFSET will be added to NFRAMES.
 If the frame has not evaluated the arguments yet (or is a special form),
 the value is (nil FUNCTION ARG-FORMS...).
 If the frame has evaluated its arguments and called its function already,
@@ -6280,7 +6414,7 @@ or a lambda expression for macro calls.
 If NFRAMES is more than the number of frames, the value is nil."
   (backtrace-frame--internal
    (lambda (evald func args _) `(,evald ,func ,@args))
-   nframes (or base 'backtrace-frame)))
+   nframes (or base #'backtrace-frame)))
 
 
 (defvar called-interactively-p-functions nil
@@ -6604,6 +6738,8 @@ effectively rounded up."
     ;; Force a call to `message' now.
     (progress-reporter-update reporter (or current-value min-value))
     reporter))
+
+(defalias 'progress-reporter-make #'make-progress-reporter)
 
 (defun progress-reporter-force-update (reporter &optional value new-message suffix)
   "Report progress of an operation in the echo area unconditionally.
@@ -7295,13 +7431,15 @@ lines."
             (setq start (length string)))))
       (nreverse lines))))
 
-(defun buffer-match-p (condition buffer-or-name &optional arg)
+(defvar buffer-match-p--past-warnings nil)
+
+(defun buffer-match-p (condition buffer-or-name &rest args)
   "Return non-nil if BUFFER-OR-NAME matches CONDITION.
 CONDITION is either:
 - the symbol t, to always match,
 - the symbol nil, which never matches,
 - a regular expression, to match a buffer name,
-- a predicate function that takes BUFFER-OR-NAME and ARG as
+- a predicate function that takes BUFFER-OR-NAME plus ARGS as
   arguments, and returns non-nil if the buffer matches,
 - a cons-cell, where the car describes how to interpret the cdr.
   The car can be one of the following:
@@ -7326,9 +7464,18 @@ CONDITION is either:
                       ((pred stringp)
                        (string-match-p condition (buffer-name buffer)))
                       ((pred functionp)
-                       (if (eq 1 (cdr (func-arity condition)))
-                           (funcall condition buffer-or-name)
-                         (funcall condition buffer-or-name arg)))
+                       (if (cdr args)
+                           ;; New in Emacs>29.1. no need for compatibility hack.
+                           (apply condition buffer-or-name args)
+                         (condition-case-unless-debug err
+                             (apply condition buffer-or-name args)
+                           (wrong-number-of-arguments
+                            (unless (member condition
+                                            buffer-match-p--past-warnings)
+                              (message "%s" (error-message-string err))
+                              (push condition buffer-match-p--past-warnings))
+                            (apply condition buffer-or-name
+                                   (if args nil '(nil)))))))
                       (`(major-mode . ,mode)
                        (eq
                         (buffer-local-value 'major-mode buffer)
@@ -7350,19 +7497,41 @@ CONDITION is either:
                 (throw 'match t)))))))
     (funcall match (list condition))))
 
-(defun match-buffers (condition &optional buffers arg)
+(defun match-buffers (condition &optional buffers &rest args)
   "Return a list of buffers that match CONDITION, or nil if none match.
 See `buffer-match-p' for various supported CONDITIONs.
 By default all buffers are checked, but the optional
 argument BUFFERS can restrict that: its value should be
 an explicit list of buffers to check.
-Optional argument ARG is passed to `buffer-match-p', for
+Optional arguments ARGS are passed to `buffer-match-p', for
 predicate conditions in CONDITION."
   (let (bufs)
     (dolist (buf (or buffers (buffer-list)))
-      (when (buffer-match-p condition (get-buffer buf) arg)
+      (when (apply #'buffer-match-p condition (get-buffer buf) args)
         (push buf bufs)))
     bufs))
+
+(defmacro handler-bind (handlers &rest body)
+  "Setup error HANDLERS around execution of BODY.
+HANDLERS is a list of (CONDITIONS HANDLER) where
+CONDITIONS should be a list of condition names (symbols) or
+a single condition name, and HANDLER is a form whose evaluation
+returns a function.
+When an error is signaled during execution of BODY, if that
+error matches CONDITIONS, then the associated HANDLER
+function is called with the error object as argument.
+HANDLERs can either transfer the control via a non-local exit,
+or return normally.  If a handler returns normally, the search for an
+error handler continues from where it left off."
+  ;; FIXME: Completion support as in `condition-case'?
+  (declare (indent 1) (debug ((&rest (sexp form)) body)))
+  (let ((args '()))
+    (dolist (cond+handler handlers)
+      (let ((handler (car (cdr cond+handler)))
+            (conds (car cond+handler)))
+        (push `',(ensure-list conds) args)
+        (push handler args)))
+    `(handler-bind-1 (lambda () ,@body) ,@(nreverse args))))
 
 (defmacro with-memoization (place &rest code)
   "Return the value of CODE and stash it in PLACE.

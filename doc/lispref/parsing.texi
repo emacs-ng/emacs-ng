@@ -1,6 +1,6 @@
 @c -*- mode: texinfo; coding: utf-8 -*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 2021--2023 Free Software Foundation, Inc.
+@c Copyright (C) 2021--2024 Free Software Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Parsing Program Source
 @chapter Parsing Program Source
@@ -705,7 +705,7 @@ This function finds the previous sibling of @var{node}.  If
 To make the syntax tree easier to analyze, many language grammars
 assign @dfn{field names} to child nodes (@pxref{tree-sitter node field
 name, field name}).  For example, a @code{function_definition} node
-could have a @code{declarator} node and a @code{body} node.
+could have a @code{declarator} child and a @code{body} child.
 
 @defun treesit-node-child-by-field-name node field-name
 This function finds the child of @var{node} whose field name is
@@ -794,7 +794,7 @@ that comes after it in the buffer position order, i.e., nodes with
 start positions greater than the end position of @var{start}.
 
 In the tree shown above, @code{treesit-search-subtree} traverses node
-@samp{S} (@var{start}) and nodes marked with @code{o}, where this
+@samp{S} (@var{start}) and nodes marked with @code{o}, whereas this
 function traverses the nodes marked with numbers.  This function is
 useful for answering questions like ``what is the first node after
 @var{start} in the buffer that satisfies some condition?''
@@ -916,32 +916,37 @@ nodes.
 
 @defun treesit-parent-until node predicate &optional include-node
 This function repeatedly finds the parents of @var{node}, and returns
-the parent that satisfies @var{pred}, a function that takes a node as
-argument and returns a boolean that indicates a match.  If no parent
-satisfies @var{pred}, this function returns @code{nil}.
+the parent that satisfies @var{predicate}.  @var{predicate} can be
+either a function that takes a node as argument and returns @code{t}
+or @code{nil}, or a regexp matching node type names, or other valid
+predicates described in @var{treesit-thing-settings}.  If no parent
+satisfies @var{predicates}, this function returns @code{nil}.
 
 Normally this function only looks at the parents of @var{node} but not
 @var{node} itself.  But if @var{include-node} is non-@code{nil}, this
-function returns @var{node} if @var{node} satisfies @var{pred}.
+function returns @var{node} if @var{node} satisfies @var{predicate}.
 @end defun
 
-@defun treesit-parent-while node pred
+@defun treesit-parent-while node predicate
 This function goes up the tree starting from @var{node}, and keeps
-doing so as long as the nodes satisfy @var{pred}, a function that
+doing so as long as the nodes satisfy @var{predicate}, a function that
 takes a node as argument.  That is, this function returns the highest
-parent of @var{node} that still satisfies @var{pred}.  Note that if
-@var{node} satisfies @var{pred} but its immediate parent doesn't,
+parent of @var{node} that still satisfies @var{predicate}.  Note that if
+@var{node} satisfies @var{predicate} but its immediate parent doesn't,
 @var{node} itself is returned.
 @end defun
 
-@defun treesit-node-top-level node &optional type
+@defun treesit-node-top-level node &optional predicate include-node
 This function returns the highest parent of @var{node} that has the
 same type as @var{node}.  If no such parent exists, it returns
 @code{nil}.  Therefore this function is also useful for testing
 whether @var{node} is top-level.
 
-If @var{type} is non-@code{nil}, this function matches each parent's
-type with @var{type} as a regexp, rather than using @var{node}'s type.
+If @var{predicate} is @code{nil}, this function uses @var{node}'s type
+to find the parent.  If @var{predicate} is non-@code{nil}, this
+function searches the parent that satisfies @var{predicate}.  If
+@var{include-node} is non-@code{nil}, this function returns @var{node}
+if @var{node} satisfies @var{predicate}.
 @end defun
 
 @node Accessing Node Information
@@ -1079,6 +1084,22 @@ Note that @var{n} counts both named and anonymous children, and
 This function returns the number of children of @var{node}.  If
 @var{named} is non-@code{nil}, it only counts named children
 (@pxref{tree-sitter named node, named node}).
+@end defun
+
+@heading Convenience functions
+
+@defun treesit-node-enclosed-p smaller larger &optional strict
+This function returns non-@code{nil} if @var{smaller} is enclosed in
+@var{larger}.  @var{smaller} and @var{larger} can be either a cons
+@code{(@var{beg} . @var{end})} or a node.
+
+Return non-@code{nil} if @var{larger}'s start <= @var{smaller}'s start
+and @var{larger}'s end <= @var{smaller}'s end.
+
+If @var{strict} is @code{t}, compare with < rather than <=.
+
+If @var{strict} is @code{partial}, consider @var{larger} encloses
+@var{smaller} when at least one side is strictly enclosing.
 @end defun
 
 @node Pattern Matching
@@ -1876,6 +1897,10 @@ add-log functions used by @code{add-log-current-defun}.
 @item
 If @code{treesit-simple-imenu-settings} (@pxref{Imenu}) is
 non-@code{nil}, it sets up Imenu.
+
+@item
+If @code{treesit-outline-predicate} (@pxref{Outline Minor Mode}) is
+non-@code{nil}, it sets up Outline minor mode.
 @end itemize
 
 @c TODO: Add treesit-thing-settings stuff once we finalize it.

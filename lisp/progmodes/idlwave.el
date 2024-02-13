@@ -1,6 +1,6 @@
 ;;; idlwave.el --- IDL editing mode for GNU Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
 
 ;; Authors: JD Smith <jd.smith@utoledo.edu>
 ;;          Carsten Dominik <dominik@science.uva.nl>
@@ -657,7 +657,7 @@ When you specify a class, this information can be stored as a text
 property on the `->' arrow in the source code, so that during the same
 editing session, IDLWAVE will not have to ask again.  When this
 variable is non-nil, IDLWAVE will store and reuse the class information.
-The class stored can be checked and removed with `\\[idlwave-routine-info]'
+The class stored can be checked and removed with \\[idlwave-routine-info]
 on the arrow.
 
 The default of this variable is nil, since the result of commands then
@@ -6892,7 +6892,7 @@ If these don't exist, a letter in the string is automatically selected."
     ;; Display prompt and wait for quick reply
     (message "%s[%s]" prompt
              (mapconcat (lambda(x) (char-to-string (car x)))
-                        keys-alist ""))
+                        keys-alist))
     (if (sit-for delay)
         ;; No quick reply: Show help
         (save-window-excursion
@@ -7958,7 +7958,7 @@ demand _EXTRA in the keyword list."
     ;; If this is the OBJ_NEW function, try to figure out the class and use
     ;; the keywords from the corresponding INIT method.
     (if (and (equal (upcase name) "OBJ_NEW")
-	     (derived-mode-p 'idlwave-mode 'idlwave-shell-mode))
+	     (derived-mode-p '(idlwave-mode idlwave-shell-mode)))
 	(let* ((bos (save-excursion (idlwave-beginning-of-statement) (point)))
 	       (string (buffer-substring bos (point)))
 	       (case-fold-search t)

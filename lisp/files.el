@@ -1,6 +1,6 @@
 ;;; files.el --- file input and output commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1987, 1992-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1987, 1992-2024 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Package: emacs
@@ -228,7 +228,7 @@ If non-nil, this directory is used instead of `temporary-file-directory'
 by programs that create small temporary files.  This is for systems that
 have fast storage with limited space, such as a RAM disk."
   :group 'files
-  :initialize 'custom-initialize-delay
+  :initialize #'custom-initialize-delay
   :type '(choice (const nil) directory))
 
 ;; The system null device. (Should reference NULL_DEVICE from C.)
@@ -434,7 +434,7 @@ ignored."
                         ,@(mapcar (lambda (algo)
                                     (list 'const algo))
                                   (secure-hash-algorithms)))))
-  :initialize 'custom-initialize-delay
+  :initialize #'custom-initialize-delay
   :version "21.1")
 
 (defvar auto-save--timer nil "Timer for `auto-save-visited-mode'.")
@@ -1135,9 +1135,11 @@ the function needs to examine, starting with FILE."
     (while (not (or root
                     (null file)
                     (string-match locate-dominating-stop-dir-regexp file)))
-      (setq try (if (stringp name)
-                    (and (file-directory-p file)
-                         (file-exists-p (expand-file-name name file)))
+      (setq file (if (file-directory-p file)
+                     file
+                   (file-name-directory file))
+            try (if (stringp name)
+                    (file-exists-p (expand-file-name name file))
                   (funcall name file)))
       (cond (try (setq root file))
             ((equal file (setq file (file-name-directory
@@ -1244,6 +1246,29 @@ See `load-file' for a different interface to `load'."
   (interactive (list (read-library-name)))
   (load library))
 
+(defun require-with-check (feature &optional filename noerror)
+  "If FEATURE is not already loaded, load it from FILENAME.
+This is like `require' except if FEATURE is already a member of the list
+`features’, then we check if this was provided by a different file than the
+one that we would load now (presumably because `load-path' has been
+changed since the file was loaded).
+If it's the case, we either signal an error (the default), or forcibly reload
+the new file (if NOERROR is equal to `reload'), or otherwise emit a warning."
+  (let ((lh load-history)
+        (res (require feature filename (if (eq noerror 'reload) nil noerror))))
+    ;; If the `feature' was not yet provided, `require' just loaded the right
+    ;; file, so we're done.
+    (when (eq lh load-history)
+      ;; If `require' did nothing, we need to make sure that was warranted.
+      (let ((fn (locate-file (or filename (symbol-name feature))
+                             load-path (get-load-suffixes))))
+        (cond
+         ((assoc fn load-history) nil)  ;We loaded the right file.
+         ((eq noerror 'reload) (load fn nil 'nomessage))
+         (t (funcall (if noerror #'warn #'error)
+                     "Feature provided by other file: %S" feature)))))
+    res))
+
 (defun file-remote-p (file &optional identification connected)
   "Test whether FILE specifies a location on a remote system.
 A file is considered remote if accessing it is likely to
@@ -1294,7 +1319,7 @@ Tip: You can use this expansion of remote identifier components
 (defcustom remote-shell-program (or (executable-find "ssh") "ssh")
   "Program to use to execute commands on a remote host (i.e. ssh)."
   :version "29.1"
-  :initialize 'custom-initialize-delay
+  :initialize #'custom-initialize-delay
   :group 'environment
   :type 'file)
 
@@ -2183,37 +2208,33 @@ and others are ignored.  PREDICATE is called with the buffer as
 the only argument, but not with the buffer as the current buffer.
 
 If there is no such live buffer, return nil."
-  (let ((predicate (or predicate #'identity))
-        (truename (abbreviate-file-name (file-truename filename))))
-    (or (let ((buf (get-file-buffer filename)))
-          (when (and buf (funcall predicate buf)) buf))
-        (let ((list (buffer-list)) found)
-          (while (and (not found) list)
-            (with-current-buffer (car list)
-              (if (and buffer-file-name
-                       (string= buffer-file-truename truename)
-                       (funcall predicate (current-buffer)))
-                  (setq found (car list))))
-            (setq list (cdr list)))
-          found)
-        (let* ((attributes (file-attributes truename))
-               (number (file-attribute-file-identifier attributes))
-               (list (buffer-list)) found)
-          (and buffer-file-numbers-unique
-               (car-safe number)       ;Make sure the inode is not just nil.
-               (while (and (not found) list)
-                 (with-current-buffer (car list)
-                   (if (and buffer-file-name
-                            (equal buffer-file-number number)
-                            ;; Verify this buffer's file number
-                            ;; still belongs to its file.
-                            (file-exists-p buffer-file-name)
-                            (equal (file-attributes buffer-file-truename)
-                                   attributes)
-                            (funcall predicate (current-buffer)))
-                       (setq found (car list))))
-                 (setq list (cdr list))))
-          found))))
+  (or (let ((buf (get-file-buffer filename)))
+        (when (and buf (or (not predicate) (funcall predicate buf))) buf))
+      (let ((truename (abbreviate-file-name (file-truename filename))))
+        (or
+         (let ((buf (get-truename-buffer truename)))
+           (when (and buf (buffer-local-value 'buffer-file-name buf)
+                      (or (not predicate) (funcall predicate buf)))
+             buf))
+         (let* ((attributes (file-attributes truename))
+                (number (file-attribute-file-identifier attributes)))
+           (and buffer-file-numbers-unique
+                (car-safe number)       ;Make sure the inode is not just nil.
+                (let* ((buf (find-buffer 'buffer-file-number number))
+                       (buf-file-name
+                        (and buf (buffer-local-value 'buffer-file-name buf))))
+                  (when (and buf-file-name
+                             ;; Verify this buffer's file number
+                             ;; still belongs to its file.
+                             (file-exists-p buf-file-name)
+                             (equal (file-attributes
+                                     (buffer-local-value
+                                      'buffer-file-truename buf))
+                                    attributes)
+                             (or (not predicate)
+                                 (funcall predicate buf)))
+                    buf))))))))
+
 
 (defcustom find-file-wildcards t
   "Non-nil means file-visiting commands should handle wildcards.
@@ -2726,6 +2747,10 @@ Fifth arg NOMODES non-nil means don't alter the file's modes.
 Finishes by calling the functions in `find-file-hook'
 unless NOMODES is non-nil."
   (setq buffer-read-only (not (file-writable-p buffer-file-name)))
+  ;; The above is sufficiently like turning on read-only-mode, so run
+  ;; the mode hook here by hand.
+  (if buffer-read-only
+      (run-hooks 'read-only-mode-hook))
   (if noninteractive
       nil
     (let* (not-serious
@@ -3038,7 +3063,7 @@ ARC\\|ZIP\\|LZH\\|LHA\\|ZOO\\|[JEW]AR\\|XPI\\|RAR\\|CBR\\|7Z\\|SQUASHFS\\)\\'" .
      ("\\.docbook\\'" . sgml-mode)
      ("\\.com\\'" . dcl-mode)
      ("/config\\.\\(?:bat\\|log\\)\\'" . fundamental-mode)
-     ("/\\.\\(authinfo\\|netrc\\)\\'" . authinfo-mode)
+     ("/\\.?\\(authinfo\\|netrc\\)\\'" . authinfo-mode)
      ;; Windows candidates may be opened case sensitively on Unix
      ("\\.\\(?:[iI][nN][iI]\\|[lL][sS][tT]\\|[rR][eE][gG]\\|[sS][yY][sS]\\)\\'" . conf-mode)
      ("\\.la\\'" . conf-unix-mode)
@@ -3243,8 +3268,16 @@ and `inhibit-local-variables-suffixes'.  If
     temp))
 
 (defvar auto-mode-interpreter-regexp
-  (purecopy "#![ \t]?\\([^ \t\n]*\
-/bin/env[ \t]\\)?\\([^ \t\n]+\\)")
+  (purecopy
+   (concat
+    "#![ \t]*"
+    ;; Optional group 1: env(1) invocation.
+    "\\("
+    "[^ \t\n]*/bin/env[ \t]*"
+    "\\(?:-S[ \t]*\\|--split-string\\(?:=\\|[ \t]*\\)\\)?"
+    "\\)?"
+    ;; Group 2: interpreter.
+    "\\([^ \t\n]+\\)"))
   "Regexp matching interpreters, for file mode determination.
 This regular expression is matched against the first line of a file
 to determine the file's mode in `set-auto-mode'.  If it matches, the file
@@ -3725,7 +3758,8 @@ function is allowed to change the contents of this alist.
 This hook is called only if there is at least one file-local
 variable to set.")
 
-(defvar permanently-enabled-local-variables '(lexical-binding)
+(defvar permanently-enabled-local-variables
+  '(lexical-binding read-symbol-shorthands)
   "A list of file-local variables that are always enabled.
 This overrides any `enable-local-variables' setting.")
 
@@ -4161,6 +4195,13 @@ major-mode."
                                 ;; to use 'thisbuf's name in the
                                 ;; warning message.
                                 (or (buffer-file-name thisbuf) ""))))))
+                          ((eq var 'read-symbol-shorthands)
+                           ;; Sort automatically by shorthand length
+                           ;; in descending order.
+                           (setq val (sort val
+                                           (lambda (sh1 sh2) (> (length (car sh1))
+                                                                (length (car sh2))))))
+                           (push (cons 'read-symbol-shorthands val) result))
                           ((and (eq var 'mode) handle-mode))
 			  (t
 			   (ignore-errors
@@ -4583,12 +4624,7 @@ applied in order then that means the more specific modes will
 variables will override modes."
   (let ((key (car node)))
     (cond ((null key) -1)
-          ((symbolp key)
-           (let ((mode key)
-                 (depth 0))
-             (while (setq mode (get mode 'derived-mode-parent))
-               (setq depth (1+ depth)))
-             depth))
+          ((symbolp key) (length (derived-mode-all-parents key)))
           ((stringp key)
            (+ 1000 (length key)))
           (t -2))))
@@ -5933,9 +5969,11 @@ Before and after saving the buffer, this function runs
                            buffer-file-name)
                          t))
 	;; If file not writable, see if we can make it writable
-	;; temporarily while we write it.
-	;; But no need to do so if we have just backed it up
-	;; (setmodes is set) because that says we're superseding.
+	;; temporarily while we write it (its original modes will be
+	;; restored in 'basic-save-buffer' or, in case of an error, in
+	;; the `unwind-protect' below).  But no need to do so if we
+	;; have just backed it up (setmodes is set) because that says
+	;; we're superseding.
 	(cond ((and tempsetmodes (not setmodes))
 	       ;; Change the mode back, after writing.
 	       (setq setmodes
@@ -5944,12 +5982,17 @@ Before and after saving the buffer, this function runs
                                "Error getting extended attributes: %s"
 			     (file-extended-attributes buffer-file-name))
 			   buffer-file-name))
-	       ;; If set-file-extended-attributes fails, fall back on
-	       ;; set-file-modes.
-	       (unless
-		   (with-demoted-errors "Error setting attributes: %s"
-		     (set-file-extended-attributes buffer-file-name
-						   (nth 1 setmodes)))
+	       ;; If set-file-extended-attributes fails to make the
+	       ;; file writable, fall back on set-file-modes.  Calling
+	       ;; set-file-extended-attributes here may or may not be
+	       ;; actually necessary.  However, since its exact
+	       ;; behavior is highly port-specific, since calling it
+	       ;; does not do any harm, and since the call has a long
+	       ;; history, we decided to leave it in (bug#66546).
+	       (with-demoted-errors "Error setting attributes: %s"
+		 (set-file-extended-attributes buffer-file-name
+					       (nth 1 setmodes)))
+	       (unless (file-writable-p buffer-file-name)
 		 (set-file-modes buffer-file-name
 				 (logior (car setmodes) 128)))))
 	(let (success)
@@ -5962,12 +6005,22 @@ Before and after saving the buffer, this function runs
                               buffer-file-name nil t buffer-file-truename)
                 (when save-silently (message nil))
 		(setq success t))
-	    ;; If we get an error writing the new file, and we made
-	    ;; the backup by renaming, undo the backing-up.
-	    (and setmodes (not success)
-		 (progn
-		   (rename-file (nth 2 setmodes) buffer-file-name t)
-		   (setq buffer-backed-up nil)))))))
+            (cond
+             ;; If we get an error writing the file, and there is no
+             ;; backup file, then we (most likely) made that file
+             ;; writable above.  Attempt to undo the write-access.
+             ((and setmodes (not success)
+                   (equal (nth 2 setmodes) buffer-file-name))
+	      (with-demoted-errors "Error setting file modes: %S"
+		(set-file-modes buffer-file-name (car setmodes)))
+	      (with-demoted-errors "Error setting attributes: %s"
+		(set-file-extended-attributes buffer-file-name
+					      (nth 1 setmodes))))
+	     ;; If we get an error writing the new file, and we made
+	     ;; the backup by renaming, undo the backing-up.
+	     ((and setmodes (not success))
+	      (rename-file (nth 2 setmodes) buffer-file-name t)
+	      (setq buffer-backed-up nil)))))))
     setmodes))
 
 (declare-function diff-no-select "diff"
@@ -7061,11 +7114,19 @@ auto-save file, if that is more recent than the visited file."
 	    #'(lambda (window _value)
 		(with-selected-window window
 		  (unwind-protect
-		      (yes-or-no-p (format "Recover auto save file %s? " file-name))
+                      (let ((prompt (format "Recover auto save file %s? " file-name))
+                            (choices
+                             '(("yes" ?y "recover auto save file")
+                               ("no" ?n "don't recover auto save file")
+                               ("diff" ?= "show changes between auto save file and current file")))
+                            ans)
+                        (while (equal "diff" (setq ans (read-answer prompt choices)))
+                          (diff file file-name))
+                        (equal ans "yes"))
 		    (when (window-live-p window)
 		      (quit-restore-window window 'kill)))))
 	    (with-current-buffer standard-output
-	      (let ((switches dired-listing-switches))
+	      (let ((switches (connection-local-value dired-listing-switches)))
 		(if (file-symlink-p file)
 		    (setq switches (concat switches " -L")))
 		;; Use insert-directory-safely, not insert-directory,
@@ -7117,7 +7178,7 @@ Then you'll be asked about a number of files to recover."
         ;; hook.
         (dired-mode-hook (delete 'dired-omit-mode dired-mode-hook)))
     (dired (concat auto-save-list-file-prefix "*")
-	   (concat dired-listing-switches " -t")))
+	   (concat (connection-local-value dired-listing-switches) " -t")))
   (use-local-map (nconc (make-sparse-keymap) (current-local-map)))
   (define-key (current-local-map) "\C-c\C-c" 'recover-session-finish)
   (save-excursion
@@ -7517,35 +7578,42 @@ default directory.  However, if FULL is non-nil, they are absolute."
 	   ;; if DIRPART contains wildcards.
 	   (dirs (if (and dirpart
 			  (string-match "[[*?]" (file-local-name dirpart)))
-		     (mapcar 'file-name-as-directory
+		     (mapcar #'file-name-as-directory
 			     (file-expand-wildcards
                               (directory-file-name dirpart) nil regexp))
 		   (list dirpart)))
 	   contents)
-      (dolist (dir dirs)
+      (dolist (dir (nreverse dirs))
 	(when (or (null dir)	; Possible if DIRPART is not wild.
 		  (file-accessible-directory-p dir))
-	  (let ((this-dir-contents
-		 ;; Filter out "." and ".."
-		 (delq nil
-                       (mapcar (lambda (name)
-                                 (unless (string-match "\\`\\.\\.?\\'"
-                                                       (file-name-nondirectory name))
-                                   name))
-			       (directory-files
-                                (or dir ".") full
-                                (if regexp
-                                    ;; We're matching each file name
-                                    ;; element separately.
-                                    (concat "\\`" nondir "\\'")
-				  (wildcard-to-regexp nondir)))))))
-	    (setq contents
-		  (nconc
-		   (if (and dir (not full))
-                       (mapcar (lambda (name) (concat dir name))
-			       this-dir-contents)
-		     this-dir-contents)
-		   contents)))))
+          (if (equal "" nondir)
+              ;; `nondir' is "" when the pattern ends in "/".  Basically ""
+              ;; refers to the directory itself, like ".", but it's not
+              ;; among the names returned by `directory-files', so we have
+              ;; to special-case it.
+              (push (or dir nondir) contents)
+	    (let ((this-dir-contents
+		   ;; Filter out "." and ".."
+		   (delq nil
+                         (mapcar (lambda (name)
+                                   (unless (string-match "\\`\\.\\.?\\'"
+                                                         (file-name-nondirectory
+                                                          name))
+                                     name))
+			         (directory-files
+                                  (or dir ".") full
+                                  (if regexp
+                                      ;; We're matching each file name
+                                      ;; element separately.
+                                      (concat "\\`" nondir "\\'")
+				   (wildcard-to-regexp nondir)))))))
+	      (setq contents
+		    (nconc
+		     (if (and dir (not full))
+			 (mapcar (lambda (name) (concat dir name))
+			         this-dir-contents)
+		       this-dir-contents)
+		     contents))))))
       contents)))
 
 (defcustom find-sibling-rules nil
@@ -7572,7 +7640,8 @@ files, you could say something like:
 In this example, if you're in \"src/emacs/emacs-27/lisp/abbrev.el\",
 and a \"src/emacs/emacs-28/lisp/abbrev.el\" file exists, it's now
 defined as a sibling."
-  :type 'sexp
+  :type '(alist :key-type (regexp :tag "Match")
+                :value-type (repeat (string :tag "Expansion")))
   :version "29.1")
 
 (defun find-sibling-file (file)
@@ -7734,7 +7803,7 @@ need to be passed verbatim to shell commands."
     (purecopy "ls"))
   "Absolute or relative name of the `ls'-like program.
 This is used by `insert-directory' and `dired-insert-directory'
-(thus, also by `dired').  For Dired, this should ideally point to
+\(thus, also by `dired').  For Dired, this should ideally point to
 GNU ls, or another version of ls that supports the \"--dired\"
 flag.  See `dired-use-ls-dired'.
 
@@ -7749,6 +7818,16 @@ installing GNU coreutils using something like ports or Homebrew."
   :type 'string
   :initialize #'custom-initialize-delay
   :version "30.1")
+
+(defun files--use-insert-directory-program-p ()
+  "Return non-nil if we should use `insert-directory-program'.
+Return nil if we should prefer `ls-lisp' instead."
+  ;; FIXME: Should we also check `file-accessible-directory-p' so we
+  ;; automatically redirect to ls-lisp when operating on magic file names?
+  (and (if (boundp 'ls-lisp-use-insert-directory-program)
+           ls-lisp-use-insert-directory-program
+         t)
+       insert-directory-program))
 
 (defcustom directory-free-space-program (purecopy "df")
   "Program to get the amount of free space on a file system.
@@ -7942,9 +8021,11 @@ Optional third arg WILDCARD means treat FILE as shell wildcard.
 Optional fourth arg FULL-DIRECTORY-P means file is a directory and
 switches do not contain `d', so that a full listing is expected.
 
-This works by running a directory listing program
-whose name is in the variable `insert-directory-program'.
-If WILDCARD, it also runs the shell specified by `shell-file-name'.
+Depending on the value of `ls-lisp-use-insert-directory-program'
+this works either using a Lisp emulation of the \"ls\" program
+or by running a directory listing program
+whose name is in the variable `insert-directory-program'
+\(and if WILDCARD, it also runs the shell specified by `shell-file-name').
 
 When SWITCHES contains the long `--dired' option, this function
 treats it specially, for the sake of dired.  However, the
@@ -7953,184 +8034,191 @@ normally equivalent short `-D' option is just passed on to
   ;; We need the directory in order to find the right handler.
   (let ((handler (find-file-name-handler (expand-file-name file)
 					 'insert-directory)))
-    (if handler
-	(funcall handler 'insert-directory file switches
-		 wildcard full-directory-p)
-	(let (result (beg (point)))
+    (cond
+     (handler
+      (funcall handler 'insert-directory file switches
+	       wildcard full-directory-p))
+     ((not (files--use-insert-directory-program-p))
+      (require 'ls-lisp)
+      (declare-function ls-lisp--insert-directory "ls-lisp")
+      (ls-lisp--insert-directory file switches wildcard full-directory-p))
+     (t
+      (let (result (beg (point)))
 
-	  ;; Read the actual directory using `insert-directory-program'.
-	  ;; RESULT gets the status code.
-	  (let* (;; We at first read by no-conversion, then after
-		 ;; putting text property `dired-filename, decode one
-		 ;; bunch by one to preserve that property.
-		 (coding-system-for-read 'no-conversion)
-		 ;; This is to control encoding the arguments in call-process.
-		 (coding-system-for-write
-		  (and enable-multibyte-characters
-		       (or file-name-coding-system
-			   default-file-name-coding-system))))
-	    (setq result
-		  (if wildcard
-		      ;; If the wildcard is just in the file part, then run ls in
-                      ;; the directory part of the file pattern using the last
-                      ;; component as argument.  Otherwise, run ls in the longest
-                      ;; subdirectory of the directory part free of wildcards; use
-                      ;; the remaining of the file pattern as argument.
-		      (let* ((dir-wildcard (insert-directory-wildcard-in-dir-p file))
-                             (default-directory
-                               (cond (dir-wildcard (car dir-wildcard))
-                                     (t
-			              (if (file-name-absolute-p file)
-				          (file-name-directory file)
-				        (file-name-directory (expand-file-name file))))))
-			     (pattern (if dir-wildcard (cdr dir-wildcard) (file-name-nondirectory file))))
-			;; NB since switches is passed to the shell, be
-			;; careful of malicious values, eg "-l;reboot".
-			;; See eg dired-safe-switches-p.
-			(call-process
-			 shell-file-name nil t nil
-			 shell-command-switch
-			 (concat (if (memq system-type '(ms-dos windows-nt))
-				     ""
-				   "\\") ; Disregard Unix shell aliases!
-				 insert-directory-program
-				 " -d "
-				 (if (stringp switches)
-				     switches
-				   (mapconcat 'identity switches " "))
-				 " -- "
-				 ;; Quote some characters that have
-				 ;; special meanings in shells; but
-				 ;; don't quote the wildcards--we want
-				 ;; them to be special.  We also
-				 ;; currently don't quote the quoting
-				 ;; characters in case people want to
-				 ;; use them explicitly to quote
-				 ;; wildcard characters.
-				 (shell-quote-wildcard-pattern pattern))))
-		    ;; SunOS 4.1.3, SVr4 and others need the "." to list the
-		    ;; directory if FILE is a symbolic link.
- 		    (unless full-directory-p
- 		      (setq switches
- 			    (cond
-                             ((stringp switches) (concat switches " -d"))
-                             ((member "-d" switches) switches)
-                             (t (append switches '("-d"))))))
-		    (if (string-match "\\`~" file)
-			(setq file (expand-file-name file)))
-		    (apply 'call-process
-			   insert-directory-program nil t nil
-			   (append
-			    (if (listp switches) switches
-			      (unless (equal switches "")
-				;; Split the switches at any spaces so we can
-				;; pass separate options as separate args.
-				(split-string-and-unquote switches)))
-			    ;; Avoid lossage if FILE starts with `-'.
-			    '("--")
-			    (list file))))))
+	;; Read the actual directory using `insert-directory-program'.
+	;; RESULT gets the status code.
+	(let* (;; We at first read by no-conversion, then after
+	       ;; putting text property `dired-filename, decode one
+	       ;; bunch by one to preserve that property.
+	       (coding-system-for-read 'no-conversion)
+	       ;; This is to control encoding the arguments in call-process.
+	       (coding-system-for-write
+		(and enable-multibyte-characters
+		     (or file-name-coding-system
+			 default-file-name-coding-system))))
+	  (setq result
+		(if wildcard
+		    ;; If the wildcard is just in the file part, then run ls in
+                    ;; the directory part of the file pattern using the last
+                    ;; component as argument.  Otherwise, run ls in the longest
+                    ;; subdirectory of the directory part free of wildcards; use
+                    ;; the remaining of the file pattern as argument.
+		    (let* ((dir-wildcard (insert-directory-wildcard-in-dir-p file))
+                           (default-directory
+                            (cond (dir-wildcard (car dir-wildcard))
+                                  (t
+			           (if (file-name-absolute-p file)
+				       (file-name-directory file)
+				     (file-name-directory (expand-file-name file))))))
+			   (pattern (if dir-wildcard (cdr dir-wildcard) (file-name-nondirectory file))))
+		      ;; NB since switches is passed to the shell, be
+		      ;; careful of malicious values, eg "-l;reboot".
+		      ;; See eg dired-safe-switches-p.
+		      (call-process
+		       shell-file-name nil t nil
+		       shell-command-switch
+		       (concat (if (memq system-type '(ms-dos windows-nt))
+				   ""
+				 "\\") ; Disregard Unix shell aliases!
+			       insert-directory-program
+			       " -d "
+			       (if (stringp switches)
+				   switches
+				 (mapconcat #'identity switches " "))
+			       " -- "
+			       ;; Quote some characters that have
+			       ;; special meanings in shells; but
+			       ;; don't quote the wildcards--we want
+			       ;; them to be special.  We also
+			       ;; currently don't quote the quoting
+			       ;; characters in case people want to
+			       ;; use them explicitly to quote
+			       ;; wildcard characters.
+			       (shell-quote-wildcard-pattern pattern))))
+		  ;; SunOS 4.1.3, SVr4 and others need the "." to list the
+		  ;; directory if FILE is a symbolic link.
+		  (unless full-directory-p
+		    (setq switches
+			  (cond
+                           ((stringp switches) (concat switches " -d"))
+                           ((member "-d" switches) switches)
+                           (t (append switches '("-d"))))))
+		  (if (string-match "\\`~" file)
+		      (setq file (expand-file-name file)))
+		  (apply #'call-process
+			 insert-directory-program nil t nil
+			 (append
+			  (if (listp switches) switches
+			    (unless (equal switches "")
+			      ;; Split the switches at any spaces so we can
+			      ;; pass separate options as separate args.
+			      (split-string-and-unquote switches)))
+			  ;; Avoid lossage if FILE starts with `-'.
+			  '("--")
+			  (list file))))))
 
-	  ;; If we got "//DIRED//" in the output, it means we got a real
-	  ;; directory listing, even if `ls' returned nonzero.
-	  ;; So ignore any errors.
-	  (when (if (stringp switches)
-		    (string-match "--dired\\>" switches)
-		  (member "--dired" switches))
-	    (save-excursion
-	      (forward-line -2)
-	      (when (looking-at "//SUBDIRED//")
-		(forward-line -1))
-	      (if (looking-at "//DIRED//")
-		  (setq result 0))))
+	;; If we got "//DIRED//" in the output, it means we got a real
+	;; directory listing, even if `ls' returned nonzero.
+	;; So ignore any errors.
+	(when (if (stringp switches)
+		  (string-match "--dired\\>" switches)
+		(member "--dired" switches))
+	  (save-excursion
+	    (forward-line -2)
+	    (when (looking-at "//SUBDIRED//")
+	      (forward-line -1))
+	    (if (looking-at "//DIRED//")
+		(setq result 0))))
 
-	  (when (and (not (eq 0 result))
-		     (eq insert-directory-ls-version 'unknown))
-	    ;; The first time ls returns an error,
-	    ;; find the version numbers of ls,
-	    ;; and set insert-directory-ls-version
-	    ;; to > if it is more than 5.2.1, < if it is less, nil if it
-	    ;; is equal or if the info cannot be obtained.
-	    ;; (That can mean it isn't GNU ls.)
-	    (let ((version-out
-		   (with-temp-buffer
-		     (call-process "ls" nil t nil "--version")
-		     (buffer-string))))
-	      (if (string-match "ls (.*utils) \\([0-9.]*\\)$" version-out)
-		  (let* ((version (match-string 1 version-out))
-			 (split (split-string version "[.]"))
-			 (numbers (mapcar 'string-to-number split))
-			 (min '(5 2 1))
-			 comparison)
-		    (while (and (not comparison) (or numbers min))
-		      (cond ((null min)
-			     (setq comparison '>))
-			    ((null numbers)
-			     (setq comparison '<))
-			    ((> (car numbers) (car min))
-			     (setq comparison '>))
-			    ((< (car numbers) (car min))
-			     (setq comparison '<))
-			    (t
-			     (setq numbers (cdr numbers)
-				   min (cdr min)))))
-		    (setq insert-directory-ls-version (or comparison '=)))
-		(setq insert-directory-ls-version nil))))
+	(when (and (not (eq 0 result))
+		   (eq insert-directory-ls-version 'unknown))
+	  ;; The first time ls returns an error,
+	  ;; find the version numbers of ls,
+	  ;; and set insert-directory-ls-version
+	  ;; to > if it is more than 5.2.1, < if it is less, nil if it
+	  ;; is equal or if the info cannot be obtained.
+	  ;; (That can mean it isn't GNU ls.)
+	  (let ((version-out
+		 (with-temp-buffer
+		   (call-process "ls" nil t nil "--version")
+		   (buffer-string))))
+	    (setq insert-directory-ls-version
+		  (if (string-match "ls (.*utils) \\([0-9.]*\\)$" version-out)
+		      (let* ((version (match-string 1 version-out))
+		             (split (split-string version "[.]"))
+		             (numbers (mapcar #'string-to-number split))
+		             (min '(5 2 1))
+		             comparison)
+		        (while (and (not comparison) (or numbers min))
+			  (cond ((null min)
+			         (setq comparison #'>))
+			        ((null numbers)
+			         (setq comparison #'<))
+			        ((> (car numbers) (car min))
+			         (setq comparison #'>))
+			        ((< (car numbers) (car min))
+			         (setq comparison #'<))
+			        (t
+				 (setq numbers (cdr numbers)
+				       min (cdr min)))))
+			(or comparison #'=))
+		    nil))))
 
-	  ;; For GNU ls versions 5.2.2 and up, ignore minor errors.
-	  (when (and (eq 1 result) (eq insert-directory-ls-version '>))
-	    (setq result 0))
+	;; For GNU ls versions 5.2.2 and up, ignore minor errors.
+	(when (and (eq 1 result) (eq insert-directory-ls-version #'>))
+	  (setq result 0))
 
-	  ;; If `insert-directory-program' failed, signal an error.
-	  (unless (eq 0 result)
-	    ;; Delete the error message it may have output.
-	    (delete-region beg (point))
-	    ;; On non-Posix systems, we cannot open a directory, so
-	    ;; don't even try, because that will always result in
-	    ;; the ubiquitous "Access denied".  Instead, show the
-	    ;; command line so the user can try to guess what went wrong.
-	    (if (and (file-directory-p file)
-		     (memq system-type '(ms-dos windows-nt)))
-		(error
-		 "Reading directory: \"%s %s -- %s\" exited with status %s"
-		 insert-directory-program
-		 (if (listp switches) (concat switches) switches)
-		 file result)
-	      ;; Unix.  Access the file to get a suitable error.
-	      (access-file file "Reading directory")
-	      (error "Listing directory failed but `access-file' worked")))
-          (insert-directory-clean beg switches)
-	  ;; Now decode what read if necessary.
-	  (let ((coding (or coding-system-for-read
-			    file-name-coding-system
-			    default-file-name-coding-system
-			    'undecided))
-		coding-no-eol
-		val pos)
-	    (when (and enable-multibyte-characters
-		       (not (memq (coding-system-base coding)
-				  '(raw-text no-conversion))))
-	      ;; If no coding system is specified or detection is
-	      ;; requested, detect the coding.
-	      (if (eq (coding-system-base coding) 'undecided)
-		  (setq coding (detect-coding-region beg (point) t)))
-	      (if (not (eq (coding-system-base coding) 'undecided))
-		  (save-restriction
-		    (setq coding-no-eol
-			  (coding-system-change-eol-conversion coding 'unix))
-		    (narrow-to-region beg (point))
-		    (goto-char (point-min))
-		    (while (not (eobp))
-		      (setq pos (point)
-			    val (get-text-property (point) 'dired-filename))
-		      (goto-char (next-single-property-change
-				  (point) 'dired-filename nil (point-max)))
-		      ;; Force no eol conversion on a file name, so
-		      ;; that CR is preserved.
-		      (decode-coding-region pos (point)
-					    (if val coding-no-eol coding))
-		      (if val
-			  (put-text-property pos (point)
-					     'dired-filename t)))))))))))
+	;; If `insert-directory-program' failed, signal an error.
+	(unless (eq 0 result)
+	  ;; Delete the error message it may have output.
+	  (delete-region beg (point))
+	  ;; On non-Posix systems, we cannot open a directory, so
+	  ;; don't even try, because that will always result in
+	  ;; the ubiquitous "Access denied".  Instead, show the
+	  ;; command line so the user can try to guess what went wrong.
+	  (if (and (file-directory-p file)
+		   (memq system-type '(ms-dos windows-nt)))
+	      (error
+	       "Reading directory: \"%s %s -- %s\" exited with status %s"
+	       insert-directory-program
+	       (if (listp switches) (concat switches) switches)
+	       file result)
+	    ;; Unix.  Access the file to get a suitable error.
+	    (access-file file "Reading directory")
+	    (error "Listing directory failed but `access-file' worked")))
+        (insert-directory-clean beg switches)
+	;; Now decode what read if necessary.
+	(let ((coding (or coding-system-for-read
+			  file-name-coding-system
+			  default-file-name-coding-system
+			  'undecided))
+	      coding-no-eol
+	      val pos)
+	  (when (and enable-multibyte-characters
+		     (not (memq (coding-system-base coding)
+				'(raw-text no-conversion))))
+	    ;; If no coding system is specified or detection is
+	    ;; requested, detect the coding.
+	    (if (eq (coding-system-base coding) 'undecided)
+		(setq coding (detect-coding-region beg (point) t)))
+	    (if (not (eq (coding-system-base coding) 'undecided))
+		(save-restriction
+		  (setq coding-no-eol
+			(coding-system-change-eol-conversion coding 'unix))
+		  (narrow-to-region beg (point))
+		  (goto-char (point-min))
+		  (while (not (eobp))
+		    (setq pos (point)
+			  val (get-text-property (point) 'dired-filename))
+		    (goto-char (next-single-property-change
+				(point) 'dired-filename nil (point-max)))
+		    ;; Force no eol conversion on a file name, so
+		    ;; that CR is preserved.
+		    (decode-coding-region pos (point)
+					  (if val coding-no-eol coding))
+		    (if val
+			(put-text-property pos (point)
+					   'dired-filename t))))))))))))
 
 (defun insert-directory-adj-pos (pos error-lines)
   "Convert `ls --dired' file name position value POS to a buffer position.
@@ -8317,13 +8405,12 @@ arguments as the running Emacs)."
 	;; Get a list of the indices of the args that are file names.
 	(file-arg-indices
 	 (cdr (or (assq operation
-			'(;; The first eight are special because they
+			'(;; The first seven are special because they
 			  ;; return a file name.  We want to include
 			  ;; the /: in the return value.  So just
 			  ;; avoid stripping it in the first place.
                           (abbreviate-file-name)
                           (directory-file-name)
-                          (expand-file-name)
                           (file-name-as-directory)
                           (file-name-directory)
                           (file-name-sans-versions)
@@ -8332,6 +8419,10 @@ arguments as the running Emacs)."
 	                  ;; `identity' means just return the first
 			  ;; arg not stripped of its quoting.
 			  (substitute-in-file-name identity)
+                          ;; `expand-file-name' shall do special case
+                          ;; for the first argument starting with
+                          ;; "/:~".  (Bug#65685)
+                          (expand-file-name expand-file-name)
 			  ;; `add' means add "/:" to the result.
 			  (file-truename add 0)
                           ;;`insert-file-contents' needs special handling.
@@ -8387,6 +8478,10 @@ arguments as the running Emacs)."
     (let ((tramp-mode (and tramp-mode (eq method 'local-copy))))
       (pcase method
         ('identity (car arguments))
+        ('expand-file-name
+         (when (string-prefix-p "/:~" (car arguments))
+           (setcar arguments (file-name-unquote (car arguments) t)))
+         (apply operation arguments))
         ('add (file-name-quote (apply operation arguments) t))
         ('buffer-file-name
          (let ((buffer-file-name (file-name-unquote buffer-file-name t)))

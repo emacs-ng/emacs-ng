@@ -1,6 +1,6 @@
 ;;; c-ts-mode.el --- tree-sitter support for C and C++  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; Author     : Theodor Thornhill <theo@thornhill.no>
 ;; Maintainer : Theodor Thornhill <theo@thornhill.no>
@@ -135,7 +135,7 @@ symbol."
               res)
       (let ((buffer (car buffers)))
         (with-current-buffer buffer
-          (if (derived-mode-p 'c-ts-mode 'c++-ts-mode)
+          (if (derived-mode-p '(c-ts-mode c++-ts-mode))
               (loop (append res (list buffer)) (cdr buffers))
             (loop res (cdr buffers))))))))
 
@@ -193,7 +193,7 @@ in this Emacs session."
 To set the default indent style globally, use
 `c-ts-mode-set-global-style'."
   (interactive (list (c-ts-mode--prompt-for-style)))
-  (if (not (derived-mode-p 'c-ts-mode 'c++-ts-mode))
+  (if (not (derived-mode-p '(c-ts-mode c++-ts-mode)))
       (user-error "The current buffer is not in `c-ts-mode' nor `c++-ts-mode'")
     (setq-local c-ts-mode-indent-style style)
     (setq treesit-simple-indent-rules
@@ -322,7 +322,8 @@ PARENT and BOL are like other anchor functions."
                                (treesit-node-parent prev-sibling) t)))
           ;; If the start of the previous sibling isn't at the
           ;; beginning of a line, something's probably not quite
-          ;; right, go a step further.
+          ;; right, go a step further. (E.g., comment after a
+          ;; statement.)
           (_ (goto-char (treesit-node-start prev-sibling))
              (if (looking-back (rx bol (* whitespace))
                                (line-beginning-position))
@@ -356,11 +357,40 @@ PARENT, BOL, ARGS are the same as other anchor functions."
   (apply (alist-get 'standalone-parent treesit-simple-indent-presets)
          parent (treesit-node-parent parent) bol args))
 
+(defun c-ts-mode--else-heuristic (node parent bol &rest _)
+  "Heuristic matcher for when \"else\" is followed by a closing bracket.
+NODE, PARENT, and BOL are the same as in other matchers."
+  (and (null node)
+       (save-excursion
+         (forward-line -1)
+         (looking-at (rx (* whitespace) "else" (* whitespace) eol)))
+       (let ((next-node (treesit-node-first-child-for-pos parent bol)))
+         (equal (treesit-node-type next-node) "}"))))
+
+(defun c-ts-mode--first-sibling (node parent &rest _)
+  "Matches when NODE is the \"first sibling\".
+\"First sibling\" is defined as: the first child node of PARENT
+such that it's on its own line.  NODE is the node to match and
+PARENT is its parent."
+  (let ((prev-sibling (treesit-node-prev-sibling node t)))
+    (or (null prev-sibling)
+        (save-excursion
+          (goto-char (treesit-node-start prev-sibling))
+          (<= (line-beginning-position)
+              (treesit-node-start parent)
+              (line-end-position))))))
+
 (defun c-ts-mode--indent-styles (mode)
   "Indent rules supported by `c-ts-mode'.
 MODE is either `c' or `cpp'."
   (let ((common
          `((c-ts-mode--for-each-tail-body-matcher prev-line c-ts-mode-indent-offset)
+           ;; If the user types "else" and hits RET, they expect point
+           ;; on the empty line to be indented; this rule does that.
+           ;; This heuristic is intentionally very specific because
+           ;; more general heuristic is very error-prone, see
+           ;; discussion in bug#67417.
+           (c-ts-mode--else-heuristic prev-line c-ts-mode-indent-offset)
 
            ((parent-is "translation_unit") column-0 0)
            ((query "(ERROR (ERROR)) @indent") column-0 0)
@@ -407,6 +437,8 @@ MODE is either `c' or `cpp'."
            ((parent-is "preproc") c-ts-mode--anchor-prev-sibling 0)
 
            ((parent-is "function_definition") parent-bol 0)
+           ((parent-is "pointer_declarator") parent-bol 0)
+           ((parent-is ,(rx bos "declaration" eos)) parent-bol 0)
            ((parent-is "conditional_expression") first-sibling 0)
            ((parent-is "assignment_expression") parent-bol c-ts-mode-indent-offset)
            ((parent-is "concatenated_string") first-sibling 0)
@@ -442,7 +474,11 @@ MODE is either `c' or `cpp'."
            ((parent-is "field_declaration_list") c-ts-mode--anchor-prev-sibling 0)
 
            ;; Statement in {} blocks.
-           ((or (match nil "compound_statement" nil 1 1)
+           ((or (and (parent-is "compound_statement")
+                     ;; If the previous sibling(s) are not on their
+                     ;; own line, indent as if this node is the first
+                     ;; sibling (Bug#67357)
+                     c-ts-mode--first-sibling)
                 (match null "compound_statement"))
             standalone-parent c-ts-mode-indent-offset)
            ((parent-is "compound_statement") c-ts-mode--anchor-prev-sibling 0)
@@ -453,7 +489,9 @@ MODE is either `c' or `cpp'."
            ;; These rules are for cases where the body is bracketless.
            ;; Tested by the "Bracketless Simple Statement" test.
            ((parent-is "if_statement") standalone-parent c-ts-mode-indent-offset)
+           ((parent-is "else_clause") standalone-parent c-ts-mode-indent-offset)
            ((parent-is "for_statement") standalone-parent c-ts-mode-indent-offset)
+           ((match "while" "do_statement") parent-bol 0) ; (do_statement "while")
            ((parent-is "while_statement") standalone-parent c-ts-mode-indent-offset)
            ((parent-is "do_statement") standalone-parent c-ts-mode-indent-offset)
 
@@ -478,13 +516,13 @@ MODE is either `c' or `cpp'."
        ((node-is "labeled_statement") parent-bol c-ts-mode-indent-offset)
        ((parent-is "labeled_statement") parent-bol c-ts-mode-indent-offset)
        ((parent-is "compound_statement") parent-bol c-ts-mode-indent-offset)
-       ((parent-is "if_statement") parent-bol 0)
-       ((parent-is "else_clause") parent-bol 0)
-       ((parent-is "for_statement") parent-bol 0)
-       ((parent-is "while_statement") parent-bol 0)
-       ((parent-is "switch_statement") parent-bol 0)
-       ((parent-is "case_statement") parent-bol 0)
-       ((parent-is "do_statement") parent-bol 0)
+       ((match "compound_statement" "if_statement") standalone-parent 0)
+       ((match "compound_statement" "else_clause") standalone-parent 0)
+       ((match "compound_statement" "for_statement") standalone-parent 0)
+       ((match "compound_statement" "while_statement") standalone-parent 0)
+       ((match "compound_statement" "switch_statement") standalone-parent 0)
+       ((match "compound_statement" "case_statement") standalone-parent 0)
+       ((match "compound_statement" "do_statement") standalone-parent 0)
        ,@common))))
 
 (defun c-ts-mode--top-level-label-matcher (node parent &rest _)
@@ -884,6 +922,17 @@ Return nil if NODE is not a defun node or doesn't have a name."
         name)))
    t))
 
+;;; Outline minor mode
+
+(defun c-ts-mode--outline-predicate (node)
+  "Match outlines on lines with function names."
+  (and (treesit-node-match-p
+        node "\\`function_declarator\\'" t)
+       (when-let ((parent (treesit-node-parent node)))
+         (treesit-node-match-p
+          parent
+          "\\`function_definition\\'" t))))
+
 ;;; Defun navigation
 
 (defun c-ts-mode--defun-valid-p (node)
@@ -1221,6 +1270,10 @@ BEG and END are described in `treesit-range-rules'."
                                 eos)
                    c-ts-mode--defun-for-class-in-imenu-p nil))))
 
+  ;; Outline minor mode
+  (setq-local treesit-outline-predicate
+              #'c-ts-mode--outline-predicate)
+
   (setq-local treesit-font-lock-feature-list
               c-ts-mode--feature-list))
 
@@ -1345,7 +1398,7 @@ recommended to enable `electric-pair-mode' with this mode."
                                                 c-ts-mode-indent-style)
       :help "Show the name of the C/C++ indentation style for current buffer"]
      ["Set Comment Style" c-ts-mode-toggle-comment-style
-      :help "Toglle C/C++ comment style between block and line comments"])
+      :help "Toggle C/C++ comment style between block and line comments"])
     "--"
     ("Toggle..."
      ["SubWord Mode" subword-mode

@@ -1,6 +1,6 @@
 ;;; gnus-sum.el --- summary mode commands for Gnus  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1996-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -122,7 +122,7 @@ The server has to support NOV for any of this to work.
 
 This feature can seriously impact performance it ignores all
 locally cached header entries.  Setting it to t for groups for a
-server that doesn't expire articles (such as news.gmane.org),
+server that doesn't expire articles (such as news.gmane.io),
 leads to very slow summary generation."
   :group 'gnus-thread
   :type '(choice (const :tag "off" nil)
@@ -322,7 +322,8 @@ This can either be a regular expression or list of regular expressions
 that will be removed from subject strings if fuzzy subject
 simplification is selected."
   :group 'gnus-thread
-  :type '(repeat regexp))
+  :type '(choice regexp
+                 (repeat regexp)))
 
 (defcustom gnus-show-threads t
   "If non-nil, display threads in summary mode."
@@ -3061,17 +3062,17 @@ the summary mode hooks are run.")
   "Major mode for reading articles.
 \\<gnus-summary-mode-map>
 Each line in this buffer represents one article.  To read an
-article, you can, for instance, type `\\[gnus-summary-next-page]'.  To move forwards
-and backwards while displaying articles, type `\\[gnus-summary-next-unread-article]' and `\\[gnus-summary-prev-unread-article]',
+article, you can, for instance, type \\[gnus-summary-next-page].  To move forwards
+and backwards while displaying articles, type \\[gnus-summary-next-unread-article] and \\[gnus-summary-prev-unread-article],
 respectively.
 
 You can also post articles and send mail from this buffer.  To
-follow up an article, type `\\[gnus-summary-followup]'.  To mail a reply to the author
-of an article, type `\\[gnus-summary-reply]'.
+follow up an article, type \\[gnus-summary-followup].  To mail a reply to the author
+of an article, type \\[gnus-summary-reply].
 
 There are approximately one gazillion commands you can execute in
 this buffer; read the Info manual for more
-information (`\\[gnus-info-find-node]').
+information (\\[gnus-info-find-node]).
 
 The following commands are available:
 
@@ -8331,39 +8332,29 @@ articles."
 
 (defun gnus-summary-limit-to-age (age &optional younger-p)
   "Limit the summary buffer to articles that are older than (or equal) AGE days.
-If YOUNGER-P (the prefix) is non-nil, limit the summary buffer to
-articles that are younger than AGE days."
+Days are counted from midnight to midnight, and now to the
+previous midnight counts as day one.  If YOUNGER-P (the prefix)
+is non-nil, limit the summary buffer to articles that are younger
+than AGE days."
   (interactive
-   (let ((younger current-prefix-arg)
-	 (days-got nil)
-	 days)
-     (while (not days-got)
-       (setq days (if younger
-		      (read-string "Limit to articles younger than (in days, older when negative): ")
-		    (read-string
-		     "Limit to articles older than (in days, younger when negative): ")))
-       (when (> (length days) 0)
-	 (setq days (read days)))
-       (if (numberp days)
-	   (progn
-	     (setq days-got t)
-	     (when (< days 0)
-	       (setq younger (not younger))
-	       (setq days (* days -1))))
-	 (message "Please enter a number.")
-	 (sleep-for 1)))
+   (let* ((younger current-prefix-arg)
+	  (days (read-number
+                 (if younger "Limit to articles younger than days: "
+                   "Limit to articles older than days: "))))
      (list days younger))
    gnus-summary-mode)
   (prog1
-      (let ((data gnus-newsgroup-data)
-	    (cutoff (days-to-time age))
-	    articles d date is-younger)
+      (let* ((data gnus-newsgroup-data)
+             (now (append '(0 0 0) (cdddr (decode-time))))
+             (delta (make-decoded-time :day (* -1 (- age 1))))
+             (cutoff (encode-time (decoded-time-add now delta)))
+	     articles d date is-younger)
 	(while (setq d (pop data))
 	  (when (and (mail-header-p (gnus-data-header d))
 		     (setq date (mail-header-date (gnus-data-header d))))
 	    (setq is-younger (time-less-p
-			      (time-since (gnus-date-get-time date))
-			      cutoff))
+			      cutoff
+			      (gnus-date-get-time date)))
 	    (when (if younger-p
 		      is-younger
 		    (not is-younger))

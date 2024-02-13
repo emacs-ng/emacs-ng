@@ -1,11 +1,14 @@
 ;;; external-completion.el --- Let external tools control completion style  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2018-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2024 Free Software Foundation, Inc.
 
 ;; Version: 0.1
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Maintainer: João Távora <joaotavora@gmail.com>
 ;; Keywords:
+
+;; This is a GNU ELPA :core package.  Avoid functionality that is not
+;; compatible with the version of Emacs recorded above.
 
 ;; This file is part of GNU Emacs.
 
