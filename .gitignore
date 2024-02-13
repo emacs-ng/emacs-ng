@@ -402,4 +402,4 @@ exec/configure
 exec/*.s.s
 
 # Ignore .direnv
-.direnv
+.direnv/
