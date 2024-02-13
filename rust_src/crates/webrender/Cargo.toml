@@ -80,7 +80,7 @@ version = "2.20"
 optional = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
-core-foundation = "0.9.2"
+core-foundation = "0.9.4"
 
 [features]
 default = ["std", "wayland", "tokio", "winit", "surfman"]
