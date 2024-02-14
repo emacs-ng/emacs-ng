@@ -1,4 +1,4 @@
-FROM ubuntu:cosmic
+FROM ubuntu:cosmic-20190719
 
 RUN apt-get update && apt-get dist-upgrade -y
 RUN apt-get install -y \
