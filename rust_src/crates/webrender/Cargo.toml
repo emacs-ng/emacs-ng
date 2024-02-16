@@ -60,7 +60,7 @@ optional = true
 
 [build-dependencies]
 ng-bindgen = { path = "../../ng-bindgen" }
-cfg_aliases = "0.1"
+cfg_aliases = "0.2"
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 font-loader = "0.11"
