@@ -17,7 +17,7 @@ memoffset = "0.6.4"
 gtk-sys = { version = "0.16", optional = true }
 
 [build-dependencies]
-bindgen = "0.64"
+bindgen = "0.69"
 regex = "1.6"
 libc = "0.2"
 
