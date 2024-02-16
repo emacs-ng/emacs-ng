@@ -1,5 +1,6 @@
 extern crate bindgen;
 
+use bindgen::Formatter;
 use std::cmp::max;
 use std::env;
 use std::fs::File;
@@ -314,7 +315,7 @@ fn generate_bindings() {
     }
 
     let bindings = builder
-        .rustfmt_bindings(true)
+        .formatter(Formatter::Rustfmt)
         .rustfmt_configuration_file(std::fs::canonicalize("rustfmt.toml").ok())
         .generate()
         .expect("Unable to generate bindings");

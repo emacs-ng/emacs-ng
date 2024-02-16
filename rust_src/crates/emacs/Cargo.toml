@@ -14,10 +14,10 @@ log = "0.4"
 memoffset = "0.6.4"
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
-gtk-sys = { version = "0.16", optional = true }
+gtk-sys = { workspace = true, optional = true }
 
 [build-dependencies]
-bindgen = "0.64"
+bindgen = "0.69"
 regex = "1.6"
 libc = "0.2"
 

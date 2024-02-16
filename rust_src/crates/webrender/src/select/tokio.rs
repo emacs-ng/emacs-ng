@@ -123,15 +123,6 @@ pub fn handle_select(
                 | WindowEvent::CloseRequested => {
                     keyboard_event(e);
                 }
-                #[cfg(use_winit)]
-                WindowEvent::ReceivedCharacter(_) => {
-                    keyboard_event(e);
-                }
-
-                #[cfg(use_tao)]
-                WindowEvent::ReceivedImeText(_) => {
-                    keyboard_event(e);
-                }
                 _ => {}
             },
 

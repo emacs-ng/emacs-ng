@@ -1,5 +1,4 @@
 use crate::select::handle_select;
-#[cfg(use_winit)]
 use crate::window_system::api::event_loop::EventLoopBuilder;
 use crate::window_system::clipboard::Clipboard;
 use crate::window_system::clipboard::ClipboardExt;
@@ -16,12 +15,12 @@ use crate::window_system::api::{
     event_loop::ControlFlow,
     event_loop::EventLoop,
     monitor::MonitorHandle,
-    platform::run_return::EventLoopExtRunReturn,
+    platform::pump_events::{EventLoopExtPumpEvents, PumpStatus},
 };
 use emacs::bindings::{inhibit_window_system, noninteractive, thread_select};
 use libc::{c_void, fd_set, pselect, sigset_t, timespec};
 
-pub type GUIEvent = Event<'static, i32>;
+pub type GUIEvent = Event<i32>;
 
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
@@ -67,15 +66,13 @@ impl WrEventLoop {
     pub fn global() -> &'static Arc<Mutex<WrEventLoop>> {
         EVENT_LOOP.get_or_init(|| {
             log::trace!("wr event loop is being created...");
-            let (el, clipboard) = {
-                #[cfg(use_winit)]
-                let el = EventLoopBuilder::<i32>::with_user_event().build();
-                #[cfg(use_tao)]
-                let el = EventLoop::<i32>::with_user_event();
-                let clipboard = Clipboard::build(&el);
-                (el, clipboard)
+            match EventLoopBuilder::<i32>::with_user_event().build() {
+                Ok(el) => {
+                    let clipboard = Clipboard::build(&el);
+                    return Arc::new(Mutex::new(Self { clipboard, el }));
+                }
+                Err(e) => panic!("{}", e),
             };
-            Arc::new(Mutex::new(Self { clipboard, el }))
         })
     }
     pub fn get() -> Option<&'static Arc<Mutex<WrEventLoop>>> {
@@ -175,58 +172,59 @@ pub extern "C" fn winit_select(
 // Polling C-g when emacs is blocked
 pub fn poll_a_event(timeout: Duration) -> Option<GUIEvent> {
     log::trace!("poll a event {:?}", timeout);
-    let result = WrEventLoop::global().try_lock();
-    if result.is_err() {
-        log::trace!("failed to grab a EVENT_LOOP lock");
-        return None;
-    }
-    let mut event_loop = result.unwrap();
-    let deadline = Instant::now() + timeout;
-    let result = RefCell::new(None);
-    event_loop.el.run_return(|e, _target, control_flow| {
-        *control_flow = ControlFlow::WaitUntil(deadline);
+    // let result = WrEventLoop::global().try_lock();
+    // if result.is_err() {
+    //     log::trace!("failed to grab a EVENT_LOOP lock");
+    //     return None;
+    // }
+    // let mut event_loop = result.unwrap();
+    // let deadline = Instant::now() + timeout;
+    // let result = RefCell::new(None);
+    // event_loop.el.run_return(|e, _target, control_flow| {
+    //     *control_flow = ControlFlow::WaitUntil(deadline);
 
-        if let Event::WindowEvent { event, .. } = &e {
-            log::trace!("{:?}", event);
-        }
+    //     if let Event::WindowEvent { event, .. } = &e {
+    //         log::trace!("{:?}", event);
+    //     }
 
-        match e {
-            Event::WindowEvent { ref event, .. } => match event {
-                WindowEvent::Resized(_)
-                | WindowEvent::KeyboardInput { .. }
-                | WindowEvent::ModifiersChanged(_)
-                | WindowEvent::MouseInput { .. }
-                | WindowEvent::CursorMoved { .. }
-                | WindowEvent::Focused(_)
-                | WindowEvent::MouseWheel { .. }
-                | WindowEvent::CloseRequested => {
-                    result.replace(Some(e.to_static().unwrap()));
-                    *control_flow = ControlFlow::Exit;
-                }
-                #[cfg(use_tao)]
-                WindowEvent::ReceivedImeText(_) => {
-                    result.replace(Some(e.to_static().unwrap()));
-                    *control_flow = ControlFlow::Exit;
-                }
+    //     match e {
+    //         Event::WindowEvent { ref event, .. } => match event {
+    //             WindowEvent::Resized(_)
+    //             | WindowEvent::KeyboardInput { .. }
+    //             | WindowEvent::ModifiersChanged(_)
+    //             | WindowEvent::MouseInput { .. }
+    //             | WindowEvent::CursorMoved { .. }
+    //             | WindowEvent::Focused(_)
+    //             | WindowEvent::MouseWheel { .. }
+    //             | WindowEvent::CloseRequested => {
+    //                 result.replace(Some(e.to_static().unwrap()));
+    //                 *control_flow = ControlFlow::Exit;
+    //             }
+    //             #[cfg(use_tao)]
+    //             WindowEvent::ReceivedImeText(_) => {
+    //                 result.replace(Some(e.to_static().unwrap()));
+    //                 *control_flow = ControlFlow::Exit;
+    //             }
 
-                #[cfg(use_winit)]
-                WindowEvent::ReceivedCharacter(_) => {
-                    result.replace(Some(e.to_static().unwrap()));
-                    *control_flow = ControlFlow::Exit;
-                }
-                _ => {}
-            },
-            Event::RedrawRequested(_) => {
-                result.replace(Some(e.to_static().unwrap()));
-                log::debug!("WindowEvent:: RedrawRequested");
-            }
-            Event::RedrawEventsCleared => {
-                *control_flow = ControlFlow::Exit;
-            }
-            _ => {}
-        };
-    });
-    result.into_inner()
+    //             #[cfg(use_winit)]
+    //             WindowEvent::ReceivedCharacter(_) => {
+    //                 result.replace(Some(e.to_static().unwrap()));
+    //                 *control_flow = ControlFlow::Exit;
+    //             }
+    //             _ => {}
+    //         },
+    //         Event::RedrawRequested(_) => {
+    //             result.replace(Some(e.to_static().unwrap()));
+    //             log::debug!("WindowEvent:: RedrawRequested");
+    //         }
+    //         Event::RedrawEventsCleared => {
+    //             *control_flow = ControlFlow::Exit;
+    //         }
+    //         _ => {}
+    //     };
+    // });
+    // result.into_inner()
+    None
 }
 
 #[cfg(use_tao)]

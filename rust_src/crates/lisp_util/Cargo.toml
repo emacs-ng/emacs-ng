@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 libc = "0.2.95"
-errno = "0.2"
+errno.workspace = true
 darling = "0.2"
 syn = { version = "0.11.11", features = ["full"] }
 

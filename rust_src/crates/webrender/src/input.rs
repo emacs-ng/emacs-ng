@@ -2,10 +2,7 @@ use crate::window_system::api::dpi::LogicalPosition;
 use crate::window_system::frame::LispFrameWinitExt;
 use crate::window_system::{keycode_to_emacs_key_name, to_emacs_modifiers, virtual_keycode};
 
-#[cfg(use_winit)]
-use crate::window_system::api::event::{ModifiersState, VirtualKeyCode};
-#[cfg(use_tao)]
-use crate::window_system::api::keyboard::{KeyCode as VirtualKeyCode, ModifiersState};
+use crate::window_system::api::keyboard::{ModifiersState, PhysicalKey};
 use crate::window_system::api::{
     dpi::PhysicalPosition,
     event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase},
@@ -27,8 +24,6 @@ impl InputProcessor {
                 InputProcessor {
                     modifiers: ModifiersState::default(),
                     total_delta: PhysicalPosition::new(0.0, 0.9),
-                    #[cfg(use_winit)]
-                    suppress_chars: false,
                 }
             })
         }
@@ -59,12 +54,9 @@ impl InputProcessor {
 pub struct InputProcessor {
     modifiers: ModifiersState,
     total_delta: PhysicalPosition<f64>,
-    #[cfg(use_winit)]
-    suppress_chars: bool,
 }
 
 impl InputProcessor {
-    #[cfg(use_tao)]
     pub fn handle_modifiers_changed(new_state: ModifiersState) {
         let snapshot = Self::snapshot();
         let mut modifiers = snapshot.modifiers.clone();
@@ -86,29 +78,11 @@ impl InputProcessor {
             ..snapshot
         });
     }
-    #[cfg(use_winit)]
-    pub fn handle_modifiers_changed(new_state: ModifiersState) {
-        let snapshot = Self::snapshot();
-
-        Self::update(InputProcessor {
-            modifiers: new_state,
-            ..snapshot
-        });
-    }
 
     fn set_total_delta(total_delta: PhysicalPosition<f64>) {
         let snapshot = Self::snapshot();
         Self::update(InputProcessor {
             total_delta,
-            ..snapshot
-        });
-    }
-
-    #[cfg(use_winit)]
-    fn set_suppress_chars(suppress_chars: bool) {
-        let snapshot = Self::snapshot();
-        Self::update(InputProcessor {
-            suppress_chars,
             ..snapshot
         });
     }
@@ -122,10 +96,6 @@ impl InputProcessor {
 impl InputProcessor {
     pub fn handle_receive_char(c: char, top_frame: LispObject) -> Option<input_event> {
         let state = Self::global();
-        #[cfg(use_winit)]
-        if state.suppress_chars {
-            return None;
-        }
 
         let iev: input_event = InputEvent {
             kind: event_kind::ASCII_KEYSTROKE_EVENT,
@@ -145,40 +115,42 @@ impl InputProcessor {
     }
 
     pub fn handle_key_pressed(
-        key_code: VirtualKeyCode,
+        physical_key: PhysicalKey,
         top_frame: LispObject,
     ) -> Option<input_event> {
-        let InputProcessor { modifiers, .. } = Self::global().clone();
-        if keycode_to_emacs_key_name(key_code).is_null() {
-            return None;
+        match physical_key {
+            PhysicalKey::Unidentified(native_key_code) => {
+                //todo
+                None
+            }
+            PhysicalKey::Code(key_code) => {
+                let InputProcessor { modifiers, .. } = Self::global().clone();
+                if keycode_to_emacs_key_name(key_code).is_null() {
+                    return None;
+                }
+
+                let code = virtual_keycode(key_code);
+
+                let iev: input_event = InputEvent {
+                    kind: event_kind::NON_ASCII_KEYSTROKE_EVENT,
+                    part: scroll_bar_part::scroll_bar_nowhere,
+                    code,
+                    modifiers: to_emacs_modifiers(modifiers.to_owned()),
+                    x: 0.into(),
+                    y: 0.into(),
+                    timestamp: 0,
+                    frame_or_window: top_frame,
+                    arg: Qnil,
+                    device: Qt,
+                }
+                .into();
+
+                Some(iev)
+            }
         }
-
-        #[cfg(use_winit)]
-        Self::set_suppress_chars(true);
-
-        let code = virtual_keycode(key_code);
-
-        let iev: input_event = InputEvent {
-            kind: event_kind::NON_ASCII_KEYSTROKE_EVENT,
-            part: scroll_bar_part::scroll_bar_nowhere,
-            code,
-            modifiers: to_emacs_modifiers(modifiers.to_owned()),
-            x: 0.into(),
-            y: 0.into(),
-            timestamp: 0,
-            frame_or_window: top_frame,
-            arg: Qnil,
-            device: Qt,
-        }
-        .into();
-
-        Some(iev)
     }
 
-    pub fn handle_key_released() {
-        #[cfg(use_winit)]
-        Self::set_suppress_chars(false);
-    }
+    pub fn handle_key_released() {}
 
     pub fn handle_mouse_pressed(
         button: MouseButton,
@@ -190,14 +162,12 @@ impl InputProcessor {
             MouseButton::Middle => 1,
             MouseButton::Right => 2,
             MouseButton::Other(_) => 0,
-            #[cfg(use_tao)]
             _ => todo!(),
         };
 
         let s = match state {
             ElementState::Pressed => down_modifier,
             ElementState::Released => up_modifier,
-            #[cfg(use_tao)]
             _ => todo!(),
         };
 

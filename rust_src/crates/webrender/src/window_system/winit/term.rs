@@ -5,8 +5,6 @@ use crate::event_loop::WrEventLoop;
 use crate::frame::LispFrameWindowSystemExt;
 use crate::input::InputProcessor;
 use crate::term::*;
-#[cfg(use_winit)]
-use crate::window_system::api::event::KeyboardInput;
 use crate::{winit_set_background_color, winit_set_cursor_color};
 use emacs::bindings::{
     add_keyboard_wait_descriptor, init_sigio, interrupt_input, Fwaiting_for_user_input_p,
@@ -207,24 +205,6 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
         log::trace!("Handling event {:?}", e);
 
         match e {
-            Event::RedrawRequested(_window_id) => {
-                #[cfg(use_tao)]
-                {
-                    use emacs::bindings::Fredraw_frame;
-                    let frame = dpyinfo.frames.get(&_window_id);
-
-                    if frame.is_none() {
-                        continue;
-                    }
-
-                    let frame: LispFrameRef = *frame.unwrap();
-                    log::debug!("RedrawRequested, flush");
-                    unsafe {
-                        Fredraw_frame(frame.into());
-                    }
-                }
-            }
-
             Event::WindowEvent {
                 window_id, event, ..
             } => {
@@ -238,23 +218,27 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                 let frame: LispObject = frame.into();
 
                 match event {
-                    #[cfg(use_winit)]
-                    WindowEvent::ReceivedCharacter(key_code) => {
-                        if let Some(mut iev) = InputProcessor::handle_receive_char(key_code, frame)
-                        {
-                            unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
-                            count += 1;
+                    WindowEvent::RedrawRequested => {
+                        use emacs::bindings::Fredraw_frame;
+                        let frame = dpyinfo.frames.get(&window_id);
+
+                        if frame.is_none() {
+                            continue;
+                        }
+
+                        let frame: LispFrameRef = *frame.unwrap();
+                        log::debug!("RedrawRequested, flush");
+                        unsafe {
+                            Fredraw_frame(frame.into());
                         }
                     }
-
                     #[cfg(use_tao)]
                     WindowEvent::ReceivedImeText(_text) => {}
 
-                    WindowEvent::ModifiersChanged(state) => {
-                        let _ = InputProcessor::handle_modifiers_changed(state);
+                    WindowEvent::ModifiersChanged(modifiers) => {
+                        let _ = InputProcessor::handle_modifiers_changed(modifiers.state());
                     }
 
-                    #[cfg(use_tao)]
                     WindowEvent::KeyboardInput { event, .. } => match event.state {
                         ElementState::Pressed => match event.logical_key {
                             crate::window_system::api::keyboard::Key::Character(ch) => {
@@ -280,27 +264,6 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                             InputProcessor::handle_key_released();
                         }
                         e => todo!("Unhandled event {:?}", e),
-                    },
-
-                    #[cfg(use_winit)]
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state,
-                                virtual_keycode: Some(key_code),
-                                ..
-                            },
-                        ..
-                    } => match state {
-                        ElementState::Pressed => {
-                            if let Some(mut iev) =
-                                InputProcessor::handle_key_pressed(key_code, frame)
-                            {
-                                unsafe { kbd_buffer_store_event_hold(&mut iev, hold_quit) };
-                                count += 1;
-                            }
-                        }
-                        ElementState::Released => InputProcessor::handle_key_released(),
                     },
 
                     WindowEvent::MouseInput { state, button, .. } => {
@@ -383,11 +346,10 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
 
                     WindowEvent::ScaleFactorChanged {
                         scale_factor,
-                        new_inner_size: size,
+                        inner_size_writer: _,
                     } => {
                         let mut frame: LispFrameRef = frame.into();
-                        let size = DeviceIntSize::new(size.width as i32, size.height as i32);
-                        frame.handle_size_change(size, scale_factor);
+                        frame.handle_scale_factor_change(scale_factor);
                     }
 
                     WindowEvent::CloseRequested => {

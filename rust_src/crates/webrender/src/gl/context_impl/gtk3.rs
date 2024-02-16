@@ -6,7 +6,6 @@ use gleam::gl::ErrorCheckingGl;
 use gleam::gl::Gl;
 use gleam::gl::GlFns;
 use gleam::gl::GlesFns;
-use gtk::builders::GLAreaBuilder;
 use gtk::prelude::*;
 use gtk::GLArea;
 use std::rc::Rc;
@@ -64,7 +63,7 @@ impl GLContextTrait for ContextImpl {
                 .downcast::<gtk::Box>()
                 .unwrap();
             // TODO config of pf_reqs and gl_attr
-            let area = GLAreaBuilder::new().visible(true).has_alpha(true).build();
+            let area = GLArea::builder().visible(true).has_alpha(true).build();
             vbox.pack_start(&area, true, true, 0);
             area.grab_focus();
             gtkwin.show_all();
@@ -75,7 +74,7 @@ impl GLContextTrait for ContextImpl {
         let (fixed, area) = {
             let fixed = frame.fixed_widget().expect("no fixed widget");
 
-            let area = GLAreaBuilder::new()
+            let area = GLArea::builder()
                 .width_request(fixed.allocated_width())
                 .height_request(fixed.allocated_height())
                 .visible(true)

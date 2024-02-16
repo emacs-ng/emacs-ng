@@ -2,6 +2,15 @@
 members = ["rust_src/remacs-lib", "etc/colors", "rust_src/crates/*"]
 exclude = ["rust_src/ng-bindgen"]
 
+[workspace.dependencies]
+errno = "0.3"
+gtk = "0.18"
+gdk = "0.18"
+gtk-sys = "0.18"
+gdk-sys = "0.18"
+gdkwayland-sys = "0.18"
+gdkx11-sys = "0.18"
+
 # Allow unwinding in functions called from C. See
 # https://www.reddit.com/r/rust/comments/565q1f/wrote_a_blogpost_from_my_experiences_the_arduous/d8h053m/
 [profile.dev]
@@ -117,10 +126,6 @@ profiling = ["wrterm?/profiling"]
 [patch.crates-io.font-loader]
 git = "https://github.com/declantsien/rust-font-loader.git"
 rev = "0a53c767463e13346221ad23fa6dd50cd787cd72"
-
-[patch.crates-io.tao]
-git = "https://github.com/tauri-apps/tao"
-rev = "28b53f80c49bbf2ae8902b98a2e28f6451a5a8f1"
 
 # unreleased webp has_animation patch
 [patch.crates-io.image]

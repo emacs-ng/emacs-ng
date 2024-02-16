@@ -174,7 +174,10 @@ impl LispFrameWinitExt for LispFrameRef {
 
     fn set_inner_size(&self, size: PhysicalSize<u32>) {
         if let Some(ref window) = self.output().inner().window {
+            #[cfg(use_tao)]
             window.set_inner_size(size);
+            #[cfg(use_winit)]
+            window.request_inner_size(size);
             self.canvas().update();
         }
     }

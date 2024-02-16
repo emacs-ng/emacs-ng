@@ -1,3 +1,5 @@
+mod rendering_context;
+
 use crate::frame::LispFrameExt;
 use crate::frame::LispFrameWindowSystemExt;
 use crate::gl::context::GLContextTrait;
@@ -12,9 +14,9 @@ use std::rc::Rc;
 
 use gleam::gl::{ErrorCheckingGl, Gl, GlFns, GlesFns};
 
-use webrender_surfman::WebrenderSurfman;
+use rendering_context::RenderingContext;
 
-pub struct ContextImpl(WebrenderSurfman);
+pub struct ContextImpl(RenderingContext);
 
 impl ContextImpl {
     #[track_caller]
@@ -40,6 +42,8 @@ impl GLContextTrait for ContextImpl {
             .window_handle()
             .expect("Failed to get raw window handle from frame");
         let size = frame.physical_size();
+        let width = size.to_untyped().width;
+        let height = size.to_untyped().height;
 
         let connection = match Connection::from_raw_display_handle(display_handle) {
             Ok(connection) => connection,
@@ -51,21 +55,21 @@ impl GLContextTrait for ContextImpl {
             .expect("Failed to create adapter");
 
         let native_widget = connection
-            .create_native_widget_from_rwh(window_handle)
+            .create_native_widget_from_raw_window_handle(window_handle, Size2D::new(width, height))
             .expect("Failed to create native widget");
 
         let surface_type = SurfaceType::Widget { native_widget };
 
-        let webrender_surfman = WebrenderSurfman::create(&connection, &adapter, surface_type)
+        let rendering_context = RenderingContext::create(&connection, &adapter, surface_type)
             .expect("Failed to create WR surfman");
 
-        webrender_surfman
+        rendering_context
             .resize(Size2D::new(size.width as i32, size.height as i32))
             .unwrap();
 
-        webrender_surfman.make_gl_context_current().unwrap();
+        rendering_context.make_gl_context_current().unwrap();
 
-        Self(webrender_surfman)
+        Self(rendering_context)
     }
 
     fn bind_framebuffer(&mut self, gl: &mut Rc<dyn Gl>) {

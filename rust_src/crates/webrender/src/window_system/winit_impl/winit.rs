@@ -1,5 +1,4 @@
-use crate::window_system::api::event::ModifiersState;
-use crate::window_system::api::event::VirtualKeyCode;
+use crate::window_system::api::keyboard::{KeyCode as VirtualKeyCode, ModifiersState};
 use emacs::sys::EmacsModifiers::{ctrl_modifier, meta_modifier, shift_modifier, super_modifier};
 
 pub fn virtual_keycode(code: VirtualKeyCode) -> u32 {
@@ -9,16 +8,16 @@ pub fn virtual_keycode(code: VirtualKeyCode) -> u32 {
 pub fn to_emacs_modifiers(modifiers: ModifiersState) -> u32 {
     let mut emacs_modifiers: u32 = 0;
 
-    if modifiers.alt() {
+    if modifiers.alt_key() {
         emacs_modifiers |= meta_modifier;
     }
-    if modifiers.shift() {
+    if modifiers.shift_key() {
         emacs_modifiers |= shift_modifier;
     }
-    if modifiers.ctrl() {
+    if modifiers.control_key() {
         emacs_modifiers |= ctrl_modifier;
     }
-    if modifiers.logo() {
+    if modifiers.super_key() {
         emacs_modifiers |= super_modifier;
     }
 
@@ -26,15 +25,17 @@ pub fn to_emacs_modifiers(modifiers: ModifiersState) -> u32 {
 }
 
 pub fn keysym_to_emacs_key_name(keysym: i32) -> *const libc::c_char {
-    keycode_to_emacs_key_name(unsafe { std::mem::transmute::<i32, VirtualKeyCode>(keysym) })
+    keycode_to_emacs_key_name(unsafe {
+        std::mem::transmute::<i8, VirtualKeyCode>(keysym.try_into().unwrap())
+    })
 }
 
 pub fn keycode_to_emacs_key_name(keycode: VirtualKeyCode) -> *const libc::c_char {
     match keycode {
         VirtualKeyCode::Escape => kn!("escape"),
-        VirtualKeyCode::Back => kn!("backspace"),
+        VirtualKeyCode::Backspace => kn!("backspace"),
         VirtualKeyCode::Delete => kn!("deletechar"),
-        VirtualKeyCode::Return | VirtualKeyCode::NumpadEnter => kn!("return"),
+        VirtualKeyCode::Enter | VirtualKeyCode::NumpadEnter => kn!("return"),
         VirtualKeyCode::Tab => kn!("tab"),
 
         VirtualKeyCode::Home => kn!("home"),
@@ -42,10 +43,10 @@ pub fn keycode_to_emacs_key_name(keycode: VirtualKeyCode) -> *const libc::c_char
         VirtualKeyCode::PageUp => kn!("prior"),
         VirtualKeyCode::PageDown => kn!("next"),
 
-        VirtualKeyCode::Left => kn!("left"),
-        VirtualKeyCode::Right => kn!("right"),
-        VirtualKeyCode::Up => kn!("up"),
-        VirtualKeyCode::Down => kn!("down"),
+        VirtualKeyCode::ArrowLeft => kn!("left"),
+        VirtualKeyCode::ArrowRight => kn!("right"),
+        VirtualKeyCode::ArrowUp => kn!("up"),
+        VirtualKeyCode::ArrowDown => kn!("down"),
 
         VirtualKeyCode::Insert => kn!("insert"),
 
