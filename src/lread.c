@@ -5063,10 +5063,11 @@ it defaults to the value of `obarray'.  */)
     {
       /* If already a symbol, we don't do shorthand-longhand translation,
 	 as promised in the docstring.  */
+      Lisp_Object sym = maybe_remove_pos_from_symbol (name);
       string = XSYMBOL (name)->u.s.name;
       tem
 	= oblookup (obarray, SSDATA (string), SCHARS (string), SBYTES (string));
-      return BASE2_EQ (name, tem) ? name : Qnil;
+      return BASE_EQ (sym, tem) ? name : Qnil;
     }
 }
 

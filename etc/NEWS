@@ -431,6 +431,11 @@ respectively, in addition to the existing translations 'C-x 8 / e' and
 * Changes in Specialized Modes and Packages in Emacs 30.1
 
 ---
+** Titdic-cnv
+Most of the variables and functions in the file have been renamed to
+make sure they all use a 'tit-' namespace prefix.
+
+---
 ** Trace
 In batch mode, tracing now sends the trace to stdout.
 
@@ -1336,6 +1341,10 @@ in Buffer menu mode.
 *** New command 'customize-dirlocals'.
 This command pops up a buffer to edit the settings in ".dir-locals.el".
 
+---
+** New command 'customize-toggle-option'.
+This command can toggle boolean options for the duration of a session.
+
 ** Calc
 
 +++
@@ -1347,6 +1356,14 @@ fraction.  You may also be interested to know that precomposed fraction
 characters, such as ½ (U+00BD VULGAR FRACTION ONE HALF), are also
 recognized as rational fractions.  They have been since 2004, but it
 looks like it was never mentioned in the NEWS, or even the manual.
+
+** IELM
+
+---
+*** IELM now remembers input history between sessions.
+The new user option 'ielm-history-file-name' is the name of the file
+where IELM input history will be saved.  Customize it to nil to revert
+to the old behavior of not remembering input history between sessions.
 
 
 * New Modes and Packages in Emacs 30.1

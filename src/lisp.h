@@ -330,7 +330,8 @@ typedef EMACS_INT Lisp_Word;
    without worrying about the implementations diverging, since
    lisp_h_OP defines the actual implementation.  The lisp_h_OP macros
    are intended to be private to this include file, and should not be
-   used elsewhere.
+   used elsewhere.  They should evaluate each argument exactly once,
+   so that they behave like their functional counterparts.
 
    FIXME: Remove the lisp_h_OP macros, and define just the inline OP
    functions, once "gcc -Og" (new to GCC 4.8) or equivalent works well
@@ -372,39 +373,12 @@ typedef EMACS_INT Lisp_Word;
 # define lisp_h_Qnil {0}
 #endif
 
-#define lisp_h_PSEUDOVECTORP(a,code)                            	\
-  (lisp_h_VECTORLIKEP (a)						\
-   && ((XUNTAG (a, Lisp_Vectorlike, union vectorlike_header)->size	\
-	& (PSEUDOVECTOR_FLAG | PVEC_TYPE_MASK))				\
-       == (PSEUDOVECTOR_FLAG | ((code) << PSEUDOVECTOR_AREA_BITS))))
-
 #define lisp_h_CHECK_FIXNUM(x) CHECK_TYPE (FIXNUMP (x), Qfixnump, x)
 #define lisp_h_CHECK_SYMBOL(x) CHECK_TYPE (SYMBOLP (x), Qsymbolp, x)
 #define lisp_h_CHECK_TYPE(ok, predicate, x) \
    ((ok) ? (void) 0 : wrong_type_argument (predicate, x))
 #define lisp_h_CONSP(x) TAGGEDP (x, Lisp_Cons)
 #define lisp_h_BASE_EQ(x, y) (XLI (x) == XLI (y))
-#define lisp_h_BASE2_EQ(x, y)				    \
-  (BASE_EQ (x, y)					    \
-   || (symbols_with_pos_enabled				    \
-       && SYMBOL_WITH_POS_P (x)				    \
-       && BASE_EQ (XSYMBOL_WITH_POS (x)->sym, y)))
-
-/* FIXME: Do we really need to inline the whole thing?
- * What about keeping the part after `symbols_with_pos_enabled` in
- * a separate function?  */
-#define lisp_h_EQ(x, y)                                     \
-  (XLI (x) == XLI (y)					    \
-   || (symbols_with_pos_enabled                             \
-       && (SYMBOL_WITH_POS_P (x)			    \
-           ? (BARE_SYMBOL_P (y)				    \
-              ? XLI (XSYMBOL_WITH_POS (x)->sym) == XLI (y)  \
-              : (SYMBOL_WITH_POS_P (y)			    \
-		 && (XLI (XSYMBOL_WITH_POS (x)->sym)	    \
-		     == XLI (XSYMBOL_WITH_POS (y)->sym))))  \
-           : (SYMBOL_WITH_POS_P (y)			    \
-              && BARE_SYMBOL_P (x)			    \
-              && (XLI (x) == XLI (XSYMBOL_WITH_POS (y)->sym))))))
 
 #define lisp_h_FIXNUMP(x) \
    (! (((unsigned) (XLI (x) >> (USE_LSB_TAG ? 0 : FIXNUM_BITS)) \
@@ -412,18 +386,11 @@ typedef EMACS_INT Lisp_Word;
        & ((1 << INTTYPEBITS) - 1)))
 #define lisp_h_FLOATP(x) TAGGEDP (x, Lisp_Float)
 #define lisp_h_NILP(x)  BASE_EQ (x, Qnil)
-#define lisp_h_SET_SYMBOL_VAL(sym, v) \
-   (eassert ((sym)->u.s.redirect == SYMBOL_PLAINVAL), \
-    (sym)->u.s.val.value = (v))
 #define lisp_h_SYMBOL_CONSTANT_P(sym) \
    (XSYMBOL (sym)->u.s.trapped_write == SYMBOL_NOWRITE)
 #define lisp_h_SYMBOL_TRAPPED_WRITE_P(sym) (XSYMBOL (sym)->u.s.trapped_write)
-#define lisp_h_SYMBOL_VAL(sym) \
-   (eassert ((sym)->u.s.redirect == SYMBOL_PLAINVAL), (sym)->u.s.val.value)
 #define lisp_h_SYMBOL_WITH_POS_P(x) PSEUDOVECTORP (x, PVEC_SYMBOL_WITH_POS)
 #define lisp_h_BARE_SYMBOL_P(x) TAGGEDP (x, Lisp_Symbol)
-#define lisp_h_SYMBOLP(x) \
-   (BARE_SYMBOL_P (x) || (symbols_with_pos_enabled && SYMBOL_WITH_POS_P (x)))
 #define lisp_h_TAGGEDP(a, tag) \
    (! (((unsigned) (XLI (a) >> (USE_LSB_TAG ? 0 : VALBITS)) \
 	- (unsigned) (tag)) \
@@ -431,8 +398,6 @@ typedef EMACS_INT Lisp_Word;
 #define lisp_h_VECTORLIKEP(x) TAGGEDP (x, Lisp_Vectorlike)
 #define lisp_h_XCAR(c) XCONS (c)->u.s.car
 #define lisp_h_XCDR(c) XCONS (c)->u.s.u.cdr
-#define lisp_h_XCONS(a) \
-   (eassert (CONSP (a)), XUNTAG (a, Lisp_Cons, struct Lisp_Cons))
 #define lisp_h_XHASH(a) XUFIXNUM_RAW (a)
 #if USE_LSB_TAG
 # define lisp_h_make_fixnum_wrap(n) \
@@ -474,20 +439,15 @@ typedef EMACS_INT Lisp_Word;
 # define CHECK_TYPE(ok, predicate, x) lisp_h_CHECK_TYPE (ok, predicate, x)
 # define CONSP(x) lisp_h_CONSP (x)
 # define BASE_EQ(x, y) lisp_h_BASE_EQ (x, y)
-# define BASE2_EQ(x, y) lisp_h_BASE2_EQ (x, y)
 # define FLOATP(x) lisp_h_FLOATP (x)
 # define FIXNUMP(x) lisp_h_FIXNUMP (x)
 # define NILP(x) lisp_h_NILP (x)
-# define SET_SYMBOL_VAL(sym, v) lisp_h_SET_SYMBOL_VAL (sym, v)
 # define SYMBOL_CONSTANT_P(sym) lisp_h_SYMBOL_CONSTANT_P (sym)
 # define SYMBOL_TRAPPED_WRITE_P(sym) lisp_h_SYMBOL_TRAPPED_WRITE_P (sym)
-# define SYMBOL_VAL(sym) lisp_h_SYMBOL_VAL (sym)
-/* # define SYMBOLP(x) lisp_h_SYMBOLP (x) */ /* X is accessed more than once. */
 # define TAGGEDP(a, tag) lisp_h_TAGGEDP (a, tag)
 # define VECTORLIKEP(x) lisp_h_VECTORLIKEP (x)
 # define XCAR(c) lisp_h_XCAR (c)
 # define XCDR(c) lisp_h_XCDR (c)
-# define XCONS(a) lisp_h_XCONS (a)
 # define XHASH(a) lisp_h_XHASH (a)
 # if USE_LSB_TAG
 #  define make_fixnum(n) lisp_h_make_fixnum (n)
@@ -1121,7 +1081,10 @@ enum More_Lisp_Bits
 INLINE bool
 PSEUDOVECTORP (Lisp_Object a, int code)
 {
-  return lisp_h_PSEUDOVECTORP (a, code);
+  return (lisp_h_VECTORLIKEP (a)
+	  && ((XUNTAG (a, Lisp_Vectorlike, union vectorlike_header)->size
+	       & (PSEUDOVECTOR_FLAG | PVEC_TYPE_MASK))
+	      == (PSEUDOVECTOR_FLAG | (code << PSEUDOVECTOR_AREA_BITS))));
 }
 
 INLINE bool
@@ -1137,9 +1100,10 @@ INLINE bool
 }
 
 INLINE bool
-(SYMBOLP) (Lisp_Object x)
+SYMBOLP (Lisp_Object x)
 {
-  return lisp_h_SYMBOLP (x);
+  return (BARE_SYMBOL_P (x)
+	  || (symbols_with_pos_enabled && SYMBOL_WITH_POS_P (x)));
 }
 
 INLINE struct Lisp_Symbol_With_Pos *
@@ -1147,6 +1111,27 @@ XSYMBOL_WITH_POS (Lisp_Object a)
 {
     eassert (SYMBOL_WITH_POS_P (a));
     return XUNTAG (a, Lisp_Vectorlike, struct Lisp_Symbol_With_Pos);
+}
+
+INLINE Lisp_Object
+XSYMBOL_WITH_POS_SYM (Lisp_Object a)
+{
+  Lisp_Object sym = XSYMBOL_WITH_POS (a)->sym;
+  eassume (BARE_SYMBOL_P (sym));
+  return sym;
+}
+
+INLINE Lisp_Object
+XSYMBOL_WITH_POS_POS (Lisp_Object a)
+{
+  return XSYMBOL_WITH_POS (a)->pos;
+}
+
+INLINE Lisp_Object
+maybe_remove_pos_from_symbol (Lisp_Object x)
+{
+  return (symbols_with_pos_enabled && SYMBOL_WITH_POS_P (x)
+	  ? XSYMBOL_WITH_POS_SYM (x) : x);
 }
 
 INLINE struct Lisp_Symbol * ATTRIBUTE_NO_SANITIZE_UNDEFINED
@@ -1163,8 +1148,8 @@ XSYMBOL (Lisp_Object a)
 {
   if (!BARE_SYMBOL_P (a))
     {
-      eassert (symbols_with_pos_enabled);
-      a = XSYMBOL_WITH_POS (a)->sym;
+      eassume (symbols_with_pos_enabled);
+      a = XSYMBOL_WITH_POS_SYM (a);
     }
   return XBARE_SYMBOL (a);
 }
@@ -1352,20 +1337,15 @@ INLINE bool
   return lisp_h_BASE_EQ (x, y);
 }
 
-/* Return true if X and Y are the same object, reckoning X to be the
-   same as a bare symbol Y if X is Y with position.  */
-INLINE bool
-(BASE2_EQ) (Lisp_Object x, Lisp_Object y)
-{
-  return lisp_h_BASE2_EQ (x, y);
-}
-
 /* Return true if X and Y are the same object, reckoning a symbol with
    position as being the same as the bare symbol.  */
 INLINE bool
-(EQ) (Lisp_Object x, Lisp_Object y)
+EQ (Lisp_Object x, Lisp_Object y)
 {
-  return lisp_h_EQ (x, y);
+  return BASE_EQ ((symbols_with_pos_enabled && SYMBOL_WITH_POS_P (x)
+		   ? XSYMBOL_WITH_POS_SYM (x) : x),
+		  (symbols_with_pos_enabled && SYMBOL_WITH_POS_P (y)
+		   ? XSYMBOL_WITH_POS_SYM (y) : y));
 }
 
 INLINE intmax_t
@@ -1510,9 +1490,10 @@ CHECK_CONS (Lisp_Object x)
 }
 
 INLINE struct Lisp_Cons *
-(XCONS) (Lisp_Object a)
+XCONS (Lisp_Object a)
 {
-  return lisp_h_XCONS (a);
+  eassert (CONSP (a));
+  return XUNTAG (a, Lisp_Cons, struct Lisp_Cons);
 }
 
 /* Take the car or cdr of something known to be a cons cell.  */
@@ -2297,9 +2278,10 @@ typedef jmp_buf sys_jmp_buf;
 /* Value is name of symbol.  */
 
 INLINE Lisp_Object
-(SYMBOL_VAL) (struct Lisp_Symbol *sym)
+SYMBOL_VAL (struct Lisp_Symbol *sym)
 {
-  return lisp_h_SYMBOL_VAL (sym);
+  eassert (sym->u.s.redirect == SYMBOL_PLAINVAL);
+  return sym->u.s.val.value;
 }
 
 INLINE struct Lisp_Symbol *
@@ -2322,9 +2304,10 @@ SYMBOL_FWD (struct Lisp_Symbol *sym)
 }
 
 INLINE void
-(SET_SYMBOL_VAL) (struct Lisp_Symbol *sym, Lisp_Object v)
+SET_SYMBOL_VAL (struct Lisp_Symbol *sym, Lisp_Object v)
 {
-  lisp_h_SET_SYMBOL_VAL (sym, v);
+  eassert (sym->u.s.redirect == SYMBOL_PLAINVAL);
+  sym->u.s.val.value = v;
 }
 
 INLINE void
@@ -2845,22 +2828,6 @@ XOVERLAY (Lisp_Object a)
 {
   eassert (OVERLAYP (a));
   return XUNTAG (a, Lisp_Vectorlike, struct Lisp_Overlay);
-}
-
-INLINE Lisp_Object
-SYMBOL_WITH_POS_SYM (Lisp_Object a)
-{
-  if (!SYMBOL_WITH_POS_P (a))
-    wrong_type_argument (Qsymbol_with_pos_p, a);
-  return XSYMBOL_WITH_POS (a)->sym;
-}
-
-INLINE Lisp_Object
-SYMBOL_WITH_POS_POS (Lisp_Object a)
-{
-  if (!SYMBOL_WITH_POS_P (a))
-    wrong_type_argument (Qsymbol_with_pos_p, a);
-  return XSYMBOL_WITH_POS (a)->pos;
 }
 
 INLINE bool
