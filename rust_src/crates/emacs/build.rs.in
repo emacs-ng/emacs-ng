@@ -52,7 +52,7 @@ enum ParseState {
 }
 
 fn generate_definitions() {
-    let out_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("src");
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let mut file = File::create(out_path.join("definitions.rs")).unwrap();
 
     // signed and unsigned size shall be the same.
@@ -136,7 +136,7 @@ fn generate_globals() {
         .join("globals.h");
     let in_file = BufReader::new(File::open(in_path).expect("Failed to open globals file"));
 
-    let out_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("src");
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let mut out_file = File::create(out_path.join("globals.rs")).unwrap();
     let mut parse_state = ParseState::ReadingGlobals;
 
@@ -205,9 +205,7 @@ fn generate_globals() {
 }
 
 fn generate_bindings() {
-    let out_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
-        .join("src")
-        .join("bindings.rs");
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("bindings.rs");
 
     let mut builder = bindgen::Builder::default()
         .rust_target(bindgen::RustTarget::Nightly)

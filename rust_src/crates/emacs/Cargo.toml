@@ -12,9 +12,17 @@ libc = "0.2.95"
 lazy_static = "1.4.0"
 log = "0.4"
 memoffset = "0.6.4"
+raw-window-handle = { workspace = true, optional = true }
+webrender_api = { workspace = true, optional = true }
+image = { workspace = true, optional = true }
+colors = {  path = "../../../etc/colors", optional = true }
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 gtk-sys = { workspace = true, optional = true }
+gtk = { workspace = true, optional = true }
+x11-dl = { version = "2.21", optional = true }
+gdkwayland-sys = { workspace = true, optional = true }
+gdkx11-sys = { workspace = true, optional = true }
 
 [build-dependencies]
 bindgen = "0.69"
@@ -22,6 +30,11 @@ regex = "1.6"
 libc = "0.2"
 
 [features]
-window-system = []
+window-system = ["dep:raw-window-handle", "dep:webrender_api", "dep:image", "dep:colors"]
+window-system-x = [ "window-system"]
+window-system-w32 = [ "window-system"]
+window-system-ns = [ "window-system"]
+window-system-pgtk = [ "window-system", "dep:gtk-sys", "dep:gtk", "dep:x11-dl", "dep:gdkwayland-sys", "dep:gdkx11-sys"]
+window-system-haiku = [ "window-system"]
+window-system-android = [ "window-system"]
 window-system-winit = [ "window-system"]
-window-system-pgtk = [ "window-system", "dep:gtk-sys"]

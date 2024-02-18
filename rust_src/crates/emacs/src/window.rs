@@ -3,7 +3,7 @@ use crate::{
         glyph_row_area::{self, TEXT_AREA},
         pvec_type, window, window_box, window_box_left, Lisp_Type,
     },
-    frame::LispFrameRef,
+    frame::FrameRef,
     globals::Qwindowp,
     lisp::{ExternalPtr, LispObject},
     vector::LispVectorlikeRef,
@@ -26,7 +26,7 @@ impl LispWindowRef {
         self.right_pixel_edge() == self.get_frame().root_window().right_pixel_edge()
     }
 
-    pub fn get_frame(self) -> LispFrameRef {
+    pub fn get_frame(self) -> FrameRef {
         self.frame.into()
     }
 

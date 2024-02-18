@@ -77,7 +77,7 @@ struct winit_display_info
   int last_mouse_motion_y;
 
   /* Inner perporty in Rust */
-  void *inner;
+  void *gl_renderer_data;
 };
 
 extern struct winit_display_info *winit_display_list;
@@ -120,7 +120,8 @@ struct winit_output
   int fontset; /* only used with font_backend */
 
   /* Inner perporty in Rust */
-  void *inner;
+  void *gl_renderer;
+  void *winit;
 };
 
 typedef struct winit_output winit_output;

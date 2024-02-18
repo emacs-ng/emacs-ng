@@ -1,0 +1,59 @@
+[package]
+name = "winit-term"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+emacs = { path = "../emacs", features = ["window-system-winit"] }
+lisp-macros = { path = "../lisp_macros" }
+lisp-util = {  path = "../lisp_util" }
+font = {  path = "../font" }
+colors = {  path = "../../../etc/colors" }
+webrender_api = { workspace = true}
+log.workspace = true
+libc.workspace = true
+lazy_static = "1.4"
+app_units = "0.7"
+bit-vec = "0.6.3"
+once_cell = "1.16.0"
+winit = { version = "0.29", default-features = false, optional = true, features = ["rwh_05"]}
+tao = { version = "0.25", default-features = false, optional = true, features = ["rwh_05"] }
+raw-window-handle.workspace = true
+arboard = { version = "3.3"}
+
+[build-dependencies]
+ng-bindgen = { path = "../../ng-bindgen" }
+cfg_aliases = "0.2"
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+wayland-sys = {version = "0.30", features = ["client", "dlopen"]}
+gtk = { workspace = true, optional = true }
+gdk = { workspace = true, optional = true }
+gl_loader = { version = "0.1.2", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.9"
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies.x11]
+features = ["xlib"]
+version = "2.20"
+optional = true
+
+[features]
+default = ["wayland", "winit"]
+x11 = [
+  "dep:x11",
+  "winit?/x11",
+]
+wayland = [
+  "arboard/wayland-data-control",
+  "winit?/wayland",
+  "winit?/wayland-dlopen",
+  "winit?/wayland-csd-adwaita",
+]
+winit=["dep:winit"]
+tao=["dep:tao"]

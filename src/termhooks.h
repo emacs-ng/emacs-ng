@@ -525,6 +525,11 @@ struct terminal
   struct image_cache *image_cache;
 #endif /* HAVE_WINDOW_SYSTEM */
 
+#ifdef HAVE_WINIT
+  /* Winit terminal global state in Rust */
+  void *winit_term_data;
+#endif  /*USE_WEBRENDER*/
+
   /* Device-type dependent data shared amongst all frames on this terminal.  */
   union display_info
   {

@@ -40,10 +40,22 @@ wr_free_pixmap (struct frame *f, Emacs_Pixmap pixmap);
 extern void
 wr_update_end (struct frame *f);
 extern Lisp_Object wr_new_font (struct frame *f, Lisp_Object font_object, int fontset);
+extern bool wr_defined_color (struct frame *, const char *, Emacs_Color *,
+                               bool, bool);
+extern void wr_clear_frame (struct frame *);
 
+#if defined USE_WEBRENDER && defined HAVE_PGTK
 extern int
-wr_parse_color (struct frame *f, const char *color_name,
+gl_renderer_parse_color (struct frame *f, const char *color_name,
 		Emacs_Color * color);
+#endif
+
+extern void
+gl_renderer_free_frame_resources (struct frame *f);
+extern void
+gl_renderer_free_terminal_resources (struct terminal *f);
+extern void
+gl_renderer_fit_context (struct frame *f);
 
 extern void syms_of_webrender(void);
 

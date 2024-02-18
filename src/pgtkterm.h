@@ -122,8 +122,8 @@ struct pgtk_display_info
 {
 
 #ifdef USE_WEBRENDER
-  /* Inner perporty in Rust */
-  void *inner;
+  /* Gl Renderer global data in Rust */
+  void *gl_renderer_data;
 #endif  /*USE_WEBRENDER*/
 
   /* Chain of all pgtk_display_info structures.  */
@@ -266,7 +266,7 @@ struct pgtk_output
 
 #ifdef USE_WEBRENDER
   /* Inner perporty in Rust */
-  void *inner;
+  void *gl_renderer;
 #endif  /*USE_WEBRENDER*/
 
   unsigned long foreground_color;

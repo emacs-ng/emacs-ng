@@ -1,0 +1,70 @@
+[package]
+name = "gl-renderer"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+emacs = { path = "../emacs" }
+font = { path = "../font" }
+lisp-macros = { path = "../lisp_macros" }
+lisp-util = {  path = "../lisp_util" }
+winit-term = {  path = "../winit-term", optional = true }
+log.workspace = true
+libc.workspace = true
+lazy_static = "1.4"
+gleam = "0.13"
+image.workspace = true
+bit-vec = "0.6.3"
+raw-window-handle.workspace = true
+euclid = "0.22"
+surfman = { version = "0.9", features = ["chains", "sm-angle", "sm-angle-default"] , optional = true}
+glutin = { version = "0.31", optional = true }
+resvg = "0.29"
+usvg = "0.29"
+usvg-text-layout = "0.29"
+tiny-skia = "0.8"
+parking_lot.workspace = true
+webrender.workspace = true
+
+[build-dependencies]
+ng-bindgen = { path = "../../ng-bindgen" }
+cfg_aliases = "0.2"
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+wayland-sys = {version = "0.30", features = ["client", "dlopen"]}
+gtk = { workspace = true, optional = true }
+gdk = { workspace = true, optional = true }
+gl_loader = { version = "0.1.2", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.9"
+
+[features]
+default = ["std", "winit"]
+capture=["webrender/capture", "webrender/serialize_program"]
+profiling=["webrender/profiler"]
+sw_compositor=["webrender/sw_compositor"]
+glutin=["dep:glutin"]
+x11 = [
+  "glutin?/glx",
+  "glutin?/x11",
+  "surfman?/sm-x11"
+]
+wayland = [
+  "glutin?/egl",
+  "glutin?/wayland"
+]
+surfman=["dep:surfman"]
+gtk3=["dep:gtk", "dep:gdk", "dep:gl_loader"]
+winit=["dep:winit-term", "emacs/window-system-winit", "surfman"]
+pgtk=["gtk3", "emacs/window-system-pgtk"]
+no_std = [
+  "usvg-text-layout/system-fonts"
+]
+std = [
+  "usvg-text-layout/memmap-fonts"
+]

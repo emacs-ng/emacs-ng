@@ -69,7 +69,9 @@ rust_srcdir=$(top_srcdir)/rust_src
 RUST_CRATES_SOURCES=$(rust_srcdir)/crates/js/src/*.rs \
 $(rust_srcdir)/crates/ng_async/src/*.rs \
 $(rust_srcdir)/crates/ng_module/src/*.rs \
-$(rust_srcdir)/crates/webrender/src/*.rs \
+$(rust_srcdir)/crates/font/src/*.rs \
+$(rust_srcdir)/crates/gl-renderer/src/*.rs \
+$(rust_srcdir)/crates/winit-term/src/*.rs \
 $(rust_srcdir)/crates/lsp_json/src/*.rs
 lispsource = $(top_srcdir)/lisp
 lib = ../lib

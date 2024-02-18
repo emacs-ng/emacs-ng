@@ -561,6 +561,9 @@ pgtk_destroy_window (struct frame *f)
   struct pgtk_display_info *dpyinfo = FRAME_DISPLAY_INFO (f);
 
   check_window_system (f);
+#ifdef USE_WEBRENDER
+  gl_renderer_free_frame_resources(f);
+#endif /*USE_WEBRENDER*/
   if (dpyinfo->gdpy != NULL)
     pgtk_free_frame_resources (f);
 
@@ -4509,6 +4512,10 @@ pgtk_delete_terminal (struct terminal *terminal)
 
   block_input ();
 
+#ifdef USE_WEBRENDER
+  gl_renderer_free_terminal_resources(terminal);
+#endif /*USE_WEBRENDER*/
+
   pgtk_im_finish (dpyinfo);
 
   /* Normally, the display is available...  */
@@ -7101,7 +7108,7 @@ pgtk_defined_color (struct frame *f, const char *name,
 #ifndef USE_WEBRENDER
     r = pgtk_parse_color (f, name, color_def);
 #else
-    r = wr_parse_color (f, name, color_def);
+    r = gl_renderer_parse_color (f, name, color_def);
 #endif
   unblock_input ();
   return r;

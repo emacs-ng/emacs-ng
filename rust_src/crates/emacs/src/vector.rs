@@ -8,11 +8,11 @@ use lazy_static::lazy_static;
 
 use crate::{
     bindings::{pvec_type, Lisp_Type, Lisp_Vector, More_Lisp_Bits, AREF, ASET, ASIZE},
-    frame::LispFrameRef,
+    frame::FrameRef,
     lisp::{ExternalPtr, LispObject, LispSubrRef},
     process::LispProcessRef,
     sys::{Lisp_Vectorlike, PSEUDOVECTOR_FLAG},
-    terminal::LispTerminalRef,
+    terminal::TerminalRef,
     window::LispWindowRef,
 };
 
@@ -102,7 +102,7 @@ impl LispVectorlikeRef {
         self.cast()
     }
 
-    pub fn as_frame(self) -> Option<LispFrameRef> {
+    pub fn as_frame(self) -> Option<FrameRef> {
         if self.is_pseudovector(pvec_type::PVEC_FRAME) {
             Some(self.cast())
         } else {
@@ -110,7 +110,7 @@ impl LispVectorlikeRef {
         }
     }
 
-    pub fn as_terminal(self) -> Option<LispTerminalRef> {
+    pub fn as_terminal(self) -> Option<TerminalRef> {
         if self.is_pseudovector(pvec_type::PVEC_TERMINAL) {
             Some(self.cast())
         } else {

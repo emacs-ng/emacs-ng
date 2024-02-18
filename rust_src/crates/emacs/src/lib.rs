@@ -15,11 +15,17 @@
 #![feature(async_closure)]
 
 #[rustfmt::skip]
-pub mod bindings;
+pub mod bindings {
+    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+}
 #[rustfmt::skip]
-pub mod definitions;
+pub mod definitions {
+    include!(concat!(env!("OUT_DIR"), "/definitions.rs"));
+}
 #[rustfmt::skip]
-pub mod globals;
+pub mod globals {
+    include!(concat!(env!("OUT_DIR"), "/globals.rs"));
+}
 
 #[macro_use]
 pub mod sys;
@@ -29,6 +35,10 @@ pub mod eval_macros;
 pub mod vector_macros;
 pub mod lisp;
 
+#[cfg(feature = "window-system")]
+pub mod color;
+#[cfg(feature = "window-system")]
+pub mod display_info;
 pub mod eval;
 pub mod font;
 pub mod frame;
@@ -41,10 +51,16 @@ pub mod list;
 pub mod multibyte;
 pub mod number;
 pub mod obarray;
+#[cfg(feature = "window-system")]
+pub mod output;
 pub mod process;
 pub mod string;
 pub mod symbol;
 pub mod terminal;
 pub mod vector;
 pub mod window;
+#[cfg(feature = "window-system")]
+mod window_system;
 pub mod xdisp;
+#[cfg(feature = "window-system")]
+pub use window_system::*;

@@ -1,0 +1,37 @@
+[package]
+name = "font"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+webrender_api.workspace = true
+emacs = { path = "../emacs" }
+fontdb = "0.12"
+ttf-parser = "0.17"
+rustybuzz = "0.6"
+log.workspace = true
+libc.workspace = true
+parking_lot.workspace = true
+fxhash.workspace = true
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+font-loader = "0.11"
+
+[lib]
+name = "font"
+path = "src/lib.rs"
+
+[features]
+no_std = [
+  "rustybuzz/libm",
+]
+std = [
+  "fontdb/memmap",
+  "fontdb/std",
+  "rustybuzz/std",
+]
+[build-dependencies]
+ng-bindgen = { path = "../../ng-bindgen" }
+cfg_aliases = "0.2"

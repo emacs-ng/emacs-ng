@@ -1,5 +1,6 @@
 //! font support
 
+use crate::lisp::ExternalPtr;
 use crate::{
     bindings::font,
     bindings::{font_property_index::FONT_ENTITY_MAX, pvec_type},
@@ -46,3 +47,5 @@ impl LispObject {
         })
     }
 }
+
+pub type FontRef = ExternalPtr<font>;

@@ -15,18 +15,24 @@ use crate::{
 #[cfg(feature = "window-system")]
 use {
     crate::bindings::{gui_default_parameter, resource_types, vertical_scroll_bar_type},
+    crate::display_info::DisplayInfoRef,
+    crate::font::FontRef,
+    crate::output::{OutputExtWindowSystem, OutputRef},
+    crate::terminal::TerminalRef,
+    // raw_window_handle::{RawDisplayHandle, RawWindowHandle},
     std::ffi::CString,
+    // webrender_api::units::{DeviceIntSize, LayoutSize},
 };
 
-pub type Lisp_Frame = frame;
+pub type Frame = frame;
 
-/// LispFrameRef is a reference to the LispFrame
+/// FrameRef is a reference to the Frame
 /// However a reference is guaranteed to point to an existing frame
 /// therefore no NULL checks are needed while using it
 #[allow(dead_code)]
-pub type LispFrameRef = ExternalPtr<Lisp_Frame>;
+pub type FrameRef = ExternalPtr<Frame>;
 
-impl LispFrameRef {
+impl FrameRef {
     pub fn root_window(self) -> LispWindowRef {
         self.root_window.into()
     }
@@ -204,21 +210,66 @@ impl LispFrameRef {
     pub fn init_faces(mut self) {
         unsafe { init_frame_faces(self.as_mut()) };
     }
+
+    #[allow(unreachable_code)]
+    #[cfg(feature = "window-system")]
+    pub fn output(&self) -> OutputRef {
+        #[cfg(feature = "window-system-pgtk")]
+        return OutputRef::new(unsafe { self.output_data.pgtk });
+        #[cfg(feature = "window-system-winit")]
+        return OutputRef::new(unsafe { self.output_data.winit });
+        unimplemented!();
+    }
+
+    #[cfg(feature = "window-system")]
+    pub fn font(&self) -> FontRef {
+        FontRef::new(self.output().font as *mut _)
+    }
+
+    #[cfg(feature = "window-system")]
+    pub fn fontset(&self) -> i32 {
+        self.output().fontset
+    }
+
+    #[cfg(feature = "window-system")]
+    pub fn set_font(&mut self, mut font: FontRef) {
+        self.output().font = font.as_mut();
+    }
+
+    #[cfg(feature = "window-system")]
+    pub fn set_fontset(&mut self, fontset: i32) {
+        self.output().fontset = fontset;
+    }
+
+    #[cfg(feature = "window-system")]
+    pub fn display_info(&self) -> DisplayInfoRef {
+        self.output().display_info()
+    }
+
+    #[cfg(feature = "window-system")]
+    pub fn set_display_info(&mut self, mut dpyinfo: DisplayInfoRef) {
+        self.output().display_info = dpyinfo.as_mut();
+    }
+
+    #[cfg(feature = "window-system")]
+    pub fn terminal(&self) -> TerminalRef {
+        return TerminalRef::new(self.terminal);
+    }
 }
 
-impl From<LispObject> for LispFrameRef {
+impl From<LispObject> for FrameRef {
     fn from(o: LispObject) -> Self {
         o.as_frame().unwrap_or_else(|| wrong_type!(Qframep, o))
     }
 }
 
-impl From<LispFrameRef> for LispObject {
-    fn from(f: LispFrameRef) -> Self {
+impl From<FrameRef> for LispObject {
+    fn from(f: FrameRef) -> Self {
         Self::tag_ptr(f, Lisp_Type::Lisp_Vectorlike)
     }
 }
 
-impl From<LispObject> for Option<LispFrameRef> {
+impl From<LispObject> for Option<FrameRef> {
     fn from(o: LispObject) -> Self {
         o.as_vectorlike().and_then(LispVectorlikeRef::as_frame)
     }
@@ -230,23 +281,23 @@ impl LispObject {
             .map_or(false, |v| v.is_pseudovector(pvec_type::PVEC_FRAME))
     }
 
-    pub fn as_frame(self) -> Option<LispFrameRef> {
+    pub fn as_frame(self) -> Option<FrameRef> {
         self.into()
     }
 
-    pub fn as_live_frame(self) -> Option<LispFrameRef> {
+    pub fn as_live_frame(self) -> Option<FrameRef> {
         self.as_frame()
             .and_then(|f| if f.is_live() { Some(f) } else { None })
     }
 
     // Same as CHECK_LIVE_FRAME
-    pub fn as_live_frame_or_error(self) -> LispFrameRef {
+    pub fn as_live_frame_or_error(self) -> FrameRef {
         self.as_live_frame()
             .unwrap_or_else(|| wrong_type!(Qframe_live_p, self))
     }
 }
 
-pub fn window_frame_live_or_selected(object: LispObject) -> LispFrameRef {
+pub fn window_frame_live_or_selected(object: LispObject) -> FrameRef {
     // Cannot use LispFrameOrSelected because the selected frame is not
     // checked for live.
     if object.is_nil() {
@@ -259,10 +310,10 @@ pub fn window_frame_live_or_selected(object: LispObject) -> LispFrameRef {
     }
 }
 
-pub fn all_frames() -> impl Iterator<Item = LispFrameRef> {
+pub fn all_frames() -> impl Iterator<Item = FrameRef> {
     let frame_it =
         unsafe { Vframe_list.iter_cars(LispConsEndChecks::off, LispConsCircularChecks::off) }
-            .map(LispFrameRef::from);
+            .map(FrameRef::from);
 
     frame_it
 }

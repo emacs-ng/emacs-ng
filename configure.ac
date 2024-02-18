@@ -1998,12 +1998,6 @@ AC_ARG_ENABLE(winit-x11,
 		[disable Winit X11 support.])],
 [ac_enable_winit_x11="${enableval}"],[])
 
-AC_ARG_ENABLE(winit-pselect,
-[AS_HELP_STRING([--enable-winit-pselect],
-		[enable plain select for Winit synchronous I/O multiplexing.
-		On by default on macOS.])],
-[ac_enable_winit_pselect="${enableval}"],[])
-
 AC_ARG_WITH([wr-gl],[AS_HELP_STRING([--with-wr-gl=KIT],
  [use an GL context creation toolkit (KIT one of: yes or surfman, glutin, gtk3).
  Surfman will be used if none given.])],
@@ -8135,28 +8129,23 @@ case "${window_system}" in
     winit)
         CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-winit\", "
 	if test X$ac_enable_winit_x11 != Xno ; then
-	   WEBRENDER_EXTRA_FEATURES="\"wrterm/x11\", ${WEBRENDER_EXTRA_FEATURES}"
+	   WEBRENDER_EXTRA_FEATURES="\"winit-term/x11\", ${WEBRENDER_EXTRA_FEATURES}"
 	fi
 	if test X$with_winit = Xtao; then
-	   WEBRENDER_EXTRA_FEATURES="\"wrterm/tao\", ${WEBRENDER_EXTRA_FEATURES}"
+	   WEBRENDER_EXTRA_FEATURES="\"winit-term/tao\", ${WEBRENDER_EXTRA_FEATURES}"
         else
-	   WEBRENDER_EXTRA_FEATURES="\"wrterm/winit\", ${WEBRENDER_EXTRA_FEATURES}"
-	fi
-	if test x$ac_enable_winit_pselect != x || test $opsys = darwin; then
-	   WEBRENDER_EXTRA_FEATURES="\"wrterm/pselect\", ${WEBRENDER_EXTRA_FEATURES}"
-	else
-	   WEBRENDER_EXTRA_FEATURES="\"wrterm/tokio\", ${WEBRENDER_EXTRA_FEATURES}"
+	   WEBRENDER_EXTRA_FEATURES="\"winit-term/winit\", ${WEBRENDER_EXTRA_FEATURES}"
 	fi
     ;;
     pgtk)
         CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-pgtk\", "
 	if test "${with_webrender}" = "yes" ; then
-	   WEBRENDER_EXTRA_FEATURES="\"wrterm/pgtk\", ${WEBRENDER_EXTRA_FEATURES}"
+	   WEBRENDER_EXTRA_FEATURES="\"gl-renderer/pgtk\", ${WEBRENDER_EXTRA_FEATURES}"
 	fi
     ;;
 esac
 if test "${with_webrender}" = "yes" ; then
-   CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"webrender\", "
+   CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"gl-renderer\", "
    if test "X${with_wr_gl}" = "X"; then
 	case "${window_system}" in
 	    winit)
@@ -8181,9 +8170,9 @@ if test "${with_webrender}" = "yes" ; then
    fi
 
    case "${with_wr_gl}" in
-      glutin ) WEBRENDER_EXTRA_FEATURES="\"wrterm/glutin\", ${WEBRENDER_EXTRA_FEATURES}";;
-      gtk3 ) WEBRENDER_EXTRA_FEATURES="\"wrterm/gtk3\", ${WEBRENDER_EXTRA_FEATURES}";;
-      * ) WEBRENDER_EXTRA_FEATURES="\"wrterm/surfman\", ${WEBRENDER_EXTRA_FEATURES}";;
+      glutin ) WEBRENDER_EXTRA_FEATURES="\"gl-renderer/glutin\", ${WEBRENDER_EXTRA_FEATURES}";;
+      gtk3 ) WEBRENDER_EXTRA_FEATURES="\"gl-renderer/gtk3\", ${WEBRENDER_EXTRA_FEATURES}";;
+      * ) WEBRENDER_EXTRA_FEATURES="\"gl-renderer/surfman\", ${WEBRENDER_EXTRA_FEATURES}";;
    esac
 fi
 if test "$HAVE_LIBGIT" = "yes"; then
