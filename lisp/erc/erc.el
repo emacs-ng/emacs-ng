@@ -135,6 +135,13 @@ concerning buffers."
   "Running scripts at startup and with /LOAD."
   :group 'erc)
 
+;; Add `custom-loads' features for group symbols missing from a
+;; supported Emacs version, possibly because they belong to a new ERC
+;; library.  These groups all share their library's feature name.
+;;;###autoload(dolist (symbol '( erc-sasl erc-spelling ; 29
+;;;###autoload                   erc-imenu erc-nicks)) ; 30
+;;;###autoload  (custom-add-load symbol symbol))
+
 (defvar erc-message-parsed) ; only known to this file
 
 (defvar erc--msg-props nil
@@ -1656,11 +1663,7 @@ If BUFFER is nil, the current buffer is used."
 (defun erc-query-buffer-p (&optional buffer)
   "Return non-nil if BUFFER is an ERC query buffer.
 If BUFFER is nil, the current buffer is used."
-  (with-current-buffer (or buffer (current-buffer))
-    (let ((target (erc-target)))
-      (and (eq major-mode 'erc-mode)
-           target
-           (not (memq (aref target 0) '(?# ?& ?+ ?!)))))))
+  (not (erc-channel-p (or buffer (current-buffer)))))
 
 (defun erc-ison-p (nick)
   "Return non-nil if NICK is online."
@@ -1875,18 +1878,20 @@ buries those."
   :group 'erc-buffers
   :type 'boolean)
 
-(defun erc-channel-p (channel)
-  "Return non-nil if CHANNEL seems to be an IRC channel name."
-  (cond ((stringp channel)
-         (memq (aref channel 0)
-               (if-let ((types (erc--get-isupport-entry 'CHANTYPES 'single)))
-                   (append types nil)
-                 '(?# ?& ?+ ?!))))
-        ((and-let* (((bufferp channel))
-                    ((buffer-live-p channel))
-                    (target (buffer-local-value 'erc--target channel)))
-           (erc-channel-p (erc--target-string target))))
-        (t nil)))
+(defvar erc--fallback-channel-prefixes "#&"
+  "Prefix chars for distinguishing channel targets when CHANTYPES is unknown.")
+
+(defun erc-channel-p (target)
+  "Return non-nil if TARGET is a valid channel name or a channel buffer."
+  (cond ((stringp target)
+         (and-let*
+             (((not (string-empty-p target)))
+              (value (let ((entry (erc--get-isupport-entry 'CHANTYPES)))
+                       (if entry (cadr entry) erc--fallback-channel-prefixes)))
+              ((erc--strpos (aref target 0) value)))))
+        ((and-let* (((buffer-live-p target))
+                    (target (buffer-local-value 'erc--target target))
+                    ((erc--target-channel-p target)))))))
 
 ;; For the sake of compatibility, a historical quirk concerning this
 ;; option, when nil, has been preserved: all buffers are suffixed with
@@ -2479,29 +2484,22 @@ nil."
     (cl-assert (= (point) (point-max)))))
 
 (defun erc-open (&optional server port nick full-name
-                           connect passwd tgt-list channel process
+                           connect passwd _tgt-list channel process
                            client-certificate user id)
-  "Connect to SERVER on PORT as NICK with USER and FULL-NAME.
+  "Return a new or reinitialized server or target buffer.
+If CONNECT is non-nil, connect to SERVER and return its new or
+reassociated buffer.  Otherwise, assume PROCESS is non-nil and belongs
+to an active session, and return a new or refurbished target buffer for
+CHANNEL, which may also be a query target (the parameter name remains
+for historical reasons).  Pass SERVER, PORT, NICK, USER, FULL-NAME, and
+PASSWD to `erc-determine-parameters' for preserving as session-local
+variables.  Do something similar for CLIENT-CERTIFICATE and ID, which
+should be as described by `erc-tls'.
 
-If CONNECT is non-nil, connect to the server.  Otherwise assume
-already connected and just create a separate buffer for the new
-target given by CHANNEL, meaning these parameters are mutually
-exclusive.  Note that CHANNEL may also be a query; its name has
-been retained for historical reasons.
-
-Use PASSWD as user password on the server.  If TGT-LIST is
-non-nil, use it to initialize `erc-default-recipients'.
-
-CLIENT-CERTIFICATE, if non-nil, should either be a list where the
-first element is the file name of the private key corresponding
-to a client certificate and the second element is the file name
-of the client certificate itself to use when connecting over TLS,
-or t, which means that `auth-source' will be queried for the
-private key and the certificate.
-
-When non-nil, ID should be a symbol for identifying the connection.
-
-Returns the buffer for the given server or channel."
+Note that ERC ignores TGT-LIST and initializes `erc-default-recipients'
+with CHANNEL as its only member.  Note also that this function has the
+side effect of setting the current buffer to the one it returns.  Use
+`with-current-buffer' or `save-excursion' to nullify this effect."
   (let* ((target (and channel (erc--target-from-string channel)))
          (buffer (erc-get-buffer-create server port nil target id))
          (old-buffer (current-buffer))
@@ -2538,7 +2536,7 @@ Returns the buffer for the given server or channel."
     ;; connection parameters
     (setq erc-server-process process)
     ;; stack of default recipients
-    (setq erc-default-recipients tgt-list)
+    (when channel (setq erc-default-recipients (list channel)))
     (when target
       (setq erc--target target
             erc-network (erc-network)))
@@ -9492,6 +9490,7 @@ guarantee that the input method functions properly for the
 purpose of typing within the ERC prompt."
   (when (and (eq major-mode 'erc-mode)
              (fboundp 'set-text-conversion-style))
+    (defvar text-conversion-style) ; avoid free variable warning on <=29
     (if (>= (point) (erc-beg-of-input-line))
         (unless (eq text-conversion-style 'action)
           (set-text-conversion-style 'action))

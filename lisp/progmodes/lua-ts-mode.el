@@ -26,8 +26,8 @@
 ;; This package provides `lua-ts-mode' which is a major mode for Lua
 ;; files that uses Tree Sitter to parse the language.
 ;;
-;; This package is compatible with and tested against the grammar
-;; for Lua found at https://github.com/MunifTanjim/tree-sitter-lua
+;; This package is compatible with and tested against the grammar for
+;; Lua found at https://github.com/tree-sitter-grammars/tree-sitter-lua
 
 ;;; Code:
 
@@ -317,6 +317,8 @@ values of OVERRIDE."
           (node-is ")")
           (node-is "}"))
       standalone-parent 0)
+     ((match null "table_constructor")
+      standalone-parent lua-ts-indent-offset)
      ((or (and (parent-is "arguments") lua-ts--first-child-matcher)
           (and (parent-is "parameters") lua-ts--first-child-matcher)
           (and (parent-is "table_constructor") lua-ts--first-child-matcher))

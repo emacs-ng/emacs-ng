@@ -68,7 +68,7 @@
   :safe #'integerp
   :version "28.1")
 
-(defcustom native-comp-debug  0
+(defcustom native-comp-debug 0
   "Debug level for native compilation, a number between 0 and 3.
 This is intended for debugging the compiler itself.
   0 no debug output.
@@ -165,6 +165,7 @@ Can be one of: `d-default', `d-impure' or `d-ephemeral'.  See `comp-ctxt'.")
                         comp--tco
                         comp--fwprop
                         comp--remove-type-hints
+                        comp--compute-function-types
                         comp--final)
   "Passes to be executed in order.")
 
@@ -187,31 +188,41 @@ Useful to hook into pass checkers.")
    finally return h)
   "Hash table function -> `comp-constraint'.")
 
+;; Keep it in sync with the `cl-deftype-satisfies' property set in
+;; cl-macs.el. We can't use `cl-deftype-satisfies' directly as the
+;; relation type <-> predicate is not bijective (bug#45576).
 (defconst comp-known-predicates
   '((arrayp              . array)
     (atom		 . atom)
-    (characterp          . fixnum)
-    (booleanp            . boolean)
     (bool-vector-p       . bool-vector)
+    (booleanp            . boolean)
     (bufferp             . buffer)
-    (natnump             . (integer 0 *))
     (char-table-p	 . char-table)
-    (hash-table-p	 . hash-table)
+    (characterp          . fixnum)
     (consp               . cons)
-    (integerp            . integer)
     (floatp              . float)
+    (framep              . frame)
     (functionp           . (or function symbol))
+    (hash-table-p	 . hash-table)
+    (integer-or-marker-p . integer-or-marker)
     (integerp            . integer)
     (keywordp            . keyword)
     (listp               . list)
-    (numberp             . number)
+    (markerp             . marker)
+    (natnump             . (integer 0 *))
     (null		 . null)
+    (number-or-marker-p  . number-or-marker)
     (numberp             . number)
+    (numberp             . number)
+    (obarrayp            . obarray)
+    (overlayp            . overlay)
+    (processp            . process)
     (sequencep           . sequence)
     (stringp             . string)
+    (subrp               . subr)
     (symbolp             . symbol)
     (vectorp             . vector)
-    (integer-or-marker-p . integer-or-marker))
+    (windowp             . window))
   "Alist predicate -> matched type specifier.")
 
 (defconst comp-known-predicates-h
@@ -2994,32 +3005,7 @@ These are substituted with a normal `set' op."
            (comp-ctxt-funcs-h comp-ctxt)))
 
 
-;;; Final pass specific code.
-
-(defun comp--args-to-lambda-list (args)
-  "Return a lambda list for ARGS."
-  (cl-loop
-   with res
-   repeat (comp-args-base-min args)
-   do (push t res)
-   finally
-   (if (comp-args-p args)
-       (cl-loop
-        with n = (- (comp-args-max args) (comp-args-min args))
-        initially (unless (zerop n)
-                    (push '&optional res))
-        repeat n
-        do (push t res))
-     (cl-loop
-      with n = (- (comp-nargs-nonrest args) (comp-nargs-min args))
-      initially (unless (zerop n)
-                  (push '&optional res))
-      repeat n
-      do (push t res)
-      finally (when (comp-nargs-rest args)
-                (push '&rest res)
-                (push 't res))))
-   (cl-return (reverse res))))
+;;; Function types pass specific code.
 
 (defun comp--compute-function-type (_ func)
   "Compute type specifier for `comp-func' FUNC.
@@ -3046,6 +3032,38 @@ Set it into the `type' slot."
       (comp--add-const-to-relocs type)
       ;; Fix it up.
       (setf (comp-cstr-imm (comp-func-type func)) type))))
+
+(defun comp--compute-function-types (_)
+  "Compute and store the type specifier for all functions."
+  (maphash #'comp--compute-function-type (comp-ctxt-funcs-h comp-ctxt)))
+
+
+;;; Final pass specific code.
+
+(defun comp--args-to-lambda-list (args)
+  "Return a lambda list for ARGS."
+  (cl-loop
+   with res
+   repeat (comp-args-base-min args)
+   do (push t res)
+   finally
+   (if (comp-args-p args)
+       (cl-loop
+        with n = (- (comp-args-max args) (comp-args-min args))
+        initially (unless (zerop n)
+                    (push '&optional res))
+        repeat n
+        do (push t res))
+     (cl-loop
+      with n = (- (comp-nargs-nonrest args) (comp-nargs-min args))
+      initially (unless (zerop n)
+                  (push '&optional res))
+      repeat n
+      do (push t res)
+      finally (when (comp-nargs-rest args)
+                (push '&rest res)
+                (push 't res))))
+   (cl-return (reverse res))))
 
 (defun comp--finalize-container (cont)
   "Finalize data container CONT."
@@ -3149,7 +3167,6 @@ Prepare every function for final compilation and drive the C back-end."
 
 (defun comp--final (_)
   "Final pass driving the C back-end for code emission."
-  (maphash #'comp--compute-function-type (comp-ctxt-funcs-h comp-ctxt))
   (unless comp-dry-run
     ;; Always run the C side of the compilation as a sub-process
     ;; unless during bootstrap or async compilation (bug#45056).  GCC
@@ -3495,6 +3512,7 @@ last directory in `native-comp-eln-load-path')."
              else
              collect (byte-compile-file file))))
 
+;; In use by elisp-mode.el
 (defun comp--write-bytecode-file (eln-file)
   "After native compilation write the bytecode file for ELN-FILE.
 Make sure that eln file is younger than byte-compiled one and

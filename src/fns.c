@@ -2782,13 +2782,8 @@ internal_equal (Lisp_Object o1, Lisp_Object o2, enum equal_kind equal_kind,
 
   /* A symbol with position compares the contained symbol, and is
      `equal' to the corresponding ordinary symbol.  */
-  if (symbols_with_pos_enabled)
-    {
-      if (SYMBOL_WITH_POS_P (o1))
-	o1 = SYMBOL_WITH_POS_SYM (o1);
-      if (SYMBOL_WITH_POS_P (o2))
-	o2 = SYMBOL_WITH_POS_SYM (o2);
-    }
+  o1 = maybe_remove_pos_from_symbol (o1);
+  o2 = maybe_remove_pos_from_symbol (o2);
 
   if (BASE_EQ (o1, o2))
     return true;
@@ -2869,11 +2864,14 @@ internal_equal (Lisp_Object o1, Lisp_Object o2, enum equal_kind equal_kind,
 	if (TS_NODEP (o1))
 	  return treesit_node_eq (o1, o2);
 #endif
-	if (SYMBOL_WITH_POS_P(o1)) /* symbols_with_pos_enabled is false.  */
-	  return (BASE_EQ (XSYMBOL_WITH_POS (o1)->sym,
-			   XSYMBOL_WITH_POS (o2)->sym)
-		  && BASE_EQ (XSYMBOL_WITH_POS (o1)->pos,
-			      XSYMBOL_WITH_POS (o2)->pos));
+	if (SYMBOL_WITH_POS_P (o1))
+	  {
+	    eassert (!symbols_with_pos_enabled);
+	    return (BASE_EQ (XSYMBOL_WITH_POS_SYM (o1),
+			     XSYMBOL_WITH_POS_SYM (o2))
+		    && BASE_EQ (XSYMBOL_WITH_POS_POS (o1),
+				XSYMBOL_WITH_POS_POS (o2)));
+	  }
 
 	/* Aside from them, only true vectors, char-tables, compiled
 	   functions, and fonts (font-spec, font-entity, font-object)
@@ -4452,22 +4450,11 @@ cmpfn_user_defined (Lisp_Object key1, Lisp_Object key2,
   return hash_table_user_defined_call (ARRAYELTS (args), args, h);
 }
 
-/* Reduce an EMACS_UINT hash value to hash_hash_t.  */
-static inline hash_hash_t
-reduce_emacs_uint_to_hash_hash (EMACS_UINT x)
-{
-  verify (sizeof x <= 2 * sizeof (hash_hash_t));
-  return (sizeof x == sizeof (hash_hash_t)
-	  ? x
-	  : x ^ (x >> (8 * (sizeof x - sizeof (hash_hash_t)))));
-}
-
 static EMACS_INT
 sxhash_eq (Lisp_Object key)
 {
-  if (symbols_with_pos_enabled && SYMBOL_WITH_POS_P (key))
-    key = SYMBOL_WITH_POS_SYM (key);
-  return XHASH (key) ^ XTYPE (key);
+  Lisp_Object k = maybe_remove_pos_from_symbol (key);
+  return XHASH (k) ^ XTYPE (k);
 }
 
 static EMACS_INT
@@ -4611,13 +4598,7 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
   h->next_weak = NULL;
   h->purecopy = purecopy;
   h->mutable = true;
-
-  Lisp_Object table;
-  XSET_HASH_TABLE (table, h);
-  eassert (HASH_TABLE_P (table));
-  eassert (XHASH_TABLE (table) == h);
-
-  return table;
+  return make_lisp_hash_table (h);
 }
 
 
@@ -4627,7 +4608,6 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
 static Lisp_Object
 copy_hash_table (struct Lisp_Hash_Table *h1)
 {
-  Lisp_Object table;
   struct Lisp_Hash_Table *h2;
 
   h2 = allocate_hash_table ();
@@ -4652,21 +4632,14 @@ copy_hash_table (struct Lisp_Hash_Table *h1)
       h2->index = hash_table_alloc_bytes (index_bytes);
       memcpy (h2->index, h1->index, index_bytes);
     }
-  XSET_HASH_TABLE (table, h2);
-
-  return table;
+  return make_lisp_hash_table (h2);
 }
-
 
 /* Compute index into the index vector from a hash value.  */
 static inline ptrdiff_t
 hash_index_index (struct Lisp_Hash_Table *h, hash_hash_t hash)
 {
-  /* Knuth multiplicative hashing, tailored for 32-bit indices
-     (avoiding a 64-bit multiply).  */
-  uint32_t alpha = 2654435769;	/* 2**32/phi */
-  /* Note the cast to uint64_t, to make it work for index_bits=0.  */
-  return (uint64_t)((uint32_t)hash * alpha) >> (32 - h->index_bits);
+  return knuth_hash (hash, h->index_bits);
 }
 
 /* Resize hash table H if it's too full.  If H cannot be resized
@@ -5072,24 +5045,52 @@ hash_string (char const *ptr, ptrdiff_t len)
   EMACS_UINT hash = len;
   /* At most 8 steps.  We could reuse SXHASH_MAX_LEN, of course,
    * but dividing by 8 is cheaper.  */
-  ptrdiff_t step = sizeof hash + ((end - p) >> 3);
+  ptrdiff_t step = max (sizeof hash, ((end - p) >> 3));
 
-  while (p + sizeof hash <= end)
+  if (p + sizeof hash <= end)
     {
+      do
+	{
+	  EMACS_UINT c;
+	  /* We presume that the compiler will replace this `memcpy` with
+	     a single load/move instruction when applicable.  */
+	  memcpy (&c, p, sizeof hash);
+	  p += step;
+	  hash = sxhash_combine (hash, c);
+	}
+      while (p + sizeof hash <= end);
+      /* Hash the last wordful of bytes in the string, because that is
+         is often the part where strings differ.  This may cause some
+         bytes to be hashed twice but we assume that's not a big problem.  */
       EMACS_UINT c;
-      /* We presume that the compiler will replace this `memcpy` with
-         a single load/move instruction when applicable.  */
-      memcpy (&c, p, sizeof hash);
-      p += step;
+      memcpy (&c, end - sizeof c, sizeof c);
       hash = sxhash_combine (hash, c);
     }
-  /* A few last bytes may remain (smaller than an EMACS_UINT).  */
-  /* FIXME: We could do this without a loop, but it'd require
-     endian-dependent code :-(  */
-  while (p < end)
+  else
     {
-      unsigned char c = *p++;
-      hash = sxhash_combine (hash, c);
+      /* String is shorter than an EMACS_UINT.  Use smaller loads.  */
+      eassume (p <= end && end - p < sizeof (EMACS_UINT));
+      EMACS_UINT tail = 0;
+      verify (sizeof tail <= 8);
+#if EMACS_INT_MAX > INT32_MAX
+      if (end - p >= 4)
+	{
+	  uint32_t c;
+	  memcpy (&c, p, sizeof c);
+	  tail = (tail << (8 * sizeof c)) + c;
+	  p += sizeof c;
+	}
+#endif
+      if (end - p >= 2)
+	{
+	  uint16_t c;
+	  memcpy (&c, p, sizeof c);
+	  tail = (tail << (8 * sizeof c)) + c;
+	  p += sizeof c;
+	}
+      if (p < end)
+	tail = (tail << 8) + (unsigned char)*p;
+      hash = sxhash_combine (hash, tail);
     }
 
   return hash;
@@ -5177,7 +5178,7 @@ sxhash_bignum (Lisp_Object bignum)
 {
   mpz_t const *n = xbignum_val (bignum);
   size_t i, nlimbs = mpz_size (*n);
-  EMACS_UINT hash = 0;
+  EMACS_UINT hash = mpz_sgn(*n) < 0;
 
   for (i = 0; i < nlimbs; ++i)
     hash = sxhash_combine (hash, mpz_getlimbn (*n, i));
@@ -5247,12 +5248,15 @@ sxhash_obj (Lisp_Object obj, int depth)
 	    hash = sxhash_combine (hash, sxhash_obj (XOVERLAY (obj)->plist, depth));
 	    return hash;
 	  }
-	else if (symbols_with_pos_enabled && pvec_type == PVEC_SYMBOL_WITH_POS)
-	  return sxhash_obj (XSYMBOL_WITH_POS (obj)->sym, depth + 1);
 	else
-	  /* Others are 'equal' if they are 'eq', so take their
-	     address as hash.  */
-	  return XHASH (obj);
+	  {
+	    if (symbols_with_pos_enabled && pvec_type == PVEC_SYMBOL_WITH_POS)
+	      obj = XSYMBOL_WITH_POS_SYM (obj);
+
+	    /* Others are 'equal' if they are 'eq', so take their
+	       address as hash.  */
+	    return XHASH (obj);
+	  }
       }
 
     case Lisp_Cons:
@@ -5447,9 +5451,7 @@ usage: (make-hash-table &rest KEYWORD-ARGS)  */)
 
   /* See if there's a `:test TEST' among the arguments.  */
   ptrdiff_t i = get_key_arg (QCtest, nargs, args, used);
-  Lisp_Object test = i ? args[i] : Qeql;
-  if (symbols_with_pos_enabled && SYMBOL_WITH_POS_P (test))
-    test = SYMBOL_WITH_POS_SYM (test);
+  Lisp_Object test = i ? maybe_remove_pos_from_symbol (args[i]) : Qeql;
   const struct hash_table_test *testdesc;
   if (BASE_EQ (test, Qeq))
     testdesc = &hashtest_eq;
