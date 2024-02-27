@@ -43,7 +43,7 @@ impl GlyphStringRef {
         &self.get_chars()[from..to]
     }
 
-    pub fn composite_glyph(&self, n: usize) -> EmacsInt {
+    pub fn composite_glyph(&self, n: usize) -> Option<EmacsInt> {
         let n = self.cmp_from as usize + n;
 
         let hash_table = unsafe { XHASH_TABLE(composition_hash_table) };
@@ -57,19 +57,21 @@ impl GlyphStringRef {
         let composition_index = (hash_index * 2) as usize;
         let composition =
             unsafe { key_and_value.contents.as_slice(composition_index + 1) }[composition_index];
-        let composition = composition.as_vector().unwrap();
+        if let Some(composition) = composition.as_vector() {
+            let glyph_index = if unsafe { (*self.cmp).method }
+                == composition_method::COMPOSITION_WITH_RULE_ALTCHARS
+            {
+                n * 2
+            } else {
+                n
+            };
 
-        let glyph_index = if unsafe { (*self.cmp).method }
-            == composition_method::COMPOSITION_WITH_RULE_ALTCHARS
-        {
-            n * 2
+            let glyph = unsafe { composition.contents.as_slice(glyph_index + 1) }[glyph_index];
+
+            Some(glyph.as_fixnum_or_error())
         } else {
-            n
-        };
-
-        let glyph = unsafe { composition.contents.as_slice(glyph_index + 1) }[glyph_index];
-
-        glyph.as_fixnum_or_error()
+            None
+        }
     }
 }
 

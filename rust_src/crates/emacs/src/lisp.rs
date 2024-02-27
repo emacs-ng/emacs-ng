@@ -303,6 +303,18 @@ impl From<u32> for LispObject {
     }
 }
 
+impl From<i16> for LispObject {
+    fn from(v: i16) -> Self {
+        Self::from_fixnum(EmacsInt::from(v))
+    }
+}
+
+impl From<u16> for LispObject {
+    fn from(v: u16) -> Self {
+        Self::from_fixnum(EmacsInt::from(v))
+    }
+}
+
 impl From<String> for LispObject {
     fn from(s: String) -> Self {
         let len = s.len();

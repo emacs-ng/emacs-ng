@@ -2,13 +2,11 @@ use super::image::ImageExt;
 use super::image::ImageRef;
 use super::image::WrPixmapRef;
 use emacs::bindings::Fequal;
-use emacs::bindings::Fmake_temp_file_internal;
 use emacs::bindings::EMACS_UINT;
 use emacs::color::color_to_rgba;
 use emacs::globals::Qnil;
 use emacs::globals::Qsvg;
 use emacs::lisp::LispObject;
-use font::font_db::FontDB;
 use image::{
     codecs::{
         gif::GifDecoder,
@@ -187,38 +185,39 @@ impl ImageSource {
         if ltype != Qsvg {
             return self.with_slice(|data| p(data));
         }
-        self.with_slice(|data| {
-            let mut opt = usvg::Options::default();
-            match self {
-                Self::File(file) => {
-                    let filename = String::from(file);
-                    // Get file's absolute directory.
-                    opt.resources_dir = std::fs::canonicalize(&filename)
-                        .ok()
-                        .and_then(|p| p.parent().map(|p| p.to_path_buf()));
-                }
-                Self::Data(_) => {}
-            };
+        None
+        // self.with_slice(|data| {
+        //     let mut opt = usvg::Options::default();
+        //     match self {
+        //         Self::File(file) => {
+        //             let filename = String::from(file);
+        //             // Get file's absolute directory.
+        //             opt.resources_dir = std::fs::canonicalize(&filename)
+        //                 .ok()
+        //                 .and_then(|p| p.parent().map(|p| p.to_path_buf()));
+        //         }
+        //         Self::Data(_) => {}
+        //     };
 
-            match Self::svg_to_png(data, &opt) {
-                Some(bytes) => p(bytes.as_slice()),
-                None => {
-                    let file = match self {
-                        Self::File(file) => file,
-                        Self::Data(data) => unsafe {
-                            Fmake_temp_file_internal(
-                                "invalid_resvg".into(),
-                                Qnil,
-                                ".svg".into(),
-                                data,
-                            )
-                        },
-                    };
-                    image_error!("Error reading svg file: {:?}", file);
-                    return None;
-                }
-            }
-        })
+        //     match Self::svg_to_png(data, &opt) {
+        //         Some(bytes) => p(bytes.as_slice()),
+        //         None => {
+        //             let file = match self {
+        //                 Self::File(file) => file,
+        //                 Self::Data(data) => unsafe {
+        //                     Fmake_temp_file_internal(
+        //                         "invalid_resvg".into(),
+        //                         Qnil,
+        //                         ".svg".into(),
+        //                         data,
+        //                     )
+        //                 },
+        //             };
+        //             image_error!("Error reading svg file: {:?}", file);
+        //             return None;
+        //         }
+        //     }
+        // })
     }
     fn decode(
         self,
@@ -244,54 +243,6 @@ impl ImageSource {
             let result = self.decode_from_reader(reader, foreground_color, background_color);
             handle_result(result, Qnil)
         })
-    }
-
-    // directly draw svg using webrender
-    fn svg_to_png(contents: &[u8], opt: &usvg::Options) -> Option<Vec<u8>> {
-        use resvg::usvg_text_layout::TreeTextToPath;
-
-        let font_db = FontDB::global();
-        let fontdb = font_db.db();
-
-        // let mut fontdb = fontdb::Database::new();
-        // fontdb.load_system_fonts();
-        let result = usvg::Tree::from_data(contents, opt);
-        let mut tree = match result {
-            Ok(result) => result,
-            Err(e) => {
-                image_error!("Failed to parse svg: {e:?}");
-                return None;
-            }
-        };
-
-        tree.convert_text(fontdb);
-        let pixmap_size = tree.size.to_screen_size();
-        let result = tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height());
-        if result.is_none() {
-            image_error!("Failed to create tiny_skia pixmap");
-            return None;
-        }
-        let mut pixmap = result.unwrap();
-        match resvg::render(
-            &tree,
-            usvg::FitTo::Original,
-            tiny_skia::Transform::default(),
-            pixmap.as_mut(),
-        ) {
-            None => {
-                image_error!("Failed to render svg using resvg");
-                return None;
-            }
-            _ => {}
-        }
-
-        match pixmap.encode_png() {
-            Ok(bytes) => Some(bytes),
-            Err(error) => {
-                image_error!("Failed to encode svg: {error:?}");
-                None
-            }
-        }
     }
 
     fn decode_from_reader<R: BufRead + Seek>(

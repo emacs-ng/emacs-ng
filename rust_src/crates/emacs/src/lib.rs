@@ -35,6 +35,7 @@ pub mod eval_macros;
 pub mod vector_macros;
 pub mod lisp;
 
+pub mod buffer;
 #[cfg(feature = "window-system")]
 pub mod color;
 #[cfg(feature = "window-system")]
@@ -57,6 +58,7 @@ pub mod process;
 pub mod string;
 pub mod symbol;
 pub mod terminal;
+pub mod thread;
 pub mod vector;
 pub mod window;
 #[cfg(feature = "window-system")]

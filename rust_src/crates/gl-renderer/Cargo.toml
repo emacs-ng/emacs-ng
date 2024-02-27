@@ -16,19 +16,16 @@ winit-term = {  path = "../winit-term", optional = true }
 log.workspace = true
 libc.workspace = true
 lazy_static = "1.4"
-gleam = "0.13"
+gleam = "0.15"
 image.workspace = true
 bit-vec = "0.6.3"
 raw-window-handle.workspace = true
 euclid = "0.22"
 surfman = { version = "0.9", features = ["chains", "sm-angle", "sm-angle-default"] , optional = true}
 glutin = { version = "0.31", optional = true }
-resvg = "0.29"
-usvg = "0.29"
-usvg-text-layout = "0.29"
 tiny-skia = "0.8"
 parking_lot.workspace = true
-webrender.workspace = true
+webrender = { workspace = true, features = ["font_backend_swash"] }
 
 [build-dependencies]
 ng-bindgen = { path = "../../ng-bindgen" }
@@ -63,8 +60,6 @@ gtk3=["dep:gtk", "dep:gdk", "dep:gl_loader"]
 winit=["dep:winit-term", "emacs/window-system-winit", "surfman"]
 pgtk=["gtk3", "emacs/window-system-pgtk"]
 no_std = [
-  "usvg-text-layout/system-fonts"
 ]
 std = [
-  "usvg-text-layout/memmap-fonts"
 ]

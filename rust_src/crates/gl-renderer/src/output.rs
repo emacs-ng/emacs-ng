@@ -4,12 +4,12 @@ use crate::gl::context::GLContextTrait;
 use emacs::bindings::Emacs_Pixmap;
 use emacs::lisp::ExternalPtr;
 pub use emacs::output::OutputRef;
-use font::font_db::FontDB;
+use font::FontId;
 use std::fmt;
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc};
 
 use crate::frame::FrameExtGlRendererCommon;
-use font::WRFontRef;
+use font::FontInfoRef;
 use gleam::gl;
 use webrender::FastHashMap;
 
@@ -20,17 +20,9 @@ use emacs::frame::FrameRef;
 use super::texture::TextureResourceManager;
 
 pub struct GlRenderer {
-    fonts: FastHashMap<font::ID, FontKey>,
-    font_instances: FastHashMap<
-        (
-            FontKey,
-            FontSize,
-            FontInstanceFlags,
-            Option<ColorU>,
-            SyntheticItalics,
-        ),
-        FontInstanceKey,
-    >,
+    fonts: FastHashMap<FontId, FontKey>,
+    font_instances:
+        FastHashMap<(FontKey, FontSize, FontInstanceFlags, SyntheticItalics), FontInstanceKey>,
     images: FastHashMap<ImageHash, (ImageKey, ImageDescriptor)>,
     font_render_mode: Option<FontRenderMode>,
     allow_mipmaps: bool,
@@ -233,12 +225,10 @@ impl GlRenderer {
         let builder = std::mem::replace(&mut self.display_list_builder, None);
 
         if let Some(mut builder) = builder {
-            let layout_size = self.layout_size();
-
             let epoch = self.epoch;
             let mut txn = Transaction::new();
 
-            txn.set_display_list(epoch, None, layout_size.to_f32(), builder.end());
+            txn.set_display_list(epoch, builder.end());
             txn.set_root_pipeline(self.pipeline_id);
             txn.generate_frame(0, RenderReasons::NONE);
 
@@ -282,7 +272,6 @@ impl GlRenderer {
         size: f32,
         flags: FontInstanceFlags,
         render_mode: Option<FontRenderMode>,
-        bg_color: Option<ColorU>,
         synthetic_italics: SyntheticItalics,
     ) -> FontInstanceKey {
         #[cfg(not(target_arch = "wasm32"))]
@@ -294,9 +283,6 @@ impl GlRenderer {
         options.flags |= flags;
         if let Some(render_mode) = render_mode {
             options.render_mode = render_mode;
-        }
-        if let Some(bg_color) = bg_color {
-            options.bg_color = bg_color;
         }
         options.synthetic_italics = synthetic_italics;
         txn.add_font_instance(key, font_key, size, Some(options), None, Vec::new());
@@ -345,81 +331,41 @@ impl GlRenderer {
         self.font_render_mode = render_mode;
     }
 
-    pub fn get_or_create_font(&mut self, font: WRFontRef) -> Option<FontKey> {
+    pub fn get_or_create_font(&mut self, font: FontInfoRef) -> Option<FontKey> {
         #[cfg(not(target_arch = "wasm32"))]
         let now = std::time::Instant::now();
-        let font_id = font.face_id;
+        let font_id = font.id;
         let wr_font_key = self.fonts.get(&font_id);
 
         if let Some(key) = wr_font_key {
             return Some(*key);
         }
 
-        let wr_font_key = {
-            #[cfg(macos_platform)]
-            {
-                let app_locale = font::Language::English_UnitedStates;
-                let face_info = FontDB::global()
-                    .db()
-                    .face(font.face_id)
-                    .expect("Failed to find face info");
-                let family = face_info
-                    .families
-                    .iter()
-                    .find(|family| family.1 == app_locale);
-
-                if let Some((name, _)) = family {
-                    let key = self.wr_add_font(FontTemplate::Native(NativeFontHandle {
-                        name: name.to_owned(),
-                    }));
-                    Some(key)
-                } else {
-                    None
-                }
-            }
-
-            #[cfg(not(macos_platform))]
-            {
-                let font_result = FontDB::global().get_font(font.face_id);
-
-                if font_result.is_none() {
-                    return None;
-                }
-
-                let font_result = font_result.unwrap();
-                let (font_bytes, face_index) = (font_result.data, font_result.info.index);
-                Some(self.wr_add_font(FontTemplate::Raw(
-                    Arc::new(font_bytes.to_vec()),
-                    face_index.try_into().unwrap(),
-                )))
-            }
-        };
+        let wr_font_key =
+            { Some(self.wr_add_font(FontTemplate::Native(NativeFontHandle(font_id.0)))) };
 
         if let Some(key) = wr_font_key {
             self.fonts.insert(font_id, key);
             return Some(key);
         };
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let elapsed = now.elapsed();
-            log::trace!("get_or_create_font in {:?}", elapsed);
-        }
+
+        let elapsed = now.elapsed();
+        log::trace!("get_or_create_font in {:?}", elapsed);
 
         None
     }
 
     // Create font instance with scaled size
-    pub fn get_or_create_font_instance(&mut self, font: WRFontRef, size: f32) -> FontInstanceKey {
+    pub fn get_or_create_font_instance(&mut self, font: FontInfoRef, size: f32) -> FontInstanceKey {
         #[cfg(not(target_arch = "wasm32"))]
         let now = std::time::Instant::now();
         let font_key = self
             .get_or_create_font(font)
             .expect("Failed to obtain wr fontkey");
-        let bg_color = None;
         let flags = FontInstanceFlags::empty();
         let synthetic_italics = SyntheticItalics::disabled();
         let font_render_mode = self.font_render_mode;
-        let hash_map_key = (font_key, size.into(), flags, bg_color, synthetic_italics);
+        let hash_map_key = (font_key, size.into(), flags, synthetic_italics);
         let font_instance_key = self.font_instances.get(&hash_map_key);
         let key = match font_instance_key {
             Some(instance_key) => *instance_key,
@@ -429,7 +375,6 @@ impl GlRenderer {
                     size,
                     flags,
                     font_render_mode,
-                    bg_color,
                     synthetic_italics,
                 );
                 self.font_instances.insert(hash_map_key, instance_key);
@@ -536,7 +481,13 @@ impl RenderNotifier for Notifier {
 
     fn wake_up(&self, _composite_needed: bool) {}
 
-    fn new_frame_ready(&self, _: DocumentId, _scrolled: bool, composite_needed: bool) {
+    fn new_frame_ready(
+        &self,
+        _: DocumentId,
+        _scrolled: bool,
+        composite_needed: bool,
+        _frame_publish_id: FramePublishId,
+    ) {
         self.wake_up(composite_needed);
     }
 }

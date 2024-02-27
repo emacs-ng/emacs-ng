@@ -7400,7 +7400,7 @@ other font of the appropriate family and registry is available.  */);
 	       doc: /* List of ignored fonts.
 Each element is a regular expression that matches names of fonts to
 ignore.  */);
-#if defined(HAVE_XFT) || defined(USE_WEBRENDER)
+#if defined(HAVE_XFT)
   /* This font causes libXft crashes, so ignore it by default.  Bug#37786.  */
   /* WebRender currently has issue rendering Color Font.
      See: https://bugzilla.mozilla.org/show_bug.cgi?id=1565588 */

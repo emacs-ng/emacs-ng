@@ -10,10 +10,10 @@ use lisp_macros::lisp_fn;
 use std::ptr;
 use std::{cmp::max, ffi::CString};
 
+use crate::frame::FrameExtGlRendererCommon;
 use webrender::api::units::LayoutPoint;
 use webrender::api::units::LayoutRect;
 
-use crate::frame::FrameExtGlRendererCommon;
 use crate::fringe::get_or_create_fringe_bitmap;
 use crate::{
     cursor::{draw_bar_cursor, draw_filled_cursor, draw_hollow_box_cursor},
@@ -21,7 +21,7 @@ use crate::{
     util::HandyDandyRectBuilder,
 };
 use emacs::color::{color_to_xcolor, lookup_color_by_name_or_hex, pixel_to_color};
-use font::{WRFont, WRFontRef};
+use font::{FontInfo, FontInfoRef};
 
 use emacs::{
     bindings::{
@@ -318,7 +318,7 @@ pub extern "C" fn wr_new_font(
     }
 
     frame.set_font(font.into());
-    let wr_font = WRFontRef::new(font as *mut WRFont);
+    let wr_font = FontInfoRef::new(font as *mut FontInfo);
 
     frame.line_height = wr_font.font.height;
     frame.column_width = wr_font.font.average_width;

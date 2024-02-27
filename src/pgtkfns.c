@@ -3791,6 +3791,7 @@ If omitted or nil, that stands for the selected frame's display.  */)
   return build_string (type_name);
 }
 
+#ifndef USE_WEBRENDER
 DEFUN ("x-select-font", Fx_select_font, Sx_select_font, 0, 2, 0,
        doc: /* Read a font using a GTK dialog and return a font spec.
 
@@ -3836,6 +3837,7 @@ nil, it defaults to the selected frame. */)
 
   return unbind_to (count, font);
 }
+#endif
 
 DEFUN ("x-gtk-debug", Fx_gtk_debug, Sx_gtk_debug, 1, 1, 0,
        doc: /* SKIP: real doc in xfns.c.  */)
@@ -3934,7 +3936,9 @@ syms_of_pgtkfns (void)
   defsubr (&Spgtk_set_monitor_scale_factor);
 
   defsubr (&Sx_file_dialog);
+#ifndef USE_WEBRENDER
   defsubr (&Sx_select_font);
+#endif
 
   monitor_scale_factor_alist = Qnil;
   staticpro (&monitor_scale_factor_alist);

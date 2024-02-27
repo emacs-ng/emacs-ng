@@ -19,12 +19,12 @@ image = "0.24"
 
 [workspace.dependencies.webrender]
 git = "https://github.com/declantsien/webrender.git"
-rev = "1732a483fe19466a4e2834017214ff3e30525f45"
+rev = "6766059a74135ee6ff26fd4f0f1f25db5c8e772e"
 default-features = false
 
 [workspace.dependencies.webrender_api]
 git = "https://github.com/declantsien/webrender.git"
-rev = "1732a483fe19466a4e2834017214ff3e30525f45"
+rev = "6766059a74135ee6ff26fd4f0f1f25db5c8e772e"
 default-features = false
 
 # Allow unwinding in functions called from C. See
@@ -146,7 +146,8 @@ profiling = ["gl-renderer?/profiling"]
 # fontconfig font dirs patch
 [patch.crates-io.font-loader]
 git = "https://github.com/declantsien/rust-font-loader.git"
-rev = "0a53c767463e13346221ad23fa6dd50cd787cd72"
+# rev = "0a53c767463e13346221ad23fa6dd50cd787cd72"
+rev = "9e1776052d906f6cd3b78aa701ffb2d657877830"
 
 # unreleased webp has_animation patch
 [patch.crates-io.image]

@@ -1,3 +1,4 @@
+use crate::emacs::number::LNumber;
 use crate::image::ImageRef;
 use emacs::lglyph::LGlyph;
 use emacs::lglyph::LGlyphString;
@@ -8,7 +9,7 @@ use webrender::{self, api::units::*, api::*};
 
 use crate::frame::FrameExtGlRendererCommon;
 
-use font::{WRFont, WRFontRef};
+use font::{FontInfo, FontInfoRef};
 
 use emacs::{
     bindings::{face_box_type::FACE_NO_BOX, glyph_type},
@@ -19,7 +20,7 @@ use emacs::{
 pub trait WrGlyph {
     fn x(self) -> i32;
     fn box_line_width(self) -> i32;
-    fn font(self) -> WRFontRef;
+    fn font(self) -> FontInfoRef;
     fn font_instance_key(self) -> FontInstanceKey;
     fn image(self) -> ImageRef;
     fn type_(self) -> glyph_type::Type;
@@ -57,8 +58,8 @@ impl WrGlyph for GlyphStringRef {
         self.f.into()
     }
 
-    fn font(self) -> WRFontRef {
-        WRFontRef::new(self.font as *mut WRFont)
+    fn font(self) -> FontInfoRef {
+        FontInfoRef::new(self.font as *mut FontInfo)
     }
 
     fn image(self) -> ImageRef {
@@ -151,18 +152,18 @@ impl WrGlyph for GlyphStringRef {
         let glyph_indices = self.glyph_indices();
 
         let glyph_dimensions = font.get_glyph_advance_width(glyph_indices.clone());
-
         let mut glyph_instances: Vec<GlyphInstance> = vec![];
+        // println!("indices: {:?}, dimensions: {:?}", glyph_indices.clone(), glyph_dimensions);
 
         for (i, index) in glyph_indices.into_iter().enumerate() {
+            // NOTE!!! Seems like Emacs floor down with while Webrender Ceil up
+            // Or we can unify the value produced with advance_width() from GlyphMatrix
+            // The other know case which uses advance_width() is driver.text_extents
+            // This probably disabled wr_glyph_rasterizer subpixel rendering
             let previous_char_width = if i == 0 {
                 0.0
             } else {
-                let dimension = glyph_dimensions[i - 1];
-                match dimension {
-                    Some(d) => d as f32,
-                    None => 0.0,
-                }
+                glyph_dimensions[i - 1].floor()
             };
 
             let previous_char_start = if i == 0 {
@@ -199,7 +200,9 @@ impl WrGlyph for GlyphStringRef {
             .filter_map(|(n, glyph)| {
                 // TAB in a composition means display glyphs with padding
                 // space on the left or right.
-                if self.composite_glyph(n as usize) == <u8 as Into<i64>>::into(b'\t') {
+                if self.composite_glyph(n as usize).is_some()
+                    && self.composite_glyph(n as usize).unwrap() == <u8 as Into<i64>>::into(b'\t')
+                {
                     return None;
                 }
 
@@ -221,15 +224,14 @@ impl WrGlyph for GlyphStringRef {
         let mut instances: Vec<GlyphInstance> = vec![];
         let lgstring = self.get_lgstring();
         let mut composite_lglyph = |lglyph: LispObject, x: i32, y: i32| {
-            let c = lglyph.char();
-            if let Some(index) = self.font().glyph_for_char(c) {
-                let glyph_instance = GlyphInstance {
-                    index,
-                    point: LayoutPoint::new(x as f32, y as f32),
-                };
-                log::warn!("automatic composite glyph instance {glyph_instance:?}");
-                instances.push(glyph_instance);
-            }
+            let code = lglyph.lglyph_code().as_fixnum_or_error();
+            let index: webrender::api::GlyphIndex = code.try_into().unwrap();
+            let glyph_instance = GlyphInstance {
+                index,
+                point: LayoutPoint::new(x as f32, y as f32),
+            };
+            log::warn!("automatic composite glyph instance {glyph_instance:?}");
+            instances.push(glyph_instance);
         };
 
         let mut x = self.x() as u32;
@@ -244,17 +246,17 @@ impl WrGlyph for GlyphStringRef {
         let mut j = cmp_from;
 
         for n in cmp_from..cmp_to {
-            let lglyph = lgstring.lglyph(n as u32);
-            if lglyph.adjustment().is_nil() {
-                width += lglyph.width();
+            let lglyph = lgstring.lgstring_glyph(n as u32);
+            if lglyph.lglyph_adjustment().is_nil() {
+                width += lglyph.lglyph_width().xfixnum();
             } else {
                 if j < i {
                     composite_lglyph(lglyph, x as i32, y);
                     x += width as u32;
                 }
-                let xoff = lglyph.xoff() as u32;
-                let yoff = lglyph.yoff() as u32;
-                let wadjust = lglyph.wadjust() as u32;
+                let xoff = lglyph.lglyph_xoff() as u32;
+                let yoff = lglyph.lglyph_yoff() as u32;
+                let wadjust = lglyph.lglyph_wadjust() as u32;
                 composite_lglyph(lglyph, x as i32 + xoff as i32, y + yoff as i32);
 
                 x += wadjust;
@@ -265,7 +267,7 @@ impl WrGlyph for GlyphStringRef {
         }
         if j < i {
             for n in j..i {
-                let lglyph = lgstring.lglyph(n as u32);
+                let lglyph = lgstring.lgstring_glyph(n as u32);
                 composite_lglyph(lglyph, x as i32, y);
                 x += width as u32;
             }

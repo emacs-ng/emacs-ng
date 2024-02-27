@@ -528,6 +528,11 @@ struct terminal
 #ifdef HAVE_WINIT
   /* Winit terminal global state in Rust */
   void *winit_term_data;
+#endif  /*HAVE_WINIT*/
+
+#ifdef USE_WEBRENDER
+  /* Winit terminal global state in Rust */
+  void *font_index_cache;
 #endif  /*USE_WEBRENDER*/
 
   /* Device-type dependent data shared amongst all frames on this terminal.  */

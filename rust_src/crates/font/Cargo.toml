@@ -8,13 +8,19 @@ edition = "2021"
 [dependencies]
 webrender_api.workspace = true
 emacs = { path = "../emacs" }
-fontdb = "0.12"
 ttf-parser = "0.17"
-rustybuzz = "0.6"
 log.workspace = true
 libc.workspace = true
 parking_lot.workspace = true
 fxhash.workspace = true
+
+[dependencies.swash]
+git = "https://github.com/declantsien/swash.git"
+branch = "webrender-fix"
+default-features = false
+
+[dependencies.font-index]
+git = "https://github.com/declantsien/font-index.git"
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 font-loader = "0.11"
@@ -25,12 +31,8 @@ path = "src/lib.rs"
 
 [features]
 no_std = [
-  "rustybuzz/libm",
 ]
 std = [
-  "fontdb/memmap",
-  "fontdb/std",
-  "rustybuzz/std",
 ]
 [build-dependencies]
 ng-bindgen = { path = "../../ng-bindgen" }

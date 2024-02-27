@@ -11,7 +11,7 @@ use crate::fringe::FringeBitmap;
 
 use super::util::HandyDandyRectBuilder;
 use emacs::color::{color_to_pixel, pixel_to_color};
-use font::WRFontRef;
+use font::FontInfoRef;
 
 use emacs::{
     bindings::{
@@ -63,7 +63,7 @@ pub trait FrameExtGlRendererCommon {
     fn draw_underline(
         builder: &mut DisplayListBuilder,
         s: GlyphStringRef,
-        font: WRFontRef,
+        font: FontInfoRef,
         foreground_color: ColorF,
         face: *mut Face,
         space_and_clip: SpaceAndClipInfo,
@@ -480,7 +480,7 @@ impl FrameExtGlRendererCommon for FrameRef {
     fn draw_underline(
         builder: &mut DisplayListBuilder,
         s: GlyphStringRef,
-        font: WRFontRef,
+        font: FontInfoRef,
         foreground_color: ColorF,
         face: *mut Face,
         space_and_clip: SpaceAndClipInfo,

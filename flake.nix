@@ -145,6 +145,7 @@
                 alsaLib
                 libxkbcommon
                 wayland
+                fontconfig
                 libxcb
               ];
           in rec {

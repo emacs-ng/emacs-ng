@@ -1,54 +1,54 @@
 #[macro_use]
 extern crate emacs;
 
-pub mod font_db;
+mod cache;
 
-pub use fontdb::Language;
-pub use fontdb::ID;
-use std::collections::HashMap;
+use emacs::bindings::assq_no_quit;
+use emacs::bindings::font_put_extra;
+use emacs::bindings::make_fixnum;
+use emacs::bindings::registry_to_otf;
+use emacs::bindings::script_to_otf;
+use emacs::bindings::AREF;
+use emacs::bindings::CONSP;
+use emacs::bindings::SYMBOLP;
+use emacs::bindings::XCAR;
+use emacs::bindings::XCDR;
+use emacs::bindings::XFIXNUM;
+use emacs::globals::QCfont_entity;
+use emacs::globals::QClang;
+use emacs::globals::QCotf;
+use emacs::globals::QCscript;
+use emacs::globals::Qdefault;
+use emacs::globals::Qfixed;
+use emacs::globals::Qmonospace;
+use font_index::Font;
+use font_index::FontEntry;
+pub use font_index::FontId;
+use font_index::FontIndex;
+use std::mem::ManuallyDrop;
 use std::sync::OnceLock;
+use swash::text::Language;
+use swash::text::Script;
+use swash::ObliqueAngle;
+use swash::{Attributes, Stretch, Style, Weight};
 
-use std::ffi::CString;
 use std::ptr;
 
-use fontdb::{Stretch, Style, Weight};
-use std::str;
-
-use webrender_api::*;
+use crate::cache::TerminalExtFontIndex;
+use webrender_api::GlyphIndex;
 
 use emacs::{
     bindings::{
         font, font_driver, font_make_entity, font_make_object, font_metrics, font_property_index,
-        font_style_to_value, frame, glyph_string, intern, register_font_driver, Fassoc, Fcdr,
-        Fcons, Fmake_symbol, Fnreverse, Fprovide, FONT_INVALID_CODE,
+        font_style_to_value, frame, glyph_string, intern, register_font_driver, Fcons,
+        Fmake_symbol, Fnreverse, FONT_INVALID_CODE,
     },
     frame::FrameRef,
-    globals::{
-        Qbold, Qextra_bold, Qextra_light, Qiso10646_1, Qitalic, Qlight, Qmedium, Qnil, Qnormal,
-        Qoblique, Qsemi_bold, Qthin, Qttfp, Qultra_bold,
-    },
+    globals::{Qiso10646_1, Qnil, Qttfp},
     lisp::{ExternalPtr, LispObject},
     symbol::LispSymbolRef,
 };
 
-use crate::{font_db::FontDB, font_db::FontDescriptor};
-
-static mut FONT_DB: OnceLock<FontDB> = OnceLock::new();
-impl FontDB<'static> {
-    pub fn ensure() -> &'static FontDB<'static> {
-        unsafe {
-            FONT_DB.get_or_init(|| {
-                log::trace!("font_db is being created...");
-
-                Self::new()
-            })
-        }
-    }
-    pub fn global() -> &'static mut FontDB<'static> {
-        let _ = Self::ensure();
-        unsafe { FONT_DB.get_mut().unwrap() }
-    }
-}
 pub type FontRef = ExternalPtr<font>;
 
 pub struct FontDriver(pub font_driver);
@@ -73,6 +73,7 @@ impl FontDriver {
             font_driver.has_char = Some(has_char);
             font_driver.text_extents = Some(text_extents);
             font_driver.draw = Some(draw);
+            font_driver.shape = Some(shape);
 
             FontDriver(font_driver)
         })
@@ -82,6 +83,8 @@ impl FontDriver {
 /// A newtype for objects we know are font_spec.
 #[derive(Clone, Copy)]
 pub struct LispFontLike(LispObject);
+pub struct LispFontWeight(LispObject);
+pub struct LispFontStyle(LispObject);
 
 impl LispFontLike {
     fn aref(&self, index: font_property_index::Type) -> LispObject {
@@ -90,73 +93,17 @@ impl LispFontLike {
         unsafe { v.get_unchecked(index as usize) }
     }
 
-    fn get_family(&self) -> Option<String> {
-        let tem = self.aref(font_property_index::FONT_FAMILY_INDEX);
+    fn family_name(&self) -> Option<String> {
+        let mut tem = self.aref(font_property_index::FONT_FAMILY_INDEX);
 
         if tem.is_nil() {
             None
         } else {
-            let string: String = tem.into();
-            let family_name = string.to_string().replace("-", "\\-");
-
-            #[cfg(free_unix)]
-            let family_name = FontDB::fc_family_name(&family_name);
-
-            return Some(family_name);
-        }
-    }
-
-    fn get_postscript_name(&self) -> Option<String> {
-        // Get postscript name form font_entity.
-        let font_extra = self.aref(font_property_index::FONT_EXTRA_INDEX);
-
-        let val = unsafe { Fassoc(":postscript-name".into(), font_extra, Qnil) };
-
-        if val.is_nil() {
-            return None;
-        }
-
-        let postscript_name = unsafe { Fcdr(val) }.as_string().unwrap().to_string();
-        Some(postscript_name)
-    }
-
-    fn get_slant(&self) -> Option<Style> {
-        let slant = self.aref(font_property_index::FONT_SLANT_INDEX);
-
-        if slant.is_nil() {
-            None
-        } else {
-            let string: String = slant.into();
-            match string.as_ref() {
-                "Qnormal" => Some(Style::Normal),
-                "Qitalic" => Some(Style::Italic),
-                "Qoblique" => Some(Style::Oblique),
-                _ => Some(Style::Normal),
+            if tem.eq(Qmonospace) || tem.eq(Qfixed) || tem.eq(Qdefault) {
+                tem = Qmonospace
             }
-        }
-    }
-
-    fn get_descriptor(&self) -> Option<FontDescriptor> {
-        // Get postscript name form font_entity.
-        let font_extra = self.aref(font_property_index::FONT_EXTRA_INDEX);
-
-        let val = unsafe { Fassoc(":postscript-name".into(), font_extra, Qnil) };
-
-        if val.is_nil() {
-            if let Some(family) = self.get_family() {
-                let slant = self.get_slant().unwrap_or(Style::Normal);
-
-                return Some(FontDescriptor::Properties {
-                    family,
-                    weight: Weight::NORMAL,
-                    slant,
-                    stretch: Stretch::Normal,
-                });
-            };
-            return None;
-        } else {
-            let postscript_name = unsafe { Fcdr(val) }.as_string().unwrap().to_string();
-            Some(FontDescriptor::PostScript(postscript_name))
+            let string: String = tem.into();
+            Some(string.to_string().replace("-", "\\-"))
         }
     }
 
@@ -166,7 +113,7 @@ impl LispFontLike {
         unsafe { v.set_unchecked(index as usize, val) };
     }
 
-    fn set_style(&self, index: font_property_index::Type, val: LispObject) {
+    fn set_property(&self, index: font_property_index::Type, val: LispObject) {
         let value = unsafe { font_style_to_value(index, val, true) };
 
         self.aset(index, LispObject::from(value));
@@ -177,9 +124,239 @@ impl LispFontLike {
     }
 }
 
+pub trait LispFont {
+    fn from(font: FontEntry<'_>) -> Self;
+}
+
 impl From<LispObject> for LispFontLike {
     fn from(v: LispObject) -> LispFontLike {
         LispFontLike(v)
+    }
+}
+impl From<LispObject> for LispFontWeight {
+    fn from(v: LispObject) -> LispFontWeight {
+        LispFontWeight(v)
+    }
+}
+impl From<LispObject> for LispFontStyle {
+    fn from(v: LispObject) -> LispFontStyle {
+        LispFontStyle(v)
+    }
+}
+
+pub type Slant = Option<Style>;
+
+impl From<LispFontStyle> for Slant {
+    fn from(v: LispFontStyle) -> Slant {
+        if v.0.is_nil() {
+            return Some(Style::Normal);
+        }
+        let slant = unsafe { XFIXNUM(v.0) };
+        match slant {
+            100 => Some(Style::Normal),
+            200 => Some(Style::Italic),
+            210 => Some(Style::Oblique(ObliqueAngle::from_degrees(14.))),
+            _ => {
+                log::error!("Swash doesn't support reverse-italic/oblique.");
+                None
+            }
+        }
+    }
+}
+
+impl From<LispFontWeight> for Weight {
+    fn from(v: LispFontWeight) -> Weight {
+        if v.0.is_nil() {
+            return Weight::NORMAL;
+        }
+
+        let weight = unsafe { XFIXNUM(v.0) };
+        // per font-weight-table
+        if weight == 0 {
+            Weight::THIN
+        } else if weight <= 40 {
+            Weight::EXTRA_LIGHT
+        } else if weight <= 50 {
+            Weight::LIGHT
+        } else if weight <= 80 {
+            Weight::NORMAL
+        } else if weight <= 100 {
+            Weight::MEDIUM
+        } else if weight <= 180 {
+            Weight::SEMI_BOLD
+        } else if weight <= 200 {
+            Weight::BOLD
+        } else if weight <= 205 {
+            Weight::EXTRA_BOLD
+        } else if weight <= 210 {
+            Weight::BLACK
+        } else {
+            Weight::BLACK
+        }
+    }
+}
+
+impl Into<LispFontStyle> for Style {
+    fn into(self) -> LispFontStyle {
+        let slant = match self {
+            Style::Normal => 100,
+            Style::Italic => 200,
+            Style::Oblique(_) => 210,
+        };
+        LispFontStyle(unsafe { make_fixnum(slant) })
+    }
+}
+
+impl Into<LispFontWeight> for Weight {
+    fn into(self) -> LispFontWeight {
+        // per font-weight-table
+        let weight = if self.0 <= Weight::THIN.0 {
+            0
+        } else if self.0 <= Weight::EXTRA_LIGHT.0 {
+            40
+        } else if self.0 <= Weight::LIGHT.0 {
+            50
+        } else if self.0 <= Weight::NORMAL.0 {
+            80
+        } else if self.0 <= Weight::MEDIUM.0 {
+            100
+        } else if self.0 <= Weight::SEMI_BOLD.0 {
+            180
+        } else if self.0 <= Weight::BOLD.0 {
+            200
+        } else if self.0 <= Weight::EXTRA_BOLD.0 {
+            205
+        } else if self.0 <= Weight::BLACK.0 {
+            210
+        } else {
+            250
+        };
+
+        let weight = unsafe { make_fixnum(weight) };
+        LispFontWeight(weight)
+    }
+}
+
+pub type OptionalAttributes = Option<Attributes>;
+
+impl From<LispFontLike> for OptionalAttributes {
+    fn from(spec_or_entity: LispFontLike) -> OptionalAttributes {
+        let slant = Slant::from(spec_or_entity);
+        let weight = Weight::from(spec_or_entity);
+
+        let stretch = Stretch::NORMAL;
+        if let Some(style) = slant {
+            return Some(Attributes::new(stretch, weight, style));
+        }
+
+        None
+    }
+}
+
+impl From<LispFontLike> for Slant {
+    fn from(spec_or_entity: LispFontLike) -> Slant {
+        let slant = spec_or_entity.aref(font_property_index::FONT_SLANT_INDEX);
+        Slant::from(LispFontStyle(slant))
+    }
+}
+
+impl From<LispFontLike> for Weight {
+    fn from(spec_or_entity: LispFontLike) -> Weight {
+        let weight = spec_or_entity.aref(font_property_index::FONT_WIDTH_INDEX);
+        Weight::from(LispFontWeight(weight))
+    }
+}
+
+pub type OptionalScript = Option<Script>;
+
+impl From<LispFontLike> for OptionalScript {
+    fn from(spec_or_entity: LispFontLike) -> OptionalScript {
+        let find_otf_script = || -> Option<String> {
+            let mut extra = spec_or_entity.aref(font_property_index::FONT_EXTRA_INDEX);
+
+            unsafe {
+                while CONSP(extra) {
+                    let tmp = XCAR(extra);
+                    if tmp.is_cons() {
+                        let key = XCAR(tmp);
+                        let val = XCDR(tmp);
+                        if key.eq(QCscript) && SYMBOLP(val) {
+                            let otf_script = script_to_otf(val);
+                            if otf_script.is_not_nil() {
+                                return Some(otf_script.into());
+                            }
+                        }
+                        if key.eq(QClang) && SYMBOLP(val) {
+                            let lang: String = val.into();
+                            if let Some(lang) = Language::parse(lang.as_str()) {
+                                if let Some(otf_script) = lang.script() {
+                                    return Some(otf_script.to_string());
+                                }
+                            }
+                        }
+                        if key.eq(QCotf) && CONSP(val) && SYMBOLP(XCAR(val)) {
+                            let otf_script = XCAR(val);
+                            return Some(otf_script.into());
+                        }
+                    }
+                    extra = XCDR(extra);
+                }
+            }
+
+            let reg = spec_or_entity.aref(font_property_index::FONT_REGISTRY_INDEX);
+            if reg.is_symbol() {
+                let otf_script = unsafe { registry_to_otf(reg) };
+                return Some(otf_script.into());
+            }
+
+            return None;
+        };
+        if let Some(otf_script) = find_otf_script() {
+            return Script::from_opentype(swash::tag_from_str_lossy(otf_script.as_str()));
+        }
+
+        return None;
+    }
+}
+
+impl From<FontEntry<'_>> for LispFontLike {
+    fn from(font: FontEntry<'_>) -> LispFontLike {
+        let entity: LispFontLike = unsafe { font_make_entity() }.into();
+
+        // set type
+        entity.aset(font_property_index::FONT_TYPE_INDEX, Qttfp);
+
+        // set family
+        let family_name: LispObject = font.family_name().to_string().into();
+        let family_name = unsafe { Fmake_symbol(family_name) };
+        entity.aset(font_property_index::FONT_FAMILY_INDEX, family_name);
+
+        let (_stretch, weight, style) = font.attributes().parts();
+
+        let weight: LispFontWeight = weight.into();
+        // set weight
+        entity.set_property(font_property_index::FONT_WEIGHT_INDEX, weight.0);
+
+        let slant: LispFontStyle = style.into();
+        // set slant
+        entity.set_property(font_property_index::FONT_SLANT_INDEX, slant.0);
+
+        // // set spacing
+        // entity.set_style(font_property_index::FONT_SPACING_INDEX, spacing);
+
+        // set width
+        entity.set_property(font_property_index::FONT_WIDTH_INDEX, (0 as usize).into());
+
+        // set size
+        entity.aset(font_property_index::FONT_SIZE_INDEX, (0 as usize).into());
+
+        // set registry
+        entity.aset(font_property_index::FONT_REGISTRY_INDEX, Qiso10646_1);
+        let font_id = unsafe { make_fixnum(font.id().to_usize() as i64) };
+        let extra = unsafe { Fcons(font_id, Qnil) };
+        unsafe { font_put_extra(entity.0, QCfont_entity, extra) };
+
+        entity
     }
 }
 
@@ -201,162 +378,87 @@ extern "C" fn draw(
     0
 }
 
-extern "C" fn list(frame: *mut frame, font_spec: LispObject) -> LispObject {
-    // FIXME: implment the real list in future
-    match_(frame, font_spec)
-}
-
-extern "C" fn match_(_f: *mut frame, spec: LispObject) -> LispObject {
-    // let now = std::time::Instant::now();
-
-    let font_spec = LispFontLike(spec);
-
-    let family = font_spec.get_family();
-    let font_db = FontDB::global();
-
-    let fonts = if let Some(family) = family {
-        let family = FontDB::family_name(&family);
-        font_db.fonts_by_family(&family)
-    } else {
-        font_db.all_fonts()
+extern "C" fn list(frame: *mut frame, spec: LispObject) -> LispObject {
+    // println!("list font with spec: {:?}", spec);
+    //TODO handle generial font family name
+    // script -> charset language
+    // webrender using font-index, add font using FontID
+    log::trace!("list font {:?}", spec);
+    if let Some(script) = OptionalScript::from(LispFontLike(spec)) {
+        log::trace!("{:?}", script);
     };
 
     let mut list = Qnil;
 
-    for f in fonts {
-        let entity: LispFontLike = unsafe { font_make_entity() }.into();
+    let entity = match_(frame, spec);
 
-        // set type
-        entity.aset(font_property_index::FONT_TYPE_INDEX, Qttfp);
-
-        let family_name = f.families.get(0);
-        if family_name.is_none() {
-            continue;
-        }
-        let (family_name, _) = family_name.unwrap();
-        let family_name = family_name.replace("\u{0}", "");
-        let family_name: &str = &family_name;
-        // set family
-        entity.aset(font_property_index::FONT_FAMILY_INDEX, unsafe {
-            Fmake_symbol(LispObject::from(family_name))
-        });
-
-        let weight = f.weight;
-
-        let weight = if weight <= Weight::THIN {
-            Qthin
-        } else if weight <= Weight::EXTRA_LIGHT {
-            Qextra_light
-        } else if weight <= Weight::LIGHT {
-            Qlight
-        } else if weight <= Weight::NORMAL {
-            Qnormal
-        } else if weight <= Weight::MEDIUM {
-            Qmedium
-        } else if weight <= Weight::SEMIBOLD {
-            Qsemi_bold
-        } else if weight <= Weight::BOLD {
-            Qbold
-        } else if weight <= Weight::EXTRA_BOLD {
-            Qextra_bold
-        } else if weight <= Weight::BLACK {
-            Qultra_bold
-        } else {
-            Qultra_bold
-        };
-
-        // set weight
-        entity.set_style(font_property_index::FONT_WEIGHT_INDEX, weight);
-
-        let slant = match f.style {
-            Style::Normal => Qnormal,
-            Style::Italic => Qitalic,
-            Style::Oblique => Qoblique,
-        };
-
-        // set slant
-        entity.set_style(font_property_index::FONT_SLANT_INDEX, slant);
-
-        // set width
-        entity.set_style(font_property_index::FONT_WIDTH_INDEX, (0 as usize).into());
-
-        // set size
-        entity.aset(font_property_index::FONT_SIZE_INDEX, (0 as usize).into());
-
-        // set registry
-        entity.aset(font_property_index::FONT_REGISTRY_INDEX, Qiso10646_1);
-
-        let postscript_name = f.post_script_name.replace("\u{0}", "");
-        let postscript_name: &str = &postscript_name;
-        // set name
-        entity.aset(font_property_index::FONT_EXTRA_INDEX, unsafe {
-            Fcons(
-                Fcons(":postscript-name".into(), LispObject::from(postscript_name)),
-                Qnil,
-            )
-        });
-
-        list = unsafe { Fcons(entity.as_lisp_object(), list) }
+    if entity.is_not_nil() {
+        list = unsafe { Fcons(entity, list) }
     }
 
+    // println!("listed font {:?}", list);
     unsafe { Fnreverse(list) }
+}
+
+extern "C" fn match_(_f: *mut frame, spec: LispObject) -> LispObject {
+    let spec = LispFontLike(spec);
+    let family_name = spec.family_name();
+    if family_name.is_none() {
+        return Qnil;
+    }
+    let family_name = family_name.unwrap();
+    let attributes = OptionalAttributes::from(spec);
+    if attributes.is_none() {
+        return Qnil;
+    }
+    let attributes = attributes.unwrap();
+    log::info!(
+        "match font spec: {:?} family: {:?} attributes: {:?}",
+        spec.0,
+        family_name,
+        attributes
+    );
+    if let Some(font) = FontIndex::global().query(family_name.as_str(), attributes) {
+        log::debug!(
+            "matched font {:?} {:?}",
+            font.family_name(),
+            font.attributes()
+        );
+        return LispFontLike::from(font).as_lisp_object();
+    }
+    log::error!(
+        "No font for: {:?} family: {:?} attributes: {:?}",
+        spec.0,
+        family_name,
+        attributes
+    );
+    Qnil
 }
 
 extern "C" fn list_family(_f: *mut frame) -> LispObject {
     let mut list = Qnil;
-    let font_db = FontDB::global();
 
-    for font in font_db.all_fonts() {
-        let app_locale = fontdb::Language::English_UnitedStates;
-        if let Some((family_name, _)) = &font
-            .families
-            .iter()
-            .find(|family| family.1 == app_locale)
-            .or(font.families.get(0))
-        {
-            let f = family_name.replace('\'', "").trim().to_string();
-            list = LispObject::cons(unsafe { intern(f.as_ptr() as *const ::libc::c_char) }, list);
-        }
-    }
+    FontIndex::global().families.iter().for_each(|family_data| {
+        let f = family_data.name.to_string();
+        list = LispObject::cons(unsafe { intern(f.as_ptr() as *const ::libc::c_char) }, list);
+    });
 
     list
 }
 
 #[repr(C)]
-pub struct WRFont {
+pub struct FontInfo {
     // extend basic font
     pub font: font,
 
-    pub scale: f32,
+    pub base: ManuallyDrop<Font>,
 
-    pub face_index: u32,
+    pub id: FontId,
 
-    pub face_id: fontdb::ID,
-
-    pub instance_keys: HashMap<u64, FontInstanceKey>,
+    pub frame: *mut frame,
 }
 
-impl WRFont {
-    pub fn glyph_for_char(&self, character: char) -> Option<u32> {
-        if let Some(font) = FontDB::global().get_font(self.face_id) {
-            return font.face.glyph_index(character).map(|c| c.0 as u32);
-        }
-        None
-    }
-
-    pub fn get_glyph_advance_width(&self, glyph_indices: Vec<GlyphIndex>) -> Vec<Option<i32>> {
-        if let Some(font) = FontDB::global().get_font(self.face_id) {
-            return glyph_indices
-                .into_iter()
-                .map(|i| {
-                    font.face
-                        .glyph_hor_advance(ttf_parser::GlyphId(i as u16))
-                        .map(|a| (a as f32 * self.scale).round() as i32)
-                })
-                .collect();
-        }
-        Vec::new()
-    }
+impl FontInfo {
     pub fn too_high_p(&self) -> bool {
         let pixel_size = self.font.pixel_size;
         let ascent = self.font.ascent;
@@ -364,20 +466,46 @@ impl WRFont {
 
         pixel_size > 0 && (ascent + descent) > 3 * pixel_size
     }
+
+    pub fn glyph_for_char(&self, c: char) -> u16 {
+        self.base.charmap().map(c)
+    }
+
+    pub fn get_glyph_advance_width(&self, glyph_indices: Vec<GlyphIndex>) -> Vec<f32> {
+        let glyph_metrics = self
+            .base
+            .glyph_metrics(&[])
+            .scale(self.font.pixel_size as f32);
+        return glyph_indices
+            .into_iter()
+            .map(|i| glyph_metrics.advance_width(i as u16))
+            .collect();
+    }
 }
 
-pub type WRFontRef = ExternalPtr<WRFont>;
+pub type FontInfoRef = ExternalPtr<FontInfo>;
 
 extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: i32) -> LispObject {
     log::trace!("open font: {:?}", pixel_size);
-    let font_entity: LispFontLike = font_entity.into();
-    let desc = font_entity.get_descriptor();
-    if desc.is_none() {
+    let extra = unsafe {
+        assq_no_quit(
+            QCfont_entity,
+            AREF(font_entity, font_property_index::FONT_EXTRA_INDEX as isize),
+        )
+    };
+    if !extra.is_cons() {
         return Qnil;
     }
-    let desc = desc.unwrap();
+    let extra = unsafe { XCDR(extra) };
+    let font_id = unsafe { XCAR(extra) };
+    let font_id = FontId(unsafe { XFIXNUM(font_id) } as u32);
 
-    let frame: FrameRef = frame.into();
+    let mut frame: FrameRef = frame.into();
+    let font = frame.terminal().font_cache().get(font_id);
+    if font.is_none() {
+        return Qnil;
+    }
+    let font = font.unwrap();
 
     let pixel_size = if pixel_size == 0 {
         // pixel_size here reflects to DPR 1 for webrender display, we have scale_factor from winit.
@@ -393,14 +521,9 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
         pixel_size as i64
     };
 
-    let font_object: LispFontLike = unsafe {
-        font_make_object(
-            vecsize!(WRFont) as i32,
-            font_entity.as_lisp_object(),
-            pixel_size as i32,
-        )
-    }
-    .into();
+    let font_object: LispFontLike =
+        unsafe { font_make_object(vecsize!(FontInfo) as i32, font_entity, pixel_size as i32) }
+            .into();
 
     // set type
     font_object.aset(font_property_index::FONT_TYPE_INDEX, Qttfp);
@@ -408,98 +531,68 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
     // set name
     font_object.aset(
         font_property_index::FONT_NAME_INDEX,
-        LispSymbolRef::from(font_entity.aref(font_property_index::FONT_FAMILY_INDEX)).symbol_name(),
+        LispSymbolRef::from(LispFontLike(font_entity).aref(font_property_index::FONT_FAMILY_INDEX))
+            .symbol_name(),
     );
 
-    let mut wr_font = WRFontRef::new(
+    let mut font_info = FontInfoRef::new(
         font_object
             .as_lisp_object()
             .as_font()
             .unwrap()
-            .as_font_mut() as *mut WRFont,
+            .as_font_mut() as *mut FontInfo,
     );
-    let font_db = FontDB::global();
-    let font_result = font_db.get_font_matches(desc.clone());
+    let metrics = font.metrics(&[]).scale(pixel_size as f32);
 
-    if font_result.is_none() {
-        return Qnil;
-    }
+    font_info.font.pixel_size = pixel_size as i32;
+    font_info.font.average_width = metrics.average_width.ceil() as i32;
+    font_info.font.ascent = metrics.ascent.ceil() as i32;
+    font_info.font.descent = metrics.descent.ceil() as i32;
+    font_info.font.space_width = font
+        .glyph_metrics(&[])
+        .scale(pixel_size as f32)
+        .advance_width(font.charmap().map(' '))
+        .ceil() as i32;
+    font_info.font.max_width = metrics.max_width.ceil() as i32;
+    font_info.font.underline_thickness = metrics.stroke_size.ceil() as i32;
+    font_info.font.underline_position = metrics.underline_offset.ceil() as i32;
 
-    let font_result = font_result.unwrap();
-    wr_font.face_id = font_result.info.id;
+    font_info.font.height = (metrics.ascent + metrics.descent + metrics.leading).ceil() as i32;
+    font_info.font.baseline_offset = 0;
 
-    let face = &font_result.face;
-    let units_per_em = face.units_per_em();
-    let underline_metrics = face.underline_metrics().unwrap();
-    let ascent = face.ascender();
-    let descent = face.descender();
-    let average_width = face.glyph_hor_advance(ttf_parser::GlyphId(0)).unwrap();
-
-    let scale = pixel_size as f32 / units_per_em as f32;
-    wr_font.scale = scale;
-
-    wr_font.font.pixel_size = pixel_size as i32;
-    wr_font.font.average_width = (average_width as f32 * scale) as i32;
-    wr_font.font.ascent = (scale * ascent as f32).round() as i32;
-    wr_font.font.descent = (-scale * descent as f32).round() as i32;
-    wr_font.font.space_width = wr_font.font.average_width;
-    wr_font.font.max_width = wr_font.font.average_width;
-    wr_font.font.underline_thickness = (scale * underline_metrics.thickness as f32) as i32;
-    wr_font.font.underline_position = (scale * underline_metrics.position as f32) as i32;
-
-    wr_font.font.height = (scale * (ascent - descent) as f32).round() as i32;
-    wr_font.font.baseline_offset = 0;
+    font_info.id = font_id;
+    font_info.base = ManuallyDrop::new(font);
 
     let driver = FontDriver::global();
-    wr_font.font.driver = &driver.0;
+    font_info.font.driver = &driver.0;
+    font_info.frame = frame.as_mut();
 
     log::trace!("open font done: {:?}", pixel_size);
     font_object.as_lisp_object()
 }
 
-extern "C" fn close_font(_font: *mut font) {}
-
-extern "C" fn encode_char(font: *mut font, c: i32) -> u32 {
-    let font = WRFontRef::new(font as *mut WRFont);
-
-    std::char::from_u32(c as u32)
-        .and_then(|c| font.glyph_for_char(c))
-        .unwrap_or(FONT_INVALID_CODE)
+extern "C" fn close_font(f: *mut font) {
+    let mut font = FontInfoRef::new(f as *mut FontInfo);
+    unsafe { ManuallyDrop::drop(&mut font.base) };
 }
 
-extern "C" fn has_char(font: LispObject, c: i32) -> i32 {
-    if font.is_font_entity() {
-        let font_entity: LispFontLike = font.into();
-        let postscript_name = font_entity.get_postscript_name();
+extern "C" fn encode_char(font: *mut font, c: i32) -> u32 {
+    let font = FontInfoRef::new(font as *mut FontInfo);
 
-        if postscript_name.is_none() {
-            return -1;
-        }
-
-        let postscript_name = postscript_name.unwrap();
-
-        let c = std::char::from_u32(c as u32);
-
-        if c.is_none() {
-            return 0;
-        }
-
-        let c = c.unwrap();
-        let font_db = FontDB::global();
-        font_db
-            .select_postscript(&postscript_name)
-            .cloned()
-            .and_then(|face_info| {
-                if let Some(font) = font_db.get_font(face_info.id) {
-                    return font.face.glyph_index(c);
-                }
-                None
-            })
-            .is_some() as i32
-    } else {
-        let font = font.as_font().unwrap().as_font_mut();
-        (encode_char(font, c) != FONT_INVALID_CODE) as i32
+    // 0 is returned for FONT_INVALID_CODE
+    // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM07/appendixB.html
+    // The first glyph (glyph index 0) must be the MISSING CHARACTER GLYPH. This glyph must have a visible appearance and non-zero advance width.
+    let idx = std::char::from_u32(c as u32)
+        .and_then(|c| Some(font.base.charmap().map(c) as u32))
+        .unwrap_or(FONT_INVALID_CODE);
+    if idx == 0 {
+        return FONT_INVALID_CODE;
     }
+    idx
+}
+
+extern "C" fn has_char(_font: LispObject, _c: i32) -> i32 {
+    -1
 }
 
 #[allow(unused_variables)]
@@ -509,26 +602,222 @@ extern "C" fn text_extents(
     nglyphs: i32,
     metrics: *mut font_metrics,
 ) {
-    let font = WRFontRef::new(font as *mut WRFont);
+    let font_info = FontInfoRef::new(font as *mut FontInfo);
 
     let glyph_indices: Vec<u32> = unsafe { std::slice::from_raw_parts(code, nglyphs as usize) }
         .iter()
         .copied()
         .collect();
 
-    let width: i32 = font
+    let glyph_metrics = font_info
+        .base
+        .glyph_metrics(&[])
+        .scale(font_info.font.pixel_size as f32);
+
+    let width: f32 = font_info
         .get_glyph_advance_width(glyph_indices.clone())
         .into_iter()
-        .filter_map(|w| w)
         .sum();
 
-    unsafe {
-        (*metrics).lbearing = 0;
-        (*metrics).rbearing = width as i16;
-        (*metrics).width = width as i16;
-        (*metrics).ascent = font.font.ascent as i16;
-        (*metrics).descent = font.font.descent as i16;
+    let mut total_width = 0.;
+    for (i, x) in glyph_indices.into_iter().enumerate() {
+        let lbearing = glyph_metrics.lsb(x as u16);
+        let rbearing = 0.;
+        let width = glyph_metrics.advance_width(x as u16);
+
+        if i == 0 {
+            (unsafe { *metrics }).lbearing = lbearing as i16;
+            // FIXME swash doesn't have rsb for rbearing
+            (unsafe { *metrics }).rbearing = rbearing as i16;
+        }
+        if { unsafe { *metrics } }.lbearing > (width + lbearing) as i16 {
+            (unsafe { *metrics }).lbearing = (width + lbearing) as i16;
+        }
+        if { unsafe { *metrics } }.rbearing < (width + rbearing) as i16 {
+            (unsafe { *metrics }).rbearing = (width + rbearing) as i16;
+        }
+
+        total_width += width;
     }
+
+    unsafe {
+        (*metrics).width = total_width as i16;
+    }
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+extern "C" fn otf_capability(_font: *mut font) -> LispObject {
+    todo!()
+}
+
+/// Swash implementation of shape for font backend.
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn shape(lgstring: LispObject, direction: LispObject) -> LispObject {
+    use crate::emacs::lglyph::LGlyph;
+    use crate::emacs::lglyph::LGlyphString;
+    use crate::emacs::number::LNumber;
+    use core::ops::Range;
+    use emacs::bindings::globals;
+    use emacs::bindings::{font_metrics as FontMetrics, CHECK_FONT_GET_OBJECT};
+    use emacs::globals::QL2R;
+    use emacs::globals::QR2L;
+    use emacs::thread::ThreadState;
+    use swash::shape::cluster::Glyph;
+    use swash::shape::cluster::GlyphCluster;
+    use swash::shape::{Direction, ShapeContext};
+
+    let font = lgstring.lgstring_font();
+    let font = unsafe { CHECK_FONT_GET_OBJECT(font) };
+    let mut font_info = FontInfoRef::new(font as *mut FontInfo);
+    let frame: FrameRef = font_info.frame.into();
+    let font = frame.terminal().font_cache().get(font_info.id).unwrap();
+    let glyph_len = 0;
+    let text_len = lgstring.lgstring_glyph_len();
+    let mut chars: Vec<char> = Vec::with_capacity(text_len.try_into().unwrap());
+
+    for i in 0..text_len {
+        let g = lgstring.lgstring_glyph(i);
+        if g.is_nil() {
+            break;
+        }
+        let c = g.lglyph_char();
+        let c = char::from_u32(c.xfixnum().try_into().unwrap()).unwrap();
+        chars.push(c);
+    }
+    let source: String = chars.into_iter().collect();
+    if source.len() == 0 {
+        return Qnil;
+    };
+    let source = source.as_str();
+
+    //TODO shapecontext per thread
+    let mut context = ShapeContext::new();
+    let mut shaper_builder = context.builder(&font);
+
+    /* If the caller didn't provide a meaningful DIRECTION, let Swash
+    guess it. */
+    if !direction.is_nil()
+        /* If they bind bidi-display-reordering to nil, the DIRECTION
+	they provide is meaningless, and we should let Swash guess
+	the real direction.  */
+        && !ThreadState::current_buffer_unchecked().bidi_display_reordering_.is_nil()
+    {
+        if direction.eq(QR2L) {
+            shaper_builder = shaper_builder.direction(Direction::RightToLeft);
+        } else if direction.eq(QL2R) {
+            shaper_builder = shaper_builder.direction(Direction::LeftToRight);
+        }
+    }
+
+    /* Leave the script determination to HarfBuzz, until Emacs has a
+    better idea of the script of LGSTRING.  FIXME. */
+    // builder.script(Script::Latin)
+
+    /* FIXME: This can only handle the single global language, which
+    normally comes from the locale.  In addition, if
+    current-iso639-language is a list, we arbitrarily use the first
+    one.  We should instead have a notion of the language of the text
+    being shaped.  */
+
+    let mut lang = unsafe { globals.Vcurrent_iso639_language };
+    if lang.is_cons() {
+        lang = lang.force_cons().car();
+    }
+    if lang.is_symbol() {
+        lang = lang.force_symbol().symbol_name();
+        let lang: String = lang.into();
+        shaper_builder = shaper_builder.language(Language::parse(lang.as_str()));
+    }
+
+    //TODO use script
+    //TODO use features
+    //TODO use variations
+    let mut shaper = shaper_builder
+        .size(font_info.font.pixel_size as f32)
+        // .features(&[("dlig", 1)])
+        // .variations(&[("wght", 520.5)])
+        .build();
+
+    shaper.add_str(source);
+
+    let mut i = 0;
+    let mut metrics = FontMetrics::default();
+
+    // Not sure what to do with this.
+    // https://docs.rs/swash/latest/swash/shape/index.html#collecting-the-prize
+    // Please note that, unlike HarfBuzz, this shaper does not reverse runs that are in right-to-left order. The reasoning is that, for correctness, line breaking must be done in logical order and reversing runs should occur during bidi reordering.
+
+    // Also pertinent to right-to-left runs: you’ll need to ensure that you reverse clusters and not glyphs. Intra-cluster glyphs must remain in logical order for proper mark placement.
+
+    shaper.shape_with(
+        |GlyphCluster {
+             source: source_range,
+             glyphs,
+             ..
+         }| {
+            let Range { start, end } = source_range.to_range();
+
+            /* FROM is the index of the first character that contributed
+            to this cluster.  */
+            let from = source[0..start].char_indices().count();
+
+            /* TO is the index of the last character that contributed to
+            this cluster.  */
+            let to = source[0..end].char_indices().count() - 1;
+            let mut chars = source[start..end].chars();
+            /* Not every glyph in a cluster maps directly to a single
+            character; in general, N characters can yield M glyphs, where
+            M could be smaller or greater than N.  However, in many cases
+            there is a one-to-one correspondence, and it would be a pity
+            to lose that information, even if it's sometimes inaccurate.  */
+            let first_char = chars.next().unwrap();
+            for Glyph {
+                id, x, y, advance, ..
+            } in glyphs.iter()
+            {
+                if i > lgstring.lgstring_glyph_len() {
+                    break;
+                }
+
+                let mut lglyph = lgstring.lgstring_glyph(i);
+                if lglyph.is_nil() {
+                    lglyph = LispObject::lglyph_new();
+                    lgstring.set_lgstring_glyph(i, lglyph);
+                }
+
+                /* All the glyphs in a cluster have the same values of FROM and TO.  */
+                lglyph.set_lglyph_from_to(from.into(), to.into());
+
+                lglyph.set_lglyph_char((first_char as u32).into());
+                lglyph.set_lglyph_code((*id).into());
+
+                let code = *id as u32;
+                text_extents(font_info.as_mut() as *mut font, &code, 1, &mut metrics);
+
+                let xoff = x.ceil() as i16;
+                let yoff = y.ceil() as i16;
+                let advance = advance.ceil() as i16;
+
+                lglyph.set_lglyph_width(advance.into());
+                lglyph.set_lglyph_lbearing(metrics.lbearing.into());
+                lglyph.set_lglyph_rbearing(metrics.rbearing.into());
+                lglyph.set_lglyph_ascent(metrics.ascent.into());
+                lglyph.set_lglyph_descent(metrics.descent.into());
+
+                if xoff != 0 || yoff != 0 || advance != metrics.width {
+                    lglyph.set_lglyph_adjustment(xoff.into(), yoff.into(), advance.into());
+                }
+
+                i += 1;
+            }
+        },
+    );
+    if i > lgstring.lgstring_glyph_len() {
+        return Qnil;
+    }
+    i.into()
 }
 
 #[allow(unused_variables)]
@@ -543,12 +832,13 @@ pub extern "C" fn register_ttfp_font_driver(f: *mut frame) {
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn syms_of_ttfp_font() {
-    let ttfp_symbol =
-        CString::new("ttfp").expect("Failed to create string for intern function call");
     def_lisp_sym!(Qttfp, "ttfp");
-    unsafe {
-        Fprovide(emacs::bindings::intern_c_string(ttfp_symbol.as_ptr()), Qnil);
-    }
+    def_lisp_sym!(Qmonospace, "monospace");
+    def_lisp_sym!(Qfixed, "fixed");
+    def_lisp_sym!(Qzh, "zh");
+
+    #[rustfmt::skip]
+    defvar_lisp!(Vregistry_script_alist, "registry-script-alist", Qnil);
 
     register_ttfp_font_driver(ptr::null_mut());
 }

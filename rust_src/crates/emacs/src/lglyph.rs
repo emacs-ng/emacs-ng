@@ -2,7 +2,8 @@ use crate::number::LNumber;
 
 use crate::{
     bindings::{
-        composition_gstring_from_id, lglyph_indices, make_vector, pvec_type, Fcopy_sequence, ASET,
+        composition_gstring_from_id, lglyph_indices, make_nil_vector, make_vector, pvec_type,
+        Fcopy_sequence, ASET,
     },
     definitions::EmacsInt,
     globals::Qnil,
@@ -25,17 +26,16 @@ impl GlyphStringRef {
 
 pub trait LGlyphString {
     fn is_lgstring(self) -> bool;
-    fn header(self) -> LispObject;
-    fn set_header(self, header: LispObject);
-    fn font(self) -> LispObject;
-    // fn lchar(self, i: u32) -> LispObject;
-    // fn char(self, i: u32) -> u32;
-    fn char_len(self) -> u32;
-    fn shaped_p(self) -> bool;
-    fn set_id(self, id: LispObject);
-    fn lglyph(self, i: u32) -> LispObject;
-    fn lglyph_len(self) -> u32;
-    fn set_lglyph(self, i: u32, lglyph: LispObject);
+    fn lgstring_header(self) -> LispObject;
+    fn set_lgstring_header(self, header: LispObject);
+    fn lgstring_font(self) -> LispObject;
+    fn lgstring_char(self, i: u32) -> LispObject;
+    fn lgstring_char_len(self) -> u32;
+    fn lgstring_shaped_p(self) -> bool;
+    fn set_lgstring_id(self, id: LispObject);
+    fn lgstring_glyph(self, i: u32) -> LispObject;
+    fn lgstring_glyph_len(self) -> u32;
+    fn set_lgstring_glyph(self, i: u32, lglyph: LispObject);
 }
 
 impl LGlyphString for LispObject {
@@ -43,120 +43,131 @@ impl LGlyphString for LispObject {
         self.as_vectorlike()
             .map_or(false, |v| v.is_pseudovector(pvec_type::PVEC_NORMAL_VECTOR))
     }
-    fn header(self) -> LispObject {
+    fn lgstring_header(self) -> LispObject {
         self.aref(0)
     }
 
-    fn set_header(self, header: LispObject) {
+    fn set_lgstring_header(self, header: LispObject) {
         self.aset(0, header);
     }
-    fn font(self) -> LispObject {
-        self.header().aref(0)
+    fn lgstring_font(self) -> LispObject {
+        self.lgstring_header().aref(0)
     }
-    // fn lchar(self, i: u32) -> LispObject {
-    //     self.header().aref(i + 1)
-    // }
-    // fn char(self, i: u32) -> u32 {
-    //     self.lchar(i).into()
-    // }
-    fn char_len(self) -> u32 {
-        self.header().asize() - 1
+    fn lgstring_char(self, i: u32) -> LispObject {
+        self.lgstring_header().aref(i + 1)
     }
-    fn shaped_p(self) -> bool {
+    fn lgstring_char_len(self) -> u32 {
+        self.lgstring_header().asize() - 1
+    }
+    fn lgstring_shaped_p(self) -> bool {
         self.aref(1).is_t()
     }
-    fn set_id(self, id: LispObject) {
+    fn set_lgstring_id(self, id: LispObject) {
         self.aset(1, id)
     }
-    fn lglyph(self, i: u32) -> LispObject {
+    fn lgstring_glyph(self, i: u32) -> LispObject {
         self.aref(i + 2)
     }
-    fn lglyph_len(self) -> u32 {
+    fn lgstring_glyph_len(self) -> u32 {
         self.asize() - 2
     }
-    fn set_lglyph(self, i: u32, lglyph: LispObject) {
+    fn set_lgstring_glyph(self, i: u32, lglyph: LispObject) {
         self.aset(i + 2, lglyph)
     }
 }
 
 pub trait LGlyph {
-    fn lfrom(self) -> LispObject;
-    fn lto(self) -> LispObject;
-    fn lchar(self) -> LispObject;
-    fn char(self) -> char;
-    fn lcode(self) -> LispObject;
-    fn lwidth(self) -> LispObject;
-    fn width(self) -> EmacsInt;
-    fn llbearing(self) -> LispObject;
-    fn lrbearing(self) -> LispObject;
-    fn lascent(self) -> LispObject;
-    fn ldescent(self) -> LispObject;
-    fn adjustment(self) -> LispObject;
-    fn set_from_to(self, from: LispObject, to: LispObject);
-    fn set_char(self, c: LispObject);
-    fn set_code(self, code: LispObject);
-    fn set_width(self, width: LispObject);
-    fn set_adjustment(self, xoff: LispObject, yoff: LispObject, wadjust: LispObject);
+    fn lglyph_new() -> LispObject;
+    fn lglyph_from(self) -> LispObject;
+    fn lglyph_to(self) -> LispObject;
+    fn lglyph_char(self) -> LispObject;
+    fn lglyph_code(self) -> LispObject;
+    fn lglyph_width(self) -> LispObject;
+    fn lglyph_lbearing(self) -> LispObject;
+    fn lglyph_rbearing(self) -> LispObject;
+    fn lglyph_ascent(self) -> LispObject;
+    fn lglyph_descent(self) -> LispObject;
+    fn lglyph_adjustment(self) -> LispObject;
+    fn set_lglyph_from_to(self, from: LispObject, to: LispObject);
+    fn set_lglyph_char(self, c: LispObject);
+    fn set_lglyph_code(self, code: LispObject);
+    fn set_lglyph_width(self, width: LispObject);
+    fn set_lglyph_lbearing(self, val: LispObject);
+    fn set_lglyph_rbearing(self, val: LispObject);
+    fn set_lglyph_descent(self, val: LispObject);
+    fn set_lglyph_ascent(self, val: LispObject);
+    fn set_lglyph_adjustment(self, xoff: LispObject, yoff: LispObject, wadjust: LispObject);
     // Return the shallow Copy of GLYPH.
-    fn copy(self) -> Self;
-    fn xoff(self) -> EmacsInt;
-    fn yoff(self) -> EmacsInt;
-    fn wadjust(self) -> EmacsInt;
+    fn lglyph_copy(self) -> Self;
+    fn lglyph_xoff(self) -> EmacsInt;
+    fn lglyph_yoff(self) -> EmacsInt;
+    fn lglyph_wadjust(self) -> EmacsInt;
 }
 
 impl LGlyph for LispObject {
-    fn lfrom(self) -> LispObject {
+    fn lglyph_new() -> LispObject {
+        unsafe { make_nil_vector(lglyph_indices::LGLYPH_SIZE.try_into().unwrap()) }
+    }
+    fn lglyph_from(self) -> LispObject {
         self.aref(lglyph_indices::LGLYPH_IX_FROM)
     }
-    fn lto(self) -> LispObject {
+    fn lglyph_to(self) -> LispObject {
         self.aref(lglyph_indices::LGLYPH_IX_TO)
     }
-    fn lchar(self) -> LispObject {
+    fn lglyph_char(self) -> LispObject {
         self.aref(lglyph_indices::LGLYPH_IX_CHAR)
     }
-    fn char(self) -> char {
-        let c_u32: u32 = self.lchar().xfixnum().try_into().unwrap();
-        char::from_u32(c_u32).unwrap()
-    }
-    fn lcode(self) -> LispObject {
+    // fn lglyph_char(self) -> char {
+    //     let c_u32: u32 = self.lchar().xfixnum().try_into().unwrap();
+    //     char::from_u32(c_u32).unwrap()
+    // }
+    fn lglyph_code(self) -> LispObject {
         self.aref(lglyph_indices::LGLYPH_IX_CODE)
     }
-    fn lwidth(self) -> LispObject {
+    fn lglyph_width(self) -> LispObject {
         self.aref(lglyph_indices::LGLYPH_IX_WIDTH)
     }
-    fn width(self) -> EmacsInt {
-        self.lwidth().xfixnum()
-    }
-    fn llbearing(self) -> LispObject {
+    fn lglyph_lbearing(self) -> LispObject {
         self.aref(lglyph_indices::LGLYPH_IX_LBEARING)
     }
-    fn lrbearing(self) -> LispObject {
+    fn lglyph_rbearing(self) -> LispObject {
         self.aref(lglyph_indices::LGLYPH_IX_RBEARING)
     }
-    fn lascent(self) -> LispObject {
+    fn lglyph_ascent(self) -> LispObject {
         self.aref(lglyph_indices::LGLYPH_IX_ASCENT)
     }
-    fn ldescent(self) -> LispObject {
+    fn lglyph_descent(self) -> LispObject {
         self.aref(lglyph_indices::LGLYPH_IX_DESCENT)
     }
-    fn adjustment(self) -> LispObject {
+    fn lglyph_adjustment(self) -> LispObject {
         self.aref(lglyph_indices::LGLYPH_IX_ADJUSTMENT)
     }
-    fn set_from_to(self, from: LispObject, to: LispObject) {
+    fn set_lglyph_from_to(self, from: LispObject, to: LispObject) {
         self.aset(lglyph_indices::LGLYPH_IX_FROM, from);
         self.aset(lglyph_indices::LGLYPH_IX_TO, to);
     }
-    fn set_char(self, c: LispObject) {
+    fn set_lglyph_char(self, c: LispObject) {
         self.aset(lglyph_indices::LGLYPH_IX_CHAR, c);
     }
-    fn set_code(self, code: LispObject) {
+    fn set_lglyph_code(self, code: LispObject) {
         self.aset(lglyph_indices::LGLYPH_IX_CODE, code);
     }
-    fn set_width(self, width: LispObject) {
+    fn set_lglyph_width(self, width: LispObject) {
         self.aset(lglyph_indices::LGLYPH_IX_WIDTH, width);
     }
-
-    fn set_adjustment(self, xoff: LispObject, yoff: LispObject, wadjust: LispObject) {
+    fn set_lglyph_lbearing(self, val: LispObject) {
+        self.aset(lglyph_indices::LGLYPH_IX_LBEARING, val);
+    }
+    fn set_lglyph_rbearing(self, val: LispObject) {
+        self.aset(lglyph_indices::LGLYPH_IX_RBEARING, val);
+    }
+    fn set_lglyph_descent(self, val: LispObject) {
+        self.aset(lglyph_indices::LGLYPH_IX_DESCENT, val);
+    }
+    fn set_lglyph_ascent(self, val: LispObject) {
+        self.aset(lglyph_indices::LGLYPH_IX_ASCENT, val);
+    }
+    fn set_lglyph_adjustment(self, xoff: LispObject, yoff: LispObject, wadjust: LispObject) {
         let result = unsafe { make_vector(3, Qnil) };
         unsafe {
             ASET(result, 0, xoff);
@@ -166,24 +177,24 @@ impl LGlyph for LispObject {
         self.aset(lglyph_indices::LGLYPH_IX_ADJUSTMENT, result);
     }
 
-    fn copy(self) -> Self {
+    fn lglyph_copy(self) -> Self {
         unsafe { Fcopy_sequence(self) }
     }
-    fn xoff(self) -> EmacsInt {
-        if self.adjustment().vectorp() {
-            return self.adjustment().aref(0).xfixnum();
+    fn lglyph_xoff(self) -> EmacsInt {
+        if self.lglyph_adjustment().vectorp() {
+            return self.lglyph_adjustment().aref(0).xfixnum();
         }
         0
     }
-    fn yoff(self) -> EmacsInt {
-        if self.adjustment().vectorp() {
-            return self.adjustment().aref(1).xfixnum();
+    fn lglyph_yoff(self) -> EmacsInt {
+        if self.lglyph_adjustment().vectorp() {
+            return self.lglyph_adjustment().aref(1).xfixnum();
         }
         0
     }
-    fn wadjust(self) -> EmacsInt {
-        if self.adjustment().vectorp() {
-            return self.adjustment().aref(2).xfixnum();
+    fn lglyph_wadjust(self) -> EmacsInt {
+        if self.lglyph_adjustment().vectorp() {
+            return self.lglyph_adjustment().aref(2).xfixnum();
         }
         0
     }

@@ -16,6 +16,8 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
+#include "lisp.h"
+
 #ifndef EMACS_WRGUI_H
 #define EMACS_WRGUI_H
 
@@ -146,5 +148,7 @@ struct wr_bitmap_record
   int height, width, depth;
 };
 
+extern Lisp_Object script_to_otf (Lisp_Object otf);
+extern Lisp_Object registry_to_otf (Lisp_Object reg);
 
 #endif /* EMACS_WRGUI_H */

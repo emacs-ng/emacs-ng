@@ -4736,7 +4736,7 @@ if test "${HAVE_X11}" = "yes"; then
     fi
   fi
 else # "${HAVE_X11}" != "yes"
-  if test $window_system = pgtk; then
+  if test $window_system = pgtk && test "${with_webrender}" != "yes"; then
     EMACS_CHECK_MODULES([FONTCONFIG], [fontconfig >= 2.2.0])
     EMACS_CHECK_MODULES([FREETYPE], [freetype2])
     if test "$HAVE_FONTCONFIG" != yes -o "$HAVE_FREETYPE" != yes; then
@@ -4774,9 +4774,9 @@ if test "${HAVE_W32}" = "yes"; then
 else
   harfbuzz_required_ver=0.9.42
 fi
-if test "${HAVE_X11}" = "yes" && test "${HAVE_FREETYPE}" = "yes" \
+if (test "${HAVE_X11}" = "yes" && test "${HAVE_FREETYPE}" = "yes" \
         || test "$window_system" = "pgtk" \
-        || test "${HAVE_W32}" = "yes" \
+        || test "${HAVE_W32}" = "yes") && test "${with_webrender}" != "yes" \
 	|| test "$REALLY_ANDROID" = "yes"; then
   if test "${with_harfbuzz}" != "no"; then
     EMACS_CHECK_MODULES([HARFBUZZ], [harfbuzz >= $harfbuzz_required_ver])
@@ -7301,7 +7301,9 @@ if test "${HAVE_X_WINDOWS}" = "yes" ; then
 fi
 
 if test "${window_system}" = "pgtk"; then
-   FONT_OBJ="ftfont.o ftcrfont.o"
+  if test "$HAVE_FREETYPE" = "yes"; then
+    FONT_OBJ="ftfont.o ftcrfont.o"
+  fi
 fi
 
 if test "${HAVE_BE_APP}" = "yes" ; then
@@ -7312,6 +7314,10 @@ fi
 
 if test "${HAVE_HARFBUZZ}" = "yes" ; then
   FONT_OBJ="$FONT_OBJ hbfont.o"
+fi
+
+if test "${with_webrender}" = "yes" ; then
+  FONT_OBJ="$FONT_OBJ wrfont.o"
 fi
 AC_SUBST([XMENU_OBJ])
 AC_SUBST([XOBJ])
@@ -7367,14 +7373,6 @@ if test "${with_webrender}" = "yes" ; then
 
   AC_DEFINE(HAVE_NATIVE_IMAGE_API, 1, [Define to use native OS APIs for images.])
             NATIVE_IMAGE_API="yes (webrender)"
-
-  if test "${opsys}" = gnu-linux; then
-    EMACS_CHECK_MODULES([FREETYPE], [freetype2])
-    test "$HAVE_FREETYPE" = "no" && AC_MSG_ERROR(webrender requires libfreetype)
-
-    EMACS_CHECK_MODULES([FONTCONFIG], [fontconfig >= 2.2.0])
-    test "$HAVE_FONTCONFIG" = "no" && AC_MSG_ERROR(webrender requires libfontconfig)
-  fi
 fi
 AC_SUBST(WEBRENDER_LIBS)
 
@@ -7968,6 +7966,7 @@ AS_ECHO(["  Does Emacs use -lXaw3d?                                 ${HAVE_XAW3D
   Does Emacs use -lwebp?                                  ${HAVE_WEBP}
   Does Emacs use -lsqlite3?                               ${HAVE_SQLITE3}
   Does Emacs use cairo?                                   ${HAVE_CAIRO}
+  Does Emacs use webrender?                               ${with_webrender}
   Does Emacs use -llcms2?                                 ${HAVE_LCMS2}
   Does Emacs use imagemagick?                             ${HAVE_IMAGEMAGICK}
   Does Emacs use native APIs for images?                  ${NATIVE_IMAGE_API}
@@ -7999,7 +7998,6 @@ AS_ECHO(["  Does Emacs use -lXaw3d?                                 ${HAVE_XAW3D
   Does Emacs support legacy unexec dumping?               ${with_unexec}
   Which dumping strategy does Emacs use?                  ${with_dumping}
   Does Emacs have native lisp compiler?                   ${HAVE_NATIVE_COMP}
-  Does Emacs use webrender?                               ${with_webrender}
   Does Emacs include JavaScript?                          ${with_javascript}
   Does Emacs use version 2 of the X Input Extension?      ${HAVE_XINPUT2}
   Does Emacs generate a smaller-size Japanese dictionary? ${with_small_ja_dic}
