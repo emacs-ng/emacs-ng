@@ -2772,8 +2772,9 @@ PORT, NICK, and PASSWORD, along with USER and FULL-NAME when
 given a prefix argument.  Non-interactively, expect the rarely
 needed ID parameter, when non-nil, to be a symbol or a string for
 naming the server buffer and identifying the connection
-unequivocally.  (See Info node `(erc) Connecting' for details
-about all mentioned parameters.)
+unequivocally.  Once connected, return the server buffer.  (See
+Info node `(erc) Connecting' for details about all mentioned
+parameters.)
 
 Together with `erc-tls', this command serves as the main entry
 point for ERC, the powerful, modular, and extensible IRC client.
@@ -4045,15 +4046,41 @@ this function from interpreting the line as a command."
 ;;                    Input commands handlers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun erc-cmd-AMSG (line)
-  "Send LINE to all channels of the current server that you are on."
-  (interactive "sSend to all channels you're on: ")
-  (setq line (erc-trim-string line))
+(defun erc--connected-and-joined-p ()
+  (and (erc--current-buffer-joined-p)
+       erc-server-connected))
+
+(defun erc-cmd-GMSG (line)
+  "Send LINE to all channels on all networks you are on."
+  (setq line (string-remove-prefix " " line))
   (erc-with-all-buffers-of-server nil
-    (lambda ()
-      (erc-channel-p (erc-default-target)))
+      #'erc--connected-and-joined-p
+    (erc-send-message line)))
+(put 'erc-cmd-GMSG 'do-not-parse-args t)
+
+(defun erc-cmd-AMSG (line)
+  "Send LINE to all channels of the current network.
+Interactively, prompt for the line of text to send."
+  (interactive "sSend to all channels on this network: ")
+  (setq line (string-remove-prefix " " line))
+  (erc-with-all-buffers-of-server erc-server-process
+      #'erc--connected-and-joined-p
     (erc-send-message line)))
 (put 'erc-cmd-AMSG 'do-not-parse-args t)
+
+(defun erc-cmd-GME (line)
+  "Send LINE as an action to all channels on all networks you are on."
+  (erc-with-all-buffers-of-server nil
+      #'erc--connected-and-joined-p
+    (erc-cmd-ME line)))
+(put 'erc-cmd-GME 'do-not-parse-args t)
+
+(defun erc-cmd-AME (line)
+  "Send LINE as an action to all channels on the current network."
+  (erc-with-all-buffers-of-server erc-server-process
+      #'erc--connected-and-joined-p
+    (erc-cmd-ME line)))
+(put 'erc-cmd-AME 'do-not-parse-args t)
 
 (defun erc-cmd-SAY (line)
   "Send LINE to the current query or channel as a message, not a command.

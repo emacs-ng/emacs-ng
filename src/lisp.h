@@ -1380,7 +1380,6 @@ make_lisp_ptr (void *ptr, enum Lisp_Type type)
 #define XSETCONS(a, b) ((a) = make_lisp_ptr (b, Lisp_Cons))
 #define XSETVECTOR(a, b) ((a) = make_lisp_ptr (b, Lisp_Vectorlike))
 #define XSETSTRING(a, b) ((a) = make_lisp_ptr (b, Lisp_String))
-#define XSETSYMBOL(a, b) ((a) = make_lisp_symbol (b))
 #define XSETFLOAT(a, b) ((a) = make_lisp_ptr (b, Lisp_Float))
 
 /* Return a Lisp_Object value that does not correspond to any object.
@@ -5157,6 +5156,7 @@ extern bool build_details;
 /* 0 not a daemon, 1 foreground daemon, 2 background daemon.  */
 extern int daemon_type;
 #define IS_DAEMON (daemon_type != 0)
+/* Non-zero means daemon-initialized has not yet been called.  */
 #define DAEMON_RUNNING (daemon_type >= 0)
 #else  /* WINDOWSNT */
 extern void *w32_daemon_event;
