@@ -12,7 +12,7 @@ emacs = { path = "../emacs" }
 lisp-macros = { path = "../lisp_macros" }
 lisp-util = {  path = "../lisp_util" }
 colors = {  path = "../../../etc/colors" }
-log = "0.4.17"
+log = "0.4.21"
 libc = "0.2.95"
 lazy_static = "1.4"
 gleam = "0.13"
