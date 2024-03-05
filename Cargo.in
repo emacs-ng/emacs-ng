@@ -21,6 +21,7 @@ gleam = "0.15"
 winit = { version = "0.29", default-features = false, features = ["rwh_05"]}
 arboard = "3.3"
 euclid = "0.22"
+lazy_static = "1.4"
 
 [workspace.dependencies.webrender]
 git = "https://github.com/declantsien/webrender.git"
