@@ -11,7 +11,7 @@ emacs = { version = "0.1.0", path = "../emacs" }
 lisp-macros = { version = "0.1.0", path = "../lisp_macros" }
 lisp-util = { version = "0.1.0", path = "../lisp_util" }
 lsp_json = { version = "0.1.0", path = "../lsp_json" }
-libc = "0.2.95"
+libc.workspace = true
 lazy_static.workspace = true
 futures = "0.3"
 # deno_core = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng" }

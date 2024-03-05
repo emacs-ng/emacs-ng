@@ -10,7 +10,7 @@ path = "src/lib.rs"
 emacs = { version = "0.1.0", path = "../emacs" }
 lisp-macros = { version = "0.1.0", path = "../lisp_macros" }
 lisp-util = { version = "0.1.0", path = "../lisp_util" }
-libc = "0.2.95"
+libc.workspace = true
 lazy_static.workspace = true
 crossbeam = "0.8"
 futures = "0.3"

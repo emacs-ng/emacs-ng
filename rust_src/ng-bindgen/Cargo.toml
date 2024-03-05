@@ -8,7 +8,7 @@ edition = "2018"
 [dependencies]
 clippy = { version = "*", optional = true }
 lazy_static = "1.4"
-libc = "0.2.95"
+libc = "0.2"
 regex = "1.1"
 cargo_toml = "0.19"
 
