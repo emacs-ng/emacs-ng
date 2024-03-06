@@ -156,14 +156,10 @@ impl WrGlyph for GlyphStringRef {
         // println!("indices: {:?}, dimensions: {:?}", glyph_indices.clone(), glyph_dimensions);
 
         for (i, index) in glyph_indices.into_iter().enumerate() {
-            // NOTE!!! Seems like Emacs floor down with while Webrender Ceil up
-            // Or we can unify the value produced with advance_width() from GlyphMatrix
-            // The other know case which uses advance_width() is driver.text_extents
-            // This probably disabled wr_glyph_rasterizer subpixel rendering
             let previous_char_width = if i == 0 {
                 0.0
             } else {
-                glyph_dimensions[i - 1].floor()
+                glyph_dimensions[i - 1] as f32
             };
 
             let previous_char_start = if i == 0 {

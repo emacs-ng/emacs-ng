@@ -471,14 +471,14 @@ impl FontInfo {
         self.base.charmap().map(c)
     }
 
-    pub fn get_glyph_advance_width(&self, glyph_indices: Vec<GlyphIndex>) -> Vec<f32> {
+    pub fn get_glyph_advance_width(&self, glyph_indices: Vec<GlyphIndex>) -> Vec<i32> {
         let glyph_metrics = self
             .base
             .glyph_metrics(&[])
             .scale(self.font.pixel_size as f32);
         return glyph_indices
             .into_iter()
-            .map(|i| glyph_metrics.advance_width(i as u16))
+            .map(|i| glyph_metrics.advance_width(i as u16).ceil() as i32)
             .collect();
     }
 }
@@ -614,27 +614,27 @@ extern "C" fn text_extents(
         .glyph_metrics(&[])
         .scale(font_info.font.pixel_size as f32);
 
-    let width: f32 = font_info
+    let width: i32 = font_info
         .get_glyph_advance_width(glyph_indices.clone())
         .into_iter()
         .sum();
 
-    let mut total_width = 0.;
+    let mut total_width = 0;
     for (i, x) in glyph_indices.into_iter().enumerate() {
-        let lbearing = glyph_metrics.lsb(x as u16);
-        let rbearing = 0.;
-        let width = glyph_metrics.advance_width(x as u16);
+        let lbearing = glyph_metrics.lsb(x as u16).ceil() as i16;
+        let rbearing: i16 = 0;
+        let width = glyph_metrics.advance_width(x as u16).ceil() as i16;
 
         if i == 0 {
-            (unsafe { *metrics }).lbearing = lbearing as i16;
+            (unsafe { *metrics }).lbearing = lbearing;
             // FIXME swash doesn't have rsb for rbearing
-            (unsafe { *metrics }).rbearing = rbearing as i16;
+            (unsafe { *metrics }).rbearing = rbearing;
         }
-        if { unsafe { *metrics } }.lbearing > (width + lbearing) as i16 {
-            (unsafe { *metrics }).lbearing = (width + lbearing) as i16;
+        if { unsafe { *metrics } }.lbearing > width + lbearing {
+            (unsafe { *metrics }).lbearing = width + lbearing;
         }
-        if { unsafe { *metrics } }.rbearing < (width + rbearing) as i16 {
-            (unsafe { *metrics }).rbearing = (width + rbearing) as i16;
+        if { unsafe { *metrics } }.rbearing < width + rbearing {
+            (unsafe { *metrics }).rbearing = width + rbearing;
         }
 
         total_width += width;
