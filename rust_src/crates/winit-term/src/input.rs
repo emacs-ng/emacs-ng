@@ -1,12 +1,7 @@
-use crate::api::dpi::LogicalPosition;
 use crate::frame::LispFrameWinitExt;
-use crate::winit_impl::{keycode_to_emacs_key_name, to_emacs_modifiers, virtual_keycode};
+use emacs::sys::EmacsModifiers::{ctrl_modifier, meta_modifier, shift_modifier, super_modifier};
+use winit::dpi::LogicalPosition;
 
-use crate::api::{
-    dpi::PhysicalPosition,
-    event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase},
-    keyboard::{ModifiersState, PhysicalKey},
-};
 use emacs::{
     bindings::{event_kind, input_event, scroll_bar_part},
     globals::{Qnil, Qt},
@@ -14,6 +9,11 @@ use emacs::{
     sys::EmacsModifiers::{down_modifier, up_modifier},
 };
 use std::sync::OnceLock;
+use winit::{
+    dpi::PhysicalPosition,
+    event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase},
+    keyboard::{KeyCode, ModifiersState, PhysicalKey},
+};
 
 static mut INPUT_STATE: OnceLock<InputProcessor> = OnceLock::new();
 impl InputProcessor {
@@ -249,8 +249,6 @@ impl InputProcessor {
                     None
                 }
             }
-            #[cfg(use_tao)]
-            _ => todo!(),
         };
 
         if event_meta.is_none() {
@@ -327,5 +325,83 @@ impl From<InputEvent> for input_event {
         iev.arg = val.arg;
         iev.device = val.device;
         iev
+    }
+}
+
+pub fn virtual_keycode(code: KeyCode) -> u32 {
+    code as u32
+}
+
+pub fn to_emacs_modifiers(modifiers: ModifiersState) -> u32 {
+    let mut emacs_modifiers: u32 = 0;
+
+    if modifiers.alt_key() {
+        emacs_modifiers |= meta_modifier;
+    }
+    if modifiers.shift_key() {
+        emacs_modifiers |= shift_modifier;
+    }
+    if modifiers.control_key() {
+        emacs_modifiers |= ctrl_modifier;
+    }
+    if modifiers.super_key() {
+        emacs_modifiers |= super_modifier;
+    }
+
+    emacs_modifiers
+}
+
+pub fn keysym_to_emacs_key_name(keysym: i32) -> *const libc::c_char {
+    keycode_to_emacs_key_name(unsafe {
+        std::mem::transmute::<i8, KeyCode>(keysym.try_into().unwrap())
+    })
+}
+
+pub fn keycode_to_emacs_key_name(keycode: KeyCode) -> *const libc::c_char {
+    match keycode {
+        KeyCode::Escape => kn!("escape"),
+        KeyCode::Backspace => kn!("backspace"),
+        KeyCode::Delete => kn!("deletechar"),
+        KeyCode::Enter | KeyCode::NumpadEnter => kn!("return"),
+        KeyCode::Tab => kn!("tab"),
+
+        KeyCode::Home => kn!("home"),
+        KeyCode::End => kn!("end"),
+        KeyCode::PageUp => kn!("prior"),
+        KeyCode::PageDown => kn!("next"),
+
+        KeyCode::ArrowLeft => kn!("left"),
+        KeyCode::ArrowRight => kn!("right"),
+        KeyCode::ArrowUp => kn!("up"),
+        KeyCode::ArrowDown => kn!("down"),
+
+        KeyCode::Insert => kn!("insert"),
+
+        KeyCode::F1 => kn!("f1"),
+        KeyCode::F2 => kn!("f2"),
+        KeyCode::F3 => kn!("f3"),
+        KeyCode::F4 => kn!("f4"),
+        KeyCode::F5 => kn!("f5"),
+        KeyCode::F6 => kn!("f6"),
+        KeyCode::F7 => kn!("f7"),
+        KeyCode::F8 => kn!("f8"),
+        KeyCode::F9 => kn!("f9"),
+        KeyCode::F10 => kn!("f10"),
+        KeyCode::F11 => kn!("f11"),
+        KeyCode::F12 => kn!("f12"),
+        KeyCode::F13 => kn!("f13"),
+        KeyCode::F14 => kn!("f14"),
+        KeyCode::F15 => kn!("f15"),
+        KeyCode::F16 => kn!("f16"),
+        KeyCode::F17 => kn!("f17"),
+        KeyCode::F18 => kn!("f18"),
+        KeyCode::F19 => kn!("f19"),
+        KeyCode::F20 => kn!("f20"),
+        KeyCode::F21 => kn!("f21"),
+        KeyCode::F22 => kn!("f22"),
+        KeyCode::F23 => kn!("f23"),
+        KeyCode::F24 => kn!("f24"),
+
+        _ => std::ptr::null(), // null pointer
     }
 }

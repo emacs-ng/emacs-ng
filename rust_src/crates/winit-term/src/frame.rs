@@ -1,6 +1,3 @@
-use crate::api::dpi::LogicalPosition;
-use crate::api::dpi::PhysicalSize;
-use crate::api::monitor::MonitorHandle;
 use crate::cursor::build_mouse_cursors;
 use crate::cursor::emacs_to_winit_cursor;
 use crate::output::OutputExtWinitTerm;
@@ -23,8 +20,11 @@ use raw_window_handle::RawDisplayHandle;
 use raw_window_handle::RawWindowHandle;
 use webrender_api::units::*;
 use webrender_api::ColorF;
+use winit::dpi::LogicalPosition;
+use winit::dpi::PhysicalSize;
+use winit::monitor::MonitorHandle;
 
-use crate::api::{dpi::PhysicalPosition, window::WindowBuilder};
+use winit::{dpi::PhysicalPosition, window::WindowBuilder};
 
 use emacs::display_info::DisplayInfoRef;
 use emacs::output::Output;
@@ -36,7 +36,7 @@ pub trait LispFrameWinitExt {
         tem: LispObject,
         kb: KeyboardRef,
     ) -> Self;
-    fn set_window(&self, handle: crate::api::window::Window);
+    fn set_window(&self, handle: winit::window::Window);
     fn set_inner_size(&self, size: PhysicalSize<u32>);
     fn set_cursor_color(&self, color: ColorF);
     fn set_background_color(&self, color: ColorF);
@@ -88,18 +88,14 @@ impl LispFrameWinitExt for FrameRef {
 
         let invocation_name: String = unsafe { emacs::bindings::globals.Vinvocation_name.into() };
 
-        #[cfg(all(wayland_platform, use_winit))]
+        #[cfg(wayland_platform)]
         let window_builder = {
-            use crate::api::platform::wayland::WindowBuilderExtWayland;
+            use winit::platform::wayland::WindowBuilderExtWayland;
             window_builder.with_name(&invocation_name, "")
         };
-        #[cfg(use_tao)]
-        let window_builder = window_builder.with_title(invocation_name);
 
         let window = window_builder.build(&event_loop).unwrap();
-        #[cfg(use_winit)]
         window.set_theme(None);
-        #[cfg(use_winit)]
         window.set_title(&invocation_name);
         let mut output = Box::new(Output::default());
         build_mouse_cursors(&mut output.as_mut());
@@ -122,17 +118,13 @@ impl LispFrameWinitExt for FrameRef {
         frame
     }
 
-    fn set_window(&self, window: crate::api::window::Window) {
+    fn set_window(&self, window: winit::window::Window) {
         self.output().winit_term_data().set_window(window);
     }
 
     fn set_inner_size(&self, size: PhysicalSize<u32>) {
         if let Some(ref window) = self.output().winit_term_data().window {
-            #[cfg(use_tao)]
-            window.set_inner_size(size);
-            #[cfg(use_winit)]
             let _ = window.request_inner_size(size);
-            // self.gl_renderer().update();
         }
     }
 

@@ -1,15 +1,11 @@
 use crate::gl::context::GLContextTrait;
-#[cfg(window_system_pgtk)]
 use crate::gl_renderer_fit_context;
-#[cfg(window_system_pgtk)]
 use emacs::frame::{Frame, FrameRef};
-#[cfg(window_system_pgtk)]
 use emacs::FrameExtPgtk;
 use gleam::gl::ErrorCheckingGl;
 use gleam::gl::Gl;
 use gleam::gl::GlFns;
 use gleam::gl::GlesFns;
-#[cfg(window_system_pgtk)]
 use gtk::glib::translate::ToGlibPtr;
 use gtk::prelude::*;
 use gtk::GLArea;
@@ -18,7 +14,6 @@ use webrender::api::units::DeviceIntSize;
 
 pub struct ContextImpl {
     area: GLArea,
-    #[cfg(window_system_pgtk)]
     fixed: gtk::Fixed,
 }
 
@@ -52,30 +47,6 @@ impl ContextImpl {
 
 impl GLContextTrait for ContextImpl {
     fn build(frame: &FrameRef) -> Self {
-        #[cfg(use_tao)]
-        let area = {
-            use crate::frame::LispFrameWindowSystemExt;
-            use crate::window_system::api::platform::unix::WindowExtUnix;
-            let frame_inner = frame.output().inner();
-            let window = frame_inner.window.as_ref().expect("No window");
-
-            let gtkwin = window.gtk_window();
-
-            let vbox = gtkwin
-                .children()
-                .pop()
-                .unwrap()
-                .downcast::<gtk::Box>()
-                .unwrap();
-            // TODO config of pf_reqs and gl_attr
-            let area = GLArea::builder().visible(true).has_alpha(true).build();
-            vbox.pack_start(&area, true, true, 0);
-            area.grab_focus();
-            gtkwin.show_all();
-            area
-        };
-
-        #[cfg(window_system_pgtk)]
         let (fixed, area) = {
             let fixed = frame.fixed_widget().expect("no fixed widget");
 
@@ -113,10 +84,7 @@ impl GLContextTrait for ContextImpl {
 
         gl_loader::init_gl();
         area.make_current();
-        #[cfg(window_system_pgtk)]
         return Self { area, fixed };
-        #[cfg(use_tao)]
-        return Self { area };
     }
 
     fn bind_framebuffer(&mut self, _gl: &mut Rc<dyn Gl>) {
@@ -131,20 +99,17 @@ impl GLContextTrait for ContextImpl {
 
     // Ignored because widget will be resized automatically
     fn resize(&self, _size: &DeviceIntSize) {
-        #[cfg(window_system_pgtk)]
-        {
-            let p_alloc = self.fixed.allocation();
-            let me_alloc = self.area.allocation();
-            let allocation = gtk::Allocation::new(
-                me_alloc.x(),
-                me_alloc.y(),
-                p_alloc.width(),
-                p_alloc.height(),
-            );
-            log::debug!("gl_area allocation {allocation:?} to match fixed parent {p_alloc:?}.");
-            self.area.size_allocate(&allocation);
-            self.fixed.move_(&self.area, 0, 0);
-        }
+        let p_alloc = self.fixed.allocation();
+        let me_alloc = self.area.allocation();
+        let allocation = gtk::Allocation::new(
+            me_alloc.x(),
+            me_alloc.y(),
+            p_alloc.width(),
+            p_alloc.height(),
+        );
+        log::debug!("gl_area allocation {allocation:?} to match fixed parent {p_alloc:?}.");
+        self.area.size_allocate(&allocation);
+        self.fixed.move_(&self.area, 0, 0);
     }
 
     fn ensure_is_current(&mut self) {
@@ -160,7 +125,6 @@ impl GLContextTrait for ContextImpl {
     }
 }
 
-#[cfg(window_system_pgtk)]
 fn fixed_wiget_to_frame(widget: &gtk::Fixed) -> *mut Frame {
     let widget: *mut emacs::GtkWidget = <gtk::Fixed as AsRef<gtk::Widget>>::as_ref(widget)
         .to_glib_none()

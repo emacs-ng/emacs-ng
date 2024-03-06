@@ -1,5 +1,5 @@
-use crate::api::event_loop::EventLoop;
 pub use arboard::Clipboard;
+use winit::event_loop::EventLoop;
 
 pub trait ClipboardExt {
     fn build(event_loop: &EventLoop<i32>) -> Self;

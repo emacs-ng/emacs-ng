@@ -122,7 +122,7 @@ gl-renderer = [
   "gl-renderer/std",
   @WEBRENDER_EXTRA_FEATURES@
 ]
-# Use the winit window system
+# Use the winit window system on Wayland
 window-system-winit = [
   "dep:winit-term",
   "ng-bindgen/window-system-winit",
@@ -130,6 +130,12 @@ window-system-winit = [
   "gl-renderer",
   "gl-renderer/winit",
   "emacs/window-system-winit",
+]
+# Use the winit window system with support for X11
+window-system-winit-with-x11 = [
+  "window-system-winit",
+  "winit-term/x11",
+  "gl-renderer/x11"
 ]
 # Treat warnings as a build error on Travis.
 strict = []

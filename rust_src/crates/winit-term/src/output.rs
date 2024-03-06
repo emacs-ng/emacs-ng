@@ -9,8 +9,8 @@ pub struct WinitTermOutputData {
     pub background_color: ColorF,
     pub cursor_color: ColorF,
     pub cursor_foreground_color: ColorF,
-    pub window: Option<crate::api::window::Window>,
-    pub cursor_position: crate::api::dpi::PhysicalPosition<f64>,
+    pub window: Option<winit::window::Window>,
+    pub cursor_position: winit::dpi::PhysicalPosition<f64>,
 }
 
 impl Default for WinitTermOutputData {
@@ -20,13 +20,13 @@ impl Default for WinitTermOutputData {
             cursor_color: ColorF::BLACK,
             cursor_foreground_color: ColorF::WHITE,
             window: None,
-            cursor_position: crate::api::dpi::PhysicalPosition::new(0.0, 0.0),
+            cursor_position: winit::dpi::PhysicalPosition::new(0.0, 0.0),
         }
     }
 }
 
 impl WinitTermOutputData {
-    pub fn set_window(&mut self, window: crate::api::window::Window) {
+    pub fn set_window(&mut self, window: winit::window::Window) {
         self.window = Some(window);
     }
 
@@ -34,7 +34,7 @@ impl WinitTermOutputData {
         self.cursor_color = color;
     }
 
-    pub fn set_cursor_position(&mut self, pos: crate::api::dpi::PhysicalPosition<f64>) {
+    pub fn set_cursor_position(&mut self, pos: winit::dpi::PhysicalPosition<f64>) {
         self.cursor_position = pos;
     }
 

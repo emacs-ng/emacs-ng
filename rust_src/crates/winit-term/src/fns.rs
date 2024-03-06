@@ -1,8 +1,6 @@
 //! wrterm.rs
 use crate::term::{winit_term_init, TerminalExtWinit};
-use crate::{
-    clipboard::ClipboardExt, frame::LispFrameWinitExt, winit_impl::keysym_to_emacs_key_name,
-};
+use crate::{clipboard::ClipboardExt, frame::LispFrameWinitExt, input::keysym_to_emacs_key_name};
 use emacs::bindings::Fredraw_frame;
 use emacs::bindings::{gui_update_cursor, selected_frame};
 use emacs::color::color_to_pixel;
@@ -13,8 +11,8 @@ use std::ffi::CString;
 use std::ptr;
 use webrender_api::*;
 
-use crate::api::monitor::MonitorHandle;
 use emacs::bindings::output_method;
+use winit::monitor::MonitorHandle;
 
 use lisp_macros::lisp_fn;
 
@@ -280,8 +278,6 @@ pub fn winit_create_frame(parms: LispObject) -> FrameRef {
     };
 
     let mut frame = FrameRef::build(display, dpyinfo, tem, kb.into());
-    #[cfg(use_tao)]
-    crate::event_loop::ensure_window(frame.unique_id());
 
     register_ttfp_font_driver(frame.as_mut());
 
@@ -854,4 +850,4 @@ pub extern "C" fn syms_of_winit_term() {
     defvar_lisp!(Vx_select_enable_clipboard_manager, "x-select-enable-clipboard-manager", Qt);
 }
 
-include!(concat!(env!("OUT_DIR"), "/wrterm_exports.rs"));
+include!(concat!(env!("OUT_DIR"), "/fns_exports.rs"));

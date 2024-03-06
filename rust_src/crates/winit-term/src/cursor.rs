@@ -1,4 +1,4 @@
-use crate::api::window::CursorIcon;
+use winit::window::CursorIcon;
 
 use emacs::bindings::{winit_output, Emacs_Cursor};
 

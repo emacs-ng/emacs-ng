@@ -1,15 +1,7 @@
 use super::frame::LispFrameWinitExt;
-use crate::api::keyboard::{Key, NamedKey};
-use crate::api::platform::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+use crate::clipboard::{Clipboard, ClipboardExt};
 use crate::input::InputProcessor;
 use crate::output::OutputExtWinitTerm;
-use crate::{
-    api::{
-        event_loop::{EventLoop, EventLoopBuilder},
-        monitor::MonitorHandle,
-    },
-    clipboard::{Clipboard, ClipboardExt},
-};
 use crate::{winit_set_background_color, winit_set_cursor_color};
 use emacs::bindings::{
     add_keyboard_wait_descriptor, gl_renderer_free_frame_resources,
@@ -31,8 +23,14 @@ use std::sync::OnceLock;
 use std::time::Duration;
 #[cfg(free_unix)]
 use wayland_sys::client::{wl_display, WAYLAND_CLIENT_HANDLE};
+use winit::keyboard::{Key, NamedKey};
+use winit::platform::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+use winit::{
+    event_loop::{EventLoop, EventLoopBuilder},
+    monitor::MonitorHandle,
+};
 
-use crate::api::{
+use winit::{
     event::{ElementState, Event, WindowEvent},
     window::WindowBuilder,
 };
@@ -300,8 +298,6 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                         //     Fredraw_frame(lframe);
                         // }
                     }
-                    #[cfg(use_tao)]
-                    WindowEvent::ReceivedImeText(_text) => {}
                     WindowEvent::ModifiersChanged(modifiers) => {
                         let _ = InputProcessor::handle_modifiers_changed(modifiers.state());
                     }
@@ -501,7 +497,7 @@ extern "C" fn winit_menu_show(
     _title: LispObject,
     _error_name: *mut *const ::libc::c_char,
 ) -> LispObject {
-    message!("Menu functionalities currently is not available for Winit/Tao");
+    message!("Menu functionalities currently is not available for Winit");
     Qnil
 }
 

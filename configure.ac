@@ -650,6 +650,10 @@ otherwise for the first of 'inotify', 'kqueue' or 'gfile' that is usable.])
 OPTION_DEFAULT_OFF([xwidgets],
   [enable use of xwidgets in Emacs buffers (requires gtk3 or macOS Cocoa)])
 
+OPTION_DEFAULT_OFF([winit],
+  [winit(written in Rust) as GUI backend on multiple
+   platforms (Linux, Windows and MacOS) (experimental)])
+
 OPTION_DEFAULT_OFF([webrender],
   [enable use of webrender(written in Rust) as rendering engine (experimental)])
 
@@ -1974,24 +1978,6 @@ AC_ARG_ENABLE(rust-debug,
 [build rust-src in debug mode
 Useful for debugging rust component of emacs-ng.])],
 [ac_enable_rust_debug="${enableval}"],[])
-
-AC_ARG_WITH([winit],[AS_HELP_STRING([--with-winit=KIT],
- [winit(written in Rust) as GUI backend on multiple
- platforms (Linux, Windows and MacOS) (experimental)
- (KIT one of: yes or winit, tao, no).  Winit will be used if none given.])],
-[	  case "${withval}" in
-	    y | ye | yes )	val=winit ;;
-	    n | no )		val=no  ;;
-	    w | wi | win | wini | winit )	val=winit ;;
-	    t | ta | tao )	val=tao ;;
-	    * )
-AC_MSG_ERROR(['--with-winit=$withval' is invalid;
-this option's value should be 'yes', 'winit', 'tao' or 'no'.
-'yes' and 'surfman' are synonyms.])
-	    ;;
-	  esac
-	  with_winit=$val
-])
 
 AC_ARG_ENABLE(winit-x11,
 [AS_HELP_STRING([--disable-winit-x11],
@@ -7334,21 +7320,6 @@ if test "${window_system}" = "winit" ; then
     test "$HAVE_XCB" = "no" && AC_MSG_ERROR(Winit Unix build requires libxcb)
     WINIT_LIBS="$XCB_LIBS $WINIT_LIBS"
 
-    if test X$with_winit = Xtao; then
-       GLIB_REQUIRED=2.37.5
-       GTK_REQUIRED=3.22.23
-       GTK_MODULES="gtk+-3.0 >= $GTK_REQUIRED glib-2.0 >= $GLIB_REQUIRED"
-       EMACS_CHECK_MODULES([GTK], [$GTK_MODULES])
-       test "$HAVE_GTK" = "no" &&  AC_MSG_ERROR(tao requires gtk)
-       WINIT_LIBS="$GTK_LIBS $WINIT_LIBS"
-
-       CAIRO_REQUIRED=1.8.0
-       CAIRO_MODULE="cairo >= $CAIRO_REQUIRED"
-       EMACS_CHECK_MODULES([CAIRO], [$CAIRO_MODULE])
-       test $HAVE_CAIRO = "no" && AC_MSG_WARN([tao requires cairo but not found.])
-       WINIT_LIBS="$CAIRO_LIBS $WINIT_LIBS"
-    fi
-
     WINIT_LIBS="$WINIT_LIBS -lxcb -lxcb-xfixes -lxcb-shape -lxcb-render"
 
     if test X$ac_enable_winit_x11 != Xno; then
@@ -8125,14 +8096,10 @@ case "${window_system}" in
         CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-w32\", "
     ;;
     winit)
-        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-winit\", "
 	if test X$ac_enable_winit_x11 != Xno ; then
-	   WEBRENDER_EXTRA_FEATURES="\"winit-term/x11\", ${WEBRENDER_EXTRA_FEATURES}"
-	fi
-	if test X$with_winit = Xtao; then
-	   WEBRENDER_EXTRA_FEATURES="\"winit-term/tao\", ${WEBRENDER_EXTRA_FEATURES}"
-        else
-	   WEBRENDER_EXTRA_FEATURES="\"winit-term/winit\", ${WEBRENDER_EXTRA_FEATURES}"
+	        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-winit-with-x11\", "
+	else
+	        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-winit\", "
 	fi
     ;;
     pgtk)
@@ -8147,11 +8114,7 @@ if test "${with_webrender}" = "yes" ; then
    if test "X${with_wr_gl}" = "X"; then
 	case "${window_system}" in
 	    winit)
-		if test "X$with_winit" = "Xtao"; then
-		   with_wr_gl=gtk3
-		else
-		   with_wr_gl=surfman
-		fi
+                with_wr_gl=surfman
 	    ;;
 	    pgtk)
 		with_wr_gl=gtk3
