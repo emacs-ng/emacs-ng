@@ -30,10 +30,7 @@ name = "font"
 path = "src/lib.rs"
 
 [features]
-no_std = [
-]
-std = [
-]
+no_std = []
+std = []
 [build-dependencies]
 ng-bindgen = { path = "../../ng-bindgen" }
-cfg_aliases = "0.2"

@@ -6,7 +6,7 @@ use emacs::bindings::{gui_update_cursor, selected_frame};
 use emacs::color::color_to_pixel;
 use emacs::frame::Frame;
 use emacs::terminal::TerminalRef;
-use font::register_ttfp_font_driver;
+use font::register_swash_font_driver;
 use std::ffi::CString;
 use std::ptr;
 use webrender_api::*;
@@ -279,7 +279,7 @@ pub fn winit_create_frame(parms: LispObject) -> FrameRef {
 
     let mut frame = FrameRef::build(display, dpyinfo, tem, kb.into());
 
-    register_ttfp_font_driver(frame.as_mut());
+    register_swash_font_driver(frame.as_mut());
 
     frame.gui_default_parameter(
         parms,

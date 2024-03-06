@@ -1394,7 +1394,7 @@ This function is an internal primitive--use `make-frame' instead.  */ )
   register_font_driver (&ftcrhbfont_driver, f);
 #endif	/* HAVE_HARFBUZZ */
 #else
-register_ttfp_font_driver(f);
+register_swash_font_driver(f);
 #endif  /* USE_WEBRENDER */
 
   image_cache_refcount =
@@ -2754,7 +2754,7 @@ x_create_tip_frame (struct pgtk_display_info *dpyinfo, Lisp_Object parms, struct
   register_font_driver (&ftcrhbfont_driver, f);
 #endif	/* HAVE_HARFBUZZ */
 #else
-register_ttfp_font_driver(f);
+register_swash_font_driver(f);
 #endif  /* USE_WEBRENDER */
 
   image_cache_refcount =

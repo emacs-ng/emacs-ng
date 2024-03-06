@@ -44,7 +44,7 @@ use emacs::{
         Fmake_symbol, Fnreverse, FONT_INVALID_CODE,
     },
     frame::FrameRef,
-    globals::{Qiso10646_1, Qnil, Qttfp},
+    globals::{Qiso10646_1, Qnil, Qswash},
     lisp::{ExternalPtr, LispObject},
     symbol::LispSymbolRef,
 };
@@ -61,7 +61,7 @@ impl FontDriver {
             log::trace!("FONT_DRIVER is being created...");
             let mut font_driver = font_driver::default();
 
-            font_driver.type_ = Qttfp;
+            font_driver.type_ = Qswash;
             font_driver.case_sensitive = true;
             font_driver.get_cache = Some(get_cache);
             font_driver.list = Some(list);
@@ -324,7 +324,7 @@ impl From<FontEntry<'_>> for LispFontLike {
         let entity: LispFontLike = unsafe { font_make_entity() }.into();
 
         // set type
-        entity.aset(font_property_index::FONT_TYPE_INDEX, Qttfp);
+        entity.aset(font_property_index::FONT_TYPE_INDEX, Qswash);
 
         // set family
         let family_name: LispObject = font.family_name().to_string().into();
@@ -526,7 +526,7 @@ extern "C" fn open_font(frame: *mut frame, font_entity: LispObject, pixel_size: 
             .into();
 
     // set type
-    font_object.aset(font_property_index::FONT_TYPE_INDEX, Qttfp);
+    font_object.aset(font_property_index::FONT_TYPE_INDEX, Qswash);
 
     // set name
     font_object.aset(
@@ -822,7 +822,7 @@ pub extern "C" fn shape(lgstring: LispObject, direction: LispObject) -> LispObje
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn register_ttfp_font_driver(f: *mut frame) {
+pub extern "C" fn register_swash_font_driver(f: *mut frame) {
     let driver = FontDriver::global();
     unsafe {
         register_font_driver(&driver.0, f);
@@ -831,8 +831,8 @@ pub extern "C" fn register_ttfp_font_driver(f: *mut frame) {
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn syms_of_ttfp_font() {
-    def_lisp_sym!(Qttfp, "ttfp");
+pub extern "C" fn syms_of_swash_font() {
+    def_lisp_sym!(Qswash, "swash");
     def_lisp_sym!(Qmonospace, "monospace");
     def_lisp_sym!(Qfixed, "fixed");
     def_lisp_sym!(Qzh, "zh");
@@ -840,7 +840,7 @@ pub extern "C" fn syms_of_ttfp_font() {
     #[rustfmt::skip]
     defvar_lisp!(Vregistry_script_alist, "registry-script-alist", Qnil);
 
-    register_ttfp_font_driver(ptr::null_mut());
+    register_swash_font_driver(ptr::null_mut());
 }
 
 #[cfg(not(test))]

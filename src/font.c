@@ -6000,7 +6000,7 @@ match.  */);
 
 #ifdef HAVE_WINDOW_SYSTEM
 #ifdef USE_WEBRENDER
-  syms_of_ttfp_font();
+  syms_of_swash_font();
 #else
 #ifdef HAVE_FREETYPE
   syms_of_ftfont ();
