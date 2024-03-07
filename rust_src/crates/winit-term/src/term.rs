@@ -641,13 +641,6 @@ pub fn winit_term_init(display_name: LispObject) -> DisplayInfoRef {
     let mut dpyinfo_ref = DisplayInfoRef::new(Box::into_raw(dpyinfo));
     let mut terminal = wr_create_terminal(dpyinfo_ref);
 
-    use std::os::fd::AsRawFd;
-    let fd = terminal.winit_term_data().event_loop.as_raw_fd();
-    unsafe {
-        add_keyboard_wait_descriptor(fd);
-        libc::fcntl(fd, libc::F_SETOWN, libc::getpid());
-    }
-
     let window_builder = WindowBuilder::new().with_visible(false);
     let window = window_builder
         .build(&terminal.winit_term_data().event_loop)
@@ -677,6 +670,8 @@ pub fn winit_term_init(display_name: LispObject) -> DisplayInfoRef {
 
     if let Some(fd) = conn {
         unsafe {
+            add_keyboard_wait_descriptor(fd);
+            libc::fcntl(fd, libc::F_SETOWN, libc::getpid());
             if interrupt_input {
                 init_sigio(fd);
             }
