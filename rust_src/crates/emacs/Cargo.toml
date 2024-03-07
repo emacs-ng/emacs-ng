@@ -16,6 +16,12 @@ raw-window-handle = { workspace = true, optional = true }
 webrender_api = { workspace = true, optional = true }
 image = { workspace = true, optional = true }
 colors = {  path = "../../../etc/colors", optional = true }
+surfman = { version = "0.9", features = ["chains", "sm-angle", "sm-angle-default"] , optional = true}
+glutin = { version = "0.31", optional = true }
+gleam = { workspace = true, optional = true }
+winit = { workspace = true, optional = true}
+arboard = { workspace = true, optional = true}
+euclid.workspace = true
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 gtk-sys = { workspace = true, optional = true }
@@ -23,18 +29,41 @@ gtk = { workspace = true, optional = true }
 x11-dl = { version = "2.21", optional = true }
 gdkwayland-sys = { workspace = true, optional = true }
 gdkx11-sys = { workspace = true, optional = true }
+gdk = { workspace = true, optional = true }
+gl_loader = { version = "0.1.2", optional = true }
+wayland-sys = {version = "0.30", features = ["client", "dlopen"]}
+x11 = { version = "2.20", features = ["xlib"], optional = true}
 
 [build-dependencies]
 bindgen = "0.69"
 regex = "1.6"
 libc = "0.2"
+cfg_aliases.workspace = true
 
 [features]
-window-system = ["dep:raw-window-handle", "dep:webrender_api", "dep:image", "dep:colors"]
+glutin=["dep:glutin"]
+surfman=["dep:surfman"]
+x11 = [
+  "glutin?/glx",
+  "glutin?/x11",
+  "surfman?/sm-x11",
+  "dep:x11",
+  "winit?/x11",
+]
+wayland = [
+  "arboard/wayland-data-control",
+  "glutin?/egl",
+  "glutin?/wayland",
+  "winit?/wayland",
+  "winit?/wayland-dlopen",
+  "winit?/wayland-csd-adwaita",
+]
+gtk3=["dep:gtk", "dep:gdk", "dep:gl_loader"]
+window-system = ["dep:raw-window-handle", "dep:webrender_api", "dep:image", "dep:colors", "dep:gleam"]
 window-system-x = [ "window-system"]
 window-system-w32 = [ "window-system"]
 window-system-ns = [ "window-system"]
 window-system-pgtk = [ "window-system", "dep:gtk-sys", "dep:gtk", "dep:x11-dl", "dep:gdkwayland-sys", "dep:gdkx11-sys"]
 window-system-haiku = [ "window-system"]
 window-system-android = [ "window-system"]
-window-system-winit = [ "window-system"]
+window-system-winit = [ "window-system", "dep:winit", "dep:arboard", "wayland"]

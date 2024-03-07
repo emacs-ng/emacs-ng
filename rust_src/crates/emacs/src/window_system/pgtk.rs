@@ -1,3 +1,4 @@
+use crate::color::pixel_to_color;
 use crate::frame::FrameRef;
 use gtk::glib::translate::FromGlibPtrNone;
 use gtk::prelude::Cast;
@@ -12,6 +13,33 @@ use raw_window_handle::XlibDisplayHandle;
 use raw_window_handle::XlibWindowHandle;
 use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 use std::ptr;
+use webrender_api::ColorF;
+
+impl FrameRef {
+    pub fn cursor_color(&self) -> ColorF {
+        let color = self.output().cursor_color;
+        pixel_to_color(color)
+    }
+
+    pub fn scale_factor(&self) -> f64 {
+        if !self.parent_frame.is_nil() {
+            let parent: FrameRef = self.parent_frame.into();
+            return parent.scale_factor();
+        }
+
+        // fallback using widget
+        if let Some(widget) = self.edit_widget() {
+            return widget.scale_factor() as f64;
+        }
+
+        1.0
+    }
+
+    pub fn cursor_foreground_color(&self) -> ColorF {
+        let color = self.output().cursor_foreground_color;
+        pixel_to_color(color)
+    }
+}
 
 unsafe impl HasRawWindowHandle for FrameRef {
     fn raw_window_handle(&self) -> RawWindowHandle {

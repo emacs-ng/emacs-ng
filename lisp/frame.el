@@ -2450,7 +2450,7 @@ If DISPLAY is omitted or nil, it defaults to the selected frame's display."
 		  (&optional terminal))
 (declare-function android-display-monitor-attributes-list "androidfns.c"
                   (&optional terminal))
-(declare-function wr-display-monitor-attributes-list "wrfns.c"
+(declare-function winit-display-monitor-attributes-list "crates/winit-term/src/fns.rs"
 		  (&optional terminal))
 
 (defun display-monitor-attributes-list (&optional display)
@@ -2508,7 +2508,7 @@ monitors."
      ((eq frame-type 'android)
       (android-display-monitor-attributes-list display))
      ((eq frame-type 'winit)
-      (wr-display-monitor-attributes-list display))
+      (winit-display-monitor-attributes-list display))
      (t
       (let ((geometry (list 0 0 (display-pixel-width display)
 			    (display-pixel-height display))))

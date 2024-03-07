@@ -1,5 +1,4 @@
 use crate::display_info::DisplayInfoExtGlRenderer;
-use crate::frame::FrameExtGlRenderer;
 use crate::image::ImageExt;
 use crate::image::ImageRef;
 use crate::output::OutputRef;
@@ -473,7 +472,6 @@ pub extern "C" fn image_sync_to_pixmaps(_frame: FrameRef, _img: *mut image) {
     unimplemented!();
 }
 
-#[cfg(window_system_pgtk)]
 #[no_mangle]
 pub extern "C" fn gl_renderer_parse_color(
     _f: *mut Frame,

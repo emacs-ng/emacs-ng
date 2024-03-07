@@ -1991,10 +1991,9 @@ AC_ARG_WITH([wr-gl],[AS_HELP_STRING([--with-wr-gl=KIT],
 	    y | ye | yes )	val=surfman ;;
 	    s | su | sur | surf | surfm | surfma | surfman )	val=surfman ;;
 	    g | gl | glu | glut | gluti | glutin )	val=glutin ;;
-	        gt | gtk | gtk3  )	val=gtk3 ;;
 	    * )
 AC_MSG_ERROR(['--with-wr-gl=$withval' is invalid;
-this option's value should be 'yes', 'surfman', 'glutin' or 'gtk3'.
+this option's value should be 'yes', 'surfman' or 'glutin'.
 'yes' and 'surfman' are synonyms.])
 	    ;;
 	  esac
@@ -8080,7 +8079,7 @@ AC_SUBST([SUBDIR_MAKEFILES_IN])
 SMALL_JA_DIC=$with_small_ja_dic
 AC_SUBST([SMALL_JA_DIC])
 
-WEBRENDER_EXTRA_FEATURES=""
+PGTK_EXTRA_FEATURES=""
 if test "$HAVE_LIBXML2" = "yes"; then
     CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"use-xml2\", "
 fi
@@ -8096,46 +8095,25 @@ case "${window_system}" in
         CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-w32\", "
     ;;
     winit)
-	if test X$ac_enable_winit_x11 != Xno ; then
+	if test X$ac_enable_winit_x11 != X ; then
 	        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-winit-with-x11\", "
 	else
 	        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-winit\", "
 	fi
+	case "${with_wr_gl}" in
+	glutin ) CARGO_DEFAULT_FEATURES="\"emacs/glutin\", ${CARGO_DEFAULT_FEATURES}";;
+	* ) CARGO_DEFAULT_FEATURES="\"emacs/surfman\", ${CARGO_DEFAULT_FEATURES}";;
+	esac
     ;;
     pgtk)
         CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-pgtk\", "
 	if test "${with_webrender}" = "yes" ; then
-	   WEBRENDER_EXTRA_FEATURES="\"gl-renderer/pgtk\", ${WEBRENDER_EXTRA_FEATURES}"
+	   PGTK_EXTRA_FEATURES="\"emacs/gtk3\", ${PGTK_EXTRA_FEATURES}"
+	   PGTK_EXTRA_FEATURES="\"gl-renderer\", ${PGTK_EXTRA_FEATURES}"
 	fi
     ;;
 esac
-if test "${with_webrender}" = "yes" ; then
-   CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"gl-renderer\", "
-   if test "X${with_wr_gl}" = "X"; then
-	case "${window_system}" in
-	    winit)
-                with_wr_gl=surfman
-	    ;;
-	    pgtk)
-		with_wr_gl=gtk3
-	    ;;
-	esac
-   fi
 
-   if test "${window_system}" = "pgtk" && test "${with_wr_gl}" != "gtk3"; then
-      AC_MSG_ERROR(PGTK with webrender currently only supports --with-wr-gl=gtk3.)
-   fi
-
-   if test "X$with_winit" = "Xwinit" && test "${with_wr_gl}" == "gtk3"; then
-      AC_MSG_ERROR(Winit does not support --with-wr-gl=gtk3.)
-   fi
-
-   case "${with_wr_gl}" in
-      glutin ) WEBRENDER_EXTRA_FEATURES="\"gl-renderer/glutin\", ${WEBRENDER_EXTRA_FEATURES}";;
-      gtk3 ) WEBRENDER_EXTRA_FEATURES="\"gl-renderer/gtk3\", ${WEBRENDER_EXTRA_FEATURES}";;
-      * ) WEBRENDER_EXTRA_FEATURES="\"gl-renderer/surfman\", ${WEBRENDER_EXTRA_FEATURES}";;
-   esac
-fi
 if test "$HAVE_LIBGIT" = "yes"; then
    CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"libgit\", "
 fi
@@ -8149,7 +8127,7 @@ fi
 
 AC_SUBST(CARGO_DEFAULT_FEATURES)
 AC_SUBST(CARGO_CHECKING_FEATURES)
-AC_SUBST(WEBRENDER_EXTRA_FEATURES)
+AC_SUBST(PGTK_EXTRA_FEATURES)
 AC_CONFIG_FILES([Cargo.toml:Cargo.in])
 dnl AC_CONFIG_FILES([$srcdir/.cargo/config:$srcdir/.cargo/config.in])
 AC_CONFIG_FILES([$srcdir/rust_src/crates/emacs/build.rs])

@@ -1,14 +1,12 @@
 use super::image_cache::ImageHash;
-use crate::frame::FrameExtGlRenderer;
-use crate::gl::context::GLContextTrait;
 use emacs::bindings::Emacs_Pixmap;
+use emacs::gfx::context::GLContextTrait;
 use emacs::lisp::ExternalPtr;
 pub use emacs::output::OutputRef;
 use font::FontId;
 use std::fmt;
 use std::{cell::RefCell, rc::Rc};
 
-use crate::frame::FrameExtGlRendererCommon;
 use font::FontInfoRef;
 use gleam::gl;
 use webrender::FastHashMap;
@@ -34,7 +32,7 @@ pub struct GlRenderer {
     previous_frame_image: Option<ImageKey>,
     texture_resources: Rc<RefCell<TextureResourceManager>>,
     renderer: Renderer,
-    gl_context: crate::gl::context::GLContext,
+    gl_context: emacs::gfx::context::GLContext,
     gl: Rc<dyn gl::Gl>,
     frame: FrameRef,
 }

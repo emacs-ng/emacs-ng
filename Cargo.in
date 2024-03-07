@@ -16,6 +16,11 @@ parking_lot = "0.12"
 fxhash = "0.2"
 raw-window-handle = "0.5"
 image = "0.24"
+cfg_aliases = "0.2"
+gleam = "0.15"
+winit = { version = "0.29", default-features = false, features = ["rwh_05"]}
+arboard = "3.3"
+euclid = "0.22"
 
 [workspace.dependencies.webrender]
 git = "https://github.com/declantsien/webrender.git"
@@ -111,7 +116,11 @@ window-system-w32 = ["window-system", "emacs/window-system-w32"]
 # Use the haiku window system
 window-system-haiku = ["window-system", "emacs/window-system-haiku"]
 # Use the pgtk window system
-window-system-pgtk = ["window-system", "emacs/window-system-pgtk",]
+window-system-pgtk = [
+  "window-system",
+  "emacs/window-system-pgtk",
+  @PGTK_EXTRA_FEATURES@
+]
 # Build with git2rs support
 libgit = ["git", "ng-bindgen/libgit"]
 # Use the webrender
@@ -119,8 +128,6 @@ gl-renderer = [
   "dep:font",
   "ng-bindgen/gl-renderer",
   "dep:gl-renderer",
-  "gl-renderer/std",
-  @WEBRENDER_EXTRA_FEATURES@
 ]
 # Use the winit window system on Wayland
 window-system-winit = [
@@ -128,14 +135,12 @@ window-system-winit = [
   "ng-bindgen/window-system-winit",
   "window-system",
   "gl-renderer",
-  "gl-renderer/winit",
   "emacs/window-system-winit",
 ]
 # Use the winit window system with support for X11
 window-system-winit-with-x11 = [
   "window-system-winit",
-  "winit-term/x11",
-  "gl-renderer/x11"
+  "emacs/x11",
 ]
 # Treat warnings as a build error on Travis.
 strict = []

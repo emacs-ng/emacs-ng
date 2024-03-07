@@ -1,4 +1,4 @@
-use crate::frame::LispFrameWinitExt;
+use crate::frame::FrameExtWinit;
 use emacs::sys::EmacsModifiers::{ctrl_modifier, meta_modifier, shift_modifier, super_modifier};
 use winit::dpi::LogicalPosition;
 

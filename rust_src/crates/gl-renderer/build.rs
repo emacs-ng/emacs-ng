@@ -35,13 +35,5 @@ fn main() {
 
         x11_platform: { all(feature = "x11", free_unix, not(wasm), use_winit)},
         wayland_platform: { all(feature = "wayland", free_unix, not(wasm), use_winit) },
-
-        window_system_winit: { any(feature = "winit") },
-        window_system_pgtk: { all(feature = "pgtk", not(window_system_winit)) },
-        have_window_system: { any(window_system_winit, window_system_pgtk) },
-
-        use_surfman: { feature = "surfman" },
-        use_glutin: { all(feature = "glutin", not(use_surfman)) },
-        use_gtk3: { all(feature = "gtk3", free_unix, not(use_surfman), not(use_glutin)) },
     }
 }

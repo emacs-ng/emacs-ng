@@ -1,7 +1,5 @@
-use super::frame::LispFrameWinitExt;
-use crate::clipboard::{Clipboard, ClipboardExt};
+use super::frame::FrameExtWinit;
 use crate::input::InputProcessor;
-use crate::output::OutputExtWinitTerm;
 use crate::{winit_set_background_color, winit_set_cursor_color};
 use emacs::bindings::{
     add_keyboard_wait_descriptor, gl_renderer_free_frame_resources,
@@ -11,29 +9,14 @@ use emacs::bindings::{
     wr_draw_window_divider, wr_flush_display, wr_free_pixmap, wr_new_font, wr_scroll_run,
     wr_update_end, wr_update_window_begin, wr_update_window_end,
 };
-use emacs::lisp::ExternalPtr;
 use emacs::terminal::TerminalRef;
-#[cfg(free_unix)]
-use raw_window_handle::WaylandDisplayHandle;
-use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
-#[cfg(x11_platform)]
-use raw_window_handle::{XcbDisplayHandle, XlibDisplayHandle};
+use raw_window_handle::HasRawDisplayHandle;
 use std::ptr;
 use std::sync::OnceLock;
 use std::time::Duration;
-#[cfg(free_unix)]
-use wayland_sys::client::{wl_display, WAYLAND_CLIENT_HANDLE};
+use winit::event::{ElementState, Event, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
 use winit::platform::pump_events::{EventLoopExtPumpEvents, PumpStatus};
-use winit::{
-    event_loop::{EventLoop, EventLoopBuilder},
-    monitor::MonitorHandle,
-};
-
-use winit::{
-    event::{ElementState, Event, WindowEvent},
-    window::WindowBuilder,
-};
 
 use webrender_api::{self, units::*};
 
@@ -62,85 +45,6 @@ use emacs::{
     keyboard::allocate_keyboard,
     lisp::LispObject,
 };
-
-pub struct WinitTermData {
-    pub terminal: TerminalRef,
-    pub focus_frame: FrameRef,
-    pub clipboard: Clipboard,
-    pub all_frames: Vec<FrameRef>,
-    pub event_loop: EventLoop<i32>,
-}
-
-impl Default for WinitTermData {
-    fn default() -> Self {
-        let event_loop = EventLoopBuilder::<i32>::with_user_event()
-            .build()
-            .ok()
-            .unwrap();
-        let clipboard = Clipboard::build(&event_loop);
-        WinitTermData {
-            terminal: TerminalRef::new(ptr::null_mut()),
-            focus_frame: FrameRef::new(ptr::null_mut()),
-            all_frames: Vec::new(),
-            event_loop,
-            clipboard,
-        }
-    }
-}
-
-pub type WinitTermDataRef = ExternalPtr<WinitTermData>;
-
-pub trait TerminalExtWinit {
-    fn available_monitors(&mut self) -> impl Iterator<Item = MonitorHandle>;
-    fn primary_monitor(&mut self) -> MonitorHandle;
-    fn init_winit_term_data(&mut self);
-    fn winit_term_data(&mut self) -> WinitTermDataRef;
-    fn get_color_bits(&self) -> u8;
-    fn free_winit_term_data(&mut self);
-    fn raw_display_handle(&mut self) -> RawDisplayHandle;
-}
-
-impl TerminalExtWinit for TerminalRef {
-    fn available_monitors(&mut self) -> impl Iterator<Item = MonitorHandle> {
-        self.winit_term_data().event_loop.available_monitors()
-    }
-
-    fn primary_monitor(&mut self) -> MonitorHandle {
-        self.winit_term_data()
-            .event_loop
-            .primary_monitor()
-            .unwrap_or_else(|| -> MonitorHandle { self.available_monitors().next().unwrap() })
-    }
-
-    fn raw_display_handle(&mut self) -> RawDisplayHandle {
-        self.winit_term_data().event_loop.raw_display_handle()
-    }
-
-    fn init_winit_term_data(&mut self) {
-        let winit_term_data = Box::new(WinitTermData::default());
-        self.winit_term_data = Box::into_raw(winit_term_data) as *mut libc::c_void;
-    }
-
-    fn winit_term_data(&mut self) -> WinitTermDataRef {
-        if self.winit_term_data.is_null() {
-            self.init_winit_term_data();
-        }
-        WinitTermDataRef::new(self.winit_term_data as *mut WinitTermData)
-    }
-
-    fn get_color_bits(&self) -> u8 {
-        24
-    }
-
-    //FIXME this needs to be called somewhere.
-    fn free_winit_term_data(&mut self) {
-        if self.winit_term_data != ptr::null_mut() {
-            unsafe {
-                let _ = Box::from_raw(self.winit_term_data as *mut WinitTermData);
-            }
-        }
-    }
-}
 
 fn get_frame_parm_handlers() -> [frame_parm_handler; 48] {
     // Keep this list in the same order as frame_parms in frame.c.
@@ -586,7 +490,7 @@ pub extern "C" fn set_frame_menubar(_f: *mut Frame, _deep_p: bool) {
     todo!()
 }
 
-fn wr_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
+fn winit_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     let redisplay_interface = RedisplayInterface::global();
     let terminal_ptr = unsafe {
         create_terminal(
@@ -635,44 +539,23 @@ pub fn winit_term_init(display_name: LispObject) -> DisplayInfoRef {
 
     let dpyinfo = Box::new(DisplayInfo::default());
     let mut dpyinfo_ref = DisplayInfoRef::new(Box::into_raw(dpyinfo));
-    let mut terminal = wr_create_terminal(dpyinfo_ref);
+    let mut terminal = winit_create_terminal(dpyinfo_ref);
 
-    let window_builder = WindowBuilder::new().with_visible(false);
-    let window = window_builder
-        .build(&terminal.winit_term_data().event_loop)
-        .unwrap();
-    let raw_display_handle = window.raw_display_handle();
-
-    let conn = match raw_display_handle {
-        #[cfg(free_unix)]
-        RawDisplayHandle::Wayland(WaylandDisplayHandle { display, .. }) => {
-            log::trace!("wayland display {display:?}");
-            let fd =
-                unsafe { (WAYLAND_CLIENT_HANDLE.wl_display_get_fd)(display as *mut wl_display) };
-            log::trace!("wayland display fd {fd:?}");
-            Some(fd)
-        }
-        #[cfg(x11_platform)]
-        RawDisplayHandle::Xlib(XlibDisplayHandle { display, .. }) => {
-            log::trace!("xlib display {display:?}");
-            let fd = unsafe { x11::xlib::XConnectionNumber(display as *mut x11::xlib::Display) };
-            log::trace!("xlib display fd {fd:?}");
-            Some(fd)
-        }
-        #[cfg(x11_platform)]
-        RawDisplayHandle::Xcb(XcbDisplayHandle { .. }) => None, // How does this differs from xlib?
-        _ => None,
-    };
-
-    if let Some(fd) = conn {
-        unsafe {
-            add_keyboard_wait_descriptor(fd);
-            libc::fcntl(fd, libc::F_SETOWN, libc::getpid());
-            if interrupt_input {
-                init_sigio(fd);
-            }
-        };
+    // use std::os::fd::AsRawFd;
+    // let fd = terminal.winit_term_data().event_loop.as_raw_fd();
+    let fd = emacs::display_descriptor(terminal.raw_display_handle());
+    unsafe {
+        add_keyboard_wait_descriptor(fd);
+        libc::fcntl(fd, libc::F_SETOWN, libc::getpid());
     }
+
+    //TODO add support for macOS/windows for interrupt_input
+    #[cfg(free_unix)]
+    unsafe {
+        if interrupt_input {
+            init_sigio(emacs::display_descriptor(terminal.raw_display_handle()));
+        }
+    };
 
     let mut kboard = allocate_keyboard(Qwinit);
 

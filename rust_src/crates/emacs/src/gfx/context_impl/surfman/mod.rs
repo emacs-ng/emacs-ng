@@ -1,13 +1,9 @@
 mod rendering_context;
 
-use crate::frame::FrameExtGlRendererCommon;
-use crate::gl::context::GLContextTrait;
-use emacs::frame::FrameRef;
-#[cfg(window_system_pgtk)]
+use crate::frame::FrameRef;
+use crate::gfx::context::GLContextTrait;
 use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
-use webrender::api::units::DeviceIntSize;
-#[cfg(window_system_winit)]
-use winit_term::frame::LispFrameWinitExt;
+use webrender_api::units::DeviceIntSize;
 
 use surfman::{Connection, GLApi, SurfaceType};
 

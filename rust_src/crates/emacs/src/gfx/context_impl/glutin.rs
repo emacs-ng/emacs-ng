@@ -1,6 +1,5 @@
-use crate::frame::FrameExtGlRendererCommon;
-use crate::gl::context::GLContextTrait;
-use emacs::frame::FrameRef;
+use crate::frame::FrameRef;
+use crate::gfx::context::GLContextTrait;
 use gleam::gl::ErrorCheckingGl;
 use glutin::{
     config::{Api, ConfigTemplateBuilder, GlConfig},
@@ -12,11 +11,8 @@ use glutin::{
     prelude::GlSurface,
     surface::{Surface, SurfaceAttributesBuilder, WindowSurface},
 };
-#[cfg(window_system_pgtk)]
 use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
-use webrender::api::units::DeviceIntSize;
-#[cfg(window_system_winit)]
-use winit_term::frame::LispFrameWinitExt;
+use webrender_api::units::DeviceIntSize;
 
 use std::{ffi::CString, num::NonZeroU32};
 

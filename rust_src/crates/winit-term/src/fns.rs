@@ -1,6 +1,6 @@
 //! wrterm.rs
-use crate::term::{winit_term_init, TerminalExtWinit};
-use crate::{clipboard::ClipboardExt, frame::LispFrameWinitExt, input::keysym_to_emacs_key_name};
+use crate::term::winit_term_init;
+use crate::{frame::FrameExtWinit, input::keysym_to_emacs_key_name};
 use emacs::bindings::Fredraw_frame;
 use emacs::bindings::{gui_update_cursor, selected_frame};
 use emacs::color::color_to_pixel;
@@ -593,7 +593,7 @@ pub fn winit_monitor_to_emacs_monitor(m: MonitorHandle) -> (MonitorInfo, Option<
 ///
 /// Internal use only, use `display-monitor-attributes-list' instead.
 #[lisp_fn(min = "0")]
-pub fn wr_display_monitor_attributes_list(terminal: LispObject) -> LispObject {
+pub fn winit_display_monitor_attributes_list(terminal: LispObject) -> LispObject {
     let mut terminal: TerminalRef = terminal.into();
 
     let monitors: Vec<_> = terminal.available_monitors().collect();
@@ -720,8 +720,10 @@ pub fn x_own_selection_internal(
     let frame: FrameRef = frame.into();
     let mut terminal = frame.terminal();
     let content = value.force_string().to_utf8();
-    terminal.winit_term_data().clipboard.write(content);
-    value
+    match terminal.winit_term_data().clipboard.set_text(content) {
+        Ok(_) => value,
+        Err(err) => error!("{}", err),
+    }
 }
 
 /// Return text selected from some X window.
@@ -745,7 +747,11 @@ pub fn x_get_selection_internal(
     terminal: LispObject,
 ) -> LispObject {
     let mut terminal: TerminalRef = terminal.into();
-    let contents: &str = &terminal.winit_term_data().clipboard.read();
+    // let contents: &str = &terminal.winit_term_data().clipboard.read();
+    let contents = match &terminal.winit_term_data().clipboard.get_text() {
+        Ok(s) => s.to_string(),
+        Err(err) => error!("{}", err),
+    };
     contents.into()
 }
 

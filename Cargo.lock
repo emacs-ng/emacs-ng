@@ -984,10 +984,17 @@ checksum = "11157ac094ffbdde99aa67b23417ebdd801842852b500e395a45a9c0aac03e4a"
 name = "emacs"
 version = "0.1.0"
 dependencies = [
+ "arboard",
  "bindgen",
+ "cfg_aliases 0.2.0",
  "colors",
+ "euclid",
+ "gdk",
  "gdkwayland-sys",
  "gdkx11-sys",
+ "gl_loader",
+ "gleam",
+ "glutin",
  "gtk",
  "gtk-sys",
  "image",
@@ -997,7 +1004,11 @@ dependencies = [
  "memoffset 0.6.5",
  "raw-window-handle",
  "regex 1.10.3",
+ "surfman",
+ "wayland-sys 0.30.1",
  "webrender_api",
+ "winit",
+ "x11",
  "x11-dl",
 ]
 
@@ -1617,11 +1628,7 @@ dependencies = [
  "emacs",
  "euclid",
  "font",
- "gdk",
- "gl_loader",
  "gleam",
- "glutin",
- "gtk",
  "image",
  "lazy_static",
  "libc",
@@ -1631,9 +1638,7 @@ dependencies = [
  "ng-bindgen",
  "parking_lot",
  "raw-window-handle",
- "surfman",
  "tiny-skia 0.8.4",
- "wayland-sys 0.30.1",
  "webrender",
  "winit-term",
 ]
@@ -5221,16 +5226,12 @@ name = "winit-term"
 version = "0.1.0"
 dependencies = [
  "app_units",
- "arboard",
  "bit-vec",
  "cfg_aliases 0.2.0",
  "colors",
  "core-foundation",
  "emacs",
  "font",
- "gdk",
- "gl_loader",
- "gtk",
  "lazy_static",
  "libc",
  "lisp-macros",
@@ -5239,10 +5240,8 @@ dependencies = [
  "ng-bindgen",
  "once_cell",
  "raw-window-handle",
- "wayland-sys 0.30.1",
  "webrender_api",
  "winit",
- "x11",
 ]
 
 [[package]]

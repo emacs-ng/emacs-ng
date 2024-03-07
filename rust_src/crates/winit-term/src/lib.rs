@@ -15,12 +15,10 @@ macro_rules! kn {
     };
 }
 
-pub mod clipboard;
 pub mod cursor;
 pub mod event;
 pub mod frame;
 pub mod input;
-pub mod output;
 pub mod term;
 
 mod fns;

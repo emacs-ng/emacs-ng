@@ -1,7 +1,7 @@
-use crate::gl::context::GLContextTrait;
-use crate::gl_renderer_fit_context;
-use emacs::frame::{Frame, FrameRef};
-use emacs::FrameExtPgtk;
+use crate::bindings::gl_renderer_fit_context;
+use crate::frame::{Frame, FrameRef};
+use crate::gfx::context::GLContextTrait;
+use crate::window_system::FrameExtPgtk;
 use gleam::gl::ErrorCheckingGl;
 use gleam::gl::Gl;
 use gleam::gl::GlFns;
@@ -10,7 +10,7 @@ use gtk::glib::translate::ToGlibPtr;
 use gtk::prelude::*;
 use gtk::GLArea;
 use std::rc::Rc;
-use webrender::api::units::DeviceIntSize;
+use webrender_api::units::DeviceIntSize;
 
 pub struct ContextImpl {
     area: GLArea,
@@ -68,7 +68,7 @@ impl GLContextTrait for ContextImpl {
                         DeviceIntSize::new(allocation.width() as i32, allocation.height() as i32);
                     log::debug!("Gtk fixed size allocated {size:?} scale_factor: {scale_factor:?}");
 
-                    gl_renderer_fit_context(frame);
+                    unsafe { gl_renderer_fit_context(frame) };
                 }
             });
 
@@ -76,7 +76,7 @@ impl GLContextTrait for ContextImpl {
                 let frame = fixed_wiget_to_frame(widget);
                 let scale_factor = widget.scale_factor() as f64;
                 log::debug!("Gtk fixed scale_factor: {scale_factor:?}");
-                gl_renderer_fit_context(frame);
+                unsafe { gl_renderer_fit_context(frame) };
             });
 
             (fixed, area)
@@ -126,8 +126,8 @@ impl GLContextTrait for ContextImpl {
 }
 
 fn fixed_wiget_to_frame(widget: &gtk::Fixed) -> *mut Frame {
-    let widget: *mut emacs::GtkWidget = <gtk::Fixed as AsRef<gtk::Widget>>::as_ref(widget)
+    let widget: *mut gtk_sys::GtkWidget = <gtk::Fixed as AsRef<gtk::Widget>>::as_ref(widget)
         .to_glib_none()
         .0;
-    unsafe { emacs::bindings::pgtk_fixed_to_frame(widget) }
+    unsafe { crate::bindings::pgtk_fixed_to_frame(widget) }
 }

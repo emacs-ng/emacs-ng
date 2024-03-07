@@ -1,6 +1,56 @@
 #[cfg(feature = "window-system-pgtk")]
 mod pgtk;
 #[cfg(feature = "window-system-pgtk")]
-pub use gtk_sys::GtkWidget;
-#[cfg(feature = "window-system-pgtk")]
 pub use pgtk::*;
+#[cfg(feature = "window-system-winit")]
+mod winit;
+#[cfg(feature = "window-system-winit")]
+pub use winit::*;
+
+use crate::frame::FrameRef;
+use webrender_api::units::DeviceIntSize;
+use webrender_api::units::LayoutSize;
+
+impl FrameRef {
+    pub fn logical_size(&self) -> LayoutSize {
+        LayoutSize::new(self.pixel_width as f32, self.pixel_height as f32)
+    }
+
+    pub fn physical_size(&self) -> DeviceIntSize {
+        let size = self.logical_size() * euclid::Scale::new(self.scale_factor() as f32);
+        size.to_i32()
+    }
+}
+
+use raw_window_handle::RawDisplayHandle;
+
+pub fn display_descriptor(raw_display_handle: RawDisplayHandle) -> std::os::fd::RawFd {
+    #[cfg(free_unix)]
+    use raw_window_handle::WaylandDisplayHandle;
+    #[cfg(x11_platform)]
+    use raw_window_handle::{XcbDisplayHandle, XlibDisplayHandle};
+    #[cfg(free_unix)]
+    use wayland_sys::client::{wl_display, WAYLAND_CLIENT_HANDLE};
+    match raw_display_handle {
+        #[cfg(free_unix)]
+        RawDisplayHandle::Wayland(WaylandDisplayHandle { display, .. }) => {
+            log::trace!("wayland display {display:?}");
+            let fd =
+                unsafe { (WAYLAND_CLIENT_HANDLE.wl_display_get_fd)(display as *mut wl_display) };
+            log::trace!("wayland display fd {fd:?}");
+            fd
+        }
+        #[cfg(x11_platform)]
+        RawDisplayHandle::Xlib(XlibDisplayHandle { display, .. }) => {
+            log::trace!("xlib display {display:?}");
+            let fd = unsafe { x11::xlib::XConnectionNumber(display as *mut x11::xlib::Display) };
+            log::trace!("xlib display fd {fd:?}");
+            fd
+        }
+        #[cfg(x11_platform)]
+        RawDisplayHandle::Xcb(XcbDisplayHandle { .. }) => {
+            unimplemented!("display descriptor for xcb")
+        } // How does this differs from xlib?
+        _ => unimplemented!("display descriptor"),
+    }
+}

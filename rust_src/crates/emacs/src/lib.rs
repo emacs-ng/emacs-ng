@@ -14,6 +14,11 @@
 #![feature(stmt_expr_attributes)]
 #![feature(async_closure)]
 
+#[cfg(all(glutin, surfman, winit))]
+compile_error!("You cannot specify both `glutin` and `surfman` features for winit window system");
+#[cfg(all(not(glutin), not(surfman), winit))]
+compile_error!("One of `glutin` and `surfman` features is required for winit window system");
+
 #[rustfmt::skip]
 pub mod bindings {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
@@ -61,8 +66,28 @@ pub mod terminal;
 pub mod thread;
 pub mod vector;
 pub mod window;
-#[cfg(feature = "window-system")]
+#[cfg(any(winit, pgtk))]
 mod window_system;
 pub mod xdisp;
-#[cfg(feature = "window-system")]
+#[cfg(any(winit, pgtk))]
 pub use window_system::*;
+#[cfg(any(glutin, surfman, gtk3))]
+pub mod gfx {
+    pub mod context;
+
+    pub mod context_impl {
+        #[cfg(glutin)]
+        pub use crate::gfx::context_impl::glutin::*;
+        #[cfg(gtk3)]
+        pub use crate::gfx::context_impl::gtk3::*;
+        #[cfg(surfman)]
+        pub use crate::gfx::context_impl::surfman::*;
+
+        #[cfg(glutin)]
+        pub mod glutin;
+        #[cfg(gtk3)]
+        pub mod gtk3;
+        #[cfg(surfman)]
+        pub mod surfman;
+    }
+}

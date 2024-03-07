@@ -21,23 +21,13 @@ use emacs::{
     glyph::GlyphStringRef,
 };
 
-use crate::gl::context::GLContextTrait;
 use crate::glyph::WrGlyph;
 use crate::output::GlRenderer;
 use crate::output::GlRendererRef;
 use emacs::frame::FrameRef;
 
-pub trait FrameExtGlRenderer {
-    fn cursor_color(&self) -> ColorF;
-    fn cursor_foreground_color(&self) -> ColorF;
-    fn scale_factor(&self) -> f64;
-}
-
 pub trait FrameExtGlRendererCommon {
     fn gl_renderer(&self) -> GlRendererRef;
-    fn logical_size(&self) -> LayoutSize;
-    fn physical_size(&self) -> DeviceIntSize;
-    fn create_gl_context(&self) -> crate::gl::context::GLContext;
     fn free_gl_renderer_resources(&mut self);
     fn draw_glyph_string(&mut self, s: GlyphStringRef);
 
@@ -113,15 +103,6 @@ pub trait FrameExtGlRendererCommon {
 }
 
 impl FrameExtGlRendererCommon for FrameRef {
-    fn logical_size(&self) -> LayoutSize {
-        LayoutSize::new(self.pixel_width as f32, self.pixel_height as f32)
-    }
-
-    fn physical_size(&self) -> DeviceIntSize {
-        let size = self.logical_size() * euclid::Scale::new(self.scale_factor() as f32);
-        size.to_i32()
-    }
-
     fn gl_renderer(&self) -> GlRendererRef {
         if self.output().gl_renderer.is_null() {
             log::debug!("gl renderer data empty");
@@ -130,10 +111,6 @@ impl FrameExtGlRendererCommon for FrameRef {
         }
 
         GlRendererRef::new(self.output().gl_renderer as *mut GlRenderer)
-    }
-
-    fn create_gl_context(&self) -> crate::gl::context::GLContext {
-        crate::gl::context::GLContext::build(self)
     }
 
     fn free_gl_renderer_resources(&mut self) {

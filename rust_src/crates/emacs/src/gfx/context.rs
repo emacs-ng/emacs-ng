@@ -1,8 +1,8 @@
-use crate::gl::context_impl::ContextImpl;
-use emacs::frame::FrameRef;
+use crate::frame::FrameRef;
+use crate::gfx::context_impl::ContextImpl;
 use gleam::gl::Gl;
 use std::rc::Rc;
-use webrender::{self, api::units::*};
+use webrender_api::units::DeviceIntSize;
 
 pub type GLContext = ContextImpl;
 
@@ -18,4 +18,10 @@ pub trait GLContextTrait {
     fn resize(&self, size: &DeviceIntSize);
 
     fn ensure_is_current(&mut self);
+}
+
+impl FrameRef {
+    pub fn create_gl_context(&self) -> GLContext {
+        GLContext::build(self)
+    }
 }

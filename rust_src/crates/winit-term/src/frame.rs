@@ -1,7 +1,5 @@
 use crate::cursor::build_mouse_cursors;
 use crate::cursor::emacs_to_winit_cursor;
-use crate::output::OutputExtWinitTerm;
-use crate::term::TerminalExtWinit;
 use emacs::globals::Qfullscreen;
 use emacs::globals::Qmaximized;
 use emacs::terminal::TerminalRef;
@@ -16,8 +14,6 @@ use emacs::{
     keyboard::KeyboardRef,
     lisp::LispObject,
 };
-use raw_window_handle::RawDisplayHandle;
-use raw_window_handle::RawWindowHandle;
 use webrender_api::units::*;
 use webrender_api::ColorF;
 use winit::dpi::LogicalPosition;
@@ -29,7 +25,7 @@ use winit::{dpi::PhysicalPosition, window::WindowBuilder};
 use emacs::display_info::DisplayInfoRef;
 use emacs::output::Output;
 
-pub trait LispFrameWinitExt {
+pub trait FrameExtWinit {
     fn build(
         display: LispObject,
         dpyinfo: DisplayInfoRef,
@@ -50,13 +46,11 @@ pub trait LispFrameWinitExt {
     fn current_monitor(&self) -> Option<MonitorHandle>;
     fn cursor_position(&self) -> LogicalPosition<i32>;
     fn winit_scale_factor(&self) -> f64;
-    fn raw_window_handle(&self) -> RawWindowHandle;
-    fn raw_display_handle(&self) -> RawDisplayHandle;
     fn handle_size_change(&mut self, size: DeviceIntSize, scale_factor: f64);
     fn handle_scale_factor_change(&mut self, _scale_factor: f64);
 }
 
-impl LispFrameWinitExt for FrameRef {
+impl FrameExtWinit for FrameRef {
     fn build(
         display: LispObject,
         dpyinfo: DisplayInfoRef,
@@ -292,23 +286,6 @@ impl LispFrameWinitExt for FrameRef {
         1.0
     }
 
-    fn raw_window_handle(&self) -> RawWindowHandle {
-        if let Some(window) = &self.output().winit_term_data().window {
-            use raw_window_handle::HasRawWindowHandle;
-            return window.raw_window_handle();
-        } else {
-            panic!("raw window handle not avaiable")
-        }
-    }
-
-    fn raw_display_handle(&self) -> RawDisplayHandle {
-        if let Some(window) = &self.output().winit_term_data().window {
-            use raw_window_handle::HasRawDisplayHandle;
-            return window.raw_display_handle();
-        } else {
-            panic!("raw display handle not avaiable")
-        }
-    }
     fn handle_size_change(&mut self, size: DeviceIntSize, _scale_factor: f64) {
         log::trace!("frame handle_size_change: {size:?}");
         self.change_size(
