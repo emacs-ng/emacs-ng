@@ -82,7 +82,7 @@ impl FrameExtWinit for FrameRef {
 
         let invocation_name: String = unsafe { emacs::bindings::globals.Vinvocation_name.into() };
 
-        #[cfg(wayland_platform)]
+        #[cfg(free_unix)]
         let window_builder = {
             use winit::platform::wayland::WindowBuilderExtWayland;
             window_builder.with_name(&invocation_name, "")

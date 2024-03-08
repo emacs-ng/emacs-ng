@@ -33,9 +33,5 @@ fn main() {
         windows_platform: { target_os = "windows" },
         apple: { any(target_os = "ios", target_os = "macos") },
         free_unix: { all(unix, not(apple), not(android_platform)) },
-
-        // X11/wayland are winit specific
-        x11_platform: { all(feature = "x11", free_unix, not(wasm), use_winit)},
-        wayland_platform: { all(feature = "wayland", free_unix, not(wasm), use_winit) },
     }
 }
