@@ -32,8 +32,34 @@ use emacs::{
     definitions::EmacsInt,
     frame::{all_frames, window_frame_live_or_selected, FrameRef},
     globals::{
-        Qbackground_color, Qfont, Qfont_backend, Qforeground_color, Qleft_fringe, Qminibuffer,
-        Qname, Qnil, Qparent_id, Qright_fringe, Qt, Qterminal, Qunbound, Qwinit, Qx_create_frame_1,
+        QAndroidNdk,
+        QAppKit,
+        QDrm,
+        QGbm,
+        QHaiku,
+        QOrbital,
+        QUiKit,
+        QWayland,
+        QWeb, //QWebCanvas, QWebOffscreenCanvas,
+        QWin32,
+        QWinRt,
+        QXcb,
+        QXlib,
+        Qbackground_color,
+        Qfont,
+        Qfont_backend,
+        Qforeground_color,
+        Qleft_fringe,
+        Qminibuffer,
+        Qname,
+        Qnil,
+        Qparent_id,
+        Qright_fringe,
+        Qt,
+        Qterminal,
+        Qunbound,
+        Qwinit,
+        Qx_create_frame_1,
         Qx_create_frame_2,
     },
     lisp::{ExternalPtr, LispObject},
@@ -809,12 +835,72 @@ pub fn winit_frame_edges(frame: LispObject, type_: LispObject) -> LispObject {
     frame.edges(type_)
 }
 
+/// Return the name of the RawWindowHandle of FRAME.
+/// The optional argument FRAME specifies which frame to ask about.
+/// FRAME should be a frame object.
+/// If omitted or nil, that stands for the selected frame.
+#[lisp_fn(min = "0")]
+pub fn winit_raw_window_handle_name(frame: LispObject) -> LispObject {
+    use raw_window_handle::HasRawWindowHandle;
+    use raw_window_handle::RawWindowHandle;
+    let frame: FrameRef = window_frame_live_or_selected(frame);
+    match frame.raw_window_handle() {
+        RawWindowHandle::UiKit(_) => QUiKit,
+        RawWindowHandle::AppKit(_) => QAppKit,
+        RawWindowHandle::Orbital(_) => QOrbital,
+        RawWindowHandle::Xlib(_) => QXlib,
+        RawWindowHandle::Xcb(_) => QXcb,
+        RawWindowHandle::Wayland(_) => QWayland,
+        RawWindowHandle::Drm(_) => QDrm,
+        RawWindowHandle::Gbm(_) => QGbm,
+        RawWindowHandle::Win32(_) => QWin32,
+        RawWindowHandle::WinRt(_) => QWinRt,
+        RawWindowHandle::Web(_) => QWeb,
+        // RawWindowHandle::WebCanvas(_) => QWebCanvas,
+        // RawWindowHandle::WebOffscreenCanvas(_) => QWebOffscreenCanvas,
+        RawWindowHandle::AndroidNdk(_) => QAndroidNdk,
+        RawWindowHandle::Haiku(_) => QHaiku,
+        _ => Qnil,
+    }
+}
+
 #[no_mangle]
 #[allow(unused_doc_comments)]
 pub extern "C" fn syms_of_winit_term() {
     def_lisp_sym!(Qwinit, "winit");
+    def_lisp_sym!(QUiKit, "UiKit");
+    def_lisp_sym!(QAppKit, "AppKit");
+    def_lisp_sym!(QOrbital, "Orbital");
+    def_lisp_sym!(QXlib, "Xlib");
+    def_lisp_sym!(QXcb, "Xcb");
+    def_lisp_sym!(QWayland, "Wayland");
+    def_lisp_sym!(QDrm, "Drm");
+    def_lisp_sym!(QGbm, "Gbm");
+    def_lisp_sym!(QWin32, "Win32");
+    def_lisp_sym!(QWinRt, "WinRt");
+    def_lisp_sym!(QWeb, "Web");
+    // def_lisp_sym!(QWebCanvas, "WebCanvas");
+    // def_lisp_sym!(QWebOffscreenCanvas, "WebOffscreenCanvas");
+    def_lisp_sym!(QAndroidNdk, "AndroidNdk");
+    def_lisp_sym!(QHaiku, "Haiku");
+
     unsafe {
         Fprovide(Qwinit, Qnil);
+        Fprovide(QUiKit, Qnil);
+        Fprovide(QAppKit, Qnil);
+        Fprovide(QOrbital, Qnil);
+        Fprovide(QXlib, Qnil);
+        Fprovide(QXcb, Qnil);
+        Fprovide(QWayland, Qnil);
+        Fprovide(QDrm, Qnil);
+        Fprovide(QGbm, Qnil);
+        Fprovide(QWin32, Qnil);
+        Fprovide(QWinRt, Qnil);
+        Fprovide(QWeb, Qnil);
+        // Fprovide(QWebCanvas, Qnil);
+        // Fprovide(QWebOffscreenCanvas, Qnil);
+        Fprovide(QAndroidNdk, Qnil);
+        Fprovide(QHaiku, Qnil);
     }
 
     let winit_keysym_table = unsafe { make_hash_table(&hashtest_eql, 900, Weak_None, false) };
