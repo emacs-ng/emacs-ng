@@ -7553,6 +7553,7 @@ CARGO_FLAGS="$CARGO_FLAGS"
 else
 CARGO_FLAGS="$CARGO_FLAGS --release"
 fi
+CARGO_FLAGS="$CARGO_FLAGS -Zgitoxide=fetch -Zgit=shallow-deps,shallow-index"
 AC_SUBST(CARGO_FLAGS)
 
 case "${opsys}" in
