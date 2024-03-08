@@ -196,12 +196,7 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                 let lframe: LispObject = frame.into();
 
                 match event {
-                    WindowEvent::RedrawRequested => {
-                        // use emacs::bindings::Fredraw_frame;
-                        // unsafe {
-                        //     Fredraw_frame(lframe);
-                        // }
-                    }
+                    WindowEvent::RedrawRequested => {}
                     WindowEvent::ModifiersChanged(modifiers) => {
                         let _ = InputProcessor::handle_modifiers_changed(modifiers.state());
                     }
@@ -322,15 +317,6 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
 
                     _ => {}
                 }
-
-                if frame.output().is_null() || frame.output().winit.is_null() {
-                    return;
-                }
-                let window = &frame.output().winit_term_data().window;
-                match window {
-                    Some(w) => w.request_redraw(),
-                    None => {}
-                }
             }
             _ => {}
         }
@@ -348,17 +334,14 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
 
                 match e {
                     Event::AboutToWait => {
-                        // use crate::output::OutputExtGlRenderer;
-                        // all_frames().for_each(|f| {
-                        //     if f.output().is_null() || f.output().inner.is_null() {
-                        //         return;
-                        //     }
-                        //     let window = &f.output().inner().window;
-                        //     match window {
-                        //         Some(w) => w.request_redraw(),
-                        //         None => {}
-                        //     }
-                        // });
+                        all_frames.iter().for_each(|f| {
+                            let window = &f.output().winit_term_data().window;
+                            match window {
+                                Some(w) => w.request_redraw(),
+                                None => {}
+                            }
+                        });
+                        spin_sleep::sleep(Duration::from_millis(8));
                     }
                     Event::WindowEvent {
                         event, window_id, ..
@@ -525,6 +508,9 @@ fn winit_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     terminal.delete_frame_hook = Some(winit_destroy_frame);
     terminal.delete_terminal_hook = Some(winit_delete_terminal);
 
+    // Init term data for winit
+    let _ = terminal.winit_term_data();
+
     terminal
 }
 
@@ -541,19 +527,27 @@ pub fn winit_term_init(display_name: LispObject) -> DisplayInfoRef {
     let mut dpyinfo_ref = DisplayInfoRef::new(Box::into_raw(dpyinfo));
     let mut terminal = winit_create_terminal(dpyinfo_ref);
 
-    // use std::os::fd::AsRawFd;
-    // let fd = terminal.winit_term_data().event_loop.as_raw_fd();
-    let fd = emacs::display_descriptor(terminal.raw_display_handle());
-    unsafe {
-        add_keyboard_wait_descriptor(fd);
-        libc::fcntl(fd, libc::F_SETOWN, libc::getpid());
+    fn register_io_fd(fd: std::os::fd::RawFd) {
+        unsafe {
+            add_keyboard_wait_descriptor(fd);
+            libc::fcntl(fd, libc::F_SETOWN, libc::getpid());
+        }
     }
 
     //TODO add support for macOS/windows for interrupt_input
+    let fd = emacs::display_descriptor(terminal.raw_display_handle());
+
     #[cfg(free_unix)]
+    {
+        use std::os::fd::AsRawFd;
+        register_io_fd(terminal.winit_term_data().event_loop.as_raw_fd());
+    }
+    #[cfg(not(free_unix))]
+    register_io_fd(fd);
+
     unsafe {
         if interrupt_input {
-            init_sigio(emacs::display_descriptor(terminal.raw_display_handle()));
+            init_sigio(fd);
         }
     };
 
