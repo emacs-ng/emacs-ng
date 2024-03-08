@@ -32,7 +32,7 @@ gdkx11-sys = { workspace = true, optional = true }
 gdk = { workspace = true, optional = true }
 gl_loader = { version = "0.1.2", optional = true }
 wayland-sys = {version = "0.30", features = ["client", "dlopen"]}
-x11 = { version = "2.20", features = ["xlib"], optional = true}
+x11 = { version = "2.21", features = ["xlib"], optional = true}
 
 [build-dependencies]
 bindgen = "0.69"
