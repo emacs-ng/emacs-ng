@@ -1,5 +1,5 @@
-#ifndef __WRTERM_H_
-#define __WRTERM_H_
+#ifndef __WINITTERM_H_
+#define __WINITTERM_H_
 
 #include "dispextern.h"
 
@@ -44,9 +44,7 @@ struct winit_display_info
      mouse-face.  */
   Mouse_HLInfo mouse_highlight;
 
-  /* The number of fonts actually stored in wr_font_table.
-     font_table[n] is used and valid if 0 <= n < n_fonts. 0 <=
-     n_fonts <= font_table_size. and font_table[i].name != 0. */
+  /* The number of fonts opened for this display.  */
   int n_fonts;
 
   /* Pointer to bitmap records.  */
@@ -165,4 +163,4 @@ extern void syms_of_winit_term(void);
 
 #include "webrender_ffi.h"
 
-#endif // __WRTERM_H_
+#endif // __WINITTERM_H_

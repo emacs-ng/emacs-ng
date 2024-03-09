@@ -3305,7 +3305,7 @@ dnl use the toolkit if we have gtk, or X11R5 or newer.
     term_header=w32term.h
   ;;
   winit )
-    term_header=wrterm.h
+    term_header=winitterm.h
   ;;
   pgtk )
     term_header=pgtkterm.h

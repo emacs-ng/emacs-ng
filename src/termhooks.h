@@ -545,7 +545,7 @@ struct terminal
     struct pgtk_display_info *pgtk;		/* pgtkterm.h */
     struct haiku_display_info *haiku;		/* haikuterm.h */
     struct android_display_info *android;	/* androidterm.h */
-    struct winit_display_info *winit;	        /* wrterm.h */
+    struct winit_display_info *winit;	        /* winitterm.h */
   } display_info;
 
 

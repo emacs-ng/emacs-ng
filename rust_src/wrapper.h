@@ -61,7 +61,7 @@
 #include "window.h"
 #include "xgselect.h"
 #ifdef HAVE_WINIT
-# include "wrterm.h"
+# include "winitterm.h"
 #endif
 #ifdef HAVE_PGTK
 # include "pgtkterm.h"
