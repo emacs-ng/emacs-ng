@@ -791,6 +791,39 @@ init file.)
 @end smallexample
 @end defvar
 
+@defvar major-mode-remap-defaults
+This variable contains an association list indicating which function
+to call to activate a given major mode.  This is used for file formats
+that can be supported by various major modes, where this variable can be
+used to indicate which alternative should be used by default.
+
+For example, a third-party package providing a much improved Pascal
+major mode, can use the following to tell @code{normal-mode} to use
+@code{spiffy-pascal-mode} for all the files that would normally use @code{pascal-mode}:
+
+@smallexample
+@group
+(add-to-list 'major-mode-remap-defaults '(pascal-mode . spiffy-pascal-mode))
+@end group
+@end smallexample
+
+This variable has the same format as @code{major-mode-remap-alist}.
+If both lists match a major mode, the entry in
+@code{major-mode-remap-alist} takes precedence.
+@end defvar
+
+@defun major-mode-remap mode
+This function returns the major mode to use instead of @var{mode}
+according to @code{major-mode-remap-alist} and
+@code{major-mode-remap-defaults}.  It returns @var{mode} if the mode
+is not remapped by those variables.
+
+When a package wants to activate a major mode for a particular file
+format, it should use this function, passing as @code{mode} argument the
+canonical major mode for that file format, to find which specific major
+mode to activate, so as to take into account the user's preferences.
+@end defun
+
 @node Mode Help
 @subsection Getting Help about a Major Mode
 @cindex mode help
@@ -1189,7 +1222,7 @@ column is sorted in the descending order.
 This buffer-local variable specifies the format of the Tabulated List
 data.  Its value should be a vector.  Each element of the vector
 represents a data column, and should be a list @code{(@var{name}
-@var{width} @var{sort})}, where
+@var{width} @var{sort} . @var{props})}, where
 
 @itemize
 @item
@@ -1206,6 +1239,13 @@ sorted by comparing string values.  Otherwise, this should be a
 predicate function for @code{sort} (@pxref{Rearrangement}), which
 accepts two arguments with the same form as the elements of
 @code{tabulated-list-entries} (see below).
+
+@item
+@var{props} is a plist (@pxref{Property Lists}) of additional column
+properties.  If the value of the property @code{:right-align} is
+non-@code{nil} then the column should be right-aligned.  And the
+property @code{:pad-right} specifies the number of additional padding
+spaces to the right of the column (by default 1 if omitted).
 @end itemize
 @end defvar
 
@@ -1237,6 +1277,42 @@ There should be no newlines in any of these strings.
 
 Otherwise, the value should be a function which returns a list of the
 above form when called with no arguments.
+@end defvar
+
+@defvar tabulated-list-groups
+This buffer-local variable specifies the groups of entries displayed in
+the Tabulated List buffer.  Its value should be either a list or a
+function.
+
+If the value is a list, each list element corresponds to one group, and
+should have the form @w{@code{(@var{group-name} @var{entries})}}, where
+@var{group-name} is a string inserted before all group entries, and
+@var{entries} have the same format as @code{tabulated-list-entries}
+(see above).
+
+Otherwise, the value should be a function which returns a list of the
+above form when called with no arguments.
+
+You can use @code{seq-group-by} to create @code{tabulated-list-groups}
+from @code{tabulated-list-entries}.  For example:
+
+@smallexample
+@group
+(setq tabulated-list-groups
+      (seq-group-by 'Buffer-menu-group-by-mode
+                    tabulated-list-entries))
+@end group
+@end smallexample
+
+@noindent
+where you can define @code{Buffer-menu-group-by-mode} like this:
+
+@smallexample
+@group
+(defun Buffer-menu-group-by-mode (entry)
+  (concat "* " (aref (cadr entry) 5)))
+@end group
+@end smallexample
 @end defvar
 
 @defvar tabulated-list-revert-hook

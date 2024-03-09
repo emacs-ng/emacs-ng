@@ -1,0 +1,29 @@
+| Type                | Derived Types                                              |
+|---------------------+------------------------------------------------------------|
+| cl-structure-object | xref-elisp-location org-cite-processor cl--generic-method  |
+|                     | cl--random-state register-preview-info cl--generic         |
+|                     | cl--class cl-slot-descriptor uniquify-item registerv       |
+|                     | isearch--state cl--generic-generalizer lisp-indent-state   |
+| accessor            | oclosure-accessor                                          |
+| oclosure            | advice cconv--interactive-helper advice--forward accessor  |
+|                     | save-some-buffers-function cl--generic-nnm                 |
+| atom                | ppss decoded-time oclosure cl-structure-object timer       |
+|                     | native-comp-unit obarray symbol number-or-marker overlay   |
+|                     | window-configuration process window buffer frame           |
+|                     | hash-table terminal thread mutex condvar font-spec         |
+|                     | font-entity font-object user-ptr tree-sitter-parser        |
+|                     | tree-sitter-node tree-sitter-compiled-query function array |
+| cl--class           | cl-structure-class oclosure--class                         |
+| subr                | subr-primitive subr-native-elisp                           |
+| function            | compiled-function module-function                          |
+| compiled-function   | subr byte-code-function                                    |
+| list                | cons null                                                  |
+| boolean             | null                                                       |
+| array               | string char-table bool-vector vector                       |
+| symbol              | symbol-with-pos boolean keyword                            |
+| integer             | fixnum bignum                                              |
+| number-or-marker    | number integer-or-marker                                   |
+| integer-or-marker   | marker integer                                             |
+| number              | integer float                                              |
+| sequence            | array list                                                 |
+| t                   | atom sequence                                              |
