@@ -10,7 +10,7 @@ use emacs::{
         Emacs_Cursor,
     },
     frame::FrameRef,
-    globals::{Qinner_edges, Qnil, Qnone, Qonly, Qouter_edges},
+    globals::{Qfullboth, Qfullexclusive, Qinner_edges, Qnil, Qnone, Qonly, Qouter_edges},
     keyboard::KeyboardRef,
     lisp::LispObject,
 };
@@ -40,7 +40,7 @@ pub trait FrameExtWinit {
     fn set_visible_(&mut self, visible: bool);
     fn set_cursor_icon(&self, cursor: Emacs_Cursor);
     fn edges(&self, type_: LispObject) -> LispObject;
-    fn fullscreen(&self);
+    fn set_fullscreen(&self);
     fn implicitly_set_name(&mut self, arg: LispObject, _old_val: LispObject);
     fn iconify(&mut self);
     fn current_monitor(&self) -> Option<MonitorHandle>;
@@ -215,19 +215,59 @@ impl FrameExtWinit for FrameRef {
         unsafe { list4i(left as i64, top as i64, right as i64, bottom as i64) }
     }
 
-    fn fullscreen(&self) {
+    fn set_fullscreen(&self) {
         if !self.is_visible() {
             return;
         }
 
-        if self.want_fullscreen() == fullscreen_type::FULLSCREEN_MAXIMIZED {
-            let data = self.output().winit_term_data();
-            let window = data
-                .window
-                .as_ref()
-                .expect("frame doesnt have associated winit window yet");
-            window.set_maximized(true);
-            self.store_param(Qfullscreen, Qmaximized);
+        let data = self.output().winit_term_data();
+        let window = data
+            .window
+            .as_ref()
+            .expect("frame doesnt have associated winit window yet");
+
+        use winit::window::Fullscreen;
+
+        match self.want_fullscreen() {
+            fullscreen_type::FULLSCREEN_MAXIMIZED => {
+                window.set_fullscreen(None);
+                window.set_maximized(true);
+                self.store_param(Qfullscreen, Qmaximized);
+            }
+            fullscreen_type::FULLSCREEN_WIDTH => {
+                error!("Winit currently not support fullscreen width");
+            }
+            fullscreen_type::FULLSCREEN_HEIGHT => {
+                error!("Winit currently not support fullscreen height");
+            }
+            fullscreen_type::FULLSCREEN_BOTH => {
+                // TODO set fullscreen on other available_monitors
+                window.set_maximized(false);
+                window.set_fullscreen(Some(Fullscreen::Borderless(self.current_monitor())));
+                message!("Set borderless fullscreen using winit on current monitor");
+                self.store_param(Qfullscreen, Qfullboth);
+            }
+            fullscreen_type::FULLSCREEN_EXCLUSIVE => {
+                // TODO set fullscreen on other available_monitors
+                if let Some(monitor_handle) = self.current_monitor() {
+                    if let Some(mode) = monitor_handle.video_modes().next() {
+                        message!("Set fullscreen on current monitor with video mode {}", mode);
+                        let fullscreen = Some(Fullscreen::Exclusive(mode.clone()));
+                        window.set_fullscreen(fullscreen);
+                        self.store_param(Qfullscreen, Qfullexclusive);
+                        return;
+                    }
+
+                    error!("No video mode found on current monitor");
+                }
+                error!("Current monitor not found");
+            }
+            fullscreen_type::FULLSCREEN_NONE => {
+                window.set_maximized(false);
+                window.set_fullscreen(None);
+                self.store_param(Qfullscreen, Qnil);
+            }
+            _ => {}
         }
     }
     fn implicitly_set_name(&mut self, arg: LispObject, _old_val: LispObject) {

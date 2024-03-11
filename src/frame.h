@@ -40,6 +40,11 @@ enum fullscreen_type
   FULLSCREEN_HEIGHT    = 0x2,
   FULLSCREEN_BOTH      = 0x3, /* Not a typo but means "width and height".  */
   FULLSCREEN_MAXIMIZED = 0x4,
+#ifdef HAVE_WINIT
+/* Winit has two fullscreen Exclusive/Borderless, We use FULLSCREEN_BOTH
+   for Borderless */
+  FULLSCREEN_EXCLUSIVE = 0x8
+#endif
 #ifdef HAVE_NTGUI
   FULLSCREEN_WAIT      = 0x8
 #endif

@@ -4659,6 +4659,10 @@ gui_set_fullscreen (struct frame *f, Lisp_Object new_value, Lisp_Object old_valu
     f->want_fullscreen = FULLSCREEN_NONE;
   else if (EQ (new_value, Qfullboth) || EQ (new_value, Qfullscreen))
     f->want_fullscreen = FULLSCREEN_BOTH;
+#ifdef HAVE_WINIT
+  else if (EQ (new_value, Qfullexclusive))
+    f->want_fullscreen = FULLSCREEN_EXCLUSIVE;
+#endif
   else if (EQ (new_value, Qfullwidth))
     f->want_fullscreen = FULLSCREEN_WIDTH;
   else if (EQ (new_value, Qfullheight))
@@ -6324,6 +6328,9 @@ syms_of_frame (void)
   DEFSYM (Qfullwidth, "fullwidth");
   DEFSYM (Qfullheight, "fullheight");
   DEFSYM (Qfullboth, "fullboth");
+#ifdef HAVE_WINIT
+  DEFSYM (Qfullexclusive, "fullexclusive");
+#endif
   DEFSYM (Qmaximized, "maximized");
   DEFSYM (Qshaded, "shaded");
   DEFSYM (Qx_resource_name, "x-resource-name");

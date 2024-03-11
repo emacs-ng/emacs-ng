@@ -371,9 +371,9 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
     count
 }
 
-extern "C" fn winit_fullscreen(f: *mut Frame) {
+extern "C" fn winit_set_fullscreen(f: *mut Frame) {
     let frame: FrameRef = f.into();
-    frame.fullscreen();
+    frame.set_fullscreen();
 }
 
 extern "C" fn winit_menu_show(
@@ -496,7 +496,7 @@ fn winit_create_terminal(mut dpyinfo: DisplayInfoRef) -> TerminalRef {
     terminal.frame_visible_invisible_hook = Some(winit_frame_visible_invisible);
     terminal.clear_frame_hook = Some(wr_clear_frame);
     terminal.read_socket_hook = Some(winit_read_input_event);
-    terminal.fullscreen_hook = Some(winit_fullscreen);
+    terminal.fullscreen_hook = Some(winit_set_fullscreen);
     terminal.menu_show_hook = Some(winit_menu_show);
     terminal.implicit_set_name_hook = Some(winit_implicitly_set_name);
     terminal.get_focus_frame = Some(winit_get_focus_frame);
