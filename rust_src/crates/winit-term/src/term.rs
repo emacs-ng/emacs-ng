@@ -534,6 +534,11 @@ pub fn winit_term_init(display_name: LispObject) -> DisplayInfoRef {
         }
     }
 
+    // baud_rate is the value computed from fileno (tty->input)
+    // Hardcode the value for now
+    unsafe { emacs::bindings::init_baud_rate(38400) };
+    // Fset_input_interrupt_mode (Qnil);
+
     //TODO add support for macOS/windows for interrupt_input
     let fd = emacs::display_descriptor(terminal.raw_display_handle());
 
