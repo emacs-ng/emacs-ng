@@ -21,7 +21,7 @@ image.workspace = true
 bit-vec = "0.6.3"
 raw-window-handle.workspace = true
 euclid.workspace = true
-tiny-skia = "0.8"
+tiny-skia = "0.11"
 parking_lot.workspace = true
 webrender = { workspace = true, features = ["font_backend_swash"] }
 
