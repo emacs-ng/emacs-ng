@@ -10,7 +10,7 @@ errno.workspace = true
 lazy_static.workspace = true
 libc.workspace = true
 rand = "0.8"
-regex = "1.1"
+regex.workspace = true
 time = "0.3"
 
 [lib]

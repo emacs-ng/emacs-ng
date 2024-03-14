@@ -23,6 +23,7 @@ arboard = "3.3"
 euclid = "0.22"
 lazy_static = "1.4"
 tokio = "1"
+regex = "1.10"
 
 [workspace.dependencies.webrender]
 git = "https://github.com/declantsien/webrender.git"

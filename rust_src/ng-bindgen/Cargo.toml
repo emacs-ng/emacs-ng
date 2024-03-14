@@ -9,7 +9,7 @@ edition = "2018"
 clippy = { version = "*", optional = true }
 lazy_static = "1.4"
 libc = "0.2"
-regex = "1.1"
+regex = "1.10"
 cargo_toml = "0.19"
 
 [dev-dependencies]
