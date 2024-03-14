@@ -13,7 +13,7 @@ lisp-util = { version = "0.1.0", path = "../lisp_util" }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9" }
 git2 = "0.18"
-libc = "0.2.95"
+libc = "0.2.153"
 lazy_static.workspace = true
 
 [build-dependencies]
