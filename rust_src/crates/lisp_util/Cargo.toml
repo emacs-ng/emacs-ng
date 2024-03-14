@@ -8,7 +8,7 @@ edition = "2018"
 libc = "0.2.153"
 errno.workspace = true
 darling = "0.2"
-syn = { version = "0.11.11", features = ["full"] }
+syn = { version = "2.0.52", features = ["full"] }
 
 [lib]
 path = "lib.rs"
