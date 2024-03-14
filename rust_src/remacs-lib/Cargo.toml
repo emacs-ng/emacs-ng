@@ -9,7 +9,7 @@ darling = "0.2"
 errno.workspace = true
 lazy_static.workspace = true
 libc.workspace = true
-rand = "0.6.5"
+rand = "0.8"
 regex = "1.1"
 time = "0.1"
 
