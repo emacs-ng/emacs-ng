@@ -5247,7 +5247,6 @@ dependencies = [
  "lisp-util",
  "log",
  "ng-bindgen",
- "once_cell",
  "raw-window-handle",
  "spin_sleep",
  "webrender_api",
