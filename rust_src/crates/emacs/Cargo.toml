@@ -11,7 +11,7 @@ path = "src/lib.rs"
 libc = "0.2.153"
 lazy_static = "1.4.0"
 log = "0.4"
-memoffset = "0.6.4"
+memoffset = "0.9"
 raw-window-handle = { workspace = true, optional = true }
 webrender_api = { workspace = true, optional = true }
 image = { workspace = true, optional = true }

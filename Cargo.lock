@@ -983,7 +983,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "log",
- "memoffset 0.6.5",
+ "memoffset 0.9.0",
  "raw-window-handle",
  "regex 1.10.3",
  "surfman",
@@ -2395,15 +2395,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe751422e4a8caa417e13c3ea66452215d7d63e19e604f4980461212f3ae1322"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "memoffset"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5aa361d4faea93603064a027415f07bd8e1d5c88c9fbf68bf56a285428fd79ce"
-dependencies = [
- "autocfg",
 ]
 
 [[package]]
