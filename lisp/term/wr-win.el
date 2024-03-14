@@ -1254,7 +1254,8 @@ This returns an error if any Emacs frames are X frames."
 (declare-function x-get-selection-internal "xselect.c"
 		  (selection-symbol target-type &optional time-stamp terminal))
 
-(add-to-list 'display-format-alist '("\\`.*:[0-9]+\\(\\.[0-9]+\\)?\\'" . x))
+;; Any display name is OK.
+(add-to-list 'display-format-alist '(".*" . winit))
 (cl-defmethod handle-args-function (args &context (window-system wr))
   (x-handle-args args))
 
