@@ -1,4 +1,4 @@
-FROM ubuntu:cosmic
+FROM ubuntu:jammy
 
 RUN apt-get update && apt-get dist-upgrade -y
 RUN apt-get install -y \
