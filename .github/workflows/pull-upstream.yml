@@ -13,7 +13,7 @@ jobs:
     name: release_pull_request
     steps:
     - name: checkout
-      uses: actions/checkout@v1
+      uses: actions/checkout@v4
     - name: Create PR to branch
       uses: emacs-ng/github-action-pull-upstream@master
       with:

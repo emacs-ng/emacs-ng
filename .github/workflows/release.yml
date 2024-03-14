@@ -13,7 +13,7 @@ jobs:
     name: Prepare build version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Get latest release
         continue-on-error: true
         id: cur_release
@@ -55,14 +55,14 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       CARGO_INCREMENTAL: 0
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: rust setup
         id: rust-setup
         run: |
           rustup install $(cat rust-toolchain)
           rustup component add rustfmt-preview
       - name: Cache rust
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry

@@ -13,7 +13,7 @@ jobs:
           - os: macos-latest
 
     steps:
-    - uses: actions/checkout@v4.1.1
+    - uses: actions/checkout@v4
     - name: Free up disk space for Ubuntu runner
       if: ${{ matrix.os == 'ubuntu-latest' }}
       uses: ./.github/actions/free-disk-space

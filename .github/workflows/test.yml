@@ -6,7 +6,7 @@ jobs:
     rustfmt-test:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v4
             - name: rust setup
               id: rust-setup
               run: |
@@ -15,7 +15,7 @@ jobs:
                   echo "::set-output name=week::$(/bin/date -u '+%Yy_%mm_%Ww')"
 
             - name: rust cache
-              uses: actions/cache@v2
+              uses: actions/cache@v4
               with:
                   path: |
                       ~/.cargo/registry/cache
@@ -70,7 +70,7 @@ jobs:
                       build: webrender
 
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v4
 
             - name: rust setup
               id: rust-setup
@@ -79,7 +79,7 @@ jobs:
                   echo "::set-output name=week::$(/bin/date -u '+%Yy_%mm_%Ww')"
 
             - name: rust cache
-              uses: actions/cache@v2
+              uses: actions/cache@v4
               with:
                   path: |
                       ~/.cargo/registry/cache
