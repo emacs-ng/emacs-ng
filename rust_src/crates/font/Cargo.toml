@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 webrender_api.workspace = true
 emacs = { path = "../emacs" }
-ttf-parser = "0.17"
 log.workspace = true
 libc.workspace = true
 parking_lot.workspace = true
