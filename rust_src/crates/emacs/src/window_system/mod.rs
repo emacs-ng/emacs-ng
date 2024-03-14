@@ -30,13 +30,13 @@ pub fn display_descriptor(raw_display_handle: RawDisplayHandle) -> std::os::fd::
     #[cfg(x11_platform)]
     use raw_window_handle::{XcbDisplayHandle, XlibDisplayHandle};
     #[cfg(free_unix)]
-    use wayland_sys::client::{wl_display, WAYLAND_CLIENT_HANDLE};
+    use wayland_sys::client::{wayland_client_handle, wl_display};
     match raw_display_handle {
         #[cfg(free_unix)]
         RawDisplayHandle::Wayland(WaylandDisplayHandle { display, .. }) => {
             log::trace!("wayland display {display:?}");
             let fd =
-                unsafe { (WAYLAND_CLIENT_HANDLE.wl_display_get_fd)(display as *mut wl_display) };
+                unsafe { (wayland_client_handle().wl_display_get_fd)(display as *mut wl_display) };
             log::trace!("wayland display fd {fd:?}");
             fd
         }
