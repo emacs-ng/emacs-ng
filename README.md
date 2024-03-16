@@ -24,7 +24,7 @@ A new approach to Emacs
 emacs-ng is based off of the `master` branch of emacs, and regularly
 merges using Github Actions(Runs at 00:00, only on Saturday).
 
-The last merged commit is `345cdd7a70` (03 09 2024).
+The last merged commit is `685f4295f9` (03 16 2024).
 
 ## Motivation
 

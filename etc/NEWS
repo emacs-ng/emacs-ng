@@ -62,6 +62,16 @@ more details.
 
 * Incompatible Changes in Emacs 30.1
 
+** Tree-Sitter modes are now declared as submodes of the non-TS modes.
+In order to help the use of those Tree-Sitter modes, they are now
+declared to have the corresponding non-Tree-Sitter mode as an
+additional parent.
+This way, things like `.dir-locals.el` settings, and YASnippet
+collections of snippets automatically apply to the new Tree-Sitter modes.
+
+Note that those modes still do not inherit from the non-TS mode, so
+configuration settings installed via mode hooks are not affected.
+
 +++
 ** URL now never sends user email addresses in HTTP requests.
 Emacs never sent email addresses by default, but it used to be
@@ -272,6 +282,12 @@ right-aligned to is controlled by the new user option
 *** New action alist entry 'post-command-select-window' for 'display-buffer'.
 It specifies whether the window of the displayed buffer should be
 selected or deselected at the end of executing the current command.
+
++++
+*** New variable 'window-restore-killed-buffer-windows'.
+It specifies how 'set-window-configuration' and 'window-state-put'
+should proceed with windows whose buffer was killed after the
+corresponding configuration or state was recorded.
 
 ** Tab Bars and Tab Lines
 
@@ -1119,6 +1135,12 @@ distracting and easily confused with actual code, or a significant
 early aid that relieves you from moving the buffer or reaching for the
 mouse to consult an error message.
 
+** Flyspell
+
+*** New user option 'flyspell-check-changes'.
+When non-nil, Flyspell mode spell-checks only words that you edited; it
+does not check unedited words just because you move point across them.
+
 ** JS mode.
 The binding 'M-.' has been removed from the major mode keymaps in
 'js-mode' and 'js-ts-mode', having it default to the global binding
@@ -1426,6 +1448,12 @@ to the old behavior of not remembering input history between sessions.
 This allows the user to customize the key selection method, which can be
 either by using a pop-up buffer or from the minibuffer.  The pop-up
 buffer method is the default, which preserves previous behavior.
+
+** Xwidget Webkit
+
++++
+*** New user option 'xwidget-webkit-disable-javascript'.
+This allows disabling JavaScript in xwidget Webkit sessions.
 
 
 * New Modes and Packages in Emacs 30.1
@@ -1784,6 +1812,16 @@ styles to skip eager fontification of completion candidates, which
 improves performance.  Such a Lisp program can then use the
 'completion-lazy-hilit' function to fontify candidates just in time.
 
+** New primitive 'buffer-last-name'.
+It returns the name of a buffer before the last time it was renamed or
+killed.
+
+** New primitive 'marker-last-position'.
+It returns the last position of a marker in its buffer even if that
+buffer has been killed.  ('marker-position' would return nil in that
+case.)
+
+
 ** Functions and variables to transpose sexps
 
 +++
@@ -2130,6 +2168,18 @@ It controls display and separate sorting of groups of entries.
 Like the variable with the same name, it adds menus from the list that
 is the value of the property to context menus shown when clicking on the
 text which as this property.
+
+---
+** Detecting the end of an iteration of a keyboard macro
+'read-event', 'read-char', and 'read-char-exclusive' no longer return -1
+when called at the end of an iteration of a the execution of a keyboard
+macro.  Instead, they will transparently continue reading available input
+(e.g., from the keyboard).  If you need to detect the end of a macro
+iteration, check the following condition before calling one of the
+aforementioned functions:
+
+    (and (arrayp executing-kbd-macro)
+         (>= executing-kbd-macro-index (length executing-kbd-macro))))
 
 
 * Changes in Emacs 30.1 on Non-Free Operating Systems

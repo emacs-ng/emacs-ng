@@ -3554,11 +3554,6 @@ causes it to evaluate `help-form' and display the result."
 		 (help-form-show)))
 	   ((memq char chars)
 	    (setq done t))
-	   ((and executing-kbd-macro (= char -1))
-	    ;; read-event returns -1 if we are in a kbd macro and
-	    ;; there are no more events in the macro.  Attempt to
-	    ;; get an event interactively.
-	    (setq executing-kbd-macro nil))
 	   ((not inhibit-keyboard-quit)
 	    (cond
 	     ((and (null esc-flag) (eq char ?\e))
@@ -4499,8 +4494,7 @@ Otherwise, return nil."
 (defun special-form-p (object)
   "Non-nil if and only if OBJECT is a special form."
   (declare (side-effect-free error-free))
-  (if (and (symbolp object) (fboundp object))
-      (setq object (indirect-function object)))
+  (if (symbolp object) (setq object (indirect-function object)))
   (and (subrp object) (eq (cdr (subr-arity object)) 'unevalled)))
 
 (defun plistp (object)
@@ -4522,7 +4516,8 @@ Otherwise, return nil."
 Does not distinguish between functions implemented in machine code
 or byte-code."
   (declare (side-effect-free error-free))
-  (or (subrp object) (byte-code-function-p object)))
+  (or (and (subrp object) (not (eq 'unevalled (cdr (subr-arity object)))))
+      (byte-code-function-p object)))
 
 (defun field-at-pos (pos)
   "Return the field at position POS, taking stickiness etc into account."
