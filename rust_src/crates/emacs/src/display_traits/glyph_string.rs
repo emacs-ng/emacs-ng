@@ -2,7 +2,7 @@ use std::{cmp::min, slice};
 
 use crate::{
     bindings::{
-        composition_hash_table, composition_method, glyph, glyph_string, hash_hash_t,
+        composition_hash_table, composition_method, glyph_string, hash_hash_t,
         hash_lookup_get_hash, XHASH_TABLE,
     },
     definitions::EmacsInt,
@@ -11,7 +11,6 @@ use crate::{
 
 pub type XChar2b = u32;
 
-pub type GlyphRef = ExternalPtr<glyph>;
 pub type GlyphStringRef = ExternalPtr<glyph_string>;
 
 impl GlyphStringRef {

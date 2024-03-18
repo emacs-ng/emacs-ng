@@ -18,7 +18,7 @@ use emacs::{
         draw_glyphs_face, face as Face, face_underline_type, get_glyph_string_clip_rect,
         glyph_type, prepare_face_for_display, Emacs_Rectangle,
     },
-    glyph::GlyphStringRef,
+    display_traits::GlyphStringRef,
 };
 
 use crate::glyph::WrGlyph;

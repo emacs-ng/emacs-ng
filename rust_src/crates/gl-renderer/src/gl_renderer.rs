@@ -32,10 +32,10 @@ use emacs::{
         draw_fringe_bitmap_params, fontset_from_font, glyph_row, glyph_string, text_cursor_kinds,
         Emacs_Color, Emacs_Pixmap, Fprovide,
     },
+    display_traits::GlyphStringRef,
     font::LispFontRef,
     frame::{Frame, FrameRef},
     globals::{Qnil, Qwr},
-    glyph::GlyphStringRef,
     lisp::LispObject,
     window::{LispWindowRef, Lisp_Window},
 };

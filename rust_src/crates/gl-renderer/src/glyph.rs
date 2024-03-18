@@ -1,7 +1,7 @@
 use crate::emacs::number::LNumber;
 use crate::image::ImageRef;
-use emacs::lglyph::LGlyph;
-use emacs::lglyph::LGlyphString;
+use emacs::composite::LGlyph;
+use emacs::composite::LGlyphString;
 use emacs::lisp::LispObject;
 use euclid::Scale;
 
@@ -13,8 +13,8 @@ use font::{FontInfo, FontInfoRef};
 
 use emacs::{
     bindings::{face_box_type::FACE_NO_BOX, glyph_type},
+    display_traits::GlyphStringRef,
     frame::FrameRef,
-    glyph::GlyphStringRef,
 };
 
 pub trait WrGlyph {

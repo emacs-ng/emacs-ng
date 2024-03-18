@@ -6,8 +6,8 @@ use crate::{
         Fcopy_sequence, ASET,
     },
     definitions::EmacsInt,
+    display_traits::GlyphStringRef,
     globals::Qnil,
-    glyph::GlyphStringRef,
     lisp::LispObject,
     vector::LVector,
 };

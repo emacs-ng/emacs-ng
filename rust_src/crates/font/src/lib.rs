@@ -655,8 +655,8 @@ extern "C" fn otf_capability(_font: *mut font) -> LispObject {
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn shape(lgstring: LispObject, direction: LispObject) -> LispObject {
-    use crate::emacs::lglyph::LGlyph;
-    use crate::emacs::lglyph::LGlyphString;
+    use crate::emacs::composite::LGlyph;
+    use crate::emacs::composite::LGlyphString;
     use crate::emacs::number::LNumber;
     use core::ops::Range;
     use emacs::bindings::globals;
