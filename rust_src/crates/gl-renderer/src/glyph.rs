@@ -1,7 +1,5 @@
 use crate::emacs::number::LNumber;
 use crate::image::ImageRef;
-use emacs::composite::LGlyph;
-use emacs::composite::LGlyphString;
 use emacs::lisp::LispObject;
 use euclid::Scale;
 

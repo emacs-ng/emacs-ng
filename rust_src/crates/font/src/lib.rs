@@ -669,8 +669,6 @@ extern "C" fn otf_capability(_font: *mut font) -> LispObject {
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn shape(lgstring: LispObject, direction: LispObject) -> LispObject {
-    use crate::emacs::composite::LGlyph;
-    use crate::emacs::composite::LGlyphString;
     use crate::emacs::number::LNumber;
     use core::ops::Range;
     use emacs::bindings::font_metrics as FontMetrics;
@@ -804,10 +802,10 @@ pub extern "C" fn shape(lgstring: LispObject, direction: LispObject) -> LispObje
                 }
 
                 /* All the glyphs in a cluster have the same values of FROM and TO.  */
-                lglyph.set_lglyph_from_to(from.into(), to.into());
+                lglyph.set_lglyph_from_to(from, to);
 
-                lglyph.set_lglyph_char((first_char as u32).into());
-                lglyph.set_lglyph_code((*id).into());
+                lglyph.set_lglyph_char(first_char as u32);
+                lglyph.set_lglyph_code(*id);
 
                 let code = *id as u32;
                 text_extents(font_info.as_mut() as *mut font, &code, 1, &mut metrics);
@@ -816,14 +814,14 @@ pub extern "C" fn shape(lgstring: LispObject, direction: LispObject) -> LispObje
                 let yoff = y.ceil() as i16;
                 let advance = advance.ceil() as i16;
 
-                lglyph.set_lglyph_width(advance.into());
-                lglyph.set_lglyph_lbearing(metrics.lbearing.into());
-                lglyph.set_lglyph_rbearing(metrics.rbearing.into());
-                lglyph.set_lglyph_ascent(metrics.ascent.into());
-                lglyph.set_lglyph_descent(metrics.descent.into());
+                lglyph.set_lglyph_width(advance);
+                lglyph.set_lglyph_lbearing(metrics.lbearing);
+                lglyph.set_lglyph_rbearing(metrics.rbearing);
+                lglyph.set_lglyph_ascent(metrics.ascent);
+                lglyph.set_lglyph_descent(metrics.descent);
 
                 if xoff != 0 || yoff != 0 || advance != metrics.width {
-                    lglyph.set_lglyph_adjustment(xoff.into(), yoff.into(), advance.into());
+                    lglyph.set_lglyph_adjustment(xoff, yoff, advance);
                 }
 
                 i += 1;
