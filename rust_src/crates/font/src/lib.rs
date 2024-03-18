@@ -786,7 +786,6 @@ pub extern "C" fn shape(lgstring: LispObject, direction: LispObject) -> LispObje
             M could be smaller or greater than N.  However, in many cases
             there is a one-to-one correspondence, and it would be a pity
             to lose that information, even if it's sometimes inaccurate.  */
-            let first_char = chars.next().unwrap();
             for Glyph {
                 id, x, y, advance, ..
             } in glyphs.iter()
@@ -804,7 +803,9 @@ pub extern "C" fn shape(lgstring: LispObject, direction: LispObject) -> LispObje
                 /* All the glyphs in a cluster have the same values of FROM and TO.  */
                 lglyph.set_lglyph_from_to(from, to);
 
-                lglyph.set_lglyph_char(first_char as u32);
+                if let Some(char) = chars.next() {
+                    lglyph.set_lglyph_char(char as u32);
+                }
                 lglyph.set_lglyph_code(*id);
 
                 let code = *id as u32;
