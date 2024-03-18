@@ -1,16 +1,20 @@
 use crate::color::pixel_to_color;
 use crate::frame::FrameRef;
+use core::ptr::NonNull;
 use gtk::glib::translate::FromGlibPtrNone;
 use gtk::prelude::Cast;
 use gtk::prelude::DisplayExtManual;
 use gtk::prelude::ObjectType;
 use gtk::prelude::WidgetExt;
-use raw_window_handle::HasRawDisplayHandle;
-use raw_window_handle::HasRawWindowHandle;
+use raw_window_handle::DisplayHandle;
+use raw_window_handle::HandleError;
+use raw_window_handle::HasDisplayHandle;
+use raw_window_handle::HasWindowHandle;
 use raw_window_handle::RawDisplayHandle;
 use raw_window_handle::RawWindowHandle;
 use raw_window_handle::WaylandDisplayHandle;
 use raw_window_handle::WaylandWindowHandle;
+use raw_window_handle::WindowHandle;
 use raw_window_handle::XlibDisplayHandle;
 use raw_window_handle::XlibWindowHandle;
 use std::ptr;
@@ -42,10 +46,11 @@ impl FrameRef {
     }
 }
 
-unsafe impl HasRawWindowHandle for FrameRef {
-    fn raw_window_handle(&self) -> RawWindowHandle {
+impl HasWindowHandle for FrameRef {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
         if !self.parent_frame.is_nil() {
-            unimplemented!("Pgtk child frame raw window handle!")
+            message!("Pgtk child frame raw window handle!");
+            return Err(HandleError::Unavailable);
         }
         if let Some(edit_widget) = self.edit_widget() {
             let window = unsafe { gtk_sys::gtk_widget_get_window(edit_widget.as_ptr()) };
@@ -56,49 +61,65 @@ unsafe impl HasRawWindowHandle for FrameRef {
                     )
                 };
                 log::debug!("surface: {:?}", surface);
-                let mut window_handle = WaylandWindowHandle::empty();
-                window_handle.surface = surface;
-                return RawWindowHandle::Wayland(window_handle);
+                match NonNull::new(surface) {
+                    Some(surface) => {
+                        let handle = WaylandWindowHandle::new(surface);
+                        return Ok(unsafe {
+                            WindowHandle::borrow_raw(RawWindowHandle::Wayland(handle))
+                        });
+                    }
+                    None => return Err(HandleError::Unavailable),
+                };
             } else {
-                let mut window_handle = XlibWindowHandle::empty();
-                unsafe {
-                    window_handle.window = gdk_x11_sys::gdk_x11_window_get_xid(window as *mut _);
-                }
-                return RawWindowHandle::Xlib(window_handle);
+                let window = unsafe { gdk_x11_sys::gdk_x11_window_get_xid(window as *mut _) };
+                let mut handle = XlibWindowHandle::new(window);
+                // Optionally set the visual ID.
+                handle.visual_id = 0;
+                return Ok(unsafe { WindowHandle::borrow_raw(RawWindowHandle::Xlib(handle)) });
             }
         }
-        panic!("Pgtk edit widget not avaiable");
+        return Err(HandleError::Unavailable);
     }
 }
 
-unsafe impl HasRawDisplayHandle for FrameRef {
-    fn raw_display_handle(&self) -> RawDisplayHandle {
+impl HasDisplayHandle for FrameRef {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
         if !self.parent_frame.is_nil() {
-            unimplemented!("Pgtk child frame raw window handle!")
+            message!("Pgtk child frame raw window handle!");
+            return Err(HandleError::Unavailable);
         }
         if let Some(edit_widget) = self.edit_widget() {
             if self.is_wayland() {
-                let mut display_handle = WaylandDisplayHandle::empty();
-                display_handle.display = unsafe {
+                let display = unsafe {
                     gdk_wayland_sys::gdk_wayland_display_get_wl_display(
                         edit_widget.display().as_ptr() as *mut _,
                     )
                 };
-                return RawDisplayHandle::Wayland(display_handle);
+                match NonNull::new(display) {
+                    Some(display) => {
+                        let handle = WaylandDisplayHandle::new(display);
+                        return Ok(unsafe {
+                            DisplayHandle::borrow_raw(RawDisplayHandle::Wayland(handle))
+                        });
+                    }
+                    None => return Err(HandleError::Unavailable),
+                };
             } else {
-                let mut display_handle = XlibDisplayHandle::empty();
-                unsafe {
+                let handle = unsafe {
                     if let Ok(xlib) = x11_dl::xlib::Xlib::open() {
                         let display = (xlib.XOpenDisplay)(std::ptr::null());
-                        display_handle.display = display as _;
-                        display_handle.screen = (xlib.XDefaultScreen)(display) as _;
+                        XlibDisplayHandle::new(
+                            NonNull::new(display as _),
+                            (xlib.XDefaultScreen)(display) as _,
+                        )
+                    } else {
+                        return Err(HandleError::Unavailable);
                     }
-                }
-
-                return RawDisplayHandle::Xlib(display_handle);
+                };
+                return Ok(unsafe { DisplayHandle::borrow_raw(RawDisplayHandle::Xlib(handle)) });
             }
         }
-        panic!("Pgtk edit widget not avaiable");
+        return Err(HandleError::Unavailable);
     }
 }
 

@@ -51,6 +51,8 @@ gl_renderer_parse_color (struct frame *f, const char *color_name,
 #endif
 
 extern void
+gl_clear_under_internal_border (struct frame *f);
+extern void
 gl_renderer_free_frame_resources (struct frame *f);
 extern void
 gl_renderer_free_terminal_resources (struct terminal *f);

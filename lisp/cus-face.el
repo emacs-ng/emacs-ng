@@ -140,8 +140,10 @@
 			   color)
 		   (const :format "" :value :style)
 		   (choice :tag "Style"
-			   (const :tag "Line" line)
-			   (const :tag "Wave" wave))
+			    (const :tag "Line" line)
+                            (const :tag "Dotted (WebRender Feature)" dotted)
+                            (const :tag "Dashed (WebRender Feature)" dashed)
+			    (const :tag "Wave" wave))
                    (const :format "" :value :position)
                    (choice :tag "Position"
                            (const :tag "At Default Position" nil)

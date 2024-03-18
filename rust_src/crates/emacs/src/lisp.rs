@@ -6,6 +6,7 @@ use std::fmt;
 use std::mem;
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::ptr;
 
 use libc::c_void;
 use libc::intptr_t;
@@ -161,6 +162,10 @@ impl LispObject {
     pub fn eq(self, other: impl Into<Self>) -> bool {
         self == other.into()
     }
+
+    pub fn base_eq(self, other: impl Into<Self>) -> bool {
+        unsafe { crate::bindings::BASE_EQ(self, other.into()) }
+    }
 }
 
 impl LispObject {
@@ -209,6 +214,10 @@ impl<T> Clone for ExternalPtr<T> {
 }
 
 impl<T> ExternalPtr<T> {
+    pub const fn null() -> Self {
+        Self(ptr::null_mut() as *mut T)
+    }
+
     pub const fn new(p: *mut T) -> Self {
         Self(p)
     }

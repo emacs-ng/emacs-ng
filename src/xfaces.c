@@ -3331,7 +3331,12 @@ FRAME 0 means change the face on all frames, and change the default
                 }
 
               else if (EQ (key, QCstyle)
-                       && !(EQ (val, Qline) || EQ (val, Qwave)))
+                       && !(EQ (val, Qline)
+#ifdef USE_WEBRENDER
+			    || EQ (val, Qdotted)
+			    || EQ (val, Qdashed)
+#endif /* USE_WEBRENDER */
+			    || EQ (val, Qwave)))
                 {
                   valid_p = false;
                   break;
@@ -5476,6 +5481,12 @@ tty_supports_face_attributes_p (struct frame *f,
 	return false;		/* ttys can't use colored underlines */
       else if (EQ (CAR_SAFE (val), QCstyle) && EQ (CAR_SAFE (CDR_SAFE (val)), Qwave))
 	return false;		/* ttys can't use wave underlines */
+#ifdef USE_WEBRENDER
+      else if (EQ (CAR_SAFE (val), QCstyle) && EQ (CAR_SAFE (CDR_SAFE (val)), Qdotted))
+        return false;		/* ttys can't use wave underlines */
+      else if (EQ (CAR_SAFE (val), QCstyle) && EQ (CAR_SAFE (CDR_SAFE (val)), Qdashed))
+	return false;		/* ttys can't use wave underlines */
+#endif /* USE_WEBRENDER */
       else if (face_attr_equal_p (val, def_attrs[LFACE_UNDERLINE_INDEX]))
 	return false;		/* same as default */
       else
@@ -6399,6 +6410,12 @@ realize_gui_face (struct face_cache *cache, Lisp_Object attrs[LFACE_VECTOR_SIZE]
             {
               if (EQ (value, Qline))
                 face->underline = FACE_UNDER_LINE;
+#ifdef USE_WEBRENDER
+	      else if (EQ (value, Qdotted))
+                face->underline = FACE_UNDER_DOTTED;
+              else if (EQ (value, Qdashed))
+                face->underline = FACE_UNDER_DASHED;
+#endif /* USE_WEBRENDER */
               else if (EQ (value, Qwave))
                 face->underline = FACE_UNDER_WAVE;
             }
@@ -7248,6 +7265,10 @@ syms_of_xfaces (void)
   DEFSYM (QCstyle, ":style");
   DEFSYM (QCposition, ":position");
   DEFSYM (Qline, "line");
+#ifdef USE_WEBRENDER
+  DEFSYM (Qdotted, "dotted");
+  DEFSYM (Qdashed, "dashed");
+#endif /* USE_WEBRENDER */
   DEFSYM (Qwave, "wave");
   DEFSYM (Qreleased_button, "released-button");
   DEFSYM (Qpressed_button, "pressed-button");

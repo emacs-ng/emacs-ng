@@ -8,6 +8,7 @@ use crate::bindings::build_string;
 use crate::bindings::pvec_type;
 use crate::bindings::terminal;
 use crate::bindings::Fselected_frame;
+use crate::display_traits::ImageCacheRef;
 use crate::globals::Qnil;
 use crate::globals::Qterminal_live_p;
 use crate::lisp::ExternalPtr;
@@ -30,6 +31,10 @@ impl TerminalRef {
         } else {
             unsafe { build_string(self.name) }
         }
+    }
+
+    pub fn image_cache(self) -> ImageCacheRef {
+        ImageCacheRef::new(self.image_cache as *mut _)
     }
 
     #[allow(unreachable_code)]

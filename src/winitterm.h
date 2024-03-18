@@ -16,6 +16,9 @@ struct winit_display_info
   /* This is a cons cell of the form (NAME . FONT-LIST-CACHE).  */
   Lisp_Object name_list_element;
 
+  /* Number of frames that are on this display.  */
+  int reference_count;
+
   /* Dots per inch of the screen.  */
   double resx, resy;
 
@@ -89,6 +92,15 @@ struct winit_output
      but it can be the root window, and it can be explicitly specified
      (see the explicit_parent field, below).  */
   Window parent_desc;
+
+    /* The X window used for this frame.
+     May be zero while the frame object is being created
+     and the X window has not yet been created.  */
+  Window window_desc;
+
+  /* True means our parent is another application's window
+     and was explicitly specified.  */
+  bool_bf explicit_parent : 1;
 
   /* Descriptor for the cursor in use for this window.  */
   Emacs_Cursor text_cursor;

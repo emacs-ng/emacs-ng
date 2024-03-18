@@ -1,34 +1,22 @@
-use crate::display_info::DisplayInfoExtGlRenderer;
+use super::util::HandyDandyRectBuilder;
+use crate::fringe::FringeBitmap;
+use crate::glyph::GlyphStringExtGlRenderer;
+use crate::glyph::WrGlyph;
 use crate::image::ImageExt;
 use crate::image::ImageRef;
+use crate::output::GlRenderer;
+use crate::output::GlRendererRef;
+use emacs::color::pixel_to_color;
+use emacs::display_traits::DrawGlyphsFace;
+use emacs::display_traits::FaceRef;
+use emacs::display_traits::GlyphStringRef;
+use emacs::display_traits::GlyphType;
+use emacs::frame::FrameRef;
 use euclid::Scale;
 use std::cmp::min;
 use std::ptr;
-
 use webrender::api::units::*;
 use webrender::api::*;
-use webrender::{self};
-
-use crate::fringe::FringeBitmap;
-
-use super::util::HandyDandyRectBuilder;
-use emacs::color::color_to_pixel;
-use emacs::color::pixel_to_color;
-use font::FontInfoRef;
-
-use emacs::bindings::draw_glyphs_face;
-use emacs::bindings::face as Face;
-use emacs::bindings::face_underline_type;
-use emacs::bindings::get_glyph_string_clip_rect;
-use emacs::bindings::glyph_type;
-use emacs::bindings::prepare_face_for_display;
-use emacs::bindings::Emacs_Rectangle;
-use emacs::display_traits::GlyphStringRef;
-
-use crate::glyph::WrGlyph;
-use crate::output::GlRenderer;
-use crate::output::GlRendererRef;
-use emacs::frame::FrameRef;
 
 pub trait FrameExtGlRendererCommon {
     fn gl_renderer(&self) -> GlRendererRef;
@@ -54,16 +42,6 @@ pub trait FrameExtGlRendererCommon {
 
     fn draw_composite_glyph_string_foreground(&mut self, s: GlyphStringRef);
 
-    fn draw_underline(
-        builder: &mut DisplayListBuilder,
-        s: GlyphStringRef,
-        font: FontInfoRef,
-        foreground_color: ColorF,
-        face: *mut Face,
-        space_and_clip: SpaceAndClipInfo,
-        scale: f32,
-    );
-
     fn draw_fringe_bitmap(
         &mut self,
         pos: LayoutPoint,
@@ -75,13 +53,13 @@ pub trait FrameExtGlRendererCommon {
         row_rect: LayoutRect,
     );
 
-    fn draw_vertical_window_border(&mut self, face: Option<*mut Face>, x: i32, y0: i32, y1: i32);
+    fn draw_vertical_window_border(&mut self, face: Option<FaceRef>, x: i32, y0: i32, y1: i32);
 
     fn draw_window_divider(
         &mut self,
-        color: u64,
-        color_first: u64,
-        color_last: u64,
+        color: ColorF,
+        color_first: ColorF,
+        color_last: ColorF,
         x0: i32,
         x1: i32,
         y0: i32,
@@ -103,7 +81,7 @@ pub trait FrameExtGlRendererCommon {
         scroll_height: i32,
     );
     fn draw_hollow_box_cursor(&mut self, cursor_rect: LayoutRect, clip_rect: LayoutRect);
-    fn draw_bar_cursor(&mut self, face: &Face, x: i32, y: i32, width: i32, height: i32);
+    fn draw_bar_cursor(&mut self, face: Option<FaceRef>, x: i32, y: i32, width: i32, height: i32);
 }
 
 impl FrameExtGlRendererCommon for FrameRef {
@@ -123,60 +101,11 @@ impl FrameExtGlRendererCommon for FrameRef {
     }
 
     fn draw_glyph_string(&mut self, mut s: GlyphStringRef) {
-        unsafe { prepare_face_for_display(s.f, s.face) };
+        // wip
+        s.set_gc();
 
-        match s.hl {
-            draw_glyphs_face::DRAW_NORMAL_TEXT
-            | draw_glyphs_face::DRAW_INVERSE_VIDEO
-            | draw_glyphs_face::DRAW_MOUSE_FACE
-            | draw_glyphs_face::DRAW_IMAGE_RAISED
-            | draw_glyphs_face::DRAW_IMAGE_SUNKEN => {
-                let face = unsafe { &*s.face };
-                s.gc = face.gc;
-                s.set_stippled_p(face.stipple != 0);
-            }
-
-            draw_glyphs_face::DRAW_CURSOR => {
-                let face = unsafe { &*s.face };
-                let frame: FrameRef = (*s).f.into();
-                let mut dpyinfo = frame.display_info();
-
-                let mut foreground = face.background;
-                let mut background = color_to_pixel(frame.cursor_color());
-
-                // If the glyph would be invisible, try a different foreground.
-                if foreground == background {
-                    foreground = face.foreground;
-                }
-
-                if foreground == background {
-                    foreground = color_to_pixel(frame.cursor_foreground_color());
-                }
-
-                if foreground == background {
-                    foreground = face.foreground;
-                }
-
-                // Make sure the cursor is distinct from text in this face.
-                if foreground == face.foreground && background == face.background {
-                    foreground = face.background;
-                    background = face.foreground;
-                }
-
-                let gc = &mut dpyinfo.gl_renderer_data().scratch_cursor_gc;
-                gc.foreground = foreground;
-                gc.background = background;
-                s.gc = gc.as_mut();
-
-                s.set_stippled_p(false);
-            }
-            _ => log::warn!("invalid draw_glyphs_face {:?}", s.hl),
-        }
-
-        let type_ = s.first_glyph().type_();
-
-        match type_ {
-            glyph_type::CHAR_GLYPH => {
+        match s.glyph_type() {
+            GlyphType::Char => {
                 if s.for_overlaps() != 0 {
                     s.set_background_filled_p(true);
                 } else {
@@ -184,9 +113,9 @@ impl FrameExtGlRendererCommon for FrameRef {
                 }
                 self.draw_char_glyph_string_foreground(s)
             }
-            glyph_type::STRETCH_GLYPH => self.draw_stretch_glyph_string_foreground(s),
-            glyph_type::IMAGE_GLYPH => self.draw_image_glyph(s),
-            glyph_type::COMPOSITE_GLYPH => {
+            GlyphType::Stretch => self.draw_stretch_glyph_string_foreground(s),
+            GlyphType::Image => self.draw_image_glyph(s),
+            GlyphType::Composite => {
                 if s.for_overlaps() != 0 || s.cmp_from > 0 && s.automatic_composite_p() {
                     s.set_background_filled_p(true);
                 } else {
@@ -194,10 +123,10 @@ impl FrameExtGlRendererCommon for FrameRef {
                 }
                 self.draw_composite_glyph_string_foreground(s)
             }
-            glyph_type::XWIDGET_GLYPH => {
-                log::warn!("TODO unimplemented! glyph_type::XWIDGET_GLYPH\n")
+            GlyphType::Xwidget => {
+                log::warn!("TODO unimplemented! GlyphType::XWIDGET_GLYPH\n")
             }
-            glyph_type::GLYPHLESS_GLYPH => {
+            GlyphType::Glyphless => {
                 if s.for_overlaps() != 0 {
                     s.set_background_filled_p(true);
                 } else {
@@ -206,7 +135,21 @@ impl FrameExtGlRendererCommon for FrameRef {
 
                 self.draw_glyphless_glyph_string_foreground(s);
             }
-            _ => {}
+        }
+
+        if !s.is_for_overlaps() {
+            // Draw underline
+            s.draw_underline();
+
+            // Draw overline
+            if s.face().overline_p() {
+                s.draw_overline();
+            }
+
+            /* Draw strike-through.  */
+            if s.face().strike_through_p() {
+                s.draw_strike_through();
+            }
         }
     }
 
@@ -221,7 +164,7 @@ impl FrameExtGlRendererCommon for FrameRef {
         if s.background_filled_p() {
             return;
         }
-        let box_line_width = std::cmp::max(unsafe { (*s.face).box_horizontal_line_width }, 0);
+        let box_line_width = std::cmp::max(s.face().box_horizontal_line_width, 0);
 
         if s.stippled_p() {
             // Fill background with a stipple pattern.
@@ -229,17 +172,16 @@ impl FrameExtGlRendererCommon for FrameRef {
             //     s.background_width,
             //     s.height - 2 * box_line_width);
             s.set_background_filled_p(true);
-        } else if s.font().font.height < s.height - 2 * box_line_width
+        } else if s.font_info().font.height < s.height - 2 * box_line_width
 	    /* When xdisp.c ignores FONT_HEIGHT, we cannot trust
 	    font dimensions, since the actual glyphs might be
 	    much smaller.  So in that case we always clear the
 	    rectangle with background color.  */
-	    || s.font().too_high_p()
+	    || s.font_info().too_high_p()
             || s.font_not_found_p()
             || s.extends_to_end_of_line_p() || force_p
         {
-            let gc = s.gc;
-            let background_color = pixel_to_color(unsafe { (*gc).background } as u64);
+            let background_color = pixel_to_color(s.gc().background as u64);
             self.clear_area(
                 background_color,
                 s.x,
@@ -253,37 +195,18 @@ impl FrameExtGlRendererCommon for FrameRef {
     }
 
     fn draw_char_glyph_string_foreground(&mut self, s: GlyphStringRef) {
-        let font = s.font();
-
-        let gc = s.gc;
-
         let x = s.x;
         let y = s.y;
-
-        let face = s.face;
 
         let visible_height = s.visible_height();
 
         // draw background
-        let background_color = pixel_to_color(unsafe { (*gc).background } as u64);
+        let background_color = pixel_to_color(s.gc().background as u64);
         self.clear_area(background_color, x, y, s.background_width, visible_height);
 
         self.gl_renderer()
             .display(|builder, space_and_clip, scale| {
-                let foreground_color = pixel_to_color(unsafe { (*gc).foreground });
-
-                // draw underline
-                if unsafe { (*face).underline() != face_underline_type::FACE_NO_UNDERLINE } {
-                    Self::draw_underline(
-                        builder,
-                        s,
-                        font,
-                        foreground_color,
-                        face,
-                        space_and_clip,
-                        scale,
-                    );
-                }
+                let foreground_color = pixel_to_color(s.gc().foreground);
 
                 let glyph_instances = s.scaled_glyph_instances(scale);
                 // draw foreground
@@ -309,7 +232,7 @@ impl FrameExtGlRendererCommon for FrameRef {
         }
 
         let visible_height = s.visible_height();
-        let background_width = if s.hl == draw_glyphs_face::DRAW_CURSOR {
+        let background_width = if s.hl() == DrawGlyphsFace::Cursor {
             let frame: FrameRef = s.f.into();
 
             min(frame.column_width, s.background_width)
@@ -317,7 +240,7 @@ impl FrameExtGlRendererCommon for FrameRef {
             s.background_width
         };
 
-        let background_color = pixel_to_color(unsafe { (*s.gc).background } as u64);
+        let background_color = s.bg_color();
         self.clear_area(background_color, s.x, s.y, background_width, visible_height);
 
         s.set_background_filled_p(true);
@@ -327,23 +250,12 @@ impl FrameExtGlRendererCommon for FrameRef {
         // clear area
         let x = s.x;
         let y = s.y;
-        let gc = s.gc;
         let visible_height = s.visible_height();
-        let background_color = pixel_to_color(unsafe { (*gc).background } as u64);
+        let background_color = s.bg_color();
         self.clear_area(background_color, x, y, s.background_width, visible_height);
+        let clip_rect = s.clip_rect();
 
-        let mut clip_rect = Emacs_Rectangle {
-            x: 0,
-            y: 0,
-            width: 0,
-            height: 0,
-        };
-
-        unsafe { get_glyph_string_clip_rect(s.as_mut(), &mut clip_rect) };
-
-        let face = unsafe { &*s.face };
-
-        let background_color = pixel_to_color(face.background);
+        let background_color = s.face().bg_color();
         let scale = s.frame().gl_renderer().scale();
         let clip_bounds =
             (clip_rect.x, clip_rect.y).by(clip_rect.width as i32, clip_rect.height as i32, scale);
@@ -371,6 +283,7 @@ impl FrameExtGlRendererCommon for FrameRef {
 
     fn draw_glyphless_glyph_string_foreground(&mut self, s: GlyphStringRef) {
         let _x = s.x();
+        println!("draw glyphless glyph string forground");
         //TODO
     }
 
@@ -408,36 +321,17 @@ impl FrameExtGlRendererCommon for FrameRef {
                 self.clear_area(self.cursor_color(), s.x, s.y, s.width, s.height);
             }
         } else {
-            let font = s.font();
-
-            let face = s.face;
-
-            let gc = s.gc;
-
             let visible_height = s.visible_height();
 
             let x = s.x;
             let y = s.y;
-            let background_color = pixel_to_color(unsafe { (*gc).background } as u64);
+            let background_color = pixel_to_color(s.gc().background as u64);
             self.clear_area(background_color, x, y, s.background_width, visible_height);
             self.gl_renderer()
                 .display(|builder, space_and_clip, scale| {
                     let s = s.clone();
 
-                    let foreground_color = pixel_to_color(unsafe { (*gc).foreground });
-
-                    // draw underline
-                    if unsafe { (*face).underline() != face_underline_type::FACE_NO_UNDERLINE } {
-                        Self::draw_underline(
-                            builder,
-                            s,
-                            font,
-                            foreground_color,
-                            face,
-                            space_and_clip,
-                            scale,
-                        );
-                    }
+                    let foreground_color = pixel_to_color(s.gc().foreground);
 
                     let visible_rect = (x, y).by(s.width, visible_height, scale);
 
@@ -456,63 +350,6 @@ impl FrameExtGlRendererCommon for FrameRef {
                     }
                 });
         }
-    }
-
-    fn draw_underline(
-        builder: &mut DisplayListBuilder,
-        s: GlyphStringRef,
-        font: FontInfoRef,
-        foreground_color: ColorF,
-        face: *mut Face,
-        space_and_clip: SpaceAndClipInfo,
-        scale: f32,
-    ) {
-        let x = s.x;
-        let y = s.y;
-
-        let underline_color = if unsafe { (*face).underline_defaulted_p() } {
-            foreground_color
-        } else {
-            pixel_to_color(unsafe { (*face).underline_color })
-        };
-
-        let thickness = if font.font.underline_thickness > 0 {
-            font.font.underline_thickness
-        } else if unsafe { (*face).underline() } == face_underline_type::FACE_UNDER_WAVE {
-            2
-        } else {
-            1
-        };
-
-        let position = if font.font.underline_position > 0 {
-            font.font.underline_position
-        } else {
-            y + s.height - thickness
-        };
-
-        let line_type = if unsafe { (*face).underline() } == face_underline_type::FACE_UNDER_WAVE {
-            LineStyle::Wavy
-        } else {
-            LineStyle::Solid
-        };
-
-        let visible_height = s.visible_height();
-
-        let info = CommonItemProperties::new(
-            (x, y).by(s.width as i32, visible_height, scale),
-            space_and_clip,
-        );
-
-        let visible_rect = (x, position).by(s.width as i32, thickness, scale);
-
-        builder.push_line(
-            &info,
-            &visible_rect,
-            1.0,
-            LineOrientation::Horizontal,
-            &underline_color,
-            line_type,
-        );
     }
 
     fn draw_fringe_bitmap(
@@ -559,13 +396,13 @@ impl FrameExtGlRendererCommon for FrameRef {
             });
     }
 
-    fn draw_vertical_window_border(&mut self, face: Option<*mut Face>, x: i32, y0: i32, y1: i32) {
+    fn draw_vertical_window_border(&mut self, face: Option<FaceRef>, x: i32, y0: i32, y1: i32) {
         // Fix the border height
         // Don't known why the height is short than expected.
         let y1 = y1 + 1;
 
         let color = match face {
-            Some(f) => pixel_to_color(unsafe { (*f).foreground }),
+            Some(f) => f.fg_color(),
             None => ColorF::BLACK,
         };
 
@@ -576,9 +413,9 @@ impl FrameExtGlRendererCommon for FrameRef {
 
     fn draw_window_divider(
         &mut self,
-        color: u64,
-        color_first: u64,
-        color_last: u64,
+        color: ColorF,
+        color_first: ColorF,
+        color_last: ColorF,
         x0: i32,
         x1: i32,
         y0: i32,
@@ -608,13 +445,13 @@ impl FrameExtGlRendererCommon for FrameRef {
             (None, Some(visible_rect), None)
         };
         if let Some(first) = first {
-            self.draw_rectangle(pixel_to_color(color_first), first);
+            self.draw_rectangle(color_first, first);
         }
         if let Some(middle) = middle {
-            self.draw_rectangle(pixel_to_color(color), middle);
+            self.draw_rectangle(color, middle);
         }
         if let Some(last) = last {
-            self.draw_rectangle(pixel_to_color(color_last), last);
+            self.draw_rectangle(color_last, last);
         }
     }
 
@@ -721,12 +558,12 @@ impl FrameExtGlRendererCommon for FrameRef {
             });
     }
 
-    fn draw_bar_cursor(&mut self, face: &Face, x: i32, y: i32, width: i32, height: i32) {
-        let cursor_color = if pixel_to_color(face.background) == self.cursor_color() {
-            pixel_to_color(face.foreground)
-        } else {
-            self.cursor_color()
+    fn draw_bar_cursor(&mut self, face: Option<FaceRef>, x: i32, y: i32, width: i32, height: i32) {
+        let cursor_color = match face {
+            Some(face) if face.bg_color() == self.cursor_color() => face.fg_color(),
+            _ => self.cursor_color(),
         };
+
         let scale = self.gl_renderer().scale();
         let bounds = (x, y).by(width, height, scale);
 

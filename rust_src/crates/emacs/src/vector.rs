@@ -21,7 +21,7 @@ use crate::process::LispProcessRef;
 use crate::sys::Lisp_Vectorlike;
 use crate::sys::PSEUDOVECTOR_FLAG;
 use crate::terminal::TerminalRef;
-use crate::window::LispWindowRef;
+use crate::window::WindowRef;
 
 pub type LispVectorlikeRef = ExternalPtr<Lisp_Vectorlike>;
 #[allow(dead_code)]
@@ -97,7 +97,7 @@ impl LispVectorlikeRef {
         }
     }
 
-    pub fn as_window(self) -> Option<LispWindowRef> {
+    pub fn as_window(self) -> Option<WindowRef> {
         if self.is_pseudovector(pvec_type::PVEC_WINDOW) {
             Some(self.cast())
         } else {

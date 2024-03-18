@@ -1708,7 +1708,11 @@ enum face_underline_type
 {
   FACE_NO_UNDERLINE = 0,
   FACE_UNDER_LINE,
-  FACE_UNDER_WAVE
+  FACE_UNDER_WAVE,
+#ifdef USE_WEBRENDER
+  FACE_UNDER_DOTTED,
+  FACE_UNDER_DASHED,
+#endif /* #USE_WEBRENDER */
 };
 
 /* Structure describing a realized face.
@@ -1792,7 +1796,11 @@ struct face
   ENUM_BF (face_box_type) box : 2;
 
   /* Style of underlining. */
+#ifdef USE_WEBRENDER
+  ENUM_BF (face_underline_type) underline : 4;
+#else
   ENUM_BF (face_underline_type) underline : 2;
+#endif /* #USE_WEBRENDER */
 
   /* If `box' above specifies a 3D type, true means use box_color for
      drawing shadows.  */

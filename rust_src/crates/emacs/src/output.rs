@@ -11,27 +11,30 @@ pub use crate::bindings::winit_output as Output;
 #[cfg(have_x11)]
 pub use crate::bindings::x_output as Output;
 
+#[cfg(have_window_system)]
 use crate::display_info::DisplayInfoRef;
+#[cfg(have_window_system)]
 use crate::font::FontRef;
 use crate::lisp::ExternalPtr;
 
 pub type OutputRef = ExternalPtr<Output>;
 
-pub trait OutputExtWindowSystem {
-    fn display_info(&self) -> DisplayInfoRef;
-    fn set_font(&mut self, font: FontRef);
-    fn set_fontset(&mut self, fontset: i32);
-}
-
-impl OutputExtWindowSystem for OutputRef {
-    fn set_font(&mut self, mut font: FontRef) {
+impl OutputRef {
+    #[cfg(have_window_system)]
+    pub fn font(&self) -> FontRef {
+        FontRef::new(self.font as *mut _)
+    }
+    #[cfg(have_window_system)]
+    pub fn set_font(&mut self, mut font: FontRef) {
         self.font = font.as_mut();
     }
 
-    fn set_fontset(&mut self, fontset: i32) {
+    #[cfg(have_window_system)]
+    pub fn set_fontset(&mut self, fontset: i32) {
         self.fontset = fontset;
     }
-    fn display_info(&self) -> DisplayInfoRef {
+
+    pub fn display_info(&self) -> DisplayInfoRef {
         DisplayInfoRef::new(self.display_info as *mut _)
     }
 }

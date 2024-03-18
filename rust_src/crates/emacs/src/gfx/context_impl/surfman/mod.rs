@@ -2,8 +2,7 @@ mod rendering_context;
 
 use crate::frame::FrameRef;
 use crate::gfx::context::GLContextTrait;
-use raw_window_handle::HasRawDisplayHandle;
-use raw_window_handle::HasRawWindowHandle;
+
 use webrender_api::units::DeviceIntSize;
 
 use surfman::Connection;
@@ -40,8 +39,8 @@ impl GLContextTrait for ContextImpl {
     fn build(frame: &FrameRef) -> Self {
         log::trace!("Initialize OpenGL context using Surfman");
 
-        let display_handle = frame.raw_display_handle();
-        let window_handle = frame.raw_window_handle();
+        let display_handle = frame.raw_display_handle().unwrap();
+        let window_handle = frame.raw_window_handle().unwrap();
         let size = frame.physical_size();
         let width = size.to_untyped().width;
         let height = size.to_untyped().height;

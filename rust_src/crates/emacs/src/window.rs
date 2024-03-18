@@ -1,3 +1,6 @@
+use crate::bindings::draw_phys_cursor_glyph;
+use crate::bindings::get_phys_cursor_geometry;
+use crate::bindings::get_phys_cursor_glyph;
 use crate::bindings::glyph_row_area::TEXT_AREA;
 use crate::bindings::glyph_row_area::{self};
 use crate::bindings::pvec_type;
@@ -5,17 +8,20 @@ use crate::bindings::window;
 use crate::bindings::window_box;
 use crate::bindings::window_box_left;
 use crate::bindings::Lisp_Type;
+use crate::display_traits::DrawGlyphsFace;
+use crate::display_traits::GlyphRef;
+use crate::display_traits::GlyphRowRef;
 use crate::frame::FrameRef;
 use crate::globals::Qwindowp;
 use crate::lisp::ExternalPtr;
 use crate::lisp::LispObject;
 use crate::vector::LispVectorlikeRef;
 
-pub type Lisp_Window = window;
+pub type Window = window;
 
-pub type LispWindowRef = ExternalPtr<Lisp_Window>;
+pub type WindowRef = ExternalPtr<Window>;
 
-impl LispWindowRef {
+impl WindowRef {
     /// A window of any sort, leaf or interior, is "valid" if its
     /// contents slot is non-nil.
     pub fn is_valid(self) -> bool {
@@ -106,17 +112,57 @@ impl LispWindowRef {
         x + unsafe { window_box_left(self.as_mut(), TEXT_AREA) }
     }
 
-    pub fn area_box(mut self, area: glyph_row_area::Type) -> (i32, i32, i32, i32) {
+    pub fn area_box(mut self, area: impl Into<glyph_row_area::Type>) -> (i32, i32, i32, i32) {
         let mut x: i32 = 0;
         let mut y: i32 = 0;
         let mut width: i32 = 0;
         let mut height: i32 = 0;
 
         unsafe {
-            window_box(self.as_mut(), area, &mut x, &mut y, &mut width, &mut height);
+            window_box(
+                self.as_mut(),
+                area.into(),
+                &mut x,
+                &mut y,
+                &mut width,
+                &mut height,
+            );
         }
 
         (x, y, width, height)
+    }
+
+    pub fn phys_cursor_glyph(mut self) -> GlyphRef {
+        unsafe { get_phys_cursor_glyph(self.as_mut()) }.into()
+    }
+
+    pub fn phys_cursor_geometry(mut self, mut row: GlyphRowRef) -> Option<(i32, i32, i32)> {
+        let mut cursor_glyph = self.phys_cursor_glyph();
+
+        if cursor_glyph.is_null() {
+            return None;
+        }
+
+        let mut x: i32 = 0;
+        let mut y: i32 = 0;
+        let mut height: i32 = 0;
+        unsafe {
+            get_phys_cursor_geometry(
+                self.as_mut(),
+                row.as_mut(),
+                cursor_glyph.as_mut(),
+                &mut x,
+                &mut y,
+                &mut height,
+            )
+        };
+        Some((x, y, height))
+    }
+
+    pub fn draw_phys_cursor_glyph(mut self, mut row: GlyphRowRef) {
+        unsafe {
+            draw_phys_cursor_glyph(self.as_mut(), row.as_mut(), DrawGlyphsFace::Cursor.into())
+        };
     }
 }
 
@@ -126,29 +172,29 @@ impl LispObject {
             .map_or(false, |v| v.is_pseudovector(pvec_type::PVEC_WINDOW))
     }
 
-    pub fn as_window(self) -> Option<LispWindowRef> {
+    pub fn as_window(self) -> Option<WindowRef> {
         self.into()
     }
 
-    pub fn as_valid_window(self) -> Option<LispWindowRef> {
+    pub fn as_valid_window(self) -> Option<WindowRef> {
         self.as_window()
             .and_then(|w| if w.is_valid() { Some(w) } else { None })
     }
 }
 
-impl From<LispObject> for LispWindowRef {
+impl From<LispObject> for WindowRef {
     fn from(o: LispObject) -> Self {
         o.as_window().unwrap_or_else(|| wrong_type!(Qwindowp, o))
     }
 }
 
-impl From<LispWindowRef> for LispObject {
-    fn from(w: LispWindowRef) -> Self {
+impl From<WindowRef> for LispObject {
+    fn from(w: WindowRef) -> Self {
         Self::tag_ptr(w, Lisp_Type::Lisp_Vectorlike)
     }
 }
 
-impl From<LispObject> for Option<LispWindowRef> {
+impl From<LispObject> for Option<WindowRef> {
     fn from(o: LispObject) -> Self {
         o.as_vectorlike().and_then(LispVectorlikeRef::as_window)
     }

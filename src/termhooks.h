@@ -531,7 +531,7 @@ struct terminal
 
 #ifdef HAVE_WINIT
   /* Winit terminal global state in Rust */
-  void *winit_term_data;
+  void *winit;
 #endif  /*HAVE_WINIT*/
 
 #ifdef USE_WEBRENDER

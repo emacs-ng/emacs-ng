@@ -767,7 +767,7 @@ Otherwise, VALUE must be a property list of the form:
 `(:color COLOR :style STYLE)'.
 
 COLOR can be either a color name string or `foreground-color'.
-STYLE can be either `line' or `wave'.
+STYLE can be `line' `wave' `dotted' or 'dashed'.
 If a keyword/value pair is missing from the property list, a
 default value will be used for the value.
 The default value of COLOR is the foreground color of the face.
@@ -1012,7 +1012,7 @@ If UNDERLINE is a string, underline with that color.
 
 UNDERLINE may also be a list of the form (:color COLOR :style STYLE),
 where COLOR is a string or `foreground-color', and STYLE is either
-`line' or `wave'.  :color may be omitted, which means to use the
+`line' `wave' `dotted' or `dashed'.  :color may be omitted, which means to use the
 foreground color.  :style may be omitted, which means to use a line.
 
 FRAME nil or not specified means change face on all frames.

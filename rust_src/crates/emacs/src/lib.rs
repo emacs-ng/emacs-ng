@@ -43,7 +43,7 @@ pub mod lisp;
 pub mod buffer;
 #[cfg(use_webrender)]
 pub mod color;
-#[cfg(feature = "window-system")]
+#[cfg(have_window_system)]
 pub mod composite;
 #[cfg(have_window_system)]
 pub mod display_info;

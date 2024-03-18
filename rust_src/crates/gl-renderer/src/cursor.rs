@@ -1,39 +1,20 @@
 use crate::frame::FrameExtGlRendererCommon;
 use crate::util::HandyDandyRectBuilder;
+use emacs::display_traits::GlyphRowArea;
+use emacs::display_traits::GlyphRowRef;
+use emacs::display_traits::GlyphType;
+use emacs::window::WindowRef;
 
-use emacs::bindings::draw_glyphs_face;
-use emacs::bindings::draw_phys_cursor_glyph;
-use emacs::bindings::get_phys_cursor_geometry;
-use emacs::bindings::get_phys_cursor_glyph;
-use emacs::bindings::glyph_row;
-use emacs::bindings::glyph_row_area;
-use emacs::bindings::glyph_type;
-use emacs::window::LispWindowRef;
-
-pub fn draw_filled_cursor(mut window: LispWindowRef, row: *mut glyph_row) {
-    unsafe { draw_phys_cursor_glyph(window.as_mut(), row, draw_glyphs_face::DRAW_CURSOR) };
+pub fn draw_filled_cursor(window: WindowRef, row: GlyphRowRef) {
+    window.draw_phys_cursor_glyph(row);
 }
 
-pub fn draw_hollow_box_cursor(mut window: LispWindowRef, row: *mut glyph_row) {
-    let cursor_glyph = unsafe { get_phys_cursor_glyph(window.as_mut()) };
-
-    if cursor_glyph.is_null() {
+pub fn draw_hollow_box_cursor(window: WindowRef, row: GlyphRowRef) {
+    let geometry = window.phys_cursor_geometry(row);
+    if geometry.is_none() {
         return;
     }
-
-    let mut x: i32 = 0;
-    let mut y: i32 = 0;
-    let mut height: i32 = 0;
-    unsafe {
-        get_phys_cursor_geometry(
-            window.as_mut(),
-            row,
-            cursor_glyph,
-            &mut x,
-            &mut y,
-            &mut height,
-        )
-    };
+    let (x, y, height) = geometry.unwrap();
     let width = window.phys_cursor_width;
 
     let mut frame = window.get_frame();
@@ -41,40 +22,30 @@ pub fn draw_hollow_box_cursor(mut window: LispWindowRef, row: *mut glyph_row) {
     let cursor_rect = (x, y).by(width, height, scale);
 
     let window_rect = {
-        let (x, y, width, height) = window.area_box(glyph_row_area::ANY_AREA);
+        let (x, y, width, height) = window.area_box(GlyphRowArea::Any);
         (x, y).by(width, height, scale)
     };
 
     frame.draw_hollow_box_cursor(cursor_rect, window_rect);
 }
 
-pub fn draw_bar_cursor(
-    mut window: LispWindowRef,
-    row: *mut glyph_row,
-    cursor_width: i32,
-    is_hbar: bool,
-) {
+pub fn draw_bar_cursor(mut window: WindowRef, row: GlyphRowRef, cursor_width: i32, is_hbar: bool) {
     let mut frame = window.get_frame();
 
-    let cursor_glyph = unsafe { get_phys_cursor_glyph(window.as_mut()) };
+    let cursor_glyph = window.phys_cursor_glyph();
 
     if cursor_glyph.is_null() {
         return;
     }
 
-    if unsafe {
-        (*cursor_glyph).type_() == glyph_type::XWIDGET_GLYPH
-            || (*cursor_glyph).type_() == glyph_type::IMAGE_GLYPH
-    } {
+    let glyph_type = cursor_glyph.glyph_type();
+    if glyph_type == GlyphType::Xwidget || glyph_type == GlyphType::Image {
         return;
     }
 
-    let face = unsafe {
-        let face_id = (*cursor_glyph).face_id();
-        let face_id = std::mem::transmute::<u32, emacs::bindings::face_id>(face_id);
+    let face = frame.face_from_id(cursor_glyph.face_id2());
 
-        &*frame.face_from_id(face_id).unwrap()
-    };
+    let cursor_glyph_width = cursor_glyph.pixel_width as i32;
 
     let (x, y, width, height) = if !is_hbar {
         let mut x = window.text_to_frame_pixel_x(window.phys_cursor.x);
@@ -86,34 +57,34 @@ pub fn draw_bar_cursor(
             cursor_width
         };
 
-        let width = std::cmp::min(unsafe { (*cursor_glyph).pixel_width } as i32, width);
+        let width = std::cmp::min(cursor_glyph_width, width);
 
         window.phys_cursor_width = width;
         // If the character under cursor is R2L, draw the bar cursor
         //  on the right of its glyph, rather than on the left.
-        if (unsafe { (*cursor_glyph).resolved_level() } & 1) != 0 {
-            x += unsafe { (*cursor_glyph).pixel_width } as i32 - width;
+        if (cursor_glyph.resolved_level() & 1) != 0 {
+            x += cursor_glyph_width - width;
         }
 
-        let height = unsafe { (*row).height };
+        let height = row.height;
 
         (x, y, width, height)
     } else {
-        let row_height = unsafe { (*row).height } as i32;
+        let row_height = row.height as i32;
         let mut x = window.text_to_frame_pixel_x(window.phys_cursor.x);
 
         let height = if cursor_width < 0 {
-            unsafe { (*row).height }
+            row.height
         } else {
             cursor_width
         };
 
         let height = std::cmp::min(row_height, height);
 
-        if (unsafe { (*cursor_glyph).resolved_level() } & 1) != 0
-            && unsafe { (*cursor_glyph).pixel_width } as i32 > window.phys_cursor_width - 1
+        if (cursor_glyph.resolved_level() & 1) != 0
+            && cursor_glyph_width > window.phys_cursor_width - 1
         {
-            x += unsafe { (*cursor_glyph).pixel_width } as i32 - window.phys_cursor_width + 1;
+            x += cursor_glyph_width - window.phys_cursor_width + 1;
         }
 
         let y = window.frame_pixel_y(window.phys_cursor.y + row_height - height);

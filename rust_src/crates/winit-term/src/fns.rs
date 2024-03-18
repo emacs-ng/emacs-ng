@@ -1,4 +1,6 @@
 //! wrterm.rs
+
+use crate::cursor::build_mouse_cursors;
 use crate::frame::FrameExtWinit;
 use crate::input::keysym_to_emacs_key_name;
 use crate::term::winit_term_init;
@@ -6,12 +8,16 @@ use emacs::bindings::gui_update_cursor;
 use emacs::bindings::selected_frame;
 use emacs::bindings::Fredraw_frame;
 use emacs::color::color_to_pixel;
+use emacs::display_traits::FrameParam;
 use emacs::frame::Frame;
+use emacs::output::Output;
 use emacs::terminal::TerminalRef;
 use font::register_swash_font_driver;
+use raw_window_handle::RawWindowHandle;
 use std::ffi::CString;
 use std::ptr;
 use webrender_api::*;
+use winit::dpi::LogicalSize;
 
 use emacs::bindings::output_method;
 use winit::monitor::MonitorHandle;
@@ -19,17 +25,17 @@ use winit::monitor::MonitorHandle;
 use lisp_macros::lisp_fn;
 
 use emacs::color::lookup_color_by_name_or_hex;
-use emacs::output::OutputExtWindowSystem;
 use emacs::output::OutputRef;
+use raw_window_handle::RawDisplayHandle;
 
 use emacs::{
     bindings::globals,
     bindings::hash_table_weakness_t::Weak_None,
-    bindings::resource_types::{RES_TYPE_NUMBER, RES_TYPE_STRING, RES_TYPE_SYMBOL},
     bindings::{
-        block_input, build_string, gui_display_get_arg, hashtest_eql, list3i, make_fixnum,
+        block_input, build_string, gui_figure_window_size, hashtest_eql, list3i, make_fixnum,
         make_hash_table, make_monitor_attribute_list, unblock_input, Display, Emacs_Rectangle,
-        Fcons, Fcopy_alist, Fmake_vector, Fprovide, MonitorInfo, Vframe_list, Window, CHECK_STRING,
+        Fcons, Fcopy_alist, Fmake_vector, Fprovide, MonitorInfo, Vframe_list, Vwindow_list, Window,
+        CHECK_STRING,
     },
     definitions::EmacsInt,
     frame::{all_frames, window_frame_live_or_selected, FrameRef},
@@ -48,21 +54,15 @@ use emacs::{
         QXcb,
         QXlib,
         Qbackground_color,
-        Qfont,
-        Qfont_backend,
-        Qforeground_color,
-        Qleft_fringe,
-        Qminibuffer,
-        Qname,
+        Qbox,
+        Qicon,
         Qnil,
-        Qparent_id,
-        Qright_fringe,
+        Qright,
         Qt,
-        Qterminal,
         Qunbound,
         Qwinit,
-        Qx_create_frame_1,
-        Qx_create_frame_2,
+        // Qx_create_frame_1,
+        // Qx_create_frame_2,
     },
     lisp::{ExternalPtr, LispObject},
 };
@@ -206,10 +206,54 @@ pub extern "C" fn frame_set_mouse_pixel_position(f: FrameRef, pix_x: i32, pix_y:
     unsafe { unblock_input() };
 }
 
+// STRING in a "tooltip" window on frame FRAME.
+// A tooltip window is a small X window displaying a string.
+
+// This is an internal function; Lisp code should call `tooltip-show'.
+
+// FRAME nil or omitted means use the selected frame.
+
+// PARMS is an optional list of frame parameters which can be used to
+// change the tooltip's appearance.
+
+// Automatically hide the tooltip after TIMEOUT seconds.  TIMEOUT nil
+// means use the default timeout from the `x-show-tooltip-timeout'
+// variable.
+
+// If the list of frame parameters PARMS contains a `left' parameter,
+// display the tooltip at that x-position.  If the list of frame parameters
+// PARMS contains no `left' but a `right' parameter, display the tooltip
+// right-adjusted at that x-position. Otherwise display it at the
+// x-position of the mouse, with offset DX added (default is 5 if DX isn't
+// specified).
+
+// Likewise for the y-position: If a `top' frame parameter is specified, it
+// determines the position of the upper edge of the tooltip window.  If a
+// `bottom' parameter but no `top' frame parameter is specified, it
+// determines the position of the lower edge of the tooltip window.
+// Otherwise display the tooltip window at the y-position of the mouse,
+// with offset DY added (default is -10).
+
+// A tooltip's maximum size is specified by `x-max-tooltip-size'.
+// Text larger than the specified size is clipped.
+#[lisp_fn(min = "1")]
+pub fn x_show_tip(
+    _string: LispObject,
+    _frame: LispObject,
+    _parms: LispObject,
+    _timeout: LispObject,
+    _dx: LispObject,
+    _dy: LispObject,
+) -> LispObject {
+    //TODO
+    Qnil
+}
+
 /// Hide the current tooltip window, if there is any.
 /// Value is t if tooltip was open, nil otherwise.
 #[lisp_fn]
 pub fn x_hide_tip() -> LispObject {
+    //TODO
     Qnil
 }
 
@@ -222,9 +266,11 @@ pub fn x_hide_tip() -> LispObject {
 ///
 /// This function is an internal primitive--use `make-frame' instead.
 #[lisp_fn]
-pub fn winit_create_frame(parms: LispObject) -> FrameRef {
-    // x_get_arg modifies parms.
-    let parms = unsafe { Fcopy_alist(parms) };
+pub fn winit_create_frame(params: LispObject) -> FrameRef {
+    // x_get_arg modifies params.
+    let params = unsafe { Fcopy_alist(params) };
+
+    log::debug!("Creating a new frame with params: {:?}", params);
 
     // Use this general default value to start with
     // until we know if this frame has a specified name.
@@ -232,169 +278,220 @@ pub fn winit_create_frame(parms: LispObject) -> FrameRef {
         globals.Vx_resource_name = globals.Vinvocation_name;
     }
 
-    let mut display = unsafe {
-        gui_display_get_arg(
-            ptr::null_mut(),
-            parms,
-            Qterminal,
-            ptr::null(),
-            ptr::null(),
-            RES_TYPE_STRING,
-        )
-    };
+    let mut dpyinfo = DisplayInfoRef::null();
+    let terminal_or_display = dpyinfo.terminal_or_display_arg(params);
+    let mut dpyinfo = check_x_display_info(terminal_or_display);
 
-    if display.eq(Qunbound) {
-        display = Qnil;
+    let mut f = FrameRef::build(dpyinfo, params);
+    let frame = LispObject::from(f);
+
+    f.set_output_method(output_method::output_winit);
+    let mut output = Box::new(Output::default());
+    build_mouse_cursors(&mut output.as_mut());
+    // Remeber to destory the Output object when frame destoried.
+    let output = Box::into_raw(output);
+    f.output_data.winit = output as *mut Output;
+    f.init_winit_data();
+    f.set_fontset(-1);
+    f.set_display_info(dpyinfo);
+
+    let parent_id = dpyinfo.gui_arg(params, FrameParam::ParentId);
+    if parent_id.is_not_nil() {
+        f.output().parent_desc =
+            unsafe { emacs::bindings::XFIXNAT(parent_id) as emacs::bindings::Window };
+        f.output().set_explicit_parent(true);
+    } else {
+        f.output().parent_desc = f.display_info().root_window;
+        f.output().set_explicit_parent(false);
     }
 
-    let mut dpyinfo = check_x_display_info(display);
-    let terminal = dpyinfo.terminal();
-
-    if terminal.name == ptr::null_mut() {
-        error!("Terminal is not live, can't create new frames on it");
-    }
-
-    let kb = terminal.kboard;
-    let name = unsafe {
-        gui_display_get_arg(
-            dpyinfo.as_mut(),
-            parms,
-            Qname,
-            ptr::null(),
-            ptr::null(),
-            RES_TYPE_STRING,
-        )
-    };
-
-    if !name.is_string() && !name.eq(Qunbound) && !name.is_nil() {
-        error!("Invalid frame name--not a string or nil");
-    }
-
-    if name.is_string() {
-        unsafe {
-            globals.Vx_resource_name = name;
+    //TODO do something specific to each display
+    match f.raw_display_handle().unwrap() {
+        RawDisplayHandle::UiKit(_) => {
+            todo!()
         }
+        RawDisplayHandle::AppKit(_) => {
+            todo!()
+        }
+        RawDisplayHandle::Orbital(_) => {
+            todo!()
+        }
+        RawDisplayHandle::Xlib(_) | RawDisplayHandle::Xcb(_) => {
+            // TODO apply x resources
+        }
+        RawDisplayHandle::Wayland(_) => {
+            // TODO maybe apply gsettings
+        }
+        RawDisplayHandle::Drm(_) => {}
+        RawDisplayHandle::Gbm(_) => {}
+        RawDisplayHandle::Windows(_) => {
+            // TODO apply settings from registry
+        }
+        RawDisplayHandle::Web(_) => {}
+        RawDisplayHandle::Android(_) => {}
+        RawDisplayHandle::Haiku(_) => {}
+        _ => {}
     }
 
-    let mut parent = unsafe {
-        gui_display_get_arg(
-            dpyinfo.as_mut(),
-            parms,
-            Qparent_id,
-            ptr::null(),
-            ptr::null(),
-            RES_TYPE_NUMBER,
-        )
-    };
+    register_swash_font_driver(f.as_mut());
 
-    if parent.eq(Qunbound) {
-        parent = Qnil;
+    // //TODO Make it a global state for assert when both GLYPH_DEBUG ENABLE_CHECKING are enabled
+    // let image_cache_refcount = if !f.image_cache().is_null() { f.image_cache().refcount} else {0};
+    // //TODO Make it a global state for assert when both GLYPH_DEBUG is enabled
+    // let dpyinfo_refcount = dpyinfo.reference_count;
+
+    f.gui_default_parameter(params, FrameParam::FontBackend, Qnil);
+    // We rely on Rust font-index crate to choose a generic Monospace font
+    f.gui_default_parameter(params, FrameParam::Font, "Monospace");
+
+    if f.font().is_null() {
+        unsafe { emacs::bindings::delete_frame(frame, emacs::globals::Qnoelisp) };
+        error!("Invalid frame font");
     }
 
-    if parent.is_not_nil() {}
-    let tem = unsafe {
-        let lcmb = CString::new("minibuffer").unwrap();
-        let ucmb = CString::new("Minibuffer").unwrap();
-        gui_display_get_arg(
-            dpyinfo.as_mut(),
-            parms,
-            Qminibuffer,
-            lcmb.as_ptr(),
-            ucmb.as_ptr(),
-            RES_TYPE_SYMBOL,
-        )
+    f.gui_default_parameter(params, FrameParam::BorderWidth, 0);
+    f.gui_default_parameter(params, FrameParam::InternalBorderWidth, 0);
+    f.gui_default_parameter(params, FrameParam::ChildFrameBorderWidth, 0);
+    f.gui_default_parameter(params, FrameParam::RightDividerWidth, 0);
+    f.gui_default_parameter(params, FrameParam::BottomDividerWidth, 0);
+    f.gui_default_parameter(params, FrameParam::VerticalScrollBars, Qright);
+    f.gui_default_parameter(params, FrameParam::HorizontalScrollBars, Qnil);
+    f.gui_default_parameter(params, FrameParam::ForegroundColor, "black");
+    f.gui_default_parameter(params, FrameParam::BackgroundColor, "white");
+    f.gui_default_parameter(params, FrameParam::MouseColor, "black");
+    f.gui_default_parameter(params, FrameParam::BorderColor, "black");
+    f.gui_default_parameter(params, FrameParam::ScreenGamma, Qnil);
+    f.gui_default_parameter(params, FrameParam::LineSpacing, Qnil);
+    f.gui_default_parameter(params, FrameParam::LeftFringe, Qnil);
+    f.gui_default_parameter(params, FrameParam::RightFringe, Qnil);
+    f.gui_default_parameter(params, FrameParam::NoSpecialGlyphs, Qnil);
+    f.gui_default_parameter(params, FrameParam::ScrollBarForeground, Qnil);
+    f.gui_default_parameter(params, FrameParam::ScrollBarBackground, Qnil);
+
+    f.init_faces();
+
+    /* Set the menu-bar-lines and tool-bar-lines parameters.  We don't
+    look up the X resources controlling the menu-bar and tool-bar
+    here; they are processed specially at startup, and reflected in
+    the values of the mode variables.  */
+    let menu_bar_lines = if unsafe { globals.Vmenu_bar_mode.is_nil() } {
+        0
+    } else {
+        1
     };
+    f.gui_default_parameter_no_x_resource(params, FrameParam::MenuBarLines, menu_bar_lines);
+    let tab_bar_lines = if unsafe { globals.Vtab_bar_mode.is_nil() } {
+        0
+    } else {
+        1
+    };
+    f.gui_default_parameter_no_x_resource(params, FrameParam::TabBarLines, tab_bar_lines);
+    let tool_bar_lines = if unsafe { globals.Vtool_bar_mode.is_nil() } {
+        0
+    } else {
+        1
+    };
+    f.gui_default_parameter_no_x_resource(params, FrameParam::ToolBarLines, tool_bar_lines);
 
-    let mut frame = FrameRef::build(display, dpyinfo, tem, kb.into());
+    f.gui_default_parameter(params, FrameParam::BufferPredicate, Qnil);
+    f.gui_default_parameter(params, FrameParam::Title, Qnil);
+    f.gui_default_parameter(params, FrameParam::WaitForWm, Qt);
+    f.gui_default_parameter(params, FrameParam::ToolBarPosition, f.tool_bar_position);
+    f.gui_default_parameter(params, FrameParam::InhibitDoubleBuffering, Qnil);
 
-    register_swash_font_driver(frame.as_mut());
+    /* We need to do this after creating the X window, so that the
+    icon-creation functions can say whose icon they're describing.  */
+    f.gui_default_parameter(params, FrameParam::IconType, true);
+    f.gui_default_parameter(params, FrameParam::AutoRaise, false);
+    f.gui_default_parameter(params, FrameParam::AutoLower, false);
+    f.gui_default_parameter(params, FrameParam::CursorType, Qbox);
+    f.gui_default_parameter(params, FrameParam::ScrollBarWidth, 0);
+    f.gui_default_parameter(params, FrameParam::ScrollBarHeight, 0);
+    f.gui_default_parameter(params, FrameParam::Alpha, 0);
+    f.gui_default_parameter(params, FrameParam::AlphaBackground, 0);
+    f.gui_default_parameter(params, FrameParam::NoFocusOnMap, false);
+    f.gui_default_parameter(params, FrameParam::NoAcceptFocus, false);
+    f.gui_default_parameter(params, FrameParam::Fullscreen, Qnil);
 
-    frame.gui_default_parameter(
-        parms,
-        Qfont_backend,
-        Qnil,
-        "fontBackend",
-        "FontBackend",
-        RES_TYPE_STRING,
-    );
+    /* Compute the size of the winit window.  */
+    // FIXME what to do with the window_prompting here
+    let _window_prompting = unsafe { gui_figure_window_size(f.as_mut(), params, true, true) };
+    // TODO Create the menu bar.
 
-    frame.gui_default_parameter(
-        parms,
-        Qfont,
-        "Monospace".into(),
-        "font",
-        "Font",
-        RES_TYPE_STRING,
-    );
+    f.set_can_set_window_size(true);
 
-    frame.gui_default_parameter(
-        parms,
-        Qforeground_color,
-        "black".into(),
-        "foreground",
-        "Foreground",
-        RES_TYPE_STRING,
-    );
-    frame.gui_default_parameter(
-        parms,
-        Qbackground_color,
-        "white".into(),
-        "background",
-        "Background",
-        RES_TYPE_STRING,
-    );
+    // f.text_width = f.pixel_to_text_width(f.pixel_width as i32);
+    // f.text_height = f.pixel_to_text_height(f.pixel_height as i32);
 
-    frame.gui_default_parameter(
-        parms,
-        Qleft_fringe,
-        Qnil,
-        "leftFringe",
-        "LeftFringe",
-        RES_TYPE_NUMBER,
-    );
+    // f.adjust_size(f.text_width, f.text_height, 5, true, Qx_create_frame_1);
 
-    frame.gui_default_parameter(
-        parms,
-        Qright_fringe,
-        Qnil,
-        "rightFringe",
-        "RightFringe",
-        RES_TYPE_NUMBER,
-    );
+    // f.adjust_size(f.text_width, f.text_height, 0, true, Qx_create_frame_2);
 
-    let output = frame.output();
+    /* Make the window appear on the frame and enable display, unless
+    the caller says not to.  However, with explicit parent, Emacs
+    cannot control visibility, so don't try.  */
+    if f.output().explicit_parent() {
+        let visibility = dpyinfo.gui_arg(params, FrameParam::Visibility);
+        let visibility = if visibility.base_eq(Qunbound) {
+            Qt
+        } else {
+            visibility
+        };
+        let height = dpyinfo.gui_arg(params, FrameParam::Height);
+        let width = dpyinfo.gui_arg(params, FrameParam::Width);
+        if visibility.eq(Qicon) {
+            f.set_was_invisible(true);
+            f.iconify();
+        } else {
+            if visibility.is_not_nil() {
+                f.set_visible_(true);
+            } else {
+                f.set_was_invisible(true);
+            }
+        }
+        /* Leave f->was_invisible true only if height or width were
+        specified too.  This takes effect only when we are not called
+        from `x-create-frame-with-faces' (see above comment).  */
+        let was_invisible =
+            f.was_invisible() && (!height.base_eq(Qunbound) || !width.base_eq(Qunbound));
+        f.set_was_invisible(was_invisible);
+        f.store_param(FrameParam::Visibility, visibility);
+    }
 
-    frame.text_width = frame.pixel_to_text_width(frame.pixel_width as i32);
-    frame.text_height = frame.pixel_to_text_height(frame.pixel_height as i32);
+    /* Works if frame has been already mapped.  */
+    f.gui_default_parameter(params, FrameParam::SkipTaskbar, false);
+    /* The `z-group' parameter works only for visible frames.  */
+    f.gui_default_parameter(params, FrameParam::ZGroup, false);
 
-    frame.set_can_set_window_size(true);
+    //     /* Initialize `default-minibuffer-frame' in case this is the first
+    //    frame on this terminal.  */
+    // if (FRAME_HAS_MINIBUF_P (f)
+    //     && (!FRAMEP (KVAR (kb, Vdefault_minibuffer_frame))
+    //         || !FRAME_LIVE_P (XFRAME (KVAR (kb, Vdefault_minibuffer_frame)))))
+    //   kset_default_minibuffer_frame (kb, frame);
 
-    frame.adjust_size(
-        frame.text_width,
-        frame.text_height,
-        5,
-        true,
-        Qx_create_frame_1,
-    );
+    // /* All remaining specified parameters, which have not been "used"
+    //    by gui_display_get_arg and friends, now go in the misc. alist of the frame.  */
+    // for (tem = parms; CONSP (tem); tem = XCDR (tem))
+    //   if (CONSP (XCAR (tem)) && !NILP (XCAR (XCAR (tem))))
+    //     fset_param_alist (f, Fcons (XCAR (tem), f->param_alist));
 
-    frame.adjust_size(
-        frame.text_width,
-        frame.text_height,
-        0,
-        true,
-        Qx_create_frame_2,
-    );
+    /* Make sure windows on this frame appear in calls to next-window
+    and similar functions.  */
+    unsafe { Vwindow_list = Qnil };
 
-    frame.init_faces();
+    // let mut dpyinfo = frame.display_info();
+
+    dpyinfo.highlight_frame = f.as_mut();
+
+    f.setup_winit();
 
     /* Now consider the frame official.  */
-    unsafe { Vframe_list = Fcons(frame.into(), Vframe_list) };
+    f.terminal().reference_count += 1;
+    f.display_info().reference_count += 1;
+    unsafe { Vframe_list = Fcons(frame, Vframe_list) };
 
-    let mut dpyinfo = output.display_info();
-
-    dpyinfo.highlight_frame = frame.as_mut();
-
-    frame
+    f
 }
 
 /// Open a connection to a display server.
@@ -622,19 +719,23 @@ pub fn winit_monitor_to_emacs_monitor(m: MonitorHandle) -> (MonitorInfo, Option<
 /// Internal use only, use `display-monitor-attributes-list' instead.
 #[lisp_fn(min = "0")]
 pub fn winit_display_monitor_attributes_list(terminal: LispObject) -> LispObject {
-    let mut terminal: TerminalRef = terminal.into();
+    let terminal: TerminalRef = terminal.into();
 
-    let monitors: Vec<_> = terminal.available_monitors().collect();
+    let monitors: Vec<_> = terminal
+        .available_monitors()
+        .and_then(|ms| Some(ms.collect()))
+        .unwrap_or(Vec::new());
     let primary_monitor = terminal.primary_monitor();
 
-    let mut primary_monitor_index = 0;
-
-    for (i, m) in monitors.iter().enumerate() {
-        if m.name() == primary_monitor.name() {
-            primary_monitor_index = i;
-            break;
-        }
-    }
+    let primary_monitor_index = monitors
+        .iter()
+        .position(|m| {
+            primary_monitor
+                .as_ref()
+                .and_then(|pm| Some(pm.name() == m.name()))
+                .unwrap_or(false)
+        })
+        .unwrap_or(0);
 
     let emacs_monitor_infos: Vec<_> = monitors
         .iter()
@@ -678,6 +779,16 @@ pub fn winit_display_monitor_attributes_list(terminal: LispObject) -> LispObject
     }
 }
 
+fn winit_screen_size(terminal: LispObject) -> LogicalSize<i32> {
+    let dpyinfo = check_x_display_info(terminal);
+    let terminal = dpyinfo.terminal();
+    terminal
+        .primary_monitor()
+        .or_else(|| terminal.available_monitors()?.next())
+        .and_then(|m| Some(m.size().to_logical::<i32>(m.scale_factor())))
+        .unwrap_or(LogicalSize::new(0, 0))
+}
+
 /// Return the width in pixels of the X display TERMINAL.
 /// The optional argument TERMINAL specifies which display to ask about.
 /// TERMINAL should be a terminal object, a frame or a display name (a string).
@@ -689,16 +800,7 @@ pub fn winit_display_monitor_attributes_list(terminal: LispObject) -> LispObject
 /// each physical monitor, use `display-monitor-attributes-list'.
 #[lisp_fn(min = "0")]
 pub fn x_display_pixel_width(terminal: LispObject) -> LispObject {
-    let mut terminal: TerminalRef = terminal.into();
-
-    let primary_monitor = terminal.primary_monitor();
-
-    let dpi_factor = primary_monitor.scale_factor();
-
-    let physical_size = primary_monitor.size();
-    let logical_size = physical_size.to_logical::<i32>(dpi_factor);
-
-    unsafe { make_fixnum(logical_size.width as i64) }
+    unsafe { make_fixnum(winit_screen_size(terminal).width as i64) }
 }
 
 /// Return the height in pixels of the X display TERMINAL.
@@ -712,16 +814,7 @@ pub fn x_display_pixel_width(terminal: LispObject) -> LispObject {
 /// each physical monitor, use `display-monitor-attributes-list'.
 #[lisp_fn(min = "0")]
 pub fn x_display_pixel_height(terminal: LispObject) -> LispObject {
-    let mut terminal: TerminalRef = terminal.into();
-
-    let primary_monitor = terminal.primary_monitor();
-
-    let dpi_factor = primary_monitor.scale_factor();
-
-    let physical_size = primary_monitor.size();
-    let logical_size = physical_size.to_logical::<i32>(dpi_factor);
-
-    unsafe { make_fixnum(logical_size.height as i64) }
+    unsafe { make_fixnum(winit_screen_size(terminal).height as i64) }
 }
 
 /// Assert an X selection of type SELECTION and value VALUE.
@@ -746,12 +839,13 @@ pub fn x_own_selection_internal(
         frame
     };
     let frame: FrameRef = frame.into();
-    let mut terminal = frame.terminal();
     let content = value.force_string().to_utf8();
-    match terminal.winit_term_data().clipboard.set_text(content) {
-        Ok(_) => value,
-        Err(err) => error!("{}", err),
-    }
+    frame
+        .terminal()
+        .winit_data()
+        .and_then(|mut d| d.clipboard.set_text(content).ok())
+        .map(|_| value)
+        .unwrap_or(Qnil)
 }
 
 /// Return text selected from some X window.
@@ -774,13 +868,12 @@ pub fn x_get_selection_internal(
     _time_stamp: LispObject,
     terminal: LispObject,
 ) -> LispObject {
-    let mut terminal: TerminalRef = terminal.into();
-    // let contents: &str = &terminal.winit_term_data().clipboard.read();
-    let contents = match &terminal.winit_term_data().clipboard.get_text() {
-        Ok(s) => s.to_string(),
-        Err(err) => error!("{}", err),
-    };
-    contents.into()
+    let terminal: TerminalRef = terminal.into();
+    terminal
+        .winit_data()
+        .and_then(|mut d| d.clipboard.get_text().ok())
+        .map(|contents| LispObject::from(contents))
+        .unwrap_or(Qnil)
 }
 
 /// Whether the current Emacs process owns the given X Selection.
@@ -843,10 +936,9 @@ pub fn winit_frame_edges(frame: LispObject, type_: LispObject) -> LispObject {
 /// If omitted or nil, that stands for the selected frame.
 #[lisp_fn(min = "0")]
 pub fn winit_raw_window_handle_name(frame: LispObject) -> LispObject {
-    use raw_window_handle::HasRawWindowHandle;
-    use raw_window_handle::RawWindowHandle;
     let frame: FrameRef = window_frame_live_or_selected(frame);
-    match frame.raw_window_handle() {
+
+    match frame.raw_window_handle().unwrap() {
         RawWindowHandle::UiKit(_) => QUiKit,
         RawWindowHandle::AppKit(_) => QAppKit,
         RawWindowHandle::Orbital(_) => QOrbital,

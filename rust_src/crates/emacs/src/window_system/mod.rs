@@ -24,7 +24,7 @@ impl FrameRef {
 
 use raw_window_handle::RawDisplayHandle;
 
-pub fn display_descriptor(raw_display_handle: RawDisplayHandle) -> std::os::fd::RawFd {
+pub fn display_descriptor(display_handle: RawDisplayHandle) -> std::os::fd::RawFd {
     #[cfg(free_unix)]
     use raw_window_handle::WaylandDisplayHandle;
     #[cfg(x11_platform)]
@@ -35,19 +35,23 @@ pub fn display_descriptor(raw_display_handle: RawDisplayHandle) -> std::os::fd::
     use wayland_sys::client::wayland_client_handle;
     #[cfg(free_unix)]
     use wayland_sys::client::wl_display;
-    match raw_display_handle {
+
+    match display_handle {
         #[cfg(free_unix)]
         RawDisplayHandle::Wayland(WaylandDisplayHandle { display, .. }) => {
             log::trace!("wayland display {display:?}");
-            let fd =
-                unsafe { (wayland_client_handle().wl_display_get_fd)(display as *mut wl_display) };
+            let fd = unsafe {
+                (wayland_client_handle().wl_display_get_fd)(display.as_ptr() as *mut wl_display)
+            };
             log::trace!("wayland display fd {fd:?}");
             fd
         }
         #[cfg(x11_platform)]
         RawDisplayHandle::Xlib(XlibDisplayHandle { display, .. }) => {
             log::trace!("xlib display {display:?}");
-            let fd = unsafe { x11::xlib::XConnectionNumber(display as *mut x11::xlib::Display) };
+            let fd = unsafe {
+                x11::xlib::XConnectionNumber(display.as_ptr() as *mut x11::xlib::Display)
+            };
             log::trace!("xlib display fd {fd:?}");
             fd
         }

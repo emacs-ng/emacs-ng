@@ -1,50 +1,42 @@
-use crate::display_info::DisplayInfoExtGlRenderer;
-use crate::image::ImageExt;
-use crate::image::ImageRef;
-use crate::output::OutputRef;
-use emacs::bindings::terminal;
-use emacs::multibyte::LispStringRef;
-use emacs::terminal::TerminalRef;
-use lisp_macros::lisp_fn;
-use std::cmp::max;
-use std::ffi::CString;
-use std::ptr;
-
-use crate::frame::FrameExtGlRendererCommon;
-use webrender::api::units::LayoutPoint;
-use webrender::api::units::LayoutRect;
-
 use crate::cursor::draw_bar_cursor;
 use crate::cursor::draw_filled_cursor;
 use crate::cursor::draw_hollow_box_cursor;
+use crate::display_info::DisplayInfoExtGlRenderer;
+use crate::frame::FrameExtGlRendererCommon;
 use crate::fringe::get_or_create_fringe_bitmap;
+use crate::image::ImageExt;
+use crate::image::ImageRef;
 use crate::image::WrPixmap;
+use crate::output::OutputRef;
 use crate::util::HandyDandyRectBuilder;
-use emacs::color::color_to_xcolor;
-use emacs::color::lookup_color_by_name_or_hex;
-use emacs::color::pixel_to_color;
-use font::FontInfo;
-use font::FontInfoRef;
-
 use emacs::bindings::block_input;
 use emacs::bindings::display_and_set_cursor;
 use emacs::bindings::draw_fringe_bitmap_params;
 use emacs::bindings::draw_window_fringes;
 use emacs::bindings::face_id;
 use emacs::bindings::fontset_from_font;
+use emacs::bindings::globals;
 use emacs::bindings::glyph_row;
-use emacs::bindings::glyph_row_area;
 use emacs::bindings::glyph_string;
 use emacs::bindings::gui_clear_cursor;
 use emacs::bindings::gui_draw_right_divider;
 use emacs::bindings::gui_draw_vertical_border;
 use emacs::bindings::image;
+use emacs::bindings::lookup_basic_face;
 use emacs::bindings::run;
+use emacs::bindings::terminal;
 use emacs::bindings::text_cursor_kinds;
 use emacs::bindings::unblock_input;
 use emacs::bindings::Emacs_Color;
 use emacs::bindings::Emacs_Pixmap;
 use emacs::bindings::Fprovide;
+use emacs::bindings::FACE_FROM_ID_OR_NULL;
+use emacs::color::color_to_xcolor;
+use emacs::color::lookup_color_by_name_or_hex;
+use emacs::color::pixel_to_color;
+use emacs::display_traits::FaceId;
+use emacs::display_traits::GlyphRowArea;
+use emacs::display_traits::GlyphRowRef;
 use emacs::display_traits::GlyphStringRef;
 use emacs::font::LispFontRef;
 use emacs::frame::Frame;
@@ -52,20 +44,32 @@ use emacs::frame::FrameRef;
 use emacs::globals::Qnil;
 use emacs::globals::Qwr;
 use emacs::lisp::LispObject;
-use emacs::window::LispWindowRef;
-use emacs::window::Lisp_Window;
+use emacs::multibyte::LispStringRef;
+use emacs::terminal::TerminalRef;
+use emacs::window::Window;
+use emacs::window::WindowRef;
+use font::FontInfo;
+use font::FontInfoRef;
+
+use lisp_macros::lisp_fn;
+use std::cmp::max;
+use std::ffi::CString;
+use std::ptr;
+use webrender::api::units::LayoutPoint;
+use webrender::api::units::LayoutRect;
+use webrender::api::ColorF;
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn wr_update_window_begin(w: *mut Lisp_Window) {}
+pub extern "C" fn wr_update_window_begin(w: *mut Window) {}
 
 #[no_mangle]
 pub extern "C" fn wr_update_window_end(
-    window: *mut Lisp_Window,
+    window: *mut Window,
     cursor_no_p: bool,
     _mouse_face_overwritten_p: bool,
 ) {
-    let mut window: LispWindowRef = window.into();
+    let mut window: WindowRef = window.into();
 
     if window.pseudo_window_p() {
         return;
@@ -108,8 +112,8 @@ pub extern "C" fn wr_flush_display(f: *mut Frame) {
 
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn wr_after_update_window_line(w: *mut Lisp_Window, desired_row: *mut glyph_row) {
-    let window: LispWindowRef = w.into();
+pub extern "C" fn wr_after_update_window_line(w: *mut Window, desired_row: *mut glyph_row) {
+    let window: WindowRef = w.into();
 
     if !unsafe { (*desired_row).mode_line_p() } && !window.pseudo_window_p() {
         unsafe { (*desired_row).set_redraw_fringe_bitmaps_p(true) };
@@ -128,16 +132,16 @@ pub extern "C" fn wr_draw_glyph_string(s: *mut glyph_string) {
 
 #[no_mangle]
 pub extern "C" fn wr_draw_fringe_bitmap(
-    window: *mut Lisp_Window,
+    window: *mut Window,
     row: *mut glyph_row,
     p: *mut draw_fringe_bitmap_params,
 ) {
-    let window: LispWindowRef = window.into();
+    let window: WindowRef = window.into();
     let mut frame: FrameRef = window.get_frame();
     let scale = frame.gl_renderer().scale();
 
     let row_rect: LayoutRect = unsafe {
-        let (window_x, window_y, window_width, _) = window.area_box(glyph_row_area::ANY_AREA);
+        let (window_x, window_y, window_width, _) = window.area_box(GlyphRowArea::Any);
 
         let x = window_x;
 
@@ -200,46 +204,27 @@ pub extern "C" fn wr_draw_fringe_bitmap(
 }
 
 #[no_mangle]
-pub extern "C" fn wr_draw_window_divider(
-    window: *mut Lisp_Window,
-    x0: i32,
-    x1: i32,
-    y0: i32,
-    y1: i32,
-) {
-    let window: LispWindowRef = window.into();
+pub extern "C" fn wr_draw_window_divider(window: *mut Window, x0: i32, x1: i32, y0: i32, y1: i32) {
+    let window: WindowRef = window.into();
     let mut frame: FrameRef = window.get_frame();
 
-    let face = frame.face_from_id(face_id::WINDOW_DIVIDER_FACE_ID);
-    let face_first = frame.face_from_id(face_id::WINDOW_DIVIDER_FIRST_PIXEL_FACE_ID);
-    let face_last = frame.face_from_id(face_id::WINDOW_DIVIDER_LAST_PIXEL_FACE_ID);
-
-    let color = match face {
-        Some(f) => unsafe { (*f).foreground },
-        None => frame.foreground_pixel,
+    let face_fg_color = |id: FaceId| -> ColorF {
+        frame
+            .face_from_id(id)
+            .map(|f| f.fg_color())
+            .unwrap_or(frame.fg_color())
     };
 
-    let color_first = match face_first {
-        Some(f) => unsafe { (*f).foreground },
-        None => frame.foreground_pixel,
-    };
-
-    let color_last = match face_last {
-        Some(f) => unsafe { (*f).foreground },
-        None => frame.foreground_pixel,
-    };
+    let color = face_fg_color(FaceId::WindowDivider);
+    let color_first = face_fg_color(FaceId::WindowDividerFirstPixel);
+    let color_last = face_fg_color(FaceId::WindowDividerLastPixel);
 
     frame.draw_window_divider(color, color_first, color_last, x0, x1, y0, y1);
 }
 
 #[no_mangle]
-pub extern "C" fn wr_draw_vertical_window_border(
-    window: *mut Lisp_Window,
-    x: i32,
-    y0: i32,
-    y1: i32,
-) {
-    let window: LispWindowRef = window.into();
+pub extern "C" fn wr_draw_vertical_window_border(window: *mut Window, x: i32, y0: i32, y1: i32) {
+    let window: WindowRef = window.into();
     let mut frame: FrameRef = window.get_frame();
 
     let face = frame.face_from_id(face_id::VERTICAL_BORDER_FACE_ID);
@@ -250,6 +235,10 @@ pub extern "C" fn wr_draw_vertical_window_border(
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn wr_clear_frame_area(f: *mut Frame, x: i32, y: i32, width: i32, height: i32) {
+    wr_clear_area(f, x, y, width, height);
+}
+
+fn wr_clear_area(f: *mut Frame, x: i32, y: i32, width: i32, height: i32) {
     let mut frame: FrameRef = f.into();
 
     let color = pixel_to_color(frame.background_pixel);
@@ -259,7 +248,7 @@ pub extern "C" fn wr_clear_frame_area(f: *mut Frame, x: i32, y: i32, width: i32,
 
 #[no_mangle]
 pub extern "C" fn wr_draw_window_cursor(
-    window: *mut Lisp_Window,
+    window: *mut Window,
     row: *mut glyph_row,
     _x: i32,
     _y: i32,
@@ -268,7 +257,8 @@ pub extern "C" fn wr_draw_window_cursor(
     on_p: bool,
     _active_p: bool,
 ) {
-    let mut window: LispWindowRef = window.into();
+    let mut window: WindowRef = window.into();
+    let row: GlyphRowRef = row.into();
 
     if !on_p {
         return;
@@ -386,11 +376,11 @@ pub extern "C" fn wr_clear_frame(f: *mut Frame) {
 }
 
 #[no_mangle]
-pub extern "C" fn wr_scroll_run(w: *mut Lisp_Window, run: *mut run) {
-    let window: LispWindowRef = w.into();
+pub extern "C" fn wr_scroll_run(w: *mut Window, run: *mut run) {
+    let window: WindowRef = w.into();
     let mut frame = window.get_frame();
 
-    let (x, y, width, height) = window.area_box(glyph_row_area::ANY_AREA);
+    let (x, y, width, height) = window.area_box(GlyphRowArea::Any);
 
     let from_y = unsafe { (*run).current_y + window.top_edge_y() };
     let to_y = unsafe { (*run).desired_y + window.top_edge_y() };
@@ -485,6 +475,47 @@ pub extern "C" fn image_pixmap_draw_cross(
 #[no_mangle]
 pub extern "C" fn image_sync_to_pixmaps(_frame: FrameRef, _img: *mut image) {
     unimplemented!();
+}
+
+#[no_mangle]
+pub extern "C" fn gl_clear_under_internal_border(f: *mut Frame) {
+    let mut f = FrameRef::new(f);
+    let border = f.internal_border_width();
+    let width = f.pixel_width;
+    let height = f.pixel_height;
+    let margin = f.top_margin_height();
+    let bottom_margin = f.bottom_margin_height();
+    let face_id_fallback = |id: face_id| {
+        if unsafe { globals.Vface_remapping_alist.is_not_nil() } {
+            unsafe { lookup_basic_face(ptr::null_mut(), f.clone().as_mut(), id as i32) }
+        } else {
+            id as i32
+        }
+    };
+    let face_id = match f.parent_frame() {
+        Some(_) => face_id_fallback(face_id::CHILD_FRAME_BORDER_FACE_ID),
+        None => face_id_fallback(face_id::INTERNAL_BORDER_FACE_ID),
+    };
+    let face = unsafe { FACE_FROM_ID_OR_NULL(f.as_mut(), face_id) };
+
+    unsafe { block_input() };
+
+    if face.is_null() {
+        wr_clear_area(f.as_mut(), 0, 0, border, height);
+        wr_clear_area(f.as_mut(), 0, margin, width, border);
+        wr_clear_area(f.as_mut(), 0, width - border, border, height);
+        wr_clear_area(
+            f.as_mut(),
+            0,
+            height - bottom_margin - border,
+            width,
+            border,
+        );
+    } else {
+        log::error!("unimplemented: clean under internal border with face");
+    }
+
+    unsafe { unblock_input() };
 }
 
 #[no_mangle]
